@@ -58,11 +58,14 @@ async function start(): Promise<void> {
 
   ipcMain.handle("folders:get", (event) => (fromWindow(event) ? ready.entries() : []));
   ipcMain.handle("folders:open", async (event) => {
-    if (!win || !fromWindow(event)) return;
-    const picked = await dialog.showOpenDialog(win, { properties: ["openDirectory"] });
+    const window = win;
+    if (!window || !fromWindow(event)) return;
+    const picked = await dialog.showOpenDialog(window, { properties: ["openDirectory"] });
     const path = picked.filePaths[0];
     if (picked.canceled || path === undefined) return;
-    await ready.open(path);
+    const refused = await ready.open(path);
+    // Not awaited: the open call has finished; the message box only informs.
+    if (refused !== null && !window.isDestroyed()) void dialog.showMessageBox(window, { type: "error", message: "폴더를 열 수 없음", detail: refused });
   });
   ipcMain.handle("folders:close", async (event, path: unknown) => {
     if (!fromWindow(event) || typeof path !== "string") return;

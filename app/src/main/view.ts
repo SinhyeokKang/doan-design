@@ -59,9 +59,22 @@ export function folderEntry(path: string, view: FolderView, baseUrl: string): Fo
   }
 }
 
+export type OpenDecision = { store: string } | { refuse: string };
+
 // A picked subfolder of a repo is stored as the repo root the CLI found, so the
-// same repo opens once. Without a root (not initialized, broken config, no CLI)
-// the picked folder's real path is all there is.
-export function storedPath(state: FolderState, realPicked: string): string {
-  return state.kind === "list" ? state.root : realPicked;
+// same repo opens once. A failing run (broken config, no CLI) has no root: the
+// picked folder is stored only when it holds `.doan` and so is a root itself.
+// A subfolder stored instead would later read as "not initialized" and invite a
+// nested `doan init`. Discovery itself stays in Go; this is one existence check.
+export function openDecision(state: FolderState, realPicked: string, pickedHasDoan: boolean): OpenDecision {
+  switch (state.kind) {
+    case "list":
+      return { store: state.root };
+    case "uninitialized":
+      return { store: realPicked };
+    case "error":
+      return pickedHasDoan ? { store: realPicked } : { refuse: state.message };
+    case "cliError":
+      return pickedHasDoan ? { store: realPicked } : { refuse: state.reason ? `doan CLI 오류: ${state.reason}` : "doan CLI 오류" };
+  }
 }

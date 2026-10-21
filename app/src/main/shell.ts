@@ -1,14 +1,16 @@
 import { realpath, stat } from "node:fs/promises";
+import { join } from "node:path";
 import { readFolder, runLs } from "./cli";
 import { openFolderStore } from "./folderStore";
 import { folderState } from "./folderState";
 import { startServer, type LocalServer } from "./serve/server";
-import { folderEntry, storedPath, type FolderEntry } from "./view";
+import { folderEntry, openDecision, type FolderEntry } from "./view";
 import { watchFolder, type FolderWatch } from "./watch";
 
 export interface Shell {
   entries(): FolderEntry[];
-  open(picked: string): Promise<void>;
+  // Resolves to a message for the human when the folder is not opened.
+  open(picked: string): Promise<string | null>;
   close(path: string): Promise<void>;
   dispose(): Promise<void>;
 }
@@ -21,6 +23,14 @@ interface Folder {
   // Reads from the watcher and from a re-open can overlap; only the latest
   // started read may publish, so an older `doan ls` never overwrites a newer one.
   reads: number;
+}
+
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 // Electron-free on purpose: the window, dialog and IPC live in index.ts.
@@ -81,21 +91,25 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         // A folder removed after it was picked would make the cwd-based run
         // fail as `spawn doan ENOENT`, which reads like a missing CLI.
         real = await realpath(picked);
-        if (!(await stat(real)).isDirectory()) return;
+        if (!(await stat(real)).isDirectory()) return null;
       } catch (error) {
         console.error("doan: picked folder is gone", picked, error);
-        return;
+        return null;
       }
-      const path = storedPath(folderState(await runLs(cli, { cwd: real })), real);
+      const state = folderState(await runLs(cli, { cwd: real }));
+      const decision = openDecision(state, real, await isDirectory(join(real, ".doan")));
+      if ("refuse" in decision) return decision.refuse;
+      const path = decision.store;
       const existing = folders.get(path);
       if (existing) {
         attach(existing);
-        return;
+        return null;
       }
       const write = store.add(path);
       add(path);
       onChange(entries());
       logWrite(await write);
+      return null;
     },
     async close(path) {
       const folder = folders.get(path);
