@@ -67,7 +67,7 @@ Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(
 - `/feature`가 기능의 시작점이다. 산출물은 `docs/features/<slug>/`(spec·design·tasks)에 두고, 기능이 끝나면 결론을 PRODUCT.md로 올리고 그 디렉터리는 지운다.
 - `/code-review`는 이 리포의 스킬을 가리킨다. Claude Code 내장 `code-review`와 다르다.
 - 회귀·버그를 고쳤으면 `/postmortem`. `/implement`·`/refactor`·`/code-review`는 착수 전에 `docs/POSTMORTEM.md`를 grep한다(파일이 있을 때).
-- 끝은 브랜치 정책(아래 커밋 컨벤션)을 따른다: 문서만이면 main push, 코드면 기능 브랜치 push + PR. 머지는 하지 않는다.
+- `/ship`·`/orchestrate`는 항상 main에서 `feat-<slug>` 브랜치를 만들어 시작하고, 그 브랜치 push + PR로 끝난다. 머지는 하지 않는다.
 
 ## 문서
 
@@ -80,7 +80,7 @@ Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(
 
 ## 커밋 컨벤션
 
-- **브랜치**(2026-10-21 사용자): 코드가 생기기 전까지는 main에 바로 커밋·push한다. 코드 작업이 시작되면 기능 브랜치를 만들고 PR로 main에 넣는다. 배포 서버가 없어 dev/main 분리는 두지 않는다.
+- **브랜치**(2026-10-21 사용자): 코드가 생기기 전까지는 main에 바로 커밋·push한다. 코드 작업이 시작되면 기능 브랜치(`feat-<slug>`)를 만들고 PR로 main에 넣는다. `/ship`·`/orchestrate`는 문서만 바꿔도 항상 `feat-<slug>`로 시작한다. 배포 서버가 없어 dev/main 분리는 두지 않는다.
 - **커밋 메시지는 영문**, Conventional Commits (`feat:` `fix:` `docs:` `docs(scope):` `chore:`).
 - 문서별로 커밋을 나눈다.
 - **주석은 영문으로, "왜"만 쓴다**(2026-10-21 사용자 — 오픈소스로 공개하므로 외부 기여자가 읽을 수 있게). 코드가 말하는 "무엇"을 반복하지 않는다. 비자명한 제약·함정을 남긴다.
