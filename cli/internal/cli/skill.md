@@ -42,3 +42,21 @@ All commands accept `--repo <directory>` and `--json`. Without `--repo`, reposit
 JSON output is one versioned envelope on stdout, with no stderr: `{v:1,ok:true,result}` or `{v:1,ok:false,error:{code,message,nextSteps}}`. Optional keys are omitted and empty lists are `[]`.
 
 Exit codes: 0 success (including warnings); 1 internal failure; 2 usage, repository, configuration, version, canvas, or comment errors; 3 app connection/protocol errors (reserved for app commands); 4 check error findings, still with `ok:true`. Read `error.nextSteps` on failure. Resolve appends events without rewriting history; after a partial I/O failure, rerunning the same ids is safe. Doan does not commit or push.
+
+## MCP tools
+
+`doan mcp` serves the same commands as MCP tools over stdio. Each tool returns the envelope that the command prints with `--json`, both as text and as structured content; `isError` is true exactly when `ok` is false, so `doan check` error findings still return `isError: false`.
+
+| Tool | Command | Arguments |
+|---|---|---|
+| `init` | `doan init` | `repo?`, `tokenCss?` |
+| `ls` | `doan ls` | `repo?` |
+| `comments` | `doan comments` | `repo?`, `canvas?` |
+| `resolve_comments` | `doan comment resolve` | `repo?`, `ids`, `agent` |
+| `check` | `doan check` | `repo?` |
+| `skill` | `doan skill` | none |
+
+- `repo` must be an absolute path. Without it, tools use the server's working directory: repository tools search upward, and `init` targets that directory.
+- Call `resolve_comments` with `{"ids": ["cmt_00000000-0000-4000-8000-000000000001"], "agent": "claude-code"}`. Always supply `agent` yourself; it is not taken from the MCP client.
+- Use `init` only when the user asks for it, and ask the user for the token CSS path first.
+- `nextSteps` and messages name CLI commands and flags; map them to tools with the table above (`--repo` is the `repo` argument).
