@@ -15,7 +15,7 @@ description: 작은 변경 하나를 tdd→implement→code-review→refactor→
 ## 0. 인테이크
 
 - **스코프 가드**: 여러 구성 요소(앱·CLI·MCP·형식)에 걸침, 범위 밖(PRODUCT §3), §4 '규약'이나 §6 결정의 변경, `docs/features/`가 필요한 새 기능 — 하나라도 해당하면 멈추고 `/feature`부터 권한다. 범위 밖·결정 변경은 `bypass`로도 통과하지 않는다(사용자 결정이다).
-- **브랜치**(AGENTS.md 커밋 컨벤션, 2026-10-21 결정): 문서만 바꾸는 변경이면 main에 바로 커밋한다. 코드를 바꾸면 기능 브랜치에서 한다. main에 있으면 `git switch -c <slug>`로 만들고 이름을 리포트에 적는다.
+- **브랜치**(AGENTS.md 커밋 컨벤션, 2026-10-21 결정): `/ship`은 항상 main에서 `git switch -c feat-<slug>`로 시작한다. 문서만 바꾸는 변경도 같다. 이미 `feat-<slug>`에 있으면 그대로 쓴다. 이름을 리포트에 적는다. `/orchestrate`의 워커로 돌 때는 브리프가 정한 브랜치를 쓴다.
 - **워크트리 소유권**: `git status --porcelain`의 추적 중인 변경(`M`·`D`·`A`·`R`) 중 이번 세션이 건드리지 않은 것이 있으면 멈춘다. 다른 세션이 같은 체크아웃에서 작업 중이라는 뜻이다. 미추적(`??`)은 보고만 한다. "다른 워크트리에서 한다"는 말이 아니라 `git worktree list` 출력을 근거로 삼는다.
 - **클린 워크트리**: 내 미커밋 변경이 있으면 먼저 따로 커밋한다. 그 diff가 이번 대상과 겹치면 커밋하지 말고 멈춘다(테스트를 먼저 박는 순서가 이미 깨졌다).
 - **명령 확인**: AGENTS.md '명령어' 절에 이번 영역의 테스트·타입 검사 명령이 있는지 본다. 없으면 여기서 멈추고 묻는다. 문서만 바꾸는 변경은 이 확인을 건너뛴다.
@@ -32,7 +32,7 @@ description: 작은 변경 하나를 tdd→implement→code-review→refactor→
 8. **`/postmortem`** [게이팅] — 커밋 #1이 `fix:`이거나 postmortem 후보가 있을 때만. 바뀌었으면 `docs(postmortem):` 커밋.
 9. **문서 신선도** — 푸시될 diff를 한 번 훑어 `docs/PRODUCT.md`와 어긋나는지 본다. 결정이 새로 났거나 뒤집혔으면 해당 절과 §8 결정 기록(날짜·근거)을 고친다. `/feature`로 시작한 기능이 끝났으면 결론을 PRODUCT로 올리고 `docs/features/<slug>/`를 지운다. 작업 방식이 바뀌었으면 AGENTS.md. 문서마다 커밋을 나눈다(`docs(PRODUCT): ...`).
 10. **최종 게이트** — 푸시할 HEAD에서 테스트·타입 검사를 다시 돌린다(문서만이면 생략).
-11. **push** — 문서만이면 `git push`(main). 코드면 `git push -u origin <branch>` 뒤 `gh pr create --base main`. PR title·body는 영문이다. Claude 세션은 세션이 준 attribution 줄을 body 끝에 붙인다. 머지는 하지 않는다.
+11. **push** — `git push -u origin feat-<slug>` 뒤 `gh pr create --base main`. PR title·body는 영문이다. Claude 세션은 세션이 준 attribution 줄을 body 끝에 붙인다. 머지는 하지 않는다.
 
 **커밋 규칙**: 영문 Conventional Commits. 경로를 하나씩 stage한다(`git add -A`·디렉터리 통째 금지). `.env`·`*.pem`·자격 증명 파일이 staged면 멈춘다. Claude 세션 커밋은 세션이 준 `Co-Authored-By` 줄로, Codex 세션 커밋은 `Co-Authored-By: Codex <noreply@openai.com>`으로 끝낸다.
 
@@ -52,7 +52,7 @@ description: 작은 변경 하나를 tdd→implement→code-review→refactor→
 
 ## 최종 리포트
 
-미완·미검증 항목을 맨 위에 쓴다. 이어서 단계별 통과/스킵(사유)/중단, 커밋 해시, bypass 사용 여부와 계획 원본, push 대상(main 또는 브랜치 + PR URL), 돌린 명령과 결과.
+미완·미검증 항목을 맨 위에 쓴다. 이어서 단계별 통과/스킵(사유)/중단, 커밋 해시, bypass 사용 여부와 계획 원본, push 대상(`feat-<slug>` + PR URL), 돌린 명령과 결과.
 
 ## 금지 사항
 
