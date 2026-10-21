@@ -154,6 +154,21 @@ MVP가 공식 지원하는 에이전트는 Claude Code와 Codex다(2026-10-21). 
 
 13. Claude Code · Codex용 스킬을 설치한다.
 
+### 피처 분할 (2026-10-21)
+
+MVP를 피처 8개로 나눈다. 피처 하나는 `/feature` 한 번이고 `docs/features/<slug>/`에서 관리한다. 순서는 의존 관계를 따르고, §7 PoC를 통과한 뒤 시작한다. 형식과 CLI를 먼저 세우면 앱 없이도 에이전트 쪽 루프(코멘트 읽기 · resolve · check)를 검증할 수 있고, 앱은 그 형식 위에 쌓는다.
+
+| # | slug | 범위 |
+|---|---|---|
+| 1 | `formats` | JSON Schema(코멘트 이벤트 · config · CLI 봉투) + 픽스처 + 이벤트 접기(TS·Go) |
+| 2 | `cli-core` | Go CLI: `init` · `ls` · `comments` · `comment resolve` · `check`(정적) · `skill`, `--json` · 종료 코드 · 리포 탐색 |
+| 3 | `mcp` | `doan mcp`(stdio) |
+| 4 | `app-shell` | Electron 골격: 폴더 여러 개 · 로컬 서버(서빙 범위) · 파일 감시 · 캔버스 목록 |
+| 5 | `canvas-view` | sandbox iframe · 판 크기 · 확대·축소·이동 · 프레임 목록·점프 |
+| 6 | `select-inspect` | 선택 · 인스펙터 · `runtime.json` + 소켓 · `doan active` |
+| 7 | `comments-ui` | 패널 코멘트 CRUD · 핀 · outdated · 문장 복사 |
+| 8 | `onboard-dist` | 첫 실행 온보딩 · `doan skill` 본문 · 공증 dmg · brew cask · 자동 업데이트 |
+
 ### 뒤로 미룬 것
 
 - 승인
@@ -331,6 +346,7 @@ MVP가 공식 지원하는 에이전트는 Claude Code와 Codex다(2026-10-21). 
 | 2026-10-21 | MVP에 인스펙터(읽기 전용, 핵심 스타일 + 토큰 이름). 선택 하나를 인스펙터·코멘트·`active`가 함께 쓴다 | 사용자 결정 — 개발자 도구처럼 스타일을 보되 디자인 검토에 필요한 것만 |
 | 2026-10-21 | 요소 선택 시 한 패널에 인스펙터(조회만) + 코멘트(CRUD). 수정·삭제는 사람만, 삭제는 삭제 이벤트로 | 사용자 결정. 삭제 이벤트는 union 머지에서 지운 코멘트가 되살아나지 않게 |
 | 2026-10-21 | 구현 전 PoC 6항목과 통과 기준(§7) | 사용자 결정 |
+| 2026-10-21 | MVP 피처 8개 분할과 순서(§5 피처 분할) | 사용자 결정 — 형식·CLI 먼저, 앱은 그 위에 |
 | 2026-10-21 | 스펙 하나의 설계서 전체를 캔버스 한 장에서 확대·축소·프레임 선택으로 검토. 캔버스 하나에 프레임 여러 개 | 사용자 결정. 참고: 사용자의 Figma 디자인 가이드("좀 방대하다"), Claude Design `Language Request Todo.dc.html` |
 
 ## 9. 열린 질문
