@@ -7,6 +7,7 @@
 **Reply in Korean, concisely.** If a reply violates this, rewrite it. The items below are pass/fail criteria, not preferences.
 
 - **Language policy** (2026-10-21 user): Korean is used only for (a) conversation between the agent and the user (replies, reports) and (b) feature documents under `docs/features/<slug>/` (spec·design·tasks). Everything else is English: AGENTS.md, skills (`.agents/skills`), `docs/` (PRODUCT.md, ARCHITECTURE.md, and future docs), README.md, code comments, commit messages, and PR title/body.
+- **Plain register** (2026-10-21 user): Korean replies and reports use the plain non-honorific style (`~했다`, `~이다`, `~할까?`), not 존댓말 (`~습니다`, `~해요`). This also covers AskUserQuestion text and interim updates.
 - **The first sentence is the conclusion**: no preamble or announcement — do not open with phrases like "~해보겠습니다" ("I'll go ahead and…"), "좋은 질문입니다" ("Good question"), or "확인해보니 다음과 같습니다" ("Having checked, here is what I found"). Start with the answer or result.
 - **No embellishment**: drop evaluative or agreeing phrases such as "완벽합니다" ("Perfect"), "훌륭한" ("great"), "핵심적인" ("key"), "말씀하신 대로" ("as you said") whenever removing them loses no information.
 - **No restating**: do not re-explain in prose a diff, command output, or file content you just showed.
