@@ -88,6 +88,11 @@ async function makeRepos(dir: string, cli: string): Promise<Repos> {
   await writeFile(join(ok, "design", "bare.html"), "<!doctype html><p>no id, title or width</p>\n");
   // Deeper than the HTML parser's 512-element stack: `doan ls` lists it with path only.
   await writeFile(join(ok, "design", "deep.html"), "<div>".repeat(600));
+  // Path byte order differs from locale order (`Zeta` first) and from id order
+  // (`foo-bar.html` before `foo.html`), so a renderer that re-sorts fails step 2.
+  await writeFile(join(ok, "design", "Zeta.html"), "<!doctype html><title>Zeta</title>\n");
+  await writeFile(join(ok, "design", "foo.html"), '<!doctype html><title>Foo</title><meta name="doan:canvas" content="foo">\n');
+  await writeFile(join(ok, "design", "foo-bar.html"), '<!doctype html><title>Foo bar</title><meta name="doan:canvas" content="foo-bar">\n');
   await writeFile(join(ok, ".doan", "comments", "login.jsonl"), `${JSON.stringify(COMMENT)}\n`);
   await writeFile(join(ok, ".env"), "SECRET=1\n");
 
@@ -146,8 +151,11 @@ async function run(cli: string, userData: string, repos: Repos): Promise<void> {
 
     // 2. What each folder shows.
     const expectedOk: CanvasView[] = [
+      { path: "design/Zeta.html", title: "Zeta", open: "열린 코멘트 0", url: "" },
       { path: "design/bare.html", title: "", open: "열린 코멘트 0", url: "" },
       { path: "design/deep.html", title: "", open: "열린 코멘트 0", url: "" },
+      { path: "design/foo-bar.html", title: "Foo bar", open: "열린 코멘트 0", url: "" },
+      { path: "design/foo.html", title: "Foo", open: "열린 코멘트 0", url: "" },
       { path: "design/login.html", title: "Login screen", open: "열린 코멘트 1", url: "" },
     ];
     for (const path of [repos.ok, repos.worktree]) {
