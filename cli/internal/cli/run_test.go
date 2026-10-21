@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -292,5 +294,99 @@ func TestHelpUsageAndHumanError(t *testing.T) {
 	var out, errout bytes.Buffer
 	if Run([]string{"ls", "--repo", root}, strings.NewReader(""), &out, &errout) != 2 || !strings.HasPrefix(errout.String(), "error:") {
 		t.Fatal(&out, &errout)
+	}
+}
+func TestMCPCommandRejectsFlagsAndArgs(t *testing.T) {
+	if !strings.Contains(result(t, t.TempDir(), 0, "help")["usage"].(string), "\n  mcp\n") {
+		t.Fatal("usage lacks mcp")
+	}
+	for _, args := range [][]string{{"mcp", "--foo"}, {"mcp", "--json"}, {"--json", "mcp"}, {"mcp", "--repo", "x"}, {"mcp", "x"}, {"mcp", "--canvas=foo"}} {
+		var out, errout bytes.Buffer
+		code := Run(append(args, "--json"), strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"ping"}`+"\n"), &out, &errout)
+		var v map[string]any
+		if code != 2 || errout.Len() != 0 || json.Unmarshal(out.Bytes(), &v) != nil || v["error"].(map[string]any)["code"] != "usage_error" {
+			t.Fatal(args, code, &out, &errout)
+		}
+	}
+	var out, errout bytes.Buffer
+	if code := Run([]string{"mcp", "x"}, strings.NewReader(""), &out, &errout); code != 2 || out.Len() != 0 || !strings.HasPrefix(errout.String(), "error:") {
+		t.Fatal(code, &out, &errout)
+	}
+}
+func TestMCPStdioExit(t *testing.T) {
+	var out, errout bytes.Buffer
+	if code := Run([]string{"mcp"}, strings.NewReader(""), &out, &errout); code != 0 || out.Len() != 0 || errout.Len() != 0 {
+		t.Fatal(code, &out, &errout)
+	}
+	if code := Run([]string{"mcp"}, strings.NewReader("not json\n"), &out, &errout); code != 1 || out.Len() != 0 || !strings.HasPrefix(errout.String(), "error: ") {
+		t.Fatal(code, &out, &errout)
+	}
+}
+func TestMCPOverStdioPipes(t *testing.T) {
+	inR, inW := io.Pipe()
+	outR, outW := io.Pipe()
+	var errout bytes.Buffer
+	done := make(chan int, 1)
+	go func() {
+		code := Run([]string{"mcp"}, inR, outW, &errout)
+		outW.Close()
+		done <- code
+	}()
+	lines := bufio.NewScanner(outR)
+	lines.Buffer(nil, 1<<20)
+	send := func(s string) {
+		if _, e := io.WriteString(inW, s+"\n"); e != nil {
+			t.Fatal(e)
+		}
+	}
+	type message struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      *int            `json:"id"`
+		Result  json.RawMessage `json:"result"`
+		Error   any             `json:"error"`
+	}
+	next := func() message {
+		t.Helper()
+		if !lines.Scan() {
+			t.Fatal("stdout closed", lines.Err(), &errout)
+		}
+		var m message
+		if e := json.Unmarshal(lines.Bytes(), &m); e != nil || m.JSONRPC != "2.0" {
+			t.Fatal(e, lines.Text())
+		}
+		return m
+	}
+	// Close stdin only after the expected responses arrive: on EOF the SDK drops
+	// responses that are not yet written.
+	send(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`)
+	if m := next(); *m.ID != 1 || m.Error != nil {
+		t.Fatal(m)
+	}
+	send(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+	send(`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
+	m := next()
+	var list struct{ Tools []struct{ Name string } }
+	if *m.ID != 2 || json.Unmarshal(m.Result, &list) != nil || len(list.Tools) != 6 {
+		t.Fatal(string(m.Result))
+	}
+	dir := t.TempDir()
+	send(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"init","arguments":{"repo":` + fmt.Sprintf("%q", dir) + `}}}`)
+	m = next()
+	var call struct{ IsError bool }
+	if *m.ID != 3 || json.Unmarshal(m.Result, &call) != nil || call.IsError {
+		t.Fatal(string(m.Result))
+	}
+	if strings.Contains(readFile(t, dir, ".doan/config.json"), "tokenCss") {
+		t.Fatal("token prompt answered")
+	}
+	inW.Close()
+	for lines.Scan() {
+		var m message
+		if e := json.Unmarshal(lines.Bytes(), &m); e != nil || m.JSONRPC != "2.0" {
+			t.Fatal(e, lines.Text())
+		}
+	}
+	if code := <-done; code != 0 || errout.Len() != 0 {
+		t.Fatal(code, &errout)
 	}
 }
