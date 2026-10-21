@@ -146,7 +146,7 @@ func ScanCSS(text string, mode Mode) Scan {
 		if t.kind == 'u' {
 			s.URLs = append(s.URLs, t.text)
 		}
-		if depth == 0 && t.kind == '@' && i+2 < len(ts) && lower(ts[i+1].text) == "import" && (ts[i+2].kind == 's' || ts[i+2].kind == 'u') {
+		if depth == 0 && t.kind == '@' && i+2 < len(ts) && ts[i+1].start == t.end && lower(ts[i+1].text) == "import" && (ts[i+2].kind == 's' || ts[i+2].kind == 'u') {
 			s.Imports = append(s.Imports, ts[i+2].text)
 		}
 		if t.kind == '(' {

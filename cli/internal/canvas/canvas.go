@@ -51,6 +51,9 @@ func LocalPath(href string) (string, bool) {
 	if i := strings.IndexAny(s, "?#"); i >= 0 {
 		s = s[:i]
 	}
+	if s == "" {
+		return "", false
+	}
 	p, err := url.PathUnescape(s)
 	if err != nil {
 		return "", false
@@ -135,7 +138,7 @@ func Parse(path string, data []byte) (Canvas, error) {
 					}
 				}
 			}
-			if n.Data == "title" && !titleSeen {
+			if n.Data == "title" && n.Namespace == "" && !titleSeen {
 				c.Title = strings.Join(words(textContent(n)), " ")
 				titleSeen = true
 			}
