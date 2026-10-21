@@ -1,7 +1,7 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, afterEach, describe, expect, inject, test } from "vitest";
+import { afterAll, afterEach, describe, expect, inject, test, vi } from "vitest";
 import { startShell, type Shell } from "./shell";
 import type { FolderEntry } from "./view";
 
@@ -94,5 +94,83 @@ describe("opening a picked folder", () => {
     writeFileSync(file, "x");
     expect(await shell.open(file)).toBe(`폴더를 찾을 수 없음: ${file}`);
     expect(shell.entries()).toEqual([]);
+  });
+});
+
+const until = { timeout: 5000, interval: 20 };
+
+function latest(changes: FolderEntry[][]): FolderEntry[] {
+  return changes.at(-1) ?? [];
+}
+
+// Wraps the real CLI so `--repo` reads (the shell's re-reads, not the
+// cwd run of `open`) wait until `gate` exists, then mark `done`.
+function gatedCli(): { path: string; gate: string; done: string } {
+  const base = dir();
+  const gate = join(base, "gate");
+  const done = join(base, "done");
+  const path = join(base, "doan");
+  writeFileSync(
+    path,
+    `#!/bin/sh
+for arg in "$@"; do
+  if [ "$arg" = "--repo" ]; then
+    while [ ! -e '${gate}' ]; do sleep 0.02; done
+    '${cli}' "$@"; status=$?
+    touch '${done}'
+    exit $status
+  fi
+done
+exec '${cli}' "$@"
+`,
+  );
+  chmodSync(path, 0o755);
+  return { path, gate, done };
+}
+
+describe("shell races", () => {
+  test("the same root opened twice at once is one folder", async () => {
+    const root = writeRepo(dir());
+    const { shell, foldersFile } = await start();
+    await Promise.all([shell.open(root), shell.open(join(root, "design"))]);
+    expect(shell.entries().map((entry) => entry.path)).toEqual([root]);
+    expect(saved(foldersFile)).toEqual([root]);
+  });
+
+  test("a read that finishes after its folder was closed changes nothing", async () => {
+    const root = writeRepo(dir());
+    const other = writeRepo(dir());
+    const gated = gatedCli();
+    const { shell, changes } = await start(gated.path);
+    await shell.open(root);
+    expect(shell.entries()).toEqual([{ path: root, kind: "loading" }]);
+    await shell.close(root);
+    const afterClose = changes.length;
+    writeFileSync(gated.gate, "");
+    await vi.waitFor(() => expect(existsSync(gated.done)).toBe(true), until);
+    // Opening another folder spawns new CLI runs only after the late read's
+    // process has exited, so its result is handled before these changes.
+    await shell.open(other);
+    await vi.waitFor(() => expect(latest(changes)).toEqual([expect.objectContaining({ path: other, kind: "list" })]), until);
+    for (const entries of changes.slice(afterClose)) {
+      expect(entries.map((entry) => entry.path)).toEqual([other]);
+    }
+  });
+
+  test("re-opening a folder that came back watches it again", async () => {
+    const root = writeRepo(dir());
+    const { shell, changes } = await start();
+    await shell.open(root);
+    await vi.waitFor(() => expect(latest(changes)).toEqual([expect.objectContaining({ path: root, kind: "list" })]), until);
+    rmSync(root, { recursive: true, force: true });
+    await vi.waitFor(() => expect(latest(changes)).toEqual([{ path: root, kind: "notFound" }]), until);
+    writeRepo(root);
+    await shell.open(root);
+    await vi.waitFor(() => expect(latest(changes)).toEqual([expect.objectContaining({ path: root, kind: "list" })]), until);
+    writeFileSync(join(root, "design", "b.html"), "<!doctype html><title>B</title>");
+    await vi.waitFor(() => {
+      const [entry] = latest(changes);
+      expect(entry?.kind === "list" && entry.canvases.map((canvas) => canvas.path)).toEqual(["design/a.html", "design/b.html"]);
+    }, until);
   });
 });
