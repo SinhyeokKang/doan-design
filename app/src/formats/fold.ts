@@ -16,8 +16,9 @@ function warning(code: Warning["code"], line: number, value: unknown): Warning {
 
 export function parseLines(text: string): ParseResult {
   const result: ParseResult = { events: [], warnings: [] };
-  for (const [index, textLine] of text.split("\n").entries()) {
-    if (textLine.trim() === "") continue;
+  const source = text.startsWith("\uFEFF") ? text.slice(1) : text;
+  for (const [index, textLine] of source.split("\n").entries()) {
+    if (!/[^ \t\r]/.test(textLine)) continue;
     const line = index + 1;
     let value: unknown;
     try {
@@ -71,7 +72,8 @@ export function fold(events: LocatedEvent[]): FoldResult {
         warnings.push(warning("conflicting_duplicate", line, event));
       }
     } else {
-      unique.push(first);
+      unique.push(group.reduce((earliest, located) =>
+        located.line < earliest.line ? located : earliest, first));
     }
   }
   unique.sort((left, right) => compare(left.event.at, right.event.at) ||
@@ -138,6 +140,7 @@ export function fold(events: LocatedEvent[]): FoldResult {
   return {
     comments: [...comments.values()].sort((left, right) =>
       compare(left.createdAt, right.createdAt) || compare(left.comment, right.comment)),
-    warnings,
+    warnings: warnings.sort((left, right) =>
+      left.line - right.line || compare(left.code, right.code)),
   };
 }
