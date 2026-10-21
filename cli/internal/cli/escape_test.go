@@ -22,3 +22,9 @@ func TestEscapeControl(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestEscapeControlInvalidUTF8(t *testing.T) {
+	if got := EscapeControl("\x9b"); got != "\ufffd" {
+		t.Fatalf("got %q", got)
+	}
+}

@@ -54,3 +54,10 @@ func TestParseConfigBoundaries(t *testing.T) {
 		t.Fatalf("%+v %s", c, code)
 	}
 }
+
+func TestParseConfigNormalizesVersionPrecision(t *testing.T) {
+	config, code := ParseConfig([]byte(`{"v":1.0000000000000001}`))
+	if code != "" || config.V != 1 {
+		t.Fatalf("%+v %s", config, code)
+	}
+}
