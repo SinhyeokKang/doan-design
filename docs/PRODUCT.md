@@ -87,7 +87,7 @@ What the human does is **view + comment**; approval is deferred until after the 
 0. **First-run onboarding** (2026-10-21)
    1. CLI install: link the `doan` inside the app bundle onto PATH. Reference: Orca and ego-browser put the CLI inside the app bundle and only place a symlink on PATH (confirmed in the local bundle).
    2. Agent connection: detect whether Claude Code and Codex are installed, then install skills and register MCP for the chosen one.
-   3. Open a repo: when a folder is chosen, create `design/` and `.doan/` and ask for the token CSS path. Same logic as `doan init`; repos already set up are skipped.
+   3. Open a repo: when a folder is chosen, create `design/` and `.doan/` and ask for the token CSS path. Same logic as `doan init`; repos already set up are skipped. The app runs the bundled `doan init --json --token-css <path>` instead of re-implementing it in TypeScript (2026-10-21), so the `init` result shape is a contract between the app and the CLI.
    4. First canvas: instead of an empty screen, let the user copy "the first sentence to send to the agent" (e.g. `make a <spec> canvas with the doan skill`). No sample canvas ships in the app.
    - Steps 1 and 2 happen once per machine; step 3 happens per repo.
 1. Opening a repo folder shows the list of canvases (HTML files).
@@ -115,10 +115,10 @@ What the human does is **view + comment**; approval is deferred until after the 
 
 ### CLI `doan`
 
-8. `doan init`: creates `design/` and `.doan/` in the repo, adds union merge for comments to `.gitattributes`, asks for the token CSS path, and installs skills. Does the same as app onboarding step 3, from the terminal.
+8. `doan init`: creates `design/` and `.doan/` in the repo, adds union merge for comments to `.gitattributes`, and asks for the token CSS path. Does the same as app onboarding step 3, from the terminal. It does not install skills (2026-10-21): installing the skill stub is tied to detecting Claude Code and Codex, so it belongs to onboarding step 2 (#8 `onboard-dist`).
 9. `doan ls` · `doan comments` · `doan comment resolve` · `doan skill`. They only read and write repo files, so they work without the app.
 10. `doan active`: returns the frame or element the human selected in the app. Lets the agent find the target from just "fix this". Requires the app to be running.
-11. `doan check` does **static checks only**. It looks at what HTML parsing alone can catch: undefined `var(--*)`, duplicate `data-doan-id`, missing or duplicate canvas ids and frame ids, missing `doan:width` (error), comment files with no matching canvas, and whether `data-doan-implements` target files exist. External URLs (CDN scripts and fonts) are not blocked but shown as a warning list (2026-10-21). If token CSS exists and hex or rgb colors are used directly, it warns (2026-10-21). Full criteria: ARCHITECTURE §1 'Conventions'.
+11. `doan check` does **static checks only**. It looks at what HTML parsing alone can catch: undefined `var(--*)`, duplicate `data-doan-id`, missing or duplicate canvas ids and frame ids, missing `doan:width` (error), comment files with no matching canvas, and whether `data-doan-implements` target files exist. External URLs (CDN scripts and fonts) are not blocked but shown as a warning list (2026-10-21). If token CSS exists and hex or rgb colors are used directly, it warns (2026-10-21). Comment files with no matching canvas are a warning, not an error (2026-10-21). Full criteria: ARCHITECTURE §1 'Conventions'.
 
 ### MCP
 
@@ -135,13 +135,13 @@ The MVP is split into 8 features. One feature is one `/feature` run and is manag
 | # | slug | Scope |
 |---|---|---|
 | 1 | `formats` | JSON Schema (comment events · config · CLI envelope) + fixtures + event folding (TS·Go) |
-| 2 | `cli-core` | Go CLI: `init` · `ls` · `comments` · `comment resolve` · `check` (static) · `skill`, `--json` · exit codes · repo discovery |
+| 2 | `cli-core` | Go CLI: `init` · `ls` · `comments` · `comment resolve` · `check` (static) · `skill` (with its body), `--json` · exit codes · repo discovery |
 | 3 | `mcp` | `doan mcp` (stdio) |
 | 4 | `app-shell` | Electron skeleton: multiple folders · local server (serving scope) · file watching · canvas list. The real-app verification loop (`/runtime-test` skill) is built here. The app-driving tool (among Playwright Electron · CDP · `computer-use`) is decided in this feature's `/feature` (2026-10-21) |
 | 5 | `canvas-view` | sandbox iframe · board size · zoom in/out and pan · frame list and jumps. When this feature is done, build the `/design-sync` skill (see 'Dogfooding' below) |
 | 6 | `select-inspect` | selection · inspector · `runtime.json` + socket · `doan active` |
 | 7 | `comments-ui` | panel comment CRUD · pins · outdated · sentence copy |
-| 8 | `onboard-dist` | first-run onboarding · `doan skill` body · notarized dmg · brew cask · auto-update |
+| 8 | `onboard-dist` | first-run onboarding · skill stub install · refine `doan skill` body · notarized dmg · brew cask · auto-update |
 
 ### Dogfooding: doan's UI drafts live in doan (2026-10-21)
 
@@ -258,6 +258,15 @@ Results:
 | 2026-10-21 | Dropped `target.point`; `target.frame` optional (canvas comments); human `email` optional | User decision (formats review) — `point` was speculative; conventions do not require frames; git `user.email` may be empty |
 | 2026-10-21 | Config is `tokenCss` (single, optional) + `serve`; schema rejects absolute, `..`, empty, and dot-only paths | User decision (formats review) — onboarding asks for one path; `serve: ["."]` would expose the repo root |
 | 2026-10-21 | Blank JSONL lines are SP/HT/CR only and one leading BOM is stripped; `canvasHash` is 64 lowercase hex | User decision (formats review) — TS and Go must use the same character set; one spelling per hash keeps outdated detection exact |
+| 2026-10-21 | Canvas id is lowercase kebab `^[a-z0-9]+(-[a-z0-9]+)*$` (ARCHITECTURE §1 convention 2) | User decision (cli-core Q1) — the id becomes a comment file name, and macOS file names are case-insensitive |
+| 2026-10-21 | `doan comment resolve` takes the agent name from a required `--agent` flag | User decision (cli-core Q2) — one place to read it, nothing guessed |
+| 2026-10-21 | `doan init` does not install skills; skill stub install moves to #8 `onboard-dist`; #2 `cli-core` builds the `doan skill` body | User decision (cli-core Q3) — stub install is tied to agent detection in onboarding step 2 |
+| 2026-10-21 | `doan check` reports comment files with no matching canvas as a warning | User decision (cli-core Q4) — as an error, an agent could delete comment files to pass check, but only humans delete comments |
+| 2026-10-21 | `doan check` counts only token definitions the canvas actually reaches (its styles, linked local CSS and their imports), not the unlinked `tokenCss` | User decision (cli-core review Q5) — matches what the browser resolves, so a missing token CSS link is caught |
+| 2026-10-21 | Tokens defined only in external (CDN) stylesheets are an `undefined_token` error | User decision (cli-core review Q6) — tokens come from the repo's local CSS (§3 'Tie to code'); the CLI does no network requests |
+| 2026-10-21 | A local stylesheet the canvas reaches outside the serving scope is a `doan check` error | User decision (cli-core review Q8) — the human would see the canvas unstyled, and the agent can fix it via `serve` |
+| 2026-10-21 | App onboarding step 3 runs the bundled `doan init --json`; the `init` result is an app–CLI contract | User decision (cli-core review Q9) — a TypeScript re-implementation would drift like the fold divergence in POSTMORTEM |
+| 2026-10-21 | Hardcoded-color warning also covers canvas custom property declarations and `var()` fallbacks | User decision (cli-core review Q13) — convention 10 as written; a re-declared token drifts from the real one |
 
 ## 8. Open questions
 
