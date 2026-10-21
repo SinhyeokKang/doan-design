@@ -42,6 +42,7 @@ Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(
 
 - [README.md](./README.md)는 배경과 레퍼런스만 담는다. README의 내용을 **결정 사항으로 인용하지 않는다** — "README가 그렇게 정했다"가 아니라 "README 초안은 이렇게 적었다"로 말한다.
 - 스택은 정해졌다(PRODUCT §6: 앱 Electron + TypeScript, CLI Go). 그래도 요청 없이 `package.json`·`go.mod`·디렉터리 구조·빌드 설정을 **먼저 깔지 않는다.**
+- 범위 밖 요청(PRODUCT §3 '하지 않는 것': 그리기 · 캔버스 형식 강제 · 대화 · 에이전트 깨우기 · 서버 · git 조작 · 실시간 공동 편집)은 요청받아도 그 목록을 근거로 먼저 되묻는다.
 - 결정이 나면 PRODUCT.md에 날짜와 근거를 함께 적는다. 이 파일의 하네스도 결정에 맞춰 넓힌다.
 
 ## 작업 원칙
@@ -67,6 +68,8 @@ Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(
 - 문서별로 커밋을 나눈다.
 - **주석은 한국어로, "왜"만 쓴다.** 코드가 말하는 "무엇"을 반복하지 않는다. 비자명한 제약·함정을 남긴다.
 - 일회성 실험 파일은 `.scratch/`에 둔다(gitignore 대상).
+- PoC(PRODUCT §7) 실험 코드도 `.scratch/`에 두지만, 통과 여부와 관찰 결과는 날짜와 함께 PRODUCT §7에 적는다. `.scratch/`는 커밋되지 않아 결과가 남지 않는다.
+- Codex 세션에서 만든 커밋은 마지막 줄에 `Co-Authored-By: Codex <noreply@openai.com>`을 붙인다. 어느 런타임이 만든 커밋인지 히스토리에서 구분하려는 것이다(malmoi `.agents/PREAMBLE.md`와 같은 규칙).
 
 ## 런타임 차이
 
@@ -74,7 +77,7 @@ Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(
 - **Bedrock·Vertex·Foundry 세션은 `AGENTS.md`를 읽지 않는다.** 그 경로로 쓸 일이 생기면 위의 `@AGENTS.md` import로 간다.
 - **응답 스타일 재주입 훅은 Claude Code 전용이다**(`.claude/settings.json`). Codex 세션에선 이 파일 최상단의 응답 스타일만 남으니 긴 세션에서도 유지한다.
 - **워커 모델 경계** — 워커·서브에이전트를 호출하는 세션이 Codex면 Codex 모델, Claude Code면 Claude 모델만 호출한다. 패밀리 교차는 사용자의 명시 허가가 있을 때만 허용한다.
-- **스킬 위치가 다르다** — Claude Code는 `.claude/`, Codex는 `.agents/skills/`를 본다. 스킬이 생기면 그때 한쪽을 원본으로 정하고 다른 쪽을 어떻게 맞출지 정한다.
+- **스킬 위치가 다르다** — Claude Code는 `.claude/`, Codex는 `.agents/skills/`를 본다. 이 리포를 개발할 때 쓰는 스킬이 생기면 그때 한쪽을 원본으로 정하고 다른 쪽을 어떻게 맞출지 정한다. 이것은 제품이 사용자의 에이전트에 설치하는 doan 스킬(PRODUCT §6 '스킬': `SKILL.md` 스텁 + `doan skill`)과 다른 것이다.
 
 ## 참고
 
