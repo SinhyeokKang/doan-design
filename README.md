@@ -1,56 +1,56 @@
 # Doan Design
 
-> 에이전트가 그리고, 사람이 보고 가리킨다. 시안은 코드 리포에 산다.
+> The agent draws; the human views and points. Design drafts live in the code repo.
 
-도안(圖案)은 만들 것의 모양을 미리 그린 그림이다. Doan Design은 코딩 에이전트(Claude Code·Codex 등)가 코드 리포 안에 HTML 캔버스(디자인 설계서)를 쓰고, 사람이 그 캔버스를 로컬 Mac 앱에서 보고 · 요소를 골라 코멘트를 남기는 도구다.
+A doan (도안, 圖案) is a drawing made in advance of the shape of something to be built. Doan Design is a tool where a coding agent (Claude Code, Codex, etc.) writes an HTML canvas (a design spec) inside a code repo, and a human views that canvas in a local Mac app and selects elements to leave comments.
 
-표기: 제품 `Doan Design` · 도메인 `doan.design` · CLI·식별자 `doan`
+Naming: product `Doan Design` · domain `doan.design` · CLI and identifiers `doan`
 
-> **상태: 기획.** 기획 결정의 정본은 [docs/PRODUCT.md](./docs/PRODUCT.md)다. 이 README에는 배경과 참고한 레퍼런스만 남겼다(2026-10-21). 원칙·루프·리포 규약·CLI·MVP를 담았던 이전 초안은 git 이력의 `README.md`에 남아 있다.
+> **Status: planning.** The source of truth for planning decisions is [docs/PRODUCT.md](./docs/PRODUCT.md). This README keeps only the background and the references consulted (2026-10-21). The earlier draft, which covered principles, the loop, repo conventions, the CLI, and the MVP, remains in the git history of `README.md`.
 
 ---
 
-## 배경 — Claude Design과 연계하며 겪은 불편
+## Background — friction from working with Claude Design
 
-말모이(`~/code/malmoi`) 개발에서 2026-09 ~ 10 동안 Claude Design 핸드오프 → `/design-sync` 루프를 돌리며 실제로 부딪힌 것들이다.
+These are the problems actually hit while running the Claude Design handoff → `/design-sync` loop during malmoi (`~/code/malmoi`) development, 2026-09 to 10.
 
-**대화와 도구가 갈라진다**
-- 시안에 대한 대화가 Claude Design 안에, 구현 대화가 코드 세션 안에 따로 쌓였다. 같은 결정이 두 곳에 흩어졌다.
-- 시안은 Claude Design에서 만들고, 코드 세션에서는 DesignSync(`list_files`·`get_file`)로 가져와야 한다. 매번 도구를 왔다 갔다 한다.
-- **Codex는 Claude Design·DesignSync를 못 쓴다.** 그래서 `/design-sync` 스킬이 런타임마다 갈린다 — Claude Code는 DesignSync, Codex는 "사용자가 로컬 핸드오프 폴더 경로를 줘야" 한다.
+**Conversation and tools are split**
+- Conversation about design drafts piled up inside Claude Design, and implementation conversation piled up separately in code sessions. The same decisions were scattered across two places.
+- Design drafts are made in Claude Design, and code sessions have to fetch them with DesignSync (`list_files` · `get_file`). Every time, you switch back and forth between tools.
+- **Codex cannot use Claude Design or DesignSync.** So the `/design-sync` skill splits by runtime — Claude Code uses DesignSync, while Codex needs "the user to provide the path to a local handoff folder".
 
-**시안을 에이전트가 제대로 못 읽는다**
-- 큰 시안은 **256 KiB에서 잘린다**(gitlab-repositories v5 — G10b·G11a·G11b 프레임을 못 읽었다). 해결책이 "다크·es를 별도 파일로 쪼개 달라"는 사람 손이었다.
-- 시안 검토가 **DOM 글자와 구조로만** 가능했다 — 화면 캡처가 안 돼 간격·색 판정을 못 했다.
-- 캔버스 메모에 적힌 내용(예: 스코프 부족 문장)은 프레임 밖이라 따로 챙겨야 했다.
+**Agents cannot read design drafts properly**
+- Large design drafts **get truncated at 256 KiB** (gitlab-repositories v5 — the G10b · G11a · G11b frames could not be read). The fix was a human hand: "please split dark and es into separate files".
+- Reviewing design drafts was possible **only through DOM text and structure** — screenshots were not available, so spacing and color could not be judged.
+- Content written in canvas notes (e.g. a sentence about insufficient scope) was outside the frames, so it had to be tracked separately.
 
-**시안이 코드와 다른 세계에 산다**
-- 시안이 프로젝트의 **실제 토큰·프리미티브를 모른다.** 그래서 값은 맞는데 구조가 틀리는 부류가 반복됐다:
-  - 2026-09-13 새 프로젝트 모달: 핸드오프는 px 단위로 확정돼 있었는데 구현이 **29곳** 어긋났고 테스트 3,000개는 전부 green이었다.
-  - 2026-09-14 Dialog: 시안의 `padding:16 16 0`이 "푸터가 아래 여백을 든다"는 **암묵 전제**를 깔고 있었는데, 그 값을 프리미티브에 옮기자 푸터 없는 소비자에서 폼이 바닥에 붙었다.
-  - `/account`: 값은 전부 맞고 **"어느 줄에 있나"만 틀린** 이탈이 여덟 부류였다.
-- 시안이 **실재하지 않는 것**을 그린다 — 예: CI YAML에 존재하지 않는 이미지(`ghcr.io/…/malmoi-cli:1`)와 명령(`malmoi push`), 코드 규칙과 다른 날짜 표기(`(UTC+09:00)`).
+**Design drafts live in a different world from the code**
+- Design drafts **do not know the project's real tokens and primitives.** So a class of errors kept recurring where the values were right but the structure was wrong:
+  - 2026-09-13 new-project modal: the handoff was pinned down to the px, yet the implementation diverged in **29 places** while all 3,000 tests were green.
+  - 2026-09-14 Dialog: the draft's `padding:16 16 0` rested on an **implicit assumption** that "the footer carries the bottom spacing"; once that value was moved into the primitive, forms stuck to the bottom in consumers without a footer.
+  - `/account`: all values were right, and there were eight classes of divergence where **only "which row it is in" was wrong**.
+- Design drafts draw **things that do not exist** — e.g. an image (`ghcr.io/…/malmoi-cli:1`) and command (`malmoi push`) that do not exist in the CI YAML, and a date notation (`(UTC+09:00)`) that differs from the code rules.
 
-**정본이 흔들린다**
-- 2026-09-24 **옛 캔버스를 잃었다.**
-- 시안이 정본인 기간이 모호해 규칙을 세 번 고쳤다 — "핸드오프가 정본"(09-25) → "구현 뒤엔 코드가 정본, 새 시안은 변경 요청"(09-27) → "변경용으로 사람이 승인한 시안이면 다시 대조"(10-03). 시안이 외부 서비스에만 있으니 **어느 판이 승인본인지**가 시안 쪽에 남지 않았다.
-- 시안 버전이 v3·v4·v5·v6으로 늘 때마다 "무엇이 바뀌었나"를 사람이 문서에 손으로 적었다.
-- 그리고 standalone Claude Design은 **2026-12-14에 닫힌다** — 채팅과 코멘트는 이관되지 않는다. 외부 서비스에만 있는 정본의 결말이다.
+**The source of truth wavers**
+- 2026-09-24 **the old canvas was lost.**
+- The period during which the design draft was the source of truth was ambiguous, so the rule was revised three times — "the handoff is the source of truth" (09-25) → "after implementation the code is the source of truth, and a new draft is a change request" (09-27) → "if a human approved the draft for a change, compare against it again" (10-03). Because the drafts lived only in an external service, **which board was the approved one** was not recorded on the draft side.
+- Every time the draft version grew through v3 · v4 · v5 · v6, a human wrote "what changed" into a document by hand.
+- And standalone Claude Design **shuts down on 2026-12-14** — chats and comments are not migrated. That is where a source of truth that exists only in an external service ends up.
 
-**여러 머신·여러 에이전트**
-- 두 머신에서 작업하는데, 시안 접근 경로가 세션·런타임마다 달랐다.
-- 오케스트레이션(워커 10여 개, Claude·Codex 혼용)에서 시안을 읽을 수 있는 워커가 제한됐다.
+**Multiple machines, multiple agents**
+- Work happened on two machines, and the path to access design drafts differed per session and runtime.
+- In orchestration (10-odd workers, mixing Claude and Codex), only some workers could read the design drafts.
 
-## 레퍼런스
+## References
 
-초안 단계에서 참고하려던 것이다. 실제로 채택한 것과 근거는 [docs/PRODUCT.md](./docs/PRODUCT.md)에 적었다.
+These are what we intended to consult at the draft stage. What was actually adopted, and why, is written in [docs/PRODUCT.md](./docs/PRODUCT.md).
 
-| 레퍼런스 | 참고하려던 것 |
+| Reference | What we intended to consult |
 |---|---|
-| Orca · ego-browser | 스킬 스텁 + 바이너리 가이드, `status --json`, 응답 봉투·`nextSteps`, runtime 파일 발견 |
-| open-claude-design | 라우터 스킬, 의미 있는 종료 코드, 내용 해시 기반 쓰기, 폭×테마 렌더 묶음 |
-| Doop · Agentation | 요소 클릭 메모, 메모 생명주기, 필수 스크린샷 리뷰 체크리스트 |
-| Storybook | 리포 안 정본, 고정 iframe URL, 폭·테마를 전역값으로, 렌더 완료 신호 |
-| baoyu-design | 리포 안 `designs/` HTML 규약, 허용 토큰 목록, 미정의 변수 검사 |
-| Pencil.dev(현 pen.dev) | 리포 상주 디자인 파일, 부분 읽기, 텍스트 레이아웃 스냅샷 |
-| Chromatic · git-appraise | 승인 완료 규칙, 추가만 하는 JSONL 리뷰 기록 |
+| Orca · ego-browser | Skill stub + binary guide, `status --json`, response envelope · `nextSteps`, runtime file discovery |
+| open-claude-design | Router skill, meaningful exit codes, content-hash-based writes, width × theme render bundles |
+| Doop · Agentation | Click-an-element notes, note lifecycle, mandatory screenshot review checklist |
+| Storybook | Source of truth inside the repo, stable iframe URLs, width and theme as globals, render-complete signal |
+| baoyu-design | In-repo `designs/` HTML conventions, allowed-token list, undefined-variable checks |
+| Pencil.dev (now pen.dev) | Design files living in the repo, partial reads, text layout snapshots |
+| Chromatic · git-appraise | Approval-complete rule, append-only JSONL review log |
