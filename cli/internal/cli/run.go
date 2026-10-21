@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -44,6 +45,7 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   comment resolve <cmt_id>... --agent <name>
   check
   skill
+  mcp
   help
 `
 
@@ -91,6 +93,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			allowed["canvas"] = true
 		case "comment":
 			allowed["agent"] = true
+		case "mcp":
+			// stdout carries only the protocol, so no flag (not even --json) applies.
+			allowed = map[string]bool{}
 		}
 		fs.Visit(func(v *flag.Flag) {
 			if v.Name == "token-css" {
@@ -106,6 +111,18 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if failure == nil {
 			if cmd == "help" {
 				o.Result = map[string]any{"usage": usage}
+			} else if cmd == "mcp" {
+				if len(pos) > 1 {
+					failure = usageError("mcp takes no positional arguments")
+				} else {
+					// emit is skipped: it would write a value to stdout after the protocol stream.
+					if e := Serve(context.Background(), stdin, stdout); e != nil {
+						// Exit 1 either way; a failed stderr write has nowhere else to go.
+						io.WriteString(stderr, EscapeControl("error: "+e.Error()+"\n"))
+						return 1
+					}
+					return 0
+				}
 			} else {
 				start, e := os.Getwd()
 				if e != nil {

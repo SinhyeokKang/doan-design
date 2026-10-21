@@ -2,7 +2,7 @@
 
 - `go.mod` and `go.sum`: root Go module and pinned dependencies.
 - `cli/cmd/doan/`: the `doan` binary; `main` only calls `cli.Run`.
-- `cli/internal/cli/`: `Run`, argument splitting, envelopes and exit codes, command bodies, human output, the embedded `doan skill` body (`skill.md`), and the assembly of `check` input (Reach).
+- `cli/internal/cli/`: `Run`, argument splitting, envelopes and exit codes, command bodies, human output, the embedded `doan skill` body (`skill.md`), the assembly of `check` input (Reach), and the `doan mcp` stdio server (`mcp.go`).
 - `cli/internal/repo/`: repo discovery, config parsing, in-repo path resolution, canvas and comment file listing.
 - `cli/internal/canvas/`: pure HTML canvas model and CSS scanner.
 - `cli/internal/check/`: pure `doan check` rules.
