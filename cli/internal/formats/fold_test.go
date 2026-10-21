@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sort"
 	"strings"
 	"testing"
 )
@@ -35,17 +34,7 @@ func TestFoldFixtures(t *testing.T) {
 			if err := json.Unmarshal(expectedJSON, &expected); err != nil {
 				t.Fatal(err)
 			}
-			parsed := ParseLines(string(input))
-			folded := Fold(parsed.Events)
-			warnings := append([]Warning{}, parsed.Warnings...)
-			warnings = append(warnings, folded.Warnings...)
-			sort.Slice(warnings, func(i, j int) bool {
-				if warnings[i].Line != warnings[j].Line {
-					return warnings[i].Line < warnings[j].Line
-				}
-				return warnings[i].Code < warnings[j].Code
-			})
-			actualJSON, err := json.Marshal(FoldResult{Comments: folded.Comments, Warnings: warnings})
+			actualJSON, err := json.Marshal(FoldText(string(input)))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -81,5 +70,26 @@ func TestUnionMergeInputConformsToSchema(t *testing.T) {
 		if err := ValidateCommentEvent(value); err != nil {
 			t.Fatalf("line %d: %v", i+1, err)
 		}
+	}
+}
+
+func TestIdenticalDuplicatesRetainSmallestLine(t *testing.T) {
+	input, err := os.ReadFile(filepath.Join("..", "..", "..", "schema", "fixtures", "fold", "duplicate-agent-edit", "events.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed := ParseLines(string(input))
+	if len(parsed.Warnings) != 0 {
+		t.Fatalf("parse warnings: %v", parsed.Warnings)
+	}
+	for i, j := 0, len(parsed.Events)-1; i < j; i, j = i+1, j-1 {
+		parsed.Events[i], parsed.Events[j] = parsed.Events[j], parsed.Events[i]
+	}
+	event := "evt_00000000-0000-4000-8000-000000000002"
+	comment := "cmt_00000000-0000-4000-8000-000000000001"
+	want := []Warning{{Code: "agent_not_allowed", Line: 2, Event: &event, Comment: &comment}}
+	got := Fold(parsed.Events).Warnings
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("warnings = %#v; want %#v", got, want)
 	}
 }
