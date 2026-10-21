@@ -23,6 +23,10 @@
 | 12 | `repo.Resolve`는 `ENOENT`·`ENOTDIR`·`EINVAL`·`ENAMETOOLONG`·`ELOOP`를 "없음"으로 판정하고, 그 밖의 에러(`EACCES`·`EIO` 등)만 돌려준다 | 지휘자 판단(리뷰 A 🔴) — 앞의 것은 캔버스·config 내용만으로 생기고 브라우저도 그 파일을 못 불러온다. 뒤의 것은 환경 문제다 |
 | 13 | 대소문자를 구분하지 않는 파일시스템에서 `repo.Resolve`는 디스크에 저장된 표기를 돌려준다 | 사용자 2026-10-21(리뷰 A 🟡) — design의 "실제 경로로 정규화하므로 같은 파일이면 같은 키"와 맞추고 `css_not_served` 오탐을 막는다 |
 | 14 | 심링크 `.doan`(`Find`는 따라가고 `CommentFiles`는 건너뜀), `--repo` 상대 경로는 시작 디렉터리 기준, 파일 나열은 바이트 순 정렬 — 지금 동작 그대로 두고 승격 때 ARCHITECTURE §13에 적는다 | 지휘자 판단(리뷰 A 결정 3·4·5) — 읽기만 하는 경우라 위험이 작고, 바꿀 근거가 정본에 없다 |
+| 15 | `orphan_comment_file`은 id가 무효이거나 meta가 두 개인 캔버스도 센다. `HasID`인 캔버스의 id 문자열(첫 번째)이 코멘트 파일 id와 정확히 같으면 orphan이 아니다. D의 `comments`도 같은 기준으로 캔버스와 파일을 잇는다 | 지휘자 판단(리뷰 B) — design의 조건은 "같은 id의 캔버스가 없음"이다. 원인은 `invalid_canvas_id`가 이미 알리고, Q4가 막으려던 코멘트 파일 삭제 유도를 피한다 |
+| 16 | 간접 `@import`(Direct 아님)가 리포 밖이거나 서빙 범위 밖이면, 그 `@import`를 담은 CSS 파일에 귀속한다(`path`는 CSS 파일, `target`은 href, `(path, code, target)`마다 한 건) | 지휘자 판단(리뷰 B) — design '귀속'은 CSS 파일에서 나온 finding을 그 파일로 보낸다. 고칠 곳도 그 파일이다 |
+| 17 | `canvas.LocalPath`는 `?`·`#`를 뗀 결과가 빈 문자열이면 로컬 경로가 아니다(무시) | 지휘자 판단(리뷰 B) — 브라우저는 href가 빈 `<link>`를 가져오지 않는다 |
+| 18 | 토큰 CSS가 `@import`하는 파일의 색은 지금처럼 `hardcoded_color`로 경고한다 | 지휘자 판단(리뷰 B) — design이 "토큰 CSS 파일 자신"만 뺀다고 명시했고, warning이다 |
 
 ## 배치
 
