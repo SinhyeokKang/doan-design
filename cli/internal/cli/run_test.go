@@ -105,7 +105,11 @@ func TestInitAndEmptyCommands(t *testing.T) {
 	if readFile(t, r, ".doan/config.json") != "{" {
 		t.Fatal("overwritten")
 	}
-	failure(t, filepath.Join(t.TempDir(), "missing"), "usage_error", "init")
+	missingRepo := filepath.Join(t.TempDir(), "missing")
+	failure(t, missingRepo, "usage_error", "init")
+	if _, e := os.Stat(missingRepo); !os.IsNotExist(e) {
+		t.Fatal("missing repo created", e)
+	}
 	for _, tt := range []struct {
 		before, after string
 		changed       bool
@@ -151,6 +155,9 @@ func TestInitPromptAndToken(t *testing.T) {
 		t.Fatal(e)
 	}
 	failure(t, r, "usage_error", "init", "--token-css", "link.css")
+	if _, e := os.Stat(filepath.Join(r, ".doan")); !os.IsNotExist(e) {
+		t.Fatal("outside token wrote config", e)
+	}
 }
 func TestCommentsAndResolve(t *testing.T) {
 	root := initialized(t)
@@ -176,12 +183,18 @@ func TestCommentsAndResolve(t *testing.T) {
 			t.Fatal(c)
 		}
 	}
-	failure(t, root, "comment_not_found", "comment", "resolve", cmt1, "missing-a", "missing-b", "--agent", "codex")
+	missing := runJSON(t, root, 2, "comment", "resolve", cmt1, "missing-a", "missing-b", "--agent", "codex")["error"].(map[string]any)
+	if missing["code"] != "comment_not_found" || !strings.Contains(missing["message"].(string), "missing-a") || !strings.Contains(missing["message"].(string), "missing-b") {
+		t.Fatal(missing)
+	}
 	if readFile(t, root, ".doan/comments/foo.jsonl") != log {
 		t.Fatal("partial write")
 	}
 	for _, args := range [][]string{{"comment", "resolve", "--agent", "codex"}, {"comment", "resolve", cmt1}, {"comment", "resolve", cmt1, "--agent", "Claude"}, {"comment", "resolve", cmt1, "--agent", ""}} {
 		failure(t, root, "usage_error", args...)
+		if readFile(t, root, ".doan/comments/foo.jsonl") != log {
+			t.Fatal("invalid agent or missing ids changed log")
+		}
 	}
 	got = result(t, root, 0, "comment", "resolve", cmt1, cmt2, cmt1, "--agent", "codex")
 	if len(got["resolved"].([]any)) != 2 {
@@ -209,7 +222,9 @@ func TestCommentsAndResolve(t *testing.T) {
 func TestCommentMatchingAndWarnings(t *testing.T) {
 	root := initialized(t)
 	putFile(t, root, "design/a.html", validCanvas)
-	result(t, root, 0, "comments", "--canvas", "foo")
+	if got := result(t, root, 0, "comments", "--canvas", "foo"); len(got["comments"].([]any)) != 0 {
+		t.Fatal(got)
+	}
 	for _, id := range []string{"../x", "Foo"} {
 		failure(t, root, "canvas_not_found", "comments", "--canvas", id)
 	}
@@ -228,7 +243,7 @@ func TestCommentMatchingAndWarnings(t *testing.T) {
 		}
 	}
 	check := result(t, root, 0, "check")
-	if check["summary"].(map[string]any)["warnings"] != float64(1) {
+	if check["summary"].(map[string]any)["warnings"] != float64(1) || check["findings"].([]any)[0].(map[string]any)["code"] != "orphan_comment_file" {
 		t.Fatal(check)
 	}
 	putFile(t, root, ".doan/comments/other.jsonl", createLine(cmt1, "1", validCanvas))
