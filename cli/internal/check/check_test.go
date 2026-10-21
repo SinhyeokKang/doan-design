@@ -8,7 +8,11 @@ import (
 )
 
 func parse(path, head, body string) canvas.Canvas {
-	return canvas.Parse(path, []byte(`<head>`+head+`</head><body>`+body+`</body>`))
+	c, err := canvas.Parse(path, []byte(`<head>`+head+`</head><body>`+body+`</body>`))
+	if err != nil {
+		panic(err)
+	}
+	return c
 }
 
 const metadata = `<meta name="doan:canvas" content="one"><meta name="doan:width" content="2400">`

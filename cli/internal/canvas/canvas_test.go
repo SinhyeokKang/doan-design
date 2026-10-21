@@ -2,6 +2,7 @@ package canvas
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -49,30 +50,30 @@ func TestScanCSS(t *testing.T) {
 }
 
 func TestParseMetadata(t *testing.T) {
-	c := Parse("design/a.html", []byte(`<head><meta Name="DOAN:CANVAS" content=" foo"><meta name="doan:canvas" content="bar"><meta name="doan:width" content="2400"><meta name="doan:width" content="5"><title> \t A
+	c := mustParse(t, "design/a.html", []byte(`<head><meta Name="DOAN:CANVAS" content=" foo"><meta name="doan:canvas" content="bar"><meta name="doan:width" content="2400"><meta name="doan:width" content="5"><title> \t A
  B `+"\uFEFF"+` </title><title>ignored</title></head>`))
 	if c.Path != "design/a.html" || c.ID != " foo" || !c.HasID || !c.IDDup || c.Width != 2400 || !c.WidthDup || c.Title != "\\t A B \uFEFF" {
 		t.Fatalf("%+v", c)
 	}
 	for _, raw := range []string{"0", "012", "1.5", " 375", "375px", "+1", "99999999999999999999", ""} {
 		t.Run(raw, func(t *testing.T) {
-			c := Parse("x", []byte(`<meta name="doan:width" content="`+raw+`">`))
+			c := mustParse(t, "x", []byte(`<meta name="doan:width" content="`+raw+`">`))
 			if c.Width != 0 || !c.HasWidth || c.WidthRaw != raw {
 				t.Fatalf("%+v", c)
 			}
 		})
 	}
-	c = Parse("x", []byte(`<p>body</p><meta name="doan:canvas" content="a"><meta name="doan:width" content="1">`))
+	c = mustParse(t, "x", []byte(`<p>body</p><meta name="doan:canvas" content="a"><meta name="doan:width" content="1">`))
 	if c.HasID || c.HasWidth || !c.BodyMeta["doan:canvas"] || !c.BodyMeta["doan:width"] {
 		t.Fatalf("%+v", c)
 	}
-	c = Parse("x", nil)
+	c = mustParse(t, "x", nil)
 	if c.HasID || c.HasWidth || len(c.Frames) != 0 {
 		t.Fatalf("%+v", c)
 	}
 }
 func TestParseElements(t *testing.T) {
-	c := Parse("x", []byte(`<div data-doan-frame data-doan-frame="second" data-doan-title=" title " data-doan-implements="" data-doan-id="x" style="color:#fff"></div><div data-doan-frame=" "></div><template><div data-doan-frame="hidden" data-doan-id="hidden"></div><style>a{color:#abc}</style></template><link rel="preload stylesheet" href="a.css"><link rel="STYLESHEET" href="b.css"><link rel="icon" href="c.css"><style>a{--x:1}</style>`))
+	c := mustParse(t, "x", []byte(`<div data-doan-frame data-doan-frame="second" data-doan-title=" title " data-doan-implements="" data-doan-id="x" style="color:#fff"></div><div data-doan-frame=" "></div><template><div data-doan-frame="hidden" data-doan-id="hidden"></div><style>a{color:#abc}</style></template><link rel="preload stylesheet" href="a.css"><link rel="STYLESHEET" href="b.css"><link rel="icon" href="c.css"><style>a{--x:1}</style>`))
 	if len(c.Frames) != 2 || c.Frames[0].ID != "" || c.Frames[1].ID != " " || c.Frames[0].Title == nil || *c.Frames[0].Title != " title " || c.Frames[0].Implements == nil || *c.Frames[0].Implements != "" {
 		t.Fatalf("frames %+v", c.Frames)
 	}
@@ -98,13 +99,35 @@ func TestExternalURLs(t *testing.T) {
 		for tag[i] != ' ' {
 			i++
 		}
-		c := Parse("x", []byte("<"+tag[:i]+" "+tag[i+1:]+`="https://cdn/x"></`+tag[:i]+"><style>a{background:url(https://cdn/x)}</style>"))
+		c := mustParse(t, "x", []byte("<"+tag[:i]+" "+tag[i+1:]+`="https://cdn/x"></`+tag[:i]+"><style>a{background:url(https://cdn/x)}</style>"))
 		if !reflect.DeepEqual(c.ExternalURLs, []string{"https://cdn/x"}) {
 			t.Errorf("%s: %v", tag, c.ExternalURLs)
 		}
 	}
-	c := Parse("x", []byte(`<img srcset="https://cdn/b 1x, https://cdn/a 2x"><source srcset="https://cdn/b 3x"><style>@import "//cdn/c";</style>`))
+	c := mustParse(t, "x", []byte(`<img srcset="https://cdn/b 1x, https://cdn/a 2x"><source srcset="https://cdn/b 3x"><style>@import "//cdn/c";</style>`))
 	if !reflect.DeepEqual(c.ExternalURLs, []string{"//cdn/c", "https://cdn/a", "https://cdn/b"}) {
 		t.Fatal(c.ExternalURLs)
+	}
+}
+
+func TestTitleASCIIWhitespace(t *testing.T) {
+	c := mustParse(t, "x", []byte("<title>\t\n\f\r A\t\nB\u00a0\u0085\uFEFF \r</title>"))
+	if c.Title != "A B\u00a0\u0085\uFEFF" {
+		t.Fatalf("title %q", c.Title)
+	}
+}
+
+func mustParse(t *testing.T, path string, data []byte) Canvas {
+	t.Helper()
+	c, err := Parse(path, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+func TestParseReportsDepthLimit(t *testing.T) {
+	_, err := Parse("design/deep.html", []byte(strings.Repeat("<div>", 600)))
+	if err == nil || !strings.Contains(err.Error(), "design/deep.html") {
+		t.Fatalf("expected parser error with path, got %v", err)
 	}
 }

@@ -2,6 +2,7 @@ package canvas
 
 import (
 	"bytes"
+	"fmt"
 	"net/url"
 	"regexp"
 	"sort"
@@ -73,12 +74,12 @@ func textContent(n *html.Node) string {
 func words(s string) []string {
 	return strings.FieldsFunc(s, func(r rune) bool { return r < 128 && asciiSpace(byte(r)) })
 }
-func Parse(path string, data []byte) Canvas {
+func Parse(path string, data []byte) (Canvas, error) {
 	c := Canvas{Path: path, BodyMeta: map[string]bool{}, Frames: []Frame{}, DoanIDs: []string{}, Links: []string{}, ExternalURLs: []string{}, Styles: Scan{Defs: map[string]bool{}}}
-	// A bytes.Reader cannot fail, and the HTML5 parser repairs malformed markup.
+	// Parser resource limits can fail even when the reader cannot.
 	root, err := html.Parse(bytes.NewReader(data))
 	if err != nil {
-		return c
+		return c, fmt.Errorf("parse %s: %w", path, err)
 	}
 	external := map[string]bool{}
 	addURL := func(s string) {
@@ -203,7 +204,7 @@ func Parse(path string, data []byte) Canvas {
 		c.ExternalURLs = append(c.ExternalURLs, u)
 	}
 	sort.Strings(c.ExternalURLs)
-	return c
+	return c, nil
 }
 func srcsetURLs(s string) []string {
 	var urls []string
