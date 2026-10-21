@@ -15,6 +15,9 @@
 | 2026-10-21 | 태스크 4·5를 배치 B4 하나로 묶는다 | 지휘 판단 — 태스크 4의 실제 화면 확인이 태스크 5이므로 리뷰를 한 번에 한다 |
 | 2026-10-21 | 태스크 6(승격과 정리)은 지휘가 한다 | 지휘 판단 — orchestrate 5단계가 승격과 디렉터리 삭제를 지휘에게 둔다(mcp 실행과 같다) |
 | 2026-10-21 | 병렬 배치는 각자 새 worktree에서 돈다 | 지휘 판단 — 커밋하는 워커가 같은 checkout을 쓰면 index가 겹친다 |
+| 2026-10-21 | Q13을 다시 정한다: 서버는 범위 안 파일의 200 응답에만 `Access-Control-Allow-Origin: null`을 붙이고, 404와 다른 CORS 헤더는 보내지 않는다. design.md '로컬 서버'의 "CORS 헤더 없음"을 이것으로 바꿔 읽는다 | 사용자 — PoC 4에서 `null` origin iframe이 리포 안 폰트와 module 스크립트를 CORS로 버렸고, 이 헤더를 붙이면 둘 다 떴다. `.env` 등은 여전히 404 |
+| 2026-10-21 | 서버는 `fs.promises.realpath`를 쓰고 디스크 철자로 바꾸는 별도 단계를 두지 않는다 | B0 관찰 — `fs.promises.realpath`·`fs.realpath.native` 둘 다 대소문자와 NFC·NFD를 디스크 철자로 돌려줬다. JS `fs.realpath`·`realpathSync`는 요청 철자를 유지하므로 쓰지 않는다 |
+| 2026-10-21 | Electron 45.0.0을 유지한다 | B0 관찰 — Playwright 1.64.1 `_electron.launch`로 떴다 |
 
 ## 배치
 
