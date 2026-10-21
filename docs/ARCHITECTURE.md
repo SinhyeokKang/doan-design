@@ -41,6 +41,17 @@ Skills teach the items below, and `doan check` checks the ones that can be measu
 - Correction (2026-10-21): the original rationale was "append-only means few merge conflicts", which is wrong for ordinary files. When both sides append lines to the end of a file, git treats it as a conflict. git-appraise, which we referred to, avoids conflicts by attaching a separate `cat_sort_uniq` merge strategy to git notes (github.com/google/git-appraise). Doan uses ordinary files, so it gets the same effect with a union merge.
 - Accepted risk: if machine clocks differ, `at` order can diverge from the actual order. This only affects cases where the same comment is changed on two machines within a few seconds.
 - One file per comment was not chosen because the file count grows a lot.
+- **Event fields, v1** (2026-10-21, `formats`; schema `schema/comment-event.v1.schema.json`):
+  - Common: `v` (`1`), `id` (`evt_` + lowercase UUIDv4), `at` (RFC 3339 UTC with milliseconds, fixed by pattern so string order is time order), `type`, `comment` (`cmt_` + lowercase UUIDv4, chosen by `create`), `by` (`{kind: "human", name, email?}` or `{kind: "agent", name}`).
+  - `create` adds `body` (non-empty), `canvasHash` (`sha256:` + 64 lowercase hex of the canvas file bytes), and `target`. `target.frame` and `target.element` are both optional: neither is a canvas comment, only `frame` is a frame comment, `element` is an element comment. `element` holds `doanId?`, `selector`, `html` (outerHTML, at most 2,000 code points; longer is cut without splitting surrogate pairs and marked `truncated: true`), and `text?`. There is no free-position `point`. `edit` adds `body`; `delete`, `resolve`, `reopen` add nothing.
+  - Every object is `additionalProperties: false`. Adding a field means a new `v`.
+  - `body`, `html`, and `text` are data: the app shows them as text only, never as HTML.
+- **Writing** (2026-10-21): the app and CLI write `at = max(now, last at in that file + 1ms)`, so consecutive events written within the same millisecond (create then edit) cannot be reordered by id and become orphans.
+- **Reading** (2026-10-21): `foldText(text) → {comments, warnings}` in TS and Go composes two pure functions; callers and tests use `foldText`.
+  - `parseLines`: strips one leading BOM; skips lines made only of SP, HT, CR (no other Unicode whitespace); drops non-JSON, non-object, missing or non-numeric `v` lines as `invalid_event`; drops numeric `v ≠ 1` (including out-of-range numbers such as `1e400`) as `unknown_version` before schema validation; drops v1 schema violations as `invalid_event`. Line numbers are physical, from 1.
+  - `fold`: dedupes by event `id` — identical content (parsed deep-equal) keeps the smallest line; differing content drops every copy with one `conflicting_duplicate` per line. Sorts by `(at, id)`. Then per event, first match wins: (1) an agent event other than `resolve` → `agent_not_allowed` (humans may emit all five); (2) a deleted comment → ignored silently; (3) `create` of an existing comment → `duplicate_create`, any other type without a prior `create` → `orphan_event`; (4) apply. `create` sets `status: open` and `createdAt = updatedAt = at`; `edit` replaces `body` and `updatedAt` (status unchanged); `resolve` on open sets `resolvedBy`/`resolvedAt`, on resolved is ignored (first values kept); `reopen` on resolved clears them, on open is ignored; `delete` hides the comment.
+  - Output: comments `{comment, status, body, target, canvasHash, createdBy, createdAt, updatedAt, resolvedBy?, resolvedAt?}` sorted by `createdAt` then `comment`; warnings `{code, line, event?, comment?}` sorted by `line` then `code`, where `event`/`comment` are copied only when the raw value is a string. Optional keys are omitted, never `null`; empty lists are `[]`.
+  - Known, accepted divergence: an escaped lone surrogate (`"\ud800"`) becomes U+FFFD in Go but stays as-is in TS. Neither the app nor agents write such values.
 
 ## 3. Canvas rendering (2026-10-21)
 
@@ -48,6 +59,7 @@ Skills teach the items below, and `doan check` checks the ones that can be measu
 - **The serving scope is only `design/` and the paths listed in `.doan/config.json` (token CSS, etc.)** (2026-10-21). For a canvas to use assets outside `design/`, add the path to the config. Allowed paths are served with the same directory structure as the repo, so the canvas's relative links resolve as-is (2026-10-21).
   - Bind only to `127.0.0.1`. Send no CORS headers. Respond only under a token path that changes on every launch (`/t/<token>/...`).
   - Reason: canvases allow external scripts, so if the whole repo were served, a script inside a canvas could request `.env` or source code. The iframe origin is `null`, so CORS blocks reads, but we do not rely on that single layer.
+- **`.doan/config.json` v1** (2026-10-21, `formats`; schema `schema/config.v1.schema.json`): `{v: 1, tokenCss?, serve?}`. `tokenCss` is one repo-relative token CSS path (omitted when the repo has none); `serve` lists extra repo-relative files or directories to serve (no globs, default `[]`). Unknown fields are errors. The schema rejects absolute paths, `..` segments, the empty string, and paths made only of `.` segments (`.`, `./`), so the whole repo root cannot be served by config. Normalization and symlink checks are runtime work (CLI and local server, PoC 4).
 - Canvases render inside a `sandbox="allow-scripts"` iframe. `allow-same-origin` is not granted. This isolates agent-written HTML from the app UI and the disk.
 - Zoom and pan are done by the app outside the iframe with transform. The canvas HTML does not need to know about it.
 - Element and frame selection and pin position calculation are handled by a script Doan injects into the iframe, which communicates with the app over `postMessage`. This script also collects and sends inspector values (computed styles and the token names used). For stylesheets loaded from a CDN, the browser will likely block reading rules (`cssRules`), so values from those rules may show only computed values (not verified — PoC target).
@@ -106,7 +118,7 @@ Skills teach the items below, and `doan check` checks the ones that can be measu
 ## 11. Shared formats (2026-10-21)
 
 - JSON Schema files are the source of truth for the formats of comment events, `.doan/config.json`, and CLI responses. The app (TypeScript) and CLI (Go) validate against the same schema.
-- TS and Go tests both read the same example files (fixtures) to catch divergence between the two implementations.
+- TS and Go tests both read the same example files (fixtures) to catch divergence between the two implementations. Fold fixtures (`schema/fixtures/fold/<case>/{events.jsonl,expected.json}`) are compared by parsing both sides and deep-equal, not byte equality, so key order, escaping, and trailing newlines do not matter but array order, omitted keys, and `[]` vs `null` do (2026-10-21).
 - Reason: choosing Go for the CLI created the cost of keeping the schema on both sides. One language-neutral source of truth reduces that cost.
 - Location (2026-10-21): schemas and fixtures live in root `schema/`, embedded into Go by `schema/embed.go` (the Go module is at the repo root because `go:embed` cannot reach parent directories). Go code is under `cli/`, TS code under `app/` (npm).
 - Validators: JSON Schema draft 2020-12, ajv on the TS side, santhosh-tekuri/jsonschema v6 on the Go side (2026-10-21).
@@ -114,7 +126,18 @@ Skills teach the items below, and `doan check` checks the ones that can be measu
 ## 12. CLI output contract (2026-10-21)
 
 - Every command has `--json`. The success envelope is `{v: 1, ok: true, result}`, and the failure envelope is `{v: 1, ok: false, error: {code, message, nextSteps}}`. The envelope carries the format version `v` like the other formats (2026-10-21). `nextSteps` tells the agent what to do next (e.g. "Ask the user to open Doan").
-- Exit codes distinguish failure kinds: app required (app is not running), check failed, usage error. Specific numbers are decided at implementation time along with the schema.
+- Exit codes distinguish failure kinds (2026-10-21, `formats`; schema `schema/cli-envelope.v1.schema.json`):
+
+| Exit | `error.code` | Meaning |
+|---|---|---|
+| 0 | — | Success |
+| 1 | `internal_error` | Bug or unexpected failure |
+| 2 | `usage_error` · `repo_not_found` · `invalid_config` · `unsupported_version` | Bad arguments or flags, no `.doan/config.json`, config schema violation, unknown `v` |
+| 3 | `app_not_running` · `app_protocol_mismatch` | Command needs the app and it is not running, app/CLI protocol mismatch |
+| 4 | (envelope is `ok: true`) | `doan check` ran and found error-level findings in `result.findings` |
+
+- Exit 4 keeps `ok: true` because the command ran and the agent needs the findings in `result`; `error` has no room for them. The exit code tells failure kinds apart; `error.code` and `nextSteps` pick the concrete next action (exit 2 covers both `usage_error` and `repo_not_found`, which need different actions). `error.code` is a snake_case pattern, not an enum, so new commands can add codes without a new `v`.
+- Comment-fold warnings are not failures; commands return them in `result.warnings`.
 - Rationale: Orca's response envelope (`{ok, result | error: {code, message}}`, verified in local bundle) and open-claude-design's meaningful exit codes (github.com/maxritter/open-claude-design).
 
 ## 13. Multiple repos and worktrees (2026-10-21)
