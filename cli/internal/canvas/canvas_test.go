@@ -131,3 +131,35 @@ func TestParseReportsDepthLimit(t *testing.T) {
 		t.Fatalf("expected parser error with path, got %v", err)
 	}
 }
+
+func TestNestedSelectorsAreNotColors(t *testing.T) {
+	for _, css := range []string{`a{ b:hover #add { color:red } }`, `a{color:red;b:hover #add { x:1 }}`} {
+		if s := ScanCSS(css, Stylesheet); len(s.Colors) != 0 {
+			t.Fatalf("%s: %v", css, s.Colors)
+		}
+	}
+}
+func TestImportRequiresAdjacentAtKeyword(t *testing.T) {
+	for _, css := range []string{`@ import "x.css";`, `@/*gap*/import "x.css";`} {
+		if s := ScanCSS(css, Stylesheet); len(s.Imports) != 0 {
+			t.Fatalf("%s: %v", css, s.Imports)
+		}
+	}
+}
+func TestLocalPathIgnoresEmptyTargets(t *testing.T) {
+	for _, href := range []string{"", "#", "?v=1", " \t#fragment "} {
+		if path, ok := LocalPath(href); ok || path != "" {
+			t.Errorf("%q: %q, %v", href, path, ok)
+		}
+	}
+}
+func TestSVGTitleIsNotDocumentTitle(t *testing.T) {
+	c := mustParse(t, "x", []byte(`<body><svg><title>SVG title</title></svg></body>`))
+	if c.Title != "" {
+		t.Fatalf("title %q", c.Title)
+	}
+	c = mustParse(t, "x", []byte(`<body><svg><title>SVG title</title></svg><title>HTML title</title></body>`))
+	if c.Title != "HTML title" {
+		t.Fatalf("title %q", c.Title)
+	}
+}
