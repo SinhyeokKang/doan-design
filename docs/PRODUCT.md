@@ -293,6 +293,18 @@ Results:
 | 2026-10-21 | `doan mcp -h`/`--help` print usage and exit 0 | Conductor call (mcp orchestration) — ARCHITECTURE §12 applies `-h`/`--help` to every command; no server starts |
 | 2026-10-21 | A Claude worker may call `codex exec` for the mcp real-agent checks (tasks 0 and 4) only | User decision (mcp review) — crossing the model boundary needs explicit permission, scoped to these checks |
 | 2026-10-21 | The local server sends `Access-Control-Allow-Origin: null` on in-scope 200 responses only (replaces "no CORS") | User decision (app-shell orchestration, Q13) — PoC 4: the `null`-origin sandbox iframe could not load repo fonts or module scripts without it; out-of-scope paths stay 404 with no header |
+| 2026-10-21 | The app's canvas list is the bundled `doan ls --json` output, used as-is | User decision (app-shell Q1) — one listing rule; TS and Go comment folding already diverged once (POSTMORTEM) |
+| 2026-10-21 | The serving scope comes from `doan ls` `result.scope`, computed by one Go function shared with `doan check` | User decision (app-shell Q2, Q7, Q10) — the server and `css_not_served` cannot disagree |
+| 2026-10-21 | During development the app finds the CLI through `DOAN_CLI`, then `PATH`; tests build it with a vitest `globalSetup` | User decision (app-shell Q3, Q9) — the bundled path is #8's job; `npm --prefix app test` stays one command |
+| 2026-10-21 | App build is `electron-vite`; the renderer is plain DOM until #6 picks a UI framework | User decision (app-shell Q4) — #4 and #5 have no design draft (§5 Dogfooding) |
+| 2026-10-21 | `/runtime-test` drives the real app with Playwright `_electron` | User decision (app-shell Q5) — scripted launch, main-process evaluate, DOM reads and screenshots on the same Chromium; CDP would rebuild waits and selectors, `computer-use` needs a visible screen |
+| 2026-10-21 | Opening a repo subfolder opens the repo root that `doan ls` reports; a subfolder of a failing repo is not stored | User decision (app-shell Q6) and conductor call (app-shell orchestration) — discovery stays in Go; storing the subfolder would lead to a nested `doan init` |
+| 2026-10-21 | Electron 45.0.0 is kept | User decision (app-shell Q8) — PoC 4 launched it with Playwright `_electron.launch` |
+| 2026-10-21 | Scope entries that resolve to the repo root are dropped; the server also checks `Host` | User decision (app-shell Q11) and design review — the schema only blocks a literal `.`, and the token alone does not stop DNS rebinding |
+| 2026-10-21 | Folder keys in serving URLs are random per open | User decision (app-shell Q12) — no repo path leaks into URLs |
+| 2026-10-21 | #4 watches comment files, only to refresh open comment counts | User decision (app-shell feature-review) |
+| 2026-10-21 | `folders.json` that cannot be read starts empty, and a later write may replace it | User decision (app-shell orchestration) — only the folder list is lost, and reopening restores it |
+| 2026-10-22 | Deferred from #4: an uninitialized subfolder stays "not initialized" after `doan init` in its parent (#8); closing the window quits the app (#6); "folder not found" has no recovery hint (#6) | User decision (app-shell orchestration) — rare, no data lost |
 
 ## 8. Open questions
 
@@ -301,6 +313,9 @@ Carried over from README draft §15. When closed, they move to the matching sect
 - Open source license type (MIT · Apache-2.0, etc.)
 - A comment event `at` that matches the schema pattern but is not a calendar time (`2026-02-30`, `T24`, a `:60` second) can only come from a hand-edited file; if it is a file's max `at`, `doan comment resolve` on that file fails with `internal_error` (2026-10-21, cli-core user decision to defer). Options: a calendar check in the schema (TS and Go together), or a dedicated error code.
 - Should onboarding step 3 pass `--token-css` as a repo-relative path, or should `doan init` accept an absolute path inside the repo? Today an absolute path is `usage_error` (2026-10-21, cli-core). Decide before #8 `onboard-dist`.
+
+- An uninitialized subfolder opened before `doan init` ran in its parent keeps showing "not initialized" (the app reads it with `--repo <subfolder>`), and following that hint creates a nested repo. Decide with the onboarding `doan init` location in #8 `onboard-dist` (2026-10-22, app-shell).
+- Closing the window quits the app, unlike the macOS convention; and a "folder not found" entry gives no hint that reopening it restores the list. Decide in #6 with the UI framework (2026-10-22, app-shell).
 
 `doan:width` was closed as required with no default (2026-10-21).
 

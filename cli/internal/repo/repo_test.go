@@ -231,3 +231,38 @@ func TestCommentFilesSkipsSymlinkedDoan(t *testing.T) {
 		t.Fatalf("%v %v", files, err)
 	}
 }
+
+func TestFindReportsDiskSpelling(t *testing.T) {
+	root := filepath.Join(real(t, t.TempDir()), "Repo")
+	put(t, root, ".doan/config.json", `{"v":1}`)
+	put(t, root, "design/sub/file", "")
+	upper := strings.ToUpper(root)
+	if _, err := os.Stat(upper); os.IsNotExist(err) {
+		t.Skip("temporary filesystem is case-sensitive")
+	} else if err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct{ start, flag string }{{upper, ""}, {filepath.Join(upper, "DESIGN/SUB"), ""}, {"/", upper}, {upper, "DESIGN/.."}} {
+		r, err := Find(tt.start, tt.flag)
+		if err != nil || r.Root != root {
+			t.Errorf("%+v: %q %v", tt, r.Root, err)
+		}
+	}
+}
+
+func TestFindKeepsPathWhenSpellingLookupFails(t *testing.T) {
+	parent := real(t, t.TempDir())
+	// "한" in NFD: APFS opens it by its NFC spelling, but no directory entry matches that spelling.
+	root := filepath.Join(parent, "한")
+	put(t, root, ".doan/config.json", `{"v":1}`)
+	nfc := filepath.Join(parent, "한")
+	if _, err := os.Stat(nfc); os.IsNotExist(err) {
+		t.Skip("temporary filesystem does not normalize names")
+	} else if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Find(nfc, "")
+	if err != nil || r.Root != nfc {
+		t.Fatalf("%q %v", r.Root, err)
+	}
+}

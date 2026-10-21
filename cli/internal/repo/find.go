@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 )
 
@@ -41,6 +42,13 @@ func Find(start, repoFlag string) (Repository, error) {
 			code = "repo_not_found"
 		}
 		return Repository{}, &Error{Code: code, Message: err.Error(), Cause: err}
+	}
+	// EvalSymlinks keeps the caller's letter case (from --repo or $PWD), so one
+	// repo would get several roots. The spelling lookup is best effort: an
+	// unlistable ancestor or a name that differs only in Unicode normalization
+	// (APFS matches NFC to NFD, EqualFold does not) keeps the resolved path.
+	if rel, err := diskSpelling(string(filepath.Separator), strings.TrimPrefix(dir, string(filepath.Separator))); err == nil {
+		dir = filepath.Join(string(filepath.Separator), rel)
 	}
 	info, err := os.Stat(dir)
 	if err != nil {

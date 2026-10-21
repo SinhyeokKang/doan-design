@@ -2,7 +2,11 @@
   "name": "doan-app",
   "private": true,
   "type": "module",
+  "main": "out/main/index.js",
   "scripts": {
+    "build": "electron-vite build",
+    "dev": "electron-vite dev",
+    "e2e": "npm run build && node e2e/runtime.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -11,7 +15,11 @@
   },
   "devDependencies": {
     "@types/node": "24.19.2",
+    "electron": "45.0.0",
+    "electron-vite": "6.0.0",
+    "playwright": "1.64.1",
     "typescript": "7.0.2",
+    "vite": "8.3.4",
     "vitest": "5.0.5"
   }
 }

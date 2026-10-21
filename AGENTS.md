@@ -63,19 +63,25 @@ Doan Design (`doan`): a tool where a coding agent writes an HTML canvas (a desig
 - `go run ./cli/cmd/doan <command> [--repo <path>] [--json]` — run the CLI by hand (2026-10-21 user, cli-core). Point `--repo` at a temporary directory, not this repo.
 - `npm --prefix app test` — TypeScript tests (`vitest run`).
 - `npm --prefix app run typecheck` — TypeScript checks (`tsc --noEmit`).
+- App setup (2026-10-21 user, app-shell): `npm --prefix app ci`, then `node -e "require('electron')"` from `app/` once to download the Electron binary (Electron 45 has no postinstall).
+- `npm --prefix app run build` — build the app into `app/out/` (`electron-vite build`).
+- `npm --prefix app run e2e` — build, then run the Playwright `_electron` smoke (`app/e2e/runtime.ts`); it builds the CLI itself, uses a temporary userData, and prints screenshot paths under `.scratch/runtime-test/`.
+- `DOAN_CLI=<abs path to doan> npm --prefix app run dev -- -- --user-data-dir=<tmp>` — run the app by hand without touching the real `~/Library/Application Support/doan/`.
+- `go build -o <tmp>/doan ./cli/cmd/doan` — build the CLI for `DOAN_CLI`.
 - Real-agent MCP check (2026-10-21 user, mcp) — one-off registration that leaves global config untouched; compare `claude mcp list` / `codex mcp list` before and after, and pass an absolute temp `repo` on every tool call:
   - `claude -p --mcp-config <tmp.json> --strict-mcp-config --allowedTools 'mcp__<name>__*' -- "<prompt>" < /dev/null` (`--allowedTools` is variadic, so `--` must precede the prompt).
   - `codex exec -c 'mcp_servers.<name>.command="<abs binary>"' -c 'mcp_servers.<name>.args=["mcp"]' "<prompt>" < /dev/null`, run inside a git checkout (Codex refuses untrusted directories). From a Claude session this crosses the model boundary and needs the user's permission each time.
 
 ## Workflow (skill lineup)
 
-The source for the 9 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, ported the pipeline from malmoi `.claude/commands/` to fit doan — the deploy, DB, and translation stages were dropped).
+The source for the 10 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, ported the pipeline from malmoi `.claude/commands/` to fit doan — the deploy, DB, and translation stages were dropped).
 
-**Recommended flow**: `/feature` → (`/feature-review`) → `/tdd` → `/implement` → `/code-review` → `/refactor` → (`/postmortem`) → push. A small change goes all the way to push with `/ship` alone; a large batch to split across several workers runs through `/orchestrate`.
+**Recommended flow**: `/feature` → (`/feature-review`) → `/tdd` → `/implement` → (`/runtime-test`) → `/code-review` → `/refactor` → (`/postmortem`) → push. A small change goes all the way to push with `/ship` alone; a large batch to split across several workers runs through `/orchestrate`.
 
 - **Terms** (2026-10-21 user): a **feature** is a logical division of the MVP feature list (PRODUCT §5). One feature = one `/feature` run = one `docs/features/<slug>/`. A **batch** is a bundle of work that `/orchestrate` hands to a worker when implementing one feature. One feature can be implemented by several workers and several batches.
 - `/feature` is the starting point of a feature. Its output goes in `docs/features/<slug>/` (spec·design·tasks); when the feature is done, promote the conclusions to PRODUCT.md (product judgment) and ARCHITECTURE.md (structure, formats, conventions) and delete that directory.
 - `/code-review` refers to this repo's skill. It is different from Claude Code's built-in `code-review`.
+- `/runtime-test` (2026-10-21, app-shell) launches the real app and checks it; run it after `/implement` or `/refactor` whenever `app/` changed, before `/code-review`.
 - If you fixed a regression or bug, run `/postmortem`. `/implement` · `/refactor` · `/code-review` grep `docs/POSTMORTEM.md` before starting (when the file exists).
 - `/ship` · `/orchestrate` always start by creating a `feat-<slug>` branch from main and end with a push of that branch + a PR. They do not merge.
 
@@ -95,7 +101,7 @@ The source for the 9 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, por
 
 - **Branches** (2026-10-21 user): there are two paths.
   - **Code changes** are requested by the user via `/ship` or `/orchestrate`. Both skills start by creating a `feat-<slug>` branch from main and end with a push of that branch + a PR. Even a docs-only change takes the same path if it goes through these skills.
-  - **Harness and docs changes** (AGENTS.md · skills · hooks · PRODUCT.md, etc.) are fixed directly during the conversation, then committed and pushed straight to main.
+  - **Harness and docs changes** (AGENTS.md · skills · hooks · PRODUCT.md, etc.) are fixed directly during the conversation. Commit them on whichever branch is checked out — do not switch branches just for a harness change (2026-10-21 user). On main, push straight to main; on a `feat-<slug>` branch, they reach main with its PR.
   - There is no deploy server, so there is no dev/main split.
 - **Commit messages are in English**, Conventional Commits (`feat:` `fix:` `docs:` `docs(scope):` `chore:`).
 - Split commits per document.

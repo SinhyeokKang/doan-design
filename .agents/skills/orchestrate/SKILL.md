@@ -15,16 +15,12 @@ Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several wo
 
 ## 0. Intake (before launching workers)
 
-1. **Write `orch.md` first** — for a feature, `docs/features/<slug>/orch.md`. Only point to the source spec and tasks. Contents: starting hash, integration branch, decision log, batch table (item · file ownership · prerequisites · worker model · verification gate · status), file overlaps and parallel/serial order.
+1. **Write `orch.md` first** — for a feature, `docs/features/<slug>/orch.md`. Only point to the source spec and tasks. Contents: starting hash, integration branch, decision log, batch table (item · file ownership · prerequisites · model·effort and why · verification gate · status), file overlaps and parallel/serial order.
 2. **Get all decisions up front** — ask about points open to interpretation **one at a time** with the runtime's question tool (AskUserQuestion in Claude Code). Include one recommendation with a reason and an 'Other (type your own)' option. Record the answers in the decision log. Do not ask what PRODUCT or AGENTS already answers; write "conductor's call — <basis>". Batches that need design go through `/feature` → `/feature-review` first, here.
-3. **Worker model boundary** (AGENTS.md 'Runtime differences', strictly applied):
-
-   | Conductor | Allowed workers |
-   |---|---|
-   | Claude Code | Claude Code / Claude models only |
-   | Codex | Codex / Codex models only |
-
-   Crossing only with the user's explicit permission. Do not cross because of token shortage, missing tools, failures, or speed. Implementation, review, retries, fix rounds, and terminal reuse all fall under the same boundary. Confirm actual model IDs in the current runtime and write one line on why you chose them.
+3. **Model and effort per batch** (2026-10-21 user) — the conductor rates each batch's difficulty (how much judgment it needs, what breaks if it is wrong) and launches the worker that fits; the runtime is not the choice. Give every batch (implementation, review, fix round) its own model and effort and write one line of reasoning in the batch table, e.g. a mechanical batch → Sonnet medium, a security- or concurrency-heavy batch → Opus high.
+   - Claude Code conductor: Sonnet or Opus, effort at most `high` (no `xhigh`/`max`). In Orca pass them explicitly: `worker-start … --agent claude --model sonnet --effort medium`, then check `launch.effective`.
+   - Codex conductor: Sol up to `high`, Astra up to `medium`.
+   - Runtime boundary (AGENTS.md 'Runtime differences') still holds: a Claude Code conductor launches only Claude workers, a Codex conductor only Codex workers. Crossing needs the user's explicit permission, never because of token shortage, missing tools, failures, or speed.
 4. **Split parallel/serial by file overlap** — do not run two batches that edit the same file in parallel. Do not make a worker wait for another batch. For items that depend on a prerequisite, brief: "leave it, finish the rest, then list it as a 'deferred item' in the handoff", and after integrating the prerequisite, send that item as a new Task.
 5. **Check that every checkbox item in tasks maps to one batch row.** Zero ownerless items.
 6. **Commit `orch.md`, then** launch the first worker. Worktrees branch from commits, so workers cannot read an uncommitted plan.
@@ -44,7 +40,7 @@ Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several wo
 
 ## 3. Review → fix rounds
 
-1. Hand the batch diff to an **independent review worker** (same model family, report only) with `/code-review`. Also have it judge the handoff document's claims and "differences from the plan".
+1. Hand the batch diff to an **independent review worker** (same runtime, model and effort chosen for the diff's difficulty, report only) with `/code-review`. Also have it judge the handoff document's claims and "differences from the plan".
 2. Separate 🔴/🟡 from user-decision items. Ask decisions one at a time.
 3. Send a fix brief to the owning worker. Repeat until 🔴 is 0.
 
@@ -68,7 +64,7 @@ The report is delivered to the user in Korean.
 ```
 🎼 orchestrate: <plan document>
 Incomplete / unverified (first): <checks not run · remaining decisions>
-Batches: <table — status · integration hash · rounds · worker model>
+Batches: <table — status · integration hash · rounds · model·effort>
 Model crossing: none / <scope of permission>
 push: feat-<slug> + PR <url>
 Worktrees: <what remains>
