@@ -48,7 +48,8 @@ Three files under `docs/features/<slug>/`. The slug is kebab-case.
 2. Read `docs/PRODUCT.md` so nothing conflicts with what is already decided. Do not redesign what is decided. README is background only; do not cite it as a decision.
 3. If `docs/POSTMORTEM.md` exists, grep it for the areas this feature touches and quote the matching pitfalls in design.md.
 4. Write the three files.
-5. Ask about points open to interpretation **one at a time** with the runtime's question tool (AskUserQuestion in Claude Code). Give each set of options one recommendation with a reason, and include a visible 'Other (type your own)' option.
+5. Ask about points open to interpretation **one at a time** with the runtime's question tool (AskUserQuestion in Claude Code). Give each set of options one recommendation with a reason, and include a visible 'Other (type your own)' option. Apply each answer to the documents.
+6. **Commit** once the documents are written and the questions are settled — only `docs/features/<slug>/`. `docs(feature): <slug> spec, design, tasks`. Since only documents change, commit to main and push (AGENTS.md branch rule). Stage paths one by one; trailers follow `/ship`'s commit rules.
 
 ## 3. Report
 
@@ -63,12 +64,13 @@ Pure-function targets: <list>  ← /tdd entry point
 Format changes: none / <schema · whether v changes>
 Conventions/decision impact: none / <what and how>
 PoC dependency: none / <PRODUCT §6 item>
+Commit: <hash>
 Next: /feature-review or /tdd interface
 ```
 
 ## Prohibited
 
 - Do not create or edit code files. Write only documents under `docs/features/`.
-- Do not commit.
+- Do not commit anything outside `docs/features/<slug>/`.
 - Do not pull out-of-scope items into scope on your own.
 - Do not edit `docs/PRODUCT.md` directly. Leave the need as a task.
