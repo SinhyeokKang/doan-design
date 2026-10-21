@@ -13,7 +13,7 @@ description: 구현 전에 테스트만 먼저 쓸 때 쓴다. 새 인터페이�
 
 ## 형식을 건드리면 스키마와 픽스처부터
 
-PRODUCT §6 '형식 공유': 코멘트 이벤트·`.doan/config.json`·CLI 응답은 JSON Schema가 원본이고, TS(앱)와 Go(CLI) 테스트가 **같은 픽스처**를 읽는다.
+ARCHITECTURE §11 '형식 공유': 코멘트 이벤트·`.doan/config.json`·CLI 응답은 JSON Schema가 원본이고, TS(앱)와 Go(CLI) 테스트가 **같은 픽스처**를 읽는다.
 
 - 먼저 스키마 변경과 픽스처(통과해야 할 것·실패해야 할 것)를 쓴다. 그다음 TS·Go 양쪽 테스트가 그 픽스처를 읽게 한다. 한쪽만 쓰면 두 구현이 어긋나는 것을 못 잡는다.
 - 스키마·픽스처·테스트 파일 위치가 아직 정해지지 않았으면(PRODUCT: "코드를 깔 때 정한다") 멈추고 묻는다. 위치를 지어내지 않는다.
@@ -22,13 +22,13 @@ PRODUCT §6 '형식 공유': 코멘트 이벤트·`.doan/config.json`·CLI 응�
 
 **강제** (PRODUCT의 결정에서 나온 순수 로직):
 - 코멘트 이벤트 접기: `at` 순 정렬(줄 순서 아님), 같은 `id`는 하나로, 삭제 이벤트 뒤 되살아나지 않음, 모르는 `v`를 알림.
-- `doan check` 규칙: PRODUCT §4 '규약'과 §5의 검사 항목마다 오류·경고 케이스.
+- `doan check` 규칙: ARCHITECTURE §1 '규약'과 PRODUCT §5의 검사 항목마다 오류·경고 케이스.
 - CLI `--json` 봉투(`ok`·`result`·`error{code,message,nextSteps}`)와 종료 코드 구분.
 - 서빙 경로 허용 판정(허용 경로 밖·`..` 탈출은 거부), `.doan/config.json` 상향 탐색.
 - 재현되는 버그.
 
 **스킵 가능** (이유 한 줄을 보고하고 끝낸다):
-- Electron UI 렌더·인터랙션, iframe 안 주입 스크립트의 실측 동작(PRODUCT §7 PoC 대상).
+- Electron UI 렌더·인터랙션, iframe 안 주입 스크립트의 실측 동작(PRODUCT §6 PoC 대상).
 - 소켓·파일 감시 같은 I/O 껍데기. 단 그것이 부르는 순수 함수는 강제.
 
 ## 절차

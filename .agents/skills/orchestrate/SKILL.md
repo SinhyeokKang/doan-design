@@ -56,7 +56,7 @@ description: 배치 계획 문서 하나를 여러 워커 세션에 나눠 병�
 ## 5. push와 정리
 
 - 모든 배치가 통합되면 `/ship` 11단계와 같이 `feat-<slug>`를 push하고 `gh pr create --base main`. 머지하지 않는다.
-- 기능이 끝났으면 결론을 PRODUCT로 올리고(§8 날짜·근거) `docs/features/<slug>/`를 지운다. `orch.md`도 함께 지운다.
+- 기능이 끝났으면 결론을 PRODUCT(제품 판단)·ARCHITECTURE(구조·형식·규약)로 올리고(PRODUCT §7 날짜·근거) `docs/features/<slug>/`를 지운다. `orch.md`도 함께 지운다.
 - 워크트리는 추적 중인 미커밋 변경 0, 통합되지 않은 커밋 0을 확인한 뒤 지운다. 보낼 지시가 없는 워커는 끝까지 기다리지 않고 바로 정리한다. 인계 문서는 워크트리와 함께 사라지므로 필요한 결론은 먼저 정본에 올린다.
 
 ## 리포트

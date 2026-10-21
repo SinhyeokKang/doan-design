@@ -10,7 +10,7 @@ description: 방금 잡은 버그·회귀·비자명한 함정을 docs/POSTMORTE
 - `fix:` 커밋을 만들었을 때.
 - 문서에 없던 제약이나 조용히 실패하는 동작을 밟았을 때.
 - `/implement` 리포트에 "postmortem 후보" 플래그가 있을 때.
-- PoC(PRODUCT §7)가 예상과 다르게 실패했을 때. 관찰 결과 자체는 PRODUCT §7에 적고, 여기에는 함정만 남긴다.
+- PoC(PRODUCT §6)가 예상과 다르게 실패했을 때. 관찰 결과 자체는 PRODUCT §6에 적고, 여기에는 함정만 남긴다.
 
 ## trivial 필터 (먼저 적용)
 
