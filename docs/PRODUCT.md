@@ -291,6 +291,7 @@ Results:
 | 2026-10-21 | Keep the SDK's drop-on-EOF behavior and document it | User decision (mcp orchestration) — real clients keep stdin open; writes are never cut in half |
 | 2026-10-21 | `doan mcp -h`/`--help` print usage and exit 0 | Conductor call (mcp orchestration) — ARCHITECTURE §12 applies `-h`/`--help` to every command; no server starts |
 | 2026-10-21 | A Claude worker may call `codex exec` for the mcp real-agent checks (tasks 0 and 4) only | User decision (mcp review) — crossing the model boundary needs explicit permission, scoped to these checks |
+| 2026-10-21 | The local server sends `Access-Control-Allow-Origin: null` on in-scope 200 responses only (replaces "no CORS") | User decision (app-shell orchestration, Q13) — PoC 4: the `null`-origin sandbox iframe could not load repo fonts or module scripts without it; out-of-scope paths stay 404 with no header |
 
 ## 8. Open questions
 
