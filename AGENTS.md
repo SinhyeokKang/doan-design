@@ -54,16 +54,33 @@ Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(
 - **검증하지 않은 것을 통과로 말하지 않는다.** 도구가 없거나 못 돌린 검증은 미완으로 남기고 무엇을 못 했는지 보고한다.
 - **레퍼런스는 근거를 남긴다**: 다른 도구(Claude Design·Orca·ego-browser·Storybook 등)에서 가져온 아이디어는 어디서 왔는지 적는다. 기억으로 단정하지 말고 확인할 수 있는 것은 확인한다.
 
+## 명령어
+
+아직 없다. 코드가 생기면 영역별 테스트·타입 검사·빌드 명령을 여기에 적는다. 스킬(`/tdd`·`/implement`·`/refactor`·`/ship`·`/orchestrate`)은 이 절의 명령만 쓰고, 없으면 멈추고 묻는다. 명령을 지어내지 않는다.
+
+## 워크플로우 (스킬 라인업)
+
+스킬 9개의 원본은 `.agents/skills/<name>/SKILL.md`다(2026-10-21, malmoi `.claude/commands/`의 파이프라인을 doan에 맞게 옮김 — 배포·DB·번역 단계는 뺐다).
+
+**권장 흐름**: `/feature` → (`/feature-review`) → `/tdd` → `/implement` → `/code-review` → `/refactor` → (`/postmortem`) → push. 작은 변경은 `/ship` 하나로 push까지, 여러 워커로 나눌 큰 배치는 `/orchestrate`로 태운다.
+
+- `/feature`가 기능의 시작점이다. 산출물은 `docs/features/<slug>/`(spec·design·tasks)에 두고, 기능이 끝나면 결론을 PRODUCT.md로 올리고 그 디렉터리는 지운다.
+- `/code-review`는 이 리포의 스킬을 가리킨다. Claude Code 내장 `code-review`와 다르다.
+- 회귀·버그를 고쳤으면 `/postmortem`. `/implement`·`/refactor`·`/code-review`는 착수 전에 `docs/POSTMORTEM.md`를 grep한다(파일이 있을 때).
+- 끝은 브랜치 정책(아래 커밋 컨벤션)을 따른다: 문서만이면 main push, 코드면 기능 브랜치 push + PR. 머지는 하지 않는다.
+
 ## 문서
 
 | 문서 | 무엇 | 언제 갱신하나 |
 |---|---|---|
 | [README.md](./README.md) | 배경(말모이 사례)·레퍼런스. 결정은 PRODUCT.md에 있다 | 배경을 고칠 때 |
 | [docs/PRODUCT.md](./docs/PRODUCT.md) | **기획 결정의 정본** — 문제·사용자·범위·루프·MVP·아키텍처·스택·결정 기록·열린 질문 | 기획 결정이 날 때. 날짜와 근거를 결정 기록 절에 남긴다 |
+| docs/POSTMORTEM.md | 버그·회귀의 함정 기록(추가만 한다). `/postmortem`이 처음 쓸 때 만든다 | 회귀를 고쳤을 때 |
 | [AGENTS.md](./AGENTS.md) | 작업 방식(이 파일) — 두 런타임 공통 원본 | 작업 방식이 바뀔 때 |
 
 ## 커밋 컨벤션
 
+- **브랜치**(2026-10-21 사용자): 코드가 생기기 전까지는 main에 바로 커밋·push한다. 코드 작업이 시작되면 기능 브랜치를 만들고 PR로 main에 넣는다. 배포 서버가 없어 dev/main 분리는 두지 않는다.
 - **커밋 메시지는 영문**, Conventional Commits (`feat:` `fix:` `docs:` `docs(scope):` `chore:`).
 - 문서별로 커밋을 나눈다.
 - **주석은 영문으로, "왜"만 쓴다**(2026-10-21 사용자 — 오픈소스로 공개하므로 외부 기여자가 읽을 수 있게). 코드가 말하는 "무엇"을 반복하지 않는다. 비자명한 제약·함정을 남긴다.
@@ -77,7 +94,7 @@ Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(
 - **Bedrock·Vertex·Foundry 세션은 `AGENTS.md`를 읽지 않는다.** 그 경로로 쓸 일이 생기면 위의 `@AGENTS.md` import로 간다.
 - **응답 스타일 재주입 훅은 Claude Code 전용이다**(`.claude/settings.json`). Codex 세션에선 이 파일 최상단의 응답 스타일만 남으니 긴 세션에서도 유지한다.
 - **워커 모델 경계** — 워커·서브에이전트를 호출하는 세션이 Codex면 Codex 모델, Claude Code면 Claude 모델만 호출한다. 패밀리 교차는 사용자의 명시 허가가 있을 때만 허용한다.
-- **스킬 위치가 다르다** — Claude Code는 `.claude/`, Codex는 `.agents/skills/`를 본다. 이 리포를 개발할 때 쓰는 스킬이 생기면 그때 한쪽을 원본으로 정하고 다른 쪽을 어떻게 맞출지 정한다. 이것은 제품이 사용자의 에이전트에 설치하는 doan 스킬(PRODUCT §6 '스킬': `SKILL.md` 스텁 + `doan skill`)과 다른 것이다.
+- **스킬 위치가 다르다** — Claude Code는 `.claude/`, Codex는 `.agents/skills/`를 본다. 이 리포를 개발할 때 쓰는 스킬은 `.agents/skills/<name>/SKILL.md`가 원본이고, `.claude/skills/<name>`은 그 디렉터리를 가리키는 심볼릭 링크다(2026-10-21 사용자). 생성기·미러 동기화를 두지 않는다. 새 스킬을 만들면 링크도 같이 만든다. 이것은 제품이 사용자의 에이전트에 설치하는 doan 스킬(PRODUCT §6 '스킬': `SKILL.md` 스텁 + `doan skill`)과 다른 것이다.
 
 ## 참고
 
