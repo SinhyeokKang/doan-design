@@ -55,7 +55,7 @@ func TestRules(t *testing.T) {
 			i.Reach["design/a.html"] = []CSSRef{{Href: "absent.css", State: Missing, Direct: true}}
 		}},
 		{"css_not_served", func(i *Input) {
-			i.Reach["design/a.html"] = []CSSRef{{Href: "../a.css", RealPath: "a.css", State: In}}
+			i.Reach["design/a.html"] = []CSSRef{{Href: "../a.css", RealPath: "a.css", State: In, Direct: true}}
 			i.Served = func(string) bool { return false }
 		}},
 		{"token_css_not_found", func(i *Input) { i.TokenCSS = TokenCSS{Configured: true, Path: "tokens.css", State: Missing} }},
@@ -103,6 +103,9 @@ func TestIdentityEdges(t *testing.T) {
 	for _, head := range []string{`<meta name="doan:width" content="1">`, metadata + `<meta name="doan:canvas" content="one">`} {
 		in := base()
 		in.Canvases = []canvas.Canvas{parse("a", head, ""), parse("b", head, "")}
+		if strings.Contains(head, `content="one"`) && len(codes(Run(in), "invalid_canvas_id")) != 2 {
+			t.Fatal(Run(in))
+		}
 		if len(codes(Run(in), "duplicate_canvas_id")) != 0 {
 			t.Fatal(Run(in))
 		}
@@ -159,7 +162,7 @@ func TestReachAndAttribution(t *testing.T) {
 func TestPathEdges(t *testing.T) {
 	in := base()
 	in.TokenCSS = TokenCSS{Configured: true, Path: "tokens.css", State: Missing}
-	in.Reach["design/a.html"] = []CSSRef{{Href: "../tokens.css", State: Missing, Direct: true}, {Href: "package-name", State: Missing}, {Href: "/outside", State: Outside}}
+	in.Reach["design/a.html"] = []CSSRef{{Href: "../tokens.css", State: Missing, Direct: true}, {Href: "package-name", State: Missing}, {Href: "/outside", State: Outside, Direct: true}}
 	fs := Run(in)
 	for _, code := range []string{"token_css_not_found", "local_css_not_found", "path_outside_repo"} {
 		if len(codes(fs, code)) != 1 {
@@ -236,5 +239,75 @@ func TestUnparsableCanvas(t *testing.T) {
 	in.Unparsable = map[string]string{}
 	if got := codes(Run(in), "unparsable_canvas"); len(got) != 0 {
 		t.Fatal(got)
+	}
+}
+
+func TestIndirectImportDefinesToken(t *testing.T) {
+	in := base()
+	in.Canvases[0].Styles = canvas.ScanCSS(`a{color:var(--x)}`, canvas.Stylesheet)
+	in.CSS["design/m.css"] = canvas.ScanCSS(`@import "t.css";`, canvas.Stylesheet)
+	in.CSS["design/t.css"] = canvas.ScanCSS(`:root{--x:1}`, canvas.Stylesheet)
+	in.Reach["design/a.html"] = []CSSRef{
+		{From: "design/a.html", Href: "m.css", RealPath: "design/m.css", State: In, Direct: true},
+		{From: "design/m.css", Href: "t.css", RealPath: "design/t.css", State: In},
+	}
+	if fs := Run(in); len(fs) != 0 {
+		t.Fatal(fs)
+	}
+}
+func TestInvalidCanvasIDsStillOwnComments(t *testing.T) {
+	for _, tt := range []struct{ name, head, id string }{
+		{"uppercase", `<meta name="doan:canvas" content="Foo">`, "Foo"},
+		{"duplicate metas", `<meta name="doan:canvas" content="a"><meta name="doan:canvas" content="a">`, "a"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			in := base()
+			in.Canvases[0] = parse("design/a.html", tt.head+`<meta name="doan:width" content="1">`, "")
+			in.CommentFileIDs = []string{tt.id}
+			fs := Run(in)
+			if len(codes(fs, "invalid_canvas_id")) != 1 {
+				t.Fatalf("missing invalid id: %+v", fs)
+			}
+			if len(codes(fs, "orphan_comment_file")) != 0 {
+				t.Fatalf("false orphan: %+v", fs)
+			}
+			if len(codes(fs, "duplicate_canvas_id")) != 0 {
+				t.Fatalf("false duplicate: %+v", fs)
+			}
+		})
+	}
+}
+func TestIndirectCSSPathFindingsBelongToImporter(t *testing.T) {
+	for _, tt := range []struct {
+		state State
+		code  string
+	}{{Outside, "path_outside_repo"}, {In, "css_not_served"}} {
+		t.Run(tt.code, func(t *testing.T) {
+			in := base()
+			in.Canvases = append(in.Canvases, parse("design/b.html", strings.Replace(metadata, "one", "two", 1), ""))
+			in.Served = func(p string) bool { return p == "design/shared.css" }
+			for _, c := range in.Canvases {
+				in.Reach[c.Path] = []CSSRef{
+					{From: c.Path, Href: "shared.css", RealPath: "design/shared.css", State: In, Direct: true},
+					{From: "design/shared.css", Href: "../../out.css", RealPath: "out.css", State: tt.state},
+				}
+			}
+			fs := Run(in)
+			if len(fs) != 1 || fs[0].Code != tt.code || fs[0].Path != "design/shared.css" || fs[0].Target != "../../out.css" || fs[0].Canvas != "" {
+				t.Fatalf("indirect: %+v", fs)
+			}
+			for _, c := range in.Canvases {
+				in.Reach[c.Path] = []CSSRef{{From: c.Path, Href: "../../out.css", RealPath: "out.css", State: tt.state, Direct: true}}
+			}
+			fs = Run(in)
+			if len(fs) != 2 {
+				t.Fatal(fs)
+			}
+			for j, f := range fs {
+				if f.Path != in.Canvases[j].Path || f.Canvas != in.Canvases[j].ID || f.Code != tt.code {
+					t.Fatalf("direct: %+v", f)
+				}
+			}
+		})
 	}
 }
