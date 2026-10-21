@@ -7,7 +7,8 @@ export function remove(list: readonly string[], path: string): string[] {
 }
 
 // A broken folders.json must not keep the app from starting, so anything
-// unexpected starts from an empty list.
+// unexpected starts from an empty list. A hand-edited file may repeat a path;
+// keep it once, as `add` does, so one folder never gets two keys and watchers.
 export function load(text: string): string[] {
   let value: unknown;
   try {
@@ -15,5 +16,6 @@ export function load(text: string): string[] {
   } catch {
     return [];
   }
-  return Array.isArray(value) && value.every((entry) => typeof entry === "string") ? value : [];
+  if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) return [];
+  return [...new Set(value.filter((entry) => entry !== ""))];
 }

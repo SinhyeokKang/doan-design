@@ -5,13 +5,16 @@ export interface CliRun {
   stdout: string;
   stderr: string;
   timedOut: boolean;
+  // Node reports a missing CLI as a spawn error (ENOENT), not exit 127 with
+  // stderr, so without this the CLI error would have no reason to show.
+  spawnError?: string;
 }
 
 export type FolderState =
   | { kind: "list"; root: string; scope: string[]; canvases: unknown[] }
   | { kind: "uninitialized" }
   | { kind: "error"; message: string }
-  | { kind: "cliError"; stderr: string };
+  | { kind: "cliError"; reason: string };
 
 type Envelope =
   | { v: 1; ok: true; result: unknown }
@@ -24,8 +27,8 @@ interface ListResult {
 }
 
 export function folderState(run: CliRun): FolderState {
-  const cliError: FolderState = { kind: "cliError", stderr: run.stderr.split(/\r?\n/, 1)[0] ?? "" };
-  if (run.timedOut || run.exitCode === null) return cliError;
+  const cliError: FolderState = { kind: "cliError", reason: run.spawnError ?? run.stderr.split(/\r?\n/, 1)[0] ?? "" };
+  if (run.spawnError !== undefined || run.timedOut || run.exitCode === null) return cliError;
   let value: unknown;
   try {
     value = JSON.parse(run.stdout);
