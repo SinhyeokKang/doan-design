@@ -2,6 +2,7 @@ package formats
 
 import (
 	"encoding/json"
+	"io"
 	"reflect"
 	"sort"
 	"strings"
@@ -9,13 +10,23 @@ import (
 
 func ParseLines(text string) ParseResult {
 	result := ParseResult{Events: []LocatedEvent{}, Warnings: []Warning{}}
+	text = strings.TrimPrefix(text, "\uFEFF")
 	for index, line := range strings.Split(text, "\n") {
-		if strings.TrimSpace(line) == "" {
+		if strings.Trim(line, " \t\r") == "" {
 			continue
 		}
 		warning := Warning{Code: "invalid_event", Line: index + 1}
 		var value any
-		if err := json.Unmarshal([]byte(line), &value); err != nil {
+		decoder := json.NewDecoder(strings.NewReader(line))
+		// Preserve oversized numbers so version checks can report unknown_version.
+		decoder.UseNumber()
+		if err := decoder.Decode(&value); err != nil {
+			result.Warnings = append(result.Warnings, warning)
+			continue
+		}
+		// A JSONL line must contain exactly one JSON value.
+		var trailing any
+		if err := decoder.Decode(&trailing); err != io.EOF {
 			result.Warnings = append(result.Warnings, warning)
 			continue
 		}
@@ -30,22 +41,24 @@ func ParseLines(text string) ParseResult {
 		if comment, ok := object["comment"].(string); ok {
 			warning.Comment = &comment
 		}
-		version, ok := object["v"].(float64)
+		version, ok := object["v"].(json.Number)
 		if !ok {
 			result.Warnings = append(result.Warnings, warning)
 			continue
 		}
-		if version != 1 {
+		number, err := version.Float64()
+		if err != nil || number != 1 {
 			warning.Code = "unknown_version"
 			result.Warnings = append(result.Warnings, warning)
 			continue
 		}
+		// JSON Schema treats 1, 1.0 and 1e0 alike; Go's int decoder does not.
+		object["v"] = number
 		if err := ValidateCommentEvent(value); err != nil {
 			result.Warnings = append(result.Warnings, warning)
 			continue
 		}
 
-		// JSON Schema treats 1, 1.0 and 1e0 alike; Go's int decoder does not.
 		normalized, err := json.Marshal(value)
 		if err != nil {
 			result.Warnings = append(result.Warnings, warning)
@@ -71,6 +84,8 @@ func Fold(events []LocatedEvent) FoldResult {
 			first[located.Event.ID] = located
 		} else if !reflect.DeepEqual(previous.Event, located.Event) {
 			conflicting[located.Event.ID] = true
+		} else if located.Line < previous.Line {
+			first[located.Event.ID] = located
 		}
 	}
 	for _, located := range events {
