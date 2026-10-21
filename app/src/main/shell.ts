@@ -1,5 +1,4 @@
 import { realpath, stat } from "node:fs/promises";
-import { join } from "node:path";
 import { readFolder, runLs } from "./cli";
 import { openFolderStore } from "./folderStore";
 import { folderState } from "./folderState";
@@ -23,14 +22,6 @@ interface Folder {
   // Reads from the watcher and from a re-open can overlap; only the latest
   // started read may publish, so an older `doan ls` never overwrites a newer one.
   reads: number;
-}
-
-async function isDirectory(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isDirectory();
-  } catch {
-    return false;
-  }
 }
 
 // Electron-free on purpose: the window, dialog and IPC live in index.ts.
@@ -91,13 +82,14 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         // A folder removed after it was picked would make the cwd-based run
         // fail as `spawn doan ENOENT`, which reads like a missing CLI.
         real = await realpath(picked);
-        if (!(await stat(real)).isDirectory()) return null;
-      } catch (error) {
-        console.error("doan: picked folder is gone", picked, error);
-        return null;
+        if (!(await stat(real)).isDirectory()) return `폴더를 찾을 수 없음: ${picked}`;
+      } catch {
+        return `폴더를 찾을 수 없음: ${picked}`;
       }
       const state = folderState(await runLs(cli, { cwd: real }));
-      const decision = openDecision(state, real, await isDirectory(join(real, ".doan")));
+      const failed = state.kind === "error" || state.kind === "cliError";
+      const asRepo = failed ? folderState(await runLs(cli, { repo: real })) : null;
+      const decision = openDecision(state, real, asRepo);
       if ("refuse" in decision) return decision.refuse;
       const path = decision.store;
       const existing = folders.get(path);
