@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "tokenCss": {
+      "type": "string",
+      "allOf": [
+        {
+          "not": {
+            "pattern": "^[/\\\\]|^[A-Za-z]:[/\\\\]"
+          }
+        },
+        {
+          "not": {
+            "pattern": "(^|[/\\\\])\\.\\.([/\\\\]|$)"
+          }
+        },
+        {
+          "not": {
+            "pattern": "^\\.([/\\\\]+\\.)*[/\\\\]*$"
+          }
+        }
+      ],
+      "minLength": 1
+    },
+    "serve": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "allOf": [
+          {
+            "not": {
+              "pattern": "^[/\\\\]|^[A-Za-z]:[/\\\\]"
+            }
+          },
+          {
+            "not": {
+              "pattern": "(^|[/\\\\])\\.\\.([/\\\\]|$)"
+            }
+          },
+          {
+            "not": {
+              "pattern": "^\\.([/\\\\]+\\.)*[/\\\\]*$"
+            }
+          }
+        ],
+        "minLength": 1
+      }
+    }
+  },
+  "required": [
+    "v"
+  ],
+  "additionalProperties": false
+}

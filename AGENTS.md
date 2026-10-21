@@ -57,7 +57,10 @@ Doan Design (`doan`): a tool where a coding agent writes an HTML canvas (a desig
 
 ## Commands
 
-None yet. Once there is code, list the per-area test, type-check, and build commands here. Skills (`/tdd` · `/implement` · `/refactor` · `/ship` · `/orchestrate`) use only the commands in this section, and stop and ask if there are none. Do not invent commands.
+- `go test ./...` — Go tests, from the repo root.
+- `go vet ./...` — Go static checks, from the repo root.
+- `npm --prefix app test` — TypeScript tests (`vitest run`).
+- `npm --prefix app run typecheck` — TypeScript checks (`tsc --noEmit`).
 
 ## Workflow (skill lineup)
 

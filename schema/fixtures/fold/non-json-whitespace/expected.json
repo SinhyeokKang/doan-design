@@ -1,0 +1,13 @@
+{
+  "comments": [],
+  "warnings": [
+    {
+      "code": "invalid_event",
+      "line": 1
+    },
+    {
+      "code": "invalid_event",
+      "line": 2
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "comments": [
+    {
+      "comment": "cmt_00000000-0000-4000-8000-000000000002",
+      "status": "open",
+      "body": "Original",
+      "target": {
+        "frame": "settings",
+        "element": {
+          "doanId": "save",
+          "selector": "button",
+          "html": "<button>Save</button>",
+          "text": "Save",
+          "truncated": false
+        }
+      },
+      "canvasHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "createdBy": {
+        "kind": "human",
+        "name": "Sam",
+        "email": "sam@example.com"
+      },
+      "createdAt": "2026-10-21T10:00:02.000Z",
+      "updatedAt": "2026-10-21T10:00:02.000Z"
+    }
+  ],
+  "warnings": [
+    {
+      "code": "conflicting_duplicate",
+      "line": 1,
+      "event": "evt_00000000-0000-4000-8000-000000000001",
+      "comment": "cmt_00000000-0000-4000-8000-000000000001"
+    },
+    {
+      "code": "conflicting_duplicate",
+      "line": 3,
+      "event": "evt_00000000-0000-4000-8000-000000000001",
+      "comment": "cmt_00000000-0000-4000-8000-000000000001"
+    },
+    {
+      "code": "conflicting_duplicate",
+      "line": 4,
+      "event": "evt_00000000-0000-4000-8000-000000000001",
+      "comment": "cmt_00000000-0000-4000-8000-000000000001"
+    },
+    {
+      "code": "orphan_event",
+      "line": 5,
+      "event": "evt_00000000-0000-4000-8000-000000000003",
+      "comment": "cmt_00000000-0000-4000-8000-000000000001"
+    }
+  ]
+}

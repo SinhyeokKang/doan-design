@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "ok": true,
+  "result": {
+    "findings": [
+      {
+        "level": "error",
+        "code": "missing_width"
+      }
+    ]
+  }
+}

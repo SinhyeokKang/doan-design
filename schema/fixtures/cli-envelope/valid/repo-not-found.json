@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "ok": false,
+  "error": {
+    "code": "repo_not_found",
+    "message": "Start the app.",
+    "nextSteps": [
+      "Open Doan Design."
+    ]
+  }
+}

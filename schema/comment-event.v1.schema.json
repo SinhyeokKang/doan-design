@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "at": {
+          "$ref": "#/$defs/at"
+        },
+        "type": {
+          "const": "create"
+        },
+        "comment": {
+          "$ref": "#/$defs/comment"
+        },
+        "by": {
+          "$ref": "#/$defs/by"
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canvasHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "frame": {
+              "type": "string"
+            },
+            "element": {
+              "type": "object",
+              "properties": {
+                "doanId": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string"
+                },
+                "html": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "text": {
+                  "type": "string"
+                },
+                "truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "selector",
+                "html"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "at",
+        "type",
+        "comment",
+        "by",
+        "body",
+        "canvasHash",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "at": {
+          "$ref": "#/$defs/at"
+        },
+        "type": {
+          "const": "edit"
+        },
+        "comment": {
+          "$ref": "#/$defs/comment"
+        },
+        "by": {
+          "$ref": "#/$defs/by"
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "at",
+        "type",
+        "comment",
+        "by",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "at": {
+          "$ref": "#/$defs/at"
+        },
+        "type": {
+          "const": "delete"
+        },
+        "comment": {
+          "$ref": "#/$defs/comment"
+        },
+        "by": {
+          "$ref": "#/$defs/by"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "at",
+        "type",
+        "comment",
+        "by"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "at": {
+          "$ref": "#/$defs/at"
+        },
+        "type": {
+          "const": "resolve"
+        },
+        "comment": {
+          "$ref": "#/$defs/comment"
+        },
+        "by": {
+          "$ref": "#/$defs/by"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "at",
+        "type",
+        "comment",
+        "by"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "at": {
+          "$ref": "#/$defs/at"
+        },
+        "type": {
+          "const": "reopen"
+        },
+        "comment": {
+          "$ref": "#/$defs/comment"
+        },
+        "by": {
+          "$ref": "#/$defs/by"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "at",
+        "type",
+        "comment",
+        "by"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "by": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "human"
+            },
+            "name": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "agent"
+            },
+            "name": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$"
+            }
+          },
+          "required": [
+            "kind",
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
+    "comment": {
+      "type": "string",
+      "pattern": "^cmt_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    }
+  }
+}

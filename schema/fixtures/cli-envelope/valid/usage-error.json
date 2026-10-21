@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "ok": false,
+  "error": {
+    "code": "usage_error",
+    "message": "Start the app.",
+    "nextSteps": [
+      "Open Doan Design."
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "ok": false,
+  "error": {
+    "code": "app_not_running",
+    "message": "Start the app.",
+    "nextSteps": [
+      1
+    ]
+  }
+}

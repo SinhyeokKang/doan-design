@@ -106,6 +106,7 @@ What the human does is **view + comment**; approval is deferred until after the 
 5. Comments
    - **Element comments**: click an element to attach a note. The anchor's first priority is `data-doan-id`, and selector · HTML snippet · text quote · design-draft hash are stored together as fallbacks.
    - **Frame comments**: attached to `data-doan-frame`. Because canvas organization is up to the agent, many elements have no `data-doan-id`, and a frame anchor is more robust than an anchor on such elements.
+   - **Canvas comments**: a comment with neither a frame nor an element attaches to the whole canvas, because the conventions do not require frames (2026-10-21).
    - Status has two stages: `open` → `resolved`. The agent that applied it resolves it, and the human can reopen it after checking in the app. The human can also resolve a comment in the app (2026-10-21).
    - Only the human edits or deletes the body, and only in the app. The agent (CLI · MCP) only resolves (2026-10-21).
    - Shown as pins; comments whose design-draft hash changed are marked outdated.
@@ -171,7 +172,7 @@ Unverified assumptions among the decisions are verified before implementation. O
 
 Results:
 
-- PoC 5 merge half — passed (2026-10-21, git 2.50.1, `.scratch/`). Branch A appended a `create` and a `delete`, branch B appended a `create` and an agent `resolve` to the end of the same JSONL. With `.doan/comments/*.jsonl merge=union` in `.gitattributes`, the merge succeeded without conflict and kept all 5 lines; the merged file is not in `at` order (B's lines follow A's), which folding handles by sorting. Control without the attribute: the same merge conflicted. The folded-result half is checked by the `union-merge` fold fixture in `formats`.
+- PoC 5 merge half — passed (2026-10-21, git 2.50.1, `.scratch/`). Branch A appended a `create` and a `delete`, branch B appended a `create` and an agent `resolve` to the end of the same JSONL. With `.doan/comments/*.jsonl merge=union` in `.gitattributes`, the merge succeeded without conflict and kept all 5 lines; the merged file is not in `at` order (B's lines follow A's), which folding handles by sorting. Control without the attribute: the same merge conflicted. Fold half — passed (2026-10-21): the same merged file (hashes normalized to a valid 64-hex value) is the `union-merge` fold fixture, and both the TS and Go `foldText` produce the expected state with no warnings. PoC 5 passed.
 
 ## 7. Decision log
 
@@ -245,6 +246,18 @@ Results:
 | 2026-10-21 | The CLI envelope also carries format version `v`; all three formats have `v` | User decision (formats Q5) — same reason as the comment-event and config `v` |
 | 2026-10-21 | Agent author `by.name` is a lowercase kebab string, not a fixed list | User decision (formats review) — other agents also use the CLI (§2), and adding one should not require a new `v` |
 | 2026-10-21 | Code layout: root `go.mod`, `schema/` embedded by `schema/embed.go`, Go formats in `cli/internal/formats/`, TS in `app/` (npm). JSON Schema 2020-12, ajv (TS), santhosh-tekuri/jsonschema v6 (Go) | User decision (formats) — `go:embed` cannot reach parent directories, so the module root must contain `schema/` |
+| 2026-10-21 | Event ids `evt_`/`cmt_` + lowercase UUIDv4; `at` in UTC milliseconds fixed by pattern | User decision (formats Q2) — order comes from `at`, so ids need no time |
+| 2026-10-21 | Element `html` snippet capped at 2,000 code points, cut with `truncated: true` | User decision (formats Q3) — bounds line size without dropping the anchor |
+| 2026-10-21 | CLI exit codes 0–4 and the MVP `error.code` list (ARCHITECTURE §12); `doan check` findings exit 4 with `ok: true` | User decision (formats Q4 and review) — findings must stay in `result` for the agent to fix them |
+| 2026-10-21 | Folding rejects agent `create` too; the agent only resolves | User decision (formats review) — §3 Out of scope: comments are one-way, human to agent |
+| 2026-10-21 | Same event `id` with different content: drop every copy and warn | User decision (formats review) — order-independent without canonical serialization |
+| 2026-10-21 | Fold judgment order permission → deleted → existence → apply; `updatedAt` changes only on create/edit; repeated resolve/reopen is a silent no-op | User decision (formats review) — permission does not depend on state, so it is checked first |
+| 2026-10-21 | Folding is two pure functions `parseLines` + `fold`, exposed together as `foldText`; warnings `{code, line, event?, comment?}` sorted by line | User decision (formats review) — line numbers and broken JSON need text input; one public function keeps callers from re-implementing the merge |
+| 2026-10-21 | Fixtures compared by parse-then-deep-equal, not bytes | User decision (formats review) — agents parse JSON; byte equality across TS and Go (HTML escaping, U+2028, key order) adds cost with no product benefit |
+| 2026-10-21 | Writers keep `at` strictly increasing per file (+1ms) | User decision (formats review) — same-millisecond create/edit could otherwise reorder by id |
+| 2026-10-21 | Dropped `target.point`; `target.frame` optional (canvas comments); human `email` optional | User decision (formats review) — `point` was speculative; conventions do not require frames; git `user.email` may be empty |
+| 2026-10-21 | Config is `tokenCss` (single, optional) + `serve`; schema rejects absolute, `..`, empty, and dot-only paths | User decision (formats review) — onboarding asks for one path; `serve: ["."]` would expose the repo root |
+| 2026-10-21 | Blank JSONL lines are SP/HT/CR only and one leading BOM is stripped; `canvasHash` is 64 lowercase hex | User decision (formats review) — TS and Go must use the same character set; one spelling per hash keeps outdated detection exact |
 
 ## 8. Open questions
 
