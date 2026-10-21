@@ -27,6 +27,10 @@
 | 16 | 간접 `@import`(Direct 아님)가 리포 밖이거나 서빙 범위 밖이면, 그 `@import`를 담은 CSS 파일에 귀속한다(`path`는 CSS 파일, `target`은 href, `(path, code, target)`마다 한 건) | 지휘자 판단(리뷰 B) — design '귀속'은 CSS 파일에서 나온 finding을 그 파일로 보낸다. 고칠 곳도 그 파일이다 |
 | 17 | `canvas.LocalPath`는 `?`·`#`를 뗀 결과가 빈 문자열이면 로컬 경로가 아니다(무시) | 지휘자 판단(리뷰 B) — 브라우저는 href가 빈 `<link>`를 가져오지 않는다 |
 | 18 | 토큰 CSS가 `@import`하는 파일의 색은 지금처럼 `hardcoded_color`로 경고한다 | 지휘자 판단(리뷰 B) — design이 "토큰 CSS 파일 자신"만 뺀다고 명시했고, warning이다 |
+| 19 | `init`은 대상의 `.doan`이 일반 파일이거나 `.gitattributes`가 디렉터리면 `usage_error`(경로와 `nextSteps`)로 끝나고 아무것도 쓰지 않는다 | 지휘자 판단(리뷰 D) — 사용자 리포 내용에서 생긴 문제라 `internal_error`(버그)가 아니다 |
+| 20 | `init`은 `tokenCss`를 `repo.Resolve`의 실제 리포 상대 경로(디스크 표기)로 저장한다 | 지휘자 판단(리뷰 D) — 결정 13과 같은 표기여야 대소문자를 구분하는 파일시스템(Linux CI 등)에서도 풀린다 |
+| 21 | 심링크된 CSS 안의 상대 `@import`는 실제 경로 기준으로 푼다(브라우저는 URL 경로 기준). 지금은 그대로 두고 승격 때 한계로 적는다 | 지휘자 판단(리뷰 D) — 리포 안 CSS 심링크는 드물다 |
+| 22 | 리포 안을 가리키는 절대 경로 `--token-css`도 지금은 `usage_error`다. 앱이 상대 경로로 바꿔 넘길지는 8번 `onboard-dist` 전에 정한다(PRODUCT §8) | 지휘자 판단(리뷰 D) — tasks 6이 `/abs` → `usage_error`를 고정했다 |
 
 ## 배치
 
