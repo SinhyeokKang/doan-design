@@ -16,6 +16,10 @@
 | 5 | `check`는 경로 상태(안·없음·밖) 타입을 스스로 정의하고 `repo`를 import하지 않는다. `repo.Resolve`의 결과를 `check` 타입으로 바꾸는 일은 D가 한다 | 지휘자 판단 — 4와 같은 근거 |
 | 6 | 워커는 `docs/`를 고치지 않는다. tasks 체크박스, 정본과 어긋나는 점, POSTMORTEM 후보는 handoff에 적고 지휘자가 반영한다 | 지휘자 판단 — 병렬 워커가 같은 문서를 고치면 파일이 겹친다 |
 | 7 | resolve 이벤트 붙이기(I/O)는 D가 `cli/internal/comments/`에 새 파일로 둔다 | 지휘자 판단 — design '코드 배치'가 붙이기를 `comments`에 두고, 태스크 4는 순수 함수만 다룬다 |
+| 8 | `NewResolve`는 `(formats.CommentEvent, error)`, `NextAt`은 `(string, error)`를 돌려준다. `MaxAt`은 `(string, bool)` 그대로다. D가 이 에러를 `internal_error`로 넘긴다 | 지휘자 판단(C 질문) — 난수 읽기와 시각 파싱 실패를 숨기지 않으려는 것이다 |
+| 9 | `canvas.Parse`는 `(Canvas, error)`를 돌려준다(`x/net/html`은 요소 중첩이 512개를 넘으면 에러를 낸다). 파싱에 실패한 캔버스는 명령 전체를 실패시키지 않고, 새 검사 규칙 `unparsable_canvas`(error, `path`는 캔버스)로 알린다. D는 그 캔버스를 `check.Input.Unparsable`에 넣고, `ls`에는 `path`만 내며, `comments`에서는 캔버스가 없는 것으로 다룬다. 규칙은 19개가 된다 | 사용자 2026-10-21 — `check`는 에이전트에게 고칠 곳을 알려 주는 명령이다. `internal_error`는 CLI 버그처럼 보이고 다른 캔버스의 결과까지 가린다 (처음의 지휘자 판단 "`internal_error`로 넘김"을 뒤집음) |
+| 10 | `repo.Resolve`는 `(State, string, error)`를 돌려준다. 심링크 루프·권한 같은 예상 밖 I/O 실패를 "없음"으로 숨기지 않고, D가 `internal_error`로 넘긴다 | A의 계획 차이 — 리뷰 A에서 판정 |
+| 11 | 스키마 패턴은 통과하지만 달력에 없는 `at`(`2026-02-30`·`T24`·윤초 `:60`)이 파일의 최댓값이면 `NextAt`이 에러를 낸다. 지금은 그대로 두고, D가 파일 경로를 메시지에 담아 `internal_error`로 넘긴다. 태스크 8에서 PRODUCT §8 열린 질문에 적는다 | 사용자 2026-10-21(리뷰 C 🟡) — 손으로 고친 줄에서만 생기는 경우라 이 피처의 범위를 넓히지 않는다 |
 
 ## 배치
 
