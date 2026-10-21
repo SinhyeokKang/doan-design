@@ -117,7 +117,9 @@ describe("folderState", () => {
 
   test("a timeout is a CLI error even with a valid envelope", () => {
     const stdout = envelope({ v: 1, ok: true, result: listResult });
-    expect(folderState(run({ exitCode: null, stdout, timedOut: true }))).toEqual({ kind: "cliError", reason: "" });
-    expect(folderState(run({ stdout, timedOut: true, stderr: "slow\n" }))).toEqual({ kind: "cliError", reason: "slow" });
+    expect(folderState(run({ exitCode: null, stdout, timedOut: true }))).toEqual({ kind: "cliError", reason: "timed out after 10 s" });
+    expect(folderState(run({ stdout, timedOut: true, stderr: "slow\n" }))).toEqual({ kind: "cliError", reason: "timed out after 10 s" });
+    expect(folderState(run({ exitCode: null, timedOut: true, spawnError: "spawn doan EACCES" })))
+      .toEqual({ kind: "cliError", reason: "spawn doan EACCES" });
   });
 });

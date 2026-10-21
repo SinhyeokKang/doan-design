@@ -1,10 +1,10 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
 import { connect } from "node:net";
-import { tmpdir } from "node:os";
+import { networkInterfaces, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { startServer, type LocalServer } from "./server";
+import { openNoFollow, startServer, type LocalServer } from "./server";
 
 interface Response {
   status: number;
@@ -56,6 +56,20 @@ const normalizationInsensitive = (() => {
   return existsSync(join(tmp, nfc.normalize("NFD")));
 })();
 const isRoot = process.getuid?.() === 0;
+const lanAddress = Object.values(networkInterfaces())
+  .flat()
+  .find((entry) => entry && entry.family === "IPv4" && !entry.internal)?.address;
+
+function refused(host: string, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ host, port });
+    socket.on("connect", () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.on("error", () => resolve(true));
+  });
+}
 
 let server: LocalServer;
 let key: string;
@@ -75,6 +89,13 @@ beforeAll(async () => {
   chmodSync(join(repo, "design", "locked.css"), 0o000);
   writeFileSync(join(repo, "design", "big.bin"), Buffer.alloc(8 * 1024 * 1024, 1));
   writeFileSync(join(repo, "design", "short.bin"), Buffer.alloc(8 * 1024 * 1024, 1));
+  writeFileSync(join(repo, "design", "grow.bin"), Buffer.alloc(16 * 1024 * 1024, 1));
+  writeFileSync(join(repo, "design", "empty.css"), "");
+  mkdirSync(join(repo, "design", "real-dir"));
+  writeFileSync(join(repo, "design", "real-dir", "s.txt"), "inside");
+  mkdirSync(join(outside, "real-dir"));
+  writeFileSync(join(outside, "real-dir", "s.txt"), "outside");
+  symlinkSync(outside, join(repo, "design", "swapped"));
   writeFileSync(join(repo, "design-x", "a.css"), "x{}");
   writeFileSync(join(repo, "tokens.css"), ":root{}");
   writeFileSync(join(repo, ".env"), "SECRET=1");
@@ -126,6 +147,13 @@ describe("in-scope files", () => {
 
   test("ignore the query string", async () => {
     expect((await send(server.port, `${base}/design/a.html?x=1`)).status).toBe(200);
+  });
+
+  test("an empty file is 200 with an empty body", async () => {
+    const res = await send(server.port, `${base}/design/empty.css`);
+    expect(res.status).toBe(200);
+    expect(res.headers["content-length"]).toBe("0");
+    expect(res.body).toBe("");
   });
 
   test("HEAD is 200 with the same headers and no body", async () => {
@@ -224,17 +252,16 @@ describe("everything else is the same bodiless 404", () => {
 });
 
 describe("the server", () => {
-  test("listens on 127.0.0.1 only", async () => {
+  test("reports the address it is bound to, which is 127.0.0.1", () => {
     expect(server.host).toBe("127.0.0.1");
-    const refused = await new Promise<boolean>((resolve) => {
-      const socket = connect({ host: "::1", port: server.port });
-      socket.on("connect", () => {
-        socket.destroy();
-        resolve(false);
-      });
-      socket.on("error", () => resolve(true));
-    });
-    expect(refused).toBe(true);
+  });
+
+  test("refuses IPv6 loopback", async () => {
+    expect(await refused("::1", server.port)).toBe(true);
+  });
+
+  test.skipIf(lanAddress === undefined)("refuses a non-loopback IPv4 address", async () => {
+    expect(await refused(lanAddress ?? "", server.port)).toBe(true);
   });
 
   test("uses a new random token on every start", async () => {
@@ -285,5 +312,52 @@ describe("the server", () => {
       req.end();
     });
     expect((await send(server.port, `${base}/design/a.html`)).status).toBe(200);
+  });
+
+  test("never sends more than Content-Length when the file grows mid-transfer", async () => {
+    const file = join(repo, "design", "grow.bin");
+    // A raw socket sees every byte on the wire; an HTTP client would stop at
+    // Content-Length and hide the overflow.
+    const raw = await new Promise<Buffer>((resolve, reject) => {
+      const socket = connect({ host: "127.0.0.1", port: server.port }, () => {
+        socket.write(`GET ${base}/design/grow.bin HTTP/1.1\r\nHost: 127.0.0.1:${server.port}\r\nConnection: close\r\n\r\n`);
+      });
+      const chunks: Buffer[] = [];
+      let grown = false;
+      socket.on("data", (chunk: Buffer) => {
+        chunks.push(chunk);
+        if (!grown) {
+          grown = true;
+          socket.pause();
+          appendFileSync(file, Buffer.alloc(4 * 1024 * 1024, 2));
+          socket.resume();
+        }
+      });
+      socket.on("end", () => resolve(Buffer.concat(chunks)));
+      socket.on("error", reject);
+    });
+    const split = raw.indexOf("\r\n\r\n");
+    const head = raw.subarray(0, split).toString();
+    expect(head).toMatch(/^HTTP\/1\.1 200/);
+    expect(head).toMatch(/content-length: 16777216/i);
+    expect(raw.length - split - 4).toBe(16 * 1024 * 1024);
+  });
+});
+
+describe("openNoFollow", () => {
+  test("opens a path without links", async () => {
+    const file = await openNoFollow(join(repo, "design", "real-dir", "s.txt"));
+    try {
+      expect((await file.readFile()).toString()).toBe("inside");
+    } finally {
+      await file.close();
+    }
+  });
+
+  // Stands in for a directory swapped for a link after the realpath step: the
+  // path the server checked now runs through a link, and must not open.
+  test("refuses a path with a link in any component", async () => {
+    await expect(openNoFollow(join(repo, "design", "swapped", "real-dir", "s.txt"))).rejects.toMatchObject({ code: "ELOOP" });
+    await expect(openNoFollow(join(repo, "design", "link-out"))).rejects.toMatchObject({ code: "ELOOP" });
   });
 });
