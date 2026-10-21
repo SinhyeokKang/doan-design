@@ -267,12 +267,25 @@ Results:
 | 2026-10-21 | A local stylesheet the canvas reaches outside the serving scope is a `doan check` error | User decision (cli-core review Q8) — the human would see the canvas unstyled, and the agent can fix it via `serve` |
 | 2026-10-21 | App onboarding step 3 runs the bundled `doan init --json`; the `init` result is an app–CLI contract | User decision (cli-core review Q9) — a TypeScript re-implementation would drift like the fold divergence in POSTMORTEM |
 | 2026-10-21 | Hardcoded-color warning also covers canvas custom property declarations and `var()` fallbacks | User decision (cli-core review Q13) — convention 10 as written; a re-declared token drifts from the real one |
+| 2026-10-21 | cli-core tasks 1–8 run as one `/orchestrate` on one `feat-cli-core` branch and one PR | User decision (cli-core review Q7) — one feature, one reviewable unit |
+| 2026-10-21 | `doan init` may create a repo under an existing one; discovery picks the inner repo | User decision (cli-core review Q10) — subfolders can be design repos of their own |
+| 2026-10-21 | `doan init` on a broken config fails with its code and never overwrites it | User decision (cli-core review Q11) — onboarding must not treat a broken repo as set up and fail later |
+| 2026-10-21 | No `doan comments --all` for resolved comments | User decision (cli-core review Q12) — no scenario uses it |
+| 2026-10-21 | CLI `result` shapes are prose in ARCHITECTURE §12, not JSON Schema (§11 exception) | User decision (cli-core design) — Go is the only producer, so there is nothing to drift |
+| 2026-10-21 | A canvas the HTML parser rejects is a `doan check` error `unparsable_canvas` (19th rule), not a command failure | User decision (cli-core orchestration) — check tells the agent where to fix; `internal_error` looks like a CLI bug and hides every other canvas's results |
+| 2026-10-21 | CLI path resolution returns the on-disk spelling on case-insensitive filesystems; `doan init` stores `tokenCss` in that spelling | User decision (cli-core orchestration) — one file must be one key, and the stored config must resolve on case-sensitive machines too |
+| 2026-10-21 | Path errors that content alone can cause (`ENOTDIR`, NUL, too long, symlink loop) count as missing and become findings; only environment errors are `internal_error` | Conductor call (cli-core orchestration) — a canvas href must not abort `doan check` |
+| 2026-10-21 | `orphan_comment_file` matches comment files against any canvas's first id string, valid or not | Conductor call (cli-core orchestration) — `invalid_canvas_id` already points at the fix; avoids nudging agents to delete comments (Q4) |
+| 2026-10-21 | Findings from an indirect `@import` go to the CSS file that contains it, once; empty hrefs are ignored | Conductor call (cli-core orchestration) — the fix is in that file; the browser does not fetch an empty href |
+| 2026-10-21 | `doan comment resolve` builds and validates all events before writing any file | Conductor call (cli-core orchestration) — deterministic failures must not leave some files written |
 
 ## 8. Open questions
 
 Carried over from README draft §15. When closed, they move to the matching section and the §7 decision log. Shared fragments (include vs. whole HTML) were closed as up to the agent (2026-10-21, §4 Unit of review).
 
 - Open source license type (MIT · Apache-2.0, etc.)
+- A comment event `at` that matches the schema pattern but is not a calendar time (`2026-02-30`, `T24`, a `:60` second) can only come from a hand-edited file; if it is a file's max `at`, `doan comment resolve` on that file fails with `internal_error` (2026-10-21, cli-core user decision to defer). Options: a calendar check in the schema (TS and Go together), or a dedicated error code.
+- Should onboarding step 3 pass `--token-css` as a repo-relative path, or should `doan init` accept an absolute path inside the repo? Today an absolute path is `usage_error` (2026-10-21, cli-core). Decide before #8 `onboard-dist`.
 
 `doan:width` was closed as required with no default (2026-10-21).
 

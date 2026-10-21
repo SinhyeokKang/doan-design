@@ -59,6 +59,7 @@ Doan Design (`doan`): a tool where a coding agent writes an HTML canvas (a desig
 
 - `go test ./...` — Go tests, from the repo root.
 - `go vet ./...` — Go static checks, from the repo root.
+- `go run ./cli/cmd/doan <command> [--repo <path>] [--json]` — run the CLI by hand (2026-10-21 user, cli-core). Point `--repo` at a temporary directory, not this repo.
 - `npm --prefix app test` — TypeScript tests (`vitest run`).
 - `npm --prefix app run typecheck` — TypeScript checks (`tsc --noEmit`).
 
