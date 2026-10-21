@@ -135,6 +135,8 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 						o, failure = List(ctx, f, pos[1:])
 					case "comments":
 						o, failure = Comments(ctx, f, pos[1:])
+					case "skill":
+						o, failure = Skill(pos[1:])
 					case "check":
 						o, failure = Check(ctx, f, pos[1:])
 					case "comment":
