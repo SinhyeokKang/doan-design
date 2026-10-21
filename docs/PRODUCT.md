@@ -169,6 +169,10 @@ Unverified assumptions among the decisions are verified before implementation. O
 | 5 | `merge=union` | When two branches append add and delete events to the same JSONL, they merge without conflict and the folded result matches expectations |
 | 6 | Go CLI ↔ Electron socket + Go MCP SDK | Connects via `runtime.json` and receives `active`, and `doan mcp` shows up as a tool in Claude Code and Codex |
 
+Results:
+
+- PoC 5 merge half — passed (2026-10-21, git 2.50.1, `.scratch/`). Branch A appended a `create` and a `delete`, branch B appended a `create` and an agent `resolve` to the end of the same JSONL. With `.doan/comments/*.jsonl merge=union` in `.gitattributes`, the merge succeeded without conflict and kept all 5 lines; the merged file is not in `at` order (B's lines follow A's), which folding handles by sorting. Control without the attribute: the same merge conflicted. The folded-result half is checked by the `union-merge` fold fixture in `formats`.
+
 ## 7. Decision log
 
 | Date | Decision | Rationale |
