@@ -35,7 +35,7 @@ Skills teach the items below, and `doan check` checks the ones that can be measu
 
 - The location is `.doan/comments/<canvas id>.jsonl`. It maps 1:1 to a canvas, and the name stays the same when the canvas file is moved (2026-10-21; at first it was the canvas path).
 - Events are only appended, one per line. There are five events: create, edit, delete, resolve, reopen (2026-10-21; at first there were three). Delete also does not remove a line; it appends a delete event. That way, a deleted comment does not come back when files are combined with a union merge.
-- Each event has an author `by` (2026-10-21). For create and reopen written by the app, it reads the repo's `git config user.name` and `user.email` (read only). For resolve written by the CLI, it writes `{kind: "agent", name: "claude-code" | "codex"}`. How the CLI knows the runtime name (flag or environment variable) is decided at implementation time. The app shows the author as name, email, and an initials avatar, and does not fetch GitHub account info (no network, no token, 2026-10-21).
+- Each event has an author `by` (2026-10-21). For events written by the app, it reads the repo's `git config user.name` and `user.email` (read only; `email` may be absent). For resolve written by the CLI, it writes `{kind: "agent", name}`, where `name` is the runtime name as a lowercase kebab string (e.g. `claude-code`, `codex`) rather than a fixed list (2026-10-21). How the CLI knows the runtime name (flag or environment variable) is decided at implementation time. The app shows the author as name, email, and an initials avatar, and does not fetch GitHub account info (no network, no token, 2026-10-21).
 - Each event has a format version `v`, a unique `id`, and a time `at`. When a reader meets a `v` it does not know, it reports 'a record written by a newer version of Doan' (2026-10-21). The app and CLI sort by `at`, not by line order, collapse events with the same `id` into one, and then build the current state (2026-10-21).
 - `doan init` adds `.doan/comments/*.jsonl merge=union` to `.gitattributes` (2026-10-21). Even when two machines or branches each append lines to the end of the same file, git keeps the lines from both sides. This config file is the only thing Doan writes, and it does not run git operations.
 - Correction (2026-10-21): the original rationale was "append-only means few merge conflicts", which is wrong for ordinary files. When both sides append lines to the end of a file, git treats it as a conflict. git-appraise, which we referred to, avoids conflicts by attaching a separate `cat_sort_uniq` merge strategy to git notes (github.com/google/git-appraise). Doan uses ordinary files, so it gets the same effect with a union merge.
@@ -108,11 +108,12 @@ Skills teach the items below, and `doan check` checks the ones that can be measu
 - JSON Schema files are the source of truth for the formats of comment events, `.doan/config.json`, and CLI responses. The app (TypeScript) and CLI (Go) validate against the same schema.
 - TS and Go tests both read the same example files (fixtures) to catch divergence between the two implementations.
 - Reason: choosing Go for the CLI created the cost of keeping the schema on both sides. One language-neutral source of truth reduces that cost.
-- The location of the schema files is decided when the code is laid down.
+- Location (2026-10-21): schemas and fixtures live in root `schema/`, embedded into Go by `schema/embed.go` (the Go module is at the repo root because `go:embed` cannot reach parent directories). Go code is under `cli/`, TS code under `app/` (npm).
+- Validators: JSON Schema draft 2020-12, ajv on the TS side, santhosh-tekuri/jsonschema v6 on the Go side (2026-10-21).
 
 ## 12. CLI output contract (2026-10-21)
 
-- Every command has `--json`. The success envelope is `{ok: true, result}`, and the failure envelope is `{ok: false, error: {code, message, nextSteps}}`. `nextSteps` tells the agent what to do next (e.g. "Ask the user to open Doan").
+- Every command has `--json`. The success envelope is `{v: 1, ok: true, result}`, and the failure envelope is `{v: 1, ok: false, error: {code, message, nextSteps}}`. The envelope carries the format version `v` like the other formats (2026-10-21). `nextSteps` tells the agent what to do next (e.g. "Ask the user to open Doan").
 - Exit codes distinguish failure kinds: app required (app is not running), check failed, usage error. Specific numbers are decided at implementation time along with the schema.
 - Rationale: Orca's response envelope (`{ok, result | error: {code, message}}`, verified in local bundle) and open-claude-design's meaningful exit codes (github.com/maxritter/open-claude-design).
 
