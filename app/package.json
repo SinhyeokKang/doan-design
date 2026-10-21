@@ -6,6 +6,7 @@
   "scripts": {
     "build": "electron-vite build",
     "dev": "electron-vite dev",
+    "e2e": "npm run build && node e2e/runtime.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
