@@ -10,15 +10,17 @@ Skills teach the items below, and `doan check` checks the ones that can be measu
 **Canvas conventions**
 
 1. One HTML file under `design/` is one canvas.
-2. `<meta name="doan:canvas" content="id">` — required.
+2. `<meta name="doan:canvas" content="id">` — required. The id is lowercase kebab, `^[a-z0-9]+(-[a-z0-9]+)*$` (2026-10-21): it becomes the comment file name `.doan/comments/<id>.jsonl`, and macOS file names are case-insensitive, so `Foo` and `foo` would collide; the pattern also keeps `../` and spaces out of the path. Frame ids and `data-doan-id` do not become file names and are not restricted beyond being non-empty.
 3. `<meta name="doan:width" content="N">` — required. Board width (px).
 4. Mark frames with `data-doan-frame="id"`. The visible name is `data-doan-title` (optional).
 5. Put `data-doan-id="id"` on meaningful elements (recommended).
 6. Point to the file a frame implements with `data-doan-implements="path"` (recommended).
 7. Link token CSS with a path relative to the canvas file. The local server serves allowed paths with the same structure as the repo, so the same link resolves when the file is opened in an editor or browser.
+   - Tokens are defined in local CSS the canvas actually reaches (2026-10-21): its own `<style>` and `style` attributes, the local stylesheets it links, and their relative `@import`s inside the repo. `doan check` does not count the config's `tokenCss` unless the canvas links it, matching what the browser resolves, so a missing link is caught. Definitions in external (CDN) stylesheets cannot be seen without network access and are not counted either; using such a token is an error.
+   - A local stylesheet the canvas reaches must be inside the serving scope (`design/`, `tokenCss`, `serve`; §3), otherwise the app renders the canvas without it. `doan check` reports this as an error (2026-10-21); the fix is adding the path to `serve`.
 8. Do not change ids, and do not duplicate them.
 9. External resources (CDN) are allowed, but `doan check` warns.
-10. If token CSS exists and a color is written directly as hex or rgb, `doan check` warns (not an error). Rationale: PRODUCT §1 Problem 3.
+10. If token CSS exists and a color is written directly as hex or rgb, `doan check` warns (not an error). Rationale: PRODUCT §1 Problem 3. This includes custom property declarations in the canvas (`--local: #fff`) and `var()` fallbacks (`var(--x, #fff)`) (2026-10-21): a token re-declared inside a canvas drifts from the real one just as easily.
 
 **Agent rules**
 
@@ -35,7 +37,7 @@ Skills teach the items below, and `doan check` checks the ones that can be measu
 
 - The location is `.doan/comments/<canvas id>.jsonl`. It maps 1:1 to a canvas, and the name stays the same when the canvas file is moved (2026-10-21; at first it was the canvas path).
 - Events are only appended, one per line. There are five events: create, edit, delete, resolve, reopen (2026-10-21; at first there were three). Delete also does not remove a line; it appends a delete event. That way, a deleted comment does not come back when files are combined with a union merge.
-- Each event has an author `by` (2026-10-21). For events written by the app, it reads the repo's `git config user.name` and `user.email` (read only; `email` may be absent). For resolve written by the CLI, it writes `{kind: "agent", name}`, where `name` is the runtime name as a lowercase kebab string (e.g. `claude-code`, `codex`) rather than a fixed list (2026-10-21). How the CLI knows the runtime name (flag or environment variable) is decided at implementation time. The app shows the author as name, email, and an initials avatar, and does not fetch GitHub account info (no network, no token, 2026-10-21).
+- Each event has an author `by` (2026-10-21). For events written by the app, it reads the repo's `git config user.name` and `user.email` (read only; `email` may be absent). For resolve written by the CLI, it writes `{kind: "agent", name}`, where `name` is the runtime name as a lowercase kebab string (e.g. `claude-code`, `codex`) rather than a fixed list (2026-10-21). The CLI takes the runtime name from a required `--agent <name>` flag on `doan comment resolve` (2026-10-21); there is no environment variable or runtime auto-detection, so there is one place to read it and nothing is guessed. The skill puts the flag in its command examples. The app shows the author as name, email, and an initials avatar, and does not fetch GitHub account info (no network, no token, 2026-10-21).
 - Each event has a format version `v`, a unique `id`, and a time `at`. When a reader meets a `v` it does not know, it reports 'a record written by a newer version of Doan' (2026-10-21). The app and CLI sort by `at`, not by line order, collapse events with the same `id` into one, and then build the current state (2026-10-21).
 - `doan init` adds `.doan/comments/*.jsonl merge=union` to `.gitattributes` (2026-10-21). Even when two machines or branches each append lines to the end of the same file, git keeps the lines from both sides. This config file is the only thing Doan writes, and it does not run git operations.
 - Correction (2026-10-21): the original rationale was "append-only means few merge conflicts", which is wrong for ordinary files. When both sides append lines to the end of a file, git treats it as a conflict. git-appraise, which we referred to, avoids conflicts by attaching a separate `cat_sort_uniq` merge strategy to git notes (github.com/google/git-appraise). Doan uses ordinary files, so it gets the same effect with a union merge.
