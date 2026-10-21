@@ -44,21 +44,21 @@ describe("folderState", () => {
 
   test("an envelope that fails validation is a CLI error", () => {
     const stdout = envelope({ v: 1, ok: false, error: { code: "repo_not_found", message: "x" } });
-    expect(folderState(run({ exitCode: 2, stdout, stderr: "warn\n" }))).toEqual({ kind: "cliError", stderr: "warn" });
+    expect(folderState(run({ exitCode: 2, stdout, stderr: "warn\n" }))).toEqual({ kind: "cliError", reason: "warn" });
   });
 
   test("an envelope with v 2 is a CLI error", () => {
     const stdout = envelope({ v: 2, ok: true, result: listResult });
-    expect(folderState(run({ stdout }))).toEqual({ kind: "cliError", stderr: "" });
+    expect(folderState(run({ stdout }))).toEqual({ kind: "cliError", reason: "" });
   });
 
   test("ok false with exit code 0 is a CLI error", () => {
-    expect(folderState(run({ exitCode: 0, stdout: failure("repo_not_found", "x") }))).toEqual({ kind: "cliError", stderr: "" });
+    expect(folderState(run({ exitCode: 0, stdout: failure("repo_not_found", "x") }))).toEqual({ kind: "cliError", reason: "" });
   });
 
   test("ok true with a non-zero exit code is a CLI error", () => {
     const stdout = envelope({ v: 1, ok: true, result: listResult });
-    expect(folderState(run({ exitCode: 1, stdout }))).toEqual({ kind: "cliError", stderr: "" });
+    expect(folderState(run({ exitCode: 1, stdout }))).toEqual({ kind: "cliError", reason: "" });
   });
 
   test("a result without root or scope (older doan) is a CLI error", () => {
@@ -66,7 +66,7 @@ describe("folderState", () => {
     const withoutRoot = envelope({ v: 1, ok: true, result: { scope: [], canvases } });
     const withoutScope = envelope({ v: 1, ok: true, result: { root: "/repo", canvases } });
     for (const stdout of [withoutBoth, withoutRoot, withoutScope]) {
-      expect(folderState(run({ stdout }))).toEqual({ kind: "cliError", stderr: "" });
+      expect(folderState(run({ stdout }))).toEqual({ kind: "cliError", reason: "" });
     }
   });
 
@@ -82,30 +82,42 @@ describe("folderState", () => {
       { root: "/repo", scope: [], canvases: {} },
     ];
     for (const result of results) {
-      expect(folderState(run({ stdout: envelope({ v: 1, ok: true, result }) }))).toEqual({ kind: "cliError", stderr: "" });
+      expect(folderState(run({ stdout: envelope({ v: 1, ok: true, result }) }))).toEqual({ kind: "cliError", reason: "" });
     }
   });
 
   test("an exit code with empty stdout (no CLI) is a CLI error with the first stderr line", () => {
     const state = folderState(run({ exitCode: 127, stderr: "doan: command not found\nsecond line\n" }));
-    expect(state).toEqual({ kind: "cliError", stderr: "doan: command not found" });
+    expect(state).toEqual({ kind: "cliError", reason: "doan: command not found" });
+  });
+
+  test("a spawn failure is a CLI error carrying the spawn error", () => {
+    const spawnError = "spawn /nonexistent/doan ENOENT";
+    expect(folderState(run({ exitCode: -2, spawnError }))).toEqual({ kind: "cliError", reason: spawnError });
+    expect(folderState(run({ exitCode: null, spawnError }))).toEqual({ kind: "cliError", reason: spawnError });
+  });
+
+  test("a spawn error wins over stderr and a valid envelope", () => {
+    const stdout = envelope({ v: 1, ok: true, result: listResult });
+    const state = folderState(run({ stdout, stderr: "other\n", spawnError: "spawn doan EACCES" }));
+    expect(state).toEqual({ kind: "cliError", reason: "spawn doan EACCES" });
   });
 
   test("a missing exit code is a CLI error", () => {
     const stdout = envelope({ v: 1, ok: true, result: listResult });
-    expect(folderState(run({ exitCode: null, stdout }))).toEqual({ kind: "cliError", stderr: "" });
+    expect(folderState(run({ exitCode: null, stdout }))).toEqual({ kind: "cliError", reason: "" });
   });
 
   test("stdout that is not JSON is a CLI error", () => {
     expect(folderState(run({ stdout: "Usage: doan <command>\n", stderr: "panic: x\r\nmore" })))
-      .toEqual({ kind: "cliError", stderr: "panic: x" });
+      .toEqual({ kind: "cliError", reason: "panic: x" });
     expect(folderState(run({ stdout: `${envelope({ v: 1, ok: true, result: listResult })}{}` })))
-      .toEqual({ kind: "cliError", stderr: "" });
+      .toEqual({ kind: "cliError", reason: "" });
   });
 
   test("a timeout is a CLI error even with a valid envelope", () => {
     const stdout = envelope({ v: 1, ok: true, result: listResult });
-    expect(folderState(run({ exitCode: null, stdout, timedOut: true }))).toEqual({ kind: "cliError", stderr: "" });
-    expect(folderState(run({ stdout, timedOut: true, stderr: "slow\n" }))).toEqual({ kind: "cliError", stderr: "slow" });
+    expect(folderState(run({ exitCode: null, stdout, timedOut: true }))).toEqual({ kind: "cliError", reason: "" });
+    expect(folderState(run({ stdout, timedOut: true, stderr: "slow\n" }))).toEqual({ kind: "cliError", reason: "slow" });
   });
 });

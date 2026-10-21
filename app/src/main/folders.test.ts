@@ -40,6 +40,15 @@ describe("load", () => {
     expect(load("[]\n")).toEqual([]);
   });
 
+  test("drops duplicates, keeping the first occurrence in order", () => {
+    expect(load('["/a","/b","/a","/c","/b"]')).toEqual(["/a", "/b", "/c"]);
+  });
+
+  test("drops empty strings", () => {
+    expect(load('["/a","","/b"]')).toEqual(["/a", "/b"]);
+    expect(load('[""]')).toEqual([]);
+  });
+
   test("broken JSON starts empty", () => {
     expect(load("")).toEqual([]);
     expect(load('["/a"')).toEqual([]);
