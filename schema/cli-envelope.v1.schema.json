@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "ok": {
+          "const": true
+        },
+        "result": {}
+      },
+      "required": [
+        "v",
+        "ok",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "ok": {
+          "const": false
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "pattern": "^[a-z]+(_[a-z]+)*$"
+            },
+            "message": {
+              "type": "string"
+            },
+            "nextSteps": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "code",
+            "message",
+            "nextSteps"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "v",
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "ok": false,
+  "error": {
+    "code": "app_protocol_mismatch",
+    "message": "Start the app.",
+    "nextSteps": [
+      "Open Doan Design."
+    ]
+  }
+}

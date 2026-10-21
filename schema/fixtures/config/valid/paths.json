@@ -1,0 +1,8 @@
+{
+  "v": 1,
+  "tokenCss": "app/tokens.css",
+  "serve": [
+    "assets/",
+    "styles/site.css"
+  ]
+}

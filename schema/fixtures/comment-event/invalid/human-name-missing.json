@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "evt_00000000-0000-4000-8000-000000000001",
+  "at": "2026-10-21T10:00:00.000Z",
+  "type": "create",
+  "comment": "cmt_00000000-0000-4000-8000-000000000001",
+  "by": {
+    "kind": "human"
+  },
+  "body": "Please adjust spacing.",
+  "canvasHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "target": {}
+}
