@@ -46,7 +46,7 @@ TS·Go 코드 위치는 tasks 2에서 사용자 확인을 받아 정한다. 이 
 
 `type`별 추가 필드:
 
-- `create`: `body`(string, 비어 있지 않음), `canvasHash`(`sha256:<hex>` — 캔버스 파일 바이트), `target`
+- `create`: `body`(string, 비어 있지 않음), `canvasHash`(`sha256:` + 소문자 hex 64자리 — 캔버스 파일 바이트. 리뷰 반영, 2026-10-21), `target`
   - `target.frame`(선택): 프레임 id(`data-doan-frame`).
   - `target.element`(선택): `doanId`(선택), `selector`, `html`(outerHTML 조각, 최대 2,000 코드 포인트. 넘치면 서로게이트 쌍을 끊지 않고 잘라 저장하고 `element.truncated: true`를 둔다 — Q3 확정, 2026-10-21), `text`(텍스트 인용, 선택)
   - 둘 다 없으면 캔버스 코멘트, `frame`만 있으면 프레임 코멘트, `element`가 있으면 요소 코멘트다. 캔버스 규약(ARCHITECTURE §1)은 프레임을 강제하지 않는다.
@@ -65,16 +65,17 @@ TS·Go 코드 위치는 tasks 2에서 사용자 확인을 받아 정한다. 이 
 
 JSONL 텍스트를 줄 단위로 읽는다. 줄 번호는 물리적 줄 기준, 1부터 센다. 각 이벤트에 줄 번호를 붙여 돌려준다.
 
-1. 공백뿐인 줄(끝 개행 포함)은 경고 없이 건너뛴다.
+0. 텍스트 맨 앞의 BOM(U+FEFF) 하나는 벗긴다. 에디터가 붙인 BOM 때문에 첫 코멘트가 사라지지 않게 하려는 것이다(2026-10-21 사용자).
+1. JSON 공백(SP·HT·CR)만 있는 줄과 빈 줄은 경고 없이 건너뛴다. 다른 문자(U+0085, NBSP 등)가 있으면 공백으로 보지 않는다. TS와 Go가 같은 문자 집합을 쓰게 하려는 것이다(2026-10-21 사용자).
 2. JSON 파싱에 실패하거나, 객체가 아니거나, `v`가 없거나 숫자가 아니면(`"1"` 포함) 버리고 경고 `invalid_event`.
-3. `v`가 1이 아닌 숫자면 버리고 경고 `unknown_version`. 이 판정은 스키마 검증보다 먼저 한다.
+3. `v`가 1이 아닌 숫자면 버리고 경고 `unknown_version`. 이 판정은 스키마 검증보다 먼저 한다. float64 범위를 넘는 숫자(`1e400`)도 숫자이므로 `unknown_version`이다.
 4. v1 스키마에 맞지 않으면 버리고 경고 `invalid_event`.
 
 ### `fold(events[]) → {comments[], warnings[]}`
 
 스키마 라이브러리에 의존하지 않고 상태만 만든다.
 
-1. 이벤트 `id`로 중복 제거. 내용이 같으면(파싱 후 deep-equal) 하나로 합친다. 다르면 그 id의 이벤트를 모두 버리고 줄마다 경고 `conflicting_duplicate`.
+1. 이벤트 `id`로 중복 제거. 내용이 같으면(파싱 후 deep-equal) 가장 작은 줄 번호의 것 하나로 합친다. 다르면 그 id의 이벤트를 모두 버리고 줄마다 경고 `conflicting_duplicate`.
 2. `(at, id)` 오름차순 정렬 — 같은 `at`이면 `id` 사전순. 줄 순서는 쓰지 않는다.
 3. 차례로 판정한다. 앞 단계에 걸리면 뒤 단계는 보지 않는다.
    1. **권한**: 에이전트가 `resolve` 외의 이벤트를 냈으면 무시 + 경고 `agent_not_allowed`. 사람은 다섯 가지 모두 낼 수 있다.
@@ -97,11 +98,14 @@ JSONL 텍스트를 줄 단위로 읽는다. 줄 번호는 물리적 줄 기준, 
 ### 출력 모양
 
 - 접은 코멘트 하나: `{comment, status, body, target, canvasHash, createdBy, createdAt, updatedAt, resolvedBy?, resolvedAt?}`. 선택 필드는 없으면 키를 생략한다(`null`을 쓰지 않는다).
-- 경고 하나: `{code, line, event?, comment?}`. `line`은 원인 이벤트의 줄 번호다. `event`·`comment`는 알 수 있을 때만 둔다.
-- 경고는 `parseLines`와 `fold`의 것을 합쳐 `line` 오름차순으로 정렬한다. 같은 줄이면 `code` 사전순.
+- 경고 하나: `{code, line, event?, comment?}`. `line`은 원인 이벤트의 줄 번호다. `event`·`comment`는 원본 줄의 `id`·`comment` 값이 문자열일 때만 그대로 둔다(패턴은 보지 않는다).
+- 경고는 `line` 오름차순, 같은 줄이면 `code` 사전순으로 정렬한다. `parseLines`와 `fold`도 각자 자기 경고를 이 순서로 돌려준다.
+- 공개 함수 `foldText(text) → {comments[], warnings[]}`가 `parseLines` → `fold`를 잇고 두 경고를 합쳐 정렬한다. 호출자(`cli-core`·`comments-ui`)와 픽스처 테스트는 이 함수를 쓴다(리뷰 반영, 2026-10-21).
 - 빈 목록은 `[]`다(`null`이 아니다). 빈 파일은 `{comments: [], warnings: []}`.
 
 ### 픽스처 비교
+
+테스트는 `foldText`의 출력을 비교한다.
 
 `expected.json`과 실제 출력을 각각 파싱해 deep-equal로 비교한다. 바이트 단위 비교는 하지 않는다. 키 순서, 이스케이프, 끝 개행은 비교에 영향을 주지 않는다. 배열 순서, 키 생략 여부, `[]`와 `null`의 차이는 비교에 영향을 준다.
 
@@ -114,7 +118,7 @@ JSONL 텍스트를 줄 단위로 읽는다. 줄 번호는 물리적 줄 기준, 
 | `serve` | string[] | `design/` 밖에서 캔버스가 쓸 추가 서빙 경로(선택, 기본 `[]`). 파일 또는 디렉터리 경로이고 glob은 쓰지 않는다 |
 
 - 모르는 필드는 오류로 본다(`additionalProperties: false`). 오타를 조용히 넘기지 않으려는 것이다.
-- 스키마는 절대 경로와 `..` 세그먼트를 거부한다(서빙 범위 결정, ARCHITECTURE §3). 정규화·심링크 검사는 스키마로 할 수 없으므로 런타임(2번 `cli-core`·로컬 서버, PRODUCT §6 PoC 4)에 둔다.
+- 스키마는 절대 경로, `..` 세그먼트, 빈 문자열, `.` 세그먼트만으로 된 경로(`.`, `./`)를 거부한다. 리포 루트 전체가 서빙되는 것을 막으려는 것이다(서빙 범위 결정, ARCHITECTURE §3. 루트 경로는 2026-10-21 사용자). 정규화·심링크 검사는 스키마로 할 수 없으므로 런타임(2번 `cli-core`·로컬 서버, PRODUCT §6 PoC 4)에 둔다.
 
 ## 4. CLI 응답 봉투
 
@@ -153,3 +157,8 @@ JSONL 텍스트를 줄 단위로 읽는다. 줄 번호는 물리적 줄 기준, 
 ## PoC 의존
 
 - PRODUCT §6 PoC 5(`merge=union`): 이 피처의 삭제 이벤트·중복 제거 설계가 union 머지에 기댄다. 머지는 tasks 1에서 먼저 확인하고, 머지 결과를 접기 픽스처로 써서 tasks 6에서 접은 결과까지 확인한다.
+
+## 알려진 차이(기록만)
+
+- 이스케이프된 lone surrogate(`"\ud800"`): Go는 U+FFFD로 바꾸고 TS는 그대로 둔다. 그래서 그런 값만 다른 같은 id 두 줄을 Go는 같은 이벤트로, TS는 `conflicting_duplicate`로 본다. 앱과 에이전트가 쓰는 값에서는 생기지 않으므로 맞추지 않는다(2026-10-21 지휘 판단).
+- `error.code`는 enum이 아니라 snake_case 패턴이다. 명령이 늘 때마다 `v`를 올리지 않으려는 것이다(2026-10-21 지휘 판단).
