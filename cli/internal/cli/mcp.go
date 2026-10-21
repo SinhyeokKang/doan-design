@@ -127,13 +127,20 @@ func argv(tool string, raw json.RawMessage) ([]string, *Error) {
 	}
 	out = append(out, "--json")
 	if tool == "resolve_comments" {
-		var ids []string
+		out = append(out, "--")
 		if v, ok := fields["ids"]; ok {
+			// Pointers tell a null element apart from "", which Unmarshal would otherwise produce.
+			var ids []*string
 			if json.Unmarshal(v, &ids) != nil || ids == nil {
 				return nil, usageError("Argument ids must be an array of strings")
 			}
+			for _, id := range ids {
+				if id == nil {
+					return nil, usageError("Argument ids must be an array of strings")
+				}
+				out = append(out, *id)
+			}
 		}
-		out = append(append(out, "--"), ids...)
 	}
 	return out, nil
 }

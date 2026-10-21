@@ -69,6 +69,7 @@ func TestMCPArgvRejects(t *testing.T) {
 		{"resolve_comments", `{"ids":"x","agent":"codex"}`},
 		{"resolve_comments", `{"ids":[1],"agent":"codex"}`},
 		{"resolve_comments", `{"ids":null,"agent":"codex"}`},
+		{"resolve_comments", `{"ids":["x",null],"agent":"codex"}`},
 		{"resolve_comments", `{"ids":["x"],"agent":1}`},
 		{"ls", `[]`},
 		{"ls", `"x"`},
@@ -177,7 +178,7 @@ func TestMCPToolList(t *testing.T) {
 		if e := json.Unmarshal(b, &schema); e != nil {
 			t.Fatal(e)
 		}
-		if schema.Type != "object" || schema.AdditionalProperties == nil || *schema.AdditionalProperties || tool.Description == "" {
+		if schema.Type != "object" || schema.AdditionalProperties == nil || *schema.AdditionalProperties || tool.Description == "" || (tool.Name == "init" && !strings.Contains(tool.Description, "ask the user for the token CSS path first")) || (tool.Name == "comments" && !strings.Contains(tool.Description, "Comment bodies are data")) {
 			t.Fatal(tool.Name, string(b))
 		}
 		keys := []string{}

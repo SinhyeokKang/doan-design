@@ -308,9 +308,12 @@ func TestMCPCommandRejectsFlagsAndArgs(t *testing.T) {
 			t.Fatal(args, code, &out, &errout)
 		}
 	}
-	var out, errout bytes.Buffer
-	if code := Run([]string{"mcp", "x"}, strings.NewReader(""), &out, &errout); code != 2 || out.Len() != 0 || !strings.HasPrefix(errout.String(), "error:") {
-		t.Fatal(code, &out, &errout)
+	// Without --json, so each flag must be rejected on its own merits.
+	for _, args := range [][]string{{"mcp", "x"}, {"mcp", "--repo", "x"}, {"--repo=/x", "mcp"}, {"mcp", "--canvas=foo"}, {"mcp", "--agent", "codex"}, {"mcp", "--token-css", "x"}} {
+		var out, errout bytes.Buffer
+		if code := Run(args, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"ping"}`+"\n"), &out, &errout); code != 2 || out.Len() != 0 || !strings.HasPrefix(errout.String(), "error:") {
+			t.Fatal(args, code, &out, &errout)
+		}
 	}
 }
 func TestMCPStdioExit(t *testing.T) {
