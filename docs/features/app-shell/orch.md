@@ -21,6 +21,8 @@
 | 2026-10-21 | B1 소유를 `cli/internal/repo/find.go`까지 넓혀 `root`를 디스크 철자로 고친다. 철자 찾기가 실패하면(목록을 못 읽는 상위 디렉터리, NFC·NFD만 다른 이름) `EvalSymlinks` 결과를 그대로 쓴다 | 지휘 판단 — B1 리뷰 🟡1. spec 완료 조건 7(실제 절대 경로), ARCHITECTURE §12 경로 규칙 |
 | 2026-10-21 | `folderState`의 CLI 오류는 `reason`(spawn 오류 메시지, 없으면 stderr 첫 줄)을 담고, `load`는 빈 문자열과 중복을 버린다 | 지휘 판단 — B2 리뷰 🟡1·⚪2 |
 | 2026-10-21 | 404 응답은 `Content-Length: 0`을 보낸다 | 지휘 판단 — 본문 없는 404가 chunked로 나가지 않게 한다(B0 관찰) |
+| 2026-10-21 | 서버는 realpath 결과를 macOS `O_NOFOLLOW_ANY`로 열고, 본문은 `fstat` 크기에서 끊는다. 시간 초과한 CLI 오류의 `reason`은 `timed out after 10 s`다 | 지휘 판단 — B3 리뷰 🟡1(판정과 열기 사이 링크 교체로 범위 밖 파일 200, 실측)·🟡2(전송 중 증가로 `Content-Length` 초과)·⚪1. 앱은 Mac 전용(PRODUCT) |
+| 2026-10-21 | `folders.json`을 읽을 수 없으면 빈 목록으로 시작하고, 그 뒤 쓰기가 예전 파일을 덮어도 그대로 둔다 | 사용자 — 잃는 것은 연 폴더 목록뿐이고 다시 열면 된다 |
 | 2026-10-21 | `build`·`dev`·`e2e` 스크립트와 `electron.vite.config.ts`는 B3가 아니라 B4가 만든다(tasks.md 태스크 3과 다름) | 지휘 판단 — 창이 생기기 전에는 확인할 수 없다 |
 
 ## 배치
@@ -30,7 +32,7 @@
 | B0 | 태스크 0 | `.scratch/poc4-serve/`, `docs/PRODUCT.md` §6 | 없음 | Claude Code(기본) | PRODUCT §6에 PoC 4 결과(날짜·Electron·Playwright 버전, realpath API 선택, 폰트·module 스크립트, `.env` 404) | 통과(ACAO `null` 재결정 뒤), main `cc164b6`·`efa5959`(워커 `6940af8`·`71dae98`), 2회 |
 | B1 | 태스크 1 | `cli/internal/repo/scope.go`·`scope_test.go`, `cli/internal/cli/read.go`·`check.go`와 그 테스트 | 없음 | Claude Code(기본) | `go test ./...`, `go vet ./...`, 빨강 먼저 | 통과, `feat-app-shell` `80e1d96..1d0d1b7`, 리뷰 🔴0 🟡1 → 수정 1회 |
 | B2 | 태스크 2 | `app/src/main/serve/`의 순수 함수와 테스트, `app/src/main/`의 `folderState`·`folders` 순수 함수와 테스트 | 없음 | Claude Code(기본) | `npm --prefix app test`, `npm --prefix app run typecheck`, 빨강 먼저 | 통과, `feat-app-shell` `adad338..2065722`, 리뷰 🔴0 🟡1 → 수정 1회 |
-| B3 | 태스크 3 | `app/package.json`·`package-lock.json`·`tsconfig.json`·`vitest.config.ts`, vitest `globalSetup`, `app/src/main/`의 서버·CLI 실행·감시·`folders.json` 읽기·쓰기와 테스트 | B0 통과, B1·B2 통합 | Claude Code(기본) | `npm --prefix app test`(`DOAN_CLI` 없이), `npm --prefix app run typecheck`, 빨강 먼저 | 대기 |
+| B3 | 태스크 3 | `app/package.json`·`package-lock.json`·`tsconfig.json`·`vitest.config.ts`, vitest `globalSetup`, `app/src/main/`의 서버·CLI 실행·감시·`folders.json` 읽기·쓰기와 테스트 | B0 통과, B1·B2 통합 | Claude Code(기본) | `npm --prefix app test`(`DOAN_CLI` 없이), `npm --prefix app run typecheck`, 빨강 먼저 | 통과, `feat-app-shell` `efd3bc4..096a81a`, 리뷰 🔴1 🟡2 → 수정 1회 |
 | B4 | 태스크 4, 5 | `app/electron.vite.config.ts`, `app/src/main/` 창·IPC·진입점, `app/src/preload/`, `app/src/renderer/`, `app/e2e/`, `app/package.json` 스크립트, `.agents/skills/runtime-test/`, `.claude/skills/runtime-test` | B3 통합 | Claude Code(기본) | `npm --prefix app test`, `typecheck`, `run build`, `run e2e`, 실제 `folders.json` 전후 같음, 깨뜨린 변형에서 e2e 실패 | 대기 |
 | 지휘 | 태스크 6 | `docs/ARCHITECTURE.md`, `docs/PRODUCT.md`, `docs/DIRECTORY.md`, `AGENTS.md`, `docs/features/app-shell/` 삭제 | B4 통합 | — | tasks.md 태스크 6의 grep, 디렉터리 없음 | 대기 |
 
