@@ -26,3 +26,39 @@ export type CommentEvent = EventBase & (
   | { type: "edit"; body: string }
   | { type: "delete" | "resolve" | "reopen" }
 );
+
+export interface LocatedEvent {
+  line: number;
+  event: CommentEvent;
+}
+
+export interface Warning {
+  code: "invalid_event" | "unknown_version" | "conflicting_duplicate" |
+    "agent_not_allowed" | "duplicate_create" | "orphan_event";
+  line: number;
+  event?: string;
+  comment?: string;
+}
+
+export interface Comment {
+  comment: string;
+  status: "open" | "resolved";
+  body: string;
+  target: Target;
+  canvasHash: string;
+  createdBy: Author;
+  createdAt: string;
+  updatedAt: string;
+  resolvedBy?: Author;
+  resolvedAt?: string;
+}
+
+export interface ParseResult {
+  events: LocatedEvent[];
+  warnings: Warning[];
+}
+
+export interface FoldResult {
+  comments: Comment[];
+  warnings: Warning[];
+}

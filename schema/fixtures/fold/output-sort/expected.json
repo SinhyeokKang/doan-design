@@ -1,0 +1,74 @@
+{
+  "comments": [
+    {
+      "comment": "cmt_00000000-0000-4000-8000-000000000001",
+      "status": "open",
+      "body": "Original",
+      "target": {
+        "frame": "settings",
+        "element": {
+          "doanId": "save",
+          "selector": "button",
+          "html": "<button>Save</button>",
+          "text": "Save",
+          "truncated": false
+        }
+      },
+      "canvasHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "createdBy": {
+        "kind": "human",
+        "name": "Sam",
+        "email": "sam@example.com"
+      },
+      "createdAt": "2026-10-21T10:00:01.000Z",
+      "updatedAt": "2026-10-21T10:00:01.000Z"
+    },
+    {
+      "comment": "cmt_00000000-0000-4000-8000-000000000002",
+      "status": "open",
+      "body": "Original",
+      "target": {
+        "frame": "settings",
+        "element": {
+          "doanId": "save",
+          "selector": "button",
+          "html": "<button>Save</button>",
+          "text": "Save",
+          "truncated": false
+        }
+      },
+      "canvasHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "createdBy": {
+        "kind": "human",
+        "name": "Sam",
+        "email": "sam@example.com"
+      },
+      "createdAt": "2026-10-21T10:00:01.000Z",
+      "updatedAt": "2026-10-21T10:00:01.000Z"
+    },
+    {
+      "comment": "cmt_00000000-0000-4000-8000-000000000003",
+      "status": "open",
+      "body": "Original",
+      "target": {
+        "frame": "settings",
+        "element": {
+          "doanId": "save",
+          "selector": "button",
+          "html": "<button>Save</button>",
+          "text": "Save",
+          "truncated": false
+        }
+      },
+      "canvasHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "createdBy": {
+        "kind": "human",
+        "name": "Sam",
+        "email": "sam@example.com"
+      },
+      "createdAt": "2026-10-21T10:00:03.000Z",
+      "updatedAt": "2026-10-21T10:00:03.000Z"
+    }
+  ],
+  "warnings": []
+}
