@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -64,7 +65,8 @@ func TestScopeServe(t *testing.T) {
 	put(t, root, "assets/logo.svg", "")
 	put(t, root, "fonts.css", "")
 	link(t, outside, filepath.Join(root, "linked"))
-	got := scopeOf(t, root, Config{Serve: []string{"fonts.css", "assets", "missing", "linked"}})
+	link(t, "loop", filepath.Join(root, "loop"))
+	got := scopeOf(t, root, Config{Serve: []string{"fonts.css", "assets", "missing", "linked", "fonts.css/x", "a\x00", strings.Repeat("x", 300), "loop"}})
 	if !reflect.DeepEqual(got, []string{"assets", "fonts.css"}) {
 		t.Fatalf("%#v", got)
 	}
