@@ -25,7 +25,7 @@
 - **처음부터 한국어로 쓴 문장으로 만든다.** 불필요한 명사화·이중 피동·추상 명사 나열을 풀고, 누가 무엇을 하는지 동사로 쓴다. `~에 대해`·`~를 통해`도 더 직접적인 조사나 동사로 같은 뜻을 전할 수 있을 때만 줄인다.
 - **빈말 대신 구체적인 내용을 쓴다.** 근거 없는 찬사·과장, 내용을 더하지 않는 도입·결론, 뜻을 알기 어려운 조어·비유를 걷는다. 내용을 구체화하려고 사실·사례를 만들어 넣지는 않는다.
 - **문장 사이의 관계를 살린다.** 긴 문장은 조건·행동·결과를 따라 나누되 필요한 접속어와 쉼표는 남긴다. 리듬을 바꾸려고 말투를 섞지 않는다.
-- **용어를 고정한다.** 같은 개념의 용어를 반복 회피용 동의어로 바꾸지 않는다(캔버스·프레임·코멘트·인스펙터 등은 docs/PRODUCT.md의 낱말을 쓴다).
+- **용어를 고정한다.** 같은 개념의 용어를 반복 회피용 동의어로 바꾸지 않는다(캔버스·프레임·코멘트·인스펙터 등은 docs/PRODUCT.md·docs/ARCHITECTURE.md의 낱말을 쓴다).
 - **마지막에 원문과 대조한다.** 줄이거나 다시 쓴 부분에서 정보·조건·확실성이 달라지지 않았는지 확인한다. 이미 자연스러운 문장은 그대로 둔다.
 
 | 다듬기 전 | 다듬은 뒤 | 판단 |
@@ -38,12 +38,12 @@
 
 Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(디자인 설계서)를 쓰고, 사람이 로컬 Mac 앱에서 보고·가리키는 도구(승인은 MVP 뒤). 웹(`doan.design`)은 앱을 내려받는 경로 역할만 한다. 표기는 제품 `Doan Design` · 도메인 `doan.design` · CLI·식별자 `doan`.
 
-⚠️ **기획 결정의 정본은 [docs/PRODUCT.md](./docs/PRODUCT.md)다. 거기 없는 것은 미정이다.**
+⚠️ **기획 결정의 정본은 [docs/PRODUCT.md](./docs/PRODUCT.md)(제품 판단·결정 기록)와 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)(구조·형식·규약)다. 둘에 없는 것은 미정이다.**
 
 - [README.md](./README.md)는 배경과 레퍼런스만 담는다. README의 내용을 **결정 사항으로 인용하지 않는다** — "README가 그렇게 정했다"가 아니라 "README 초안은 이렇게 적었다"로 말한다.
-- 스택은 정해졌다(PRODUCT §6: 앱 Electron + TypeScript, CLI Go). 그래도 요청 없이 `package.json`·`go.mod`·디렉터리 구조·빌드 설정을 **먼저 깔지 않는다.**
+- 스택은 정해졌다(ARCHITECTURE §7·§8: 앱 Electron + TypeScript, CLI Go). 그래도 요청 없이 `package.json`·`go.mod`·디렉터리 구조·빌드 설정을 **먼저 깔지 않는다.**
 - 범위 밖 요청(PRODUCT §3 '하지 않는 것': 그리기 · 캔버스 형식 강제 · 대화 · 에이전트 깨우기 · 서버 · git 조작 · 실시간 공동 편집)은 요청받아도 그 목록을 근거로 먼저 되묻는다.
-- 결정이 나면 PRODUCT.md에 날짜와 근거를 함께 적는다. 이 파일의 하네스도 결정에 맞춰 넓힌다.
+- 결정이 나면 해당 문서(PRODUCT 또는 ARCHITECTURE)에 날짜와 함께 적고, 결정 기록(PRODUCT §7)에 근거와 함께 한 줄 남긴다. 이 파일의 하네스도 결정에 맞춰 넓힌다.
 
 ## 작업 원칙
 
@@ -65,7 +65,7 @@ Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(
 **권장 흐름**: `/feature` → (`/feature-review`) → `/tdd` → `/implement` → `/code-review` → `/refactor` → (`/postmortem`) → push. 작은 변경은 `/ship` 하나로 push까지, 여러 워커로 나눌 큰 배치는 `/orchestrate`로 태운다.
 
 - **용어**(2026-10-21 사용자): **피처**는 MVP 기능 목록(PRODUCT §5)을 논리적으로 나눈 단위다. 피처 하나 = `/feature` 한 번 = `docs/features/<slug>/` 하나. **배치**는 `/orchestrate`가 피처 하나를 구현할 때 워커에게 나눠 주는 작업 묶음이다. 피처 하나가 여러 워커·여러 배치로 구현될 수 있다.
-- `/feature`가 피처의 시작점이다. 산출물은 `docs/features/<slug>/`(spec·design·tasks)에 두고, 피처가 끝나면 결론을 PRODUCT.md로 올리고 그 디렉터리는 지운다.
+- `/feature`가 피처의 시작점이다. 산출물은 `docs/features/<slug>/`(spec·design·tasks)에 두고, 피처가 끝나면 결론을 PRODUCT.md(제품 판단)·ARCHITECTURE.md(구조·형식·규약)로 올리고 그 디렉터리는 지운다.
 - `/code-review`는 이 리포의 스킬을 가리킨다. Claude Code 내장 `code-review`와 다르다.
 - 회귀·버그를 고쳤으면 `/postmortem`. `/implement`·`/refactor`·`/code-review`는 착수 전에 `docs/POSTMORTEM.md`를 grep한다(파일이 있을 때).
 - `/ship`·`/orchestrate`는 항상 main에서 `feat-<slug>` 브랜치를 만들어 시작하고, 그 브랜치 push + PR로 끝난다. 머지는 하지 않는다.
@@ -75,8 +75,10 @@ Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(
 | 문서 | 무엇 | 언제 갱신하나 |
 |---|---|---|
 | [README.md](./README.md) | 배경(말모이 사례)·레퍼런스. 결정은 PRODUCT.md에 있다 | 배경을 고칠 때 |
-| [docs/PRODUCT.md](./docs/PRODUCT.md) | **기획 결정의 정본** — 문제·사용자·범위·루프·MVP·아키텍처·스택·결정 기록·열린 질문 | 기획 결정이 날 때. 날짜와 근거를 결정 기록 절에 남긴다 |
+| [docs/PRODUCT.md](./docs/PRODUCT.md) | **제품 판단의 정본** — 문제·사용자·범위·루프·MVP·피처 분할·PoC·결정 기록(모든 결정)·열린 질문 | 제품 결정이 날 때. 모든 결정은 §7 결정 기록에 한 줄 남긴다 |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | **구조의 정본** — 규약(스킬·`doan check` 기준)·형식·렌더·CLI↔앱·MCP·스킬·스택·배포·머신 이동 | 구조·형식·규약 결정이 날 때. 피처가 끝나면 결론을 여기로 올린다 |
 | docs/POSTMORTEM.md | 버그·회귀의 함정 기록(추가만 한다). `/postmortem`이 처음 쓸 때 만든다 | 회귀를 고쳤을 때 |
+| 나중에 만들 문서 | `docs/DIRECTORY.md`(첫 코드) · `docs/DESIGN.md`(도그푸딩 시작, 5번 피처 뒤) · `docs/OPERATIONS.md`(8번 `onboard-dist`) · `docs/CONTRIBUTING.md`·`docs/CODE_OF_CONDUCT.md`·`docs/SECURITY.md`(공개 직전, 영문) · 루트 `LICENSE`(라이선스 결정 때) | 그 시점이 오면 만든다. 빈 껍데기를 미리 만들지 않는다(2026-10-21 사용자) |
 | [AGENTS.md](./AGENTS.md) | 작업 방식(이 파일) — 두 런타임 공통 원본 | 작업 방식이 바뀔 때 |
 
 ## 커밋 컨벤션
@@ -89,7 +91,7 @@ Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(
 - 문서별로 커밋을 나눈다.
 - **주석은 영문으로, "왜"만 쓴다**(2026-10-21 사용자 — 오픈소스로 공개하므로 외부 기여자가 읽을 수 있게). 코드가 말하는 "무엇"을 반복하지 않는다. 비자명한 제약·함정을 남긴다.
 - 일회성 실험 파일은 `.scratch/`에 둔다(gitignore 대상).
-- PoC(PRODUCT §7) 실험 코드도 `.scratch/`에 두지만, 통과 여부와 관찰 결과는 날짜와 함께 PRODUCT §7에 적는다. `.scratch/`는 커밋되지 않아 결과가 남지 않는다.
+- PoC(PRODUCT §6) 실험 코드도 `.scratch/`에 두지만, 통과 여부와 관찰 결과는 날짜와 함께 PRODUCT §6에 적는다. `.scratch/`는 커밋되지 않아 결과가 남지 않는다.
 - Codex 세션에서 만든 커밋은 마지막 줄에 `Co-Authored-By: Codex <noreply@openai.com>`을 붙인다. 어느 런타임이 만든 커밋인지 히스토리에서 구분하려는 것이다(malmoi `.agents/PREAMBLE.md`와 같은 규칙).
 
 ## 런타임 차이
@@ -98,7 +100,7 @@ Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(
 - **Bedrock·Vertex·Foundry 세션은 `AGENTS.md`를 읽지 않는다.** 그 경로로 쓸 일이 생기면 위의 `@AGENTS.md` import로 간다.
 - **응답 스타일 재주입 훅은 Claude Code 전용이다**(`.claude/settings.json`). Codex 세션에선 이 파일 최상단의 응답 스타일만 남으니 긴 세션에서도 유지한다.
 - **워커 모델 경계** — 워커·서브에이전트를 호출하는 세션이 Codex면 Codex 모델, Claude Code면 Claude 모델만 호출한다. 패밀리 교차는 사용자의 명시 허가가 있을 때만 허용한다.
-- **스킬 위치가 다르다** — Claude Code는 `.claude/`, Codex는 `.agents/skills/`를 본다. 이 리포를 개발할 때 쓰는 스킬은 `.agents/skills/<name>/SKILL.md`가 원본이고, `.claude/skills/<name>`은 그 디렉터리를 가리키는 심볼릭 링크다(2026-10-21 사용자). 생성기·미러 동기화를 두지 않는다. 새 스킬을 만들면 링크도 같이 만든다. 이것은 제품이 사용자의 에이전트에 설치하는 doan 스킬(PRODUCT §6 '스킬': `SKILL.md` 스텁 + `doan skill`)과 다른 것이다.
+- **스킬 위치가 다르다** — Claude Code는 `.claude/`, Codex는 `.agents/skills/`를 본다. 이 리포를 개발할 때 쓰는 스킬은 `.agents/skills/<name>/SKILL.md`가 원본이고, `.claude/skills/<name>`은 그 디렉터리를 가리키는 심볼릭 링크다(2026-10-21 사용자). 생성기·미러 동기화를 두지 않는다. 새 스킬을 만들면 링크도 같이 만든다. 이것은 제품이 사용자의 에이전트에 설치하는 doan 스킬(ARCHITECTURE §6 '스킬': `SKILL.md` 스텁 + `doan skill`)과 다른 것이다.
 
 ## 참고
 
