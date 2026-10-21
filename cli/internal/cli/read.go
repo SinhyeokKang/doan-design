@@ -69,6 +69,10 @@ func List(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if e != nil {
 		return Outcome{}, internal(e)
 	}
+	scope, e := repo.Scope(r.Root, r.Config)
+	if e != nil {
+		return Outcome{}, internal(e)
+	}
 	counts := map[string]map[string]int{}
 	for _, file := range files {
 		counts[file.File.ID] = map[string]int{"open": 0, "resolved": 0}
@@ -109,7 +113,7 @@ func List(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		}
 		items = append(items, item)
 	}
-	return Outcome{Result: map[string]any{"canvases": items}}, nil
+	return Outcome{Result: map[string]any{"root": r.Root, "scope": scope, "canvases": items}}, nil
 }
 
 type listedComment struct {

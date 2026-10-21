@@ -48,20 +48,11 @@ func CheckInput(r repo.Repository) (check.Input, error) {
 		}
 		in.TokenCSS = check.TokenCSS{Configured: true, Path: r.Config.TokenCSS, RealPath: p, State: checkState(state)}
 	}
-	served := []string{}
-	for _, p := range append([]string{"design"}, r.Config.Serve...) {
-		state, real, e := repo.Resolve(r.Root, r.Root, p)
-		if e != nil {
-			return in, e
-		}
-		if state == repo.Inside {
-			served = append(served, real)
-		}
+	served, e := repo.Scope(r.Root, r.Config)
+	if e != nil {
+		return in, e
 	}
 	in.Served = func(p string) bool {
-		if in.TokenCSS.State == check.In && p == in.TokenCSS.RealPath {
-			return true
-		}
 		for _, s := range served {
 			if p == s || strings.HasPrefix(p, s+"/") {
 				return true
