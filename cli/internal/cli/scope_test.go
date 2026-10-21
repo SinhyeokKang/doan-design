@@ -148,3 +148,31 @@ func TestListRootFromSubfolderWithoutRepoFlag(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestListRootInDiskSpelling(t *testing.T) {
+	root := filepath.Join(realPath(t, t.TempDir()), "Repo")
+	putFile(t, root, ".doan/config.json", `{"v":1}`)
+	putFile(t, root, "design/a.html", validCanvas)
+	upper := strings.ToUpper(root)
+	if _, e := os.Stat(upper); os.IsNotExist(e) {
+		t.Skip("temporary filesystem is case-sensitive")
+	} else if e != nil {
+		t.Fatal(e)
+	}
+	if got := result(t, upper, 0, "ls")["root"]; got != root {
+		t.Fatalf("--repo: %v", got)
+	}
+	// os.Getwd trusts $PWD, so a shell that cd'ed with another spelling reaches Find with it.
+	t.Chdir(filepath.Join(upper, "DESIGN"))
+	var out, errout bytes.Buffer
+	if code := Run([]string{"ls", "--json"}, strings.NewReader(""), &out, &errout); code != 0 || errout.Len() != 0 {
+		t.Fatal(code, out.String(), errout.String())
+	}
+	var env map[string]any
+	if e := json.Unmarshal(out.Bytes(), &env); e != nil {
+		t.Fatal(e)
+	}
+	if got := env["result"].(map[string]any)["root"]; got != root {
+		t.Fatalf("cwd: %v", got)
+	}
+}
