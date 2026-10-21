@@ -62,6 +62,9 @@ Doan Design (`doan`): a tool where a coding agent writes an HTML canvas (a desig
 - `go run ./cli/cmd/doan <command> [--repo <path>] [--json]` — run the CLI by hand (2026-10-21 user, cli-core). Point `--repo` at a temporary directory, not this repo.
 - `npm --prefix app test` — TypeScript tests (`vitest run`).
 - `npm --prefix app run typecheck` — TypeScript checks (`tsc --noEmit`).
+- Real-agent MCP check (2026-10-21 user, mcp) — one-off registration that leaves global config untouched; compare `claude mcp list` / `codex mcp list` before and after, and pass an absolute temp `repo` on every tool call:
+  - `claude -p --mcp-config <tmp.json> --strict-mcp-config --allowedTools 'mcp__<name>__*' -- "<prompt>" < /dev/null` (`--allowedTools` is variadic, so `--` must precede the prompt).
+  - `codex exec -c 'mcp_servers.<name>.command="<abs binary>"' -c 'mcp_servers.<name>.args=["mcp"]' "<prompt>" < /dev/null`, run inside a git checkout (Codex refuses untrusted directories). From a Claude session this crosses the model boundary and needs the user's permission each time.
 
 ## Workflow (skill lineup)
 
