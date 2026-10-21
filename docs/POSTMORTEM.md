@@ -18,6 +18,7 @@
 - **Root cause**: `os.IsNotExist` covers only `ENOENT`, while `ENOTDIR`, `EINVAL`, `ENAMETOOLONG` and Go's unwrapped "EvalSymlinks: too many links" also mean "no such file" for content-derived paths; `filepath.EvalSymlinks` resolves links but keeps the caller's letter case on case-insensitive filesystems; "missing" is safe for reading but not for writing, because `os.WriteFile` follows a dangling symlink.
 - **Net**: caught by the independent reviews of batches A and D with concrete inputs, and by D's self-review for the write path. Missed by the planned case lists, which only had `ENOENT`-shaped inputs and one spelling per file.
 - **Prevention**: for every path that comes from canvas or config content, test `ENOTDIR`, a NUL byte, an over-long name, a symlink loop, a different letter case, and a dangling symlink at each write target. Grep: `grep -rnE 'IsNotExist|EvalSymlinks|os\.WriteFile' cli app/src`.
+- **Recurrence (2026-10-21, app-shell)**: `doan ls` `result.root` kept the caller's letter case from `--repo` or `$PWD` (`repo.Find` used `EvalSymlinks` alone), so one repo could be stored twice by the app and every served path would miss `relInside`. Caught by the batch B1 independent review; fixed by passing the root through `diskSpelling`. `doan init`'s `result.repo` (`init.go`) still keeps the caller's spelling.
 
 ### 2026-10-21 — An HTML parser fed from memory can still fail, and dropping the error looks like a missing meta
 
@@ -42,3 +43,19 @@
 - **Root cause**: results were emitted in `os.ReadDir` order of `<id>.jsonl`; `-` (0x2D) sorts before `.` (0x2E), so `foo-bar.jsonl` < `foo.jsonl` while `foo` < `foo-bar`. Every planned test used one id, or ids that sort the same either way.
 - **Net**: caught by the batch D independent review running the binary on `foo` and `foo-bar`; missed by single-id tests.
 - **Prevention**: sort explicitly on the logical key after deriving it from a file name, and include an id that is a prefix of another (`foo`, `foo-bar`) in ordering tests. Grep: `grep -rn 'ReadDir\|CommentFiles' cli/internal/cli`.
+
+### 2026-10-21 — Local server guarantees lived in comments and echoed constants, not in behavior
+
+- **Area**: `app/src/main/serve/server.ts`, `server.test.ts`
+- **Symptom**: the "listens on 127.0.0.1 only" test stayed green with `listen(0, "0.0.0.0")`; a directory swapped for a symlink between the realpath check and `open` served a file outside the repo with 200 (reproduced with a delay); a file growing mid-transfer sent more bytes than `Content-Length` on a keep-alive socket. The code comment claimed the swap could not happen.
+- **Root cause**: the server returned its `HOST` constant, so the test compared the constant with itself; `open(realPath)` re-walks the path, so resolving first and opening by name is not atomic; `createReadStream()` reads to EOF, not to the `fstat` size sent in the header.
+- **Net**: caught by the batch B3 independent review, which mutated the bind address, widened the race window with a delay, and grew a file during a transfer. Missed by the batch's own 39 server tests, which only exercised static trees.
+- **Prevention**: assert observed state (`server.address().address`), and prove each security test with a mutation that must turn it red. Open resolved paths with `O_NOFOLLOW_ANY` (macOS) and cap streamed bodies at the `fstat` size. Grep: `grep -rnE 'host: HOST|open\([^)]*"r"\)|createReadStream\(\)' app/src`.
+
+### 2026-10-22 — Guessing the repo root in TS after a failed CLI run re-created a discovery rule differently
+
+- **Area**: `app/src/main/view.ts` (`openDecision`), `shell.ts` (folder open)
+- **Symptom**: opening a subfolder of a repo with a broken config (or with no CLI) stored the subfolder; the next read with `--repo <subfolder>` became `repo_not_found` and told the person to run `doan init`, which would create a nested repo. The first fix checked for a `.doan` directory, but the CLI's marker is `.doan/config.json`, so a subfolder holding only `.doan/` still slipped through.
+- **Root cause**: a failing envelope carries no root, and the plan only covered `repo_not_found`; filling the gap in TS meant writing a second, slightly different copy of the Go discovery rule.
+- **Net**: the first case was caught by batch B4's self-review, the `.doan/`-only case by the B4 independent review reproducing it with the CLI. The e2e plan had no "subfolder of a failing repo" case.
+- **Prevention**: when the CLI does not answer a question about the repo, ask it again in a narrower form (`doan ls --repo <path>`) instead of inferring in TS. Grep for TS code that inspects repo markers: `grep -rnE '"\.doan"|config\.json' app/src | grep -v test` — only the watcher should match.
