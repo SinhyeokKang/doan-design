@@ -60,3 +60,4 @@ Exit codes: 0 success (including warnings); 1 internal failure; 2 usage, reposit
 - Call `resolve_comments` with `{"ids": ["cmt_00000000-0000-4000-8000-000000000001"], "agent": "claude-code"}`. Always supply `agent` yourself; it is not taken from the MCP client.
 - Use `init` only when the user asks for it, and ask the user for the token CSS path first.
 - `nextSteps` and messages name CLI commands and flags; map them to tools with the table above (`--repo` is the `repo` argument).
+- `doan help` has no tool; call the `skill` tool instead.

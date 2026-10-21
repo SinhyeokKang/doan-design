@@ -29,7 +29,11 @@ var mcpTools = []struct{ name, description, schema string }{
 }
 
 func newMCPServer() *mcp.Server {
-	s := mcp.NewServer(&mcp.Implementation{Name: "doan", Version: Version}, &mcp.ServerOptions{Instructions: "Call the skill tool first to read the Doan guide."})
+	s := mcp.NewServer(&mcp.Implementation{Name: "doan", Version: Version}, &mcp.ServerOptions{
+		Instructions: "Call the skill tool first to read the Doan guide.",
+		// Advertise tools only: the server sends no log or list-changed notifications.
+		Capabilities: &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}},
+	})
 	for _, tool := range mcpTools {
 		name := tool.name
 		// The low-level AddTool skips the SDK's schema validation, so invalid
