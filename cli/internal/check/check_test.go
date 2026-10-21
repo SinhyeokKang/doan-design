@@ -2,6 +2,7 @@ package check
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
@@ -206,5 +207,34 @@ func TestSortAndSummary(t *testing.T) {
 	}
 	if s := Summarize(fs); s.Errors != 2 || s.Warnings != 4 {
 		t.Fatal(s)
+	}
+}
+
+func TestUnparsableCanvas(t *testing.T) {
+	in := base()
+	in.Unparsable = map[string]string{
+		"design/z.html": "parse design/z.html: open stack exceeds 512 nodes",
+		"design/b.html": "parse design/b.html: parser failure",
+	}
+	in.CommentFileIDs = []string{"one", "unknown"}
+	fs := Run(in)
+	if len(fs) != 3 {
+		t.Fatalf("expected only two parse findings and one orphan: %+v", fs)
+	}
+	if fs[0].Code != "orphan_comment_file" || fs[0].Canvas != "unknown" {
+		t.Fatalf("orphan: %+v", fs[0])
+	}
+	for j, path := range []string{"design/b.html", "design/z.html"} {
+		f := fs[j+1]
+		if f.Path != path || f.Code != "unparsable_canvas" || f.Severity != "error" || f.Canvas != "" || !strings.Contains(f.Message, in.Unparsable[path]) {
+			t.Fatalf("parse finding: %+v", f)
+		}
+	}
+	if s := Summarize(fs); s.Errors != 2 || s.Warnings != 1 {
+		t.Fatalf("summary: %+v", s)
+	}
+	in.Unparsable = map[string]string{}
+	if got := codes(Run(in), "unparsable_canvas"); len(got) != 0 {
+		t.Fatal(got)
 	}
 }
