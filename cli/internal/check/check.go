@@ -94,6 +94,8 @@ func Run(in Input) []Finding {
 	for _, c := range canvases {
 		if validID(c) {
 			counts[c.ID]++
+		}
+		if c.HasID {
 			ids[c.ID] = true
 		}
 	}
@@ -247,6 +249,10 @@ func Run(in Input) []Finding {
 		for _, ref := range in.Reach[c.Path] {
 			f := base
 			f.Target = ref.Href
+			if !ref.Direct {
+				f.Path = ref.From
+				f.Canvas = ""
+			}
 			switch ref.State {
 			case Outside:
 				f.Code = "path_outside_repo"
