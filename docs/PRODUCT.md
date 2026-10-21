@@ -106,7 +106,7 @@ What the human does is **view + comment**; approval is deferred until after the 
 5. Comments
    - **Element comments**: click an element to attach a note. The anchor's first priority is `data-doan-id`, and selector · HTML snippet · text quote · design-draft hash are stored together as fallbacks.
    - **Frame comments**: attached to `data-doan-frame`. Because canvas organization is up to the agent, many elements have no `data-doan-id`, and a frame anchor is more robust than an anchor on such elements.
-   - Status has two stages: `open` → `resolved`. The agent that applied it resolves it, and the human can reopen it after checking in the app.
+   - Status has two stages: `open` → `resolved`. The agent that applied it resolves it, and the human can reopen it after checking in the app. The human can also resolve a comment in the app (2026-10-21).
    - Only the human edits or deletes the body, and only in the app. The agent (CLI · MCP) only resolves (2026-10-21).
    - Shown as pins; comments whose design-draft hash changed are marked outdated.
 6. Copy a sentence to send to the agent.
@@ -237,6 +237,10 @@ Unverified assumptions among the decisions are verified before implementation. O
 | 2026-10-21 | `/runtime-test` gets its tool decided and is built in #4 `app-shell` | User decision — written now, with no app launch command or driving tool, it would be an empty skill |
 | 2026-10-21 | Dogfooding: doan's UI drafts as canvases in this repo's `design/`; `/design-sync` is built after #5 `canvas-view` and used from #6 | User decision — build canvas features before UI is needed |
 | 2026-10-21 | Review the whole design spec of one spec on a single canvas via zoom in/out and frame selection. One canvas holds multiple frames | User decision. Reference: the user's Figma design guide ("a bit vast" ("좀 방대하다")), Claude Design `Language Request Todo.dc.html` |
+| 2026-10-21 | The human can also resolve comments in the app; the agent still only resolves | User decision (formats review) — otherwise the only way for a human to close a comment they handled themselves is delete, which loses the record |
+| 2026-10-21 | The CLI envelope also carries format version `v`; all three formats have `v` | User decision (formats Q5) — same reason as the comment-event and config `v` |
+| 2026-10-21 | Agent author `by.name` is a lowercase kebab string, not a fixed list | User decision (formats review) — other agents also use the CLI (§2), and adding one should not require a new `v` |
+| 2026-10-21 | Code layout: root `go.mod`, `schema/` embedded by `schema/embed.go`, Go formats in `cli/internal/formats/`, TS in `app/` (npm). JSON Schema 2020-12, ajv (TS), santhosh-tekuri/jsonschema v6 (Go) | User decision (formats) — `go:embed` cannot reach parent directories, so the module root must contain `schema/` |
 
 ## 8. Open questions
 
