@@ -1,70 +1,74 @@
 ---
 name: feature
-description: 기능 아이디어를 스펙·설계·태스크 문서로 구체화할 때 쓴다. 코딩 직전까지만 준비하고 코드는 쓰지 않는다.
+description: Use to turn a feature idea into spec, design, and task documents. Prepares everything up to the point of coding and writes no code.
 ---
 
-기능 하나를 **코딩 직전까지** 준비한다. 문서만 만들고 구현하지 않는다.
+Prepares one feature **up to the point of coding**. Writes documents only; does not implement.
 
-## 사용
+## Usage
 
-- `/feature <아이디어>` — 새 기능을 구체화한다.
-- `/feature` — 직전 대화에서 대상을 판단한다.
+- `/feature <idea>` — flesh out a new feature.
+- `/feature` — infer the target from the preceding conversation.
 
-## 0. 범위 게이트 (착수 전, 생략 금지)
+## 0. Scope gate (before starting; do not skip)
 
-- `docs/PRODUCT.md` §3 '하지 않는 것'과 대조한다. 요청이 그 항목이거나 그것을 요구하면, 어느 항목에 걸리는지와 원래 왜 뺐는지를 한 줄로 보이고 **되묻는다**. "이 정도면 범위 안이겠지"를 스스로 판단하지 않는다.
-- 사용자가 재확인하면 진행하되, `docs/PRODUCT.md` 갱신(§3 수정 + §7 결정 기록에 날짜·근거)을 태스크에 넣는다.
-- PRODUCT에 아직 없는 부분(미정)에 기대는 설계면 그 지점을 결정 질문으로 올린다. 조용히 정하지 않는다.
+- Check against `docs/PRODUCT.md` §3 'Out of scope'. If the request is one of those items or requires one, show in one line which item it hits and why it was originally excluded, and **ask back**. Do not decide on your own that "this much is probably in scope".
+- If the user reconfirms, proceed, but add a task to update `docs/PRODUCT.md` (edit §3 + record the date and rationale in the §7 decision log).
+- If the design leans on something PRODUCT does not cover yet (undecided), raise that point as a decision question. Do not decide it silently.
 
-## 1. 산출물
+## 1. Outputs
 
-`docs/features/<slug>/` 아래 파일 3개. slug는 kebab-case.
+Three files under `docs/features/<slug>/`. The slug is kebab-case.
 
-### `spec.md` — 무엇을, 누구를 위해
-- **사용자**: 사람(앱에서 보고 코멘트하는 쪽)인가 에이전트(CLI·MCP·스킬을 쓰는 쪽)인가. 둘 다면 각각 무엇을 얻는지.
-- **문제**: 지금 무엇이 안 되는가(관측된 사실로).
-- **완료 조건**: 검증할 수 있는 문장으로.
-- **비목표**: 이번에 하지 않는 것(뒤로 미루는 것 포함).
+**Language**: these three documents are written in Korean, following AGENTS.md 'Korean writing rules'.
 
-### `design.md` — 어떻게
-- **영향 받는 구성 요소**: 앱(Electron + TS) / CLI(Go) / `doan mcp` / 스킬 / 형식(코멘트 이벤트·`.doan/config.json`·CLI 응답).
-- **순수 함수로 분리할 부분**: 곧 `/tdd` 대상이다. 비어 있으면 설계를 다시 본다.
-- **형식 변경**: JSON Schema 원본을 바꾸는가(ARCHITECTURE §11 '형식 공유'). 바꾸면 형식 버전 `v`를 올리는지, TS·Go가 함께 읽을 픽스처를 무엇으로 두는지.
-- **규약 영향**: ARCHITECTURE §1 '규약'(캔버스 규약·에이전트 행동 규칙)을 바꾸거나 `doan check` 규칙을 더하는가.
-- **결정 영향**: ARCHITECTURE의 구조 결정(서빙 범위·sandbox iframe·추가만 하는 이벤트·토큰 미취급·git 조작 없음 등)을 건드리는가. 건드리면 이유와 보존 방법.
-- **PoC 의존**: PRODUCT §6에서 아직 통과하지 않은 가정에 기대는가. 기대면 PoC를 먼저 태스크로 둔다.
+### `spec.md` — what, and for whom
+- **Users**: the human (who views and comments in the app) or the agent (who uses the CLI, MCP, and skills)? If both, what each one gets.
+- **Problem**: what does not work now (as observed fact).
+- **Done when**: in verifiable sentences.
+- **Non-goals**: what this round does not do (including what is deferred).
 
-### `tasks.md` — 순서
-- 태스크마다 **검증 방법 한 줄**("스키마 픽스처 테스트 green", "`doan check`가 X를 오류로 보고"). 명령은 AGENTS.md '명령어' 절의 것만 쓴다. 없으면 "명령 미정 — 사용자 확인 필요"로 적는다.
-- 순서: 스키마·픽스처 → 순수 함수 → 껍데기(I/O) → UI.
-- 커밋 경계를 표시한다(`/ship`이 지킨다).
-- 마지막 태스크: 결론을 `docs/PRODUCT.md`(제품 판단)·`docs/ARCHITECTURE.md`(구조·형식·규약)로 올리고(PRODUCT §7에 날짜·근거) `docs/features/<slug>/`를 지운다.
+### `design.md` — how
+- **Affected components**: app (Electron + TS) / CLI (Go) / `doan mcp` / skills / formats (comment events, `.doan/config.json`, CLI responses).
+- **Parts to split out as pure functions**: these become `/tdd` targets. If this is empty, revisit the design.
+- **Format changes**: does it change the JSON Schema source (ARCHITECTURE §11 'Shared formats')? If so, whether the format version `v` goes up, and which fixtures TS and Go will both read.
+- **Conventions impact**: does it change ARCHITECTURE §1 'Conventions' (canvas conventions, agent rules) or add a `doan check` rule?
+- **Decision impact**: does it touch ARCHITECTURE's structural decisions (serving scope, sandbox iframe, append-only events, no token handling, no git operations, etc.)? If so, why, and how they are preserved.
+- **PoC dependency**: does it lean on an assumption in PRODUCT §6 that has not passed yet? If so, put the PoC first as a task.
 
-## 2. 절차
+### `tasks.md` — order
+- Each task has **one line on how to verify it** ("schema fixture tests green", "`doan check` reports X as an error"). Use only commands from the AGENTS.md 'Commands' section. If none exists, write "command undecided — needs user confirmation".
+- Order: schema and fixtures → pure functions → shell (I/O) → UI.
+- Mark commit boundaries (`/ship` follows them).
+- Last task: promote the conclusions to `docs/PRODUCT.md` (product judgments) and `docs/ARCHITECTURE.md` (structure, formats, conventions) — those documents are written in English — (with date and rationale in PRODUCT §7), and delete `docs/features/<slug>/`.
 
-1. 범위 게이트. 걸리면 되묻고 기다린다.
-2. `docs/PRODUCT.md`를 읽어 이미 정한 것과 충돌하지 않게 한다. 정한 것을 다시 설계하지 않는다. README는 배경일 뿐 결정으로 인용하지 않는다.
-3. `docs/POSTMORTEM.md`가 있으면 이 기능이 건드릴 영역으로 grep해 걸린 함정을 design.md에 인용한다.
-4. 파일 3개를 쓴다.
-5. 해석이 갈리는 지점을 런타임의 질문 도구(Claude Code는 AskUserQuestion)로 **하나씩** 묻는다. 선택지마다 추천 하나와 이유를 달고, '직접 입력' 선택지를 보이게 넣는다.
+## 2. Procedure
 
-## 3. 리포트
+1. Scope gate. If it hits, ask back and wait.
+2. Read `docs/PRODUCT.md` so nothing conflicts with what is already decided. Do not redesign what is decided. README is background only; do not cite it as a decision.
+3. If `docs/POSTMORTEM.md` exists, grep it for the areas this feature touches and quote the matching pitfalls in design.md.
+4. Write the three files.
+5. Ask about points open to interpretation **one at a time** with the runtime's question tool (AskUserQuestion in Claude Code). Give each set of options one recommendation with a reason, and include a visible 'Other (type your own)' option.
+
+## 3. Report
+
+The report is delivered to the user in Korean.
 
 ```
 📋 feature: <slug>
-확인 필요: <목록 또는 없음>
-문서: docs/features/<slug>/{spec,design,tasks}.md
-범위 게이트: 통과 / PRODUCT.md 갱신 필요(<항목>)
-순수 함수 대상: <목록>  ← /tdd 진입점
-형식 변경: 없음 / <스키마 · v 변경 여부>
-규약·결정 영향: 없음 / <무엇을 어떻게>
-PoC 의존: 없음 / <PRODUCT §6 항목>
-다음: /feature-review 또는 /tdd interface
+Needs confirmation: <list or none>
+Documents: docs/features/<slug>/{spec,design,tasks}.md
+Scope gate: passed / PRODUCT.md update needed (<item>)
+Pure-function targets: <list>  ← /tdd entry point
+Format changes: none / <schema · whether v changes>
+Conventions/decision impact: none / <what and how>
+PoC dependency: none / <PRODUCT §6 item>
+Next: /feature-review or /tdd interface
 ```
 
-## 금지 사항
+## Prohibited
 
-- 코드 파일 생성·수정 금지. `docs/features/` 아래 문서만 쓴다.
-- 커밋 금지.
-- 범위 밖 항목을 임의로 범위에 넣지 않는다.
-- `docs/PRODUCT.md` 직접 수정 금지. 필요를 태스크로 남긴다.
+- Do not create or edit code files. Write only documents under `docs/features/`.
+- Do not commit.
+- Do not pull out-of-scope items into scope on your own.
+- Do not edit `docs/PRODUCT.md` directly. Leave the need as a task.

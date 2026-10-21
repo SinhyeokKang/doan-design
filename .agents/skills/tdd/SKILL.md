@@ -1,63 +1,65 @@
 ---
 name: tdd
-description: 구현 전에 테스트만 먼저 쓸 때 쓴다. 새 인터페이스를 테스트로 정하거나 버그 회귀 테스트를 박고 red를 확인한다. 구현·커밋은 하지 않는다.
+description: Use to write only the tests, before implementation. Pins a new interface down with tests or adds a bug regression test and confirms red. Does not implement or commit.
 ---
 
-테스트를 **먼저** 쓰는 단계다. 테스트 파일(과 필요한 픽스처)만 만들고, red를 확인하고, 끝낸다.
+This is the step where tests come **first**. Create only test files (and the fixtures they need), confirm red, and stop.
 
-## 사용
+## Usage
 
-- `/tdd` — 직전 맥락(`/feature` 산출물이면 A, `/code-review` 발견이면 B)으로 모드를 정한다.
-- `/tdd interface <대상>` — **A**: 새 함수·형식의 시그니처를 테스트로 정한다. 대상 모듈이 없어 import가 깨지는 것이 첫 red다. 케이스 순서는 정상 → 엣지(빈 입력·경계값) → 오류.
-- `/tdd regression <버그>` — **B**: 버그를 재현하는 테스트부터 쓴다. 고치기 전에 red를 봐야 같은 버그를 잡았다고 말할 수 있다.
+- `/tdd` — pick the mode from the preceding context (A if it is `/feature` output, B if it is a `/code-review` finding).
+- `/tdd interface <target>` — **A**: pin down the signature of a new function or format with tests. The first red is the import breaking because the target module does not exist. Case order: normal → edge (empty input, boundary values) → error.
+- `/tdd regression <bug>` — **B**: start with a test that reproduces the bug. You can only say you caught the same bug if you see red before fixing it.
 
-## 형식을 건드리면 스키마와 픽스처부터
+## If it touches a format, start with the schema and fixtures
 
-ARCHITECTURE §11 '형식 공유': 코멘트 이벤트·`.doan/config.json`·CLI 응답은 JSON Schema가 원본이고, TS(앱)와 Go(CLI) 테스트가 **같은 픽스처**를 읽는다.
+ARCHITECTURE §11 'Shared formats': comment events, `.doan/config.json`, and CLI responses have JSON Schema as their source, and the TS (app) and Go (CLI) tests read **the same fixtures**.
 
-- 먼저 스키마 변경과 픽스처(통과해야 할 것·실패해야 할 것)를 쓴다. 그다음 TS·Go 양쪽 테스트가 그 픽스처를 읽게 한다. 한쪽만 쓰면 두 구현이 어긋나는 것을 못 잡는다.
-- 스키마·픽스처·테스트 파일 위치가 아직 정해지지 않았으면(PRODUCT: "코드를 깔 때 정한다") 멈추고 묻는다. 위치를 지어내지 않는다.
+- First write the schema change and the fixtures (ones that must pass and ones that must fail). Then make both the TS and Go tests read those fixtures. Writing only one side cannot catch the two implementations drifting apart.
+- If the locations of schemas, fixtures, and test files are not decided yet (PRODUCT: "decided when the code is laid down"), stop and ask. Do not invent locations.
 
-## TDD 강제 / 스킵
+## TDD required / skippable
 
-**강제** (PRODUCT의 결정에서 나온 순수 로직):
-- 코멘트 이벤트 접기: `at` 순 정렬(줄 순서 아님), 같은 `id`는 하나로, 삭제 이벤트 뒤 되살아나지 않음, 모르는 `v`를 알림.
-- `doan check` 규칙: ARCHITECTURE §1 '규약'과 PRODUCT §5의 검사 항목마다 오류·경고 케이스.
-- CLI `--json` 봉투(`ok`·`result`·`error{code,message,nextSteps}`)와 종료 코드 구분.
-- 서빙 경로 허용 판정(허용 경로 밖·`..` 탈출은 거부), `.doan/config.json` 상향 탐색.
-- 재현되는 버그.
+**Required** (pure logic that comes from PRODUCT decisions):
+- Folding comment events: sort by `at` (not line order), collapse the same `id` into one, no resurrection after a delete event, flag unknown `v`.
+- `doan check` rules: error and warning cases for each check in ARCHITECTURE §1 'Conventions' and PRODUCT §5.
+- CLI `--json` envelope (`ok`, `result`, `error{code,message,nextSteps}`) and distinct exit codes.
+- Serving path allow decisions (reject paths outside the allowed paths and `..` escapes), upward search for `.doan/config.json`.
+- Reproducible bugs.
 
-**스킵 가능** (이유 한 줄을 보고하고 끝낸다):
-- Electron UI 렌더·인터랙션, iframe 안 주입 스크립트의 실측 동작(PRODUCT §6 PoC 대상).
-- 소켓·파일 감시 같은 I/O 껍데기. 단 그것이 부르는 순수 함수는 강제.
+**Skippable** (report a one-line reason and stop):
+- Electron UI rendering and interaction, actual behavior of the script injected into the iframe (PRODUCT §6 PoC targets).
+- I/O shells such as sockets and file watching. The pure functions they call are still required.
 
-## 절차
+## Procedure
 
-1. 모드와 범위를 정한다.
-2. `docs/features/<slug>/tasks.md`가 있으면 태스크의 "검증:" 줄을 케이스 목록으로 먼저 덮는다. 목록에 있는 것을 빼먹지 않는다.
-3. `docs/POSTMORTEM.md`가 있으면 대상 영역으로 grep해 과거 함정을 케이스로 되살린다.
-4. 테스트를 쓴다. 케이스 이름은 무엇을 보장하는지 영문으로 쓴다(코드 영역이다).
-5. AGENTS.md '명령어' 절의 테스트 명령으로 **실제로 실패하는지** 본다. 그 절이 없거나 해당 언어의 명령이 없으면 멈추고 묻는다. 명령을 지어내지 않고, 돌리지 못한 red를 확인했다고 쓰지 않는다.
-   - 예상과 달리 green이면 멈추고 보고한다. 가짜 안전망을 남기지 않는다.
+1. Decide the mode and scope.
+2. If `docs/features/<slug>/tasks.md` exists, first cover the tasks' "Verify:" lines as the case list. Do not miss anything on that list.
+3. If `docs/POSTMORTEM.md` exists, grep it for the target area and bring past pitfalls back as cases.
+4. Write the tests. Name cases in English by what they guarantee (this is code).
+5. Use the test command from the AGENTS.md 'Commands' section to see that they **actually fail**. If that section is missing or has no command for the language, stop and ask. Do not invent commands, and do not write that you confirmed a red you could not run.
+   - If it is unexpectedly green, stop and report. Do not leave a fake safety net.
 
-## 리포트
+## Report
+
+The report is delivered to the user in Korean.
 
 ```
-🔴 tdd: <모드> — <대상>
-미확인: <돌리지 못한 검증 또는 없음>
-파일: <경로>
-케이스: <n>건 — <요약>
-태스크 완료 조건 커버: <n>/<m> (tasks.md 없으면 "해당 없음")
-red 확인: <실패 메시지 요약>
-POSTMORTEM 소환: <항목 또는 없음/파일 없음>
-다음: /implement
+🔴 tdd: <mode> — <target>
+Unverified: <checks you could not run or none>
+Files: <paths>
+Cases: <n> — <summary>
+Task done-when coverage: <n>/<m> ("n/a" if there is no tasks.md)
+Red confirmed: <summary of failure message>
+POSTMORTEM recalled: <items or none/no file>
+Next: /implement
 ```
 
-`/ship` 안에서 불렸으면 "다음:" 줄에서 턴을 끝내지 않는다. `/ship`이 같은 턴에서 이어 간다.
+If invoked inside `/ship`, do not end the turn at the "Next:" line. `/ship` continues in the same turn.
 
-## 금지 사항
+## Prohibited
 
-- 프로덕션 코드 생성·수정 금지.
-- 커밋 금지(`/ship`이 커밋 #0을 맡는다).
-- 테스트를 green으로 만들려 하지 않는다.
-- red를 확인하지 못했으면 진행하지 않는다.
+- Do not create or edit production code.
+- Do not commit (`/ship` handles commit #0).
+- Do not try to make the tests green.
+- Do not proceed if you could not confirm red.

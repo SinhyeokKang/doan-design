@@ -1,75 +1,79 @@
 ---
 name: postmortem
-description: 방금 잡은 버그·회귀·비자명한 함정을 docs/POSTMORTEM.md에 회고로 남길 때 쓴다. 코드는 고치지 않는다.
+description: Use to record a just-caught bug, regression, or non-obvious pitfall as a retrospective in docs/POSTMORTEM.md. Does not touch code.
 ---
 
-방금 잡은 버그·회귀·비자명한 함정을 `docs/POSTMORTEM.md`에 남긴다. 목적은 같은 함정을 두 번 밟지 않는 것이고, 그래서 "재발 방지"가 핵심이다. `/feature`·`/tdd`·`/implement`·`/code-review`·`/refactor`는 착수 전에 이 파일을 grep한다.
+Record a just-caught bug, regression, or non-obvious pitfall in `docs/POSTMORTEM.md`. The goal is not to step on the same pitfall twice, so "Prevention" is the core. `/feature`, `/tdd`, `/implement`, `/code-review`, and `/refactor` grep this file before starting.
 
-## 언제 부르나
+**Language**: `docs/POSTMORTEM.md` is written in English.
 
-- `fix:` 커밋을 만들었을 때.
-- 문서에 없던 제약이나 조용히 실패하는 동작을 밟았을 때.
-- `/implement` 리포트에 "postmortem 후보" 플래그가 있을 때.
-- PoC(PRODUCT §6)가 예상과 다르게 실패했을 때. 관찰 결과 자체는 PRODUCT §6에 적고, 여기에는 함정만 남긴다.
+## When to invoke
 
-## trivial 필터 (먼저 적용)
+- When you made a `fix:` commit.
+- When you hit an undocumented constraint or a silently failing behavior.
+- When the `/implement` report has a "postmortem candidate" flag.
+- When a PoC (PRODUCT §6) failed differently than expected. The observations themselves go in PRODUCT §6; only the pitfall goes here.
 
-기록하지 않는다: 타입 오류·오타(컴파일러·테스트가 바로 잡은 것), 문서를 읽었으면 안 밟았을 것, 한 번뿐이고 같은 패턴이 다른 곳에 없는 것.
+## Trivial filter (apply first)
 
-기록 기준: (1) 조용히 실패했거나, (2) 진단에 시간이 걸렸거나, (3) 같은 패턴이 다른 곳에도 있을 수 있다.
+Do not record: type errors and typos (caught right away by the compiler or tests), things you would not have hit if you had read the docs, one-offs where the same pattern does not exist elsewhere.
 
-trivial이면 "항목 없음 — <이유>"를 보고하고 끝낸다.
+Record if: (1) it failed silently, (2) it took time to diagnose, or (3) the same pattern may exist elsewhere.
 
-## 파일이 없으면
+If trivial, report "No entry — <reason>" and stop.
 
-`docs/POSTMORTEM.md`가 아직 없다. 첫 항목을 쓸 때 만든다. 머리는 두 줄이다:
+## If the file does not exist
+
+`docs/POSTMORTEM.md` does not exist yet. Create it when writing the first entry. The header is two lines:
 
 ```
 # Postmortem
 
-> 밟은 함정을 날짜순으로 쌓는다. 추가만 한다 — 기존 항목을 고치거나 지우지 않는다.
+> Pitfalls we hit, stacked in date order. Append-only — do not edit or delete existing entries.
 ```
 
-## 형식
+## Format
 
 ```
-### YYYY-MM-DD — <한 줄 증상>
+### YYYY-MM-DD — <one-line symptom>
 
-- **영역**: <파일·모듈>
-- **증상**: 관측된 잘못된 동작
-- **근본 원인**: 왜 그렇게 됐는가(표면 원인 아님)
-- **그물**: 무엇이 잡았는가 / 무엇이 놓쳤는가
-- **재발 방지**: 같은 함정을 다른 곳에서 찾는 grep 패턴, 추가할 테스트, 막을 수 있는 검사
+- **Area**: <files, modules>
+- **Symptom**: the wrong behavior observed
+- **Root cause**: why it happened (not the surface cause)
+- **Net**: what caught it / what missed it
+- **Prevention**: grep pattern to find the same pitfall elsewhere, test to add, check that could block it
 ```
 
-- 날짜는 오늘 날짜를 실제로 확인해 쓴다.
-- 근본 원인에 "실수했다"를 쓰지 않는다. 그 실수가 왜 가능했는지(오해를 부르는 API, 없던 검사)를 쓴다.
-- 그물은 양쪽을 다 쓴다. 놓친 쪽이 다음 테스트를 정한다.
-- 재발 방지는 실행할 수 있어야 한다. "주의한다"는 재발 방지가 아니다.
+- Check today's date for real before writing it.
+- Do not write "made a mistake" as the root cause. Write why that mistake was possible (a misleading API, a missing check).
+- Write both sides of the net. The side that missed it decides the next test.
+- Prevention must be actionable. "Be careful" is not prevention.
 
-## 절차
+## Procedure
 
-1. trivial 필터.
-2. 맥락 파악: `git log -3 --stat`, 방금 고친 diff.
-3. 같은 함정이 이미 있으면 새 항목을 만들지 않고 그 항목 끝에 재발 사실(날짜·위치)을 덧붙인다.
-4. 파일 끝에 항목을 추가한다.
-5. 재발 방지의 grep을 **실제로 돌린다.** 다른 곳에 같은 패턴이 있으면 리포트에 적는다.
+1. Trivial filter.
+2. Gather context: `git log -3 --stat`, the diff you just fixed.
+3. If the same pitfall already exists, do not create a new entry; append the recurrence (date, location) to the end of that entry.
+4. Append the entry to the end of the file.
+5. **Actually run** the grep from Prevention. If the same pattern exists elsewhere, note it in the report.
 
-## 리포트
+## Report
+
+The report is delivered to the user in Korean.
 
 ```
 📓 postmortem
-항목: <제목> / 항목 없음(<이유>)
-파일: 기존 / 새로 만듦
-재발 방지 grep: <패턴>
-   → 다른 곳 <n>건: <목록>  ← 후속 작업 후보
-   → 다른 곳 없음
+Entry: <title> / no entry (<reason>)
+File: existing / newly created
+Prevention grep: <pattern>
+   → <n> elsewhere: <list>  ← follow-up candidates
+   → none elsewhere
 ```
 
-## 금지 사항
+## Prohibited
 
-- 코드 수정 금지. 문서만.
-- 기존 항목 수정·삭제 금지(추가만). 재발은 그 항목에 덧붙인다.
-- trivial 기록 금지.
-- grep을 돌리지 않고 재발 방지를 쓰지 않는다.
-- 커밋하지 않는다. 단독 호출이면 사용자가, `/ship` 안이면 `/ship`이 `docs(postmortem):`로 커밋한다.
+- Do not edit code. Documents only.
+- Do not edit or delete existing entries (append only). Recurrences are appended to that entry.
+- Do not record trivial items.
+- Do not write Prevention without running the grep.
+- Do not commit. Invoked on its own, the user commits; inside `/ship`, `/ship` commits with `docs(postmortem):`.

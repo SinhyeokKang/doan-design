@@ -1,63 +1,65 @@
 ---
 name: ship
-description: 작은 변경 하나를 tdd→implement→code-review→refactor→(postmortem)→push까지 이어서 태울 때 쓴다. 게이트를 통과하면 자동으로 진행하고, 실패·사용자 결정 지점에서는 멈추고 보고한다.
+description: Use to carry one small change through tdd→implement→code-review→refactor→(postmortem)→push in sequence. Proceeds automatically when gates pass, and stops and reports at failures and user-decision points.
 ---
 
-작은·외과적 변경 하나를 **`/tdd` → 커밋 → `/implement` → 커밋 → `/code-review` → `/refactor` → (`/postmortem`) → 문서 신선도 → push** 순서로 지휘한다. 각 단계의 본체는 하위 스킬이 맡고, `/ship`은 순서·게이트·중단만 맡는다. 배포 단계는 없다.
+Conducts one small, surgical change in the order **`/tdd` → commit → `/implement` → commit → `/code-review` → `/refactor` → (`/postmortem`) → docs freshness → push**. Sub-skills do the body of each step; `/ship` only handles order, gates, and stopping. There is no deploy step.
 
-> 하위 스킬의 리포트("다음: /refactor" 등)는 턴의 끝이 아니다. `/ship` 안에서는 같은 턴에서 다음 단계를 실행한다. 멈추는 것은 아래 '중단'의 조건뿐이다.
+> A sub-skill's report ("Next: /refactor" etc.) is not the end of the turn. Inside `/ship`, run the next step in the same turn. The only things that stop it are the conditions under 'Stop' below.
 
-## 사용
+## Usage
 
-- `/ship <변경 설명>` / `/ship` — 직전에 합의한 변경을 대상으로 한다.
-- `/ship bypass <변경 설명>` — `docs/features/<slug>/`로 설계가 끝난 큰 변경. 아래 스코프 가드만 건너뛰고 나머지 게이트는 그대로 돈다. `tasks.md`를 계획 원본으로 쓰고, 문서가 단계를 나눴으면 한 번에 한 단계만 태운다. 사용자가 `bypass`를 쓰지 않았으면 스스로 켜지 않는다.
+- `/ship <change description>` / `/ship` — targets the change just agreed on.
+- `/ship bypass <change description>` — a large change whose design is already done in `docs/features/<slug>/`. Skips only the scope guard below; all other gates still run. Uses `tasks.md` as the plan source, and if the document splits the work into stages, runs only one stage at a time. Do not turn on `bypass` yourself if the user did not use it.
 
-## 0. 인테이크
+## 0. Intake
 
-- **스코프 가드**: 여러 구성 요소(앱·CLI·MCP·형식)에 걸침, 범위 밖(PRODUCT §3), ARCHITECTURE §1 '규약'이나 구조 결정의 변경, `docs/features/`가 필요한 새 기능 — 하나라도 해당하면 멈추고 `/feature`부터 권한다. 범위 밖·결정 변경은 `bypass`로도 통과하지 않는다(사용자 결정이다).
-- **브랜치**(AGENTS.md 커밋 컨벤션, 2026-10-21 결정): `/ship`은 항상 main에서 `git switch -c feat-<slug>`로 시작한다. 문서만 바꾸는 변경도 같다. 이미 `feat-<slug>`에 있으면 그대로 쓴다. 이름을 리포트에 적는다. `/orchestrate`의 워커로 돌 때는 브리프가 정한 브랜치를 쓴다.
-- **워크트리 소유권**: `git status --porcelain`의 추적 중인 변경(`M`·`D`·`A`·`R`) 중 이번 세션이 건드리지 않은 것이 있으면 멈춘다. 다른 세션이 같은 체크아웃에서 작업 중이라는 뜻이다. 미추적(`??`)은 보고만 한다. "다른 워크트리에서 한다"는 말이 아니라 `git worktree list` 출력을 근거로 삼는다.
-- **클린 워크트리**: 내 미커밋 변경이 있으면 먼저 따로 커밋한다. 그 diff가 이번 대상과 겹치면 커밋하지 말고 멈춘다(테스트를 먼저 박는 순서가 이미 깨졌다).
-- **명령 확인**: AGENTS.md '명령어' 절에 이번 영역의 테스트·타입 검사 명령이 있는지 본다. 없으면 여기서 멈추고 묻는다. 문서만 바꾸는 변경은 이 확인을 건너뛴다.
+- **Scope guard**: spans multiple components (app, CLI, MCP, formats), out of scope (PRODUCT §3), changes ARCHITECTURE §1 'Conventions' or a structural decision, or a new feature that needs `docs/features/` — if any applies, stop and recommend starting with `/feature`. Out-of-scope items and decision changes do not pass even with `bypass` (they are user decisions).
+- **Branch** (AGENTS.md 'Commit conventions', decided 2026-10-21): `/ship` always starts from main with `git switch -c feat-<slug>`. The same goes for docs-only changes. If already on `feat-<slug>`, keep using it. Write the name in the report. When running as an `/orchestrate` worker, use the branch the brief specifies.
+- **Worktree ownership**: if `git status --porcelain` shows tracked changes (`M`, `D`, `A`, `R`) this session did not make, stop. It means another session is working in the same checkout. Untracked (`??`) is only reported. Base this on `git worktree list` output, not on someone saying "it's being done in another worktree".
+- **Clean worktree**: if you have uncommitted changes of your own, commit them separately first. If that diff overlaps the current target, do not commit; stop (the tests-first order is already broken).
+- **Command check**: see whether the AGENTS.md 'Commands' section has test and type-check commands for this area. If not, stop here and ask. Docs-only changes skip this check.
 
-## 단계와 게이트
+## Steps and gates
 
-1. **`/tdd`** — 게이트: red 확인(또는 스킵 대상이라는 이유 한 줄). 예상과 달리 green이면 멈춘다.
-2. **커밋 #0 `test:`** — 테스트·픽스처만. red 상태로 커밋하는 것이 정상이다. `/tdd`가 아무 파일도 만들지 않았을 때만 건너뛴다.
-3. **`/implement`** — 게이트: 테스트 전체 green + 타입 검사 통과 + 🔴/🟡 해소. 플래그(형식·문서·postmortem 후보)를 모은다.
-4. **커밋 #1 `feat:`/`fix:`** — 구현만.
-5. **`/code-review`** — 게이트 없음. 발견을 6으로 넘긴다. 🔴이 하나라도 있으면 6을 건너뛸 수 없다.
-6. **`/refactor`** — 발견이 0이거나 ⚪뿐이면 건너뛴다. 중단 조건(기대값·형식·CLI 계약·규약 변경)에 걸리면 멈춘다. 🔴이 남은 채 다음으로 가지 않는다.
-7. **커밋 #2 `refactor:`** — 6이 코드를 바꿨을 때만.
-8. **`/postmortem`** [게이팅] — 커밋 #1이 `fix:`이거나 postmortem 후보가 있을 때만. 바뀌었으면 `docs(postmortem):` 커밋.
-9. **문서 신선도** — 푸시될 diff를 한 번 훑어 `docs/PRODUCT.md`·`docs/ARCHITECTURE.md`와 어긋나는지 본다. 결정이 새로 났거나 뒤집혔으면 해당 절과 §7 결정 기록(날짜·근거)을 고친다. `/feature`로 시작한 기능이 끝났으면 결론을 PRODUCT(제품 판단)·ARCHITECTURE(구조·형식·규약)로 올리고 `docs/features/<slug>/`를 지운다. 작업 방식이 바뀌었으면 AGENTS.md. 문서마다 커밋을 나눈다(`docs(PRODUCT): ...`).
-10. **최종 게이트** — 푸시할 HEAD에서 테스트·타입 검사를 다시 돌린다(문서만이면 생략).
-11. **push** — `git push -u origin feat-<slug>` 뒤 `gh pr create --base main`. PR title·body는 영문이다. Claude 세션은 세션이 준 attribution 줄을 body 끝에 붙인다. 머지는 하지 않는다.
+1. **`/tdd`** — gate: red confirmed (or a one-line reason it is a skip target). If unexpectedly green, stop.
+2. **Commit #0 `test:`** — tests and fixtures only. Committing in a red state is normal. Skip only when `/tdd` created no files.
+3. **`/implement`** — gate: all tests green + type check passes + 🔴/🟡 resolved. Collect the flags (format, docs, postmortem candidate).
+4. **Commit #1 `feat:`/`fix:`** — implementation only.
+5. **`/code-review`** — no gate. Pass findings to 6. If there is even one 🔴, 6 cannot be skipped.
+6. **`/refactor`** — skip if there are 0 findings or only ⚪. Stop if a stop condition hits (expected value, format, CLI contract, conventions change). Do not move on with 🔴 remaining.
+7. **Commit #2 `refactor:`** — only if 6 changed code.
+8. **`/postmortem`** [gated] — only if commit #1 is `fix:` or there is a postmortem candidate. If it changed something, commit with `docs(postmortem):`.
+9. **Docs freshness** — skim the diff to be pushed once and see whether it disagrees with `docs/PRODUCT.md` or `docs/ARCHITECTURE.md`. If a decision was newly made or reversed, update the relevant section and the §7 decision log (date and rationale). If a feature started with `/feature` is finished, promote the conclusions to PRODUCT (product judgments) and ARCHITECTURE (structure, formats, conventions) and delete `docs/features/<slug>/`. If the way of working changed, update AGENTS.md. PRODUCT, ARCHITECTURE, and AGENTS.md are written in English. Split commits per document (`docs(PRODUCT): ...`).
+10. **Final gate** — rerun tests and type checks at the HEAD to be pushed (skip if docs only).
+11. **push** — `git push -u origin feat-<slug>`, then `gh pr create --base main`. PR title and body are in English. Claude sessions append the attribution line the session provides to the end of the body. Do not merge.
 
-**커밋 규칙**: 영문 Conventional Commits. 경로를 하나씩 stage한다(`git add -A`·디렉터리 통째 금지). `.env`·`*.pem`·자격 증명 파일이 staged면 멈춘다. Claude 세션 커밋은 세션이 준 `Co-Authored-By` 줄로, Codex 세션 커밋은 `Co-Authored-By: Codex <noreply@openai.com>`으로 끝낸다.
+**Commit rules**: English Conventional Commits. Stage paths one at a time (no `git add -A` or whole directories). If `.env`, `*.pem`, or credential files are staged, stop. Claude session commits end with the `Co-Authored-By` line the session provides; Codex session commits end with `Co-Authored-By: Codex <noreply@openai.com>`.
 
-## 중단 (즉시 멈추고 보고)
+## Stop (stop immediately and report)
+
+The stop report is delivered to the user in Korean.
 
 ```
-🛑 중단: <단계> 게이트 실패
-사유: <한 줄>
-워크트리: 내 것만 / ⚠️ 남의 추적 변경 <경로> — 게이트 결과는 근거가 아니다
-푸시: 안 함 / 함(<해시>)
-현재 상태: 커밋 <해시들> / 미커밋 <있으면>
-남은 단계: <목록>
-재개: <사용자가 무엇을 정하거나 고치면 이어 갈 수 있는지>
+🛑 Stopped: <step> gate failed
+Reason: <one line>
+Worktree: mine only / ⚠️ someone else's tracked changes <paths> — gate results are not evidence
+Push: not done / done (<hash>)
+Current state: commits <hashes> / uncommitted <if any>
+Remaining steps: <list>
+Resume: <what the user needs to decide or fix for it to continue>
 ```
 
-멈춘 뒤 우회·강행하지 않는다. 사용자 결정은 런타임의 질문 도구(Claude Code는 AskUserQuestion)로 하나씩, 추천 하나와 '직접 입력' 선택지를 넣어 묻는다.
+After stopping, do not work around or force through. Ask for user decisions one at a time with the runtime's question tool (AskUserQuestion in Claude Code), with one recommendation and an 'Other (type your own)' option.
 
-## 최종 리포트
+## Final report
 
-미완·미검증 항목을 맨 위에 쓴다. 이어서 단계별 통과/스킵(사유)/중단, 커밋 해시, bypass 사용 여부와 계획 원본, push 대상(`feat-<slug>` + PR URL), 돌린 명령과 결과.
+Delivered to the user in Korean. Put incomplete and unverified items at the top. Then: pass/skip (reason)/stop per step, commit hashes, whether bypass was used and the plan source, push target (`feat-<slug>` + PR URL), and the commands run with their results.
 
-## 금지 사항
+## Prohibited
 
-- 게이트 우회·강행 금지. 돌리지 못한 검증을 통과로 쓰지 않는다.
-- 워크트리 소유권 게이트 우회 금지.
-- 하위 스킬의 금지 사항을 무력화하지 않는다.
-- `--force` push·`--no-verify` 금지(사용자가 명시하면 무엇이 사라지는지 보이고 재확인).
-- PR 머지 금지.
+- Do not bypass or force through gates. Do not report verification you could not run as passed.
+- Do not bypass the worktree ownership gate.
+- Do not override sub-skills' prohibitions.
+- No `--force` push or `--no-verify` (if the user explicitly asks, show what will be lost and reconfirm).
+- Do not merge PRs.

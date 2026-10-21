@@ -1,62 +1,64 @@
 ---
 name: refactor
-description: /code-review 발견 중 지정한 항목을 고칠 때 쓴다. 버그성은 회귀 테스트 red를 먼저 보고 고친다. 커밋은 하지 않는다.
+description: Use to fix selected /code-review findings. For bug-type findings, see the regression test go red first, then fix. Does not commit.
 ---
 
-`/code-review` 발견을 실제로 고친다. **버그성 발견은 회귀 테스트를 먼저 박는다.**
+Actually fix `/code-review` findings. **For bug-type findings, add the regression test first.**
 
-## 사용
+## Usage
 
-- `/refactor` — 직전 `/code-review`의 🔴/🟡 전부.
-- `/refactor <항목 번호|설명>` — 지정 항목만.
+- `/refactor` — all 🔴/🟡 from the preceding `/code-review`.
+- `/refactor <item number|description>` — only the named items.
 
-## 절차
+## Procedure
 
-### 1. 대상 확정
-직전 리포트에서 항목을 추린다. ⚪만 남았으면 건너뛰고 보고한다. 참고 항목 때문에 diff를 넓히지 않는다.
+### 1. Pin down the target
+Pick the items from the preceding report. If only ⚪ remain, skip and report. Do not widen the diff for note items.
 
-### 2. 분류
-- **버그성**(잘못된 동작을 만든다) → `/tdd regression`의 규율대로 회귀 테스트를 먼저 쓰고 red를 본 뒤 고친다.
-- **품질성**(동작은 같고 구조만) → 테스트 없이 고치되 기존 테스트가 계속 green이어야 한다.
+### 2. Classify
+- **Bug-type** (causes wrong behavior) → following `/tdd regression`'s discipline, write the regression test first, see red, then fix.
+- **Quality-type** (same behavior, structure only) → fix without new tests, but existing tests must stay green.
 
-### 3. 수정
-- 한 항목씩. 섞으면 무엇이 무엇을 깼는지 모른다.
-- `docs/POSTMORTEM.md`가 있으면 고칠 영역으로 grep한다.
-- ARCHITECTURE의 구조 결정에 닿는 코드면 해당 절을 먼저 읽는다.
-- 주석은 영문으로, "왜"만.
+### 3. Fix
+- One item at a time. If you mix them, you cannot tell what broke what.
+- If `docs/POSTMORTEM.md` exists, grep it for the area you will fix.
+- If the code touches ARCHITECTURE's structural decisions, read the relevant section first.
+- Comments in English, "why" only.
 
-### 4. 중단 조건 (강행하지 않고 묻는다)
-- 기존 테스트의 **기대값**을 바꿔야 한다(테스트가 틀렸다는 주장이라 근거가 필요하다).
-- **형식이 바뀐다**: JSON Schema·형식 버전 `v`·픽스처. 사용자 리포에 이미 쌓인 `.doan/` 파일을 읽는 쪽이 영향을 받는다.
-- **CLI 계약이 바뀐다**: `--json` 봉투, 오류 코드, 종료 코드.
-- **ARCHITECTURE §1 '규약'이 바뀐다**: `doan check`가 새로 오류·경고를 내거나 그만 낸다.
-- 범위 밖(§3 '하지 않는 것')에 닿는다.
+### 4. Stop conditions (ask instead of forcing through)
+- An existing test's **expected value** has to change (that is a claim that the test is wrong, so it needs evidence).
+- **A format changes**: JSON Schema, format version `v`, fixtures. Readers of `.doan/` files already accumulated in users' repos are affected.
+- **The CLI contract changes**: `--json` envelope, error codes, exit codes.
+- **ARCHITECTURE §1 'Conventions' changes**: `doan check` starts or stops reporting an error or warning.
+- It reaches out of scope (§3 'Out of scope').
 
-질문은 런타임의 질문 도구(Claude Code는 AskUserQuestion)로 하나씩, 추천 하나와 '직접 입력' 선택지를 넣어 묻는다.
+Ask questions one at a time with the runtime's question tool (AskUserQuestion in Claude Code), with one recommendation and an 'Other (type your own)' option.
 
-### 5. 게이트
-- AGENTS.md '명령어'의 테스트 전체 green, 타입 검사 통과. 절이 없거나 해당 명령이 없으면 멈추고 묻는다. 돌리지 못한 검사를 통과로 쓰지 않는다.
-- 버그성 항목마다 red → green 전이를 실제로 봤다.
+### 5. Gate
+- All tests from AGENTS.md 'Commands' green, type check passes. If the section is missing or has no relevant command, stop and ask. Do not report a check you could not run as passed.
+- For every bug-type item, you actually saw the red → green transition.
 
-### 6. 자체 검증
-`/implement`의 4관점(결정·범위·타입경계·단순성)을 수정분에 적용한다. 새 🔴/🟡가 나오면 최대 2회 루프로 푼다.
+### 6. Self-check
+Apply `/implement`'s four perspectives (decisions, scope, types and boundaries, simplicity) to the fix. If new 🔴/🟡 appear, resolve them in a loop of at most 2 rounds.
 
-## 리포트
+## Report
+
+The report is delivered to the user in Korean.
 
 ```
 🔧 refactor
-확인 필요(중단): <항목 — 왜 강행하지 않았는지 / 없음>
-스킵: <항목 — 이유 / 없음>
-수정: <n>건 (버그성 <a> / 품질성 <b>)
-1. <항목> — <무엇을 어떻게>  [회귀 테스트: <파일> red→green]
-테스트: <명령 · 결과> / 타입: <명령 · 결과>
-자체 검증: 🔴 0 / 🟡 0 / ⚪ <n>
+Needs confirmation (stopped): <item — why it was not forced through / none>
+Skipped: <item — reason / none>
+Fixed: <n> (bug-type <a> / quality-type <b>)
+1. <item> — <what and how>  [regression test: <file> red→green]
+Tests: <command · result> / Types: <command · result>
+Self-check: 🔴 0 / 🟡 0 / ⚪ <n>
 ```
 
-## 금지 사항
+## Prohibited
 
-- 커밋·빌드 금지.
-- 버그성 항목을 테스트 없이 고치지 않는다.
-- 중단 조건을 강행하지 않는다.
-- 지정 항목만 고친다. 옆에 보이는 문제는 리포트에 적고 넘어간다.
-- 테스트 삭제·약화 금지.
+- Do not commit or build.
+- Do not fix bug-type items without a test.
+- Do not force through a stop condition.
+- Fix only the named items. Note problems you see nearby in the report and move on.
+- Do not delete or weaken tests.

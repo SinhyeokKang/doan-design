@@ -1,53 +1,55 @@
 ---
 name: feature-review
-description: /feature 산출물(spec·design·tasks)을 제품·기술·QA 관점의 검수 에이전트로 병렬 크로스체크하고, 합의한 수정을 문서에 반영할 때 쓴다. 코드는 고치지 않는다.
+description: Use to cross-check /feature outputs (spec, design, tasks) in parallel with product, tech, and QA reviewer agents, and to apply the agreed fixes to the documents. Does not touch code.
 ---
 
-`docs/features/<slug>/`의 `spec.md`·`design.md`·`tasks.md`를 세 관점의 검수 에이전트가 따로 본다. 피드백을 사용자와 하나씩 정리하고, 합의한 것만 문서에 반영한다. **문서만 본다.** 빌드·테스트를 돌리지 않는다.
+Reviewer agents for three perspectives each look separately at `spec.md`, `design.md`, and `tasks.md` in `docs/features/<slug>/`. Work through the feedback with the user one item at a time, and apply only what is agreed. **Look at documents only.** Do not run builds or tests.
 
-## 사용
+## Usage
 
-- `/feature-review <slug>` — 세 관점 전부.
-- `/feature-review <slug> <role...>` — 지정 관점만. 키워드: `product`, `tech`, `qa`.
-- `/feature-review` — `docs/features/` 중 최근에 고친 slug, 세 관점 전부.
+- `/feature-review <slug>` — all three perspectives.
+- `/feature-review <slug> <role...>` — only the named perspectives. Keywords: `product`, `tech`, `qa`.
+- `/feature-review` — the most recently edited slug under `docs/features/`, all three perspectives.
 
-## 관점
+## Perspectives
 
-| 키 | 대상 | 기준 |
+| Key | Target | Criteria |
 |---|---|---|
-| `product` | `spec.md` | PRODUCT §1 문제·§2 사용자·§3 범위와 맞는가. 사용자(사람/에이전트)가 분명한가. 완료 조건이 검증할 수 있는 문장인가. 범위 밖(§3 '하지 않는 것')이 조용히 들어왔는가. 확장성 선반영이 있는가 |
-| `tech` | `design.md` | ARCHITECTURE §1 '규약'과 구조 결정을 지키는가(서빙 범위·sandbox iframe·추가만 하는 이벤트·에이전트는 resolve만·토큰 미취급·git 조작 없음·코멘트 본문은 데이터). 형식을 바꾸면 JSON Schema 원본·`v`·TS·Go 공용 픽스처가 설계에 있는가. 순수 함수가 실제로 분리됐는가. PRODUCT §6 PoC를 통과하지 않은 가정에 기대는가. 더 단순한 방법이 있는가 |
-| `qa` | `tasks.md` | 태스크마다 "검증:" 줄이 있고 판정할 수 있는가. 그 명령이 AGENTS.md '명령어'에 있는가(없으면 "명령 미정"으로 적혔는가). 순서가 스키마·픽스처 → 순수 함수 → 껍데기 → UI인가. 엣지 케이스(빈 캔버스, id 중복·누락, `doan:width` 누락, 모르는 `v`, union 머지 뒤 같은 `id`, 앱 꺼짐)가 빠졌는가. 마지막에 PRODUCT 승격과 디렉터리 삭제 태스크가 있는가 |
+| `product` | `spec.md` | Does it match PRODUCT §1 Problem, §2 Users, §3 Scope? Is the user (human/agent) clear? Are the done-when conditions verifiable sentences? Has something out of scope (§3 'Out of scope') slipped in silently? Is there any pre-built extensibility? |
+| `tech` | `design.md` | Does it respect ARCHITECTURE §1 'Conventions' and the structural decisions (serving scope, sandbox iframe, append-only events, agents only resolve, no token handling, no git operations, comment bodies are data)? If it changes a format, does the design include the JSON Schema source, `v`, and fixtures shared by TS and Go? Are pure functions actually split out? Does it lean on assumptions that have not passed the PRODUCT §6 PoC? Is there a simpler way? |
+| `qa` | `tasks.md` | Does every task have a "Verify:" line that can be judged? Is that command in AGENTS.md 'Commands' (if not, is it written as "command undecided")? Is the order schema and fixtures → pure functions → shell → UI? Are edge cases missing (empty canvas, duplicate or missing ids, missing `doan:width`, unknown `v`, same `id` after a union merge, app not running)? Are there final tasks for promoting to PRODUCT and deleting the directory? |
 
-## 절차
+## Procedure
 
-1. **로드** — 파일 셋을 읽는다. 하나라도 없으면 "문서가 불완전합니다. `/feature`를 먼저 실행해주세요."로 끝낸다. 맥락으로 `AGENTS.md`·`docs/PRODUCT.md`를 읽는다. `docs/POSTMORTEM.md`가 있으면 기능 영역으로 grep한다.
-2. **병렬 검수** — 활성 관점마다 검수 에이전트를 동시에 띄운다. 넘길 것: 담당 문서 전문, 나머지 문서(참고용), PRODUCT 관련 절, POSTMORTEM grep 결과, 위 기준. 문서가 인용한 파일·경로·명령은 리포에서 실물과 대조하게 한다.
-   - 워커 모델 경계(AGENTS.md '런타임 차이'): Claude Code 세션은 Claude 모델만, Codex 세션은 Codex 모델만 띄운다. 교차는 사용자 명시 허가가 있을 때만.
-   - 에이전트는 피드백만 돌려준다. 문서를 직접 고치지 않는다.
-3. **출력 형식** — 에이전트마다 `질문(답 필요)` / `이슈(🔴 정의가 틀렸거나 결정·규약 위반 · 🟡 권장 · ⚪ 표현)` / `잘된 점 1–2개`.
-4. **사용자와 정리**
-   - 전체 피드백을 관점별로 한 번에 보인다.
-   - 🔴 → 🟡 → ⚪ 순으로 런타임의 질문 도구(Claude Code는 AskUserQuestion)로 **하나씩** 묻는다. 추천 하나와 이유, '직접 입력' 선택지를 넣는다. 같은 지적은 하나로 합친다.
-   - 명백한 정확성 오류(없는 경로, 빠진 "검증:" 줄)는 묶어서 한 번에 허락을 받는다.
-   - 범위 밖 승격이나 PRODUCT 결정 변경이 필요한 항목은 따로 묻는다. 승인되면 PRODUCT 갱신을 `tasks.md`에 태스크로 남긴다.
-5. **반영** — 합의한 수정만 `docs/features/<slug>/`에 적용하고 파일별 변경을 요약한다.
-6. **커밋** — 고친 문서만. `docs(feature): <slug> apply review feedback`. 문서만 바뀌므로 main에 커밋한다(AGENTS.md 브랜치 규칙). 트레일러는 `/ship`의 커밋 규칙을 따른다.
+1. **Load** — read the three files. If any is missing, end with "The documents are incomplete. Please run `/feature` first." (said to the user in Korean). For context, read `AGENTS.md` and `docs/PRODUCT.md`. If `docs/POSTMORTEM.md` exists, grep it for the feature's areas.
+2. **Parallel review** — launch a reviewer agent for each active perspective at the same time. Pass: the full text of its document, the other documents (for reference), the relevant PRODUCT sections, the POSTMORTEM grep results, and the criteria above. Have it check every file, path, and command the documents cite against the actual repo.
+   - Worker model boundary (AGENTS.md 'Runtime differences'): a Claude Code session launches only Claude models; a Codex session launches only Codex models. Crossing only with the user's explicit permission.
+   - Agents return feedback only. They do not edit the documents.
+3. **Output format** — per agent: `Questions (need answers)` / `Issues (🔴 definition is wrong or violates a decision/convention · 🟡 recommended · ⚪ wording)` / `1–2 things done well`.
+4. **Work through it with the user**
+   - Show all feedback at once, grouped by perspective.
+   - In 🔴 → 🟡 → ⚪ order, ask **one at a time** with the runtime's question tool (AskUserQuestion in Claude Code). Include one recommendation with a reason and an 'Other (type your own)' option. Merge duplicate points into one.
+   - Get permission for obvious correctness errors (nonexistent paths, missing "Verify:" lines) in one batch.
+   - Ask separately about items that need promoting something out of scope or changing a PRODUCT decision. If approved, leave the PRODUCT update as a task in `tasks.md`.
+5. **Apply** — apply only the agreed fixes to `docs/features/<slug>/` and summarize the changes per file. These documents stay in Korean, following AGENTS.md 'Korean writing rules'.
+6. **Commit** — only the edited documents. `docs(feature): <slug> apply review feedback`. Since only documents change, commit to main (AGENTS.md branch rule). Trailers follow `/ship`'s commit rules.
 
-## 리포트
+## Report
+
+The report is delivered to the user in Korean.
 
 ```
 🧐 feature-review: <slug>
-보류·미합의: <항목 또는 없음>
-관점: <실행한 것>
-반영: <파일별 변경 요약>
-PRODUCT 갱신 태스크: 없음 / <항목>
-커밋: <해시>
+On hold / not agreed: <items or none>
+Perspectives: <what ran>
+Applied: <summary of changes per file>
+PRODUCT update tasks: none / <items>
+Commit: <hash>
 ```
 
-## 금지 사항
+## Prohibited
 
-- 코드 수정, 빌드·테스트 실행 금지.
-- 검수 에이전트가 문서를 고치지 않는다. 수정은 합의 뒤 메인 스레드에서만.
-- `docs/PRODUCT.md` 직접 수정 금지. 태스크로 남긴다.
-- 커밋 뒤 후속 스킬을 자동으로 부르지 않는다.
+- Do not edit code or run builds or tests.
+- Reviewer agents do not edit documents. Edits happen only in the main thread, after agreement.
+- Do not edit `docs/PRODUCT.md` directly. Leave it as a task.
+- Do not automatically invoke follow-up skills after committing.

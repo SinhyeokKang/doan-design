@@ -1,79 +1,83 @@
 ---
 name: orchestrate
-description: 배치 계획 문서 하나를 여러 워커 세션에 나눠 병렬로 태우고, 이 세션이 결정 수집·리뷰·통합·push까지 지휘할 때 쓴다. /ship보다 큰 단위다.
+description: Use to split one batch plan document across several worker sessions running in parallel, with this session conducting decision gathering, review, integration, and push. A larger unit than /ship.
 ---
 
-배치 계획(보통 `docs/features/<slug>/tasks.md`)을 **여러 워커 세션에 나눠 태우고**, 이 세션은 **지휘만** 한다. 구현은 워커가 `/ship bypass`로 한다. `/ship`과 같이 main에서 `git switch -c feat-<slug>`로 시작하고, 끝은 그 브랜치 push + PR이다. 머지는 하지 않는다.
+Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several worker sessions**, and this session **only conducts**. Workers implement with `/ship bypass`. Like `/ship`, start from main with `git switch -c feat-<slug>`; the end is a push of that branch + PR. Do not merge.
 
-> 지휘자는 배치 코드를 고치지 않는다. 지휘자가 쓰는 것은 `orch.md`·통합 커밋·문서 신선도 커밋뿐이다. 결함은 그 배치를 맡은 워커로 돌려보낸다.
+> The conductor does not edit batch code. The only things the conductor writes are `orch.md`, integration commits, and docs-freshness commits. Defects go back to the worker that owns the batch.
 
-## 사용
+**Language**: `orch.md` lives under `docs/features/<slug>/`, so it is written in Korean following AGENTS.md 'Korean writing rules'. Worker briefs are written in English. When promoting conclusions, `docs/PRODUCT.md` and `docs/ARCHITECTURE.md` are written in English.
 
-- `/orchestrate <계획 문서>` — 배치 전부. `/orchestrate <계획 문서> <배치...>` — 지정 배치만.
+## Usage
 
-## 0. 인테이크 (워커를 띄우기 전)
+- `/orchestrate <plan document>` — all batches. `/orchestrate <plan document> <batch...>` — only the named batches.
 
-1. **`orch.md`를 먼저 쓴다** — 기능이면 `docs/features/<slug>/orch.md`. 원본 spec·tasks는 가리키기만 한다. 담을 것: 시작 해시, 통합 브랜치, 결정 기록, 배치 표(항목 · 파일 소유권 · 선행 관계 · 워커 모델 · 검증 게이트 · 상태), 파일 겹침과 병렬/직렬 순서.
-2. **결정을 먼저 다 받는다** — 해석이 갈리는 곳을 런타임의 질문 도구(Claude Code는 AskUserQuestion)로 **하나씩** 묻는다. 추천 하나와 이유, '직접 입력' 선택지를 넣는다. 답은 결정 기록에 적는다. PRODUCT·AGENTS가 이미 답하는 것은 묻지 않고 "지휘자 판단 — <근거>"로 적는다. 설계가 필요한 배치는 여기서 `/feature` → `/feature-review`를 먼저 돈다.
-3. **워커 모델 경계** (AGENTS.md '런타임 차이', 엄격 적용):
+## 0. Intake (before launching workers)
 
-   | 지휘자 | 허용 워커 |
+1. **Write `orch.md` first** — for a feature, `docs/features/<slug>/orch.md`. Only point to the source spec and tasks. Contents: starting hash, integration branch, decision log, batch table (item · file ownership · prerequisites · worker model · verification gate · status), file overlaps and parallel/serial order.
+2. **Get all decisions up front** — ask about points open to interpretation **one at a time** with the runtime's question tool (AskUserQuestion in Claude Code). Include one recommendation with a reason and an 'Other (type your own)' option. Record the answers in the decision log. Do not ask what PRODUCT or AGENTS already answers; write "conductor's call — <basis>". Batches that need design go through `/feature` → `/feature-review` first, here.
+3. **Worker model boundary** (AGENTS.md 'Runtime differences', strictly applied):
+
+   | Conductor | Allowed workers |
    |---|---|
-   | Claude Code | Claude Code / Claude 모델만 |
-   | Codex | Codex / Codex 모델만 |
+   | Claude Code | Claude Code / Claude models only |
+   | Codex | Codex / Codex models only |
 
-   교차는 사용자의 명시 허가가 있을 때만 한다. 토큰 부족·도구 부재·실패·속도를 이유로 교차하지 않는다. 구현·리뷰·재시도·수정 라운드·터미널 재사용 모두 같은 경계다. 실제 모델 ID는 현재 런타임에서 확인하고 고른 이유를 한 줄 적는다.
-4. **파일 겹침으로 병렬/직렬을 가른다** — 같은 파일을 고치는 두 배치는 병렬로 띄우지 않는다. 워커가 다른 배치를 기다리게 하지 않는다. 선행에 기대는 항목은 "남겨 두고 나머지를 끝낸 뒤 인계에 '미룬 항목'으로 적어라"로 브리프하고, 선행을 통합한 뒤 그 항목을 새 Task로 보낸다.
-5. **tasks의 모든 체크 항목이 배치 행 하나에 대응하는지** 확인한다. 주인 없는 항목 0.
-6. **`orch.md`를 커밋한 뒤** 첫 워커를 띄운다. 워크트리는 커밋에서 갈라지므로 커밋하지 않은 계획은 워커가 못 읽는다.
+   Crossing only with the user's explicit permission. Do not cross because of token shortage, missing tools, failures, or speed. Implementation, review, retries, fix rounds, and terminal reuse all fall under the same boundary. Confirm actual model IDs in the current runtime and write one line on why you chose them.
+4. **Split parallel/serial by file overlap** — do not run two batches that edit the same file in parallel. Do not make a worker wait for another batch. For items that depend on a prerequisite, brief: "leave it, finish the rest, then list it as a 'deferred item' in the handoff", and after integrating the prerequisite, send that item as a new Task.
+5. **Check that every checkbox item in tasks maps to one batch row.** Zero ownerless items.
+6. **Commit `orch.md`, then** launch the first worker. Worktrees branch from commits, so workers cannot read an uncommitted plan.
 
-## 1. 워커 띄우기
+## 1. Launching workers
 
-- Orca 환경이면 `orchestration` 스킬을 읽고 그 절차로 Run·Task·Dispatch를 관리한다.
-- 파일 소유권이 겹치지 않는 배치는 각자 별도 워크트리에서 돈다.
-- **브리프는 파일로 쓰고 한 줄로 보낸다.** 넣을 것: 계획 원본과 담당 항목, 건드리지 말 파일, 허용 모델, `/ship` 재정의(**push 전 단계에서 멈춤** — `git push`·`gh pr create` 금지), 게이트 명령(AGENTS.md '명령어'의 것만, 없으면 워커가 멈추고 보고), 인계 프로토콜(`.scratch/handoff-<batch>.md`에 커밋·검증 결과·미완 항목을 쓰고 완료 신호를 한 번 보낸다).
-- 세션의 권한 설정을 존중한다. 권한 우회 플래그를 붙이거나 다른 세션의 승인 창을 대신 누르지 않는다.
+- In an Orca environment, read the `orchestration` skill and manage Run, Task, and Dispatch with its procedure.
+- Batches with non-overlapping file ownership each run in their own worktree.
+- **Write the brief to a file and send it as one line.** Include: the plan source and assigned items, files not to touch, allowed model, the `/ship` override (**stop before the push step** — no `git push` or `gh pr create`), gate commands (only from AGENTS.md 'Commands'; if none, the worker stops and reports), handoff protocol (write commits, verification results, and incomplete items to `.scratch/handoff-<batch>.md` and send the completion signal once).
+- Respect the sessions' permission settings. Do not add permission-bypass flags or click another session's approval prompts on its behalf.
 
-## 2. 감시
+## 2. Monitoring
 
-- 완료 알림만 믿지 않는다. 상태를 주기적으로 확인하는 루프를 백그라운드로 건다(첫 변화에서 끝나게).
-- heartbeat·빈 대기·타임아웃은 완료가 아니다. 인계 문서와 실제 커밋을 대조한다.
-- 워커에게 보낸 지시는 워커가 **착수한 흔적**을 확인하기 전까지 전달로 치지 않는다. 턴을 도는 워커에게 다음 일을 예약하지 않는다. 완료 뒤 새 Task로 보낸다.
+- Do not rely only on completion notifications. Run a background loop that checks status periodically (ending on the first change).
+- Heartbeats, idle waits, and timeouts are not completion. Check the handoff document against the actual commits.
+- An instruction sent to a worker does not count as delivered until you confirm **signs the worker started on it**. Do not queue the next job for a worker mid-turn. Send it as a new Task after completion.
 
-## 3. 리뷰 → 수정 라운드
+## 3. Review → fix rounds
 
-1. 배치 diff를 **독립 리뷰 워커**(같은 모델 패밀리, 리포트 전용)에 `/code-review`로 맡긴다. 인계 문서의 주장과 "계획과 다른 점"도 판정시킨다.
-2. 🔴·🟡와 사용자 결정 항목을 가른다. 결정은 하나씩 묻는다.
-3. 수정 브리프를 소유 워커에게 보낸다. 🔴 0까지 반복한다.
+1. Hand the batch diff to an **independent review worker** (same model family, report only) with `/code-review`. Also have it judge the handoff document's claims and "differences from the plan".
+2. Separate 🔴/🟡 from user-decision items. Ask decisions one at a time.
+3. Send a fix brief to the owning worker. Repeat until 🔴 is 0.
 
-## 4. 통합
+## 4. Integration
 
-- 통합 대상: 이 런의 `feat-<slug>` 브랜치 하나(main에서 갈라 `orch.md`에 적은 것).
-- `git status --porcelain`이 비어 있는지 본 뒤 배치 커밋을 cherry-pick한다. AGENTS.md '명령어'의 게이트를 통합 HEAD에서 돌린다. 명령이 없으면 멈추고 묻는다.
-- `/ship` 9단계처럼 문서 신선도를 보고 PRODUCT·`orch.md` 갱신을 문서별 커밋으로 얹는다.
-- 미룬 항목이 있는 워커에게 선행이 들어갔음을 알리고 착수를 확인한다.
+- Integration target: this run's single `feat-<slug>` branch (branched from main and recorded in `orch.md`).
+- Check that `git status --porcelain` is empty, then cherry-pick the batch commits. Run the AGENTS.md 'Commands' gates at the integration HEAD. If there are no commands, stop and ask.
+- Like `/ship` step 9, check docs freshness and add PRODUCT and `orch.md` updates as per-document commits.
+- Tell workers with deferred items that the prerequisite has landed, and confirm they started.
 
-## 5. push와 정리
+## 5. Push and cleanup
 
-- 모든 배치가 통합되면 `/ship` 11단계와 같이 `feat-<slug>`를 push하고 `gh pr create --base main`. 머지하지 않는다.
-- 기능이 끝났으면 결론을 PRODUCT(제품 판단)·ARCHITECTURE(구조·형식·규약)로 올리고(PRODUCT §7 날짜·근거) `docs/features/<slug>/`를 지운다. `orch.md`도 함께 지운다.
-- 워크트리는 추적 중인 미커밋 변경 0, 통합되지 않은 커밋 0을 확인한 뒤 지운다. 보낼 지시가 없는 워커는 끝까지 기다리지 않고 바로 정리한다. 인계 문서는 워크트리와 함께 사라지므로 필요한 결론은 먼저 정본에 올린다.
+- When all batches are integrated, push `feat-<slug>` as in `/ship` step 11 and `gh pr create --base main`. Do not merge.
+- If the feature is finished, promote the conclusions to PRODUCT (product judgments) and ARCHITECTURE (structure, formats, conventions) (date and rationale in PRODUCT §7) and delete `docs/features/<slug>/`. Delete `orch.md` along with it.
+- Delete worktrees after confirming 0 tracked uncommitted changes and 0 unintegrated commits. Workers with no further instructions to send are cleaned up right away without waiting to the end. Handoff documents disappear with the worktree, so promote the needed conclusions to the source of truth first.
 
-## 리포트
+## Report
+
+The report is delivered to the user in Korean.
 
 ```
-🎼 orchestrate: <계획 문서>
-미완·미검증 (먼저): <못 돌린 검증 · 남은 결정>
-배치: <표 — 상태 · 통합 해시 · 라운드 수 · 워커 모델>
-모델 교차: 없음 / <허가 범위>
+🎼 orchestrate: <plan document>
+Incomplete / unverified (first): <checks not run · remaining decisions>
+Batches: <table — status · integration hash · rounds · worker model>
+Model crossing: none / <scope of permission>
 push: feat-<slug> + PR <url>
-워크트리: <남은 것>
+Worktrees: <what remains>
 ```
 
-## 금지 사항
+## Prohibited
 
-- PR 머지 금지.
-- 지휘자가 배치 코드를 직접 고치지 않는다.
-- 모델 패밀리 교차를 허가 없이 하지 않는다.
-- 겹치는 파일을 가진 배치를 병렬로 띄우지 않는다.
-- 사용자 승인 없이 다른 세션의 권한 프롬프트를 승인하거나 권한 규칙을 넓히지 않는다.
+- Do not merge PRs.
+- The conductor does not edit batch code directly.
+- Do not cross model families without permission.
+- Do not run batches with overlapping files in parallel.
+- Do not approve another session's permission prompts or widen permission rules without user approval.

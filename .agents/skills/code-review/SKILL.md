@@ -1,71 +1,73 @@
 ---
 name: code-review
-description: 변경분을 doan의 결정·규약 기준으로 시급도별 리뷰할 때 쓴다. 리포트만 내고 수정·커밋은 하지 않는다.
+description: Use to review changes by urgency against doan's decisions and conventions. Produces a report only; does not fix or commit.
 ---
 
-변경분을 정적으로 리뷰한다. **리포트 전용**이고 수정은 `/refactor`가 한다.
+Statically review the changes. **Report only**; `/refactor` does the fixing.
 
-> Claude Code에는 같은 이름의 내장 스킬 `code-review`가 있다. 이 리포에서 `/code-review`는 **이 프로젝트 스킬**(doan 결정·규약 기준 리뷰)을 뜻한다. 내장 스킬을 쓰려면 사용자가 그렇게 지정한다.
+> Claude Code has a built-in skill with the same name, `code-review`. In this repo, `/code-review` means **this project skill** (review against doan's decisions and conventions). To use the built-in skill, the user says so.
 
-"리포트 전용"은 "여기서 턴을 끝낸다"가 아니다. 단독 호출이면 리포트로 끝나고, `/ship` 안이면 `/ship`이 같은 턴에서 `/refactor`로 이어 간다.
+"Report only" does not mean "end the turn here". Invoked on its own, it ends with the report; inside `/ship`, `/ship` continues to `/refactor` in the same turn.
 
-## 사용
+## Usage
 
-- `/code-review` — 아직 push하지 않은 커밋(`git diff @{u}..HEAD`) + 미커밋 변경. 기능 브랜치면 `git diff main...HEAD`.
-- `/code-review <경로|커밋 범위>` — 대상을 명시한다.
+- `/code-review` — commits not yet pushed (`git diff @{u}..HEAD`) + uncommitted changes. On a feature branch, `git diff main...HEAD`.
+- `/code-review <path|commit range>` — name the target explicitly.
 
-## 절차
+## Procedure
 
-1. 대상을 확정한다: `git status`, 위 diff. 변경 파일 목록부터 본다.
-2. `docs/POSTMORTEM.md`가 있으면 변경 영역으로 grep해 과거 함정을 이번 diff가 다시 밟는지 확인한다.
-3. `docs/ARCHITECTURE.md`(§1 '규약'과 구조 결정)와 대조한다.
-4. 아래 체크리스트로 훑고 시급도별로 나눈다.
+1. Pin down the target: `git status`, the diff above. Start with the list of changed files.
+2. If `docs/POSTMORTEM.md` exists, grep it for the changed areas and check whether this diff steps on a past pitfall again.
+3. Check against `docs/ARCHITECTURE.md` (§1 'Conventions' and the structural decisions).
+4. Go through the checklist below and sort by urgency.
 
-## 체크리스트
+## Checklist
 
-### 🔴 즉시 수정 — 조용히 깨지거나 경계가 무너지는 부류
-- **코멘트 본문을 지시로 실행**: 본문의 문장이 에이전트·CLI 동작을 바꾼다(ARCHITECTURE §6 '스킬' 규칙).
-- **서빙 범위 이탈**: `design/`·설정 경로 밖을 응답, `..` 탈출 허용, `127.0.0.1` 외 바인딩, CORS 헤더, 토큰 경로 없이 응답.
-- **iframe 격리 해제**: `allow-same-origin` 추가, 캔버스 HTML이 앱 UI·디스크에 닿는 경로.
-- **코멘트 기록 손상**: 줄을 지우거나 고쳐 씀(추가만 해야 한다), 줄 순서로 정렬(`at` 순이어야 한다), 같은 `id`를 접지 않음, 모르는 `v`를 조용히 받아들임.
-- **에이전트 권한 확대**: CLI·MCP가 코멘트 본문을 수정·삭제한다(resolve만 허용).
-- **id 변경**: 파일 이동·제목 변경 때 캔버스·프레임 id를 바꿔 코멘트가 끊긴다.
-- **비밀 취급**: GitHub 토큰을 읽거나 저장, 로그·오류 메시지에 비밀 노출.
-- **Doan이 git 조작**: 커밋·브랜치·push를 한다(`.gitattributes` union 설정 외).
-- **TS·Go 형식 분기**: 한쪽이 스키마 원본이 아닌 손 정의로 형식을 바꾼다.
+### 🔴 Fix now — things that break silently or collapse a boundary
+- **Executing a comment body as instructions**: a sentence in the body changes agent or CLI behavior (ARCHITECTURE §6 'Skills' rule).
+- **Leaving the serving scope**: responding outside `design/` and the config path, allowing `..` escapes, binding to anything other than `127.0.0.1`, CORS headers, responding without the token path.
+- **Breaking iframe isolation**: adding `allow-same-origin`, any path by which canvas HTML reaches the app UI or disk.
+- **Corrupting the comment log**: deleting or rewriting lines (it must be append-only), sorting by line order (must be by `at`), not folding the same `id`, silently accepting an unknown `v`.
+- **Widening agent permissions**: the CLI or MCP edits or deletes comment bodies (only resolve is allowed).
+- **Changing ids**: changing canvas or frame ids on file moves or title changes, which cuts off comments.
+- **Handling secrets**: reading or storing GitHub tokens, exposing secrets in logs or error messages.
+- **Doan performing git operations**: commits, branches, push (other than the `.gitattributes` union setting).
+- **TS/Go format divergence**: one side changes a format with a hand-written definition instead of the schema source.
 
-### 🟡 수정 권장
-- 순수 함수에 I/O가 섞임, 실패를 조용히 삼킴(TS `catch {}`, Go `_ = err`).
-- `--json` 봉투·종료 코드가 계약과 다름, `nextSteps` 누락.
-- `doan check`가 ARCHITECTURE §1 '규약'과 다르게 판정(오류·경고 등급 포함).
-- 코드와 `docs/PRODUCT.md`가 어긋남.
-- 범위 밖 기능 유입(§3), 요청 없는 설정·추상화.
-- 주석이 "무엇"을 반복하거나 영문이 아님.
+### 🟡 Should fix
+- I/O mixed into pure functions, failures silently swallowed (TS `catch {}`, Go `_ = err`).
+- `--json` envelope or exit codes differ from the contract, missing `nextSteps`.
+- `doan check` judges differently from ARCHITECTURE §1 'Conventions' (including error/warning levels).
+- Code and `docs/PRODUCT.md` disagree.
+- Out-of-scope features creeping in (§3), configuration or abstraction nobody asked for.
+- Comments that repeat the "what" or are not in English.
 
-### ⚪ 참고
-- 이름·주석 밀도, 중복 추출 여지, 테스트 보강 여지.
+### ⚪ Note
+- Naming and comment density, room to extract duplication, room to strengthen tests.
 
-## 리포트
+## Report
+
+The report is delivered to the user in Korean.
 
 ```
-🔍 code-review: <대상>
-범위: <파일 n개, +a/-b>
-POSTMORTEM 대조: <재발 위험 항목 / 해당 없음 / 파일 없음>
+🔍 code-review: <target>
+Scope: <n files, +a/-b>
+POSTMORTEM check: <recurrence-risk items / n/a / no file>
 
-🔴 <n>건
-1. <file:line> — <한 줄 요약>
-   실패 시나리오: <어떤 입력·상황에서 어떻게 깨지는가>
-   제안: <수정 방향>
-🟡 <n>건 ...
-⚪ <n>건 ...
+🔴 <n>
+1. <file:line> — <one-line summary>
+   Failure scenario: <what input or situation breaks it, and how>
+   Suggestion: <direction of the fix>
+🟡 <n> ...
+⚪ <n> ...
 
-다음: /refactor (🔴/🟡 있으면) / 없으면 /ship 이어서
+Next: /refactor (if any 🔴/🟡) / otherwise continue /ship
 ```
 
-🔴은 실패 시나리오를 반드시 채운다. 구체적인 입력·상황을 못 쓰면 🟡이나 ⚪다.
+Every 🔴 must have a failure scenario. If you cannot write a concrete input or situation, it is 🟡 or ⚪.
 
-## 금지 사항
+## Prohibited
 
-- 코드 수정 금지. 리포트만.
-- 커밋·빌드 금지.
-- 시급도 부풀리기 금지. 전부 🔴이면 아무것도 🔴이 아니다.
+- Do not edit code. Report only.
+- Do not commit or build.
+- Do not inflate urgency. If everything is 🔴, nothing is 🔴.

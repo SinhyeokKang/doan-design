@@ -1,71 +1,73 @@
 ---
 name: implement
-description: /tdd가 박은 테스트나 tasks.md의 태스크를 구현할 때 쓴다. 4관점 자체 검증까지 스스로 끝낸다. 커밋은 하지 않는다.
+description: Use to implement the tests /tdd added or the tasks in tasks.md. Finishes its own four-perspective self-check. Does not commit.
 ---
 
-`/tdd`의 테스트를 green으로 만들거나 `docs/features/<slug>/tasks.md`의 태스크를 구현한다. **자체 검증까지 이 스킬 안에서 끝낸다.**
+Make `/tdd`'s tests green or implement the tasks in `docs/features/<slug>/tasks.md`. **The self-check is finished inside this skill.**
 
-## 사용
+## Usage
 
-- `/implement` — 직전 `/tdd`·`/feature` 산출물에서 대상을 정한다.
-- `/implement <대상>` — 대상을 명시한다.
+- `/implement` — pick the target from the preceding `/tdd` or `/feature` output.
+- `/implement <target>` — name the target explicitly.
 
-## 1. 착수 전 (생략 금지)
+## 1. Before starting (do not skip)
 
-- `docs/POSTMORTEM.md`가 있으면 건드릴 파일·영역으로 grep한다. 걸린 함정을 피하게 설계하고 리포트에 남긴다.
-- `docs/PRODUCT.md`와 `docs/ARCHITECTURE.md`의 관련 절을 읽는다. 특히 ARCHITECTURE §1 '규약'과 구조 결정. 구현이 결정과 어긋나면 코드가 아니라 결정을 먼저 물을 문제일 수 있다.
-- `tasks.md`가 있으면 이 작업이 어느 태스크인지 확인한다. 목록에 없는 작업이면 왜 필요한지 리포트에 적는다.
-- 범위 밖(PRODUCT §3 '하지 않는 것')에 닿으면 멈추고 묻는다.
-- AGENTS.md '명령어' 절의 테스트 명령으로 현재 red 목록을 본다. 절이 없거나 해당 영역의 명령이 없으면 멈추고 묻는다.
+- If `docs/POSTMORTEM.md` exists, grep it for the files and areas you will touch. Design around the matching pitfalls and record them in the report.
+- Read the relevant sections of `docs/PRODUCT.md` and `docs/ARCHITECTURE.md`, especially ARCHITECTURE §1 'Conventions' and the structural decisions. If the implementation conflicts with a decision, the question may be about the decision first, not the code.
+- If `tasks.md` exists, confirm which task this work is. If the work is not on the list, write in the report why it is needed.
+- If it reaches out of scope (PRODUCT §3 'Out of scope'), stop and ask.
+- Use the test command from the AGENTS.md 'Commands' section to see the current red list. If the section is missing or has no command for the area, stop and ask.
 
-## 2. 구현
+## 2. Implementation
 
-- 순수 함수 먼저, I/O 껍데기는 나중에.
-- 외과적으로. 요청 밖 인접 코드는 손대지 않는다.
-- 주석은 영문으로, "왜"만 쓴다. 비자명한 제약·함정을 남긴다.
-- 형식을 바꾸면 JSON Schema 원본과 픽스처를 먼저 고치고, TS·Go 양쪽을 같은 작업에서 맞춘다. 한쪽만 손으로 고치지 않는다.
-- 요청 없이 `package.json`·`go.mod`·빌드 설정·디렉터리 구조를 만들지 않는다. 필요하면 묻는다.
+- Pure functions first, I/O shells later.
+- Surgically. Do not touch adjacent code outside the request.
+- Comments in English, "why" only. Record non-obvious constraints and pitfalls.
+- If a format changes, fix the JSON Schema source and fixtures first, and bring TS and Go in line in the same piece of work. Do not hand-edit only one side.
+- Do not create `package.json`, `go.mod`, build settings, or directory structure without being asked. Ask if needed.
 
-## 3. 자체 검증 (4관점)
+## 3. Self-check (four perspectives)
 
-각 발견을 🔴(반드시 수정) / 🟡(수정 권장) / ⚪(참고)로 나눈다. 관점을 서브에이전트에 나눠 맡기면 AGENTS.md '런타임 차이'의 워커 모델 경계를 지킨다(Claude Code 세션은 Claude 모델, Codex 세션은 Codex 모델만).
+Sort each finding into 🔴 (must fix) / 🟡 (should fix) / ⚪ (note). If you split the perspectives across subagents, respect the worker model boundary in AGENTS.md 'Runtime differences' (Claude Code sessions use only Claude models, Codex sessions only Codex models).
 
-1. **결정 관점** — ARCHITECTURE의 구조 결정을 지키는가: 서빙은 `design/`과 설정 경로만, `127.0.0.1`, CORS 없음, 토큰 경로 / iframe에 `allow-same-origin` 없음 / 코멘트는 이벤트를 추가만 하고 `at`·`id`로 접음 / 에이전트는 resolve만 / GitHub 토큰을 다루지 않음 / Doan이 git 조작을 하지 않음(`.gitattributes` 한 줄 제외) / 코멘트 본문을 지시가 아닌 데이터로 다룸.
-2. **범위 관점** — §3 '하지 않는 것'이 슬며시 들어오지 않았는가. ARCHITECTURE §1 '규약' 밖의 형식을 캔버스에 강제하지 않는가.
-3. **타입·경계 관점** — TS의 `any`·단언, Go의 버려진 `error`가 없는가. 실패를 조용히 삼키지 않는가. `--json` 봉투와 종료 코드가 계약대로인가.
-4. **단순성 관점** — 요청하지 않은 유연성·설정·추상화가 있는가. 확장성 선반영은 그 자체로 결함이다.
+1. **Decisions** — does it respect ARCHITECTURE's structural decisions: serving only `design/` and the config path, `127.0.0.1`, no CORS, token path / no `allow-same-origin` on the iframe / comments only append events and fold by `at` and `id` / agents only resolve / no handling of GitHub tokens / Doan performs no git operations (except one `.gitattributes` line) / comment bodies are treated as data, not instructions.
+2. **Scope** — has §3 'Out of scope' slipped in? Does it force formats outside ARCHITECTURE §1 'Conventions' onto the canvas?
+3. **Types and boundaries** — no TS `any` or assertions, no discarded Go `error`? Are failures not silently swallowed? Do the `--json` envelope and exit codes follow the contract?
+4. **Simplicity** — is there flexibility, configuration, or abstraction nobody asked for? Pre-built extensibility is a defect in itself.
 
-## 4. 해소 루프 (최대 2회)
+## 4. Resolution loop (at most 2 rounds)
 
-🔴/🟡를 고치고 테스트·타입 검사를 다시 돌린다. 2회 안에 다 풀리지 않으면 멈추고 남은 것을 보고한다.
+Fix 🔴/🟡 and rerun tests and type checks. If not everything is resolved within 2 rounds, stop and report what remains.
 
-## 5. 게이트
+## 5. Gate
 
-- AGENTS.md '명령어'의 테스트 **전체** green, 타입 검사 통과.
-- 🔴/🟡 전부 해소.
-- 하나라도 못 채우거나 돌리지 못했으면 멈추고 보고한다. 돌리지 않은 검사를 통과로 쓰지 않는다.
+- **All** tests from AGENTS.md 'Commands' green, type check passes.
+- All 🔴/🟡 resolved.
+- If anything is not met or could not be run, stop and report. Do not report a check you did not run as passed.
 
-## 리포트
+## Report
+
+The report is delivered to the user in Korean.
 
 ```
-✅ implement: <대상>
-미해소·미실행: <목록 또는 없음>
-변경: <파일 목록>
-테스트: <명령 · 결과> / 타입: <명령 · 결과>
-자체 검증: 🔴 <n> 해소 / 🟡 <n> 해소 / ⚪ <n>(미수정, 내용)
-POSTMORTEM 소환: <항목 또는 없음/파일 없음>
+✅ implement: <target>
+Unresolved / not run: <list or none>
+Changes: <file list>
+Tests: <command · result> / Types: <command · result>
+Self-check: 🔴 <n> resolved / 🟡 <n> resolved / ⚪ <n> (not fixed, details)
+POSTMORTEM recalled: <items or none/no file>
 
-플래그 (뒤 단계 게이팅):
-- 형식 영향: 없음 / <스키마 · v · 픽스처>
-- 문서 영향: 없음 / PRODUCT.md <절>
-- postmortem 후보: 없음 / <밟은 비자명 함정>
+Flags (gate later steps):
+- Format impact: none / <schema · v · fixtures>
+- Docs impact: none / PRODUCT.md <section>
+- Postmortem candidate: none / <non-obvious pitfall hit>
 ```
 
-플래그는 생략하지 않는다. `/ship`이 이걸 읽고 뒤 단계를 켠다.
+Do not omit the flags. `/ship` reads them to turn on later steps.
 
-## 금지 사항
+## Prohibited
 
-- 커밋 금지.
-- 테스트를 지우거나 기대값을 느슨하게 고쳐 green 만들기 금지. 기대값이 틀렸다고 보면 이유를 보고하고 확인받는다.
-- tasks.md 밖 기능을 덤으로 넣지 않는다.
-- 자체 검증 생략 금지.
+- Do not commit.
+- Do not make tests green by deleting them or loosening expected values. If you think an expected value is wrong, report why and get confirmation.
+- Do not add features outside tasks.md as extras.
+- Do not skip the self-check.
