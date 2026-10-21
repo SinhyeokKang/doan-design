@@ -35,7 +35,7 @@ MVP 피처 3번(PRODUCT §5 피처 분할). `doan mcp`가 stdio MCP 서버로 �
 ## 완료 조건
 
 1. **PoC 6 MCP 부분**(태스크 0): `.scratch/`의 최소 Go 서버를 Claude Code와 Codex에 stdio로 등록하면, 두 에이전트가 도구 목록에서 그 도구를 보고 호출해 결과를 받는다. 두 에이전트가 서버를 띄울 때의 작업 디렉터리, 텍스트와 `structuredContent` 중 에이전트가 무엇을 쓰는지를 PRODUCT §6에 날짜와 함께 적는다.
-2. **`doan mcp`**: 같은 바이너리의 하위 명령이다. stdin·stdout은 MCP 프로토콜만 쓴다. stderr에는 기동 실패와 전송 실패만 쓴다. `--json`·`--repo`를 포함한 모든 플래그와 위치 인자는 `usage_error`(exit 2)로 끝난다. 클라이언트가 stdin을 닫으면 exit 0으로 끝난다.
+2. **`doan mcp`**: 같은 바이너리의 하위 명령이다. stdin·stdout은 MCP 프로토콜만 쓴다. stderr에는 기동 실패와 전송 실패만 쓴다. `-h`·`--help`(ARCHITECTURE §12대로 usage, exit 0)를 빼고 `--json`·`--repo`를 포함한 모든 플래그와 위치 인자는 `usage_error`(exit 2)로 끝난다. 클라이언트가 stdin을 닫으면 exit 0으로 끝난다.
 3. **도구**: 위 '도구 목록'의 여섯 도구가 정확히 `tools/list`에 나오고, 각 도구는 대응하는 CLI 명령을 부른다. 같은 리포 상태에서 도구 결과의 봉투는 `doan <명령> --json` 출력과 파싱한 JSON으로 같다. 리포를 바꾸는 도구(`init`, `resolve_comments`)는 같은 내용의 리포 사본 두 개에서 비교한다.
 4. **실패**: 명령이 `*Error`를 돌려주면 도구 결과의 `isError`가 `true`이고 봉투는 `ok: false`다. `doan check`가 error finding을 내면 `isError`는 `false`이고 `ok: true`다(ARCHITECTURE §12 exit 4와 같다). 도구 인자가 스키마에 어긋나거나 `repo`가 상대 경로면 우리 핸들러가 검사해 `usage_error` 봉투와 `isError: true`를 돌려준다.
 5. **묻지 않음**: `tokenCss` 없이 `init` 도구를 부르면 묻지 않고 `tokenCss` 없는 설정을 만들며, stdout에 프로토콜 밖 바이트가 없다.

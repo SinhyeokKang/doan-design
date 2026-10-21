@@ -17,13 +17,16 @@
 | 2026-10-21 | 태스크 5(승격과 정리)는 지휘가 한다 | 지휘 판단 — orchestrate 5단계가 승격과 디렉터리 삭제를 지휘에게 둔다 |
 | 2026-10-21 | B0 결과로 Q2·Q3를 그대로 둔다. 텍스트와 `structuredContent`에 같은 봉투를 넣는다 | 지휘 판단 — 두 에이전트 모두 작업 디렉터리가 프로젝트 루트였고, Claude Code는 `structuredContent`만, Codex는 둘 다 보여 줬다(PRODUCT §6). design이 이미 두 채널에 같은 봉투를 넣는다 |
 | 2026-10-21 | 일회성 호출 명령을 고친다: `claude -p … --allowedTools '…' -- "<프롬프트>" < /dev/null`. Codex는 도구 이름의 `-`를 `_`로 바꿔 노출한다 | B0 관찰 — `--allowedTools`가 가변 인자라 프롬프트를 삼켰다 |
+| 2026-10-21 | 서버 capabilities는 `tools`만 알린다 | 사용자 — 쓰지 않는 `logging`·`listChanged`를 알리지 않아 spec 비목표와 맞춘다 |
+| 2026-10-21 | EOF 뒤 미응답 요청이 버려지는 SDK 동작을 그대로 두고 문서로 맞춘다 | 사용자 — 실제 에이전트는 응답을 받을 때까지 stdin을 열어 두고, 쓰기가 중간에 잘리지 않는다 |
+| 2026-10-21 | `doan mcp -h`·`--help`는 usage를 출력하고 exit 0이다 | 지휘 판단 — ARCHITECTURE §12 "`-h`/`--help` → `{usage}`, exit 0"이 모든 명령에 적용되고, 서버를 띄우지 않아 프로토콜이 깨지지 않는다 |
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 전제 | 워커 모델 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | B0 | 태스크 0 | `.scratch/poc6-mcp/`, `docs/PRODUCT.md` §6 | 없음 | Claude Code(기본) | PRODUCT §6 기록 세 항목(호출 결과·작업 디렉터리·텍스트/`structuredContent`)이 모두 있음, `mcp list` 전후 같음 | 통과, main `7f9c5d9`(워커 `495c095`), 1회 |
-| A | 태스크 1, 2, 3, 4 | `cli/internal/cli/mcp.go`·`mcp_test.go`, `run.go`·`run_test.go`, `skill.md`·`skill_test.go`, `go.mod`, `go.sum` | B0 통과, `feat-mcp` | Claude Code(기본) | `go test ./...`, `go vet ./...`, 태스크 2 수동 확인, 태스크 4 통과 기준 | 진행 |
+| A | 태스크 1, 2, 3, 4 | `cli/internal/cli/mcp.go`·`mcp_test.go`, `run.go`·`run_test.go`, `skill.md`·`skill_test.go`, `go.mod`, `go.sum` | B0 통과, `feat-mcp` | Claude Code(기본) | `go test ./...`, `go vet ./...`, 태스크 2 수동 확인, 태스크 4 통과 기준 | 워커 통과(`3ed759e..f300605`), 독립 리뷰 중 |
 | 지휘 | 태스크 5 | `docs/ARCHITECTURE.md`, `docs/PRODUCT.md`, `docs/DIRECTORY.md`, `AGENTS.md`, `docs/features/mcp/` 삭제 | A 통합 | — | grep(도구 이름 여섯 개, `isError`), 디렉터리 없음 | 대기 |
 
 ## 겹침과 순서

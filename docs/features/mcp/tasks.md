@@ -38,7 +38,7 @@
     - 봉투는 `formats.ValidateEnvelope`를 통과한다.
   - `cli.Run` pipe 테스트: stdin·stdout을 `io.Pipe`로 넘겨 `["mcp"]`를 돌리고 `initialize`·`notifications/initialized`·`tools/list`를 보낸 뒤 stdin을 닫는다. stdout의 모든 줄이 JSON-RPC로 파싱되고, exit 0이다.
   - `doan mcp --foo`·`doan mcp --json`·`doan mcp --repo x`·`doan mcp x` → `usage_error` exit 2. `doan help` 출력에 `mcp`가 있다.
-  - 검증: `go test ./...` 초록, `go vet ./...` 깨끗, `go run ./cli/cmd/doan mcp`의 stdin에 위 JSON-RPC 세 줄을 넣으면 `result.tools`의 이름이 정확히 `init`·`ls`·`comments`·`resolve_comments`·`check`·`skill` 여섯이다.
+  - 검증: `go test ./...` 초록, `go vet ./...` 깨끗, `go run ./cli/cmd/doan mcp`의 stdin에 위 JSON-RPC 세 줄을 넣고 응답을 받은 뒤 stdin을 닫으면 `result.tools`의 이름이 정확히 `init`·`ls`·`comments`·`resolve_comments`·`check`·`skill` 여섯이다.
   - 커밋: `test(cli): pin mcp tool list, envelope parity and stdio exit` → `feat(cli): serve cli commands over mcp stdio`.
 - [ ] **3. 스킬 본문** (완료 조건 7)
   - `skill.md`에 MCP 도구와 CLI 명령의 대응 표, `resolve_comments`의 `agent` 예, "`nextSteps`는 CLI 명령을 말하므로 표로 도구에 대응시켜라"를 더한다.

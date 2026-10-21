@@ -60,9 +60,9 @@ cli/internal/cli/run.go  "mcp" 분기: 플래그·위치 인자 거절, Serve �
 
 - `run.go`의 `mcp` 분기는 `--json`·`--repo`를 포함한 모든 플래그와 위치 인자를 서버를 띄우기 전에 `usage_error`로 거절한다. 출력은 다른 명령의 `usage_error`와 같은 `emit` 경로다.
 - 서버는 SDK의 `IOTransport{Reader, Writer}`로 `Run`이 받은 stdin·stdout을 쓴다. `StdioTransport`는 `os.Stdin`·`os.Stdout`에 고정되어 있어(`mcp/transport.go:136-138`) `cli.Run` 테스트에서 pipe를 넘길 수 없다. 닫기는 감싸서 막는다(nop close).
-- 서버가 끝나면 `emit`을 부르지 않고 종료 코드만 돌려준다. `emit`은 `Result`가 `nil`이어도 stdout에 `null`이나 봉투를 쓰기 때문이다. 클라이언트가 stdin을 닫아(EOF) `Wait`가 `nil`을 돌려주면 exit 0이다. 이미 실행 중인 도구 호출은 끝난 뒤에 연결이 닫힌다(`internal/jsonrpc2/conn.go`). 전송 오류는 stderr에 `error: …`를 쓰고 exit 1이다.
+- 서버가 끝나면 `emit`을 부르지 않고 종료 코드만 돌려준다. `emit`은 `Result`가 `nil`이어도 stdout에 `null`이나 봉투를 쓰기 때문이다. 클라이언트가 stdin을 닫아(EOF) `Wait`가 `nil`을 돌려주면 exit 0이다. EOF 뒤에는 아직 쓰지 않은 응답이 버려지고, 큐에 남은 요청은 실행되지 않는다. 이미 핸들러에 들어간 호출은 끝까지 돈다(쓰기가 중간에 잘리지 않는다). 실제 에이전트는 응답을 받을 때까지 stdin을 열어 두므로 그대로 둔다(SDK v1.8.0 `internal/jsonrpc2/conn.go`, 배치 A 관찰, 2026-10-21 사용자). 전송 오류는 stderr에 `error: …`를 쓰고 exit 1이다.
 - usage 문자열(`run.go`)에 `mcp`를 더한다.
-- 서버 이름 `doan`, 버전 `cli.Version`.
+- 서버 이름 `doan`, 버전 `cli.Version`. capabilities는 `tools`만 알린다(`logging`, `tools.listChanged` 없음, 2026-10-21 사용자).
 - 따로 로그를 두지 않는다. SDK 기본 로거는 아무것도 쓰지 않는다. stderr에는 기동 실패와 전송 실패만 쓴다. stdout에 다른 바이트가 섞이면 프로토콜이 깨진다.
 - 도구 호출은 동시에 올 수 있다(SDK가 핸들러를 동시에 돌린다). `resolve_comments` 두 개가 같은 파일에 동시에 붙이는 경우는 ARCHITECTURE §2 'Writing'의 "파일당 한 번의 `O_APPEND` 쓰기" 가정에 기댄다(CLI 두 개를 동시에 돌린 것과 같다). 서버 안에 잠금을 두지 않는다. `cli.Run`은 호출마다 `FlagSet`을 새로 만들고 전역 값을 읽기만 하므로 동시에 불러도 된다.
 - 서버 `instructions`에는 "먼저 `skill` 도구를 불러 가이드를 읽어라" 한 줄만 둔다(Q4 확정, 2026-10-21 사용자). 본문은 `skill` 도구 한 곳에만 있어 버전이 어긋나지 않고, 끝 표시 줄 규칙(ARCHITECTURE §6)도 그대로다.
