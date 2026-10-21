@@ -1,59 +1,127 @@
 # cli-core — tasks
 
-명령: 검증은 모두 AGENTS.md 'Commands'의 `go test ./...`와 `go vet ./...`로 한다. 명령 본체를 임시 디렉터리에서 호출하는 Go 통합 테스트가 실제 실행을 대신한다. 빌드한 바이너리를 손으로 돌려 보는 명령(`go run ./cli/cmd/doan` 등)은 **명령 미정 — 사용자 확인 필요**.
+명령: 검증은 AGENTS.md 'Commands'의 `go test ./...`와 `go vet ./...`로 한다. `cli.Run`을 임시 디렉터리에서 호출하는 Go 통합 테스트가 실제 실행을 대신한다. 다음 두 명령은 'Commands'에 없어 **명령 미정 — 사용자 확인 필요**다.
 
-브랜치: 0은 문서만 바꾸므로 main에 바로 커밋한다. 1~8은 `/ship` 또는 `/orchestrate`로 `feat-cli-core` 브랜치에서 진행하고 PR로 끝낸다(AGENTS.md 'Commit conventions').
+- 빌드한 바이너리를 손으로 돌려 보는 명령(`go run ./cli/cmd/doan` 등)
+- 의존성 추가 `go get golang.org/x/net/html`(네트워크 필요, 버전은 `go.mod`·`go.sum`에 고정)
 
-순수 함수 태스크(1~5)는 각각 "테스트 커밋(red) → 구현 커밋(green)" 두 번으로 나눈다.
+브랜치: 0은 문서만 바꾸므로 main에 바로 커밋한다. 1~8은 `/orchestrate` 한 번으로 `feat-cli-core` 브랜치에서 진행하고 PR 하나로 끝낸다(design Q7). 배치 나누기는 `/orchestrate`의 계획 문서에서 정한다.
 
-- [ ] **0. 정본에 결정 기록** (구현 전)
+순수 함수 태스크(1~4)와 셸 태스크(5~7)는 각각 "테스트 커밋(red) → 구현 커밋(green)" 두 번으로 나눈다.
+
+- [ ] **0. 정본에 결정 기록** (구현 전, main)
   - ARCHITECTURE §1 규약 2: 캔버스 id는 소문자 kebab `^[a-z0-9]+(-[a-z0-9]+)*$`(Q1).
-  - PRODUCT §5 8·§7: `doan init`은 스킬을 설치하지 않고, 스킬 스텁 설치는 8번 `onboard-dist`가 한다(Q3). §5 피처 표의 8번 범위에 스텁 설치를 적는다.
+  - ARCHITECTURE §1 규약 7: 토큰은 캔버스가 링크한 로컬 CSS로 정의한다. 링크하지 않은 토큰 CSS와 외부 스타일시트의 정의는 세지 않는다(Q5·Q6). 링크한 로컬 CSS는 서빙 범위 안에 있어야 한다(Q8).
+  - ARCHITECTURE §1 규약 10: 커스텀 속성 선언과 `var()` 대체값의 hex·rgb도 경고(Q13).
   - ARCHITECTURE §2 'by': CLI는 런타임 이름을 `--agent <name>` 필수 플래그로 받는다(Q2). 지금 문구는 "decided at implementation time"이다.
-  - PRODUCT §5 11·§7: `orphan_comment_file`은 warning(Q4).
-  - 검증: 네 결정이 날짜와 함께 해당 절과 PRODUCT §7 결정 기록에 있다.
+  - PRODUCT §5 0.3: 앱 온보딩 3단계는 번들의 `doan init --json`을 호출한다(Q9).
+  - PRODUCT §5 8: `doan init`은 스킬을 설치하지 않는다(Q3).
+  - PRODUCT §5 11: `orphan_comment_file`은 warning(Q4).
+  - PRODUCT §5 피처 표: 2번 행에 "`doan skill` body"를 넣고, 8번 행은 "skill stub install · refine `doan skill` body"로 바꾼다(Q3).
+  - PRODUCT §7: 위 결정마다 한 줄(날짜·근거).
+  - 검증: 위 아홉 항목이 날짜와 함께 해당 절에 있고, PRODUCT §7에 Q1·Q2·Q3·Q4·Q5·Q6·Q8·Q9·Q13 줄이 있다.
   - 커밋: `docs(architecture):`, `docs(product):` 문서별로 나눈다.
-- [ ] **1. 인자·봉투·config** (순수)
-  - `cli.SplitArgs`: 플래그가 위치 인자 앞·뒤·사이에 있어도 같은 결과. `--` 뒤는 모두 위치 인자. 모르는 플래그는 `usage_error`.
-  - `cli.Envelope`와 에러 코드 → 종료 코드 표(ARCHITECTURE §12 + `comment_not_found`·`canvas_not_found`). 만든 봉투가 `ValidateEnvelope`를 통과한다.
-  - `repo.ParseConfig`: `schema/fixtures/config/{valid,invalid}`를 그대로 읽어 판정이 `ValidateConfig`와 같고, 깨진 JSON → `invalid_config`, `v: 2` → `unsupported_version`, `v: "1"` → `invalid_config`.
-  - 의존성: `golang.org/x/net/html`은 태스크 2에서 추가한다.
+- [ ] **1. 인자·출력·config** (순수)
+  - `cli.SplitArgs(args, fs)` 케이스: 플래그가 명령 이름 앞(`doan --json ls`)·위치 인자 앞·뒤·사이, `--canvas=foo`와 `--canvas foo`, 값 없이 끝나는 `--canvas` → `usage_error`, 같은 플래그 두 번 → 마지막 값, `-json`, `--` 뒤의 `--json`은 위치 인자, 모르는 플래그 → `usage_error`, 파싱 실패해도 `--json` 판정.
+  - `cli.Envelope`와 종료 코드 표: ARCHITECTURE §12 코드 + `comment_not_found`·`canvas_not_found`. `nextSteps` 없는 에러 → `"nextSteps":[]`. 표에 없는 코드 → exit 1. 만든 봉투가 `ValidateEnvelope`를 통과한다(marshal → any 뒤 검증).
+  - `cli.EscapeControl`: U+0000–U+001F(LF·HT 제외)·U+007F·U+0080–U+009F → `\u00XX`, ESC 시퀀스(`\x1b[31m`), LF·HT·일반 한글은 그대로.
+  - `repo.ParseConfig`: `schema/fixtures/config/{valid,invalid}`를 읽어 통과·실패 여부가 `ValidateConfig`와 같다. 기대 코드는 표로 고정한다: `unknown-version` → `unsupported_version`, `string-version`·`missing-version` → `invalid_config`, 나머지 invalid → `invalid_config`. 추가 케이스: `{"v":1e400}` → `unsupported_version`, `{"v":1.0}` → 유효, `{"v":2,"x":1}` → `unsupported_version`(스키마보다 먼저), BOM으로 시작·빈 파일·`[]`·`null`·깨진 JSON → `invalid_config`.
   - 검증: `go test ./...` 초록, `go vet ./...` 깨끗.
   - 커밋: `test(cli): pin argument splitting, envelope and config parsing` → `feat(cli): ...`.
 - [ ] **2. CSS 스캐너와 Canvas 모델** (순수)
-  - `canvas.ScanCSS` 케이스: 주석 안 `var(--x)`는 무시, 문자열 안 `#fff`는 무시, 선택자 `#main`은 색이 아님, `color:#ABC`·`#aabbccdd`·`rgb(`·`rgba(`는 색, `--x: 1px` 정의, `var(--x, red)` 참조, `@import "a.css"`·`@import url(b.css)`·`url(https://…)`.
-  - `canvas.Parse` 케이스: meta 없음·두 개, `content=" foo"`(공백 보존), width `0`·`012`·`1.5`·`2400`, `<title>`의 앞뒤 ASCII 공백 벗김과 NBSP 보존, `data-doan-frame`·`data-doan-title`·`data-doan-implements`, 외부 URL 각 태그와 `//cdn…`, 같은 URL 중복 제거.
-  - `go get golang.org/x/net/html`.
-  - 검증: `go test ./...` 초록.
+  - 의존성 `golang.org/x/net/html` 추가(명령 미정 — 위).
+  - `canvas.ScanCSS` 케이스:
+    - 건너뛰기: 주석 안 `var(--x)`, 문자열 안 `#fff`, 닫히지 않은 주석·문자열.
+    - 선언 판정: `.x:not(#abc){color:red}`의 `#abc`, `a:hover #add {}`의 `#add`, `@media (max-width:600px){}`는 색·선언이 아님. `fill:url(#fade)`, `background:url(data:image/png;base64,…)`는 색이 아니고 선언이 잘리지 않음.
+    - 색: `color:#ABC`·`#abcd`·`#aabbcc`·`#aabbccdd`는 색, `#abcde`·`#abcdeff`는 아님, `RGB(`·`rgba(`는 색, `red`·`hsl()`·`oklch()`는 아님, `--local:#fff`와 `var(--x, #fff)`는 색(Q13).
+    - 참조·정의: `--x: 1px` 정의, `var(--x)`·`var( --x )`·`VAR(--x)` 참조, `var(--x,var(--y))`는 둘 다 참조이고 `--x`는 `hasFallback`, `--Foo`와 `--foo`는 다른 이름.
+    - `@import "a.css"`·`@import url(b.css)`, `url(https://…)`.
+    - 선언 목록 모드(`style` 속성): `color:#fff;--a:1`.
+  - `canvas.Parse` 케이스:
+    - meta: 없음, 두 개, `content=" foo"`(공백 보존), `Name="DOAN:CANVAS"`(대소문자 무시), meta 앞에 본문 내용이 있어 body로 간 경우 → `BodyMeta`.
+    - width: `0`·`012`·`1.5`·`" 375"`·`375px`·`+1`·`99999999999999999999` → 무효, `2400` → 2400.
+    - `<title>`: 앞뒤·가운데 ASCII 공백 줄이기, NBSP·U+0085·U+FEFF 보존, `<title>` 두 개면 첫 번째.
+    - 프레임: 프레임 없는 캔버스, `<div data-doan-frame>`(→ `""`), `" "`, 같은 속성 두 번(첫 값), `<template>` 안 요소 무시.
+    - 링크: `rel="preload stylesheet"`, `rel="STYLESHEET"`, `rel="icon"`은 아님.
+    - href → 경로: `" ./a.css "`, `a.css?v=1#x`, `a%20b.css`, `/abs.css`, `HTTPS://cdn/x.css`·`//cdn/x.css`는 외부, `data:`는 무시.
+    - 외부 URL: design '외부 URL'의 태그마다 하나, `srcset` 후보 여러 개, 같은 URL 중복 제거.
+  - 검증: `go test ./...` 초록, `grep -rnE 'TrimSpace|strings\.Trim\(' cli/internal/canvas`가 아무것도 찾지 않는다(POSTMORTEM 2026-10-21).
   - 커밋: `test(canvas): ...` → `feat(canvas): ...`.
 - [ ] **3. 검사 규칙** (순수)
-  - design '검사 규칙' 표의 코드마다 걸리는 케이스와 걸리지 않는 케이스 하나씩. 추가로: 프레임 id와 `data-doan-id`가 같은 값이어도 중복 아님, `tokenCss`가 없으면 `hardcoded_color` 없음, 토큰 CSS 파일 자신의 색은 경고 아님, 대체값 있는 `var()`도 `undefined_token`, findings 정렬.
+  - design '검사 규칙' 표의 코드마다 걸리는 케이스와 걸리지 않는 케이스 하나씩.
+  - 추가 케이스:
+    - 프레임 없는 캔버스 → finding 0건.
+    - id 없는 캔버스 두 개, meta가 두 개인 캔버스 → `duplicate_canvas_id`에 들어가지 않음.
+    - 프레임 id와 `data-doan-id`가 같은 값 → 중복 아님.
+    - 토큰 CSS를 링크하지 않은 캔버스가 그 토큰을 씀 → `undefined_token`(Q5).
+    - 토큰이 로컬 CSS의 `@import` 대상에만 정의됨 → `undefined_token` 없음.
+    - 대체값 있는 `var()`도 `undefined_token`.
+    - `tokenCss` 없음 → `hardcoded_color` 없음.
+    - 캔버스가 `../tokens.css`를 링크하고 config가 `tokenCss: "./tokens.css"`(같은 실제 경로) → 토큰 파일의 색은 경고 아님.
+    - 두 캔버스가 같은 CSS 파일에 닿음 → CSS 파일 finding은 한 건, `path`는 CSS 파일.
+    - `serve`에 넣은 디렉터리 아래 CSS → `css_not_served` 없음, 리포 안이지만 범위 밖 → 있음.
+    - `tokenCss` 파일 없음 → `token_css_not_found`, 링크한 캔버스는 `local_css_not_found`도.
+    - `data-doan-implements=""` → `implements_not_found`.
+    - findings 정렬(design의 키 순서), `summary` 개수.
   - 검증: `go test ./...` 초록.
   - 커밋: `test(check): ...` → `feat(check): ...`.
 - [ ] **4. resolve 이벤트** (순수)
-  - `comments.NextAt`: 빈 파일 → 지금, 마지막 `at`이 미래 → 그 값 + 1ms, 같은 밀리초 연속 두 개 → +1ms씩.
-  - `comments.NewResolve`: 고정 시계·난수로 만든 이벤트가 `ValidateCommentEvent`를 통과하고 기대 JSON과 같다. UUID는 소문자 v4.
+  - `comments.MaxAt`: `schema/fixtures/fold/union-merge/events.jsonl`과 `shuffled-lines/events.jsonl`로 "최댓값 ≠ 마지막 줄" 케이스, 빈 파일 → `ok: false`, `invalid_event` 줄의 `at`은 세지 않음.
+  - `comments.NextAt`: `ok: false` → 지금, 최댓값이 미래 → 최댓값 + 1ms, `…23:59:59.999Z` + 1ms → 다음 날 `.000Z`, `now`의 마이크로초는 버림(반올림 아님), UTC가 아닌 `now` → `Z` 형식.
+  - `comments.NewResolve`: 고정 시계·난수로 만든 이벤트가 `ValidateCommentEvent`를 통과하고 기대 JSON과 같다. 난수 바이트가 전부 `0x00`이면 `…-4000-8000-…`, 전부 `0xff`이면 `…-4fff-bfff-…`.
   - 검증: `go test ./...` 초록.
   - 커밋: `test(comments): ...` → `feat(comments): ...`.
-- [ ] **5. 리포 셸**: `repo.Find`(위로 올라가기, `--repo`는 올라가지 않음), `repo.Resolve`(심링크로 리포 밖 → 밖), 캔버스 나열(`.` 시작 건너뛰기, 심링크 안 따라감, 경로 정렬)
-  - 검증: 임시 디렉터리 테스트로 `go test ./...` 초록.
+- [ ] **5. 리포 셸** (I/O)
+  - `repo.Find` 케이스: 시작 디렉터리가 `design/` 하위 → 위로 찾음, 중첩 리포 → 안쪽, 안쪽 config가 깨짐 → 바깥으로 넘어가지 않고 `invalid_config`, `.doan/`만 있고 `config.json` 없음 → 계속 올라감, `config.json`이 디렉터리 → `invalid_config`, `--repo`가 없는 경로·파일 → `repo_not_found`, `--repo`는 위로 올라가지 않음, `t.TempDir()`의 `/var` → `/private/var`.
+  - `repo.Resolve` 케이스: 존재하지 않는 `../x` → 밖, 절대 경로 → 밖, 심링크로 리포 밖 → 밖, 끊어진 심링크 → 없음, `/repo`와 `/repo2` 구분.
+  - `repo.Canvases` 케이스: `.`으로 시작하는 디렉터리·파일 건너뜀, 심링크 안 따라감, `.HTML`은 캔버스이고 `.htm`은 아님, 경로 정렬, `design/` 없음 → `[]`.
+  - `repo.CommentFiles` 케이스: 심링크 파일·하위 디렉터리·`.jsonl`이 아닌 파일 건너뜀, 디렉터리 없음 → `[]`.
+  - `Reach` 만들기: `@import` 재귀, 순환, 해석할 수 없는 import 무시.
+  - 검증: `go test ./...` 초록. `Find`는 시작 디렉터리를 인자로 받으므로 테스트가 `os.Chdir`하지 않는다.
   - 커밋: `test(repo): ...` → `feat(repo): ...`.
-- [ ] **6. 명령 여섯 개 + `main`**
-  - 통합 테스트(임시 리포, `--json`): spec 완료 조건 1~9를 하나씩. 특히:
-    - `init` 두 번 → 두 번째는 아무것도 안 바꿈. `.gitattributes`가 개행 없이 끝나는 경우. 리포 밖을 가리키는 `--token-css` → 아무것도 안 씀.
-    - `comment resolve`: 없는 id 섞임 → 파일 바이트가 그대로. 개행 없이 끝나는 JSONL에 붙여도 `FoldText` 경고 없음. 이미 resolved → `alreadyResolved`, 파일 그대로. 같은 파일에 두 개 → `at`이 1ms 이상 차이.
-    - `comments`: `outdated`가 캔버스 바이트 변경 뒤 `true`. 깨진 줄 → `warnings`에 `file`과 함께.
-    - `check`: error 있으면 exit 4·`ok: true`, warning만 있으면 exit 0.
-    - 모든 `--json` 출력이 `ValidateEnvelope`를 통과하고 stderr가 비어 있다.
+- [ ] **6. 명령 다섯 개(`skill` 제외) + `cli.Run` + `main`** (I/O)
+  - 통합 테스트(임시 리포, `cli.Run` 호출): spec 완료 조건 1~8과 10.
+  - 모든 `--json` 출력이 `ValidateEnvelope`를 통과하고 stderr가 비어 있다. `--json` 없이 실패하면 같은 종료 코드에 stderr `error:` 줄.
+  - 빈 리포(캔버스 0개, `.doan/comments/` 없음) → `ls`·`comments`·`check`가 `[]`·exit 0, resolve는 `comment_not_found`.
+  - `init`:
+    - 두 번 실행 → 두 번째는 `initialized: false`, `created: []`, 파일 바이트 그대로.
+    - `.gitattributes`가 개행 없이 끝남, CRLF, 같은 줄이 이미 있음(`created`에 없음).
+    - `--token-css`가 없는 파일·디렉터리·`/abs`·`../x`·리포 밖 심링크 → `usage_error`, 아무것도 안 씀.
+    - 깨진 config가 있음 → `invalid_config`, 덮어쓰지 않음.
+    - stdin이 터미널이 아님 → 묻지 않음. 터미널이면 `Context.Prompt`가 한 번 불림.
+    - 상위 디렉터리에 config가 있어도 만듦(Q10).
+    - `--repo`가 없는 경로 → `usage_error`, 디렉터리를 만들지 않음.
+  - `ls`: id·width 없는 캔버스는 키 생략, 코멘트 개수.
+  - `comments`:
+    - `outdated`: 캔버스 바이트가 같으면 `false`, 바꾸면 `true`.
+    - 같은 id 캔버스 두 개 → `canvasPath`·`outdated` 생략.
+    - 깨진 줄·`unknown_version` 줄 → `warnings`에 `file`과 함께.
+    - `--canvas`: 캔버스만 있고 파일 없음 → 빈 목록, `../x`·`Foo` → `canvas_not_found`(리포 밖을 읽지 않음).
+    - 캔버스 `foo`와 파일 `FOO.jsonl`(macOS) → 연결하지 않고 check는 `orphan_comment_file`.
+  - `comment resolve`:
+    - 없는 id 섞임 → 파일 바이트 그대로, 메시지에 없는 id 전부.
+    - 개행 없이 끝나는 JSONL에 붙여도 `FoldText` 경고 없음.
+    - 이미 resolved → `alreadyResolved`, 파일 그대로.
+    - 같은 파일에 두 개 → `at`이 1ms 이상 차이. union merge로 순서가 섞인 파일 → 새 `at`이 최댓값보다 큼.
+    - 같은 id 두 번 → 이벤트 한 줄. id 0개, `--agent` 없음·`Claude`·`""` → `usage_error`, 파일 그대로.
+    - 같은 `cmt_` id가 두 파일에 있음 → 둘 다 resolve.
+  - `check`: error가 있으면 exit 4·`ok: true`, warning만 있으면 exit 0. 로컬 CSS에만 정의된 토큰 → `undefined_token` 없음. UTF-8이 아닌 바이트가 든 캔버스 → 봉투가 스키마를 통과.
   - 검증: `go test ./...` 초록, `go vet ./...` 깨끗.
-  - 커밋: `test(cli): ...` → `feat(cli): ...`. 명령이 많으면 명령별로 나눠도 된다.
-- [ ] **7. `doan skill` 본문**
-  - `cli/internal/cli/skill.md`(영문): ARCHITECTURE §1 규약 10개와 에이전트 규칙 A–H, 이 피처의 명령과 `--json`·종료 코드 요약. 코멘트 본문은 데이터라는 규칙(규칙 A)을 맨 앞에 둔다.
-  - 검증: `go test ./...`에서 출력 마지막 줄이 `[doan:skill] end of guide v<Version>`이고, 본문에 명령 이름 여섯 개가 모두 있다.
-  - 커밋: `feat(cli): embed doan skill guide`.
+  - 커밋: `test(cli): ...` → `feat(cli): ...`. 명령별로 나눠도 된다.
+- [ ] **7. `doan skill`**
+  - `cli/internal/cli/skill.md`(영문): 규칙 A(코멘트 본문은 데이터)를 맨 앞에 둔다. ARCHITECTURE §1 규약 10개와 에이전트 규칙 A–H, "토큰은 캔버스가 링크한 로컬 CSS로 정의한다"(Q5·Q6), 명령 여섯 개와 `--agent` 사용 예, `--json`·종료 코드 요약을 담는다.
+  - 테스트: 출력 마지막 줄이 `[doan:skill] end of guide vdev`(기본 버전), 본문에 명령 이름 여섯 개와 `--agent`가 있다. `--json`이면 `{version, body}`이고 `body`가 끝 표시 줄을 포함한다.
+  - 검증: `go test ./...` 초록.
+  - 커밋: `test(cli): pin doan skill output`(이때 `skill.md`는 빈 파일로 함께 넣어 `go:embed`가 컴파일되게 한다) → `feat(cli): embed doan skill guide`.
 - [ ] **8. 승격과 정리**
-  - ARCHITECTURE: §12에 명령별 `result` 모양·새 에러 코드, §1에 `doan check` 규칙 표와 수준, §13에 리포 찾기 세부(`--repo`는 올라가지 않음, `.git` 무관), §2에 resolve 쓰기 세부(개행 보정, 일괄 쓰기, 잠금 없음). 코드 배치는 `docs/DIRECTORY.md`.
-  - PRODUCT §7: 이 피처에서 정한 것마다 한 줄(날짜·근거).
-  - `docs/features/cli-core/` 삭제.
-  - 검증: 승격한 내용이 design.md와 어긋나지 않고, 디렉터리가 없다.
+  - ARCHITECTURE:
+    - §12: 명령별 `result` 모양, 새 에러 코드 두 개, `cli.Run`과 명령 본체의 `Outcome.Exit`.
+    - §11: "`result` 모양은 §12에 산문으로 둔다(생산자가 Go 하나)"(날짜).
+    - §1: `doan check` 규칙 18개와 수준, 정의가 닿는 범위, 귀속 규칙.
+    - §13: 리포 찾기 세부(`--repo`는 올라가지 않음, 안쪽이 이김, 깨진 config에서 멈춤, `.git` 무관), 중첩 init 허용(Q10).
+    - §2 'Writing': "last at" → "max at"(PoC 5 근거), 개행 보정, 파일당 한 번의 쓰기(앱도 따름), 잠금 없음, 부분 실패와 멱등.
+    - §8: 의존성 `golang.org/x/net/html`.
+  - `docs/DIRECTORY.md`: `cli/cmd/doan/`, `cli/internal/{cli,repo,canvas,check,comments}/`.
+  - PRODUCT §7: 이 피처에서 정한 것 중 태스크 0에서 기록하지 않은 것마다 한 줄(Q7·Q10·Q11·Q12, 결과를 산문으로 둔 결정, `init` 결과가 앱과의 계약).
+  - 검증: 디렉터리를 지우기 전에 grep으로 확인한다. ARCHITECTURE에 명령 여섯 개의 이름과 `result` 키, `comment_not_found`·`canvas_not_found`, 규칙 코드 18개가 모두 있다. 그 뒤 `docs/features/cli-core/`가 없다.
   - 커밋: 문서별로 `docs(architecture):`·`docs(product):`·`docs:`(DIRECTORY) → `docs(feature): remove cli-core feature docs after promotion`.
