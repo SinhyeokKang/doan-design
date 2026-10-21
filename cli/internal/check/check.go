@@ -28,6 +28,7 @@ type TokenCSS struct {
 }
 type Input struct {
 	Canvases       []canvas.Canvas
+	Unparsable     map[string]string
 	Reach          map[string][]CSSRef
 	CSS            map[string]canvas.Scan
 	TokenCSS       TokenCSS
@@ -82,6 +83,9 @@ func Run(in Input) []Finding {
 			findings = append(findings, f)
 			seen[f] = true
 		}
+	}
+	for path, message := range in.Unparsable {
+		add(Finding{Code: "unparsable_canvas", Path: path, Message: "Cannot parse canvas: " + message})
 	}
 	canvases := append([]canvas.Canvas(nil), in.Canvases...)
 	sort.Slice(canvases, func(i, j int) bool { return canvases[i].Path < canvases[j].Path })
