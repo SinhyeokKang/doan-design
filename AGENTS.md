@@ -40,7 +40,7 @@ Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(
 
 ⚠️ **기획 결정의 정본은 [docs/PRODUCT.md](./docs/PRODUCT.md)다. 거기 없는 것은 미정이다.**
 
-- [README.md](./README.md)는 배경·아이디어를 담은 초안이다. README의 내용을 **결정 사항으로 인용하지 않는다** — "README가 그렇게 정했다"가 아니라 "README 초안은 이렇게 적었다"로 말한다.
+- [README.md](./README.md)는 배경과 레퍼런스만 담는다. README의 내용을 **결정 사항으로 인용하지 않는다** — "README가 그렇게 정했다"가 아니라 "README 초안은 이렇게 적었다"로 말한다.
 - 스택은 정해졌다(PRODUCT §6: 앱 Electron + TypeScript, CLI Go). 그래도 요청 없이 `package.json`·`go.mod`·디렉터리 구조·빌드 설정을 **먼저 깔지 않는다.**
 - 결정이 나면 PRODUCT.md에 날짜와 근거를 함께 적는다. 이 파일의 하네스도 결정에 맞춰 넓힌다.
 
@@ -57,7 +57,7 @@ Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(
 
 | 문서 | 무엇 | 언제 갱신하나 |
 |---|---|---|
-| [README.md](./README.md) | 기획 초안 — 배경(말모이 사례)·아이디어. 결정은 PRODUCT.md로 옮겨 갔다 | 배경을 고칠 때 |
+| [README.md](./README.md) | 배경(말모이 사례)·레퍼런스. 결정은 PRODUCT.md에 있다 | 배경을 고칠 때 |
 | [docs/PRODUCT.md](./docs/PRODUCT.md) | **기획 결정의 정본** — 문제·사용자·범위·루프·MVP·아키텍처·스택·결정 기록·열린 질문 | 기획 결정이 날 때. 날짜와 근거를 결정 기록 절에 남긴다 |
 | [AGENTS.md](./AGENTS.md) | 작업 방식(이 파일) — 두 런타임 공통 원본 | 작업 방식이 바뀔 때 |
 
