@@ -98,10 +98,20 @@ func Init(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		result["tokenCss"] = config.TokenCSS
 	}
 	// Initialization must not follow output paths into a different repository.
-	for _, p := range []string{"design", ".doan", ".gitattributes"} {
+	for _, p := range []string{"design", ".doan", ".doan/config.json", ".gitattributes"} {
 		state, _, e := repo.Resolve(root, root, p)
 		if e != nil {
 			return Outcome{}, internal(e)
+		}
+		// A dangling link is missing to readers, but a write can create its outside target.
+		if state == repo.Missing {
+			info, err := os.Lstat(filepath.Join(root, p))
+			if err != nil && !os.IsNotExist(err) {
+				return Outcome{}, internal(err)
+			}
+			if err == nil && info.Mode()&os.ModeSymlink != 0 {
+				return Outcome{}, usageError("Initialization path is a dangling symlink: " + p)
+			}
 		}
 		if state == repo.Outside {
 			return Outcome{}, usageError("Initialization path leaves repository: " + p)
