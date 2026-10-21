@@ -9,6 +9,7 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "noEmit": true,
+    "skipLibCheck": true,
     "types": ["node"]
   },
   "include": ["src", "e2e", "vitest.config.ts", "vitest.globalSetup.ts", "electron.vite.config.ts"]
