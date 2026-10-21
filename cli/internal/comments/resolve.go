@@ -11,6 +11,7 @@ import (
 const timestampLayout = "2006-01-02T15:04:05.000Z"
 
 func MaxAt(parsed formats.ParseResult) (string, bool) {
+	// Fixed-width UTC timestamps sort lexically in chronological order.
 	var maximum string
 	for _, located := range parsed.Events {
 		if located.Event.At > maximum {
@@ -40,6 +41,7 @@ func NewResolve(comment, agent, at string, random io.Reader) (formats.CommentEve
 	if _, err := io.ReadFull(random, id[:]); err != nil {
 		return formats.CommentEvent{}, fmt.Errorf("read event UUID randomness: %w", err)
 	}
+	// RFC 9562 reserves these bits for UUIDv4 and its variant.
 	id[6] = id[6]&0x0f | 0x40
 	id[8] = id[8]&0x3f | 0x80
 	return formats.CommentEvent{
