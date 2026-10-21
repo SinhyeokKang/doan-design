@@ -26,3 +26,30 @@ func TestSkillGuide(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestSkillGuideMapsMCPTools(t *testing.T) {
+	lines := strings.Split(skillBody, "\n")
+	hasLine := func(parts ...string) bool {
+		for _, l := range lines {
+			all := true
+			for _, p := range parts {
+				all = all && strings.Contains(l, p)
+			}
+			if all {
+				return true
+			}
+		}
+		return false
+	}
+	for _, row := range [][2]string{{"init", "doan init"}, {"ls", "doan ls"}, {"comments", "doan comments"}, {"resolve_comments", "doan comment resolve"}, {"check", "doan check"}, {"skill", "doan skill"}} {
+		if !hasLine("| `"+row[0]+"`", "`"+row[1]) {
+			t.Errorf("missing table row %s", row)
+		}
+	}
+	if !hasLine("`resolve_comments`", `"ids"`, `"agent"`) {
+		t.Error("missing resolve_comments example with agent")
+	}
+	if !hasLine("`nextSteps`", "CLI", "table") {
+		t.Error("missing nextSteps mapping note")
+	}
+}
