@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { parseServePath } from "./serve/path";
+import type { FolderState } from "./folderState";
 import { canvasRows, folderEntry, openDecision, servingUrl } from "./view";
 
 const base = "http://127.0.0.1:4000/t/tok/key/";
@@ -82,25 +83,41 @@ describe("folderEntry", () => {
 });
 
 describe("openDecision", () => {
+  const listed: FolderState = { kind: "list", root: "/broken", scope: [], canvases: [] };
+  const broken: FolderState = { kind: "error", message: "bad config" };
+  const noRepo: FolderState = { kind: "uninitialized" };
+  const noCli: FolderState = { kind: "cliError", reason: "spawn doan ENOENT" };
+
   test("a listed repo is stored by its root, even when a subfolder was picked", () => {
-    expect(openDecision({ kind: "list", root: "/repo", scope: [], canvases: [] }, "/repo/design/sub", false)).toEqual({ store: "/repo" });
+    expect(openDecision({ kind: "list", root: "/repo", scope: [], canvases: [] }, "/repo/design/sub", null)).toEqual({ store: "/repo" });
   });
 
   test("a folder outside any repo is stored as picked", () => {
-    expect(openDecision({ kind: "uninitialized" }, "/plain", false)).toEqual({ store: "/plain" });
+    expect(openDecision(noRepo, "/plain", null)).toEqual({ store: "/plain" });
   });
 
-  test("a failing repo root (it has .doan) is stored so its error shows in the list", () => {
-    expect(openDecision({ kind: "error", message: "bad config" }, "/broken", true)).toEqual({ store: "/broken" });
-    expect(openDecision({ kind: "cliError", reason: "spawn doan ENOENT" }, "/repo", true)).toEqual({ store: "/repo" });
+  // The second run is `doan ls --repo <picked>`: Go, not TS, says whether the
+  // picked folder is itself a repo root.
+  test("a failing pick is stored when the CLI reads it as a repo root", () => {
+    expect(openDecision(broken, "/broken", broken)).toEqual({ store: "/broken" });
+    expect(openDecision(broken, "/broken", listed)).toEqual({ store: "/broken" });
+    expect(openDecision(noCli, "/repo", broken)).toEqual({ store: "/repo" });
   });
 
   // Without a root the picked folder may be a subfolder; stored as is, it would
   // read as "not initialized" and invite a nested `doan init`.
-  test("a failure picked without .doan is refused with the reason", () => {
-    expect(openDecision({ kind: "error", message: "bad config" }, "/broken/design", false)).toEqual({ refuse: "bad config" });
-    expect(openDecision({ kind: "cliError", reason: "spawn doan ENOENT" }, "/repo/design", false))
-      .toEqual({ refuse: "doan CLI 오류: spawn doan ENOENT" });
-    expect(openDecision({ kind: "cliError", reason: "" }, "/repo/design", false)).toEqual({ refuse: "doan CLI 오류" });
+  test("a failing pick that is not a repo root is refused with the first run's reason", () => {
+    expect(openDecision(broken, "/broken/design", noRepo)).toEqual({ refuse: "bad config" });
+    expect(openDecision(noCli, "/repo/design", noRepo)).toEqual({ refuse: "doan CLI 오류: spawn doan ENOENT" });
+    expect(openDecision({ kind: "cliError", reason: "" }, "/repo/design", noRepo)).toEqual({ refuse: "doan CLI 오류" });
+  });
+
+  test("a failing pick is refused when the CLI cannot say whether it is a root", () => {
+    expect(openDecision(broken, "/broken/design", noCli)).toEqual({ refuse: "bad config" });
+    expect(openDecision(noCli, "/repo", noCli)).toEqual({ refuse: "doan CLI 오류: spawn doan ENOENT" });
+  });
+
+  test("a failing pick without a second run is refused", () => {
+    expect(openDecision(broken, "/broken", null)).toEqual({ refuse: "bad config" });
   });
 });
