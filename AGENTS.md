@@ -94,7 +94,7 @@ The source for the 9 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, por
 
 - **Branches** (2026-10-21 user): there are two paths.
   - **Code changes** are requested by the user via `/ship` or `/orchestrate`. Both skills start by creating a `feat-<slug>` branch from main and end with a push of that branch + a PR. Even a docs-only change takes the same path if it goes through these skills.
-  - **Harness and docs changes** (AGENTS.md · skills · hooks · PRODUCT.md, etc.) are fixed directly during the conversation, then committed and pushed straight to main.
+  - **Harness and docs changes** (AGENTS.md · skills · hooks · PRODUCT.md, etc.) are fixed directly during the conversation. On main, commit and push straight to main. While a `feat-<slug>` branch is checked out, they may be committed on that branch instead and reach main with its PR (2026-10-21 user).
   - There is no deploy server, so there is no dev/main split.
 - **Commit messages are in English**, Conventional Commits (`feat:` `fix:` `docs:` `docs(scope):` `chore:`).
 - Split commits per document.
