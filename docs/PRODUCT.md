@@ -1,249 +1,249 @@
-# Doan Design — 제품 기획
+# Doan Design — Product plan
 
-> 제품 판단(문제·사용자·범위·루프·MVP·PoC)과 모든 결정 기록의 정본이다. 구조·형식·규약은 [ARCHITECTURE.md](./ARCHITECTURE.md)에 있다(2026-10-21 분리).
-> 기획 결정을 쌓는 문서다. [README.md](../README.md)는 배경·아이디어를 담은 초안이고, 여기에는 사용자와 합의한 것만 날짜와 함께 적는다.
-> 각 절은 결정이 나기 전까지 `미정`으로 둔다. README 초안의 해당 절은 참고로만 링크한다.
+> Source of truth for product judgment (problem, users, scope, loop, MVP, PoC) and for the whole decision log. Structure, formats, and conventions live in [ARCHITECTURE.md](./ARCHITECTURE.md) (split out 2026-10-21).
+> This document accumulates planning decisions. [README.md](../README.md) is a draft holding background and ideas; this document records only what was agreed with the user, with dates.
+> Each section stays `TBD` until a decision is made. The matching section of the README draft is linked for reference only.
 
-## 1. 문제 (2026-10-21)
+## 1. Problem (2026-10-21)
 
-코딩 에이전트가 만드는 디자인 시안이 코드 밖(외부 디자인 서비스)에 있다. 그래서 네 가지 문제가 생긴다. 각 문제 끝의 화살표는 그 문제를 맡는 §3 '하는 것' 항목이다.
+The design drafts that coding agents make live outside the code (in external design services). This causes four problems. The arrow at the end of each problem points to the §3 'In scope' item that addresses it.
 
-1. **대화가 갈라진다.** 시안 대화와 구현 대화가 두 도구에 따로 쌓인다. 런타임에 따라서는 시안에 닿지도 못한다(Codex는 Claude Design·DesignSync를 쓰지 못했다). → 전달한다
-2. **에이전트가 시안을 제대로 못 읽는다.** 큰 파일은 잘리고(DesignSync `get_file` 256 KiB 상한), 사람이 가리킨 곳을 에이전트가 모른다. → 보여 준다 · 가리키게 한다
-3. **시안이 코드를 모른다.** 실제 토큰·구현을 몰라서 구현과 어긋난다. → 코드와 묶는다 · 검사한다
-4. **기록이 외부 서비스에 묶인다.** 서비스가 닫히면 코멘트가 사라진다. standalone Claude Design은 2026-12-14에 닫히고, 채팅·코멘트는 이관되지 않는다(support.claude.com/en/articles/17440474). → 리포 파일로 저장한다
+1. **Conversations split.** Design-draft conversations and implementation conversations pile up separately in two tools. Depending on the runtime, the agent cannot even reach the design draft (Codex could not use Claude Design or DesignSync). → Deliver
+2. **Agents cannot read design drafts properly.** Large files get truncated (DesignSync `get_file` caps at 256 KiB), and the agent does not know where the human pointed. → Show · Let humans point
+3. **Design drafts do not know the code.** They do not know the real tokens or implementation, so they drift from the implementation. → Tie to code · Check
+4. **Records are locked into an external service.** When the service shuts down, comments disappear. Standalone Claude Design shuts down on 2026-12-14, and chats and comments are not migrated (support.claude.com/en/articles/17440474). → Store as repo files
 
-출처: README 초안 §1의 말모이 사례(2026-09 ~ 10).
+Source: the Malmoi case in README draft §1 (2026-09 to 10).
 
-## 2. 사용자
+## 2. Users
 
-1차 사용자는 외부 사용자 일반이다(2026-10-21). 설치·온보딩·문서까지 제품 범위에 들어간다.
+The primary users are external users in general (2026-10-21). Installation, onboarding, and documentation are within product scope.
 
-MVP가 공식 지원하는 에이전트는 Claude Code와 Codex다(2026-10-21). 온보딩이 이 둘에 스킬·MCP를 설치한다. 그 밖의 에이전트도 셸을 쓸 수 있으면 `doan` CLI로 쓸 수 있지만, 설치는 사용자가 직접 한다.
+The agents the MVP officially supports are Claude Code and Codex (2026-10-21). Onboarding installs skills and MCP into these two. Other agents can use Doan through the `doan` CLI if they can use a shell, but the user installs it themselves.
 
-## 3. 범위
+## 3. Scope
 
-### 하는 것 (2026-10-21)
+### In scope (2026-10-21)
 
-1. **보여 준다.** 에이전트가 리포에 쓴 캔버스를 앱에서 확대·축소·프레임 점프로 보여 주고, 고른 요소의 스타일과 토큰을 인스펙터로 보여 준다.
-2. **가리키게 한다.** 사람이 요소·프레임에 지시 메모(코멘트)를 남기고, 리포 파일로 저장한다.
-3. **전달한다.** 에이전트가 CLI·MCP·스킬로 코멘트와 사람이 고른 대상(`active`)을 읽고, 반영한 뒤 resolve한다.
-4. **검사한다.** `doan check`가 캔버스의 규약·토큰·외부 리소스를 정적으로 검사한다.
-5. **코드와 묶는다.** 캔버스는 리포의 실제 토큰 CSS를 쓰고, 프레임은 구현 파일을 가리킨다(`data-doan-implements`). 근거: README 초안 §1. 말모이에서 시안이 실제 토큰을 몰라 구현과 29곳이 어긋났고, 존재하지 않는 명령을 그렸다.
+1. **Show.** The app shows the canvas the agent wrote into the repo, with zoom in/out and frame jumps, and shows the styles and tokens of a selected element in the inspector.
+2. **Let humans point.** The human leaves instruction notes (comments) on elements and frames, stored as repo files.
+3. **Deliver.** The agent reads comments and the target the human selected (`active`) through the CLI, MCP, and skills, applies them, then resolves them.
+4. **Check.** `doan check` statically checks the canvas's conventions, tokens, and external resources.
+5. **Tie to code.** The canvas uses the repo's real token CSS, and frames point to implementation files (`data-doan-implements`). Evidence: README draft §1. In Malmoi, the design draft did not know the real tokens and diverged from the implementation in 29 places, and it drew commands that did not exist.
 
-그리고 이 다섯 가지가 돌도록 설치·온보딩을 한다.
+On top of that, Doan handles installation and onboarding so these five work.
 
-### 하지 않는 것 (2026-10-21)
+### Out of scope (2026-10-21)
 
-1. **그리기.** 시안은 에이전트가 그린다. Doan은 사람이 도형을 그리는 벡터 도구(Figma)가 아니다.
-2. **캔버스 형식 강제.** 섹션·노트·배치는 에이전트가 정한다. Doan의 규약은 Doan이 읽는 최소 속성(캔버스·프레임·요소 id, 프레임 제목, 구현 경로, 판 폭)뿐이다.
-3. **대화.** 내장 에이전트·채팅·답글이 없다. 코멘트는 사람에서 에이전트로 가는 한 방향 메모다.
-4. **에이전트 깨우기.** 대화의 주도권은 사람에게 있다.
-5. **서버.** 계정·동기화·호스팅이 없다. 공유는 git으로 하고, 웹은 다운로드 경로만 맡는다.
-6. **git 조작.** 커밋·브랜치는 에이전트가 한다.
-7. **실시간 공동 편집.**
+1. **Drawing.** The agent draws the design draft. Doan is not a vector tool (Figma) where humans draw shapes.
+2. **Enforcing a canvas format.** The agent decides sections, notes, and layout. Doan's conventions are only the minimal attributes Doan reads (canvas, frame, and element ids, frame title, implementation path, board width).
+3. **Conversation.** No built-in agent, chat, or replies. A comment is a one-way note from human to agent.
+4. **Waking the agent.** The human holds the initiative in the conversation.
+5. **Server.** No accounts, sync, or hosting. Sharing happens through git, and the web only serves as the download path.
+6. **Git operations.** The agent makes commits and branches.
+7. **Real-time co-editing.**
 
-출처: README 초안 §3을 지금까지의 결정에 맞게 고쳤다.
+Source: README draft §3, revised to match the decisions so far.
 
-## 4. 핵심 루프
+## 4. Core loop
 
-### 보는 단위: 스펙 하나 = 캔버스 하나 (2026-10-21)
+### Unit of review: one spec = one canvas (2026-10-21)
 
-- 스펙(티켓 하나)의 디자인 설계서 전체를 **캔버스 한 장**에서 본다. 설계서에는 user-flow, 블록·컴포넌트의 상태별 가이드, 레이아웃·간격 가이드, 문구 가이드가 들어간다.
-- **캔버스 하나에 프레임이 여러 개 있다.** 캔버스와 프레임은 1:1이 아니다.
-- 사람은 캔버스를 확대·축소하고, 특정 프레임을 골라 검토한다.
-- **캔버스 하나 = 리포의 HTML 파일 하나**(2026-10-21). 공용 껍데기·에셋을 따로 두고 참조할지는 에이전트가 정한다.
-- **Doan은 `data-doan-frame="id"` 속성으로 프레임을 알아본다**(2026-10-21). 에이전트는 프레임으로 다룰 요소에 이 속성을 붙이고, 배치·모양은 자유롭게 정한다. 프레임 목록·점프·코멘트 묶음이 이 id를 쓴다.
-- **id는 바꾸지 않는다**(2026-10-21). 파일을 옮기거나 제목을 바꿔도 코멘트가 따라가게 하려는 것이다.
-  - 캔버스 id: `<head>` 안의 `<meta name="doan:canvas" content="id">`.
-  - 프레임 id: `data-doan-frame` 값. 보이는 이름은 `data-doan-title`(선택)로 따로 둔다.
-  - 에이전트가 처음 만들 때 id를 짓는다. `doan check`가 중복·누락을 잡는다.
-- **프레임은 구현 파일을 가리킬 수 있다**(2026-10-21): `data-doan-implements="app/projects/new/page.tsx"`. 캔버스 하나에 프레임이 여러 개라 구현 파일도 프레임마다 다르므로, 캔버스가 아니라 프레임 단위로 둔다.
-- **캔버스 안을 어떻게 구성할지는 에이전트가 정한다.** Doan은 가이드의 형태(섹션 분류·노트 형식·배치)를 정해 두지 않는다. 아래 사례는 참고일 뿐 따라야 할 형식이 아니다.
-- 참고한 사례:
-  - 사용자의 Figma 디자인 가이드(Skillflo B2E, FCLXP-13938 학습 대시보드 개편). 한 섹션 안에 `user-journey-map` · `template-guide`(블록별 구조도·상태·분기·layout) · `layout-guide` · `i18n-guide`를 나란히 둔다. 사용자는 이 형식이 "좀 방대하다"고 했다.
-  - Claude Design이 디자인 가이드를 캔버스에 펼치는 방식. 사용자는 이 방식도 괜찮다고 했다. DesignSync `get_file`로 Malmoi 프로젝트의 `Language Request Todo.dc.html`(약 30 KB)을 읽었다.
-    - `<meta name="design_doc_mode" content="canvas">`를 붙인 HTML 한 장이 스펙 하나다.
-    - 머리: 스펙 제목 한 줄과 소개 문단. 소개 문단에는 브리프 경로, 건드리는 구현 컴포넌트, 치수를 가져온 출처, 표기 규칙을 쓴다.
-    - 본문은 번호 붙은 프레임(1–8, 5b)을 세로로 쌓는다. 프레임 하나는 머리(번호 배지 · 제목 · 구현 파일 경로), 왼쪽 화면 렌더(폭 · 테마 · 로캘 고정), 오른쪽 400px 노트 카드 열로 이뤄진다. 노트 카드에는 설계 결정과 근거를 쓰고, "코드에 없음 · i18n 키" 같은 태그를 붙인다.
-    - 화면은 템플릿(`sc-for`·`sc-if`)과 스크립트 안의 데이터(`renderVals`)로 그린다. 폰트·아이콘은 CDN에서 불러온다.
+- The whole design spec of one spec (one ticket) is reviewed on **a single canvas**. The design spec contains the user flow, per-state guides for blocks and components, layout and spacing guides, and copy guides.
+- **One canvas holds multiple frames.** Canvas and frame are not 1:1.
+- The human zooms the canvas in and out and picks a specific frame to review.
+- **One canvas = one HTML file in the repo** (2026-10-21). The agent decides whether to keep a shared shell or assets separately and reference them.
+- **Doan recognizes frames by the `data-doan-frame="id"` attribute** (2026-10-21). The agent attaches this attribute to the elements it wants treated as frames and freely decides layout and look. The frame list, jumps, and comment grouping use this id.
+- **Ids do not change** (2026-10-21). This is so comments follow even when a file moves or a title changes.
+  - Canvas id: `<meta name="doan:canvas" content="id">` inside `<head>`.
+  - Frame id: the `data-doan-frame` value. The visible name is kept separately in `data-doan-title` (optional).
+  - The agent names the id when it first creates it. `doan check` catches duplicates and omissions.
+- **A frame can point to an implementation file** (2026-10-21): `data-doan-implements="app/projects/new/page.tsx"`. Since one canvas has multiple frames and each frame has a different implementation file, this is set per frame, not per canvas.
+- **The agent decides how to organize the inside of a canvas.** Doan does not fix the shape of the guide (section categories, note format, layout). The cases below are references only, not a format to follow.
+- Cases referenced:
+  - The user's Figma design guide (Skillflo B2E, FCLXP-13938 learning dashboard revamp). One section places `user-journey-map` · `template-guide` (per-block structure diagram, states, branches, layout) · `layout-guide` · `i18n-guide` side by side. The user said this format is "a bit vast" ("좀 방대하다").
+  - The way Claude Design spreads a design guide over a canvas. The user said this approach is also fine. `Language Request Todo.dc.html` (about 30 KB) from the Malmoi project was read with DesignSync `get_file`.
+    - One HTML page with `<meta name="design_doc_mode" content="canvas">` is one spec.
+    - Header: a one-line spec title and an intro paragraph. The intro paragraph gives the brief path, the implementation components touched, the source of the dimensions, and notation rules.
+    - The body stacks numbered frames (1–8, 5b) vertically. Each frame consists of a header (number badge · title · implementation file path), a screen render on the left (fixed width · theme · locale), and a 400px column of note cards on the right. Note cards hold design decisions and their rationale, with tags like "not in code · i18n key".
+    - Screens are drawn with templates (`sc-for`·`sc-if`) and data inside a script (`renderVals`). Fonts and icons are loaded from a CDN.
 
-### 루프 (2026-10-21)
+### Loop (2026-10-21)
 
-1. **에이전트가 캔버스를 쓴다.** `design/<스펙>.html`을 쓰고 `doan check`(정적)로 스스로 검증한다.
-2. **사람이 앱에서 본다.** 확대·축소·프레임 점프로 보고, 파일이 바뀌면 라이브 리로드된다.
-3. **사람이 가리킨다.** 요소·프레임에 코멘트를 남기면 `.doan/comments/`에 쌓인다.
-4. **사람이 자기 에이전트에게 말한다.** "이거 고쳐줘"(에이전트가 `active`로 대상을 찾는다)라고 말하거나 앱에서 복사한 문장을 붙인다. Doan은 에이전트를 깨우지 않는다.
-5. **에이전트가 반영한다.** `doan comments`·`doan active`로 읽고 → 캔버스를 고치고 → `doan check` → `doan comment resolve`. 그리고 2로 돌아간다. 사람은 확인하고, 필요하면 다시 open한다.
+1. **The agent writes the canvas.** It writes `design/<spec>.html` and verifies it itself with `doan check` (static).
+2. **The human views it in the app.** They view with zoom in/out and frame jumps, and the view live-reloads when the file changes.
+3. **The human points.** Comments left on elements and frames accumulate in `.doan/comments/`.
+4. **The human talks to their own agent.** They say "fix this" (the agent finds the target via `active`) or paste a sentence copied from the app. Doan does not wake the agent.
+5. **The agent applies it.** It reads with `doan comments` and `doan active` → edits the canvas → `doan check` → `doan comment resolve`. Then back to 2. The human checks, and reopens if needed.
 
-참고: README 초안 §4 루프를 지금까지의 결정에 맞게 고쳤다.
+Reference: the README draft §4 loop, revised to match the decisions so far.
 
 ## 5. MVP
 
-사람이 하는 일은 **보기 + 코멘트**이고, 승인은 MVP 뒤로 미룬다(2026-10-21). 기능 목록은 2026-10-21에 확정했다.
+What the human does is **view + comment**; approval is deferred until after the MVP (2026-10-21). The feature list was finalized on 2026-10-21.
 
-### 앱 (Mac)
+### App (Mac)
 
-0. **첫 실행 온보딩**(2026-10-21)
-   1. CLI 설치: 앱 번들 안의 `doan`을 PATH에 링크한다. 참고: Orca·ego-browser가 CLI를 앱 번들에 넣고 PATH에는 심볼릭 링크만 둔다(로컬 번들에서 확인).
-   2. 에이전트 연결: Claude Code·Codex 설치 여부를 감지하고, 고른 쪽에 스킬을 설치하고 MCP를 등록한다.
-   3. 리포 열기: 폴더를 고르면 `design/`·`.doan/`을 만들고 토큰 CSS 경로를 묻는다. `doan init`과 같은 로직이고, 이미 설정된 리포는 건너뛴다.
-   4. 첫 캔버스: 빈 화면 대신 "에이전트에게 보낼 첫 문장"(예: `doan 스킬로 <스펙> 캔버스 만들어줘`)을 복사하게 한다. 샘플 캔버스를 앱에 넣지 않는다.
-   - 1·2단계는 머신에서 한 번, 3단계는 리포마다 한다.
-1. 리포 폴더를 열면 캔버스(HTML 파일) 목록을 보여 준다.
-2. 캔버스 보기: 확대·축소·이동, 라이브 리로드.
-3. 프레임 목록과 점프. `data-doan-frame`으로 프레임을 찾는다.
-4. **선택과 인스펙터**(2026-10-21)
-   - 사람은 클릭으로 요소나 프레임을 고른다. 호버는 후보를 하이라이트만 한다.
-   - 이 선택 하나가 인스펙터 · 코멘트 달기 · `doan active`에 같이 쓰인다.
-   - 요소를 고르면 한 패널에 인스펙터와 그 요소의 코멘트가 함께 뜬다. 코멘트는 이 패널에서 만들고·보고·고치고·지운다(CRUD). 인스펙터는 조회만 한다(2026-10-21).
-   - 인스펙터는 읽기 전용이다. 보여 주는 것:
-     - 박스: 크기 · padding · margin · gap
-     - 타이포: 폰트 · 크기 · 행간 · 굵기
-     - 색(글자 · 배경 · 테두리) · 모서리 · 그림자
-     - `data-doan-*` 속성(id · implements)
-   - 값마다 토큰을 썼으면 토큰 이름을 같이 보이고(예: `--foreground` → `#0a0a0a`), 하드코딩이면 그렇다고 표시한다. 편집 기능은 없다. 그리는 건 에이전트다.
-5. 코멘트
-   - **요소 코멘트**: 요소를 클릭해 메모를 단다. 앵커는 `data-doan-id`가 1순위이고, selector · HTML 조각 · 텍스트 인용 · 시안 해시를 fallback으로 함께 저장한다.
-   - **프레임 코멘트**: `data-doan-frame`에 단다. 캔버스 구성이 에이전트 자율이라 `data-doan-id`가 없는 요소가 많고, 그런 요소의 앵커보다 프레임 앵커가 단단하다.
-   - 상태는 `open` → `resolved` 두 단계다. 반영한 에이전트가 resolve하고, 사람은 앱에서 확인한 뒤 다시 open할 수 있다.
-   - 본문 수정·삭제는 사람만, 앱에서만 한다. 에이전트(CLI·MCP)는 resolve만 한다(2026-10-21).
-   - 핀으로 표시하고, 시안 해시가 바뀐 코멘트는 outdated로 표시한다.
-6. 에이전트에게 보낼 문장 복사.
-7. 지금 고른 프레임·요소를 CLI에 알려 준다(`doan active`의 원천).
+0. **First-run onboarding** (2026-10-21)
+   1. CLI install: link the `doan` inside the app bundle onto PATH. Reference: Orca and ego-browser put the CLI inside the app bundle and only place a symlink on PATH (confirmed in the local bundle).
+   2. Agent connection: detect whether Claude Code and Codex are installed, then install skills and register MCP for the chosen one.
+   3. Open a repo: when a folder is chosen, create `design/` and `.doan/` and ask for the token CSS path. Same logic as `doan init`; repos already set up are skipped.
+   4. First canvas: instead of an empty screen, let the user copy "the first sentence to send to the agent" (e.g. `make a <spec> canvas with the doan skill`). No sample canvas ships in the app.
+   - Steps 1 and 2 happen once per machine; step 3 happens per repo.
+1. Opening a repo folder shows the list of canvases (HTML files).
+2. Canvas view: zoom in/out, pan, live reload.
+3. Frame list and jumps. Frames are found by `data-doan-frame`.
+4. **Selection and inspector** (2026-10-21)
+   - The human selects an element or frame by clicking. Hover only highlights candidates.
+   - This single selection is shared by the inspector, comment creation, and `doan active`.
+   - Selecting an element opens one panel showing the inspector and that element's comments together. Comments are created, viewed, edited, and deleted in this panel (CRUD). The inspector is view-only (2026-10-21).
+   - The inspector is read-only. It shows:
+     - Box: size · padding · margin · gap
+     - Typography: font · size · line height · weight
+     - Color (text · background · border) · radius · shadow
+     - `data-doan-*` attributes (id · implements)
+   - For each value, if a token was used, the token name is shown alongside (e.g. `--foreground` → `#0a0a0a`); if hardcoded, that is marked. There is no editing. The agent is the one who draws.
+5. Comments
+   - **Element comments**: click an element to attach a note. The anchor's first priority is `data-doan-id`, and selector · HTML snippet · text quote · design-draft hash are stored together as fallbacks.
+   - **Frame comments**: attached to `data-doan-frame`. Because canvas organization is up to the agent, many elements have no `data-doan-id`, and a frame anchor is more robust than an anchor on such elements.
+   - Status has two stages: `open` → `resolved`. The agent that applied it resolves it, and the human can reopen it after checking in the app.
+   - Only the human edits or deletes the body, and only in the app. The agent (CLI · MCP) only resolves (2026-10-21).
+   - Shown as pins; comments whose design-draft hash changed are marked outdated.
+6. Copy a sentence to send to the agent.
+7. Tell the CLI the currently selected frame or element (the source of `doan active`).
 
 ### CLI `doan`
 
-8. `doan init`: 리포에 `design/`·`.doan/`을 만들고, `.gitattributes`에 코멘트 union 머지를 넣고, 토큰 CSS 경로를 묻고, 스킬을 설치한다. 앱 온보딩 3단계와 같은 일을 터미널에서 한다.
-9. `doan ls` · `doan comments` · `doan comment resolve` · `doan skill`. 리포 파일만 읽고 쓰므로 앱 없이 동작한다.
-10. `doan active`: 사람이 앱에서 고른 프레임·요소를 돌려준다. "이거 고쳐줘"만으로 에이전트가 대상을 찾게 한다. 앱이 실행 중이어야 한다.
-11. `doan check`는 **정적 검사만** 한다. HTML 파싱만으로 잡히는 정의되지 않은 `var(--*)`, `data-doan-id` 중복, 캔버스 id·프레임 id의 누락·중복, `doan:width` 누락(오류), 대응 캔버스가 없는 코멘트 파일, `data-doan-implements` 대상 파일 존재 여부를 본다. 외부 URL(CDN 스크립트·폰트)은 막지 않고 경고 목록으로 보여 준다(2026-10-21). 토큰 CSS가 있는데 hex·rgb 색을 직접 쓰면 경고한다(2026-10-21). 전체 기준은 ARCHITECTURE §1 '규약'.
+8. `doan init`: creates `design/` and `.doan/` in the repo, adds union merge for comments to `.gitattributes`, asks for the token CSS path, and installs skills. Does the same as app onboarding step 3, from the terminal.
+9. `doan ls` · `doan comments` · `doan comment resolve` · `doan skill`. They only read and write repo files, so they work without the app.
+10. `doan active`: returns the frame or element the human selected in the app. Lets the agent find the target from just "fix this". Requires the app to be running.
+11. `doan check` does **static checks only**. It looks at what HTML parsing alone can catch: undefined `var(--*)`, duplicate `data-doan-id`, missing or duplicate canvas ids and frame ids, missing `doan:width` (error), comment files with no matching canvas, and whether `data-doan-implements` target files exist. External URLs (CDN scripts and fonts) are not blocked but shown as a warning list (2026-10-21). If token CSS exists and hex or rgb colors are used directly, it warns (2026-10-21). Full criteria: ARCHITECTURE §1 'Conventions'.
 
 ### MCP
 
-12. CLI와 같은 기능을 MCP 도구로 제공한다.
+12. Provide the same functionality as the CLI as MCP tools.
 
-### 스킬
+### Skills
 
-13. Claude Code · Codex용 스킬을 설치한다.
+13. Install skills for Claude Code and Codex.
 
-### 피처 분할 (2026-10-21)
+### Feature split (2026-10-21)
 
-MVP를 피처 8개로 나눈다. 피처 하나는 `/feature` 한 번이고 `docs/features/<slug>/`에서 관리한다. 순서는 의존 관계를 따른다. 피처마다 `/feature`로 스펙을 먼저 정본으로 세우고(2026-10-21 사용자), §6 PoC는 그 가정에 기대는 피처를 구현하기 전에 돌린다. 형식과 CLI를 먼저 세우면 앱 없이도 에이전트 쪽 루프(코멘트 읽기 · resolve · check)를 검증할 수 있고, 앱은 그 형식 위에 쌓는다.
+The MVP is split into 8 features. One feature is one `/feature` run and is managed in `docs/features/<slug>/`. The order follows dependencies. For each feature, the spec is first established as the source of truth with `/feature` (2026-10-21 user), and the §6 PoC runs before implementing the features that rely on its assumptions. Establishing formats and the CLI first lets the agent-side loop (read comments · resolve · check) be verified without the app, and the app builds on top of those formats.
 
-| # | slug | 범위 |
+| # | slug | Scope |
 |---|---|---|
-| 1 | `formats` | JSON Schema(코멘트 이벤트 · config · CLI 봉투) + 픽스처 + 이벤트 접기(TS·Go) |
-| 2 | `cli-core` | Go CLI: `init` · `ls` · `comments` · `comment resolve` · `check`(정적) · `skill`, `--json` · 종료 코드 · 리포 탐색 |
-| 3 | `mcp` | `doan mcp`(stdio) |
-| 4 | `app-shell` | Electron 골격: 폴더 여러 개 · 로컬 서버(서빙 범위) · 파일 감시 · 캔버스 목록. 앱 실물 검증 루프(`/runtime-test` 스킬)를 여기서 만든다. 앱 조작 도구(Playwright Electron · CDP · `computer-use` 중)는 이 피처의 `/feature`에서 정한다(2026-10-21) |
-| 5 | `canvas-view` | sandbox iframe · 판 크기 · 확대·축소·이동 · 프레임 목록·점프. 이 피처가 끝나면 `/design-sync` 스킬을 만든다(아래 '도그푸딩') |
-| 6 | `select-inspect` | 선택 · 인스펙터 · `runtime.json` + 소켓 · `doan active` |
-| 7 | `comments-ui` | 패널 코멘트 CRUD · 핀 · outdated · 문장 복사 |
-| 8 | `onboard-dist` | 첫 실행 온보딩 · `doan skill` 본문 · 공증 dmg · brew cask · 자동 업데이트 |
+| 1 | `formats` | JSON Schema (comment events · config · CLI envelope) + fixtures + event folding (TS·Go) |
+| 2 | `cli-core` | Go CLI: `init` · `ls` · `comments` · `comment resolve` · `check` (static) · `skill`, `--json` · exit codes · repo discovery |
+| 3 | `mcp` | `doan mcp` (stdio) |
+| 4 | `app-shell` | Electron skeleton: multiple folders · local server (serving scope) · file watching · canvas list. The real-app verification loop (`/runtime-test` skill) is built here. The app-driving tool (among Playwright Electron · CDP · `computer-use`) is decided in this feature's `/feature` (2026-10-21) |
+| 5 | `canvas-view` | sandbox iframe · board size · zoom in/out and pan · frame list and jumps. When this feature is done, build the `/design-sync` skill (see 'Dogfooding' below) |
+| 6 | `select-inspect` | selection · inspector · `runtime.json` + socket · `doan active` |
+| 7 | `comments-ui` | panel comment CRUD · pins · outdated · sentence copy |
+| 8 | `onboard-dist` | first-run onboarding · `doan skill` body · notarized dmg · brew cask · auto-update |
 
-### 도그푸딩: doan UI 시안은 doan으로 (2026-10-21)
+### Dogfooding: doan's UI drafts live in doan (2026-10-21)
 
-- doan 앱 UI의 시안은 이 리포의 `design/`에 캔버스로 두고(ARCHITECTURE §1 규약), doan 앱에서 보고 코멘트한다. 구현이 시안과 같은지는 computed style로 대조한다(`/design-sync`).
-- 순서: UI 시안이 필요해지기 전에 doan의 캔버스 기능을 먼저 만든다. 4번 `app-shell`과 5번 `canvas-view`는 시안 없이 최소 UI로 구현하고, 5번이 끝나면 `/design-sync` 스킬을 만든다. 6번 `select-inspect`부터 시안 → 구현 → 대조 루프를 돈다.
-- 이유: doan이 풀려는 문제(시안이 코드 밖에 산다, §1)를 doan 자신에게 먼저 적용해 검증한다. Claude Design standalone은 2026-12-14에 닫혀 malmoi식 핸드오프에 기댈 수 없다.
+- Design drafts for the doan app UI are kept as canvases in this repo's `design/` (ARCHITECTURE §1 Conventions), and viewed and commented on in the doan app. Whether the implementation matches the design draft is compared via computed style (`/design-sync`).
+- Order: build doan's canvas features before UI design drafts are needed. #4 `app-shell` and #5 `canvas-view` are implemented with minimal UI and no design drafts, and once #5 is done, the `/design-sync` skill is built. From #6 `select-inspect` on, the design draft → implementation → comparison loop runs.
+- Why: apply the problem doan aims to solve (design drafts live outside the code, §1) to doan itself first to verify it. Standalone Claude Design shuts down on 2026-12-14, so a Malmoi-style handoff cannot be relied on.
 
-### 뒤로 미룬 것
+### Deferred
 
-- 승인
-- 폭·테마·상태 전환
-- 렌더 검사(겹침·넘침·콘솔 에러). 정적 `check`를 먼저 해서 MVP가 렌더 구현에 묶이지 않게 한다. 렌더 검사를 넣을 때는 앱의 Electron offscreen 렌더링을 쓴다(2026-10-21). 앱이 꺼져 있으면 CLI는 앱을 켜 달라고 실패한다. offscreen 결과의 DPI·폰트가 보이는 창과 같은지는 PoC로 확인해야 한다.
-- 스크린샷, ref 비교, `doan doctor`
-- 웹(doan.design) 스택. 웹은 앱을 내려받는 경로 역할만 하므로, 앱을 다 만든 뒤 정한다(2026-10-21).
+- Approval
+- Width, theme, and state switching
+- Render checks (overlap, overflow, console errors). Static `check` comes first so the MVP is not tied to a render implementation. When render checks are added, they use the app's Electron offscreen rendering (2026-10-21). If the app is off, the CLI fails and asks for the app to be started. Whether offscreen output matches the visible window in DPI and fonts must be confirmed with a PoC.
+- Screenshots, ref comparison, `doan doctor`
+- Web (doan.design) stack. The web only serves as the path to download the app, so it is decided after the app is done (2026-10-21).
 
-## 6. 구현 전 PoC (2026-10-21)
+## 6. Pre-implementation PoC (2026-10-21)
 
-결정 가운데 확인하지 않은 가정을 구현 전에 검증한다. 위험이 큰 순서다. 1·2가 실패하면 캔버스 렌더 구조(sandbox iframe + 주입 스크립트)를 다시 정한다. 실험 코드는 `.scratch/`에 둔다.
+Unverified assumptions among the decisions are verified before implementation. Ordered by risk. If 1 or 2 fails, the canvas rendering structure (sandbox iframe + injected script) is decided again. Experiment code goes in `.scratch/`.
 
-| # | 무엇 | 통과 기준 |
+| # | What | Pass criteria |
 |---|---|---|
-| 1 | sandbox iframe + 주입 스크립트 | `allow-same-origin` 없이 요소 클릭 선택 · 하이라이트 · 판 높이 측정이 `postMessage`로 된다 |
-| 2 | 인스펙터 토큰 이름 | 리포 CSS·인라인 스타일의 `var(--x)`를 요소별로 역추적한다. CDN 스타일시트는 어디까지 되는지 기록한다 |
-| 3 | 확대·축소 중 핀 위치 | transform 배율이 바뀌어도 핀이 요소에 붙어 있다 |
-| 4 | 로컬 서버 서빙 범위 | 허용 경로만 응답하고, 상대 링크가 풀리고, iframe에서 `/.env` 요청이 실패한다 |
-| 5 | `merge=union` | 두 브랜치가 같은 JSONL에 추가·삭제 이벤트를 붙여도 충돌 없이 머지되고, 접은 결과가 기대와 같다 |
-| 6 | Go CLI ↔ Electron 소켓 + Go MCP SDK | `runtime.json`으로 붙어 `active`를 받고, `doan mcp`가 Claude Code·Codex에서 도구로 보인다 |
+| 1 | sandbox iframe + injected script | Without `allow-same-origin`, element click selection · highlight · board height measurement work via `postMessage` |
+| 2 | Inspector token names | Trace `var(--x)` from repo CSS and inline styles back per element. Record how far CDN stylesheets can be handled |
+| 3 | Pin position during zoom | Pins stay attached to elements as the transform scale changes |
+| 4 | Local server serving scope | Responds only to allowed paths, relative links resolve, and a `/.env` request from the iframe fails |
+| 5 | `merge=union` | When two branches append add and delete events to the same JSONL, they merge without conflict and the folded result matches expectations |
+| 6 | Go CLI ↔ Electron socket + Go MCP SDK | Connects via `runtime.json` and receives `active`, and `doan mcp` shows up as a tool in Claude Code and Codex |
 
-## 7. 결정 기록
+## 7. Decision log
 
-| 날짜 | 결정 | 근거 |
+| Date | Decision | Rationale |
 |---|---|---|
-| 2026-10-21 | 1차 사용자는 외부 사용자 일반 | 사용자 결정 |
-| 2026-10-21 | 사람의 화면은 Mac 앱으로 시작 | 사용자 결정 |
-| 2026-10-21 | MVP는 보기 + 코멘트, 승인은 뒤로 | 사용자 결정 — 루프(그림→메모→반영)가 도는지부터 본다 |
-| 2026-10-21 | 코멘트 수신은 CLI + MCP | 사용자 결정. 참고: Agentation·Doop이 MCP로 코멘트를 넘긴다(github.com/benjitaylor/agentation, github.com/kgoedecke/doop) |
-| 2026-10-21 | 앵커는 `data-doan-id` + 다중 fallback | 사용자 결정. 근거: Agentation 문서가 stable data attribute를 권하고 reflow 추적의 한계를 밝힌다(agentation.com/features). Doop은 selector와 HTML 조각을 함께 저장한다 |
-| 2026-10-21 | 코멘트 상태는 `open` → `resolved` | 사용자 결정 |
-| 2026-10-21 | resolve는 에이전트가, 다시 open은 사람이 | 사용자 결정 |
-| 2026-10-21 | MVP 뷰어는 캔버스 개요 + `doan check`, 폭·테마·상태 전환은 뺀다 | 사용자 결정 |
-| 2026-10-21 | 캔버스 안의 가이드 구성은 에이전트가 정한다. Doan은 형식을 정하지 않는다 | 사용자 결정 |
-| 2026-10-21 | 프레임은 `data-doan-frame` 속성 하나로 표시한다 | 사용자 결정 — 형식은 자유로 두되 프레임 선택·코멘트 묶음에 필요한 최소 규약 |
-| 2026-10-21 | 캔버스 하나 = HTML 파일 하나 | 사용자 결정. 참고: Claude Design도 스펙 하나가 `.dc.html` 한 장이다 |
-| 2026-10-21 | `doan check`는 MVP에서 정적 검사만, 렌더 검사는 뒤로 | 사용자 결정 — MVP가 렌더 엔진 결정에 묶이지 않게 |
-| 2026-10-21 | 요소 코멘트에 더해 프레임 코멘트 | 사용자 결정 — 캔버스 구성이 에이전트 자율이라 `data-doan-id` 없는 요소가 많다 |
-| 2026-10-21 | `doan active` MVP 포함 | 사용자 결정 — "이거 고쳐줘"만으로 대상을 찾게. README 초안 §9에 있던 명령 |
-| 2026-10-21 | `doan init` MVP 포함 | 사용자 결정 — 외부 사용자의 첫 설정 |
-| 2026-10-21 | MVP 기능 목록 확정(§5) | 사용자 결정 |
-| 2026-10-21 | 앱 첫 실행 온보딩 4단계(CLI 설치 · 에이전트 연결 · 리포 열기 · 첫 문장 복사) | 사용자 결정 — 외부 사용자는 CLI·스킬·리포 설정이 없는 상태로 시작한다 |
-| 2026-10-21 | 코멘트는 `.doan/comments/<캔버스 경로>.jsonl`에 추가만 하는 이벤트로 (같은 날 경로 → 캔버스 id로 바꿈) | 사용자 결정. 참고: git-appraise의 한 줄 JSON. 충돌 회피 근거는 같은 날 정정(ARCHITECTURE §2 코멘트 저장) |
-| 2026-10-21 | 캔버스 렌더는 로컬 HTTP 서버 + sandboxed iframe + 주입 스크립트(`postMessage`) | 사용자 결정. 근거: `file://` 멀티파일 제약(baoyu-design), 에이전트가 쓴 HTML 격리 |
-| 2026-10-21 | CLI↔앱은 runtime 파일 + unix socket + 토큰 | 사용자 결정. 근거: Orca `orca-runtime.json` 구조 |
-| 2026-10-21 | MCP는 `doan mcp` stdio, CLI와 같은 코드 | 사용자 결정. 근거: Pencil MCP의 앱 실행 의존을 피한다 |
-| 2026-10-21 | 스킬은 스텁 + `doan skill` 본문 + 끝 표식 | 사용자 결정. 근거: Orca·ego-browser의 스킬 스텁 방식 |
-| 2026-10-21 | 앱은 Electron + TypeScript | 사용자 결정. 근거: 에이전트 실측(Chromium)과 렌더 일치, Orca 선례. 비용: 앱 크기 |
-| 2026-10-21 | CLI는 Go 또는 Rust 네이티브 바이너리 | 사용자 결정. 추천안(앱의 Electron으로 도는 Node CLI) 대신 택함 |
-| 2026-10-21 | CLI 언어는 Go | 사용자 결정. 근거: 단순한 작업 범위, 가벼운 빌드 |
-| 2026-10-21 | 배포는 공증 dmg + Homebrew cask + electron-updater(GitHub Releases) | 사용자 결정. 근거: Orca 배포 조합 |
-| 2026-10-21 | 웹(doan.design)은 유통(다운로드) 역할만 하고, 스택은 앱을 다 만든 뒤 정한다 | 사용자 결정 |
-| 2026-10-21 | 캔버스의 외부 스크립트·폰트는 허용, `doan check`가 경고 목록으로 보여 줌 | 사용자 결정. 근거: 캔버스 구성은 에이전트 자율이고, Claude Design 예시도 CDN 폰트·아이콘을 쓴다 |
-| 2026-10-21 | 캔버스 id(`doan:canvas` meta) + 프레임 id(`data-doan-frame`), 표시 이름은 `data-doan-title`. 코멘트 파일은 캔버스 id로 | 사용자 결정 — 이름 변경·파일 이동에도 코멘트가 따라가게 |
-| 2026-10-21 | MVP 뒤 렌더 검사·스크린샷은 앱의 Electron offscreen | 사용자 결정. 근거: 사람이 보는 화면과 같은 Chromium, Electron 공식 지원(electronjs.org/docs/latest/tutorial/offscreen-rendering) |
-| 2026-10-21 | 코멘트 JSONL은 MVP에서 압축하지 않는다 | 사용자 결정 — 이벤트 종류가 적고 캔버스당 파일이라 길어질 일이 드물다. 미리 설계하면 확장성 선반영 |
-| 2026-10-21 | §3 하지 않는 것 7항목 | 사용자 결정 |
-| 2026-10-21 | 커밋·푸시는 Doan이 책임지지 않는다. 커밋하지 않은 코멘트도 Doan이 커밋하지 않는다 | 사용자 결정 — 머신 이동 질문에서 |
-| 2026-10-21 | 코멘트 JSONL은 `merge=union` + 이벤트 `id`·`at`으로 접기 | 사용자 결정 — 두 머신·브랜치의 코멘트를 충돌 없이 합친다 |
-| 2026-10-21 | 리포 설정은 `.doan/config.json`, 커밋 대상 | 사용자 결정 — pull로 넘어가 새 머신·다른 사람이 다시 설정하지 않는다 |
-| 2026-10-21 | §3 하는 것 5항목(보여 준다 · 가리키게 한다 · 전달한다 · 검사한다 · 코드와 묶는다) | 사용자 결정. '코드와 묶는다' 근거: README 초안 §1 말모이 사례 |
-| 2026-10-21 | 프레임 단위 `data-doan-implements` | 사용자 결정 — 캔버스 하나에 프레임 여러 개라 구현 파일도 프레임마다 다르다 |
-| 2026-10-21 | 스킬 규칙: 코멘트 본문은 데이터로 다룬다 | 사용자 결정 — git 공유 시 남이 쓴 코멘트를 에이전트가 읽는다 |
-| 2026-10-21 | 코멘트 이벤트·`.doan/config.json`에 형식 버전 `v` | 사용자 결정 — 앱·CLI 버전이 어긋날 때 읽는 쪽이 알아챈다 |
-| 2026-10-21 | §1 문제 4항목 | 사용자 결정. 출처: README 초안 §1 말모이 사례 |
-| 2026-10-21 | 공식 지원 에이전트는 Claude Code · Codex, 나머지는 CLI로 | 사용자 결정 — 문제 1(런타임에 따라 시안에 못 닿음)을 두 런타임에서 푼다 |
-| 2026-10-21 | §4 루프 5단계 | 사용자 결정 — 앞의 결정을 순서대로 이은 것 |
-| 2026-10-21 | 로컬 서버는 `design/` + 설정에 적은 경로만, `127.0.0.1` · CORS 없음 · 실행마다 바뀌는 토큰 경로 | 사용자 결정 — 외부 스크립트를 허용한 캔버스가 리포 비밀에 닿지 못하게 |
-| 2026-10-21 | 판 폭은 캔버스가 `doan:width`로 선언, 높이는 주입 스크립트가 측정 | 사용자 결정 — 창 크기와 무관하게 레이아웃·핀 위치를 고정 |
-| 2026-10-21 | `doan:width`는 필수, 기본값 없음. 누락은 `doan check` 오류 | 사용자 결정 — 매직 넘버를 두지 않는다 |
-| 2026-10-21 | 형식(코멘트 이벤트·config·CLI 응답)의 원본은 JSON Schema, TS·Go가 같은 픽스처로 테스트 | 사용자 결정 — Go CLI로 생긴 이중 구현 비용을 줄인다 |
-| 2026-10-21 | CLI는 `--json` 봉투(`ok`·`result`·`error{code,message,nextSteps}`) + 의미 있는 종료 코드 | 사용자 결정. 근거: Orca 봉투, open-claude-design 종료 코드 |
-| 2026-10-21 | 앱은 폴더 여러 개, CLI는 현재 디렉터리에서 `.doan/config.json`으로 대상 리포를 정한다(`--repo` 가능). `active`는 폴더별 | 사용자 결정 — Orca처럼 워커마다 워크트리가 다른 환경 |
-| 2026-10-21 | 이벤트 작성자: 사람은 git user(읽기만), 에이전트는 런타임 이름 | 사용자 결정 — 계정 없이도 git 기록과 같은 사람으로 보인다 |
-| 2026-10-21 | 오픈소스로 공개 예정, 라이선스 종류는 미정 | 사용자 결정 |
-| 2026-10-21 | 앱·CLI는 GitHub 토큰을 다루지 않는다 | 사용자 결정 — 비밀을 다루지 않는 게 가장 단순한 보안 경계. 업데이트는 공개 Releases, 릴리스는 CI 시크릿 |
-| 2026-10-21 | 작성자 표시는 git user 이름·이메일 + 이니셜 아바타, GitHub 계정 fetch 없음 | 사용자 결정 — 토큰을 다루지 않는다는 결정과 맞춘다 |
-| 2026-10-21 | 규약 목록(ARCHITECTURE §1) — 캔버스 규약 10항목 + 에이전트 행동 규칙 A–H | 사용자 결정 |
-| 2026-10-21 | 토큰 CSS는 캔버스 기준 상대 경로로 링크, 서버는 허용 경로를 리포 구조대로 서빙 | 사용자 결정 — 앱 밖(에디터·브라우저)에서도 같은 링크가 풀린다 |
-| 2026-10-21 | 하드코딩 색은 `doan check` 경고, 코드에 없는 것은 캔버스에 밝힌다(검사 없음) | 사용자 결정. 근거: §1 문제 3, 말모이 `malmoi push` 사례 |
-| 2026-10-21 | MVP에 인스펙터(읽기 전용, 핵심 스타일 + 토큰 이름). 선택 하나를 인스펙터·코멘트·`active`가 함께 쓴다 | 사용자 결정 — 개발자 도구처럼 스타일을 보되 디자인 검토에 필요한 것만 |
-| 2026-10-21 | 요소 선택 시 한 패널에 인스펙터(조회만) + 코멘트(CRUD). 수정·삭제는 사람만, 삭제는 삭제 이벤트로 | 사용자 결정. 삭제 이벤트는 union 머지에서 지운 코멘트가 되살아나지 않게 |
-| 2026-10-21 | 구현 전 PoC 6항목과 통과 기준(§6) | 사용자 결정 |
-| 2026-10-21 | MVP 피처 8개 분할과 순서(§5 피처 분할) | 사용자 결정 — 형식·CLI 먼저, 앱은 그 위에 |
-| 2026-10-21 | 피처마다 `/feature`로 스펙을 먼저 세우고, PoC는 해당 피처 구현 전에 | 사용자 결정 |
-| 2026-10-21 | ARCHITECTURE.md 분리: PRODUCT §4 '규약'·§6 '아키텍처 · 스택'을 옮김. 결정 기록은 PRODUCT에 하나로 둔다 | 사용자 결정 — PRODUCT가 340줄을 넘었고 피처 결론을 올릴 구조 정본이 필요 |
-| 2026-10-21 | `/runtime-test`는 4번 `app-shell`에서 도구를 정하고 만든다 | 사용자 결정 — 앱 실행 명령·조작 도구가 없는 지금 쓰면 빈 스킬이 된다 |
-| 2026-10-21 | 도그푸딩: doan UI 시안은 이 리포 `design/` 캔버스로, `/design-sync`는 5번 `canvas-view` 뒤에 만들고 6번부터 쓴다 | 사용자 결정 — UI가 필요해지기 전에 캔버스 기능부터 만든다 |
-| 2026-10-21 | 스펙 하나의 설계서 전체를 캔버스 한 장에서 확대·축소·프레임 선택으로 검토. 캔버스 하나에 프레임 여러 개 | 사용자 결정. 참고: 사용자의 Figma 디자인 가이드("좀 방대하다"), Claude Design `Language Request Todo.dc.html` |
+| 2026-10-21 | Primary users are external users in general | User decision |
+| 2026-10-21 | The human's screen starts as a Mac app | User decision |
+| 2026-10-21 | MVP is view + comment; approval later | User decision — first see whether the loop (draw → note → apply) works |
+| 2026-10-21 | Comments are received via CLI + MCP | User decision. Reference: Agentation and Doop pass comments over MCP (github.com/benjitaylor/agentation, github.com/kgoedecke/doop) |
+| 2026-10-21 | Anchor is `data-doan-id` + multiple fallbacks | User decision. Evidence: Agentation docs recommend a stable data attribute and state the limits of reflow tracking (agentation.com/features). Doop stores a selector and an HTML snippet together |
+| 2026-10-21 | Comment status is `open` → `resolved` | User decision |
+| 2026-10-21 | The agent resolves; the human reopens | User decision |
+| 2026-10-21 | MVP viewer is canvas overview + `doan check`; width, theme, and state switching are left out | User decision |
+| 2026-10-21 | The agent decides how guides are organized inside a canvas. Doan does not fix a format | User decision |
+| 2026-10-21 | Frames are marked with a single `data-doan-frame` attribute | User decision — format stays free, but this is the minimal convention needed for frame selection and comment grouping |
+| 2026-10-21 | One canvas = one HTML file | User decision. Reference: in Claude Design too, one spec is one `.dc.html` page |
+| 2026-10-21 | `doan check` does static checks only in the MVP; render checks later | User decision — so the MVP is not tied to a render engine decision |
+| 2026-10-21 | Frame comments in addition to element comments | User decision — canvas organization is up to the agent, so many elements have no `data-doan-id` |
+| 2026-10-21 | `doan active` included in the MVP | User decision — so "fix this" alone finds the target. A command that was in README draft §9 |
+| 2026-10-21 | `doan init` included in the MVP | User decision — first-time setup for external users |
+| 2026-10-21 | MVP feature list finalized (§5) | User decision |
+| 2026-10-21 | App first-run onboarding in 4 steps (CLI install · agent connection · open repo · copy first sentence) | User decision — external users start with no CLI, skills, or repo setup |
+| 2026-10-21 | Comments are append-only events in `.doan/comments/<canvas path>.jsonl` (same day: path → changed to canvas id) | User decision. Reference: git-appraise's one-line JSON. Conflict-avoidance rationale corrected the same day (ARCHITECTURE §2 Comment storage) |
+| 2026-10-21 | Canvas rendering is local HTTP server + sandboxed iframe + injected script (`postMessage`) | User decision. Evidence: `file://` multi-file limits (baoyu-design), isolating agent-written HTML |
+| 2026-10-21 | CLI ↔ app is runtime file + unix socket + token | User decision. Evidence: Orca's `orca-runtime.json` structure |
+| 2026-10-21 | MCP is `doan mcp` over stdio, same code as the CLI | User decision. Evidence: avoids Pencil MCP's dependency on the app running |
+| 2026-10-21 | Skills are stub + `doan skill` body + end marker | User decision. Evidence: Orca's and ego-browser's skill-stub approach |
+| 2026-10-21 | App is Electron + TypeScript | User decision. Evidence: render match with what agents actually measure (Chromium), Orca precedent. Cost: app size |
+| 2026-10-21 | CLI is a Go or Rust native binary | User decision. Chosen over the recommendation (a Node CLI running on the app's Electron) |
+| 2026-10-21 | CLI language is Go | User decision. Evidence: simple scope of work, lightweight build |
+| 2026-10-21 | Distribution is notarized dmg + Homebrew cask + electron-updater (GitHub Releases) | User decision. Evidence: Orca's distribution combination |
+| 2026-10-21 | The web (doan.design) only handles distribution (download); its stack is decided after the app is done | User decision |
+| 2026-10-21 | External scripts and fonts in canvases are allowed; `doan check` shows them as a warning list | User decision. Evidence: canvas organization is up to the agent, and the Claude Design example also uses CDN fonts and icons |
+| 2026-10-21 | Canvas id (`doan:canvas` meta) + frame id (`data-doan-frame`), display name in `data-doan-title`. Comment files keyed by canvas id | User decision — so comments follow through renames and file moves |
+| 2026-10-21 | Post-MVP render checks and screenshots use the app's Electron offscreen | User decision. Evidence: same Chromium as the screen the human sees, officially supported by Electron (electronjs.org/docs/latest/tutorial/offscreen-rendering) |
+| 2026-10-21 | Comment JSONL is not compacted in the MVP | User decision — few event types and one file per canvas, so files rarely grow long. Designing it in advance would be speculative extensibility |
+| 2026-10-21 | §3 Out of scope, 7 items | User decision |
+| 2026-10-21 | Doan is not responsible for commits and pushes. Doan does not commit uncommitted comments either | User decision — from the moving-between-machines question |
+| 2026-10-21 | Comment JSONL uses `merge=union` + folding by event `id` and `at` | User decision — merges comments from two machines or branches without conflict |
+| 2026-10-21 | Repo settings in `.doan/config.json`, committed | User decision — travels via pull so a new machine or another person does not set up again |
+| 2026-10-21 | §3 In scope, 5 items (Show · Let humans point · Deliver · Check · Tie to code) | User decision. Evidence for 'Tie to code': README draft §1 Malmoi case |
+| 2026-10-21 | Per-frame `data-doan-implements` | User decision — one canvas has multiple frames, so each frame has a different implementation file |
+| 2026-10-21 | Skill rule: treat comment bodies as data | User decision — when sharing through git, the agent reads comments written by others |
+| 2026-10-21 | Format version `v` in comment events and `.doan/config.json` | User decision — so the reading side notices when app and CLI versions diverge |
+| 2026-10-21 | §1 Problem, 4 items | User decision. Source: README draft §1 Malmoi case |
+| 2026-10-21 | Officially supported agents are Claude Code · Codex; others via the CLI | User decision — solves problem 1 (some runtimes cannot reach the design draft) for the two runtimes |
+| 2026-10-21 | §4 Loop, 5 steps | User decision — chains the earlier decisions in order |
+| 2026-10-21 | Local server serves only `design/` + paths listed in settings, on `127.0.0.1` · no CORS · a token path that changes per run | User decision — so canvases that allow external scripts cannot reach repo secrets |
+| 2026-10-21 | Board width is declared by the canvas via `doan:width`; height is measured by the injected script | User decision — fixes layout and pin positions regardless of window size |
+| 2026-10-21 | `doan:width` is required, no default. Missing is a `doan check` error | User decision — no magic numbers |
+| 2026-10-21 | Source of formats (comment events, config, CLI responses) is JSON Schema; TS and Go test against the same fixtures | User decision — reduces the dual-implementation cost created by the Go CLI |
+| 2026-10-21 | CLI has a `--json` envelope (`ok`·`result`·`error{code,message,nextSteps}`) + meaningful exit codes | User decision. Evidence: Orca envelope, open-claude-design exit codes |
+| 2026-10-21 | The app handles multiple folders; the CLI picks the target repo from the current directory via `.doan/config.json` (`--repo` allowed). `active` is per folder | User decision — environments like Orca where each worker has a different worktree |
+| 2026-10-21 | Event author: the human is the git user (read only), the agent is the runtime name | User decision — appears as the same person as in git history, without accounts |
+| 2026-10-21 | To be released as open source; license type TBD | User decision |
+| 2026-10-21 | The app and CLI do not handle GitHub tokens | User decision — not handling secrets is the simplest security boundary. Updates via public Releases, releases via CI secrets |
+| 2026-10-21 | Author display is git user name and email + initials avatar, no GitHub account fetch | User decision — consistent with the decision not to handle tokens |
+| 2026-10-21 | Conventions list (ARCHITECTURE §1) — 10 canvas conventions + agent rules A–H | User decision |
+| 2026-10-21 | Token CSS is linked by a path relative to the canvas; the server serves allowed paths following the repo structure | User decision — the same links resolve outside the app (editor, browser) too |
+| 2026-10-21 | Hardcoded colors are a `doan check` warning; things not in code are stated on the canvas (no check) | User decision. Evidence: §1 problem 3, Malmoi `malmoi push` case |
+| 2026-10-21 | Inspector in the MVP (read-only, key styles + token names). The inspector, comments, and `active` share one selection | User decision — view styles like developer tools, but only what design review needs |
+| 2026-10-21 | Selecting an element shows one panel with inspector (view only) + comments (CRUD). Only the human edits or deletes; deletion is a delete event | User decision. Delete events keep deleted comments from reviving under union merge |
+| 2026-10-21 | 6 pre-implementation PoC items and pass criteria (§6) | User decision |
+| 2026-10-21 | MVP split into 8 features and their order (§5 Feature split) | User decision — formats and CLI first, the app on top |
+| 2026-10-21 | For each feature, establish the spec with `/feature` first; run the PoC before implementing the relevant feature | User decision |
+| 2026-10-21 | ARCHITECTURE.md split: moved PRODUCT §4 'Conventions' and §6 'Architecture · stack'. The decision log stays in one place, in PRODUCT | User decision — PRODUCT exceeded 340 lines, and a structural source of truth was needed to promote feature conclusions into |
+| 2026-10-21 | `/runtime-test` gets its tool decided and is built in #4 `app-shell` | User decision — written now, with no app launch command or driving tool, it would be an empty skill |
+| 2026-10-21 | Dogfooding: doan's UI drafts as canvases in this repo's `design/`; `/design-sync` is built after #5 `canvas-view` and used from #6 | User decision — build canvas features before UI is needed |
+| 2026-10-21 | Review the whole design spec of one spec on a single canvas via zoom in/out and frame selection. One canvas holds multiple frames | User decision. Reference: the user's Figma design guide ("a bit vast" ("좀 방대하다")), Claude Design `Language Request Todo.dc.html` |
 
-## 8. 열린 질문
+## 8. Open questions
 
-README 초안 §15에서 옮겨 온다. 닫히면 해당 절과 §7 결정 기록으로 옮긴다. 공통 조각(include냐 통째 HTML이냐)은 에이전트 자율로 닫혔다(2026-10-21, §4 보는 단위).
+Carried over from README draft §15. When closed, they move to the matching section and the §7 decision log. Shared fragments (include vs. whole HTML) were closed as up to the agent (2026-10-21, §4 Unit of review).
 
-- 오픈소스 라이선스 종류(MIT · Apache-2.0 등)
+- Open source license type (MIT · Apache-2.0, etc.)
 
-`doan:width`는 기본값 없이 필수로 정해 닫혔다(2026-10-21).
+`doan:width` was closed as required with no default (2026-10-21).
 
-코멘트 JSONL 압축은 MVP에서 하지 않기로 했다(2026-10-21). 실제로 길어지는 사례가 생기면 그때 정한다.
+Comment JSONL compaction was decided against for the MVP (2026-10-21). It will be decided if a case of files actually growing long comes up.
