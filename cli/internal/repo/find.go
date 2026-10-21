@@ -1,9 +1,11 @@
 package repo
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 )
 
 type Error struct {
@@ -64,7 +66,7 @@ func Find(start, repoFlag string) (Repository, error) {
 			}
 			return Repository{Root: dir, Config: config}, nil
 		}
-		if !os.IsNotExist(err) {
+		if !os.IsNotExist(err) && !errors.Is(err, syscall.ENOTDIR) {
 			return Repository{}, &Error{Code: "internal_error", Message: err.Error(), Cause: err}
 		}
 		parent := filepath.Dir(dir)

@@ -33,6 +33,7 @@ func ParseConfig(data []byte) (Config, string) {
 		if err != nil || v != 1 {
 			return Config{}, "unsupported_version"
 		}
+		obj["v"] = v
 	}
 	if err := formats.ValidateConfig(value); err != nil {
 		return Config{}, "invalid_config"
