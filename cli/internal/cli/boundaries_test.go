@@ -145,3 +145,22 @@ func TestDeletedCommentCannotResolve(t *testing.T) {
 		t.Fatal("rewritten")
 	}
 }
+
+func TestInitDoesNotWriteThroughDanglingOutputLinks(t *testing.T) {
+	for _, path := range []string{".doan/config.json", ".gitattributes"} {
+		t.Run(path, func(t *testing.T) {
+			root := t.TempDir()
+			outside := filepath.Join(t.TempDir(), "absent")
+			if e := os.MkdirAll(filepath.Dir(filepath.Join(root, path)), 0755); e != nil {
+				t.Fatal(e)
+			}
+			if e := os.Symlink(outside, filepath.Join(root, path)); e != nil {
+				t.Fatal(e)
+			}
+			failure(t, root, "usage_error", "init")
+			if _, e := os.Stat(outside); !os.IsNotExist(e) {
+				t.Fatalf("outside target created: %v", e)
+			}
+		})
+	}
+}
