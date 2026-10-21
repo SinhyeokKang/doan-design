@@ -57,6 +57,11 @@ func Resolve(ctx Context, f Flags, ids []string) (Outcome, *Error) {
 	}
 	sort.Strings(resolved)
 	sort.Strings(already)
+	type pendingAppend struct {
+		path string
+		data []byte
+	}
+	appends := []pendingAppend{}
 	for _, file := range files {
 		var buf bytes.Buffer
 		maxAt, ok := comments.MaxAt(formats.ParseLines(file.Text))
@@ -91,9 +96,12 @@ func Resolve(ctx Context, f Flags, ids []string) (Outcome, *Error) {
 			maxAt, ok = at, true
 		}
 		if buf.Len() > 0 {
-			if e := comments.Append(filepath.Join(r.Root, file.File.Path), buf.Bytes()); e != nil {
-				return Outcome{}, internal(e)
-			}
+			appends = append(appends, pendingAppend{filepath.Join(r.Root, file.File.Path), buf.Bytes()})
+		}
+	}
+	for _, pending := range appends {
+		if e := comments.Append(pending.path, pending.data); e != nil {
+			return Outcome{}, internal(e)
 		}
 	}
 	return Outcome{Result: map[string]any{"resolved": resolved, "alreadyResolved": already}}, nil

@@ -8,6 +8,7 @@ import (
 	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 type canvasFile struct {
@@ -144,7 +145,7 @@ func Comments(ctx Context, f Flags, args []string) (Outcome, *Error) {
 			byID[c.Model.ID] = append(byID[c.Model.ID], c)
 		}
 	}
-	selected := f.CanvasSet || f.Canvas != ""
+	selected := f.CanvasSet
 	found := len(byID[f.Canvas]) > 0
 	items := []listedComment{}
 	warnings := []listedWarning{}
@@ -173,5 +174,6 @@ func Comments(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if selected && !found {
 		return Outcome{}, &Error{Code: "canvas_not_found", Message: "Canvas not found: " + f.Canvas, NextSteps: []string{"Run `doan ls --json`"}}
 	}
+	sort.SliceStable(items, func(i, j int) bool { return items[i].Canvas < items[j].Canvas })
 	return Outcome{Result: map[string]any{"comments": items, "warnings": warnings}}, nil
 }

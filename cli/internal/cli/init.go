@@ -40,6 +40,11 @@ func Init(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if !st.IsDir() {
 		return Outcome{}, usageError("Repository path must be a directory")
 	}
+	if info, err := os.Stat(filepath.Join(root, ".doan")); err == nil && info.Mode().IsRegular() {
+		return Outcome{}, &Error{Code: "usage_error", Message: ".doan must be a directory", NextSteps: []string{"Remove or rename .doan before running `doan init`"}}
+	} else if err != nil && !os.IsNotExist(err) {
+		return Outcome{}, internal(err)
+	}
 	result := map[string]any{"initialized": false, "repo": root, "created": []string{}}
 	configPath := filepath.Join(root, ".doan/config.json")
 	st, e = os.Stat(configPath)
@@ -62,6 +67,11 @@ func Init(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	}
 	if !os.IsNotExist(e) {
 		return Outcome{}, internal(e)
+	}
+	if info, err := os.Stat(filepath.Join(root, ".gitattributes")); err == nil && info.IsDir() {
+		return Outcome{}, &Error{Code: "usage_error", Message: ".gitattributes must be a regular file", NextSteps: []string{"Remove or rename .gitattributes before running `doan init`"}}
+	} else if err != nil && !os.IsNotExist(err) {
+		return Outcome{}, internal(err)
 	}
 	token := f.TokenCSS
 	if !f.TokenCSSSet && token == "" && ctx.Terminal && !f.JSON {
@@ -95,6 +105,7 @@ func Init(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		if !st.Mode().IsRegular() {
 			return Outcome{}, usageError("Token CSS must be a regular file")
 		}
+		config.TokenCSS = p
 		result["tokenCss"] = config.TokenCSS
 	}
 	// Initialization must not follow output paths into a different repository.
