@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { parseServePath } from "./serve/path";
-import { canvasRows, folderEntry, servingUrl, storedPath } from "./view";
+import { canvasRows, folderEntry, openDecision, servingUrl } from "./view";
 
 const base = "http://127.0.0.1:4000/t/tok/key/";
 
@@ -81,14 +81,26 @@ describe("folderEntry", () => {
   });
 });
 
-describe("storedPath", () => {
+describe("openDecision", () => {
   test("a listed repo is stored by its root, even when a subfolder was picked", () => {
-    expect(storedPath({ kind: "list", root: "/repo", scope: [], canvases: [] }, "/repo/design/sub")).toBe("/repo");
+    expect(openDecision({ kind: "list", root: "/repo", scope: [], canvases: [] }, "/repo/design/sub", false)).toEqual({ store: "/repo" });
   });
 
-  test("anything else stores the picked folder itself", () => {
-    expect(storedPath({ kind: "uninitialized" }, "/plain")).toBe("/plain");
-    expect(storedPath({ kind: "error", message: "bad" }, "/broken")).toBe("/broken");
-    expect(storedPath({ kind: "cliError", reason: "" }, "/x")).toBe("/x");
+  test("a folder outside any repo is stored as picked", () => {
+    expect(openDecision({ kind: "uninitialized" }, "/plain", false)).toEqual({ store: "/plain" });
+  });
+
+  test("a failing repo root (it has .doan) is stored so its error shows in the list", () => {
+    expect(openDecision({ kind: "error", message: "bad config" }, "/broken", true)).toEqual({ store: "/broken" });
+    expect(openDecision({ kind: "cliError", reason: "spawn doan ENOENT" }, "/repo", true)).toEqual({ store: "/repo" });
+  });
+
+  // Without a root the picked folder may be a subfolder; stored as is, it would
+  // read as "not initialized" and invite a nested `doan init`.
+  test("a failure picked without .doan is refused with the reason", () => {
+    expect(openDecision({ kind: "error", message: "bad config" }, "/broken/design", false)).toEqual({ refuse: "bad config" });
+    expect(openDecision({ kind: "cliError", reason: "spawn doan ENOENT" }, "/repo/design", false))
+      .toEqual({ refuse: "doan CLI 오류: spawn doan ENOENT" });
+    expect(openDecision({ kind: "cliError", reason: "" }, "/repo/design", false)).toEqual({ refuse: "doan CLI 오류" });
   });
 });
