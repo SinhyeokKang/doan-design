@@ -27,7 +27,10 @@ interface ListResult {
 }
 
 export function folderState(run: CliRun): FolderState {
-  const cliError: FolderState = { kind: "cliError", reason: run.spawnError ?? run.stderr.split(/\r?\n/, 1)[0] ?? "" };
+  // The runner kills a hung CLI after 10 s (cli.ts), and a killed process
+  // usually leaves no stderr, so say why rather than show an empty reason.
+  const reason = run.spawnError ?? (run.timedOut ? "timed out after 10 s" : run.stderr.split(/\r?\n/, 1)[0] ?? "");
+  const cliError: FolderState = { kind: "cliError", reason };
   if (run.spawnError !== undefined || run.timedOut || run.exitCode === null) return cliError;
   let value: unknown;
   try {

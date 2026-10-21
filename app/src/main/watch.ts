@@ -90,7 +90,11 @@ export function watchFolder(root: string, refresh: () => Promise<void>): FolderW
         onEvent();
       });
       return watcher;
-    } catch {
+    } catch (error) {
+      // The target vanishing between lstat and watch is expected; the next
+      // re-arm sees it gone. Anything else (EMFILE, ...) leaves a gap worth a trace.
+      const code = error instanceof Error && "code" in error ? error.code : undefined;
+      if (code !== "ENOENT" && code !== "ENOTDIR") console.error("doan: cannot watch", path, error);
       return undefined;
     }
   };

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { constants } from "node:fs";
 import { open, realpath, type FileHandle } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname } from "node:path";
@@ -20,6 +21,17 @@ export interface LocalServer {
 }
 
 const HOST = "127.0.0.1";
+
+// macOS `O_NOFOLLOW_ANY` (<sys/fcntl.h>): fail with ELOOP if any component of
+// the path is a symlink. Node does not export it. The app is Mac-only (PRODUCT).
+const O_NOFOLLOW_ANY = 0x20000000;
+
+// The server opens only realpath results, which contain no links. Opening them
+// with O_NOFOLLOW_ANY means a directory swapped for a link between the realpath
+// check and the open fails instead of leading the open outside the scope.
+export function openNoFollow(path: string): Promise<FileHandle> {
+  return open(path, O_NOFOLLOW_ANY | constants.O_RDONLY);
+}
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -73,11 +85,11 @@ export async function startServer(): Promise<LocalServer> {
     const rel = relInside(realRoot, realFile);
     if (rel === null || !inScope(rel, folder.scope)) return notFound(res);
 
-    // Open the checked path once and stat the fd, so a link swapped after the
-    // checks cannot point the response at another file.
+    // Everything after this works on the fd, so the file served is the one
+    // opened here; ELOOP from a swapped link is a 404 like any other error.
     let file: FileHandle | undefined;
     try {
-      file = await open(realFile, "r");
+      file = await openNoFollow(realFile);
     } catch {
       return notFound(res);
     }
@@ -92,11 +104,14 @@ export async function startServer(): Promise<LocalServer> {
         // module scripts in CORS mode, so in-scope files need this (ARCHITECTURE §3).
         "Access-Control-Allow-Origin": "null",
       });
-      if (req.method === "HEAD") {
+      if (req.method === "HEAD" || stat.size === 0) {
         res.end();
         return;
       }
-      const stream = file.createReadStream();
+      // Stop at the fstat size: a file that grows mid-transfer would otherwise
+      // write past Content-Length into the keep-alive connection, and the
+      // browser would read the extra bytes as the start of the next response.
+      const stream = file.createReadStream({ start: 0, end: stat.size - 1 });
       file = undefined;
       stream.on("error", () => res.destroy());
       res.on("close", () => stream.destroy());
@@ -118,7 +133,9 @@ export async function startServer(): Promise<LocalServer> {
   port = address.port;
 
   return {
-    host: HOST,
+    // Read back from the socket rather than echoing HOST, so a test can tell
+    // a wildcard bind apart from loopback.
+    host: address.address,
     port,
     token,
     addFolder(folder) {
