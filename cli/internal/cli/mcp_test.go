@@ -154,6 +154,10 @@ func TestMCPToolList(t *testing.T) {
 	if info.ServerInfo.Name != "doan" || info.ServerInfo.Version != Version || info.Instructions == "" || strings.Contains(info.Instructions, "\n") || !strings.Contains(info.Instructions, "skill") {
 		t.Fatal(info.ServerInfo, info.Instructions)
 	}
+	// Only tools: the server never sends log or list-changed notifications.
+	if b, _ := json.Marshal(info.Capabilities); string(b) != `{"tools":{}}` {
+		t.Fatal(string(b))
+	}
 	list, e := cs.ListTools(context.Background(), nil)
 	if e != nil {
 		t.Fatal(e)
@@ -314,6 +318,17 @@ func TestMCPToolFailures(t *testing.T) {
 	fresh := t.TempDir()
 	toolCode(t, cs, "init", map[string]any{"repo": fresh, "tokenCss": filepath.Join(outside, "x.css")}, "usage_error")
 	if _, e := os.Stat(filepath.Join(fresh, ".doan")); !os.IsNotExist(e) {
+		t.Fatal("init wrote", e)
+	}
+	// A relative path escaping the repo, separate from the absolute-path rule above.
+	parent := t.TempDir()
+	putFile(t, parent, "x.css", ":root{--x:red}")
+	nested := filepath.Join(parent, "repo")
+	if e := os.Mkdir(nested, 0755); e != nil {
+		t.Fatal(e)
+	}
+	toolCode(t, cs, "init", map[string]any{"repo": nested, "tokenCss": "../x.css"}, "usage_error")
+	if _, e := os.Stat(filepath.Join(nested, ".doan")); !os.IsNotExist(e) {
 		t.Fatal("init wrote", e)
 	}
 	for _, tool := range []string{"init", "ls", "comments", "resolve_comments", "check", "skill"} {

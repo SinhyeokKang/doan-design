@@ -52,4 +52,7 @@ func TestSkillGuideMapsMCPTools(t *testing.T) {
 	if !hasLine("`nextSteps`", "CLI", "table") {
 		t.Error("missing nextSteps mapping note")
 	}
+	if !hasLine("`doan help`", "no tool", "`skill` tool") {
+		t.Error("missing doan help mapping")
+	}
 }
