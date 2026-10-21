@@ -113,9 +113,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 				} else {
 					ctx := Context{Start: start, Now: time.Now, Random: rand.Reader}
 					if file, ok := stdin.(*os.File); ok {
-						if st, e := file.Stat(); e == nil {
-							ctx.Terminal = st.Mode()&os.ModeCharDevice != 0
-						}
+						ctx.Terminal = isTerminal(file)
 					}
 					reader := bufio.NewReader(stdin)
 					ctx.Prompt = func(q string) (string, error) {
