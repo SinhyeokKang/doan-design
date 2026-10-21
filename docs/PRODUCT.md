@@ -129,6 +129,7 @@ MVP가 공식 지원하는 에이전트는 Claude Code와 Codex다(2026-10-21). 
 
 - 위치는 `.doan/comments/<캔버스 id>.jsonl`이다. 캔버스와 1:1로 대응하고, 캔버스 파일을 옮겨도 이름이 그대로다(2026-10-21, 처음엔 캔버스 경로였다).
 - 이벤트를 한 줄에 하나씩 추가만 한다. 이벤트는 생성 · resolve · 다시 open 세 가지다.
+- 이벤트마다 작성자 `by`를 둔다(2026-10-21). 앱이 남기는 생성·다시 open은 리포의 `git config user.name`·`user.email`을 읽어 적는다(읽기만 한다). CLI가 남기는 resolve는 `{kind: "agent", name: "claude-code" | "codex"}`를 적는다. CLI가 런타임 이름을 어떻게 아는지(플래그·환경 변수)는 구현 때 정한다.
 - 이벤트마다 형식 버전 `v`, 고유 `id`, 시각 `at`을 둔다. 읽는 쪽이 모르는 `v`를 만나면 '더 새 버전의 Doan이 쓴 기록'이라고 알린다(2026-10-21). 앱과 CLI는 줄 순서가 아니라 `at` 순으로 정렬하고, 같은 `id`는 하나로 친 뒤 현재 상태를 만든다(2026-10-21).
 - `doan init`이 `.gitattributes`에 `.doan/comments/*.jsonl merge=union`을 넣는다(2026-10-21). 두 머신·브랜치가 같은 파일 끝에 각자 줄을 붙여도 git이 양쪽 줄을 다 남긴다. Doan이 쓰는 것은 이 설정 파일 하나이고, git 조작은 하지 않는다.
 - 정정(2026-10-21): 처음엔 "추가만 하므로 머지 충돌이 적다"를 근거로 들었는데, 일반 파일에서는 틀린 말이다. 두 쪽이 파일 끝에 줄을 붙이면 git은 충돌로 처리한다. 참고한 git-appraise는 git notes에 `cat_sort_uniq` 머지 전략을 따로 걸어 충돌을 피한다(github.com/google/git-appraise). Doan은 일반 파일이라 union 머지로 같은 효과를 낸다.
@@ -183,6 +184,8 @@ MVP가 공식 지원하는 에이전트는 Claude Code와 Codex다(2026-10-21). 
 
 - doan.design에서 Developer ID로 공증한 dmg를 내려받거나, `brew install --cask`로 설치한다.
 - 업데이트는 `electron-updater` + GitHub Releases로 한다. CLI는 앱 번들에 들어 있어 앱과 함께 업데이트된다.
+- **오픈소스로 공개할 예정이다**(2026-10-21). 구체적인 라이선스는 미정이다.
+- **Doan(앱·CLI)은 GitHub 토큰을 다루지 않는다**(2026-10-21). 토큰을 읽지도 저장하지도 않는다. git·PR은 에이전트가 사용자의 인증으로 하고, 업데이트는 공개 리포의 Releases에서 토큰 없이 받고, 릴리스 업로드는 CI 시크릿으로 한다. 참고: Orca `app-update.yml`도 `provider: github`이고 토큰 설정이 없다(로컬 번들에서 확인).
 - 근거: Orca가 같은 조합이다. dmg(arm64·x64) · `brew install --cask stablyai/orca/orca` · `app-update.yml`의 `provider: github`(로컬 번들에서 확인).
 
 ### 머신 이동 (2026-10-21)
@@ -266,12 +269,17 @@ MVP가 공식 지원하는 에이전트는 Claude Code와 Codex다(2026-10-21). 
 | 2026-10-21 | 형식(코멘트 이벤트·config·CLI 응답)의 원본은 JSON Schema, TS·Go가 같은 픽스처로 테스트 | 사용자 결정 — Go CLI로 생긴 이중 구현 비용을 줄인다 |
 | 2026-10-21 | CLI는 `--json` 봉투(`ok`·`result`·`error{code,message,nextSteps}`) + 의미 있는 종료 코드 | 사용자 결정. 근거: Orca 봉투, open-claude-design 종료 코드 |
 | 2026-10-21 | 앱은 폴더 여러 개, CLI는 현재 디렉터리에서 `.doan/config.json`으로 대상 리포를 정한다(`--repo` 가능). `active`는 폴더별 | 사용자 결정 — Orca처럼 워커마다 워크트리가 다른 환경 |
+| 2026-10-21 | 이벤트 작성자: 사람은 git user(읽기만), 에이전트는 런타임 이름 | 사용자 결정 — 계정 없이도 git 기록과 같은 사람으로 보인다 |
+| 2026-10-21 | 오픈소스로 공개 예정, 라이선스 종류는 미정 | 사용자 결정 |
+| 2026-10-21 | 앱·CLI는 GitHub 토큰을 다루지 않는다 | 사용자 결정 — 비밀을 다루지 않는 게 가장 단순한 보안 경계. 업데이트는 공개 Releases, 릴리스는 CI 시크릿 |
 | 2026-10-21 | 스펙 하나의 설계서 전체를 캔버스 한 장에서 확대·축소·프레임 선택으로 검토. 캔버스 하나에 프레임 여러 개 | 사용자 결정. 참고: 사용자의 Figma 디자인 가이드("좀 방대하다"), Claude Design `Language Request Todo.dc.html` |
 
 ## 8. 열린 질문
 
 README 초안 §15에서 옮겨 온다. 닫히면 해당 절과 §7 결정 기록으로 옮긴다. 공통 조각(include냐 통째 HTML이냐)은 에이전트 자율로 닫혔다(2026-10-21, §4).
 
-없음. `doan:width`는 기본값 없이 필수로 정해 닫혔다(2026-10-21).
+- 오픈소스 라이선스 종류(MIT · Apache-2.0 등)
+
+`doan:width`는 기본값 없이 필수로 정해 닫혔다(2026-10-21).
 
 코멘트 JSONL 압축은 MVP에서 하지 않기로 했다(2026-10-21). 실제로 길어지는 사례가 생기면 그때 정한다.
