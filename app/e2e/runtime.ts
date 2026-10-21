@@ -57,6 +57,7 @@ interface Repos {
   worktree: string;
   broken: string;
   brokenMessage: string;
+  brokenSub: string;
   plain: string;
   sub: string;
   link: string;
@@ -95,6 +96,7 @@ async function makeRepos(dir: string, cli: string): Promise<Repos> {
 
   const broken = join(dir, "broken");
   await mkdir(join(broken, ".doan"), { recursive: true });
+  await mkdir(join(broken, "design"));
   await writeFile(join(broken, ".doan", "config.json"), "{\n");
   const brokenMessage = await cliErrorMessage(cli, broken);
 
@@ -104,7 +106,7 @@ async function makeRepos(dir: string, cli: string): Promise<Repos> {
   const link = join(dir, "link-to-ok");
   await symlink(ok, link);
 
-  return { ok, worktree, broken, brokenMessage, plain, sub: join(ok, "design", "sub"), link };
+  return { ok, worktree, broken, brokenMessage, brokenSub: join(broken, "design"), plain, sub: join(ok, "design", "sub"), link };
 }
 
 // The expected text is whatever the CLI says, so this test does not pin CLI wording.
@@ -131,6 +133,11 @@ async function run(cli: string, userData: string, repos: Repos): Promise<void> {
     const opened = [repos.ok, repos.broken, repos.plain, repos.worktree];
     let folders = await waitFolders(page, (all) => sameList(all.map((f) => f.path), opened) && all.every((f) => f.state !== "loading"), "four folders, subfolder and symlink deduped");
     assert.deepEqual(JSON.parse(await readFile(join(userData, "folders.json"), "utf8")), opened);
+    // A subfolder of a broken repo has no root to store: refused with the CLI's message.
+    await recordMessageBoxes(app);
+    await openFolder(app, page, repos.brokenSub);
+    assert.deepEqual(await app.evaluate(() => (globalThis as { doanMessages?: string[] }).doanMessages), [repos.brokenMessage]);
+    assert.ok(sameList((await readFolders(page)).map((f) => f.path), opened), "refused folder not added");
 
     // 2. What each folder shows.
     const expectedOk: CanvasView[] = [
@@ -215,6 +222,18 @@ async function replaceDialog(app: ElectronApplication, picked: string): Promise<
   await app.evaluate(({ dialog }, path) => {
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [path] })) as typeof dialog.showOpenDialog;
   }, picked);
+}
+
+async function recordMessageBoxes(app: ElectronApplication): Promise<void> {
+  await app.evaluate(({ dialog }) => {
+    const messages: string[] = [];
+    (globalThis as { doanMessages?: string[] }).doanMessages = messages;
+    dialog.showMessageBox = (async (...args: unknown[]) => {
+      const options = args.find((arg) => typeof arg === "object" && arg !== null && "message" in arg) as { detail?: string };
+      messages.push(options.detail ?? "");
+      return { response: 0, checkboxChecked: false };
+    }) as typeof dialog.showMessageBox;
+  });
 }
 
 // Awaits the same call the button makes, so each open has finished (including
