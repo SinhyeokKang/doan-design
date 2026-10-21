@@ -1,26 +1,71 @@
 # formats — tasks
 
-명령: AGENTS.md 'Commands' 절이 아직 비어 있다. TS·Go 테스트 명령은 **명령 미정 — 사용자 확인 필요**. 이 피처가 처음으로 코드를 깔므로, 첫 코드 태스크 전에 TS·Go 프로젝트 위치와 테스트 명령을 정해 'Commands' 절에 적는다.
+명령: AGENTS.md 'Commands' 절이 아직 비어 있다. TS·Go 테스트 명령은 **명령 미정 — 사용자 확인 필요**. 이 피처가 처음으로 코드를 깔므로, 태스크 2에서 TS·Go 프로젝트 위치와 테스트 명령을 정해 'Commands' 절에 적는다.
 
-1. **PoC 5: `merge=union`** (`.scratch/`)
-   - 두 브랜치가 같은 JSONL 끝에 각자 `create`·`delete` 이벤트를 붙이고 머지한다.
-   - 검증: 충돌 없이 머지되고, 양쪽 줄이 다 남는다. 결과를 PRODUCT §6에 적는다(관찰과 날짜).
-   - 커밋: PRODUCT §6 갱신만(`docs(product):`).
-2. **TS·Go 위치와 테스트 명령 정하기**
-   - 검증: AGENTS.md 'Commands' 절에 명령이 있고, 빈 테스트가 양쪽에서 돈다.
-   - 커밋: `chore:` 골격 + `docs:` AGENTS.md.
-3. **스키마 세 개 + 유효·무효 픽스처**
-   - 검증: TS·Go 검증기가 모든 픽스처에 같은 판정을 낸다(유효는 통과, 무효는 실패).
-   - 커밋: `feat(formats): add v1 schemas and fixtures`.
-4. **접기 픽스처** (`schema/fixtures/fold/<case>/`)
-   - 케이스: 기본 생성·수정·resolve·다시 open · 줄 순서 섞기 · 중복 이벤트 · 삭제 후 이벤트 · 에이전트 수정 거부 · 모르는 `v` · create 전 이벤트 · 같은 `at` 동률.
-   - 검증: 픽스처 파일만 있고, 테스트는 red.
-   - 커밋: `test(formats): add fold fixtures` (red 커밋).
-5. **TS 접기 구현**
-   - 검증: TS 접기 테스트가 모든 케이스에서 기대 JSON과 바이트 단위로 같다.
-6. **Go 접기 구현**
-   - 검증: Go 접기 테스트가 같은 기대 JSON과 바이트 단위로 같다.
-   - 커밋(5·6): `feat(formats): implement event folding in TS and Go`.
-7. **정본 승격**
-   - 결론(스키마 위치, 필드, 접기 규칙, 경고 코드, 종료 코드)을 ARCHITECTURE §11·§12에 올리고 PRODUCT §7 결정 기록에 날짜·근거를 남긴다. `docs/features/formats/`를 지운다.
-   - 커밋: `docs(product):` + 디렉터리 삭제.
+브랜치: 0·1은 문서만 바꾸므로 main에 바로 커밋한다. 2~7은 `/ship` 또는 `/orchestrate`로 `feat-formats` 브랜치에서 진행하고 PR로 끝낸다(AGENTS.md 'Commit conventions').
+
+- [ ] **0. 정본에 결정 기록** (구현 전)
+  - PRODUCT §5·§7: 사람도 resolve할 수 있다(2026-10-21 사용자).
+  - ARCHITECTURE §12·PRODUCT §7: 봉투에 형식 버전 `v`를 둔다(Q5).
+  - ARCHITECTURE §2·PRODUCT §7: 에이전트 `by.name`은 enum이 아니라 소문자 kebab 문자열이다.
+  - 검증: 세 결정이 날짜와 함께 해당 절과 PRODUCT §7 결정 기록에 있다.
+  - 커밋: `docs(product):`, `docs(architecture):` 문서별로 나눈다.
+- [ ] **1. PoC 5: `merge=union`** (`.scratch/`)
+  - 두 브랜치가 같은 JSONL 끝에 각자 `create`·`delete` 이벤트를 붙이고 머지한다.
+  - 검증: 충돌 없이 머지되고, 양쪽 줄이 다 남는다. 머지 관찰과 날짜를 PRODUCT §6에 적는다(표 아래). 머지 결과 JSONL은 태스크 4의 `union-merge` 픽스처로 쓴다.
+  - 커밋: `docs(product):` PRODUCT §6 갱신만.
+- [ ] **2. TS·Go 위치와 테스트 명령 정하기** — 사용자 확인 후 진행
+  - 위치·명령·JSON Schema draft·TS·Go 검증 라이브러리를 사용자에게 확인받은 뒤 깐다(AGENTS.md: 요청 없이 `package.json`·`go.mod`를 깔지 않는다).
+  - 제약: Go `//go:embed`가 `schema/`를 읽을 수 있는 위치여야 한다(design '파일 배치').
+  - `docs/DIRECTORY.md`를 만든다(AGENTS.md 'Documents': 첫 코드).
+  - 검증: AGENTS.md 'Commands' 절에 명령이 있고, 빈 테스트가 양쪽에서 돈다.
+  - 커밋: `chore:` 골격 + `docs:` AGENTS.md·DIRECTORY.md.
+- [ ] **3a. 스키마 세 개 + 유효·무효 픽스처 + 검증 테스트** (red)
+  - 무효 픽스처 최소 목록:
+    - 이벤트: 빈 `body`, `evt_`·`cmt_` 접두사 오류, 대문자 UUID, 밀리초나 `Z`가 없는 `at`, 모르는 필드, `by.name`이 kebab이 아님, 사람 `by`에 `name` 없음, 2,000 코드 포인트를 넘는 `html`
+    - config: 모르는 필드, `../x`, 절대 경로, `v` 없음, `v: 2`
+    - 봉투: `ok: true`인데 `error`가 있음, `ok: false`인데 `error`가 없음, `nextSteps` 없음, `v: 2`
+  - 유효 픽스처에 포함: `email` 없는 사람 `by`, `frame`·`element` 없는 캔버스 코멘트, `tokenCss`·`serve` 생략 config, `app_not_running` 실패 봉투, exit 4용 `ok: true` + `result.findings` 봉투.
+  - 검증: 픽스처와 TS·Go 검증 테스트가 있고, 태스크 2에서 정한 명령으로 red를 확인한다.
+  - 커밋: `test(formats): add v1 schemas, fixtures and validation tests`.
+- [ ] **3b. TS·Go 검증기**
+  - 검증: TS·Go 검증기가 모든 픽스처에 같은 판정을 낸다(유효는 통과, 무효는 실패). (명령은 태스크 2에서 정함)
+  - 커밋: `feat(formats): validate v1 schemas in TS and Go`.
+- [ ] **4. 접기 픽스처** (`schema/fixtures/fold/<case>/`) + 접기 테스트
+  - 케이스와 기대 경고:
+    - 기본 생성·수정·resolve·다시 open — 경고 없음
+    - 사람 resolve — 경고 없음
+    - 에이전트 resolve — 경고 없음
+    - 에이전트 `create`·`edit`·`delete`·`reopen` — 각각 `agent_not_allowed`
+    - 줄 순서 섞기(경고 없는 입력) — 원본 케이스와 같은 결과
+    - 같은 이벤트 중복(내용 같음) — 경고 없음
+    - 같은 `id`, 다른 내용 — 줄마다 `conflicting_duplicate`
+    - 삭제 후 이벤트 — 경고 없음, 코멘트 없음
+    - 삭제된 코멘트에 에이전트 `edit` — `agent_not_allowed`(권한이 먼저)
+    - `create` 전 이벤트 — `orphan_event`
+    - 같은 코멘트 `create` 두 번 — `duplicate_create`
+    - 이미 resolved에 resolve, 이미 open에 reopen — 경고 없음, 첫 `resolvedBy`·`resolvedAt` 유지
+    - resolved 상태에서 `edit` — 경고 없음, `status` 유지, `updatedAt` 갱신
+    - 모르는 `v`(모양도 틀린 `v: 2` 줄 포함) — `unknown_version`
+    - 깨진 JSON 줄, 스키마 위반 줄, `v` 없는 줄, `v: "1"` — `invalid_event`
+    - 빈 파일 — `{comments: [], warnings: []}`
+    - 빈 줄과 끝 개행 — 경고 없음
+    - 같은 `at` 동률 — `id` 사전순
+    - 출력 정렬(`createdAt` → `comment`, 입력 순서와 다름) — 경고 없음
+    - `union-merge`(태스크 1의 머지 결과) — 경고 없음
+  - 검증: 픽스처와 TS·Go 접기 테스트가 있고, 태스크 2에서 정한 명령으로 red를 확인한다.
+  - 커밋: `test(formats): add fold fixtures` (red 커밋).
+- [ ] **5. TS `parseLines` + `fold` 구현**
+  - 검증: TS 접기 테스트가 모든 케이스에서 기대 JSON과 deep-equal이다. (명령은 태스크 2에서 정함)
+- [ ] **6. Go `parseLines` + `fold` 구현**
+  - 검증: Go 접기 테스트가 같은 기대 JSON과 deep-equal이다. (명령은 태스크 2에서 정함) `union-merge` 케이스가 통과하면 PoC 5 통과를 PRODUCT §6에 날짜와 함께 적는다.
+  - 커밋(5·6): `feat(formats): implement event folding in TS and Go`. PRODUCT §6 갱신은 `docs(product):`로 따로.
+- [ ] **7. 정본 승격**
+  - ARCHITECTURE §2 'Comment storage': 이벤트 필드, 쓰기 제약(`at` 단조 증가), 접기 규칙, 경고 코드.
+  - ARCHITECTURE §11: 스키마 위치와 비교 방식(deep-equal). "location is decided when the code is laid down"을 확정 값으로 바꾼다.
+  - ARCHITECTURE §12: 종료 코드 번호와 `error.code` 목록. "numbers are decided at implementation time"을 확정 값으로 바꾼다.
+  - ARCHITECTURE의 config 설명: `tokenCss`·`serve`.
+  - PRODUCT §7: Q1~Q4와 이번 리뷰 결정(에이전트 `create` 거부, 같은 id 다른 내용 처리, `target.point` 제외 등) 행 추가.
+  - `docs/features/formats/`를 지운다.
+  - 검증: 위 항목이 정본에 있고, 디렉터리가 없다.
+  - 커밋: `docs(architecture):`, `docs(product):`, 디렉터리 삭제를 나눈다.
