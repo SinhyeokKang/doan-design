@@ -163,11 +163,17 @@ MVP를 피처 8개로 나눈다. 피처 하나는 `/feature` 한 번이고 `docs
 | 1 | `formats` | JSON Schema(코멘트 이벤트 · config · CLI 봉투) + 픽스처 + 이벤트 접기(TS·Go) |
 | 2 | `cli-core` | Go CLI: `init` · `ls` · `comments` · `comment resolve` · `check`(정적) · `skill`, `--json` · 종료 코드 · 리포 탐색 |
 | 3 | `mcp` | `doan mcp`(stdio) |
-| 4 | `app-shell` | Electron 골격: 폴더 여러 개 · 로컬 서버(서빙 범위) · 파일 감시 · 캔버스 목록 |
-| 5 | `canvas-view` | sandbox iframe · 판 크기 · 확대·축소·이동 · 프레임 목록·점프 |
+| 4 | `app-shell` | Electron 골격: 폴더 여러 개 · 로컬 서버(서빙 범위) · 파일 감시 · 캔버스 목록. 앱 실물 검증 루프(`/runtime-test` 스킬)를 여기서 만든다. 앱 조작 도구(Playwright Electron · CDP · `computer-use` 중)는 이 피처의 `/feature`에서 정한다(2026-10-21) |
+| 5 | `canvas-view` | sandbox iframe · 판 크기 · 확대·축소·이동 · 프레임 목록·점프. 이 피처가 끝나면 `/design-sync` 스킬을 만든다(아래 '도그푸딩') |
 | 6 | `select-inspect` | 선택 · 인스펙터 · `runtime.json` + 소켓 · `doan active` |
 | 7 | `comments-ui` | 패널 코멘트 CRUD · 핀 · outdated · 문장 복사 |
 | 8 | `onboard-dist` | 첫 실행 온보딩 · `doan skill` 본문 · 공증 dmg · brew cask · 자동 업데이트 |
+
+### 도그푸딩: doan UI 시안은 doan으로 (2026-10-21)
+
+- doan 앱 UI의 시안은 이 리포의 `design/`에 캔버스로 두고(§4 규약), doan 앱에서 보고 코멘트한다. 구현이 시안과 같은지는 computed style로 대조한다(`/design-sync`).
+- 순서: UI 시안이 필요해지기 전에 doan의 캔버스 기능을 먼저 만든다. 4번 `app-shell`과 5번 `canvas-view`는 시안 없이 최소 UI로 구현하고, 5번이 끝나면 `/design-sync` 스킬을 만든다. 6번 `select-inspect`부터 시안 → 구현 → 대조 루프를 돈다.
+- 이유: doan이 풀려는 문제(시안이 코드 밖에 산다, §1)를 doan 자신에게 먼저 적용해 검증한다. Claude Design standalone은 2026-12-14에 닫혀 malmoi식 핸드오프에 기댈 수 없다.
 
 ### 뒤로 미룬 것
 
@@ -347,6 +353,8 @@ MVP를 피처 8개로 나눈다. 피처 하나는 `/feature` 한 번이고 `docs
 | 2026-10-21 | 요소 선택 시 한 패널에 인스펙터(조회만) + 코멘트(CRUD). 수정·삭제는 사람만, 삭제는 삭제 이벤트로 | 사용자 결정. 삭제 이벤트는 union 머지에서 지운 코멘트가 되살아나지 않게 |
 | 2026-10-21 | 구현 전 PoC 6항목과 통과 기준(§7) | 사용자 결정 |
 | 2026-10-21 | MVP 피처 8개 분할과 순서(§5 피처 분할) | 사용자 결정 — 형식·CLI 먼저, 앱은 그 위에 |
+| 2026-10-21 | `/runtime-test`는 4번 `app-shell`에서 도구를 정하고 만든다 | 사용자 결정 — 앱 실행 명령·조작 도구가 없는 지금 쓰면 빈 스킬이 된다 |
+| 2026-10-21 | 도그푸딩: doan UI 시안은 이 리포 `design/` 캔버스로, `/design-sync`는 5번 `canvas-view` 뒤에 만들고 6번부터 쓴다 | 사용자 결정 — UI가 필요해지기 전에 캔버스 기능부터 만든다 |
 | 2026-10-21 | 스펙 하나의 설계서 전체를 캔버스 한 장에서 확대·축소·프레임 선택으로 검토. 캔버스 하나에 프레임 여러 개 | 사용자 결정. 참고: 사용자의 Figma 디자인 가이드("좀 방대하다"), Claude Design `Language Request Todo.dc.html` |
 
 ## 9. 열린 질문
