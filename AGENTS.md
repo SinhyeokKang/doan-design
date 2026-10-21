@@ -1,32 +1,33 @@
 # AGENTS.md
 
-> 이 리포의 작업 규칙 원본이다. Claude Code와 Codex가 둘 다 이 파일을 읽는다 — 미러도 생성기도 없다.
+> The source of the working rules for this repo. Claude Code and Codex both read this file — there is no mirror and no generator.
 
-## 응답 스타일 (이 문서의 다른 모든 규칙보다 우선)
+## Response style (takes precedence over every other rule in this document)
 
-**한국어로, 간결하게.** 위반 시 답변을 다시 쓴다. 아래는 취향이 아니라 판정 기준이다.
+**Reply in Korean, concisely.** If a reply violates this, rewrite it. The items below are pass/fail criteria, not preferences.
 
-- **첫 문장이 결론**: 서두·예고 금지 — "~해보겠습니다", "좋은 질문입니다", "확인해보니 다음과 같습니다" 류로 시작하지 않는다. 바로 답/결과부터.
-- **꾸밈말 금지**: "완벽합니다", "훌륭한", "핵심적인", "말씀하신 대로" 같은 평가·동조 표현을 빼도 정보가 안 줄면 뺀다.
-- **재진술 금지**: 방금 보여준 diff·명령 출력·파일 내용을 산문으로 다시 설명하지 않는다.
-- **길이 상한**: 단순 질문·확인 → 3줄 이내. 작업 완료 보고엔 줄 수 상한이 없다 — 필요한 정보를 줄이면서까지 짧게 만들지 않는다.
-- **미완·실패를 먼저**: 못 한 것·실패한 검증·건너뛴 범위를 성공 요약보다 앞에 쓴다.
-- **선택지 나열 금지**: 추천 하나를 고르고 그 이유 한 줄. 사용자 결정이 필요한 지점(작업 원칙의 "가정을 명시")만 예외.
-- **예외**: 코드·커밋 메시지·PR title/body는 영문.
-- 한국어 표현은 아래 [한국어 작성 공통 규칙](#한국어-작성-공통-규칙)을 함께 따른다.
+- **Language policy** (2026-10-21 user): Korean is used only for (a) conversation between the agent and the user (replies, reports) and (b) feature documents under `docs/features/<slug>/` (spec·design·tasks). Everything else is English: AGENTS.md, skills (`.agents/skills`), `docs/` (PRODUCT.md, ARCHITECTURE.md, and future docs), README.md, code comments, commit messages, and PR title/body.
+- **The first sentence is the conclusion**: no preamble or announcement — do not open with phrases like "~해보겠습니다" ("I'll go ahead and…"), "좋은 질문입니다" ("Good question"), or "확인해보니 다음과 같습니다" ("Having checked, here is what I found"). Start with the answer or result.
+- **No embellishment**: drop evaluative or agreeing phrases such as "완벽합니다" ("Perfect"), "훌륭한" ("great"), "핵심적인" ("key"), "말씀하신 대로" ("as you said") whenever removing them loses no information.
+- **No restating**: do not re-explain in prose a diff, command output, or file content you just showed.
+- **Length cap**: simple question or confirmation → 3 lines or fewer. Task-completion reports have no line cap — do not cut needed information just to make them short.
+- **Unfinished work and failures first**: put what you could not do, failed verification, and skipped scope before the success summary.
+- **No listing of options**: pick one recommendation and give one line of reasoning. The only exception is a point where the user must decide ("State assumptions" under Working principles).
+- **Exception**: code, commit messages, and PR title/body are in English (see the language policy above).
+- For Korean phrasing, also follow [Korean writing rules](#korean-writing-rules) below.
 
-강제 장치는 2단이다: 이 섹션(두 런타임 공통)과, `.claude/settings.json`의 `UserPromptSubmit` 훅이 매 턴 **이 절의 요약**을 컨텍스트에 재주입하는 것(긴 세션에서 문서 앞쪽이 희석되는 걸 막는다). **훅은 Claude Code 전용이라 Codex 세션에선 이 섹션만 남는다.**
+Enforcement has two layers: this section (shared by both runtimes), and the `UserPromptSubmit` hook in `.claude/settings.json`, which re-injects **a summary of this section** into the context every turn (so the start of the document does not fade in long sessions). **The hook is Claude Code only, so Codex sessions have only this section.**
 
-## 한국어 작성 공통 규칙
+## Korean writing rules
 
-응답·보고·내부 문서에 적용한다. 새로 쓰거나 요청 범위에서 고치는 글을 대상으로 하며, 기존 글 전체를 다시 쓰라는 뜻은 아니다. **의미와 독자의 이해가 기준**이다.
+These apply to conversation replies and reports to the user, and to feature documents (`docs/features/<slug>/`). They target text that is newly written or revised within the scope of a request; they do not mean rewriting all existing text. **Meaning and the reader's understanding are the criteria.**
 
-- **내용을 먼저 보존한다.** 수치·날짜·고유명사·인용·부정·조건·예외·인과관계·행동 주체를 바꾸지 않는다. 가능·추정·의무도 구별한다. 주체를 모르는 피동문에 임의의 주체를 넣지 않는다.
-- **처음부터 한국어로 쓴 문장으로 만든다.** 불필요한 명사화·이중 피동·추상 명사 나열을 풀고, 누가 무엇을 하는지 동사로 쓴다. `~에 대해`·`~를 통해`도 더 직접적인 조사나 동사로 같은 뜻을 전할 수 있을 때만 줄인다.
-- **빈말 대신 구체적인 내용을 쓴다.** 근거 없는 찬사·과장, 내용을 더하지 않는 도입·결론, 뜻을 알기 어려운 조어·비유를 걷는다. 내용을 구체화하려고 사실·사례를 만들어 넣지는 않는다.
-- **문장 사이의 관계를 살린다.** 긴 문장은 조건·행동·결과를 따라 나누되 필요한 접속어와 쉼표는 남긴다. 리듬을 바꾸려고 말투를 섞지 않는다.
-- **용어를 고정한다.** 같은 개념의 용어를 반복 회피용 동의어로 바꾸지 않는다(캔버스·프레임·코멘트·인스펙터 등은 docs/PRODUCT.md·docs/ARCHITECTURE.md의 낱말을 쓴다).
-- **마지막에 원문과 대조한다.** 줄이거나 다시 쓴 부분에서 정보·조건·확실성이 달라지지 않았는지 확인한다. 이미 자연스러운 문장은 그대로 둔다.
+- **Preserve content first.** Do not change numbers, dates, proper nouns, quotes, negations, conditions, exceptions, causal relations, or who performs an action. Also keep possibility, inference, and obligation distinct. Do not insert an arbitrary subject into a passive sentence whose subject is unknown.
+- **Make sentences read as if written in Korean from the start.** Undo unnecessary nominalization, double passives, and strings of abstract nouns, and use verbs to say who does what. Reduce `~에 대해` and `~를 통해` only when a more direct particle or verb conveys the same meaning.
+- **Write concrete content instead of empty words.** Remove unsupported praise or exaggeration, introductions and conclusions that add no content, and coinages or metaphors whose meaning is hard to grasp. Do not invent facts or examples to make content more concrete.
+- **Keep the relations between sentences.** Split long sentences along condition, action, and result, but keep needed connectives and commas. Do not mix registers to vary the rhythm.
+- **Fix terms.** Do not swap a term for a synonym just to avoid repetition (for canvas, frame, comment, inspector, and so on, use the words in docs/PRODUCT.md and docs/ARCHITECTURE.md).
+- **Finally, compare against the original.** Check that shortened or rewritten parts did not change information, conditions, or certainty. Leave sentences that already read naturally as they are.
 
 | 다듬기 전 | 다듬은 뒤 | 판단 |
 |---|---|---|
@@ -34,75 +35,76 @@
 | 설정 화면을 통해 언어의 변경이 가능합니다. | 설정 화면에서 언어를 바꿀 수 있습니다. | 명사화를 풀되 가능성은 보존 |
 | 저장되어진 값 | 저장된 값 | 이중 피동만 제거 |
 
-## 이 프로젝트
+## This project
 
-Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(디자인 설계서)를 쓰고, 사람이 로컬 Mac 앱에서 보고·가리키는 도구(승인은 MVP 뒤). 웹(`doan.design`)은 앱을 내려받는 경로 역할만 한다. 표기는 제품 `Doan Design` · 도메인 `doan.design` · CLI·식별자 `doan`.
+Doan Design (`doan`): a tool where a coding agent writes an HTML canvas (a design spec) inside a code repo, and a human views it and points at things in a local Mac app (approval comes after the MVP). The web (`doan.design`) serves only as the path for downloading the app. Naming: product `Doan Design` · domain `doan.design` · CLI and identifiers `doan`.
 
-⚠️ **기획 결정의 정본은 [docs/PRODUCT.md](./docs/PRODUCT.md)(제품 판단·결정 기록)와 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)(구조·형식·규약)다. 둘에 없는 것은 미정이다.**
+⚠️ **The source of truth for planning decisions is [docs/PRODUCT.md](./docs/PRODUCT.md) (product judgment, decision log) and [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) (structure, formats, conventions). Anything not in those two is undecided.**
 
-- [README.md](./README.md)는 배경과 레퍼런스만 담는다. README의 내용을 **결정 사항으로 인용하지 않는다** — "README가 그렇게 정했다"가 아니라 "README 초안은 이렇게 적었다"로 말한다.
-- 스택은 정해졌다(ARCHITECTURE §7·§8: 앱 Electron + TypeScript, CLI Go). 그래도 요청 없이 `package.json`·`go.mod`·디렉터리 구조·빌드 설정을 **먼저 깔지 않는다.**
-- 범위 밖 요청(PRODUCT §3 '하지 않는 것': 그리기 · 캔버스 형식 강제 · 대화 · 에이전트 깨우기 · 서버 · git 조작 · 실시간 공동 편집)은 요청받아도 그 목록을 근거로 먼저 되묻는다.
-- 결정이 나면 해당 문서(PRODUCT 또는 ARCHITECTURE)에 날짜와 함께 적고, 결정 기록(PRODUCT §7)에 근거와 함께 한 줄 남긴다. 이 파일의 하네스도 결정에 맞춰 넓힌다.
+- [README.md](./README.md) holds only background and references. **Do not cite README content as a decision** — say "the README draft wrote this", not "the README decided this".
+- The stack is decided (ARCHITECTURE §7·§8: app Electron + TypeScript, CLI Go). Even so, **do not lay down** `package.json`, `go.mod`, directory structure, or build settings without a request.
+- For out-of-scope requests (PRODUCT §3 'Out of scope': drawing · enforcing a canvas format · conversation · waking agents · servers · git operations · real-time co-editing), ask back first, citing that list, even when asked.
+- When a decision is made, write it with its date in the relevant document (PRODUCT or ARCHITECTURE), and add one line with its rationale to the decision log (PRODUCT §7). Widen this file's harness to match the decision as well.
 
-## 작업 원칙
+## Working principles
 
-- **가정을 명시**: 해석이 여러 개면 조용히 하나 고르지 말고 선택지를 제시. 불확실하면 물어라. PRODUCT.md에 없는 부분이 아직 많아 이 원칙이 특히 자주 걸린다.
-- **더 단순한 방법이 있으면 제안**: 요청하지 않은 유연성·설정 가능성·추상화 추가 금지. **확장성을 위한 선반영은 그 자체가 결함이다.**
-- **외과적 변경**: 요청과 직접 관련 없는 인접 개선·리팩터 금지. 기존 스타일 따르기. 내 변경이 만든 고아만 제거.
-- **검증 가능한 목표로 전환**: "버그 고쳐" → "재현 후 통과 확인". 멀티스텝 작업은 단계별 검증 체크를 포함한 플랜을 먼저 제시.
-- **검증하지 않은 것을 통과로 말하지 않는다.** 도구가 없거나 못 돌린 검증은 미완으로 남기고 무엇을 못 했는지 보고한다.
-- **레퍼런스는 근거를 남긴다**: 다른 도구(Claude Design·Orca·ego-browser·Storybook 등)에서 가져온 아이디어는 어디서 왔는지 적는다. 기억으로 단정하지 말고 확인할 수 있는 것은 확인한다.
+- **State assumptions**: if there are several interpretations, do not silently pick one — present the options. If unsure, ask. Much is still missing from PRODUCT.md, so this principle comes up especially often.
+- **Propose a simpler way if there is one**: do not add flexibility, configurability, or abstraction that was not requested. **Building ahead for extensibility is itself a defect.**
+- **Surgical changes**: no adjacent improvements or refactors not directly related to the request. Follow the existing style. Remove only orphans your own change created.
+- **Turn tasks into verifiable goals**: "fix the bug" → "reproduce, then confirm it passes". For multi-step work, first present a plan that includes a verification check for each step.
+- **Do not report unverified things as passing.** Leave verification you lacked the tools for or could not run as unfinished, and report what you could not do.
+- **Leave evidence for references**: for ideas taken from other tools (Claude Design · Orca · ego-browser · Storybook, etc.), write where they came from. Do not assert from memory; check what can be checked.
 
-## 명령어
+## Commands
 
-아직 없다. 코드가 생기면 영역별 테스트·타입 검사·빌드 명령을 여기에 적는다. 스킬(`/tdd`·`/implement`·`/refactor`·`/ship`·`/orchestrate`)은 이 절의 명령만 쓰고, 없으면 멈추고 묻는다. 명령을 지어내지 않는다.
+None yet. Once there is code, list the per-area test, type-check, and build commands here. Skills (`/tdd` · `/implement` · `/refactor` · `/ship` · `/orchestrate`) use only the commands in this section, and stop and ask if there are none. Do not invent commands.
 
-## 워크플로우 (스킬 라인업)
+## Workflow (skill lineup)
 
-스킬 9개의 원본은 `.agents/skills/<name>/SKILL.md`다(2026-10-21, malmoi `.claude/commands/`의 파이프라인을 doan에 맞게 옮김 — 배포·DB·번역 단계는 뺐다).
+The source for the 9 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, ported the pipeline from malmoi `.claude/commands/` to fit doan — the deploy, DB, and translation stages were dropped).
 
-**권장 흐름**: `/feature` → (`/feature-review`) → `/tdd` → `/implement` → `/code-review` → `/refactor` → (`/postmortem`) → push. 작은 변경은 `/ship` 하나로 push까지, 여러 워커로 나눌 큰 배치는 `/orchestrate`로 태운다.
+**Recommended flow**: `/feature` → (`/feature-review`) → `/tdd` → `/implement` → `/code-review` → `/refactor` → (`/postmortem`) → push. A small change goes all the way to push with `/ship` alone; a large batch to split across several workers runs through `/orchestrate`.
 
-- **용어**(2026-10-21 사용자): **피처**는 MVP 기능 목록(PRODUCT §5)을 논리적으로 나눈 단위다. 피처 하나 = `/feature` 한 번 = `docs/features/<slug>/` 하나. **배치**는 `/orchestrate`가 피처 하나를 구현할 때 워커에게 나눠 주는 작업 묶음이다. 피처 하나가 여러 워커·여러 배치로 구현될 수 있다.
-- `/feature`가 피처의 시작점이다. 산출물은 `docs/features/<slug>/`(spec·design·tasks)에 두고, 피처가 끝나면 결론을 PRODUCT.md(제품 판단)·ARCHITECTURE.md(구조·형식·규약)로 올리고 그 디렉터리는 지운다.
-- `/code-review`는 이 리포의 스킬을 가리킨다. Claude Code 내장 `code-review`와 다르다.
-- 회귀·버그를 고쳤으면 `/postmortem`. `/implement`·`/refactor`·`/code-review`는 착수 전에 `docs/POSTMORTEM.md`를 grep한다(파일이 있을 때).
-- `/ship`·`/orchestrate`는 항상 main에서 `feat-<slug>` 브랜치를 만들어 시작하고, 그 브랜치 push + PR로 끝난다. 머지는 하지 않는다.
+- **Terms** (2026-10-21 user): a **feature** is a logical division of the MVP feature list (PRODUCT §5). One feature = one `/feature` run = one `docs/features/<slug>/`. A **batch** is a bundle of work that `/orchestrate` hands to a worker when implementing one feature. One feature can be implemented by several workers and several batches.
+- `/feature` is the starting point of a feature. Its output goes in `docs/features/<slug>/` (spec·design·tasks); when the feature is done, promote the conclusions to PRODUCT.md (product judgment) and ARCHITECTURE.md (structure, formats, conventions) and delete that directory.
+- `/code-review` refers to this repo's skill. It is different from Claude Code's built-in `code-review`.
+- If you fixed a regression or bug, run `/postmortem`. `/implement` · `/refactor` · `/code-review` grep `docs/POSTMORTEM.md` before starting (when the file exists).
+- `/ship` · `/orchestrate` always start by creating a `feat-<slug>` branch from main and end with a push of that branch + a PR. They do not merge.
 
-## 문서
+## Documents
 
-| 문서 | 무엇 | 언제 갱신하나 |
+| Document | What | When to update |
 |---|---|---|
-| [README.md](./README.md) | 배경(말모이 사례)·레퍼런스. 결정은 PRODUCT.md에 있다 | 배경을 고칠 때 |
-| [docs/PRODUCT.md](./docs/PRODUCT.md) | **제품 판단의 정본** — 문제·사용자·범위·루프·MVP·피처 분할·PoC·결정 기록(모든 결정)·열린 질문 | 제품 결정이 날 때. 모든 결정은 §7 결정 기록에 한 줄 남긴다 |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | **구조의 정본** — 규약(스킬·`doan check` 기준)·형식·렌더·CLI↔앱·MCP·스킬·스택·배포·머신 이동 | 구조·형식·규약 결정이 날 때. 피처가 끝나면 결론을 여기로 올린다 |
-| docs/POSTMORTEM.md | 버그·회귀의 함정 기록(추가만 한다). `/postmortem`이 처음 쓸 때 만든다 | 회귀를 고쳤을 때 |
-| 나중에 만들 문서 | `docs/DIRECTORY.md`(첫 코드) · `docs/DESIGN.md`(도그푸딩 시작, 5번 피처 뒤) · `docs/OPERATIONS.md`(8번 `onboard-dist`) · `docs/CONTRIBUTING.md`·`docs/CODE_OF_CONDUCT.md`·`docs/SECURITY.md`(공개 직전, 영문) · 루트 `LICENSE`(라이선스 결정 때) | 그 시점이 오면 만든다. 빈 껍데기를 미리 만들지 않는다(2026-10-21 사용자) |
-| [AGENTS.md](./AGENTS.md) | 작업 방식(이 파일) — 두 런타임 공통 원본 | 작업 방식이 바뀔 때 |
+| [README.md](./README.md) | Background (the malmoi case) and references, in English. Decisions live in PRODUCT.md | When changing the background |
+| [docs/PRODUCT.md](./docs/PRODUCT.md) | **Source of truth for product judgment**, in English — problem · users · scope · loop · MVP · feature split · PoC · decision log (all decisions) · open questions | When a product decision is made. Every decision gets one line in the §7 decision log |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | **Source of truth for structure**, in English — conventions (the baseline for skills and `doan check`) · formats · rendering · CLI↔app · MCP · skills · stack · distribution · moving between machines | When a structure, format, or conventions decision is made. When a feature is done, promote its conclusions here |
+| `docs/features/<slug>/` | Feature documents (spec·design·tasks) from `/feature`, **in Korean**. Deleted once the conclusions are promoted | While the feature is in progress |
+| docs/POSTMORTEM.md | Record of pitfalls from bugs and regressions (append only), in English. `/postmortem` creates it on first write | When a regression is fixed |
+| Documents to create later | `docs/DIRECTORY.md` (first code) · `docs/DESIGN.md` (when dogfooding starts, after feature 5) · `docs/OPERATIONS.md` (feature 8 `onboard-dist`) · `docs/CONTRIBUTING.md` · `docs/CODE_OF_CONDUCT.md` · `docs/SECURITY.md` (right before going public) · root `LICENSE` (when the license is decided). All in English | Create them when that time comes. Do not create empty shells ahead of time (2026-10-21 user) |
+| [AGENTS.md](./AGENTS.md) | How we work (this file), in English — the shared source for both runtimes | When the way we work changes |
 
-## 커밋 컨벤션
+## Commit conventions
 
-- **브랜치**(2026-10-21 사용자): 길이 둘이다.
-  - **코드 수정**은 사용자가 `/ship`이나 `/orchestrate`로 요청한다. 두 스킬은 main에서 `feat-<slug>` 브랜치를 만들어 시작하고, 그 브랜치 push + PR로 끝난다. 문서만 바꿔도 이 스킬을 거치면 같은 길이다.
-  - **하네스·문서 수정**(AGENTS.md · 스킬 · 훅 · PRODUCT.md 등)은 대화하며 바로 고치고, main에 바로 커밋·push한다.
-  - 배포 서버가 없어 dev/main 분리는 두지 않는다.
-- **커밋 메시지는 영문**, Conventional Commits (`feat:` `fix:` `docs:` `docs(scope):` `chore:`).
-- 문서별로 커밋을 나눈다.
-- **주석은 영문으로, "왜"만 쓴다**(2026-10-21 사용자 — 오픈소스로 공개하므로 외부 기여자가 읽을 수 있게). 코드가 말하는 "무엇"을 반복하지 않는다. 비자명한 제약·함정을 남긴다.
-- 일회성 실험 파일은 `.scratch/`에 둔다(gitignore 대상).
-- PoC(PRODUCT §6) 실험 코드도 `.scratch/`에 두지만, 통과 여부와 관찰 결과는 날짜와 함께 PRODUCT §6에 적는다. `.scratch/`는 커밋되지 않아 결과가 남지 않는다.
-- Codex 세션에서 만든 커밋은 마지막 줄에 `Co-Authored-By: Codex <noreply@openai.com>`을 붙인다. 어느 런타임이 만든 커밋인지 히스토리에서 구분하려는 것이다(malmoi `.agents/PREAMBLE.md`와 같은 규칙).
+- **Branches** (2026-10-21 user): there are two paths.
+  - **Code changes** are requested by the user via `/ship` or `/orchestrate`. Both skills start by creating a `feat-<slug>` branch from main and end with a push of that branch + a PR. Even a docs-only change takes the same path if it goes through these skills.
+  - **Harness and docs changes** (AGENTS.md · skills · hooks · PRODUCT.md, etc.) are fixed directly during the conversation, then committed and pushed straight to main.
+  - There is no deploy server, so there is no dev/main split.
+- **Commit messages are in English**, Conventional Commits (`feat:` `fix:` `docs:` `docs(scope):` `chore:`).
+- Split commits per document.
+- **Write comments in English, and only the "why"** (2026-10-21 user — the project will be open-sourced, so outside contributors must be able to read them). Do not repeat the "what" the code already says. Record non-obvious constraints and pitfalls.
+- Put one-off experiment files in `.scratch/` (gitignored).
+- PoC (PRODUCT §6) experiment code also goes in `.scratch/`, but record whether it passed and what was observed, with the date, in PRODUCT §6. `.scratch/` is not committed, so results are not kept there.
+- Commits made in a Codex session end with `Co-Authored-By: Codex <noreply@openai.com>` as the last line. This is to tell from the history which runtime made a commit (the same rule as malmoi `.agents/PREAMBLE.md`).
 
-## 런타임 차이
+## Runtime differences
 
-- **⚠️ 루트에 `CLAUDE.md`를 만들지 않는다.** Claude Code(v2.1.277+)는 `CLAUDE.md`가 작업 디렉터리와 그 위 어디에도 없을 때만 `AGENTS.md`를 읽는다. `CLAUDE.md`가 생기면 이 파일은 경고 없이 무시된다. Claude Code 전용 규칙이 꼭 필요하면 첫 줄이 `@AGENTS.md`인 `CLAUDE.md`를 둔다.
-- **Bedrock·Vertex·Foundry 세션은 `AGENTS.md`를 읽지 않는다.** 그 경로로 쓸 일이 생기면 위의 `@AGENTS.md` import로 간다.
-- **응답 스타일 재주입 훅은 Claude Code 전용이다**(`.claude/settings.json`). Codex 세션에선 이 파일 최상단의 응답 스타일만 남으니 긴 세션에서도 유지한다.
-- **워커 모델 경계** — 워커·서브에이전트를 호출하는 세션이 Codex면 Codex 모델, Claude Code면 Claude 모델만 호출한다. 패밀리 교차는 사용자의 명시 허가가 있을 때만 허용한다.
-- **스킬 위치가 다르다** — Claude Code는 `.claude/`, Codex는 `.agents/skills/`를 본다. 이 리포를 개발할 때 쓰는 스킬은 `.agents/skills/<name>/SKILL.md`가 원본이고, `.claude/skills/<name>`은 그 디렉터리를 가리키는 심볼릭 링크다(2026-10-21 사용자). 생성기·미러 동기화를 두지 않는다. 새 스킬을 만들면 링크도 같이 만든다. 이것은 제품이 사용자의 에이전트에 설치하는 doan 스킬(ARCHITECTURE §6 '스킬': `SKILL.md` 스텁 + `doan skill`)과 다른 것이다.
+- **⚠️ Do not create `CLAUDE.md` at the root.** Claude Code (v2.1.277+) reads `AGENTS.md` only when there is no `CLAUDE.md` in the working directory or anywhere above it. If a `CLAUDE.md` appears, this file is ignored without warning. If Claude Code-only rules are truly needed, add a `CLAUDE.md` whose first line is `@AGENTS.md`.
+- **Bedrock · Vertex · Foundry sessions do not read `AGENTS.md`.** If you need to work through those paths, use the `@AGENTS.md` import above.
+- **The response-style re-injection hook is Claude Code only** (`.claude/settings.json`). Codex sessions keep only the response style at the top of this file, so maintain it even in long sessions.
+- **Worker model boundary** — if the session calling workers or subagents is Codex, call only Codex models; if it is Claude Code, call only Claude models. Crossing model families is allowed only with the user's explicit permission.
+- **Skill locations differ** — Claude Code looks in `.claude/`, Codex in `.agents/skills/`. The skills used to develop this repo have their source in `.agents/skills/<name>/SKILL.md`, and `.claude/skills/<name>` is a symlink pointing to that directory (2026-10-21 user). There is no generator or mirror sync. When you create a new skill, create the link too. These are different from the doan skill that the product installs into the user's agent (ARCHITECTURE §6 'Skills': `SKILL.md` stub + `doan skill`).
 
-## 참고
+## References
 
-- `~/code/malmoi` — 이 하네스의 원본. 배경(README §1)의 실전 사례도 거기서 왔다. **하네스를 참고할 때 malmoi의 스택·제품 규칙을 이 리포로 옮기지 않는다.**
-- `~/.claude/projects/<체크아웃 경로 슬러그>/memory/` — Claude Code 전용 개인 메모리(Codex는 읽지 않는다). **머신마다 경로가 다르므로 문서에 박지 않는다.**
+- `~/code/malmoi` — the origin of this harness. The real-world case in the background (README §1) also came from there. **When referring to the harness, do not carry malmoi's stack or product rules over to this repo.**
+- `~/.claude/projects/<checkout path slug>/memory/` — Claude Code-only personal memory (Codex does not read it). **The path differs per machine, so do not hard-code it in docs.**
