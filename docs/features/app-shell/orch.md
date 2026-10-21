@@ -23,7 +23,7 @@
 
 | 배치 | 항목 | 파일 소유 | 전제 | 워커 모델 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| B0 | 태스크 0 | `.scratch/poc4-serve/`, `docs/PRODUCT.md` §6 | 없음 | Claude Code(기본) | PRODUCT §6에 PoC 4 결과(날짜·Electron·Playwright 버전, realpath API 선택, 폰트·module 스크립트, `.env` 404) | 대기 |
+| B0 | 태스크 0 | `.scratch/poc4-serve/`, `docs/PRODUCT.md` §6 | 없음 | Claude Code(기본) | PRODUCT §6에 PoC 4 결과(날짜·Electron·Playwright 버전, realpath API 선택, 폰트·module 스크립트, `.env` 404) | 통과(ACAO `null` 재결정 뒤), main `cc164b6`·`efa5959`(워커 `6940af8`·`71dae98`), 2회 |
 | B1 | 태스크 1 | `cli/internal/repo/scope.go`·`scope_test.go`, `cli/internal/cli/read.go`·`check.go`와 그 테스트 | 없음 | Claude Code(기본) | `go test ./...`, `go vet ./...`, 빨강 먼저 | 대기 |
 | B2 | 태스크 2 | `app/src/main/serve/`의 순수 함수와 테스트, `app/src/main/`의 `folderState`·`folders` 순수 함수와 테스트 | 없음 | Claude Code(기본) | `npm --prefix app test`, `npm --prefix app run typecheck`, 빨강 먼저 | 대기 |
 | B3 | 태스크 3 | `app/package.json`·`package-lock.json`·`tsconfig.json`·`vitest.config.ts`, vitest `globalSetup`, `app/src/main/`의 서버·CLI 실행·감시·`folders.json` 읽기·쓰기와 테스트 | B0 통과, B1·B2 통합 | Claude Code(기본) | `npm --prefix app test`(`DOAN_CLI` 없이), `npm --prefix app run typecheck`, 빨강 먼저 | 대기 |
