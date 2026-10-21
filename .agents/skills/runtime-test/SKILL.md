@@ -23,9 +23,9 @@ Runs the app the way a human would use it and reports what happened. Unit tests 
 1. **Run** `npm --prefix app run e2e` from the repo root. It does, in order:
    - build the app: `electron-vite build` into `app/out/`;
    - build the CLI: `go build -o <temp>/doan ./cli/cmd/doan`, passed to the app as `DOAN_CLI` (an app started this way does not read `doan` from `PATH`);
-   - drive the app with `app/e2e/runtime.ts`: temp repos (listed repo, broken config, not initialized, a subfolder and a symlink of the listed repo, a second checkout), the folder dialog replaced through `electronApp.evaluate`, DOM checks, adding a canvas, deleting and re-opening a folder, fetching a canvas (200 with `Access-Control-Allow-Origin: null`) and `.env` (404) over the serving URL, closing a folder and restarting.
+   - drive the app with `app/e2e/runtime.ts`: temp repos (listed repo, broken config, not initialized, a subfolder and a symlink of the listed repo, a second checkout, canvas names whose byte order differs from locale order), the folder dialog replaced through `electronApp.evaluate`, DOM checks, refused picks (subfolders of the broken repo, one holding only `.doan/`), adding a canvas, deleting and re-opening a folder, fetching a canvas (200 with `Access-Control-Allow-Origin: null`) and `.env` (404) over the serving URL, closing a folder and restarting.
 2. **Isolation**: the app runs with `--user-data-dir=<temp>`, so `folders.json` lives in the temp directory. The script fails if `~/Library/Application Support/doan/folders.json` changed (sha256, or "absent") between start and end. Temp repos and userData are deleted at the end; screenshots are not.
-3. **Screenshots**: saved under `.scratch/runtime-test/<timestamp>/` (`1-opened.png`, `2-restarted.png`, and `failure.png` when a step fails). Open them with the Read tool and look before reporting.
+3. **Screenshots**: saved under `.scratch/runtime-test/<timestamp>/` (`1-opened.png`, `2-restarted.png`, and `failure.png` when a step fails). Open the PNGs and look at them before reporting.
 4. **Report**:
 
 ```
