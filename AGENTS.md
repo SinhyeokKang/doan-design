@@ -64,7 +64,8 @@ Doan Design(`doan`): 코딩 에이전트가 코드 리포 안에 HTML 캔버스(
 
 **권장 흐름**: `/feature` → (`/feature-review`) → `/tdd` → `/implement` → `/code-review` → `/refactor` → (`/postmortem`) → push. 작은 변경은 `/ship` 하나로 push까지, 여러 워커로 나눌 큰 배치는 `/orchestrate`로 태운다.
 
-- `/feature`가 기능의 시작점이다. 산출물은 `docs/features/<slug>/`(spec·design·tasks)에 두고, 기능이 끝나면 결론을 PRODUCT.md로 올리고 그 디렉터리는 지운다.
+- **용어**(2026-10-21 사용자): **피처**는 MVP 기능 목록(PRODUCT §5)을 논리적으로 나눈 단위다. 피처 하나 = `/feature` 한 번 = `docs/features/<slug>/` 하나. **배치**는 `/orchestrate`가 피처 하나를 구현할 때 워커에게 나눠 주는 작업 묶음이다. 피처 하나가 여러 워커·여러 배치로 구현될 수 있다.
+- `/feature`가 피처의 시작점이다. 산출물은 `docs/features/<slug>/`(spec·design·tasks)에 두고, 피처가 끝나면 결론을 PRODUCT.md로 올리고 그 디렉터리는 지운다.
 - `/code-review`는 이 리포의 스킬을 가리킨다. Claude Code 내장 `code-review`와 다르다.
 - 회귀·버그를 고쳤으면 `/postmortem`. `/implement`·`/refactor`·`/code-review`는 착수 전에 `docs/POSTMORTEM.md`를 grep한다(파일이 있을 때).
 - `/ship`·`/orchestrate`는 항상 main에서 `feat-<slug>` 브랜치를 만들어 시작하고, 그 브랜치 push + PR로 끝난다. 머지는 하지 않는다.
