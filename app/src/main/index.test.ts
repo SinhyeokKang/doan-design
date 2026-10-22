@@ -10,6 +10,8 @@ const mocks = await vi.hoisted(async () => {
     webContents = Object.assign(new EventEmitter(), { send: vi.fn(), isDestroyed: () => this.contentsDestroyed });
     show = vi.fn();
     hide = vi.fn();
+    isFullScreen = vi.fn(() => false);
+    setFullScreen = vi.fn();
     close = vi.fn();
     isDestroyed = () => this.destroyed;
     loadFile = vi.fn();
@@ -171,4 +173,31 @@ test("ignores activate while startShell is pending before the first window", asy
   finish(mocks.shell);
   await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
   expect(window().show).not.toHaveBeenCalled();
+});
+
+
+test("leaves fullscreen before hiding on close and reuses the window on activate", () => {
+  window().isFullScreen.mockReturnValue(true);
+  const event = { preventDefault: vi.fn() };
+  window().emit("close", event);
+  expect(event.preventDefault).toHaveBeenCalledOnce();
+  expect(window().setFullScreen).toHaveBeenCalledExactlyOnceWith(false);
+  expect(window().hide).not.toHaveBeenCalled();
+  window().emit("leave-full-screen");
+  expect(window().hide).toHaveBeenCalledOnce();
+  window().emit("leave-full-screen");
+  expect(window().hide).toHaveBeenCalledOnce();
+  mocks.app.emit("activate");
+  expect(window().show).toHaveBeenCalledOnce();
+  expect(mocks.Window.instances).toHaveLength(1);
+});
+
+test("does not intercept fullscreen close while quitting", () => {
+  window().isFullScreen.mockReturnValue(true);
+  mocks.app.emit("before-quit");
+  const event = { preventDefault: vi.fn() };
+  window().emit("close", event);
+  expect(event.preventDefault).not.toHaveBeenCalled();
+  expect(window().setFullScreen).not.toHaveBeenCalled();
+  expect(window().hide).not.toHaveBeenCalled();
 });
