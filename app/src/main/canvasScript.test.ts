@@ -9,7 +9,8 @@ describe("nextHeight", () => {
 
   test("follows a canvas that grows or shrinks without tracking the viewport", () => {
     const first = nextHeight(null, 900, 150);
-    expect(nextHeight(first, 1200, 900)).toEqual({ sent: 1200, inner: 900, frozen: false });
+    expect(nextHeight(first, 1200, 150)).toEqual({ sent: 1200, inner: 150, frozen: false });
+    expect(nextHeight(first, 900, 900)).toEqual({ sent: 900, inner: 900, frozen: false });
     expect(nextHeight(first, 400, 150)).toEqual({ sent: 400, inner: 150, frozen: false });
   });
 
@@ -85,6 +86,7 @@ describe("clipText", () => {
 // A stand-in for the canvas window: just enough DOM for the script to run in a
 // fresh VM context, which also proves the source has no outer references.
 interface FakeElement {
+  nodeType?: number;
   attrs?: Record<string, string>;
   rect?: { left: number; top: number; width: number; height: number };
   style?: { overflowX: string; overflowY: string };
@@ -247,7 +249,7 @@ describe("canvasScriptSource", () => {
 
   test("forwards a Ctrl or Cmd wheel as zoom even over a scrollable box", () => {
     const canvas = fakeCanvas();
-    const box: FakeElement = { style: { overflowX: "auto", overflowY: "auto" }, scrollTop: 0, clientHeight: 100, scrollHeight: 300, parentElement: null };
+    const box: FakeElement = { nodeType: 1, style: { overflowX: "auto", overflowY: "auto" }, scrollTop: 0, clientHeight: 100, scrollHeight: 300, parentElement: null };
     for (const modifier of [{ ctrlKey: true }, { metaKey: true }]) {
       const event = wheelEvent({ target: box, deltaY: 10, ...modifier });
       canvas.fireWindow("wheel", event);
@@ -261,8 +263,8 @@ describe("canvasScriptSource", () => {
 
   test("leaves a plain wheel to an ancestor that can still scroll that way", () => {
     const canvas = fakeCanvas();
-    const box: FakeElement = { style: { overflowX: "visible", overflowY: "auto" }, scrollTop: 0, clientHeight: 100, scrollHeight: 300, parentElement: null };
-    const inner: FakeElement = { parentElement: box };
+    const box: FakeElement = { nodeType: 1, style: { overflowX: "visible", overflowY: "auto" }, scrollTop: 0, clientHeight: 100, scrollHeight: 300, parentElement: null };
+    const inner: FakeElement = { nodeType: 1, parentElement: box };
     const event = wheelEvent({ target: inner, deltaY: 10 });
     canvas.fireWindow("wheel", event);
     expect(event.prevented).toBe(false);
@@ -271,7 +273,7 @@ describe("canvasScriptSource", () => {
 
   test("pans with a plain wheel when no ancestor can scroll further", () => {
     const canvas = fakeCanvas();
-    const atEnd: FakeElement = { style: { overflowX: "auto", overflowY: "auto" }, scrollTop: 200, clientHeight: 100, scrollHeight: 300, parentElement: canvas.body as FakeElement };
+    const atEnd: FakeElement = { nodeType: 1, style: { overflowX: "auto", overflowY: "auto" }, scrollTop: 200, clientHeight: 100, scrollHeight: 300, parentElement: canvas.body as FakeElement };
     const event = wheelEvent({ target: atEnd, deltaY: 10, deltaX: -3, deltaMode: 1 });
     canvas.fireWindow("wheel", event);
     expect(event.prevented).toBe(true);
@@ -280,7 +282,7 @@ describe("canvasScriptSource", () => {
 
   test("does not treat the document's own scrolling as an inner scroller", () => {
     const canvas = fakeCanvas();
-    Object.assign(canvas.html, { style: { overflowX: "auto", overflowY: "auto" }, scrollTop: 0, clientHeight: 150, scrollHeight: 900, parentElement: null });
+    Object.assign(canvas.html, { nodeType: 1, style: { overflowX: "auto", overflowY: "auto" }, scrollTop: 0, clientHeight: 150, scrollHeight: 900, parentElement: null });
     const event = wheelEvent({ target: canvas.html, deltaY: 10 });
     canvas.fireWindow("wheel", event);
     expect(event.prevented).toBe(true);

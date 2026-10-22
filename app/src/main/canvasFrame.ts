@@ -33,6 +33,22 @@ function parseUnder(url: string, prefix: TokenBase): URL | null {
   return parsed;
 }
 
+// Structural on purpose: `WebFrameMain` identity can be unstable across frame
+// swaps, so the window's main frame is recognized by having no parent.
+function isTopFrame(frame: { parent?: unknown } | null | undefined): boolean {
+  return frame !== null && frame !== undefined && frame.parent === null;
+}
+
+export interface FrameLike {
+  readonly url: string;
+  readonly parent: FrameLike | null;
+}
+
+// The injection target test: the frame's parent is the window's main frame.
+export function childOfTopFrame(frame: FrameLike | null | undefined): boolean {
+  return frame !== null && frame !== undefined && isTopFrame(frame.parent);
+}
+
 // `base` is `http://127.0.0.1:<port>/t/<token>/`.
 export function isCanvasFrame(url: string, base: string, parentIsMain: boolean): boolean {
   if (!parentIsMain) return false;
@@ -40,15 +56,29 @@ export function isCanvasFrame(url: string, base: string, parentIsMain: boolean):
   return prefix !== null && parseUnder(url, prefix) !== null;
 }
 
-// `current` is null when Electron gives no frame, which is refused rather than
-// guessed. Only frames whose parent is the app's main frame are restricted by
-// the caller; a nested embed is not this function's concern.
-export function allowFrameNavigation(current: string | null, next: string, base: string): boolean {
-  if (current === null) return false;
+// The window refuses popups, so a parentless initiator is the app's own main
+// frame, i.e. the renderer setting an iframe src. A missing initiator (browser-
+// started, or the initiating frame is gone) is not the app.
+export function startedByApp(initiator: { parent?: unknown } | null | undefined): boolean {
+  return isTopFrame(initiator);
+}
+
+// Fails closed: a frame is left alone only when it is proven to be nested in a
+// canvas. A guess that comes out wrong must restrict a canvas, never free it.
+export function navigationGate(frame: FrameLike | null | undefined): "refuse" | "check" | "skip" {
+  if (frame === null || frame === undefined) return "refuse";
+  const parent = frame.parent;
+  if (parent !== null && parent !== undefined && parent.parent !== null && parent.parent !== undefined) return "skip";
+  return "check";
+}
+
+// The app may load any token URL; it never builds a src from canvas-sent values,
+// so this does not let a canvas pick another folder. A canvas itself stays under
+// the folder key it is on.
+export function allowFrameNavigation(current: string, next: string, base: string, fromApp: boolean): boolean {
   const prefix = tokenBase(base);
   if (prefix === null || parseUnder(next, prefix) === null) return false;
-  // The renderer gives a new iframe `about:blank`/nothing before its first src.
-  if (current === "" || current === "about:blank") return true;
+  if (fromApp) return true;
   const from = parseUnder(current, prefix);
   if (from === null) return false;
   const key = from.pathname.slice(prefix.path.length).split("/")[0] ?? "";
@@ -56,17 +86,26 @@ export function allowFrameNavigation(current: string | null, next: string, base:
   return parseUnder(next, { origin: prefix.origin, path: `${prefix.path}${key}/` }) !== null;
 }
 
+// The `will-frame-navigate` decision as a whole.
+export function frameNavigationAllowed(
+  details: { url: string; frame: FrameLike | null | undefined; initiator?: FrameLike | null | undefined },
+  base: string,
+): boolean {
+  const frame = details.frame;
+  const gate = navigationGate(frame);
+  if (gate === "skip") return true;
+  if (gate === "refuse" || frame === null || frame === undefined) return false;
+  return allowFrameNavigation(frame.url, details.url, base, startedByApp(details.initiator));
+}
+
 interface SenderFrameLike {
   parent?: unknown;
 }
 
-// Structural on purpose: `WebFrameMain` identity can be unstable across frame
-// swaps, so the main frame is recognized by having no parent.
 export function fromAppFrame(
   event: { sender: unknown; senderFrame: SenderFrameLike | null | undefined },
   win: { webContents: unknown },
 ): boolean {
   if (event.sender === undefined || event.sender !== win.webContents) return false;
-  const frame = event.senderFrame;
-  return frame !== null && frame !== undefined && frame.parent === null;
+  return isTopFrame(event.senderFrame);
 }
