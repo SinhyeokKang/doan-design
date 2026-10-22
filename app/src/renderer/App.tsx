@@ -49,7 +49,8 @@ function CanvasPane({ viewport, board, state, noProjects, command }: {
   state: CanvasState; noProjects: boolean; command: (name: ViewCommand) => void;
 }) {
   return <section className="area" role="region" aria-label="Canvas" ref={viewport}>
-    <div className="board" ref={board}><div className="overlay" /></div>
+    <div className="board" ref={board} hidden />
+    <div className="overlay" />
     {state.error && <div className="canvas-notice" role="status">{state.error}</div>}
     {state.unlisted && <div className="canvas-notice" role="status">This page is not a listed canvas</div>}
     {state.status && <div className="canvas-status" role="status">
@@ -58,14 +59,14 @@ function CanvasPane({ viewport, board, state, noProjects, command }: {
         : state.status === "failed" ? <div><b>Couldn’t load the canvas</b><p>Run doan check in a terminal</p><button className="btn" onClick={() => command("reload")}>Reload</button></div>
         : <p>{state.message}</p>}
     </div>}
-    {state.updated && state.open && <div className="updated meta"><span className="dot" /> {updatedText(state.updated)}</div>}
+    {state.updated && state.open && <output className="updated meta" aria-label={updatedText(state.updated)}><span className="dot" /> {updatedText(state.updated)}</output>}
     <div className="zctl">
       <div className="zoom">
-        <button aria-label="Zoom out" disabled={!state.open} onClick={() => command("zoomOut")}>−</button>
-        <span aria-label={state.open ? `Zoom ${state.zoom}%` : "Zoom unavailable"}>{state.open ? `${state.zoom}%` : "—"}</span>
-        <button aria-label="Zoom in" disabled={!state.open} onClick={() => command("zoomIn")}>+</button>
+        <button aria-label="Zoom out" disabled={!state.hasFrame} onClick={() => command("zoomOut")}>−</button>
+        <output aria-label={state.hasFrame ? `Zoom ${state.zoom}%` : "Zoom"}>{state.hasFrame ? `${state.zoom}%` : "—"}</output>
+        <button aria-label="Zoom in" disabled={!state.hasFrame} onClick={() => command("zoomIn")}>+</button>
       </div>
-      <Tooltip><TooltipTrigger asChild><button className="btn" aria-label="Fit" disabled={!state.open} onClick={() => command("fit")}>Fit <span className="kbd">⌘1</span></button></TooltipTrigger><TooltipContent>Fit to width</TooltipContent></Tooltip>
+      <Tooltip><TooltipTrigger asChild><button className="btn" aria-label="Fit" disabled={!state.hasFrame} onClick={() => command("fit")}>Fit <span className="kbd">⌘1</span></button></TooltipTrigger><TooltipContent>Fit to width</TooltipContent></Tooltip>
     </div>
   </section>;
 }

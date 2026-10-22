@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { ChevronDown, ChevronRight, File, X } from "lucide-react";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { CanvasState } from "./CanvasController";
@@ -24,6 +24,7 @@ export function Sidebar(props: SidebarProps) {
 
 function ProjectTree({ entries, names, state, open }: SidebarProps) {
   const tree = useRef<HTMLDivElement>(null);
+  const commentPrefix = useId();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [focused, setFocused] = useState<string | null>(null);
   const toggle = (path: string) => setCollapsed(prev => { const next = new Set(prev); if (next.has(path)) next.delete(path); else next.add(path); return next; });
@@ -33,7 +34,7 @@ function ProjectTree({ entries, names, state, open }: SidebarProps) {
     if (event.target !== event.currentTarget) return;
     const items = rows();
     const index = items.indexOf(event.currentTarget);
-    const parent = items.find(node => node.getAttribute("title") === entry.path);
+    const parent = event.currentTarget.parentElement?.closest<HTMLElement>('[role="treeitem"][aria-level="1"]') ?? undefined;
     switch (event.key) {
       case "ArrowDown": focus(items[index + 1]); break;
       case "ArrowUp": focus(items[index - 1]); break;
@@ -54,7 +55,7 @@ function ProjectTree({ entries, names, state, open }: SidebarProps) {
   }
   const close = (path: string) => {
     const projects = rows().filter(node => node.getAttribute("aria-level") === "1");
-    const index = projects.findIndex(node => node.getAttribute("title") === path);
+    const index = entries.findIndex(entry => entry.path === path);
     focus(projects[index + 1] ?? projects[index - 1]);
     void window.doan.closeFolder(path);
   };
@@ -65,7 +66,7 @@ function ProjectTree({ entries, names, state, open }: SidebarProps) {
       const name = names.get(entry.path) ?? entry.path;
       const display = projectRow(entry);
       const expanded = entry.kind !== "list" || !collapsed.has(entry.path);
-      return <div role="treeitem" aria-label={name} aria-level={1} aria-expanded={expanded} title={entry.path} tabIndex={active === entry.path ? 0 : -1} key={entry.path} onFocus={event => { if (event.target === event.currentTarget) setFocused(entry.path); }} onKeyDown={event => keys(event, entry)}>
+      return <div role="treeitem" aria-label={name} aria-level={1} aria-expanded={expanded} tabIndex={active === entry.path ? 0 : -1} key={entry.path} onFocus={event => { if (event.target === event.currentTarget) setFocused(entry.path); }} onKeyDown={event => keys(event, entry)}>
         <div className="row project-row" onClick={() => { setFocused(entry.path); if (entry.kind === "list") toggle(entry.path); }}>
           {expanded ? <ChevronDown className="glyph" /> : <ChevronRight className="glyph" />}
           <Tooltip><TooltipTrigger asChild><span className="g">{name}</span></TooltipTrigger><TooltipContent>{entry.path}</TooltipContent></Tooltip>
@@ -78,10 +79,11 @@ function ProjectTree({ entries, names, state, open }: SidebarProps) {
           {display.actions.includes("reopen") && <div className="hint recovery"><button className="btn" onClick={() => void window.doan.reopenFolder(entry.path)}>Reopen</button><button className="btn ghost" aria-label={`Close project ${name}`} onClick={() => close(entry.path)}>Close</button></div>}
           {entry.kind === "list" && entry.canvases.map(row => {
             const key = `${entry.path}\n${row.path}`;
+            const commentId = `${commentPrefix}-${encodeURIComponent(key)}`;
             const current = state.open?.folder === entry.path && state.shown === row.path;
-            return <div role="treeitem" aria-label={canvasName(row.path)} aria-level={2} aria-current={current ? "true" : undefined} title={`${entry.path}/${row.path}`} tabIndex={active === key ? 0 : -1} className="row ind" key={row.path} onFocus={event => { if (event.target === event.currentTarget) setFocused(key); }} onClick={event => { event.currentTarget.focus(); open(entry.path, row); }} onKeyDown={event => keys(event, entry, row)}>
-              <File className="glyph" /><span className="g">{canvasName(row.path)}</span><span className="d">{row.title}</span><span className={`cnt${row.open ? " hot" : ""}`} aria-label={`${row.open} open comments`}>{row.open}</span>
-            </div>;
+            return <Tooltip key={row.path}><TooltipTrigger asChild><div role="treeitem" aria-label={canvasName(row.path)} aria-describedby={commentId} aria-level={2} aria-current={current ? "true" : undefined} tabIndex={active === key ? 0 : -1} className="row ind" key={row.path} onFocus={event => { if (event.target === event.currentTarget) setFocused(key); }} onClick={event => { event.currentTarget.focus(); open(entry.path, row); }} onKeyDown={event => keys(event, entry, row)}>
+              <File className="glyph" /><span className="g">{canvasName(row.path)}</span><span className="d">{row.title}</span><span id={commentId} role="img" className={`cnt${row.open ? " hot" : ""}`} aria-label={`${row.open} open comments`}>{row.open}</span>
+            </div></TooltipTrigger><TooltipContent>{`${entry.path}/${row.path}`}</TooltipContent></Tooltip>;
           })}
         </div>}
       </div>;
