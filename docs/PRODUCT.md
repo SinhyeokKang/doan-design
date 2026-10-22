@@ -145,7 +145,7 @@ The MVP is split into 8 features. One feature is one `/feature` run and is manag
 
 ### Dogfooding: doan's UI drafts live in doan (2026-10-21)
 
-- Design drafts for the doan app UI are kept as canvases in this repo's `design/` (ARCHITECTURE §1 Conventions), and viewed and commented on in the doan app. Whether the implementation matches the design draft is compared via computed style (`/design-sync`).
+- Design drafts for the doan app UI are kept as canvases in this repo's `design/` (ARCHITECTURE §1 Conventions), and viewed and commented on in the doan app. Whether the implementation matches the design draft is compared via computed style (`/design-sync`, built 2026-10-22: `.agents/skills/design-sync/SKILL.md`).
 - Order: build doan's canvas features before UI design drafts are needed. #4 `app-shell` and #5 `canvas-view` are implemented with minimal UI and no design drafts, and once #5 is done, the `/design-sync` skill is built. From #6 `select-inspect` on, the design draft → implementation → comparison loop runs.
 - Why: apply the problem doan aims to solve (design drafts live outside the code, §1) to doan itself first to verify it. Standalone Claude Design shuts down on 2026-12-14, so a Malmoi-style handoff cannot be relied on.
 
@@ -326,6 +326,9 @@ Results:
 | 2026-10-22 | Every canvas load measures its height from 150px; the board shows blank until the new document's first layout (replaces "keep the previous height until the new one is measured") | User decision (canvas-view orchestration) — only a hidden preload-and-swap (a non-goal) could keep the old height and still let `min-height: 100vh` canvases shrink |
 | 2026-10-22 | The fit accelerator is Cmd+1, not Shift+1 | User decision (canvas-view orchestration) — with real System Events keys, Shift+1 typed `!` and also ran fit, both in a canvas `<input>` and in an app-window `<input>`; Cmd+1 cannot collide with text input |
 | 2026-10-22 | Isolation between open folders rests on folder-key secrecy; a canvas that knows another folder's key can read and embed its served files | User decision (canvas-view orchestration) — every canvas origin is `null`, so the server cannot tell which folder asked; keys are 128-bit random and never given to canvases |
+| 2026-10-22 | `/design-sync` treats a draft canvas as the source of truth only for a screen's initial implementation; after it is on main, the code and `docs/DESIGN.md` are, and a new draft is a change request | User decision (design-sync) — same rule as malmoi; a draft that is not kept current must not overrule shipped code |
+| 2026-10-22 | `/design-sync` reads both the draft and the implementation as computed styles in the real app (canvas iframe and app renderer, Playwright `_electron`) | User decision (design-sync) — one Chromium resolves units, fonts and token variables the same way on both sides |
+| 2026-10-22 | `/design-sync` pairs draft and implementation elements per run in a selector table; frames still point to code with `data-doan-implements` | User decision (design-sync) — no new convention and no test-only attributes in product code |
 
 ## 8. Open questions
 
