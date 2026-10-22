@@ -1,0 +1,39 @@
+# canvas-view — orch
+
+- 원본: [spec.md](./spec.md) · [design.md](./design.md) · [tasks.md](./tasks.md)
+- 시작 해시: `2539b57` (main)
+- 통합 브랜치: `feat-canvas-view` (main `2539b57`에서 만든다). 모든 배치를 이 브랜치에 통합한다.
+- 지휘: Claude Code(claude-opus-5-5). Orca orchestration Run으로 워커를 관리한다.
+
+## 결정 로그
+
+| 날짜 | 결정 | 근거 |
+|---|---|---|
+| 2026-10-22 | 태스크 0의 PoC 실험 명령을 이번 실행의 게이트로 허용한다: `.scratch/poc1-canvas/` 안에서 `app/node_modules`의 Electron 45.0.0 · Playwright 1.64.1로 최소 앱을 띄우는 `node <스크립트>`, `app/node_modules/.bin/electron <경로>`, 필요하면 그 디렉터리 안의 `npm install`. `app/package.json`은 건드리지 않는다 | 사용자 |
+| 2026-10-22 | B0(PoC)와 B1(순수 함수)을 병렬로 돌린다. B0이 실패하면 B1 결과는 통합하지 않고 보류한 채 다시 정한다 | 사용자 — B1은 PoC 결과에 거의 기대지 않는다 |
+| 2026-10-22 | 워커는 Claude Code만 쓴다. 배치마다 모델과 effort를 아래 표처럼 명시해 띄우고 `launch.effective`로 확인한다 | 지휘 판단 — AGENTS.md 모델 경계, orchestrate 0단계 3 |
+| 2026-10-22 | 병렬 배치는 각자 `feat-canvas-view`에서 만든 새 worktree에서 돈다 | 지휘 판단 — 커밋하는 워커가 같은 checkout을 쓰면 index가 겹친다(app-shell과 같다) |
+| 2026-10-22 | 태스크 2의 `canvasViewUpdate`(`canvasView.ts`)는 B1이 아니라 B2가 맡는다. `FolderEntry`의 `servedRev` 필드도 B2가 `view.ts`에 더한다 | 지휘 판단 — `canvasViewUpdate`는 `servedRev`에 기대고, `servedRev`의 발행 규칙(흐름 9)은 태스크 4의 몫이다. `view.ts`는 B1(`width`) → B2(`servedRev`) 순서로 직렬이 된다 |
+| 2026-10-22 | 태스크 8(DIRECTORY.md · runtime-test 스킬)은 B4가 태스크 6 · 7과 함께 한다. 태스크 9(승격과 정리)는 지휘가 한다 | 지휘 판단 — 태스크 8은 e2e 단계와 스크린샷 이름을 아는 B4가 적는다. 승격은 orchestrate 5단계의 지휘 몫이다 |
+
+## 배치
+
+| 배치 | 항목 | 파일 소유 | 전제 | 모델 · effort (이유) | 검증 게이트 | 상태 |
+|---|---|---|---|---|---|---|
+| B0 | 태스크 0 | `.scratch/poc1-canvas/`, `docs/PRODUCT.md` §6, `docs/features/canvas-view/design.md` 'PoC 의존' · '정할 값' | 없음 | Opus high — OOPIF 주입 · 높이 측정 · 휠 전달을 실험으로 판정하고, 틀리면 이후 배치 전체가 틀어진다 | PRODUCT §6에 tasks.md 태스크 0의 일곱 결과가 통과 · 실패로, design.md에 주입 이벤트와 높이 규칙 · 상한이 적혀 있다 | 대기 |
+| B1 | 태스크 1, 태스크 2의 `parseCanvasMessage` · `acceptCanvasMessage`, 태스크 3 | `app/src/renderer/viewport.ts` · `canvasMessage.ts`와 테스트, `app/src/main/canvasFrame.ts`와 테스트, `app/src/main/view.ts`의 `canvasRows` `width`와 테스트 | 없음 | Sonnet high — 경계 사례가 tasks.md에 다 적힌 순수 함수다. 다만 탐색 허용 URL 판단은 보안 경계라 effort를 높인다 | `npm --prefix app test`, `npm --prefix app run typecheck`, 빨강 먼저 | 대기 |
+| B2 | 태스크 4, 태스크 2의 `canvasViewUpdate` | `app/src/main/watch.ts` · `shell.ts`와 테스트, `app/src/main/view.ts`의 `FolderEntry` `servedRev`, `app/src/renderer/canvasView.ts`와 테스트 | B1 통합 | Opus high — 디바운스 · `again` 재실행 · 오래된 읽기 폐기 사이에서 플래그를 잃지 않아야 하는 동시성 작업이다 | `npm --prefix app test`, `npm --prefix app run typecheck`, 빨강 먼저 | 대기 |
+| B3 | 태스크 5 | `app/src/main/index.ts`, 주입 스크립트(위치는 B0 결과로 정함), `app/src/preload/index.ts`, `app/electron.vite.config.ts` | B0 통과, B1 통합 | Opus high — 권한 · IPC 발신 프레임 · 탐색 제한 · CSP를 잇는 보안 작업이다 | `typecheck`, `run build`, `run e2e`의 기존 단계 `runtime-test: PASS` | 대기 |
+| B4 | 태스크 6, 7, 8 | `app/src/renderer/main.ts` · `styles.css` · `index.html`, `app/e2e/runtime.ts`, `docs/DIRECTORY.md`, `.agents/skills/runtime-test/SKILL.md` | B2 · B3 통합 | Opus high — UI 상태 전환 · 두 휠 경로 · e2e 열한 단계와 변형 증명 다섯 줄을 한 번에 맞춘다 | `npm --prefix app test`, `typecheck`, `run e2e` `runtime-test: PASS`, `innerHTML` grep 0건, 변형 표 다섯 줄 실패 확인 | 대기 |
+| 지휘 | 태스크 9 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/features/canvas-view/` 삭제 | B4 통합 | — | tasks.md 태스크 9의 검증 | 대기 |
+
+리뷰 워커: B0 · B1은 Opus medium(실험 근거와 경계 사례 대조), B2 · B3 · B4는 Opus high(동시성 · 보안 · 큰 UI diff).
+
+## 겹침과 순서
+
+- B0과 B1은 겹치는 파일이 없어 병렬로 돈다.
+- B2는 B1이 고친 `view.ts`를 이어 고치고 `width`를 쓰므로 B1 통합 뒤에 띄운다. B0을 기다리지 않는다.
+- B3는 B0의 주입 이벤트 · 스크립트 위치와 B1의 `canvasFrame.ts`를 쓰므로 B0 통과와 B1 통합 뒤에 띄운다. B2와 파일이 겹치지 않아 B2와 병렬로 돈다.
+- B4는 B2의 `servedRev` · `canvasViewUpdate`와 B3의 메뉴 명령 · 주입을 쓰므로 둘의 통합 뒤에 띄운다.
+- 각 배치가 끝나면 독립 리뷰 워커가 `/code-review`를 하고, 🔴가 0이 될 때까지 배치 워커가 고친다.
+- tasks.md의 체크 항목 대응: 태스크 0 → B0, 1 → B1, 2 → B1(`parseCanvasMessage` · `acceptCanvasMessage`) · B2(`canvasViewUpdate`), 3 → B1, 4 → B2, 5 → B3, 6 · 7 · 8 → B4, 9 → 지휘.
