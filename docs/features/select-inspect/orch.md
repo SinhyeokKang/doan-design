@@ -38,7 +38,7 @@
 | D | task 1 초안 | `design/select-inspect.html`(필요하면 `design/` 아래 새 공유 파일) | — | Codex gpt-6-astra medium (상태 · 문구 · 배치 판단이 많고, 틀리면 구현과 `/design-sync`가 모두 어긋난다) | tasks.md task 1 검증(`doan check` 오류 0, 프레임 id 8개), 지휘자 확정 | 확정 · 통합 `4f17387` `82eab43`(수정 1회), 해제 |
 | S | task 2 · task 3의 공유 타입 | `schema/` · `app/src/formats/` · `cli/internal/formats/` | P6(런타임 · 소켓 형식이 PoC로 바뀔 수 있음) | Claude Sonnet high (스키마 · 로더는 기계적이지만 교차 파일 `$ref`가 두 언어에서 같아야 한다) | `go test ./...` · `go vet ./...` · `npm --prefix app test` · `typecheck` | 통합 `af67fc1`, 리뷰 🔴 0 🟡 1(G로 넘김) ⚪ 6, 해제 |
 | G | task 3(Go) · task 4 | `cli/` | S | Claude Opus medium (오류 매핑과 시간 초과가 계약이다) | task 4 검증 | 통합 `c349176` `27156b0`, 리뷰 🔴 0 🟡 2(`v` 정규화 테스트 없음, `DOAN_RUNTIME`이 FIFO면 멈춤) → 수정 1 통합 `369593f` `5af376d`(빨간 테스트 확인, 재리뷰 없음: 테스트 추가와 읽기 상한뿐), 완료 · 해제 |
-| M | task 3(main) · task 5 | `app/src/main/`(`canvasScript.ts` 제외) | S | Claude Opus high (소켓 보안, 파일 권한, 수명주기) | task 5 검증 | 통합 `9c262d5` `4edf77c` `7607212`, 리뷰 중. 같은 워커가 M2(CDP 인스펙터 수집) 진행 중 |
+| M | task 3(main) · task 5 | `app/src/main/`(`canvasScript.ts` 제외) | S | Claude Opus high (소켓 보안, 파일 권한, 수명주기) | task 5 검증 | 통합 `9c262d5` `4edf77c` `7607212`, 리뷰 🔴 0 🟡 1(`runtime.json` 임시 파일 + 이름 바꾸기에 테스트 없음 → M2 뒤 같은 워커에게) ⚪ 4. 계획과 다른 두 점은 리뷰가 받아들임(승격 때 기록). 같은 워커가 M2(CDP 인스펙터 수집) 진행 중 |
 | R | task 3(스크립트 · 렌더러) · task 6 · task 7 · preload `setSelection` | `app/src/main/canvasScript.ts`와 테스트, `app/src/renderer/`, `app/src/preload/` | S · P2 · D(task 7만; 나머지를 먼저 하고 미룸) | Claude Opus high (메시지 순서 · 오래된 메시지, 입력 가로채기, React 경계) | task 6 · 7 검증 | 대기 |
 | E | task 8 | `app/e2e/` | G · M · R | Claude Opus high (변형 증명, 실제 창 타이밍) | `npm --prefix app run e2e` 통과, 변형 표 | 대기 |
 | 9 | task 9 | `docs/PRODUCT.md` §6 | E | 지휘자 | task 9 검증 | 대기 |
