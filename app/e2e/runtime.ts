@@ -613,6 +613,19 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   assert.equal(await canvasFrameUrl(app), url("design/narrow.html"), "forged layout did not navigate");
   assert.equal(await page.getAttribute("#board iframe", "src"), url("design/narrow.html"));
 
+  // A link to a listed canvas without doan:width makes it the open one but
+  // keeps the drawn width, and the zoom commands still act on that board.
+  await clickLink(canvas, url("design/nowidth.html"));
+  await waitFor(async () => sameList(await currentCanvases(page), [`${repos.canvas}\ndesign/nowidth.html`]), "sidebar marks the linked canvas without a width");
+  const drawn = await readView(page);
+  assert.equal(drawn.frameWidth, NARROW_WIDTH, "width kept after a link to a canvas without a width");
+  await page.click("#zoom-in");
+  const buttonZoomed = await waitView(page, (v) => v.scale !== drawn.scale, "toolbar zoom in after a link to a canvas without a width");
+  await menu(app, "확대");
+  await waitView(page, (v) => v.scale !== buttonZoomed.scale, "menu zoom in after a link to a canvas without a width");
+  await menu(app, "맞춤");
+  assertFit(await waitView(page, (v) => near(v.scale, Math.min(1, (v.vw - 64) / NARROW_WIDTH)), "fit to the drawn width"), NARROW_WIDTH);
+
   // C10. Security on the app's own main frame.
   assert.equal(await page.evaluate(() => Notification.requestPermission()), "denied");
   assert.equal(await page.evaluate(async () => (await navigator.permissions.query({ name: "geolocation" })).state), "denied");
