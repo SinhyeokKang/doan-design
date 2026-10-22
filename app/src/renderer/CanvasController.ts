@@ -1,10 +1,12 @@
+import type { Selection } from "../formats/types";
 import type { ViewCommand } from "../main/index";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { acceptCanvasMessage, type LayoutMessage } from "./canvasMessage";
+import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem, type SelectionMessage } from "./canvasMessage";
 import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, sameDocument, type OpenCanvas } from "./canvasView";
 import { projectNames } from "./projectRow";
 import { activityFor, pushActivity, type ActivityEvent } from "./activity";
-import { boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
+import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
+import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 
 const MEASURE_ANSWER_MS = 1000;
 
@@ -13,7 +15,9 @@ export interface CanvasState {
   open: (OpenCanvas & { row: CanvasRow }) | null;
   shown: string | null;
   layout: LayoutMessage | null;
-  pickedFrame: number | null;
+  selection: SelectionView | null;
+  // The selection-lost line, until the next selection or canvas change.
+  notice: string;
   status: "empty" | "loading" | "noWidth" | "failed" | "missing" | null;
   message: string;
   error: string;
@@ -24,7 +28,7 @@ export interface CanvasState {
 }
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, pickedFrame: null, status: "empty", message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, updated: null, activity: [] };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, notice: "", status: "empty", message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, updated: null, activity: [] };
 }
 
 // React owns the surrounding shell; only this controller owns the board's children.
@@ -41,20 +45,33 @@ export class CanvasController {
   private loadTimer: ReturnType<typeof setTimeout> | undefined;
   private answerTimer: ReturnType<typeof setTimeout> | undefined;
   private jumpTo: number | null = null;
+  // Selection (design flows 3–7). `seq` orders the renderer's commands against
+  // the script's own clicks; each new document starts again at 0.
+  private seq = 0;
+  private selectedRect: CanvasRect | null = null;
+  private hoverRect: CanvasRect | null = null;
+  private markHidden = false;
+  private reanchor: AnchorRequest | null = null;
+  private marks: { hover: HTMLElement; selected: HTMLElement; size: HTMLElement } | null = null;
+  private sentSelection = "null";
 
   constructor(
     private viewport: Pick<HTMLElement, "clientWidth" | "clientHeight" | "addEventListener" | "removeEventListener" | "getBoundingClientRect">,
     private board: Pick<HTMLElement, "hidden" | "prepend"> & { style: Pick<CSSStyleDeclaration, "transform" | "visibility"> },
+    private overlay: Pick<HTMLElement, "append">,
     private changed: (state: CanvasState) => void,
+    private sendSelection: (selection: Selection | null) => void,
   ) {
     window.addEventListener("message", this.receive);
     window.addEventListener("wheel", this.preventPageZoom, { passive: false });
+    window.addEventListener("keydown", this.keydown);
     viewport.addEventListener("wheel", this.wheelOnMargin, { passive: false });
   }
 
   dispose(): void {
     window.removeEventListener("message", this.receive);
     window.removeEventListener("wheel", this.preventPageZoom);
+    window.removeEventListener("keydown", this.keydown);
     this.viewport.removeEventListener("wheel", this.wheelOnMargin);
     this.dropFrame();
   }
@@ -63,12 +80,23 @@ export class CanvasController {
     const open = this.state.open;
     this.state.updated = open ? activityFor(this.state.activity, open.folder, open.canvas)[0]?.at ?? null : null;
     this.state.hasFrame = this.frame !== null;
+    this.syncMain();
     this.changed({ ...this.state });
   }
 
+  // Main keeps the one app-wide selection for `doan active` (design flow 11).
+  private syncMain(): void {
+    const open = this.state.open;
+    const selection = open && this.state.selection ? mainSelection(open, this.state.selection) : null;
+    const key = JSON.stringify(selection);
+    if (key === this.sentSelection) return;
+    this.sentSelection = key;
+    this.sendSelection(selection);
+  }
+
   private layoutDisplayKey(): string {
-    const { layout, pickedFrame, status, shown, unlisted } = this.state;
-    return JSON.stringify([layout?.frames.map(frame => [frame.id, frame.title]), layout?.truncated, pickedFrame, status, shown, unlisted]);
+    const { layout, status, shown, unlisted } = this.state;
+    return JSON.stringify([layout?.frames.map(frame => [frame.id, frame.title]), layout?.truncated, status, shown, unlisted]);
   }
 
   updateEntries(next: FolderEntry[]): void {
@@ -77,6 +105,7 @@ export class CanvasController {
     const open = this.state.open;
     if (open === null) return;
     const update = canvasViewUpdate(prev, next, open);
+    this.applySelectionEffect(update);
     switch (update.kind) {
       case "reload":
         this.state.error = "";
@@ -125,6 +154,7 @@ export class CanvasController {
   // A new element ends the old document before resetting its measurement viewport.
   private load(row: CanvasRow, fresh: boolean, kind: ActivityEvent["kind"] = fresh ? "opened" : "reloaded"): void {
     this.loadKind = kind;
+    this.applySelectionEffect({ kind: fresh ? "otherCanvas" : "reload" });
     if (row.width === undefined) {
       this.dropFrame();
       this.state.status = "noWidth";
@@ -156,6 +186,9 @@ export class CanvasController {
     this.setFrameHeight(INITIAL_HEIGHT);
     this.lastHref = null;
     this.jumpTo = null;
+    this.seq = 0;
+    this.hoverRect = null;
+    this.drawMarks();
     this.state.unlisted = false;
     this.loading = true;
     clearTimeout(this.answerTimer);
@@ -165,6 +198,7 @@ export class CanvasController {
       this.jumpTo = null;
       this.board.style.visibility = "hidden";
       this.state.status = "failed";
+      this.applySelectionEffect({ kind: "loadFailed" });
       this.publish();
     }, FIRST_LAYOUT_TIMEOUT_MS);
     this.publish();
@@ -177,7 +211,8 @@ export class CanvasController {
     this.lastHref = null;
     this.loading = false;
     this.jumpTo = null;
-    this.state.pickedFrame = null;
+    this.hoverRect = null;
+    this.clearSelection(false);
     clearTimeout(this.loadTimer);
     clearTimeout(this.answerTimer);
     this.board.hidden = true;
@@ -191,7 +226,7 @@ export class CanvasController {
       if (this.frame === null) return;
       this.state.layout = null;
       this.jumpTo = null;
-      this.state.pickedFrame = null;
+      this.applySelectionEffect({ kind: "unlisted" });
       this.state.shown = null;
       this.state.unlisted = true;
       this.publish();
@@ -205,23 +240,105 @@ export class CanvasController {
     const message = acceptCanvasMessage(event, this.frame.contentWindow);
     if (message === null) return;
     if (message.type === "wheel") { this.wheel(message, boardToScreen(this.view, message)); return; }
-    this.onLayout(message);
+    if (message.type === "layout") { this.onLayout(message); return; }
+    this.onSelectionMessage(message);
+  };
+
+  private expectation() {
+    return { href: this.lastHref, height: this.frameHeight, seq: this.seq };
+  }
+
+  private onSelectionMessage(message: SelectionMessage): void {
+    const verdict = acceptSelectionMessage(this.expectation(), message);
+    if (verdict === "drop") return;
+    if (message.type === "key") { this.escape(); return; }
+    this.seq = message.seq;
+    if (message.type === "hover") { this.hoverRect = message.rect; this.drawMarks(); return; }
+    if (message.type === "clear") { this.clearSelection(false); this.publish(); return; }
+    if (message.target === null) { this.applySelectionEffect({ kind: "anchorLost" }); this.publish(); return; }
+    const { rect, ...view } = message.target;
+    this.reanchor = null;
+    this.markHidden = false;
+    this.selectedRect = verdict === "apply" ? rect : null;
+    this.state.selection = view;
+    this.state.notice = "";
+    this.drawMarks();
+    this.publish();
+  }
+
+  private applySelectionEffect(trigger: SelectionTrigger): void {
+    if (this.state.selection === null && this.reanchor === null && trigger.kind !== "anchorLost") return;
+    const effect = selectionAfter(trigger);
+    if (!effect.keep) { this.clearSelection(effect.notice); return; }
+    if (!effect.mark && this.state.selection !== null) {
+      // Ask the next document for the same anchor after its first layout.
+      this.reanchor = anchorRequest(this.state.selection);
+      this.markHidden = true;
+      this.drawMarks();
+    }
+  }
+
+  // Does not publish: callers publish once with their other changes.
+  private clearSelection(notice: boolean): void {
+    this.state.selection = null;
+    this.selectedRect = null;
+    this.reanchor = null;
+    this.markHidden = false;
+    this.state.notice = notice ? SELECTION_LOST : "";
+    this.drawMarks();
+  }
+
+  private post(message: object): void {
+    // The sandbox has an opaque origin, so a concrete target origin cannot match it.
+    this.frame?.contentWindow?.postMessage(message, "*");
+  }
+
+  private sendCommand(message: object): void {
+    this.seq += 1;
+    this.post({ ...message, seq: this.seq });
+  }
+
+  private escape(): void {
+    if (this.state.selection === null && this.reanchor === null) return;
+    this.sendCommand({ type: "clear" });
+    this.clearSelection(false);
+    this.publish();
+  }
+
+  selectPath(item: PathItem): void {
+    if (this.frame === null) return;
+    this.sendCommand(item.doanId === undefined ? { type: "select-anchor", selector: item.selector } : { type: "select-anchor", doanId: item.doanId, selector: item.selector });
+  }
+
+  private keydown = (event: KeyboardEvent): void => {
+    if (event.key === "Alt") { this.hoverRect = null; this.drawMarks(); return; }
+    if (event.key !== "Escape" || event.defaultPrevented || editableTarget(event.target)) return;
+    this.escape();
   };
 
   private onLayout(message: LayoutMessage): void {
     const before = this.layoutDisplayKey();
+    const beforeSelection = this.state.selection;
     const previousActivity = this.state.activity;
     const newDocument = this.lastHref !== null && !sameDocument(this.lastHref, message.href);
+    // Against the height before this layout resizes the iframe, as layoutHeight does.
+    const selected = selectedFromLayout({ ...this.expectation(), href: message.href }, message);
     this.setFrameHeight(layoutHeight(this.lastHref, this.frameHeight, message));
     this.lastHref = message.href;
     clearTimeout(this.answerTimer);
-    if (newDocument) { this.state.pickedFrame = null; this.jumpTo = null; }
+    if (newDocument) {
+      this.jumpTo = null;
+      this.seq = 0;
+      this.hoverRect = null;
+      this.applySelectionEffect({ kind: "otherCanvas" });
+    }
     const first = this.loading;
     if (first) {
       this.loading = false;
       clearTimeout(this.loadTimer);
       this.board.style.visibility = "";
       this.state.status = null;
+      if (this.reanchor !== null) this.sendCommand({ type: "select-anchor", ...this.reanchor });
     }
     this.state.layout = message;
     const linked = this.markShown(message.href);
@@ -232,13 +349,16 @@ export class CanvasController {
     if (this.jumpTo !== null) {
       const target = message.frames[this.jumpTo];
       if (target !== undefined) {
-        this.state.pickedFrame = this.jumpTo;
         this.view = fitFrame(target, this.viewportSize(), FIT_MARGIN, this.view);
         this.applyView();
       }
       this.jumpTo = null;
     }
-    if (before !== this.layoutDisplayKey() || previousActivity !== this.state.activity) this.publish();
+    if (selected !== undefined && !newDocument && this.state.selection !== null && this.reanchor === null) {
+      if (selected === null) this.applySelectionEffect({ kind: "anchorLost" });
+      else { this.selectedRect = selected; this.drawMarks(); }
+    }
+    if (before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection) this.publish();
   }
 
   private markShown(href: string): boolean {
@@ -261,8 +381,10 @@ export class CanvasController {
     if (this.frame?.contentWindow == null) return;
     // IDs may repeat or be empty; a jump selects the frame by list position.
     this.jumpTo = index;
-    // The sandbox has an opaque origin, so a concrete target origin cannot match it.
-    this.frame.contentWindow.postMessage({ type: "measure" }, "*");
+    this.post({ type: "measure" });
+    // The script answers with a select only if that position still holds this id.
+    const frame = this.state.layout?.frames[index];
+    if (frame !== undefined) this.sendCommand({ type: "pick-frame", index, id: frame.id });
   }
 
   command(name: ViewCommand): void {
@@ -291,6 +413,8 @@ export class CanvasController {
   };
 
   wheel(input: WheelInput, point: Point): void {
+    // The element under the cursor changes without a pointermove (flow 2).
+    this.hoverRect = null;
     const action = wheelAction(input);
     this.view = "zoom" in action ? zoomAt(this.view, action.zoom, point, ZOOM_LIMITS) : panBy(this.view, action.pan.dx, action.pan.dy);
     this.applyView();
@@ -298,9 +422,47 @@ export class CanvasController {
 
   private applyView(): void {
     this.board.style.transform = `translate(${this.view.x}px, ${this.view.y}px) scale(${this.view.scale})`;
+    this.drawMarks();
     const zoom = Math.round(this.view.scale * 100);
     if (zoom !== this.state.zoom) { this.state.zoom = zoom; this.publish(); }
   }
+  // Marks live outside the iframe so the canvas DOM, its MutationObserver and
+  // the anchors stay untouched; drawn in screen px so lines stay 1px at any
+  // scale, while the size label reads canvas px.
+  private drawMarks(): void {
+    const hover = this.markHidden ? null : this.hoverRect;
+    const selected = this.markHidden ? null : this.selectedRect;
+    if (this.marks === null) {
+      if (hover === null && selected === null) return;
+      const mark = (className: string) => {
+        const node = document.createElement("div");
+        node.className = className;
+        return node;
+      };
+      this.marks = { hover: mark("mark hover"), selected: mark("mark selected"), size: mark("mark-size size") };
+      this.overlay.append(this.marks.hover, this.marks.selected, this.marks.size);
+    }
+    const place = (node: HTMLElement, rect: CanvasRect | null) => {
+      node.hidden = rect === null;
+      if (rect === null) return;
+      const screen = boardRectToScreen(this.view, rect);
+      node.style.left = `${screen.x}px`;
+      node.style.top = `${screen.y}px`;
+      node.style.width = `${screen.width}px`;
+      node.style.height = `${screen.height}px`;
+    };
+    place(this.marks.hover, hover);
+    place(this.marks.selected, selected);
+    const size = this.marks.size;
+    size.hidden = selected === null;
+    if (selected !== null) {
+      const screen = boardRectToScreen(this.view, selected);
+      size.textContent = sizeLabel(selected);
+      size.style.left = `${screen.x}px`;
+      size.style.top = `${screen.y + screen.height + 4}px`;
+    }
+  }
+
   private setFrameWidth(width: number): void { this.frameWidth = width; if (this.frame) this.frame.style.width = `${width}px`; }
   private setFrameHeight(height: number): void { this.frameHeight = height; if (this.frame) this.frame.style.height = `${height}px`; }
   private viewportSize() { return { width: this.viewport.clientWidth, height: this.viewport.clientHeight }; }

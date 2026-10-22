@@ -54,6 +54,10 @@ export function boardToScreen(view: View, point: Point): Point {
   return { x: point.x * view.scale + view.x, y: point.y * view.scale + view.y };
 }
 
+export function boardRectToScreen(view: View, rect: Rect): Rect {
+  return { x: rect.x * view.scale + view.x, y: rect.y * view.scale + view.y, width: rect.width * view.scale, height: rect.height * view.scale };
+}
+
 export function screenToBoard(view: View, point: Point): Point {
   return { x: (point.x - view.x) / view.scale, y: (point.y - view.y) / view.scale };
 }

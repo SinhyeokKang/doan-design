@@ -2,14 +2,33 @@
 // canvas's own scripts share that window and can post anything, so every field
 // is checked and copied into a fresh object; nothing is trusted by shape.
 
+import type { SelectionElement } from "../formats/types";
+
 export const MAX_FRAMES = 1000;
 export const MAX_STRING = 200;
 // UTF-16 code units, as `String.length` counts them.
 export const MAX_HREF = 8192;
+// Selection caps (design 'length caps'). Over a cap the whole message is
+// dropped: the script clips before sending, so only a forged message is over.
+export const MAX_SELECTOR = 1000;
+export const MAX_VALUE = 500;
+// Code points, as the schema's maxLength counts them.
+export const MAX_HTML = 2000;
+export const MAX_TEXT = 500;
+export const MAX_PATH = 32;
 
 export interface CanvasFrameRect {
   id: string;
   title?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// In the iframe's own viewport (getBoundingClientRect), which is board
+// coordinates while the canvas document does not scroll inside the iframe.
+export interface CanvasRect {
   x: number;
   y: number;
   width: number;
@@ -24,7 +43,56 @@ export interface LayoutMessage {
   viewport: number;
   frames: CanvasFrameRect[];
   truncated: boolean;
+  // Only while the script has a selection; null once it lost the element.
+  seq?: number;
+  selected?: CanvasRect | null;
 }
+
+interface SelectionMessageBase {
+  href: string;
+  seq: number;
+  viewport: number;
+}
+
+export interface HoverMessage extends SelectionMessageBase {
+  type: "hover";
+  rect: CanvasRect | null;
+}
+
+export interface PathItem {
+  label: string;
+  selector: string;
+  doanId?: string;
+}
+
+export interface SelectTarget {
+  rect: CanvasRect;
+  tag: string;
+  frame?: { id: string; title?: string; implements?: string };
+  // Position in `layout.frames`; absent past the 1,000 listed.
+  frameIndex?: number;
+  // Absent for a frame selection.
+  element?: SelectionElement;
+  path: PathItem[];
+  interactive?: "link" | "control";
+}
+
+export interface SelectMessage extends SelectionMessageBase {
+  type: "select";
+  // null: the script could not find the anchor it was asked for.
+  target: SelectTarget | null;
+}
+
+export interface ClearMessage extends SelectionMessageBase {
+  type: "clear";
+}
+
+export interface KeyMessage extends SelectionMessageBase {
+  type: "key";
+  key: "Escape";
+}
+
+export type SelectionMessage = HoverMessage | SelectMessage | ClearMessage | KeyMessage;
 
 export interface WheelMessage {
   type: "wheel";
@@ -37,7 +105,7 @@ export interface WheelMessage {
   y: number;
 }
 
-export type CanvasMessage = LayoutMessage | WheelMessage;
+export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -61,11 +129,122 @@ function clip(text: string): { text: string; cut: boolean } {
   return { text: text.slice(0, end), cut: true };
 }
 
+function seqValue(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function within(value: unknown, max: number): value is string {
+  return typeof value === "string" && value.length <= max;
+}
+
+function codePointsWithin(value: unknown, max: number): value is string {
+  if (typeof value !== "string") return false;
+  if (value.length <= max) return true;
+  // Each code point is one or two units, so over 2 × max units is always over.
+  if (value.length > max * 2) return false;
+  let count = 0;
+  for (const _ of value) if (++count > max) return false;
+  return true;
+}
+
+function parseRect(raw: unknown): CanvasRect | null {
+  if (!isRecord(raw)) return null;
+  const { x, y, width, height } = raw;
+  if (!finite(x) || !finite(y) || !nonNegative(width) || !nonNegative(height)) return null;
+  return { x, y, width, height };
+}
+
 export function parseCanvasMessage(data: unknown): CanvasMessage | null {
   if (!isRecord(data)) return null;
   if (data.type === "layout") return parseLayout(data);
   if (data.type === "wheel") return parseWheel(data);
+  if (data.type === "hover" || data.type === "select" || data.type === "clear" || data.type === "key") return parseSelectionMessage(data);
   return null;
+}
+
+function parseSelectionMessage(data: Record<string, unknown>): SelectionMessage | null {
+  const { type, href, seq, viewport } = data;
+  if (!within(href, MAX_HREF) || !seqValue(seq) || !nonNegative(viewport)) return null;
+  const base = { href, seq, viewport };
+  switch (type) {
+    case "clear": return { type, ...base };
+    case "key": return data.key === "Escape" ? { type, ...base, key: "Escape" } : null;
+    case "hover": {
+      if (data.rect === null) return { type, ...base, rect: null };
+      const rect = parseRect(data.rect);
+      return rect === null ? null : { type, ...base, rect };
+    }
+    case "select": {
+      if (data.target === null) return { type, ...base, target: null };
+      const target = parseTarget(data.target);
+      return target === null ? null : { type, ...base, target };
+    }
+    default: return null;
+  }
+}
+
+function parseTarget(raw: unknown): SelectTarget | null {
+  if (!isRecord(raw)) return null;
+  const rect = parseRect(raw.rect);
+  const { tag, frame, frameIndex, element, path, interactive } = raw;
+  if (rect === null || !within(tag, MAX_STRING) || !Array.isArray(path) || path.length > MAX_PATH) return null;
+  const target: SelectTarget = { rect, tag, path: [] };
+  for (const step of path) {
+    if (!isRecord(step) || !within(step.label, MAX_STRING) || !within(step.selector, MAX_SELECTOR)) return null;
+    const item: PathItem = { label: step.label, selector: step.selector };
+    if (step.doanId !== undefined) {
+      if (!within(step.doanId, MAX_STRING)) return null;
+      item.doanId = step.doanId;
+    }
+    target.path.push(item);
+  }
+  if (frame !== undefined) {
+    if (!isRecord(frame) || !within(frame.id, MAX_STRING)) return null;
+    const kept: NonNullable<SelectTarget["frame"]> = { id: frame.id };
+    if (frame.title !== undefined) {
+      if (!within(frame.title, MAX_STRING)) return null;
+      kept.title = frame.title;
+    }
+    if (frame.implements !== undefined) {
+      if (!within(frame.implements, MAX_VALUE)) return null;
+      kept.implements = frame.implements;
+    }
+    target.frame = kept;
+  }
+  if (frameIndex !== undefined) {
+    if (typeof frameIndex !== "number" || !Number.isInteger(frameIndex) || frameIndex < 0 || frameIndex >= MAX_FRAMES) return null;
+    target.frameIndex = frameIndex;
+  }
+  if (element !== undefined) {
+    const kept = parseElement(element);
+    if (kept === null) return null;
+    target.element = kept;
+  }
+  if (interactive !== undefined) {
+    if (interactive !== "link" && interactive !== "control") return null;
+    target.interactive = interactive;
+  }
+  return target;
+}
+
+function parseElement(raw: unknown): SelectionElement | null {
+  if (!isRecord(raw)) return null;
+  const { doanId, selector, html, truncated, text } = raw;
+  if (!within(selector, MAX_SELECTOR) || !codePointsWithin(html, MAX_HTML)) return null;
+  const element: SelectionElement = { selector, html };
+  if (doanId !== undefined) {
+    if (!within(doanId, MAX_STRING)) return null;
+    element.doanId = doanId;
+  }
+  if (truncated !== undefined) {
+    if (typeof truncated !== "boolean") return null;
+    element.truncated = truncated;
+  }
+  if (text !== undefined) {
+    if (!codePointsWithin(text, MAX_TEXT)) return null;
+    element.text = text;
+  }
+  return element;
 }
 
 function parseLayout(data: Record<string, unknown>): LayoutMessage | null {
@@ -82,7 +261,14 @@ function parseLayout(data: Record<string, unknown>): LayoutMessage | null {
     if (parsed.cut) truncated = true;
     kept.push(parsed.frame);
   }
-  return { type: "layout", href, height, viewport, frames: kept, truncated };
+  const parsed: LayoutMessage = { type: "layout", href, height, viewport, frames: kept, truncated };
+  if (data.selected !== undefined) {
+    const selected = data.selected === null ? null : parseRect(data.selected);
+    if ((data.selected !== null && selected === null) || !seqValue(data.seq)) return null;
+    parsed.seq = data.seq;
+    parsed.selected = selected;
+  }
+  return parsed;
 }
 
 function parseFrame(raw: unknown): { frame: CanvasFrameRect; cut: boolean } | null {

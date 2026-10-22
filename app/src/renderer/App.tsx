@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
+import type { Selection } from "../formats/types";
 import type { FolderEntry } from "../main/view";
 import type { ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
@@ -13,10 +14,14 @@ export function App() {
   const [state, setState] = useState(initialCanvasState);
   const viewport = useRef<HTMLDivElement>(null);
   const board = useRef<HTMLDivElement>(null);
+  const overlay = useRef<HTMLDivElement>(null);
   const controller = useRef<CanvasController | null>(null);
   useEffect(() => {
-    if (!viewport.current || !board.current) return;
-    const instance = new CanvasController(viewport.current, board.current, setState);
+    if (!viewport.current || !board.current || !overlay.current) return;
+    const sendSelection = (selection: Selection | null) => {
+      window.doan.setSelection(selection).catch((error: unknown) => console.error("selection:set failed", error));
+    };
+    const instance = new CanvasController(viewport.current, board.current, overlay.current, setState, sendSelection);
     controller.current = instance;
     const stopFolders = window.doan.onFolders(next => { setEntries(next); instance.updateEntries(next); });
     const stopCommands = window.doan.onViewCommand(name => instance.command(name));
@@ -28,8 +33,8 @@ export function App() {
   return <TooltipProvider><main className="app-shell">
     <TopBar state={state} name={name} reload={() => command("reload")} />
     <Sidebar entries={entries} names={names} state={state} open={(folder, row) => controller.current?.openCanvas(folder, row)} jump={index => controller.current?.jump(index)} />
-    <CanvasPane viewport={viewport} board={board} state={state} noProjects={entries.length === 0} command={command} />
-    <RightPanel state={state} />
+    <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} noProjects={entries.length === 0} command={command} />
+    <RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />
   </main></TooltipProvider>;
 }
 
@@ -44,15 +49,18 @@ function TopBar({ state, name, reload }: { state: CanvasState; name: string; rel
   </header>;
 }
 
-function CanvasPane({ viewport, board, state, noProjects, command }: {
-  viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>;
+function CanvasPane({ viewport, board, overlay, state, noProjects, command }: {
+  viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>;
   state: CanvasState; noProjects: boolean; command: (name: ViewCommand) => void;
 }) {
   return <section className="area" role="region" aria-label="Canvas" ref={viewport}>
     <div className="board" ref={board} hidden />
-    <div className="overlay" />
-    {state.error && <div className="canvas-notice" role="status">{state.error}</div>}
-    {state.unlisted && <div className="canvas-notice" role="status">This page is not a listed canvas</div>}
+    <div className="overlay" ref={overlay} />
+    <div className="canvas-notices">
+      {state.error && <div className="canvas-notice" role="status">{state.error}</div>}
+      {state.unlisted && <div className="canvas-notice" role="status">This page is not a listed canvas</div>}
+      {state.notice && <div className="canvas-notice" role="status">{state.notice}</div>}
+    </div>
     {state.status && <div className="canvas-status" role="status">
       {state.status === "empty" && noProjects ? <div className="empty"><b>No projects yet</b><p>Open a repo with Open Project… A repo without <code>.doan/</code> shows how to set it up.</p><button className="btn primary" onClick={() => void window.doan.openFolder()}>Open Project… <span className="kbd">⌘O</span></button></div>
         : state.status === "loading" ? <p><span className="spinner" aria-hidden="true" />Loading…</p>
