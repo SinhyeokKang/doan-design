@@ -14,7 +14,7 @@ All dimensions below are CSS pixels unless stated otherwise. Colors refer to `ap
 |---|---|---|
 | Window / shell | 1238 × 780; columns 240 / remaining width / 280; top bar 40 | Keeps project navigation and canvas information at the reference widths. |
 | Traffic lights (configuration) | `trafficLightPosition: { x: 12, y: 14 }`; getter returns the same | Makes the native-window configuration explicit and testable. This is not an on-screen measurement. |
-| Project and frame rows | Height 26; glyph width 12; text glyph height 16; canvas-row left padding 26 | Keeps navigation dense and text aligned. |
+| Project, canvas, and frame rows | Row height 26; glyph width 12; project glyph height 16, canvas glyph height 15.5 (fallback fonts differ by glyph); frame glyph height not measured; canvas-row left padding 26 | Keeps navigation dense and text aligned. |
 | Row typography | 12.5px, normal line height | Avoids additional vertical spacing from inherited CSS resets. |
 | Hints | Padding 2px 12px 6px 34px; 11.5px / 1.5; `--text-3` | Aligns project instructions under the name. Frame hints use 12px left padding. |
 | Project instruction code | `--text-2` on `--panel-2`, horizontal padding 4, radius 4 | Distinguishes the `doan init` instruction only where the draft draws a chip. |
@@ -54,4 +54,4 @@ The table records `textContent` for both sides of every pair so first-match sele
 
 ### Regression checks
 
-`app/e2e/runtime.ts` pins the hidden 18px spinner and loading text, emphasized no-width heading and unchanged full message, single disabled opacity, preflight line-height boundary, natural glyph height, id-less label color against the resolved token, hidden decorative glyphs in the real accessibility tree, and the plain-text frame hint. Each was observed failing with the relevant regression restored or fix removed. `app/src/main/index.test.ts` pins the window geometry and explicit traffic-light position, with a failing result observed before adding the option.
+`app/e2e/runtime.ts` pins the hidden 18px spinner and loading text, emphasized no-width heading and unchanged full message, single disabled opacity, preflight line-height boundary, natural project glyph height, id-less label color against the resolved token, hidden decorative glyphs in the real accessibility tree, and the plain-text frame hint. Each was observed failing with the relevant regression restored or fix removed. `app/src/main/index.test.ts` pins the window geometry and explicit traffic-light position, with a failing result observed before adding the option.
