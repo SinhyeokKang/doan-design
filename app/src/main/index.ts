@@ -123,7 +123,11 @@ function createWindow(): BrowserWindow {
   window.on("close", (event) => {
     if (quitting) return;
     event.preventDefault();
-    window.hide();
+    if (window.isFullScreen()) {
+      // macOS cannot hide the window until the fullscreen transition ends.
+      window.once("leave-full-screen", () => { if (!window.isDestroyed()) window.hide(); });
+      window.setFullScreen(false);
+    } else window.hide();
   });
   window.on("closed", () => {
     if (win === window) win = undefined;
