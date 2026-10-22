@@ -150,3 +150,25 @@ test("File menu opens the project picker and closes the window", async () => {
   Reflect.apply(close ?? (() => { throw new Error("no close handler"); }), undefined, []);
   expect(window().close).toHaveBeenCalledOnce();
 });
+
+
+test("ignores activate while startShell is pending before the first window", async () => {
+  vi.resetModules();
+  mocks.app.removeAllListeners();
+  mocks.Window.instances.length = 0;
+  mocks.ipc.clear();
+  let finish = (_shell: typeof mocks.shell): void => { throw new Error("pending shell did not start"); };
+  const pending = new Promise<typeof mocks.shell>((resolve) => { finish = resolve; });
+  mocks.startShell.mockReturnValueOnce(pending);
+  await import("./index");
+  await vi.waitFor(() => expect(mocks.startShell).toHaveBeenCalledTimes(2));
+
+  mocks.app.emit("activate");
+  expect(mocks.Window.instances).toHaveLength(0);
+  expect(mocks.dialog.showOpenDialog).not.toHaveBeenCalled();
+  expect(mocks.shell.dispose).not.toHaveBeenCalled();
+
+  finish(mocks.shell);
+  await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
+  expect(window().show).not.toHaveBeenCalled();
+});
