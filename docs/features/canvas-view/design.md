@@ -119,7 +119,7 @@ PRODUCT §6의 미통과 항목에 기댄다. 둘 다 task 0에서 먼저 돌린
   6. 선택: PoC 1 원래 기준인 클릭 선택과 하이라이트(#6 대비). 결과는 #6의 근거로 PRODUCT §6에 남긴다.
 - **PoC 3** (줌 중 핀 위치): 주입 스크립트가 보낸 요소 사각형에 overlay 층의 표식을 붙인다. 줌 · 팬 · 리로드 뒤에도 표식과 요소의 오차가 1px 이하인지 본다.
 
-### PoC 결과 (2026-10-22, 모두 통과)
+### PoC 결과 (2026-10-22, 항목 5만 설계 규칙대로는 실패)
 
 자세한 관찰은 PRODUCT §6에 있다. 뒤 배치가 따를 값과 주의점만 여기 적는다.
 
@@ -134,8 +134,13 @@ PRODUCT §6의 미통과 항목에 기댄다. 둘 다 task 0에서 먼저 돌린
 - **첫 `layout`은 동기로 보낸다**: iframe이 화면 밖에 있으면 rAF가 멈춰, rAF로 묶은 `layout`이 화면에 다시 보일 때까지 오지 않았다. 시작 시점의 `layout`과 `measure` 응답은 rAF를 거치지 않고 바로 보낸다.
 - **휠 delta**: iframe이 받는 `deltaX` · `deltaY`는 배율(0.25 · 1 · 4)과 관계없이 화면 px다. `wheelAction`에 그대로 넣고, 배율을 곱하거나 나누지 않는다. `clientX + scrollX`는 보드 좌표로 맞았다.
 - **메뉴 단축키**: 실제 OS 키 입력(System Events)으로는 iframe에 포커스가 있어도 동작했다. Playwright `keyboard.press`(CDP 합성 키)는 네이티브 메뉴에 닿지 않으므로, e2e는 main에서 메뉴 항목을 직접 실행해 확인한다.
-- **탐색과 `initiator`**: Electron 45의 `will-frame-navigate`는 `details.initiator`를 준다. 렌더러가 넣은 `src`의 initiator는 앱 메인 프레임(부모 없음)이고, 캔버스 안 링크의 initiator는 캔버스 프레임이다. 첫 탐색의 `details.frame.url`은 `about:blank`이고 부모는 창의 메인 프레임이다. 보안 절의 `about:blank` 규칙으로 충분하므로 initiator는 쓰지 않는다.
-  - 같은 iframe의 `src`를 다른 폴더 키로 바꾸면 거부된다. 그래서 흐름 1처럼 캔버스를 열 때마다 iframe을 새로 만든다.
+- **탐색과 `initiator` (재결정 필요)**: Electron 45의 `will-frame-navigate`는 `details.initiator`를 준다. 렌더러가 넣은 `src`의 initiator는 앱 메인 프레임(부모 없음)이고, 캔버스 안 링크의 initiator는 캔버스 프레임이다. 첫 탐색의 `details.frame.url`은 `about:blank`이고 부모는 창의 메인 프레임이다.
+  - 보안 절의 규칙("현재 URL이 `about:blank`면 토큰 경로 아래 허용")에는 구멍이 두 개 있었다.
+    - 캔버스가 스스로 `about:blank`로 이동하면(`location.href`, `target=_self` 링크) `will-frame-navigate`가 오지 않는다. 그 프레임에서 시작한 다른 폴더 키로의 탐색이 이 규칙으로 허용됐다(PoC에서는 Playwright가 그 문서에서 스크립트를 실행했다. 캔버스 내용만으로 그 문서에서 스크립트를 돌릴 수 있는지는 확인하지 못했다).
+    - CSP에 막힌 링크 뒤 main이 보는 프레임 URL은 막힌 URL(`https://example.com/`)이다. 그래서 같은 iframe에 `src`를 다시 넣는 리로드가 거부되고, 캔버스가 오류 페이지에 남았다.
+  - 시험한 대안: initiator가 창의 메인 프레임이고 새 URL이 토큰 경로 아래면 허용하고, 그 밖에는 토큰 URL에서 같은 폴더 키로 가는 탐색만 허용한다. 이 규칙에서는 두 구멍이 모두 막혔고, 나머지 사례는 결과가 같았다. 다른 점은 같은 iframe의 `src`를 다른 폴더 키로 바꾸는 것이 허용된다는 것뿐이다.
+  - 이 대안을 쓰면 `allowFrameNavigation(current, next, base)`에 "앱 메인 프레임이 시작했는지" 인자가 하나 늘어난다. 채택 여부는 사용자가 정한다.
+  - 어느 규칙이든 흐름 1처럼 캔버스를 열 때마다 iframe을 새로 만든다.
   - 다른 호스트 · `data:`로 가는 탐색은 렌더러 CSP `frame-src`가 먼저 막는다. 이때 `will-frame-navigate`는 오지 않고, 프레임은 `chrome-error://chromewebdata/`에 남아 주입도 `layout`도 없다. 렌더러는 첫 `layout` 대기(5초)로 이 상태를 처리한다. 해시 이동에는 `will-frame-navigate`가 오지 않는다.
 - **e2e 주의**: Playwright `boundingBox()`는 배율이 걸린 iframe 안 요소의 배율을 반영하지 않는다(배율 0.25에서 폭 120, 실제 30). iframe 안 요소의 화면 위치는 `layout` 좌표와 보드 transform으로 계산한다.
 
