@@ -89,10 +89,36 @@ test("inspects the canvas iframe and returns the rows", async () => {
   expect(result).toEqual({ ok: true, rows: inspectRows({ ...c3, ancestors: ["body", "html"] }) });
   expect(dbg.sent("DOM.querySelector")[0]).toEqual(["DOM.querySelector", { nodeId: 1, selector: "#c3" }, "S1"]);
   expect(dbg.sent("CSS.getMatchedStylesForNode")[0]?.[2]).toBe("S1");
-  // Domains are enabled once per session.
+});
+
+test("DOM and CSS are on only during a request", async () => {
+  // Left on, a canvas that mutates its DOM sent ~6,300 events/s to main (Fix 2 measurement).
+  const dbg = new FakeDebugger();
+  const inspector = createInspector(dbg, () => BASE);
+  dbg.target("S1", "iframe", { id: "F1", parentId: "MAIN", url: CANVAS });
   await inspector.inspect("#c3");
-  expect(dbg.sent("DOM.enable")).toHaveLength(1);
-  expect(dbg.sent("CSS.enable")).toHaveLength(1);
+  dbg.nodeId = 0;
+  await inspector.inspect("#none");
+  dbg.nodeId = 7;
+  dbg.fail = "CSS.getComputedStyleForNode";
+  await inspector.inspect("#c3");
+  const domain = dbg.calls.map(([method]) => method).filter((m) => /^(DOM|CSS)\.(enable|disable)$/.test(m));
+  expect(domain).toEqual(Array.from({ length: 3 }, () => ["DOM.enable", "CSS.enable", "CSS.disable", "DOM.disable"]).flat());
+  const last = dbg.calls.map(([method]) => method);
+  expect(last.lastIndexOf("CSS.getMatchedStylesForNode")).toBeLessThan(last.lastIndexOf("CSS.disable"));
+});
+
+test("overlapping requests run one after another", async () => {
+  const dbg = new FakeDebugger();
+  const inspector = createInspector(dbg, () => BASE);
+  dbg.target("S1", "iframe", { id: "F1", parentId: "MAIN", url: CANVAS });
+  const [first, second] = await Promise.all([inspector.inspect("#c3"), inspector.inspect("#c3")]);
+  expect(first).toMatchObject({ ok: true });
+  expect(second).toMatchObject({ ok: true });
+  const methods = dbg.calls.map(([method]) => method);
+  expect(methods.filter((m) => m === "DOM.disable")).toHaveLength(2);
+  // The second request enables only after the first has disabled.
+  expect(methods.indexOf("DOM.disable")).toBeLessThan(methods.lastIndexOf("DOM.enable"));
 });
 
 test("picks the window's canvas child, not other iframes or targets", async () => {
