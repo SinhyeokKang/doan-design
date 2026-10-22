@@ -294,6 +294,9 @@ describe("selection", () => {
       h.changed.mockClear();
       h.key("Alt");
       expect(h.markOf("hover")?.hidden).toBe(true);
+      h.host.dispatchEvent(Object.assign(new Event("keyup"), { key: "Alt" }));
+      expect(h.markOf("hover")?.hidden).toBe(false);
+      h.key("Alt");
       h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
       expect(h.markOf("hover")?.hidden).toBe(true);
       h.host.dispatchEvent(Object.assign(new Event("keyup"), { key: "Alt" }));
