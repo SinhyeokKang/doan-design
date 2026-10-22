@@ -277,3 +277,130 @@ test("a row's state is the worst of its longhands", () => {
   expect(states([{ name: "padding-top", value: "var(--a)" }, { name: "padding-left", value: "inherit" }])).toBe("unknown");
   expect(states([])).toBe("default");
 });
+
+test("logical properties map to their physical rows", () => {
+  const computed = { "--a": "1px", "--b": "2px", "--c": "red" };
+  const of = (decl: Decl, prop: string) => {
+    const found = longhandSource(input([rule(".a", [decl])], computed), prop);
+    return found.state === "token" ? found.token : found.state;
+  };
+  expect(of({ name: "inline-size", value: "var(--a)" }, "width")).toBe("--a");
+  expect(of({ name: "block-size", value: "var(--a)" }, "height")).toBe("--a");
+  expect(of({ name: "border-block-color", value: "var(--c) red" }, "border-top-color")).toBe("--c");
+  expect(of({ name: "border-block-color", value: "var(--c) red" }, "border-bottom-color")).toBe("hardcoded");
+  expect(of({ name: "border-inline-color", value: "red var(--c)" }, "border-right-color")).toBe("--c");
+  expect(of({ name: "border-inline-color", value: "red var(--c)" }, "border-left-color")).toBe("hardcoded");
+  expect(of({ name: "border-block", value: "1px solid var(--c)" }, "border-bottom-color")).toBe("--c");
+  expect(of({ name: "border-inline", value: "1px solid var(--c)" }, "border-left-color")).toBe("--c");
+  expect(of({ name: "border-block-start-color", value: "var(--c)" }, "border-top-color")).toBe("--c");
+  expect(of({ name: "border-start-start-radius", value: "var(--a)" }, "border-top-left-radius")).toBe("--a");
+  expect(of({ name: "border-start-end-radius", value: "var(--a)" }, "border-top-right-radius")).toBe("--a");
+  expect(of({ name: "border-end-end-radius", value: "var(--a)" }, "border-bottom-right-radius")).toBe("--a");
+  expect(of({ name: "border-end-start-radius", value: "var(--a)" }, "border-bottom-left-radius")).toBe("--a");
+});
+
+test("an author declaration doan does not map is unknown, never default", () => {
+  // `all` resets every row property.
+  for (const prop of ["color", "width", "padding-top", "border-top-color", "box-shadow"]) {
+    expect(longhandSource(input([rule(".a", [{ name: "all", value: "unset" }])], {}), prop).state, prop).toBe("unknown");
+  }
+  // Any other shorthand that CDP expands into a row longhand.
+  const unmapped = rule(".a", [{ name: "-webkit-border-radius", value: "var(--a)" }]);
+  unmapped.rule.style.cssProperties.push({ name: "border-top-left-radius", value: "" });
+  expect(longhandSource(input([unmapped], { "--a": "1px" }), "border-top-left-radius").state).toBe("unknown");
+  const listed = rule(".a", [{ name: "-webkit-border-before", value: "1px solid var(--c)" }]);
+  const first = listed.rule.style.cssProperties[0];
+  if (first) Object.assign(first, { longhandProperties: [{ name: "border-block-start-color", value: "" }] });
+  expect(longhandSource(input([listed], { "--c": "red" }), "border-top-color").state).toBe("unknown");
+  // A later mapped declaration still wins over an earlier unmapped one.
+  const later = rule(".a", [{ name: "all", value: "unset" }, { name: "color", value: "var(--c)" }]);
+  expect(longhandSource(input([later], { "--c": "red" }), "color")).toMatchObject({ state: "token", token: "--c" });
+  // Custom properties are not reset by `all`.
+  const chained = rule(":root", [{ name: "all", value: "unset" }, { name: "--c", value: "var(--d)" }]);
+  expect(longhandSource(input([rule(".a", [{ name: "color", value: "var(--c)" }]), chained], { "--c": "red", "--d": "red" }), "color").chain).toEqual(["--c", "--d"]);
+});
+
+test("values, tokens, chain entries and inheritedFrom are capped at 500 UTF-16 units", () => {
+  const long = "x".repeat(100_000);
+  const name = `--${long}`;
+  const other = `--y${long}`;
+  const rules = [rule(".a", [{ name: "font-family", value: `var(${name})` }]), rule(":root", [{ name, value: `var(${other})` }])];
+  const rows = inspectRows(input(rules, { [name]: long, [other]: long, "font-family": long }));
+  const family = row(rows, "Family");
+  expect(family.value).toHaveLength(500);
+  expect(family.value.endsWith("…")).toBe(true);
+  expect(family.token).toHaveLength(500);
+  expect(family.token?.startsWith("--xxx")).toBe(true);
+  for (const entry of family.chain ?? []) expect(entry.length).toBeLessThanOrEqual(500);
+  expect(family.chain).toHaveLength(2);
+  // Exactly 500 stays as it is.
+  const exact = "a".repeat(500);
+  expect(row(inspectRows(input([], { "font-family": exact })), "Family").value).toBe(exact);
+  // A surrogate pair at the cut is not split.
+  const astral = `${"a".repeat(498)}😀${"b".repeat(10)}`;
+  const cut = row(inspectRows(input([], { "font-family": astral })), "Family").value;
+  expect(cut).toBe(`${"a".repeat(498)}…`);
+  const tag = "t".repeat(600);
+  const inherited = input([], { color: "rgb(0, 0, 0)", "--c": "#000000" }, { ancestors: [tag, "html"] });
+  inherited.matched.inherited = [{ matchedCSSRules: [rule(tag, [{ name: "color", value: "var(--c)" }])] }, { matchedCSSRules: [] }];
+  expect(row(inspectRows(inherited), "Text").inheritedFrom).toHaveLength(500);
+});
+
+test("attribute styles sit above user-agent rules and below author rules", () => {
+  const ua = rule("td", [{ name: "background-color", value: "transparent" }], { origin: "user-agent" });
+  const attributes = { cssProperties: [{ name: "background-color", value: "red" }] };
+  expect(longhandSource(input([ua], {}, { matched: { matchedCSSRules: [ua], attributesStyle: attributes } }), "background-color")).toEqual({ state: "hardcoded" });
+  const author = rule(".a", [{ name: "background-color", value: "var(--c)" }]);
+  expect(longhandSource(input([], { "--c": "blue" }, { matched: { matchedCSSRules: [ua, author], attributesStyle: attributes } }), "background-color")).toMatchObject({ token: "--c" });
+});
+
+test("an important shorthand keeps its parts, and unparsed or disabled declarations are skipped", () => {
+  const computed = { "--a": "1px", "--b": "2px" };
+  const important = rule(".a", [{ name: "padding", value: "var(--a) var(--b)", important: true }]);
+  expect(longhandSource(input([important, rule("#b", [{ name: "padding-right", value: "9px" }])], computed), "padding-right")).toMatchObject({ token: "--b" });
+  const skipped = rule(".a", [{ name: "padding-top", value: "var(--a)" }, { name: "padding-top", value: "bogus" }, { name: "padding-top", value: "3px" }]);
+  const [, bogus, off] = skipped.rule.style.cssProperties;
+  if (bogus) Object.assign(bogus, { parsedOk: false });
+  if (off) Object.assign(off, { disabled: true });
+  expect(longhandSource(input([skipped], computed), "padding-top")).toMatchObject({ token: "--a" });
+});
+
+test("an inline important declaration beats a layered important one", () => {
+  const layered = rule(".a", [{ name: "color", value: "var(--a)", important: true }], { layers: ["base"] });
+  const found = input([layered], { "--a": "#000000", "--b": "#000000" });
+  found.matched.inlineStyle = { cssProperties: [{ name: "color", value: "var(--b) !important", important: true, text: "color: var(--b) !important" }] };
+  expect(longhandSource(found, "color")).toMatchObject({ token: "--b" });
+});
+
+test("a user-agent winner on the element is default even when an ancestor sets the property", () => {
+  const found = input([rule("button", [{ name: "color", value: "buttontext" }], { origin: "user-agent" })], { "--c": "#000000" });
+  found.matched.inherited = [{ matchedCSSRules: [rule(".p", [{ name: "color", value: "var(--c)" }])] }, { matchedCSSRules: [] }];
+  expect(longhandSource(found, "color")).toEqual({ state: "default" });
+});
+
+test("only the selectors that matched decide the hover state", () => {
+  const list = rule(".a, .a:hover", [{ name: "color", value: "var(--c)" }]);
+  list.rule.selectorList.selectors = [{ text: ".a" }, { text: ".a:hover" }];
+  expect(longhandSource(input([list], { "--c": "#000000" }), "color").hoverState).toBeUndefined();
+  list.matchingSelectors = [1];
+  expect(longhandSource(input([list], { "--c": "#000000" }), "color").hoverState).toBe(true);
+});
+
+test("a token chain continues from the ancestor that declared the inherited value", () => {
+  const found = input([], { "--c": "#000000", "--d": "#000000" });
+  found.matched.inherited = [
+    { matchedCSSRules: [rule(".p", [{ name: "color", value: "var(--c)" }, { name: "--c", value: "var(--d)" }])] },
+    { matchedCSSRules: [rule(":root", [{ name: "--c", value: "#111111" }])] },
+  ];
+  expect(longhandSource(found, "color")).toMatchObject({ token: "--c", chain: ["--c", "--d"], inheritedFrom: "body" });
+});
+
+test("a border row with some zero-width sides takes its state from the visible sides", () => {
+  const rules = [rule(".a", [{ name: "border-top-color", value: "var(--c)" }, { name: "border-left-color", value: "7px" }])];
+  const computed: Record<string, string> = { "--c": "#ff0000" };
+  for (const side of ["top", "right", "bottom", "left"]) {
+    computed[`border-${side}-color`] = side === "top" ? "rgb(255, 0, 0)" : "rgb(0, 0, 255)";
+    computed[`border-${side}-width`] = side === "top" || side === "bottom" ? "1px" : "0px";
+  }
+  expect(row(inspectRows(input(rules, computed)), "Border")).toMatchObject({ value: "#ff0000 — #0000ff", state: "token", token: "--c" });
+});

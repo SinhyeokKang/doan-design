@@ -19,6 +19,8 @@ class FakeDebugger extends EventEmitter implements DebuggerLike {
   frames = new Map<string | undefined, Frame>([[undefined, { id: "MAIN", url: "file:///app/index.html" }]]);
   nodeId = 7;
   hang = false;
+  styles: InspectInput | undefined = c3;
+  tree: object = { nodeId: 1, nodeType: 9, localName: "", children: [{ nodeId: 2, nodeType: 1, localName: "html", children: [{ nodeId: 3, nodeType: 1, localName: "body", children: [{ nodeId: 7, nodeType: 1, localName: "div" }] }] }] };
   fail: string | null = null;
   attach(): void {
     if (this.attachError) throw this.attachError;
@@ -38,13 +40,13 @@ class FakeDebugger extends EventEmitter implements DebuggerLike {
         return { frameTree: { frame } };
       }
       case "DOM.getDocument":
-        return { root: { nodeId: 1, nodeType: 9, localName: "", children: [{ nodeId: 2, nodeType: 1, localName: "html", children: [{ nodeId: 3, nodeType: 1, localName: "body", children: [{ nodeId: 7, nodeType: 1, localName: "div" }] }] }] } };
+        return { root: this.tree };
       case "DOM.querySelector":
         return { nodeId: this.nodeId };
       case "CSS.getMatchedStylesForNode":
-        return c3?.matched;
+        return this.styles?.matched;
       case "CSS.getComputedStyleForNode":
-        return { computedStyle: c3?.computed };
+        return { computedStyle: this.styles?.computed };
       default:
         return {};
     }
@@ -185,4 +187,32 @@ test("gives up after 2 seconds", async () => {
   expect(settled).toBe(false);
   await vi.advanceTimersByTimeAsync(1);
   expect(await result).toEqual({ ok: false, reason: "Inspecting took longer than 2 seconds." });
+});
+
+test("inheritedFrom names the ancestor from the document tree", async () => {
+  const c4 = (fixture as unknown as Record<string, InspectInput>)["#c4"];
+  const dbg = new FakeDebugger();
+  dbg.styles = c4;
+  // html > body > div.inh-parent > p > span#c4
+  const node = (nodeId: number, localName: string, children: object[] = []) => ({ nodeId, nodeType: 1, localName, children });
+  dbg.tree = { nodeId: 1, nodeType: 9, localName: "", children: [node(2, "html", [node(3, "body", [node(4, "div", [node(5, "p", [node(7, "span")])])])])] };
+  const inspector = createInspector(dbg, () => BASE);
+  dbg.target("S1", "iframe", { id: "F1", parentId: "MAIN", url: CANVAS });
+  const result = await inspector.inspect("#c4");
+  if (!result.ok) throw new Error(result.reason);
+  expect(result.rows.find((r) => r.label === "Text")).toMatchObject({ token: "--muted", inheritedFrom: "div" });
+  expect(dbg.sent("DOM.getDocument")[0]?.[1]).toEqual({ depth: -1 });
+});
+
+test("a failed attach is retried on the next request", async () => {
+  const dbg = new FakeDebugger();
+  dbg.attachError = new Error("Another debugger is already attached");
+  const inspector = createInspector(dbg, () => BASE);
+  expect(await inspector.inspect("#c3")).toEqual({ ok: false, reason: "The inspector could not attach to the window." });
+  dbg.attachError = null;
+  const pending = inspector.inspect("#c3");
+  await vi.waitFor(() => expect(dbg.sent("Target.setAutoAttach")).toHaveLength(1));
+  await pending;
+  dbg.target("S1", "iframe", { id: "F1", parentId: "MAIN", url: CANVAS });
+  expect(await inspector.inspect("#c3")).toMatchObject({ ok: true });
 });
