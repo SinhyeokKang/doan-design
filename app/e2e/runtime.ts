@@ -530,6 +530,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
     'Missing or invalid board width. Ask the agent to add <meta name="doan:width" content="1440"> to <head>. Run doan check in a terminal to verify.',
   );
   assert.equal(await page.$('[role="region"][aria-label="Canvas"] iframe'), null);
+  for (const name of ["Zoom out", "Zoom in", "Fit"]) assert.equal(await page.getByRole("button", { name, exact: true }).isDisabled(), true);
   await openCanvas(page, repos.canvas, "design/gone.html");
   await rm(join(repos.canvas, "design", "gone.html"));
   state = await waitView(page, (v) => v.status === "missing", "deleted canvas notice");
@@ -566,10 +567,12 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   state = await waitView(page, (v) => v.status === "failed", "failure state after 5 s without a layout");
   assert.equal(await page.getByRole("region", { name: "Canvas", exact: true }).getByRole("status").locator("b").textContent(), "Couldn’t load the canvas");
   assert.equal(state.boardShown, false);
+  assert.equal(state.updated, "");
   assert.deepEqual(await activityKinds(page), []);
   assert.ok(Date.now() > quietUntil);
   await page.getByRole("button", { name: "Reload", exact: true }).click();
   await waitLoaded(page, "canvas back after Reload");
+  assert.deepEqual(await activityKinds(page), ["Reloaded"]);
 
   // C9. Links inside the canvas.
   await openCanvas(page, repos.canvas, "design/long.html");
@@ -679,6 +682,7 @@ async function reopenObserved(page: Page, name: string, cli: string): Promise<vo
 }
 
 async function emptyControls(page: Page): Promise<void> {
+  assert.equal(await page.getByRole("status", { name: "Zoom", exact: true }).textContent(), "—");
   const panel = page.getByRole("region", { name: "Canvas info", exact: true });
   await panel.getByText("No canvas open", { exact: true }).waitFor();
   for (const name of ["Reload canvas", "Zoom out", "Zoom in", "Fit"]) assert.equal(await page.getByRole("button", { name, exact: true }).isDisabled(), true);
@@ -698,6 +702,9 @@ async function treeKeyboard(page: Page, folder: string): Promise<void> {
   await main.focus();
   await page.keyboard.press("ArrowDown");
   assert.deepEqual(await currentCanvases(page), before, "arrows only move focus");
+  await page.keyboard.press("ArrowUp");
+  assert.equal(await main.evaluate(node => node === document.activeElement), true, "ArrowUp returns focus");
+  assert.deepEqual(await currentCanvases(page), before, "ArrowUp does not open a canvas");
   await page.keyboard.press("ArrowLeft");
   assert.equal(await page.getByRole("treeitem", { name: "canvas", exact: true }).evaluate(node => node === document.activeElement), true);
   await page.keyboard.press("ArrowLeft");
@@ -707,6 +714,10 @@ async function treeKeyboard(page: Page, folder: string): Promise<void> {
   await main.focus();
   await page.keyboard.press("Enter");
   await waitLoaded(page, "Enter opens focused canvas");
+  const beforeSpace = (await activityKinds(page)).length;
+  await page.keyboard.press("Space");
+  await waitLoaded(page, "Space opens focused canvas");
+  await waitFor(async () => (await activityKinds(page)).length === beforeSpace + 1, "Space records a successful open");
   await writeFile(join(folder, "design", "keyboard.html"), canvasHtml("keyboard", 600, "", "<p>keyboard</p>"));
   await waitFolders(page, all => hasCanvas(all, folder, "design/keyboard.html"), "tree updated");
   assert.equal(await main.evaluate(node => node === document.activeElement), true, "list refresh preserves focus");
