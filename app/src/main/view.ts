@@ -14,7 +14,9 @@ export interface CanvasRow {
 
 export type FolderEntry = { path: string } & (
   | { kind: "loading" }
-  | { kind: "list"; canvases: CanvasRow[] }
+  // Bumped by the shell whenever a served file of the folder changed; the
+  // renderer reloads an open canvas on a new value. Only a list is served.
+  | { kind: "list"; canvases: CanvasRow[]; servedRev: number }
   | { kind: "uninitialized" }
   | { kind: "error"; message: string }
   | { kind: "cliError"; reason: string }
@@ -49,10 +51,10 @@ export function servingUrl(baseUrl: string, rel: string): string {
   return baseUrl + rel.split("/").map(encodeURIComponent).join("/");
 }
 
-export function folderEntry(path: string, view: FolderView, baseUrl: string): FolderEntry {
+export function folderEntry(path: string, view: FolderView, baseUrl: string, servedRev: number): FolderEntry {
   switch (view.kind) {
     case "list":
-      return { path, kind: "list", canvases: canvasRows(view.canvases, baseUrl) };
+      return { path, kind: "list", canvases: canvasRows(view.canvases, baseUrl), servedRev };
     case "error":
       return { path, kind: "error", message: view.message };
     case "cliError":

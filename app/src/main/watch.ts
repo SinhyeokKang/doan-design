@@ -1,48 +1,69 @@
 import { lstatSync, watch, type FSWatcher } from "node:fs";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 const DEBOUNCE_MS = 200;
 
+export interface Change {
+  // `design/` or `.doan/` changed, so `doan ls` has to run again.
+  reread: boolean;
+  // A served file changed (`design/`, `tokenCss`, `serve`), so an open canvas reloads.
+  served: boolean;
+}
+
+const REREAD: Change = { reread: true, served: false };
+const SERVED: Change = { reread: false, served: true };
+const BOTH: Change = { reread: true, served: true };
+
 export interface Refresher {
-  trigger(): void;
+  trigger(change: Change): void;
   close(): void;
 }
 
 export interface FolderWatch {
+  // The serving scope from the latest `doan ls`; called on every re-read.
+  setScope(scope: readonly string[]): void;
   close(): void;
 }
 
 // Debounces triggers into one run; a trigger during a run queues exactly one
 // more run after it, so `doan ls` never runs twice at once for a folder and
-// the last change is never missed.
-export function createRefresher(run: () => Promise<void>, delayMs = DEBOUNCE_MS): Refresher {
+// the last change is never missed. Flags pile up until a run takes them, so a
+// change that lands during a run reaches the run queued after it.
+export function createRefresher(run: (change: Change) => Promise<void>, delayMs = DEBOUNCE_MS): Refresher {
   let timer: NodeJS.Timeout | undefined;
   let running = false;
   let again = false;
   let closed = false;
+  let pending: Change = { reread: false, served: false };
 
+  const schedule = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => void start(), delayMs);
+  };
   const start = async () => {
     timer = undefined;
     running = true;
+    const change = pending;
+    pending = { reread: false, served: false };
     try {
-      await run();
+      await run(change);
     } catch (error) {
       console.error("doan: folder refresh failed", error);
     }
     running = false;
     if (again && !closed) {
       again = false;
-      trigger();
+      schedule();
     }
   };
-  const trigger = () => {
+  const trigger = (change: Change) => {
     if (closed) return;
+    pending = { reread: pending.reread || change.reread, served: pending.served || change.served };
     if (running) {
       again = true;
       return;
     }
-    clearTimeout(timer);
-    timer = setTimeout(() => void start(), delayMs);
+    schedule();
   };
   return {
     trigger,
@@ -56,38 +77,66 @@ export function createRefresher(run: () => Promise<void>, delayMs = DEBOUNCE_MS)
 interface Armed {
   watcher: FSWatcher;
   ino: number;
+  recursive: boolean;
 }
 
-// Watches only what `doan ls` reads: the root (non-recursive, to see `design`
-// and `.doan` come and go), `design/` (recursive), `.doan/` (config.json and
-// the `comments` directory) and `.doan/comments/`. A watcher on a deleted
-// directory stays on the old inode, so the sub-watchers are re-armed whenever
-// their parent changes.
-export function watchFolder(root: string, refresh: () => Promise<void>): FolderWatch {
+interface Target {
+  path: string;
+  recursive: boolean;
+  change: Change;
+  // For a served file: its directory is watched and only these names count.
+  names?: Set<string>;
+}
+
+// Watches what `doan ls` reads: the root (non-recursive, to see `design` and
+// `.doan` come and go), `design/` (recursive), `.doan/` (config.json and the
+// `comments` directory) and `.doan/comments/`; plus the served paths outside
+// `design/` from the latest scope. A watcher on a deleted directory stays on
+// the old inode, so the sub-watchers are re-armed whenever their parent changes.
+export function watchFolder(root: string, refresh: (change: Change) => Promise<void>): FolderWatch {
   const refresher = createRefresher(refresh);
   const armed = new Map<string, Armed>();
-  const targets = [
-    { path: join(root, "design"), recursive: true },
-    { path: join(root, ".doan"), recursive: false },
-    { path: join(root, ".doan", "comments"), recursive: false },
+  const fixed: Target[] = [
+    { path: join(root, "design"), recursive: true, change: BOTH },
+    { path: join(root, ".doan"), recursive: false, change: REREAD },
+    { path: join(root, ".doan", "comments"), recursive: false, change: REREAD },
   ];
+  let served: Target[] = [];
+  // Served files directly in the root go through the root watcher.
+  let rootNames = new Set<string>();
   let closed = false;
 
-  const onEvent = () => {
+  const targets = () => [...fixed, ...served];
+
+  const classify = (path: string, filename: string | null): Change | undefined => {
+    if (path === root) {
+      if (filename === null || filename === "design") return BOTH;
+      // Any other root event still re-reads: deleting the root itself arrives
+      // only as an event named after the root.
+      return rootNames.has(filename) ? SERVED : REREAD;
+    }
+    const target = targets().find((candidate) => candidate.path === path);
+    if (target === undefined) return undefined;
+    if (target.names && filename !== null && !target.names.has(filename)) return undefined;
+    return target.change;
+  };
+
+  const onEvent = (path: string, filename: string | null) => {
     if (closed) return;
     rearm();
-    refresher.trigger();
+    const change = classify(path, filename);
+    if (change) refresher.trigger(change);
   };
 
   const listen = (path: string, recursive: boolean): FSWatcher | undefined => {
     try {
-      const watcher = watch(path, { recursive }, onEvent);
+      const watcher = watch(path, { recursive }, (_event, filename) => onEvent(path, filename));
       // Removing the watched directory can surface as an error. A watcher that
       // errored is dead, so drop it and let the re-arm open a fresh one.
       watcher.on("error", () => {
         watcher.close();
         if (armed.get(path)?.watcher === watcher) armed.delete(path);
-        onEvent();
+        onEvent(path, null);
       });
       return watcher;
     } catch (error) {
@@ -100,7 +149,8 @@ export function watchFolder(root: string, refresh: () => Promise<void>): FolderW
   };
 
   const rearm = () => {
-    for (const { path, recursive } of targets) {
+    const wanted = targets();
+    for (const { path, recursive } of wanted) {
       let ino: number | undefined;
       // lstat: `doan ls` does not follow a symlinked `design/` or comments
       // directory, and a recursive watch through `design -> .` would cover the
@@ -112,12 +162,17 @@ export function watchFolder(root: string, refresh: () => Promise<void>): FolderW
         ino = undefined;
       }
       const current = armed.get(path);
-      if (current && current.ino === ino) continue;
+      if (current && current.ino === ino && current.recursive === recursive) continue;
       current?.watcher.close();
       armed.delete(path);
       if (ino === undefined) continue;
       const watcher = listen(path, recursive);
-      if (watcher) armed.set(path, { watcher, ino });
+      if (watcher) armed.set(path, { watcher, ino, recursive });
+    }
+    for (const [path, { watcher }] of armed) {
+      if (wanted.some((target) => target.path === path)) continue;
+      watcher.close();
+      armed.delete(path);
     }
   };
 
@@ -125,6 +180,11 @@ export function watchFolder(root: string, refresh: () => Promise<void>): FolderW
   rearm();
 
   return {
+    setScope(scope) {
+      if (closed) return;
+      ({ targets: served, rootNames } = servedTargets(root, scope));
+      rearm();
+    },
     close() {
       closed = true;
       refresher.close();
@@ -133,4 +193,45 @@ export function watchFolder(root: string, refresh: () => Promise<void>): FolderW
       armed.clear();
     },
   };
+}
+
+function inside(path: string, dir: string): boolean {
+  return path === dir || path.startsWith(dir + "/");
+}
+
+// Scope entries are real repo-relative paths, so a symlinked `design` shows up
+// by its real path and is watched here. `.doan/` never counts as served, or
+// every comment written would reload the canvas; `design/` already has its own
+// recursive watcher. A served file is watched through its directory because an
+// atomic save replaces the file and ends a watcher on the file itself.
+function servedTargets(root: string, scope: readonly string[]): { targets: Target[]; rootNames: Set<string> } {
+  const dirs: string[] = [];
+  const files: string[] = [];
+  for (const rel of scope) {
+    if (inside(rel, "design") || inside(rel, ".doan")) continue;
+    try {
+      const stat = lstatSync(join(root, rel));
+      if (stat.isDirectory()) dirs.push(rel);
+      else if (stat.isFile()) files.push(rel);
+    } catch {
+      // Gone since `doan ls`; the next read drops it from the scope.
+    }
+  }
+  const covered = (rel: string) => dirs.some((dir) => dir !== rel && inside(rel, dir));
+  const targets: Target[] = dirs.filter((dir) => !covered(dir)).map((dir) => ({ path: join(root, dir), recursive: true, change: SERVED }));
+  const rootNames = new Set<string>();
+  const parents = new Map<string, Set<string>>();
+  for (const file of files) {
+    if (covered(file)) continue;
+    const parent = dirname(file);
+    if (parent === ".") {
+      rootNames.add(file);
+      continue;
+    }
+    const names = parents.get(parent) ?? new Set<string>();
+    names.add(basename(file));
+    parents.set(parent, names);
+  }
+  for (const [parent, names] of parents) targets.push({ path: join(root, parent), recursive: false, change: SERVED, names });
+  return { targets, rootNames };
 }
