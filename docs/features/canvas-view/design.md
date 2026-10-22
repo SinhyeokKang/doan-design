@@ -58,11 +58,14 @@
 
 - **권한**: `session.setPermissionRequestHandler`(거부), `setPermissionCheckHandler`(`false`), `setDevicePermissionHandler`(`false`). Electron은 핸들러가 없으면 앱 자신의 메인 프레임에 권한을 허용한다. 캔버스 iframe은 Permissions Policy(opaque origin, `allow` 속성 없음) 때문에 핸들러에 닿기 전에 막힌다. 그래서 이 핸들러가 지키는 대상은 주로 앱 메인 프레임이고, 테스트도 앱 메인 프레임에서 한다.
 - **IPC 발신 프레임**: 기존 `event.sender === win.webContents` 확인은 그대로 두고, 발신 프레임이 그 창의 메인 프레임이라는 조건을 AND로 더한다. 비교는 `WebFrameMain` 객체 동일성(`===`) 대신 `senderFrame`이 있고 `parent === null`인지로 한다(프레임 교체나 `null` 때문에 객체 비교가 불안정할 수 있음). 판단은 순수 함수 `fromAppFrame`으로 떼어 낸다. 캔버스 iframe에는 preload가 없어 IPC를 보낼 수 없으므로, 이 확인은 e2e로 관찰할 수 없고 단위 테스트로 검증한다.
-- **탐색 제한**: `will-frame-navigate`에서, 부모가 앱 창의 메인 프레임인 프레임(캔버스 iframe)의 탐색만 제한한다. 외부 URL로 가는 탐색은 URL만으로는 캔버스 프레임인지 알 수 없으므로 프레임 관계로 판단한다. `details.frame`이 `null`이면 거부한다.
-  - 허용: 프레임의 현재 URL이 비어 있거나 `about:blank`(렌더러가 새 iframe에 넣는 첫 `src`)이고 새 URL이 토큰 경로 아래인 경우, 또는 새 URL이 현재 URL과 같은 `/t/<token>/<folder key>/` 아래인 경우.
-  - 그 밖은 거부한다(다른 폴더 키, 토큰 밖, 다른 호스트·포트, `data:` · `javascript:` 등). 판단은 순수 함수 `allowFrameNavigation(current, next, base)`로 떼어 낸다.
-  - 캔버스 안에 중첩된 iframe(손자 프레임, 예: 외부 임베드)은 제한하지 않는다(규약 9: 외부 리소스 허용).
-  - 렌더러가 새 iframe에 넣는 첫 `src`가 이 핸들러에서 허용되는지 PoC 1에서 확인한다. Electron 45에 탐색 시작 주체(`initiator`)를 알려 주는 값이 있으면 그것으로 대신할 수 있다.
+- **탐색 제한 (2026-10-22 사용자 결정: `initiator` 규칙)**: `will-frame-navigate`에서 캔버스 iframe의 탐색을 제한한다. 외부 URL로 가는 탐색은 URL만으로는 캔버스 프레임인지 알 수 없으므로 프레임 관계로 판단한다.
+  - 제한 대상은 닫힌 쪽으로 판단한다(fail closed). `details.frame`이 `null`이면 거부한다. 손자 프레임임이 증명된 경우(`frame.parent`가 있고 `frame.parent.parent`도 `null`이 아님)만 제한을 건너뛴다. 그 밖의 프레임은 부모가 `null`인 경우까지 모두 `allowFrameNavigation`을 거친다. `frame.parent === mainFrame` 같은 객체 비교로 대상을 고르면, 비교가 어긋날 때 캔버스 프레임이 손자로 취급되어 제한이 풀리기 때문이다.
+  - "앱 메인 프레임이 시작한 탐색"(`fromApp`)은 `details.initiator`가 있고 `initiator.parent === null`인 경우다. `fromAppFrame`과 같은 판단이고, 객체 동일성은 쓰지 않는다. 창은 팝업을 거부하므로 부모 없는 initiator는 그 창의 메인 프레임이다. initiator가 `null`이거나 없으면 앱이 시작하지 않은 것으로 본다.
+  - 허용: `fromApp`이고 새 URL이 토큰 경로 아래인 경우(폴더 키는 따지지 않는다). `fromApp`이 아니면, 현재 URL이 토큰 URL이고 새 URL이 그와 같은 `/t/<token>/<folder key>/` 아래인 경우만 허용한다.
+  - 그 밖은 거부한다(캔버스가 시작한 다른 폴더 키로의 탐색, 토큰 밖, 다른 호스트·포트, `data:` · `javascript:` 등). 판단은 순수 함수 `allowFrameNavigation(current, next, base, fromApp)`로 떼어 낸다.
+  - 증명된 손자 프레임(캔버스 안에 중첩된 iframe, 예: 외부 임베드)은 제한하지 않는다(규약 9: 외부 리소스 허용).
+  - 이 규칙에서는 같은 iframe의 `src`를 다른 폴더 키로 바꾸는 것도 허용된다. 그래도 흐름 1처럼 캔버스를 열 때마다 iframe을 새로 만든다.
+- **iframe `src`의 출처**: 렌더러는 iframe `src`를 `CanvasRow.url`로만 넣는다. `layout.href`나 그 밖에 캔버스가 보낸 값으로 `src`를 만들지 않는다. 앱 메인 프레임이 시작한 탐색은 폴더 키와 관계없이 허용되므로, 캔버스가 위조한 값으로 `src`를 넣으면 캔버스가 다른 폴더 키로 이동할 수 있기 때문이다.
 - **CSP**: 렌더러 CSP에 `frame-src http://127.0.0.1:*`를 더한다. 포트가 실행마다 바뀌기 때문에 포트를 고정할 수 없다.
 - **#7 메모**: 권한을 모두 거부하면 렌더러의 `navigator.clipboard.writeText`도 막힐 수 있다. #7의 문장 복사는 main의 `clipboard`를 IPC로 쓴다.
 
@@ -81,7 +84,7 @@
 | `acceptCanvasMessage(event, frameWindow)` | `app/src/renderer/canvasMessage.ts` | 흐름 5의 수신 조건(`source`, `origin === "null"`)을 통과하면 `parseCanvasMessage` 결과를, 아니면 `null`을 돌려준다. 변형 증명 대상 |
 | `canvasViewUpdate(prev, entries, open)` | `app/src/renderer/canvasView.ts` | 흐름 11의 결과(`reload` · `resize` · `clear(reason)` · `errorLine` · `none`) |
 | `canvasRows` (확장) | `app/src/main/view.ts` | `width`를 `doan ls` 값 그대로 싣는다(양의 안전 정수일 때만). meta를 TS에서 다시 파싱하지 않는다 |
-| `isCanvasFrame(url, base, parentIsMain)` · `allowFrameNavigation(current, next, base)` | `app/src/main/canvasFrame.ts` | 주입 대상과 탐색 허용 판단. `base`는 `http://127.0.0.1:<port>/t/<token>/` |
+| `isCanvasFrame(url, base, parentIsMain)` · `allowFrameNavigation(current, next, base, fromApp)` | `app/src/main/canvasFrame.ts` | 주입 대상과 탐색 허용 판단. `base`는 `http://127.0.0.1:<port>/t/<token>/`. `isCanvasFrame`의 `parentIsMain`은 부모가 있고 그 부모의 `parent`가 `null`인지다(객체 비교 아님). `fromApp`은 보안 절의 initiator 판단이다. 탐색 제한을 건너뛰는 것은 증명된 손자 프레임뿐이고, `parentIsMain`이 거짓이라는 이유만으로 건너뛰지 않는다(보안 절 '탐색 제한') |
 | `fromAppFrame(event, win)` | `app/src/main/canvasFrame.ts` | IPC 발신 확인(보안 절) |
 
 정할 값(구현 때 상수로 두고 테스트로 고정): 배율 범위 0.05–4, 버튼·메뉴 한 단계 1.25배, 휠 이벤트 한 번 상한 1.25배, 맞춤 여백 32px, 맞춤 · 프레임 점프 배율 상한 1, 팬 제한 없음, 첫 `layout` 대기 5초, 프레임 1,000개, 문자열 200자, 높이 초깃값 150px, 높이 상한 200,000px(PoC 1에서 정함. 측정 규칙은 'PoC 의존'의 'PoC 결과').
@@ -119,7 +122,7 @@ PRODUCT §6의 미통과 항목에 기댄다. 둘 다 task 0에서 먼저 돌린
   6. 선택: PoC 1 원래 기준인 클릭 선택과 하이라이트(#6 대비). 결과는 #6의 근거로 PRODUCT §6에 남긴다.
 - **PoC 3** (줌 중 핀 위치): 주입 스크립트가 보낸 요소 사각형에 overlay 층의 표식을 붙인다. 줌 · 팬 · 리로드 뒤에도 표식과 요소의 오차가 1px 이하인지 본다.
 
-### PoC 결과 (2026-10-22, 항목 5만 설계 규칙대로는 실패)
+### PoC 결과 (2026-10-22, 항목 5만 설계 규칙대로는 실패, `initiator` 규칙으로 통과)
 
 자세한 관찰은 PRODUCT §6에 있다. 뒤 배치가 따를 값과 주의점만 여기 적는다.
 
@@ -127,21 +130,35 @@ PRODUCT §6의 미통과 항목에 기댄다. 둘 다 task 0에서 먼저 돌린
 - **주입 스크립트 형태**: `executeJavaScript`는 코드 문자열을 받는다. PoC는 import나 바깥 변수를 쓰지 않는 함수 하나를 문자열로 읽어 `(${src})(opts); void 0;`로 감싸 실행했다. 실제 앱도 번들러가 바깥 참조를 끌어들이지 않도록 스크립트를 자기완결적으로 둔다. 스크립트는 캔버스의 main world에서 돈다. `WebFrameMain`에는 isolated world 실행이 없어서, 캔버스 스크립트가 주입 스크립트의 전역을 볼 수 있다(흐름 5의 위조 가능 전제와 같다).
 - **높이 측정 규칙**:
   - 렌더러는 `src`를 넣을 때마다(열기 · 리로드) iframe 높이를 150px로 초기화한다. 초기화하지 않으면 `min-height: 100vh` 캔버스는 이전 높이보다 줄어들 수 없다.
-  - 주입 스크립트는 `Math.ceil(document.documentElement.getBoundingClientRect().height)`를 `height`로 보낸다. `scrollHeight`는 뷰포트 높이 아래로 내려가지 않으므로 쓰지 않는다.
-  - 자기 리사이즈 직후(`innerHeight`가 직전에 보낸 높이 ±1로 바뀐 뒤)에도 문서가 `innerHeight` + 1보다 크면, 내용이 뷰포트를 따라 커지는 캔버스로 본다. 이 경우 그 로드 동안 직전 높이로 고정한다.
-  - 렌더러는 높이를 200,000px로 자른다. 200,000px 보드도 배율 0.05에서 렌더링됐고, 앱 전체 메모리는 약 45MB 늘었다.
-  - 한계: `height: calc(100vh + N)`처럼 고정점이 없는 캔버스는 첫 측정값에서 멈추고 아래가 잘린다(PoC에서 200px). 흐름 밖(absolute) 요소가 `html` 높이를 넘는 경우는 확인하지 않았다.
+  - 렌더러는 직전 `layout`과 `href`가 다른 `layout`이 와도 150px로 초기화한다. 캔버스 안 링크로 새 문서가 열린 경우다. 이 문서는 이전 높이를 물려받으므로, 초기화하지 않으면 위와 같은 문제가 생긴다. PoC는 링크 이동 뒤의 높이를 확인하지 않았다.
+  - 주입 스크립트는 `Math.ceil(document.documentElement.getBoundingClientRect().height)`를 `height`로 보낸다. `scrollHeight`는 쓰지 않는다. CSSOM 표준에서 `scrollHeight`는 `clientHeight`(뷰포트 높이)보다 작아지지 않기 때문이다. 이 근거는 표준 동작이고, PoC에서 따로 측정해 남기지 않았다.
+  - 고정: 자기 리사이즈 직후에도 문서가 `innerHeight` + 1보다 크면, 내용이 뷰포트를 따라 커지는 캔버스로 보고 직전 높이로 고정한다. "자기 리사이즈 직후"는 `innerHeight`가 직전에 보낸 높이 ±1로 바뀐 뒤다. `innerHeight`가 바뀌지 않았으면 고정하지 않는다.
+  - 고정은 그 문서가 끝날 때까지 풀리지 않는다. 다음 로드나 새 `href`로 인한 초기화(위)가 있어야 다시 잰다. 그 사이 늦게 뜬 이미지나 DOM 변경으로 생긴 증감은 반영하지 않는다.
+  - 높이 상한 200,000px는 렌더러가 건다. 주입 스크립트는 자르지 않은 값을 보낸다. 200,000px 보드도 배율 0.05에서 렌더링됐고, 앱 전체 메모리는 약 45MB 늘었다.
+  - 한계: `height: calc(100vh + N)`처럼 고정점이 없는 캔버스는 첫 측정값에서 멈추고 아래가 잘린다. PoC의 `calcvh`(hero `calc(100vh + 200px)` + 300px 프레임)는 650에 고정됐고, 문서는 1150이 되어 500px가 잘렸다. hero의 200px와 두 번째 프레임 300px 전체다. `min-height: 100vh` + `padding: 40px`도 580에 고정되어 아래 padding 80px가 잘렸다.
+  - 한계: 고정된 높이보다 아래에 있는 프레임도 `layout.frames`에는 나온다(위 `calcvh`의 두 번째 프레임은 y 850). 이 프레임으로 점프하면 아무것도 보이지 않는다. 렌더러가 이런 프레임을 어떻게 다룰지는 B4에서 정한다.
+  - 한계: 리사이즈와 다음 측정 사이에 다른 이유로 1px 넘게 자라면 보통 캔버스도 고정될 수 있다. 이 오판은 받아들인다.
+  - 흐름 밖(absolute) 요소가 `html` 높이를 넘는 경우는 확인하지 않았다.
 - **첫 `layout`은 동기로 보낸다**: iframe이 화면 밖에 있으면 rAF가 멈춰, rAF로 묶은 `layout`이 화면에 다시 보일 때까지 오지 않았다. 시작 시점의 `layout`과 `measure` 응답은 rAF를 거치지 않고 바로 보낸다.
-- **휠 delta**: iframe이 받는 `deltaX` · `deltaY`는 배율(0.25 · 1 · 4)과 관계없이 화면 px다. `wheelAction`에 그대로 넣고, 배율을 곱하거나 나누지 않는다. `clientX + scrollX`는 보드 좌표로 맞았다.
+- **휠 delta**: iframe이 받는 `deltaX` · `deltaY`는 배율(0.25 · 1 · 4)과 관계없이 화면 px다. `wheelAction`에 그대로 넣고, 배율을 곱하거나 나누지 않는다. `clientX + scrollX`는 배율 1에서 보드 좌표와 정확히 맞았다. `clientX`가 정수라서, 배율이 크면 보드 1px(화면에서는 배율만큼의 px)까지 어긋날 수 있다(배율 4에서 12.5 대신 12). 커서 기준 줌의 0 어긋남은 배율 1에서 1.25로 갈 때만 쟀다.
 - **메뉴 단축키**: 실제 OS 키 입력(System Events)으로는 iframe에 포커스가 있어도 동작했다. Playwright `keyboard.press`(CDP 합성 키)는 네이티브 메뉴에 닿지 않으므로, e2e는 main에서 메뉴 항목을 직접 실행해 확인한다.
-- **탐색과 `initiator` (재결정 필요)**: Electron 45의 `will-frame-navigate`는 `details.initiator`를 준다. 렌더러가 넣은 `src`의 initiator는 앱 메인 프레임(부모 없음)이고, 캔버스 안 링크의 initiator는 캔버스 프레임이다. 첫 탐색의 `details.frame.url`은 `about:blank`이고 부모는 창의 메인 프레임이다.
+  - 한계: Shift+1은 `!` 입력과 같은 키라서, 캔버스 안 입력란(나중에는 #7 코멘트 입력란)에 `!`를 칠 때 메뉴가 키를 가로챌 수 있다. PoC는 확인하지 않았다. B3에서 확인한다.
+- **탐색과 `initiator` (2026-10-22 사용자 결정: `initiator` 규칙 채택, 판단 방식은 보안 절 '탐색 제한')**: Electron 45의 `will-frame-navigate`는 `details.initiator`를 준다. 렌더러가 넣은 `src`의 initiator는 앱 메인 프레임(부모 없음)이고, 캔버스 안 링크의 initiator는 캔버스 프레임이다. 첫 탐색의 `details.frame.url`은 `about:blank`이고 부모는 창의 메인 프레임이다.
   - 보안 절의 규칙("현재 URL이 `about:blank`면 토큰 경로 아래 허용")에는 구멍이 두 개 있었다.
-    - 캔버스가 스스로 `about:blank`로 이동하면(`location.href`, `target=_self` 링크) `will-frame-navigate`가 오지 않는다. 그 프레임에서 시작한 다른 폴더 키로의 탐색이 이 규칙으로 허용됐다(PoC에서는 Playwright가 그 문서에서 스크립트를 실행했다. 캔버스 내용만으로 그 문서에서 스크립트를 돌릴 수 있는지는 확인하지 못했다).
+    - 캔버스가 스스로 `about:blank`로 이동하면(`location.href`, `target=_self` 링크) `will-frame-navigate`가 오지 않는다. 그 프레임에서 시작한 다른 폴더 키로의 탐색이 이 규칙으로 허용됐다. PoC에서는 Playwright가 그 문서에서 스크립트를 실행했다. 캔버스 내용만으로 그렇게 할 수 있는지는 확인하지 못했다.
     - CSP에 막힌 링크 뒤 main이 보는 프레임 URL은 막힌 URL(`https://example.com/`)이다. 그래서 같은 iframe에 `src`를 다시 넣는 리로드가 거부되고, 캔버스가 오류 페이지에 남았다.
-  - 시험한 대안: initiator가 창의 메인 프레임이고 새 URL이 토큰 경로 아래면 허용하고, 그 밖에는 토큰 URL에서 같은 폴더 키로 가는 탐색만 허용한다. 이 규칙에서는 두 구멍이 모두 막혔고, 나머지 사례는 결과가 같았다. 다른 점은 같은 iframe의 `src`를 다른 폴더 키로 바꾸는 것이 허용된다는 것뿐이다.
-  - 이 대안을 쓰면 `allowFrameNavigation(current, next, base)`에 "앱 메인 프레임이 시작했는지" 인자가 하나 늘어난다. 채택 여부는 사용자가 정한다.
-  - 어느 규칙이든 흐름 1처럼 캔버스를 열 때마다 iframe을 새로 만든다.
+  - 채택한 규칙: initiator가 창의 메인 프레임이고 새 URL이 토큰 경로 아래면 허용하고, 그 밖에는 토큰 URL에서 같은 폴더 키로 가는 탐색만 허용한다. 이 규칙에서는 두 구멍이 모두 막혔고, 나머지 사례는 결과가 같았다. 다른 점은 같은 iframe의 `src`를 다른 폴더 키로 바꾸는 것이 허용된다는 것뿐이다. 설계 규칙의 결과는 `results/t5-default.json`, 채택한 규칙의 결과는 `t5-app.json` · `t5c-app.json` · `t5d-app.json`에 있다(모두 `.scratch/poc1-canvas/`).
+  - PoC는 initiator를 `details.initiator === mainFrame` 객체 비교로 판단했다. 구현은 `fromAppFrame`처럼 `initiator.parent === null`로 판단한다(보안 절). `allowFrameNavigation`에는 이 값이 `fromApp` 인자로 들어간다.
+  - 흐름 1처럼 캔버스를 열 때마다 iframe을 새로 만든다.
   - 다른 호스트 · `data:`로 가는 탐색은 렌더러 CSP `frame-src`가 먼저 막는다. 이때 `will-frame-navigate`는 오지 않고, 프레임은 `chrome-error://chromewebdata/`에 남아 주입도 `layout`도 없다. 렌더러는 첫 `layout` 대기(5초)로 이 상태를 처리한다. 해시 이동에는 `will-frame-navigate`가 오지 않는다.
+- **PoC가 다루지 않은 경우**: 아래는 시험하지 않았다. B3 · B4가 테스트로 맡는다.
+  - `details.initiator`가 `null`이거나 없는 탐색(브라우저가 시작한 탐색, initiator 프레임이 이미 사라진 경우). 규칙상 앱이 시작하지 않은 것으로 본다.
+  - `details.frame === null`. 코드에서는 거부하지만 실제로 관찰하지 못했다.
+  - 손자 프레임: 손자가 `target=_parent`로 캔버스를 이동하려는 경우(물려받은 sandbox 탐색 플래그가 막을 것으로 본다), 손자가 `/t/<token>/<다른 폴더 키>/…`를 불러오는 경우(손자는 제한하지 않으므로 다른 폴더의 캔버스를 임베드할 수 있을 것으로 본다).
+  - 창 메인 프레임의 리로드, 렌더러 프로세스 재시작 뒤의 initiator 판단.
+  - 빠르게 이어지는 탐색. `details.frame.url`은 대기 중인 URL이 아니라 확정된 URL이다.
+  - 새 규칙에서도 캔버스가 스스로 `about:blank`로 이동할 수 있다(`will-frame-navigate`가 오지 않는다). 그러면 캔버스는 빈 화면에 낡은 프레임 목록이 남고 주입도 없다. `layout`이 이미 왔으므로 첫 `layout` 대기(5초)로도 잡히지 않는다. 이때 렌더러 상태는 B4에서 정한다.
+  - 캔버스가 자기 자신을 `javascript:` URL로 이동하는 경우(`will-frame-navigate`가 오지 않을 것으로 본다).
 - **e2e 주의**: Playwright `boundingBox()`는 배율이 걸린 iframe 안 요소의 배율을 반영하지 않는다(배율 0.25에서 폭 120, 실제 30). iframe 안 요소의 화면 위치는 `layout` 좌표와 보드 transform으로 계산한다.
 
 ## POSTMORTEM에서 가져온 함정
