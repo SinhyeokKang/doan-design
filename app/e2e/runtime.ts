@@ -20,6 +20,9 @@ const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const realFoldersJson = join(homedir(), "Library", "Application Support", "doan", "folders.json");
 const shotDir = join(repoRoot, ".scratch", "runtime-test", new Date().toISOString().replace(/[:.]/g, "-"));
 const WAIT_MS = 10_000;
+const CLOSE_MS = 5_000;
+// A passing run takes under a minute; this only ends a run that hangs.
+const RUN_MS = 300_000;
 
 interface CanvasView {
   path: string;
@@ -37,8 +40,23 @@ interface FolderView {
 }
 
 const shots: string[] = [];
+// The app being driven, for the watchdog.
+let running: ElectronApplication | undefined;
 
 async function main(): Promise<void> {
+  const watchdog = setTimeout(() => {
+    console.error(`runtime-test: FAIL\nno result after ${RUN_MS / 1000} s`);
+    running?.process().kill("SIGKILL");
+    process.exit(1);
+  }, RUN_MS);
+  try {
+    await runAll();
+  } finally {
+    clearTimeout(watchdog);
+  }
+}
+
+async function runAll(): Promise<void> {
   const before = await fingerprint(realFoldersJson);
   // realpath: macOS tmpdir is under /var -> /private/var, and the app stores real paths.
   const work = await realpath(await mkdtemp(join(tmpdir(), "doan-e2e-")));
@@ -128,6 +146,9 @@ const MAIN_HEIGHT = 3000;
 const SHRUNK_HEIGHT = 1200;
 const LONG_HEIGHT = 2500;
 const NEXT_HEIGHT = 300;
+const NARROW_WIDTH = 375;
+const VH_TALL = 3000;
+const VH_SHORT = 300;
 
 function canvasHtml(id: string, width: number | null, style: string, body: string): string {
   const meta = width === null ? "" : `<meta name="doan:width" content="${width}">`;
@@ -148,6 +169,10 @@ function mainCanvas(tall: boolean): string {
   return canvasHtml("main", 1200, style, body);
 }
 
+function vhCanvas(height: number): string {
+  return canvasHtml("vh", 1200, "body{min-height:100vh}", `<div data-doan-frame="vh" style="height:${height}px"></div>`);
+}
+
 async function makeCanvasRepo(repo: string): Promise<void> {
   await mkdir(join(repo, ".doan", "comments"), { recursive: true });
   await mkdir(join(repo, "design"));
@@ -155,7 +180,8 @@ async function makeCanvasRepo(repo: string): Promise<void> {
   await writeFile(join(repo, "tokens.css"), ":root{--space:8px}\n");
   const design = join(repo, "design");
   await writeFile(join(design, "main.html"), mainCanvas(true));
-  await writeFile(join(design, "narrow.html"), canvasHtml("narrow", 375, "", '<div data-doan-frame="only" style="height:600px"></div>'));
+  await writeFile(join(design, "vh.html"), vhCanvas(VH_TALL));
+  await writeFile(join(design, "narrow.html"), canvasHtml("narrow", NARROW_WIDTH, "", '<div data-doan-frame="only" style="height:600px"></div>'));
   await writeFile(join(design, "noframes.html"), canvasHtml("noframes", 800, "", '<div style="height:300px">no frames</div>'));
   await writeFile(join(design, "nowidth.html"), canvasHtml("nowidth", null, "", "<p>no width</p>"));
   await writeFile(join(design, "gone.html"), canvasHtml("gone", 800, "", '<div style="height:300px">deleted later</div>'));
@@ -263,8 +289,14 @@ async function run(cli: string, userData: string, repos: Repos): Promise<void> {
     await screenshot(page, "failure").catch(() => {});
     throw error;
   } finally {
-    await app.close().catch(() => {});
+    await close(app);
   }
+}
+
+// close() waits for the process to exit, which a stuck app never does.
+async function close(app: ElectronApplication): Promise<void> {
+  const closed = await Promise.race([app.close().then(() => true, () => true), sleep(CLOSE_MS).then(() => false)]);
+  if (!closed) app.process().kill("SIGKILL");
 }
 
 interface ViewState {
@@ -322,6 +354,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   assert.equal(loadingText, "불러오는 중…");
   let state = await waitLoaded(page, "main canvas shown");
   assert.deepEqual(await currentCanvases(page), [`${repos.canvas}\ndesign/main.html`]);
+  assert.equal(await page.getAttribute("#board iframe", "sandbox"), "allow-scripts");
 
   // C2. Width from doan:width; height is the content height.
   assert.equal(state.frameWidth, 1200);
@@ -335,7 +368,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await settledScreenshot(page, "3-canvas");
   await page.click(canvasButton(repos.canvas, "design/narrow.html"));
   state = await waitLoaded(page, "narrow canvas shown");
-  assertFit(state, 375);
+  assertFit(state, NARROW_WIDTH);
   assert.equal(state.scale, 1);
   await openCanvas(page, repos.canvas, "design/main.html");
   canvas = await canvasFrame(page);
@@ -455,6 +488,13 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   assert.ok(await marked(page), "no reload for a comment or another folder");
   assert.equal((await readView(page)).updated, afterTokens.updated);
 
+  // A 100vh canvas whose content shrinks: the replaced document, which sees the
+  // reset to 150 too, must not hand its old height to the new one.
+  await openCanvas(page, repos.canvas, "design/vh.html");
+  await waitView(page, (v) => Math.abs(v.frameHeight - VH_TALL) <= 1, "100vh canvas at its content height");
+  await writeFile(join(repos.canvas, "design", "vh.html"), vhCanvas(VH_SHORT));
+  await waitView(page, (v) => Math.abs(v.frameHeight - VH_SHORT) <= 1, "100vh canvas shrinks after a live reload");
+
   // C8. Screen states.
   await page.click(canvasButton(repos.canvas, "design/nowidth.html"));
   state = await waitView(page, (v) => v.status === "noWidth", "no-width notice");
@@ -484,6 +524,24 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await waitFor(async () => !(await marked(page)), "reload after the folder recovers");
   assert.equal((await waitLoaded(page, "canvas after recovery")).error, null);
 
+  // No layout within 5 s: the failure state, then 다시 읽기. The canvas
+  // swallows its own layouts until `quietUntil`, so the first load fails and
+  // the retry, at least 5 s later, loads.
+  const quietUntil = Date.now() + 4500;
+  await writeFile(
+    join(repos.canvas, "design", "quiet.html"),
+    canvasHtml("quiet", 800, "", `<script>if (Date.now() < ${quietUntil}) window.parent = { postMessage() {} };</script><div style="height:400px">quiet</div>`),
+  );
+  await waitFolders(page, (all) => hasCanvas(all, repos.canvas, "design/quiet.html"), "quiet canvas listed");
+  await page.click(canvasButton(repos.canvas, "design/quiet.html"));
+  assert.ok(Date.now() < quietUntil - 1000, "quiet canvas opened well before its quiet time ends");
+  state = await waitView(page, (v) => v.status === "failed", "failure state after 5 s without a layout");
+  assert.equal(await page.textContent("#canvas-status .canvas-message"), "캔버스를 불러오지 못했습니다");
+  assert.equal(state.boardShown, false);
+  assert.ok(Date.now() > quietUntil);
+  await page.click("#canvas-status button.retry");
+  await waitLoaded(page, "canvas back after 다시 읽기");
+
   // C9. Links inside the canvas.
   await openCanvas(page, repos.canvas, "design/long.html");
   state = await readView(page);
@@ -496,33 +554,46 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   assert.equal(state.unlisted, false);
   assert.equal(await canvasFrameUrl(app), url("design/next.html"));
 
-  const token = /^(http:\/\/127\.0\.0\.1:\d+\/t\/[^/]+)\//.exec(url("design/next.html"))?.[1] ?? assert.fail("token base");
+  // A link to a listed canvas makes it the open one: its width applies and
+  // reloads load it.
+  await clickLink(canvas, url("design/narrow.html"));
+  await waitFor(async () => sameList(await currentCanvases(page), [`${repos.canvas}\ndesign/narrow.html`]), "sidebar marks the linked narrow canvas");
+  await waitView(page, (v) => v.frameWidth === NARROW_WIDTH, "iframe width follows the linked canvas");
+
+  const token = /^(http:\/\/127\.0\.0\.1:\d+\/t\/[^/]+)\//.exec(url("design/narrow.html"))?.[1] ?? assert.fail("token base");
   const otherKey = byPath(await readFolders(page), repos.ok).canvases.find((c) => c.path === "design/login.html")?.url ?? assert.fail("other folder url");
-  assert.notEqual(otherKey.slice(0, otherKey.indexOf("/design/")), url("design/next.html").slice(0, url("design/next.html").indexOf("/design/")));
+  assert.notEqual(otherKey.slice(0, otherKey.indexOf("/design/")), url("design/narrow.html").slice(0, url("design/narrow.html").indexOf("/design/")));
   for (const target of [`${token}x/`, otherKey]) {
     await clickLink(canvas, target);
     await sleep(QUIET_MS);
-    assert.equal(await canvasFrameUrl(app), url("design/next.html"), `link to ${target} refused`);
+    assert.equal(await canvasFrameUrl(app), url("design/narrow.html"), `link to ${target} refused`);
   }
 
-  // A canvas that sent itself to about:blank still cannot leave its folder key.
+  // A canvas that sent itself to about:blank is a document without the canvas
+  // script, and it still cannot leave its folder key.
   await canvas.evaluate(() => {
     location.href = "about:blank";
   });
   await waitFor(async () => (await canvasFrameUrl(app)) === "about:blank", "canvas on about:blank");
+  await waitNoCanvasDocument(page, "about:blank shown as an unlisted document");
   await canvas.evaluate((target) => {
     location.href = target;
   }, otherKey);
   await sleep(QUIET_MS);
   assert.equal(await canvasFrameUrl(app), "about:blank", "about:blank to another folder key refused");
+  await menu(app, "캔버스 다시 읽기");
+  await waitFor(async () => (await canvasFrameUrl(app)) === url("design/narrow.html"), "reload after about:blank loads the linked canvas");
+  state = await waitLoaded(page, "canvas back after about:blank");
+  assert.equal(state.unlisted, false);
+  canvas = await canvasFrame(page);
 
   // A link blocked by the window's CSP leaves an error page; a reload brings the canvas back.
   await clickLink(canvas, "https://example.com/");
-  await sleep(QUIET_MS);
+  await waitNoCanvasDocument(page, "CSP-blocked link shown as an unlisted document");
   await menu(app, "캔버스 다시 읽기");
-  await waitFor(async () => (await canvasFrameUrl(app)) === url("design/long.html"), "reload after a blocked link");
+  await waitFor(async () => (await canvasFrameUrl(app)) === url("design/narrow.html"), "reload after a blocked link");
   state = await waitLoaded(page, "canvas back after reload");
-  await waitFor(async () => sameList(await currentCanvases(page), [`${repos.canvas}\ndesign/long.html`]), "mark back on the opened canvas");
+  await waitFor(async () => sameList(await currentCanvases(page), [`${repos.canvas}\ndesign/narrow.html`]), "mark back on the open canvas");
 
   // A forged layout moves only the display, never the iframe.
   // The canvas's next real layout hides the notice again within a frame, so
@@ -539,8 +610,8 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await canvas.evaluate((href) => parent.postMessage({ type: "layout", href, height: 500, viewport: innerHeight, frames: [], truncated: false }, "*"), otherKey);
   await waitFor(() => page.evaluate(() => (window as { doanSeenUnlisted?: { shown: boolean } }).doanSeenUnlisted?.shown === true), "forged href shown as an unlisted document");
   await sleep(QUIET_MS);
-  assert.equal(await canvasFrameUrl(app), url("design/long.html"), "forged layout did not navigate");
-  assert.equal(await page.getAttribute("#board iframe", "src"), url("design/long.html"));
+  assert.equal(await canvasFrameUrl(app), url("design/narrow.html"), "forged layout did not navigate");
+  assert.equal(await page.getAttribute("#board iframe", "src"), url("design/narrow.html"));
 
   // C10. Security on the app's own main frame.
   assert.equal(await page.evaluate(() => Notification.requestPermission()), "denied");
@@ -561,6 +632,11 @@ async function openCanvas(page: Page, folder: string, canvas: string): Promise<V
 
 async function waitLoaded(page: Page, what: string): Promise<ViewState> {
   return waitView(page, (v) => v.boardShown && v.status === "" && v.frameHeight !== 150, what);
+}
+
+// The unlisted line, no frame list and no sidebar mark.
+async function waitNoCanvasDocument(page: Page, what: string): Promise<void> {
+  await waitFor(async () => (await readView(page)).unlisted && (await frameButtons(page)).length === 0 && (await currentCanvases(page)).length === 0, what);
 }
 
 function readView(page: Page): Promise<ViewState> {
@@ -735,6 +811,7 @@ async function launch(cli: string, userData: string): Promise<{ app: ElectronApp
   // Chromium's --user-data-dir also moves Electron's userData, so folders.json
   // lands in the temp directory and the real one is never read or written.
   const app = await _electron.launch({ args: [appDir, `--user-data-dir=${userData}`], env });
+  running = app;
   const page = await app.firstWindow();
   assert.equal(await app.evaluate(({ app: electronApp }) => electronApp.getPath("userData")), userData);
   return { app, page };
@@ -798,7 +875,9 @@ async function waitFor(check: () => Promise<boolean>, what: string, detail: () =
   const deadline = Date.now() + WAIT_MS;
   for (;;) {
     try {
-      if (await check()) return;
+      // A check that never settles (a stuck renderer, a frame mid-navigation)
+      // must not outlive the deadline.
+      if (await Promise.race([check(), sleep(Math.max(0, deadline - Date.now())).then(() => false)])) return;
     } catch {
       // Not there yet (file not written, window reloading); retry until the deadline.
     }
