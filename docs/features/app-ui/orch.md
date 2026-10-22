@@ -23,6 +23,7 @@
 | 2026-10-22 | 캔버스가 열린 프로젝트가 uninitialized가 되면 notFound와 다른 문구를 쓴다: "The project <name> is not initialized. Run doan init in a terminal." | 사용자 — A 리뷰 🟡4: Reopen이 없는 행에 Reopen을 안내함 |
 | 2026-10-22 | CLI error 행의 칩은 "CLI error"로 둔다 | 지휘자 판단 — design.md '순수 함수'의 `projectRow` status에 "CLI error"가 따로 있다(A 리뷰 🟡1) |
 | 2026-10-22 | uninitialized는 `canvasViewUpdate`의 `clear` reason으로 따로 둔다. CLI error detail은 첫 글자만 대문자로 바꿔 초안과 맞춘다 | 지휘자 판단 — C 리뷰 🟡1 · 🟡2. 판단을 한 곳에 두고, 초안이 문구의 정본이다 |
+| 2026-10-22 | task 5의 한글 grep은 `--exclude='*.test.ts'`로 돌린다. 테스트의 한글은 비ASCII 경로 · 메시지를 검사하는 픽스처이므로 그대로 둔다 | 지휘자 판단 — 게이트의 목적은 화면 문구다. E 질문 |
 | 2026-10-22 | Codex 워커에게는 초안 경로와 `doan ls` · `doan check` 결과만 넘기고 초안을 말로 풀지 않는다 | tasks.md '진행' |
 
 ## 배치
