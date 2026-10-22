@@ -56,8 +56,12 @@
   - 다른 포트 · 다른 토큰 · `localhost` 호스트
   - 토큰 경로 접두어만 같은 URL(`/t/<token>x/`), 다른 폴더 키
   - `%2e%2e` · `/t/<token>/../`, userinfo URL(`http://127.0.0.1:<port>@evil/`)
-  - `about:blank`에서 첫 `src`(허용), `data:` · `javascript:`(거부)
-  - 손자 프레임(제한 대상 아님), `frame`이 `null`(거부)
+  - `allowFrameNavigation(current, next, base, fromApp)`는 design.md 보안 절 '탐색 제한'의 `initiator` 규칙(2026-10-22 사용자 결정)을 따른다.
+    - `fromApp`: `about:blank`에서 첫 `src`(허용), 같은 iframe의 `src`를 다른 폴더 키로 바꿈(허용), `about:blank` · `chrome-error://chromewebdata/` · CSP에 막힌 URL에서 다시 넣는 `src`(리로드, 허용), 토큰 밖 URL(거부)
+    - `fromApp` 아님: 캔버스가 시작한 다른 폴더 키로의 탐색(거부), `about:blank`에서 시작한 토큰 경로 탐색(거부), 같은 폴더 키(허용), `data:` · `javascript:`(거부)
+  - `fromApp` 판단: `initiator`가 `null` · `undefined`(앱 아님), `initiator.parent`가 `null`(앱), 부모 있는 initiator(앱 아님). 객체 동일성을 쓰지 않는다.
+  - 제한 대상 판단(닫힌 쪽 실패): 증명된 손자 프레임(`frame.parent`와 `frame.parent.parent`가 모두 있음)만 건너뜀, `frame.parent`가 `null`이면 제한함, `frame`이 `null`(거부)
+  - `isCanvasFrame`: 부모의 `parent`가 `null`일 때만 주입 대상, 손자 프레임은 주입하지 않음
   - `fromAppFrame`: 다른 webContents, 하위 프레임, `senderFrame`이 `null`
 - 검증: `npm --prefix app test` 통과.
 
@@ -107,9 +111,11 @@
 - 줌·팬: 두 휠 경로가 같은 `wheelAction`을 거친다. 메뉴 명령, 맞춤, 창 크기 변경(`resizeKeep`).
 - 프레임 목록과 점프(index, 점프 전 `measure`).
 - `canvasViewUpdate` 결과 적용, spec 완료 조건 10의 화면 상태와 문구, `layout.href`로 열린 캔버스 표시 바꾸기.
+- 높이: `src`를 넣을 때마다, 그리고 직전 `layout`과 `href`가 다른 `layout`이 올 때마다 iframe 높이를 150px로 초기화한다(design.md 'PoC 결과' 높이 측정 규칙). 상한 200,000px는 렌더러가 건다.
+- iframe `src`는 `CanvasRow.url`로만 넣는다. `layout.href` 등 캔버스가 보낸 값으로 `src`를 만들지 않는다(design.md 보안 'iframe `src`의 출처').
 - `<button>` · `aria-current` · `aria-label`, 다시 그린 뒤 표시와 포커스 복원. 캔버스 뷰는 사이드바 `replaceChildren` 트리 밖에 둔다.
 - 텍스트는 `textContent`로만 넣는다(프레임 제목은 에이전트가 쓴 값).
-- 검증: `npm --prefix app run typecheck` 통과, `npm --prefix app test` 통과. `grep -rn 'innerHTML\|insertAdjacentHTML' app/src/renderer`가 0건. 동작 확인은 task 7.
+- 검증: `npm --prefix app run typecheck` 통과, `npm --prefix app test` 통과. `grep -rn 'innerHTML\|insertAdjacentHTML' app/src/renderer`가 0건. iframe `src`에 값을 넣는 곳이 모두 `CanvasRow.url`에서 온다(`grep -rn '\.src\s*=' app/src/renderer`로 확인). 동작 확인은 task 7.
 
 ## 7. e2e 확장
 
@@ -135,7 +141,11 @@
    - 폴더 config를 깨면 오류 줄이 나오고 화면은 유지된다.
 9. 캔버스 안 링크:
    - 같은 폴더의 다른 캔버스로 가면 사이드바 표시가 바뀐다.
+   - 높이가 큰 캔버스에서 같은 폴더의 `min-height: 100vh` 캔버스로 링크 이동하면 높이가 그 캔버스의 콘텐츠 높이로 줄어든다(새 `href`로 인한 150px 초기화).
    - `http://127.0.0.1:<port>/t/<token>x/`(토큰 밖)와 다른 폴더 키로 가는 링크를 클릭한 뒤에도 iframe 프레임 URL이 원래 URL 그대로다.
+   - 캔버스가 스스로 `about:blank`로 이동한 뒤 다른 폴더 키로 가려 해도 거부된다.
+   - CSP에 막힌 링크로 프레임이 `chrome-error://chromewebdata/`에 남은 뒤, 리로드(같은 iframe에 `src`를 다시 넣음)하면 캔버스가 다시 뜬다.
+   - 캔버스가 위조한 `layout`(`href`가 다른 폴더 키)을 보내도 iframe 프레임 URL은 바뀌지 않는다.
 10. 보안:
     - 앱 메인 프레임에서 `Notification.requestPermission()`이 `"denied"`이고, `navigator.permissions.query({name: "geolocation"})`의 `state`가 `"denied"`다.
     - 빌드된 렌더러 CSP meta에 `frame-src http://127.0.0.1:*`가 있다.
@@ -147,11 +157,13 @@
 |---|---|
 | 권한 핸들러 3개 | e2e 단계 10 권한 |
 | `will-frame-navigate` 제한 | e2e 단계 9 토큰 밖 · 다른 폴더 키 |
+| `fromApp`의 `initiator` 조건(항상 참으로 바꿈) | e2e 단계 9 `about:blank` 뒤 다른 폴더 키, task 3 `allowFrameNavigation` 단위 테스트 |
+| 새 `href` 때 높이 초기화 | e2e 단계 9 링크 이동 뒤 높이 |
 | CSP `frame-src` 추가 | e2e 단계 10 CSP (지우면 iframe도 안 뜨므로 단계 1부터 실패) |
 | 렌더러 `event.source` 확인 | `canvasMessage`/렌더러 수신 단위 테스트 (수신 판단을 함수로 떼어 테스트) |
 | `fromAppFrame` 발신 프레임 조건 | task 3 `fromAppFrame` 단위 테스트 |
 
-- 검증: `npm --prefix app run e2e`가 `runtime-test: PASS`, exit 0. `/runtime-test` 스킬로 실행하고 스크린샷을 열어 본다. 변형 표의 다섯 줄이 모두 "실패 확인"으로 기록되어 있다.
+- 검증: `npm --prefix app run e2e`가 `runtime-test: PASS`, exit 0. `/runtime-test` 스킬로 실행하고 스크린샷을 열어 본다. 변형 표의 일곱 줄이 모두 "실패 확인"으로 기록되어 있다.
 
 ── commit (`feat(app): canvas view UI with zoom, pan and frame jumps`) ──
 
