@@ -84,7 +84,7 @@ interface Target {
   path: string;
   recursive: boolean;
   change: Change;
-  // For a served file: its directory is watched and only these names count.
+  // For served paths watched through their parent: only these names count.
   names?: Set<string>;
 }
 
@@ -150,7 +150,8 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
 
   const rearm = () => {
     const wanted = targets();
-    for (const { path, recursive } of wanted) {
+    for (const target of wanted) {
+      const { path, recursive } = target;
       let ino: number | undefined;
       // lstat: `doan ls` does not follow a symlinked `design/` or comments
       // directory, and a recursive watch through `design -> .` would cover the
@@ -163,6 +164,9 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
       }
       const current = armed.get(path);
       if (current && current.ino === ino && current.recursive === recursive) continue;
+      // A served path replaced or removed changed what is served, even when the
+      // event that got here was a root event classified as a re-read only.
+      if (current && current.ino !== ino && served.includes(target)) refresher.trigger(SERVED);
       current?.watcher.close();
       armed.delete(path);
       if (ino === undefined) continue;
@@ -218,19 +222,24 @@ function servedTargets(root: string, scope: readonly string[]): { targets: Targe
     }
   }
   const covered = (rel: string) => dirs.some((dir) => dir !== rel && inside(rel, dir));
-  const targets: Target[] = dirs.filter((dir) => !covered(dir)).map((dir) => ({ path: join(root, dir), recursive: true, change: SERVED }));
+  const top = dirs.filter((dir) => !covered(dir));
+  const targets: Target[] = top.map((dir) => ({ path: join(root, dir), recursive: true, change: SERVED }));
   const rootNames = new Set<string>();
   const parents = new Map<string, Set<string>>();
+  const watchParent = (rel: string) => {
+    const parent = dirname(rel);
+    const names = parents.get(parent) ?? new Set<string>();
+    names.add(basename(rel));
+    parents.set(parent, names);
+  };
+  // A served directory's parent is watched too: once the directory is deleted
+  // its own watcher is gone, and the parent is what sees it come back. The
+  // root watcher already does this for directories at the root.
+  for (const dir of top) if (dirname(dir) !== ".") watchParent(dir);
   for (const file of files) {
     if (covered(file)) continue;
-    const parent = dirname(file);
-    if (parent === ".") {
-      rootNames.add(file);
-      continue;
-    }
-    const names = parents.get(parent) ?? new Set<string>();
-    names.add(basename(file));
-    parents.set(parent, names);
+    if (dirname(file) === ".") rootNames.add(file);
+    else watchParent(file);
   }
   for (const [parent, names] of parents) targets.push({ path: join(root, parent), recursive: false, change: SERVED, names });
   return { targets, rootNames };
