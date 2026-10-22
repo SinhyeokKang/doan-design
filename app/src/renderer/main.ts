@@ -173,10 +173,11 @@ function openCanvas(folder: string, row: CanvasRow): void {
   load(row, true);
 }
 
-// Every load gets a new iframe. The replaced document lives on until the new
-// one commits and sees the reset to 150 too, so in the same iframe its late
-// layouts would pass for the new document's; in a new iframe
-// acceptCanvasMessage drops them by source. `fresh` (open) also fits the view
+// Every load gets a new iframe. In the same iframe the replaced document lives
+// on until the new one commits and sees the reset to 150 too, so its late
+// layouts would pass for the new document's. Removing the old iframe ends its
+// document, and acceptCanvasMessage drops by source any of its layouts still
+// in flight. `fresh` (open) also fits the view
 // and hides the board until the first height; otherwise (live reload, menu
 // reload, retry) the view and the board stay.
 function load(row: CanvasRow, fresh: boolean): void {
