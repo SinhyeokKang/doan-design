@@ -25,7 +25,7 @@
 | 2026-10-22 | uninitialized는 `canvasViewUpdate`의 `clear` reason으로 따로 둔다. CLI error detail은 첫 글자만 대문자로 바꿔 초안과 맞춘다 | 지휘자 판단 — C 리뷰 🟡1 · 🟡2. 판단을 한 곳에 두고, 초안이 문구의 정본이다 |
 | 2026-10-22 | task 5의 한글 grep은 `--exclude='*.test.ts'`로 돌린다. 테스트의 한글은 비ASCII 경로 · 메시지를 검사하는 픽스처이므로 그대로 둔다 | 지휘자 판단 — 게이트의 목적은 화면 문구다. E 질문 |
 | 2026-10-22 | 전체 화면에서 ⌘W를 누르면 전체 화면을 빠져나온 뒤 창을 숨긴다. E가 `app/src/main/index.ts`와 그 테스트를 이 수정에 한해 고친다 | 지휘자 판단 — spec 완료 조건 7. E의 e2e에서 전체 화면 창이 Close Window 뒤에도 보이는 것을 확인함(C 리뷰 ⚪1) |
-| 2026-10-22 | 모든 프로젝트 행에 ×를 둔다(Error · Not initialized 포함). 초안을 고친다 | 사용자 — E 리뷰: Reopen이 없는 두 행은 ×가 유일한 닫기 경로 |
+| 2026-10-22 | Error · Not initialized 행에도 ×를 둔다(Close 버튼이 없는 행). Not found · CLI error 행은 Reopen · Close 버튼만 둔다. 초안을 고친다 | 사용자 — E 리뷰: Reopen이 없는 두 행은 ×가 유일한 닫기 경로 |
 | 2026-10-22 | "Updated"는 열린 캔버스의 마지막 성공 load 시각(Activity 첫 항목)이다. 없으면 숨긴다 | 사용자 — E 리뷰 🟡5 |
 | 2026-10-22 | 의존성은 task 1 고정 표대로 둔다(shadcn devDependency, clsx · tailwind-merge · cva 포함). audit high 7건은 모두 dev 전용 shadcn CLI 체인이다(`--omit=dev` 0건) | 사용자 — E 리뷰 |
 | 2026-10-22 | 초안의 × 추가는 Claude 워커(Sonnet low)가 한다 | 지휘자 판단 — design.md 흐름 10: 초안은 Claude |
