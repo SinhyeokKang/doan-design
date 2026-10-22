@@ -60,7 +60,8 @@ Doan Design (`doan`): a tool where a coding agent writes an HTML canvas (a desig
 
 - `go test ./...` — Go tests, from the repo root.
 - `go vet ./...` — Go static checks, from the repo root.
-- `go run ./cli/cmd/doan <command> [--repo <path>] [--json]` — run the CLI by hand (2026-10-21 user, cli-core). Point `--repo` at a temporary directory, not this repo.
+- `go run ./cli/cmd/doan <command> [--repo <path>] [--json]` — run the CLI by hand (2026-10-21 user, cli-core). Point `--repo` at a temporary directory, not this repo. Exception: `/design-sync` runs the read-only `ls` and `check` with `--repo .` (2026-10-22).
+- `node .scratch/design-sync/<screen>/measure.mjs` — a `/design-sync` measurement script (Playwright `_electron`, temporary `--user-data-dir`, `DOAN_CLI`), modeled on `app/e2e/runtime.ts` (2026-10-22).
 - `npm --prefix app test` — TypeScript tests (`vitest run`).
 - `npm --prefix app run typecheck` — TypeScript checks (`tsc --noEmit`).
 - App setup (2026-10-21 user, app-shell): `npm --prefix app ci`, then `node -e "require('electron')"` from `app/` once to download the Electron binary (Electron 45 has no postinstall).
@@ -74,7 +75,7 @@ Doan Design (`doan`): a tool where a coding agent writes an HTML canvas (a desig
 
 ## Workflow (skill lineup)
 
-The source for the 10 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, ported the pipeline from malmoi `.claude/commands/` to fit doan — the deploy, DB, and translation stages were dropped).
+The source for the 11 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, ported the pipeline from malmoi `.claude/commands/` to fit doan — the deploy, DB, and translation stages were dropped).
 
 **Recommended flow**: `/feature` → (`/feature-review`) → `/tdd` → `/implement` → (`/runtime-test`) → `/code-review` → `/refactor` → (`/postmortem`) → push. A small change goes all the way to push with `/ship` alone; a large batch to split across several workers runs through `/orchestrate`.
 
@@ -82,6 +83,7 @@ The source for the 10 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, po
 - `/feature` is the starting point of a feature. Its output goes in `docs/features/<slug>/` (spec·design·tasks); when the feature is done, promote the conclusions to PRODUCT.md (product judgment) and ARCHITECTURE.md (structure, formats, conventions) and delete that directory.
 - `/code-review` refers to this repo's skill. It is different from Claude Code's built-in `code-review`.
 - `/runtime-test` (2026-10-21, app-shell) launches the real app and checks it; run it after `/implement` or `/refactor` whenever `app/` changed, before `/code-review`.
+- `/design-sync` (2026-10-22, after canvas-view) compares a doan app screen's first implementation with its draft canvas in `design/` by computed style in the real app. Use it from #6 on, inside a `/ship` or `/orchestrate` branch; the draft is the source of truth only until that screen's first implementation is on main.
 - If you fixed a regression or bug, run `/postmortem`. `/implement` · `/refactor` · `/code-review` grep `docs/POSTMORTEM.md` before starting (when the file exists).
 - `/ship` · `/orchestrate` always start by creating a `feat-<slug>` branch from main and end with a push of that branch + a PR. They do not merge.
 
@@ -94,7 +96,7 @@ The source for the 10 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, po
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | **Source of truth for structure**, in English — conventions (the baseline for skills and `doan check`) · formats · rendering · CLI↔app · MCP · skills · stack · distribution · moving between machines | When a structure, format, or conventions decision is made. When a feature is done, promote its conclusions here |
 | `docs/features/<slug>/` | Feature documents (spec·design·tasks) from `/feature`, **in Korean**. Deleted once the conclusions are promoted | While the feature is in progress |
 | docs/POSTMORTEM.md | Record of pitfalls from bugs and regressions (append only), in English. `/postmortem` creates it on first write | When a regression is fixed |
-| Documents to create later | `docs/DIRECTORY.md` (first code) · `docs/DESIGN.md` (when dogfooding starts, after feature 5) · `docs/OPERATIONS.md` (feature 8 `onboard-dist`) · `docs/CONTRIBUTING.md` · `docs/CODE_OF_CONDUCT.md` · `docs/SECURITY.md` (right before going public) · root `LICENSE` (when the license is decided). All in English | Create them when that time comes. Do not create empty shells ahead of time (2026-10-21 user) |
+| Documents to create later | `docs/DIRECTORY.md` (first code) · `docs/DESIGN.md` (the first `/design-sync` run creates it) · `docs/OPERATIONS.md` (feature 8 `onboard-dist`) · `docs/CONTRIBUTING.md` · `docs/CODE_OF_CONDUCT.md` · `docs/SECURITY.md` (right before going public) · root `LICENSE` (when the license is decided). All in English | Create them when that time comes. Do not create empty shells ahead of time (2026-10-21 user) |
 | [AGENTS.md](./AGENTS.md) | How we work (this file), in English — the shared source for both runtimes | When the way we work changes |
 
 ## Commit conventions
