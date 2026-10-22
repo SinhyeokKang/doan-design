@@ -1,0 +1,13 @@
+/* Colors of the example canvas drawn inside the app-shell draft. They stand for the
+   design a human reviews, not the app, so they stay out of the app tokens; doan check's
+   hardcoded_color warnings here are accepted. */
+
+:root {
+  --mock-bg: #ffffff;
+  --mock-ink: #111827;
+  --mock-ink-2: #6b7280;
+  --mock-line: #e5e7eb;
+  --mock-fill: #f3f4f6;
+  --mock-brand: #4f46e5;
+  --mock-brand-ink: #ffffff;
+}
