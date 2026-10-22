@@ -247,10 +247,20 @@ describe("canvasScriptSource", () => {
     canvas.ready();
     expect(canvas.posted).toEqual([
       {
-        message: { type: "layout", href: "http://127.0.0.1:4000/t/tok/key/design/a.html", height: 900, frames: [], truncated: false },
+        message: { type: "layout", href: "http://127.0.0.1:4000/t/tok/key/design/a.html", height: 900, viewport: 150, frames: [], truncated: false },
         origin: "*",
       },
     ]);
+  });
+
+  // The renderer drops heights measured before its last resize reached the canvas.
+  test("reports the viewport height each layout was measured at", () => {
+    const canvas = fakeCanvas();
+    canvas.ready();
+    canvas.context.innerHeight = 2500;
+    canvas.trigger("resize");
+    canvas.runFrame();
+    expect(canvas.posted.map((post) => (post as { message: { viewport: number } }).message.viewport)).toEqual([150, 2500]);
   });
 
   test("starts at once when injected after the document is parsed", () => {

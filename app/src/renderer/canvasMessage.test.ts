@@ -6,6 +6,7 @@ const layout = (over: Record<string, unknown> = {}) => ({
   type: "layout",
   href: "http://127.0.0.1:4000/t/tok/key/design/a.html",
   height: 2400,
+  viewport: 150,
   frames: [frame],
   truncated: false,
   ...over,
@@ -35,9 +36,17 @@ describe("parseCanvasMessage: layout", () => {
       type: "layout",
       href: "http://127.0.0.1:4000/t/tok/key/design/a.html",
       height: 2400,
+      viewport: 150,
       frames: [frame],
       truncated: false,
     });
+  });
+
+  test("rejects a viewport height that is missing, not finite or negative", () => {
+    for (const viewport of [undefined, null, "150", Number.NaN, Number.POSITIVE_INFINITY, -1]) {
+      expect(parseCanvasMessage(layout({ viewport }))).toBeNull();
+    }
+    expect(parseCanvasMessage(layout({ viewport: 0 }))).toHaveProperty("viewport", 0);
   });
 
   test("drops keys it does not know, at both levels", () => {

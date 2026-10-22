@@ -179,33 +179,55 @@ describe("canvasAtHref", () => {
 });
 
 describe("layoutHeight", () => {
-  const layout = (href: string, height: number) => ({ href, height });
+  const layout = (href: string, height: number, viewport: number) => ({ href, height, viewport });
   const a = `${base}design/a.html`;
+  const b = `${base}design/b.html`;
 
   test("uses the measured height of the document it loaded", () => {
-    expect(layoutHeight(null, 150, layout(a, 900))).toBe(900);
-    expect(layoutHeight(a, 900, layout(a, 640))).toBe(640);
+    expect(layoutHeight(null, 150, layout(a, 900, 150))).toBe(900);
+    expect(layoutHeight(a, 900, layout(a, 640, 900))).toBe(640);
   });
 
   test("caps the height", () => {
-    expect(layoutHeight(null, 150, layout(a, 500_000))).toBe(MAX_HEIGHT);
-    expect(layoutHeight(a, 150, layout(a, MAX_HEIGHT))).toBe(MAX_HEIGHT);
+    expect(layoutHeight(null, 150, layout(a, 500_000, 150))).toBe(MAX_HEIGHT);
+    expect(layoutHeight(a, 150, layout(a, MAX_HEIGHT, 150))).toBe(MAX_HEIGHT);
+    expect(layoutHeight(a, MAX_HEIGHT, layout(a, 300_000, MAX_HEIGHT))).toBe(MAX_HEIGHT);
+  });
+
+  // A layout posted before the canvas saw the last resize describes a viewport
+  // the iframe no longer has.
+  test("keeps the height when the layout was measured at another iframe height", () => {
+    expect(layoutHeight(a, 300, layout(a, 2500, 2500))).toBe(300);
+    expect(layoutHeight(null, 150, layout(a, 2500, 2500))).toBe(150);
+  });
+
+  test("allows 1px between the viewport and the iframe height", () => {
+    expect(layoutHeight(a, 300, layout(a, 640, 301))).toBe(640);
+    expect(layoutHeight(a, 300, layout(a, 640, 299))).toBe(640);
+    expect(layoutHeight(a, 300, layout(a, 640, 302))).toBe(300);
   });
 
   // A linked document inherits the iframe height and a 100vh canvas could not
   // shrink below it, so it is measured again from the initial height.
   test("resets for a new document", () => {
-    expect(layoutHeight(a, 2400, layout(`${base}design/b.html`, 2400))).toBe(INITIAL_HEIGHT);
+    expect(layoutHeight(a, 2400, layout(b, 2400, 2400))).toBe(INITIAL_HEIGHT);
+  });
+
+  // Seen in the app: the linked document posts again at the inherited
+  // viewport after the reset; only its layout at the initial height counts.
+  test("after a reset, waits for a layout measured at the initial height", () => {
+    expect(layoutHeight(b, INITIAL_HEIGHT, layout(b, 2400, 2400))).toBe(INITIAL_HEIGHT);
+    expect(layoutHeight(b, INITIAL_HEIGHT, layout(b, 300, INITIAL_HEIGHT))).toBe(300);
   });
 
   // Already at the initial height there is no resize to trigger another layout,
   // so this one is the measurement.
   test("takes a new document's height when the iframe is already at the initial height", () => {
-    expect(layoutHeight(a, INITIAL_HEIGHT, layout(`${base}design/b.html`, 700))).toBe(700);
+    expect(layoutHeight(a, INITIAL_HEIGHT, layout(b, 700, INITIAL_HEIGHT))).toBe(700);
   });
 
   test("does not reset for a hash change", () => {
-    expect(layoutHeight(a, 2400, layout(`${a}#second`, 2400))).toBe(2400);
+    expect(layoutHeight(a, 2400, layout(`${a}#second`, 2400, 2400))).toBe(2400);
   });
 });
 
