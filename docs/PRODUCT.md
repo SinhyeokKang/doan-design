@@ -352,6 +352,7 @@ Results:
 | 2026-10-22 | Tokens live in `app/src/renderer/tokens.css` (`:root` variables only), which `.doan/config.json` `tokenCss` names and the draft links; mock colors for drawn example canvases live in `design/mock.css` | User decision (app-ui) — draft and app share one token file, so `/design-sync` compares token names too |
 | 2026-10-22 | Codex workers implemented `app-ui` and ran `/design-sync`; Claude drew the draft and reviewed | User decision (app-ui) — test whether another agent can implement a Claude-drawn draft through doan alone |
 | 2026-10-22 | #6 `select-inspect`: Codex draws the draft, Claude Code implements and runs `/design-sync` (model crossing allowed for #6) | User decision (after app-ui) — the shared-guide goal must hold in both directions |
+| 2026-10-22 | `/design-draft` draws a feature's draft canvas from its feature documents, after `/feature-review` and before `/tdd`; drafts of shipped screens are not redrawn | User decision (skill and name); position recommended in the select-inspect `/feature` run — `/design-sync` compares only drawn states, and the review settles the state list |
 
 ## 8. Open questions
 
