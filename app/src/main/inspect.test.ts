@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { collapseBox, colorHex, inspectRows, longhandSource, type InspectInput, type InspectRow } from "./inspect";
+import { collapseBox, colorHex, inspectRows, longhandSource, type CdpProperty, type InspectInput, type InspectRow } from "./inspect";
 import fixture from "./inspect.fixture.json";
 
 // inspect.fixture.json is real CDP output (Electron 45, Chrome 156) for the
@@ -90,7 +90,7 @@ function rule(selector: string, decls: Decl[], options: { origin?: string; layer
       origin: options.origin ?? "regular",
       selectorList: { text: selector, selectors: [{ text: selector }] },
       layers: (options.layers ?? []).map((text) => ({ text })),
-      style: { cssProperties: authored, shorthandEntries: [] },
+      style: { cssProperties: authored as CdpProperty[], shorthandEntries: [] as { name: string; value: string }[] },
     },
   };
 }
@@ -119,6 +119,19 @@ test("within one block the last declaration wins unless an earlier one is import
   expect(longhandSource(input([later], computed), "padding-top")).toMatchObject({ token: "--y" });
   const important = rule(".a", [{ name: "padding-top", value: "var(--x)", important: true }, { name: "padding-top", value: "var(--y)" }]);
   expect(longhandSource(input([important], computed), "padding-top")).toMatchObject({ token: "--x" });
+});
+
+test("only authored declarations count when CDP also lists the expanded longhands", () => {
+  // `.a { padding: var(--x); padding-top: 3px }`: CDP appends the expanded
+  // longhands, with "" for the ones pending var() substitution.
+  const block = rule(".a", [{ name: "padding", value: "var(--x)" }, { name: "padding-top", value: "3px" }]);
+  block.rule.style.cssProperties.push(
+    { name: "padding-top", value: "" }, { name: "padding-right", value: "" }, { name: "padding-bottom", value: "" }, { name: "padding-left", value: "" },
+  );
+  block.rule.style.shorthandEntries = [{ name: "padding", value: "var(--x)" }];
+  const found = input([block], { "--x": "4px", "padding-top": "3px" });
+  expect(longhandSource(found, "padding-top")).toEqual({ state: "hardcoded" });
+  expect(longhandSource(found, "padding-left")).toMatchObject({ state: "token", token: "--x" });
 });
 
 test("important declarations in layers win in reverse layer order", () => {

@@ -119,6 +119,17 @@ test("prefers the newest canvas session and forgets detached ones", async () => 
   expect(await inspector.inspect("#c3")).toEqual({ ok: false, reason: "No canvas is loaded." });
 });
 
+test("ignores target events scoped to a child session", async () => {
+  const dbg = new FakeDebugger();
+  const inspector = createInspector(dbg, () => BASE);
+  dbg.target("S1", "iframe", { id: "F1", parentId: "MAIN", url: CANVAS });
+  dbg.emit("message", {}, "Target.detachedFromTarget", { sessionId: "S1" }, "S1");
+  dbg.frames.set("S9", { id: "F9", parentId: "MAIN", url: CANVAS });
+  dbg.emit("message", {}, "Target.attachedToTarget", { sessionId: "S9", targetInfo: { type: "iframe", url: "" } }, "S1");
+  await inspector.inspect("#c3");
+  expect(dbg.sent("DOM.querySelector").map(([, , session]) => session)).toEqual(["S1"]);
+});
+
 test("a reload of the same iframe keeps its session; the URL is read at request time", async () => {
   const dbg = new FakeDebugger();
   const inspector = createInspector(dbg, () => BASE);
@@ -135,14 +146,14 @@ test("re-attaches on the next request after a detach", async () => {
   dbg.target("S1", "iframe", { id: "F1", parentId: "MAIN", url: CANVAS });
   dbg.attached = false;
   dbg.emit("detach", {}, "target closed");
-  // Sessions from before the detach are gone; auto-attach reports them again.
-  const pending = inspector.inspect("#c3");
-  await vi.waitFor(() => expect(dbg.sent("Target.setAutoAttach")).toHaveLength(2));
-  dbg.target("S2", "iframe", { id: "F1", parentId: "MAIN", url: CANVAS });
-  expect(await pending).toMatchObject({ ok: false });
-  expect(await inspector.inspect("#c3")).toMatchObject({ ok: true });
-  expect(dbg.sent("DOM.querySelector").at(-1)?.[2]).toBe("S2");
+  // Sessions from before the detach are gone; the fake reports no targets on
+  // re-attach (Chromium would report the live ones again).
+  expect(await inspector.inspect("#c3")).toEqual({ ok: false, reason: "No canvas is loaded." });
   expect(dbg.attached).toBe(true);
+  expect(dbg.sent("Target.setAutoAttach")).toHaveLength(2);
+  dbg.target("S2", "iframe", { id: "F1", parentId: "MAIN", url: CANVAS });
+  expect(await inspector.inspect("#c3")).toMatchObject({ ok: true });
+  expect(dbg.sent("DOM.querySelector").map(([, , session]) => session)).toEqual(["S2"]);
 });
 
 test("fails closed: no match, a failing command, an attach error", async () => {
