@@ -1,0 +1,8 @@
+{
+  "v": 1,
+  "ok": false,
+  "error": {
+    "code": "bad_token",
+    "message": "m"
+  }
+}

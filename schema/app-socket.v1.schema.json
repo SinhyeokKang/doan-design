@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doan.design/schema/app-socket.v1.schema.json",
+  "$comment": "Messages on the app's local socket (one JSON line each way) and the selection the app keeps. Use the $defs; the root constrains nothing. maxLength counts code points in JSON Schema, so the 200-unit and 1,000-unit caps below (UTF-16 units in the renderer's parseCanvasMessage) are enforced here as code points, which is looser for astral characters; the renderer keeps the exact units. The text (500) and html (2,000) caps are code points in both places.",
+  "$defs": {
+    "request": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "token": {
+          "type": "string",
+          "$comment": "Not pattern-checked so a wrong token reaches the app's bad_token answer instead of bad_request."
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "root"
+      ],
+      "additionalProperties": false
+    },
+    "response": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 1
+            },
+            "ok": {
+              "const": true
+            },
+            "result": {
+              "type": "object",
+              "properties": {
+                "selection": {
+                  "$ref": "#/$defs/selection"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "ok",
+            "result"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 1
+            },
+            "ok": {
+              "const": false
+            },
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "enum": [
+                    "bad_token",
+                    "bad_request",
+                    "project_not_open"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "ok",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "selection": {
+      "type": "object",
+      "properties": {
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canvas": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "frame": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "element": {
+          "allOf": [
+            {
+              "$ref": "https://doan.design/schema/comment-event.v1.schema.json#/$defs/element"
+            },
+            {
+              "properties": {
+                "doanId": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "selector": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 500
+                }
+              },
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "required": [
+        "root",
+        "canvas"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doan.design/schema/runtime.v1.schema.json",
+  "$comment": "Written by the app to <userData>/runtime.json (0600) and read by the CLI. The file is per machine and never goes through git.",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "socket": {
+      "type": "string",
+      "pattern": "^/",
+      "$comment": "Absolute POSIX path; the app is macOS-only."
+    },
+    "token": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "required": [
+    "v",
+    "socket",
+    "token"
+  ],
+  "additionalProperties": false
+}

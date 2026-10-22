@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "ok": true,
+  "result": {
+    "selection": {
+      "root": "/Users/sam/code/app",
+      "canvas": {
+        "path": "design/settings.html",
+        "id": "settings"
+      },
+      "frame": {
+        "id": "main",
+        "title": "Main"
+      },
+      "element": {
+        "doanId": "save",
+        "selector": "button.primary",
+        "html": "<button>Save</button>",
+        "text": "Save",
+        "truncated": false
+      }
+    }
+  }
+}

@@ -1,11 +1,23 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { validateCommentEvent, validateConfig, validateEnvelope } from "./validate";
+import {
+  validateCommentEvent,
+  validateConfig,
+  validateEnvelope,
+  validateRuntimeFile,
+  validateSelection,
+  validateSocketRequest,
+  validateSocketResponse,
+} from "./validate";
 
 const groups = [
   { name: "comment-event", validate: validateCommentEvent },
   { name: "config", validate: validateConfig },
   { name: "cli-envelope", validate: validateEnvelope },
+  { name: "runtime", validate: validateRuntimeFile },
+  { name: "app-socket/request", validate: validateSocketRequest },
+  { name: "app-socket/response", validate: validateSocketResponse },
+  { name: "app-socket/selection", validate: validateSelection },
 ];
 
 for (const { name, validate } of groups) {
