@@ -149,6 +149,7 @@ The MVP is split into 8 features. One feature is one `/feature` run and is manag
 - Design drafts for the doan app UI are kept as canvases in this repo's `design/` (ARCHITECTURE §1 Conventions), and viewed and commented on in the doan app. Whether the implementation matches the design draft is compared via computed style (`/design-sync`, built 2026-10-22: `.agents/skills/design-sync/SKILL.md`).
 - Order: build doan's canvas features before UI design drafts are needed. #4 `app-shell` and #5 `canvas-view` are implemented with minimal UI and no design drafts, and once #5 is done, the `/design-sync` skill is built. From `app-ui` on (2026-10-22, was "from #6"), the design draft → implementation → comparison loop runs.
 - First run, `app-ui` (2026-10-22): Claude Code drew the draft and Codex workers implemented it and ran `/design-sync`; Claude reviewed (crossing the model boundary was allowed for this feature only). Codex read the draft as files (the canvas HTML and the shared `tokens.css`, plus `doan ls` / `doan check` output) and measured it in the real app; the draft was never paraphrased to it. First comparison table before any fix: 1,856 property rows, 248 raw mismatches (mostly font size, line height, color and padding, many caused by Tailwind preflight's inherited `line-height: 1.5`) and 2 missing elements (loading spinner, the no-width emphasis). After fixes every row matched or was documented (`docs/DESIGN.md`). The review still found a styled child the table had missed because only its container was paired (POSTMORTEM).
+- Next run, #6 `select-inspect` (2026-10-22 user): the roles swap — Codex draws the draft and Claude Code implements it and runs `/design-sync`. Crossing the model boundary is allowed for that feature. Why: app-ui showed a Claude-drawn draft works as a guide Codex can consume; the goal is a design guide shared between providers, so the other direction must hold too.
 - Why: apply the problem doan aims to solve (design drafts live outside the code, §1) to doan itself first to verify it. Standalone Claude Design shuts down on 2026-12-14, so a Malmoi-style handoff cannot be relied on.
 
 ### Deferred
@@ -350,6 +351,7 @@ Results:
 | 2026-10-22 | e2e reads elements and state by role, accessible name and ARIA state only, with no test-only attributes | User decision (app-ui) |
 | 2026-10-22 | Tokens live in `app/src/renderer/tokens.css` (`:root` variables only), which `.doan/config.json` `tokenCss` names and the draft links; mock colors for drawn example canvases live in `design/mock.css` | User decision (app-ui) — draft and app share one token file, so `/design-sync` compares token names too |
 | 2026-10-22 | Codex workers implemented `app-ui` and ran `/design-sync`; Claude drew the draft and reviewed | User decision (app-ui) — test whether another agent can implement a Claude-drawn draft through doan alone |
+| 2026-10-22 | #6 `select-inspect`: Codex draws the draft, Claude Code implements and runs `/design-sync` (model crossing allowed for #6) | User decision (after app-ui) — the shared-guide goal must hold in both directions |
 
 ## 8. Open questions
 
