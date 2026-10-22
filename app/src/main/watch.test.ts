@@ -1,8 +1,32 @@
-import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  watch as fsWatch,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, afterEach, describe, expect, test } from "vitest";
-import { createRefresher, watchFolder, type FolderWatch } from "./watch";
+import { afterAll, afterEach, describe, expect, test, vi } from "vitest";
+import { createRefresher, watchFolder, type Change, type FolderWatch } from "./watch";
+
+// Pass-through spy, so a test can see which paths got a watcher of their own;
+// it also counts raw events, so a test can wait until they stop.
+const raw = vi.hoisted(() => ({ events: 0 }));
+vi.mock("node:fs", async (importOriginal) => {
+  const fs = await importOriginal<typeof import("node:fs")>();
+  const watch = (path: string, options: { recursive: boolean }, listener: (event: string, filename: string | null) => void) =>
+    fs.watch(path, options, (event, filename) => {
+      raw.events++;
+      listener(event, filename);
+    });
+  return { ...fs, watch: vi.fn(watch) };
+});
 
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-watch-")));
 let count = 0;
@@ -15,6 +39,23 @@ afterEach(() => {
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+// Waits until neither a raw event nor a call has arrived for 300 ms (bounded).
+// A fixed sleep let a late FSEvents batch from setup slip into the next step,
+// and a raw event shows up before the debounced call it causes.
+async function settle(calls: () => number): Promise<void> {
+  const activity = () => raw.events + calls();
+  const deadline = Date.now() + 3_000;
+  let seen = activity();
+  let since = Date.now();
+  while (Date.now() < deadline && Date.now() - since < 300) {
+    await sleep(10);
+    if (activity() !== seen) {
+      seen = activity();
+      since = Date.now();
+    }
+  }
+}
 
 async function within(ms: number, done: () => boolean): Promise<boolean> {
   const deadline = Date.now() + ms;
@@ -46,7 +87,7 @@ async function watch(root: string): Promise<{ reads: () => number; reset: () => 
   open = watchFolder(root, async () => {
     reads++;
   });
-  await sleep(300);
+  await settle(() => reads);
   reads = 0;
   return { reads: () => reads, reset: () => (reads = 0) };
 }
@@ -56,7 +97,7 @@ async function expectReread(w: { reads: () => number; reset: () => void }, chang
   change();
   expect(await within(1_000, () => w.reads() >= 1)).toBe(true);
   // Let the debounce window pass so the next step starts clean.
-  await sleep(300);
+  await settle(w.reads);
 }
 
 describe("watchFolder re-reads within a second", () => {
@@ -134,17 +175,233 @@ describe("watchFolder", () => {
   });
 });
 
+const REREAD: Change = { reread: true, served: false };
+const SERVED: Change = { reread: false, served: true };
+const BOTH: Change = { reread: true, served: true };
+
+interface Recorder {
+  calls: () => Change[];
+  merged: () => Change;
+  reset: () => void;
+}
+
+// Starts watching with a serving scope as `doan ls` reports it, lets startup
+// events settle, then records what each re-read was asked to do.
+async function watchScope(root: string, scope: string[]): Promise<Recorder> {
+  let calls: Change[] = [];
+  open = watchFolder(root, async (change) => {
+    calls.push(change);
+  });
+  open.setScope(scope);
+  await settle(() => calls.length);
+  calls = [];
+  return {
+    calls: () => calls,
+    merged: () => ({ reread: calls.some((call) => call.reread), served: calls.some((call) => call.served) }),
+    reset: () => (calls = []),
+  };
+}
+
+async function expectChange(w: Recorder, change: () => void, expected: Change): Promise<void> {
+  w.reset();
+  change();
+  expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
+  await settle(() => w.calls().length);
+  expect(w.merged()).toEqual(expected);
+}
+
+async function expectQuiet(w: Recorder, change: () => void): Promise<void> {
+  await settle(() => w.calls().length);
+  w.reset();
+  change();
+  await sleep(600);
+  expect(w.calls()).toEqual([]);
+}
+
+// Editors save by writing a temporary file and renaming it over the target.
+function atomicSave(path: string, content: string): void {
+  writeFileSync(`${path}.tmp-save`, content);
+  renameSync(`${path}.tmp-save`, path);
+}
+
+function watchedPaths(): string[] {
+  return vi.mocked(fsWatch).mock.calls.map(([path]) => String(path));
+}
+
+function recursivePaths(): string[] {
+  return vi.mocked(fsWatch).mock.calls.flatMap((call: unknown[]) => {
+    const [path, options] = call;
+    const recursive = typeof options === "object" && options !== null && "recursive" in options && options.recursive === true;
+    return recursive ? [String(path)] : [];
+  });
+}
+
+describe("watchFolder classifies changes", () => {
+  test("a design/ change needs a re-read and is a served change", async () => {
+    const root = repo();
+    const w = await watchScope(root, ["design"]);
+    await expectChange(w, () => writeFileSync(join(root, "design", "b.html"), ""), BOTH);
+  });
+
+  test("a .doan/ change only needs a re-read", async () => {
+    const root = repo();
+    const w = await watchScope(root, ["design"]);
+    await expectChange(w, () => writeFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n"), REREAD);
+    await expectChange(w, () => writeFileSync(join(root, ".doan", "config.json"), '{"v":1,"serve":[]}'), REREAD);
+  });
+
+  // Writing a comment must not reload the canvas, even when `serve` points into `.doan`.
+  test("a .doan/ change is never served, even with .doan in scope", async () => {
+    const root = repo();
+    vi.mocked(fsWatch).mockClear();
+    const w = await watchScope(root, [".doan", ".doan/config.json", "design"]);
+    expect(recursivePaths().filter((path) => path.startsWith(join(root, ".doan")))).toEqual([]);
+    await expectChange(w, () => writeFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n"), REREAD);
+    await expectChange(w, () => writeFileSync(join(root, ".doan", "config.json"), '{"v":1,"serve":[".doan"]}'), REREAD);
+  });
+
+  test("an atomic save of a tokenCss file is served without a re-read, every time", async () => {
+    const root = repo();
+    mkdirSync(join(root, "styles"));
+    writeFileSync(join(root, "styles", "tokens.css"), "a{}");
+    const w = await watchScope(root, ["design", "styles/tokens.css"]);
+    await expectChange(w, () => atomicSave(join(root, "styles", "tokens.css"), "b{}"), SERVED);
+    await expectChange(w, () => atomicSave(join(root, "styles", "tokens.css"), "c{}"), SERVED);
+  });
+
+  // The temporary file of an atomic save at the root is an unknown root name,
+  // which re-reads like any other root event (the root's own deletion is one).
+  test("a tokenCss file at the repo root is served", async () => {
+    const root = repo();
+    writeFileSync(join(root, "tokens.css"), "a{}");
+    const w = await watchScope(root, ["design", "tokens.css"]);
+    await expectChange(w, () => writeFileSync(join(root, "tokens.css"), "b{}"), SERVED);
+    await expectChange(w, () => atomicSave(join(root, "tokens.css"), "c{}"), BOTH);
+  });
+
+  test("a sibling of a served file is ignored", async () => {
+    const root = repo();
+    mkdirSync(join(root, "styles"));
+    writeFileSync(join(root, "styles", "tokens.css"), "a{}");
+    const w = await watchScope(root, ["design", "styles/tokens.css"]);
+    await expectQuiet(w, () => writeFileSync(join(root, "styles", "other.css"), "x{}"));
+  });
+
+  test("a served directory is watched recursively", async () => {
+    const root = repo();
+    mkdirSync(join(root, "assets", "img"), { recursive: true });
+    const w = await watchScope(root, ["assets", "design"]);
+    await expectChange(w, () => writeFileSync(join(root, "assets", "img", "x.svg"), "<svg/>"), SERVED);
+  });
+
+  // A build step that wipes its output directory replaces it in one burst.
+  test("a served directory at the root that is replaced is a served change", async () => {
+    const root = repo();
+    mkdirSync(join(root, "dist"));
+    writeFileSync(join(root, "dist", "a.css"), "a{}");
+    const w = await watchScope(root, ["design", "dist"]);
+    await expectChange(w, () => {
+      rmSync(join(root, "dist"), { recursive: true });
+      mkdirSync(join(root, "dist"));
+      writeFileSync(join(root, "dist", "a.css"), "b{}");
+    }, BOTH);
+  });
+
+  test("a nested served directory deleted and created again is watched again", async () => {
+    const root = repo();
+    mkdirSync(join(root, "web", "dist"), { recursive: true });
+    writeFileSync(join(root, "web", "dist", "a.css"), "a{}");
+    const w = await watchScope(root, ["design", "web/dist"]);
+    await expectChange(w, () => rmSync(join(root, "web", "dist"), { recursive: true }), SERVED);
+    await expectChange(w, () => {
+      mkdirSync(join(root, "web", "dist"));
+      writeFileSync(join(root, "web", "dist", "a.css"), "b{}");
+    }, SERVED);
+    await expectChange(w, () => writeFileSync(join(root, "web", "dist", "a.css"), "c{}"), SERVED);
+  });
+
+  test("a path that leaves the scope is no longer watched", async () => {
+    const root = repo();
+    mkdirSync(join(root, "assets"));
+    mkdirSync(join(root, "styles"));
+    writeFileSync(join(root, "styles", "tokens.css"), "a{}");
+    const w = await watchScope(root, ["assets", "design", "styles/tokens.css"]);
+    open?.setScope(["design"]);
+    await expectQuiet(w, () => {
+      writeFileSync(join(root, "assets", "x.css"), "x{}");
+      atomicSave(join(root, "styles", "tokens.css"), "b{}");
+    });
+  });
+
+  test("a path that joins the scope on a later read is watched from then on", async () => {
+    const root = repo();
+    mkdirSync(join(root, "assets"));
+    const w = await watchScope(root, ["design"]);
+    await expectQuiet(w, () => writeFileSync(join(root, "assets", "x.css"), "x{}"));
+    open?.setScope(["assets", "design"]);
+    await settle(() => w.calls().length);
+    await expectChange(w, () => writeFileSync(join(root, "assets", "y.css"), "y{}"), SERVED);
+  });
+
+  test("a serve path inside design/ gets no watcher of its own", async () => {
+    const root = repo();
+    mkdirSync(join(root, "design", "assets"));
+    vi.mocked(fsWatch).mockClear();
+    const w = await watchScope(root, ["design", "design/assets"]);
+    expect(watchedPaths()).not.toContain(join(root, "design", "assets"));
+    await expectChange(w, () => writeFileSync(join(root, "design", "assets", "x.css"), "x{}"), BOTH);
+  });
+
+  // `doan ls` reports a symlinked `design` by its real path, and the root
+  // watcher skips the symlink itself.
+  test("a symlinked design/ is watched recursively through its real path", async () => {
+    const root = repo({ design: false });
+    mkdirSync(join(root, "docs", "design", "sub"), { recursive: true });
+    symlinkSync(join("docs", "design"), join(root, "design"));
+    vi.mocked(fsWatch).mockClear();
+    const w = await watchScope(root, ["docs/design"]);
+    expect(watchedPaths()).not.toContain(join(root, "design"));
+    await expectChange(w, () => writeFileSync(join(root, "docs", "design", "sub", "a.html"), ""), SERVED);
+  });
+
+  test("design/ and a served file changing together make one call with both flags", async () => {
+    const root = repo();
+    mkdirSync(join(root, "assets"));
+    const w = await watchScope(root, ["assets", "design"]);
+    w.reset();
+    writeFileSync(join(root, "design", "b.html"), "");
+    writeFileSync(join(root, "assets", "x.css"), "x{}");
+    expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
+    await sleep(400);
+    expect(w.calls()).toEqual([BOTH]);
+  });
+
+  test("changes less than 200 ms apart make one call", async () => {
+    const root = repo();
+    mkdirSync(join(root, "assets"));
+    const w = await watchScope(root, ["assets", "design"]);
+    w.reset();
+    for (let i = 0; i < 4; i++) {
+      writeFileSync(join(root, "assets", `x${i}.css`), "x{}");
+      await sleep(40);
+    }
+    expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
+    await sleep(400);
+    expect(w.calls()).toEqual([SERVED]);
+  });
+});
+
 describe("createRefresher", () => {
   test("debounces triggers into one run", async () => {
     let runs = 0;
     const refresher = createRefresher(async () => {
       runs++;
     }, 50);
-    refresher.trigger();
+    refresher.trigger(REREAD);
     await sleep(20);
-    refresher.trigger();
+    refresher.trigger(REREAD);
     await sleep(20);
-    refresher.trigger();
+    refresher.trigger(REREAD);
     expect(runs).toBe(0);
     await sleep(120);
     expect(runs).toBe(1);
@@ -162,10 +419,10 @@ describe("createRefresher", () => {
       await sleep(150);
       active--;
     }, 20);
-    refresher.trigger();
+    refresher.trigger(REREAD);
     await sleep(60);
-    refresher.trigger();
-    refresher.trigger();
+    refresher.trigger(REREAD);
+    refresher.trigger(REREAD);
     await sleep(500);
     expect(runs).toBe(2);
     expect(overlapped).toBe(false);
@@ -178,9 +435,9 @@ describe("createRefresher", () => {
       runs++;
       throw new Error("boom");
     }, 20);
-    refresher.trigger();
+    refresher.trigger(REREAD);
     await sleep(80);
-    refresher.trigger();
+    refresher.trigger(REREAD);
     await sleep(80);
     expect(runs).toBe(2);
     refresher.close();
@@ -191,9 +448,36 @@ describe("createRefresher", () => {
     const refresher = createRefresher(async () => {
       runs++;
     }, 50);
-    refresher.trigger();
+    refresher.trigger(REREAD);
     refresher.close();
     await sleep(120);
     expect(runs).toBe(0);
+  });
+
+  test("merges the flags of triggers within one debounce", async () => {
+    const runs: Change[] = [];
+    const refresher = createRefresher(async (change) => {
+      runs.push(change);
+    }, 50);
+    refresher.trigger(REREAD);
+    await sleep(20);
+    refresher.trigger(SERVED);
+    await sleep(120);
+    expect(runs).toEqual([BOTH]);
+    refresher.close();
+  });
+
+  test("carries a change made during a run into the run after it", async () => {
+    const runs: Change[] = [];
+    const refresher = createRefresher(async (change) => {
+      runs.push(change);
+      await sleep(150);
+    }, 20);
+    refresher.trigger(REREAD);
+    await sleep(60);
+    refresher.trigger(SERVED);
+    await sleep(500);
+    expect(runs).toEqual([REREAD, SERVED]);
+    refresher.close();
   });
 });

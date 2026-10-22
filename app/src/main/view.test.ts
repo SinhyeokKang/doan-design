@@ -11,7 +11,25 @@ describe("canvasRows", () => {
       [{ path: "design/a.html", id: "a", title: "Login", width: 1280, frames: [], comments: { open: 2, resolved: 1 } }],
       base,
     );
-    expect(rows).toEqual([{ path: "design/a.html", title: "Login", open: 2, url: `${base}design/a.html` }]);
+    expect(rows).toEqual([{ path: "design/a.html", title: "Login", width: 1280, open: 2, url: `${base}design/a.html` }]);
+  });
+
+  test("omits a width that is not a positive safe integer", () => {
+    const widths = [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1, "1280", null, undefined, {}];
+    const rows = canvasRows(widths.map((width) => ({ path: "design/a.html", width })), base);
+    expect(rows).toHaveLength(widths.length);
+    for (const row of rows) expect(row).not.toHaveProperty("width");
+  });
+
+  test("keeps the largest safe integer width and the smallest positive one", () => {
+    const rows = canvasRows(
+      [
+        { path: "design/a.html", width: 1 },
+        { path: "design/b.html", width: Number.MAX_SAFE_INTEGER },
+      ],
+      base,
+    );
+    expect(rows.map((row) => row.width)).toEqual([1, Number.MAX_SAFE_INTEGER]);
   });
 
   test("omits a missing title", () => {
@@ -68,17 +86,18 @@ describe("servingUrl", () => {
 });
 
 describe("folderEntry", () => {
-  test("narrows a list into rows", () => {
-    const entry = folderEntry("/repo", { kind: "list", root: "/repo", scope: ["design"], canvases: [{ path: "design/a.html" }] }, base);
-    expect(entry).toEqual({ path: "/repo", kind: "list", canvases: [{ path: "design/a.html", open: 0, url: `${base}design/a.html` }] });
+  test("narrows a list into rows and carries the served revision", () => {
+    const entry = folderEntry("/repo", { kind: "list", root: "/repo", scope: ["design"], canvases: [{ path: "design/a.html" }] }, base, 3);
+    expect(entry).toEqual({ path: "/repo", kind: "list", servedRev: 3, canvases: [{ path: "design/a.html", open: 0, url: `${base}design/a.html` }] });
   });
 
-  test("passes the other states through", () => {
-    expect(folderEntry("/r", { kind: "uninitialized" }, base)).toEqual({ path: "/r", kind: "uninitialized" });
-    expect(folderEntry("/r", { kind: "error", message: "bad config" }, base)).toEqual({ path: "/r", kind: "error", message: "bad config" });
-    expect(folderEntry("/r", { kind: "cliError", reason: "spawn doan ENOENT" }, base))
+  // Only a list is served, so only a list has a revision to reload on.
+  test("passes the other states through without a served revision", () => {
+    expect(folderEntry("/r", { kind: "uninitialized" }, base, 3)).toEqual({ path: "/r", kind: "uninitialized" });
+    expect(folderEntry("/r", { kind: "error", message: "bad config" }, base, 3)).toEqual({ path: "/r", kind: "error", message: "bad config" });
+    expect(folderEntry("/r", { kind: "cliError", reason: "spawn doan ENOENT" }, base, 3))
       .toEqual({ path: "/r", kind: "cliError", reason: "spawn doan ENOENT" });
-    expect(folderEntry("/r", { kind: "notFound" }, base)).toEqual({ path: "/r", kind: "notFound" });
+    expect(folderEntry("/r", { kind: "notFound" }, base, 3)).toEqual({ path: "/r", kind: "notFound" });
   });
 });
 

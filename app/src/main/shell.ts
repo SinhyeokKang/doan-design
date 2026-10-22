@@ -4,9 +4,11 @@ import { openFolderStore } from "./folderStore";
 import { folderState } from "./folderState";
 import { startServer, type LocalServer } from "./serve/server";
 import { folderEntry, openDecision, type FolderEntry } from "./view";
-import { watchFolder, type FolderWatch } from "./watch";
+import { watchFolder, type Change, type FolderWatch } from "./watch";
 
 export interface Shell {
+  // `http://127.0.0.1:<port>/t/<token>/`: every canvas URL lives under it.
+  readonly tokenBase: string;
   entries(): FolderEntry[];
   // Resolves to a message for the human when the folder is not opened.
   open(picked: string): Promise<string | null>;
@@ -22,6 +24,14 @@ interface Folder {
   // Reads from the watcher and from a re-open can overlap; only the latest
   // started read may publish, so an older `doan ls` never overwrites a newer one.
   reads: number;
+  // Lives here rather than in a read, so a discarded stale read keeps its bump.
+  servedRev: number;
+  // The scope last given to the server.
+  scope: string[];
+}
+
+function sameScope(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((entry, i) => entry === b[i]);
 }
 
 // Electron-free on purpose: the window, dialog and IPC live in index.ts.
@@ -37,13 +47,29 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
     if (error) console.error("doan: cannot save folders.json", error);
   };
 
-  const refresh = async (folder: Folder) => {
+  const refresh = async (folder: Folder, change: Change) => {
+    if (change.served) folder.servedRev++;
+    if (!change.reread) {
+      // A `tokenCss`/`serve` change leaves the list as it is, so it goes out
+      // without waiting for `doan ls`.
+      if (folder.entry.kind !== "list") return;
+      folder.entry = { ...folder.entry, servedRev: folder.servedRev };
+      onChange(entries());
+      return;
+    }
     const read = ++folder.reads;
     const view = await readFolder(cli, folder.path);
     if (folders.get(folder.path) !== folder || read !== folder.reads) return;
     // Only a listed folder serves anything; scope follows every re-read.
-    server.updateFolder(folder.key, { root: folder.path, scope: view.kind === "list" ? view.scope : [] });
-    folder.entry = folderEntry(folder.path, view, baseUrl(folder.key));
+    const scope = view.kind === "list" ? view.scope : [];
+    server.updateFolder(folder.key, { root: folder.path, scope });
+    // After the server update, so the reload this triggers is served from the new scope.
+    if (!sameScope(scope, folder.scope)) {
+      folder.scope = scope;
+      folder.servedRev++;
+    }
+    folder.watch?.setScope(scope);
+    folder.entry = folderEntry(folder.path, view, baseUrl(folder.key), folder.servedRev);
     if (view.kind === "notFound") {
       // A watcher on a deleted root is dead and is never re-armed (watch.ts);
       // opening the folder again attaches a fresh one.
@@ -55,8 +81,8 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
 
   const attach = (folder: Folder) => {
     folder.watch?.close();
-    folder.watch = watchFolder(folder.path, () => refresh(folder));
-    void refresh(folder);
+    folder.watch = watchFolder(folder.path, (change) => refresh(folder, change));
+    void refresh(folder, { reread: true, served: false });
   };
 
   const add = (path: string): Folder => {
@@ -66,6 +92,8 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       entry: { path, kind: "loading" },
       watch: undefined,
       reads: 0,
+      servedRev: 0,
+      scope: [],
     };
     folders.set(path, folder);
     attach(folder);
@@ -75,6 +103,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
   for (const path of store.list()) add(path);
 
   return {
+    tokenBase: `http://${server.host}:${server.port}/t/${server.token}/`,
     entries,
     async open(picked) {
       let real: string;

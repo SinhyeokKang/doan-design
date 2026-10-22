@@ -6,13 +6,17 @@ import type { FolderState } from "./folderState";
 export interface CanvasRow {
   path: string;
   title?: string;
+  // From `doan ls` as is; the app never re-reads the canvas meta.
+  width?: number;
   open: number;
   url: string;
 }
 
 export type FolderEntry = { path: string } & (
   | { kind: "loading" }
-  | { kind: "list"; canvases: CanvasRow[] }
+  // Bumped by the shell whenever a served file of the folder changed; the
+  // renderer reloads an open canvas on a new value. Only a list is served.
+  | { kind: "list"; canvases: CanvasRow[]; servedRev: number }
   | { kind: "uninitialized" }
   | { kind: "error"; message: string }
   | { kind: "cliError"; reason: string }
@@ -25,10 +29,11 @@ export function canvasRows(canvases: readonly unknown[], baseUrl: string): Canva
   const rows: CanvasRow[] = [];
   for (const canvas of canvases) {
     if (typeof canvas !== "object" || canvas === null) continue;
-    const { path, title, comments } = canvas as Record<string, unknown>;
+    const { path, title, width, comments } = canvas as Record<string, unknown>;
     if (typeof path !== "string" || path === "") continue;
     const row: CanvasRow = { path, open: openCount(comments), url: servingUrl(baseUrl, path) };
     if (typeof title === "string") row.title = title;
+    if (typeof width === "number" && Number.isSafeInteger(width) && width > 0) row.width = width;
     rows.push(row);
   }
   return rows;
@@ -46,10 +51,10 @@ export function servingUrl(baseUrl: string, rel: string): string {
   return baseUrl + rel.split("/").map(encodeURIComponent).join("/");
 }
 
-export function folderEntry(path: string, view: FolderView, baseUrl: string): FolderEntry {
+export function folderEntry(path: string, view: FolderView, baseUrl: string, servedRev: number): FolderEntry {
   switch (view.kind) {
     case "list":
-      return { path, kind: "list", canvases: canvasRows(view.canvases, baseUrl) };
+      return { path, kind: "list", canvases: canvasRows(view.canvases, baseUrl), servedRev };
     case "error":
       return { path, kind: "error", message: view.message };
     case "cliError":

@@ -1,27 +1,54 @@
 :root {
   color-scheme: light dark;
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, sans-serif;
+  --line: color-mix(in srgb, currentColor 15%, transparent);
+  --current: color-mix(in srgb, Highlight 30%, transparent);
+}
+
+/* `display` rules below would otherwise override the attribute. */
+[hidden] {
+  display: none !important;
 }
 
 body {
+  display: flex;
+  height: 100vh;
   margin: 0;
+  overflow: hidden;
 }
 
-.toolbar {
+.sidebar {
+  flex: none;
+  width: 320px;
+  overflow: auto;
+  border-right: 1px solid var(--line);
+}
+
+.sidebar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+  border-bottom: 1px solid var(--line);
 }
 
-.toolbar h1 {
+.sidebar-header h1 {
   margin: 0;
   font-size: 15px;
 }
 
-#folders {
-  padding: 8px 16px 24px;
+#folders,
+#frames {
+  padding: 8px 16px 16px;
+}
+
+#frames {
+  border-top: 1px solid var(--line);
+}
+
+#frames h2 {
+  margin: 8px 0 4px;
+  font-size: 13px;
 }
 
 .folder {
@@ -42,31 +69,162 @@ body {
   overflow-wrap: anywhere;
 }
 
-.folder-status {
+.folder-status,
+.frames-status p {
   margin: 4px 0;
   opacity: 0.8;
 }
 
-.canvases {
+.canvases,
+.frame-list {
   margin: 4px 0;
   padding: 0;
   list-style: none;
 }
 
-.canvas {
+.canvas-button,
+.frame-button {
   display: flex;
-  gap: 12px;
-  padding: 4px 0;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
 }
 
-.canvas-path {
+.canvas-button:hover,
+.frame-button:hover {
+  background: var(--line);
+}
+
+.canvas-button[aria-current="true"],
+.frame-button[aria-current="true"] {
+  background: var(--current);
+}
+
+.canvas-path,
+.frame-id {
   font-family: ui-monospace, Menlo, monospace;
+  overflow-wrap: anywhere;
 }
 
 .canvas-title {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-path {
+  min-width: 0;
 }
 
 .canvas-open {
+  flex: none;
   opacity: 0.8;
+}
+
+.canvas-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.canvas-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+#zoom-level {
+  min-width: 4em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+#updated {
+  margin-left: auto;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
+#viewport {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  background: color-mix(in srgb, currentColor 8%, Canvas);
+}
+
+/* The view is a transform on this wrapper, outside the iframe (ARCHITECTURE §3). */
+#board {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+#board iframe {
+  display: block;
+  border: 0;
+  background: #fff;
+}
+
+/* Reserved for comment pins (feature 7); it must not take input from the canvas. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.canvas-lines {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.canvas-line {
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: Canvas;
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+#canvas-error {
+  color: #c62828;
+}
+
+#canvas-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px;
+  text-align: center;
+}
+
+#canvas-status:empty {
+  display: none;
+}
+
+.canvas-message {
+  max-width: 36em;
+  margin: 0;
 }
