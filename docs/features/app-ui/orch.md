@@ -24,6 +24,7 @@
 | 2026-10-22 | CLI error 행의 칩은 "CLI error"로 둔다 | 지휘자 판단 — design.md '순수 함수'의 `projectRow` status에 "CLI error"가 따로 있다(A 리뷰 🟡1) |
 | 2026-10-22 | uninitialized는 `canvasViewUpdate`의 `clear` reason으로 따로 둔다. CLI error detail은 첫 글자만 대문자로 바꿔 초안과 맞춘다 | 지휘자 판단 — C 리뷰 🟡1 · 🟡2. 판단을 한 곳에 두고, 초안이 문구의 정본이다 |
 | 2026-10-22 | task 5의 한글 grep은 `--exclude='*.test.ts'`로 돌린다. 테스트의 한글은 비ASCII 경로 · 메시지를 검사하는 픽스처이므로 그대로 둔다 | 지휘자 판단 — 게이트의 목적은 화면 문구다. E 질문 |
+| 2026-10-22 | 전체 화면에서 ⌘W를 누르면 전체 화면을 빠져나온 뒤 창을 숨긴다. E가 `app/src/main/index.ts`와 그 테스트를 이 수정에 한해 고친다 | 지휘자 판단 — spec 완료 조건 7. E의 e2e에서 전체 화면 창이 Close Window 뒤에도 보이는 것을 확인함(C 리뷰 ⚪1) |
 | 2026-10-22 | Codex 워커에게는 초안 경로와 `doan ls` · `doan check` 결과만 넘기고 초안을 말로 풀지 않는다 | tasks.md '진행' |
 
 ## 배치
