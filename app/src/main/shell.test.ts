@@ -103,10 +103,10 @@ describe("opening a picked folder", () => {
   test("a folder that is gone after the dialog is reported, not opened", async () => {
     const { shell } = await start();
     const gone = join(tmp, "gone");
-    expect(await shell.open(gone)).toBe(`폴더를 찾을 수 없음: ${gone}`);
+    expect(await shell.open(gone)).toBe(`Project not found: ${gone}`);
     const file = join(dir(), "file.txt");
     writeFileSync(file, "x");
-    expect(await shell.open(file)).toBe(`폴더를 찾을 수 없음: ${file}`);
+    expect(await shell.open(file)).toBe(`Project not found: ${file}`);
     expect(shell.entries()).toEqual([]);
   });
 });

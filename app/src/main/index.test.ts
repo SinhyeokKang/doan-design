@@ -1,13 +1,13 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import type { BrowserWindowConstructorOptions, MenuItemConstructorOptions } from "electron";
-import type { FolderEntry } from "./view";
 
 const mocks = await vi.hoisted(async () => {
   const { EventEmitter } = await import("node:events");
   class Window extends EventEmitter {
     static instances: Window[] = [];
     destroyed = false;
-    webContents = Object.assign(new EventEmitter(), { send: vi.fn(), isDestroyed: () => this.destroyed });
+    contentsDestroyed = false;
+    webContents = Object.assign(new EventEmitter(), { send: vi.fn(), isDestroyed: () => this.contentsDestroyed });
     show = vi.fn();
     hide = vi.fn();
     close = vi.fn();
@@ -88,13 +88,18 @@ test("guards reopen by sender frame and path type", async () => {
   expect(mocks.shell.reopen).not.toHaveBeenCalled();
 });
 
-test("does not send view commands or folder updates to destroyed contents", () => {
-  window().destroyed = true;
+test.each(["window", "contents"])("does not send to destroyed %s", (target) => {
   const click = item("Zoom In").click;
-  // The callback takes no menu context in the app.
-  Reflect.apply(click ?? (() => { throw new Error("no click handler"); }), undefined, []);
+  const send = () => Reflect.apply(click ?? (() => { throw new Error("no click handler"); }), undefined, []);
   const changed = mocks.startShell.mock.calls[0]?.[2];
   if (typeof changed !== "function") throw new Error("no folder listener");
+  send();
+  changed([]);
+  expect(window().webContents.send).toHaveBeenCalledTimes(2);
+  window().webContents.send.mockClear();
+  if (target === "window") window().destroyed = true;
+  else window().contentsDestroyed = true;
+  send();
   changed([]);
   expect(window().webContents.send).not.toHaveBeenCalled();
 });
@@ -123,4 +128,25 @@ test("shows the window before the Open Project dialog", async () => {
   await invoke("folders:open", window().webContents, null);
   expect(window().show).toHaveBeenCalledOnce();
   expect(mocks.dialog.showOpenDialog).toHaveBeenCalled();
+});
+
+
+test("ignores activate without a window and disposes only on quit", () => {
+  window().emit("closed");
+  mocks.app.emit("activate");
+  expect(mocks.Window.instances).toHaveLength(1);
+  expect(window().show).not.toHaveBeenCalled();
+  expect(mocks.shell.dispose).not.toHaveBeenCalled();
+  mocks.app.emit("will-quit");
+  expect(mocks.shell.dispose).toHaveBeenCalledOnce();
+});
+
+test("File menu opens the project picker and closes the window", async () => {
+  const open = item("Open Project…").click;
+  Reflect.apply(open ?? (() => { throw new Error("no open handler"); }), undefined, []);
+  await vi.waitFor(() => expect(mocks.dialog.showOpenDialog).toHaveBeenCalledOnce());
+  expect(window().show).toHaveBeenCalledOnce();
+  const close = item("Close Window").click;
+  Reflect.apply(close ?? (() => { throw new Error("no close handler"); }), undefined, []);
+  expect(window().close).toHaveBeenCalledOnce();
 });

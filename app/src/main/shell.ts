@@ -12,6 +12,7 @@ export interface Shell {
   entries(): FolderEntry[];
   // Resolves to a message for the human when the folder is not opened.
   open(picked: string): Promise<string | null>;
+  reopen(path: string): Promise<void>;
   close(path: string): Promise<void>;
   dispose(): Promise<void>;
 }
@@ -111,9 +112,9 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         // A folder removed after it was picked would make the cwd-based run
         // fail as `spawn doan ENOENT`, which reads like a missing CLI.
         real = await realpath(picked);
-        if (!(await stat(real)).isDirectory()) return `폴더를 찾을 수 없음: ${picked}`;
+        if (!(await stat(real)).isDirectory()) return `Project not found: ${picked}`;
       } catch {
-        return `폴더를 찾을 수 없음: ${picked}`;
+        return `Project not found: ${picked}`;
       }
       const state = folderState(await runLs(cli, { cwd: real }));
       const failed = state.kind === "error" || state.kind === "cliError";
@@ -131,6 +132,13 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       onChange(entries());
       logWrite(await write);
       return null;
+    },
+    async reopen(path) {
+      const folder = folders.get(path);
+      if (!folder) return;
+      folder.entry = { path, kind: "loading" };
+      onChange(entries());
+      attach(folder);
     },
     async close(path) {
       const folder = folders.get(path);
