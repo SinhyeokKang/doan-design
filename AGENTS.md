@@ -60,7 +60,7 @@ Doan Design (`doan`): a tool where a coding agent writes an HTML canvas (a desig
 
 - `go test ./...` — Go tests, from the repo root.
 - `go vet ./...` — Go static checks, from the repo root.
-- `go run ./cli/cmd/doan <command> [--repo <path>] [--json]` — run the CLI by hand (2026-10-21 user, cli-core). Point `--repo` at a temporary directory, not this repo. Exception: `/design-sync` runs the read-only `ls` and `check` with `--repo .` (2026-10-22).
+- `go run ./cli/cmd/doan <command> [--repo <path>] [--json]` — run the CLI by hand (2026-10-21 user, cli-core). Point `--repo` at a temporary directory, not this repo. Exception: `/design-sync`, and checking this repo's `design/` drafts, run the read-only `ls` and `check` with `--repo .` (2026-10-22; widened to draft checks 2026-10-22, app-ui).
 - `node .scratch/design-sync/<screen>/measure.mjs` — a `/design-sync` measurement script (Playwright `_electron`, temporary `--user-data-dir`, `DOAN_CLI`), modeled on `app/e2e/runtime.ts` (2026-10-22).
 - `npm --prefix app test` — TypeScript tests (`vitest run`).
 - `npm --prefix app run typecheck` — TypeScript checks (`tsc --noEmit`).
@@ -83,7 +83,7 @@ The source for the 11 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, po
 - `/feature` is the starting point of a feature. Its output goes in `docs/features/<slug>/` (spec·design·tasks); when the feature is done, promote the conclusions to PRODUCT.md (product judgment) and ARCHITECTURE.md (structure, formats, conventions) and delete that directory.
 - `/code-review` refers to this repo's skill. It is different from Claude Code's built-in `code-review`.
 - `/runtime-test` (2026-10-21, app-shell) launches the real app and checks it; run it after `/implement` or `/refactor` whenever `app/` changed, before `/code-review`.
-- `/design-sync` (2026-10-22, after canvas-view) compares a doan app screen's first implementation with its draft canvas in `design/` by computed style in the real app. Use it from #6 on, inside a `/ship` or `/orchestrate` branch; the draft is the source of truth only until that screen's first implementation is on main.
+- `/design-sync` (2026-10-22, after canvas-view) compares a doan app screen's first implementation with its draft canvas in `design/` by computed style in the real app. Use it from app-ui on (2026-10-22), inside a `/ship` or `/orchestrate` branch; the draft is the source of truth only until that screen's first implementation is on main.
 - If you fixed a regression or bug, run `/postmortem`. `/implement` · `/refactor` · `/code-review` grep `docs/POSTMORTEM.md` before starting (when the file exists).
 - `/ship` · `/orchestrate` always start by creating a `feat-<slug>` branch from main and end with a push of that branch + a PR. They do not merge.
 
