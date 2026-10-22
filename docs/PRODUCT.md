@@ -138,7 +138,7 @@ The MVP is split into 8 features. One feature is one `/feature` run and is manag
 | 2 | `cli-core` | Go CLI: `init` · `ls` · `comments` · `comment resolve` · `check` (static) · `skill` (with its body), `--json` · exit codes · repo discovery |
 | 3 | `mcp` | `doan mcp` (stdio) |
 | 4 | `app-shell` | Electron skeleton: multiple folders · local server (serving scope) · file watching · canvas list. The real-app verification loop (`/runtime-test` skill) is built here. The app-driving tool (among Playwright Electron · CDP · `computer-use`) is decided in this feature's `/feature` (2026-10-21) |
-| 5 | `canvas-view` | sandbox iframe · board size · zoom in/out and pan · frame list and jumps. When this feature is done, build the `/design-sync` skill (see 'Dogfooding' below) |
+| 5 | `canvas-view` | sandbox iframe · board size · zoom in/out and pan · frame list and jumps · live reload (MVP app item 2, added 2026-10-22). Done 2026-10-22. When this feature is done, build the `/design-sync` skill (see 'Dogfooding' below) |
 | 6 | `select-inspect` | selection · inspector · `runtime.json` + socket · `doan active` |
 | 7 | `comments-ui` | panel comment CRUD · pins · outdated · sentence copy |
 | 8 | `onboard-dist` | first-run onboarding · skill stub install · refine `doan skill` body · notarized dmg · brew cask · auto-update |
@@ -313,6 +313,18 @@ Results:
 | 2026-10-21 | #4 watches comment files, only to refresh open comment counts | User decision (app-shell feature-review) |
 | 2026-10-21 | `folders.json` that cannot be read starts empty, and a later write may replace it | User decision (app-shell orchestration) — only the folder list is lost, and reopening restores it |
 | 2026-10-22 | Deferred from #4: an uninitialized subfolder stays "not initialized" after `doan init` in its parent (#8); closing the window quits the app (#6); "folder not found" has no recovery hint (#6) | User decision (app-shell orchestration) — rare, no data lost |
+| 2026-10-22 | Main injects the canvas script with `WebFrameMain.executeJavaScript` on `did-frame-navigate`; the server keeps sending disk bytes. Injection only by server-side insertion would have counted as a PoC failure | User decision (canvas-view Q1) — the #4 server stays unchanged, and injection works even when a canvas CSP blocks inline scripts (PoC 1) |
+| 2026-10-22 | The app's frame list is the rendered DOM's `[data-doan-frame]` in document order, so it can differ from `doan ls` frames (static HTML) | User decision (canvas-view Q2) — jump positions exist only in the DOM, and script-drawn frames show up |
+| 2026-10-22 | Wheel over the canvas is forwarded by the injected script; a plain wheel over an inner element that can still scroll that way scrolls the element instead of panning | User decision (canvas-view Q3) |
+| 2026-10-22 | Served paths outside `design/` (`tokenCss`, `serve`) are watched and reload the open canvas; `.doan/` changes never reload; a `serve` path created later is picked up on the next read | User decision (canvas-view Q4 and review) — shared CSS edits must show; comments must not reload the canvas |
+| 2026-10-22 | One sidebar holds folders, canvases and the open canvas's frame list; the canvas view has a toolbar (zoom out, %, zoom in, fit, last reload time) | User decision (canvas-view Q5) — plain DOM until #6 picks a UI framework |
+| 2026-10-22 | The app defines its own menu: View has zoom in (Cmd+=), zoom out (Cmd+-), actual size (Cmd+0, 100%), fit (Shift+1), reload canvas (Cmd+R) and full screen; no page-zoom or page-reload roles | User decision (canvas-view review) — the default menu zoomed and reloaded the whole app page |
+| 2026-10-22 | Canvas view defaults: scale 0.05–4, ×1.25 per button/menu step, at most ×1.25 per wheel event, fit to width with a 32px margin and a scale cap of 1 on open and on frame jumps, no pan limit, view kept in memory only | User decision (canvas-view review) |
+| 2026-10-22 | Screen states: loading hides the board and fails after 5 s with a retry; a transient folder error keeps the last view under an error line and does not reload; a canvas gone from the list (or its folder closed or not found) clears the view | User decision (canvas-view review) |
+| 2026-10-22 | In-canvas links may move within the same folder key; a linked canvas in the list becomes the open canvas; a document not in the list, or one without the injected script, shows "목록에 없는 문서입니다" | User decision (canvas-view review) and conductor call (orchestration, B4 review) — spec width and missing rules follow the shown canvas |
+| 2026-10-22 | Canvas iframe navigation: allowed when started by the app window's main frame and under the token path, otherwise only within the current folder key; replaces the designed `about:blank` rule | User decision (canvas-view orchestration) — PoC 1 item 5 found two gaps in the `about:blank` rule, and the `initiator` rule closed both |
+| 2026-10-22 | Every canvas load measures its height from 150px; the board shows blank until the new document's first layout (replaces "keep the previous height until the new one is measured") | User decision (canvas-view orchestration) — only a hidden preload-and-swap (a non-goal) could keep the old height and still let `min-height: 100vh` canvases shrink |
+| 2026-10-22 | Isolation between open folders rests on folder-key secrecy; a canvas that knows another folder's key can read and embed its served files | User decision (canvas-view orchestration) — every canvas origin is `null`, so the server cannot tell which folder asked; keys are 128-bit random and never given to canvases |
 
 ## 8. Open questions
 
@@ -324,6 +336,8 @@ Carried over from README draft §15. When closed, they move to the matching sect
 
 - An uninitialized subfolder opened before `doan init` ran in its parent keeps showing "not initialized" (the app reads it with `--repo <subfolder>`), and following that hint creates a nested repo. Decide with the onboarding `doan init` location in #8 `onboard-dist` (2026-10-22, app-shell).
 - Closing the window quits the app, unlike the macOS convention; and a "folder not found" entry gives no hint that reopening it restores the list. Decide in #6 with the UI framework (2026-10-22, app-shell).
+- Should #6 `doan active` and #7 frame comments use the app's rendered-DOM frame list or the static `doan ls` frames? They can differ (script-drawn frames, frames below a frozen height). Decide in #6 (2026-10-22, canvas-view).
+- The fit accelerator Shift+1 has no Cmd modifier, so it may swallow `!` typed into inputs (canvas inputs now, the #7 comment field later). Not yet checked with real OS keys; check before #7 and switch to a Cmd accelerator if it does (2026-10-22, canvas-view).
 
 `doan:width` was closed as required with no default (2026-10-21).
 
