@@ -10,10 +10,10 @@ import { createHash } from "node:crypto";
 import { rmSync } from "node:fs";
 import { chmod, cp, mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { _electron, type ElectronApplication, type Frame, type Page } from "playwright";
+import { _electron, type ElectronApplication, type Frame, type Locator, type Page } from "playwright";
 
 const exec = promisify(execFile);
 const appDir = fileURLToPath(new URL("..", import.meta.url));
@@ -335,8 +335,6 @@ interface ViewState {
 }
 
 interface FrameButton {
-  label: string;
-  title: string;
   current: boolean;
 }
 
@@ -362,11 +360,11 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await waitFolders(page, (all) => hasCanvas(all, repos.canvas, "design/main.html"), "canvas repo listed");
   const rows = byPath(await readFolders(page), repos.canvas).canvases;
   const url = (path: string): string => rows.find((c) => c.path === path)?.url ?? assert.fail(`no url for ${path}`);
-  const loadingText = await page.evaluate(async (selector) => {
-    (document.querySelector(selector) as HTMLButtonElement).click();
+  const loadingText = await canvasButton(page, repos.canvas, "design/main.html").evaluate(async node => {
+    (node as HTMLElement).click();
     await Promise.resolve();
-    return document.querySelector('[role="region"][aria-label="Canvas"] .canvas-status')?.textContent ?? "";
-  }, canvasButton(repos.canvas, "design/main.html"));
+    return [...document.querySelectorAll('[role="region"][aria-label="Canvas"] [role="status"]')].map(status => status.textContent).find(text => text === "Loading…");
+  });
   assert.equal(loadingText, "Loading…");
   let state = await waitLoaded(page, "main canvas shown");
   assert.deepEqual(await currentCanvases(page), [`${repos.canvas}\ndesign/main.html`]);
@@ -386,7 +384,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   assertFit(state, 1200);
   assert.equal(state.zoom, `${Math.round(state.scale * 100)}%`);
   await settledScreenshot(page, "3-canvas");
-  await page.click(canvasButton(repos.canvas, "design/narrow.html"));
+  await canvasButton(page, repos.canvas, "design/narrow.html").click();
   state = await waitLoaded(page, "narrow canvas shown");
   assertFit(state, NARROW_WIDTH);
   assert.equal(state.scale, 1);
@@ -455,10 +453,11 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await waitView(page, (v) => v.vw === sized.vw && v.vh === sized.vh, "viewport restored");
 
   // C6. Frame jumps.
-  assert.deepEqual(
-    (await frameButtons(page)).map((b) => [b.label, b.title]),
-    [["hero", "Hero"], ["(no id)", ""], ["scroller-box", ""], ["tall", ""], ["dup", ""], ["dup", ""]],
-  );
+  const frames = page.getByRole("region", { name: "Frames", exact: true });
+  assert.equal(await frames.getByRole("button").count(), 6);
+  for (const [index, name] of ["# hero Hero", "# (no id)", "# scroller-box", "# tall", "# dup", "# dup"].entries()) {
+    assert.equal(await frames.getByRole("button").nth(index).and(frames.getByRole("button", { name, exact: true })).count(), 1, `frame ${index} name`);
+  }
   const tall = await frameRect(canvas, 3);
   let jumped = await jump(page, 3, sized);
   assert.ok(near(jumped.y + tall.y * jumped.scale, 32), "a tall frame is aligned to the top");
@@ -475,7 +474,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   assert.deepEqual((await frameButtons(page)).map((b) => b.current), [true, false, false, false, false, false]);
   await settledScreenshot(page, "4-frame");
   await openCanvas(page, repos.canvas, "design/noframes.html");
-  await waitFor(async () => (await page.getByRole("region", { name: "Frames", exact: true }).locator("p").textContent()) === "This canvas has no data-doan-frame", "no-frames notice");
+  await waitFor(async () => (await page.getByRole("region", { name: "Frames", exact: true }).getByRole("paragraph").textContent()) === "This canvas has no data-doan-frame", "no-frames notice");
   await openCanvas(page, repos.canvas, "design/main.html");
 
   // C7. Live reload keeps the view; only served changes of this folder reload.
@@ -523,8 +522,9 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await waitView(page, (v) => Math.abs(v.frameHeight - VH_SHORT) <= 1, "100vh canvas shrinks after a live reload");
 
   // C8. Screen states.
-  await page.click(canvasButton(repos.canvas, "design/nowidth.html"));
+  await canvasButton(page, repos.canvas, "design/nowidth.html").click();
   state = await waitView(page, (v) => v.status === "noWidth", "no-width notice");
+  assert.equal(state.updated, "");
   assert.equal(
     state.statusText,
     'Missing or invalid board width. Ask the agent to add <meta name="doan:width" content="1440"> to <head>. Run doan check in a terminal to verify.',
@@ -562,10 +562,10 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await waitFolders(page, (all) => hasCanvas(all, repos.canvas, "design/quiet.html"), "quiet canvas listed");
   const quietUntil = Date.now() + 4500;
   await writeFile(quietPath, quietCanvas(quietUntil));
-  await page.click(canvasButton(repos.canvas, "design/quiet.html"));
+  await canvasButton(page, repos.canvas, "design/quiet.html").click();
   assert.ok(Date.now() < quietUntil - 1000, "quiet canvas opened well before its quiet time ends");
   state = await waitView(page, (v) => v.status === "failed", "failure state after 5 s without a layout");
-  assert.equal(await page.getByRole("region", { name: "Canvas", exact: true }).getByRole("status").locator("b").textContent(), "Couldn’t load the canvas");
+  assert.equal(await page.getByRole("region", { name: "Canvas", exact: true }).getByRole("status").filter({ hasText: "Couldn’t load the canvas" }).textContent(), "Couldn’t load the canvasRun doan check in a terminalReload");
   assert.equal(state.boardShown, false);
   assert.equal(state.updated, "");
   assert.deepEqual(await activityKinds(page), []);
@@ -689,16 +689,20 @@ async function emptyControls(page: Page): Promise<void> {
 }
 
 async function panelValues(page: Page): Promise<Record<string, string>> {
-  return page.getByRole("region", { name: "Canvas info", exact: true }).locator("dl").evaluateAll(lists => Object.fromEntries(lists.flatMap(list => [...list.querySelectorAll("dt")].map(term => [term.textContent ?? "", term.nextElementSibling?.textContent ?? ""]))));
+  const panel = page.getByRole("region", { name: "Canvas info", exact: true });
+  const terms = await panel.getByRole("term").allTextContents();
+  const values = await panel.getByRole("definition").allTextContents();
+  return Object.fromEntries(terms.map((term, index) => [term, values[index] ?? ""]));
 }
 
 async function activityKinds(page: Page): Promise<string[]> {
-  return page.getByRole("region", { name: "Activity", exact: true }).locator("li b").allTextContents();
+  const rows = await page.getByRole("region", { name: "Activity", exact: true }).getByRole("listitem").allTextContents();
+  return rows.map(text => text.replace(/^\d{2}:\d{2}:\d{2}/, ""));
 }
 
 async function treeKeyboard(page: Page, folder: string): Promise<void> {
   const before = await currentCanvases(page);
-  const main = page.locator(canvasButton(folder, "design/main.html"));
+  const main = canvasButton(page, folder, "design/main.html");
   await main.focus();
   await page.keyboard.press("ArrowDown");
   assert.deepEqual(await currentCanvases(page), before, "arrows only move focus");
@@ -773,12 +777,12 @@ async function windowLifetime(app: ElectronApplication, page: Page, repos: Repos
   await waitFolders(page, all => all.every(folder => folder.path !== repos.canvas), "Close removes the missing project");
 }
 
-function canvasButton(folder: string, canvas: string): string {
-  return `[role="treeitem"][aria-level="2"][title=${JSON.stringify(`${folder}/${canvas}`)}]`;
+function canvasButton(page: Page, folder: string, canvas: string): Locator {
+  return page.getByRole("treeitem", { name: basename(folder), exact: true }).getByRole("treeitem", { name: canvas.replace(/^design\//, ""), exact: true });
 }
 
 async function openCanvas(page: Page, folder: string, canvas: string): Promise<ViewState> {
-  await page.click(canvasButton(folder, canvas));
+  await canvasButton(page, folder, canvas).click();
   return waitLoaded(page, `${canvas} shown`);
 }
 
@@ -791,29 +795,32 @@ async function waitNoCanvasDocument(page: Page, what: string): Promise<void> {
   await waitFor(async () => (await readView(page)).unlisted && (await frameButtons(page)).length === 0 && (await currentCanvases(page)).length === 0, what);
 }
 
-function readView(page: Page): Promise<ViewState> {
-  return page.getByRole("region", { name: "Canvas", exact: true }).evaluate(viewport => {
-    const board = viewport.querySelector(".board");
-    if (!(board instanceof HTMLElement)) throw new Error("Missing canvas board");
-    const statusText = viewport.querySelector(".canvas-status")?.textContent ?? "";
-    const notices = [...viewport.querySelectorAll(".canvas-notice")].map(node => node.textContent ?? "");
-    const iframe = board.querySelector("iframe");
-    const matrix = new DOMMatrix(getComputedStyle(board).transform);
+async function readView(page: Page): Promise<ViewState> {
+  const viewport = page.getByRole("region", { name: "Canvas", exact: true });
+  const notices = await viewport.getByRole("status").allTextContents();
+  const statusText = notices.find(text => /^(Loading…|Couldn’t load|Missing or invalid|Pick a canvas|No projects yet|The project |design\/)/.test(text)) ?? "";
+  const zoom = await viewport.getByRole("status", { name: /^Zoom(?: \d+%)?$/ }).textContent() ?? "";
+  const updated = (await viewport.getByRole("status", { name: /^Updated / }).allTextContents())[0]?.trim() ?? "";
+  const geometry = await viewport.evaluate(viewport => {
+    const iframe = viewport.querySelector("iframe");
+    const board = iframe?.parentElement;
+    const matrix = new DOMMatrix(board ? getComputedStyle(board).transform : undefined);
     const rect = viewport.getBoundingClientRect();
-    const status = !statusText ? "" : statusText === "Loading…" ? "loading" : statusText.startsWith("Couldn’t load") ? "failed" : statusText.startsWith("Missing or invalid") ? "noWidth" : statusText === "Pick a canvas from the list" || statusText.startsWith("No projects yet") ? "empty" : "missing";
+    const frameRect = iframe?.getBoundingClientRect();
     return {
       x: matrix.e, y: matrix.f, scale: matrix.a,
       left: rect.left, top: rect.top, vw: viewport.clientWidth, vh: viewport.clientHeight,
-      frameWidth: iframe ? parseFloat(iframe.style.width) : 0,
-      frameHeight: iframe ? parseFloat(iframe.style.height) : 0,
-      boardShown: iframe !== null && !board.hidden && board.style.visibility !== "hidden",
-      status, statusText,
-      zoom: viewport.querySelector('[aria-label^="Zoom "]:not(button)')?.textContent ?? "",
-      updated: viewport.querySelector(".updated")?.textContent?.trim() ?? "",
-      error: notices.find(text => text !== "This page is not a listed canvas") ?? null,
-      unlisted: notices.includes("This page is not a listed canvas"),
+      frameWidth: frameRect ? frameRect.width / matrix.a : 0,
+      frameHeight: frameRect ? frameRect.height / matrix.a : 0,
     };
   });
+  const status = !statusText ? "" : statusText === "Loading…" ? "loading" : statusText.startsWith("Couldn’t load") ? "failed" : statusText.startsWith("Missing or invalid") ? "noWidth" : statusText === "Pick a canvas from the list" || statusText.startsWith("No projects yet") ? "empty" : "missing";
+  return {
+    ...geometry, status, statusText, zoom, updated,
+    boardShown: await viewport.locator("iframe").isVisible(),
+    error: notices.find(text => text !== statusText && text !== zoom && text.trim() !== updated && text !== "This page is not a listed canvas") ?? null,
+    unlisted: notices.includes("This page is not a listed canvas"),
+  };
 }
 
 async function waitView(page: Page, done: (view: ViewState) => boolean, what: string): Promise<ViewState> {
@@ -822,19 +829,22 @@ async function waitView(page: Page, done: (view: ViewState) => boolean, what: st
   return last as ViewState;
 }
 
-function currentCanvases(page: Page): Promise<string[]> {
-  return page.getByRole("treeitem").and(page.locator('[aria-current="true"]')).evaluateAll(items => items.map(item => {
-    const folder = item.parentElement?.closest('[role="treeitem"][aria-level="1"]')?.getAttribute("title") ?? "";
-    return `${folder}\n${(item.getAttribute("title") ?? "").slice(folder.length + 1)}`;
-  }));
+async function currentCanvases(page: Page): Promise<string[]> {
+  const rows = await page.getByRole("treeitem").and(page.locator('[aria-current="true"]')).all();
+  const result: string[] = [];
+  for (const row of rows) {
+    const projectName = await row.evaluate(item => item.parentElement?.closest('[role="treeitem"][aria-level="1"]')?.getAttribute("aria-label") ?? "");
+    const project = page.getByRole("treeitem", { name: projectName, exact: true });
+    const folder = await tooltipPath(page, project, projectName, projectName);
+    const name = await row.getAttribute("aria-label") ?? "";
+    const fullPath = await tooltipPath(page, row, name, `${folder}/${name}`);
+    result.push(`${folder}\n${fullPath.slice(folder.length + 1)}`);
+  }
+  return result;
 }
 
-function frameButtons(page: Page): Promise<FrameButton[]> {
-  return page.getByRole("region", { name: "Frames", exact: true }).getByRole("button").evaluateAll(buttons => buttons.map(button => ({
-    label: button.querySelector(".g")?.textContent ?? "",
-    title: button.querySelector(".d")?.textContent ?? "",
-    current: button.getAttribute("aria-current") === "true",
-  })));
+async function frameButtons(page: Page): Promise<FrameButton[]> {
+  return page.getByRole("region", { name: "Frames", exact: true }).getByRole("button").evaluateAll(buttons => buttons.map(button => ({ current: button.getAttribute("aria-current") === "true" })));
 }
 
 async function jump(page: Page, index: number, from: ViewState): Promise<ViewState> {
@@ -889,8 +899,9 @@ async function menu(app: ElectronApplication, label: string): Promise<void> {
     const item = view?.submenu?.items.find((entry) => entry.label === name || (name === "Enter Full Screen" && entry.role === "togglefullscreen"));
     if (!item) throw new Error(`no menu item ${name}`);
     if (name === "Enter Full Screen") {
-      BrowserWindow.getAllWindows()[0]?.focus();
-      Menu.sendActionToFirstResponder("toggleFullScreen:");
+      if (item.role !== "togglefullscreen") throw new Error("Missing togglefullscreen menu role");
+      // Shared desktops may keep another app focused; exercise the real transition directly.
+      BrowserWindow.getAllWindows()[0]?.setFullScreen(true);
     } else item.click(item, BrowserWindow.getAllWindows()[0], undefined);
   }, label);
 }
@@ -964,6 +975,7 @@ async function launch(cli: string, userData: string): Promise<{ app: ElectronApp
   const app = await _electron.launch({ args: [appDir, `--user-data-dir=${userData}`], env });
   running = app;
   const page = await app.firstWindow();
+  page.setDefaultTimeout(2000);
   assert.equal(await app.evaluate(({ app: electronApp }) => electronApp.getPath("userData")), userData);
   return { app, page };
 }
@@ -993,30 +1005,54 @@ async function openFolder(app: ElectronApplication, page: Page, picked: string):
   await page.evaluate(() => window.doan.openFolder());
 }
 
+const tooltipPaths = new WeakMap<Page, Map<string, string>>();
+
+async function tooltipPath(page: Page, row: Locator, name: string, key: string): Promise<string> {
+  let paths = tooltipPaths.get(page);
+  if (!paths) { paths = new Map(); tooltipPaths.set(page, paths); }
+  const cached = paths.get(key);
+  if (cached) return cached;
+  await row.getByText(name, { exact: true }).hover();
+  const tooltip = page.getByRole("tooltip");
+  await tooltip.waitFor({ timeout: 1000 });
+  const path = (await tooltip.textContent()) ?? "";
+  assert.ok(path.startsWith("/"), `absolute path tooltip: ${path}`);
+  paths.set(key, path);
+  await page.keyboard.press("Escape");
+  await page.mouse.move(500, 100);
+  await tooltip.waitFor({ state: "hidden", timeout: 1000 });
+  return path;
+}
+
 async function readFolders(page: Page): Promise<FolderView[]> {
-  // Serving URLs are not UI content; read them through the same public subscription.
+  // Serving URLs are not UI content; read them through the public subscription.
   const entries = await page.evaluate(() => new Promise<import("../src/main/view").FolderEntry[]>(resolve => {
     const stop = window.doan.onFolders(entries => { stop(); resolve(entries); });
   }));
-  return page.getByRole("tree", { name: "Projects" }).evaluate((tree, entries) => [...tree.children].map(section => {
-    const path = section.getAttribute("title") ?? "";
-    const chip = section.querySelector(".project-row .err, .project-row .cnt")?.textContent ?? "";
-    const hint = section.querySelector(".hint")?.textContent ?? "";
+  const projects = await page.getByRole("tree", { name: "Projects" }).getByRole("treeitem", { level: 1 }).all();
+  const result: FolderView[] = [];
+  for (const project of projects) {
+    const name = await project.getAttribute("aria-label") ?? "";
+    const path = await tooltipPath(page, project, name, name);
+    const chip = (await project.getByText(/^(Error|CLI error|Not found|Not initialized)$/).allTextContents())[0] ?? "";
+    const hint = (await project.getByRole("paragraph").allTextContents())[0] ?? "";
     const state = chip === "Error" ? "error" : chip === "CLI error" ? "cliError" : chip === "Not found" ? "notFound" : chip === "Not initialized" ? "uninitialized" : hint === "Reading…" ? "loading" : "list";
     const entry = entries.find(entry => entry.path === path);
-    return {
-      path, state, status: state === "error" ? hint : chip, hint,
-      canvases: [...section.querySelectorAll('[role="treeitem"][aria-level="2"]')].map(item => {
-        const canvas = (item.getAttribute("title") ?? "").slice(path.length + 1);
-        return {
-          path: canvas,
-          title: item.querySelector(".d")?.textContent ?? "",
-          open: item.querySelector('[aria-label$="open comments"]')?.getAttribute("aria-label") ?? "",
-          url: entry?.kind === "list" ? entry.canvases.find(row => row.path === canvas)?.url ?? "" : "",
-        };
-      }),
-    };
-  }), entries);
+    const canvases: CanvasView[] = [];
+    for (const row of await project.getByRole("treeitem", { level: 2 }).all()) {
+      const name = await row.getAttribute("aria-label") ?? "";
+      const fullPath = await tooltipPath(page, row, name, `${path}/${name}`);
+      const canvas = fullPath.slice(path.length + 1);
+      const count = row.getByRole("img", { name: /^\d+ open comments$/ });
+      const open = await count.getAttribute("aria-label") ?? "";
+      const countText = await count.textContent() ?? "";
+      const text = await row.textContent() ?? "";
+      const title = text.slice(name.length, text.length - countText.length).trim();
+      canvases.push({ path: canvas, title, open, url: entry?.kind === "list" ? entry.canvases.find(row => row.path === canvas)?.url ?? "" : "" });
+    }
+    result.push({ path, state, status: state === "error" ? hint : chip, hint, canvases });
+  }
+  return result;
 }
 
 async function waitFolders(page: Page, done: (folders: FolderView[]) => boolean, what: string): Promise<FolderView[]> {
@@ -1027,15 +1063,17 @@ async function waitFolders(page: Page, done: (folders: FolderView[]) => boolean,
 
 async function waitFor(check: () => Promise<boolean>, what: string, detail: () => string = () => ""): Promise<void> {
   const deadline = Date.now() + WAIT_MS;
+  let lastError: unknown;
   for (;;) {
     try {
       // A check that never settles (a stuck renderer, a frame mid-navigation)
       // must not outlive the deadline.
       if (await Promise.race([check(), sleep(Math.max(0, deadline - Date.now())).then(() => false)])) return;
-    } catch {
+    } catch (error) {
+      lastError = error;
       // Not there yet (file not written, window reloading); retry until the deadline.
     }
-    if (Date.now() > deadline) throw new Error(`timed out waiting for: ${what}\n${detail()}`);
+    if (Date.now() > deadline) throw new Error(`timed out waiting for: ${what}\n${detail()}\n${String(lastError ?? "")}`);
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 }
