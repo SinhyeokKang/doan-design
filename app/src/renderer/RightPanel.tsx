@@ -1,15 +1,16 @@
 import { Fragment } from "react";
 import { activityFor, timeText } from "./activity";
 import { canvasInfo } from "./canvasInfo";
-import type { CanvasState } from "./CanvasController";
+import type { InspectRow } from "../main/inspect";
+import type { CanvasState, InspectorView } from "./CanvasController";
 import type { PathItem, SelectTarget } from "./canvasMessage";
 import { frameLabel } from "./canvasView";
-import { INSPECT_GROUPS, INSPECTOR_PLACEHOLDER, sourceNotes, swatchColor, type InspectRow } from "./inspector";
+import { INSPECT_GROUPS, sourceNotes, swatchColor, tokenTitle } from "./inspector";
 import type { SelectionView } from "./selection";
 
 export function RightPanel({ state, selectPath }: { state: CanvasState; selectPath: (item: PathItem) => void }) {
   const open = state.open;
-  if (open && state.selection) return <Inspector selection={state.selection} rows={INSPECTOR_PLACEHOLDER} selectPath={selectPath} />;
+  if (open && state.selection) return <Inspector selection={state.selection} inspector={state.inspector} selectPath={selectPath} />;
   const info = open ? canvasInfo(open.row, state.unlisted ? null : state.layout) : null;
   return <aside className="right native-scroll" role="region" aria-label="Canvas info">
     <h2 className="phead">Canvas</h2>
@@ -33,8 +34,9 @@ function frameText(frame: NonNullable<SelectTarget["frame"]>): string {
   return label.title === undefined ? label.id : `${label.id} · ${label.title}`;
 }
 
-export function Inspector({ selection, rows, selectPath }: { selection: SelectionView; rows: readonly InspectRow[]; selectPath: (item: PathItem) => void }) {
+export function Inspector({ selection, inspector, selectPath }: { selection: SelectionView; inspector: InspectorView | null; selectPath: (item: PathItem) => void }) {
   const { element, frame } = selection;
+  const rows = inspector?.status === "ready" ? inspector.rows : [];
   const last = selection.path.length - 1;
   return <aside className="right native-scroll" role="region" aria-label="Inspector">
     <h2 className="phead">Inspector</h2>
@@ -54,10 +56,11 @@ export function Inspector({ selection, rows, selectPath }: { selection: Selectio
       </nav>}
       {selection.interactive && <p className="use-hint">{selection.interactive === "link" ? "⌥-click to follow this link" : "⌥-click to use it"}</p>}
     </div>
-    {INSPECT_GROUPS.map(group => {
+    {inspector?.status === "failed" && <p className="inspect-failed">{inspector.reason}</p>}
+    {INSPECT_GROUPS.map(([group, heading]) => {
       const groupRows = rows.filter(row => row.group === group);
       if (groupRows.length === 0) return null;
-      return <section className="isec" key={group}><h3 className="ihead">{group}</h3>{groupRows.map((row, index) => <Row row={row} key={index} />)}</section>;
+      return <section className="isec" key={group}><h3 className="ihead">{heading}</h3>{groupRows.map((row, index) => <Row row={row} key={index} />)}</section>;
     })}
     {element && <section className="isec doan-attributes">
       <h3 className="ihead">Doan attributes</h3>
@@ -69,6 +72,8 @@ export function Inspector({ selection, rows, selectPath }: { selection: Selectio
 
 function Row({ row }: { row: InspectRow }) {
   const dim = row.state === "default";
+  // The draft draws Width and Height without a source line.
+  const sized = row.group === "box" && (row.label === "Width" || row.label === "Height");
   const notes = sourceNotes(row);
   const swatch = swatchColor(row);
   return <div className="inspect-row">
@@ -79,8 +84,8 @@ function Row({ row }: { row: InspectRow }) {
         <Truncate value={row.value} title={dim ? "Default" : row.value} />
       </span>
     </div>
-    {!dim && (row.token !== undefined || notes.length > 0) && <div className="source-line">
-      {row.token !== undefined && <Truncate className="token" value={row.token} title={row.tokenChain ?? row.token} />}
+    {!dim && !sized && (row.token !== undefined || notes.length > 0) && <div className="source-line">
+      {row.token !== undefined && <Truncate className="token" value={row.token} title={tokenTitle(row)} />}
       {notes.map((note, index) => <span className={note.hardcoded ? "state hardcoded" : "state"} title={note.title} key={index}>{note.text}</span>)}
     </div>}
   </div>;

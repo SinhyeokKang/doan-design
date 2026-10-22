@@ -124,6 +124,8 @@ code, kbd { font-family: var(--font-sans); }
 .ancestors button[aria-current="true"] { color: var(--accent); background: var(--accent-soft); }
 .ancestors span { color: var(--text-4); font-size: 11px; }
 .use-hint { color: var(--text-3); font-size: 11.5px; line-height: 1.5; }
+/* Not in the draft: main's reason when it could not read the values. */
+.inspect-failed { padding: 10px 12px; border-bottom: 1px solid var(--line-2); color: var(--text-3); font-size: 11.5px; line-height: 1.5; }
 .inspect-row { margin-bottom: 7px; font-size: 11.5px; }
 .inspect-row:last-child { margin-bottom: 0; }
 .value-line { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 16px; }

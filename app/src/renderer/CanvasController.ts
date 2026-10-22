@@ -1,5 +1,6 @@
 import type { Selection } from "../formats/types";
 import type { ViewCommand } from "../main/index";
+import type { InspectResult, InspectRow } from "../main/inspect";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem, type SelectionMessage } from "./canvasMessage";
 import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, sameDocument, type OpenCanvas } from "./canvasView";
@@ -18,6 +19,8 @@ export interface CanvasState {
   selection: SelectionView | null;
   // The selection-lost line, until the next selection or canvas change.
   notice: string;
+  // Main's inspector rows for the current selection.
+  inspector: InspectorView | null;
   status: "empty" | "loading" | "noWidth" | "failed" | "missing" | null;
   message: string;
   error: string;
@@ -27,8 +30,10 @@ export interface CanvasState {
   activity: ActivityEvent[];
 }
 
+export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
+
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, notice: "", status: "empty", message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, updated: null, activity: [] };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, notice: "", inspector: null, status: "empty", message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, updated: null, activity: [] };
 }
 
 // React owns the surrounding shell; only this controller owns the board's children.
@@ -54,6 +59,8 @@ export class CanvasController {
   private reanchor: AnchorRequest | null = null;
   private marks: { hover: HTMLElement; selected: HTMLElement; size: HTMLElement } | null = null;
   private sentSelection = "null";
+  // Tags inspector requests so an answer for an older selection is dropped.
+  private inspectTag = 0;
 
   constructor(
     private viewport: Pick<HTMLElement, "clientWidth" | "clientHeight" | "addEventListener" | "removeEventListener" | "getBoundingClientRect">,
@@ -61,6 +68,7 @@ export class CanvasController {
     private overlay: Pick<HTMLElement, "append">,
     private changed: (state: CanvasState) => void,
     private sendSelection: (selection: Selection | null) => void,
+    private inspect: (selector: string) => Promise<InspectResult>,
   ) {
     window.addEventListener("message", this.receive);
     window.addEventListener("wheel", this.preventPageZoom, { passive: false });
@@ -266,7 +274,29 @@ export class CanvasController {
     this.state.selection = view;
     this.state.notice = "";
     this.drawMarks();
+    this.requestRows(view);
     this.publish();
+  }
+
+  // Every select (click, Frames list, ancestor path, the anchor found again
+  // after a reload) asks again: values may have changed with the document.
+  private requestRows(view: SelectionView): void {
+    const tag = ++this.inspectTag;
+    const selector = view.element?.selector ?? view.path.at(-1)?.selector;
+    if (selector === undefined) { this.state.inspector = { status: "failed", reason: "The canvas could not be inspected." }; return; }
+    this.state.inspector = { status: "loading" };
+    const settle = (inspector: InspectorView) => {
+      if (tag !== this.inspectTag) return;
+      this.state.inspector = inspector;
+      this.publish();
+    };
+    this.inspect(selector).then(
+      result => settle(result.ok ? { status: "ready", rows: result.rows } : { status: "failed", reason: result.reason }),
+      (error: unknown) => {
+        console.error("inspect:get failed", error);
+        settle({ status: "failed", reason: "The canvas could not be inspected." });
+      },
+    );
   }
 
   private applySelectionEffect(trigger: SelectionTrigger): void {
@@ -284,6 +314,8 @@ export class CanvasController {
   // Does not publish: callers publish once with their other changes.
   private clearSelection(notice: boolean): void {
     this.state.selection = null;
+    this.state.inspector = null;
+    this.inspectTag++;
     this.selectedRect = null;
     this.reanchor = null;
     this.markHidden = false;

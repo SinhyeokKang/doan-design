@@ -21,7 +21,7 @@ export function App() {
     const sendSelection = (selection: Selection | null) => {
       window.doan.setSelection(selection).catch((error: unknown) => console.error("selection:set failed", error));
     };
-    const instance = new CanvasController(viewport.current, board.current, overlay.current, setState, sendSelection);
+    const instance = new CanvasController(viewport.current, board.current, overlay.current, setState, sendSelection, selector => window.doan.inspect(selector));
     controller.current = instance;
     const stopFolders = window.doan.onFolders(next => { setEntries(next); instance.updateEntries(next); });
     const stopCommands = window.doan.onViewCommand(name => instance.command(name));
