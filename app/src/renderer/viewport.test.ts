@@ -15,7 +15,6 @@ import {
   fitFrame,
   fitWidth,
   panBy,
-  resizeKeep,
   screenToBoard,
   wheelAction,
   zoomAt,
@@ -145,10 +144,6 @@ describe("fitWidth", () => {
   test("does not depend on board height, so a zero-height board fits the same", () => {
     expect(fitWidth(1280, viewport, FIT_MARGIN)).toEqual(fitWidth(1280, { width: 1000, height: 0 }, FIT_MARGIN));
   });
-
-  test("clamps to the maximum scale (cannot be reached through the cap of 1)", () => {
-    expect(fitWidth(1, viewport, 0).scale).toBeLessThanOrEqual(MAX_SCALE);
-  });
 });
 
 describe("fitFrame", () => {
@@ -200,20 +195,6 @@ describe("fitFrame", () => {
     const fitted = fitFrame({ x: 0, y: 0, width: 100, height: 100 }, { width: 0, height: 0 }, FIT_MARGIN, current);
     expect(fitted.scale).toBe(MIN_SCALE);
     expect(Number.isFinite(fitted.x) && Number.isFinite(fitted.y)).toBe(true);
-  });
-});
-
-describe("resizeKeep", () => {
-  test("keeps the scale and the board point under the viewport's top-left", () => {
-    const v: View = { x: -250, y: -80, scale: 0.4 };
-    const next = resizeKeep(v, viewport, { width: 600, height: 1200 });
-    expect(next.scale).toBe(0.4);
-    expect(screenToBoard(next, { x: 0, y: 0 })).toEqual(screenToBoard(v, { x: 0, y: 0 }));
-  });
-
-  test("survives a zero-size new viewport", () => {
-    const v: View = { x: 10, y: 20, scale: 2 };
-    expect(resizeKeep(v, viewport, { width: 0, height: 0 })).toEqual(v);
   });
 });
 

@@ -70,7 +70,7 @@ export function panBy(view: View, dx: number, dy: number): View {
 
 function fitScale(contentWidth: number, viewport: Size, margin: number): number {
   const wanted = contentWidth > 0 ? (viewport.width - 2 * margin) / contentWidth : FIT_SCALE_MAX;
-  return clamp(Math.min(FIT_SCALE_MAX, wanted), MIN_SCALE, MAX_SCALE);
+  return Math.max(MIN_SCALE, Math.min(FIT_SCALE_MAX, wanted));
 }
 
 export function fitWidth(boardWidth: number, viewport: Size, margin: number): View {
@@ -98,13 +98,6 @@ export function fitFrame(rect: Rect, viewport: Size, margin: number, current: Vi
       ? margin - rect.y * scale
       : viewport.height / 2 - (rect.y + rect.height / 2) * scale;
   return { x, y, scale };
-}
-
-// The container's top-left is the screen origin, so keeping the board point
-// under it means the transform does not change; the sizes are taken anyway so
-// callers state the resize they are answering.
-export function resizeKeep(view: View, _oldViewport: Size, _newViewport: Size): View {
-  return { ...view };
 }
 
 export interface WheelInput {
