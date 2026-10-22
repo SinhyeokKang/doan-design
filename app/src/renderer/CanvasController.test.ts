@@ -130,7 +130,7 @@ function selectionHarness() {
   const markOf = (kind: string) => marks.find((mark) => mark.className.split(" ").includes(kind));
   const state = () => changed.mock.lastCall?.[0];
   layout();
-  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, inspect, inspections };
+  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections };
 }
 
 describe("selection", () => {
@@ -273,6 +273,57 @@ describe("selection", () => {
       h.select(1);
       h.controller.selectPath({ label: "form", selector: "body > form:nth-of-type(1)" });
       expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "select-anchor", seq: 2, selector: "body > form:nth-of-type(1)" }, "*");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("clears hover on app pointer movement outside the iframe without notifying React", () => {
+    const h = selectionHarness();
+    try {
+      h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      h.changed.mockClear();
+      h.host.dispatchEvent(new Event("pointermove"));
+      expect(h.markOf("hover")?.hidden).toBe(true);
+      expect(h.changed).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("restores the cached hover after Alt keyup without another canvas message", () => {
+    const h = selectionHarness();
+    try {
+      h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      h.changed.mockClear();
+      h.key("Alt");
+      expect(h.markOf("hover")?.hidden).toBe(true);
+      h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      expect(h.markOf("hover")?.hidden).toBe(true);
+      h.host.dispatchEvent(Object.assign(new Event("keyup"), { key: "Alt" }));
+      expect(h.markOf("hover")?.hidden).toBe(false);
+      expect(h.changed).not.toHaveBeenCalled();
+      h.key("Alt");
+      h.host.dispatchEvent(new Event("pointermove"));
+      h.host.dispatchEvent(Object.assign(new Event("keyup"), { key: "Alt" }));
+      expect(h.markOf("hover")?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("clears selection on a board margin click, but not on pan, zoom or modified clicks", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      for (const ctrl of [false, true]) {
+        h.controller.wheel({ dx: 0, dy: 5, ctrl, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
+        expect(h.state()?.selection).not.toBeNull();
+      }
+      for (const fields of [{ altKey: true }, { ctrlKey: true }, { button: 2 }]) {
+        h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0, ...fields }));
+        expect(h.state()?.selection).not.toBeNull();
+      }
+      h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
+      expect(h.state()?.selection).toBeNull();
+      expect(h.send).toHaveBeenLastCalledWith(null);
+      expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "clear", seq: 2 }, "*");
+      h.select(1);
+      expect(h.state()?.selection).toBeNull();
     } finally { h.controller.dispose(); }
   });
 

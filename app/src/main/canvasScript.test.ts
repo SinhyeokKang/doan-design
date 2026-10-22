@@ -729,6 +729,21 @@ describe("canvasScript selection input", () => {
     expect(ofType(canvas, "select")).toEqual([]);
   });
 
+  test("blocks Ctrl and non-primary presses without selecting, but preserves Alt pass-through", () => {
+    const { canvas, field } = heroCanvas();
+    for (const fields of [{ ctrlKey: true }, { button: 1 }, { button: 2 }]) {
+      const event = input({ target: field, ...fields });
+      canvas.fireWindow("pointerdown", event);
+      expect(event.prevented).toBe(true);
+      expect(event.stopped).toBe(true);
+      const pass = input({ target: field, ...fields, altKey: true });
+      canvas.fireWindow("pointerdown", pass);
+      expect(pass.prevented).toBe(false);
+      click(canvas, field, fields);
+    }
+    expect(ofType(canvas, "select")).toEqual([]);
+  });
+
   test("a plain press blurs whatever the canvas had focused, so Esc reaches the script", () => {
     const { canvas, span, field } = heroCanvas();
     canvas.document.activeElement = field;
