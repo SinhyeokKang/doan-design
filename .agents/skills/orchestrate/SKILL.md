@@ -36,6 +36,13 @@ Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several wo
 
 - Do not rely only on completion notifications. Run a background loop that checks status periodically (ending on the first change).
 - Heartbeats, idle waits, and timeouts are not completion. Check the handoff document against the actual commits.
+- **Handle heartbeats silently** (2026-10-22 user). The background loop acknowledges deliveries that hold only heartbeats and keeps waiting; it wakes the conductor only for `worker_done`, `question` or `escalation`. Do not report heartbeats to the user, and when an "orchestration message" notice turns out to be only a heartbeat, acknowledge it without a reply. Read a heartbeat's `phase` only when judging whether a quiet worker is stuck. In Orca, a loop like this works:
+  ```bash
+  while true; do
+    out=$(orca orchestration check --run <run> --wait --types "worker_done,escalation,question" --timeout-ms 1800000 --json | grep -v _keepalive)
+    # if every message in $out is a heartbeat: ack its deliveryId and continue; otherwise print and exit
+  done
+  ```
 - An instruction sent to a worker does not count as delivered until you confirm **signs the worker started on it**. Do not queue the next job for a worker mid-turn. Send it as a new Task after completion.
 
 ## 3. Review → fix rounds
