@@ -26,6 +26,7 @@
 | 2026-10-22 | D 질문 답: 패널 280px, 머리 → 조상 경로 → Box · Typography · Colors · Effects · Attributes. 기본값만 흐린 값 + `title="Default"`이고 나머지 상태는 글자로 보인다. 긴 조상 경로는 줄을 바꾼다(가로 스크롤 없음). hover는 1px 점선, 선택은 1px 실선 + 치수 라벨, 하위 행은 40px 들여쓰기 | 지휘자 판단(사용자 위임) — design.md 흐름 8(상태는 글자로도), 280px에서 가로 스크롤은 키보드 · 트랙패드로 닿기 어렵다 |
 | 2026-10-22 | 초안 `d775ed2` 검토 뒤 수정 1회: 색은 hex(`#rrggbb`, 알파면 `#rrggbbaa`, 0이면 `transparent`), 선언 없는 값은 기본값(링크 배경), Attributes는 짧은 이름(`id` · `frame` · `title` · `implements`)이고 요소는 `id`와 감싼 프레임의 `implements`("from frame …"), 프레임 선택에는 Attributes 절이 없다(머리에 있음). 목록에 없는 문서 예시는 다른 페이지를 그린다 | 지휘자 판단(사용자 위임) — Electron으로 여덟 프레임을 렌더해 보았다. 색 표기는 PRODUCT §5 4의 예(`--foreground` → `#0a0a0a`), 라벨은 잘려 읽을 수 없었다 |
 | 2026-10-22 | 인스펙터 값은 main이 CDP로 모은다(ARCHITECTURE §3 결정 변경). 스크립트는 앵커만 보낸다. 수집 · 계산(순수 함수 포함)은 M의 새 task로, 표시 연결은 R의 새 task로 보낸다. R에는 스크립트 쪽 수집을 하지 말라고 바로 알렸다 | 사용자(P2 결과를 보고 고름). PRODUCT §6 PoC 2, §7에 기록 |
+| 2026-10-22 | 초안 확정: 수정본 `cc8f67f`(통합 `82eab43`)을 다시 렌더해 네 가지 수정이 모두 들어간 것을 확인했다. `doan check` 오류 0(경고 6은 `mock.css`), 프레임 id 8개 일치. 초안 리뷰 워커는 따로 띄우지 않았다 | 지휘자 판단(사용자 위임) — 지휘자가 여덟 프레임을 두 번 렌더해 검토했고, 초안은 코드가 아니라 `/code-review` 대상이 아니다 |
 | 2026-10-22 | PoC 6 소켓 절반 통과. 런타임 · 소켓 형식은 design.md 그대로다 | P6 인계(`.scratch/handoff-P6.md`): 선택 수신 · 창 숨김 · `bad_token` · ENOENT · ECONNREFUSED · 두 번째 인스턴스 · 0600/0700 · 정상 종료 정리 모두 기대대로 |
 
 ## 배치
@@ -34,8 +35,8 @@
 |---|---|---|---|---|---|---|
 | P2 | task 0 PoC 2 | `.scratch/poc2-inspect/` | — | Claude Opus high (인스펙터 방식이 여기서 정해지고, 틀리면 task 6을 다시 짠다) | 사례마다 결과 · 버전 · 날짜가 인계에 있음, 스크립트 방식 대 CDP 비교 | 완료(CDP 통과, 해제) |
 | P6 | task 0 PoC 6 소켓 절반 + 입력 확인 | `.scratch/poc6-socket/` · `.scratch/poc-input/` | — | Claude Opus medium (관찰이 주이고 판단은 적지만, 실제 창 · 실제 키 입력에서 오판하면 Q1을 다시 묻게 된다) | 기준 항목마다 결과가 인계에 있음 | 완료(통과, 해제) |
-| D | task 1 초안 | `design/select-inspect.html`(필요하면 `design/` 아래 새 공유 파일) | — | Codex gpt-6-astra medium (상태 · 문구 · 배치 판단이 많고, 틀리면 구현과 `/design-sync`가 모두 어긋난다) | tasks.md task 1 검증(`doan check` 오류 0, 프레임 id 8개), 지휘자 확정 | 대기 |
-| S | task 2 · task 3의 공유 타입 | `schema/` · `app/src/formats/` · `cli/internal/formats/` | P6(런타임 · 소켓 형식이 PoC로 바뀔 수 있음) | Claude Sonnet high (스키마 · 로더는 기계적이지만 교차 파일 `$ref`가 두 언어에서 같아야 한다) | `go test ./...` · `go vet ./...` · `npm --prefix app test` · `typecheck` | 통합 `af67fc1`, 리뷰 중 |
+| D | task 1 초안 | `design/select-inspect.html`(필요하면 `design/` 아래 새 공유 파일) | — | Codex gpt-6-astra medium (상태 · 문구 · 배치 판단이 많고, 틀리면 구현과 `/design-sync`가 모두 어긋난다) | tasks.md task 1 검증(`doan check` 오류 0, 프레임 id 8개), 지휘자 확정 | 확정 · 통합 `4f17387` `82eab43`(수정 1회), 해제 |
+| S | task 2 · task 3의 공유 타입 | `schema/` · `app/src/formats/` · `cli/internal/formats/` | P6(런타임 · 소켓 형식이 PoC로 바뀔 수 있음) | Claude Sonnet high (스키마 · 로더는 기계적이지만 교차 파일 `$ref`가 두 언어에서 같아야 한다) | `go test ./...` · `go vet ./...` · `npm --prefix app test` · `typecheck` | 통합 `af67fc1`, 리뷰 🔴 0 🟡 1(G로 넘김) ⚪ 6, 해제 |
 | G | task 3(Go) · task 4 | `cli/` | S | Claude Opus medium (오류 매핑과 시간 초과가 계약이다) | task 4 검증 | 대기 |
 | M | task 3(main) · task 5 | `app/src/main/`(`canvasScript.ts` 제외) | S | Claude Opus high (소켓 보안, 파일 권한, 수명주기) | task 5 검증 | 대기 |
 | R | task 3(스크립트 · 렌더러) · task 6 · task 7 · preload `setSelection` | `app/src/main/canvasScript.ts`와 테스트, `app/src/renderer/`, `app/src/preload/` | S · P2 · D(task 7만; 나머지를 먼저 하고 미룸) | Claude Opus high (메시지 순서 · 오래된 메시지, 입력 가로채기, React 경계) | task 6 · 7 검증 | 대기 |
