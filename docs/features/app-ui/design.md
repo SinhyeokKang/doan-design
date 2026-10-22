@@ -15,7 +15,7 @@
 | 앱 main | `index.ts`: 메뉴(File 추가) · 메시지 상자 문구 영어, 창 숨기기 수명주기, 창 크기 · `hiddenInset`, Reopen IPC, `webContents.send` 앞 `isDestroyed()` 가드. `view.ts`: `CanvasRow`에 `id?` · `resolved`를 더하고(`canvasRows`가 `open`과 같은 검사 규칙으로 읽음), `openDecision` 문구 영어. `shell.ts`: 거절 문구 영어 |
 | 앱 preload | `reopenFolder(path)`를 더한다. `onFolders` · `onViewCommand`는 해제 함수를 돌려준다(dev StrictMode가 effect를 두 번 돌려도 리스너가 겹치지 않게) |
 | 앱 shell | `reopen(path)`: 항목을 loading으로 보낸 뒤 저장된 경로를 다시 읽고 감시를 다시 건다 |
-| 빌드 | `electron.vite.config.ts`에 React · Tailwind 플러그인과 `@/` alias, `tsconfig.json`에 `jsx`와 `paths`, `components.json`. CSP는 task 1 결과에 따른다 |
+| 빌드 | `electron.vite.config.ts`에 Tailwind 플러그인과 `@/` alias(React 플러그인은 쓰지 않는다, task 1), `tsconfig.json`에 `jsx`와 `paths`, `components.json`. CSP는 task 1 결과에 따른다 |
 | e2e | role · 접근 이름 · ARIA 상태로 읽고, 문구 기대값을 영어로 바꾼다(아래 흐름 9) |
 | 테스트 기대값 | `shell.test.ts` · `view.test.ts` · `canvasView.test.ts`의 한국어 기대값이 영어로 바뀐다 |
 | CLI · MCP · 스킬 · 형식 | 바뀌지 않는다. `CanvasRow`는 IPC 타입이고 공유 형식이 아니다 |
