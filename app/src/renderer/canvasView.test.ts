@@ -78,7 +78,7 @@ describe("canvasViewUpdate", () => {
 
   // `.doan/config.json` removed: there is no list, and nothing is served.
   test("clears when the folder is no longer initialized", () => {
-    expect(canvasViewUpdate(before, [{ path: "/repo", kind: "uninitialized" }], open)).toEqual({ kind: "clear", reason: "missing" });
+    expect(canvasViewUpdate(before, [{ path: "/repo", kind: "uninitialized" }], open)).toEqual({ kind: "clear", reason: "uninitialized" });
   });
 
   test("shows an error line and keeps the view on error", () => {
