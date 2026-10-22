@@ -14,8 +14,10 @@
 - `app/src/main/`: Electron main process — window, app menu, IPC, session permissions, canvas frame navigation and injection (`index.ts`), folder lifecycle (`shell.ts`), CLI runner, folder state, `folders.json` store, watcher, IPC view shapes, canvas frame and navigation rules (`canvasFrame.ts`), and the script injected into canvas iframes (`canvasScript.ts`, shipped as function source); pure helpers have unit tests.
 - `app/src/main/serve/`: local server — path parsing and scope checks (pure) and the HTTP server.
 - `app/src/preload/`: the narrow `window.doan` API (built as CJS).
-- `app/src/renderer/`: plain-DOM sidebar (folders, canvases, frames) and canvas view (`main.ts`), with pure helpers: view math (`viewport.ts`), canvas message validation (`canvasMessage.ts`), and what a list update or layout does to the open canvas (`canvasView.ts`).
+- `app/src/renderer/`: React renderer (app-ui) — entry `main.ts` (no JSX), `App.tsx`, `Sidebar.tsx` (projects tree and frame list), `RightPanel.tsx` (Canvas info and Activity), `components/ui/` (shadcn components), `CanvasController.ts` (imperative board and iframe), `styles.css` (Tailwind and the shadcn theme mapped to tokens) and `tokens.css` (design tokens shared with the draft canvas); pure helpers with tests: view math (`viewport.ts`), canvas message validation (`canvasMessage.ts`), what a list update or layout does to the open canvas (`canvasView.ts`), project row display (`projectRow.ts`), Activity (`activity.ts`) and Canvas info values (`canvasInfo.ts`).
 - `app/e2e/`: Playwright `_electron` smoke used by `/runtime-test`, app shell and canvas view.
+- `app/components.json`, `app/.npmrc`: shadcn configuration and exact version pinning (`save-exact=true`).
+- `design/`: draft canvases of doan's own UI (`app-shell.html`) and `mock.css` (colors of the example canvases drawn inside the draft); `.doan/config.json` points `tokenCss` at `app/src/renderer/tokens.css`.
 - `.agents/skills/`: development skills (`.claude/skills/<name>` are symlinks to them).
 - `schema/`: shared JSON Schema 2020-12 definitions; `embed.go` embeds them for Go.
 - `schema/fixtures/`: shared valid/invalid JSON and JSONL folding fixtures used by both languages.
