@@ -48,6 +48,7 @@ tasks.md의 체크 항목은 task 0–9이고 모두 위 한 행에 속한다.
 
 ## 진행 기록
 
-- A 1라운드 `790f01e` · `221d225` → 리뷰(Sonnet medium) 🔴 0 · 🟡 4 → 2라운드 진행 중.
+- A 1라운드 `790f01e` · `221d225` → 리뷰(Sonnet medium) 🔴 0 · 🟡 4 → 2라운드 `07a8fb9` · `373437c` → 통합. 통합 HEAD에서 check 오류 0 · 경고 6, 프레임 7, test 533 · typecheck 통과.
+- C 시작(Sol medium, 워크트리 `app-ui-C`).
 - B: CSP 게이트 실패(빌드 ScrollArea 인라인 style, dev Fast Refresh 인라인 스크립트) → 사용자 결정 두 건을 전달하고 다시 확인 중.
 
