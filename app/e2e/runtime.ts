@@ -7,6 +7,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { rmSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -40,13 +41,15 @@ interface FolderView {
 }
 
 const shots: string[] = [];
-// The app being driven, for the watchdog.
+// The app being driven and the temp dir, for the watchdog.
 let running: ElectronApplication | undefined;
+let work: string | undefined;
 
 async function main(): Promise<void> {
   const watchdog = setTimeout(() => {
     console.error(`runtime-test: FAIL\nno result after ${RUN_MS / 1000} s`);
     running?.process().kill("SIGKILL");
+    if (work !== undefined) rmSync(work, { recursive: true, force: true });
     process.exit(1);
   }, RUN_MS);
   try {
@@ -59,7 +62,7 @@ async function main(): Promise<void> {
 async function runAll(): Promise<void> {
   const before = await fingerprint(realFoldersJson);
   // realpath: macOS tmpdir is under /var -> /private/var, and the app stores real paths.
-  const work = await realpath(await mkdtemp(join(tmpdir(), "doan-e2e-")));
+  work = await realpath(await mkdtemp(join(tmpdir(), "doan-e2e-")));
   try {
     const cli = join(work, "bin", "doan");
     await exec("go", ["build", "-o", cli, "./cli/cmd/doan"], { cwd: repoRoot });
@@ -526,13 +529,14 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
 
   // No layout within 5 s: the failure state, then 다시 읽기. The canvas
   // swallows its own layouts until `quietUntil`, so the first load fails and
-  // the retry, at least 5 s later, loads.
-  const quietUntil = Date.now() + 4500;
-  await writeFile(
-    join(repos.canvas, "design", "quiet.html"),
-    canvasHtml("quiet", 800, "", `<script>if (Date.now() < ${quietUntil}) window.parent = { postMessage() {} };</script><div style="height:400px">quiet</div>`),
-  );
+  // the retry, at least 5 s later, loads. The deadline is written again just
+  // before the click, so a slow folder list cannot use it up.
+  const quietPath = join(repos.canvas, "design", "quiet.html");
+  const quietCanvas = (until: number) => canvasHtml("quiet", 800, "", `<script>if (Date.now() < ${until}) window.parent = { postMessage() {} };</script><div style="height:400px">quiet</div>`);
+  await writeFile(quietPath, quietCanvas(0));
   await waitFolders(page, (all) => hasCanvas(all, repos.canvas, "design/quiet.html"), "quiet canvas listed");
+  const quietUntil = Date.now() + 4500;
+  await writeFile(quietPath, quietCanvas(quietUntil));
   await page.click(canvasButton(repos.canvas, "design/quiet.html"));
   assert.ok(Date.now() < quietUntil - 1000, "quiet canvas opened well before its quiet time ends");
   state = await waitView(page, (v) => v.status === "failed", "failure state after 5 s without a layout");
