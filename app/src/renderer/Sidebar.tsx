@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type KeyboardEvent } from "react";
-import { ChevronDown, ChevronRight, File, X } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { CanvasState } from "./CanvasController";
 import { canvasName, projectRow } from "./projectRow";
@@ -68,21 +68,23 @@ function ProjectTree({ entries, names, state, open }: SidebarProps) {
       const expanded = entry.kind !== "list" || !collapsed.has(entry.path);
       return <div role="treeitem" aria-label={name} aria-level={1} aria-expanded={expanded} tabIndex={active === entry.path ? 0 : -1} key={entry.path} onFocus={event => { if (event.target === event.currentTarget) setFocused(entry.path); }} onKeyDown={event => keys(event, entry)}>
         <div className="row project-row" onClick={() => { setFocused(entry.path); if (entry.kind === "list") toggle(entry.path); }}>
-          {expanded ? <ChevronDown className="glyph" /> : <ChevronRight className="glyph" />}
+          {expanded ? <span className="glyph" aria-hidden="true">▾</span> : <ChevronRight className="glyph" />}
           <Tooltip><TooltipTrigger asChild><span className="g">{name}</span></TooltipTrigger><TooltipContent>{entry.path}</TooltipContent></Tooltip>
           {display.status && <span className={display.status === "Not initialized" ? "cnt" : "err"}>{display.status}</span>}
-          {!display.actions.includes("reopen") && <button className="close-project" aria-label={`Close project ${name}`} onClick={event => { event.stopPropagation(); close(entry.path); }}><X size={12} /></button>}
+          {!display.actions.includes("reopen") && <button className="close-project" aria-label={`Close project ${name}`} onClick={event => { event.stopPropagation(); close(entry.path); }}>×</button>}
         </div>
         {expanded && <div role="group">
           {display.hint && <p className="hint">{display.hint}</p>}
-          {display.detail && <p className="hint">{display.detail.map((part, index) => typeof part === "string" ? part : <code key={index}>{part.code}</code>)}</p>}
-          {display.actions.includes("reopen") && <div className="hint recovery"><button className="btn" onClick={() => void window.doan.reopenFolder(entry.path)}>Reopen</button><button className="btn ghost" aria-label={`Close project ${name}`} onClick={() => close(entry.path)}>Close</button></div>}
+          {(display.detail || display.actions.includes("reopen")) && <div className="hint">
+            {display.detail && <p>{display.detail.map((part, index) => typeof part === "string" ? part : <code key={index}>{part.code}</code>)}</p>}
+            {display.actions.includes("reopen") && <div className="recovery"><button className="btn" onClick={() => void window.doan.reopenFolder(entry.path)}>Reopen</button><button className="btn ghost" aria-label={`Close project ${name}`} onClick={() => close(entry.path)}>Close</button></div>}
+          </div>}
           {entry.kind === "list" && entry.canvases.map(row => {
             const key = `${entry.path}\n${row.path}`;
             const commentId = `${commentPrefix}-${encodeURIComponent(key)}`;
             const current = state.open?.folder === entry.path && state.shown === row.path;
             return <Tooltip key={row.path}><TooltipTrigger asChild><div role="treeitem" aria-label={canvasName(row.path)} aria-describedby={commentId} aria-level={2} aria-current={current ? "true" : undefined} tabIndex={active === key ? 0 : -1} className="row ind" key={row.path} onFocus={event => { if (event.target === event.currentTarget) setFocused(key); }} onClick={event => { event.currentTarget.focus(); open(entry.path, row); }} onKeyDown={event => keys(event, entry, row)}>
-              <File className="glyph" /><span className="g">{canvasName(row.path)}</span><span className="d">{row.title}</span><span id={commentId} role="img" className={`cnt${row.open ? " hot" : ""}`} aria-label={`${row.open} open comments`}>{row.open}</span>
+              <span className="glyph" aria-hidden="true">◧</span><span className="g">{canvasName(row.path)}</span><span className="d">{row.title}</span><span id={commentId} role="img" className={`cnt${row.open ? " hot" : ""}`} aria-label={`${row.open} open comments`}>{row.open}</span>
             </div></TooltipTrigger><TooltipContent>{`${entry.path}/${row.path}`}</TooltipContent></Tooltip>;
           })}
         </div>}
@@ -97,7 +99,7 @@ function FrameList({ state, jump }: { state: CanvasState; jump: (index: number) 
   return <section aria-label="Frames">
     <div className="sec">Frames <span className="r">{layout.truncated ? "1,000+" : layout.frames.length}</span></div>
     {!layout.frames.length && <p className="hint frames-hint">This canvas has no <code>data-doan-frame</code></p>}
-    <ol>{layout.frames.map((frame, index) => { const label = frameLabel(frame); return <li key={index}><button className="row frame-row" aria-current={state.pickedFrame === index ? "true" : undefined} onClick={() => jump(index)}><span className="glyph">#</span><span className="g">{label.id}</span><span className="d">{label.title}</span></button></li>; })}</ol>
+    <ol>{layout.frames.map((frame, index) => { const label = frameLabel(frame); return <li key={index}><button className="row frame-row" aria-current={state.pickedFrame === index ? "true" : undefined} onClick={() => jump(index)}><span className="glyph">#</span><span className={frame.id ? "g" : "g no-id"}>{label.id}</span><span className="d">{label.title}</span></button></li>; })}</ol>
     {layout.truncated && <p className="hint frames-hint">Showing the first 1,000</p>}
   </section>;
 }

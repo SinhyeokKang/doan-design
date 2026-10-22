@@ -55,12 +55,13 @@ function CanvasPane({ viewport, board, state, noProjects, command }: {
     {state.unlisted && <div className="canvas-notice" role="status">This page is not a listed canvas</div>}
     {state.status && <div className="canvas-status" role="status">
       {state.status === "empty" && noProjects ? <div className="empty"><b>No projects yet</b><p>Open a repo with Open Project… A repo without <code>.doan/</code> shows how to set it up.</p><button className="btn primary" onClick={() => void window.doan.openFolder()}>Open Project… <span className="kbd">⌘O</span></button></div>
-        : state.status === "loading" ? <p>Loading…</p>
-        : state.status === "failed" ? <div><b>Couldn’t load the canvas</b><p>Run doan check in a terminal</p><button className="btn" onClick={() => command("reload")}>Reload</button></div>
+        : state.status === "loading" ? <p><span className="spinner" aria-hidden="true" />Loading…</p>
+        : state.status === "failed" ? <div><b>Couldn’t load the canvas</b><br />Run doan check in a terminal<br /><br /><button className="btn" onClick={() => command("reload")}>Reload</button></div>
+        : state.status === "noWidth" ? <p><b>Missing or invalid board width.</b>{state.message.slice("Missing or invalid board width.".length)}</p>
         : <p>{state.message}</p>}
     </div>}
     {state.updated && state.open && <output className="updated meta" aria-label={updatedText(state.updated)}><span className="dot" /> {updatedText(state.updated)}</output>}
-    <div className="zctl">
+    <div className={`zctl${state.hasFrame ? "" : " disabled"}`}>
       <div className="zoom">
         <button aria-label="Zoom out" disabled={!state.hasFrame} onClick={() => command("zoomOut")}>−</button>
         <output aria-label={state.hasFrame ? `Zoom ${state.zoom}%` : "Zoom"}>{state.hasFrame ? `${state.zoom}%` : "—"}</output>

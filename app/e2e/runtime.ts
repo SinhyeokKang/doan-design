@@ -1046,7 +1046,11 @@ async function readFolders(page: Page): Promise<FolderView[]> {
       const count = row.getByRole("img", { name: /^\d+ open comments$/ });
       const open = await count.getAttribute("aria-label") ?? "";
       const countText = await count.textContent() ?? "";
-      const text = await row.textContent() ?? "";
+      const text = await row.evaluate(node => {
+        const content = node.cloneNode(true) as HTMLElement;
+        content.querySelectorAll('[aria-hidden="true"]').forEach(icon => icon.remove());
+        return content.textContent ?? "";
+      });
       const title = text.slice(name.length, text.length - countText.length).trim();
       canvases.push({ path: canvas, title, open, url: entry?.kind === "list" ? entry.canvases.find(row => row.path === canvas)?.url ?? "" : "" });
     }
