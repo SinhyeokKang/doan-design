@@ -76,7 +76,7 @@ Doan Design (`doan`): a tool where a coding agent writes an HTML canvas (a desig
 
 ## Workflow (skill lineup)
 
-The source for the 11 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, ported the pipeline from malmoi `.claude/commands/` to fit doan — the deploy, DB, and translation stages were dropped).
+The source for the 12 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, ported the pipeline from malmoi `.claude/commands/` to fit doan — the deploy, DB, and translation stages were dropped).
 
 **Recommended flow**: `/feature` → (`/feature-review`) → `/tdd` → `/implement` → (`/runtime-test`) → `/code-review` → `/refactor` → (`/postmortem`) → push. A small change goes all the way to push with `/ship` alone; a large batch to split across several workers runs through `/orchestrate`.
 
@@ -84,6 +84,7 @@ The source for the 11 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, po
 - `/feature` is the starting point of a feature. Its output goes in `docs/features/<slug>/` (spec·design·tasks); when the feature is done, promote the conclusions to PRODUCT.md (product judgment) and ARCHITECTURE.md (structure, formats, conventions) and delete that directory.
 - `/code-review` refers to this repo's skill. It is different from Claude Code's built-in `code-review`.
 - `/runtime-test` (2026-10-21, app-shell) launches the real app and checks it; run it after `/implement` or `/refactor` whenever `app/` changed, before `/code-review`.
+- `/design-draft` (2026-10-22) draws a feature's UI draft canvas in `design/` from its feature documents and checks it with `doan check` / `doan ls`. Run it after `/feature-review` and before `/tdd`, on the feature branch; either runtime may draw, and the user confirms the draft in the app before implementation.
 - `/design-sync` (2026-10-22, after canvas-view) compares a doan app screen's first implementation with its draft canvas in `design/` by computed style in the real app. Use it from app-ui on (2026-10-22), inside a `/ship` or `/orchestrate` branch; the draft is the source of truth only until that screen's first implementation is on main.
 - If you fixed a regression or bug, run `/postmortem`. `/implement` · `/refactor` · `/code-review` grep `docs/POSTMORTEM.md` before starting (when the file exists).
 - `/ship` · `/orchestrate` always start by creating a `feat-<slug>` branch from main and end with a push of that branch + a PR. They do not merge.
