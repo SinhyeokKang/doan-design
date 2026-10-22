@@ -1,16 +1,18 @@
-// Runtime smoke for the app shell (/runtime-test). Drives the built app with
-// Playwright `_electron`: opens temp repos through a replaced folder dialog,
-// reads the window's DOM, fetches over the local server, restarts, and saves
-// screenshots. Run with `npm --prefix app run e2e` (builds first).
+// Runtime smoke for the app shell and the canvas view (/runtime-test). Drives
+// the built app with Playwright `_electron`: opens temp repos through a
+// replaced folder dialog, reads the window's DOM, fetches over the local
+// server, restarts, opens canvases (zoom, pan, frame jumps, live reload,
+// in-canvas links) and saves screenshots. Run with `npm --prefix app run e2e`
+// (builds first).
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { _electron, type ElectronApplication, type Page } from "playwright";
+import { _electron, type ElectronApplication, type Frame, type Page } from "playwright";
 
 const exec = promisify(execFile);
 const appDir = fileURLToPath(new URL("..", import.meta.url));
@@ -62,6 +64,7 @@ interface Repos {
   plain: string;
   sub: string;
   link: string;
+  canvas: string;
 }
 
 const COMMENT = {
@@ -114,7 +117,50 @@ async function makeRepos(dir: string, cli: string): Promise<Repos> {
   const link = join(dir, "link-to-ok");
   await symlink(ok, link);
 
-  return { ok, worktree, broken, brokenMessage, brokenSub: join(broken, "design"), brokenDoanOnly: join(broken, "notes"), plain, sub: join(ok, "design", "sub"), link };
+  const canvas = join(dir, "canvas");
+  await makeCanvasRepo(canvas);
+
+  return { ok, worktree, broken, brokenMessage, brokenSub: join(broken, "design"), brokenDoanOnly: join(broken, "notes"), plain, sub: join(ok, "design", "sub"), link, canvas };
+}
+
+const CANVAS_CONFIG = '{"v":1,"tokenCss":"tokens.css"}\n';
+const MAIN_HEIGHT = 3000;
+const SHRUNK_HEIGHT = 1200;
+const LONG_HEIGHT = 2500;
+const NEXT_HEIGHT = 300;
+
+function canvasHtml(id: string, width: number | null, style: string, body: string): string {
+  const meta = width === null ? "" : `<meta name="doan:width" content="${width}">`;
+  return `<!doctype html><html><head><meta name="doan:canvas" content="${id}">${meta}<title>${id}</title><link rel="stylesheet" href="../tokens.css"><style>html,body{margin:0}${style}</style></head><body>${body}</body></html>\n`;
+}
+
+// Frames: a titled one with an id-less frame inside, an inner scroller, one
+// taller than the viewport, and a repeated id. Heights add up to MAIN_HEIGHT.
+function mainCanvas(tall: boolean): string {
+  const style = "section{display:block;position:relative;box-sizing:border-box;border:1px solid #888}#scroller{position:absolute;left:100px;top:100px;width:400px;height:200px;overflow:auto}#scroller div{height:1000px}";
+  const body = [
+    '<section data-doan-frame="hero" data-doan-title="Hero" style="height:400px"><div data-doan-frame="" style="position:absolute;left:600px;top:100px;width:200px;height:100px"></div></section>',
+    '<section data-doan-frame="scroller-box" style="height:400px"><div id="scroller"><div>scroll me</div></div></section>',
+    tall ? '<section data-doan-frame="tall" style="height:1800px"></section>' : "",
+    '<section data-doan-frame="dup" style="height:200px"></section>',
+    '<section data-doan-frame="dup" style="height:200px"></section>',
+  ].join("");
+  return canvasHtml("main", 1200, style, body);
+}
+
+async function makeCanvasRepo(repo: string): Promise<void> {
+  await mkdir(join(repo, ".doan", "comments"), { recursive: true });
+  await mkdir(join(repo, "design"));
+  await writeFile(join(repo, ".doan", "config.json"), CANVAS_CONFIG);
+  await writeFile(join(repo, "tokens.css"), ":root{--space:8px}\n");
+  const design = join(repo, "design");
+  await writeFile(join(design, "main.html"), mainCanvas(true));
+  await writeFile(join(design, "narrow.html"), canvasHtml("narrow", 375, "", '<div data-doan-frame="only" style="height:600px"></div>'));
+  await writeFile(join(design, "noframes.html"), canvasHtml("noframes", 800, "", '<div style="height:300px">no frames</div>'));
+  await writeFile(join(design, "nowidth.html"), canvasHtml("nowidth", null, "", "<p>no width</p>"));
+  await writeFile(join(design, "gone.html"), canvasHtml("gone", 800, "", '<div style="height:300px">deleted later</div>'));
+  await writeFile(join(design, "long.html"), canvasHtml("long", 1200, "", `<div data-doan-frame="long" style="height:${LONG_HEIGHT}px"><a id="next" href="next.html">next</a></div>`));
+  await writeFile(join(design, "next.html"), canvasHtml("next", 1200, "body{min-height:100vh}", `<div data-doan-frame="next" style="height:${NEXT_HEIGHT}px"></div>`));
 }
 
 // The expected text is whatever the CLI says, so this test does not pin CLI wording.
@@ -211,12 +257,475 @@ async function run(cli: string, userData: string, repos: Repos): Promise<void> {
 
     // 6. Screenshot.
     await screenshot(page, "2-restarted");
+
+    await canvasView(app, page, repos);
   } catch (error) {
     await screenshot(page, "failure").catch(() => {});
     throw error;
   } finally {
     await app.close().catch(() => {});
   }
+}
+
+interface ViewState {
+  x: number;
+  y: number;
+  scale: number;
+  // #viewport, the origin of screen coordinates, in page coordinates.
+  left: number;
+  top: number;
+  vw: number;
+  vh: number;
+  frameWidth: number;
+  frameHeight: number;
+  boardShown: boolean;
+  status: string;
+  statusText: string;
+  zoom: string;
+  updated: string;
+  error: string | null;
+  unlisted: boolean;
+}
+
+interface FrameButton {
+  label: string;
+  mono: boolean;
+  current: boolean;
+}
+
+interface BoardRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const COMMENT_MAIN = { ...COMMENT, id: "evt_00000000-0000-4000-8000-000000000002", comment: "cmt_00000000-0000-4000-8000-000000000002" };
+// Long enough for the watcher debounce, a `doan ls` run and an iframe load.
+const QUIET_MS = 1500;
+
+// Canvas view steps (design.md / tasks.md task 7). Positions inside the iframe
+// come from the canvas's own rects (board px) and the board transform:
+// Playwright's boundingBox() ignores the board scale inside the iframe.
+async function canvasView(app: ElectronApplication, page: Page, repos: Repos): Promise<void> {
+  // C1. Before a canvas is picked, then loading, then the board.
+  assert.equal((await readView(page)).status, "empty");
+  assert.equal((await readView(page)).statusText, "왼쪽 목록에서 캔버스를 고르세요");
+  await openFolder(app, page, repos.canvas);
+  await waitFolders(page, (all) => hasCanvas(all, repos.canvas, "design/main.html"), "canvas repo listed");
+  const rows = byPath(await readFolders(page), repos.canvas).canvases;
+  const url = (path: string): string => rows.find((c) => c.path === path)?.url ?? assert.fail(`no url for ${path}`);
+  const loadingText = await page.evaluate((selector) => {
+    (document.querySelector(selector) as HTMLButtonElement).click();
+    return document.getElementById("canvas-status")?.textContent ?? "";
+  }, canvasButton(repos.canvas, "design/main.html"));
+  assert.equal(loadingText, "불러오는 중…");
+  let state = await waitLoaded(page, "main canvas shown");
+  assert.deepEqual(await currentCanvases(page), [`${repos.canvas}\ndesign/main.html`]);
+
+  // C2. Width from doan:width; height is the content height.
+  assert.equal(state.frameWidth, 1200);
+  let canvas = await canvasFrame(page);
+  assert.equal(await canvas.evaluate(() => innerWidth), 1200);
+  assert.ok(Math.abs(state.frameHeight - MAIN_HEIGHT) <= 1, `height ${state.frameHeight}`);
+
+  // C3. Fit: board width to the viewport width, never above 100%.
+  assertFit(state, 1200);
+  assert.equal(state.zoom, `${Math.round(state.scale * 100)}%`);
+  await settledScreenshot(page, "3-canvas");
+  await page.click(canvasButton(repos.canvas, "design/narrow.html"));
+  state = await waitLoaded(page, "narrow canvas shown");
+  assertFit(state, 375);
+  assert.equal(state.scale, 1);
+  await openCanvas(page, repos.canvas, "design/main.html");
+  canvas = await canvasFrame(page);
+
+  // C4. Input. A plain wheel over the iframe pans as far as over the margin.
+  const fitted = await readView(page);
+  const hero = await frameRect(canvas, 0);
+  await wheelAt(page, toPage(fitted, { x: hero.x + 50, y: hero.y + 50 }), 0, 100);
+  const overFrame = await waitView(page, (v) => v.y !== fitted.y, "pan over the iframe");
+  assert.ok(near(overFrame.x, fitted.x) && near(overFrame.y, fitted.y - 100) && overFrame.scale === fitted.scale, "pan over the iframe by the wheel delta");
+  await wheelAt(page, { x: fitted.left + 4, y: fitted.top + 200 }, 0, 100);
+  const overMargin = await waitView(page, (v) => v.y !== overFrame.y, "pan over the margin");
+  assert.ok(near(overMargin.y - overFrame.y, overFrame.y - fitted.y) && near(overMargin.x, overFrame.x), "same distance over the margin");
+
+  // A ctrl wheel over the iframe zooms around the cursor.
+  // Inside the second frame, beside the scroller, and still on screen after the pans.
+  const cursor = toPage(overMargin, { x: 800, y: 600 });
+  const before = toBoard(overMargin, cursor);
+  await page.keyboard.down("Control");
+  await wheelAt(page, cursor, 0, -50);
+  await page.keyboard.up("Control");
+  const zoomed = await waitView(page, (v) => v.scale !== overMargin.scale, "ctrl wheel zoom");
+  assert.ok(near(zoomed.scale / overMargin.scale, 1.25), `factor ${zoomed.scale / overMargin.scale}`);
+  const after = toBoard(zoomed, cursor);
+  assert.ok(Math.abs(after.x - before.x) <= 2 && Math.abs(after.y - before.y) <= 2, `zoom kept the cursor point: ${JSON.stringify({ before, after })}`);
+
+  // An inner scroller under the cursor scrolls itself, the board stays.
+  const scroller = await canvas.evaluate(() => {
+    const rect = (document.getElementById("scroller") as HTMLElement).getBoundingClientRect();
+    return { x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height };
+  });
+  await wheelAt(page, toPage(zoomed, { x: scroller.x + scroller.width / 2, y: scroller.y + scroller.height / 2 }), 0, 100);
+  await waitFor(async () => (await canvas.evaluate(() => (document.getElementById("scroller") as HTMLElement).scrollTop)) > 0, "inner scroller scrolled");
+  await sleep(300);
+  assertSameView(await readView(page), zoomed, "board kept while the scroller scrolls");
+
+  // Menu items run from main: Playwright keys do not reach the native menu.
+  await menu(app, "확대");
+  const menuZoomed = await waitView(page, (v) => v.scale !== zoomed.scale, "menu zoom in");
+  assert.ok(near(menuZoomed.scale / zoomed.scale, 1.25));
+  const center = { x: menuZoomed.left + menuZoomed.vw / 2, y: menuZoomed.top + menuZoomed.vh / 2 };
+  const centerBefore = toBoard(zoomed, center);
+  const centerAfter = toBoard(menuZoomed, center);
+  assert.ok(Math.abs(centerAfter.x - centerBefore.x) <= 1 && Math.abs(centerAfter.y - centerBefore.y) <= 1, "menu zoom around the center");
+  await menu(app, "실제 크기");
+  const actual = await waitView(page, (v) => v.scale === 1, "actual size");
+  assert.equal(actual.zoom, "100%");
+  await menu(app, "맞춤");
+  assertFit(await waitView(page, (v) => v.scale !== 1, "menu fit"), 1200);
+  // A pinch over the sidebar must not zoom the app page either.
+  await page.keyboard.down("Control");
+  await wheelAt(page, { x: 100, y: 300 }, 0, -100);
+  await page.keyboard.up("Control");
+  await sleep(200);
+  assert.equal(await zoomFactor(app), 1);
+
+  // C5. A window resize keeps the scale and the board point at the top-left.
+  await page.click("#zoom-in");
+  const sized = await waitView(page, (v) => v.scale !== fitted.scale, "toolbar zoom in");
+  await setWindowSize(app, 1200, 820);
+  const resized = await waitView(page, (v) => v.vw !== sized.vw, "viewport resized");
+  assertSameView(resized, sized, "view kept on resize");
+  await setWindowSize(app, 960, 720);
+  await waitView(page, (v) => v.vw === sized.vw && v.vh === sized.vh, "viewport restored");
+
+  // C6. Frame jumps.
+  assert.deepEqual(
+    (await frameButtons(page)).map((b) => [b.label, b.mono]),
+    [["Hero", false], ["(id 없음)", false], ["scroller-box", true], ["tall", true], ["dup", true], ["dup", true]],
+  );
+  const tall = await frameRect(canvas, 3);
+  let jumped = await jump(page, 3, sized);
+  assert.ok(near(jumped.y + tall.y * jumped.scale, 32), "a tall frame is aligned to the top");
+  assertInside(jumped, tall, true);
+  const dupA = await frameRect(canvas, 4);
+  const dupB = await frameRect(canvas, 5);
+  const atA = await jump(page, 4, jumped);
+  assertInside(atA, dupA, false);
+  const atB = await jump(page, 5, atA);
+  assertInside(atB, dupB, false);
+  assert.notEqual(atA.y, atB.y, "repeated ids jump to their own frames");
+  jumped = await jump(page, 0, atB);
+  assertInside(jumped, hero, false);
+  assert.deepEqual((await frameButtons(page)).map((b) => b.current), [true, false, false, false, false, false]);
+  await settledScreenshot(page, "4-frame");
+  await openCanvas(page, repos.canvas, "design/noframes.html");
+  await waitFor(async () => (await page.textContent("#frames .frames-status")) === "이 캔버스에는 data-doan-frame이 없습니다", "no-frames notice");
+  await openCanvas(page, repos.canvas, "design/main.html");
+
+  // C7. Live reload keeps the view; only served changes of this folder reload.
+  await page.click("#zoom-in");
+  const kept = await waitView(page, (v) => v.scale !== fitted.scale, "zoomed before reload");
+  await markCanvas(page);
+  await sleep(1100);
+  await writeFile(join(repos.canvas, "design", "main.html"), mainCanvas(false));
+  await waitFor(async () => !(await marked(page)), "canvas reloaded after an edit");
+  const reloaded = await waitView(page, (v) => Math.abs(v.frameHeight - SHRUNK_HEIGHT) <= 1, "height shrinks after the edit");
+  assertSameView(reloaded, kept, "view kept on reload");
+  assert.notEqual(reloaded.updated, kept.updated);
+  assert.match(reloaded.updated, /^갱신 \d\d:\d\d:\d\d$/);
+
+  await markCanvas(page);
+  await sleep(1100);
+  // Atomic save: a new file renamed over the old one.
+  await writeFile(join(repos.canvas, "tokens.css.tmp"), ":root{--space:12px}\n");
+  await rename(join(repos.canvas, "tokens.css.tmp"), join(repos.canvas, "tokens.css"));
+  await waitFor(async () => !(await marked(page)), "canvas reloaded after a token CSS save");
+  const afterTokens = await waitLoaded(page, "canvas after a token CSS save");
+  assert.notEqual(afterTokens.updated, reloaded.updated);
+
+  await markCanvas(page);
+  await writeFile(join(repos.canvas, ".doan", "comments", "main.jsonl"), `${JSON.stringify(COMMENT_MAIN)}\n`);
+  await waitFolders(page, (all) => byPath(all, repos.canvas).canvases.some((c) => c.path === "design/main.html" && c.open === "열린 코멘트 1"), "comment counted");
+  await writeFile(join(repos.ok, "design", "other.html"), "<!doctype html><title>Other</title>\n");
+  await waitFolders(page, (all) => hasCanvas(all, repos.ok, "design/other.html"), "other folder re-read");
+  await sleep(QUIET_MS);
+  assert.ok(await marked(page), "no reload for a comment or another folder");
+  assert.equal((await readView(page)).updated, afterTokens.updated);
+
+  // C8. Screen states.
+  await page.click(canvasButton(repos.canvas, "design/nowidth.html"));
+  state = await waitView(page, (v) => v.status === "noWidth", "no-width notice");
+  assert.equal(
+    state.statusText,
+    '보드 폭 선언이 없거나 값이 잘못되었습니다. 에이전트에게 <head>에 <meta name="doan:width" content="1440">을 넣어 달라고 하세요. 터미널에서 doan check로 확인할 수 있습니다.',
+  );
+  assert.equal(await page.$("#board iframe"), null);
+  await openCanvas(page, repos.canvas, "design/gone.html");
+  await rm(join(repos.canvas, "design", "gone.html"));
+  state = await waitView(page, (v) => v.status === "missing", "deleted canvas notice");
+  assert.equal(state.statusText, "열려 있던 캔버스(design/gone.html)가 목록에서 사라졌습니다. 파일이 지워졌거나 옮겨졌습니다.");
+  assert.equal(await page.$("#board iframe"), null);
+  assert.deepEqual(await currentCanvases(page), []);
+
+  await openCanvas(page, repos.canvas, "design/main.html");
+  await markCanvas(page);
+  const shown = await readView(page);
+  await writeFile(join(repos.canvas, ".doan", "config.json"), "{\n");
+  state = await waitView(page, (v) => v.error !== null, "error line on a broken config");
+  assert.equal(state.error, byPath(await readFolders(page), repos.canvas).status);
+  assert.ok(state.boardShown);
+  assertSameView(state, shown, "view kept on a folder error");
+  await sleep(QUIET_MS);
+  assert.ok(await marked(page), "no reload while the folder fails");
+  await writeFile(join(repos.canvas, ".doan", "config.json"), CANVAS_CONFIG);
+  await waitFor(async () => !(await marked(page)), "reload after the folder recovers");
+  assert.equal((await waitLoaded(page, "canvas after recovery")).error, null);
+
+  // C9. Links inside the canvas.
+  await openCanvas(page, repos.canvas, "design/long.html");
+  state = await readView(page);
+  assert.ok(Math.abs(state.frameHeight - LONG_HEIGHT) <= 1, `long height ${state.frameHeight}`);
+  canvas = await canvasFrame(page);
+  await canvas.evaluate(() => (document.getElementById("next") as HTMLAnchorElement).click());
+  await waitFor(async () => sameList(await currentCanvases(page), [`${repos.canvas}\ndesign/next.html`]), "sidebar marks the linked canvas");
+  // The linked document inherits the iframe height; the reset lets it shrink.
+  state = await waitView(page, (v) => Math.abs(v.frameHeight - NEXT_HEIGHT) <= 1, "linked 100vh canvas shrinks to its content");
+  assert.equal(state.unlisted, false);
+  assert.equal(await canvasFrameUrl(app), url("design/next.html"));
+
+  const token = /^(http:\/\/127\.0\.0\.1:\d+\/t\/[^/]+)\//.exec(url("design/next.html"))?.[1] ?? assert.fail("token base");
+  const otherKey = byPath(await readFolders(page), repos.ok).canvases.find((c) => c.path === "design/login.html")?.url ?? assert.fail("other folder url");
+  assert.notEqual(otherKey.slice(0, otherKey.indexOf("/design/")), url("design/next.html").slice(0, url("design/next.html").indexOf("/design/")));
+  for (const target of [`${token}x/`, otherKey]) {
+    await clickLink(canvas, target);
+    await sleep(QUIET_MS);
+    assert.equal(await canvasFrameUrl(app), url("design/next.html"), `link to ${target} refused`);
+  }
+
+  // A canvas that sent itself to about:blank still cannot leave its folder key.
+  await canvas.evaluate(() => {
+    location.href = "about:blank";
+  });
+  await waitFor(async () => (await canvasFrameUrl(app)) === "about:blank", "canvas on about:blank");
+  await canvas.evaluate((target) => {
+    location.href = target;
+  }, otherKey);
+  await sleep(QUIET_MS);
+  assert.equal(await canvasFrameUrl(app), "about:blank", "about:blank to another folder key refused");
+
+  // A link blocked by the window's CSP leaves an error page; a reload brings the canvas back.
+  await clickLink(canvas, "https://example.com/");
+  await sleep(QUIET_MS);
+  await menu(app, "캔버스 다시 읽기");
+  await waitFor(async () => (await canvasFrameUrl(app)) === url("design/long.html"), "reload after a blocked link");
+  state = await waitLoaded(page, "canvas back after reload");
+  await waitFor(async () => sameList(await currentCanvases(page), [`${repos.canvas}\ndesign/long.html`]), "mark back on the opened canvas");
+
+  // A forged layout moves only the display, never the iframe.
+  // The canvas's next real layout hides the notice again within a frame, so
+  // an observer records that the forged one was taken.
+  await page.evaluate(() => {
+    const line = document.getElementById("canvas-unlisted") as HTMLElement;
+    const seen: { shown: boolean } = { shown: false };
+    (window as { doanSeenUnlisted?: { shown: boolean } }).doanSeenUnlisted = seen;
+    new MutationObserver(() => {
+      if (!line.hidden) seen.shown = true;
+    }).observe(line, { attributes: true });
+  });
+  canvas = await canvasFrame(page);
+  await canvas.evaluate((href) => parent.postMessage({ type: "layout", href, height: 500, viewport: innerHeight, frames: [], truncated: false }, "*"), otherKey);
+  await waitFor(() => page.evaluate(() => (window as { doanSeenUnlisted?: { shown: boolean } }).doanSeenUnlisted?.shown === true), "forged href shown as an unlisted document");
+  await sleep(QUIET_MS);
+  assert.equal(await canvasFrameUrl(app), url("design/long.html"), "forged layout did not navigate");
+  assert.equal(await page.getAttribute("#board iframe", "src"), url("design/long.html"));
+
+  // C10. Security on the app's own main frame.
+  assert.equal(await page.evaluate(() => Notification.requestPermission()), "denied");
+  assert.equal(await page.evaluate(async () => (await navigator.permissions.query({ name: "geolocation" })).state), "denied");
+  const csp = await page.getAttribute('meta[http-equiv="Content-Security-Policy"]', "content");
+  assert.ok(csp?.includes("frame-src http://127.0.0.1:*"), `CSP ${csp}`);
+  assert.equal(await zoomFactor(app), 1);
+}
+
+function canvasButton(folder: string, canvas: string): string {
+  return `section.folder[data-path="${folder}"] li.canvas[data-path="${canvas}"] button`;
+}
+
+async function openCanvas(page: Page, folder: string, canvas: string): Promise<ViewState> {
+  await page.click(canvasButton(folder, canvas));
+  return waitLoaded(page, `${canvas} shown`);
+}
+
+async function waitLoaded(page: Page, what: string): Promise<ViewState> {
+  return waitView(page, (v) => v.boardShown && v.status === "" && v.frameHeight !== 150, what);
+}
+
+function readView(page: Page): Promise<ViewState> {
+  return page.evaluate(() => {
+    const board = document.getElementById("board") as HTMLElement;
+    const viewport = document.getElementById("viewport") as HTMLElement;
+    const status = document.getElementById("canvas-status") as HTMLElement;
+    const error = document.getElementById("canvas-error") as HTMLElement;
+    const iframe = board.querySelector("iframe");
+    const matrix = new DOMMatrix(getComputedStyle(board).transform);
+    const rect = viewport.getBoundingClientRect();
+    return {
+      x: matrix.e,
+      y: matrix.f,
+      scale: matrix.a,
+      left: rect.left,
+      top: rect.top,
+      vw: viewport.clientWidth,
+      vh: viewport.clientHeight,
+      frameWidth: iframe ? parseFloat(iframe.style.width) : 0,
+      frameHeight: iframe ? parseFloat(iframe.style.height) : 0,
+      boardShown: iframe !== null && !board.hidden && board.style.visibility !== "hidden",
+      status: status.dataset.state ?? "",
+      statusText: status.textContent ?? "",
+      zoom: document.getElementById("zoom-level")?.textContent ?? "",
+      updated: document.getElementById("updated")?.textContent ?? "",
+      error: error.hidden ? null : error.textContent,
+      unlisted: !(document.getElementById("canvas-unlisted") as HTMLElement).hidden,
+    };
+  });
+}
+
+async function waitView(page: Page, done: (view: ViewState) => boolean, what: string): Promise<ViewState> {
+  let last: ViewState | undefined;
+  await waitFor(async () => done((last = await readView(page))), what, () => JSON.stringify(last));
+  return last as ViewState;
+}
+
+function currentCanvases(page: Page): Promise<string[]> {
+  return page.$$eval('li.canvas button[aria-current="true"]', (buttons) =>
+    buttons.map((button) => `${(button.closest("section.folder") as HTMLElement).dataset.path}\n${(button.closest("li.canvas") as HTMLElement).dataset.path}`),
+  );
+}
+
+function frameButtons(page: Page): Promise<FrameButton[]> {
+  return page.$$eval("#frames .frame-button", (buttons) =>
+    buttons.map((button) => ({
+      label: button.textContent ?? "",
+      mono: button.querySelector(".frame-id") !== null,
+      current: button.getAttribute("aria-current") === "true",
+    })),
+  );
+}
+
+async function jump(page: Page, index: number, from: ViewState): Promise<ViewState> {
+  await page.click(`#frames .frame-button[data-index="${index}"]`);
+  return waitView(page, (v) => v.x !== from.x || v.y !== from.y || v.scale !== from.scale, `jump to frame ${index}`);
+}
+
+async function canvasFrame(page: Page): Promise<Frame> {
+  const frame = await (await page.$("#board iframe"))?.contentFrame();
+  assert.ok(frame, "canvas iframe has a frame");
+  return frame;
+}
+
+// The frame's URL as main sees it, which is what navigation rules act on.
+function canvasFrameUrl(app: ElectronApplication): Promise<string> {
+  return app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.webContents.mainFrame.frames[0]?.url ?? "");
+}
+
+function frameRect(canvas: Frame, index: number): Promise<BoardRect> {
+  return canvas.evaluate((i) => {
+    const rect = (document.querySelectorAll("[data-doan-frame]")[i] as HTMLElement).getBoundingClientRect();
+    return { x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height };
+  }, index);
+}
+
+// A canvas-started navigation, as a link inside the canvas would make it.
+async function clickLink(canvas: Frame, href: string): Promise<void> {
+  await canvas.evaluate((target) => {
+    const link = document.createElement("a");
+    link.href = target;
+    document.body.append(link);
+    link.click();
+  }, href);
+}
+
+// Survives only until the canvas document is replaced.
+async function markCanvas(page: Page): Promise<void> {
+  await (await canvasFrame(page)).evaluate(() => {
+    (window as { doanE2e?: boolean }).doanE2e = true;
+  });
+}
+
+async function marked(page: Page): Promise<boolean> {
+  return (await canvasFrame(page)).evaluate(() => (window as { doanE2e?: boolean }).doanE2e === true);
+}
+
+async function menu(app: ElectronApplication, label: string): Promise<void> {
+  await app.evaluate(({ Menu }, name) => {
+    const view = Menu.getApplicationMenu()?.items.find((item) => item.label === "보기");
+    const item = view?.submenu?.items.find((entry) => entry.label === name);
+    if (!item) throw new Error(`no menu item ${name}`);
+    item.click();
+  }, label);
+}
+
+function zoomFactor(app: ElectronApplication): Promise<number> {
+  return app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.webContents.getZoomFactor() ?? 0);
+}
+
+async function setWindowSize(app: ElectronApplication, width: number, height: number): Promise<void> {
+  await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]?.setSize(size.width, size.height), { width, height });
+}
+
+async function wheelAt(page: Page, point: { x: number; y: number }, dx: number, dy: number): Promise<void> {
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.wheel(dx, dy);
+}
+
+// Board px to page px.
+function toPage(view: ViewState, point: { x: number; y: number }): { x: number; y: number } {
+  return { x: view.left + view.x + point.x * view.scale, y: view.top + view.y + point.y * view.scale };
+}
+
+function toBoard(view: ViewState, point: { x: number; y: number }): { x: number; y: number } {
+  return { x: (point.x - view.left - view.x) / view.scale, y: (point.y - view.top - view.y) / view.scale };
+}
+
+function assertFit(view: ViewState, width: number): void {
+  const scale = Math.min(1, (view.vw - 64) / width);
+  assert.ok(near(view.scale, scale), `fit scale ${view.scale}, expected ${scale}`);
+  assert.ok(near(view.x, (view.vw - width * scale) / 2), `fit x ${view.x}`);
+  assert.ok(near(view.y, 32), `fit y ${view.y}`);
+}
+
+function assertSameView(actual: ViewState, expected: ViewState, what: string): void {
+  assert.deepEqual([actual.x, actual.y, actual.scale], [expected.x, expected.y, expected.scale], what);
+}
+
+// The computed transform keeps about six significant digits.
+function near(actual: number, expected: number): boolean {
+  return Math.abs(actual - expected) <= 1e-3 * Math.max(1, Math.abs(expected));
+}
+
+// The frame lies in the viewport; a tall one only needs its top inside.
+function assertInside(view: ViewState, rect: BoardRect, tall: boolean): void {
+  const left = view.x + rect.x * view.scale;
+  const top = view.y + rect.y * view.scale;
+  const right = left + rect.width * view.scale;
+  const bottom = top + rect.height * view.scale;
+  const slack = 0.5;
+  assert.ok(left >= -slack && right <= view.vw + slack && top >= -slack && (tall || bottom <= view.vh + slack), `frame on screen: ${JSON.stringify({ left, top, right, bottom, view })}`);
+  if (!tall) assert.ok(near((top + bottom) / 2, view.vh / 2), "a short frame is centered");
+}
+
+// The canvas iframe paints in its own process; right after a view change the
+// screenshot can catch the board before the canvas's next frame lands.
+async function settledScreenshot(page: Page, name: string): Promise<void> {
+  await sleep(500);
+  await screenshot(page, name);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function launch(cli: string, userData: string): Promise<{ app: ElectronApplication; page: Page }> {

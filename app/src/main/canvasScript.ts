@@ -91,7 +91,9 @@ export function canvasScript(lib: CanvasLib): void {
     const measured = lib.documentHeight(Math.ceil(html.getBoundingClientRect().height), html.scrollHeight, innerHeight);
     height = lib.nextHeight(height, measured, innerHeight);
     const { list, truncated } = frames();
-    post({ type: "layout", href: location.href, height: height.sent, frames: list, truncated });
+    // `viewport` lets the renderer drop a layout measured before its last
+    // resize of the iframe reached this document.
+    post({ type: "layout", href: location.href, height: height.sent, viewport: innerHeight, frames: list, truncated });
   };
 
   let queued = false;

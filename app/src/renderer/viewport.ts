@@ -37,8 +37,9 @@ export const FIT_MARGIN = 32;
 export const FIT_SCALE_MAX = 1;
 export const FIRST_LAYOUT_TIMEOUT_MS = 5000;
 
-// Not fixed by design.md. 0.01 makes a trackpad pinch (|dy| of a few px) move
-// smoothly while a mouse-wheel notch (|dy| 100) already hits WHEEL_ZOOM_MAX.
+// A feel constant, not a measured one: 0.01 makes a trackpad pinch (|dy| of a
+// few px) move smoothly while a mouse-wheel notch (|dy| 100) already hits
+// WHEEL_ZOOM_MAX. Revisit if wheel zoom feels off in the app.
 export const WHEEL_ZOOM_SENSITIVITY = 0.01;
 // Chromium reports pixels (deltaMode 0); lines and pages only show up from
 // other sources, so these are rough conversions rather than measured values.

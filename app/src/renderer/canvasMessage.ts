@@ -20,6 +20,8 @@ export interface LayoutMessage {
   type: "layout";
   href: string;
   height: number;
+  // The canvas's innerHeight when it measured `height`.
+  viewport: number;
   frames: CanvasFrameRect[];
   truncated: boolean;
 }
@@ -67,8 +69,8 @@ export function parseCanvasMessage(data: unknown): CanvasMessage | null {
 }
 
 function parseLayout(data: Record<string, unknown>): LayoutMessage | null {
-  const { href, height, frames } = data;
-  if (typeof href !== "string" || !nonNegative(height) || !Array.isArray(frames)) return null;
+  const { href, height, viewport, frames } = data;
+  if (typeof href !== "string" || !nonNegative(height) || !nonNegative(viewport) || !Array.isArray(frames)) return null;
   // `href` is compared with a canvas URL later, so cutting it would only make a
   // long path look like an unknown document; an oversized one is dropped whole.
   if (href.length > MAX_HREF) return null;
@@ -80,7 +82,7 @@ function parseLayout(data: Record<string, unknown>): LayoutMessage | null {
     if (parsed.cut) truncated = true;
     kept.push(parsed.frame);
   }
-  return { type: "layout", href, height, frames: kept, truncated };
+  return { type: "layout", href, height, viewport, frames: kept, truncated };
 }
 
 function parseFrame(raw: unknown): { frame: CanvasFrameRect; cut: boolean } | null {
