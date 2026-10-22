@@ -84,7 +84,7 @@
 | `isCanvasFrame(url, base, parentIsMain)` · `allowFrameNavigation(current, next, base)` | `app/src/main/canvasFrame.ts` | 주입 대상과 탐색 허용 판단. `base`는 `http://127.0.0.1:<port>/t/<token>/` |
 | `fromAppFrame(event, win)` | `app/src/main/canvasFrame.ts` | IPC 발신 확인(보안 절) |
 
-정할 값(구현 때 상수로 두고 테스트로 고정): 배율 범위 0.05–4, 버튼·메뉴 한 단계 1.25배, 휠 이벤트 한 번 상한 1.25배, 맞춤 여백 32px, 맞춤 · 프레임 점프 배율 상한 1, 팬 제한 없음, 첫 `layout` 대기 5초, 프레임 1,000개, 문자열 200자. 높이 상한은 PoC 1에서 정한다.
+정할 값(구현 때 상수로 두고 테스트로 고정): 배율 범위 0.05–4, 버튼·메뉴 한 단계 1.25배, 휠 이벤트 한 번 상한 1.25배, 맞춤 여백 32px, 맞춤 · 프레임 점프 배율 상한 1, 팬 제한 없음, 첫 `layout` 대기 5초, 프레임 1,000개, 문자열 200자, 높이 초깃값 150px, 높이 상한 200,000px(PoC 1에서 정함. 측정 규칙은 'PoC 의존'의 'PoC 결과').
 
 ## 형식 변경
 
@@ -118,6 +118,26 @@ PRODUCT §6의 미통과 항목에 기댄다. 둘 다 task 0에서 먼저 돌린
   5. 탐색: 렌더러가 새 iframe에 넣는 첫 `src`가 `will-frame-navigate`에서 허용되고, 캔버스 안 링크로 다른 폴더 키나 토큰 밖으로 가는 탐색은 거부된다.
   6. 선택: PoC 1 원래 기준인 클릭 선택과 하이라이트(#6 대비). 결과는 #6의 근거로 PRODUCT §6에 남긴다.
 - **PoC 3** (줌 중 핀 위치): 주입 스크립트가 보낸 요소 사각형에 overlay 층의 표식을 붙인다. 줌 · 팬 · 리로드 뒤에도 표식과 요소의 오차가 1px 이하인지 본다.
+
+### PoC 결과 (2026-10-22, 모두 통과)
+
+자세한 관찰은 PRODUCT §6에 있다. 뒤 배치가 따를 값과 주의점만 여기 적는다.
+
+- **주입 이벤트**: webContents `did-frame-navigate`(`isMainFrame`이 false인 것)에서 `webFrameMain.fromId(frameProcessId, frameRoutingId)`로 프레임을 얻고, `isCanvasFrame`을 통과하면 `executeJavaScript`를 실행한다. 이때 문서는 `readyState` `loading`이므로, 스크립트는 `DOMContentLoaded` 뒤에 관찰자를 건다. 리로드와 캔버스 안 링크 이동 때마다 다시 주입됐다. 프레임 `dom-ready`도 동작했지만 프레임마다 리스너를 따로 관리해야 해서 쓰지 않는다. `frame-created`는 아직 `about:blank`라 쓸 수 없다.
+- **주입 스크립트 형태**: `executeJavaScript`는 코드 문자열을 받는다. PoC는 import나 바깥 변수를 쓰지 않는 함수 하나를 문자열로 읽어 `(${src})(opts); void 0;`로 감싸 실행했다. 실제 앱도 번들러가 바깥 참조를 끌어들이지 않도록 스크립트를 자기완결적으로 둔다. 스크립트는 캔버스의 main world에서 돈다. `WebFrameMain`에는 isolated world 실행이 없어서, 캔버스 스크립트가 주입 스크립트의 전역을 볼 수 있다(흐름 5의 위조 가능 전제와 같다).
+- **높이 측정 규칙**:
+  - 렌더러는 `src`를 넣을 때마다(열기 · 리로드) iframe 높이를 150px로 초기화한다. 초기화하지 않으면 `min-height: 100vh` 캔버스는 이전 높이보다 줄어들 수 없다.
+  - 주입 스크립트는 `Math.ceil(document.documentElement.getBoundingClientRect().height)`를 `height`로 보낸다. `scrollHeight`는 뷰포트 높이 아래로 내려가지 않으므로 쓰지 않는다.
+  - 자기 리사이즈 직후(`innerHeight`가 직전에 보낸 높이 ±1로 바뀐 뒤)에도 문서가 `innerHeight` + 1보다 크면, 내용이 뷰포트를 따라 커지는 캔버스로 본다. 이 경우 그 로드 동안 직전 높이로 고정한다.
+  - 렌더러는 높이를 200,000px로 자른다. 200,000px 보드도 배율 0.05에서 렌더링됐고, 앱 전체 메모리는 약 45MB 늘었다.
+  - 한계: `height: calc(100vh + N)`처럼 고정점이 없는 캔버스는 첫 측정값에서 멈추고 아래가 잘린다(PoC에서 200px). 흐름 밖(absolute) 요소가 `html` 높이를 넘는 경우는 확인하지 않았다.
+- **첫 `layout`은 동기로 보낸다**: iframe이 화면 밖에 있으면 rAF가 멈춰, rAF로 묶은 `layout`이 화면에 다시 보일 때까지 오지 않았다. 시작 시점의 `layout`과 `measure` 응답은 rAF를 거치지 않고 바로 보낸다.
+- **휠 delta**: iframe이 받는 `deltaX` · `deltaY`는 배율(0.25 · 1 · 4)과 관계없이 화면 px다. `wheelAction`에 그대로 넣고, 배율을 곱하거나 나누지 않는다. `clientX + scrollX`는 보드 좌표로 맞았다.
+- **메뉴 단축키**: 실제 OS 키 입력(System Events)으로는 iframe에 포커스가 있어도 동작했다. Playwright `keyboard.press`(CDP 합성 키)는 네이티브 메뉴에 닿지 않으므로, e2e는 main에서 메뉴 항목을 직접 실행해 확인한다.
+- **탐색과 `initiator`**: Electron 45의 `will-frame-navigate`는 `details.initiator`를 준다. 렌더러가 넣은 `src`의 initiator는 앱 메인 프레임(부모 없음)이고, 캔버스 안 링크의 initiator는 캔버스 프레임이다. 첫 탐색의 `details.frame.url`은 `about:blank`이고 부모는 창의 메인 프레임이다. 보안 절의 `about:blank` 규칙으로 충분하므로 initiator는 쓰지 않는다.
+  - 같은 iframe의 `src`를 다른 폴더 키로 바꾸면 거부된다. 그래서 흐름 1처럼 캔버스를 열 때마다 iframe을 새로 만든다.
+  - 다른 호스트 · `data:`로 가는 탐색은 렌더러 CSP `frame-src`가 먼저 막는다. 이때 `will-frame-navigate`는 오지 않고, 프레임은 `chrome-error://chromewebdata/`에 남아 주입도 `layout`도 없다. 렌더러는 첫 `layout` 대기(5초)로 이 상태를 처리한다. 해시 이동에는 `will-frame-navigate`가 오지 않는다.
+- **e2e 주의**: Playwright `boundingBox()`는 배율이 걸린 iframe 안 요소의 배율을 반영하지 않는다(배율 0.25에서 폭 120, 실제 30). iframe 안 요소의 화면 위치는 `layout` 좌표와 보드 transform으로 계산한다.
 
 ## POSTMORTEM에서 가져온 함정
 
