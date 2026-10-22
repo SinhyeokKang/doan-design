@@ -86,17 +86,18 @@ describe("servingUrl", () => {
 });
 
 describe("folderEntry", () => {
-  test("narrows a list into rows", () => {
-    const entry = folderEntry("/repo", { kind: "list", root: "/repo", scope: ["design"], canvases: [{ path: "design/a.html" }] }, base);
-    expect(entry).toEqual({ path: "/repo", kind: "list", canvases: [{ path: "design/a.html", open: 0, url: `${base}design/a.html` }] });
+  test("narrows a list into rows and carries the served revision", () => {
+    const entry = folderEntry("/repo", { kind: "list", root: "/repo", scope: ["design"], canvases: [{ path: "design/a.html" }] }, base, 3);
+    expect(entry).toEqual({ path: "/repo", kind: "list", servedRev: 3, canvases: [{ path: "design/a.html", open: 0, url: `${base}design/a.html` }] });
   });
 
-  test("passes the other states through", () => {
-    expect(folderEntry("/r", { kind: "uninitialized" }, base)).toEqual({ path: "/r", kind: "uninitialized" });
-    expect(folderEntry("/r", { kind: "error", message: "bad config" }, base)).toEqual({ path: "/r", kind: "error", message: "bad config" });
-    expect(folderEntry("/r", { kind: "cliError", reason: "spawn doan ENOENT" }, base))
+  // Only a list is served, so only a list has a revision to reload on.
+  test("passes the other states through without a served revision", () => {
+    expect(folderEntry("/r", { kind: "uninitialized" }, base, 3)).toEqual({ path: "/r", kind: "uninitialized" });
+    expect(folderEntry("/r", { kind: "error", message: "bad config" }, base, 3)).toEqual({ path: "/r", kind: "error", message: "bad config" });
+    expect(folderEntry("/r", { kind: "cliError", reason: "spawn doan ENOENT" }, base, 3))
       .toEqual({ path: "/r", kind: "cliError", reason: "spawn doan ENOENT" });
-    expect(folderEntry("/r", { kind: "notFound" }, base)).toEqual({ path: "/r", kind: "notFound" });
+    expect(folderEntry("/r", { kind: "notFound" }, base, 3)).toEqual({ path: "/r", kind: "notFound" });
   });
 });
 
