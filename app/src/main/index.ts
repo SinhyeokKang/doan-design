@@ -7,6 +7,8 @@ import { validateSelection } from "../formats/validate";
 import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } from "./canvasFrame";
 import { canvasScriptSource } from "./canvasScript";
 import { cliCommand } from "./cli";
+import type { InspectResult } from "./inspect";
+import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
 import { startShell, type Shell } from "./shell";
 
@@ -33,6 +35,7 @@ app.on("web-contents-created", (_event, contents) => {
 let win: BrowserWindow | undefined;
 let shell: Shell | undefined;
 let runtime: Runtime | undefined;
+let inspector: Inspector | undefined;
 // One selection app-wide (select-inspect R1); the socket answers it only for
 // its own project. Memory only, never written to disk.
 let selection: Selection | null = null;
@@ -143,6 +146,7 @@ function createWindow(): BrowserWindow {
   if (!app.isPackaged && devUrl) void window.loadURL(devUrl);
   else void window.loadFile(fileURLToPath(new URL("../renderer/index.html", import.meta.url)));
   injectCanvasScript(window);
+  inspector = createInspector(window.webContents.debugger, () => shell?.tokenBase ?? "");
   // A reloaded or crashed renderer has lost the selection it reported; an
   // in-page navigation is not a new document, so it does not count.
   window.webContents.on("render-process-gone", () => { selection = null; });
@@ -220,6 +224,11 @@ async function start(): Promise<void> {
   ipcMain.handle("selection:set", (event, value: unknown) => {
     if (!fromWindow(event)) return;
     selection = validateSelection(value) && isOpen(value.root) ? value : null;
+  });
+  ipcMain.handle("inspect:get", async (event, request: unknown): Promise<InspectResult> => {
+    const selector = parseInspectRequest(request);
+    if (!fromWindow(event) || selector === null || inspector === undefined) return { ok: false, reason: "The request was refused." };
+    return inspector.inspect(selector);
   });
 
   win = createWindow();
