@@ -486,8 +486,8 @@ export function canvasScript(lib: CanvasLib): void {
   // Input direction (design flow 1): a plain primary press is selection and
   // never reaches the canvas, so links, buttons, inputs, text selection and
   // :focus stay inert. ⌥ passes through. Only trusted input counts: a canvas's
-  // own `el.click()` keeps working as before. Right and Ctrl-clicks are left
-  // alone for a later context menu.
+  // own `el.click()` keeps working as before. Right and Ctrl presses must
+  // prevent focus too, but their clicks never select.
   const linkOf = (target: EventTarget | null) => {
     for (let el = isElement(target) ? target : null; el !== null; el = el.parentElement) {
       if (el.localName === "a" && el.hasAttribute("href")) return el;
@@ -498,7 +498,8 @@ export function canvasScript(lib: CanvasLib): void {
     addEventListener(
       type,
       (event: MouseEvent) => {
-        if (!event.isTrusted || event.button !== 0 || event.ctrlKey) return;
+        if (!event.isTrusted) return;
+        if (type !== "pointerdown" && (event.button !== 0 || event.ctrlKey)) return;
         if (event.altKey) {
           // Chromium turns an ⌥-clicked link into a download, which the
           // sandbox does not stop; navigating here still passes main's gate.

@@ -55,6 +55,7 @@ export class CanvasController {
   private seq = 0;
   private selectedRect: CanvasRect | null = null;
   private hoverRect: CanvasRect | null = null;
+  private altHeld = false;
   private markHidden = false;
   private reanchor: AnchorRequest | null = null;
   private marks: { hover: HTMLElement; selected: HTMLElement; size: HTMLElement } | null = null;
@@ -73,6 +74,9 @@ export class CanvasController {
     window.addEventListener("message", this.receive);
     window.addEventListener("wheel", this.preventPageZoom, { passive: false });
     window.addEventListener("keydown", this.keydown);
+    window.addEventListener("keyup", this.keyup);
+    window.addEventListener("pointermove", this.pointerOnApp, { capture: true });
+    viewport.addEventListener("click", this.clickOnMargin);
     viewport.addEventListener("wheel", this.wheelOnMargin, { passive: false });
   }
 
@@ -80,6 +84,9 @@ export class CanvasController {
     window.removeEventListener("message", this.receive);
     window.removeEventListener("wheel", this.preventPageZoom);
     window.removeEventListener("keydown", this.keydown);
+    window.removeEventListener("keyup", this.keyup);
+    window.removeEventListener("pointermove", this.pointerOnApp, { capture: true });
+    this.viewport.removeEventListener("click", this.clickOnMargin);
     this.viewport.removeEventListener("wheel", this.wheelOnMargin);
     this.dropFrame();
   }
@@ -346,8 +353,27 @@ export class CanvasController {
   }
 
   private keydown = (event: KeyboardEvent): void => {
-    if (event.key === "Alt") { this.hoverRect = null; this.drawMarks(); return; }
+    if (event.key === "Alt") { this.altHeld = true; this.drawMarks(); return; }
     if (event.key !== "Escape" || event.defaultPrevented || editableTarget(event.target)) return;
+    this.escape();
+  };
+
+  private keyup = (event: KeyboardEvent): void => {
+    if (event.key !== "Alt") return;
+    this.altHeld = false;
+    this.drawMarks();
+  };
+
+  private pointerOnApp = (event: PointerEvent): void => {
+    this.altHeld = event.altKey;
+    // OOPIFs do not reliably receive pointerout when the pointer enters the app.
+    if (event.target !== this.frame) this.hoverRect = null;
+    this.drawMarks();
+  };
+
+  private clickOnMargin = (event: MouseEvent): void => {
+    if (!Object.is(event.target, this.viewport) && !Object.is(event.target, this.board)) return;
+    if (event.button !== 0 || event.ctrlKey || event.altKey) return;
     this.escape();
   };
 
@@ -466,7 +492,7 @@ export class CanvasController {
   // scale, while the size label (a child of the selection mark, centered
   // under it by CSS) reads canvas px.
   private drawMarks(): void {
-    const hover = this.markHidden ? null : this.hoverRect;
+    const hover = this.markHidden || this.altHeld ? null : this.hoverRect;
     const selected = this.markHidden ? null : this.selectedRect;
     if (this.marks === null) {
       if (hover === null && selected === null) return;
