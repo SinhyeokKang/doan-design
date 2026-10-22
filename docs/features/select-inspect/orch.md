@@ -18,13 +18,18 @@
 | 2026-10-22 | 초안 워커는 Codex `gpt-6-astra` medium이다. 그 밖의 구현 · 리뷰 워커는 Claude다 | PRODUCT §7(2026-10-22, #6 모델 경계 허용), tasks.md '진행' |
 | 2026-10-22 | `Selection` 등 공유 TS 타입은 S(`app/src/formats/`)가, preload `setSelection`은 R이, IPC `selection:set` 처리는 M이 맡는다 | 지휘자 판단 — M과 R이 같은 파일을 건드리지 않고 병렬로 돌게 하려는 것 |
 | 2026-10-22 | task 9(실제 에이전트 확인)는 지휘자가 하고, Codex 호출 때마다 사용자에게 허락을 받는다 | tasks.md task 9, AGENTS.md 'Commands' |
+| 2026-10-22 | ⌥클릭한 `a[href]`는 스크립트가 `click`에서 `preventDefault` 뒤 `location.assign(href)`로 이동시킨다. 버튼 · 입력은 그대로 통과시킨다 | P6 — ⌥클릭 링크는 Chromium이 다운로드로 바꾸고 sandbox가 막지 않았다(다운로드 완료). `location.assign`은 이동했고 관문을 지났다(같은 키 허용, 다른 키 거절) |
+| 2026-10-22 | 세션에 `will-download` 처리기를 두어 모든 다운로드를 취소한다(M) | 지휘자 판단 — P6에서 캔버스의 ⌥클릭 다운로드가 실제로 완료됐다. 앱은 지금 처리기가 없어 Electron 기본(저장)으로 간다. 권한 요청을 모두 거절하는 기존 결정(ARCHITECTURE §3)과 같은 방향이다 |
+| 2026-10-22 | 일반 클릭(`pointerdown`)에서 캔버스 안에 포커스가 있으면 스크립트가 `activeElement.blur()`를 한다(R, e2e로 확인) | P6 — ⌥클릭으로 입력에 들어간 포커스가 다음 일반 클릭 뒤에도 남아, "편집 요소 밖 Esc만 전달" 규칙이 Esc를 버린다. blur 변형은 P6에서 돌리지 않았다 |
+| 2026-10-22 | SIGKILL로 끝난 앱의 `$TMPDIR/doan-*` 소켓 디렉터리가 남는 것을 받아들인다 | 지휘자 판단(P6 권고) — 충돌 한 번에 빈 디렉터리 하나이고, macOS가 `$TMPDIR`를 비운다. 지우는 코드는 다른 인스턴스의 경로를 지울 위험이 있다 |
+| 2026-10-22 | PoC 6 소켓 절반 통과. 런타임 · 소켓 형식은 design.md 그대로다 | P6 인계(`.scratch/handoff-P6.md`): 선택 수신 · 창 숨김 · `bad_token` · ENOENT · ECONNREFUSED · 두 번째 인스턴스 · 0600/0700 · 정상 종료 정리 모두 기대대로 |
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델 · effort (이유) | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | P2 | task 0 PoC 2 | `.scratch/poc2-inspect/` | — | Claude Opus high (인스펙터 방식이 여기서 정해지고, 틀리면 task 6을 다시 짠다) | 사례마다 결과 · 버전 · 날짜가 인계에 있음, 스크립트 방식 대 CDP 비교 | 대기 |
-| P6 | task 0 PoC 6 소켓 절반 + 입력 확인 | `.scratch/poc6-socket/` · `.scratch/poc-input/` | — | Claude Opus medium (관찰이 주이고 판단은 적지만, 실제 창 · 실제 키 입력에서 오판하면 Q1을 다시 묻게 된다) | 기준 항목마다 결과가 인계에 있음 | 대기 |
+| P6 | task 0 PoC 6 소켓 절반 + 입력 확인 | `.scratch/poc6-socket/` · `.scratch/poc-input/` | — | Claude Opus medium (관찰이 주이고 판단은 적지만, 실제 창 · 실제 키 입력에서 오판하면 Q1을 다시 묻게 된다) | 기준 항목마다 결과가 인계에 있음 | 완료(통과, 해제) |
 | D | task 1 초안 | `design/select-inspect.html`(필요하면 `design/` 아래 새 공유 파일) | — | Codex gpt-6-astra medium (상태 · 문구 · 배치 판단이 많고, 틀리면 구현과 `/design-sync`가 모두 어긋난다) | tasks.md task 1 검증(`doan check` 오류 0, 프레임 id 8개), 지휘자 확정 | 대기 |
 | S | task 2 · task 3의 공유 타입 | `schema/` · `app/src/formats/` · `cli/internal/formats/` | P6(런타임 · 소켓 형식이 PoC로 바뀔 수 있음) | Claude Sonnet high (스키마 · 로더는 기계적이지만 교차 파일 `$ref`가 두 언어에서 같아야 한다) | `go test ./...` · `go vet ./...` · `npm --prefix app test` · `typecheck` | 대기 |
 | G | task 3(Go) · task 4 | `cli/` | S | Claude Opus medium (오류 매핑과 시간 초과가 계약이다) | task 4 검증 | 대기 |
@@ -46,3 +51,6 @@ tasks.md의 task 0–11은 모두 위 한 행 이상에 속하고, 주인 없는
 - 4파: G · M · R 통합 뒤 E. 5파: E 뒤 task 9(지휘자)와 Y. 그 뒤 문서.
 
 ## 진행 기록
+
+- 2026-10-22 1파 시작: P2 `ctx_d4db85540a68`(si-p2, Claude opus high), P6 `ctx_36ea8475d6dc`(si-p6, Claude opus medium), D `ctx_6e0d659920c6`(si-d, Codex gpt-6-astra medium). `launch.effective`가 요청과 같다. Run `run_d5ab65352d29`.
+- `new-child` 워크트리가 통합 브랜치가 아니라 main(`f718e54`)에서 갈라졌다. 빠진 파일은 이 `orch.md`뿐이라, 세 워커에게 `git merge --ff-only feat-select-inspect`를 보냈다. 다음 워커부터는 `--base-branch feat-select-inspect`를 넘긴다.
