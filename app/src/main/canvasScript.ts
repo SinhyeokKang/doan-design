@@ -198,7 +198,8 @@ export function canvasScript(lib: CanvasLib): void {
   let lastHover = JSON.stringify([0, null]);
 
   const isRoot = (el: unknown) => el === document.documentElement || el === document.body;
-  const isElement = (target: unknown): target is Element => typeof target === "object" && target !== null && (target as Node).nodeType === 1;
+  const isElement = (target: unknown): target is Element => typeof target === "object" && target !== null && "nodeType" in target && target.nodeType === 1;
+  const isEditable = (el: Element) => "isContentEditable" in el && el.isContentEditable === true;
   const rectOf = (el: Element): Rect => {
     const r = el.getBoundingClientRect();
     return { x: r.left, y: r.top, width: r.width, height: r.height };
@@ -245,8 +246,9 @@ export function canvasScript(lib: CanvasLib): void {
     const target: Record<string, unknown> = { rect: rectOf(el), tag: lib.clipText(el.localName, MAX_STRING) };
     const frameAt = own.findIndex((link) => link.frameId !== undefined);
     const frameEl = frameAt === -1 ? undefined : nodes[depth + frameAt];
-    if (frameEl !== undefined) {
-      const frame: Record<string, string> = { id: lib.clipText(frameEl.getAttribute("data-doan-frame") ?? "", MAX_STRING) };
+    const frameId = frameEl === undefined ? undefined : lib.clipText(frameEl.getAttribute("data-doan-frame") ?? "", MAX_STRING);
+    if (frameEl !== undefined && frameId !== undefined) {
+      const frame: Record<string, string> = { id: frameId };
       const title = frameEl.getAttribute("data-doan-title");
       if (title !== null) frame.title = lib.clipText(title, MAX_STRING);
       const implementsPaths = frameEl.getAttribute("data-doan-implements");
@@ -272,10 +274,10 @@ export function canvasScript(lib: CanvasLib): void {
       return item;
     });
     if (el.localName === "a" && el.hasAttribute("href")) target.interactive = "link";
-    else if (["button", "input", "select", "textarea"].includes(el.localName) || (el as HTMLElement).isContentEditable === true) target.interactive = "control";
+    else if (["button", "input", "select", "textarea"].includes(el.localName) || isEditable(el)) target.interactive = "control";
     const next: Anchor = { selector };
     if (usableId !== undefined) next.doanId = usableId;
-    if (frameAt === 0) next.frame = (target.frame as { id: string }).id;
+    if (frameAt === 0 && frameId !== undefined) next.frame = frameId;
     return { el, anchor: next, target };
   };
 
@@ -437,8 +439,8 @@ export function canvasScript(lib: CanvasLib): void {
       if (typeof selector === "string") wanted.selector = selector;
       pending = wanted;
       tryPending();
-    } else {
-      const el = document.querySelectorAll("[data-doan-frame]")[index as number];
+    } else if (typeof index === "number") {
+      const el = document.querySelectorAll("[data-doan-frame]")[index];
       if (el === undefined || lib.clipText(el.getAttribute("data-doan-frame") ?? "", MAX_STRING) !== id) return;
       const described = describe(el);
       if (described !== null) apply(described);
@@ -512,8 +514,8 @@ export function canvasScript(lib: CanvasLib): void {
         event.stopPropagation();
         if (type === "pointerdown") {
           // Focus left inside by an ⌥-click would make Esc look like typing.
-          const active = document.activeElement as HTMLElement | null;
-          if (active !== null && !isRoot(active) && typeof active.blur === "function") active.blur();
+          const active = document.activeElement;
+          if (active !== null && !isRoot(active) && "blur" in active && typeof active.blur === "function") active.blur();
         } else if (type === "click") choose(event.target);
       },
       { capture: true },
@@ -557,7 +559,7 @@ export function canvasScript(lib: CanvasLib): void {
 
   // Focus is in this canvas only after an ⌥-click into it; then Esc lands
   // here instead of the app's keydown.
-  const editable = (target: EventTarget | null) => isElement(target) && (["input", "textarea", "select"].includes(target.localName) || (target as HTMLElement).isContentEditable === true);
+  const editable = (target: EventTarget | null) => isElement(target) && (["input", "textarea", "select"].includes(target.localName) || isEditable(target));
   addEventListener(
     "keydown",
     (event: KeyboardEvent) => {
