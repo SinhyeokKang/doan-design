@@ -7,6 +7,8 @@ import { folderEntry, openDecision, type FolderEntry } from "./view";
 import { watchFolder, type Change, type FolderWatch } from "./watch";
 
 export interface Shell {
+  // `http://127.0.0.1:<port>/t/<token>/`: every canvas URL lives under it.
+  readonly tokenBase: string;
   entries(): FolderEntry[];
   // Resolves to a message for the human when the folder is not opened.
   open(picked: string): Promise<string | null>;
@@ -101,6 +103,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
   for (const path of store.list()) add(path);
 
   return {
+    tokenBase: `http://${server.host}:${server.port}/t/${server.token}/`,
     entries,
     async open(picked) {
       let real: string;
