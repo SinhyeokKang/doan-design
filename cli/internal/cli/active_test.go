@@ -25,6 +25,9 @@ func TestReadRuntime(t *testing.T) {
 	for _, tt := range []struct{ name, body, code string }{
 		{"valid", runtimeJSON("/tmp/doan/app.sock"), ""},
 		{"v 1.0", `{"v":1.0,"socket":"/s","token":"` + testToken + `"}`, ""},
+		// Rounds to 1 as a float64, as TS reads it; the raw json.Number would fail the schema's const.
+		{"v 1 plus epsilon", `{"v":1.0000000000000001,"socket":"/s","token":"` + testToken + `"}`, ""},
+		{"v 1e400", `{"v":1e400,"socket":"/s","token":"` + testToken + `"}`, "app_protocol_mismatch"},
 		{"v 2", `{"v":2,"socket":"/s","token":"` + testToken + `"}`, "app_protocol_mismatch"},
 		{"v 2 with other junk", `{"v":2,"extra":true}`, "app_protocol_mismatch"},
 		{"v string", `{"v":"1","socket":"/s","token":"` + testToken + `"}`, "app_not_running"},
@@ -72,6 +75,8 @@ func TestReadResponse(t *testing.T) {
 		{"no selection", `{"v":1,"ok":true,"result":{}}`, ""},
 		{"selection", `{"v":1,"ok":true,"result":{"selection":` + selection + `}}`, ""},
 		{"v 1.0", `{"v":1.0,"ok":true,"result":{}}`, ""},
+		{"v 1 plus epsilon", `{"v":1.0000000000000001,"ok":true,"result":{}}`, ""},
+		{"v 1e400", `{"v":1e400,"ok":true,"result":{}}`, "app_protocol_mismatch"},
 		{"v 2", `{"v":2,"ok":true,"result":{}}`, "app_protocol_mismatch"},
 		{"v 2 unknown shape", `{"v":2,"whatever":[]}`, "app_protocol_mismatch"},
 		{"not json", `nope`, "internal_error"},
@@ -101,6 +106,26 @@ func TestReadResponse(t *testing.T) {
 			if !reflect.DeepEqual(got, want) {
 				t.Errorf("selection: %v", got)
 			}
+		}
+	}
+}
+
+func TestReadResponseInvalidFixtures(t *testing.T) {
+	paths, _ := filepath.Glob(filepath.Join("..", "..", "..", "schema", "fixtures", "app-socket", "response", "invalid", "*.json"))
+	if len(paths) == 0 {
+		t.Fatal("no fixtures")
+	}
+	for _, p := range paths {
+		b, e := os.ReadFile(p)
+		if e != nil {
+			t.Fatal(e)
+		}
+		var compact bytes.Buffer
+		if e := json.Compact(&compact, b); e != nil {
+			t.Fatal(e)
+		}
+		if _, failure := readResponse(compact.Bytes()); failure == nil {
+			t.Errorf("%s: accepted", p)
 		}
 	}
 }
@@ -296,6 +321,40 @@ func TestActiveRuntimeFile(t *testing.T) {
 	ctx := activeContext(t, root, dial)
 	ctx.RuntimePath = filepath.Join(t.TempDir(), "none.json")
 	activeCode(t, ctx, root, "app_not_running")
+
+	ctx = activeContext(t, root, dial)
+	ctx.RuntimePath = t.TempDir()
+	activeCode(t, ctx, root, "app_not_running")
+
+	// Valid JSON padded past the cap: the size alone rejects it.
+	ctx = activeContext(t, root, dial)
+	body := runtimeJSON("/s")
+	putFile(t, filepath.Dir(ctx.RuntimePath), "runtime.json", body+strings.Repeat(" ", 64<<10+1-len(body)))
+	activeCode(t, ctx, root, "app_not_running")
+}
+
+func TestActiveRuntimeFIFODoesNotBlock(t *testing.T) {
+	root := initialized(t)
+	dial := func(string, time.Time) (net.Conn, error) { t.Error("dialed"); return nil, nil }
+	ctx := activeContext(t, root, dial)
+	fifo := filepath.Join(t.TempDir(), "runtime.fifo")
+	if e := syscall.Mkfifo(fifo, 0600); e != nil {
+		t.Fatal(e)
+	}
+	ctx.RuntimePath = fifo
+	done := make(chan *Error, 1)
+	go func() {
+		_, failure := Active(ctx, Flags{Repo: root}, nil)
+		done <- failure
+	}()
+	select {
+	case failure := <-done:
+		if failure == nil || failure.Code != "app_not_running" {
+			t.Fatal(failure)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("reading a FIFO runtime file blocked")
+	}
 }
 
 func TestActiveArguments(t *testing.T) {
@@ -367,6 +426,22 @@ func TestRunActiveOverRealSocket(t *testing.T) {
 	want := map[string]any{"repo": root, "selection": map[string]any{"canvas": map[string]any{"path": "design/a.html"}, "frame": map[string]any{"id": "main", "title": "Main"}}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal(got)
+	}
+
+	// A server that accepts and reads but never answers: the deadline must hold on a real socket.
+	go func() {
+		c, e := l.Accept()
+		if e != nil {
+			return
+		}
+		defer c.Close()
+		bufio.NewReader(c).ReadBytes('\n')
+		time.Sleep(4 * time.Second)
+	}()
+	start := time.Now()
+	failure(t, root, "app_not_running", "active")
+	if d := time.Since(start); d < 1500*time.Millisecond || d > 3*time.Second {
+		t.Fatal(d)
 	}
 
 	// A runtime file left by a dead app: the socket file exists but nobody listens.
