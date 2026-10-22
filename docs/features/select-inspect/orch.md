@@ -22,6 +22,7 @@
 | 2026-10-22 | 세션에 `will-download` 처리기를 두어 모든 다운로드를 취소한다(M) | 지휘자 판단 — P6에서 캔버스의 ⌥클릭 다운로드가 실제로 완료됐다. 앱은 지금 처리기가 없어 Electron 기본(저장)으로 간다. 권한 요청을 모두 거절하는 기존 결정(ARCHITECTURE §3)과 같은 방향이다 |
 | 2026-10-22 | 일반 클릭(`pointerdown`)에서 캔버스 안에 포커스가 있으면 스크립트가 `activeElement.blur()`를 한다(R, e2e로 확인) | P6 — ⌥클릭으로 입력에 들어간 포커스가 다음 일반 클릭 뒤에도 남아, "편집 요소 밖 Esc만 전달" 규칙이 Esc를 버린다. blur 변형은 P6에서 돌리지 않았다 |
 | 2026-10-22 | SIGKILL로 끝난 앱의 `$TMPDIR/doan-*` 소켓 디렉터리가 남는 것을 받아들인다 | 지휘자 판단(P6 권고) — 충돌 한 번에 빈 디렉터리 하나이고, macOS가 `$TMPDIR`를 비운다. 지우는 코드는 다른 인스턴스의 경로를 지울 위험이 있다 |
+| 2026-10-22 | S를 리뷰 전에 통합하고, S 리뷰와 3파(G · M · R)를 함께 띄운다. 리뷰 지적은 S 워커가 고치고 그 커밋을 따로 통합한다 | 지휘자 판단 — S의 인계 차이(`v` 1.0 유효, 요청 토큰 형식 미검사, 코드 포인트 상한)는 계획과 맞고, 3파는 S의 공개 이름만 쓴다. 리뷰를 기다리면 한 파가 늘어난다 |
 | 2026-10-22 | PoC 6 소켓 절반 통과. 런타임 · 소켓 형식은 design.md 그대로다 | P6 인계(`.scratch/handoff-P6.md`): 선택 수신 · 창 숨김 · `bad_token` · ENOENT · ECONNREFUSED · 두 번째 인스턴스 · 0600/0700 · 정상 종료 정리 모두 기대대로 |
 
 ## 배치
@@ -31,7 +32,7 @@
 | P2 | task 0 PoC 2 | `.scratch/poc2-inspect/` | — | Claude Opus high (인스펙터 방식이 여기서 정해지고, 틀리면 task 6을 다시 짠다) | 사례마다 결과 · 버전 · 날짜가 인계에 있음, 스크립트 방식 대 CDP 비교 | 대기 |
 | P6 | task 0 PoC 6 소켓 절반 + 입력 확인 | `.scratch/poc6-socket/` · `.scratch/poc-input/` | — | Claude Opus medium (관찰이 주이고 판단은 적지만, 실제 창 · 실제 키 입력에서 오판하면 Q1을 다시 묻게 된다) | 기준 항목마다 결과가 인계에 있음 | 완료(통과, 해제) |
 | D | task 1 초안 | `design/select-inspect.html`(필요하면 `design/` 아래 새 공유 파일) | — | Codex gpt-6-astra medium (상태 · 문구 · 배치 판단이 많고, 틀리면 구현과 `/design-sync`가 모두 어긋난다) | tasks.md task 1 검증(`doan check` 오류 0, 프레임 id 8개), 지휘자 확정 | 대기 |
-| S | task 2 · task 3의 공유 타입 | `schema/` · `app/src/formats/` · `cli/internal/formats/` | P6(런타임 · 소켓 형식이 PoC로 바뀔 수 있음) | Claude Sonnet high (스키마 · 로더는 기계적이지만 교차 파일 `$ref`가 두 언어에서 같아야 한다) | `go test ./...` · `go vet ./...` · `npm --prefix app test` · `typecheck` | 대기 |
+| S | task 2 · task 3의 공유 타입 | `schema/` · `app/src/formats/` · `cli/internal/formats/` | P6(런타임 · 소켓 형식이 PoC로 바뀔 수 있음) | Claude Sonnet high (스키마 · 로더는 기계적이지만 교차 파일 `$ref`가 두 언어에서 같아야 한다) | `go test ./...` · `go vet ./...` · `npm --prefix app test` · `typecheck` | 통합 `af67fc1`, 리뷰 중 |
 | G | task 3(Go) · task 4 | `cli/` | S | Claude Opus medium (오류 매핑과 시간 초과가 계약이다) | task 4 검증 | 대기 |
 | M | task 3(main) · task 5 | `app/src/main/`(`canvasScript.ts` 제외) | S | Claude Opus high (소켓 보안, 파일 권한, 수명주기) | task 5 검증 | 대기 |
 | R | task 3(스크립트 · 렌더러) · task 6 · task 7 · preload `setSelection` | `app/src/main/canvasScript.ts`와 테스트, `app/src/renderer/`, `app/src/preload/` | S · P2 · D(task 7만; 나머지를 먼저 하고 미룸) | Claude Opus high (메시지 순서 · 오래된 메시지, 입력 가로채기, React 경계) | task 6 · 7 검증 | 대기 |
