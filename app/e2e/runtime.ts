@@ -14,7 +14,7 @@ import { createRequire } from "node:module";
 import { createConnection } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Frame, type Locator, type Page } from "playwright";
 
@@ -239,7 +239,7 @@ const SWATCH = "background:#f0f";
 // iframe (no script of ours inside), and a strip of body above the frames for
 // the empty-place click.
 function pickCanvas(label: boolean, extra = ""): string {
-  const style = `body{padding-top:40px}section{display:block;position:relative}#box{position:absolute;left:100px;top:60px;width:300px;height:150px;${SWATCH}}#label{position:absolute;left:20px;top:20px;width:100px;height:30px}#chip{position:absolute;left:500px;top:60px;width:60px;height:30px;${SWATCH}}#go{position:absolute;left:100px;top:260px;width:120px;height:30px;display:block}#field{position:absolute;left:260px;top:260px;width:150px;height:30px}#map{position:absolute;left:450px;top:260px}#scroller{position:absolute;left:650px;top:60px;width:300px;height:200px;overflow:auto}#inner{margin:0;width:200px;height:40px;${SWATCH}}`;
+  const style = `:root{--inspect-color:#123456;--inspect-x:8px;--inspect-y:16px}#inspect{position:absolute;left:100px;top:320px;width:100px;height:30px;padding:var(--inspect-x) var(--inspect-y);color:var(--inspect-color);margin:3px}#inspect:hover{background-color:#abcdef}#inherit-parent{font-size:19px}#inherited{position:absolute;left:300px;top:320px;width:100px;height:30px}#unknown{position:absolute;left:450px;top:320px;width:100px;height:30px;color:inherit}body{padding-top:40px}section{display:block;position:relative}#box{position:absolute;left:100px;top:60px;width:300px;height:150px;${SWATCH}}#label{position:absolute;left:20px;top:20px;width:100px;height:30px}#chip{position:absolute;left:500px;top:60px;width:60px;height:30px;${SWATCH}}#go{position:absolute;left:100px;top:260px;width:120px;height:30px;display:block}#field{position:absolute;left:260px;top:260px;width:150px;height:30px}#map{position:absolute;left:450px;top:260px}#scroller{position:absolute;left:650px;top:60px;width:300px;height:200px;overflow:auto}#inner{margin:0;width:200px;height:40px;${SWATCH}}`;
   const body = [
     '<section data-doan-frame="card" data-doan-title="Card" data-doan-implements="app/src/renderer/App.tsx" style="height:400px">',
     `<div data-doan-id="box" id="box">${label ? '<span id="label">Hello box</span>' : ""}</div>`,
@@ -249,6 +249,7 @@ function pickCanvas(label: boolean, extra = ""): string {
     '<img id="map" src="px.svg" width="120" height="30" usemap="#m" alt=""><map name="m"><area id="dl" shape="rect" coords="0,0,120,30" href="file.bin" alt="download"></map>',
     '<div id="scroller"><div style="height:120px"></div><p id="inner"></p><div style="height:800px"></div></div>',
     '<iframe id="nested" srcdoc="<p>nested</p>" style="position:absolute;left:650px;top:300px;width:150px;height:60px;border:0"></iframe>',
+    '<div id="inspect">Inspector</div><div id="inherit-parent"><div id="inherited">Inherited</div></div><div id="unknown">Unknown</div>',
     "</section>",
     '<section data-doan-frame="second" style="height:300px"><p data-doan-id="note" id="note" style="margin:0;padding:40px">second note</p></section>',
     extra,
@@ -785,6 +786,8 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
 
 interface InspectorView {
   heading: string;
+  subject: string;
+  selector: string | null;
   values: Record<string, string>;
   path: string[];
   current: string | null;
@@ -809,7 +812,7 @@ const BOX = '[data-doan-id="box"]';
 const CHIP = '[data-doan-frame="card"] > div:nth-of-type(2)';
 const LOST = "The selected element is no longer in the canvas.";
 
-// Select-inspect steps (select-inspect design flows 1–9, 11–13). The canvas
+// Select-inspect steps (select-inspect design flows 1–13). The canvas
 // repo is gone after the window steps, so these run on their own repo.
 async function selectInspect(app: ElectronApplication, page: Page, repos: Repos, doan: string, userData: string): Promise<void> {
   const runtimeJson = join(userData, "runtime.json");
@@ -835,6 +838,8 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await page.getByRole("region", { name: "Canvas info", exact: true }).getByText("Click an element or frame to inspect it. Frames are also listed in the sidebar.", { exact: true }).waitFor();
   assert.deepEqual(await active(repos.select), { exit: 0, ok: true, repo: repos.select }, "active without a selection");
 
+  await inspectorValues(app, page, canvas);
+
   // S3. Click selection at 0.05, 0.25, 1 and 4, each time measured the PoC 3
   // way: the element's edges from captured pixels against the mark's DOM rect.
   // Zooming around the element's own center keeps it on screen. Esc right
@@ -846,7 +851,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
     await leaveCanvas(page);
     const pixels = await pixelRect(app, page, toPageRect(view, await elementRect(canvas, selector)));
     await page.mouse.click(at.x, at.y);
-    await waitInspector(page, v => v?.values.Selector === selector, `selected at scale ${scale}`);
+    await waitInspector(page, v => v?.selector === selector, `selected at scale ${scale}`);
     assertNearRect(await waitMark(page, "selected"), pixels, `selection mark at scale ${scale}`);
     assert.equal(await sizeLabel(page), size, `size label at scale ${scale}`);
     await page.keyboard.press("Escape");
@@ -858,7 +863,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   let view = await fit(app, page);
   const inner = toPageRect(view, await elementRect(canvas, "#inner"));
   await clickAt(page, canvas, "#inner");
-  await waitInspector(page, v => v?.values.Tag === "p", "inner element selected");
+  await waitInspector(page, v => v?.subject === "p", "inner element selected");
   const beforeScroll = await waitMark(page, "selected");
   // Page px; the canvas scrolls by delta / scale, which keeps the element
   // whole inside the scroller (a clipped one has a shorter pixel rect).
@@ -902,10 +907,20 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
 
   // S6. A click on the canvas's html/body clears.
   await clickAt(page, canvas, "#box");
-  await waitInspector(page, v => v?.values.Selector === BOX, "box selected");
+  await waitInspector(page, v => v?.selector === BOX, "box selected");
   const body = toPage(await readView(page), { x: PICK_WIDTH / 2, y: 15 });
   await page.mouse.click(body.x, body.y);
   await waitPanel(page, "Canvas info", "a click on body clears");
+
+  await clickAt(page, canvas, "#box");
+  await waitInspector(page, v => v?.selector === BOX, "box selected before board margin");
+  await expectProduct("S6 board-margin click clears selection", async () => {
+    const view = await readView(page);
+    await page.mouse.click(view.left + 4, view.top + 4);
+    await assertNoSelection(page, "a click outside the board inside the canvas view");
+  });
+  await page.keyboard.press("Escape");
+  await waitPanel(page, "Canvas info", "clear after board margin");
 
   // S7. What the canvas itself can send is not a selection: its own click()
   // (not trusted), a select older than the last command, one over a cap, one
@@ -914,7 +929,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await canvas.evaluate(() => (document.getElementById("box") as HTMLElement).click());
   await assertNoSelection(page, "a canvas's own click()");
   await clickAt(page, canvas, "#box");
-  await waitInspector(page, v => v?.values.Selector === BOX, "box selected before the stale select");
+  await waitInspector(page, v => v?.selector === BOX, "box selected before the stale select");
   await page.keyboard.press("Escape");
   await waitPanel(page, "Canvas info", "Esc before the stale select");
   await forgeSelect(canvas, 0, "x", false);
@@ -924,7 +939,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await forgeSelect(canvas, 10_001, "x".repeat(2000), true);
   await assertNoSelection(page, "a select from a nested window");
   await forgeSelect(canvas, 10_002, "x".repeat(2000), false);
-  await waitInspector(page, v => v?.values.Selector === "#forged", "a well-formed select from the canvas window is taken");
+  await waitInspector(page, v => v?.selector === "#forged", "a well-formed select from the canvas window is taken");
   await page.keyboard.press("Escape");
   await waitPanel(page, "Canvas info", "Esc after the forged select");
   // Both sides start their seq again with the next document.
@@ -938,7 +953,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   // aria-current follows the selection; the ancestor path selects a parent.
   const frames = page.getByRole("region", { name: "Frames", exact: true });
   await frames.getByRole("button", { name: "# second", exact: true }).click();
-  await waitInspector(page, v => v?.heading === "Frame" && v.values.ID === "second", "frame picked from the list");
+  await waitInspector(page, v => v?.heading === "Inspector" && v.subject === "second" && v.selector === null, "frame picked from the list");
   assert.deepEqual((await frameButtons(page)).map(b => b.current), [false, true]);
   const frameOnly = await active(repos.select);
   assert.deepEqual(frameOnly.selection, { canvas: { path: "design/pick.html", id: "pick" }, frame: { id: "second" } }, "active for a frame selection");
@@ -946,35 +961,35 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await sleep(150);
   const cardSpace = toPage(view, { x: 900, y: 390 });
   await page.mouse.click(cardSpace.x, cardSpace.y);
-  const card = await waitInspector(page, v => v?.heading === "Frame" && v.values.ID === "card", "frame picked by its empty area");
-  assert.deepEqual(card?.values, { ID: "card", Title: "Card", Implements: "app/src/renderer/App.tsx" });
+  const card = await waitInspector(page, v => v?.heading === "Inspector" && v.subject === "card" && v.selector === null, "frame picked by its empty area");
+  assert.deepEqual(card?.values, { Title: "Card", Implements: "app/src/renderer/App.tsx" });
   assert.deepEqual((await frameButtons(page)).map(b => b.current), [true, false]);
   await clickAt(page, canvas, "#note");
-  const note = await waitInspector(page, v => v?.values.Selector === '[data-doan-id="note"]', "element in the second frame");
+  const note = await waitInspector(page, v => v?.selector === '[data-doan-id="note"]', "element in the second frame");
   assert.equal(note?.values.Frame, "second");
   assert.deepEqual((await frameButtons(page)).map(b => b.current), [false, true]);
-  assert.equal(await frames.getByText("note", { exact: true }).count(), 1, "the selected element under its frame row");
+  assert.equal(await frames.getByText("p · note", { exact: true }).count(), 1, "the selected element under its frame row");
   await clickAt(page, canvas, "#label");
-  const label = await waitInspector(page, v => v?.values.Tag === "span", "span selected");
+  const label = await waitInspector(page, v => v?.subject === "span", "span selected");
   assert.deepEqual([label?.path, label?.current], [["card", "box", "span"], "span"]);
   await page.getByRole("navigation", { name: "Ancestor path", exact: true }).getByRole("button", { name: "box", exact: true }).click();
-  const parent = await waitInspector(page, v => v?.values.Selector === BOX, "parent selected from the ancestor path");
+  const parent = await waitInspector(page, v => v?.selector === BOX, "parent selected from the ancestor path");
   assert.deepEqual([parent?.path, parent?.current], [["card", "box"], "box"]);
   await page.getByRole("navigation", { name: "Ancestor path", exact: true }).getByRole("button", { name: "card", exact: true }).focus();
   await page.keyboard.press("Enter");
-  await waitInspector(page, v => v?.heading === "Frame" && v.values.ID === "card", "frame selected from the ancestor path by keyboard");
+  await waitInspector(page, v => v?.heading === "Inspector" && v.subject === "card" && v.selector === null, "frame selected from the ancestor path by keyboard");
   await page.keyboard.press("Escape");
   await waitPanel(page, "Canvas info", "Esc after the ancestor path");
 
   // S9. ⌥ passes input through without changing the selection. A plain click
   // afterwards blurs the input, so the next Esc still clears (orch P6).
   await clickAt(page, canvas, "#box");
-  await waitInspector(page, v => v?.values.Selector === BOX, "box selected before ⌥-click");
+  await waitInspector(page, v => v?.selector === BOX, "box selected before ⌥-click");
   await altClickAt(page, canvas, "#field");
   await waitFor(() => canvas.evaluate(() => document.activeElement?.id === "field"), "⌥-click focuses the input");
-  assert.equal((await readInspector(page))?.values.Selector, BOX, "⌥-click keeps the selection");
+  assert.equal((await readInspector(page))?.selector, BOX, "⌥-click keeps the selection");
   await clickAt(page, canvas, "#chip");
-  await waitInspector(page, v => v?.values.Selector === CHIP, "plain click after ⌥-click selects");
+  await waitInspector(page, v => v?.selector === CHIP, "plain click after ⌥-click selects");
   assert.equal(await canvas.evaluate(() => document.activeElement?.id ?? ""), "", "plain click blurs the input");
   await page.keyboard.press("Escape");
   await waitPanel(page, "Canvas info", "Esc after an ⌥-click into an input");
@@ -982,7 +997,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   // Ctrl-clicks and right clicks are left to the canvas for a later context
   // menu: the selection stays, and nothing in the canvas activates.
   await clickAt(page, canvas, "#box");
-  await waitInspector(page, v => v?.values.Selector === BOX, "box selected before Ctrl and right clicks");
+  await waitInspector(page, v => v?.selector === BOX, "box selected before Ctrl and right clicks");
   const pickUrl = canvasUrl(await readFolders(page), repos.select, "design/pick.html");
   for (const [how, selector] of [["Ctrl", "#go"], ["Ctrl", "#field"], ["Ctrl", "#chip"], ["right", "#go"], ["right", "#field"], ["right", "#chip"]] as const) {
     await expectProduct(`S9 ${how}-click on ${selector} keeps the selection and activates nothing`, async () => {
@@ -995,7 +1010,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
         if (how === "Ctrl") await page.keyboard.up("Control");
       }
       await sleep(500);
-      assert.equal((await readInspector(page))?.values.Selector, BOX, "selection kept");
+      assert.equal((await readInspector(page))?.selector, BOX, "selection kept");
       assert.equal(await canvasFrameUrl(app), pickUrl, "no navigation");
       assert.equal(await canvas.evaluate(() => document.activeElement?.id ?? ""), "", "no focus inside the canvas");
     });
@@ -1005,28 +1020,26 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
       canvas = await canvasFrame(page);
     }
     await canvas.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-    if ((await readInspector(page))?.values.Selector !== BOX) {
+    if ((await readInspector(page))?.selector !== BOX) {
       await clickAt(page, canvas, "#box");
-      await waitInspector(page, v => v?.values.Selector === BOX, "box selected again after a Ctrl or right click");
+      await waitInspector(page, v => v?.selector === BOX, "box selected again after a Ctrl or right click");
     }
   }
   await page.keyboard.press("Escape");
   await waitPanel(page, "Canvas info", "Esc after Ctrl and right clicks");
 
-  // A nested iframe has no script of ours; a click into it selects the iframe
-  // element (design flow 1), with focus starting in the app and in the canvas.
+  // With app focus the canvas never blurs: the accepted nested-iframe limit
+  // (orch.md, 2026-10-22). Canvas focus still selects the iframe element.
   await page.getByRole("region", { name: "Frames", exact: true }).getByRole("button", { name: "# card Card", exact: true }).focus();
-  await expectProduct("S9 click on a nested iframe with focus in the app selects the iframe", async () => {
-    await clickAt(page, canvas, "#nested");
-    await waitInspector(page, v => v?.values.Tag === "iframe", "nested iframe selected from app focus");
-  });
+  await clickAt(page, canvas, "#nested");
+  await assertNoSelection(page, "nested iframe from app focus keeps nothing selected");
   await page.keyboard.press("Escape");
   await waitPanel(page, "Canvas info", "Esc after the nested iframe from app focus");
   await altClickAt(page, canvas, "#field");
   await waitFor(() => canvas.evaluate(() => document.activeElement?.id === "field"), "focus in the canvas before the nested iframe");
   await expectProduct("S9 click on a nested iframe with focus in the canvas selects the iframe", async () => {
     await clickAt(page, canvas, "#nested");
-    await waitInspector(page, v => v?.values.Tag === "iframe", "nested iframe selected from canvas focus");
+    await waitInspector(page, v => v?.subject === "iframe", "nested iframe selected from canvas focus");
   });
   // Esc typed with focus inside the nested iframe reaches no script of ours
   // (a known limit, handoff R), so a click on body clears instead.
@@ -1048,7 +1061,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
 
   // A real ⌥-click follows a link; the other canvas clears the selection.
   await clickAt(page, canvas, "#box");
-  await waitInspector(page, v => v?.values.Selector === BOX, "box selected before the link");
+  await waitInspector(page, v => v?.selector === BOX, "box selected before the link");
   await altClickAt(page, canvas, "#go");
   await waitFor(async () => sameList(await currentCanvases(page), [`${repos.select}\ndesign/other.html`]), "⌥-click follows the link");
   await waitPanel(page, "Canvas info", "the linked canvas clears the selection");
@@ -1058,22 +1071,22 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await openCanvas(page, repos.select, "design/pick.html");
   canvas = await canvasFrame(page);
   await clickAt(page, canvas, "#box");
-  await waitInspector(page, v => v?.values.Selector === BOX, "box selected before reloads");
+  await waitInspector(page, v => v?.selector === BOX, "box selected before reloads");
   await markCanvas(page);
   await menu(app, "Reload Canvas");
   await waitFor(async () => !(await marked(page)), "canvas reloaded from the menu");
   canvas = await canvasFrame(page);
   await waitMarkAt(page, canvas, "#box", "mark back on the box after a reload");
-  assert.equal((await readInspector(page))?.values.Selector, BOX, "selection kept across a reload");
+  assert.equal((await readInspector(page))?.selector, BOX, "selection kept across a reload");
   await markCanvas(page);
   await sleep(1100);
   await writeFile(join(repos.select, "design", "pick.html"), pickCanvas(true, "<!-- edited -->"));
   await waitFor(async () => !(await marked(page)), "canvas reloaded after an edit");
   canvas = await canvasFrame(page);
   await waitMarkAt(page, canvas, "#box", "mark back on the box after a live reload");
-  assert.equal((await readInspector(page))?.values.Selector, BOX, "selection kept across a live reload");
+  assert.equal((await readInspector(page))?.selector, BOX, "selection kept across a live reload");
   await clickAt(page, canvas, "#label");
-  await waitInspector(page, v => v?.values.Tag === "span", "span selected before it is removed");
+  await waitInspector(page, v => v?.subject === "span", "span selected before it is removed");
   await sleep(1100);
   await writeFile(join(repos.select, "design", "pick.html"), pickCanvas(false));
   await page.getByRole("region", { name: "Canvas", exact: true }).getByRole("status").filter({ hasText: LOST }).waitFor({ timeout: WAIT_MS });
@@ -1086,7 +1099,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await waitLoaded(page, "pick canvas with the span back");
   canvas = await canvasFrame(page);
   await clickAt(page, canvas, "#box");
-  await waitInspector(page, v => v?.values.Selector === BOX, "box selected after the notice");
+  await waitInspector(page, v => v?.selector === BOX, "box selected after the notice");
   assert.equal(await page.getByRole("region", { name: "Canvas", exact: true }).getByRole("status").filter({ hasText: LOST }).count(), 0, "the next selection ends the notice");
 
   // S11. doan active answers the selection of its own project, also with the
@@ -1113,7 +1126,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   // S12. Another canvas, another project's canvas, an unlisted document and a
   // deleted canvas each clear the selection, and active follows.
   await clickAt(page, canvas, "#box");
-  await waitInspector(page, v => v?.values.Selector === BOX, "box selected before another canvas");
+  await waitInspector(page, v => v?.selector === BOX, "box selected before another canvas");
   await openCanvas(page, repos.select, "design/other.html");
   await waitPanel(page, "Canvas info", "another canvas clears the selection");
   assert.deepEqual(pick(await active(repos.select), "exit", "selection"), { exit: 0 }, "active after another canvas");
@@ -1143,6 +1156,79 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await waitFolders(page, all => all.every(folder => folder.path !== repos.select), "select project closed");
   assert.equal(await page.getByRole("region", { name: "Inspector", exact: true }).count(), 0, "closing the project clears the selection");
   assert.deepEqual(pick(await active(repos.select), "exit", "code"), { exit: 3, code: "project_not_open" }, "active after the project is closed");
+}
+
+// Text locators bind the label, value and source together without depending on
+// the panel's decorative markup. Default's title is its accessible description;
+// its dim appearance is checked in the saved screenshot.
+async function inspectorValues(app: ElectronApplication, page: Page, canvas: Frame): Promise<void> {
+  await fit(app, page);
+  const panel = page.getByRole("region", { name: "Inspector", exact: true });
+  const row = async (text: string, what: string) => {
+    await waitFor(() => panel.getByText(text, { exact: true }).isVisible(), what);
+  };
+  await clickAt(page, canvas, "#inspect");
+  await row("Padding8px 16px--inspect-x --inspect-y", "S14 combined Padding tokens");
+  await row("Text#123456--inspect-color", "S14 token name and hex color");
+  await row("Margin3pxHardcoded", "S14 hardcoded margin");
+  await row("Background#abcdefHardcodedHover state", "S14 hover winner");
+  await row("Shadownone", "S14 default shadow");
+  assert.equal(await panel.getByText("none", { exact: true }).getAttribute("title"), "Default", "S14 default value title");
+  await screenshot(page, "7-inspector-values");
+  await clickAt(page, canvas, "#inherited");
+  await row("Size19pxHardcodedInherited from div", "S14 inherited font size");
+  await clickAt(page, canvas, "#unknown");
+  await row("Text#000000Unknown source", "S14 CSS-wide keyword unknown source");
+
+  // Replace Electron's handler only for controlled failure/timing. The normal
+  // steps above use the actual CDP collector; held responses below do too.
+  await app.evaluate(({ ipcMain }) => {
+    type Handler = (...args: unknown[]) => unknown;
+    const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, Handler> })._invokeHandlers;
+    const original = handlers.get("inspect:get");
+    if (!original) throw new Error("inspect:get handler missing");
+    const state = { original, held: false, released: false, release: () => {} };
+    (globalThis as unknown as { inspectGate: typeof state }).inspectGate = state;
+    ipcMain.removeHandler("inspect:get");
+    ipcMain.handle("inspect:get", () => ({ ok: false, reason: "No element matches the selector." }));
+  });
+  try {
+    await clickAt(page, canvas, "#inspect");
+    await row("No element matches the selector.", "S15 inspect ok:false reason is visible");
+    assert.equal(await panel.getByText("Padding", { exact: true }).count(), 0, "S15 failure removes old rows");
+    await app.evaluate(({ ipcMain }) => {
+      const state = (globalThis as unknown as { inspectGate: { original: (...args: unknown[]) => unknown; held: boolean; released: boolean; release: () => void } }).inspectGate;
+      ipcMain.removeHandler("inspect:get");
+      ipcMain.handle("inspect:get", async (...args) => {
+        const result = await state.original(...args);
+        if (!state.held) {
+          state.held = true;
+          await new Promise<void>(resolve => { state.release = resolve; });
+          state.released = true;
+        }
+        return result;
+      });
+    });
+    await clickAt(page, canvas, "#inspect");
+    await waitFor(() => app.evaluate(() => (globalThis as unknown as { inspectGate: { held: boolean } }).inspectGate.held), "S16 first CDP response held");
+    await clickAt(page, canvas, "#unknown");
+    await row("Text#000000Unknown source", "S16 newer selection rows arrive first");
+    await app.evaluate(() => (globalThis as unknown as { inspectGate: { release: () => void } }).inspectGate.release());
+    await waitFor(() => app.evaluate(() => (globalThis as unknown as { inspectGate: { released: boolean } }).inspectGate.released), "S16 old response released");
+    await sleep(QUIET_MS);
+    await row("Text#000000Unknown source", "S16 stale inspector response cannot replace newer rows");
+    assert.equal(await panel.getByText("--inspect-color", { exact: true }).count(), 0, "S16 no stale token row");
+  } finally {
+    await app.evaluate(({ ipcMain }) => {
+      const state = (globalThis as unknown as { inspectGate: { original: (...args: unknown[]) => unknown; release: () => void } }).inspectGate;
+      state.release();
+      ipcMain.removeHandler("inspect:get");
+      ipcMain.handle("inspect:get", state.original);
+    });
+  }
+  await page.keyboard.press("Escape");
+  await waitPanel(page, "Canvas info", "clear after inspector values");
+  console.log("S14–S16 inspector values, failure and stale response: passed");
 }
 
 // A second launch shows the first window and exits; quitting removes
@@ -1211,7 +1297,7 @@ async function reselectBox(page: Page, repos: Repos): Promise<Frame> {
   await openCanvas(page, repos.select, "design/pick.html");
   const canvas = await canvasFrame(page);
   await clickAt(page, canvas, "#box");
-  await waitInspector(page, v => v?.values.Selector === BOX, "box selected again");
+  await waitInspector(page, v => v?.selector === BOX, "box selected again");
   return canvas;
 }
 
@@ -1223,6 +1309,8 @@ async function readInspector(page: Page): Promise<InspectorView | null> {
   const steps = panel.getByRole("navigation", { name: "Ancestor path", exact: true }).getByRole("button");
   return {
     heading: (await panel.getByRole("heading", { level: 2 }).textContent()) ?? "",
+    subject: (await panel.getByRole("heading", { level: 3 }).first().textContent()) ?? "",
+    selector: (await panel.getByText(/^(?:\[data-doan-(?:id|frame)=|body > |#forged$)/).allTextContents())[0] ?? null,
     values: Object.fromEntries(terms.map((term, index) => [term, values[index] ?? ""])),
     path: await steps.allTextContents(),
     current: (await steps.evaluateAll(buttons => buttons.filter(button => button.getAttribute("aria-current") === "true").map(button => button.textContent ?? "")))[0] ?? null,
@@ -1732,8 +1820,32 @@ async function launch(cli: string, userData: string): Promise<{ app: ElectronApp
   running = app;
   const page = await app.firstWindow();
   page.setDefaultTimeout(2000);
+  await mutateInspector(app, page);
   assert.equal(await app.evaluate(({ app: electronApp }) => electronApp.getPath("userData")), userData);
   return { app, page };
+}
+
+// Optional mutation proof serves an altered bundle from memory. Neither source
+// nor build output is edited, and a fresh Electron session removes the hook.
+async function mutateInspector(app: ElectronApplication, page: Page): Promise<void> {
+  const mutation = process.env.DOAN_E2E_INSPECT_MUTATION;
+  if (!mutation) return;
+  assert.ok(mutation === "failure" || mutation === "stale", "known inspector mutation");
+  const assets = join(appDir, "out", "renderer", "assets");
+  const files = (await readdir(assets)).filter(name => name.endsWith(".js"));
+  const bundles = await Promise.all(files.map(async name => ({ path: join(assets, name), text: await readFile(join(assets, name), "utf8") })));
+  const bundle = bundles.find(bundle => bundle.text.includes("tag !== this.inspectTag"));
+  assert.ok(bundle, "controller bundle found for mutation");
+  const before = mutation === "stale" ? "if (tag !== this.inspectTag) return;" : 'status: "failed",\n\t\t\treason: result.reason';
+  const after = mutation === "stale" ? "/* stale guard removed */" : 'status: "ready", rows: []';
+  assert.equal(bundle.text.split(before).length, 2, "mutation has exactly one target");
+  await app.evaluate(({ protocol, net }, { url, body }) => {
+    protocol.handle("file", request => request.url === url
+      ? new Response(body, { headers: { "content-type": "text/javascript" } })
+      : net.fetch(request.url, { bypassCustomProtocolHandlers: true }));
+  }, { url: pathToFileURL(bundle.path).href, body: bundle.text.replace(before, after) });
+  await page.reload();
+  console.log(`inspector mutation installed: ${mutation}`);
 }
 
 async function replaceDialog(app: ElectronApplication, picked: string): Promise<void> {
