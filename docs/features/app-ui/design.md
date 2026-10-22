@@ -108,16 +108,63 @@ ARCHITECTURE §1 규약과 `doan check` 규칙은 바뀌지 않는다. 이 리�
 
 ## PoC · 사전 확인
 
-PRODUCT §6의 미통과 PoC에는 기대지 않는다. 대신 task 1에서 스택을 먼저 확인한다.
+2026-10-22에 task 1을 `.scratch/app-ui-stack/`에서 실행했다. 기존 앱의 electron-vite 설정과 보안 옵션(`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`)을 복사하고, 별도 임시 userData와 `127.0.0.1` iframe 서버를 썼다. `app/`은 바꾸지 않았다. 아래 결과와 사용자 결정이 이 문서 앞부분의 ScrollArea · React 플러그인 도입 계획보다 우선한다.
 
-- React · Radix · Tailwind가 빌드한 렌더러 CSP(`default-src 'self'`)와 dev CSP에서 위반 없이 도는가. 확인할 위험:
-  - Radix의 스크롤 잠금(`react-remove-scroll`)이 `<style>` 요소를 넣는지.
-  - Radix ScrollArea의 Viewport가 인라인 `<style>`을 렌더하는지(소스 기준 판단, 실행 확인 전). node_modules 안이라 task 5의 grep으로는 못 잡는다.
-  - Vite dev가 JS에서 import한 CSS를 `<style>`로 넣는 것. 지금 dev CSP에는 `style-src 'unsafe-inline'`이 없다. 그래서 `styles.css`는 `<link>`로 둔다.
-  - dev의 React Fast Refresh가 inline 스크립트를 넣는지.
-- TSX와 shadcn이 만든 컴포넌트 하나가 지금의 `tsc --noEmit`(TypeScript 7.0.2)을 통과하는지, vite 8.3.4 · electron-vite 6.0.0과 peer 호환되는지.
-- Electron `fileMenu` · `windowMenu` 역할의 기본 항목, iframe 안으로 들어가는 Tab 동작.
-- 실패하면 멈추고 사용자에게 묻는다(CSP를 넓힐지, 그 컴포넌트를 쓰지 않을지).
+### 최초 실행과 사용자 결정
+
+- 최초 고정 버전: React · React DOM `19.3.1`, `radix-ui` `1.8.1`, Radix Tooltip `1.4.1`, Radix ScrollArea `1.4.0`, `@vitejs/plugin-react` `6.1.2`. `shadcn` `4.22.1`로 Tooltip · ScrollArea를 생성했다.
+- 빌드: Tooltip 1개와 ScrollArea Viewport 1개가 마운트됐으나, ScrollArea가 삽입한 인라인 `<style>` 때문에 `style-src-elem` 위반이 **1건** 발생했다.
+- dev: React Fast Refresh의 인라인 preamble에서 `script-src-elem` 위반이 **1건** 발생했다. 이어서 `@vitejs/plugin-react can't detect preamble` 오류가 나서 Tooltip · ScrollArea 모두 마운트되지 않았다. 따라서 최초 dev 결과는 컴포넌트가 열린 상태의 통과 결과가 아니다.
+- 이 실패에서 멈추고 Orca 질문으로 결정을 요청했다. **2026-10-22 사용자 결정**(코디네이터 전달): Radix ScrollArea를 쓰지 않고 사이드바와 패널은 기본 스크롤(`overflow`)과 CSS 스크롤바를 쓴다. `@vitejs/plugin-react`를 쓰지 않고 Vite의 기본 JSX 변환(automatic runtime)을 쓴다. dev는 Fast Refresh 대신 전체 페이지 새로고침을 받아들인다. 빌드와 dev CSP는 둘 다 유지한다.
+- 최초 타입 검사에서는 TypeScript `7.0.2`가 제거된 `baseUrl` 옵션과 상대 경로가 아닌 `paths` 값을 거절했다. `baseUrl`을 넣지 않고 `"@/*": ["./src/renderer/*"]`를 쓰자 통과했다.
+
+### 최종 고정 버전
+
+기존 도구 버전은 유지하고, 새 패키지는 실행 시 npm 기본 안정판 태그로 설치한 뒤 정확한 버전으로 고정했다. `save-exact=true`와 lockfile을 썼으며 직접 의존성의 `^` · `~`는 **0건**이다. React 플러그인은 최종 설치 트리에서 제거됐다. Radix ScrollArea는 `radix-ui`의 전이 의존성으로 남지만 렌더러에서 ScrollArea 컴포넌트를 사용하지 않는다.
+
+| 패키지 | 정확한 버전 |
+|---|---|
+| `class-variance-authority` | `0.7.1` |
+| `clsx` | `2.1.1` |
+| `cn` | `0.5.0` |
+| `lucide-react` | `1.61.0` |
+| `radix-ui` | `1.8.1` |
+| `react` | `19.3.1` |
+| `react-dom` | `19.3.1` |
+| `tailwind-merge` | `3.7.0` |
+| `@tailwindcss/vite` | `4.3.3` |
+| `@types/node` | `24.19.2` |
+| `@types/react` | `19.3.0` |
+| `@types/react-dom` | `19.3.0` |
+| `electron` | `45.0.0` |
+| `electron-vite` | `6.0.0` |
+| `playwright` | `1.64.1` |
+| `shadcn` | `4.22.1` |
+| `tailwindcss` | `4.3.3` |
+| `typescript` | `7.0.2` |
+| `vite` | `8.3.4` |
+
+shadcn 생성본은 `Tooltip`을 `radix-ui`에서, `cn`을 `cn` 패키지에서 가져왔다. 생성본의 이 import를 임의로 바꾸지 않았다. Radix Tooltip의 실제 전이 버전은 `1.4.1`이다.
+
+### 재검증 결과
+
+| 확인 항목 | 빌드 | dev |
+|---|---|---|
+| `securitypolicyviolation` | **0건** | **0건** |
+| 열린 Tooltip / 기본 스크롤 컨테이너 | 각각 1개 | 각각 1개 |
+| React 실행 오류 | 0건 | 0건 |
+| 기본 스크롤 | `overflow-y: auto`, 보이는 높이 94px / 내용 720px | 같은 값 |
+| CSP | `default-src 'self'; frame-src http://127.0.0.1:*` | `default-src 'self' http://localhost:5173 ws://localhost:5173; frame-src http://127.0.0.1:*` |
+
+- preload에서 HTML 파싱 전에 `securitypolicyviolation` 리스너를 붙였다. `styles.css`는 `<link>`로 로드했다. dev는 electron-vite `resolveConfig`의 renderer 설정으로 Vite 서버를 띄우고 실제 Electron 창을 연결했다.
+- `npm run typecheck`(`tsc --noEmit`, TypeScript `7.0.2`): **통과, exit 0**. `App.tsx`와 shadcn Tooltip 생성본을 함께 검사했다.
+- `npm run build`: **통과, exit 0**. React 플러그인이 없으므로 의존성의 `use client` 지시어에 대한 `MODULE_LEVEL_DIRECTIVE` 경고가 **46건** 있다. 이 앱은 클라이언트 렌더러이며 빌드·실행은 통과했다. 경고를 숨기는 설정은 넣지 않았다.
+- `npm install --no-audit --no-fund`: **통과, exit 0, peer 경고 0건**. `fsevents@2.3.3`의 설치 스크립트 미승인 경고는 1건이다. 승인 설정은 바꾸지 않았다.
+- alias: tsconfig는 `"@/*": ["./src/renderer/*"]`, Vite는 `@` → `src/renderer` 절대 경로, `components.json`은 `@/components` · `@/components/ui` · `@/lib/utils` · `@/lib` · `@/hooks`다. TSX에서 alias import가 타입 검사와 빌드·dev 실행을 통과했다.
+- dev에서 `App.tsx`를 바꾸자 Vite가 `page reload App.tsx`를 출력했고 main frame이 다시 탐색했다. 새 문서에서도 열린 Tooltip 1개와 기본 스크롤 컨테이너 1개, CSP 위반 0건을 확인했다. 파일은 원래 내용으로 복원했다.
+- Electron `45.0.0`의 `fileMenu` 기본 항목은 **Close Window**(`close`, `CommandOrControl+W`) 하나다. `windowMenu`는 **Minimize**(`CommandOrControl+M`) · **Zoom** · 구분선 · **Bring All to Front**이고 Close는 없다. Open Project…는 따로 추가해야 한다.
+- iframe 직전 버튼에 포커스를 둔 뒤 Tab을 누르면 iframe 첫 버튼 → iframe 입력 → iframe 마지막 버튼 → iframe 뒤 버튼으로 이동한다. 빌드·dev 모두 같았다. iframe은 `sandbox="allow-scripts"`였고 `allow-same-origin`은 없었다. 앱 전체의 Tab 순서와 iframe 내부 단축키 전달은 이 실험에서 검증하지 않았다.
+- 근거: `.scratch/app-ui-stack/evidence/initial-runtime.json`(최초 실패), `runtime.json`(최종 빌드·dev), `dev-reload.json`(dev 전체 새로고침), `checks.json` · `install.log` · `typecheck.log` · `build.log`. `build.png` · `dev.png`도 열어 확인했다. 재사용할 버전 · 설정 diff · `components.json`은 `.scratch/handoff-B.md`에 적었다.
 
 ## POSTMORTEM에서 가져온 함정
 
