@@ -316,8 +316,9 @@ test("an author declaration doan does not map is unknown, never default", () => 
   const later = rule(".a", [{ name: "all", value: "unset" }, { name: "color", value: "var(--c)" }]);
   expect(longhandSource(input([later], { "--c": "red" }), "color")).toMatchObject({ state: "token", token: "--c" });
   // Custom properties are not reset by `all`.
-  const chained = rule(":root", [{ name: "all", value: "unset" }, { name: "--c", value: "var(--d)" }]);
-  expect(longhandSource(input([rule(".a", [{ name: "color", value: "var(--c)" }]), chained], { "--c": "red", "--d": "red" }), "color").chain).toEqual(["--c", "--d"]);
+  const chained = rule(":root", [{ name: "--c", value: "var(--d)" }, { name: "all", value: "unset" }]);
+  // (`:root` comes first, so the later `.a` color wins over its `all`.)
+  expect(longhandSource(input([chained, rule(".a", [{ name: "color", value: "var(--c)" }])], { "--c": "red", "--d": "red" }), "color").chain).toEqual(["--c", "--d"]);
 });
 
 test("values, tokens, chain entries and inheritedFrom are capped at 500 UTF-16 units", () => {
@@ -350,6 +351,9 @@ test("attribute styles sit above user-agent rules and below author rules", () =>
   const ua = rule("td", [{ name: "background-color", value: "transparent" }], { origin: "user-agent" });
   const attributes = { cssProperties: [{ name: "background-color", value: "red" }] };
   expect(longhandSource(input([ua], {}, { matched: { matchedCSSRules: [ua], attributesStyle: attributes } }), "background-color")).toEqual({ state: "hardcoded" });
+  // An author rule that does not set the property leaves the attribute above the user agent.
+  const unrelated = rule(".a", [{ name: "color", value: "blue" }]);
+  expect(longhandSource(input([], {}, { matched: { matchedCSSRules: [ua, unrelated], attributesStyle: attributes } }), "background-color")).toEqual({ state: "hardcoded" });
   const author = rule(".a", [{ name: "background-color", value: "var(--c)" }]);
   expect(longhandSource(input([], { "--c": "blue" }, { matched: { matchedCSSRules: [ua, author], attributesStyle: attributes } }), "background-color")).toMatchObject({ token: "--c" });
 });
@@ -358,6 +362,8 @@ test("an important shorthand keeps its parts, and unparsed or disabled declarati
   const computed = { "--a": "1px", "--b": "2px" };
   const important = rule(".a", [{ name: "padding", value: "var(--a) var(--b)", important: true }]);
   expect(longhandSource(input([important, rule("#b", [{ name: "padding-right", value: "9px" }])], computed), "padding-right")).toMatchObject({ token: "--b" });
+  // CDP keeps " !important" in the value; left in, it would count as a third part.
+  expect(longhandSource(input([important], computed), "padding-bottom")).toMatchObject({ token: "--a" });
   const skipped = rule(".a", [{ name: "padding-top", value: "var(--a)" }, { name: "padding-top", value: "bogus" }, { name: "padding-top", value: "3px" }]);
   const [, bogus, off] = skipped.rule.style.cssProperties;
   if (bogus) Object.assign(bogus, { parsedOk: false });
@@ -387,7 +393,8 @@ test("only the selectors that matched decide the hover state", () => {
 });
 
 test("a token chain continues from the ancestor that declared the inherited value", () => {
-  const found = input([], { "--c": "#000000", "--d": "#000000" });
+  // The element's own `--c` is not the one the inherited declaration used.
+  const found = input([rule(".a", [{ name: "--c", value: "#222222" }])], { "--c": "#000000", "--d": "#000000" });
   found.matched.inherited = [
     { matchedCSSRules: [rule(".p", [{ name: "color", value: "var(--c)" }, { name: "--c", value: "var(--d)" }])] },
     { matchedCSSRules: [rule(":root", [{ name: "--c", value: "#111111" }])] },

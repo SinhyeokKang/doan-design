@@ -55,22 +55,20 @@ function ancestorsOf(root: DomNode, nodeId: number): string[] {
 export function createInspector(dbg: DebuggerLike, tokenBase: () => string): Inspector {
   // sessionId -> target type, in attach order.
   const sessions = new Map<string, string>();
-  const enabled = new Set<string>();
   let connected: Promise<void> | null = null;
+  // Requests run one at a time: each one turns DOM and CSS off when it ends,
+  // which would break another request still reading the same session.
+  let queue: Promise<unknown> = Promise.resolve();
 
   dbg.on("message", (_event: unknown, method: string, params: { sessionId?: string; targetInfo?: { type?: string } }, sessionId?: string) => {
     // Only the window's own auto-attach; child sessions never auto-attach.
     if (sessionId) return;
     if (method === "Target.attachedToTarget" && params.sessionId) sessions.set(params.sessionId, params.targetInfo?.type ?? "");
-    else if (method === "Target.detachedFromTarget" && params.sessionId) {
-      sessions.delete(params.sessionId);
-      enabled.delete(params.sessionId);
-    }
+    else if (method === "Target.detachedFromTarget" && params.sessionId) sessions.delete(params.sessionId);
   });
   // Detached (renderer gone, or another client took over): attach again on the next request.
   dbg.on("detach", () => {
     sessions.clear();
-    enabled.clear();
     connected = null;
   });
 
@@ -115,15 +113,13 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string): Ins
     } catch {
       return { ok: false, reason: "The inspector could not attach to the window." };
     }
+    let session: string | null = null;
+    const send = (method: string, params: object = {}) => dbg.sendCommand(method, params, session ?? undefined);
     try {
-      const session = await canvasSession();
+      session = await canvasSession();
       if (session === null) return { ok: false, reason: "No canvas is loaded." };
-      const send = (method: string, params: object = {}) => dbg.sendCommand(method, params, session);
-      if (!enabled.has(session)) {
-        await send("DOM.enable");
-        await send("CSS.enable");
-        enabled.add(session);
-      }
+      await send("DOM.enable");
+      await send("CSS.enable");
       const { root } = (await send("DOM.getDocument", { depth: -1 })) as { root: DomNode };
       const { nodeId } = (await send("DOM.querySelector", { nodeId: root.nodeId, selector })) as { nodeId: number };
       if (!nodeId) return { ok: false, reason: "No element matches the selector." };
@@ -134,16 +130,28 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string): Ins
       return { ok: true, rows: inspectRows({ matched, computed: computed.computedStyle, ancestors: ancestorsOf(root, nodeId) }) };
     } catch {
       return { ok: false, reason: "The canvas could not be inspected." };
+    } finally {
+      // Left on, the whole tree known from `getDocument` turns every later DOM
+      // mutation of the canvas into an event to main: about 6,300 a second on
+      // a canvas with a 60 fps counter and a rebuilt list (select-inspect M fix 2).
+      if (session !== null) {
+        await send("CSS.disable").catch(() => undefined);
+        await send("DOM.disable").catch(() => undefined);
+      }
     }
   };
 
   return {
     inspect(selector) {
+      // The budget counts from the call, so time spent waiting in the queue counts too.
       let timer: ReturnType<typeof setTimeout> | undefined;
       const late = new Promise<InspectResult>((resolve) => {
         timer = setTimeout(() => resolve({ ok: false, reason: "Inspecting took longer than 2 seconds." }), BUDGET_MS);
       });
-      return Promise.race([run(selector), late]).finally(() => clearTimeout(timer));
+      const result = Promise.race([queue.then(() => run(selector)), late]).finally(() => clearTimeout(timer));
+      // A request that ran out of time releases the queue, so one stuck call cannot block later ones.
+      queue = result;
+      return result;
     },
   };
 }

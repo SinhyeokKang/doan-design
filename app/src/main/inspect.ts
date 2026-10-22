@@ -8,7 +8,8 @@
 // keyword (reported as unknown), variables invalid at computed-value time
 // (unknown), var() resolved with the selected element's custom properties
 // even for an inherited declaration, logical properties read as horizontal-tb
-// left-to-right, and `:not(:hover)` counted as a hover state.
+// left-to-right, and `:not(:hover)` counted as a hover state. An author
+// declaration through a property not mapped here is unknown, never default.
 
 export type InspectGroup = "box" | "typography" | "colors" | "effects";
 export type InspectState = "token" | "hardcoded" | "unknown" | "default";
@@ -36,6 +37,7 @@ export interface CdpProperty {
   disabled?: boolean;
   parsedOk?: boolean;
   text?: string;
+  longhandProperties?: { name: string; value: string }[];
 }
 export interface CdpStyle {
   cssProperties: CdpProperty[];
@@ -103,7 +105,17 @@ SIDES.forEach((side, index) => {
   for (const name of ["border", `border-${side}`, `border-${LOGICAL_SIDE[side]}`]) add(color, name, { kind: "border" });
   LOGICAL[`border-${LOGICAL_SIDE[side]}-color`] = color;
 });
+for (const [axis, sides] of [["block", ["top", "bottom"]], ["inline", ["left", "right"]]] as const) {
+  sides.forEach((side, index) => {
+    add(`border-${side}-color`, `border-${axis}-color`, { kind: "pair", index });
+    add(`border-${side}-color`, `border-${axis}`, { kind: "border" });
+  });
+}
 CORNERS.forEach((corner, index) => add(`border-${corner}-radius`, "border-radius", { kind: "radius", index }));
+const LOGICAL_CORNER = { "top-left": "start-start", "top-right": "start-end", "bottom-right": "end-end", "bottom-left": "end-start" } as const;
+for (const corner of CORNERS) LOGICAL[`border-${LOGICAL_CORNER[corner]}-radius`] = `border-${corner}-radius`;
+LOGICAL["inline-size"] = "width";
+LOGICAL["block-size"] = "height";
 for (const name of ["gap", "grid-gap"]) {
   add("row-gap", name, { kind: "pair", index: 0 });
   add("column-gap", name, { kind: "pair", index: 1 });
@@ -118,6 +130,8 @@ interface Declaration {
   value: string;
   important: boolean;
   shorthand?: { name: string; part: Part };
+  // Set through a property this file does not map, so its source is unknown.
+  unmapped?: boolean;
 }
 
 function clean(value: string): string {
@@ -138,11 +152,15 @@ function blockDeclaration(style: CdpStyle | undefined, prop: string): Declaratio
     if (decl.important) important = decl;
     else normal = decl;
   };
+  const physical = (name: string) => LOGICAL[name] ?? name;
   for (const p of authored) {
-    const name = LOGICAL[p.name] ?? p.name;
+    const name = physical(p.name);
     const shorthand = shorthands.find((s) => s.name === p.name);
     if (name === prop && p.value !== "") take({ value: clean(p.value), important: p.important === true });
     else if (shorthand && p.value !== "") take({ value: clean(p.value), important: p.important === true, shorthand });
+    // `all` resets every property but custom ones; its value is always a CSS-wide keyword.
+    else if (p.name === "all" && !prop.startsWith("--")) take({ value: clean(p.value), important: p.important === true });
+    else if ((p.longhandProperties ?? []).some((l) => physical(l.name) === prop)) take({ value: clean(p.value), important: p.important === true, unmapped: true });
     else if (name === prop && p.value === "") {
       // A longhand left empty by a var() shorthand (pending substitution).
       const entry = (style.shorthandEntries ?? []).find((e) => shorthands.some((s) => s.name === e.name));
@@ -150,7 +168,11 @@ function blockDeclaration(style: CdpStyle | undefined, prop: string): Declaratio
       if (entry && found) take({ value: clean(entry.value), important: entry.important === true, shorthand: found });
     }
   }
-  return important ?? normal;
+  const found: Declaration | null = important ?? normal;
+  if (found !== null || authored === live) return found;
+  // CDP expanded some authored shorthand this file does not map into `prop`.
+  const derived = live.find((p) => p.text === undefined && physical(p.name) === prop);
+  return derived ? { value: clean(derived.value), important: derived.important === true, unmapped: true } : null;
 }
 
 interface Candidate extends Declaration {
@@ -397,6 +419,7 @@ function partOf(list: Piece[], part: Part): Piece[] | null {
 }
 
 function sourceOfValue(decl: Declaration, vars: ReadonlyMap<string, string>): Pick<LonghandSource, "state" | "token"> {
+  if (decl.unmapped) return { state: "unknown" };
   if (CSS_WIDE.has(decl.value.toLowerCase())) return { state: "unknown" };
   if (!decl.value.includes("var(")) return { state: "hardcoded" };
   if (decl.shorthand === undefined) {
@@ -487,6 +510,19 @@ export function collapseBox(values: readonly string[]): string {
   return `${top} ${right} ${bottom} ${left}`;
 }
 
+// design.md 'length caps': one inspector value or token name is at most 500
+// UTF-16 units. Values come straight from the canvas's CSS through CDP, so
+// main cuts them before they cross IPC.
+const VALUE_LIMIT = 500;
+
+function cap(text: string): string {
+  if (text.length <= VALUE_LIMIT) return text;
+  let end = VALUE_LIMIT - 1;
+  const last = text.charCodeAt(end - 1);
+  if (last >= 0xd800 && last <= 0xdbff) end--;
+  return `${text.slice(0, end)}…`;
+}
+
 const RANK: Record<InspectState, number> = { default: 0, token: 1, hardcoded: 2, unknown: 3 };
 
 const ROWS: { group: InspectGroup; label: string; props: string[]; color?: boolean }[] = [
@@ -528,15 +564,15 @@ export function inspectRows(input: InspectInput): InspectRow[] {
     }
     const sources = shown.map((p) => longhandSource(input, p));
     const state = sources.reduce<InspectState>((worst, s) => (RANK[s.state] > RANK[worst] ? s.state : worst), "default");
-    const row: InspectRow = { group, label, value: combine(values), state };
+    const row: InspectRow = { group, label, value: cap(combine(values)), state };
     if (state === "token") {
       const tokens = [...new Set(sources.flatMap((s) => (s.token !== undefined ? [s.token] : [])))];
-      row.token = tokens.join(" ");
+      row.token = cap(tokens.join(" "));
       const chain = tokens.length === 1 ? sources.find((s) => s.chain)?.chain : undefined;
-      if (chain) row.chain = chain;
+      if (chain) row.chain = chain.map(cap);
     }
     const inherited = sources.length === 1 ? sources[0]?.inheritedFrom : undefined;
-    if (inherited !== undefined) row.inheritedFrom = inherited;
+    if (inherited !== undefined) row.inheritedFrom = cap(inherited);
     if (sources.some((s) => s.hoverState)) row.hoverState = true;
     return row;
   });
