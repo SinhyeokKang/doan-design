@@ -21,7 +21,15 @@ app.on("web-contents-created", (_event, contents) => {
   contents.on("will-navigate", (event) => event.preventDefault());
   // Before the shell is up there is no token base, and every checked frame is refused.
   contents.on("will-frame-navigate", (details) => {
-    if (!frameNavigationAllowed(details, shell?.tokenBase ?? "")) details.preventDefault();
+    let allowed = false;
+    // A WebFrameMain disposed mid-navigation throws on property access; a throw
+    // here would skip preventDefault and let the navigation through.
+    try {
+      allowed = frameNavigationAllowed(details, shell?.tokenBase ?? "");
+    } catch {
+      allowed = false;
+    }
+    if (!allowed) details.preventDefault();
   });
   contents.on("will-attach-webview", (event) => event.preventDefault());
   contents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -42,13 +50,14 @@ function injectCanvasScript(window: BrowserWindow): void {
   window.webContents.on("did-frame-navigate", (_event, _url, _code, _text, isMainFrame, processId, routingId) => {
     const base = shell?.tokenBase;
     if (isMainFrame || base === undefined) return;
-    const frame = webFrameMain.fromId(processId, routingId);
-    if (frame === undefined || !isCanvasFrame(frame.url, base, childOfTopFrame(frame))) return;
-    // A frame gone by now either throws or rejects; its next navigation injects again.
+    // A frame gone by now throws on access or rejects the script; its next
+    // navigation injects again.
     try {
+      const frame = webFrameMain.fromId(processId, routingId);
+      if (frame === undefined || !isCanvasFrame(frame.url, base, childOfTopFrame(frame))) return;
       frame.executeJavaScript(canvasScriptText).catch(() => undefined);
     } catch {
-      // Same as the rejection above.
+      return;
     }
   });
 }
