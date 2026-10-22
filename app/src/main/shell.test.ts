@@ -96,17 +96,17 @@ describe("opening a picked folder", () => {
   test("a missing CLI refuses the pick instead of storing it", async () => {
     const root = writeRepo(dir());
     const { shell } = await start(join(tmp, "no-such-doan"));
-    expect(await shell.open(root)).toMatch(/^doan CLI 오류/);
+    expect(await shell.open(root)).toMatch(/^doan CLI error/);
     expect(shell.entries()).toEqual([]);
   });
 
   test("a folder that is gone after the dialog is reported, not opened", async () => {
     const { shell } = await start();
     const gone = join(tmp, "gone");
-    expect(await shell.open(gone)).toBe(`폴더를 찾을 수 없음: ${gone}`);
+    expect(await shell.open(gone)).toBe(`Project not found: ${gone}`);
     const file = join(dir(), "file.txt");
     writeFileSync(file, "x");
-    expect(await shell.open(file)).toBe(`폴더를 찾을 수 없음: ${file}`);
+    expect(await shell.open(file)).toBe(`Project not found: ${file}`);
     expect(shell.entries()).toEqual([]);
   });
 });
@@ -406,5 +406,66 @@ describe("served revision", () => {
     await vi.waitFor(() => expect(has(listed(latest(changes), root), "design/b.html")).toBe(true), until);
     await sleep(500);
     expect(rev(changes, root)).toBe(rev0 + 1);
+  });
+});
+
+
+describe("reopening stored folders", () => {
+  test.each(["restored", "missing", "uninitialized"])("publishes loading then the CLI state when %s", async (state) => {
+    const root = writeRepo(dir());
+    const { shell, changes } = await opened(root);
+    rmSync(root, { recursive: true, force: true });
+    await vi.waitFor(() => expect(shell.entries()).toEqual([{ path: root, kind: "notFound" }]), until);
+    if (state === "restored") writeRepo(root);
+    if (state === "uninitialized") mkdirSync(root);
+    const checkpoint = changes.length;
+    await shell.reopen(root);
+    expect(changes[checkpoint]).toEqual([{ path: root, kind: "loading" }]);
+    const kind = state === "restored" ? "list" : state === "missing" ? "notFound" : "uninitialized";
+    await vi.waitFor(() => expect(shell.entries()[0]?.kind).toBe(kind), until);
+    if (state === "restored") {
+      writeFileSync(join(root, "design", "b.html"), "<!doctype html>");
+      await vi.waitFor(() => expect(has(listed(latest(changes), root), "design/b.html")).toBe(true), until);
+    }
+  });
+
+  test("reopens CLI errors using the saved path", async () => {
+    const root = writeRepo(dir());
+    const executable = join(dir(), "doan");
+    const foldersFile = join(dir(), "folders.json");
+    writeFileSync(foldersFile, JSON.stringify([root]));
+    const changes: FolderEntry[][] = [];
+    const shell = await startShell(foldersFile, executable, (entries) => changes.push(entries));
+    shells.push(shell);
+    await vi.waitFor(() => expect(shell.entries()[0]?.kind).toBe("cliError"), until);
+    writeFileSync(executable, `#!/bin/sh\nexec '${cli}' "$@"\n`);
+    chmodSync(executable, 0o755);
+    const checkpoint = changes.length;
+    await shell.reopen(root);
+    expect(changes[checkpoint]).toEqual([{ path: root, kind: "loading" }]);
+    await vi.waitFor(() => expect(shell.entries()[0]?.kind).toBe("list"), until);
+    expect(saved(foldersFile)).toEqual([root]);
+  });
+
+  test("ignores paths that are not open", async () => {
+    const { shell, changes } = await start();
+    await shell.reopen("/not-open");
+    expect(shell.entries()).toEqual([]);
+    expect(changes).toEqual([]);
+  });
+
+  test("two consecutive reopens leave only one active watcher", async () => {
+    const counting = countingCli();
+    const root = writeRepo(dir());
+    const { shell, changes } = await opened(root, counting.path);
+    await shell.reopen(root);
+    await shell.reopen(root);
+    await vi.waitFor(() => expect(shell.entries()[0]?.kind).toBe("list"), until);
+    await sleep(500);
+    const reads = counting.reads();
+    writeFileSync(join(root, "design", "b.html"), "<!doctype html>");
+    await vi.waitFor(() => expect(has(listed(latest(changes), root), "design/b.html")).toBe(true), until);
+    await sleep(500);
+    expect(counting.reads()).toBe(reads + 1);
   });
 });

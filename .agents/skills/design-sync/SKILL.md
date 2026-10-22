@@ -46,6 +46,8 @@ Pair each draft element with its implementation element per run, as selector pai
 
 Properties to cover: size, padding, gap, border and radius, colors (text, background, border, divider rules), font family / size / weight / line-height / letter-spacing, and hover, focus, selected and disabled states.
 
+- **Pair children, not only containers** (2026-10-22, app-ui): a child that carries its own text style, background or spacing (`<code>`, `<b>`, chips, glyphs) gets its own row, and every row records `textContent` on both sides. In app-ui a styled `<code>` inside a paired `<p>` passed a 0-mismatch table (POSTMORTEM). Grep `docs/POSTMORTEM.md` for `design-sync` before step 2.
+
 - **A documented deviation is not a deviation.** When a feature document or `docs/DESIGN.md` records why the implementation differs on purpose, mark the row "documented" with the source. Without such a record, it is a real deviation.
 - **A shared primitive beats one screen.** If one screen's draft differs from a shared component, keep the component, unless the drafts draw every screen with the same new value; then change the component and list the other screens it moves in the report.
 

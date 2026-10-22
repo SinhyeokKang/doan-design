@@ -29,9 +29,17 @@ app.on("web-contents-created", (_event, contents) => {
 
 let win: BrowserWindow | undefined;
 let shell: Shell | undefined;
+let quitting = false;
+let cancelPendingHide = () => {};
+const FULLSCREEN_EXIT_WAIT_MS = 2000;
+
+function showWindow(window: BrowserWindow): void {
+  cancelPendingHide();
+  window.show();
+}
 
 function fromWindow(event: IpcMainInvokeEvent): boolean {
-  return win !== undefined && fromAppFrame(event, win);
+  return win !== undefined && !win.isDestroyed() && fromAppFrame(event, win);
 }
 
 const canvasScriptText = canvasScriptSource();
@@ -57,21 +65,31 @@ function injectCanvasScript(window: BrowserWindow): void {
 // Page zoom and reload roles would act on the whole window; the view commands
 // go to the renderer, which zooms the board and reloads only the canvas.
 function setMenu(): void {
-  const send = (command: ViewCommand) => () => win?.webContents.send("view-command", command);
+  const send = (command: ViewCommand) => () => {
+    if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("view-command", command);
+  };
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       { role: "appMenu" },
+      {
+        label: "File",
+        submenu: [
+          { label: "Open Project…", accelerator: "CmdOrCtrl+O", click: () => { void openProject(); } },
+          { type: "separator" },
+          { label: "Close Window", accelerator: "CmdOrCtrl+W", click: () => { if (win && !win.isDestroyed()) win.close(); } },
+        ],
+      },
       { role: "editMenu" },
       {
-        label: "보기",
+        label: "View",
         submenu: [
-          { label: "확대", accelerator: "CmdOrCtrl+=", click: send("zoomIn") },
-          { label: "축소", accelerator: "CmdOrCtrl+-", click: send("zoomOut") },
-          { label: "실제 크기", accelerator: "CmdOrCtrl+0", click: send("actualSize") },
+          { label: "Zoom In", accelerator: "CmdOrCtrl+=", click: send("zoomIn") },
+          { label: "Zoom Out", accelerator: "CmdOrCtrl+-", click: send("zoomOut") },
+          { label: "Actual Size", accelerator: "CmdOrCtrl+0", click: send("actualSize") },
           // A bare Shift+1 would also run fit while typing "!" in an input.
-          { label: "맞춤", accelerator: "CmdOrCtrl+1", click: send("fit") },
+          { label: "Fit", accelerator: "CmdOrCtrl+1", click: send("fit") },
           { type: "separator" },
-          { label: "캔버스 다시 읽기", accelerator: "CmdOrCtrl+R", click: send("reload") },
+          { label: "Reload Canvas", accelerator: "CmdOrCtrl+R", click: send("reload") },
           { type: "separator" },
           { role: "togglefullscreen" },
         ],
@@ -91,8 +109,13 @@ function denyPermissions(): void {
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    width: 960,
-    height: 720,
+    width: 1238,
+    height: 780,
+    minWidth: 960,
+    minHeight: 600,
+    titleBarStyle: "hiddenInset",
+    // Align with the 40px top bar, 12px horizontal padding, and 52px traffic space before the logo.
+    trafficLightPosition: { x: 12, y: 14 },
     title: "Doan Design",
     webPreferences: {
       contextIsolation: true,
@@ -106,10 +129,41 @@ function createWindow(): BrowserWindow {
   if (!app.isPackaged && devUrl) void window.loadURL(devUrl);
   else void window.loadFile(fileURLToPath(new URL("../renderer/index.html", import.meta.url)));
   injectCanvasScript(window);
+  window.on("close", (event) => {
+    if (quitting) return;
+    event.preventDefault();
+    cancelPendingHide();
+    if (window.isFullScreen()) {
+      // macOS cannot hide until the transition ends; a later open cancels this close.
+      const hide = () => { cancelPendingHide(); if (!window.isDestroyed()) window.hide(); };
+      const timeout = setTimeout(() => cancelPendingHide(), FULLSCREEN_EXIT_WAIT_MS);
+      cancelPendingHide = () => {
+        clearTimeout(timeout);
+        window.removeListener("leave-full-screen", hide);
+        cancelPendingHide = () => {};
+      };
+      window.once("leave-full-screen", hide);
+      window.setFullScreen(false);
+    } else window.hide();
+  });
   window.on("closed", () => {
+    cancelPendingHide();
     if (win === window) win = undefined;
   });
   return window;
+}
+
+async function openProject(): Promise<void> {
+  const window = win;
+  const ready = shell;
+  if (!window || window.isDestroyed() || !ready) return;
+  showWindow(window);
+  const picked = await dialog.showOpenDialog(window, { title: "Open Project…", properties: ["openDirectory"] });
+  const path = picked.filePaths[0];
+  if (picked.canceled || path === undefined) return;
+  const refused = await ready.open(path);
+  // Not awaited: the open call has finished; the message box only informs.
+  if (refused !== null && !window.isDestroyed()) void dialog.showMessageBox(window, { type: "error", message: "Can’t open project", detail: refused });
 }
 
 async function start(): Promise<void> {
@@ -119,20 +173,18 @@ async function start(): Promise<void> {
   // folderStore writes beside folders.json but does not create the directory.
   await mkdir(userData, { recursive: true });
   const ready = await startShell(join(userData, "folders.json"), cliCommand(), (entries) => {
-    win?.webContents.send("folders", entries);
+    if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries);
   });
   shell = ready;
 
   ipcMain.handle("folders:get", (event) => (fromWindow(event) ? ready.entries() : []));
   ipcMain.handle("folders:open", async (event) => {
-    const window = win;
-    if (!window || !fromWindow(event)) return;
-    const picked = await dialog.showOpenDialog(window, { properties: ["openDirectory"] });
-    const path = picked.filePaths[0];
-    if (picked.canceled || path === undefined) return;
-    const refused = await ready.open(path);
-    // Not awaited: the open call has finished; the message box only informs.
-    if (refused !== null && !window.isDestroyed()) void dialog.showMessageBox(window, { type: "error", message: "폴더를 열 수 없음", detail: refused });
+    if (!fromWindow(event)) return;
+    await openProject();
+  });
+  ipcMain.handle("folders:reopen", async (event, path: unknown) => {
+    if (!fromWindow(event) || typeof path !== "string") return;
+    await ready.reopen(path);
   });
   ipcMain.handle("folders:close", async (event, path: unknown) => {
     if (!fromWindow(event) || typeof path !== "string") return;
@@ -147,8 +199,10 @@ app.whenReady().then(start).catch((error: unknown) => {
   app.exit(1);
 });
 
-// One window, no dock-only state to keep: closing it ends the app and its watchers.
-app.on("window-all-closed", () => app.quit());
+app.on("before-quit", () => { quitting = true; cancelPendingHide(); });
+app.on("activate", () => {
+  if (win && !win.isDestroyed()) showWindow(win);
+});
 
 app.on("will-quit", () => {
   void shell?.dispose();

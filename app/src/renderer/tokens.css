@@ -1,0 +1,35 @@
+/* Design tokens shared by the app renderer and the app-ui draft canvas
+   (design/app-shell.html links this file; .doan/config.json points tokenCss here).
+   MVP is a single dark theme (2026-10-22 user), set in the system sans only (no monospace).
+   Keep plain :root variables only: the file is served to canvases as-is and scanned by
+   `doan check`, so Tailwind directives or CSS imports would break both (an imported file is
+   outside the serving scope). Orange, #ecebe4 and #8f8e87 follow Sorcerer's README badges. */
+
+:root {
+  --bg: #121212;
+  --panel: #171717;
+  --panel-2: #1d1d1d;
+  --raised: #242424;
+  --line: #2a2a2a;
+  --line-2: #212121;
+  --text: #ecebe4;
+  --text-2: #b5b3ab;
+  --text-3: #8f8e87;
+  --text-4: #5f5e59;
+  --accent: #f0773a;
+  --accent-ink: #1a0b03;
+  --accent-soft: #3a2117;
+  --accent-line: #f0773a;
+  --board-bg: #0c0c0c;
+  --board-dot: #1e1e1e;
+  --ok: #6cc07a;
+  --warn: #e8b04b;
+  --err: #ef5b4c;
+  --shadow-1: 0 1px 2px #00000066, 0 0 0 1px #ffffff0d;
+  --shadow-2: 0 10px 30px #00000099, 0 0 0 1px #ffffff12;
+  --tl-red: #ff5f57;
+  --tl-yellow: #febc2e;
+  --tl-green: #28c840;
+
+  --font-sans: ui-sans-serif, -apple-system, "Apple SD Gothic Neo", sans-serif;
+}

@@ -93,3 +93,27 @@
 - **Root cause**: the renderer learns about documents only from their layouts, and a document without the injected script never posts one, so its arrival was invisible. The obvious detector, "an iframe `load` with no layout since the previous `load`", does not work either: the script posts again after its own document's `load` (rAF after `load`, resize after our height change), so the previous document's late layouts always fill the gap.
 - **Net**: caught by the B4 independent review with a probe (`probe-blocked.mjs`). The e2e step for the blocked link only checked that a reload brought the canvas back, never the screen in between.
 - **Prevention**: on the iframe element's `load`, ask the loaded document directly (`measure`) and treat no answer within 1 s as a document without the script (e2e C9 checks the unlisted line, empty frame list and no mark after `about:blank` and after the blocked link; red with `frameLoaded` disabled). For any state that depends on a message from inside the iframe, write the e2e step for the document that never sends it. Grep: `grep -rnE 'addEventListener\("load"' app/src/renderer --include='*.ts'`.
+
+### 2026-10-22 — A fullscreen window stayed visible after Close Window
+
+- **Area**: `app/src/main/index.ts` (window `close` handler)
+- **Symptom**: with close turned into hide (app-ui), Cmd+W and `close()` hid a normal window, but after entering fullscreen, Close Window left `isVisible()` true for 10 s; the window neither hid nor closed.
+- **Root cause**: on macOS a fullscreen window does not hide while it is in its own Space; `preventDefault()` followed by `hide()` is silently ignored. The window must leave fullscreen first and hide on `leave-full-screen`. That wait opens a race: an `activate` or Cmd+O before `leave-full-screen` must cancel the pending hide, or the window ends hidden after being shown.
+- **Net**: caught by the app-ui batch E real-window e2e step (fullscreen → Close Window → activate), added because the C review suspected it from reports in other frameworks. The lifecycle unit tests mocked only normal windows.
+- **Prevention**: keep the fullscreen unit tests (leave then hide, cancelled by activate/Cmd+O) and the e2e step. Any change to how the window hides must be tried from fullscreen too. Grep: `grep -rnE '\.hide\(|leave-full-screen' app/src/main --include='*.ts' | grep -v '\.test\.ts'`.
+
+### 2026-10-22 — The fresh-iframe rule survived its mutation after the renderer moved to React
+
+- **Area**: `app/src/renderer/CanvasController.ts` (`load`), `app/e2e/runtime.ts` (C7)
+- **Symptom**: during the app-ui mutation proof, reusing the iframe (`this.frame ?? document.createElement("iframe")`) passed the whole e2e. The rule from the "linked 100vh canvas" entry above was no longer guarded.
+- **Root cause**: C7 checked the rule only through its effect (a 100vh canvas shrinking from 3,000 to 300 after a live reload). With the new renderer's timing, the replaced document's stale layout no longer won the race, so the effect check passed with a reused iframe. An effect-only check depends on the timing it was written against.
+- **Net**: caught by re-running ARCHITECTURE §3's mutation proof on the rebuilt screen (task 6), not by any review.
+- **Prevention**: C7 now also checks the rule directly: after a live reload the previous iframe handle is detached and the new one is a different node (red with the reuse mutation). When a guarantee is pinned only by an effect that depends on timing, add a structural assertion too, and re-run the mutation proof whenever the code around it is rewritten. Grep: `grep -rnE 'createElement\("iframe"\)|\.src\s*=' app/src/renderer --include='*.ts' | grep -v '\.test\.ts'`.
+
+### 2026-10-22 — A zero-mismatch table missed a newly styled child
+
+- **Area**: `app/src/renderer/Sidebar.tsx`, `styles.css`, app-shell design-sync measurement pairs.
+- **Symptom**: the no-frames hint gained a colored `data-doan-frame` code chip even though the draft used plain text; the computed-style table still reported zero rendered mismatches.
+- **Root cause**: the comparison paired the hint container but not its child. A shared `.hint code` rule intended for the project's `doan init` instruction also styled the existing child in the frame hint. Matching the parent's computed styles said nothing about the child's background, padding, or text color.
+- **Net**: the independent review's child-level Electron probe caught it; the original measurement table and behavior-only e2e missed it. The new no-frames e2e assertion failed with one child element before the fix and passes with plain text. The table now records child absence and each pair's `textContent`.
+- **Prevention**: when pairing a container, also pair children that carry text, background, or spacing; record `textContent` so a wrong selector is visible. Pin the plain-text hint's zero element children in the runtime test. Run `rg -n '\.hint code|<code[ >]' app/src/renderer` when changing hint/code styles: the remaining matches are the intended project instruction chip, its CSS rule, and the first-launch `.doan/` text whose system-sans deviation is documented in DESIGN.md.

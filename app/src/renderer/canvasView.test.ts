@@ -16,7 +16,7 @@ import {
 const open: OpenCanvas = { folder: "/repo", canvas: "design/a.html" };
 
 function row(path: string, extra: Partial<CanvasRow> = {}): CanvasRow {
-  return { path, open: 0, url: `http://127.0.0.1:1/t/tok/k/${path}`, width: 1200, ...extra };
+  return { path, open: 0, resolved: 0, url: `http://127.0.0.1:1/t/tok/k/${path}`, width: 1200, ...extra };
 }
 
 function list(path: string, servedRev: number, canvases: CanvasRow[]): FolderEntry {
@@ -58,7 +58,7 @@ describe("canvasViewUpdate", () => {
   });
 
   test("resizes when the width goes away", () => {
-    const gone: CanvasRow = { path: "design/a.html", open: 0, url: row("design/a.html").url };
+    const gone: CanvasRow = { path: "design/a.html", open: 0, resolved: 0, url: row("design/a.html").url };
     const now = [list("/repo", 1, [gone])];
     expect(canvasViewUpdate(before, now, open)).toEqual({ kind: "resize", canvas: gone });
   });
@@ -78,7 +78,7 @@ describe("canvasViewUpdate", () => {
 
   // `.doan/config.json` removed: there is no list, and nothing is served.
   test("clears when the folder is no longer initialized", () => {
-    expect(canvasViewUpdate(before, [{ path: "/repo", kind: "uninitialized" }], open)).toEqual({ kind: "clear", reason: "missing" });
+    expect(canvasViewUpdate(before, [{ path: "/repo", kind: "uninitialized" }], open)).toEqual({ kind: "clear", reason: "uninitialized" });
   });
 
   test("shows an error line and keeps the view on error", () => {
@@ -88,9 +88,9 @@ describe("canvasViewUpdate", () => {
 
   test("shows an error line and keeps the view on a CLI error", () => {
     expect(canvasViewUpdate(before, [{ path: "/repo", kind: "cliError", reason: "timed out after 10 s" }], open))
-      .toEqual({ kind: "errorLine", message: "doan CLI 오류: timed out after 10 s" });
+      .toEqual({ kind: "errorLine", message: "doan CLI error: timed out after 10 s" });
     expect(canvasViewUpdate(before, [{ path: "/repo", kind: "cliError", reason: "" }], open))
-      .toEqual({ kind: "errorLine", message: "doan CLI 오류" });
+      .toEqual({ kind: "errorLine", message: "doan CLI error" });
   });
 
   // Served files may have changed while the folder failed, and the shell
@@ -120,8 +120,8 @@ describe("constants", () => {
 
 describe("cliErrorText", () => {
   test("names the reason when there is one", () => {
-    expect(cliErrorText("timed out after 10 s")).toBe("doan CLI 오류: timed out after 10 s");
-    expect(cliErrorText("")).toBe("doan CLI 오류");
+    expect(cliErrorText("timed out after 10 s")).toBe("doan CLI error: timed out after 10 s");
+    expect(cliErrorText("")).toBe("doan CLI error");
   });
 });
 
@@ -232,23 +232,27 @@ describe("layoutHeight", () => {
 });
 
 describe("frameLabel", () => {
-  test("prefers the title", () => {
-    expect(frameLabel({ id: "hero", title: "Hero" })).toEqual({ text: "Hero", mono: false });
+  test("keeps the id alongside the title", () => {
+    expect(frameLabel({ id: "hero", title: "Hero" })).toEqual({ id: "hero", title: "Hero" });
   });
 
-  test("falls back to the id in monospace", () => {
-    expect(frameLabel({ id: "hero" })).toEqual({ text: "hero", mono: true });
-    expect(frameLabel({ id: "hero", title: "" })).toEqual({ text: "hero", mono: true });
+  test("keeps the id without a title", () => {
+    expect(frameLabel({ id: "hero" })).toEqual({ id: "hero" });
+    expect(frameLabel({ id: "hero", title: "" })).toEqual({ id: "hero" });
   });
 
   test("names a frame without id", () => {
-    expect(frameLabel({ id: "" })).toEqual({ text: "(id 없음)", mono: false });
+    expect(frameLabel({ id: "" })).toEqual({ id: "(no id)" });
   });
+});
+
+test("frameLabel preserves duplicate ids as separate labels", () => {
+  expect([{ id: "dup", title: "First" }, { id: "dup", title: "Second" }].map(frameLabel)).toEqual([{ id: "dup", title: "First" }, { id: "dup", title: "Second" }]);
 });
 
 describe("updatedText", () => {
   test("shows local hours, minutes and seconds", () => {
-    expect(updatedText(new Date(2026, 9, 22, 14, 3, 21))).toBe("갱신 14:03:21");
-    expect(updatedText(new Date(2026, 9, 22, 9, 0, 5))).toBe("갱신 09:00:05");
+    expect(updatedText(new Date(2026, 9, 22, 14, 3, 21))).toBe("Updated 14:03:21");
+    expect(updatedText(new Date(2026, 9, 22, 9, 0, 5))).toBe("Updated 09:00:05");
   });
 });
