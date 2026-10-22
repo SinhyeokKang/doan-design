@@ -128,6 +128,7 @@ PRODUCT §6의 미통과 항목에 기댄다. 둘 다 task 0에서 먼저 돌린
 
 - **주입 이벤트**: webContents `did-frame-navigate`(`isMainFrame`이 false인 것)에서 `webFrameMain.fromId(frameProcessId, frameRoutingId)`로 프레임을 얻고, `isCanvasFrame`을 통과하면 `executeJavaScript`를 실행한다. 이때 문서는 `readyState` `loading`이므로, 스크립트는 `DOMContentLoaded` 뒤에 관찰자를 건다. 리로드와 캔버스 안 링크 이동 때마다 다시 주입됐다. 프레임 `dom-ready`도 동작했지만 프레임마다 리스너를 따로 관리해야 해서 쓰지 않는다. `frame-created`는 아직 `about:blank`라 쓸 수 없다.
 - **주입 스크립트 형태**: `executeJavaScript`는 코드 문자열을 받는다. PoC는 import나 바깥 변수를 쓰지 않는 함수 하나를 문자열로 읽어 `(${src})(opts); void 0;`로 감싸 실행했다. 실제 앱도 번들러가 바깥 참조를 끌어들이지 않도록 스크립트를 자기완결적으로 둔다. 스크립트는 캔버스의 main world에서 돈다. `WebFrameMain`에는 isolated world 실행이 없어서, 캔버스 스크립트가 주입 스크립트의 전역을 볼 수 있다(흐름 5의 위조 가능 전제와 같다).
+- **주입 스크립트 위치와 빌드 (B3)**: 원본은 `app/src/main/canvasScript.ts`의 함수 `canvasScript`다. main 번들 안에서 `canvasScriptSource()`가 `Function.prototype.toString()`으로 문자열을 만들고, `(canvasScript)({nextHeight, canScrollAxis, clipText}); void 0;` 꼴로 감싼다. 순수 도우미(높이 고정 판단 `nextHeight`, 스크롤 가능 판단 `canScrollAxis`, 문자열 자르기 `clipText`)는 같은 파일에서 따로 export해 단위 테스트하고, 바깥 변수를 참조하지 않도록 인자로 넘긴다. 이렇게 하면 별도 빌드 설정이나 `?raw` import 없이 타입 검사를 받는다. 자기완결성은 `canvasScript.test.ts`가 새 `vm` 컨텍스트에서 문자열을 실행해 확인한다. 빌드된 앱에서도 주입과 `layout` 수신을 B3 프로브로 확인했다.
 - **높이 측정 규칙**:
   - 렌더러는 `src`를 넣을 때마다(열기 · 리로드) iframe 높이를 150px로 초기화한다. 초기화하지 않으면 `min-height: 100vh` 캔버스는 이전 높이보다 줄어들 수 없다.
   - 렌더러는 직전 `layout`과 `href`가 다른 `layout`이 와도 150px로 초기화한다. 캔버스 안 링크로 새 문서가 열린 경우다. 이 문서는 이전 높이를 물려받으므로, 초기화하지 않으면 위와 같은 문제가 생긴다. PoC는 링크 이동 뒤의 높이를 확인하지 않았다.
