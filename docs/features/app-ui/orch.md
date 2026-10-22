@@ -34,7 +34,7 @@
 | C | task 3 · 4(순수 함수, main · preload · shell) | `app/src/renderer/{projectRow,activity,canvasInfo,canvasView}.ts`와 테스트, `app/src/main/{view,shell,index}.ts`와 테스트, `app/src/preload/`, `app/src/renderer/main.ts`의 타입이 깨지는 호출부만(지휘자 허가) | A(문구가 초안과 같아야 함) | Codex gpt-6.1-sol medium (경계 사례가 tasks에 다 적혀 있어 판단할 곳이 적다. 수명주기는 Claude 리뷰가 본다) | `npm --prefix app test` · `typecheck` · `build` | 대기 |
 | E | task 5 · 6(렌더러, e2e) | `app/src/renderer/` 나머지, `app/package.json` · lock · `.npmrc` · `components.json` · `electron.vite.config.ts` · `tsconfig.json`, `app/e2e/` | B · C | Codex gpt-6-astra medium (상위 모델, effort 상한 medium — 명령형 경계, CSP, 포커스, 변형 증명) | task 5 grep 4종, `test` · `typecheck`, `e2e` PASS 두 번 연속, 변형 표 | 대기 |
 | F | task 7(`/design-sync`) | `app/src/renderer/`, `docs/DESIGN.md`, `.scratch/design-sync/` | E | Codex gpt-6-astra medium (상위 모델, effort 상한 medium — 측정 · 수정 반복) | 대조표 일치 또는 기록된 차이, 첫 대조표 보존 | 대기 |
-| 리뷰 | 배치 A · C · E · F diff | 보고만 | 각 배치 | Claude Opus high(E · F) / Sonnet medium(A · C) | 🔴 0 | — |
+| 리뷰 | 배치 A · C · E · F diff | 보고만 | 각 배치 | Claude Opus high(C · E · F) / Sonnet medium(A). C는 창 수명주기와 IPC 신뢰가 있어 Opus high로 올렸다 | 🔴 0 | — |
 | 문서 | task 8 · 9 | `docs/DIRECTORY.md` · `.agents/skills/runtime-test/SKILL.md` · `AGENTS.md` · `docs/PRODUCT.md` · `docs/ARCHITECTURE.md` · `docs/features/app-ui/` | F | 지휘자 | tasks.md 8 · 9 검증 | 대기 |
 
 tasks.md의 체크 항목은 task 0–9이고 모두 위 한 행에 속한다.
@@ -49,6 +49,6 @@ tasks.md의 체크 항목은 task 0–9이고 모두 위 한 행에 속한다.
 ## 진행 기록
 
 - A 1라운드 `790f01e` · `221d225` → 리뷰(Sonnet medium) 🔴 0 · 🟡 4 → 2라운드 `07a8fb9` · `373437c` → 통합. 통합 HEAD에서 check 오류 0 · 경고 6, 프레임 7, test 533 · typecheck 통과.
-- C 시작(Sol medium, 워크트리 `app-ui-C`).
+- C(Sol medium) `bfdc067`..`4636bd1`: test 567 · typecheck · build 통과(워커 보고). `/runtime-test`와 e2e는 E로 넘김(지휘자 확인). 리뷰(Opus high) 진행 중.
 - B: CSP 게이트 실패(빌드 ScrollArea 인라인 style, dev Fast Refresh 인라인 스크립트) → 사용자 결정 두 건 → 재확인에서 빌드 · dev 위반 0건, peer 경고 0건 → `dd7f363` 통합(`bcfec5d`). 실험 사본과 인계 문서는 `.scratch/app-ui/`에 보관했다(렌더러 배치 참고용). B 터미널은 Orca가 `user_takeover`로 보존 중이다.
 
