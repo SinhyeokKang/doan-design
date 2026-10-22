@@ -88,14 +88,14 @@
 - 키보드로 닿는 것: Frames 목록의 프레임 선택(Enter), 조상 경로, Esc 해제. 캔버스 안 요소를 키보드만으로 고를 수는 없다(비목표).
 - 캔버스를 클릭한 뒤에는 포커스가 iframe에 있어 Tab이 캔버스 안의 링크와 입력 칸을 먼저 돈다. 한계로 둔다.
 
-### 10. 인스펙터 값 (PoC 2가 확정)
+### 10. 인스펙터 값 (main이 CDP로 모은다, 2026-10-22 사용자, PoC 2 뒤)
 
 - 선택할 때 한 번 모은다(이후 페이지 스크립트가 바꾼 값은 다시 선택해야 반영된다). 계산값은 `getComputedStyle`이다.
-- 토큰 이름 찾기(ARCHITECTURE §3 결정: 스크립트가 모은다): 시트의 규칙 중 `el.matches(rule.selectorText)`인 것과 `style` 속성에서 그 속성의 선언을 모은다. 각 선언값의 `var(--x)`를 그 요소의 계산된 사용자 속성으로 풀어 계산값과 대조하고, 일치하는 후보가 하나면 그것, 여럿이면 cascade 순서(`!important` → specificity → 순서)로 가른다. 직접 specificity 파서를 짜는 비용을 줄이려는 것이다. 상속 속성(글자색 · 글꼴)은 요소에 선언이 없으면 조상으로 올라간다("Inherited from <tag>").
-- **읽을 수 없는 시트**: 캔버스 문서의 origin이 `null`이라 로컬 `<link>` 시트도 `cssRules`가 `SecurityError`일 수 있다. 그러면 스크립트가 `fetch(sheet.href)`로 읽고(범위 안 200 응답에는 `ACAO: null`이 있어 읽힌다, PoC 4) `new CSSStyleSheet().replaceSync(text)`로 파싱한다. `@import`는 같은 방식으로 따라간다. "알 수 없음"은 그래도 읽을 수 없는 시트(CDN 등)가 이겼을 수 있을 때만이다.
+- **수집 위치**: main이 창 `webContents.debugger`를 붙이고(`Target.setAutoAttach`, `flatten: true`), 캔버스 iframe 세션에서 선택 앵커의 `selector`로 `DOM.querySelector` → `CSS.getMatchedStylesForNode` + `CSS.getComputedStyleForNode`를 부른다. 스크립트는 앵커만 보내고 스타일을 모으지 않는다. iframe 세션은 URL이 아니라 타깃 유형 · 프레임 id로 고른다(붙는 시점의 URL이 비어 있다, PoC 2). CDP는 캔버스 CSP와 CORS 없는 CDN 시트도 본다. 이 결정은 ARCHITECTURE §3 "this script also collects and sends inspector values"를 바꾼다.
+- **우리 쪽에 남는 계산**(main의 순수 함수): `!important` 적용(CDP는 순서만 준다), 단축 속성 → 각 변 매핑(`var()`가 든 단축 속성은 CSSOM과 CDP 모두 longhand를 비운다), `var()` 풀이와 토큰 사슬, 상속(`inherited[]`, "Inherited from <tag>"), 기본값(user-agent origin 또는 선언 없음), 상태 의사 클래스 표시, 색의 hex 표기. 알려진 한계(두 방식 공통): `inherit` 키워드, 계산값 시점에 무효인 변수.
 - 표시 상태는 넷이다(2026-10-22 사용자, 리뷰 R2): 토큰(`--brand` → `#4f46e5`), 하드코딩(작성자 선언이 리터럴), 알 수 없음, 기본값(작성자 선언 없음; 표시 없이 흐린 값).
 - 클릭 순간 대상은 `:hover`(경우에 따라 `:active`) 상태다. 이긴 선언의 선택자에 상태 의사 클래스가 있으면 그 행에 "Hover state"를 붙인다. PoC 2가 이 방식으로 충분한지 본다.
-- PoC 2는 위 방식과 CDP `CSS.getMatchedStylesForNode`(`webContents.debugger`)의 결과를 같은 사례에서 비교한다. 스크립트 방식이 기준을 못 넘으면 멈추고 사용자에게 묻는다(CDP로 바꾸면 ARCHITECTURE §3 결정이 바뀐다).
+- PoC 2 결과(PRODUCT §6): 스크립트 방식은 캔버스 CSP에서 전부 알 수 없음이 되고, CORS 없는 CDN 시트가 같은 값으로 이기면 틀린 토큰을 보였다. CDP는 둘 다 맞았고 4 ms였다(스크립트 10–22 ms). 인스펙터 데이터는 IPC로 렌더러에 간다(M이 수집, R이 표시).
 
 ### 11. 선택 저장소 (main)
 
