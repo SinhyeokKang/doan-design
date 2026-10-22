@@ -72,7 +72,8 @@ export function answerRequest(line: string, token: string, state: RuntimeState):
 
 // One request line per connection, one response line, then close. A hard
 // deadline rather than an idle timeout, so a client dripping bytes cannot hold
-// the connection open.
+// the connection open; it also outlives the reply, since `end` only half-closes
+// and a peer that never closes its side would keep the socket.
 function serve(connection: Socket, token: string, state: RuntimeState): void {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -80,7 +81,6 @@ function serve(connection: Socket, token: string, state: RuntimeState): void {
   const deadline = setTimeout(() => connection.destroy(), LINE_WAIT_MS);
   const reply = (response: SocketResponse) => {
     done = true;
-    clearTimeout(deadline);
     connection.end(`${JSON.stringify(response)}\n`);
   };
   connection.on("data", (chunk: Buffer) => {

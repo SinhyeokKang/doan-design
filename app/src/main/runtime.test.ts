@@ -220,6 +220,27 @@ test("a connection that drips bytes is still closed after 2 seconds", async () =
   expect(ms).toBeLessThan(3000);
 });
 
+test("a peer that keeps its side open after the reply is still cut off after 2 seconds", async () => {
+  const { socket, token } = await start();
+  // allowHalfOpen: the client never closes its side, as a stuck or hostile peer would.
+  const client = connect({ path: socket, allowHalfOpen: true });
+  const errors: string[] = [];
+  client.on("error", (error: NodeJS.ErrnoException) => errors.push(error.code ?? "error"));
+  const reply = await new Promise<string>((resolve) => {
+    let text = "";
+    client.on("connect", () => client.write(`${request(token)}\n`));
+    client.on("data", (chunk: Buffer) => { text += chunk.toString("utf8"); });
+    client.on("end", () => resolve(text));
+  });
+  expect(JSON.parse(reply)).toMatchObject({ ok: true });
+  await new Promise((resolve) => setTimeout(resolve, 2300));
+  // Writing to a connection the app has fully closed fails; a half-open one would take it.
+  client.write("x");
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  client.destroy();
+  expect(errors.length).toBeGreaterThan(0);
+});
+
 test("disposeSync removes the socket, its dir and our runtime.json", async () => {
   const started = await start();
   started.disposeSync();
