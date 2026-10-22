@@ -11,7 +11,25 @@ describe("canvasRows", () => {
       [{ path: "design/a.html", id: "a", title: "Login", width: 1280, frames: [], comments: { open: 2, resolved: 1 } }],
       base,
     );
-    expect(rows).toEqual([{ path: "design/a.html", title: "Login", open: 2, url: `${base}design/a.html` }]);
+    expect(rows).toEqual([{ path: "design/a.html", title: "Login", width: 1280, open: 2, url: `${base}design/a.html` }]);
+  });
+
+  test("omits a width that is not a positive safe integer", () => {
+    const widths = [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1, "1280", null, undefined, {}];
+    const rows = canvasRows(widths.map((width) => ({ path: "design/a.html", width })), base);
+    expect(rows).toHaveLength(widths.length);
+    for (const row of rows) expect(row).not.toHaveProperty("width");
+  });
+
+  test("keeps the largest safe integer width and the smallest positive one", () => {
+    const rows = canvasRows(
+      [
+        { path: "design/a.html", width: 1 },
+        { path: "design/b.html", width: Number.MAX_SAFE_INTEGER },
+      ],
+      base,
+    );
+    expect(rows.map((row) => row.width)).toEqual([1, Number.MAX_SAFE_INTEGER]);
   });
 
   test("omits a missing title", () => {
