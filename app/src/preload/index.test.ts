@@ -70,3 +70,11 @@ test("unsubscribes view commands", () => {
   expect(listener).toHaveBeenCalledTimes(1);
   expect(emitter.listenerCount("view-command")).toBe(0);
 });
+
+test("sends the selection to main on its dedicated IPC channel", async () => {
+  const selection = { root: "/repo", canvas: { path: "design/a.html" } };
+  await api.setSelection(selection);
+  await api.setSelection(null);
+  expect(mocks.invoke).toHaveBeenNthCalledWith(1, "selection:set", selection);
+  expect(mocks.invoke).toHaveBeenNthCalledWith(2, "selection:set", null);
+});
