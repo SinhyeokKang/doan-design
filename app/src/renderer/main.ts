@@ -224,6 +224,8 @@ function load(row: CanvasRow, fresh: boolean): void {
   setFrameHeight(INITIAL_HEIGHT);
   lastHref = null;
   jumpTo = null;
+  // It was about the replaced document.
+  unlistedLine.hidden = true;
   loading = true;
   clearTimeout(answerTimer);
   clearTimeout(loadTimer);
@@ -257,9 +259,10 @@ function dropFrame(): void {
   renderFrames();
 }
 
-// A document the canvas navigated to posts its first layout before its load
-// event, but here that cannot be told apart from the previous document's
-// last ones, so the loaded document is asked directly. A load still waiting
+// A document the canvas navigated to may post its first layout before or
+// after its load event (main injects the script on navigation, as a task on
+// the canvas's thread), and here that cannot be told apart from the previous
+// document's last ones, so the loaded document is asked directly. A load still waiting
 // for its first layout has the 5 s failure instead.
 function frameLoaded(target: HTMLIFrameElement): void {
   if (target !== frame || loading) return;
