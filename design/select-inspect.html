@@ -170,6 +170,12 @@ button { border:0; background:transparent; }
 .prop { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .swatch.ink2 { background:var(--mock-ink-2); }
 .swatch.fill { background:var(--mock-fill); }
+/* Short attribute labels stay fully readable at the fixed panel width. */
+.doan-attributes .prop { overflow:visible; text-overflow:clip; }
+.terms-page { padding:40px; }
+.terms-page h3 { font-size:24px; font-weight:600; margin-bottom:24px; }
+.terms-page h4 { font-size:14px; margin:24px 0 8px; }
+.terms-page p { font-size:13px; line-height:1.7; color:var(--mock-ink-2); max-width:460px; }
 </style>
 </head>
 <body>
@@ -732,7 +738,7 @@ button { border:0; background:transparent; }
 <span class="value ">
 <i class="swatch white" data-doan-id="element-text-swatch">
 </i>
-<span class="truncate" title="rgb(255, 255, 255)" data-doan-id="element-text-value">rgb(255, 255, 255)</span>
+<span class="truncate" title="#ffffff" data-doan-id="element-text-value">#ffffff</span>
 </span>
 </div>
 <div class="source-line">
@@ -745,11 +751,11 @@ button { border:0; background:transparent; }
 <span class="value ">
 <i class="swatch brand" data-doan-id="element-background-swatch">
 </i>
-<span class="truncate" title="rgb(79, 70, 229)" data-doan-id="element-background-value">rgb(79, 70, 229)</span>
+<span class="truncate" title="#4f46e5" data-doan-id="element-background-value">#4f46e5</span>
 </span>
 </div>
 <div class="source-line">
-<span class="token truncate" title="--mock-brand → rgb(79, 70, 229)" data-doan-id="element-background-token">--mock-brand</span>
+<span class="token truncate" title="--mock-brand → #4f46e5" data-doan-id="element-background-token">--mock-brand</span>
 </div>
 </div>
 <div class="inspect-row" data-doan-id="element-border">
@@ -783,38 +789,25 @@ button { border:0; background:transparent; }
 </div>
 </div>
 </section>
-<section class="isec">
-<h3 class="ihead">Attributes</h3>
+<section class="isec doan-attributes">
+<h3 class="ihead">Doan attributes</h3>
 <div class="inspect-row" data-doan-id="element-data-doan-id">
 <div class="value-line">
-<span class="prop" title="data-doan-id">data-doan-id</span>
+<span class="prop" title="data-doan-id">id</span>
 <span class="value ">
 <span class="truncate" title="sign-in" data-doan-id="element-data-doan-id-value">sign-in</span>
 </span>
 </div>
 </div>
-<div class="inspect-row" data-doan-id="element-data-doan-frame">
-<div class="value-line">
-<span class="prop" title="data-doan-frame">data-doan-frame</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="element-data-doan-frame-value">—</span>
-</span>
-</div>
-</div>
-<div class="inspect-row" data-doan-id="element-data-doan-title">
-<div class="value-line">
-<span class="prop" title="data-doan-title">data-doan-title</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="element-data-doan-title-value">—</span>
-</span>
-</div>
-</div>
 <div class="inspect-row" data-doan-id="element-data-doan-implements">
 <div class="value-line">
-<span class="prop" title="data-doan-implements">data-doan-implements</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="element-data-doan-implements-value">—</span>
+<span class="prop" title="data-doan-implements">implements</span>
+<span class="value">
+<span class="truncate" title="src/screens/sign-in.tsx" data-doan-id="element-data-doan-implements-value">src/screens/sign-in.tsx</span>
 </span>
+</div>
+<div class="source-line">
+<span class="state" data-doan-id="element-data-doan-implements-state">from frame hero</span>
 </div>
 </div>
 </section>
@@ -940,12 +933,9 @@ button { border:0; background:transparent; }
 <div class="inspect-row" data-doan-id="frame-padding">
 <div class="value-line">
 <span class="prop" title="Padding">Padding</span>
-<span class="value ">
-<span class="truncate" title="0px" data-doan-id="frame-padding-value">0px</span>
+<span class="value default">
+<span class="truncate" title="Default" data-doan-id="frame-padding-value">0px</span>
 </span>
-</div>
-<div class="source-line">
-<span class="state hardcoded" title="Hardcoded" data-doan-id="frame-padding-state">Hardcoded</span>
 </div>
 </div>
 <div class="inspect-row" data-doan-id="frame-margin">
@@ -1001,12 +991,9 @@ button { border:0; background:transparent; }
 <div class="inspect-row" data-doan-id="frame-weight">
 <div class="value-line">
 <span class="prop" title="Weight">Weight</span>
-<span class="value ">
-<span class="truncate" title="600" data-doan-id="frame-weight-value">600</span>
+<span class="value default">
+<span class="truncate" title="Default" data-doan-id="frame-weight-value">400</span>
 </span>
-</div>
-<div class="source-line">
-<span class="state hardcoded" title="Hardcoded" data-doan-id="frame-weight-state">Hardcoded</span>
 </div>
 </div>
 </section>
@@ -1018,7 +1005,7 @@ button { border:0; background:transparent; }
 <span class="value ">
 <i class="swatch ink" data-doan-id="frame-text-swatch">
 </i>
-<span class="truncate" title="rgb(17, 24, 39)" data-doan-id="frame-text-value">rgb(17, 24, 39)</span>
+<span class="truncate" title="#111827" data-doan-id="frame-text-value">#111827</span>
 </span>
 </div>
 <div class="source-line">
@@ -1031,7 +1018,7 @@ button { border:0; background:transparent; }
 <span class="value ">
 <i class="swatch white" data-doan-id="frame-background-swatch">
 </i>
-<span class="truncate" title="rgb(255, 255, 255)" data-doan-id="frame-background-value">rgb(255, 255, 255)</span>
+<span class="truncate" title="#ffffff" data-doan-id="frame-background-value">#ffffff</span>
 </span>
 </div>
 <div class="source-line">
@@ -1052,12 +1039,9 @@ button { border:0; background:transparent; }
 <div class="inspect-row" data-doan-id="frame-radius">
 <div class="value-line">
 <span class="prop" title="Radius">Radius</span>
-<span class="value ">
-<span class="truncate" title="0px" data-doan-id="frame-radius-value">0px</span>
+<span class="value default">
+<span class="truncate" title="Default" data-doan-id="frame-radius-value">0px</span>
 </span>
-</div>
-<div class="source-line">
-<span class="state hardcoded" title="Hardcoded" data-doan-id="frame-radius-state">Hardcoded</span>
 </div>
 </div>
 <div class="inspect-row" data-doan-id="frame-shadow">
@@ -1069,41 +1053,7 @@ button { border:0; background:transparent; }
 </div>
 </div>
 </section>
-<section class="isec">
-<h3 class="ihead">Attributes</h3>
-<div class="inspect-row" data-doan-id="frame-data-doan-id">
-<div class="value-line">
-<span class="prop" title="data-doan-id">data-doan-id</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="frame-data-doan-id-value">—</span>
-</span>
-</div>
-</div>
-<div class="inspect-row" data-doan-id="frame-data-doan-frame">
-<div class="value-line">
-<span class="prop" title="data-doan-frame">data-doan-frame</span>
-<span class="value ">
-<span class="truncate" title="hero" data-doan-id="frame-data-doan-frame-value">hero</span>
-</span>
-</div>
-</div>
-<div class="inspect-row" data-doan-id="frame-data-doan-title">
-<div class="value-line">
-<span class="prop" title="data-doan-title">data-doan-title</span>
-<span class="value ">
-<span class="truncate" title="Sign in" data-doan-id="frame-data-doan-title-value">Sign in</span>
-</span>
-</div>
-</div>
-<div class="inspect-row" data-doan-id="frame-data-doan-implements">
-<div class="value-line">
-<span class="prop" title="data-doan-implements">data-doan-implements</span>
-<span class="value ">
-<span class="truncate" title="src/screens/sign-in.tsx" data-doan-id="frame-data-doan-implements-value">src/screens/sign-in.tsx</span>
-</span>
-</div>
-</div>
-</section>
+
 </aside>
 </div>
 </div>
@@ -1236,7 +1186,7 @@ button { border:0; background:transparent; }
 <span class="value ">
 <i class="swatch ink" data-doan-id="states-text-swatch">
 </i>
-<span class="truncate" title="rgb(17, 24, 39)" data-doan-id="states-text-value">rgb(17, 24, 39)</span>
+<span class="truncate" title="#111827" data-doan-id="states-text-value">#111827</span>
 </span>
 </div>
 <div class="source-line">
@@ -1250,12 +1200,12 @@ button { border:0; background:transparent; }
 <span class="value ">
 <i class="swatch brand" data-doan-id="states-background-swatch">
 </i>
-<span class="truncate" title="rgb(79, 70, 229)" data-doan-id="states-background-value">rgb(79, 70, 229)</span>
+<span class="truncate" title="#4f46e5" data-doan-id="states-background-value">#4f46e5</span>
 </span>
 </div>
 <div class="source-line">
-<span class="token truncate" title="--mock-brand → rgb(79, 70, 229)" data-doan-id="states-background-token">--mock-brand</span>
-<span class="state " title="--mock-brand → rgb(79, 70, 229)" data-doan-id="states-background-state">Hover state</span>
+<span class="token truncate" title="--mock-brand → #4f46e5" data-doan-id="states-background-token">--mock-brand</span>
+<span class="state " title="--mock-brand → #4f46e5" data-doan-id="states-background-state">Hover state</span>
 </div>
 </div>
 <div class="inspect-row" data-doan-id="states-border">
@@ -1289,38 +1239,25 @@ button { border:0; background:transparent; }
 </div>
 </div>
 </section>
-<section class="isec">
-<h3 class="ihead">Attributes</h3>
+<section class="isec doan-attributes">
+<h3 class="ihead">Doan attributes</h3>
 <div class="inspect-row" data-doan-id="states-data-doan-id">
 <div class="value-line">
-<span class="prop" title="data-doan-id">data-doan-id</span>
+<span class="prop" title="data-doan-id">id</span>
 <span class="value ">
 <span class="truncate" title="—" data-doan-id="states-data-doan-id-value">—</span>
 </span>
 </div>
 </div>
-<div class="inspect-row" data-doan-id="states-data-doan-frame">
-<div class="value-line">
-<span class="prop" title="data-doan-frame">data-doan-frame</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="states-data-doan-frame-value">—</span>
-</span>
-</div>
-</div>
-<div class="inspect-row" data-doan-id="states-data-doan-title">
-<div class="value-line">
-<span class="prop" title="data-doan-title">data-doan-title</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="states-data-doan-title-value">—</span>
-</span>
-</div>
-</div>
 <div class="inspect-row" data-doan-id="states-data-doan-implements">
 <div class="value-line">
-<span class="prop" title="data-doan-implements">data-doan-implements</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="states-data-doan-implements-value">—</span>
+<span class="prop" title="data-doan-implements">implements</span>
+<span class="value">
+<span class="truncate" title="src/screens/sign-in.tsx" data-doan-id="states-data-doan-implements-value">src/screens/sign-in.tsx</span>
 </span>
+</div>
+<div class="source-line">
+<span class="state" data-doan-id="states-data-doan-implements-state">from frame hero</span>
 </div>
 </div>
 </section>
@@ -1475,7 +1412,7 @@ button { border:0; background:transparent; }
 <span class="value ">
 <i class="swatch white" data-doan-id="long-text-swatch">
 </i>
-<span class="truncate" title="rgb(255, 255, 255)" data-doan-id="long-text-value">rgb(255, 255, 255)</span>
+<span class="truncate" title="#ffffff" data-doan-id="long-text-value">#ffffff</span>
 </span>
 </div>
 <div class="source-line">
@@ -1488,11 +1425,11 @@ button { border:0; background:transparent; }
 <span class="value ">
 <i class="swatch brand" data-doan-id="long-background-swatch">
 </i>
-<span class="truncate" title="rgb(79, 70, 229)" data-doan-id="long-background-value">rgb(79, 70, 229)</span>
+<span class="truncate" title="#4f46e5" data-doan-id="long-background-value">#4f46e5</span>
 </span>
 </div>
 <div class="source-line">
-<span class="token truncate" title="--mock-brand → rgb(79, 70, 229)" data-doan-id="long-background-token">--mock-brand</span>
+<span class="token truncate" title="--mock-brand → #4f46e5" data-doan-id="long-background-token">--mock-brand</span>
 </div>
 </div>
 <div class="inspect-row" data-doan-id="long-border">
@@ -1529,38 +1466,25 @@ button { border:0; background:transparent; }
 </div>
 </div>
 </section>
-<section class="isec">
-<h3 class="ihead">Attributes</h3>
+<section class="isec doan-attributes">
+<h3 class="ihead">Doan attributes</h3>
 <div class="inspect-row" data-doan-id="long-data-doan-id">
 <div class="value-line">
-<span class="prop" title="data-doan-id">data-doan-id</span>
+<span class="prop" title="data-doan-id">id</span>
 <span class="value ">
 <span class="truncate" title="—" data-doan-id="long-data-doan-id-value">—</span>
 </span>
 </div>
 </div>
-<div class="inspect-row" data-doan-id="long-data-doan-frame">
-<div class="value-line">
-<span class="prop" title="data-doan-frame">data-doan-frame</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="long-data-doan-frame-value">—</span>
-</span>
-</div>
-</div>
-<div class="inspect-row" data-doan-id="long-data-doan-title">
-<div class="value-line">
-<span class="prop" title="data-doan-title">data-doan-title</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="long-data-doan-title-value">—</span>
-</span>
-</div>
-</div>
 <div class="inspect-row" data-doan-id="long-data-doan-implements">
 <div class="value-line">
-<span class="prop" title="data-doan-implements">data-doan-implements</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="long-data-doan-implements-value">—</span>
+<span class="prop" title="data-doan-implements">implements</span>
+<span class="value">
+<span class="truncate" title="src/screens/sign-in.tsx" data-doan-id="long-data-doan-implements-value">src/screens/sign-in.tsx</span>
 </span>
+</div>
+<div class="source-line">
+<span class="state" data-doan-id="long-data-doan-implements-state">from frame hero</span>
 </div>
 </div>
 </section>
@@ -1575,7 +1499,7 @@ button { border:0; background:transparent; }
 <h3 class="tile-title">Shadow · full value</h3>
 <div class="tooltip-specimen" data-doan-id="long-shadow-tooltip">0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05)</div>
 <h3 class="tile-title">Token alias · chain</h3>
-<div class="tooltip-specimen" data-doan-id="alias-tooltip">--button-background → --brand → rgb(79, 70, 229)</div>
+<div class="tooltip-specimen" data-doan-id="alias-tooltip">--button-background → --brand → #4f46e5</div>
 <div class="panel-specimen">
 <section class="isec">
 <div class="inspect-row" data-doan-id="alias-background">
@@ -1584,11 +1508,11 @@ button { border:0; background:transparent; }
 <span class="value ">
 <i class="swatch brand" data-doan-id="alias-background-swatch">
 </i>
-<span class="truncate" title="rgb(79, 70, 229)" data-doan-id="alias-background-value">rgb(79, 70, 229)</span>
+<span class="truncate" title="#4f46e5" data-doan-id="alias-background-value">#4f46e5</span>
 </span>
 </div>
 <div class="source-line">
-<span class="token truncate" title="--button-background → --brand → rgb(79, 70, 229)" data-doan-id="alias-background-token">--button-background</span>
+<span class="token truncate" title="--button-background → --brand → #4f46e5" data-doan-id="alias-background-token">--button-background</span>
 </div>
 </div>
 </section>
@@ -1723,12 +1647,9 @@ button { border:0; background:transparent; }
 <div class="inspect-row" data-doan-id="link-padding">
 <div class="value-line">
 <span class="prop" title="Padding">Padding</span>
-<span class="value ">
-<span class="truncate" title="0px" data-doan-id="link-padding-value">0px</span>
+<span class="value default">
+<span class="truncate" title="Default" data-doan-id="link-padding-value">0px</span>
 </span>
-</div>
-<div class="source-line">
-<span class="state hardcoded" title="Hardcoded" data-doan-id="link-padding-state">Hardcoded</span>
 </div>
 </div>
 <div class="inspect-row" data-doan-id="link-margin">
@@ -1784,12 +1705,9 @@ button { border:0; background:transparent; }
 <div class="inspect-row" data-doan-id="link-weight">
 <div class="value-line">
 <span class="prop" title="Weight">Weight</span>
-<span class="value ">
-<span class="truncate" title="400" data-doan-id="link-weight-value">400</span>
+<span class="value default">
+<span class="truncate" title="Default" data-doan-id="link-weight-value">400</span>
 </span>
-</div>
-<div class="source-line">
-<span class="state hardcoded" title="Hardcoded" data-doan-id="link-weight-state">Hardcoded</span>
 </div>
 </div>
 </section>
@@ -1801,7 +1719,7 @@ button { border:0; background:transparent; }
 <span class="value ">
 <i class="swatch brand" data-doan-id="link-text-swatch">
 </i>
-<span class="truncate" title="rgb(79, 70, 229)" data-doan-id="link-text-value">rgb(79, 70, 229)</span>
+<span class="truncate" title="#4f46e5" data-doan-id="link-text-value">#4f46e5</span>
 </span>
 </div>
 <div class="source-line">
@@ -1811,12 +1729,9 @@ button { border:0; background:transparent; }
 <div class="inspect-row" data-doan-id="link-background">
 <div class="value-line">
 <span class="prop" title="Background">Background</span>
-<span class="value ">
-<span class="truncate" title="Default" data-doan-id="link-background-value">rgba(0, 0, 0, 0)</span>
+<span class="value default">
+<span class="truncate" title="Default" data-doan-id="link-background-value">transparent</span>
 </span>
-</div>
-<div class="source-line">
-
 </div>
 </div>
 <div class="inspect-row" data-doan-id="link-border">
@@ -1833,12 +1748,9 @@ button { border:0; background:transparent; }
 <div class="inspect-row" data-doan-id="link-radius">
 <div class="value-line">
 <span class="prop" title="Radius">Radius</span>
-<span class="value ">
-<span class="truncate" title="0px" data-doan-id="link-radius-value">0px</span>
+<span class="value default">
+<span class="truncate" title="Default" data-doan-id="link-radius-value">0px</span>
 </span>
-</div>
-<div class="source-line">
-<span class="state hardcoded" title="Hardcoded" data-doan-id="link-radius-state">Hardcoded</span>
 </div>
 </div>
 <div class="inspect-row" data-doan-id="link-shadow">
@@ -1850,38 +1762,25 @@ button { border:0; background:transparent; }
 </div>
 </div>
 </section>
-<section class="isec">
-<h3 class="ihead">Attributes</h3>
+<section class="isec doan-attributes">
+<h3 class="ihead">Doan attributes</h3>
 <div class="inspect-row" data-doan-id="link-data-doan-id">
 <div class="value-line">
-<span class="prop" title="data-doan-id">data-doan-id</span>
+<span class="prop" title="data-doan-id">id</span>
 <span class="value ">
 <span class="truncate" title="forgot-password" data-doan-id="link-data-doan-id-value">forgot-password</span>
 </span>
 </div>
 </div>
-<div class="inspect-row" data-doan-id="link-data-doan-frame">
-<div class="value-line">
-<span class="prop" title="data-doan-frame">data-doan-frame</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="link-data-doan-frame-value">—</span>
-</span>
-</div>
-</div>
-<div class="inspect-row" data-doan-id="link-data-doan-title">
-<div class="value-line">
-<span class="prop" title="data-doan-title">data-doan-title</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="link-data-doan-title-value">—</span>
-</span>
-</div>
-</div>
 <div class="inspect-row" data-doan-id="link-data-doan-implements">
 <div class="value-line">
-<span class="prop" title="data-doan-implements">data-doan-implements</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="link-data-doan-implements-value">—</span>
+<span class="prop" title="data-doan-implements">implements</span>
+<span class="value">
+<span class="truncate" title="src/screens/sign-in.tsx" data-doan-id="link-data-doan-implements-value">src/screens/sign-in.tsx</span>
 </span>
+</div>
+<div class="source-line">
+<span class="state" data-doan-id="link-data-doan-implements-state">from frame hero</span>
 </div>
 </div>
 </section>
@@ -2070,12 +1969,9 @@ button { border:0; background:transparent; }
 <div class="inspect-row" data-doan-id="input-weight">
 <div class="value-line">
 <span class="prop" title="Weight">Weight</span>
-<span class="value ">
-<span class="truncate" title="400" data-doan-id="input-weight-value">400</span>
+<span class="value default">
+<span class="truncate" title="Default" data-doan-id="input-weight-value">400</span>
 </span>
-</div>
-<div class="source-line">
-<span class="state hardcoded" title="Hardcoded" data-doan-id="input-weight-state">Hardcoded</span>
 </div>
 </div>
 </section>
@@ -2087,7 +1983,7 @@ button { border:0; background:transparent; }
 <span class="value ">
 <i class="swatch ink2" data-doan-id="input-text-swatch">
 </i>
-<span class="truncate" title="rgb(107, 114, 128)" data-doan-id="input-text-value">rgb(107, 114, 128)</span>
+<span class="truncate" title="#6b7280" data-doan-id="input-text-value">#6b7280</span>
 </span>
 </div>
 <div class="source-line">
@@ -2100,7 +1996,7 @@ button { border:0; background:transparent; }
 <span class="value ">
 <i class="swatch fill" data-doan-id="input-background-swatch">
 </i>
-<span class="truncate" title="rgb(243, 244, 246)" data-doan-id="input-background-value">rgb(243, 244, 246)</span>
+<span class="truncate" title="#f3f4f6" data-doan-id="input-background-value">#f3f4f6</span>
 </span>
 </div>
 <div class="source-line">
@@ -2111,7 +2007,7 @@ button { border:0; background:transparent; }
 <div class="value-line">
 <span class="prop" title="Border">Border</span>
 <span class="value">
-<span class="truncate" title="rgb(229, 231, 235)" data-doan-id="input-border-value">rgb(229, 231, 235)</span>
+<span class="truncate" title="#e5e7eb" data-doan-id="input-border-value">#e5e7eb</span>
 </span>
 </div>
 <div class="source-line"><span class="token" data-doan-id="input-border-token">--mock-line</span></div>
@@ -2139,38 +2035,25 @@ button { border:0; background:transparent; }
 </div>
 </div>
 </section>
-<section class="isec">
-<h3 class="ihead">Attributes</h3>
+<section class="isec doan-attributes">
+<h3 class="ihead">Doan attributes</h3>
 <div class="inspect-row" data-doan-id="input-data-doan-id">
 <div class="value-line">
-<span class="prop" title="data-doan-id">data-doan-id</span>
+<span class="prop" title="data-doan-id">id</span>
 <span class="value ">
 <span class="truncate" title="email" data-doan-id="input-data-doan-id-value">email</span>
 </span>
 </div>
 </div>
-<div class="inspect-row" data-doan-id="input-data-doan-frame">
-<div class="value-line">
-<span class="prop" title="data-doan-frame">data-doan-frame</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="input-data-doan-frame-value">—</span>
-</span>
-</div>
-</div>
-<div class="inspect-row" data-doan-id="input-data-doan-title">
-<div class="value-line">
-<span class="prop" title="data-doan-title">data-doan-title</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="input-data-doan-title-value">—</span>
-</span>
-</div>
-</div>
 <div class="inspect-row" data-doan-id="input-data-doan-implements">
 <div class="value-line">
-<span class="prop" title="data-doan-implements">data-doan-implements</span>
-<span class="value ">
-<span class="truncate" title="—" data-doan-id="input-data-doan-implements-value">—</span>
+<span class="prop" title="data-doan-implements">implements</span>
+<span class="value">
+<span class="truncate" title="src/screens/sign-in.tsx" data-doan-id="input-data-doan-implements-value">src/screens/sign-in.tsx</span>
 </span>
+</div>
+<div class="source-line">
+<span class="state" data-doan-id="input-data-doan-implements-state">from frame hero</span>
 </div>
 </div>
 </section>
@@ -2334,20 +2217,14 @@ button { border:0; background:transparent; }
 </div>
 </aside>
 <section class="area" aria-label="Canvas">
-<div class="mock-page">
-<div class="mock-nav">
-<b>Example</b>
-<span>Account</span>
-</div>
-<div class="mock-card">
-<h3>Welcome back</h3>
-<p>Sign in to your account.</p>
-<div class="mock-field">Email</div>
-<div class="mock-field">Password</div>
-<div class="mock-button">Sign in</div>
-<div class="mock-link">Forgot password?</div>
-</div>
-</div>
+<article class="mock-page terms-page" data-doan-id="unlisted-document">
+<h3>Terms of service</h3>
+<p>This page describes the terms for using Example.</p>
+<h4>Using your account</h4>
+<p>Keep your account details private. Contact support if you need help accessing your account.</p>
+<h4>Changes to these terms</h4>
+<p>Updates will be published on this page.</p>
+</article>
 <div class="overlay">
 </div>
 <div class="canvas-notice" role="status" data-doan-id="unlisted-notice">This page is not a listed canvas</div>
