@@ -1,8 +1,10 @@
 # app-ui — spec
 
-새 기능. PRODUCT §5 기능 분할에 없다. #5 `canvas-view`와 #6 `select-inspect` 사이에 넣는다(2026-10-22 사용자: "기반은 닦아놔야 그 위에 쌓으니까"). 승격 때 기능 분할을 9개로 고치고 Dogfooding 순서도 바꾼다.
+새 기능. PRODUCT §5 기능 분할에 없다. #5 `canvas-view`와 #6 `select-inspect` 사이에 넣는다(2026-10-22 사용자: "기반은 닦아놔야 그 위에 쌓으니까"). 번호는 붙이지 않는다. 기존 #6–#8 번호는 그대로 두고, 기능 분할 표에는 #5 다음 행으로 넣는다(2026-10-22 사용자, feature-review). 승격 때 Dogfooding 순서도 바꾼다.
 
-범위: 앱 셸 디자인 초안을 이 리포의 `design/`에 캔버스로 두고, 그 초안대로 앱 UI를 React + shadcn/ui + Tailwind로 다시 만든다. 기능은 지금 앱과 같고, 이 기능에서 새로 생기는 동작은 아래 완료 조건 6–8의 세 가지뿐이다.
+범위: 앱 셸 디자인 초안을 이 리포의 `design/`에 캔버스로 두고, 그 초안대로 앱 UI를 React + shadcn/ui + Tailwind로 다시 만든다(스택은 2026-10-22 사용자 결정). 기능은 지금 앱과 같고, 이 기능에서 새로 생기는 동작은 아래 완료 조건 5–7의 세 가지뿐이다.
+
+진행 방식(2026-10-22 사용자): 구현 워커는 Codex다(모델 경계를 넘는 것을 이 기능에 한해 허가). Claude Code가 그린 초안을 Codex가 doan으로 확인하고 그대로 구현할 수 있는지 보는 실험을 겸한다.
 
 ## 사용자
 
@@ -11,30 +13,30 @@
 
 ## 문제 (현재 관찰된 사실)
 
-- 렌더러는 plain DOM 최소 UI다(ARCHITECTURE §7: "#6에서 UI 프레임워크를 고를 때까지"). #6·#7은 메뉴, 팝오버, 패널, 포커스 이동을 많이 쓰는데, plain DOM으로는 이것을 직접 만들어야 한다.
+- 렌더러는 plain DOM 최소 UI다(ARCHITECTURE §7: "until a UI framework is chosen in #6"). #6 · #7은 인스펙터와 코멘트를 한 패널에 보여 주고, 그 패널에서 코멘트를 만들고 고치고 지우며, 캔버스 위에 핀을 둔다(PRODUCT §5 4 · 5). 이번 화면에도 트리, 패널, 툴팁이 있다. plain DOM으로는 이것을 모두 직접 만들어야 한다.
 - 디자인 초안이 없다. PRODUCT §5 Dogfooding은 "#6부터 초안 → 구현 → 비교"를 정했지만, 앱 셸 자체의 초안은 아직 없다.
-- 화면 문구가 한국어이고, 앱이 "폴더"라고 부른다.
+- 화면 문구가 한국어이고, 앱이 "폴더"라고 부른다. 주 사용자는 외부 사용자 일반이다(PRODUCT §2).
 - 창을 닫으면 앱이 끝난다(PRODUCT §8에서 #6으로 미룸). `doan active`(#6)는 앱이 떠 있어야 하는데, 창만 닫아도 앱이 꺼진다.
 - "폴더를 찾을 수 없음"은 다시 열면 복구된다는 안내가 없다(PRODUCT §8에서 #6으로 미룸).
 
 ## 완료 조건
 
-1. `design/app-shell.html`(캔버스 id `app-shell`)이 이 기능의 초안이다. 다크 단일 테마, 오렌지 액센트, 시스템 sans 한 가지로 그린다. 프레임은 Main, 첫 실행, 캔버스 영역 상태, 사이드바 상태, 메뉴와 창, 구성 요소다. `doan check --repo .`에 오류가 없다.
-2. 렌더러가 React + shadcn/ui(Radix) + Tailwind로 다시 만들어져 있다. 색과 간격은 CSS 변수 토큰으로만 쓴다. 줌·팬 보드와 iframe은 지금의 명령형 코드(`viewport.ts`, `canvasMessage.ts`, `canvasView.ts`)를 그대로 쓰고, React는 ref로 감싸기만 한다. 휠 이벤트마다 React가 다시 그리지 않는다.
-3. 앱 화면 문구가 모두 영어다. 폴더는 화면에서 "Project"라 부른다. 코드 이름(`folders.json`, `FolderEntry`, IPC `folders:*`)과 문서 용어는 folder로 둔다. 문구 목록은 초안의 프레임이 정본이다.
-4. 배치는 V1이다. 위 막대(앱 이름, 프로젝트 / 캔버스 경로, 폭, Reload), 왼쪽 사이드바(Projects 트리: 프로젝트 → 캔버스, Frames 목록), 가운데 캔버스(아래 왼쪽 Reloaded 시각, 아래 오른쪽 줌 − % + 와 Fit), 오른쪽 패널이다.
-5. 오른쪽 패널에는 Canvas 탭 하나만 있다. Canvas 탭은 Path · ID · Width · Frames, Comments(Open · Resolved 수), Activity(이번 실행에서 그 캔버스가 Opened · Reloaded된 시각, 최근 것이 위)를 보여 준다. Design(#6)과 Comments(#7) 탭은 아직 없다.
-6. 찾을 수 없는 프로젝트 항목에 Reopen과 Close가 있다. Reopen은 저장된 경로를 다시 읽고 감시를 다시 건다. 경로가 돌아왔으면 목록이 뜨고, 아니면 Not found가 남는다.
-7. 창을 닫아도 앱은 Dock에 남고 감시와 로컬 서버도 계속 돈다. Dock 아이콘을 누르면 창이 다시 열리고, 열린 프로젝트와 목록이 그대로 보인다. ⌘Q로 끝낸다.
-8. 기존 동작은 모두 그대로다. 기존 e2e 단계(app-shell, canvas-view C1–C10, 변형 증명 표)가 새 화면에서 통과한다. e2e는 화면 문구가 아니라 role과 접근 이름으로 요소를 찾는다.
-9. 빌드한 렌더러 CSP는 `default-src 'self'; frame-src http://127.0.0.1:*`를 유지하거나, 넓혀야 하면 그 이유와 범위가 결정으로 남아 있다(tasks 0). dev에서도 캔버스가 뜬다.
-10. `/design-sync`를 Main · 첫 실행 · 상태 프레임에 돌렸고, 대조표가 모두 일치하거나 기록된 차이다. 측정값은 `docs/DESIGN.md`(첫 생성)에 있다.
+1. `design/app-shell.html`(캔버스 id `app-shell`)이 이 기능의 초안이다. 다크 단일 테마, 오렌지 액센트, 시스템 sans 한 가지로 그린다. 초안의 문구와 머리말은 영어다. 프레임은 7개다: Main, #6 · #7 이후 모습, 첫 실행, 캔버스 영역 상태, 사이드바 상태, 메뉴와 창, 구성 요소. 초안과 렌더러는 같은 `app/src/renderer/tokens.css`를 쓰고, `.doan/config.json`의 `tokenCss`가 그 경로다. `go run ./cli/cmd/doan check --json --repo .`에 오류가 없다.
+2. 렌더러가 React + shadcn/ui(Radix) + Tailwind로 다시 만들어져 있다. 색은 CSS 변수 토큰으로만 쓴다(`tokens.css` 밖의 렌더러 코드에 hex · `rgb(` · `oklch(`가 없다). 줌·팬 보드와 iframe은 지금의 명령형 코드를 `CanvasController`로 옮겨 쓰고, React는 ref로 감싸기만 한다. 일반 휠 팬은 React 렌더를 일으키지 않고, 줌은 반올림한 % 값이 바뀔 때만 % 표시를 바꾼다.
+3. 앱 화면 문구가 모두 영어다. 렌더러, 메뉴, 메시지 상자, shell · view가 돌려주는 거절 문구, 접근 이름이 모두 포함된다. 폴더는 화면에서 "Project"라 부른다. 코드 이름(`folders.json`, `FolderEntry`, IPC `folders:*`)과 문서 용어는 folder로 둔다. 보이는 문구는 초안의 프레임이 정본이고, 아이콘만 있는 요소의 접근 이름은 design.md '문구'의 표가 정본이다.
+4. 배치는 V1이다. 위 막대(앱 이름, 프로젝트 / 캔버스 경로, 폭, Reload), 왼쪽 사이드바(Projects 트리: 프로젝트 → 캔버스, Frames 목록), 가운데 캔버스(아래 왼쪽 Updated 시각, 아래 오른쪽 줌 − % + 와 Fit), 오른쪽 패널이다. 위 막대가 제목 막대를 대신하고(`titleBarStyle: "hiddenInset"`), 창은 위 막대를 끌어 옮긴다. 창 기본 크기는 1238×780, 최소 960×600이다. 패널 접기는 없다.
+5. 오른쪽 패널에는 탭 없이 머리글 "Canvas"만 있다. 열린 캔버스의 Path · ID · Width · Frames, Comments(Open · Resolved 수), Activity를 보여 준다. Activity는 이번 실행에서 그 캔버스가 Opened · Reloaded된 시각이고, 최근 것이 위다. 캔버스가 열려 있지 않으면 "No canvas open"을 보여 준다. #6 · #7의 패널 구성은 그 기능에서 정한다.
+6. 찾을 수 없는 프로젝트 항목과 CLI error 항목에 Reopen과 Close가 있다. Reopen을 누르면 항목이 Reading…으로 바뀌고, 저장된 경로를 다시 읽고 감시를 다시 건다. 경로가 돌아왔으면 `doan ls`가 판정한 지금 상태(목록, Not initialized, Error 등)가 뜨고, 없으면 Not found가 남는다.
+7. 창을 닫으면(빨간 버튼, ⌘W) 창이 숨고, 앱은 Dock에 남으며 감시와 로컬 서버도 계속 돈다. Dock 아이콘을 누르거나 ⌘O를 누르면 같은 창이 다시 보이고, 열린 프로젝트 · 열린 캔버스 · 뷰 · Activity가 그대로다. ⌘Q로 끝낸다.
+8. 기존 동작은 모두 그대로다. 기존 e2e 단계(app-shell, canvas-view C1–C10)가 새 화면에서 통과하고, ARCHITECTURE §3 'Canvas view'의 Mutation proof 10항목을 다시 확인했다. 목록이 갱신돼도 키보드 포커스가 유지된다. e2e는 테스트 전용 속성 없이 role, 접근 이름, ARIA 상태로 요소와 상태를 읽는다.
+9. 빌드한 렌더러 CSP는 `default-src 'self'; frame-src http://127.0.0.1:*`를 유지하거나, 넓혀야 하면 그 이유와 범위가 결정으로 남아 있다(task 1). dev에서도 캔버스가 뜬다.
+10. `/design-sync`를 Main · 첫 실행 · 캔버스 영역 상태 · 사이드바 상태 프레임에 돌렸고, 대조표가 모두 일치하거나 기록된 차이다. 측정값은 `docs/DESIGN.md`(첫 생성)에 있다. 메뉴와 창(네이티브 메뉴), 구성 요소(부품 모음), #6 · #7 이후 모습(이번 범위 밖)은 비교하지 않는다.
 
 ## 비목표
 
-- 인스펙터, 선택, `doan active`, PoC 2 · PoC 6(#6). 코멘트 UI, 핀, 문장 복사(#7). 초안의 "#6 · #7 이후 모습" 프레임은 자리를 맞추는 참고일 뿐이다.
+- 인스펙터, 선택, `doan active`, PoC 2 · PoC 6(#6). 코멘트 UI, 핀, 문장 복사(#7). 렌더러 단축키를 iframe에서 전달하는 원칙(#6). 초안의 "#6 · #7 이후 모습" 프레임은 자리를 맞추는 참고일 뿐이고, 그 안의 패널 구성과 모드 토글은 미정이다.
 - 라이트 테마, 테마 전환(MVP는 다크 단일, 2026-10-22 사용자).
-- ⌘K 이동, 모드 토글, 탭으로 여러 캔버스 열기.
+- ⌘K 이동, 모드 토글, 탭으로 여러 캔버스 열기, 패널 접기.
 - 화면 문구 번역 체계(i18n). 영어 문자열을 코드에 둔다.
 - 코드 이름과 문서의 folder → project 이름 바꾸기.
 - e2e 헤드리스 실행(사용자가 나중에 다시 챙김).
