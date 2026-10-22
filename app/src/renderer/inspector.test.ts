@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { sourceNotes, swatchColor, UNKNOWN_SOURCE_TIP, type InspectRow } from "./inspector";
+import type { InspectRow } from "../main/inspect";
+import { sourceNotes, swatchColor, tokenTitle, UNKNOWN_SOURCE_TIP } from "./inspector";
 
-const row = (over: Partial<InspectRow>): InspectRow => ({ group: "Colors", label: "Text", value: "#111827", state: "token", ...over });
+const row = (over: Partial<InspectRow>): InspectRow => ({ group: "colors", label: "Text", value: "#111827", state: "token", ...over });
 
 describe("sourceNotes", () => {
   test("names every state but Default in text, after the token chip", () => {
@@ -25,6 +26,17 @@ describe("swatchColor", () => {
     expect(swatchColor(row({ value: "#4f46e580" }))).toBe("#4f46e580");
     expect(swatchColor(row({ value: "transparent" }))).toBe("transparent");
     for (const value of ["—", "red", "#fff", "url(x)", "#11182"]) expect(swatchColor(row({ value }))).toBeUndefined();
-    expect(swatchColor(row({ group: "Box", value: "#111827" }))).toBeUndefined();
+    expect(swatchColor(row({ group: "box", value: "#111827" }))).toBeUndefined();
   });
+});
+
+describe("tokenTitle", () => {
+  test("shows the alias chain down to the value, or the token alone", () => {
+    expect(tokenTitle(row({ token: "--brand-alias", chain: ["--brand-alias", "--brand", "--indigo-600"], value: "#4f46e5" }))).toBe("--brand-alias → --brand → --indigo-600 → #4f46e5");
+    expect(tokenTitle(row({ token: "--space-2 --space-4", value: "8px 16px" }))).toBe("--space-2 --space-4");
+  });
+});
+
+test("the unknown tooltip says doan cannot tell the source (CDP decision)", () => {
+  expect(UNKNOWN_SOURCE_TIP).toBe("doan can't tell where this value comes from");
 });

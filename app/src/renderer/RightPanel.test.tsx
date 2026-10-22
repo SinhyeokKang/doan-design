@@ -1,20 +1,22 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { initialCanvasState } from "./CanvasController";
-import type { InspectRow } from "./inspector";
+import type { InspectRow } from "../main/inspect";
 import { Inspector, RightPanel } from "./RightPanel";
 import type { SelectionView } from "./selection";
 
 // Every inspector state from the draft's `inspector-states` and `long-values` frames.
 const ROWS_FIXTURE: InspectRow[] = [
-  { group: "Box", label: "Width", value: "250px", state: "hardcoded" },
-  { group: "Box", label: "Margin", value: "0px", state: "default" },
-  { group: "Typography", label: "Family", value: 'ui-sans-serif, -apple-system, "Apple SD Gothic Neo", sans-serif', state: "token", token: "--font-sans", inheritedFrom: "body" },
-  { group: "Colors", label: "Text", value: "#111827", state: "token", token: "--mock-ink", inheritedFrom: "div" },
-  { group: "Colors", label: "Background", value: "#4f46e5", state: "token", token: "--button-background", tokenChain: "--button-background → --brand → #4f46e5", hoverState: true },
-  { group: "Colors", label: "Border", value: "—", state: "default" },
-  { group: "Effects", label: "Radius", value: "6px", state: "unknown" },
-  { group: "Effects", label: "Shadow", value: "0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05)", state: "hardcoded" },
+  { group: "box", label: "Width", value: "250px", state: "hardcoded" },
+  { group: "box", label: "Padding", value: "8px 16px", state: "token", token: "--space-2 --space-4" },
+  { group: "box", label: "Margin", value: "0px", state: "default" },
+  { group: "box", label: "Gap", value: "4px", state: "hardcoded" },
+  { group: "typography", label: "Family", value: 'ui-sans-serif, -apple-system, "Apple SD Gothic Neo", sans-serif', state: "token", token: "--font-sans", inheritedFrom: "body" },
+  { group: "colors", label: "Text", value: "#111827", state: "token", token: "--mock-ink", inheritedFrom: "div" },
+  { group: "colors", label: "Background", value: "#4f46e5", state: "token", token: "--button-background", chain: ["--button-background", "--brand"], hoverState: true },
+  { group: "colors", label: "Border", value: "—", state: "default" },
+  { group: "effects", label: "Radius", value: "6px", state: "unknown" },
+  { group: "effects", label: "Shadow", value: "0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05)", state: "hardcoded" },
 ];
 
 const signIn = { doanId: "sign-in", selector: '[data-doan-id="sign-in"]', html: "<button></button>" };
@@ -26,7 +28,7 @@ const element: SelectionView = {
   path: [{ label: "hero", selector: '[data-doan-frame="hero"]' }, { label: "form", selector: "x" }, { label: "sign-in", selector: '[data-doan-id="sign-in"]', doanId: "sign-in" }],
   interactive: "control",
 };
-const render = (selection: SelectionView, rows: readonly InspectRow[] = []) => renderToStaticMarkup(<Inspector selection={selection} rows={rows} selectPath={() => {}} />);
+const render = (selection: SelectionView, rows: InspectRow[] = []) => renderToStaticMarkup(<Inspector selection={selection} inspector={{ status: "ready", rows }} selectPath={() => {}} />);
 const between = (html: string, from: string, to: string) => html.slice(html.indexOf(from), html.indexOf(to, html.indexOf(from)));
 
 describe("Inspector for an element", () => {
@@ -46,12 +48,20 @@ describe("Inspector for an element", () => {
   });
 
   test("shows each state as text, Default as a dim value titled Default", () => {
-    expect(between(html, 'title="Width"', "</div></div>")).toContain('<span class="state hardcoded" title="Hardcoded">Hardcoded</span>');
+    expect(between(html, 'title="Gap"', "</div></div>")).toContain('<span class="state hardcoded" title="Hardcoded">Hardcoded</span>');
     expect(between(html, 'title="Margin"', "</div></div>")).toContain('<span class="value default"><span class="truncate" title="Default">0px</span></span>');
     expect(between(html, 'title="Margin"', '<div class="inspect-row">')).not.toContain("source-line");
     expect(between(html, 'title="Family"', "</div></div>")).toContain('<span class="truncate token" title="--font-sans">--font-sans</span><span class="state" title="Inherited from body">Inherited from body</span>');
     expect(between(html, 'title="Background"', "</div></div>")).toContain('<span class="truncate token" title="--button-background → --brand → #4f46e5">--button-background</span><span class="state" title="Hover state">Hover state</span>');
-    expect(between(html, 'title="Radius"', "</div></div>")).toContain(`<span class="state" title="Set by a stylesheet doan can&#x27;t read, such as a CDN">Unknown source</span>`);
+    expect(between(html, 'title="Radius"', "</div></div>")).toContain(`<span class="state" title="doan can&#x27;t tell where this value comes from">Unknown source</span>`);
+  });
+
+  test("draws Width and Height without a source line (draft)", () => {
+    expect(between(html, 'title="Width"', '<div class="inspect-row">')).not.toContain("source-line");
+  });
+
+  test("shows the token names of a combined row as given, in side order", () => {
+    expect(between(html, 'title="Padding"', "</div></div>")).toContain('<span class="truncate token" title="--space-2 --space-4">--space-2 --space-4</span>');
   });
 
   test("puts a swatch before hex colors only and keeps long values whole in the tooltip", () => {
@@ -77,6 +87,22 @@ describe("Inspector for an element", () => {
 
   test("writes canvas strings as text", () => {
     expect(render({ ...element, tag: "<b>x</b>" })).toContain("<h3>&lt;b&gt;x&lt;/b&gt;</h3>");
+  });
+});
+
+describe("Inspector while rows are missing", () => {
+  test("a failure is one line under the head, and the head and Doan attributes stay", () => {
+    const html = renderToStaticMarkup(<Inspector selection={element} inspector={{ status: "failed", reason: "No element matches the selector." }} selectPath={() => {}} />);
+    expect(html).toContain('</div><p class="inspect-failed">No element matches the selector.</p><section class="isec doan-attributes">');
+    expect(html).toContain("<h3>button</h3>");
+    expect(html).not.toContain('<h3 class="ihead">Box</h3>');
+  });
+
+  test("shows no rows while loading", () => {
+    const html = renderToStaticMarkup(<Inspector selection={element} inspector={{ status: "loading" }} selectPath={() => {}} />);
+    expect(html).not.toContain('<h3 class="ihead">Box</h3>');
+    expect(html).not.toContain("inspect-failed");
+    expect(html).toContain("Doan attributes");
   });
 });
 

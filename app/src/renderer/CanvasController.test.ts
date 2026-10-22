@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { InspectResult, InspectRow } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
 import { CanvasController } from "./CanvasController";
 import { FIRST_LAYOUT_TIMEOUT_MS } from "./viewport";
@@ -11,7 +12,7 @@ it("updates the board synchronously without notifying React during pan", () => {
   const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, getBoundingClientRect: () => ({ x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}) }) });
   const board = { style: { transform: "", visibility: "" }, hidden: false, prepend: vi.fn() };
   const changed = vi.fn();
-  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn());
+  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })));
   controller.wheel({ dx: 10, dy: 20, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
   expect(board.style.transform).toBe("translate(-10px, -20px) scale(1)");
   expect(changed).not.toHaveBeenCalled();
@@ -23,7 +24,7 @@ it("notifies React only when the rounded zoom percentage changes", () => {
   const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, getBoundingClientRect: () => ({ x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}) }) });
   const board = { style: { transform: "", visibility: "" }, hidden: false, prepend: vi.fn() };
   const changed = vi.fn();
-  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn());
+  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })));
   const zoom = (dy: number) => controller.wheel({ dx: 0, dy, ctrl: true, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
   zoom(-0.1);
   expect(changed).not.toHaveBeenCalled();
@@ -43,7 +44,7 @@ function loadedController() {
   const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, getBoundingClientRect: () => new DOMRect() });
   const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
   const changed = vi.fn();
-  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn());
+  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })));
   const row = { path: "design/a.html", url: "http://localhost/a.html", width: 600, open: 0, resolved: 0 };
   controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }]);
   controller.openCanvas("/repo", row);
@@ -112,7 +113,10 @@ function selectionHarness() {
   const overlay = { append: vi.fn() };
   const changed = vi.fn();
   const send = vi.fn();
-  const controller = new CanvasController(viewport, board, overlay, changed, send);
+  // Each inspect call waits until the test resolves it, so answers can arrive late.
+  const inspections: { selector: string; resolve: (result: InspectResult) => void; reject: (error: unknown) => void }[] = [];
+  const inspect = vi.fn((selector: string) => new Promise<InspectResult>((resolve, reject) => { inspections.push({ selector, resolve, reject }); }));
+  const controller = new CanvasController(viewport, board, overlay, changed, send, inspect);
   const row = { path: "design/a.html", id: "a", url: "http://localhost/t/k/f/design/a.html", width: 600, open: 0, resolved: 0 };
   const other = { ...row, path: "design/b.html", id: "b", url: "http://localhost/t/k/f/design/b.html" };
   controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row, other] }]);
@@ -126,7 +130,7 @@ function selectionHarness() {
   const markOf = (kind: string) => marks.find((mark) => mark.className.split(" ").includes(kind));
   const state = () => changed.mock.lastCall?.[0];
   layout();
-  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host };
+  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, inspect, inspections };
 }
 
 describe("selection", () => {
@@ -397,6 +401,78 @@ describe("selection wiring (flow 7)", () => {
       Object.defineProperties(event, { key: { value: "Escape" }, target: { value: { tagName: "INPUT", isContentEditable: false } } });
       h.host.dispatchEvent(event);
       expect(h.state().selection).not.toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+});
+
+describe("inspector rows from main", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const width: InspectRow = { group: "box", label: "Width", value: "60px", state: "hardcoded" };
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("asks main for the selection's rows by its selector and shows them", async () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      expect(h.inspect).toHaveBeenCalledWith('[data-doan-id="cta"]');
+      expect(h.state().inspector).toEqual({ status: "loading" });
+      h.inspections[0]?.resolve({ ok: true, rows: [width] });
+      await settle();
+      expect(h.state().inspector).toEqual({ status: "ready", rows: [width] });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("drops an answer for a selection that has changed since", async () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.select(2, { target: { ...h.target, element: { ...h.target.element, selector: "body > p:nth-of-type(1)" } } });
+      expect(h.inspections.map((call) => call.selector)).toEqual(['[data-doan-id="cta"]', "body > p:nth-of-type(1)"]);
+      h.inspections[1]?.resolve({ ok: true, rows: [width] });
+      h.inspections[0]?.resolve({ ok: true, rows: [] });
+      await settle();
+      expect(h.state().inspector).toEqual({ status: "ready", rows: [width] });
+      h.key("Escape");
+      expect(h.state().inspector).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("drops an answer that arrives after the selection was cleared", async () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.key("Escape");
+      h.inspections[0]?.resolve({ ok: true, rows: [width] });
+      await settle();
+      expect(h.state()).toMatchObject({ selection: null, inspector: null });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("shows main's reason when it cannot inspect, and a generic one when the call fails", async () => {
+    const h = selectionHarness();
+    try {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      h.select(1);
+      h.inspections[0]?.resolve({ ok: false, reason: "No element matches the selector." });
+      await settle();
+      expect(h.state().inspector).toEqual({ status: "failed", reason: "No element matches the selector." });
+      h.select(2);
+      h.inspections[1]?.reject(new Error("No handler registered for 'inspect:get'"));
+      await settle();
+      expect(h.state().inspector).toEqual({ status: "failed", reason: "The canvas could not be inspected." });
+    } finally { h.controller.dispose(); vi.restoreAllMocks(); }
+  });
+
+  it("asks a frame selection by its own path selector and asks again after a reload finds it", () => {
+    const h = selectionHarness();
+    try {
+      const { element: _element, ...frameTarget } = h.target;
+      h.select(1, { target: { ...frameTarget, path: [{ label: "hero", selector: "body > section:nth-of-type(2)" }] } });
+      expect(h.inspect).toHaveBeenLastCalledWith("body > section:nth-of-type(2)");
+      h.controller.command("reload");
+      h.layout();
+      h.select(1, { target: { ...frameTarget, path: [{ label: "hero", selector: "body > section:nth-of-type(2)" }] } });
+      expect(h.inspect).toHaveBeenCalledTimes(2);
     } finally { h.controller.dispose(); }
   });
 });
