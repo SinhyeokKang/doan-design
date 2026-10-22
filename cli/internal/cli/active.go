@@ -17,6 +17,9 @@ import (
 const activeTimeout = 2 * time.Second
 const maxResponseLine = 64 << 10
 
+// The app writes about 200 bytes; the cap keeps a device like /dev/zero from filling memory.
+const maxRuntimeFile = 64 << 10
+
 type runtimeFile struct{ Socket, Token string }
 
 func appError(code, message string) *Error {
@@ -99,6 +102,25 @@ func readResponse(line []byte) (map[string]any, *Error) {
 	return selection, nil
 }
 
+// readRuntimeBytes runs before the 2 s budget starts, so it must not block:
+// opening a FIFO for reading waits for a writer, hence the regular-file check first.
+func readRuntimeBytes(path string) ([]byte, bool) {
+	info, e := os.Stat(path)
+	if e != nil || !info.Mode().IsRegular() {
+		return nil, false
+	}
+	f, e := os.Open(path)
+	if e != nil {
+		return nil, false
+	}
+	defer f.Close()
+	data, e := io.ReadAll(io.LimitReader(f, maxRuntimeFile+1))
+	if e != nil || len(data) > maxRuntimeFile {
+		return nil, false
+	}
+	return data, true
+}
+
 func readLine(conn net.Conn) ([]byte, *Error) {
 	line, e := bufio.NewReader(io.LimitReader(conn, maxResponseLine+1)).ReadBytes('\n')
 	if e == nil {
@@ -122,8 +144,8 @@ func Active(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if failure != nil {
 		return Outcome{}, failure
 	}
-	data, e := os.ReadFile(ctx.RuntimePath)
-	if e != nil {
+	data, ok := readRuntimeBytes(ctx.RuntimePath)
+	if !ok {
 		return Outcome{}, appError("app_not_running", "Cannot read the Doan runtime file: "+ctx.RuntimePath)
 	}
 	rt, code := readRuntime(data)
