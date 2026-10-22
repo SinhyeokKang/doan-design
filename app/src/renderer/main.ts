@@ -44,9 +44,9 @@ const unlistedLine = element("canvas-unlisted");
 const status = element("canvas-status");
 
 let entries: FolderEntry[] = [];
-// The canvas picked from the list; reloads load its URL. Links inside the
-// canvas only move the sidebar mark (`shown`), so a canvas-sent href never
-// decides what the iframe loads.
+// The canvas picked from the list, or the listed canvas a link inside it
+// went to; reloads load its URL. A canvas-sent href only picks among the rows
+// main sent, so it never decides what the iframe loads by itself.
 let open: (OpenCanvas & { row: CanvasRow }) | null = null;
 let shown: string | null = null;
 // Lives outside the sidebar tree that `render` replaces, so a list update
@@ -58,6 +58,7 @@ let layout: LayoutMessage | null = null;
 let lastHref: string | null = null;
 let loading = false;
 let loadTimer: ReturnType<typeof setTimeout> | undefined;
+let answerTimer: ReturnType<typeof setTimeout> | undefined;
 let jumpTo: number | null = null;
 let pickedFrame: number | null = null;
 let canvasButtons: { folder: string; canvas: string; button: HTMLButtonElement }[] = [];
@@ -80,6 +81,11 @@ window.addEventListener(
   { passive: false },
 );
 setStatus("empty", ["왼쪽 목록에서 캔버스를 고르세요"]);
+
+// How long a loaded document has to answer `measure` before it counts as one
+// without the canvas script. The script answers at once; a busy canvas that
+// answers late only shows the unlisted line until its next layout.
+const MEASURE_ANSWER_MS = 1000;
 
 function render(next: FolderEntry[]): void {
   const prev = entries;
@@ -167,8 +173,12 @@ function openCanvas(folder: string, row: CanvasRow): void {
   load(row, true);
 }
 
-// `fresh` opens: a new iframe and a fit. Otherwise the same iframe gets its
-// URL again, keeping the view (live reload, menu reload).
+// Every load gets a new iframe. The replaced document lives on until the new
+// one commits and sees the reset to 150 too, so in the same iframe its late
+// layouts would pass for the new document's; in a new iframe
+// acceptCanvasMessage drops them by source. `fresh` (open) also fits the view
+// and hides the board until the first height; otherwise (live reload, menu
+// reload, retry) the view and the board stay.
 function load(row: CanvasRow, fresh: boolean): void {
   if (row.width === undefined) {
     dropFrame();
@@ -183,11 +193,16 @@ function load(row: CanvasRow, fresh: boolean): void {
     ]);
     return;
   }
+  const next = document.createElement("iframe");
+  next.setAttribute("sandbox", "allow-scripts");
+  next.title = row.path;
+  next.addEventListener("load", () => frameLoaded(next));
+  // Only ever a CanvasRow.url from main: app-started navigations may go to any
+  // folder key (design.md security, iframe src).
+  next.src = row.url;
   if (fresh || frame === null) {
     dropFrame();
-    frame = document.createElement("iframe");
-    frame.setAttribute("sandbox", "allow-scripts");
-    frame.title = row.path;
+    frame = next;
     board.prepend(frame);
     board.hidden = false;
     toolbar.hidden = false;
@@ -196,24 +211,25 @@ function load(row: CanvasRow, fresh: boolean): void {
     setStatus("loading", ["불러오는 중…"]);
     view = fitWidth(row.width, viewportSize(), FIT_MARGIN);
     applyView();
-  } else if (status.dataset.state === "failed") {
-    setStatus("loading", ["불러오는 중…"]);
+  } else {
+    frame.replaceWith(next);
+    frame = next;
+    if (status.dataset.state === "failed") setStatus("loading", ["불러오는 중…"]);
   }
   frame.style.width = `${row.width}px`;
   setFrameHeight(INITIAL_HEIGHT);
   lastHref = null;
   jumpTo = null;
   loading = true;
+  clearTimeout(answerTimer);
   clearTimeout(loadTimer);
   loadTimer = setTimeout(loadFailed, FIRST_LAYOUT_TIMEOUT_MS);
-  // Only ever a CanvasRow.url from main: app-started navigations may go to any
-  // folder key (design.md security, iframe src).
-  frame.src = row.url;
   updated.textContent = updatedText(new Date());
 }
 
 function loadFailed(): void {
   if (!loading || frame === null) return;
+  jumpTo = null;
   board.style.visibility = "hidden";
   const retry = text("button", "retry", "다시 읽기");
   retry.setAttribute("type", "button");
@@ -230,9 +246,34 @@ function dropFrame(): void {
   jumpTo = null;
   pickedFrame = null;
   clearTimeout(loadTimer);
+  clearTimeout(answerTimer);
   board.hidden = true;
   toolbar.hidden = true;
   unlistedLine.hidden = true;
+  renderFrames();
+}
+
+// A document the canvas navigated to posts its first layout before its load
+// event, but here that cannot be told apart from the previous document's
+// last ones, so the loaded document is asked directly. A load still waiting
+// for its first layout has the 5 s failure instead.
+function frameLoaded(target: HTMLIFrameElement): void {
+  if (target !== frame || loading) return;
+  clearTimeout(answerTimer);
+  answerTimer = setTimeout(noCanvasDocument, MEASURE_ANSWER_MS);
+  target.contentWindow?.postMessage({ type: "measure" }, "*");
+}
+
+// A CSP error page after a blocked link, about:blank: no canvas script, so
+// nothing to list or jump to.
+function noCanvasDocument(): void {
+  if (frame === null) return;
+  layout = null;
+  jumpTo = null;
+  pickedFrame = null;
+  shown = null;
+  unlistedLine.hidden = false;
+  markCanvases();
   renderFrames();
 }
 
@@ -289,7 +330,11 @@ function onLayout(message: LayoutMessage): void {
   const newDocument = lastHref !== null && !sameDocument(lastHref, message.href);
   setFrameHeight(layoutHeight(lastHref, frameHeight, message));
   lastHref = message.href;
-  if (newDocument) pickedFrame = null;
+  clearTimeout(answerTimer);
+  if (newDocument) {
+    pickedFrame = null;
+    jumpTo = null;
+  }
   if (loading) {
     loading = false;
     clearTimeout(loadTimer);
@@ -298,15 +343,16 @@ function onLayout(message: LayoutMessage): void {
   }
   layout = message;
   markShown(message.href);
-  renderFrames();
   if (jumpTo !== null) {
     const target = message.frames[jumpTo];
-    jumpTo = null;
     if (target !== undefined) {
+      pickedFrame = jumpTo;
       view = fitFrame(target, viewportSize(), FIT_MARGIN, view);
       applyView();
     }
+    jumpTo = null;
   }
+  renderFrames();
 }
 
 function markShown(href: string): void {
@@ -315,6 +361,11 @@ function markShown(href: string): void {
   // A failing folder has no list to compare with; keep the mark until it recovers.
   if (entry?.kind !== "list") return;
   const row = canvasAtHref(entry.canvases, href);
+  if (row !== undefined && row.path !== open.canvas) {
+    open = { folder: open.folder, canvas: row.path, row };
+    // Without a width the current one stays; a reload then shows the notice.
+    if (row.width !== undefined && frame !== null) frame.style.width = `${row.width}px`;
+  }
   shown = row?.path ?? null;
   unlistedLine.hidden = row !== undefined;
   markCanvases();
@@ -367,9 +418,7 @@ function renderFrames(): void {
 // re-measured first so a canvas that moved since its last layout is not missed.
 function jump(index: number): void {
   if (frame?.contentWindow == null) return;
-  pickedFrame = index;
   jumpTo = index;
-  renderFrames();
   // The sandboxed canvas has an opaque origin, which no target origin but "*" matches.
   frame.contentWindow.postMessage({ type: "measure" }, "*");
 }
