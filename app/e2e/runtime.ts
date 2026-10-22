@@ -231,16 +231,23 @@ async function run(cli: string, userData: string, repos: Repos): Promise<void> {
       await openFolder(app, page, picked);
     }
     const project = page.getByRole("treeitem", { name: "ok", exact: true });
-    assert.equal(await project.count(), 1, "project accessible name excludes its glyph");
-    assert.equal(await project.getByRole("treeitem", { name: "login.html", exact: true }).count(), 1, "canvas accessible name excludes its glyph");
     const projectTypography = await project.evaluate(item => {
       const glyph = item.firstElementChild!.firstElementChild!;
       return { lineHeight: getComputedStyle(glyph.nextElementSibling!).lineHeight, glyphHeight: glyph.getBoundingClientRect().height };
     });
     assert.deepEqual(projectTypography, { lineHeight: "normal", glyphHeight: 16 }, "project text and glyph retain their natural line height");
     const axSession = await page.context().newCDPSession(page);
-    const { nodes } = await axSession.send("Accessibility.getFullAXTree");
-    assert.deepEqual(nodes.filter(node => !node.ignored && node.role?.value === "StaticText" && ["◧", "▾", "▸"].includes(node.name?.value)), [], "decorative glyphs are absent from the accessibility tree");
+    for (const collapsed of [false, true]) {
+      if (collapsed) {
+        await project.focus();
+        await page.keyboard.press("ArrowLeft");
+      }
+      assert.equal(await project.getAttribute("aria-expanded"), String(!collapsed), "project state before AX inspection");
+      const { nodes } = await axSession.send("Accessibility.getFullAXTree");
+      assert.deepEqual(nodes.filter(node => !node.ignored && node.role?.value === "StaticText" && ["◧", "▾", "▸"].includes(node.name?.value)), [], `decorative glyphs are absent from the accessibility tree (${collapsed ? "collapsed" : "expanded"})`);
+    }
+    await page.keyboard.press("ArrowRight");
+    assert.equal(await project.getAttribute("aria-expanded"), "true", "restore the project after AX inspection");
     await axSession.detach();
     const opened = [repos.ok, repos.broken, repos.plain, repos.worktree];
     let folders = await waitFolders(page, (all) => sameList(all.map((f) => f.path), opened) && all.every((f) => f.state !== "loading"), "four folders, subfolder and symlink deduped");
@@ -561,7 +568,9 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await canvasButton(page, repos.canvas, "design/nowidth.html").click();
   state = await waitView(page, (v) => v.status === "noWidth", "no-width notice");
   assert.equal(state.updated, "");
-  assert.equal(await page.getByRole("region", { name: "Canvas", exact: true }).getByRole("status").locator("b").textContent(), "Missing or invalid board width.", "no-width heading remains emphasized");
+  const noWidthHeading = page.getByRole("region", { name: "Canvas", exact: true }).getByRole("status").locator("b");
+  assert.equal(await noWidthHeading.count(), 1, "no-width heading has exactly one emphasized element");
+  assert.equal(await noWidthHeading.textContent(), "Missing or invalid board width.", "no-width heading remains emphasized");
   assert.equal(
     state.statusText,
     'Missing or invalid board width. Ask the agent to add <meta name="doan:width" content="1440"> to <head>. Run doan check in a terminal to verify.',

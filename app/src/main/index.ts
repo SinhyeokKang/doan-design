@@ -114,6 +114,7 @@ function createWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 600,
     titleBarStyle: "hiddenInset",
+    // Align with the 40px top bar, 12px horizontal padding, and 52px traffic space before the logo.
     trafficLightPosition: { x: 12, y: 14 },
     title: "Doan Design",
     webPreferences: {
