@@ -7,7 +7,7 @@ const mocks = await vi.hoisted(async () => {
     static instances: Window[] = [];
     destroyed = false;
     contentsDestroyed = false;
-    webContents = Object.assign(new EventEmitter(), { send: vi.fn(), isDestroyed: () => this.contentsDestroyed });
+    webContents = Object.assign(new EventEmitter(), { send: vi.fn(), isDestroyed: () => this.contentsDestroyed, debugger: { name: "debugger" } });
     show = vi.fn();
     hide = vi.fn();
     isFullScreen = vi.fn(() => false);
@@ -30,6 +30,8 @@ const mocks = await vi.hoisted(async () => {
     runtime: { socket: "/tmp/doan-x/app.sock", token: "t", file: "/tmp/doan-index-test/runtime.json", disposeSync: vi.fn() },
     startRuntime: vi.fn(),
     sessionOn: vi.fn(),
+    inspector: { inspect: vi.fn() },
+    createInspector: vi.fn(),
     mkdir: vi.fn(),
     menu: vi.fn<(template: MenuItemConstructorOptions[]) => unknown>(),
     dialog: { showOpenDialog: vi.fn(), showMessageBox: vi.fn() },
@@ -47,6 +49,7 @@ vi.mock("electron", () => ({
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
+vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
 
 beforeEach(async () => {
   vi.resetModules();
@@ -57,6 +60,8 @@ beforeEach(async () => {
   mocks.app.whenReady.mockResolvedValue();
   mocks.startShell.mockResolvedValue(mocks.shell);
   mocks.startRuntime.mockResolvedValue(mocks.runtime);
+  mocks.createInspector.mockReturnValue(mocks.inspector);
+  mocks.inspector.inspect.mockResolvedValue({ ok: true, rows: [] });
   mocks.app.requestSingleInstanceLock.mockReturnValue(true);
   mocks.shell.entries.mockReturnValue([]);
   mocks.shell.open.mockResolvedValue(null);
@@ -355,4 +360,28 @@ test("a second instance quits without starting", async () => {
   expect(mocks.startShell).not.toHaveBeenCalled();
   expect(mocks.startRuntime).not.toHaveBeenCalled();
   expect(mocks.Window.instances).toHaveLength(0);
+});
+
+test("creates one inspector on the window's debugger with the token base", () => {
+  expect(mocks.createInspector).toHaveBeenCalledOnce();
+  const [debuggerArg, base] = mocks.createInspector.mock.calls[0] ?? [];
+  expect(debuggerArg).toBe(window().webContents.debugger);
+  expect(typeof base === "function" ? base() : undefined).toBe(mocks.shell.tokenBase);
+});
+
+test("inspect:get answers the window with the inspector's result", async () => {
+  const rows = [{ group: "box", label: "Width", value: "10px", state: "hardcoded" }];
+  mocks.inspector.inspect.mockResolvedValueOnce({ ok: true, rows });
+  expect(await invoke("inspect:get", window().webContents, null, { selector: "#a" })).toEqual({ ok: true, rows });
+  expect(mocks.inspector.inspect).toHaveBeenCalledExactlyOnceWith("#a");
+});
+
+test("inspect:get refuses other senders and bad requests without inspecting", async () => {
+  const contents = window().webContents;
+  expect(await invoke("inspect:get", contents, {}, { selector: "#a" })).toMatchObject({ ok: false });
+  expect(await invoke("inspect:get", {}, null, { selector: "#a" })).toMatchObject({ ok: false });
+  for (const bad of [undefined, "#a", { selector: "" }, { selector: "a".repeat(1001) }, { selector: "#a", more: 1 }]) {
+    expect(await invoke("inspect:get", contents, null, bad)).toMatchObject({ ok: false });
+  }
+  expect(mocks.inspector.inspect).not.toHaveBeenCalled();
 });
