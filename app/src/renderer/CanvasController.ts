@@ -428,39 +428,34 @@ export class CanvasController {
   }
   // Marks live outside the iframe so the canvas DOM, its MutationObserver and
   // the anchors stay untouched; drawn in screen px so lines stay 1px at any
-  // scale, while the size label reads canvas px.
+  // scale, while the size label (a child of the selection mark, centered
+  // under it by CSS) reads canvas px.
   private drawMarks(): void {
     const hover = this.markHidden ? null : this.hoverRect;
     const selected = this.markHidden ? null : this.selectedRect;
     if (this.marks === null) {
       if (hover === null && selected === null) return;
-      const mark = (className: string) => {
-        const node = document.createElement("div");
-        node.className = className;
-        return node;
+      const node = (className: string) => {
+        const element = document.createElement("div");
+        element.className = className;
+        return element;
       };
-      this.marks = { hover: mark("mark hover"), selected: mark("mark selected"), size: mark("mark-size size") };
-      this.overlay.append(this.marks.hover, this.marks.selected, this.marks.size);
+      this.marks = { hover: node("mark hover"), selected: node("mark selected"), size: node("dims") };
+      this.marks.selected.append(this.marks.size);
+      this.overlay.append(this.marks.hover, this.marks.selected);
     }
-    const place = (node: HTMLElement, rect: CanvasRect | null) => {
-      node.hidden = rect === null;
+    const place = (element: HTMLElement, rect: CanvasRect | null) => {
+      element.hidden = rect === null;
       if (rect === null) return;
       const screen = boardRectToScreen(this.view, rect);
-      node.style.left = `${screen.x}px`;
-      node.style.top = `${screen.y}px`;
-      node.style.width = `${screen.width}px`;
-      node.style.height = `${screen.height}px`;
+      element.style.left = `${screen.x}px`;
+      element.style.top = `${screen.y}px`;
+      element.style.width = `${screen.width}px`;
+      element.style.height = `${screen.height}px`;
     };
     place(this.marks.hover, hover);
     place(this.marks.selected, selected);
-    const size = this.marks.size;
-    size.hidden = selected === null;
-    if (selected !== null) {
-      const screen = boardRectToScreen(this.view, selected);
-      size.textContent = sizeLabel(selected);
-      size.style.left = `${screen.x}px`;
-      size.style.top = `${screen.y + screen.height + 4}px`;
-    }
+    if (selected !== null) this.marks.size.textContent = sizeLabel(selected);
   }
 
   private setFrameWidth(width: number): void { this.frameWidth = width; if (this.frame) this.frame.style.width = `${width}px`; }

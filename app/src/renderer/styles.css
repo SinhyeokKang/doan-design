@@ -77,11 +77,11 @@ code, kbd { font-family: var(--font-sans); }
 .area { position: relative; overflow: hidden; background-color: var(--board-bg); background-image: radial-gradient(var(--board-dot) 1px, transparent 1px); background-size: 16px 16px; }
 .board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .board iframe { display: block; border: 0; }
-.overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-/* Exact styling waits for the select-inspect draft; lines stay 1px at any scale. */
-.mark { position: absolute; border: 1px solid var(--accent); }
-.mark.hover { border-color: var(--accent-line); opacity: .6; }
-.mark-size { position: absolute; padding: 1px 5px; border-radius: 4px; background: var(--accent); color: var(--accent-ink); font: 10.5px var(--font-sans); white-space: nowrap; }
+.overlay { position: absolute; inset: 0; pointer-events: none; }
+/* Overlay marks (select-inspect draft): screen px, so lines stay 1px at any scale. */
+.mark { position: absolute; border: 1px solid var(--accent-line); }
+.mark.hover { border-style: dashed; }
+.dims { position: absolute; top: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: var(--accent); color: var(--accent-ink); font: 600 10px var(--font-sans); padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
 .canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 18px; text-align: center; color: var(--text-2); font: 12.5px/1.6 var(--font-sans); pointer-events: none; }
 .canvas-status button { pointer-events: auto; }
 .canvas-status b { color: var(--text); font-weight: 500; }
@@ -112,11 +112,28 @@ code, kbd { font-family: var(--font-sans); }
 .tl-row { display: flex; gap: 8px; padding: 3px 12px 3px 0; font: 11px var(--font-sans); color: var(--text-3); }
 .tl-row time { color: var(--text-4); width: 54px; }
 .tl-row b { font-weight: 400; color: var(--text-2); }
-.frame-sub { cursor: default; color: var(--text-3); }
-.frame-sub:hover { background: none; }
-.long-value { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ancestors { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; margin-top: 8px; font: 11.5px var(--font-sans); color: var(--text-4); }
-.ancestors button { color: var(--text-2); }
-.ancestors button[aria-current="true"] { color: var(--text); }
-.alt-hint { margin-top: 8px; font: 11px var(--font-sans); color: var(--text-3); }
-.state { color: var(--text-3); }
+.row.element-row { padding-left: 40px; color: var(--accent); background: var(--accent-soft); }
+.truncate { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inspect-head { padding: 12px; border-bottom: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 6px; }
+.inspect-head h3 { font-size: 12.5px; font-weight: 600; }
+.selector { color: var(--text-2); font-size: 11.5px; }
+.head-kv { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 5px 8px; font-size: 11.5px; }
+.head-kv dt { color: var(--text-3); }
+.ancestors { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.ancestors button { max-width: 100%; padding: 3px 5px; border-radius: 4px; font-size: 11px; color: var(--text-2); background: var(--panel-2); }
+.ancestors button[aria-current="true"] { color: var(--accent); background: var(--accent-soft); }
+.ancestors span { color: var(--text-4); font-size: 11px; }
+.use-hint { color: var(--text-3); font-size: 11.5px; line-height: 1.5; }
+.inspect-row { margin-bottom: 7px; font-size: 11.5px; }
+.inspect-row:last-child { margin-bottom: 0; }
+.value-line { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 16px; }
+.prop { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.value { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.value.default { color: var(--text-4); }
+.source-line { margin-left: 86px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
+.token { max-width: 100%; font-size: 10.5px; color: var(--accent); background: var(--accent-soft); padding: 2px 5px; border-radius: 4px; }
+.state { color: var(--text-3); font-size: 10px; line-height: 1.5; }
+.state.hardcoded { color: var(--warn); }
+.swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--line); flex: none; }
+/* Short attribute labels stay fully readable at the fixed panel width. */
+.doan-attributes .prop { overflow: visible; text-overflow: clip; }

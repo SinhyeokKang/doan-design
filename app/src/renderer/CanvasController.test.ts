@@ -82,6 +82,8 @@ interface FakeMark {
   hidden: boolean;
   textContent: string;
   style: Record<string, string>;
+  children: FakeMark[];
+  append(...children: FakeMark[]): void;
 }
 
 // Each load gets its own iframe (and window) so messages can be sent from the
@@ -94,7 +96,7 @@ function selectionHarness() {
   vi.stubGlobal("document", {
     createElement: (tag: string) => {
       if (tag !== "iframe") {
-        const mark: FakeMark = { className: "", hidden: false, textContent: "", style: {} };
+        const mark: FakeMark = { className: "", hidden: false, textContent: "", style: {}, children: [], append: (...children) => mark.children.push(...children) };
         marks.push(mark);
         return mark;
       }
@@ -140,14 +142,16 @@ describe("selection", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("takes a select from the open canvas into state, main and the size label", () => {
+  it("takes a select from the open canvas into state, main and the size label inside the mark", () => {
     const h = selectionHarness();
     try {
       h.select(1);
       const { rect: _rect, ...view } = h.target;
       expect(h.state().selection).toEqual(view);
       expect(h.send).toHaveBeenLastCalledWith({ root: "/repo", canvas: { path: "design/a.html", id: "a" }, frame: { id: "hero" }, element: h.target.element });
-      expect(h.markOf("size")?.textContent).toBe("60 × 18");
+      expect(h.markOf("dims")?.textContent).toBe("60 × 18");
+      expect(h.markOf("selected")?.children).toEqual([h.markOf("dims")]);
+      expect(h.overlay.append).toHaveBeenCalledWith(h.markOf("hover"), h.markOf("selected"));
       expect(h.markOf("selected")?.hidden).toBe(false);
     } finally { h.controller.dispose(); }
   });

@@ -105,7 +105,7 @@ function FrameList({ state, jump }: { state: CanvasState; jump: (index: number) 
       const current = selection?.frameIndex === index;
       return <li key={index}>
         <button className="row frame-row" aria-current={current ? "true" : undefined} onClick={() => jump(index)}><span className="glyph">#</span><span className={frame.id ? "g" : "g no-id"}>{label.id}</span><span className="d">{label.title}</span></button>
-        {current && selection?.element && <div className="row ind frame-sub"><span className="glyph" aria-hidden="true">↳</span><span className="g">{selection.path.at(-1)?.label ?? selection.tag}</span></div>}
+        {current && selection?.element && <div className="row element-row"><span className="glyph" aria-hidden="true">↳</span><span className="g">{selection.element.doanId === undefined ? selection.tag : `${selection.tag} · ${selection.element.doanId}`}</span></div>}
       </li>;
     })}</ol>
     {layout.truncated && <p className="hint frames-hint">Showing the first 1,000</p>}
