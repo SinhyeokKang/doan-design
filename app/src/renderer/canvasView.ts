@@ -11,7 +11,7 @@ export interface OpenCanvas {
 export type CanvasViewUpdate =
   | { kind: "reload"; canvas: CanvasRow }
   | { kind: "resize"; canvas: CanvasRow }
-  | { kind: "clear"; reason: "missing" | "closed" | "notFound" }
+  | { kind: "clear"; reason: "missing" | "closed" | "notFound" | "uninitialized" }
   | { kind: "errorLine"; message: string }
   | { kind: "none" };
 
@@ -24,7 +24,7 @@ export function canvasViewUpdate(prev: readonly FolderEntry[], entries: readonly
     case "notFound":
       return { kind: "clear", reason: "notFound" };
     case "uninitialized":
-      return { kind: "clear", reason: "missing" };
+      return { kind: "clear", reason: "uninitialized" };
     case "error":
       return { kind: "errorLine", message: entry.message };
     case "cliError":
