@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "vitest";
-import { mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
@@ -157,6 +157,23 @@ test("a real round trip answers the selection, and wrong tokens are refused", as
   expect(await ask(socket, `${request("abc")}\n`)).toMatchObject({ ok: false, error: { code: "bad_token" } });
   expect(await ask(socket, `${request(token, "/not/open")}\n`)).toMatchObject({ ok: false, error: { code: "project_not_open" } });
   expect(await ask(socket, "{broken\n")).toMatchObject({ ok: false, error: { code: "bad_request" } });
+});
+
+test("startRuntime replaces an older 0644 runtime.json and a stale temp file", async () => {
+  // A file left by another run (another umask, a copy) keeps its mode when
+  // written in place; the temp file + rename gives a fresh 0600 file.
+  userData = await mkdtemp(join(tmpdir(), "doan-runtime-test-"));
+  const file = join(userData, "runtime.json");
+  const temp = `${file}.${process.pid}.tmp`;
+  await writeFile(file, "old");
+  await writeFile(temp, "stale");
+  // Explicit, so the starting mode does not depend on the umask.
+  await chmod(file, 0o644);
+  await chmod(temp, 0o644);
+  runtime = await startRuntime(userData, { isOpen: () => true, selection: () => null });
+  expect((await stat(file)).mode & 0o777).toBe(0o600);
+  expect(JSON.parse(await readFile(file, "utf8"))).toEqual(runtimeFile(runtime.socket, runtime.token));
+  expect(await readdir(userData)).toEqual(["runtime.json"]);
 });
 
 test("only the first line of a connection is answered", async () => {
