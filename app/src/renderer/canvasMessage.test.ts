@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { MAX_FRAMES, MAX_STRING, acceptCanvasMessage, parseCanvasMessage } from "./canvasMessage";
+import { MAX_FRAMES, MAX_HREF, MAX_STRING, acceptCanvasMessage, parseCanvasMessage } from "./canvasMessage";
 
 const frame = { id: "login", title: "Login", x: 0, y: 10, width: 375, height: 800 };
 const layout = (over: Record<string, unknown> = {}) => ({
@@ -174,6 +174,18 @@ describe("parseCanvasMessage: layout", () => {
   test("keeps a long href whole so it can still match a canvas url", () => {
     const href = `http://127.0.0.1:4000/t/tok/key/${"a".repeat(500)}.html`;
     expect(parseCanvasMessage(layout({ href }))).toHaveProperty("href", href);
+  });
+
+  test("accepts an href of exactly 8192 code units and rejects one code unit more", () => {
+    expect(MAX_HREF).toBe(8192);
+    const at = "h".repeat(8192);
+    expect(parseCanvasMessage(layout({ href: at }))).toHaveProperty("href", at);
+    expect(parseCanvasMessage(layout({ href: `${at}h` }))).toBeNull();
+  });
+
+  test("counts the href bound in UTF-16 code units, not characters", () => {
+    expect(parseCanvasMessage(layout({ href: "😀".repeat(4096) }))).not.toBeNull();
+    expect(parseCanvasMessage(layout({ href: "😀".repeat(4097) }))).toBeNull();
   });
 });
 

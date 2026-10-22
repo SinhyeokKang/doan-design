@@ -3,9 +3,12 @@ import {
   FIRST_LAYOUT_TIMEOUT_MS,
   FIT_MARGIN,
   FIT_SCALE_MAX,
+  LINE_PX,
   MAX_SCALE,
   MIN_SCALE,
+  PAGE_PX,
   WHEEL_ZOOM_MAX,
+  WHEEL_ZOOM_SENSITIVITY,
   ZOOM_LIMITS,
   ZOOM_STEP,
   boardToScreen,
@@ -32,6 +35,12 @@ describe("constants", () => {
     expect(FIT_MARGIN).toBe(32);
     expect(FIT_SCALE_MAX).toBe(1);
     expect(FIRST_LAYOUT_TIMEOUT_MS).toBe(5000);
+  });
+
+  test("pin the wheel constants chosen in B1", () => {
+    expect(WHEEL_ZOOM_SENSITIVITY).toBe(0.01);
+    expect(LINE_PX).toBe(16);
+    expect(PAGE_PX).toBe(800);
   });
 });
 
@@ -245,21 +254,18 @@ describe("wheelAction", () => {
     expect(wheelAction({ ...base, ctrl: true, dy: Number.NaN })).toEqual({ zoom: 1 });
   });
 
-  test("line and page deltaModes are converted to pixels before panning", () => {
-    const px = wheelAction({ ...base, dy: 3, deltaMode: 0 });
-    const line = wheelAction({ ...base, dy: 3, deltaMode: 1 });
-    const page = wheelAction({ ...base, dy: 3, deltaMode: 2 });
-    expect("pan" in px && px.pan.dy).toBe(-3);
-    const lineDy = "pan" in line ? line.pan.dy : 0;
-    const pageDy = "pan" in page ? page.pan.dy : 0;
-    expect(lineDy).toBeLessThan(-3);
-    expect(pageDy).toBeLessThan(lineDy);
+  test("line and page deltaModes are converted to exact pixel pans", () => {
+    expect(wheelAction({ ...base, dx: 2, dy: 3, deltaMode: 0 })).toEqual({ pan: { dx: -2, dy: -3 } });
+    expect(wheelAction({ ...base, dx: 2, dy: 3, deltaMode: 1 })).toEqual({ pan: { dx: -32, dy: -48 } });
+    expect(wheelAction({ ...base, dx: 2, dy: 3, deltaMode: 2 })).toEqual({ pan: { dx: -1600, dy: -2400 } });
   });
 
-  test("deltaMode scales the zoom delta too", () => {
-    const px = wheelAction({ ...base, ctrl: true, dy: -0.1, deltaMode: 0 });
-    const line = wheelAction({ ...base, ctrl: true, dy: -0.1, deltaMode: 1 });
-    expect("zoom" in px && "zoom" in line && line.zoom > px.zoom).toBe(true);
+  test("zoom factor is exp(-dy * 0.01), after the deltaMode conversion", () => {
+    const factor = (action: ReturnType<typeof wheelAction>): number => ("zoom" in action ? action.zoom : Number.NaN);
+    expect(factor(wheelAction({ ...base, ctrl: true, dy: -10 }))).toBeCloseTo(Math.exp(0.1), 10);
+    expect(factor(wheelAction({ ...base, ctrl: true, dy: 10 }))).toBeCloseTo(Math.exp(-0.1), 10);
+    expect(factor(wheelAction({ ...base, ctrl: true, dy: -0.5, deltaMode: 1 }))).toBeCloseTo(Math.exp(0.08), 10);
+    expect(factor(wheelAction({ ...base, ctrl: true, dy: -0.01, deltaMode: 2 }))).toBeCloseTo(Math.exp(0.08), 10);
   });
 
   test("a non-finite pan delta becomes no movement", () => {

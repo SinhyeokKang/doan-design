@@ -24,6 +24,8 @@ describe("isCanvasFrame", () => {
       "about:blank",
       "",
       "not a url",
+      `${base}../x`,
+      `${base}%2e%2e/x`,
     ]) {
       expect(isCanvasFrame(url, base, true)).toBe(false);
     }
@@ -60,6 +62,8 @@ describe("allowFrameNavigation", () => {
       "data:text/html,<script>1</script>",
       "javascript:alert(1)",
       "about:blank",
+      `${base}../x`,
+      `${base}%2e%2e/x`,
     ]) {
       expect(allowFrameNavigation("about:blank", next, base)).toBe(false);
     }
