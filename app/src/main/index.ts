@@ -68,7 +68,8 @@ function setMenu(): void {
           { label: "확대", accelerator: "CmdOrCtrl+=", click: send("zoomIn") },
           { label: "축소", accelerator: "CmdOrCtrl+-", click: send("zoomOut") },
           { label: "실제 크기", accelerator: "CmdOrCtrl+0", click: send("actualSize") },
-          { label: "맞춤", accelerator: "Shift+1", click: send("fit") },
+          // A bare Shift+1 would also run fit while typing "!" in an input.
+          { label: "맞춤", accelerator: "CmdOrCtrl+1", click: send("fit") },
           { type: "separator" },
           { label: "캔버스 다시 읽기", accelerator: "CmdOrCtrl+R", click: send("reload") },
           { type: "separator" },
