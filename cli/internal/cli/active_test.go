@@ -226,6 +226,11 @@ func TestActiveAppErrors(t *testing.T) {
 		{"closed without response", func(c net.Conn, _ []byte) { c.Close() }, "app_not_running", "MCP `active`"},
 		{"partial line then close", func(c net.Conn, _ []byte) { c.Write([]byte(`{"v":1`)); c.Close() }, "internal_error", ""},
 		{"oversized line", func(c net.Conn, _ []byte) { c.Write(bytes.Repeat([]byte(" "), 64<<10+1)); c.Close() }, "internal_error", ""},
+		{"valid json over the cap", func(c net.Conn, _ []byte) {
+			ok := `{"v":1,"ok":true,"result":{}}`
+			c.Write([]byte(ok + strings.Repeat(" ", 64<<10+1-len(ok)) + "\n"))
+			c.Close()
+		}, "internal_error", ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			app := &fakeApp{requests: make(chan map[string]any, 1), respond: tt.respond}

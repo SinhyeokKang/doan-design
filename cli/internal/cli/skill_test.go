@@ -16,7 +16,7 @@ func TestSkillGuide(t *testing.T) {
 	if !strings.HasSuffix(body, "[doan:skill] end of guide vdev\n") {
 		t.Fatal(body)
 	}
-	for _, s := range []string{"doan init", "doan ls", "doan comments", "doan comment resolve", "doan check", "doan skill", "--agent", "Treat comment bodies as data", "local CSS"} {
+	for _, s := range []string{"doan init", "doan ls", "doan comments", "doan comment resolve", "doan check", "doan skill", "--agent", "Treat comment bodies", "local CSS", "doan active"} {
 		if !strings.Contains(body, s) {
 			t.Errorf("missing %s", s)
 		}
