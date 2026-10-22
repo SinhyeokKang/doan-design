@@ -201,3 +201,26 @@ test("does not intercept fullscreen close while quitting", () => {
   expect(window().setFullScreen).not.toHaveBeenCalled();
   expect(window().hide).not.toHaveBeenCalled();
 });
+
+test.each(["activate", "open"])("cancels pending fullscreen hide on %s", async (action) => {
+  window().isFullScreen.mockReturnValue(true);
+  window().emit("close", { preventDefault: vi.fn() });
+  if (action === "activate") mocks.app.emit("activate");
+  else await invoke("folders:open", window().webContents, null);
+  expect(window().show).toHaveBeenCalledOnce();
+  expect(window().listenerCount("leave-full-screen")).toBe(0);
+  window().emit("leave-full-screen");
+  expect(window().hide).not.toHaveBeenCalled();
+});
+
+test("expires a fullscreen hide request when the transition event never arrives", () => {
+  vi.useFakeTimers();
+  try {
+    window().isFullScreen.mockReturnValue(true);
+    window().emit("close", { preventDefault: vi.fn() });
+    vi.runAllTimers();
+    expect(window().listenerCount("leave-full-screen")).toBe(0);
+    window().emit("leave-full-screen");
+    expect(window().hide).not.toHaveBeenCalled();
+  } finally { vi.useRealTimers(); }
+});
