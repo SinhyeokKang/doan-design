@@ -59,3 +59,19 @@
 - **Root cause**: a failing envelope carries no root, and the plan only covered `repo_not_found`; filling the gap in TS meant writing a second, slightly different copy of the Go discovery rule.
 - **Net**: the first case was caught by batch B4's self-review, the `.doan/`-only case by the B4 independent review reproducing it with the CLI. The e2e plan had no "subfolder of a failing repo" case.
 - **Prevention**: when the CLI does not answer a question about the repo, ask it again in a narrower form (`doan ls --repo <path>`) instead of inferring in TS. Grep for TS code that inspects repo markers: `grep -rnE '"\.doan"|config\.json' app/src | grep -v test` — only the watcher should match.
+
+### 2026-10-22 — A served directory wiped and rebuilt silently stopped live reload
+
+- **Area**: `app/src/main/watch.ts` (`rearm`, `servedTargets`), `shell.ts` (`servedRev`)
+- **Symptom**: with `serve: ["dist"]`, `rm -rf dist && mkdir dist && write dist/a.css` reached the refresher only as `{reread: true, served: false}`; `doan ls` returned the same scope, so `servedRev` did not move and an open canvas kept the old file. With `serve: ["web/dist"]`, the watcher closed when `web/dist` was deleted and nothing watched `web/`, so after the directory came back no call arrived at all until an unrelated `design/` or comment event re-armed it.
+- **Root cause**: a watcher on a deleted directory dies with its inode, and the re-arm only ran on some other watcher's event. Served directories had no parent watcher (served files did), and re-arming a target with a new inode was treated as bookkeeping, not as a change to what is served. The scope comparison in the shell cannot see a replacement because the path set stays the same.
+- **Net**: caught by the batch B2 independent review with a probe on a cloned worktree (2/2 runs). Missed by the batch's own tests, which deleted and recreated only `design/` (covered by the root watcher and always a re-read) and never a served path.
+- **Prevention**: every watched path needs a watcher on its parent that sees it come back, and replacing or removing a served target must count as served (`a served directory at the root that is replaced is a served change`, `a nested served directory deleted and created again is watched again`, `a serve directory at the root that is replaced bumps`). When adding a watch target, add a delete-and-recreate test for it. Grep: `grep -rnE '\bwatch\(' app/src --include='*.ts' | grep -v '\.test\.ts'`.
+
+### 2026-10-22 — Filtering root `fs.watch` events by known names loses the root's own deletion on macOS
+
+- **Area**: `app/src/main/watch.ts` (`classify`, root watcher)
+- **Symptom**: narrowing root events to known names (`design`, `.doan`, served root files) made a deleted folder root never reach `notFound`; the shell test `re-opening a folder that came back watches it again` timed out 3/3.
+- **Root cause**: deleting the watched root reports one event on the root's non-recursive watcher, named after the root itself, not after its children. A standalone single `fs.watch` on a directory removed with `rm -rf` did report child names in a separate experiment, so the shape depends on the set of watchers libuv's FSEvents stream shares.
+- **Net**: caught by the existing shell test during batch B2 implementation, and confirmed by the independent review's mutation on a clone. A unit test with a single watcher would have passed.
+- **Prevention**: keep the catch-all in `classify` (unknown root names re-read) and the shell test that pins it. Before filtering any watcher's events by name, check that the watcher's own path being deleted is still handled (for name-filtered parent watchers, the child's own watcher or the root watcher covers it). Grep: `grep -rnE 'filename (===|!==)|names\.has\(filename\)|rootNames\.has' app/src --include='*.ts' | grep -v '\.test\.ts'`.
