@@ -96,7 +96,7 @@ describe("opening a picked folder", () => {
   test("a missing CLI refuses the pick instead of storing it", async () => {
     const root = writeRepo(dir());
     const { shell } = await start(join(tmp, "no-such-doan"));
-    expect(await shell.open(root)).toMatch(/^doan CLI 오류/);
+    expect(await shell.open(root)).toMatch(/^doan CLI error/);
     expect(shell.entries()).toEqual([]);
   });
 

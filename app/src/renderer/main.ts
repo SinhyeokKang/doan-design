@@ -411,7 +411,7 @@ function renderFrames(): void {
       button.type = "button";
       button.className = "frame-button";
       button.dataset.index = String(index);
-      button.append(text("span", label.mono ? "frame-label frame-id" : "frame-label", label.text));
+      button.append(text("span", "frame-label", label.title || label.id));
       if (index === pickedFrame) button.setAttribute("aria-current", "true");
       button.addEventListener("click", () => jump(index));
       li.append(button);

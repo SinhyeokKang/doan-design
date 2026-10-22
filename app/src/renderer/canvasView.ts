@@ -1,3 +1,4 @@
+import { timeText } from "./activity";
 import type { CanvasRow, FolderEntry } from "../main/view";
 
 // Keyed by folder path, not by URL: the folder key in the URL changes when a
@@ -45,7 +46,7 @@ export function canvasViewUpdate(prev: readonly FolderEntry[], entries: readonly
 }
 
 export function cliErrorText(reason: string): string {
-  return reason ? `doan CLI 오류: ${reason}` : "doan CLI 오류";
+  return reason ? `doan CLI error: ${reason}` : "doan CLI error";
 }
 
 export const INITIAL_HEIGHT = 150;
@@ -92,13 +93,10 @@ export function layoutHeight(lastHref: string | null, current: number, layout: {
   return Math.min(layout.height, MAX_HEIGHT);
 }
 
-export function frameLabel(frame: { id: string; title?: string }): { text: string; mono: boolean } {
-  if (frame.title) return { text: frame.title, mono: false };
-  if (frame.id) return { text: frame.id, mono: true };
-  return { text: "(id 없음)", mono: false };
+export function frameLabel(frame: { id: string; title?: string }): { id: string; title?: string } {
+  return { id: frame.id || "(no id)", ...(frame.title ? { title: frame.title } : {}) };
 }
 
 export function updatedText(at: Date): string {
-  const two = (value: number) => String(value).padStart(2, "0");
-  return `갱신 ${two(at.getHours())}:${two(at.getMinutes())}:${two(at.getSeconds())}`;
+  return `Updated ${timeText(at)}`;
 }

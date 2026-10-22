@@ -5,10 +5,12 @@ import type { FolderState } from "./folderState";
 // renderer never handles `unknown` and never sees fields it does not show.
 export interface CanvasRow {
   path: string;
+  id?: string;
   title?: string;
   // From `doan ls` as is; the app never re-reads the canvas meta.
   width?: number;
   open: number;
+  resolved: number;
   url: string;
 }
 
@@ -29,9 +31,14 @@ export function canvasRows(canvases: readonly unknown[], baseUrl: string): Canva
   const rows: CanvasRow[] = [];
   for (const canvas of canvases) {
     if (typeof canvas !== "object" || canvas === null) continue;
-    const { path, title, width, comments } = canvas as Record<string, unknown>;
+    const path: unknown = Reflect.get(canvas, "path");
+    const id: unknown = Reflect.get(canvas, "id");
+    const title: unknown = Reflect.get(canvas, "title");
+    const width: unknown = Reflect.get(canvas, "width");
+    const comments: unknown = Reflect.get(canvas, "comments");
     if (typeof path !== "string" || path === "") continue;
-    const row: CanvasRow = { path, open: openCount(comments), url: servingUrl(baseUrl, path) };
+    const row: CanvasRow = { path, open: commentCount(comments, "open"), resolved: commentCount(comments, "resolved"), url: servingUrl(baseUrl, path) };
+    if (typeof id === "string") row.id = id;
     if (typeof title === "string") row.title = title;
     if (typeof width === "number" && Number.isSafeInteger(width) && width > 0) row.width = width;
     rows.push(row);
@@ -39,10 +46,10 @@ export function canvasRows(canvases: readonly unknown[], baseUrl: string): Canva
   return rows;
 }
 
-function openCount(comments: unknown): number {
+function commentCount(comments: unknown, key: "open" | "resolved"): number {
   if (typeof comments !== "object" || comments === null) return 0;
-  const { open } = comments as Record<string, unknown>;
-  return typeof open === "number" && Number.isSafeInteger(open) && open >= 0 ? open : 0;
+  const count: unknown = Reflect.get(comments, key);
+  return typeof count === "number" && Number.isSafeInteger(count) && count >= 0 ? count : 0;
 }
 
 // Segment-wise encoding is the inverse of `parseServePath`, which decodes each
@@ -83,7 +90,7 @@ export function openDecision(state: FolderState, realPicked: string, asRepo: Fol
     case "cliError": {
       if (asRepo?.kind === "list" || asRepo?.kind === "error") return { store: realPicked };
       if (state.kind === "error") return { refuse: state.message };
-      return { refuse: state.reason ? `doan CLI 오류: ${state.reason}` : "doan CLI 오류" };
+      return { refuse: state.reason ? `doan CLI error: ${state.reason}` : "doan CLI error" };
     }
   }
 }
