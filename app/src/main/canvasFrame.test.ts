@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { allowFrameNavigation, childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame, navigationGate, startedByApp } from "./canvasFrame";
+import { allowFrameNavigation, childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame, navigationGate, startedByApp, type FrameLike } from "./canvasFrame";
 
 const base = "http://127.0.0.1:4000/t/tok/";
 const current = `${base}key/design/a.html`;
@@ -229,6 +229,31 @@ describe("frameNavigationAllowed", () => {
   test("leaves a proven grandchild alone", () => {
     const embed = { url: "https://embed.example/", parent: canvas };
     expect(frameNavigationAllowed({ url: "https://other.example/", frame: embed, initiator: embed }, base)).toBe(true);
+  });
+
+  // will-navigate also refuses these; the frame rule must not lean on it.
+  test("refuses the window's main frame even for an app-started token URL", () => {
+    expect(frameNavigationAllowed({ url: current, frame: top, initiator: top }, base)).toBe(false);
+    expect(frameNavigationAllowed({ url: `${base}key/b.html`, frame: top }, base)).toBe(false);
+  });
+
+  // A disposed WebFrameMain throws on property access. The throw must become a
+  // refusal here, or the listener would skip preventDefault.
+  const throwing = (name: "url" | "parent", other: Partial<FrameLike>): FrameLike =>
+    Object.defineProperty({ ...other }, name, {
+      get() {
+        throw new Error("frame disposed");
+      },
+    }) as FrameLike;
+
+  test("refuses when reading the frame throws", () => {
+    expect(frameNavigationAllowed({ url: `${base}key/b.html`, frame: throwing("parent", { url: current }), initiator: top }, base)).toBe(false);
+    expect(frameNavigationAllowed({ url: `${base}key/b.html`, frame: throwing("url", { parent: top }), initiator: top }, base)).toBe(false);
+  });
+
+  test("refuses when reading the initiator throws", () => {
+    expect(frameNavigationAllowed({ url: `${base}other/a.html`, frame: canvas, initiator: throwing("parent", { url: current }) }, base)).toBe(false);
+    expect(frameNavigationAllowed({ url: `${base}key/b.html`, frame: canvas, initiator: throwing("parent", { url: current }) }, base)).toBe(false);
   });
 });
 

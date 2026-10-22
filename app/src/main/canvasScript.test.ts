@@ -1,6 +1,6 @@
 import { runInNewContext } from "node:vm";
 import { describe, expect, test } from "vitest";
-import { canScrollAxis, canvasScriptSource, clipText, nextHeight } from "./canvasScript";
+import { canScrollAxis, canvasScriptSource, clipText, documentHeight, nextHeight } from "./canvasScript";
 
 describe("nextHeight", () => {
   test("sends the first measurement as is", () => {
@@ -42,6 +42,46 @@ describe("nextHeight", () => {
     const frozen = nextHeight(nextHeight(null, 580, 150), 660, 580);
     expect(nextHeight(frozen, 300, 580)).toEqual(frozen);
     expect(nextHeight(frozen, 5000, 900)).toEqual(frozen);
+  });
+});
+
+// Measured in Electron 45 (800×150 viewport, 2,000px of content): a plain canvas
+// reports its rect (2016), `html,body{height:100%}` and `html{height:100%}` report
+// a 150 rect with scrollHeight 2000 and 2008.
+describe("documentHeight", () => {
+  test("uses the rect of a canvas that sizes to its content", () => {
+    expect(documentHeight(2016, 2016, 150)).toBe(2016);
+    expect(documentHeight(80, 150, 150)).toBe(80);
+  });
+
+  test("uses scrollHeight when html is as tall as the viewport and the content is taller", () => {
+    expect(documentHeight(150, 2000, 150)).toBe(2000);
+    expect(documentHeight(150, 2008, 150)).toBe(2008);
+    expect(documentHeight(151, 2000, 150)).toBe(2000);
+    expect(documentHeight(149, 2000, 150)).toBe(2000);
+  });
+
+  test("keeps the rect when it is more than 1px from the viewport", () => {
+    expect(documentHeight(152, 2000, 150)).toBe(152);
+    expect(documentHeight(148, 2000, 150)).toBe(148);
+  });
+
+  test("keeps the viewport height when nothing overflows html (a body scroller)", () => {
+    expect(documentHeight(150, 150, 150)).toBe(150);
+  });
+
+  test("settles once the iframe is resized to the reported height", () => {
+    for (const content of [2000, 2008]) {
+      const first = nextHeight(null, documentHeight(150, content, 150), 150);
+      expect(first.sent).toBe(content);
+      expect(nextHeight(first, documentHeight(content, content, content), content)).toEqual({ sent: content, inner: content, frozen: false });
+    }
+  });
+
+  test("still freezes a 100% canvas whose content keeps outgrowing the viewport", () => {
+    // html{height:100%} with body{min-height:100vh} and 8px margins: always 16px taller.
+    const first = nextHeight(null, documentHeight(150, 166, 150), 150);
+    expect(nextHeight(first, documentHeight(166, 182, 166), 166)).toEqual({ sent: 166, inner: 150, frozen: true });
   });
 });
 
@@ -100,8 +140,9 @@ interface FakeElement {
 }
 
 type Listener = (event: unknown) => void;
+type Trigger = "ResizeObserver" | "MutationObserver" | "resize" | "load";
 
-function fakeCanvas(options: { readyState?: string; height?: number; frames?: FakeElement[] } = {}) {
+function fakeCanvas(options: { readyState?: string; height?: number; scrollHeight?: number; frames?: FakeElement[] } = {}) {
   const posted: unknown[] = [];
   const windowListeners = new Map<string, Listener[]>();
   const documentListeners = new Map<string, Listener[]>();
@@ -111,8 +152,14 @@ function fakeCanvas(options: { readyState?: string; height?: number; frames?: Fa
   };
   const state = { height: options.height ?? 900 };
   const html: FakeElement & { getBoundingClientRect(): { height: number } } = {
+    scrollHeight: options.scrollHeight ?? Math.max(state.height, 150),
     getBoundingClientRect: () => ({ height: state.height }),
   };
+  const animationFrames: (() => void)[] = [];
+  const resizeCallbacks: (() => void)[] = [];
+  const mutationCallbacks: (() => void)[] = [];
+  const resizeTargets: unknown[] = [];
+  const mutationTargets: { target: unknown; options: unknown }[] = [];
   const body = {};
   const parent = { postMessage: (message: unknown, origin: string) => posted.push({ message, origin }) };
   const element = (el: FakeElement) => ({
@@ -128,13 +175,23 @@ function fakeCanvas(options: { readyState?: string; height?: number; frames?: Fa
     scrollX: 0,
     scrollY: 40,
     addEventListener: add(windowListeners),
-    requestAnimationFrame: () => 0,
+    requestAnimationFrame: (callback: () => void) => animationFrames.push(callback),
     getComputedStyle: (el: FakeElement) => el.style ?? { overflowX: "visible", overflowY: "visible" },
     ResizeObserver: class {
-      observe() {}
+      constructor(callback: () => void) {
+        resizeCallbacks.push(callback);
+      }
+      observe(target: unknown) {
+        resizeTargets.push(target);
+      }
     },
     MutationObserver: class {
-      observe() {}
+      constructor(callback: () => void) {
+        mutationCallbacks.push(callback);
+      }
+      observe(target: unknown, observeOptions: unknown) {
+        mutationTargets.push({ target, options: observeOptions });
+      }
     },
     document: {
       readyState: options.readyState ?? "loading",
@@ -160,6 +217,17 @@ function fakeCanvas(options: { readyState?: string; height?: number; frames?: Fa
     ready: () => fire(documentListeners, "DOMContentLoaded", {}),
     fireWindow: (type: string, event: unknown) => fire(windowListeners, type, event),
     windowListeners,
+    animationFrames,
+    resizeTargets,
+    mutationTargets,
+    trigger: (kind: Trigger) => {
+      if (kind === "ResizeObserver") for (const callback of resizeCallbacks) callback();
+      else if (kind === "MutationObserver") for (const callback of mutationCallbacks) callback();
+      else fire(windowListeners, kind, {});
+    },
+    runFrame: () => {
+      for (const callback of animationFrames.splice(0)) callback();
+    },
   };
 }
 
@@ -238,6 +306,48 @@ describe("canvasScriptSource", () => {
     canvas.fireWindow("message", { source: canvas.parent, data: { type: "measure" } });
     expect(canvas.posted).toHaveLength(2);
     expect(canvas.posted[1]).toMatchObject({ message: { type: "layout", height: 1234 } });
+  });
+
+  test("reports scrollHeight for a canvas whose html is as tall as the viewport", () => {
+    const canvas = fakeCanvas({ height: 150.4, scrollHeight: 2008 });
+    canvas.ready();
+    expect(canvas.posted[0]).toMatchObject({ message: { type: "layout", height: 2008 } });
+  });
+
+  test("watches html and body for size changes and the whole document for edits", () => {
+    const canvas = fakeCanvas();
+    canvas.ready();
+    expect(canvas.resizeTargets).toEqual([canvas.html, canvas.body]);
+    expect(canvas.mutationTargets).toEqual([{ target: canvas.html, options: { subtree: true, childList: true, attributes: true, characterData: true } }]);
+  });
+
+  test.each<Trigger>(["ResizeObserver", "MutationObserver", "resize", "load"])("a %s trigger posts one layout on the next animation frame", (kind) => {
+    const canvas = fakeCanvas();
+    canvas.ready();
+    canvas.state.height = 1300;
+    canvas.html.scrollHeight = 1300;
+    canvas.trigger(kind);
+    expect(canvas.animationFrames).toHaveLength(1);
+    expect(canvas.posted).toHaveLength(1);
+    canvas.runFrame();
+    expect(canvas.posted).toHaveLength(2);
+    expect(canvas.posted[1]).toMatchObject({ message: { type: "layout", height: 1300 } });
+  });
+
+  test("batches several triggers in one frame into one layout, and queues again after it", () => {
+    const canvas = fakeCanvas();
+    canvas.ready();
+    for (const kind of ["ResizeObserver", "MutationObserver", "resize", "load", "MutationObserver"] as const) canvas.trigger(kind);
+    expect(canvas.animationFrames).toHaveLength(1);
+    expect(canvas.posted).toHaveLength(1);
+    canvas.runFrame();
+    expect(canvas.posted).toHaveLength(2);
+    canvas.runFrame();
+    expect(canvas.posted).toHaveLength(2);
+    canvas.trigger("resize");
+    expect(canvas.animationFrames).toHaveLength(1);
+    canvas.runFrame();
+    expect(canvas.posted).toHaveLength(3);
   });
 
   test("installs once per document", () => {
