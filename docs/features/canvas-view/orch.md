@@ -15,6 +15,10 @@
 | 2026-10-22 | 병렬 배치는 각자 `feat-canvas-view`에서 만든 새 worktree에서 돈다 | 지휘 판단 — 커밋하는 워커가 같은 checkout을 쓰면 index가 겹친다(app-shell과 같다) |
 | 2026-10-22 | 태스크 2의 `canvasViewUpdate`(`canvasView.ts`)는 B1이 아니라 B2가 맡는다. `FolderEntry`의 `servedRev` 필드도 B2가 `view.ts`에 더한다 | 지휘 판단 — `canvasViewUpdate`는 `servedRev`에 기대고, `servedRev`의 발행 규칙(흐름 9)은 태스크 4의 몫이다. `view.ts`는 B1(`width`) → B2(`servedRev`) 순서로 직렬이 된다 |
 | 2026-10-22 | 태스크 8(DIRECTORY.md · runtime-test 스킬)은 B4가 태스크 6 · 7과 함께 한다. 태스크 9(승격과 정리)는 지휘가 한다 | 지휘 판단 — 태스크 8은 e2e 단계와 스크린샷 이름을 아는 B4가 적는다. 승격은 orchestrate 5단계의 지휘 몫이다 |
+| 2026-10-22 | 휠 상수: 줌 감도 `0.01`(`exp(-dy * 0.01)`), `deltaMode` 1 = 16px, 2 = 800px. 테스트로 값을 고정한다 | 지휘 판단 — B1 리뷰 U1. 느낌을 맞추는 구현 상수이고, PoC 1 휠 확인이 어색하면 다시 고친다 |
+| 2026-10-22 | `resizeKeep`을 지운다. 창 크기가 바뀌어도 view를 그대로 둔다 | 지휘 판단 — B1 리뷰 U2. 화면 좌표 기준이 컨테이너 왼쪽 위라 항등 함수가 되고, 쓰지 않는 인자를 남기는 것은 AGENTS.md가 말하는 미리 만든 유연성이다. 동작은 e2e 단계 5가 확인한다 |
+| 2026-10-22 | `fitFrame`은 현재 view를 넷째 인자로 받는다. 맞춤 · 프레임 점프의 위쪽 맞춤은 `y = margin`, 가로는 가운데다 | 지휘 판단 — B1 차이 1 · 4. 크기 0 프레임 규칙에 현재 배율이 필요하다 |
+| 2026-10-22 | `layout.href`는 자르지 않고, 8 KiB를 넘으면 메시지를 버린다. `href`는 열린 캔버스 표시에만 쓴다 | 지휘 판단 — B1 리뷰 ⚪3. 잘린 `href`는 `CanvasRow.url`과 맞지 않는다. 캔버스 스크립트가 위조할 수 있다(design.md 흐름 5) |
 
 ## 배치
 
