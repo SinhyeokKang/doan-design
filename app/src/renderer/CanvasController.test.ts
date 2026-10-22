@@ -318,6 +318,10 @@ describe("selection", () => {
         h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0, ...fields }));
         expect(h.state()?.selection).not.toBeNull();
       }
+      const controlClick = Object.assign(new Event("click"), { button: 0 });
+      Object.defineProperty(controlClick, "target", { value: new EventTarget() });
+      h.viewport.dispatchEvent(controlClick);
+      expect(h.state()?.selection).not.toBeNull();
       h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
       expect(h.state()?.selection).toBeNull();
       expect(h.send).toHaveBeenLastCalledWith(null);
