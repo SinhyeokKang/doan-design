@@ -1,40 +1,13 @@
 <!doctype html>
-<html lang="ko">
-  <head>
-    <meta charset="utf-8" />
-    <title>Doan Design</title>
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <aside class="sidebar">
-      <header class="sidebar-header">
-        <h1>Doan Design</h1>
-        <button id="open-folder" type="button">폴더 열기</button>
-      </header>
-      <div id="folders"></div>
-      <section id="frames" hidden>
-        <h2>프레임</h2>
-        <div class="frames-status" hidden></div>
-        <ul class="frame-list"></ul>
-      </section>
-    </aside>
-    <main class="canvas-view">
-      <div class="canvas-toolbar" role="toolbar" hidden>
-        <button id="zoom-out" type="button" aria-label="축소">−</button>
-        <output id="zoom-level">100%</output>
-        <button id="zoom-in" type="button" aria-label="확대">+</button>
-        <button id="zoom-fit" type="button" aria-label="맞춤">맞춤</button>
-        <span id="updated"></span>
-      </div>
-      <div id="viewport">
-        <div id="board" hidden><div class="overlay"></div></div>
-        <div class="canvas-lines">
-          <p id="canvas-error" class="canvas-line" hidden></p>
-          <p id="canvas-unlisted" class="canvas-line" hidden>목록에 없는 문서입니다</p>
-        </div>
-        <div id="canvas-status"></div>
-      </div>
-    </main>
-    <script type="module" src="./main.ts"></script>
-  </body>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>doan</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="./main.ts"></script>
+</body>
 </html>

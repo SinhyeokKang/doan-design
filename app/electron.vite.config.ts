@@ -1,5 +1,7 @@
 import { defineConfig } from "electron-vite";
 import type { Plugin } from "vite";
+import tailwindcss from "@tailwindcss/vite";
+import { fileURLToPath } from "node:url";
 
 // The built window loads only its own files, plus canvas iframes from the
 // local server, whose port changes every run. electron-vite dev serves the
@@ -32,6 +34,7 @@ export default defineConfig({
     },
   },
   renderer: {
-    plugins: [contentSecurityPolicy()],
+    resolve: { alias: { "@": fileURLToPath(new URL("./src/renderer", import.meta.url)) } },
+    plugins: [contentSecurityPolicy(), tailwindcss()],
   },
 });
