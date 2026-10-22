@@ -86,16 +86,23 @@ export function allowFrameNavigation(current: string, next: string, base: string
   return parseUnder(next, { origin: prefix.origin, path: `${prefix.path}${key}/` }) !== null;
 }
 
-// The `will-frame-navigate` decision as a whole.
+// The `will-frame-navigate` decision as a whole. The window's main frame is
+// refused here too, so this does not depend on `will-navigate` for it.
 export function frameNavigationAllowed(
   details: { url: string; frame: FrameLike | null | undefined; initiator?: FrameLike | null | undefined },
   base: string,
 ): boolean {
-  const frame = details.frame;
-  const gate = navigationGate(frame);
-  if (gate === "skip") return true;
-  if (gate === "refuse" || frame === null || frame === undefined) return false;
-  return allowFrameNavigation(frame.url, details.url, base, startedByApp(details.initiator));
+  // A WebFrameMain disposed mid-navigation throws on property access; letting
+  // that escape would skip preventDefault and let the navigation through.
+  try {
+    const frame = details.frame;
+    const gate = navigationGate(frame);
+    if (gate === "skip") return true;
+    if (gate === "refuse" || frame === null || frame === undefined || isTopFrame(frame)) return false;
+    return allowFrameNavigation(frame.url, details.url, base, startedByApp(details.initiator));
+  } catch {
+    return false;
+  }
 }
 
 interface SenderFrameLike {

@@ -24,6 +24,13 @@ export function nextHeight(prev: HeightState | null, measured: number, inner: nu
   return { sent: measured, inner, frozen: false };
 }
 
+// Not scrollHeight alone: it never drops below the viewport, so a canvas could
+// not shrink. But with `html { height: 100% }` the rect is the viewport and the
+// content overflows it, so then only scrollHeight tells the content height.
+export function documentHeight(rect: number, scrollHeight: number, inner: number): number {
+  return Math.abs(rect - inner) <= 1 && scrollHeight > rect ? scrollHeight : rect;
+}
+
 export function canScrollAxis(overflow: string, position: number, client: number, size: number, delta: number): boolean {
   if (delta === 0 || size <= client) return false;
   if (overflow !== "auto" && overflow !== "scroll" && overflow !== "overlay") return false;
@@ -39,6 +46,7 @@ export function clipText(text: string, max: number): string {
 
 interface CanvasLib {
   nextHeight: typeof nextHeight;
+  documentHeight: typeof documentHeight;
   canScrollAxis: typeof canScrollAxis;
   clipText: typeof clipText;
 }
@@ -79,8 +87,9 @@ export function canvasScript(lib: CanvasLib): void {
   };
 
   const send = () => {
-    // Not scrollHeight: it never drops below the viewport, so a canvas could not shrink.
-    height = lib.nextHeight(height, Math.ceil(document.documentElement.getBoundingClientRect().height), innerHeight);
+    const html = document.documentElement;
+    const measured = lib.documentHeight(Math.ceil(html.getBoundingClientRect().height), html.scrollHeight, innerHeight);
+    height = lib.nextHeight(height, measured, innerHeight);
     const { list, truncated } = frames();
     post({ type: "layout", href: location.href, height: height.sent, frames: list, truncated });
   };
@@ -144,5 +153,5 @@ export function canvasScript(lib: CanvasLib): void {
 }
 
 export function canvasScriptSource(): string {
-  return `(${canvasScript.toString()})({nextHeight: ${nextHeight.toString()}, canScrollAxis: ${canScrollAxis.toString()}, clipText: ${clipText.toString()}}); void 0;`;
+  return `(${canvasScript.toString()})({nextHeight: ${nextHeight.toString()}, documentHeight: ${documentHeight.toString()}, canScrollAxis: ${canScrollAxis.toString()}, clipText: ${clipText.toString()}}); void 0;`;
 }

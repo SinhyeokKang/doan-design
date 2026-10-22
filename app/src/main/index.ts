@@ -21,15 +21,7 @@ app.on("web-contents-created", (_event, contents) => {
   contents.on("will-navigate", (event) => event.preventDefault());
   // Before the shell is up there is no token base, and every checked frame is refused.
   contents.on("will-frame-navigate", (details) => {
-    let allowed = false;
-    // A WebFrameMain disposed mid-navigation throws on property access; a throw
-    // here would skip preventDefault and let the navigation through.
-    try {
-      allowed = frameNavigationAllowed(details, shell?.tokenBase ?? "");
-    } catch {
-      allowed = false;
-    }
-    if (!allowed) details.preventDefault();
+    if (!frameNavigationAllowed(details, shell?.tokenBase ?? "")) details.preventDefault();
   });
   contents.on("will-attach-webview", (event) => event.preventDefault());
   contents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -39,7 +31,7 @@ let win: BrowserWindow | undefined;
 let shell: Shell | undefined;
 
 function fromWindow(event: IpcMainInvokeEvent): boolean {
-  return win !== undefined && event.sender === win.webContents && fromAppFrame(event, win);
+  return win !== undefined && fromAppFrame(event, win);
 }
 
 const canvasScriptText = canvasScriptSource();
@@ -79,6 +71,8 @@ function setMenu(): void {
           { label: "맞춤", accelerator: "Shift+1", click: send("fit") },
           { type: "separator" },
           { label: "캔버스 다시 읽기", accelerator: "CmdOrCtrl+R", click: send("reload") },
+          { type: "separator" },
+          { role: "togglefullscreen" },
         ],
       },
       { role: "windowMenu" },
