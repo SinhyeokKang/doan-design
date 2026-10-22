@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { allowFrameNavigation, fromAppFrame, isCanvasFrame } from "./canvasFrame";
+import { allowFrameNavigation, childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame, navigationGate, startedByApp } from "./canvasFrame";
 
 const base = "http://127.0.0.1:4000/t/tok/";
 const current = `${base}key/design/a.html`;
@@ -35,6 +35,16 @@ describe("isCanvasFrame", () => {
     expect(isCanvasFrame("http://127.0.0.1:4000/t/tok", base, true)).toBe(false);
   });
 
+  test("childOfTopFrame is true only when the parent has no parent", () => {
+    const top = { url: "file:///app/index.html", parent: null };
+    const canvas = { url: current, parent: top };
+    expect(childOfTopFrame(canvas)).toBe(true);
+    expect(childOfTopFrame(top)).toBe(false);
+    expect(childOfTopFrame({ url: "https://embed.example/", parent: canvas })).toBe(false);
+    expect(childOfTopFrame({ url: current, parent: { url: "x" } as never })).toBe(false);
+    expect(childOfTopFrame(null)).toBe(false);
+  });
+
   test("rejects userinfo in the URL", () => {
     expect(isCanvasFrame("http://127.0.0.1:4000@evil.example/t/tok/key/a.html", base, true)).toBe(false);
     expect(isCanvasFrame("http://user:pw@127.0.0.1:4000/t/tok/key/a.html", base, true)).toBe(false);
@@ -42,18 +52,28 @@ describe("isCanvasFrame", () => {
 });
 
 describe("allowFrameNavigation", () => {
-  test("allows a link inside the same folder key", () => {
-    expect(allowFrameNavigation(current, `${base}key/design/b.html`, base)).toBe(true);
-    expect(allowFrameNavigation(current, `${base}key/design/b.html#top`, base)).toBe(true);
-    expect(allowFrameNavigation(current, `${current}?x=1`, base)).toBe(true);
+  test("allows a canvas link inside the same folder key", () => {
+    expect(allowFrameNavigation(current, `${base}key/design/b.html`, base, false)).toBe(true);
+    expect(allowFrameNavigation(current, `${base}key/design/b.html#top`, base, false)).toBe(true);
+    expect(allowFrameNavigation(current, `${current}?x=1`, base, false)).toBe(true);
   });
 
-  test("allows the first src of a new iframe from about:blank or an empty URL", () => {
-    expect(allowFrameNavigation("about:blank", `${base}key/design/a.html`, base)).toBe(true);
-    expect(allowFrameNavigation("", `${base}key/design/a.html`, base)).toBe(true);
+  test("allows the app's first src of a new iframe", () => {
+    expect(allowFrameNavigation("about:blank", `${base}key/design/a.html`, base, true)).toBe(true);
+    expect(allowFrameNavigation("", `${base}key/design/a.html`, base, true)).toBe(true);
   });
 
-  test("denies the first src when it is not under the token path", () => {
+  test("allows the app to point the same iframe at another folder key", () => {
+    expect(allowFrameNavigation(current, `${base}other/design/a.html`, base, true)).toBe(true);
+  });
+
+  test("allows the app to reload from about:blank, an error page or a CSP-blocked URL", () => {
+    for (const from of ["about:blank", "chrome-error://chromewebdata/", "https://example.com/"]) {
+      expect(allowFrameNavigation(from, current, base, true)).toBe(true);
+    }
+  });
+
+  test("denies the app a src outside the token path", () => {
     for (const next of [
       "http://127.0.0.1:4000/t/tokx/key/a.html",
       "http://127.0.0.1:4001/t/tok/key/a.html",
@@ -64,73 +84,151 @@ describe("allowFrameNavigation", () => {
       "about:blank",
       `${base}../x`,
       `${base}%2e%2e/x`,
+      "http://127.0.0.1:4000@evil.example/t/tok/key/a.html",
     ]) {
-      expect(allowFrameNavigation("about:blank", next, base)).toBe(false);
+      expect(allowFrameNavigation("about:blank", next, base, true)).toBe(false);
+      expect(allowFrameNavigation(current, next, base, true)).toBe(false);
     }
   });
 
-  test("denies a different folder key", () => {
-    expect(allowFrameNavigation(current, `${base}other/design/a.html`, base)).toBe(false);
+  test("denies a canvas-started navigation to another folder key", () => {
+    expect(allowFrameNavigation(current, `${base}other/design/a.html`, base, false)).toBe(false);
+  });
+
+  test("denies a canvas-started navigation from about:blank, an error page or an empty URL", () => {
+    for (const from of ["about:blank", "", "chrome-error://chromewebdata/"]) {
+      expect(allowFrameNavigation(from, `${base}key/design/a.html`, base, false)).toBe(false);
+    }
   });
 
   test("denies a token path prefix that only matches as a string", () => {
-    expect(allowFrameNavigation(current, "http://127.0.0.1:4000/t/tokx/key/design/a.html", base)).toBe(false);
+    expect(allowFrameNavigation(current, "http://127.0.0.1:4000/t/tokx/key/design/a.html", base, false)).toBe(false);
   });
 
   test("denies a folder key that only matches as a string prefix", () => {
-    expect(allowFrameNavigation(current, `${base}keyx/design/a.html`, base)).toBe(false);
-    expect(allowFrameNavigation(current, `${base}key`, base)).toBe(false);
+    expect(allowFrameNavigation(current, `${base}keyx/design/a.html`, base, false)).toBe(false);
+    expect(allowFrameNavigation(current, `${base}key`, base, false)).toBe(false);
   });
 
   test("denies other ports and hosts", () => {
-    expect(allowFrameNavigation(current, "http://127.0.0.1:4001/t/tok/key/a.html", base)).toBe(false);
-    expect(allowFrameNavigation(current, "http://localhost:4000/t/tok/key/a.html", base)).toBe(false);
-    expect(allowFrameNavigation(current, "https://127.0.0.1:4000/t/tok/key/a.html", base)).toBe(false);
+    expect(allowFrameNavigation(current, "http://127.0.0.1:4001/t/tok/key/a.html", base, false)).toBe(false);
+    expect(allowFrameNavigation(current, "http://localhost:4000/t/tok/key/a.html", base, false)).toBe(false);
+    expect(allowFrameNavigation(current, "https://127.0.0.1:4000/t/tok/key/a.html", base, false)).toBe(false);
   });
 
   test("denies traversal out of the folder key, plain or percent-encoded", () => {
-    expect(allowFrameNavigation(current, `${base}key/../other/a.html`, base)).toBe(false);
-    expect(allowFrameNavigation(current, `${base}key/%2e%2e/other/a.html`, base)).toBe(false);
-    expect(allowFrameNavigation(current, `${base}key/%2E%2E/%2e%2e/x`, base)).toBe(false);
-    expect(allowFrameNavigation(current, `${base}key/..`, base)).toBe(false);
-    expect(allowFrameNavigation(current, `${base}key/design/..\\..\\x`, base)).toBe(false);
+    expect(allowFrameNavigation(current, `${base}key/../other/a.html`, base, false)).toBe(false);
+    expect(allowFrameNavigation(current, `${base}key/%2e%2e/other/a.html`, base, false)).toBe(false);
+    expect(allowFrameNavigation(current, `${base}key/%2E%2E/%2e%2e/x`, base, false)).toBe(false);
+    expect(allowFrameNavigation(current, `${base}key/..`, base, false)).toBe(false);
+    expect(allowFrameNavigation(current, `${base}key/design/..\\..\\x`, base, false)).toBe(false);
   });
 
   test("denies userinfo that disguises the host", () => {
-    expect(allowFrameNavigation(current, "http://127.0.0.1:4000@evil.example/t/tok/key/a.html", base)).toBe(false);
-    expect(allowFrameNavigation(current, "http://user:pw@127.0.0.1:4000/t/tok/key/a.html", base)).toBe(false);
-    expect(allowFrameNavigation("about:blank", "http://127.0.0.1:4000@evil.example/t/tok/key/a.html", base)).toBe(false);
+    expect(allowFrameNavigation(current, "http://127.0.0.1:4000@evil.example/t/tok/key/a.html", base, false)).toBe(false);
+    expect(allowFrameNavigation(current, "http://user:pw@127.0.0.1:4000/t/tok/key/a.html", base, false)).toBe(false);
   });
 
   test("denies data:, javascript: and other schemes", () => {
     for (const next of ["data:text/html,hi", "javascript:alert(1)", "file:///etc/passwd", "blob:http://127.0.0.1:4000/x", "about:blank"]) {
-      expect(allowFrameNavigation(current, next, base)).toBe(false);
+      expect(allowFrameNavigation(current, next, base, false)).toBe(false);
     }
   });
 
-  test("denies a missing frame (details.frame === null)", () => {
-    expect(allowFrameNavigation(null, `${base}key/a.html`, base)).toBe(false);
+  test("denies a canvas-started navigation when the current URL is outside the token path", () => {
+    expect(allowFrameNavigation("https://example.com/", `${base}key/a.html`, base, false)).toBe(false);
+    expect(allowFrameNavigation("http://127.0.0.1:4000/t/tokx/key/a.html", `${base}key/a.html`, base, false)).toBe(false);
   });
 
-  test("denies when the current URL is already outside the token path", () => {
-    expect(allowFrameNavigation("https://example.com/", `${base}key/a.html`, base)).toBe(false);
-    expect(allowFrameNavigation("http://127.0.0.1:4000/t/tokx/key/a.html", `${base}key/a.html`, base)).toBe(false);
-  });
-
-  test("denies when the current URL has no folder key", () => {
-    expect(allowFrameNavigation(`${base}`, `${base}key/a.html`, base)).toBe(false);
+  test("denies a canvas-started navigation when the current URL has no folder key", () => {
+    expect(allowFrameNavigation(`${base}`, `${base}key/a.html`, base, false)).toBe(false);
   });
 
   test("denies unparsable URLs and an unparsable base", () => {
-    expect(allowFrameNavigation(current, "http://", base)).toBe(false);
-    expect(allowFrameNavigation(current, "", base)).toBe(false);
-    expect(allowFrameNavigation(current, `${base}key/a.html`, "not a url")).toBe(false);
+    for (const fromApp of [true, false]) {
+      expect(allowFrameNavigation(current, "http://", base, fromApp)).toBe(false);
+      expect(allowFrameNavigation(current, "", base, fromApp)).toBe(false);
+      expect(allowFrameNavigation(current, `${base}key/a.html`, "not a url", fromApp)).toBe(false);
+      expect(allowFrameNavigation(current, `${base}key/a.html`, "", fromApp)).toBe(false);
+    }
   });
 
   test("treats a base without a trailing slash as a path segment boundary", () => {
     const loose = "http://127.0.0.1:4000/t/tok";
-    expect(allowFrameNavigation("about:blank", "http://127.0.0.1:4000/t/tokx/key/a.html", loose)).toBe(false);
-    expect(allowFrameNavigation("about:blank", `${base}key/a.html`, loose)).toBe(true);
+    expect(allowFrameNavigation("about:blank", "http://127.0.0.1:4000/t/tokx/key/a.html", loose, true)).toBe(false);
+    expect(allowFrameNavigation("about:blank", `${base}key/a.html`, loose, true)).toBe(true);
+  });
+});
+
+describe("startedByApp", () => {
+  test("is true only for an initiator without a parent", () => {
+    expect(startedByApp({ parent: null })).toBe(true);
+    expect(startedByApp({ parent: { parent: null } })).toBe(false);
+  });
+
+  test("is false for a missing initiator", () => {
+    expect(startedByApp(null)).toBe(false);
+    expect(startedByApp(undefined)).toBe(false);
+  });
+
+  test("is false when the parent is not exactly null", () => {
+    expect(startedByApp({ parent: undefined })).toBe(false);
+    expect(startedByApp({})).toBe(false);
+  });
+});
+
+describe("navigationGate", () => {
+  const top = { url: "file:///app/index.html", parent: null };
+  const canvas = { url: current, parent: top };
+
+  test("refuses when Electron gives no frame", () => {
+    expect(navigationGate(null)).toBe("refuse");
+    expect(navigationGate(undefined)).toBe("refuse");
+  });
+
+  test("skips only a proven grandchild", () => {
+    expect(navigationGate({ url: "https://embed.example/", parent: canvas })).toBe("skip");
+    expect(navigationGate({ url: "https://embed.example/", parent: { url: "x", parent: canvas } })).toBe("skip");
+  });
+
+  test("checks a canvas frame, a frame without a parent, and a frame whose ancestry is unknown", () => {
+    expect(navigationGate(canvas)).toBe("check");
+    expect(navigationGate(top)).toBe("check");
+    expect(navigationGate({ url: current, parent: { url: "x" } as never })).toBe("check");
+  });
+});
+
+describe("frameNavigationAllowed", () => {
+  const top = { url: "file:///app/index.html", parent: null };
+  const canvas = { url: current, parent: top };
+  const blank = { url: "about:blank", parent: top };
+
+  test("allows the app's src and refuses a canvas-started jump to another folder key", () => {
+    expect(frameNavigationAllowed({ url: `${base}other/a.html`, frame: canvas, initiator: top }, base)).toBe(true);
+    expect(frameNavigationAllowed({ url: `${base}other/a.html`, frame: canvas, initiator: canvas }, base)).toBe(false);
+  });
+
+  test("refuses a canvas that went to about:blank by itself and then leaves its folder key", () => {
+    expect(frameNavigationAllowed({ url: `${base}other/a.html`, frame: blank, initiator: blank }, base)).toBe(false);
+  });
+
+  test("treats a missing initiator as not the app", () => {
+    expect(frameNavigationAllowed({ url: `${base}other/a.html`, frame: canvas, initiator: null }, base)).toBe(false);
+    expect(frameNavigationAllowed({ url: `${base}other/a.html`, frame: canvas }, base)).toBe(false);
+    expect(frameNavigationAllowed({ url: `${base}key/b.html`, frame: canvas }, base)).toBe(true);
+  });
+
+  test("refuses when the frame is missing, even for the app", () => {
+    expect(frameNavigationAllowed({ url: current, frame: null, initiator: top }, base)).toBe(false);
+  });
+
+  test("restricts a frame without a parent instead of treating it as nested", () => {
+    expect(frameNavigationAllowed({ url: "https://example.com/", frame: top, initiator: top }, base)).toBe(false);
+  });
+
+  test("leaves a proven grandchild alone", () => {
+    const embed = { url: "https://embed.example/", parent: canvas };
+    expect(frameNavigationAllowed({ url: "https://other.example/", frame: embed, initiator: embed }, base)).toBe(true);
   });
 });
 
