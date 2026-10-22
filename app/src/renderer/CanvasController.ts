@@ -105,6 +105,9 @@ export class CanvasController {
     const open = this.state.open;
     if (open === null) return;
     const update = canvasViewUpdate(prev, next, open);
+    // Reads the flow-7 table for every folder update in one place. For reload
+    // and clear, load() and dropFrame() apply the same effect again, so either
+    // path alone keeps the rule (the clearing-row tests go red only without both).
     this.applySelectionEffect(update);
     switch (update.kind) {
       case "reload":

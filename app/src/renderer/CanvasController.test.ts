@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { FolderEntry } from "../main/view";
 import { CanvasController } from "./CanvasController";
+import { FIRST_LAYOUT_TIMEOUT_MS } from "./viewport";
 import { SELECTION_LOST } from "./selection";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -91,7 +93,7 @@ interface FakeMark {
 function selectionHarness() {
   const host = new EventTarget();
   vi.stubGlobal("window", host);
-  const frames: { contentWindow: { postMessage: ReturnType<typeof vi.fn> } }[] = [];
+  const frames: (EventTarget & { contentWindow: { postMessage: ReturnType<typeof vi.fn> } })[] = [];
   const marks: FakeMark[] = [];
   vi.stubGlobal("document", {
     createElement: (tag: string) => {
@@ -124,7 +126,7 @@ function selectionHarness() {
   const markOf = (kind: string) => marks.find((mark) => mark.className.split(" ").includes(kind));
   const state = () => changed.mock.lastCall?.[0];
   layout();
-  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay };
+  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host };
 }
 
 describe("selection", () => {
@@ -280,6 +282,121 @@ describe("selection", () => {
       h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
       h.controller.wheel({ dx: 0, dy: 5, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
       expect(h.markOf("hover")?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+});
+
+// design.md flow 7: each row is a pure decision (selection.test.ts); these pin
+// that the controller actually applies it on the matching code path.
+describe("selection wiring (flow 7)", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  const cleared = (h: ReturnType<typeof selectionHarness>) => {
+    expect(h.state()).toMatchObject({ selection: null, notice: "" });
+    expect(h.send).toHaveBeenLastCalledWith(null);
+    expect(h.markOf("selected")?.hidden).toBe(true);
+  };
+
+  it("a reload that never lays out clears the selection after the 5 s timeout", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.command("reload");
+      vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS - 1);
+      expect(h.state().selection).not.toBeNull();
+      vi.advanceTimersByTime(1);
+      expect(h.state().status).toBe("failed");
+      cleared(h);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a document that never answers measure after its load is unlisted and clears the selection", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.current().dispatchEvent(new Event("load"));
+      vi.advanceTimersByTime(1000);
+      expect(h.state().unlisted).toBe(true);
+      cleared(h);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a new document resets seq, so its first click is not dropped as stale", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.key("Escape");
+      h.controller.jump(1);
+      h.layout({ href: h.other.url });
+      h.select(1, { href: h.other.url });
+      expect(h.state().selection).toMatchObject({ tag: "span" });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a transient folder error keeps the selection and its mark", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.updateEntries([{ path: "/repo", kind: "error", message: "busy" }]);
+      expect(h.state()).toMatchObject({ error: "busy", selection: { tag: "span" } });
+      expect(h.markOf("selected")?.hidden).toBe(false);
+      expect(h.send).toHaveBeenCalledTimes(1);
+    } finally { h.controller.dispose(); }
+  });
+
+  it.each<[string, FolderEntry]>([
+    ["the canvas is gone from the list", { path: "/repo", kind: "list", servedRev: 0, canvases: [] }],
+    ["the project is not found", { path: "/repo", kind: "notFound" }],
+    ["the project is not initialized", { path: "/repo", kind: "uninitialized" }],
+  ])("clears when %s", (_name, entry) => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.updateEntries([entry]);
+      cleared(h);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("clears when the project is closed", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.updateEntries([]);
+      cleared(h);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a hover redraws the mark without re-rendering React", () => {
+    const h = selectionHarness();
+    try {
+      h.changed.mockClear();
+      h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      expect(h.markOf("hover")?.hidden).toBe(false);
+      expect(h.changed).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a select measured at another iframe height is kept without its rect until the next layout", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1, { viewport: 900 });
+      expect(h.state().selection).toMatchObject({ tag: "span" });
+      expect(h.markOf("selected")?.hidden ?? true).toBe(true);
+      h.layout({ seq: 1, selected: h.target.rect });
+      expect(h.markOf("selected")?.hidden).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("Esc in a text field of the app does not clear", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      const event = new Event("keydown");
+      Object.defineProperties(event, { key: { value: "Escape" }, target: { value: { tagName: "INPUT", isContentEditable: false } } });
+      h.host.dispatchEvent(event);
+      expect(h.state().selection).not.toBeNull();
     } finally { h.controller.dispose(); }
   });
 });
