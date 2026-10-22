@@ -16,7 +16,8 @@ describe("projectRow", () => {
 
   test("offers reopen only for missing projects and CLI errors", () => {
     expect(projectRow({ path: "/repo", kind: "notFound" })).toEqual({ status: "Not found", detail: ["/repo is gone or moved. Restore it and Reopen, or Close it."], actions: ["reopen", "close"] });
-    expect(projectRow({ path: "/repo", kind: "cliError", reason: "Timed out after 10 s" })).toEqual({ status: "CLI error", detail: ["Timed out after 10 s"], actions: ["reopen", "close"] });
+    expect(projectRow({ path: "/repo", kind: "cliError", reason: "timed out after 10 s" })).toEqual({ status: "CLI error", detail: ["Timed out after 10 s"], actions: ["reopen", "close"] });
+    expect(projectRow({ path: "/repo", kind: "cliError", reason: "spawn doan ENOENT" }).detail).toEqual(["Spawn doan ENOENT"]);
     expect(projectRow({ path: "/repo", kind: "cliError", reason: "" })).toEqual({ status: "CLI error", actions: ["reopen", "close"] });
     const entries: FolderEntry[] = [
       { path: "/repo", kind: "loading" }, { path: "/repo", kind: "uninitialized" },
