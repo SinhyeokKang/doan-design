@@ -11,7 +11,18 @@ describe("canvasRows", () => {
       [{ path: "design/a.html", id: "a", title: "Login", width: 1280, frames: [], comments: { open: 2, resolved: 1 } }],
       base,
     );
-    expect(rows).toEqual([{ path: "design/a.html", title: "Login", width: 1280, open: 2, url: `${base}design/a.html` }]);
+    expect(rows).toEqual([{ path: "design/a.html", id: "a", title: "Login", width: 1280, open: 2, resolved: 1, url: `${base}design/a.html` }]);
+  });
+
+  test("omits absent and non-string ids", () => {
+    const rows = canvasRows([{}, { id: 3 }, { id: null }].map((extra) => ({ path: "design/a.html", ...extra })), base);
+    for (const row of rows) expect(row).not.toHaveProperty("id");
+  });
+
+  test("defaults malformed resolved counts to zero", () => {
+    const invalid = [undefined, -1, 1.5, "3", NaN, Infinity, Number.MAX_SAFE_INTEGER + 1];
+    expect(canvasRows(invalid.map((resolved) => ({ path: "design/a.html", comments: { resolved } })), base).map((row) => row.resolved)).toEqual(invalid.map(() => 0));
+    expect(canvasRows([{ path: "design/a.html", comments: { resolved: Number.MAX_SAFE_INTEGER } }], base)[0]?.resolved).toBe(Number.MAX_SAFE_INTEGER);
   });
 
   test("omits a width that is not a positive safe integer", () => {
@@ -34,7 +45,7 @@ describe("canvasRows", () => {
 
   test("omits a missing title", () => {
     const rows = canvasRows([{ path: "design/b.html", frames: [], comments: { open: 0, resolved: 0 } }], base);
-    expect(rows).toEqual([{ path: "design/b.html", open: 0, url: `${base}design/b.html` }]);
+    expect(rows).toEqual([{ path: "design/b.html", open: 0, resolved: 0, url: `${base}design/b.html` }]);
     expect(rows[0]).not.toHaveProperty("title");
   });
 
@@ -88,7 +99,7 @@ describe("servingUrl", () => {
 describe("folderEntry", () => {
   test("narrows a list into rows and carries the served revision", () => {
     const entry = folderEntry("/repo", { kind: "list", root: "/repo", scope: ["design"], canvases: [{ path: "design/a.html" }] }, base, 3);
-    expect(entry).toEqual({ path: "/repo", kind: "list", servedRev: 3, canvases: [{ path: "design/a.html", open: 0, url: `${base}design/a.html` }] });
+    expect(entry).toEqual({ path: "/repo", kind: "list", servedRev: 3, canvases: [{ path: "design/a.html", open: 0, resolved: 0, url: `${base}design/a.html` }] });
   });
 
   // Only a list is served, so only a list has a revision to reload on.
@@ -127,13 +138,13 @@ describe("openDecision", () => {
   // read as "not initialized" and invite a nested `doan init`.
   test("a failing pick that is not a repo root is refused with the first run's reason", () => {
     expect(openDecision(broken, "/broken/design", noRepo)).toEqual({ refuse: "bad config" });
-    expect(openDecision(noCli, "/repo/design", noRepo)).toEqual({ refuse: "doan CLI 오류: spawn doan ENOENT" });
-    expect(openDecision({ kind: "cliError", reason: "" }, "/repo/design", noRepo)).toEqual({ refuse: "doan CLI 오류" });
+    expect(openDecision(noCli, "/repo/design", noRepo)).toEqual({ refuse: "doan CLI error: spawn doan ENOENT" });
+    expect(openDecision({ kind: "cliError", reason: "" }, "/repo/design", noRepo)).toEqual({ refuse: "doan CLI error" });
   });
 
   test("a failing pick is refused when the CLI cannot say whether it is a root", () => {
     expect(openDecision(broken, "/broken/design", noCli)).toEqual({ refuse: "bad config" });
-    expect(openDecision(noCli, "/repo", noCli)).toEqual({ refuse: "doan CLI 오류: spawn doan ENOENT" });
+    expect(openDecision(noCli, "/repo", noCli)).toEqual({ refuse: "doan CLI error: spawn doan ENOENT" });
   });
 
   test("a failing pick without a second run is refused", () => {
