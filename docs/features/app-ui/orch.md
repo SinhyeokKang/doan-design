@@ -32,7 +32,7 @@
 | 0 | task 0 | `AGENTS.md` | — | 지휘자 | grep 두 줄 | 완료 `9dbf9fe` |
 | A | task 2(초안 확정, 토큰 이동) | `design/` · `.doan/config.json` · `app/src/renderer/tokens.css`(새 파일) | — | Claude Opus medium (초안이 실험의 정본이라 문구 · 상태 판단이 틀리면 뒤 배치가 모두 어긋남) | `doan check --repo .` 오류 0, `doan ls` 프레임 7개, 한글 0건, `tokens.css` 지시어 0건 | 통합 `6b49140`..`7449715` (2라운드) |
 | B | task 1(스택 확인) | `.scratch/app-ui-stack/` · `docs/features/app-ui/design.md` 'PoC · 사전 확인' | — | Codex gpt-6.1-sol high (CSP · peer 호환 판단이 틀리면 렌더러 전체가 막힘) | 확인 항목마다 결과가 design.md에 있음. CSP를 넓혀야 하면 멈춤 | 통합 `bcfec5d` (사용자 결정 2건 뒤 재확인) |
-| C | task 3 · 4(순수 함수, main · preload · shell) | `app/src/renderer/{projectRow,activity,canvasInfo,canvasView}.ts`와 테스트, `app/src/main/{view,shell,index}.ts`와 테스트, `app/src/preload/`, `app/src/renderer/main.ts`의 타입이 깨지는 호출부만(지휘자 허가) | A(문구가 초안과 같아야 함) | Codex gpt-6.1-sol medium (경계 사례가 tasks에 다 적혀 있어 판단할 곳이 적다. 수명주기는 Claude 리뷰가 본다) | `npm --prefix app test` · `typecheck` · `build` | 대기 |
+| C | task 3 · 4(순수 함수, main · preload · shell) | `app/src/renderer/{projectRow,activity,canvasInfo,canvasView}.ts`와 테스트, `app/src/main/{view,shell,index}.ts`와 테스트, `app/src/preload/`, `app/src/renderer/main.ts`의 타입이 깨지는 호출부만(지휘자 허가) | A(문구가 초안과 같아야 함) | Codex gpt-6.1-sol medium (경계 사례가 tasks에 다 적혀 있어 판단할 곳이 적다. 수명주기는 Claude 리뷰가 본다) | `npm --prefix app test` · `typecheck` · `build` | 통합 `182cf9c`..`66c06e3` (2라운드) |
 | E | task 5 · 6(렌더러, e2e) | `app/src/renderer/` 나머지, `app/package.json` · lock · `.npmrc` · `components.json` · `electron.vite.config.ts` · `tsconfig.json`, `app/e2e/` | B · C | Codex gpt-6-astra medium (상위 모델, effort 상한 medium — 명령형 경계, CSP, 포커스, 변형 증명) | task 5 grep 4종, `test` · `typecheck`, `e2e` PASS 두 번 연속, 변형 표 | 대기 |
 | F | task 7(`/design-sync`) | `app/src/renderer/`, `docs/DESIGN.md`, `.scratch/design-sync/` | E | Codex gpt-6-astra medium (상위 모델, effort 상한 medium — 측정 · 수정 반복) | 대조표 일치 또는 기록된 차이, 첫 대조표 보존 | 대기 |
 | 리뷰 | 배치 A · C · E · F diff | 보고만 | 각 배치 | Claude Opus high(C · E · F) / Sonnet medium(A). C는 창 수명주기와 IPC 신뢰가 있어 Opus high로 올렸다 | 🔴 0 | — |
@@ -50,6 +50,7 @@ tasks.md의 체크 항목은 task 0–9이고 모두 위 한 행에 속한다.
 ## 진행 기록
 
 - A 1라운드 `790f01e` · `221d225` → 리뷰(Sonnet medium) 🔴 0 · 🟡 4 → 2라운드 `07a8fb9` · `373437c` → 통합. 통합 HEAD에서 check 오류 0 · 경고 6, 프레임 7, test 533 · typecheck 통과.
-- C(Sol medium) `bfdc067`..`4636bd1`: test 567 · typecheck · build 통과(워커 보고). `/runtime-test`와 e2e는 E로 넘김(지휘자 확인). 리뷰(Opus high) 🔴 0 · 🟡 2 · ⚪ 5 → 2라운드 진행 중. ⚪ 중 전체 화면 ⌘W 확인, `.frame-id` · `mono` 고아, preload 해제의 실제 경로는 E 브리프로 넘긴다.
+- C(Sol medium) `bfdc067`..`4636bd1`: test 567 · typecheck · build 통과(워커 보고). `/runtime-test`와 e2e는 E로 넘김(지휘자 확인). 리뷰(Opus high) 🔴 0 · 🟡 2 · ⚪ 5 → 2라운드 5커밋 → 통합. 통합 HEAD에서 test 568 · typecheck · build 통과. ⚪ 중 전체 화면 ⌘W 확인, `.frame-id` · `mono` 고아, preload 해제의 실제 경로는 E 브리프로 넘긴다.
 - B: CSP 게이트 실패(빌드 ScrollArea 인라인 style, dev Fast Refresh 인라인 스크립트) → 사용자 결정 두 건 → 재확인에서 빌드 · dev 위반 0건, peer 경고 0건 → `dd7f363` 통합(`bcfec5d`). 실험 사본과 인계 문서는 `.scratch/app-ui/`에 보관했다(렌더러 배치 참고용). B 터미널은 Orca가 `user_takeover`로 보존 중이다.
 
+- E 시작(Astra medium, 워크트리 `app-ui-E`).
