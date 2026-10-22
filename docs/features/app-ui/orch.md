@@ -25,6 +25,10 @@
 | 2026-10-22 | uninitialized는 `canvasViewUpdate`의 `clear` reason으로 따로 둔다. CLI error detail은 첫 글자만 대문자로 바꿔 초안과 맞춘다 | 지휘자 판단 — C 리뷰 🟡1 · 🟡2. 판단을 한 곳에 두고, 초안이 문구의 정본이다 |
 | 2026-10-22 | task 5의 한글 grep은 `--exclude='*.test.ts'`로 돌린다. 테스트의 한글은 비ASCII 경로 · 메시지를 검사하는 픽스처이므로 그대로 둔다 | 지휘자 판단 — 게이트의 목적은 화면 문구다. E 질문 |
 | 2026-10-22 | 전체 화면에서 ⌘W를 누르면 전체 화면을 빠져나온 뒤 창을 숨긴다. E가 `app/src/main/index.ts`와 그 테스트를 이 수정에 한해 고친다 | 지휘자 판단 — spec 완료 조건 7. E의 e2e에서 전체 화면 창이 Close Window 뒤에도 보이는 것을 확인함(C 리뷰 ⚪1) |
+| 2026-10-22 | 모든 프로젝트 행에 ×를 둔다(Error · Not initialized 포함). 초안을 고친다 | 사용자 — E 리뷰: Reopen이 없는 두 행은 ×가 유일한 닫기 경로 |
+| 2026-10-22 | "Updated"는 열린 캔버스의 마지막 성공 load 시각(Activity 첫 항목)이다. 없으면 숨긴다 | 사용자 — E 리뷰 🟡5 |
+| 2026-10-22 | 의존성은 task 1 고정 표대로 둔다(shadcn devDependency, clsx · tailwind-merge · cva 포함). audit high 7건은 모두 dev 전용 shadcn CLI 체인이다(`--omit=dev` 0건) | 사용자 — E 리뷰 |
+| 2026-10-22 | 초안의 × 추가는 Claude 워커(Sonnet low)가 한다 | 지휘자 판단 — design.md 흐름 10: 초안은 Claude |
 | 2026-10-22 | Codex 워커에게는 초안 경로와 `doan ls` · `doan check` 결과만 넘기고 초안을 말로 풀지 않는다 | tasks.md '진행' |
 
 ## 배치
@@ -55,4 +59,4 @@ tasks.md의 체크 항목은 task 0–9이고 모두 위 한 행에 속한다.
 - C(Sol medium) `bfdc067`..`4636bd1`: test 567 · typecheck · build 통과(워커 보고). `/runtime-test`와 e2e는 E로 넘김(지휘자 확인). 리뷰(Opus high) 🔴 0 · 🟡 2 · ⚪ 5 → 2라운드 5커밋 → 통합. 통합 HEAD에서 test 568 · typecheck · build 통과. ⚪ 중 전체 화면 ⌘W 확인, `.frame-id` · `mono` 고아, preload 해제의 실제 경로는 E 브리프로 넘긴다.
 - B: CSP 게이트 실패(빌드 ScrollArea 인라인 style, dev Fast Refresh 인라인 스크립트) → 사용자 결정 두 건 → 재확인에서 빌드 · dev 위반 0건, peer 경고 0건 → `dd7f363` 통합(`bcfec5d`). 실험 사본과 인계 문서는 `.scratch/app-ui/`에 보관했다(렌더러 배치 참고용). B 터미널은 Orca가 `user_takeover`로 보존 중이다.
 
-- E(Astra medium) `e8a4f54`..`425b554`: test 573 · typecheck · build · check · grep 3종 통과, e2e 두 번 연속 PASS, 변형 14줄 + 구독 정리 1줄 모두 실패 확인(워커 보고). 중간에 전체 화면 ⌘W 결함을 찾아 고쳤고(`51c3222` red → `ad12a88`), 새 iframe 변형이 처음에는 살아남아 C7에 직접 확인을 더했다. 리뷰(Opus high) 진행 중.
+- E(Astra medium) `e8a4f54`..`425b554`: test 573 · typecheck · build · check · grep 3종 통과, e2e 두 번 연속 PASS, 변형 14줄 + 구독 정리 1줄 모두 실패 확인(워커 보고). 중간에 전체 화면 ⌘W 결함을 찾아 고쳤고(`51c3222` red → `ad12a88`), 새 iframe 변형이 처음에는 살아남아 C7에 직접 확인을 더했다. 리뷰(Opus high) 🔴 0 · 🟡 5 · ⚪ 8 → 사용자 결정 3건 → 2라운드 진행 중(🟡 5 + ⚪ 1 · 2 · 3 · 6 · 8). 초안 × 추가(A3) 병행.
