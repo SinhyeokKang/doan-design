@@ -22,6 +22,7 @@
 | 2026-10-22 | `@vitejs/plugin-react`는 쓰지 않는다. JSX는 Vite 내장 변환으로 처리하고, dev에서는 Fast Refresh 대신 페이지 전체 리로드를 받아들인다. dev CSP는 그대로 둔다 | 사용자 — task 1에서 Fast Refresh의 인라인 스크립트가 dev CSP에 막혀 React가 뜨지 않음 |
 | 2026-10-22 | 캔버스가 열린 프로젝트가 uninitialized가 되면 notFound와 다른 문구를 쓴다: "The project <name> is not initialized. Run doan init in a terminal." | 사용자 — A 리뷰 🟡4: Reopen이 없는 행에 Reopen을 안내함 |
 | 2026-10-22 | CLI error 행의 칩은 "CLI error"로 둔다 | 지휘자 판단 — design.md '순수 함수'의 `projectRow` status에 "CLI error"가 따로 있다(A 리뷰 🟡1) |
+| 2026-10-22 | uninitialized는 `canvasViewUpdate`의 `clear` reason으로 따로 둔다. CLI error detail은 첫 글자만 대문자로 바꿔 초안과 맞춘다 | 지휘자 판단 — C 리뷰 🟡1 · 🟡2. 판단을 한 곳에 두고, 초안이 문구의 정본이다 |
 | 2026-10-22 | Codex 워커에게는 초안 경로와 `doan ls` · `doan check` 결과만 넘기고 초안을 말로 풀지 않는다 | tasks.md '진행' |
 
 ## 배치
@@ -49,6 +50,6 @@ tasks.md의 체크 항목은 task 0–9이고 모두 위 한 행에 속한다.
 ## 진행 기록
 
 - A 1라운드 `790f01e` · `221d225` → 리뷰(Sonnet medium) 🔴 0 · 🟡 4 → 2라운드 `07a8fb9` · `373437c` → 통합. 통합 HEAD에서 check 오류 0 · 경고 6, 프레임 7, test 533 · typecheck 통과.
-- C(Sol medium) `bfdc067`..`4636bd1`: test 567 · typecheck · build 통과(워커 보고). `/runtime-test`와 e2e는 E로 넘김(지휘자 확인). 리뷰(Opus high) 진행 중.
+- C(Sol medium) `bfdc067`..`4636bd1`: test 567 · typecheck · build 통과(워커 보고). `/runtime-test`와 e2e는 E로 넘김(지휘자 확인). 리뷰(Opus high) 🔴 0 · 🟡 2 · ⚪ 5 → 2라운드 진행 중. ⚪ 중 전체 화면 ⌘W 확인, `.frame-id` · `mono` 고아, preload 해제의 실제 경로는 E 브리프로 넘긴다.
 - B: CSP 게이트 실패(빌드 ScrollArea 인라인 style, dev Fast Refresh 인라인 스크립트) → 사용자 결정 두 건 → 재확인에서 빌드 · dev 위반 0건, peer 경고 0건 → `dd7f363` 통합(`bcfec5d`). 실험 사본과 인계 문서는 `.scratch/app-ui/`에 보관했다(렌더러 배치 참고용). B 터미널은 Orca가 `user_takeover`로 보존 중이다.
 
