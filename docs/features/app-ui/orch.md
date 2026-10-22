@@ -55,4 +55,4 @@ tasks.md의 체크 항목은 task 0–9이고 모두 위 한 행에 속한다.
 - C(Sol medium) `bfdc067`..`4636bd1`: test 567 · typecheck · build 통과(워커 보고). `/runtime-test`와 e2e는 E로 넘김(지휘자 확인). 리뷰(Opus high) 🔴 0 · 🟡 2 · ⚪ 5 → 2라운드 5커밋 → 통합. 통합 HEAD에서 test 568 · typecheck · build 통과. ⚪ 중 전체 화면 ⌘W 확인, `.frame-id` · `mono` 고아, preload 해제의 실제 경로는 E 브리프로 넘긴다.
 - B: CSP 게이트 실패(빌드 ScrollArea 인라인 style, dev Fast Refresh 인라인 스크립트) → 사용자 결정 두 건 → 재확인에서 빌드 · dev 위반 0건, peer 경고 0건 → `dd7f363` 통합(`bcfec5d`). 실험 사본과 인계 문서는 `.scratch/app-ui/`에 보관했다(렌더러 배치 참고용). B 터미널은 Orca가 `user_takeover`로 보존 중이다.
 
-- E 시작(Astra medium, 워크트리 `app-ui-E`).
+- E(Astra medium) `e8a4f54`..`425b554`: test 573 · typecheck · build · check · grep 3종 통과, e2e 두 번 연속 PASS, 변형 14줄 + 구독 정리 1줄 모두 실패 확인(워커 보고). 중간에 전체 화면 ⌘W 결함을 찾아 고쳤고(`51c3222` red → `ad12a88`), 새 iframe 변형이 처음에는 살아남아 C7에 직접 확인을 더했다. 리뷰(Opus high) 진행 중.
