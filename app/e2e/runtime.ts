@@ -217,12 +217,31 @@ async function run(cli: string, userData: string, repos: Repos): Promise<void> {
   try {
     // 1. Open the repos through the dialog.
     await emptyControls(page);
+    const disabledStyles = await page.getByRole("button", { name: "Zoom out", exact: true }).evaluate(button => ({
+      group: getComputedStyle(button.parentElement!.parentElement!).opacity,
+      button: getComputedStyle(button).opacity,
+    }));
+    assert.deepEqual(disabledStyles, { group: "0.4", button: "1" }, "disabled zoom is dimmed once");
+    assert.equal(await page.getByRole("button", { name: "Reload canvas", exact: true }).evaluate(button => getComputedStyle(button).opacity), "0.4", "disabled Reload opacity");
+    assert.equal(await page.getByRole("button", { name: "Reload canvas", exact: true }).evaluate(button => getComputedStyle(button.closest("header")!).lineHeight), "normal", "top bar does not inherit preflight line height");
     await replaceDialog(app, repos.ok);
     await page.getByRole("button", { name: "Open Project…", exact: true }).first().click();
     await waitFolders(page, (folders) => folders.some((f) => f.path === repos.ok && f.state === "list"), "ok repo listed after the button");
     for (const picked of [repos.broken, repos.plain, repos.sub, repos.link, repos.worktree]) {
       await openFolder(app, page, picked);
     }
+    const project = page.getByRole("treeitem", { name: "ok", exact: true });
+    assert.equal(await project.count(), 1, "project accessible name excludes its glyph");
+    assert.equal(await project.getByRole("treeitem", { name: "login.html", exact: true }).count(), 1, "canvas accessible name excludes its glyph");
+    const projectTypography = await project.evaluate(item => {
+      const glyph = item.firstElementChild!.firstElementChild!;
+      return { lineHeight: getComputedStyle(glyph.nextElementSibling!).lineHeight, glyphHeight: glyph.getBoundingClientRect().height };
+    });
+    assert.deepEqual(projectTypography, { lineHeight: "normal", glyphHeight: 16 }, "project text and glyph retain their natural line height");
+    const axSession = await page.context().newCDPSession(page);
+    const { nodes } = await axSession.send("Accessibility.getFullAXTree");
+    assert.deepEqual(nodes.filter(node => !node.ignored && node.role?.value === "StaticText" && ["◧", "▾", "▸"].includes(node.name?.value)), [], "decorative glyphs are absent from the accessibility tree");
+    await axSession.detach();
     const opened = [repos.ok, repos.broken, repos.plain, repos.worktree];
     let folders = await waitFolders(page, (all) => sameList(all.map((f) => f.path), opened) && all.every((f) => f.state !== "loading"), "four folders, subfolder and symlink deduped");
     assert.deepEqual(JSON.parse(await readFile(join(userData, "folders.json"), "utf8")), opened);
@@ -363,9 +382,12 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   const loadingText = await canvasButton(page, repos.canvas, "design/main.html").evaluate(async node => {
     (node as HTMLElement).click();
     await Promise.resolve();
-    return [...document.querySelectorAll('[role="region"][aria-label="Canvas"] [role="status"]')].map(status => status.textContent).find(text => text === "Loading…");
+    const status = [...document.querySelectorAll('[role="region"][aria-label="Canvas"] [role="status"]')].find(status => status.textContent === "Loading…");
+    const spinner = status?.querySelector('[aria-hidden="true"]');
+    const rect = spinner?.getBoundingClientRect();
+    return { text: status?.textContent, spinner: rect ? { width: rect.width, height: rect.height } : null };
   });
-  assert.equal(loadingText, "Loading…");
+  assert.deepEqual(loadingText, { text: "Loading…", spinner: { width: 18, height: 18 } }, "loading status keeps its hidden 18px spinner and text");
   let state = await waitLoaded(page, "main canvas shown");
   assert.deepEqual(await currentCanvases(page), [`${repos.canvas}\ndesign/main.html`]);
   assert.equal(await page.getAttribute('[role="region"][aria-label="Canvas"] iframe', "sandbox"), "allow-scripts");
@@ -458,6 +480,19 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   for (const [index, name] of ["# hero Hero", "# (no id)", "# scroller-box", "# tall", "# dup", "# dup"].entries()) {
     assert.equal(await frames.getByRole("button").nth(index).and(frames.getByRole("button", { name, exact: true })).count(), 1, `frame ${index} name`);
   }
+  const frameColors = await frames.getByRole("button").evaluateAll(buttons => {
+    const muted = buttons[1]!.querySelectorAll("span")[1]!;
+    const named = buttons[0]!.querySelectorAll("span")[1]!;
+    const token = getComputedStyle(document.documentElement).getPropertyValue("--text-3").trim();
+    const probe = document.createElement("span");
+    probe.style.color = token;
+    document.body.append(probe);
+    const expected = getComputedStyle(probe).color;
+    probe.remove();
+    return { muted: getComputedStyle(muted).color, named: getComputedStyle(named).color, expected };
+  });
+  assert.equal(frameColors.muted, frameColors.expected, "id-less frame label uses the resolved text-3 token");
+  assert.notEqual(frameColors.muted, frameColors.named, "id-less frame label differs from named frame");
   const tall = await frameRect(canvas, 3);
   let jumped = await jump(page, 3, sized);
   assert.ok(near(jumped.y + tall.y * jumped.scale, 32), "a tall frame is aligned to the top");
@@ -475,6 +510,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await settledScreenshot(page, "4-frame");
   await openCanvas(page, repos.canvas, "design/noframes.html");
   await waitFor(async () => (await page.getByRole("region", { name: "Frames", exact: true }).getByRole("paragraph").textContent()) === "This canvas has no data-doan-frame", "no-frames notice");
+  assert.equal(await page.getByRole("region", { name: "Frames", exact: true }).getByRole("paragraph").evaluate(hint => hint.childElementCount), 0, "no-frame hint is plain text without a code chip");
   await openCanvas(page, repos.canvas, "design/main.html");
 
   // C7. Live reload keeps the view; only served changes of this folder reload.
@@ -525,6 +561,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await canvasButton(page, repos.canvas, "design/nowidth.html").click();
   state = await waitView(page, (v) => v.status === "noWidth", "no-width notice");
   assert.equal(state.updated, "");
+  assert.equal(await page.getByRole("region", { name: "Canvas", exact: true }).getByRole("status").locator("b").textContent(), "Missing or invalid board width.", "no-width heading remains emphasized");
   assert.equal(
     state.statusText,
     'Missing or invalid board width. Ask the agent to add <meta name="doan:width" content="1440"> to <head>. Run doan check in a terminal to verify.',
@@ -1048,6 +1085,7 @@ async function readFolders(page: Page): Promise<FolderView[]> {
       const countText = await count.textContent() ?? "";
       const text = await row.evaluate(node => {
         const content = node.cloneNode(true) as HTMLElement;
+        // Decorative glyph text would shift the title slice.
         content.querySelectorAll('[aria-hidden="true"]').forEach(icon => icon.remove());
         return content.textContent ?? "";
       });

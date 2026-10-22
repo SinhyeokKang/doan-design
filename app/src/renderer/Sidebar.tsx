@@ -1,5 +1,4 @@
 import { useId, useRef, useState, type KeyboardEvent } from "react";
-import { ChevronRight } from "lucide-react";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { CanvasState } from "./CanvasController";
 import { canvasName, projectRow } from "./projectRow";
@@ -68,7 +67,7 @@ function ProjectTree({ entries, names, state, open }: SidebarProps) {
       const expanded = entry.kind !== "list" || !collapsed.has(entry.path);
       return <div role="treeitem" aria-label={name} aria-level={1} aria-expanded={expanded} tabIndex={active === entry.path ? 0 : -1} key={entry.path} onFocus={event => { if (event.target === event.currentTarget) setFocused(entry.path); }} onKeyDown={event => keys(event, entry)}>
         <div className="row project-row" onClick={() => { setFocused(entry.path); if (entry.kind === "list") toggle(entry.path); }}>
-          {expanded ? <span className="glyph" aria-hidden="true">▾</span> : <ChevronRight className="glyph" />}
+          <span className="glyph" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
           <Tooltip><TooltipTrigger asChild><span className="g">{name}</span></TooltipTrigger><TooltipContent>{entry.path}</TooltipContent></Tooltip>
           {display.status && <span className={display.status === "Not initialized" ? "cnt" : "err"}>{display.status}</span>}
           {!display.actions.includes("reopen") && <button className="close-project" aria-label={`Close project ${name}`} onClick={event => { event.stopPropagation(); close(entry.path); }}>×</button>}
@@ -98,7 +97,7 @@ function FrameList({ state, jump }: { state: CanvasState; jump: (index: number) 
   if (!layout) return null;
   return <section aria-label="Frames">
     <div className="sec">Frames <span className="r">{layout.truncated ? "1,000+" : layout.frames.length}</span></div>
-    {!layout.frames.length && <p className="hint frames-hint">This canvas has no <code>data-doan-frame</code></p>}
+    {!layout.frames.length && <p className="hint frames-hint">This canvas has no data-doan-frame</p>}
     <ol>{layout.frames.map((frame, index) => { const label = frameLabel(frame); return <li key={index}><button className="row frame-row" aria-current={state.pickedFrame === index ? "true" : undefined} onClick={() => jump(index)}><span className="glyph">#</span><span className={frame.id ? "g" : "g no-id"}>{label.id}</span><span className="d">{label.title}</span></button></li>; })}</ol>
     {layout.truncated && <p className="hint frames-hint">Showing the first 1,000</p>}
   </section>;

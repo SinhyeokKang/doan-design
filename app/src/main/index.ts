@@ -114,6 +114,7 @@ function createWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 600,
     titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 12, y: 14 },
     title: "Doan Design",
     webPreferences: {
       contextIsolation: true,
