@@ -139,6 +139,7 @@ The MVP is split into 8 features. One feature is one `/feature` run and is manag
 | 3 | `mcp` | `doan mcp` (stdio) |
 | 4 | `app-shell` | Electron skeleton: multiple folders · local server (serving scope) · file watching · canvas list. The real-app verification loop (`/runtime-test` skill) is built here. The app-driving tool (among Playwright Electron · CDP · `computer-use`) is decided in this feature's `/feature` (2026-10-21) |
 | 5 | `canvas-view` | sandbox iframe · board size · zoom in/out and pan · frame list and jumps · live reload (MVP app item 2, added 2026-10-22). Done 2026-10-22. When this feature is done, build the `/design-sync` skill (see 'Dogfooding' below) |
+| — | `app-ui` | App shell rebuilt from a draft canvas (`design/app-shell.html`): React + shadcn/ui + Tailwind renderer, English UI copy, V1 layout with a Canvas info panel, Reopen and Close for missing projects, closing the window hides it. Added between #5 and #6 without a number (2026-10-22 user: "lay the groundwork before building on it"). Done 2026-10-22 |
 | 6 | `select-inspect` | selection · inspector · `runtime.json` + socket · `doan active` |
 | 7 | `comments-ui` | panel comment CRUD · pins · outdated · sentence copy |
 | 8 | `onboard-dist` | first-run onboarding · skill stub install · refine `doan skill` body · notarized dmg · brew cask · auto-update |
@@ -146,7 +147,8 @@ The MVP is split into 8 features. One feature is one `/feature` run and is manag
 ### Dogfooding: doan's UI drafts live in doan (2026-10-21)
 
 - Design drafts for the doan app UI are kept as canvases in this repo's `design/` (ARCHITECTURE §1 Conventions), and viewed and commented on in the doan app. Whether the implementation matches the design draft is compared via computed style (`/design-sync`, built 2026-10-22: `.agents/skills/design-sync/SKILL.md`).
-- Order: build doan's canvas features before UI design drafts are needed. #4 `app-shell` and #5 `canvas-view` are implemented with minimal UI and no design drafts, and once #5 is done, the `/design-sync` skill is built. From #6 `select-inspect` on, the design draft → implementation → comparison loop runs.
+- Order: build doan's canvas features before UI design drafts are needed. #4 `app-shell` and #5 `canvas-view` are implemented with minimal UI and no design drafts, and once #5 is done, the `/design-sync` skill is built. From `app-ui` on (2026-10-22, was "from #6"), the design draft → implementation → comparison loop runs.
+- First run, `app-ui` (2026-10-22): Claude Code drew the draft and Codex workers implemented it and ran `/design-sync`; Claude reviewed (crossing the model boundary was allowed for this feature only). Codex read the draft as files (the canvas HTML and the shared `tokens.css`, plus `doan ls` / `doan check` output) and measured it in the real app; the draft was never paraphrased to it. First comparison table before any fix: 1,856 property rows, 248 raw mismatches (mostly font size, line height, color and padding, many caused by Tailwind preflight's inherited `line-height: 1.5`) and 2 missing elements (loading spinner, the no-width emphasis). After fixes every row matched or was documented (`docs/DESIGN.md`). The review still found a styled child the table had missed because only its container was paired (POSTMORTEM).
 - Why: apply the problem doan aims to solve (design drafts live outside the code, §1) to doan itself first to verify it. Standalone Claude Design shuts down on 2026-12-14, so a Malmoi-style handoff cannot be relied on.
 
 ### Deferred
@@ -329,6 +331,25 @@ Results:
 | 2026-10-22 | `/design-sync` treats a draft canvas as the source of truth only for a screen's initial implementation; after it is on main, the code and `docs/DESIGN.md` are, and a new draft is a change request | User decision (design-sync) — same rule as malmoi; a draft that is not kept current must not overrule shipped code |
 | 2026-10-22 | `/design-sync` reads both the draft and the implementation as computed styles in the real app (canvas iframe and app renderer, Playwright `_electron`) | User decision (design-sync) — one Chromium resolves units, fonts and token variables the same way on both sides |
 | 2026-10-22 | `/design-sync` pairs draft and implementation elements per run in a selector table; frames still point to code with `data-doan-implements` | User decision (design-sync) — no new convention and no test-only attributes in product code |
+| 2026-10-22 | `app-ui` is a feature between #5 and #6 with no number; #6–#8 keep their numbers | User decision (app-ui) — lay the groundwork before #6 and #7 build on it |
+| 2026-10-22 | The app UI is drafted first as `design/app-shell.html` (English copy), and `/design-sync` runs from `app-ui` on (replaces "used from #6") | User decision (app-ui) |
+| 2026-10-22 | Renderer stack: React + shadcn/ui (Radix) + Tailwind (replaces "plain DOM until #6 picks a UI framework", both rows) | User decision (app-ui) — #6 and #7 need trees, panels, tooltips and comment CRUD |
+| 2026-10-22 | No Radix ScrollArea (native overflow with CSS scrollbars) and no `@vitejs/plugin-react` (Vite's built-in JSX; dev reloads the page instead of Fast Refresh); both CSPs stay unchanged | User decision (app-ui task 1) — ScrollArea injected an inline `<style>` that the built CSP blocked; Fast Refresh's inline preamble was blocked by the dev CSP and React did not mount |
+| 2026-10-22 | Theme: dark only, one orange accent, one system sans font (no monospace) | User decision (app-ui) — reference: Sorcerer (github.com/gbrasil720/sorcerer, MIT; README and screenshots checked 2026-10-22) |
+| 2026-10-22 | App UI copy is English; a folder is called "Project" on screen, while code names and docs keep "folder" | User decision (app-ui) — the main users are outside users in general (§2) |
+| 2026-10-22 | Layout V1: top bar, left sidebar (Projects tree, Frames list), center canvas, right panel | User decision (app-ui) — V2 (bottom add-on panel) and V3 (Sorcerer layout) were considered |
+| 2026-10-22 | The right panel has no tabs, only a "Canvas" header: Path, ID, Width, Frames, Comments (Open, Resolved) and Activity; #6 and #7 decide their own panel layout | User decision (app-ui) |
+| 2026-10-22 | Activity lists, per open canvas and in memory only, when it was Opened or Reloaded in this run (latest first, at most 50, recorded on the first layout of a load; failed loads are not recorded); "Updated" shows the open canvas's last successful load and is hidden without one | User decision (app-ui, and its review) |
+| 2026-10-22 | Closing the window (red button, Cmd+W) hides it; the app stays in the Dock with watching and the local server running; Dock click and Cmd+O show the same window; Cmd+Q quits. File menu: Open Project… (Cmd+O), Close Window (Cmd+W) | User decision (app-ui) — `doan active` (#6) needs the app running; closes the #4 open question |
+| 2026-10-22 | A fullscreen window leaves fullscreen before it hides; an activate or Cmd+O before that cancels the hide | Conductor call (app-ui orchestration) — on macOS `hide()` left a fullscreen window visible (POSTMORTEM) |
+| 2026-10-22 | Window: 1238×780 by default, at least 960×600, `titleBarStyle: "hiddenInset"` with traffic lights at (12, 14); the top bar is the drag area | User decision (app-ui); traffic-light position is a conductor call from the draft (design-sync review) |
+| 2026-10-22 | Not found and CLI error projects offer Reopen (shows Reading…, rereads the stored path and re-arms watching) and Close; Error and Not initialized rows close with their × | User decision (app-ui) — closes the #4 "no recovery hint" open question |
+| 2026-10-22 | Status chips: "Error" (detail is the CLI message), "CLI error", "Not found", "Not initialized"; an open canvas whose project became uninitialized says "The project <name> is not initialized. Run doan init in a terminal." | User decision and conductor call (app-ui reviews) |
+| 2026-10-22 | Display names: a project is its basename, with its parent folder added when basenames collide; a canvas is its path relative to `design/`; full paths go to tooltips and the panel | User decision (app-ui) |
+| 2026-10-22 | The sidebar tree is hand-built (`role="tree"`, roving tabindex; ↑↓ move focus only, ←→ collapse and expand, Enter, Space or click opens); Tab order is top bar → sidebar → canvas → right panel; focus stays on the same row across list updates | User decision (app-ui) — Radix has no tree |
+| 2026-10-22 | e2e reads elements and state by role, accessible name and ARIA state only, with no test-only attributes | User decision (app-ui) |
+| 2026-10-22 | Tokens live in `app/src/renderer/tokens.css` (`:root` variables only), which `.doan/config.json` `tokenCss` names and the draft links; mock colors for drawn example canvases live in `design/mock.css` | User decision (app-ui) — draft and app share one token file, so `/design-sync` compares token names too |
+| 2026-10-22 | Codex workers implemented `app-ui` and ran `/design-sync`; Claude drew the draft and reviewed | User decision (app-ui) — test whether another agent can implement a Claude-drawn draft through doan alone |
 
 ## 8. Open questions
 
@@ -339,7 +360,6 @@ Carried over from README draft §15. When closed, they move to the matching sect
 - Should onboarding step 3 pass `--token-css` as a repo-relative path, or should `doan init` accept an absolute path inside the repo? Today an absolute path is `usage_error` (2026-10-21, cli-core). Decide before #8 `onboard-dist`.
 
 - An uninitialized subfolder opened before `doan init` ran in its parent keeps showing "not initialized" (the app reads it with `--repo <subfolder>`), and following that hint creates a nested repo. Decide with the onboarding `doan init` location in #8 `onboard-dist` (2026-10-22, app-shell).
-- Closing the window quits the app, unlike the macOS convention; and a "folder not found" entry gives no hint that reopening it restores the list. Decide in #6 with the UI framework (2026-10-22, app-shell).
 - Should #6 `doan active` and #7 frame comments use the app's rendered-DOM frame list or the static `doan ls` frames? They can differ (script-drawn frames, frames below a frozen height). Decide in #6 (2026-10-22, canvas-view).
 
 `doan:width` was closed as required with no default (2026-10-21).
