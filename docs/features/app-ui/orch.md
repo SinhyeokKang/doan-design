@@ -29,6 +29,7 @@
 | 2026-10-22 | "Updated"는 열린 캔버스의 마지막 성공 load 시각(Activity 첫 항목)이다. 없으면 숨긴다 | 사용자 — E 리뷰 🟡5 |
 | 2026-10-22 | 의존성은 task 1 고정 표대로 둔다(shadcn devDependency, clsx · tailwind-merge · cva 포함). audit high 7건은 모두 dev 전용 shadcn CLI 체인이다(`--omit=dev` 0건) | 사용자 — E 리뷰 |
 | 2026-10-22 | 초안의 × 추가는 Claude 워커(Sonnet low)가 한다 | 지휘자 판단 — design.md 흐름 10: 초안은 Claude |
+| 2026-10-22 | `/design-sync` 리뷰 🟡 3건: 프레임 힌트의 `<code>`를 빼 초안 평문을 따른다. 창에 `trafficLightPosition: {x: 12, y: 14}`(초안 위치)를 명시해 재고 고정한다. 접힌 프로젝트 행은 `▸` 텍스트 글리프로 `▾`와 맞춘다 | 지휘자 판단 — 이 화면들의 정본은 초안이다. 접힌 행은 초안 견본이 없어 펼친 행과 같은 글꼴로 둔다 |
 | 2026-10-22 | Codex 워커에게는 초안 경로와 `doan ls` · `doan check` 결과만 넘기고 초안을 말로 풀지 않는다 | tasks.md '진행' |
 
 ## 배치
@@ -60,4 +61,4 @@ tasks.md의 체크 항목은 task 0–9이고 모두 위 한 행에 속한다.
 - B: CSP 게이트 실패(빌드 ScrollArea 인라인 style, dev Fast Refresh 인라인 스크립트) → 사용자 결정 두 건 → 재확인에서 빌드 · dev 위반 0건, peer 경고 0건 → `dd7f363` 통합(`bcfec5d`). 실험 사본과 인계 문서는 `.scratch/app-ui/`에 보관했다(렌더러 배치 참고용). B 터미널은 Orca가 `user_takeover`로 보존 중이다.
 
 - E(Astra medium) `e8a4f54`..`425b554`: test 573 · typecheck · build · check · grep 3종 통과, e2e 두 번 연속 PASS, 변형 14줄 + 구독 정리 1줄 모두 실패 확인(워커 보고). 중간에 전체 화면 ⌘W 결함을 찾아 고쳤고(`51c3222` red → `ad12a88`), 새 iframe 변형이 처음에는 살아남아 C7에 직접 확인을 더했다. 리뷰(Opus high) 🔴 0 · 🟡 5 · ⚪ 8 → 사용자 결정 3건 → 2라운드 5커밋 → 통합. A3 초안 × 추가 `45278bc`. 통합 HEAD에서 test 578 · typecheck · build · check(오류 0) · grep 4종 0건 · e2e 두 번 연속 PASS(지휘자 재실행). 2라운드는 재리뷰하지 않았다(🔴 0이었고, 통합 게이트로 확인). POSTMORTEM 두 건 `924d3dc`.
-- F(Astra medium) 1–5단계 `7f82ed1`: 첫 대조표 1,856행 중 원시 불일치 248건 · 누락 요소 2개(스피너, 폭 없음 강조) → 고친 뒤 2,021행 렌더 불일치 0건(문자 차이 64건은 폭 0 테두리 63건과 네이티브 창 모서리 1건). 검증 못 한 것: 신호등 위치, 창 모서리, 메시지 상자. 첫 대조표 사본은 `.scratch/app-ui/design-sync/`. 6단계 리뷰(Opus high) 진행 중.
+- F(Astra medium) 1–5단계 `7f82ed1`: 첫 대조표 1,856행 중 원시 불일치 248건 · 누락 요소 2개(스피너, 폭 없음 강조) → 고친 뒤 2,021행 렌더 불일치 0건(문자 차이 64건은 폭 0 테두리 63건과 네이티브 창 모서리 1건). 검증 못 한 것: 신호등 위치, 창 모서리, 메시지 상자. 첫 대조표 사본은 `.scratch/app-ui/design-sync/`. 6단계 리뷰(Opus high) 🔴 0 · 🟡 3 · ⚪ 6 → 2라운드(수정 + 7 · 8단계) 진행 중. 같은 리뷰어를 2라운드 리뷰에 다시 쓴다.
