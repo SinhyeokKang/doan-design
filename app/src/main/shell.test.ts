@@ -233,6 +233,7 @@ exec '${cli}' "$@"
 
 function servedRepo(config: object): string {
   const root = writeRepo(dir(), JSON.stringify({ v: 1, ...config }));
+  mkdirSync(join(root, ".doan", "comments"));
   mkdirSync(join(root, "styles"));
   writeFileSync(join(root, "styles", "tokens.css"), "a{}");
   mkdirSync(join(root, "assets"));

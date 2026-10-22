@@ -203,6 +203,14 @@ function watchedPaths(): string[] {
   return vi.mocked(fsWatch).mock.calls.map(([path]) => String(path));
 }
 
+function recursivePaths(): string[] {
+  return vi.mocked(fsWatch).mock.calls.flatMap((call: unknown[]) => {
+    const [path, options] = call;
+    const recursive = typeof options === "object" && options !== null && "recursive" in options && options.recursive === true;
+    return recursive ? [String(path)] : [];
+  });
+}
+
 describe("watchFolder classifies changes", () => {
   test("a design/ change needs a re-read and is a served change", async () => {
     const root = repo();
@@ -220,7 +228,9 @@ describe("watchFolder classifies changes", () => {
   // Writing a comment must not reload the canvas, even when `serve` points into `.doan`.
   test("a .doan/ change is never served, even with .doan in scope", async () => {
     const root = repo();
-    const w = await watchScope(root, [".doan", "design"]);
+    vi.mocked(fsWatch).mockClear();
+    const w = await watchScope(root, [".doan", ".doan/config.json", "design"]);
+    expect(recursivePaths().filter((path) => path.startsWith(join(root, ".doan")))).toEqual([]);
     await expectChange(w, () => writeFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n"), REREAD);
     await expectChange(w, () => writeFileSync(join(root, ".doan", "config.json"), '{"v":1,"serve":[".doan"]}'), REREAD);
   });
@@ -234,11 +244,14 @@ describe("watchFolder classifies changes", () => {
     await expectChange(w, () => atomicSave(join(root, "styles", "tokens.css"), "c{}"), SERVED);
   });
 
-  test("an atomic save of a tokenCss file at the repo root is served without a re-read", async () => {
+  // The temporary file of an atomic save at the root is an unknown root name,
+  // which re-reads like any other root event (the root's own deletion is one).
+  test("a tokenCss file at the repo root is served", async () => {
     const root = repo();
     writeFileSync(join(root, "tokens.css"), "a{}");
     const w = await watchScope(root, ["design", "tokens.css"]);
-    await expectChange(w, () => atomicSave(join(root, "tokens.css"), "b{}"), SERVED);
+    await expectChange(w, () => writeFileSync(join(root, "tokens.css"), "b{}"), SERVED);
+    await expectChange(w, () => atomicSave(join(root, "tokens.css"), "c{}"), BOTH);
   });
 
   test("a sibling of a served file is ignored", async () => {
