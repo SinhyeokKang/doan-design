@@ -20,7 +20,7 @@ export function projectRow(entry: FolderEntry): ProjectRow {
     case "error":
       return { status: "Error", detail: [entry.message], actions: ["close"] };
     case "cliError":
-      return { status: "CLI error", ...(entry.reason ? { detail: [entry.reason] } : {}), actions: ["reopen", "close"] };
+      return { status: "CLI error", ...(entry.reason ? { detail: [entry.reason.charAt(0).toUpperCase() + entry.reason.slice(1)] } : {}), actions: ["reopen", "close"] };
     case "notFound":
       return { status: "Not found", detail: [`${entry.path} is gone or moved. Restore it and Reopen, or Close it.`], actions: ["reopen", "close"] };
   }
