@@ -39,7 +39,7 @@
 7. **문구**: 영어 문자열을 컴포넌트 안에 둔다. 초안 프레임의 문구가 정본이고, 바꾸면 초안도 같이 바꾼다.
    - 메뉴: File — Open Project… ⌘O, Close Window ⌘W. View — Zoom In ⌘=, Zoom Out ⌘−, Actual Size ⌘0, Fit ⌘1, Reload Canvas ⌘R, Enter Full Screen. ⌘W는 창만 숨기고 프로젝트는 닫지 않는다. 프로젝트 닫기는 행의 Close로만 한다. Electron `windowMenu` 역할에 Close가 없다는 것은 문서 기억이라 task 1에서 확인한다.
    - 열기 버튼은 사이드바 · 첫 실행 · 메뉴 모두 "Open Project…"다.
-   - 열린 캔버스가 사라질 때(`clear`의 reason): `closed`는 빈 상태 "Pick a canvas from the list"로 돌아간다. `notFound` · `uninitialized`는 "The project <name> is gone or moved. Reopen it from the sidebar."다. `missing`은 지금 문구를 영어로 옮긴다.
+   - 열린 캔버스가 사라질 때(`clear`의 reason): `closed`는 빈 상태 "Pick a canvas from the list"로 돌아간다. `notFound`는 "The project <name> is gone or moved. Reopen it from the sidebar."이고, `uninitialized`는 "The project <name> is not initialized. Run doan init in a terminal."이다(2026-10-22 사용자). `missing`은 지금 문구를 영어로 옮긴다.
    - 캔버스가 열려 있지 않을 때: 오른쪽 패널 "No canvas open", 위 막대는 프로젝트 이름만, 폭 칩 "—", Reload와 − · + · Fit은 disabled. unlisted 문서에서는 마지막 목록 캔버스의 정보에 Frames "—".
    - 그 밖: 프로젝트 오류 칩은 "Error"이고 detail은 CLI의 `message`다. CLI error의 detail은 이유만 둔다(예: "Timed out after 10 s"). Not found의 detail은 "<path> is gone or moved. Restore it and Reopen, or Close it."이다. "Couldn't load the canvas"에는 "Run doan check in a terminal"을 덧붙인다.
    - 접근 이름(아이콘만 있는 요소):
