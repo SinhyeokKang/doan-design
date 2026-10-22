@@ -63,6 +63,7 @@ Doan Design (`doan`): a tool where a coding agent writes an HTML canvas (a desig
 - `go run ./cli/cmd/doan <command> [--repo <path>] [--json]` — run the CLI by hand (2026-10-21 user, cli-core). Point `--repo` at a temporary directory, not this repo. Exception: `/design-sync`, and checking this repo's `design/` drafts, run the read-only `ls` and `check` with `--repo .` (2026-10-22; widened to draft checks 2026-10-22, app-ui).
 - `node .scratch/design-sync/<screen>/measure.mjs` — a `/design-sync` measurement script (Playwright `_electron`, temporary `--user-data-dir`, `DOAN_CLI`), modeled on `app/e2e/runtime.ts` (2026-10-22).
 - `npm --prefix app test` — TypeScript tests (`vitest run`).
+- `npx shadcn@4.22.1 add <component>` from `app/` — add a shadcn component (2026-10-22 user, app-ui). `app/.npmrc` has `save-exact=true`; install new packages with `npm --prefix app install --save-exact <pkg@version>`. No Radix ScrollArea and no `@vitejs/plugin-react` (CSP, PRODUCT §7).
 - `npm --prefix app run typecheck` — TypeScript checks (`tsc --noEmit`).
 - App setup (2026-10-21 user, app-shell): `npm --prefix app ci`, then `node -e "require('electron')"` from `app/` once to download the Electron binary (Electron 45 has no postinstall).
 - `npm --prefix app run build` — build the app into `app/out/` (`electron-vite build`).
@@ -95,8 +96,10 @@ The source for the 11 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, po
 | [docs/PRODUCT.md](./docs/PRODUCT.md) | **Source of truth for product judgment**, in English — problem · users · scope · loop · MVP · feature split · PoC · decision log (all decisions) · open questions | When a product decision is made. Every decision gets one line in the §7 decision log |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | **Source of truth for structure**, in English — conventions (the baseline for skills and `doan check`) · formats · rendering · CLI↔app · MCP · skills · stack · distribution · moving between machines | When a structure, format, or conventions decision is made. When a feature is done, promote its conclusions here |
 | `docs/features/<slug>/` | Feature documents (spec·design·tasks) from `/feature`, **in Korean**. Deleted once the conclusions are promoted | While the feature is in progress |
+| docs/DIRECTORY.md | Directory layout, in English | When the layout changes |
+| docs/DESIGN.md | Measured values the app UI relies on, documented deviations from drafts, unverified surfaces, in English. Created by the first `/design-sync` run (app-ui, 2026-10-22) | When `/design-sync` runs or a measured value changes |
 | docs/POSTMORTEM.md | Record of pitfalls from bugs and regressions (append only), in English. `/postmortem` creates it on first write | When a regression is fixed |
-| Documents to create later | `docs/DIRECTORY.md` (first code) · `docs/DESIGN.md` (the first `/design-sync` run creates it) · `docs/OPERATIONS.md` (feature 8 `onboard-dist`) · `docs/CONTRIBUTING.md` · `docs/CODE_OF_CONDUCT.md` · `docs/SECURITY.md` (right before going public) · root `LICENSE` (when the license is decided). All in English | Create them when that time comes. Do not create empty shells ahead of time (2026-10-21 user) |
+| Documents to create later | `docs/OPERATIONS.md` (feature 8 `onboard-dist`) · `docs/CONTRIBUTING.md` · `docs/CODE_OF_CONDUCT.md` · `docs/SECURITY.md` (right before going public) · root `LICENSE` (when the license is decided). All in English | Create them when that time comes. Do not create empty shells ahead of time (2026-10-21 user) |
 | [AGENTS.md](./AGENTS.md) | How we work (this file), in English — the shared source for both runtimes | When the way we work changes |
 
 ## Commit conventions
