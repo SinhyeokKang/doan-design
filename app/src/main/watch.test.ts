@@ -269,6 +269,32 @@ describe("watchFolder classifies changes", () => {
     await expectChange(w, () => writeFileSync(join(root, "assets", "img", "x.svg"), "<svg/>"), SERVED);
   });
 
+  // A build step that wipes its output directory replaces it in one burst.
+  test("a served directory at the root that is replaced is a served change", async () => {
+    const root = repo();
+    mkdirSync(join(root, "dist"));
+    writeFileSync(join(root, "dist", "a.css"), "a{}");
+    const w = await watchScope(root, ["design", "dist"]);
+    await expectChange(w, () => {
+      rmSync(join(root, "dist"), { recursive: true });
+      mkdirSync(join(root, "dist"));
+      writeFileSync(join(root, "dist", "a.css"), "b{}");
+    }, BOTH);
+  });
+
+  test("a nested served directory deleted and created again is watched again", async () => {
+    const root = repo();
+    mkdirSync(join(root, "web", "dist"), { recursive: true });
+    writeFileSync(join(root, "web", "dist", "a.css"), "a{}");
+    const w = await watchScope(root, ["design", "web/dist"]);
+    await expectChange(w, () => rmSync(join(root, "web", "dist"), { recursive: true }), SERVED);
+    await expectChange(w, () => {
+      mkdirSync(join(root, "web", "dist"));
+      writeFileSync(join(root, "web", "dist", "a.css"), "b{}");
+    }, SERVED);
+    await expectChange(w, () => writeFileSync(join(root, "web", "dist", "a.css"), "c{}"), SERVED);
+  });
+
   test("a path that leaves the scope is no longer watched", async () => {
     const root = repo();
     mkdirSync(join(root, "assets"));

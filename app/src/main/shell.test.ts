@@ -292,6 +292,18 @@ describe("served revision", () => {
     expect(counting.reads()).toBe(reads);
   });
 
+  // `doan ls` reports the same scope afterwards, so only the watcher can tell.
+  test("a serve directory at the root that is replaced bumps", async () => {
+    const root = servedRepo({ serve: ["dist"] });
+    mkdirSync(join(root, "dist"));
+    writeFileSync(join(root, "dist", "a.css"), "a{}");
+    const { changes, rev0 } = await opened(root);
+    rmSync(join(root, "dist"), { recursive: true });
+    mkdirSync(join(root, "dist"));
+    writeFileSync(join(root, "dist", "a.css"), "b{}");
+    await vi.waitFor(() => expect(rev(changes, root)).toBeGreaterThan(rev0), until);
+  });
+
   test.each<[string, object]>([
     ["no serve", {}],
     ["serve pointing at .doan", { serve: [".doan"] }],
