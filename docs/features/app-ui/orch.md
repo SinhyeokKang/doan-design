@@ -20,6 +20,8 @@
 | 2026-10-22 | Astra가 Sol보다 상위 모델이다. 판단이 많은 E · F는 Astra medium, C는 Sol medium으로 배정한다. B는 이미 Sol high로 돌고 있어 그대로 둔다 | 사용자 지적("astra가 더 상위 모델") |
 | 2026-10-22 | Radix ScrollArea는 쓰지 않는다. 사이드바와 패널은 네이티브 overflow로 스크롤하고 스크롤바는 CSS로 꾸민다. 빌드 CSP는 그대로 둔다 | 사용자 — task 1에서 ScrollArea의 인라인 `<style>`이 빌드 CSP 위반 1건 |
 | 2026-10-22 | `@vitejs/plugin-react`는 쓰지 않는다. JSX는 Vite 내장 변환으로 처리하고, dev에서는 Fast Refresh 대신 페이지 전체 리로드를 받아들인다. dev CSP는 그대로 둔다 | 사용자 — task 1에서 Fast Refresh의 인라인 스크립트가 dev CSP에 막혀 React가 뜨지 않음 |
+| 2026-10-22 | 캔버스가 열린 프로젝트가 uninitialized가 되면 notFound와 다른 문구를 쓴다: "The project <name> is not initialized. Run doan init in a terminal." | 사용자 — A 리뷰 🟡4: Reopen이 없는 행에 Reopen을 안내함 |
+| 2026-10-22 | CLI error 행의 칩은 "CLI error"로 둔다 | 지휘자 판단 — design.md '순수 함수'의 `projectRow` status에 "CLI error"가 따로 있다(A 리뷰 🟡1) |
 | 2026-10-22 | Codex 워커에게는 초안 경로와 `doan ls` · `doan check` 결과만 넘기고 초안을 말로 풀지 않는다 | tasks.md '진행' |
 
 ## 배치
@@ -45,4 +47,7 @@ tasks.md의 체크 항목은 task 0–9이고 모두 위 한 행에 속한다.
 - C와 E는 `canvasView.ts`를 함께 쓰지만 C가 먼저 끝나므로 직렬이다.
 
 ## 진행 기록
+
+- A 1라운드 `790f01e` · `221d225` → 리뷰(Sonnet medium) 🔴 0 · 🟡 4 → 2라운드 진행 중.
+- B: CSP 게이트 실패(빌드 ScrollArea 인라인 style, dev Fast Refresh 인라인 스크립트) → 사용자 결정 두 건을 전달하고 다시 확인 중.
 
