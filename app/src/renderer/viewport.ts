@@ -39,11 +39,11 @@ export const FIRST_LAYOUT_TIMEOUT_MS = 5000;
 
 // Not fixed by design.md. 0.01 makes a trackpad pinch (|dy| of a few px) move
 // smoothly while a mouse-wheel notch (|dy| 100) already hits WHEEL_ZOOM_MAX.
-const WHEEL_ZOOM_SENSITIVITY = 0.01;
+export const WHEEL_ZOOM_SENSITIVITY = 0.01;
 // Chromium reports pixels (deltaMode 0); lines and pages only show up from
 // other sources, so these are rough conversions rather than measured values.
-const LINE_PX = 16;
-const PAGE_PX = 800;
+export const LINE_PX = 16;
+export const PAGE_PX = 800;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));

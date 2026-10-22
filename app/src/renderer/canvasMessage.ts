@@ -4,6 +4,8 @@
 
 export const MAX_FRAMES = 1000;
 export const MAX_STRING = 200;
+// UTF-16 code units, as `String.length` counts them.
+export const MAX_HREF = 8192;
 
 export interface CanvasFrameRect {
   id: string;
@@ -68,7 +70,8 @@ function parseLayout(data: Record<string, unknown>): LayoutMessage | null {
   const { href, height, frames } = data;
   if (typeof href !== "string" || !nonNegative(height) || !Array.isArray(frames)) return null;
   // `href` is compared with a canvas URL later, so cutting it would only make a
-  // long path look like an unknown document.
+  // long path look like an unknown document; an oversized one is dropped whole.
+  if (href.length > MAX_HREF) return null;
   let truncated = data.truncated === true || frames.length > MAX_FRAMES;
   const kept: CanvasFrameRect[] = [];
   for (const raw of frames.slice(0, MAX_FRAMES)) {
