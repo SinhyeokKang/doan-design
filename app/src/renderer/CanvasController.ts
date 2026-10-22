@@ -3,10 +3,13 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import { acceptCanvasMessage, type LayoutMessage } from "./canvasMessage";
 import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, sameDocument, type OpenCanvas } from "./canvasView";
 import { projectNames } from "./projectRow";
-import { pushActivity, type ActivityEvent } from "./activity";
+import { activityFor, pushActivity, type ActivityEvent } from "./activity";
 import { boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 
+const MEASURE_ANSWER_MS = 1000;
+
 export interface CanvasState {
+  hasFrame: boolean;
   open: (OpenCanvas & { row: CanvasRow }) | null;
   shown: string | null;
   layout: LayoutMessage | null;
@@ -21,7 +24,7 @@ export interface CanvasState {
 }
 
 export function initialCanvasState(): CanvasState {
-  return { open: null, shown: null, layout: null, pickedFrame: null, status: "empty", message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, updated: null, activity: [] };
+  return { hasFrame: false, open: null, shown: null, layout: null, pickedFrame: null, status: "empty", message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, updated: null, activity: [] };
 }
 
 // React owns the surrounding shell; only this controller owns the board's children.
@@ -56,7 +59,17 @@ export class CanvasController {
     this.dropFrame();
   }
 
-  private publish(): void { this.changed({ ...this.state }); }
+  private publish(): void {
+    const open = this.state.open;
+    this.state.updated = open ? activityFor(this.state.activity, open.folder, open.canvas)[0]?.at ?? null : null;
+    this.state.hasFrame = this.frame !== null;
+    this.changed({ ...this.state });
+  }
+
+  private layoutDisplayKey(): string {
+    const { layout, pickedFrame, status, shown, unlisted } = this.state;
+    return JSON.stringify([layout?.frames.map(frame => [frame.id, frame.title]), layout?.truncated, pickedFrame, status, shown, unlisted]);
+  }
 
   updateEntries(next: FolderEntry[]): void {
     const prev = this.entries;
@@ -89,6 +102,7 @@ export class CanvasController {
           : `${open.canvas} is no longer in the list. It was deleted or moved.`;
         break;
       }
+      // Keep the last rendered document while its folder cannot be read.
       case "errorLine": this.state.error = update.message; break;
       case "none": {
         // Comment-only changes update metadata without reloading the document.
@@ -122,6 +136,7 @@ export class CanvasController {
     next.setAttribute("sandbox", "allow-scripts");
     next.title = row.path;
     next.addEventListener("load", () => this.frameLoaded(next));
+    // Only the URL supplied by main may become src; a canvas message is not authority.
     next.src = row.url;
     if (fresh || this.frame === null) {
       this.dropFrame();
@@ -180,7 +195,8 @@ export class CanvasController {
       this.state.shown = null;
       this.state.unlisted = true;
       this.publish();
-    }, 1000);
+    }, MEASURE_ANSWER_MS);
+    // The sandbox has an opaque origin, so a concrete target origin cannot match it.
     target.contentWindow?.postMessage({ type: "measure" }, "*");
   }
 
@@ -193,6 +209,8 @@ export class CanvasController {
   };
 
   private onLayout(message: LayoutMessage): void {
+    const before = this.layoutDisplayKey();
+    const previousActivity = this.state.activity;
     const newDocument = this.lastHref !== null && !sameDocument(this.lastHref, message.href);
     this.setFrameHeight(layoutHeight(this.lastHref, this.frameHeight, message));
     this.lastHref = message.href;
@@ -209,7 +227,6 @@ export class CanvasController {
     const linked = this.markShown(message.href);
     if ((first || linked) && this.state.open && !this.state.unlisted) {
       const at = new Date();
-      this.state.updated = at;
       this.state.activity = pushActivity(this.state.activity, { ...this.state.open, at, kind: linked ? "opened" : this.loadKind }, 50);
     }
     if (this.jumpTo !== null) {
@@ -221,7 +238,7 @@ export class CanvasController {
       }
       this.jumpTo = null;
     }
-    this.publish();
+    if (before !== this.layoutDisplayKey() || previousActivity !== this.state.activity) this.publish();
   }
 
   private markShown(href: string): boolean {
@@ -242,7 +259,9 @@ export class CanvasController {
 
   jump(index: number): void {
     if (this.frame?.contentWindow == null) return;
+    // IDs may repeat or be empty; a jump selects the frame by list position.
     this.jumpTo = index;
+    // The sandbox has an opaque origin, so a concrete target origin cannot match it.
     this.frame.contentWindow.postMessage({ type: "measure" }, "*");
   }
 

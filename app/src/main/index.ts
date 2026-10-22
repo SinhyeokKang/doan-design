@@ -30,6 +30,13 @@ app.on("web-contents-created", (_event, contents) => {
 let win: BrowserWindow | undefined;
 let shell: Shell | undefined;
 let quitting = false;
+let cancelPendingHide = () => {};
+const FULLSCREEN_EXIT_WAIT_MS = 2000;
+
+function showWindow(window: BrowserWindow): void {
+  cancelPendingHide();
+  window.show();
+}
 
 function fromWindow(event: IpcMainInvokeEvent): boolean {
   return win !== undefined && !win.isDestroyed() && fromAppFrame(event, win);
@@ -123,13 +130,22 @@ function createWindow(): BrowserWindow {
   window.on("close", (event) => {
     if (quitting) return;
     event.preventDefault();
+    cancelPendingHide();
     if (window.isFullScreen()) {
-      // macOS cannot hide the window until the fullscreen transition ends.
-      window.once("leave-full-screen", () => { if (!window.isDestroyed()) window.hide(); });
+      // macOS cannot hide until the transition ends; a later open cancels this close.
+      const hide = () => { cancelPendingHide(); if (!window.isDestroyed()) window.hide(); };
+      const timeout = setTimeout(() => cancelPendingHide(), FULLSCREEN_EXIT_WAIT_MS);
+      cancelPendingHide = () => {
+        clearTimeout(timeout);
+        window.removeListener("leave-full-screen", hide);
+        cancelPendingHide = () => {};
+      };
+      window.once("leave-full-screen", hide);
       window.setFullScreen(false);
     } else window.hide();
   });
   window.on("closed", () => {
+    cancelPendingHide();
     if (win === window) win = undefined;
   });
   return window;
@@ -139,7 +155,7 @@ async function openProject(): Promise<void> {
   const window = win;
   const ready = shell;
   if (!window || window.isDestroyed() || !ready) return;
-  window.show();
+  showWindow(window);
   const picked = await dialog.showOpenDialog(window, { title: "Open Project…", properties: ["openDirectory"] });
   const path = picked.filePaths[0];
   if (picked.canceled || path === undefined) return;
@@ -181,9 +197,9 @@ app.whenReady().then(start).catch((error: unknown) => {
   app.exit(1);
 });
 
-app.on("before-quit", () => { quitting = true; });
+app.on("before-quit", () => { quitting = true; cancelPendingHide(); });
 app.on("activate", () => {
-  if (win && !win.isDestroyed()) win.show();
+  if (win && !win.isDestroyed()) showWindow(win);
 });
 
 app.on("will-quit", () => {
