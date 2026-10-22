@@ -1,6 +1,17 @@
 import { describe, expect, test } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { canvasViewUpdate, type OpenCanvas } from "./canvasView";
+import {
+  canvasAtHref,
+  canvasViewUpdate,
+  cliErrorText,
+  frameLabel,
+  INITIAL_HEIGHT,
+  layoutHeight,
+  MAX_HEIGHT,
+  sameDocument,
+  updatedText,
+  type OpenCanvas,
+} from "./canvasView";
 
 const open: OpenCanvas = { folder: "/repo", canvas: "design/a.html" };
 
@@ -97,5 +108,125 @@ describe("canvasViewUpdate", () => {
     expect(canvasViewUpdate(prev, now, { folder: "/other", canvas: "design/a.html" })).toEqual({ kind: "clear", reason: "missing" });
     const widened = [list("/other", 1, [row("design/a.html", { width: 375 })]), ...before];
     expect(canvasViewUpdate(prev, widened, open)).toEqual({ kind: "none" });
+  });
+});
+
+describe("constants", () => {
+  test("pins the iframe height rule values", () => {
+    expect(INITIAL_HEIGHT).toBe(150);
+    expect(MAX_HEIGHT).toBe(200_000);
+  });
+});
+
+describe("cliErrorText", () => {
+  test("names the reason when there is one", () => {
+    expect(cliErrorText("timed out after 10 s")).toBe("doan CLI 오류: timed out after 10 s");
+    expect(cliErrorText("")).toBe("doan CLI 오류");
+  });
+});
+
+const base = "http://127.0.0.1:4100/t/tok/key/";
+
+describe("sameDocument", () => {
+  test("matches the same URL", () => {
+    expect(sameDocument(`${base}design/a.html`, `${base}design/a.html`)).toBe(true);
+  });
+
+  // A hash link stays in the same document.
+  test("ignores the fragment", () => {
+    expect(sameDocument(`${base}design/a.html#top`, `${base}design/a.html`)).toBe(true);
+  });
+
+  test("keeps the query", () => {
+    expect(sameDocument(`${base}design/a.html?x=1`, `${base}design/a.html`)).toBe(false);
+  });
+
+  // CanvasRow.url encodes every reserved character; a link the browser
+  // resolves leaves some of them as typed.
+  test("compares path segments decoded", () => {
+    expect(sameDocument(`${base}design/a,b%20c.html`, `${base}design/a%2Cb%20c.html`)).toBe(true);
+    expect(sameDocument(`${base}design/%ED%95%9C.html`, `${base}design/한.html`)).toBe(true);
+  });
+
+  test("does not merge an encoded slash with a real one", () => {
+    expect(sameDocument(`${base}design/a%2Fb.html`, `${base}design/a/b.html`)).toBe(false);
+  });
+
+  test("differs by folder key, port and path", () => {
+    expect(sameDocument(`${base}design/a.html`, "http://127.0.0.1:4100/t/tok/other/design/a.html")).toBe(false);
+    expect(sameDocument(`${base}design/a.html`, "http://127.0.0.1:4101/t/tok/key/design/a.html")).toBe(false);
+    expect(sameDocument(`${base}design/a.html`, `${base}design/b.html`)).toBe(false);
+  });
+
+  test("never matches what does not parse", () => {
+    expect(sameDocument("not a url", "not a url")).toBe(false);
+    expect(sameDocument(`${base}design/%E0%A4%A.html`, `${base}design/%E0%A4%A.html`)).toBe(false);
+    expect(sameDocument("about:blank", "about:blank")).toBe(false);
+  });
+});
+
+describe("canvasAtHref", () => {
+  const rows = [row("design/a.html"), row("design/b c.html", { url: `${base}design/b%20c.html` })];
+
+  test("finds the listed canvas a document shows", () => {
+    expect(canvasAtHref(rows, `${rows[0]!.url}#frame`)).toBe(rows[0]);
+    expect(canvasAtHref(rows, `${base}design/b%20c.html`)).toBe(rows[1]);
+  });
+
+  test("finds nothing for an unlisted document", () => {
+    expect(canvasAtHref(rows, `${base}design/notes.html`)).toBeUndefined();
+  });
+});
+
+describe("layoutHeight", () => {
+  const layout = (href: string, height: number) => ({ href, height });
+  const a = `${base}design/a.html`;
+
+  test("uses the measured height of the document it loaded", () => {
+    expect(layoutHeight(null, 150, layout(a, 900))).toBe(900);
+    expect(layoutHeight(a, 900, layout(a, 640))).toBe(640);
+  });
+
+  test("caps the height", () => {
+    expect(layoutHeight(null, 150, layout(a, 500_000))).toBe(MAX_HEIGHT);
+    expect(layoutHeight(a, 150, layout(a, MAX_HEIGHT))).toBe(MAX_HEIGHT);
+  });
+
+  // A linked document inherits the iframe height and a 100vh canvas could not
+  // shrink below it, so it is measured again from the initial height.
+  test("resets for a new document", () => {
+    expect(layoutHeight(a, 2400, layout(`${base}design/b.html`, 2400))).toBe(INITIAL_HEIGHT);
+  });
+
+  // Already at the initial height there is no resize to trigger another layout,
+  // so this one is the measurement.
+  test("takes a new document's height when the iframe is already at the initial height", () => {
+    expect(layoutHeight(a, INITIAL_HEIGHT, layout(`${base}design/b.html`, 700))).toBe(700);
+  });
+
+  test("does not reset for a hash change", () => {
+    expect(layoutHeight(a, 2400, layout(`${a}#second`, 2400))).toBe(2400);
+  });
+});
+
+describe("frameLabel", () => {
+  test("prefers the title", () => {
+    expect(frameLabel({ id: "hero", title: "Hero" })).toEqual({ text: "Hero", mono: false });
+  });
+
+  test("falls back to the id in monospace", () => {
+    expect(frameLabel({ id: "hero" })).toEqual({ text: "hero", mono: true });
+    expect(frameLabel({ id: "hero", title: "" })).toEqual({ text: "hero", mono: true });
+  });
+
+  test("names a frame without id", () => {
+    expect(frameLabel({ id: "" })).toEqual({ text: "(id 없음)", mono: false });
+  });
+});
+
+describe("updatedText", () => {
+  test("shows local hours, minutes and seconds", () => {
+    expect(updatedText(new Date(2026, 9, 22, 14, 3, 21))).toBe("갱신 14:03:21");
+    expect(updatedText(new Date(2026, 9, 22, 9, 0, 5))).toBe("갱신 09:00:05");
   });
 });
