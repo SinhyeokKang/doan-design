@@ -25,7 +25,7 @@ const view: View = { x: 100, y: 50, scale: 1 };
 const viewport = { width: 1000, height: 800 };
 
 describe("constants", () => {
-  test("pin the values design.md fixes", () => {
+  test("pin the values ARCHITECTURE §3 fixes", () => {
     expect(MIN_SCALE).toBe(0.05);
     expect(MAX_SCALE).toBe(4);
     expect(ZOOM_LIMITS).toEqual({ min: 0.05, max: 4 });

@@ -202,7 +202,7 @@ function load(row: CanvasRow, fresh: boolean): void {
   next.title = row.path;
   next.addEventListener("load", () => frameLoaded(next));
   // Only ever a CanvasRow.url from main: app-started navigations may go to any
-  // folder key (design.md security, iframe src).
+  // folder key (ARCHITECTURE §3, iframe src).
   next.src = row.url;
   if (fresh || frame === null) {
     dropFrame();

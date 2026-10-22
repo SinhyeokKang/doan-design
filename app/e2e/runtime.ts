@@ -339,7 +339,7 @@ const COMMENT_MAIN = { ...COMMENT, id: "evt_00000000-0000-4000-8000-000000000002
 // Long enough for the watcher debounce, a `doan ls` run and an iframe load.
 const QUIET_MS = 1500;
 
-// Canvas view steps (design.md / tasks.md task 7). Positions inside the iframe
+// Canvas view steps (ARCHITECTURE §3, Canvas view). Positions inside the iframe
 // come from the canvas's own rects (board px) and the board transform:
 // Playwright's boundingBox() ignores the board scale inside the iframe.
 async function canvasView(app: ElectronApplication, page: Page, repos: Repos): Promise<void> {

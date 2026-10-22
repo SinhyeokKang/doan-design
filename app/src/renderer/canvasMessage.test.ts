@@ -24,7 +24,7 @@ const wheel = (over: Record<string, unknown> = {}) => ({
 });
 
 describe("constants", () => {
-  test("pin the limits design.md fixes", () => {
+  test("pin the limits ARCHITECTURE §3 fixes", () => {
     expect(MAX_FRAMES).toBe(1000);
     expect(MAX_STRING).toBe(200);
   });
