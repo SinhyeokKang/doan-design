@@ -32,6 +32,7 @@
 | 2026-10-22 | 캔버스 안 중첩 iframe은 포커스가 앱 UI에 있을 때(흔한 경우) 클릭으로 선택되지 않는 것을 한계로 받아들인다. E가 실제 창에서 확인한 결과를 기록하고, 승격 때 ARCHITECTURE §3에 적는다 | 지휘자 판단 — 캔버스 창이 포커스를 갖지 않으면 blur가 오지 않는다(R 수정 1). 마우스를 올릴 때 캔버스로 포커스를 끌어오는 방법은 앱 입력 칸의 포커스를 빼앗는다. 캔버스 안 중첩 iframe은 드물다 |
 | 2026-10-23 | 남은 배치 중 새로 띄우는 워커는 Codex다(인스펙터 e2e 후속, 리뷰, task 10 `/design-sync`). 판단이 큰 것은 `gpt-6-astra` medium, 기계적인 것은 `gpt-6.1-sol`. 이미 돌고 있는 E와 M 수정 2는 Claude로 마친다. 지휘는 Claude로 남는다 | 사용자("남은 배치 중 가능한 거는 Codex 패밀리로 전환하자. claude 토큰이 모자라") — 모델 경계 넘기를 사용자가 직접 허락했다. 결과로 PRODUCT §7(2026-10-22) "Claude Code implements and runs `/design-sync`"가 바뀌고, 승격 때 적는다 |
 | 2026-10-23 | E가 찾은 제품 실패 처리: 캔버스를 벗어나면 hover를 렌더러가 지운다(OOPIF에 나가는 `pointerout`이 오지 않는다). ⌥를 떼면 마지막 hover를 다시 보인다. Ctrl-클릭 · 오른쪽 클릭은 선택도 바꾸지 않고 캔버스의 포커스 · 동작도 일으키지 않는다. 보드 밖 여백 클릭은 선택을 푼다(spec 완료 조건 4의 '보드 밖'). 앱 포커스에서 중첩 iframe 클릭은 받아들인 한계로 e2e 기대값을 바꾼다. 수정은 Codex F1, e2e 후속은 Codex E2 | 지휘자 판단 — E 인계 'Read first'. spec 4는 보드 밖과 캔버스 `html` · `body`를 따로 적었다 |
+| 2026-10-23 | task 9는 Codex 워커(`gpt-6.1-sol` high, 단계가 많고 판단은 적다)가 한다. `claude -p` 1회와 `codex exec` 1회를 이 확인에만 허용한다. E · F1 · E2 리뷰와 task 10 `/design-sync`도 Codex(`gpt-6-astra` medium)다. `/design-sync` 6단계 리뷰는 지휘자가 띄운다 | 사용자(task 9 질문에 'Codex 워커에 맡기고 둘 다 허용'), 2026-10-23 Codex 전환 결정 |
 | 2026-10-22 | PoC 6 소켓 절반 통과. 런타임 · 소켓 형식은 design.md 그대로다 | P6 인계(`.scratch/handoff-P6.md`): 선택 수신 · 창 숨김 · `bad_token` · ENOENT · ECONNREFUSED · 두 번째 인스턴스 · 0600/0700 · 정상 종료 정리 모두 기대대로 |
 
 ## 배치
