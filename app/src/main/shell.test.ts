@@ -251,7 +251,18 @@ async function opened(root: string, cliPath = cli, onEntries?: (entries: FolderE
   const started = await start(cliPath, onEntries);
   await started.shell.open(root);
   await vi.waitFor(() => expect(listed(latest(started.changes), root)).toBeDefined(), until);
-  await sleep(400);
+  // Until nothing is published for 400 ms (bounded): a fixed sleep let a late
+  // startup run land after `rev0` and fail a test expecting no bump.
+  const deadline = Date.now() + 3_000;
+  let seen = started.changes.length;
+  let since = Date.now();
+  while (Date.now() < deadline && Date.now() - since < 400) {
+    await sleep(10);
+    if (started.changes.length !== seen) {
+      seen = started.changes.length;
+      since = Date.now();
+    }
+  }
   const rev0 = rev(started.changes, root);
   if (rev0 === undefined) throw new Error("folder is not listed");
   return { ...started, rev0 };

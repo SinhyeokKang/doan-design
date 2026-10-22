@@ -15,10 +15,17 @@ import { join } from "node:path";
 import { afterAll, afterEach, describe, expect, test, vi } from "vitest";
 import { createRefresher, watchFolder, type Change, type FolderWatch } from "./watch";
 
-// Pass-through spy, so a test can see which paths got a watcher of their own.
+// Pass-through spy, so a test can see which paths got a watcher of their own;
+// it also counts raw events, so a test can wait until they stop.
+const raw = vi.hoisted(() => ({ events: 0 }));
 vi.mock("node:fs", async (importOriginal) => {
   const fs = await importOriginal<typeof import("node:fs")>();
-  return { ...fs, watch: vi.fn(fs.watch) };
+  const watch = (path: string, options: { recursive: boolean }, listener: (event: string, filename: string | null) => void) =>
+    fs.watch(path, options, (event, filename) => {
+      raw.events++;
+      listener(event, filename);
+    });
+  return { ...fs, watch: vi.fn(watch) };
 });
 
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-watch-")));
@@ -32,6 +39,23 @@ afterEach(() => {
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+// Waits until neither a raw event nor a call has arrived for 300 ms (bounded).
+// A fixed sleep let a late FSEvents batch from setup slip into the next step,
+// and a raw event shows up before the debounced call it causes.
+async function settle(calls: () => number): Promise<void> {
+  const activity = () => raw.events + calls();
+  const deadline = Date.now() + 3_000;
+  let seen = activity();
+  let since = Date.now();
+  while (Date.now() < deadline && Date.now() - since < 300) {
+    await sleep(10);
+    if (activity() !== seen) {
+      seen = activity();
+      since = Date.now();
+    }
+  }
+}
 
 async function within(ms: number, done: () => boolean): Promise<boolean> {
   const deadline = Date.now() + ms;
@@ -63,7 +87,7 @@ async function watch(root: string): Promise<{ reads: () => number; reset: () => 
   open = watchFolder(root, async () => {
     reads++;
   });
-  await sleep(300);
+  await settle(() => reads);
   reads = 0;
   return { reads: () => reads, reset: () => (reads = 0) };
 }
@@ -73,7 +97,7 @@ async function expectReread(w: { reads: () => number; reset: () => void }, chang
   change();
   expect(await within(1_000, () => w.reads() >= 1)).toBe(true);
   // Let the debounce window pass so the next step starts clean.
-  await sleep(300);
+  await settle(w.reads);
 }
 
 describe("watchFolder re-reads within a second", () => {
@@ -169,7 +193,7 @@ async function watchScope(root: string, scope: string[]): Promise<Recorder> {
     calls.push(change);
   });
   open.setScope(scope);
-  await sleep(300);
+  await settle(() => calls.length);
   calls = [];
   return {
     calls: () => calls,
@@ -182,11 +206,12 @@ async function expectChange(w: Recorder, change: () => void, expected: Change): 
   w.reset();
   change();
   expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
-  await sleep(300);
+  await settle(() => w.calls().length);
   expect(w.merged()).toEqual(expected);
 }
 
 async function expectQuiet(w: Recorder, change: () => void): Promise<void> {
+  await settle(() => w.calls().length);
   w.reset();
   change();
   await sleep(600);
@@ -314,7 +339,7 @@ describe("watchFolder classifies changes", () => {
     const w = await watchScope(root, ["design"]);
     await expectQuiet(w, () => writeFileSync(join(root, "assets", "x.css"), "x{}"));
     open?.setScope(["assets", "design"]);
-    await sleep(300);
+    await settle(() => w.calls().length);
     await expectChange(w, () => writeFileSync(join(root, "assets", "y.css"), "y{}"), SERVED);
   });
 
