@@ -53,6 +53,9 @@ let shown: string | null = null;
 // never reloads or resets it.
 let frame: HTMLIFrameElement | null = null;
 let frameHeight = INITIAL_HEIGHT;
+// The width the board is drawn at. Not always the open canvas's: a link to a
+// listed canvas without a width keeps the previous one.
+let frameWidth = 0;
 let view: View = { x: 0, y: 0, scale: 1 };
 let layout: LayoutMessage | null = null;
 let lastHref: string | null = null;
@@ -217,7 +220,7 @@ function load(row: CanvasRow, fresh: boolean): void {
     frame = next;
     if (status.dataset.state === "failed") setStatus("loading", ["불러오는 중…"]);
   }
-  frame.style.width = `${row.width}px`;
+  setFrameWidth(row.width);
   setFrameHeight(INITIAL_HEIGHT);
   lastHref = null;
   jumpTo = null;
@@ -294,7 +297,7 @@ function applyUpdate(update: CanvasViewUpdate): void {
       errorLine.hidden = true;
       open.row = update.canvas;
       if (update.canvas.width === undefined || frame === null) load(update.canvas, frame === null);
-      else frame.style.width = `${update.canvas.width}px`;
+      else setFrameWidth(update.canvas.width);
       return;
     case "clear": {
       const path = open.canvas;
@@ -365,7 +368,7 @@ function markShown(href: string): void {
   if (row !== undefined && row.path !== open.canvas) {
     open = { folder: open.folder, canvas: row.path, row };
     // Without a width the current one stays; a reload then shows the notice.
-    if (row.width !== undefined && frame !== null) frame.style.width = `${row.width}px`;
+    if (row.width !== undefined) setFrameWidth(row.width);
   }
   shown = row?.path ?? null;
   unlistedLine.hidden = row !== undefined;
@@ -429,8 +432,7 @@ function command(name: ViewCommand): void {
     reload();
     return;
   }
-  const width = open?.row.width;
-  if (frame === null || width === undefined) return;
+  if (frame === null) return;
   const size = viewportSize();
   const center: Point = { x: size.width / 2, y: size.height / 2 };
   switch (name) {
@@ -444,7 +446,7 @@ function command(name: ViewCommand): void {
       view = zoomAt(view, 1 / view.scale, center, ZOOM_LIMITS);
       break;
     case "fit":
-      view = fitWidth(width, size, FIT_MARGIN);
+      view = fitWidth(frameWidth, size, FIT_MARGIN);
       break;
   }
   applyView();
@@ -471,6 +473,11 @@ function wheel(input: WheelInput, point: Point): void {
 function applyView(): void {
   board.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
   zoomLevel.textContent = `${Math.round(view.scale * 100)}%`;
+}
+
+function setFrameWidth(width: number): void {
+  frameWidth = width;
+  if (frame !== null) frame.style.width = `${width}px`;
 }
 
 function setFrameHeight(height: number): void {
