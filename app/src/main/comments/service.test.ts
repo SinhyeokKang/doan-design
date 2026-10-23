@@ -2,6 +2,8 @@ import { expect, test, vi } from "vitest";
 import { createCommentsService } from "./service";
 import type { CommentIdentity, ServiceDependencies } from "./service";
 import { AppendUncertainError } from "./files";
+import { MkdirTerminationUnconfirmedError } from "./mkdir";
+vi.mock("electron", () => ({ utilityProcess: {} }));
 vi.mock("./files", () => ({ AppendUncertainError: class extends Error {} }));
 const identity: CommentIdentity = { root: "/repo", path: "design/a.html", canvas: "a" };
 function setup() {
@@ -140,4 +142,34 @@ test("same request id and canvas in different roots are independent", async () =
   }
   expect(files.size).toBe(2);
   expect(files.get("/repo")?.equals(files.get("/other") ?? Buffer.alloc(0))).toBe(false);
+});
+
+test("unconfirmed mkdir blocks same, new and concurrent cross-canvas saves until external recovery", async () => {
+  const s = setup();
+  const begin = await s.service.begin("window", { ...identity, requestID: "begin", scope: "canvas" });
+  if (!begin.ok) throw new Error(begin.error);
+  const payload = { ...identity, project: 1, requestID: "uncertain", origin: begin.value.origin, intent: { type: "create", body: "body" } };
+  const other = { ...identity, canvas: "b", path: "design/b.html" };
+  const otherBegin = await s.service.begin("window", { ...other, requestID: "begin", scope: "canvas" });
+  if (!otherBegin.ok) throw new Error(otherBegin.error);
+  let release!: () => void;
+  const wait = new Promise<void>(resolve => { release = resolve; });
+  vi.mocked(s.deps.append).mockImplementationOnce(async () => { await wait; throw new MkdirTerminationUnconfirmedError("missing exit"); });
+  const first = s.service.mutate("window", payload);
+  const concurrent = s.service.mutate("window", { ...payload, ...other, origin: otherBegin.value.origin });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  release();
+  const blocked = { ok: true, value: { state: "unknown", recovery: "child-exit-required" } };
+  expect(await first).toMatchObject(blocked);
+  expect(await concurrent).toMatchObject(blocked);
+  expect(await s.service.mutate("window", payload)).toMatchObject(blocked);
+  expect(await s.service.mutate("window", { ...payload, requestID: "new" })).toMatchObject(blocked);
+  expect(await s.service.status("window", { ...identity, requestID: payload.requestID })).toMatchObject(blocked);
+  s.deps.epoch = () => 2;
+  expect(await s.service.mutate("window", { ...payload, project: 2 })).toMatchObject(blocked);
+  expect(s.deps.append).toHaveBeenCalledTimes(1);
+  expect(s.deps.read).not.toHaveBeenCalled();
+  const independent = await s.service.begin("window", { ...identity, root: "/other", requestID: "begin", scope: "canvas" });
+  if (!independent.ok) throw new Error(independent.error);
+  expect(await s.service.mutate("window", { ...payload, root: "/other", project: 2, origin: independent.value.origin })).toMatchObject({ ok: true, value: { state: "saved" } });
 });
