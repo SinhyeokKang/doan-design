@@ -10,7 +10,7 @@
 - Q1–Q9: 사용자의 기존 승인 유지. 복사는 단일 열린 코멘트와 현재 캔버스의 열린 코멘트 전체 두 범위다.
 - 지휘 판단 — tasks 0/1: 초안과 독립 PoC를 먼저 병렬 진행한다. 임시 실험 외 제품 구현은 PoC 통과와 사용자 초안 확인 전 금지한다.
 - 지휘 판단 — 파일 충돌 방지: PoC는 각 워크트리의 임시 실험이며 제품 코드로 통합하지 않는다. 실제 구현은 공통 계약을 먼저 통합한 뒤 파일 소유 범위를 재확인한다.
-- 초안 최종 확인: 이번 라운드는 사용자가 지휘자에게 위임했다. 지휘자 검증 후 확정한다.
+- 초안 최종 확인: 2026-10-23 사용자의 위임에 따라 지휘자가 `14de60c` 초안을 검증하고 확정했다.
 
 ## 배치와 검증
 
@@ -18,7 +18,7 @@
 |---|---|---|---|---|---|
 | P-W | 0 writer PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 파일 경계·경합 판단 | app test/typecheck/build/e2e 중 실험 관련 게이트, 외부 파일·디렉터리 불변 | 실패: mkdir 외부 변경 |
 | P-H | 0 hash·문서 세대 PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 응답/문서 경합 | app test/typecheck/build/e2e, 전달 bytes·세대 불일치 차단 | PoC 통과 |
-| D | 1 design/comments-ui.html | 문서 리뷰 완료 | Astra medium — 기존 화면 보존·상태 표현 | doan ls/check, 지휘자 위임 확인 | 1차 리뷰 수정 중 |
+| D | 1 design/comments-ui.html | 문서 리뷰 완료 | Astra medium — 기존 화면 보존·상태 표현 | doan ls/check, 지휘자 위임 확인 | 수정 재검증·최종 컨펌 완료 |
 | P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | 진행 중 |
 | F | 2 공유 v1 fixture·Go/TS 테스트 | PoC 및 초안 승인 | Sol medium — 기존 형식 사례 확장 | go test, app test | 대기 |
 | C | 3 순수 함수와 테스트, 신규 shared 모듈 | F | Astra medium — 상태·시간·타겟 계약 | red→green, app test/typecheck | 대기 |
@@ -54,3 +54,6 @@
 - P-H PoC 통과: 응답별 bytes hash와 CDP document loader 연결, HEAD/fetch/reload 경합, old reply, stream mutation의 create 선행조건 거부를 검증했다. 제품 전체 수명주기·writer 통합은 아직 미검증이다. handoff와 재현 patch의 복사본 일치를 확인한 뒤 release 및 Orca cu-ph 삭제, 목록 부재를 확인했다.
 - D 초안 `4ffba61` → 통합 `f589c41`. 지휘자가 실제 앱에서 17개 frame으로 이동하고 screenshot을 확보했다. 같은 앱 서빙 URL을 별도 sandboxed Electron 창에서 원래 크기로 캡처해 17개 상세 이미지를 모두 직접 검토했다. 가로 overflow 0, 실제 folders/runtime fingerprint 불변. 증거 `.scratch/comments-ui/review/`.
 - 지휘자 1차 리뷰: width 오류의 활성 작성 버튼, Open 1인데 비활성 전체 복사, 빈 목록 count/작성 버튼 모순, 저장 성공과 확인 실패 혼합 타일, 작성 진입 대상 모호함, 읽기 미확정 count, 이름 미설정의 기존 카드 상태 누락을 발견했다. D-fix `ctx_5130422e414e`를 원 소유 워크트리에 배정했다. Astra medium과 turnStart observed를 확인했다. 초안 컨펌은 수정 재검증 뒤에 한다.
+
+- D-fix `67beacf` → 통합 `14de60c`. 지휘자가 diff와 변경된 상태 이미지를 직접 다시 검토했다. 실제 앱에서 17개 frame 재탐색, 상세 렌더링 가로 overflow 0, 사용자 데이터 fingerprint 불변을 확인했다. 버튼 조건·읽기 count·복구 상태 분리·기존 카드의 이름 제한이 수정됐다. 이 초안을 최종 컨펌한다. 이는 정적 UI 설계 승인이고 CRUD·입력 동작이나 design-sync 통과 주장은 아니다.
+- 확정한 초안 배치: 280px 패널, 기존 Inspector 자식 스타일 유지 및 278px 독립 스크롤 영역, 24px 화면 크기 핀, 410px 대화상자. Canvas의 생성 진입은 New canvas comment, Selection은 New selection comment이며 목록 범위 전환은 기존 초안 대상을 바꾸지 않는다. 확인 전 불명확한 저장의 원래 payload는 읽기 전용이고 pending request를 유지한다.
