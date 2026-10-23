@@ -56,6 +56,8 @@ Doan Design (`doan`): a tool where a coding agent writes an HTML canvas (a desig
 - **Do not report unverified things as passing.** Leave verification you lacked the tools for or could not run as unfinished, and report what you could not do.
 - **Leave evidence for references**: for ideas taken from other tools (Claude Design · Orca · ego-browser · Storybook, etc.), write where they came from. Do not assert from memory; check what can be checked.
 
+- **Comments-ui writer boundary** (2026-10-23 user): follow ARCHITECTURE section 2: reject symlink redirection to other outside objects; relocation of the originally validated directory object is outside the guarantee. Use the existing Electron single-job utility process for missing-directory creation, never change main cwd, and keep public CLI/MCP human-write authority unchanged.
+
 ## Commands
 
 - `go test ./...` — Go tests, from the repo root.
