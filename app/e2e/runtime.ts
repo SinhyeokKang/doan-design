@@ -69,6 +69,9 @@ async function main(): Promise<void> {
     clearTimeout(watchdog);
   }
   if (productFailures.length > 0) throw new Error(`product failures:\n${productFailures.join("\n")}`);
+  // The adapter owns a separate temporary app after the full runtime has closed.
+  // Import failure keeps the combined runtime gate red, including cleanup failures.
+  await import(new URL("./anchors.ts", import.meta.url).href);
 }
 
 async function expectProduct(what: string, check: () => Promise<void>): Promise<void> {
@@ -410,7 +413,7 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     await app.close();
     await waitFor(async () => { try { process.kill(idleChildPid, 0); return false; } catch (error) { return error instanceof Error && "code" in error && error.code === "ESRCH"; } }, "utility child exits with parent");
     ({ app, page } = await launch(cli, userData));
-    // A tooltip from another row can outlive pointer movement during its exit animation.
+    // A tooltip from another row can remain present across pointer movement.
     const restartedProject = page.getByRole("treeitem", { name: "ok", exact: true });
     await restartedProject.getByRole("treeitem", { name: "added.html", exact: true }).hover();
     await page.getByRole("tooltip").waitFor();
@@ -1181,6 +1184,13 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await page.evaluate((root) => window.doan.setSelection({ root, canvas: { path: "design/pick.html" }, element: { selector: "x", html: "x".repeat(2001) } }), repos.select);
   assert.deepEqual(pick(await active(repos.select), "exit", "selection"), { exit: 0 }, "main drops a selection over the html cap");
   // The renderer still shows the box; a fresh selection resends it.
+  // Showing the window can open a tooltip under the OS pointer; that tooltip owns Esc.
+  await leaveCanvas(page);
+  if (await page.getByRole("tooltip").isVisible()) {
+    await page.keyboard.press("Escape");
+    await waitInspector(page, v => v?.selector === BOX, "dismissing the tooltip preserves selection");
+  }
+  await page.getByRole("tooltip").waitFor({ state: "hidden" });
   await page.keyboard.press("Escape");
   await waitPanel(page, "Canvas info", "Esc after the refused selection");
 
@@ -1960,8 +1970,12 @@ async function tooltipPath(page: Page, row: Locator, name: string, key: string):
   if (!paths) { paths = new Map(); tooltipPaths.set(page, paths); }
   const cached = paths.get(key);
   if (cached) return cached;
-  await row.getByText(name, { exact: true }).hover();
   const tooltip = page.getByRole("tooltip");
+  // A global role match can still describe the previous row after pointer movement.
+  await page.mouse.move(700, 20);
+  if (await tooltip.isVisible()) await page.keyboard.press("Escape");
+  await tooltip.waitFor({ state: "hidden", timeout: 1000 });
+  await row.getByText(name, { exact: true }).hover();
   await tooltip.waitFor({ timeout: 1000 });
   const path = (await tooltip.textContent()) ?? "";
   assert.ok(path.startsWith("/"), `absolute path tooltip: ${path}`);
