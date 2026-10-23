@@ -1,0 +1,33 @@
+{
+  "comments": [
+    {
+      "comment": "cmt_00000000-0000-4000-8000-000000000001",
+      "status": "resolved",
+      "body": " \t수정: 保存 🚀 é\r\n<script>alert(\"data\")</script> ﻿ ",
+      "target": {
+        "frame": "settings",
+        "element": {
+          "doanId": "save",
+          "selector": "[data-label=\"保存🚀\"]",
+          "html": "<button data-label=\"保存🚀\">저장 é</button>",
+          "text": "저장 é 🚀",
+          "truncated": false
+        }
+      },
+      "canvasHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "createdBy": {
+        "kind": "human",
+        "name": "김하나 👩🏽‍💻 é"
+      },
+      "createdAt": "2026-10-23T10:00:00.123Z",
+      "updatedAt": "2026-10-23T10:00:00.123Z",
+      "resolvedBy": {
+        "kind": "human",
+        "name": "李 Zoë 🚀",
+        "email": "zoe@example.com"
+      },
+      "resolvedAt": "2026-10-23T10:00:00.123Z"
+    }
+  ],
+  "warnings": []
+}
