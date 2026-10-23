@@ -114,3 +114,5 @@
 - M을 15cb445까지 통합하고 지휘자 단위 1072개·typecheck exit 0을 확인했다. U1은 독립 리뷰 red/yellow 0 후 817bde1까지 통합했다. disabled 정규식의 비차단 테스트 보완은 U2가 실제 상호작용 검증과 함께 반영한다.
 - U2 배치: Astra medium — 실제 저장 요청·초안·선택/이동 보호·늦은 응답의 상태 경합 판단. C/A/M/U1이 통합된 브랜치에서 시작하며 .scratch/comments-ui/briefs/U.md 소유 범위로 전체 App 연결을 맡는다. 단위/typecheck/build/실제 e2e 및 원래 초안 보존을 검증한다. Electron 슬롯은 U2에 배정한다.
 - 지휘 세션 자체에서 capacity 오류가 반복됨을 terminal 출력으로 확인했다. 컨텍스트는 압축됐으며 작업 상태를 커밋/인계에 보존했다. 워커 R-U1은 오류 없이 완료했고 release했다.
+
+- U1 포함 통합 단위 1088개·typecheck exit 0을 확인했다. M/U1의 .scratch 증거 131/8개를 지휘자 evidence/archive에 복사하고 byte checksum 일치를 확인했다. clean·git cherry 미통합 없음·리뷰 종료 확인 후 두 child를 Orca로 제거했으며 worktree 항목 부재를 확인했다. U2 ctx_349dc3aada7e는 실제 App 테스트 작성에 착수했다.
