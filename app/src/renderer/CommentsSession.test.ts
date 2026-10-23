@@ -67,4 +67,12 @@ describe("application comment session", () => {
     expect(api.commentsMutate.mock.calls[0]?.[0]).toMatchObject({ project: 8, intent: { type: "edit", comment: "c1", body: "kept" } });
   });
 
+  test("composition cannot open a transition dialog or leave the draft", async () => {
+    const { session: s } = fixture(); await s.open(identity); await s.create("canvas"); s.body("composing");
+    s.composing = true;
+    expect(s.guard()).toBe(false); expect(s.draft.transition).toBeNull();
+    s.composing = false;
+    const pending = s.guard(); s.answer("continue"); expect(await pending).toBe(false);
+  });
+
 });
