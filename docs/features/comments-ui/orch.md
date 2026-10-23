@@ -131,3 +131,5 @@
 - U2 리뷰 수정 checkpoint dab5760(제품 수정 6fe80e3, 회귀 22fab02/dab5760)을 R-U2 후속 리뷰에 배정한다. Astra medium — 날짜 렌더링·카드 충돌 재검토·삭제 확인의 정확성 판단. 이전 리뷰 HEAD 6f92ead 이후의 composition 보호 및 실제 App 테스트 추가도 누락 없이 포함한다. 실제 창 최종 검증은 U2가 계속 단독 실행한다.
 
 - R-U2 후속 리뷰 6f92ead..dab5760은 기존 red 1/yellow 2 해소, 새 red/yellow 0이다. 독립 수정 probe 포함 100개 검사 통과. 실제 App 실패 주입과 실제 파일/clipboard 성공 증거를 구분했고 OS-native IME·디자인 실측은 미검증으로 유지한다. 리뷰 터미널 release. U2 전체 runtime 최종 PASS를 관찰했으며 최종 HEAD/exit/인계의 증거 귀속 감사 뒤 통합한다.
+
+- 전체 runtime PASS 뒤 U2가 9c96f3b→721e155를 추가했다. 이동 승인 동안 달라진 목적지 메타데이터를 최신 조회 결과로 적용하는 CanvasController 6줄 수정이다. Astra medium의 독립 delta 리뷰를 배정해 기존 승인 범위를 재검토하지 않고 이 경합 수정·회귀만 확인한다. 최종 증거의 HEAD 귀속도 갱신한다.
