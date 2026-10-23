@@ -1,3 +1,6 @@
+import { authorizeCanvas } from "./comments/identity";
+import type { CommentIdentity } from "./comments/service";
+import type { ResponseRecord } from "./comments/document";
 import { realpath, stat } from "node:fs/promises";
 import { readFolder, runLs } from "./cli";
 import { openFolderStore } from "./folderStore";
@@ -10,6 +13,8 @@ export interface Shell {
   // `http://127.0.0.1:<port>/t/<token>/`: every canvas URL lives under it.
   readonly tokenBase: string;
   entries(): FolderEntry[];
+  epoch(root: string): number | null;
+  authorizeComments(identity: CommentIdentity): Promise<{ width: number | null; url: string }>;
   // Resolves to a message for the human when the folder is not opened.
   open(picked: string): Promise<string | null>;
   reopen(path: string): Promise<void>;
@@ -19,6 +24,7 @@ export interface Shell {
 
 interface Folder {
   path: string;
+  epoch: number;
   key: string;
   entry: FolderEntry;
   watch: FolderWatch | undefined;
@@ -36,10 +42,11 @@ function sameScope(a: readonly string[], b: readonly string[]): boolean {
 }
 
 // Electron-free on purpose: the window, dialog and IPC live in index.ts.
-export async function startShell(foldersFile: string, cli: string, onChange: (entries: FolderEntry[]) => void): Promise<Shell> {
+export async function startShell(foldersFile: string, cli: string, onChange: (entries: FolderEntry[]) => void, comments?: { response(record: ResponseRecord): void; invalidate(root: string): void }): Promise<Shell> {
   const store = await openFolderStore(foldersFile);
-  const server: LocalServer = await startServer();
+  const server: LocalServer = await startServer(comments?.response);
   // Insertion order is folders.json order, which is the order the human opened them.
+  let nextEpoch = 0;
   const folders = new Map<string, Folder>();
 
   const entries = () => [...folders.values()].map((folder) => folder.entry);
@@ -58,6 +65,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       onChange(entries());
       return;
     }
+    comments?.invalidate(folder.path);
     const read = ++folder.reads;
     const view = await readFolder(cli, folder.path);
     if (folders.get(folder.path) !== folder || read !== folder.reads) return;
@@ -89,6 +97,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
   const add = (path: string): Folder => {
     const folder: Folder = {
       path,
+      epoch: ++nextEpoch,
       key: server.addFolder({ root: path, scope: [] }),
       entry: { path, kind: "loading" },
       watch: undefined,
@@ -106,6 +115,15 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
   return {
     tokenBase: `http://${server.host}:${server.port}/t/${server.token}/`,
     entries,
+    epoch(root) { return folders.get(root)?.epoch ?? null; },
+    async authorizeComments(identity) {
+      const folder = folders.get(identity.root);
+      if (!folder) throw new Error("Project is closed.");
+      const listing = await readFolder(cli, folder.path);
+      if (folders.get(identity.root) !== folder) throw new Error("Project is closed.");
+      const eligibility = authorizeCanvas(identity, listing);
+      return { ...eligibility, url: baseUrl(folder.key) + identity.path.split("/").map(encodeURIComponent).join("/") };
+    },
     async open(picked) {
       let real: string;
       try {
@@ -136,6 +154,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
     async reopen(path) {
       const folder = folders.get(path);
       if (!folder) return;
+      folder.epoch = ++nextEpoch;
       folder.entry = { path, kind: "loading" };
       onChange(entries());
       attach(folder);
@@ -144,6 +163,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       const folder = folders.get(path);
       if (!folder) return;
       folders.delete(path);
+      comments?.invalidate(path);
       folder.watch?.close();
       server.removeFolder(folder.key);
       const write = store.remove(path);

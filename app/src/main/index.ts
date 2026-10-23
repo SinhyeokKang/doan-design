@@ -1,4 +1,9 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, session, webFrameMain, type IpcMainInvokeEvent } from "electron";
+import { createCommentsService } from "./comments/service";
+import { readCommentBytes, withCommentAppend } from "./comments/files";
+import { readAuthor } from "./comments/author";
+import { DocumentBindings, stableDiskHash } from "./comments/document";
+import { createTransitionGuard } from "./comments/transitions";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, session, webFrameMain, type IpcMainInvokeEvent } from "electron";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,6 +44,10 @@ let inspector: Inspector | undefined;
 // One selection app-wide (select-inspect R1); the socket answers it only for
 // its own project. Memory only, never written to disk.
 let selection: Selection | null = null;
+const documents = new DocumentBindings();
+const transitionGuard = createTransitionGuard(request => {
+  if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("comments:transition", request);
+});
 let quitting = false;
 let cancelPendingHide = () => {};
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
@@ -146,11 +155,11 @@ function createWindow(): BrowserWindow {
   if (!app.isPackaged && devUrl) void window.loadURL(devUrl);
   else void window.loadFile(fileURLToPath(new URL("../renderer/index.html", import.meta.url)));
   injectCanvasScript(window);
-  inspector = createInspector(window.webContents.debugger, () => shell?.tokenBase ?? "");
+  inspector = createInspector(window.webContents.debugger, () => shell?.tokenBase ?? "", documents);
   // A reloaded or crashed renderer has lost the selection it reported; an
   // in-page navigation is not a new document, so it does not count.
-  window.webContents.on("render-process-gone", () => { selection = null; });
-  window.webContents.on("did-navigate", () => { selection = null; });
+  window.webContents.on("render-process-gone", () => { selection = null; documents.clear(); transitionGuard.reset(); });
+  window.webContents.on("did-navigate", () => { selection = null; documents.clear(); transitionGuard.reset(); });
   window.on("close", (event) => {
     if (quitting) return;
     event.preventDefault();
@@ -194,10 +203,48 @@ async function start(): Promise<void> {
   const userData = app.getPath("userData");
   // folderStore writes beside folders.json but does not create the directory.
   await mkdir(userData, { recursive: true });
+  const invalidate = (root: string) => {
+    if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("comments:invalidated", { root });
+  };
   const ready = await startShell(join(userData, "folders.json"), cliCommand(), (entries) => {
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries);
-  });
+  }, { response: record => documents.response(record), invalidate });
   shell = ready;
+  const comments = createCommentsService({
+    authorize: identity => ready.authorizeComments(identity),
+    epoch: root => ready.epoch(root),
+    currentHash: identity => stableDiskHash(identity.root, identity.path),
+    author: readAuthor, read: readCommentBytes, append: withCommentAppend,
+    async document(identity, scope, url) {
+      if (!inspector) throw new Error("Canvas document is unavailable.");
+      const target: import("../formats/types").Target = {};
+      if (scope === "selection") {
+        if (!selection || selection.root !== identity.root || selection.canvas.path !== identity.path || selection.canvas.id !== identity.canvas || (!selection.frame && !selection.element)) throw new Error("No matching selection.");
+        if (selection.frame) target.frame = selection.frame.id;
+        if (selection.element) target.element = selection.element;
+      }
+      return inspector.commentDocument(identity, url, target);
+    },
+    async validateDocument(identity, origin, url) {
+      if (!inspector || !await inspector.documentCurrent(identity, url, origin)) return false;
+      if (await stableDiskHash(identity.root, identity.path) !== origin.hash) return false;
+      return inspector.documentCurrent(identity, url, origin);
+    },
+    clipboard: value => clipboard.writeText(value), invalidated: invalidate,
+  });
+  const commentMethods: (keyof typeof comments)[] = ["list", "begin", "mutate", "status", "author", "copy"];
+  for (const method of commentMethods) {
+    ipcMain.handle(`comments:${method}`, (event, value: unknown) => {
+      if (!fromWindow(event)) return { ok: false, identity: null, error: "The request was refused." };
+      return comments[method](String(event.sender.id), value);
+    });
+  }
+  ipcMain.handle("comments:guard", (event, value: unknown) => {
+    if (fromWindow(event) && typeof value === "boolean") transitionGuard.set(value);
+  });
+  ipcMain.handle("comments:transition-answer", (event, value: unknown) => {
+    if (fromWindow(event)) transitionGuard.answer(value);
+  });
   // `doan active` is an extra; the app works without it, and the CLI then
   // reports that the app is not running.
   runtime = await startRuntime(userData, { isOpen, selection: () => selection }).catch((error: unknown) => {
@@ -216,8 +263,10 @@ async function start(): Promise<void> {
   });
   ipcMain.handle("folders:close", async (event, path: unknown) => {
     if (!fromWindow(event) || typeof path !== "string") return;
-    if (selection?.root === path) selection = null;
-    await ready.close(path);
+    transitionGuard.request({ kind: "close-project", root: path }, () => {
+      if (selection?.root === path) selection = null;
+      void ready.close(path);
+    });
   });
   // Invalid input or a project that is not open clears rather than keeping an
   // older selection the human no longer sees.
@@ -248,7 +297,15 @@ app.on("second-instance", () => {
   if (win && !win.isDestroyed()) showWindow(win);
 });
 
-app.on("before-quit", () => { quitting = true; cancelPendingHide(); });
+app.on("before-quit", (event) => {
+  if (quitting) return;
+  let approved = false;
+  transitionGuard.request({ kind: "quit" }, () => {
+    quitting = true; cancelPendingHide();
+    if (approved) app.quit();
+  });
+  if (!quitting) { event.preventDefault(); approved = true; }
+});
 app.on("activate", () => {
   if (win && !win.isDestroyed()) showWindow(win);
 });

@@ -1,3 +1,8 @@
+import type { Selection, Target } from "../formats/types";
+import { validateSelection } from "../formats/validate";
+import type { DocumentBindings } from "./comments/document";
+import type { CommentIdentity, DocumentOrigin } from "./comments/service";
+import { object } from "./comments/identity";
 import { isCanvasFrame } from "./canvasFrame";
 import { inspectRows, type InspectResult, type MatchedStyles } from "./inspect";
 
@@ -19,6 +24,8 @@ export interface DebuggerLike {
 
 export interface Inspector {
   inspect(selector: string): Promise<InspectResult>;
+  commentDocument(identity: CommentIdentity, url: string, target: Target): Promise<DocumentOrigin>;
+  documentCurrent(identity: CommentIdentity, url: string, origin: DocumentOrigin): Promise<boolean>;
 }
 
 interface DomNode {
@@ -52,31 +59,58 @@ function ancestorsOf(root: DomNode, nodeId: number): string[] {
   return walk(root, []) ?? [];
 }
 
-export function createInspector(dbg: DebuggerLike, tokenBase: () => string): Inspector {
+export function createInspector(dbg: DebuggerLike, tokenBase: () => string, documents?: DocumentBindings): Inspector {
   // sessionId -> target type, in attach order.
   const sessions = new Map<string, string>();
+  const sessionFrames = new Map<string, string>();
   let connected: Promise<void> | null = null;
   // Requests run one at a time: each one turns DOM and CSS off when it ends,
   // which would break another request still reading the same session.
   let queue: Promise<unknown> = Promise.resolve();
 
   dbg.on("message", (_event: unknown, method: string, params: { sessionId?: string; targetInfo?: { type?: string } }, sessionId?: string) => {
+    if (documents) {
+      const value: unknown = params;
+      if (method === "Network.responseReceived") documents.network(value);
+      if (object(value)) {
+        if ((method === "Network.loadingFinished" || method === "Network.loadingFailed") && typeof value.requestId === "string") documents.finish(value.requestId, method === "Network.loadingFinished");
+        if (method === "Page.frameNavigated") {
+          documents.commit(value.frame);
+          if (sessionId && object(value.frame) && typeof value.frame.id === "string") sessionFrames.set(sessionId, value.frame.id);
+        }
+        if (method === "Page.frameStartedNavigating" && typeof value.frameId === "string") documents.start(value.frameId, typeof value.loaderId === "string" ? value.loaderId : "");
+        if (method === "Page.frameDetached" && typeof value.frameId === "string") documents.start(value.frameId);
+      }
+    }
     // Only the window's own auto-attach; child sessions never auto-attach.
     if (sessionId) return;
-    if (method === "Target.attachedToTarget" && params.sessionId) sessions.set(params.sessionId, params.targetInfo?.type ?? "");
-    else if (method === "Target.detachedFromTarget" && params.sessionId) sessions.delete(params.sessionId);
+    if (method === "Target.attachedToTarget" && params.sessionId) {
+      sessions.set(params.sessionId, params.targetInfo?.type ?? "");
+      if (documents) {
+        const child = params.sessionId;
+        void (async () => {
+          try { await dbg.sendCommand("Network.enable", {}, child); await dbg.sendCommand("Page.enable", {}, child); }
+          catch { documents.clear(); }
+          finally { await dbg.sendCommand("Runtime.runIfWaitingForDebugger", {}, child).catch(() => { documents.clear(); }); }
+        })();
+      }
+    }
+    else if (method === "Target.detachedFromTarget" && params.sessionId) { sessions.delete(params.sessionId); const frame = sessionFrames.get(params.sessionId); if (frame) documents?.start(frame); sessionFrames.delete(params.sessionId); }
   });
   // Detached (renderer gone, or another client took over): attach again on the next request.
   dbg.on("detach", () => {
     sessions.clear();
+    sessionFrames.clear();
+    documents?.clear();
     connected = null;
   });
 
   const connect = (): Promise<void> => {
     connected ??= (async () => {
       if (!dbg.isAttached()) dbg.attach("1.3");
+      if (documents) { await dbg.sendCommand("Network.enable"); await dbg.sendCommand("Page.enable"); }
       // flatten: iframe targets get sessions on this same debugger.
-      await dbg.sendCommand("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true });
+      await dbg.sendCommand("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: documents !== undefined, flatten: true });
     })().catch((error: unknown) => {
       connected = null;
       throw error;
@@ -141,7 +175,33 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string): Ins
     }
   };
 
+  const commentDocument = async (identity: CommentIdentity, url: string, target: Target): Promise<DocumentOrigin> => {
+    await connect();
+    const session = await canvasSession();
+    if (!session || !documents) throw new Error("No verified canvas document is loaded.");
+    const frame = await frameOf(session);
+    const loaded = documents.current(frame.id, url);
+    if (!loaded || loaded.root !== identity.root || loaded.path !== identity.path || !loaded.hash) throw new Error("The loaded response is not verified.");
+    const result = await dbg.sendCommand("Runtime.evaluate", { expression: `(${readCommentTarget.toString()})(${JSON.stringify(target)})`, returnByValue: true }, session);
+    if (!object(result) || !object(result.result) || !object(result.result.value)) throw new Error("Original target is missing or not unique.");
+    const candidate: unknown = { root: identity.root, canvas: { path: identity.path, id: identity.canvas }, ...result.result.value };
+    if (!validateSelection(candidate)) throw new Error("Original target is invalid.");
+    const current = documents.current(frame.id, url);
+    if (!current || current.generation !== loaded.generation || current.hash !== loaded.hash) throw new Error("Canvas navigated during target validation.");
+    const checked: Target = {};
+    if (candidate.frame) checked.frame = candidate.frame.id;
+    if (candidate.element) checked.element = candidate.element;
+    return { generation: loaded.generation, hash: loaded.hash, target: checked };
+  };
+
   return {
+    commentDocument,
+    async documentCurrent(identity, url, origin) {
+      try {
+        const current = await commentDocument(identity, url, origin.target);
+        return current.generation === origin.generation && current.hash === origin.hash;
+      } catch { return false; }
+    },
     inspect(selector) {
       // The budget counts from the call, so time spent waiting in the queue counts too.
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -154,4 +214,31 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string): Ins
       return result;
     },
   };
+}
+
+// Runs only in the verified direct-child canvas's CDP execution context.
+function readCommentTarget(target: Target): Omit<Selection, "root" | "canvas"> | null {
+  const result: Omit<Selection, "root" | "canvas"> = {};
+  let frame: Element | undefined;
+  if (target.frame) {
+    const matches = [...document.querySelectorAll("[data-doan-frame]")].filter(node => node.getAttribute("data-doan-frame") === target.frame);
+    if (matches.length !== 1) return null;
+    frame = matches[0];
+    result.frame = { id: target.frame };
+  }
+  if (target.element) {
+    const original = target.element;
+    let nodes: Element[] = [];
+    if (original.doanId) nodes = [...document.querySelectorAll("[data-doan-id]")].filter(node => node.getAttribute("data-doan-id") === original.doanId);
+    if (nodes.length !== 1) {
+      try { nodes = [...document.querySelectorAll(original.selector)]; } catch { return null; }
+    }
+    const node = nodes[0];
+    if (nodes.length !== 1 || !node || (frame && !frame.contains(node))) return null;
+    const html = [...node.outerHTML];
+    result.element = { selector: original.selector, html: html.slice(0, 2000).join(""), text: [...(node.textContent ?? "")].slice(0, 500).join("") };
+    if (html.length > 2000) result.element.truncated = true;
+    if (original.doanId && [...document.querySelectorAll("[data-doan-id]")].filter(candidate => candidate.getAttribute("data-doan-id") === original.doanId).length === 1) result.element.doanId = original.doanId;
+  }
+  return result;
 }

@@ -1,8 +1,9 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { constants } from "node:fs";
 import { open, realpath, type FileHandle } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname } from "node:path";
+import type { ResponseRecord } from "../comments/document";
 import { inScope, parseServePath, relInside } from "./path";
 
 export interface ServedFolder {
@@ -54,7 +55,7 @@ const TYPES: Record<string, string> = {
   ".otf": "font/otf",
 };
 
-export async function startServer(): Promise<LocalServer> {
+export async function startServer(onResponse: (record: ResponseRecord) => void = () => {}): Promise<LocalServer> {
   const token = randomBytes(32).toString("hex");
   const folders = new Map<string, ServedFolder>();
   let port = 0;
@@ -94,27 +95,60 @@ export async function startServer(): Promise<LocalServer> {
       return notFound(res);
     }
     try {
-      const stat = await file.stat();
+      const stat = await file.stat({ bigint: true });
       if (!stat.isFile()) return notFound(res);
+      const marker = randomBytes(24).toString("hex");
+      const record: ResponseRecord = { marker, root: folder.root, path: rel, hash: null, complete: false, stable: false };
+      const eligible = req.method === "GET" && extname(realFile).toLowerCase() === ".html";
+      const publish = () => { if (eligible) onResponse({ ...record }); };
+      publish();
       res.writeHead(200, {
+        "X-Doan-Response": marker,
         "Content-Type": TYPES[extname(realFile).toLowerCase()] ?? "application/octet-stream",
-        "Content-Length": stat.size,
+        "Content-Length": stat.size.toString(),
         "Cache-Control": "no-store",
         // The sandboxed iframe's origin is opaque, and Chromium fetches fonts and
         // module scripts in CORS mode, so in-scope files need this (ARCHITECTURE §3).
         "Access-Control-Allow-Origin": "null",
       });
-      if (req.method === "HEAD" || stat.size === 0) {
-        res.end();
-        return;
-      }
-      // Stop at the fstat size: a file that grows mid-transfer would otherwise
-      // write past Content-Length into the keep-alive connection, and the
-      // browser would read the extra bytes as the start of the next response.
-      const stream = file.createReadStream({ start: 0, end: stat.size - 1 });
+      if (req.method === "HEAD") { res.end(); return; }
+      const hash = createHash("sha256");
+      const held = file;
+      let finished = false;
+      let checked = false;
+      let closed = false;
+      const close = async () => {
+        if (closed) return;
+        closed = true;
+        try { await held.close(); } catch { record.stable = false; publish(); }
+      };
+      const finish = () => {
+        if (!finished || !checked) return;
+        record.complete = true;
+        publish();
+      };
+      const inspect = async () => {
+        try {
+          const after = await held.stat({ bigint: true });
+          record.stable = stat.size === after.size && stat.mtimeNs === after.mtimeNs && stat.ctimeNs === after.ctimeNs;
+          record.hash = "sha256:" + hash.digest("hex");
+          checked = true;
+          finish();
+        } catch { record.stable = false; publish(); }
+        finally { await close(); }
+      };
+      res.on("finish", () => { finished = true; finish(); });
+      res.on("close", () => {
+        if (!res.writableFinished) { record.complete = false; record.stable = false; publish(); }
+      });
       file = undefined;
-      stream.on("error", () => res.destroy());
-      res.on("close", () => stream.destroy());
+      if (stat.size === 0n) { await inspect(); res.end(); return; }
+      // Hash exactly the bounded bytes piped to this response, not a later disk read.
+      const stream = held.createReadStream({ start: 0, end: Number(stat.size) - 1, autoClose: false });
+      stream.on("data", (chunk: Buffer | string) => { hash.update(chunk); });
+      stream.on("end", () => { void inspect(); });
+      stream.on("error", () => { record.stable = false; publish(); res.destroy(); void close(); });
+      res.on("close", () => { stream.destroy(); if (!res.writableFinished) void close(); });
       stream.pipe(res);
     } finally {
       await file?.close();
