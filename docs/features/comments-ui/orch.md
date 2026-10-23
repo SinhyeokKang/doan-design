@@ -93,3 +93,6 @@
 
 - M1 통합 HEAD에서 단위 1004개·typecheck·go test/vet 통과. 증거 50개 checksum 일치와 미통합 커밋 없음·clean을 확인한 뒤 cu-m1을 Orca로 삭제하고 목록 부재를 확인했다. 통합 전체 e2e는 A의 M1 포함 재검증에 이어 지휘자가 실행한다. A 재시도 ctx_3dab8d9989a2와 M ctx_f5a7e17510ae 모두 Astra medium 및 turnStart observed 확인.
 - R-A 사전 독립 리뷰: Astra medium — 문서/선택 세대·핀 guard 경합 판단. 8e20296..5202094의 고정 커밋만 git show/diff로 읽고 실행·수정하지 않는다. A가 실패 runtime을 수정하는 동안 제품 핀 코드의 추가 결함을 먼저 찾으며, 최종 수정 diff와 실행 증거는 별도 후속 리뷰한다.
+- R-A 고정 커밋 리뷰 ctx_485618f15ead 완료: red 0 / yellow 4. 기존 선택에서 다음 선택 명령의 응답보다 anchor가 앞서는 경우, 같은 anchor DOM 교체, 발송 후 새 pin intent/binding 교체, visibility 복구 자식의 가시성 검사를 지적했다. 정적 시나리오이며 실행 재현은 A 수정 배치에서 확인한다. 리뷰 터미널 release 완료.
+- A-fix 배치: Astra medium — 비동기 선택/핀 의도 경합의 회귀 판단. 같은 cu-a의 A 소유 파일에서 위 4건을 각각 red→green으로 고정하고 전체 runtime·anchor 검증 후 독립 후속 리뷰한다. brief .scratch/comments-ui/briefs/A-fix.md. 현재 A 재시도 종료를 수락한 뒤 새 Task로 시작한다.
+- R-M 배치: Astra medium — main 권한·파일/문서 경계·재시도 감사. M의 최종 고정 HEAD를 읽기 전용 리뷰하고 focused 검사로 보고를 검증한다. brief .scratch/comments-ui/briefs/R-M.md. M 종료 뒤 시작한다.
