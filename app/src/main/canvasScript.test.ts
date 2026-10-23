@@ -1159,3 +1159,22 @@ describe("comment anchors", () => {
     expect(messages().filter(p => p.type === "select").at(-1)).toMatchObject({ seq: 2, target: { tag: "body", element: { selector: "body" } } });
   });
 });
+
+test("Y2 same-size replacement recovers selected anchor token without another event", () => {
+  const { canvas, button, form } = heroCanvas();
+  canvas.context.innerWidth = 600;
+  canvas.fromParent({ type: "measure" });
+  const document = ofType(canvas, "layout")[0]?.document;
+  click(canvas, button);
+  canvas.fromParent({ type: "anchors-query", document, generation: 1, request: 1,
+    targets: [{ id: "a", doanId: "cta", selector: "button" }] });
+  canvas.runFrame();
+  const before = ofType(canvas, "anchors").at(-1) as any;
+  const again = node("button", { "data-doan-id": "cta" }, [], { rect: { ...button.rect } });
+  button.isConnected = false;
+  form.children.splice(form.children.indexOf(button), 1, again); again.parentElement = form;
+  canvas.trigger("MutationObserver"); canvas.runFrame(); canvas.runFrame();
+  const after = ofType(canvas, "anchors").at(-1) as any;
+  expect(after.results[0].candidates.doanId[0]).not.toBe(before.selected);
+  expect(after.selected).toBe(after.results[0].candidates.doanId[0]);
+});

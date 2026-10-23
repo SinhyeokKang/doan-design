@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
+import { projectList } from "../comments/projection";
 import { CanvasController } from "./CanvasController";
 import { FIRST_LAYOUT_TIMEOUT_MS } from "./viewport";
 import { SELECTION_LOST } from "./selection";
@@ -678,5 +679,60 @@ it("guards pin selection before applying it and cancels a deferred decision afte
     answer(true); await pending;
     expect(old.contentWindow.postMessage.mock.calls.some(c => c[0].type === "select-comment")).toBe(false);
     expect(open).not.toHaveBeenCalled();
+  } finally { h.controller.dispose(); }
+});
+
+function pinHarness() {
+  const h = selectionHarness(), changed = vi.fn(), open = vi.fn();
+  const comments = ["a", "b"].map(id => ({ comment: id, target: { frame: id }, status: "open" as const, body: "x", canvasHash: "h", createdAt: "t", updatedAt: "t", createdBy: { kind: "human" as const, name: "A" } }));
+  const hooks = { changed, open, guard: vi.fn(async () => true), focusFallback: vi.fn() };
+  const bind = (items = comments) => h.controller.setComments({ root: "/repo", canvas: "a", comments: items }, hooks);
+  let revision = 0;
+  const reply = (selectionSeq = 0, selected: string | null = null) => {
+    const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+    h.receive({ type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: ++revision, width: 600, selectionSeq, selected,
+      results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: [t.id] } })),
+      rects: comments.map(c => ({ node: c.comment, x: 10, y: 10, width: 10, height: 10 })) });
+  };
+  h.layout({ document: "doc" }); bind(); reply();
+  return { ...h, comments, hooks, bind, reply, changed, open };
+}
+
+it("Y1 does not project B before its sent selection command is acknowledged", () => {
+  const h = pinHarness();
+  try {
+    h.select(1); h.reply(1, "a");
+    expect(h.changed.mock.lastCall?.[0].selected).toBe("a");
+    h.controller.selectPath(h.target.path[0]!);
+    h.reply(2, "b");
+    const snapshot = h.changed.mock.lastCall![0];
+    expect(h.state().selection.element.doanId).toBe("cta");
+    expect(projectList(h.comments, snapshot.lookup, snapshot.lookup, { scope: "selection", status: "open", node: snapshot.selected }).map(c => c.comment)).not.toContain("b");
+    expect(snapshot.selected).toBeNull();
+    h.select(2); h.reply(2, "b");
+    expect(h.changed.mock.lastCall?.[0].selected).toBe("b");
+  } finally { h.controller.dispose(); }
+});
+
+it.each(["new guard", "binding change"])("Y3 cancels old pin panel effects after %s but accepts actual selection", async kind => {
+  const h = pinHarness();
+  try {
+    await h.controller.activatePin("a");
+    let answer: (allowed: boolean) => void = () => {};
+    let pending: Promise<void> | undefined;
+    if (kind === "new guard") {
+      h.hooks.guard.mockImplementation(() => new Promise(resolve => { answer = resolve; }));
+      pending = h.controller.activatePin("b");
+    } else { h.bind([h.comments[1]!]); h.reply(); }
+    h.select(1);
+    expect(h.state().selection.element.doanId).toBe("cta");
+    expect(h.open).not.toHaveBeenCalled();
+    if (pending) {
+      h.reply(1, "a");
+      answer(true); await pending;
+      expect(h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "select-comment").at(-1)).toMatchObject({ node: "b", seq: 2 });
+      h.select(2);
+      expect(h.open).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ node: "b", originalTarget: { frame: "b" } }));
+    }
   } finally { h.controller.dispose(); }
 });

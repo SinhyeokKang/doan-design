@@ -30,7 +30,7 @@ body{margin:0;height:1000px} section{position:absolute;left:80px;top:80px;width:
   await writeFile(join(userData, "folders.json"), JSON.stringify([repo]));
   await promisify(execFile)("go", ["build", "-o", cli, "./cli/cmd/doan"], { cwd: root });
   const entry = join(work, "adapter.ts");
-  await writeFile(entry, `export { CanvasController } from ${JSON.stringify(join(root, "app/src/renderer/CanvasController.ts"))};`);
+  await writeFile(entry, `export { CanvasController } from ${JSON.stringify(join(root, "app/src/renderer/CanvasController.ts"))}; export { projectList } from ${JSON.stringify(join(root, "app/src/comments/projection.ts"))};`);
   const built = await build({ configFile: false, root: join(root, "app"), logLevel: "silent", build: { write: false, minify: false, lib: { entry, name: "AnchorTest", formats: ["iife"] } } });
   const bundle = (Array.isArray(built) ? built[0] : built) as { output: { type: string; code?: string }[] };
   const code = bundle.output.find(c => c.type === "chunk")?.code; assert.ok(code);
@@ -127,6 +127,80 @@ body{margin:0;height:1000px} section{position:absolute;left:80px;top:80px;width:
   await page.waitForFunction(() => { const a = (window as any).anchorTest; return a.snapshot.lookup.generation > a.oldGeneration && a.snapshot.lookup.nodes.size === 4; });
   assert.equal(await page.evaluate(() => { const a = (window as any).anchorTest, count = a.calls, e = a.old;
     window.dispatchEvent(new MessageEvent("message", { source: e.source, origin: e.origin, data: e.data })); return a.calls === count; }), true);
+
+  const regressionFailures: string[] = [];
+  for (const scenario of ["Y1", "Y2", "Y3-new-guard", "Y3-binding", "Y4"]) {
+    try {
+      await page.evaluate(() => {
+        const a = (window as any).anchorTest;
+        a.gate = null; a.allow = true; a.hooks.guard = () => true; a.opened = [];
+        a.set([a.comment("f", { frame: "hero" }), a.comment("e", { element: { doanId: "hero", selector: "section", html: "" } }), a.comment("child", { element: { doanId: "child", selector: "span", html: "" } })]);
+        a.controller.command("reload"); a.controller.command("fit");
+      });
+      await page.waitForFunction(() => (window as any).anchorTest.snapshot.lookup.nodes.size === 3);
+      const live = page.frames().filter(f => f.url() === url).at(-1)!;
+      if (scenario === "Y4") {
+        await live.evaluate(() => {
+          const host = document.createElement("div");
+          host.style.cssText = "position:absolute;left:250px;top:180px;visibility:hidden";
+          host.innerHTML = '<button id="visible" style="visibility:visible;width:100px;height:40px">Visible</button><button id="hidden">Hidden</button><div style="display:none"><button id="display" style="visibility:visible">Display</button></div><div style="opacity:0"><button id="opacity" style="visibility:visible">Opacity</button></div>';
+          document.body.append(host);
+        });
+        assert.deepEqual(await live.evaluate(() => ["visible", "hidden"].map(id => getComputedStyle(document.getElementById(id)!).visibility)), ["visible", "hidden"]);
+        await page.evaluate(() => { const a = (window as any).anchorTest; a.set(["visible", "hidden", "display", "opacity"].map(id => a.comment(id, { element: { selector: "#" + id, html: "" } }))); });
+        await page.waitForFunction(() => (window as any).anchorTest.snapshot.lookup.nodes.size === 4);
+        assert.deepEqual(await page.evaluate(() => { const a = (window as any).anchorTest; return a.controller.pins.flatMap((p: any) => p.comments); }), ["visible"]);
+        await page.screenshot({ path: join(shots, "Y4-visibility.png") });
+      } else if (scenario === "Y2") {
+        await page.evaluate(() => { const a = (window as any).anchorTest; void a.controller.activatePin(a.snapshot.lookup.nodes.get("child")); });
+        await page.waitForFunction(() => { const a = (window as any).anchorTest; return a.snapshot.selected === a.snapshot.lookup.nodes.get("child"); });
+        const old = await page.evaluate(() => (window as any).anchorTest.snapshot.selected);
+        await live.evaluate(() => { const el = document.querySelector("span")!; el.replaceWith(el.cloneNode(true)); });
+        await page.waitForFunction(old => (window as any).anchorTest.snapshot.lookup.nodes.get("child") !== old, old);
+        // Wait only for already queued animation frames; cause no external layout event.
+        await live.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        assert.equal(await page.evaluate(() => { const a = (window as any).anchorTest; return a.snapshot.selected === a.snapshot.lookup.nodes.get("child"); }), true);
+        await page.screenshot({ path: join(shots, "Y2-replacement.png") });
+      } else {
+        if (scenario === "Y1") {
+          await page.evaluate(() => { const a = (window as any).anchorTest; void a.controller.activatePin(a.snapshot.lookup.nodes.get("f")); });
+          await page.waitForFunction(() => { const a = (window as any).anchorTest; return a.snapshot.selected === a.snapshot.lookup.nodes.get("f"); });
+        }
+        await page.evaluate(() => {
+          const a = (window as any).anchorTest; a.held = []; a.opened = [];
+          a.gate = (e: MessageEvent) => { if (e.data?.type === "select" && e.source === a.board.querySelector("iframe").contentWindow) { a.held.push(e); e.stopImmediatePropagation(); } };
+        });
+        await page.evaluate(scenario => { const a = (window as any).anchorTest; void a.controller.activatePin(a.snapshot.lookup.nodes.get(scenario === "Y1" ? "child" : "f")); }, scenario);
+        await page.waitForFunction(() => (window as any).anchorTest.held.length === 1);
+        await page.waitForFunction(() => { const a = (window as any).anchorTest; return a.latestAnchor.data.selectionSeq === a.held[0].data.seq; });
+        if (scenario === "Y1") {
+          const projected = await page.evaluate(() => {
+            const a = (window as any).anchorTest, s = a.snapshot;
+            return { frame: a.state.selection.frame.id, selected: s.selected, list: (window as any).AnchorTest.projectList(a.comments, s.lookup, s.lookup, { scope: "selection", status: "open", node: s.selected }).map((c: any) => c.comment) };
+          });
+          assert.equal(projected.frame, "hero"); assert.equal(projected.selected, null); assert.deepEqual(projected.list, []);
+        } else if (scenario === "Y3-new-guard") {
+          await page.evaluate(() => { const a = (window as any).anchorTest; a.hooks.guard = () => new Promise(resolve => a.answer = resolve); a.pending = a.controller.activatePin(a.snapshot.lookup.nodes.get("child")); });
+        } else {
+          await page.evaluate(() => { const a = (window as any).anchorTest; a.set(a.comments.filter((c: any) => c.comment === "child")); });
+          await page.waitForFunction(() => (window as any).anchorTest.snapshot.lookup.nodes.size === 1);
+        }
+        await page.evaluate(() => { const a = (window as any).anchorTest; a.gate = null; const e = a.held[0]; window.dispatchEvent(new MessageEvent("message", { source: e.source, origin: e.origin, data: e.data })); });
+        await page.waitForFunction(() => (window as any).anchorTest.state.selection !== null);
+        if (scenario !== "Y1") {
+          assert.equal(await page.evaluate(() => (window as any).anchorTest.state.selection.frame.id), "hero");
+          assert.equal(await page.evaluate(() => (window as any).anchorTest.opened.length), 0);
+          if (scenario === "Y3-new-guard") {
+            await page.evaluate(async () => { const a = (window as any).anchorTest; a.answer(true); await a.pending; });
+            await page.waitForFunction(() => (window as any).anchorTest.state.selection.element?.doanId === "child");
+            assert.equal(await page.evaluate(() => (window as any).anchorTest.opened.length), 1);
+          }
+        }
+      }
+      console.log(scenario + ": PASS");
+    } catch (error) { regressionFailures.push(scenario + ": " + String(error)); console.error(regressionFailures.at(-1)); }
+  }
+  assert.deepEqual(regressionFailures, [], "independent review regressions");
   // Fixed before execution: task 0 criteria, measured through actual pin DOM.
   const criteria = { counts: [100, 1000], warmup: 10, samples: 100, kinds: ["scroll", "resize", "mutation"], p95LimitsMs: [50, 200], missing: 0, staleApplies: 0 };
   await writeFile(join(shots, "performance-criteria.json"), JSON.stringify(criteria, null, 2));
