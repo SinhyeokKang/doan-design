@@ -140,7 +140,7 @@ The MVP is split into 8 features. One feature is one `/feature` run and is manag
 | 4 | `app-shell` | Electron skeleton: multiple folders · local server (serving scope) · file watching · canvas list. The real-app verification loop (`/runtime-test` skill) is built here. The app-driving tool (among Playwright Electron · CDP · `computer-use`) is decided in this feature's `/feature` (2026-10-21) |
 | 5 | `canvas-view` | sandbox iframe · board size · zoom in/out and pan · frame list and jumps · live reload (MVP app item 2, added 2026-10-22). Done 2026-10-22. When this feature is done, build the `/design-sync` skill (see 'Dogfooding' below) |
 | — | `app-ui` | App shell rebuilt from a draft canvas (`design/app-shell.html`): React + shadcn/ui + Tailwind renderer, English UI copy, V1 layout with a Canvas info panel, Reopen and Close for missing projects, closing the window hides it. Added between #5 and #6 without a number (2026-10-22 user: "lay the groundwork before building on it"). Done 2026-10-22 |
-| 6 | `select-inspect` | selection · inspector · `runtime.json` + socket · `doan active` |
+| 6 | `select-inspect` | selection · inspector · `runtime.json` + socket · `doan active`. Done 2026-10-23 |
 | 7 | `comments-ui` | panel comment CRUD · pins · outdated · sentence copy |
 | 8 | `onboard-dist` | first-run onboarding · skill stub install · refine `doan skill` body · notarized dmg · brew cask · auto-update |
 
