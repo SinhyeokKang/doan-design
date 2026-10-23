@@ -86,3 +86,7 @@
 - C 통합 HEAD `4fa6151`: 964개 테스트·typecheck·전체 e2e 통과. R-C red/yellow 0개이며 별도 49개 집중 테스트도 통과했다. C/R-C release, 증거 복사 일치·clean·git cherry 확인 후 cu-c를 Orca로 삭제했고 목록 부재를 확인했다.
 - M1 보고 HEAD `ecd44c0`(테스트 `6b0017b/55ab9e3`): 955개 테스트·typecheck·Go test/vet·파일 경계 66개를 포함한 전체 e2e 통과. R-M1은 Astra medium으로 경합·단발 프로세스·실패 정산과 실제 증거를 독립 리뷰한다. 제품 연결은 아직 없다.
 - A 착수: C를 선행으로 main/canvasScript·renderer/CanvasController/canvasMessage 및 신규 anchor/pin 모듈·테스트를 소유한다. Astra medium — 문서·좌표·독립 요청 경계 판단. e2e/runtime.ts는 M1 수정 가능성이 남아 있어 지휘자의 별도 소유권 해제 전에는 편집하지 않는다. A는 독립 코드를 먼저 끝내고, 해제가 안 되면 runtime 연결만 deferred로 보고한다. M1 소스·main IPC/hash·App/RightPanel CRUD는 수정하지 않는다.
+
+- 지휘 재개: M1 독립 리뷰는 red/yellow 0이며 40개 focused 검사와 증거 검증을 확인했다. M1 세 커밋을 c790b50/95d8ed5/73d9c6d로 통합하고 통합 게이트를 실행한다. R-M1과 A의 종료 보고를 수락하고 터미널을 release했다.
+- A 첫 구현은 5202094까지 완료했지만 전체 e2e의 folders after restart가 두 번 실패했다. baseline 결함이라고 단정하지 않는다. 같은 Task를 Astra medium으로 재시도한다 — tooltip/실제 경로와 테스트 경계를 판단해야 한다. 기존 cu-a에서 통합 브랜치를 병합한 뒤 원인을 재현·수정하고 전체 runtime을 재검증한다. app/e2e/runtime.ts 소유권을 A에 해제하며 M1 검사를 보존한다. 실제 Electron 검증 슬롯은 A 단독이다.
+- M은 C/M1 API 위에 main 서비스·IPC·preload·hash·watcher를 구현한다. Astra medium — 신뢰 경계·문서 세대·재시도 판단. 소유 범위와 검증은 지휘자 .scratch/comments-ui/briefs/M.md로 고정하며 A의 canvasScript/renderer/runtime 파일과 겹치지 않는다. A의 runtime 종료 전에는 단위·타입 검증을 진행한다.
