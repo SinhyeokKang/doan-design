@@ -100,7 +100,7 @@ The source for the 12 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, po
 | `docs/features/<slug>/` | Feature documents (spec·design·tasks) from `/feature`, **in Korean**. Deleted once the conclusions are promoted | While the feature is in progress |
 | docs/DIRECTORY.md | Directory layout, in English | When the layout changes |
 | docs/DESIGN.md | Measured values the app UI relies on, documented deviations from drafts, unverified surfaces, in English. Created by the first `/design-sync` run (app-ui, 2026-10-22) | When `/design-sync` runs or a measured value changes |
-| docs/POSTMORTEM.md | Record of pitfalls from bugs and regressions (append only), in English. `/postmortem` creates it on first write | When a regression is fixed |
+| docs/POSTMORTEM.md | Record of pitfalls from bugs and regressions (newest date first; preserve existing entry content), in English. `/postmortem` creates it on first write | When a regression is fixed |
 | Documents to create later | `docs/OPERATIONS.md` (feature 8 `onboard-dist`) · `docs/CONTRIBUTING.md` · `docs/CODE_OF_CONDUCT.md` · `docs/SECURITY.md` (right before going public) · root `LICENSE` (when the license is decided). All in English | Create them when that time comes. Do not create empty shells ahead of time (2026-10-21 user) |
 | [AGENTS.md](./AGENTS.md) | How we work (this file), in English — the shared source for both runtimes | When the way we work changes |
 
