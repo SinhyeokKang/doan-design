@@ -4,7 +4,7 @@
 
 - 시작 해시: `f718e54`(main)
 - 통합 브랜치: `feat-select-inspect`
-- 지휘: Claude Code(Opus 5.5)
+- 지휘: Codex(2026-10-23 인수, 이전 Claude Code Opus 5.5)
 - 워커 위치: 배치마다 Orca `new-child` 워크트리(통합 브랜치에서 갈라짐). 브리프는 `.scratch/briefs/<배치>.md`(지휘 체크아웃, 절대 경로로 넘김), 인계는 각 워크트리의 `.scratch/handoff-<배치>.md`.
 
 ## 결정 로그
@@ -65,3 +65,18 @@ tasks.md의 task 0–11은 모두 위 한 행 이상에 속하고, 주인 없는
 
 - 2026-10-22 1파 시작: P2 `ctx_d4db85540a68`(si-p2, Claude opus high), P6 `ctx_36ea8475d6dc`(si-p6, Claude opus medium), D `ctx_6e0d659920c6`(si-d, Codex gpt-6-astra medium). `launch.effective`가 요청과 같다. Run `run_d5ab65352d29`.
 - `new-child` 워크트리가 통합 브랜치가 아니라 main(`f718e54`)에서 갈라졌다. 빠진 파일은 이 `orch.md`뿐이라, 세 워커에게 `git merge --ff-only feat-select-inspect`를 보냈다. 다음 워커부터는 `--base-branch feat-select-inspect`를 넘긴다.
+
+## 지휘 인수 — 2026-10-23
+
+- 사용자 요청으로 Codex가 Run `run_d5ab65352d29`를 인수했다. Orca coordinator는 `term_f94cdc58-8dec-4aa9-a073-52bb5c817a03`, consumer generation은 2다. 기존 지휘자는 주간 사용량 한도로 중단됐다.
+- 통합 HEAD `4138159`, 작업 트리는 깨끗하다. T9 실제 에이전트 검증은 통과했고 호출 허용 횟수는 이미 사용했다. 다시 호출하지 않는다.
+- EF 독립 리뷰는 🔴 0 · 🟡 2다. 같은 요소 재진입과 Alt 포커스 이동 뒤 hover 복원 결함을 F2에서 수정한다.
+- Y는 655 요소 쌍 실측과 검증을 마쳤으나 독립 리뷰 응답이 없어 실패로 종료했다. 증거를 보존하고 독립 리뷰 후 기존 task를 재개한다.
+
+| 후속 배치 | 파일 소유 | 선행 | 모델 · effort와 이유 | 검증 | 상태 |
+|---|---|---|---|---|---|
+| F2 | canvasScript · CanvasController와 테스트, app/e2e/runtime.ts, POSTMORTEM | EF 리뷰 | 기존 F1 Codex Astra medium — 포커스·입력 경계 판단 | 회귀 red→green, 단위·typecheck·build·e2e, 독립 재리뷰 | 배정 |
+| Y 리뷰 | 보고만, si-ref에서 Y 실측 증거 읽기 | Y 측정 | 기존 EF 리뷰 Codex Astra medium — 측정 쌍과 차이 분류 판단 | 전체 표·원시 측정·도달 상태·차이 분류 검토 | 배정 |
+| Y 마무리 | docs/DESIGN.md (제품 수정이 필요하면 F2 이후) | Y 리뷰 | Codex Astra medium — 승인된 차이와 측정 증거 반영 | design-sync 6–8단계 | 대기 |
+
+F2 제품 수정과 Y 읽기 전용 리뷰는 병렬이다. Y 제품 수정과 재측정은 F2 통합 뒤에 한다. 이후 최종 문서 승격·통합 검증·push·PR 순서이며 merge하지 않는다.
