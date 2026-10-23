@@ -286,7 +286,11 @@ export class CanvasController {
   }
 
   openCanvas(folder: string, row: CanvasRow): void {
-    this.transition(() => this.openCanvasNow(folder, row), () => this.entries.some(entry => entry.path === folder && entry.kind === "list" && entry.canvases.some(current => current.path === row.path && current.id === row.id && current.url === row.url)));
+    const current = () => {
+      const entry = this.entries.find(entry => entry.path === folder);
+      return entry?.kind === "list" ? entry.canvases.find(candidate => candidate.path === row.path && candidate.id === row.id && candidate.url === row.url) : undefined;
+    };
+    this.transition(() => this.openCanvasNow(folder, current() ?? row), () => current() !== undefined);
   }
 
   private openCanvasNow(folder: string, row: CanvasRow): void {
