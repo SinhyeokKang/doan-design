@@ -20,8 +20,8 @@
 | P-H | 0 hash·문서 세대 PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 응답/문서 경합 | app test/typecheck/build/e2e, 전달 bytes·세대 불일치 차단 | PoC 통과 |
 | D | 1 design/comments-ui.html | 문서 리뷰 완료 | Astra medium — 기존 화면 보존·상태 표현 | doan ls/check, 지휘자 위임 확인 | 수정 재검증·최종 컨펌 완료 |
 | P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | PoC 통과, 아래 한계 명시 |
-| F | 2 공유 v1 fixture·Go/TS 테스트 | PoC 및 초안 승인 | Sol medium — 기존 형식 사례 확장 | go test, app test | 대기 |
-| C | 3 순수 함수와 테스트, 신규 shared 모듈 | F | Astra medium — 상태·시간·타겟 계약 | red→green, app test/typecheck | 대기 |
+| F | 2 공유 v1 fixture·Go/TS 테스트 | PoC 및 초안 승인 | Sol medium — 기존 형식 사례 확장 | go test, app test | bd05032 통합·리뷰 통과 |
+| C | 3 순수 함수와 테스트, 신규 shared 모듈 | F | Astra medium — 상태·시간·타겟 계약 | red→green, app test/typecheck | 착수 |
 | M | 4 main I/O·IPC·preload·watcher 및 테스트 | C | Astra medium — 파일 안전성·재시도 | app test/typecheck, go test, reader round trip | 대기 |
 | A | 5 anchor 조회·핀 geometry·overlay 및 테스트 | C; M과 공유 파일 겹치면 직렬 | Astra medium — 문서·viewport 경계 | app test/typecheck/build/e2e | 대기 |
 | U | 6 패널 CRUD·초안·복사 및 테스트 | M,A | Astra medium — UI 상태·입력 보호 | app test/typecheck/build/e2e | 대기 |
@@ -76,3 +76,5 @@
 
 - R-PW `ctx_8e53e5671135` 통과: 원자료 49개와 checksum 23개 일치를 확인했고 차단 결함 0개다. 단발 IPC·종료·각 단계 재검증 등 운영 필수 조건을 `.scratch/comments-ui/evidence/R-PW/handoff-CU-R-PW.md`에 보존했고 M/V가 따른다. 검토 터미널을 release했다.
 - R-F: Astra medium, v1 교차 언어 fixture의 의미와 검증 주장을 독립 검토한다. 읽기 전용이며 `69b0e3f`를 대상으로 한다. F 통합 뒤 C는 app/src/comments/의 신규 순수 모듈과 테스트만 소유한다. C 모델은 Astra medium이며 판단이 필요한 시간·초안·대상 계약을 담당한다.
+
+- F `69b0e3f` → `bd05032` 통합. R-F red/yellow 0개이며 통합 HEAD에서 Go 전체·앱 915개·typecheck 통과했다. 호환성 fixture라 TDD red는 대상 아님을 명시했다. handoff/증거 hash 일치·clean·git cherry 미통합 없음 확인 뒤 F/R-F release 및 cu-f의 Orca 카드 삭제·목록 부재를 확인했다. C는 확정 brief의 app/src/comments/ 순수 모듈과 테스트를 구현한다.
