@@ -76,7 +76,8 @@ export class CommentsSession {
         const current = list.comments.find(c => c.comment === id);
         if (!current) this.saveView = { status: "deleted" };
         else if (review) {
-          this.draft = { ...this.draft, draft: { ...draft, origin: { ...draft.origin, expected: expectedComment(current) } } };
+          this.project = list.project;
+          this.draft = { ...this.draft, draft: { ...draft, blocked: null, origin: { ...draft.origin, expected: expectedComment(current) } } };
           this.saveView = { status: "reviewed", latest: current };
         } else if (JSON.stringify(expectedComment(current)) !== JSON.stringify(draft.origin.expected)) this.saveView = { status: "conflict" };
       }
