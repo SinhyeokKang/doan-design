@@ -25,7 +25,7 @@
 | M | 4 main I/O·IPC·preload·watcher 및 테스트 | C,M1 | Astra medium — 파일 안전성·재시도 | app test/typecheck, go test, reader round trip | 15cb445 통합·최종 독립 리뷰 통과 |
 | A | 5 anchor 조회·핀 geometry·overlay 및 테스트 | C; M과 공유 파일 겹치면 직렬 | Astra medium — 문서·viewport 경계 | app test/typecheck/build/e2e | 465d44b 통합·최종 독립 리뷰 통과 |
 | U1 | 6 패널 표시 컴포넌트·테스트·스타일 | C,A | Astra medium — 표시 상태·접근성 판단 | app test/typecheck, 실앱은 U2/S | 817bde1 통합·독립 리뷰 통과 |
-| U2 | 6 App CRUD·초안·복사·이동 보호와 실제 runtime | M,A,U1 | Astra medium — UI 상태·입력·비동기 경합 | app test/typecheck/build/e2e | 964fb17 통합·독립 리뷰 통과; 최종 인계 정리 중 |
+| U2 | 6 App CRUD·초안·복사·이동 보호와 실제 runtime | M,A,U1 | Astra medium — UI 상태·입력·비동기 경합 | app test/typecheck/build/e2e | 964fb17 통합·독립 리뷰 및 최종 게이트 통과 |
 | V | 7 통합 회귀·개별 mutation·runtime | U | Astra medium — 독립 경계 검증 | go test/vet, app test/typecheck/build/e2e, screenshot 확인 | 대기 |
 | R | 각 구현 배치 독립 리뷰, 결함은 원 소유자 수정 | 해당 배치 | Astra medium — 계획·증거·정확성 검토 | code-review, 🔴 0까지 반복; 결함 postmortem | 대기 |
 | S | 8 design-sync·필요한 수정·DESIGN | V,R | Astra medium — 상태별 측정·독립 재검토 | 측정 및 app test/typecheck/build/e2e | 대기 |
@@ -137,3 +137,5 @@
 - U2 최종 721e155에서 before/after HEAD 일치와 exit 0인 단위 1108개/typecheck/Go test/vet/전체 e2e 실행 시점 영수증을 확인했다. 모든 코드 delta의 독립 리뷰 red/yellow 0 후 18개 커밋을 964fb17까지 통합했다. 마지막 리뷰의 영수증 미도착 한계는 지휘자의 실행 기록 감사로 해소했다. 통합 단위/타입 게이트를 진행한다.
 
 - U2 종료 인계와 최종 실행 영수증을 대조했다. 전체 1108개/typecheck/Go test/vet/e2e exit 0, 모든 제품 delta 독립 리뷰 0건을 확인하고 release했다. V2는 Astra medium — UI 경계 개별 mutation 및 실제 cross-project 초안 보존 판단. 독립 child의 테스트/fixture만 소유하고 제품 수정은 지휘자에게 돌린다. U2 미검증인 다른 root의 같은 canvas id 이동을 실제 App에서 추가 확인하며, OS-native IME는 미검증 범위를 보존한다. Electron 슬롯은 V2로 넘긴다.
+
+- U2 통합 단위 1108개/typecheck exit 0을 확인했다. U2 scratch 증거 116개 byte 일치·clean·git cherry 미통합 없음·리뷰 종료를 확인하고 cu-u2를 Orca로 제거했다. 목록에는 지휘 checkout과 cu-v2만 남았다. V2 ctx_c869d69dfd16 실제 조사 착수를 확인했다.
