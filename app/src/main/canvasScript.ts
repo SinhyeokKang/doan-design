@@ -425,11 +425,19 @@ export function canvasScript(lib: CanvasLib): void {
       if (frame === undefined && doanId === undefined && selector === undefined) return;
     } else if (type === "pick-frame") {
       if (typeof index !== "number" || !Number.isInteger(index) || typeof id !== "string") return;
-    } else if (type !== "clear") return;
+    } else if (type === "hover-alt") {
+      if (typeof data.alt !== "boolean") return;
+    } else if (type !== "clear" && type !== "hover-leave") return;
     // Not newer: a click here already moved past this command.
     if (next <= seq) return;
     seq = next;
-    if (type === "clear") {
+    if (type === "hover-alt") {
+      alt = data.alt === true;
+      postHover();
+    } else if (type === "hover-leave") {
+      hoverEl = null;
+      lastHover = "";
+    } else if (type === "clear") {
       drop();
       postHover();
     } else if (type === "select-anchor") {
@@ -537,6 +545,7 @@ export function canvasScript(lib: CanvasLib): void {
     "pointermove",
     (event: PointerEvent) => {
       if (!event.isTrusted) return;
+      if (alt !== event.altKey) postSelection("key", { key: "Alt", alt: event.altKey });
       alt = event.altKey;
       hoverEl = event.target;
       if (hoverQueued) return;
@@ -566,6 +575,7 @@ export function canvasScript(lib: CanvasLib): void {
     (event: KeyboardEvent) => {
       if (event.key === "Alt") {
         alt = true;
+        postSelection("key", { key: "Alt", alt });
         postHover();
       }
       if (event.key === "Escape" && !editable(event.target)) postSelection("key", { key: "Escape" });
@@ -577,6 +587,7 @@ export function canvasScript(lib: CanvasLib): void {
     (event: KeyboardEvent) => {
       if (event.key !== "Alt") return;
       alt = false;
+      postSelection("key", { key: "Alt", alt });
       postHover();
     },
     { capture: true },

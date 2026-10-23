@@ -283,6 +283,9 @@ describe("selection", () => {
       h.changed.mockClear();
       h.host.dispatchEvent(new Event("pointermove"));
       expect(h.markOf("hover")?.hidden).toBe(true);
+      expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "hover-leave", seq: 1 }, "*");
+      h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      expect(h.markOf("hover")?.hidden).toBe(true);
       expect(h.changed).not.toHaveBeenCalled();
     } finally { h.controller.dispose(); }
   });
@@ -306,6 +309,29 @@ describe("selection", () => {
       h.host.dispatchEvent(new Event("pointermove"));
       h.host.dispatchEvent(Object.assign(new Event("keyup"), { key: "Alt" }));
       expect(h.markOf("hover")?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("takes Alt release from the canvas without reviving stale hover or clearing selection", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.receive({ type: "hover", seq: 1, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      h.changed.mockClear();
+      h.key("Alt");
+      expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "hover-alt", alt: true, seq: 2 }, "*");
+      h.receive({ type: "key", key: "Alt", alt: false, seq: 1 });
+      h.receive({ type: "hover", seq: 1, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      expect(h.markOf("hover")?.hidden).toBe(true);
+      h.receive({ type: "hover", seq: 2, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      expect(h.markOf("hover")?.hidden).toBe(true);
+      h.receive({ type: "key", key: "Alt", alt: false, seq: 2 });
+      h.receive({ type: "hover", seq: 2, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      expect(h.markOf("hover")?.hidden).toBe(false);
+      h.layout({ seq: 2, selected: { x: 20, y: 30, width: 60, height: 18 } });
+      expect(h.markOf("selected")?.style.left).toBe("120px");
+      expect(h.send).toHaveBeenCalledTimes(1);
+      expect(h.changed).not.toHaveBeenCalled();
     } finally { h.controller.dispose(); }
   });
 

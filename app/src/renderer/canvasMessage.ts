@@ -87,10 +87,9 @@ export interface ClearMessage extends SelectionMessageBase {
   type: "clear";
 }
 
-export interface KeyMessage extends SelectionMessageBase {
-  type: "key";
-  key: "Escape";
-}
+export type KeyMessage = SelectionMessageBase & { type: "key" } & (
+  { key: "Escape" } | { key: "Alt"; alt: boolean }
+);
 
 export type SelectionMessage = HoverMessage | SelectMessage | ClearMessage | KeyMessage;
 
@@ -168,7 +167,9 @@ function parseSelectionMessage(data: Record<string, unknown>): SelectionMessage 
   const base = { href, seq, viewport };
   switch (type) {
     case "clear": return { type, ...base };
-    case "key": return data.key === "Escape" ? { type, ...base, key: "Escape" } : null;
+    case "key":
+      if (data.key === "Escape") return { type, ...base, key: "Escape" };
+      return data.key === "Alt" && typeof data.alt === "boolean" ? { type, ...base, key: "Alt", alt: data.alt } : null;
     case "hover": {
       if (data.rect === null) return { type, ...base, rect: null };
       const rect = parseRect(data.rect);

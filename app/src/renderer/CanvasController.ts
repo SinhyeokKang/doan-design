@@ -269,7 +269,16 @@ export class CanvasController {
   private onSelectionMessage(message: SelectionMessage): void {
     const verdict = acceptSelectionMessage(this.expectation(), message);
     if (verdict === "drop") return;
-    if (message.type === "key") { this.escape(); return; }
+    if (message.type === "key") {
+      if (message.key === "Escape") this.escape();
+      // Unlike Escape, an old modifier snapshot must not override a newer press.
+      else if (message.seq >= this.seq) {
+        this.seq = message.seq;
+        this.altHeld = message.alt;
+        this.drawMarks();
+      }
+      return;
+    }
     this.seq = message.seq;
     if (message.type === "hover") { this.hoverRect = message.rect; this.drawMarks(); return; }
     if (message.type === "clear") { this.clearSelection(false); this.publish(); return; }
@@ -353,7 +362,13 @@ export class CanvasController {
   }
 
   private keydown = (event: KeyboardEvent): void => {
-    if (event.key === "Alt") { this.altHeld = true; this.drawMarks(); return; }
+    if (event.key === "Alt") {
+      // Focus may move into the canvas before keyup; fence off earlier snapshots.
+      if (!this.altHeld) this.sendCommand({ type: "hover-alt", alt: true });
+      this.altHeld = true;
+      this.drawMarks();
+      return;
+    }
     if (event.key !== "Escape" || event.defaultPrevented || editableTarget(event.target)) return;
     this.escape();
   };
@@ -361,13 +376,17 @@ export class CanvasController {
   private keyup = (event: KeyboardEvent): void => {
     if (event.key !== "Alt") return;
     this.altHeld = false;
+    this.sendCommand({ type: "hover-alt", alt: false });
     this.drawMarks();
   };
 
   private pointerOnApp = (event: PointerEvent): void => {
     this.altHeld = event.altKey;
     // OOPIFs do not reliably receive pointerout when the pointer enters the app.
-    if (event.target !== this.frame) this.hoverRect = null;
+    if (event.target !== this.frame && this.hoverRect !== null) {
+      this.hoverRect = null;
+      this.sendCommand({ type: "hover-leave" });
+    }
     this.drawMarks();
   };
 

@@ -905,6 +905,16 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await page.mouse.move(center(chip).x, center(chip).y, { steps: 5 });
   assertNearRect(await waitMark(page, "hover"), chip, "hover mark over the chip");
 
+  // A direct jump must not rely on crossing another element to invalidate hover.
+  await page.mouse.move(center(box).x, center(box).y);
+  await waitMark(page, "hover");
+  await page.mouse.move(view.left + 8, center(box).y);
+  await waitFor(async () => (await markRect(page, "hover")) === null, "S5 direct leave clears hover");
+  await page.mouse.move(center(box).x, center(box).y);
+  await expectProduct("S5 hover returns on direct same-element reentry", async () => {
+    assertNearRect(await waitMark(page, "hover"), box, "same-element reentry hover");
+  });
+
   // S6. A click on the canvas's html/body clears.
   await clickAt(page, canvas, "#box");
   await waitInspector(page, v => v?.selector === BOX, "box selected");
@@ -987,6 +997,12 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await waitInspector(page, v => v?.selector === BOX, "box selected before ⌥-click");
   await altClickAt(page, canvas, "#field");
   await waitFor(() => canvas.evaluate(() => document.activeElement?.id === "field"), "⌥-click focuses the input");
+  const focusChip = toPageRect(await readView(page), await elementRect(canvas, "#chip"));
+  await page.mouse.move(center(focusChip).x, center(focusChip).y);
+  await expectProduct("S9 hover returns after Alt release in the focused canvas", async () => {
+    assertNearRect(await waitMark(page, "hover"), focusChip, "hover after Alt focus transfer");
+  });
+  await leaveCanvas(page);
   assert.equal((await readInspector(page))?.selector, BOX, "⌥-click keeps the selection");
   await clickAt(page, canvas, "#chip");
   await waitInspector(page, v => v?.selector === CHIP, "plain click after ⌥-click selects");

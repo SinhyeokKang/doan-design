@@ -440,3 +440,13 @@ describe("parseCanvasMessage: layout selection", () => {
     expect(parsed).not.toHaveProperty("seq");
   });
 });
+
+test("validates Alt state messages separately from Escape", () => {
+  for (const alt of [true, false]) {
+    const message = { type: "key", key: "Alt", alt, href: HREF, seq: 2, viewport: 150 };
+    expect(parseCanvasMessage(message)).toEqual(message);
+  }
+  for (const alt of [undefined, null, 0, "false"]) {
+    expect(parseCanvasMessage({ type: "key", key: "Alt", alt, href: HREF, seq: 2, viewport: 150 })).toBeNull();
+  }
+});
