@@ -48,6 +48,11 @@ try {
   page.on("pageerror", error => console.error("pageerror", error));
   const panel = page.getByRole("region", { name: "Comments", exact: true });
   const cards = panel.getByRole("article");
+  const presentationFailures: string[] = [];
+  function presentation(name: string, actual: unknown, expected: unknown) {
+    try { assert.deepEqual(actual, expected); }
+    catch { presentationFailures.push(`${name}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`); }
+  }
   const shot = async (name: string) => { await page.screenshot({ path: join(shots, `${name}.png`) }); console.log(`comments-ui: ${name} PASS`); };
   // Equal canvas IDs and paths must never collapse identity across project roots.
   const originRow = page.getByRole("treeitem", { name: "origin", exact: true }).getByRole("treeitem", { name: "shared.html", exact: true });
@@ -61,8 +66,18 @@ try {
   await panel.getByRole("button", { name: "New canvas comment", exact: true }).click();
   const unicodeBody = '원래 대상 🧪 e\u0301 <img src=x onerror="window.HOSTILE=true">';
   await boundaryBody.fill(unicodeBody);
+  presentation("Comments heading weight", await panel.getByRole("heading", { name: "Comments", exact: true }).evaluate(el => getComputedStyle(el).fontWeight), "700");
+  presentation("Comment action layout", await panel.getByRole("button", { name: "Save comment", exact: true }).evaluate(el => {
+    const s = getComputedStyle(el); return [s.display, s.gap, s.whiteSpace, s.alignItems];
+  }), ["flex", "6px", "nowrap", "center"]);
+  presentation("Editor target spacing", await panel.locator("label").evaluate(el => {
+    const range = document.createRange(); range.selectNode(el.firstChild!);
+    return Math.round(el.querySelector(".comments-target")!.getBoundingClientRect().top - range.getBoundingClientRect().bottom);
+  }), 8);
   const originFrame = await page.locator("iframe").elementHandle(); assert.ok(originFrame);
   await destinationRow.click(); await boundaryDialog.waitFor();
+  presentation("Unsaved dialog width", await boundaryDialog.evaluate(el => el.getBoundingClientRect().width), 410);
+  presentation("Unsaved dialog heading weight", await boundaryDialog.getByRole("heading").evaluate(el => getComputedStyle(el).fontWeight), "700");
   assert.equal(await originFrame.evaluate(el => el.isConnected), true);
   await boundaryDialog.getByRole("button", { name: "Keep writing", exact: true }).click();
   assert.equal(await boundaryBody.inputValue(), unicodeBody);
@@ -194,8 +209,12 @@ try {
   await page.getByRole("button", { name: "Reload canvas", exact: true }).click(); await dialog.waitFor();
   await dialog.press("Escape"); await page.waitForFunction(() => document.activeElement?.tagName === "TEXTAREA");
   assert.equal(await createBody.inputValue(), "Reload protected");
+  const beforeConfirmedReload = await page.locator("iframe").elementHandle(); assert.ok(beforeConfirmedReload);
   await page.getByRole("button", { name: "Reload canvas", exact: true }).click(); await dialog.getByRole("button", { name: "Discard", exact: true }).click();
   await page.waitForFunction(() => !document.querySelector("textarea"));
+  await waitGate(async () => !await beforeConfirmedReload.evaluate(el => el.isConnected));
+  // Reanchoring publishes Selection again; choose Canvas only after that reply.
+  await page.waitForFunction(() => { const mark = document.querySelector<HTMLElement>(".overlay > .mark.selected"); return !!mark && !mark.hidden; });
   await panel.getByRole("group", { name: "Comment scope" }).getByRole("button", { name: "Canvas", exact: true }).click();
   await panel.getByRole("button", { name: /^Open 3$/ }).waitFor();
   await shot("05-reload-continue-discard");
@@ -246,6 +265,7 @@ try {
   await exec("git", ["-C", repo, "config", "user.name", ""]);
   await page.getByRole("treeitem", { name: "b.html", exact: true }).click();
   await panel.getByText("Set your Git name", { exact: true }).waitFor();
+  presentation("Recovery button line height", await panel.getByRole("button", { name: "Retry", exact: true }).evaluate(el => getComputedStyle(el).lineHeight), "normal");
   assert.equal(await panel.getByRole("button", { name: "New canvas comment", exact: true }).isDisabled(), true);
   await exec("git", ["-C", repo, "config", "user.name", "UI Author"]);
   await panel.getByRole("button", { name: "Retry", exact: true }).click();
@@ -296,6 +316,9 @@ try {
   const beforeUnknown = (await readFile(file, "utf8")).trim().split("\n").length;
   await panel.getByRole("button", { name: "Save comment", exact: true }).click();
   await panel.getByText("Save status is unknown", { exact: true }).waitFor();
+  presentation("Recovery message spans panel", await panel.getByText("Save status is unknown", { exact: true }).evaluate(el => {
+    return el.parentElement!.getBoundingClientRect().width === el.closest(".comments-panel")!.getBoundingClientRect().width;
+  }), true);
   assert.equal(await createBody.getAttribute("readonly"), "");
   await panel.getByRole("button", { name: "Check saved status", exact: true }).click();
   await cards.filter({ hasText: "Unknown save body" }).waitFor();
@@ -322,11 +345,17 @@ try {
   assert.equal(await cards.count(), 2, "same DOM frame and element group excludes child");
   assert.equal(await beforeExternal.evaluate(el => el.isConnected), true, "external comment event retained iframe");
   await shot("11-same-dom-group-and-no-reload");
+  const measuredPin = page.getByRole("button", { name: "2 open comments", exact: true }).first();
+  await page.keyboard.press("Tab"); await measuredPin.focus();
+  presentation("Focused pin ring", await measuredPin.evaluate(el => {
+    const s = getComputedStyle(el); return [s.outlineWidth, s.outlineOffset, s.outlineColor === getComputedStyle(document.body).color, s.zIndex];
+  }), ["2px", "2px", true, "3"]);
   // External deletion keeps an edit visible but makes saving impossible.
   await cards.filter({ hasText: "Equivalent frame element" }).getByRole("button", { name: "Edit", exact: true }).click();
   await panel.getByRole("textbox", { name: "Your unsaved edit body" }).fill("Keep deleted body");
   await writeFile(file, await readFile(file, "utf8") + JSON.stringify({ v: 1, id: `evt_${randomUUID()}`, comment: equivalent.comment, type: "delete", by: { kind: "human", name: "External" }, at: new Date(Date.parse(equivalent.at) + 1).toISOString() }) + "\n");
   await panel.getByText("This comment was deleted", { exact: true }).waitFor();
+  presentation("Deleted recovery has no empty action gap", await panel.getByText("This comment was deleted", { exact: true }).evaluate(el => el.parentElement!.querySelectorAll(".comments-tools:empty").length), 0);
   assert.equal(await panel.getByRole("textbox", { name: "Your unsaved edit body" }).inputValue(), "Keep deleted body");
   assert.equal(await panel.getByRole("button", { name: "Save changes", exact: true }).isDisabled(), true);
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -346,6 +375,9 @@ try {
   await writeFile(file, await readFile(file, "utf8") + JSON.stringify({ v: 1, id: `evt_${randomUUID()}`, comment: frameCreate.comment, type: "edit", body: "Changed before resolve", by: { kind: "human", name: "External" }, at: new Date(Math.max(Date.now(), ...currentEvents.map(event => Date.parse(event.at))) + 1).toISOString() }) + "\n");
   await app.evaluate(({ ipcMain }) => { const gate = Reflect.get(globalThis, "cardConflictGate"); ipcMain.removeHandler("comments:mutate"); ipcMain.handle("comments:mutate", gate.original); gate.release(); });
   await panel.getByText("This comment changed elsewhere", { exact: true }).waitFor();
+  presentation("Card conflict warning rule", await panel.getByText("This comment changed elsewhere", { exact: true }).evaluate(el => {
+    const s = getComputedStyle(el.parentElement!); return [s.borderLeftWidth, s.borderLeftColor];
+  }), ["2px", "rgb(232, 176, 75)"]);
   await cards.filter({ hasText: "Changed before resolve" }).getByRole("button", { name: "Read latest state", exact: true }).click();
   const beforeReviewedResolve = await readFile(file, "utf8");
   await cards.filter({ hasText: "Changed before resolve" }).getByRole("button", { name: "Confirm reviewed change", exact: true }).click();
@@ -367,6 +399,8 @@ try {
   await panel.getByRole("button", { name: "New selection comment", exact: true }).click(); await createBody.fill("Frozen retry body");
   await panel.getByRole("button", { name: "Save comment", exact: true }).click();
   await panel.getByRole("button", { name: "Check saved status", exact: true }).click();
+  await panel.getByRole("button", { name: "Retry original save", exact: true }).waitFor();
+  presentation("Confirmed absence uses a neutral message", await panel.getByText("The comment was not saved", { exact: true }).evaluate(el => getComputedStyle(el.parentElement!).borderLeftWidth), "0px");
   await panel.getByRole("button", { name: "Retry original save", exact: true }).click();
   await cards.filter({ hasText: "Frozen retry body" }).waitFor();
   const requests = await app.evaluate(() => Reflect.get(globalThis, "absentRequests")); assert.deepEqual(requests[0], requests[1]);
@@ -400,6 +434,24 @@ try {
   assert.equal(await cards.count(), 0); assert.equal(await page.locator("iframe").getAttribute("title"), "design/b.html");
   await app.evaluate(({ ipcMain }) => { ipcMain.removeHandler("comments:list"); ipcMain.handle("comments:list", Reflect.get(globalThis, "commentReadGate").original); });
   await shot("15-stale-panel-reply");
+  await app.evaluate(({ ipcMain }) => {
+    const original = Reflect.get(ipcMain, "_invokeHandlers").get("comments:list");
+    Reflect.set(globalThis, "presentationRead", { original, release: () => {} });
+    ipcMain.removeHandler("comments:list"); ipcMain.handle("comments:list", async (...args) => {
+      await new Promise<void>(resolve => { Reflect.get(globalThis, "presentationRead").release = resolve; });
+      return original(...args);
+    });
+  });
+  await page.getByRole("treeitem", { name: "a.html", exact: true }).click();
+  await panel.getByText("Loading comments…", { exact: true }).waitFor();
+  presentation("Loading message hierarchy", await panel.getByText("Loading comments…", { exact: true }).evaluate(el => {
+    const s = getComputedStyle(el); return [s.fontSize, s.fontWeight];
+  }), ["12px", "700"]);
+  await app.evaluate(({ ipcMain }) => {
+    const gate = Reflect.get(globalThis, "presentationRead"); gate.release();
+    ipcMain.removeHandler("comments:list"); ipcMain.handle("comments:list", gate.original);
+  });
+  await cards.filter({ hasText: invalidDate.body }).waitFor();
   await page.getByRole("treeitem", { name: "a.html", exact: true }).click();
   await cards.filter({ hasText: invalidDate.body }).waitFor();
   await app.evaluate(({ ipcMain }) => {
@@ -413,6 +465,7 @@ try {
   assert.equal(await panel.getByRole("button", { name: "Retry original save", exact: true }).count(), 0);
   assert.equal(await panel.getByRole("button", { name: "Check saved status", exact: true }).count(), 0);
   await shot("16-unrecoverable-unknown");
+  assert.deepEqual(presentationFailures, [], "Measured comment presentation regressions");
   console.log("comments-ui-test: PASS (actual App CRUD, draft transitions, clipboard and watcher)");
 } catch (error) {
   console.error(error);
