@@ -31,7 +31,14 @@ try {
   await exec("git", ["init", repo]); await exec("git", ["-C", repo, "config", "user.name", "UI Author"]); await exec("git", ["-C", repo, "config", "user.email", "ui@example.test"]);
   const html = (id: string) => `<!doctype html><title>${id}</title><meta name="doan:canvas" content="${id}"><meta name="doan:width" content="800"><style>body{margin:0;min-height:700px;background:#eee}section{margin:50px;width:400px;height:230px;background:#ccc;padding:20px}button{margin:30px;padding:20px}a{display:block;margin:20px}</style><section data-doan-frame="hero" data-doan-id="hero"><button data-doan-id="child">Child target</button></section><a href="b.html">Other canvas</a>`;
   await writeFile(join(repo, "design/a.html"), html("a")); await writeFile(join(repo, "design/b.html"), html("b"));
-  await writeFile(join(userData, "folders.json"), JSON.stringify([repo]));
+  const originRepo = join(work, "origin"), destinationRepo = join(work, "destination");
+  for (const project of [originRepo, destinationRepo]) {
+    await mkdir(join(project, ".doan"), { recursive: true }); await mkdir(join(project, "design"));
+    await writeFile(join(project, ".doan/config.json"), '{"v":1}');
+    await writeFile(join(project, "design/shared.html"), html("shared"));
+    await exec("git", ["init", project]); await exec("git", ["-C", project, "config", "user.name", "Boundary Author"]);
+  }
+  await writeFile(join(userData, "folders.json"), JSON.stringify([repo, originRepo, destinationRepo]));
   await exec("go", ["build", "-o", cli, "./cli/cmd/doan"], { cwd: root });
   app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env: { ...process.env, DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } });
   await app.evaluate(async ({ clipboard, ClipboardItem }) => { const items = await clipboard.read(); Reflect.set(globalThis, "savedClipboardU2", await Promise.all(items.map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)]))))))); });
@@ -41,6 +48,82 @@ try {
   const panel = page.getByRole("region", { name: "Comments", exact: true });
   const cards = panel.getByRole("article");
   const shot = async (name: string) => { await page.screenshot({ path: join(shots, `${name}.png`) }); console.log(`comments-ui: ${name} PASS`); };
+  // Equal canvas IDs and paths must never collapse identity across project roots.
+  const originRow = page.getByRole("treeitem", { name: "origin", exact: true }).getByRole("treeitem", { name: "shared.html", exact: true });
+  const destinationRow = page.getByRole("treeitem", { name: "destination", exact: true }).getByRole("treeitem", { name: "shared.html", exact: true });
+  const boundaryBody = panel.getByRole("textbox", { name: "New comment body" });
+  const boundaryDialog = page.getByRole("dialog");
+  const originLog = join(originRepo, ".doan/comments/shared.jsonl");
+  const destinationLog = join(destinationRepo, ".doan/comments/shared.jsonl");
+  const logBytes = (path: string) => readFile(path, "utf8").catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return ""; throw error; });
+  await originRow.click();
+  await panel.getByRole("button", { name: "New canvas comment", exact: true }).click();
+  const unicodeBody = '원래 대상 🧪 e\u0301 <img src=x onerror="window.HOSTILE=true">';
+  await boundaryBody.fill(unicodeBody);
+  const originFrame = await page.locator("iframe").elementHandle(); assert.ok(originFrame);
+  await destinationRow.click(); await boundaryDialog.waitFor();
+  assert.equal(await originFrame.evaluate(el => el.isConnected), true);
+  await boundaryDialog.getByRole("button", { name: "Keep writing", exact: true }).click();
+  assert.equal(await boundaryBody.inputValue(), unicodeBody);
+  assert.equal(await originRow.getAttribute("aria-current"), "true");
+  assert.equal(await logBytes(originLog), ""); assert.equal(await logBytes(destinationLog), "");
+  await shot("00a-cross-root-continue");
+  await destinationRow.click(); await boundaryDialog.getByRole("button", { name: "Save and continue", exact: true }).click();
+  await waitGate(async () => await destinationRow.getAttribute("aria-current") === "true");
+  await panel.getByText("No open comments here", { exact: true }).waitFor();
+  const savedBytes = await logBytes(originLog), saved = JSON.parse(savedBytes.trim());
+  assert.equal(saved.body, unicodeBody); assert.deepEqual(saved.target, {}); assert.equal(saved.by.kind, "human");
+  assert.equal(await logBytes(destinationLog), "");
+  const cliRead = JSON.parse((await exec(cli, ["comments", "--canvas", "shared", "--repo", originRepo, "--json"])).stdout);
+  assert.equal(cliRead.result.comments[0].body, unicodeBody);
+  await originRow.click(); await cards.filter({ hasText: unicodeBody }).waitFor();
+  assert.equal(await cards.locator("img").count(), 0); assert.equal(await page.evaluate(() => Reflect.get(window, "HOSTILE")), undefined);
+  const roundTripFrame = await page.locator("iframe").elementHandle(); assert.ok(roundTripFrame);
+  await exec(cli, ["comment", "resolve", saved.comment, "--agent", "codex", "--repo", originRepo, "--json"]);
+  await panel.getByRole("button", { name: /^Resolved 1$/ }).click();
+  await cards.filter({ hasText: unicodeBody }).getByRole("button", { name: "Reopen", exact: true }).waitFor();
+  assert.equal(await roundTripFrame.evaluate(el => el.isConnected), true, "CLI resolve retained iframe");
+  assert.ok((await logBytes(originLog)).startsWith(savedBytes), "CLI append preserved human create bytes");
+  await shot("00b-cross-root-save-cli-roundtrip");
+  await panel.getByRole("button", { name: /^Open 0$/ }).click();
+  await panel.getByRole("button", { name: "New canvas comment", exact: true }).click(); await boundaryBody.fill("Discard across roots");
+  const beforeDiscard = await logBytes(originLog);
+  await destinationRow.click(); await boundaryDialog.getByRole("button", { name: "Discard", exact: true }).click();
+  await waitGate(async () => await destinationRow.getAttribute("aria-current") === "true");
+  assert.equal(await boundaryBody.count(), 0); assert.equal(await logBytes(originLog), beforeDiscard); assert.equal(await logBytes(destinationLog), "");
+  await shot("00c-cross-root-discard");
+  // Existing management is independent of whether its saved DOM target survives.
+  await page.frameLocator("iframe").getByRole("button", { name: "Child target" }).click();
+  await panel.getByRole("button", { name: "New selection comment", exact: true }).click(); await boundaryBody.fill("Missing DOM target");
+  await panel.getByRole("button", { name: "Save comment", exact: true }).click(); await cards.filter({ hasText: "Missing DOM target" }).waitFor();
+  const targetBytes = await logBytes(destinationLog), targetEvent = JSON.parse(targetBytes.trim());
+  await writeFile(join(destinationRepo, "design/shared.html"), html("shared").replace('<button data-doan-id="child">Child target</button>', ""));
+  await panel.getByRole("group", { name: "Comment scope" }).getByRole("button", { name: "Canvas", exact: true }).click();
+  await cards.getByText("Location unavailable", { exact: true }).waitFor();
+  await cards.getByText("Outdated", { exact: true }).waitFor();
+  await cards.getByRole("button", { name: "Edit", exact: true }).click();
+  await panel.getByRole("textbox", { name: "Your unsaved edit body" }).fill("Edited missing target"); await panel.getByRole("button", { name: "Save changes", exact: true }).click();
+  await cards.filter({ hasText: "Edited missing target" }).waitFor();
+  const afterMissing = await logBytes(destinationLog); assert.ok(afterMissing.startsWith(targetBytes));
+  const missingRead = JSON.parse((await exec(cli, ["comments", "--canvas", "shared", "--repo", destinationRepo, "--json"])).stdout).result.comments[0];
+  assert.deepEqual(missingRead.target, targetEvent.target); assert.equal(missingRead.canvasHash, targetEvent.canvasHash);
+  await cards.getByRole("button", { name: "Copy", exact: true }).click(); await cards.getByRole("button", { name: "Copied", exact: true }).waitFor();
+  await shot("00d-missing-dom-management");
+  // Invalid or duplicated canvas IDs block writes without changing saved bytes.
+  const blocked = panel.getByRole("alert").filter({ hasText: "A valid, unique canvas ID is required." });
+  for (const invalid of [html("BAD_ID"), html("shared").replace('<meta name="doan:canvas" content="shared">', "")]) {
+    await writeFile(join(destinationRepo, "design/shared.html"), invalid); await blocked.waitFor();
+    assert.equal(await panel.getByRole("button", { name: /^New (canvas|selection) comment$/ }).isDisabled(), true);
+    assert.equal(await logBytes(destinationLog), afterMissing);
+  }
+  await writeFile(join(destinationRepo, "design/shared.html"), html("shared"));
+  await blocked.waitFor({ state: "hidden" });
+  await writeFile(join(destinationRepo, "design/duplicate.html"), html("shared"));
+  await panel.getByRole("alert").filter({ hasText: "Canvas identity is missing, changed or duplicated." }).first().waitFor();
+  assert.equal(await panel.getByRole("button", { name: /^New (canvas|selection) comment$/ }).isDisabled(), true);
+  assert.equal(await logBytes(destinationLog), afterMissing);
+  await shot("00e-invalid-duplicate-id");
+
   await page.getByRole("treeitem", { name: "a.html", exact: true }).click();
   await page.waitForFunction(() => !!document.querySelector("iframe")?.contentWindow);
   await panel.getByRole("button", { name: "New canvas comment", exact: true }).waitFor();
@@ -133,6 +216,16 @@ try {
   assert.equal(await manage.getByRole("button", { name: "Edit", exact: true }).isEnabled(), true);
   await manage.getByRole("button", { name: "Edit", exact: true }).click(); await panel.getByRole("textbox", { name: "Your unsaved edit body" }).fill("Managed without width"); await panel.getByRole("button", { name: "Save changes", exact: true }).click();
   await cards.filter({ hasText: "Managed without width" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: /^\d+ open comments?$/ }).count(), 0, "invalid width hides pins");
+  const widthCard = cards.filter({ hasText: "Managed without width" });
+  await widthCard.getByRole("button", { name: "Copy", exact: true }).click(); await widthCard.getByRole("button", { name: "Copied", exact: true }).waitFor();
+  await panel.getByTitle("All open comments on this canvas, regardless of the visible filter", { exact: true }).click();
+  await panel.getByText("Copied all open comments on this canvas.", { exact: true }).waitFor();
+  await widthCard.getByRole("button", { name: "Resolve", exact: true }).click();
+  await panel.getByRole("button", { name: /^Resolved 1$/ }).click();
+  await widthCard.getByRole("button", { name: "Reopen", exact: true }).click();
+  await panel.getByRole("button", { name: /^Open 3$/ }).click();
+  await widthCard.getByRole("button", { name: "Edit", exact: true }).waitFor();
   const beforeDelete = await readFile(file, "utf8");
   await cards.filter({ hasText: "Managed without width" }).getByRole("button", { name: "Delete", exact: true }).click();
   const deletion = page.getByRole("dialog", { name: "Delete this comment?", exact: true });

@@ -52,6 +52,14 @@ describe("application comment session", () => {
     const old = s.open(identity); await s.open({ ...identity, canvas: "b", path: "design/b.html" }); release?.(); await old;
     expect(s.identity?.canvas).toBe("b"); expect(s.list?.comments).toEqual([]);
   });
+  test.each([
+    { root: "/other-repo" }, { canvas: "b" }, { path: "design/other.html" }, { requestID: "old-request" },
+  ])("rejects a reply with mismatched identity %j", async mismatch => {
+    const { session: s, api } = fixture();
+    api.commentsList.mockImplementationOnce(async request => ({ ...reply(request, { project: 7, canvasHash: "h", comments: [c], warnings: [] }), identity: { ...request, ...mismatch } }));
+    await s.open(identity);
+    expect(s.list).toBeNull(); expect(s.readError).toBe("Stale comments response.");
+  });
   test("failure preserves editable body and existing edit does not need a document origin", async () => {
     const { session: s, api } = fixture(); await s.open(identity); s.edit("c1"); s.body("after");
     api.commentsMutate.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Permission denied" }));
