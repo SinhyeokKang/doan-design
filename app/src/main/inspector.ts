@@ -79,7 +79,8 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string, docu
           if (sessionId && object(value.frame) && typeof value.frame.id === "string") sessionFrames.set(sessionId, value.frame.id);
         }
         if (method === "Page.frameStartedNavigating" && typeof value.frameId === "string") documents.start(value.frameId, typeof value.loaderId === "string" ? value.loaderId : "");
-        if (method === "Page.frameDetached" && typeof value.frameId === "string") documents.start(value.frameId);
+        // A parent-session swap transfers ownership to the OOPIF; the document still exists.
+        if (method === "Page.frameDetached" && value.reason !== "swap" && typeof value.frameId === "string") documents.start(value.frameId);
       }
     }
     // Only the window's own auto-attach; child sessions never auto-attach.
