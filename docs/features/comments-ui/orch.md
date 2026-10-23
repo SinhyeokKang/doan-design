@@ -96,3 +96,4 @@
 - R-A 고정 커밋 리뷰 ctx_485618f15ead 완료: red 0 / yellow 4. 기존 선택에서 다음 선택 명령의 응답보다 anchor가 앞서는 경우, 같은 anchor DOM 교체, 발송 후 새 pin intent/binding 교체, visibility 복구 자식의 가시성 검사를 지적했다. 정적 시나리오이며 실행 재현은 A 수정 배치에서 확인한다. 리뷰 터미널 release 완료.
 - A-fix 배치: Astra medium — 비동기 선택/핀 의도 경합의 회귀 판단. 같은 cu-a의 A 소유 파일에서 위 4건을 각각 red→green으로 고정하고 전체 runtime·anchor 검증 후 독립 후속 리뷰한다. brief .scratch/comments-ui/briefs/A-fix.md. 현재 A 재시도 종료를 수락한 뒤 새 Task로 시작한다.
 - R-M 배치: Astra medium — main 권한·파일/문서 경계·재시도 감사. M의 최종 고정 HEAD를 읽기 전용 리뷰하고 focused 검사로 보고를 검증한다. brief .scratch/comments-ui/briefs/R-M.md. M 종료 뒤 시작한다.
+- M 첫 시도는 31cbbc1까지 커밋·clean 및 1039 tests/typecheck/Go test/vet/build 보고 뒤 인계 파일·worker_done 없이 최종 응답으로 끝났다. transcript 마지막 turn과 인계 부재를 확인한 뒤 worker-stop으로 종료를 확정했다. 같은 Task 재시도는 Sol medium — 코드 변경 없이 API·로그·commit을 정리하는 기계적 인계 복구다. 원래 제품 구현을 재실행하지 않으며 실제 runtime은 여전히 보류다.
