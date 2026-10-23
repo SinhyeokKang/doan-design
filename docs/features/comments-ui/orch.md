@@ -147,3 +147,5 @@
 
 - S의 data-doan-implements 누락 질문은 이번 라운드의 사용자 위임에 따라 지휘자가 대응을 확정했다. CommentsPanel은 목록·편집·복구·dialog 표시, useComments/App은 상태·연결과 패널 분할, RightPanel은 Inspector, CommentPins는 핀을 맡는다. 초안은 수정하지 않고 실측 증거에 대응을 남긴다. 답변 후 실제 비교 스크립트 실행 재개를 확인했다.
 - V2 최종 인계는 앞선 checkpoint와 달리 6e0923b이며, 테스트에 임시 저장소 email과 DOM 제거 대기/검증 3줄을 추가했다. 전체 최종 게이트는 이 HEAD에 귀속된다. 워커를 release했고 추가 delta의 통합과 S의 증거 의존 해소 전까지 cu-v2를 보존한다.
+
+- R-Z를 Astra medium으로 배정한다 — V2 추가 테스트 3줄과 승격 문서의 실제 구현·검증 근거 일치 판단. 42f9849..6e0923b 및 a54aa20/9c0cc35/4052dfb만 읽기 전용 리뷰하며 S 실측과 제품 코드는 수정하지 않는다.
