@@ -783,3 +783,12 @@ it("prevents the triggering Escape from cancelling its newly opened draft dialog
     expect(h.state().selection).not.toBeNull();
   } finally { h.controller.dispose(); }
 });
+
+it("keeps synchronous canvas opening when the draft guard immediately allows it", () => {
+  const { controller, changed, row } = loadedController();
+  try {
+    controller.setTransitionGuard(() => true);
+    controller.openCanvas("/repo", row);
+    expect(changed.mock.lastCall?.[0].status).toBe("loading");
+  } finally { controller.dispose(); }
+});
