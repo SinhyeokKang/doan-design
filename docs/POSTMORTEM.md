@@ -169,6 +169,10 @@
 - **Net**: the independent review's child-level Electron probe caught it; the original measurement table and behavior-only e2e missed it. The new no-frames e2e assertion failed with one child element before the fix and passes with plain text. The table now records child absence and each pair's `textContent`.
 - **Prevention**: when pairing a container, also pair children that carry text, background, or spacing; record `textContent` so a wrong selector is visible. Pin the plain-text hint's zero element children in the runtime test. Run `rg -n '\.hint code|<code[ >]' app/src/renderer` when changing hint/code styles: the remaining matches are the intended project instruction chip, its CSS rule, and the first-launch `.doan/` text whose system-sans deviation is documented in DESIGN.md.
 
+
+- **Recurrence (2026-10-23, comments-ui)**: the green behavioral suite did not pin heading weight, recovery-action line-height, nested recovery width/spacing, the loading heading, focused pin outline or the card-conflict warning rule. Child/state-level Electron measurements exposed these differences; eleven presentation checks were observed failing before localized fixes in `CommentsPanel.tsx`, `CommentPins.ts` and `styles.css`.
+- **Prevention**: read computed values on the actual recovery/loading/focus state, including its own call-site severity and empty action containers. Run `rg -n 'comments-message|comments-tools|comments-head h3|comment-pin:focus-visible' app/src/renderer/CommentsPanel.tsx app/src/renderer/styles.css`; the search finds both card and editor recovery call sites, which must be checked separately. Keep unmatched elements and incomplete states explicit: cross-specimen primitive/property comparisons do not establish whole-state equivalence, even when every compared row is classified.
+
 ### 2026-10-21 — TS and Go comment folding diverged on inputs the shared fixtures did not cover
 
 - **Area**: `app/src/formats/fold.ts`, `cli/internal/formats/fold.go` (`parseLines`/`fold`)
