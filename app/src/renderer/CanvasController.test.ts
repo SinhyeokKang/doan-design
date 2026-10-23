@@ -736,3 +736,17 @@ it.each(["new guard", "binding change"])("Y3 cancels old pin panel effects after
     }
   } finally { h.controller.dispose(); }
 });
+
+it("holds manual reload before replacing a document and rejects superseded approval", async () => {
+  const { controller, changed, row } = loadedController();
+  const releases: ((allow: boolean) => void)[] = [];
+  controller.setTransitionGuard(() => new Promise(resolve => releases.push(resolve)));
+  controller.command("reload");
+  expect(changed).not.toHaveBeenCalled();
+  controller.openCanvas("/repo", row);
+  releases[0]?.(true); await Promise.resolve();
+  expect(changed).not.toHaveBeenCalled();
+  releases[1]?.(false); await Promise.resolve();
+  expect(changed).not.toHaveBeenCalled();
+  controller.dispose();
+});
