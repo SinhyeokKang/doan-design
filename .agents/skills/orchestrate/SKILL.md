@@ -47,6 +47,18 @@ Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several wo
 
 ## 3. Review → fix rounds
 
+### Design draft review
+
+When the run includes `/design-draft`, the conductor owns and performs the draft review before handing it to the user for confirmation. A worker's completion report or CLI checks alone do not satisfy this gate.
+
+- Compare the draft against the feature spec and design: every required state must map to a frame or labelled tile, with no unapproved product behavior.
+- Check that shipped UI, tokens, English copy, and canvas conventions are preserved, and verify the `doan ls` / `doan check` evidence.
+- Inspect the draft rendered in the real app, including long content, errors, focus, overlapping pins, and dialogs when applicable. Record findings and verification evidence in `orch.md`.
+- Route fixes to the draft worker, then personally verify the revised result. The conductor does not edit the draft code.
+- Only after this review passes, present the concrete draft for user confirmation. Conductor review does not replace the user's draft confirmation gate.
+
+### Implementation batch review
+
 1. Hand the batch diff to an **independent review worker** (same runtime, model and effort chosen for the diff's difficulty, report only) with `/code-review`. Also have it judge the handoff document's claims and "differences from the plan".
 2. Separate 🔴/🟡 from user-decision items. Ask decisions one at a time.
 3. Send a fix brief to the owning worker. Repeat until 🔴 is 0.
