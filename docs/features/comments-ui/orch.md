@@ -17,8 +17,8 @@
 | 배치 | tasks 항목·소유 파일 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|
 | P-W | 0 writer PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 파일 경계·경합 판단 | app test/typecheck/build/e2e 중 실험 관련 게이트, 외부 파일·디렉터리 불변 | 실패: mkdir 외부 변경 |
-| P-H | 0 hash·문서 세대 PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 응답/문서 경합 | app test/typecheck/build/e2e, 전달 bytes·세대 불일치 차단 | 진행 중 |
-| D | 1 design/comments-ui.html | 문서 리뷰 완료 | Astra medium — 기존 화면 보존·상태 표현 | doan ls/check, 사용자 앱 확인 | 진행 중 |
+| P-H | 0 hash·문서 세대 PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 응답/문서 경합 | app test/typecheck/build/e2e, 전달 bytes·세대 불일치 차단 | PoC 통과 |
+| D | 1 design/comments-ui.html | 문서 리뷰 완료 | Astra medium — 기존 화면 보존·상태 표현 | doan ls/check, 지휘자 위임 확인 | 1차 리뷰 수정 중 |
 | P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | 진행 중 |
 | F | 2 공유 v1 fixture·Go/TS 테스트 | PoC 및 초안 승인 | Sol medium — 기존 형식 사례 확장 | go test, app test | 대기 |
 | C | 3 순수 함수와 테스트, 신규 shared 모듈 | F | Astra medium — 상태·시간·타겟 계약 | red→green, app test/typecheck | 대기 |
@@ -50,3 +50,7 @@
 
 - P-W 완료: Node/Electron에서 mkdir 경쟁 실패, O_NOFOLLOW_ANY 기존/신규 open 보호 통과. 전체 테스트 915개·typecheck·e2e 통과는 PoC 관찰의 재현일 뿐 writer 게이트 통과가 아니다. 증거 `.scratch/comments-ui/evidence/P-W/`를 검토했다. 앱 전용 Go mkdir helper 설계 질문을 사용자에게 전달했다.
 - P-W 터미널을 P-I `ctx_e4287dbfd7ac`에 즉시 재사용했고 turnStart observed를 확인했다. cu-pw 워크트리는 P-I 실험 때문에 유지한다.
+
+- P-H PoC 통과: 응답별 bytes hash와 CDP document loader 연결, HEAD/fetch/reload 경합, old reply, stream mutation의 create 선행조건 거부를 검증했다. 제품 전체 수명주기·writer 통합은 아직 미검증이다. handoff와 재현 patch의 복사본 일치를 확인한 뒤 release 및 Orca cu-ph 삭제, 목록 부재를 확인했다.
+- D 초안 `4ffba61` → 통합 `f589c41`. 지휘자가 실제 앱에서 17개 frame으로 이동하고 screenshot을 확보했다. 같은 앱 서빙 URL을 별도 sandboxed Electron 창에서 원래 크기로 캡처해 17개 상세 이미지를 모두 직접 검토했다. 가로 overflow 0, 실제 folders/runtime fingerprint 불변. 증거 `.scratch/comments-ui/review/`.
+- 지휘자 1차 리뷰: width 오류의 활성 작성 버튼, Open 1인데 비활성 전체 복사, 빈 목록 count/작성 버튼 모순, 저장 성공과 확인 실패 혼합 타일, 작성 진입 대상 모호함, 읽기 미확정 count, 이름 미설정의 기존 카드 상태 누락을 발견했다. D-fix `ctx_5130422e414e`를 원 소유 워크트리에 배정했다. Astra medium과 turnStart observed를 확인했다. 초안 컨펌은 수정 재검증 뒤에 한다.
