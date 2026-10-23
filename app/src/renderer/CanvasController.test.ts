@@ -792,3 +792,17 @@ it("keeps synchronous canvas opening when the draft guard immediately allows it"
     expect(changed.mock.lastCall?.[0].status).toBe("loading");
   } finally { controller.dispose(); }
 });
+
+it("uses freshly revalidated destination metadata after a draft decision", async () => {
+  const h = selectionHarness();
+  try {
+    let allow: ((value: boolean) => void) | undefined;
+    h.controller.setTransitionGuard(() => new Promise(resolve => { allow = resolve; }));
+    h.controller.openCanvas("/repo", h.other);
+    const { width: _width, ...invalidWidth } = h.other;
+    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [h.row, invalidWidth] }]);
+    allow?.(true); await Promise.resolve();
+    expect(h.state().open.row.width).toBeUndefined();
+    expect(h.state().status).toBe("noWidth");
+  } finally { h.controller.dispose(); }
+});
