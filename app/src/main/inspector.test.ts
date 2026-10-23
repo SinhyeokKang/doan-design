@@ -272,6 +272,7 @@ test("OOPIF process swap preserves the committed document, but actual removal re
   const docs = new DocumentBindings();
   const dbg = new FakeDebugger();
   createInspector(dbg, () => BASE, docs);
+  dbg.target("S1", "iframe");
   docs.response({ marker: "response", root: "/repo", path: "design/a.html", hash: "sha256:" + "a".repeat(64), complete: true, stable: true });
   dbg.emit("message", {}, "Network.responseReceived", { type: "Document", requestId: "request", frameId: "FRAME", loaderId: "loader", response: { headers: { "X-Doan-Response": "response" } } });
   dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: "loader", url: CANVAS } }, "S1");
@@ -344,4 +345,25 @@ for (const detached of [false, true]) {
       expect(docs.current("FRAME", CANVAS)).toBeNull();
     });
   }
+}
+
+for (const invalidation of ["remove", "unspecified detach", "debugger loss", "network failure"]) {
+  test(`current session still invalidates on ${invalidation}`, async () => {
+    const { DocumentBindings } = await import("./comments/document");
+    const docs = new DocumentBindings();
+    const dbg = new FakeDebugger();
+    createInspector(dbg, () => BASE, docs);
+    dbg.target("CURRENT", "iframe");
+    const emit = (method: string, params: object) => dbg.emit("message", {}, method, params, "CURRENT");
+    docs.response({ marker: "m", root: "/repo", path: "design/a.html", hash: "hash", complete: true, stable: true });
+    emit("Network.responseReceived", { type: "Document", requestId: "request", frameId: "FRAME", loaderId: "loader", response: { headers: { "X-Doan-Response": "m" } } });
+    emit("Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: "loader", url: CANVAS } });
+    emit("Network.loadingFinished", { requestId: "request" });
+    expect(docs.current("FRAME", CANVAS)?.generation).toBe("loader");
+    if (invalidation === "remove") emit("Page.frameDetached", { frameId: "FRAME", reason: "remove" });
+    if (invalidation === "unspecified detach") emit("Page.frameDetached", { frameId: "FRAME" });
+    if (invalidation === "debugger loss") dbg.emit("detach");
+    if (invalidation === "network failure") emit("Network.loadingFailed", { requestId: "request" });
+    expect(docs.current("FRAME", CANVAS)).toBeNull();
+  });
 }

@@ -63,6 +63,7 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string, docu
   // sessionId -> target type, in attach order.
   const sessions = new Map<string, string>();
   const sessionFrames = new Map<string, string>();
+  const frameOwners = new Map<string, string>();
   let connected: Promise<void> | null = null;
   // Requests run one at a time: each one turns DOM and CSS off when it ends,
   // which would break another request still reading the same session.
@@ -70,13 +71,22 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string, docu
 
   dbg.on("message", (_event: unknown, method: string, params: { sessionId?: string; targetInfo?: { type?: string } }, sessionId?: string) => {
     if (documents) {
+      // An OOPIF's former session can deliver queued Page/Network events after
+      // its replacement commits. Parent events still join the first response.
+      if (sessionId) {
+        const frame = sessionFrames.get(sessionId);
+        if (!sessions.has(sessionId) || (frame && frameOwners.get(frame) !== sessionId)) return;
+      }
       const value: unknown = params;
       if (method === "Network.responseReceived") documents.network(value);
       if (object(value)) {
         if ((method === "Network.loadingFinished" || method === "Network.loadingFailed") && typeof value.requestId === "string") documents.finish(value.requestId, method === "Network.loadingFinished");
         if (method === "Page.frameNavigated") {
           documents.commit(value.frame);
-          if (sessionId && object(value.frame) && typeof value.frame.id === "string") sessionFrames.set(sessionId, value.frame.id);
+          if (sessionId && object(value.frame) && typeof value.frame.id === "string") {
+            sessionFrames.set(sessionId, value.frame.id);
+            frameOwners.set(value.frame.id, sessionId);
+          }
         }
         if (method === "Page.frameStartedNavigating" && typeof value.frameId === "string") documents.start(value.frameId, typeof value.loaderId === "string" ? value.loaderId : "");
         // A parent-session swap transfers ownership to the OOPIF; the document still exists.
@@ -96,12 +106,21 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string, docu
         })();
       }
     }
-    else if (method === "Target.detachedFromTarget" && params.sessionId) { sessions.delete(params.sessionId); const frame = sessionFrames.get(params.sessionId); if (frame) documents?.start(frame); sessionFrames.delete(params.sessionId); }
+    else if (method === "Target.detachedFromTarget" && params.sessionId) {
+      sessions.delete(params.sessionId);
+      const frame = sessionFrames.get(params.sessionId);
+      if (frame && frameOwners.get(frame) === params.sessionId) {
+        documents?.start(frame);
+        frameOwners.delete(frame);
+      }
+      sessionFrames.delete(params.sessionId);
+    }
   });
   // Detached (renderer gone, or another client took over): attach again on the next request.
   dbg.on("detach", () => {
     sessions.clear();
     sessionFrames.clear();
+    frameOwners.clear();
     documents?.clear();
     connected = null;
   });
