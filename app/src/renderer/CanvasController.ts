@@ -53,6 +53,7 @@ export class CanvasController {
   // Selection (design flows 3–7). `seq` orders the renderer's commands against
   // the script's own clicks; each new document starts again at 0.
   private seq = 0;
+  private hoverSeq = 0;
   private selectedRect: CanvasRect | null = null;
   private hoverRect: CanvasRect | null = null;
   private altHeld = false;
@@ -205,6 +206,7 @@ export class CanvasController {
     this.lastHref = null;
     this.jumpTo = null;
     this.seq = 0;
+    this.hoverSeq = 0;
     this.hoverRect = null;
     this.drawMarks();
     this.state.unlisted = false;
@@ -267,20 +269,23 @@ export class CanvasController {
   }
 
   private onSelectionMessage(message: SelectionMessage): void {
-    const verdict = acceptSelectionMessage(this.expectation(), message);
+    // Hover/modifier traffic cannot invalidate an outstanding selection reply.
+    const hover = message.type === "hover" || (message.type === "key" && message.key === "Alt");
+    const expected = { ...this.expectation(), seq: hover ? this.hoverSeq : this.seq };
+    const verdict = acceptSelectionMessage(expected, message);
     if (verdict === "drop") return;
     if (message.type === "key") {
       if (message.key === "Escape") this.escape();
       // Unlike Escape, an old modifier snapshot must not override a newer press.
-      else if (message.seq >= this.seq) {
-        this.seq = message.seq;
+      else if (message.seq >= this.hoverSeq) {
+        this.hoverSeq = message.seq;
         this.altHeld = message.alt;
         this.drawMarks();
       }
       return;
     }
+    if (message.type === "hover") { this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks(); return; }
     this.seq = message.seq;
-    if (message.type === "hover") { this.hoverRect = message.rect; this.drawMarks(); return; }
     if (message.type === "clear") { this.clearSelection(false); this.publish(); return; }
     if (message.target === null) { this.applySelectionEffect({ kind: "anchorLost" }); this.publish(); return; }
     const { rect, ...view } = message.target;
@@ -349,6 +354,11 @@ export class CanvasController {
     this.post({ ...message, seq: this.seq });
   }
 
+  private sendHoverCommand(message: object): void {
+    this.hoverSeq += 1;
+    this.post({ ...message, seq: this.hoverSeq });
+  }
+
   private escape(): void {
     if (this.state.selection === null && this.reanchor === null) return;
     this.sendCommand({ type: "clear" });
@@ -364,7 +374,7 @@ export class CanvasController {
   private keydown = (event: KeyboardEvent): void => {
     if (event.key === "Alt") {
       // Focus may move into the canvas before keyup; fence off earlier snapshots.
-      if (!this.altHeld) this.sendCommand({ type: "hover-alt", alt: true });
+      if (!this.altHeld) this.sendHoverCommand({ type: "hover-alt", alt: true });
       this.altHeld = true;
       this.drawMarks();
       return;
@@ -376,7 +386,7 @@ export class CanvasController {
   private keyup = (event: KeyboardEvent): void => {
     if (event.key !== "Alt") return;
     this.altHeld = false;
-    this.sendCommand({ type: "hover-alt", alt: false });
+    this.sendHoverCommand({ type: "hover-alt", alt: false });
     this.drawMarks();
   };
 
@@ -385,7 +395,7 @@ export class CanvasController {
     // OOPIFs do not reliably receive pointerout when the pointer enters the app.
     if (event.target !== this.frame && this.hoverRect !== null) {
       this.hoverRect = null;
-      this.sendCommand({ type: "hover-leave" });
+      this.sendHoverCommand({ type: "hover-leave" });
     }
     this.drawMarks();
   };
@@ -409,6 +419,7 @@ export class CanvasController {
     if (newDocument) {
       this.jumpTo = null;
       this.seq = 0;
+      this.hoverSeq = 0;
       this.hoverRect = null;
       this.applySelectionEffect({ kind: "otherCanvas" });
     }

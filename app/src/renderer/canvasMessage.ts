@@ -48,6 +48,8 @@ export interface LayoutMessage {
   selected?: CanvasRect | null;
 }
 
+// `seq` belongs to the hover channel for hover/Alt, and to the selection
+// channel for select/clear/Escape and selected layout. Channels reset on load.
 interface SelectionMessageBase {
   href: string;
   seq: number;

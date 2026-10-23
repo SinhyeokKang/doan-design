@@ -316,19 +316,19 @@ describe("selection", () => {
     const h = selectionHarness();
     try {
       h.select(1);
-      h.receive({ type: "hover", seq: 1, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
       h.changed.mockClear();
       h.key("Alt");
-      expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "hover-alt", alt: true, seq: 2 }, "*");
-      h.receive({ type: "key", key: "Alt", alt: false, seq: 1 });
+      expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "hover-alt", alt: true, seq: 1 }, "*");
+      h.receive({ type: "key", key: "Alt", alt: false, seq: 0 });
+      h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      expect(h.markOf("hover")?.hidden).toBe(true);
       h.receive({ type: "hover", seq: 1, rect: { x: 0, y: 0, width: 4, height: 4 } });
       expect(h.markOf("hover")?.hidden).toBe(true);
-      h.receive({ type: "hover", seq: 2, rect: { x: 0, y: 0, width: 4, height: 4 } });
-      expect(h.markOf("hover")?.hidden).toBe(true);
-      h.receive({ type: "key", key: "Alt", alt: false, seq: 2 });
-      h.receive({ type: "hover", seq: 2, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      h.receive({ type: "key", key: "Alt", alt: false, seq: 1 });
+      h.receive({ type: "hover", seq: 1, rect: { x: 0, y: 0, width: 4, height: 4 } });
       expect(h.markOf("hover")?.hidden).toBe(false);
-      h.layout({ seq: 2, selected: { x: 20, y: 30, width: 60, height: 18 } });
+      h.layout({ seq: 1, selected: { x: 20, y: 30, width: 60, height: 18 } });
       expect(h.markOf("selected")?.style.left).toBe("120px");
       expect(h.send).toHaveBeenCalledTimes(1);
       expect(h.changed).not.toHaveBeenCalled();
@@ -559,4 +559,72 @@ describe("inspector rows from main", () => {
       expect(h.inspect).toHaveBeenCalledTimes(2);
     } finally { h.controller.dispose(); }
   });
+});
+
+describe("independent pending selection and hover commands", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each(["frame", "ancestor", "reload", "click"])("keeps a pending %s selection across Alt and leave", (kind) => {
+    const h = selectionHarness();
+    try {
+      let selectionSeq = 1;
+      if (kind === "ancestor" || kind === "reload") h.select(1);
+      if (kind === "frame") h.controller.jump(1);
+      if (kind === "ancestor") { h.controller.selectPath(h.target.path[0]!); selectionSeq = 2; }
+      if (kind === "reload") { h.controller.command("reload"); h.layout(); }
+      h.receive({ type: "hover", seq: 0, rect: h.target.rect });
+      h.host.dispatchEvent(new Event("pointermove"));
+      h.key("Alt");
+      h.host.dispatchEvent(Object.assign(new Event("keyup"), { key: "Alt" }));
+      expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "hover-alt", alt: false, seq: 3 }, "*");
+      h.select(selectionSeq, { target: { ...h.target, tag: "button" } });
+      h.layout({ seq: selectionSeq, selected: h.target.rect });
+      expect(h.state().selection?.tag).toBe("button");
+      expect(h.markOf("selected")?.hidden).toBe(false);
+      expect(h.inspect).toHaveBeenLastCalledWith(h.target.element.selector);
+    } finally { h.controller.dispose(); }
+  });
+
+  it.each(["Escape", "new selection"])("still rejects a delayed selection after %s and hover commands", (action) => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.selectPath(h.target.path[0]!);
+      if (action === "Escape") h.key("Escape");
+      else h.controller.jump(0);
+      h.key("Alt");
+      h.host.dispatchEvent(Object.assign(new Event("keyup"), { key: "Alt" }));
+      h.select(2, { target: { ...h.target, tag: "stale" } });
+      expect(h.state().selection?.tag).not.toBe("stale");
+      if (action === "Escape") expect(h.state().selection).toBeNull();
+      else {
+        h.select(3, { target: { ...h.target, tag: "fresh" } });
+        expect(h.state().selection?.tag).toBe("fresh");
+      }
+    } finally { h.controller.dispose(); }
+  });
+});
+
+it("resets both channels on reload and rejects old-window, href and viewport hover", () => {
+  const h = selectionHarness();
+  try {
+    h.select(8);
+    h.receive({ type: "hover", seq: 9, rect: h.target.rect });
+    const old = h.current();
+    h.controller.command("reload");
+    h.layout();
+    expect(h.current()).not.toBe(old);
+    expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({ type: "select-anchor", seq: 1 }), "*");
+    h.key("Alt");
+    expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "hover-alt", alt: true, seq: 1 }, "*");
+    h.receive({ type: "key", key: "Alt", alt: false, seq: 1 });
+    h.receive({ type: "hover", seq: 99, rect: h.target.rect }, old);
+    h.receive({ type: "hover", seq: 99, rect: h.target.rect, href: h.other.url });
+    h.receive({ type: "hover", seq: 99, rect: h.target.rect, viewport: 999 });
+    expect(h.markOf("hover")?.hidden).toBe(true);
+    h.select(1);
+    h.receive({ type: "hover", seq: 1, rect: h.target.rect });
+    expect(h.state().selection?.tag).toBe("span");
+    expect(h.markOf("hover")?.hidden).toBe(false);
+  } finally { h.controller.dispose(); }
 });

@@ -840,6 +840,20 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
 
   await inspectorValues(app, page, canvas);
 
+  await page.evaluate(() => { (window as any).pendingSelectionGate.armed = true; });
+  await clickAt(page, canvas, "#box");
+  await waitFor(() => page.evaluate(() => !!(window as any).pendingSelectionGate.held), "S2 pending click select reply held");
+  assert.equal(await page.getByRole("region", { name: "Inspector", exact: true }).count(), 0, "selection reply is still pending");
+  await page.getByRole("region", { name: "Frames", exact: true }).getByRole("button").first().focus();
+  await page.keyboard.down("Alt");
+  await page.keyboard.up("Alt");
+  await sleep(100);
+  await page.evaluate(() => (window as any).pendingSelectionGate.release());
+  await expectProduct("S2 pending click Alt cannot cancel an already clicked selection", async () => {
+    await waitInspector(page, v => v?.selector === BOX, "selection survives hover-only commands");
+  });
+  await page.keyboard.press("Escape");
+
   // S3. Click selection at 0.05, 0.25, 1 and 4, each time measured the PoC 3
   // way: the element's edges from captured pixels against the mark's DOM rect.
   // Zooming around the element's own center keeps it on screen. Esc right
@@ -1837,6 +1851,25 @@ async function launch(cli: string, userData: string): Promise<{ app: ElectronApp
   const page = await app.firstWindow();
   page.setDefaultTimeout(2000);
   await mutateInspector(app, page);
+  // Install before app listeners so the real click reply can be held without
+  // replacing its payload, source or origin (F2 reviewer race reproduction).
+  await page.addInitScript(() => {
+    if (window !== window.top) return;
+    const gate = { armed: false, held: null as MessageEvent | null, release: () => {} };
+    const listener = (event: MessageEvent) => {
+      if (!gate.armed || event.data?.type !== "select" || gate.held) return;
+      gate.held = event;
+      event.stopImmediatePropagation();
+    };
+    window.addEventListener("message", listener, true);
+    gate.release = () => {
+      window.removeEventListener("message", listener, true);
+      const event = gate.held!;
+      window.dispatchEvent(new MessageEvent("message", { data: event.data, origin: event.origin, source: event.source }));
+    };
+    (window as any).pendingSelectionGate = gate;
+  });
+  await page.reload();
   assert.equal(await app.evaluate(({ app: electronApp }) => electronApp.getPath("userData")), userData);
   return { app, page };
 }

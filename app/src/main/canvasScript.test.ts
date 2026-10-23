@@ -912,7 +912,7 @@ describe("canvasScript hover", () => {
     expect(ofType(canvas, "key").at(-1)).toMatchObject({ key: "Alt", alt: false, seq: 2 });
     expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 2, rect: { x: 10, y: 20, width: 60.5, height: 18 } });
     canvas.fromParent({ type: "measure" });
-    expect(ofType(canvas, "layout").at(-1)).toMatchObject({ seq: 2, selected: { x: 1, y: 2, width: 30, height: 40 } });
+    expect(ofType(canvas, "layout").at(-1)).toMatchObject({ seq: 1, selected: { x: 1, y: 2, width: 30, height: 40 } });
   });
 
   test("hides when the pointer leaves, ⌥ is held, the wheel turns or over body", () => {
@@ -943,15 +943,16 @@ describe("canvasScript hover", () => {
     expect(ofType(canvas, "hover").at(-1)?.rect).toBeNull();
   });
 
-  test("shows nothing over the selected element and echoes the new seq", () => {
+  test("shows nothing over the selected element without advancing the hover channel", () => {
     const { canvas, span, button } = heroCanvas();
     move(canvas, span);
     canvas.runFrame();
     click(canvas, span);
-    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 1, rect: null });
+    expect(ofType(canvas, "select").at(-1)).toMatchObject({ seq: 1 });
+    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 0, rect: null });
     move(canvas, button);
     canvas.runFrame();
-    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 1, rect: { x: 1, y: 2, width: 30, height: 40 } });
+    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 0, rect: { x: 1, y: 2, width: 30, height: 40 } });
   });
 
   test("ignores moves the canvas dispatched itself", () => {
@@ -959,6 +960,29 @@ describe("canvasScript hover", () => {
     move(canvas, span, { isTrusted: false });
     canvas.runFrame();
     expect(ofType(canvas, "hover")).toEqual([]);
+  });
+});
+
+describe("canvasScript independent command channels", () => {
+  test("hover commands cannot supersede selection commands, and stale commands stay rejected in each channel", () => {
+    const { canvas, span, button } = heroCanvas();
+    canvas.fromParent({ type: "hover-alt", alt: true, seq: 10 });
+    canvas.fromParent({ type: "select-anchor", seq: 1, doanId: "cta" });
+    expect(ofType(canvas, "select").at(-1)).toMatchObject({ seq: 1, target: { tag: "button" } });
+    canvas.fromParent({ type: "hover-alt", alt: false, seq: 9 });
+    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 10, rect: null });
+    canvas.fireWindow("pointermove", input({ target: span, altKey: true }));
+    canvas.runFrame();
+    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 10, rect: null });
+    canvas.fromParent({ type: "clear", seq: 2 });
+    canvas.fromParent({ type: "select-anchor", seq: 1, doanId: "cta" });
+    expect(ofType(canvas, "select")).toHaveLength(1);
+    canvas.fromParent({ type: "hover-alt", alt: false, seq: 11 });
+    click(canvas, button);
+    expect(ofType(canvas, "select").at(-1)).toMatchObject({ seq: 3, target: { tag: "button" } });
+    canvas.fromParent({ type: "measure" });
+    expect(ofType(canvas, "layout").at(-1)).toMatchObject({ seq: 3 });
+    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 11 });
   });
 });
 
@@ -1059,6 +1083,9 @@ describe("canvasScript messages from the renderer", () => {
     const canvas = fakeCanvas({ readyState: "loading", body });
     canvas.ready();
     canvas.fromParent({ type: "select-anchor", seq: 1, doanId: "late", selector: "#late" });
+    canvas.fromParent({ type: "hover-alt", alt: true, seq: 1 });
+    canvas.fromParent({ type: "hover-leave", seq: 2 });
+    canvas.fromParent({ type: "hover-alt", alt: false, seq: 3 });
     expect(ofType(canvas, "select")).toEqual([]);
     body.children.push(later);
     later.parentElement = body;
@@ -1082,7 +1109,7 @@ describe("canvasScript messages from the renderer", () => {
     expect(ofType(canvas, "select")).toEqual([]);
     canvas.fireWindow("pointermove", input({ target: hero }));
     canvas.runFrame();
-    expect(ofType(canvas, "hover")[0]).toMatchObject({ seq: 2 });
+    expect(ofType(canvas, "hover")[0]).toMatchObject({ seq: 0 });
     canvas.fromParent({ type: "pick-frame", seq: 3, index: 1, id: "hero" });
     expect(ofType(canvas, "select")[0]).toMatchObject({ seq: 3, target: { frame: { id: "hero" }, frameIndex: 1 } });
   });

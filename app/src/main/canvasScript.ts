@@ -187,6 +187,8 @@ export function canvasScript(lib: CanvasLib): void {
   }
   type Rect = { x: number; y: number; width: number; height: number };
   let seq = 0;
+  // Hover and modifier freshness is independent of selection command validity.
+  let hoverSeq = 0;
   let selected: Element | null = null;
   let anchor: Anchor | null = null;
   let pending: Anchor | null = null;
@@ -302,10 +304,10 @@ export function canvasScript(lib: CanvasLib): void {
   const postHover = () => {
     const el = hoverEl;
     const rect = isElement(el) && !isRoot(el) && el !== selected && !alt ? rectOf(el) : null;
-    const key = JSON.stringify([seq, rect]);
+    const key = JSON.stringify([hoverSeq, rect]);
     if (key === lastHover) return;
     lastHover = key;
-    post({ type: "hover", href: location.href, seq, viewport: innerHeight, rect });
+    post({ type: "hover", href: location.href, seq: hoverSeq, viewport: innerHeight, rect });
   };
 
   const apply = (described: NonNullable<ReturnType<typeof describe>>) => {
@@ -428,9 +430,14 @@ export function canvasScript(lib: CanvasLib): void {
     } else if (type === "hover-alt") {
       if (typeof data.alt !== "boolean") return;
     } else if (type !== "clear" && type !== "hover-leave") return;
-    // Not newer: a click here already moved past this command.
-    if (next <= seq) return;
-    seq = next;
+    if (type === "hover-alt" || type === "hover-leave") {
+      if (next <= hoverSeq) return;
+      hoverSeq = next;
+    } else {
+      // Not newer: a click here already moved past this selection command.
+      if (next <= seq) return;
+      seq = next;
+    }
     if (type === "hover-alt") {
       alt = data.alt === true;
       postHover();
@@ -545,7 +552,7 @@ export function canvasScript(lib: CanvasLib): void {
     "pointermove",
     (event: PointerEvent) => {
       if (!event.isTrusted) return;
-      if (alt !== event.altKey) postSelection("key", { key: "Alt", alt: event.altKey });
+      if (alt !== event.altKey) postSelection("key", { key: "Alt", alt: event.altKey, seq: hoverSeq });
       alt = event.altKey;
       hoverEl = event.target;
       if (hoverQueued) return;
@@ -575,7 +582,7 @@ export function canvasScript(lib: CanvasLib): void {
     (event: KeyboardEvent) => {
       if (event.key === "Alt") {
         alt = true;
-        postSelection("key", { key: "Alt", alt });
+        postSelection("key", { key: "Alt", alt, seq: hoverSeq });
         postHover();
       }
       if (event.key === "Escape" && !editable(event.target)) postSelection("key", { key: "Escape" });
@@ -587,7 +594,7 @@ export function canvasScript(lib: CanvasLib): void {
     (event: KeyboardEvent) => {
       if (event.key !== "Alt") return;
       alt = false;
-      postSelection("key", { key: "Alt", alt });
+      postSelection("key", { key: "Alt", alt, seq: hoverSeq });
       postHover();
     },
     { capture: true },
