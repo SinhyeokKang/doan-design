@@ -416,8 +416,12 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     ({ app, page } = await launch(cli, userData));
     // A tooltip from another row can remain present across pointer movement.
     const restartedProject = page.getByRole("treeitem", { name: "ok", exact: true });
-    await restartedProject.getByRole("treeitem", { name: "added.html", exact: true }).hover();
-    await page.getByRole("tooltip").waitFor();
+    const added = restartedProject.getByRole("treeitem", { name: "added.html", exact: true });
+    await hoverTooltip(page, added);
+    // Escape closes Radix content without resetting its pointer-entry latch.
+    await page.keyboard.press("Escape");
+    await page.getByRole("tooltip").waitFor({ state: "hidden" });
+    await hoverTooltip(page, added);
     assert.equal(await page.getByRole("tooltip").textContent(), `${repos.ok}/design/added.html`);
     assert.equal(await tooltipPath(page, restartedProject, "ok", "ok"), repos.ok, "project path must not reuse the preceding canvas tooltip");
     folders = await waitFolders(page, (all) => sameList(all.map((f) => f.path), kept) && all.every((f) => f.state !== "loading"), "folders after restart");
@@ -432,6 +436,18 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     await selectInspect(app, page, repos, doan, userData);
     await runtimeEnd(app, doan, userData, repos);
   } catch (error) {
+    console.error("tooltip/window diagnostics", JSON.stringify({
+      window: await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(window => ({
+        visible: window.isVisible(), focused: window.isFocused(), loading: window.webContents.isLoading(), bounds: window.getBounds(),
+      }))).catch(() => null),
+      renderer: await page.evaluate(() => ({
+        ready: document.readyState, focused: document.hasFocus(), active: { tag: document.activeElement?.tagName, name: document.activeElement?.getAttribute("aria-label") },
+        events: (window as Window & { tooltipEvents?: unknown[] }).tooltipEvents,
+        triggers: [...document.querySelectorAll('[data-slot="tooltip-trigger"]')].map(node => ({
+          text: node.textContent, state: node.getAttribute("data-state"), hovered: node.matches(":hover"),
+        })),
+      })).catch(() => null),
+    }));
     await screenshot(page, "failure").catch(() => {});
     throw error;
   } finally {
@@ -1897,6 +1913,19 @@ async function launch(cli: string, userData: string): Promise<{ app: ElectronApp
   // replacing its payload, source or origin (F2 reviewer race reproduction).
   await page.addInitScript(() => {
     if (window !== window.top) return;
+    // Keep the last native/CDP input transitions when a tooltip fails after restart.
+    const events: unknown[] = [];
+    (window as Window & { tooltipEvents?: unknown[] }).tooltipEvents = events;
+    for (const type of ["pointermove", "pointerleave", "focus", "blur", "scroll", "keydown"]) {
+      window.addEventListener(type, event => {
+        const node = event.target instanceof Element ? event.target : null;
+        events.push({ type, time: performance.now(), target: node?.closest("[role=treeitem]")?.getAttribute("aria-label") ?? node?.tagName,
+          x: event instanceof PointerEvent ? event.clientX : undefined,
+          y: event instanceof PointerEvent ? event.clientY : undefined,
+          key: event instanceof KeyboardEvent ? event.key : undefined, trusted: event.isTrusted });
+        if (events.length > 32) events.shift();
+      }, true);
+    }
     const gate = { armed: false, held: null as MessageEvent | null, release: () => {} };
     const listener = (event: MessageEvent) => {
       if (!gate.armed || event.data?.type !== "select" || gate.held) return;
@@ -1964,6 +1993,18 @@ async function openFolder(app: ElectronApplication, page: Page, picked: string):
   await page.evaluate(() => window.doan.openFolder());
 }
 
+// A closed tooltip can retain Radix's pointer-entry latch until pointerleave.
+// Clear both that latch and any preceding content before one deliberate entry.
+async function hoverTooltip(page: Page, trigger: Locator): Promise<Locator> {
+  const tooltip = page.getByRole("tooltip");
+  await page.mouse.move(700, 20);
+  if (await tooltip.isVisible()) await page.keyboard.press("Escape");
+  await tooltip.waitFor({ state: "hidden", timeout: 1000 });
+  await trigger.hover();
+  await tooltip.waitFor({ timeout: 1000 });
+  return tooltip;
+}
+
 const tooltipPaths = new WeakMap<Page, Map<string, string>>();
 
 async function tooltipPath(page: Page, row: Locator, name: string, key: string): Promise<string> {
@@ -1971,13 +2012,7 @@ async function tooltipPath(page: Page, row: Locator, name: string, key: string):
   if (!paths) { paths = new Map(); tooltipPaths.set(page, paths); }
   const cached = paths.get(key);
   if (cached) return cached;
-  const tooltip = page.getByRole("tooltip");
-  // A global role match can still describe the previous row after pointer movement.
-  await page.mouse.move(700, 20);
-  if (await tooltip.isVisible()) await page.keyboard.press("Escape");
-  await tooltip.waitFor({ state: "hidden", timeout: 1000 });
-  await row.getByText(name, { exact: true }).hover();
-  await tooltip.waitFor({ timeout: 1000 });
+  const tooltip = await hoverTooltip(page, row.getByText(name, { exact: true }));
   const path = (await tooltip.textContent()) ?? "";
   assert.ok(path.startsWith("/"), `absolute path tooltip: ${path}`);
   paths.set(key, path);
