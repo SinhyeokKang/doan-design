@@ -105,7 +105,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
       <p>Editing, resolving, reopening and deleting stay unavailable until a name is configured. Copy remains available.</p>
       <div className="comments-tools"><button type="button" className="comments-btn" disabled={author.status === "loading"} onClick={props.onRetryAuthor}>Retry</button></div>
     </div>}
-    {read.status === "loading" ? <p className="comments-message" role="status">Loading comments…</p>
+    {read.status === "loading" ? <div className="comments-message" role="status"><b>Loading comments…</b></div>
       : read.status === "failed" ? <div className="comments-message error" role="alert"><b>Couldn’t read comments</b>{read.message}<div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRead}>Retry</button></div></div>
         : <>
           {read.warnings.length > 0 && <div className="comments-message warning"><b>Some events could not be read</b><ul>{read.warnings.map((warning, i) => <li key={i}>{warning.code} · line {warning.line}</li>)}</ul></div>}
@@ -145,7 +145,7 @@ export function CommentCard({ comment, freshness, locationMissing, disabled, bus
     {comment.status === "resolved" && <p className="comments-helper">Reopen this comment before copying.</p>}
     {copy.status === "copied" && <p className="comments-helper" role="status">Copied</p>}
     {copy.status === "failed" && <p className="comments-helper" role="alert">{copy.message}</p>}
-    {mutation && mutation.status !== "idle" && <div className="comments-message" role="status">
+    {mutation && mutation.status !== "idle" && <div className={`comments-message ${mutation.status === "failed" || mutation.status === "check-failed" || mutation.status === "deleted" ? "error" : mutation.status === "unknown" || mutation.status === "conflict" || mutation.status === "recovery-blocked" ? "warning" : ""}`} role="status">
       <SaveMessage state={mutation} />
       <div className="comments-tools">
         {(mutation.status === "unknown" || mutation.status === "check-failed" || mutation.status === "checking") && <button type="button" className="comments-btn" disabled={mutation.status === "checking"} onClick={() => onComment("check", comment.comment)}>Check saved status</button>}
@@ -179,7 +179,7 @@ export function CommentEditor(props: CommentEditorProps) {
   const locked = pending(state) || state.status === "saved";
   const cannotSave = locked || !!props.blocked || !props.body.trim() || state.status === "conflict" || state.status === "deleted";
   const label = props.mode === "create" ? "New comment" : "Your unsaved edit";
-  return <div className="comments-composer" aria-busy={state.status === "saving" || state.status === "checking"}>
+  return <><div className="comments-composer" aria-busy={state.status === "saving" || state.status === "checking"}>
     <label>{label}<span className="comments-target">To: {targetText(props.target)}</span><textarea ref={props.inputRef} aria-label={`${label} body`} value={props.body} readOnly={locked} onChange={event => { if (!locked) props.onBody(event.currentTarget.value); }} /></label>
     <div className="comments-tools">
       <button type="button" className="comments-btn" disabled={state.status === "saving" || state.status === "saved"} onClick={locked ? props.onKeepDraft : props.onCancel}>{locked ? "Keep draft" : "Cancel"}</button>
@@ -187,13 +187,14 @@ export function CommentEditor(props: CommentEditorProps) {
     </div>
     {props.blocked && <p className="comments-helper" role="status">{props.blocked}</p>}
     {props.blocked && props.mode === "edit" && !locked && <button type="button" className="comments-btn" onClick={props.onReadLatest}>Read latest state</button>}
-    {state.status !== "idle" && <div className={`comments-message ${state.status === "failed" || state.status === "check-failed" || state.status === "deleted" ? "error" : "warning"}`} role="status"><SaveMessage state={state} />
-      <div className="comments-tools">
+    </div>
+    {state.status !== "idle" && <div className={`comments-message ${state.status === "failed" || state.status === "check-failed" || state.status === "deleted" ? "error" : state.status === "unknown" || state.status === "conflict" || state.status === "recovery-blocked" ? "warning" : ""}`} role="status"><SaveMessage state={state} />
+      {(state.status === "unknown" || state.status === "check-failed" || state.status === "checking" || state.status === "conflict") && <div className="comments-tools">
         {(state.status === "unknown" || state.status === "check-failed" || state.status === "checking") && <button type="button" className="comments-btn" disabled={state.status === "checking"} onClick={props.onCheck}>{state.status === "check-failed" ? "Retry status check" : "Check saved status"}</button>}
         {state.status === "conflict" && <button type="button" className="comments-btn" onClick={props.onReadLatest}>Read latest state</button>}
-      </div>
+      </div>}
     </div>}
-  </div>;
+  </>;
 }
 
 export interface UnsavedCommentDialogProps {
