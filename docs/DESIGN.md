@@ -99,9 +99,15 @@ The supplemental run pairs 668 elements across 44 properties (29,392 rows): 26,5
 
 Not verified: native title-tooltip painting; loading/error appearance (no scoped draft); focused appearance against a draft (real Tab focus reached, no focused specimen); accessibility for every state (CDP captured the element-selected inspector/ancestor controls only). The shipped no-selection screen is excluded. No new disabled control exists in scope. Four inherited children were absent in the final fixture and were not paired: `element-family`, `states-text`, `long-family`, and `input-family` (`.state:not(.hardcoded)`). Inherited provenance was measured on other reached rows. Full-title strings are verified separately from native tooltip painting.
 
-This round changed no product code and found no new product regression requiring a pinning test. The separate F2/F3 hover fixes and their final integrated measurement remain outside this checkout's verification; existing unit and runtime checks are the regression baseline.
+This round changed no product code and found no new product regression requiring a pinning test. The subsequent hover and selection-order fixes were independently reviewed and remeasured in the integration checkout as recorded below.
 
 
 ### Verification
 
 At baseline `74b15cb`, `npm --prefix app test` passed 902 tests in 30 files; `npm --prefix app run typecheck` and `npm --prefix app run build` passed. `npm --prefix app run e2e` exited 0 with `runtime-test: PASS`; its seven screenshots were inspected. Draft `doan ls` included the canvas and `doan check` reported zero errors (six existing hardcoded-color warnings in `design/mock.css`). No product files changed in this documentation round, so these gates apply to the recorded implementation, not to the later integrated F2/F3 changes.
+
+### Integration recheck (2026-10-23)
+
+After the hover and pending-selection fixes (product source `226443c`, documentation HEAD `b5c7e9e`), the conductor reran the same measurement script in the real Electron app. All 668 selector pairs, their text/title and client/scroll widths, and all 29,392 computed-style rows were identical to the accepted Y baseline; the classification counts and exclusions above are unchanged. The same real selection, Alt, reload and navigation assertions passed. Evidence is preserved under `.scratch/design-sync/select-inspect/`, including `accepted-y/`, and `.scratch/final-integration/design-comparison.json`.
+
+The integrated source passed 914 unit tests in 30 files, typecheck, build and `runtime-test: PASS` with exit 0. All seven runtime screenshots were inspected. Go tests and vet also passed. The integration recheck confirms the recorded scope after the input fixes; it does not extend coverage to the excluded tooltip, absent specimens or unpaired inherited children.
