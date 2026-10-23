@@ -16,7 +16,7 @@
 
 | 배치 | tasks 항목·소유 파일 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|
-| P-W | 0 writer PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 파일 경계·경합 판단 | app test/typecheck/build/e2e 중 실험 관련 게이트, 외부 파일·디렉터리 불변 | 실패: mkdir 외부 변경 |
+| P-W | 0 writer PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 파일 경계·경합 판단 | app test/typecheck/build/e2e 중 실험 관련 게이트, 외부 파일·디렉터리 불변 | 재시도: 기존 런타임 대안 검증 |
 | P-H | 0 hash·문서 세대 PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 응답/문서 경합 | app test/typecheck/build/e2e, 전달 bytes·세대 불일치 차단 | PoC 통과 |
 | D | 1 design/comments-ui.html | 문서 리뷰 완료 | Astra medium — 기존 화면 보존·상태 표현 | doan ls/check, 지휘자 위임 확인 | 수정 재검증·최종 컨펌 완료 |
 | P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | PoC 통과, 아래 한계 명시 |
@@ -62,3 +62,5 @@
 - P-I 한계: 저장은 메모리 prototype이며 제품 JSONL·IPC·최종 UI·일반 캔버스 성능 검증이 아니다. IME는 CDP composition만 검증했고 native OS IME와 Discard 분기는 구현 단계에 남는다. 전체 기존 e2e와 prototype의 선행 실행은 통과했고, 마지막 실행은 이미 통과한 기존 suite를 제외한 focused PoC였다. 원본 코드 3개를 복원했고 새 제품 코드 commit은 없다.
 - P-I handoff·재현 patch·원자료를 `.scratch/comments-ui/evidence/P-I/`에 보존하고 patch와 원자료의 복사본 일치를 확인했다. D/D-fix/P-H/P-I 터미널을 모두 release했고 cu-draft/cu-ph/cu-pw를 Orca로 삭제했다. Orca 목록에 지휘자 루트만 남으며 reclaimable 터미널은 없다.
 - 현재 중단점: writer mkdir 경쟁 실패로 제품 구현 F 이후는 시작하지 않았다. 사용자에게 앱 전용 Go mkdir helper 도입을 추천하고 답변을 기다린다. 공개 CLI/MCP 코멘트 쓰기는 확장하지 않는 안이며, helper 설계 확정 후 별도 경합 PoC를 통과해야 한다. 이번 브랜치는 아직 push/PR하지 않았다.
+
+- 2026-10-23 사용자 재시도 요청: P-W를 같은 Task의 새 Dispatch로 재시도한다. Astra medium으로 기존 Node/Electron API의 대안을 독립 검토하고 같은 디렉터리·파일 경합 기준을 검증한다. 새 helper 도입 승인으로 해석하지 않는다. 실험 소유 범위는 격리 워크트리의 임시 fixture와 증거이며 제품 구현은 계속 대기한다.
