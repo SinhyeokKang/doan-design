@@ -36,6 +36,7 @@ export class CommentsSession {
   busy = false;
   beginning = false;
   composing = false;
+  deleteConfirmation: { request: MutationRequest; comment: Comment } | null = null;
   private revision = 0;
   private readRevision = 0;
   private authorRevision = 0;
@@ -59,18 +60,26 @@ export class CommentsSession {
     if (same(identity, this.identity)) return;
     this.revision++;
     this.identity = identity;
-    this.list = null; this.readError = null; this.copies = new Map(); this.mutations = new Map();
+    this.list = null; this.readError = null; this.copies = new Map(); this.mutations = new Map(); this.deleteConfirmation = null;
     if (this.draft.draft && !same(identity, this.draftIdentity)) this.invalidate("The original project or canvas is no longer open.");
     this.emit();
     if (identity) await Promise.all([this.read(), this.retryAuthor()]);
   }
-  async read(review = false) {
+  async read(review = false, card?: string) {
     if (!this.identity) return;
     const rev = this.revision, read = ++this.readRevision, request = this.request();
     try {
       const list = value(await this.api.commentsList(request), request);
       if (rev !== this.revision || read !== this.readRevision) return;
       this.list = list; this.readError = null;
+      if (review) for (const [id, state] of this.mutations) {
+        if (state.status !== "conflict" || (card !== undefined && card !== id)) continue;
+        const current = list.comments.find(c => c.comment === id), pending = this.cardPending.get(id);
+        if (!current) this.mutations.set(id, { status: "deleted" });
+        else if ((pending?.intent.type === "resolve" && current.status === "resolved") || (pending?.intent.type === "reopen" && current.status === "open")) {
+          this.mutations.set(id, { status: "idle" }); this.cardPending.delete(id);
+        } else this.mutations.set(id, { status: "reviewed", latest: current });
+      }
       const draft = this.draft.draft;
       if (draft?.origin.kind === "edit" && same(this.draftIdentity, this.identity) && !this.pending) {
         const id = draft.origin.comment;
@@ -217,6 +226,21 @@ export class CommentsSession {
     if (!this.identity || !this.list || this.busy || this.draft.draft || this.author.status !== "ready") return;
     const c = this.list.comments.find(c => c.comment === id); if (!c) return;
     const request: MutationRequest = { ...this.request(), project: this.list.project, intent: { type, comment: id, expected: expectedComment(c) } };
+    if (type === "delete") { this.deleteConfirmation = { request, comment: structuredClone(c) }; this.emit(); return; }
+    this.cardPending.set(id, request); await this.cardSubmit(id, request, false);
+  }
+  cancelDelete() { this.deleteConfirmation = null; this.emit(); }
+  async confirmDelete() {
+    const pending = this.deleteConfirmation; this.deleteConfirmation = null; this.emit();
+    if (!pending || !same(pending.request, this.identity)) return;
+    this.cardPending.set(pending.comment.comment, pending.request);
+    await this.cardSubmit(pending.comment.comment, pending.request, false);
+  }
+  async confirmCard(id: string) {
+    const state = this.mutations.get(id), previous = this.cardPending.get(id);
+    if (state?.status !== "reviewed" || !previous || !this.list || !same(previous, this.identity) || previous.intent.type === "create" || previous.intent.type === "edit") return;
+    const request: MutationRequest = { ...this.request(), project: this.list.project, intent: { type: previous.intent.type, comment: id, expected: expectedComment(state.latest) } };
+    if (request.intent.type === "delete") { this.deleteConfirmation = { request, comment: structuredClone(state.latest) }; this.emit(); return; }
     this.cardPending.set(id, request); await this.cardSubmit(id, request, false);
   }
   async cardRetry(id: string, check: boolean) {
@@ -230,7 +254,10 @@ export class CommentsSession {
       const { root, path, canvas, requestID } = request;
       const response = check ? await this.api.commentsStatus({ root, path, canvas, requestID }) : await this.api.commentsMutate(request);
       if (rev !== this.revision) return;
-      if (!response.ok) { this.mutations.set(id, { status: "failed", message: response.error }); }
+      if (!response.ok) {
+        if (!response.identity || !same(response.identity, request) || response.identity.requestID !== request.requestID) throw new Error("Stale comments response.");
+        this.mutations.set(id, /no longer exists/.test(response.error) ? { status: "deleted" } : /Comment changed|Comment status changed/.test(response.error) ? { status: "conflict" } : { status: "failed", message: response.error });
+      }
       else {
         const status = value(response, request);
         this.mutations.set(id, status.recovery ? { status: "recovery-blocked", message: status.error ?? "Confirm child exit externally, then restart the app." } : { status: status.state === "saved" ? "saved" : status.state === "absent" ? "retry-original" : "unknown" });

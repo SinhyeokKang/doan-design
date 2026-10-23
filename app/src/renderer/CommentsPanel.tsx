@@ -4,7 +4,7 @@ import type { CopyScope, ListFilter } from "../comments/projection";
 
 export type CopyView = { status: "idle" | "copying" | "copied" } | { status: "failed"; message: string };
 export type AuthorView = { status: "ready" | "loading" | "missing" } | { status: "failed"; message: string };
-export type CommentIntent = "locate" | "edit" | "resolve" | "reopen" | "delete" | "retry" | "check" | "read-latest";
+export type CommentIntent = "locate" | "edit" | "resolve" | "reopen" | "delete" | "retry" | "check" | "read-latest" | "confirm-reviewed";
 export type SaveView =
   | { status: "idle" | "saving" | "unknown" | "checking" | "retry-original" | "conflict" | "deleted" | "saved" }
   | { status: "failed" | "check-failed" | "recovery-blocked"; message: string }
@@ -52,7 +52,9 @@ export interface CommentsPanelProps {
 }
 
 function relativeTime(at: string): string {
-  const seconds = Math.round((Date.parse(at) - Date.now()) / 1000);
+  const parsed = Date.parse(at);
+  if (!Number.isFinite(parsed)) return at;
+  const seconds = Math.round((parsed - Date.now()) / 1000);
   const formatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
   if (Math.abs(seconds) < 60) return formatter.format(seconds, "second");
   if (Math.abs(seconds) < 3600) return formatter.format(Math.round(seconds / 60), "minute");
@@ -148,6 +150,7 @@ export function CommentCard({ comment, freshness, locationMissing, disabled, bus
       <div className="comments-tools">
         {(mutation.status === "unknown" || mutation.status === "check-failed" || mutation.status === "checking") && <button type="button" className="comments-btn" disabled={mutation.status === "checking"} onClick={() => onComment("check", comment.comment)}>Check saved status</button>}
         {(mutation.status === "failed" || mutation.status === "retry-original") && <button type="button" className="comments-btn" disabled={disabled || busy} onClick={() => onComment("retry", comment.comment)}>{mutation.status === "retry-original" ? "Retry original save" : "Retry"}</button>}
+        {mutation.status === "reviewed" && <button type="button" className="comments-btn" disabled={disabled || busy} onClick={() => onComment("confirm-reviewed", comment.comment)}>Confirm reviewed change</button>}
         {mutation.status === "conflict" && <button type="button" className="comments-btn" onClick={() => onComment("read-latest", comment.comment)}>Read latest state</button>}
       </div>
     </div>}
@@ -230,5 +233,19 @@ export function UnsavedCommentDialog(props: UnsavedCommentDialogProps) {
       <button type="button" className="comments-btn" disabled={props.busy || props.discardBlocked} onClick={props.onDiscard}>Discard</button>
       <button type="button" className="comments-btn primary" disabled={!props.canSave || props.busy} onClick={props.onSave}>{props.busy ? "Saving…" : "Save and continue"}</button>
     </div>
+  </dialog>;
+}
+
+
+export function DeleteCommentDialog({ comment, onCancel, onConfirm }: { comment: Comment; onCancel: () => void; onConfirm: () => void }) {
+  let dialog: HTMLDialogElement | null = null;
+  const cancel = () => { dialog?.close(); onCancel(); };
+  return <dialog className="comments-dialog" aria-label="Delete this comment?" ref={node => { dialog = node; if (node && !node.open) node.showModal(); }}
+    onCancel={event => { event.preventDefault(); cancel(); }}>
+    <h3>Delete this comment?</h3>
+    <p className="comments-body">{comment.body}</p>
+    <p>This comment will be removed and cannot be restored.</p>
+    <div className="comments-tools"><button type="button" className="comments-btn" autoFocus onClick={cancel}>Cancel</button>
+      <button type="button" className="comments-btn" onClick={() => { dialog?.close(); onConfirm(); }}>Delete comment</button></div>
   </dialog>;
 }

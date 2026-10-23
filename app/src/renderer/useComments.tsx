@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { CommentsSession } from "./CommentsSession";
-import { CommentsPanel, UnsavedCommentDialog, type CommentIntent } from "./CommentsPanel";
+import { CommentsPanel, UnsavedCommentDialog, DeleteCommentDialog, type CommentIntent } from "./CommentsPanel";
 import type { CanvasController, CanvasState } from "./CanvasController";
 import type { AnchorSnapshot } from "./commentAnchors";
 import { outdated, projectList, type ListFilter } from "../comments/projection";
@@ -73,7 +73,8 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     else if (action === "resolve" || action === "reopen" || action === "delete") void session.mutate(action, id);
     else if (action === "check") void session.cardRetry(id, true);
     else if (action === "retry") void session.cardRetry(id, false);
-    else if (action === "read-latest") void session.read(true);
+    else if (action === "read-latest") void session.read(true, id);
+    else if (action === "confirm-reviewed") void session.confirmCard(id);
     else if (action === "locate") {
       const node = snapshot?.lookup.nodes.get(id);
       const comment = comments.find(c => c.comment === id);
@@ -96,7 +97,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       editor={draft ? { mode: draft.origin.kind, target: session.target, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
         onBody: body => session.body(body), onSave: () => { void session.save(); }, onCancel: () => session.answer("discard"), onKeepDraft: focus,
         onCheck: () => { void session.check(); }, onRetryOriginal: () => { void session.retry(); }, onReadLatest: () => { void session.read(true); } } : null} />,
-    dialog: draft && session.draft.transition && <UnsavedCommentDialog target={session.target} context={draft.origin.canvas} canSave={canSave}
+    dialog: session.deleteConfirmation ? <DeleteCommentDialog comment={session.deleteConfirmation.comment} onCancel={() => { session.cancelDelete(); heading.current?.focus(); }} onConfirm={() => { void session.confirmDelete(); heading.current?.focus(); }} /> : draft && session.draft.transition && <UnsavedCommentDialog target={session.target} context={draft.origin.canvas} canSave={canSave}
       busy={session.saveView.status === "saving" || session.saveView.status === "checking"} discardBlocked={session.draft.request !== null}
       {...(editorBlocked ? { reason: editorBlocked } : {})} onContinue={() => session.answer("continue")} onDiscard={() => session.answer("discard")} onSave={() => { void session.save(); }} restoreEditorFocus={focus} />,
   };
