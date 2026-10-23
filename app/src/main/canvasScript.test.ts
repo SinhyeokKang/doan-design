@@ -336,7 +336,7 @@ function fakeCanvas(options: { readyState?: string; height?: number; scrollHeigh
     querySelectorAll: (selector: string) => {
       if (options.body === undefined) return frames;
       const attr = /^\[([a-z-]+)\]$/.exec(selector)?.[1];
-      if (attr === undefined) throw new Error(`fake querySelectorAll: ${selector}`);
+      if (attr === undefined) { const found = selectors.get(selector); return found?.isConnected ? [found] : []; }
       return descendants(html).filter((el) => el.isConnected && el.hasAttribute(attr));
     },
     querySelector: (selector: string) => {
@@ -1122,5 +1122,37 @@ describe("canvasScript messages from the renderer", () => {
     canvas.runFrame();
     expect(ofType(canvas, "layout").at(-1)).not.toHaveProperty("selected");
     expect(ofType(canvas, "select")).toHaveLength(1);
+  });
+});
+
+
+describe("comment anchors", () => {
+  test("returns shared node tokens, exact candidates and separate sequence state", () => {
+    const child = node("span", { "data-doan-id": "child" });
+    const frame = node("section", { "data-doan-frame": "hero", "data-doan-id": "hero" }, [child]);
+    const canvas = fakeCanvas({ body: node("body", {}, [frame]), readyState: "complete" });
+    canvas.context.innerWidth = 600;
+    canvas.selectors.set(".hero", frame);
+    canvas.selectors.set(".child", child);
+    const messages = () => canvas.posted.map(p => (p as { message: Record<string, unknown> }).message);
+    const document = messages().find(p => p.type === "layout")?.document;
+    canvas.fromParent({ type: "anchors-query", document, generation: 1, request: 1, targets: [
+      { id: "frame", frame: "hero" }, { id: "element", doanId: "hero", selector: ".hero" }, { id: "child", selector: ".child" },
+    ] });
+    canvas.runFrame();
+    const reply = messages().filter(p => p.type === "anchors").at(-1) as { results: { candidates: { frame?: string[]; doanId?: string[]; selector?: string[] } }[]; rects: unknown[] } | undefined;
+    expect(reply).toBeDefined();
+    expect(reply?.results[0]?.candidates.frame).toEqual(reply?.results[1]?.candidates.doanId);
+    expect(reply?.results[2]?.candidates.selector).not.toEqual(reply?.results[1]?.candidates.doanId);
+    expect(reply?.rects).toHaveLength(2);
+    const before = messages().filter(p => p.type === "anchors").length;
+    canvas.trigger("scroll"); canvas.trigger("resize"); canvas.trigger("MutationObserver");
+    canvas.runFrame();
+    expect(messages().filter(p => p.type === "anchors")).toHaveLength(before + 1);
+    canvas.fromParent({ type: "anchors-query", document: "old", generation: 1, request: 9, targets: [] });
+    canvas.runFrame();
+    expect(messages().filter(p => p.type === "anchors")).toHaveLength(before + 1);
+    canvas.fromParent({ type: "select-anchor", seq: 1, selector: ".child" });
+    expect(messages().filter(p => p.type === "select").at(-1)?.seq).toBe(1);
   });
 });
