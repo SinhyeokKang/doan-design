@@ -22,7 +22,7 @@
 | P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | PoC 통과, 아래 한계 명시 |
 | F | 2 공유 v1 fixture·Go/TS 테스트 | PoC 및 초안 승인 | Sol medium — 기존 형식 사례 확장 | go test, app test | bd05032 통합·리뷰 통과 |
 | C | 3 순수 함수와 테스트, 신규 shared 모듈 | F | Astra medium — 상태·시간·타겟 계약 | red→green, app test/typecheck | 착수 |
-| M | 4 main I/O·IPC·preload·watcher 및 테스트 | C | Astra medium — 파일 안전성·재시도 | app test/typecheck, go test, reader round trip | 대기 |
+| M | 4 main I/O·IPC·preload·watcher 및 테스트 | C,M1 | Astra medium — 파일 안전성·재시도 | app test/typecheck, go test, reader round trip | 대기 |
 | A | 5 anchor 조회·핀 geometry·overlay 및 테스트 | C; M과 공유 파일 겹치면 직렬 | Astra medium — 문서·viewport 경계 | app test/typecheck/build/e2e | 대기 |
 | U | 6 패널 CRUD·초안·복사 및 테스트 | M,A | Astra medium — UI 상태·입력 보호 | app test/typecheck/build/e2e | 대기 |
 | V | 7 통합 회귀·개별 mutation·runtime | U | Astra medium — 독립 경계 검증 | go test/vet, app test/typecheck/build/e2e, screenshot 확인 | 대기 |
@@ -78,3 +78,5 @@
 - R-F: Astra medium, v1 교차 언어 fixture의 의미와 검증 주장을 독립 검토한다. 읽기 전용이며 `69b0e3f`를 대상으로 한다. F 통합 뒤 C는 app/src/comments/의 신규 순수 모듈과 테스트만 소유한다. C 모델은 Astra medium이며 판단이 필요한 시간·초안·대상 계약을 담당한다.
 
 - F `69b0e3f` → `bd05032` 통합. R-F red/yellow 0개이며 통합 HEAD에서 Go 전체·앱 915개·typecheck 통과했다. 호환성 fixture라 TDD red는 대상 아님을 명시했다. handoff/증거 hash 일치·clean·git cherry 미통합 없음 확인 뒤 F/R-F release 및 cu-f의 Orca 카드 삭제·목록 부재를 확인했다. C는 확정 brief의 app/src/comments/ 순수 모듈과 테스트를 구현한다.
+
+- M1 분리: tasks 4의 안전한 디렉터리/파일 I/O 기반을 C와 병렬 구현한다. 소유는 신규 app/src/main/comments/의 filesystem·mkdir child·wrapper와 테스트, app/electron.vite.config.ts의 child 번들 entry, 기존 e2e harness에 연결하는 파일 경계 검사다. Astra medium — 단발 프로세스·파일 경합 판단. R-PW 검토 통과가 선행이며 event 준비·author/hash·재시도·preload·renderer는 후속 M에 남긴다. C의 순수 모듈과 파일이 겹치지 않는다.
