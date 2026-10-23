@@ -99,7 +99,7 @@ function selectionHarness() {
   vi.stubGlobal("document", {
     createElement: (tag: string) => {
       if (tag !== "iframe") {
-        const mark: FakeMark = { className: "", hidden: false, textContent: "", style: {}, children: [], append: (...children) => mark.children.push(...children) };
+        const mark: FakeMark = Object.assign(new EventTarget(), { className: "", hidden: false, textContent: "", style: {}, children: [] as FakeMark[], append: (...children: FakeMark[]) => mark.children.push(...children), setAttribute: vi.fn(), remove: vi.fn() });
         marks.push(mark);
         return mark;
       }
@@ -639,10 +639,10 @@ describe("comment anchor channel", () => {
       const request = () => h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
       const q = request();
       expect(q).toMatchObject({ document: "doc", targets: [] });
-      const reply = { type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: 1, width: 600, selected: null, results: [], rects: [] };
+      const reply = { type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null, results: [], rects: [] };
       h.receive(reply);
       const accepted = changed.mock.calls.length;
-      for (const patch of [{ request: q.request - 1 }, { generation: q.generation - 1 }, { document: "old" }, { viewport: 149 }, { width: 599 }]) h.receive({ ...reply, revision: 2, ...patch });
+      for (const patch of [{ request: q.request - 1 }, { generation: q.generation - 1 }, { document: "old" }, { href: "http://localhost/other" }, { viewport: 149 }, { width: 599 }]) h.receive({ ...reply, revision: 2, ...patch });
       expect(changed).toHaveBeenCalledTimes(accepted);
       h.select(1);
       expect(h.state().selection.element.doanId).toBe("cta");
@@ -654,4 +654,29 @@ describe("comment anchor channel", () => {
       expect(changed.mock.lastCall?.[0].lookup.nodes.size).toBe(0);
     } finally { h.controller.dispose(); }
   });
+});
+
+
+it("guards pin selection before applying it and cancels a deferred decision after reload", async () => {
+  const h = selectionHarness();
+  try {
+    h.layout({ document: "doc" });
+    let answer: (value: boolean) => void = () => {};
+    const guard = vi.fn(() => new Promise<boolean>(resolve => { answer = resolve; }));
+    const open = vi.fn();
+    const comment = { comment: "f", target: { frame: "hero" }, status: "open" as const, body: "x", canvasHash: "h", createdAt: "t", updatedAt: "t", createdBy: { kind: "human" as const, name: "A" } };
+    h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment] }, { guard, open, changed: vi.fn(), focusFallback: vi.fn() });
+    const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+    h.receive({ type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+      results: [{ id: "f", candidates: { frame: ["node"] } }], rects: [{ node: "node", x: 10, y: 10, width: 10, height: 10 }] });
+    const pending = h.controller.activatePin("node");
+    expect(guard).toHaveBeenCalledWith({ node: "node", comments: ["f"], originalTarget: { frame: "hero" } });
+    expect(h.state()?.selection ?? null).toBeNull();
+    expect(h.current().contentWindow.postMessage.mock.calls.some(c => c[0].type === "select-comment")).toBe(false);
+    const old = h.current();
+    h.controller.command("reload");
+    answer(true); await pending;
+    expect(old.contentWindow.postMessage.mock.calls.some(c => c[0].type === "select-comment")).toBe(false);
+    expect(open).not.toHaveBeenCalled();
+  } finally { h.controller.dispose(); }
 });

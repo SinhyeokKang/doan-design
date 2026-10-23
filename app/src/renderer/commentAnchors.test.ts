@@ -6,7 +6,7 @@ import type { Comment } from "../formats/types";
 const comment = (id: string, target: Comment["target"]): Comment => ({ comment: id, target, status: "open", body: "x", canvasHash: "h", createdBy: { kind: "human", name: "A" }, createdAt: "t", updatedAt: "t" });
 const context = { root: "/repo", canvas: "a", generation: 4 };
 const rect = { x: 10, y: 20, width: 30, height: 40, clip: { x: 0, y: 0, width: 500, height: 500 } };
-const response = { type: "anchors", href: "http://localhost/a", document: "doc", generation: 4, request: 2, revision: 1, viewport: 500, width: 500, selected: null, results: [
+const response = { type: "anchors", href: "http://localhost/a", document: "doc", generation: 4, request: 2, revision: 1, viewport: 500, width: 500, selectionSeq: 0, selected: null, results: [
   { id: "f", candidates: { frame: ["n1"] } },
   { id: "e", candidates: { doanId: ["n1"], selector: ["n2"] } },
   { id: "child", candidates: { selector: ["n2"] } },
