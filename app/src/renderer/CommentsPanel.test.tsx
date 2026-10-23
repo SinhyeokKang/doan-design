@@ -98,6 +98,16 @@ describe("Draft recovery presentation", () => {
     else expect(find(CommentEditor(props), "Retry original save").disabled).toBe(false);
     expect(out).toContain("Keep draft");
   });
+  test("recovery blocking preserves immutable input and offers neither check nor save retry", () => {
+    const props = editor({ state: { status: "recovery-blocked", message: "Wait until the pending writer has exited." } });
+    const out = renderToStaticMarkup(<CommentEditor {...props} />);
+    expect(out).toContain("Wait until the pending writer has exited.");
+    expect(out).toMatch(/<textarea[^>]*readOnly=""/);
+    expect(find(CommentEditor(props), "Save comment").disabled).toBe(true);
+    expect(out).not.toContain("Check saved status</button>");
+    expect(out).not.toContain("Retry original save</button>");
+    expect(out).toContain("Keep draft");
+  });
   test("conflict preserves input and requires latest-state review before saving", () => {
     const props = editor({ mode: "edit", state: { status: "conflict" } });
     expect(find(CommentEditor(props), "Save changes").disabled).toBe(true);
