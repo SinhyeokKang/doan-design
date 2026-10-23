@@ -16,7 +16,7 @@
 
 | 배치 | tasks 항목·소유 파일 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|
-| P-W | 0 writer PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 파일 경계·경합 판단 | app test/typecheck/build/e2e 중 실험 관련 게이트, 외부 파일·디렉터리 불변 | 재시도: 기존 런타임 대안 검증 |
+| P-W | 0 writer PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 파일 경계·경합 판단 | app test/typecheck/build/e2e 중 실험 관련 게이트, 외부 파일·디렉터리 불변 | 재시도 실패: 원래 디렉터리 외부 이동 경계 미충족 |
 | P-H | 0 hash·문서 세대 PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 응답/문서 경합 | app test/typecheck/build/e2e, 전달 bytes·세대 불일치 차단 | PoC 통과 |
 | D | 1 design/comments-ui.html | 문서 리뷰 완료 | Astra medium — 기존 화면 보존·상태 표현 | doan ls/check, 지휘자 위임 확인 | 수정 재검증·최종 컨펌 완료 |
 | P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | PoC 통과, 아래 한계 명시 |
@@ -64,3 +64,9 @@
 - 현재 중단점: writer mkdir 경쟁 실패로 제품 구현 F 이후는 시작하지 않았다. 사용자에게 앱 전용 Go mkdir helper 도입을 추천하고 답변을 기다린다. 공개 CLI/MCP 코멘트 쓰기는 확장하지 않는 안이며, helper 설계 확정 후 별도 경합 PoC를 통과해야 한다. 이번 브랜치는 아직 push/PR하지 않았다.
 
 - 2026-10-23 사용자 재시도 요청: P-W를 같은 Task의 새 Dispatch로 재시도한다. Astra medium으로 기존 Node/Electron API의 대안을 독립 검토하고 같은 디렉터리·파일 경합 기준을 검증한다. 새 helper 도입 승인으로 해석하지 않는다. 실험 소유 범위는 격리 워크트리의 임시 fixture와 증거이며 제품 구현은 계속 대기한다.
+
+- P-W 재시도 `ctx_8d04ca03c0d7`: Astra medium과 turnStart observed를 확인했다. 기존 Electron utilityProcess에서 단발 작업의 cwd를 안전하게 연 디렉터리 fd와 bigint dev/ino로 대조하고 한 단계 상대 mkdir을 수행했다. 지휘자가 소스를 직접 검토하고 bigint 비교 및 실제 생성 위치 assertion을 보강시켰다.
+- P-W2 결과: 49개 결정적 관찰에서 원래 디렉터리를 내부에 옮긴 뒤 외부 symlink로 교체하는 경우는 외부 불변을 유지했다. 누락된 .doan/comments 생성, 기존·신규 파일의 no-follow open, 검증 제거 음성 대조를 확인했다. 원래 디렉터리 자체를 외부로 옮긴 뒤 mkdir하는 추가 사례는 외부 항목을 생성했다. 공격자의 이동 직후와 writer 실행 후를 비교했으므로 이동 자체를 writer 변경으로 센 결과가 아니다. 전체 writer 게이트는 실패로 유지한다.
+- 실행 범위 정정: 로그의 runtime-test PASS는 기존 전체 suite 통과가 아니라 임시 writer PoC의 focused 실행이다. build·typecheck와 실제 사용자 데이터 fingerprint 불변을 확인했다. 최초 40개, 최종 49개 관찰이며 제품 writer·패키징·IPC는 미검증이다.
+- 다음 추천은 새 Go helper 도입이 아니다. 검증한 원래 디렉터리 객체를 쓰기 권한의 경계로 삼고, 그 객체 자체가 외부로 이동되는 경우를 보장 범위에서 제외할지 결정해야 한다. 이 경우에도 symlink가 가리키는 다른 외부 디렉터리로 쓰기가 새는 것은 금지한다. 현재 design §8의 외부 불변 조건을 바꾸는 결정이므로 아직 채택하지 않았다. mkdirat도 열린 디렉터리 객체를 기준으로 하므로 그것만으로 이동 문제를 해결하지 못한다는 것은 API 의미에 따른 추론이며 Go 실측 결과는 아니다.
+- P-W2 handoff와 증거를 `.scratch/comments-ui/evidence/P-W2/`에 보존하고 복사본 hash 일치를 확인했다. tracked 변경과 미통합 commit이 없음을 확인한 뒤 worker-release와 Orca 자식 워크트리 삭제를 수행했다. 제품 코드 변경·push·PR은 없다.
