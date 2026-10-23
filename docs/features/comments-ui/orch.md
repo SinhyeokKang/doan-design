@@ -129,3 +129,5 @@
 - V1 완료: IPC handler 6개·sender helper 5개·symlink no-follow 3개·LF 2개가 각각 방어 제거 시 behavioral red, 복원 시 green이다. 최종 focused 148개/typecheck/Go test/vet 통과, 제품 변경·커밋 없음. IPC는 mock, filesystem은 실제 open이나 mkdir는 mock이라는 한계를 유지한다. 증거 85개 byte 일치와 소스 복원 checksum·clean·미통합 없음 확인 후 release 및 cu-v1 제거·목록 부재를 확인했다. V2에 남은 UI 방어 3종 및 실제 통합 검증을 넘긴다.
 
 - U2 리뷰 수정 checkpoint dab5760(제품 수정 6fe80e3, 회귀 22fab02/dab5760)을 R-U2 후속 리뷰에 배정한다. Astra medium — 날짜 렌더링·카드 충돌 재검토·삭제 확인의 정확성 판단. 이전 리뷰 HEAD 6f92ead 이후의 composition 보호 및 실제 App 테스트 추가도 누락 없이 포함한다. 실제 창 최종 검증은 U2가 계속 단독 실행한다.
+
+- R-U2 후속 리뷰 6f92ead..dab5760은 기존 red 1/yellow 2 해소, 새 red/yellow 0이다. 독립 수정 probe 포함 100개 검사 통과. 실제 App 실패 주입과 실제 파일/clipboard 성공 증거를 구분했고 OS-native IME·디자인 실측은 미검증으로 유지한다. 리뷰 터미널 release. U2 전체 runtime 최종 PASS를 관찰했으며 최종 HEAD/exit/인계의 증거 귀속 감사 뒤 통합한다.
