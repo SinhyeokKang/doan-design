@@ -16,9 +16,9 @@
 
 | 배치 | tasks 항목·소유 파일 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|
-| P-W | 0 writer PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 파일 경계·경합 판단 | app test/typecheck/build/e2e 중 실험 관련 게이트, 외부 파일·디렉터리 불변 | 대기 |
-| P-H | 0 hash·문서 세대 PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 응답/문서 경합 | app test/typecheck/build/e2e, 전달 bytes·세대 불일치 차단 | 대기 |
-| D | 1 design/comments-ui.html | 문서 리뷰 완료 | Astra medium — 기존 화면 보존·상태 표현 | doan ls/check, 사용자 앱 확인 | 대기 |
+| P-W | 0 writer PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 파일 경계·경합 판단 | app test/typecheck/build/e2e 중 실험 관련 게이트, 외부 파일·디렉터리 불변 | 진행 중 |
+| P-H | 0 hash·문서 세대 PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 응답/문서 경합 | app test/typecheck/build/e2e, 전달 bytes·세대 불일치 차단 | 진행 중 |
+| D | 1 design/comments-ui.html | 문서 리뷰 완료 | Astra medium — 기존 화면 보존·상태 표현 | doan ls/check, 사용자 앱 확인 | 진행 중 |
 | P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | 대기 |
 | F | 2 공유 v1 fixture·Go/TS 테스트 | PoC 및 초안 승인 | Sol medium — 기존 형식 사례 확장 | go test, app test | 대기 |
 | C | 3 순수 함수와 테스트, 신규 shared 모듈 | F | Astra medium — 상태·시간·타겟 계약 | red→green, app test/typecheck | 대기 |
@@ -39,3 +39,7 @@
 ## 진행 기록
 
 - 2026-10-23: 문서 리뷰 완료와 clean main을 확인했다. 첫 wave 착수 준비.
+
+- Run: `run_3cf07931b2b9`. P-W `ctx_81610878cda0`, P-H `ctx_a5cdf9dfa437`, D `ctx_857ba79199fb`. 세 워커 모두 Astra medium 실행과 turnStart observed를 확인했다.
+
+- 지휘 판단: 초안의 기존 필수 상태를 17개 frame으로 식별했다. 기능 변경이 없는 id·width와 세부 문구는 초안 제안이며 최종 사용자 확인 대상이다. Orca 자식 브랜치는 feat-comments-ui의 격리 작업 브랜치로 사용한다.
