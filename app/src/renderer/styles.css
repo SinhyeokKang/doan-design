@@ -139,3 +139,43 @@ code, kbd { font-family: var(--font-sans); }
 .swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--line); flex: none; }
 /* Short attribute labels stay fully readable at the fixed panel width. */
 .doan-attributes .prop { overflow: visible; text-overflow: clip; }
+
+/* Presentation values from design/comments-ui.html; integration owns the panel split. */
+.comments-panel { width: 100%; min-width: 0; min-height: 0; overflow: auto; background: var(--panel); overflow-wrap: anywhere; }
+.comments-head { padding: 12px; border-bottom: 1px solid var(--line-2); }
+.comments-head h3 { font-size: 12px; font-weight: 600; margin-bottom: 10px; }
+.comments-head h3:focus-visible { outline: 1px solid var(--accent-line); }
+.comments-segment { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; margin-bottom: 8px; }
+.comments-segment button { flex: 1; min-width: 0; padding: 5px 7px; font-size: 11.5px; border-radius: 4px; color: var(--text-3); }
+.comments-segment button[aria-pressed=true] { color: var(--accent); background: var(--accent-soft); }
+.comments-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.comments-btn { max-width: 100%; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); font-size: 11px; font-weight: 500; padding: 4px 7px; }
+.comments-btn.primary { font-weight: 600; background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.comments-card { padding: 12px; border-bottom: 1px solid var(--line-2); }
+.comments-author { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 9px; }
+.comments-avatar { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--raised); color: var(--text-2); display: grid; place-items: center; font-size: 10px; font-weight: 600; }
+.comments-by { min-width: 0; flex: 1; }
+.comments-by b { display: block; font-size: 11.5px; font-weight: 600; overflow-wrap: anywhere; }
+.comments-by time, .comments-email { display: block; font-size: 10px; color: var(--text-3); line-height: 1.5; overflow-wrap: anywhere; }
+.comments-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; margin: 8px 0 10px; }
+.comments-target { display: block; max-width: 100%; color: var(--text-2); font-size: 10.5px; line-height: 1.5; overflow-wrap: anywhere; margin-bottom: 6px; text-align: left; }
+.comments-badges { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.comments-badge { display: inline-block; font-size: 10px; line-height: 1.5; padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--text-3); }
+.comments-badge.open { color: var(--accent); }
+.comments-badge.warning { color: var(--warn); }
+.comments-badge.resolved { color: var(--ok); }
+.comments-message { padding: 12px; font-size: 11.5px; line-height: 1.6; color: var(--text-2); border-bottom: 1px solid var(--line-2); overflow-wrap: anywhere; }
+.comments-message b { display: block; color: var(--text); margin-bottom: 4px; font-size: 12px; }
+.comments-message.error { border-left: 2px solid var(--err); }
+.comments-message.warning { border-left: 2px solid var(--warn); }
+.comments-message .comments-tools { margin-top: 10px; }
+.comments-composer { padding: 12px; border-bottom: 1px solid var(--line-2); }
+.comments-composer label { display: block; font-size: 11.5px; margin: 0 0 8px; }
+.comments-composer textarea { display: block; width: 100%; min-width: 0; min-height: 104px; resize: none; font: 12px/1.6 var(--font-sans); background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 9px; margin: 8px 0; }
+.comments-composer textarea:focus-visible { outline: 1px solid var(--accent-line); }
+.comments-helper { font-size: 10.5px; line-height: 1.5; color: var(--text-3); margin: 8px 0; overflow-wrap: anywhere; }
+.comments-dialog { width: 410px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; margin: auto; background: var(--raised); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-2); border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
+.comments-dialog::backdrop { background: var(--board-bg); opacity: .6; }
+.comments-dialog h3 { font-size: 15px; margin-bottom: 10px; font-weight: 600; }
+.comments-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-2); margin-bottom: 12px; }
+.comments-dialog .comments-tools { justify-content: flex-end; }
