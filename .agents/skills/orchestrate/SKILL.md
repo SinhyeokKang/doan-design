@@ -62,7 +62,12 @@ Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several wo
 
 - When all batches are integrated, push `feat-<slug>` as in `/ship` step 11 and `gh pr create --base main`. Do not merge.
 - If the feature is finished, promote the conclusions to PRODUCT (product judgments) and ARCHITECTURE (structure, formats, conventions) (date and rationale in PRODUCT §7) and delete `docs/features/<slug>/`. Delete `orch.md` along with it.
-- Delete worktrees after confirming 0 tracked uncommitted changes and 0 unintegrated commits. Workers with no further instructions to send are cleaned up right away without waiting to the end. Handoff documents disappear with the worktree, so promote the needed conclusions to the source of truth first.
+- Clean up each finished worker as soon as it has no follow-up work; do not wait until the entire run ends. **Releasing a worker terminal does not remove its Orca child worktree or sidebar card** (2026-10-23 user). Finish both cleanup layers:
+  1. Confirm accepted Dispatch settlement, then use `orca orchestration worker-release --dispatch <dispatch_id> --json`. Verify the release receipt; follow its recovery instructions if uncertain. Never substitute `terminal close` for supervised release or release a live worker.
+  2. Before deleting a batch worktree, confirm no active worker or pending task needs it, `git -C <path> status --porcelain` is empty, and no commit remains unintegrated. For cherry-picked batches, `git -C <path> cherry <integration_branch> HEAD` must have no `+` entries; differing commit hashes alone do not mean work is missing. Preserve unresolved differences instead of forcing deletion.
+  3. Promote needed conclusions to the source of truth. Copy handoffs and any still-needed measurement, review, or verification evidence into the conductor checkout's `.scratch/` and verify the copies before removal. A worktree needed by a running reviewer or an unfinished design-sync remains until that dependency is satisfied.
+  4. Load the version-matched `orca-cli` guide, resolve the exact full worktree id, and run `orca worktree rm --worktree id:<repo-id>::<path> --json`. Use Orca rather than raw `git worktree remove` or `rm -rf`, so its managed card and lineage are removed too. Do not use `--force` to bypass dirty files, unintegrated work, or an archive-hook failure.
+  5. Verify the removal receipt and `orca worktree list --repo id:<repo-id> --json`: the removed child id must be absent. Record any intentionally remaining worktree and its dependency in `orch.md` and the report. Terminal release alone is not completed cleanup.
 
 ## Report
 
