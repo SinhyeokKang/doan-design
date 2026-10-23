@@ -131,11 +131,13 @@ The draft iframe and mounted application are measured in the same built Electron
 | Author | Avatar 26 × 26, radius 50%, 10px / 600; author row gap 8px; name 11.5px / 600; email/time 10px / 15px | Keeps author metadata subordinate to body text. |
 | Body / target / badge | Body 12px / 19.2px and pre-wrap; target 10.5px / 15.75px; badge 10px / 15px, 1px 5px padding, radius 4px | Preserves plain text and compact target/status labels. |
 | Composer | Padding 12px; target starts 8px below label text; textarea minimum height 104px, padding 9px, radius 6px, 12px / 19.2px | Matches the visible label/target/input rhythm while retaining a native wrapping label. |
-| Recovery messages | Full panel width; padding 12px; body 11.5px / 18.4px; heading 12px / 700 | Avoids a second inset inside the composer. Empty action groups are omitted from editor messages. |
+| Recovery messages | Full panel content width, excluding a reserved native scrollbar; padding 12px; body 11.5px / 18.4px; heading 12px / 700 | Avoids a second inset inside the composer. Empty action groups are omitted from editor messages. |
 | Message severity | Errors use a 2px error rule; unknown/conflict/quarantined recovery use warning; checking, confirmed absence, reviewed and saved states are neutral | Does not visually label a successful status check as a warning. Only reached states are claimed below. |
 | Unsaved modal | Width 410px; padding 20px; radius 12px; heading 15px / 700; body 12px / 19.2px | Keeps the three transition actions within the approved dialog width. |
 | Pins | Two real groups of two comments each measure 24 × 24 at 64%, 80% and 100% canvas zoom | Pin dimensions are screen-space values, independent of board scale. |
 | Focused pin | 2px text-color outline, 2px offset, z-index 3 | The keyboard target remains distinguishable over another pin. The base pin uses z-index 2. |
+
+A final-gate reproduction observed the scrolling Comments panel at 279px outer width and 268px client/message width because its native scrollbar reserved 11px. The header and recovery message share the content edges. The runtime regression compares those edges and direct-child structure; restoring the nested composer fails with 12px insets. This clarifies the measured box domain without changing the earlier no-reserved-scrollbar values or product layout.
 
 ### Context differences and comparison limits
 
