@@ -22,8 +22,8 @@
 | P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | PoC 통과, 아래 한계 명시 |
 | F | 2 공유 v1 fixture·Go/TS 테스트 | PoC 및 초안 승인 | Sol medium — 기존 형식 사례 확장 | go test, app test | bd05032 통합·리뷰 통과 |
 | C | 3 순수 함수와 테스트, 신규 shared 모듈 | F | Astra medium — 상태·시간·타겟 계약 | red→green, app test/typecheck | 4fa6151 통합·독립 리뷰 통과 |
-| M | 4 main I/O·IPC·preload·watcher 및 테스트 | C,M1 | Astra medium — 파일 안전성·재시도 | app test/typecheck, go test, reader round trip | ctx_f5a7e17510ae 구현 중 |
-| A | 5 anchor 조회·핀 geometry·overlay 및 테스트 | C; M과 공유 파일 겹치면 직렬 | Astra medium — 문서·viewport 경계 | app test/typecheck/build/e2e | ctx_3dab8d9989a2 실패 게이트 수정 중 |
+| M | 4 main I/O·IPC·preload·watcher 및 테스트 | C,M1 | Astra medium — 파일 안전성·재시도 | app test/typecheck, go test, reader round trip | ctx_aec82c0ad123 리뷰 지적 2건 수정·검증 중 |
+| A | 5 anchor 조회·핀 geometry·overlay 및 테스트 | C; M과 공유 파일 겹치면 직렬 | Astra medium — 문서·viewport 경계 | app test/typecheck/build/e2e | 465d44b 통합·최종 독립 리뷰 통과 |
 | U | 6 패널 CRUD·초안·복사 및 테스트 | M,A | Astra medium — UI 상태·입력 보호 | app test/typecheck/build/e2e | 대기 |
 | V | 7 통합 회귀·개별 mutation·runtime | U | Astra medium — 독립 경계 검증 | go test/vet, app test/typecheck/build/e2e, screenshot 확인 | 대기 |
 | R | 각 구현 배치 독립 리뷰, 결함은 원 소유자 수정 | 해당 배치 | Astra medium — 계획·증거·정확성 검토 | code-review, 🔴 0까지 반복; 결함 postmortem | 대기 |
@@ -99,3 +99,6 @@
 - M 첫 시도는 31cbbc1까지 커밋·clean 및 1039 tests/typecheck/Go test/vet/build 보고 뒤 인계 파일·worker_done 없이 최종 응답으로 끝났다. transcript 마지막 turn과 인계 부재를 확인한 뒤 worker-stop으로 종료를 확정했다. 같은 Task 재시도는 Sol medium — 코드 변경 없이 API·로그·commit을 정리하는 기계적 인계 복구다. 원래 제품 구현을 재실행하지 않으며 실제 runtime은 여전히 보류다.
 - R-M 독립 리뷰 완료: red 0 / yellow 2. 종료 미확인 utility child 뒤 재진입 허용과 무관한 HTML 응답 256개로 활성 문서 기록 퇴출을 probe로 확인했다. M-fix는 같은 cu-m에서 Astra medium으로 수정한다 — 종료 불확실성과 활성 문서 보존·제한된 기록 수명 판단. 지적별 red→green과 U 계약 인계를 요구하며 실제 Electron 슬롯은 M-fix에 배정한다. R-M 터미널은 release했다.
 - A 후속 리뷰 첫 시도는 모델 capacity 오류로 작업을 시작하지 못했다. terminal 오류와 done 상태를 확인해 stop한 뒤 같은 Task를 Astra medium으로 재시도했다. ctx_e86eb826af37의 실제 리뷰 착수는 별도 확인한다.
+
+- A 최종 리뷰 ctx_e86eb826af37은 실제 착수 후 red/yellow 0과 focused 201개·typecheck 통과를 보고했다. A 8개 커밋을 465d44b까지 통합했고 지휘자 통합 단위 1015개·typecheck exit 0을 확인했다. A 원본 증거 34개 복사본 일치, clean·git cherry 미통합 없음 확인 뒤 cu-a를 Orca로 삭제하고 목록 부재를 확인했다. A 회고 3건과 기존 선택 경합 재발을 최신 날짜 순으로 기록했다.
+- M 인계 복구 ctx_1dc48e71de56 완료·release, 원본 로그 17개와 API 인계 보존. 지휘자가 고정 HEAD 31cbbc1에서 1039개 단위·typecheck exit 0을 직접 확인했다. R-M ctx_8bcd33ac530e는 red 0/yellow 2와 focused 84개·typecheck 통과 후 release했다. M-fix ctx_aec82c0ad123 실제 착수 확인; 리뷰된 A 통합 브랜치를 clean checkpoint에 병합하고 실제 전체 runtime도 검증하도록 배정했다.
