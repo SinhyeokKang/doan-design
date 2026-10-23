@@ -39,6 +39,13 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     });
   }, [session, session.list, controller]);
   useEffect(() => { controller.current?.setDraftGuard(!!draft || session.beginning); }, [controller, !!draft, session.beginning]);
+  useEffect(() => {
+    const start = () => { session.composing = true; };
+    const end = () => { session.composing = false; };
+    window.addEventListener("compositionstart", start, true);
+    window.addEventListener("compositionend", end, true);
+    return () => { window.removeEventListener("compositionstart", start, true); window.removeEventListener("compositionend", end, true); };
+  }, [session]);
   const previousDocument = useRef<string | undefined>(undefined);
   useEffect(() => {
     const document = state.layout?.document;

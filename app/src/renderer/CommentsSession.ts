@@ -35,6 +35,7 @@ export class CommentsSession {
   mutations = new Map<string, SaveView>();
   busy = false;
   beginning = false;
+  composing = false;
   private revision = 0;
   private readRevision = 0;
   private authorRevision = 0;
@@ -138,7 +139,7 @@ export class CommentsSession {
     this.draft = transitionDraft(this.draft, { type: "document-lost" }).state; this.emit();
   }
   guard(): boolean | Promise<boolean> {
-    if (this.beginning || this.busy || this.draft.request) return false;
+    if (this.composing || this.beginning || this.busy || this.draft.request) return false;
     if (!this.draft.draft) return true;
     this.destination?.(false);
     const result = new Promise<boolean>(resolve => { this.destination = resolve; });
