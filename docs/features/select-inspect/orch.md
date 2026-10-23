@@ -86,3 +86,6 @@ F2 제품 수정과 Y 읽기 전용 리뷰는 병렬이다. Y 제품 수정과 �
 - 문서 준비 배치: Codex Sol high, 지휘 체크아웃의 `.scratch/docs-promotion/`만 쓴다. task 11의 문서별 초안과 근거를 준비하되 추적 파일은 지휘자가 검토·반영한다. 파일 간 확인 단계가 많고 새 제품 판단은 없다.
 
 - Y 독립 리뷰 `ctx_e3dc740f5afc`: 🔴 0 · 🟡 2 · ⚪ 1. 긴 조상 버튼/Implements 자식과 레이아웃 속성 측정을 보완한다. 기존 151개 치수 차이·16개 선언상태 차이·4개 토큰 말줄임 차이는 리뷰 근거대로 수용한다. 4개 zero-width border 차이는 동등이며, 정확한 일치와 구분한다. Y 기존 task는 retry `ctx_9c113ccc43a6`(Astra medium)로 재개했다.
+
+- F2 커밋 `e3adc5d` · `ef704c4`는 단위 906개·typecheck·build·e2e 통과로 인계됐으나 아직 통합하지 않았다. 재리뷰 `ctx_d1fe74a3fcf0`가 hover/Alt 명령의 seq 증가로 지연 선택 응답이 유실되는 경쟁 조건을 재현했다. 추가 수정 F3는 같은 소유 범위, Astra medium(선택과 hover 순서 분리 판단)으로 진행한다.
+- Y 보완은 668쌍 × 44속성 = 29,392행이다. 긴 실제 doan-id 조상과 Implements, 누락 레이아웃 속성을 추가했으며 같은 리뷰어에게 후속 검토한다.
