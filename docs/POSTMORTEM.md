@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-23 — A preceding canvas tooltip was cached as a project path
+
+- **Area**: `app/e2e/runtime.ts`, `tooltipPath` and the folders-after-restart gate.
+- **Symptom**: the runtime harness cached `/repos/ok/design/added.html` as the `/repos/ok` project path after restart, so valid visible folders never satisfied the path comparison.
+- **Root cause**: hovering the next row did not guarantee that the previous tooltip had closed. The global tooltip role matched that previous content, and the only validity check required an absolute path. Caching retained the wrong result across retries.
+- **Net**: two full runtime failures exposed the issue. A new actual-Electron regression deliberately opens the added.html tooltip before reading the project path; it fails before the fix with the exact canvas path instead of the project path (`retry-tooltip-red.log`). Previously the harness assumed no tooltip was already open. No baseline-only claim is needed or made.
+- **Prevention**: before reading a new uncached path, park the pointer away from tooltip triggers, dismiss a still-visible tooltip with Escape, and wait for the previous tooltip role to disappear; then hover the intended row and read its tooltip. Keep the deterministic preceding-tooltip regression and exact project-path assertion. Search: `rg -n 'getByRole\("tooltip"\)' app/e2e app/src --glob '*.ts*'`. The search also found the later S11 Escape precondition: a visible tooltip consumes Escape before selection clearing. Dismiss it conditionally and assert selection survives, then test selection clearing with no tooltip. Pointer parking alone did not close the retained tooltip. The integration branch still contains the old helper until batch A is integrated.
+
 ### 2026-10-23 — Hover stayed hidden across direct reentry and Alt focus transfer
 
 - **Area**: `app/src/main/canvasScript.ts`, `app/src/renderer/CanvasController.ts`, `canvasMessage.ts`, `app/e2e/runtime.ts`.
