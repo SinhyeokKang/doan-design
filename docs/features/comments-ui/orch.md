@@ -110,3 +110,7 @@
 
 - M-fix2 ce2fa80의 독립 리뷰는 red/yellow 0이다. 1072 tests·typecheck·build·실제 집중/전체 runtime 통과 증거를 확인했으며 세션 교체 자체는 mock 검증 한계로 남긴다. 구현/리뷰 터미널을 release하고 M 통합을 진행한다.
 - U1 8b523a6은 표시 컴포넌트와 16개 테스트를 완료했다. R-U1을 Astra medium으로 배정한다 — 초안 상태·복구·접근성 판단. 41eddc3..8b523a6만 읽기 전용 리뷰하며 실제 Electron과 App 연결은 U2/S 검증으로 남긴다. U1 터미널은 release했고 리뷰 중인 cu-u1은 보존한다.
+
+- M을 15cb445까지 통합하고 지휘자 단위 1072개·typecheck exit 0을 확인했다. U1은 독립 리뷰 red/yellow 0 후 817bde1까지 통합했다. disabled 정규식의 비차단 테스트 보완은 U2가 실제 상호작용 검증과 함께 반영한다.
+- U2 배치: Astra medium — 실제 저장 요청·초안·선택/이동 보호·늦은 응답의 상태 경합 판단. C/A/M/U1이 통합된 브랜치에서 시작하며 .scratch/comments-ui/briefs/U.md 소유 범위로 전체 App 연결을 맡는다. 단위/typecheck/build/실제 e2e 및 원래 초안 보존을 검증한다. Electron 슬롯은 U2에 배정한다.
+- 지휘 세션 자체에서 capacity 오류가 반복됨을 terminal 출력으로 확인했다. 컨텍스트는 압축됐으며 작업 상태를 커밋/인계에 보존했다. 워커 R-U1은 오류 없이 완료했고 release했다.
