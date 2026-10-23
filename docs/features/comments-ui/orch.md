@@ -22,8 +22,8 @@
 | P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | PoC 통과, 아래 한계 명시 |
 | F | 2 공유 v1 fixture·Go/TS 테스트 | PoC 및 초안 승인 | Sol medium — 기존 형식 사례 확장 | go test, app test | bd05032 통합·리뷰 통과 |
 | C | 3 순수 함수와 테스트, 신규 shared 모듈 | F | Astra medium — 상태·시간·타겟 계약 | red→green, app test/typecheck | 4fa6151 통합·독립 리뷰 통과 |
-| M | 4 main I/O·IPC·preload·watcher 및 테스트 | C,M1 | Astra medium — 파일 안전성·재시도 | app test/typecheck, go test, reader round trip | 대기 |
-| A | 5 anchor 조회·핀 geometry·overlay 및 테스트 | C; M과 공유 파일 겹치면 직렬 | Astra medium — 문서·viewport 경계 | app test/typecheck/build/e2e | 대기 |
+| M | 4 main I/O·IPC·preload·watcher 및 테스트 | C,M1 | Astra medium — 파일 안전성·재시도 | app test/typecheck, go test, reader round trip | ctx_f5a7e17510ae 구현 중 |
+| A | 5 anchor 조회·핀 geometry·overlay 및 테스트 | C; M과 공유 파일 겹치면 직렬 | Astra medium — 문서·viewport 경계 | app test/typecheck/build/e2e | ctx_3dab8d9989a2 실패 게이트 수정 중 |
 | U | 6 패널 CRUD·초안·복사 및 테스트 | M,A | Astra medium — UI 상태·입력 보호 | app test/typecheck/build/e2e | 대기 |
 | V | 7 통합 회귀·개별 mutation·runtime | U | Astra medium — 독립 경계 검증 | go test/vet, app test/typecheck/build/e2e, screenshot 확인 | 대기 |
 | R | 각 구현 배치 독립 리뷰, 결함은 원 소유자 수정 | 해당 배치 | Astra medium — 계획·증거·정확성 검토 | code-review, 🔴 0까지 반복; 결함 postmortem | 대기 |
@@ -90,3 +90,5 @@
 - 지휘 재개: M1 독립 리뷰는 red/yellow 0이며 40개 focused 검사와 증거 검증을 확인했다. M1 세 커밋을 c790b50/95d8ed5/73d9c6d로 통합하고 통합 게이트를 실행한다. R-M1과 A의 종료 보고를 수락하고 터미널을 release했다.
 - A 첫 구현은 5202094까지 완료했지만 전체 e2e의 folders after restart가 두 번 실패했다. baseline 결함이라고 단정하지 않는다. 같은 Task를 Astra medium으로 재시도한다 — tooltip/실제 경로와 테스트 경계를 판단해야 한다. 기존 cu-a에서 통합 브랜치를 병합한 뒤 원인을 재현·수정하고 전체 runtime을 재검증한다. app/e2e/runtime.ts 소유권을 A에 해제하며 M1 검사를 보존한다. 실제 Electron 검증 슬롯은 A 단독이다.
 - M은 C/M1 API 위에 main 서비스·IPC·preload·hash·watcher를 구현한다. Astra medium — 신뢰 경계·문서 세대·재시도 판단. 소유 범위와 검증은 지휘자 .scratch/comments-ui/briefs/M.md로 고정하며 A의 canvasScript/renderer/runtime 파일과 겹치지 않는다. A의 runtime 종료 전에는 단위·타입 검증을 진행한다.
+
+- M1 통합 HEAD에서 단위 1004개·typecheck·go test/vet 통과. 증거 50개 checksum 일치와 미통합 커밋 없음·clean을 확인한 뒤 cu-m1을 Orca로 삭제하고 목록 부재를 확인했다. 통합 전체 e2e는 A의 M1 포함 재검증에 이어 지휘자가 실행한다. A 재시도 ctx_3dab8d9989a2와 M ctx_f5a7e17510ae 모두 Astra medium 및 turnStart observed 확인.
