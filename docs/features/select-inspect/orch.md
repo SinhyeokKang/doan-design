@@ -84,3 +84,5 @@ F2 제품 수정과 Y 읽기 전용 리뷰는 병렬이다. Y 제품 수정과 �
 - 2026-10-23 정리: 종료된 자식 15개는 깨끗한 상태와 `git cherry`의 `+` 0건을 확인하고 Orca CLI로 삭제했다. 자료는 지휘 체크아웃 `.scratch/worker-archives/`에 보존했다. `si-f1`(F2), `si-ref`(Y 리뷰), `si-y`(후속 측정)만 유지한다. 사용자 요청으로 orchestrate 스킬에 터미널 해제와 워크트리 삭제를 모두 검증하는 절차를 추가했다.
 - F2 소유에 `canvasMessage.ts` · `canvasMessage.test.ts`를 추가했다. Alt 상태 전달 검증에 필요하며 다른 배치와 겹치지 않는다.
 - 문서 준비 배치: Codex Sol high, 지휘 체크아웃의 `.scratch/docs-promotion/`만 쓴다. task 11의 문서별 초안과 근거를 준비하되 추적 파일은 지휘자가 검토·반영한다. 파일 간 확인 단계가 많고 새 제품 판단은 없다.
+
+- Y 독립 리뷰 `ctx_e3dc740f5afc`: 🔴 0 · 🟡 2 · ⚪ 1. 긴 조상 버튼/Implements 자식과 레이아웃 속성 측정을 보완한다. 기존 151개 치수 차이·16개 선언상태 차이·4개 토큰 말줄임 차이는 리뷰 근거대로 수용한다. 4개 zero-width border 차이는 동등이며, 정확한 일치와 구분한다. Y 기존 task는 retry `ctx_9c113ccc43a6`(Astra medium)로 재개했다.
