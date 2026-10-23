@@ -65,7 +65,7 @@ describe("event preparation", () => {
   it("prepares delete/resolve/reopen only against the exact current state", () => {
     for (const type of ["delete", "resolve"] as const) expect(prepareEvent(textOf(created), { type, comment: cid, expected }, context).type).toBe(type);
     const resolve = prepareEvent(textOf(created), { type: "resolve", comment: cid, expected }, context);
-    const reopened = prepareEvent(textOf(created, resolve), { type: "reopen", comment: cid, expected: { ...expected, status: "resolved", updatedAt: resolve.at } }, { ...context, id: eid(3) });
+    const reopened = prepareEvent(textOf(created, resolve), { type: "reopen", comment: cid, expected: { ...expected, status: "resolved", resolvedAt: resolve.at } }, { ...context, id: eid(3) });
     expect(foldText(textOf(created, resolve, reopened)).comments[0]?.status).toBe("open");
     expect(() => prepareEvent(textOf(created), { type: "reopen", comment: cid, expected }, context)).toThrow();
   });
