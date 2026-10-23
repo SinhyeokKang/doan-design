@@ -2,6 +2,22 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-23 — Comment saves retried after an unconfirmed directory worker exit
+
+- **Area**: `app/src/main/comments/service.ts`, `service.test.ts`.
+- **Symptom**: a directory child whose termination was unconfirmed released the per-canvas queue; identical and new requests could launch another append, including another canvas sharing the root directory.
+- **Root cause**: the service classified only append uncertainty and treated directory-worker uncertainty as ordinary failure. The serialization scope was narrower than directory creation's shared root.
+- **Net**: independent M review injected the real error class and observed re-entry. Existing immutable-event retry tests covered write uncertainty after preparation, not child lifecycle uncertainty before preparation.
+- **Prevention**: serialize saves per root and quarantine that root for the service lifetime after unconfirmed termination. Return unknown with `recovery: child-exit-required`; disk absence and project reopen cannot release it. Recovery requires external confirmation of child exit followed by an app restart. Retain concurrent cross-canvas, same/new request, status, reopen and independent-root tests. Search `rg -n 'MkdirTerminationUnconfirmedError|blockedRoots' app/src/main`; the only production producer is mkdir and the service is its quarantine consumer.
+
+### 2026-10-23 — Response eviction and OOPIF swaps lost a live comment document
+
+- **Area**: `app/src/main/comments/document.ts`, `document.test.ts`, `app/src/main/inspector.ts`, `inspector.test.ts`.
+- **Symptom**: unrelated HTML responses evicted the currently loaded response after 256 records. A focused real-app check also found that the initial comment origin remained unverified before any fetch load.
+- **Root cause**: FIFO bounds did not distinguish active bindings from unbound records. Separately, inspector treated a parent-session process swap as document removal; observed order was parent Network response, child Page frame commit, parent frame detach with reason swap, then child Network loading finish.
+- **Net**: independent review caught response eviction with a deterministic probe; unit joins omitted the swap notification and missed the initial-load runtime failure. Regression tests now preserve active records under 600 unrelated responses/documents, bound unbound storage, retire replaced/removed records, and reproduce that cross-session order.
+- **Prevention**: retain active frame/loader evidence until replacement or removal, bound only unbound records, and distinguish process swaps from actual detach. Search `rg -n 'frameDetached|responses.delete|trimResponses' app/src/main`; inspector owns the lifecycle notification and DocumentBindings owns response retirement. Test actual first-load, fetch load, reload and iframe removal without replacing streamed-response validation with disk hashes.
+
 ### 2026-10-23 — Ancestor visibility treated as cumulative opacity
 
 - **Area**: canvasScript commentAnchors geometry.
