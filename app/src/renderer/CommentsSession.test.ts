@@ -58,4 +58,13 @@ describe("application comment session", () => {
     await s.save(); s.body("retry body"); expect(s.draft.draft?.body).toBe("retry body");
     expect(api.commentsBegin).not.toHaveBeenCalled(); expect(api.commentsMutate.mock.calls[0]?.[0]).not.toHaveProperty("origin");
   });
+  test("reopened project edit requires explicit fresh review before adopting the new epoch", async () => {
+    const { session: s, api } = fixture(); await s.open(identity); s.edit("c1"); s.body("kept");
+    await s.open(null); expect(s.draft.draft?.blocked).not.toBeNull();
+    api.commentsList.mockImplementation(async r => reply(r, { project: 8, canvasHash: "h", comments: [c], warnings: [] }));
+    await s.open(identity); expect(s.draft.draft?.blocked).not.toBeNull();
+    await s.read(true); expect(s.draft.draft?.blocked).toBeNull(); await s.save();
+    expect(api.commentsMutate.mock.calls[0]?.[0]).toMatchObject({ project: 8, intent: { type: "edit", comment: "c1", body: "kept" } });
+  });
+
 });
