@@ -43,3 +43,5 @@
 - Run: `run_3cf07931b2b9`. P-W `ctx_81610878cda0`, P-H `ctx_a5cdf9dfa437`, D `ctx_857ba79199fb`. 세 워커 모두 Astra medium 실행과 turnStart observed를 확인했다.
 
 - 지휘 판단: 초안의 기존 필수 상태를 17개 frame으로 식별했다. 기능 변경이 없는 id·width와 세부 문구는 초안 제안이며 최종 사용자 확인 대상이다. Orca 자식 브랜치는 feat-comments-ui의 격리 작업 브랜치로 사용한다.
+
+- 2026-10-23 사용자: design-draft 워커 결과는 지휘 세션이 직접 리뷰한다. 상태 대응·기존 화면/토큰·실앱 표시를 검토하고 결함을 원 워커에게 수정시킨 뒤 사용자 초안 확인으로 넘긴다.
