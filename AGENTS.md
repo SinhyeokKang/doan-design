@@ -1,5 +1,16 @@
 # AGENTS.md
 
+## Working principles
+
+- **State assumptions**: if there are several interpretations, do not silently pick one — present the options. If unsure, ask. Much is still missing from PRODUCT.md, so this principle comes up especially often.
+- **Propose a simpler way if there is one**: do not add flexibility, configurability, or abstraction that was not requested. **Building ahead for extensibility is itself a defect.**
+- **Surgical changes**: no adjacent improvements or refactors not directly related to the request. Follow the existing style. Remove only orphans your own change created.
+- **Turn tasks into verifiable goals**: "fix the bug" → "reproduce, then confirm it passes". For multi-step work, first present a plan that includes a verification check for each step.
+- **Do not report unverified things as passing.** Leave verification you lacked the tools for or could not run as unfinished, and report what you could not do.
+- **Leave evidence for references**: for ideas taken from other tools (Claude Design · Orca · ego-browser · Storybook, etc.), write where they came from. Do not assert from memory; check what can be checked.
+
+- **Comments-ui writer boundary** (2026-10-23 user): follow ARCHITECTURE section 2: reject symlink redirection to other outside objects; relocation of the originally validated directory object is outside the guarantee. Use the existing Electron single-job utility process for missing-directory creation, never change main cwd, and keep public CLI/MCP human-write authority unchanged.
+
 > The source of the working rules for this repo. Claude Code and Codex both read this file — there is no mirror and no generator.
 
 ## Response style (takes precedence over every other rule in this document)
@@ -46,17 +57,6 @@ Doan Design (`doan`): a tool where a coding agent writes an HTML canvas (a desig
 - The stack is decided (ARCHITECTURE §7·§8: app Electron + TypeScript, CLI Go). Even so, **do not lay down** `package.json`, `go.mod`, directory structure, or build settings without a request.
 - For out-of-scope requests (PRODUCT §3 'Out of scope': drawing · enforcing a canvas format · conversation · waking agents · servers · git operations · real-time co-editing), ask back first, citing that list, even when asked.
 - When a decision is made, write it with its date in the relevant document (PRODUCT or ARCHITECTURE), and add one line with its rationale to the decision log (PRODUCT §7). Widen this file's harness to match the decision as well.
-
-## Working principles
-
-- **State assumptions**: if there are several interpretations, do not silently pick one — present the options. If unsure, ask. Much is still missing from PRODUCT.md, so this principle comes up especially often.
-- **Propose a simpler way if there is one**: do not add flexibility, configurability, or abstraction that was not requested. **Building ahead for extensibility is itself a defect.**
-- **Surgical changes**: no adjacent improvements or refactors not directly related to the request. Follow the existing style. Remove only orphans your own change created.
-- **Turn tasks into verifiable goals**: "fix the bug" → "reproduce, then confirm it passes". For multi-step work, first present a plan that includes a verification check for each step.
-- **Do not report unverified things as passing.** Leave verification you lacked the tools for or could not run as unfinished, and report what you could not do.
-- **Leave evidence for references**: for ideas taken from other tools (Claude Design · Orca · ego-browser · Storybook, etc.), write where they came from. Do not assert from memory; check what can be checked.
-
-- **Comments-ui writer boundary** (2026-10-23 user): follow ARCHITECTURE section 2: reject symlink redirection to other outside objects; relocation of the originally validated directory object is outside the guarantee. Use the existing Electron single-job utility process for missing-directory creation, never change main cwd, and keep public CLI/MCP human-write authority unchanged.
 
 ## Commands
 
