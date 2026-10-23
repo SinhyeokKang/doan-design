@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-23 — A full-width message assertion included the native scrollbar
+
+- **Area**: `app/e2e/comments-ui.ts`, Comments panel recovery geometry.
+- **Symptom**: the final integrated runtime failed the new recovery-width assertion although the message filled the available panel content. Measured panel border-box width was 279px, client width 268px, and message width 268px.
+- **Root cause**: exact equality compared the child's rendered width to the scroll container's outer width, including its 11px native scrollbar. Earlier runs without that geometry passed; the selected heading and message parent were correct.
+- **Net**: the final gate caught the invalid assumption; an instrumented Electron reproduction captured rect/client/scroll metrics. A corrected assertion compares both edges against the panel header's content span and requires the recovery to be a direct panel child. It passes at the reproducing geometry; restoring the original nested composer layout fails with a false direct-child check and 12px insets on both sides. No product layout change was needed.
+- **Prevention**: compare matching box domains for scroll containers and retain a negative control for the layout defect. Run `rg -n 'getBoundingClientRect\(\).*width|clientWidth' app/e2e/comments-ui.ts app/e2e/runtime.ts`; remaining matches include intentional dialog outer width and iframe viewport/scale calculations, not another parent-child width-equality assertion. Never replace a geometric failure with an arbitrary tolerance before measuring scrollbar, border and content edges.
+
 ### 2026-10-23 — Accepted comment timestamps crashed relative-time rendering
 
 - **Area**: `app/src/renderer/CommentsPanel.tsx`, `CommentsPanel.test.tsx`.
