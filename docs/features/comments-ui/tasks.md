@@ -7,7 +7,7 @@
 - `/feature-review`로 명세·안전한 writer·문서/hash 결합·초안 이동 보류를 교차 검토한다.
 - 구현 브랜치의 임시 fixture로 design §8의 입력 보류와 다중 대상 성능 PoC를 실행한다. 100/1,000개 대상, scroll/resize/mutation 각 100회, p95 50/200ms 기준과 누락·stale 반영 0건을 실행 전에 고정한다. 기존 hover/selection seq·iframe 경계·IME·키보드·Alt 동작을 보존한다. 미달하면 설계를 재검토하며 제품 구현을 진행하지 않는다.
 - canvas bytes hash와 열린 문서 세대를 연결한다. 동일 URL reload·HEAD·canvas fetch의 응답이 겹쳐도 열린 문서의 전달 바이트 hash가 맞아야 한다. 응답 도중 파일 변경은 create 거부, 이전 문서 지연 응답은 새 hash에 영향 없음이 통과 조건이다.
-- writer PoC는 `.doan` symlink 교체 후 디렉터리 생성·기존 파일 open·새 파일 생성 각각에서 외부 파일과 디렉터리가 그대로인지 확인한다. 안전한 mkdir 경로가 없으면 파일 open 보호만으로 통과시키지 않는다.
+- writer PoC는 `.doan` symlink 교체 후 디렉터리 생성·기존 파일 open·새 파일 생성 각각에서 symlink가 가리키는 다른 외부 파일과 디렉터리가 그대로인지 확인한다. 검증한 원래 객체 자체의 외부 이동은 2026-10-23 사용자 승인에 따라 제외한다. 안전한 mkdir 경로가 없으면 파일 open 보호만으로 통과시키지 않는다.
 - 초안 확인 전에는 위 임시 실험만 수행하고, 제품 기능 구현은 task 1의 사용자 초안 확인 뒤 진행한다.
 - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run build`, `npm --prefix app run e2e`. 실험 자체의 별도 실행 명령이 필요하면 command undecided — needs user confirmation; 기존 runtime suite 안의 임시 fixture로 우선 검증한다.
 
