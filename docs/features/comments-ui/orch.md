@@ -121,3 +121,5 @@
 - U2가 Electron 45 clipboard.writeText의 Promise 반환을 M이 await하지 않아 실패에도 copied:true를 반환하는 결함을 발견했다. 설치된 electron.d.ts와 service.ts에서 직접 확인했다. 기존 M 워커는 종료됐으므로 U2 소유 범위를 service.ts의 clipboard 계약·await와 해당 회귀 테스트로 좁게 확대한다. reject 시 성공 금지와 완료 전 응답 보류를 red→green으로 검증하고 독립 U2 리뷰에 포함한다. 다른 M 권한/재시도 규칙은 변경하지 않는다.
 
 - U2 구현 checkpoint 37dfee4에서 R-U2 읽기 전용 리뷰를 병렬 배정한다. Astra medium — 실제 App 상태/이동 보호·늦은 응답·clipboard 완료 경계 판단. 9a997e5..37dfee4 고정 diff만 검토하고 제품 파일을 수정하지 않는다. U2의 실제 Electron 검증 슬롯은 유지하며, 미도착 최종 증거와 이후 diff는 후속 리뷰한다.
+
+- V를 파일 소유와 선행조건에 따라 분리한다. V1은 이미 통합된 main sender·filesystem·append LF 방어를 각각 임시 제거해 의미 있는 red와 복원 green을 검증한다. Astra medium — 방어별 독립 증명의 판단. 별도 child의 scratch 및 필요한 main 회귀 테스트만 소유하며 제품 변경·Electron 실행은 금지한다. U2/R-U2와 병렬이며 UI stale reply·draft target·comments-only no-reload와 최종 전체 게이트는 V2가 U2 통합 뒤 맡는다.
