@@ -149,8 +149,9 @@ try {
   await page.getByRole("button", { name: "Reload canvas", exact: true }).focus(); await page.keyboard.press("Escape"); await keep();
   await page.getByRole("navigation", { name: "Ancestor path" }).getByRole("button").first().click(); await keep();
   await page.getByRole("button", { name: /^1 open comments?$/ }).first().click(); await keep();
-  const linkBox = await frame.getByRole("link", { name: "Other canvas" }).boundingBox(); assert.ok(linkBox);
-  await page.keyboard.down("Alt"); await page.mouse.click(linkBox.x + 8, linkBox.y + 8); await page.keyboard.up("Alt"); await keep();
+  const linkBox = await frame.getByRole("link", { name: "Other canvas" }).evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y }; });
+  const boardBox = await page.locator("iframe").evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, scale: r.width / el.clientWidth }; });
+  await page.keyboard.down("Alt"); await page.mouse.click(boardBox.x + (linkBox.x + 8) * boardBox.scale, boardBox.y + (linkBox.y + 8) * boardBox.scale); await page.keyboard.up("Alt"); await keep();
   assert.equal(await page.locator("iframe").getAttribute("title"), "design/a.html");
   await page.getByRole("button", { name: "Close project repo", exact: true }).click(); await keep();
   await app.evaluate(({ app }) => app.quit()); await keep();
@@ -198,6 +199,46 @@ try {
   await cards.filter({ hasText: "Unknown save body" }).getByRole("button", { name: "Retry copy", exact: true }).click();
   await cards.filter({ hasText: "Unknown save body" }).getByRole("button", { name: "Copied", exact: true }).waitFor();
   await shot("10-clipboard-failure-retry");
+  // Same DOM frame/element grouping and external no-reload invalidation.
+  const beforeExternal = await page.locator("iframe").elementHandle(); assert.ok(beforeExternal);
+  let currentEvents = (await readFile(file, "utf8")).trim().split("\n").map(line => JSON.parse(line));
+  const frameCreate = currentEvents.find(event => event.type === "create" && event.target.frame === "hero" && !event.target.element);
+  const equivalent = { ...frameCreate, id: `evt_${randomUUID()}`, comment: `cmt_${randomUUID()}`, body: "Equivalent frame element", target: { element: { doanId: "hero", selector: '[data-doan-id="hero"]', html: "<section/>" } }, at: new Date(Math.max(Date.now(), ...currentEvents.map(event => Date.parse(event.at))) + 1).toISOString() };
+  await writeFile(file, await readFile(file, "utf8") + JSON.stringify(equivalent) + "\n");
+  await page.waitForFunction(() => document.querySelectorAll('button.comment-pin[aria-label="2 open comments"]').length === 2);
+  await page.getByRole("region", { name: "Frames", exact: true }).getByRole("button").click();
+  await cards.filter({ hasText: "Equivalent frame element" }).waitFor();
+  assert.equal(await cards.count(), 2, "same DOM frame and element group excludes child");
+  assert.equal(await beforeExternal.evaluate(el => el.isConnected), true, "external comment event retained iframe");
+  await shot("11-same-dom-group-and-no-reload");
+  // External deletion keeps an edit visible but makes saving impossible.
+  await cards.filter({ hasText: "Equivalent frame element" }).getByRole("button", { name: "Edit", exact: true }).click();
+  await panel.getByRole("textbox", { name: "Your unsaved edit body" }).fill("Keep deleted body");
+  await writeFile(file, await readFile(file, "utf8") + JSON.stringify({ v: 1, id: `evt_${randomUUID()}`, comment: equivalent.comment, type: "delete", by: { kind: "human", name: "External" }, at: new Date(Date.parse(equivalent.at) + 1).toISOString() }) + "\n");
+  await panel.getByText("This comment was deleted", { exact: true }).waitFor();
+  assert.equal(await panel.getByRole("textbox", { name: "Your unsaved edit body" }).inputValue(), "Keep deleted body");
+  assert.equal(await panel.getByRole("button", { name: "Save changes", exact: true }).isDisabled(), true);
+  await panel.getByRole("button", { name: "Cancel", exact: true }).click();
+  await shot("12-external-delete");
+  // Confirmed absence permits only the frozen original request and payload.
+  await app.evaluate(({ ipcMain }) => {
+    const handlers = Reflect.get(ipcMain, "_invokeHandlers"); Reflect.set(globalThis, "commentStatusOriginal", handlers.get("comments:status"));
+    const requests: unknown[] = []; Reflect.set(globalThis, "absentRequests", requests);
+    ipcMain.removeHandler("comments:mutate");
+    ipcMain.handle("comments:mutate", (...args) => { requests.push(args[1]); return requests.length === 1 ? { ok: true, identity: args[1], value: { state: "unknown" } } : Reflect.get(globalThis, "commentMutationOriginal")(...args); });
+    ipcMain.removeHandler("comments:status"); ipcMain.handle("comments:status", (_event, request) => ({ ok: true, identity: request, value: { state: "absent" } }));
+  });
+  await panel.getByRole("button", { name: "New selection comment", exact: true }).click(); await createBody.fill("Frozen retry body");
+  await panel.getByRole("button", { name: "Save comment", exact: true }).click();
+  await panel.getByRole("button", { name: "Check saved status", exact: true }).click();
+  await panel.getByRole("button", { name: "Retry original save", exact: true }).click();
+  await cards.filter({ hasText: "Frozen retry body" }).waitFor();
+  const requests = await app.evaluate(() => Reflect.get(globalThis, "absentRequests")); assert.deepEqual(requests[0], requests[1]);
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler("comments:mutate"); ipcMain.handle("comments:mutate", Reflect.get(globalThis, "commentMutationOriginal"));
+    ipcMain.removeHandler("comments:status"); ipcMain.handle("comments:status", Reflect.get(globalThis, "commentStatusOriginal"));
+  });
+  await shot("13-frozen-absence-retry");
   await app.evaluate(({ ipcMain }) => {
     ipcMain.removeHandler("comments:mutate");
     ipcMain.handle("comments:mutate", (_event, request) => ({ ok: true, identity: request, value: { state: "unknown", recovery: "child-exit-required", error: "Confirm the child exited externally, then restart the app." } }));
@@ -208,7 +249,7 @@ try {
   assert.equal(await createBody.inputValue(), "Quarantined draft"); assert.equal(await createBody.getAttribute("readonly"), "");
   assert.equal(await panel.getByRole("button", { name: "Retry original save", exact: true }).count(), 0);
   assert.equal(await panel.getByRole("button", { name: "Check saved status", exact: true }).count(), 0);
-  await shot("11-unrecoverable-unknown");
+  await shot("14-unrecoverable-unknown");
   console.log("comments-ui-test: PASS (actual App CRUD, draft transitions, clipboard and watcher)");
 } catch (error) {
   console.error(error);
