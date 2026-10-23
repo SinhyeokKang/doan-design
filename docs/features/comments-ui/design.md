@@ -101,3 +101,10 @@ PRODUCT §6의 기존 rendering·IPC·union merge 전제는 통과했다. 아래
 4. **다중 대상 성능:** 개발 Mac과 Electron 버전·fixture DOM 규모를 기록하고, 100개 고유 대상의 일반 사례와 1,000개 고유 대상의 부하 사례를 각각 측정한다. 워밍업 후 scroll/resize/mutation 각 100회에서 입력 시점부터 해당 generation의 핀 DOM 반영까지 p95를 잰다. 일반 사례는 p95 ≤ 50ms, 부하 사례는 p95 ≤ 200ms, 두 사례 모두 개수 누락·오래된 generation 반영 0건을 사전 기준으로 둔다. 이는 이번 PoC의 엔지니어링 목표이며 모든 사용자 캔버스에 대한 성능 보장은 아니다. 미달하면 측정 결과와 원인을 보고하고 기준·표시 한도·처리 방식을 재검토한 뒤 진행한다. 핀을 잘라 수치만 맞추지 않는다.
 
 초안은 `/feature-review` 뒤 `design/comments-ui.html`에 별도 `/design-draft`로 만든다. 이 `/feature`는 초안 HTML이나 앱 코드를 쓰지 않는다. 필수 상태: 선택 대상/전체 목록, 캔버스 작성, Open/Resolved, 빈 목록, 작성/수정, 저장 중/실패, 삭제 확인, 미저장 이동 확인, 이름 미설정, 위치 없음, Outdated와 둘의 동시 표시, 읽기 실패/부분 경고, 긴 본문/작성자/복사 문장, 핀 그룹·겹침·포커스, width 오류와 쓰기 불가 이유, 이름 설정 후 재시도, 충돌 뒤 최신 상태 확인, 기록 여부 확인 중. 초안에 없는 상태는 design-sync에서 검증했다고 보고하지 않는다.
+
+
+### 초안 식별자 — 2026-10-23
+
+기존 필수 상태를 그리기 위한 지휘자의 작업상 식별자다. canvas id는 `comments-ui`, width는 `1440`이며 파일은 `design/comments-ui.html`이다. frame id는 `selection-list`, `canvas-list`, `canvas-compose`, `resolved`, `empty`, `compose-edit`, `saving-errors`, `delete-confirm`, `unsaved-transition`, `author-recovery`, `missing-outdated`, `read-states`, `long-values`, `pins`, `eligibility`, `conflict-recovery`, `save-verification` 17개다. 각 frame의 labelled tile로 관련 하위 상태를 빠짐없이 그린다.
+
+명세에 없는 세부 배치·크기와 영어 안내 문구는 기존 결정의 의미를 유지하는 초안 제안으로 표시한다. 새 제품 동작을 추가하지 않으며, 완성된 초안을 앱에서 사용자에게 확인받은 뒤 구현 기준으로 삼는다.
