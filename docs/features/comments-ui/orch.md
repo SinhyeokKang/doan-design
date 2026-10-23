@@ -141,3 +141,6 @@
 - U2 통합 단위 1108개/typecheck exit 0을 확인했다. U2 scratch 증거 116개 byte 일치·clean·git cherry 미통합 없음·리뷰 종료를 확인하고 cu-u2를 Orca로 제거했다. 목록에는 지휘 checkout과 cu-v2만 남았다. V2 ctx_c869d69dfd16 실제 조사 착수를 확인했다.
 
 - V2 고정 테스트 commit 42f9849를 독립 R-V에 배정한다. Astra medium — 실제 cross-project 원래 대상 검증과 개별 mutation 증명 판단. 91fecf6..42f9849 테스트 diff만 읽고 제품 변경 없음·baseline/red/restored 원상 복원을 감사한다. V2 실제 전체 게이트와 병렬이며 실행/수정/Electron은 하지 않는다. 미도착 인계는 보류로 남긴다.
+
+- V2 42f9849의 최종 전체 e2e exit 0과 R-V red/yellow 0을 확인하고 6a4e848로 통합했다. 앞선 단위/type/Go/build 영수증 HEAD 6e0923는 e2e fixture/assertion 3줄만 다르며 제품/Go/단위 소스는 동일하다. 지휘자 통합 HEAD에서 1112개/typecheck exit 0을 재확인했다. V2는 인계만 마무리하며 Electron 슬롯은 S에 이전한다.
+- S 배치: Astra medium — 승인 초안의 실제 상태별 요소 대응·computed style·접근성 판단. .scratch/comments-ui/briefs/S.md에 따라 renderer 표시 수정/회귀·docs/DESIGN.md를 소유한다. 초안은 편집하지 않으며 미측정은 명시한다. 별도 독립 리뷰는 지휘자가 배정한다. V2 테스트 코드 편집은 끝났으므로 파일 충돌은 없다.
