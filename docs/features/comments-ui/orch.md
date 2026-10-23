@@ -127,3 +127,5 @@
 - R-U2 9a997e5..6f92ead 리뷰는 red 1/yellow 2다. schema/fold 허용 날짜의 RelativeTimeFormat 예외, 카드 lifecycle 충돌의 최신 상태 복구 부재, 승인된 삭제 확인창 누락을 발견했다. 기존 집중 190개 통과에도 독립 probe 3개가 실패했다. 현재 U2 Task의 수정 범위로 전달해 red→green 및 실제 App 충돌/삭제 확인을 요구했다. 리뷰 워커는 release했다. 최종 U2 인계·raw 증거 감사는 별도 후속 리뷰로 남긴다.
 
 - V1 완료: IPC handler 6개·sender helper 5개·symlink no-follow 3개·LF 2개가 각각 방어 제거 시 behavioral red, 복원 시 green이다. 최종 focused 148개/typecheck/Go test/vet 통과, 제품 변경·커밋 없음. IPC는 mock, filesystem은 실제 open이나 mkdir는 mock이라는 한계를 유지한다. 증거 85개 byte 일치와 소스 복원 checksum·clean·미통합 없음 확인 후 release 및 cu-v1 제거·목록 부재를 확인했다. V2에 남은 UI 방어 3종 및 실제 통합 검증을 넘긴다.
+
+- U2 리뷰 수정 checkpoint dab5760(제품 수정 6fe80e3, 회귀 22fab02/dab5760)을 R-U2 후속 리뷰에 배정한다. Astra medium — 날짜 렌더링·카드 충돌 재검토·삭제 확인의 정확성 판단. 이전 리뷰 HEAD 6f92ead 이후의 composition 보호 및 실제 App 테스트 추가도 누락 없이 포함한다. 실제 창 최종 검증은 U2가 계속 단독 실행한다.
