@@ -6,6 +6,7 @@ import { fold, parseLines } from "../../formats/fold";
 import type { Author, Comment, CommentEvent, Target, Warning } from "../../formats/types";
 import { AppendUncertainError } from "./files";
 import { object } from "./identity";
+import { MkdirTerminationUnconfirmedError } from "./mkdir";
 
 export interface CommentIdentity { root: string; path: string; canvas: string }
 export interface CommentRequest extends CommentIdentity { requestID: string }
@@ -15,7 +16,7 @@ export interface CopyRequest extends CommentRequest { scope: CopyScope }
 export interface DocumentOrigin { generation: string; hash: string; target: Target }
 export type CommentReply<T> = { ok: true; identity: CommentRequest; value: T } | { ok: false; identity: CommentRequest | null; error: string };
 export interface CommentList { project: number; canvasHash: string | null; comments: Comment[]; warnings: Warning[] }
-export interface SavedStatus { state: "saved" | "absent" | "unknown"; event?: string; comment?: string; error?: string }
+export interface SavedStatus { state: "saved" | "absent" | "unknown"; recovery?: "child-exit-required"; event?: string; comment?: string; error?: string }
 export interface BeginResult extends DocumentOrigin { origin: string; project: number }
 export interface ServiceDependencies {
   authorize(identity: CommentIdentity): Promise<{ width: number | null; url: string }>;
@@ -71,12 +72,16 @@ function validIntent(value: unknown): value is MutationIntent {
 }
 
 export function createCommentsService(deps: ServiceDependencies) {
+  // Directory creation is shared by every canvas in the root. Neither disk
+  // absence nor reopening a project proves that an unconfirmed child exited.
+  const blockedRoots = new Set<string>();
+  const blocked = (): SavedStatus => ({ state: "unknown", recovery: "child-exit-required", error: "Directory worker exit is unconfirmed. Saving is blocked for this project. Confirm the child has exited before restarting the app; do not retry automatically." });
   const queues = new Map<string, Promise<unknown>>();
   const origins = new Map<string, Origin>();
   const attempts = new Map<string, Attempt>();
   const key = (who: string, r: CommentRequest) => JSON.stringify([who, r.root, r.canvas, r.requestID]);
   const serialized = async <T>(r: CommentIdentity, run: () => Promise<T>): Promise<T> => {
-    const file = JSON.stringify([r.root, r.canvas]);
+    const file = r.root;
     const next = (queues.get(file) ?? Promise.resolve()).catch(() => undefined).then(run);
     queues.set(file, next);
     try { return await next; } finally { if (queues.get(file) === next) queues.delete(file); }
@@ -120,6 +125,7 @@ export function createCommentsService(deps: ServiceDependencies) {
     status(who: string, value: unknown): Promise<CommentReply<SavedStatus>> {
       return reply(value, [], r => serialized(r, async () => {
         await authorized(r, deps.epoch(r.root));
+        if (blockedRoots.has(r.root)) return blocked();
         const attempt = attempts.get(key(who, r));
         if (!attempt || !object(attempt.payload) || attempt.payload.path !== r.path) return { state: "unknown", error: "This process has no matching save request." };
         return check(r, attempt);
@@ -130,6 +136,7 @@ export function createCommentsService(deps: ServiceDependencies) {
         if (!object(value) || !validIntent(value.intent)) throw new Error("Invalid mutation.");
         const epoch = deps.epoch(r.root);
         if (value.project !== epoch || epoch === null) throw new Error("Project was closed or reopened; read the current list.");
+        if (blockedRoots.has(r.root)) return blocked();
         let canvas = await authorized(r, epoch);
         const attemptKey = key(who, r);
         let attempt = attempts.get(attemptKey);
@@ -167,6 +174,7 @@ export function createCommentsService(deps: ServiceDependencies) {
             return Buffer.from(JSON.stringify(attempt.event) + "\n");
           });
         } catch (error) {
+          if (error instanceof MkdirTerminationUnconfirmedError) { blockedRoots.add(r.root); return blocked(); }
           if (error instanceof AppendUncertainError) return { state: "unknown", error: message(error), ...(attempt ? { event: attempt.event.id, comment: attempt.event.comment } : {}) };
           throw error;
         }
