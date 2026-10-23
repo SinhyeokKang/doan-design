@@ -80,3 +80,7 @@ tasks.md의 task 0–11은 모두 위 한 행 이상에 속하고, 주인 없는
 | Y 마무리 | docs/DESIGN.md (제품 수정이 필요하면 F2 이후) | Y 리뷰 | Codex Astra medium — 승인된 차이와 측정 증거 반영 | design-sync 6–8단계 | 대기 |
 
 F2 제품 수정과 Y 읽기 전용 리뷰는 병렬이다. Y 제품 수정과 재측정은 F2 통합 뒤에 한다. 이후 최종 문서 승격·통합 검증·push·PR 순서이며 merge하지 않는다.
+
+- 2026-10-23 정리: 종료된 자식 15개는 깨끗한 상태와 `git cherry`의 `+` 0건을 확인하고 Orca CLI로 삭제했다. 자료는 지휘 체크아웃 `.scratch/worker-archives/`에 보존했다. `si-f1`(F2), `si-ref`(Y 리뷰), `si-y`(후속 측정)만 유지한다. 사용자 요청으로 orchestrate 스킬에 터미널 해제와 워크트리 삭제를 모두 검증하는 절차를 추가했다.
+- F2 소유에 `canvasMessage.ts` · `canvasMessage.test.ts`를 추가했다. Alt 상태 전달 검증에 필요하며 다른 배치와 겹치지 않는다.
+- 문서 준비 배치: Codex Sol high, 지휘 체크아웃의 `.scratch/docs-promotion/`만 쓴다. task 11의 문서별 초안과 근거를 준비하되 추적 파일은 지휘자가 검토·반영한다. 파일 간 확인 단계가 많고 새 제품 판단은 없다.
