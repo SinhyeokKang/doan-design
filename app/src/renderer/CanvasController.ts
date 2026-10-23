@@ -83,11 +83,11 @@ export class CanvasController {
   private commentRevision = 0;
   private pendingPin: { seq: number; intent: number; generation: number; revision: number; destination: PinDestination } | null = null;
 
-  private transitionGuard: (() => Promise<boolean>) | null = null;
+  private transitionGuard: (() => boolean | Promise<boolean>) | null = null;
   private transitionIntent = 0;
   private inputGuard = false;
   private canvasIntent = 0;
-  setTransitionGuard(guard: (() => Promise<boolean>) | null): void { this.transitionGuard = guard; }
+  setTransitionGuard(guard: (() => boolean | Promise<boolean>) | null): void { this.transitionGuard = guard; }
   setDraftGuard(active: boolean): void {
     this.inputGuard = active;
     this.post({ type: "draft-guard", active });
@@ -95,7 +95,9 @@ export class CanvasController {
   private transition(apply: () => void, valid: () => boolean = () => true): void {
     const intent = ++this.transitionIntent, frame = this.frame, href = this.lastHref, document = this.state.layout?.document;
     if (!this.transitionGuard) { apply(); return; }
-    void this.transitionGuard().then(allow => {
+    const allowed = this.transitionGuard();
+    if (typeof allowed === "boolean") { if (allowed && valid()) apply(); return; }
+    void allowed.then(allow => {
       if (allow && intent === this.transitionIntent && frame === this.frame && href === this.lastHref && document === this.state.layout?.document && valid()) apply();
     }).catch(error => console.error("Comment transition failed", error));
   }

@@ -136,9 +136,9 @@ export class CommentsSession {
     this.destination?.(false); this.destination = null;
     this.draft = transitionDraft(this.draft, { type: "document-lost" }).state; this.emit();
   }
-  guard(): Promise<boolean> {
-    if (this.beginning || this.busy || this.draft.request) return Promise.resolve(false);
-    if (!this.draft.draft) return Promise.resolve(true);
+  guard(): boolean | Promise<boolean> {
+    if (this.beginning || this.busy || this.draft.request) return false;
+    if (!this.draft.draft) return true;
     this.destination?.(false);
     const result = new Promise<boolean>(resolve => { this.destination = resolve; });
     this.draft = transitionDraft(this.draft, { type: "move", destination: crypto.randomUUID() }).state;

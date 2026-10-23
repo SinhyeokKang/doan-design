@@ -22,7 +22,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   useEffect(() => { if (session.identity) void session.read(); }, [session, state.layout?.document, open?.row.width]);
   useEffect(() => window.doan.onCommentsInvalidated(change => { if (change.root === session.identity?.root) void session.read(); }), [session]);
   useEffect(() => window.doan.onCommentTransition(request => {
-    void session.guard().then(allow => window.doan.answerCommentTransition({ id: request.id, allow })).catch(console.error);
+    void Promise.resolve(session.guard()).then(allow => window.doan.answerCommentTransition({ id: request.id, allow })).catch(console.error);
   }), [session]);
   useEffect(() => {
     controller.current?.setTransitionGuard(() => session.guard());
