@@ -1,56 +1,30 @@
 # Postmortem
 
-> Pitfalls we hit, stacked in date order. Append-only — do not edit or delete existing entries.
+> Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
-### 2026-10-21 — TS and Go comment folding diverged on inputs the shared fixtures did not cover
+### 2026-10-23 — Hover stayed hidden across direct reentry and Alt focus transfer
 
-- **Area**: `app/src/formats/fold.ts`, `cli/internal/formats/fold.go` (`parseLines`/`fold`)
-- **Symptom**: Both implementations passed all 28 shared fold fixtures, yet on the same JSONL they disagreed: a line with only U+FEFF or U+0085 was skipped by one and reported as `invalid_event` by the other; `"v":1e400` was `unknown_version` in TS but `invalid_event` (without `event`/`comment`) in Go; `fold()` returned warnings in a different order; identical duplicate events kept the first array entry instead of the smallest line.
-- **Root cause**: Each implementation leaned on its language's defaults — JS `String.prototype.trim` and Go `strings.TrimSpace` strip different Unicode sets, `JSON.parse` yields `Infinity` while Go `json.Unmarshal` errors on overflow — and the design text ("whitespace-only line", "merge and sort warnings") did not pin which set or where. Merge/sort lived only in the test harness, so the unsorted `fold()` output was never compared.
-- **Net**: Caught by an independent reviewer that fed 42 identical inputs to both implementations and diffed the outputs. Missed by the fixture suite and by both workers' self-reviews, because fixtures only exercised inputs the plan listed.
-- **Prevention**: For any rule implemented in both TS and Go, state the exact character set / numeric range in design and add a fixture at the boundary (BOM, U+0085, NBSP, CR-only, `1e400`, reversed duplicate order). Expose the composed public function (`foldText`) and test that, not a harness-side composition. Grep for language-default trimming in shared-format code: `grep -rnE '\.trim\(\)|TrimSpace|trimStart|trimEnd' app/src cli`.
-- **Recurrence (2026-10-21, cli-core)**: `repo.ParseConfig` checked `v` with `json.Number.Float64()` but passed the original number to the schema, so `{"v":1.0000000000000001}` was `invalid_config` while `parseLines` accepts the same `v` as 1. Caught by the batch A independent review, not by the batch's own fixtures. Fixed by writing the float back before validation, as `fold.go` does.
+- **Area**: `app/src/main/canvasScript.ts`, `app/src/renderer/CanvasController.ts`, `canvasMessage.ts`, `app/e2e/runtime.ts`.
+- **Symptom**: moving directly from an element to the app margin and back to the same element left hover hidden. Holding Alt in the app, Alt-clicking a canvas input, releasing Alt there, and moving to another element also left hover hidden.
+- **Root cause**: the OOPIF did not reliably receive pointerout on exit. The renderer cleared its rectangle but the script retained its deduplication cache, so an identical rectangle never reached the renderer again. Separately, Alt down and up could land in different documents; the renderer kept its own Alt flag after the canvas received the release. Blindly trusting a delayed state message would instead revive hover while Alt was held.
+- **Net**: the EF review's real-input probe caught both bugs. The original e2e crossed intermediate elements with stepped movement and tested Alt press/release without a focus transfer. Its normal run passed. New S5 direct same-element reentry and S9 Alt focus-transfer checks both failed before these fixes and compare the restored mark's rectangle, not merely visibility.
+- **Prevention**: invalidating a consumer's cached display must also invalidate the producer's deduplication cache. The app now sends a sequenced hover-leave command without changing selection; the next move supplies the current rectangle. Modifier snapshots travel from the canvas through validated Alt key messages, while app modifier commands advance seq to reject snapshots sent before the current press. Unit tests retain selection/layout updates and reject stale Alt release and hover messages while Alt is held. Keep actual-input checks with single pointer jumps and focus-changing key sequences. Search: `rg -n 'lastHover|hoverRect|altHeld|hover-alt|hover-leave' app/src/main/canvasScript.ts app/src/renderer/CanvasController.ts`.
 
-### 2026-10-21 — Filesystem APIs did not match "missing" and "same file" as the product means them
+### 2026-10-23 — Hover commands discarded pending selection replies
 
-- **Area**: `cli/internal/repo/resolve.go`, `find.go`; `cli/internal/cli/init.go`
-- **Symptom**: a canvas href such as `tokens.css/x.css` or `%00` made `doan check` exit 1 (`internal_error`) instead of reporting `local_css_not_found`; an ancestor `.doan` regular file stopped repo discovery; `DESIGN/A.CSS` and `design/a.css` became two keys on macOS (false `css_not_served`, duplicate findings); `doan init` followed a dangling `.doan/config.json` symlink and created a file outside the repo.
-- **Root cause**: `os.IsNotExist` covers only `ENOENT`, while `ENOTDIR`, `EINVAL`, `ENAMETOOLONG` and Go's unwrapped "EvalSymlinks: too many links" also mean "no such file" for content-derived paths; `filepath.EvalSymlinks` resolves links but keeps the caller's letter case on case-insensitive filesystems; "missing" is safe for reading but not for writing, because `os.WriteFile` follows a dangling symlink.
-- **Net**: caught by the independent reviews of batches A and D with concrete inputs, and by D's self-review for the write path. Missed by the planned case lists, which only had `ENOENT`-shaped inputs and one spelling per file.
-- **Prevention**: for every path that comes from canvas or config content, test `ENOTDIR`, a NUL byte, an over-long name, a symlink loop, a different letter case, and a dangling symlink at each write target. Grep: `grep -rnE 'IsNotExist|EvalSymlinks|os\.WriteFile' cli app/src`.
-- **Recurrence (2026-10-21, app-shell)**: `doan ls` `result.root` kept the caller's letter case from `--repo` or `$PWD` (`repo.Find` used `EvalSymlinks` alone), so one repo could be stored twice by the app and every served path would miss `relInside`. Caught by the batch B1 independent review; fixed by passing the root through `diskSpelling`. `doan init`'s `result.repo` (`init.go`) still keeps the caller's spelling.
+- **Area**: `app/src/main/canvasScript.ts`, `app/src/renderer/CanvasController.ts`, `canvasMessage.ts`, `app/e2e/runtime.ts`.
+- **Symptom**: Alt or pointer exit between a frame/path pick, reload reanchor or canvas click and its selection reply left the Inspector empty, retained the previous selection, or kept the reanchor mark hidden.
+- **Root cause**: F2 shared one sequence between selection validity and hover/modifier freshness. A hover-only command advanced the renderer's selection floor after the script had already posted its selection reply. Later layout messages carried geometry but could not reconstruct the missing selection payload. Preserving an established selection was therefore insufficient evidence that hover did not change selection behavior.
+- **Net**: the independent F2 review caught the race with controlled reply ordering and a real-click Electron message gate. Existing tests only interleaved hover with an already received selection. New controller cases failed for pending frame, ancestor, reload and click replies; the actual-input gate failed while the existing EF hover checks still ran. Producer tests also reject shared-sequence behavior for a retrying anchor and independently ordered commands.
+- **Prevention**: keep selection and hover/modifier counters independent at both producer and consumer, including reload reset. The internal `seq` field is interpreted by message kind: selection commands and select/clear/selected-layout use selection order; hover commands and hover/Alt snapshots use hover order. Escape remains intent, and stale selection replies after Escape or a newer selection remain rejected. Retain the deterministic pending-reply tests, actual click gate, EF direct reentry/focus-transfer checks, and source/href/viewport/reset boundary checks. Search: `rg -n 'seq|hoverSeq|sendCommand|sendHoverCommand' app/src/main/canvasScript.ts app/src/renderer/CanvasController.ts`; matches are the two protocol endpoints covered here, with no other production sequence owner.
 
-### 2026-10-21 — An HTML parser fed from memory can still fail, and dropping the error looks like a missing meta
+### 2026-10-23 — A utility-process kill request left its caller pending
 
-- **Area**: `cli/internal/canvas/canvas.go` (`Parse`)
-- **Symptom**: a canvas nested deeper than 512 elements parsed to an empty model, which would have produced `missing_canvas_id` and `missing_width` for a canvas that has both.
-- **Root cause**: `golang.org/x/net/html` returns an error when the open-element stack exceeds 512 nodes, even with an infallible `bytes.Reader`; the planned signature had no error because input from memory "cannot fail".
-- **Net**: caught by batch B's self-review; no planned case covered parser resource limits. Fixed by returning `(Canvas, error)` and reporting `unparsable_canvas` instead of failing the command.
-- **Prevention**: when wrapping a third-party parser, read its error paths before choosing a signature without `error`, and add a resource-limit case (deep nesting, huge input). Grep: `grep -rnE 'html\.Parse|_ = .*Parse' cli`.
-
-### 2026-10-21 — A character device is not necessarily a terminal
-
-- **Area**: `cli/internal/cli/run.go`, `terminal_*.go` (`doan init` prompt)
-- **Symptom**: `doan init < /dev/null` asked the token CSS question even though no human can answer.
-- **Root cause**: `os.ModeCharDevice` marks any character device, `/dev/null` included, not an interactive terminal; tests injected `Context.Terminal` and a `strings.Reader`, so a real non-terminal device never reached the check.
-- **Net**: caught by batch D's self-review, then pinned with a `cli.Run` test on `/dev/null`; the batch D reviewer confirmed the real-terminal path with a pty.
-- **Prevention**: decide "interactive" with a terminal ioctl (termios), and test with `/dev/null` and a pipe besides the injected prompt. Grep: `grep -rn 'ModeCharDevice' cli app/src`.
-
-### 2026-10-21 — Sorting file names does not sort the ids derived from them
-
-- **Area**: `cli/internal/cli/read.go` (`doan comments`)
-- **Symptom**: comments for canvas `foo-bar` came before `foo`, against the documented sort by canvas id.
-- **Root cause**: results were emitted in `os.ReadDir` order of `<id>.jsonl`; `-` (0x2D) sorts before `.` (0x2E), so `foo-bar.jsonl` < `foo.jsonl` while `foo` < `foo-bar`. Every planned test used one id, or ids that sort the same either way.
-- **Net**: caught by the batch D independent review running the binary on `foo` and `foo-bar`; missed by single-id tests.
-- **Prevention**: sort explicitly on the logical key after deriving it from a file name, and include an id that is a prefix of another (`foo`, `foo-bar`) in ordering tests. Grep: `grep -rn 'ReadDir\|CommentFiles' cli/internal/cli`.
-
-### 2026-10-21 — Local server guarantees lived in comments and echoed constants, not in behavior
-
-- **Area**: `app/src/main/serve/server.ts`, `server.test.ts`
-- **Symptom**: the "listens on 127.0.0.1 only" test stayed green with `listen(0, "0.0.0.0")`; a directory swapped for a symlink between the realpath check and `open` served a file outside the repo with 200 (reproduced with a delay); a file growing mid-transfer sent more bytes than `Content-Length` on a keep-alive socket. The code comment claimed the swap could not happen.
-- **Root cause**: the server returned its `HOST` constant, so the test compared the constant with itself; `open(realPath)` re-walks the path, so resolving first and opening by name is not atomic; `createReadStream()` reads to EOF, not to the `fstat` size sent in the header.
-- **Net**: caught by the batch B3 independent review, which mutated the bind address, widened the race window with a delay, and grew a file during a transfer. Missed by the batch's own 39 server tests, which only exercised static trees.
-- **Prevention**: assert observed state (`server.address().address`), and prove each security test with a mutation that must turn it red. Open resolved paths with `O_NOFOLLOW_ANY` (macOS) and cap streamed bodies at the `fstat` size. Grep: `grep -rnE 'host: HOST|open\([^)]*"r"\)|createReadStream\(\)' app/src`.
+- **Area**: `app/src/main/comments/mkdir.ts`, `mkdir.test.ts`, `app/e2e/comments-filesystem.ts` (comments-ui M1).
+- **Symptom**: the first directory-worker wrapper waited forever if `child.kill()` returned false or no exit event followed the timeout. Two deterministic lifecycle tests timed out before the correction.
+- **Root cause**: caller settlement depended solely on process exit, while the timeout only requested termination. The stopping flag prevented another termination attempt, and a kill request was treated as enough progress without a bounded exit wait.
+- **Net**: conductor review identified the path and the worker reproduced it red before fixing it. Initial normal-result/crash tests did not cover failed kill or missing exit. Real Electron tests additionally check PID disappearance for observable child exits; they do not prove an unobservable OS process has terminated.
+- **Prevention**: bound caller settlement independently of confirmed child cleanup. After the job deadline, use a bounded termination grace; report unconfirmed termination distinctly, settle once, and retain only the observations needed to kill a late spawn or clean up a late exit. Test failed/throwing kill, missing exit, late spawn/exit and duplicate results. Search `rg -n '\.kill\(|once\("exit"|on\("exit"' app/src/main --glob '*.ts' --glob '!*.test.ts'`. The existing `cli.ts` match already settles at its deadline independently of close; no matching unbounded wait was found there.
 
 ### 2026-10-22 — Guessing the repo root in TS after a failed CLI run re-created a discovery rule differently
 
@@ -118,26 +92,52 @@
 - **Net**: the independent review's child-level Electron probe caught it; the original measurement table and behavior-only e2e missed it. The new no-frames e2e assertion failed with one child element before the fix and passes with plain text. The table now records child absence and each pair's `textContent`.
 - **Prevention**: when pairing a container, also pair children that carry text, background, or spacing; record `textContent` so a wrong selector is visible. Pin the plain-text hint's zero element children in the runtime test. Run `rg -n '\.hint code|<code[ >]' app/src/renderer` when changing hint/code styles: the remaining matches are the intended project instruction chip, its CSS rule, and the first-launch `.doan/` text whose system-sans deviation is documented in DESIGN.md.
 
-### 2026-10-23 — Hover stayed hidden across direct reentry and Alt focus transfer
+### 2026-10-21 — TS and Go comment folding diverged on inputs the shared fixtures did not cover
 
-- **Area**: `app/src/main/canvasScript.ts`, `app/src/renderer/CanvasController.ts`, `canvasMessage.ts`, `app/e2e/runtime.ts`.
-- **Symptom**: moving directly from an element to the app margin and back to the same element left hover hidden. Holding Alt in the app, Alt-clicking a canvas input, releasing Alt there, and moving to another element also left hover hidden.
-- **Root cause**: the OOPIF did not reliably receive pointerout on exit. The renderer cleared its rectangle but the script retained its deduplication cache, so an identical rectangle never reached the renderer again. Separately, Alt down and up could land in different documents; the renderer kept its own Alt flag after the canvas received the release. Blindly trusting a delayed state message would instead revive hover while Alt was held.
-- **Net**: the EF review's real-input probe caught both bugs. The original e2e crossed intermediate elements with stepped movement and tested Alt press/release without a focus transfer. Its normal run passed. New S5 direct same-element reentry and S9 Alt focus-transfer checks both failed before these fixes and compare the restored mark's rectangle, not merely visibility.
-- **Prevention**: invalidating a consumer's cached display must also invalidate the producer's deduplication cache. The app now sends a sequenced hover-leave command without changing selection; the next move supplies the current rectangle. Modifier snapshots travel from the canvas through validated Alt key messages, while app modifier commands advance seq to reject snapshots sent before the current press. Unit tests retain selection/layout updates and reject stale Alt release and hover messages while Alt is held. Keep actual-input checks with single pointer jumps and focus-changing key sequences. Search: `rg -n 'lastHover|hoverRect|altHeld|hover-alt|hover-leave' app/src/main/canvasScript.ts app/src/renderer/CanvasController.ts`.
+- **Area**: `app/src/formats/fold.ts`, `cli/internal/formats/fold.go` (`parseLines`/`fold`)
+- **Symptom**: Both implementations passed all 28 shared fold fixtures, yet on the same JSONL they disagreed: a line with only U+FEFF or U+0085 was skipped by one and reported as `invalid_event` by the other; `"v":1e400` was `unknown_version` in TS but `invalid_event` (without `event`/`comment`) in Go; `fold()` returned warnings in a different order; identical duplicate events kept the first array entry instead of the smallest line.
+- **Root cause**: Each implementation leaned on its language's defaults — JS `String.prototype.trim` and Go `strings.TrimSpace` strip different Unicode sets, `JSON.parse` yields `Infinity` while Go `json.Unmarshal` errors on overflow — and the design text ("whitespace-only line", "merge and sort warnings") did not pin which set or where. Merge/sort lived only in the test harness, so the unsorted `fold()` output was never compared.
+- **Net**: Caught by an independent reviewer that fed 42 identical inputs to both implementations and diffed the outputs. Missed by the fixture suite and by both workers' self-reviews, because fixtures only exercised inputs the plan listed.
+- **Prevention**: For any rule implemented in both TS and Go, state the exact character set / numeric range in design and add a fixture at the boundary (BOM, U+0085, NBSP, CR-only, `1e400`, reversed duplicate order). Expose the composed public function (`foldText`) and test that, not a harness-side composition. Grep for language-default trimming in shared-format code: `grep -rnE '\.trim\(\)|TrimSpace|trimStart|trimEnd' app/src cli`.
+- **Recurrence (2026-10-21, cli-core)**: `repo.ParseConfig` checked `v` with `json.Number.Float64()` but passed the original number to the schema, so `{"v":1.0000000000000001}` was `invalid_config` while `parseLines` accepts the same `v` as 1. Caught by the batch A independent review, not by the batch's own fixtures. Fixed by writing the float back before validation, as `fold.go` does.
 
-### 2026-10-23 — Hover commands discarded pending selection replies
+### 2026-10-21 — Filesystem APIs did not match "missing" and "same file" as the product means them
 
-- **Area**: `app/src/main/canvasScript.ts`, `app/src/renderer/CanvasController.ts`, `canvasMessage.ts`, `app/e2e/runtime.ts`.
-- **Symptom**: Alt or pointer exit between a frame/path pick, reload reanchor or canvas click and its selection reply left the Inspector empty, retained the previous selection, or kept the reanchor mark hidden.
-- **Root cause**: F2 shared one sequence between selection validity and hover/modifier freshness. A hover-only command advanced the renderer's selection floor after the script had already posted its selection reply. Later layout messages carried geometry but could not reconstruct the missing selection payload. Preserving an established selection was therefore insufficient evidence that hover did not change selection behavior.
-- **Net**: the independent F2 review caught the race with controlled reply ordering and a real-click Electron message gate. Existing tests only interleaved hover with an already received selection. New controller cases failed for pending frame, ancestor, reload and click replies; the actual-input gate failed while the existing EF hover checks still ran. Producer tests also reject shared-sequence behavior for a retrying anchor and independently ordered commands.
-- **Prevention**: keep selection and hover/modifier counters independent at both producer and consumer, including reload reset. The internal `seq` field is interpreted by message kind: selection commands and select/clear/selected-layout use selection order; hover commands and hover/Alt snapshots use hover order. Escape remains intent, and stale selection replies after Escape or a newer selection remain rejected. Retain the deterministic pending-reply tests, actual click gate, EF direct reentry/focus-transfer checks, and source/href/viewport/reset boundary checks. Search: `rg -n 'seq|hoverSeq|sendCommand|sendHoverCommand' app/src/main/canvasScript.ts app/src/renderer/CanvasController.ts`; matches are the two protocol endpoints covered here, with no other production sequence owner.
+- **Area**: `cli/internal/repo/resolve.go`, `find.go`; `cli/internal/cli/init.go`
+- **Symptom**: a canvas href such as `tokens.css/x.css` or `%00` made `doan check` exit 1 (`internal_error`) instead of reporting `local_css_not_found`; an ancestor `.doan` regular file stopped repo discovery; `DESIGN/A.CSS` and `design/a.css` became two keys on macOS (false `css_not_served`, duplicate findings); `doan init` followed a dangling `.doan/config.json` symlink and created a file outside the repo.
+- **Root cause**: `os.IsNotExist` covers only `ENOENT`, while `ENOTDIR`, `EINVAL`, `ENAMETOOLONG` and Go's unwrapped "EvalSymlinks: too many links" also mean "no such file" for content-derived paths; `filepath.EvalSymlinks` resolves links but keeps the caller's letter case on case-insensitive filesystems; "missing" is safe for reading but not for writing, because `os.WriteFile` follows a dangling symlink.
+- **Net**: caught by the independent reviews of batches A and D with concrete inputs, and by D's self-review for the write path. Missed by the planned case lists, which only had `ENOENT`-shaped inputs and one spelling per file.
+- **Prevention**: for every path that comes from canvas or config content, test `ENOTDIR`, a NUL byte, an over-long name, a symlink loop, a different letter case, and a dangling symlink at each write target. Grep: `grep -rnE 'IsNotExist|EvalSymlinks|os\.WriteFile' cli app/src`.
+- **Recurrence (2026-10-21, app-shell)**: `doan ls` `result.root` kept the caller's letter case from `--repo` or `$PWD` (`repo.Find` used `EvalSymlinks` alone), so one repo could be stored twice by the app and every served path would miss `relInside`. Caught by the batch B1 independent review; fixed by passing the root through `diskSpelling`. `doan init`'s `result.repo` (`init.go`) still keeps the caller's spelling.
 
-### 2026-10-23 — A utility-process kill request left its caller pending
+### 2026-10-21 — An HTML parser fed from memory can still fail, and dropping the error looks like a missing meta
 
-- **Area**: `app/src/main/comments/mkdir.ts`, `mkdir.test.ts`, `app/e2e/comments-filesystem.ts` (comments-ui M1).
-- **Symptom**: the first directory-worker wrapper waited forever if `child.kill()` returned false or no exit event followed the timeout. Two deterministic lifecycle tests timed out before the correction.
-- **Root cause**: caller settlement depended solely on process exit, while the timeout only requested termination. The stopping flag prevented another termination attempt, and a kill request was treated as enough progress without a bounded exit wait.
-- **Net**: conductor review identified the path and the worker reproduced it red before fixing it. Initial normal-result/crash tests did not cover failed kill or missing exit. Real Electron tests additionally check PID disappearance for observable child exits; they do not prove an unobservable OS process has terminated.
-- **Prevention**: bound caller settlement independently of confirmed child cleanup. After the job deadline, use a bounded termination grace; report unconfirmed termination distinctly, settle once, and retain only the observations needed to kill a late spawn or clean up a late exit. Test failed/throwing kill, missing exit, late spawn/exit and duplicate results. Search `rg -n '\.kill\(|once\("exit"|on\("exit"' app/src/main --glob '*.ts' --glob '!*.test.ts'`. The existing `cli.ts` match already settles at its deadline independently of close; no matching unbounded wait was found there.
+- **Area**: `cli/internal/canvas/canvas.go` (`Parse`)
+- **Symptom**: a canvas nested deeper than 512 elements parsed to an empty model, which would have produced `missing_canvas_id` and `missing_width` for a canvas that has both.
+- **Root cause**: `golang.org/x/net/html` returns an error when the open-element stack exceeds 512 nodes, even with an infallible `bytes.Reader`; the planned signature had no error because input from memory "cannot fail".
+- **Net**: caught by batch B's self-review; no planned case covered parser resource limits. Fixed by returning `(Canvas, error)` and reporting `unparsable_canvas` instead of failing the command.
+- **Prevention**: when wrapping a third-party parser, read its error paths before choosing a signature without `error`, and add a resource-limit case (deep nesting, huge input). Grep: `grep -rnE 'html\.Parse|_ = .*Parse' cli`.
+
+### 2026-10-21 — A character device is not necessarily a terminal
+
+- **Area**: `cli/internal/cli/run.go`, `terminal_*.go` (`doan init` prompt)
+- **Symptom**: `doan init < /dev/null` asked the token CSS question even though no human can answer.
+- **Root cause**: `os.ModeCharDevice` marks any character device, `/dev/null` included, not an interactive terminal; tests injected `Context.Terminal` and a `strings.Reader`, so a real non-terminal device never reached the check.
+- **Net**: caught by batch D's self-review, then pinned with a `cli.Run` test on `/dev/null`; the batch D reviewer confirmed the real-terminal path with a pty.
+- **Prevention**: decide "interactive" with a terminal ioctl (termios), and test with `/dev/null` and a pipe besides the injected prompt. Grep: `grep -rn 'ModeCharDevice' cli app/src`.
+
+### 2026-10-21 — Sorting file names does not sort the ids derived from them
+
+- **Area**: `cli/internal/cli/read.go` (`doan comments`)
+- **Symptom**: comments for canvas `foo-bar` came before `foo`, against the documented sort by canvas id.
+- **Root cause**: results were emitted in `os.ReadDir` order of `<id>.jsonl`; `-` (0x2D) sorts before `.` (0x2E), so `foo-bar.jsonl` < `foo.jsonl` while `foo` < `foo-bar`. Every planned test used one id, or ids that sort the same either way.
+- **Net**: caught by the batch D independent review running the binary on `foo` and `foo-bar`; missed by single-id tests.
+- **Prevention**: sort explicitly on the logical key after deriving it from a file name, and include an id that is a prefix of another (`foo`, `foo-bar`) in ordering tests. Grep: `grep -rn 'ReadDir\|CommentFiles' cli/internal/cli`.
+
+### 2026-10-21 — Local server guarantees lived in comments and echoed constants, not in behavior
+
+- **Area**: `app/src/main/serve/server.ts`, `server.test.ts`
+- **Symptom**: the "listens on 127.0.0.1 only" test stayed green with `listen(0, "0.0.0.0")`; a directory swapped for a symlink between the realpath check and `open` served a file outside the repo with 200 (reproduced with a delay); a file growing mid-transfer sent more bytes than `Content-Length` on a keep-alive socket. The code comment claimed the swap could not happen.
+- **Root cause**: the server returned its `HOST` constant, so the test compared the constant with itself; `open(realPath)` re-walks the path, so resolving first and opening by name is not atomic; `createReadStream()` reads to EOF, not to the `fstat` size sent in the header.
+- **Net**: caught by the batch B3 independent review, which mutated the bind address, widened the race window with a delay, and grew a file during a transfer. Missed by the batch's own 39 server tests, which only exercised static trees.
+- **Prevention**: assert observed state (`server.address().address`), and prove each security test with a mutation that must turn it red. Open resolved paths with `O_NOFOLLOW_ANY` (macOS) and cap streamed bodies at the `fstat` size. Grep: `grep -rnE 'host: HOST|open\([^)]*"r"\)|createReadStream\(\)' app/src`.
