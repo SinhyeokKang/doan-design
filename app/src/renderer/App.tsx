@@ -5,6 +5,7 @@ import type { ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
 import { projectNames } from "./projectRow";
 import { Sidebar } from "./Sidebar";
+import { useComments } from "./useComments";
 import { RightPanel } from "./RightPanel";
 import { updatedText } from "./canvasView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
@@ -27,6 +28,7 @@ export function App() {
     const stopCommands = window.doan.onViewCommand(name => instance.command(name));
     return () => { stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
   }, []);
+  const comments = useComments(state, controller);
   const command = (name: ViewCommand) => controller.current?.command(name);
   const names = projectNames(entries.map(entry => entry.path));
   const name = names.get(state.open?.folder ?? entries[0]?.path ?? "") ?? "";
@@ -34,7 +36,8 @@ export function App() {
     <TopBar state={state} name={name} reload={() => command("reload")} />
     <Sidebar entries={entries} names={names} state={state} open={(folder, row) => controller.current?.openCanvas(folder, row)} jump={index => controller.current?.jump(index)} />
     <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} noProjects={entries.length === 0} command={command} />
-    <RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />
+    <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />{comments.panel}</div>
+    {comments.dialog}
   </main></TooltipProvider>;
 }
 

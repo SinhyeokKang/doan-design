@@ -51,6 +51,15 @@ export interface CommentsPanelProps {
   onRetryAuthor: () => void;
 }
 
+function relativeTime(at: string): string {
+  const seconds = Math.round((Date.parse(at) - Date.now()) / 1000);
+  const formatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+  if (Math.abs(seconds) < 60) return formatter.format(seconds, "second");
+  if (Math.abs(seconds) < 3600) return formatter.format(Math.round(seconds / 60), "minute");
+  if (Math.abs(seconds) < 86400) return formatter.format(Math.round(seconds / 3600), "hour");
+  return formatter.format(Math.round(seconds / 86400), "day");
+}
+
 function targetText(target: Target): string {
   if (target.element) return `Element · ${target.element.doanId ?? target.element.selector}`;
   return target.frame ? `Frame · ${target.frame}` : "Canvas";
@@ -121,7 +130,7 @@ export function CommentCard({ comment, freshness, locationMissing, disabled, bus
   const initials = createdBy.name.trim().split(/\s+/).slice(0, 2).map(word => Array.from(word)[0] ?? "").join("").toUpperCase();
   const locked = disabled || busy || (mutation !== undefined && mutation.status !== "idle" && mutation.status !== "saved");
   return <article className="comments-card" aria-label={`Comment by ${createdBy.name}`} aria-busy={busy || mutation?.status === "saving"}>
-    <div className="comments-author"><span className="comments-avatar" aria-hidden="true">{initials}</span><div className="comments-by"><b>{createdBy.name}</b>{createdBy.kind === "human" && createdBy.email && <span className="comments-email">{createdBy.email}</span>}<time dateTime={comment.createdAt}>{new Date(comment.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</time></div></div>
+    <div className="comments-author"><span className="comments-avatar" aria-hidden="true">{initials}</span><div className="comments-by"><b>{createdBy.name}</b>{createdBy.kind === "human" && createdBy.email && <span className="comments-email">{createdBy.email}</span>}<time dateTime={comment.createdAt} title={comment.createdAt}>{relativeTime(comment.createdAt)}</time></div></div>
     <button type="button" className="comments-target" disabled={locationMissing || (!comment.target.frame && !comment.target.element)} onClick={() => onComment("locate", comment.comment)}>{targetText(comment.target)}</button>
     <div className="comments-badges"><span className={`comments-badge ${comment.status}`}>{comment.status === "open" ? "Open" : "Resolved"}</span>{freshness !== "same" && <span className="comments-badge warning">{freshness === "outdated" ? "Outdated" : "Freshness unknown"}</span>}{locationMissing && <span className="comments-badge warning">Location unavailable</span>}</div>
     <p className="comments-body">{comment.body}</p>
@@ -188,6 +197,7 @@ export interface UnsavedCommentDialogProps {
   context: string;
   canSave: boolean;
   busy: boolean;
+  discardBlocked?: boolean;
   reason?: string;
   onContinue: () => void;
   onDiscard: () => void;
@@ -216,7 +226,7 @@ export function UnsavedCommentDialog(props: UnsavedCommentDialogProps) {
     {props.reason && <p role="status">{props.reason}</p>}
     <div className="comments-tools">
       <button type="button" className="comments-btn" autoFocus disabled={props.busy} onClick={keepWriting}>Keep writing</button>
-      <button type="button" className="comments-btn" disabled={props.busy} onClick={props.onDiscard}>Discard</button>
+      <button type="button" className="comments-btn" disabled={props.busy || props.discardBlocked} onClick={props.onDiscard}>Discard</button>
       <button type="button" className="comments-btn primary" disabled={!props.canSave || props.busy} onClick={props.onSave}>{props.busy ? "Saving…" : "Save and continue"}</button>
     </div>
   </dialog>;

@@ -83,6 +83,23 @@ export class CanvasController {
   private commentRevision = 0;
   private pendingPin: { seq: number; intent: number; generation: number; revision: number; destination: PinDestination } | null = null;
 
+  private transitionGuard: (() => Promise<boolean>) | null = null;
+  private transitionIntent = 0;
+  private inputGuard = false;
+  private canvasIntent = 0;
+  setTransitionGuard(guard: (() => Promise<boolean>) | null): void { this.transitionGuard = guard; }
+  setDraftGuard(active: boolean): void {
+    this.inputGuard = active;
+    this.post({ type: "draft-guard", active });
+  }
+  private transition(apply: () => void, valid: () => boolean = () => true): void {
+    const intent = ++this.transitionIntent, frame = this.frame, href = this.lastHref, document = this.state.layout?.document;
+    if (!this.transitionGuard) { apply(); return; }
+    void this.transitionGuard().then(allow => {
+      if (allow && intent === this.transitionIntent && frame === this.frame && href === this.lastHref && document === this.state.layout?.document && valid()) apply();
+    }).catch(error => console.error("Comment transition failed", error));
+  }
+
   setComments(binding: CommentBinding, hooks: CommentHooks): void {
     this.commentRevision++;
     this.comments = { ...binding, comments: structuredClone([...binding.comments]) };
@@ -95,7 +112,7 @@ export class CanvasController {
   }
 
   private resetAnchors(): void {
-    this.anchorGeneration++;
+    this.canvasIntent = 0;    this.anchorGeneration++;
     this.anchorDocument = null;
     this.anchorRevision = 0;
     this.pinIntent++;
@@ -267,6 +284,10 @@ export class CanvasController {
   }
 
   openCanvas(folder: string, row: CanvasRow): void {
+    this.transition(() => this.openCanvasNow(folder, row), () => this.entries.some(entry => entry.path === folder && entry.kind === "list" && entry.canvases.some(current => current.path === row.path && current.id === row.id && current.url === row.url)));
+  }
+
+  private openCanvasNow(folder: string, row: CanvasRow): void {
     this.state.open = { folder, canvas: row.path, row };
     this.state.shown = row.path;
     this.state.error = "";
@@ -366,6 +387,14 @@ export class CanvasController {
     if (this.frame === null) return;
     const message = acceptCanvasMessage(event, this.frame.contentWindow);
     if (message === null) return;
+    if (message.type === "transition-intent") {
+      if (message.document !== this.state.layout?.document || message.href !== this.lastHref || message.viewport !== this.frameHeight || message.intent <= this.canvasIntent) return;
+      this.canvasIntent = message.intent;
+      const frame = this.frame, document = message.document;
+      this.transition(() => this.post({ type: "transition-answer", document, intent: message.intent }),
+        () => frame === this.frame && document === this.state.layout?.document);
+      return;
+    }
     if (message.type === "wheel") { this.wheel(message, boardToScreen(this.view, message)); return; }
     if (message.type === "layout") { this.onLayout(message); return; }
     if (message.type === "anchors") { this.onAnchors(message); return; }
@@ -478,14 +507,18 @@ export class CanvasController {
     this.post({ ...message, seq: this.hoverSeq });
   }
 
-  private escape(): void {
+  private escape(): void { this.transition(() => this.escapeNow()); }
+
+  private escapeNow(): void {
     if (this.state.selection === null && this.reanchor === null) return;
     this.sendCommand({ type: "clear" });
     this.clearSelection(false);
     this.publish();
   }
 
-  selectPath(item: PathItem): void {
+  selectPath(item: PathItem): void { this.transition(() => this.selectPathNow(item)); }
+
+  private selectPathNow(item: PathItem): void {
     if (this.frame === null) return;
     this.sendCommand(item.doanId === undefined ? { type: "select-anchor", selector: item.selector } : { type: "select-anchor", doanId: item.doanId, selector: item.selector });
   }
@@ -498,7 +531,8 @@ export class CanvasController {
       this.drawMarks();
       return;
     }
-    if (event.key !== "Escape" || event.defaultPrevented || editableTarget(event.target)) return;
+    if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || event.defaultPrevented || editableTarget(event.target)) return;
+    if (this.inputGuard) event.preventDefault();
     this.escape();
   };
 
@@ -526,6 +560,7 @@ export class CanvasController {
   };
 
   private onLayout(message: LayoutMessage): void {
+    this.post({ type: "draft-guard", active: this.inputGuard });
     const documentChanged = message.document !== undefined && message.document !== this.anchorDocument;
     if (documentChanged) { this.resetAnchors(); this.anchorDocument = message.document ?? null; }
     const before = this.layoutDisplayKey();
@@ -573,7 +608,7 @@ export class CanvasController {
       else { this.selectedRect = selected; this.drawMarks(); }
     }
     if (this.comments && (documentChanged || first || linked)) this.requestAnchors();
-    if (before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection) this.publish();
+    if (documentChanged || before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection) this.publish();
   }
 
   private markShown(href: string): boolean {
@@ -593,6 +628,11 @@ export class CanvasController {
   }
 
   jump(index: number): void {
+    const target = this.state.layout?.frames[index];
+    this.transition(() => this.jumpNow(index), () => target !== undefined && this.state.layout?.frames[index]?.id === target.id);
+  }
+
+  private jumpNow(index: number): void {
     if (this.frame?.contentWindow == null) return;
     // IDs may repeat or be empty; a jump selects the frame by list position.
     this.jumpTo = index;
@@ -603,7 +643,7 @@ export class CanvasController {
   }
 
   command(name: ViewCommand): void {
-    if (name === "reload") { if (this.state.open) this.load(this.state.open.row, false); return; }
+    if (name === "reload") { this.transition(() => { if (this.state.open) this.load(this.state.open.row, false); }); return; }
     if (this.frame === null) return;
     const size = this.viewportSize();
     const center = { x: size.width / 2, y: size.height / 2 };

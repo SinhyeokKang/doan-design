@@ -750,3 +750,36 @@ it("holds manual reload before replacing a document and rejects superseded appro
   expect(changed).not.toHaveBeenCalled();
   controller.dispose();
 });
+
+it("independently rejects replayed canvas intents and approval after same-URL document replacement", async () => {
+  const h = selectionHarness();
+  try {
+    h.layout({ document: "one" });
+    const allow: ((value: boolean) => void)[] = [];
+    const guard = vi.fn(() => new Promise<boolean>(resolve => allow.push(resolve)));
+    h.controller.setTransitionGuard(guard);
+    h.receive({ type: "transition-intent", document: "one", intent: 2 });
+    h.receive({ type: "transition-intent", document: "one", intent: 1 });
+    h.receive({ type: "transition-intent", document: "one", intent: 2 });
+    expect(guard).toHaveBeenCalledTimes(1);
+    h.layout({ document: "two" });
+    allow[0]?.(true); await Promise.resolve();
+    expect(h.current().contentWindow.postMessage.mock.calls.some(([message]) => message.type === "transition-answer")).toBe(false);
+    h.receive({ type: "transition-intent", document: "two", intent: 1 });
+    expect(guard).toHaveBeenCalledTimes(2);
+    allow[1]?.(true); await Promise.resolve();
+    expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "transition-answer", document: "two", intent: 1 }, "*");
+  } finally { h.controller.dispose(); }
+});
+
+it("prevents the triggering Escape from cancelling its newly opened draft dialog", () => {
+  const h = selectionHarness();
+  try {
+    h.select(1); h.controller.setDraftGuard(true);
+    h.controller.setTransitionGuard(async () => false);
+    const event = Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" });
+    h.host.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(h.state().selection).not.toBeNull();
+  } finally { h.controller.dispose(); }
+});

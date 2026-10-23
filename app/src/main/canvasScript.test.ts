@@ -595,6 +595,7 @@ describe("canvasScriptSource", () => {
 });
 
 interface FakeEvent {
+  isComposing?: boolean;
   type?: string;
   target: unknown;
   isTrusted: boolean;
@@ -1177,4 +1178,31 @@ test("Y2 same-size replacement recovers selected anchor token without another ev
   const after = ofType(canvas, "anchors").at(-1) as any;
   expect(after.results[0].candidates.doanId[0]).not.toBe(before.selected);
   expect(after.selected).toBe(after.results[0].candidates.doanId[0]);
+});
+
+describe("draft preselection protocol", () => {
+  test("waits before actual selection and rejects old, foreign and changed-document approvals", () => {
+    const { canvas, span, hero } = heroCanvas();
+    const command = (data: unknown, source: unknown = canvas.parent) => canvas.fireWindow("message", { source, data });
+    command({ type: "draft-guard", active: true });
+    click(canvas, span);
+    const first = ofType(canvas, "transition-intent").at(-1)!;
+    expect(ofType(canvas, "select")).toHaveLength(0);
+    click(canvas, hero);
+    const second = ofType(canvas, "transition-intent").at(-1)!;
+    command({ type: "transition-answer", document: first.document, intent: first.intent });
+    command({ type: "transition-answer", document: second.document, intent: second.intent }, {});
+    command({ type: "transition-answer", document: "old", intent: second.intent });
+    expect(ofType(canvas, "select")).toHaveLength(0);
+    command({ type: "transition-answer", document: second.document, intent: second.intent });
+    expect(ofType(canvas, "select")).toHaveLength(1);
+    expect(ofType(canvas, "select")[0]?.target).toMatchObject({ frame: { id: "hero" } });
+    command({ type: "transition-answer", document: second.document, intent: second.intent });
+    expect(ofType(canvas, "select")).toHaveLength(1);
+  });
+  test("native composition Escape does not emit a transition", () => {
+    const { canvas, span } = heroCanvas();
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape", isComposing: true }));
+    expect(ofType(canvas, "key")).toHaveLength(0);
+  });
 });

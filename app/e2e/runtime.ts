@@ -72,6 +72,7 @@ async function main(): Promise<void> {
   // The adapter owns a separate temporary app after the full runtime has closed.
   // Import failure keeps the combined runtime gate red, including cleanup failures.
   await import(new URL("./anchors.ts", import.meta.url).href);
+  await import(new URL("./comments-ui.ts", import.meta.url).href);
 }
 
 async function expectProduct(what: string, check: () => Promise<void>): Promise<void> {

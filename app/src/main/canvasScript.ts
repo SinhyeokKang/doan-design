@@ -481,10 +481,24 @@ export function canvasScript(lib: CanvasLib): void {
     }
   };
 
+  let draftGuard = false;
+  let transitionIntent = 0;
+  let pendingTransition: { intent: number; apply: () => void; seq: number } | null = null;
+  const requestTransition = (apply: () => void) => {
+    const intent = ++transitionIntent;
+    if (!draftGuard) { pendingTransition = null; apply(); return; }
+    pendingTransition = { intent, apply, seq };
+    post({ type: "transition-intent", document: documentToken, href: location.href, viewport: innerHeight, intent });
+  };
   addEventListener("message", (event: MessageEvent) => {
     if (event.source !== parent) return;
     const data: unknown = event.data;
     if (typeof data !== "object" || data === null) return;
+    if ("type" in data && data.type === "draft-guard" && "active" in data && typeof data.active === "boolean") { draftGuard = data.active; return; }
+    if ("type" in data && data.type === "transition-answer") {
+      if (!pendingTransition || !("document" in data) || data.document !== documentToken || !("intent" in data) || data.intent !== pendingTransition?.intent || pendingTransition.seq !== seq) return;
+      const pending = pendingTransition; pendingTransition = null; pending.apply(); return;
+    }
     if ((data as { type?: unknown }).type === "measure") send();
     else command(data as Record<string, unknown>);
   });
@@ -540,7 +554,9 @@ export function canvasScript(lib: CanvasLib): void {
           const link = type === "click" ? linkOf(event.target) : null;
           if (link !== null) {
             event.preventDefault();
-            location.assign(link.getAttribute("href") ?? "");
+            if (draftGuard) event.stopImmediatePropagation();
+            const href = link.getAttribute("href") ?? "";
+            requestTransition(() => { if (link.isConnected && link.getAttribute("href") === href) location.assign(href); });
           }
           return;
         }
@@ -551,7 +567,10 @@ export function canvasScript(lib: CanvasLib): void {
           // Focus left inside by an ⌥-click would make Esc look like typing.
           const active = document.activeElement;
           if (active !== null && !isRoot(active) && "blur" in active && typeof active.blur === "function") active.blur();
-        } else if (type === "click") choose(event.target);
+        } else if (type === "click") {
+          const target = event.target;
+          requestTransition(() => { if (!isElement(target) || target.isConnected) choose(target); });
+        }
       },
       { capture: true },
     );
@@ -563,7 +582,7 @@ export function canvasScript(lib: CanvasLib): void {
     setTimeout(() => {
       const active = document.activeElement;
       if (alt || active === null || !["iframe", "frame", "object", "embed"].includes(active.localName)) return;
-      choose(active);
+      requestTransition(() => { if (active.isConnected) choose(active); });
     }, 0);
   });
 
@@ -604,7 +623,7 @@ export function canvasScript(lib: CanvasLib): void {
         postSelection("key", { key: "Alt", alt, seq: hoverSeq });
         postHover();
       }
-      if (event.key === "Escape" && !editable(event.target)) postSelection("key", { key: "Escape" });
+      if (event.key === "Escape" && !event.isComposing && event.keyCode !== 229 && !editable(event.target)) postSelection("key", { key: "Escape" });
     },
     { capture: true },
   );

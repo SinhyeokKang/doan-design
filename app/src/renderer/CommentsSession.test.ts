@@ -48,8 +48,9 @@ describe("application comment session", () => {
   test("stale list replies cannot replace the current canvas", async () => {
     const { session: s, api } = fixture(); let release: (() => void) | undefined;
     api.commentsList.mockImplementationOnce(r => new Promise(resolve => { release = () => resolve(reply(r, { project: 7, canvasHash: "h", comments: [c], warnings: [] })); }));
+    api.commentsList.mockImplementationOnce(async r => reply(r, { project: 7, canvasHash: "b", comments: [], warnings: [] }));
     const old = s.open(identity); await s.open({ ...identity, canvas: "b", path: "design/b.html" }); release?.(); await old;
-    expect(s.identity?.canvas).toBe("b"); expect(s.list?.comments).toEqual([c]);
+    expect(s.identity?.canvas).toBe("b"); expect(s.list?.comments).toEqual([]);
   });
   test("failure preserves editable body and existing edit does not need a document origin", async () => {
     const { session: s, api } = fixture(); await s.open(identity); s.edit("c1"); s.body("after");
