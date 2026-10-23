@@ -628,3 +628,30 @@ it("resets both channels on reload and rejects old-window, href and viewport hov
     expect(h.markOf("hover")?.hidden).toBe(false);
   } finally { h.controller.dispose(); }
 });
+
+describe("comment anchor channel", () => {
+  it("rejects stale request/document/viewport replies without consuming held selection or hover", () => {
+    const h = selectionHarness();
+    const changed = vi.fn();
+    try {
+      h.layout({ document: "doc" });
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [] }, { changed, guard: async () => true, open: vi.fn(), focusFallback: vi.fn() });
+      const request = () => h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+      const q = request();
+      expect(q).toMatchObject({ document: "doc", targets: [] });
+      const reply = { type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: 1, width: 600, selected: null, results: [], rects: [] };
+      h.receive(reply);
+      const accepted = changed.mock.calls.length;
+      for (const patch of [{ request: q.request - 1 }, { generation: q.generation - 1 }, { document: "old" }, { viewport: 149 }, { width: 599 }]) h.receive({ ...reply, revision: 2, ...patch });
+      expect(changed).toHaveBeenCalledTimes(accepted);
+      h.select(1);
+      expect(h.state().selection.element.doanId).toBe("cta");
+      h.receive({ type: "hover", seq: 1, rect: { x: 20, y: 20, width: 10, height: 10 } });
+      expect(h.markOf("hover")?.hidden).toBe(false);
+      const old = h.current();
+      h.controller.command("reload");
+      h.receive({ ...reply, revision: 10 }, old);
+      expect(changed.mock.lastCall?.[0].lookup.nodes.size).toBe(0);
+    } finally { h.controller.dispose(); }
+  });
+});
