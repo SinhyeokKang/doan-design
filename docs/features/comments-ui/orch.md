@@ -125,3 +125,5 @@
 - V를 파일 소유와 선행조건에 따라 분리한다. V1은 이미 통합된 main sender·filesystem·append LF 방어를 각각 임시 제거해 의미 있는 red와 복원 green을 검증한다. Astra medium — 방어별 독립 증명의 판단. 별도 child의 scratch 및 필요한 main 회귀 테스트만 소유하며 제품 변경·Electron 실행은 금지한다. U2/R-U2와 병렬이며 UI stale reply·draft target·comments-only no-reload와 최종 전체 게이트는 V2가 U2 통합 뒤 맡는다.
 
 - R-U2 9a997e5..6f92ead 리뷰는 red 1/yellow 2다. schema/fold 허용 날짜의 RelativeTimeFormat 예외, 카드 lifecycle 충돌의 최신 상태 복구 부재, 승인된 삭제 확인창 누락을 발견했다. 기존 집중 190개 통과에도 독립 probe 3개가 실패했다. 현재 U2 Task의 수정 범위로 전달해 red→green 및 실제 App 충돌/삭제 확인을 요구했다. 리뷰 워커는 release했다. 최종 U2 인계·raw 증거 감사는 별도 후속 리뷰로 남긴다.
+
+- V1 완료: IPC handler 6개·sender helper 5개·symlink no-follow 3개·LF 2개가 각각 방어 제거 시 behavioral red, 복원 시 green이다. 최종 focused 148개/typecheck/Go test/vet 통과, 제품 변경·커밋 없음. IPC는 mock, filesystem은 실제 open이나 mkdir는 mock이라는 한계를 유지한다. 증거 85개 byte 일치와 소스 복원 checksum·clean·미통합 없음 확인 후 release 및 cu-v1 제거·목록 부재를 확인했다. V2에 남은 UI 방어 3종 및 실제 통합 검증을 넘긴다.
