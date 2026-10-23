@@ -73,3 +73,6 @@
 
 - 2026-10-23 사용자 승인: 원래 검증한 디렉터리 객체 자체의 외부 이동은 보장 범위에서 제외하고, symlink가 가리키는 다른 외부 객체로 쓰는 것은 금지한다. 기존 Electron 단발 utilityProcess 방식으로 진행한다. P-W2 증거는 이 경계에서 PoC를 통과하며 과거의 더 넓은 기준에서 실패한 기록은 그대로 남긴다.
 - F 착수: schema/fixtures/fold 및 필요 시 기존 Go/TS fixture runner 테스트만 소유한다. Sol medium, go test/app test로 v1 호환성을 확인한다. R-PW는 Astra medium 읽기 전용으로 승인된 경계와 P-W2 증거의 일치 및 구현 필수 조건을 독립 검토한다. 두 배치는 코드 소유가 겹치지 않는다. R-PW 통과 전 writer 제품 구현은 시작하지 않는다.
+
+- R-PW `ctx_8e53e5671135` 통과: 원자료 49개와 checksum 23개 일치를 확인했고 차단 결함 0개다. 단발 IPC·종료·각 단계 재검증 등 운영 필수 조건을 `.scratch/comments-ui/evidence/R-PW/handoff-CU-R-PW.md`에 보존했고 M/V가 따른다. 검토 터미널을 release했다.
+- R-F: Astra medium, v1 교차 언어 fixture의 의미와 검증 주장을 독립 검토한다. 읽기 전용이며 `69b0e3f`를 대상으로 한다. F 통합 뒤 C는 app/src/comments/의 신규 순수 모듈과 테스트만 소유한다. C 모델은 Astra medium이며 판단이 필요한 시간·초안·대상 계약을 담당한다.
