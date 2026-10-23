@@ -47,6 +47,15 @@ describe("screen-space pins", () => {
     expect(projectPins(comments, context, lookup, rects, { scale, x: 0, y: 0 }, { x: 0, y: 0, width: 500, height: 500 })).toEqual([]);
     expect(projectPins(comments, context, lookup, rects, { scale, x: 0, y: 100 }, { x: 0, y: 100, width: 500, height: 500 })).toEqual([]);
   });
+  it.each([.05, .25, 1, 4])("honors each target's ancestor clip at %s", scale => {
+    const rects = new Map([["parent", { x: 10, y: 20, width: 30, height: 40, clip: { x: 10, y: 30, width: 100, height: 100 } }], ["child", { x: 11, y: 21, width: 5, height: 5 }]]);
+    expect(projectPins(comments, context, lookup, rects, { scale, x: 10, y: 15 }, { x: 0, y: 0, width: 500, height: 500 }).map(pin => pin.node)).toEqual(["child"]);
+    rects.set("parent", { x: 10, y: 20, width: 30, height: 40, clip: { x: 10, y: 10, width: 100, height: 100 } });
+    expect(projectPins(comments, context, lookup, rects, { scale, x: 10, y: 15 }, { x: 0, y: 0, width: 500, height: 500 }).map(pin => pin.node)).toEqual(["parent", "child"]);
+  });
+  it("does not pin a target merely touching the left viewport edge", () => {
+    expect(projectPins(comments, context, lookup, new Map([["parent", { x: -30, y: 20, width: 30, height: 40 }]]), { scale: 1, x: 0, y: 0 }, { x: 0, y: 0, width: 500, height: 500 })).toEqual([]);
+  });
   it("rejects invalid geometry and stale generation; canvas comments never gain pins", () => {
     const rects = new Map([["parent", { x: 0, y: 0, width: Infinity, height: 10 }]]);
     expect(projectPins(comments, context, lookup, rects, { scale: 1, x: 0, y: 0 }, { x: 0, y: 0, width: 500, height: 500 })).toEqual([]);

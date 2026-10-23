@@ -31,6 +31,7 @@ describe("monotonic event time", () => {
   it("includes conflicting duplicates, disallowed agent events, and orphan events", () => {
     const future = { ...created, id: eid(4), at: "2031-01-01T00:00:00.000Z" };
     const text = textOf(created, future, { ...future, body: "conflict" }, { ...created, id: eid(5), at: "2032-01-01T00:00:00.000Z", by: { kind: "agent", name: "agent" } });
+    expect(nextEventTime(parseLines(textOf(future, { ...future, body: "conflict" })).events, 0)).toBe("2031-01-01T00:00:00.001Z");
     expect(nextEventTime(parseLines(text).events, 0)).toBe("2032-01-01T00:00:00.001Z");
     const orphan: CommentEvent = { v: 1, id: eid(6), at: "2033-01-01T00:00:00.000Z", comment: cid, type: "resolve", by };
     expect(nextEventTime(parseLines(textOf(orphan)).events, 0)).toBe("2033-01-01T00:00:00.001Z");
