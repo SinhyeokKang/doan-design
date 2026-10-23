@@ -19,7 +19,7 @@
 | P-W | 0 writer PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 파일 경계·경합 판단 | app test/typecheck/build/e2e 중 실험 관련 게이트, 외부 파일·디렉터리 불변 | 실패: mkdir 외부 변경 |
 | P-H | 0 hash·문서 세대 PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 응답/문서 경합 | app test/typecheck/build/e2e, 전달 bytes·세대 불일치 차단 | PoC 통과 |
 | D | 1 design/comments-ui.html | 문서 리뷰 완료 | Astra medium — 기존 화면 보존·상태 표현 | doan ls/check, 지휘자 위임 확인 | 수정 재검증·최종 컨펌 완료 |
-| P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | 진행 중 |
+| P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | PoC 통과, 아래 한계 명시 |
 | F | 2 공유 v1 fixture·Go/TS 테스트 | PoC 및 초안 승인 | Sol medium — 기존 형식 사례 확장 | go test, app test | 대기 |
 | C | 3 순수 함수와 테스트, 신규 shared 모듈 | F | Astra medium — 상태·시간·타겟 계약 | red→green, app test/typecheck | 대기 |
 | M | 4 main I/O·IPC·preload·watcher 및 테스트 | C | Astra medium — 파일 안전성·재시도 | app test/typecheck, go test, reader round trip | 대기 |
@@ -57,3 +57,8 @@
 
 - D-fix `67beacf` → 통합 `14de60c`. 지휘자가 diff와 변경된 상태 이미지를 직접 다시 검토했다. 실제 앱에서 17개 frame 재탐색, 상세 렌더링 가로 overflow 0, 사용자 데이터 fingerprint 불변을 확인했다. 버튼 조건·읽기 count·복구 상태 분리·기존 카드의 이름 제한이 수정됐다. 이 초안을 최종 컨펌한다. 이는 정적 UI 설계 승인이고 CRUD·입력 동작이나 design-sync 통과 주장은 아니다.
 - 확정한 초안 배치: 280px 패널, 기존 Inspector 자식 스타일 유지 및 278px 독립 스크롤 영역, 24px 화면 크기 핀, 410px 대화상자. Canvas의 생성 진입은 New canvas comment, Selection은 New selection comment이며 목록 범위 전환은 기존 초안 대상을 바꾸지 않는다. 확인 전 불명확한 저장의 원래 payload는 읽기 전용이고 pending request를 유지한다.
+
+- P-I 완료: 실제 Electron 임시 prototype에서 create/edit 각각 8개 이동 경로의 보류·취소·저장 실패·원래 대상 저장 후 전환과 두 모드의 실제 종료를 확인했다. 실제 이전 selection/hover 응답과 독립 핀 generation 교차를 검사했다. 최종 600회 측정의 p95는 100개 대상 scroll/resize/mutation 각각 18.1/18.5/18.2ms, 1,000개는 16.9/19.2/18.4ms였다. 누락·stale 반영 0, stale drops 660이며 guard 제거 음성 대조는 stale 반영 1건을 검출했다.
+- P-I 한계: 저장은 메모리 prototype이며 제품 JSONL·IPC·최종 UI·일반 캔버스 성능 검증이 아니다. IME는 CDP composition만 검증했고 native OS IME와 Discard 분기는 구현 단계에 남는다. 전체 기존 e2e와 prototype의 선행 실행은 통과했고, 마지막 실행은 이미 통과한 기존 suite를 제외한 focused PoC였다. 원본 코드 3개를 복원했고 새 제품 코드 commit은 없다.
+- P-I handoff·재현 patch·원자료를 `.scratch/comments-ui/evidence/P-I/`에 보존하고 patch와 원자료의 복사본 일치를 확인했다. D/D-fix/P-H/P-I 터미널을 모두 release했고 cu-draft/cu-ph/cu-pw를 Orca로 삭제했다. Orca 목록에 지휘자 루트만 남으며 reclaimable 터미널은 없다.
+- 현재 중단점: writer mkdir 경쟁 실패로 제품 구현 F 이후는 시작하지 않았다. 사용자에게 앱 전용 Go mkdir helper 도입을 추천하고 답변을 기다린다. 공개 CLI/MCP 코멘트 쓰기는 확장하지 않는 안이며, helper 설계 확정 후 별도 경합 PoC를 통과해야 한다. 이번 브랜치는 아직 push/PR하지 않았다.
