@@ -390,7 +390,7 @@ Results:
 | 2026-10-23 | Copy one open comment or all open comments on the current canvas, independent of the list filter | Comments-ui Q6 — identify scope by repo, canvas and comment IDs without executing an agent |
 | 2026-10-23 | Width-only errors preserve existing comment management/copy but block creation and pins | Comments-ui Q7 — do not create instructions on a screen the user cannot see |
 | 2026-10-23 | Selection/Open lists and pin counts group the same resolved DOM node, excluding descendants and preserving stored targets | Comments-ui Q8 — keep pin counts and the corresponding list consistent |
-| 2026-10-23 | Predeclare multi-target measurements: 100/1,000 targets, 100 scroll/resize/mutation samples each, p95 below 50/200 ms and zero missing or stale results | Comments-ui Q9 — failed performance or silent omissions require reconsideration; prototype and controlled-adapter evidence do not certify every real canvas |
+| 2026-10-23 | Predeclare multi-target measurements: 100/1,000 targets, 100 scroll/resize/mutation samples each, p95 at or below 50/200 ms and zero missing or stale results | Comments-ui Q9 — failed performance or silent omissions require reconsideration; prototype and controlled-adapter evidence do not certify every real canvas |
 
 ## 8. Open questions
 
