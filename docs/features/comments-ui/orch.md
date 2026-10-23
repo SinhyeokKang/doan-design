@@ -144,3 +144,6 @@
 
 - V2 42f9849의 최종 전체 e2e exit 0과 R-V red/yellow 0을 확인하고 6a4e848로 통합했다. 앞선 단위/type/Go/build 영수증 HEAD 6e0923는 e2e fixture/assertion 3줄만 다르며 제품/Go/단위 소스는 동일하다. 지휘자 통합 HEAD에서 1112개/typecheck exit 0을 재확인했다. V2는 인계만 마무리하며 Electron 슬롯은 S에 이전한다.
 - S 배치: Astra medium — 승인 초안의 실제 상태별 요소 대응·computed style·접근성 판단. .scratch/comments-ui/briefs/S.md에 따라 renderer 표시 수정/회귀·docs/DESIGN.md를 소유한다. 초안은 편집하지 않으며 미측정은 명시한다. 별도 독립 리뷰는 지휘자가 배정한다. V2 테스트 코드 편집은 끝났으므로 파일 충돌은 없다.
+
+- S의 data-doan-implements 누락 질문은 이번 라운드의 사용자 위임에 따라 지휘자가 대응을 확정했다. CommentsPanel은 목록·편집·복구·dialog 표시, useComments/App은 상태·연결과 패널 분할, RightPanel은 Inspector, CommentPins는 핀을 맡는다. 초안은 수정하지 않고 실측 증거에 대응을 남긴다. 답변 후 실제 비교 스크립트 실행 재개를 확인했다.
+- V2 최종 인계는 앞선 checkpoint와 달리 6e0923b이며, 테스트에 임시 저장소 email과 DOM 제거 대기/검증 3줄을 추가했다. 전체 최종 게이트는 이 HEAD에 귀속된다. 워커를 release했고 추가 delta의 통합과 S의 증거 의존 해소 전까지 cu-v2를 보존한다.
