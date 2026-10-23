@@ -10,7 +10,7 @@ import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { rmSync } from "node:fs";
 import { chmod, cp, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
+import { createRequire, stripTypeScriptTypes } from "node:module";
 import { createConnection } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -283,6 +283,25 @@ async function cliErrorMessage(cli: string, repo: string): Promise<string> {
 async function run(cli: string, userData: string, repos: Repos, doan: string): Promise<void> {
   let { app, page } = await launch(cli, userData);
   try {
+    const foundationDir = join(userData, "comment-filesystem");
+    await mkdir(foundationDir, { recursive: true });
+    for (const [source, target] of [
+      ["src/main/comments/files.ts", "m1-files.js"],
+      ["src/main/comments/mkdir.ts", "m1-mkdir.js"],
+      ["src/main/comments/mkdir-child.ts", "m1-child-source.js"],
+      ["e2e/comments-filesystem.ts", "m1-check.js"],
+    ]) {
+      assert(source && target);
+      const code = stripTypeScriptTypes(await readFile(join(appDir, source), "utf8"), { mode: "strip" }).replace('from "./mkdir"', 'from "./m1-mkdir.js"');
+      await writeFile(join(appDir, "out/main", target), code);
+    }
+    const foundationRows = await app.evaluate(async (_electron, paths) => {
+      const check = process.getBuiltinModule("module").createRequire(paths.check)(paths.check);
+      return await check.checkCommentFilesystem(paths.base, paths.files, paths.child, paths.source);
+    }, { base: foundationDir, check: join(appDir, "out/main/m1-check.js"), files: join(appDir, "out/main/m1-files.js"), child: join(appDir, "out/main/mkdir-child.js"), source: join(appDir, "out/main/m1-child-source.js") });
+    await mkdir(shotDir, { recursive: true });
+    await writeFile(join(shotDir, "comment-filesystem.json"), JSON.stringify(foundationRows, null, 2));
+    console.log(`comment-filesystem: PASS (${foundationRows.length} checks)`);
     // 1. Open the repos through the dialog.
     await emptyControls(page);
     const disabledStyles = await page.getByRole("button", { name: "Zoom out", exact: true }).evaluate(button => ({
@@ -383,7 +402,13 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     const kept = [repos.ok, repos.plain, repos.worktree];
     await waitFolders(page, (all) => sameList(all.map((f) => f.path), kept), "closed folder gone");
     await waitFor(async () => sameList(JSON.parse(await readFile(join(userData, "folders.json"), "utf8")) as string[], kept), "folders.json saved");
+    const idleChildPid = await app.evaluate(({ utilityProcess }, childPath) => new Promise<number>((resolve, reject) => {
+      const child = utilityProcess.fork(childPath, [], { stdio: "ignore" });
+      child.once("spawn", () => { if (child.pid) resolve(child.pid); else reject(new Error("Missing utility pid")); });
+      child.once("exit", () => reject(new Error("Idle utility exited before spawn")));
+    }), join(appDir, "out/main/mkdir-child.js"));
     await app.close();
+    await waitFor(async () => { try { process.kill(idleChildPid, 0); return false; } catch (error) { return error instanceof Error && "code" in error && error.code === "ESRCH"; } }, "utility child exits with parent");
     ({ app, page } = await launch(cli, userData));
     folders = await waitFolders(page, (all) => sameList(all.map((f) => f.path), kept) && all.every((f) => f.state !== "loading"), "folders after restart");
     assert.equal(byPath(folders, repos.ok).state, "list");

@@ -16,3 +16,29 @@ it("rejects duplicate results", async () => { const p = createCommentDirectory("
 it("rejects an early crash", async () => { const p = createCommentDirectory("/repo", "comments"); child.emit("exit", 1); await expect(p).rejects.toThrow(); });
 it("rejects spawn failure", async () => { mock.fork.mockImplementation(() => { throw new Error("spawn"); }); await expect(createCommentDirectory("/repo", "comments")).rejects.toThrow("spawn"); });
 it("times out and ignores a late success", async () => { vi.useFakeTimers(); try { const p = createCommentDirectory("/repo", "comments"); const rejected = expect(p).rejects.toThrow("timeout"); await vi.advanceTimersByTimeAsync(10_000); child.emit("message", { ok: true }); await rejected; expect(child.eventNames()).toEqual([]); } finally { vi.useRealTimers(); } });
+it("bounds a failed kill and observes late exit without accepting late success", async () => {
+  vi.useFakeTimers();
+  try {
+    child.kill = () => { child.killed++; return false; };
+    const p = createCommentDirectory("/repo", "comments");
+    const rejected = expect(p).rejects.toThrow("termination unconfirmed");
+    await vi.advanceTimersByTimeAsync(11_000);
+    await rejected;
+    child.emit("message", { ok: true });
+    child.emit("exit", 0);
+    expect(child.eventNames()).toEqual([]);
+  } finally { vi.useRealTimers(); }
+});
+it("bounds missing exit even when kill reports success", async () => {
+  vi.useFakeTimers();
+  try {
+    child.kill = () => true;
+    const p = createCommentDirectory("/repo", "comments");
+    const rejected = expect(p).rejects.toThrow("termination unconfirmed");
+    child.emit("message", { ok: true });
+    await vi.advanceTimersByTimeAsync(1_000);
+    await rejected;
+    child.emit("exit", 0);
+    expect(child.eventNames()).toEqual([]);
+  } finally { vi.useRealTimers(); }
+});
