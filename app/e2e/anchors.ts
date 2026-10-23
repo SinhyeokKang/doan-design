@@ -7,7 +7,7 @@ import { arch, cpus, homedir, platform, release, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { _electron, type ElectronApplication } from "playwright";
+import { _electron, type ElectronApplication, type Frame } from "playwright";
 import { build } from "vite";
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const shots = join(root, ".scratch/comments-ui-A");
@@ -138,7 +138,7 @@ body{margin:0;height:1000px} section{position:absolute;left:80px;top:80px;width:
         a.controller.command("reload"); a.controller.command("fit");
       });
       await page.waitForFunction(() => (window as any).anchorTest.snapshot.lookup.nodes.size === 3);
-      const live = page.frames().filter(f => f.url() === url).at(-1)!;
+      const live: Frame = page.frames().filter(f => f.url() === url).at(-1)!;
       if (scenario === "Y4") {
         await live.evaluate(() => {
           const host = document.createElement("div");

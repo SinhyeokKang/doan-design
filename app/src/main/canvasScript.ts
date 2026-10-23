@@ -285,7 +285,12 @@ export function canvasScript(lib: CanvasLib): void {
     return { el, anchor: next, target };
   };
 
-  const anchors = lib.commentAnchors(documentToken, () => ({ element: selected, seq }));
+  const anchors = lib.commentAnchors(documentToken, () => {
+    // Anchor measurement can precede layout's recovery in the same frame.
+    // Leave a missing node for layout to report as a lost selection.
+    if (selected && !selected.isConnected && anchor) selected = resolve(anchor) ?? selected;
+    return { element: selected, seq };
+  });
 
   const resolve = (wanted: Anchor): Element | null => {
     if (wanted.doanId !== undefined) {
@@ -681,7 +686,8 @@ export function commentAnchors(documentToken: string, selected: () => { element:
       let left = 0, top = 0, right = innerWidth, bottom = innerHeight;
       for (let ancestor: Element | null = el; ancestor; ancestor = ancestor.parentElement) {
         const style = styleOf(ancestor);
-        if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse" || style.opacity === "0") right = left;
+        if (style.display === "none" || style.opacity === "0" ||
+          ancestor === el && (style.visibility === "hidden" || style.visibility === "collapse")) right = left;
         if (ancestor === el) continue;
         const clipX = ["hidden", "clip", "auto", "scroll", "overlay"].includes(style.overflowX);
         const clipY = ["hidden", "clip", "auto", "scroll", "overlay"].includes(style.overflowY);
