@@ -15,6 +15,13 @@ const fingerprint = (p: string) => readFile(p).then(b => createHash("sha256").up
 const before = await Promise.all(paths.map(fingerprint));
 const work = await realpath(await mkdtemp(join(tmpdir(), "doan-comments-ui-")));
 const exec = promisify(execFile);
+async function waitGate(check: () => Promise<boolean>) {
+  const until = Date.now() + 10_000;
+  while (!await check()) {
+    if (Date.now() > until) throw new Error("Timed out waiting for the controlled IPC gate");
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+}
 let app: ElectronApplication | undefined;
 let clipboardSaved = false;
 try {
@@ -126,8 +133,16 @@ try {
   assert.equal(await manage.getByRole("button", { name: "Edit", exact: true }).isEnabled(), true);
   await manage.getByRole("button", { name: "Edit", exact: true }).click(); await panel.getByRole("textbox", { name: "Your unsaved edit body" }).fill("Managed without width"); await panel.getByRole("button", { name: "Save changes", exact: true }).click();
   await cards.filter({ hasText: "Managed without width" }).waitFor();
+  const beforeDelete = await readFile(file, "utf8");
   await cards.filter({ hasText: "Managed without width" }).getByRole("button", { name: "Delete", exact: true }).click();
-  await page.waitForFunction(() => !document.querySelector(".comments-card")?.textContent?.includes("Managed without width"));
+  const deletion = page.getByRole("dialog", { name: "Delete this comment?", exact: true });
+  await deletion.waitFor(); assert.equal(await readFile(file, "utf8"), beforeDelete, "initial Delete click does not append");
+  await deletion.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(await readFile(file, "utf8"), beforeDelete, "cancelled delete does not append");
+  await cards.filter({ hasText: "Managed without width" }).getByRole("button", { name: "Delete", exact: true }).click();
+  await deletion.getByRole("button", { name: "Delete comment", exact: true }).click();
+  await page.waitForFunction(() => ![...document.querySelectorAll(".comments-card")].some(card => card.textContent?.includes("Managed without width")));
+  assert.equal((await readFile(file, "utf8")).trim().split("\n").length, beforeDelete.trim().split("\n").length + 1);
   await shot("07-width-management-delete");
   await writeFile(join(repo, "design/a.html"), html("a"));
   await page.waitForFunction(() => [...document.querySelectorAll("button")].some(b => b.textContent === "New canvas comment" && !b.disabled));
@@ -220,6 +235,31 @@ try {
   assert.equal(await panel.getByRole("button", { name: "Save changes", exact: true }).isDisabled(), true);
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
   await shot("12-external-delete");
+  // Hold a real Resolve invocation, append an external edit, then let main
+  // validate the stale expected state. This is an actual file conflict.
+  await app.evaluate(({ ipcMain }) => {
+    const handlers = Reflect.get(ipcMain, "_invokeHandlers"); const original = handlers.get("comments:mutate");
+    const gate = { original, entered: false, release: () => {} }; Reflect.set(globalThis, "cardConflictGate", gate);
+    ipcMain.removeHandler("comments:mutate"); ipcMain.handle("comments:mutate", async (...args) => {
+      gate.entered = true; await new Promise<void>(resolve => { gate.release = resolve; }); return original(...args);
+    });
+  });
+  await cards.filter({ hasText: "Frame note" }).getByRole("button", { name: "Resolve", exact: true }).click();
+  await waitGate(() => app!.evaluate(() => Reflect.get(globalThis, "cardConflictGate").entered));
+  currentEvents = (await readFile(file, "utf8")).trim().split("\n").map(line => JSON.parse(line));
+  await writeFile(file, await readFile(file, "utf8") + JSON.stringify({ v: 1, id: `evt_${randomUUID()}`, comment: frameCreate.comment, type: "edit", body: "Changed before resolve", by: { kind: "human", name: "External" }, at: new Date(Math.max(Date.now(), ...currentEvents.map(event => Date.parse(event.at))) + 1).toISOString() }) + "\n");
+  await app.evaluate(({ ipcMain }) => { const gate = Reflect.get(globalThis, "cardConflictGate"); ipcMain.removeHandler("comments:mutate"); ipcMain.handle("comments:mutate", gate.original); gate.release(); });
+  await panel.getByText("This comment changed elsewhere", { exact: true }).waitFor();
+  await cards.filter({ hasText: "Changed before resolve" }).getByRole("button", { name: "Read latest state", exact: true }).click();
+  const beforeReviewedResolve = await readFile(file, "utf8");
+  await cards.filter({ hasText: "Changed before resolve" }).getByRole("button", { name: "Confirm reviewed change", exact: true }).click();
+  await panel.getByRole("button", { name: /^Resolved 1$/ }).click();
+  await cards.filter({ hasText: "Changed before resolve" }).getByRole("button", { name: "Reopen", exact: true }).waitFor();
+  assert.equal((await readFile(file, "utf8")).trim().split("\n").length, beforeReviewedResolve.trim().split("\n").length + 1);
+  await cards.filter({ hasText: "Changed before resolve" }).getByRole("button", { name: "Reopen", exact: true }).click();
+  await panel.getByRole("button", { name: /^Open 1$/ }).click();
+  await cards.filter({ hasText: "Changed before resolve" }).waitFor();
+  await shot("13-card-conflict-review");
   // Confirmed absence permits only the frozen original request and payload.
   await app.evaluate(({ ipcMain }) => {
     const handlers = Reflect.get(ipcMain, "_invokeHandlers"); Reflect.set(globalThis, "commentStatusOriginal", handlers.get("comments:status"));
@@ -239,17 +279,44 @@ try {
     ipcMain.removeHandler("comments:status"); ipcMain.handle("comments:status", Reflect.get(globalThis, "commentStatusOriginal"));
   });
   await shot("13-frozen-absence-retry");
+  await panel.getByRole("group", { name: "Comment scope" }).getByRole("button", { name: "Canvas", exact: true }).click();
+  const invalidDate = { ...frameCreate, id: `evt_${randomUUID()}`, comment: `cmt_${randomUUID()}`, body: "Calendar-invalid timestamp stays visible", target: {}, at: "2026-10-23T00:00:60.000Z" };
+  await writeFile(file, await readFile(file, "utf8") + JSON.stringify(invalidDate) + "\n");
+  await cards.filter({ hasText: invalidDate.body }).waitFor();
+  assert.equal(await cards.filter({ hasText: invalidDate.body }).locator("time").textContent(), invalidDate.at);
+  await shot("14-calendar-invalid-readable");
+  // Hold an actual old-canvas read across real sidebar navigation.
+  await app.evaluate(({ ipcMain }) => {
+    const original = Reflect.get(ipcMain, "_invokeHandlers").get("comments:list");
+    const gate = { original, held: false, released: false, release: () => {} }; Reflect.set(globalThis, "commentReadGate", gate);
+    ipcMain.removeHandler("comments:list"); ipcMain.handle("comments:list", async (...args) => {
+      const result = await original(...args);
+      if (args[1].canvas === "a" && !gate.held) { gate.held = true; await new Promise<void>(resolve => { gate.release = resolve; }); gate.released = true; }
+      return result;
+    });
+  });
+  await writeFile(file, await readFile(file, "utf8") + "\n");
+  await waitGate(() => app!.evaluate(() => Reflect.get(globalThis, "commentReadGate").held));
+  await page.getByRole("treeitem", { name: "b.html", exact: true }).click();
+  await panel.getByText("No open comments here", { exact: true }).waitFor();
+  await app.evaluate(() => Reflect.get(globalThis, "commentReadGate").release());
+  await waitGate(() => app!.evaluate(() => Reflect.get(globalThis, "commentReadGate").released));
+  assert.equal(await cards.count(), 0); assert.equal(await page.locator("iframe").getAttribute("title"), "design/b.html");
+  await app.evaluate(({ ipcMain }) => { ipcMain.removeHandler("comments:list"); ipcMain.handle("comments:list", Reflect.get(globalThis, "commentReadGate").original); });
+  await shot("15-stale-panel-reply");
+  await page.getByRole("treeitem", { name: "a.html", exact: true }).click();
+  await cards.filter({ hasText: invalidDate.body }).waitFor();
   await app.evaluate(({ ipcMain }) => {
     ipcMain.removeHandler("comments:mutate");
     ipcMain.handle("comments:mutate", (_event, request) => ({ ok: true, identity: request, value: { state: "unknown", recovery: "child-exit-required", error: "Confirm the child exited externally, then restart the app." } }));
   });
-  await panel.getByRole("button", { name: "New selection comment", exact: true }).click(); await createBody.fill("Quarantined draft");
+  await panel.getByRole("button", { name: "New canvas comment", exact: true }).click(); await createBody.fill("Quarantined draft");
   await panel.getByRole("button", { name: "Save comment", exact: true }).click();
   await panel.getByText("Save recovery is blocked", { exact: true }).waitFor();
   assert.equal(await createBody.inputValue(), "Quarantined draft"); assert.equal(await createBody.getAttribute("readonly"), "");
   assert.equal(await panel.getByRole("button", { name: "Retry original save", exact: true }).count(), 0);
   assert.equal(await panel.getByRole("button", { name: "Check saved status", exact: true }).count(), 0);
-  await shot("14-unrecoverable-unknown");
+  await shot("16-unrecoverable-unknown");
   console.log("comments-ui-test: PASS (actual App CRUD, draft transitions, clipboard and watcher)");
 } catch (error) {
   console.error(error);
