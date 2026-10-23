@@ -266,3 +266,18 @@ test("comment observer enables parent and child domains, joins cross-session eve
   dbg.emit("detach");
   expect(docs.current("FRAME", CANVAS)).toBeNull();
 });
+
+test("OOPIF process swap preserves the committed document, but actual removal retires it", async () => {
+  const { DocumentBindings } = await import("./comments/document");
+  const docs = new DocumentBindings();
+  const dbg = new FakeDebugger();
+  createInspector(dbg, () => BASE, docs);
+  docs.response({ marker: "response", root: "/repo", path: "design/a.html", hash: "sha256:" + "a".repeat(64), complete: true, stable: true });
+  dbg.emit("message", {}, "Network.responseReceived", { type: "Document", requestId: "request", frameId: "FRAME", loaderId: "loader", response: { headers: { "X-Doan-Response": "response" } } });
+  dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: "loader", url: CANVAS } }, "S1");
+  dbg.emit("message", {}, "Page.frameDetached", { frameId: "FRAME", reason: "swap" });
+  dbg.emit("message", {}, "Network.loadingFinished", { requestId: "request" }, "S1");
+  expect(docs.current("FRAME", CANVAS)?.generation).toBe("loader");
+  dbg.emit("message", {}, "Page.frameDetached", { frameId: "FRAME", reason: "remove" }, "S1");
+  expect(docs.current("FRAME", CANVAS)).toBeNull();
+});
