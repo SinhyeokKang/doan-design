@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-23 — Re-hovering a dismissed tooltip did not reopen it
+
+- **Area**: `app/e2e/runtime.ts`, restart tooltip preconditions and `hoverTooltip`.
+- **Symptom**: in actual Electron, hover added.html, close its tooltip with Escape, then hover the same row again: the tooltip wait times out even though a trusted pointermove reaches the row.
+- **Root cause**: the installed Radix tooltip trigger sets `hasPointerMoveOpenedRef` on entry and resets it only on pointerleave. Closing content with Escape leaves that latch set. The restart regression used a bare hover, unlike the existing path reader's explicit exit/dismiss/entry sequence. This demonstrates a precondition defect; it does not establish the event history of the original intermittent restart timeout, which had no input trace.
+- **Net**: a deterministic actual-Electron regression failed before the change and passed with the shared precondition helper. Eight isolated ordinary restart probes passed; window hide/show and title refresh probes also passed, while an induced ancestor scroll closed the tooltip. These observations do not prove which event caused the original failure. The previous stale-path regression remains intact: a visible added.html tooltip must be replaced by the exact project path. Bounded input history plus window readiness, focus and trigger-state diagnostics now accompany runtime failures.
+- **Prevention**: use `hoverTooltip` for tooltip reads so a real pointer exit resets the latch and preceding content is dismissed before entry; do not rely on repeated hover or longer timeouts. Keep the Escape-without-pointerleave regression and exact stale-path assertion. Run `rg -n 'getByRole\("tooltip"\)|hoverTooltip' app/e2e app/src --glob '*.ts*'`; the remaining S11 and comments-ui uses only dismiss tooltips before testing Escape ownership. Evidence and original-event limits: `.scratch/comments-ui/tooltip-fix/handoff.md`.
+
 ### 2026-10-23 — A full-width message assertion included the native scrollbar
 
 - **Area**: `app/e2e/comments-ui.ts`, Comments panel recovery geometry.
