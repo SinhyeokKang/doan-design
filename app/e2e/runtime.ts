@@ -410,6 +410,12 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     await app.close();
     await waitFor(async () => { try { process.kill(idleChildPid, 0); return false; } catch (error) { return error instanceof Error && "code" in error && error.code === "ESRCH"; } }, "utility child exits with parent");
     ({ app, page } = await launch(cli, userData));
+    // A tooltip from another row can outlive pointer movement during its exit animation.
+    const restartedProject = page.getByRole("treeitem", { name: "ok", exact: true });
+    await restartedProject.getByRole("treeitem", { name: "added.html", exact: true }).hover();
+    await page.getByRole("tooltip").waitFor();
+    assert.equal(await page.getByRole("tooltip").textContent(), `${repos.ok}/design/added.html`);
+    assert.equal(await tooltipPath(page, restartedProject, "ok", "ok"), repos.ok, "project path must not reuse the preceding canvas tooltip");
     folders = await waitFolders(page, (all) => sameList(all.map((f) => f.path), kept) && all.every((f) => f.state !== "loading"), "folders after restart");
     assert.equal(byPath(folders, repos.ok).state, "list");
     assert.equal(byPath(folders, repos.plain).state, "uninitialized");
