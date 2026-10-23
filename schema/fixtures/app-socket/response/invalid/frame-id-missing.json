@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "ok": true,
+  "result": {
+    "selection": {
+      "root": "/Users/sam/code/app",
+      "canvas": {
+        "path": "design/settings.html",
+        "id": "settings"
+      },
+      "frame": {
+        "title": "Main"
+      }
+    }
+  }
+}

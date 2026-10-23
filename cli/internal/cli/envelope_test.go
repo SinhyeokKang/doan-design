@@ -37,7 +37,7 @@ func TestEnvelope(t *testing.T) {
 	}
 }
 func TestExitCode(t *testing.T) {
-	for code, want := range map[string]int{"internal_error": 1, "usage_error": 2, "repo_not_found": 2, "invalid_config": 2, "unsupported_version": 2, "app_not_running": 3, "app_protocol_mismatch": 3, "comment_not_found": 2, "canvas_not_found": 2, "unknown": 1, "": 1} {
+	for code, want := range map[string]int{"internal_error": 1, "usage_error": 2, "repo_not_found": 2, "invalid_config": 2, "unsupported_version": 2, "app_not_running": 3, "app_protocol_mismatch": 3, "project_not_open": 3, "comment_not_found": 2, "canvas_not_found": 2, "unknown": 1, "": 1} {
 		if got := ExitCode(code); got != want {
 			t.Errorf("%s: %d != %d", code, got, want)
 		}

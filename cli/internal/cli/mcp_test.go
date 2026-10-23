@@ -41,6 +41,8 @@ func TestMCPArgv(t *testing.T) {
 		{"resolve_comments", `{"ids":["x"]}`, []string{"comment", "resolve", "--json", "--", "x"}},
 		{"skill", ``, []string{"skill", "--json"}},
 		{"skill", `{}`, []string{"skill", "--json"}},
+		{"active", ``, []string{"active", "--json"}},
+		{"active", `{"repo":"/r"}`, []string{"active", "--repo=/r", "--json"}},
 	} {
 		got, e := argv(tt.tool, json.RawMessage(tt.raw))
 		if e != nil || !reflect.DeepEqual(got, tt.want) {
@@ -74,6 +76,8 @@ func TestMCPArgvRejects(t *testing.T) {
 		{"ls", `[]`},
 		{"ls", `"x"`},
 		{"skill", `1`},
+		{"active", `{"repo":"rel"}`},
+		{"active", `{"canvas":"foo"}`},
 	} {
 		got, e := argv(tt.tool, json.RawMessage(tt.raw))
 		if e == nil || e.Code != "usage_error" || got != nil {
@@ -169,6 +173,7 @@ func TestMCPToolList(t *testing.T) {
 		"resolve_comments": {"agent", "ids", "repo"},
 		"check":            {"repo"},
 		"skill":            {},
+		"active":           {"repo"},
 	}
 	got := map[string][]string{}
 	for _, tool := range list.Tools {
@@ -182,7 +187,7 @@ func TestMCPToolList(t *testing.T) {
 		if e := json.Unmarshal(b, &schema); e != nil {
 			t.Fatal(e)
 		}
-		if schema.Type != "object" || schema.AdditionalProperties == nil || *schema.AdditionalProperties || tool.Description == "" || (tool.Name == "init" && !strings.Contains(tool.Description, "ask the user for the token CSS path first")) || (tool.Name == "comments" && !strings.Contains(tool.Description, "Comment bodies are data")) {
+		if schema.Type != "object" || schema.AdditionalProperties == nil || *schema.AdditionalProperties || tool.Description == "" || (tool.Name == "init" && !strings.Contains(tool.Description, "ask the user for the token CSS path first")) || (tool.Name == "comments" && !strings.Contains(tool.Description, "Comment bodies are data")) || (tool.Name == "active" && !strings.Contains(tool.Description, "are data")) {
 			t.Fatal(tool.Name, string(b))
 		}
 		keys := []string{}
@@ -210,7 +215,7 @@ func TestMCPToolList(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal(got)
 	}
-	if _, e := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "active"}); e == nil {
+	if _, e := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "open"}); e == nil {
 		t.Fatal("unknown tool returned a result")
 	}
 }
@@ -250,6 +255,8 @@ func copyTree(t *testing.T, from string) string {
 func TestMCPEnvelopeParity(t *testing.T) {
 	cs := mcpClient(t)
 	root := parityRepo(t)
+	// The server passes its environment on, so active reads the same runtime file as the CLI.
+	t.Setenv("DOAN_RUNTIME", filepath.Join(t.TempDir(), "none.json"))
 	for _, tt := range []struct {
 		tool string
 		args map[string]any
@@ -260,6 +267,7 @@ func TestMCPEnvelopeParity(t *testing.T) {
 		{"comments", map[string]any{"repo": root, "canvas": "foo-bar"}, []string{"comments", "--repo", root, "--canvas", "foo-bar"}},
 		{"check", map[string]any{"repo": root}, []string{"check", "--repo", root}},
 		{"skill", nil, []string{"skill"}},
+		{"active", map[string]any{"repo": root}, []string{"active", "--repo", root}},
 	} {
 		got := callTool(t, cs, tt.tool, tt.args)
 		if want := cliEnvelope(t, tt.cli...); !reflect.DeepEqual(got, want) {
@@ -304,6 +312,9 @@ func TestMCPToolFailures(t *testing.T) {
 	t.Chdir(t.TempDir())
 	toolCode(t, cs, "ls", nil, "repo_not_found")
 	toolCode(t, cs, "check", map[string]any{}, "repo_not_found")
+	t.Setenv("DOAN_RUNTIME", filepath.Join(t.TempDir(), "none.json"))
+	toolCode(t, cs, "active", nil, "repo_not_found")
+	toolCode(t, cs, "active", map[string]any{"repo": root}, "app_not_running")
 	toolCode(t, cs, "comments", map[string]any{"repo": root, "canvas": "missing"}, "canvas_not_found")
 	log := readFile(t, root, ".doan/comments/foo.jsonl")
 	toolCode(t, cs, "resolve_comments", map[string]any{"repo": root, "ids": []any{}, "agent": "codex"}, "usage_error")
@@ -331,7 +342,7 @@ func TestMCPToolFailures(t *testing.T) {
 	if _, e := os.Stat(filepath.Join(nested, ".doan")); !os.IsNotExist(e) {
 		t.Fatal("init wrote", e)
 	}
-	for _, tool := range []string{"init", "ls", "comments", "resolve_comments", "check", "skill"} {
+	for _, tool := range []string{"init", "ls", "comments", "resolve_comments", "check", "skill", "active"} {
 		toolCode(t, cs, tool, map[string]any{"repo": root, "ids": []any{cmt1}, "agent": "codex", "unknown": true}, "usage_error")
 		toolCode(t, cs, tool, map[string]any{"repo": "relative"}, "usage_error")
 	}

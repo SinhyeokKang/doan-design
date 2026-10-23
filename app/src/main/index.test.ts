@@ -7,7 +7,7 @@ const mocks = await vi.hoisted(async () => {
     static instances: Window[] = [];
     destroyed = false;
     contentsDestroyed = false;
-    webContents = Object.assign(new EventEmitter(), { send: vi.fn(), isDestroyed: () => this.contentsDestroyed });
+    webContents = Object.assign(new EventEmitter(), { send: vi.fn(), isDestroyed: () => this.contentsDestroyed, debugger: { name: "debugger" } });
     show = vi.fn();
     hide = vi.fn();
     isFullScreen = vi.fn(() => false);
@@ -23,10 +23,15 @@ const mocks = await vi.hoisted(async () => {
   }
   return {
     Window,
-    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), getPath: () => "/tmp/doan-index-test", exit: vi.fn(), quit: vi.fn() }),
+    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), getPath: () => "/tmp/doan-index-test", exit: vi.fn(), quit: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
-    shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn(() => []), open: vi.fn<() => Promise<string | null>>(), close: vi.fn(), reopen: vi.fn(), dispose: vi.fn() },
+    shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string }[]>(() => []), open: vi.fn<() => Promise<string | null>>(), close: vi.fn(), reopen: vi.fn(), dispose: vi.fn() },
     startShell: vi.fn(),
+    runtime: { socket: "/tmp/doan-x/app.sock", token: "t", file: "/tmp/doan-index-test/runtime.json", disposeSync: vi.fn() },
+    startRuntime: vi.fn(),
+    sessionOn: vi.fn(),
+    inspector: { inspect: vi.fn() },
+    createInspector: vi.fn(),
     mkdir: vi.fn(),
     menu: vi.fn<(template: MenuItemConstructorOptions[]) => unknown>(),
     dialog: { showOpenDialog: vi.fn(), showMessageBox: vi.fn() },
@@ -38,11 +43,13 @@ vi.mock("electron", () => ({
   dialog: mocks.dialog,
   ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => unknown) => mocks.ipc.set(channel, handler) },
   Menu: { buildFromTemplate: mocks.menu, setApplicationMenu: vi.fn() },
-  session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDevicePermissionHandler: vi.fn() } },
+  session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDevicePermissionHandler: vi.fn(), on: mocks.sessionOn } },
   webFrameMain: { fromId: vi.fn() },
 }));
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
+vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
+vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
 
 beforeEach(async () => {
   vi.resetModules();
@@ -52,6 +59,11 @@ beforeEach(async () => {
   mocks.ipc.clear();
   mocks.app.whenReady.mockResolvedValue();
   mocks.startShell.mockResolvedValue(mocks.shell);
+  mocks.startRuntime.mockResolvedValue(mocks.runtime);
+  mocks.createInspector.mockReturnValue(mocks.inspector);
+  mocks.inspector.inspect.mockResolvedValue({ ok: true, rows: [] });
+  mocks.app.requestSingleInstanceLock.mockReturnValue(true);
+  mocks.shell.entries.mockReturnValue([]);
   mocks.shell.open.mockResolvedValue(null);
   mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
   await import("./index");
@@ -223,4 +235,153 @@ test("expires a fullscreen hide request when the transition event never arrives"
     window().emit("leave-full-screen");
     expect(window().hide).not.toHaveBeenCalled();
   } finally { vi.useRealTimers(); }
+});
+
+const ROOT = "/Users/sam/code/app";
+const SELECTION = { root: ROOT, canvas: { path: "design/a.html", id: "a" }, element: { selector: "button", html: "<button>Go</button>" } };
+
+function runtimeState() {
+  const state = mocks.startRuntime.mock.calls[0]?.[1] as { isOpen(root: string): boolean; selection(): unknown } | undefined;
+  if (!state) throw new Error("runtime not started");
+  return state;
+}
+
+test("starts the runtime in userData with the open projects", () => {
+  expect(mocks.startRuntime).toHaveBeenCalledOnce();
+  expect(mocks.startRuntime.mock.calls[0]?.[0]).toBe("/tmp/doan-index-test");
+  mocks.shell.entries.mockReturnValue([{ path: ROOT }]);
+  expect(runtimeState().isOpen(ROOT)).toBe(true);
+  expect(runtimeState().isOpen(`${ROOT}/`)).toBe(false);
+  expect(runtimeState().isOpen("/Users/sam/code")).toBe(false);
+  expect(runtimeState().selection()).toBeNull();
+});
+
+test("keeps the selection the window sets, after the schema check", async () => {
+  mocks.shell.entries.mockReturnValue([{ path: ROOT }]);
+  const contents = window().webContents;
+  await invoke("selection:set", contents, null, SELECTION);
+  expect(runtimeState().selection()).toEqual(SELECTION);
+  await invoke("selection:set", contents, null, null);
+  expect(runtimeState().selection()).toBeNull();
+  await invoke("selection:set", contents, null, SELECTION);
+  // Invalid input clears rather than leaving an older selection the human no longer sees.
+  for (const bad of [undefined, 3, "x", {}, { ...SELECTION, extra: 1 }, { ...SELECTION, element: { ...SELECTION.element, text: "x".repeat(501) } }]) {
+    await invoke("selection:set", contents, null, SELECTION);
+    await invoke("selection:set", contents, null, bad);
+    expect(runtimeState().selection(), JSON.stringify(bad)).toBeNull();
+  }
+});
+
+test("refuses a selection for a project that is not open", async () => {
+  mocks.shell.entries.mockReturnValue([{ path: "/Users/sam/code/other" }]);
+  await invoke("selection:set", window().webContents, null, SELECTION);
+  expect(runtimeState().selection()).toBeNull();
+});
+
+test("ignores selection:set from other senders", async () => {
+  mocks.shell.entries.mockReturnValue([{ path: ROOT }]);
+  const contents = window().webContents;
+  await invoke("selection:set", contents, null, SELECTION);
+  const other = { ...SELECTION, canvas: { path: "design/b.html" } };
+  await invoke("selection:set", contents, {}, other);
+  await invoke("selection:set", {}, null, other);
+  await invoke("selection:set", contents, {}, null);
+  expect(runtimeState().selection()).toEqual(SELECTION);
+});
+
+test("clears the selection when its project closes", async () => {
+  mocks.shell.entries.mockReturnValue([{ path: ROOT }, { path: "/Users/sam/code/other" }]);
+  const contents = window().webContents;
+  await invoke("selection:set", contents, null, SELECTION);
+  await invoke("folders:close", contents, null, "/Users/sam/code/other");
+  expect(runtimeState().selection()).toEqual(SELECTION);
+  await invoke("folders:close", contents, null, ROOT);
+  expect(mocks.shell.close).toHaveBeenCalledWith(ROOT);
+  expect(runtimeState().selection()).toBeNull();
+});
+
+test.each(["render-process-gone", "did-navigate"])("clears the selection on %s", async (event) => {
+  mocks.shell.entries.mockReturnValue([{ path: ROOT }]);
+  await invoke("selection:set", window().webContents, null, SELECTION);
+  window().webContents.emit("did-navigate-in-page");
+  window().webContents.emit("did-frame-navigate", {}, "http://127.0.0.1:1/t/tok/k/a.html", 200, "OK", false, 1, 2);
+  expect(runtimeState().selection()).toEqual(SELECTION);
+  window().webContents.emit(event);
+  expect(runtimeState().selection()).toBeNull();
+});
+
+test("cancels every download in the session", () => {
+  const handler = mocks.sessionOn.mock.calls.find(([name]) => name === "will-download")?.[1] as ((event: { preventDefault(): void }) => void) | undefined;
+  if (!handler) throw new Error("no will-download handler");
+  const event = { preventDefault: vi.fn() };
+  handler(event);
+  expect(event.preventDefault).toHaveBeenCalledOnce();
+});
+
+test("removes the runtime files synchronously on will-quit", () => {
+  expect(mocks.runtime.disposeSync).not.toHaveBeenCalled();
+  mocks.app.emit("will-quit");
+  expect(mocks.runtime.disposeSync).toHaveBeenCalledOnce();
+});
+
+test("still opens the window when the runtime cannot start", async () => {
+  vi.resetModules();
+  mocks.app.removeAllListeners();
+  mocks.Window.instances.length = 0;
+  mocks.ipc.clear();
+  const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    mocks.startRuntime.mockRejectedValueOnce(new Error("listen EADDRINUSE"));
+    await import("./index");
+    await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
+    expect(mocks.app.exit).not.toHaveBeenCalled();
+    expect(() => mocks.app.emit("will-quit")).not.toThrow();
+  } finally { error.mockRestore(); }
+});
+
+test("shows the existing window when a second instance starts", () => {
+  window().hide();
+  mocks.app.emit("second-instance");
+  expect(window().show).toHaveBeenCalledOnce();
+  expect(mocks.Window.instances).toHaveLength(1);
+});
+
+test("a second instance quits without starting", async () => {
+  vi.resetModules();
+  vi.clearAllMocks();
+  mocks.app.removeAllListeners();
+  mocks.Window.instances.length = 0;
+  mocks.ipc.clear();
+  mocks.app.requestSingleInstanceLock.mockReturnValue(false);
+  await import("./index");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(mocks.app.quit).toHaveBeenCalledOnce();
+  expect(mocks.app.whenReady).not.toHaveBeenCalled();
+  expect(mocks.startShell).not.toHaveBeenCalled();
+  expect(mocks.startRuntime).not.toHaveBeenCalled();
+  expect(mocks.Window.instances).toHaveLength(0);
+});
+
+test("creates one inspector on the window's debugger with the token base", () => {
+  expect(mocks.createInspector).toHaveBeenCalledOnce();
+  const [debuggerArg, base] = mocks.createInspector.mock.calls[0] ?? [];
+  expect(debuggerArg).toBe(window().webContents.debugger);
+  expect(typeof base === "function" ? base() : undefined).toBe(mocks.shell.tokenBase);
+});
+
+test("inspect:get answers the window with the inspector's result", async () => {
+  const rows = [{ group: "box", label: "Width", value: "10px", state: "hardcoded" }];
+  mocks.inspector.inspect.mockResolvedValueOnce({ ok: true, rows });
+  expect(await invoke("inspect:get", window().webContents, null, { selector: "#a" })).toEqual({ ok: true, rows });
+  expect(mocks.inspector.inspect).toHaveBeenCalledExactlyOnceWith("#a");
+});
+
+test("inspect:get refuses other senders and bad requests without inspecting", async () => {
+  const contents = window().webContents;
+  expect(await invoke("inspect:get", contents, {}, { selector: "#a" })).toMatchObject({ ok: false });
+  expect(await invoke("inspect:get", {}, null, { selector: "#a" })).toMatchObject({ ok: false });
+  for (const bad of [undefined, "#a", { selector: "" }, { selector: "a".repeat(1001) }, { selector: "#a", more: 1 }]) {
+    expect(await invoke("inspect:get", contents, null, bad)).toMatchObject({ ok: false });
+  }
+  expect(mocks.inspector.inspect).not.toHaveBeenCalled();
 });

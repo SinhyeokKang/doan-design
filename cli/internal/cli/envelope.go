@@ -23,7 +23,7 @@ func ExitCode(code string) int {
 	switch code {
 	case "usage_error", "repo_not_found", "invalid_config", "unsupported_version", "comment_not_found", "canvas_not_found":
 		return 2
-	case "app_not_running", "app_protocol_mismatch":
+	case "app_not_running", "app_protocol_mismatch", "project_not_open":
 		return 3
 	default:
 		return 1

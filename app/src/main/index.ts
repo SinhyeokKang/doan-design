@@ -2,9 +2,14 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, session, webFrameMain, type 
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Selection } from "../formats/types";
+import { validateSelection } from "../formats/validate";
 import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } from "./canvasFrame";
 import { canvasScriptSource } from "./canvasScript";
 import { cliCommand } from "./cli";
+import type { InspectResult } from "./inspect";
+import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
+import { startRuntime, type Runtime } from "./runtime";
 import { startShell, type Shell } from "./shell";
 
 // Must run before `ready`: userData is derived from the name, which makes it
@@ -29,6 +34,11 @@ app.on("web-contents-created", (_event, contents) => {
 
 let win: BrowserWindow | undefined;
 let shell: Shell | undefined;
+let runtime: Runtime | undefined;
+let inspector: Inspector | undefined;
+// One selection app-wide (select-inspect R1); the socket answers it only for
+// its own project. Memory only, never written to disk.
+let selection: Selection | null = null;
 let quitting = false;
 let cancelPendingHide = () => {};
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
@@ -36,6 +46,10 @@ const FULLSCREEN_EXIT_WAIT_MS = 2000;
 function showWindow(window: BrowserWindow): void {
   cancelPendingHide();
   window.show();
+}
+
+function isOpen(root: string): boolean {
+  return shell?.entries().some((entry) => entry.path === root) ?? false;
 }
 
 function fromWindow(event: IpcMainInvokeEvent): boolean {
@@ -105,6 +119,9 @@ function denyPermissions(): void {
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.setDevicePermissionHandler(() => false);
+  // Chromium turns an ⌥-clicked canvas link into a download, and the iframe
+  // sandbox without `allow-downloads` does not stop it (select-inspect P6).
+  session.defaultSession.on("will-download", (event) => event.preventDefault());
 }
 
 function createWindow(): BrowserWindow {
@@ -129,6 +146,11 @@ function createWindow(): BrowserWindow {
   if (!app.isPackaged && devUrl) void window.loadURL(devUrl);
   else void window.loadFile(fileURLToPath(new URL("../renderer/index.html", import.meta.url)));
   injectCanvasScript(window);
+  inspector = createInspector(window.webContents.debugger, () => shell?.tokenBase ?? "");
+  // A reloaded or crashed renderer has lost the selection it reported; an
+  // in-page navigation is not a new document, so it does not count.
+  window.webContents.on("render-process-gone", () => { selection = null; });
+  window.webContents.on("did-navigate", () => { selection = null; });
   window.on("close", (event) => {
     if (quitting) return;
     event.preventDefault();
@@ -176,6 +198,12 @@ async function start(): Promise<void> {
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries);
   });
   shell = ready;
+  // `doan active` is an extra; the app works without it, and the CLI then
+  // reports that the app is not running.
+  runtime = await startRuntime(userData, { isOpen, selection: () => selection }).catch((error: unknown) => {
+    console.error("doan: cannot start the runtime socket", error);
+    return undefined;
+  });
 
   ipcMain.handle("folders:get", (event) => (fromWindow(event) ? ready.entries() : []));
   ipcMain.handle("folders:open", async (event) => {
@@ -188,15 +216,36 @@ async function start(): Promise<void> {
   });
   ipcMain.handle("folders:close", async (event, path: unknown) => {
     if (!fromWindow(event) || typeof path !== "string") return;
+    if (selection?.root === path) selection = null;
     await ready.close(path);
+  });
+  // Invalid input or a project that is not open clears rather than keeping an
+  // older selection the human no longer sees.
+  ipcMain.handle("selection:set", (event, value: unknown) => {
+    if (!fromWindow(event)) return;
+    selection = validateSelection(value) && isOpen(value.root) ? value : null;
+  });
+  ipcMain.handle("inspect:get", async (event, request: unknown): Promise<InspectResult> => {
+    const selector = parseInspectRequest(request);
+    if (!fromWindow(event) || selector === null || inspector === undefined) return { ok: false, reason: "The request was refused." };
+    return inspector.inspect(selector);
   });
 
   win = createWindow();
 }
 
-app.whenReady().then(start).catch((error: unknown) => {
-  console.error("doan: failed to start", error);
-  app.exit(1);
+// A second launch only brings the first window back, so two apps never
+// overwrite each other's runtime.json.
+if (!app.requestSingleInstanceLock()) app.quit();
+else {
+  app.whenReady().then(start).catch((error: unknown) => {
+    console.error("doan: failed to start", error);
+    app.exit(1);
+  });
+}
+
+app.on("second-instance", () => {
+  if (win && !win.isDestroyed()) showWindow(win);
 });
 
 app.on("before-quit", () => { quitting = true; cancelPendingHide(); });
@@ -205,5 +254,6 @@ app.on("activate", () => {
 });
 
 app.on("will-quit", () => {
+  runtime?.disposeSync();
   void shell?.dispose();
 });

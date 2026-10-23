@@ -369,7 +369,7 @@ func TestMCPOverStdioPipes(t *testing.T) {
 	send(`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
 	m := next()
 	var list struct{ Tools []struct{ Name string } }
-	if *m.ID != 2 || json.Unmarshal(m.Result, &list) != nil || len(list.Tools) != 6 {
+	if *m.ID != 2 || json.Unmarshal(m.Result, &list) != nil || len(list.Tools) != 7 {
 		t.Fatal(string(m.Result))
 	}
 	dir := t.TempDir()

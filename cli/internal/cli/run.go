@@ -9,7 +9,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -23,6 +25,9 @@ type Context struct {
 	Prompt   func(string) (string, error)
 	Now      func() time.Time
 	Random   io.Reader
+	// RuntimePath and Dial reach the app (doan active); Run fills them so bodies never read the environment or open sockets.
+	RuntimePath string
+	Dial        func(socket string, deadline time.Time) (net.Conn, error)
 }
 type Outcome struct {
 	Result any
@@ -44,6 +49,7 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   comments [--canvas <id>]
   comment resolve <cmt_id>... --agent <name>
   check
+  active
   skill
   mcp
   help
@@ -63,6 +69,22 @@ func repository(ctx Context, f Flags) (repo.Repository, *Error) {
 		return r, internal(e)
 	}
 	return r, nil
+}
+
+// runtimePath is resolved only for active, so a bad DOAN_RUNTIME cannot break file-only commands.
+// An e2e or dev app started with --user-data-dir writes runtime.json there, and this variable points the CLI at it.
+func runtimePath() (string, *Error) {
+	if p := os.Getenv("DOAN_RUNTIME"); p != "" {
+		if !filepath.IsAbs(p) {
+			return "", usageError("DOAN_RUNTIME must be an absolute path")
+		}
+		return p, nil
+	}
+	home, e := os.UserHomeDir()
+	if e != nil {
+		return "", internal(e)
+	}
+	return filepath.Join(home, "Library", "Application Support", "doan", "runtime.json"), nil
 }
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("doan", flag.ContinueOnError)
@@ -128,7 +150,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 				if e != nil {
 					failure = internal(e)
 				} else {
-					ctx := Context{Start: start, Now: time.Now, Random: rand.Reader}
+					ctx := Context{Start: start, Now: time.Now, Random: rand.Reader, Dial: func(socket string, deadline time.Time) (net.Conn, error) {
+						return (&net.Dialer{Deadline: deadline}).Dial("unix", socket)
+					}}
 					if file, ok := stdin.(*os.File); ok {
 						ctx.Terminal = isTerminal(file)
 					}
@@ -154,6 +178,10 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 						o, failure = Skill(pos[1:])
 					case "check":
 						o, failure = Check(ctx, f, pos[1:])
+					case "active":
+						if ctx.RuntimePath, failure = runtimePath(); failure == nil {
+							o, failure = Active(ctx, f, pos[1:])
+						}
 					case "comment":
 						if len(pos) < 2 || pos[1] != "resolve" {
 							failure = usageError("Expected comment resolve")

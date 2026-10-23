@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doan.design/schema/cli-envelope.v1.schema.json",
   "oneOf": [
     {
       "type": "object",

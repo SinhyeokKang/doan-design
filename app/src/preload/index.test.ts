@@ -70,3 +70,17 @@ test("unsubscribes view commands", () => {
   expect(listener).toHaveBeenCalledTimes(1);
   expect(emitter.listenerCount("view-command")).toBe(0);
 });
+
+test("sends the selection to main on its dedicated IPC channel", async () => {
+  const selection = { root: "/repo", canvas: { path: "design/a.html" } };
+  await api.setSelection(selection);
+  await api.setSelection(null);
+  expect(mocks.invoke).toHaveBeenNthCalledWith(1, "selection:set", selection);
+  expect(mocks.invoke).toHaveBeenNthCalledWith(2, "selection:set", null);
+});
+
+test("asks main for inspector rows on its dedicated IPC channel", async () => {
+  mocks.invoke.mockResolvedValue({ ok: false, reason: "No canvas is loaded." });
+  await expect(api.inspect('[data-doan-id="cta"]')).resolves.toEqual({ ok: false, reason: "No canvas is loaded." });
+  expect(mocks.invoke).toHaveBeenCalledWith("inspect:get", { selector: '[data-doan-id="cta"]' });
+});

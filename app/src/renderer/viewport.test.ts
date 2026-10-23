@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  boardRectToScreen,
   FIRST_LAYOUT_TIMEOUT_MS,
   FIT_MARGIN,
   FIT_SCALE_MAX,
@@ -256,5 +257,12 @@ describe("wheelAction", () => {
       expect(action.pan.dx).toBeCloseTo(0);
       expect(action.pan.dy).toBeCloseTo(0);
     }
+  });
+});
+
+describe("boardRectToScreen", () => {
+  test("scales the size and moves the origin like boardToScreen", () => {
+    expect(boardRectToScreen({ x: 10, y: 20, scale: 0.25 }, { x: 100, y: -40, width: 252, height: 32 })).toEqual({ x: 35, y: 10, width: 63, height: 8 });
+    expect(boardRectToScreen({ x: 0, y: 0, scale: 4 }, { x: 1, y: 2, width: 3, height: 0 })).toEqual({ x: 4, y: 8, width: 12, height: 0 });
   });
 });

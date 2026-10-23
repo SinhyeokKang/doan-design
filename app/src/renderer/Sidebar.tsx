@@ -95,10 +95,19 @@ function ProjectTree({ entries, names, state, open }: SidebarProps) {
 function FrameList({ state, jump }: { state: CanvasState; jump: (index: number) => void }) {
   const layout = state.unlisted ? null : state.layout;
   if (!layout) return null;
+  const selection = state.selection;
   return <section aria-label="Frames">
     <div className="sec">Frames <span className="r">{layout.truncated ? "1,000+" : layout.frames.length}</span></div>
     {!layout.frames.length && <p className="hint frames-hint">This canvas has no data-doan-frame</p>}
-    <ol>{layout.frames.map((frame, index) => { const label = frameLabel(frame); return <li key={index}><button className="row frame-row" aria-current={state.pickedFrame === index ? "true" : undefined} onClick={() => jump(index)}><span className="glyph">#</span><span className={frame.id ? "g" : "g no-id"}>{label.id}</span><span className="d">{label.title}</span></button></li>; })}</ol>
+    <ol>{layout.frames.map((frame, index) => {
+      const label = frameLabel(frame);
+      // Current is the selected frame or the frame around the selected element.
+      const current = selection?.frameIndex === index;
+      return <li key={index}>
+        <button className="row frame-row" aria-current={current ? "true" : undefined} onClick={() => jump(index)}><span className="glyph">#</span><span className={frame.id ? "g" : "g no-id"}>{label.id}</span><span className="d">{label.title}</span></button>
+        {current && selection?.element && <div className="row element-row"><span className="glyph" aria-hidden="true">↳</span><span className="g">{selection.element.doanId === undefined ? selection.tag : `${selection.tag} · ${selection.element.doanId}`}</span></div>}
+      </li>;
+    })}</ol>
     {layout.truncated && <p className="hint frames-hint">Showing the first 1,000</p>}
   </section>;
 }

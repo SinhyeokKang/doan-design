@@ -15,10 +15,14 @@ func TestValidationFixtures(t *testing.T) {
 		{"comment-event", ValidateCommentEvent},
 		{"config", ValidateConfig},
 		{"cli-envelope", ValidateEnvelope},
+		{"runtime", ValidateRuntimeFile},
+		{"app-socket/request", ValidateSocketRequest},
+		{"app-socket/response", ValidateSocketResponse},
+		{"app-socket/selection", ValidateSelection},
 	}
 	for _, group := range groups {
 		for _, validity := range []string{"valid", "invalid"} {
-			directory := filepath.Join("..", "..", "..", "schema", "fixtures", group.name, validity)
+			directory := filepath.Join("..", "..", "..", "schema", "fixtures", filepath.FromSlash(group.name), validity)
 			files, err := filepath.Glob(filepath.Join(directory, "*.json"))
 			if err != nil {
 				t.Fatal(err)

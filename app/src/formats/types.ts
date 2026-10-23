@@ -2,15 +2,17 @@ export type Author =
   | { kind: "human"; name: string; email?: string }
   | { kind: "agent"; name: string };
 
+export interface SelectionElement {
+  doanId?: string;
+  selector: string;
+  html: string;
+  text?: string;
+  truncated?: boolean;
+}
+
 export interface Target {
   frame?: string;
-  element?: {
-    doanId?: string;
-    selector: string;
-    html: string;
-    text?: string;
-    truncated?: boolean;
-  };
+  element?: SelectionElement;
 }
 
 interface EventBase {
@@ -62,3 +64,28 @@ export interface FoldResult {
   comments: Comment[];
   warnings: Warning[];
 }
+
+export interface RuntimeFile {
+  v: 1;
+  socket: string;
+  token: string;
+}
+
+export interface Selection {
+  root: string;
+  canvas: { path: string; id?: string };
+  frame?: { id: string; title?: string };
+  element?: SelectionElement;
+}
+
+export interface SocketRequest {
+  v: 1;
+  token: string;
+  root: string;
+}
+
+export type SocketErrorCode = "bad_token" | "bad_request" | "project_not_open";
+
+export type SocketResponse =
+  | { v: 1; ok: true; result: { selection?: Selection } }
+  | { v: 1; ok: false; error: { code: SocketErrorCode; message: string } };

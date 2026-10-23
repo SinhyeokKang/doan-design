@@ -291,3 +291,162 @@ describe("acceptCanvasMessage", () => {
     expect(acceptCanvasMessage(event({ data: { type: "wheel" } }), frameWindow)).toBeNull();
   });
 });
+
+const HREF = "http://127.0.0.1:4000/t/tok/key/design/a.html";
+const rect = { x: 10, y: -20, width: 60.5, height: 0 };
+const target = (over: Record<string, unknown> = {}) => ({
+  rect,
+  tag: "span",
+  frame: { id: "hero", title: "Hero", implements: "app/src/renderer/App.tsx" },
+  frameIndex: 1,
+  element: { doanId: "cta", selector: '[data-doan-id="cta"] > span:nth-of-type(1)', html: "<span>Sign in</span>", truncated: true, text: "Sign in" },
+  path: [{ label: "hero", selector: '[data-doan-frame="hero"]' }, { label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" }],
+  interactive: "link",
+  ...over,
+});
+const select = (over: Record<string, unknown> = {}, targetOver: Record<string, unknown> = {}) => ({ type: "select", href: HREF, seq: 3, viewport: 150, target: target(targetOver), ...over });
+const withElement = (over: Record<string, unknown>) => ({ element: { ...target().element, ...over } });
+
+describe("parseCanvasMessage: hover", () => {
+  test("accepts a rect or null and drops unknown keys", () => {
+    expect(parseCanvasMessage({ type: "hover", href: HREF, seq: 0, viewport: 150, rect: { ...rect, extra: 1 }, extra: 1 })).toEqual({ type: "hover", href: HREF, seq: 0, viewport: 150, rect });
+    expect(parseCanvasMessage({ type: "hover", href: HREF, seq: 2, viewport: 150, rect: null })).toEqual({ type: "hover", href: HREF, seq: 2, viewport: 150, rect: null });
+  });
+
+  test("rejects a seq that is not a non-negative integer", () => {
+    for (const seq of [undefined, -1, 1.5, "1", Number.NaN, 2 ** 53]) {
+      expect(parseCanvasMessage({ type: "hover", href: HREF, seq, viewport: 150, rect: null })).toBeNull();
+    }
+  });
+
+  test("rejects a rect with a non-finite coordinate or a negative size, and a missing rect", () => {
+    for (const bad of [{ ...rect, x: Number.NaN }, { ...rect, width: -1 }, { ...rect, height: Number.POSITIVE_INFINITY }, undefined, "r"]) {
+      expect(parseCanvasMessage({ type: "hover", href: HREF, seq: 0, viewport: 150, rect: bad })).toBeNull();
+    }
+  });
+
+  test("rejects an over-long href or a bad viewport", () => {
+    expect(parseCanvasMessage({ type: "hover", href: `${HREF}?${"q".repeat(MAX_HREF)}`, seq: 0, viewport: 150, rect: null })).toBeNull();
+    expect(parseCanvasMessage({ type: "hover", href: HREF, seq: 0, viewport: -1, rect: null })).toBeNull();
+  });
+});
+
+describe("parseCanvasMessage: select", () => {
+  test("accepts a full target and copies only known keys", () => {
+    const raw = select({ extra: 1 }, { extra: 1, frame: { ...target().frame, extra: 1 }, element: { ...target().element, extra: 1 }, path: [{ ...target().path[0], extra: 1 }] });
+    expect(parseCanvasMessage(raw)).toEqual({
+      type: "select",
+      href: HREF,
+      seq: 3,
+      viewport: 150,
+      target: { ...target(), path: [target().path[0]] },
+    });
+  });
+
+  test("accepts a frame selection, a target without frame and a null target", () => {
+    const { element: _element, ...frameOnly } = target({ interactive: undefined });
+    expect(parseCanvasMessage(select({ target: frameOnly }))).toMatchObject({ target: { frame: { id: "hero" }, path: target().path } });
+    const { frame: _frame, frameIndex: _index, ...noFrame } = target();
+    expect(parseCanvasMessage(select({ target: noFrame }))).toHaveProperty("target.tag", "span");
+    expect(parseCanvasMessage(select({ target: null }))).toEqual({ type: "select", href: HREF, seq: 3, viewport: 150, target: null });
+  });
+
+  test("keeps an element without doanId, truncated or text", () => {
+    const element = { selector: "body > p:nth-of-type(1)", html: "<p></p>" };
+    expect(parseCanvasMessage(select({}, { element }))).toHaveProperty("target.element", element);
+  });
+
+  test("drops the message when a string is over its cap (design 'length caps')", () => {
+    const over: Record<string, unknown>[] = [
+      { tag: "t".repeat(201) },
+      { frame: { id: "f".repeat(201) } },
+      { frame: { id: "f", title: "t".repeat(201) } },
+      { frame: { id: "f", implements: "i".repeat(501) } },
+      withElement({ doanId: "d".repeat(201) }),
+      withElement({ selector: "s".repeat(1001) }),
+      withElement({ html: "h".repeat(2001) }),
+      withElement({ text: "t".repeat(501) }),
+      { path: Array.from({ length: 33 }, () => ({ label: "div", selector: "div" })) },
+      { path: [{ label: "l".repeat(201), selector: "div" }] },
+      { path: [{ label: "div", selector: "s".repeat(1001) }] },
+      { path: [{ label: "div", selector: "div", doanId: "d".repeat(201) }] },
+    ];
+    for (const fields of over) expect(parseCanvasMessage(select({}, fields))).toBeNull();
+  });
+
+  test("accepts every string at exactly its cap", () => {
+    const at = select({}, {
+      tag: "t".repeat(200),
+      frame: { id: "f".repeat(200), title: "t".repeat(200), implements: "i".repeat(500) },
+      ...withElement({ doanId: "d".repeat(200), selector: "s".repeat(1000), html: "h".repeat(2000), text: "t".repeat(500) }),
+      path: Array.from({ length: 32 }, () => ({ label: "l".repeat(200), selector: "s".repeat(1000) })),
+    });
+    expect(parseCanvasMessage(at)).not.toBeNull();
+  });
+
+  test("counts html and text in code points and the other caps in UTF-16 units", () => {
+    expect(parseCanvasMessage(select({}, withElement({ html: "😀".repeat(2000), text: "😀".repeat(500) })))).not.toBeNull();
+    expect(parseCanvasMessage(select({}, withElement({ html: "😀".repeat(2001) })))).toBeNull();
+    expect(parseCanvasMessage(select({}, { tag: "😀".repeat(101) }))).toBeNull();
+  });
+
+  test("rejects wrong types and values", () => {
+    const bad: Record<string, unknown>[] = [
+      { tag: 5 },
+      { frameIndex: -1 },
+      { frameIndex: 1000 },
+      { frameIndex: 1.5 },
+      { interactive: "maybe" },
+      { path: "a" },
+      { path: [{ label: "a" }] },
+      { frame: { title: "no id" } },
+      withElement({ selector: undefined }),
+      withElement({ html: 5 }),
+      withElement({ truncated: "yes" }),
+      { rect: null },
+    ];
+    for (const fields of bad) expect(parseCanvasMessage(select({}, fields))).toBeNull();
+    expect(parseCanvasMessage(select({ target: undefined }))).toBeNull();
+  });
+});
+
+describe("parseCanvasMessage: clear and key", () => {
+  test("accepts a clear with href, seq and viewport", () => {
+    expect(parseCanvasMessage({ type: "clear", href: HREF, seq: 4, viewport: 150, extra: 1 })).toEqual({ type: "clear", href: HREF, seq: 4, viewport: 150 });
+    expect(parseCanvasMessage({ type: "clear", href: HREF, viewport: 150 })).toBeNull();
+  });
+
+  test("accepts Escape as the only key", () => {
+    expect(parseCanvasMessage({ type: "key", href: HREF, seq: 0, viewport: 150, key: "Escape" })).toEqual({ type: "key", href: HREF, seq: 0, viewport: 150, key: "Escape" });
+    expect(parseCanvasMessage({ type: "key", href: HREF, seq: 0, viewport: 150, key: "Enter" })).toBeNull();
+  });
+});
+
+describe("parseCanvasMessage: layout selection", () => {
+  test("keeps seq and the selected rect or null", () => {
+    expect(parseCanvasMessage(layout({ seq: 2, selected: rect }))).toMatchObject({ seq: 2, selected: rect });
+    expect(parseCanvasMessage(layout({ seq: 2, selected: null }))).toMatchObject({ seq: 2, selected: null });
+  });
+
+  test("rejects a selected rect without a seq, a bad rect or a bad seq", () => {
+    expect(parseCanvasMessage(layout({ selected: rect }))).toBeNull();
+    expect(parseCanvasMessage(layout({ seq: 1, selected: { ...rect, width: -1 } }))).toBeNull();
+    expect(parseCanvasMessage(layout({ seq: -1, selected: rect }))).toBeNull();
+  });
+
+  test("leaves both out when the script has no selection", () => {
+    const parsed = parseCanvasMessage(layout({ seq: 1 }));
+    expect(parsed).not.toHaveProperty("selected");
+    expect(parsed).not.toHaveProperty("seq");
+  });
+});
+
+test("validates Alt state messages separately from Escape", () => {
+  for (const alt of [true, false]) {
+    const message = { type: "key", key: "Alt", alt, href: HREF, seq: 2, viewport: 150 };
+    expect(parseCanvasMessage(message)).toEqual(message);
+  }
+  for (const alt of [undefined, null, 0, "false"]) {
+    expect(parseCanvasMessage({ type: "key", key: "Alt", alt, href: HREF, seq: 2, viewport: 150 })).toBeNull();
+  }
+});

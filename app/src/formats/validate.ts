@@ -1,11 +1,30 @@
-import Ajv2020 from "ajv/dist/2020";
+import Ajv2020, { type ValidateFunction } from "ajv/dist/2020";
+import appSocketSchema from "../../../schema/app-socket.v1.schema.json";
 import commentEventSchema from "../../../schema/comment-event.v1.schema.json";
 import configSchema from "../../../schema/config.v1.schema.json";
 import envelopeSchema from "../../../schema/cli-envelope.v1.schema.json";
-import type { CommentEvent } from "./types";
+import runtimeSchema from "../../../schema/runtime.v1.schema.json";
+import type { CommentEvent, RuntimeFile, Selection, SocketRequest, SocketResponse } from "./types";
 
 const ajv = new Ajv2020();
 
-export const validateCommentEvent = ajv.compile<CommentEvent>(commentEventSchema);
-export const validateConfig = ajv.compile(configSchema);
-export const validateEnvelope = ajv.compile(envelopeSchema);
+// addSchema every file before the first getSchema: app-socket $refs comment-event by its absolute $id.
+for (const schema of [commentEventSchema, configSchema, envelopeSchema, runtimeSchema, appSocketSchema]) {
+  ajv.addSchema(schema);
+}
+
+function load<T>(ref: string): ValidateFunction<T> {
+  const validate = ajv.getSchema<T>(ref);
+  if (!validate) throw new Error(`schema not found: ${ref}`);
+  return validate;
+}
+
+const idOf = (schema: { $id: string }) => schema.$id;
+
+export const validateCommentEvent = load<CommentEvent>(idOf(commentEventSchema));
+export const validateConfig = load(idOf(configSchema));
+export const validateEnvelope = load(idOf(envelopeSchema));
+export const validateRuntimeFile = load<RuntimeFile>(idOf(runtimeSchema));
+export const validateSocketRequest = load<SocketRequest>(`${idOf(appSocketSchema)}#/$defs/request`);
+export const validateSocketResponse = load<SocketResponse>(`${idOf(appSocketSchema)}#/$defs/response`);
+export const validateSelection = load<Selection>(`${idOf(appSocketSchema)}#/$defs/selection`);
