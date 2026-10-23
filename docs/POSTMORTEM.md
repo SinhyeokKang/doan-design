@@ -2,6 +2,30 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-23 — Accepted comment timestamps crashed relative-time rendering
+
+- **Area**: `app/src/renderer/CommentsPanel.tsx`, `CommentsPanel.test.tsx`.
+- **Symptom**: a schema-valid event with `2026-10-23T00:00:60.000Z` survived folding but crashed the Comments render with a RangeError.
+- **Root cause**: presentation assumed that every format-valid timestamp produced a finite Date.parse result, then passed NaN to Intl.RelativeTimeFormat. Calendar validation is deliberately not part of the existing v1 reader contract.
+- **Net**: independent R-U2 review supplied a failing fold-to-render probe; ordinary presentation fixtures used calendar-valid dates. The regression now retains the comment and displays its original timestamp as text when parsing is not finite, and the actual App helper reads the same event.
+- **Prevention**: run `rg -n 'RelativeTimeFormat|Date.parse' app/src/renderer app/src/comments`; keep accepted-data-to-render coverage rather than testing the formatter with only valid dates. The search also finds event-time validation in `comments/events.ts`, which intentionally rejects unsafe writes and was not changed.
+
+### 2026-10-23 — Draft guards changed existing transition timing
+
+- **Area**: `app/src/renderer/CanvasController.ts`, `CommentsSession.ts`, `useComments.tsx`, and their tests.
+- **Symptom**: the existing runtime's synchronous Loading spinner check failed even without a draft; a real Escape opened and immediately cancelled the new draft dialog.
+- **Root cause**: wrapping every approval in a Promise delayed an established synchronous path. Separately, the Escape which initiated confirmation still had its browser default action, so it could cancel the dialog opened during that event.
+- **Net**: actual App tests caught Escape cancellation, while the unchanged full runtime caught delayed Loading. Static modal callbacks and isolated asynchronous session tests missed both timing boundaries. No existing expectation was relaxed.
+- **Prevention**: run `rg -n 'transitionGuard|showModal|onCancel|preventDefault' app/src/renderer`; preserve an immediate boolean result when no draft exists, and prevent the initiating Escape's default only when guarding a draft. Keep both the synchronous controller regression and actual Escape/Continue/focus interaction. Existing tooltip Escape ownership remains covered by the earlier runtime regression.
+
+### 2026-10-23 — Comment copy reported success before the clipboard committed
+
+- **Area**: `app/src/main/comments/service.ts`, `service.test.ts`, `app/e2e/comments-ui.ts`.
+- **Symptom**: a rejected Electron clipboard write returned `copied:true`, and a held write reported success before completion.
+- **Root cause**: Electron 45 exposes `clipboard.writeText` as a Promise, while the service dependency was typed as void and invoked without await. A callback that returned a Promise still satisfied the void callback type.
+- **Net**: integration work checked the installed Electron declarations, and two red service tests pinned rejection and delayed completion. Existing synchronous clipboard mocks did not exercise settlement. The App helper now also verifies an injected native clipboard rejection and Retry through the real service.
+- **Prevention**: run `rg -n 'clipboard\(|writeText' app/src/main`; the production write path is the awaited comments service dependency, with the main callback returning Electron's Promise. Require a delayed-completion and rejection test for APIs whose success is asynchronous. Runtime cleanup reconstructs ClipboardItems from eagerly captured data because Electron 45 does not accept items returned by read directly in write.
+
 ### 2026-10-23 — Comment saves retried after an unconfirmed directory worker exit
 
 - **Area**: `app/src/main/comments/service.ts`, `service.test.ts`.
