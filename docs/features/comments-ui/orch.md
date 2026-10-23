@@ -117,3 +117,5 @@
 - 지휘 세션 자체에서 capacity 오류가 반복됨을 terminal 출력으로 확인했다. 컨텍스트는 압축됐으며 작업 상태를 커밋/인계에 보존했다. 워커 R-U1은 오류 없이 완료했고 release했다.
 
 - U1 포함 통합 단위 1088개·typecheck exit 0을 확인했다. M/U1의 .scratch 증거 131/8개를 지휘자 evidence/archive에 복사하고 byte checksum 일치를 확인했다. clean·git cherry 미통합 없음·리뷰 종료 확인 후 두 child를 Orca로 제거했으며 worktree 항목 부재를 확인했다. U2 ctx_349dc3aada7e는 실제 App 테스트 작성에 착수했다.
+
+- U2가 Electron 45 clipboard.writeText의 Promise 반환을 M이 await하지 않아 실패에도 copied:true를 반환하는 결함을 발견했다. 설치된 electron.d.ts와 service.ts에서 직접 확인했다. 기존 M 워커는 종료됐으므로 U2 소유 범위를 service.ts의 clipboard 계약·await와 해당 회귀 테스트로 좁게 확대한다. reject 시 성공 금지와 완료 전 응답 보류를 red→green으로 검증하고 독립 U2 리뷰에 포함한다. 다른 M 권한/재시도 규칙은 변경하지 않는다.
