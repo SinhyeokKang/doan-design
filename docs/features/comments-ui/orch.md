@@ -21,7 +21,7 @@
 | D | 1 design/comments-ui.html | 문서 리뷰 완료 | Astra medium — 기존 화면 보존·상태 표현 | doan ls/check, 지휘자 위임 확인 | 수정 재검증·최종 컨펌 완료 |
 | P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | PoC 통과, 아래 한계 명시 |
 | F | 2 공유 v1 fixture·Go/TS 테스트 | PoC 및 초안 승인 | Sol medium — 기존 형식 사례 확장 | go test, app test | bd05032 통합·리뷰 통과 |
-| C | 3 순수 함수와 테스트, 신규 shared 모듈 | F | Astra medium — 상태·시간·타겟 계약 | red→green, app test/typecheck | 착수 |
+| C | 3 순수 함수와 테스트, 신규 shared 모듈 | F | Astra medium — 상태·시간·타겟 계약 | red→green, app test/typecheck | 4fa6151 통합·독립 리뷰 통과 |
 | M | 4 main I/O·IPC·preload·watcher 및 테스트 | C,M1 | Astra medium — 파일 안전성·재시도 | app test/typecheck, go test, reader round trip | 대기 |
 | A | 5 anchor 조회·핀 geometry·overlay 및 테스트 | C; M과 공유 파일 겹치면 직렬 | Astra medium — 문서·viewport 경계 | app test/typecheck/build/e2e | 대기 |
 | U | 6 패널 CRUD·초안·복사 및 테스트 | M,A | Astra medium — UI 상태·입력 보호 | app test/typecheck/build/e2e | 대기 |
@@ -82,3 +82,7 @@
 - M1 분리: tasks 4의 안전한 디렉터리/파일 I/O 기반을 C와 병렬 구현한다. 소유는 신규 app/src/main/comments/의 filesystem·mkdir child·wrapper와 테스트, app/electron.vite.config.ts의 child 번들 entry, 기존 e2e harness에 연결하는 파일 경계 검사다. Astra medium — 단발 프로세스·파일 경합 판단. R-PW 검토 통과가 선행이며 event 준비·author/hash·재시도·preload·renderer는 후속 M에 남긴다. C의 순수 모듈과 파일이 겹치지 않는다.
 
 - C 구현 보고: 테스트 `3871df6/a887716/f9a899f`, 구현 `ca7ef96`. 964개 테스트·typecheck·기존 전체 e2e 통과이며 UI 연결 완료를 뜻하지 않는다. R-C는 Astra medium 읽기 전용, 시간·충돌·초안·clip 경계를 검토한다. 소유는 보고서뿐이며 cu-c의 고정 commit 범위를 읽는다.
+
+- C 통합 HEAD `4fa6151`: 964개 테스트·typecheck·전체 e2e 통과. R-C red/yellow 0개이며 별도 49개 집중 테스트도 통과했다. C/R-C release, 증거 복사 일치·clean·git cherry 확인 후 cu-c를 Orca로 삭제했고 목록 부재를 확인했다.
+- M1 보고 HEAD `ecd44c0`(테스트 `6b0017b/55ab9e3`): 955개 테스트·typecheck·Go test/vet·파일 경계 66개를 포함한 전체 e2e 통과. R-M1은 Astra medium으로 경합·단발 프로세스·실패 정산과 실제 증거를 독립 리뷰한다. 제품 연결은 아직 없다.
+- A 착수: C를 선행으로 main/canvasScript·renderer/CanvasController/canvasMessage 및 신규 anchor/pin 모듈·테스트를 소유한다. Astra medium — 문서·좌표·독립 요청 경계 판단. e2e/runtime.ts는 M1 수정 가능성이 남아 있어 지휘자의 별도 소유권 해제 전에는 편집하지 않는다. A는 독립 코드를 먼저 끝내고, 해제가 안 되면 runtime 연결만 deferred로 보고한다. M1 소스·main IPC/hash·App/RightPanel CRUD는 수정하지 않는다.
