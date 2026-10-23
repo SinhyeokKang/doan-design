@@ -377,7 +377,6 @@ Results:
 | 2026-10-23 | Shared `runtime.v1` and `app-socket.v1` use absolute schema ids and embedded cross-file references; socket selection narrows the existing comment element definition | Promotion of Select-inspect formats and S implementation (2026-10-22) — TS writers and Go readers must share fixtures without changing comment-event v1 |
 | 2026-10-23 | Selection messages validate source/origin, bounded fields and document/sequence/viewport state; overlay geometry is outside the board transform | Promotion of Select-inspect R implementation and accepted review differences (2026-10-22) — keep stale rectangles from reviving selection while preserving click intent across iframe resizing |
 | 2026-10-23 | Main rejects invalid selection by clearing it; socket requests have a hard deadline, and CDP domains are enabled only during requests with bounded delivered values | Promotion of Accepted M/M2 review corrections (2026-10-22/23) — prevent obsolete selections, long-lived connections and ongoing DOM-event load; resolver limits remain documented |
-
 | 2026-10-23 | Comments-ui authorizes the originally validated directory object; relocation of that object outside the repo is excluded, while symlink redirection to other outside objects remains forbidden. Use the existing Electron utility process for isolated one-directory creation | User accepted the P-W2 boundary after 49 deterministic observations; avoid a new Go helper that would not itself freeze the original directory pathname |
 
 ## 8. Open questions
