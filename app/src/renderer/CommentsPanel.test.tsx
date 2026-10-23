@@ -2,6 +2,7 @@ import { Children, isValidElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 import type { Comment } from "../formats/types";
+import { foldText } from "../formats/foldText";
 import { CommentsPanel, CommentCard, CommentEditor, UnsavedCommentDialog, type CommentsPanelProps, type CommentEditorProps } from "./CommentsPanel";
 
 const comment: Comment = { comment: "c1", status: "open", body: '<script>alert("x")</script>\n  Keep spaces ', target: { element: { doanId: "submit", selector: "button", html: "<button/>" } }, canvasHash: "h", createdBy: { kind: "human", name: "Alex Morgan", email: "alex@example.com" }, createdAt: "2026-10-23T01:42:00Z", updatedAt: "2026-10-23T01:42:00Z" };
@@ -134,4 +135,13 @@ describe("Draft recovery presentation", () => {
     expect(restoreEditorFocus).toHaveBeenCalledOnce();
     expect(renderToStaticMarkup(dialog)).toContain("Save and continue");
   });
+});
+
+// Reproduction source: independent R-U2 ReviewDate.test.tsx.
+test("calendar-invalid v1 timestamps remain readable after folding", () => {
+  const event = { v: 1, type: "create", id: "evt_00000000-0000-4000-8000-000000000001", comment: "cmt_00000000-0000-4000-8000-000000000001", at: "2026-10-23T00:00:60.000Z", by: { kind: "human", name: "A" }, body: "Visible note", target: {}, canvasHash: "sha256:" + "a".repeat(64) };
+  const folded = foldText(JSON.stringify(event)); expect(folded.comments).toHaveLength(1);
+  const accepted = folded.comments[0]; if (!accepted) throw new Error("Missing folded comment");
+  const out = renderToStaticMarkup(<CommentCard comment={accepted} freshness="unknown" locationMissing={false} disabled={false} busy={false} copy={{ status: "idle" }} onComment={noop} onCopy={noop} />);
+  expect(out).toContain("Visible note"); expect(out).toContain(event.at);
 });

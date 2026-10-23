@@ -75,4 +75,25 @@ describe("application comment session", () => {
     const pending = s.guard(); s.answer("continue"); expect(await pending).toBe(false);
   });
 
+  test("card conflict reviews latest state and confirms a new logical request", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    api.commentsMutate.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Comment changed; read the latest state before saving." }));
+    await s.mutate("resolve", "c1"); expect(s.mutations.get("c1")?.status).toBe("conflict");
+    const latest = { ...c, body: "External body", updatedAt: "2026-10-23T00:00:01.000Z" };
+    api.commentsList.mockImplementation(async r => reply(r, { project: 7, canvasHash: "h", comments: [latest], warnings: [] }));
+    await s.read(true); expect(s.mutations.get("c1")).toEqual({ status: "reviewed", latest });
+    expect(api.commentsMutate).toHaveBeenCalledTimes(1);
+    await s.confirmCard("c1");
+    expect(api.commentsMutate.mock.calls[1]?.[0]).toMatchObject({ intent: { type: "resolve", expected: { body: "External body" } } });
+    expect(api.commentsMutate.mock.calls[1]?.[0].requestID).not.toBe(api.commentsMutate.mock.calls[0]?.[0].requestID);
+  });
+  test("delete confirmation freezes expected state and Cancel never writes", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    await s.mutate("delete", "c1"); expect(api.commentsMutate).not.toHaveBeenCalled();
+    expect(s.deleteConfirmation?.comment.body).toBe("Before"); s.cancelDelete(); expect(api.commentsMutate).not.toHaveBeenCalled();
+    await s.mutate("delete", "c1"); await s.confirmDelete();
+    expect(api.commentsMutate).toHaveBeenCalledTimes(1);
+    expect(api.commentsMutate.mock.calls[0]?.[0]).toMatchObject({ intent: { type: "delete", expected: { body: "Before" } } });
+  });
+
 });
