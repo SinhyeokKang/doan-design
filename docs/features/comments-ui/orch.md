@@ -139,3 +139,5 @@
 - U2 종료 인계와 최종 실행 영수증을 대조했다. 전체 1108개/typecheck/Go test/vet/e2e exit 0, 모든 제품 delta 독립 리뷰 0건을 확인하고 release했다. V2는 Astra medium — UI 경계 개별 mutation 및 실제 cross-project 초안 보존 판단. 독립 child의 테스트/fixture만 소유하고 제품 수정은 지휘자에게 돌린다. U2 미검증인 다른 root의 같은 canvas id 이동을 실제 App에서 추가 확인하며, OS-native IME는 미검증 범위를 보존한다. Electron 슬롯은 V2로 넘긴다.
 
 - U2 통합 단위 1108개/typecheck exit 0을 확인했다. U2 scratch 증거 116개 byte 일치·clean·git cherry 미통합 없음·리뷰 종료를 확인하고 cu-u2를 Orca로 제거했다. 목록에는 지휘 checkout과 cu-v2만 남았다. V2 ctx_c869d69dfd16 실제 조사 착수를 확인했다.
+
+- V2 고정 테스트 commit 42f9849를 독립 R-V에 배정한다. Astra medium — 실제 cross-project 원래 대상 검증과 개별 mutation 증명 판단. 91fecf6..42f9849 테스트 diff만 읽고 제품 변경 없음·baseline/red/restored 원상 복원을 감사한다. V2 실제 전체 게이트와 병렬이며 실행/수정/Electron은 하지 않는다. 미도착 인계는 보류로 남긴다.
