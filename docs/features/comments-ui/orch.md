@@ -92,3 +92,4 @@
 - M은 C/M1 API 위에 main 서비스·IPC·preload·hash·watcher를 구현한다. Astra medium — 신뢰 경계·문서 세대·재시도 판단. 소유 범위와 검증은 지휘자 .scratch/comments-ui/briefs/M.md로 고정하며 A의 canvasScript/renderer/runtime 파일과 겹치지 않는다. A의 runtime 종료 전에는 단위·타입 검증을 진행한다.
 
 - M1 통합 HEAD에서 단위 1004개·typecheck·go test/vet 통과. 증거 50개 checksum 일치와 미통합 커밋 없음·clean을 확인한 뒤 cu-m1을 Orca로 삭제하고 목록 부재를 확인했다. 통합 전체 e2e는 A의 M1 포함 재검증에 이어 지휘자가 실행한다. A 재시도 ctx_3dab8d9989a2와 M ctx_f5a7e17510ae 모두 Astra medium 및 turnStart observed 확인.
+- R-A 사전 독립 리뷰: Astra medium — 문서/선택 세대·핀 guard 경합 판단. 8e20296..5202094의 고정 커밋만 git show/diff로 읽고 실행·수정하지 않는다. A가 실패 runtime을 수정하는 동안 제품 핀 코드의 추가 결함을 먼저 찾으며, 최종 수정 diff와 실행 증거는 별도 후속 리뷰한다.
