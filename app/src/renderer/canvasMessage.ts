@@ -2,6 +2,7 @@
 // canvas's own scripts share that window and can post anything, so every field
 // is checked and copied into a fresh object; nothing is trusted by shape.
 
+import type { TargetCandidates, PinGeometry } from "../comments/projection";
 import type { SelectionElement } from "../formats/types";
 
 export const MAX_FRAMES = 1000;
@@ -37,6 +38,7 @@ export interface CanvasRect {
 
 export interface LayoutMessage {
   type: "layout";
+  document?: string;
   href: string;
   height: number;
   // The canvas's innerHeight when it measured `height`.
@@ -106,7 +108,22 @@ export interface WheelMessage {
   y: number;
 }
 
-export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage;
+export interface AnchorsMessage {
+  type: "anchors";
+  href: string;
+  document: string;
+  generation: number;
+  request: number;
+  revision: number;
+  viewport: number;
+  width: number;
+  selected: string | null;
+  selectionSeq: number;
+  results: { id: string; candidates: TargetCandidates }[];
+  rects: (PinGeometry & { node: string })[];
+}
+
+export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -157,6 +174,7 @@ function parseRect(raw: unknown): CanvasRect | null {
 
 export function parseCanvasMessage(data: unknown): CanvasMessage | null {
   if (!isRecord(data)) return null;
+  if (data.type === "anchors") return parseAnchors(data);
   if (data.type === "layout") return parseLayout(data);
   if (data.type === "wheel") return parseWheel(data);
   if (data.type === "hover" || data.type === "select" || data.type === "clear" || data.type === "key") return parseSelectionMessage(data);
@@ -265,6 +283,10 @@ function parseLayout(data: Record<string, unknown>): LayoutMessage | null {
     kept.push(parsed.frame);
   }
   const parsed: LayoutMessage = { type: "layout", href, height, viewport, frames: kept, truncated };
+  if (data.document !== undefined) {
+    if (!within(data.document, MAX_STRING)) return null;
+    parsed.document = data.document;
+  }
   if (data.selected !== undefined) {
     const selected = data.selected === null ? null : parseRect(data.selected);
     if ((data.selected !== null && selected === null) || !seqValue(data.seq)) return null;
@@ -312,4 +334,43 @@ export function acceptCanvasMessage(event: CanvasMessageEvent, frameWindow: unkn
   if (frameWindow === null || frameWindow === undefined) return null;
   if (event.source !== frameWindow || event.origin !== "null") return null;
   return parseCanvasMessage(event.data);
+}
+
+
+function parseAnchors(data: Record<string, unknown>): AnchorsMessage | null {
+  const { href, document, generation, request, revision, viewport, width, selected, selectionSeq, results, rects } = data;
+  if (!within(href, MAX_HREF) || !within(document, MAX_STRING) || !document ||
+    !seqValue(generation) || !seqValue(request) || !seqValue(revision) || !seqValue(selectionSeq) || !nonNegative(viewport) || !nonNegative(width) ||
+    !(selected === null || within(selected, MAX_STRING)) || !Array.isArray(results) || !Array.isArray(rects)) return null;
+  const parsed: AnchorsMessage = { type: "anchors", href, document, generation, request, revision, viewport, width, selected, selectionSeq, results: [], rects: [] };
+  const seen = new Set<string>();
+  for (const item of results) {
+    if (!isRecord(item) || !within(item.id, MAX_STRING) || seen.has(item.id) || !isRecord(item.candidates)) return null;
+    seen.add(item.id);
+    const candidates: TargetCandidates = {};
+    for (const key of ["doanId", "selector", "frame"] as const) {
+      const values = item.candidates[key];
+      if (values === undefined) continue;
+      if (key === "selector" && values === null) { candidates.selector = null; continue; }
+      if (!Array.isArray(values) || !values.every(value => within(value, MAX_STRING) && value.length > 0)) return null;
+      candidates[key] = [...values];
+    }
+    parsed.results.push({ id: item.id, candidates });
+  }
+  seen.clear();
+  for (const item of rects) {
+    if (!isRecord(item) || !within(item.node, MAX_STRING) || !item.node || seen.has(item.node)) return null;
+    seen.add(item.node);
+    const rect = parseRect(item);
+    if (rect === null) return null;
+    if (item.clip !== undefined) {
+      const clip = parseRect(item.clip);
+      if (clip === null) return null;
+      parsed.rects.push({ node: item.node, ...rect, clip });
+    } else parsed.rects.push({ node: item.node, ...rect });
+  }
+  for (const { candidates } of parsed.results) {
+    for (const values of Object.values(candidates)) if (values?.some((node: string) => !seen.has(node))) return null;
+  }
+  return parsed;
 }

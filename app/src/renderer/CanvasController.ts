@@ -1,3 +1,7 @@
+import { projectPins, type CommentPin } from "../comments/projection";
+import { anchorSnapshot, type AnchorSnapshot, type CommentBinding, type CommentHooks, type PinDestination } from "./commentAnchors";
+import { CommentPins } from "./CommentPins";
+import type { AnchorsMessage } from "./canvasMessage";
 import type { Selection } from "../formats/types";
 import type { ViewCommand } from "../main/index";
 import type { InspectResult, InspectRow } from "../main/inspect";
@@ -63,6 +67,99 @@ export class CanvasController {
   private sentSelection = "null";
   // Tags inspector requests so an answer for an older selection is dropped.
   private inspectTag = 0;
+  private anchorDocument: string | null = null;
+  private anchorGeneration = 0;
+  private anchorRequest = 0;
+  private anchorRevision = 0;
+  private comments: CommentBinding | null = null;
+  private commentHooks: CommentHooks | null = null;
+  private anchors: AnchorSnapshot | null = null;
+  private pinLayer: CommentPins | null = null;
+  private pins: CommentPin[] = [];
+  private pinResize: ResizeObserver | null = null;
+  private pinIntent = 0;
+  private pendingPin: { seq: number; destination: PinDestination } | null = null;
+
+  setComments(binding: CommentBinding, hooks: CommentHooks): void {
+    this.comments = { ...binding, comments: structuredClone([...binding.comments]) };
+    this.commentHooks = hooks;
+    if (!this.pinResize && typeof ResizeObserver !== "undefined" && "nodeType" in this.viewport) {
+      this.pinResize = new ResizeObserver(() => this.drawPins());
+      this.pinResize.observe(this.viewport as Element);
+    }
+    this.requestAnchors();
+  }
+
+  private resetAnchors(): void {
+    this.anchorGeneration++;
+    this.anchorDocument = null;
+    this.anchorRevision = 0;
+    this.pinIntent++;
+    this.pendingPin = null;
+    this.clearAnchors();
+  }
+
+  private clearAnchors(): void {
+    const binding = this.comments;
+    this.anchors = binding ? { lookup: { root: binding.root, canvas: binding.canvas, generation: this.anchorGeneration, nodes: new Map() }, rects: new Map(), selected: null } : null;
+    this.drawPins();
+    if (this.anchors) this.commentHooks?.changed(this.anchors);
+  }
+
+  private matchingComments(): CommentBinding | null {
+    const open = this.state.open, binding = this.comments;
+    return binding && open && binding.root === open.folder && binding.canvas === open.row.id &&
+      !this.state.unlisted && this.state.status === null ? binding : null;
+  }
+
+  private requestAnchors(): void {
+    const binding = this.matchingComments();
+    this.anchorRequest++;
+    this.anchorRevision = 0;
+    if (!binding || !this.anchorDocument || !this.frame) { this.clearAnchors(); return; }
+    this.post({ type: "anchors-query", document: this.anchorDocument, generation: this.anchorGeneration, request: this.anchorRequest,
+      targets: binding.comments.map(comment => ({ id: comment.comment,
+        ...(comment.target.element ? { selector: comment.target.element.selector, ...(comment.target.element.doanId === undefined ? {} : { doanId: comment.target.element.doanId }) }
+          : comment.target.frame === undefined ? {} : { frame: comment.target.frame }) })) });
+  }
+
+  private onAnchors(message: AnchorsMessage): void {
+    const binding = this.matchingComments();
+    if (!binding || message.document !== this.anchorDocument || message.generation !== this.anchorGeneration ||
+      message.request !== this.anchorRequest || message.revision <= this.anchorRevision || message.href !== this.lastHref ||
+      message.viewport !== this.frameHeight || message.width !== this.frameWidth) return;
+    const ids = new Set(binding.comments.map(comment => comment.comment));
+    if (message.results.length !== ids.size || message.results.some(result => !ids.has(result.id))) return;
+    this.anchorRevision = message.revision;
+    this.anchors = anchorSnapshot(binding.comments, { root: binding.root, canvas: binding.canvas, generation: this.anchorGeneration }, { ...message, selected: this.state.selection !== null && message.selectionSeq === this.seq ? message.selected : null });
+    this.drawPins();
+    this.commentHooks?.changed(this.anchors);
+  }
+
+  private drawPins(): void {
+    const binding = this.matchingComments(), snapshot = this.anchors;
+    const size = this.viewportSize();
+    this.pins = binding && snapshot ? projectPins(binding.comments,
+      { root: binding.root, canvas: binding.canvas, generation: this.anchorGeneration }, snapshot.lookup, snapshot.rects,
+      this.view, { x: 0, y: 0, ...size }) : [];
+    if (!this.pinLayer && this.pins.length) this.pinLayer = new CommentPins(this.overlay, node => { void this.activatePin(node); }, () => this.commentHooks?.focusFallback());
+    this.pinLayer?.render(this.pins);
+  }
+
+  async activatePin(node: string): Promise<void> {
+    const pin = this.pins.find(pin => pin.node === node), binding = this.matchingComments();
+    const original = binding?.comments.find(comment => comment.comment === pin?.comments[0]);
+    const hooks = this.commentHooks;
+    if (!pin || !original || !hooks) return;
+    const destination: PinDestination = { node, comments: [...pin.comments], originalTarget: structuredClone(original.target) };
+    const intent = ++this.pinIntent, generation = this.anchorGeneration, request = this.anchorRequest;
+    let allowed: boolean;
+    try { allowed = await hooks.guard(destination); } catch { return; }
+    if (!allowed || intent !== this.pinIntent || generation !== this.anchorGeneration || request !== this.anchorRequest ||
+      !this.pins.some(pin => pin.node === node)) return;
+    this.pendingPin = { seq: this.seq + 1, destination };
+    this.sendCommand({ type: "select-comment", node, document: this.anchorDocument, generation, request });
+  }
 
   constructor(
     private viewport: Pick<HTMLElement, "clientWidth" | "clientHeight" | "addEventListener" | "removeEventListener" | "getBoundingClientRect">,
@@ -82,6 +179,7 @@ export class CanvasController {
   }
 
   dispose(): void {
+    this.pinResize?.disconnect();
     window.removeEventListener("message", this.receive);
     window.removeEventListener("wheel", this.preventPageZoom);
     window.removeEventListener("keydown", this.keydown);
@@ -160,6 +258,7 @@ export class CanvasController {
         break;
       }
     }
+    if (this.comments && !this.matchingComments()) this.clearAnchors();
     this.publish();
   }
 
@@ -172,6 +271,7 @@ export class CanvasController {
 
   // A new element ends the old document before resetting its measurement viewport.
   private load(row: CanvasRow, fresh: boolean, kind: ActivityEvent["kind"] = fresh ? "opened" : "reloaded"): void {
+    this.resetAnchors();
     this.loadKind = kind;
     this.applySelectionEffect({ kind: fresh ? "otherCanvas" : "reload" });
     if (row.width === undefined) {
@@ -225,6 +325,7 @@ export class CanvasController {
   }
 
   private dropFrame(): void {
+    this.resetAnchors();
     this.frame?.remove();
     this.frame = null;
     this.state.layout = null;
@@ -241,6 +342,7 @@ export class CanvasController {
 
   private frameLoaded(target: HTMLIFrameElement): void {
     if (target !== this.frame || this.loading) return;
+    this.resetAnchors();
     clearTimeout(this.answerTimer);
     this.answerTimer = setTimeout(() => {
       if (this.frame === null) return;
@@ -261,6 +363,7 @@ export class CanvasController {
     if (message === null) return;
     if (message.type === "wheel") { this.wheel(message, boardToScreen(this.view, message)); return; }
     if (message.type === "layout") { this.onLayout(message); return; }
+    if (message.type === "anchors") { this.onAnchors(message); return; }
     this.onSelectionMessage(message);
   };
 
@@ -285,6 +388,7 @@ export class CanvasController {
       return;
     }
     if (message.type === "hover") { this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks(); return; }
+    this.pinIntent++;
     this.seq = message.seq;
     if (message.type === "clear") { this.clearSelection(false); this.publish(); return; }
     if (message.target === null) { this.applySelectionEffect({ kind: "anchorLost" }); this.publish(); return; }
@@ -297,6 +401,10 @@ export class CanvasController {
     this.drawMarks();
     this.requestRows(view);
     this.publish();
+    const pin = this.pendingPin;
+    this.pendingPin = null;
+    if (pin?.seq === message.seq) this.commentHooks?.open(pin.destination);
+    if (this.comments) this.requestAnchors();
   }
 
   // Every select (click, Frames list, ancestor path, the anchor found again
@@ -334,6 +442,8 @@ export class CanvasController {
 
   // Does not publish: callers publish once with their other changes.
   private clearSelection(notice: boolean): void {
+    this.pendingPin = null;
+    this.pinIntent++;
     this.state.selection = null;
     this.state.inspector = null;
     this.inspectTag++;
@@ -350,6 +460,7 @@ export class CanvasController {
   }
 
   private sendCommand(message: object): void {
+    if (!("type" in message) || message.type !== "select-comment") { this.pinIntent++; this.pendingPin = null; }
     this.seq += 1;
     this.post({ ...message, seq: this.seq });
   }
@@ -407,6 +518,8 @@ export class CanvasController {
   };
 
   private onLayout(message: LayoutMessage): void {
+    const documentChanged = message.document !== undefined && message.document !== this.anchorDocument;
+    if (documentChanged) { this.resetAnchors(); this.anchorDocument = message.document ?? null; }
     const before = this.layoutDisplayKey();
     const beforeSelection = this.state.selection;
     const previousActivity = this.state.activity;
@@ -433,6 +546,7 @@ export class CanvasController {
     }
     this.state.layout = message;
     const linked = this.markShown(message.href);
+    if (this.state.unlisted) this.clearAnchors();
     if ((first || linked) && this.state.open && !this.state.unlisted) {
       const at = new Date();
       this.state.activity = pushActivity(this.state.activity, { ...this.state.open, at, kind: linked ? "opened" : this.loadKind }, 50);
@@ -449,6 +563,7 @@ export class CanvasController {
       if (selected === null) this.applySelectionEffect({ kind: "anchorLost" });
       else { this.selectedRect = selected; this.drawMarks(); }
     }
+    if (this.comments && (documentChanged || first || linked)) this.requestAnchors();
     if (before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection) this.publish();
   }
 
@@ -514,6 +629,7 @@ export class CanvasController {
   private applyView(): void {
     this.board.style.transform = `translate(${this.view.x}px, ${this.view.y}px) scale(${this.view.scale})`;
     this.drawMarks();
+    this.drawPins();
     const zoom = Math.round(this.view.scale * 100);
     if (zoom !== this.state.zoom) { this.state.zoom = zoom; this.publish(); }
   }
