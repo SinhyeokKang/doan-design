@@ -385,3 +385,23 @@ test("inspect:get refuses other senders and bad requests without inspecting", as
   }
   expect(mocks.inspector.inspect).not.toHaveBeenCalled();
 });
+
+test.each(["list", "begin", "mutate", "status", "author", "copy"])("comments %s refuses iframe and other-window callers", async method => {
+  for (const [sender, parent] of [[window().webContents, {}], [{}, null]]) {
+    expect(await invoke(`comments:${method}`, sender, parent, {})).toEqual({ ok: false, identity: null, error: "The request was refused." });
+  }
+  expect(await invoke(`comments:${method}`, window().webContents, null, { forged: true })).toMatchObject({ ok: false });
+});
+
+test("a guarded quit waits for a matching main-frame acknowledgement", async () => {
+  await invoke("comments:guard", window().webContents, null, true);
+  const event = { preventDefault: vi.fn() };
+  mocks.app.emit("before-quit", event);
+  expect(event.preventDefault).toHaveBeenCalledOnce();
+  const call = window().webContents.send.mock.calls.find(call => call[0] === "comments:transition");
+  expect(call?.[1]).toMatchObject({ kind: "quit" });
+  await invoke("comments:transition-answer", window().webContents, {}, { id: call?.[1].id, allow: true });
+  expect(mocks.app.quit).not.toHaveBeenCalled();
+  await invoke("comments:transition-answer", window().webContents, null, { id: call?.[1].id, allow: true });
+  expect(mocks.app.quit).toHaveBeenCalledOnce();
+});

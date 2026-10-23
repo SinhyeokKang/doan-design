@@ -84,3 +84,22 @@ test("asks main for inspector rows on its dedicated IPC channel", async () => {
   await expect(api.inspect('[data-doan-id="cta"]')).resolves.toEqual({ ok: false, reason: "No canvas is loaded." });
   expect(mocks.invoke).toHaveBeenCalledWith("inspect:get", { selector: '[data-doan-id="cta"]' });
 });
+
+test("exposes narrow comment methods and removes only its subscriptions", async () => {
+  const request = { root: "/repo", path: "design/a.html", canvas: "a", requestID: "read" };
+  await api.commentsList(request);
+  await api.commentsStatus(request);
+  await api.commentsAuthor(request);
+  await api.commentsBegin({ ...request, scope: "canvas" });
+  await api.commentsCopy({ ...request, scope: { kind: "all" } });
+  expect(mocks.invoke.mock.calls.map(call => call[0])).toEqual(["comments:list", "comments:status", "comments:author", "comments:begin", "comments:copy"]);
+  const listener = vi.fn(); const stop = api.onCommentsInvalidated(listener);
+  emitter.emit("comments:invalidated", {}, { root: "/repo" });
+  expect(listener).toHaveBeenCalledWith({ root: "/repo" });
+  stop(); expect(emitter.listenerCount("comments:invalidated")).toBe(0);
+  const transition = vi.fn(); const cancel = api.onCommentTransition(transition);
+  emitter.emit("comments:transition", {}, { kind: "quit", id: "q" });
+  expect(transition).toHaveBeenCalledOnce(); cancel();
+  await api.setCommentDraftGuard(true); await api.answerCommentTransition({ id: "q", allow: false });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("comments:transition-answer", { id: "q", allow: false });
+});

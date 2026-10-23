@@ -5,11 +5,12 @@ import { AppendUncertainError } from "./files";
 vi.mock("./files", () => ({ AppendUncertainError: class extends Error {} }));
 const identity: CommentIdentity = { root: "/repo", path: "design/a.html", canvas: "a" };
 function setup() {
-  let bytes = Buffer.alloc(0);
+  let bytes: Buffer = Buffer.alloc(0);
   const deps: ServiceDependencies = {
     authorize: vi.fn(async () => ({ width: 100, url: "http://canvas" })),
     epoch: () => 1,
-    author: vi.fn(async () => ({ kind: "human", name: "Human" })),
+    currentHash: async () => "sha256:" + "a".repeat(64),
+    author: vi.fn<ServiceDependencies["author"]>(async () => ({ kind: "human", name: "Human" })),
     read: vi.fn(async () => bytes),
     append: vi.fn(async (_root, _canvas, prepare) => { const data = await prepare(bytes); if (data) bytes = Buffer.concat([bytes, data]); }),
     document: vi.fn(async () => ({ generation: "loader-1", hash: "sha256:" + "a".repeat(64), target: {} })),
@@ -22,7 +23,7 @@ function setup() {
 async function create(s: ReturnType<typeof setup>, requestID = "r1") {
   const start = await s.service.begin("window", { ...identity, requestID: "begin", scope: "canvas" });
   if (!start.ok) throw new Error(start.error);
-  const payload = { ...identity, requestID, origin: start.value.origin, intent: { type: "create", body: "Hello 한글" } };
+  const payload = { ...identity, requestID, project: start.value.project, origin: start.value.origin, intent: { type: "create", body: "Hello 한글" } };
   return { payload, reply: await s.service.mutate("window", payload) };
 }
 test("creates main-owned event, folds both states, and rejects authority fields", async () => {
@@ -90,4 +91,53 @@ test("root close during author lookup rejects before append", async () => {
   s.deps.author = async () => { epoch++; return { kind: "human", name: "Human" }; };
   expect((await create(s)).reply).toMatchObject({ ok: false });
   expect(s.bytes().length).toBe(0);
+});
+
+test("a replay with confirmed absence still rejects a changed expected comment", async () => {
+  const s = setup(); const created = await create(s);
+  const initial = JSON.parse(s.bytes().toString());
+  const expected = { body: initial.body, status: "open", updatedAt: initial.at };
+  const edit = { ...identity, requestID: "edit", project: 1, intent: { type: "edit", comment: initial.comment, body: "edit", expected } };
+  expect(await s.service.mutate("window", edit)).toMatchObject({ ok: true });
+  const external = { ...initial, id: "evt_00000000-0000-4000-8000-000000000099", type: "edit", at: "2099-01-01T00:00:00.000Z", body: "external" };
+  delete external.target; delete external.canvasHash;
+  s.set(Buffer.from(JSON.stringify(initial) + "\n" + JSON.stringify(external) + "\n"));
+  expect(await s.service.mutate("window", edit)).toMatchObject({ ok: false });
+  expect(created.reply.ok).toBe(true);
+});
+
+test("main project generation rejects a draft from a closed and reopened root", async () => {
+  const s = setup();
+  expect(await s.service.mutate("window", { ...identity, project: 0, requestID: "stale", intent: { type: "delete", comment: "old", expected: { body: "body", status: "open", updatedAt: "time" } } })).toMatchObject({ ok: false });
+  expect(s.deps.append).not.toHaveBeenCalled();
+});
+
+test("timestamps advance past accepted events ignored by folding", async () => {
+  const s = setup();
+  s.set(Buffer.from(JSON.stringify({ v: 1, id: "evt_00000000-0000-4000-8000-000000000010", comment: "cmt_00000000-0000-4000-8000-000000000010", type: "edit", body: "ignored", by: { kind: "agent", name: "agent" }, at: "2099-01-01T00:00:00.000Z" }) + "\n"));
+  expect((await create(s)).reply.ok).toBe(true);
+  const lines = s.bytes().toString().trim().split("\n");
+  expect(JSON.parse(lines[1] ?? "{}").at).toBe("2099-01-01T00:00:00.001Z");
+});
+
+test.each(["edit", "delete", "resolve", "reopen"])("missing author blocks existing %s without requiring a document", async type => {
+  const s = setup(); await create(s);
+  const event = JSON.parse(s.bytes().toString());
+  vi.mocked(s.deps.author).mockRejectedValue(new Error("Configure a Git user name"));
+  const before = s.bytes().toString();
+  expect(await s.service.mutate("window", { ...identity, project: 1, requestID: type, intent: { type, comment: event.comment, expected: { body: event.body, status: "open", updatedAt: event.at }, ...(type === "edit" ? { body: "edit" } : {}) } })).toMatchObject({ ok: false });
+  expect(s.bytes().toString()).toBe(before);
+});
+
+test("same request id and canvas in different roots are independent", async () => {
+  const s = setup(); const files = new Map<string, Buffer>();
+  s.deps.read = async root => files.get(root) ?? Buffer.alloc(0);
+  s.deps.append = async (root, _canvas, prepare) => { const before = files.get(root) ?? Buffer.alloc(0); const next = await prepare(before); if (next) files.set(root, Buffer.concat([before, next])); };
+  for (const root of ["/repo", "/other"]) {
+    const begin = await s.service.begin("window", { ...identity, root, requestID: "begin", scope: "canvas" });
+    if (!begin.ok) throw new Error(begin.error);
+    expect(await s.service.mutate("window", { ...identity, root, project: 1, requestID: "same", origin: begin.value.origin, intent: { type: "create", body: root } })).toMatchObject({ ok: true });
+  }
+  expect(files.size).toBe(2);
+  expect(files.get("/repo")?.equals(files.get("/other") ?? Buffer.alloc(0))).toBe(false);
 });

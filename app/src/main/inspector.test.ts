@@ -242,3 +242,27 @@ test("a failed attach is retried on the next request", async () => {
   dbg.target("S1", "iframe", { id: "F1", parentId: "MAIN", url: CANVAS });
   expect(await inspector.inspect("#c3")).toMatchObject({ ok: true });
 });
+
+test("comment observer enables parent and child domains, joins cross-session events, and resumes after setup failure", async () => {
+  const { DocumentBindings } = await import("./comments/document");
+  const docs = new DocumentBindings();
+  const dbg = new FakeDebugger();
+  createInspector(dbg, () => BASE, docs);
+  await vi.waitFor(() => expect(dbg.sent("Target.setAutoAttach")).toHaveLength(1));
+  expect(dbg.sent("Network.enable")[0]?.[2]).toBeUndefined();
+  expect(dbg.sent("Page.enable")[0]?.[2]).toBeUndefined();
+  dbg.target("S1", "iframe", { id: "FRAME", parentId: "MAIN", url: CANVAS });
+  await vi.waitFor(() => expect(dbg.sent("Runtime.runIfWaitingForDebugger")).toHaveLength(1));
+  docs.response({ marker: "response", root: "/repo", path: "design/a.html", hash: "sha256:" + "a".repeat(64), complete: true, stable: true });
+  dbg.emit("message", {}, "Network.responseReceived", { type: "Document", requestId: "request", frameId: "FRAME", loaderId: "loader", response: { headers: { "X-Doan-Response": "response" } } });
+  dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: "loader", url: CANVAS } }, "S1");
+  dbg.emit("message", {}, "Network.loadingFinished", { requestId: "request" });
+  expect(docs.current("FRAME", CANVAS)?.generation).toBe("loader");
+  dbg.emit("message", {}, "Page.frameStartedNavigating", { frameId: "FRAME", loaderId: "new" }, "S1");
+  expect(docs.current("FRAME", CANVAS)).toBeNull();
+  dbg.fail = "Network.enable";
+  dbg.target("S2", "iframe", { id: "NEW", parentId: "MAIN", url: CANVAS });
+  await vi.waitFor(() => expect(dbg.sent("Runtime.runIfWaitingForDebugger")).toHaveLength(2));
+  dbg.emit("detach");
+  expect(docs.current("FRAME", CANVAS)).toBeNull();
+});
