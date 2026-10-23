@@ -27,7 +27,7 @@ export interface ServiceDependencies {
   append(root: string, canvas: string, prepare: (latest: Buffer) => Promise<Buffer | null>): Promise<void>;
   document(identity: CommentIdentity, scope: "canvas" | "selection", url: string): Promise<DocumentOrigin>;
   validateDocument(identity: CommentIdentity, origin: DocumentOrigin, url: string): Promise<boolean>;
-  clipboard(text: string): void;
+  clipboard(text: string): void | Promise<void>;
   invalidated(root: string): void;
 }
 interface Origin { requester: string; identity: CommentIdentity; epoch: number; document: DocumentOrigin }
@@ -195,7 +195,7 @@ export function createCommentsService(deps: ServiceDependencies) {
         const epoch = deps.epoch(r.root); await authorized(r, epoch);
         const result = readList(await deps.read(r.root, r.canvas));
         await authorized(r, epoch);
-        deps.clipboard(copyText(r.root, r.canvas, result.comments, parsed));
+        await deps.clipboard(copyText(r.root, r.canvas, result.comments, parsed));
         return { copied: true };
       });
     },
