@@ -173,3 +173,21 @@ test("unconfirmed mkdir blocks same, new and concurrent cross-canvas saves until
   if (!independent.ok) throw new Error(independent.error);
   expect(await s.service.mutate("window", { ...payload, root: "/other", project: 2, origin: independent.value.origin })).toMatchObject({ ok: true, value: { state: "saved" } });
 });
+
+test("copy waits for the actual clipboard commit before reporting copied", async () => {
+  const s = setup(); await create(s);
+  let finish: (() => void) | undefined;
+  s.deps.clipboard = () => new Promise<void>(resolve => { finish = resolve; });
+  let settled = false;
+  const copy = s.service.copy("window", { ...identity, requestID: "copy", scope: { kind: "all" } }).then(result => { settled = true; return result; });
+  await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+  expect(settled).toBe(false);
+  finish?.(); expect(await copy).toMatchObject({ ok: true, value: { copied: true } });
+});
+test("copy reports asynchronous clipboard rejection", async () => {
+  const s = setup(); await create(s);
+  const rejected = Promise.reject(new Error("Clipboard unavailable"));
+  void rejected.catch(() => {});
+  s.deps.clipboard = () => rejected;
+  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { kind: "all" } })).toMatchObject({ ok: false, error: "Clipboard unavailable" });
+});
