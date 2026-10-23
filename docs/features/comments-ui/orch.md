@@ -107,3 +107,6 @@
 - M-fix의 실제 최초 문서 실패는 OOPIF process swap 때의 frameDetached 처리로 좁혀졌고 b604aca→cd18a90 회귀/수정 커밋이 추가됐다. R-M 후속 리뷰는 고정 77d909e를 Astra medium으로 읽기 전용 검토한다 — 종료 미확인 루트 차단·응답 보존·swap/실제 detach 경계 판단. 실행 중인 M 최종 runtime과 병렬이며 이후 제품 diff가 생기면 별도 재검토한다. 미도착 실행 증거는 보류로 기록하고 기다리지 않는다.
 - M-fix 77d909e에서 최종 1054 tests/typecheck/Go test/vet 및 실제 최초 로드·300 fetch·reload·iframe 제거·전체 runtime exit 0을 확인했다. R-M 후속 리뷰는 기존 두 지적을 해소했지만 옛 OOPIF 세션 detach가 새 소유자의 frame을 retire하는 yellow 1을 mock probe로 발견했다. M-fix2는 Astra medium — 세션 소유권·늦은 이벤트 경합 판단. 같은 cu-m의 inspector와 회귀 테스트를 좁게 수정하고 현재 소유자 실제 detach 무효화는 유지한다. 실제 Electron 슬롯은 M-fix2에 배정한다. 이전 구현·리뷰 터미널은 release했다.
 - M-fix2 고정 ce2fa80의 후속 리뷰를 Astra medium으로 병렬 진행한다. 범위는 77d909e..ce2fa80의 inspector 소유권 수정·테스트와 기존 마지막 yellow의 해소다. 기존 승인 영역을 반복 확장 리뷰하지 않고 새 변경이 만든 구체적 문제만 확인한다. 현재 실제 runtime 실행은 M-fix2가 전용 슬롯에서 계속한다.
+
+- M-fix2 ce2fa80의 독립 리뷰는 red/yellow 0이다. 1072 tests·typecheck·build·실제 집중/전체 runtime 통과 증거를 확인했으며 세션 교체 자체는 mock 검증 한계로 남긴다. 구현/리뷰 터미널을 release하고 M 통합을 진행한다.
+- U1 8b523a6은 표시 컴포넌트와 16개 테스트를 완료했다. R-U1을 Astra medium으로 배정한다 — 초안 상태·복구·접근성 판단. 41eddc3..8b523a6만 읽기 전용 리뷰하며 실제 Electron과 App 연결은 U2/S 검증으로 남긴다. U1 터미널은 release했고 리뷰 중인 cu-u1은 보존한다.
