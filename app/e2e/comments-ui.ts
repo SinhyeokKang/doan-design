@@ -316,9 +316,13 @@ try {
   const beforeUnknown = (await readFile(file, "utf8")).trim().split("\n").length;
   await panel.getByRole("button", { name: "Save comment", exact: true }).click();
   await panel.getByText("Save status is unknown", { exact: true }).waitFor();
-  presentation("Recovery message spans panel", await panel.getByText("Save status is unknown", { exact: true }).evaluate(el => {
-    return el.parentElement!.getBoundingClientRect().width === el.closest(".comments-panel")!.getBoundingClientRect().width;
-  }), true);
+  presentation("Recovery message spans panel content", await panel.getByText("Save status is unknown", { exact: true }).evaluate(el => {
+    const message = el.parentElement!, panel = el.closest(".comments-panel")!;
+    // The header shares the panel's content edges, excluding its native scrollbar.
+    const content = panel.querySelector(".comments-head")!.getBoundingClientRect();
+    const rect = message.getBoundingClientRect();
+    return { directChild: message.parentElement === panel, leftInset: rect.left - content.left, rightInset: content.right - rect.right };
+  }), { directChild: true, leftInset: 0, rightInset: 0 });
   assert.equal(await createBody.getAttribute("readonly"), "");
   await panel.getByRole("button", { name: "Check saved status", exact: true }).click();
   await cards.filter({ hasText: "Unknown save body" }).waitFor();
