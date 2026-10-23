@@ -123,3 +123,5 @@
 - U2 구현 checkpoint 37dfee4에서 R-U2 읽기 전용 리뷰를 병렬 배정한다. Astra medium — 실제 App 상태/이동 보호·늦은 응답·clipboard 완료 경계 판단. 9a997e5..37dfee4 고정 diff만 검토하고 제품 파일을 수정하지 않는다. U2의 실제 Electron 검증 슬롯은 유지하며, 미도착 최종 증거와 이후 diff는 후속 리뷰한다.
 
 - V를 파일 소유와 선행조건에 따라 분리한다. V1은 이미 통합된 main sender·filesystem·append LF 방어를 각각 임시 제거해 의미 있는 red와 복원 green을 검증한다. Astra medium — 방어별 독립 증명의 판단. 별도 child의 scratch 및 필요한 main 회귀 테스트만 소유하며 제품 변경·Electron 실행은 금지한다. U2/R-U2와 병렬이며 UI stale reply·draft target·comments-only no-reload와 최종 전체 게이트는 V2가 U2 통합 뒤 맡는다.
+
+- R-U2 9a997e5..6f92ead 리뷰는 red 1/yellow 2다. schema/fold 허용 날짜의 RelativeTimeFormat 예외, 카드 lifecycle 충돌의 최신 상태 복구 부재, 승인된 삭제 확인창 누락을 발견했다. 기존 집중 190개 통과에도 독립 probe 3개가 실패했다. 현재 U2 Task의 수정 범위로 전달해 red→green 및 실제 App 충돌/삭제 확인을 요구했다. 리뷰 워커는 release했다. 최종 U2 인계·raw 증거 감사는 별도 후속 리뷰로 남긴다.
