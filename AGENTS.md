@@ -1,5 +1,16 @@
 # AGENTS.md
 
+## Working principles
+
+- **State assumptions**: if there are several interpretations, do not silently pick one — present the options. If unsure, ask.
+- **Propose a simpler way if there is one**: do not add flexibility, configurability, or abstraction that was not requested. **Building ahead for extensibility is itself a defect.**
+- **Surgical changes**: no adjacent improvements or refactors not directly related to the request. Follow the existing style. Remove only orphans your own change created.
+- **Turn tasks into verifiable goals**: "fix the bug" → "reproduce, then confirm it passes". For multi-step work, first present a plan that includes a verification check for each step.
+- **Do not report unverified things as passing.** Leave verification you lacked the tools for or could not run as unfinished, and report what you could not do.
+- **Leave evidence for references**: for ideas taken from other tools (Claude Design · Orca · ego-browser · Storybook, etc.), write where they came from. Do not assert from memory; check what can be checked.
+
+- **Keep rules separate from domain context**: AGENTS.md contains working principles and procedures. Keep product behavior, feature-specific constraints, and implementation decisions in PRODUCT.md, ARCHITECTURE.md, or the relevant feature documents; link to those sources instead of duplicating their content here.
+
 > The source of the working rules for this repo. Claude Code and Codex both read this file — there is no mirror and no generator.
 
 ## Response style (takes precedence over every other rule in this document)
@@ -36,25 +47,14 @@ These apply to conversation replies and reports to the user, and to feature docu
 | 설정 화면을 통해 언어의 변경이 가능합니다. | 설정 화면에서 언어를 바꿀 수 있습니다. | 명사화를 풀되 가능성은 보존 |
 | 저장되어진 값 | 저장된 값 | 이중 피동만 제거 |
 
-## This project
-
-Doan Design (`doan`): a tool where a coding agent writes an HTML canvas (a design spec) inside a code repo, and a human views it and points at things in a local Mac app (approval comes after the MVP). The web (`doan.design`) serves only as the path for downloading the app. Naming: product `Doan Design` · domain `doan.design` · CLI and identifiers `doan`.
+## Decision sources
 
 ⚠️ **The source of truth for planning decisions is [docs/PRODUCT.md](./docs/PRODUCT.md) (product judgment, decision log) and [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) (structure, formats, conventions). Anything not in those two is undecided.**
 
 - [README.md](./README.md) holds only background and references. **Do not cite README content as a decision** — say "the README draft wrote this", not "the README decided this".
-- The stack is decided (ARCHITECTURE §7·§8: app Electron + TypeScript, CLI Go). Even so, **do not lay down** `package.json`, `go.mod`, directory structure, or build settings without a request.
-- For out-of-scope requests (PRODUCT §3 'Out of scope': drawing · enforcing a canvas format · conversation · waking agents · servers · git operations · real-time co-editing), ask back first, citing that list, even when asked.
-- When a decision is made, write it with its date in the relevant document (PRODUCT or ARCHITECTURE), and add one line with its rationale to the decision log (PRODUCT §7). Widen this file's harness to match the decision as well.
-
-## Working principles
-
-- **State assumptions**: if there are several interpretations, do not silently pick one — present the options. If unsure, ask. Much is still missing from PRODUCT.md, so this principle comes up especially often.
-- **Propose a simpler way if there is one**: do not add flexibility, configurability, or abstraction that was not requested. **Building ahead for extensibility is itself a defect.**
-- **Surgical changes**: no adjacent improvements or refactors not directly related to the request. Follow the existing style. Remove only orphans your own change created.
-- **Turn tasks into verifiable goals**: "fix the bug" → "reproduce, then confirm it passes". For multi-step work, first present a plan that includes a verification check for each step.
-- **Do not report unverified things as passing.** Leave verification you lacked the tools for or could not run as unfinished, and report what you could not do.
-- **Leave evidence for references**: for ideas taken from other tools (Claude Design · Orca · ego-browser · Storybook, etc.), write where they came from. Do not assert from memory; check what can be checked.
+- Read ARCHITECTURE.md for the stack and implementation constraints. **Do not lay down** package manifests, directory structure, or build settings without a request.
+- For product requests outside the scope defined in PRODUCT.md, ask back first, citing that scope, even when asked.
+- When a decision is made, write it with its date in the relevant document (PRODUCT or ARCHITECTURE), and add one line with its rationale to the decision log (PRODUCT §7). Update AGENTS.md only when the way we work changes.
 
 ## Commands
 
@@ -63,14 +63,14 @@ Doan Design (`doan`): a tool where a coding agent writes an HTML canvas (a desig
 - `go run ./cli/cmd/doan <command> [--repo <path>] [--json]` — run the CLI by hand (2026-10-21 user, cli-core). Point `--repo` at a temporary directory, not this repo. Exception: `/design-sync`, and checking this repo's `design/` drafts, run the read-only `ls` and `check` with `--repo .` (2026-10-22; widened to draft checks 2026-10-22, app-ui).
 - `node .scratch/design-sync/<screen>/measure.mjs` — a `/design-sync` measurement script (Playwright `_electron`, temporary `--user-data-dir`, `DOAN_CLI`), modeled on `app/e2e/runtime.ts` (2026-10-22).
 - `npm --prefix app test` — TypeScript tests (`vitest run`).
-- `npx shadcn@4.22.1 add <component>` from `app/` — add a shadcn component (2026-10-22 user, app-ui). `app/.npmrc` has `save-exact=true`; install new packages with `npm --prefix app install --save-exact <pkg@version>`. No Radix ScrollArea and no `@vitejs/plugin-react` (CSP, PRODUCT §7).
+- `npx shadcn@4.22.1 add <component>` from `app/` — add a shadcn component. `app/.npmrc` has `save-exact=true`; install new packages with `npm --prefix app install --save-exact <pkg@version>`. Check PRODUCT.md and ARCHITECTURE.md for dependency constraints.
 - `npm --prefix app run typecheck` — TypeScript checks (`tsc --noEmit`).
 - App setup (2026-10-21 user, app-shell): `npm --prefix app ci`, then `node -e "require('electron')"` from `app/` once to download the Electron binary (Electron 45 has no postinstall).
 - `npm --prefix app run build` — build the app into `app/out/` (`electron-vite build`).
-- `npm --prefix app run e2e` — build, then run the Playwright `_electron` runtime suite (`app/e2e/runtime.ts`); it builds the CLI itself, uses temporary repos/userData and `DOAN_RUNTIME`, checks selection/inspector/socket lifecycle as well as earlier features, fingerprints the real `folders.json` and `runtime.json`, and prints screenshots under `.scratch/runtime-test/` (2026-10-23, select-inspect). Require its own final PASS and exit 0; continued steps after a collected failure are not a pass.
+- `npm --prefix app run e2e` — build, then run the Playwright `_electron` runtime suite (`app/e2e/runtime.ts`); it builds the CLI itself, uses temporary repos/userData and `DOAN_RUNTIME`, verifies that real user state is unchanged, and prints screenshots under `.scratch/runtime-test/`. Require its own final PASS and exit 0; continued steps after a collected failure are not a pass.
 - `DOAN_CLI=<abs path to doan> npm --prefix app run dev -- -- --user-data-dir=<tmp>` — run the app by hand without touching the real `~/Library/Application Support/doan/`.
 - `go build -o <tmp>/doan ./cli/cmd/doan` — build the CLI for `DOAN_CLI`.
-- `DOAN_RUNTIME=<absolute temp userData>/runtime.json <absolute CLI> active --json --repo <absolute temp repo>` — inspect a dev/e2e app without touching the real runtime (2026-10-23, select-inspect). Unset/empty uses the normal userData path; a relative path is `usage_error`. For MCP, set `DOAN_RUNTIME` in the one-off server environment (Claude `mcpServers.<name>.env`; Codex `-c 'mcp_servers.<name>.env.DOAN_RUNTIME="<absolute runtime path>"'`), not in tool arguments.
+- `DOAN_RUNTIME=<absolute temp userData>/runtime.json <absolute CLI> active --json --repo <absolute temp repo>` — inspect a dev/e2e app without touching the real runtime. For MCP, set `DOAN_RUNTIME` in the one-off server environment (Claude `mcpServers.<name>.env`; Codex `-c 'mcp_servers.<name>.env.DOAN_RUNTIME="<absolute runtime path>"'`), not in tool arguments.
 - Real-agent MCP check (2026-10-21 user, mcp) — one-off registration that leaves global config untouched; compare `claude mcp list` / `codex mcp list` before and after, and pass an absolute temp `repo` on every tool call:
   - `claude -p --mcp-config <tmp.json> --strict-mcp-config --allowedTools 'mcp__<name>__*' -- "<prompt>" < /dev/null` (`--allowedTools` is variadic, so `--` must precede the prompt).
   - `codex exec -c 'mcp_servers.<name>.command="<abs binary>"' -c 'mcp_servers.<name>.args=["mcp"]' "<prompt>" < /dev/null`, run inside a git checkout (Codex refuses untrusted directories). From a Claude session this crosses the model boundary and needs the user's permission each time.
@@ -86,7 +86,7 @@ The source for the 12 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, po
 - `/code-review` refers to this repo's skill. It is different from Claude Code's built-in `code-review`.
 - `/runtime-test` (2026-10-21, app-shell) launches the real app and checks it; run it after `/implement` or `/refactor` whenever `app/` changed, before `/code-review`.
 - `/design-draft` (2026-10-22) draws a feature's UI draft canvas in `design/` from its feature documents and checks it with `doan check` / `doan ls`. Run it after `/feature-review` and before `/tdd`, on the feature branch; either runtime may draw, and the user confirms the draft in the app before implementation.
-- `/design-sync` (2026-10-22, after canvas-view) compares a doan app screen's first implementation with its draft canvas in `design/` by computed style in the real app. Use it from app-ui on (2026-10-22), inside a `/ship` or `/orchestrate` branch; the draft is the source of truth only until that screen's first implementation is on main.
+- `/design-sync` compares an app screen's first implementation with its draft canvas in `design/` by computed style in the real app. Run it inside a `/ship` or `/orchestrate` branch; the draft is the source of truth only until that screen's first implementation is on main.
 - If you fixed a regression or bug, run `/postmortem`. `/implement` · `/refactor` · `/code-review` grep `docs/POSTMORTEM.md` before starting (when the file exists).
 - `/ship` · `/orchestrate` always start by creating a `feat-<slug>` branch from main and end with a push of that branch + a PR. They do not merge.
 
@@ -100,7 +100,7 @@ The source for the 12 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, po
 | `docs/features/<slug>/` | Feature documents (spec·design·tasks) from `/feature`, **in Korean**. Deleted once the conclusions are promoted | While the feature is in progress |
 | docs/DIRECTORY.md | Directory layout, in English | When the layout changes |
 | docs/DESIGN.md | Measured values the app UI relies on, documented deviations from drafts, unverified surfaces, in English. Created by the first `/design-sync` run (app-ui, 2026-10-22) | When `/design-sync` runs or a measured value changes |
-| docs/POSTMORTEM.md | Record of pitfalls from bugs and regressions (append only), in English. `/postmortem` creates it on first write | When a regression is fixed |
+| docs/POSTMORTEM.md | Record of pitfalls from bugs and regressions (newest date first; preserve existing entry content), in English. `/postmortem` creates it on first write | When a regression is fixed |
 | Documents to create later | `docs/OPERATIONS.md` (feature 8 `onboard-dist`) · `docs/CONTRIBUTING.md` · `docs/CODE_OF_CONDUCT.md` · `docs/SECURITY.md` (right before going public) · root `LICENSE` (when the license is decided). All in English | Create them when that time comes. Do not create empty shells ahead of time (2026-10-21 user) |
 | [AGENTS.md](./AGENTS.md) | How we work (this file), in English — the shared source for both runtimes | When the way we work changes |
 
@@ -109,7 +109,6 @@ The source for the 12 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, po
 - **Branches** (2026-10-21 user): there are two paths.
   - **Code changes** are requested by the user via `/ship` or `/orchestrate`. Both skills start by creating a `feat-<slug>` branch from main and end with a push of that branch + a PR. Even a docs-only change takes the same path if it goes through these skills.
   - **Harness and docs changes** (AGENTS.md · skills · hooks · PRODUCT.md, etc.) are fixed directly during the conversation. Commit them on whichever branch is checked out — do not switch branches just for a harness change (2026-10-21 user). On main, push straight to main; on a `feat-<slug>` branch, they reach main with its PR.
-  - There is no deploy server, so there is no dev/main split.
 - **Commit messages are in English**, Conventional Commits (`feat:` `fix:` `docs:` `docs(scope):` `chore:`).
 - Split commits per document.
 - **Write comments in English, and only the "why"** (2026-10-21 user — the project will be open-sourced, so outside contributors must be able to read them). Do not repeat the "what" the code already says. Record non-obvious constraints and pitfalls.

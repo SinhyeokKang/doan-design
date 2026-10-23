@@ -24,12 +24,12 @@ If trivial, report "No entry — <reason>" and stop.
 
 ## If the file does not exist
 
-`docs/POSTMORTEM.md` does not exist yet. Create it when writing the first entry. The header is two lines:
+If `docs/POSTMORTEM.md` is absent, create it when writing the first entry with this header:
 
 ```
 # Postmortem
 
-> Pitfalls we hit, stacked in date order. Append-only — do not edit or delete existing entries.
+> Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 ```
 
 ## Format
@@ -54,7 +54,7 @@ If trivial, report "No entry — <reason>" and stop.
 1. Trivial filter.
 2. Gather context: `git log -3 --stat`, the diff you just fixed.
 3. If the same pitfall already exists, do not create a new entry; append the recurrence (date, location) to the end of that entry.
-4. Append the entry to the end of the file.
+4. Insert the new entry in descending heading-date order, above existing entries with the same date. Keep the title and introduction at the top.
 5. **Actually run** the grep from Prevention. If the same pattern exists elsewhere, note it in the report.
 
 ## Report
@@ -73,7 +73,7 @@ Prevention grep: <pattern>
 ## Prohibited
 
 - Do not edit code. Documents only.
-- Do not edit or delete existing entries (append only). Recurrences are appended to that entry.
+- Do not rewrite or delete existing entry content. Keep entries in descending heading-date order. Append recurrences to the matching entry without changing its heading date or position.
 - Do not record trivial items.
 - Do not write Prevention without running the grep.
 - Do not commit. Invoked on its own, the user commits; inside `/ship`, `/ship` commits with `docs(postmortem):`.

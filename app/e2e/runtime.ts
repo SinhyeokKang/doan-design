@@ -10,7 +10,7 @@ import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { rmSync } from "node:fs";
 import { chmod, cp, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
+import { createRequire, stripTypeScriptTypes } from "node:module";
 import { createConnection } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -69,6 +69,10 @@ async function main(): Promise<void> {
     clearTimeout(watchdog);
   }
   if (productFailures.length > 0) throw new Error(`product failures:\n${productFailures.join("\n")}`);
+  // The adapter owns a separate temporary app after the full runtime has closed.
+  // Import failure keeps the combined runtime gate red, including cleanup failures.
+  await import(new URL("./anchors.ts", import.meta.url).href);
+  await import(new URL("./comments-ui.ts", import.meta.url).href);
 }
 
 async function expectProduct(what: string, check: () => Promise<void>): Promise<void> {
@@ -283,6 +287,25 @@ async function cliErrorMessage(cli: string, repo: string): Promise<string> {
 async function run(cli: string, userData: string, repos: Repos, doan: string): Promise<void> {
   let { app, page } = await launch(cli, userData);
   try {
+    const foundationDir = join(userData, "comment-filesystem");
+    await mkdir(foundationDir, { recursive: true });
+    for (const [source, target] of [
+      ["src/main/comments/files.ts", "m1-files.js"],
+      ["src/main/comments/mkdir.ts", "m1-mkdir.js"],
+      ["src/main/comments/mkdir-child.ts", "m1-child-source.js"],
+      ["e2e/comments-filesystem.ts", "m1-check.js"],
+    ]) {
+      assert(source && target);
+      const code = stripTypeScriptTypes(await readFile(join(appDir, source), "utf8"), { mode: "strip" }).replace('from "./mkdir"', 'from "./m1-mkdir.js"');
+      await writeFile(join(appDir, "out/main", target), code);
+    }
+    const foundationRows = await app.evaluate(async (_electron, paths) => {
+      const check = process.getBuiltinModule("module").createRequire(paths.check)(paths.check);
+      return await check.checkCommentFilesystem(paths.base, paths.files, paths.child, paths.source);
+    }, { base: foundationDir, check: join(appDir, "out/main/m1-check.js"), files: join(appDir, "out/main/m1-files.js"), child: join(appDir, "out/main/mkdir-child.js"), source: join(appDir, "out/main/m1-child-source.js") });
+    await mkdir(shotDir, { recursive: true });
+    await writeFile(join(shotDir, "comment-filesystem.json"), JSON.stringify(foundationRows, null, 2));
+    console.log(`comment-filesystem: PASS (${foundationRows.length} checks)`);
     // 1. Open the repos through the dialog.
     await emptyControls(page);
     const disabledStyles = await page.getByRole("button", { name: "Zoom out", exact: true }).evaluate(button => ({
@@ -383,8 +406,24 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     const kept = [repos.ok, repos.plain, repos.worktree];
     await waitFolders(page, (all) => sameList(all.map((f) => f.path), kept), "closed folder gone");
     await waitFor(async () => sameList(JSON.parse(await readFile(join(userData, "folders.json"), "utf8")) as string[], kept), "folders.json saved");
+    const idleChildPid = await app.evaluate(({ utilityProcess }, childPath) => new Promise<number>((resolve, reject) => {
+      const child = utilityProcess.fork(childPath, [], { stdio: "ignore" });
+      child.once("spawn", () => { if (child.pid) resolve(child.pid); else reject(new Error("Missing utility pid")); });
+      child.once("exit", () => reject(new Error("Idle utility exited before spawn")));
+    }), join(appDir, "out/main/mkdir-child.js"));
     await app.close();
+    await waitFor(async () => { try { process.kill(idleChildPid, 0); return false; } catch (error) { return error instanceof Error && "code" in error && error.code === "ESRCH"; } }, "utility child exits with parent");
     ({ app, page } = await launch(cli, userData));
+    // A tooltip from another row can remain present across pointer movement.
+    const restartedProject = page.getByRole("treeitem", { name: "ok", exact: true });
+    const added = restartedProject.getByRole("treeitem", { name: "added.html", exact: true });
+    await hoverTooltip(page, added);
+    // Escape closes Radix content without resetting its pointer-entry latch.
+    await page.keyboard.press("Escape");
+    await page.getByRole("tooltip").waitFor({ state: "hidden" });
+    await hoverTooltip(page, added);
+    assert.equal(await page.getByRole("tooltip").textContent(), `${repos.ok}/design/added.html`);
+    assert.equal(await tooltipPath(page, restartedProject, "ok", "ok"), repos.ok, "project path must not reuse the preceding canvas tooltip");
     folders = await waitFolders(page, (all) => sameList(all.map((f) => f.path), kept) && all.every((f) => f.state !== "loading"), "folders after restart");
     assert.equal(byPath(folders, repos.ok).state, "list");
     assert.equal(byPath(folders, repos.plain).state, "uninitialized");
@@ -397,6 +436,18 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     await selectInspect(app, page, repos, doan, userData);
     await runtimeEnd(app, doan, userData, repos);
   } catch (error) {
+    console.error("tooltip/window diagnostics", JSON.stringify({
+      window: await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(window => ({
+        visible: window.isVisible(), focused: window.isFocused(), loading: window.webContents.isLoading(), bounds: window.getBounds(),
+      }))).catch(() => null),
+      renderer: await page.evaluate(() => ({
+        ready: document.readyState, focused: document.hasFocus(), active: { tag: document.activeElement?.tagName, name: document.activeElement?.getAttribute("aria-label") },
+        events: (window as Window & { tooltipEvents?: unknown[] }).tooltipEvents,
+        triggers: [...document.querySelectorAll('[data-slot="tooltip-trigger"]')].map(node => ({
+          text: node.textContent, state: node.getAttribute("data-state"), hovered: node.matches(":hover"),
+        })),
+      })).catch(() => null),
+    }));
     await screenshot(page, "failure").catch(() => {});
     throw error;
   } finally {
@@ -1150,6 +1201,13 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await page.evaluate((root) => window.doan.setSelection({ root, canvas: { path: "design/pick.html" }, element: { selector: "x", html: "x".repeat(2001) } }), repos.select);
   assert.deepEqual(pick(await active(repos.select), "exit", "selection"), { exit: 0 }, "main drops a selection over the html cap");
   // The renderer still shows the box; a fresh selection resends it.
+  // Showing the window can open a tooltip under the OS pointer; that tooltip owns Esc.
+  await leaveCanvas(page);
+  if (await page.getByRole("tooltip").isVisible()) {
+    await page.keyboard.press("Escape");
+    await waitInspector(page, v => v?.selector === BOX, "dismissing the tooltip preserves selection");
+  }
+  await page.getByRole("tooltip").waitFor({ state: "hidden" });
   await page.keyboard.press("Escape");
   await waitPanel(page, "Canvas info", "Esc after the refused selection");
 
@@ -1855,6 +1913,19 @@ async function launch(cli: string, userData: string): Promise<{ app: ElectronApp
   // replacing its payload, source or origin (F2 reviewer race reproduction).
   await page.addInitScript(() => {
     if (window !== window.top) return;
+    // Keep the last native/CDP input transitions when a tooltip fails after restart.
+    const events: unknown[] = [];
+    (window as Window & { tooltipEvents?: unknown[] }).tooltipEvents = events;
+    for (const type of ["pointermove", "pointerleave", "focus", "blur", "scroll", "keydown"]) {
+      window.addEventListener(type, event => {
+        const node = event.target instanceof Element ? event.target : null;
+        events.push({ type, time: performance.now(), target: node?.closest("[role=treeitem]")?.getAttribute("aria-label") ?? node?.tagName,
+          x: event instanceof PointerEvent ? event.clientX : undefined,
+          y: event instanceof PointerEvent ? event.clientY : undefined,
+          key: event instanceof KeyboardEvent ? event.key : undefined, trusted: event.isTrusted });
+        if (events.length > 32) events.shift();
+      }, true);
+    }
     const gate = { armed: false, held: null as MessageEvent | null, release: () => {} };
     const listener = (event: MessageEvent) => {
       if (!gate.armed || event.data?.type !== "select" || gate.held) return;
@@ -1922,6 +1993,18 @@ async function openFolder(app: ElectronApplication, page: Page, picked: string):
   await page.evaluate(() => window.doan.openFolder());
 }
 
+// A closed tooltip can retain Radix's pointer-entry latch until pointerleave.
+// Clear both that latch and any preceding content before one deliberate entry.
+async function hoverTooltip(page: Page, trigger: Locator): Promise<Locator> {
+  const tooltip = page.getByRole("tooltip");
+  await page.mouse.move(700, 20);
+  if (await tooltip.isVisible()) await page.keyboard.press("Escape");
+  await tooltip.waitFor({ state: "hidden", timeout: 1000 });
+  await trigger.hover();
+  await tooltip.waitFor({ timeout: 1000 });
+  return tooltip;
+}
+
 const tooltipPaths = new WeakMap<Page, Map<string, string>>();
 
 async function tooltipPath(page: Page, row: Locator, name: string, key: string): Promise<string> {
@@ -1929,9 +2012,7 @@ async function tooltipPath(page: Page, row: Locator, name: string, key: string):
   if (!paths) { paths = new Map(); tooltipPaths.set(page, paths); }
   const cached = paths.get(key);
   if (cached) return cached;
-  await row.getByText(name, { exact: true }).hover();
-  const tooltip = page.getByRole("tooltip");
-  await tooltip.waitFor({ timeout: 1000 });
+  const tooltip = await hoverTooltip(page, row.getByText(name, { exact: true }));
   const path = (await tooltip.textContent()) ?? "";
   assert.ok(path.startsWith("/"), `absolute path tooltip: ${path}`);
   paths.set(key, path);

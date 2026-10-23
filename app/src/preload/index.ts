@@ -1,3 +1,6 @@
+import type { Author } from "../formats/types";
+import type { BeginRequest, BeginResult, CommentList, CommentReply, CommentRequest, CopyRequest, MutationRequest, SavedStatus } from "../main/comments/service";
+import type { TransitionRequest } from "../main/comments/transitions";
 import { contextBridge, ipcRenderer } from "electron";
 import type { Selection } from "../formats/types";
 import type { ViewCommand } from "../main/index";
@@ -7,6 +10,24 @@ import type { FolderEntry } from "../main/view";
 // The renderer gets these calls and nothing else: no ipcRenderer, no
 // channel names, no paths it did not receive from main.
 const api = {
+  commentsList: (request: CommentRequest): Promise<CommentReply<CommentList>> => ipcRenderer.invoke("comments:list", request),
+  commentsBegin: (request: BeginRequest): Promise<CommentReply<BeginResult>> => ipcRenderer.invoke("comments:begin", request),
+  commentsMutate: (request: MutationRequest): Promise<CommentReply<SavedStatus>> => ipcRenderer.invoke("comments:mutate", request),
+  commentsStatus: (request: CommentRequest): Promise<CommentReply<SavedStatus>> => ipcRenderer.invoke("comments:status", request),
+  commentsAuthor: (request: CommentRequest): Promise<CommentReply<Author>> => ipcRenderer.invoke("comments:author", request),
+  commentsCopy: (request: CopyRequest): Promise<CommentReply<{ copied: true }>> => ipcRenderer.invoke("comments:copy", request),
+  setCommentDraftGuard: (active: boolean): Promise<void> => ipcRenderer.invoke("comments:guard", active),
+  answerCommentTransition: (answer: { id: string; allow: boolean }): Promise<void> => ipcRenderer.invoke("comments:transition-answer", answer),
+  onCommentTransition(listener: (request: TransitionRequest) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, request: TransitionRequest) => listener(request);
+    ipcRenderer.on("comments:transition", receive);
+    return () => ipcRenderer.removeListener("comments:transition", receive);
+  },
+  onCommentsInvalidated(listener: (change: { root: string }) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, change: { root: string }) => listener(change);
+    ipcRenderer.on("comments:invalidated", receive);
+    return () => ipcRenderer.removeListener("comments:invalidated", receive);
+  },
   openFolder: (): Promise<void> => ipcRenderer.invoke("folders:open"),
   reopenFolder: (path: string): Promise<void> => ipcRenderer.invoke("folders:reopen", path),
   closeFolder: (path: string): Promise<void> => ipcRenderer.invoke("folders:close", path),

@@ -336,7 +336,7 @@ function fakeCanvas(options: { readyState?: string; height?: number; scrollHeigh
     querySelectorAll: (selector: string) => {
       if (options.body === undefined) return frames;
       const attr = /^\[([a-z-]+)\]$/.exec(selector)?.[1];
-      if (attr === undefined) throw new Error(`fake querySelectorAll: ${selector}`);
+      if (attr === undefined) { const found = selectors.get(selector); return found?.isConnected ? [found] : []; }
       return descendants(html).filter((el) => el.isConnected && el.hasAttribute(attr));
     },
     querySelector: (selector: string) => {
@@ -432,7 +432,7 @@ describe("canvasScriptSource", () => {
     canvas.ready();
     expect(canvas.posted).toEqual([
       {
-        message: { type: "layout", href: "http://127.0.0.1:4000/t/tok/key/design/a.html", height: 900, viewport: 150, frames: [], truncated: false },
+        message: { type: "layout", document: expect.any(String), href: "http://127.0.0.1:4000/t/tok/key/design/a.html", height: 900, viewport: 150, frames: [], truncated: false },
         origin: "*",
       },
     ]);
@@ -595,6 +595,7 @@ describe("canvasScriptSource", () => {
 });
 
 interface FakeEvent {
+  isComposing?: boolean;
   type?: string;
   target: unknown;
   isTrusted: boolean;
@@ -1122,5 +1123,86 @@ describe("canvasScript messages from the renderer", () => {
     canvas.runFrame();
     expect(ofType(canvas, "layout").at(-1)).not.toHaveProperty("selected");
     expect(ofType(canvas, "select")).toHaveLength(1);
+  });
+});
+
+
+describe("comment anchors", () => {
+  test("returns shared node tokens, exact candidates and separate sequence state", () => {
+    const child = node("span", { "data-doan-id": "child" });
+    const frame = node("section", { "data-doan-frame": "hero", "data-doan-id": "hero" }, [child]);
+    const canvas = fakeCanvas({ body: node("body", {}, [frame]), readyState: "complete" });
+    canvas.context.innerWidth = 600;
+    canvas.selectors.set(".hero", frame);
+    canvas.selectors.set(".child", child);
+    canvas.selectors.set("body", canvas.body);
+    const messages = () => canvas.posted.map(p => (p as { message: Record<string, unknown> }).message);
+    const document = messages().find(p => p.type === "layout")?.document;
+    canvas.fromParent({ type: "anchors-query", document, generation: 1, request: 1, targets: [
+      { id: "frame", frame: "hero" }, { id: "element", doanId: "hero", selector: ".hero" }, { id: "child", selector: ".child" }, { id: "root", selector: "body" },
+    ] });
+    canvas.runFrame();
+    const reply = messages().filter(p => p.type === "anchors").at(-1) as { results: { candidates: { frame?: string[]; doanId?: string[]; selector?: string[] } }[]; rects: unknown[] } | undefined;
+    expect(reply).toBeDefined();
+    expect(reply?.results[0]?.candidates.frame).toEqual(reply?.results[1]?.candidates.doanId);
+    expect(reply?.results[2]?.candidates.selector).not.toEqual(reply?.results[1]?.candidates.doanId);
+    expect(reply?.rects).toHaveLength(3);
+    const before = messages().filter(p => p.type === "anchors").length;
+    canvas.fireWindow("scroll", {}); canvas.trigger("resize"); canvas.trigger("MutationObserver");
+    canvas.runFrame();
+    expect(messages().filter(p => p.type === "anchors")).toHaveLength(before + 1);
+    canvas.fromParent({ type: "anchors-query", document: "old", generation: 1, request: 9, targets: [] });
+    canvas.runFrame();
+    expect(messages().filter(p => p.type === "anchors")).toHaveLength(before + 1);
+    canvas.fromParent({ type: "select-anchor", seq: 1, selector: ".child" });
+    expect(messages().filter(p => p.type === "select").at(-1)?.seq).toBe(1);
+    canvas.fromParent({ type: "select-comment", document, generation: 1, request: 1, seq: 2, node: reply?.results[3]?.candidates.selector?.[0] });
+    expect(messages().filter(p => p.type === "select").at(-1)).toMatchObject({ seq: 2, target: { tag: "body", element: { selector: "body" } } });
+  });
+});
+
+test("Y2 same-size replacement recovers selected anchor token without another event", () => {
+  const { canvas, button, form } = heroCanvas();
+  canvas.context.innerWidth = 600;
+  canvas.fromParent({ type: "measure" });
+  const document = ofType(canvas, "layout")[0]?.document;
+  click(canvas, button);
+  canvas.fromParent({ type: "anchors-query", document, generation: 1, request: 1,
+    targets: [{ id: "a", doanId: "cta", selector: "button" }] });
+  canvas.runFrame();
+  const before = ofType(canvas, "anchors").at(-1) as any;
+  const again = node("button", { "data-doan-id": "cta" }, [], { rect: { ...button.rect } });
+  button.isConnected = false;
+  form.children.splice(form.children.indexOf(button), 1, again); again.parentElement = form;
+  canvas.trigger("MutationObserver"); canvas.runFrame(); canvas.runFrame();
+  const after = ofType(canvas, "anchors").at(-1) as any;
+  expect(after.results[0].candidates.doanId[0]).not.toBe(before.selected);
+  expect(after.selected).toBe(after.results[0].candidates.doanId[0]);
+});
+
+describe("draft preselection protocol", () => {
+  test("waits before actual selection and rejects old, foreign and changed-document approvals", () => {
+    const { canvas, span, hero } = heroCanvas();
+    const command = (data: unknown, source: unknown = canvas.parent) => canvas.fireWindow("message", { source, data });
+    command({ type: "draft-guard", active: true });
+    click(canvas, span);
+    const first = ofType(canvas, "transition-intent").at(-1)!;
+    expect(ofType(canvas, "select")).toHaveLength(0);
+    click(canvas, hero);
+    const second = ofType(canvas, "transition-intent").at(-1)!;
+    command({ type: "transition-answer", document: first.document, intent: first.intent });
+    command({ type: "transition-answer", document: second.document, intent: second.intent }, {});
+    command({ type: "transition-answer", document: "old", intent: second.intent });
+    expect(ofType(canvas, "select")).toHaveLength(0);
+    command({ type: "transition-answer", document: second.document, intent: second.intent });
+    expect(ofType(canvas, "select")).toHaveLength(1);
+    expect(ofType(canvas, "select")[0]?.target).toMatchObject({ frame: { id: "hero" } });
+    command({ type: "transition-answer", document: second.document, intent: second.intent });
+    expect(ofType(canvas, "select")).toHaveLength(1);
+  });
+  test("native composition Escape does not emit a transition", () => {
+    const { canvas, span } = heroCanvas();
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape", isComposing: true }));
+    expect(ofType(canvas, "key")).toHaveLength(0);
   });
 });

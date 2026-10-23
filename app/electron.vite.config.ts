@@ -24,7 +24,7 @@ export default defineConfig({
   main: {
     // Bundled, not externalized: the main bundle is ESM, and Node's ESM resolver
     // rejects ajv's extensionless subpath import (`ajv/dist/2020`).
-    build: { externalizeDeps: false },
+    build: { externalizeDeps: false, rolldownOptions: { input: { index: fileURLToPath(new URL("./src/main/index.ts", import.meta.url)), "mkdir-child": fileURLToPath(new URL("./src/main/comments/mkdir-child.ts", import.meta.url)) } } },
   },
   preload: {
     build: {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
+import { projectList } from "../comments/projection";
 import { CanvasController } from "./CanvasController";
 import { FIRST_LAYOUT_TIMEOUT_MS } from "./viewport";
 import { SELECTION_LOST } from "./selection";
@@ -99,7 +100,7 @@ function selectionHarness() {
   vi.stubGlobal("document", {
     createElement: (tag: string) => {
       if (tag !== "iframe") {
-        const mark: FakeMark = { className: "", hidden: false, textContent: "", style: {}, children: [], append: (...children) => mark.children.push(...children) };
+        const mark: FakeMark = Object.assign(new EventTarget(), { className: "", hidden: false, textContent: "", style: {}, children: [] as FakeMark[], append: (...children: FakeMark[]) => mark.children.push(...children), setAttribute: vi.fn(), remove: vi.fn() });
         marks.push(mark);
         return mark;
       }
@@ -626,5 +627,182 @@ it("resets both channels on reload and rejects old-window, href and viewport hov
     h.receive({ type: "hover", seq: 1, rect: h.target.rect });
     expect(h.state().selection?.tag).toBe("span");
     expect(h.markOf("hover")?.hidden).toBe(false);
+  } finally { h.controller.dispose(); }
+});
+
+describe("comment anchor channel", () => {
+  it("rejects stale request/document/viewport replies without consuming held selection or hover", () => {
+    const h = selectionHarness();
+    const changed = vi.fn();
+    try {
+      h.layout({ document: "doc" });
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [] }, { changed, guard: async () => true, open: vi.fn(), focusFallback: vi.fn() });
+      const request = () => h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+      const q = request();
+      expect(q).toMatchObject({ document: "doc", targets: [] });
+      const reply = { type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null, results: [], rects: [] };
+      h.receive(reply);
+      const accepted = changed.mock.calls.length;
+      for (const patch of [{ request: q.request - 1 }, { generation: q.generation - 1 }, { document: "old" }, { href: "http://localhost/other" }, { viewport: 149 }, { width: 599 }]) h.receive({ ...reply, revision: 2, ...patch });
+      expect(changed).toHaveBeenCalledTimes(accepted);
+      h.select(1);
+      expect(h.state().selection.element.doanId).toBe("cta");
+      h.receive({ type: "hover", seq: 1, rect: { x: 20, y: 20, width: 10, height: 10 } });
+      expect(h.markOf("hover")?.hidden).toBe(false);
+      const old = h.current();
+      h.controller.command("reload");
+      h.receive({ ...reply, revision: 10 }, old);
+      expect(changed.mock.lastCall?.[0].lookup.nodes.size).toBe(0);
+    } finally { h.controller.dispose(); }
+  });
+});
+
+
+it("guards pin selection before applying it and cancels a deferred decision after reload", async () => {
+  const h = selectionHarness();
+  try {
+    h.layout({ document: "doc" });
+    let answer: (value: boolean) => void = () => {};
+    const guard = vi.fn(() => new Promise<boolean>(resolve => { answer = resolve; }));
+    const open = vi.fn();
+    const comment = { comment: "f", target: { frame: "hero" }, status: "open" as const, body: "x", canvasHash: "h", createdAt: "t", updatedAt: "t", createdBy: { kind: "human" as const, name: "A" } };
+    h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment] }, { guard, open, changed: vi.fn(), focusFallback: vi.fn() });
+    const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+    h.receive({ type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+      results: [{ id: "f", candidates: { frame: ["node"] } }], rects: [{ node: "node", x: 10, y: 10, width: 10, height: 10 }] });
+    const pending = h.controller.activatePin("node");
+    expect(guard).toHaveBeenCalledWith({ node: "node", comments: ["f"], originalTarget: { frame: "hero" } });
+    expect(h.state()?.selection ?? null).toBeNull();
+    expect(h.current().contentWindow.postMessage.mock.calls.some(c => c[0].type === "select-comment")).toBe(false);
+    const old = h.current();
+    h.controller.command("reload");
+    answer(true); await pending;
+    expect(old.contentWindow.postMessage.mock.calls.some(c => c[0].type === "select-comment")).toBe(false);
+    expect(open).not.toHaveBeenCalled();
+  } finally { h.controller.dispose(); }
+});
+
+function pinHarness() {
+  const h = selectionHarness(), changed = vi.fn(), open = vi.fn();
+  const comments = ["a", "b"].map(id => ({ comment: id, target: { frame: id }, status: "open" as const, body: "x", canvasHash: "h", createdAt: "t", updatedAt: "t", createdBy: { kind: "human" as const, name: "A" } }));
+  const hooks = { changed, open, guard: vi.fn(async () => true), focusFallback: vi.fn() };
+  const bind = (items = comments) => h.controller.setComments({ root: "/repo", canvas: "a", comments: items }, hooks);
+  let revision = 0;
+  const reply = (selectionSeq = 0, selected: string | null = null) => {
+    const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+    h.receive({ type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: ++revision, width: 600, selectionSeq, selected,
+      results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: [t.id] } })),
+      rects: comments.map(c => ({ node: c.comment, x: 10, y: 10, width: 10, height: 10 })) });
+  };
+  h.layout({ document: "doc" }); bind(); reply();
+  return { ...h, comments, hooks, bind, reply, changed, open };
+}
+
+it("Y1 does not project B before its sent selection command is acknowledged", () => {
+  const h = pinHarness();
+  try {
+    h.select(1); h.reply(1, "a");
+    expect(h.changed.mock.lastCall?.[0].selected).toBe("a");
+    h.controller.selectPath(h.target.path[0]!);
+    h.reply(2, "b");
+    const snapshot = h.changed.mock.lastCall![0];
+    expect(h.state().selection.element.doanId).toBe("cta");
+    expect(projectList(h.comments, snapshot.lookup, snapshot.lookup, { scope: "selection", status: "open", node: snapshot.selected }).map(c => c.comment)).not.toContain("b");
+    expect(snapshot.selected).toBeNull();
+    h.select(2); h.reply(2, "b");
+    expect(h.changed.mock.lastCall?.[0].selected).toBe("b");
+  } finally { h.controller.dispose(); }
+});
+
+it.each(["new guard", "binding change"])("Y3 cancels old pin panel effects after %s but accepts actual selection", async kind => {
+  const h = pinHarness();
+  try {
+    await h.controller.activatePin("a");
+    let answer: (allowed: boolean) => void = () => {};
+    let pending: Promise<void> | undefined;
+    if (kind === "new guard") {
+      h.hooks.guard.mockImplementation(() => new Promise(resolve => { answer = resolve; }));
+      pending = h.controller.activatePin("b");
+    } else { h.bind([h.comments[1]!]); h.reply(); }
+    h.select(1);
+    expect(h.state().selection.element.doanId).toBe("cta");
+    expect(h.open).not.toHaveBeenCalled();
+    if (pending) {
+      h.reply(1, "a");
+      answer(true); await pending;
+      expect(h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "select-comment").at(-1)).toMatchObject({ node: "b", seq: 2 });
+      h.select(2);
+      expect(h.open).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ node: "b", originalTarget: { frame: "b" } }));
+    }
+  } finally { h.controller.dispose(); }
+});
+
+it("holds manual reload before replacing a document and rejects superseded approval", async () => {
+  const { controller, changed, row } = loadedController();
+  const releases: ((allow: boolean) => void)[] = [];
+  controller.setTransitionGuard(() => new Promise(resolve => releases.push(resolve)));
+  controller.command("reload");
+  expect(changed).not.toHaveBeenCalled();
+  controller.openCanvas("/repo", row);
+  releases[0]?.(true); await Promise.resolve();
+  expect(changed).not.toHaveBeenCalled();
+  releases[1]?.(false); await Promise.resolve();
+  expect(changed).not.toHaveBeenCalled();
+  controller.dispose();
+});
+
+it("independently rejects replayed canvas intents and approval after same-URL document replacement", async () => {
+  const h = selectionHarness();
+  try {
+    h.layout({ document: "one" });
+    const allow: ((value: boolean) => void)[] = [];
+    const guard = vi.fn(() => new Promise<boolean>(resolve => allow.push(resolve)));
+    h.controller.setTransitionGuard(guard);
+    h.receive({ type: "transition-intent", document: "one", intent: 2 });
+    h.receive({ type: "transition-intent", document: "one", intent: 1 });
+    h.receive({ type: "transition-intent", document: "one", intent: 2 });
+    expect(guard).toHaveBeenCalledTimes(1);
+    h.layout({ document: "two" });
+    allow[0]?.(true); await Promise.resolve();
+    expect(h.current().contentWindow.postMessage.mock.calls.some(([message]) => message.type === "transition-answer")).toBe(false);
+    h.receive({ type: "transition-intent", document: "two", intent: 1 });
+    expect(guard).toHaveBeenCalledTimes(2);
+    allow[1]?.(true); await Promise.resolve();
+    expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "transition-answer", document: "two", intent: 1 }, "*");
+  } finally { h.controller.dispose(); }
+});
+
+it("prevents the triggering Escape from cancelling its newly opened draft dialog", () => {
+  const h = selectionHarness();
+  try {
+    h.select(1); h.controller.setDraftGuard(true);
+    h.controller.setTransitionGuard(async () => false);
+    const event = Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" });
+    h.host.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(h.state().selection).not.toBeNull();
+  } finally { h.controller.dispose(); }
+});
+
+it("keeps synchronous canvas opening when the draft guard immediately allows it", () => {
+  const { controller, changed, row } = loadedController();
+  try {
+    controller.setTransitionGuard(() => true);
+    controller.openCanvas("/repo", row);
+    expect(changed.mock.lastCall?.[0].status).toBe("loading");
+  } finally { controller.dispose(); }
+});
+
+it("uses freshly revalidated destination metadata after a draft decision", async () => {
+  const h = selectionHarness();
+  try {
+    let allow: ((value: boolean) => void) | undefined;
+    h.controller.setTransitionGuard(() => new Promise(resolve => { allow = resolve; }));
+    h.controller.openCanvas("/repo", h.other);
+    const { width: _width, ...invalidWidth } = h.other;
+    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [h.row, invalidWidth] }]);
+    allow?.(true); await Promise.resolve();
+    expect(h.state().open.row.width).toBeUndefined();
+    expect(h.state().status).toBe("noWidth");
   } finally { h.controller.dispose(); }
 });

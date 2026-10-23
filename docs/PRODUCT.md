@@ -95,7 +95,7 @@ What the human does is **view + comment**; approval is deferred until after the 
 3. Frame list and jumps. Frames are found by `data-doan-frame`.
 4. **Selection and inspector** (2026-10-21)
    - The human selects an element or frame by an ordinary click; hover only highlights candidates. Ordinary clicks suppress canvas actions. Option-click uses the canvas without changing the selection; links navigate through the existing same-folder-key gate (2026-10-23 promotion of the select-inspect decisions).
-   - One in-memory selection exists app-wide, shared by the inspector, future comment creation (#7), and `doan active`. `active` returns it only for its owning project; another open project has no selection. Esc or empty-space clicks clear it. Frames use the rendered DOM, so an active frame may be absent from static `doan ls` output (2026-10-23 promotion).
+   - One in-memory selection exists app-wide, shared by the inspector, comment creation, and `doan active`. `active` returns it only for its owning project; another open project has no selection. Esc or empty-space clicks clear it, subject to an active comment draft's transition guard. Frames use the rendered DOM, so an active frame may be absent from static `doan ls` output (2026-10-23 promotion).
    - Selecting an element opens one panel showing the inspector and that element's comments together. Comments are created, viewed, edited, and deleted in this panel (CRUD). The inspector is view-only (2026-10-21).
    - The inspector is read-only. It shows:
      - Box: size · padding · margin · gap
@@ -104,13 +104,17 @@ What the human does is **view + comment**; approval is deferred until after the 
      - `data-doan-*` attributes (id · implements)
    - Values are collected once on selection by main through CDP. Four source states are shown: token (name and value, e.g. `--foreground` → `#0a0a0a`), Hardcoded, Unknown source, and Default (dim value with `title="Default"`, no source line). Unknown means doan cannot determine the source; CDP can read no-CORS sheets, so it does not mean an unreadable CDN. Ancestor-path buttons select ancestors; frame highlighting and the selected-element sub-row in Frames follow the same selection. Reload reanchors the same canvas by unique `data-doan-id`, then selector (frames also keep their id); failure clears it with a notice. Opening a canvas from the sidebar clears the selection even if it is already open. There is no editing (2026-10-23 promotion; details and limits in ARCHITECTURE §3).
 5. Comments
-   - **Element comments**: click an element to attach a note. The anchor's first priority is `data-doan-id`, and selector · HTML snippet · text quote · design-draft hash are stored together as fallbacks.
+   - **Element comments**: click an element to attach a note. Locate it by unique `data-doan-id`, then unique selector. HTML snippet and text quote are retained as reference data, not used for similarity matching or automatic reattachment. An unresolved, duplicate or invalid selector leaves the comment available with Location unavailable (2026-10-23, comments-ui Q2).
    - **Frame comments**: attached to `data-doan-frame`. Because canvas organization is up to the agent, many elements have no `data-doan-id`, and a frame anchor is more robust than an anchor on such elements.
    - **Canvas comments**: a comment with neither a frame nor an element attaches to the whole canvas, because the conventions do not require frames (2026-10-21).
    - Status has two stages: `open` → `resolved`. The agent that applied it resolves it, and the human can reopen it after checking in the app. The human can also resolve a comment in the app (2026-10-21).
    - Only the human edits or deletes the body, and only in the app. The agent (CLI · MCP) only resolves (2026-10-21).
-   - Shown as pins; comments whose design-draft hash changed are marked outdated.
-6. Copy a sentence to send to the agent.
+   - The right panel keeps Inspector and Comments together, with independent scrolling. Canvas/Selection scope and Open/Resolved status filter the list without retargeting an active draft. Selection and pin groups use the same currently resolved DOM node, exclude descendants, and never rewrite stored targets (2026-10-23, Q1/Q8).
+   - Only open frame/element comments with a located target have screen-sized count pins; canvas comments appear in the list only. A disappearing focused pin returns focus to Comments. Outdated compares the create event's hash with current canvas bytes and is independent of Location unavailable; editing or changing status does not refresh that hash (2026-10-23, Q5).
+   - All mutations require the repo's Git user.name; email is optional. Missing identity and lookup errors have a Retry path. Width-only errors preserve existing comment management and open-comment copying, while blocking new comments and pins. Missing, invalid or duplicate canvas IDs block mutations (2026-10-23, Q4/Q7).
+   - Drafts retain their original project, canvas, target and body. Controllable selection/navigation, Reload, project close and normal quit offer Save, Discard or Keep writing before moving; Save applies only to the original target. Window close still hides the app. Known save failures retain editable text, uncertain writes retain an immutable request until status is established, and conflicts require explicit latest-state review. Delete has a separate confirmation. Drafts are memory-only; forced-quit recovery is not promised (2026-10-23, Q3).
+   - External comment changes update lists, counts and pins without reloading the canvas. Malformed/version warnings remain visible while valid comments stay readable; a read error is not an empty list. Bodies are plain text, and invalid calendar timestamps accepted by v1 remain readable without changing the existing schema limitation (2026-10-23).
+6. Copy an English instruction to send to the agent, for either one open comment or all open comments on the current canvas. All-open copy ignores the current Selection/Resolved filter. The instruction includes the absolute repo path, canvas ID and comment IDs; copying never runs an agent or shell command. Resolved single comments require reopening; empty/unreadable scopes cannot be copied (2026-10-23, comments-ui Q6).
 7. Tell the CLI the currently selected frame or element (the source of `doan active`).
 
 ### CLI `doan`
@@ -141,7 +145,7 @@ The MVP is split into 8 features. One feature is one `/feature` run and is manag
 | 5 | `canvas-view` | sandbox iframe · board size · zoom in/out and pan · frame list and jumps · live reload (MVP app item 2, added 2026-10-22). Done 2026-10-22. When this feature is done, build the `/design-sync` skill (see 'Dogfooding' below) |
 | — | `app-ui` | App shell rebuilt from a draft canvas (`design/app-shell.html`): React + shadcn/ui + Tailwind renderer, English UI copy, V1 layout with a Canvas info panel, Reopen and Close for missing projects, closing the window hides it. Added between #5 and #6 without a number (2026-10-22 user: "lay the groundwork before building on it"). Done 2026-10-22 |
 | 6 | `select-inspect` | selection · inspector · `runtime.json` + socket · `doan active`. Done 2026-10-23 |
-| 7 | `comments-ui` | panel comment CRUD · pins · outdated · sentence copy |
+| 7 | `comments-ui` | panel comment CRUD · pins · outdated · single/all-open instruction copy. Done 2026-10-23; measured scope and unverified states are recorded in DESIGN.md |
 | 8 | `onboard-dist` | first-run onboarding · skill stub install · refine `doan skill` body · notarized dmg · brew cask · auto-update |
 
 ### Dogfooding: doan's UI drafts live in doan (2026-10-21)
@@ -377,6 +381,17 @@ Results:
 | 2026-10-23 | Shared `runtime.v1` and `app-socket.v1` use absolute schema ids and embedded cross-file references; socket selection narrows the existing comment element definition | Promotion of Select-inspect formats and S implementation (2026-10-22) — TS writers and Go readers must share fixtures without changing comment-event v1 |
 | 2026-10-23 | Selection messages validate source/origin, bounded fields and document/sequence/viewport state; overlay geometry is outside the board transform | Promotion of Select-inspect R implementation and accepted review differences (2026-10-22) — keep stale rectangles from reviving selection while preserving click intent across iframe resizing |
 | 2026-10-23 | Main rejects invalid selection by clearing it; socket requests have a hard deadline, and CDP domains are enabled only during requests with bounded delivered values | Promotion of Accepted M/M2 review corrections (2026-10-22/23) — prevent obsolete selections, long-lived connections and ongoing DOM-event load; resolver limits remain documented |
+| 2026-10-23 | Comments-ui authorizes the originally validated directory object; relocation of that object outside the repo is excluded, while symlink redirection to other outside objects remains forbidden. Use the existing Electron utility process for isolated one-directory creation | User accepted the P-W2 boundary after 49 deterministic observations; avoid a new Go helper that would not itself freeze the original directory pathname |
+| 2026-10-23 | Comments share the Inspector panel with Canvas/Selection and Open/Resolved filters | Comments-ui Q1 — retain access to other targets and comments whose location is missing |
+| 2026-10-23 | Locate comment targets by unique doan-id then unique selector; never infer a replacement from HTML/text similarity | Comments-ui Q2 — avoid attaching an instruction to the wrong element |
+| 2026-10-23 | Guard draft transitions with original-target Save, Discard or Keep writing; preserve immutable requests while a write is uncertain | Comments-ui Q3 and implementation review — prevent lost text, duplicate events and writes to a new destination |
+| 2026-10-23 | Human mutations require Git user.name, with optional email and explicit Retry | Comments-ui Q4 — never invent the author |
+| 2026-10-23 | Show open-only grouped pins for located frame/element targets; canvas comments remain list-only | Comments-ui Q5 — preserve the existing target format without free coordinates |
+| 2026-10-23 | Copy one open comment or all open comments on the current canvas, independent of the list filter | Comments-ui Q6 — identify scope by repo, canvas and comment IDs without executing an agent |
+| 2026-10-23 | Width-only errors preserve existing comment management/copy but block creation and pins | Comments-ui Q7 — do not create instructions on a screen the user cannot see |
+| 2026-10-23 | Selection/Open lists and pin counts group the same resolved DOM node, excluding descendants and preserving stored targets | Comments-ui Q8 — keep pin counts and the corresponding list consistent |
+| 2026-10-23 | Predeclare multi-target measurements: 100/1,000 targets, 100 scroll/resize/mutation samples each, p95 at or below 50/200 ms and zero missing or stale results | Comments-ui Q9 — failed performance or silent omissions require reconsideration; prototype and controlled-adapter evidence do not certify every real canvas |
+| 2026-10-23 | Comments UI implementation completed with scoped design reconciliation; keep unpaired elements and unmeasured states explicit in DESIGN.md | Independent implementation and measurement reviews accepted the exercised scope; property comparisons are not full-state equivalence or native IME certification |
 
 ## 8. Open questions
 
@@ -387,7 +402,7 @@ Carried over from README draft §15. When closed, they move to the matching sect
 - Should onboarding step 3 pass `--token-css` as a repo-relative path, or should `doan init` accept an absolute path inside the repo? Today an absolute path is `usage_error` (2026-10-21, cli-core). Decide before #8 `onboard-dist`.
 
 - An uninitialized subfolder opened before `doan init` ran in its parent keeps showing "not initialized" (the app reads it with `--repo <subfolder>`), and following that hint creates a nested repo. Decide with the onboarding `doan init` location in #8 `onboard-dist` (2026-10-22, app-shell).
-Closed on 2026-10-23 promotion (select-inspect Q2, decided 2026-10-22): selection and `doan active`, and the frame target to be shared with #7, use rendered-DOM frames. `doan ls` stays static; script-created frames and frames beyond a frozen height can differ. #7 comment CRUD is still future work.
+Closed on 2026-10-23 promotion (select-inspect Q2, decided 2026-10-22): selection, `doan active`, and frame comment targets use rendered-DOM frames. `doan ls` stays static; script-created frames and frames beyond a frozen height can differ.
 
 `doan:width` was closed as required with no default (2026-10-21).
 

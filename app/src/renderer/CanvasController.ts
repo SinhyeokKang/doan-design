@@ -1,3 +1,7 @@
+import { projectPins, type CommentPin } from "../comments/projection";
+import { anchorSnapshot, type AnchorSnapshot, type CommentBinding, type CommentHooks, type PinDestination } from "./commentAnchors";
+import { CommentPins } from "./CommentPins";
+import type { AnchorsMessage } from "./canvasMessage";
 import type { Selection } from "../formats/types";
 import type { ViewCommand } from "../main/index";
 import type { InspectResult, InspectRow } from "../main/inspect";
@@ -53,6 +57,7 @@ export class CanvasController {
   // Selection (design flows 3–7). `seq` orders the renderer's commands against
   // the script's own clicks; each new document starts again at 0.
   private seq = 0;
+  private acceptedSelectionSeq = 0;
   private hoverSeq = 0;
   private selectedRect: CanvasRect | null = null;
   private hoverRect: CanvasRect | null = null;
@@ -63,6 +68,121 @@ export class CanvasController {
   private sentSelection = "null";
   // Tags inspector requests so an answer for an older selection is dropped.
   private inspectTag = 0;
+  private anchorDocument: string | null = null;
+  private anchorGeneration = 0;
+  private anchorRequest = 0;
+  private anchorRevision = 0;
+  private comments: CommentBinding | null = null;
+  private commentHooks: CommentHooks | null = null;
+  private anchors: AnchorSnapshot | null = null;
+  private pinLayer: CommentPins | null = null;
+  private pins: CommentPin[] = [];
+  private pinResize: ResizeObserver | null = null;
+  private pinIntent = 0;
+  // Selection acknowledgements refresh queries without replacing the binding.
+  private commentRevision = 0;
+  private pendingPin: { seq: number; intent: number; generation: number; revision: number; destination: PinDestination } | null = null;
+
+  private transitionGuard: (() => boolean | Promise<boolean>) | null = null;
+  private transitionIntent = 0;
+  private inputGuard = false;
+  private canvasIntent = 0;
+  setTransitionGuard(guard: (() => boolean | Promise<boolean>) | null): void { this.transitionGuard = guard; }
+  setDraftGuard(active: boolean): void {
+    this.inputGuard = active;
+    this.post({ type: "draft-guard", active });
+  }
+  private transition(apply: () => void, valid: () => boolean = () => true): void {
+    const intent = ++this.transitionIntent, frame = this.frame, href = this.lastHref, document = this.state.layout?.document;
+    if (!this.transitionGuard) { apply(); return; }
+    const allowed = this.transitionGuard();
+    if (typeof allowed === "boolean") { if (allowed && valid()) apply(); return; }
+    void allowed.then(allow => {
+      if (allow && intent === this.transitionIntent && frame === this.frame && href === this.lastHref && document === this.state.layout?.document && valid()) apply();
+    }).catch(error => console.error("Comment transition failed", error));
+  }
+
+  setComments(binding: CommentBinding, hooks: CommentHooks): void {
+    this.commentRevision++;
+    this.comments = { ...binding, comments: structuredClone([...binding.comments]) };
+    this.commentHooks = hooks;
+    if (!this.pinResize && typeof ResizeObserver !== "undefined" && "nodeType" in this.viewport) {
+      this.pinResize = new ResizeObserver(() => this.drawPins());
+      this.pinResize.observe(this.viewport as Element);
+    }
+    this.requestAnchors();
+  }
+
+  private resetAnchors(): void {
+    this.canvasIntent = 0;    this.anchorGeneration++;
+    this.anchorDocument = null;
+    this.anchorRevision = 0;
+    this.pinIntent++;
+    this.pendingPin = null;
+    this.clearAnchors();
+  }
+
+  private clearAnchors(): void {
+    const binding = this.comments;
+    this.anchors = binding ? { lookup: { root: binding.root, canvas: binding.canvas, generation: this.anchorGeneration, nodes: new Map() }, rects: new Map(), selected: null } : null;
+    this.drawPins();
+    if (this.anchors) this.commentHooks?.changed(this.anchors);
+  }
+
+  private matchingComments(): CommentBinding | null {
+    const open = this.state.open, binding = this.comments;
+    return binding && open && binding.root === open.folder && binding.canvas === open.row.id &&
+      !this.state.unlisted && this.state.status === null ? binding : null;
+  }
+
+  private requestAnchors(): void {
+    const binding = this.matchingComments();
+    this.anchorRequest++;
+    this.anchorRevision = 0;
+    if (!binding || !this.anchorDocument || !this.frame) { this.clearAnchors(); return; }
+    this.post({ type: "anchors-query", document: this.anchorDocument, generation: this.anchorGeneration, request: this.anchorRequest,
+      targets: binding.comments.map(comment => ({ id: comment.comment,
+        ...(comment.target.element ? { selector: comment.target.element.selector, ...(comment.target.element.doanId === undefined ? {} : { doanId: comment.target.element.doanId }) }
+          : comment.target.frame === undefined ? {} : { frame: comment.target.frame }) })) });
+  }
+
+  private onAnchors(message: AnchorsMessage): void {
+    const binding = this.matchingComments();
+    if (!binding || message.document !== this.anchorDocument || message.generation !== this.anchorGeneration ||
+      message.request !== this.anchorRequest || message.revision <= this.anchorRevision || message.href !== this.lastHref ||
+      message.viewport !== this.frameHeight || message.width !== this.frameWidth) return;
+    const ids = new Set(binding.comments.map(comment => comment.comment));
+    if (message.results.length !== ids.size || message.results.some(result => !ids.has(result.id))) return;
+    this.anchorRevision = message.revision;
+    this.anchors = anchorSnapshot(binding.comments, { root: binding.root, canvas: binding.canvas, generation: this.anchorGeneration }, { ...message, selected: this.state.selection !== null && message.selectionSeq === this.acceptedSelectionSeq ? message.selected : null });
+    this.drawPins();
+    this.commentHooks?.changed(this.anchors);
+  }
+
+  private drawPins(): void {
+    const binding = this.matchingComments(), snapshot = this.anchors;
+    const size = this.viewportSize();
+    this.pins = binding && snapshot ? projectPins(binding.comments,
+      { root: binding.root, canvas: binding.canvas, generation: this.anchorGeneration }, snapshot.lookup, snapshot.rects,
+      this.view, { x: 0, y: 0, ...size }) : [];
+    if (!this.pinLayer && this.pins.length) this.pinLayer = new CommentPins(this.overlay, node => { void this.activatePin(node); }, () => this.commentHooks?.focusFallback());
+    this.pinLayer?.render(this.pins);
+  }
+
+  async activatePin(node: string): Promise<void> {
+    const pin = this.pins.find(pin => pin.node === node), binding = this.matchingComments();
+    const original = binding?.comments.find(comment => comment.comment === pin?.comments[0]);
+    const hooks = this.commentHooks;
+    if (!pin || !original || !hooks) return;
+    const destination: PinDestination = { node, comments: [...pin.comments], originalTarget: structuredClone(original.target) };
+    const intent = ++this.pinIntent, generation = this.anchorGeneration, revision = this.commentRevision;
+    let allowed: boolean;
+    try { allowed = await hooks.guard(destination); } catch { return; }
+    if (!allowed || intent !== this.pinIntent || generation !== this.anchorGeneration || revision !== this.commentRevision ||
+      !this.pins.some(pin => pin.node === node)) return;
+    this.pendingPin = { seq: this.seq + 1, intent, generation, revision, destination };
+    this.sendCommand({ type: "select-comment", node, document: this.anchorDocument, generation, request: this.anchorRequest });
+  }
 
   constructor(
     private viewport: Pick<HTMLElement, "clientWidth" | "clientHeight" | "addEventListener" | "removeEventListener" | "getBoundingClientRect">,
@@ -82,6 +202,7 @@ export class CanvasController {
   }
 
   dispose(): void {
+    this.pinResize?.disconnect();
     window.removeEventListener("message", this.receive);
     window.removeEventListener("wheel", this.preventPageZoom);
     window.removeEventListener("keydown", this.keydown);
@@ -160,10 +281,19 @@ export class CanvasController {
         break;
       }
     }
+    if (this.comments && !this.matchingComments()) this.clearAnchors();
     this.publish();
   }
 
   openCanvas(folder: string, row: CanvasRow): void {
+    const current = () => {
+      const entry = this.entries.find(entry => entry.path === folder);
+      return entry?.kind === "list" ? entry.canvases.find(candidate => candidate.path === row.path && candidate.id === row.id && candidate.url === row.url) : undefined;
+    };
+    this.transition(() => this.openCanvasNow(folder, current() ?? row), () => current() !== undefined);
+  }
+
+  private openCanvasNow(folder: string, row: CanvasRow): void {
     this.state.open = { folder, canvas: row.path, row };
     this.state.shown = row.path;
     this.state.error = "";
@@ -172,6 +302,7 @@ export class CanvasController {
 
   // A new element ends the old document before resetting its measurement viewport.
   private load(row: CanvasRow, fresh: boolean, kind: ActivityEvent["kind"] = fresh ? "opened" : "reloaded"): void {
+    this.resetAnchors();
     this.loadKind = kind;
     this.applySelectionEffect({ kind: fresh ? "otherCanvas" : "reload" });
     if (row.width === undefined) {
@@ -206,6 +337,7 @@ export class CanvasController {
     this.lastHref = null;
     this.jumpTo = null;
     this.seq = 0;
+    this.acceptedSelectionSeq = 0;
     this.hoverSeq = 0;
     this.hoverRect = null;
     this.drawMarks();
@@ -225,6 +357,7 @@ export class CanvasController {
   }
 
   private dropFrame(): void {
+    this.resetAnchors();
     this.frame?.remove();
     this.frame = null;
     this.state.layout = null;
@@ -241,6 +374,7 @@ export class CanvasController {
 
   private frameLoaded(target: HTMLIFrameElement): void {
     if (target !== this.frame || this.loading) return;
+    this.resetAnchors();
     clearTimeout(this.answerTimer);
     this.answerTimer = setTimeout(() => {
       if (this.frame === null) return;
@@ -259,8 +393,17 @@ export class CanvasController {
     if (this.frame === null) return;
     const message = acceptCanvasMessage(event, this.frame.contentWindow);
     if (message === null) return;
+    if (message.type === "transition-intent") {
+      if (message.document !== this.state.layout?.document || message.href !== this.lastHref || message.viewport !== this.frameHeight || message.intent <= this.canvasIntent) return;
+      this.canvasIntent = message.intent;
+      const frame = this.frame, document = message.document;
+      this.transition(() => this.post({ type: "transition-answer", document, intent: message.intent }),
+        () => frame === this.frame && document === this.state.layout?.document);
+      return;
+    }
     if (message.type === "wheel") { this.wheel(message, boardToScreen(this.view, message)); return; }
     if (message.type === "layout") { this.onLayout(message); return; }
+    if (message.type === "anchors") { this.onAnchors(message); return; }
     this.onSelectionMessage(message);
   };
 
@@ -285,7 +428,12 @@ export class CanvasController {
       return;
     }
     if (message.type === "hover") { this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks(); return; }
+    const pin = this.pendingPin;
+    // A sent pin's acknowledgement is document state, not a newer user intent.
+    if (pin?.seq !== message.seq) this.pinIntent++;
+    this.pendingPin = null;
     this.seq = message.seq;
+    this.acceptedSelectionSeq = message.seq;
     if (message.type === "clear") { this.clearSelection(false); this.publish(); return; }
     if (message.target === null) { this.applySelectionEffect({ kind: "anchorLost" }); this.publish(); return; }
     const { rect, ...view } = message.target;
@@ -297,6 +445,9 @@ export class CanvasController {
     this.drawMarks();
     this.requestRows(view);
     this.publish();
+    if (pin?.seq === message.seq && pin.intent === this.pinIntent && pin.generation === this.anchorGeneration &&
+      pin.revision === this.commentRevision) this.commentHooks?.open(pin.destination);
+    if (this.comments) this.requestAnchors();
   }
 
   // Every select (click, Frames list, ancestor path, the anchor found again
@@ -334,6 +485,8 @@ export class CanvasController {
 
   // Does not publish: callers publish once with their other changes.
   private clearSelection(notice: boolean): void {
+    this.pendingPin = null;
+    this.pinIntent++;
     this.state.selection = null;
     this.state.inspector = null;
     this.inspectTag++;
@@ -350,6 +503,7 @@ export class CanvasController {
   }
 
   private sendCommand(message: object): void {
+    if (!("type" in message) || message.type !== "select-comment") { this.pinIntent++; this.pendingPin = null; }
     this.seq += 1;
     this.post({ ...message, seq: this.seq });
   }
@@ -359,14 +513,18 @@ export class CanvasController {
     this.post({ ...message, seq: this.hoverSeq });
   }
 
-  private escape(): void {
+  private escape(): void { this.transition(() => this.escapeNow()); }
+
+  private escapeNow(): void {
     if (this.state.selection === null && this.reanchor === null) return;
     this.sendCommand({ type: "clear" });
     this.clearSelection(false);
     this.publish();
   }
 
-  selectPath(item: PathItem): void {
+  selectPath(item: PathItem): void { this.transition(() => this.selectPathNow(item)); }
+
+  private selectPathNow(item: PathItem): void {
     if (this.frame === null) return;
     this.sendCommand(item.doanId === undefined ? { type: "select-anchor", selector: item.selector } : { type: "select-anchor", doanId: item.doanId, selector: item.selector });
   }
@@ -379,7 +537,8 @@ export class CanvasController {
       this.drawMarks();
       return;
     }
-    if (event.key !== "Escape" || event.defaultPrevented || editableTarget(event.target)) return;
+    if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || event.defaultPrevented || editableTarget(event.target)) return;
+    if (this.inputGuard) event.preventDefault();
     this.escape();
   };
 
@@ -407,6 +566,9 @@ export class CanvasController {
   };
 
   private onLayout(message: LayoutMessage): void {
+    this.post({ type: "draft-guard", active: this.inputGuard });
+    const documentChanged = message.document !== undefined && message.document !== this.anchorDocument;
+    if (documentChanged) { this.resetAnchors(); this.anchorDocument = message.document ?? null; }
     const before = this.layoutDisplayKey();
     const beforeSelection = this.state.selection;
     const previousActivity = this.state.activity;
@@ -419,6 +581,7 @@ export class CanvasController {
     if (newDocument) {
       this.jumpTo = null;
       this.seq = 0;
+      this.acceptedSelectionSeq = 0;
       this.hoverSeq = 0;
       this.hoverRect = null;
       this.applySelectionEffect({ kind: "otherCanvas" });
@@ -433,6 +596,7 @@ export class CanvasController {
     }
     this.state.layout = message;
     const linked = this.markShown(message.href);
+    if (this.state.unlisted) this.clearAnchors();
     if ((first || linked) && this.state.open && !this.state.unlisted) {
       const at = new Date();
       this.state.activity = pushActivity(this.state.activity, { ...this.state.open, at, kind: linked ? "opened" : this.loadKind }, 50);
@@ -449,7 +613,8 @@ export class CanvasController {
       if (selected === null) this.applySelectionEffect({ kind: "anchorLost" });
       else { this.selectedRect = selected; this.drawMarks(); }
     }
-    if (before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection) this.publish();
+    if (this.comments && (documentChanged || first || linked)) this.requestAnchors();
+    if (documentChanged || before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection) this.publish();
   }
 
   private markShown(href: string): boolean {
@@ -469,6 +634,11 @@ export class CanvasController {
   }
 
   jump(index: number): void {
+    const target = this.state.layout?.frames[index];
+    this.transition(() => this.jumpNow(index), () => target !== undefined && this.state.layout?.frames[index]?.id === target.id);
+  }
+
+  private jumpNow(index: number): void {
     if (this.frame?.contentWindow == null) return;
     // IDs may repeat or be empty; a jump selects the frame by list position.
     this.jumpTo = index;
@@ -479,7 +649,7 @@ export class CanvasController {
   }
 
   command(name: ViewCommand): void {
-    if (name === "reload") { if (this.state.open) this.load(this.state.open.row, false); return; }
+    if (name === "reload") { this.transition(() => { if (this.state.open) this.load(this.state.open.row, false); }); return; }
     if (this.frame === null) return;
     const size = this.viewportSize();
     const center = { x: size.width / 2, y: size.height / 2 };
@@ -514,6 +684,7 @@ export class CanvasController {
   private applyView(): void {
     this.board.style.transform = `translate(${this.view.x}px, ${this.view.y}px) scale(${this.view.scale})`;
     this.drawMarks();
+    this.drawPins();
     const zoom = Math.round(this.view.scale * 100);
     if (zoom !== this.state.zoom) { this.state.zoom = zoom; this.publish(); }
   }

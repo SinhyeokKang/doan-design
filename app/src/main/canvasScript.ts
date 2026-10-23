@@ -135,6 +135,7 @@ interface CanvasLib {
   ancestorPath: typeof ancestorPath;
   clipHtml: typeof clipHtml;
   textQuote: typeof textQuote;
+  commentAnchors: typeof commentAnchors;
 }
 
 export function canvasScript(lib: CanvasLib): void {
@@ -154,6 +155,7 @@ export function canvasScript(lib: CanvasLib): void {
 
   const post = (message: unknown) => parent.postMessage(message, "*");
   let height: HeightState | null = null;
+  const documentToken = `${Date.now()}-${Math.random()}`;
 
   const frames = () => {
     const list: { id: string; title?: string; x: number; y: number; width: number; height: number }[] = [];
@@ -209,7 +211,7 @@ export function canvasScript(lib: CanvasLib): void {
   const byAttribute = (attribute: string, value: string) => Array.from(document.querySelectorAll(`[${attribute}]`)).filter((el) => el.getAttribute(attribute) === value);
   const postSelection = (type: "select" | "clear" | "key", fields: Record<string, unknown>) => post({ type, href: location.href, seq, viewport: innerHeight, ...fields });
 
-  const describe = (start: Element) => {
+  const describe = (start: Element, allowRoot = false) => {
     const chain: ChainLink[] = [];
     const nodes: Element[] = [];
     for (let el: Element | null = start; el !== null; el = el.parentElement) {
@@ -244,7 +246,7 @@ export function canvasScript(lib: CanvasLib): void {
     }
     const own = chain.slice(depth);
     const el = nodes[depth];
-    if (el === undefined || isRoot(el)) return null;
+    if (el === undefined || (!allowRoot && isRoot(el))) return null;
     const target: Record<string, unknown> = { rect: rectOf(el), tag: lib.clipText(el.localName, MAX_STRING) };
     const frameAt = own.findIndex((link) => link.frameId !== undefined);
     const frameEl = frameAt === -1 ? undefined : nodes[depth + frameAt];
@@ -283,6 +285,13 @@ export function canvasScript(lib: CanvasLib): void {
     return { el, anchor: next, target };
   };
 
+  const anchors = lib.commentAnchors(documentToken, () => {
+    // Anchor measurement can precede layout's recovery in the same frame.
+    // Leave a missing node for layout to report as a lost selection.
+    if (selected && !selected.isConnected && anchor) selected = resolve(anchor) ?? selected;
+    return { element: selected, seq };
+  });
+
   const resolve = (wanted: Anchor): Element | null => {
     if (wanted.doanId !== undefined) {
       const found = byAttribute("data-doan-id", wanted.doanId);
@@ -316,12 +325,14 @@ export function canvasScript(lib: CanvasLib): void {
     pending = null;
     postSelection("select", { target: described.target });
     postHover();
+    anchors.schedule();
   };
 
   const drop = () => {
     selected = null;
     anchor = null;
     pending = null;
+    anchors.schedule();
   };
 
   // Human input raises seq so a renderer command already on its way loses.
@@ -376,7 +387,7 @@ export function canvasScript(lib: CanvasLib): void {
     const { list, truncated } = frames();
     // `viewport` lets the renderer drop a layout measured before its last
     // resize of the iframe reached this document.
-    const message: Record<string, unknown> = { type: "layout", href: location.href, height: height.sent, viewport: innerHeight, frames: list, truncated };
+    const message: Record<string, unknown> = { type: "layout", document: documentToken, href: location.href, height: height.sent, viewport: innerHeight, frames: list, truncated };
     if (selected !== null) {
       // A framework may swap the node for an equal one; look once more by the
       // same anchor before giving the selection up.
@@ -390,6 +401,7 @@ export function canvasScript(lib: CanvasLib): void {
 
   let queued = false;
   const schedule = () => {
+    anchors.schedule();
     if (queued) return;
     queued = true;
     requestAnimationFrame(() => {
@@ -422,7 +434,9 @@ export function canvasScript(lib: CanvasLib): void {
     const next = data.seq;
     if (typeof next !== "number" || !Number.isInteger(next)) return;
     const { type, frame, doanId, selector, index, id } = data;
-    if (type === "select-anchor") {
+    if (type === "select-comment") {
+      if (data.document !== documentToken || !anchors.current(data.generation, data.request) || typeof data.node !== "string") return;
+    } else if (type === "select-anchor") {
       if (!optionalString(frame) || !optionalString(doanId) || !optionalString(selector)) return;
       if (frame === undefined && doanId === undefined && selector === undefined) return;
     } else if (type === "pick-frame") {
@@ -438,7 +452,12 @@ export function canvasScript(lib: CanvasLib): void {
       if (next <= seq) return;
       seq = next;
     }
-    if (type === "hover-alt") {
+    if (type === "select-comment") {
+      const found = anchors.find(String(data.node));
+      const described = found === null ? null : describe(found, true);
+      if (described !== null && described.el === found) apply(described);
+      else postSelection("select", { target: null });
+    } else if (type === "hover-alt") {
       alt = data.alt === true;
       postHover();
     } else if (type === "hover-leave") {
@@ -462,10 +481,24 @@ export function canvasScript(lib: CanvasLib): void {
     }
   };
 
+  let draftGuard = false;
+  let transitionIntent = 0;
+  let pendingTransition: { intent: number; apply: () => void; seq: number } | null = null;
+  const requestTransition = (apply: () => void) => {
+    const intent = ++transitionIntent;
+    if (!draftGuard) { pendingTransition = null; apply(); return; }
+    pendingTransition = { intent, apply, seq };
+    post({ type: "transition-intent", document: documentToken, href: location.href, viewport: innerHeight, intent });
+  };
   addEventListener("message", (event: MessageEvent) => {
     if (event.source !== parent) return;
     const data: unknown = event.data;
     if (typeof data !== "object" || data === null) return;
+    if ("type" in data && data.type === "draft-guard" && "active" in data && typeof data.active === "boolean") { draftGuard = data.active; return; }
+    if ("type" in data && data.type === "transition-answer") {
+      if (!pendingTransition || !("document" in data) || data.document !== documentToken || !("intent" in data) || data.intent !== pendingTransition?.intent || pendingTransition.seq !== seq) return;
+      const pending = pendingTransition; pendingTransition = null; pending.apply(); return;
+    }
     if ((data as { type?: unknown }).type === "measure") send();
     else command(data as Record<string, unknown>);
   });
@@ -521,7 +554,9 @@ export function canvasScript(lib: CanvasLib): void {
           const link = type === "click" ? linkOf(event.target) : null;
           if (link !== null) {
             event.preventDefault();
-            location.assign(link.getAttribute("href") ?? "");
+            if (draftGuard) event.stopImmediatePropagation();
+            const href = link.getAttribute("href") ?? "";
+            requestTransition(() => { if (link.isConnected && link.getAttribute("href") === href) location.assign(href); });
           }
           return;
         }
@@ -532,7 +567,10 @@ export function canvasScript(lib: CanvasLib): void {
           // Focus left inside by an ⌥-click would make Esc look like typing.
           const active = document.activeElement;
           if (active !== null && !isRoot(active) && "blur" in active && typeof active.blur === "function") active.blur();
-        } else if (type === "click") choose(event.target);
+        } else if (type === "click") {
+          const target = event.target;
+          requestTransition(() => { if (!isElement(target) || target.isConnected) choose(target); });
+        }
       },
       { capture: true },
     );
@@ -544,7 +582,7 @@ export function canvasScript(lib: CanvasLib): void {
     setTimeout(() => {
       const active = document.activeElement;
       if (alt || active === null || !["iframe", "frame", "object", "embed"].includes(active.localName)) return;
-      choose(active);
+      requestTransition(() => { if (active.isConnected) choose(active); });
     }, 0);
   });
 
@@ -585,7 +623,7 @@ export function canvasScript(lib: CanvasLib): void {
         postSelection("key", { key: "Alt", alt, seq: hoverSeq });
         postHover();
       }
-      if (event.key === "Escape" && !editable(event.target)) postSelection("key", { key: "Escape" });
+      if (event.key === "Escape" && !event.isComposing && event.keyCode !== 229 && !editable(event.target)) postSelection("key", { key: "Escape" });
     },
     { capture: true },
   );
@@ -606,6 +644,113 @@ export function canvasScript(lib: CanvasLib): void {
 }
 
 export function canvasScriptSource(): string {
-  const lib = { nextHeight, documentHeight, canScrollAxis, clipText, elementSelector, ancestorPath, clipHtml, textQuote };
+  const lib = { nextHeight, documentHeight, canScrollAxis, clipText, elementSelector, ancestorPath, clipHtml, textQuote, commentAnchors };
   return `(${canvasScript.toString()})({${Object.entries(lib).map(([name, fn]) => `${name}: ${fn.toString()}`).join(", ")}}); void 0;`;
+}
+
+
+// Kept self-contained because this function is serialized into the sandbox.
+export function commentAnchors(documentToken: string, selected: () => { element: Element | null; seq: number }) {
+  type Query = { id: string; doanId?: string; selector?: string; frame?: string };
+  let query: { generation: number; request: number; targets: Query[] } | null = null;
+  let revision = 0;
+  let queued = false;
+  let nextNode = 0;
+  const tokens = new WeakMap<Element, string>();
+  let nodes = new Map<string, Element>();
+  const token = (el: Element) => {
+    let id = tokens.get(el);
+    if (id === undefined) { id = `n${++nextNode}`; tokens.set(el, id); }
+    return id;
+  };
+  const measure = () => {
+    if (query === null) return;
+    nodes = new Map();
+    const styles = new Map<Element, CSSStyleDeclaration>();
+    const styleOf = (el: Element) => {
+      let style = styles.get(el);
+      if (!style) { style = getComputedStyle(el); styles.set(el, style); }
+      return style;
+    };
+    const attributes = new Map<string, Map<string, Element[]>>();
+    const attribute = (name: string, value: string) => {
+      let index = attributes.get(name);
+      if (!index) {
+        index = new Map(); attributes.set(name, index);
+        for (const el of document.querySelectorAll(`[${name}]`)) {
+          const key = el.getAttribute(name) ?? "";
+          const list = index.get(key) ?? []; list.push(el); index.set(key, list);
+        }
+      }
+      return index.get(value) ?? [];
+    };
+    const ids = (elements: Iterable<Element>) => Array.from(elements, el => {
+      const id = token(el); nodes.set(id, el); return id;
+    });
+    const selectors = new Map<string, string[] | null>();
+    const results = query.targets.map(target => {
+      const candidates: { doanId?: string[]; selector?: string[] | null; frame?: string[] } = {};
+      if (target.selector !== undefined) {
+        if (target.doanId !== undefined) candidates.doanId = ids(attribute("data-doan-id", target.doanId));
+        if (!selectors.has(target.selector)) {
+          try { selectors.set(target.selector, ids(document.querySelectorAll(target.selector))); }
+          catch { selectors.set(target.selector, null); }
+        }
+        candidates.selector = selectors.get(target.selector) ?? null;
+      } else if (target.frame !== undefined) candidates.frame = ids(attribute("data-doan-frame", target.frame));
+      return { id: target.id, candidates };
+    });
+    const rects = Array.from(nodes, ([node, el]) => {
+      const rect = el.getBoundingClientRect();
+      let left = 0, top = 0, right = innerWidth, bottom = innerHeight;
+      for (let ancestor: Element | null = el; ancestor; ancestor = ancestor.parentElement) {
+        const style = styleOf(ancestor);
+        if (style.display === "none" || style.opacity === "0" ||
+          ancestor === el && (style.visibility === "hidden" || style.visibility === "collapse")) right = left;
+        if (ancestor === el) continue;
+        const clipX = ["hidden", "clip", "auto", "scroll", "overlay"].includes(style.overflowX);
+        const clipY = ["hidden", "clip", "auto", "scroll", "overlay"].includes(style.overflowY);
+        if (!clipX && !clipY) continue;
+        const box = ancestor.getBoundingClientRect();
+        const html = ancestor as HTMLElement;
+        const sx = html.offsetWidth ? box.width / html.offsetWidth : 1;
+        const sy = html.offsetHeight ? box.height / html.offsetHeight : 1;
+        const x = box.left + ancestor.clientLeft * sx, y = box.top + ancestor.clientTop * sy;
+        if (clipX) { left = Math.max(left, x); right = Math.min(right, x + ancestor.clientWidth * sx); }
+        if (clipY) { top = Math.max(top, y); bottom = Math.min(bottom, y + ancestor.clientHeight * sy); }
+      }
+      return { node, x: rect.left, y: rect.top, width: rect.width, height: rect.height,
+        clip: { x: left, y: top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) } };
+    });
+    const current = selected();
+    parent.postMessage({ type: "anchors", href: location.href, document: documentToken,
+      generation: query.generation, request: query.request, revision: ++revision,
+      viewport: innerHeight, width: innerWidth, results, rects,
+      selected: current.element?.isConnected ? token(current.element) : null, selectionSeq: current.seq }, "*");
+  };
+  const schedule = () => {
+    if (query === null || queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; measure(); });
+  };
+  addEventListener("message", (event: MessageEvent) => {
+    if (event.source !== parent || !event.data || event.data.type !== "anchors-query") return;
+    const data = event.data;
+    if (data.document !== documentToken || !Number.isSafeInteger(data.generation) || data.generation < 0 ||
+      !Number.isSafeInteger(data.request) || data.request < 0 || !Array.isArray(data.targets)) return;
+    if (query && (data.generation < query.generation || data.generation === query.generation && data.request <= query.request)) return;
+    const targets: Query[] = [];
+    const seen = new Set<string>();
+    for (const item of data.targets) {
+      if (!item || typeof item.id !== "string" || seen.has(item.id) ||
+        [item.doanId, item.selector, item.frame].some(value => value !== undefined && typeof value !== "string")) return;
+      seen.add(item.id);
+      targets.push({ id: item.id, ...(item.doanId === undefined ? {} : { doanId: item.doanId }),
+        ...(item.selector === undefined ? {} : { selector: item.selector }), ...(item.frame === undefined ? {} : { frame: item.frame }) });
+    }
+    query = { generation: data.generation, request: data.request, targets };
+    schedule();
+  });
+  return { schedule, current: (generation: unknown, request: unknown) => query !== null && generation === query.generation && request === query.request,
+    find: (id: string) => { const el = nodes.get(id); return el?.isConnected ? el : null; } };
 }
