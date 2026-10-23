@@ -135,3 +135,5 @@
 - 전체 runtime PASS 뒤 U2가 9c96f3b→721e155를 추가했다. 이동 승인 동안 달라진 목적지 메타데이터를 최신 조회 결과로 적용하는 CanvasController 6줄 수정이다. Astra medium의 독립 delta 리뷰를 배정해 기존 승인 범위를 재검토하지 않고 이 경합 수정·회귀만 확인한다. 최종 증거의 HEAD 귀속도 갱신한다.
 
 - U2 최종 721e155에서 before/after HEAD 일치와 exit 0인 단위 1108개/typecheck/Go test/vet/전체 e2e 실행 시점 영수증을 확인했다. 모든 코드 delta의 독립 리뷰 red/yellow 0 후 18개 커밋을 964fb17까지 통합했다. 마지막 리뷰의 영수증 미도착 한계는 지휘자의 실행 기록 감사로 해소했다. 통합 단위/타입 게이트를 진행한다.
+
+- U2 종료 인계와 최종 실행 영수증을 대조했다. 전체 1108개/typecheck/Go test/vet/e2e exit 0, 모든 제품 delta 독립 리뷰 0건을 확인하고 release했다. V2는 Astra medium — UI 경계 개별 mutation 및 실제 cross-project 초안 보존 판단. 독립 child의 테스트/fixture만 소유하고 제품 수정은 지휘자에게 돌린다. U2 미검증인 다른 root의 같은 canvas id 이동을 실제 App에서 추가 확인하며, OS-native IME는 미검증 범위를 보존한다. Electron 슬롯은 V2로 넘긴다.
