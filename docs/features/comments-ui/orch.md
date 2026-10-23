@@ -25,7 +25,7 @@
 | M | 4 main I/O·IPC·preload·watcher 및 테스트 | C,M1 | Astra medium — 파일 안전성·재시도 | app test/typecheck, go test, reader round trip | 15cb445 통합·최종 독립 리뷰 통과 |
 | A | 5 anchor 조회·핀 geometry·overlay 및 테스트 | C; M과 공유 파일 겹치면 직렬 | Astra medium — 문서·viewport 경계 | app test/typecheck/build/e2e | 465d44b 통합·최종 독립 리뷰 통과 |
 | U1 | 6 패널 표시 컴포넌트·테스트·스타일 | C,A | Astra medium — 표시 상태·접근성 판단 | app test/typecheck, 실앱은 U2/S | 817bde1 통합·독립 리뷰 통과 |
-| U2 | 6 App CRUD·초안·복사·이동 보호와 실제 runtime | M,A,U1 | Astra medium — UI 상태·입력·비동기 경합 | app test/typecheck/build/e2e | ctx_349dc3aada7e 구현 중 |
+| U2 | 6 App CRUD·초안·복사·이동 보호와 실제 runtime | M,A,U1 | Astra medium — UI 상태·입력·비동기 경합 | app test/typecheck/build/e2e | 964fb17 통합·독립 리뷰 통과; 최종 인계 정리 중 |
 | V | 7 통합 회귀·개별 mutation·runtime | U | Astra medium — 독립 경계 검증 | go test/vet, app test/typecheck/build/e2e, screenshot 확인 | 대기 |
 | R | 각 구현 배치 독립 리뷰, 결함은 원 소유자 수정 | 해당 배치 | Astra medium — 계획·증거·정확성 검토 | code-review, 🔴 0까지 반복; 결함 postmortem | 대기 |
 | S | 8 design-sync·필요한 수정·DESIGN | V,R | Astra medium — 상태별 측정·독립 재검토 | 측정 및 app test/typecheck/build/e2e | 대기 |
@@ -133,3 +133,5 @@
 - R-U2 후속 리뷰 6f92ead..dab5760은 기존 red 1/yellow 2 해소, 새 red/yellow 0이다. 독립 수정 probe 포함 100개 검사 통과. 실제 App 실패 주입과 실제 파일/clipboard 성공 증거를 구분했고 OS-native IME·디자인 실측은 미검증으로 유지한다. 리뷰 터미널 release. U2 전체 runtime 최종 PASS를 관찰했으며 최종 HEAD/exit/인계의 증거 귀속 감사 뒤 통합한다.
 
 - 전체 runtime PASS 뒤 U2가 9c96f3b→721e155를 추가했다. 이동 승인 동안 달라진 목적지 메타데이터를 최신 조회 결과로 적용하는 CanvasController 6줄 수정이다. Astra medium의 독립 delta 리뷰를 배정해 기존 승인 범위를 재검토하지 않고 이 경합 수정·회귀만 확인한다. 최종 증거의 HEAD 귀속도 갱신한다.
+
+- U2 최종 721e155에서 before/after HEAD 일치와 exit 0인 단위 1108개/typecheck/Go test/vet/전체 e2e 실행 시점 영수증을 확인했다. 모든 코드 delta의 독립 리뷰 red/yellow 0 후 18개 커밋을 964fb17까지 통합했다. 마지막 리뷰의 영수증 미도착 한계는 지휘자의 실행 기록 감사로 해소했다. 통합 단위/타입 게이트를 진행한다.
