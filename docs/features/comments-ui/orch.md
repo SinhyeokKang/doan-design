@@ -149,3 +149,5 @@
 - V2 최종 인계는 앞선 checkpoint와 달리 6e0923b이며, 테스트에 임시 저장소 email과 DOM 제거 대기/검증 3줄을 추가했다. 전체 최종 게이트는 이 HEAD에 귀속된다. 워커를 release했고 추가 delta의 통합과 S의 증거 의존 해소 전까지 cu-v2를 보존한다.
 
 - R-Z를 Astra medium으로 배정한다 — V2 추가 테스트 3줄과 승격 문서의 실제 구현·검증 근거 일치 판단. 42f9849..6e0923b 및 a54aa20/9c0cc35/4052dfb만 읽기 전용 리뷰하며 S 실측과 제품 코드는 수정하지 않는다.
+
+- R-Z는 테스트 delta 결함 0, 문서 yellow 1이다. Q9의 below를 합의된 이하 기준(at or below)으로 수정해 b10f6b9에 기록했다. V2 최종 6e0923b를 7525cb0으로 통합했다. 최종 영수증 7개 HEAD/exit 0·증거 183개와 전체 scratch 230개 checksum을 확인했다. S가 cu-v2 의존 없음을 확인한 뒤 clean·git cherry 미통합 없음 확인 및 Orca 제거를 수행했고 목록 부재를 확인했다. R-Z도 release했다. S의 실측 수정과 독립 리뷰가 남는다.
