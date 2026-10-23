@@ -80,3 +80,5 @@
 - F `69b0e3f` → `bd05032` 통합. R-F red/yellow 0개이며 통합 HEAD에서 Go 전체·앱 915개·typecheck 통과했다. 호환성 fixture라 TDD red는 대상 아님을 명시했다. handoff/증거 hash 일치·clean·git cherry 미통합 없음 확인 뒤 F/R-F release 및 cu-f의 Orca 카드 삭제·목록 부재를 확인했다. C는 확정 brief의 app/src/comments/ 순수 모듈과 테스트를 구현한다.
 
 - M1 분리: tasks 4의 안전한 디렉터리/파일 I/O 기반을 C와 병렬 구현한다. 소유는 신규 app/src/main/comments/의 filesystem·mkdir child·wrapper와 테스트, app/electron.vite.config.ts의 child 번들 entry, 기존 e2e harness에 연결하는 파일 경계 검사다. Astra medium — 단발 프로세스·파일 경합 판단. R-PW 검토 통과가 선행이며 event 준비·author/hash·재시도·preload·renderer는 후속 M에 남긴다. C의 순수 모듈과 파일이 겹치지 않는다.
+
+- C 구현 보고: 테스트 `3871df6/a887716/f9a899f`, 구현 `ca7ef96`. 964개 테스트·typecheck·기존 전체 e2e 통과이며 UI 연결 완료를 뜻하지 않는다. R-C는 Astra medium 읽기 전용, 시간·충돌·초안·clip 경계를 검토한다. 소유는 보고서뿐이며 cu-c의 고정 commit 범위를 읽는다.
