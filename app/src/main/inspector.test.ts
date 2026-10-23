@@ -281,3 +281,67 @@ test("OOPIF process swap preserves the committed document, but actual removal re
   dbg.emit("message", {}, "Page.frameDetached", { frameId: "FRAME", reason: "remove" }, "S1");
   expect(docs.current("FRAME", CANVAS)).toBeNull();
 });
+
+for (const replacementLoader of ["loader", "replacement"]) {
+  test(`former session detach preserves the current owner with ${replacementLoader}`, async () => {
+    const { DocumentBindings } = await import("./comments/document");
+    const docs = new DocumentBindings();
+    const dbg = new FakeDebugger();
+    createInspector(dbg, () => BASE, docs);
+    const emit = (method: string, params: object, session?: string) => dbg.emit("message", {}, method, params, session);
+    const commit = (session: string, loader: string) => emit("Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: loader, url: CANVAS } }, session);
+    const response = (loader: string) => {
+      docs.response({ marker: loader, root: "/repo", path: "design/a.html", hash: loader, complete: true, stable: true });
+      emit("Network.responseReceived", { type: "Document", requestId: loader, frameId: "FRAME", loaderId: loader, response: { headers: { "X-Doan-Response": loader } } });
+    };
+    dbg.target("OLD", "iframe");
+    response("loader");
+    commit("OLD", "loader");
+    emit("Network.loadingFinished", { requestId: "loader" }, "OLD");
+    expect(docs.current("FRAME", CANVAS)?.generation).toBe("loader");
+    emit("Page.frameDetached", { frameId: "FRAME", reason: "swap" }, "OLD");
+    dbg.target("NEW", "iframe");
+    if (replacementLoader !== "loader") response(replacementLoader);
+    commit("NEW", replacementLoader);
+    emit("Network.loadingFinished", { requestId: replacementLoader }, "NEW");
+    const current = docs.current("FRAME", CANVAS);
+    expect(current?.generation).toBe(replacementLoader);
+    emit("Target.detachedFromTarget", { sessionId: "OLD" });
+    expect(docs.current("FRAME", CANVAS)).toEqual(current);
+    emit("Target.detachedFromTarget", { sessionId: "NEW" });
+    expect(docs.current("FRAME", CANVAS)).toBeNull();
+  });
+}
+
+for (const detached of [false, true]) {
+  for (const late of ["navigation", "start", "remove", "response", "failure", "finish"]) {
+    test(`former session ${late} is ignored ${detached ? "after" : "before"} target detach`, async () => {
+      const { DocumentBindings } = await import("./comments/document");
+      const docs = new DocumentBindings();
+      const dbg = new FakeDebugger();
+      createInspector(dbg, () => BASE, docs);
+      const emit = (method: string, params: object, session?: string) => dbg.emit("message", {}, method, params, session);
+      const frame = { id: "FRAME", parentId: "MAIN", loaderId: "loader", url: CANVAS };
+      dbg.target("OLD", "iframe");
+      docs.response({ marker: "m", root: "/repo", path: "design/a.html", hash: "hash", complete: true, stable: true });
+      emit("Network.responseReceived", { type: "Document", requestId: "request", frameId: "FRAME", loaderId: "loader", response: { headers: { "X-Doan-Response": "m" } } });
+      emit("Page.frameNavigated", { frame }, "OLD");
+      dbg.target("NEW", "iframe");
+      emit("Page.frameNavigated", { frame }, "NEW");
+      if (late !== "finish") emit("Network.loadingFinished", { requestId: "request" }, "NEW");
+      const current = docs.current("FRAME", CANVAS);
+      if (detached) emit("Target.detachedFromTarget", { sessionId: "OLD" });
+      if (late === "navigation") emit("Page.frameNavigated", { frame: { ...frame, loaderId: "stale", url: "stale" } }, "OLD");
+      if (late === "start") emit("Page.frameStartedNavigating", { frameId: "FRAME", loaderId: "stale" }, "OLD");
+      if (late === "remove") emit("Page.frameDetached", { frameId: "FRAME", reason: "remove" }, "OLD");
+      if (late === "response") emit("Network.responseReceived", { type: "Document", requestId: "stale", frameId: "FRAME", loaderId: "loader", response: { headers: { "X-Doan-Response": "missing" } } }, "OLD");
+      if (late === "failure") emit("Network.loadingFailed", { requestId: "request" }, "OLD");
+      if (late === "finish") emit("Network.loadingFinished", { requestId: "request" }, "OLD");
+      expect(docs.current("FRAME", CANVAS)).toEqual(current);
+      emit("Network.loadingFinished", { requestId: "request" }, "NEW");
+      expect(docs.current("FRAME", CANVAS)?.generation).toBe("loader");
+      emit("Page.frameStartedNavigating", { frameId: "FRAME", loaderId: "next" }, "NEW");
+      expect(docs.current("FRAME", CANVAS)).toBeNull();
+    });
+  }
+}
