@@ -37,6 +37,7 @@ try {
     await writeFile(join(project, ".doan/config.json"), '{"v":1}');
     await writeFile(join(project, "design/shared.html"), html("shared"));
     await exec("git", ["init", project]); await exec("git", ["-C", project, "config", "user.name", "Boundary Author"]);
+    await exec("git", ["-C", project, "config", "user.email", "boundary@example.test"]);
   }
   await writeFile(join(userData, "folders.json"), JSON.stringify([repo, originRepo, destinationRepo]));
   await exec("go", ["build", "-o", cli, "./cli/cmd/doan"], { cwd: root });
@@ -98,6 +99,8 @@ try {
   await panel.getByRole("button", { name: "Save comment", exact: true }).click(); await cards.filter({ hasText: "Missing DOM target" }).waitFor();
   const targetBytes = await logBytes(destinationLog), targetEvent = JSON.parse(targetBytes.trim());
   await writeFile(join(destinationRepo, "design/shared.html"), html("shared").replace('<button data-doan-id="child">Child target</button>', ""));
+  await waitGate(async () => await page.frameLocator("iframe").locator("section").evaluate(el => el.childElementCount === 0));
+  assert.equal(await page.frameLocator("iframe").getByRole("button", { name: "Child target" }).count(), 0);
   await panel.getByRole("group", { name: "Comment scope" }).getByRole("button", { name: "Canvas", exact: true }).click();
   await cards.getByText("Location unavailable", { exact: true }).waitFor();
   await cards.getByText("Outdated", { exact: true }).waitFor();
