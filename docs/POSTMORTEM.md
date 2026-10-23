@@ -2,6 +2,30 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-23 — Ancestor visibility treated as cumulative opacity
+
+- **Area**: canvasScript commentAnchors geometry.
+- **Symptom**: visible child under visibility:hidden ancestor had no pin.
+- **Root cause**: visibility was tested on every ancestor like display:none/opacity:0, despite the child's computed visibility overriding inherited visibility.
+- **Net**: independent review and actual computed-style Electron fixture caught it; prior fake geometry tests did not model CSS inheritance.
+- **Prevention**: check visibility on the target's computed style, but retain ancestor display and opacity checks. Electron fixture asserts visible child pin and absence of inherited-hidden, display-none and opacity-zero target pins. Search executed: rg -n 'style.visibility' app/src/main/canvasScript.ts app/src/renderer. Other results are controller board visibility assignments, not ancestor visibility classification.
+
+### 2026-10-23 — Anchor measurement preceded selected-node recovery
+
+- **Area**: canvasScript schedule/send and commentAnchors selected callback.
+- **Symptom**: same-id, same-size DOM replacement produced a new lookup token but null selected token until another external event.
+- **Root cause**: anchor rAF was queued before layout rAF, while only layout recovered disconnected selection.
+- **Net**: independent review plus a fake producer regression and real Electron clone replacement caught it. Existing layout-only replacement tests never compared selected token with lookup identity.
+- **Prevention**: resolve disconnected selection before anchor identity is reported, leaving unresolved disappearance for the layout lost-selection protocol. Search executed: rg -n 'isConnected|selectionSeq' app/src/main/canvasScript.ts app/src/renderer/CanvasController.ts. Layout recovery and pin find still intentionally check connectivity; no additional recovery owner found.
+
+### 2026-10-23 — Pin completion outlived the guarded intent
+
+- **Area**: CanvasController.activatePin/onSelectionMessage.
+- **Symptom**: A's held completion opened A after a newer B guard or after A's binding was removed; it also cancelled B's pending guard.
+- **Root cause**: validation existed only before command dispatch; pending completion retained only seq and destination. Every acknowledgement was counted as a new user intent. Query refresh on an acknowledgement also invalidated an unrelated waiting guard.
+- **Net**: independent review found both schedules; old tests covered only reload before guard completion. New unit and Electron cases verify actual document selection separately from cancelled panel-open effects, and verify B subsequently selects and opens.
+- **Prevention**: carry intent, document generation and binding revision through completion. Keep query freshness independent from binding lifetime; command uses the current exact anchor request, and producer/consumer request checks remain intact. Search executed: rg -n 'pinIntent|pendingPin|requestAnchors' app/src/renderer/CanvasController.ts. The same controller is the only owner; clear, reload and non-pin command paths were reviewed.
+
 ### 2026-10-23 — A preceding canvas tooltip was cached as a project path
 
 - **Area**: `app/e2e/runtime.ts`, `tooltipPath` and the folders-after-restart gate.
@@ -25,6 +49,7 @@
 - **Root cause**: F2 shared one sequence between selection validity and hover/modifier freshness. A hover-only command advanced the renderer's selection floor after the script had already posted its selection reply. Later layout messages carried geometry but could not reconstruct the missing selection payload. Preserving an established selection was therefore insufficient evidence that hover did not change selection behavior.
 - **Net**: the independent F2 review caught the race with controlled reply ordering and a real-click Electron message gate. Existing tests only interleaved hover with an already received selection. New controller cases failed for pending frame, ancestor, reload and click replies; the actual-input gate failed while the existing EF hover checks still ran. Producer tests also reject shared-sequence behavior for a retrying anchor and independently ordered commands.
 - **Prevention**: keep selection and hover/modifier counters independent at both producer and consumer, including reload reset. The internal `seq` field is interpreted by message kind: selection commands and select/clear/selected-layout use selection order; hover commands and hover/Alt snapshots use hover order. Escape remains intent, and stale selection replies after Escape or a newer selection remain rejected. Retain the deterministic pending-reply tests, actual click gate, EF direct reentry/focus-transfer checks, and source/href/viewport/reset boundary checks. Search: `rg -n 'seq|hoverSeq|sendCommand|sendHoverCommand' app/src/main/canvasScript.ts app/src/renderer/CanvasController.ts`; matches are the two protocol endpoints covered here, with no other production sequence owner.
+- **Recurrence (2026-10-23, comments-ui)**: The anchor channel treated a sent selection command floor as proof that its response had been accepted. With A accepted and B sent, a held B selection reply allowed B into the Selection projection early. Separate acceptedSelectionSeq now fences that projection; pending snapshots publish null until the actual selection reply triggers a new query. The controller projection test and real Electron adapter both failed before the fix.
 
 ### 2026-10-23 — A utility-process kill request left its caller pending
 
