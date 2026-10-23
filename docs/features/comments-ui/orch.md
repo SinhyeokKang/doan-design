@@ -102,3 +102,5 @@
 
 - A 최종 리뷰 ctx_e86eb826af37은 실제 착수 후 red/yellow 0과 focused 201개·typecheck 통과를 보고했다. A 8개 커밋을 465d44b까지 통합했고 지휘자 통합 단위 1015개·typecheck exit 0을 확인했다. A 원본 증거 34개 복사본 일치, clean·git cherry 미통합 없음 확인 뒤 cu-a를 Orca로 삭제하고 목록 부재를 확인했다. A 회고 3건과 기존 선택 경합 재발을 최신 날짜 순으로 기록했다.
 - M 인계 복구 ctx_1dc48e71de56 완료·release, 원본 로그 17개와 API 인계 보존. 지휘자가 고정 HEAD 31cbbc1에서 1039개 단위·typecheck exit 0을 직접 확인했다. R-M ctx_8bcd33ac530e는 red 0/yellow 2와 focused 84개·typecheck 통과 후 release했다. M-fix ctx_aec82c0ad123 실제 착수 확인; 리뷰된 A 통합 브랜치를 clean checkpoint에 병합하고 실제 전체 runtime도 검증하도록 배정했다.
+- M 실제 앱에서 최초 문서 commentsBegin이 loaded response 검증 실패로 거부됐다. 전체 기존 runtime 통과로 대체할 수 없는 M 차단 게이트로 유지하고 같은 소유 워커가 CDP 응답·문서 연결을 재현·수정한다.
+- 지휘 판단 — U를 U1/U2로 분리한다. U1은 M과 무관한 패널·카드·작성기·확인창 표시 컴포넌트와 동작 테스트(tasks 6 부분)를 먼저 구현한다. 새 renderer CommentsPanel 및 제한된 보조 UI/테스트/스타일만 소유하며 기존 App/RightPanel/Controller/main/preload는 편집하지 않는다. Astra medium — 승인 초안의 상태·접근성·표시 조건 판단. 기준 브랜치의 C/A 타입만 사용하고 실제 IPC·초안 전환·통합 runtime은 U2가 M 통합 뒤 맡는다. U1 검증은 red→green unit/typecheck, runtime은 명시적으로 보류한다. Electron 슬롯은 M 전용으로 유지한다.
