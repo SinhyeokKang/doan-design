@@ -22,9 +22,10 @@
 | P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | PoC 통과, 아래 한계 명시 |
 | F | 2 공유 v1 fixture·Go/TS 테스트 | PoC 및 초안 승인 | Sol medium — 기존 형식 사례 확장 | go test, app test | bd05032 통합·리뷰 통과 |
 | C | 3 순수 함수와 테스트, 신규 shared 모듈 | F | Astra medium — 상태·시간·타겟 계약 | red→green, app test/typecheck | 4fa6151 통합·독립 리뷰 통과 |
-| M | 4 main I/O·IPC·preload·watcher 및 테스트 | C,M1 | Astra medium — 파일 안전성·재시도 | app test/typecheck, go test, reader round trip | ctx_aec82c0ad123 리뷰 지적 2건 수정·검증 중 |
+| M | 4 main I/O·IPC·preload·watcher 및 테스트 | C,M1 | Astra medium — 파일 안전성·재시도 | app test/typecheck, go test, reader round trip | 15cb445 통합·최종 독립 리뷰 통과 |
 | A | 5 anchor 조회·핀 geometry·overlay 및 테스트 | C; M과 공유 파일 겹치면 직렬 | Astra medium — 문서·viewport 경계 | app test/typecheck/build/e2e | 465d44b 통합·최종 독립 리뷰 통과 |
-| U | 6 패널 CRUD·초안·복사 및 테스트 | M,A | Astra medium — UI 상태·입력 보호 | app test/typecheck/build/e2e | 대기 |
+| U1 | 6 패널 표시 컴포넌트·테스트·스타일 | C,A | Astra medium — 표시 상태·접근성 판단 | app test/typecheck, 실앱은 U2/S | 817bde1 통합·독립 리뷰 통과 |
+| U2 | 6 App CRUD·초안·복사·이동 보호와 실제 runtime | M,A,U1 | Astra medium — UI 상태·입력·비동기 경합 | app test/typecheck/build/e2e | ctx_349dc3aada7e 구현 중 |
 | V | 7 통합 회귀·개별 mutation·runtime | U | Astra medium — 독립 경계 검증 | go test/vet, app test/typecheck/build/e2e, screenshot 확인 | 대기 |
 | R | 각 구현 배치 독립 리뷰, 결함은 원 소유자 수정 | 해당 배치 | Astra medium — 계획·증거·정확성 검토 | code-review, 🔴 0까지 반복; 결함 postmortem | 대기 |
 | S | 8 design-sync·필요한 수정·DESIGN | V,R | Astra medium — 상태별 측정·독립 재검토 | 측정 및 app test/typecheck/build/e2e | 대기 |
