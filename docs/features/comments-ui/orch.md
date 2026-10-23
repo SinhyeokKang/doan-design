@@ -16,10 +16,10 @@
 
 | 배치 | tasks 항목·소유 파일 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|
-| P-W | 0 writer PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 파일 경계·경합 판단 | app test/typecheck/build/e2e 중 실험 관련 게이트, 외부 파일·디렉터리 불변 | 진행 중 |
+| P-W | 0 writer PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 파일 경계·경합 판단 | app test/typecheck/build/e2e 중 실험 관련 게이트, 외부 파일·디렉터리 불변 | 실패: mkdir 외부 변경 |
 | P-H | 0 hash·문서 세대 PoC; 임시 fixture, handoff만 | 없음 | Astra medium — 응답/문서 경합 | app test/typecheck/build/e2e, 전달 bytes·세대 불일치 차단 | 진행 중 |
 | D | 1 design/comments-ui.html | 문서 리뷰 완료 | Astra medium — 기존 화면 보존·상태 표현 | doan ls/check, 사용자 앱 확인 | 진행 중 |
-| P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | 대기 |
+| P-I | 0 입력 보류·다중 대상 성능; 임시 fixture, handoff만 | 첫 wave 자원 반환 | Astra medium — 입력 경계·실측 | design §8 사전 기준 전부, 실제 창 | 진행 중 |
 | F | 2 공유 v1 fixture·Go/TS 테스트 | PoC 및 초안 승인 | Sol medium — 기존 형식 사례 확장 | go test, app test | 대기 |
 | C | 3 순수 함수와 테스트, 신규 shared 모듈 | F | Astra medium — 상태·시간·타겟 계약 | red→green, app test/typecheck | 대기 |
 | M | 4 main I/O·IPC·preload·watcher 및 테스트 | C | Astra medium — 파일 안전성·재시도 | app test/typecheck, go test, reader round trip | 대기 |
@@ -47,3 +47,6 @@
 - 2026-10-23 사용자: design-draft 워커 결과는 지휘 세션이 직접 리뷰한다. 상태 대응·기존 화면/토큰·실앱 표시를 검토하고 결함을 원 워커에게 수정시킨 뒤 사용자 초안 확인으로 넘긴다.
 
 - 2026-10-23 사용자 후속 지시: 이번 라운드의 사용자 초안 리뷰를 생략하고 지휘자가 직접 최종 컨펌한다. 앞선 사용자 확인 게이트를 이번 comments-ui 라운드에 한해 대체한다. 스킬의 일반 사용자 확인 규칙은 유지한다. 지휘자 리뷰·실앱 검증·수정 해소 및 PoC 통과 후 다음 구현 배치로 진행한다.
+
+- P-W 완료: Node/Electron에서 mkdir 경쟁 실패, O_NOFOLLOW_ANY 기존/신규 open 보호 통과. 전체 테스트 915개·typecheck·e2e 통과는 PoC 관찰의 재현일 뿐 writer 게이트 통과가 아니다. 증거 `.scratch/comments-ui/evidence/P-W/`를 검토했다. 앱 전용 Go mkdir helper 설계 질문을 사용자에게 전달했다.
+- P-W 터미널을 P-I `ctx_e4287dbfd7ac`에 즉시 재사용했고 turnStart observed를 확인했다. cu-pw 워크트리는 P-I 실험 때문에 유지한다.
