@@ -331,6 +331,31 @@ test("past the walk limit every served revision counts as changed", async () => 
   expect(await thumbnails.get(f.root, "design/a.html", true)).toEqual({ kind: "pending" });
 });
 
+const countsAsChangedPastLimit = async (f: ReturnType<typeof fixture>) => {
+  const thumbnails = make(f.deps);
+  thumbnails.entriesChanged(f.entries);
+  await thumbnails.get(f.root, "design/a.html", true);
+  await vi.waitFor(() => expect(f.changed).toHaveLength(1));
+  expect((await thumbnails.get(f.root, "design/a.html", true)).kind).toBe("ready");
+  thumbnails.entriesChanged(bump(f));
+  await vi.waitFor(() => expect(f.changed).toHaveLength(2));
+  expect(await thumbnails.get(f.root, "design/a.html", true)).toEqual({ kind: "pending" });
+};
+
+test("the walk limit counts empty directories", async () => {
+  const f = fixture(["design/a.html"]);
+  for (let i = 0; i <= SERVED_WALK_LIMIT; i++) mkdirSync(join(f.root, "styles", String(i)));
+  f.deps.scope = () => ["design", "styles"];
+  await countsAsChangedPastLimit(f);
+});
+
+test("the walk limit counts canvas files", async () => {
+  const names = Array.from({ length: SERVED_WALK_LIMIT + 1 }, (_, i) => `design/c${i}.html`);
+  const f = fixture(["design/a.html", ...names]);
+  f.deps.scope = () => ["design"];
+  await countsAsChangedPastLimit(f);
+});
+
 test("a canvas that leaves the list is forgotten before it is captured", async () => {
   const f = fixture();
   f.hold = true;

@@ -37,8 +37,8 @@ export interface Thumbnails {
 
 const isTemp = (name: string) => name.endsWith(".tmp");
 
-// Files read for one folder's served signature. A folder serving more stops
-// the walk there and counts as changed at every served revision, so its
+// Entries (directories and files alike) visited for one folder's served
+// signature. A folder serving more stops the walk there and counts as changed at every served revision, so its
 // thumbnails are taken again rather than shown stale.
 export const SERVED_WALK_LIMIT = 2000;
 
@@ -46,12 +46,15 @@ export const SERVED_WALK_LIMIT = 2000;
 // can restyle all of them.
 const isCanvas = (path: string) => path.startsWith("design/") && path.toLowerCase().endsWith(".html");
 
-// Every non-canvas file the folder serves, or null past SERVED_WALK_LIMIT.
+// Every non-canvas file the folder serves, or null once the walk has visited
+// SERVED_WALK_LIMIT entries, canvases and empty directories included.
 // Symlinked files count; symlinked directories are not entered, so a link
 // cycle cannot run the walk forever.
 async function servedFiles(root: string, scope: readonly string[]): Promise<TokenFile[] | null> {
   const files = new Map<string, TokenFile>();
+  let visited = 0;
   const visit = async (path: string, enter: boolean): Promise<boolean> => {
+    if (++visited > SERVED_WALK_LIMIT) return false;
     let info;
     try {
       info = await stat(join(root, path));
@@ -60,7 +63,6 @@ async function servedFiles(root: string, scope: readonly string[]): Promise<Toke
     }
     if (info.isFile()) {
       if (isCanvas(path) || files.has(path)) return true;
-      if (files.size >= SERVED_WALK_LIMIT) return false;
       files.set(path, { path, mtimeMs: info.mtimeMs, size: info.size });
       return true;
     }
