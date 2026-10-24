@@ -2,6 +2,47 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-24 — Focus did not return to the row when Set Up… closed from outside
+
+- **Area**: `app/src/renderer/Sidebar.tsx`, `ProjectTree` setup dialog close effects.
+- **Symptom**: with a Not initialized row's Set Up… dialog open, running `doan init` from a terminal (or deleting, renaming or re-rooting the folder) closed the dialog, but focus ended on `<body>` instead of the row (or the root row).
+- **Root cause**: the effect that closed the dialog called `setSetup(null)` and `focus()` on the row in the same tick. The modal `<dialog>` was still open, so everything behind it was inert and `focus()` was a no-op; the later unmount left focus on the body. Closes started by the dialog worked only because they call `dialog.close()` first.
+- **Net**: batch I's onboarding runtime probe caught it; unit tests could not (no DOM, and the rule is Chromium's inert/modal focus behavior). A new runtime step (`setupClosedOutside` in `app/e2e/runtime.ts`) covering terminal init, delete, rename and terminal re-root failed with focus on BODY before the fix and passes after.
+- **Prevention**: never focus content behind an open modal dialog; close the dialog (or wait for it to unmount) before focusing. Run `rg -n 'showModal|focusRow|focusAfterSetup' app/src/renderer` to find modal owners and focus moves that may run while a modal is open.
+
+### 2026-10-24 — Setup rejected linked configuration directories
+
+- **Area**: `app/src/main/onboarding/machine.ts`, setup display.
+- **Symptom**: on the real HOME, Claude Connect was unavailable because the selected Orca profile's `skills` directory is a symlink to `~/.claude/skills`; the same restriction affected linked CLI and shared-skill parents.
+- **Root cause**: ancestor lstat classification treated every symlink as blocked, conflating directory traversal with final-target ownership. Relative skill-link values were derived from the alias path, although the OS resolves a relative symlink from its real containing directory.
+- **Net**: the packaged-app real-HOME run (batch L) exposed the layout. The original unit tests explicitly expected all parent links to be blocked. G2's real temporary-directory regression cases failed before the fix and verify both reachability and exact link contents afterward; the L2 rerun then connected Claude on the real HOME.
+- **Prevention**: retain directory-link, dangling/file/loop, stale-ancestor and staging-cleanup regressions. Run `rg -n 'blockedParent|realTarget|realDirectory|lstatSync' app/src/main/onboarding --glob '*.ts'` when changing setup writes (2026-10-24: production matches are confined to `machine.ts`). Do not infer ancestor write permission from final-target classification.
+- **Recurrence (2026-10-24, G2 review)**: once aliases were followed, Connect installed the shared stub and then classified that same directory as an occupied Claude link target when Claude's skills directory resolved to `~/.agents/skills`, blocking MCP setup permanently; an invalid relative `CLAUDE_CONFIG_DIR` was also resolved against the app's working directory for display. The earlier regressions covered distinct destinations only. Two-direction real-filesystem tests and an invalid-config display test failed before the fix. Prevention, in addition: test identical as well as distinct destinations, and assert the MCP call happens with no nested or self link; `rg -n 'claudeSharedSkills|claudeLinkValue|realPaths' app/src/main/onboarding/machine.ts app/src/renderer/onboardingView.ts`.
+
+### 2026-10-24 — The setup menu discarded an open wizard session
+
+- **Area**: `app/src/main/index.ts`, `openWizard`.
+- **Symptom**: choosing Set Up doan… after Cmd+W revealed the window but reset the wizard to its first step.
+- **Root cause**: the menu handler always allocated a new session, conflating revealing a hidden window with starting a wizard.
+- **Net**: batch I's real Electron probe caught the reset. The old unit test expected a new session on every menu click. G2's visible/hidden active-session tests failed before the fix; a separate closed-session test keeps reopening working, and batch I2 asserts it in the real window.
+- **Prevention**: verify visibility changes separately from session creation. Run `rg -n 'openWizard|wizardSession = randomUUID' app/src/main/index.ts` (2026-10-24: the menu handler and the first-run allocation).
+
+### 2026-10-24 — The onboarding wizard lost keys and clicks to focus and modal stacking
+
+- **Area**: `app/src/renderer/Onboarding.tsx`, `onboardingView.ts`.
+- **Symptom**: in a real run, Escape after Copy did nothing; the wizard opened from the menu over an open setup or comment dialog could not be clicked; after Set Up Project the wizard sometimes stayed on step 3.
+- **Root cause**: a button disabled while its action runs drops focus to `<body>`, so a key handler on the overlay element never saw Escape or Tab. A modal `<dialog>` already open in `<main>` stays in the top layer above a non-modal overlay, and `inert` on `<main>` made both unclickable. `doan init` success can arrive before main publishes the re-read when a watcher read supersedes it, so advancing on the first non-loading state missed the list.
+- **Net**: H's real-window script found the first two (step 13 reproduces the stacking); the independent review found the third. Fixes: a window `keydown` listener in capture, the wizard itself as a modal `<dialog>`, and `advanceAfter` waiting for the listed project (seen red first). Batch I's e2e covers Escape after a delayed copy, the wizard over both modals, and an init reply held until the list is published.
+- **Prevention**: for overlays, handle keys on the window and do not assume focus stays inside after a control disables itself; stack a new layer as a modal when other modals may be open. Run `rg -n 'showModal|addEventListener\("keydown"|advanceAfter' app/src/renderer`.
+
+### 2026-10-24 — Setup writes to missing targets could overwrite a competitor
+
+- **Area**: `app/src/main/onboarding/machine.ts`, link and stub writes.
+- **Symptom**: a deterministic race test inserted a file after the final "missing" lstat; both the CLI link install and the stub install then replaced it.
+- **Root cause**: re-checking before rename does not stop a competing creation between the check and the rename, and rename overwrites. While fixing it, macOS `link(sourceSymlink, destination)` followed the symlink and created a hard link to its referent (caught by the existing install tests).
+- **Net**: G's review asked for the race; the reproduction failed for both targets before the fix. Missing links are now created with `symlink` directly and missing stubs by `link` from the staged regular file, both exclusive; EEXIST answers "Target changed. Check Again." and keeps the competitor. Approved replacements still use rename.
+- **Prevention**: create missing targets exclusively and keep rename only for confirmed replacements; never `link` a symlink. Run `rg -n 'renameSync|linkSync|symlinkSync' app/src/main --glob '!*.test.ts'` (2026-10-24: rename only for approved replacement and `onboarding.json`).
+
 ### 2026-10-23 — Re-hovering a dismissed tooltip did not reopen it
 
 - **Area**: `app/e2e/runtime.ts`, restart tooltip preconditions and `hoverTooltip`.
@@ -209,6 +250,7 @@
 - **Net**: caught by the independent reviews of batches A and D with concrete inputs, and by D's self-review for the write path. Missed by the planned case lists, which only had `ENOENT`-shaped inputs and one spelling per file.
 - **Prevention**: for every path that comes from canvas or config content, test `ENOTDIR`, a NUL byte, an over-long name, a symlink loop, a different letter case, and a dangling symlink at each write target. Grep: `grep -rnE 'IsNotExist|EvalSymlinks|os\.WriteFile' cli app/src`.
 - **Recurrence (2026-10-21, app-shell)**: `doan ls` `result.root` kept the caller's letter case from `--repo` or `$PWD` (`repo.Find` used `EvalSymlinks` alone), so one repo could be stored twice by the app and every served path would miss `relInside`. Caught by the batch B1 independent review; fixed by passing the root through `diskSpelling`. `doan init`'s `result.repo` (`init.go`) still keeps the caller's spelling.
+- **Recurrence (2026-10-24, onboard)**: in app main, JS `realpathSync` kept the caller's letter case on this macOS volume while `realpathSync.native` returns the on-disk spelling, so a same-file link written with another case was not recognized as ours. Caught by the G review; fixed by using native realpath for setup identities, with a case-alias regression (an `ELOOP` link stays foreign). Grep: `rg -n 'realpathSync\(' app/src/main --glob '!*.test.ts'` should find no caller (2026-10-24: only `realpathSync.native` is used).
 
 ### 2026-10-21 — An HTML parser fed from memory can still fail, and dropping the error looks like a missing meta
 
