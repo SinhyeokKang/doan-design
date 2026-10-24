@@ -85,6 +85,16 @@ func Init(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	}
 	config := repo.Config{V: 1}
 	if token != "" || f.TokenCSSSet {
+		if filepath.IsAbs(token) {
+			state, relative, err := repo.InsideRelative(root, token)
+			if err != nil {
+				return Outcome{}, internal(err)
+			}
+			if state != repo.Inside {
+				return Outcome{}, usageError("Token CSS must be a file inside the repository")
+			}
+			token = relative
+		}
 		config.TokenCSS = filepath.ToSlash(filepath.Clean(token))
 		b, e := json.Marshal(config)
 		if e != nil {
