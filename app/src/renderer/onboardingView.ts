@@ -84,6 +84,7 @@ function linkChip(state: MachineState["cli"]["state"]): Chip {
   switch (state) {
     case "missing": return { text: "Not installed" };
     case "ours": return { text: "Installed", tone: "ok" };
+    case "dangling": return { text: "Link is broken", tone: "warn" };
     case "link-other": return { text: "Needs replacement", tone: "warn" };
     case "blocked": return { text: "Unavailable", tone: "err" };
   }
@@ -102,13 +103,14 @@ export function cliItems(state: MachineState | null, ui: MachineUi): ItemView[] 
   const item: ItemView = { key: "cli", label: "CLI link", detail: [{ code: path }, ...realLocation(state, "cli"), ...target], chip: readChip(state, ui) ?? linkChip(cli ?? "missing") };
   if (cli !== "ours") {
     const disabled = !state || !state.available || cli === "blocked" || ui.checking || ui.running !== null || ui.readError !== null;
-    item.button = cli === "link-other" ? { id: "replace", label: "Replace…", primary: true, disabled } : { id: "install", label: "Install", primary: true, disabled };
+    item.button = cli === "dangling" ? { id: "replace", label: "Fix…", primary: true, disabled } : cli === "link-other" ? { id: "replace", label: "Replace…", primary: true, disabled } : { id: "install", label: "Install", primary: true, disabled };
   }
   if (ui.readError !== null) item.msg = { tone: "warn", parts: [checkAgain(ui.readError)] };
   else if (state && !state.available && state.reason) {
     if (state.reason === TRANSLOCATED) item.msg = { tone: "warn", parts: [state.reason] };
     else item.reason = state.reason;
   } else if (state && cli === "link-other") item.msg = { tone: "warn", parts: ["Points to another copy: ", { code: state.cli.value ?? "" }] };
+  else if (state && cli === "dangling") item.msg = { tone: "warn", parts: ["Link is broken: ", { code: state.cli.value ?? "" }] };
   else if (state && cli === "blocked") item.msg = { tone: "error", parts: [{ code: tilde(state.display.blocked.cli ?? state.display.cliPath, state.display.home) }, IN_USE] };
   const outcome = ui.outcome.cli;
   if (outcome?.kind === "changed") item.reason = CHANGED;
@@ -171,6 +173,7 @@ function agentCard(state: MachineState | null, ui: MachineUi, agent: Agent): Age
   if (agent === "claude") {
     const link: ItemView = { key: "claude-link", label: "Skill link", sub: true, detail: d.claudeSharedSkills ? ["Uses the shared skill folder"] : [{ code: tilde(d.claudeLinkPath, d.home) }, ...realLocation(state, "claudeLink"), ...(d.claudeLinkTarget ? [" → ", { code: d.claudeLinkTarget }] : [])], chip: checking ?? linkChip(state.claudeLink.state) };
     if (state.claudeLink.state === "link-other") link.msg = { tone: "warn", parts: ["Points to another folder: ", { code: state.claudeLink.value ?? "" }] };
+    if (state.claudeLink.state === "dangling") link.msg = { tone: "warn", parts: ["Link is broken: ", { code: state.claudeLink.value ?? "" }] };
     if (state.claudeLink.state === "blocked") link.msg = { tone: "error", parts: [{ code: tilde(d.blocked.claudeLink ?? d.claudeLinkPath, d.home) }, IN_USE] };
     items.push(link);
   }

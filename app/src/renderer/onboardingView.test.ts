@@ -385,3 +385,10 @@ describe("step 4 branches", () => {
     expect(promptStepView("/code/acme", list, true).ready?.open.disabled).toBe(true);
   });
 });
+
+test("dangling CLI links show Link is broken and Fix instead of another copy", () => {
+  expect(cliItems(machine({ cli: { state: "dangling", value: "/gone", stamp: "s" } }), ui())[0]).toMatchObject({
+    chip: { text: "Link is broken", tone: "warn" }, button: { id: "replace", label: "Fix…" },
+    msg: { tone: "warn", parts: ["Link is broken: ", { code: "/gone" }] },
+  });
+});
