@@ -68,15 +68,17 @@ try {
   }
   const shot = async (name: string) => { await page.screenshot({ path: join(shots, `${name}.png`) }); console.log(`comments-ui: ${name} PASS`); };
   // Equal canvas IDs and paths must never collapse identity across project roots.
+  // Both rows read the same; the top bar's project button says which root they belong to.
   const originRow = canvasRow(page, "shared.html");
   const destinationRow = canvasRow(page, "shared.html");
+  const inProject = (name: string) => waitGate(async () => await page.locator("header .repo").getAttribute("aria-label") === `${name} overview`);
   const boundaryBody = panel.getByRole("textbox", { name: "New comment body" });
   const boundaryDialog = page.getByRole("dialog");
   const originLog = join(originRepo, ".doan/comments/shared.jsonl");
   const destinationLog = join(destinationRepo, ".doan/comments/shared.jsonl");
   const logBytes = (path: string) => readFile(path, "utf8").catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return ""; throw error; });
   await enterProject(page, originRepo);
-  await originRow.click();
+  await inProject("origin"); await originRow.click();
   await panel.getByRole("button", { name: "New canvas comment", exact: true }).click();
   const unicodeBody = '원래 대상 🧪 e\u0301 <img src=x onerror="window.HOSTILE=true">';
   await boundaryBody.fill(unicodeBody);
@@ -95,11 +97,11 @@ try {
   assert.equal(await originFrame.evaluate(el => el.isConnected), true);
   await boundaryDialog.getByRole("button", { name: "Keep writing", exact: true }).click();
   assert.equal(await boundaryBody.inputValue(), unicodeBody);
-  assert.equal(await originRow.evaluate(row => row.classList.contains("is-open")), true);
+  await inProject("origin"); assert.equal(await originRow.evaluate(row => row.classList.contains("is-open")), true);
   assert.equal(await logBytes(originLog), ""); assert.equal(await logBytes(destinationLog), "");
   await shot("00a-cross-root-continue");
   await requestProject(page, destinationRepo); await boundaryDialog.getByRole("button", { name: "Save and continue", exact: true }).click();
-  await destinationRow.click();
+  await inProject("destination"); await destinationRow.click();
   await waitGate(async () => await destinationRow.evaluate(row => row.classList.contains("is-open")));
   await panel.getByText("No open comments here", { exact: true }).waitFor();
   const savedBytes = await logBytes(originLog), saved = JSON.parse(savedBytes.trim());
@@ -108,7 +110,7 @@ try {
   const cliRead = JSON.parse((await exec(cli, ["comments", "--canvas", "shared", "--repo", originRepo, "--json"])).stdout);
   assert.equal(cliRead.result.comments[0].body, unicodeBody);
   await enterProject(page, originRepo);
-  await originRow.click(); await cards.filter({ hasText: unicodeBody }).waitFor();
+  await inProject("origin"); await originRow.click(); await cards.filter({ hasText: unicodeBody }).waitFor();
   assert.equal(await cards.locator("img").count(), 0); assert.equal(await page.evaluate(() => Reflect.get(window, "HOSTILE")), undefined);
   const roundTripFrame = await page.locator("iframe").elementHandle(); assert.ok(roundTripFrame);
   await exec(cli, ["comment", "resolve", saved.comment, "--agent", "codex", "--repo", originRepo, "--json"]);
@@ -121,7 +123,7 @@ try {
   await panel.getByRole("button", { name: "New canvas comment", exact: true }).click(); await boundaryBody.fill("Discard across roots");
   const beforeDiscard = await logBytes(originLog);
   await requestProject(page, destinationRepo); await boundaryDialog.getByRole("button", { name: "Discard", exact: true }).click();
-  await destinationRow.click();
+  await inProject("destination"); await destinationRow.click();
   await waitGate(async () => await destinationRow.evaluate(row => row.classList.contains("is-open")));
   assert.equal(await boundaryBody.count(), 0); assert.equal(await logBytes(originLog), beforeDiscard); assert.equal(await logBytes(destinationLog), "");
   await shot("00c-cross-root-discard");
