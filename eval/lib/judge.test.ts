@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildJudgePrompt, checkList, finalResult, judgeCommand, judgeFor, parseJudgement, truncate } from "./judge.ts";
+import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand, judgeFor, parseJudgement, truncate } from "./judge.ts";
 
 const passing = [{ id: "a", pass: true, detail: "" }];
 const failing = [{ id: "a", pass: true, detail: "" }, { id: "b", pass: false, detail: "x" }];
@@ -54,4 +54,16 @@ test("the changed-file list and check details are capped in the judge prompt", (
   assert.match(prompt, /f19\n\(10 more files\)/);
   assert.ok(!prompt.includes("f20"));
   assert.match(prompt, /Automatic checks \(truncated/);
+});
+
+test("a fixture whose checks could not run fails the self-test, whichever fixture it is", () => {
+  // run.ts turns a throwing checks.ts into this; checkList does the same for a malformed result.
+  const thrown = [{ id: "checks_error", pass: false, detail: "TypeError: cannot read properties of null" }];
+  for (const broken of [thrown, checkList([{ id: "a", pass: "no" }]), checkList([])]) {
+    assert.match(fixtureProblem("fail", broken, finalResult(broken, "skipped")) ?? "", /checks_error/);
+    assert.match(fixtureProblem("pass", broken, finalResult(broken, "skipped")) ?? "", /checks_error/);
+  }
+  assert.equal(fixtureProblem("fail", failing, finalResult(failing, "skipped")), null);
+  assert.equal(fixtureProblem("pass", passing, finalResult(passing, "skipped")), null);
+  assert.match(fixtureProblem("fail", passing, finalResult(passing, "skipped")) ?? "", /all 1 passed/);
 });
