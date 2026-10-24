@@ -37,6 +37,51 @@ export interface Thumbnails {
 
 const isTemp = (name: string) => name.endsWith(".tmp");
 
+// Entries (directories and files alike) visited for one folder's served
+// signature. A folder serving more stops the walk there and counts as changed at every served revision, so its
+// thumbnails are taken again rather than shown stale.
+export const SERVED_WALK_LIMIT = 2000;
+
+// Canvases are tracked by their own mtime and size; every other served file
+// can restyle all of them.
+const isCanvas = (path: string) => path.startsWith("design/") && path.toLowerCase().endsWith(".html");
+
+// Every non-canvas file the folder serves, or null once the walk has visited
+// SERVED_WALK_LIMIT entries, canvases and empty directories included.
+// Symlinked files count; symlinked directories are not entered, so a link
+// cycle cannot run the walk forever.
+async function servedFiles(root: string, scope: readonly string[]): Promise<TokenFile[] | null> {
+  const files = new Map<string, TokenFile>();
+  let visited = 0;
+  const visit = async (path: string, enter: boolean): Promise<boolean> => {
+    if (++visited > SERVED_WALK_LIMIT) return false;
+    let info;
+    try {
+      info = await stat(join(root, path));
+    } catch {
+      return true;
+    }
+    if (info.isFile()) {
+      if (isCanvas(path) || files.has(path)) return true;
+      files.set(path, { path, mtimeMs: info.mtimeMs, size: info.size });
+      return true;
+    }
+    if (!info.isDirectory() || !enter) return true;
+    let names;
+    try {
+      names = await readdir(join(root, path), { withFileTypes: true });
+    } catch {
+      return true;
+    }
+    for (const name of names) {
+      if (!await visit(`${path}/${name.name}`, name.isDirectory())) return false;
+    }
+    return true;
+  };
+  for (const entry of scope) if (!await visit(entry, true)) return null;
+  return [...files.values()];
+}
+
 async function writeAtomic(path: string, bytes: Uint8Array | string): Promise<void> {
   const temp = `${path}.${randomBytes(6).toString("hex")}.tmp`;
   try {
@@ -76,30 +121,39 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
   // What the cache file, or the attempt now running or last failed, describes.
   const basis = new Map<string, ThumbnailMeta>();
   const revs = new Map<string, number>();
+  // One served signature per folder and served revision.
+  const signatures = new Map<string, { rev: number; value: Promise<string> }>();
+  // Cache writes and removals of one key run one after another, so a removal
+  // cannot finish while a write it overtook still makes files.
+  const locks = new Map<string, Promise<void>>();
   let running = false;
   let cleaned = false;
   let disposed = false;
+
+  const serial = (key: string, task: () => Promise<void>): Promise<void> => {
+    const next = (locks.get(key) ?? Promise.resolve()).then(task);
+    const settled = next.catch(() => {});
+    locks.set(key, settled);
+    void settled.then(() => { if (locks.get(key) === settled) locks.delete(key); });
+    return next;
+  };
 
   const dispatch = (event: ThumbnailQueueEvent) => {
     queue = thumbnailQueue(queue, event);
     if (queue.active !== null && !running && !disposed) void run(queue.active);
   };
 
-  // Token CSS and other single served files restyle every canvas while the
-  // canvas files stay put. Served directories are not walked; their changes
-  // show once a canvas changes (design-nav B handoff).
-  const tokens = async (root: string): Promise<string> => {
-    const files: TokenFile[] = [];
-    for (const entry of deps.scope(root)) {
-      if (entry === "design" || entry.startsWith("design/")) continue;
-      try {
-        const info = await stat(join(root, entry));
-        if (info.isFile()) files.push({ path: entry, mtimeMs: info.mtimeMs, size: info.size });
-      } catch {
-        continue;
-      }
-    }
-    return tokenSignature(files);
+  // Token CSS and every other served file restyle the folder's canvases
+  // while the canvas files stay put. The watcher bumps `servedRev` for each
+  // served change, so the walk runs once per revision, not per get.
+  const tokens = (root: string): Promise<string> => {
+    const entry = deps.entries().find((candidate) => candidate.path === root);
+    const rev = entry?.kind === "list" ? entry.servedRev : undefined;
+    const cached = signatures.get(root);
+    if (rev !== undefined && cached?.rev === rev) return cached.value;
+    const value = servedFiles(root, deps.scope(root)).then((files) => (files === null ? randomBytes(32).toString("hex") : tokenSignature(files)));
+    if (rev !== undefined) signatures.set(root, { rev, value });
+    return value;
   };
 
   const current = async (target: ThumbnailTarget): Promise<ThumbnailMeta | null> => {
@@ -138,15 +192,20 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
       const meta = await current(target);
       if (meta !== null) {
         basis.set(key, meta);
-        png = await deps.capturer.capture(row.url, row.width);
-        // Forgotten while it ran: the capture shows an older canvas (queue contract).
-        if (png !== null && !queue.activeStale && !disposed) {
-          try {
-            await writeCache(key, png, meta);
-          } catch (error) {
-            console.error("doan: cannot save a thumbnail", error);
-            png = null;
-          }
+        const captured = await deps.capturer.capture(row.url, row.width);
+        png = captured;
+        if (captured !== null) {
+          await serial(key, async () => {
+            // Forgotten while it ran: the capture shows an older canvas (queue
+            // contract). Checked inside the lock, after any removal queued first.
+            if (queue.activeStale || disposed) return;
+            try {
+              await writeCache(key, captured, meta);
+            } catch (error) {
+              console.error("doan: cannot save a thumbnail", error);
+              png = null;
+            }
+          });
         }
       }
     }
@@ -223,6 +282,7 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
         if (seen !== undefined && seen !== entry.servedRev) void recheck(entry.path);
       }
       for (const root of revs.keys()) if (!entries.some((entry) => entry.path === root)) revs.delete(root);
+      for (const root of signatures.keys()) if (!entries.some((entry) => entry.path === root)) signatures.delete(root);
       if (!cleaned && entries.every((entry) => entry.kind !== "loading")) {
         cleaned = true;
         void collect(entries);
@@ -231,11 +291,15 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
     async removed(roots, before) {
       const keys = before.flatMap((entry) => (entry.kind === "list" && roots.includes(entry.path) ? entry.canvases.map((row) => thumbnailKey(entry.path, row.path)) : []));
       for (const [key, target] of known) if (roots.includes(target.root)) keys.push(key);
-      for (const key of new Set(keys)) {
+      const unique = [...new Set(keys)];
+      // Forget them all first: a write waiting for its lock then sees it is stale.
+      for (const key of unique) {
         known.delete(key);
         forget(key);
-        await Promise.all([files(key).png, files(key).json].map((file) => unlink(file).catch(() => {})));
       }
+      await Promise.all(unique.map((key) => serial(key, async () => {
+        await Promise.all([files(key).png, files(key).json].map((file) => unlink(file).catch(() => {})));
+      })));
     },
     pause: () => dispatch({ type: "pause" }),
     resume: () => dispatch({ type: "resume" }),

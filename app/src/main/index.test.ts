@@ -36,6 +36,8 @@ const mocks = await vi.hoisted(async () => {
     flow: { add: vi.fn(), scan: vi.fn(), cancel: vi.fn(), addCandidates: vi.fn(), confirm: vi.fn(), judge: vi.fn() },
     createAddFlow: vi.fn(),
     electronShell: { showItemInFolder: vi.fn() },
+    // AppKit notifications by name, as main last subscribed to them.
+    notifications: new Map<string, () => void>(),
     startShell: vi.fn(),
     cliCommand: vi.fn(() => "/bundled/doan"),
     runtime: { socket: "/tmp/doan-x/app.sock", token: "t", file: "/tmp/doan-index-test/runtime.json", disposeSync: vi.fn() },
@@ -63,6 +65,7 @@ vi.mock("electron", () => ({
   Menu: { buildFromTemplate: mocks.menu, setApplicationMenu: vi.fn() },
   session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDevicePermissionHandler: vi.fn(), on: mocks.sessionOn } },
   webFrameMain: { fromId: vi.fn() },
+  systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; } },
 }));
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
 vi.mock("./onboarding/machine", () => ({ createMachine: mocks.createMachine, needsOnboarding: mocks.needsOnboarding, markClosed: mocks.markClosed, PATH_LINE: 'export PATH="$HOME/.local/bin:$PATH"' }));
@@ -1093,6 +1096,25 @@ describe("thumbnails", () => {
     expect(mocks.thumbnails.resume).toHaveBeenCalledOnce();
   });
 
+  test("hiding the whole app pauses captures, and unhiding resumes them only while the window is shown", () => {
+    const notify = (name: string) => mocks.notifications.get(`NSApplicationDid${name}Notification`)?.();
+    notify("Hide");
+    expect(mocks.thumbnails.pause).toHaveBeenCalledOnce();
+    notify("Unhide");
+    expect(mocks.thumbnails.resume).toHaveBeenCalledOnce();
+    // Closed, then hidden and shown again: the window is still closed.
+    window().emit("close", { preventDefault: vi.fn() });
+    notify("Hide");
+    notify("Unhide");
+    expect(mocks.thumbnails.resume).toHaveBeenCalledOnce();
+    // Shown while the app is hidden: nothing runs until the app is back.
+    notify("Hide");
+    mocks.app.emit("activate");
+    expect(mocks.thumbnails.resume).toHaveBeenCalledOnce();
+    notify("Unhide");
+    expect(mocks.thumbnails.resume).toHaveBeenCalledTimes(2);
+  });
+
   test("a fullscreen window pauses captures once it is really hidden", () => {
     window().isFullScreen.mockReturnValue(true);
     window().emit("close", { preventDefault: vi.fn() });
@@ -1101,8 +1123,19 @@ describe("thumbnails", () => {
     expect(mocks.thumbnails.pause).toHaveBeenCalledOnce();
   });
 
+  // Quit closes every window before will-quit; captures still running then
+  // would open the capture window again and keep the app from quitting.
+  test("a quit disposes the thumbnails once it is allowed, before will-quit", async () => {
+    await invoke("comments:guard", window().webContents, null, true);
+    mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+    expect(mocks.thumbnails.dispose).not.toHaveBeenCalled();
+    const call = window().webContents.send.mock.calls.find(call => call[0] === "comments:transition");
+    await invoke("comments:transition-answer", window().webContents, null, { id: call?.[1].id, allow: true });
+    expect(mocks.thumbnails.dispose).toHaveBeenCalledOnce();
+  });
+
   test("quitting disposes the thumbnails, and the capturer destroys its window", async () => {
-    mocks.app.emit("will-quit");
+    mocks.app.emit("before-quit", { preventDefault: vi.fn() });
     expect(mocks.thumbnails.dispose).toHaveBeenCalledOnce();
     const hidden = await captureWindow();
     deps().capturer.close();

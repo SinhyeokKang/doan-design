@@ -1,5 +1,5 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { rename, writeFile } from "node:fs/promises";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, describe, expect, test, vi } from "vitest";
@@ -63,7 +63,7 @@ describe("save", () => {
     const calls: string[][] = [];
     const fs: UiStateFs = {
       async writeFile(temp, text) { calls.push(["write", temp]); await writeFile(temp, text, { flag: "wx" }); },
-      async rename(from, to) { calls.push(["rename", from, to]); await rename(from, to); },
+      renameSync(from, to) { calls.push(["rename", from, to]); renameSync(from, to); },
     };
     const store = createUiStateStore(path, saved, UI_STATE_DELAY_MS, fs);
     store.save(workspace("design/a.html"));
@@ -79,7 +79,7 @@ describe("save", () => {
     const path = file();
     writeFileSync(path, JSON.stringify(workspace("design/old.html")));
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    const fs: UiStateFs = { writeFile: (temp, text) => writeFile(temp, text, { flag: "wx" }), rename: () => Promise.reject(new Error("disk full")) };
+    const fs: UiStateFs = { writeFile: (temp, text) => writeFile(temp, text, { flag: "wx" }), renameSync: () => { throw new Error("disk full"); } };
     const store = createUiStateStore(path, saved, UI_STATE_DELAY_MS, fs);
     store.save(workspace("design/new.html"));
     vi.advanceTimersByTime(UI_STATE_DELAY_MS);
@@ -135,7 +135,7 @@ describe("save", () => {
     let release = () => {};
     const fs: UiStateFs = {
       async writeFile(temp, text) { await writeFile(temp, text, { flag: "wx" }); await new Promise<void>((resolve) => { release = resolve; }); },
-      rename,
+      renameSync,
     };
     const store = createUiStateStore(path, saved, UI_STATE_DELAY_MS, fs);
     store.save(workspace("design/a.html"));
@@ -145,6 +145,53 @@ describe("save", () => {
     store.flushSync();
     release();
     await store.idle();
+    expect(onDisk(path).canvas).toBe("design/b.html");
+    expect(readdirSync(join(path, ".."))).toEqual(["ui-state.json"]);
+  });
+
+  test("flushSync also writes a value whose debounced write has started but not finished", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const path = file();
+    let release = () => {};
+    let started = false;
+    const fs: UiStateFs = {
+      async writeFile(temp, text) { started = true; await new Promise<void>((resolve) => { release = resolve; }); await writeFile(temp, text, { flag: "wx" }); },
+      renameSync,
+    };
+    const store = createUiStateStore(path, saved, UI_STATE_DELAY_MS, fs);
+    store.save(workspace("design/a.html"));
+    vi.advanceTimersByTime(UI_STATE_DELAY_MS);
+    await vi.waitFor(() => expect(started).toBe(true));
+    store.flushSync();
+    expect(onDisk(path).canvas).toBe("design/a.html");
+    release();
+    await store.idle();
+    expect(onDisk(path).canvas).toBe("design/a.html");
+    expect(readdirSync(join(path, ".."))).toEqual(["ui-state.json"]);
+  });
+
+  // Before the fix the rename was async, and a quit flush that came while it
+  // ran was overwritten by it. The commit is now one synchronous step after
+  // the superseded check, so the flush comes either before it (and wins) or,
+  // as here, right after it.
+  test("a rename the debounced write already issued does not land over a later flushSync", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const path = file();
+    let renames = 0;
+    const fs: UiStateFs = {
+      writeFile: (temp, text) => writeFile(temp, text, { flag: "wx" }),
+      renameSync(from, to) {
+        renames++;
+        renameSync(from, to);
+        store.save(workspace("design/b.html"));
+        store.flushSync();
+      },
+    };
+    const store = createUiStateStore(path, saved, UI_STATE_DELAY_MS, fs);
+    store.save(workspace("design/a.html"));
+    vi.advanceTimersByTime(UI_STATE_DELAY_MS);
+    await store.idle();
+    expect(renames).toBe(1);
     expect(onDisk(path).canvas).toBe("design/b.html");
     expect(readdirSync(join(path, ".."))).toEqual(["ui-state.json"]);
   });

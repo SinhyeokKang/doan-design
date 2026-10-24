@@ -5,7 +5,7 @@ import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
 import { DocumentBindings, stableDiskHash } from "./comments/document";
 import { createTransitionGuard } from "./comments/transitions";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, session, shell as electronShell, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -96,17 +96,28 @@ let removals = 0;
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
 
 // Thumbnails are for the window's overview, so nothing is captured while it
-// is hidden. Paused here rather than on the window's `hide`/`show` events,
-// which macOS did not emit for these calls in the e2e run.
+// is hidden: closed with the app still running, or with the whole app hidden
+// (⌘H, doan › Hide). Tracked here rather than with the window's `hide`/`show`
+// events, which macOS did not emit for these calls in the e2e run.
+// createWindow makes the window shown, without showWindow.
+let windowShown = true;
+let appHidden = false;
+function syncThumbnailPause(): void {
+  if (windowShown && !appHidden) thumbnails?.resume();
+  else thumbnails?.pause();
+}
+
 function showWindow(window: BrowserWindow): void {
   cancelPendingHide();
   window.show();
-  thumbnails?.resume();
+  windowShown = true;
+  syncThumbnailPause();
 }
 
 function hideWindow(window: BrowserWindow): void {
   window.hide();
-  thumbnails?.pause();
+  windowShown = false;
+  syncThumbnailPause();
 }
 
 function isOpen(root: string): boolean {
@@ -345,6 +356,10 @@ async function start(): Promise<void> {
     capturer: createWindowCapturer(), changed: (target) => send("thumbnails:changed", target),
   });
   thumbnails = thumbs;
+  // Electron has no app hide event. AppKit posts these at the end of
+  // NSApplication's hide:/unhide:, which the `hide` role item (⌘H) sends.
+  systemPreferences.subscribeLocalNotification("NSApplicationDidHideNotification", () => { appHidden = true; syncThumbnailPause(); });
+  systemPreferences.subscribeLocalNotification("NSApplicationDidUnhideNotification", () => { appHidden = false; syncThumbnailPause(); });
   // Starts the once-per-launch cache cleanup even when no folder update follows.
   thumbs.entriesChanged(ready.entries());
   const comments = createCommentsService({
@@ -614,7 +629,9 @@ app.on("before-quit", (event) => {
   if (quitting) return;
   let approved = false;
   transitionGuard.request({ kind: "quit" }, () => {
-    quitting = true; cancelPendingHide();
+    // Before quit closes the windows: a capture running then would otherwise
+    // open the capture window again, and will-quit would never come.
+    quitting = true; cancelPendingHide(); thumbnails?.dispose();
     if (approved) app.quit();
   });
   if (!quitting) { event.preventDefault(); approved = true; }
@@ -625,7 +642,6 @@ app.on("activate", () => {
 
 app.on("will-quit", () => {
   uiState?.flushSync();
-  thumbnails?.dispose();
   runtime?.disposeSync();
   void shell?.dispose();
 });

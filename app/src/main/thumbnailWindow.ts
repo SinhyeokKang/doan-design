@@ -8,6 +8,9 @@ export const THUMBNAIL_WIDTH = 480;
 export const SETTLE_MS = 500;
 export const LOAD_LIMIT_MS = 8000;
 export const JOB_LIMIT_MS = 20_000;
+// Tells the capture window apart from app windows (e2e/windows.ts) from the
+// moment it exists, before its host page has loaded.
+export const CAPTURE_WINDOW_TITLE = "doan thumbnails";
 
 // No script runs in the host but main's; the canvas iframe is the only frame
 // it may hold, and only from the local server.
@@ -42,6 +45,7 @@ export interface Capturer {
   // A 480 px wide PNG of the canvas's first 16:10 screen, or null when it
   // could not be taken ("Preview unavailable").
   capture(url: string, width: number): Promise<Buffer | null>;
+  // For good: later captures fail without opening a window.
   close(): void;
 }
 
@@ -49,6 +53,9 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
   let window: BrowserWindow | undefined;
   // Set by a canvas frame that failed to load or answered with an error.
   let frameFailed = false;
+  // For good: quit closes the window before will-quit, and a capture window
+  // opened after that keeps the app from quitting.
+  let closed = false;
 
   const open = (): BrowserWindow => {
     if (window && !window.isDestroyed()) return window;
@@ -58,9 +65,11 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
     // window's (index.ts).
     const created = new BrowserWindow({
       show: false,
+      title: CAPTURE_WINDOW_TITLE,
       useContentSize: true,
       webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
     });
+    created.on("page-title-updated", (event) => event.preventDefault());
     created.webContents.on("did-fail-load", (_event, _code, _text, _url, isMainFrame) => { if (!isMainFrame) frameFailed = true; });
     created.webContents.on("did-frame-navigate", (_event, _url, code, _status, isMainFrame) => { if (!isMainFrame && code >= 400) frameFailed = true; });
     window = created;
@@ -87,10 +96,12 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
 
   return {
     async capture(url, width) {
+      if (closed) return null;
       let timer: NodeJS.Timeout | undefined;
       const limit = new Promise<"limit">((resolve) => { timer = setTimeout(() => resolve("limit"), jobLimitMs); });
       try {
         const result = await Promise.race([run(url, width), limit]);
+        if (closed) return null;
         if (result !== "limit") return result;
         // A job past its limit may still hold the page; the next starts clean.
         discard();
@@ -102,7 +113,10 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
         clearTimeout(timer);
       }
     },
-    close: discard,
+    close() {
+      closed = true;
+      discard();
+    },
   };
 }
 

@@ -24,7 +24,7 @@ const mocks = await vi.hoisted(async () => {
 });
 vi.mock("electron", () => ({ BrowserWindow: mocks.Window }));
 
-const { createWindowCapturer, frameScript, hostPage, LOAD_LIMIT_MS, SETTLE_MS } = await import("./thumbnailWindow");
+const { CAPTURE_WINDOW_TITLE, createWindowCapturer, frameScript, hostPage, LOAD_LIMIT_MS, SETTLE_MS } = await import("./thumbnailWindow");
 const URL_A = "http://127.0.0.1:1/t/tok/k/design/a.html";
 
 beforeEach(() => {
@@ -107,6 +107,14 @@ test("one window, but a fresh host page and iframe for every canvas", async () =
   expect(only().webContents.executeJavaScript).toHaveBeenCalledTimes(2);
 });
 
+test("the window carries a fixed title from creation, which no page replaces", async () => {
+  await createWindowCapturer().capture(URL_A, 1280);
+  expect(only().options).toMatchObject({ title: CAPTURE_WINDOW_TITLE, show: false });
+  const event = { preventDefault: vi.fn() };
+  only().emit("page-title-updated", event, "Other", true);
+  expect(event.preventDefault).toHaveBeenCalledOnce();
+});
+
 test.each([
   ["a canvas frame that fails to load", (window: InstanceType<typeof mocks.Window>) => window.webContents.emit("did-fail-load", {}, -105, "ERR", URL_A, false)],
   ["a canvas frame answered with 404", (window: InstanceType<typeof mocks.Window>) => window.webContents.emit("did-frame-navigate", {}, URL_A, 404, "Not Found", false)],
@@ -155,10 +163,30 @@ test("an error or an unusable rectangle is a failure", async () => {
 
 test("close destroys the window, and nothing is left to destroy twice", async () => {
   const capturer = createWindowCapturer();
-  capturer.close();
-  expect(mocks.Window.instances).toHaveLength(0);
   await capturer.capture(URL_A, 1280);
   capturer.close();
   capturer.close();
   expect(only().destroy).toHaveBeenCalledOnce();
+});
+
+// Quit closes the window under a running capture; the queue's next job must
+// not open another, or the app never reaches will-quit.
+test("after close a capture fails without opening a window", async () => {
+  const capturer = createWindowCapturer();
+  capturer.close();
+  expect(await capturer.capture(URL_A, 1280)).toBeNull();
+  expect(mocks.Window.instances).toHaveLength(0);
+});
+
+test("a capture running at close fails, and the next opens no window", async () => {
+  const capturer = createWindowCapturer();
+  let finish: (rect: unknown) => void = () => {};
+  mocks.Window.frame = () => new Promise((resolve) => { finish = resolve; });
+  const running = capturer.capture(URL_A, 1280);
+  await vi.waitFor(() => expect(only().webContents.executeJavaScript).toHaveBeenCalled());
+  capturer.close();
+  finish({ x: 0, y: 0, width: 1280, height: 800 });
+  expect(await running).toBeNull();
+  expect(await capturer.capture(URL_A, 1280)).toBeNull();
+  expect(mocks.Window.instances).toHaveLength(1);
 });
