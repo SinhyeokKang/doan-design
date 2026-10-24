@@ -68,27 +68,33 @@ export function droppedPaths(value: unknown): string[] | null {
 }
 
 // lstat: a `.git` file (linked worktree, submodule) counts as much as a directory.
-export async function hasGitEntry(dir: string): Promise<boolean> {
+// null when the entry could not be checked (EACCES, EIO, ...): that says
+// nothing about whether it is there.
+export async function hasGitEntry(dir: string): Promise<boolean | null> {
   try {
     await lstat(join(dir, ".git"));
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === "ENOENT" || code === "ENOTDIR" ? false : null;
   }
 }
 
 // Immediate child directories only, hidden ones and symlinks left out (a link
-// could point anywhere, including back up), first 200 by name.
-export async function gitChildren(dir: string): Promise<string[]> {
+// could point anywhere, including back up), first 200 by name. null when the
+// folder could not be listed, or nothing was found and some child could not be
+// checked: either way "no repos here" would be a guess.
+export async function gitChildren(dir: string): Promise<string[] | null> {
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch {
-    return [];
+    return null;
   }
   const names = entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith(".")).map((entry) => entry.name).sort().slice(0, MAX_CHILDREN);
   const flags = await Promise.all(names.map((name) => hasGitEntry(join(dir, name))));
-  return names.filter((_, i) => flags[i]).map((name) => join(dir, name));
+  const found = names.filter((_, i) => flags[i] === true).map((name) => join(dir, name));
+  return found.length === 0 && flags.includes(null) ? null : found;
 }
 
 async function realDirectory(path: string): Promise<string | null> {
@@ -201,8 +207,14 @@ export function createAddFlow(deps: AddFlowDeps) {
       const ls = await deps.ls({ cwd: real });
       const asRepo = ls.kind === "error" || ls.kind === "cliError" ? await deps.ls({ repo: real }) : null;
       const hasGit = await hasGitEntry(real);
-      const found = ls.kind === "uninitialized" && !hasGit ? await gitChildren(real) : [];
-      const decision = classifyPick({ path: real, isDir: true, ls, asRepo, hasGit, children: found, saved: deps.saved() });
+      const found = ls.kind === "uninitialized" && hasGit === false ? await gitChildren(real) : [];
+      // Not knowing must not read as "holds no repos": that would offer to set
+      // up the parent (P4).
+      if (found === null || (ls.kind === "uninitialized" && hasGit === null)) {
+        outcome.messages.push(`Couldn’t read ${basename(real)}.`);
+        continue;
+      }
+      const decision = classifyPick({ path: real, isDir: true, ls, asRepo, hasGit: hasGit === true, children: found, saved: deps.saved() });
       switch (decision.kind) {
         case "store": {
           outcome.added.push(...await deps.store([decision.path]));
@@ -299,7 +311,7 @@ export function createAddFlow(deps: AddFlowDeps) {
       if (real === null) return { refused: ONLY_FOLDERS };
       const ls = await deps.ls({ cwd: real });
       const asRepo = ls.kind === "error" || ls.kind === "cliError" ? await deps.ls({ repo: real }) : null;
-      const hasGit = await hasGitEntry(real);
+      const hasGit = (await hasGitEntry(real)) === true;
       const decision = classifyPick({ path: real, isDir: true, ls, asRepo, hasGit, children: [], saved: [] });
       switch (decision.kind) {
         case "store":

@@ -106,7 +106,7 @@ describe("gitChildren", () => {
     for (let i = 0; i < 205; i++) gitDir(parent, `r${String(i).padStart(3, "0")}`);
     const children = await gitChildren(parent);
     expect(children).toHaveLength(200);
-    expect(children.at(-1)).toBe(join(parent, "r199"));
+    expect(children?.at(-1)).toBe(join(parent, "r199"));
   });
 
   test("a folder that cannot be listed has no answer rather than no children", async () => {

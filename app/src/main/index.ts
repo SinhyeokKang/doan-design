@@ -86,6 +86,8 @@ const HOME: MenuInputs = { screen: "home", modal: false, toast: false };
 let menuInputs: MenuInputs = HOME;
 // Only the newest removal can be undone; main keeps what Undo needs.
 let removal: { id: string; paths: string[]; indexes: number[] } | null = null;
+// Counts removals started, so one saved late cannot take Undo from a newer one.
+let removals = 0;
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
 
 function showWindow(window: BrowserWindow): void {
@@ -426,10 +428,15 @@ async function start(): Promise<void> {
         const entries = ready.entries().filter((entry) => roots.includes(entry.path));
         const label = removalLabel(entries);
         if (selection && roots.includes(selection.root)) selection = null;
+        // The list changes before folders.json is written: the old Undo goes
+        // now, not when the write ends.
+        const generation = ++removals;
+        removal = null;
         void ready.remove(roots).then((removed) => {
           if (removed.paths.length === 0) { resolve({ kind: "unavailable" }); return; }
-          removal = { id: randomUUID(), ...removed };
-          resolve({ kind: "removed", removalId: removal.id, label });
+          const id = randomUUID();
+          if (generation === removals) removal = { id, ...removed };
+          resolve({ kind: "removed", removalId: id, label });
         });
       }, () => resolve({ kind: "cancelled" }));
     });
