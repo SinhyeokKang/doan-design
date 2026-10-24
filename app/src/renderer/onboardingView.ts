@@ -1,7 +1,8 @@
 import type { MachineState } from "../main/onboarding/machine";
 import type { Agent } from "../main/onboarding/states";
 import type { ProjectInitResult } from "../main/shell";
-import type { FolderEntry } from "../main/view";
+import type { CanvasRow, FolderEntry } from "../main/view";
+import { canvasLabel } from "./canvasTree";
 import { projectRow, type DetailPart } from "./projectRow";
 
 // Internal state names (ours, link-other, …) stop here; components only see copy.
@@ -23,6 +24,8 @@ export interface ItemView {
   reason?: string;
   dimmed?: true;
   copyLine?: { text: string; button: ButtonView };
+  // Opens the agent's install page; main maps the target to a fixed URL.
+  link?: { target: Agent; label: string };
 }
 export interface AgentCardView { agent: Agent; head: ItemView; items: ItemView[] }
 
@@ -46,6 +49,14 @@ const TRANSLOCATED = "Move doan to Applications, then open it again.";
 const IN_USE = " is in use by something else. Move or delete it, then Check Again.";
 const PLACEHOLDER = "<what you want to design>";
 const AGENT_NAMES: Record<Agent, string> = { claude: "Claude Code", codex: "Codex" };
+
+// Step copy for the branches below lives here so the confirmed draft's wording
+// is one swap. Titles and descriptions per step are not here yet.
+export const NO_AGENT_NOTICE = "doan works through Claude Code or Codex. Install one, then choose Check Again.";
+const installLabel = (agent: Agent) => `Install ${AGENT_NAMES[agent]} ↗`;
+const ADD_PROJECT_LABEL = "Add Project…";
+const OPEN_LABEL = "Open";
+const canvasReadyText = (name: string) => `Canvas ready: ${name}`;
 
 export function tilde(path: string, home: string): string {
   return path === home ? "~" : path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
@@ -123,7 +134,8 @@ function connected(state: MachineState, agent: Agent): boolean {
   return a.executable !== null && state.stub.state === "ours" && a.mcp.state === "ours" && (agent === "codex" || state.claudeLink.state === "ours");
 }
 
-export function agentsView(state: MachineState | null, ui: MachineUi): { skill: ItemView; agents: AgentCardView[] } {
+export interface AgentsStepView { skill: ItemView; agents: AgentCardView[]; notice?: string }
+export function agentsView(state: MachineState | null, ui: MachineUi): AgentsStepView {
   const d = state?.display;
   const skill: ItemView = {
     key: "skill", label: "Skill", detail: [{ code: d ? tilde(d.stubPath, d.home) : "~/.agents/skills/doan/SKILL.md" }, ...realLocation(state, "stub"), " · shared by Claude Code and Codex"],
@@ -132,7 +144,9 @@ export function agentsView(state: MachineState | null, ui: MachineUi): { skill: 
   if (state?.stub.state === "differs") skill.msg = { tone: "warn", parts: ["Modified or from another version"] };
   if (state?.stub.state === "blocked") skill.msg = { tone: "error", parts: [{ code: tilde(state.display.blocked.stub ?? state.display.stubPath, state.display.home) }, IN_USE] };
   const agents = (["claude", "codex"] as const).map(agent => agentCard(state, ui, agent));
-  return { skill, agents };
+  // Only a settled, successful read can say that no agent is installed.
+  const noAgent = state !== null && state.probe.ok && !ui.checking && ui.readError === null && agents.every(card => card.head.link !== undefined);
+  return { skill, agents, ...(noAgent ? { notice: NO_AGENT_NOTICE } : {}) };
 }
 
 function stubChip(state: MachineState["stub"]["state"]): Chip {
@@ -144,7 +158,7 @@ function agentCard(state: MachineState | null, ui: MachineUi, agent: Agent): Age
   if (state === null) return { agent, head: { key: agent, label, detail: [], detailChip: readChip(state, ui) ?? { text: "Checking…" } }, items: [] };
   if (!state.probe.ok) return { agent, head: { key: agent, label, detail: [], detailChip: { text: "Couldn’t check", tone: "warn" }, msg: { tone: "warn", parts: [checkAgain(state.probe.reason)] } }, items: [] };
   const found = state.agents[agent];
-  if (found.executable === null) return { agent, head: { key: agent, label, detail: ["Not installed"] }, items: [] };
+  if (found.executable === null) return { agent, head: { key: agent, label, detail: ["Not installed"], link: { target: agent, label: installLabel(agent) } }, items: [] };
   const d = state.display, checking = readChip(state, ui);
   const head: ItemView = { key: agent, label, detail: ["Found at ", { code: found.executable }] };
   if (connected(state, agent)) head.msg = { tone: "ok", parts: [`Connected. Start a new ${label} session to use doan.`] };
@@ -265,6 +279,18 @@ export function nextFocusIndex(count: number, index: number, shift: boolean): nu
   if (!shift && index === count - 1) return 0;
   if (shift && index === 0) return count - 1;
   return null;
+}
+
+export interface PromptStepView {
+  addProject?: { label: string; primary: true; disabled: boolean };
+  ready?: { text: string; open: { label: string; disabled: boolean } };
+}
+// Without a project the step offers Add Project… in place of the first prompt;
+// once the waited-for canvas has arrived it shows Canvas ready with Open.
+export function promptStepView(project: string | null, arrived: CanvasRow | null, busy: boolean): PromptStepView {
+  if (project === null) return { addProject: { label: ADD_PROJECT_LABEL, primary: true, disabled: busy } };
+  if (arrived === null) return {};
+  return { ready: { text: canvasReadyText(canvasLabel(arrived)), open: { label: OPEN_LABEL, disabled: busy } } };
 }
 
 export interface ProjectForm { running: boolean; token: string | null; error: string | null; rerooted: string | null }
