@@ -56,3 +56,7 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: A2 완료(`8310558`, 브랜치 `SinhyeokKang/ph-a2`). typecheck·test 통과 보고(59 files, 1340 tests). 차이: `/ship`의 red 선확인과 별도 `/code-review`·`/refactor`를 건너뛰었다. `classifyPick`에 `refuse` 결과를 더했다(`error`·`cliError`는 기존 `openDecision` 규칙을 따름). 교차 리뷰 R-A2(Codex Astra medium)가 리뷰 단계를 대신한다. A2는 B2를 막지 않도록 먼저 통합하고, 리뷰 지적은 A2 워커가 후속 커밋으로 고친다.
 - 2026-10-25: A2를 통합했다(`af2aae3`). 통합 HEAD에서 typecheck·test(1340) 통과. R-A2(`ctx_2099fac0462e`, Codex Astra medium), B2(`ctx_1560d42af729`, Claude Opus high, worktree `ph-b2`) 시작.
 - 2026-10-25: R-A1 결과 🔴 0 · 🟡 1(submodule·bare·separate-git-dir I/O 픽스처 누락) · ⚪ 5. A1을 그대로 통합하고, 🟡1과 ⚪2~5는 B1에 후속 메시지로 보냈다. 보고서: `.scratch/orch/projects-home/review-A1.md`.
+- 2026-10-25: A1을 통합했다(`9c3cc41`, `8021f62`). 통합 HEAD에서 `go test ./...`·`go vet ./...` 통과. R-A1 워커는 해제했다.
+- 2026-10-25: R-A2 결과 🔴 0 · 🟡 3(저장된 비 git 경로 중복 판정, 정상 비 git 행의 과거 common 재사용, 토스트 교체 후 focus 정지) · ⚪ 1(워크트리 하위 항목 기본 체크 해제 미검증 → B2에 전달). A2 워커에 A2-fix를 보냈다(이번에는 red 선확인을 요구). R-A2 워커는 해제했다.
+- 2026-10-25: A2 터미널은 재사용이 거부되어(`agent_unconfigured`) 해제했다. 같은 worktree(`ph-a2`)에 새 Claude Sonnet high 워커로 A2-fix(`ctx_234db83dd97d`)를 시작했다.
+- 2026-10-25: B1 완료(`ed1f596`, `55bac2c`, `257f15f`). R-A1의 🟡1과 ⚪2~4를 반영했다. `go test`·`go vet` 통과 보고. 교차 리뷰 R-B1(Claude Opus high)을 띄웠다. E(agent-eval)는 R-B1 뒤 통합한 HEAD에서 돈다(리뷰 수정으로 재실행하지 않도록).
