@@ -323,3 +323,17 @@ test("symlinked setup locations show the familiar path and the real location", (
   expect(view.agents[0]?.items[0]?.detail).toContainEqual({ code: "~/.claude/skills/doan" });
   expect(view.agents[0]?.items[0]?.detail).toContainEqual({ code: "/managed/claude/doan" });
 });
+
+
+test("Claude shared skills display installed without a self-link target", () => {
+  const state = machine({ claudeLink: { state: "ours", value: null, stamp: "s" } });
+  Object.assign(state.display, { claudeSharedSkills: true, claudeLinkTarget: "" });
+  const card = agentsView(state, ui()).agents[0]!;
+  expect(card.items[0]).toMatchObject({ detail: ["Uses the shared skill folder"], chip: { text: "Installed", tone: "ok" } });
+  expect(card.head.button?.disabled).toBe(false);
+});
+
+test("Claude invalid config display omits an unresolved link destination", () => {
+  const state = machine({ display: { claudeLinkPath: "rel/claude/skills/doan", claudeLinkTarget: "" } });
+  expect(agentsView(state, ui()).agents[0]!.items[0]!.detail).toEqual([{ code: "rel/claude/skills/doan" }]);
+});

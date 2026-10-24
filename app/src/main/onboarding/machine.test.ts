@@ -306,3 +306,35 @@ test.each([".local/bin", ".agents/skills", ".claude/skills"])("swapping ancestor
   expect(await m.run({ step: name === ".local/bin" ? "cli" : "connect", ...(name === ".local/bin" ? {} : { agent: "claude" }), expected: state.expected })).toEqual({ kind: "stale" });
   expect(readdirSync(first)).toEqual([]); expect(readdirSync(second)).toEqual([]);
 });
+
+
+test.each(["claude", "shared"])("Claude uses the shared stub when the %s skills directory aliases the other", async direction => {
+  agent("claude");
+  const shared = join(home, ".agents/skills"), claude = join(home, ".claude/skills");
+  const target = direction === "claude" ? shared : claude, alias = direction === "claude" ? claude : shared;
+  mkdirSync(target, { recursive: true }); mkdirSync(join(alias, ".."), { recursive: true }); symlinkSync(target, alias);
+  const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  const before = await m.read("2");
+  expect(before.claudeLink.state).toBe("missing");
+  expect(await m.run({ step: "connect", agent: "claude", expected: before.expected })).toEqual({ kind: "success" });
+  const after = await m.read("3");
+  expect(after.stub.state).toBe("ours"); expect(after.claudeLink.state).toBe("ours");
+  expect(after.display).toMatchObject({ claudeSharedSkills: true, claudeLinkTarget: "" });
+  expect(after.display.blocked.claudeLink).toBeNull();
+  expect(lstatSync(join(target, "doan")).isDirectory()).toBe(true);
+  expect(readdirSync(join(target, "doan"))).toEqual(["SKILL.md"]);
+  expect(readlinkSync(alias)).toBe(target);
+  expect(mcpWrites()).toHaveLength(1);
+  const unchanged = treeHash(target);
+  expect(await m.run({ step: "connect", agent: "claude", expected: after.expected })).toEqual({ kind: "success" });
+  expect(treeHash(target)).toBe(unchanged);
+});
+
+test("relative Claude config never displays a resolved destination or link target", async () => {
+  agent("claude"); env.CLAUDE_CONFIG_DIR = "rel/claude";
+  const m = machine(), state = await m.read("1");
+  expect(state.display.claudeLinkPath).toBe("rel/claude/skills/doan");
+  expect(state.display.realPaths?.claudeLink).toBeUndefined();
+  expect(state.display.claudeLinkTarget).toBe("");
+  expect(await m.run({ step: "connect", agent: "claude", expected: state.expected })).toMatchObject({ kind: "unavailable", message: expect.stringContaining("must be an absolute path") });
+});
