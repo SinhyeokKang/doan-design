@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-24 — Empty check results looked like a validated canvas
+
+- **Area**: `cli/internal/check/check.go`, `cli/internal/cli/check.go`, `run.go`
+- **Symptom**: after a W1 generator failed before writing HTML, `doan check` returned zero errors and warnings without saying that it checked zero canvases (USABILITY-EVAL U-003; loop3 Codex rollout). The agent recovered, but the result did not distinguish absence from validation.
+- **Root cause**: the summary counted findings only; an empty scan and a valid canvas both produced an empty finding list.
+- **Net**: agent-eval exposed the ambiguous result; existing empty-input tests explicitly expected no findings. Regression tests now pin the warning, canvas count, human count line, and matching MCP envelope; they failed before implementation.
+- **Prevention**: retain empty-input coverage alongside valid and unparsable canvas cases, and count unparsable files so they do not trigger a false absence warning. Search executed: `rg -n 'Summarize|len\(.*Canvases' cli/internal/check cli/internal/cli/check.go`; the only summary caller is the shared CLI check path, also used by MCP.
+
 ### 2026-10-24 — Full rollout output displaced active-call evidence in the judge prompt
 
 - **Area**: `eval/lib/agent.ts`, `eval/lib/judge.ts`, evaluation invocation evidence.
