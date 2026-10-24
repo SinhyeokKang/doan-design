@@ -1,0 +1,9 @@
+{
+  "canvas": { "path": "design/hello.html", "id": "hello" },
+  "element": {
+    "doanId": "title",
+    "selector": "[data-doan-id=\"title\"]",
+    "html": "<h1 data-doan-id=\"title\">Hello</h1>",
+    "text": "Hello"
+  }
+}

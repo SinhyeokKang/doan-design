@@ -1,0 +1,8 @@
+{
+  "id": "_example",
+  "title": "Runner self-test example: retitle the selected heading",
+  "focus": "active",
+  "init": { "tokenCss": "styles/tokens.css" },
+  "selection": "selection.json",
+  "timeoutSec": 300
+}
