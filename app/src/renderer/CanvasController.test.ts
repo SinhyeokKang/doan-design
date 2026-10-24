@@ -259,10 +259,10 @@ describe("selection", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("a frame jump asks the canvas to pick that frame by index and id", () => {
+  it("Select asks the canvas to pick that frame by index and id", () => {
     const h = selectionHarness();
     try {
-      h.controller.jump(1);
+      h.controller.selectFrame(1);
       const posted = h.current().contentWindow.postMessage.mock.calls.map((call) => call[0]);
       expect(posted.slice(-2)).toEqual([{ type: "measure" }, { type: "pick-frame", seq: 1, index: 1, id: "hero" }]);
     } finally { h.controller.dispose(); }
@@ -417,7 +417,7 @@ describe("selection wiring (flow 7)", () => {
     try {
       h.select(1);
       h.key("Escape");
-      h.controller.jump(1);
+      h.controller.selectFrame(1);
       h.layout({ href: h.other.url });
       h.select(1, { href: h.other.url });
       expect(h.state().selection).toMatchObject({ tag: "span" });
@@ -588,7 +588,7 @@ describe("independent pending selection and hover commands", () => {
     try {
       let selectionSeq = 1;
       if (kind === "ancestor" || kind === "reload") h.select(1);
-      if (kind === "frame") h.controller.jump(1);
+      if (kind === "frame") h.controller.selectFrame(1);
       if (kind === "ancestor") { h.controller.selectPath(h.target.path[0]!); selectionSeq = 2; }
       if (kind === "reload") { h.controller.command("reload"); h.layout(); }
       h.receive({ type: "hover", seq: 0, rect: h.target.rect });
@@ -610,7 +610,7 @@ describe("independent pending selection and hover commands", () => {
       h.select(1);
       h.controller.selectPath(h.target.path[0]!);
       if (action === "Escape") h.key("Escape");
-      else h.controller.jump(0);
+      else h.controller.selectFrame(0);
       h.key("Alt");
       h.host.dispatchEvent(Object.assign(new Event("keyup"), { key: "Alt" }));
       h.select(2, { target: { ...h.target, tag: "stale" } });
@@ -848,4 +848,54 @@ it("switches workspaces through the draft guard and restores the previous canvas
     expect(changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
     expect(board.style.transform).toEqual(before);
   } finally { controller.dispose(); }
+});
+
+
+describe("frame navigation", () => {
+  it("jumps without a guard, selection command or main selection update", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      const selected = h.state().selection;
+      const guard = vi.fn(() => false);
+      h.controller.setTransitionGuard(guard);
+      h.send.mockClear();
+      h.current().contentWindow.postMessage.mockClear();
+      h.controller.jump(0);
+      expect(guard).not.toHaveBeenCalled();
+      expect(h.current().contentWindow.postMessage.mock.calls.map(call => call[0])).toEqual([{ type: "measure" }]);
+      h.layout();
+      expect(h.state().selection).toEqual(selected);
+      expect(h.state().currentFrame).toBe(0);
+      expect(h.send).not.toHaveBeenCalled();
+      expect(h.markOf("jump-highlight")?.hidden).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("keeps the same canvas and selection without consulting the draft guard", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      const guard = vi.fn(() => false);
+      h.controller.setTransitionGuard(guard);
+      h.controller.openCanvas("/repo", h.row);
+      expect(guard).not.toHaveBeenCalled();
+      expect(h.frames).toHaveLength(1);
+      expect(h.state().selection?.tag).toBe("span");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("holds the jump mark for 1.2 seconds and removes it on disposal", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    try {
+      h.controller.jump(0);
+      h.layout();
+      expect(h.markOf("jump-highlight")?.hidden).toBe(false);
+      vi.advanceTimersByTime(1199);
+      expect(h.markOf("jump-highlight")?.hidden).toBe(false);
+      vi.advanceTimersByTime(1);
+      expect(h.markOf("jump-highlight")?.hidden).toBe(true);
+    } finally { h.controller.dispose(); vi.useRealTimers(); }
+  });
 });

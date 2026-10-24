@@ -1,45 +1,43 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
-import { initialCanvasState } from "./CanvasController";
-import type { SelectionView } from "./selection";
+import { initialCanvasState, type CanvasState } from "./CanvasController";
 import { Sidebar } from "./Sidebar";
-import type { FolderEntry } from "../main/view";
+import type { CanvasRow } from "../main/view";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-const layout = { type: "layout" as const, href: "u", height: 100, viewport: 100, truncated: false, frames: [{ id: "intro", x: 0, y: 0, width: 1, height: 1 }, { id: "hero", x: 0, y: 0, width: 1, height: 1 }] };
-const element: SelectionView = { tag: "button", frame: { id: "hero" }, frameIndex: 1, element: { doanId: "sign-in", selector: "s", html: "<button></button>" }, path: [] };
-const frames = (selection: SelectionView | null) => {
-  const html = renderToStaticMarkup(<Sidebar entries={[]} names={new Map()} state={{ ...initialCanvasState(), layout, selection }} open={() => {}} jump={() => {}} />);
-  return html.slice(html.indexOf('aria-label="Frames"'));
-};
+const row: CanvasRow = { path: "design/billing/plans.html", title: "Billing & plans", url: "u", open: 0, resolved: 0, frames: [{ id: "static" }] };
+const layout = { type: "layout" as const, href: "u", height: 100, viewport: 100, truncated: false, frames: [{ id: "intro", title: "Introduction", x: 0, y: 0, width: 1, height: 1 }, { id: "hero", x: 0, y: 0, width: 1, height: 1 }] };
+const opened = (): CanvasState => ({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, layout, currentFrame: 0, selection: { tag: "button", frame: { id: "hero" }, frameIndex: 1, path: [] } });
+const sidebar = (state = initialCanvasState(), canvas = row) => renderToStaticMarkup(<TooltipProvider><Sidebar entries={[{ path: "/repo", kind: "list", servedRev: 0, canvases: [canvas] }]} names={new Map()} state={state} open={() => {}} jump={() => {}} select={() => {}} overview={() => {}} /></TooltipProvider>);
 
-test("marks the frame around the selection current and lists the element under it", () => {
-  const html = frames(element);
-  expect([...html.matchAll(/<button class="row frame-row"( aria-current="true")?/g)].map(match => match[1] !== undefined)).toEqual([false, true]);
-  expect(html).toContain('<div class="row element-row"><span class="glyph" aria-hidden="true">↳</span><span class="g">button · sign-in</span></div>');
+test("shows Overview first, nested folders and title-first two-line canvases", () => {
+  const html = sidebar();
+  expect(html).toContain('aria-label="Canvases"');
+  expect(html.indexOf('aria-label="Overview"')).toBeLessThan(html.indexOf('aria-label="billing"'));
+  expect(html).toContain('aria-label="billing"');
+  expect(html).toContain('aria-label="Billing &amp; plans"');
+  expect(html).toContain('plans.html</span>');
+  expect(html).not.toContain('0 open comments');
+  expect(html).not.toContain('Remove ');
+  expect(html).not.toContain('aria-label="Frames"');
 });
 
-test("a frame selection marks its row without a sub-row, and no selection marks nothing", () => {
-  const { element: _element, ...frameOnly } = element;
-  expect(frames(frameOnly)).not.toContain("element-row");
-  expect(frames(frameOnly)).toContain('aria-current="true"');
-  expect(frames(null)).not.toContain("aria-current");
+test("separates the viewed frame from the selected frame and uses rendered frames", () => {
+  const html = sidebar(opened());
+  expect(html).toMatch(/aria-label="1 Introduction"[^>]*aria-current="location"/);
+  expect(html).toContain('aria-label="2 hero, selected in canvas"');
+  expect(html).not.toContain('aria-selected');
+  expect(html).not.toContain('static');
+  expect(html).toContain('aria-label="Select hero"');
 });
 
-const sidebar = (entries: FolderEntry[]) => renderToStaticMarkup(<TooltipProvider><Sidebar entries={entries} names={new Map(entries.map(entry => [entry.path, entry.path.split("/").at(-1) ?? ""]))} state={initialCanvasState()} open={() => {}} jump={() => {}} /></TooltipProvider>);
-
-test("a problem root uses the shared status chip; recovery lives above the workspace", () => {
-  const html = sidebar([{ path: "/code/new-app", kind: "uninitialized" }]);
-  expect(html).toContain("Not set up");
-  expect(html).not.toContain("Open Project…");
-  expect(html).toContain('aria-label="Remove new-app from doan"');
+test("does not turn a clipped title into a 1,000+ frame count", () => {
+  const state = opened();
+  state.layout = { ...layout, truncated: true };
+  expect(sidebar(state)).not.toContain('1,000+');
+  expect(sidebar(state)).not.toContain('Showing the first 1,000');
 });
 
-test("a project without canvases offers Copy first prompt with the replace hint", () => {
-  const html = sidebar([{ path: "/code/acme-web", kind: "list", servedRev: 0, canvases: [] }]);
-  expect(html).toMatch(/<div class="hint"><p>No canvases<\/p><div class="recovery"><button[^>]*class="btn"[^>]*>Copy first prompt<\/button><\/div><p>Replace &lt;what you want to design&gt; before sending\.<\/p><\/div>/);
-});
-
-test("a project with canvases has no first-prompt button", () => {
-  expect(sidebar([{ path: "/code/acme-web", kind: "list", servedRev: 0, canvases: [{ path: "design/a.html", url: "u", open: 0, resolved: 0 }] }])).not.toContain("Copy first prompt");
+test("shows a positive open-comment badge", () => {
+  expect(sidebar(initialCanvasState(), { ...row, open: 2 })).toContain('2 open comments');
 });
