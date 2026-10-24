@@ -44,7 +44,7 @@
    - 창을 하나만 만든다는 결정이 있다(ARCHITECTURE §7 Window lifecycle).
    - IPC 발신자 검사가 앱 창의 main frame만 받는다.
 
-   단계는 1 CLI → 2 Agents → 3 Project → 4 First prompt이고, 단계마다 [Skip]과 [Continue]가 있다. 키보드와 창 규칙:
+   단계는 1 CLI → 2 Agents → 3 Project → 4 First prompt이다. 1~3단계 하단에는 [Skip]과 [Continue]가, 4단계에는 [Done] 하나가 있다(2026-10-24 사용자, 초안 확정). 1 · 2단계 하단 왼쪽에는 "Step N of 4"와 [Check Again]이 있다. 상단 단계 표시기는 완료한 단계를 번호 대신 체크로 보이고, 건너뛴 단계는 번호 그대로 둔다. 표시기를 눌러 단계로 이동할 수 있다(2026-10-24 사용자). 키보드와 창 규칙:
    - 포커스와 Tab: 열면 제목에 포커스가 간다. Tab은 마법사 안에서만 돈다.
    - Escape: 마법사를 닫는다. 동작이 실행 중일 때는 비활성이다. Escape는 전파를 막아 캔버스 선택 해제로 내려가지 않게 한다.
    - 닫은 뒤 포커스: 직전 포커스로 돌아간다. 첫 실행이었으면 사이드바로 간다.
@@ -77,7 +77,7 @@
      - 상태 읽기(PoC 7c): Claude Code는 `claude mcp get`이 health-check로 서버를 실제로 띄우므로(`get` · `list` 모두 서버 실행 1회) 화면 상태에는 쓰지 않는다. 고른 설정 파일(`$CLAUDE_CONFIG_DIR/.claude.json` 또는 `~/.claude.json`)의 `mcpServers.doan`을 읽기 전용으로 파싱한다. Codex는 `codex mcp get doan --json`(`transport.command` · `transport.args`)으로 읽고, 범위는 고른 설정 위치(`$CODEX_HOME` 또는 `~/.codex`)로 정한다. 두 에이전트 모두 등록이 없으면 `get`이 exit 1이므로, 알려진 '없음' 출력과 실패를 구분한다(fixture).
      - `missing`이면 `claude mcp add --scope user doan -- <링크 절대 경로> mcp` 또는 `codex mcp add doan -- <링크 절대 경로> mcp`를 실행한다.
      - `other`는 확인을 받은 뒤 바꾼다. 바꾸기 전에 읽은 원래 등록 내용을 보관하고, 실패하면 그 내용을 보인다. Codex는 `codex mcp add`가 같은 이름을 덮어쓰므로 제거 없이 추가만 한다(PoC 7c). Claude는 `claude mcp remove --scope user doan` 뒤에 추가한다.
-     - `unknown`이면 추가 · 제거를 모두 비활성으로 두고 [Check Again]만 보인다.
+     - `unknown`이면 MCP 추가 · 제거를 비활성으로 두고 [Check Again]만 보인다. 그 행의 [Connect]는 스텁 · (Claude) 링크까지만 실행하고 MCP에서 멈춰 "Couldn't check"와 이유를 보인다(2026-10-24 사용자).
      - 설정 파일에 직접 쓰지 않는다(2026-10-24 사용자).
    - MCP 명령 경로를 번들 경로가 아니라 1단계 링크로 둔 이유: 앱을 옮기면 "Set Up doan…"에서 링크 하나만 다시 걸면 된다. 그래서 1단계가 `ours`가 아니면 MCP 항목은 비활성이고, 그 이유를 인라인으로 보인다.
 7. **셸 탐지와 에이전트 CLI 실행**: Finder나 Dock에서 띄운 앱의 `PATH`는 사용자 셸의 `PATH`와 다르다. 이 머신의 `codex`는 `#!/usr/bin/env node` 스크립트라, 실행 파일 경로만 알아서는 `node`를 찾지 못한다.
@@ -210,6 +210,8 @@ PRODUCT §6 표에 PoC 7을 더하고, 이 기능의 첫 게이트로 둔다. �
 7b · 7c의 Codex 실행은 Claude 세션에서 모델 경계를 넘으므로, 실행 전에 사용자 허락을 받는다.
 
 ## 초안 요청 (`/design-draft`, `design/onboard.html`)
+
+확정(2026-10-24 사용자): Astra와 Opus가 같은 요청으로 각각 그린 초안 중 Opus 초안을 기준으로 삼고, Astra 초안의 셸별 PATH 안내 타일(zsh · bash · 그 밖의 셸)을 옮겨 넣는다. Opus 초안이 문서에 없어 정한 문구(단계 제목 · 리드, 대화상자 제목, 상태어 "Not on PATH" · "Failed" · "Registering…", 재루팅 안내를 루트 행 아래 힌트로 두는 것 등)는 "proposal" 표시와 함께 초안의 결정으로 받아들인다.
 
 `/feature-review` 뒤, `/tdd` 전에 그린다. canvas id는 `onboard`다. 프레임 id와 그릴 상태는 다음과 같다.
 
