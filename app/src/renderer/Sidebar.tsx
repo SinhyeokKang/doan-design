@@ -40,18 +40,26 @@ function ProjectTree({ entries, names, state, open, reroot }: SidebarProps) {
     const node = Array.from(tree.current?.querySelectorAll<HTMLElement>('[role="treeitem"][aria-level="1"]') ?? []).find(item => item.dataset.path === path);
     if (node) { setFocused(path); node.focus(); }
   };
+  // While the modal setup dialog is open the tree is inert and ignores focus(),
+  // so a close the dialog did not start focuses the row after it unmounts.
+  const [focusAfterSetup, setFocusAfterSetup] = useState<string | null>(null);
+  useEffect(() => {
+    if (setup !== null || focusAfterSetup === null) return;
+    setFocusAfterSetup(null);
+    focusRow(focusAfterSetup);
+  }, [setup, focusAfterSetup]);
   useEffect(() => {
     if (!reroot) return;
-    if (setup === reroot.from) setSetup(null);
-    if (reroot.hadFocus || setup === reroot.from) focusRow(reroot.root);
+    if (setup === reroot.from) { setSetup(null); setFocusAfterSetup(reroot.root); }
+    else if (reroot.hadFocus) focusRow(reroot.root);
   }, [reroot?.seq]);
   // A setup form closes when its row stops being Not initialized (re-root,
   // terminal init, folder gone); focus goes to that row.
   useEffect(() => {
     if (setup === null || entries.some(entry => entry.path === setup && entry.kind === "uninitialized")) return;
-    const path = setup;
     setSetup(null);
-    focusRow(path);
+    // A re-root removes the row; the effect above focuses the root row instead.
+    if (entries.some(entry => entry.path === setup)) setFocusAfterSetup(setup);
   }, [entries, setup]);
   useEffect(() => {
     if (!rerootHint) return;
