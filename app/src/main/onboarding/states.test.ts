@@ -12,8 +12,11 @@ describe("linkState", () => {
     expect(linkState({ kind: "symlink" }, { value: "/APP/DOAN", resolved: "/app/doan" }, "/app/doan")).toBe("ours");
   });
   test("never calls a broken link missing or ours", () => {
-    expect(linkState({ kind: "symlink" }, { value: "/gone", resolved: null }, "/gone")).toBe("link-other");
+    expect(linkState({ kind: "symlink" }, { value: "/gone", resolved: null, resolutionError: "ENOENT" }, "/gone")).toBe("dangling");
     expect(linkState({ kind: "symlink" }, { value: "/other", resolved: "/other" }, "/expected")).toBe("link-other");
+  });
+  test.each(["ELOOP", "EACCES", "ENOTDIR"])("does not diagnose %s as a missing target", resolutionError => {
+    expect(linkState({ kind: "symlink" }, { value: "/other", resolved: null, resolutionError }, "/expected")).toBe("link-other");
   });
   test("blocks nonlinks, unreadable links and unsafe parents", () => {
     for (const kind of ["file", "directory", "other"] as const) expect(linkState({ kind }, null, "/app")).toBe("blocked");

@@ -3,15 +3,15 @@ import { menuState } from "./menuState";
 
 describe("menuState", () => {
   test("home: add project only; no Home, no canvas items", () => {
-    expect(menuState("home", false, false)).toEqual({ addProject: true, home: false, canvasView: false, undoRemove: false, quickOpen: true });
+    expect(menuState("home", false, false)).toEqual({ addProject: true, home: false, canvasView: false, undoRemove: false, quickOpen: true, settings: true });
   });
 
   test("workspace without a canvas: Home, but no canvas items", () => {
-    expect(menuState("workspace", false, false)).toEqual({ addProject: true, home: true, canvasView: false, undoRemove: false, quickOpen: true });
+    expect(menuState("workspace", false, false)).toEqual({ addProject: true, home: true, canvasView: false, undoRemove: false, quickOpen: true, settings: true });
   });
 
   test("workspace with a canvas: every canvas item", () => {
-    expect(menuState("canvas", false, false)).toEqual({ addProject: true, home: true, canvasView: true, undoRemove: false, quickOpen: true });
+    expect(menuState("canvas", false, false)).toEqual({ addProject: true, home: true, canvasView: true, undoRemove: false, quickOpen: true, settings: true });
   });
 
   test("Undo Remove follows the toast on every screen", () => {
@@ -20,7 +20,16 @@ describe("menuState", () => {
 
   test("an open modal disables everything", () => {
     for (const screen of ["home", "workspace", "canvas"] as const) {
-      expect(menuState(screen, true, true)).toEqual({ addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false });
+      expect(menuState(screen, true, true)).toEqual({ addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false, settings: true });
     }
+  });
+});
+
+test("disables Settings while the wizard is open", () => {
+  expect(menuState("canvas", false, true, { wizardOpen: true, focusedWindow: "main" }).settings).toBe(false);
+});
+test("disables main-window actions when Settings is focused", () => {
+  expect(menuState("canvas", false, true, { wizardOpen: false, focusedWindow: "settings" })).toEqual({
+    addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false, settings: true,
   });
 });

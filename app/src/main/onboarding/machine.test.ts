@@ -91,13 +91,17 @@ test.each([["target", ".local/bin/doan"], ["parent", ".local/bin"]])("state name
   expect(state.display.blocked).toEqual({ cli: join(home, name), stub: join(home, ".agents/skills/doan"), claudeLink: null });
 });
 const mcpWrites = () => existsSync(join(home, "calls")) ? readFileSync(join(home, "calls"), "utf8").split("\n").filter(line => /^mcp (add|remove)/.test(line)) : [];
-function cliNotOurs(kind: "missing" | "link-other" | "blocked") {
+function cliNotOurs(kind: "missing" | "dangling" | "link-other" | "blocked") {
   const target = join(home, ".local/bin/doan");
-  if (kind === "link-other") { mkdirSync(join(target, ".."), { recursive: true }); symlinkSync("/old", target); }
+  if (kind === "link-other" || kind === "dangling") {
+    const old = join(temp, "old-doan");
+    if (kind === "link-other") file(old, "old CLI");
+    mkdirSync(join(target, ".."), { recursive: true }); symlinkSync(old, target);
+  }
   else if (kind === "blocked") file(target, "keep");
 }
 // design.md flow 6: only MCP needs the step 1 link; the stub and Claude link do not.
-test.each((["missing", "link-other", "blocked"] as const).flatMap(cliKind => (["claude", "codex"] as const).map(name => ({ cliKind, name }))))("CLI $cliKind: $name connect installs the stub and link but never writes MCP", async ({ cliKind, name }) => {
+test.each((["missing", "dangling", "link-other", "blocked"] as const).flatMap(cliKind => (["claude", "codex"] as const).map(name => ({ cliKind, name }))))("CLI $cliKind: $name connect installs the stub and link but never writes MCP", async ({ cliKind, name }) => {
   agent(name); cliNotOurs(cliKind); const m = machine(); const state = await m.read("r");
   expect(await m.run({ step: "connect", agent: name, expected: state.expected })).toEqual({ kind: "unavailable", message: "Install the CLI link in step 1 before connecting MCP." });
   expect(readFileSync(join(home, ".agents/skills/doan/SKILL.md"), "utf8")).toContain("[doan:skill] end of guide");
@@ -337,4 +341,29 @@ test("relative Claude config never displays a resolved destination or link targe
   expect(state.display.realPaths?.claudeLink).toBeUndefined();
   expect(state.display.claudeLinkTarget).toBe("");
   expect(await m.run({ step: "connect", agent: "claude", expected: state.expected })).toMatchObject({ kind: "unavailable", message: expect.stringContaining("must be an absolute path") });
+});
+
+test("a dangling CLI link is diagnosed separately and requires approval before replacement", async () => {
+  cliNotOurs("dangling"); const m = machine(); const state = await m.read("r");
+  expect(state.cli.state).toBe("dangling");
+  const target = join(home, ".local/bin/doan"), old = readlinkSync(target);
+  const result = await m.run({ step: "cli", expected: state.expected });
+  expect(result).toMatchObject({ kind: "confirm", message: `Current: ${old} (missing). New: ${cli}` });
+  if (result.kind !== "confirm") throw new Error("confirmation absent");
+  expect(readlinkSync(target)).toBe(old);
+  expect(await m.answer({ id: result.id, allow: false })).toEqual({ kind: "cancelled" });
+  expect(readlinkSync(target)).toBe(old);
+  const retry = await m.run({ step: "cli", expected: (await m.read("r2")).expected });
+  if (retry.kind !== "confirm") throw new Error("confirmation absent");
+  expect(await m.answer({ id: retry.id, allow: true })).toEqual({ kind: "success" });
+  expect((await m.read("r3")).cli.state).toBe("ours");
+});
+test("a dangling Claude skill link requires confirmation", async () => {
+  agent("claude"); const m = machine();
+  await m.run({ step: "cli", expected: (await m.read("r1")).expected });
+  const link = join(home, ".claude/skills/doan"); mkdirSync(join(link, ".."), { recursive: true }); symlinkSync("/missing-doan-skill", link);
+  const state = await m.read("r2"); expect(state.claudeLink.state).toBe("dangling");
+  const result = await m.run({ step: "connect", agent: "claude", expected: state.expected });
+  expect(result).toMatchObject({ kind: "confirm", target: "claudeLink" });
+  expect(readlinkSync(link)).toBe("/missing-doan-skill");
 });
