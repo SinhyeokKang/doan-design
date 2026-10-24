@@ -5,7 +5,6 @@
 // relaunches. Its own temp repos, userData and HOME.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -58,21 +57,7 @@ try {
     page = await app.firstWindow(); page.setDefaultTimeout(10_000);
     page.on("pageerror", error => console.error("design-nav pageerror", error));
   }
-  // TODO(B-fix3): remove once quitting during a thumbnail capture no longer
-  // hangs. Until then every listed canvas is captured before a quit.
-  async function drain(): Promise<void> {
-    const fixtures: [string, string][] = [
-      ...Array.from({ length: 24 }, (_, index) => [gallery, `design/g${String(index + 1).padStart(2, "0")}.html`] as [string, string]),
-      ...[acme, feat].flatMap(repo => ["billing", "dupes", "ghost"].map(name => [repo, `design/settings/${name}.html`] as [string, string]).concat([[repo, "design/misc/notes.html"]])),
-      [brand, "design/research/card-decline-patterns.html"],
-    ];
-    const listed = fixtures.filter(([repo, path]) => existsSync(join(repo, path)));
-    await wait(async () => (await page.evaluate(targets => Promise.all(targets.map(([root, path]) => window.doan.getThumbnail(root, path, false).then(reply => reply.kind))), listed)).every(kind => kind !== "pending"), "thumbnail queue drained", 60_000);
-  }
   async function quit(): Promise<void> {
-    // Main debounces ui-state writes and flushes on quit; the renderer batches pans for 100 ms.
-    await page.waitForTimeout(300);
-    await drain();
     await app!.close(); app = undefined;
   }
   async function relaunch(): Promise<void> {
@@ -223,6 +208,8 @@ try {
   console.log("design-nav: overview and quick open PASS");
 
   // Task 10 — relaunch restores the canvas, its view and the tree, not the selection.
+  const active = async () => JSON.parse((await exec(cli, ["active", "--json", "--repo", acme], { env })).stdout);
+  const inspector = () => page.getByRole("region", { name: "Inspector", exact: true });
   await enterProject(page, acme);
   await canvasRow(page, "billing.html").click();
   await loaded("Billing & plans");
@@ -234,13 +221,27 @@ try {
   await page.mouse.wheel(0, 160);
   const board = () => page.locator(".board").evaluate(node => (node as HTMLElement).style.transform);
   await wait(async () => (await board()).startsWith("translate") && !(await board()).includes("translate(0px, 0px)"), "panned");
-  await page.waitForTimeout(400);
-  const view = await board();
-  await relaunch();
+  await page.getByRole("treeitem", { name: "1 Plans", exact: true }).hover();
+  await page.getByRole("button", { name: "Select Plans", exact: true }).click();
+  await inspector().waitFor();
+  assert.equal((await active()).result?.selection?.frame?.id, "plans", "doan active has the selection before quit");
+  // The last pan, then a renderer kept busy through the quit: a value it had
+  // not sent by then (a renderer-side batch, say) is never saved.
+  const view = await page.locator(".area").evaluate(area => {
+    area.dispatchEvent(new WheelEvent("wheel", { deltaY: 80, bubbles: true, cancelable: true }));
+    setTimeout(() => { const end = Date.now() + 2000; while (Date.now() < end); });
+    return (document.querySelector(".board") as HTMLElement).style.transform;
+  });
+  await quit();
+  const saved = JSON.parse(await readFile(join(userData, "ui-state.json"), "utf8"));
+  assert.equal(saved.canvas, "design/settings/billing.html");
+  assert.equal("selection" in saved, false, "ui-state.json has no selection");
+  await launch();
   await loaded("Billing & plans");
   await wait(async () => await board() === view, `restored view ${view}`);
   assert.equal(await page.getByRole("treeitem", { name: "misc", exact: true }).getAttribute("aria-expanded"), "false", "tree expansion restored");
-  assert.equal(await page.getByRole("region", { name: "Inspector", exact: true }).count(), 0, "no selection after restore");
+  assert.equal(await inspector().count(), 0, "no selection after restore");
+  assert.equal((await active()).result?.selection, undefined, "doan active is empty after restore");
   await shot("9-restored");
 
   // Home at quit starts on Home, without loading the workspace.
