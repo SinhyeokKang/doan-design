@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-24 — Full rollout output displaced active-call evidence in the judge prompt
+
+- **Area**: `eval/lib/agent.ts`, `eval/lib/judge.ts`, evaluation invocation evidence.
+- **Symptom**: appending a large Codex rollout after stdout/stderr let the judge's last-40k transcript omit both an earlier active call and the original answer, although automatic checks still saw the call.
+- **Root cause**: checks and the bounded judge prompt shared one raw transcript despite needing different evidence; large tool results competed with invocation records for the same tail budget.
+- **Net**: R-L1 review identified the loss; the earlier tests only checked rollout inclusion. Regression tests now reproduce more than 40k of later rollout output and oversized command summaries, then assert retained shell/MCP active evidence and original log tails while the complete rollout remains on disk.
+- **Prevention**: keep extracted calls separate from raw output and preserve active invocation flags before truncating a command summary. Run `rg -n 'readAgentTranscript|callSummary|limits.transcript' eval` and retain the large-output regressions in `agent.test.ts` and `judge.test.ts`; only the agent evidence reader and judge builder own these boundaries.
+
 ### 2026-10-24 — Codex transcript parsing truncated executed commands at prose inside the command
 
 - **Area**: `eval/lib/transcript.ts`, Codex exec header extraction.
