@@ -193,9 +193,11 @@ button { border: 0; background: transparent; }
 .row.l3 { padding-left: 40px; }
 .row.l4 { padding-left: 54px; }
 .row.element-row.l5 { padding-left: 74px; }
-/* Canvas rows: the title keeps its width first; the file name takes what is left and truncates, down to nothing. */
-.row:has(> .tw):has(> .d) > .g { flex: 0 1 auto; }
-.row:has(> .tw) > .d { flex: 1 1 0; min-width: 0; max-width: none; }
+/* Canvas rows are two lines (44 px): title, then the dimmer file name; each line truncates on its own, so neither takes width from the other. */
+.row.cv { height: 44px; }
+.row .two { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.row .two > .g, .row .two > .d { flex: none; display: block; min-width: 0; max-width: none; overflow: hidden; text-overflow: ellipsis; }
+.row .two > .d { font-size: 11px; }
 .row .num { min-width: 16px; flex: none; text-align: right; color: var(--text-4); font-size: 11px; }
 .row .no-id { color: var(--text-3); }
 .row.folder .g { color: var(--text-2); }
@@ -206,8 +208,9 @@ button { border: 0; background: transparent; }
 .row[aria-current="location"]::before { content: ""; position: absolute; left: 0; top: 5px; bottom: 5px; width: 2px; background: var(--accent); border-radius: 1px; }
 .row[aria-current="location"] .num, .row[aria-current="location"] .glyph { color: var(--accent); }
 .row.hov { background: var(--panel-2); }
-/* Selected in canvas: a separate tag, so current and selected never share a look. */
-.sel-tag { flex: none; font: 600 10px var(--font-sans); color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 1px 6px; }
+/* Selected in canvas: a hollow diamond at the row's right edge, so current and selected never share a look and the title keeps its width. The action slot sits before it. */
+.sel-mark { flex: none; width: 7px; height: 7px; border: 1px solid var(--accent); transform: rotate(45deg); margin: 0 2px; }
+.row .ra + .sel-mark { margin-left: -2px; }
 /* Row action slot: hidden until the row is hovered or focused. */
 .row .ra { display: none; flex: none; gap: 4px; }
 .row.hov .ra, .row.focus .ra { display: flex; }
@@ -278,6 +281,16 @@ button { border: 0; background: transparent; }
 .mnote { border: 1px solid var(--mock-line); background: var(--mock-fill); border-radius: 6px; padding: 7px 9px; margin-bottom: 10px; font-size: 11px; }
 .mline { height: 26px; border: 1px solid var(--mock-line); border-radius: 6px; margin-bottom: 9px; background: var(--mock-fill); }
 .mbtn { height: 30px; border-radius: 7px; background: var(--mock-brand); color: var(--mock-brand-ink); display: grid; place-items: center; font-weight: 600; }
+/* Main specimens: a 1440 × 900 frame laid out at full size, then scaled to the 44 % zoom label. */
+.mframe.z { width: 634px; height: 396px; }
+.mpage { width: 1440px; height: 900px; transform: scale(.44); transform-origin: 0 0; }
+.mpage .mnav { height: 64px; padding: 0 40px; gap: 32px; font-size: 18px; }
+.mpage .mnav b { font-size: 22px; }
+.mpage .mcard { margin-top: 96px; width: 520px; padding: 36px; border-radius: 16px; font-size: 18px; }
+.mpage .mcard h4 { font-size: 30px; margin-bottom: 22px; }
+.mpage .mnote { padding: 14px 18px; border-radius: 10px; margin-bottom: 18px; font-size: 18px; }
+.mpage .mline { height: 52px; border-radius: 10px; margin-bottom: 16px; }
+.mpage .mbtn { height: 56px; border-radius: 12px; font-size: 20px; }
 </style>
 </head>
 <body>
@@ -288,15 +301,16 @@ button { border: 0; background: transparent; }
 <p><b>New.</b> <code>overview</code>, <code>overview-empty</code>, <code>quick-open</code> and <code>tree-rows</code> are entirely new: ProjectOverview and QuickOpen do not exist yet, so those frames carry no data-doan-implements. In <code>workspace-tree</code> the sidebar tree and the top bar's canvas title and repo button are new; the canvas area, zoom, Inspector and Comments panel are copied from the shipped screens for context. In <code>frame-highlight</code> the 2 px highlight is new; the selection mark, dimensions label and Inspector are shipped. <code>toasts</code> reuses the shipped toast with three new messages. Copy that the feature documents do not give is labelled “draft copy” in its frame label and listed in the handoff.</p>
 <p><b>Copied from shipped screens.</b> Window 1238 × 780, top bar 40 px, the ← / repo › branch › canvas breadcrumb, the 26 px tree row with its 2 px current bar, the comment count style, the selected-element sub-row (<code>.element-row</code>), the canvas area and zoom, the right column (Canvas info, Inspector head and Box rows, Comments head), the focus ring, the tooltip, the toast, the Home cards and the empty-state type come from app/src/renderer/styles.css, App.tsx, Sidebar.tsx, RightPanel.tsx, CommentsPanel.tsx, Toast.tsx, Home.tsx and docs/DESIGN.md (App shell, Select and inspect, Projects home). The first-prompt button, its hint and its tooltip sentence are the shipped FirstPrompt copy (Sidebar.tsx, app/src/main/onboarding/states.ts), moved from the sidebar to the center.</p>
 <p><b>/design-sync</b> compares the main specimen and every labelled tile of all seven frames, except the shipped parts drawn for context (canvas area and zoom, mock canvas, Inspector and Comments panel, Home cards behind Quick Open), which DESIGN.md already measures. The jump highlight's fade is drawn as three still steps; the implementation measures the start step and checks timing in e2e. Native menus cannot be measured; their tile documents items and enablement only.</p>
-<p><b>Draft decisions</b> (not in the feature documents; for the conductor to accept or change): the sidebar section title becomes “Canvases” with the canvas count, and the shipped project row (name and ×) leaves the sidebar — the repo name is in the top bar and Remove stays on Home; a twisty slot precedes the kind glyph so the canvas row can expand without opening; the frame number sits in the glyph slot in <code>--text-4</code> (accent when current); the open canvas row has text in <code>--text</code> and an accent glyph; “Selected” is a tag like Home's Open tag (accessible name “…, selected in canvas”); the Select button is the only item of the action slot; Overview sections run root first (“design”), then folders in tree order, each headed by its path; the card grid has three columns (215 px at the shipped window width); the Quick Open box is 560 px wide, 64 px from the top, with a footer key hint; the highlight holds for 0.8 s and fades out over 0.4 s.</p>
+<p><b>Confirmed decisions</b> (conductor, 2026-10-25; not in the feature documents): the sidebar section title becomes “Canvases” with the canvas count, and the shipped project row (name and ×) leaves the sidebar — the repo name is in the top bar and Remove stays on Home; a twisty slot precedes the kind glyph so the canvas row can expand without opening; a canvas row is two lines (44 px) — title, then the dimmer file name, each truncating on its own — while folder, frame and Overview rows keep 26 px; the frame number sits in the glyph slot in <code>--text-4</code> (accent when current); the open canvas row has text in <code>--text</code> and an accent glyph; the current mark is the shipped raised row with the 2 px bar; selected in canvas is a hollow accent diamond at the row's right edge (accessible name “…, selected in canvas”), and when the action slot shows on that row it sits before the diamond; the Select button is the only item of the action slot and is not a Tab stop; Overview sections run root first (“design”), then folders in tree order, each headed by its path; the card grid has three columns (215 px at the shipped window width); the repo name in the top bar is a button with the tooltip “Overview”; the empty Overview uses the shipped empty type with Copy first prompt; the Quick Open box is 560 px wide, 64 px from the top, with a footer key hint; the highlight holds for 0.8 s and fades out over 0.4 s; the three toasts use the shipped no-action variant.</p>
 <p><b>References.</b> Sorcerer (github.com/gbrasil720/sorcerer, MIT), <b>checked</b> on 2026-10-25 at commit 18d6192 (shallow clone in a scratch directory, not vendored). From <code>apps/macos/Sources/Sorcerer/Navigation.swift</code> struct <code>Palette</code> and <code>docs/screenshots/palette.png</code>: the ⌘K box width 560, a query line over a divider, one line per result with the name first and muted detail after it, the active row tinted, a 360 px list, and the footer “↑↓ to move · ↩ to go · esc to close” (here “↩ to open”); its empty text “Nothing matches …” became the spec's “No canvases or frames match”. From <code>Sidebar.row</code> / <code>sub</code> in the same file: the open item unfolds its children right under it in the sidebar, with the 2 px ember bar marking the current child — doan keeps its shipped 2 px accent bar for that. From <code>App.swift</code> <code>SorcererCommands</code>: “Go to…” ⌘K as a menu item, so the shortcut is never only a hidden key (doan: Go › Quick Open… ⌘K). The overview card grid follows the shipped Home card (radius 10, panel, 1 px line) rather than Sorcerer, which has no card grid. WAI-ARIA APG Tree View typeahead is cited from design.md, not rechecked. Orca, Claude Design, ego-browser and Storybook were not checked for this draft.</p>
+<p><b>Grafted from the Codex draft</b> (design-nav DX, commit f8237c8, compared by the conductor on 2026-10-25): the two-line canvas row (title over file name, 44 px) and the hollow diamond for selected in canvas, both redrawn here in this draft's markup and tokens. That draft checked Sorcerer <code>docs/screenshots/feed-live.png</code> and <code>palette.png</code> at the same commit (its source for the indented hierarchy with a narrow current rule and the palette structure); this draft did not reopen them.</p>
 <p><b>Example data.</b> User alex. Repository acme-web: main checkout at ~/code/acme-web (loaded) and a linked worktree feat-billing; repository checkout-flow (release/2026-11); non-git folder brand-kit. acme-web's <code>design/</code> holds tokens.html, 2026-10-checkout-revamp.html, checkout/{cart, checkout, legacy-checkout}.html, settings/{billing, profile}.html and settings/team/{members, roles}.html. settings/billing.html (“Billing &amp; plans”) has five frames: plans, upgrade, card-form, card-declined, invoice-sent.</p>
 </header>
 
 <!-- ===================================================== workspace-tree -->
 <section class="frame" data-doan-frame="workspace-tree" data-doan-title="Workspace with design tree" data-doan-implements="app/src/renderer/Sidebar.tsx">
-<div class="flabel"><h2>Workspace — design tree</h2><span class="nic">new: sidebar tree, top bar canvas title and repo button</span><span class="nic">draft copy: “Canvases” section title, “Selected” tag, “Select” action</span></div>
-<p class="note">Main specimen: the acme-web workspace on main with Billing &amp; plans open. The tree replaces the shipped “Projects” tree and the separate Frames section. Overview is the first row; <code>design/</code> folders are collapsible nodes (folders first, then canvases, each sorted by display name with numeric collation); a canvas row shows its title and, dimmer, its file name, and its tooltip is the path under <code>design/</code>. The open canvas expands on its own and lists its rendered frames in document order, numbered from 1. The viewer looks at frame 4 (Card declined), so that row has the current mark (<code>aria-current="location"</code>). The selection is a button inside frame 2 (Upgrade): that row has the separate “Selected” tag, accessible name “2 Upgrade, selected in canvas”, and the shipped element sub-row under it; the right panel shows the Inspector for it. The pointer is over frame 3, so its action slot shows Select. Open comment counts appear only when above 0. The top bar shows the canvas title instead of its path, and the repo name is now a button to the Overview.</p>
+<div class="flabel"><h2>Workspace — design tree</h2><span class="nic">new: sidebar tree, top bar canvas title and repo button</span><span class="nic">draft copy: “Canvases” section title, “Select” action</span></div>
+<p class="note">Main specimen: the acme-web workspace on main with Billing &amp; plans open. The tree replaces the shipped “Projects” tree and the separate Frames section. Overview is the first row; <code>design/</code> folders are collapsible nodes (folders first, then canvases, each sorted by display name with numeric collation); a canvas row is two lines — its title, then dimmer its file name — and its tooltip is the path under <code>design/</code>. The open canvas expands on its own and lists its rendered frames in document order, numbered from 1. The viewer looks at frame 4 (Card declined), so that row has the current mark (<code>aria-current="location"</code>). The selection is a button inside frame 2 (Upgrade): that row has the hollow diamond at its right edge, accessible name “2 Upgrade, selected in canvas”, and the shipped element sub-row under it; the right panel shows the Inspector for it. The pointer is over frame 3, so its action slot shows Select. Open comment counts appear only when above 0. The top bar shows the canvas title instead of its path, and the repo name is now a button to the Overview.</p>
 <div class="win ws" data-doan-id="tree-window">
  <div class="top" data-doan-id="tree-top"><div class="lights"><i></i><i></i><i></i></div><button class="back" aria-label="Go Home">←</button><span class="divider" aria-hidden="true"></span>
   <nav class="crumbs" aria-label="Location"><button class="repo" aria-label="acme-web overview" data-doan-id="tree-top-repo">acme-web</button><span class="sep" aria-hidden="true">›</span><button class="branch" aria-label="Switch worktree"><span class="glyph" aria-hidden="true">⎇</span><span class="bn">main</span><span class="caret" aria-hidden="true">▾</span></button><span class="sep" aria-hidden="true">›</span><span class="canvas" data-doan-id="tree-top-canvas">Billing &amp; plans</span></nav>
@@ -306,29 +320,29 @@ button { border: 0; background: transparent; }
   <div role="tree" aria-label="Canvases" data-doan-id="tree">
    <div class="row" role="treeitem" aria-level="1" tabindex="-1" data-doan-id="tree-overview"><span class="tw" aria-hidden="true"></span><span class="glyph" aria-hidden="true">▦</span><span class="g">Overview</span></div>
    <div class="row folder" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1" data-doan-id="tree-folder"><span class="tw" aria-hidden="true">▾</span><span class="g">checkout</span></div>
-   <div class="row l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1" data-doan-id="tree-canvas"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Cart</span><span class="d">cart.html</span></div>
-   <div class="row l2" role="treeitem" aria-level="2" aria-expanded="false" aria-describedby="c-checkout" tabindex="-1" data-doan-id="tree-canvas-comments"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Checkout</span><span class="d">checkout.html</span><span class="cnt hot" id="c-checkout" role="img" aria-label="3 open comments" data-doan-id="tree-count">3</span></div>
-   <div class="row l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">legacy-checkout</span><span class="d">legacy-checkout.html</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1" data-doan-id="tree-canvas"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Cart</span><span class="d">cart.html</span></span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" aria-describedby="c-checkout" tabindex="-1" data-doan-id="tree-canvas-comments"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Checkout</span><span class="d">checkout.html</span></span><span class="cnt hot" id="c-checkout" role="img" aria-label="3 open comments" data-doan-id="tree-count">3</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">legacy-checkout</span><span class="d">legacy-checkout.html</span></span></div>
    <div class="row folder" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">settings</span></div>
    <div class="row folder l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1" data-doan-id="tree-folder-collapsed"><span class="tw" aria-hidden="true">▸</span><span class="g">team</span></div>
-   <div class="row l2 is-open" role="treeitem" aria-level="2" aria-expanded="true" aria-describedby="c-billing" tabindex="0" data-doan-id="tree-canvas-open"><span class="tw" aria-hidden="true">▾</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Billing &amp; plans</span><span class="d">billing.html</span><span class="cnt hot" id="c-billing" role="img" aria-label="2 open comments">2</span></div>
+   <div class="row cv l2 is-open" role="treeitem" aria-level="2" aria-expanded="true" aria-describedby="c-billing" tabindex="0" data-doan-id="tree-canvas-open"><span class="tw" aria-hidden="true">▾</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></span><span class="cnt hot" id="c-billing" role="img" aria-label="2 open comments">2</span></div>
    <div class="row l3" role="treeitem" aria-level="3" tabindex="-1" data-doan-id="tree-frame"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">1</span><span class="g">Plans</span><span class="ra"><button class="btn" tabindex="-1">Select</button></span></div>
-   <div class="row l3" role="treeitem" aria-level="3" aria-label="2 Upgrade, selected in canvas" tabindex="-1" data-doan-id="tree-frame-selected"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">2</span><span class="g">Upgrade</span><span class="sel-tag" aria-hidden="true" data-doan-id="tree-selected-tag">Selected</span><span class="ra"><button class="btn" tabindex="-1">Select</button></span></div>
+   <div class="row l3" role="treeitem" aria-level="3" aria-label="2 Upgrade, selected in canvas" tabindex="-1" data-doan-id="tree-frame-selected"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">2</span><span class="g">Upgrade</span><span class="ra"><button class="btn" tabindex="-1">Select</button></span><span class="sel-mark" aria-hidden="true" data-doan-id="tree-selected-mark"></span></div>
    <div class="row element-row l5" data-doan-id="tree-element-row"><span class="glyph" aria-hidden="true">↳</span><span class="g">button · upgrade-button</span></div>
    <div class="row l3 hov" role="treeitem" aria-level="3" tabindex="-1" data-doan-id="tree-frame-hover"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">3</span><span class="g">Card form</span><span class="ra"><button class="btn" tabindex="-1" data-doan-id="tree-action-select">Select</button></span></div>
    <div class="row l3" role="treeitem" aria-level="3" aria-current="location" tabindex="-1" data-doan-id="tree-frame-current"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">4</span><span class="g">Card declined</span><span class="ra"><button class="btn" tabindex="-1">Select</button></span></div>
    <div class="row l3" role="treeitem" aria-level="3" tabindex="-1"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">5</span><span class="g">Invoice sent</span><span class="ra"><button class="btn" tabindex="-1">Select</button></span></div>
-   <div class="row l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Profile</span><span class="d">profile.html</span></div>
-   <div class="row" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1" data-doan-id="tree-canvas-root"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Checkout revamp (Oct 2026)</span><span class="d">2026-10-checkout-revamp.html</span></div>
-   <div class="row" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Design tokens</span><span class="d">tokens.html</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Profile</span><span class="d">profile.html</span></span></div>
+   <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1" data-doan-id="tree-canvas-root"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Checkout revamp (Oct 2026)</span><span class="d">2026-10-checkout-revamp.html</span></span></div>
+   <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Design tokens</span><span class="d">tokens.html</span></span></div>
   </div>
  </aside>
  <section class="area" role="region" aria-label="Canvas">
-  <div class="mframe" style="left:39px;top:-300px;width:640px;height:400px"><div class="mnav"><b>Acme</b><span>Billing</span><span>Team</span></div><div class="mcard"><h4>Payment method</h4><div class="mline"></div><div class="mline"></div><div class="mbtn">Save card</div></div></div>
-  <span class="ftag" style="left:39px;top:142px">Card declined</span>
-  <div class="mframe" style="left:39px;top:160px;width:640px;height:400px"><div class="mnav"><b>Acme</b><span>Billing</span><span>Team</span></div><div class="mcard"><h4>Payment method</h4><div class="mnote">Your card was declined. Try another card or contact your bank.</div><div class="mline"></div><div class="mbtn">Try another card</div></div></div>
-  <span class="ftag" style="left:39px;top:602px">Invoice sent</span>
-  <div class="mframe" style="left:39px;top:620px;width:640px;height:400px"><div class="mnav"><b>Acme</b><span>Billing</span><span>Team</span></div></div>
+  <div class="mframe z" style="left:42px;top:-280px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Billing</span><span>Team</span></div><div class="mcard"><h4>Payment method</h4><div class="mline"></div><div class="mline"></div><div class="mbtn">Save card</div></div></div></div>
+  <span class="ftag" style="left:42px;top:142px">Card declined</span>
+  <div class="mframe z" style="left:42px;top:160px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Billing</span><span>Team</span></div><div class="mcard"><h4>Payment method</h4><div class="mnote">Your card was declined. Try another card or contact your bank.</div><div class="mline"></div><div class="mbtn">Try another card</div></div></div></div>
+  <span class="ftag" style="left:42px;top:582px">Invoice sent</span>
+  <div class="mframe z" style="left:42px;top:600px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Billing</span><span>Team</span></div></div></div>
   <output class="updated meta"><span class="dot"></span> Updated 2m ago</output>
   <div class="zctl"><div class="zoom"><button>−</button><output>44%</output><button>+</button></div><button class="btn">Fit <span class="kbd">⌘1</span></button></div>
  </section>
@@ -348,7 +362,7 @@ button { border: 0; background: transparent; }
 
 <!-- ===================================================== tree-rows -->
 <section class="frame" data-doan-frame="tree-rows" data-doan-title="Tree row states" data-doan-implements="app/src/renderer/Sidebar.tsx">
-<div class="flabel"><h2>Tree row states</h2><span class="nic">new · not in code</span><span class="nic">draft copy: “Select”, “Selected”</span></div>
+<div class="flabel"><h2>Tree row states</h2><span class="nic">new · not in code</span><span class="nic">draft copy: “Select”</span></div>
 <p class="note">Every row kind and mark at the shipped 240 px sidebar width. Keyboard follows the shipped tree (↑↓ focus, ←→ collapse/expand or move to parent/child, Home/End); Enter and click act as in the row action table at the end. Tooltips are the shipped tooltip.</p>
 <div class="tiles three">
  <div><p class="tile-label"><b>Row kinds</b> — Overview, folder expanded and collapsed, canvas open (expanded), canvas closed and collapsed, canvas closed but expanded (its frames come from <code>doan ls</code>), frame of the open canvas, frame of a closed canvas.</p>
@@ -357,79 +371,80 @@ button { border: 0; background: transparent; }
    <div class="row" data-doan-id="rows-overview"><span class="tw"></span><span class="glyph">▦</span><span class="g">Overview</span></div>
    <div class="row folder" data-doan-id="rows-folder-open"><span class="tw">▾</span><span class="g">settings</span></div>
    <div class="row folder l2" data-doan-id="rows-folder-closed"><span class="tw">▸</span><span class="g">team</span></div>
-   <div class="row l2 is-open" data-doan-id="rows-canvas-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">Billing &amp; plans</span><span class="d">billing.html</span><span class="cnt hot">2</span></div>
+   <div class="row cv l2 is-open" data-doan-id="rows-canvas-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></span><span class="cnt hot">2</span></div>
    <div class="row l3" data-doan-id="rows-frame-open"><span class="tw"></span><span class="num">1</span><span class="g">Plans</span><span class="ra"><button class="btn">Select</button></span></div>
    <div class="row l3"><span class="tw"></span><span class="num">2</span><span class="g">Upgrade</span></div>
-   <div class="row l2" data-doan-id="rows-canvas-closed"><span class="tw">▸</span><span class="glyph">◧</span><span class="g">Payouts</span><span class="d">payouts.html</span></div>
-   <div class="row l2" data-doan-id="rows-canvas-closed-expanded"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">Profile</span><span class="d">profile.html</span></div>
+   <div class="row cv l2" data-doan-id="rows-canvas-closed"><span class="tw">▸</span><span class="glyph">◧</span><span class="two"><span class="g">Payouts</span><span class="d">payouts.html</span></span></div>
+   <div class="row cv l2" data-doan-id="rows-canvas-closed-expanded"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">Profile</span><span class="d">profile.html</span></span></div>
    <div class="row l3" data-doan-id="rows-frame-closed"><span class="tw"></span><span class="num">1</span><span class="g">Profile</span></div>
    <div class="row l3"><span class="tw"></span><span class="num">2</span><span class="g">Avatar upload</span></div>
   </div></div>
- <div><p class="tile-label"><b>Current, selected, both</b> — current is the viewed frame (raised, 2 px bar, accent number); Selected is the tag. When they are the same frame the row carries both.</p>
+ <div><p class="tile-label"><b>Current, selected, both</b> — current is the viewed frame (raised, 2 px bar, accent number); selected in canvas is the hollow diamond at the right edge. When they are the same frame the row carries both.</p>
   <div class="side spec" data-doan-id="rows-marks">
-   <div class="row l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></div>
+   <div class="row cv l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></span></div>
    <div class="row l3" aria-current="location" data-doan-id="rows-current"><span class="tw"></span><span class="num">1</span><span class="g">Plans</span></div>
-   <div class="row l3" aria-label="2 Upgrade, selected in canvas" data-doan-id="rows-selected"><span class="tw"></span><span class="num">2</span><span class="g">Upgrade</span><span class="sel-tag">Selected</span></div>
-   <div class="row l3" aria-current="location" aria-label="3 Card form, selected in canvas" data-doan-id="rows-both"><span class="tw"></span><span class="num">3</span><span class="g">Card form</span><span class="sel-tag">Selected</span></div>
+   <div class="row l3" aria-label="2 Upgrade, selected in canvas" data-doan-id="rows-selected"><span class="tw"></span><span class="num">2</span><span class="g">Upgrade</span><span class="sel-mark"></span></div>
+   <div class="row l3" aria-current="location" aria-label="3 Card form, selected in canvas" data-doan-id="rows-both"><span class="tw"></span><span class="num">3</span><span class="g">Card form</span><span class="sel-mark"></span></div>
    <div class="row element-row l5" data-doan-id="rows-both-element"><span class="glyph">↳</span><span class="g">input · card-number</span></div>
    <div class="row l3"><span class="tw"></span><span class="num">4</span><span class="g">Card declined</span></div>
   </div>
   <p class="caption">Rows 1, 2 and 3 are three separate examples drawn in one list. Accessible names: “1 Plans” (current via <code>aria-current</code>), “2 Upgrade, selected in canvas”, “3 Card form, selected in canvas”. <code>aria-selected</code> is not used.</p></div>
  <div><p class="tile-label"><b>Hover, focus and the action slot</b> — the slot shows on hover or keyboard focus. From the keyboard, Space is Select, so the button is not a Tab stop.</p>
   <div class="side spec" data-doan-id="rows-action">
-   <div class="row l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></div>
+   <div class="row cv l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></span></div>
    <div class="row l3 hov" data-doan-id="rows-hover"><span class="tw"></span><span class="num">1</span><span class="g">Plans</span><span class="ra"><button class="btn" data-doan-id="rows-hover-select">Select</button></span></div>
    <div class="row l3 focus" data-doan-id="rows-focus"><span class="tw"></span><span class="num">2</span><span class="g">Upgrade</span><span class="ra"><button class="btn">Select</button></span></div>
-      <div class="row l2 hov" data-doan-id="rows-canvas-hover"><span class="tw">▸</span><span class="glyph">◧</span><span class="g">Profile</span><span class="d">profile.html</span></div>
+   <div class="row l3 hov" aria-label="3 Card form, selected in canvas" data-doan-id="rows-hover-selected"><span class="tw"></span><span class="num">3</span><span class="g">Card form</span><span class="ra"><button class="btn">Select</button></span><span class="sel-mark" data-doan-id="rows-hover-selected-mark"></span></div>
+      <div class="row cv l2 hov" data-doan-id="rows-canvas-hover"><span class="tw">▸</span><span class="glyph">◧</span><span class="two"><span class="g">Profile</span><span class="d">profile.html</span></span></div>
   </div>
-  <p class="caption">A canvas, folder or Overview row has an empty slot today; the next audit may add comment actions there (design.md 'Row action slot').</p></div>
+  <p class="caption">On a selected row (3) the slot sits before the diamond, so the diamond never moves. A canvas, folder or Overview row has an empty slot today; the next audit may add comment actions there (design.md 'Row action slot').</p></div>
  <div><p class="tile-label"><b>Frame of a closed canvas</b> — click or Enter opens the canvas and moves to the frame. Select is disabled (shown on focus).</p>
   <div class="side spec" data-doan-id="rows-closed-frame">
-   <div class="row l2"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">Profile</span><span class="d">profile.html</span></div>
+   <div class="row cv l2"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">Profile</span><span class="d">profile.html</span></span></div>
    <div class="row l3 focus" data-doan-id="rows-closed-frame-focus"><span class="tw"></span><span class="num">1</span><span class="g">Profile</span><span class="ra"><button class="btn" disabled data-doan-id="rows-closed-select">Select</button></span></div>
    <div class="row l3"><span class="tw"></span><span class="num">2</span><span class="g">Avatar upload</span></div>
   </div></div>
- <div><p class="tile-label"><b>Long titles and file names</b> — the title takes the space first; the file name gets what is left and truncates, and disappears when the title fills the row. The tooltip is the path under <code>design/</code>.</p>
+ <div><p class="tile-label"><b>Long titles and file names</b> — title and file name sit on their own lines and each truncates on its own, so a long title never hides the file name. A frame title gets the whole row; the comment count and the diamond keep their place. The tooltip is the path under <code>design/</code>.</p>
   <div class="side spec" data-doan-id="rows-long">
    <div class="row folder"><span class="tw">▾</span><span class="g">flows/onboarding</span></div>
-   <div class="row l2" data-doan-id="rows-long-canvas"><span class="tw">▸</span><span class="glyph">◧</span><span class="g">Progressive profile — step 3 with skip and resume</span><span class="d">step-3-skip-and-resume.html</span><span class="cnt hot">12</span></div>
-   <div class="row l2"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">Enterprise SSO</span><span class="d">enterprise-single-sign-on-configuration-for-admins.html</span></div>
-   <div class="row l3" data-doan-id="rows-long-frame"><span class="tw"></span><span class="num">12</span><span class="g">Identity provider metadata upload failed because the certificate expired</span></div>
+   <div class="row cv l2" data-doan-id="rows-long-canvas"><span class="tw">▸</span><span class="glyph">◧</span><span class="two"><span class="g">Progressive profile — step 3 with skip and resume</span><span class="d">step-3-skip-and-resume.html</span></span><span class="cnt hot">12</span></div>
+   <div class="row cv l2"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">Enterprise SSO</span><span class="d">enterprise-single-sign-on-configuration-for-admins.html</span></span></div>
+   <div class="row l3" aria-label="12 Identity provider metadata upload failed because the certificate expired, selected in canvas" data-doan-id="rows-long-frame"><span class="tw"></span><span class="num">12</span><span class="g">Identity provider metadata upload failed because the certificate expired</span><span class="sel-mark"></span></div>
   </div>
   <div class="tooltip" style="margin:10px 0 0 30px" data-doan-id="rows-long-tooltip">flows/onboarding/step-3-skip-and-resume.html</div></div>
  <div><p class="tile-label"><b>Fallback labels</b> — a canvas without a title (or a blank one) shows its file name without <code>.html</code>; a frame without a title shows its id; a frame with neither shows the shipped “(no id)”.</p>
   <div class="side spec" data-doan-id="rows-fallback">
-   <div class="row l2" data-doan-id="rows-untitled"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">legacy-checkout</span><span class="d">legacy-checkout.html</span></div>
+   <div class="row cv l2" data-doan-id="rows-untitled"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">legacy-checkout</span><span class="d">legacy-checkout.html</span></span></div>
    <div class="row l3" data-doan-id="rows-frame-id"><span class="tw"></span><span class="num">1</span><span class="g">cart-summary</span></div>
    <div class="row l3"><span class="tw"></span><span class="num">2</span><span class="g">Shipping address</span></div>
    <div class="row l3" data-doan-id="rows-frame-noid"><span class="tw"></span><span class="num">3</span><span class="g no-id">(no id)</span></div>
   </div></div>
  <div><p class="tile-label"><b>Empty and duplicate ids</b> — rows are keyed by document index, so duplicates and empty ids each get their own row and number.</p>
   <div class="side spec" data-doan-id="rows-dupes">
-   <div class="row l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">Wizard</span><span class="d">wizard.html</span></div>
+   <div class="row cv l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">Wizard</span><span class="d">wizard.html</span></span></div>
    <div class="row l3"><span class="tw"></span><span class="num">1</span><span class="g">step</span></div>
    <div class="row l3" data-doan-id="rows-dupe"><span class="tw"></span><span class="num">2</span><span class="g">step</span></div>
    <div class="row l3" data-doan-id="rows-empty-id"><span class="tw"></span><span class="num">3</span><span class="g">Review (title, empty id)</span></div>
   </div></div>
  <div><p class="tile-label"><b>More than 1,000 frames</b> — the list stops at 1,000 and ends with the shipped hint. Static frames of a closed canvas are cut the same way.</p>
   <div class="side spec" data-doan-id="rows-truncated">
-   <div class="row l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">Icon sheet</span><span class="d">icons.html</span></div>
+   <div class="row cv l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">Icon sheet</span><span class="d">icons.html</span></span></div>
    <div class="row l3"><span class="tw"></span><span class="num">999</span><span class="g">arrow-up-right</span></div>
    <div class="row l3"><span class="tw"></span><span class="num">1000</span><span class="g">arrow-down-left</span></div>
    <p class="tree-hint" data-doan-id="rows-truncated-hint">Showing the first 1,000</p>
   </div></div>
  <div><p class="tile-label"><b>No frames</b> — an expanded canvas without <code>data-doan-frame</code> shows the shipped hint.</p>
   <div class="side spec" data-doan-id="rows-noframes">
-   <div class="row l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">Moodboard</span><span class="d">moodboard.html</span></div>
+   <div class="row cv l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">Moodboard</span><span class="d">moodboard.html</span></span></div>
    <p class="tree-hint" data-doan-id="rows-noframes-hint">This canvas has no data-doan-frame</p>
   </div></div>
  <div><p class="tile-label"><b>Typeahead</b> — with focus in the tree, typing “pr” within 500 ms moves focus to the next visible row starting with it. Frame rows match by name without the number.</p>
   <div class="side spec" data-doan-id="rows-typeahead">
-   <div class="row l2"><span class="tw">▸</span><span class="glyph">◧</span><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></div>
-   <div class="row l2"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">Payouts</span><span class="d">payouts.html</span></div>
+   <div class="row cv l2"><span class="tw">▸</span><span class="glyph">◧</span><span class="two"><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></span></div>
+   <div class="row cv l2"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">Payouts</span><span class="d">payouts.html</span></span></div>
    <div class="row l3"><span class="tw"></span><span class="num">1</span><span class="g">Payout schedule</span></div>
    <div class="row l3 focus" data-doan-id="rows-typeahead-focus"><span class="tw"></span><span class="num">2</span><span class="g">Pricing preview</span><span class="ra"><button class="btn">Select</button></span></div>
-   <div class="row l2"><span class="tw">▸</span><span class="glyph">◧</span><span class="g">Profile</span><span class="d">profile.html</span></div>
+   <div class="row cv l2"><span class="tw">▸</span><span class="glyph">◧</span><span class="two"><span class="g">Profile</span><span class="d">profile.html</span></span></div>
   </div>
   <p class="caption">Typed <kbd>p</kbd> <kbd>r</kbd> from “Payouts”: “2 Pricing preview” matches as “Pricing preview”. Nothing is drawn for the buffer.</p></div>
  <div><p class="tile-label"><b>Overview current</b> — no canvas open: the Overview row has the current mark.</p>
@@ -470,15 +485,15 @@ button { border: 0; background: transparent; }
   <div role="tree" aria-label="Canvases">
    <div class="row" role="treeitem" aria-level="1" aria-current="location" tabindex="0" data-doan-id="ov-tree-overview"><span class="tw" aria-hidden="true"></span><span class="glyph" aria-hidden="true">▦</span><span class="g">Overview</span></div>
    <div class="row folder" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">checkout</span></div>
-   <div class="row l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Cart</span><span class="d">cart.html</span></div>
-   <div class="row l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Checkout</span><span class="d">checkout.html</span><span class="cnt hot">3</span></div>
-   <div class="row l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">legacy-checkout</span><span class="d">legacy-checkout.html</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Cart</span><span class="d">cart.html</span></span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Checkout</span><span class="d">checkout.html</span></span><span class="cnt hot">3</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">legacy-checkout</span><span class="d">legacy-checkout.html</span></span></div>
    <div class="row folder" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">settings</span></div>
    <div class="row folder l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="g">team</span></div>
-   <div class="row l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Billing &amp; plans</span><span class="d">billing.html</span><span class="cnt hot">2</span></div>
-   <div class="row l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Profile</span><span class="d">profile.html</span></div>
-   <div class="row" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Checkout revamp (Oct 2026)</span><span class="d">2026-10-checkout-revamp.html</span></div>
-   <div class="row" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Design tokens</span><span class="d">tokens.html</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></span><span class="cnt hot">2</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Profile</span><span class="d">profile.html</span></span></div>
+   <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Checkout revamp (Oct 2026)</span><span class="d">2026-10-checkout-revamp.html</span></span></div>
+   <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Design tokens</span><span class="d">tokens.html</span></span></div>
   </div>
  </aside>
  <main class="ov" aria-label="Overview" data-doan-id="ov">
@@ -557,7 +572,7 @@ button { border: 0; background: transparent; }
    <div class="row hov"><span class="tw"></span><span class="glyph">▦</span><span class="g">Overview</span></div>
    <div class="row folder"><span class="tw">▸</span><span class="g">checkout</span></div>
    <div class="row folder"><span class="tw">▾</span><span class="g">settings</span></div>
-   <div class="row l2 is-open"><span class="tw">▸</span><span class="glyph">◧</span><span class="g">Billing &amp; plans</span><span class="d">billing.html</span><span class="cnt hot">2</span></div>
+   <div class="row cv l2 is-open"><span class="tw">▸</span><span class="glyph">◧</span><span class="two"><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></span><span class="cnt hot">2</span></div>
   </div></div>
 </div>
 </section>
@@ -605,16 +620,16 @@ button { border: 0; background: transparent; }
   <div class="sec">Canvases <span class="r">9</span></div>
   <div class="row"><span class="tw"></span><span class="glyph">▦</span><span class="g">Overview</span></div>
   <div class="row folder"><span class="tw">▾</span><span class="g">checkout</span></div>
-  <div class="row l2"><span class="tw">▸</span><span class="glyph">◧</span><span class="g">Cart</span><span class="d">cart.html</span></div>
-  <div class="row l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">Checkout</span><span class="d">checkout.html</span><span class="cnt hot">3</span></div>
+  <div class="row cv l2"><span class="tw">▸</span><span class="glyph">◧</span><span class="two"><span class="g">Cart</span><span class="d">cart.html</span></span></div>
+  <div class="row cv l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">Checkout</span><span class="d">checkout.html</span></span><span class="cnt hot">3</span></div>
   <div class="row l3" aria-current="location"><span class="tw"></span><span class="num">1</span><span class="g">Checkout</span></div>
   <div class="row l3"><span class="tw"></span><span class="num">2</span><span class="g">Payment</span></div>
-  <div class="row l2"><span class="tw">▸</span><span class="glyph">◧</span><span class="g">legacy-checkout</span><span class="d">legacy-checkout.html</span></div>
+  <div class="row cv l2"><span class="tw">▸</span><span class="glyph">◧</span><span class="two"><span class="g">legacy-checkout</span><span class="d">legacy-checkout.html</span></span></div>
   <div class="row folder"><span class="tw">▸</span><span class="g">settings</span></div>
  </aside>
  <section class="area" aria-hidden="true">
-  <span class="ftag" style="left:39px;top:82px">Checkout</span>
-  <div class="mframe" style="left:39px;top:100px;width:640px;height:400px"><div class="mnav"><b>Acme</b><span>Shop</span><span>Cart</span></div><div class="mcard"><h4>Checkout</h4><div class="mline"></div><div class="mline"></div><div class="mbtn">Pay</div></div></div>
+  <span class="ftag" style="left:42px;top:82px">Checkout</span>
+  <div class="mframe z" style="left:42px;top:100px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Shop</span><span>Cart</span></div><div class="mcard"><h4>Checkout</h4><div class="mline"></div><div class="mline"></div><div class="mbtn">Pay</div></div></div></div>
  </section>
  <div class="right-stack" aria-hidden="true"><aside class="right"><h2 class="phead">Canvas</h2><div class="isec"><dl class="kv"><dt>Path</dt><dd>design/checkout/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>2</dd></dl></div></aside></div>
  <div class="scrim"></div>
@@ -728,22 +743,22 @@ button { border: 0; background: transparent; }
    <div class="row folder" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="g">checkout</span></div>
    <div class="row folder" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">settings</span></div>
    <div class="row folder l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="g">team</span></div>
-   <div class="row l2 is-open" role="treeitem" aria-level="2" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Billing &amp; plans</span><span class="d">billing.html</span><span class="cnt hot">2</span></div>
+   <div class="row cv l2 is-open" role="treeitem" aria-level="2" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></span><span class="cnt hot">2</span></div>
    <div class="row l3" role="treeitem" aria-level="3" tabindex="-1"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">1</span><span class="g">Plans</span></div>
    <div class="row l3" role="treeitem" aria-level="3" tabindex="-1"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">2</span><span class="g">Upgrade</span></div>
    <div class="row l3" role="treeitem" aria-level="3" tabindex="-1"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">3</span><span class="g">Card form</span></div>
    <div class="row l3 focus" role="treeitem" aria-level="3" aria-current="location" tabindex="0" data-doan-id="hl-tree-current"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">4</span><span class="g">Card declined</span><span class="ra"><button class="btn" tabindex="-1">Select</button></span></div>
    <div class="row l3" role="treeitem" aria-level="3" tabindex="-1"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">5</span><span class="g">Invoice sent</span></div>
-   <div class="row l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Profile</span><span class="d">profile.html</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Profile</span><span class="d">profile.html</span></span></div>
   </div>
  </aside>
  <section class="area" role="region" aria-label="Canvas">
-  <div class="mframe" style="left:39px;top:-300px;width:640px;height:400px"><div class="mnav"><b>Acme</b><span>Billing</span><span>Team</span></div></div>
-  <span class="ftag" style="left:39px;top:142px">Card declined</span>
-  <div class="mframe" style="left:39px;top:160px;width:640px;height:400px"><div class="mnav"><b>Acme</b><span>Billing</span><span>Team</span></div><div class="mcard"><h4>Payment method</h4><div class="mnote">Your card was declined. Try another card or contact your bank.</div><div class="mline"></div><div class="mbtn">Try another card</div></div></div>
-  <span class="ftag" style="left:39px;top:602px">Invoice sent</span>
-  <div class="mframe" style="left:39px;top:620px;width:640px;height:400px"><div class="mnav"><b>Acme</b><span>Billing</span><span>Team</span></div></div>
-  <div class="overlay"><div class="flash-mark" style="left:39px;top:160px;width:640px;height:400px" data-doan-id="hl-mark"></div></div>
+  <div class="mframe z" style="left:42px;top:-280px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Billing</span><span>Team</span></div></div></div>
+  <span class="ftag" style="left:42px;top:142px">Card declined</span>
+  <div class="mframe z" style="left:42px;top:160px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Billing</span><span>Team</span></div><div class="mcard"><h4>Payment method</h4><div class="mnote">Your card was declined. Try another card or contact your bank.</div><div class="mline"></div><div class="mbtn">Try another card</div></div></div></div>
+  <span class="ftag" style="left:42px;top:582px">Invoice sent</span>
+  <div class="mframe z" style="left:42px;top:600px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Billing</span><span>Team</span></div></div></div>
+  <div class="overlay"><div class="flash-mark" style="left:42px;top:160px;width:634px;height:396px" data-doan-id="hl-mark"></div></div>
   <output class="updated meta"><span class="dot"></span> Updated 2m ago</output>
   <div class="zctl"><div class="zoom"><button>−</button><output>44%</output><button>+</button></div><button class="btn">Fit <span class="kbd">⌘1</span></button></div>
  </section>
@@ -774,23 +789,23 @@ button { border: 0; background: transparent; }
   <p class="caption">0 – 1.2 s as drawn, then nothing. No pulse, no opacity steps.</p></div>
  <div><p class="tile-label"><b>Jump keeps an existing selection</b> — Upgrade's button stays selected; the view moved to frame 4 and its row became current. The Inspector does not change.</p>
   <div class="side spec" data-doan-id="hl-keep">
-   <div class="row l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></div>
-   <div class="row l3" aria-label="2 Upgrade, selected in canvas"><span class="tw"></span><span class="num">2</span><span class="g">Upgrade</span><span class="sel-tag">Selected</span></div>
+   <div class="row cv l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></span></div>
+   <div class="row l3" aria-label="2 Upgrade, selected in canvas"><span class="tw"></span><span class="num">2</span><span class="g">Upgrade</span><span class="sel-mark"></span></div>
    <div class="row element-row l5"><span class="glyph">↳</span><span class="g">button · upgrade-button</span></div>
    <div class="row l3"><span class="tw"></span><span class="num">3</span><span class="g">Card form</span></div>
    <div class="row l3" aria-current="location"><span class="tw"></span><span class="num">4</span><span class="g">Card declined</span></div>
   </div></div>
  <div><p class="tile-label"><b>Frame of another canvas</b> — opening a different canvas runs the draft guard and clears the selection (shipped rule), then moves to the frame with the same highlight.</p>
   <div class="side spec" data-doan-id="hl-other">
-   <div class="row l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">Profile</span><span class="d">profile.html</span></div>
+   <div class="row cv l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">Profile</span><span class="d">profile.html</span></span></div>
    <div class="row l3"><span class="tw"></span><span class="num">1</span><span class="g">Profile</span></div>
    <div class="row l3" aria-current="location"><span class="tw"></span><span class="num">2</span><span class="g">Avatar upload</span></div>
-   <div class="row l2"><span class="tw">▸</span><span class="glyph">◧</span><span class="g">Billing &amp; plans</span><span class="d">billing.html</span><span class="cnt hot">2</span></div>
+   <div class="row cv l2"><span class="tw">▸</span><span class="glyph">◧</span><span class="two"><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></span><span class="cnt hot">2</span></div>
   </div></div>
 </div>
 
 <h3 class="states-head">Contrast: Select</h3>
-<p class="note">Space, double-click or the row's Select button take the shipped <code>pick-frame</code> path: the draft guard runs, the frame is selected (1 px solid mark and its dimensions label), the right panel switches to the Inspector, and the row gets the Selected tag. Its current mark is independent.</p>
+<p class="note">Space, double-click or the row's Select button take the shipped <code>pick-frame</code> path: the draft guard runs, the frame is selected (1 px solid mark and its dimensions label), the right panel switches to the Inspector, and the row gets the hollow diamond. Its current mark is independent.</p>
 <div class="tiles">
  <div><p class="tile-label"><b>Selected frame</b> — overlay mark and label as shipped (DESIGN.md 'Select and inspect').</p>
   <div class="area" style="width:640px;height:320px;border:1px solid var(--line);border-radius:10px" data-doan-id="hl-select-canvas">
@@ -801,9 +816,9 @@ button { border: 0; background: transparent; }
  <div><p class="tile-label"><b>Tree and right panel after Select</b></p>
   <div style="display:flex;gap:12px;align-items:flex-start">
    <div class="side spec" data-doan-id="hl-select-tree">
-    <div class="row l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></div>
+    <div class="row cv l2 is-open"><span class="tw">▾</span><span class="glyph">◧</span><span class="two"><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></span></div>
     <div class="row l3"><span class="tw"></span><span class="num">3</span><span class="g">Card form</span></div>
-    <div class="row l3 focus" aria-current="location" aria-label="4 Card declined, selected in canvas"><span class="tw"></span><span class="num">4</span><span class="g">Card declined</span><span class="sel-tag">Selected</span><span class="ra"><button class="btn">Select</button></span></div>
+    <div class="row l3 focus" aria-current="location" aria-label="4 Card declined, selected in canvas"><span class="tw"></span><span class="num">4</span><span class="g">Card declined</span><span class="ra"><button class="btn">Select</button></span><span class="sel-mark"></span></div>
     <div class="row l3"><span class="tw"></span><span class="num">5</span><span class="g">Invoice sent</span></div>
    </div>
    <aside class="right" style="width:280px;border:1px solid var(--line);border-radius:10px;overflow:hidden" role="region" aria-label="Inspector" data-doan-id="hl-select-panel">
@@ -830,9 +845,9 @@ button { border: 0; background: transparent; }
    <div class="row folder" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="g">checkout</span></div>
    <div class="row folder" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">settings</span></div>
    <div class="row folder l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="g">team</span></div>
-   <div class="row l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Profile</span><span class="d">profile.html</span></div>
-   <div class="row" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Checkout revamp (Oct 2026)</span><span class="d">2026-10-checkout-revamp.html</span></div>
-   <div class="row" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Design tokens</span><span class="d">tokens.html</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Profile</span><span class="d">profile.html</span></span></div>
+   <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Checkout revamp (Oct 2026)</span><span class="d">2026-10-checkout-revamp.html</span></span></div>
+   <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Design tokens</span><span class="d">tokens.html</span></span></div>
   </div>
  </aside>
  <main class="ov" aria-label="Overview">
