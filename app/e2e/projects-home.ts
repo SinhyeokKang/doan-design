@@ -60,7 +60,15 @@ process.exit(result.status ?? 1);
     }
   }
 
-  async function wait(check: () => Promise<boolean>, name: string) { const end = Date.now() + 10_000; while (!await check()) { assert.ok(Date.now() < end, name); await page.waitForTimeout(20); } }
+  async function wait(check: () => Promise<boolean>, name: string) {
+    const end = Date.now() + 10_000;
+    let lastError: unknown;
+    for (;;) {
+      try { if (await check()) return; } catch (error) { lastError = error; }
+      if (Date.now() >= end) throw lastError ?? new Error(`Timed out waiting for ${name}`);
+      await page.waitForTimeout(20);
+    }
+  }
   async function add(paths: string[]) { await app!.evaluate(({ dialog }, paths) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: paths }); }, paths); await menu("Add Project…"); }
   async function addPaths(paths: string[]) { await app!.evaluate(async ({ ipcMain, BrowserWindow }, paths) => { const win = BrowserWindow.getAllWindows()[0]!; const handler = Reflect.get(ipcMain, "_invokeHandlers").get("folders:add-paths"); await handler({ sender: win.webContents, senderFrame: win.webContents.mainFrame }, { paths }); }, paths); }
   const presentation: Record<string, boolean> = {};

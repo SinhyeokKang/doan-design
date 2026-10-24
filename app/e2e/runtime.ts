@@ -2170,7 +2170,7 @@ async function waitFor(check: () => Promise<boolean>, what: string, detail: () =
       lastError = error;
       // Not there yet (file not written, window reloading); retry until the deadline.
     }
-    if (Date.now() > deadline) throw new Error(`timed out waiting for: ${what}\n${detail()}\n${String(lastError ?? "")}`);
+    if (Date.now() >= deadline) throw lastError ?? new Error(`timed out waiting for: ${what}\n${detail()}`);
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 }

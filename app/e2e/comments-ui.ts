@@ -19,8 +19,11 @@ const work = await realpath(await mkdtemp("/tmp/doan-comments-ui-"));
 const exec = promisify(execFile);
 async function waitGate(check: () => Promise<boolean>) {
   const until = Date.now() + 10_000;
-  while (!await check()) {
-    if (Date.now() > until) throw new Error("Timed out waiting for the controlled IPC gate");
+  let lastError: unknown;
+  for (;;) {
+    try { if (await check()) return; } catch (error) { lastError = error; }
+    if (Date.now() >= until) throw lastError ?? new Error("Timed out waiting for the controlled IPC gate");
+    // A canvas rewrite can detach the frame between locator resolution and evaluation.
     await new Promise(resolve => setTimeout(resolve, 20));
   }
 }
