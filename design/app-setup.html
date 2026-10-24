@@ -204,7 +204,7 @@ input { font: inherit; color: inherit; outline: none; }
 .ob-win { width: 1238px; height: 780px; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-2); background: var(--bg); display: grid; grid-template-rows: 40px auto minmax(0, 1fr) 56px; position: relative; }
 .win > .ob-dialog, .win > .add-dialog, .ob-win > .ob-dialog, .st-win > .ob-dialog { position: absolute; }
 .foot-strip { height: 56px; margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; }
-.stack { position: relative; padding: 28px 40px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; display: grid; place-items: center; overflow: hidden; }
+.stack { position: relative; padding: 28px 32px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; display: grid; place-items: center; overflow: hidden; }
 .stack > .scrim { border-radius: 12px; }
 .stack > .ob-dialog, .stack > .add-dialog { position: relative; }
 .rules { width: 100%; border-collapse: collapse; font-size: 11.5px; line-height: 1.5; color: var(--text-2); }
@@ -337,8 +337,9 @@ input { font: inherit; color: inherit; outline: none; }
 <p><b>Conductor decision applied (2026-10-25).</b> Wizard steps 1–2 reuse the Settings connection row: the same state words (Connected, Needs attention, Not connected, Not installed, Couldn’t check), the same per-row action (Fix… / Connect / Install ↗ / Check Again), and a disclosure that opens the shipped per-item rows (CLI link, PATH, Skill, Skill link, MCP) with their current chips. One component serves both. The wizard keeps its four steps, step buttons, footer (Check Again, Skip, Continue, Done), focus and Escape handling as shipped.</p>
 <p><b>Copied from shipped screens.</b> Buttons, keys, chips (<code>.ob-chip</code>), onboarding items, the dialog surface (<code>.ob-dialog</code>, <code>.ob-compare</code>), the step indicator and footer, Home's top bar, cards and rows, menus, the add checklist, the toast, the workspace top bar, sidebar Overview row and right panel, and the empty state come from app/src/renderer/styles.css and docs/DESIGN.md (Onboarding, Projects home, Design navigation). The Settings tab bar reuses the comments segment (CommentsPanel Open/Resolved). The Home banner reuses the workspace status line (<code>.ws-status</code>). Replace confirmations, the PATH line, copy labels (Copy → Copying… → Copied / Retry copy) and the copy failure sentence are the shipped strings in onboardingView.ts.</p>
 <p><b>/design-sync</b> compares the main specimen and every labelled tile of all six frames. Inside <code>home-setup</code> and <code>first-prompt</code>, the Home cards, workspace sidebar, top bar crumbs and right panel are shipped and drawn for context only. The native title bar of the Settings window (traffic lights, centered title) is drawn for context and cannot be measured from the renderer.</p>
-<p><b>Draft decisions (for the conductor to accept or change).</b> (1) Settings tabs are a centered two-segment control under the native title bar, not a toolbar or sidebar: two tabs fit 640 px and the segment is a shipped primitive. (2) A connection row shows name and state on line 1 and one result-first sentence on line 2; the disclosure triangle before the name opens Details. (3) Home chips show the state word next to the name, so state is never color-only; the accessible name is “&lt;name&gt;: &lt;state&gt;”. (4) The banner lists one sentence per Needs-attention row, in row order; Fix… opens Settings with the first of them expanded. (5) Couldn’t check also shows the banner, in neutral wording, because design.md 'Finish card' assigns Couldn’t check to the banner (spec.md names only Needs attention for the banner) — please confirm. (6) The first-prompt sentence shows “…” in the subject slot while the input is empty. (7) Home row menus gain “Project Settings…” between Show in Finder and Remove from doan.</p>
+<p><b>Draft decisions — reviewed by the conductor 2026-10-25: 1–4 and 6–11 accepted as drawn, 5 rejected.</b> (1) Settings tabs are a centered two-segment control under the native title bar, not a toolbar or sidebar: two tabs fit 640 px and the segment is a shipped primitive. (2) A connection row shows name and state on line 1 and one result-first sentence on line 2; the disclosure triangle before the name opens Details. (3) Home chips show the state word next to the name, so state is never color-only; the accessible name is “&lt;name&gt;: &lt;state&gt;”. (4) The banner lists one sentence per Needs-attention row, in row order; Fix… opens Settings with the first of them expanded. (5) <b>Rejected.</b> Couldn’t check does not show a Home banner: spec '홈 표시' puts a banner only on a Needs-attention row (batch A1’s <code>homeAlerts</code> already does this). Couldn’t check is a chip only (hollow amber dot); Settings › Connections keeps its row with the reason and Check Again; the Finish card never lists it. (6) The first-prompt sentence shows “…” in the subject slot while the input is empty. (7) Home row menus gain “Project Settings…” between Show in Finder and Remove from doan. (8) Settings shows a busy notice above the rows while another window runs a setup step. (9) Wizard step labels (CLI / Agents / Project / First prompt) stay as shipped; only headings and leads change. (10) Wizard step 3’s pick-one list includes worktree sub-items as radios, with a disabled Couldn’t read row. (11) The Projects tab is a 220 px list grouped by repository plus a detail pane with Root / Token CSS / Serve sections.</p>
 <p><b>References.</b> Sorcerer (github.com/gbrasil720/sorcerer, MIT), <b>checked</b> on 2026-10-25 at commit 18d6192 (shallow clone in a scratch directory, not vendored): <code>docs/screenshots/settings-providers.png</code> and <code>apps/macos/Sources/Sorcerer/SettingsWindow.swift</code> — a fixed-size settings window (860 × 600 there), one row per provider with the tool and its state on one line (“via Claude Code · signed in”), a dimmed unavailable provider with a single result-first fix sentence (“Not running. Install it from ollama.com, pull a model, then rescan.”), and a pane lead with the rescan button at its right, taken as the connection row, the Not installed sentence and the Check Again placement; <code>docs/screenshots/onboarding-connect.png</code> — an outcome-first heading (“Bring your own AI.”) over a lead that says what was looked for, taken as the shape of the new wizard headings and leads. The macOS conventions (window title = current pane, no minimize or zoom, ⌘, opens Settings) come from spec.md and were not rechecked against a system app. Orca, Claude Design, ego-browser and Storybook were not checked for this draft.</p>
+<p><b>Grafted from the DX draft (2026-10-25).</b> The FirstPrompt privacy line “Your input stays in doan until you copy it.” comes from the other draft of this feature (batch DX, commit f2320d2); its source is spec decision 11 “입력은 앱 밖으로 보내지 않는다”. It is the second helper line in every FirstPrompt specimen, the wizard step 4 and the zero-canvas center included.</p>
 <p><b>Example data.</b> User alex, app at /Applications/doan.app, project acme-web at /Users/alex/code/acme-web with two linked worktrees. Paths in the tiles include long values on purpose.</p>
 </header>
 
@@ -688,7 +689,7 @@ input { font: inherit; color: inherit; outline: none; }
  <tbody>
   <tr><td>Connected</td><td>green dot</td><td class="na">—</td><td class="na">—</td></tr>
   <tr><td>Needs attention</td><td>amber dot</td><td>one sentence for that row</td><td class="na">never</td></tr>
-  <tr><td>Couldn’t check</td><td>hollow amber dot</td><td>one neutral sentence (draft decision 5)</td><td class="na">never</td></tr>
+  <tr><td>Couldn’t check</td><td>hollow amber dot</td><td class="na">—</td><td class="na">never</td></tr>
   <tr><td>Not connected</td><td>hollow dot</td><td class="na">—</td><td>doan command: “Connect the doan command”. Agents: “Connect Claude Code or Codex”, only when no agent is Connected</td></tr>
   <tr><td>Not installed</td><td>hollow dot</td><td class="na">—</td><td>counts toward “Connect Claude Code or Codex” as above</td></tr>
   <tr><td>No saved project</td><td class="na">—</td><td class="na">—</td><td>“Add a project” with Add Project…</td></tr>
@@ -702,7 +703,7 @@ input { font: inherit; color: inherit; outline: none; }
  <div><p class="tile-label"><b>All connected</b> — the chips stay as a quiet summary.</p>
   <div class="top" style="height:40px;border:1px solid var(--line);border-radius:10px;justify-content:flex-end"><div class="conns" role="group" aria-label="Connections" data-doan-id="hs-t-ok"><button class="conn" aria-label="doan command: Connected"><span class="conn-dot" aria-hidden="true"></span>doan command <span class="st">Connected</span></button><button class="conn" aria-label="Claude Code: Connected"><span class="conn-dot" aria-hidden="true"></span>Claude Code <span class="st">Connected</span></button><button class="conn focus" aria-label="Codex: Connected" data-doan-id="hs-t-ok-focus"><span class="conn-dot" aria-hidden="true"></span>Codex <span class="st">Connected</span></button></div><button class="btn">+ Add Project… <span class="kbd">⌘O</span></button></div>
   <p class="tile-label" style="margin-top:6px">The last chip shows the shipped keyboard focus ring.</p></div>
- <div><p class="tile-label"><b>Couldn’t check</b> — hollow amber dot.</p>
+ <div><p class="tile-label"><b>Couldn’t check</b> — hollow amber dot; chip only, no banner. The row with its reason and Check Again lives in Settings › Connections.</p>
   <div class="top" style="height:40px;border:1px solid var(--line);border-radius:10px;justify-content:flex-end"><div class="conns" role="group" aria-label="Connections"><button class="conn" aria-label="doan command: Connected"><span class="conn-dot" aria-hidden="true"></span>doan command <span class="st">Connected</span></button><button class="conn" aria-label="Claude Code: Couldn’t check" data-doan-id="hs-t-unknown"><span class="conn-dot unknown" aria-hidden="true"></span>Claude Code <span class="st">Couldn’t check</span></button><button class="conn" aria-label="Codex: Connected"><span class="conn-dot" aria-hidden="true"></span>Codex <span class="st">Connected</span></button></div><button class="btn">+ Add Project… <span class="kbd">⌘O</span></button></div></div>
 </div>
 
@@ -719,8 +720,6 @@ input { font: inherit; color: inherit; outline: none; }
   </div></div>
  <div class="wide"><p class="tile-label"><b>Two rows need attention</b> — one sentence per row, in row order; Fix… opens Settings with the first expanded.</p>
   <div class="ws-status banner" style="width:1238px;border:1px solid var(--line);border-radius:8px" data-doan-id="hs-t-banner-two"><span class="ob-chip warn">Needs attention</span><span class="text"><span class="line">The doan command link is broken, so agents can’t reach doan.</span><span class="line">Codex’s doan MCP server runs another command, so Codex can’t use doan.</span></span><button class="btn">Fix…</button><button class="btn ghost">Check Again</button></div></div>
- <div class="wide"><p class="tile-label"><b>Couldn’t check</b> (draft decision 5) — neutral chip and wording; Fix… still opens that row.</p>
-  <div class="ws-status banner" style="width:1238px;border:1px solid var(--line);border-radius:8px" data-doan-id="hs-t-banner-unknown"><span class="ob-chip warn">Couldn’t check</span><span class="text">doan couldn’t check Claude Code, so it may not reach doan. Your login shell (/bin/zsh) didn’t answer in time.</span><button class="btn">Fix…</button><button class="btn ghost">Check Again</button></div></div>
 </div>
 
 <h3 class="states-head">Finish card</h3>
@@ -766,7 +765,7 @@ input { font: inherit; color: inherit; outline: none; }
    <div class="cn-details"><div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail"><code>~/.local/bin/doan</code> → <code>/Applications/doan.app/Contents/Resources/bin/doan</code></span><span class="ob-status"><span class="ob-chip ok">Installed</span></span></div></div></div></div>
   <div class="ob-foot foot-strip"><span class="meta">Step 1 of 4</span><button class="btn">Check Again</button><span class="spacer"></span><button class="btn ghost">Skip</button><button class="btn primary" data-doan-id="wz-1-t-continue">Continue</button></div></div>
  <div><p class="tile-label"><b>Fix confirmation</b> — the same dialog as Settings, stacked over the wizard. Escape answers the dialog only.</p>
-  <div class="stack" style="height:260px"><div class="scrim"></div><div class="ob-dialog" role="alertdialog" aria-label="Fix the doan link?" data-doan-id="wz-1-t-confirm"><h3>Fix the doan link?</h3><p><code>~/.local/bin/doan</code> points to a file that no longer exists. Your terminal and agents will run this app’s copy instead.</p><dl class="ob-compare"><dt>Current</dt><dd>/Volumes/doan/doan.app/Contents/Resources/bin/doan (missing)</dd><dt>New</dt><dd>/Applications/doan.app/Contents/Resources/bin/doan</dd></dl><div class="ob-buttons"><button class="btn focus">Cancel</button><button class="btn primary">Fix Link</button></div></div></div></div>
+  <div class="stack" style="height:344px"><div class="scrim"></div><div class="ob-dialog" role="alertdialog" aria-label="Fix the doan link?" data-doan-id="wz-1-t-confirm"><h3>Fix the doan link?</h3><p><code>~/.local/bin/doan</code> points to a file that no longer exists. Your terminal and agents will run this app’s copy instead.</p><dl class="ob-compare"><dt>Current</dt><dd>/Volumes/doan/doan.app/Contents/Resources/bin/doan (missing)</dd><dt>New</dt><dd>/Applications/doan.app/Contents/Resources/bin/doan</dd></dl><div class="ob-buttons"><button class="btn focus">Cancel</button><button class="btn primary">Fix Link</button></div></div></div></div>
  <div><p class="tile-label"><b>Development build without DOAN_CLI</b> — the shipped reason, now as the row sentence; no action.</p>
   <div class="ob-card cn-card w640"><div class="cn-row" data-doan-id="wz-1-t-dev"><button class="cn-name" aria-expanded="false"><span class="tw" aria-hidden="true">▸</span>doan command</button><span class="cn-end"><span class="ob-chip">Not connected</span><button class="btn primary" disabled>Connect</button></span><p class="cn-say">This build has no bundled CLI. Set DOAN_CLI.</p></div></div></div>
 </div>
@@ -859,7 +858,7 @@ input { font: inherit; color: inherit; outline: none; }
     <div class="ob-card"><div class="ob-prompt">
      <div class="fp-field"><div class="fp-labelrow"><label class="fp-label" for="wz-4-input">What do you want to design?</label></div><input class="fp-input" id="wz-4-input" type="text" placeholder="a sign-in screen with SSO" value="a sign-in screen with SSO and a magic link"></div>
      <p class="ob-sentence">Use the doan skill to make a design canvas in /Users/alex/code/acme-web for <mark>a sign-in screen with SSO and a magic link</mark>.</p>
-     <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.</span><button class="btn primary">Copy</button></div>
+     <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.<br>Your input stays in doan until you copy it.</span><button class="btn primary">Copy</button></div>
     </div></div>
    </div>
    <div class="ob-foot foot-strip"><span class="meta">Step 4 of 4</span><span class="spacer"></span><button class="btn primary">Done</button></div>
@@ -883,7 +882,7 @@ input { font: inherit; color: inherit; outline: none; }
 
 <!-- ===================================================== first-prompt -->
 <section class="frame" data-doan-frame="first-prompt" data-doan-title="FirstPrompt" data-doan-implements="app/src/renderer/ProjectOverview.tsx">
-<div class="flabel"><h2>FirstPrompt — shared component</h2><span class="nic">new · not in code</span><span class="nic">draft copy: label, helper, length message, “…” slot</span></div>
+<div class="flabel"><h2>FirstPrompt — shared component</h2><span class="nic">new · not in code</span><span class="nic">draft copy: label, helper, privacy line, length message, “…” slot</span></div>
 <p class="note">One component in two places: wizard step 4 and the center of a workspace with zero canvases (it replaces “Copy first prompt” and its hint in ProjectOverview.tsx; the heading stays). The renderer sends <code>{root, subject}</code>; main builds the sentence with the same function for the preview and the clipboard, so they always match. The subject is trimmed, one line, no control characters, 500 characters at most; a trailing “.” is not doubled. Copy is enabled only for a valid subject. Waiting starts only after the clipboard write finished; editing the subject does not cancel it. Arrival = a canvas path that was not there at Copy time: in that workspace it opens the newest one; on another screen, or while the app was hidden, the toast below shows; in the wizard, Canvas ready shows. Removing the project cancels the wait; relaunching forgets it. Nothing typed leaves the app except through the clipboard.</p>
 <div class="win ws short" data-doan-id="fp-window">
  <div class="top"><div class="lights"><i></i><i></i><i></i></div><button class="back" aria-label="Go Home">←</button><span class="divider" aria-hidden="true"></span>
@@ -896,7 +895,7 @@ input { font: inherit; color: inherit; outline: none; }
    <div class="fp-card" data-doan-id="fp-card"><div class="ob-prompt" data-doan-id="fp-prompt">
     <div class="fp-field"><div class="fp-labelrow"><label class="fp-label" for="fp-input" data-doan-id="fp-label">What do you want to design?</label></div><input class="fp-input focus" id="fp-input" type="text" placeholder="a sign-in screen with SSO" data-doan-id="fp-input"></div>
     <p class="ob-sentence" data-doan-id="fp-sentence">Use the doan skill to make a design canvas in /Users/alex/code/billing-api for <mark class="slot" data-doan-id="fp-slot">…</mark>.</p>
-    <div class="ob-actions"><span class="ob-helper" data-doan-id="fp-helper">Paste it into a new Claude Code or Codex session.</span><button class="btn primary" disabled data-doan-id="fp-copy">Copy</button></div>
+    <div class="ob-actions"><span class="ob-helper" data-doan-id="fp-helper">Paste it into a new Claude Code or Codex session.<br>Your input stays in doan until you copy it.</span><button class="btn primary" disabled data-doan-id="fp-copy">Copy</button></div>
    </div></div>
   </div>
  </main>
@@ -909,25 +908,25 @@ input { font: inherit; color: inherit; outline: none; }
   <div class="ob-card" data-doan-id="fp-t-typed"><div class="ob-prompt">
    <div class="fp-field"><div class="fp-labelrow"><label class="fp-label">What do you want to design?</label></div><input class="fp-input focus" type="text" placeholder="a sign-in screen with SSO" value="a sign-in screen with SSO"></div>
    <p class="ob-sentence" data-doan-id="fp-t-typed-sentence">Use the doan skill to make a design canvas in /Users/alex/code/billing-api for <mark>a sign-in screen with SSO</mark>.</p>
-   <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.</span><button class="btn primary" data-doan-id="fp-t-typed-copy">Copy</button></div>
+   <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.<br>Your input stays in doan until you copy it.</span><button class="btn primary" data-doan-id="fp-t-typed-copy">Copy</button></div>
   </div></div></div>
  <div><p class="tile-label"><b>Too long</b> — over 500 characters. The count appears, the field is marked, Copy is disabled, and the message takes the sentence’s place until the input is valid again.</p>
   <div class="ob-card" data-doan-id="fp-t-long"><div class="ob-prompt">
    <div class="fp-field"><div class="fp-labelrow"><label class="fp-label">What do you want to design?</label><span class="fp-count err" data-doan-id="fp-t-long-count">517 / 500</span></div><input class="fp-input invalid" type="text" aria-invalid="true" value="a checkout page for the annual plan upgrade with a plan comparison table, coupon code entry, tax and currency notes, three payment methods (card, PayPal, invoice), an order summary that sticks on scroll, error states for declined cards and expired coupons, a success screen with next steps, and a mobile layout where the summary collapses into a bottom sheet, plus empty, loading and offline states for every section, with notes for the agency on which copy is final and which is placeholder, plus a short audit trail"></div>
    <p class="fp-error" role="alert" data-doan-id="fp-t-long-msg">Use one line of plain text, up to 500 characters.</p>
-   <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.</span><button class="btn primary" disabled>Copy</button></div>
+   <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.<br>Your input stays in doan until you copy it.</span><button class="btn primary" disabled>Copy</button></div>
   </div></div></div>
  <div><p class="tile-label"><b>Invalid character</b> — a pasted tab or other control character. Same message in the sentence’s place; no count.</p>
   <div class="ob-card" data-doan-id="fp-t-invalid"><div class="ob-prompt">
    <div class="fp-field"><div class="fp-labelrow"><label class="fp-label">What do you want to design?</label></div><input class="fp-input invalid" type="text" aria-invalid="true" value="a pricing page	with three tiers"></div>
    <p class="fp-error" role="alert">Use one line of plain text, up to 500 characters.</p>
-   <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.</span><button class="btn primary" disabled>Copy</button></div>
+   <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.<br>Your input stays in doan until you copy it.</span><button class="btn primary" disabled>Copy</button></div>
   </div></div></div>
  <div><p class="tile-label"><b>Copying…</b> — waiting for the clipboard; the button is disabled.</p>
   <div class="ob-card" data-doan-id="fp-t-copying"><div class="ob-prompt">
    <div class="fp-field"><div class="fp-labelrow"><label class="fp-label">What do you want to design?</label></div><input class="fp-input" type="text" value="a sign-in screen with SSO"></div>
    <p class="ob-sentence">Use the doan skill to make a design canvas in /Users/alex/code/billing-api for <mark>a sign-in screen with SSO</mark>.</p>
-   <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.</span><button class="btn primary" disabled data-doan-id="fp-t-copying-btn">Copying…</button></div>
+   <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.<br>Your input stays in doan until you copy it.</span><button class="btn primary" disabled data-doan-id="fp-t-copying-btn">Copying…</button></div>
   </div></div></div>
  <div><p class="tile-label"><b>Waiting</b> — the clipboard holds the sentence. The helper line becomes the waiting status.</p>
   <div class="ob-card" data-doan-id="fp-t-wait"><div class="ob-prompt">
@@ -946,13 +945,13 @@ input { font: inherit; color: inherit; outline: none; }
    <div class="fp-field"><div class="fp-labelrow"><label class="fp-label">What do you want to design?</label></div><input class="fp-input" type="text" value="a sign-in screen with SSO"></div>
    <p class="ob-sentence">Use the doan skill to make a design canvas in /Users/alex/code/billing-api for <mark>a sign-in screen with SSO</mark>.</p>
    <p class="ob-msg error" role="alert" style="grid-column:auto" data-doan-id="fp-t-failed-msg">Couldn’t copy. Your clipboard could not be updated. Try again.</p>
-   <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.</span><button class="btn primary" data-doan-id="fp-t-failed-btn">Retry copy</button></div>
+   <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.<br>Your input stays in doan until you copy it.</span><button class="btn primary" data-doan-id="fp-t-failed-btn">Retry copy</button></div>
   </div></div></div>
  <div><p class="tile-label"><b>Long path</b> — the sentence wraps; nothing is shortened.</p>
   <div class="ob-card" data-doan-id="fp-t-path"><div class="ob-prompt">
    <div class="fp-field"><div class="fp-labelrow"><label class="fp-label">What do you want to design?</label></div><input class="fp-input" type="text" value="an account settings page"></div>
    <p class="ob-sentence">Use the doan skill to make a design canvas in /Users/alex/Library/Mobile Documents/com~apple~CloudDocs/Clients/Acme Corporation/2026 Q4 account settings redesign/web-app for <mark>an account settings page</mark>.</p>
-   <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.</span><button class="btn primary">Copy</button></div>
+   <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.<br>Your input stays in doan until you copy it.</span><button class="btn primary">Copy</button></div>
   </div></div></div>
 </div>
 
