@@ -12,16 +12,15 @@ export interface ConnectionMachineState {
 }
 
 export function connectionSummary(machine: ConnectionMachineState, translocated: boolean): ConnectionSummary {
-  const cli: ConnectionStatus = translocated ? "needs-attention" : !machine.probe.ok ? "couldnt-check" :
+  const cli: ConnectionStatus = translocated || ["dangling", "link-other", "blocked"].includes(machine.cli.state) ? "needs-attention" : !machine.probe.ok ? "couldnt-check" :
     machine.cli.state === "ours" ? "connected" : machine.cli.state === "missing" ? "not-connected" : "needs-attention";
   const agentStatus = (agent: Agent): ConnectionStatus => {
-    if (!machine.probe.ok) return "couldnt-check";
     const { executable, mcp } = machine.agents[agent];
-    if (executable === null) return "not-installed";
-    if (mcp.state === "unknown") return "couldnt-check";
+    if (machine.probe.ok && executable === null) return "not-installed";
     const link = agent === "claude" ? machine.claudeLink.state : "ours";
     if (mcp.state === "other" || machine.stub.state === "differs" || machine.stub.state === "blocked" ||
       link === "dangling" || link === "link-other" || link === "blocked") return "needs-attention";
+    if (!machine.probe.ok || mcp.state === "unknown") return "couldnt-check";
     return mcp.state === "ours" && machine.stub.state === "ours" && link === "ours" ? "connected" : "not-connected";
   };
   return { cli, claude: agentStatus("claude"), codex: agentStatus("codex") };

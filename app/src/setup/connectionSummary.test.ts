@@ -39,10 +39,29 @@ describe("connectionSummary", () => {
     expect(connectionSummary(input, false).claude).toBe(state === "ours" ? "connected" : state === "missing" ? "not-connected" : "needs-attention");
     expect(connectionSummary(input, false).codex).toBe("connected");
   });
-  test("unknown MCP wins over incomplete or conflicting setup", () => {
+  test("known conflicts win over unknown MCP", () => {
     const input = machine(); input.agents.claude.mcp.state = "unknown"; input.stub.state = "differs";
-    expect(connectionSummary(input, false).claude).toBe("couldnt-check");
+    expect(connectionSummary(input, false).claude).toBe("needs-attention");
     input.agents.codex.mcp.state = "missing";
     expect(connectionSummary(input, false).codex).toBe("needs-attention");
   });
+});
+
+test.each(["dangling", "link-other", "blocked"] as const)("known CLI %s wins over a failed probe", state => {
+  const input = machine(); input.probe = { ok: false, reason: "timeout" }; input.cli.state = state;
+  expect(connectionSummary(input, false).cli).toBe("needs-attention");
+});
+test.each(["differs", "blocked"] as const)("known shared skill %s wins over probe and MCP failure", state => {
+  const input = machine(); input.probe = { ok: false, reason: "timeout" }; input.stub.state = state;
+  input.agents.claude.executable = null; input.agents.claude.mcp.state = "unknown";
+  expect(connectionSummary(input, false)).toEqual({ cli: "couldnt-check", claude: "needs-attention", codex: "needs-attention" });
+});
+test.each(["dangling", "link-other", "blocked"] as const)("known Claude link %s wins over a failed probe", state => {
+  const input = machine(); input.probe = { ok: false, reason: "timeout" }; input.claudeLink.state = state;
+  expect(connectionSummary(input, false).claude).toBe("needs-attention");
+  expect(connectionSummary(input, false).codex).toBe("couldnt-check");
+});
+test("unknown MCP still wins over missing setup", () => {
+  const input = machine(); input.stub.state = "missing"; input.agents.claude.mcp.state = "unknown";
+  expect(connectionSummary(input, false).claude).toBe("couldnt-check");
 });
