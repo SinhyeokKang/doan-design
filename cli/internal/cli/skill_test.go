@@ -101,3 +101,19 @@ func TestSkillConfigRequiresHumanRequest(t *testing.T) {
 		t.Fatal("stale setup guidance")
 	}
 }
+
+func TestSkillReportsUnservedCSSInFinalAnswer(t *testing.T) {
+	for _, required := range []string{
+		"CSS the user names or the canvas needs is outside that scope",
+		"do not change configuration",
+		"In your final answer, say the original file could not be linked as-is",
+		"serving its path needs the user's approval",
+		"Settings › Projects",
+		"doan config --add-serve",
+		"If you use a workaround such as copying CSS into `design/`, disclose it in the final answer",
+	} {
+		if !strings.Contains(skillBody, required) {
+			t.Errorf("missing CSS boundary guidance: %s", required)
+		}
+	}
+}
