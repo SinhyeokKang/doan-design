@@ -2,7 +2,9 @@ import { authorizeCanvas } from "./comments/identity";
 import type { CommentIdentity } from "./comments/service";
 import type { ResponseRecord } from "./comments/document";
 import { realpath, stat } from "node:fs/promises";
+import { join } from "node:path";
 import { readFolder, runLs, runInit } from "./cli";
+import { insertAt, replaceAt } from "./folders";
 import { openFolderStore } from "./folderStore";
 import { folderState, initOutcome, reconcileFolders, type InitOutcome } from "./folderState";
 import { startServer, type LocalServer } from "./serve/server";
@@ -24,6 +26,19 @@ export interface Shell {
   initialize(path: string, tokenCss: string | null): Promise<ProjectInitResult>;
   reopen(path: string): Promise<void>;
   close(path: string): Promise<void>;
+  // Stores roots main already judged, after the stored ones; resolves to the
+  // paths that were not stored yet.
+  store(paths: readonly string[]): Promise<string[]>;
+  // Resolves to the stored paths it removed, in stored order, with their indexes.
+  remove(paths: readonly string[]): Promise<{ paths: string[]; indexes: number[] }>;
+  // Puts removed paths back at their indexes with new server keys; a path
+  // stored again meanwhile is skipped. Resolves to the paths put back.
+  restore(paths: readonly string[], indexes: readonly number[]): Promise<string[]>;
+  // Locate: `to` takes `from`'s place, or only `from` goes when `to` is stored.
+  replace(from: string, to: string): Promise<void>;
+  // Re-reads every root without a loading state (the branch may have changed:
+  // the watcher does not see `.git/HEAD`).
+  rereadAll(): void;
   dispose(): Promise<void>;
 }
 
@@ -40,6 +55,21 @@ interface Folder {
   servedRev: number;
   // The scope last given to the server.
   scope: string[];
+  // The last `git.common` seen; memory only (design 'app side').
+  common: string | undefined;
+}
+
+// A canvas removed after `doan ls` has no entry; the row then shows no time.
+export async function canvasMtimes(root: string, paths: readonly string[]): Promise<Map<string, number>> {
+  const mtimes = new Map<string, number>();
+  await Promise.all(paths.map(async (path) => {
+    try {
+      mtimes.set(path, (await stat(join(root, path))).mtimeMs);
+    } catch {
+      return;
+    }
+  }));
+  return mtimes;
 }
 
 function sameScope(a: readonly string[], b: readonly string[]): boolean {
@@ -92,6 +122,15 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         return view.root;
       }
     }
+    let mtimes: Map<string, number> | undefined;
+    if (view.kind === "list") {
+      mtimes = await canvasMtimes(view.root, view.canvases.flatMap((canvas) => {
+        const path: unknown = typeof canvas === "object" && canvas !== null ? Reflect.get(canvas, "path") : undefined;
+        return typeof path === "string" ? [path] : [];
+      }));
+      if (folders.get(folder.path) !== folder || read !== folder.reads) return false;
+      if (view.git) folder.common = view.git.common;
+    }
     // Only a listed folder serves anything; scope follows every re-read.
     const scope = view.kind === "list" ? view.scope : [];
     server.updateFolder(folder.key, { root: folder.path, scope });
@@ -101,7 +140,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       folder.servedRev++;
     }
     folder.watch?.setScope(scope);
-    folder.entry = folderEntry(folder.path, view, baseUrl(folder.key), folder.servedRev);
+    folder.entry = withCommon(folder, folderEntry(folder.path, view, baseUrl(folder.key), folder.servedRev, mtimes));
     if (view.kind === "notFound") {
       // A watcher on a deleted root is dead and is never re-armed (watch.ts);
       // opening the folder again attaches a fresh one.
@@ -128,10 +167,21 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       reads: 0,
       servedRev: 0,
       scope: [],
+      common: undefined,
     };
     folders.set(path, folder);
     attach(folder);
     return folder;
+  };
+
+  const withCommon = (folder: Folder, entry: FolderEntry): FolderEntry =>
+    folder.common === undefined ? entry : { ...entry, lastCommon: folder.common };
+
+  // Keeps each surviving folder (its watcher and server key) in `paths` order.
+  const reorder = (paths: readonly string[]) => {
+    const ordered = paths.map((path) => folders.get(path));
+    folders.clear();
+    for (const item of ordered) if (item) folders.set(item.path, item);
   };
 
   const detach = (folder: Folder) => {
@@ -206,7 +256,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       const folder = folders.get(path);
       if (!folder) return;
       folder.epoch = ++nextEpoch;
-      folder.entry = { path, kind: "loading" };
+      folder.entry = withCommon(folder, { path, kind: "loading" });
       onChange(entries());
       attach(folder);
     },
@@ -217,6 +267,69 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       const write = store.remove(path);
       onChange(entries());
       logWrite(await write);
+    },
+    async store(paths) {
+      const added = [...new Set(paths)].filter((path) => !folders.has(path));
+      if (added.length === 0) return [];
+      for (const path of added) add(path);
+      const write = store.replace([...store.list(), ...added]);
+      onChange(entries());
+      logWrite(await write);
+      return added;
+    },
+    async remove(paths) {
+      const list = store.list();
+      const removed = list.filter((path) => paths.includes(path) && folders.has(path));
+      if (removed.length === 0) return { paths: [], indexes: [] };
+      const indexes = removed.map((path) => list.indexOf(path));
+      for (const path of removed) {
+        const folder = folders.get(path);
+        if (folder) detach(folder);
+      }
+      const write = store.replace(list.filter((path) => !removed.includes(path)));
+      onChange(entries());
+      logWrite(await write);
+      return { paths: removed, indexes };
+    },
+    async restore(paths, indexes) {
+      // Ascending, so each index means the same place it did at removal.
+      const pairs = paths.map((path, i) => ({ path, index: indexes[i] ?? Number.POSITIVE_INFINITY })).sort((a, b) => a.index - b.index);
+      let next = store.list();
+      const restored: string[] = [];
+      for (const { path, index } of pairs) {
+        if (folders.has(path) || restored.includes(path)) continue;
+        next = insertAt(next, path, index);
+        restored.push(path);
+      }
+      if (restored.length === 0) return [];
+      for (const path of restored) add(path);
+      reorder(next);
+      const write = store.replace(next);
+      onChange(entries());
+      logWrite(await write);
+      return restored;
+    },
+    async replace(from, to) {
+      const folder = folders.get(from);
+      if (!folder) return;
+      if (from === to) {
+        attach(folder);
+        return;
+      }
+      const next = replaceAt(store.list(), from, to);
+      detach(folder);
+      if (!folders.has(to)) add(to);
+      reorder(next);
+      const write = store.replace(next);
+      onChange(entries());
+      logWrite(await write);
+    },
+    rereadAll() {
+      for (const folder of folders.values()) {
+        // A missing root lost its watcher (see refresh); attach arms a new one.
+        if (folder.watch) void refresh(folder, { reread: true, served: false });
+        else attach(folder);
+      }
     },
     async dispose() {
       for (const folder of folders.values()) folder.watch?.close();

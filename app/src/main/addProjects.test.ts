@@ -30,7 +30,7 @@ const notSetUp: FolderState = { kind: "uninitialized" };
 interface Fake {
   deps: AddFlowDeps;
   saved: string[];
-  calls: { target: LsTarget; signal?: AbortSignal }[];
+  calls: { target: LsTarget; signal?: AbortSignal | undefined }[];
   snapshots: ScanSnapshot[];
 }
 
@@ -140,6 +140,18 @@ describe("adding picked folders", () => {
     expect(saved).toEqual([root]);
   });
 
+  test("overlapping requests run one after another, so a repo is stored once", async () => {
+    const root = dir();
+    const { deps, saved } = fake({ [root]: list(root) });
+    const store = deps.store;
+    deps.store = async (paths) => { await new Promise((resolve) => setTimeout(resolve, 20)); return store(paths); };
+    const flow = createAddFlow(deps);
+    const [first, second] = await Promise.all([flow.add([root]), flow.add([root])]);
+    expect(first).toMatchObject({ added: [root], duplicate: null });
+    expect(second).toMatchObject({ added: [], duplicate: root });
+    expect(saved).toEqual([root]);
+  });
+
   test("files and missing paths are dropped, with a message when nothing is left", async () => {
     const file = join(dir(), "a.txt");
     writeFileSync(file, "x");
@@ -166,7 +178,9 @@ describe("adding picked folders", () => {
 
   test("a folder the CLI refuses keeps the existing message", async () => {
     const broken = dir(dir(), "design");
-    const { deps, saved } = fake({ [broken]: { kind: "error", message: "bad config" } });
+    const { deps, saved } = fake({});
+    // Run inside a broken repo's subfolder: `ls` fails, and `--repo` says it is no root.
+    deps.ls = async (target) => ("cwd" in target ? { kind: "error", message: "bad config" } : notSetUp);
     expect(await createAddFlow(deps).add([broken])).toMatchObject({ added: [], messages: ["bad config"] });
     expect(saved).toEqual([]);
   });
@@ -318,7 +332,7 @@ describe("scanning a folder of repos", () => {
     const flow = createAddFlow(deps);
     const { scanId } = await flow.add([parent]);
     await vi.waitFor(() => expect(calls.filter((call) => "repo" in call.target)).toHaveLength(4));
-    flow.cancel({ scanId });
+    flow.cancel(scanId);
     const scanRuns = calls.filter((call) => "repo" in call.target);
     expect(scanRuns.every((call) => call.signal?.aborted)).toBe(true);
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -399,7 +413,8 @@ describe("judging a located folder", () => {
     writeFileSync(file, "x");
     const plain = dir();
     gitDir(plain, "child");
-    const { deps } = fake({ [join(tmp, "broken")]: { kind: "error", message: "bad config" } });
+    const { deps } = fake({});
+    deps.ls = async (target) => ("cwd" in target && target.cwd === join(tmp, "broken") ? { kind: "error", message: "bad config" } : notSetUp);
     const flow = createAddFlow(deps);
     expect(await flow.judge(file)).toEqual({ refused: "Only folders can be added." });
     expect(await flow.judge(join(tmp, "gone"))).toEqual({ refused: "Only folders can be added." });

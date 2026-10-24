@@ -1,5 +1,6 @@
 import type { FolderView } from "./cli";
 import type { FolderState } from "./folderState";
+import { latestChange } from "./latestChange";
 
 // What the renderer gets over IPC. Main narrows the CLI's `canvases` here so the
 // renderer never handles `unknown` and never sees fields it does not show.
@@ -25,7 +26,9 @@ export interface GitInfo {
   worktrees: string[];
 }
 
-export type FolderEntry = { path: string } & (
+// `lastCommon` is the last `git.common` main saw for the path, kept while the
+// row is not a list so it stays on its card until the app quits.
+export type FolderEntry = { path: string; lastCommon?: string } & (
   | { kind: "loading" }
   // Bumped by the shell whenever a served file of the folder changed; the
   // renderer reloads an open canvas on a new value. Only a list is served.
@@ -70,10 +73,18 @@ export function servingUrl(baseUrl: string, rel: string): string {
   return baseUrl + rel.split("/").map(encodeURIComponent).join("/");
 }
 
-export function folderEntry(path: string, view: FolderView, baseUrl: string, servedRev: number): FolderEntry {
+// `mtimes` is keyed by canvas path; a canvas without one has no `mtimeMs`.
+export function folderEntry(path: string, view: FolderView, baseUrl: string, servedRev: number, mtimes?: ReadonlyMap<string, number>): FolderEntry {
   switch (view.kind) {
-    case "list":
-      return { path, kind: "list", canvases: canvasRows(view.canvases, baseUrl), servedRev };
+    case "list": {
+      const canvases = canvasRows(view.canvases, baseUrl);
+      for (const row of canvases) {
+        const mtime = mtimes?.get(row.path);
+        if (mtime !== undefined) row.mtimeMs = mtime;
+      }
+      const changedAt = latestChange(canvases.map((row) => row.mtimeMs));
+      return { path, kind: "list", canvases, servedRev, ...(view.git ? { git: view.git } : {}), ...(changedAt === undefined ? {} : { changedAt }) };
+    }
     case "error":
       return { path, kind: "error", message: view.message };
     case "cliError":

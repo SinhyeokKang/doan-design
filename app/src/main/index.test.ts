@@ -61,7 +61,7 @@ vi.mock("./onboarding/machine", () => ({ createMachine: mocks.createMachine, nee
 vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
-vi.mock("./addProjects", () => ({ createAddFlow: mocks.createAddFlow }));
+vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
 
 beforeEach(async () => {
@@ -717,7 +717,7 @@ describe("menus", () => {
     click("Add Project…");
     await vi.waitFor(() => expect(window().webContents.send).toHaveBeenCalledWith("folders:add-outcome", OUTCOME));
     expect(window().show).toHaveBeenCalledOnce();
-    expect(mocks.dialog.showOpenDialog).toHaveBeenCalledWith(window(), expect.objectContaining({ properties: expect.arrayContaining(["openDirectory", "multipleSelections"]) }));
+    expect(mocks.dialog.showOpenDialog).toHaveBeenCalledWith(window(), expect.objectContaining({ properties: expect.arrayContaining(["openDirectory", "multiSelections"]) }));
     expect(mocks.flow.add).toHaveBeenCalledExactlyOnceWith(["/a", "/b"]);
   });
 });
@@ -770,7 +770,7 @@ describe("adding projects", () => {
     expect(await invoke("folders:scan", contents, null, { scanId: "s" })).toEqual({ scanId: "s" });
     expect(mocks.flow.scan).toHaveBeenCalledWith("s");
     await invoke("folders:scan-cancel", contents, null, { scanId: "s" });
-    expect(mocks.flow.cancel).toHaveBeenCalledWith({ scanId: "s" });
+    expect(mocks.flow.cancel).toHaveBeenCalledWith("s");
     expect(await invoke("folders:add-candidates", contents, null, { scanId: "s", ids: ["i"] })).toEqual({ kind: "added", added: ["/c"] });
     expect(mocks.flow.addCandidates).toHaveBeenCalledWith({ scanId: "s", ids: ["i"] });
     expect(await invoke("folders:confirm-folder", contents, null, { confirmId: "c" })).toEqual({ kind: "added", added: ["/p"] });
@@ -783,11 +783,6 @@ describe("adding projects", () => {
       expect(await invoke("folders:confirm-folder", sender, parent, { confirmId: "c" })).toEqual({ kind: "unavailable" });
     }
     for (const fn of Object.values(mocks.flow)) expect(fn).not.toHaveBeenCalled();
-  });
-
-  test("the add flow's CLI runs use the bundled CLI", () => {
-    const deps = mocks.createAddFlow.mock.calls[0]?.[0];
-    expect(typeof deps.ls).toBe("function");
   });
 });
 

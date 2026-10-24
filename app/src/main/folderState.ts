@@ -1,4 +1,5 @@
 import { validateEnvelope } from "../formats/validate";
+import type { GitInfo } from "./view";
 
 export interface CliRun {
   exitCode: number | null;
@@ -11,7 +12,7 @@ export interface CliRun {
 }
 
 export type FolderState =
-  | { kind: "list"; root: string; scope: string[]; canvases: unknown[] }
+  | { kind: "list"; root: string; scope: string[]; canvases: unknown[]; git?: GitInfo }
   | { kind: "uninitialized" }
   | { kind: "error"; message: string }
   | { kind: "cliError"; reason: string };
@@ -46,7 +47,19 @@ export function folderState(run: CliRun): FolderState {
   }
   if (run.exitCode !== 0 || !isListResult(value.result)) return cliError;
   const { root, scope, canvases } = value.result;
-  return { kind: "list", root, scope, canvases };
+  const git: unknown = Reflect.get(value.result, "git");
+  return { kind: "list", root, scope, canvases, ...(isGitInfo(git) ? { git } : {}) };
+}
+
+// `git` is optional and only shown, so a malformed one is dropped rather than
+// failing a listing that is otherwise good.
+function isGitInfo(value: unknown): value is GitInfo {
+  if (typeof value !== "object" || value === null) return false;
+  const optional = (key: string) => !(key in value) || typeof Reflect.get(value, key) === "string";
+  const common: unknown = Reflect.get(value, "common");
+  const worktrees: unknown = Reflect.get(value, "worktrees");
+  return typeof common === "string" && Array.isArray(worktrees) && worktrees.every((entry) => typeof entry === "string") &&
+    optional("main") && optional("branch") && optional("detached");
 }
 
 function isEnvelope(value: unknown): value is Envelope {

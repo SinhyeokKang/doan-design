@@ -3,10 +3,11 @@ import type { StepRequest, StepResult } from "../main/onboarding/machine";
 import type { Author } from "../formats/types";
 import type { BeginRequest, BeginResult, CommentList, CommentReply, CommentRequest, CopyRequest, MutationRequest, SavedStatus } from "../main/comments/service";
 import type { TransitionRequest } from "../main/comments/transitions";
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
+import type { AddOutcome, ScanSnapshot, StoreResult } from "../main/addProjects";
 import type { Selection } from "../formats/types";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
-import type { ViewCommand, ProjectInitRequest, TokenCssChoice } from "../main/index";
+import type { LocateResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, RestoreResult, TokenCssChoice, ViewCommand } from "../main/index";
 import type { InspectResult } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
 
@@ -73,6 +74,53 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, command: ViewCommand) => listener(command);
     ipcRenderer.on("view-command", receive);
     return () => ipcRenderer.removeListener("view-command", receive);
+  },
+  // Add Project… and the home + button; the outcome arrives on onAddOutcome,
+  // as it does for the menu and for drops.
+  addProjects: (): Promise<void> => ipcRenderer.invoke("folders:add"),
+  // Paths are read here, so the page hands over File objects, not text. A
+  // file the page made itself has no path and is left out.
+  addDroppedFiles(files: readonly File[]): Promise<void> {
+    const paths = files.map((file) => webUtils.getPathForFile(file)).filter((path) => path !== "");
+    return paths.length === 0 ? Promise.resolve() : ipcRenderer.invoke("folders:add-paths", { paths });
+  },
+  onAddOutcome(listener: (outcome: AddOutcome) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, outcome: AddOutcome) => listener(outcome);
+    ipcRenderer.on("folders:add-outcome", receive);
+    return () => ipcRenderer.removeListener("folders:add-outcome", receive);
+  },
+  // Snapshots are whole; the current one is asked for too, because progress
+  // can be sent before the renderer learns the scan id. The newest `seq` wins.
+  watchScan(scanId: string, listener: (snapshot: ScanSnapshot) => void): () => void {
+    let active = true;
+    let seq = -1;
+    const deliver = (snapshot: ScanSnapshot | null) => {
+      if (!active || snapshot?.scanId !== scanId || snapshot.seq <= seq) return;
+      seq = snapshot.seq;
+      listener(snapshot);
+    };
+    const receive = (_event: Electron.IpcRendererEvent, snapshot: ScanSnapshot) => deliver(snapshot);
+    ipcRenderer.on("folders:scan-progress", receive);
+    void ipcRenderer.invoke("folders:scan", { scanId }).then(deliver);
+    return () => {
+      active = false;
+      ipcRenderer.removeListener("folders:scan-progress", receive);
+    };
+  },
+  cancelScan: (scanId: string): Promise<void> => ipcRenderer.invoke("folders:scan-cancel", { scanId }),
+  addCandidates: (scanId: string, ids: string[]): Promise<StoreResult> => ipcRenderer.invoke("folders:add-candidates", { scanId, ids }),
+  confirmFolder: (confirmId: string): Promise<StoreResult> => ipcRenderer.invoke("folders:confirm-folder", { confirmId }),
+  removeProjects: (paths: string[]): Promise<RemoveResult> => ipcRenderer.invoke("folders:remove", { paths }),
+  restoreProjects: (removalId: string): Promise<RestoreResult> => ipcRenderer.invoke("folders:restore", { removalId }),
+  // The removal toast expired without Undo.
+  forgetRemoval: (removalId: string): Promise<void> => ipcRenderer.invoke("folders:forget-removal", { removalId }),
+  locateProject: (path: string): Promise<LocateResult> => ipcRenderer.invoke("folders:locate", { path }),
+  revealProject: (path: string): Promise<void> => ipcRenderer.invoke("folders:reveal", { path }),
+  setMenuState: (inputs: MenuInputs): Promise<void> => ipcRenderer.invoke("menu:state", inputs),
+  onMenuCommand(listener: (command: MenuCommand) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, command: MenuCommand) => listener(command);
+    ipcRenderer.on("menu-command", receive);
+    return () => ipcRenderer.removeListener("menu-command", receive);
   },
 };
 
