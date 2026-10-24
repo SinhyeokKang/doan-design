@@ -31,7 +31,7 @@
 2. **패키지 빌드**: `npm --prefix app run package`는 다음 순서로 돈다.
    1. 저장소 루트에서 `GOOS=darwin GOARCH=arm64 go build -ldflags "-X …/cli.Version=<app/package.json version>" -o <빌드 디렉터리>/bin/doan ./cli/cmd/doan`
    2. `electron-vite build`
-   3. `electron-builder --mac dir --arm64`(서명 없음)
+   3. `CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir --arm64`(`mac.identity: null`, 서명 없음, electron-builder 26.18.0 — PoC 7d)
 
    결과는 `app/dist/`(무시 목록에 추가)의 `mac-arm64/doan.app`이다. electron-builder를 고른 이유: ARCHITECTURE §9가 정한 `electron-updater`가 electron-builder의 `app-update.yml` 형식을 읽는다. Orca 번들에도 같은 형식의 `Contents/Resources/app-update.yml`(`provider: github`)이 있다(2026-10-24 로컬 번들 확인). 버전은 정확히 고정한다(`app/.npmrc`). 서명 · 공증 · dmg 대상은 #9가 더한다.
 3. **마법사 진입과 닫기**:
@@ -57,7 +57,7 @@
    - `link-other`: 다른 곳을 가리키는 심볼릭 링크다(다른 앱 사본, 깨진 링크 포함). "Points to another copy: `<경로>`"를 보이고, 확인을 받으면 바꾼다.
    - `blocked`: 링크가 아닌 파일이나 디렉터리다. `~/.local/bin` 자체가 파일이거나 링크인 경우도 여기에 든다. 건드리지 않고 "`<path>` is in use by something else. Move or delete it, then Check Again."을 보인다.
    - 번들 경로가 `/AppTranslocation/` 아래면 링크를 만들지 않고 "Move doan to Applications, then open it again."을 보인다.
-   - PATH 확인: 로그인 셸의 `PATH`(흐름 7)에 `~/.local/bin`이 없으면 `export PATH="$HOME/.local/bin:$PATH"` 한 줄과 함께 "Add this line to `<rc 파일>`, open a new terminal, then choose Check Again."을 보인다. rc 파일 이름은 셸 이름으로 고른다(zsh → `~/.zshrc`, bash → `~/.bash_profile`). fish 같은 다른 셸에서 무엇을 보일지는 PoC 7a에서 정한다.
+   - PATH 확인: 로그인 셸의 `PATH`(흐름 7)에 `~/.local/bin`이 없으면 `export PATH="$HOME/.local/bin:$PATH"` 한 줄과 함께 "Add this line to `<rc 파일>`, open a new terminal, then choose Check Again."을 보인다. rc 파일 이름은 셸 이름으로 고른다(zsh → `~/.zshrc`, bash → `~/.bash_profile`). zsh · bash가 아닌 셸에는 명령 한 줄 없이 "Add ~/.local/bin to PATH in your shell configuration, then choose Check Again."만 보인다(PoC 7a: fish는 설치되어 있지 않아 확인하지 못했다).
 6. **2단계 — 에이전트 연결 (2026-10-24 사용자: 행마다 Connect)**: 화면 구성은 다음과 같다.
    - 공유 행 "Skill": `~/.agents/skills/doan`의 상태를 보인다. Codex와 Claude Code가 함께 쓰므로 한 줄이다.
    - 에이전트 행(Claude Code, Codex): 감지 결과와 MCP 상태를 보인다. Claude Code 행에는 스킬 링크 상태도 보인다. MCP 상태 옆에는 등록할 설정 위치(기본 위치 또는 `CLAUDE_CONFIG_DIR` · `CODEX_HOME`)를 보인다.
@@ -70,18 +70,18 @@
      - `blocked`: 디렉터리나 `SKILL.md`가 링크이거나 종류가 다르다.
 
      `differs`는 확인("Your edits to SKILL.md will be replaced.")을 받은 뒤 같은 디렉터리의 임시 파일에 쓰고 rename한다. 디렉터리 안의 다른 파일은 지우지 않는다. `~/.agents/skills`가 없으면 만든다.
-   - Claude Code 링크: `~/.claude/skills/doan` → `../../.agents/skills/doan`(Orca와 같은 상대 링크, 2026-10-24 이 머신의 `~/.claude/skills/orca-cli`를 확인했다). 상태 분류와 쓰기 방식은 1단계 링크와 같다. `CLAUDE_CONFIG_DIR`이 있으면 링크 위치는 `$CLAUDE_CONFIG_DIR/skills/doan`이다(PoC 7b에서 확인한다).
+   - Claude Code 링크: `<claude 설정 디렉터리>/skills/doan` → `~/.agents/skills/doan`으로 가는 상대 링크다. 기본 위치는 `~/.claude/skills/doan` → `../../.agents/skills/doan`(Orca와 같은 상대 링크, 2026-10-24 이 머신의 `~/.claude/skills/orca-cli`를 확인했다). `CLAUDE_CONFIG_DIR`이 있으면 링크 위치는 `$CLAUDE_CONFIG_DIR/skills/doan`이고, 링크 값은 그 `skills` 디렉터리 기준으로 계산한다. `../../`를 고정하지 않는다(PoC 7b). 상태 분류와 쓰기 방식은 1단계 링크와 같다. Claude Code가 상대 링크 스킬을 찾는다는 근거는 PoC 7b의 지휘 세션 관찰이다. 격리된 `doan` 스킬 호출은 확인하지 못했다(PRODUCT §6).
    - Codex는 `~/.agents/skills`를 읽는다고 가정한다. 이 가정은 PoC 7b에서 실제로 확인하고, 실패하면 멈추고 사용자에게 묻는다.
    - MCP:
      - 상태: `missing`, `ours`, `other`, `unknown`이다. `ours`는 사용자 범위이고 command가 1단계 링크의 절대 경로, args가 `["mcp"]`인 경우다. `other`는 같은 이름에 다른 명령인 경우, `unknown`은 읽을 수 없는 경우다.
-     - 상태 읽기: Codex는 `codex mcp get doan --json`으로 읽는다. Claude Code의 `claude mcp get`에는 `--scope` · `--json`이 없고, health-check로 서버를 실제로 띄운다(2.1.310 `--help`). 그래서 Claude 쪽 읽는 방법(CLI 출력, 또는 설정 파일 읽기 전용 파싱)은 PoC 7c에서 정한다.
+     - 상태 읽기(PoC 7c): Claude Code는 `claude mcp get`이 health-check로 서버를 실제로 띄우므로(`get` · `list` 모두 서버 실행 1회) 화면 상태에는 쓰지 않는다. 고른 설정 파일(`$CLAUDE_CONFIG_DIR/.claude.json` 또는 `~/.claude.json`)의 `mcpServers.doan`을 읽기 전용으로 파싱한다. Codex는 `codex mcp get doan --json`(`transport.command` · `transport.args`)으로 읽고, 범위는 고른 설정 위치(`$CODEX_HOME` 또는 `~/.codex`)로 정한다. 두 에이전트 모두 등록이 없으면 `get`이 exit 1이므로, 알려진 '없음' 출력과 실패를 구분한다(fixture).
      - `missing`이면 `claude mcp add --scope user doan -- <링크 절대 경로> mcp` 또는 `codex mcp add doan -- <링크 절대 경로> mcp`를 실행한다.
-     - `other`는 확인을 받은 뒤 바꾼다. 바꾸기 전에 읽은 원래 등록 내용을 보관하고, 실패하면 그 내용을 보인다. `codex mcp add`가 같은 이름을 덮어쓰면 제거 단계를 생략한다(PoC 7c). Claude는 `claude mcp remove --scope user doan` 뒤에 추가한다.
+     - `other`는 확인을 받은 뒤 바꾼다. 바꾸기 전에 읽은 원래 등록 내용을 보관하고, 실패하면 그 내용을 보인다. Codex는 `codex mcp add`가 같은 이름을 덮어쓰므로 제거 없이 추가만 한다(PoC 7c). Claude는 `claude mcp remove --scope user doan` 뒤에 추가한다.
      - `unknown`이면 추가 · 제거를 모두 비활성으로 두고 [Check Again]만 보인다.
      - 설정 파일에 직접 쓰지 않는다(2026-10-24 사용자).
    - MCP 명령 경로를 번들 경로가 아니라 1단계 링크로 둔 이유: 앱을 옮기면 "Set Up doan…"에서 링크 하나만 다시 걸면 된다. 그래서 1단계가 `ours`가 아니면 MCP 항목은 비활성이고, 그 이유를 인라인으로 보인다.
 7. **셸 탐지와 에이전트 CLI 실행**: Finder나 Dock에서 띄운 앱의 `PATH`는 사용자 셸의 `PATH`와 다르다. 이 머신의 `codex`는 `#!/usr/bin/env node` 스크립트라, 실행 파일 경로만 알아서는 `node`를 찾지 못한다.
-   - 셸 실행: 앱은 `$SHELL`(없으면 `os.userInfo().shell`)을 로그인 모드로 한 번 실행한다. nonce 표시줄 사이에 `PATH`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`만 출력하게 한다. `-i`를 붙일지는 PoC 7a에서 정한다.
+   - 셸 실행: 앱은 `$SHELL`(없으면 `os.userInfo().shell`)을 로그인 모드로 한 번 실행한다. nonce 표시줄 사이에 `PATH`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`만 출력하게 한다. zsh는 `-lic`로 실행한다(PoC 7a: `-lc`는 `.zshrc`의 PATH 추가를 놓쳤다. `-lic`는 82.6 ms, 잡음 없음). bash도 `-lic`, 그 밖의 셸은 `-lc`로 실행한다(bash와 그 밖의 셸은 PoC에서 확인하지 않았다).
    - 실행 파일 찾기: 셸의 `command -v`를 쓰지 않는다(zsh는 alias면 정의를 낸다). Node 쪽에서 그 `PATH`를 훑어 찾는다.
    - 끝내기: 끝 nonce를 읽거나 `exit` 이벤트가 오면 끝낸다. `close` 이벤트를 기다리지 않는 이유는, 셸이 띄운 데몬이 stdout을 물고 있을 수 있기 때문이다. 시간 제한을 넘으면 SIGKILL을 보내고, 호출자는 한 번만 정리한다.
    - 결과 구분: "Not installed"(PATH에 없음)와 "Couldn't check"(시간 초과, 셸 없음, 실행 실패, 이유를 보인다)를 구분한다.
