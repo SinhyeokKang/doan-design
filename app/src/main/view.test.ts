@@ -102,6 +102,26 @@ describe("folderEntry", () => {
     expect(entry).toEqual({ path: "/repo", kind: "list", servedRev: 3, canvases: [{ path: "design/a.html", open: 0, resolved: 0, url: `${base}design/a.html` }] });
   });
 
+  test("passes git through and adds file mtimes with the newest as changedAt", () => {
+    const git = { common: "/repo/.git", main: "/repo", branch: "main", worktrees: ["/repo"] };
+    const view = { kind: "list" as const, root: "/repo", scope: ["design"], canvases: [{ path: "design/a.html" }, { path: "design/b.html" }, { path: "design/gone.html" }], git };
+    const mtimes = new Map([["design/a.html", 100], ["design/b.html", 300]]);
+    const entry = folderEntry("/repo", view, base, 0, mtimes);
+    expect(entry).toMatchObject({ kind: "list", git, changedAt: 300 });
+    if (entry.kind !== "list") throw new Error("not a list");
+    expect(entry.canvases.map((row) => row.mtimeMs)).toEqual([100, 300, undefined]);
+    // A canvas deleted between `doan ls` and the stat has no key at all.
+    expect(entry.canvases[2]).not.toHaveProperty("mtimeMs");
+  });
+
+  test("leaves changedAt out without canvases or mtimes", () => {
+    const empty = folderEntry("/repo", { kind: "list", root: "/repo", scope: [], canvases: [] }, base, 0, new Map());
+    expect(empty).not.toHaveProperty("changedAt");
+    expect(empty).not.toHaveProperty("git");
+    const unread = folderEntry("/repo", { kind: "list", root: "/repo", scope: [], canvases: [{ path: "design/a.html" }] }, base, 0);
+    expect(unread).not.toHaveProperty("changedAt");
+  });
+
   // Only a list is served, so only a list has a revision to reload on.
   test("passes the other states through without a served revision", () => {
     expect(folderEntry("/r", { kind: "uninitialized" }, base, 3)).toEqual({ path: "/r", kind: "uninitialized" });

@@ -13,7 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, describe, expect, inject, test, vi } from "vitest";
-import { startShell, type Shell } from "./shell";
+import { canvasMtimes, startShell, type Shell } from "./shell";
 import type { FolderEntry } from "./view";
 
 const cli = inject("doanCli");
@@ -590,5 +590,132 @@ describe("project setup and upward refresh", () => {
     expect(await shell.initialize(root, null)).toEqual({ kind: "success" });
     expect(shell.entries()[0]).toMatchObject({ path: root, kind: "list" });
     expect(saved(foldersFile)).toEqual([root]);
+  });
+});
+
+describe("canvas mtimes", () => {
+  test("a canvas deleted between doan ls and the stat has no value", async () => {
+    const root = writeRepo(dir());
+    const mtimes = await canvasMtimes(root, ["design/a.html", "design/gone.html"]);
+    expect(mtimes.get("design/a.html")).toBeTypeOf("number");
+    expect(mtimes.has("design/gone.html")).toBe(false);
+  });
+
+  test("list entries carry each canvas mtime and the newest as changedAt", async () => {
+    const root = writeRepo(dir());
+    writeFileSync(join(root, "design", "b.html"), "<!doctype html><title>B</title>");
+    const { shell } = await opened(root);
+    const entry = listed(shell.entries(), root);
+    const times = entry?.canvases.map((canvas) => canvas.mtimeMs) ?? [];
+    expect(times).toHaveLength(2);
+    for (const time of times) expect(time).toBeTypeOf("number");
+    expect(entry?.changedAt).toBe(Math.max(...times.map(Number)));
+  });
+});
+
+// Answers every `--repo` read from a mode file: `git` lists the folder with a
+// git field, anything else fails with a config error.
+function gitCli(): { path: string; mode: (value: string) => void } {
+  const base = dir();
+  const modeFile = join(base, "mode");
+  const path = join(base, "doan");
+  writeFileSync(modeFile, "git");
+  writeFileSync(path, `#!/bin/sh
+if [ "$(cat '${modeFile}')" = git ]; then
+  printf '{"v":1,"ok":true,"result":{"root":"%s","scope":["design"],"canvases":[],"git":{"common":"/c/.git","branch":"main","worktrees":["%s"]}}}\\n' "$4" "$4"
+  exit 0
+fi
+echo '{"v":1,"ok":false,"error":{"code":"invalid_config","message":"bad config","nextSteps":[]}}'
+exit 2
+`);
+  chmodSync(path, 0o755);
+  return { path, mode: (value) => writeFileSync(modeFile, value) };
+}
+
+describe("storing, removing and restoring", () => {
+  test("store appends only new folders, saves once and returns them", async () => {
+    const a = writeRepo(dir());
+    const b = writeRepo(dir());
+    const { shell, foldersFile } = await start();
+    expect(await shell.store([a])).toEqual([a]);
+    expect(await shell.store([a, b, b])).toEqual([b]);
+    expect(shell.entries().map((entry) => entry.path)).toEqual([a, b]);
+    expect(saved(foldersFile)).toEqual([a, b]);
+    await vi.waitFor(() => expect(listed(shell.entries(), b)).toBeDefined(), until);
+  });
+
+  test("a folder without a repo is stored as is and reads as not set up", async () => {
+    const plain = dir();
+    const { shell } = await start();
+    expect(await shell.store([plain])).toEqual([plain]);
+    await vi.waitFor(() => expect(shell.entries()).toEqual([{ path: plain, kind: "uninitialized" }]), until);
+  });
+
+  test("remove reports the original indexes and restore puts the folders back there with new server keys", async () => {
+    const [a, b, c, d] = [writeRepo(dir()), writeRepo(dir()), writeRepo(dir()), writeRepo(dir())];
+    const { shell, foldersFile } = await start();
+    await shell.store([a, b, c, d]);
+    await vi.waitFor(() => expect(listed(shell.entries(), d)).toBeDefined(), until);
+    await vi.waitFor(() => expect(listed(shell.entries(), b)).toBeDefined(), until);
+    const before = listed(shell.entries(), b)?.canvases[0]?.url;
+    expect(await shell.remove([b, d, "/not/stored"])).toEqual({ paths: [b, d], indexes: [1, 3] });
+    expect(shell.entries().map((entry) => entry.path)).toEqual([a, c]);
+    expect(saved(foldersFile)).toEqual([a, c]);
+    expect(await shell.restore([b, d], [1, 3])).toEqual([b, d]);
+    expect(shell.entries().map((entry) => entry.path)).toEqual([a, b, c, d]);
+    expect(saved(foldersFile)).toEqual([a, b, c, d]);
+    await vi.waitFor(() => expect(listed(shell.entries(), b)).toBeDefined(), until);
+    const after = listed(shell.entries(), b)?.canvases[0]?.url;
+    expect(after).toBeDefined();
+    expect(after).not.toBe(before);
+  });
+
+  test("restore skips a folder that was added again meanwhile", async () => {
+    const [a, b] = [writeRepo(dir()), writeRepo(dir())];
+    const { shell } = await start();
+    await shell.store([a, b]);
+    await shell.remove([a]);
+    await shell.store([a]);
+    expect(await shell.restore([a], [0])).toEqual([]);
+    expect(shell.entries().map((entry) => entry.path)).toEqual([b, a]);
+  });
+
+  test("replace swaps a folder in place, or only drops it when the new one is stored elsewhere", async () => {
+    const [a, b, c, moved] = [writeRepo(dir()), writeRepo(dir()), writeRepo(dir()), writeRepo(dir())];
+    const { shell, foldersFile } = await start();
+    await shell.store([a, b, c]);
+    await shell.replace(b, moved);
+    expect(shell.entries().map((entry) => entry.path)).toEqual([a, moved, c]);
+    expect(saved(foldersFile)).toEqual([a, moved, c]);
+    await vi.waitFor(() => expect(listed(shell.entries(), moved)).toBeDefined(), until);
+    await shell.replace(moved, c);
+    expect(shell.entries().map((entry) => entry.path)).toEqual([a, c]);
+    expect(saved(foldersFile)).toEqual([a, c]);
+  });
+
+  test("rereadAll reads every folder again without a loading state", async () => {
+    const counting = countingCli();
+    const [a, b] = [writeRepo(dir()), writeRepo(dir())];
+    const { shell, changes } = await start(counting.path);
+    await shell.store([a, b]);
+    await vi.waitFor(() => expect(listed(shell.entries(), a) && listed(shell.entries(), b)).toBeTruthy(), until);
+    await sleep(500);
+    const reads = counting.reads();
+    const checkpoint = changes.length;
+    shell.rereadAll();
+    await vi.waitFor(() => expect(counting.reads()).toBe(reads + 2), until);
+    await sleep(300);
+    for (const entries of changes.slice(checkpoint)) expect(entries.every((entry) => entry.kind === "list")).toBe(true);
+  });
+
+  test("a folder keeps its last git common dir when it stops listing", async () => {
+    const git = gitCli();
+    const root = dir();
+    const { shell } = await start(git.path);
+    await shell.store([root]);
+    await vi.waitFor(() => expect(shell.entries()[0]).toMatchObject({ kind: "list", git: { common: "/c/.git", branch: "main" }, lastCommon: "/c/.git" }), until);
+    git.mode("error");
+    shell.rereadAll();
+    await vi.waitFor(() => expect(shell.entries()[0]).toEqual({ path: root, kind: "error", message: "bad config", lastCommon: "/c/.git" }), until);
   });
 });
