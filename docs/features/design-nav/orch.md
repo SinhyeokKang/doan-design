@@ -96,3 +96,5 @@ tasks.md의 앞선 단계와 task 0~14는 모두 위 배치 중 하나에 속한
 - 2026-10-25: C1 질문 — 제거된 루트의 `workspaceMemory`가 남아 다시 추가하면 기억한 캔버스가 열린다(main에 이미 있는 projects-home 버그, 새 e2e가 드러냄). C1에서 최소 수정을 허락했다. main에 있던 버그라 postmortem 대상이며, C1이 인계에 초안을 쓰고 지휘자가 넣는다.
 - 2026-10-25: C1 완료(`c7ceb32`, 리뷰 수정 `89e35dd`, B를 merge 커밋 `b137147`로 받음) — test 1647·typecheck·전체 e2e PASS 보고. merge로 통합(`dd2c0ba`), 통합 HEAD typecheck·test 1647 통과. C1 인계의 postmortem 초안을 넣었다(`32b9e03`). C1 워커는 후속 수정에 대비해 유지. C2에 2단계 시작을 알렸다(R-C2a ⚪ 포함). 후속 리뷰 R-C1b(Opus high) 시작.
 - 2026-10-25: R-C1b 결과 🔴 0 · 🟡 1(id 없는 프레임 라벨의 `--text-3` 색이 고아 정리와 함께 사라지고 e2e 단언도 지워짐) · ⚪ 4. R-C1a 항목은 모두 지시대로 풀렸다. 🟡와 ⚪1·2·4는 같은 파일을 2단계에서 고치는 C2에 보냈다(C1과 병렬 편집 충돌을 피하려고). R-C1b·C1 워커 해제, `dn-c1` 제거.
+- 2026-10-25: B-fix 완료·통합(`c3a3350`, `25a6888`, `77e8be5`) — B1~B5·⚪1, 단위 3회 연속 녹색·e2e PASS 보고, B4는 실제 앱에서 red→green. 통합 HEAD typecheck·test 1656 통과(지휘자 2회). 후속 리뷰 R-Bfix(Codex Astra medium) 시작. C2에 다시 merge하라고 알렸다. B-fix 워커 해제.
+- 2026-10-25: R-Bfix 결과 — B1·B3·B4·B5·⚪1과 B2의 감지 범위는 부모 대비 재현으로 해결 확인. 🟡 1(걷기 상한이 서명 항목만 세고 빈 디렉터리·`.html` 방문은 세지 않음 — 재현). B-fix2(Sonnet medium, `dn-b`)로 보냈다. R-Bfix 워커 해제.
