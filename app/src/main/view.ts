@@ -12,6 +12,9 @@ export interface CanvasRow {
   width?: number;
   // File mtime from main's stat; absent when the file vanished after `doan ls`.
   mtimeMs?: number;
+  // Static frames from `doan ls` in document order, capped by `capFrames`.
+  frames?: { id: string; title?: string }[];
+  framesTruncated?: boolean;
   open: number;
   resolved: number;
   url: string;
