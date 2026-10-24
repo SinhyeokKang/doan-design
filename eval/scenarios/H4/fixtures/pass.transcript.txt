@@ -1,0 +1,1 @@
+Removed the Legacy alerts section. Its two open comments remain unresolved in the review history because deleting the section did not apply their requests.
