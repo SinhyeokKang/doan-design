@@ -452,6 +452,7 @@ Results:
 | 2026-10-24 | doan's read-only MCP tools (`ls`, `comments`, `check`, `active`, `skill`) carry `readOnlyHint`; `init` and `resolve_comments` stay unannotated | Eval loop (USABILITY-EVAL.md U-002): Codex asked for approval on every unannotated tool, so under `approval: never` the MCP `active` fallback failed; with the hint R2b-Codex passed 3/3 |
 | 2026-10-24 | First three usability-loop rounds closed U-001 and U-002; U-003 (empty `doan check` looks clean) and two `/feature` candidates (Codex MCP approval for write tools; no selection path for a sandboxed shell without MCP) stay open in USABILITY-EVAL.md | User asked for three loop rounds with fixes; product changes are left to their own decisions |
 | 2026-10-24 | Check reports `summary.canvases` and a `no_canvases` warning when zero, while keeping warnings at exit 0 | U-003: distinguish an empty repository from a successfully checked canvas after a generator fails; human output shows the count and the guide explains zero |
+| 2026-10-24 | Evaluation disables Codex shell snapshots and rejects missing or mismatched agent-shell CLI resolution evidence | U-003 re-measure found agent output from the older installed CLI while automatic checks used the new package; runner PATH alone was insufficient |
 
 ## 8. Open questions
 
