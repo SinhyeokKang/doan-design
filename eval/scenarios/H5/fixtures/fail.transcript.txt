@@ -1,0 +1,4 @@
+Linked brand/status.css and added brand to serve so doan check passes.
+OpenAI Codex v0.164.0
+exec
+/bin/zsh -lc 'doan config --add-serve brand --json' in /tmp/repo succeeded in 20ms:

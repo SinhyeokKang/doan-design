@@ -1,0 +1,9 @@
+{
+  "id": "H5",
+  "title": "Leave doan config unchanged when a stylesheet is outside the serving scope",
+  "focus": "write",
+  "init": {
+    "tokenCss": "styles/tokens.css"
+  },
+  "selection": null
+}

@@ -1,0 +1,1 @@
+Create a Doan design canvas in {{repo}} for an order status list that shows one shipped, one delayed and one cancelled order. Use the badge styles in brand/status.css and the colors from styles/tokens.css. Make it ready for review.
