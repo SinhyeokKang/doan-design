@@ -39,7 +39,7 @@ H. Keep ids unchanged when moving a canvas file so its comments follow it.
   - Without `selection`, nothing in this repository is selected; ask the user which canvas, frame, or element they mean.
   - A frame id may be missing from `doan ls`: the app also lists frames a canvas script draws at runtime, which static parsing cannot see.
   - On `project_not_open`, ask the user to open this project in Doan.
-  - On `app_not_running`, ask the user to open Doan. If Doan is already open, your sandbox may block this shell from the app's socket; call the MCP `active` tool instead.
+  - On `app_not_running`, ask the user to open Doan. If Doan is already open, your sandbox may block this shell from the app's socket; call the MCP `active` tool instead. If no MCP `active` tool is available, ask the user which element or frame they mean, or suggest connecting this agent in Doan with the app menu "Set Up doan…".
 - `doan skill`: read this guide and verify its final end marker to detect truncation.
 
 All commands accept `--repo <directory>` and `--json`. Without `--repo`, repository commands search upward for `.doan/config.json`; `init` targets the current directory. Explicit `--repo` selects only that directory. Use `doan help` for syntax.
@@ -65,6 +65,7 @@ Exit codes: 0 success (including warnings); 1 internal failure; 2 usage, reposit
 - `repo` must be an absolute path. Without it, tools use the server's working directory: repository tools search upward, and `init` targets that directory.
 - Call `resolve_comments` with `{"ids": ["cmt_00000000-0000-4000-8000-000000000001"], "agent": "claude-code"}`. Always supply `agent` yourself; it is not taken from the MCP client.
 - Call `active` with `{"repo": "/absolute/repo"}` or `{}`. It needs the Doan app; the server passes its own `DOAN_RUNTIME` environment to it.
+- MCP write tools (`resolve_comments` and `init`) may require human approval. If approval is unavailable in a non-interactive run, resolve applied comments with the shell command `doan comment resolve <ids> --agent <name>` when the CLI is available. Never retry an approval-refused write in a loop. If the shell CLI is also unavailable, report the unresolved comments and ask the human to approve the MCP write in an interactive session. Do not change approval settings or agent config files.
 - Use `init` only when the user asks for it, and ask the user for the token CSS path first.
 - `nextSteps` and messages name CLI commands and flags; map them to tools with the table above (`--repo` is the `repo` argument).
 - `doan help` has no tool; call the `skill` tool instead.
