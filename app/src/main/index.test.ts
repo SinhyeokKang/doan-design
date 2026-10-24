@@ -518,3 +518,12 @@ test("PATH copy awaits the clipboard and refuses arbitrary strings", async () =>
   await invoke("onboarding:copy", window().webContents, null, { kind: "pathLine", text: "forged" });
   expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
 });
+
+
+test("the setup menu still shows the window during an active machine operation", async () => {
+  const initial = await invoke("onboarding:get-open", window().webContents, null);
+  mocks.machine.isBusy.mockReturnValue(true);
+  Reflect.apply(item("Set Up doan…").click!, undefined, []);
+  expect(window().show).toHaveBeenCalled();
+  expect(await invoke("onboarding:get-open", window().webContents, null)).toEqual(initial);
+});

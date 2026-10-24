@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { mkdtempSync, realpathSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, readlinkSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, realpathSync, lstatSync, readdirSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, readlinkSync, rmSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -10,6 +10,11 @@ let env: NodeJS.ProcessEnv;
 let cli: string;
 let oldHome: string | undefined;
 function file(path: string, content: string, mode = 0o644) { mkdirSync(join(path, ".."), { recursive: true }); writeFileSync(path, content, { mode }); }
+function treeHash(path: string): string {
+  const info = lstatSync(path);
+  const value = info.isSymbolicLink() ? `link:${readlinkSync(path)}` : info.isDirectory() ? readdirSync(path).sort().map(name => `${name}:${treeHash(join(path, name))}`).join("\n") : readFileSync(path).toString("base64");
+  return createHash("sha256").update(`${info.mode}:${value}`).digest("hex");
+}
 function machine(command = cli) { return createMachine({ env, command }); }
 beforeEach(() => {
   temp = realpathSync(mkdtempSync("/tmp/doan-G-")); home = join(temp, "home"); mkdirSync(home);
@@ -48,11 +53,10 @@ test.each(["file", "directory", "parent-file", "parent-link"])("blocked %s stays
   else if (kind === "parent-link") { mkdirSync(join(home, ".local")); symlinkSync(temp, join(home, ".local/bin")); }
   else if (kind === "file") file(target, "keep");
   else mkdirSync(target, { recursive: true });
-  const before = (await import("node:child_process")).execFileSync("/usr/bin/find", [home, "-ls"]).toString();
+  const before = treeHash(home);
   const m = machine(); const state = await m.read("r"); expect(state.cli.state).toBe("blocked");
   expect((await m.run({ step: "cli", expected: state.expected })).kind).toBe("unavailable");
-  const after = (await import("node:child_process")).execFileSync("/usr/bin/find", [home, "-ls"]).toString();
-  expect(createHash("sha256").update(after).digest("hex")).toBe(createHash("sha256").update(before).digest("hex"));
+  expect(treeHash(home)).toBe(before);
 });
 test("replacement requires confirmation and rechecks the exact readlink before writing", async () => {
   const target = join(home, ".local/bin/doan"); mkdirSync(join(target, ".."), { recursive: true }); symlinkSync("/old", target);
@@ -97,4 +101,42 @@ test("corrupt or absent onboarding opens; close writes an atomic empty object", 
   const userData = join(temp, "data"); mkdirSync(userData);
   expect(await needsOnboarding(userData)).toBe(true); file(join(userData, "onboarding.json"), "bad"); expect(await needsOnboarding(userData)).toBe(true);
   await markClosed(userData); expect(await needsOnboarding(userData)).toBe(false); expect(JSON.parse(readFileSync(join(userData, "onboarding.json"), "utf8"))).toEqual({});
+});
+
+test.each(["file-link", "file-directory", "parent-link"])("blocked stub %s stops before MCP and preserves content", async kind => {
+  agent("claude"); const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  const stub = join(home, ".agents/skills/doan/SKILL.md");
+  if (kind === "parent-link") { mkdirSync(join(home, ".agents")); symlinkSync(temp, join(home, ".agents/skills")); }
+  else { mkdirSync(dirnameForTest(stub), { recursive: true }); if (kind === "file-link") symlinkSync(cli, stub); else mkdirSync(stub); }
+  const before = treeHash(home);
+  const state = await m.read("2"); expect(state.stub.state).toBe("blocked");
+  expect((await m.run({ step: "connect", agent: "claude", expected: state.expected })).kind).toBe("unavailable");
+  expect(treeHash(home)).toEqual(before); expect(existsSync(join(home, "calls"))).toBe(false);
+});
+function dirnameForTest(path: string) { return join(path, ".."); }
+test("Codex replacement asks once then overwrites without remove", async () => {
+  const exe = join(home, "bin/codex");
+  file(exe, `#!/bin/sh\nprintf '%s\\n' "$*" >> "$HOME/calls"\nif [ "$2" = get ]; then printf '%s\\n' '{"name":"doan","enabled":true,"transport":{"type":"stdio","command":"/other","args":["mcp"]}}'; fi\n`, 0o755);
+  const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  const pending = await m.run({ step: "connect", agent: "codex", expected: (await m.read("2")).expected });
+  expect(pending.kind).toBe("confirm"); if (pending.kind !== "confirm") throw new Error("confirmation absent");
+  expect(readFileSync(join(home, "calls"), "utf8")).not.toContain("mcp add");
+  expect((await m.answer({ id: pending.id, allow: true })).kind).toBe("success");
+  const calls = readFileSync(join(home, "calls"), "utf8"); expect(calls).toContain(`mcp add doan -- ${home}/.local/bin/doan mcp`); expect(calls).not.toContain("mcp remove");
+});
+test("Claude failed replacement retains original registration and stops after remove failure", async () => {
+  agent("claude"); const config = join(env.CLAUDE_CONFIG_DIR!, ".claude.json");
+  const original = { command: "/other", args: ["mcp"] }; file(config, JSON.stringify({ mcpServers: { doan: original } }));
+  file(join(home, "bin/claude"), '#!/bin/sh\necho "$*" >> "$HOME/calls"\necho failure >&2\nexit 1\n', 0o755);
+  const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  const pending = await m.run({ step: "connect", agent: "claude", expected: (await m.read("2")).expected });
+  if (pending.kind !== "confirm") throw new Error("confirmation absent");
+  expect(await m.answer({ id: pending.id, allow: true })).toMatchObject({ kind: "error", original: JSON.stringify(original) });
+  expect(readFileSync(join(home, "calls"), "utf8")).toBe("mcp remove --scope user doan\n");
+});
+test("agent disappearing after detection reports failure and never invokes another executable", async () => {
+  agent("claude"); const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  const state = await m.read("2"); rmSync(join(home, "bin/claude"));
+  expect((await m.run({ step: "connect", agent: "claude", expected: state.expected })).kind).toBe("stale");
+  expect(existsSync(join(home, "calls"))).toBe(false);
 });
