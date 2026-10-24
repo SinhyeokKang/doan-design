@@ -1,0 +1,3 @@
+Checking MCP server health…
+
+doan: /tmp/doan-poc7/mcp-wrapper mcp - ✔ Connected

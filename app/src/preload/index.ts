@@ -1,15 +1,33 @@
+import type { OnboardingOpen, OnboardingRead } from "../main/index";
+import type { StepRequest, StepResult } from "../main/onboarding/machine";
 import type { Author } from "../formats/types";
 import type { BeginRequest, BeginResult, CommentList, CommentReply, CommentRequest, CopyRequest, MutationRequest, SavedStatus } from "../main/comments/service";
 import type { TransitionRequest } from "../main/comments/transitions";
 import { contextBridge, ipcRenderer } from "electron";
 import type { Selection } from "../formats/types";
-import type { ViewCommand } from "../main/index";
+import type { FolderFocus, ProjectInitResult } from "../main/shell";
+import type { ViewCommand, ProjectInitRequest, TokenCssChoice } from "../main/index";
 import type { InspectResult } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
 
 // The renderer gets these calls and nothing else: no ipcRenderer, no
 // channel names, no paths it did not receive from main.
 const api = {
+  readOnboarding: (request: { session: string; requestId: string }): Promise<OnboardingRead> => ipcRenderer.invoke("onboarding:read", request),
+  runOnboardingStep: (request: StepRequest): Promise<StepResult> => ipcRenderer.invoke("onboarding:run", request),
+  answerOnboardingReplace: (answer: { id: string; allow: boolean }): Promise<StepResult> => ipcRenderer.invoke("onboarding:answer", answer),
+  closeOnboarding: (request: OnboardingOpen): Promise<StepResult> => ipcRenderer.invoke("onboarding:close", request),
+  copyPathLine: (): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "pathLine" }),
+  // Main builds the sentence from a stored, set-up project; null otherwise.
+  firstPrompt: (root: string): Promise<string | null> => ipcRenderer.invoke("onboarding:first-prompt", { root }),
+  copyFirstPrompt: (root: string): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "firstPrompt", root }),
+  onOnboardingOpen(listener: (opened: OnboardingOpen) => void): () => void {
+    let active = true, received = false;
+    const receive = (_event: Electron.IpcRendererEvent, opened: OnboardingOpen) => { received = true; listener(opened); };
+    ipcRenderer.on("onboarding:open", receive);
+    void ipcRenderer.invoke("onboarding:get-open").then((opened: OnboardingOpen | null) => { if (active && !received && opened) listener(opened); });
+    return () => { active = false; ipcRenderer.removeListener("onboarding:open", receive); };
+  },
   commentsList: (request: CommentRequest): Promise<CommentReply<CommentList>> => ipcRenderer.invoke("comments:list", request),
   commentsBegin: (request: BeginRequest): Promise<CommentReply<BeginResult>> => ipcRenderer.invoke("comments:begin", request),
   commentsMutate: (request: MutationRequest): Promise<CommentReply<SavedStatus>> => ipcRenderer.invoke("comments:mutate", request),
@@ -28,16 +46,19 @@ const api = {
     ipcRenderer.on("comments:invalidated", receive);
     return () => ipcRenderer.removeListener("comments:invalidated", receive);
   },
-  openFolder: (): Promise<void> => ipcRenderer.invoke("folders:open"),
+  chooseTokenCss: (root: string): Promise<TokenCssChoice> => ipcRenderer.invoke("project:choose-token-css", { root }),
+  initializeProject: (request: ProjectInitRequest): Promise<ProjectInitResult> => ipcRenderer.invoke("project:init", request),
+  // The stored root, or null when the sheet was cancelled or the folder refused.
+  openFolder: (): Promise<string | null> => ipcRenderer.invoke("folders:open"),
   reopenFolder: (path: string): Promise<void> => ipcRenderer.invoke("folders:reopen", path),
   closeFolder: (path: string): Promise<void> => ipcRenderer.invoke("folders:close", path),
   // Main validates it again and keeps one selection for `doan active`.
   setSelection: (selection: Selection | null): Promise<void> => ipcRenderer.invoke("selection:set", selection),
   // Main reads the canvas with CDP; values and token names are canvas text.
   inspect: (selector: string): Promise<InspectResult> => ipcRenderer.invoke("inspect:get", { selector }),
-  onFolders(listener: (entries: FolderEntry[]) => void): () => void {
+  onFolders(listener: (entries: FolderEntry[], focus?: FolderFocus) => void): () => void {
     let active = true;
-    const receive = (_event: Electron.IpcRendererEvent, entries: FolderEntry[]) => listener(entries);
+    const receive = (_event: Electron.IpcRendererEvent, entries: FolderEntry[], focus?: FolderFocus) => listener(entries, focus);
     ipcRenderer.on("folders", receive);
     // An initial read can finish after an effect has already cleaned up.
     void ipcRenderer.invoke("folders:get").then((entries: FolderEntry[]) => {

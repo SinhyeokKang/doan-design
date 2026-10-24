@@ -2,8 +2,8 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, inject, test } from "vitest";
-import { cliCommand, readFolder, runLs } from "./cli";
-import { folderState } from "./folderState";
+import { cliCommand, readFolder, runLs, runInit } from "./cli";
+import { folderState, initOutcome } from "./folderState";
 
 const cli = inject("doanCli");
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-cli-test-")));
@@ -120,4 +120,21 @@ describe("readFolder before running the CLI", () => {
     expect(await readFolder(fake, path())).toEqual({ kind: "notFound" });
     expect(existsSync(marker)).toBe(false);
   });
+});
+
+test("packaged cliCommand never falls back to PATH and DOAN_CLI wins", () => {
+  expect(cliCommand({}, true, "/Applications/doan.app/Contents/Resources")).toBe("/Applications/doan.app/Contents/Resources/bin/doan");
+  expect(cliCommand({ DOAN_CLI: "/tmp/doan" }, true, "/bundle")).toBe("/tmp/doan");
+  expect(cliCommand({}, false, "/bundle")).toBe("doan");
+});
+
+ test("runInit uses JSON, ignored stdin and exact argument boundaries", async () => {
+  const out = join(dir(), "args");
+  const fake = fakeCli(`cat >/dev/null; printf '%s\\n' "$@" > '${out}'; echo '{"v":1,"ok":true,"result":{"initialized":true,"repo":"/ignored","created":[]}}'`);
+  expect(initOutcome(await runInit(fake, "/some repo", "/some repo/a.css"))).toEqual({ kind: "success" });
+  expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["init", "--json", "--repo", "/some repo", "--token-css", "/some repo/a.css"]);
+});
+test("runInit settles timeout and spawn errors", async () => {
+  expect(initOutcome(await runInit(fakeCli("sleep 30"), dir(), null, 50))).toMatchObject({ kind: "cliError", reason: "timed out after 10 s" });
+  expect(initOutcome(await runInit(join(tmp, "missing"), dir(), null))).toMatchObject({ kind: "cliError", reason: expect.stringContaining("ENOENT") });
 });

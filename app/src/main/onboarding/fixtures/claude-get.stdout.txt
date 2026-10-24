@@ -1,0 +1,9 @@
+doan:
+  Scope: User config (available in all your projects)
+  Status: ✔ Connected
+  Type: stdio
+  Command: /tmp/doan-poc7/mcp-wrapper
+  Args: mcp
+  Environment:
+
+To remove this server, run: claude mcp remove doan -s user

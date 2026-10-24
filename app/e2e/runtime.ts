@@ -12,11 +12,14 @@ import { rmSync } from "node:fs";
 import { chmod, cp, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { createRequire, stripTypeScriptTypes } from "node:module";
 import { createConnection } from "node:net";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Frame, type Locator, type Page } from "playwright";
+
+const { hoverTooltip }: typeof import("./tooltip") = await import(new URL("./tooltip.ts", import.meta.url).href);
+const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 
 const exec = promisify(execFile);
 const appDir = fileURLToPath(new URL("..", import.meta.url));
@@ -57,22 +60,26 @@ let running: ElectronApplication | undefined;
 let work: string | undefined;
 
 async function main(): Promise<void> {
-  const watchdog = setTimeout(() => {
-    console.error(`runtime-test: FAIL\nno result after ${RUN_MS / 1000} s`);
-    running?.process().kill("SIGKILL");
-    if (work !== undefined) rmSync(work, { recursive: true, force: true });
-    process.exit(1);
-  }, RUN_MS);
+  const actualState = await realState();
   try {
-    await runAll();
-  } finally {
-    clearTimeout(watchdog);
-  }
-  if (productFailures.length > 0) throw new Error(`product failures:\n${productFailures.join("\n")}`);
-  // The adapter owns a separate temporary app after the full runtime has closed.
-  // Import failure keeps the combined runtime gate red, including cleanup failures.
-  await import(new URL("./anchors.ts", import.meta.url).href);
-  await import(new URL("./comments-ui.ts", import.meta.url).href);
+    const watchdog = setTimeout(() => {
+      console.error(`runtime-test: FAIL\nno result after ${RUN_MS / 1000} s`);
+      running?.process().kill("SIGKILL");
+      if (work !== undefined) rmSync(work, { recursive: true, force: true });
+      process.exit(1);
+    }, RUN_MS);
+    try {
+      await runAll();
+    } finally {
+      clearTimeout(watchdog);
+    }
+    if (productFailures.length > 0) throw new Error(`product failures:\n${productFailures.join("\n")}`);
+    // The adapter owns a separate temporary app after the full runtime has closed.
+    // Import failure keeps the combined runtime gate red, including cleanup failures.
+    await import(new URL("./anchors.ts", import.meta.url).href);
+    await import(new URL("./comments-ui.ts", import.meta.url).href);
+    await import(new URL("./onboarding.ts", import.meta.url).href);
+  } finally { await assertRealState(actualState); }
 }
 
 async function expectProduct(what: string, check: () => Promise<void>): Promise<void> {
@@ -87,8 +94,8 @@ async function expectProduct(what: string, check: () => Promise<void>): Promise<
 async function runAll(): Promise<void> {
   const before = await fingerprint(realFoldersJson);
   const runtimeBefore = await fingerprint(realRuntimeJson);
-  // realpath: macOS tmpdir is under /var -> /private/var, and the app stores real paths.
-  work = await realpath(await mkdtemp(join(tmpdir(), "doan-e2e-")));
+  // realpath: macOS /tmp resolves to /private/tmp, and the app stores real paths.
+  work = await realpath(await mkdtemp("/tmp/doan-e2e-"));
   try {
     const cli = join(work, "bin", "doan");
     await exec("go", ["build", "-o", cli, "./cli/cmd/doan"], { cwd: repoRoot });
@@ -371,7 +378,7 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     const plain = byPath(folders, repos.plain);
     assert.equal(plain.state, "uninitialized");
     assert.equal(plain.status, "Not initialized");
-    assert.match(plain.hint, /doan init/);
+    assert.equal(plain.hint, "Set up this project to add design/ and .doan/.");
     await screenshot(page, "1-opened");
 
     // 3. Watching: a new canvas shows up; a deleted folder becomes "not found";
@@ -432,6 +439,7 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     // 6. Screenshot.
     await screenshot(page, "2-restarted");
 
+    await setupClosedOutside(app, page, repos, doan);
     await canvasView(app, page, repos);
     await selectInspect(app, page, repos, doan, userData);
     await runtimeEnd(app, doan, userData, repos);
@@ -490,6 +498,48 @@ interface BoardRect {
   y: number;
   width: number;
   height: number;
+}
+
+// 7. A Set Up… form whose row stops being Not initialized outside the app
+// closes and leaves focus on that row (terminal init, folder deleted or
+// renamed) or on the root row (re-root). The rows are closed again afterwards.
+async function setupClosedOutside(app: ElectronApplication, page: Page, repos: Repos, doan: string): Promise<void> {
+  const base = dirname(repos.plain);
+  const inited = join(base, "setup-init");
+  const deleted = join(base, "setup-deleted");
+  const renamed = join(base, "setup-renamed");
+  const outer = join(base, "setup-outer");
+  const inner = join(outer, "inner");
+  for (const path of [inited, deleted, renamed, inner]) await mkdir(path, { recursive: true });
+  for (const path of [inited, deleted, renamed, inner]) {
+    await openFolder(app, page, path);
+    await page.getByRole("treeitem", { name: basename(path), exact: true }).getByText("Not initialized", { exact: true }).waitFor({ timeout: WAIT_MS });
+  }
+  const dialog = page.getByRole("dialog", { name: "Set Up Project", exact: true });
+  const closedOn = async (name: string, change: () => Promise<unknown>, focusPath: string, what: string) => {
+    await page.getByRole("treeitem", { name, exact: true }).getByRole("button", { name: "Set Up…", exact: true }).click();
+    await dialog.waitFor({ timeout: WAIT_MS });
+    await change();
+    await dialog.waitFor({ state: "detached", timeout: WAIT_MS });
+    await expectProduct(what, async () => {
+      await page.waitForFunction(path => {
+        const active = document.activeElement as HTMLElement | null;
+        return active?.getAttribute("role") === "treeitem" && active.getAttribute("aria-level") === "1" && active.dataset.path === path && active.tabIndex === 0;
+      }, focusPath, { timeout: WAIT_MS }).catch(async () => {
+        const active = await page.evaluate(() => `${document.activeElement?.tagName} ${document.activeElement?.getAttribute("aria-label") ?? ""}`);
+        throw new Error(`focus is on ${active}`);
+      });
+    });
+  };
+  await closedOn("setup-init", () => exec(doan, ["init", "--json", "--repo", inited]), inited, "terminal init focuses its row");
+  await closedOn("setup-deleted", () => rm(deleted, { recursive: true, force: true }), deleted, "deleted folder focuses its row");
+  await closedOn("setup-renamed", () => rename(renamed, `${renamed}-moved`), renamed, "renamed folder focuses its row");
+  // Any root event re-reads the row; the re-read then finds the root above.
+  await closedOn("inner", async () => { await exec(doan, ["init", "--json", "--repo", outer]); await writeFile(join(inner, "touch"), ""); }, outer, "terminal re-root focuses the root row");
+  for (const name of ["setup-init", "setup-deleted", "setup-renamed", "setup-outer"]) {
+    await page.getByRole("button", { name: `Close project ${name}`, exact: true }).click();
+    await page.getByRole("treeitem", { name, exact: true }).waitFor({ state: "detached", timeout: WAIT_MS });
+  }
 }
 
 const COMMENT_MAIN = { ...COMMENT, id: "evt_00000000-0000-4000-8000-000000000002", comment: "cmt_00000000-0000-4000-8000-000000000002" };
@@ -1327,7 +1377,7 @@ async function runtimeEnd(app: ElectronApplication, doan: string, userData: stri
   const { socket } = JSON.parse(content) as { socket: string };
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
   await waitFor(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible() === false), "window hidden before a second launch");
-  const second = spawn(electronBinary, [appDir, `--user-data-dir=${userData}`], { stdio: "ignore" });
+  const second = spawn(electronBinary, [appDir, `--user-data-dir=${userData}`], { stdio: "ignore", env: await isolatedEnv(userData) });
   try {
     const code = await Promise.race([new Promise<number | null>(resolve => second.once("exit", resolve)), sleep(WAIT_MS).then(() => "running" as const)]);
     assert.equal(code, 0, "a second instance exits at once");
@@ -1898,9 +1948,24 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function launch(cli: string, userData: string): Promise<{ app: ElectronApplication; page: Page }> {
+// Reuse this isolation for design-sync scripts: a temp userData alone does not
+// isolate login-shell discovery or agent configuration writes.
+async function isolatedEnv(userData: string): Promise<Record<string, string>> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined) env[key] = value;
+  env.HOME = join(dirname(userData), "home");
+  env.TMPDIR = dirname(userData);
+  env.SHELL = join(dirname(userData), "fake-shell");
+  env.CLAUDE_CONFIG_DIR = join(env.HOME, ".claude");
+  env.CODEX_HOME = join(env.HOME, ".codex");
+  await mkdir(env.HOME, { recursive: true });
+  await mkdir(userData, { recursive: true });
+  await writeFile(env.SHELL, '#!/bin/sh\nPATH=/usr/bin:/bin; export PATH\neval "$2"\n', { mode: 0o755 });
+  await writeFile(join(userData, "onboarding.json"), "{}\n");
+  return env;
+}
+async function launch(cli: string, userData: string): Promise<{ app: ElectronApplication; page: Page }> {
+  const env = await isolatedEnv(userData);
   env.DOAN_CLI = cli;
   // Chromium's --user-data-dir also moves Electron's userData, so folders.json
   // lands in the temp directory and the real one is never read or written.
@@ -1991,18 +2056,6 @@ async function recordMessageBoxes(app: ElectronApplication): Promise<void> {
 async function openFolder(app: ElectronApplication, page: Page, picked: string): Promise<void> {
   await replaceDialog(app, picked);
   await page.evaluate(() => window.doan.openFolder());
-}
-
-// A closed tooltip can retain Radix's pointer-entry latch until pointerleave.
-// Clear both that latch and any preceding content before one deliberate entry.
-async function hoverTooltip(page: Page, trigger: Locator): Promise<Locator> {
-  const tooltip = page.getByRole("tooltip");
-  await page.mouse.move(700, 20);
-  if (await tooltip.isVisible()) await page.keyboard.press("Escape");
-  await tooltip.waitFor({ state: "hidden", timeout: 1000 });
-  await trigger.hover();
-  await tooltip.waitFor({ timeout: 1000 });
-  return tooltip;
 }
 
 const tooltipPaths = new WeakMap<Page, Map<string, string>>();

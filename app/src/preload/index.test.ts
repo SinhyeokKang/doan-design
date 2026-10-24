@@ -24,6 +24,12 @@ beforeEach(async () => {
   api = exposed;
 });
 
+test("Open Project resolves the stored root main returns", async () => {
+  mocks.invoke.mockResolvedValueOnce("/repo");
+  expect(await api.openFolder()).toBe("/repo");
+  expect(mocks.invoke).toHaveBeenCalledWith("folders:open");
+});
+
 test("exposes reopen through its dedicated IPC channel", async () => {
   await api.reopenFolder("/repo");
   expect(mocks.invoke).toHaveBeenCalledWith("folders:reopen", "/repo");
@@ -102,4 +108,31 @@ test("exposes narrow comment methods and removes only its subscriptions", async 
   expect(transition).toHaveBeenCalledOnce(); cancel();
   await api.setCommentDraftGuard(true); await api.answerCommentTransition({ id: "q", allow: false });
   expect(mocks.invoke).toHaveBeenLastCalledWith("comments:transition-answer", { id: "q", allow: false });
+});
+
+test("project setup exposes choice IDs and forwards focus with folder state", async () => {
+  await api.chooseTokenCss(ROOT);
+  await api.initializeProject({ root: ROOT, choiceId: "choice" });
+  expect(mocks.invoke).toHaveBeenCalledWith("project:choose-token-css", { root: ROOT });
+  expect(mocks.invoke).toHaveBeenCalledWith("project:init", { root: ROOT, choiceId: "choice" });
+  const listener = vi.fn(); const stop = api.onFolders(listener);
+  emitter.emit("folders", {}, [], { from: "/old", root: ROOT });
+  expect(listener).toHaveBeenCalledWith([], { from: "/old", root: ROOT });
+  stop();
+});
+const ROOT = "/repo";
+
+
+test("onboarding uses fixed channels and ignores an initial open response after a newer event", async () => {
+  let finish!: (value: unknown) => void;
+  mocks.invoke.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const listener = vi.fn(); const stop = api.onOnboardingOpen(listener);
+  emitter.emit("onboarding:open", {}, { session: "new" }); finish({ session: "old" });
+  await Promise.resolve(); expect(listener).toHaveBeenCalledExactlyOnceWith({ session: "new" }); stop();
+  emitter.emit("onboarding:open", {}, { session: "later" }); expect(listener).toHaveBeenCalledTimes(1);
+  await api.readOnboarding({ session: "new", requestId: "r" }); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:read", { session: "new", requestId: "r" });
+  await api.closeOnboarding({ session: "new" }); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:close", { session: "new" });
+  await api.copyPathLine(); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:copy", { kind: "pathLine" });
+  await api.copyFirstPrompt("/repo"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:copy", { kind: "firstPrompt", root: "/repo" });
+  await api.firstPrompt("/repo"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:first-prompt", { root: "/repo" });
 });

@@ -60,3 +60,44 @@ function isListResult(result: unknown): result is ListResult {
     "scope" in result && Array.isArray(result.scope) && result.scope.every((entry) => typeof entry === "string") &&
     "canvases" in result && Array.isArray(result.canvases);
 }
+
+export type InitOutcome =
+  | { kind: "success" }
+  | { kind: "error"; message: string; guidance: string }
+  | { kind: "cliError"; reason: string };
+
+export function initOutcome(run: CliRun): InitOutcome {
+  const reason = run.spawnError ?? (run.timedOut ? "timed out after 10 s" : run.stderr.split(/\r?\n/, 1)[0] || "Invalid response from doan CLI.");
+  const cliError: InitOutcome = { kind: "cliError", reason };
+  if (run.spawnError !== undefined || run.timedOut || run.exitCode === null) return cliError;
+  let value: unknown;
+  try {
+    value = JSON.parse(run.stdout);
+  } catch {
+    return cliError;
+  }
+  if (!isEnvelope(value)) return cliError;
+  if (!value.ok) {
+    if (run.exitCode === 0) return cliError;
+    const guidance = value.error.code === "invalid_config" ? "Fix the project configuration, then try again."
+      : value.error.code === "usage_error" ? "Check the project and choose a CSS file inside it, then try again."
+        : "Check the project, then try again.";
+    return { kind: "error", message: value.error.message, guidance };
+  }
+  const result = value.result;
+  if (run.exitCode !== 0 || typeof result !== "object" || result === null ||
+    !("initialized" in result) || typeof result.initialized !== "boolean" ||
+    !("repo" in result) || typeof result.repo !== "string" ||
+    !("created" in result) || !Array.isArray(result.created) || !result.created.every((entry) => typeof entry === "string")) return cliError;
+  // init's repo spelling is not canonical; the caller must re-read with ls.
+  return { kind: "success" };
+}
+
+export function reconcileFolders(stored: readonly string[], path: string, upwardResult: FolderState): { folders: string[]; focus: string | null } {
+  if (!stored.includes(path)) return { folders: [...stored], focus: null };
+  if (upwardResult.kind !== "list") return { folders: [...stored], focus: path };
+  const root = upwardResult.root;
+  // CLI roots already have disk spelling. Preserve the first resulting row;
+  // do not guess identity by lowercasing unrelated paths on case-sensitive disks.
+  return { folders: [...new Set(stored.map((entry) => entry === path ? root : entry))], focus: root };
+}

@@ -1,9 +1,12 @@
+import { createMachine, needsOnboarding, markClosed, PATH_LINE, type MachineState } from "./onboarding/machine";
+import { firstSentence } from "./onboarding/states";
 import { createCommentsService } from "./comments/service";
 import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
 import { DocumentBindings, stableDiskHash } from "./comments/document";
 import { createTransitionGuard } from "./comments/transitions";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, session, webFrameMain, type IpcMainInvokeEvent } from "electron";
+import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,12 +18,15 @@ import { cliCommand } from "./cli";
 import type { InspectResult } from "./inspect";
 import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
-import { startShell, type Shell } from "./shell";
+import { startShell, type Shell, type ProjectInitResult } from "./shell";
 
 // Must run before `ready`: userData is derived from the name, which makes it
 // ~/Library/Application Support/doan/ (beside runtime.json, ARCHITECTURE §4).
 // A `--user-data-dir` switch still wins, which is how e2e keeps off the real one.
 app.setName("doan");
+
+export interface ProjectInitRequest { root: string; choiceId: string | null }
+export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string } | { kind: "cancelled" } | { kind: "unavailable"; message: string };
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 
@@ -48,6 +54,18 @@ const documents = new DocumentBindings();
 const transitionGuard = createTransitionGuard(request => {
   if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("comments:transition", request);
 });
+let wizardSession: string | null = null;
+let machine: ReturnType<typeof createMachine> | undefined;
+export type OnboardingOpen = { session: string };
+export type OnboardingRead = { kind: "state"; session: string; state: MachineState } | { kind: "stale" };
+function openWizard(): void {
+  if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
+  showWindow(win);
+  if (wizardSession !== null || machine?.isBusy()) return;
+  machine?.cancelConfirmation();
+  wizardSession = randomUUID();
+  win.webContents.send("onboarding:open", { session: wizardSession });
+}
 let quitting = false;
 let cancelPendingHide = () => {};
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
@@ -93,7 +111,13 @@ function setMenu(): void {
   };
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
-      { role: "appMenu" },
+      { label: "doan", submenu: [
+        { role: "about" },
+        { label: "Set Up doan…", click: openWizard },
+        { type: "separator" }, { role: "services" }, { type: "separator" },
+        { role: "hide" }, { role: "hideOthers" }, { role: "unhide" },
+        { type: "separator" }, { role: "quit" },
+      ] },
       {
         label: "File",
         submenu: [
@@ -184,17 +208,20 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-async function openProject(): Promise<void> {
+// Resolves to the stored root so the setup wizard can show the project it opened.
+async function openProject(): Promise<string | null> {
   const window = win;
   const ready = shell;
-  if (!window || window.isDestroyed() || !ready) return;
+  if (!window || window.isDestroyed() || !ready) return null;
   showWindow(window);
   const picked = await dialog.showOpenDialog(window, { title: "Open Project…", properties: ["openDirectory"] });
   const path = picked.filePaths[0];
-  if (picked.canceled || path === undefined) return;
-  const refused = await ready.open(path);
+  if (picked.canceled || path === undefined) return null;
+  const opened = await ready.open(path);
+  if ("root" in opened) return opened.root;
   // Not awaited: the open call has finished; the message box only informs.
-  if (refused !== null && !window.isDestroyed()) void dialog.showMessageBox(window, { type: "error", message: "Can’t open project", detail: refused });
+  if (!window.isDestroyed()) void dialog.showMessageBox(window, { type: "error", message: "Can’t open project", detail: opened.refused });
+  return null;
 }
 
 async function start(): Promise<void> {
@@ -206,8 +233,12 @@ async function start(): Promise<void> {
   const invalidate = (root: string) => {
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("comments:invalidated", { root });
   };
-  const ready = await startShell(join(userData, "folders.json"), cliCommand(), (entries) => {
-    if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries);
+  const choices = new Map<string, { id: string; path: string; epoch: number }>();
+  const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
+    for (const root of choices.keys()) {
+      if (!entries.some(entry => entry.path === root && entry.kind === "uninitialized")) choices.delete(root);
+    }
+    if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries, focus);
   }, { response: record => documents.response(record), invalidate });
   shell = ready;
   const comments = createCommentsService({
@@ -252,11 +283,35 @@ async function start(): Promise<void> {
     return undefined;
   });
 
-  ipcMain.handle("folders:get", (event) => (fromWindow(event) ? ready.entries() : []));
-  ipcMain.handle("folders:open", async (event) => {
-    if (!fromWindow(event)) return;
-    await openProject();
+  const unavailable = { kind: "unavailable" as const, message: "The project setup request is no longer valid." };
+  const canSetUp = (root: string) => ready.entries().some(entry => entry.path === root && entry.kind === "uninitialized");
+  ipcMain.handle("project:choose-token-css", async (event, value: unknown): Promise<TokenCssChoice> => {
+    if (!fromWindow(event) || !win || typeof value !== "object" || value === null ||
+      Object.keys(value).length !== 1 || !("root" in value) || typeof value.root !== "string" || !canSetUp(value.root)) return unavailable;
+    const root = value.root;
+    const epoch = ready.epoch(root);
+    if (epoch === null) return unavailable;
+    const picked = await dialog.showOpenDialog(win, { properties: ["openFile"], defaultPath: root, filters: [{ name: "CSS", extensions: ["css"] }] });
+    if (!fromWindow(event) || !canSetUp(root) || ready.epoch(root) !== epoch) return unavailable;
+    if (picked.canceled || !picked.filePaths[0]) return { kind: "cancelled" };
+    const choice = { id: randomUUID(), path: picked.filePaths[0], epoch };
+    choices.set(root, choice);
+    return { kind: "selected", choiceId: choice.id, path: choice.path };
   });
+  ipcMain.handle("project:init", async (event, value: unknown): Promise<ProjectInitResult> => {
+    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 2 ||
+      !("root" in value) || typeof value.root !== "string" || !("choiceId" in value) ||
+      (value.choiceId !== null && typeof value.choiceId !== "string") || !canSetUp(value.root)) return unavailable;
+    let tokenCss: string | null = null;
+    if (value.choiceId !== null) {
+      const choice = choices.get(value.root);
+      if (!choice || choice.id !== value.choiceId || choice.epoch !== ready.epoch(value.root)) return unavailable;
+      tokenCss = choice.path;
+    }
+    return ready.initialize(value.root, tokenCss);
+  });
+  ipcMain.handle("folders:get", (event) => (fromWindow(event) ? ready.entries() : []));
+  ipcMain.handle("folders:open", async (event) => (fromWindow(event) ? openProject() : null));
   ipcMain.handle("folders:reopen", async (event, path: unknown) => {
     if (!fromWindow(event) || typeof path !== "string") return;
     await ready.reopen(path);
@@ -280,6 +335,59 @@ async function start(): Promise<void> {
     return inspector.inspect(selector);
   });
 
+  machine = createMachine({ command: cliCommand(process.env, app.isPackaged, process.resourcesPath), version: app.getVersion() });
+  const setup = machine;
+  const validSession = (value: unknown): value is { session: string } => typeof value === "object" && value !== null &&
+    "session" in value && typeof value.session === "string" && value.session === wizardSession;
+  ipcMain.handle("onboarding:get-open", event => {
+    if (!fromWindow(event) || !wizardSession) return null;
+    setup.cancelConfirmation();
+    return { session: wizardSession };
+  });
+  let latestRead = "";
+  ipcMain.handle("onboarding:read", async (event, value: unknown): Promise<OnboardingRead> => {
+    if (!fromWindow(event) || !validSession(value) || Object.keys(value).length !== 2 ||
+      !("requestId" in value) || typeof value.requestId !== "string" || !value.requestId || value.requestId.length > 128) return { kind: "stale" };
+    const requestId = value.requestId, session = value.session;
+    const readToken = randomUUID(); latestRead = readToken;
+    const state = await setup.read(requestId);
+    return fromWindow(event) && wizardSession === session && latestRead === readToken ? { kind: "state", session, state } : { kind: "stale" };
+  });
+  ipcMain.handle("onboarding:run", (event, value: unknown) => fromWindow(event) && wizardSession ? setup.run(value) : { kind: "stale" });
+  ipcMain.handle("onboarding:answer", (event, value: unknown) => fromWindow(event) && wizardSession ? setup.answer(value) : { kind: "stale" });
+  // The sentence names only a stored, set-up project; the renderer never sends text.
+  const readyRoot = (value: unknown): string | null => typeof value === "string" &&
+    ready.entries().some(entry => entry.path === value && entry.kind === "list") ? value : null;
+  ipcMain.handle("onboarding:first-prompt", (event, value: unknown) => {
+    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("root" in value)) return null;
+    const root = readyRoot(value.root);
+    return root === null ? null : firstSentence(root);
+  });
+  ipcMain.handle("onboarding:copy", async (event, value: unknown) => {
+    if (!fromWindow(event) || typeof value !== "object" || value === null || !("kind" in value)) return { kind: "stale" };
+    let text: string;
+    if (value.kind === "pathLine" && Object.keys(value).length === 1) text = PATH_LINE;
+    else if (value.kind === "firstPrompt" && Object.keys(value).length === 2 && "root" in value) {
+      const root = readyRoot(value.root);
+      if (root === null) return { kind: "stale" };
+      text = firstSentence(root);
+    } else return { kind: "stale" };
+    try { await clipboard.writeText(text); return { kind: "success" }; }
+    catch (error) { return { kind: "error", message: error instanceof Error ? error.message : String(error) }; }
+  });
+  ipcMain.handle("onboarding:close", async (event, value: unknown) => {
+    if (!fromWindow(event) || !validSession(value) || Object.keys(value).length !== 1) return { kind: "stale" };
+    if (setup.isBusy()) return { kind: "busy" };
+    let warning: string | undefined;
+    try { await markClosed(userData); }
+    catch (error) {
+      warning = error instanceof Error ? error.message : String(error);
+      console.warn("Could not save onboarding dismissal:", warning);
+    }
+    setup.cancelConfirmation(); wizardSession = null;
+    return { kind: "success", ...(warning === undefined ? {} : { warning }) };
+  });
+  if (await needsOnboarding(userData)) wizardSession = randomUUID();
   win = createWindow();
 }
 

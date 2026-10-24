@@ -4,6 +4,7 @@ import { add, load, remove } from "./folders";
 
 export interface FolderStore {
   list(): string[];
+  replace(paths: readonly string[]): Promise<Error | null>;
   // Resolve to the write error instead of rejecting: the change is kept in
   // memory either way, and the app keeps running on that list.
   add(path: string): Promise<Error | null>;
@@ -48,6 +49,7 @@ export async function openFolderStore(file: string): Promise<FolderStore> {
   };
   return {
     list: () => [...folders],
+    replace: (paths) => save([...paths]),
     add: (path) => save(add(folders, path)),
     remove: (path) => save(remove(folders, path)),
   };

@@ -23,23 +23,27 @@ const mocks = await vi.hoisted(async () => {
   }
   return {
     Window,
-    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), getPath: () => "/tmp/doan-index-test", exit: vi.fn(), quit: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
+    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
-    shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string }[]>(() => []), open: vi.fn<() => Promise<string | null>>(), close: vi.fn(), reopen: vi.fn(), dispose: vi.fn() },
+    shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), close: vi.fn(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn() },
     startShell: vi.fn(),
+    cliCommand: vi.fn(() => "/bundled/doan"),
     runtime: { socket: "/tmp/doan-x/app.sock", token: "t", file: "/tmp/doan-index-test/runtime.json", disposeSync: vi.fn() },
     startRuntime: vi.fn(),
     sessionOn: vi.fn(),
     inspector: { inspect: vi.fn() },
     createInspector: vi.fn(),
     mkdir: vi.fn(),
+    machine: { read: vi.fn(), run: vi.fn(), answer: vi.fn(), cancelConfirmation: vi.fn(), isBusy: vi.fn(() => false) },
+    createMachine: vi.fn(),
+    needsOnboarding: vi.fn(), markClosed: vi.fn(), clipboard: { writeText: vi.fn() },
     menu: vi.fn<(template: MenuItemConstructorOptions[]) => unknown>(),
     dialog: { showOpenDialog: vi.fn(), showMessageBox: vi.fn() },
   };
 });
 
 vi.mock("electron", () => ({
-  app: mocks.app, BrowserWindow: mocks.Window,
+  clipboard: mocks.clipboard, app: mocks.app, BrowserWindow: mocks.Window,
   dialog: mocks.dialog,
   ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => unknown) => mocks.ipc.set(channel, handler) },
   Menu: { buildFromTemplate: mocks.menu, setApplicationMenu: vi.fn() },
@@ -47,6 +51,8 @@ vi.mock("electron", () => ({
   webFrameMain: { fromId: vi.fn() },
 }));
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
+vi.mock("./onboarding/machine", () => ({ createMachine: mocks.createMachine, needsOnboarding: mocks.needsOnboarding, markClosed: mocks.markClosed, PATH_LINE: 'export PATH="$HOME/.local/bin:$PATH"' }));
+vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
@@ -57,6 +63,12 @@ beforeEach(async () => {
   mocks.app.removeAllListeners();
   mocks.Window.instances.length = 0;
   mocks.ipc.clear();
+  mocks.needsOnboarding.mockResolvedValue(true);
+  mocks.markClosed.mockResolvedValue(undefined);
+  mocks.createMachine.mockReturnValue(mocks.machine);
+  mocks.machine.read.mockResolvedValue({ requestId: "r" });
+  mocks.machine.run.mockResolvedValue({ kind: "success" });
+  mocks.machine.isBusy.mockReturnValue(false);
   mocks.app.whenReady.mockResolvedValue();
   mocks.startShell.mockResolvedValue(mocks.shell);
   mocks.startRuntime.mockResolvedValue(mocks.runtime);
@@ -64,7 +76,9 @@ beforeEach(async () => {
   mocks.inspector.inspect.mockResolvedValue({ ok: true, rows: [] });
   mocks.app.requestSingleInstanceLock.mockReturnValue(true);
   mocks.shell.entries.mockReturnValue([]);
-  mocks.shell.open.mockResolvedValue(null);
+  mocks.shell.open.mockResolvedValue({ root: "/repo" });
+  mocks.shell.epoch.mockReturnValue(1);
+  mocks.shell.initialize.mockResolvedValue({ kind: "success" });
   mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
   await import("./index");
   await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
@@ -142,6 +156,21 @@ test("shows the window before the Open Project dialog", async () => {
   await invoke("folders:open", window().webContents, null);
   expect(window().show).toHaveBeenCalledOnce();
   expect(mocks.dialog.showOpenDialog).toHaveBeenCalled();
+});
+
+test("Open Project resolves the stored root, or null when cancelled, refused or untrusted", async () => {
+  const contents = window().webContents;
+  expect(await invoke("folders:open", contents, null)).toBeNull();
+  mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/repo/design"] });
+  mocks.shell.open.mockResolvedValueOnce({ root: "/repo" });
+  expect(await invoke("folders:open", contents, null)).toBe("/repo");
+  expect(mocks.shell.open).toHaveBeenLastCalledWith("/repo/design");
+  mocks.shell.open.mockResolvedValueOnce({ refused: "Cannot read config" });
+  expect(await invoke("folders:open", contents, null)).toBeNull();
+  expect(mocks.dialog.showMessageBox).toHaveBeenCalledWith(window(), expect.objectContaining({ type: "error", detail: "Cannot read config" }));
+  mocks.shell.open.mockClear();
+  expect(await invoke("folders:open", contents, {})).toBeNull();
+  expect(mocks.shell.open).not.toHaveBeenCalled();
 });
 
 
@@ -404,4 +433,183 @@ test("a guarded quit waits for a matching main-frame acknowledgement", async () 
   expect(mocks.app.quit).not.toHaveBeenCalled();
   await invoke("comments:transition-answer", window().webContents, null, { id: call?.[1].id, allow: true });
   expect(mocks.app.quit).toHaveBeenCalledOnce();
+});
+
+test("project setup IPC rejects untrusted frames, arbitrary paths and forged choices", async () => {
+  for (const channel of ["project:choose-token-css", "project:init"]) {
+    expect(await invoke(channel, {}, null, { root: ROOT, choiceId: null })).toMatchObject({ kind: "unavailable" });
+    expect(await invoke(channel, window().webContents, {}, { root: ROOT, choiceId: null })).toMatchObject({ kind: "unavailable" });
+    expect(await invoke(channel, window().webContents, null, { root: ROOT, choiceId: null })).toMatchObject({ kind: "unavailable" });
+  }
+  mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "uninitialized" }]);
+  for (const request of [{ root: ROOT, choiceId: "forged" }, { root: ROOT, choiceId: null, tokenCss: "/arbitrary" }, null, { root: ROOT }]) {
+    expect(await invoke("project:init", window().webContents, null, request)).toMatchObject({ kind: "unavailable" });
+  }
+  expect(mocks.shell.initialize).not.toHaveBeenCalled();
+  expect(mocks.dialog.showOpenDialog).not.toHaveBeenCalled();
+});
+
+test("CSS picker cancellation and choice IDs stay bound to the folder epoch", async () => {
+  mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "uninitialized" }]);
+  expect(await invoke("project:choose-token-css", window().webContents, null, { root: ROOT })).toEqual({ kind: "cancelled" });
+  expect(mocks.dialog.showOpenDialog).toHaveBeenCalledWith(window(), { properties: ["openFile"], defaultPath: ROOT, filters: [{ name: "CSS", extensions: ["css"] }] });
+  mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [ROOT + "/tokens.css"] });
+  const picked = await invoke("project:choose-token-css", window().webContents, null, { root: ROOT });
+  expect(picked).toMatchObject({ kind: "selected", path: ROOT + "/tokens.css", choiceId: expect.any(String) });
+  if (typeof picked !== "object" || picked === null || !("choiceId" in picked)) throw new Error("no choice");
+  expect(await invoke("project:init", window().webContents, null, { root: ROOT, choiceId: picked.choiceId })).toEqual({ kind: "success" });
+  expect(mocks.shell.initialize).toHaveBeenCalledWith(ROOT, ROOT + "/tokens.css");
+  mocks.shell.initialize.mockClear(); mocks.shell.epoch.mockReturnValue(2);
+  expect(await invoke("project:init", window().webContents, null, { root: ROOT, choiceId: picked.choiceId })).toMatchObject({ kind: "unavailable" });
+  expect(mocks.shell.initialize).not.toHaveBeenCalled();
+});
+
+test("a picker finishing after its project closes cannot retain a choice", async () => {
+  mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "uninitialized" }]);
+  mocks.dialog.showOpenDialog.mockImplementation(async () => {
+    mocks.shell.entries.mockReturnValue([]);
+    return { canceled: false, filePaths: [ROOT + "/tokens.css"] };
+  });
+  expect(await invoke("project:choose-token-css", window().webContents, null, { root: ROOT })).toMatchObject({ kind: "unavailable" });
+});
+
+test("forwards the re-root focus mapping with folder updates", () => {
+  const changed = mocks.startShell.mock.calls[0]?.[2];
+  if (typeof changed !== "function") throw new Error("no listener");
+  changed([], { from: "/old", root: ROOT });
+  expect(window().webContents.send).toHaveBeenCalledWith("folders", [], { from: "/old", root: ROOT });
+});
+
+test("wires packaged CLI selection with the runtime environment", () => {
+  expect(mocks.cliCommand).toHaveBeenCalledWith(process.env, true, process.resourcesPath);
+  expect(mocks.startShell.mock.calls[0]?.[1]).toBe("/bundled/doan");
+});
+
+
+test.each([false, true])("onboarding menu preserves an open session (hidden: %s)", async hidden => {
+  const contents = window().webContents;
+  const first = await invoke("onboarding:get-open", contents, null);
+  expect(first).toEqual({ session: expect.any(String) });
+  const setup = item("Set Up doan…"); expect(setup.accelerator).toBeUndefined();
+  const menu = mocks.menu.mock.calls[0]?.[0][0];
+  expect(Array.isArray(menu?.submenu) && menu.submenu.slice(0, 2).map(i => i.role ?? i.label)).toEqual(["about", "Set Up doan…"]);
+  mocks.machine.cancelConfirmation.mockClear();
+  if (hidden) window().emit("close", { preventDefault: vi.fn() });
+  Reflect.apply(setup.click!, undefined, []);
+  expect(window().show).toHaveBeenCalled();
+  expect(mocks.machine.cancelConfirmation).not.toHaveBeenCalled();
+  expect(await invoke("onboarding:get-open", contents, null)).toEqual(first);
+  expect(window().webContents.send).not.toHaveBeenCalledWith("onboarding:open", expect.anything());
+  expect(mocks.markClosed).not.toHaveBeenCalled();
+});
+test("stale wizard read cannot publish after reopening and rejects iframe callers", async () => {
+  const contents = window().webContents;
+  const opened = await invoke("onboarding:get-open", contents, null) as { session: string };
+  let finish!: (value: unknown) => void;
+  mocks.machine.read.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const waiting = invoke("onboarding:read", contents, null, { session: opened.session, requestId: "r" });
+  await invoke("onboarding:close", contents, null, opened);
+  Reflect.apply(item("Set Up doan…").click!, undefined, []);
+  finish({ requestId: "r" }); expect(await waiting).toEqual({ kind: "stale" });
+  mocks.machine.run.mockClear();
+  await invoke("onboarding:run", contents, {}, {}); await invoke("onboarding:run", {}, null, {});
+  expect(mocks.machine.run).not.toHaveBeenCalled();
+});
+test("wizard close writes only when idle; window close and quit do not mark it closed", async () => {
+  const contents = window().webContents;
+  const opened = await invoke("onboarding:get-open", contents, null) as { session: string };
+  window().emit("close", { preventDefault: vi.fn() });
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() }); expect(mocks.markClosed).not.toHaveBeenCalled();
+  mocks.machine.isBusy.mockReturnValue(true);
+  expect(await invoke("onboarding:close", contents, null, opened)).toEqual({ kind: "busy" });
+  mocks.machine.isBusy.mockReturnValue(false);
+  expect(await invoke("onboarding:close", contents, null, opened)).toEqual({ kind: "success" });
+  expect(mocks.markClosed).toHaveBeenCalledExactlyOnceWith("/tmp/doan-index-test");
+});
+test("first prompt is read and copied only for a stored set-up project, after the clipboard settles", async () => {
+  const contents = window().webContents;
+  const sentence = `Use the doan skill to make a design canvas in ${ROOT} for <what you want to design>.`;
+  mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "list" }, { path: "/plain", kind: "uninitialized" }]);
+  expect(await invoke("onboarding:first-prompt", contents, null, { root: ROOT })).toBe(sentence);
+  for (const request of [{ root: "/plain" }, { root: "/other" }, { root: ROOT, text: "forged" }, { root: 1 }, null, ROOT]) {
+    expect(await invoke("onboarding:first-prompt", contents, null, request)).toBeNull();
+  }
+  expect(await invoke("onboarding:first-prompt", contents, {}, { root: ROOT })).toBeNull();
+  expect(await invoke("onboarding:first-prompt", {}, null, { root: ROOT })).toBeNull();
+  let finish!: () => void;
+  mocks.clipboard.writeText.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+  let settled = false;
+  const copied = Promise.resolve(invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT })).then(value => { settled = true; return value; });
+  await Promise.resolve(); expect(settled).toBe(false); finish();
+  expect(await copied).toEqual({ kind: "success" });
+  expect(mocks.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(sentence);
+  mocks.clipboard.writeText.mockClear();
+  for (const request of [{ kind: "firstPrompt", root: "/plain" }, { kind: "firstPrompt" }, { kind: "firstPrompt", root: ROOT, text: "forged" }, { kind: "firstPrompt", root: "/other" }]) {
+    expect(await invoke("onboarding:copy", contents, null, request)).toEqual({ kind: "stale" });
+  }
+  expect(await invoke("onboarding:copy", contents, {}, { kind: "firstPrompt", root: ROOT })).toEqual({ kind: "stale" });
+  expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
+  mocks.clipboard.writeText.mockRejectedValueOnce(new Error("denied"));
+  expect(await invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT })).toEqual({ kind: "error", message: "denied" });
+});
+
+test("PATH copy awaits the clipboard and refuses arbitrary strings", async () => {
+  let finish!: () => void;
+  mocks.clipboard.writeText.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+  let settled = false;
+  const copied = Promise.resolve(invoke("onboarding:copy", window().webContents, null, { kind: "pathLine" })).then(value => { settled = true; return value; });
+  await Promise.resolve(); expect(settled).toBe(false); finish();
+  expect(await copied).toEqual({ kind: "success" });
+  expect(mocks.clipboard.writeText).toHaveBeenCalledWith('export PATH="$HOME/.local/bin:$PATH"');
+  mocks.clipboard.writeText.mockRejectedValueOnce(new Error("denied"));
+  expect(await invoke("onboarding:copy", window().webContents, null, { kind: "pathLine" })).toMatchObject({ kind: "error" });
+  mocks.clipboard.writeText.mockClear();
+  await invoke("onboarding:copy", window().webContents, null, { kind: "pathLine", text: "forged" });
+  expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
+});
+
+
+test("the wizard's machine shows this app's version", async () => {
+  await vi.waitFor(() => expect(mocks.createMachine).toHaveBeenCalledExactlyOnceWith({ command: "/bundled/doan", version: "9.8.7" }));
+});
+
+test("the setup menu still shows the window during an active machine operation", async () => {
+  const initial = await invoke("onboarding:get-open", window().webContents, null);
+  mocks.machine.isBusy.mockReturnValue(true);
+  Reflect.apply(item("Set Up doan…").click!, undefined, []);
+  expect(window().show).toHaveBeenCalled();
+  expect(await invoke("onboarding:get-open", window().webContents, null)).toEqual(initial);
+});
+
+test("close failure closes this session and returns a logged warning", async () => {
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const contents = window().webContents;
+  const opened = await invoke("onboarding:get-open", contents, null);
+  mocks.markClosed.mockRejectedValueOnce(new Error("disk full"));
+  expect(await invoke("onboarding:close", contents, null, opened)).toEqual({ kind: "success", warning: "disk full" });
+  expect(await invoke("onboarding:get-open", contents, null)).toBeNull();
+  expect(warning).toHaveBeenCalledWith("Could not save onboarding dismissal:", "disk full");
+  warning.mockRestore();
+});
+
+test("get-open clears a lost confirmation only for the app main frame", async () => {
+  const contents = window().webContents;
+  mocks.machine.cancelConfirmation.mockClear();
+  await invoke("onboarding:get-open", {}, null);
+  await invoke("onboarding:get-open", contents, {});
+  expect(mocks.machine.cancelConfirmation).not.toHaveBeenCalled();
+  await invoke("onboarding:get-open", contents, null);
+  expect(mocks.machine.cancelConfirmation).toHaveBeenCalledOnce();
+});
+
+
+test("the onboarding menu starts a fresh session only after the wizard closes", async () => {
+  const contents = window().webContents;
+  const first = await invoke("onboarding:get-open", contents, null);
+  expect(await invoke("onboarding:close", contents, null, first)).toEqual({ kind: "success" });
+  Reflect.apply(item("Set Up doan…").click!, undefined, []);
+  const second = await invoke("onboarding:get-open", contents, null);
+  expect(second).toEqual({ session: expect.any(String) });
+  expect(second).not.toEqual(first);
+  expect(window().webContents.send).toHaveBeenCalledExactlyOnceWith("onboarding:open", second);
 });

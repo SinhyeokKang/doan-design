@@ -89,3 +89,14 @@ describe("openFolderStore", () => {
     }
   });
 });
+
+test("replacement preserves order and serializes with later additions", async () => {
+  const file = join(dir(), "folders.json"); const store = await openFolderStore(file);
+  await store.add("/old");
+  const paths = ["/root", "/other"];
+  const replace = store.replace(paths); paths.push("/mutated");
+  const add = store.add("/last");
+  expect(store.list()).toEqual(["/root", "/other", "/last"]);
+  expect(await replace).toBeNull(); expect(await add).toBeNull();
+  expect(await readFoldersFile(file)).toEqual(["/root", "/other", "/last"]);
+});

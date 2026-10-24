@@ -1,9 +1,12 @@
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { CanvasState } from "./CanvasController";
 import { canvasName, projectRow } from "./projectRow";
 import { frameLabel } from "./canvasView";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { copyLabel, COPY_FAILED, type CopyState } from "./onboardingView";
+import type { Reroot } from "./Onboarding";
+import { ProjectSetupDialog } from "./ProjectSetupDialog";
 
 interface SidebarProps {
   entries: FolderEntry[];
@@ -11,6 +14,8 @@ interface SidebarProps {
   state: CanvasState;
   open: (folder: string, row: CanvasRow) => void;
   jump: (index: number) => void;
+  // The last re-root main reported, and whether focus was on the old row then.
+  reroot?: (Reroot & { hadFocus: boolean }) | null;
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -21,11 +26,48 @@ export function Sidebar(props: SidebarProps) {
   </aside>;
 }
 
-function ProjectTree({ entries, names, state, open }: SidebarProps) {
+function ProjectTree({ entries, names, state, open, reroot }: SidebarProps) {
   const tree = useRef<HTMLDivElement>(null);
   const commentPrefix = useId();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [focused, setFocused] = useState<string | null>(null);
+  const [setup, setSetup] = useState<string | null>(null);
+  // Shown under the root row after the setup dialog closed on a re-root, until
+  // the next read of that row. `seen` is the entry it was shown with (a read
+  // still loading then does not count).
+  const [rerootHint, setRerootHint] = useState<{ root: string; message: string; seen?: FolderEntry } | null>(null);
+  const focusRow = (path: string) => {
+    const node = Array.from(tree.current?.querySelectorAll<HTMLElement>('[role="treeitem"][aria-level="1"]') ?? []).find(item => item.dataset.path === path);
+    if (node) { setFocused(path); node.focus(); }
+  };
+  // While the modal setup dialog is open the tree is inert and ignores focus(),
+  // so a close the dialog did not start focuses the row after it unmounts.
+  const [focusAfterSetup, setFocusAfterSetup] = useState<string | null>(null);
+  useEffect(() => {
+    if (setup !== null || focusAfterSetup === null) return;
+    setFocusAfterSetup(null);
+    focusRow(focusAfterSetup);
+  }, [setup, focusAfterSetup]);
+  useEffect(() => {
+    if (!reroot) return;
+    if (setup === reroot.from) { setSetup(null); setFocusAfterSetup(reroot.root); }
+    else if (reroot.hadFocus) focusRow(reroot.root);
+  }, [reroot?.seq]);
+  // A setup form closes when its row stops being Not initialized (re-root,
+  // terminal init, folder gone); focus goes to that row.
+  useEffect(() => {
+    if (setup === null || entries.some(entry => entry.path === setup && entry.kind === "uninitialized")) return;
+    setSetup(null);
+    // A re-root removes the row; the effect above focuses the root row instead.
+    if (entries.some(entry => entry.path === setup)) setFocusAfterSetup(setup);
+  }, [entries, setup]);
+  useEffect(() => {
+    if (!rerootHint) return;
+    const entry = entries.find(candidate => candidate.path === rerootHint.root);
+    if (!entry) setRerootHint(null);
+    else if (!rerootHint.seen || rerootHint.seen.kind === "loading") { if (entry !== rerootHint.seen) setRerootHint({ ...rerootHint, seen: entry }); }
+    else if (entry !== rerootHint.seen) setRerootHint(null);
+  }, [entries, rerootHint]);
   const toggle = (path: string) => setCollapsed(prev => { const next = new Set(prev); if (next.has(path)) next.delete(path); else next.add(path); return next; });
   const rows = () => Array.from(tree.current?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? []);
   const focus = (node: HTMLElement | undefined) => node?.focus();
@@ -60,12 +102,12 @@ function ProjectTree({ entries, names, state, open }: SidebarProps) {
   };
   const available = entries.flatMap(entry => [entry.path, ...(entry.kind === "list" && !collapsed.has(entry.path) ? entry.canvases.map(row => `${entry.path}\n${row.path}`) : [])]);
   const active = focused && available.includes(focused) ? focused : available[0];
-  return <div role="tree" aria-label="Projects" ref={tree}>
+  return <><div role="tree" aria-label="Projects" ref={tree}>
     {entries.map(entry => {
       const name = names.get(entry.path) ?? entry.path;
       const display = projectRow(entry);
       const expanded = entry.kind !== "list" || !collapsed.has(entry.path);
-      return <div role="treeitem" aria-label={name} aria-level={1} aria-expanded={expanded} tabIndex={active === entry.path ? 0 : -1} key={entry.path} onFocus={event => { if (event.target === event.currentTarget) setFocused(entry.path); }} onKeyDown={event => keys(event, entry)}>
+      return <div role="treeitem" aria-label={name} aria-level={1} aria-expanded={expanded} tabIndex={active === entry.path ? 0 : -1} key={entry.path} data-path={entry.path} onFocus={event => { if (event.target === event.currentTarget) setFocused(entry.path); }} onKeyDown={event => keys(event, entry)}>
         <div className="row project-row" onClick={() => { setFocused(entry.path); if (entry.kind === "list") toggle(entry.path); }}>
           <span className="glyph" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
           <Tooltip><TooltipTrigger asChild><span className="g">{name}</span></TooltipTrigger><TooltipContent>{entry.path}</TooltipContent></Tooltip>
@@ -73,10 +115,12 @@ function ProjectTree({ entries, names, state, open }: SidebarProps) {
           {!display.actions.includes("reopen") && <button className="close-project" aria-label={`Close project ${name}`} onClick={event => { event.stopPropagation(); close(entry.path); }}>×</button>}
         </div>
         {expanded && <div role="group">
-          {display.hint && <p className="hint">{display.hint}</p>}
+          {display.hint && !display.actions.includes("copyPrompt") && <p className="hint">{display.hint}</p>}
+          {display.actions.includes("copyPrompt") && <FirstPrompt root={entry.path} />}
           {(display.detail || display.actions.includes("reopen")) && <div className="hint">
             {display.detail && <p>{display.detail.map((part, index) => typeof part === "string" ? part : <code key={index}>{part.code}</code>)}</p>}
             {display.actions.includes("reopen") && <div className="recovery"><button className="btn" onClick={() => void window.doan.reopenFolder(entry.path)}>Reopen</button><button className="btn ghost" aria-label={`Close project ${name}`} onClick={() => close(entry.path)}>Close</button></div>}
+            {display.actions.includes("setup") && <div className="recovery"><button type="button" className="btn" onClick={() => { setRerootHint(null); setSetup(entry.path); }}>Set Up…</button></div>}
           </div>}
           {entry.kind === "list" && entry.canvases.map(row => {
             const key = `${entry.path}\n${row.path}`;
@@ -86,9 +130,37 @@ function ProjectTree({ entries, names, state, open }: SidebarProps) {
               <span className="glyph" aria-hidden="true">◧</span><span className="g">{canvasName(row.path)}</span><span className="d">{row.title}</span><span id={commentId} role="img" className={`cnt${row.open ? " hot" : ""}`} aria-label={`${row.open} open comments`}>{row.open}</span>
             </div></TooltipTrigger><TooltipContent>{`${entry.path}/${row.path}`}</TooltipContent></Tooltip>;
           })}
+          {rerootHint?.root === entry.path && <p className="hint reroot-hint" role="status">{rerootHint.message}</p>}
         </div>}
       </div>;
     })}
+  </div>
+    {setup !== null && <ProjectSetupDialog root={setup} name={names.get(setup) ?? setup} onClose={() => { const path = setup; setSetup(null); focusRow(path); }}
+      onRerooted={(root, message) => { setSetup(null); setRerootHint({ root, message }); focusRow(root); }} />}
+  </>;
+}
+
+// "No canvases" row: main builds the sentence; the tooltip shows all of it.
+function FirstPrompt({ root }: { root: string }) {
+  const [sentence, setSentence] = useState<string | null>(null);
+  const [copy, setCopy] = useState<CopyState>("idle");
+  useEffect(() => {
+    let live = true;
+    void window.doan.firstPrompt(root).then(text => { if (live) setSentence(text); }, () => undefined);
+    return () => { live = false; };
+  }, [root]);
+  async function copyPrompt() {
+    setCopy("copying");
+    let ok = false;
+    try { ok = (await window.doan.copyFirstPrompt(root)).kind === "success"; } catch { /* Shown as Retry copy. */ }
+    setCopy(ok ? "copied" : "failed");
+  }
+  const button = <button type="button" className="btn" disabled={copy === "copying"} onClick={() => void copyPrompt()}>{copy === "idle" ? "Copy first prompt" : copyLabel(copy)}</button>;
+  return <div className="hint">
+    <p>No canvases</p>
+    {/* Always inside the Tooltip, so the sentence arriving does not remount a focused button. */}
+    <div className="recovery"><Tooltip><TooltipTrigger asChild>{button}</TooltipTrigger>{sentence !== null && <TooltipContent className="prompt-tooltip" align="start" collisionPadding={8}>{sentence}</TooltipContent>}</Tooltip></div>
+    {copy === "failed" ? <p role="alert">{COPY_FAILED}</p> : <p>Replace &lt;what you want to design&gt; before sending.</p>}
   </div>;
 }
 

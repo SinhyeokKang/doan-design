@@ -189,3 +189,79 @@ code, kbd { font-family: var(--font-sans); }
 
 .comment-pin { z-index: 2; }
 .comment-pin:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; z-index: 3; }
+
+/* Onboarding (design/onboard.html). The wizard covers the window as a dialog. */
+.ob-overlay { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; display: grid; grid-template-rows: 40px auto minmax(0, 1fr) 56px; background: var(--bg); color: var(--text); }
+.ob-overlay::backdrop { background: transparent; }
+.ob-title { font: 600 13px var(--font-sans); outline: none; }
+.ob-steps { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 22px 0 0; }
+.ob-steps li { display: flex; align-items: center; }
+.ob-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); border-radius: 6px; padding: 2px 4px; }
+.ob-steps .num { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; font-size: 11px; font-weight: 600; }
+.ob-step.done { color: var(--text-2); }
+.ob-step.done .num { border-color: var(--ok); color: var(--ok); }
+.ob-step[aria-current="step"] { color: var(--text); }
+.ob-step[aria-current="step"] .num { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.ob-steps .sep { width: 32px; height: 1px; background: var(--line); }
+.ob-body { min-height: 0; overflow: auto; }
+.ob-form { max-width: 640px; margin: 0 auto; padding: 28px 0; }
+.ob-form h2 { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+.ob-lead { font-size: 12.5px; line-height: 1.6; color: var(--text-2); margin-bottom: 18px; }
+.ob-foot { display: flex; align-items: center; gap: 10px; padding: 0 24px; background: var(--panel); border-top: 1px solid var(--line); }
+.ob-foot .meta { margin-right: 6px; }
+.ob-card { width: 640px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.ob-card + .ob-card { margin-top: 14px; }
+.ob-item, .ob-agent { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line-2); }
+.ob-card > :last-child { border-bottom: 0; }
+.ob-agent { padding-top: 14px; }
+.ob-label { font-size: 12px; font-weight: 600; color: var(--text); }
+.ob-agent .ob-label { font-size: 12.5px; }
+.ob-item.sub .ob-label { font-weight: 500; color: var(--text-2); padding-left: 12px; }
+.ob-item.dimmed { opacity: .4; }
+.ob-item.ob-notice { padding-top: 0; }
+.ob-detail { font-size: 11.5px; line-height: 1.5; color: var(--text-3); min-width: 0; overflow-wrap: anywhere; }
+.ob-detail code, .ob-msg code, .ob-lead code, .ob-dialog code, .ob-field code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
+.ob-status { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.ob-msg { grid-column: 2 / -1; font-size: 11.5px; line-height: 1.5; color: var(--text-2); overflow-wrap: anywhere; }
+.ob-msg.warn { border-left: 2px solid var(--warn); padding-left: 8px; }
+.ob-msg.error { border-left: 2px solid var(--err); padding-left: 8px; }
+.ob-msg.ok { color: var(--ok); }
+.ob-msg.ob-wide { grid-column: 1 / -1; }
+.ob-reason { grid-column: 2 / -1; font-size: 11.5px; line-height: 1.5; color: var(--text-3); }
+.ob-chip { font-size: 10.5px; line-height: 1.5; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; color: var(--text-3); white-space: nowrap; }
+.ob-chip.ok { color: var(--ok); }
+.ob-chip.warn { color: var(--warn); }
+.ob-chip.err { color: var(--err); }
+.ob-copyline { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; }
+.ob-copyline output { flex: 1; min-width: 0; font-size: 12px; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; overflow-wrap: anywhere; }
+.ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line-2); }
+/* Project names and paths share inline flow; Inspector values use flex. */
+.ob-field .value { display: block; gap: normal; font-size: 12px; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+.ob-field .value .meta { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.ob-project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-field .value.none { color: var(--text-3); }
+.ob-field .ob-helper { grid-column: 2 / -1; }
+.ob-helper { font-size: 11px; line-height: 1.5; color: var(--text-3); overflow-wrap: anywhere; }
+.ob-changes { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--text-2); }
+.ob-actions { display: flex; align-items: center; gap: 8px; padding: 12px 14px; }
+.ob-actions .ob-helper { flex: 1; }
+.ob-sentence { font-size: 12.5px; line-height: 1.7; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-wrap: anywhere; }
+.ob-sentence mark { background: var(--accent-soft); color: var(--accent); border-radius: 3px; padding: 0 2px; }
+.ob-prompt { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.ob-prompt .ob-actions { padding: 0; }
+/* The replace confirmation and the project setup dialog share the comments dialog surface. */
+.ob-dialog { width: 440px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; margin: auto; background: var(--raised); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-2); border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
+.ob-dialog::backdrop { background: var(--board-bg); opacity: .6; }
+.ob-dialog h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+.ob-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-2); margin-bottom: 12px; }
+.ob-dialog .ob-card { width: auto; }
+.ob-compare { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px 10px; font-size: 11.5px; line-height: 1.5; margin-bottom: 16px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.ob-compare dt { color: var(--text-3); }
+.ob-compare dd { color: var(--text); overflow-wrap: anywhere; }
+.ob-buttons { display: flex; justify-content: flex-end; gap: 6px; }
+.setup-dialog { width: 520px; }
+.setup-dialog .ob-buttons { margin-top: 16px; }
+.reroot-hint { padding-left: 12px; }
+/* Draft decision: a full sentence with a long path wraps instead of running past the window.
+   The padding restates the shadcn px-3 py-1.5, which the unlayered reset above overrides. */
+.prompt-tooltip { max-width: 420px; padding: 6px 12px; }

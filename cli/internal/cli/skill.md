@@ -30,7 +30,7 @@ H. Keep ids unchanged when moving a canvas file so its comments follow it.
 
 ## Commands
 
-- `doan init --token-css styles/tokens.css --json`: initialize the current directory. Token CSS is optional. Existing valid configuration is preserved. This does not install agent skills.
+- `doan init --token-css styles/tokens.css --json`: initialize the current directory. Token CSS is optional; use a repository-relative path or an absolute path inside the repository. The config stores its real repository-relative path in on-disk spelling. Existing valid configuration is preserved. This does not install agent skills.
 - `doan ls --json`: list canvases, frames, and open/resolved comment counts.
 - `doan comments --canvas example --json`: read open comments and parsing warnings. Omit `--canvas` to read all files. `outdated` compares current canvas bytes with the comment's recorded hash; missing or ambiguous canvases omit that field.
 - `doan comment resolve cmt_00000000-0000-4000-8000-000000000001 --agent codex --json`: resolve an applied comment. Supply your runtime name explicitly (`codex`, `claude-code`, or another lowercase name). Several explicitly selected ids are allowed. No `--all` exists. Unknown ids prevent writes; already resolved comments are unchanged.
