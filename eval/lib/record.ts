@@ -42,6 +42,9 @@ export function summary(round: string, meta: RoundMeta, runs: RunRecord[]): stri
       && failed.every(check => entry.expectedFailedChecks.includes(check.id)));
   };
   const judgeCell = (judge: RunRecord["judge"]) => judge === "skipped" ? "skipped" : judge === null ? "judge_error" : judge.verdict;
+  const judgeOnlyPartial = (run: RunRecord) => run.result === "partial" && !run.timedOut
+    && run.checks.length > 0 && run.checks.every(check => check.pass)
+    && run.judge && run.judge !== "skipped" && run.judge.verdict === "partial";
   const lines = [
     `# agent-eval round ${round}`, "",
     "Row for the 'Rounds' table in docs/USABILITY-EVAL.md:", "",
@@ -49,19 +52,22 @@ export function summary(round: string, meta: RoundMeta, runs: RunRecord[]): stri
     "## Runs", "",
     "| Scenario | Agent | n | Result | Failed checks | Judge | Layer | Seconds | Exit |",
     "|---|---|---|---|---|---|---|---|---|",
-    ...runs.map(run => `| ${run.scenario} | ${run.agent} | ${run.n} | ${run.result} | ${cell(run.checks.filter(c => !c.pass).map(c => c.id).join(", "))} | ${judgeCell(run.judge)} | ${typeof run.judge === "object" && run.judge ? run.judge.layer : ""} | ${run.durationSec ?? ""} | ${run.timedOut ? "timeout" : run.exitCode ?? ""} |`),
+    ...runs.map(run => `| ${run.scenario} | ${run.agent} | ${run.n} | ${run.result} | ${cell(run.checks.filter(c => !c.pass).map(c => c.id).join(", "))} | ${judgeCell(run.judge)} | ${condition(run) ? "known" : typeof run.judge === "object" && run.judge ? run.judge.layer : ""} | ${run.durationSec ?? ""} | ${run.timedOut ? "timeout" : run.exitCode ?? ""} |`),
     "", ...runs.filter(run => condition(run)).map(run => `- ${run.scenario} / ${run.agent} #${run.n}: ${condition(run)!.note}; recorded result: ${run.result}.`),
-    "", "## Issue candidates", "",
-    "Every run that did not pass outside the known conditions above, with what the checks and the judge saw. Confirm against the transcript before recording an issue.", "",
   ];
-  const notPassed = runs.filter(run => run.result !== "pass" && !(run.result === "fail" && condition(run)));
-  if (notPassed.length === 0) lines.push("None.");
-  for (const run of notPassed) {
-    lines.push(`- **${run.scenario} / ${run.agent} #${run.n}** (${run.result}) — \`${run.dir}\``);
-    for (const check of run.checks.filter(c => !c.pass)) lines.push(`  - check \`${check.id}\`: ${cell(check.detail)}`);
-    if (run.judge && run.judge !== "skipped") {
-      for (const reason of run.judge.reasons) lines.push(`  - judge (${run.judge.layer}): ${cell(reason)}`);
-      for (const stall of run.judge.stalls) lines.push(`  - stall: ${cell(stall)}`);
+  for (const [heading, description, group] of [
+    ["Judge-only partials", "All automatic checks passed; only the judge scored these runs partial. Results are retained for review.", runs.filter(judgeOnlyPartial)],
+    ["Issue candidates", "Every run that did not pass outside the known conditions and judge-only partials above, with what the checks and the judge saw. Confirm against the transcript before recording an issue.", runs.filter(run => run.result !== "pass" && !condition(run) && !judgeOnlyPartial(run))],
+  ] as const) {
+    lines.push("", `## ${heading}`, "", description, "");
+    if (group.length === 0) lines.push("None.");
+    for (const run of group) {
+      lines.push(`- **${run.scenario} / ${run.agent} #${run.n}** (${run.result}) — \`${run.dir}\``);
+      for (const check of run.checks.filter(c => !c.pass)) lines.push(`  - check \`${check.id}\`: ${cell(check.detail)}`);
+      if (run.judge && run.judge !== "skipped") {
+        for (const reason of run.judge.reasons) lines.push(`  - judge (${run.judge.layer}): ${cell(reason)}`);
+        for (const stall of run.judge.stalls) lines.push(`  - stall: ${cell(stall)}`);
+      }
     }
   }
   return lines.join("\n") + "\n";
