@@ -181,10 +181,10 @@ else if (args[1] === 'add') {
   await mkdir(join(home, ".local/bin"), { recursive: true }); await writeFile(cliLink, "occupied"); await check();
   await wizard().getByText(/is in use by something else/).waitFor(); assert.equal(await button("Install").isDisabled(), true);
   assert.equal(await readFile(cliLink, "utf8"), "occupied"); await rm(cliLink); await symlink("/missing/other-doan", cliLink); await check();
-  await button("Replace…").click(); const confirm = page.getByRole("alertdialog"); await confirm.waitFor();
+  await button("Fix…").click(); const confirm = page.getByRole("alertdialog"); await confirm.waitFor();
   assert.equal(await focusIs(confirm.getByRole("button", { name: "Cancel", exact: true })), true);
   await page.keyboard.press("Escape"); await confirm.waitFor({ state: "hidden" }); assert.equal(await wizard().isVisible(), true);
-  assert.equal(await readlink(cliLink), "/missing/other-doan"); await check(); await button("Replace…").click();
+  assert.equal(await readlink(cliLink), "/missing/other-doan"); await check(); await button("Fix…").click();
   await confirm.getByRole("button", { name: "Replace Link", exact: true }).click(); await wait(async () => await readlink(cliLink) === cli, "CLI replaced"); await check();
   await wizard().getByText("Not on PATH", { exact: true }).waitFor(); await wizard().getByText("~/.zshrc", { exact: true }).waitFor();
   await clipboardGate(); await button("Copy").click(); await button("Copying…").waitFor(); await busy();
