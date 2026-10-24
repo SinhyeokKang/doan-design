@@ -68,7 +68,8 @@ These apply to conversation replies and reports to the user, and to feature docu
 - App setup (2026-10-21 user, app-shell): `npm --prefix app ci`, then `node -e "require('electron')"` from `app/` once to download the Electron binary (Electron 45 has no postinstall).
 - `npm --prefix app run build` — build the app into `app/out/` (`electron-vite build`).
 - `npm --prefix app run package` — build the versioned arm64 Go CLI and an unsigned local `app/dist/mac-arm64/doan.app` with electron-builder.
-- `npm --prefix app run e2e` — build, then run the Playwright `_electron` runtime suite (`app/e2e/runtime.ts`); it builds the CLI itself, uses temporary repos/userData and `DOAN_RUNTIME`, verifies that real user state is unchanged, and prints screenshots under `.scratch/runtime-test/`. Require its own final PASS and exit 0; continued steps after a collected failure are not a pass.
+- `app/dist/mac-arm64/doan.app/Contents/MacOS/doan --user-data-dir=<tmp>` — run the packaged app by hand (onboard task 12 launched this executable through Playwright `executablePath`). It inherits the shell environment (`open` passes none without `--env`), so with the real `HOME` its setup steps write real targets: ask the user first, or isolate `HOME`/`SHELL`/`CLAUDE_CONFIG_DIR`/`CODEX_HOME` as for dev runs.
+- `npm --prefix app run e2e` — build, then run the Playwright `_electron` runtime suite (`app/e2e/runtime.ts`); it builds the CLI itself, uses temporary repos/userData and `DOAN_RUNTIME`, verifies that real user state is unchanged, and prints screenshots under `.scratch/runtime-test/`. Require its own final PASS and exit 0; continued steps after a collected failure are not a pass. The real-state check needs `python3.12` on `PATH` (`tomllib`; macOS `python3` 3.9 lacks it) (2026-10-24, onboard).
 - `DOAN_CLI=<abs path to doan> npm --prefix app run dev -- -- --user-data-dir=<tmp>` — run the app by hand without touching the real `~/Library/Application Support/doan/`. Also use a temporary `HOME`, a fake `SHELL` that emits controlled probe output, and unset or override `CLAUDE_CONFIG_DIR` / `CODEX_HOME`; userData isolation alone does not protect machine setup targets.
 - `go build -o <tmp>/doan ./cli/cmd/doan` — build the CLI for `DOAN_CLI`.
 - `DOAN_RUNTIME=<absolute temp userData>/runtime.json <absolute CLI> active --json --repo <absolute temp repo>` — inspect a dev/e2e app without touching the real runtime. For MCP, set `DOAN_RUNTIME` in the one-off server environment (Claude `mcpServers.<name>.env`; Codex `-c 'mcp_servers.<name>.env.DOAN_RUNTIME="<absolute runtime path>"'`), not in tool arguments.
@@ -90,6 +91,7 @@ The source for the 12 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, po
 - `/design-sync` compares an app screen's first implementation with its draft canvas in `design/` by computed style in the real app. Run it inside a `/ship` or `/orchestrate` branch; the draft is the source of truth only until that screen's first implementation is on main.
 - If you fixed a regression or bug, run `/postmortem`. `/implement` · `/refactor` · `/code-review` grep `docs/POSTMORTEM.md` before starting (when the file exists).
 - `/ship` · `/orchestrate` always start by creating a `feat-<slug>` branch from main and end with a push of that branch + a PR. They do not merge.
+- In Orca, start `/orchestrate` workers with `--worktree new-child --base-branch feat-<slug>`: without `--base-branch`, the child worktree branches from main, not from the conductor's checkout (2026-10-24, onboard).
 
 ## Documents
 
