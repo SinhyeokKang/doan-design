@@ -64,7 +64,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
   try {
     const resolutionPath = join(ws.base, "resolved-doan.txt");
     const quote = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
-    const prompt = `Evaluation setup: before doing the task, run\ncommand -v doan > ${quote(resolutionPath)}\nfrom your shell without changing PATH. This records the executable used for this run.\n\n` + renderPrompt(scenario.promptTemplate, ws.repo);
+    const prompt = `Evaluation setup: before doing the task, run\ncommand -v doan > ${quote(resolutionPath)}${scenario.shellCli ? "" : " || true"}\nfrom your shell without changing PATH. This records ${scenario.shellCli ? "the executable used for this run" : "that doan is absent from PATH (an empty file is expected)"}.\n\n` + renderPrompt(scenario.promptTemplate, ws.repo);
     writeFileSync(join(dir, "prompt.txt"), prompt);
     const runtime = ws.env.DOAN_RUNTIME;
     if (!runtime) throw new Error("Workspace has no DOAN_RUNTIME");
@@ -75,7 +75,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     const evidence = readAgentTranscript(agent, dir, ws.env);
     const ctx = createContext({ repo: ws.repo, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
     const checks = await runChecks(scenario, ctx);
-    checks.push(cliProvenance(resolutionPath, setup.cli));
+    checks.push(cliProvenance(resolutionPath, scenario.shellCli ? setup.cli : null));
     if (existsSync(resolutionPath)) cpSync(resolutionPath, join(dir, "resolved-doan.txt"));
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     let judgement: Judgement | null | "skipped" = "skipped";

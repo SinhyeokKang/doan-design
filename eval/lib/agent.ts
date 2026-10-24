@@ -23,9 +23,10 @@ export function agentCommand(agent: Agent, prompt: string, mcp?: MCPRun): { cmd:
 }
 
 // Read evidence produced by the agent's shell, not the runner's own PATH lookup.
-export function cliProvenance(report: string, expected: string): Check {
+export function cliProvenance(report: string, expected: string | null): Check {
   try {
     const resolved = readFileSync(report, "utf8").trim();
+    if (expected === null) return { id: "agent_cli_provenance", pass: resolved === "", detail: `agent resolved ${resolved || "(no doan on PATH)"}; expected no shell CLI` };
     const pass = realpathSync(resolved) === realpathSync(expected);
     return { id: "agent_cli_provenance", pass, detail: `agent resolved ${resolved}; expected ${expected}` };
   } catch (error) {
