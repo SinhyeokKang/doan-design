@@ -44,6 +44,6 @@ This skill runs Claude Code and Codex for real in every round and has the other 
 
 ## Prohibited
 
-- Do not change product code, the guide or scenarios in this skill. Changing a scenario would break comparison with earlier rounds; add a new scenario id instead.
+- Do not change product code or the guide in this skill. A change to a scenario's task, seed or intent needs a new scenario id to preserve comparison with earlier rounds. A checker fix that only corrects false results may be applied in place with a note on the affected round (2026-10-24, hard loop 2 coordinator decision).
 - Do not install skills or register MCP in the real home for a run.
 - Do not report a run as passed when an automatic check failed or a run was not executed.
