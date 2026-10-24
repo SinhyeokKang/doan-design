@@ -93,3 +93,7 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: C 완료(`a21fccf`, 9커밋, B2 수정분을 merge 커밋 `d996c5e`로 받음). unit 1441·typecheck·go·전체 e2e PASS 보고. 측정 7912행 = 일치 7321 · 비표시 동등 483 · 문서화된 차이 108. R-C 결과를 받고 고친 뒤 `feat-projects-home`에 merge로 통합한다(merge 커밋이 있어 cherry-pick 대신).
 - 2026-10-25: R-C 결과 🔴 1(체크 목록이 넘쳐도 스크롤되지 않음, 저장소 14개로 재현) · 🟡 6(캔버스 영역의 옛 사이드바 안내 문구, 상태 줄 Locate…가 홈으로 튕김, 가드 문구에 브랜치 없음, 닿는 상태 미측정, e2e `plain.hint` 동어반복, 고아 `ShellApi.close`) · ⚪ 8. C 터미널에 C-fix를 보냈다. R-C 워커는 해제했다.
 - 2026-10-25: R-C가 물은 결정 4개는 기능 문서와 확정 초안으로 정했다(지휘자 판단). ① design-sync에 닿는 상태(체크 목록 ready 줄·워크트리 하위 줄, 상태 줄 Config error·Not set up, Added 토스트)를 더한다(design-sync 전제: 닿는 상태는 측정한다) ② 경로는 확정 초안대로 HOME 아래를 `~/…`로 줄인다(HOME은 main이 준다, 설정 확인만 절대 경로) ③ 사이드바 ×의 접근 이름을 "Remove <name> from doan"으로 바꾼다(동작이 제거·Undo로 바뀌었다) ④ 카드 키보드는 design.md대로 Tab은 카드 사이, ↑↓는 줄 사이, Enter로 연다. 줄 ··· 버튼은 Tab 순서에서 빼고 Shift+F10·ContextMenu 키로도 연다.
+- 2026-10-25: C-fix 질문 — Home Selected 표시를 'button #target'에서 초안대로 'tag · id'로 바꾼다(spec '요소 태그·id', 확정 초안).
+- 2026-10-25: C-fix가 후속 리뷰를 요청했다(`a21fccf...6232e74`, 측정 31상태·198쌍). R-Cfix(Claude Opus high) 시작.
+- 2026-10-25: R-Cfix 결과 🔴 1(전체 e2e가 6232e74에서 exit 1, runtime.ts가 옮겨진 Config error 상세를 옛 구조로 읽음) · 🟡 2(제거·Locate 뒤 카드 행이 Tab 순서에서 빠짐, close() 테스트 삭제로 remove()의 늦은 읽기 경쟁 검증이 사라짐) · ⚪ 2. 진행 중인 C-fix에 후속 메시지로 보냈다. R-Cfix 워커 해제.
+- 2026-10-25: C-fix 완료(`ce25b5d`). unit 1445·typecheck·go·전체 e2e PASS, 키보드 회귀 red→green 보고. 남긴 것: 설정 안 됨·오류 루트로 Locate하면 이전 캔버스 문구가 남는 ⚪(후속 후보). `SinhyeokKang/ph-c`를 merge로 통합한다.
