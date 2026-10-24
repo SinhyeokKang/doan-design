@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Frame } from "playwright";
 import { build } from "vite";
+const { canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
@@ -45,7 +46,7 @@ body{margin:0;height:1000px} section{position:absolute;left:80px;top:80px;width:
     DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } });
   const page = await app.firstWindow(); page.setDefaultTimeout(10_000);
   await enterProject(page, repo);
-  await page.getByRole("treeitem", { name: "anchors.html", exact: true }).click();
+  await canvasRow(page, "anchors.html").click();
   await page.waitForFunction(() => document.querySelector("iframe")?.getAttribute("src"));
   const url = await page.locator("iframe").getAttribute("src"); assert.ok(url);
   await page.evaluate(code);

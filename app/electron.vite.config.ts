@@ -6,12 +6,13 @@ import { fileURLToPath } from "node:url";
 // The built window loads only its own files, plus canvas iframes from the
 // local server, whose port changes every run. electron-vite dev serves the
 // renderer over http with an HMR websocket, so only dev names that origin.
+// Overview thumbnails arrive as PNG bytes over IPC and show as blob: URLs.
 function contentSecurityPolicy(): Plugin {
   return {
     name: "doan-csp",
     transformIndexHtml(_html, ctx) {
       const devUrl = ctx.server?.resolvedUrls?.local[0];
-      const frames = "frame-src http://127.0.0.1:*";
+      const frames = "frame-src http://127.0.0.1:*; img-src 'self' blob:";
       const policy = devUrl
         ? `default-src 'self' ${new URL(devUrl).origin} ${new URL(devUrl).origin.replace(/^http/, "ws")}; ${frames}`
         : `default-src 'self'; ${frames}`;

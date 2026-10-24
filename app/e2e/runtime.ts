@@ -18,6 +18,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Frame, type Locator, type Page } from "playwright";
 
+const { appWindow, appWindowCount }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
+const { canvasRow, frameRows }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 
 const { hoverTooltip }: typeof import("./tooltip") = await import(new URL("./tooltip.ts", import.meta.url).href);
@@ -58,6 +60,8 @@ const shots: string[] = [];
 // they are collected so the remaining steps still run, and the run fails.
 const productFailures: string[] = [];
 // The app being driven and the temp dir, for the watchdog.
+const mainPages = new WeakMap<ElectronApplication, Page>();
+const mainWindow = (app: ElectronApplication) => appWindow(app, mainPages.get(app)!);
 let running: ElectronApplication | undefined;
 let work: string | undefined;
 
@@ -82,6 +86,7 @@ async function main(): Promise<void> {
     await import(new URL("./comments-ui.ts", import.meta.url).href);
     await import(new URL("./onboarding.ts", import.meta.url).href);
     await import(new URL("./projects-home.ts", import.meta.url).href);
+    await import(new URL("./thumbnails.ts", import.meta.url).href);
   } finally { await assertRealState(actualState); }
 }
 
@@ -336,24 +341,25 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
       await openFolder(app, page, picked);
     }
     await enterProject(page, repos.ok);
-    const project = page.getByRole("treeitem", { name: "ok", exact: true });
+    const project = canvasRow(page, "login.html");
     const projectTypography = await project.evaluate(item => {
-      const glyph = item.firstElementChild!.firstElementChild!;
-      return { lineHeight: getComputedStyle(glyph.nextElementSibling!).lineHeight, glyphHeight: glyph.getBoundingClientRect().height };
+      const glyph = item.children[1]!;
+      return { lineHeight: getComputedStyle(glyph.nextElementSibling!).lineHeight, glyphHeight: Math.round(glyph.getBoundingClientRect().height) };
     });
     assert.deepEqual(projectTypography, { lineHeight: "normal", glyphHeight: 16 }, "project text and glyph retain their natural line height");
     const axSession = await page.context().newCDPSession(page);
+    await project.focus(); await page.keyboard.press("ArrowRight");
     for (const collapsed of [false, true]) {
       if (collapsed) {
         await project.focus();
         await page.keyboard.press("ArrowLeft");
       }
-      assert.equal(await project.getAttribute("aria-expanded"), String(!collapsed), "project state before AX inspection");
+      assert.equal(await project.getAttribute("aria-expanded"), String(!collapsed), "canvas state before AX inspection");
       const { nodes } = await axSession.send("Accessibility.getFullAXTree");
       assert.deepEqual(nodes.filter(node => !node.ignored && node.role?.value === "StaticText" && ["◧", "▾", "▸"].includes(node.name?.value)), [], `decorative glyphs are absent from the accessibility tree (${collapsed ? "collapsed" : "expanded"})`);
     }
     await page.keyboard.press("ArrowRight");
-    assert.equal(await project.getAttribute("aria-expanded"), "true", "restore the project after AX inspection");
+    assert.equal(await project.getAttribute("aria-expanded"), "true", "restore the canvas after AX inspection");
     await axSession.detach();
     const opened = [repos.ok, repos.broken, repos.plain, repos.worktree];
     let folders = await waitFolders(page, (all) => sameList(all.map((f) => f.path), opened) && all.every((f) => f.state !== "loading"), "four folders, subfolder and symlink deduped");
@@ -368,17 +374,17 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
 
     // 2. What each folder shows.
     const expectedOk: CanvasView[] = [
-      { path: "design/Zeta.html", title: "Zeta", open: "0 open comments", url: "" },
-      { path: "design/bare.html", title: "", open: "0 open comments", url: "" },
-      { path: "design/deep.html", title: "", open: "0 open comments", url: "" },
-      { path: "design/foo-bar.html", title: "Foo bar", open: "0 open comments", url: "" },
-      { path: "design/foo.html", title: "Foo", open: "0 open comments", url: "" },
+      { path: "design/Zeta.html", title: "Zeta", open: "", url: "" },
+      { path: "design/bare.html", title: "bare", open: "", url: "" },
+      { path: "design/deep.html", title: "deep", open: "", url: "" },
+      { path: "design/foo-bar.html", title: "Foo bar", open: "", url: "" },
+      { path: "design/foo.html", title: "Foo", open: "", url: "" },
       { path: "design/login.html", title: "Login screen", open: "1 open comments", url: "" },
     ];
     for (const path of [repos.ok, repos.worktree]) {
       const folder = byPath(folders, path);
       assert.equal(folder.state, "list");
-      assert.deepEqual(folder.canvases.map((c) => ({ ...c, url: "" })), expectedOk, `canvases of ${path}`);
+      assert.deepEqual(folder.canvases.map((c) => ({ ...c, url: "" })), expectedOk.sort((a, b) => a.title.localeCompare(b.title, "en", { numeric: true, sensitivity: "base" })), `canvases of ${path}`);
     }
     const broken = byPath(folders, repos.broken);
     assert.equal(broken.state, "error");
@@ -432,15 +438,14 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     ({ app, page } = await launch(cli, userData));
     // A tooltip from another row can remain present across pointer movement.
     await enterProject(page, repos.ok);
-    const restartedProject = page.getByRole("treeitem", { name: "ok", exact: true });
-    const added = restartedProject.getByRole("treeitem", { name: "added.html", exact: true });
+    const added = canvasRow(page, "added.html");
     await hoverTooltip(page, added);
     // Escape closes Radix content without resetting its pointer-entry latch.
     await page.keyboard.press("Escape");
     await page.getByRole("tooltip").waitFor({ state: "hidden" });
     await hoverTooltip(page, added);
-    assert.equal(await page.getByRole("tooltip").textContent(), `${repos.ok}/design/added.html`);
-    assert.equal(await tooltipPath(page, restartedProject, "ok", "ok"), repos.ok, "project path must not reuse the preceding canvas tooltip");
+    assert.equal(await page.getByRole("tooltip").textContent(), "added.html");
+    assert.equal(await tooltipPath(page, canvasRow(page, "login.html"), "Login screen", "ok/login"), "login.html", "canvas path must not reuse the preceding tooltip");
     folders = await waitFolders(page, (all) => sameList(all.map((f) => f.path), kept) && all.every((f) => f.state !== "loading"), "folders after restart");
     assert.equal(byPath(folders, repos.ok).state, "list");
     assert.equal(byPath(folders, repos.plain).state, "uninitialized");
@@ -584,7 +589,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   assert.equal(await page.getAttribute('[role="region"][aria-label="Canvas"] iframe', "sandbox"), "allow-scripts");
   assert.deepEqual(await panelValues(page), { Path: "design/main.html", ID: "main", Width: "1200 px", Frames: "6", Open: "0", Resolved: "0" });
   assert.deepEqual(await activityKinds(page), ["Opened"]);
-  await treeKeyboard(page, repos.canvas);
+  await treeKeyboard(app, page, repos.canvas, repos.ok);
 
 
   // C2. Width from doan:width; height is the content height.
@@ -666,24 +671,11 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await waitView(page, (v) => v.vw === sized.vw && v.vh === sized.vh, "viewport restored");
 
   // C6. Frame jumps.
-  const frames = page.getByRole("region", { name: "Frames", exact: true });
-  assert.equal(await frames.getByRole("button").count(), 6);
-  for (const [index, name] of ["# hero Hero", "# (no id)", "# scroller-box", "# tall", "# dup", "# dup"].entries()) {
-    assert.equal(await frames.getByRole("button").nth(index).and(frames.getByRole("button", { name, exact: true })).count(), 1, `frame ${index} name`);
+  const frames = frameRows(page);
+  assert.equal(await frames.count(), 6);
+  for (const [index, name] of ["1 Hero", "2 (no id)", "3 scroller-box", "4 tall", "5 dup", "6 dup"].entries()) {
+    assert.equal(await frames.nth(index).getAttribute("aria-label"), name, `frame ${index} name`);
   }
-  const frameColors = await frames.getByRole("button").evaluateAll(buttons => {
-    const muted = buttons[1]!.querySelectorAll("span")[1]!;
-    const named = buttons[0]!.querySelectorAll("span")[1]!;
-    const token = getComputedStyle(document.documentElement).getPropertyValue("--text-3").trim();
-    const probe = document.createElement("span");
-    probe.style.color = token;
-    document.body.append(probe);
-    const expected = getComputedStyle(probe).color;
-    probe.remove();
-    return { muted: getComputedStyle(muted).color, named: getComputedStyle(named).color, expected };
-  });
-  assert.equal(frameColors.muted, frameColors.expected, "id-less frame label uses the resolved text-3 token");
-  assert.notEqual(frameColors.muted, frameColors.named, "id-less frame label differs from named frame");
   const tall = await frameRect(canvas, 3);
   let jumped = await jump(page, 3, sized);
   assert.ok(near(jumped.y + tall.y * jumped.scale, 32), "a tall frame is aligned to the top");
@@ -700,8 +692,8 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   assert.deepEqual((await frameButtons(page)).map((b) => b.current), [true, false, false, false, false, false]);
   await settledScreenshot(page, "4-frame");
   await openCanvas(page, repos.canvas, "design/noframes.html");
-  await waitFor(async () => (await page.getByRole("region", { name: "Frames", exact: true }).getByRole("paragraph").textContent()) === "This canvas has no data-doan-frame", "no-frames notice");
-  assert.equal(await page.getByRole("region", { name: "Frames", exact: true }).getByRole("paragraph").evaluate(hint => hint.childElementCount), 0, "no-frame hint is plain text without a code chip");
+  await waitFor(async () => (await page.getByRole("tree", { name: "Canvases", exact: true }).getByText("This canvas has no data-doan-frame", { exact: true }).textContent()) === "This canvas has no data-doan-frame", "no-frames notice");
+  assert.equal(await page.getByRole("tree", { name: "Canvases", exact: true }).getByText("This canvas has no data-doan-frame", { exact: true }).evaluate(hint => hint.childElementCount), 0, "no-frame hint is plain text without a code chip");
   await openCanvas(page, repos.canvas, "design/main.html");
 
   // C7. Live reload keeps the view; only served changes of this folder reload.
@@ -961,7 +953,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await clickAt(page, canvas, "#box");
   await waitFor(() => page.evaluate(() => !!(window as any).pendingSelectionGate.held), "S2 pending click select reply held");
   assert.equal(await page.getByRole("region", { name: "Inspector", exact: true }).count(), 0, "selection reply is still pending");
-  await page.getByRole("region", { name: "Frames", exact: true }).getByRole("button").first().focus();
+  await frameRows(page).first().focus();
   await page.keyboard.down("Alt");
   await page.keyboard.up("Alt");
   await sleep(100);
@@ -1091,11 +1083,11 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   canvas = await canvasFrame(page);
 
   // S8. Frames: from the list and from a frame's empty area; the list's
-  // aria-current follows the selection; the ancestor path selects a parent.
-  const frames = page.getByRole("region", { name: "Frames", exact: true });
-  await frames.getByRole("button", { name: "# second", exact: true }).click();
+  // the separate selection mark follows selection; the ancestor path selects a parent.
+  const frames = frameRows(page);
+  await frames.nth(1).press("Space");
   await waitInspector(page, v => v?.heading === "Inspector" && v.subject === "second" && v.selector === null, "frame picked from the list");
-  assert.deepEqual((await frameButtons(page)).map(b => b.current), [false, true]);
+  assert.deepEqual((await frameSelections(page)), [false, true]);
   const frameOnly = await active(repos.select);
   assert.deepEqual(frameOnly.selection, { canvas: { path: "design/pick.html", id: "pick" }, frame: { id: "second" } }, "active for a frame selection");
   view = await fit(app, page);
@@ -1104,12 +1096,12 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await page.mouse.click(cardSpace.x, cardSpace.y);
   const card = await waitInspector(page, v => v?.heading === "Inspector" && v.subject === "card" && v.selector === null, "frame picked by its empty area");
   assert.deepEqual(card?.values, { Title: "Card", Implements: "app/src/renderer/App.tsx" });
-  assert.deepEqual((await frameButtons(page)).map(b => b.current), [true, false]);
+  assert.deepEqual((await frameSelections(page)), [true, false]);
   await clickAt(page, canvas, "#note");
   const note = await waitInspector(page, v => v?.selector === '[data-doan-id="note"]', "element in the second frame");
   assert.equal(note?.values.Frame, "second");
-  assert.deepEqual((await frameButtons(page)).map(b => b.current), [false, true]);
-  assert.equal(await frames.getByText("p · note", { exact: true }).count(), 1, "the selected element under its frame row");
+  assert.deepEqual((await frameSelections(page)), [false, true]);
+  assert.equal(await page.getByRole("tree", { name: "Canvases", exact: true }).getByText("p · note", { exact: true }).count(), 1, "the selected element under its frame row");
   await clickAt(page, canvas, "#label");
   const label = await waitInspector(page, v => v?.subject === "span", "span selected");
   assert.deepEqual([label?.path, label?.current], [["card", "box", "span"], "span"]);
@@ -1177,7 +1169,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
 
   // With app focus the canvas never blurs: the accepted nested-iframe limit
   // (orch.md, 2026-10-22). Canvas focus still selects the iframe element.
-  await page.getByRole("region", { name: "Frames", exact: true }).getByRole("button", { name: "# card Card", exact: true }).focus();
+  await frameRows(page).first().focus();
   await clickAt(page, canvas, "#nested");
   await assertNoSelection(page, "nested iframe from app focus keeps nothing selected");
   await page.keyboard.press("Escape");
@@ -1259,11 +1251,11 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   assert.deepEqual(pick(element, "doanId", "selector", "text", "truncated"), { doanId: "box", selector: BOX, text: "Hello box" });
   assert.match(element.html, /^<div data-doan-id="box" id="box"><span id="label">Hello box<\/span><\/div>$/);
   assert.deepEqual(pick(await active(repos.ok), "exit", "selection"), { exit: 0 }, "another project's active has no selection");
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
-  await waitFor(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible() === false), "window hidden with a selection");
+  await mainWindow(app).then(handle => handle.evaluate(window => window.close()));
+  await waitFor(() => mainWindow(app).then(handle => handle.evaluate(window => window.isVisible() === false)), "window hidden with a selection");
   assert.equal((await active(repos.select)).selection?.element?.selector, BOX, "active with the window hidden");
   await app.evaluate(({ app }) => app.emit("activate"));
-  await waitFor(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible() === true), "window back after activate");
+  await waitFor(() => mainWindow(app).then(handle => handle.evaluate(window => window.isVisible() === true)), "window back after activate");
   await page.evaluate((root) => window.doan.setSelection({ root, canvas: { path: "design/pick.html" }, element: { selector: "x", html: "x".repeat(2001) } }), repos.select);
   assert.deepEqual(pick(await active(repos.select), "exit", "selection"), { exit: 0 }, "main drops a selection over the html cap");
   // The renderer still shows the box; a fresh selection resends it.
@@ -1306,7 +1298,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await writeFile(join(repos.select, "design", "pick.html"), pickCanvas(true));
   await waitFolders(page, all => hasCanvas(all, repos.select, "design/pick.html"), "pick canvas back");
   await reselectBox(page, repos);
-  await page.getByRole("button", { name: "Remove select from doan", exact: true }).click();
+  await removeHomeProject(page, repos.select);
   await waitFolders(page, all => all.every(folder => folder.path !== repos.select), "select project closed");
   assert.equal(await page.getByRole("region", { name: "Inspector", exact: true }).count(), 0, "closing the project clears the selection");
   assert.deepEqual(pick(await active(repos.select), "exit", "code"), { exit: 3, code: "project_not_open" }, "active after the project is closed");
@@ -1391,8 +1383,8 @@ async function runtimeEnd(app: ElectronApplication, doan: string, userData: stri
   const runtimeJson = join(userData, "runtime.json");
   const content = await readFile(runtimeJson, "utf8");
   const { socket } = JSON.parse(content) as { socket: string };
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
-  await waitFor(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible() === false), "window hidden before a second launch");
+  await mainWindow(app).then(handle => handle.evaluate(window => window.close()));
+  await waitFor(() => mainWindow(app).then(handle => handle.evaluate(window => window.isVisible() === false)), "window hidden before a second launch");
   const second = spawn(electronBinary, [appDir, `--user-data-dir=${userData}`], { stdio: "ignore", env: await isolatedEnv(userData) });
   try {
     const code = await Promise.race([new Promise<number | null>(resolve => second.once("exit", resolve)), sleep(WAIT_MS).then(() => "running" as const)]);
@@ -1400,7 +1392,7 @@ async function runtimeEnd(app: ElectronApplication, doan: string, userData: stri
   } finally {
     if (second.exitCode === null) second.kill("SIGKILL");
   }
-  await waitFor(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible() === true), "the second launch shows the first window");
+  await waitFor(() => mainWindow(app).then(handle => handle.evaluate(window => window.isVisible() === true)), "the second launch shows the first window");
   assert.equal(await readFile(runtimeJson, "utf8"), content, "runtime.json untouched by the second launch");
   assert.equal((await doanActive(doan, runtimeJson, repos.ok)).exit, 0, "the first app still answers");
   await app.close();
@@ -1605,8 +1597,8 @@ async function pixelRect(app: ElectronApplication, page: Page, around: BoardRect
   const x = Math.max(Math.ceil(region.left), Math.floor(around.x - 4));
   const y = Math.max(Math.ceil(region.top), Math.floor(around.y - 4));
   const area = { x, y, width: Math.min(Math.floor(region.right), Math.ceil(around.x + around.width + 4)) - x, height: Math.min(Math.floor(region.bottom), Math.ceil(around.y + around.height + 4)) - y };
-  const found = await app.evaluate(async ({ BrowserWindow }, { area, color }) => {
-    const image = await BrowserWindow.getAllWindows()[0]!.webContents.capturePage(area);
+  const found = await (await mainWindow(app)).evaluate(async (window, { area, color }) => {
+    const image = await window.webContents.capturePage(area);
     const scaleFactor = Math.max(...image.getScaleFactors());
     const { width, height } = image.getSize(scaleFactor);
     // BGRA on macOS; the swatch is symmetric in red and blue anyway.
@@ -1705,7 +1697,7 @@ async function activityKinds(page: Page): Promise<string[]> {
   return rows.map(text => text.replace(/^\d{2}:\d{2}:\d{2}/, ""));
 }
 
-async function treeKeyboard(page: Page, folder: string): Promise<void> {
+async function treeKeyboard(app: ElectronApplication, page: Page, folder: string, otherRoot: string): Promise<void> {
   const before = await currentCanvases(page);
   const main = canvasButton(page, folder, "design/main.html");
   await main.focus();
@@ -1715,61 +1707,133 @@ async function treeKeyboard(page: Page, folder: string): Promise<void> {
   assert.equal(await main.evaluate(node => node === document.activeElement), true, "ArrowUp returns focus");
   assert.deepEqual(await currentCanvases(page), before, "ArrowUp does not open a canvas");
   await page.keyboard.press("ArrowLeft");
-  assert.equal(await page.getByRole("treeitem", { name: "canvas", exact: true }).evaluate(node => node === document.activeElement), true);
-  await page.keyboard.press("ArrowLeft");
-  assert.equal(await page.getByRole("treeitem", { name: "canvas", exact: true }).getAttribute("aria-expanded"), "false");
+  assert.equal(await main.getAttribute("aria-expanded"), "false");
   await page.keyboard.press("ArrowRight");
-  assert.equal(await page.getByRole("treeitem", { name: "canvas", exact: true }).getAttribute("aria-expanded"), "true");
+  assert.equal(await main.getAttribute("aria-expanded"), "true");
   await main.focus();
-  await page.keyboard.press("Enter");
-  await waitLoaded(page, "Enter opens focused canvas");
   const beforeSpace = (await activityKinds(page)).length;
+  await page.keyboard.press("Enter");
   await page.keyboard.press("Space");
-  await waitLoaded(page, "Space opens focused canvas");
-  await waitFor(async () => (await activityKinds(page)).length === beforeSpace + 1, "Space records a successful open");
+  assert.equal((await activityKinds(page)).length, beforeSpace, "repicking a canvas does not reload it");
   await writeFile(join(folder, "design", "keyboard.html"), canvasHtml("keyboard", 600, "", "<p>keyboard</p>"));
   await canvasButton(page, folder, "design/keyboard.html").waitFor();
   assert.equal(await main.evaluate(node => node === document.activeElement), true, "list refresh preserves focus");
+  await main.press("Home");
+  assert.equal(await page.getByRole("treeitem", { name: "Overview", exact: true }).evaluate(node => node === document.activeElement), true);
+  await page.keyboard.press("m");
+  assert.equal(await main.evaluate(node => node === document.activeElement), true, "typeahead uses canvas titles");
+  await page.keyboard.press("a");
+  assert.equal(await main.evaluate(node => node === document.activeElement), true, "multi-letter typeahead includes the current row");
+  await sleep(550);
+  await page.keyboard.press("n");
+  assert.equal(await canvasButton(page, folder, "design/narrow.html").evaluate(node => node === document.activeElement), true, "typeahead resets after 500ms");
+  await page.getByRole("button", { name: "canvas overview", exact: true }).click();
+  await emptyControls(page);
+  const lastDuplicate = page.getByRole("treeitem", { name: "6 dup", exact: true });
+  await lastDuplicate.press("Enter");
+  await waitLoaded(page, "closed static frame opened");
+  assert.equal(await lastDuplicate.evaluate(node => node === document.activeElement), true, "opening a static frame keeps its row focus");
+  assert.equal(await lastDuplicate.getAttribute("aria-current"), "location", "duplicate id opens the clicked index");
+  const flash = page.locator(".overlay > .jump-highlight");
+  assert.equal(await flash.evaluate(node => getComputedStyle(node).borderTopWidth), "2px");
+  await flash.waitFor({ state: "hidden" });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByRole("treeitem", { name: "1 Hero", exact: true }).click();
+  await flash.waitFor({ state: "visible" });
+  assert.equal(await flash.evaluate(node => getComputedStyle(node).animationName), "none");
+  await flash.waitFor({ state: "hidden" });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.getByRole("treeitem", { name: "Overview", exact: true }).click();
+  await emptyControls(page);
+  await main.click(); await waitLoaded(page, "main after Overview");
+  assert.equal(await page.locator("header .canvas").textContent(), "main", "top bar prefers the canvas title");
+  const canvas = await canvasFrame(page);
+  await page.evaluate(() => {
+    const original = Element.prototype.scrollIntoView;
+    const probe = { calls: 0, restore: () => { Element.prototype.scrollIntoView = original; } };
+    Reflect.set(window, "treeScrollProbe", probe);
+    Element.prototype.scrollIntoView = function(options) { if (this.getAttribute("role") === "treeitem") probe.calls++; original.call(this, options); };
+  });
+  const resetScroll = () => page.evaluate(() => { Reflect.get(window, "treeScrollProbe").calls = 0; });
+  const scrollCalls = () => page.evaluate(() => Reflect.get(window, "treeScrollProbe").calls as number);
+  const pan = async (dy: number) => {
+    const before = await readView(page);
+    await canvas.evaluate(dy => parent.postMessage({ type: "wheel", dx: 0, dy, ctrl: false, meta: false, deltaMode: 0, x: 0, y: 0 }, "*"), dy);
+    await waitView(page, view => view.y !== before.y, "pan changes the viewed frame");
+    await sleep(50);
+  };
+  try {
+    await frameRows(page).first().focus(); await page.mouse.move(600, 20); await resetScroll();
+    await pan(1000); assert.equal(await scrollCalls(), 0, "tree focus suppresses auto-scroll");
+    await page.getByRole("button", { name: "Reload canvas", exact: true }).focus();
+    await page.getByRole("treeitem", { name: "Overview", exact: true }).hover(); await resetScroll();
+    await pan(-1000); assert.equal(await scrollCalls(), 0, "tree pointer suppresses auto-scroll");
+    await page.mouse.move(600, 20); await resetScroll();
+    await pan(1000); assert.ok(await scrollCalls() > 0, "view changes auto-scroll when the tree has neither focus nor pointer");
+  } finally { await page.evaluate(() => Reflect.get(window, "treeScrollProbe").restore()); }
+  await menu(app, "Fit");
+  const temporary = canvasButton(page, folder, "design/keyboard.html");
+  await temporary.focus();
+  await rm(join(folder, "design", "keyboard.html"));
+  await temporary.waitFor({ state: "detached" });
+  assert.equal(await page.getByRole("tree", { name: "Canvases", exact: true }).evaluate(tree => tree.contains(document.activeElement)), true, "removing a focused tree row keeps focus in the tree");
+  await mkdir(join(folder, "design/nav"));
+  await writeFile(join(folder, "design/nav/deep.html"), canvasHtml("deep", 600, "", '<section data-doan-frame="deep" style="height:300px"></section>'));
+  const nestedFolder = page.getByRole("treeitem", { name: "nav", exact: true });
+  await nestedFolder.waitFor();
+  if (await nestedFolder.getAttribute("aria-expanded") === "true") await nestedFolder.press("ArrowLeft");
+  await clickLink(await canvasFrame(page), "nav/deep.html");
+  await waitFor(async () => (await currentCanvases(page))[0] === `${folder}\ndesign/nav/deep.html`, "linked nested canvas shown");
+  assert.equal(await nestedFolder.getAttribute("aria-expanded"), "true", "opening a nested canvas expands its ancestors");
+  await canvasButton(page, folder, "design/nav/deep.html").waitFor();
+  await main.click(); await waitLoaded(page, "main after nested canvas");
+  await nestedFolder.press("ArrowLeft");
+  await enterProject(page, otherRoot); await enterProject(page, folder);
+  await waitLoaded(page, "workspace memory returns to main");
+  assert.equal(await nestedFolder.getAttribute("aria-expanded"), "false", "folder expansion is remembered per root");
+  await rm(join(folder, "design/nav"), { recursive: true });
+  await nestedFolder.waitFor({ state: "detached" });
+
+
 }
 
 async function windowLifetime(app: ElectronApplication, page: Page, repos: Repos): Promise<void> {
   await openCanvas(page, repos.canvas, "design/main.html");
   const view = await readView(page);
   const activities = await activityKinds(page);
-  const id = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.id);
+  const id = await mainWindow(app).then(handle => handle.evaluate(window => window.id));
   for (const viaMenu of [true, false]) {
-    await app.evaluate(({ BrowserWindow, Menu }, viaMenu) => {
-      const window = BrowserWindow.getAllWindows()[0];
+    await app.evaluate(({ Menu }, [viaMenu, window]) => {
       if (viaMenu) {
         const close = Menu.getApplicationMenu()?.items.find(item => item.label === "File")?.submenu?.items.find(item => item.label === "Close Window");
         if (!close) throw new Error("Missing Close Window");
         close.click(undefined, window, undefined);
       } else window?.close();
-    }, viaMenu);
-    await waitFor(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length === 1 && !BrowserWindow.getAllWindows()[0]?.isVisible()), "window hidden, process alive");
+    }, [viaMenu, await mainWindow(app)] as const);
+    await waitFor(() => Promise.all([appWindowCount(app), mainWindow(app).then(handle => handle.evaluate(window => window.isVisible()))]).then(([count, visible]) => count === 1 && !visible), "window hidden, process alive");
     await writeFile(join(repos.canvas, "tokens.css"), `:root{--space:${viaMenu ? 13 : 14}px}\n`);
     await sleep(QUIET_MS);
     await app.evaluate(({ app }) => app.emit("activate"));
-    await waitFor(() => app.evaluate(({ BrowserWindow }, id) => BrowserWindow.getAllWindows()[0]?.id === id && BrowserWindow.getAllWindows()[0]?.isVisible() === true, id), "same window visible after activate");
+    await waitFor(() => mainWindow(app).then(handle => handle.evaluate((window, id) => window.id === id && window.isVisible(), id)), "same window visible after activate");
     assertSameView(await waitLoaded(page, "canvas after hidden edit"), view, "hidden window preserves view");
     assert.deepEqual(await currentCanvases(page), [`${repos.canvas}\ndesign/main.html`]);
     assert.ok((await activityKinds(page)).length > activities.length);
     assert.equal((await activityKinds(page))[0], "Reloaded");
   }
   await menu(app, "Enter Full Screen");
-  await waitFor(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isFullScreen() === true), "entered fullscreen");
-  await app.evaluate(({ BrowserWindow, Menu }) => {
+  await waitFor(() => mainWindow(app).then(handle => handle.evaluate(window => window.isFullScreen() === true)), "entered fullscreen");
+  await app.evaluate(({ Menu }, window) => {
     const close = Menu.getApplicationMenu()?.items.find(item => item.label === "File")?.submenu?.items.find(item => item.label === "Close Window");
-    close?.click(undefined, BrowserWindow.getAllWindows()[0], undefined);
-  });
-  await waitFor(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible() === false), "fullscreen window hidden");
+    close?.click(undefined, window, undefined);
+  }, await mainWindow(app));
+  await waitFor(() => mainWindow(app).then(handle => handle.evaluate(window => window.isVisible() === false)), "fullscreen window hidden");
   await app.evaluate(({ app }) => app.emit("activate"));
-  await waitFor(() => app.evaluate(({ BrowserWindow }, id) => BrowserWindow.getAllWindows()[0]?.id === id && BrowserWindow.getAllWindows()[0]?.isVisible() === true, id), "fullscreen window returns on activate");
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setFullScreen(false));
-  await waitFor(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isFullScreen() === false), "left fullscreen");
+  await waitFor(() => mainWindow(app).then(handle => handle.evaluate((window, id) => window.id === id && window.isVisible(), id)), "fullscreen window returns on activate");
+  await mainWindow(app).then(handle => handle.evaluate(window => window.setFullScreen(false)));
+  await waitFor(() => mainWindow(app).then(handle => handle.evaluate(window => window.isFullScreen() === false)), "left fullscreen");
   console.log("fullscreen close/activate: same window returned");
   await screenshot(page, "5-restored");
-  await page.getByRole("button", { name: "Remove canvas from doan", exact: true }).click();
+  await removeHomeProject(page, repos.canvas);
   await page.getByRole("region", { name: "Home", exact: true }).waitFor();
   await openFolder(app, page, repos.canvas);
   await enterProject(page, repos.canvas);
@@ -1780,12 +1844,12 @@ async function windowLifetime(app: ElectronApplication, page: Page, repos: Repos
   await rename(repos.canvas, `${repos.canvas}-moved`);
   await waitView(page, view => view.statusText === "The project canvas is missing. Use Locate… to find it.", "project gone message");
   await emptyControls(page);
-  await page.getByRole("button", { name: "Remove canvas from doan", exact: true }).click();
+  await removeHomeProject(page, repos.canvas);
   await waitFolders(page, all => all.every(folder => folder.path !== repos.canvas), "Close removes the missing project");
 }
 
 function canvasButton(page: Page, folder: string, canvas: string): Locator {
-  return page.getByRole("treeitem", { name: basename(folder), exact: true }).getByRole("treeitem", { name: canvas.replace(/^design\//, ""), exact: true });
+  return canvasRow(page, canvas);
 }
 
 async function openCanvas(page: Page, folder: string, canvas: string): Promise<ViewState> {
@@ -1838,27 +1902,34 @@ async function waitView(page: Page, done: (view: ViewState) => boolean, what: st
 }
 
 async function currentCanvases(page: Page): Promise<string[]> {
-  const rows = await page.getByRole("treeitem").and(page.locator('[aria-current="true"]')).all();
-  const result: string[] = [];
-  for (const row of rows) {
-    const projectName = await row.evaluate(item => item.parentElement?.closest('[role="treeitem"][aria-level="1"]')?.getAttribute("aria-label") ?? "");
-    const project = page.getByRole("treeitem", { name: projectName, exact: true });
-    const folder = await tooltipPath(page, project, projectName, projectName);
-    const name = await row.getAttribute("aria-label") ?? "";
-    const fullPath = await tooltipPath(page, row, name, `${folder}/${name}`);
-    result.push(`${folder}\n${fullPath.slice(folder.length + 1)}`);
+  const rows = page.getByRole("treeitem").and(page.locator(".is-open"));
+  if (await rows.count() === 0) return [];
+  const entries = await page.evaluate(() => new Promise<import("../src/main/view").FolderEntry[]>(resolve => {
+    const stop = window.doan.onFolders(entries => { stop(); resolve(entries); });
+  }));
+  const href = (await canvasFrame(page)).url().split("#")[0];
+  for (const entry of entries) if (entry.kind === "list") {
+    const canvas = entry.canvases.find(row => row.url.split("#")[0] === href);
+    if (canvas) {
+      assert.equal(await rows.getAttribute("aria-label"), canvas.title?.trim() || basename(canvas.path, ".html"));
+      return [`${entry.path}\n${canvas.path}`];
+    }
   }
-  return result;
+  return [];
 }
 
 async function frameButtons(page: Page): Promise<FrameButton[]> {
-  return page.getByRole("region", { name: "Frames", exact: true }).getByRole("button").evaluateAll(buttons => buttons.map(button => ({ current: button.getAttribute("aria-current") === "true" })));
+  return frameRows(page).evaluateAll(rows => rows.map(row => ({ current: row.getAttribute("aria-current") === "location" })));
+}
+
+async function frameSelections(page: Page): Promise<boolean[]> {
+  return frameRows(page).evaluateAll(rows => rows.map(row => row.getAttribute("aria-label")?.endsWith(", selected in canvas") === true));
 }
 
 async function jump(page: Page, index: number, from: ViewState): Promise<ViewState> {
-  await page.getByRole("region", { name: "Frames", exact: true }).getByRole("button").nth(index).click();
+  await frameRows(page).nth(index).click();
   const view = await waitView(page, v => v.x !== from.x || v.y !== from.y || v.scale !== from.scale, `jump to frame ${index}`);
-  await waitFor(async () => (await frameButtons(page))[index]?.current === true, `frame ${index} selected after React commit`);
+  await waitFor(async () => (await frameButtons(page))[index]?.current === true, `frame ${index} current after React commit`);
   return view;
 }
 
@@ -1870,7 +1941,7 @@ async function canvasFrame(page: Page): Promise<Frame> {
 
 // The frame's URL as main sees it, which is what navigation rules act on.
 function canvasFrameUrl(app: ElectronApplication): Promise<string> {
-  return app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.webContents.mainFrame.frames[0]?.url ?? "");
+  return mainWindow(app).then(handle => handle.evaluate(window => window.webContents.mainFrame.frames[0]?.url ?? ""));
 }
 
 function frameRect(canvas: Frame, index: number): Promise<BoardRect> {
@@ -1902,24 +1973,24 @@ async function marked(page: Page): Promise<boolean> {
 }
 
 async function menu(app: ElectronApplication, label: string): Promise<void> {
-  await app.evaluate(({ Menu, BrowserWindow }, name) => {
+  await app.evaluate(({ Menu }, [name, window]) => {
     const view = Menu.getApplicationMenu()?.items.find((item) => item.label === "View");
     const item = view?.submenu?.items.find((entry) => entry.label === name || (name === "Enter Full Screen" && entry.role === "togglefullscreen"));
     if (!item) throw new Error(`no menu item ${name}`);
     if (name === "Enter Full Screen") {
       if (item.role !== "togglefullscreen") throw new Error("Missing togglefullscreen menu role");
       // Shared desktops may keep another app focused; exercise the real transition directly.
-      BrowserWindow.getAllWindows()[0]?.setFullScreen(true);
-    } else item.click(item, BrowserWindow.getAllWindows()[0], undefined);
-  }, label);
+      window.setFullScreen(true);
+    } else item.click(item, window, undefined);
+  }, [label, await mainWindow(app)] as const);
 }
 
 function zoomFactor(app: ElectronApplication): Promise<number> {
-  return app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.webContents.getZoomFactor() ?? 0);
+  return mainWindow(app).then(handle => handle.evaluate(window => window.webContents.getZoomFactor() ?? 0));
 }
 
 async function setWindowSize(app: ElectronApplication, width: number, height: number): Promise<void> {
-  await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]?.setSize(size.width, size.height), { width, height });
+  await (await mainWindow(app)).evaluate((window, size) => window.setSize(size.width, size.height), { width, height });
 }
 
 async function wheelAt(page: Page, point: { x: number; y: number }, dx: number, dy: number): Promise<void> {
@@ -1998,6 +2069,7 @@ async function launch(cli: string, userData: string): Promise<{ app: ElectronApp
   const app = await _electron.launch({ args: [appDir, `--user-data-dir=${userData}`], env });
   running = app;
   const page = await app.firstWindow();
+  mainPages.set(app, page);
   page.setDefaultTimeout(2000);
   await mutateInspector(app, page);
   // Install before app listeners so the real click reply can be held without
@@ -2093,7 +2165,7 @@ async function tooltipPath(page: Page, row: Locator, name: string, key: string):
   if (cached) return cached;
   const tooltip = await hoverTooltip(page, row.getByText(name, { exact: true }));
   const path = (await tooltip.textContent()) ?? "";
-  assert.ok(path.startsWith("/"), `absolute path tooltip: ${path}`);
+  assert.ok(path.length > 0 && !path.startsWith("/"), `design-relative path tooltip: ${path}`);
   paths.set(key, path);
   await page.keyboard.press("Escape");
   await page.mouse.move(500, 100);
@@ -2122,18 +2194,18 @@ async function readFolders(page: Page): Promise<FolderView[]> {
     const canvases: CanvasView[] = [];
     if (state === "list" && (inspectAllFolders || current)) {
       await enterProject(page, path);
-      const project = page.getByRole("treeitem", { name: basename(path), exact: true });
-      if (await project.getAttribute("aria-expanded") === "false") { await project.focus(); await page.keyboard.press("ArrowRight"); }
-      for (const item of await project.getByRole("treeitem", { level: 2 }).all()) {
+      const entry = entries.find(entry => entry.path === path);
+      const listed = entry?.kind === "list" ? entry.canvases : [];
+      const items = page.getByRole("tree", { name: "Canvases", exact: true }).getByRole("treeitem");
+      for (const item of await items.all()) {
+        const filename = (await item.getByText(/^[^/]+\.html$/, { exact: true }).allTextContents()).at(-1);
+        if (!filename) continue;
         const name = await item.getAttribute("aria-label") ?? "";
-        const fullPath = await tooltipPath(page, item, name, `${path}/${name}`);
-        const canvas = fullPath.slice(path.length + 1);
+        const relative = await tooltipPath(page, item, name, `${path}/${filename}`);
+        const canvas = `design/${relative}`;
         const count = item.getByRole("img", { name: /^\d+ open comments$/ });
-        const open = await count.getAttribute("aria-label") ?? "";
-        const countText = await count.textContent() ?? "";
-        const text = await item.evaluate(node => { const content = node.cloneNode(true) as HTMLElement; content.querySelectorAll('[aria-hidden="true"]').forEach(icon => icon.remove()); return content.textContent ?? ""; });
-        const entry = entries.find(entry => entry.path === path);
-        canvases.push({ path: canvas, title: text.slice(name.length, text.length - countText.length).trim(), open, url: entry?.kind === "list" ? entry.canvases.find(row => row.path === canvas)?.url ?? "" : "" });
+        const open = await count.count() ? await count.getAttribute("aria-label") ?? "" : "";
+        canvases.push({ path: canvas, title: name, open, url: listed.find(row => row.path === canvas)?.url ?? "" });
       }
       await goHome(page);
     } else if (state === "list") {

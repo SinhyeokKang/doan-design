@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — Removing a project retained its remembered canvas
+
+- **Area**: renderer `CanvasController.updateEntries` and `workspaceMemory`.
+- **Symptom**: switching away and back stored a project's canvas/view; removing that project and adding or undoing it later reopened the old canvas instead of entering an empty workspace.
+- **Root cause**: the saved-root list dropped the project, but the controller's per-root navigation map retained its entry. Re-entering the restored root consumed that stale entry.
+- **Net**: C1's actual Electron ancestor/per-root navigation checks populated the map before the existing remove/re-add step, exposing the regression already present on main. Previous navigation and removal tests covered the paths separately. The new unit test reproduces the combined sequence (red: 1 failed / 1,646 passed), and runtime checks cover both re-add and Remove all/Undo.
+- **Prevention**: prune root-keyed navigation memory whenever the saved-root list changes, before early returns for no open canvas. Retain combined switch→remove→restore tests. Search executed: `rg -n 'workspaceMemory|lastByRoot' app/src/renderer app/src/restore`; renderer map writes/reads are in CanvasController and persisted lastByRoot parsing already filters against saved roots.
+
 ### 2026-10-25 — Removal checked the current canvas instead of the retained draft origin
 
 - **Area**: renderer removal transition relevance and retained invalid drafts.

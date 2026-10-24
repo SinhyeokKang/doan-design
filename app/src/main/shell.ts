@@ -19,6 +19,8 @@ export interface Shell {
   readonly tokenBase: string;
   entries(): FolderEntry[];
   epoch(root: string): number | null;
+  // The serving scope of the last `doan ls` (repo-relative); empty unless listed.
+  scope(root: string): string[];
   authorizeComments(identity: CommentIdentity): Promise<{ width: number | null; url: string }>;
   // The stored root (the picked folder or the repo above it), or a message for
   // the human when the folder is not opened.
@@ -196,6 +198,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
     tokenBase: `http://${server.host}:${server.port}/t/${server.token}/`,
     entries,
     epoch(root) { return folders.get(root)?.epoch ?? null; },
+    scope(root) { return [...(folders.get(root)?.scope ?? [])]; },
     async authorizeComments(identity) {
       const folder = folders.get(identity.root);
       if (!folder) throw new Error("Project is closed.");

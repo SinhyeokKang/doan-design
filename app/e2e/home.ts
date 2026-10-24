@@ -14,10 +14,8 @@ export async function requestProject(page: Page, root: string): Promise<void> {
   await homeRow(page, root).and(page.getByRole("button", { name: /^Project / })).click();
 }
 export async function enterProject(page: Page, root: string): Promise<void> {
-  const tree = page.getByRole("treeitem", { name: root.split("/").at(-1) ?? root, exact: true });
-  if (await tree.isVisible()) return;
   await requestProject(page, root);
-  await tree.waitFor();
+  await page.getByRole("tree", { name: "Canvases", exact: true }).waitFor();
 }
 export async function removeHomeProject(page: Page, root: string): Promise<void> {
   await goHome(page);

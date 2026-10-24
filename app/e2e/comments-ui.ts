@@ -8,7 +8,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication } from "playwright";
+const { canvasRow, frameRows }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
+const { appWindow }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const shots = join(root, ".scratch/U2/runtime");
@@ -66,8 +68,8 @@ try {
   }
   const shot = async (name: string) => { await page.screenshot({ path: join(shots, `${name}.png`) }); console.log(`comments-ui: ${name} PASS`); };
   // Equal canvas IDs and paths must never collapse identity across project roots.
-  const originRow = page.getByRole("treeitem", { name: "origin", exact: true }).getByRole("treeitem", { name: "shared.html", exact: true });
-  const destinationRow = page.getByRole("treeitem", { name: "destination", exact: true }).getByRole("treeitem", { name: "shared.html", exact: true });
+  const originRow = canvasRow(page, "shared.html");
+  const destinationRow = canvasRow(page, "shared.html");
   const boundaryBody = panel.getByRole("textbox", { name: "New comment body" });
   const boundaryDialog = page.getByRole("dialog");
   const originLog = join(originRepo, ".doan/comments/shared.jsonl");
@@ -93,12 +95,12 @@ try {
   assert.equal(await originFrame.evaluate(el => el.isConnected), true);
   await boundaryDialog.getByRole("button", { name: "Keep writing", exact: true }).click();
   assert.equal(await boundaryBody.inputValue(), unicodeBody);
-  assert.equal(await originRow.getAttribute("aria-current"), "true");
+  assert.equal(await originRow.evaluate(row => row.classList.contains("is-open")), true);
   assert.equal(await logBytes(originLog), ""); assert.equal(await logBytes(destinationLog), "");
   await shot("00a-cross-root-continue");
   await requestProject(page, destinationRepo); await boundaryDialog.getByRole("button", { name: "Save and continue", exact: true }).click();
   await destinationRow.click();
-  await waitGate(async () => await destinationRow.getAttribute("aria-current") === "true");
+  await waitGate(async () => await destinationRow.evaluate(row => row.classList.contains("is-open")));
   await panel.getByText("No open comments here", { exact: true }).waitFor();
   const savedBytes = await logBytes(originLog), saved = JSON.parse(savedBytes.trim());
   assert.equal(saved.body, unicodeBody); assert.deepEqual(saved.target, {}); assert.equal(saved.by.kind, "human");
@@ -120,7 +122,7 @@ try {
   const beforeDiscard = await logBytes(originLog);
   await requestProject(page, destinationRepo); await boundaryDialog.getByRole("button", { name: "Discard", exact: true }).click();
   await destinationRow.click();
-  await waitGate(async () => await destinationRow.getAttribute("aria-current") === "true");
+  await waitGate(async () => await destinationRow.evaluate(row => row.classList.contains("is-open")));
   assert.equal(await boundaryBody.count(), 0); assert.equal(await logBytes(originLog), beforeDiscard); assert.equal(await logBytes(destinationLog), "");
   await shot("00c-cross-root-discard");
   // Existing management is independent of whether its saved DOM target survives.
@@ -158,7 +160,7 @@ try {
   await shot("00e-invalid-duplicate-id");
 
   await enterProject(page, repo);
-  await page.getByRole("treeitem", { name: "a.html", exact: true }).click();
+  await canvasRow(page, "a.html").click();
   await page.waitForFunction(() => !!document.querySelector("iframe")?.contentWindow);
   await panel.getByRole("button", { name: "New canvas comment", exact: true }).waitFor();
   await page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent === "New canvas comment" && !b.disabled));
@@ -189,16 +191,16 @@ try {
   await panel.getByRole("button", { name: "New selection comment", exact: true }).waitFor();
   await panel.getByRole("button", { name: "New selection comment", exact: true }).click();
   await createBody.fill("Child note");
-  await page.getByRole("treeitem", { name: "b.html", exact: true }).click();
+  await canvasRow(page, "b.html").click();
   const dialog = page.getByRole("dialog"); await dialog.waitFor();
   assert.equal(await page.locator("iframe").getAttribute("title"), "design/a.html");
   await dialog.getByRole("button", { name: "Keep writing", exact: true }).click();
   await createBody.waitFor(); assert.equal(await createBody.inputValue(), "Child note");
   await page.waitForFunction(() => document.activeElement?.tagName === "TEXTAREA");
-  await page.getByRole("treeitem", { name: "b.html", exact: true }).click();
+  await canvasRow(page, "b.html").click();
   await dialog.getByRole("button", { name: "Save and continue", exact: true }).click();
   await page.waitForFunction(() => document.querySelector("iframe")?.title === "design/b.html");
-  await page.getByRole("treeitem", { name: "a.html", exact: true }).click();
+  await canvasRow(page, "a.html").click();
   await panel.getByRole("button", { name: /^Open 2$/ }).waitFor();
   await frame.getByRole("button", { name: "Child target" }).click();
   await cards.filter({ hasText: "Child note" }).waitFor();
@@ -279,17 +281,33 @@ try {
   await page.waitForFunction(() => [...document.querySelectorAll("button")].some(b => b.textContent === "New canvas comment" && !b.disabled));
   // Missing local identity, followed by a real git-config change and Retry.
   await exec("git", ["-C", repo, "config", "user.name", ""]);
-  await page.getByRole("treeitem", { name: "b.html", exact: true }).click();
+  await canvasRow(page, "b.html").click();
   await panel.getByText("Set your Git name", { exact: true }).waitFor();
   presentation("Recovery button line height", await panel.getByRole("button", { name: "Retry", exact: true }).evaluate(el => getComputedStyle(el).lineHeight), "normal");
   assert.equal(await panel.getByRole("button", { name: "New canvas comment", exact: true }).isDisabled(), true);
   await exec("git", ["-C", repo, "config", "user.name", "UI Author"]);
   await panel.getByRole("button", { name: "Retry", exact: true }).click();
   await page.waitForFunction(() => [...document.querySelectorAll("button")].some(b => b.textContent === "New canvas comment" && !b.disabled));
-  await page.getByRole("treeitem", { name: "a.html", exact: true }).click();
+  await canvasRow(page, "a.html").click();
   await frame.getByRole("button", { name: "Child target" }).click();
   await panel.getByRole("button", { name: "New selection comment", exact: true }).click(); await createBody.fill("All transitions protected");
   const keep = async () => { await dialog.waitFor(); await dialog.getByRole("button", { name: "Keep writing", exact: true }).click(); assert.equal(await createBody.inputValue(), "All transitions protected"); await page.waitForFunction(() => document.activeElement?.tagName === "TEXTAREA"); };
+  const selectionBeforeJump = JSON.parse((await exec(cli, ["active", "--json", "--repo", repo], { env: { ...process.env, DOAN_RUNTIME: join(userData, "runtime.json") } })).stdout);
+  await frameRows(page).first().click();
+  assert.equal(await dialog.count(), 0, "frame jump does not guard a draft");
+  assert.equal(await createBody.inputValue(), "All transitions protected");
+  assert.deepEqual(JSON.parse((await exec(cli, ["active", "--json", "--repo", repo], { env: { ...process.env, DOAN_RUNTIME: join(userData, "runtime.json") } })).stdout), selectionBeforeJump, "jump keeps doan active unchanged");
+  await frameRows(page).first().press("Space"); await keep();
+  await frameRows(page).first().dblclick(); await keep();
+  await frameRows(page).first().focus();
+  await frameRows(page).first().getByRole("button", { name: /^Select / }).click(); await keep();
+  await canvasRow(page, "a.html").click();
+  assert.equal(await dialog.count(), 0, "same canvas keeps the draft and selection");
+  assert.deepEqual(JSON.parse((await exec(cli, ["active", "--json", "--repo", repo], { env: { ...process.env, DOAN_RUNTIME: join(userData, "runtime.json") } })).stdout), selectionBeforeJump);
+  await canvasRow(page, "b.html").click(); await keep();
+  // Restore the old guard checks' viewport after the new frame jumps.
+  await page.getByRole("button", { name: "Fit", exact: true }).click();
+
   await frame.locator("body").click({ position: { x: 650, y: 500 } }); await keep();
   await page.mouse.move(600, 20);
   if (await page.getByRole("tooltip").count()) { await page.keyboard.press("Escape"); await page.getByRole("tooltip").waitFor({ state: "hidden" }); }
@@ -300,11 +318,12 @@ try {
   const boardBox = await page.locator("iframe").evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, scale: r.width / el.clientWidth }; });
   await page.keyboard.down("Alt"); await page.mouse.click(boardBox.x + (linkBox.x + 8) * boardBox.scale, boardBox.y + (linkBox.y + 8) * boardBox.scale); await page.keyboard.up("Alt"); await keep();
   assert.equal(await page.locator("iframe").getAttribute("title"), "design/a.html");
-  await page.getByRole("button", { name: "Remove repo from doan", exact: true }).click(); await keep();
+  await removeHomeProject(page, repo); await keep();
   await app.evaluate(({ app }) => app.quit()); await keep();
   // Close Window hides the existing window without losing the editor.
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
-  assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible()), false);
+  const appWin = await appWindow(app, page);
+  await appWin.evaluate(window => window.close());
+  assert.equal(await appWin.evaluate(window => window.isVisible()), false);
   await app.evaluate(({ app }) => app.emit("activate"));
   assert.equal(await createBody.inputValue(), "All transitions protected");
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -318,7 +337,7 @@ try {
     ipcMain.handle("comments:mutate", (_event, request) => ({ ok: false, identity: request, error: "Injected permission failure" }));
   });
   await panel.getByRole("button", { name: "New selection comment", exact: true }).click(); await createBody.fill("Failed save body");
-  await page.getByRole("treeitem", { name: "b.html", exact: true }).click(); await dialog.getByRole("button", { name: "Save and continue", exact: true }).click();
+  await canvasRow(page, "b.html").click(); await dialog.getByRole("button", { name: "Save and continue", exact: true }).click();
   await panel.getByText("Injected permission failure", { exact: false }).waitFor();
   assert.equal(await createBody.inputValue(), "Failed save body"); assert.equal(await createBody.getAttribute("readonly"), null);
   await createBody.fill("Unknown save body");
@@ -360,7 +379,7 @@ try {
   const equivalent = { ...frameCreate, id: `evt_${randomUUID()}`, comment: `cmt_${randomUUID()}`, body: "Equivalent frame element", target: { element: { doanId: "hero", selector: '[data-doan-id="hero"]', html: "<section/>" } }, at: new Date(Math.max(Date.now(), ...currentEvents.map(event => Date.parse(event.at))) + 1).toISOString() };
   await writeFile(file, await readFile(file, "utf8") + JSON.stringify(equivalent) + "\n");
   await page.waitForFunction(() => document.querySelectorAll('button.comment-pin[aria-label="2 open comments"]').length === 2);
-  await page.getByRole("region", { name: "Frames", exact: true }).getByRole("button").click();
+  await frameRows(page).first().press("Space");
   await cards.filter({ hasText: "Equivalent frame element" }).waitFor();
   assert.equal(await cards.count(), 2, "same DOM frame and element group excludes child");
   assert.equal(await beforeExternal.evaluate(el => el.isConnected), true, "external comment event retained iframe");
@@ -447,7 +466,7 @@ try {
   });
   await writeFile(file, await readFile(file, "utf8") + "\n");
   await waitGate(() => app!.evaluate(() => Reflect.get(globalThis, "commentReadGate").held));
-  await page.getByRole("treeitem", { name: "b.html", exact: true }).click();
+  await canvasRow(page, "b.html").click();
   await panel.getByText("No open comments here", { exact: true }).waitFor();
   await app.evaluate(() => Reflect.get(globalThis, "commentReadGate").release());
   await waitGate(() => app!.evaluate(() => Reflect.get(globalThis, "commentReadGate").released));
@@ -462,7 +481,7 @@ try {
       return original(...args);
     });
   });
-  await page.getByRole("treeitem", { name: "a.html", exact: true }).click();
+  await canvasRow(page, "a.html").click();
   await panel.getByText("Loading comments…", { exact: true }).waitFor();
   presentation("Loading message hierarchy", await panel.getByText("Loading comments…", { exact: true }).evaluate(el => {
     const s = getComputedStyle(el); return [s.fontSize, s.fontWeight];
@@ -472,7 +491,7 @@ try {
     ipcMain.removeHandler("comments:list"); ipcMain.handle("comments:list", gate.original);
   });
   await cards.filter({ hasText: invalidDate.body }).waitFor();
-  await page.getByRole("treeitem", { name: "a.html", exact: true }).click();
+  await canvasRow(page, "a.html").click();
   await cards.filter({ hasText: invalidDate.body }).waitFor();
   await app.evaluate(({ ipcMain }) => {
     ipcMain.removeHandler("comments:mutate");
