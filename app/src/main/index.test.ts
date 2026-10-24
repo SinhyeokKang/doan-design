@@ -23,10 +23,11 @@ const mocks = await vi.hoisted(async () => {
   }
   return {
     Window,
-    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), getPath: () => "/tmp/doan-index-test", exit: vi.fn(), quit: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
+    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", exit: vi.fn(), quit: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
-    shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string }[]>(() => []), open: vi.fn<() => Promise<string | null>>(), close: vi.fn(), reopen: vi.fn(), dispose: vi.fn() },
+    shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<string | null>>(), close: vi.fn(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn() },
     startShell: vi.fn(),
+    cliCommand: vi.fn(() => "/bundled/doan"),
     runtime: { socket: "/tmp/doan-x/app.sock", token: "t", file: "/tmp/doan-index-test/runtime.json", disposeSync: vi.fn() },
     startRuntime: vi.fn(),
     sessionOn: vi.fn(),
@@ -47,6 +48,7 @@ vi.mock("electron", () => ({
   webFrameMain: { fromId: vi.fn() },
 }));
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
+vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
@@ -65,6 +67,8 @@ beforeEach(async () => {
   mocks.app.requestSingleInstanceLock.mockReturnValue(true);
   mocks.shell.entries.mockReturnValue([]);
   mocks.shell.open.mockResolvedValue(null);
+  mocks.shell.epoch.mockReturnValue(1);
+  mocks.shell.initialize.mockResolvedValue({ kind: "success" });
   mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
   await import("./index");
   await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
@@ -404,4 +408,54 @@ test("a guarded quit waits for a matching main-frame acknowledgement", async () 
   expect(mocks.app.quit).not.toHaveBeenCalled();
   await invoke("comments:transition-answer", window().webContents, null, { id: call?.[1].id, allow: true });
   expect(mocks.app.quit).toHaveBeenCalledOnce();
+});
+
+test("project setup IPC rejects untrusted frames, arbitrary paths and forged choices", async () => {
+  for (const channel of ["project:choose-token-css", "project:init"]) {
+    expect(await invoke(channel, {}, null, { root: ROOT, choiceId: null })).toMatchObject({ kind: "unavailable" });
+    expect(await invoke(channel, window().webContents, {}, { root: ROOT, choiceId: null })).toMatchObject({ kind: "unavailable" });
+    expect(await invoke(channel, window().webContents, null, { root: ROOT, choiceId: null })).toMatchObject({ kind: "unavailable" });
+  }
+  mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "uninitialized" }]);
+  for (const request of [{ root: ROOT, choiceId: "forged" }, { root: ROOT, choiceId: null, tokenCss: "/arbitrary" }, null, { root: ROOT }]) {
+    expect(await invoke("project:init", window().webContents, null, request)).toMatchObject({ kind: "unavailable" });
+  }
+  expect(mocks.shell.initialize).not.toHaveBeenCalled();
+  expect(mocks.dialog.showOpenDialog).not.toHaveBeenCalled();
+});
+
+test("CSS picker cancellation and choice IDs stay bound to the folder epoch", async () => {
+  mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "uninitialized" }]);
+  expect(await invoke("project:choose-token-css", window().webContents, null, { root: ROOT })).toEqual({ kind: "cancelled" });
+  expect(mocks.dialog.showOpenDialog).toHaveBeenCalledWith(window(), { properties: ["openFile"], defaultPath: ROOT, filters: [{ name: "CSS", extensions: ["css"] }] });
+  mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [ROOT + "/tokens.css"] });
+  const picked = await invoke("project:choose-token-css", window().webContents, null, { root: ROOT });
+  expect(picked).toMatchObject({ kind: "selected", path: ROOT + "/tokens.css", choiceId: expect.any(String) });
+  if (typeof picked !== "object" || picked === null || !("choiceId" in picked)) throw new Error("no choice");
+  expect(await invoke("project:init", window().webContents, null, { root: ROOT, choiceId: picked.choiceId })).toEqual({ kind: "success" });
+  expect(mocks.shell.initialize).toHaveBeenCalledWith(ROOT, ROOT + "/tokens.css");
+  mocks.shell.initialize.mockClear(); mocks.shell.epoch.mockReturnValue(2);
+  expect(await invoke("project:init", window().webContents, null, { root: ROOT, choiceId: picked.choiceId })).toMatchObject({ kind: "unavailable" });
+  expect(mocks.shell.initialize).not.toHaveBeenCalled();
+});
+
+test("a picker finishing after its project closes cannot retain a choice", async () => {
+  mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "uninitialized" }]);
+  mocks.dialog.showOpenDialog.mockImplementation(async () => {
+    mocks.shell.entries.mockReturnValue([]);
+    return { canceled: false, filePaths: [ROOT + "/tokens.css"] };
+  });
+  expect(await invoke("project:choose-token-css", window().webContents, null, { root: ROOT })).toMatchObject({ kind: "unavailable" });
+});
+
+test("forwards the re-root focus mapping with folder updates", () => {
+  const changed = mocks.startShell.mock.calls[0]?.[2];
+  if (typeof changed !== "function") throw new Error("no listener");
+  changed([], { from: "/old", root: ROOT });
+  expect(window().webContents.send).toHaveBeenCalledWith("folders", [], { from: "/old", root: ROOT });
+});
+
+test("wires packaged CLI selection with the runtime environment", () => {
+  expect(mocks.cliCommand).toHaveBeenCalledWith(process.env, true, process.resourcesPath);
+  expect(mocks.startShell.mock.calls[0]?.[1]).toBe("/bundled/doan");
 });

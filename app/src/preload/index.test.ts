@@ -103,3 +103,15 @@ test("exposes narrow comment methods and removes only its subscriptions", async 
   await api.setCommentDraftGuard(true); await api.answerCommentTransition({ id: "q", allow: false });
   expect(mocks.invoke).toHaveBeenLastCalledWith("comments:transition-answer", { id: "q", allow: false });
 });
+
+test("project setup exposes choice IDs and forwards focus with folder state", async () => {
+  await api.chooseTokenCss(ROOT);
+  await api.initializeProject({ root: ROOT, choiceId: "choice" });
+  expect(mocks.invoke).toHaveBeenCalledWith("project:choose-token-css", { root: ROOT });
+  expect(mocks.invoke).toHaveBeenCalledWith("project:init", { root: ROOT, choiceId: "choice" });
+  const listener = vi.fn(); const stop = api.onFolders(listener);
+  emitter.emit("folders", {}, [], { from: "/old", root: ROOT });
+  expect(listener).toHaveBeenCalledWith([], { from: "/old", root: ROOT });
+  stop();
+});
+const ROOT = "/repo";

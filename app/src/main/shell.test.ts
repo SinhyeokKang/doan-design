@@ -495,3 +495,99 @@ test("same-count comment edits and replaced comments directories invalidate with
   const after = shell.entries()[0];
   expect(after?.kind === "list" && after.servedRev).toBe(revision);
 });
+
+async function uninitialized(root: string, cliPath = cli) {
+  const started = await start(cliPath);
+  await started.shell.open(root);
+  await vi.waitFor(() => expect(started.shell.entries()[0]?.kind).toBe("uninitialized"), until);
+  return started;
+}
+
+describe("project setup and upward refresh", () => {
+  test("re-roots in place, saves order, forwards focus and serves and watches the parent", async () => {
+    const root = dir(); const sub = join(root, "web"); mkdirSync(sub);
+    const other = writeRepo(dir());
+    const file = join(dir(), "folders.json");
+    writeFileSync(file, JSON.stringify([sub, other]));
+    const changes = vi.fn();
+    const shell = await startShell(file, cli, changes); shells.push(shell);
+    await vi.waitFor(() => expect(shell.entries()[0]?.kind).toBe("uninitialized"), until);
+    writeRepo(root);
+    await shell.reopen(sub);
+    await vi.waitFor(() => expect(shell.entries().map(e => e.path)).toEqual([root, other]), until);
+    await vi.waitFor(() => expect(saved(file)).toEqual([root, other]), until);
+    expect(changes).toHaveBeenCalledWith(expect.any(Array), { from: sub, root });
+    await vi.waitFor(() => expect(listed(shell.entries(), root)).toBeDefined(), until);
+    const entry = listed(shell.entries(), root);
+    expect(await fetch(entry?.canvases[0]?.url ?? "").then(r => r.status)).toBe(200);
+    writeFileSync(join(root, "design", "b.html"), "<!doctype html><title>B</title>");
+    await vi.waitFor(() => expect(has(listed(shell.entries(), root), "design/b.html")).toBe(true), until);
+    expect(shell.epoch(sub)).toBeNull();
+  });
+
+  test("startup merges two stale children with an existing root without losing order", async () => {
+    const root = writeRepo(dir()); const other = writeRepo(dir());
+    const a = join(root, "a"); const b = join(root, "b"); mkdirSync(a); mkdirSync(b);
+    const file = join(dir(), "folders.json"); writeFileSync(file, JSON.stringify([a, other, b, root]));
+    const shell = await startShell(file, cli, () => {}); shells.push(shell);
+    await vi.waitFor(() => expect(shell.entries().map(e => e.path)).toEqual([root, other]), until);
+    await vi.waitFor(() => expect(saved(file)).toEqual([root, other]), until);
+  });
+
+  test("a broken ancestor becomes an error on the old row and never initializes", async () => {
+    const root = dir(); const sub = join(root, "web"); mkdirSync(sub);
+    const { shell, foldersFile } = await uninitialized(sub);
+    writeRepo(root, "{");
+    expect(await shell.initialize(sub, null)).toMatchObject({ kind: "unavailable" });
+    expect(shell.entries()).toEqual([{ path: sub, kind: "error", message: expect.stringContaining("Cannot read config") }]);
+    expect(saved(foldersFile)).toEqual([sub]);
+    expect(existsSync(join(sub, ".doan"))).toBe(false);
+  });
+
+  test("init re-asks upward and reports re-root without creating a nested repo", async () => {
+    const root = dir(); const sub = join(root, "web"); mkdirSync(sub);
+    const { shell } = await uninitialized(sub); writeRepo(root);
+    expect(await shell.initialize(sub, null)).toMatchObject({ kind: "rerooted", root });
+    expect(existsSync(join(sub, ".doan"))).toBe(false);
+  });
+
+  test("initializes once for simultaneous requests, uses selected CSS and re-reads stored spelling", async () => {
+    const root = dir(); const token = join(root, "tokens.css"); writeFileSync(token, ":root{}");
+    const log = join(dir(), "calls"); const wrapper = join(dir(), "doan");
+    writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = init ]; then echo x >> '${log}'; sleep 0.1; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
+    const { shell, foldersFile } = await uninitialized(root, wrapper);
+    const results = await Promise.all([shell.initialize(root, token), shell.initialize(root, token)]);
+    expect(results).toEqual([{ kind: "success" }, { kind: "success" }]);
+    expect(readFileSync(log, "utf8")).toBe("x\n");
+    expect(shell.entries()[0]?.kind).toBe("list");
+    expect(saved(foldersFile)).toEqual([root]);
+    expect(JSON.parse(readFileSync(join(root, ".doan/config.json"), "utf8")).tokenCss).toBe("tokens.css");
+  });
+
+  test("does not initialize closed, missing or already initialized folders", async () => {
+    const root = dir(); const { shell } = await uninitialized(root);
+    rmSync(root, { recursive: true });
+    expect(await shell.initialize(root, null)).toMatchObject({ kind: "unavailable" });
+    expect(shell.entries()[0]?.kind).toBe("notFound");
+    expect(await shell.initialize(dir(), null)).toMatchObject({ kind: "unavailable" });
+    const ready = writeRepo(dir()); await shell.open(ready);
+    await vi.waitFor(() => expect(listed(shell.entries(), ready)).toBeDefined(), until);
+    expect(await shell.initialize(ready, null)).toMatchObject({ kind: "unavailable" });
+  });
+
+  test("init failures retain the CLI error and app guidance", async () => {
+    const root = dir(); const wrapper = join(dir(), "doan");
+    writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = init ]; then echo '{"v":1,"ok":false,"error":{"code":"invalid_config","message":"bad config","nextSteps":["do not show"]}}'; exit 2; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
+    const { shell } = await uninitialized(root, wrapper);
+    expect(await shell.initialize(root, null)).toEqual({ kind: "error", message: "bad config", guidance: "Fix the project configuration, then try again." });
+  });
+
+  test("init result.repo cannot replace the stored identity", async () => {
+    const root = dir(); const wrapper = join(dir(), "doan");
+    writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = init ]; then '${cli}' "$@" >/dev/null; echo '{"v":1,"ok":true,"result":{"initialized":false,"repo":"/forged","created":[]}}'; exit 0; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
+    const { shell, foldersFile } = await uninitialized(root, wrapper);
+    expect(await shell.initialize(root, null)).toEqual({ kind: "success" });
+    expect(shell.entries()[0]).toMatchObject({ path: root, kind: "list" });
+    expect(saved(foldersFile)).toEqual([root]);
+  });
+});
