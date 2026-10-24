@@ -275,7 +275,7 @@ function ProjectStep({ project, entry, rerooted, setBusy, open, setUpDone }: {
     <div className="ob-card">
       <div className="ob-field">
         <span className="ob-label">Project</span>
-        {view.value ? <span className="value">{view.value.name} <span className="meta">{view.value.path}</span></span> : <span className="value none">No project open</span>}
+        {view.value ? <span className="value">{view.value.name} <span className="meta" title={view.value.path}>{view.value.path}</span></span> : <span className="value none">No project open</span>}
         {view.chip ? <span className="ob-chip ok">{view.chip}</span>
           : <button type="button" className={view.open.primary ? "btn primary" : "btn"} disabled={view.open.disabled} onClick={() => void openProject()}>Open Project…</button>}
         {view.message && <span className="ob-msg">{view.message}</span>}

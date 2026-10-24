@@ -237,6 +237,8 @@ code, kbd { font-family: var(--font-sans); }
 .ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line-2); }
 /* Project names and paths share inline flow; Inspector values use flex. */
 .ob-field .value { display: block; gap: normal; font-size: 12px; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+.ob-field .value .meta { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.ob-project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-field .value.none { color: var(--text-3); }
 .ob-field .ob-helper { grid-column: 2 / -1; }
 .ob-helper { font-size: 11px; line-height: 1.5; color: var(--text-3); overflow-wrap: anywhere; }

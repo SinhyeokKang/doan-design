@@ -71,7 +71,7 @@ export function ProjectSetupDialog({ root, name, onClose, onRerooted }: { root: 
       if (!event.nativeEvent.isComposing) close();
     }}>
     <h3>Set up {name}</h3>
-    <p>{root}</p>
+    <p className="ob-project-path" title={root}>{root}</p>
     <div className="ob-card">
       <ProjectFields form={form} choose={() => void choose()} chooseRef={node => { chooseButton.current = node; }} />
     </div>
