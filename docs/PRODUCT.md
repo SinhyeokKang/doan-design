@@ -119,7 +119,7 @@ What the human does is **view + comment**; approval is deferred until after the 
 
 ### CLI `doan`
 
-8. `doan init`: creates `design/` and `.doan/` in the repo, adds union merge for comments to `.gitattributes`, and asks for the token CSS path. Does the same as app onboarding step 3, from the terminal. It does not install skills (2026-10-21): installing the skill stub is tied to detecting Claude Code and Codex, so it belongs to onboarding step 2 (#8 `onboard-dist`).
+8. `doan init`: creates `design/` and `.doan/` in the repo, adds union merge for comments to `.gitattributes`, and asks for the token CSS path. Does the same as app onboarding step 3, from the terminal. It does not install skills (2026-10-21): installing the skill stub is tied to detecting Claude Code and Codex, so it belongs to onboarding step 2 (#8 `onboard`).
 9. `doan ls` · `doan comments` · `doan comment resolve` · `doan skill`. They only read and write repo files, so they work without the app.
 10. `doan active`: returns the frame or element the human selected in the app. Lets the agent find the target from just "fix this". Requires the app to be running.
 11. `doan check` does **static checks only**. It looks at what HTML parsing alone can catch: undefined `var(--*)`, duplicate `data-doan-id`, missing or duplicate canvas ids and frame ids, missing `doan:width` (error), comment files with no matching canvas, and whether `data-doan-implements` target files exist. External URLs (CDN scripts and fonts) are not blocked but shown as a warning list (2026-10-21). If token CSS exists and hex or rgb colors are used directly, it warns (2026-10-21). Comment files with no matching canvas are a warning, not an error (2026-10-21). Full criteria: ARCHITECTURE §1 'Conventions'.
@@ -134,7 +134,7 @@ What the human does is **view + comment**; approval is deferred until after the 
 
 ### Feature split (2026-10-21)
 
-The MVP is split into 8 features. One feature is one `/feature` run and is managed in `docs/features/<slug>/`. The order follows dependencies. For each feature, the spec is first established as the source of truth with `/feature` (2026-10-21 user), and the §6 PoC runs before implementing the features that rely on its assumptions. Establishing formats and the CLI first lets the agent-side loop (read comments · resolve · check) be verified without the app, and the app builds on top of those formats.
+The MVP is split into 9 features (updated 2026-10-24). One feature is one `/feature` run and is managed in `docs/features/<slug>/`. The order follows dependencies. For each feature, the spec is first established as the source of truth with `/feature` (2026-10-21 user), and the §6 PoC runs before implementing the features that rely on its assumptions. Establishing formats and the CLI first lets the agent-side loop (read comments · resolve · check) be verified without the app, and the app builds on top of those formats.
 
 | # | slug | Scope |
 |---|---|---|
@@ -146,7 +146,8 @@ The MVP is split into 8 features. One feature is one `/feature` run and is manag
 | — | `app-ui` | App shell rebuilt from a draft canvas (`design/app-shell.html`): React + shadcn/ui + Tailwind renderer, English UI copy, V1 layout with a Canvas info panel, Reopen and Close for missing projects, closing the window hides it. Added between #5 and #6 without a number (2026-10-22 user: "lay the groundwork before building on it"). Done 2026-10-22 |
 | 6 | `select-inspect` | selection · inspector · `runtime.json` + socket · `doan active`. Done 2026-10-23 |
 | 7 | `comments-ui` | panel comment CRUD · pins · outdated · single/all-open instruction copy. Done 2026-10-23; measured scope and unverified states are recorded in DESIGN.md |
-| 8 | `onboard-dist` | first-run onboarding · skill stub install · refine `doan skill` body · notarized dmg · brew cask · auto-update |
+| 8 | `onboard` | first-run four-step wizard · skill stub install · bundled CLI · unsigned local `.app` · refine `doan skill` body |
+| 9 | `dist` | Developer ID signing · notarized dmg · brew cask · electron-updater · Releases CI · x64/universal · `docs/OPERATIONS.md`. Deferred until after the whole-app cycle quality work following onboarding (2026-10-24) |
 
 ### Dogfooding: doan's UI drafts live in doan (2026-10-21)
 
@@ -392,6 +393,8 @@ Results:
 | 2026-10-23 | Selection/Open lists and pin counts group the same resolved DOM node, excluding descendants and preserving stored targets | Comments-ui Q8 — keep pin counts and the corresponding list consistent |
 | 2026-10-23 | Predeclare multi-target measurements: 100/1,000 targets, 100 scroll/resize/mutation samples each, p95 at or below 50/200 ms and zero missing or stale results | Comments-ui Q9 — failed performance or silent omissions require reconsideration; prototype and controlled-adapter evidence do not certify every real canvas |
 | 2026-10-23 | Comments UI implementation completed with scoped design reconciliation; keep unpaired elements and unmeasured states explicit in DESIGN.md | Independent implementation and measurement reviews accepted the exercised scope; property comparisons are not full-state equivalence or native IME certification |
+| 2026-10-24 | Split #8 `onboard-dist` into #8 `onboard` and #9 `dist`; defer distribution until after onboarding and the whole-app cycle quality work | User requested deferring all distribution work; the repository is private, this machine has no Developer ID signing identity, and the license is undecided (onboard spec, 2026-10-24 observations) |
+| 2026-10-24 | Keep an unsigned local arm64 `.app` in `onboard` | It verifies the bundled CLI, onboarding step 1 and the MCP command path in a real packaged app; it is not a distribution deliverable |
 
 ## 8. Open questions
 
@@ -399,9 +402,9 @@ Carried over from README draft §15. When closed, they move to the matching sect
 
 - Open source license type (MIT · Apache-2.0, etc.)
 - A comment event `at` that matches the schema pattern but is not a calendar time (`2026-02-30`, `T24`, a `:60` second) can only come from a hand-edited file; if it is a file's max `at`, `doan comment resolve` on that file fails with `internal_error` (2026-10-21, cli-core user decision to defer). Options: a calendar check in the schema (TS and Go together), or a dedicated error code.
-- Should onboarding step 3 pass `--token-css` as a repo-relative path, or should `doan init` accept an absolute path inside the repo? Today an absolute path is `usage_error` (2026-10-21, cli-core). Decide before #8 `onboard-dist`.
+- Should onboarding step 3 pass `--token-css` as a repo-relative path, or should `doan init` accept an absolute path inside the repo? Today an absolute path is `usage_error` (2026-10-21, cli-core). Decide before #8 `onboard`.
 
-- An uninitialized subfolder opened before `doan init` ran in its parent keeps showing "not initialized" (the app reads it with `--repo <subfolder>`), and following that hint creates a nested repo. Decide with the onboarding `doan init` location in #8 `onboard-dist` (2026-10-22, app-shell).
+- An uninitialized subfolder opened before `doan init` ran in its parent keeps showing "not initialized" (the app reads it with `--repo <subfolder>`), and following that hint creates a nested repo. Decide with the onboarding `doan init` location in #8 `onboard` (2026-10-22, app-shell).
 Closed on 2026-10-23 promotion (select-inspect Q2, decided 2026-10-22): selection, `doan active`, and frame comment targets use rendered-DOM frames. `doan ls` stays static; script-created frames and frames beyond a frozen height can differ.
 
 `doan:width` was closed as required with no default (2026-10-21).
