@@ -45,6 +45,8 @@ const mocks = await vi.hoisted(async () => {
     needsOnboarding: vi.fn(), markClosed: vi.fn(), clipboard: { writeText: vi.fn() },
     menu: vi.fn<(template: MenuItemConstructorOptions[]) => unknown>(),
     dialog: { showOpenDialog: vi.fn(), showMessageBox: vi.fn() },
+    uiState: { read: vi.fn(), save: vi.fn(), flushSync: vi.fn(), idle: vi.fn() },
+    createUiStateStore: vi.fn(),
   };
 });
 
@@ -63,6 +65,7 @@ vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
+vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
 
 beforeEach(async () => {
   vi.resetModules();
@@ -89,6 +92,7 @@ beforeEach(async () => {
   mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
   mocks.createAddFlow.mockReturnValue(mocks.flow);
   mocks.flow.add.mockResolvedValue(OUTCOME);
+  mocks.createUiStateStore.mockReturnValue(mocks.uiState);
   await import("./index");
   await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
 });
@@ -649,7 +653,7 @@ describe("menus", () => {
     expect(submenu("File").map((entry) => entry.label ?? entry.type)).toEqual(["Add Project…", "separator", "Close Window"]);
     expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
     expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
-    expect(submenu("Go").map((entry) => [entry.label, entry.accelerator])).toEqual([["Home", "Shift+CmdOrCtrl+H"]]);
+    expect(submenu("Go").map((entry) => [entry.label, entry.accelerator])).toEqual([["Home", "Shift+CmdOrCtrl+H"], ["Quick Open…", "CmdOrCtrl+K"]]);
     // Without a removal toast the system Undo keeps working in text fields.
     expect(submenu("Edit")[0]?.role).toBe("undo");
     expect(submenu("Edit").map((entry) => entry.role).filter(Boolean)).toEqual(expect.arrayContaining(["redo", "cut", "copy", "paste", "selectAll"]));
@@ -704,6 +708,19 @@ describe("menus", () => {
     window().webContents.emit(event);
     expect(menuEnabled("Zoom In")).toBe(false);
     expect(submenu("Edit")[0]?.role).toBe("undo");
+  });
+
+  test("Quick Open… is enabled on every screen, disabled under a modal, and tells the renderer", async () => {
+    const contents = window().webContents;
+    expect(menuEnabled("Quick Open…")).toBe(true);
+    for (const screen of ["workspace", "canvas", "home"]) {
+      await invoke("menu:state", contents, null, state(screen));
+      expect(menuEnabled("Quick Open…"), screen).toBe(true);
+    }
+    click("Quick Open…");
+    expect(contents.send).toHaveBeenCalledWith("menu-command", "quickOpen");
+    await invoke("menu:state", contents, null, state("workspace", true));
+    expect(menuEnabled("Quick Open…")).toBe(false);
   });
 
   test("Go > Home tells the renderer", async () => {
@@ -947,6 +964,37 @@ describe("locate and reveal", () => {
     expect(mocks.electronShell.showItemInFolder).not.toHaveBeenCalled();
     await invoke("folders:reveal", contents, null, { path: APP });
     expect(mocks.electronShell.showItemInFolder).toHaveBeenCalledExactlyOnceWith(APP);
+  });
+});
+
+describe("ui state", () => {
+  test("is stored beside folders.json and validated against the saved roots", () => {
+    mocks.shell.entries.mockReturnValue([{ path: "/a" }, { path: "/b", kind: "list" }]);
+    const [file, saved] = mocks.createUiStateStore.mock.calls[0] ?? [];
+    expect(file).toBe("/tmp/doan-index-test/ui-state.json");
+    expect(typeof saved === "function" ? saved() : null).toEqual(["/a", "/b"]);
+  });
+
+  test("get and save answer only the window's main frame", async () => {
+    const contents = window().webContents;
+    mocks.uiState.read.mockResolvedValue({ screen: "home", expanded: {}, lastByRoot: {} });
+    mocks.uiState.save.mockReturnValue(true);
+    expect(await invoke("ui-state:get", contents, null)).toEqual({ screen: "home", expanded: {}, lastByRoot: {} });
+    expect(await invoke("ui-state:save", contents, null, { screen: "home" })).toBe(true);
+    expect(mocks.uiState.save).toHaveBeenCalledExactlyOnceWith({ screen: "home" });
+    mocks.uiState.read.mockClear();
+    mocks.uiState.save.mockClear();
+    for (const [sender, parent] of [[contents, {}], [{}, null]]) {
+      expect(await invoke("ui-state:get", sender, parent)).toBeNull();
+      expect(await invoke("ui-state:save", sender, parent, { screen: "home" })).toBe(false);
+    }
+    expect(mocks.uiState.read).not.toHaveBeenCalled();
+    expect(mocks.uiState.save).not.toHaveBeenCalled();
+  });
+
+  test("a pending save is flushed on quit", () => {
+    mocks.app.emit("will-quit");
+    expect(mocks.uiState.flushSync).toHaveBeenCalledOnce();
   });
 });
 

@@ -179,6 +179,14 @@ test("dropped files become disk paths in the preload; files without one are left
   expect(mocks.invoke).not.toHaveBeenCalled();
 });
 
+test("ui state is read and saved on fixed channels", async () => {
+  mocks.invoke.mockResolvedValueOnce(null).mockResolvedValueOnce(true);
+  expect(await api.readUiState()).toBeNull();
+  const state = { screen: "home" as const, expanded: {}, lastByRoot: {} };
+  expect(await api.saveUiState(state)).toBe(true);
+  expect(mocks.invoke.mock.calls).toEqual([["ui-state:get"], ["ui-state:save", state]]);
+});
+
 test("add outcomes and menu commands are subscriptions that unsubscribe", () => {
   const outcome = vi.fn(); const stopOutcome = api.onAddOutcome(outcome);
   const command = vi.fn(); const stopCommand = api.onMenuCommand(command);

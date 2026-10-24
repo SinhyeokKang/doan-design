@@ -24,6 +24,7 @@ import { menuState, type Screen } from "./menuState";
 import { removalLabel } from "./removal";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
 import { createThrottle } from "./throttle";
+import { createUiStateStore, type UiStateStore } from "./uiState";
 
 // Must run before `ready`: userData is derived from the name, which makes it
 // ~/Library/Application Support/doan/ (beside runtime.json, ARCHITECTURE §4).
@@ -35,7 +36,7 @@ export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string 
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
-export type MenuCommand = "home" | "undoRemove";
+export type MenuCommand = "home" | "undoRemove" | "quickOpen";
 // What the renderer reports so main can enable menu items (design 'Menus').
 export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean }
 export type RemoveResult = { kind: "removed"; removalId: string; label: string } | { kind: "cancelled" } | { kind: "unavailable" };
@@ -81,6 +82,7 @@ function openWizard(): void {
 let quitting = false;
 let cancelPendingHide = () => {};
 let addFlow: AddFlow | undefined;
+let uiState: UiStateStore | undefined;
 // The app always starts on Home (design 'Memory model').
 const HOME: MenuInputs = { screen: "home", modal: false, toast: false };
 let menuInputs: MenuInputs = HOME;
@@ -179,8 +181,12 @@ function setMenu(): void {
           { role: "togglefullscreen" },
         ],
       },
-      // Finder's place for Home; Quick Open joins it later (design-nav).
-      { label: "Go", submenu: [{ label: "Home", accelerator: "Shift+CmdOrCtrl+H", enabled: enabled.home, click: command("home") }] },
+      // Finder's place for Home. Quick Open is a menu item so ⌘K is never only
+      // a hidden key (design-nav draft, after Sorcerer's "Go to…").
+      { label: "Go", submenu: [
+        { label: "Home", accelerator: "Shift+CmdOrCtrl+H", enabled: enabled.home, click: command("home") },
+        { label: "Quick Open…", accelerator: "CmdOrCtrl+K", enabled: enabled.quickOpen, click: command("quickOpen") },
+      ] },
       { role: "windowMenu" },
     ]),
   );
@@ -476,6 +482,11 @@ async function start(): Promise<void> {
     const path = storedPath(value);
     if (fromWindow(event) && path !== null) electronShell.showItemInFolder(path);
   });
+  // Validated against the saved roots in main; the renderer's copy is not trusted.
+  const store = createUiStateStore(join(userData, "ui-state.json"), () => ready.entries().map((entry) => entry.path));
+  uiState = store;
+  ipcMain.handle("ui-state:get", (event) => (fromWindow(event) ? store.read() : null));
+  ipcMain.handle("ui-state:save", (event, value: unknown) => fromWindow(event) && store.save(value));
   ipcMain.handle("menu:state", (event, value: unknown) => {
     const next = parseMenuInputs(value);
     if (fromWindow(event) && next !== null) setMenuInputs(next);
@@ -581,6 +592,7 @@ app.on("activate", () => {
 });
 
 app.on("will-quit", () => {
+  uiState?.flushSync();
   runtime?.disposeSync();
   void shell?.dispose();
 });
