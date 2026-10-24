@@ -50,12 +50,13 @@ type Finding struct {
 	Value    string `json:"value,omitempty"`
 }
 type Summary struct {
+	Canvases int `json:"canvases"`
 	Errors   int `json:"errors"`
 	Warnings int `json:"warnings"`
 }
 
-func Summarize(findings []Finding) Summary {
-	var s Summary
+func Summarize(findings []Finding, canvases int) Summary {
+	s := Summary{Canvases: canvases}
 	for _, f := range findings {
 		if f.Severity == "error" {
 			s.Errors++
@@ -83,6 +84,9 @@ func Run(in Input) []Finding {
 			findings = append(findings, f)
 			seen[f] = true
 		}
+	}
+	if len(in.Canvases)+len(in.Unparsable) == 0 {
+		add(Finding{Severity: "warning", Code: "no_canvases", Path: "design/", Message: "No canvases found under design/. Write a canvas, then run doan check again."})
 	}
 	for path, message := range in.Unparsable {
 		add(Finding{Code: "unparsable_canvas", Path: path, Message: "Cannot parse canvas: " + message})

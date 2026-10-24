@@ -388,3 +388,16 @@ func TestMCPConcurrentResolveSameFile(t *testing.T) {
 		t.Fatal(fold)
 	}
 }
+
+func TestMCPCheckEmptyCanvasCount(t *testing.T) {
+	root := initialized(t)
+	got := callTool(t, mcpClient(t), "check", map[string]any{"repo": root})
+	want := runJSON(t, root, 0, "check")
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("MCP %v CLI %v", got, want)
+	}
+	summary := got["result"].(map[string]any)["summary"].(map[string]any)
+	if summary["canvases"] != float64(0) || summary["warnings"] != float64(1) {
+		t.Fatal(summary)
+	}
+}

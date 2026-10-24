@@ -88,7 +88,11 @@ func TestInitAndEmptyCommands(t *testing.T) {
 	for _, cmd := range []string{"ls", "comments", "check"} {
 		got := result(t, root, 0, cmd)
 		key := map[string]string{"ls": "canvases", "comments": "comments", "check": "findings"}[cmd]
-		if len(got[key].([]any)) != 0 {
+		want := 0
+		if cmd == "check" {
+			want = 1
+		}
+		if len(got[key].([]any)) != want {
 			t.Fatal(got)
 		}
 	}
@@ -420,5 +424,37 @@ func TestMCPOverStdioPipes(t *testing.T) {
 	}
 	if code := <-done; code != 0 || errout.Len() != 0 {
 		t.Fatal(code, &errout)
+	}
+}
+
+func TestCheckCanvasCount(t *testing.T) {
+	for _, tt := range []struct {
+		name, body  string
+		count, exit int
+	}{
+		{"empty", "", 0, 0},
+		{"valid", validCanvas, 1, 0},
+		{"invalid", "<html></html>", 1, 4},
+		{"unparsable", strings.Repeat("<div>", 600), 1, 4},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			root := initialized(t)
+			if tt.body != "" {
+				putFile(t, root, "design/a.html", tt.body)
+			}
+			got := result(t, root, tt.exit, "check")
+			summary := got["summary"].(map[string]any)
+			if summary["canvases"] != float64(tt.count) {
+				t.Errorf("summary: %v", summary)
+			}
+			if tt.count == 0 && (summary["errors"] != float64(0) || summary["warnings"] != float64(1)) {
+				t.Error(summary)
+			}
+			var out, errout bytes.Buffer
+			exit := Run([]string{"check", "--repo", root}, strings.NewReader(""), &out, &errout)
+			if exit != tt.exit || errout.Len() != 0 || !strings.Contains(out.String(), fmt.Sprintf("%d canvases checked", tt.count)) {
+				t.Fatalf("exit %d stdout %s stderr %s", exit, &out, &errout)
+			}
+		})
 	}
 }

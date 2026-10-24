@@ -147,7 +147,7 @@ func Check(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		return Outcome{}, internal(e)
 	}
 	findings := check.Run(in)
-	summary := check.Summarize(findings)
+	summary := check.Summarize(findings, len(in.Canvases)+len(in.Unparsable))
 	exit := 0
 	if summary.Errors > 0 {
 		exit = 4

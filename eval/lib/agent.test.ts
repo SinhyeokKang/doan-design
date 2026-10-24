@@ -9,7 +9,7 @@ import { createContext } from "./context.ts";
 
 test("agent commands match the documented invocations", () => {
   assert.deepEqual(agentCommand("claude", "P"), { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--allowedTools", "Bash Read Write Edit Glob Grep", "--", "P"] });
-  assert.deepEqual(agentCommand("codex", "P"), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "mcp_servers.doan.enabled=false", "P"] });
+  assert.deepEqual(agentCommand("codex", "P"), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", "mcp_servers.doan.enabled=false", "P"] });
 });
 
 test("a run past its time limit is killed with its children and settles once", async () => {
@@ -132,4 +132,31 @@ test("workspace preparation writes Claude MCP config outside the measured repo",
     assert.deepEqual(JSON.parse(readFileSync(join(ws.base, "mcp.json"), "utf8")), { mcpServers: { doan: { command: cli, args: ["mcp"], env: { DOAN_RUNTIME: ws.env.DOAN_RUNTIME } } } });
     assert.equal(existsSync(join(ws.repo, "mcp.json")), false);
   } finally { await ws.dispose(); }
+});
+
+test("Codex disables shell snapshots so run-local PATH survives tool calls", () => {
+  assert.ok(agentCommand("codex", "P").args.includes("features.shell_snapshot=false"));
+});
+
+test("agent CLI provenance rejects missing, stale and ambiguous paths", async () => {
+  const { cliProvenance } = await import("./agent.ts");
+  const dir = mkdtempSync("/tmp/doan-eval-provenance-");
+  try {
+    const expected = join(dir, "doan");
+    const report = join(dir, "resolved-doan.txt");
+    writeFileSync(expected, "measured");
+    assert.equal(cliProvenance(report, expected).pass, false);
+    const stale = join(dir, "old-doan");
+    writeFileSync(stale, "older");
+    writeFileSync(report, stale + "\n");
+    assert.equal(cliProvenance(report, expected).pass, false);
+    writeFileSync(report, expected + "\n/old/doan\n");
+    assert.equal(cliProvenance(report, expected).pass, false);
+    writeFileSync(report, expected + "\n");
+    assert.equal(cliProvenance(report, expected).pass, true);
+    const { symlinkSync } = await import("node:fs");
+    symlinkSync(expected, join(dir, "alias"));
+    writeFileSync(report, join(dir, "alias") + "\n");
+    assert.equal(cliProvenance(report, expected).pass, true);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

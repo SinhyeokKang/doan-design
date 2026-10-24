@@ -34,7 +34,7 @@ H. Keep ids unchanged when moving a canvas file so its comments follow it.
 - `doan ls --json`: list canvases, frames, and open/resolved comment counts.
 - `doan comments --canvas example --json`: read open comments and parsing warnings. Omit `--canvas` to read all files. `outdated` compares current canvas bytes with the comment's recorded hash; missing or ambiguous canvases omit that field.
 - `doan comment resolve cmt_00000000-0000-4000-8000-000000000001 --agent codex --json`: resolve an applied comment. Supply your runtime name explicitly (`codex`, `claude-code`, or another lowercase name). Several explicitly selected ids are allowed. No `--all` exists. Unknown ids prevent writes; already resolved comments are unchanged.
-- `doan check --json`: statically inspect the whole repository. Fix error findings, review warnings, and run again.
+- `doan check --json`: statically inspect the whole repository. `summary.canvases` is the number of canvases checked; 0 means nothing was written yet. Fix error findings, review warnings, and run again.
 - `doan active --json`: read what the human last selected in the Doan app for this repository. The result is `{repo, selection?}`, where `selection` is `{canvas: {path, id?}, frame?: {id, title?}, element?: {doanId?, selector, html, truncated?, text?}}`. Doan must be running with this project open.
   - Without `selection`, nothing in this repository is selected; ask the user which canvas, frame, or element they mean.
   - A frame id may be missing from `doan ls`: the app also lists frames a canvas script draws at runtime, which static parsing cannot see.
