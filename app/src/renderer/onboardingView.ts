@@ -1,106 +1,298 @@
-import type { Agent, LinkState, McpState, StubState } from "../main/onboarding/states";
+import type { MachineState } from "../main/onboarding/machine";
+import type { Agent } from "../main/onboarding/states";
+import type { ProjectInitResult } from "../main/shell";
+import type { FolderEntry } from "../main/view";
+import { projectRow, type DetailPart } from "./projectRow";
 
-export interface WizardAction {
-  id: "install" | "replace" | "checkAgain" | "copyPath" | "connect" | "openProject" | "chooseCss" | "init" | "copy";
+// Internal state names (ours, link-other, …) stop here; components only see copy.
+
+export type Part = DetailPart;
+export interface Chip { text: string; tone?: "ok" | "warn" | "err" }
+export interface Msg { tone: "ok" | "warn" | "error"; parts: Part[] }
+export interface ButtonView { id: "install" | "replace" | "connect" | "copyPath"; label: string; primary: boolean; disabled: boolean }
+export interface ItemView {
+  key: string;
   label: string;
-  disabled: boolean;
+  sub?: true;
+  detail: Part[];
+  // The draft puts a detection chip inside the detail column.
+  detailChip?: Chip;
+  chip?: Chip;
+  button?: ButtonView;
+  msg?: Msg;
   reason?: string;
+  dimmed?: true;
+  copyLine?: { text: string; button: ButtonView };
+}
+export interface AgentCardView { agent: Agent; head: ItemView; items: ItemView[] }
+
+export type CopyState = "idle" | "copying" | "copied" | "failed";
+export type RowOutcome = { kind: "error"; message: string; original?: string } | { kind: "unavailable"; message: string } | { kind: "changed" };
+export type Row = "cli" | Agent;
+export interface MachineUi {
+  checking: boolean;
+  running: Row | null;
+  readError: string | null;
+  outcome: Partial<Record<Row, RowOutcome>>;
+  pathCopy: CopyState;
+}
+export const idleUi = (): MachineUi => ({ checking: false, running: null, readError: null, outcome: {}, pathCopy: "idle" });
+
+// Display copy of main's PATH_LINE (main writes the clipboard; a test keeps them equal).
+export const PATH_LINE_TEXT = 'export PATH="$HOME/.local/bin:$PATH"';
+export const COPY_FAILED = "Couldn’t copy. Your clipboard could not be updated. Try again.";
+const CHANGED = "It changed after you looked, so nothing was replaced.";
+const TRANSLOCATED = "Move doan to Applications, then open it again.";
+const IN_USE = " is in use by something else. Move or delete it, then Check Again.";
+const PLACEHOLDER = "<what you want to design>";
+const AGENT_NAMES: Record<Agent, string> = { claude: "Claude Code", codex: "Codex" };
+
+export function tilde(path: string, home: string): string {
+  return path === home ? "~" : path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
+}
+const parent = (path: string) => path.slice(0, path.lastIndexOf("/"));
+const checkAgain = (reason: string) => `${reason.trim().replace(/\.?$/, ".")} Choose Check Again.`;
+
+export function copyLabel(state: CopyState): string {
+  return state === "copying" ? "Copying…" : state === "copied" ? "Copied" : state === "failed" ? "Retry copy" : "Copy";
 }
 
-export interface AgentInput {
-  agent: Agent;
-  detection: { kind: "found"; path: string } | { kind: "missing" } | { kind: "error"; reason: string };
-  mcp: McpState;
-  skillLink?: LinkState;
-  configPath: string;
-  running?: boolean;
-  error?: string;
+function linkChip(state: MachineState["cli"]["state"]): Chip {
+  switch (state) {
+    case "missing": return { text: "Not installed" };
+    case "ours": return { text: "Installed", tone: "ok" };
+    case "link-other": return { text: "Needs replacement", tone: "warn" };
+    case "blocked": return { text: "Unavailable", tone: "err" };
+  }
+}
+function readChip(state: MachineState | null, ui: MachineUi): Chip | null {
+  if (ui.readError !== null) return { text: "Couldn’t check", tone: "warn" };
+  if (ui.checking || state === null) return { text: "Checking…" };
+  return null;
 }
 
-export type WizardInput =
-  | { step: "cli"; state: LinkState; absoluteCli: boolean; translocated: boolean; target?: string; pathMissing?: boolean; rcFile?: string | null; checking?: boolean; error?: string }
-  | { step: "agents"; cliReady: boolean; skill: StubState; agents: readonly AgentInput[] }
-  | { step: "project"; state: "none" | "form" | "ready"; tokenCss?: string | null; running?: boolean; error?: string; guidance?: string; reroutedRoot?: string }
-  | { step: "prompt"; prompt: string | null; copy: "idle" | "copying" | "copied" | "failed" };
-
-export interface AgentView {
-  name: string;
-  detection: string;
-  message: string;
-  configPath: string;
-  mcp: string;
-  skillLink?: string;
-  action: WizardAction | null;
+export function cliItems(state: MachineState | null, ui: MachineUi): ItemView[] {
+  const d = state?.display;
+  const path = d ? tilde(d.cliPath, d.home) : "~/.local/bin/doan";
+  const cli = state?.cli.state;
+  const target = d?.cliTarget && (cli === "missing" || cli === "ours") ? [" → ", { code: d.cliTarget }] : [];
+  const item: ItemView = { key: "cli", label: "CLI link", detail: [{ code: path }, ...target], chip: readChip(state, ui) ?? linkChip(cli ?? "missing") };
+  if (cli !== "ours") {
+    const disabled = !state || !state.available || cli === "blocked" || ui.checking || ui.running !== null || ui.readError !== null;
+    item.button = cli === "link-other" ? { id: "replace", label: "Replace…", primary: true, disabled } : { id: "install", label: "Install", primary: true, disabled };
+  }
+  if (ui.readError !== null) item.msg = { tone: "warn", parts: [checkAgain(ui.readError)] };
+  else if (state && !state.available && state.reason) {
+    if (state.reason === TRANSLOCATED) item.msg = { tone: "warn", parts: [state.reason] };
+    else item.reason = state.reason;
+  } else if (state && cli === "link-other") item.msg = { tone: "warn", parts: ["Points to another copy: ", { code: state.cli.value ?? "" }] };
+  else if (state && cli === "blocked") item.msg = { tone: "error", parts: [{ code: tilde(state.display.blocked.cli ?? state.display.cliPath, state.display.home) }, IN_USE] };
+  const outcome = ui.outcome.cli;
+  if (outcome?.kind === "changed") item.reason = CHANGED;
+  else if (outcome) item.msg = { tone: "error", parts: [outcome.message] };
+  const items = [item];
+  if (state && (!state.probe.ok || !state.pathPresent)) items.push(pathItem(state, ui));
+  return items;
 }
 
-export interface WizardView {
-  title: string;
-  message: string;
-  detail: string[];
-  actions: WizardAction[];
-  agents?: AgentView[];
+function pathItem(state: MachineState, ui: MachineUi): ItemView {
+  if (!state.probe.ok) return { key: "path", label: "PATH", detail: [{ code: "~/.local/bin" }], chip: { text: "Couldn’t check", tone: "warn" }, msg: { tone: "warn", parts: [checkAgain(state.probe.reason)] } };
+  const chip: Chip = { text: "Not on PATH", tone: "warn" };
+  if (!state.rcFile) return { key: "path", label: "PATH", detail: ["Add ~/.local/bin to PATH in your shell configuration, then choose Check Again."], chip };
+  return {
+    key: "path", label: "PATH", detail: ["Add this line to ", { code: state.rcFile }, ", open a new terminal, then choose Check Again."], chip,
+    copyLine: { text: PATH_LINE_TEXT, button: { id: "copyPath", label: copyLabel(ui.pathCopy), primary: false, disabled: ui.pathCopy === "copying" } },
+    ...(ui.pathCopy === "failed" ? { msg: { tone: "error" as const, parts: [COPY_FAILED] } } : {}),
+  };
 }
 
-function action(id: WizardAction["id"], label: string, reason?: string): WizardAction {
-  return { id, label, disabled: reason !== undefined, ...(reason !== undefined ? { reason } : {}) };
+function connected(state: MachineState, agent: Agent): boolean {
+  const a = state.agents[agent];
+  return a.executable !== null && state.stub.state === "ours" && a.mcp.state === "ours" && (agent === "codex" || state.claudeLink.state === "ours");
 }
 
-const linkLabels: Record<LinkState, string> = { missing: "Not installed", ours: "Installed", "link-other": "Points to another copy", blocked: "Path is in use by something else" };
-const mcpLabels: Record<McpState, string> = { missing: "Not connected", ours: "Registered", other: "Another registration exists", unknown: "Couldn't check" };
-const skillLabels: Record<StubState, string> = { missing: "Skill is not installed", ours: "Skill is installed", differs: "SKILL.md has different contents", blocked: "Skill path is in use by something else" };
+export function agentsView(state: MachineState | null, ui: MachineUi): { skill: ItemView; agents: AgentCardView[] } {
+  const d = state?.display;
+  const skill: ItemView = {
+    key: "skill", label: "Skill", detail: [{ code: d ? tilde(d.stubPath, d.home) : "~/.agents/skills/doan/SKILL.md" }, " · shared by Claude Code and Codex"],
+    chip: readChip(state, ui) ?? stubChip(state?.stub.state ?? "missing"),
+  };
+  if (state?.stub.state === "differs") skill.msg = { tone: "warn", parts: ["Modified or from another version"] };
+  if (state?.stub.state === "blocked") skill.msg = { tone: "error", parts: [{ code: tilde(state.display.blocked.stub ?? state.display.stubPath, state.display.home) }, IN_USE] };
+  const agents = (["claude", "codex"] as const).map(agent => agentCard(state, ui, agent));
+  return { skill, agents };
+}
 
-export function wizardView(input: WizardInput): WizardView {
-  switch (input.step) {
-    case "cli": {
-      const reason = input.checking ? "Checking…" : input.error ? `Couldn't check: ${input.error}`
-        : input.translocated ? "Move doan to Applications, then open it again."
-          : !input.absoluteCli ? "This build has no bundled CLI. Set DOAN_CLI." : undefined;
-      const message = reason ?? (input.state === "link-other" ? `Points to another copy: ${input.target ?? ""}`
-        : input.state === "blocked" ? `${input.target ?? "This path"} is in use by something else. Move or delete it, then Check Again.`
-          : linkLabels[input.state]);
-      const actions: WizardAction[] = [];
-      if (input.state === "missing") actions.push(action("install", "Install", reason));
-      if (input.state === "link-other") actions.push(action("replace", "Replace Link…", reason));
-      actions.push(action("checkAgain", "Check Again", input.checking ? "Checking…" : undefined));
-      const detail: string[] = [];
-      if (input.pathMissing) {
-        if (input.rcFile) {
-          detail.push(`Add this line to ${input.rcFile}, open a new terminal, then choose Check Again.`, 'export PATH="$HOME/.local/bin:$PATH"');
-          actions.push(action("copyPath", "Copy PATH line"));
-        } else detail.push("Add ~/.local/bin to PATH in your shell configuration, then choose Check Again.");
-      }
-      return { title: "CLI", message, detail, actions };
-    }
-    case "agents": {
-      const busy = input.agents.some((agent) => agent.running);
-      const agents = input.agents.map((agent): AgentView => {
-        const name = agent.agent === "claude" ? "Claude Code" : "Codex";
-        const detection = agent.detection.kind === "found" ? `Found at ${agent.detection.path}`
-          : agent.detection.kind === "missing" ? "Not installed" : `Couldn't check: ${agent.detection.reason}`;
-        const connected = input.cliReady && input.skill === "ours" && agent.mcp === "ours" && (agent.agent === "codex" || agent.skillLink === "ours");
-        const reason = busy ? "A connection is in progress." : !input.cliReady ? "Install the CLI in step 1 first."
-          : input.skill === "blocked" ? "Move or delete the item at the skill path, then Check Again."
-            : agent.agent === "claude" && agent.skillLink === "blocked" ? "Move or delete the item at the Claude skill link path, then Check Again." : undefined;
-        const rowAction = agent.detection.kind !== "found" ? null
-          : agent.mcp === "unknown" ? action("checkAgain", "Check Again", busy ? "A connection is in progress." : undefined)
-            : connected ? null : action("connect", "Connect", reason);
-        return { name, detection, configPath: agent.configPath, mcp: mcpLabels[agent.mcp],
-          ...(agent.agent === "claude" && agent.skillLink !== undefined ? { skillLink: linkLabels[agent.skillLink] } : {}),
-          message: agent.error ?? (agent.running ? "Connecting…" : connected ? `Connected. Start a new ${name} session to use doan.` : ""), action: rowAction };
-      });
-      return { title: "Agents", message: skillLabels[input.skill], detail: [], actions: [action("checkAgain", "Check Again", busy ? "A connection is in progress." : undefined)], agents };
-    }
-    case "project": {
-      if (input.reroutedRoot) return { title: "Project", message: `This folder is inside ${input.reroutedRoot}, which is already set up.`, detail: [], actions: [] };
-      if (input.state === "none") return { title: "Project", message: "Open a project to get started.", detail: [], actions: [action("openProject", "Open Project…")] };
-      if (input.state === "ready") return { title: "Project", message: "Already set up", detail: [], actions: [] };
-      const reason = input.running ? "Setting up project…" : undefined;
-      return { title: "Project", message: input.error ?? reason ?? "Set up this project", detail: [input.tokenCss ?? "None", ...(input.tokenCss ? [] : ["Without token CSS, doan check won't flag hardcoded colors."]), "design/", ".doan/config.json", "One line in .gitattributes", ...(input.guidance ? [input.guidance] : [])], actions: [action("chooseCss", "Choose…", reason), action("init", "Set Up Project", reason)] };
-    }
-    case "prompt": {
-      if (input.prompt === null) return { title: "First prompt", message: "Open a project first.", detail: [], actions: [] };
-      const labels = { idle: "Copy", copying: "Copying…", copied: "Copied", failed: "Retry copy" };
-      return { title: "First prompt", message: input.prompt, detail: ["Replace <…> before sending."], actions: [action("copy", labels[input.copy], input.copy === "copying" ? "Copying…" : undefined)] };
+function stubChip(state: MachineState["stub"]["state"]): Chip {
+  return state === "differs" ? { text: "Needs replacement", tone: "warn" } : linkChip(state);
+}
+
+function agentCard(state: MachineState | null, ui: MachineUi, agent: Agent): AgentCardView {
+  const label = AGENT_NAMES[agent];
+  if (state === null) return { agent, head: { key: agent, label, detail: [], detailChip: readChip(state, ui) ?? { text: "Checking…" } }, items: [] };
+  if (!state.probe.ok) return { agent, head: { key: agent, label, detail: [], detailChip: { text: "Couldn’t check", tone: "warn" }, msg: { tone: "warn", parts: [checkAgain(state.probe.reason)] } }, items: [] };
+  const found = state.agents[agent];
+  if (found.executable === null) return { agent, head: { key: agent, label, detail: ["Not installed"] }, items: [] };
+  const d = state.display, checking = readChip(state, ui);
+  const head: ItemView = { key: agent, label, detail: ["Found at ", { code: found.executable }] };
+  if (connected(state, agent)) head.msg = { tone: "ok", parts: [`Connected. Start a new ${label} session to use doan.`] };
+  else {
+    const blocked = state.stub.state === "blocked" || (agent === "claude" && state.claudeLink.state === "blocked");
+    head.button = { id: "connect", label: ui.running === agent ? "Connecting…" : "Connect", primary: true,
+      disabled: ui.running !== null || ui.checking || ui.readError !== null || state.cli.state !== "ours" || blocked };
+  }
+  const items: ItemView[] = [];
+  if (agent === "claude") {
+    const link: ItemView = { key: "claude-link", label: "Skill link", sub: true, detail: [{ code: tilde(d.claudeLinkPath, d.home) }, " → ", { code: d.claudeLinkTarget }], chip: checking ?? linkChip(state.claudeLink.state) };
+    if (state.claudeLink.state === "link-other") link.msg = { tone: "warn", parts: ["Points to another folder: ", { code: state.claudeLink.value ?? "" }] };
+    if (state.claudeLink.state === "blocked") link.msg = { tone: "error", parts: [{ code: tilde(d.blocked.claudeLink ?? d.claudeLinkPath, d.home) }, IN_USE] };
+    items.push(link);
+  }
+  const suffix = agent === "claude" ? (d.configFromEnv.claude ? " (CLAUDE_CONFIG_DIR, user scope)" : " (user scope)") : d.configFromEnv.codex ? " (CODEX_HOME)" : "";
+  const mcp: ItemView = { key: `${agent}-mcp`, label: "MCP", sub: true, detail: ["Registers in ", { code: tilde(d.configFile[agent], d.home) }, ...(suffix ? [suffix] : [])], chip: checking ?? mcpChip(found.mcp.state) };
+  if (ui.running === agent && found.mcp.state !== "ours") mcp.chip = { text: "Registering…" };
+  if (found.mcp.state === "other") mcp.msg = { tone: "warn", parts: ["Current command: ", { code: registrationText(agent, found.mcp.value) }] };
+  if (found.mcp.state === "unknown") mcp.msg = { tone: "warn", parts: [checkAgain(found.mcp.value || "The registration could not be read.")] };
+  if (state.cli.state !== "ours") { mcp.dimmed = true; mcp.reason = "Install the CLI link in step 1 before connecting MCP."; }
+  items.push(mcp);
+  const outcome = ui.outcome[agent];
+  if (outcome?.kind === "changed") head.reason = CHANGED;
+  else if (outcome) {
+    const failed: Chip = { text: "Failed", tone: "err" };
+    const original = outcome.kind === "error" ? outcome.original : undefined;
+    if (original !== undefined) Object.assign(mcp, { chip: failed, msg: { tone: "error", parts: [`Couldn’t replace the registration: ${outcome.message.replace(/\.$/, "")}. The original command was `, { code: registrationText(agent, original) }, "."] } });
+    else if (state.stub.state !== "ours") head.msg = { tone: "error", parts: [outcome.message] };
+    else {
+      const at = agent === "claude" && state.claudeLink.state !== "ours" ? items[0] : mcp;
+      if (at) Object.assign(at, { chip: failed, msg: { tone: "error", parts: [outcome.message] } });
     }
   }
+  return { agent, head, items };
+}
+
+function mcpChip(state: MachineState["agents"]["claude"]["mcp"]["state"]): Chip {
+  switch (state) {
+    case "missing": return { text: "Not registered" };
+    case "ours": return { text: "Registered", tone: "ok" };
+    case "other": return { text: "Needs replacement", tone: "warn" };
+    case "unknown": return { text: "Couldn’t check", tone: "warn" };
+  }
+}
+
+// Claude's value is its mcpServers.doan entry; Codex's is `mcp get --json`.
+export function registrationText(agent: Agent, value: string): string {
+  let parsed: unknown;
+  try { parsed = JSON.parse(value); } catch { return value; }
+  if (typeof parsed !== "object" || parsed === null) return value;
+  const entry: unknown = agent === "codex" && "transport" in parsed ? parsed.transport : parsed;
+  if (typeof entry !== "object" || entry === null || !("command" in entry) || typeof entry.command !== "string") return value;
+  const args = "args" in entry && Array.isArray(entry.args) ? entry.args.filter((arg): arg is string => typeof arg === "string") : [];
+  return [entry.command, ...args].join(" ");
+}
+
+export interface ConfirmView { title: string; body: Part[]; current: string; next: string; verb: string }
+export function confirmView(target: "cli" | "stub" | "claudeLink" | "mcp", agent: Agent, state: MachineState): ConfirmView {
+  const d = state.display, short = (path: string) => tilde(path, d.home);
+  switch (target) {
+    case "cli":
+      return { title: "Replace the doan link?", body: [{ code: short(d.cliPath) }, " points to another copy of doan. Your terminal and agents will run this app’s copy instead."], current: state.cli.value ?? "", next: d.cliTarget ?? "", verb: "Replace Link" };
+    case "claudeLink":
+      return { title: "Replace the Claude Code skill link?", body: [{ code: short(d.claudeLinkPath) }, " points to another folder. Claude Code will read the shared doan skill instead."], current: state.claudeLink.value ?? "", next: d.claudeLinkTarget, verb: "Replace Link" };
+    case "stub":
+      return { title: "Replace SKILL.md?", body: ["Your edits to SKILL.md will be replaced. Other files in ", { code: short(parent(d.stubPath)) }, " are kept."], current: `${short(d.stubPath)} — Modified or from another version`, next: "The skill stub from this app", verb: "Replace Skill" };
+    case "mcp": {
+      const where = agent === "claude" ? (d.configFromEnv.claude ? " (CLAUDE_CONFIG_DIR, user scope)." : " (user scope).") : d.configFromEnv.codex ? " (CODEX_HOME)." : ".";
+      return { title: "Replace the doan MCP registration?", body: [`${AGENT_NAMES[agent]} already has an MCP server named doan in `, { code: short(d.configFile[agent]) }, where], current: registrationText(agent, state.agents[agent].mcp.value), next: d.mcpCommand, verb: "Replace MCP Registration" };
+    }
+  }
+}
+
+export const STEP_LABELS = ["CLI", "Agents", "Project", "First prompt"] as const;
+
+// 2026-10-24 completion rules (design.md flow 4). Skipping never marks a step done.
+export function stepsDone(state: MachineState | null, project: FolderEntry | undefined, promptCopied: boolean): boolean[] {
+  return [
+    state?.cli.state === "ours",
+    state !== null && (["claude", "codex"] as const).some(agent => connected(state, agent)),
+    project?.kind === "list",
+    promptCopied,
+  ];
+}
+
+export interface IndicatorStep { step: number; label: string; done: boolean; current: boolean; ariaLabel?: string; disabled: boolean }
+export function indicatorView(current: number, done: readonly boolean[], disabled: boolean): IndicatorStep[] {
+  return STEP_LABELS.map((label, step) => ({ step, label, done: !!done[step], current: step === current, ...(done[step] ? { ariaLabel: `${label}, completed` } : {}), disabled }));
+}
+
+export interface FooterView {
+  stepNo: string;
+  checkAgain?: { disabled: boolean };
+  skip?: { disabled: boolean };
+  next: { label: "Continue" | "Done"; primary: boolean; disabled: boolean };
+}
+export function footerView(step: number, done: boolean, busy: boolean, checking: boolean): FooterView {
+  const stepNo = `Step ${step + 1} of 4`;
+  if (step === 3) return { stepNo, next: { label: "Done", primary: true, disabled: busy } };
+  return { stepNo, ...(step < 2 ? { checkAgain: { disabled: busy || checking } } : {}), skip: { disabled: busy }, next: { label: "Continue", primary: done, disabled: busy } };
+}
+
+// Tab is left to the browser except where it would leave the wizard.
+export function nextFocusIndex(count: number, index: number, shift: boolean): number | null {
+  if (count === 0) return null;
+  if (index < 0) return shift ? count - 1 : 0;
+  if (!shift && index === count - 1) return 0;
+  if (shift && index === 0) return count - 1;
+  return null;
+}
+
+export interface ProjectForm { running: boolean; token: string | null; error: string | null; rerooted: string | null }
+export interface ProjectStepView {
+  value: { name: string; path: string } | null;
+  open: { primary: boolean; disabled: boolean };
+  chip?: "Already set up";
+  message?: string;
+  error?: string;
+  form?: { token: string | null; helper?: string; choose: { disabled: boolean }; setUp: { label: string; disabled: boolean }; error?: string };
+}
+export const NO_TOKEN_HELPER = "Without token CSS, doan check won’t flag hardcoded colors.";
+export function projectStepView(entry: FolderEntry | null, form: ProjectForm): ProjectStepView {
+  const open = { primary: entry === null, disabled: form.running };
+  if (entry === null) return { value: null, open };
+  const view: ProjectStepView = { value: { name: entry.path.split("/").filter(Boolean).at(-1) ?? entry.path, path: entry.path }, open };
+  if (form.rerooted) view.message = form.rerooted;
+  switch (entry.kind) {
+    case "list": view.chip = "Already set up"; break;
+    case "loading": view.message ??= "Reading…"; break;
+    case "uninitialized":
+      view.form = { ...formView(form) };
+      break;
+    default: {
+      const row = projectRow(entry);
+      view.error = row.detail?.map(part => typeof part === "string" ? part : part.code).join("") || row.status || "";
+    }
+  }
+  return view;
+}
+export function formView(form: ProjectForm): NonNullable<ProjectStepView["form"]> {
+  return {
+    token: form.token, ...(form.token === null ? { helper: NO_TOKEN_HELPER } : {}),
+    choose: { disabled: form.running }, setUp: { label: form.running ? "Setting Up…" : "Set Up Project", disabled: form.running },
+    ...(form.error ? { error: form.error } : {}),
+  };
+}
+
+export function initMessage(result: ProjectInitResult): string | null {
+  switch (result.kind) {
+    case "success": return null;
+    case "error": return [result.message, result.guidance].filter(Boolean).join(" ");
+    case "cliError": return `doan CLI error: ${result.reason}`;
+    case "rerooted": case "unavailable": return result.message;
+  }
+}
+
+export function promptParts(sentence: string): { text: string; mark?: true }[] {
+  const at = sentence.indexOf(PLACEHOLDER);
+  if (at < 0) return [{ text: sentence }];
+  const before = sentence.slice(0, at), after = sentence.slice(at + PLACEHOLDER.length);
+  return [...(before ? [{ text: before }] : []), { text: PLACEHOLDER, mark: true as const }, ...(after ? [{ text: after }] : [])];
 }

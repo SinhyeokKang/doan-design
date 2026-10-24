@@ -267,7 +267,7 @@ export class CanvasController {
         this.state.status = update.reason === "closed" ? "empty" : "missing";
         this.state.message = update.reason === "closed" ? "Pick a canvas from the list"
           : update.reason === "notFound" ? `The project ${name} is gone or moved. Reopen it from the sidebar.`
-          : update.reason === "uninitialized" ? `The project ${name} is not initialized. Run doan init in a terminal.`
+          : update.reason === "uninitialized" ? `The project ${name} is not initialized. Choose Set Up… in the sidebar.`
           : `${open.canvas} is no longer in the list. It was deleted or moved.`;
         break;
       }

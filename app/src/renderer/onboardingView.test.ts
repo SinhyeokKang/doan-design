@@ -36,7 +36,8 @@ describe("step 1 — CLI", () => {
     expect(item).toMatchObject({ label: "CLI link", detail: [{ code: "~/.local/bin/doan" }, " → ", { code: app }], chip: { text: "Not installed" }, button: { id: "install", label: "Install", primary: true, disabled: false } });
   });
   test("each link state has its chip, message and action", () => {
-    expect(cliItems(ours(), ui())[0]).toMatchObject({ chip: { text: "Installed", tone: "ok" }, button: undefined });
+    expect(cliItems(ours(), ui())[0]).toMatchObject({ chip: { text: "Installed", tone: "ok" } });
+    expect(cliItems(ours(), ui())[0]?.button).toBeUndefined();
     expect(cliItems(machine({ cli: { state: "link-other", value: "/Volumes/doan/doan", stamp: "s" } }), ui())[0]).toMatchObject({
       detail: [{ code: "~/.local/bin/doan" }], chip: { text: "Needs replacement", tone: "warn" }, button: { id: "replace", label: "Replace…", primary: true },
       msg: { tone: "warn", parts: ["Points to another copy: ", { code: "/Volumes/doan/doan" }] },

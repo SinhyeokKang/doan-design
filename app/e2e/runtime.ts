@@ -371,7 +371,7 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     const plain = byPath(folders, repos.plain);
     assert.equal(plain.state, "uninitialized");
     assert.equal(plain.status, "Not initialized");
-    assert.match(plain.hint, /doan init/);
+    assert.equal(plain.hint, "Set up this project to add design/ and .doan/.");
     await screenshot(page, "1-opened");
 
     // 3. Watching: a new canvas shows up; a deleted folder becomes "not found";

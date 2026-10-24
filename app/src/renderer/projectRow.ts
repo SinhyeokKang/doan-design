@@ -6,7 +6,7 @@ export interface ProjectRow {
   status?: "Error" | "CLI error" | "Not found" | "Not initialized";
   hint?: "Reading…" | "No canvases";
   detail?: DetailPart[];
-  actions: ("reopen" | "close")[];
+  actions: ("reopen" | "setup" | "copyPrompt" | "close")[];
 }
 
 export function projectRow(entry: FolderEntry): ProjectRow {
@@ -14,9 +14,9 @@ export function projectRow(entry: FolderEntry): ProjectRow {
     case "loading":
       return { hint: "Reading…", actions: ["close"] };
     case "list":
-      return entry.canvases.length === 0 ? { hint: "No canvases", actions: ["close"] } : { actions: ["close"] };
+      return entry.canvases.length === 0 ? { hint: "No canvases", actions: ["copyPrompt", "close"] } : { actions: ["close"] };
     case "uninitialized":
-      return { status: "Not initialized", detail: ["Run in a terminal: ", { code: "doan init" }], actions: ["close"] };
+      return { status: "Not initialized", detail: ["Set up this project to add design/ and .doan/."], actions: ["setup", "close"] };
     case "error":
       return { status: "Error", detail: [entry.message], actions: ["close"] };
     case "cliError":
