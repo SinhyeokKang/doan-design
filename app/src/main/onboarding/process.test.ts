@@ -22,3 +22,13 @@ test("exit settles without close when another process retains stdout", async () 
   child.stdout.write("result"); child.emit("exit", 0);
   expect(await waiting).toMatchObject({ exitCode: 0, stdout: "result", timedOut: false });
 });
+
+test("decodes UTF-8 characters split across stdout and stderr chunks", async () => {
+  const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), unref: vi.fn(), kill: vi.fn() });
+  mocks.spawn.mockReturnValue(child);
+  const waiting = runProcess("/fake", [], { HOME: "/tmp/isolated" }, 200);
+  const bytes = Buffer.from("한글/경로");
+  for (const byte of bytes) { child.stdout.write(Buffer.from([byte])); child.stderr.write(Buffer.from([byte])); }
+  child.emit("exit", 0);
+  expect(await waiting).toMatchObject({ stdout: "한글/경로", stderr: "한글/경로" });
+});

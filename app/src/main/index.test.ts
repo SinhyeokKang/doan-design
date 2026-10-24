@@ -527,3 +527,24 @@ test("the setup menu still shows the window during an active machine operation",
   expect(window().show).toHaveBeenCalled();
   expect(await invoke("onboarding:get-open", window().webContents, null)).toEqual(initial);
 });
+
+test("close failure closes this session and returns a logged warning", async () => {
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const contents = window().webContents;
+  const opened = await invoke("onboarding:get-open", contents, null);
+  mocks.markClosed.mockRejectedValueOnce(new Error("disk full"));
+  expect(await invoke("onboarding:close", contents, null, opened)).toEqual({ kind: "success", warning: "disk full" });
+  expect(await invoke("onboarding:get-open", contents, null)).toBeNull();
+  expect(warning).toHaveBeenCalledWith("Could not save onboarding dismissal:", "disk full");
+  warning.mockRestore();
+});
+
+test("get-open clears a lost confirmation only for the app main frame", async () => {
+  const contents = window().webContents;
+  mocks.machine.cancelConfirmation.mockClear();
+  await invoke("onboarding:get-open", {}, null);
+  await invoke("onboarding:get-open", contents, {});
+  expect(mocks.machine.cancelConfirmation).not.toHaveBeenCalled();
+  await invoke("onboarding:get-open", contents, null);
+  expect(mocks.machine.cancelConfirmation).toHaveBeenCalledOnce();
+});

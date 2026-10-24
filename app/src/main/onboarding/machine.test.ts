@@ -140,3 +140,48 @@ test("agent disappearing after detection reports failure and never invokes anoth
   expect((await m.run({ step: "connect", agent: "claude", expected: state.expected })).kind).toBe("stale");
   expect(existsSync(join(home, "calls"))).toBe(false);
 });
+
+test.each(["claude", "codex"] as const)("invalid config only blocks its own agent: %s", async invalid => {
+  agent("claude"); agent("codex");
+  const key = invalid === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME";
+  env[key] = "~/invalid";
+  const other = invalid === "claude" ? "codex" : "claude";
+  const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  const state = await m.read("2");
+  expect(state.agents[other].mcp.state).toBe("missing");
+  expect(await m.run({ step: "connect", agent: other, expected: state.expected })).toEqual({ kind: "success" });
+  expect(await m.run({ step: "connect", agent: invalid, expected: (await m.read("3")).expected })).toMatchObject({ kind: "unavailable", message: `${key} must be an absolute path: ~/invalid` });
+});
+
+test("canonical identity uses disk spelling and leaves link loops foreign", async () => {
+  const mixed = join(temp, "CaseDir/Doan"); file(mixed, "cli");
+  const alternate = join(temp, "casedir/doan");
+  // This regression exercises the case-insensitive macOS volume used by the app.
+  expect(existsSync(alternate)).toBe(true);
+  const target = join(home, ".local/bin/doan"); mkdirSync(join(target, ".."), { recursive: true }); symlinkSync(alternate, target);
+  expect((await machine(mixed).read("1")).cli.state).toBe("ours");
+  rmSync(target); symlinkSync(target, target);
+  expect((await machine(mixed).read("2")).cli.state).toBe("link-other");
+});
+
+test.each([".local", ".claude", ".agents"].flatMap(name => ["link", "file"].map(kind => ({ name, kind }))))("blocked message identifies ancestor $name ($kind)", async ({ name, kind }) => {
+  agent("claude"); const m = machine();
+  if (name !== ".local") await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  const ancestor = join(home, name); if (kind === "link") symlinkSync(temp, ancestor); else file(ancestor, "keep");
+  const result = await m.run({ step: name === ".local" ? "cli" : "connect", ...(name === ".local" ? {} : { agent: "claude" }), expected: (await m.read("2")).expected });
+  expect(result).toMatchObject({ kind: "unavailable", message: expect.stringContaining(`${ancestor} is ${kind === "link" ? "a link" : "not a directory"}.`) });
+});
+
+test("sibling auto-update does not stale a pending link replacement", async () => {
+  const target = join(home, ".local/bin/doan"); mkdirSync(join(target, ".."), { recursive: true }); symlinkSync("/old", target);
+  const m = machine(); const pending = await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  if (pending.kind !== "confirm") throw new Error("confirmation absent");
+  file(join(target, "../claude"), "new version");
+  expect(await m.answer({ id: pending.id, allow: true })).toEqual({ kind: "success" });
+});
+
+test("invoke-time ENOENT names the detected executable", async () => {
+  const exe = join(home, "bin/claude"); file(exe, "#!/missing/interpreter\n", 0o755);
+  const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  expect(await m.run({ step: "connect", agent: "claude", expected: (await m.read("2")).expected })).toMatchObject({ kind: "error", message: expect.stringContaining(`Couldn't run claude at ${exe}. Check Again.`) });
+});
