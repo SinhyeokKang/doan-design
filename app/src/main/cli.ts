@@ -9,6 +9,8 @@ export type LsTarget = { repo: string } | { cwd: string };
 
 export type FolderView = FolderState | { kind: "notFound" };
 
+// A packaged app never falls back to PATH: another doan version there could
+// break the init/ls contract the app depends on.
 export function cliCommand(env: NodeJS.ProcessEnv = process.env, packaged = false, resourcesPath = ""): string {
   return env.DOAN_CLI || (packaged ? `${resourcesPath.replace(/\/+$/, "")}/bin/doan` : "doan");
 }
