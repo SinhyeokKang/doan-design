@@ -281,6 +281,13 @@ export function formView(form: ProjectForm): NonNullable<ProjectStepView["form"]
   };
 }
 
+// After Open Project… or Set Up Project, whether the wizard moves to step 4 now,
+// stops on step 3, or waits for main's next read of that project.
+export function advanceAfter(cause: "open" | "setup", kind: FolderEntry["kind"]): "advance" | "stop" | "wait" {
+  if (kind === "list") return "advance";
+  return cause === "open" && kind === "uninitialized" ? "stop" : "wait";
+}
+
 export function initMessage(result: ProjectInitResult): string | null {
   switch (result.kind) {
     case "success": return null;

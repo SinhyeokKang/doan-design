@@ -32,8 +32,10 @@ function ProjectTree({ entries, names, state, open, reroot }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [focused, setFocused] = useState<string | null>(null);
   const [setup, setSetup] = useState<string | null>(null);
-  // Shown under the root row after the setup dialog closed on a re-root, until that row goes away.
-  const [rerootHint, setRerootHint] = useState<{ root: string; message: string } | null>(null);
+  // Shown under the root row after the setup dialog closed on a re-root, until
+  // the next read of that row. `seen` is the entry it was shown with (a read
+  // still loading then does not count).
+  const [rerootHint, setRerootHint] = useState<{ root: string; message: string; seen?: FolderEntry } | null>(null);
   const focusRow = (path: string) => {
     const node = Array.from(tree.current?.querySelectorAll<HTMLElement>('[role="treeitem"][aria-level="1"]') ?? []).find(item => item.dataset.path === path);
     if (node) { setFocused(path); node.focus(); }
@@ -51,7 +53,13 @@ function ProjectTree({ entries, names, state, open, reroot }: SidebarProps) {
     setSetup(null);
     focusRow(path);
   }, [entries, setup]);
-  useEffect(() => { if (rerootHint && !entries.some(entry => entry.path === rerootHint.root)) setRerootHint(null); }, [entries, rerootHint]);
+  useEffect(() => {
+    if (!rerootHint) return;
+    const entry = entries.find(candidate => candidate.path === rerootHint.root);
+    if (!entry) setRerootHint(null);
+    else if (!rerootHint.seen || rerootHint.seen.kind === "loading") { if (entry !== rerootHint.seen) setRerootHint({ ...rerootHint, seen: entry }); }
+    else if (entry !== rerootHint.seen) setRerootHint(null);
+  }, [entries, rerootHint]);
   const toggle = (path: string) => setCollapsed(prev => { const next = new Set(prev); if (next.has(path)) next.delete(path); else next.add(path); return next; });
   const rows = () => Array.from(tree.current?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? []);
   const focus = (node: HTMLElement | undefined) => node?.focus();
@@ -99,7 +107,6 @@ function ProjectTree({ entries, names, state, open, reroot }: SidebarProps) {
           {!display.actions.includes("reopen") && <button className="close-project" aria-label={`Close project ${name}`} onClick={event => { event.stopPropagation(); close(entry.path); }}>×</button>}
         </div>
         {expanded && <div role="group">
-          {rerootHint?.root === entry.path && <p className="hint reroot-hint" role="status">{rerootHint.message}</p>}
           {display.hint && !display.actions.includes("copyPrompt") && <p className="hint">{display.hint}</p>}
           {display.actions.includes("copyPrompt") && <FirstPrompt root={entry.path} />}
           {(display.detail || display.actions.includes("reopen")) && <div className="hint">
@@ -115,6 +122,7 @@ function ProjectTree({ entries, names, state, open, reroot }: SidebarProps) {
               <span className="glyph" aria-hidden="true">◧</span><span className="g">{canvasName(row.path)}</span><span className="d">{row.title}</span><span id={commentId} role="img" className={`cnt${row.open ? " hot" : ""}`} aria-label={`${row.open} open comments`}>{row.open}</span>
             </div></TooltipTrigger><TooltipContent>{`${entry.path}/${row.path}`}</TooltipContent></Tooltip>;
           })}
+          {rerootHint?.root === entry.path && <p className="hint reroot-hint" role="status">{rerootHint.message}</p>}
         </div>}
       </div>;
     })}
@@ -142,7 +150,8 @@ function FirstPrompt({ root }: { root: string }) {
   const button = <button type="button" className="btn" disabled={copy === "copying"} onClick={() => void copyPrompt()}>{copy === "idle" ? "Copy first prompt" : copyLabel(copy)}</button>;
   return <div className="hint">
     <p>No canvases</p>
-    <div className="recovery">{sentence === null ? button : <Tooltip><TooltipTrigger asChild>{button}</TooltipTrigger><TooltipContent className="prompt-tooltip" align="start" collisionPadding={8}>{sentence}</TooltipContent></Tooltip>}</div>
+    {/* Always inside the Tooltip, so the sentence arriving does not remount a focused button. */}
+    <div className="recovery"><Tooltip><TooltipTrigger asChild>{button}</TooltipTrigger>{sentence !== null && <TooltipContent className="prompt-tooltip" align="start" collisionPadding={8}>{sentence}</TooltipContent>}</Tooltip></div>
     {copy === "failed" ? <p role="alert">{COPY_FAILED}</p> : <p>Replace &lt;what you want to design&gt; before sending.</p>}
   </div>;
 }

@@ -59,7 +59,7 @@ export function App() {
   const command = (name: ViewCommand) => controller.current?.command(name);
   const names = projectNames(entries.map(entry => entry.path));
   const name = names.get(state.open?.folder ?? entries[0]?.path ?? "") ?? "";
-  return <TooltipProvider><main className="app-shell" inert={wizard !== null}>
+  return <TooltipProvider><main className="app-shell">
     <TopBar state={state} name={name} reload={() => command("reload")} />
     <Sidebar entries={entries} names={names} state={state} reroot={reroot} open={(folder, row) => controller.current?.openCanvas(folder, row)} jump={index => controller.current?.jump(index)} />
     <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} noProjects={entries.length === 0} command={command} />

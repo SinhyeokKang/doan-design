@@ -3,7 +3,7 @@ import type { MachineState } from "../main/onboarding/machine";
 import { PATH_LINE } from "../main/onboarding/machine";
 import { firstSentence } from "../main/onboarding/states";
 import {
-  agentsView, cliItems, confirmView, copyLabel, COPY_FAILED, footerView, idleUi, indicatorView, initMessage, nextFocusIndex,
+  advanceAfter, agentsView, cliItems, confirmView, copyLabel, COPY_FAILED, footerView, idleUi, indicatorView, initMessage, nextFocusIndex,
   PATH_LINE_TEXT, projectStepView, promptParts, registrationText, stepsDone, tilde, type MachineUi,
 } from "./onboardingView";
 
@@ -228,6 +228,21 @@ describe("step 3 — Project", () => {
     expect(initMessage({ kind: "cliError", reason: "timed out after 10 s" })).toBe("doan CLI error: timed out after 10 s");
     expect(initMessage({ kind: "unavailable", message: "This project is no longer available for setup." })).toBe("This project is no longer available for setup.");
     expect(initMessage({ kind: "rerooted", root: "/a", message: "This folder is inside /a, which is already set up." })).toBe("This folder is inside /a, which is already set up.");
+  });
+});
+
+describe("moving on after Open Project… or Set Up Project", () => {
+  test("only a listed project moves on; an opened uninitialized one stops at the form", () => {
+    expect(advanceAfter("open", "list")).toBe("advance");
+    expect(advanceAfter("setup", "list")).toBe("advance");
+    expect(advanceAfter("open", "uninitialized")).toBe("stop");
+    // init reports success before main's re-read lands; the old state must not consume the move.
+    expect(advanceAfter("setup", "uninitialized")).toBe("wait");
+    // A stored folder picked again keeps its old state until its read finishes.
+    for (const kind of ["loading", "notFound", "error", "cliError"] as const) {
+      expect(advanceAfter("open", kind)).toBe("wait");
+      expect(advanceAfter("setup", kind)).toBe("wait");
+    }
   });
 });
 

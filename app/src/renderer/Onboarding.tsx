@@ -4,7 +4,7 @@ import type { Agent } from "../main/onboarding/states";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
 import type { FolderEntry } from "../main/view";
 import {
-  agentsView, cliItems, confirmView, copyLabel, COPY_FAILED, footerView, idleUi, indicatorView, nextFocusIndex, projectStepView, promptParts, stepsDone,
+  advanceAfter, agentsView, cliItems, confirmView, copyLabel, COPY_FAILED, footerView, idleUi, indicatorView, nextFocusIndex, projectStepView, promptParts, stepsDone,
   type ConfirmView, type CopyState, type FooterView, type IndicatorStep, type ItemView, type MachineUi, type Part, type Row, type RowOutcome,
 } from "./onboardingView";
 import { ProjectFields, useProjectSetup } from "./ProjectSetupDialog";
@@ -106,7 +106,7 @@ export function Wizard({ session, entries, reroot, onClose }: { session: string;
   const reads = useRef(0);
   const live = useRef(true);
   // Set when a project was just opened or set up: move on once main lists it.
-  const [advance, setAdvance] = useState(false);
+  const [advance, setAdvance] = useState<"open" | "setup" | null>(null);
   const entry = project === null ? undefined : entries.find(candidate => candidate.path === project);
 
   async function read() {
@@ -129,9 +129,11 @@ export function Wizard({ session, entries, reroot, onClose }: { session: string;
   }, []);
 
   useEffect(() => {
-    if (!advance || !entry || entry.kind === "loading") return;
-    setAdvance(false);
-    if (entry.kind === "list") setStep(3);
+    if (!advance || !entry) return;
+    const next = advanceAfter(advance, entry.kind);
+    if (next === "wait") return;
+    setAdvance(null);
+    if (next === "advance") setStep(3);
   }, [advance, entry?.kind, project]);
   useEffect(() => {
     if (reroot && project === reroot.from) { setProject(reroot.root); setRerooted(`This folder is inside ${reroot.root}, which is already set up.`); }
@@ -177,19 +179,19 @@ export function Wizard({ session, entries, reroot, onClose }: { session: string;
 
   const closeLatest = useRef(close);
   closeLatest.current = close;
-  const overlay = useRef<HTMLDivElement>(null);
+  const overlay = useRef<HTMLDialogElement | null>(null);
   // On the window, in capture: a button that turns disabled while it runs drops
   // focus to <body>, and keys from there must still reach the wizard. Capture
   // also runs before the canvas's own Escape (selection clear) listener.
   useEffect(() => {
     const keydown = (event: globalThis.KeyboardEvent) => {
       // A confirmation dialog answers its own keys.
-      if (event.target instanceof Element && event.target.closest("dialog")) return;
+      if (event.target instanceof Element && event.target.closest("dialog") !== null && event.target.closest("dialog") !== overlay.current) return;
       if (event.key === "Escape") {
         event.preventDefault(); event.stopPropagation();
         if (!event.isComposing) void closeLatest.current();
       } else if (event.key === "Tab" && overlay.current) {
-        const nodes = Array.from(overlay.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(node => !node.closest("dialog"));
+        const nodes = Array.from(overlay.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(node => node.closest("dialog") === overlay.current);
         const next = nextFocusIndex(nodes.length, nodes.indexOf(document.activeElement as HTMLElement), event.shiftKey);
         if (next !== null) { event.preventDefault(); nodes[next]?.focus(); }
       }
@@ -207,7 +209,11 @@ export function Wizard({ session, entries, reroot, onClose }: { session: string;
   const checkAgain = () => { setUi(current => ({ ...current, outcome: {} })); void read(); };
   const confirmed = confirm && machine ? confirmView(confirm.target, confirm.row === "cli" ? "claude" : confirm.row, machine) : null;
 
-  return <div className="ob-overlay" role="dialog" aria-modal="true" aria-label="Set Up doan" ref={overlay}>
+  // A modal <dialog> sits above any app dialog already open (setup, comments),
+  // which would otherwise stay on top and leave both unclickable.
+  return <dialog className="ob-overlay" aria-label="Set Up doan"
+    ref={node => { overlay.current = node; if (node && !node.open) node.showModal(); }}
+    onCancel={event => event.preventDefault()}>
     <div className="top ob-top">
       <span className="traffic-space" aria-hidden="true" />
       <span className="logo"><i /><span className="ob-title" tabIndex={-1} ref={title}>Set Up doan</span></span>
@@ -227,17 +233,17 @@ export function Wizard({ session, entries, reroot, onClose }: { session: string;
           let root: string | null = null;
           try { root = await window.doan.openFolder(); } catch { /* The sheet reports its own failures. */ }
           if (!live.current || root === null) return;
-          setAdvance(true); setRerooted(null); setProject(root);
+          setAdvance("open"); setRerooted(null); setProject(root);
         }}
         setUpDone={(result) => {
-          if (result.kind === "success") setAdvance(true);
+          if (result.kind === "success") setAdvance("setup");
           else if (result.kind === "rerooted") { setProject(result.root); setRerooted(result.message); }
         }} />}
       {step === 3 && <PromptStep project={entry?.kind === "list" ? entry.path : null} copied={() => setPromptCopied(true)} />}
     </div></div>
     <WizardFooter view={footerView(step, !!done[step], busy, ui.checking)} checkAgain={checkAgain} skip={() => go(step + 1)} next={() => { if (step === 3) void close(); else go(step + 1); }} />
     {confirmed && <ConfirmDialog view={confirmed} answer={answer} />}
-  </div>;
+  </dialog>;
 }
 
 function AgentsStep({ machine, ui, act }: { machine: MachineState | null; ui: MachineUi; act: (id: NonNullable<ItemView["button"]>["id"], row: Agent) => void }) {
@@ -285,12 +291,13 @@ function ProjectStep({ project, entry, rerooted, setBusy, open, setUpDone }: {
 }
 
 function PromptStep({ project, copied }: { project: string | null; copied: () => void }) {
-  const [sentence, setSentence] = useState<string | null>(null);
+  // undefined while main is asked; null when it has no sentence for this project.
+  const [sentence, setSentence] = useState<string | null | undefined>(undefined);
   const [copy, setCopy] = useState<CopyState>("idle");
   useEffect(() => {
     let live = true;
-    setSentence(null); setCopy("idle");
-    if (project) void window.doan.firstPrompt(project).then(text => { if (live) setSentence(text); }, () => undefined);
+    setSentence(undefined); setCopy("idle");
+    if (project) void window.doan.firstPrompt(project).then(text => { if (live) setSentence(text); }, () => { if (live) setSentence(null); });
     return () => { live = false; };
   }, [project]);
   async function copyPrompt() {
@@ -305,7 +312,7 @@ function PromptStep({ project, copied }: { project: string | null; copied: () =>
     <h2>Send your first prompt</h2>
     <p className="ob-lead">Paste this into a new Claude Code or Codex session to make the first canvas{project ? ` in ${nameOf(project)}` : ""}.</p>
     <div className="ob-card"><div className="ob-prompt">
-      {project === null ? <p className="ob-reason">Open a project first.</p> : sentence !== null && <>
+      {project === null || sentence === null ? <p className="ob-reason">Open a project first.</p> : sentence !== undefined && <>
         <p className="ob-sentence">{promptParts(sentence).map((part, index) => part.mark ? <mark key={index}>{part.text}</mark> : <Fragment key={index}>{part.text}</Fragment>)}</p>
         {copy === "failed" && <p className="ob-msg error" role="alert">{COPY_FAILED}</p>}
         <div className="ob-actions"><span className="ob-helper">Replace &lt;what you want to design&gt; before sending.</span>

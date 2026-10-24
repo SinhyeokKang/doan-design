@@ -191,7 +191,8 @@ code, kbd { font-family: var(--font-sans); }
 .comment-pin:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; z-index: 3; }
 
 /* Onboarding (design/onboard.html). The wizard covers the window as a dialog. */
-.ob-overlay { position: fixed; inset: 0; z-index: 40; display: grid; grid-template-rows: 40px auto minmax(0, 1fr) 56px; background: var(--bg); color: var(--text); }
+.ob-overlay { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; display: grid; grid-template-rows: 40px auto minmax(0, 1fr) 56px; background: var(--bg); color: var(--text); }
+.ob-overlay::backdrop { background: transparent; }
 .ob-title { font: 600 13px var(--font-sans); outline: none; }
 .ob-steps { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 22px 0 0; }
 .ob-steps li { display: flex; align-items: center; }
