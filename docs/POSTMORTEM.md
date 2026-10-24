@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-24 — Agent shells bypassed the evaluation runner's packaged CLI
+
+- **Area**: `eval/lib/agent.ts`, `eval/run.ts`
+- **Symptom**: U-003's first W1/W2 round passed all checks and judges, but W1-Codex printed the old empty check envelope without `summary.canvases`. Automatic checks used the new package; the actual agent did not.
+- **Root cause**: the runner only prepended a bin directory to the agent process PATH and never checked resolution inside an agent tool shell. Codex shell snapshots were enabled; disabling them in a real probe made the packaged executable resolve. The full environment-rewrite sequence was not traced.
+- **Net**: review of the W1 transcript caught the mismatch; the reported CLI path/version in meta.json described the runner, not observed agent execution. Regression tests reject missing, stale, and multiline path evidence while accepting aliases to the measured binary.
+- **Prevention**: pin Codex snapshots off and require the agent's own shell lookup evidence on every real run; the new automatic provenance check cannot be overridden by the judge. Search executed: `rg -n 'agentCommand|PATH:|cliProvenance' eval`; real runs go through the single command builder and workspace PATH owner. A startup lookup does not prove every subsequent invocation; retain transcript review.
+
 ### 2026-10-24 — Empty check results looked like a validated canvas
 
 - **Area**: `cli/internal/check/check.go`, `cli/internal/cli/check.go`, `run.go`
