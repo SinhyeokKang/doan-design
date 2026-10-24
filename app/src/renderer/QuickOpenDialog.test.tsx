@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { projectWhere, quickOpenKey, QuickOpen, QuickOpenList, resultParts } from "./QuickOpen";
+import { projectWhere, quickOpenKey, QuickOpen, QuickOpenList, resultParts } from "./QuickOpenDialog";
 
 const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, open: 0, resolved: 0, url: "u", ...extra });
 const git = (branch: string) => ({ common: "/code/acme-web/.git", main: "/code/acme-web", branch, worktrees: [] });
