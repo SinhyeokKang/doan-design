@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { FolderEntry } from "../main/view";
-import { canvasName, projectNames, projectRow } from "./projectRow";
+import { projectNames, projectRow } from "./projectRow";
 
 describe("projectRow", () => {
   test("separates reading and empty hints from status chips", () => {
@@ -36,9 +36,4 @@ describe("projectNames", () => {
     expect([...projectNames(["/app/doan", "/web/doan"]).values()]).toEqual(["app/doan", "web/doan"]);
     expect([...projectNames(["/app/doan", "/web/doan", "/cli/doan", "/code/other"]).values()]).toEqual(["app/doan", "web/doan", "cli/doan", "other"]);
   });
-});
-
-test("canvasName keeps subfolders relative to design", () => {
-  expect(canvasName("design/login.html")).toBe("login.html");
-  expect(canvasName("design/a/login.html")).toBe("a/login.html");
 });

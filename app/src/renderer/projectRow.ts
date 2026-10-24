@@ -33,7 +33,3 @@ export function projectNames(paths: readonly string[]): Map<string, string> {
   for (const path of paths) counts.set(basename(path), (counts.get(basename(path)) ?? 0) + 1);
   return new Map(paths.map((path) => [path, (counts.get(basename(path)) ?? 0) > 1 ? parts(path).slice(-2).join("/") : basename(path)]));
 }
-
-export function canvasName(path: string): string {
-  return path.startsWith("design/") ? path.slice("design/".length) : path;
-}

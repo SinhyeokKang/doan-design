@@ -1,5 +1,6 @@
-import { canvasLabel } from "./canvasTree";
 import { useEffect, useRef, useState, type RefObject } from "react";
+import { copyLabel, COPY_FAILED, type CopyState } from "./onboardingView";
+import { canvasLabel } from "./canvasTree";
 import type { Selection } from "../formats/types";
 import type { FolderEntry } from "../main/view";
 import type { ViewCommand } from "../main/index";
@@ -45,7 +46,7 @@ export function App() {
   const board = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLDivElement>(null);
   const controller = useRef<CanvasController | null>(null);
-  const [reroot, setReroot] = useState<(Reroot & { hadFocus: boolean }) | null>(null);
+  const [reroot, setReroot] = useState<Reroot | null>(null);
   const [wizard, setWizard] = useState<string | null>(null);
   const beforeWizard = useRef<HTMLElement | null>(null);
   const restoreFocus = useRef(false);
@@ -59,9 +60,7 @@ export function App() {
     const stopFolders = window.doan.onFolders((next, focus) => {
       if (focus) {
         setLoadedRoot(root => root === focus.from ? focus.root : root);
-        // Read before React replaces the old row, which takes the focus with it.
-        const row = document.activeElement?.closest<HTMLElement>('[role="treeitem"][aria-level="1"]');
-        setReroot(previous => ({ ...focus, seq: (previous?.seq ?? 0) + 1, hadFocus: row?.dataset.path === focus.from }));
+        setReroot(previous => ({ ...focus, seq: (previous?.seq ?? 0) + 1 }));
       }
       setEntries(next); instance.updateEntries(next);
     });
@@ -193,8 +192,8 @@ export function App() {
   <main className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}`} style={{ visibility: screen === "home" ? "hidden" : "visible" }} inert={screen === "home"} aria-hidden={screen === "home"}>
     <TopBar homeDirectory={homeDirectory} state={state} name={card?.name ?? name} reload={() => command("reload")} overview={() => controller.current?.showOverview()} home={home} entry={entry} rows={card?.rows ?? []} enter={root => enter(root, true)} />
     {entry && entry.kind !== "list" && <ProblemActions entry={entry} action={action} workspace={{ name: card?.name ?? name, homeDirectory, home }} />}
-    <Sidebar entries={entries.filter(entry => entry.path === loadedRoot)} state={state} open={(folder, row, frameId) => controller.current?.openCanvas(folder, row, frameId)} jump={index => controller.current?.jump(index)} select={index => controller.current?.selectFrame(index)} overview={() => controller.current?.showOverview()} />
-    <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} command={command} />
+    <Sidebar entries={entries.filter(entry => entry.path === loadedRoot)} state={state} open={(folder, row, frameId, index) => controller.current?.openCanvas(folder, row, frameId, index === undefined ? undefined : { index })} jump={index => controller.current?.jump(index)} select={index => controller.current?.selectFrame(index)} overview={() => controller.current?.showOverview()} />
+    <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} command={command} emptyRoot={entry?.kind === "list" && entry.canvases.length === 0 ? entry.path : null} />
     <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />{comments.panel}</div>
   </main>
   {comments.dialog}
@@ -212,7 +211,7 @@ function TopBar({ state, name, reload, overview, home, entry, rows, enter, homeD
   return <header className="top">
     <span className="traffic-space" aria-hidden="true" />
     <button className="back" aria-label="Go Home" onClick={home}>←</button><span className="divider" />
-    <div className="crumbs"><PathTip text={name}><button className="repo" aria-label={`${name} overview`} onClick={overview}>{name}</button></PathTip>{branch && <><span className="sep">›</span>
+    <div className="crumbs"><PathTip text="Overview"><button className="repo" aria-label={`${name} overview`} onClick={overview}>{name}</button></PathTip>{branch && <><span className="sep">›</span>
       <DropdownMenu.Root><DropdownMenu.Trigger asChild><button className="branch" aria-label="Switch worktree" disabled={rows.length < 2}><span className="glyph" aria-hidden="true">⎇</span><span className="bn">{branch}</span><span className="caret">▾</span></button></DropdownMenu.Trigger>
         <DropdownMenu.Portal><DropdownMenu.Content className="menu" aria-label="Worktrees" sideOffset={5} align="start"><div className="menu-head">Worktrees</div><DropdownMenu.RadioGroup value={entry?.path} onValueChange={enter}>{rows.map(row => <DropdownMenu.RadioItem value={row.path} className="mi" key={row.path} disabled={row.kind !== "list"}><span className="check" aria-hidden="true">{row.path === entry?.path ? "✓" : ""}</span><span className="label">{cardRow(row, null, null).summary?.branch ?? row.path.split("/").at(-1)}</span><span className="sub">{displayPath(row.path, homeDirectory)}</span>{cardRow(row, null, null).chip && <span className="ob-chip">{cardRow(row, null, null).chip}</span>}</DropdownMenu.RadioItem>)}</DropdownMenu.RadioGroup></DropdownMenu.Content></DropdownMenu.Portal>
       </DropdownMenu.Root></>}{state.open && <><span className="sep">›</span><PathTip text={state.open.canvas.replace(/^design\//, "")}><span className="canvas">{canvasLabel(state.open.row)}</span></PathTip></>}</div>
@@ -222,9 +221,9 @@ function TopBar({ state, name, reload, overview, home, entry, rows, enter, homeD
   </header>;
 }
 
-function CanvasPane({ viewport, board, overlay, state, command }: {
+function CanvasPane({ viewport, board, overlay, state, command, emptyRoot }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>;
-  state: CanvasState; command: (name: ViewCommand) => void;
+  state: CanvasState; command: (name: ViewCommand) => void; emptyRoot: string | null;
 }) {
   return <section className="area" role="region" aria-label="Canvas" ref={viewport}>
     <div className="board" ref={board} hidden />
@@ -238,7 +237,7 @@ function CanvasPane({ viewport, board, overlay, state, command }: {
       {state.status === "loading" ? <p><span className="spinner" aria-hidden="true" />Loading…</p>
         : state.status === "failed" ? <div><b>Couldn’t load the canvas</b><br />Run doan check in a terminal<br /><br /><button className="btn" onClick={() => command("reload")}>Reload</button></div>
         : state.status === "noWidth" ? <p><b>Missing or invalid board width.</b>{state.message.slice("Missing or invalid board width.".length)}</p>
-        : <p>{state.message}</p>}
+        : emptyRoot ? <FirstPrompt key={emptyRoot} root={emptyRoot} /> : <p>{state.message}</p>}
     </div>}
     {state.updated && state.open && <output className="updated meta" aria-label={updatedText(state.updated)}><span className="dot" /> {updatedText(state.updated)}</output>}
     <div className={`zctl${state.hasFrame ? "" : " disabled"}`}>
@@ -250,4 +249,28 @@ function CanvasPane({ viewport, board, overlay, state, command }: {
       <Tooltip><TooltipTrigger asChild><button className="btn" aria-label="Fit" disabled={!state.hasFrame} onClick={() => command("fit")}>Fit <span className="kbd">⌘1</span></button></TooltipTrigger><TooltipContent>Fit to width</TooltipContent></Tooltip>
     </div>
   </section>;
+}
+
+// "No canvases" row: main builds the sentence; the tooltip shows all of it.
+function FirstPrompt({ root }: { root: string }) {
+  const [sentence, setSentence] = useState<string | null>(null);
+  const [copy, setCopy] = useState<CopyState>("idle");
+  useEffect(() => {
+    let live = true;
+    void window.doan.firstPrompt(root).then(text => { if (live) setSentence(text); }, () => undefined);
+    return () => { live = false; };
+  }, [root]);
+  async function copyPrompt() {
+    setCopy("copying");
+    let ok = false;
+    try { ok = (await window.doan.copyFirstPrompt(root)).kind === "success"; } catch { /* Shown as Retry copy. */ }
+    setCopy(ok ? "copied" : "failed");
+  }
+  const button = <button type="button" className="btn" disabled={copy === "copying"} onClick={() => void copyPrompt()}>{copy === "idle" ? "Copy first prompt" : copyLabel(copy)}</button>;
+  return <div className="hint">
+    <p>No canvases</p>
+    {/* Always inside the Tooltip, so the sentence arriving does not remount a focused button. */}
+    <div className="recovery"><Tooltip><TooltipTrigger asChild>{button}</TooltipTrigger>{sentence !== null && <TooltipContent className="prompt-tooltip" align="start" collisionPadding={8}>{sentence}</TooltipContent>}</Tooltip></div>
+    {copy === "failed" ? <p role="alert">{COPY_FAILED}</p> : <p>Replace &lt;what you want to design&gt; before sending.</p>}
+  </div>;
 }

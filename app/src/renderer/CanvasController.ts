@@ -13,7 +13,6 @@ import { switchTarget } from "./switchTarget";
 import { activityFor, pushActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
-
 import { currentFrame } from "./currentFrame";
 
 const MEASURE_ANSWER_MS = 1000;
@@ -58,7 +57,7 @@ export class CanvasController {
   private loadTimer: ReturnType<typeof setTimeout> | undefined;
   private answerTimer: ReturnType<typeof setTimeout> | undefined;
   private jumpTo: number | null = null;
-  private pendingFrameId: string | null = null;
+  private pendingFrame: { id: string; index?: number; found?: (found: boolean) => void } | null = null;
   private jumpRect: CanvasRect | null = null;
   private jumpMark: HTMLElement | null = null;
   private viewResize: ResizeObserver | null = null;
@@ -251,6 +250,9 @@ export class CanvasController {
   }
 
   updateEntries(next: FolderEntry[]): void {
+    for (const root of this.workspaceMemory.keys()) {
+      if (!next.some(entry => entry.path === root)) this.workspaceMemory.delete(root);
+    }
     const prev = this.entries;
     this.entries = next;
     const open = this.state.open;
@@ -333,11 +335,14 @@ export class CanvasController {
     });
   }
 
-  openCanvas(folder: string, row: CanvasRow, frameId?: string): void {
+  openCanvas(folder: string, row: CanvasRow, frameId?: string, target?: { index?: number; found?: (found: boolean) => void }): void {
     if (this.state.open?.folder === folder && this.state.shown === row.path) {
       if (frameId !== undefined) {
-        const index = this.state.layout?.frames.findIndex(frame => frame.id === frameId) ?? -1;
+        const frames = this.state.layout?.frames ?? [];
+        const index = target?.index !== undefined && frames[target.index]?.id === frameId ? target.index : frames.findIndex(frame => frame.id === frameId);
         if (index >= 0) this.jump(index);
+        if (this.loading && !this.state.layout) this.pendingFrame = { id: frameId, ...target };
+        else target?.found?.(index >= 0);
       }
       return;
     }
@@ -347,7 +352,8 @@ export class CanvasController {
     };
     this.transition(() => {
       this.openCanvasNow(folder, current() ?? row);
-      this.pendingFrameId = frameId ?? null;
+      this.pendingFrame = frameId === undefined ? null : { id: frameId, ...target };
+      if (this.pendingFrame && this.state.status === "noWidth") { this.pendingFrame.found?.(false); this.pendingFrame = null; }
     }, () => current() !== undefined);
   }
 
@@ -361,7 +367,7 @@ export class CanvasController {
   // A new element ends the old document before resetting its measurement viewport.
   private load(row: CanvasRow, fresh: boolean, kind: ActivityEvent["kind"] = fresh ? "opened" : "reloaded"): void {
     this.clearJump();
-    this.pendingFrameId = null;
+    this.pendingFrame = null;
     this.resetAnchors();
     this.loadKind = kind;
     this.applySelectionEffect({ kind: fresh ? "otherCanvas" : "reload" });
@@ -410,6 +416,8 @@ export class CanvasController {
       this.jumpTo = null;
       this.board.style.visibility = "hidden";
       this.state.status = "failed";
+      this.pendingFrame?.found?.(false);
+      this.pendingFrame = null;
       this.applySelectionEffect({ kind: "loadFailed" });
       this.publish();
     }, FIRST_LAYOUT_TIMEOUT_MS);
@@ -418,7 +426,7 @@ export class CanvasController {
 
   private dropFrame(): void {
     this.clearJump();
-    this.pendingFrameId = null;
+    this.pendingFrame = null;
     this.state.currentFrame = null;
     this.resetAnchors();
     this.frame?.remove();
@@ -667,10 +675,12 @@ export class CanvasController {
       const at = new Date();
       this.state.activity = pushActivity(this.state.activity, { ...this.state.open, at, kind: linked ? "opened" : this.loadKind }, 50);
     }
-    if (first && this.pendingFrameId !== null) {
-      const index = message.frames.findIndex(frame => frame.id === this.pendingFrameId);
+    if (first && this.pendingFrame !== null) {
+      const target = this.pendingFrame;
+      const index = target.index !== undefined && message.frames[target.index]?.id === target.id ? target.index : message.frames.findIndex(frame => frame.id === target.id);
       this.jumpTo = index >= 0 ? index : null;
-      this.pendingFrameId = null;
+      this.pendingFrame = null;
+      target.found?.(index >= 0);
     }
     if (this.jumpTo !== null) {
       const target = message.frames[this.jumpTo];

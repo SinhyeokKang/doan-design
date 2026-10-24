@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { CanvasState } from "./CanvasController";
 import { buildCanvasTree, frameLabel, rowAction, typeaheadKey, typeaheadNext, type RowNode, type TreeNode } from "./canvasTree";
@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 interface SidebarProps {
   entries: FolderEntry[];
   state: CanvasState;
-  open: (folder: string, row: CanvasRow, frameId?: string) => void;
+  open: (folder: string, row: CanvasRow, frameId?: string, index?: number) => void;
   jump: (index: number) => void;
   select: (index: number) => void;
   overview: () => void;
@@ -23,6 +23,9 @@ function RowActions({ actions }: { actions: { name: string; label: string; disab
 export function Sidebar({ entries, state, open, jump, select, overview, expanded: saved, onExpandedChange }: SidebarProps) {
   const tree = useRef<HTMLDivElement>(null);
   const pointer = useRef(false);
+  const rowElements = useRef(new Map<string, HTMLElement>());
+  const removedFocus = useRef<string | null>(null);
+  const previousRows = useRef<VisibleRow[]>([]);
   const buffer = useRef({ text: "", at: 0 });
   const commentPrefix = useId();
   const [memory, setMemory] = useState<Record<string, string[]>>({});
@@ -59,16 +62,27 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
       if (!unfolded) continue;
       if (node.kind === "folder") append(node.children, level + 1, node.key);
       else {
-        const frames = opened === node.key && !state.unlisted ? state.layout?.frames ?? [] : node.row.frames ?? [];
+        const frames = opened === node.key && !state.unlisted && state.layout ? state.layout.frames : node.row.frames ?? [];
         frames.forEach((frame, index) => visible.push({ key: `${node.key}\n${index}`, node: { kind: "frame", key: `${node.key}\n${index}`, canvas: node.key, index, frame }, level: level + 1, parent: node.key }));
       }
     }
   };
   append(nodes, 1);
+  const positions = new Map<string, number>();
   const siblings = new Map<string | undefined, VisibleRow[]>();
-  for (const row of visible) { const group = siblings.get(row.parent) ?? []; group.push(row); siblings.set(row.parent, group); }
+  for (const row of visible) { const group = siblings.get(row.parent) ?? []; group.push(row); positions.set(row.key, group.length); siblings.set(row.parent, group); }
   const active = visible.some(row => row.key === focused) ? focused : visible[0]!.key;
   const elements = () => Array.from(tree.current?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? []);
+  useLayoutEffect(() => {
+    const lost = removedFocus.current;
+    removedFocus.current = null;
+    if (lost && !rowElements.current.has(lost)) {
+      const index = Math.max(0, previousRows.current.findIndex(row => row.key === lost));
+      const next = visible[Math.min(index, visible.length - 1)];
+      if (next) rowElements.current.get(next.key)?.focus();
+    }
+    previousRows.current = visible;
+  });
   const currentVisible = visible.some(row => row.node.kind === "frame" && row.node.canvas === opened && row.node.index === state.currentFrame);
   useEffect(() => {
     if (pointer.current || tree.current?.contains(document.activeElement)) return;
@@ -86,7 +100,7 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
       else if (action === "select") select(node.index);
       else if (action === "open-jump") {
         const canvas = canvases.find(canvas => canvas.path === node.canvas);
-        if (canvas) open(root, canvas, node.frame.id);
+        if (canvas) open(root, canvas, node.frame.id, node.index);
       }
     }
   };
@@ -128,22 +142,31 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
         const isFrame = node.kind === "frame";
         const selected = isFrame && node.canvas === opened && !state.unlisted && state.selection?.frameIndex === node.index;
         const current = node.kind === "overview" ? !state.open : isFrame && node.canvas === opened && state.currentFrame === node.index;
-        const label = isFrame ? `${frameLabel(node.frame, node.index).number} ${frameLabel(node.frame, node.index).name}` : typeaheadKey(node);
-        const truncated = node.kind === "canvas" && (node.key === opened ? state.layout?.frames.length === 1000 && (node.row.frames === undefined ? state.layout.truncated : node.row.framesTruncated) : node.row.framesTruncated);
+        const frameName = isFrame ? frameLabel(node.frame, node.index).name : "";
+        const label = isFrame ? `${node.index + 1} ${frameName}` : typeaheadKey(node);
+        const lastFrameCanvas = isFrame && visible[index + 1]?.parent !== row.parent ? canvases.find(canvas => canvas.path === node.canvas) : undefined;
+        const truncated = lastFrameCanvas && (lastFrameCanvas.path === opened && state.layout ? state.layout.frames.length === 1000 && (lastFrameCanvas.frames === undefined ? state.layout.truncated : lastFrameCanvas.framesTruncated) : lastFrameCanvas.framesTruncated);
         const comments = node.kind === "canvas" && node.row.open > 0;
         const commentId = `${commentPrefix}-${index}`;
-        const content = <div role="treeitem" aria-label={`${label}${selected ? ", selected in canvas" : ""}`} aria-current={current ? "location" : undefined} aria-expanded={row.expanded} aria-level={row.level} aria-posinset={(siblings.get(row.parent) ?? []).findIndex(item => item.key === row.key) + 1} aria-setsize={siblings.get(row.parent)?.length} aria-describedby={comments ? commentId : undefined} tabIndex={active === row.key ? 0 : -1} className={`row${node.kind === "canvas" ? " cv" : ""}${node.kind === "canvas" && node.key === opened ? " is-open" : ""}`} style={{ paddingLeft: 12 + (row.level - 1) * 14 }} data-key={row.key} onFocus={event => { if (event.target === event.currentTarget) setFocused(row.key); }} onClick={event => { event.currentTarget.focus(); act(row); }} onDoubleClick={() => act(row, true)} onKeyDown={event => keys(event, row, index)}>
-          {row.expanded !== undefined ? <button type="button" className="tw" tabIndex={-1} aria-label={`${row.expanded ? "Collapse" : "Expand"} ${label}`} onClick={event => { event.stopPropagation(); event.currentTarget.closest<HTMLElement>('[role="treeitem"]')?.focus(); toggle(row.key); }} onDoubleClick={event => event.stopPropagation()}>{row.expanded ? "▾" : "▸"}</button> : <span className="tw" aria-hidden="true" />}
-          {node.kind === "canvas" ? <><span className="glyph" aria-hidden="true">◧</span><span className="two"><span className="g">{node.name}</span><span className="d">{node.fileName}</span></span>{comments && <span id={commentId} role="img" className="cnt hot" aria-label={`${node.row.open} open comments`}>{node.row.open}</span>}{truncated && <span className="cnt">1,000+</span>}</>
-            : isFrame ? <><span className="num" aria-hidden="true">{node.index + 1}</span><span className="g">{frameLabel(node.frame, node.index).name}</span><RowActions actions={[{ name: "Select", label: `Select ${frameLabel(node.frame, node.index).name}`, disabled: node.canvas !== opened, run: () => select(node.index) }]} />{selected && <span className="sel-mark" aria-hidden="true" />}</>
+        const content = <div ref={element => {
+          if (element) rowElements.current.set(row.key, element);
+          else {
+            // Capture before DOM removal moves focus to the body.
+            if (rowElements.current.get(row.key)?.contains(document.activeElement)) removedFocus.current = row.key;
+            rowElements.current.delete(row.key);
+          }
+        }} role="treeitem" aria-label={`${label}${selected ? ", selected in canvas" : ""}`} aria-current={current ? "location" : undefined} aria-expanded={row.expanded} aria-level={row.level} aria-posinset={positions.get(row.key)} aria-setsize={siblings.get(row.parent)?.length} aria-describedby={comments ? commentId : undefined} tabIndex={active === row.key ? 0 : -1} className={`row${node.kind === "canvas" ? " cv" : ""}${node.kind === "canvas" && node.key === opened ? " is-open" : ""}`} style={{ paddingLeft: 12 + (row.level - 1) * 14 }} onFocus={event => { if (event.target === event.currentTarget) setFocused(row.key); }} onClick={event => { event.currentTarget.focus(); act(row); }} onDoubleClick={() => act(row, true)} onKeyDown={event => keys(event, row, index)}>
+          {row.expanded !== undefined ? <button type="button" className="tw" tabIndex={-1} aria-label={`${row.expanded ? "Collapse" : "Expand"} ${label}`} onClick={event => { event.stopPropagation(); event.currentTarget.closest<HTMLElement>('[role="treeitem"]')?.focus(); toggle(row.key); }} onDoubleClick={event => event.stopPropagation()}><span aria-hidden="true">{row.expanded ? "▾" : "▸"}</span></button> : <span className="tw" aria-hidden="true" />}
+          {node.kind === "canvas" ? <><span className="glyph" aria-hidden="true">◧</span><span className="two"><span className="g">{node.name}</span><span className="d">{node.fileName}</span></span>{comments && <span id={commentId} role="img" className="cnt hot" aria-label={`${node.row.open} open comments`}>{node.row.open}</span>}</>
+            : isFrame ? <><span className="num" aria-hidden="true">{node.index + 1}</span><span className="g">{frameName}</span><RowActions actions={[{ name: "Select", label: `Select ${frameName}`, disabled: node.canvas !== opened || !state.layout, run: () => select(node.index) }]} />{selected && <span className="sel-mark" aria-hidden="true" />}</>
             : <>{node.kind === "overview" && <span className="glyph" aria-hidden="true">▦</span>}<span className="g">{label}</span></>}
         </div>;
-        const empty = node.kind === "canvas" && row.expanded && !(opened === node.key ? state.layout?.frames.length : node.row.frames?.length);
+        const empty = node.kind === "canvas" && row.expanded && !(opened === node.key && state.layout ? state.layout.frames.length : node.row.frames?.length);
         return <div key={row.key} role="none">
           {node.kind === "canvas" ? <Tooltip><TooltipTrigger asChild>{content}</TooltipTrigger><TooltipContent>{node.row.path.replace(/^design\//, "")}</TooltipContent></Tooltip> : content}
           {selected && state.selection?.element && <div className="row element-row" style={{ paddingLeft: 12 + row.level * 14 }}><span className="glyph" aria-hidden="true">↳</span><span className="g">{state.selection.element.doanId === undefined ? state.selection.tag : `${state.selection.tag} · ${state.selection.element.doanId}`}</span></div>}
           {empty && <p className="tree-hint">This canvas has no data-doan-frame</p>}
-          {node.kind === "canvas" && row.expanded && truncated && <p className="tree-hint">Showing the first 1,000</p>}
+          {truncated && <p className="tree-hint">Showing the first 1,000</p>}
         </div>;
       })}
     </div>

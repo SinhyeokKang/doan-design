@@ -49,6 +49,15 @@ test("distinguishes exactly 1,000 long-titled frames from a statically capped li
   state.layout = { ...layout, truncated: true, frames };
   expect(sidebar(state, { ...row, frames, framesTruncated: false })).not.toContain("1,000+");
   const capped = sidebar(state, { ...row, frames, framesTruncated: true });
-  expect(capped).toContain("1,000+");
+  expect(capped).not.toContain("1,000+");
   expect(capped).toContain("Showing the first 1,000");
+});
+
+
+test.each(["loading", "noWidth", "failed"] as const)("keeps static frame rows while an open canvas is %s", status => {
+  const state = { ...opened(), status, layout: null };
+  const html = sidebar(state);
+  expect(html).toContain('aria-label="1 static"');
+  expect(html).not.toContain("This canvas has no data-doan-frame");
+  expect(html).toMatch(/aria-label="Select static"[^>]*disabled/);
 });

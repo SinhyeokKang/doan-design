@@ -899,6 +899,9 @@ describe("frame navigation", () => {
       expect(h.markOf("jump-highlight")?.hidden).toBe(false);
       vi.advanceTimersByTime(1);
       expect(h.markOf("jump-highlight")?.hidden).toBe(true);
+      h.controller.jump(1); h.layout();
+      h.controller.dispose();
+      expect(h.overlay.append.mock.calls.at(-1)?.[0].hidden).toBe(true);
     } finally { h.controller.dispose(); vi.useRealTimers(); }
   });
 });
@@ -934,5 +937,50 @@ it("opens a static frame by its first rendered id match without selecting it", (
     expect(h.state().currentFrame).toBe(1);
     expect(h.state().selection).toBeNull();
     expect(h.current().contentWindow.postMessage.mock.calls.some(([message]) => message.type === "pick-frame")).toBe(false);
+  } finally { h.controller.dispose(); }
+});
+
+
+it.each(["dup", ""])("opens the clicked static index when its id is %j", id => {
+  const h = selectionHarness();
+  try {
+    const found = vi.fn();
+    h.controller.openCanvas("/repo", h.other, id, { index: 1, found });
+    h.layout({ href: h.other.url, frames: [
+      { id, x: 0, y: 0, width: 100, height: 100 },
+      { id, x: 0, y: 1000, width: 100, height: 100 },
+    ] });
+    expect(h.state().currentFrame).toBe(1);
+    expect(found).toHaveBeenCalledExactlyOnceWith(true);
+  } finally { h.controller.dispose(); }
+});
+
+it("reports a missing rendered frame and falls back to the first id match after reordering", () => {
+  const h = selectionHarness();
+  try {
+    const found = vi.fn();
+    h.controller.openCanvas("/repo", h.other, "hero", { index: 0, found });
+    h.layout({ href: h.other.url });
+    expect(h.state().currentFrame).toBe(1);
+    expect(found).toHaveBeenCalledExactlyOnceWith(true);
+    const missing = vi.fn();
+    h.controller.openCanvas("/repo", h.other, "absent", { found: missing });
+    expect(missing).toHaveBeenCalledExactlyOnceWith(false);
+  } finally { h.controller.dispose(); }
+});
+
+it("forgets navigation memory when a project is removed and added again", () => {
+  const h = selectionHarness();
+  try {
+    const original: FolderEntry = { path: "/repo", kind: "list", servedRev: 0, canvases: [h.row, h.other] };
+    const other: FolderEntry = { path: "/other", kind: "list", servedRev: 0, canvases: [] };
+    h.controller.updateEntries([original, other]);
+    h.controller.openWorkspace("/other", () => {});
+    h.controller.openWorkspace("/repo", () => {});
+    expect(h.state().open.canvas).toBe(h.row.path);
+    h.controller.updateEntries([other]);
+    h.controller.updateEntries([original, other]);
+    h.controller.openWorkspace("/repo", () => {});
+    expect(h.state().open).toBeNull();
   } finally { h.controller.dispose(); }
 });
