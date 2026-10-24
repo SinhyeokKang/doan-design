@@ -1,3 +1,4 @@
+import { createMachine, needsOnboarding, markClosed, PATH_LINE, type MachineState } from "./onboarding/machine";
 import { createCommentsService } from "./comments/service";
 import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
@@ -52,6 +53,18 @@ const documents = new DocumentBindings();
 const transitionGuard = createTransitionGuard(request => {
   if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("comments:transition", request);
 });
+let wizardSession: string | null = null;
+let machine: ReturnType<typeof createMachine> | undefined;
+export type OnboardingOpen = { session: string };
+export type OnboardingRead = { kind: "state"; session: string; state: MachineState } | { kind: "stale" };
+function openWizard(): void {
+  if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
+  showWindow(win);
+  if (machine?.isBusy()) return;
+  machine?.cancelConfirmation();
+  wizardSession = randomUUID();
+  win.webContents.send("onboarding:open", { session: wizardSession });
+}
 let quitting = false;
 let cancelPendingHide = () => {};
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
@@ -97,7 +110,13 @@ function setMenu(): void {
   };
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
-      { role: "appMenu" },
+      { label: "doan", submenu: [
+        { role: "about" },
+        { label: "Set Up doan…", click: openWizard },
+        { type: "separator" }, { role: "services" }, { type: "separator" },
+        { role: "hide" }, { role: "hideOthers" }, { role: "unhide" },
+        { type: "separator" }, { role: "quit" },
+      ] },
       {
         label: "File",
         submenu: [
@@ -315,6 +334,35 @@ async function start(): Promise<void> {
     return inspector.inspect(selector);
   });
 
+  machine = createMachine({ command: cliCommand(process.env, app.isPackaged, process.resourcesPath) });
+  const setup = machine;
+  const validSession = (value: unknown): value is { session: string } => typeof value === "object" && value !== null &&
+    "session" in value && typeof value.session === "string" && value.session === wizardSession;
+  ipcMain.handle("onboarding:get-open", event => fromWindow(event) && wizardSession ? { session: wizardSession } : null);
+  let latestRead = "";
+  ipcMain.handle("onboarding:read", async (event, value: unknown): Promise<OnboardingRead> => {
+    if (!fromWindow(event) || !validSession(value) || Object.keys(value).length !== 2 ||
+      !("requestId" in value) || typeof value.requestId !== "string" || !value.requestId || value.requestId.length > 128) return { kind: "stale" };
+    const requestId = value.requestId, session = value.session;
+    const readToken = randomUUID(); latestRead = readToken;
+    const state = await setup.read(requestId);
+    return fromWindow(event) && wizardSession === session && latestRead === readToken ? { kind: "state", session, state } : { kind: "stale" };
+  });
+  ipcMain.handle("onboarding:run", (event, value: unknown) => fromWindow(event) && wizardSession ? setup.run(value) : { kind: "stale" });
+  ipcMain.handle("onboarding:answer", (event, value: unknown) => fromWindow(event) && wizardSession ? setup.answer(value) : { kind: "stale" });
+  ipcMain.handle("onboarding:copy", async (event, value: unknown) => {
+    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 1 ||
+      !("kind" in value) || value.kind !== "pathLine") return { kind: "stale" };
+    try { await clipboard.writeText(PATH_LINE); return { kind: "success" }; }
+    catch (error) { return { kind: "error", message: error instanceof Error ? error.message : String(error) }; }
+  });
+  ipcMain.handle("onboarding:close", async (event, value: unknown) => {
+    if (!fromWindow(event) || !validSession(value) || Object.keys(value).length !== 1) return { kind: "stale" };
+    if (setup.isBusy()) return { kind: "busy" };
+    try { await markClosed(userData); setup.cancelConfirmation(); wizardSession = null; return { kind: "success" }; }
+    catch (error) { return { kind: "error", message: error instanceof Error ? error.message : String(error) }; }
+  });
+  if (await needsOnboarding(userData)) wizardSession = randomUUID();
   win = createWindow();
 }
 

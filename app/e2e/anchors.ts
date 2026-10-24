@@ -14,7 +14,7 @@ const shots = join(root, ".scratch/comments-ui-A");
 const paths = ["folders.json", "runtime.json"].map(n => join(homedir(), "Library/Application Support/doan", n));
 const fingerprint = (p: string) => readFile(p).then(b => createHash("sha256").update(b).digest("hex"), () => "absent");
 const before = await Promise.all(paths.map(fingerprint));
-const work = await realpath(await mkdtemp(join(tmpdir(), "doan-anchors-")));
+const work = await realpath(await mkdtemp("/tmp/doan-anchors-"));
 let app: ElectronApplication | undefined;
 try {
   const repo = join(work, "repo"), userData = join(work, "userData"), cli = join(work, "doan");
@@ -34,7 +34,13 @@ body{margin:0;height:1000px} section{position:absolute;left:80px;top:80px;width:
   const built = await build({ configFile: false, root: join(root, "app"), logLevel: "silent", build: { write: false, minify: false, lib: { entry, name: "AnchorTest", formats: ["iife"] } } });
   const bundle = (Array.isArray(built) ? built[0] : built) as { output: { type: string; code?: string }[] };
   const code = bundle.output.find(c => c.type === "chunk")?.code; assert.ok(code);
-  app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env: { ...process.env, DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } });
+  const home = join(work, "home"), fakeShell = join(work, "fake-shell");
+  await mkdir(home);
+  await writeFile(fakeShell, '#!/bin/sh\nPATH=/usr/bin:/bin; export PATH\neval "$2"\n', { mode: 0o755 });
+  await writeFile(join(userData, "onboarding.json"), "{}\n");
+  app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env: { ...process.env,
+    HOME: home, TMPDIR: work, SHELL: fakeShell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"),
+    DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } });
   const page = await app.firstWindow(); page.setDefaultTimeout(10_000);
   await page.getByRole("treeitem", { name: "anchors.html", exact: true }).click();
   await page.waitForFunction(() => document.querySelector("iframe")?.getAttribute("src"));

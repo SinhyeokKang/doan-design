@@ -1,0 +1,248 @@
+import { spawn } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
+import { accessSync, constants, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { homedir, userInfo } from "node:os";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import type { CliRun } from "../folderState";
+import { findOnPath, isTranslocated, linkState, mcpAddArgs, mcpRemoveArgs, mcpState, parseShellProbe, pathIncludes, rcFileFor, stubState, type Agent, type LinkState, type McpState, type PathStat, type ShellProbe, type StubState } from "./states";
+import stub from "./SKILL.md?raw";
+
+// PoC 7a: 83 ms; 7c: slowest write 741 ms. Leave room for cold startup.
+export const SHELL_TIMEOUT_MS = 5000;
+export const AGENT_TIMEOUT_MS = 10000;
+const OUTPUT_LIMIT = 1024 * 1024;
+export const PATH_LINE = 'export PATH="$HOME/.local/bin:$PATH"';
+
+export function runProcess(command: string, args: string[], env: NodeJS.ProcessEnv, timeout: number, nonce?: string): Promise<CliRun> {
+  return new Promise(resolveRun => {
+    let stdout = "", stderr = "", settled = false;
+    const child = spawn(command, args, { env, cwd: env.HOME, stdio: ["ignore", "pipe", "pipe"] });
+    const finish = (result: Partial<CliRun>) => {
+      if (settled) return;
+      settled = true; clearTimeout(timer);
+      child.stdout.destroy(); child.stderr.destroy(); child.unref();
+      resolveRun({ stdout, stderr, exitCode: null, timedOut: false, ...result });
+    };
+    const kill = () => { try { child.kill("SIGKILL"); } catch { /* Settlement cannot depend on kill success. */ } };
+    const timer = setTimeout(() => { kill(); finish({ timedOut: true }); }, timeout);
+    child.stdout.on("data", (data: Buffer) => {
+      stdout += data.toString();
+      if (stdout.length > OUTPUT_LIMIT) { kill(); finish({ spawnError: "Process output exceeded the limit." }); }
+      else if (nonce && parseShellProbe(stdout, nonce).ok) { kill(); finish({ exitCode: 0 }); }
+    });
+    child.stderr.on("data", (data: Buffer) => { stderr += data.toString(); if (stderr.length > OUTPUT_LIMIT) { kill(); finish({ spawnError: "Process output exceeded the limit." }); } });
+    child.once("error", error => finish({ spawnError: error.message }));
+    // A daemon can inherit a pipe. Waiting for close would strand the caller.
+    child.once("exit", code => finish({ exitCode: code }));
+  });
+}
+
+function shellName(env: NodeJS.ProcessEnv, fallback = () => userInfo().shell): string {
+  try { return env.SHELL || fallback() || ""; } catch { return ""; }
+}
+export async function probeShell(env: NodeJS.ProcessEnv, fallback?: () => string): Promise<ShellProbe> {
+  const shell = shellName(env, fallback);
+  if (!isAbsolute(shell)) return { ok: false, reason: "No executable login shell is available." };
+  const nonce = randomUUID().replaceAll("-", "");
+  const script = `printf '\\nDOAN_PROBE_${nonce}_BEGIN\\n%s\\n%s\\n%s\\nDOAN_PROBE_${nonce}_END\\n' "$PATH" "$CLAUDE_CONFIG_DIR" "$CODEX_HOME"`;
+  const result = await runProcess(shell, [ ["zsh", "bash"].includes(basename(shell)) ? "-lic" : "-lc", script ], env, SHELL_TIMEOUT_MS, nonce);
+  if (result.timedOut || result.spawnError || result.exitCode !== 0) return { ok: false, reason: result.spawnError ?? (result.timedOut ? "Login shell timed out." : "Login shell failed.") };
+  return parseShellProbe(result.stdout, nonce);
+}
+function errorCode(error: unknown): string { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : "UNKNOWN"; }
+function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
+function digest(value: string): string { return createHash("sha256").update(value).digest("hex"); }
+function stat(path: string): PathStat {
+  try { const s = lstatSync(path); return { kind: s.isSymbolicLink() ? "symlink" : s.isDirectory() ? "directory" : s.isFile() ? "file" : "other" }; }
+  catch (error) { const code = errorCode(error); return code === "ENOENT" ? { kind: "missing" } : { kind: "error", code }; }
+}
+function safeParents(path: string): boolean {
+  const parent = dirname(path);
+  if (parent === path) return true;
+  const s = stat(parent);
+  return (s.kind === "directory" || s.kind === "missing") && safeParents(parent);
+}
+function observedStat(path: string): PathStat { return { ...stat(path), parentBlocked: !safeParents(path) }; }
+function canonical(path: string): string | null { try { return realpathSync(path); } catch { return null; } }
+function stamp(path: string): string {
+  try { const s = lstatSync(path); return `${s.dev}:${s.ino}:${s.mode}:${s.size}:${s.mtimeMs}:${s.ctimeMs}`; } catch (error) { return errorCode(error); }
+}
+export interface LinkObservation { state: LinkState; value: string | null; stamp: string }
+export interface StubObservation { state: StubState; stamp: string }
+export interface McpObservation { state: McpState; value: string }
+function observeLink(path: string, expected: string): LinkObservation {
+  const s = observedStat(path); let value: string | null = null;
+  if (!s.parentBlocked && s.kind === "symlink") { try { value = readlinkSync(path); } catch { /* An unreadable link is blocked. */ } }
+  return { state: linkState(s, value === null ? null : { value, resolved: canonical(path) }, canonical(expected) ?? expected), value, stamp: `${stamp(path)}:${stamp(dirname(path))}` };
+}
+function observeStub(path: string): StubObservation {
+  const d = observedStat(dirname(path)), f = observedStat(path); let content: string | null = null;
+  if (!d.parentBlocked && d.kind === "directory" && !f.parentBlocked && f.kind === "file") { try { content = readFileSync(path, "utf8"); } catch { /* Failed reads are blocked. */ } }
+  return { state: stubState(d, f, content, stub), stamp: `${stamp(dirname(path))}:${stamp(path)}:${digest(content ?? "")}` };
+}
+function executable(path: string): boolean { try { accessSync(path, constants.X_OK); return statSync(path).isFile(); } catch { return false; } }
+export interface Expected {
+  cli: LinkObservation; stub: StubObservation; claudeLink: LinkObservation;
+  agents: Record<Agent, { executable: string | null; config: string; mcp: McpObservation }>;
+}
+export interface MachineState {
+  requestId: string; expected: Expected; cli: LinkObservation; stub: StubObservation;
+  available: boolean; reason: string | null; pathPresent: boolean; rcFile: string | null;
+  probe: ShellProbe; agents: Expected["agents"]; claudeLink: LinkObservation;
+}
+export interface StepRequest { step: "cli" | "connect"; agent?: Agent; expected: Expected }
+export type StepResult = { kind: "success" | "busy" | "stale" | "cancelled" } |
+  { kind: "unavailable" | "error"; message: string; original?: string } |
+  { kind: "confirm"; id: string; target: "cli" | "stub" | "claudeLink" | "mcp"; message: string };
+function object(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
+function equal(a: unknown, b: unknown): boolean { return JSON.stringify(a) === JSON.stringify(b); }
+
+export function createMachine(options: { command: string; env?: NodeJS.ProcessEnv }) {
+  const env = { ...(options.env ?? process.env) };
+  const home = canonical(env.HOME ?? homedir()) ?? resolve(env.HOME ?? homedir());
+  env.HOME = home;
+  const cliPath = join(home, ".local/bin/doan"), stubPath = join(home, ".agents/skills/doan/SKILL.md");
+  let busy = false;
+  let pending: { id: string; request: StepRequest; target: "cli" | "stub" | "claudeLink" | "mcp" } | null = null;
+  const available = isAbsolute(options.command) && !isTranslocated(options.command);
+  const reason = isTranslocated(options.command) ? "Move doan to Applications, then open it again." : !isAbsolute(options.command) ? "This build has no bundled CLI. Set DOAN_CLI." : null;
+  async function context() {
+    const probe = await probeShell(env);
+    const runEnv = { ...env };
+    delete runEnv.CLAUDE_CONFIG_DIR; delete runEnv.CODEX_HOME;
+    if (probe.ok) { runEnv.PATH = probe.path; if (probe.claudeConfigDir) runEnv.CLAUDE_CONFIG_DIR = probe.claudeConfigDir; if (probe.codexHome) runEnv.CODEX_HOME = probe.codexHome; }
+    const claudeDir = runEnv.CLAUDE_CONFIG_DIR || join(home, ".claude"), codexDir = runEnv.CODEX_HOME || join(home, ".codex");
+    const configValid = isAbsolute(claudeDir) && isAbsolute(codexDir);
+    return { probe, runEnv, claudeDir, codexDir, configValid, claudeLink: join(claudeDir, "skills/doan") };
+  }
+  type Context = Awaited<ReturnType<typeof context>>;
+  async function readMcp(agent: Agent, ctx: Context, exe: string | null): Promise<McpObservation> {
+    if (!ctx.probe.ok || !ctx.configValid || !exe) return { state: "unknown", value: "" };
+    let result: CliRun;
+    if (agent === "claude") {
+      const file = ctx.runEnv.CLAUDE_CONFIG_DIR ? join(ctx.claudeDir, ".claude.json") : join(home, ".claude.json");
+      try { result = { stdout: readFileSync(file, "utf8"), stderr: "", exitCode: 0, timedOut: false }; }
+      catch (error) { result = errorCode(error) === "ENOENT" ? { stdout: "{}", stderr: "", exitCode: 0, timedOut: false } : { stdout: "", stderr: message(error), exitCode: 1, timedOut: false }; }
+    } else result = await runProcess(exe, ["mcp", "get", "doan", "--json"], ctx.runEnv, AGENT_TIMEOUT_MS);
+    const state = mcpState(agent, { ...result, scope: "user" }, cliPath);
+    // Only the doan registration is shown on failure; never expose other servers.
+    let value = "";
+    try { const parsed: unknown = JSON.parse(result.stdout); if (agent === "claude") { if (object(parsed) && object(parsed.mcpServers)) value = JSON.stringify(parsed.mcpServers.doan) ?? ""; } else value = JSON.stringify(parsed); } catch { value = state === "unknown" ? result.stderr || "Unreadable registration." : ""; }
+    return { state, value };
+  }
+  async function snapshot(ctx: Context): Promise<Expected> {
+    const readAgent = async (agent: Agent) => {
+      const exe = ctx.probe.ok ? findOnPath(ctx.probe.path, agent, executable) : null;
+      return { executable: exe, config: agent === "claude" ? ctx.claudeDir : ctx.codexDir, mcp: await readMcp(agent, ctx, exe) };
+    };
+    const agents = { claude: await readAgent("claude"), codex: await readAgent("codex") };
+    return { cli: observeLink(cliPath, options.command), stub: observeStub(stubPath), claudeLink: observeLink(ctx.claudeLink, dirname(stubPath)), agents };
+  }
+  async function read(requestId: string): Promise<MachineState> {
+    const ctx = await context(), expected = await snapshot(ctx);
+    return { requestId, expected, ...expected, available, reason, pathPresent: ctx.probe.ok && pathIncludes(ctx.probe.path, dirname(cliPath)), rcFile: rcFileFor(shellName(env)), probe: ctx.probe };
+  }
+  function writeTarget(path: string, content: string, link: boolean, check: () => boolean): void {
+    if (!check() || !safeParents(path)) throw new Error("Target changed. Check Again.");
+    mkdirSync(dirname(path), { recursive: true });
+    if (!safeParents(path)) throw new Error("Target parent changed. Check Again.");
+    const temporary = join(dirname(path), `.doan-${randomUUID()}.tmp`);
+    try {
+      if (link) symlinkSync(content, temporary); else writeFileSync(temporary, content, { flag: "wx", mode: 0o644 });
+      // Parent timestamps change when staging; compare the target, not our temp file.
+      if (!safeParents(path) || !check()) throw new Error("Target changed. Check Again.");
+      renameSync(temporary, path);
+    } finally { rmSync(temporary, { force: true }); }
+  }
+  async function execute(request: Omit<StepRequest, "expected"> & { expected: unknown }, approved?: string): Promise<StepResult> {
+    const ctx = await context(); let current = await snapshot(ctx);
+    if (!equal(current, request.expected)) return { kind: "stale" };
+    if (!available) return { kind: "unavailable", message: reason ?? "CLI unavailable." };
+    const confirm = (target: "cli" | "stub" | "claudeLink" | "mcp", detail: string): StepResult => {
+      const id = randomUUID(); pending = { id, request: { ...request, expected: current }, target };
+      return { kind: "confirm", id, target, message: detail };
+    };
+    const writeLink = (path: string, value: string, expected: string, before: LinkObservation) => {
+      const signature = stamp(path);
+      writeTarget(path, value, true, () => {
+        const now = observeLink(path, expected);
+        return now.state === before.state && now.value === before.value && stamp(path) === signature;
+      });
+    };
+    if (request.step === "cli") {
+      if (current.cli.state === "blocked") return { kind: "unavailable", message: `${cliPath} is in use by something else. Move or delete it, then Check Again.` };
+      if (current.cli.state === "ours") return { kind: "success" };
+      if (current.cli.state === "link-other" && approved !== "cli") return confirm("cli", `Replace the link pointing to ${current.cli.value}?`);
+      writeLink(cliPath, options.command, options.command, current.cli); return { kind: "success" };
+    }
+    const agent = request.agent;
+    if (!agent || current.cli.state !== "ours" || !ctx.probe.ok || !ctx.configValid || !current.agents[agent].executable) return { kind: "unavailable", message: "Install the CLI link and check agent detection first." };
+    if (current.stub.state === "blocked") return { kind: "unavailable", message: `${stubPath} is in use by something else. Move or delete it, then Check Again.` };
+    if (current.stub.state !== "ours") {
+      if (current.stub.state === "differs" && approved !== "stub") return confirm("stub", "Your edits to SKILL.md will be replaced.");
+      const before = current.stub, signature = stamp(stubPath);
+      writeTarget(stubPath, stub, false, () => {
+        const now = observeStub(stubPath);
+        return stamp(stubPath) === signature && (now.state === before.state || (before.state === "missing" && now.state === "missing"));
+      });
+      current = await snapshot(ctx);
+    }
+    if (agent === "claude" && current.claudeLink.state !== "ours") {
+      if (current.claudeLink.state === "blocked") return { kind: "unavailable", message: `${ctx.claudeLink} is in use by something else. Move or delete it, then Check Again.` };
+      if (current.claudeLink.state === "link-other" && approved !== "claudeLink") return confirm("claudeLink", `Replace the link pointing to ${current.claudeLink.value}?`);
+      writeLink(ctx.claudeLink, relative(dirname(ctx.claudeLink), dirname(stubPath)), dirname(stubPath), current.claudeLink);
+      current = await snapshot(ctx);
+    }
+    if (current.cli.state !== "ours" || current.stub.state !== "ours" || (agent === "claude" && current.claudeLink.state !== "ours")) return { kind: "stale" };
+    const registration = current.agents[agent].mcp, exe = current.agents[agent].executable;
+    if (registration.state === "ours") return { kind: "success" };
+    if (registration.state === "unknown" || !exe) return { kind: "unavailable", message: "Couldn't check the MCP registration. Check Again." };
+    if (registration.state === "other" && approved !== "mcp") return confirm("mcp", `Replace the existing doan MCP registration? ${registration.value}`);
+    const latest = await snapshot(ctx);
+    if (!equal(current, latest) || latest.cli.state !== "ours") return { kind: "stale" };
+    const invoke = async (args: string[]) => {
+      if (observeLink(cliPath, options.command).state !== "ours") throw new Error("CLI link changed. Check Again.");
+      const result = await runProcess(exe, args, ctx.runEnv, AGENT_TIMEOUT_MS);
+      if (result.timedOut || result.spawnError || result.exitCode !== 0) throw new Error(result.spawnError ? `Couldn't run ${agent} at ${exe}. Check Again. ${result.spawnError}` : result.timedOut ? `${agent} timed out. Check Again.` : result.stderr || `${agent} failed.`);
+    };
+    try {
+      if (registration.state === "other" && agent === "claude") {
+        await invoke(mcpRemoveArgs(agent));
+        if ((await readMcp(agent, ctx, exe)).state !== "missing") return { kind: "error", message: "Registration changed after removal. Check Again.", original: registration.value };
+      }
+      await invoke(mcpAddArgs(agent, cliPath)); return { kind: "success" };
+    } catch (error) { return { kind: "error", message: message(error), ...(registration.state === "other" ? { original: registration.value } : {}) }; }
+  }
+  async function locked(request: Omit<StepRequest, "expected"> & { expected: unknown }, approved?: string): Promise<StepResult> {
+    if (busy) return { kind: "busy" }; busy = true;
+    try { return await execute(request, approved); } catch (error) { return { kind: "error", message: message(error) }; } finally { busy = false; }
+  }
+  return {
+    read,
+    run(value: unknown): Promise<StepResult> {
+      if (!object(value) || !["cli", "connect"].includes(String(value.step)) || !object(value.expected) ||
+        Object.keys(value).some(key => !["step", "agent", "expected"].includes(key)) ||
+        (value.step === "cli" ? value.agent !== undefined : value.agent !== "claude" && value.agent !== "codex")) return Promise.resolve({ kind: "unavailable", message: "Invalid setup request." });
+      if (pending) return Promise.resolve({ kind: "busy" });
+      // expected is compared with a freshly built snapshot before any field is used.
+      if (value.step === "cli") return locked({ step: "cli", expected: value.expected });
+      if (value.agent === "claude" || value.agent === "codex") return locked({ step: "connect", agent: value.agent, expected: value.expected });
+      return Promise.resolve({ kind: "unavailable", message: "Invalid setup request." });
+    },
+    answer(value: unknown): Promise<StepResult> {
+      if (!object(value) || Object.keys(value).length !== 2 || typeof value.id !== "string" || typeof value.allow !== "boolean" || !pending || value.id !== pending.id) return Promise.resolve({ kind: "stale" });
+      const saved = pending; pending = null;
+      return value.allow ? locked(saved.request, saved.target) : Promise.resolve({ kind: "cancelled" });
+    },
+    cancelConfirmation() { pending = null; },
+    isBusy: () => busy,
+  };
+}
+
+export async function needsOnboarding(userData: string): Promise<boolean> {
+  try { const value: unknown = JSON.parse(readFileSync(join(userData, "onboarding.json"), "utf8")); return !object(value); } catch { return true; }
+}
+export async function markClosed(userData: string): Promise<void> {
+  const temporary = join(userData, `.onboarding-${randomUUID()}.tmp`);
+  try { writeFileSync(temporary, "{}\n", { flag: "wx" }); renameSync(temporary, join(userData, "onboarding.json")); } finally { rmSync(temporary, { force: true }); }
+}

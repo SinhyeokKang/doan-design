@@ -88,7 +88,7 @@ async function runAll(): Promise<void> {
   const before = await fingerprint(realFoldersJson);
   const runtimeBefore = await fingerprint(realRuntimeJson);
   // realpath: macOS tmpdir is under /var -> /private/var, and the app stores real paths.
-  work = await realpath(await mkdtemp(join(tmpdir(), "doan-e2e-")));
+  work = await realpath(await mkdtemp("/tmp/doan-e2e-"));
   try {
     const cli = join(work, "bin", "doan");
     await exec("go", ["build", "-o", cli, "./cli/cmd/doan"], { cwd: repoRoot });
@@ -1327,7 +1327,7 @@ async function runtimeEnd(app: ElectronApplication, doan: string, userData: stri
   const { socket } = JSON.parse(content) as { socket: string };
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
   await waitFor(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible() === false), "window hidden before a second launch");
-  const second = spawn(electronBinary, [appDir, `--user-data-dir=${userData}`], { stdio: "ignore" });
+  const second = spawn(electronBinary, [appDir, `--user-data-dir=${userData}`], { stdio: "ignore", env: await isolatedEnv(userData) });
   try {
     const code = await Promise.race([new Promise<number | null>(resolve => second.once("exit", resolve)), sleep(WAIT_MS).then(() => "running" as const)]);
     assert.equal(code, 0, "a second instance exits at once");
@@ -1898,9 +1898,24 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function launch(cli: string, userData: string): Promise<{ app: ElectronApplication; page: Page }> {
+// Reuse this isolation for design-sync scripts: a temp userData alone does not
+// isolate login-shell discovery or agent configuration writes.
+async function isolatedEnv(userData: string): Promise<Record<string, string>> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined) env[key] = value;
+  env.HOME = join(dirname(userData), "home");
+  env.TMPDIR = dirname(userData);
+  env.SHELL = join(dirname(userData), "fake-shell");
+  env.CLAUDE_CONFIG_DIR = join(env.HOME, ".claude");
+  env.CODEX_HOME = join(env.HOME, ".codex");
+  await mkdir(env.HOME, { recursive: true });
+  await mkdir(userData, { recursive: true });
+  await writeFile(env.SHELL, '#!/bin/sh\nPATH=/usr/bin:/bin; export PATH\neval "$2"\n', { mode: 0o755 });
+  await writeFile(join(userData, "onboarding.json"), "{}\n");
+  return env;
+}
+async function launch(cli: string, userData: string): Promise<{ app: ElectronApplication; page: Page }> {
+  const env = await isolatedEnv(userData);
   env.DOAN_CLI = cli;
   // Chromium's --user-data-dir also moves Electron's userData, so folders.json
   // lands in the temp directory and the real one is never read or written.
