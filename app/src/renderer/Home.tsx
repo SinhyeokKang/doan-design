@@ -63,6 +63,7 @@ function Context({ actions, children }: { actions: MenuAction[]; children: React
 function ProjectCard({ card, ...props }: HomeProps & { card: HomeCard }) {
   const element = useRef<HTMLElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
+  const active = card.rows.some(row => row.path === focused) ? focused : card.rows[0]?.path;
   const flash = card.rows.some(row => props.highlight.includes(row.path));
   useEffect(() => { if (flash) element.current?.scrollIntoView({ block: "nearest" }); }, [flash]);
   const actions = [{ label: "Remove all", run: () => props.remove(card.rows.map(row => row.path)) }];
@@ -72,7 +73,7 @@ function ProjectCard({ card, ...props }: HomeProps & { card: HomeCard }) {
       const row = cardRow(entry, props.loaded, props.selection);
       const actions = [{ label: "Show in Finder", run: () => props.action("showInFinder", entry.path) }, { label: "Remove from doan", run: () => props.remove([entry.path]) }];
       const activate = (node: HTMLElement) => entry.kind === "list" ? props.enter(entry.path) : node.querySelector<HTMLButtonElement>(".wt-actions button")?.focus();
-      return <Context key={entry.path} actions={actions}><div className={`wt${row.chip ? " problem" : ""}`} data-path={entry.path} role={row.chip ? "group" : "button"} aria-label={`Project ${row.summary?.branch ?? displayPath(entry.path, props.homeDirectory)} · ${row.chip ?? `${row.summary?.canvases ?? 0} ${row.summary?.canvases === 1 ? "canvas" : "canvases"} · ${row.summary?.openComments ?? 0} open comments`} · ${entry.path}`} aria-current={row.current ? "true" : undefined} tabIndex={(focused ?? card.rows[0]?.path) === entry.path ? 0 : -1}
+      return <Context key={entry.path} actions={actions}><div className={`wt${row.chip ? " problem" : ""}`} data-path={entry.path} role={row.chip ? "group" : "button"} aria-label={`Project ${row.summary?.branch ?? displayPath(entry.path, props.homeDirectory)} · ${row.chip ?? `${row.summary?.canvases ?? 0} ${row.summary?.canvases === 1 ? "canvas" : "canvases"} · ${row.summary?.openComments ?? 0} open comments`} · ${entry.path}`} aria-current={row.current ? "true" : undefined} tabIndex={active === entry.path ? 0 : -1}
         onFocus={event => { if (event.target === event.currentTarget) setFocused(entry.path); }} onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) activate(event.currentTarget); }}
         onKeyDown={event => {
           if (event.target !== event.currentTarget) return;
