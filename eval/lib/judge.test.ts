@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { toolCalls } from "./transcript.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand, judgeFor, parseJudgement, truncate } from "./judge.ts";
@@ -75,4 +77,14 @@ test("active invocation evidence survives even an oversized command summary", ()
   assert.ok(prompt.includes('"doanActive":{"shellInvoked":true,"mcpInvoked":true}'));
   assert.ok(prompt.includes("log tail"));
   assert.ok(!prompt.includes("x".repeat(20001)));
+});
+
+test("batched rollout errors reach the judge without copying the rollout transcript", () => {
+  const rollout = readFileSync(new URL("./fixtures/codex-batched-output.jsonl", import.meta.url), "utf8");
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "FINAL_ANSWER", calls: toolCalls(rollout) });
+  assert.match(prompt, /app_not_running/);
+  assert.match(prompt, /Cannot connect to Doan: operation not permitted/);
+  assert.match(prompt, /batch/);
+  assert.match(prompt, /FINAL_ANSWER/);
+  assert.ok(!prompt.includes("nextSteps"));
 });
