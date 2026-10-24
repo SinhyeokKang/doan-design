@@ -125,6 +125,7 @@ export interface MachineDisplay {
   // The item in the way (the target or a non-directory ancestor) of a blocked state.
   blocked: { cli: string | null; stub: string | null; claudeLink: string | null };
   realPaths?: Partial<Record<"cli" | "stub" | "claudeLink", string>>;
+  claudeSharedSkills?: true;
   appVersion: string;
 }
 export interface MachineState {
@@ -181,25 +182,36 @@ export function createMachine(options: { command: string; version: string; env?:
     try { const parsed: unknown = JSON.parse(result.stdout); if (agent === "claude") { if (object(parsed) && object(parsed.mcpServers)) value = JSON.stringify(parsed.mcpServers.doan) ?? ""; } else value = JSON.stringify(parsed); } catch { value = state === "unknown" ? result.stderr || "Unreadable registration." : ""; }
     return { state, value };
   }
+  function claudeSharedSkills(ctx: Context): boolean {
+    if (!ctx.configValid.claude) return false;
+    const shared = realDirectory(dirname(dirname(stubPath)));
+    return shared !== null && shared === realDirectory(dirname(ctx.claudeLink));
+  }
   async function snapshot(ctx: Context): Promise<Expected> {
     const readAgent = async (agent: Agent) => {
       const exe = ctx.probe.ok ? findOnPath(ctx.probe.path, agent, executable) : null;
       return { executable: exe, config: agent === "claude" ? ctx.claudeDir : ctx.codexDir, mcp: await readMcp(agent, ctx, exe) };
     };
     const agents = { claude: await readAgent("claude"), codex: await readAgent("codex") };
-    return { cli: observeLink(cliPath, options.command), stub: observeStub(stubPath), claudeLink: observeLink(ctx.claudeLink, dirname(stubPath)), agents };
+    const stub = observeStub(stubPath);
+    // A shared folder already exposes the stub to Claude; no link belongs inside it.
+    const claudeLink: LinkObservation = claudeSharedSkills(ctx)
+      ? { state: stub.state === "ours" ? "ours" : "missing", value: null, stamp: `shared:${stamp(ctx.claudeLink)}:${stub.stamp}` }
+      : observeLink(ctx.claudeLink, dirname(stubPath));
+    return { cli: observeLink(cliPath, options.command), stub, claudeLink, agents };
   }
   const claudeLinkValue = (ctx: Context) => relative(realDirectory(dirname(ctx.claudeLink)) ?? dirname(ctx.claudeLink), realDirectory(dirname(stubPath)) ?? dirname(stubPath));
   async function read(requestId: string): Promise<MachineState> {
     const ctx = await context(), expected = await snapshot(ctx);
     const realPaths: NonNullable<MachineDisplay["realPaths"]> = {};
     for (const [key, path] of [["cli", cliPath], ["stub", stubPath], ["claudeLink", ctx.claudeLink]] as const) {
+      if (key === "claudeLink" && !ctx.configValid.claude) continue;
       const real = realTarget(path);
       if (real !== null && real !== path) realPaths[key] = real;
     }
     const display: MachineDisplay = {
       home, cliPath, cliTarget: available ? options.command : null, stubPath,
-      claudeLinkPath: ctx.claudeLink, claudeLinkTarget: claudeLinkValue(ctx), mcpCommand: `${cliPath} mcp`,
+      claudeLinkPath: ctx.claudeLink, claudeLinkTarget: ctx.configValid.claude && !claudeSharedSkills(ctx) ? claudeLinkValue(ctx) : "", mcpCommand: `${cliPath} mcp`,
       configFile: { claude: claudeConfigFile(ctx), codex: join(ctx.codexDir, "config.toml") },
       configFromEnv: { claude: !!ctx.runEnv.CLAUDE_CONFIG_DIR, codex: !!ctx.runEnv.CODEX_HOME },
       blocked: {
@@ -208,6 +220,7 @@ export function createMachine(options: { command: string; version: string; env?:
         claudeLink: expected.claudeLink.state === "blocked" ? blockedPath(ctx.claudeLink) : null,
       },
       ...(Object.keys(realPaths).length ? { realPaths } : {}),
+      ...(claudeSharedSkills(ctx) ? { claudeSharedSkills: true as const } : {}),
       appVersion: options.version,
     };
     return { requestId, expected, ...expected, available, reason, pathPresent: ctx.probe.ok && pathIncludes(ctx.probe.path, dirname(cliPath)), rcFile: rcFileFor(shellName(env)), probe: ctx.probe, display };

@@ -155,7 +155,7 @@ function agentCard(state: MachineState | null, ui: MachineUi, agent: Agent): Age
   }
   const items: ItemView[] = [];
   if (agent === "claude") {
-    const link: ItemView = { key: "claude-link", label: "Skill link", sub: true, detail: [{ code: tilde(d.claudeLinkPath, d.home) }, ...realLocation(state, "claudeLink"), " → ", { code: d.claudeLinkTarget }], chip: checking ?? linkChip(state.claudeLink.state) };
+    const link: ItemView = { key: "claude-link", label: "Skill link", sub: true, detail: d.claudeSharedSkills ? ["Uses the shared skill folder"] : [{ code: tilde(d.claudeLinkPath, d.home) }, ...realLocation(state, "claudeLink"), ...(d.claudeLinkTarget ? [" → ", { code: d.claudeLinkTarget }] : [])], chip: checking ?? linkChip(state.claudeLink.state) };
     if (state.claudeLink.state === "link-other") link.msg = { tone: "warn", parts: ["Points to another folder: ", { code: state.claudeLink.value ?? "" }] };
     if (state.claudeLink.state === "blocked") link.msg = { tone: "error", parts: [{ code: tilde(d.blocked.claudeLink ?? d.claudeLinkPath, d.home) }, IN_USE] };
     items.push(link);
