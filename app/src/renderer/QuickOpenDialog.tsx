@@ -40,7 +40,7 @@ interface QuickOpenProps {
   // The loaded workspace, or null on Home.
   currentRoot: string | null;
   // The open canvas's rendered frames, which replace its static ones.
-  rendered?: RenderedSearchFrames;
+  rendered?: RenderedSearchFrames | undefined;
   pick: (result: SearchResult) => void;
   // Escape; focus has already gone back to where Quick Open was opened.
   close: () => void;

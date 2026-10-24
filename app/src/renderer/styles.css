@@ -389,3 +389,40 @@ code, kbd { font-family: var(--font-sans); }
 .mark.jump-highlight { border: 2px solid var(--accent-line); border-radius: 1px; box-shadow: 0 0 0 3px var(--accent-soft); animation: frame-jump-fade 1.2s linear forwards; }
 @keyframes frame-jump-fade { 0%, 66.6667% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .mark.jump-highlight { animation: none; } }
+
+/* Overview and Quick Open: confirmed design/design-nav.html overview, overview-empty and quick-open. */
+/* The Overview covers the canvas area in the same cell; the area stays laid out beneath it. */
+.workspace > .area, .workspace > .ov { grid-column: 2; grid-row: -2; }
+.ov { min-height: 0; overflow: auto; padding: 4px 24px 24px; position: relative; z-index: 1; background: var(--bg); }
+/* Section headings are folder paths, so they keep their case. */
+.ov .sec { padding: 16px 0 10px; text-transform: none; letter-spacing: 0; font-size: 11.5px; color: var(--text-2); }
+.ocards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.ocard { display: block; width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
+.ocard:hover { background: var(--panel-2); }
+.thumb { aspect-ratio: 16 / 10; background: var(--board-bg); border-bottom: 1px solid var(--line); position: relative; overflow: hidden; display: grid; place-items: center; }
+.thumb.pending { background: var(--panel-2); }
+.thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.thumb-msg { font: 11.5px/1.5 var(--font-sans); color: var(--text-3); padding: 0 14px; text-align: center; }
+.thumb-msg code { color: var(--text-2); background: var(--raised); border-radius: 4px; padding: 0 4px; }
+.thumb-msg.warn { color: var(--warn); }
+.ocard-body { display: grid; gap: 2px; padding: 9px 12px 10px; min-width: 0; }
+.ocard-title { font: 600 12.5px var(--font-sans); color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ocard-file { font: 11px var(--font-sans); color: var(--text-4); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ocard-meta { font: 11px var(--font-sans); color: var(--text-3); white-space: nowrap; margin-top: 4px; }
+.ocard-meta .hot { color: var(--accent); }
+.qo { position: fixed; inset: 64px 0 auto; margin: 0 auto; width: 560px; max-width: calc(100vw - 32px); max-height: calc(100vh - 80px); padding: 0; color: var(--text); background: var(--raised); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-2); overflow: hidden; }
+.qo::backdrop { background: var(--board-bg); opacity: .6; }
+.qo-input { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); font: 14px var(--font-sans); color: var(--text); }
+.qo-input .glyph { color: var(--accent); width: auto; font-size: 14px; }
+.qo-input .q { flex: 1; min-width: 0; padding: 0; border: 0; outline: none; background: transparent; color: var(--text); font: inherit; caret-color: var(--accent); }
+.qo-input .q::placeholder { color: var(--text-4); }
+.qo-list { max-height: 360px; overflow-y: auto; padding: 6px; }
+.qo-item { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 6px; font: 12.5px var(--font-sans); white-space: nowrap; min-width: 0; cursor: pointer; }
+.qo-item .glyph { color: var(--text-4); }
+.qo-item .t { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.qo-item .c { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-3); }
+.qo-item .w { flex: 0 0 auto; color: var(--text-4); font-size: 11.5px; }
+.qo-item[aria-selected="true"] { background: var(--accent-soft); }
+.qo-item[aria-selected="true"] .glyph { color: var(--accent); }
+.qo-none { padding: 14px 10px; font: 12.5px var(--font-sans); color: var(--text-3); }
+.qo-foot { padding: 7px 14px; border-top: 1px solid var(--line); font: 10.5px var(--font-sans); color: var(--text-3); }

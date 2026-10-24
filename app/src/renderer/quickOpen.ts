@@ -1,4 +1,5 @@
 import type { CanvasRow, FolderEntry } from "../main/view";
+import { canvasLabel } from "./canvasTree";
 
 export interface SearchFrame {
   id: string;
@@ -39,10 +40,6 @@ function searchText(text: string): string {
 
 function searchResult({ fields: _fields, ...result }: SearchEntry): SearchResult {
   return result;
-}
-
-function canvasLabel(row: SearchCanvas): string {
-  return row.title?.trim() || (row.path.split("/").at(-1) ?? row.path).replace(/\.html$/, "");
 }
 
 export function searchIndex(entries: readonly SearchFolder[], rendered?: RenderedSearchFrames): SearchEntry[] {
