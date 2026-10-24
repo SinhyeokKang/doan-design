@@ -7,11 +7,25 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { AddOutcome, ScanSnapshot, StoreResult } from "../main/addProjects";
 import type { Selection } from "../formats/types";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
-import type { LocateResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, RestoreResult, TokenCssChoice, ViewCommand } from "../main/index";
+import type { LocateResult, MenuCommand, MenuInputs, OpenProjectResult, ProjectInitRequest, RemoveResult, RestoreResult, TokenCssChoice, ViewCommand } from "../main/index";
+import type { ExternalTarget, ForwardedAction, SettingsTarget } from "../main/settings";
+import type { SetupStatus } from "../main/setupBroker";
 import type { InspectResult } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
 import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { UiState } from "../restore/uiState";
+
+// Events with a current value: the value is asked for too, because the first
+// event can come before the listener. An event that arrives first wins.
+// Each preload keeps its own copy: a sandboxed preload cannot require a
+// chunk the two entries would otherwise share.
+function subscribe<T>(event: string, initial: string, listener: (value: T) => void): () => void {
+  let active = true, received = false;
+  const receive = (_event: Electron.IpcRendererEvent, value: T) => { received = true; listener(value); };
+  ipcRenderer.on(event, receive);
+  void ipcRenderer.invoke(initial).then((value: T | null) => { if (active && !received && value !== null) listener(value); });
+  return () => { active = false; ipcRenderer.removeListener(event, receive); };
+}
 
 // The renderer gets these calls and nothing else: no ipcRenderer, no
 // channel names, no paths it did not receive from main.
@@ -22,9 +36,29 @@ const api = {
   answerOnboardingReplace: (answer: { id: string; allow: boolean }): Promise<StepResult> => ipcRenderer.invoke("onboarding:answer", answer),
   closeOnboarding: (request: OnboardingOpen): Promise<StepResult> => ipcRenderer.invoke("onboarding:close", request),
   copyPathLine: (): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "pathLine" }),
-  // Main builds the sentence from a stored, set-up project; null otherwise.
-  firstPrompt: (root: string): Promise<string | null> => ipcRenderer.invoke("onboarding:first-prompt", { root }),
-  copyFirstPrompt: (root: string): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "firstPrompt", root }),
+  // Main builds the sentence from a stored, set-up project and the subject
+  // (promptSentence); null when either is refused. Without a subject it is the
+  // old placeholder sentence, kept until the FirstPrompt composer replaces it.
+  firstPrompt: (root: string, subject?: string): Promise<string | null> =>
+    ipcRenderer.invoke("onboarding:first-prompt", subject === undefined ? { root } : { root, subject }),
+  // Resolves after the clipboard write settled.
+  copyFirstPrompt: (root: string, subject?: string): Promise<StepResult> =>
+    ipcRenderer.invoke("onboarding:copy", subject === undefined ? { kind: "firstPrompt", root } : { kind: "firstPrompt", root, subject }),
+  // The wizard's Open Project…: one folder, judged as Add Project… judges it.
+  openProject: (): Promise<OpenProjectResult> => ipcRenderer.invoke("onboarding:open-project"),
+  // Home chips, banner and Finish card; null only if main refused.
+  setupStatus: (): Promise<SetupStatus | null> => ipcRenderer.invoke("setup:status"),
+  checkSetupAgain: (): Promise<SetupStatus | null> => ipcRenderer.invoke("setup:check-again"),
+  onSetupStatus: (listener: (status: SetupStatus) => void): (() => void) => subscribe("setup:status", "setup:status", listener),
+  openInstallPage: (target: ExternalTarget): Promise<boolean> => ipcRenderer.invoke("setup:open-external", { target }),
+  // Opens Settings, or brings it forward, at a tab and optionally one row.
+  openSettings: (target: SettingsTarget): Promise<boolean> => ipcRenderer.invoke("settings:open", target),
+  // A Settings problem row asked the home to run one of its actions.
+  onProjectAction(listener: (request: { path: string; action: ForwardedAction }) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, request: { path: string; action: ForwardedAction }) => listener(request);
+    ipcRenderer.on("projects:action", receive);
+    return () => ipcRenderer.removeListener("projects:action", receive);
+  },
   onOnboardingOpen(listener: (opened: OnboardingOpen) => void): () => void {
     let active = true, received = false;
     const receive = (_event: Electron.IpcRendererEvent, opened: OnboardingOpen) => { received = true; listener(opened); };
