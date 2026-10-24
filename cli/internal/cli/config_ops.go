@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"path/filepath"
 	"slices"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
@@ -29,6 +30,8 @@ func applyConfigOps(config repo.Config, ops configOps) (repo.Config, bool, *Erro
 			next.Serve = append(next.Serve, path)
 		}
 	}
-	next.Serve = slices.DeleteFunc(next.Serve, func(path string) bool { return slices.Contains(ops.RemoveServe, path) })
+	next.Serve = slices.DeleteFunc(next.Serve, func(path string) bool {
+		return slices.Contains(ops.RemoveServe, path) || slices.Contains(ops.RemoveServe, filepath.ToSlash(filepath.Clean(path)))
+	})
 	return next, next.TokenCSS != config.TokenCSS || !slices.Equal(next.Serve, config.Serve), nil
 }

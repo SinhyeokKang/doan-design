@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
@@ -27,16 +28,41 @@ func Config(ctx Context, f Flags, args []string) (Outcome, *Error) {
 			return Outcome{}, failure
 		}
 	}
-	for _, group := range []struct {
-		paths  []string
-		target *[]string
-	}{{f.AddServe, &ops.AddServe}, {f.RemoveServe, &ops.RemoveServe}} {
-		for _, path := range group.paths {
-			p, failure := configPath(r.Root, ctx.Start, path, false)
+
+	for _, path := range f.AddServe {
+		p, failure := configPath(r.Root, ctx.Start, path, false)
+		if failure != nil {
+			return Outcome{}, failure
+		}
+		ops.AddServe = append(ops.AddServe, p)
+	}
+	if len(f.RemoveServe) > 0 {
+		inputRoot := f.Repo
+		if inputRoot == "" {
+			inputRoot = ctx.Start
+		} else if !filepath.IsAbs(inputRoot) {
+			inputRoot = filepath.Join(ctx.Start, inputRoot)
+		}
+		for {
+			state, relative, err := repo.InsideRelative(r.Root, inputRoot)
+			if err != nil {
+				return Outcome{}, internal(err)
+			}
+			if state == repo.Inside && relative == "." {
+				break
+			}
+			parent := filepath.Dir(inputRoot)
+			if parent == inputRoot {
+				return Outcome{}, usageError("Repository root spelling could not be resolved")
+			}
+			inputRoot = parent
+		}
+		for _, path := range f.RemoveServe {
+			paths, failure := configRemovalPaths(r.Root, inputRoot, ctx.Start, path, r.Config.Serve)
 			if failure != nil {
 				return Outcome{}, failure
 			}
-			*group.target = append(*group.target, p)
+			ops.RemoveServe = append(ops.RemoveServe, paths...)
 		}
 	}
 	next, changed, failure := applyConfigOps(r.Config, ops)
@@ -128,4 +154,56 @@ func writeConfig(path string, data []byte) error {
 		return err
 	}
 	return os.Rename(name, path)
+}
+
+// Removal compares stored identities even after a build deletes their targets.
+func configRemovalPaths(root, inputRoot, start, path string, stored []string) ([]string, *Error) {
+	if path == "" {
+		return nil, usageError("Config paths must not be empty")
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(start, path)
+	}
+	relative := ""
+	for _, base := range []string{root, inputRoot} {
+		rel, err := filepath.Rel(base, path)
+		if err != nil {
+			return nil, internal(err)
+		}
+		if rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			relative = filepath.ToSlash(rel)
+			break
+		}
+	}
+	state, canonical, err := repo.InsideRelative(root, path)
+	if err != nil {
+		return nil, internal(err)
+	}
+	if state == repo.Outside || (state == repo.Missing && relative == "") {
+		return nil, usageError("Config path is outside the repository")
+	}
+	paths := []string{}
+	if relative != "" {
+		paths = append(paths, relative)
+	}
+	if state == repo.Inside {
+		paths = append(paths, canonical)
+	}
+	for _, value := range stored {
+		cleaned := filepath.ToSlash(filepath.Clean(value))
+		if slices.Contains(paths, cleaned) {
+			paths = append(paths, value)
+			continue
+		}
+		if state == repo.Inside {
+			storedState, storedPath, err := repo.InsideRelative(root, filepath.Join(root, value))
+			if err != nil {
+				return nil, internal(err)
+			}
+			if storedState == repo.Inside && storedPath == canonical {
+				paths = append(paths, value)
+			}
+		}
+	}
+	return paths, nil
 }

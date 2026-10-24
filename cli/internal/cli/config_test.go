@@ -100,7 +100,6 @@ func TestConfigInvalidInputsDoNotWrite(t *testing.T) {
 		{"--add-serve", filepath.Join(root, ".doan")},
 		{"--add-serve", filepath.Join(root, "config-link/config.json")},
 		{"--add-serve", filepath.Join(root, "missing")},
-		{"--remove-serve", filepath.Join(root, "missing")},
 		{"--token-css", filepath.Join(root, "tokens.css/x.css")},
 		{"--token-css", filepath.Join(root, strings.Repeat("x", 300))},
 		{"--token-css", "\x00"}, {"extra"},
@@ -131,5 +130,61 @@ func TestConfigDoesNotWriteOutsideLinkedDirectory(t *testing.T) {
 	failure(t, root, "usage_error", "config", "--token-css", filepath.Join(root, "tokens.css"))
 	if readFile(t, other, ".doan/config.json") != before {
 		t.Fatal("outside config changed")
+	}
+}
+
+func TestConfigRemoveMissingAndNoncanonicalServe(t *testing.T) {
+	for _, stored := range []string{"styles", "./styles"} {
+		for _, absolute := range []bool{false, true} {
+			root := initialized(t)
+			putFile(t, root, "styles/file", "")
+			putFile(t, root, ".doan/config.json", `{"v":1,"serve":["`+stored+`"]}`)
+			if err := os.RemoveAll(filepath.Join(root, "styles")); err != nil {
+				t.Fatal(err)
+			}
+			path := "styles"
+			if absolute {
+				path = filepath.Join(root, path)
+			}
+			t.Chdir(root)
+			got := result(t, root, 0, "config", "--remove-serve", path)
+			if got["changed"] != true || len(got["serve"].([]any)) != 0 {
+				t.Fatal(stored, path, got)
+			}
+			got = result(t, root, 0, "config", "--remove-serve", path)
+			if got["changed"] != false {
+				t.Fatal(got)
+			}
+			putFile(t, root, "styles/file", "")
+			got = result(t, root, 0, "config", "--add-serve", path)
+			if len(got["serve"].([]any)) != 1 || got["serve"].([]any)[0] != "styles" {
+				t.Fatal(got)
+			}
+		}
+	}
+}
+
+func TestConfigRemoveExistingAliasAndOutside(t *testing.T) {
+	root := initialized(t)
+	putFile(t, root, "styles/file", "")
+	if err := os.Symlink("styles", filepath.Join(root, "alias")); err != nil {
+		t.Fatal(err)
+	}
+	for _, stored := range []string{"./styles", "alias"} {
+		putFile(t, root, ".doan/config.json", `{"v":1,"serve":["`+stored+`"]}`)
+		got := result(t, root, 0, "config", "--remove-serve", filepath.Join(root, "styles"))
+		if got["changed"] != true || len(got["serve"].([]any)) != 0 {
+			t.Fatal(stored, got)
+		}
+	}
+	failure(t, root, "usage_error", "config", "--remove-serve", filepath.Join(t.TempDir(), "missing"))
+}
+
+func TestMCPConfigRemoveMissingServe(t *testing.T) {
+	root := initialized(t)
+	putFile(t, root, ".doan/config.json", `{"v":1,"serve":["./missing"]}`)
+	got := callTool(t, mcpClient(t), "config", map[string]any{"repo": root, "removeServe": []string{"missing"}})
+	if got["ok"] != true || got["result"].(map[string]any)["changed"] != true {
+		t.Fatal(got)
 	}
 }
