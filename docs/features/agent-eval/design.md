@@ -20,7 +20,7 @@
   2. `scenario.json`의 `init`이 있으면 패키지된 CLI로 `doan init --json --repo <tmp> [--token-css <abs>]`. 시드에 `.doan/`이 이미 있으면 하지 않는다.
   3. 스텁을 `.claude/skills/doan/SKILL.md`, `.agents/skills/doan/SKILL.md`에 둔다(저장소 단위). 실제 HOME · 설정에는 아무것도 쓰지 않는다.
   4. 환경: `PATH` 맨 앞에 `doan` 심볼릭 링크만 든 임시 bin, `DOAN_RUNTIME=<tmp>/.eval-runtime/runtime.json`. `selection`이 있는 시나리오(R2)는 실행기가 `app-socket.v1` 응답을 내는 가짜 유닉스 소켓 서버를 띄우고 `runtime.v1` 파일을 쓴다(스키마는 `schema/`의 것을 그대로 따른다).
-  5. 에이전트 명령: Claude `claude -p --allowedTools "Bash Read Write Edit Glob Grep" -- <prompt>`, Codex `codex exec <prompt>`. cwd = 임시 저장소, stdin `/dev/null`, 시간 제한(`timeoutSec`, 기본 900). 프롬프트의 `{{repo}}`를 임시 저장소 절대 경로로 바꾼다.
+  5. 에이전트 명령: Claude `claude -p --output-format stream-json --verbose --allowedTools "Bash Read Write Edit Glob Grep" -- <prompt>`(도구 호출까지 기록되도록 JSONL로 받는다. 평범한 `-p`는 마지막 답만 남긴다, 2026-10-24 배치 E), Codex `codex exec <prompt>`. cwd = 임시 저장소, stdin `/dev/null`, 시간 제한(`timeoutSec`, 기본 900). 프롬프트의 `{{repo}}`를 임시 저장소 절대 경로로 바꾼다.
   6. 끝나면 검사 컨텍스트로 `checks.ts`를 실행하고, 판정자(아래)를 부르고, 결과를 기록한다.
 - 결과: `.scratch/agent-eval/<round>/<id>-<agent>[-n]/`에 `prompt.txt`, `stdout.log`, `stderr.log`, `meta.json`(버전, 가이드 sha256, CLI 버전, 시간, 종료 코드), `repo/`(최종 사본, `.git` 제외), `checks.json`, `judge.json`. 회차 전체는 `results.json`과 `summary.md`(USABILITY-EVAL.md 회차 행 · 문제 후보).
 - 에이전트 · 버전 기록: `claude --version`, `codex --version`, `doan skill --json`의 version, `cli/internal/cli/skill.md` sha256.
