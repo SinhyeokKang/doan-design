@@ -1,0 +1,1340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="onboard">
+<meta name="doan:width" content="1440">
+<title>doan onboarding — draft</title>
+<link rel="stylesheet" href="../app/src/renderer/tokens.css">
+<style>
+* { box-sizing:border-box; margin:0; padding:0; }
+body { width:1440px; padding:48px; background:var(--board-bg); color:var(--text); font:13px var(--font-sans); line-height:normal; }
+button,code { font:inherit; color:inherit; } button { cursor:pointer; } button:disabled { opacity:.4; cursor:default; }
+.btn { font:500 12px var(--font-sans); color:var(--text); background:var(--panel-2); border:1px solid var(--line); border-radius:7px; padding:5px 10px; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+.btn.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600; }
+.btn.ghost { background:transparent; border-color:transparent; color:var(--text-2); }
+.focus { outline:1px solid var(--accent-line); outline-offset:2px; }
+.intro { max-width:1238px; margin-bottom:36px; } .intro h1 { font-size:30px; margin-bottom:12px; }
+.intro p,.note { font-size:12px; line-height:1.65; color:var(--text-3); margin:10px 0; }
+.frame { padding:24px; margin-bottom:32px; background:var(--bg); border:1px solid var(--line); border-radius:16px; }
+.flabel { display:flex; gap:12px; align-items:center; margin-bottom:16px; } .flabel h2 { font-size:18px; }
+.nic { border:1px dashed var(--warn); color:var(--warn); font-size:10px; padding:2px 6px; border-radius:4px; }
+.tiles { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; margin-top:24px; align-items:start; }
+.tile-label { color:var(--text-3); font-size:12px; margin-bottom:10px; }
+.surface { padding:24px; background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow-wrap:anywhere; }
+.surface h3 { font-size:15px; margin-bottom:16px; } .surface h4 { font-size:13px; margin-bottom:8px; }
+.surface p { font-size:12px; color:var(--text-2); line-height:1.6; margin:8px 0; }
+.tools { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:16px; }
+.tools.end { justify-content:flex-end; } .tools .help { color:var(--text-3); font-size:11.5px; }
+.path { overflow-wrap:anywhere; color:var(--text-2); font:12px/1.6 var(--font-sans); }
+.value { display:block; padding:12px; background:var(--bg); border:1px solid var(--line); border-radius:7px; margin:8px 0; overflow-wrap:anywhere; font-size:12px; line-height:1.6; }
+.chip { display:inline-block; font:11.5px var(--font-sans); color:var(--text-2); border:1px solid var(--line); border-radius:6px; padding:2px 8px; white-space:nowrap; }
+.good,.surface p.good { color:var(--ok); } .warning { color:var(--warn); } .error,.surface p.error,.dialog p.error { color:var(--err); }
+.status { display:flex; align-items:center; gap:12px; justify-content:space-between; margin-bottom:10px; }
+.notice { padding:12px; background:var(--accent-soft); border:1px solid var(--line); border-radius:7px; }
+.wizard { width:1238px; height:780px; background:var(--panel); border:1px solid var(--line); display:flex; flex-direction:column; }
+.wizard-head { height:72px; padding:0 32px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); }
+.wizard-head h3 { font-size:15px; font-weight:600; }
+.steps { display:flex; list-style:none; gap:32px; width:640px; margin:32px auto 0; color:var(--text-3); font-size:12px; }
+.steps li { display:flex; gap:8px; align-items:center; } .steps b { display:grid; place-items:center; width:24px; height:24px; border:1px solid var(--line); border-radius:50%; font-weight:500; }
+.steps .current { color:var(--accent); } .steps .current b { background:var(--accent-soft); border-color:var(--accent-line); }
+.wizard-main { width:640px; margin:32px auto; flex:1; overflow:auto; }
+.wizard-main h2 { font-size:24px; font-weight:600; margin-bottom:12px; } .wizard-main > p { color:var(--text-3); font-size:12.5px; line-height:1.6; margin-bottom:24px; }
+.wizard-main .surface { padding:16px; background:var(--panel-2); }
+.wizard-main .surface p { margin:2px 0; line-height:1.5; }
+.wizard-foot { height:72px; border-top:1px solid var(--line); padding:0 32px; display:flex; align-items:center; gap:12px; }
+.spacer { flex:1; } .wizard-foot span { color:var(--text-3); font-size:11.5px; }
+.agent + .agent { border-top:1px solid var(--line); margin-top:16px; padding-top:16px; }
+.field { margin:16px 0; } .field label { display:block; font-size:12px; margin-bottom:8px; } .field-row { display:flex; align-items:center; gap:12px; } .field-row .value { flex:1; min-width:0; margin:0; }
+.changes { margin:12px 0 16px 20px; color:var(--text-2); font-size:12px; line-height:1.8; }
+.dialog { width:100%; padding:20px; background:var(--raised); border:1px solid var(--line); box-shadow:var(--shadow-2); border-radius:12px; overflow-wrap:anywhere; }
+.dialog h3 { font-size:15px; margin-bottom:10px; font-weight:700; } .dialog p { font-size:12px; line-height:1.6; color:var(--text-2); margin-bottom:12px; }
+.comparison { display:grid; grid-template-columns:60px minmax(0,1fr); gap:8px; font-size:12px; line-height:1.6; margin:16px 0; } .comparison dt { color:var(--text-3); } .comparison dd { overflow-wrap:anywhere; }
+.side { background:var(--panel); border-right:1px solid var(--line); width:240px; min-height:260px; }
+.sec { font:10.5px var(--font-sans); letter-spacing:.1em; text-transform:uppercase; color:var(--text-3); display:flex; align-items:center; justify-content:space-between; padding:14px 12px 6px; }
+.section-action { letter-spacing:0; text-transform:none; color:var(--text-4); font-size:10.5px; border:0; background:transparent; }
+.row { display:flex; align-items:center; gap:8px; height:26px; padding:0 12px; font:12.5px var(--font-sans); color:var(--text-2); position:relative; white-space:nowrap; }
+.row .g { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; text-align:left; } .glyph { color:var(--text-4); width:12px; flex:none; text-align:center; }
+.cnt { font:10.5px var(--font-sans); color:var(--text-3); } .close-project { color:var(--text-4); margin-left:4px; border:0; background:transparent; }
+.hint { padding:2px 12px 6px 34px; font:11.5px/1.5 var(--font-sans); color:var(--text-3); overflow-wrap:anywhere; }
+.recovery .btn { padding:2px 8px; font-size:11px; margin:4px 4px 0 0; }
+.area { position:relative; overflow:hidden; background-color:var(--board-bg); background-image:radial-gradient(var(--board-dot) 1px,transparent 1px); background-size:16px 16px; }
+.canvas-status { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:18px; text-align:center; color:var(--text-2); font:12.5px/1.6 var(--font-sans); }
+.canvas-status > p { max-width:260px; } .canvas-status b { color:var(--text); font-weight:500; }
+.shell-crop { display:flex; height:300px; border:1px solid var(--line); } .shell-crop .area { flex:1; }
+.tooltip { width:300px; padding:6px 12px; background:var(--text); border-radius:6px; color:var(--bg); font:12px/1.5 var(--font-sans); overflow-wrap:anywhere; margin:12px 0; }
+.sidebar-pair { display:flex; align-items:flex-start; gap:20px; } .sidebar-pair .tooltip { width:280px; }
+</style>
+</head>
+<body>
+<header class="intro">
+<h1>Set Up doan</h1>
+<p>Four steps, one window. All eight frames below are new onboarding UI and are <strong>not in code</strong>. This is a static review canvas; controls depict states and do not install or connect anything.</p>
+<p>Design-sync scope: wizard-cli, wizard-agents, wizard-project, wizard-prompt, confirm-replace, sidebar-setup, project-setup-dialog and sidebar-first-prompt, including their labelled state tiles. The 1238 × 780 wizard covers the existing window; content is at most 640px wide. Tiles isolate alternate states at readable scale.</p>
+<p>Checked sources (2026-10-24): docs/features/onboard/design.md flows 3–11 and draft request; spec.md conditions 3–10; docs/PRODUCT.md §5 and §7; docs/ARCHITECTURE.md §1; docs/DESIGN.md; app/src/renderer/Sidebar.tsx, styles.css and components/ui/tooltip.tsx; design/comments-ui.html and tokens.css. Sidebar rows, hints and recovery controls are copied from shipped styles; only requested onboarding content is new. No external or memory-only reference.</p>
+<p>Coordinator-approved layout and supplementary labels: Batch B ask, 2026-10-24. First-prompt wording is the feature document’s draft, pending user review. All example paths are illustrative. App menu entry: <strong>Set Up doan…</strong>.</p>
+</header>
+<section class="frame" data-doan-frame="wizard-cli" data-doan-title="1 · CLI">
+<div class="flabel">
+<h2>1 · CLI</h2>
+<span class="nic">not in code</span>
+</div>
+<div class="wizard" role="dialog" aria-label="Set Up doan" data-doan-id="cli-wizard">
+<header class="wizard-head">
+<h3 tabindex="-1">Set Up doan</h3>
+<button data-doan-id="cli-close" class="btn">Close</button>
+</header>
+<ol class="steps">
+<li class="current" aria-current="step">
+<b>1</b>CLI</li>
+<li>
+<b>2</b>Agents</li>
+<li>
+<b>3</b>Project</li>
+<li>
+<b>4</b>First prompt</li>
+</ol>
+<main class="wizard-main">
+<h2>Use doan from your terminal</h2>
+<p>Install the CLI link, then check that your shell can find it.</p>
+<div class="surface" data-doan-id="cli-missing-card">
+<div class="status">
+<h4>CLI</h4>
+</div>
+<div class="value">~/.local/bin/doan</div>
+<p>Not installed</p>
+<div class="tools">
+<button data-doan-id="cli-install" class="btn primary">Install</button>
+</div>
+</div>
+</main>
+<footer class="wizard-foot">
+<span>Step 1 of 4</span>
+<button data-doan-id="cli-footer-check" class="btn">Check Again</button>
+<div class="spacer">
+</div>
+<button data-doan-id="cli-skip" class="btn">Skip</button>
+<button data-doan-id="cli-continue" class="btn primary">Continue</button>
+</footer>
+</div>
+<div class="tiles">
+<article data-doan-id="cli-ours">
+<p class="tile-label">Installed · ours</p>
+<div class="surface" data-doan-id="cli-ours-card">
+<div class="status">
+<h4>CLI</h4>
+<span class="chip">Installed</span>
+</div>
+<p>~/.local/bin/doan → /Applications/doan.app/Contents/Resources/bin/doan</p>
+<div class="tools">
+<button data-doan-id="cli-ours-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="cli-other">
+<p class="tile-label">Another copy · link-other</p>
+<div class="surface" data-doan-id="cli-other-card">
+<div class="status">
+<h4>CLI</h4>
+<span class="chip">Needs replacement</span>
+</div>
+<p>Points to another copy: /Users/alex/Downloads/doan-preview.app/Contents/Resources/bin/doan</p>
+<div class="tools">
+<button data-doan-id="cli-other-replace" class="btn">Replace Link</button>
+<button data-doan-id="cli-other-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="cli-blocked">
+<p class="tile-label">Blocked file or directory</p>
+<div class="surface" data-doan-id="cli-blocked-card">
+<div class="status">
+<h4>CLI</h4>
+<span class="chip">Unavailable</span>
+</div>
+<p>~/.local/bin/doan is in use by something else. Move or delete it, then Check Again.</p>
+<div class="tools">
+<button data-doan-id="cli-blocked-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="cli-blocked-parent">
+<p class="tile-label">Blocked parent</p>
+<div class="surface" data-doan-id="cli-blocked-parent-card">
+<div class="status">
+<h4>CLI</h4>
+<span class="chip">Unavailable</span>
+</div>
+<p>~/.local/bin is in use by something else. Move or delete it, then Check Again.</p>
+<div class="tools">
+<button data-doan-id="cli-parent-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="cli-translocation">
+<p class="tile-label">App Translocation</p>
+<div class="surface" data-doan-id="cli-translocation-card">
+<div class="status">
+<h4>CLI</h4>
+<span class="chip">Unavailable</span>
+</div>
+<p>Move doan to Applications, then open it again.</p>
+<div class="tools">
+<button data-doan-id="cli-translocation-install" class="btn primary" disabled>Install</button>
+</div>
+</div>
+</article>
+<article data-doan-id="cli-development">
+<p class="tile-label">Development build</p>
+<div class="surface" data-doan-id="cli-development-card">
+<div class="status">
+<h4>CLI</h4>
+<span class="chip">Unavailable</span>
+</div>
+<p>This build has no bundled CLI. Set DOAN_CLI.</p>
+<div class="tools">
+<button data-doan-id="cli-dev-install" class="btn primary" disabled>Install</button>
+</div>
+</div>
+</article>
+<article data-doan-id="cli-checking">
+<p class="tile-label">Read in progress</p>
+<div class="surface" data-doan-id="cli-checking-card">
+<div class="status">
+<h4>CLI</h4>
+<span class="chip">Checking…</span>
+</div>
+<p>Checking…</p>
+<div class="tools">
+<button data-doan-id="cli-checking-install" class="btn primary" disabled>Install</button>
+<button data-doan-id="cli-checking-check" class="btn" disabled>Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="cli-check-failed">
+<p class="tile-label">Probe failure</p>
+<div class="surface" data-doan-id="cli-check-failed-card">
+<div class="status">
+<h4>CLI</h4>
+<span class="chip">Couldn’t check</span>
+</div>
+<p>Couldn&#x27;t check</p>
+<p class="error">Login shell timed out.</p>
+<div class="tools">
+<button data-doan-id="cli-failed-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="cli-path-zsh">
+<p class="tile-label">PATH missing · zsh</p>
+<div class="surface" data-doan-id="cli-path-zsh-card">
+<div class="status">
+<h4>Add doan to PATH</h4>
+</div>
+<p>Add this line to ~/.zshrc, open a new terminal, then choose Check Again.</p>
+<div class="value">export PATH=&quot;$HOME/.local/bin:$PATH&quot;</div>
+<div class="tools">
+<button data-doan-id="path-copy-zsh" class="btn">Copy</button>
+<button data-doan-id="path-check-zsh" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="cli-path-bash">
+<p class="tile-label">PATH missing · bash</p>
+<div class="surface" data-doan-id="cli-path-bash-card">
+<div class="status">
+<h4>Add doan to PATH</h4>
+</div>
+<p>Add this line to ~/.bash_profile, open a new terminal, then choose Check Again.</p>
+<div class="value">export PATH=&quot;$HOME/.local/bin:$PATH&quot;</div>
+<div class="tools">
+<button data-doan-id="path-copy-bash" class="btn">Copy</button>
+<button data-doan-id="path-check-bash" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="cli-path-other">
+<p class="tile-label">PATH missing · other shell</p>
+<div class="surface" data-doan-id="cli-path-other-card">
+<div class="status">
+<h4>Add doan to PATH</h4>
+</div>
+<p>Add ~/.local/bin to PATH in your shell configuration, then choose Check Again.</p>
+<div class="tools">
+<button data-doan-id="path-other-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="cli-path-copy-states">
+<p class="tile-label">PATH line · clipboard feedback</p>
+<div class="surface" data-doan-id="cli-path-copy-card">
+<div class="status">
+<h4>Add doan to PATH</h4>
+</div>
+<div class="value">export PATH=&quot;$HOME/.local/bin:$PATH&quot;</div>
+<div class="tools">
+<button data-doan-id="path-copying" class="btn" disabled>Copying…</button>
+<button data-doan-id="path-copied" class="btn">Copied</button>
+<button data-doan-id="path-retry" class="btn">Retry copy</button>
+</div>
+</div>
+</article>
+</div>
+<p class="note">Opening focuses the dialog title; Tab stays inside. Close or Escape dismisses; while a mutation is running, Close, Escape and navigation are disabled. Cmd+W hides the window; Cmd+Q does not complete onboarding. Reopen from the app menu: Set Up doan….</p>
+</section>
+<section class="frame" data-doan-frame="wizard-agents" data-doan-title="2 · Agents">
+<div class="flabel">
+<h2>2 · Agents</h2>
+<span class="nic">not in code</span>
+</div>
+<div class="wizard" role="dialog" aria-label="Set Up doan" data-doan-id="agents-wizard">
+<header class="wizard-head">
+<h3 tabindex="-1">Set Up doan</h3>
+<button data-doan-id="agents-close" class="btn">Close</button>
+</header>
+<ol class="steps">
+<li>
+<b>1</b>CLI</li>
+<li class="current" aria-current="step">
+<b>2</b>Agents</li>
+<li>
+<b>3</b>Project</li>
+<li>
+<b>4</b>First prompt</li>
+</ol>
+<main class="wizard-main">
+<h2>Connect your agents</h2>
+<p>Install the shared skill and connect each agent you use.</p>
+<div class="surface" data-doan-id="agents-skill-missing">
+<div class="status">
+<h4>Skill</h4>
+<span class="chip">Not installed</span>
+</div>
+<p>~/.agents/skills/doan</p>
+<p>Shared by Claude Code and Codex.</p>
+</div>
+<div class="surface" style="margin-top:16px">
+<div class="agent" data-doan-id="agents-claude">
+<div class="status">
+<h4>Claude Code</h4>
+<button data-doan-id="agents-claude-connect" class="btn primary">Connect</button>
+</div>
+<p>Found at /opt/homebrew/bin/claude</p>
+<p>MCP · Not registered</p>
+<p class="path">Configuration: ~/.claude.json</p>
+<p>Skill link · Not installed</p>
+</div>
+<div class="agent" data-doan-id="agents-codex">
+<div class="status">
+<h4>Codex</h4>
+<button data-doan-id="agents-codex-connect" class="btn primary">Connect</button>
+</div>
+<p>Found at /opt/homebrew/bin/codex</p>
+<p>MCP · Not registered</p>
+<p class="path">Configuration: ~/.codex/config.toml</p>
+</div>
+</div>
+</main>
+<footer class="wizard-foot">
+<span>Step 2 of 4</span>
+<button data-doan-id="agents-footer-check" class="btn">Check Again</button>
+<div class="spacer">
+</div>
+<button data-doan-id="agents-skip" class="btn">Skip</button>
+<button data-doan-id="agents-continue" class="btn primary">Continue</button>
+</footer>
+</div>
+<div class="tiles">
+<article data-doan-id="skill-ours">
+<p class="tile-label">Shared Skill · ours</p>
+<div class="surface" data-doan-id="skill-ours-card">
+<div class="status">
+<h4>Skill</h4>
+<span class="chip">Installed</span>
+</div>
+<p>~/.agents/skills/doan/SKILL.md</p>
+<div class="tools">
+<button data-doan-id="skill-ours-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="skill-differs">
+<p class="tile-label">Shared Skill · differs</p>
+<div class="surface" data-doan-id="skill-differs-card">
+<div class="status">
+<h4>Skill</h4>
+<span class="chip">Needs replacement</span>
+</div>
+<p>Modified or from another version</p>
+<p>~/.agents/skills/doan/SKILL.md</p>
+<div class="tools">
+<button data-doan-id="skill-differs-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="skill-blocked">
+<p class="tile-label">Shared Skill · blocked</p>
+<div class="surface" data-doan-id="skill-blocked-card">
+<div class="status">
+<h4>Skill</h4>
+<span class="chip">Unavailable</span>
+</div>
+<p>~/.agents/skills/doan/SKILL.md is in use by something else. Move or delete it, then Check Again.</p>
+<div class="tools">
+<button data-doan-id="skill-blocked-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="agent-not-installed">
+<p class="tile-label">Agent detection · absent</p>
+<div class="surface" data-doan-id="agents-absent-card">
+<div class="status">
+<h4>Agents</h4>
+</div>
+<div class="agent" data-doan-id="claude-absent">
+<div class="status">
+<h4>Claude Code</h4>
+</div>
+<p>Not installed</p>
+<p>MCP · Not checked</p>
+<p class="path">Configuration: ~/.claude.json</p>
+</div>
+<div class="agent" data-doan-id="codex-absent">
+<div class="status">
+<h4>Codex</h4>
+</div>
+<p>Not installed</p>
+<p>MCP · Not checked</p>
+<p class="path">Configuration: ~/.codex/config.toml</p>
+</div>
+<div class="tools">
+<button data-doan-id="agents-absent-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="agent-probe-failure">
+<p class="tile-label">Agent detection · failure</p>
+<div class="surface" data-doan-id="agents-probe-card">
+<div class="status">
+<h4>Agents</h4>
+</div>
+<div class="agent" data-doan-id="claude-probe-fail">
+<div class="status">
+<h4>Claude Code</h4>
+</div>
+<p>Couldn&#x27;t check</p>
+<p>MCP · Not checked</p>
+<p class="path">Configuration: ~/.claude.json</p>
+<p class="error">Login shell timed out.</p>
+</div>
+<div class="agent" data-doan-id="codex-probe-fail">
+<div class="status">
+<h4>Codex</h4>
+</div>
+<p>Couldn&#x27;t check</p>
+<p>MCP · Not checked</p>
+<p class="path">Configuration: ~/.codex/config.toml</p>
+<p class="error">Login shell timed out.</p>
+</div>
+<div class="tools">
+<button data-doan-id="agents-probe-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="mcp-ours">
+<p class="tile-label">MCP ours · connected · custom settings</p>
+<div class="surface" data-doan-id="agents-connected-card">
+<div class="status">
+<h4>Agents</h4>
+</div>
+<div class="agent" data-doan-id="claude-connected">
+<div class="status">
+<h4>Claude Code</h4>
+</div>
+<p>Found at /opt/homebrew/bin/claude</p>
+<p>MCP · Registered</p>
+<p class="path">Configuration: /Users/alex/.config/claude-work/.claude.json (CLAUDE_CONFIG_DIR)</p>
+<p>Skill link · Installed</p>
+<p class="good">Connected. Start a new Claude Code session to use doan.</p>
+</div>
+<div class="agent" data-doan-id="codex-connected">
+<div class="status">
+<h4>Codex</h4>
+</div>
+<p>Found at /opt/homebrew/bin/codex</p>
+<p>MCP · Registered</p>
+<p class="path">Configuration: /Users/alex/.config/codex-work/config.toml (CODEX_HOME)</p>
+<p class="good">Connected. Start a new Codex session to use doan.</p>
+</div>
+<div class="tools">
+<button data-doan-id="agents-connected-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="mcp-other">
+<p class="tile-label">MCP other · current registration</p>
+<div class="surface" data-doan-id="mcp-other-card">
+<div class="status">
+<h4>Agents</h4>
+</div>
+<div class="agent" data-doan-id="codex-other">
+<div class="status">
+<h4>Codex</h4>
+<button data-doan-id="codex-other-connect" class="btn primary">Connect</button>
+</div>
+<p>Found at /opt/homebrew/bin/codex</p>
+<p>MCP · Needs replacement</p>
+<p class="path">Configuration: ~/.codex/config.toml</p>
+<div class="value">/Users/alex/Tools/doan-old mcp</div>
+</div>
+</div>
+</article>
+<article data-doan-id="mcp-unknown">
+<p class="tile-label">MCP unknown · mutation unavailable</p>
+<div class="surface" data-doan-id="mcp-unknown-card">
+<div class="status">
+<h4>Agents</h4>
+</div>
+<div class="agent" data-doan-id="codex-unknown">
+<div class="status">
+<h4>Codex</h4>
+</div>
+<p>Found at /opt/homebrew/bin/codex</p>
+<p>MCP · Couldn&#x27;t check</p>
+<p class="path">Configuration: ~/.codex/config.toml</p>
+<p class="error">Could not read MCP registration: invalid configuration.</p>
+</div>
+<div class="tools">
+<button data-doan-id="mcp-unknown-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="agents-cli-unavailable">
+<p class="tile-label">CLI link incomplete</p>
+<div class="surface" data-doan-id="agents-cli-unavailable-card">
+<div class="status">
+<h4>Agents</h4>
+</div>
+<div class="agent" data-doan-id="codex-no-cli">
+<div class="status">
+<h4>Codex</h4>
+<button data-doan-id="codex-no-cli-connect" class="btn primary" disabled>Connect</button>
+</div>
+<p>Found at /opt/homebrew/bin/codex</p>
+<p>MCP · Not registered</p>
+<p class="path">Configuration: ~/.codex/config.toml</p>
+<p>Install the CLI link in step 1 before connecting MCP.</p>
+</div>
+</div>
+</article>
+<article data-doan-id="agents-running">
+<p class="tile-label">Connect running · navigation and Close disabled</p>
+<div class="surface" data-doan-id="agents-running-card">
+<div class="status">
+<h4>Agents</h4>
+</div>
+<div class="agent" data-doan-id="claude-running">
+<div class="status">
+<h4>Claude Code</h4>
+<button data-doan-id="claude-running-connect" class="btn primary" disabled>Connect</button>
+</div>
+<p>Found at /opt/homebrew/bin/claude</p>
+<p>MCP · Connecting…</p>
+<p class="path">Configuration: ~/.claude.json</p>
+<p>Skill link · Installed</p>
+<p>Skill · Installed</p>
+</div>
+<div class="tools">
+<button data-doan-id="agents-running-close" class="btn" disabled>Close</button>
+<button data-doan-id="agents-running-skip" class="btn" disabled>Skip</button>
+<button data-doan-id="agents-running-continue" class="btn primary" disabled>Continue</button>
+</div>
+</div>
+</article>
+<article data-doan-id="agents-partial-failure">
+<p class="tile-label">Partial failure · keep completed items</p>
+<div class="surface" data-doan-id="agents-partial-card">
+<div class="status">
+<h4>Agents</h4>
+</div>
+<div class="agent" data-doan-id="claude-partial">
+<div class="status">
+<h4>Claude Code</h4>
+<button data-doan-id="claude-partial-connect" class="btn primary">Connect</button>
+</div>
+<p>Found at /opt/homebrew/bin/claude</p>
+<p>MCP · Not registered</p>
+<p class="path">Configuration: ~/.claude.json</p>
+<p>Skill link · Installed</p>
+<p>Skill · Installed</p>
+<p class="error">MCP registration failed: permission denied.</p>
+</div>
+<div class="tools">
+<button data-doan-id="agents-partial-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="agent-execution-failure">
+<p class="tile-label">Agent executable vanished</p>
+<div class="surface" data-doan-id="agent-exec-card">
+<div class="status">
+<h4>Agents</h4>
+</div>
+<div class="agent" data-doan-id="codex-exec-fail">
+<div class="status">
+<h4>Codex</h4>
+</div>
+<p>Found at /opt/homebrew/bin/codex</p>
+<p>MCP · Not registered</p>
+<p class="path">Configuration: ~/.codex/config.toml</p>
+<p class="error">Couldn&#x27;t run Codex at /opt/homebrew/bin/codex. Check Again.</p>
+</div>
+<div class="tools">
+<button data-doan-id="agent-exec-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+<article data-doan-id="claude-link-other">
+<p class="tile-label">Claude skill link · another target</p>
+<div class="surface" data-doan-id="claude-link-other-card">
+<div class="status">
+<h4>Agents</h4>
+</div>
+<div class="agent" data-doan-id="claude-link-replace">
+<div class="status">
+<h4>Claude Code</h4>
+<button data-doan-id="claude-link-replace-connect" class="btn primary">Connect</button>
+</div>
+<p>Found at /opt/homebrew/bin/claude</p>
+<p>MCP · Not registered</p>
+<p class="path">Configuration: ~/.claude.json</p>
+<p>Skill link · Needs replacement</p>
+<p>Points to another copy: /Users/alex/Archives/doan-skill</p>
+</div>
+</div>
+</article>
+<article data-doan-id="claude-link-blocked">
+<p class="tile-label">Claude skill link · blocked</p>
+<div class="surface" data-doan-id="claude-link-blocked-card">
+<div class="status">
+<h4>Agents</h4>
+</div>
+<div class="agent" data-doan-id="claude-link-blocked-row">
+<div class="status">
+<h4>Claude Code</h4>
+<button data-doan-id="claude-link-blocked-row-connect" class="btn primary" disabled>Connect</button>
+</div>
+<p>Found at /opt/homebrew/bin/claude</p>
+<p>MCP · Not registered</p>
+<p class="path">Configuration: ~/.claude.json</p>
+<p>Skill link · Unavailable</p>
+<p>~/.claude/skills/doan is in use by something else. Move or delete it, then Check Again.</p>
+</div>
+<div class="tools">
+<button data-doan-id="claude-link-blocked-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+</div>
+<p class="note">Connect runs only the missing items: shared skill → Claude skill link (Claude Code only) → MCP. It stops at the first failure. Settings locations are always visible beside MCP status. Check Again rereads without writing.</p>
+</section>
+<section class="frame" data-doan-frame="wizard-project" data-doan-title="3 · Project">
+<div class="flabel">
+<h2>3 · Project</h2>
+<span class="nic">not in code</span>
+</div>
+<div class="wizard" role="dialog" aria-label="Set Up doan" data-doan-id="project-wizard">
+<header class="wizard-head">
+<h3 tabindex="-1">Set Up doan</h3>
+<button data-doan-id="project-close" class="btn">Close</button>
+</header>
+<ol class="steps">
+<li>
+<b>1</b>CLI</li>
+<li>
+<b>2</b>Agents</li>
+<li class="current" aria-current="step">
+<b>3</b>Project</li>
+<li>
+<b>4</b>First prompt</li>
+</ol>
+<main class="wizard-main">
+<h2>Set up a project</h2>
+<p>Open a project and choose its token CSS, if it has one.</p>
+<div class="surface" data-doan-id="project-open-card">
+<div class="status">
+<h4>Project</h4>
+</div>
+<p>Open the project you want to design in.</p>
+<div class="tools">
+<button data-doan-id="project-open" class="btn primary">Open Project…</button>
+</div>
+</div>
+</main>
+<footer class="wizard-foot">
+<span>Step 3 of 4</span>
+<div class="spacer">
+</div>
+<button data-doan-id="project-skip" class="btn">Skip</button>
+<button data-doan-id="project-continue" class="btn primary">Continue</button>
+</footer>
+</div>
+<div class="tiles">
+<article data-doan-id="project-already">
+<p class="tile-label">Already initialized</p>
+<div class="surface" data-doan-id="project-already-card">
+<div class="status">
+<h4>Project</h4>
+</div>
+<p>/Users/alex/Projects/atlas</p>
+<p class="good">Already set up</p>
+</div>
+</article>
+<article data-doan-id="project-none">
+<p class="tile-label">Token CSS · None</p>
+<div class="surface" data-doan-id="project-none-card">
+<div class="status">
+<h4>Set Up Project</h4>
+</div>
+<p class="path">/Users/alex/Projects/atlas</p>
+<div class="field">
+<label>Token CSS</label>
+<div class="field-row">
+<div class="value">None</div>
+<button data-doan-id="project-none-choose" class="btn">Choose…</button>
+</div>
+</div>
+<p>Without token CSS, doan check won&#x27;t flag hardcoded colors.</p>
+<h4>Changes to this project</h4>
+<ul class="changes">
+<li>design/</li>
+<li>.doan/config.json</li>
+<li>One line in .gitattributes</li>
+</ul>
+<div class="tools">
+<button data-doan-id="project-none-submit" class="btn primary">Set Up Project</button>
+</div>
+</div>
+</article>
+<article data-doan-id="project-chosen">
+<p class="tile-label">Token CSS · selected long path</p>
+<div class="surface" data-doan-id="project-chosen-card">
+<div class="status">
+<h4>Set Up Project</h4>
+</div>
+<p class="path">/Users/alex/Projects/atlas</p>
+<div class="field">
+<label>Token CSS</label>
+<div class="field-row">
+<div class="value">/Users/alex/Projects/atlas/src/styles/themes/dark/accessibility-and-brand-tokens.css</div>
+<button data-doan-id="project-chosen-choose" class="btn">Choose…</button>
+</div>
+</div>
+<h4>Changes to this project</h4>
+<ul class="changes">
+<li>design/</li>
+<li>.doan/config.json</li>
+<li>One line in .gitattributes</li>
+</ul>
+<div class="tools">
+<button data-doan-id="project-chosen-submit" class="btn primary">Set Up Project</button>
+</div>
+</div>
+</article>
+<article data-doan-id="project-running">
+<p class="tile-label">Set Up Project · running</p>
+<div class="surface" data-doan-id="project-running-card">
+<div class="status">
+<h4>Set Up Project</h4>
+</div>
+<p class="path">/Users/alex/Projects/atlas</p>
+<div class="field">
+<label>Token CSS</label>
+<div class="field-row">
+<div class="value">/Users/alex/Projects/atlas/src/styles/themes/dark/accessibility-and-brand-tokens.css</div>
+<button data-doan-id="project-running-choose" class="btn" disabled>Choose…</button>
+</div>
+</div>
+<h4>Changes to this project</h4>
+<ul class="changes">
+<li>design/</li>
+<li>.doan/config.json</li>
+<li>One line in .gitattributes</li>
+</ul>
+<div class="tools">
+<button data-doan-id="project-running-submit" class="btn primary" disabled>Setting Up…</button>
+</div>
+</div>
+</article>
+<article data-doan-id="project-error">
+<p class="tile-label">CLI error · file outside project</p>
+<div class="surface" data-doan-id="project-error-card">
+<div class="status">
+<h4>Set Up Project</h4>
+</div>
+<p class="path">/Users/alex/Projects/atlas</p>
+<div class="field">
+<label>Token CSS</label>
+<div class="field-row">
+<div class="value">/Users/alex/Shared/tokens.css</div>
+<button data-doan-id="project-error-choose" class="btn">Choose…</button>
+</div>
+</div>
+<h4>Changes to this project</h4>
+<ul class="changes">
+<li>design/</li>
+<li>.doan/config.json</li>
+<li>One line in .gitattributes</li>
+</ul>
+<p class="error">token CSS is outside the repository</p>
+<p>Choose a CSS file inside /Users/alex/Projects/atlas.</p>
+<div class="tools">
+<button data-doan-id="project-error-submit" class="btn primary">Set Up Project</button>
+</div>
+</div>
+</article>
+<article data-doan-id="project-timeout">
+<p class="tile-label">CLI error · timeout</p>
+<div class="surface" data-doan-id="project-timeout-card">
+<div class="status">
+<h4>Set Up Project</h4>
+</div>
+<p class="path">/Users/alex/Projects/atlas</p>
+<div class="field">
+<label>Token CSS</label>
+<div class="field-row">
+<div class="value">/Users/alex/Projects/atlas/src/styles/themes/dark/accessibility-and-brand-tokens.css</div>
+<button data-doan-id="project-timeout-choose" class="btn">Choose…</button>
+</div>
+</div>
+<h4>Changes to this project</h4>
+<ul class="changes">
+<li>design/</li>
+<li>.doan/config.json</li>
+<li>One line in .gitattributes</li>
+</ul>
+<p class="error">doan CLI error: timed out after 10 s</p>
+<div class="tools">
+<button data-doan-id="project-timeout-submit" class="btn primary">Set Up Project</button>
+</div>
+</div>
+</article>
+<article data-doan-id="project-reroot">
+<p class="tile-label">Ancestor found · form closes</p>
+<div class="surface" data-doan-id="project-reroot-card">
+<div class="status">
+<h4>Project</h4>
+</div>
+<p class="notice">This folder is inside /Users/alex/Projects/atlas, which is already set up.</p>
+</div>
+</article>
+</div>
+<p class="note">Already set up advances to step 4. Choose… opens a CSS file sheet starting in the project. Cancelling the sheet preserves the field. Successful setup rereads the row; any change away from Not initialized closes the form and restores row focus. The already-open canvas and comment draft remain unchanged.</p>
+</section>
+<section class="frame" data-doan-frame="wizard-prompt" data-doan-title="4 · First prompt">
+<div class="flabel">
+<h2>4 · First prompt</h2>
+<span class="nic">not in code</span>
+</div>
+<div class="wizard" role="dialog" aria-label="Set Up doan" data-doan-id="prompt-wizard">
+<header class="wizard-head">
+<h3 tabindex="-1">Set Up doan</h3>
+<button data-doan-id="prompt-close" class="btn">Close</button>
+</header>
+<ol class="steps">
+<li>
+<b>1</b>CLI</li>
+<li>
+<b>2</b>Agents</li>
+<li>
+<b>3</b>Project</li>
+<li class="current" aria-current="step">
+<b>4</b>First prompt</li>
+</ol>
+<main class="wizard-main">
+<h2>Start your first canvas</h2>
+<p>Copy this prompt into a new agent session.</p>
+<div class="surface" data-doan-id="prompt-card">
+<div class="status">
+<h4>First prompt</h4>
+</div>
+<div class="value">Use the doan skill to make a design canvas in /Users/alex/Projects/atlas for &lt;what you want to design&gt;.</div>
+<div class="tools">
+<button data-doan-id="prompt-copy" class="btn primary">Copy</button>
+<span class="help">Replace &lt;…&gt; before sending.</span>
+</div>
+</div>
+</main>
+<footer class="wizard-foot">
+<span>Step 4 of 4</span>
+<div class="spacer">
+</div>
+<button data-doan-id="prompt-skip" class="btn">Skip</button>
+<button data-doan-id="prompt-continue" class="btn primary">Done</button>
+</footer>
+</div>
+<div class="tiles">
+<article data-doan-id="prompt-no-project">
+<p class="tile-label">No project</p>
+<div class="surface" data-doan-id="prompt-no-project-card">
+<div class="status">
+<h4>First prompt</h4>
+</div>
+<p>Open a project first.</p>
+</div>
+</article>
+<article data-doan-id="prompt-copying">
+<p class="tile-label">Clipboard · Copying…</p>
+<div class="surface" data-doan-id="prompt-copying-card">
+<div class="status">
+<h4>First prompt</h4>
+</div>
+<div class="value">Use the doan skill to make a design canvas in /Users/alex/Projects/atlas for &lt;what you want to design&gt;.</div>
+<div class="tools">
+<button data-doan-id="prompt-copying-copy" class="btn primary" disabled>Copying…</button>
+<span class="help">Replace &lt;…&gt; before sending.</span>
+</div>
+</div>
+</article>
+<article data-doan-id="prompt-copied">
+<p class="tile-label">Clipboard · Copied</p>
+<div class="surface" data-doan-id="prompt-copied-card">
+<div class="status">
+<h4>First prompt</h4>
+</div>
+<div class="value">Use the doan skill to make a design canvas in /Users/alex/Projects/atlas for &lt;what you want to design&gt;.</div>
+<div class="tools">
+<button data-doan-id="prompt-copied-copy" class="btn primary">Copied</button>
+<span class="help">Replace &lt;…&gt; before sending.</span>
+</div>
+</div>
+</article>
+<article data-doan-id="prompt-retry">
+<p class="tile-label">Clipboard · Retry copy</p>
+<div class="surface" data-doan-id="prompt-retry-card">
+<div class="status">
+<h4>First prompt</h4>
+</div>
+<div class="value">Use the doan skill to make a design canvas in /Users/alex/Projects/atlas for &lt;what you want to design&gt;.</div>
+<div class="tools">
+<button data-doan-id="prompt-retry-copy" class="btn primary">Retry copy</button>
+<span class="help">Replace &lt;…&gt; before sending.</span>
+</div>
+</div>
+</article>
+<article data-doan-id="prompt-long">
+<p class="tile-label">Long project path</p>
+<div class="surface" data-doan-id="prompt-long-card">
+<div class="status">
+<h4>First prompt</h4>
+</div>
+<div class="value">Use the doan skill to make a design canvas in /Users/alex/Work/Client projects/2026/atlas-accessibility-research-and-design-system for &lt;what you want to design&gt;.</div>
+<div class="tools">
+<button data-doan-id="prompt-long-copy" class="btn primary">Copy</button>
+<span class="help">Replace &lt;…&gt; before sending.</span>
+</div>
+</div>
+</article>
+</div>
+<p class="note">Copying… stays disabled until the clipboard Promise resolves. Copied is success; Retry copy is failure. Done closes the wizard, including when previous steps were skipped.</p>
+</section>
+<section class="frame" data-doan-frame="confirm-replace" data-doan-title="Confirm a replacement">
+<div class="flabel">
+<h2>Confirm a replacement</h2>
+<span class="nic">not in code</span>
+</div>
+<div class="tiles">
+<article data-doan-id="replace-cli-link">
+<p class="tile-label">Replace CLI link?</p>
+<div class="dialog" role="alertdialog" aria-label="Replace CLI link?">
+<h3>Replace CLI link?</h3>
+<p>Points to another copy: /Users/alex/Downloads/doan-preview.app/Contents/Resources/bin/doan</p>
+<dl class="comparison">
+<dt>Current</dt>
+<dd>~/.local/bin/doan → /Users/alex/Downloads/doan-preview.app/Contents/Resources/bin/doan</dd>
+<dt>New</dt>
+<dd>~/.local/bin/doan → /Applications/doan.app/Contents/Resources/bin/doan</dd>
+</dl>
+<div class="tools end">
+<button data-doan-id="replace-cli-link-cancel" class="btn focus">Cancel</button>
+<button data-doan-id="replace-cli-link-confirm" class="btn primary">Replace Link</button>
+</div>
+</div>
+</article>
+<article data-doan-id="replace-skill-link">
+<p class="tile-label">Replace Claude Code skill link?</p>
+<div class="dialog" role="alertdialog" aria-label="Replace Claude Code skill link?">
+<h3>Replace Claude Code skill link?</h3>
+<p>Only this symbolic link will be replaced.</p>
+<dl class="comparison">
+<dt>Current</dt>
+<dd>~/.claude/skills/doan → /Users/alex/Archives/doan-skill</dd>
+<dt>New</dt>
+<dd>~/.claude/skills/doan → ../../.agents/skills/doan</dd>
+</dl>
+<div class="tools end">
+<button data-doan-id="replace-skill-link-cancel" class="btn focus">Cancel</button>
+<button data-doan-id="replace-skill-link-confirm" class="btn primary">Replace Link</button>
+</div>
+</div>
+</article>
+<article data-doan-id="replace-stub">
+<p class="tile-label">Replace shared skill?</p>
+<div class="dialog" role="alertdialog" aria-label="Replace shared skill?">
+<h3>Replace shared skill?</h3>
+<p>Your edits to SKILL.md will be replaced.</p>
+<dl class="comparison">
+<dt>Current</dt>
+<dd>~/.agents/skills/doan/SKILL.md · Modified or from another version</dd>
+<dt>New</dt>
+<dd>~/.agents/skills/doan/SKILL.md · Bundled doan skill</dd>
+</dl>
+<div class="tools end">
+<button data-doan-id="replace-stub-cancel" class="btn focus">Cancel</button>
+<button data-doan-id="replace-stub-confirm" class="btn primary">Replace Skill</button>
+</div>
+</div>
+</article>
+<article data-doan-id="replace-claude-mcp">
+<p class="tile-label">Replace Claude Code MCP registration?</p>
+<div class="dialog" role="alertdialog" aria-label="Replace Claude Code MCP registration?">
+<h3>Replace Claude Code MCP registration?</h3>
+<p>Configuration: ~/.claude.json</p>
+<dl class="comparison">
+<dt>Current</dt>
+<dd>User registration doan · /Users/alex/Tools/doan-old mcp</dd>
+<dt>New</dt>
+<dd>User registration doan · /Users/alex/.local/bin/doan mcp</dd>
+</dl>
+<div class="tools end">
+<button data-doan-id="replace-claude-mcp-cancel" class="btn focus">Cancel</button>
+<button data-doan-id="replace-claude-mcp-confirm" class="btn primary">Replace MCP Registration</button>
+</div>
+</div>
+</article>
+<article data-doan-id="replace-codex-mcp">
+<p class="tile-label">Replace Codex MCP registration?</p>
+<div class="dialog" role="alertdialog" aria-label="Replace Codex MCP registration?">
+<h3>Replace Codex MCP registration?</h3>
+<p>Configuration: ~/.codex/config.toml</p>
+<dl class="comparison">
+<dt>Current</dt>
+<dd>Registration doan · /Users/alex/Tools/doan-old mcp</dd>
+<dt>New</dt>
+<dd>Registration doan · /Users/alex/.local/bin/doan mcp</dd>
+</dl>
+<div class="tools end">
+<button data-doan-id="replace-codex-mcp-cancel" class="btn focus">Cancel</button>
+<button data-doan-id="replace-codex-mcp-confirm" class="btn primary">Replace MCP Registration</button>
+</div>
+</div>
+</article>
+<article data-doan-id="replace-mcp-failed">
+<p class="tile-label">Replacement failed · retain original registration</p>
+<div class="surface" data-doan-id="replace-mcp-failed-card">
+<div class="status">
+<h4>MCP registration failed</h4>
+</div>
+<p class="error">Could not add doan: permission denied.</p>
+<p>Original registration</p>
+<div class="value">doan · /Users/alex/Tools/doan-old mcp</div>
+<p>Configuration: ~/.claude.json</p>
+<div class="tools">
+<button data-doan-id="replace-mcp-failed-check" class="btn">Check Again</button>
+</div>
+</div>
+</article>
+</div>
+<p class="note">Cancel receives initial focus. Recheck the expected state immediately before writing; if it changed, show the new state without replacing. Never replace ordinary files or directories for link targets. A skill replacement preserves other files in its directory.</p>
+</section>
+<section class="frame" data-doan-frame="sidebar-setup" data-doan-title="Project setup in the sidebar">
+<div class="flabel">
+<h2>Project setup in the sidebar</h2>
+<span class="nic">not in code</span>
+</div>
+<div class="shell-crop">
+<aside class="side" data-doan-id="sidebar-setup-sidebar">
+<div class="sec">Projects <button class="section-action">Open Project…</button>
+</div>
+<div class="row">
+<span class="glyph">▾</span>
+<span class="g">atlas</span>
+<span class="cnt">Not initialized</span>
+<button class="close-project" aria-label="Close project atlas">×</button>
+</div>
+<p class="hint">Set up this project to add design/ and .doan/.</p>
+<div class="hint">
+<div class="recovery">
+<button data-doan-id="sidebar-setup-action" class="btn">Set Up…</button>
+</div>
+</div>
+</aside>
+<div class="area">
+<div class="canvas-status" data-doan-id="sidebar-setup-canvas-message">
+<p>The project <b>atlas</b> is not initialized. Choose Set Up… in the sidebar.</p>
+</div>
+</div>
+</div>
+<p class="note">Shipped sidebar crop: 240px width, 26px rows, 11.5px / 1.5 hints and compact recovery buttons. Set Up… is reachable with Tab outside the tree row. The new canvas message retains the shipped 260px maximum text width; no shell redesign.</p>
+</section>
+<section class="frame" data-doan-frame="project-setup-dialog" data-doan-title="Set Up Project dialog">
+<div class="flabel">
+<h2>Set Up Project dialog</h2>
+<span class="nic">not in code</span>
+</div>
+<div class="tiles">
+<article data-doan-id="dialog-none">
+<p class="tile-label">Default · None</p>
+<div class="dialog" role="dialog" aria-label="Set Up Project">
+<h3>Set Up Project</h3>
+<p class="path">/Users/alex/Projects/atlas</p>
+<div class="field">
+<label>Token CSS</label>
+<div class="field-row">
+<div class="value">None</div>
+<button data-doan-id="dialog-none-choose" class="btn">Choose…</button>
+</div>
+</div>
+<p>Without token CSS, doan check won&#x27;t flag hardcoded colors.</p>
+<h4>Changes to this project</h4>
+<ul class="changes">
+<li>design/</li>
+<li>.doan/config.json</li>
+<li>One line in .gitattributes</li>
+</ul>
+<div class="tools">
+<button data-doan-id="dialog-none-cancel" class="btn">Cancel</button>
+<button data-doan-id="dialog-none-submit" class="btn primary">Set Up Project</button>
+</div>
+</div>
+</article>
+<article data-doan-id="dialog-chosen">
+<p class="tile-label">Selected CSS · long value</p>
+<div class="dialog" role="dialog" aria-label="Set Up Project">
+<h3>Set Up Project</h3>
+<p class="path">/Users/alex/Projects/atlas</p>
+<div class="field">
+<label>Token CSS</label>
+<div class="field-row">
+<div class="value">/Users/alex/Projects/atlas/src/styles/themes/dark/accessibility-and-brand-tokens.css</div>
+<button data-doan-id="dialog-chosen-choose" class="btn">Choose…</button>
+</div>
+</div>
+<h4>Changes to this project</h4>
+<ul class="changes">
+<li>design/</li>
+<li>.doan/config.json</li>
+<li>One line in .gitattributes</li>
+</ul>
+<div class="tools">
+<button data-doan-id="dialog-chosen-cancel" class="btn">Cancel</button>
+<button data-doan-id="dialog-chosen-submit" class="btn primary">Set Up Project</button>
+</div>
+</div>
+</article>
+<article data-doan-id="dialog-running">
+<p class="tile-label">Setting up · controls disabled</p>
+<div class="dialog" role="dialog" aria-label="Set Up Project">
+<h3>Set Up Project</h3>
+<p class="path">/Users/alex/Projects/atlas</p>
+<div class="field">
+<label>Token CSS</label>
+<div class="field-row">
+<div class="value">/Users/alex/Projects/atlas/src/styles/themes/dark/accessibility-and-brand-tokens.css</div>
+<button data-doan-id="dialog-running-choose" class="btn" disabled>Choose…</button>
+</div>
+</div>
+<h4>Changes to this project</h4>
+<ul class="changes">
+<li>design/</li>
+<li>.doan/config.json</li>
+<li>One line in .gitattributes</li>
+</ul>
+<div class="tools">
+<button data-doan-id="dialog-running-cancel" class="btn" disabled>Cancel</button>
+<button data-doan-id="dialog-running-submit" class="btn primary" disabled>Setting Up…</button>
+</div>
+</div>
+</article>
+<article data-doan-id="dialog-error">
+<p class="tile-label">CLI error · choose an inside file</p>
+<div class="dialog" role="dialog" aria-label="Set Up Project">
+<h3>Set Up Project</h3>
+<p class="path">/Users/alex/Projects/atlas</p>
+<div class="field">
+<label>Token CSS</label>
+<div class="field-row">
+<div class="value">/Users/alex/Shared/tokens.css</div>
+<button data-doan-id="dialog-error-choose" class="btn">Choose…</button>
+</div>
+</div>
+<h4>Changes to this project</h4>
+<ul class="changes">
+<li>design/</li>
+<li>.doan/config.json</li>
+<li>One line in .gitattributes</li>
+</ul>
+<p class="error">token CSS is outside the repository</p>
+<p>Choose a CSS file inside /Users/alex/Projects/atlas.</p>
+<div class="tools">
+<button data-doan-id="dialog-error-cancel" class="btn">Cancel</button>
+<button data-doan-id="dialog-error-submit" class="btn primary">Set Up Project</button>
+</div>
+</div>
+</article>
+<article data-doan-id="dialog-timeout">
+<p class="tile-label">CLI error · timeout</p>
+<div class="dialog" role="dialog" aria-label="Set Up Project">
+<h3>Set Up Project</h3>
+<p class="path">/Users/alex/Projects/atlas</p>
+<div class="field">
+<label>Token CSS</label>
+<div class="field-row">
+<div class="value">/Users/alex/Projects/atlas/src/styles/themes/dark/accessibility-and-brand-tokens.css</div>
+<button data-doan-id="dialog-timeout-choose" class="btn">Choose…</button>
+</div>
+</div>
+<h4>Changes to this project</h4>
+<ul class="changes">
+<li>design/</li>
+<li>.doan/config.json</li>
+<li>One line in .gitattributes</li>
+</ul>
+<p class="error">doan CLI error: timed out after 10 s</p>
+<div class="tools">
+<button data-doan-id="dialog-timeout-cancel" class="btn">Cancel</button>
+<button data-doan-id="dialog-timeout-submit" class="btn primary">Set Up Project</button>
+</div>
+</div>
+</article>
+<article data-doan-id="dialog-reroot">
+<p class="tile-label">Rerooted · dialog closed</p>
+<div class="surface" data-doan-id="dialog-reroot-card">
+<div class="status">
+<h4>Project</h4>
+</div>
+<p class="notice">This folder is inside /Users/alex/Projects/atlas, which is already set up.</p>
+</div>
+</article>
+<article data-doan-id="dialog-already">
+<p class="tile-label">Already set up · dialog closed</p>
+<div class="surface" data-doan-id="dialog-already-card">
+<div class="status">
+<h4>Project</h4>
+</div>
+<p class="good">Already set up</p>
+<p>/Users/alex/Projects/atlas</p>
+</div>
+</article>
+</div>
+<p class="note">The same form and error treatment as wizard-project, opened from Set Up…. Dialog treatment follows the shipped comments dialog: raised surface, 20px padding, 12px radius and shadow-2. The form closes when its target stops being Not initialized; focus returns to the project row.</p>
+</section>
+<section class="frame" data-doan-frame="sidebar-first-prompt" data-doan-title="First prompt in the sidebar">
+<div class="flabel">
+<h2>First prompt in the sidebar</h2>
+<span class="nic">not in code</span>
+</div>
+<div class="sidebar-pair">
+<aside class="side" data-doan-id="sidebar-prompt-tooltip-sidebar">
+<div class="sec">Projects <button class="section-action">Open Project…</button>
+</div>
+<div class="row">
+<span class="glyph">▾</span>
+<span class="g">atlas</span>
+<button class="close-project" aria-label="Close project atlas">×</button>
+</div>
+<p class="hint">No canvases</p>
+<div class="hint">
+<div class="recovery">
+<button data-doan-id="sidebar-prompt-tooltip-action" class="btn">Copy first prompt</button>
+</div>
+<p>Replace &lt;…&gt; before sending.</p>
+</div>
+</aside>
+<div>
+<p class="tile-label">Full prompt tooltip · hover or keyboard focus</p>
+<div class="tooltip" role="tooltip" data-doan-id="sidebar-prompt-tooltip-text">Use the doan skill to make a design canvas in /Users/alex/Projects/atlas for &lt;what you want to design&gt;.</div>
+</div>
+</div>
+<div class="tiles">
+<article data-doan-id="sidebar-prompt-copy">
+<p class="tile-label">No canvases · Copy first prompt</p>
+<aside class="side" data-doan-id="sidebar-prompt-copy-sidebar">
+<div class="sec">Projects <button class="section-action">Open Project…</button>
+</div>
+<div class="row">
+<span class="glyph">▾</span>
+<span class="g">atlas</span>
+<button class="close-project" aria-label="Close project atlas">×</button>
+</div>
+<p class="hint">No canvases</p>
+<div class="hint">
+<div class="recovery">
+<button data-doan-id="sidebar-prompt-copy-action" class="btn">Copy first prompt</button>
+</div>
+<p>Replace &lt;…&gt; before sending.</p>
+</div>
+</aside>
+</article>
+<article data-doan-id="sidebar-prompt-copying">
+<p class="tile-label">No canvases · Copying…</p>
+<aside class="side" data-doan-id="sidebar-prompt-copying-sidebar">
+<div class="sec">Projects <button class="section-action">Open Project…</button>
+</div>
+<div class="row">
+<span class="glyph">▾</span>
+<span class="g">atlas</span>
+<button class="close-project" aria-label="Close project atlas">×</button>
+</div>
+<p class="hint">No canvases</p>
+<div class="hint">
+<div class="recovery">
+<button data-doan-id="sidebar-prompt-copying-action" class="btn" disabled>Copying…</button>
+</div>
+<p>Replace &lt;…&gt; before sending.</p>
+</div>
+</aside>
+</article>
+<article data-doan-id="sidebar-prompt-copied">
+<p class="tile-label">No canvases · Copied</p>
+<aside class="side" data-doan-id="sidebar-prompt-copied-sidebar">
+<div class="sec">Projects <button class="section-action">Open Project…</button>
+</div>
+<div class="row">
+<span class="glyph">▾</span>
+<span class="g">atlas</span>
+<button class="close-project" aria-label="Close project atlas">×</button>
+</div>
+<p class="hint">No canvases</p>
+<div class="hint">
+<div class="recovery">
+<button data-doan-id="sidebar-prompt-copied-action" class="btn">Copied</button>
+</div>
+<p>Replace &lt;…&gt; before sending.</p>
+</div>
+</aside>
+</article>
+<article data-doan-id="sidebar-prompt-retry">
+<p class="tile-label">No canvases · Retry copy</p>
+<aside class="side" data-doan-id="sidebar-prompt-retry-sidebar">
+<div class="sec">Projects <button class="section-action">Open Project…</button>
+</div>
+<div class="row">
+<span class="glyph">▾</span>
+<span class="g">atlas</span>
+<button class="close-project" aria-label="Close project atlas">×</button>
+</div>
+<p class="hint">No canvases</p>
+<div class="hint">
+<div class="recovery">
+<button data-doan-id="sidebar-prompt-retry-action" class="btn">Retry copy</button>
+</div>
+<p>Replace &lt;…&gt; before sending.</p>
+</div>
+</aside>
+</article>
+</div>
+<p class="note">The resting sidebar action is Copy first prompt; progress and result use Copying… / Copied / Retry copy. Copy in wizard-prompt is the corresponding compact action. The first canvas replaces No canvases and removes this action through the existing watcher.</p>
+</section>
+</body>
+</html>
