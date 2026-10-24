@@ -3,7 +3,8 @@ import type { BeginRequest, BeginResult, CommentList, CommentReply, CommentReque
 import type { TransitionRequest } from "../main/comments/transitions";
 import { contextBridge, ipcRenderer } from "electron";
 import type { Selection } from "../formats/types";
-import type { ViewCommand } from "../main/index";
+import type { FolderFocus, ProjectInitResult } from "../main/shell";
+import type { ViewCommand, ProjectInitRequest, TokenCssChoice } from "../main/index";
 import type { InspectResult } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
 
@@ -28,6 +29,8 @@ const api = {
     ipcRenderer.on("comments:invalidated", receive);
     return () => ipcRenderer.removeListener("comments:invalidated", receive);
   },
+  chooseTokenCss: (root: string): Promise<TokenCssChoice> => ipcRenderer.invoke("project:choose-token-css", { root }),
+  initializeProject: (request: ProjectInitRequest): Promise<ProjectInitResult> => ipcRenderer.invoke("project:init", request),
   openFolder: (): Promise<void> => ipcRenderer.invoke("folders:open"),
   reopenFolder: (path: string): Promise<void> => ipcRenderer.invoke("folders:reopen", path),
   closeFolder: (path: string): Promise<void> => ipcRenderer.invoke("folders:close", path),
@@ -35,9 +38,9 @@ const api = {
   setSelection: (selection: Selection | null): Promise<void> => ipcRenderer.invoke("selection:set", selection),
   // Main reads the canvas with CDP; values and token names are canvas text.
   inspect: (selector: string): Promise<InspectResult> => ipcRenderer.invoke("inspect:get", { selector }),
-  onFolders(listener: (entries: FolderEntry[]) => void): () => void {
+  onFolders(listener: (entries: FolderEntry[], focus?: FolderFocus) => void): () => void {
     let active = true;
-    const receive = (_event: Electron.IpcRendererEvent, entries: FolderEntry[]) => listener(entries);
+    const receive = (_event: Electron.IpcRendererEvent, entries: FolderEntry[], focus?: FolderFocus) => listener(entries, focus);
     ipcRenderer.on("folders", receive);
     // An initial read can finish after an effect has already cleaned up.
     void ipcRenderer.invoke("folders:get").then((entries: FolderEntry[]) => {

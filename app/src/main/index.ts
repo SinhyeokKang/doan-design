@@ -4,6 +4,7 @@ import { readAuthor } from "./comments/author";
 import { DocumentBindings, stableDiskHash } from "./comments/document";
 import { createTransitionGuard } from "./comments/transitions";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, session, webFrameMain, type IpcMainInvokeEvent } from "electron";
+import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,12 +16,15 @@ import { cliCommand } from "./cli";
 import type { InspectResult } from "./inspect";
 import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
-import { startShell, type Shell } from "./shell";
+import { startShell, type Shell, type ProjectInitResult } from "./shell";
 
 // Must run before `ready`: userData is derived from the name, which makes it
 // ~/Library/Application Support/doan/ (beside runtime.json, ARCHITECTURE §4).
 // A `--user-data-dir` switch still wins, which is how e2e keeps off the real one.
 app.setName("doan");
+
+export interface ProjectInitRequest { root: string; choiceId: string | null }
+export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string } | { kind: "cancelled" } | { kind: "unavailable"; message: string };
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 
@@ -206,8 +210,12 @@ async function start(): Promise<void> {
   const invalidate = (root: string) => {
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("comments:invalidated", { root });
   };
-  const ready = await startShell(join(userData, "folders.json"), cliCommand(), (entries) => {
-    if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries);
+  const choices = new Map<string, { id: string; path: string; epoch: number }>();
+  const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
+    for (const root of choices.keys()) {
+      if (!entries.some(entry => entry.path === root && entry.kind === "uninitialized")) choices.delete(root);
+    }
+    if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries, focus);
   }, { response: record => documents.response(record), invalidate });
   shell = ready;
   const comments = createCommentsService({
@@ -252,6 +260,33 @@ async function start(): Promise<void> {
     return undefined;
   });
 
+  const unavailable = { kind: "unavailable" as const, message: "The project setup request is no longer valid." };
+  const canSetUp = (root: string) => ready.entries().some(entry => entry.path === root && entry.kind === "uninitialized");
+  ipcMain.handle("project:choose-token-css", async (event, value: unknown): Promise<TokenCssChoice> => {
+    if (!fromWindow(event) || !win || typeof value !== "object" || value === null ||
+      Object.keys(value).length !== 1 || !("root" in value) || typeof value.root !== "string" || !canSetUp(value.root)) return unavailable;
+    const root = value.root;
+    const epoch = ready.epoch(root);
+    if (epoch === null) return unavailable;
+    const picked = await dialog.showOpenDialog(win, { properties: ["openFile"], defaultPath: root, filters: [{ name: "CSS", extensions: ["css"] }] });
+    if (!fromWindow(event) || !canSetUp(root) || ready.epoch(root) !== epoch) return unavailable;
+    if (picked.canceled || !picked.filePaths[0]) return { kind: "cancelled" };
+    const choice = { id: randomUUID(), path: picked.filePaths[0], epoch };
+    choices.set(root, choice);
+    return { kind: "selected", choiceId: choice.id, path: choice.path };
+  });
+  ipcMain.handle("project:init", async (event, value: unknown): Promise<ProjectInitResult> => {
+    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 2 ||
+      !("root" in value) || typeof value.root !== "string" || !("choiceId" in value) ||
+      (value.choiceId !== null && typeof value.choiceId !== "string") || !canSetUp(value.root)) return unavailable;
+    let tokenCss: string | null = null;
+    if (value.choiceId !== null) {
+      const choice = choices.get(value.root);
+      if (!choice || choice.id !== value.choiceId || choice.epoch !== ready.epoch(value.root)) return unavailable;
+      tokenCss = choice.path;
+    }
+    return ready.initialize(value.root, tokenCss);
+  });
   ipcMain.handle("folders:get", (event) => (fromWindow(event) ? ready.entries() : []));
   ipcMain.handle("folders:open", async (event) => {
     if (!fromWindow(event)) return;

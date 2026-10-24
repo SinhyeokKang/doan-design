@@ -1,3 +1,4 @@
+import { initArgs } from "./onboarding/states";
 import { spawn } from "node:child_process";
 import { stat } from "node:fs/promises";
 import { folderState, type CliRun, type FolderState } from "./folderState";
@@ -17,6 +18,10 @@ export function cliCommand(env: NodeJS.ProcessEnv = process.env, packaged = fals
 export function runLs(cli: string, target: LsTarget, timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
   const args = "repo" in target ? ["ls", "--json", "--repo", target.repo] : ["ls", "--json"];
   return runCli(cli, args, "cwd" in target ? target.cwd : undefined, timeoutMs);
+}
+
+export function runInit(cli: string, folder: string, tokenCss: string | null, timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
+  return runCli(cli, initArgs(folder, tokenCss), undefined, timeoutMs);
 }
 
 // Checked before running, because a missing folder must show as "folder not
