@@ -7,10 +7,10 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { assertRealState, realState } from "../app/e2e/real-state.ts";
-import { agentCommand, runProcess } from "./lib/agent.ts";
+import { agentCommand, killRunning, runProcess } from "./lib/agent.ts";
 import { parseArgs, type Agent, type Options } from "./lib/args.ts";
 import { createContext, sh } from "./lib/context.ts";
-import { buildJudgePrompt, finalResult, judgeCommand, judgeFor, parseJudgement, type Judgement } from "./lib/judge.ts";
+import { buildJudgePrompt, checkList, finalResult, judgeCommand, judgeFor, parseJudgement, type Judgement } from "./lib/judge.ts";
 import { summary, type RoundMeta, type RunRecord } from "./lib/record.ts";
 import { loadScenario, renderPrompt, scenarioIds, selectIds, type LoadedScenario } from "./lib/scenario.ts";
 import type { Check, Checks } from "./lib/types.ts";
@@ -28,9 +28,7 @@ const sha256 = (bytes: string | Buffer) => createHash("sha256").update(bytes).di
 async function runChecks(scenario: LoadedScenario, ctx: ReturnType<typeof createContext>): Promise<Check[]> {
   try {
     const checks: Checks = (await import(join(scenario.dir, "checks.ts"))).default;
-    const result = checks(ctx);
-    if (!Array.isArray(result) || result.length === 0) return [{ id: "checks_error", pass: false, detail: "checks.ts returned no checks" }];
-    return result;
+    return checkList(checks(ctx));
   } catch (error) {
     return [{ id: "checks_error", pass: false, detail: (error as Error).stack ?? String(error) }];
   }
@@ -76,15 +74,23 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     let judgement: Judgement | null | "skipped" = "skipped";
     if (setup.options.judge) {
-      const { changed, diff } = judgeMaterial(ws, ctx);
-      const judged = await judge(agent, buildJudgePrompt({ rubric: scenario.rubric, prompt, checks, changed, diff, transcript }), dir);
-      judgement = judged.judgement;
-      writeFileSync(join(dir, "judge.json"), JSON.stringify(judgement ?? { judge_error: true, raw: judged.raw }, null, 2) + "\n");
+      // An agent can leave a repo git cannot read (deleted .git, say); that is a judge_error, not a lost round.
+      try {
+        const { changed, diff } = judgeMaterial(ws, ctx);
+        const judged = await judge(agent, buildJudgePrompt({ rubric: scenario.rubric, prompt, checks, changed, diff, transcript }), dir);
+        judgement = judged.judgement;
+        writeFileSync(join(dir, "judge.json"), JSON.stringify(judgement ?? { judge_error: true, raw: judged.raw }, null, 2) + "\n");
+      } catch (error) {
+        judgement = null;
+        writeFileSync(join(dir, "judge.json"), JSON.stringify({ judge_error: true, error: (error as Error).stack }, null, 2) + "\n");
+      }
     }
-    copyRepo(ws.repo, join(dir, "repo"));
+    try { copyRepo(ws.repo, join(dir, "repo")); } catch (error) { writeFileSync(join(dir, "repo-copy-error.txt"), `${(error as Error).stack}\n`); }
     const record: RunRecord = { scenario: scenario.id, agent, n, dir: join(".scratch/agent-eval", setup.options.round, name), result: finalResult(checks, judgement), checks, judge: judgement, durationSec: proc.durationSec, exitCode: proc.code, timedOut: proc.timedOut };
     writeFileSync(join(dir, "meta.json"), JSON.stringify({
-      scenario: scenario.id, agent, n, agentVersion: setup.meta.versions[agent], judge: setup.options.judge ? judgeFor(agent) : null,
+      scenario: scenario.id, agent, n, agentVersion: setup.meta.versions[agent], judge: setup.options.judge ? judgeFor(agent) : null, argv: [cmd, ...args],
+      // Where the agent reads the rest of its config from; everything else in the environment is inherited as is.
+      inheritedConfig: { HOME: process.env.HOME ?? null, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null, CODEX_HOME: process.env.CODEX_HOME ?? null },
       guideSha256: setup.meta.guideSha256, cliVersion: setup.meta.cliVersion, cli: setup.cli, tempRepo: ws.repo, startedAt,
       durationSec: proc.durationSec, exitCode: proc.code, signal: proc.signal, timedOut: proc.timedOut, result: record.result,
     }, null, 2) + "\n");
@@ -185,7 +191,15 @@ async function main(): Promise<number> {
       const lanes = await Promise.all(options.agents.map(async agent => {
         const mine: RunRecord[] = [];
         for (const scenario of scenarios)
-          for (let n = 1; n <= options.repeat; n++) mine.push(await realRun(setup, scenario, agent, n));
+          for (let n = 1; n <= options.repeat; n++) {
+            // One broken run is recorded as a failure; the lane and the round go on.
+            try {
+              mine.push(await realRun(setup, scenario, agent, n));
+            } catch (error) {
+              console.error(`error ${scenario.id}-${agent}-${n}: ${(error as Error).message}`);
+              mine.push({ scenario: scenario.id, agent, n, dir: "", result: "fail", checks: [{ id: "runner_error", pass: false, detail: (error as Error).stack ?? String(error) }], judge: "skipped", durationSec: null, exitCode: null, timedOut: false });
+            }
+          }
         return mine;
       }));
       records.push(...scenarios.flatMap(s => lanes.flat().filter(r => r.scenario === s.id)));
@@ -206,6 +220,13 @@ async function main(): Promise<number> {
     await assertRealState(before);
   }
 }
+
+// Agents run in their own process groups, out of reach of the terminal's Ctrl-C.
+for (const signal of ["SIGINT", "SIGTERM"] as const)
+  process.on(signal, () => {
+    killRunning();
+    process.exit(130);
+  });
 
 main().then(code => { process.exitCode = code; }, error => {
   console.error(`eval: ${(error as Error).message}`);

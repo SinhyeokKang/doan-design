@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildJudgePrompt, finalResult, judgeCommand, judgeFor, parseJudgement, truncate } from "./judge.ts";
+import { buildJudgePrompt, checkList, finalResult, judgeCommand, judgeFor, parseJudgement, truncate } from "./judge.ts";
 
 const passing = [{ id: "a", pass: true, detail: "" }];
 const failing = [{ id: "a", pass: true, detail: "" }, { id: "b", pass: false, detail: "x" }];
@@ -27,7 +27,7 @@ test("long text is cut and says so", () => {
   assert.deepEqual(truncate("abc", 5, "head"), { text: "abc", truncated: false });
   assert.deepEqual(truncate("abcdef", 3, "head"), { text: "abc", truncated: true });
   assert.deepEqual(truncate("abcdef", 3, "tail"), { text: "def", truncated: true });
-  const prompt = buildJudgePrompt({ rubric: "R", prompt: "P", checks: passing, changed: ["a"], diff: "d".repeat(50), transcript: "t".repeat(50) }, { diff: 10, transcript: 10 });
+  const prompt = buildJudgePrompt({ rubric: "R", prompt: "P", checks: passing, changed: ["a"], diff: "d".repeat(50), transcript: "t".repeat(50) }, { diff: 10, transcript: 10, changed: 10, checks: 1000 });
   assert.match(prompt, /Diff \(truncated to the first 10 characters\)/);
   assert.match(prompt, /Transcript \(truncated to the last 10 characters\)/);
   assert.ok(!prompt.includes("d".repeat(11)));
@@ -38,4 +38,20 @@ test("the other family judges", () => {
   assert.equal(judgeFor("codex"), "claude");
   assert.deepEqual(judgeCommand("claude", "P", "/o"), { cmd: "claude", args: ["-p", "--tools", "", "--", "P"] });
   assert.deepEqual(judgeCommand("codex", "P", "/o"), { cmd: "codex", args: ["exec", "--sandbox", "read-only", "--skip-git-repo-check", "--output-last-message", "/o", "P"] });
+});
+
+test("checks.ts output must be a list of well-formed checks", () => {
+  assert.deepEqual(checkList(passing), passing);
+  for (const bad of [[], "x", [{ id: "a", pass: "false", detail: "" }], [{ id: "a", pass: 1, detail: "" }], [{ id: "a", pass: true }], [null]]) {
+    const result = checkList(bad);
+    assert.equal(result.length, 1, JSON.stringify(bad));
+    assert.deepEqual([result[0].id, result[0].pass], ["checks_error", false]);
+  }
+});
+
+test("the changed-file list and check details are capped in the judge prompt", () => {
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [{ id: "a", pass: true, detail: "x".repeat(100) }], changed: Array.from({ length: 30 }, (_, i) => `f${i}`), diff: "", transcript: "" }, { diff: 10, transcript: 10, changed: 20, checks: 50 });
+  assert.match(prompt, /f19\n\(10 more files\)/);
+  assert.ok(!prompt.includes("f20"));
+  assert.match(prompt, /Automatic checks \(truncated/);
 });

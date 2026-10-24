@@ -29,6 +29,15 @@ export function finalResult(checks: Check[], judgement: Judgement | null | "skip
   return judgement.verdict;
 }
 
+// checks.ts runs without type checking, so a truthy non-boolean `pass` must not count as a pass.
+export function checkList(value: unknown): Check[] {
+  const error = (detail: string): Check[] => [{ id: "checks_error", pass: false, detail }];
+  if (!Array.isArray(value) || value.length === 0) return error("checks.ts returned no checks");
+  const bad = value.find(c => typeof c !== "object" || c === null || typeof c.id !== "string" || typeof c.pass !== "boolean" || typeof c.detail !== "string");
+  if (bad !== undefined) return error(`not a { id: string, pass: boolean, detail: string } check: ${JSON.stringify(bad)}`);
+  return value;
+}
+
 export function truncate(text: string, limit: number, keep: "head" | "tail"): { text: string; truncated: boolean } {
   if (text.length <= limit) return { text, truncated: false };
   return { text: keep === "head" ? text.slice(0, limit) : text.slice(text.length - limit), truncated: true };
@@ -61,11 +70,15 @@ export function parseJudgement(output: string): Judgement | null {
 
 export interface JudgeInput { rubric: string; prompt: string; checks: Check[]; changed: string[]; diff: string; transcript: string }
 
-export const JUDGE_LIMITS = { diff: 60_000, transcript: 40_000 };
+// The prompt goes through argv, so every part has a cap (macOS ARG_MAX is 1 MiB).
+export const JUDGE_LIMITS = { diff: 60_000, transcript: 40_000, changed: 300, checks: 20_000 };
 
 export function buildJudgePrompt(input: JudgeInput, limits = JUDGE_LIMITS): string {
   const diff = truncate(input.diff, limits.diff, "head");
   const transcript = truncate(input.transcript, limits.transcript, "tail");
+  const checks = truncate(JSON.stringify(input.checks, null, 2), limits.checks, "head");
+  const more = input.changed.length - limits.changed;
+  const changed = input.changed.slice(0, limits.changed).join("\n") + (more > 0 ? `\n(${more} more files)` : "");
   const block = (title: string, body: string) => `## ${title}\n\n<<<\n${body}\n>>>\n`;
   return [
     "You are judging one run of a coding agent that was asked to use doan, a tool for HTML design canvases.",
@@ -76,8 +89,8 @@ export function buildJudgePrompt(input: JudgeInput, limits = JUDGE_LIMITS): stri
     "",
     block("Rubric", input.rubric),
     block("Prompt given to the agent", input.prompt),
-    block("Automatic checks", JSON.stringify(input.checks, null, 2)),
-    block("Changed files since the seed", input.changed.join("\n")),
+    block(checks.truncated ? `Automatic checks (truncated to the first ${limits.checks} characters)` : "Automatic checks", checks.text),
+    block("Changed files since the seed", changed),
     block(diff.truncated ? `Diff (truncated to the first ${limits.diff} characters)` : "Diff", diff.text),
     block(transcript.truncated ? `Transcript (truncated to the last ${limits.transcript} characters)` : "Transcript", transcript.text),
   ].join("\n");

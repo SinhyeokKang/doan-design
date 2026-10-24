@@ -17,7 +17,8 @@ export interface Workspace {
 }
 
 // Identity and signing come from flags so a run never depends on, or writes to, the user's git config.
-const GIT = ["-c", "user.name=doan-eval", "-c", "user.email=eval@doan.invalid", "-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"];
+// core.hooksPath: --no-verify does not stop a global post-commit hook.
+const GIT = ["-c", "core.hooksPath=/dev/null", "-c", "user.name=doan-eval", "-c", "user.email=eval@doan.invalid", "-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"];
 
 function must(result: { code: number; stdout: string; stderr: string }, what: string): string {
   if (result.code !== 0) throw new Error(`${what} failed (${result.code}): ${result.stderr || result.stdout}`);

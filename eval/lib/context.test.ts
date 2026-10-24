@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addedLines, parseEvents, resolveInside } from "./context.ts";
+import { addedLines, parseEvents, repoPath, resolveInside } from "./context.ts";
 
 test("paths stay inside the repo", () => {
   assert.equal(resolveInside("/tmp/r", "design/a.html"), "/tmp/r/design/a.html");
@@ -18,4 +18,8 @@ test("added comment lines are the ones the seed did not have", () => {
 
 test("events are parsed and a bad line is kept visible", () => {
   assert.deepEqual(parseEvents(['{"type":"resolve"}', "nope"]), [{ type: "resolve" }, { invalid: "nope" }]);
+});
+
+test("git sees the same normalized path as the file system", () => {
+  assert.equal(repoPath("/tmp/r", "design/../styles/a.css"), "styles/a.css");
 });

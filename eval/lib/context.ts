@@ -11,6 +11,11 @@ export function resolveInside(repo: string, path: string): string {
   return normalize(full);
 }
 
+// The repo-relative form git understands, after the same checks as resolveInside.
+export function repoPath(repo: string, path: string): string {
+  return relative(repo, resolveInside(repo, path));
+}
+
 function lines(text: string | null): string[] {
   return (text ?? "").split("\n").filter(line => line.trim() !== "");
 }
@@ -53,8 +58,7 @@ export function sh(cmd: string, args: string[], cwd: string, env: NodeJS.Process
 export function createContext(o: ContextOptions): CheckContext {
   const git = (args: string[]) => sh("git", ["-C", o.repo, ...args], o.repo, o.env);
   const seed = (path: string): string | null => {
-    resolveInside(o.repo, path);
-    const result = git(["show", `${o.seedCommit}:${path}`]);
+    const result = git(["show", `${o.seedCommit}:${repoPath(o.repo, path)}`]);
     return result.code === 0 ? result.stdout : null;
   };
   const read = (path: string): string | null => {
@@ -78,7 +82,8 @@ export function createContext(o: ContextOptions): CheckContext {
       // Against the seed commit, not HEAD, so an agent that commits its work is still seen.
       const tracked = git(["diff", "--name-only", "-z", "--no-renames", o.seedCommit]);
       const untracked = git(["ls-files", "-z", "--others"]);
-      if (tracked.code !== 0 || untracked.code !== 0) throw new Error(`git failed: ${tracked.stderr}${untracked.stderr}`);
+      // git's last stderr line names the cause; the rest is a usage dump.
+      if (tracked.code !== 0 || untracked.code !== 0) throw new Error(`git failed: ${(tracked.stderr || untracked.stderr).trim().split("\n").pop()}`);
       return [...new Set([...tracked.stdout.split("\0"), ...untracked.stdout.split("\0")].filter(Boolean))].sort();
     },
     commentEvents(canvasId) {
