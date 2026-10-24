@@ -133,3 +133,28 @@ test("workspace preparation writes Claude MCP config outside the measured repo",
     assert.equal(existsSync(join(ws.repo, "mcp.json")), false);
   } finally { await ws.dispose(); }
 });
+
+test("Codex disables shell snapshots so run-local PATH survives tool calls", () => {
+  assert.ok(agentCommand("codex", "P").args.includes("features.shell_snapshot=false"));
+});
+
+test("agent CLI provenance rejects missing, stale and ambiguous paths", async () => {
+  const { cliProvenance } = await import("./agent.ts");
+  const dir = mkdtempSync("/tmp/doan-eval-provenance-");
+  try {
+    const expected = join(dir, "doan");
+    const report = join(dir, "resolved-doan.txt");
+    writeFileSync(expected, "measured");
+    assert.equal(cliProvenance(report, expected).pass, false);
+    writeFileSync(report, "/old/doan\n");
+    assert.equal(cliProvenance(report, expected).pass, false);
+    writeFileSync(report, expected + "\n/old/doan\n");
+    assert.equal(cliProvenance(report, expected).pass, false);
+    writeFileSync(report, expected + "\n");
+    assert.equal(cliProvenance(report, expected).pass, true);
+    const { symlinkSync } = await import("node:fs");
+    symlinkSync(expected, join(dir, "alias"));
+    writeFileSync(report, join(dir, "alias") + "\n");
+    assert.equal(cliProvenance(report, expected).pass, true);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
