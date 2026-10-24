@@ -64,7 +64,9 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
   try {
     const prompt = renderPrompt(scenario.promptTemplate, ws.repo);
     writeFileSync(join(dir, "prompt.txt"), prompt);
-    const { cmd, args } = agentCommand(agent, prompt, scenario.mcp ? { cli: setup.cli, runtime: ws.env.DOAN_RUNTIME!, configPath: join(ws.base, "mcp.json") } : undefined);
+    const runtime = ws.env.DOAN_RUNTIME;
+    if (!runtime) throw new Error("Workspace has no DOAN_RUNTIME");
+    const { cmd, args } = agentCommand(agent, prompt, scenario.mcp ? { cli: setup.cli, runtime, configPath: join(ws.base, "mcp.json") } : undefined);
     console.log(`start ${name} (${ws.repo})`);
     const startedAt = new Date().toISOString();
     const proc = await runProcess({ cmd, args, cwd: ws.repo, env: ws.env, timeoutSec: scenario.timeoutSec, stdoutPath: join(dir, "stdout.log"), stderrPath: join(dir, "stderr.log") });

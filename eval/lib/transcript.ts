@@ -8,9 +8,10 @@ function execCalls(source: string): { name: string; command?: string }[] {
     if (token[0] === '"') {
       try { return JSON.parse(token); } catch { return undefined; }
     }
+    const escapes: Record<string, string> = { n: "\n", r: "\r", t: "\t", b: "\b", f: "\f", v: "\v", "0": "\0", "\n": "", "\r\n": "" };
     return token.slice(1, -1).replace(/\\(u[\da-fA-F]{4}|x[\da-fA-F]{2}|\r?\n|.)/g, (_, escape: string) => {
       if (escape.startsWith("u") || escape.startsWith("x")) return String.fromCharCode(parseInt(escape.slice(1), 16));
-      return ({ n: "\n", r: "\r", t: "\t", b: "\b", f: "\f", v: "\v", "0": "\0", "\n": "", "\r\n": "" } as Record<string, string>)[escape] ?? escape;
+      return escapes[escape] ?? escape;
     });
   };
   const calls: { name: string; command?: string }[] = [];
