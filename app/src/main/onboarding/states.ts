@@ -98,14 +98,15 @@ export function parseShellProbe(stdout: string, nonce: string): ShellProbe {
 }
 
 function pathEntries(path: string): string[] {
-  return path.split(":").filter((entry) => posix.isAbsolute(entry) && !entry.includes("\0")).map((entry) => posix.normalize(entry));
+  return path.split(":").filter((entry) => posix.isAbsolute(entry) && !entry.includes("\0"));
 }
 
 // `exists` must mean an executable regular file; the I/O shell owns access/stat.
 export function findOnPath(path: string, name: string, exists: (path: string) => boolean): string | null {
   if (!name || name.includes("/") || name.includes("\0")) return null;
   for (const dir of pathEntries(path)) {
-    const candidate = posix.join(dir, name);
+    // Collapsing .. before filesystem lookup changes paths through symlinks.
+    const candidate = `${dir.replace(/\/+$/, "")}/${name}`;
     if (exists(candidate)) return candidate;
   }
   return null;
@@ -113,7 +114,7 @@ export function findOnPath(path: string, name: string, exists: (path: string) =>
 
 export function pathIncludes(path: string, dir: string): boolean {
   const trimTrailing = (value: string) => value.replace(/\/+$/, "") || "/";
-  return posix.isAbsolute(dir) && pathEntries(path).some((entry) => trimTrailing(entry) === trimTrailing(posix.normalize(dir)));
+  return posix.isAbsolute(dir) && pathEntries(path).some((entry) => trimTrailing(entry) === trimTrailing(dir));
 }
 
 export function rcFileFor(shell: string): string | null {
