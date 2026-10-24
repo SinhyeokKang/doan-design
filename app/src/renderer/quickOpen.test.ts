@@ -61,6 +61,47 @@ describe("quick open index", () => {
 });
 
 describe("quick open matching", () => {
+  it("keeps title and frame prefix matches within the cap without matching the design scope", () => {
+    const index = searchIndex([folder("/repo", [
+      ...Array.from({ length: 60 }, (_, i) => canvas(`design/screen-${i}.html`, { title: `Screen ${i}` })),
+      canvas("design/settings/billing.html", { title: "Declined", frames: [{ id: "declined" }] }),
+    ])]);
+    const matches = searchMatch(index, "de", "/repo", commonOf);
+    expect(matches.map((result) => result.kind)).toEqual(["canvas", "frame"]);
+    expect(matches.map((result) => result.label)).toEqual(["Declined", "declined"]);
+    expect(searchMatch(index, "design", "/repo", commonOf)).toEqual([]);
+    expect(searchMatch(index, "settings/billing", "/repo", commonOf)[0]?.path).toBe("design/settings/billing.html");
+  });
+
+  it("matches NFC and NFD queries against normalized canvas and frame fields without changing targets", () => {
+    const path = `design/${"설정/결제".normalize("NFD")}.html`;
+    const frameId = "실패".normalize("NFD");
+    const index = searchIndex([folder("/repo", [canvas(path, {
+      title: "청구".normalize("NFD"), id: "구독".normalize("NFD"),
+      frames: [{ id: frameId, title: "거절".normalize("NFD") }],
+    })])]);
+    for (const query of ["설정/결제", "결제.html", "청구", "구독", "실패", "거절"]) {
+      for (const form of ["NFC", "NFD"]) {
+        const results = searchMatch(index, query.normalize(form), null, commonOf);
+        expect(results).toHaveLength(1);
+        expect(results[0]?.path).toBe(path);
+        if (results[0]?.kind === "frame") expect(results[0].frameId).toBe(frameId);
+      }
+    }
+    const composed = searchIndex([folder("/repo", [canvas("design/결제.html")])]);
+    expect(searchMatch(composed, "결제".normalize("NFD"), null, commonOf)).toHaveLength(1);
+  });
+
+  it("omits internal fields from results for both empty and nonempty queries", () => {
+    const index = searchIndex([folder("/repo", [canvas("design/card.html", { frames: [{ id: "card" }] })])]);
+    for (const query of ["", "card"]) {
+      const results = searchMatch(index, query, null, commonOf);
+      expect(results.length).toBeGreaterThan(0);
+      for (const result of results) expect(result).not.toHaveProperty("fields");
+    }
+    expect(index.every((entry) => entry.fields.length > 0)).toBe(true);
+  });
+
   it("matches case-insensitive whitespace tokens with AND across fields", () => {
     const index = searchIndex([folder("/repo", [canvas("design/settings/card.html", { title: "Billing plans", id: "billing-v2" })])]);
     expect(searchMatch(index, "  BILLING\tsettings\nV2 ", null, commonOf)).toHaveLength(1);
@@ -110,12 +151,14 @@ describe("quick open matching", () => {
       frames: Array.from({ length: 50 }, (_, j) => ({ id: `card-${j}`, title: `Card payment ${j}` })),
     })))]);
     expect(index).toHaveLength(51000);
-    const started = performance.now();
-    const results = searchMatch(index, "card", "/repo", commonOf);
-    const elapsed = performance.now() - started;
-    console.info(`Quick open: 51000 entries searched in ${elapsed.toFixed(2)}ms`);
-    expect(results).toHaveLength(50);
-    expect(elapsed).toBeLessThanOrEqual(50);
+    for (const query of ["card", "ard"]) {
+      const started = performance.now();
+      const results = searchMatch(index, query, "/repo", commonOf);
+      const elapsed = performance.now() - started;
+      console.info(`Quick open: 51000 entries searched for ${query} in ${elapsed.toFixed(2)}ms`);
+      expect(results).toHaveLength(50);
+      expect(elapsed).toBeLessThanOrEqual(50);
+    }
   });
 });
 
