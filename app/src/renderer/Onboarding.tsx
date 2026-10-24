@@ -4,7 +4,7 @@ import type { Agent } from "../main/onboarding/states";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
 import type { FolderEntry } from "../main/view";
 import {
-  advanceAfter, agentsView, cliItems, confirmView, copyLabel, COPY_FAILED, footerView, idleUi, indicatorView, nextFocusIndex, projectStepView, promptParts, stepsDone,
+  advanceAfter, agentsView, cliItems, confirmView, copyFor, copyLabel, COPY_FAILED, footerView, idleUi, indicatorView, nextFocusIndex, projectStepView, promptParts, stepsDone, wizardBusy,
   type ConfirmView, type CopyState, type FooterView, type IndicatorStep, type ItemView, type MachineUi, type Part, type Row, type RowOutcome,
 } from "./onboardingView";
 import { ProjectFields, useProjectSetup } from "./ProjectSetupDialog";
@@ -101,6 +101,7 @@ export function Wizard({ session, entries, reroot, onClose }: { session: string;
   const [rerooted, setRerooted] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [projectBusy, setProjectBusy] = useState(false);
+  const [promptCopy, setPromptCopy] = useState<CopyState>("idle");
   const [promptCopied, setPromptCopied] = useState(false);
   const title = useRef<HTMLSpanElement>(null);
   const reads = useRef(0);
@@ -160,12 +161,11 @@ export function Wizard({ session, entries, reroot, onClose }: { session: string;
   }
   async function copyPath() {
     setUi(current => ({ ...current, pathCopy: "copying" }));
-    let copied = false;
-    try { copied = (await window.doan.copyPathLine()).kind === "success"; } catch { /* Shown as Retry copy. */ }
-    if (live.current) setUi(current => ({ ...current, pathCopy: copied ? "copied" : "failed" }));
+    const copied = await copyFor(true, () => live.current, () => window.doan.copyPathLine());
+    if (copied) setUi(current => ({ ...current, pathCopy: copied }));
   }
 
-  const busy = ui.running !== null || confirm !== null || projectBusy || closing;
+  const busy = wizardBusy({ running: ui.running, confirming: confirm !== null, projectBusy, closing, pathCopy: ui.pathCopy, promptCopy });
   async function close() {
     if (busy) return;
     setClosing(true);
@@ -239,7 +239,7 @@ export function Wizard({ session, entries, reroot, onClose }: { session: string;
           if (result.kind === "success") setAdvance("setup");
           else if (result.kind === "rerooted") { setProject(result.root); setRerooted(result.message); }
         }} />}
-      {step === 3 && <PromptStep project={entry?.kind === "list" ? entry.path : null} copied={() => setPromptCopied(true)} />}
+      {step === 3 && <PromptStep project={entry?.kind === "list" ? entry.path : null} copy={promptCopy} setCopy={setPromptCopy} copied={() => setPromptCopied(true)} />}
     </div></div>
     <WizardFooter view={footerView(step, !!done[step], busy, ui.checking)} checkAgain={checkAgain} skip={() => go(step + 1)} next={() => { if (step === 3) void close(); else go(step + 1); }} />
     {confirmed && <ConfirmDialog view={confirmed} answer={answer} />}
@@ -290,23 +290,26 @@ function ProjectStep({ project, entry, rerooted, setBusy, open, setUpDone }: {
   </>;
 }
 
-function PromptStep({ project, copied }: { project: string | null; copied: () => void }) {
+// The copy state lives in the Wizard so a pending copy keeps the wizard busy.
+function PromptStep({ project, copy, setCopy, copied }: { project: string | null; copy: CopyState; setCopy: (copy: CopyState) => void; copied: () => void }) {
   // undefined while main is asked; null when it has no sentence for this project.
   const [sentence, setSentence] = useState<string | null | undefined>(undefined);
-  const [copy, setCopy] = useState<CopyState>("idle");
+  // The project a pending copy belongs to; null once this step unmounts.
+  const target = useRef<string | null>(null);
   useEffect(() => {
     let live = true;
+    target.current = project;
     setSentence(undefined); setCopy("idle");
     if (project) void window.doan.firstPrompt(project).then(text => { if (live) setSentence(text); }, () => { if (live) setSentence(null); });
-    return () => { live = false; };
+    return () => { live = false; target.current = null; };
   }, [project]);
   async function copyPrompt() {
     if (!project) return;
     setCopy("copying");
-    let ok = false;
-    try { ok = (await window.doan.copyFirstPrompt(project)).kind === "success"; } catch { /* Shown as Retry copy. */ }
-    setCopy(ok ? "copied" : "failed");
-    if (ok) copied();
+    const result = await copyFor(project, () => target.current, () => window.doan.copyFirstPrompt(project));
+    if (result === null) return;
+    setCopy(result);
+    if (result === "copied") copied();
   }
   return <>
     <h2>Send your first prompt</h2>

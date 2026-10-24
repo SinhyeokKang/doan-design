@@ -53,6 +53,14 @@ export function tilde(path: string, home: string): string {
 const parent = (path: string) => path.slice(0, path.lastIndexOf("/"));
 const checkAgain = (reason: string) => `${reason.trim().replace(/\.?$/, ".")} Choose Check Again.`;
 
+// A copy result is dropped when its target (the project, or the wizard itself)
+// stopped being current while the clipboard was written.
+export async function copyFor<T>(target: T, current: () => T | null, copy: () => Promise<{ kind: string }>): Promise<CopyState | null> {
+  let ok = false;
+  try { ok = (await copy()).kind === "success"; } catch { /* Shown as Retry copy. */ }
+  return current() === target ? (ok ? "copied" : "failed") : null;
+}
+
 export function copyLabel(state: CopyState): string {
   return state === "copying" ? "Copying…" : state === "copied" ? "Copied" : state === "failed" ? "Retry copy" : "Copy";
 }
@@ -139,7 +147,7 @@ function agentCard(state: MachineState | null, ui: MachineUi, agent: Agent): Age
   else {
     const blocked = state.stub.state === "blocked" || (agent === "claude" && state.claudeLink.state === "blocked");
     head.button = { id: "connect", label: ui.running === agent ? "Connecting…" : "Connect", primary: true,
-      disabled: ui.running !== null || ui.checking || ui.readError !== null || state.cli.state !== "ours" || blocked };
+      disabled: ui.running !== null || ui.checking || ui.readError !== null || blocked };
   }
   const items: ItemView[] = [];
   if (agent === "claude") {
@@ -156,8 +164,12 @@ function agentCard(state: MachineState | null, ui: MachineUi, agent: Agent): Age
   if (state.cli.state !== "ours") { mcp.dimmed = true; mcp.reason = "Install the CLI link in step 1 before connecting MCP."; }
   items.push(mcp);
   const outcome = ui.outcome[agent];
+  // Connect stops before MCP when step 1 is not done or MCP could not be read.
+  // Nothing failed: the MCP item already shows that reason from the read.
+  const mcpWaits = outcome?.kind === "unavailable" && state.stub.state === "ours" && (agent === "codex" || state.claudeLink.state === "ours") &&
+    (state.cli.state !== "ours" || found.mcp.state === "unknown");
   if (outcome?.kind === "changed") head.reason = CHANGED;
-  else if (outcome) {
+  else if (outcome && !mcpWaits) {
     const failed: Chip = { text: "Failed", tone: "err" };
     const original = outcome.kind === "error" ? outcome.original : undefined;
     if (original !== undefined) Object.assign(mcp, { chip: failed, msg: { tone: "error", parts: [`Couldn’t replace the registration: ${outcome.message.replace(/\.$/, "")}. The original command was `, { code: registrationText(agent, original) }, "."] } });
@@ -199,7 +211,7 @@ export function confirmView(target: "cli" | "stub" | "claudeLink" | "mcp", agent
     case "claudeLink":
       return { title: "Replace the Claude Code skill link?", body: [{ code: short(d.claudeLinkPath) }, " points to another folder. Claude Code will read the shared doan skill instead."], current: state.claudeLink.value ?? "", next: d.claudeLinkTarget, verb: "Replace Link" };
     case "stub":
-      return { title: "Replace SKILL.md?", body: ["Your edits to SKILL.md will be replaced. Other files in ", { code: short(parent(d.stubPath)) }, " are kept."], current: `${short(d.stubPath)} — Modified or from another version`, next: "The skill stub from this app", verb: "Replace Skill" };
+      return { title: "Replace SKILL.md?", body: ["Your edits to SKILL.md will be replaced. Other files in ", { code: short(parent(d.stubPath)) }, " are kept."], current: `${short(d.stubPath)} — Modified or from another version`, next: `The skill stub from this app (doan ${d.appVersion})`, verb: "Replace Skill" };
     case "mcp": {
       const where = agent === "claude" ? (d.configFromEnv.claude ? " (CLAUDE_CONFIG_DIR, user scope)." : " (user scope).") : d.configFromEnv.codex ? " (CODEX_HOME)." : ".";
       return { title: "Replace the doan MCP registration?", body: [`${AGENT_NAMES[agent]} already has an MCP server named doan in `, { code: short(d.configFile[agent]) }, where], current: registrationText(agent, state.agents[agent].mcp.value), next: d.mcpCommand, verb: "Replace MCP Registration" };
@@ -222,6 +234,12 @@ export function stepsDone(state: MachineState | null, project: FolderEntry | und
 export interface IndicatorStep { step: number; label: string; done: boolean; current: boolean; ariaLabel?: string; disabled: boolean }
 export function indicatorView(current: number, done: readonly boolean[], disabled: boolean): IndicatorStep[] {
   return STEP_LABELS.map((label, step) => ({ step, label, done: !!done[step], current: step === current, ...(done[step] ? { ariaLabel: `${label}, completed` } : {}), disabled }));
+}
+
+export interface BusyParts { running: Row | null; confirming: boolean; projectBusy: boolean; closing: boolean; pathCopy: CopyState; promptCopy: CopyState }
+// design.md flow 4: while any action runs, Close, Escape, the indicator and the bottom bar wait.
+export function wizardBusy(parts: BusyParts): boolean {
+  return parts.running !== null || parts.confirming || parts.projectBusy || parts.closing || parts.pathCopy === "copying" || parts.promptCopy === "copying";
 }
 
 export interface FooterView {
