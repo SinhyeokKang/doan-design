@@ -311,3 +311,25 @@ func TestIndirectCSSPathFindingsBelongToImporter(t *testing.T) {
 		})
 	}
 }
+
+func TestNoCanvasesWarning(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		in   Input
+		want int
+	}{
+		{"empty", Input{}, 1},
+		{"present", base(), 0},
+		{"unparsable", Input{Unparsable: map[string]string{"design/deep.html": "too deep"}}, 0},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			fs := codes(Run(tt.in), "no_canvases")
+			if len(fs) != tt.want {
+				t.Fatalf("findings: %+v", fs)
+			}
+			if len(fs) > 0 && (fs[0].Severity != "warning" || fs[0].Path != "design/" || fs[0].Message != "No canvases found under design/. Write a canvas, then run doan check again.") {
+				t.Fatal(fs)
+			}
+		})
+	}
+}
