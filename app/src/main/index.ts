@@ -338,7 +338,11 @@ async function start(): Promise<void> {
   const setup = machine;
   const validSession = (value: unknown): value is { session: string } => typeof value === "object" && value !== null &&
     "session" in value && typeof value.session === "string" && value.session === wizardSession;
-  ipcMain.handle("onboarding:get-open", event => fromWindow(event) && wizardSession ? { session: wizardSession } : null);
+  ipcMain.handle("onboarding:get-open", event => {
+    if (!fromWindow(event) || !wizardSession) return null;
+    setup.cancelConfirmation();
+    return { session: wizardSession };
+  });
   let latestRead = "";
   ipcMain.handle("onboarding:read", async (event, value: unknown): Promise<OnboardingRead> => {
     if (!fromWindow(event) || !validSession(value) || Object.keys(value).length !== 2 ||
@@ -359,8 +363,14 @@ async function start(): Promise<void> {
   ipcMain.handle("onboarding:close", async (event, value: unknown) => {
     if (!fromWindow(event) || !validSession(value) || Object.keys(value).length !== 1) return { kind: "stale" };
     if (setup.isBusy()) return { kind: "busy" };
-    try { await markClosed(userData); setup.cancelConfirmation(); wizardSession = null; return { kind: "success" }; }
-    catch (error) { return { kind: "error", message: error instanceof Error ? error.message : String(error) }; }
+    let warning: string | undefined;
+    try { await markClosed(userData); }
+    catch (error) {
+      warning = error instanceof Error ? error.message : String(error);
+      console.warn("Could not save onboarding dismissal:", warning);
+    }
+    setup.cancelConfirmation(); wizardSession = null;
+    return { kind: "success", ...(warning === undefined ? {} : { warning }) };
   });
   if (await needsOnboarding(userData)) wizardSession = randomUUID();
   win = createWindow();

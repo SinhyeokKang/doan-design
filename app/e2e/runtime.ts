@@ -12,7 +12,7 @@ import { rmSync } from "node:fs";
 import { chmod, cp, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { createRequire, stripTypeScriptTypes } from "node:module";
 import { createConnection } from "node:net";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -87,7 +87,7 @@ async function expectProduct(what: string, check: () => Promise<void>): Promise<
 async function runAll(): Promise<void> {
   const before = await fingerprint(realFoldersJson);
   const runtimeBefore = await fingerprint(realRuntimeJson);
-  // realpath: macOS tmpdir is under /var -> /private/var, and the app stores real paths.
+  // realpath: macOS /tmp resolves to /private/tmp, and the app stores real paths.
   work = await realpath(await mkdtemp("/tmp/doan-e2e-"));
   try {
     const cli = join(work, "bin", "doan");

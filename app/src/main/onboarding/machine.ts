@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { accessSync, constants, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { accessSync, constants, linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir, userInfo } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { CliRun } from "../folderState";
@@ -25,12 +25,13 @@ export function runProcess(command: string, args: string[], env: NodeJS.ProcessE
     };
     const kill = () => { try { child.kill("SIGKILL"); } catch { /* Settlement cannot depend on kill success. */ } };
     const timer = setTimeout(() => { kill(); finish({ timedOut: true }); }, timeout);
-    child.stdout.on("data", (data: Buffer) => {
-      stdout += data.toString();
+    child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (data: string) => {
+      stdout += data;
       if (stdout.length > OUTPUT_LIMIT) { kill(); finish({ spawnError: "Process output exceeded the limit." }); }
       else if (nonce && parseShellProbe(stdout, nonce).ok) { kill(); finish({ exitCode: 0 }); }
     });
-    child.stderr.on("data", (data: Buffer) => { stderr += data.toString(); if (stderr.length > OUTPUT_LIMIT) { kill(); finish({ spawnError: "Process output exceeded the limit." }); } });
+    child.stderr.on("data", (data: string) => { stderr += data; if (stderr.length > OUTPUT_LIMIT) { kill(); finish({ spawnError: "Process output exceeded the limit." }); } });
     child.once("error", error => finish({ spawnError: error.message }));
     // A daemon can inherit a pipe. Waiting for close would strand the caller.
     child.once("exit", code => finish({ exitCode: code }));
@@ -56,14 +57,24 @@ function stat(path: string): PathStat {
   try { const s = lstatSync(path); return { kind: s.isSymbolicLink() ? "symlink" : s.isDirectory() ? "directory" : s.isFile() ? "file" : "other" }; }
   catch (error) { const code = errorCode(error); return code === "ENOENT" ? { kind: "missing" } : { kind: "error", code }; }
 }
-function safeParents(path: string): boolean {
+function blockedParent(path: string): string | null {
   const parent = dirname(path);
-  if (parent === path) return true;
+  if (parent === path) return null;
+  const ancestor = blockedParent(parent);
+  if (ancestor) return ancestor;
   const s = stat(parent);
-  return (s.kind === "directory" || s.kind === "missing") && safeParents(parent);
+  return s.kind === "directory" || s.kind === "missing" ? null : parent;
+}
+function safeParents(path: string): boolean { return blockedParent(path) === null; }
+function blockedMessage(path: string): string {
+  const ancestor = blockedParent(path);
+  if (ancestor) return stat(ancestor).kind === "symlink"
+    ? `${ancestor} is a link. doan does not write through links. Move or delete it, then Check Again.`
+    : `${ancestor} is not a directory. Move or delete it, then Check Again.`;
+  return `${path} is in use by something else. Move or delete it, then Check Again.`;
 }
 function observedStat(path: string): PathStat { return { ...stat(path), parentBlocked: !safeParents(path) }; }
-function canonical(path: string): string | null { try { return realpathSync(path); } catch { return null; } }
+function canonical(path: string): string | null { try { return realpathSync.native(path); } catch { return null; } }
 function stamp(path: string): string {
   try { const s = lstatSync(path); return `${s.dev}:${s.ino}:${s.mode}:${s.size}:${s.mtimeMs}:${s.ctimeMs}`; } catch (error) { return errorCode(error); }
 }
@@ -73,12 +84,12 @@ export interface McpObservation { state: McpState; value: string }
 function observeLink(path: string, expected: string): LinkObservation {
   const s = observedStat(path); let value: string | null = null;
   if (!s.parentBlocked && s.kind === "symlink") { try { value = readlinkSync(path); } catch { /* An unreadable link is blocked. */ } }
-  return { state: linkState(s, value === null ? null : { value, resolved: canonical(path) }, canonical(expected) ?? expected), value, stamp: `${stamp(path)}:${stamp(dirname(path))}` };
+  return { state: linkState(s, value === null ? null : { value, resolved: canonical(path) }, canonical(expected) ?? expected), value, stamp: stamp(path) };
 }
 function observeStub(path: string): StubObservation {
   const d = observedStat(dirname(path)), f = observedStat(path); let content: string | null = null;
   if (!d.parentBlocked && d.kind === "directory" && !f.parentBlocked && f.kind === "file") { try { content = readFileSync(path, "utf8"); } catch { /* Failed reads are blocked. */ } }
-  return { state: stubState(d, f, content, stub), stamp: `${stamp(dirname(path))}:${stamp(path)}:${digest(content ?? "")}` };
+  return { state: stubState(d, f, content, stub), stamp: `${stamp(path)}:${digest(content ?? "")}` };
 }
 function executable(path: string): boolean { try { accessSync(path, constants.X_OK); return statSync(path).isFile(); } catch { return false; } }
 export interface Expected {
@@ -91,7 +102,7 @@ export interface MachineState {
   probe: ShellProbe; agents: Expected["agents"]; claudeLink: LinkObservation;
 }
 export interface StepRequest { step: "cli" | "connect"; agent?: Agent; expected: Expected }
-export type StepResult = { kind: "success" | "busy" | "stale" | "cancelled" } |
+export type StepResult = { kind: "success"; warning?: string } | { kind: "busy" | "stale" | "cancelled" } |
   { kind: "unavailable" | "error"; message: string; original?: string } |
   { kind: "confirm"; id: string; target: "cli" | "stub" | "claudeLink" | "mcp"; message: string };
 function object(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
@@ -112,12 +123,12 @@ export function createMachine(options: { command: string; env?: NodeJS.ProcessEn
     delete runEnv.CLAUDE_CONFIG_DIR; delete runEnv.CODEX_HOME;
     if (probe.ok) { runEnv.PATH = probe.path; if (probe.claudeConfigDir) runEnv.CLAUDE_CONFIG_DIR = probe.claudeConfigDir; if (probe.codexHome) runEnv.CODEX_HOME = probe.codexHome; }
     const claudeDir = runEnv.CLAUDE_CONFIG_DIR || join(home, ".claude"), codexDir = runEnv.CODEX_HOME || join(home, ".codex");
-    const configValid = isAbsolute(claudeDir) && isAbsolute(codexDir);
+    const configValid = { claude: isAbsolute(claudeDir), codex: isAbsolute(codexDir) };
     return { probe, runEnv, claudeDir, codexDir, configValid, claudeLink: join(claudeDir, "skills/doan") };
   }
   type Context = Awaited<ReturnType<typeof context>>;
   async function readMcp(agent: Agent, ctx: Context, exe: string | null): Promise<McpObservation> {
-    if (!ctx.probe.ok || !ctx.configValid || !exe) return { state: "unknown", value: "" };
+    if (!ctx.probe.ok || !ctx.configValid[agent] || !exe) return { state: "unknown", value: "" };
     let result: CliRun;
     if (agent === "claude") {
       const file = ctx.runEnv.CLAUDE_CONFIG_DIR ? join(ctx.claudeDir, ".claude.json") : join(home, ".claude.json");
@@ -142,16 +153,21 @@ export function createMachine(options: { command: string; env?: NodeJS.ProcessEn
     const ctx = await context(), expected = await snapshot(ctx);
     return { requestId, expected, ...expected, available, reason, pathPresent: ctx.probe.ok && pathIncludes(ctx.probe.path, dirname(cliPath)), rcFile: rcFileFor(shellName(env)), probe: ctx.probe };
   }
-  function writeTarget(path: string, content: string, link: boolean, check: () => boolean): void {
+  function writeTarget(path: string, content: string, link: boolean, missing: boolean, check: () => boolean): void {
     if (!check() || !safeParents(path)) throw new Error("Target changed. Check Again.");
     mkdirSync(dirname(path), { recursive: true });
     if (!safeParents(path)) throw new Error("Target parent changed. Check Again.");
     const temporary = join(dirname(path), `.doan-${randomUUID()}.tmp`);
     try {
       if (link) symlinkSync(content, temporary); else writeFileSync(temporary, content, { flag: "wx", mode: 0o644 });
-      // Parent timestamps change when staging; compare the target, not our temp file.
+      // Recheck after staging; missing targets must still be created exclusively.
       if (!safeParents(path) || !check()) throw new Error("Target changed. Check Again.");
-      renameSync(temporary, path);
+      if (missing) {
+        if (link) symlinkSync(content, path); else linkSync(temporary, path);
+      } else renameSync(temporary, path);
+    } catch (error) {
+      if (errorCode(error) === "EEXIST") throw new Error("Target changed. Check Again.");
+      throw error;
     } finally { rmSync(temporary, { force: true }); }
   }
   async function execute(request: Omit<StepRequest, "expected"> & { expected: unknown }, approved?: string): Promise<StepResult> {
@@ -164,31 +180,35 @@ export function createMachine(options: { command: string; env?: NodeJS.ProcessEn
     };
     const writeLink = (path: string, value: string, expected: string, before: LinkObservation) => {
       const signature = stamp(path);
-      writeTarget(path, value, true, () => {
+      writeTarget(path, value, true, before.state === "missing", () => {
         const now = observeLink(path, expected);
         return now.state === before.state && now.value === before.value && stamp(path) === signature;
       });
     };
     if (request.step === "cli") {
-      if (current.cli.state === "blocked") return { kind: "unavailable", message: `${cliPath} is in use by something else. Move or delete it, then Check Again.` };
+      if (current.cli.state === "blocked") return { kind: "unavailable", message: blockedMessage(cliPath) };
       if (current.cli.state === "ours") return { kind: "success" };
       if (current.cli.state === "link-other" && approved !== "cli") return confirm("cli", `Replace the link pointing to ${current.cli.value}?`);
       writeLink(cliPath, options.command, options.command, current.cli); return { kind: "success" };
     }
     const agent = request.agent;
-    if (!agent || current.cli.state !== "ours" || !ctx.probe.ok || !ctx.configValid || !current.agents[agent].executable) return { kind: "unavailable", message: "Install the CLI link and check agent detection first." };
-    if (current.stub.state === "blocked") return { kind: "unavailable", message: `${stubPath} is in use by something else. Move or delete it, then Check Again.` };
+    if (!agent) return { kind: "unavailable", message: "Choose an agent first." };
+    if (current.cli.state !== "ours") return { kind: "unavailable", message: "Install the CLI link first." };
+    if (!ctx.probe.ok) return { kind: "unavailable", message: ctx.probe.reason };
+    if (!ctx.configValid[agent]) return { kind: "unavailable", message: `${agent === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"} must be an absolute path: ${current.agents[agent].config}` };
+    if (!current.agents[agent].executable) return { kind: "unavailable", message: `Couldn't find ${agent}. Install it, then Check Again.` };
+    if (current.stub.state === "blocked") return { kind: "unavailable", message: blockedMessage(stubPath) };
     if (current.stub.state !== "ours") {
       if (current.stub.state === "differs" && approved !== "stub") return confirm("stub", "Your edits to SKILL.md will be replaced.");
       const before = current.stub, signature = stamp(stubPath);
-      writeTarget(stubPath, stub, false, () => {
+      writeTarget(stubPath, stub, false, before.state === "missing", () => {
         const now = observeStub(stubPath);
-        return stamp(stubPath) === signature && (now.state === before.state || (before.state === "missing" && now.state === "missing"));
+        return stamp(stubPath) === signature && now.state === before.state;
       });
       current = await snapshot(ctx);
     }
     if (agent === "claude" && current.claudeLink.state !== "ours") {
-      if (current.claudeLink.state === "blocked") return { kind: "unavailable", message: `${ctx.claudeLink} is in use by something else. Move or delete it, then Check Again.` };
+      if (current.claudeLink.state === "blocked") return { kind: "unavailable", message: blockedMessage(ctx.claudeLink) };
       if (current.claudeLink.state === "link-other" && approved !== "claudeLink") return confirm("claudeLink", `Replace the link pointing to ${current.claudeLink.value}?`);
       writeLink(ctx.claudeLink, relative(dirname(ctx.claudeLink), dirname(stubPath)), dirname(stubPath), current.claudeLink);
       current = await snapshot(ctx);
@@ -226,8 +246,7 @@ export function createMachine(options: { command: string; env?: NodeJS.ProcessEn
       if (pending) return Promise.resolve({ kind: "busy" });
       // expected is compared with a freshly built snapshot before any field is used.
       if (value.step === "cli") return locked({ step: "cli", expected: value.expected });
-      if (value.agent === "claude" || value.agent === "codex") return locked({ step: "connect", agent: value.agent, expected: value.expected });
-      return Promise.resolve({ kind: "unavailable", message: "Invalid setup request." });
+      return locked({ step: "connect", agent: value.agent as Agent, expected: value.expected });
     },
     answer(value: unknown): Promise<StepResult> {
       if (!object(value) || Object.keys(value).length !== 2 || typeof value.id !== "string" || typeof value.allow !== "boolean" || !pending || value.id !== pending.id) return Promise.resolve({ kind: "stale" });
