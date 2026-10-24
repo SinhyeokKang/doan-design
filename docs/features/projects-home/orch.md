@@ -77,3 +77,4 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: B1-fix 완료(`a25c4c4` test, `576c55a` fix, `0dce325` postmortem). 지휘자가 git.go diff를 확인했다. B1 전체(6커밋)를 통합한다.
 - 2026-10-25: B1 6커밋을 통합했다(`c2b9684`~`569b3dc`). 통합 HEAD에서 `go test`·`go vet`·앱 test(1345) 통과. B1 워커를 해제하고 `ph-a1`을 `git cherry`(+ 없음)로 확인한 뒤 제거했다. E(`ctx_11d216927dd4`, Codex Sol high, worktree `ph-e`) 시작.
 - 2026-10-25: 초안 확정. DC 커밋(`213c0ff`, `1738b62`)을 통합한다. DC-rev 워커를 해제하고 `ph-dc`를 정리한다.
+- 2026-10-25: B2 완료(`b37606e` test, `2c2bb3c` feat, `0a5acfc` refactor). test 1424, typecheck, e2e PASS(2c2bb3c 기준) 보고. 계획과의 차이: 추가 결과를 이벤트 하나(`folders:add-outcome`)로 보낸다, `folders:forget-removal`·`menu:state` IPC 추가, Locate는 스캔·확인이 필요한 폴더를 거부한다, Edit 메뉴를 role 대신 풀어 썼다. B2를 먼저 통합해 C를 띄우고, 교차 리뷰 R-B2(Codex Astra medium)를 병렬로 돌린다. 리뷰 지적은 B2 워커가 고친다.
