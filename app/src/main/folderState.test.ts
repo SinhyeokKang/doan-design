@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { folderState, type CliRun } from "./folderState";
+import { folderState, initOutcome, reconcileFolders, type CliRun } from "./folderState";
 
 const canvases = [{ path: "design/a.html", id: "a", frames: [], comments: { open: 1, resolved: 0 } }];
 const listResult = { root: "/repo", scope: ["design", "tokens.css"], canvases };
@@ -121,5 +121,44 @@ describe("folderState", () => {
     expect(folderState(run({ stdout, timedOut: true, stderr: "slow\n" }))).toEqual({ kind: "cliError", reason: "timed out after 10 s" });
     expect(folderState(run({ exitCode: null, timedOut: true, spawnError: "spawn doan EACCES" })))
       .toEqual({ kind: "cliError", reason: "spawn doan EACCES" });
+  });
+});
+
+describe("initOutcome", () => {
+  test.each([true, false])("accepts initialized %s without adopting result.repo spelling", (initialized) => {
+    expect(initOutcome(run({ stdout: envelope({ v: 1, ok: true, result: { initialized, repo: "/REPO", created: [] } }) }))).toEqual({ kind: "success" });
+  });
+  test("keeps CLI errors and app guidance, never CLI nextSteps", () => {
+    expect(initOutcome(run({ exitCode: 2, stdout: failure("invalid_config", "Broken config") }))).toEqual({ kind: "error", message: "Broken config", guidance: "Fix the project configuration, then try again." });
+    expect(initOutcome(run({ exitCode: 2, stdout: failure("usage_error", "Outside repo") }))).toMatchObject({ kind: "error", message: "Outside repo" });
+    expect(initOutcome(run({ timedOut: true }))).toMatchObject({ kind: "cliError", reason: "timed out after 10 s" });
+    expect(initOutcome(run({ spawnError: "ENOENT" }))).toMatchObject({ kind: "cliError", reason: "ENOENT" });
+  });
+  test("rejects malformed results and inconsistent exits", () => {
+    for (const result of [{}, { initialized: "false" }, { initialized: false, repo: "/r", created: "x" }]) expect(initOutcome(run({ stdout: envelope({ v: 1, ok: true, result }) })).kind).toBe("cliError");
+    expect(initOutcome(run({ stdout: failure("invalid_config", "broken") })).kind).toBe("cliError");
+    expect(initOutcome(run({ stdout: "garbage" })).kind).toBe("cliError");
+    expect(initOutcome(run({ exitCode: 1, stdout: envelope({ v: 1, ok: true, result: { initialized: true, repo: "/r", created: [] } }) })).kind).toBe("cliError");
+  });
+});
+
+describe("reconcileFolders", () => {
+  const upward = (root: string) => ({ kind: "list" as const, root, scope: [], canvases: [] });
+  test("replaces at the old position, merges duplicates keeping the earliest position, and returns focus", () => {
+    expect(reconcileFolders(["/a", "/repo/web", "/b", "/repo"], "/repo/web", upward("/repo"))).toEqual({ folders: ["/a", "/repo", "/b"], focus: "/repo" });
+    expect(reconcileFolders(["/repo", "/a", "/repo/web"], "/repo/web", upward("/repo"))).toEqual({ folders: ["/repo", "/a"], focus: "/repo" });
+  });
+  test("two subfolders re-root against the latest list without losing neighbors", () => {
+    const first = reconcileFolders(["/repo/web", "/x", "/repo/api"], "/repo/web", upward("/repo"));
+    expect(reconcileFolders(first.folders, "/repo/api", upward("/repo"))).toEqual({ folders: ["/repo", "/x"], focus: "/repo" });
+  });
+  test("uses canonical CLI root for case aliases but never lowercases unrelated stored paths", () => {
+    expect(reconcileFolders(["/REPO", "/repo", "/Other", "/other"], "/REPO", upward("/repo"))).toEqual({ folders: ["/repo", "/Other", "/other"], focus: "/repo" });
+  });
+  test("leaves paths unchanged on broken config, CLI failure, absence, and stale completion", () => {
+    const stored = ["/repo/web"];
+    for (const state of [{ kind: "error", message: "bad config" }, { kind: "cliError", reason: "timeout" }, { kind: "uninitialized" }] as const) expect(reconcileFolders(stored, "/repo/web", state)).toEqual({ folders: stored, focus: "/repo/web" });
+    expect(reconcileFolders(["/a"], "/closed", upward("/repo"))).toEqual({ folders: ["/a"], focus: null });
+    expect(stored).toEqual(["/repo/web"]);
   });
 });

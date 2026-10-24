@@ -121,3 +121,9 @@ describe("readFolder before running the CLI", () => {
     expect(existsSync(marker)).toBe(false);
   });
 });
+
+test("packaged cliCommand never falls back to PATH and DOAN_CLI wins", () => {
+  expect(cliCommand({}, true, "/Applications/doan.app/Contents/Resources")).toBe("/Applications/doan.app/Contents/Resources/bin/doan");
+  expect(cliCommand({ DOAN_CLI: "/tmp/doan" }, true, "/bundle")).toBe("/tmp/doan");
+  expect(cliCommand({}, false, "/bundle")).toBe("doan");
+});
