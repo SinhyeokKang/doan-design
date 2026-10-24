@@ -21,12 +21,12 @@
 |---|---|---|---|---|---|---|
 | A | 0, 1 | `docs/PRODUCT.md`, `AGENTS.md`, `.scratch/onboard/poc7/` | — | Codex Astra medium (격리 판단, 실제 설정을 보호해야 하고 PoC 판정이 필요하다) | tasks 0 · 1 검증, 실제 상태의 키 단위 비교 | 완료 — main `13e222e` `d63db08` `f80bae0` `f4b0ee4` |
 | C | 3 | `cli/internal/repo/`, `cli/internal/cli/init.go`, `mcp.go`, `skill.md`(`--token-css` 설명만) | — | Codex Astra medium (경로 보안 경계) | `go test ./...` · `go vet ./...`, task 3 명령 | 완료 — `feat-onboard` `2fc9c86` `04c6ac5`, R-C red 0 / yellow 0 |
-| B | 2 | `design/onboard.html` | A | Codex Astra medium (상태 설계 판단) | `doan check` · `doan ls`, 지휘자 리뷰, 사용자 확정 | 통합(초안 `b0f4ce3`), 지휘자 리뷰 통과, 사용자 확정 대기 |
+| B | 2 | `design/onboard.html` | A | Codex Astra medium (상태 설계 판단) | `doan check` · `doan ls`, 지휘자 리뷰, 사용자 확정 | 완료 — Opus 초안 채택 `4a44adc`(B2), 사용자가 초안 검토를 생략하고 진행을 지시(2026-10-24) |
 | D | 4 | `app/src/main/onboarding/states.ts`(+test, `fixtures/`), `app/src/main/cli.ts`(`cliCommand`), `app/src/main/folderState.ts`, `app/src/renderer/onboardingView.ts`(+test) | A(fixture, 셸 출력 형식) | Codex Astra medium | `npm --prefix app test` · `typecheck` | 완료 — R-D 🟡1(PATH `..` 정규화) 수정 1회, 통합 HEAD TS 1144개 · typecheck 통과 |
-| E | 5 | `app/package.json`, `app/package-lock.json`, electron-builder 설정, `.gitignore`, AGENTS.md 'Commands' | A(7d 버전), D | Codex Sol medium (기계적) | task 5 검증 | 진행 중 |
-| F | 6 | `app/src/main/shell.ts`, `cli.ts`(`runLs` 주변), `index.ts`(IPC), `app/src/preload/` | D | Codex Astra medium (재루팅 · 동시성) | task 6 검증 + e2e | 진행 중 |
-| K | 11 | `cli/internal/cli/skill.md`, `.scratch/onboard/observe/` | C, E | Codex Astra medium (관찰 판단, `claude -p` · `codex exec` 실행) | task 11 검증 | 대기 |
-| G | 7 | `app/src/main/onboarding/`(states 외), `index.ts`(메뉴), `app/src/preload/`, `app/e2e/` helper, AGENTS dev 명령 | F, E | Codex Astra medium (저장소 밖 쓰기, 셸 실행) | task 7 검증 + e2e | 대기 |
+| E | 5 | `app/package.json`, `app/package-lock.json`, electron-builder 설정, `.gitignore`, AGENTS.md 'Commands' | A(7d 버전), D | Codex Sol medium (기계적) | task 5 검증 | 완료 — `feat-onboard` 통합, R-E red 0 / yellow 0 |
+| F | 6 | `app/src/main/shell.ts`, `cli.ts`(`runLs` 주변), `index.ts`(IPC), `app/src/preload/` | D | Codex Astra medium (재루팅 · 동시성) | task 6 검증 + e2e | 완료 — 통합, R-F red 0 / yellow 0, 통합 HEAD e2e PASS |
+| K | 11 | `cli/internal/cli/skill.md`, `.scratch/onboard/observe/` | C, E | Codex Astra medium (관찰 판단, `claude -p` · `codex exec` 실행) | task 11 검증 | 완료 — 1회차에 두 에이전트 모두 `doan check` 오류 · 경고 0, 본문 변경 없음 |
+| G | 7 | `app/src/main/onboarding/`(states 외), `index.ts`(메뉴), `app/src/preload/`, `app/e2e/` helper, AGENTS dev 명령 | F, E | Codex Astra medium (저장소 밖 쓰기, 셸 실행) | task 7 검증 + e2e | 수정 1회 진행 중 — R-G(Opus) red 0 / yellow 3 |
 | H | 8 | `app/src/renderer/`(마법사 · 대화상자 · 사이드바) | G, B 확정 | Codex Astra medium | task 8 검증 + e2e | 대기 |
 | I | 9 | `app/e2e/` | H | Codex Astra medium | task 9 검증 | 대기 |
 | J | 10 | `/design-sync`가 정하는 범위, `docs/DESIGN.md` | I | Codex Astra medium | `/design-sync` 완료 조건 | 대기 |
@@ -56,3 +56,6 @@ tasks.md의 task 0~13은 모두 위 배치 중 하나에 속한다.
 - 2026-10-24 B 초안을 지휘자가 검토했다: `doan ls`(canvas `onboard`, 1440, 프레임 8개 일치) · `doan check`(오류 0, `mock.css` 경고 6개) 직접 확인, 실제 앱 스크린샷(wizard-cli, wizard-agents, wizard-project, confirm-replace)과 상태 대응표를 대조했다. 통합한 뒤 사용자 확정을 요청했다. 확인용 앱은 임시 userData로 띄웠다.
 - 2026-10-24 D는 R-D 🟡1(PATH 항목의 `..`를 정규화해 링크 너머 경로를 바꿈)을 수정 1회로 고친 뒤 통합했다. onboard-b · onboard-d worktree를 제거했다(증거는 `.scratch/onboard/evidence/`).
 - 2026-10-24 `worker-start --worktree new-child`는 지휘 체크아웃의 HEAD가 아니라 main(`f4b0ee4`)에서 갈라졌다. E · F에는 시작 직후 `git merge --ff-only feat-onboard`를 지시했다. 이후 배치는 `--worktree new-child --base-branch feat-onboard`로 띄운다.
+- 2026-10-24 E · F 통합(각 리뷰 red 0 / yellow 0), 통합 HEAD에서 TS 1161개 · typecheck · Go · e2e PASS. K는 1회차에 두 에이전트가 오류 · 경고 0으로 통과해 skill 본문을 바꾸지 않았다(증거 `.scratch/onboard/evidence/K/`).
+- 2026-10-24 사용자 요청으로 같은 초안 배치를 Opus high로 한 번 더 그려 Astra 초안과 비교했다. 사용자가 Opus 초안 + Astra의 셸별 PATH 타일을 골랐고, 열린 질문 3개(MCP unknown 때 Connect, 4단계 Done만, 단계 표시기 체크)를 답했다. B2(Opus)가 반영해 `4a44adc`로 통합했다. 단계 표시기 완료 판정은 지휘자가 정했다(`dadb603`). 두 원본 초안은 `.scratch/onboard/evidence/`에 보관했다.
+- 2026-10-24 사용자가 초안 검토를 생략하고 계속 진행하라고 했다. 초안 확정 게이트는 이 지시로 통과한 것으로 기록한다.
