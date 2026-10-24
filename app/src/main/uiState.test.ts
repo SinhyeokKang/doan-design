@@ -196,3 +196,43 @@ describe("save", () => {
     expect(readdirSync(join(path, ".."))).toEqual(["ui-state.json"]);
   });
 });
+
+describe("Settings tab", () => {
+  test("is kept beside the main window's state: neither save drops the other", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const path = file();
+    writeFileSync(path, JSON.stringify(workspace("design/a.html")));
+    const store = createUiStateStore(path, saved);
+    expect(store.readSettingsTab()).toBeNull();
+    expect(store.saveSettingsTab("projects")).toBe(true);
+    vi.advanceTimersByTime(UI_STATE_DELAY_MS);
+    await store.idle();
+    expect(onDisk(path)).toMatchObject({ canvas: "design/a.html", settingsTab: "projects" });
+    store.save(workspace("design/b.html"));
+    vi.advanceTimersByTime(UI_STATE_DELAY_MS);
+    await store.idle();
+    expect(onDisk(path)).toMatchObject({ canvas: "design/b.html", settingsTab: "projects" });
+    expect(await store.read()).toMatchObject({ canvas: "design/b.html" });
+    expect(createUiStateStore(path, saved).readSettingsTab()).toBe("projects");
+  });
+
+  test("a saved tab survives the main window's first save in a new run", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const path = file();
+    writeFileSync(path, JSON.stringify({ ...workspace("design/a.html"), settingsTab: "projects" }));
+    const store = createUiStateStore(path, saved);
+    store.save(workspace("design/b.html"));
+    store.flushSync();
+    expect(onDisk(path)).toMatchObject({ canvas: "design/b.html", settingsTab: "projects" });
+  });
+
+  test("refuses anything but a tab name, and reads a broken value as none", async () => {
+    const path = file();
+    writeFileSync(path, JSON.stringify({ ...workspace("design/a.html"), settingsTab: "general" }));
+    const store = createUiStateStore(path, saved);
+    expect(store.readSettingsTab()).toBeNull();
+    for (const bad of ["general", "", null, 1, {}]) expect(store.saveSettingsTab(bad)).toBe(false);
+    store.flushSync();
+    expect(onDisk(path).settingsTab).toBe("general");
+  });
+});
