@@ -74,6 +74,32 @@ describe("shell helpers", () => {
     expect(parseShellProbe("DOAN_PROBE_x_BEGIN\r\n/bin\r\n\r\n\r\nDOAN_PROBE_x_END\r\n", "x")).toEqual({ ok: true, path: "/bin" });
     for (const stdout of ["", "noise", "DOAN_PROBE_x_BEGIN\n/bin\n\n", "DOAN_PROBE_x_BEGIN\n\n\n\nDOAN_PROBE_x_END", "DOAN_PROBE_y_BEGIN\n/bin\n\n\nDOAN_PROBE_y_END"]) expect(parseShellProbe(stdout, "x").ok).toBe(false);
   });
+  test.each(["BEGIN", "END"])("rejects duplicate nonce %s markers", (marker) => {
+    const stdout = `DOAN_PROBE_x_BEGIN\n/bin\n\n\nDOAN_PROBE_x_END\nDOAN_PROBE_x_${marker}`;
+    expect(parseShellProbe(stdout, "x").ok).toBe(false);
+  });
+  test.each([0, 1, 2])("rejects NUL in probe field %i", (index) => {
+    const fields = ["/bin", "/custom/claude", "/custom/codex"];
+    fields[index] += "\0";
+    expect(parseShellProbe(`DOAN_PROBE_x_BEGIN\n${fields.join("\n")}\nDOAN_PROBE_x_END`, "x").ok).toBe(false);
+  });
+  test("preserves symlink-parent PATH candidates for the executable check", () => {
+    const checked: string[] = [];
+    const candidate = "/probe/alias/../bin/codex";
+    expect(findOnPath("/probe/alias/../bin/", "codex", (path) => {
+      checked.push(path);
+      return path === candidate;
+    })).toBe(candidate);
+    expect(checked).toEqual([candidate]);
+  });
+  test("compares PATH entries with trailing-slash tolerance only", () => {
+    expect(pathIncludes("/probe/alias/../bin/", "/probe/bin")).toBe(false);
+    expect(pathIncludes("/probe/bin", "/probe/alias/../bin/")).toBe(false);
+    expect(pathIncludes("/probe/alias/../bin/", "/probe/alias/../bin//")).toBe(true);
+    expect(pathIncludes("/probe/./bin", "/probe/bin")).toBe(false);
+    expect(pathIncludes("/", "///")).toBe(true);
+    expect(findOnPath("///", "codex", () => true)).toBe("/codex");
+  });
   test("ignores empty, relative and unexpanded PATH entries and honors order", () => {
     const checked: string[] = [];
     expect(findOnPath(":~/bin:relative:/first/:/second::", "codex", (path) => { checked.push(path); return path === "/second/codex"; })).toBe("/second/codex");
