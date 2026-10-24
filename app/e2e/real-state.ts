@@ -35,8 +35,9 @@ async function key(path: string, toml: boolean): Promise<string> {
 export async function realState(): Promise<Record<string, string>> {
   const home = homedir();
   const result: Record<string, string> = {};
-  for (const path of [join(home, ".local/bin/doan"), join(home, ".agents/skills/doan"), join(home, ".claude/skills/doan"),
-    ...["folders.json", "runtime.json", "onboarding.json"].map(name => join(home, "Library/Application Support/doan", name))]) result[path] = hash(JSON.stringify(await tree(path)));
+  for (const path of new Set([join(home, ".local/bin/doan"), join(home, ".agents/skills/doan"), join(home, ".claude/skills/doan"),
+    ...(process.env.CLAUDE_CONFIG_DIR ? [join(process.env.CLAUDE_CONFIG_DIR, "skills/doan")] : []),
+    ...["folders.json", "runtime.json", "onboarding.json"].map(name => join(home, "Library/Application Support/doan", name))])) result[path] = hash(JSON.stringify(await tree(path)));
   for (const path of new Set([join(home, ".claude.json"), ...(process.env.CLAUDE_CONFIG_DIR ? [join(process.env.CLAUDE_CONFIG_DIR, ".claude.json")] : [])])) result[`${path}:mcpServers.doan`] = await key(path, false);
   for (const path of new Set([join(home, ".codex/config.toml"), ...(process.env.CODEX_HOME ? [join(process.env.CODEX_HOME, "config.toml")] : [])])) result[`${path}:mcp_servers.doan`] = await key(path, true);
   return result;

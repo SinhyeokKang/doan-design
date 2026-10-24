@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, readlink, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { basename, join } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Locator, type Page } from "playwright";
@@ -50,6 +50,12 @@ async function launch() {
   assert.equal(await app.evaluate(({ app }) => app.getPath("userData")), data);
 }
 async function quit() { await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "obSavedClipboard")); }); await app.close(); running = undefined; }
+async function wizardSession() {
+  return page.evaluate(() => new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { stop(); reject(new Error("onboarding session not received within 15 s")); }, 15_000);
+    const stop = window.doan.onOnboardingOpen(opened => { clearTimeout(timer); stop(); resolve(opened); });
+  }));
+}
 async function ready() { await wizard().waitFor(); await wait(async () => !await button("Check Again").isDisabled(), "machine read"); }
 async function reopen() { await menu("Set Up doan…"); await ready(); }
 async function check() { await button("Check Again").click(); await wait(async () => !await button("Check Again").isDisabled(), "Check Again settled"); }
@@ -126,16 +132,23 @@ else if (args[1] === 'add') {
   assert.equal(await stepButton("Project").getAttribute("aria-label"), null);
   await go("CLI"); await button("Skip").click();
   assert.equal(await stepButton("CLI").getAttribute("aria-label"), null);
-  const session = await page.evaluate(() => new Promise(resolve => { const stop = window.doan.onOnboardingOpen(opened => { stop(); resolve(opened); }); }));
+  const session = await wizardSession();
   await menu("Close Window"); await wait(() => app.evaluate(({ BrowserWindow }) => !BrowserWindow.getAllWindows()[0]!.isVisible()), "hidden");
   await app.evaluate(({ app }) => app.emit("activate")); await wait(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()), "shown");
-  assert.deepEqual(await page.evaluate(() => new Promise(resolve => { const stop = window.doan.onOnboardingOpen(opened => { stop(); resolve(opened); }); })), session);
+  assert.deepEqual(await wizardSession(), session);
   assert.equal(await stepButton("Agents").getAttribute("aria-current"), "step");
+  for (const hidden of [false, true]) {
+    if (hidden) { await menu("Close Window"); await wait(() => app.evaluate(({ BrowserWindow }) => !BrowserWindow.getAllWindows()[0]!.isVisible()), "hidden before menu reopen"); }
+    await reopen();
+    await wait(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()), "menu shows wizard window");
+    assert.deepEqual(await wizardSession(), session, `menu preserves ${hidden ? "hidden" : "visible"} wizard session`);
+    assert.equal(await stepButton("Agents").getAttribute("aria-current"), "step");
+  }
   const electron = createRequire(import.meta.url)("electron") as string;
   const second = spawn(electron, [join(root, "app"), `--user-data-dir=${data}`], { env, stdio: "ignore" });
   const secondCode = await new Promise<number | null>((resolve, reject) => { const timer = setTimeout(() => { second.kill(); reject(new Error("second instance hung")); }, 10_000); second.on("exit", code => { clearTimeout(timer); resolve(code); }); second.on("error", reject); });
   assert.equal(secondCode, 0); assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
-  assert.deepEqual(await page.evaluate(() => new Promise(resolve => { const stop = window.doan.onOnboardingOpen(opened => { stop(); resolve(opened); }); })), session);
+  assert.deepEqual(await wizardSession(), session);
   await quit(); assert.equal(await exists(join(data, "onboarding.json")), false, "quit does not dismiss");
   await launch(); await ready(); await page.keyboard.press("Escape"); await closed();
   assert.deepEqual(JSON.parse(await readFile(join(data, "onboarding.json"), "utf8")), {});
@@ -152,7 +165,7 @@ else if (args[1] === 'add') {
   assert.equal(await focusIs(confirm.getByRole("button", { name: "Cancel", exact: true })), true);
   await page.keyboard.press("Escape"); await confirm.waitFor({ state: "hidden" }); assert.equal(await wizard().isVisible(), true);
   assert.equal(await readlink(cliLink), "/missing/other-doan"); await check(); await button("Replace…").click();
-  await confirm.getByRole("button", { name: /^Replace (Link|Skill|MCP Registration)$/ }).click(); await wait(async () => await readlink(cliLink) === cli, "CLI replaced"); await check();
+  await confirm.getByRole("button", { name: "Replace Link", exact: true }).click(); await wait(async () => await readlink(cliLink) === cli, "CLI replaced"); await check();
   await wizard().getByText("Not on PATH", { exact: true }).waitFor(); await wizard().getByText("~/.zshrc", { exact: true }).waitFor();
   await clipboardGate(); await button("Copy").click(); await button("Copying…").waitFor(); await busy();
   await releaseCopy(true); await button("Retry copy").waitFor(); assert.equal(await button(/^Close/).isDisabled(), false);
@@ -165,6 +178,10 @@ else if (args[1] === 'add') {
   await shellMode("missing"); await go("Agents"); await check();
   for (const agent of ["claude", "codex"] as const) assert.equal(await card(agent).getByText("Not installed", { exact: true }).count(), 1); assert.equal(await wizard().getByRole("button", { name: "Connect", exact: true }).count(), 0);
   await shellMode("timeout"); await check(); await wizard().getByText(/didn’t answer in time/).first().waitFor();
+  for (const agent of ["claude", "codex"] as const) {
+    await card(agent).getByText("Couldn’t check", { exact: true }).waitFor();
+    assert.equal(await card(agent).getByText("Not installed", { exact: true }).count(), 0);
+  }
   await shellMode("normal"); await check();
   for (const agent of ["claude", "codex"] as const) for (const state of ["missing", "other", "blocked"]) {
     await rm(cliLink, { force: true }); await rm(join(home, ".agents"), { force: true, recursive: true }); await rm(claudeLink, { force: true });
@@ -177,29 +194,59 @@ else if (args[1] === 'add') {
     assert.equal(await card(agent).getByText("Failed", { exact: true }).count(), 0);
   }
   await rm(cliLink); await symlink(cli, cliLink); await check();
-  await mode("codex", "unknown"); await check(); const unknown = await card("codex").textContent(); await connect("codex");
+  await mode("codex", "unknown"); await check(); const unknown = await card("codex").textContent(), unknownMutations = await mutations(); await connect("codex");
+  assert.deepEqual(await mutations(), unknownMutations, "unknown Codex MCP causes no mutation");
   assert.equal(await card("codex").textContent(), unknown); await card("codex").getByText(/Unreadable registration/).waitFor();
   await writeFile(join(bin, "codex"), "#!/missing/interpreter\n", { mode: 0o755 }); await check(); await card("codex").getByText(/Couldn't run Codex.*ENOENT/).waitFor();
   await writeFile(join(bin, "codex"), agentScript, { mode: 0o755 }); await mode("codex", "timeout"); await check(); await card("codex").getByText(/didn’t answer in 10 s/).waitFor(); await mode("codex", ""); await check();
   await writeFile(stub, "user edits"); await check(); await card("claude").getByRole("button", { name: "Connect", exact: true }).click(); await confirm.waitFor();
   await confirm.getByRole("button", { name: "Cancel", exact: true }).click(); await check(); assert.equal(await readFile(stub, "utf8"), "user edits");
   await card("claude").getByRole("button", { name: "Connect", exact: true }).click(); await confirm.waitFor();
-  await confirm.getByText(/doan 0.1.0/).waitFor(); await confirm.getByRole("button", { name: /^Replace (Link|Skill|MCP Registration)$/ }).click();
+  await confirm.getByText(/doan 0.1.0/).waitFor(); await confirm.getByRole("button", { name: "Replace Skill", exact: true }).click();
   await wait(async () => !await button("Check Again").isDisabled(), "stub replace");
+  assert.ok((await readFile(stub, "utf8")).includes("doan skill"));
   await mode("codex", "fail"); await connect("codex"); await card("codex").getByText(/Injected add failure/).waitFor();
   assert.ok(await exists(stub)); assert.equal(await exists(join(codexConfig, "config.toml")), false);
+  const addsBefore = (await records()).filter(call => call.agent === "codex" && call.args[1] === "add").length;
   await mode("codex", "hold"); await writeFile(join(work, "agent.gate"), ""); await card("codex").getByRole("button", { name: "Connect", exact: true }).click();
-  await wait(async () => (await mutations()).some(call => call.agent === "codex"), "agent add started"); await busy(); await rm(join(work, "agent.gate"));
+  await wait(async () => (await records()).filter(call => call.agent === "codex" && call.args[1] === "add").length > addsBefore, "fresh agent add started"); await busy(); await rm(join(work, "agent.gate"));
   await wait(async () => !await button("Check Again").isDisabled(), "Connect settled"); await mode("codex", "");
   for (const agent of ["claude", "codex"]) assert.ok((await mutations()).some(call => call.agent === agent && JSON.stringify(call.args) === JSON.stringify(["mcp", "add", ...(agent === "claude" ? ["--scope", "user"] : []), "doan", "--", cliLink, "mcp"])));
   await writeFile(join(claudeConfig, ".claude.json"), JSON.stringify({ mcpServers: { doan: { command: "/other", args: [] } } })); await check();
   const prior = await mutations(); await card("claude").getByRole("button", { name: "Connect", exact: true }).click(); await confirm.waitFor(); await confirm.getByRole("button", { name: "Cancel", exact: true }).click(); await check(); assert.deepEqual(await mutations(), prior);
-  await card("claude").getByRole("button", { name: "Connect", exact: true }).click(); await confirm.waitFor(); await confirm.getByRole("button", { name: /^Replace (Link|Skill|MCP Registration)$/ }).click();
+  await card("claude").getByRole("button", { name: "Connect", exact: true }).click(); await confirm.waitFor(); await confirm.getByRole("button", { name: "Replace MCP Registration", exact: true }).click();
   await wait(async () => !await button("Check Again").isDisabled(), "MCP replace");
   assert.deepEqual((await mutations()).slice(-2).map(call => call.args), [["mcp", "remove", "--scope", "user", "doan"], ["mcp", "add", "--scope", "user", "doan", "--", cliLink, "mcp"]]);
   await rm(claudeLink); await symlink("/missing/skill", claudeLink); await check();
   await card("claude").getByRole("button", { name: "Connect", exact: true }).click(); await confirm.waitFor(); await confirm.getByRole("button", { name: "Cancel", exact: true }).click(); await check(); assert.equal(await readlink(claudeLink), "/missing/skill");
   await card("claude").getByRole("button", { name: "Connect", exact: true }).click(); await confirm.waitFor(); await confirm.getByRole("button", { name: "Replace Link", exact: true }).click(); await wait(async () => !await button("Check Again").isDisabled(), "skill link replaced"); assert.equal(await readlink(claudeLink), "../../.agents/skills/doan");
+  console.log("onboarding: symlinked Claude skills and shared-directory alias");
+  const skills = join(claudeConfig, "skills"), realSkills = join(home, "custom/deep/skills");
+  await rm(skills, { recursive: true }); await mkdir(realSkills, { recursive: true }); await symlink(realSkills, skills);
+  await check(); await connect("claude");
+  assert.equal(await readlink(join(realSkills, "doan")), relative(realSkills, dirname(stub)));
+  assert.equal(await realpath(claudeLink), await realpath(dirname(stub)));
+  assert.equal(await readlink(skills), realSkills);
+  await card("claude").getByText("Installed", { exact: true }).waitFor();
+  await shot("02a-symlinked-skills");
+
+  await rm(skills); await symlink(join(home, ".agents/skills"), skills);
+  const unchangedPaths = [skills, join(home, ".agents/skills"), dirname(stub), stub, join(claudeConfig, ".claude.json")];
+  const stamps = async () => Promise.all(unchangedPaths.map(async path => {
+    const stat = await lstat(path);
+    return { path, ino: stat.ino, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, content: stat.isSymbolicLink() ? await readlink(path) : stat.isDirectory() ? await readdir(path) : await readFile(path, "utf8") };
+  }));
+  const aliasBefore = await stamps(), aliasMutations = await mutations();
+  await check();
+  await card("claude").getByText("Uses the shared skill folder", { exact: true }).waitFor();
+  await card("claude").getByText("Installed", { exact: true }).waitFor();
+  assert.equal(await card("claude").getByRole("button", { name: "Connect", exact: true }).count(), 0);
+  await check();
+  assert.deepEqual(await stamps(), aliasBefore, "recognizing the shared skills alias writes nothing");
+  assert.deepEqual(await mutations(), aliasMutations, "installed MCP is not rewritten");
+  assert.equal((await lstat(claudeLink)).isDirectory(), true);
+  await shot("02b-shared-skills");
+  await rm(skills); await mkdir(skills); await symlink("../../.agents/skills/doan", claudeLink); await check();
   await shot("02-agents-connected");
 
   console.log("onboarding: 4 project init, pending copy and first prompt");
@@ -265,7 +312,7 @@ else if (args[1] === 'add') {
   const panel = page.getByRole("region", { name: "Comments", exact: true }); await panel.getByRole("button", { name: "New selection comment", exact: true }).click();
   const draft = panel.getByRole("textbox", { name: "New comment body" }); await draft.fill("Keep this draft");
   const active = async () => JSON.parse((await exec(cli, ["active", "--json", "--repo", project], { env })).stdout);
-  const selected = await active(); await reopen(); await page.keyboard.press("Escape"); await closed(); assert.equal(await draft.inputValue(), "Keep this draft"); assert.deepEqual(await active(), selected); assert.equal(await focusIs(draft), true);
+  const selected = await active(); assert.equal(selected.result?.selection?.element?.doanId, "target"); await reopen(); await page.keyboard.press("Escape"); await closed(); assert.equal(await draft.inputValue(), "Keep this draft"); assert.deepEqual(await active(), selected); assert.equal(await focusIs(draft), true);
   const unsaved = page.getByRole("dialog").filter({ hasText: "Keep writing" });
   // Trigger the real draft guard by opening another canvas.
   await parentRow.getByRole("treeitem", { name: "next.html", exact: true }).click(); await unsaved.waitFor(); const keep = unsaved.getByRole("button", { name: "Keep writing", exact: true }); await keep.focus();
