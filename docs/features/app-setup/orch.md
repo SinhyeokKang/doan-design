@@ -18,6 +18,9 @@
 | 2026-10-25 | Settings 창의 마지막 탭은 `ui-state.json`에 저장한다 | design.md '창과 preload' — design-nav가 main에 있으므로 메모리 대안은 쓰지 않는다 |
 | 2026-10-25 | `/agent-eval`에 "요청 없이 config를 바꾸지 않음" 시나리오를 새 id로 더한다 | 지휘자 판단 — 가이드에 새 제한 문장이 생기고, 그 효과는 시나리오로만 확인된다(design.md '근거와 범위') |
 | 2026-10-25 | Settings…는 앱 메뉴의 About 바로 다음, "Set Up doan…"이 있던 자리에 둔다 | 지휘자 판단 — macOS 관례이고 기존 메뉴 순서를 바꾸지 않는다 |
+| 2026-10-25 | `doan config --remove-serve`(MCP `removeServe`)는 경로가 디스크에 있을 것을 요구하지 않는다. 저장값과 정규화해 비교한다 | 지휘자 판단(R-G1 결정 1) — design.md의 "없는 serve를 제거하면 `changed:false`"와 Projects 탭 Remove 흐름(마지막 읽기 값을 그대로 넘김). serve 대상은 빌드 산출물처럼 사라질 수 있다(POSTMORTEM 2026-10-22) |
+| 2026-10-25 | `doan config`의 CLI 상대 경로는 저장소 루트 기준이다(cwd 아님). MCP·`init --repo`와 같다 | 지휘자 판단(R-G1 결정 2) — design.md의 "(init과 같다)"가 뜻한 바다. 에이전트가 읽는 규칙이 하나가 되고, 앱은 절대 경로만 넘긴다 |
+| 2026-10-25 | 가이드 문장은 "Change configuration with `config` only when the human asks."로 좁힌다(읽기는 허용) | 지휘자 판단(R-G1 권고) — agent-eval 시나리오가 '요청 없이 바꾸지 않음'을 본다 |
 
 ## 배치
 
@@ -49,7 +52,18 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 
 ## 초안 리뷰
 
-(대기)
+2026-10-25, 지휘자가 두 초안의 Chromium 스크린샷(`.scratch/orch/app-setup/shots-DX/` 15장, `shots-DC/` 6장)과 인계 문서를 비교했다. 두 초안 모두 `doan check` 오류 0(기존 `mock.css` 경고 6)이고, `doan ls`의 프레임 id 6개가 요청과 같다.
+
+- **DC(Claude Opus, `dd0f695`)를 골랐다.** 그린 상태가 더 많고 구체적이다.
+  - Connections: 줄마다 결과 문장(원인 먼저), Checking… 첫 읽기 상태, 키보드 순서 메모.
+  - 홈: Needs attention 원인 7가지의 배너 문장, 두 줄이 겹칠 때, 칩·배너·Finish 카드가 맡는 상태 표, 줄 메뉴의 Project Settings….
+  - 마법사: Connecting·개발 빌드(DOAN_CLI 없음)·Connected 안내 같은 기존 상태를 새 줄 모양으로 다시 그렸다.
+  - FirstPrompt: 빈 입력에서도 문장 미리보기(주제 자리 "…")가 보이고, 입력이 주제 자리에 강조된다. 대기 중 수정(Copy again)도 그렸다.
+  - Projects: Saving…·Reading…·CLI 없음/타임아웃·다른 문제 상태 동작을 그렸다.
+- DX(Codex Astra high, `f2320d2`)의 장점: FirstPrompt의 "Your input stays in doan until you copy it." 문장이 결정 11(입력은 앱 밖으로 보내지 않는다)을 화면에 드러낸다. 마법사 프레임은 창 전체를 단계마다 그려 빈 공간이 크고, 상태 수가 DC보다 적다.
+- DC에 붙일 것(DC-rev): ① FirstPrompt 도움말 둘째 줄에 DX의 개인정보 문장.
+- DC 초안 결정 11개 중 5(Couldn't check도 홈 배너)는 받지 않는다. spec '홈 표시'는 배너를 Needs attention에만 두고, A1의 `homeAlerts`가 이미 그렇게 구현했다. 나머지 1~4, 6~11은 받아들인다(7: 홈 줄 메뉴의 Project Settings…, 10: 3단계 하나 고르기 목록에 워크트리 포함).
+- DX 초안은 `.scratch/orch/app-setup/draft-DX-f2320d2.html`로 보존했다.
 
 ## 진행 기록
 
@@ -62,3 +76,11 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: G1 완료(`48eed1b`, `38d5cc6`, `38572e3`) — `go test`·`go vet` 통과 보고. MCP 상대 경로는 저장소 기준(design.md), CLI는 cwd 기준. 가이드의 'serve는 필요하면 더한다' 문장을 '사람에게 묻는다'로 좁혔다. 교차 리뷰 R-G1(`ctx_75cfbe12ac19`, Opus high). G1 워커는 수정 차례에 대비해 유지(retain).
 - 2026-10-25: R-A2 결과 🔴 0 · 🟡 1(끝 마침표 여러 개를 하나로 줄이지 않음 — 재현) · ⚪ 0. test 1716·typecheck 재확인. 지휘자 결정: 말줄임표도 마침표 하나로 줄인다(design.md). A2-fix(Sonnet medium, `as-a2`)로 보냈다. R-A2 워커 해제.
 - 2026-10-25: A2-fix 완료(`9764a95`). 지휘자가 diff를 확인했다. A2 통합.
+- 2026-10-25: A2 통합(`8c7d916`, `fa48d5d`). 통합 HEAD typecheck·test 1717 통과(지휘자 실행). A2-fix 워커 해제, `as-a2` 제거.
+- 2026-10-25: DX 완료(`f2320d2`) — check 오류 0(기존 경고 6), 프레임 id 6개 일치, 스크린샷 15장 보고. DC를 기다려 비교한다. DX 워커는 피드백 루프에 대비해 유지.
+- 2026-10-25: R-G1 결과 🔴 0 · 🟡 1(`--remove-serve`가 존재를 요구해 사라진 serve·`./styles` 저장값을 못 지움 — 재현) · ⚪ 5 · 결정 2. 게이트 재확인. 결정 로그 3행을 정해 G1-fix(같은 Codex 터미널)로 보냈다. ⚪3(없음/저장소 밖 오류 문구 구분)도 고친다. ⚪2(루트별 쓰기 직렬화)는 배치 C 브리프에 넣는다. ⚪1(`.git`도 serve 가능)은 spec 범위대로 두고 최종 보고에 적는다. R-G1 워커 해제.
+- 2026-10-25: A1 완료(`d195fb4`, `62a11ec`, `39ca232`, `0fa2dac`) — test 1773·typecheck·전체 e2e PASS 보고(동시 실행 때 Quick Open 50ms 기준 1건 실패, 단독 재실행 통과). 공유 모듈 `app/src/setup/`. 교차 리뷰 R-A1(`ctx` 아래, Opus high). A1 워커는 수정에 대비해 유지.
+- 2026-10-25: G1-fix 질문 — remove-serve 문제를 postmortem에 남길지 → 남기지 않는다. 통합 전 리뷰에서 잡혀 main에 닿지 않았다.
+- 2026-10-25: G1-fix 완료(`894a539`, `51e641f`, `84f290e`, `1438249`) — 결정 4건, `go test`·`go vet` 통과 보고. 지휘자가 config.go·skill.md diff를 확인했다. 후속 리뷰 R-G1fix(Sonnet high). G1 워커 유지.
+- 2026-10-25: DC 완료(`dd0f695`). 초안 비교 결과 DC를 골랐다(위 '초안 리뷰'). DC-rev(`ctx_1dd318a4edd7`, Sonnet high, `as-dc`)로 붙이기·결정 5 반영·실제 앱 렌더 확인을 보냈다. DX 워커 해제, `as-dx` 제거.
+- 2026-10-25: R-G1fix 결과 🔴 0 · 🟡 0 · ⚪ 5(다른 표기의 삭제된 경로는 '저장소 밖', 저장소 밖을 가리키는 저장값은 못 지움, 추가 쪽은 원값 비교라 `./styles`+`styles` 중복 가능, 상대 `--repo` 테스트 공백, 스타일). ⚪는 받아들인다. G1 워커·R-G1fix 해제. G1 통합.
