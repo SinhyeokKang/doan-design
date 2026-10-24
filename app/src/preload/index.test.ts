@@ -115,3 +115,16 @@ test("project setup exposes choice IDs and forwards focus with folder state", as
   stop();
 });
 const ROOT = "/repo";
+
+
+test("onboarding uses fixed channels and ignores an initial open response after a newer event", async () => {
+  let finish!: (value: unknown) => void;
+  mocks.invoke.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const listener = vi.fn(); const stop = api.onOnboardingOpen(listener);
+  emitter.emit("onboarding:open", {}, { session: "new" }); finish({ session: "old" });
+  await Promise.resolve(); expect(listener).toHaveBeenCalledExactlyOnceWith({ session: "new" }); stop();
+  emitter.emit("onboarding:open", {}, { session: "later" }); expect(listener).toHaveBeenCalledTimes(1);
+  await api.readOnboarding({ session: "new", requestId: "r" }); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:read", { session: "new", requestId: "r" });
+  await api.closeOnboarding({ session: "new" }); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:close", { session: "new" });
+  await api.copyPathLine(); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:copy", { kind: "pathLine" });
+});
