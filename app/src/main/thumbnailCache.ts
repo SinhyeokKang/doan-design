@@ -4,7 +4,7 @@ export interface ThumbnailMeta {
   mtimeMs: number;
   size: number;
   appVersion: string;
-  // `tokenSignature` of the folder's token CSS files when the thumbnail was taken.
+  // `tokenSignature` of the folder's served non-canvas files when the thumbnail was taken.
   tokens: string;
 }
 
@@ -14,9 +14,9 @@ export interface TokenFile {
   size: number;
 }
 
-// Token CSS restyles every canvas of the folder while the canvas files' own
-// mtime and size stay put, so the thumbnail records what the token files
-// looked like. Order-independent; `path` only has to be consistent per folder.
+// Token CSS and other served files restyle every canvas of the folder while
+// the canvas files' own mtime and size stay put, so the thumbnail records what
+// those files looked like. Order-independent; `path` only has to be consistent per folder.
 export function tokenSignature(files: readonly TokenFile[]): string {
   const sorted = [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   return createHash("sha256").update(JSON.stringify(sorted.map((file) => [file.path, file.mtimeMs, file.size]))).digest("hex");
