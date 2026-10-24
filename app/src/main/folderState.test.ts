@@ -115,6 +115,36 @@ describe("folderState", () => {
       .toEqual({ kind: "cliError", reason: "" });
   });
 
+  // `git` is optional in `doan ls`; a malformed one is dropped, never an error,
+  // because the listing itself is still good (design 'git 해석').
+  test("passes a well-formed git field through", () => {
+    const branch = { common: "/repo/.git", main: "/repo", branch: "main", worktrees: ["/repo", "/wt"] };
+    const detached = { common: "/repo/.git", detached: "a".repeat(40), worktrees: ["/wt"] };
+    for (const git of [branch, detached]) {
+      const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, git } }) }));
+      expect(state).toEqual({ kind: "list", root: "/repo", scope: ["design", "tokens.css"], canvases, git });
+    }
+  });
+
+  test("drops a malformed git field and keeps the listing", () => {
+    const bad = [
+      null,
+      "x",
+      { worktrees: [] },
+      { common: 1, worktrees: [] },
+      { common: "/c" },
+      { common: "/c", worktrees: "/w" },
+      { common: "/c", worktrees: ["/w", 1] },
+      { common: "/c", worktrees: [], branch: 1 },
+      { common: "/c", worktrees: [], main: null },
+      { common: "/c", worktrees: [], detached: false },
+    ];
+    for (const git of bad) {
+      const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, git } }) }));
+      expect(state, JSON.stringify(git)).toEqual({ kind: "list", root: "/repo", scope: ["design", "tokens.css"], canvases });
+    }
+  });
+
   test("a timeout is a CLI error even with a valid envelope", () => {
     const stdout = envelope({ v: 1, ok: true, result: listResult });
     expect(folderState(run({ exitCode: null, stdout, timedOut: true }))).toEqual({ kind: "cliError", reason: "timed out after 10 s" });

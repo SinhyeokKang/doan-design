@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Frame } from "playwright";
 import { build } from "vite";
+const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
+
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const shots = join(root, ".scratch/comments-ui-A");
 const paths = ["folders.json", "runtime.json"].map(n => join(homedir(), "Library/Application Support/doan", n));
@@ -42,6 +44,7 @@ body{margin:0;height:1000px} section{position:absolute;left:80px;top:80px;width:
     HOME: home, TMPDIR: work, SHELL: fakeShell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"),
     DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } });
   const page = await app.firstWindow(); page.setDefaultTimeout(10_000);
+  await enterProject(page, repo);
   await page.getByRole("treeitem", { name: "anchors.html", exact: true }).click();
   await page.waitForFunction(() => document.querySelector("iframe")?.getAttribute("src"));
   const url = await page.locator("iframe").getAttribute("src"); assert.ok(url);

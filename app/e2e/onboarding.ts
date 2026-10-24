@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Locator, type Page } from "playwright";
 
+const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
+
 const { hoverTooltip }: typeof import("./tooltip") = await import(new URL("./tooltip.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 
@@ -77,7 +79,7 @@ async function check() { await button("Check Again").click(); await wait(async (
 async function go(name: string) { await stepButton(name).click(); }
 async function closed() { await wizard().waitFor({ state: "hidden" }); }
 async function pick(path: string) { await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }); }, path); }
-async function open(path: string) { await pick(path); await page.getByRole("button", { name: "Open Project…", exact: true }).click(); }
+async function open(path: string) { await pick(path); await page.evaluate(() => window.doan.openFolder()); await goHome(page); }
 async function init(path: string) { await exec(cli, ["init", "--json", "--repo", path], { env }); }
 async function newRepo(name: string) { const path = join(work, name); await mkdir(path, { recursive: true }); await exec("git", ["init", path], { env }); await exec("git", ["-C", path, "config", "user.name", "Onboarding Test"], { env }); await exec("git", ["-C", path, "config", "user.email", "onboarding@example.test"], { env }); return path; }
 async function records(): Promise<{ agent: string; args: string[] }[]> { return (await readFile(calls, "utf8")).trim().split("\n").filter(Boolean).map(line => JSON.parse(line)); }
@@ -167,7 +169,7 @@ else if (args[1] === 'add') {
   await quit(); assert.equal(await exists(join(data, "onboarding.json")), false, "quit does not dismiss");
   await launch(); await ready(); await page.keyboard.press("Escape"); await closed();
   assert.deepEqual(JSON.parse(await readFile(join(data, "onboarding.json"), "utf8")), {});
-  await quit(); await launch(); await page.getByRole("button", { name: "Open Project…", exact: true }).waitFor(); assert.equal(await wizard().count(), 0);
+  await quit(); await launch(); await page.getByRole("button", { name: "Add Project…", exact: true }).first().waitFor(); assert.equal(await wizard().count(), 0);
   await menu("Close Window"); await reopen(); assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()), true); await button(/^Close/).click(); await closed(); await quit();
   await writeFile(join(data, "onboarding.json"), "{broken"); await launch(); await ready();
   await shot("01-first-run");
@@ -298,6 +300,7 @@ else if (args[1] === 'add') {
   assert.equal(await stepButton("First prompt").getAttribute("aria-label"), null); await button("Retry copy").click(); await busy(); await releaseCopy(false); await button("Copied").waitFor();
   assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), sentence); assert.equal(await stepButton("First prompt").getAttribute("aria-label"), "First prompt, completed"); await restoreCopy();
   await shot("03-first-prompt"); await button("Done").click(); await closed();
+  await enterProject(page, project);
   let row = page.getByRole("treeitem", { name: basename(project), exact: true });
   const copy = row.getByRole("button", { name: "Copy first prompt", exact: true }); await copy.waitFor();
   assert.equal(await (await hoverTooltip(page, copy)).textContent(), sentence); await page.keyboard.press("Escape"); assert.equal(await (await hoverTooltip(page, copy)).textContent(), sentence); await page.keyboard.press("Escape");
@@ -305,25 +308,32 @@ else if (args[1] === 'add') {
   assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), sentence);
 
   console.log("onboarding: 5 sidebar setup, re-root and modal/draft preservation");
-  const plain = await newRepo("company-monorepo/packages/applications/marketing-web-frontend/plain"); await open(plain); let plainRow = page.getByRole("treeitem", { name: "plain", exact: true }); await plainRow.getByRole("button", { name: "Set Up…", exact: true }).click();
+  const plain = await newRepo("company-monorepo/packages/applications/marketing-web-frontend/plain"); await open(plain); let plainRow = homeRow(page, plain); await plainRow.getByRole("button", { name: "Set Up…", exact: true }).click();
   const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true }); await setup.waitFor();
   await assertProjectPath(setup.locator(":scope > p"), setup, plain, "setup dialog");
   assert.equal(await focusIs(setup.getByRole("button", { name: "Choose…", exact: true })), true);
   await reopen(); await button(/^Close/).click(); await closed(); assert.equal(await setup.isVisible(), true); assert.equal(await focusIs(setup.getByRole("button", { name: "Choose…", exact: true })), true);
-  await setup.getByRole("button", { name: "Set Up Project", exact: true }).click(); await setup.waitFor({ state: "hidden" }); await plainRow.getByRole("button", { name: "Copy first prompt", exact: true }).waitFor();
+  await setup.getByRole("button", { name: "Set Up Project", exact: true }).click(); await setup.waitFor({ state: "hidden" }); await enterProject(page, plain); plainRow = page.getByRole("treeitem", { name: "plain", exact: true }); await plainRow.getByRole("button", { name: "Copy first prompt", exact: true }).waitFor();
   const noToken = JSON.parse(await readFile(join(plain, ".doan/config.json"), "utf8")); assert.equal(noToken.tokenCss, undefined);
-  const terminal = await newRepo("terminal"); await open(terminal); const terminalRow = page.getByRole("treeitem", { name: "terminal", exact: true }); await terminalRow.getByRole("button", { name: "Set Up…", exact: true }).click(); await init(terminal); await setup.waitFor({ state: "hidden" });
-  const parent = await newRepo("parent"), child = join(parent, "child"); await mkdir(child); await open(child); const childRow = page.getByRole("treeitem", { name: "child", exact: true }); await childRow.getByRole("button", { name: "Set Up…", exact: true }).click(); await init(parent);
+  const terminal = await newRepo("terminal"); await open(terminal); const terminalRow = homeRow(page, terminal); await terminalRow.getByRole("button", { name: "Set Up…", exact: true }).click(); await init(terminal); await setup.waitFor({ state: "hidden" });
+  const parent = await newRepo("parent"), child = join(parent, "child"); await mkdir(child); await open(child); const childRow = homeRow(page, child); await childRow.getByRole("button", { name: "Set Up…", exact: true }).click(); await init(parent);
   await setup.getByRole("button", { name: "Set Up Project", exact: true }).click(); await setup.waitFor({ state: "hidden" });
-  let parentRow = page.getByRole("treeitem", { name: "parent", exact: true }); await parentRow.waitFor(); await wait(() => focusIs(parentRow), "reroot focus"); assert.equal(await exists(join(child, ".doan/config.json")), false);
-  await parentRow.getByText(`This folder is inside ${parent}, which is already set up.`, { exact: true }).waitFor();
-  await writeFile(join(parent, "design/next.html"), "<!doctype html><title>Next</title>"); await parentRow.getByRole("treeitem", { name: "next.html", exact: true }).waitFor(); await parentRow.getByText(/This folder is inside/).waitFor({ state: "hidden" });
-  const changed = await newRepo("changed"); await open(changed); const changedRow = page.getByRole("treeitem", { name: "changed", exact: true }); await changedRow.getByRole("button", { name: "Set Up…", exact: true }).click(); await rename(changed, `${changed}-away`); await setup.waitFor({ state: "hidden" });
-  const restartParent = await newRepo("restart-parent"), restartChild = join(restartParent, "child"); await mkdir(restartChild); await open(restartChild); await page.getByRole("treeitem", { name: "child", exact: true }).getByRole("button", { name: "Set Up…", exact: true }).waitFor(); await quit(); await init(restartParent); await launch();
+  let parentRow = homeRow(page, parent); await parentRow.waitFor(); await wait(() => focusIs(parentRow), "reroot focus"); assert.equal(await exists(join(child, ".doan/config.json")), false);
+  await parentRow.getByRole("status").getByText(`This folder is inside ${parent}, which is already set up.`, { exact: true }).waitFor();
+  await writeFile(join(parent, "design/next.html"), "<!doctype html><title>Next</title>"); await parentRow.getByText(/This folder is inside/).waitFor({ state: "hidden" });
+  await enterProject(page, parent); parentRow = page.getByRole("treeitem", { name: "parent", exact: true }); await parentRow.getByRole("treeitem", { name: "next.html", exact: true }).waitFor();
+  const changed = await newRepo("changed"); await open(changed); const changedRow = homeRow(page, changed); await changedRow.getByRole("button", { name: "Set Up…", exact: true }).click(); await rename(changed, `${changed}-away`); await setup.waitFor({ state: "hidden" });
+  const restartParent = await newRepo("restart-parent"), restartChild = join(restartParent, "child"); await mkdir(restartChild); await open(restartChild); await homeRow(page, restartChild).getByRole("button", { name: "Set Up…", exact: true }).waitFor(); await quit(); await init(restartParent); await launch();
   row = page.getByRole("treeitem", { name: basename(project), exact: true }); parentRow = page.getByRole("treeitem", { name: "parent", exact: true }); plainRow = page.getByRole("treeitem", { name: "plain", exact: true });
+  await enterProject(page, restartParent);
   await page.getByRole("treeitem", { name: "restart-parent", exact: true }).getByRole("button", { name: "Copy first prompt", exact: true }).waitFor(); assert.equal(await exists(join(restartChild, ".doan/config.json")), false);
   // Reopen re-asks upward after the previously stored child disappears.
-  const reopenParent = await newRepo("reopen-parent"), reopenChild = join(reopenParent, "reopen-child"); await mkdir(reopenChild); await open(reopenChild); const reopenRow = page.getByRole("treeitem", { name: "reopen-child", exact: true }); await reopenRow.getByRole("button", { name: "Set Up…", exact: true }).waitFor(); await rename(reopenChild, `${reopenChild}-away`); await reopenRow.getByRole("button", { name: "Reopen", exact: true }).waitFor(); await init(reopenParent); await rename(`${reopenChild}-away`, reopenChild); await reopenRow.getByRole("button", { name: "Reopen", exact: true }).click(); await page.getByRole("treeitem", { name: "reopen-parent", exact: true }).getByRole("button", { name: "Copy first prompt", exact: true }).waitFor(); assert.equal(await exists(join(reopenChild, ".doan/config.json")), false);
+  const reopenParent = await newRepo("reopen-parent"), reopenChild = join(reopenParent, "reopen-child"); await mkdir(reopenChild); await open(reopenChild);
+  const reopenRow = homeRow(page, reopenChild); await reopenRow.getByRole("button", { name: "Set Up…", exact: true }).waitFor();
+  await rename(reopenChild, `${reopenChild}-away`); await reopenRow.getByRole("button", { name: "Locate…", exact: true }).waitFor(); await init(reopenParent); await rename(`${reopenChild}-away`, reopenChild);
+  await pick(reopenChild); await reopenRow.getByRole("button", { name: "Locate…", exact: true }).click(); await enterProject(page, reopenParent);
+  await page.getByRole("treeitem", { name: "reopen-parent", exact: true }).getByRole("button", { name: "Copy first prompt", exact: true }).waitFor(); assert.equal(await exists(join(reopenChild, ".doan/config.json")), false);
+  await enterProject(page, project);
   await row.focus(); await reopen(); await go("Project"); await pick(project); await button("Open Project…").click(); await wizard().getByRole("heading", { name: "Send your first prompt" }).waitFor(); await button("Done").click(); await closed(); assert.equal(await focusIs(row), true);
   const html = '<!doctype html><title>First</title><meta name="doan:canvas" content="first"><meta name="doan:width" content="800"><style>button{margin:50px;padding:30px}</style><button data-doan-id="target">Target</button>';
   await writeFile(join(project, "design/first.html"), html); await row.getByRole("treeitem", { name: "first.html", exact: true }).click(); assert.equal(await row.getByRole("button", { name: "Copy first prompt", exact: true }).count(), 0);
@@ -334,7 +344,7 @@ else if (args[1] === 'add') {
   const selected = await active(); assert.equal(selected.result?.selection?.element?.doanId, "target"); await reopen(); await page.keyboard.press("Escape"); await closed(); assert.equal(await draft.inputValue(), "Keep this draft"); assert.deepEqual(await active(), selected); assert.equal(await focusIs(draft), true);
   const unsaved = page.getByRole("dialog").filter({ hasText: "Keep writing" });
   // Trigger the real draft guard by opening another canvas.
-  await parentRow.getByRole("treeitem", { name: "next.html", exact: true }).click(); await unsaved.waitFor(); const keep = unsaved.getByRole("button", { name: "Keep writing", exact: true }); await keep.focus();
+  await requestProject(page, parent); await unsaved.waitFor(); const keep = unsaved.getByRole("button", { name: "Keep writing", exact: true }); await keep.focus();
   await reopen(); await button(/^Close/).click(); await closed(); assert.equal(await unsaved.isVisible(), true); assert.equal(await focusIs(keep), true); await keep.click(); assert.equal(await draft.inputValue(), "Keep this draft");
   await shot("04-draft-preserved");
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();

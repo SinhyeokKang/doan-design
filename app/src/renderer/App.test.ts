@@ -8,6 +8,7 @@ vi.mock("react", async importOriginal => ({
   useRef: () => ({ current: {} }),
   useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, vi.fn()],
 }));
+vi.mock("./Toast", () => ({ useToast: () => ({ toast: null, element: null, show: vi.fn(), action: vi.fn() }) }));
 vi.mock("./CanvasController", async importOriginal => ({
   ...await importOriginal<typeof import("./CanvasController")>(),
   CanvasController: class {
@@ -38,7 +39,7 @@ it("unsubscribes both preload bridges across StrictMode effect setup, cleanup an
     folders.forEach(listener => listener([]));
     commands.forEach(listener => listener("fit"));
     expect(harness.updateEntries).toHaveBeenCalledTimes(1);
-    expect(harness.command).toHaveBeenCalledTimes(1);
+    expect(harness.command).not.toHaveBeenCalled();
     finalCleanup?.();
     expect(folderOff).toHaveBeenCalledTimes(2);
     expect(commandOff).toHaveBeenCalledTimes(2);

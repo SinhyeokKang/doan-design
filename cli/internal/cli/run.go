@@ -22,6 +22,7 @@ import (
 
 type Context struct {
 	Start    string
+	Home     string
 	Terminal bool
 	Prompt   func(string) (string, error)
 	Now      func() time.Time
@@ -154,6 +155,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 					ctx := Context{Start: start, Now: time.Now, Random: rand.Reader, Dial: func(socket string, deadline time.Time) (net.Conn, error) {
 						return (&net.Dialer{Deadline: deadline}).Dial("unix", socket)
 					}}
+					if home, err := os.UserHomeDir(); err == nil {
+						ctx.Home = home
+					}
 					if file, ok := stdin.(*os.File); ok {
 						ctx.Terminal = isTerminal(file)
 					}

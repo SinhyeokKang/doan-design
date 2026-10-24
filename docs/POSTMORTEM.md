@@ -2,6 +2,70 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — Removal checked the current canvas instead of the retained draft origin
+
+- **Area**: renderer removal transition relevance and retained invalid drafts.
+- **Symptom**: after a project folder moved and its canvas became unavailable, Remove/Remove all from Home removed the project without asking about its still-retained hidden draft.
+- **Root cause**: the relevance filter used session.identity.root, but session.identity becomes null when the canvas is lost. The draft retains its own immutable origin.root and was therefore excluded from the guard by a filter unrelated to its ownership.
+- **Net**: R-final's real-window probe exposed the gap. The new runtime regression failed while waiting for Keep writing after Missing/Remove; it now checks both row and card removal, returns to the visible retained draft on Keep writing, and permits unrelated removal without a guard.
+- **Prevention**: use the retained object's origin to decide destructive-transition relevance when its live target can disappear. Search `rg -n 'onCommentTransition|origin.root|session.identity' app/src/renderer/useComments.tsx`; preserve quit guarding and unrelated-root tests alongside the missing-origin scenario.
+
+### 2026-10-25 — A canvas reload detached the frame between a poll's lookup and evaluation
+
+- **Area**: Electron E2E asynchronous polling in comments-ui, projects-home and runtime.
+- **Symptom**: the integration full E2E failed at the missing-target check with locator.evaluate: Frame was detached after rewriting canvas HTML. Another E2E was running concurrently, increasing timing pressure.
+- **Root cause**: waitGate retried only a false predicate result. Resolving a frame locator and evaluating its element are not atomic across a watcher-triggered iframe replacement, so a transient rejected evaluation escaped the wait immediately.
+- **Net**: the conductor's actual integration failure exposed the race. Controlled callbacks against the actual wait bodies reproduce rejection and verify retry, unchanged success predicates, false timeout and preservation of the last exception; full-runtime results are recorded above.
+- **Prevention**: polling across navigation or frame replacement must retry failed observations until its deadline and rethrow the last error on timeout. A retry must never convert an exception into success. Keep Playwright frame locators inside each predicate so the next attempt resolves the current frame; audit `rg -n 'waitGate|async function wait|frameLocator|evaluate' app/e2e` when adding reload checks.
+
+### 2026-10-25 — Removing the remembered row removed a card from keyboard navigation
+
+- **Area**: Home card roving tabindex.
+- **Symptom**: after focusing and removing a worktree row, Tab skipped all remaining rows in that card.
+- **Root cause**: ProjectCard retained the removed path in focused state and compared every current row against it. With row menus intentionally outside the Tab order, the card no longer had a keyboard entry row.
+- **Net**: independent R-Cfix review identified the stale-path case. The actual Electron regression failed at “Tab reaches the first remaining row after focused-row removal”; the active-path derivation now falls back to the first remaining row when its remembered path is absent.
+- **Prevention**: derive roving focus from the current item set, including remove and re-root transitions; retain the actual keyboard removal regression. Search `rg -n 'focused|tabIndex|const active' app/src/renderer/Home.tsx` when changing card membership.
+
+### 2026-10-25 — A static draft's overflow match hid an unusable checklist
+
+- **Area**: projects-home checklist CSS, Electron runtime tests and design-sync.
+- **Symptom**: a parent folder with 14 repository candidates put the final checkbox below the visible dialog list, and wheel scrolling could not reach it.
+- **Root cause**: the bounded list copied the static draft's overflow:hidden while retaining max-height:50vh; that rule overrode the native-scroll behavior. The computed-style comparison accepted the matching hidden value without testing whether all live content was reachable.
+- **Net**: independent R-C review caught the failure after the original unit and full runtime suites had passed. A regression now wheels the actual list, checks that the last checkbox rectangle lies inside its bounds and clicks it with mouse coordinates; it failed before overflow-y:auto and passes afterward. The draft difference is explicitly documented.
+- **Prevention**: for every bounded live list, combine style comparison with enough data to overflow and real-input reachability checks. Run `rg -n 'overflow: hidden|max-height|native-scroll' app/src/renderer/styles.css` and inspect each bounded scrolling owner. Do not treat a static match as functional evidence or accept all width/height differences globally; exact reviewed value pairs and mutation rejection tests now enforce this in the projects-home comparator. Related: 2026-10-22 “A zero-mismatch table missed a newly styled child.”
+
+### 2026-10-25 — An unreadable add pick was offered for set-up as a folder without repos
+
+- **Area**: `app/src/main/addProjects.ts` (`hasGitEntry`, `gitChildren`, `createAddFlow.add`); review R-B2 🟡1.
+- **Symptom**: adding a folder whose listing failed (mode 0111, 0444, or whose only child was 0000) produced the "isn’t a repository — set it up?" confirmation even when a child repo was inside, reopening the P4 path the add flow was built to close.
+- **Root cause**: both helpers mapped every error to the "absent" answer (`catch { return [] }`, `catch { return false }`), so "could not look" and "looked, found nothing" reached `classifyPick` as the same fact; the classifier only sees `children.length === 0`.
+- **Net**: the independent R-B2 review caught it with a chmod probe; B2's own tests only used readable fixtures and a missing folder, whose expected value pinned the conflation (`[]`). Regressions now cover 0111, 0444, an unreadable only child, and an unreadable child beside a repo; four failed before the fix.
+- **Prevention**: when a filesystem probe feeds a decision, return a distinct "unknown" (null) for errors other than ENOENT/ENOTDIR and branch on it before classifying. Search run: `rg -n 'catch \{' app/src/main/addProjects.ts` — the remaining hit is `realDirectory` (EACCES reads as "not a folder", refused with "Only folders can be added.", never the set-up path). Test fixtures for such probes need at least one permission-denied case (`chmod`, skipped as root).
+
+### 2026-10-25 — Undo of a removal stayed valid while the next removal was being saved
+
+- **Area**: `app/src/main/index.ts` (`folders:remove`, `folders:restore`), `app/src/main/shell.ts` `remove`; review R-B2 🟡2.
+- **Symptom**: after removing A and then B, an Undo for A that arrived while B's folders.json write was pending restored A; with `[A,B,C]` the later B Undo could land B at index 0 (`[B,A,C]`). A removal saved late could also overwrite a newer removal's id.
+- **Root cause**: the shell changes the in-memory list, watchers and the renderer's list at once and only then awaits the disk write, but main replaced `removal` in the `.then` after the write — the id's lifetime followed the save, not the list change it describes.
+- **Net**: R-B2 caught it by holding the second `shell.remove` promise; B2's test awaited each removal fully, so the window never opened. Regressions now hold the save open, check the old id is refused, and check an older save finishing last cannot take Undo; both failed before the fix.
+- **Prevention**: invalidate single-use ids when the action they would undo is superseded (here: guard allowed), and tag async completions with a generation so only the newest may publish. Search run: `rg -n 'removal = |removals' app/src/main/index.ts` — every assignment is the guard path, restore or forget. Tests for undo/restore ids should hold the underlying write pending with a manual promise.
+
+### 2026-10-25 — Locating a project kept the old root's selection
+
+- **Area**: `app/src/main/index.ts` (`folders:locate`); fixed in 0a5acfc; review R-B2 ⚪1.
+- **Symptom**: after Locate replaced a stored root with a new one, the runtime selection (what `doan active` and MCP report) still pointed at the old root, which had just left the list.
+- **Root cause**: Remove cleared a selection on removed roots, but Locate removes the old row through `ready.replace`, a separate path, and the selection reset was written only at Remove's call site.
+- **Net**: B2's own `/code-review` caught it before review; the locate test previously checked only the list. The test now sets a selection on the old root and asserts it is cleared after Locate.
+- **Prevention**: any path that drops a stored root (remove, replace/locate, future ones) must clear state keyed by that root. Search run: `rg -n 'selection = null|ready\.(remove|replace)\(' app/src/main/index.ts` — remove, locate and the old `folders:close` all clear it (render-process-gone/did-navigate clear it unconditionally); check this list when adding another root-dropping path.
+
+### 2026-10-25 — Bounded git registration reads repeated unbounded path scans
+
+- **Area**: `cli/internal/repo/git.go`, `readWorktreeGitdirs`, `ReadGit`.
+- **Symptom**: R-B1 measured 1.76 seconds for 200 prunable registrations and 4.05 seconds for 20,000, despite a 200-entry read limit; a symlinked HEAD also displayed a branch SHA as detached.
+- **Root cause**: canonicalizing every metadata entry called `diskSpelling`, which enumerates ancestor directories in full, including the same registrations directory on every iteration. Following HEAD with `Stat` erased its symbolic-reference identity before parsing.
+- **Net**: cross-family R-B1 review exposed both issues. Existing cap tests checked output length rather than I/O cost, and HEAD fixtures covered text but not symlinks. The symlink regression failed before the fix and now passes, as do the existing canonical-worktree-base tests. No timing threshold was added because filesystem timings vary.
+- **Prevention**: canonicalize the registrations directory once, reuse disk-spelled names from bounded `ReadDir`, and canonicalize each final mapped candidate only once. Check `Lstat` before interpreting identity-bearing files. Run `rg -n 'gitDirectory|ReadDir|Lstat' cli/internal/repo/git.go`; retain symlink HEAD and canonical-base regressions. The 200-entry limit bounds registration processing, not all filesystem I/O: ancestor disk-spelling lookups still enumerate directories.
+
 ### 2026-10-24 — Evaluation checks rejected valid markup and natural review reports
 
 - **Area**: `eval/scenarios/H1`, `H3`, `H4`; review `.scratch/review-H.md`, findings H-1 through H-4 (before any recorded round).

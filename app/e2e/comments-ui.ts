@@ -8,6 +8,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication } from "playwright";
+const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
+
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const shots = join(root, ".scratch/U2/runtime");
 const paths = ["folders.json", "runtime.json"].map(n => join(homedir(), "Library/Application Support/doan", n));
@@ -17,8 +19,11 @@ const work = await realpath(await mkdtemp("/tmp/doan-comments-ui-"));
 const exec = promisify(execFile);
 async function waitGate(check: () => Promise<boolean>) {
   const until = Date.now() + 10_000;
-  while (!await check()) {
-    if (Date.now() > until) throw new Error("Timed out waiting for the controlled IPC gate");
+  let lastError: unknown;
+  for (;;) {
+    try { if (await check()) return; } catch (error) { lastError = error; }
+    if (Date.now() >= until) throw lastError ?? new Error("Timed out waiting for the controlled IPC gate");
+    // A canvas rewrite can detach the frame between locator resolution and evaluation.
     await new Promise(resolve => setTimeout(resolve, 20));
   }
 }
@@ -68,6 +73,7 @@ try {
   const originLog = join(originRepo, ".doan/comments/shared.jsonl");
   const destinationLog = join(destinationRepo, ".doan/comments/shared.jsonl");
   const logBytes = (path: string) => readFile(path, "utf8").catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return ""; throw error; });
+  await enterProject(page, originRepo);
   await originRow.click();
   await panel.getByRole("button", { name: "New canvas comment", exact: true }).click();
   const unicodeBody = '원래 대상 🧪 e\u0301 <img src=x onerror="window.HOSTILE=true">';
@@ -81,7 +87,7 @@ try {
     return Math.round(el.querySelector(".comments-target")!.getBoundingClientRect().top - range.getBoundingClientRect().bottom);
   }), 8);
   const originFrame = await page.locator("iframe").elementHandle(); assert.ok(originFrame);
-  await destinationRow.click(); await boundaryDialog.waitFor();
+  await requestProject(page, destinationRepo); await boundaryDialog.waitFor();
   presentation("Unsaved dialog width", await boundaryDialog.evaluate(el => el.getBoundingClientRect().width), 410);
   presentation("Unsaved dialog heading weight", await boundaryDialog.getByRole("heading").evaluate(el => getComputedStyle(el).fontWeight), "700");
   assert.equal(await originFrame.evaluate(el => el.isConnected), true);
@@ -90,7 +96,8 @@ try {
   assert.equal(await originRow.getAttribute("aria-current"), "true");
   assert.equal(await logBytes(originLog), ""); assert.equal(await logBytes(destinationLog), "");
   await shot("00a-cross-root-continue");
-  await destinationRow.click(); await boundaryDialog.getByRole("button", { name: "Save and continue", exact: true }).click();
+  await requestProject(page, destinationRepo); await boundaryDialog.getByRole("button", { name: "Save and continue", exact: true }).click();
+  await destinationRow.click();
   await waitGate(async () => await destinationRow.getAttribute("aria-current") === "true");
   await panel.getByText("No open comments here", { exact: true }).waitFor();
   const savedBytes = await logBytes(originLog), saved = JSON.parse(savedBytes.trim());
@@ -98,6 +105,7 @@ try {
   assert.equal(await logBytes(destinationLog), "");
   const cliRead = JSON.parse((await exec(cli, ["comments", "--canvas", "shared", "--repo", originRepo, "--json"])).stdout);
   assert.equal(cliRead.result.comments[0].body, unicodeBody);
+  await enterProject(page, originRepo);
   await originRow.click(); await cards.filter({ hasText: unicodeBody }).waitFor();
   assert.equal(await cards.locator("img").count(), 0); assert.equal(await page.evaluate(() => Reflect.get(window, "HOSTILE")), undefined);
   const roundTripFrame = await page.locator("iframe").elementHandle(); assert.ok(roundTripFrame);
@@ -110,7 +118,8 @@ try {
   await panel.getByRole("button", { name: /^Open 0$/ }).click();
   await panel.getByRole("button", { name: "New canvas comment", exact: true }).click(); await boundaryBody.fill("Discard across roots");
   const beforeDiscard = await logBytes(originLog);
-  await destinationRow.click(); await boundaryDialog.getByRole("button", { name: "Discard", exact: true }).click();
+  await requestProject(page, destinationRepo); await boundaryDialog.getByRole("button", { name: "Discard", exact: true }).click();
+  await destinationRow.click();
   await waitGate(async () => await destinationRow.getAttribute("aria-current") === "true");
   assert.equal(await boundaryBody.count(), 0); assert.equal(await logBytes(originLog), beforeDiscard); assert.equal(await logBytes(destinationLog), "");
   await shot("00c-cross-root-discard");
@@ -148,6 +157,7 @@ try {
   assert.equal(await logBytes(destinationLog), afterMissing);
   await shot("00e-invalid-duplicate-id");
 
+  await enterProject(page, repo);
   await page.getByRole("treeitem", { name: "a.html", exact: true }).click();
   await page.waitForFunction(() => !!document.querySelector("iframe")?.contentWindow);
   await panel.getByRole("button", { name: "New canvas comment", exact: true }).waitFor();
@@ -290,7 +300,7 @@ try {
   const boardBox = await page.locator("iframe").evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, scale: r.width / el.clientWidth }; });
   await page.keyboard.down("Alt"); await page.mouse.click(boardBox.x + (linkBox.x + 8) * boardBox.scale, boardBox.y + (linkBox.y + 8) * boardBox.scale); await page.keyboard.up("Alt"); await keep();
   assert.equal(await page.locator("iframe").getAttribute("title"), "design/a.html");
-  await page.getByRole("button", { name: "Close project repo", exact: true }).click(); await keep();
+  await page.getByRole("button", { name: "Remove repo from doan", exact: true }).click(); await keep();
   await app.evaluate(({ app }) => app.quit()); await keep();
   // Close Window hides the existing window without losing the editor.
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());

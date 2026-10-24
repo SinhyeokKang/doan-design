@@ -4,6 +4,16 @@ import type { FolderEntry } from "../main/view";
 import type { ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
 import { projectNames } from "./projectRow";
+import { DropdownMenu } from "radix-ui";
+import { displayPath } from "./projectDisplay";
+import { Home, ProblemActions, PathTip } from "./Home";
+import { AddProjectsDialog, SetUpFolderConfirm } from "./AddProjectsDialog";
+import { ProjectSetupDialog } from "./ProjectSetupDialog";
+import { useToast } from "./Toast";
+import { DropOverlay } from "./DropOverlay";
+import type { AddOutcome } from "../main/addProjects";
+import type { RowAction } from "./homeCards";
+import { groupProjects, cardRow } from "./homeCards";
 import { Sidebar } from "./Sidebar";
 import { useComments } from "./useComments";
 import { RightPanel } from "./RightPanel";
@@ -12,6 +22,22 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./comp
 import { Wizard, type Reroot } from "./Onboarding";
 
 export function App() {
+  const [homeDirectory, setHomeDirectory] = useState<string | null>(null);
+  const [screen, setScreen] = useState<"home" | "workspace">("home");
+  const [locating, setLocating] = useState<{ from: string; root: string | null } | null>(null);
+  const [loadedRoot, setLoadedRoot] = useState<string | null>(null);
+  const [rerootHint, setRerootHint] = useState<{ root: string; message: string; seen?: FolderEntry } | null>(null);
+  const [highlight, setHighlight] = useState<string[]>([]);
+  const [scan, setScan] = useState<string | null>(null);
+  const [confirms, setConfirms] = useState<AddOutcome["confirms"]>([]);
+  const [setup, setSetup] = useState<string | null>(null);
+  const beforeModal = useRef<HTMLElement | null>(null);
+  const focusAfterModal = useRef(false);
+  const focusModalPath = useRef<string | null>(null);
+  const toast = useToast();
+  const workspaceFocus = useRef<HTMLElement | null>(null);
+  const currentScreen = useRef(screen);
+  currentScreen.current = screen;
   const [entries, setEntries] = useState<FolderEntry[]>([]);
   const [state, setState] = useState(initialCanvasState);
   const viewport = useRef<HTMLDivElement>(null);
@@ -31,15 +57,17 @@ export function App() {
     controller.current = instance;
     const stopFolders = window.doan.onFolders((next, focus) => {
       if (focus) {
+        setLoadedRoot(root => root === focus.from ? focus.root : root);
         // Read before React replaces the old row, which takes the focus with it.
         const row = document.activeElement?.closest<HTMLElement>('[role="treeitem"][aria-level="1"]');
         setReroot(previous => ({ ...focus, seq: (previous?.seq ?? 0) + 1, hadFocus: row?.dataset.path === focus.from }));
       }
       setEntries(next); instance.updateEntries(next);
     });
-    const stopCommands = window.doan.onViewCommand(name => instance.command(name));
+    const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace") instance.command(name); });
     return () => { stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
   }, []);
+  useEffect(() => { void window.doan.homeDirectory().then(setHomeDirectory).catch(console.error); }, []);
   useEffect(() => window.doan.onOnboardingOpen(opened => {
     const active = document.activeElement;
     // A reopen while the wizard is up keeps the focus it came from.
@@ -52,38 +80,150 @@ export function App() {
     const previous = beforeWizard.current;
     beforeWizard.current = null;
     // On first run nothing had focus, so it goes to the sidebar.
-    const fallback = document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]') ?? document.querySelector<HTMLElement>(".side .section-action");
+    const fallback = document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]') ?? document.querySelector<HTMLElement>('.home-body [data-path][tabindex="0"], .home-shell button');
     (previous?.isConnected ? previous : fallback)?.focus();
   }, [wizard]);
-  const comments = useComments(state, controller);
+  const comments = useComments(state, controller, () => setScreen("workspace"), entries);
+  const home = () => {
+    if (currentScreen.current === "workspace") workspaceFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setScreen("home");
+  };
+  useEffect(() => {
+    controller.current?.setWorkspaceActive(screen === "workspace");
+    if (screen === "home") {
+      const rows = Array.from(document.querySelectorAll<HTMLElement>(".home-body [data-path]"));
+      (rows.find(row => row.dataset.path === loadedRoot) ?? rows[0])?.focus();
+    } else {
+      if (comments.session.draft.draft) { document.querySelector<HTMLTextAreaElement>(".comments-panel textarea")?.focus(); return; }
+      const previous = workspaceFocus.current;
+      (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus();
+    }
+  }, [screen, loadedRoot]);
+  useEffect(() => {
+    if (loadedRoot && loadedRoot !== locating?.from && !entries.some(entry => entry.path === loadedRoot)) { setLoadedRoot(null); setScreen("home"); }
+  }, [entries, loadedRoot, locating]);
+  useEffect(() => {
+    const root = locating?.root;
+    if (!root) return;
+    const next = entries.find(entry => entry.path === root);
+    if (!next || next.kind === "loading") return;
+    if (next.kind === "list") controller.current?.openWorkspace(root, setLoadedRoot);
+    setLocating(null);
+  }, [entries, locating]);
+  const enter = (root: string, sameCanvas = false) => {
+    if (root === loadedRoot) { setScreen("workspace"); return; }
+    controller.current?.openWorkspace(root, next => { workspaceFocus.current = null; setLoadedRoot(next); setScreen("workspace"); }, sameCanvas);
+  };
+  const cards = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
+  const card = cards.find(card => card.rows.some(row => row.path === loadedRoot));
+  const entry = entries.find(entry => entry.path === loadedRoot);
+
+  const modal = wizard !== null || !!comments.dialog || setup !== null || scan !== null || confirms.length > 0;
+  const live = useRef({ home, enter, toast, modal });
+  live.current = { home, enter, toast, modal };
+  const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement.closest<HTMLElement>(".home-body [data-path]") ?? document.activeElement : null; };
+  const modalClosed = () => { focusAfterModal.current = true; };
+  useEffect(() => {
+    if (modal || !focusAfterModal.current) return;
+    focusAfterModal.current = false;
+    const previous = (focusModalPath.current ? Array.from(document.querySelectorAll<HTMLElement>(".home-body [data-path]")).find(row => row.dataset.path === focusModalPath.current) : null) ?? beforeModal.current;
+    focusModalPath.current = null;
+    (previous?.isConnected ? previous : document.querySelector<HTMLElement>('.home-body [data-path][tabindex="0"], .home-shell button'))?.focus();
+  }, [modal, entries]);
+  useEffect(() => {
+    if (setup && !entries.some(entry => entry.path === setup && (entry.kind === "uninitialized" || entry.kind === "loading"))) {
+      const root = reroot?.from === setup ? reroot.root : setup;
+      focusModalPath.current = root;
+      beforeModal.current = Array.from(document.querySelectorAll<HTMLElement>(".home-body [data-path]")).find(row => row.dataset.path === root) ?? null;
+      setSetup(null); modalClosed();
+    }
+  }, [setup, entries, reroot]);
+  useEffect(() => {
+    if (!rerootHint) return;
+    const entry = entries.find(entry => entry.path === rerootHint.root);
+    if (!entry) setRerootHint(null);
+    else if (!rerootHint.seen || rerootHint.seen.kind === "loading") { if (entry !== rerootHint.seen) setRerootHint({ ...rerootHint, seen: entry }); }
+    else if (entry !== rerootHint.seen) setRerootHint(null);
+  }, [entries, rerootHint]);
+  useEffect(() => { if (!highlight.length) return; const timer = setTimeout(() => setHighlight([]), 2400); return () => clearTimeout(timer); }, [highlight]);
+  const added = (paths: string[]) => {
+    const root = paths.at(-1);
+    if (!root) return;
+    if (currentScreen.current === "home") setHighlight(paths);
+    else live.current.toast.show(`Added ${root.split("/").at(-1)}`, "Open", () => live.current.enter(root));
+  };
+  useEffect(() => window.doan.onAddOutcome(outcome => {
+    added(outcome.added);
+    if (outcome.duplicate) { live.current.home(); setHighlight([...outcome.added, outcome.duplicate]); }
+    if (outcome.messages.length) live.current.toast.show(outcome.messages.join("\n"));
+    if (outcome.scanId || outcome.confirms.length) rememberFocus();
+    setScan(outcome.scanId); setConfirms(outcome.confirms);
+  }), []);
+  async function remove(paths: string[]) {
+    const result = await window.doan.removeProjects(paths);
+    if (result.kind === "removed") toast.show(`${result.label} removed. Files stay on disk.`, "Undo", () => { void window.doan.restoreProjects(result.removalId).catch(console.error); }, () => { void window.doan.forgetRemoval(result.removalId).catch(console.error); });
+  }
+  function action(name: RowAction, root: string) {
+    if (name === "setUp") { rememberFocus(); setSetup(root); }
+    else if (name === "remove") void remove([root]);
+    else if (name === "showInFinder") void window.doan.revealProject(root).catch(console.error);
+    else if (name === "retry") void window.doan.reopenFolder(root).catch(console.error);
+    else if (name === "locate") {
+      const workspace = loadedRoot === root && currentScreen.current === "workspace";
+      if (workspace) setLocating({ from: root, root: null });
+      void window.doan.locateProject(root).then(result => {
+        if (result.kind === "refused") toast.show(result.message);
+        if (workspace && result.kind === "located") { setLoadedRoot(result.root); setLocating({ from: root, root: result.root }); }
+        else if (workspace) setLocating(null);
+      }).catch(error => { if (workspace) setLocating(null); console.error(error); });
+    }
+  }
+  useEffect(() => window.doan.onMenuCommand(name => {
+    if (live.current.modal) return;
+    if (name === "home") live.current.home();
+    else if (live.current.toast.toast?.action === "Undo") live.current.toast.action();
+  }), []);
+  useEffect(() => { void window.doan.setMenuState({ screen: screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo" }); }, [screen, state.open, modal, toast.toast?.action]);
   const command = (name: ViewCommand) => controller.current?.command(name);
   const names = projectNames(entries.map(entry => entry.path));
   const name = names.get(state.open?.folder ?? entries[0]?.path ?? "") ?? "";
-  return <TooltipProvider><main className="app-shell">
-    <TopBar state={state} name={name} reload={() => command("reload")} />
-    <Sidebar entries={entries} names={names} state={state} reroot={reroot} open={(folder, row) => controller.current?.openCanvas(folder, row)} jump={index => controller.current?.jump(index)} />
-    <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} noProjects={entries.length === 0} command={command} />
+  return <TooltipProvider>
+  {screen === "home" && <Home homeDirectory={homeDirectory} entries={entries} loaded={loadedRoot} selection={state.selection} highlight={highlight} rerootHint={rerootHint} enter={enter} action={action} remove={paths => void remove(paths)} />}
+  <main className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}`} style={{ visibility: screen === "home" ? "hidden" : "visible" }} inert={screen === "home"} aria-hidden={screen === "home"}>
+    <TopBar homeDirectory={homeDirectory} state={state} name={card?.name ?? name} reload={() => command("reload")} home={home} entry={entry} rows={card?.rows ?? []} enter={root => enter(root, true)} />
+    {entry && entry.kind !== "list" && <ProblemActions entry={entry} action={action} workspace={{ name: card?.name ?? name, homeDirectory, home }} />}
+    <Sidebar entries={entries.filter(entry => entry.path === loadedRoot)} names={names} state={state} reroot={reroot} remove={root => void remove([root])} open={(folder, row) => controller.current?.openCanvas(folder, row)} jump={index => controller.current?.jump(index)} />
+    <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} command={command} />
     <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />{comments.panel}</div>
-    {comments.dialog}
   </main>
+  {comments.dialog}
+  {scan && <AddProjectsDialog homeDirectory={homeDirectory} key={scan} scanId={scan} close={() => { setScan(null); modalClosed(); }} added={added} />}
+  {!scan && !setup && confirms[0] && <SetUpFolderConfirm key={confirms[0].confirmId} name={confirms[0].name} path={confirms[0].path} cancel={() => { setConfirms(items => items.slice(1)); modalClosed(); }} confirm={async () => { const first = confirms[0]; if (!first) return; const result = await window.doan.confirmFolder(first.confirmId); if (result.kind !== "added") throw new Error("This confirmation is no longer available. Add the folder again."); setConfirms(items => items.slice(1)); setSetup(result.added[0] ?? first.path); focusModalPath.current = result.added[0] ?? first.path; added(result.added); }} />}
+  {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} onClose={() => { setSetup(null); modalClosed(); }} onRerooted={(root, message) => { focusModalPath.current = root; setSetup(null); setHighlight([root]); setRerootHint({ root, message }); modalClosed(); }} />}
+  {toast.element}
+  <DropOverlay blocked={modal} />
   {wizard !== null && <Wizard key={wizard} session={wizard} entries={entries} reroot={reroot} onClose={() => { restoreFocus.current = true; setWizard(null); }} />}
   </TooltipProvider>;
 }
 
-function TopBar({ state, name, reload }: { state: CanvasState; name: string; reload: () => void }) {
+function TopBar({ state, name, reload, home, entry, rows, enter, homeDirectory }: { homeDirectory: string | null; state: CanvasState; name: string; reload: () => void; home: () => void; entry: FolderEntry | undefined; rows: FolderEntry[]; enter: (root: string) => void }) {
+  const branch = entry?.kind === "list" ? cardRow(entry, null, null).summary?.branch : undefined;
   return <header className="top">
     <span className="traffic-space" aria-hidden="true" />
-    <span className="logo"><i />doan</span>
-    <span className="meta breadcrumb">{name}{state.open && <> / <span>{state.open.canvas}</span></>}</span>
+    <button className="back" aria-label="Go Home" onClick={home}>←</button><span className="divider" />
+    <div className="crumbs"><PathTip text={name}><span className="repo">{name}</span></PathTip>{branch && <><span className="sep">›</span>
+      <DropdownMenu.Root><DropdownMenu.Trigger asChild><button className="branch" aria-label="Switch worktree" disabled={rows.length < 2}><span className="glyph" aria-hidden="true">⎇</span><span className="bn">{branch}</span><span className="caret">▾</span></button></DropdownMenu.Trigger>
+        <DropdownMenu.Portal><DropdownMenu.Content className="menu" aria-label="Worktrees" sideOffset={5} align="start"><div className="menu-head">Worktrees</div><DropdownMenu.RadioGroup value={entry?.path} onValueChange={enter}>{rows.map(row => <DropdownMenu.RadioItem value={row.path} className="mi" key={row.path} disabled={row.kind !== "list"}><span className="check" aria-hidden="true">{row.path === entry?.path ? "✓" : ""}</span><span className="label">{cardRow(row, null, null).summary?.branch ?? row.path.split("/").at(-1)}</span><span className="sub">{displayPath(row.path, homeDirectory)}</span>{cardRow(row, null, null).chip && <span className="ob-chip">{cardRow(row, null, null).chip}</span>}</DropdownMenu.RadioItem>)}</DropdownMenu.RadioGroup></DropdownMenu.Content></DropdownMenu.Portal>
+      </DropdownMenu.Root></>}{state.open && <><span className="sep">›</span><PathTip text={state.open.canvas.replace(/^design\//, "")}><span className="canvas">{state.open.canvas.replace(/^design\//, "")}</span></PathTip></>}</div>
     <span className="chip">{state.open?.row.width === undefined ? "—" : `${state.open.row.width} px`}</span>
     <span className="spacer" />
     <button className="btn ghost" aria-label="Reload canvas" disabled={!state.open} onClick={reload}>Reload <span className="kbd">⌘R</span></button>
   </header>;
 }
 
-function CanvasPane({ viewport, board, overlay, state, noProjects, command }: {
+function CanvasPane({ viewport, board, overlay, state, command }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>;
-  state: CanvasState; noProjects: boolean; command: (name: ViewCommand) => void;
+  state: CanvasState; command: (name: ViewCommand) => void;
 }) {
   return <section className="area" role="region" aria-label="Canvas" ref={viewport}>
     <div className="board" ref={board} hidden />
@@ -94,8 +234,7 @@ function CanvasPane({ viewport, board, overlay, state, noProjects, command }: {
       {state.notice && <div className="canvas-notice" role="status">{state.notice}</div>}
     </div>
     {state.status && <div className="canvas-status" role="status">
-      {state.status === "empty" && noProjects ? <div className="empty"><b>No projects yet</b><p>Open a repo with Open Project… A repo without <code>.doan/</code> shows how to set it up.</p><button className="btn primary" onClick={() => void window.doan.openFolder()}>Open Project… <span className="kbd">⌘O</span></button></div>
-        : state.status === "loading" ? <p><span className="spinner" aria-hidden="true" />Loading…</p>
+      {state.status === "loading" ? <p><span className="spinner" aria-hidden="true" />Loading…</p>
         : state.status === "failed" ? <div><b>Couldn’t load the canvas</b><br />Run doan check in a terminal<br /><br /><button className="btn" onClick={() => command("reload")}>Reload</button></div>
         : state.status === "noWidth" ? <p><b>Missing or invalid board width.</b>{state.message.slice("Missing or invalid board width.".length)}</p>
         : <p>{state.message}</p>}

@@ -5,10 +5,12 @@ import type { DoanApi } from "./index";
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   expose: vi.fn<(name: string, api: DoanApi) => void>(),
+  pathForFile: vi.fn<(file: unknown) => string>(),
 }));
 const emitter = new EventEmitter();
 vi.mock("electron", () => ({
   contextBridge: { exposeInMainWorld: mocks.expose },
+  webUtils: { getPathForFile: mocks.pathForFile },
   ipcRenderer: { invoke: mocks.invoke, on: (...args: Parameters<EventEmitter["on"]>) => emitter.on(...args), removeListener: (...args: Parameters<EventEmitter["removeListener"]>) => emitter.removeListener(...args) },
 }));
 
@@ -135,4 +137,89 @@ test("onboarding uses fixed channels and ignores an initial open response after 
   await api.copyPathLine(); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:copy", { kind: "pathLine" });
   await api.copyFirstPrompt("/repo"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:copy", { kind: "firstPrompt", root: "/repo" });
   await api.firstPrompt("/repo"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:first-prompt", { root: "/repo" });
+});
+
+test("project add, scan, remove, restore, locate and reveal use fixed channels", async () => {
+  await api.addProjects();
+  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:add");
+  await api.cancelScan("s");
+  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:scan-cancel", { scanId: "s" });
+  await api.addCandidates("s", ["a", "b"]);
+  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:add-candidates", { scanId: "s", ids: ["a", "b"] });
+  await api.confirmFolder("c");
+  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:confirm-folder", { confirmId: "c" });
+  await api.removeProjects([ROOT]);
+  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:remove", { paths: [ROOT] });
+  await api.restoreProjects("r");
+  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:restore", { removalId: "r" });
+  await api.forgetRemoval("r");
+  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:forget-removal", { removalId: "r" });
+  await api.locateProject(ROOT);
+  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:locate", { path: ROOT });
+  await api.revealProject(ROOT);
+  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:reveal", { path: ROOT });
+  await api.setMenuState({ screen: "home", modal: false, toast: true });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("menu:state", { screen: "home", modal: false, toast: true });
+});
+
+// The wizard's single-folder contract stays as it was.
+test("Open Project keeps its own channel next to Add Project", async () => {
+  mocks.invoke.mockResolvedValueOnce(null);
+  expect(await api.openFolder()).toBeNull();
+  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:open");
+});
+
+test("dropped files become disk paths in the preload; files without one are left out", async () => {
+  const files = [{ name: "a" }, { name: "made-in-page" }, { name: "b" }];
+  mocks.pathForFile.mockImplementation((file) => ({ a: "/a", b: "/b" })[(file as { name: string }).name] ?? "");
+  await api.addDroppedFiles(files as unknown as File[]);
+  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:add-paths", { paths: ["/a", "/b"] });
+  mocks.invoke.mockClear();
+  await api.addDroppedFiles([files[1]] as unknown as File[]);
+  expect(mocks.invoke).not.toHaveBeenCalled();
+});
+
+test("add outcomes and menu commands are subscriptions that unsubscribe", () => {
+  const outcome = vi.fn(); const stopOutcome = api.onAddOutcome(outcome);
+  const command = vi.fn(); const stopCommand = api.onMenuCommand(command);
+  emitter.emit("folders:add-outcome", {}, { added: ["/a"] });
+  emitter.emit("menu-command", {}, "home");
+  expect(outcome).toHaveBeenCalledWith({ added: ["/a"] });
+  expect(command).toHaveBeenCalledWith("home");
+  stopOutcome(); stopCommand();
+  expect(emitter.listenerCount("folders:add-outcome")).toBe(0);
+  expect(emitter.listenerCount("menu-command")).toBe(0);
+});
+
+test("a scan watch keeps the newest snapshot of its own scan, whichever arrives first", async () => {
+  let reply!: (value: unknown) => void;
+  mocks.invoke.mockImplementationOnce(() => new Promise((resolve) => { reply = resolve; }));
+  const listener = vi.fn();
+  const stop = api.watchScan("s", listener);
+  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:scan", { scanId: "s" });
+  emitter.emit("folders:scan-progress", {}, { scanId: "other", seq: 9 });
+  emitter.emit("folders:scan-progress", {}, { scanId: "s", seq: 3 });
+  reply({ scanId: "s", seq: 2 });
+  await Promise.resolve(); await Promise.resolve();
+  expect(listener.mock.calls.map((call) => call[0].seq)).toEqual([3]);
+  emitter.emit("folders:scan-progress", {}, { scanId: "s", seq: 4 });
+  expect(listener.mock.calls.map((call) => call[0].seq)).toEqual([3, 4]);
+  stop();
+  emitter.emit("folders:scan-progress", {}, { scanId: "s", seq: 5 });
+  expect(listener).toHaveBeenCalledTimes(2);
+  expect(emitter.listenerCount("folders:scan-progress")).toBe(0);
+});
+
+test("a scan watch takes the reply when it is newer than any event, and nothing for a gone scan", async () => {
+  mocks.invoke.mockResolvedValueOnce({ scanId: "s", seq: 5 });
+  const listener = vi.fn();
+  const stop = api.watchScan("s", listener);
+  await Promise.resolve(); await Promise.resolve();
+  expect(listener).toHaveBeenCalledExactlyOnceWith({ scanId: "s", seq: 5 });
+  stop();
+  mocks.invoke.mockResolvedValueOnce(null);
+  const gone = vi.fn();
+  api.watchScan("t", gone)();
+  await Promise.resolve(); await Promise.resolve();
+  expect(gone).not.toHaveBeenCalled();
 });

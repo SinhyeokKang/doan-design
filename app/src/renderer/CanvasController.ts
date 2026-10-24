@@ -9,6 +9,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem, type SelectionMessage } from "./canvasMessage";
 import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, sameDocument, type OpenCanvas } from "./canvasView";
 import { projectNames } from "./projectRow";
+import { switchTarget } from "./switchTarget";
 import { activityFor, pushActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
@@ -266,8 +267,8 @@ export class CanvasController {
         this.dropFrame();
         this.state.status = update.reason === "closed" ? "empty" : "missing";
         this.state.message = update.reason === "closed" ? "Pick a canvas from the list"
-          : update.reason === "notFound" ? `The project ${name} is gone or moved. Reopen it from the sidebar.`
-          : update.reason === "uninitialized" ? `The project ${name} is not initialized. Choose Set Up… in the sidebar.`
+          : update.reason === "notFound" ? `The project ${name} is missing. Use Locate… to find it.`
+          : update.reason === "uninitialized" ? `The project ${name} is not set up. Use Set Up… on Home.`
           : `${open.canvas} is no longer in the list. It was deleted or moved.`;
         break;
       }
@@ -283,6 +284,31 @@ export class CanvasController {
     }
     if (this.comments && !this.matchingComments()) this.clearAnchors();
     this.publish();
+  }
+
+  private workspaceMemory = new Map<string, { path: string; view: View }>();
+  private workspaceActive = true;
+  setWorkspaceActive(active: boolean): void { this.workspaceActive = active; }
+
+  openWorkspace(folder: string, entered: (folder: string) => void, sameCanvas = false): void {
+    const target = () => this.entries.find(entry => entry.path === folder);
+    this.transition(() => {
+      const entry = target();
+      if (entry?.kind !== "list") return;
+      const open = this.state.open;
+      if (open) this.workspaceMemory.set(open.folder, { path: open.canvas, view: { ...this.view } });
+      const remembered = this.workspaceMemory.get(folder);
+      const row = switchTarget(sameCanvas ? open?.row.id : undefined, entry.canvases, remembered?.path);
+      if (row) {
+        this.openCanvasNow(folder, row);
+        if (remembered?.path === row.path) { this.view = { ...remembered.view }; this.applyView(); }
+      } else {
+        this.dropFrame();
+        this.state = { ...initialCanvasState(), activity: this.state.activity };
+        this.publish();
+      }
+      entered(folder);
+    }, () => target()?.kind === "list");
   }
 
   openCanvas(folder: string, row: CanvasRow): void {
@@ -530,6 +556,7 @@ export class CanvasController {
   }
 
   private keydown = (event: KeyboardEvent): void => {
+    if (!this.workspaceActive) return;
     if (event.key === "Alt") {
       // Focus may move into the canvas before keyup; fence off earlier snapshots.
       if (!this.altHeld) this.sendHoverCommand({ type: "hover-alt", alt: true });

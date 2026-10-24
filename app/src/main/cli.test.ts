@@ -96,6 +96,31 @@ describe("runLs", () => {
     expect(state.kind === "cliError" && state.reason).toMatch(/ENOENT/);
   });
 
+  // A cancelled scan ends its remaining runs (design '판정' step 3②).
+  test("an aborted run is killed at once and is not a timeout", async () => {
+    const marker = join(dir(), "after");
+    const fake = fakeCli(`sleep 30; touch '${marker}'`);
+    const controller = new AbortController();
+    const started = Date.now();
+    const pending = runLs(fake, { repo: repo() }, 20_000, controller.signal);
+    setTimeout(() => controller.abort(), 100);
+    const run = await pending;
+    expect(Date.now() - started).toBeLessThan(3_000);
+    expect(run.timedOut).toBe(false);
+    expect(folderState(run).kind).toBe("cliError");
+  });
+
+  test("a signal aborted before the run never starts the CLI", async () => {
+    const marker = join(dir(), "ran");
+    const fake = fakeCli(`touch '${marker}'`);
+    const controller = new AbortController();
+    controller.abort();
+    const run = await runLs(fake, { repo: repo() }, 2_000, controller.signal);
+    expect(folderState(run).kind).toBe("cliError");
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(existsSync(marker)).toBe(false);
+  });
+
   test("a hung CLI is killed at the timeout", async () => {
     const fake = fakeCli("sleep 30");
     const started = Date.now();

@@ -28,11 +28,11 @@ test("a frame selection marks its row without a sub-row, and no selection marks 
 
 const sidebar = (entries: FolderEntry[]) => renderToStaticMarkup(<TooltipProvider><Sidebar entries={entries} names={new Map(entries.map(entry => [entry.path, entry.path.split("/").at(-1) ?? ""]))} state={initialCanvasState()} open={() => {}} jump={() => {}} /></TooltipProvider>);
 
-test("a Not initialized row explains setup and offers Set Up… in the recovery area", () => {
+test("a problem root uses the shared status chip; recovery lives above the workspace", () => {
   const html = sidebar([{ path: "/code/new-app", kind: "uninitialized" }]);
-  expect(html).toMatch(/<div class="hint"><p>Set up this project to add design\/ and \.doan\/\.<\/p><div class="recovery"><button[^>]*class="btn"[^>]*>Set Up…<\/button><\/div><\/div>/);
-  expect(html).not.toContain("doan init");
-  expect(html).toContain('aria-label="Close project new-app"');
+  expect(html).toContain("Not set up");
+  expect(html).not.toContain("Open Project…");
+  expect(html).toContain('aria-label="Remove new-app from doan"');
 });
 
 test("a project without canvases offers Copy first prompt with the replace hint", () => {
