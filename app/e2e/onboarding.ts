@@ -34,6 +34,21 @@ const button = (name: string | RegExp) => wizard().getByRole("button", { name, e
 const stepButton = (name: string) => wizard().getByRole("list", { name: "Steps" }).getByRole("button").filter({ hasText: name });
 const card = (agent: "claude" | "codex") => wizard().locator(".ob-card").filter({ has: page.locator(".ob-agent").filter({ hasText: agent === "claude" ? "Claude Code" : "Codex" }) });
 async function shot(name: string) { const path = join(shots, `${name}.png`); await page.screenshot({ path }); console.log(`screenshot: ${path}`); }
+async function assertProjectPath(path: Locator, boundary: Locator, expected: string, label: string) {
+  const measured = await path.evaluate(node => {
+    const rect = node.getBoundingClientRect(), css = getComputedStyle(node);
+    return { right: rect.right, height: rect.height, clientWidth: node.clientWidth, scrollWidth: node.scrollWidth,
+      whiteSpace: css.whiteSpace, overflow: css.overflow, overflowWrap: css.overflowWrap, wordBreak: css.wordBreak, textOverflow: css.textOverflow, title: node.getAttribute("title") };
+  });
+  const edge = await boundary.evaluate(node => node.matches("dialog") ? node.getBoundingClientRect().right - parseFloat(getComputedStyle(node).paddingRight) : node.getBoundingClientRect().left);
+  console.log(`project-path geometry: ${label} ${JSON.stringify({ ...measured, boundaryLeft: edge })}`);
+  assert.ok(measured.right <= edge, `${label}: project path must end before buttons`);
+  assert.ok(measured.scrollWidth > measured.clientWidth, `${label}: long path exercises truncation`);
+  assert.equal(measured.whiteSpace, "nowrap");
+  assert.equal(measured.overflow, "hidden");
+  assert.equal(measured.textOverflow, "ellipsis");
+  assert.equal(measured.title, expected);
+}
 async function menu(name: string) {
   await app.evaluate(({ Menu, BrowserWindow }, label) => {
     const item = Menu.getApplicationMenu()?.items.flatMap(item => item.submenu?.items ?? []).find(item => item.label === label);
@@ -250,8 +265,9 @@ else if (args[1] === 'add') {
   await shot("02-agents-connected");
 
   console.log("onboarding: 4 project init, pending copy and first prompt");
-  const project = await newRepo('project <tag> & "quote"'); const token = join(project, "Tokens.css"); await writeFile(token, ":root { --brand: red; }");
+  const project = await newRepo('company-monorepo/packages/applications/marketing-web-frontend/project <tag> & "quote"'); const token = join(project, "Tokens.css"); await writeFile(token, ":root { --brand: red; }");
   await go("Project"); await pick(project); await button("Open Project…").click(); await button("Set Up Project").waitFor();
+  await assertProjectPath(wizard().locator(".ob-field .meta"), button("Open Project…"), project, "wizard");
   const projectValue = wizard().locator(".ob-field .value").first();
   assert.deepEqual(await projectValue.evaluate(node => ({ display: getComputedStyle(node).display, gap: getComputedStyle(node).gap, pathDisplay: getComputedStyle(node.querySelector(".meta")!).display })), { display: "block", gap: "normal", pathDisplay: "inline" }, "project values retain inline text flow rather than inheriting Inspector flex layout");
   await pick(join(work, "outside.css")); await writeFile(join(work, "outside.css"), ":root{}"); await button("Choose…").click(); await button("Set Up Project").click();
@@ -289,8 +305,9 @@ else if (args[1] === 'add') {
   assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), sentence);
 
   console.log("onboarding: 5 sidebar setup, re-root and modal/draft preservation");
-  const plain = await newRepo("plain"); await open(plain); let plainRow = page.getByRole("treeitem", { name: "plain", exact: true }); await plainRow.getByRole("button", { name: "Set Up…", exact: true }).click();
+  const plain = await newRepo("company-monorepo/packages/applications/marketing-web-frontend/plain"); await open(plain); let plainRow = page.getByRole("treeitem", { name: "plain", exact: true }); await plainRow.getByRole("button", { name: "Set Up…", exact: true }).click();
   const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true }); await setup.waitFor();
+  await assertProjectPath(setup.locator(":scope > p"), setup, plain, "setup dialog");
   assert.equal(await focusIs(setup.getByRole("button", { name: "Choose…", exact: true })), true);
   await reopen(); await button(/^Close/).click(); await closed(); assert.equal(await setup.isVisible(), true); assert.equal(await focusIs(setup.getByRole("button", { name: "Choose…", exact: true })), true);
   await setup.getByRole("button", { name: "Set Up Project", exact: true }).click(); await setup.waitFor({ state: "hidden" }); await plainRow.getByRole("button", { name: "Copy first prompt", exact: true }).waitFor();
