@@ -44,6 +44,6 @@ export function SetUpFolderConfirm({ name, path, confirm, cancel }: { name: stri
   const dialog = useRef<HTMLDialogElement>(null);
   const close = () => { if (!busy) { dialog.current?.close(); cancel(); } };
   return <dialog className="ob-dialog" aria-label={`Set up ${name} as a doan project?`} ref={node => { dialog.current = node; if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); close(); }} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); } }}>
-    <h3>Set up {name} as a doan project?</h3><p><code>{path}</code> isn't a repository.</p>{error && <p role="alert">{error}</p>}<div className="ob-buttons"><button className="btn" autoFocus disabled={busy} onClick={close}>Cancel</button><button className="btn primary" disabled={busy} onClick={() => { setBusy(true); void confirm().catch(failure => { setError(String(failure)); setBusy(false); }); }}>Set Up…</button></div>
+    <h3>Set up {name} as a doan project?</h3><p><code>{path}</code> isn't a repository. doan will add it as a project that is not set up yet, then open the setup form.</p>{error && <p role="alert">{error}</p>}<div className="ob-buttons"><button className="btn" autoFocus disabled={busy} onClick={close}>Cancel</button><button className="btn primary" disabled={busy} onClick={() => { setBusy(true); void confirm().catch(failure => { setError(String(failure)); setBusy(false); }); }}>Set Up…</button></div>
   </dialog>;
 }

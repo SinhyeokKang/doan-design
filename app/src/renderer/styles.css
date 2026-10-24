@@ -359,7 +359,7 @@ code, kbd { font-family: var(--font-sans); }
 .ws-status .btn { padding: 3px 9px; font-size: 11.5px; }
 .ws-detail { padding: 8px 12px 10px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
 
-.home-shell { position: absolute; inset: 0; display: grid; grid-template-rows: 40px minmax(0, 1fr); }
+.home-shell { background: var(--bg); overflow: hidden; position: absolute; inset: 0; display: grid; grid-template-rows: 40px minmax(0, 1fr); }
 .workspace { position: absolute; inset: 0; }
 .home-body { overflow: auto; }
 .wt { width: 100%; text-align: left; }
@@ -375,6 +375,10 @@ code, kbd { font-family: var(--font-sans); }
 .scrim { position: absolute; inset: 0; background: var(--board-bg); opacity: .6; }
 .workspace.with-status { grid-template-rows: 40px auto minmax(0, 1fr); }
 .ws-status { grid-column: 1 / -1; flex-wrap: wrap; }
-.ws-status .wt-actions { padding: 0; margin: 0; }
+.ws-status .wt-actions { padding: 0; margin: 0; gap: 10px; }
 .ws-status .wt-detail { flex-basis: 100%; margin: 0; }
 .mi[data-disabled] { opacity: .4; }
+
+.home-shell .btn.primary .kbd { color: var(--accent-ink); border-color: var(--accent-ink); opacity: .6; }
+
+.project-tooltip { padding: 6px 12px; max-width: 420px; }
