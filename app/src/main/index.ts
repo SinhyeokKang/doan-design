@@ -335,7 +335,7 @@ async function start(): Promise<void> {
     return inspector.inspect(selector);
   });
 
-  machine = createMachine({ command: cliCommand(process.env, app.isPackaged, process.resourcesPath) });
+  machine = createMachine({ command: cliCommand(process.env, app.isPackaged, process.resourcesPath), version: app.getVersion() });
   const setup = machine;
   const validSession = (value: unknown): value is { session: string } => typeof value === "object" && value !== null &&
     "session" in value && typeof value.session === "string" && value.session === wizardSession;

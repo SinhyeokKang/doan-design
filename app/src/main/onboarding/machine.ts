@@ -47,7 +47,7 @@ export async function probeShell(env: NodeJS.ProcessEnv, fallback?: () => string
   const nonce = randomUUID().replaceAll("-", "");
   const script = `printf '\\nDOAN_PROBE_${nonce}_BEGIN\\n%s\\n%s\\n%s\\nDOAN_PROBE_${nonce}_END\\n' "$PATH" "$CLAUDE_CONFIG_DIR" "$CODEX_HOME"`;
   const result = await runProcess(shell, [ ["zsh", "bash"].includes(basename(shell)) ? "-lic" : "-lc", script ], env, SHELL_TIMEOUT_MS, nonce);
-  if (result.timedOut || result.spawnError || result.exitCode !== 0) return { ok: false, reason: result.spawnError ?? (result.timedOut ? "Login shell timed out." : "Login shell failed.") };
+  if (result.timedOut || result.spawnError || result.exitCode !== 0) return { ok: false, reason: result.spawnError ?? (result.timedOut ? `Your login shell (${shell}) didn’t answer in time.` : "Login shell failed.") };
   return parseShellProbe(result.stdout, nonce);
 }
 function errorCode(error: unknown): string { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : "UNKNOWN"; }
@@ -105,6 +105,7 @@ export interface MachineDisplay {
   configFile: Record<Agent, string>; configFromEnv: Record<Agent, boolean>;
   // The item in the way (the target or a non-directory ancestor) of a blocked state.
   blocked: { cli: string | null; stub: string | null; claudeLink: string | null };
+  appVersion: string;
 }
 export interface MachineState {
   requestId: string; expected: Expected; cli: LinkObservation; stub: StubObservation;
@@ -118,7 +119,7 @@ export type StepResult = { kind: "success"; warning?: string } | { kind: "busy" 
 function object(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function equal(a: unknown, b: unknown): boolean { return JSON.stringify(a) === JSON.stringify(b); }
 
-export function createMachine(options: { command: string; env?: NodeJS.ProcessEnv }) {
+export function createMachine(options: { command: string; version: string; env?: NodeJS.ProcessEnv }) {
   const env = { ...(options.env ?? process.env) };
   const home = canonical(env.HOME ?? homedir()) ?? resolve(env.HOME ?? homedir());
   env.HOME = home;
@@ -137,15 +138,22 @@ export function createMachine(options: { command: string; env?: NodeJS.ProcessEn
     return { probe, runEnv, claudeDir, codexDir, configValid, claudeLink: join(claudeDir, "skills/doan") };
   }
   type Context = Awaited<ReturnType<typeof context>>;
+  const configInvalid = (agent: Agent, ctx: Context) => `${agent === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"} must be an absolute path: ${agent === "claude" ? ctx.claudeDir : ctx.codexDir}`;
   const claudeConfigFile = (ctx: Context) => ctx.runEnv.CLAUDE_CONFIG_DIR ? join(ctx.claudeDir, ".claude.json") : join(home, ".claude.json");
   async function readMcp(agent: Agent, ctx: Context, exe: string | null): Promise<McpObservation> {
-    if (!ctx.probe.ok || !ctx.configValid[agent] || !exe) return { state: "unknown", value: "" };
+    if (!ctx.configValid[agent]) return { state: "unknown", value: configInvalid(agent, ctx) };
+    if (!ctx.probe.ok || !exe) return { state: "unknown", value: "" };
     let result: CliRun;
     if (agent === "claude") {
       const file = claudeConfigFile(ctx);
       try { result = { stdout: readFileSync(file, "utf8"), stderr: "", exitCode: 0, timedOut: false }; }
       catch (error) { result = errorCode(error) === "ENOENT" ? { stdout: "{}", stderr: "", exitCode: 0, timedOut: false } : { stdout: "", stderr: message(error), exitCode: 1, timedOut: false }; }
-    } else result = await runProcess(exe, ["mcp", "get", "doan", "--json"], ctx.runEnv, AGENT_TIMEOUT_MS);
+    } else {
+      result = await runProcess(exe, ["mcp", "get", "doan", "--json"], ctx.runEnv, AGENT_TIMEOUT_MS);
+      // The renderer adds the Check Again hint; these only name what failed.
+      if (result.spawnError) return { state: "unknown", value: `Couldn't run Codex at ${exe}. ${result.spawnError}` };
+      if (result.timedOut) return { state: "unknown", value: `Codex at ${exe} didn’t answer in ${AGENT_TIMEOUT_MS / 1000} s.` };
+    }
     const state = mcpState(agent, { ...result, scope: "user" }, cliPath);
     // Only the doan registration is shown on failure; never expose other servers.
     let value = "";
@@ -172,6 +180,7 @@ export function createMachine(options: { command: string; env?: NodeJS.ProcessEn
         stub: expected.stub.state === "blocked" ? blockedPath(stubPath) : null,
         claudeLink: expected.claudeLink.state === "blocked" ? blockedPath(ctx.claudeLink) : null,
       },
+      appVersion: options.version,
     };
     return { requestId, expected, ...expected, available, reason, pathPresent: ctx.probe.ok && pathIncludes(ctx.probe.path, dirname(cliPath)), rcFile: rcFileFor(shellName(env)), probe: ctx.probe, display };
   }
@@ -215,9 +224,9 @@ export function createMachine(options: { command: string; env?: NodeJS.ProcessEn
     }
     const agent = request.agent;
     if (!agent) return { kind: "unavailable", message: "Choose an agent first." };
-    if (current.cli.state !== "ours") return { kind: "unavailable", message: "Install the CLI link first." };
+    const cliWasOurs = current.cli.state === "ours";
     if (!ctx.probe.ok) return { kind: "unavailable", message: ctx.probe.reason };
-    if (!ctx.configValid[agent]) return { kind: "unavailable", message: `${agent === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"} must be an absolute path: ${current.agents[agent].config}` };
+    if (!ctx.configValid[agent]) return { kind: "unavailable", message: configInvalid(agent, ctx) };
     if (!current.agents[agent].executable) return { kind: "unavailable", message: `Couldn't find ${agent}. Install it, then Check Again.` };
     if (current.stub.state === "blocked") return { kind: "unavailable", message: blockedMessage(stubPath) };
     if (current.stub.state !== "ours") {
@@ -235,7 +244,10 @@ export function createMachine(options: { command: string; env?: NodeJS.ProcessEn
       writeLink(ctx.claudeLink, relative(dirname(ctx.claudeLink), dirname(stubPath)), dirname(stubPath), current.claudeLink);
       current = await snapshot(ctx);
     }
-    if (current.cli.state !== "ours" || current.stub.state !== "ours" || (agent === "claude" && current.claudeLink.state !== "ours")) return { kind: "stale" };
+    if (current.stub.state !== "ours" || (agent === "claude" && current.claudeLink.state !== "ours")) return { kind: "stale" };
+    // The stub and Claude link do not need step 1; MCP registers the step 1 link,
+    // so it waits for it. A link that was ours and changed during the writes is stale.
+    if (current.cli.state !== "ours") return cliWasOurs ? { kind: "stale" } : { kind: "unavailable", message: "Install the CLI link in step 1 before connecting MCP." };
     const registration = current.agents[agent].mcp, exe = current.agents[agent].executable;
     if (registration.state === "ours") return { kind: "success" };
     if (registration.state === "unknown" || !exe) return { kind: "unavailable", message: "Couldn't check the MCP registration. Check Again." };
