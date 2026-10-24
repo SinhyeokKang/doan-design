@@ -24,7 +24,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   useEffect(() => { if (session.identity) void session.read(); }, [session, state.layout?.document, open?.row.width]);
   useEffect(() => window.doan.onCommentsInvalidated(change => { if (change.root === session.identity?.root) void session.read(); }), [session]);
   useEffect(() => window.doan.onCommentTransition(request => {
-    const root = session.identity?.root;
+    const root = session.draft.draft?.origin.root ?? session.identity?.root;
     const relevant = request.kind === "quit" || request.roots.includes(root ?? "");
     void Promise.resolve(relevant ? session.guard() : true).then(allow => window.doan.answerCommentTransition({ id: request.id, allow })).catch(console.error);
   }), [session]);
