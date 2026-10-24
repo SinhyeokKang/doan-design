@@ -162,7 +162,7 @@ Skills teach the items below, and `doan check` checks the ones that can be measu
 - The CLI subcommand `doan mcp` runs as a stdio MCP server. The agent launches this command directly.
 - It uses the same code as the CLI. Tools that only read files work without the app, and only `active` connects to the app over the socket.
 - Rationale: Pencil (pen.dev) MCP connects to the running app over a socket, so the app must be open for it to work (docs.pencil.dev/getting-started/ai-integration). Doan avoids this constraint.
-- **Tools** (2026-10-21, mcp). Names carry no `doan_` prefix because agents prefix the server name (`mcp__doan__ls`; Codex turns `-` in a server name into `_`). There are no resources, prompts, create/edit/delete/reopen tools, elicitation, sampling or server notifications. `active` was added by #6 `select-inspect` (2026-10-23 promotion).
+- **Tools** (2026-10-21, mcp). Names carry no `doan_` prefix because agents prefix the server name (`mcp__doan__ls`; Codex turns `-` in a server name into `_`). There are no resources, prompts, create/edit/delete/reopen tools, elicitation, sampling or server notifications. `active` was added by #6 `select-inspect` (2026-10-23 promotion). Read-only tools `ls`, `comments`, `check`, `active`, and `skill` declare `readOnlyHint: true` through MCP tool annotations; `init` and `resolve_comments` remain unannotated because they write (2026-10-24). Codex required approval for unannotated tools, so under `approval: never` every doan MCP call failed; the read-only annotation probe completed without approval (USABILITY-EVAL.md U-002, 2026-10-24).
 
 | Tool | Command | Arguments |
 |---|---|---|
