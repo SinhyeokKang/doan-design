@@ -23,14 +23,14 @@ func Config(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	}
 	ops := configOps{TokenCSSSet: f.TokenCSSSet, ClearTokenCSS: f.ClearTokenCSS}
 	if f.TokenCSSSet {
-		ops.TokenCSS, failure = configPath(r.Root, ctx.Start, f.TokenCSS, true)
+		ops.TokenCSS, failure = configPath(r.Root, f.TokenCSS, true)
 		if failure != nil {
 			return Outcome{}, failure
 		}
 	}
 
 	for _, path := range f.AddServe {
-		p, failure := configPath(r.Root, ctx.Start, path, false)
+		p, failure := configPath(r.Root, path, false)
 		if failure != nil {
 			return Outcome{}, failure
 		}
@@ -58,7 +58,7 @@ func Config(ctx Context, f Flags, args []string) (Outcome, *Error) {
 			inputRoot = parent
 		}
 		for _, path := range f.RemoveServe {
-			paths, failure := configRemovalPaths(r.Root, inputRoot, ctx.Start, path, r.Config.Serve)
+			paths, failure := configRemovalPaths(r.Root, inputRoot, path, r.Config.Serve)
 			if failure != nil {
 				return Outcome{}, failure
 			}
@@ -98,12 +98,12 @@ func Config(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	return Outcome{Result: result}, nil
 }
 
-func configPath(root, start, path string, token bool) (string, *Error) {
+func configPath(root, path string, token bool) (string, *Error) {
 	if path == "" {
 		return "", usageError("Config paths must not be empty")
 	}
 	if !filepath.IsAbs(path) {
-		path = filepath.Join(start, path)
+		path = filepath.Join(root, path)
 	}
 	state, relative, err := repo.InsideRelative(root, path)
 	if err != nil {
@@ -157,12 +157,12 @@ func writeConfig(path string, data []byte) error {
 }
 
 // Removal compares stored identities even after a build deletes their targets.
-func configRemovalPaths(root, inputRoot, start, path string, stored []string) ([]string, *Error) {
+func configRemovalPaths(root, inputRoot, path string, stored []string) ([]string, *Error) {
 	if path == "" {
 		return nil, usageError("Config paths must not be empty")
 	}
 	if !filepath.IsAbs(path) {
-		path = filepath.Join(start, path)
+		path = filepath.Join(root, path)
 	}
 	relative := ""
 	for _, base := range []string{root, inputRoot} {

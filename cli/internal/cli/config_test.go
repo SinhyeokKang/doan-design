@@ -57,17 +57,17 @@ func TestConfigPathsAndDiscovery(t *testing.T) {
 	root := initialized(t)
 	putFile(t, root, "nested/Tokens.css", "")
 	t.Chdir(filepath.Join(root, "nested"))
-	got := cliEnvelope(t, "config", "--token-css", "Tokens.css")
+	got := cliEnvelope(t, "config", "--token-css", "nested/Tokens.css")
 	if got["ok"] != true || got["result"].(map[string]any)["tokenCss"] != "nested/Tokens.css" {
 		t.Fatal(got)
 	}
 	failure(t, filepath.Join(root, "nested"), "repo_not_found", "config")
-	got = result(t, root, 0, "config", "--token-css", "Tokens.css")
+	got = result(t, root, 0, "config", "--token-css", "nested/Tokens.css")
 	if got["changed"] != false {
 		t.Fatal(got)
 	}
 	if _, err := os.Stat("tokens.css"); err == nil {
-		got = result(t, root, 0, "config", "--token-css", "tokens.css")
+		got = result(t, root, 0, "config", "--token-css", "nested/tokens.css")
 		if got["tokenCss"] != "nested/Tokens.css" || got["changed"] != false {
 			t.Fatal(got)
 		}
@@ -185,6 +185,20 @@ func TestMCPConfigRemoveMissingServe(t *testing.T) {
 	putFile(t, root, ".doan/config.json", `{"v":1,"serve":["./missing"]}`)
 	got := callTool(t, mcpClient(t), "config", map[string]any{"repo": root, "removeServe": []string{"missing"}})
 	if got["ok"] != true || got["result"].(map[string]any)["changed"] != true {
+		t.Fatal(got)
+	}
+}
+
+func TestConfigRelativePathsUseRepoOutsideCwd(t *testing.T) {
+	root := initialized(t)
+	putFile(t, root, "styles/tokens.css", "")
+	t.Chdir(t.TempDir())
+	got := result(t, root, 0, "config", "--token-css", "styles/tokens.css", "--add-serve", "styles")
+	if got["tokenCss"] != "styles/tokens.css" || got["serve"].([]any)[0] != "styles" {
+		t.Fatal(got)
+	}
+	got = result(t, root, 0, "config", "--remove-serve", "styles")
+	if len(got["serve"].([]any)) != 0 {
 		t.Fatal(got)
 	}
 }

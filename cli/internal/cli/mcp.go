@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -164,26 +163,7 @@ func argv(tool string, raw json.RawMessage) ([]string, *Error) {
 				}
 			}
 		}
-		// MCP paths are repo-relative; the shell command resolves them from cwd.
-		for i, arg := range out {
-			name, value, hasValue := strings.Cut(arg, "=")
-			if !hasValue || (name != "--token-css" && name != "--add-serve" && name != "--remove-serve") || value == "" || filepath.IsAbs(value) {
-				continue
-			}
-			root := repo
-			if root == "" {
-				start, err := os.Getwd()
-				if err != nil {
-					return nil, internal(err)
-				}
-				r, failure := repository(Context{Start: start}, Flags{})
-				if failure != nil {
-					return nil, failure
-				}
-				root = r.Root
-			}
-			out[i] = name + "=" + filepath.Join(root, value)
-		}
+
 	}
 	out = append(out, "--json")
 	if tool == "resolve_comments" {
