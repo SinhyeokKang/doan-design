@@ -20,7 +20,7 @@ interface SidebarProps {
 
 export function Sidebar(props: SidebarProps) {
   return <aside className="side native-scroll">
-    <div className="sec">Projects <button className="section-action" onClick={() => void window.doan.openFolder()}>Open Project…</button></div>
+    <div className="sec">Projects</div>
     <ProjectTree {...props} />
     <FrameList state={props.state} jump={props.jump} />
   </aside>;

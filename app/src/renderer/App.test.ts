@@ -38,7 +38,7 @@ it("unsubscribes both preload bridges across StrictMode effect setup, cleanup an
     folders.forEach(listener => listener([]));
     commands.forEach(listener => listener("fit"));
     expect(harness.updateEntries).toHaveBeenCalledTimes(1);
-    expect(harness.command).toHaveBeenCalledTimes(1);
+    expect(harness.command).not.toHaveBeenCalled();
     finalCleanup?.();
     expect(folderOff).toHaveBeenCalledTimes(2);
     expect(commandOff).toHaveBeenCalledTimes(2);
