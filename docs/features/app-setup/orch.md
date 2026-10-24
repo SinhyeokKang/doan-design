@@ -53,3 +53,12 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 
 ## 진행 기록
 
+- 2026-10-25: Run `run_b57025894603`. 1파 시작 — DX(`ctx_0467bcf57158`, Codex Astra high), DC(`ctx_e96089737d31`, Opus high), A1(`ctx_92cdade62997`, Codex Astra medium), A2(`ctx_8b0adeb5bac4`, Sonnet high), G1(`ctx_463ab6ba25e5`, Codex Astra medium). `launch.effective`가 요청과 같다.
+- 2026-10-25: A1 질문 — ① `machine.ts` observeLink가 해석 오류 코드를 넘기도록 소유 범위에 더했다(대상 ENOENT만 `dangling`). ② 배너는 Needs attention만, Couldn't check만으로는 배너·카드 모두 없다. 배너가 있어도 Finish 카드를 통째로 숨기지 않는다 — 같은 항목이 둘에 나오지 않을 뿐이다(spec '홈 표시').
+- 2026-10-25: A1 에스컬레이션 — `dangling` 추가가 `onboardingView.ts`의 전수 매핑에 걸린다. A1이 그 매핑만 별도 작은 커밋으로 고치고, A2에는 그 매핑을 건드리지 말라고 알렸다. `machine.ts`의 dangling 확인 보호도 A1의 최소 I/O 수정에 넣었다.
+- 2026-10-25: DC 질문 — 마법사 1·2단계가 Settings Connections 줄(같은 5상태·동작, Details에 기존 항목 줄)을 그대로 쓸지 → 쓴다(지휘자 판단, spec '결과 중심, 경로는 Details'). 4단계 구성과 마법사 이동은 그대로다.
+- 2026-10-25: A2 완료(`4ce1993`) — test 1716·typecheck 통과 보고. 새 모듈 위치 `app/src/firstPrompt/`(main·renderer 공유)를 받아들였다. 별도 `/code-review`는 돌리지 않았다. 교차 리뷰 R-A2(`ctx_d871d39dc0ff`, Codex Astra medium). A2 워커 해제.
+- 2026-10-25: A1 질문 — e2e `onboarding.ts`의 끊어진 링크 기대값(Replace… → Fix…) 두 줄만 고치고 전체 e2e를 돌리도록 허락했다.
+- 2026-10-25: G1 완료(`48eed1b`, `38d5cc6`, `38572e3`) — `go test`·`go vet` 통과 보고. MCP 상대 경로는 저장소 기준(design.md), CLI는 cwd 기준. 가이드의 'serve는 필요하면 더한다' 문장을 '사람에게 묻는다'로 좁혔다. 교차 리뷰 R-G1(`ctx_75cfbe12ac19`, Opus high). G1 워커는 수정 차례에 대비해 유지(retain).
+- 2026-10-25: R-A2 결과 🔴 0 · 🟡 1(끝 마침표 여러 개를 하나로 줄이지 않음 — 재현) · ⚪ 0. test 1716·typecheck 재확인. 지휘자 결정: 말줄임표도 마침표 하나로 줄인다(design.md). A2-fix(Sonnet medium, `as-a2`)로 보냈다. R-A2 워커 해제.
+- 2026-10-25: A2-fix 완료(`9764a95`). 지휘자가 diff를 확인했다. A2 통합.
