@@ -457,7 +457,7 @@ func TestActiveUnavailableOffersFallbackWithoutMCP(t *testing.T) {
 	root := initialized(t)
 	ctx := activeContext(t, root, func(string, time.Time) (net.Conn, error) { return nil, syscall.EACCES })
 	failure := activeCode(t, ctx, root, "app_not_running")
-	want := "If no MCP active tool is available, ask the user to name the target or connect this agent in Doan (Set Up doan…)"
+	want := "If no MCP active tool is available, ask the user to name the target or connect this agent in Doan (Settings…)"
 	if !strings.Contains(strings.Join(failure.NextSteps, "\n"), want) {
 		t.Fatalf("missing no-MCP fallback: %v", failure.NextSteps)
 	}

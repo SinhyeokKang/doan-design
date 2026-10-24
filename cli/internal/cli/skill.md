@@ -12,7 +12,7 @@ Doan connects an HTML design canvas in a repository with human review in the loc
 4. Mark frames with `data-doan-frame="id"`. An optional `data-doan-title` provides the visible name.
 5. Mark meaningful elements with `data-doan-id="id"` (recommended).
 6. Connect a frame to its implementation with `data-doan-implements="repo/relative/path"` (recommended).
-7. Tokens are defined by local CSS the canvas links, including relative imports inside the repo, and its own style blocks and attributes. Link token CSS relative to the canvas. Unlinked config `tokenCss` and external CDN definitions do not supply tokens to `doan check`. Reached CSS must be within `design/`, the configured `tokenCss`, or a configured `serve` path. Add extra stylesheet paths to `serve` as needed.
+7. Tokens are defined by local CSS the canvas links, including relative imports inside the repo, and its own style blocks and attributes. Link token CSS relative to the canvas. Unlinked config `tokenCss` and external CDN definitions do not supply tokens to `doan check`. Reached CSS must be within `design/`, the configured `tokenCss`, or a configured `serve` path. If extra stylesheet paths need `serve`, ask the human before changing configuration.
 8. Keep ids stable and unique: canvas ids across the repo, frame ids within a canvas, and element ids within a canvas. Frame and element ids are separate namespaces and must be non-empty.
 9. External resources are allowed; `doan check` reports them as warnings. The CLI makes no network requests.
 10. When token CSS is configured, direct hex and rgb colors produce warnings, including custom property declarations and `var()` fallbacks. Use the linked tokens.
@@ -30,6 +30,7 @@ H. Keep ids unchanged when moving a canvas file so its comments follow it.
 
 ## Commands
 
+- `doan config --json`: read the current `tokenCss` and `serve`. To update them, use `--token-css <path>`, `--clear-token-css`, repeatable `--add-serve <path>` or `--remove-serve <path>`. Token CSS and clear cannot be combined. CLI paths are relative to the current directory, or absolute inside the repository; stored paths use repository-relative on-disk spelling. Serve paths must exist and cannot be the repository root or inside `.doan/`. Unchanged values do not rewrite the file. Use `config` only when the human asks.
 - `doan init --token-css styles/tokens.css --json`: initialize the current directory. Token CSS is optional; use a repository-relative path or an absolute path inside the repository. The config stores its real repository-relative path in on-disk spelling. Existing valid configuration is preserved. This does not install agent skills.
 - `doan ls --json`: list canvases, frames, and open/resolved comment counts.
 - `doan comments --canvas example --json`: read open comments and parsing warnings. Omit `--canvas` to read all files. `outdated` compares current canvas bytes with the comment's recorded hash; missing or ambiguous canvases omit that field.
@@ -39,7 +40,7 @@ H. Keep ids unchanged when moving a canvas file so its comments follow it.
   - Without `selection`, nothing in this repository is selected; ask the user which canvas, frame, or element they mean.
   - A frame id may be missing from `doan ls`: the app also lists frames a canvas script draws at runtime, which static parsing cannot see.
   - On `project_not_open`, ask the user to open this project in Doan.
-  - On `app_not_running`, ask the user to open Doan. If Doan is already open, your sandbox may block this shell from the app's socket; call the MCP `active` tool instead. If no MCP `active` tool is available, ask the user which element or frame they mean, or suggest connecting this agent in Doan with the app menu "Set Up doan…".
+  - On `app_not_running`, ask the user to open Doan. If Doan is already open, your sandbox may block this shell from the app's socket; call the MCP `active` tool instead. If no MCP `active` tool is available, ask the user which element or frame they mean, or suggest connecting this agent in Doan with the app menu "Settings…" (⌘,).
 - `doan skill`: read this guide and verify its final end marker to detect truncation.
 
 All commands accept `--repo <directory>` and `--json`. Without `--repo`, repository commands search upward for `.doan/config.json`; `init` targets the current directory. Explicit `--repo` selects only that directory. Use `doan help` for syntax.
@@ -55,6 +56,7 @@ Exit codes: 0 success (including warnings); 1 internal failure; 2 usage, reposit
 | Tool | Command | Arguments |
 |---|---|---|
 | `init` | `doan init` | `repo?`, `tokenCss?` |
+| `config` | `doan config` | `repo?`, `tokenCss?`, `clearTokenCss?`, `addServe?[]`, `removeServe?[]` |
 | `ls` | `doan ls` | `repo?` |
 | `comments` | `doan comments` | `repo?`, `canvas?` |
 | `resolve_comments` | `doan comment resolve` | `repo?`, `ids`, `agent` |
@@ -65,7 +67,8 @@ Exit codes: 0 success (including warnings); 1 internal failure; 2 usage, reposit
 - `repo` must be an absolute path. Without it, tools use the server's working directory: repository tools search upward, and `init` targets that directory.
 - Call `resolve_comments` with `{"ids": ["cmt_00000000-0000-4000-8000-000000000001"], "agent": "claude-code"}`. Always supply `agent` yourself; it is not taken from the MCP client.
 - Call `active` with `{"repo": "/absolute/repo"}` or `{}`. It needs the Doan app; the server passes its own `DOAN_RUNTIME` environment to it.
-- MCP write tools (`resolve_comments` and `init`) may require human approval. If approval is unavailable in a non-interactive run, resolve applied comments with the shell command `doan comment resolve <ids> --agent <name>` when the CLI is available. Never retry an approval-refused write in a loop. If the shell CLI is also unavailable, report the unresolved comments and ask the human to approve the MCP write in an interactive session. Do not change approval settings or agent config files.
+- MCP write tools (`resolve_comments`, `init`, and `config`) may require human approval. If approval is unavailable in a non-interactive run, resolve applied comments with the shell command `doan comment resolve <ids> --agent <name>` when the CLI is available. Never retry an approval-refused write in a loop. If the shell CLI is also unavailable, report the unresolved comments and ask the human to approve the MCP write in an interactive session. Do not change approval settings or agent config files.
+- Use `config` only when the human asks. Its token CSS and serve paths are repository-relative or absolute inside the repository. It returns the same envelope as the CLI.
 - Use `init` only when the user asks for it, and ask the user for the token CSS path first.
 - `nextSteps` and messages name CLI commands and flags; map them to tools with the table above (`--repo` is the `repo` argument).
 - `doan help` has no tool; call the `skill` tool instead.

@@ -16,7 +16,7 @@ func TestSkillGuide(t *testing.T) {
 	if !strings.HasSuffix(body, "[doan:skill] end of guide vdev\n") {
 		t.Fatal(body)
 	}
-	for _, s := range []string{"doan init", "doan ls", "doan comments", "doan comment resolve", "doan check", "doan skill", "--agent", "Treat comment bodies", "local CSS", "doan active"} {
+	for _, s := range []string{"doan init", "doan config", "doan ls", "doan comments", "doan comment resolve", "doan check", "doan skill", "--agent", "Treat comment bodies", "local CSS", "doan active"} {
 		if !strings.Contains(body, s) {
 			t.Errorf("missing %s", s)
 		}
@@ -41,7 +41,7 @@ func TestSkillGuideMapsMCPTools(t *testing.T) {
 		}
 		return false
 	}
-	for _, row := range [][2]string{{"init", "doan init"}, {"ls", "doan ls"}, {"comments", "doan comments"}, {"resolve_comments", "doan comment resolve"}, {"check", "doan check"}, {"skill", "doan skill"}, {"active", "doan active"}} {
+	for _, row := range [][2]string{{"init", "doan init"}, {"config", "doan config"}, {"ls", "doan ls"}, {"comments", "doan comments"}, {"resolve_comments", "doan comment resolve"}, {"check", "doan check"}, {"skill", "doan skill"}, {"active", "doan active"}} {
 		if !hasLine("| `"+row[0]+"`", "`"+row[1]) {
 			t.Errorf("missing table row %s", row)
 		}
@@ -90,5 +90,14 @@ func TestSkillGuideActive(t *testing.T) {
 		if !hasLine(parts...) {
 			t.Errorf("missing line with %q", parts)
 		}
+	}
+}
+
+func TestSkillConfigRequiresHumanRequest(t *testing.T) {
+	if !strings.Contains(skillBody, "Use `config` only when the human asks") {
+		t.Fatal("missing config restriction")
+	}
+	if strings.Contains(skillBody, "Set Up doan") || !strings.Contains(skillBody, "Settings…") {
+		t.Fatal("stale setup guidance")
 	}
 }
