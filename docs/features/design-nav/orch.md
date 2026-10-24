@@ -111,3 +111,4 @@ tasks.md의 앞선 단계와 task 0~14는 모두 위 배치 중 하나에 속한
 - 2026-10-25: 통합 HEAD `a7c4417`에서 지휘자 최종 전체 e2e — `runtime-test: PASS`, exit 0, real-state 불변(65행 모두 unchanged). 로그 `.scratch/orch/design-nav/e2e-final-2.log`. task 13의 `/runtime-test` 게이트 통과.
 - 2026-10-25: G 완료·통합(`c7e6a72`, `d50465b`, `3a1a0b0` 체리픽). 결정 로그 20행. 리뷰 R-G(Claude Sonnet high) 시작. G 워커는 수정에 대비해 유지.
 - 2026-10-25: R-G 결과 🔴 0 · 🟡 2(캡처 창 문장이 이 브랜치에 없는 Settings 허용 목록·창 수를 말함, PRODUCT §7 새 행 앞 빈 줄로 표가 끊김) · ⚪ 6. 모두 G-fix(같은 Codex 터미널)로 보냈다. R-G 워커 해제.
+- 2026-10-25: G-fix 완료·통합(`5acca35`, `58f4332`). 지휘자가 캡처 창 문장과 §7 표 연결을 확인했다. task 14 확인: 결정 행 grep 32건, `ui-state.json` grep 3건. 기능 문서 디렉터리를 지운다(사본은 `.scratch/orch/design-nav/feature-docs/`).
