@@ -19,7 +19,7 @@ var mcpTools = []struct {
 }{
 	{"init", "Initialize Doan in a directory (doan init). Use only when the user asks for it, and ask the user for the token CSS path first.",
 		`{"type":"object","properties":{"repo":{"type":"string","description":"Absolute directory to initialize. Defaults to the server's working directory."},"tokenCss":{"type":"string","description":"Token CSS path relative to the repository, or an absolute path inside it."}},"additionalProperties":false}`, nil},
-	{"config", "Read or update project configuration (doan config). Use only when the human asks.",
+	{"config", "Read or update project configuration (doan config). Change configuration only when the user asks.",
 		`{"type":"object","properties":{` + repoProperty + `,"tokenCss":{"type":"string","description":"Token CSS path relative to the repository, or an absolute path inside it."},"clearTokenCss":{"type":"boolean"},"addServe":{"type":"array","items":{"type":"string"},"description":"Existing files or directories relative to the repository, or absolute paths inside it."},"removeServe":{"type":"array","items":{"type":"string"},"description":"Serve paths to remove, relative to the repository or absolute paths inside it."}},"additionalProperties":false}`, nil},
 	{"ls", "List canvases, frames, and open/resolved comment counts (doan ls).",
 		`{"type":"object","properties":{` + repoProperty + `},"additionalProperties":false}`, &mcp.ToolAnnotations{ReadOnlyHint: true}},

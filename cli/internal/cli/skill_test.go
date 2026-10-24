@@ -94,7 +94,7 @@ func TestSkillGuideActive(t *testing.T) {
 }
 
 func TestSkillConfigRequiresHumanRequest(t *testing.T) {
-	if !strings.Contains(skillBody, "Use `config` only when the human asks") {
+	if !strings.Contains(skillBody, "Change configuration with `config` only when the user asks") {
 		t.Fatal("missing config restriction")
 	}
 	if strings.Contains(skillBody, "Set Up doan") || !strings.Contains(skillBody, "Settings…") {

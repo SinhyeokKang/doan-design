@@ -30,7 +30,7 @@ H. Keep ids unchanged when moving a canvas file so its comments follow it.
 
 ## Commands
 
-- `doan config --json`: read the current `tokenCss` and `serve`. To update them, use `--token-css <path>`, `--clear-token-css`, repeatable `--add-serve <path>` or `--remove-serve <path>`. Token CSS and clear cannot be combined. Paths are relative to the repository root, or absolute inside the repository; stored paths use repository-relative on-disk spelling. Added serve paths must exist and cannot be the repository root or inside `.doan/`; removal also accepts stored paths whose targets no longer exist. Unchanged values do not rewrite the file. Use `config` only when the human asks.
+- `doan config --json`: read the current `tokenCss` and `serve`. To update them, use `--token-css <path>`, `--clear-token-css`, repeatable `--add-serve <path>` or `--remove-serve <path>`. Token CSS and clear cannot be combined. Paths are relative to the repository root, or absolute inside the repository; stored paths use repository-relative on-disk spelling. Added serve paths must exist and cannot be the repository root or inside `.doan/`; removal also accepts stored paths whose targets no longer exist. Unchanged values do not rewrite the file. Change configuration with `config` only when the user asks.
 - `doan init --token-css styles/tokens.css --json`: initialize the current directory. Token CSS is optional; use a repository-relative path or an absolute path inside the repository. The config stores its real repository-relative path in on-disk spelling. Existing valid configuration is preserved. This does not install agent skills.
 - `doan ls --json`: list canvases, frames, and open/resolved comment counts.
 - `doan comments --canvas example --json`: read open comments and parsing warnings. Omit `--canvas` to read all files. `outdated` compares current canvas bytes with the comment's recorded hash; missing or ambiguous canvases omit that field.
@@ -68,7 +68,7 @@ Exit codes: 0 success (including warnings); 1 internal failure; 2 usage, reposit
 - Call `resolve_comments` with `{"ids": ["cmt_00000000-0000-4000-8000-000000000001"], "agent": "claude-code"}`. Always supply `agent` yourself; it is not taken from the MCP client.
 - Call `active` with `{"repo": "/absolute/repo"}` or `{}`. It needs the Doan app; the server passes its own `DOAN_RUNTIME` environment to it.
 - MCP write tools (`resolve_comments`, `init`, and `config`) may require human approval. If approval is unavailable in a non-interactive run, resolve applied comments with the shell command `doan comment resolve <ids> --agent <name>` when the CLI is available. Never retry an approval-refused write in a loop. If the shell CLI is also unavailable, report the unresolved comments and ask the human to approve the MCP write in an interactive session. Do not change approval settings or agent config files.
-- Use `config` only when the human asks. Its token CSS and serve paths are repository-relative or absolute inside the repository. It returns the same envelope as the CLI.
+- Change configuration with `config` only when the user asks. Its token CSS and serve paths are repository-relative or absolute inside the repository. It returns the same envelope as the CLI.
 - Use `init` only when the user asks for it, and ask the user for the token CSS path first.
 - `nextSteps` and messages name CLI commands and flags; map them to tools with the table above (`--repo` is the `repo` argument).
 - `doan help` has no tool; call the `skill` tool instead.
