@@ -25,6 +25,7 @@
 | 2026-10-25 | Claude 스킬 링크가 doan의 공유 스텁 위치를 가리키는데 스텁만 없으면 "Link is broken"이 아니라 Not connected다 | 지휘자 판단(R-A1 ⚪3) — Connect가 확인 없이 고치는 경우이므로 '일부 missing'과 같다 |
 | 2026-10-25 | Settings 창은 `setup:*` 채널만 쓰고 `onboarding:*`은 메인 창 전용으로 둔다. Projects 탭은 전체 `folders:get` 대신 읽기 전용 투영 채널(저장 루트·상태·`git.common`)을 쓴다. 표에 없던 기능(PATH 줄 복사, 마지막 탭 저장, Show in Finder·문제 줄 동작 전달, 메인 창에서 Settings를 탭·줄로 열기)은 이름 붙은 채널로 하나씩 더한다(접두사 허용 금지) | 지휘자 판단(R-A1 결정 2·3) — design.md의 '읽기 전용 프로젝트 채널'과 최소 권한. 배치 C가 구현하고 승격 때 허용 목록 표를 갱신한다 |
 | 2026-10-25 | Settings 포커스일 때 Undo Remove도 비활성이다 | 지휘자 판단(R-A1 ⚪1) — 메인 창 뒤에서 제거를 되돌리지 않게 한다. 승격 때 메뉴 활성 표에 더한다 |
+| 2026-10-25 | U-004(H5-codex: 서빙 범위 밖 CSS를 말없이 복사)는 이 기능 안에서 가이드로 고친다. 고친 뒤 H5(3회)와 W1·W2·R5를 다시 잰다 | 지휘자 판단 — task 6 통과 조건(새 시나리오 통과)이고, 원인 층이 G1이 바꾼 가이드 문장이다 |
 
 ## 배치
 
@@ -96,3 +97,5 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: A1 통합(`83eac2d`~`4a92054`). `onboardingView.test.ts`에서 A2와 겹친 충돌을 지휘자가 양쪽을 모두 살려 풀었다. postmortem 항목(`2652dfe`). 통합 HEAD typecheck·test 1817 통과(지휘자 실행). A1 워커 해제, `as-a1` 제거.
 - 2026-10-25: C 시작(`ctx_cd0dad230df5`, Opus high, `as-c`). R-A1 결정 2·3·⚪4, R-G1 ⚪2(루트별 쓰기 직렬화), 빌드 설정 diff 사전 확인을 브리프에 넣었다.
 - 2026-10-25: DC-rev 완료(`467137a`). 초안 확정, 통합(`a6dbb50`, `f57568a`). DC-rev 워커 해제, `as-dc` 제거.
+- 2026-10-25: C 질문 3건 → 모두 추천안. ① C가 e2e `onboarding.ts`의 `reopen()`만 'onboarding.json 지우고 재시작'으로 바꾼다(같은 세션 재열기 검증은 메뉴가 없어져 삭제). ② main이 당분간 `{root}`와 `{root, subject}`를 모두 받고, D2가 UI를 바꿀 때 `{root}` 형과 `firstSentence`를 지운다. ③ 마법사 3단계용 main 전용 채널 `onboarding:open-project`를 더하고 `folders:open`은 그대로 둔다.
+- 2026-10-25: E 완료(`93bc876`, `9c200ca`) — 새 시나리오 H5(self-test PASS, eval 단위 98 통과), 전체 라운드 `app-setup-20261025`(28회)와 반복. 기존 시나리오에 새 실패 없음(R1b·R2 codex는 알려진 실패), real-state 불변. H5는 claude 통과, codex 3/3 실패(`answer_reports_boundary` — config는 그대로지만 범위 밖 CSS를 `design/`에 복사하고 최종 답에 알리지 않음) → U-004. 통합(`5008ee4`, `1c43ecd`), 지휘자가 eval 단위 98 통과 확인. E 워커 해제, `as-e` 제거. G2(`ctx_3f18b1b9460e`, Codex Astra medium, `as-g2`)로 가이드 수정·재측정을 보냈다.
