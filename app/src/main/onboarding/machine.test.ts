@@ -15,7 +15,7 @@ function treeHash(path: string): string {
   const value = info.isSymbolicLink() ? `link:${readlinkSync(path)}` : info.isDirectory() ? readdirSync(path).sort().map(name => `${name}:${treeHash(join(path, name))}`).join("\n") : readFileSync(path).toString("base64");
   return createHash("sha256").update(`${info.mode}:${value}`).digest("hex");
 }
-function machine(command = cli) { return createMachine({ env, command }); }
+function machine(command = cli) { return createMachine({ env, command, version: "9.8.7" }); }
 beforeEach(() => {
   temp = realpathSync(mkdtempSync("/tmp/doan-G-")); home = join(temp, "home"); mkdirSync(home);
   oldHome = process.env.HOME; process.env.HOME = home;
@@ -79,7 +79,7 @@ test("state names the paths and targets the wizard shows", async () => {
     home, cliPath: join(home, ".local/bin/doan"), cliTarget: cli, stubPath: join(home, ".agents/skills/doan/SKILL.md"),
     claudeLinkPath: join(home, ".claude/skills/doan"), claudeLinkTarget: "../../.agents/skills/doan", mcpCommand: `${join(home, ".local/bin/doan")} mcp`,
     configFile: { claude: join(home, ".claude/.claude.json"), codex: join(home, ".codex/config.toml") }, configFromEnv: { claude: true, codex: true },
-    blocked: { cli: null, stub: null, claudeLink: null },
+    blocked: { cli: null, stub: null, claudeLink: null }, appVersion: "9.8.7",
   });
   delete env.CLAUDE_CONFIG_DIR; delete env.CODEX_HOME;
   const defaults = await machine("doan").read("r");
@@ -91,10 +91,44 @@ test.each([["target", ".local/bin/doan"], ["parent", ".local/bin"]])("state name
   const state = await machine().read("r");
   expect(state.display.blocked).toEqual({ cli: join(home, name), stub: join(home, ".agents/skills/doan"), claudeLink: null });
 });
-test("connect refuses MCP until the CLI link is ours", async () => {
-  agent("claude"); const m = machine(); const state = await m.read("r");
-  expect((await m.run({ step: "connect", agent: "claude", expected: state.expected })).kind).toBe("unavailable");
-  expect(existsSync(join(home, "calls"))).toBe(false);
+const mcpWrites = () => existsSync(join(home, "calls")) ? readFileSync(join(home, "calls"), "utf8").split("\n").filter(line => /^mcp (add|remove)/.test(line)) : [];
+function cliNotOurs(kind: "missing" | "link-other" | "blocked") {
+  const target = join(home, ".local/bin/doan");
+  if (kind === "link-other") { mkdirSync(join(target, ".."), { recursive: true }); symlinkSync("/old", target); }
+  else if (kind === "blocked") file(target, "keep");
+}
+// design.md flow 6: only MCP needs the step 1 link; the stub and Claude link do not.
+test.each((["missing", "link-other", "blocked"] as const).flatMap(cliKind => (["claude", "codex"] as const).map(name => ({ cliKind, name }))))("CLI $cliKind: $name connect installs the stub and link but never writes MCP", async ({ cliKind, name }) => {
+  agent(name); cliNotOurs(cliKind); const m = machine(); const state = await m.read("r");
+  expect(await m.run({ step: "connect", agent: name, expected: state.expected })).toEqual({ kind: "unavailable", message: "Install the CLI link in step 1 before connecting MCP." });
+  expect(readFileSync(join(home, ".agents/skills/doan/SKILL.md"), "utf8")).toContain("[doan:skill] end of guide");
+  if (name === "claude") expect(realpathSync(join(home, ".claude/skills/doan"))).toBe(join(home, ".agents/skills/doan"));
+  else expect(existsSync(join(home, ".claude/skills/doan"))).toBe(false);
+  expect(mcpWrites()).toEqual([]);
+  expect((await m.read("r2")).cli.state).toBe(cliKind);
+});
+test("CLI missing: replacements still ask, Cancel writes nothing and approval stops before MCP", async () => {
+  agent("claude"); const m = machine();
+  const stub = join(home, ".agents/skills/doan/SKILL.md"); file(stub, "custom");
+  const link = join(home, ".claude/skills/doan"); mkdirSync(join(link, ".."), { recursive: true }); symlinkSync("/elsewhere", link);
+  const asked = await m.run({ step: "connect", agent: "claude", expected: (await m.read("1")).expected });
+  if (asked.kind !== "confirm") throw new Error("confirmation absent"); expect(asked.target).toBe("stub");
+  expect(await m.answer({ id: asked.id, allow: false })).toEqual({ kind: "cancelled" });
+  expect(readFileSync(stub, "utf8")).toBe("custom"); expect(readlinkSync(link)).toBe("/elsewhere");
+  const again = await m.run({ step: "connect", agent: "claude", expected: (await m.read("2")).expected });
+  if (again.kind !== "confirm") throw new Error("confirmation absent");
+  const linkAsk = await m.answer({ id: again.id, allow: true });
+  if (linkAsk.kind !== "confirm") throw new Error("link confirmation absent"); expect(linkAsk.target).toBe("claudeLink");
+  expect(await m.answer({ id: linkAsk.id, allow: true })).toMatchObject({ kind: "unavailable" });
+  expect(readFileSync(stub, "utf8")).toContain("[doan:skill] end of guide"); expect(realpathSync(link)).toBe(join(home, ".agents/skills/doan"));
+  expect(mcpWrites()).toEqual([]);
+});
+test("CLI missing: an existing other MCP registration is neither confirmed nor replaced", async () => {
+  const exe = join(home, "bin/codex");
+  file(exe, `#!/bin/sh\nprintf '%s\\n' "$*" >> "$HOME/calls"\nif [ "$2" = get ]; then printf '%s\\n' '{"name":"doan","enabled":true,"transport":{"type":"stdio","command":"/other","args":["mcp"]}}'; fi\n`, 0o755);
+  const m = machine();
+  expect(await m.run({ step: "connect", agent: "codex", expected: (await m.read("1")).expected })).toMatchObject({ kind: "unavailable" });
+  expect(mcpWrites()).toEqual([]);
 });
 test("Claude connect installs stub and a relative custom-config link then uses user scope with probed env", async () => {
   agent("claude"); env.CLAUDE_CONFIG_DIR = join(home, "custom/deeper/config");
@@ -202,4 +236,24 @@ test("invoke-time ENOENT names the detected executable", async () => {
   const exe = join(home, "bin/claude"); file(exe, "#!/missing/interpreter\n", 0o755);
   const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
   expect(await m.run({ step: "connect", agent: "claude", expected: (await m.read("2")).expected })).toMatchObject({ kind: "error", message: expect.stringContaining(`Couldn't run claude at ${exe}. Check Again.`) });
+});
+
+test("a Codex registration that cannot be run keeps the agent, path and cause", async () => {
+  const exe = join(home, "bin/codex"); file(exe, "#!/missing/interpreter\n", 0o755);
+  const state = await machine().read("r");
+  expect(state.agents.codex.mcp.state).toBe("unknown");
+  expect(state.agents.codex.mcp.value).toMatch(new RegExp(`^Couldn't run Codex at ${exe}\\. .*ENOENT`));
+  expect(state.agents.codex.mcp.value).not.toContain("Check Again");
+});
+test("unreadable and absent registrations stay distinct from run failures", async () => {
+  file(join(home, "bin/codex"), "#!/bin/sh\necho 'not json'\n", 0o755); agent("claude");
+  let state = await machine().read("r");
+  expect(state.agents.codex.mcp).toEqual({ state: "unknown", value: "Unreadable registration." });
+  expect(state.agents.claude.mcp).toEqual({ state: "missing", value: "" });
+  agent("codex"); state = await machine().read("r2");
+  expect(state.agents.codex.mcp).toEqual({ state: "missing", value: "" });
+});
+test.each(["claude", "codex"] as const)("an invalid %s config location is the shown cause", async name => {
+  agent(name); const key = name === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"; env[key] = "~/invalid";
+  expect((await machine().read("r")).agents[name].mcp).toEqual({ state: "unknown", value: `${key} must be an absolute path: ~/invalid` });
 });

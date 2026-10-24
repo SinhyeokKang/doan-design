@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-const race = vi.hoisted(() => ({ target: "", staged: false, fired: false, observations: 0 }));
+const race = vi.hoisted(() => ({ target: "", staged: false, fired: false, observations: 0, afterStage: null as (() => void) | null }));
 vi.mock("node:fs", async importOriginal => {
   const fs = await importOriginal<typeof import("node:fs")>();
   return {
@@ -10,7 +10,7 @@ vi.mock("node:fs", async importOriginal => {
     },
     writeFileSync: (...args: Parameters<typeof fs.writeFileSync>) => {
       fs.writeFileSync(...args);
-      if (String(args[0]).includes(".doan-")) race.staged = true;
+      if (String(args[0]).includes(".doan-")) { race.staged = true; const hook = race.afterStage; race.afterStage = null; hook?.(); }
     },
     lstatSync: (...args: Parameters<typeof fs.lstatSync>) => {
       try { return fs.lstatSync(...args); }
@@ -24,11 +24,11 @@ vi.mock("node:fs", async importOriginal => {
     },
   };
 });
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, realpathSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, realpathSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { createMachine } from "./machine";
 let temp: string;
-afterEach(() => { rmSync(temp, { recursive: true, force: true }); race.target = ""; race.staged = false; race.fired = false; race.observations = 0; });
+afterEach(() => { rmSync(temp, { recursive: true, force: true }); race.target = ""; race.staged = false; race.fired = false; race.observations = 0; race.afterStage = null; });
 test.each(["cli", "stub"])("missing %s never replaces a file appearing during the last check", async target => {
   temp = realpathSync(mkdtempSync("/tmp/doan-race-"));
   const home = join(temp, "home"); mkdirSync(home); mkdirSync(join(home, "bin"));
@@ -36,7 +36,7 @@ test.each(["cli", "stub"])("missing %s never replaces a file appearing during th
   writeFileSync(cli, "cli");
   writeFileSync(shell, '#!/bin/sh\nPATH="$HOME/bin:/usr/bin:/bin"; export PATH\neval "$2"\n', { mode: 0o755 });
   writeFileSync(join(home, "bin/claude"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-  const m = createMachine({ command: cli, env: { HOME: home, SHELL: shell, PATH: "/usr/bin:/bin" } });
+  const m = createMachine({ command: cli, env: { HOME: home, SHELL: shell, PATH: "/usr/bin:/bin" }, version: "0.1.0" });
   if (target === "stub") await m.run({ step: "cli", expected: (await m.read("1")).expected });
   race.staged = false;
   race.target = join(home, target === "cli" ? ".local/bin/doan" : ".agents/skills/doan/SKILL.md");
@@ -44,4 +44,18 @@ test.each(["cli", "stub"])("missing %s never replaces a file appearing during th
   expect(race.fired).toBe(true);
   expect(readFileSync(race.target, "utf8")).toBe("keep");
   expect(result).toMatchObject({ kind: "error", message: expect.stringContaining("Check Again") });
+});
+
+test("a CLI link that changes while the stub is written is a changed result, not step 1 not done", async () => {
+  temp = realpathSync(mkdtempSync("/tmp/doan-race-"));
+  const home = join(temp, "home"); mkdirSync(home); mkdirSync(join(home, "bin"));
+  const cli = join(temp, "doan"), shell = join(temp, "zsh");
+  writeFileSync(cli, "cli");
+  writeFileSync(shell, '#!/bin/sh\nPATH="$HOME/bin:/usr/bin:/bin"; export PATH\neval "$2"\n', { mode: 0o755 });
+  writeFileSync(join(home, "bin/claude"), '#!/bin/sh\necho "$*" >> "$HOME/calls"\n', { mode: 0o755 });
+  const m = createMachine({ command: cli, env: { HOME: home, SHELL: shell, PATH: "/usr/bin:/bin" }, version: "0.1.0" });
+  await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  race.afterStage = () => rmSync(join(home, ".local/bin/doan"));
+  expect(await m.run({ step: "connect", agent: "claude", expected: (await m.read("2")).expected })).toEqual({ kind: "stale" });
+  expect(existsSync(join(home, "calls"))).toBe(false);
 });

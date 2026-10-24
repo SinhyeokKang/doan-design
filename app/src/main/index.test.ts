@@ -23,7 +23,7 @@ const mocks = await vi.hoisted(async () => {
   }
   return {
     Window,
-    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", exit: vi.fn(), quit: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
+    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
     shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), close: vi.fn(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn() },
     startShell: vi.fn(),
@@ -35,6 +35,7 @@ const mocks = await vi.hoisted(async () => {
     createInspector: vi.fn(),
     mkdir: vi.fn(),
     machine: { read: vi.fn(), run: vi.fn(), answer: vi.fn(), cancelConfirmation: vi.fn(), isBusy: vi.fn(() => false) },
+    createMachine: vi.fn(),
     needsOnboarding: vi.fn(), markClosed: vi.fn(), clipboard: { writeText: vi.fn() },
     menu: vi.fn<(template: MenuItemConstructorOptions[]) => unknown>(),
     dialog: { showOpenDialog: vi.fn(), showMessageBox: vi.fn() },
@@ -50,7 +51,7 @@ vi.mock("electron", () => ({
   webFrameMain: { fromId: vi.fn() },
 }));
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
-vi.mock("./onboarding/machine", () => ({ createMachine: () => mocks.machine, needsOnboarding: mocks.needsOnboarding, markClosed: mocks.markClosed, PATH_LINE: 'export PATH="$HOME/.local/bin:$PATH"' }));
+vi.mock("./onboarding/machine", () => ({ createMachine: mocks.createMachine, needsOnboarding: mocks.needsOnboarding, markClosed: mocks.markClosed, PATH_LINE: 'export PATH="$HOME/.local/bin:$PATH"' }));
 vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
@@ -64,6 +65,7 @@ beforeEach(async () => {
   mocks.ipc.clear();
   mocks.needsOnboarding.mockResolvedValue(true);
   mocks.markClosed.mockResolvedValue(undefined);
+  mocks.createMachine.mockReturnValue(mocks.machine);
   mocks.machine.read.mockResolvedValue({ requestId: "r" });
   mocks.machine.run.mockResolvedValue({ kind: "success" });
   mocks.machine.isBusy.mockReturnValue(false);
@@ -561,6 +563,10 @@ test("PATH copy awaits the clipboard and refuses arbitrary strings", async () =>
   expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
 });
 
+
+test("the wizard's machine shows this app's version", async () => {
+  await vi.waitFor(() => expect(mocks.createMachine).toHaveBeenCalledExactlyOnceWith({ command: "/bundled/doan", version: "9.8.7" }));
+});
 
 test("the setup menu still shows the window during an active machine operation", async () => {
   const initial = await invoke("onboarding:get-open", window().webContents, null);

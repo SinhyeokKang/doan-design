@@ -3,8 +3,8 @@ import type { MachineState } from "../main/onboarding/machine";
 import { PATH_LINE } from "../main/onboarding/machine";
 import { firstSentence } from "../main/onboarding/states";
 import {
-  advanceAfter, agentsView, cliItems, confirmView, copyLabel, COPY_FAILED, footerView, idleUi, indicatorView, initMessage, nextFocusIndex,
-  PATH_LINE_TEXT, projectStepView, promptParts, registrationText, stepsDone, tilde, type MachineUi,
+  advanceAfter, agentsView, cliItems, confirmView, copyFor, copyLabel, COPY_FAILED, footerView, idleUi, indicatorView, initMessage, nextFocusIndex,
+  PATH_LINE_TEXT, projectStepView, promptParts, registrationText, stepsDone, tilde, wizardBusy, type MachineUi,
 } from "./onboardingView";
 
 const home = "/Users/alex";
@@ -20,7 +20,7 @@ function machine(overrides: Overrides = {}): MachineState {
     home, cliPath: `${home}/.local/bin/doan`, cliTarget: app, stubPath: `${home}/.agents/skills/doan/SKILL.md`,
     claudeLinkPath: `${home}/.claude/skills/doan`, claudeLinkTarget: "../../.agents/skills/doan", mcpCommand: `${home}/.local/bin/doan mcp`,
     configFile: { claude: `${home}/.claude.json`, codex: `${home}/.codex/config.toml` }, configFromEnv: { claude: false, codex: false },
-    blocked: { cli: null, stub: null, claudeLink: null },
+    blocked: { cli: null, stub: null, claudeLink: null }, appVersion: "0.1.0",
   };
   const { display: displayOverrides, ...rest } = overrides;
   const state = { requestId: "r", available: true, reason: null, pathPresent: true, rcFile: "~/.zshrc", probe: { ok: true, path: "/usr/bin" } as const,
@@ -124,11 +124,42 @@ describe("step 2 — Agents", () => {
     expect(card?.head.button).toMatchObject({ id: "connect", disabled: false });
     const notReady = agentsView(machine(), ui()).agents[0];
     expect(notReady?.items[1]).toMatchObject({ dimmed: true, reason: "Install the CLI link in step 1 before connecting MCP." });
-    expect(notReady?.head.button?.disabled).toBe(true);
+    expect(notReady?.head.button).toMatchObject({ id: "connect", disabled: false });
     const running = agentsView(ours(), ui({ running: "claude" }));
     expect(running.agents[0]?.head.button).toMatchObject({ label: "Connecting…", disabled: true });
     expect(running.agents[0]?.items[1]?.chip).toEqual({ text: "Registering…" });
     expect(running.agents[1]?.head.button?.disabled).toBe(true);
+  });
+  test("a login shell timeout names the shell, as in the draft", () => {
+    const state = ours({ pathPresent: false, probe: { ok: false, reason: "Your login shell (/bin/zsh) didn’t answer in time." } });
+    expect(cliItems(state, ui())[1]?.msg).toEqual({ tone: "warn", parts: ["Your login shell (/bin/zsh) didn’t answer in time. Choose Check Again."] });
+    expect(agentsView(state, ui()).agents[0]?.head.msg).toEqual({ tone: "warn", parts: ["Your login shell (/bin/zsh) didn’t answer in time. Choose Check Again."] });
+  });
+  test("a Codex read that could not run or timed out says so once with Check Again", () => {
+    for (const value of ["Couldn't run Codex at /opt/homebrew/bin/codex. spawn /opt/homebrew/bin/codex ENOENT", "Codex at /opt/homebrew/bin/codex didn’t answer in 10 s."]) {
+      const state = ours(); state.agents.codex = { ...state.agents.codex, mcp: { state: "unknown", value } };
+      const msg = agentsView(state, ui()).agents[1]?.items[0]?.msg;
+      expect(msg).toEqual({ tone: "warn", parts: [`${value.replace(/\.?$/, ".")} Choose Check Again.`] });
+      expect(String(msg?.parts[0]).match(/Check Again/g)).toHaveLength(1);
+    }
+  });
+  test.each(["claude", "codex"] as const)("after Connect stops at an unreadable %s MCP, it keeps Couldn’t check and the observed cause", agent => {
+    const state = ours({ stub: { state: "ours", stamp: "s" }, claudeLink: { state: "ours", value: "../../.agents/skills/doan", stamp: "s" } });
+    state.agents[agent] = { ...state.agents[agent], mcp: { state: "unknown", value: "Unreadable registration." } };
+    const card = agentsView(state, ui({ outcome: { [agent]: { kind: "unavailable", message: "Couldn't check the MCP registration. Check Again." } } })).agents[agent === "claude" ? 0 : 1];
+    const mcp = card?.items.at(-1);
+    expect(mcp).toMatchObject({ chip: { text: "Couldn’t check", tone: "warn" }, msg: { tone: "warn", parts: ["Unreadable registration. Choose Check Again."] } });
+    if (agent === "claude") expect(card?.items[0]?.chip).toEqual({ text: "Installed", tone: "ok" });
+    expect(card?.head.msg).toBeUndefined();
+    expect(card?.head.button).toMatchObject({ id: "connect", disabled: false });
+  });
+  test.each(["claude", "codex"] as const)("after %s Connect without step 1, MCP keeps the step 1 notice instead of a failure", agent => {
+    const state = machine({ stub: { state: "ours", stamp: "s" }, claudeLink: { state: "ours", value: "../../.agents/skills/doan", stamp: "s" } });
+    const card = agentsView(state, ui({ outcome: { [agent]: { kind: "unavailable", message: "Install the CLI link in step 1 before connecting MCP." } } })).agents[agent === "claude" ? 0 : 1];
+    const mcp = card?.items.at(-1);
+    expect(mcp).toMatchObject({ dimmed: true, reason: "Install the CLI link in step 1 before connecting MCP.", chip: { text: "Not registered" } });
+    expect(mcp?.msg).toBeUndefined();
+    expect(card?.head.msg).toBeUndefined();
   });
   test("connected replaces the button with the new-session notice", () => {
     const state = ours({ stub: { state: "ours", stamp: "s" }, claudeLink: { state: "ours", value: "../../.agents/skills/doan", stamp: "s" } });
@@ -159,7 +190,7 @@ describe("confirmations", () => {
     const state = ours({ cli: { state: "link-other", value: "/Users/alex/Downloads/doan.app/Contents/Resources/bin/doan", stamp: "s" }, claudeLink: { state: "link-other", value: "../../my-skills/doan", stamp: "s" } });
     expect(confirmView("cli", "claude", state)).toEqual({ title: "Replace the doan link?", body: [{ code: "~/.local/bin/doan" }, " points to another copy of doan. Your terminal and agents will run this app’s copy instead."], current: "/Users/alex/Downloads/doan.app/Contents/Resources/bin/doan", next: app, verb: "Replace Link" });
     expect(confirmView("claudeLink", "claude", state)).toEqual({ title: "Replace the Claude Code skill link?", body: [{ code: "~/.claude/skills/doan" }, " points to another folder. Claude Code will read the shared doan skill instead."], current: "../../my-skills/doan", next: "../../.agents/skills/doan", verb: "Replace Link" });
-    expect(confirmView("stub", "codex", state)).toEqual({ title: "Replace SKILL.md?", body: ["Your edits to SKILL.md will be replaced. Other files in ", { code: "~/.agents/skills/doan" }, " are kept."], current: "~/.agents/skills/doan/SKILL.md — Modified or from another version", next: "The skill stub from this app", verb: "Replace Skill" });
+    expect(confirmView("stub", "codex", state)).toEqual({ title: "Replace SKILL.md?", body: ["Your edits to SKILL.md will be replaced. Other files in ", { code: "~/.agents/skills/doan" }, " are kept."], current: "~/.agents/skills/doan/SKILL.md — Modified or from another version", next: "The skill stub from this app (doan 0.1.0)", verb: "Replace Skill" });
     state.agents.claude = { ...state.agents.claude, mcp: { state: "other", value: JSON.stringify({ command: "/old/doan", args: ["mcp"] }) } };
     expect(confirmView("mcp", "claude", state)).toEqual({ title: "Replace the doan MCP registration?", body: ["Claude Code already has an MCP server named doan in ", { code: "~/.claude.json" }, " (user scope)."], current: "/old/doan mcp", next: `${home}/.local/bin/doan mcp`, verb: "Replace MCP Registration" });
     expect(confirmView("mcp", "codex", state).body).toEqual(["Codex already has an MCP server named doan in ", { code: "~/.codex/config.toml" }, "."]);
@@ -196,6 +227,26 @@ describe("wizard frame", () => {
     expect(footerView(0, false, false, true).checkAgain).toEqual({ disabled: true });
     expect(footerView(2, false, true, false)).toEqual({ stepNo: "Step 3 of 4", skip: { disabled: true }, next: { label: "Continue", primary: false, disabled: true } });
     expect(footerView(3, false, false, false)).toEqual({ stepNo: "Step 4 of 4", next: { label: "Done", primary: true, disabled: false } });
+  });
+  test("any pending action, including a copy, makes the wizard busy", () => {
+    const idle = { running: null, confirming: false, projectBusy: false, closing: false, pathCopy: "idle", promptCopy: "idle" } as const;
+    expect(wizardBusy(idle)).toBe(false);
+    expect(wizardBusy({ ...idle, pathCopy: "copied", promptCopy: "failed" })).toBe(false);
+    for (const patch of [{ running: "claude" }, { confirming: true }, { projectBusy: true }, { closing: true }, { pathCopy: "copying" }, { promptCopy: "copying" }] as const) {
+      expect(wizardBusy({ ...idle, ...patch })).toBe(true);
+    }
+  });
+  test("a copy result lands only while its target is still current", async () => {
+    let target = "/a";
+    let finish: (value: { kind: string }) => void = () => {};
+    const late = copyFor("/a", () => target, () => new Promise(resolve => { finish = resolve; }));
+    target = "/b"; finish({ kind: "success" });
+    expect(await late).toBeNull();
+    target = "/a";
+    expect(await copyFor("/a", () => target, async () => ({ kind: "success" }))).toBe("copied");
+    expect(await copyFor("/a", () => target, async () => ({ kind: "error" }))).toBe("failed");
+    expect(await copyFor("/a", () => target, () => Promise.reject(new Error("denied")))).toBe("failed");
+    expect(await copyFor("/a", () => null, async () => ({ kind: "success" }))).toBeNull();
   });
   test("Tab wraps inside the wizard", () => {
     expect(nextFocusIndex(3, 2, false)).toBe(0);
