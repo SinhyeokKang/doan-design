@@ -534,6 +534,12 @@ async function start(): Promise<void> {
       !("visible" in value) || typeof value.visible !== "boolean") return { kind: "unavailable" };
     return thumbs.get(value.root, value.path, value.visible);
   });
+  ipcMain.handle("thumbnails:visible", (event, value: unknown) => {
+    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
+      !("root" in value) || typeof value.root !== "string" || !("path" in value) || typeof value.path !== "string" ||
+      !("visible" in value) || typeof value.visible !== "boolean") return;
+    thumbs.visible(value.root, value.path, value.visible);
+  });
   ipcMain.handle("menu:state", (event, value: unknown) => {
     const next = parseMenuInputs(value);
     if (fromWindow(event) && next !== null) setMenuInputs(next);

@@ -83,7 +83,7 @@ test("the overview shows each thumbnail state, the parse-failure card and folder
   expect(html).toContain('class="thumb pending"');
   expect(html).toContain("Preview unavailable");
   expect(html).toContain('<p class="thumb-msg warn">Can&#x27;t read this canvas — run doan check</p>');
-  expect(html).toContain('<span class="ocard-title">legacy-checkout</span>');
+  expect(html).toMatch(/<span id="[^"]+-title" class="ocard-title">legacy-checkout<\/span>/);
   expect(html).toContain("1 frame · ");
   expect(html).toContain('<span class="hot">2 open</span>');
   // Zero open comments are not shown.
@@ -108,7 +108,7 @@ function requests(root = "/code/acme-web") {
   let shown: ReadonlyMap<string, ThumbnailState> = new Map();
   const thumbs = new ThumbnailRequests(root, (_root, path, onScreen) => new Promise(resolve => {
     asks.push({ path, onScreen, reply: async reply => { resolve(reply); await Promise.resolve(); } });
-  }), items => { shown = items; });
+  }), items => { shown = items; }, () => {});
   const ready: ThumbnailReply = { kind: "ready", png: new Uint8Array([1]) };
   return { thumbs, asks, created, revoked, ready, shown: () => shown };
 }

@@ -87,7 +87,7 @@ try {
   }, label);
   const shot = async (name: string) => { const path = join(shots, `${name}.png`); await page.screenshot({ path }); console.log(`design-nav screenshot: ${path}`); };
   const overview = () => page.getByRole("region", { name: "Overview", exact: true });
-  const card = (title: string) => overview().locator(".ocard").filter({ has: page.locator(".ocard-title", { hasText: new RegExp(`^${title.replace(/[&()]/g, "\\$&")}$`) }) });
+  const card = (title: string) => overview().getByRole("button", { name: new RegExp(`^${title.replace(/[&()]/g, "\\$&")} `) });
   const dialog = () => page.getByRole("dialog", { name: "Quick Open", exact: true });
   const options = () => dialog().getByRole("option").allTextContents();
   const toast = (text: string) => page.locator(".toast .msg", { hasText: text }).waitFor();
@@ -135,6 +135,16 @@ try {
   assert.deepEqual(await overview().locator(".sec").allTextContents(), ["design 1", "design/misc 1", "design/settings 3"]);
   assert.equal(await card("Design tokens").locator(".thumb-msg").textContent(), "Add doan:width to preview");
   assert.equal(await card("Billing & plans").locator(".ocard-meta").textContent().then(text => text?.split(" · ")[0]), "5 frames");
+  const cdp = await page.context().newCDPSession(page);
+  const ax = await cdp.send("Accessibility.getFullAXTree");
+  const tokenCard = ax.nodes.find(node => node.role?.value === "button" && node.name?.value === "Design tokens tokens.html");
+  assert.ok(tokenCard, "the card name leads with title and file name");
+  assert.match(tokenCard.description?.value ?? "", /^Add doan:width to preview 1 frame/);
+  const billingCard = ax.nodes.find(node => node.role?.value === "button" && node.name?.value === "Billing & plans billing.html");
+  assert.ok(billingCard, "a capturable card has the same title-first name");
+  assert.match(billingCard.description?.value ?? "", /5 frames/);
+  await writeFile(join(shots, "overview-card-ax.json"), JSON.stringify([tokenCard, billingCard], null, 2));
+  await cdp.detach();
   await shot("3-acme-overview");
   await card("Billing & plans").click();
   await loaded("Billing & plans");

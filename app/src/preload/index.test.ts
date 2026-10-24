@@ -244,3 +244,13 @@ test("a scan watch takes the reply when it is newer than any event, and nothing 
   await Promise.resolve(); await Promise.resolve();
   expect(gone).not.toHaveBeenCalled();
 });
+
+
+test("thumbnail visibility uses its fixed channel in both directions", async () => {
+  await api.setThumbnailVisibility("/repo", "design/a.html", false);
+  await api.setThumbnailVisibility("/repo", "design/b.html", true);
+  expect(mocks.invoke.mock.calls).toEqual([
+    ["thumbnails:visible", { root: "/repo", path: "design/a.html", visible: false }],
+    ["thumbnails:visible", { root: "/repo", path: "design/b.html", visible: true }],
+  ]);
+});
