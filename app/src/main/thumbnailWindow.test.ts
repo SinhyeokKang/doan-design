@@ -163,10 +163,30 @@ test("an error or an unusable rectangle is a failure", async () => {
 
 test("close destroys the window, and nothing is left to destroy twice", async () => {
   const capturer = createWindowCapturer();
-  capturer.close();
-  expect(mocks.Window.instances).toHaveLength(0);
   await capturer.capture(URL_A, 1280);
   capturer.close();
   capturer.close();
   expect(only().destroy).toHaveBeenCalledOnce();
+});
+
+// Quit closes the window under a running capture; the queue's next job must
+// not open another, or the app never reaches will-quit.
+test("after close a capture fails without opening a window", async () => {
+  const capturer = createWindowCapturer();
+  capturer.close();
+  expect(await capturer.capture(URL_A, 1280)).toBeNull();
+  expect(mocks.Window.instances).toHaveLength(0);
+});
+
+test("a capture running at close fails, and the next opens no window", async () => {
+  const capturer = createWindowCapturer();
+  let finish: (rect: unknown) => void = () => {};
+  mocks.Window.frame = () => new Promise((resolve) => { finish = resolve; });
+  const running = capturer.capture(URL_A, 1280);
+  await vi.waitFor(() => expect(only().webContents.executeJavaScript).toHaveBeenCalled());
+  capturer.close();
+  finish({ x: 0, y: 0, width: 1280, height: 800 });
+  expect(await running).toBeNull();
+  expect(await capturer.capture(URL_A, 1280)).toBeNull();
+  expect(mocks.Window.instances).toHaveLength(1);
 });

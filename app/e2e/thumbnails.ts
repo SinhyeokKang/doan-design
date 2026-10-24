@@ -41,7 +41,12 @@ try {
   await writeFile(join(repo, "design/a.html"), canvas("Alpha", 800, "<h1>Alpha</h1>"));
   await writeFile(join(repo, "design/nowidth.html"), canvas("Nowidth", null, "<h1>No width</h1>"));
   await writeFile(join(repo, "design/hang.html"), canvas("Hang", 640, `<img src="http://127.0.0.1:${hangPort}/never">`));
-  await writeFile(join(userData, "folders.json"), JSON.stringify([repo]));
+  // Never asked for until the quit step, so its captures are still queued then.
+  const gallery = join(work, "gallery");
+  await mkdir(join(gallery, ".doan"), { recursive: true }); await mkdir(join(gallery, "design"));
+  await writeFile(join(gallery, ".doan/config.json"), '{"v":1}');
+  for (let i = 1; i <= 24; i++) await writeFile(join(gallery, `design/g${i}.html`), canvas(`G${i}`, 800, `<h1>${i}</h1>`));
+  await writeFile(join(userData, "folders.json"), JSON.stringify([repo, gallery]));
   // Left from an earlier launch: an orphaned entry and a temp file go, a foreign file stays.
   const cache = join(userData, "thumbnails"), orphan = key("/gone", "design/a.html");
   await mkdir(cache);
@@ -171,8 +176,25 @@ try {
   assert.equal((await page.evaluate((root) => window.doan.removeProjects([root]), repo)).kind, "removed");
   await wait(async () => (await readdir(cache)).join() === "notes.txt", "removed project's cache files are deleted");
 
-  await app.close(); app = undefined;
+  // Quitting while captures run exits promptly: quit closes the capture
+  // window under a running job, and the next job must not open it again.
+  // An idle quit takes about 200 ms.
+  const galleryGet = (path: string) => page.evaluate(([root, path]) => window.doan.getThumbnail(root, path, false), [gallery, path] as const) as Promise<Reply>;
+  for (let i = 1; i <= 24; i++) assert.equal((await galleryGet(`design/g${i}.html`)).kind, "pending");
+  await wait(async () => (await changes()).some(changed => changed.startsWith("design/g")), "gallery captures are running");
+  const announced = (await changes()).filter(changed => changed.startsWith("design/g")).length;
+  assert.ok(announced < 24, "captures are still queued at quit");
+  const quitStarted = Date.now();
+  const exited = await Promise.race([app.close().then(() => true), new Promise<false>(resolve => setTimeout(() => resolve(false), 3_000))]);
+  if (!exited) app.process().kill("SIGKILL");
+  app = undefined;
+  assert.ok(exited, "quitting during captures exits within 3 s");
+  console.log(`thumbnails: quit during captures took ${Date.now() - quitStarted} ms`);
   assert.deepEqual(JSON.parse(await readFile(join(userData, "ui-state.json"), "utf8")), state, "the last save is on disk after quit");
+  // At most the job that was saving when quit began adds to what was announced.
+  const left = await readdir(cache);
+  assert.deepEqual(left.filter(name => name.endsWith(".tmp")), [], "no temp file is left");
+  assert.ok(left.filter(name => name.endsWith(".png")).length <= announced + 1, `no capture is saved after quit (${announced} announced, ${left.join()})`);
   console.log("thumbnails: PASS");
 } catch (error) {
   console.error(error);

@@ -1123,8 +1123,19 @@ describe("thumbnails", () => {
     expect(mocks.thumbnails.pause).toHaveBeenCalledOnce();
   });
 
+  // Quit closes every window before will-quit; captures still running then
+  // would open the capture window again and keep the app from quitting.
+  test("a quit disposes the thumbnails once it is allowed, before will-quit", async () => {
+    await invoke("comments:guard", window().webContents, null, true);
+    mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+    expect(mocks.thumbnails.dispose).not.toHaveBeenCalled();
+    const call = window().webContents.send.mock.calls.find(call => call[0] === "comments:transition");
+    await invoke("comments:transition-answer", window().webContents, null, { id: call?.[1].id, allow: true });
+    expect(mocks.thumbnails.dispose).toHaveBeenCalledOnce();
+  });
+
   test("quitting disposes the thumbnails, and the capturer destroys its window", async () => {
-    mocks.app.emit("will-quit");
+    mocks.app.emit("before-quit", { preventDefault: vi.fn() });
     expect(mocks.thumbnails.dispose).toHaveBeenCalledOnce();
     const hidden = await captureWindow();
     deps().capturer.close();

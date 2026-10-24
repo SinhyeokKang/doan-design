@@ -629,7 +629,9 @@ app.on("before-quit", (event) => {
   if (quitting) return;
   let approved = false;
   transitionGuard.request({ kind: "quit" }, () => {
-    quitting = true; cancelPendingHide();
+    // Before quit closes the windows: a capture running then would otherwise
+    // open the capture window again, and will-quit would never come.
+    quitting = true; cancelPendingHide(); thumbnails?.dispose();
     if (approved) app.quit();
   });
   if (!quitting) { event.preventDefault(); approved = true; }
@@ -640,7 +642,6 @@ app.on("activate", () => {
 
 app.on("will-quit", () => {
   uiState?.flushSync();
-  thumbnails?.dispose();
   runtime?.disposeSync();
   void shell?.dispose();
 });
