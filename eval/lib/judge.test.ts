@@ -67,3 +67,12 @@ test("a fixture whose checks could not run fails the self-test, whichever fixtur
   assert.equal(fixtureProblem("pass", passing, finalResult(passing, "skipped")), null);
   assert.match(fixtureProblem("fail", passing, finalResult(passing, "skipped")) ?? "", /all 1 passed/);
 });
+
+test("active invocation evidence survives even an oversized command summary", () => {
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "log tail", calls: {
+    commands: ["echo " + "x".repeat(30000), "doan active --json"], mcpTools: ["mcp__doan__active"],
+  } });
+  assert.ok(prompt.includes('"doanActive":{"shellInvoked":true,"mcpInvoked":true}'));
+  assert.ok(prompt.includes("log tail"));
+  assert.ok(!prompt.includes("x".repeat(20001)));
+});
