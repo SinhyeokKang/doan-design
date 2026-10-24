@@ -11,7 +11,7 @@ export type RestorePlan =
   | { kind: "wait" }
   // `canvas: null` is the overview. `missingCanvas` is the saved path that is
   // no longer listed, for the "is no longer in design/" toast. `view` is
-  // applied after the canvas's first layout.
+  // applied as the canvas opens; the board stays hidden until its first layout.
   | { kind: "workspace"; root: string; canvas: { path: string; view?: UiView } | null; missingCanvas?: string };
 
 // `elapsedMs` is time since the restore started; the caller owns the clock.
