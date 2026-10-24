@@ -49,6 +49,15 @@ tasks.md의 앞선 단계와 task 0~14는 모두 위 배치 중 하나에 속한
 - 3파: C1 ∥ C2(B 통합과 초안 확정 뒤). C1은 `Sidebar`·`CanvasController`·`App.tsx` 연결을 맡는다. C2는 새 컴포넌트와 단위 테스트를 먼저 만들고, `App.tsx`·e2e 연결은 C1 통합 뒤 이어 받는다(그때까지 '미룬 항목'). task 11 design-sync는 C2가 마지막에 한다.
 - 각 배치는 `--worktree new-child --base-branch feat-design-nav`로 만든 자기 worktree에서 돈다.
 
+## 초안 리뷰
+
+2026-10-25, 지휘자가 두 초안의 Chromium 스크린샷(`.scratch/orch/design-nav/shots-DX/` 8장, `shots-DC/` 7장)과 인계 문서를 비교했다. 두 초안 모두 `doan check` 오류 0(기존 `mock.css` 경고 6), `doan ls`의 프레임 id 7개가 요청과 같다.
+
+- **DC(Claude Opus, `95b0942`)를 골랐다.** 그린 상태가 더 많다. 개요는 3열 격자에 폴더 경로 머리글·개수, 프레임 수 변형(1 frame, 1,000+ frames), 긴 이름의 툴팁, 최근 변경의 절대 시각 툴팁, 개요로 가는 두 길을 그렸다. ⌘K는 캔버스 결과에 `design/` 아래 경로를 보이고, 긴 값의 잘림 순서와 Go 메뉴·메뉴 활성 표의 Quick Open 행을 그렸다. 트리 표에는 프레임 없는 캔버스 안내와 Overview가 현재인 상태가 있다.
+- DX(Codex Astra high, `f8237c8`)의 장점: 캔버스 행을 두 줄(제목·파일 이름)로 나눠 240px에서도 둘 다 읽힌다. 감사 H2(둘 다 잘림)를 직접 푼다. 선택 표시를 속 빈 마름모로 그려 행 폭을 거의 쓰지 않는다(DC의 Selected 태그는 Select 버튼과 함께 있으면 제목을 심하게 자른다 — DC가 스스로 적었다). 작업공간 표본의 캔버스 내용이 줌 배율과 맞아 읽기 좋다.
+- DC에 붙일 것(DC-rev): ① 두 줄 캔버스 행(44px, 폴더·프레임·Overview는 26px 유지) ② 선택 표시를 속 빈 마름모로 ③ 표본 캔버스 내용을 줌 배율에 맞게. 출처를 캔버스 머리말에 적는다.
+- DC가 정하지 않은 채 그린 12개 선택: 1(사이드바 제목 Canvases + 개수, 프로젝트 행을 사이드바에서 뺌 — 제거는 홈에서), 2, 4, 6~12는 받아들인다. 3은 ①로, 5의 Selected 태그는 ②로 대체한다.
+
 ## 진행 기록
 - 2026-10-25: Run `run_5fa531d27dc7`. 1파 시작 — DX(`ctx_1017df68b758`, Codex Astra high), DC(`ctx_6e84f37d44a7`, Opus high), P(`ctx_ccb8e36d909e`, Codex Astra medium), A1(`ctx_3a4edf6ff5d9`, Sonnet high), A2(`ctx_c737afc282e9`, Codex Astra medium), A3(`ctx_8e0b32221dd9`, Sonnet high). `launch.effective`가 요청과 같다.
 - 2026-10-25: A2 완료(`2736239`, `f60af15`) — test 1457·typecheck 통과 보고. 교차 리뷰 R-A2(`ctx_4b514df50c43`, Opus high). A2 워커는 수정 차례에 대비해 유지(retain).
@@ -61,3 +70,5 @@ tasks.md의 앞선 단계와 task 0~14는 모두 위 배치 중 하나에 속한
 - 2026-10-25: A2-fix 질문 — `design/` 접두 문제를 postmortem에 남길지 → 남기지 않는다. 통합 전 리뷰에서 잡힌 버그라 회귀가 아니다.
 - 2026-10-25: R-A3 결과 🔴 0 · 🟡 1(캡처 중 `forget`+`request`를 잃고, 이전 캡처의 실패가 새 요청까지 막음 — 재현). 지휘자 결정 2개(token 서명, 문제 루트는 홈)와 함께 A3-fix(`ctx` 아래, Sonnet high, `dn-a3`)로 보냈다. R-A3 워커 해제.
 - 2026-10-25: DX 완료(`f8237c8`) — check 오류 0(기존 경고 6), 프레임 id 7개 일치, 스크린샷 8장 보고. DC를 기다려 비교한다. DX 워커는 피드백 루프에 대비해 유지.
+- 2026-10-25: A2-fix 완료(`6fb0c64`, `08fcb4e`) — scope 상대 경로 색인, NFC, 결과에서 `fields` 제거, 성능 테스트에 부분 일치 쿼리 추가(처음 66.88ms 실패 → 상위 50개만 유지하도록 고쳐 통과). 지휘자가 diff를 확인했다(같은 순위의 입력 순서 유지). A2 통합(`6c49c70`~`c48462a`), 통합 HEAD typecheck·test 1496 통과. A2 워커 해제, `dn-a2` 제거.
+- 2026-10-25: DC 완료(`95b0942`). 초안 비교 결과 DC를 골랐다(위 '초안 리뷰'). DC-rev(`ctx_6de50b873c7b`, Opus high, `dn-dc`)로 붙이기 차례를 보냈다. DX 워커 해제, DX 초안은 `.scratch/orch/design-nav/draft-DX-f8237c8.html`로 보존하고 `dn-dx`를 제거했다.
