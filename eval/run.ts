@@ -1,5 +1,5 @@
-// Runs the agent-eval scenarios (design: docs/features/agent-eval/design.md;
-// procedure: .agents/skills/agent-eval/SKILL.md).
+// Keep evaluation behavior aligned with docs/ARCHITECTURE.md §14 (agent evaluation)
+// and the procedure in .agents/skills/agent-eval/SKILL.md so rounds stay comparable.
 //   node eval/run.ts [--scenarios W1,R2] [--agents claude,codex] [--repeat N] [--round <name>] [--no-judge]
 //   node eval/run.ts --self-test [--scenarios ...]
 import { createHash } from "node:crypto";
