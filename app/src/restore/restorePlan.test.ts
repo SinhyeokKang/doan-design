@@ -97,6 +97,7 @@ test.each<FolderEntry>([
   { path: "/repo/a", kind: "error", message: "bad config" },
   { path: "/repo/a", kind: "cliError", reason: "timed out" },
   { path: "/repo/a", kind: "notFound" },
-])("a problem state opens the workspace for its status line: $kind", (entry) => {
-  expect(restorePlan(state(), [entry], 0)).toEqual({ kind: "workspace", root: "/repo/a", canvas: null });
+])("a problem state goes home: problem rows never enter a workspace: $kind", (entry) => {
+  expect(restorePlan(state(), [entry], 0)).toEqual({ kind: "home" });
+  expect(restorePlan(state(), [entry], 60_000)).toEqual({ kind: "home" });
 });

@@ -21,8 +21,9 @@ export function restorePlan(state: UiState | null, entries: readonly FolderEntry
   const entry = entries.find((candidate) => candidate.path === root);
   if (entry === undefined) return { kind: "home" };
   if (entry.kind === "loading") return elapsedMs >= RESTORE_LOADING_WAIT_MS ? { kind: "home" } : { kind: "wait" };
-  // A problem state opens the workspace for its status line; there is no list to check the canvas against.
-  if (entry.kind !== "list" || state.canvas === undefined) return { kind: "workspace", root, canvas: null };
+  // A problem row never enters a workspace (ARCHITECTURE §3 'Memory'), restored or not.
+  if (entry.kind !== "list") return { kind: "home" };
+  if (state.canvas === undefined) return { kind: "workspace", root, canvas: null };
   const path = state.canvas;
   if (!entry.canvases.some((row) => row.path === path)) return { kind: "workspace", root, canvas: null, missingCanvas: path };
   return { kind: "workspace", root, canvas: state.view === undefined ? { path } : { path, view: { ...state.view, scale: Math.min(MAX_SCALE, Math.max(MIN_SCALE, state.view.scale)) } } };

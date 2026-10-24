@@ -15,6 +15,9 @@ export interface ThumbnailQueue {
   // attempt, not one per visit. The card shows "Preview unavailable".
   failed: string[];
   paused: boolean;
+  // The running capture was `forget`-ed: its result describes an older version
+  // of the canvas, so it is neither a failure nor a reason to skip a re-request.
+  activeStale: boolean;
 }
 
 export type ThumbnailQueueEvent =
@@ -23,17 +26,18 @@ export type ThumbnailQueueEvent =
   | { type: "done"; key: string }
   | { type: "fail"; key: string }
   // The canvas changed or was removed: drop a pending job or a failure. A
-  // running capture cannot be aborted and still reports its own result.
+  // running capture cannot be aborted; it still reports, and that result is
+  // ignored. A `request` after `forget` queues a fresh capture behind it.
   | { type: "forget"; key: string }
   | { type: "pause" }
   | { type: "resume" };
 
-export const initialThumbnailQueue: ThumbnailQueue = { pending: [], active: null, failed: [], paused: false };
+export const initialThumbnailQueue: ThumbnailQueue = { pending: [], active: null, failed: [], paused: false, activeStale: false };
 
 export function thumbnailQueue(state: ThumbnailQueue, event: ThumbnailQueueEvent): ThumbnailQueue {
   switch (event.type) {
     case "request": {
-      if (state.active === event.key || state.failed.includes(event.key)) return state;
+      if ((state.active === event.key && !state.activeStale) || state.failed.includes(event.key)) return state;
       const queued = state.pending.find((job) => job.key === event.key);
       if (queued !== undefined) return event.visible && !queued.visible ? start(setVisible(state, event.key, true)) : state;
       return start({ ...state, pending: [...state.pending, { key: event.key, visible: event.visible }] });
@@ -41,11 +45,12 @@ export function thumbnailQueue(state: ThumbnailQueue, event: ThumbnailQueueEvent
     case "visible":
       return setVisible(state, event.key, event.visible);
     case "done":
-      return event.key === state.active ? start({ ...state, active: null }) : state;
+      return event.key === state.active ? start({ ...state, active: null, activeStale: false }) : state;
     case "fail":
-      return event.key === state.active ? start({ ...state, active: null, failed: [...state.failed, event.key] }) : state;
+      if (event.key !== state.active) return state;
+      return start({ ...state, active: null, activeStale: false, failed: state.activeStale ? state.failed : [...state.failed, event.key] });
     case "forget":
-      return { ...state, pending: state.pending.filter((job) => job.key !== event.key), failed: state.failed.filter((key) => key !== event.key) };
+      return { ...state, activeStale: state.activeStale || state.active === event.key, pending: state.pending.filter((job) => job.key !== event.key), failed: state.failed.filter((key) => key !== event.key) };
     case "pause":
       return state.paused ? state : { ...state, paused: true };
     case "resume":

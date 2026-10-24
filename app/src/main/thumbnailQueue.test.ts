@@ -131,3 +131,34 @@ test("does not mutate the previous state", () => {
   thumbnailQueue(before, request("c", true));
   expect(before).toEqual(snapshot);
 });
+
+test("forget + request while the capture runs queues a fresh capture after its done", () => {
+  let state = run(request("a"), { type: "forget", key: "a" }, request("a"));
+  expect(state.active).toBe("a");
+  expect(state.pending.map((job) => job.key)).toEqual(["a"]);
+  state = thumbnailQueue(state, { type: "done", key: "a" });
+  expect(state).toMatchObject({ active: "a", pending: [], failed: [], activeStale: false });
+  state = thumbnailQueue(state, { type: "done", key: "a" });
+  expect(state.active).toBeNull();
+});
+
+test("a stale fail of the old capture does not fail the re-requested key", () => {
+  let state = run(request("a"), { type: "forget", key: "a" }, request("a"));
+  state = thumbnailQueue(state, { type: "fail", key: "a" });
+  expect(state).toMatchObject({ active: "a", pending: [], failed: [] });
+  state = thumbnailQueue(state, { type: "fail", key: "a" });
+  expect(state.failed).toEqual(["a"]);
+});
+
+test("forget alone makes the running capture's result count for nothing", () => {
+  const forgotten = run(request("a"), { type: "forget", key: "a" });
+  expect(thumbnailQueue(forgotten, { type: "fail", key: "a" })).toMatchObject({ active: null, failed: [] });
+  expect(thumbnailQueue(forgotten, { type: "done", key: "a" })).toMatchObject({ active: null, failed: [] });
+});
+
+test("a re-request waits its turn behind other pending jobs", () => {
+  let state = run(request("a"), request("b"), { type: "forget", key: "a" }, request("a"));
+  state = thumbnailQueue(state, { type: "done", key: "a" });
+  expect(state.active).toBe("b");
+  expect(state.pending.map((job) => job.key)).toEqual(["a"]);
+});

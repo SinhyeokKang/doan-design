@@ -4,6 +4,22 @@ export interface ThumbnailMeta {
   mtimeMs: number;
   size: number;
   appVersion: string;
+  // `tokenSignature` of the folder's token CSS files when the thumbnail was taken.
+  tokens: string;
+}
+
+export interface TokenFile {
+  path: string;
+  mtimeMs: number;
+  size: number;
+}
+
+// Token CSS restyles every canvas of the folder while the canvas files' own
+// mtime and size stay put, so the thumbnail records what the token files
+// looked like. Order-independent; `path` only has to be consistent per folder.
+export function tokenSignature(files: readonly TokenFile[]): string {
+  const sorted = [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return createHash("sha256").update(JSON.stringify(sorted.map((file) => [file.path, file.mtimeMs, file.size]))).digest("hex");
 }
 
 // Cache files are `<key>.png` and `<key>.json` under `<userData>/thumbnails/`.
@@ -13,12 +29,11 @@ export function thumbnailKey(root: string, path: string): string {
 }
 
 // Any mtime difference counts, not only a newer one: a restored older file is
-// a different canvas. `folderChanged` is a served file other than a canvas
-// (token CSS) having changed in the folder, which restyles every canvas while
-// the canvas files' own mtime and size stay put.
-export function thumbnailStale(meta: ThumbnailMeta | null, stat: { mtimeMs: number; size: number }, appVersion: string, folderChanged: boolean): boolean {
-  if (meta === null || folderChanged) return true;
-  return meta.mtimeMs !== stat.mtimeMs || meta.size !== stat.size || meta.appVersion !== appVersion;
+// a different canvas. `tokens` is the current `tokenSignature`, so a token edit
+// is caught whether it happened while the app ran or while it was closed.
+export function thumbnailStale(meta: ThumbnailMeta | null, stat: { mtimeMs: number; size: number }, appVersion: string, tokens: string): boolean {
+  if (meta === null) return true;
+  return meta.mtimeMs !== stat.mtimeMs || meta.size !== stat.size || meta.appVersion !== appVersion || meta.tokens !== tokens;
 }
 
 const CACHE_FILE = /^([0-9a-f]{64})\.(png|json)$/;
