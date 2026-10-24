@@ -88,3 +88,32 @@ test("batched rollout errors reach the judge without copying the rollout transcr
   assert.match(prompt, /FINAL_ANSWER/);
   assert.ok(!prompt.includes("nextSteps"));
 });
+
+test("long repeated heredocs cannot displace MCP tools or batch excerpts", () => {
+  // loop1 W1-codex repeated a 10,412-character Python heredoc in commands and outputs.
+  const command = "python3 - <<'PY'\n" + "x".repeat(25000) + "\nPY\ndoan check";
+  const calls = { commands: [command, command, "doan active --json"], mcpTools: ["mcp__doan__active"], outputs: [
+    { name: "exec_command", command, callId: "batch-1", scope: "batch" as const, excerpt: "FIRST_BATCH" },
+    { name: "exec_command", command: "doan ls", callId: "batch-1", scope: "batch" as const, excerpt: "FIRST_BATCH" },
+    { name: "mcp__doan__active", callId: "batch-2", scope: "batch" as const, excerpt: "LAST_BATCH" },
+  ] };
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls });
+  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1].split("<<<\n")[1].split("\n>>>")[0]);
+  assert.deepEqual(summary.mcpTools, ["mcp__doan__active"]);
+  assert.deepEqual(summary.doanActive, { shellInvoked: true, mcpInvoked: true });
+  assert.equal(summary.commands.length, 2);
+  assert.ok(summary.commands.every((s: string) => s.length <= 200));
+  assert.equal((JSON.stringify(summary).match(/FIRST_BATCH/g) ?? []).length, 1);
+  assert.match(JSON.stringify(summary), /LAST_BATCH/);
+});
+
+test("tool lookup input and empty results reach the judge", () => {
+  const rollout = readFileSync(new URL("./fixtures/codex-tool-search.jsonl", import.meta.url), "utf8");
+  const calls = toolCalls(rollout);
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls });
+  assert.match(prompt, /"toolSearches":\[/);
+  assert.match(prompt, /ALL_TOOLS/);
+  assert.match(prompt, /"excerpt":"\[\]"/);
+  assert.match(prompt, /app_not_running/);
+  assert.match(prompt, /toolSearches show the agent looking for tools; an empty result means the tool was not available to it/);
+});
