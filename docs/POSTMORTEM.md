@@ -2,6 +2,22 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — Removal checked the current canvas instead of the retained draft origin
+
+- **Area**: renderer removal transition relevance and retained invalid drafts.
+- **Symptom**: after a project folder moved and its canvas became unavailable, Remove/Remove all from Home removed the project without asking about its still-retained hidden draft.
+- **Root cause**: the relevance filter used session.identity.root, but session.identity becomes null when the canvas is lost. The draft retains its own immutable origin.root and was therefore excluded from the guard by a filter unrelated to its ownership.
+- **Net**: R-final's real-window probe exposed the gap. The new runtime regression failed while waiting for Keep writing after Missing/Remove; it now checks both row and card removal, returns to the visible retained draft on Keep writing, and permits unrelated removal without a guard.
+- **Prevention**: use the retained object's origin to decide destructive-transition relevance when its live target can disappear. Search `rg -n 'onCommentTransition|origin.root|session.identity' app/src/renderer/useComments.tsx`; preserve quit guarding and unrelated-root tests alongside the missing-origin scenario.
+
+### 2026-10-25 — A canvas reload detached the frame between a poll's lookup and evaluation
+
+- **Area**: Electron E2E asynchronous polling in comments-ui, projects-home and runtime.
+- **Symptom**: the integration full E2E failed at the missing-target check with locator.evaluate: Frame was detached after rewriting canvas HTML. Another E2E was running concurrently, increasing timing pressure.
+- **Root cause**: waitGate retried only a false predicate result. Resolving a frame locator and evaluating its element are not atomic across a watcher-triggered iframe replacement, so a transient rejected evaluation escaped the wait immediately.
+- **Net**: the conductor's actual integration failure exposed the race. Controlled callbacks against the actual wait bodies reproduce rejection and verify retry, unchanged success predicates, false timeout and preservation of the last exception; full-runtime results are recorded above.
+- **Prevention**: polling across navigation or frame replacement must retry failed observations until its deadline and rethrow the last error on timeout. A retry must never convert an exception into success. Keep Playwright frame locators inside each predicate so the next attempt resolves the current frame; audit `rg -n 'waitGate|async function wait|frameLocator|evaluate' app/e2e` when adding reload checks.
+
 ### 2026-10-25 — Removing the remembered row removed a card from keyboard navigation
 
 - **Area**: Home card roving tabindex.
