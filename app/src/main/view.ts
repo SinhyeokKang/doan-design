@@ -9,16 +9,28 @@ export interface CanvasRow {
   title?: string;
   // From `doan ls` as is; the app never re-reads the canvas meta.
   width?: number;
+  // File mtime from main's stat; absent when the file vanished after `doan ls`.
+  mtimeMs?: number;
   open: number;
   resolved: number;
   url: string;
+}
+
+// `git` is the CLI's optional `result.git`, passed through unchanged.
+export interface GitInfo {
+  common: string;
+  main?: string;
+  branch?: string;
+  detached?: string;
+  worktrees: string[];
 }
 
 export type FolderEntry = { path: string } & (
   | { kind: "loading" }
   // Bumped by the shell whenever a served file of the folder changed; the
   // renderer reloads an open canvas on a new value. Only a list is served.
-  | { kind: "list"; canvases: CanvasRow[]; servedRev: number }
+  // `changedAt` is the newest canvas mtime; absent with no canvases.
+  | { kind: "list"; canvases: CanvasRow[]; servedRev: number; git?: GitInfo; changedAt?: number }
   | { kind: "uninitialized" }
   | { kind: "error"; message: string }
   | { kind: "cliError"; reason: string }
