@@ -486,16 +486,20 @@ test("wires packaged CLI selection with the runtime environment", () => {
 });
 
 
-test("onboarding opens initially, menu reopens without a shortcut and shows the hidden window", async () => {
+test.each([false, true])("onboarding menu preserves an open session (hidden: %s)", async hidden => {
   const contents = window().webContents;
   const first = await invoke("onboarding:get-open", contents, null);
   expect(first).toEqual({ session: expect.any(String) });
   const setup = item("Set Up doan…"); expect(setup.accelerator).toBeUndefined();
   const menu = mocks.menu.mock.calls[0]?.[0][0];
   expect(Array.isArray(menu?.submenu) && menu.submenu.slice(0, 2).map(i => i.role ?? i.label)).toEqual(["about", "Set Up doan…"]);
+  mocks.machine.cancelConfirmation.mockClear();
+  if (hidden) window().emit("close", { preventDefault: vi.fn() });
   Reflect.apply(setup.click!, undefined, []);
   expect(window().show).toHaveBeenCalled();
-  expect(await invoke("onboarding:get-open", contents, null)).not.toEqual(first);
+  expect(mocks.machine.cancelConfirmation).not.toHaveBeenCalled();
+  expect(await invoke("onboarding:get-open", contents, null)).toEqual(first);
+  expect(window().webContents.send).not.toHaveBeenCalledWith("onboarding:open", expect.anything());
   expect(mocks.markClosed).not.toHaveBeenCalled();
 });
 test("stale wizard read cannot publish after reopening and rejects iframe callers", async () => {
@@ -504,6 +508,7 @@ test("stale wizard read cannot publish after reopening and rejects iframe caller
   let finish!: (value: unknown) => void;
   mocks.machine.read.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   const waiting = invoke("onboarding:read", contents, null, { session: opened.session, requestId: "r" });
+  await invoke("onboarding:close", contents, null, opened);
   Reflect.apply(item("Set Up doan…").click!, undefined, []);
   finish({ requestId: "r" }); expect(await waiting).toEqual({ kind: "stale" });
   mocks.machine.run.mockClear();
@@ -595,4 +600,16 @@ test("get-open clears a lost confirmation only for the app main frame", async ()
   expect(mocks.machine.cancelConfirmation).not.toHaveBeenCalled();
   await invoke("onboarding:get-open", contents, null);
   expect(mocks.machine.cancelConfirmation).toHaveBeenCalledOnce();
+});
+
+
+test("the onboarding menu starts a fresh session only after the wizard closes", async () => {
+  const contents = window().webContents;
+  const first = await invoke("onboarding:get-open", contents, null);
+  expect(await invoke("onboarding:close", contents, null, first)).toEqual({ kind: "success" });
+  Reflect.apply(item("Set Up doan…").click!, undefined, []);
+  const second = await invoke("onboarding:get-open", contents, null);
+  expect(second).toEqual({ session: expect.any(String) });
+  expect(second).not.toEqual(first);
+  expect(window().webContents.send).toHaveBeenCalledExactlyOnceWith("onboarding:open", second);
 });
