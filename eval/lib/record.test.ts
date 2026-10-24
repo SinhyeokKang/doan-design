@@ -13,11 +13,27 @@ test("the round row groups results by scenario and keeps repeats in order", () =
 
 test("known R2 Codex condition is noted without hiding or rewriting results", () => {
   const meta = { date: "2026-10-24", versions: {}, guideSha256: "", cliVersion: "" };
-  const text = summary("round", meta, [run("R2", "codex", 1, "fail"), run("R2", "claude", 1, "fail"), run("R2b", "codex", 1, "fail")]);
+  const text = summary("round", meta, [{ ...run("R2", "codex", 1, "fail"), checks: [{ id: "selected_primary_background", pass: false, detail: "selection unavailable" }] }, run("R2", "claude", 1, "fail"), run("R2b", "codex", 1, "fail")]);
   assert.match(text, /expected fail: MCP disabled by design \(see R2b\)/);
   assert.match(text, /R2: codex fail, claude fail/);
   const candidates = text.split("## Issue candidates")[1];
   assert.ok(!candidates.includes("**R2 / codex"));
   assert.ok(candidates.includes("**R2 / claude"));
   assert.ok(candidates.includes("**R2b / codex"));
+});
+
+
+test("unexpected R2 Codex failures remain issue candidates", () => {
+  const meta = { date: "2026-10-24", versions: {}, guideSha256: "", cliVersion: "" };
+  const expected = { id: "selected_primary_background", pass: false, detail: "selection unavailable" };
+  for (const checks of [[], [expected, { id: "other_elements_unchanged", pass: false, detail: "unexpected edit" }], [{ id: "only_canvas_changed", pass: false, detail: "other file" }], [{ id: "checks_error", pass: false, detail: "broken check" }]]) {
+    const text = summary("round", meta, [{ ...run("R2", "codex", 1, "fail"), checks }]);
+    assert.match(text.split("## Issue candidates")[1], /\*\*R2 \/ codex/);
+    assert.doesNotMatch(text, /expected fail:/);
+  }
+  for (const result of ["fail", "partial", "judge_error"] as const) {
+    const text = summary("round", meta, [{ ...run("R2", "codex", 1, result), checks: [expected], timedOut: true }]);
+    assert.match(text.split("## Issue candidates")[1], /\*\*R2 \/ codex/);
+    assert.doesNotMatch(text, /expected fail:/);
+  }
 });

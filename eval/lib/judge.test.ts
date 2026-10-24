@@ -115,5 +115,28 @@ test("tool lookup input and empty results reach the judge", () => {
   assert.match(prompt, /ALL_TOOLS/);
   assert.match(prompt, /"excerpt":"\[\]"/);
   assert.match(prompt, /app_not_running/);
-  assert.match(prompt, /toolSearches show the agent looking for tools; an empty result means the tool was not available to it/);
+  assert.match(prompt, /toolSearches show the agent looking for tools; an empty result means no available tool matched that lookup/);
+});
+
+
+test("doan calls anywhere in long commands survive extraction and batch deduplication", () => {
+  const prefix = "python3 - <<'PY'\n" + "x".repeat(12000) + "\nPY\n";
+  const commands = [prefix + "doan check --json", prefix + "doan ls --json", prefix + "doan active\necho " + "y".repeat(12000)];
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls: {
+    commands, mcpTools: [], outputs: commands.map(command => ({ name: "exec_command", command, callId: "batch", scope: "batch" as const, excerpt: "RESULT" })),
+  } });
+  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1].split("<<<\n")[1].split("\n>>>")[0]);
+  assert.deepEqual(summary.commands, ["doan check --json", "doan ls --json", "doan active"]);
+  assert.deepEqual(summary.outputs[0].calls, summary.commands);
+});
+
+test("many tool searches leave room for invocation output", () => {
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls: {
+    commands: [], mcpTools: [], toolSearches: Array.from({ length: 100 }, (_, i) => ({ callId: `lookup-${i}`, input: "x".repeat(200), excerpt: "y".repeat(300) })),
+    outputs: [{ name: "mcp__doan__active", callId: "active", scope: "call", excerpt: "RETAINED_OUTPUT" }],
+  } });
+  assert.match(prompt, /RETAINED_OUTPUT/);
+  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1].split("<<<\n")[1].split("\n>>>")[0]);
+  assert.equal(summary.toolSearches.length, 10);
+  assert.equal(summary.omittedToolSearches, 90);
 });
