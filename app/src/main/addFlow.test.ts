@@ -29,6 +29,12 @@ describe("classifyPick", () => {
     expect(classifyPick(facts({ hasGit: true, children: ["/code/picked/sub"] }))).toEqual({ kind: "store", path: "/code/picked" });
   });
 
+  test("an already stored Not set up folder is a duplicate, with or without child repos", () => {
+    const saved = ["/code/picked"];
+    expect(classifyPick(facts({ saved }))).toEqual({ kind: "duplicate", path: "/code/picked" });
+    expect(classifyPick(facts({ saved, children: ["/code/picked/sub"] }))).toEqual({ kind: "duplicate", path: "/code/picked" });
+  });
+
   test("a folder holding repos is scanned", () => {
     expect(classifyPick(facts({ children: ["/code/picked/a"] }))).toEqual({ kind: "scan" });
   });

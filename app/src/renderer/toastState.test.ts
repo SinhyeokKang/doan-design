@@ -52,6 +52,18 @@ describe("toastState", () => {
     expect(isToastPaused(hidden)).toBe(true);
   });
 
+  test("replacing a toast ends the old element's hover and focus", () => {
+    const state = run([{ type: "show", toast: one }, { type: "focus", on: true }, { type: "hover", on: true }, { type: "show", toast: two }]);
+    expect(isToastPaused(state)).toBe(false);
+    expect(run([{ type: "tick", elapsedMs: TOAST_MS }], state)).toMatchObject({ toast: null, ended: { id: "2", reason: "expired" } });
+  });
+
+  test("replacing a toast while the window is hidden keeps it hidden", () => {
+    const state = run([{ type: "hidden", on: true }, { type: "show", toast: one }, { type: "focus", on: true }, { type: "show", toast: two }]);
+    expect(state).toMatchObject({ focused: false, hovered: false, hidden: true });
+    expect(run([{ type: "tick", elapsedMs: TOAST_MS }], state).toast).toBe(two);
+  });
+
   test("ticks with no toast change nothing", () => {
     expect(run([{ type: "tick", elapsedMs: 5000 }])).toEqual(initialToastState);
   });

@@ -31,6 +31,23 @@ describe("groupProjects", () => {
     expect(cards.map((card) => card.rows.map((row) => row.path))).toEqual([["/code/acme", "/code/acme-feat"], ["/x/bad"]]);
   });
 
+  test("a list row that lost its git leaves the card it was last seen in", () => {
+    const entries = [listRow("/code/acme", acme("", "main")), listRow("/code/acme-feat")];
+    const cards = groupProjects(entries, new Map([["/code/acme-feat", common]]));
+    expect(cards.map((card) => card.rows.map((row) => row.path))).toEqual([["/code/acme"], ["/code/acme-feat"]]);
+  });
+
+  test("every problem state stays in the card it was last seen in", () => {
+    const problems: FolderEntry[] = [
+      { path: "/w/missing", kind: "notFound" },
+      { path: "/w/bad", kind: "error", message: "bad" },
+      { path: "/w/cli", kind: "cliError", reason: "x" },
+    ];
+    const memory = new Map(problems.map((entry) => [entry.path, common]));
+    const cards = groupProjects([listRow("/code/acme", acme("", "main")), ...problems], memory);
+    expect(cards.map((card) => card.rows.map((row) => row.path))).toEqual([["/code/acme", "/w/missing", "/w/bad", "/w/cli"]]);
+  });
+
   test("a project outside git is a card of its own", () => {
     const cards = groupProjects([listRow("/p/one"), listRow("/p/two")], new Map());
     expect(cards.map((card) => card.name)).toEqual(["one", "two"]);
