@@ -15,6 +15,8 @@
 | 2026-10-25 | task 10의 실제 Finder 드래그 앤 드롭은 격리된 dev 앱(임시 HOME·userData)에서 computer-use로 시도한다. 안 되면 보고서와 PR에 "수동 확인 필요"로 남긴다 | 사용자 답(추천안) |
 | 2026-10-25 | 초안 요청: 캔버스 `design/projects-home.html`, canvas id `projects-home`. 프레임 id는 `home`, `home-empty`, `row-states`, `add-checklist`, `setup-confirm`, `toast`, `drop-overlay`, `workspace`다. 제거 초안 가드 문구(프로젝트·캔버스 이름)와 메뉴 활성 표는 `workspace` 프레임 안의 타일로 그린다 | 지휘자 판단 — tasks.md '앞선 단계'가 꼽은 상태 목록을 프레임으로 나눴다. 기존 초안(`onboard`, `select-inspect`)의 kebab-case id 관례를 따랐다 |
 | 2026-10-25 | `/design-draft`가 사용자에게 묻도록 한 질문(단계 1)과 단계 4의 사용자 확인은 지휘자가 받는다. 초안 워커는 지휘자에게 `ask`로 묻는다 | 지휘자 판단 — 초안 게이트를 지휘자가 맡게 되었다 |
+| 2026-10-25 | 작업공간 사이드바는 shipped 트리 모양과 섹션 제목 Projects를 유지하고 현재 루트만 받는다. Open Project… 버튼은 뺀다 | 지휘자 판단(DX 질문) — spec의 추가 진입점은 Add Project…(⌘O)와 홈의 + 버튼이다. 그 버튼이 부르는 `openFolder()`는 마법사용 단일 선택 계약이라 새 추가 흐름을 우회한다. 공정성을 위해 DC에도 같은 지침을 보냈다 |
+| 2026-10-25 | 스캔 중 체크 목록: 후보가 'Checking…'(비활성)으로 차례로 채워지고 진행 줄(n of N checked)을 보인다. Add는 스캔이 끝날 때까지 비활성이다. Cancel은 남은 실행을 끝내고 대화상자를 닫으며 아무것도 저장하지 않는다 | 지휘자 판단(DC 질문) — design.md는 Cancel이 남은 실행을 끝낸다고만 정했다. 대화상자 Cancel의 보통 의미와 맞는 가장 단순한 쪽이다. DX에도 같은 지침을 보냈다 |
 
 ## 배치
 
@@ -49,3 +51,6 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 ## 진행 기록
 
 (배치가 진행되면 추가한다)
+- 2026-10-25: Run `run_359b36a6d1f1`. 1파 시작 — DX(`ctx_093e979c49d0`, Codex Astra high), DC(`ctx_b847abb7d217`, Claude Opus high), A1(`ctx_3f5a39709ce3`, Codex Astra medium), A2(`ctx_dab1218179e6`, Claude Sonnet high). 네 워커 모두 `launch.effective`가 요청과 같다.
+- 2026-10-25: A1 완료(`b1fd6bd` test, `07d1213` feat, 브랜치 `SinhyeokKang/ph-a1`). `go test`·`go vet` 통과 보고. 교차 리뷰 R-A1(`ctx_fa92402422c6`, Claude Opus high)을 띄웠다. B1(`ctx_85f01e5e411d`)은 A1 터미널을 그대로 이어 쓴다(같은 패키지·같은 모델). R-A1 지적은 B1 진행 중 후속 메시지로 보낸다.
+- 2026-10-25: A2 완료(`8310558`, 브랜치 `SinhyeokKang/ph-a2`). typecheck·test 통과 보고(59 files, 1340 tests). 차이: `/ship`의 red 선확인과 별도 `/code-review`·`/refactor`를 건너뛰었다. `classifyPick`에 `refuse` 결과를 더했다(`error`·`cliError`는 기존 `openDecision` 규칙을 따름). 교차 리뷰 R-A2(Codex Astra medium)가 리뷰 단계를 대신한다. A2는 B2를 막지 않도록 먼저 통합하고, 리뷰 지적은 A2 워커가 후속 커밋으로 고친다.
