@@ -152,6 +152,26 @@ describe("shell races", () => {
   });
 
 
+  test("a read that finishes after its folder was removed changes nothing", async () => {
+    const root = writeRepo(dir());
+    const other = writeRepo(dir());
+    const gated = gatedCli();
+    const { shell, changes } = await start(gated.path);
+    await shell.open(root);
+    expect(shell.entries()).toEqual([{ path: root, kind: "loading" }]);
+    await shell.remove([root]);
+    const afterRemove = changes.length;
+    writeFileSync(gated.gate, "");
+    await vi.waitFor(() => expect(existsSync(gated.done)).toBe(true), until);
+    // Opening another folder spawns new CLI runs only after the late read's
+    // process has exited, so its result is handled before these changes.
+    await shell.open(other);
+    await vi.waitFor(() => expect(latest(changes)).toEqual([expect.objectContaining({ path: other, kind: "list" })]), until);
+    for (const entries of changes.slice(afterRemove)) {
+      expect(entries.map((entry) => entry.path)).toEqual([other]);
+    }
+  });
+
   test("re-opening a folder that came back watches it again", async () => {
     const root = writeRepo(dir());
     const { shell, changes } = await start();

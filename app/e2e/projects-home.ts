@@ -219,6 +219,11 @@ process.exit(result.status ?? 1);
   await goHome(page); await add([addedProject, mixedProject]); await homeRow(page, mixedProject).waitFor();
   assert.equal(await page.getByRole("region", { name: "mixed-project", exact: true }).evaluate(node => getComputedStyle(node).boxShadow !== "none"), true, "mixed additions highlight new cards");
   assert.equal(await page.getByRole("region", { name: "added-project", exact: true }).evaluate(node => getComputedStyle(node).boxShadow !== "none"), true, "mixed additions highlight duplicate cards");
+  await homeRow(page, detached).focus(); await page.keyboard.press("Shift+F10");
+  await page.getByRole("menuitem", { name: "Remove from doan", exact: true }).click();
+  await homeRow(page, detached).waitFor({ state: "detached" });
+  await acmeCard.getByRole("button", { name: "Project menu acme", exact: true }).focus(); await page.keyboard.press("Tab");
+  assert.equal(await homeRow(page, repo).evaluate(node => node === document.activeElement), true, "Tab reaches the first remaining row after focused-row removal");
   console.log("projects-home: PASS");
 } catch (error) {
   console.error(error);
