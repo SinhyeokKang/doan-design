@@ -13,6 +13,8 @@ The discovery half of doan's usability loop (2026-10-24 user): we find where age
 - `/agent-eval <scenario-id...>` — only those scenarios (re-measuring a fix).
 - `/agent-eval --repeat <id...>` — run a failed scenario twice more to tell a real failure from chance.
 
+Runner commands (ARCHITECTURE §14): full round `node eval/run.ts --round <name>`; some scenarios `--scenarios W1,R2`; one agent `--agents codex`; the repeat of a failure `node eval/run.ts --scenarios <id> --agents <agent> --repeat 2 --round <name>-repeat` (a new round directory; runs are numbered `-1`, `-2`). A round name that already exists is refused.
+
 ## When to run (2026-10-24 user)
 
 - A PR changes the guide (`cli/internal/cli/skill.md`), CLI or MCP output and error messages, `doan check` rules, MCP tool descriptions, or the skill stub.
@@ -25,9 +27,9 @@ This skill runs Claude Code and Codex for real in every round and has the other 
 
 ## Requirements
 
-- The runner and scenarios: `eval/run.ts` and `eval/scenarios/<id>/` (built on `feat-agent-eval`, 2026-10-24). Until they exist, stop and say so.
-- `npm --prefix app run package` done at the HEAD being measured; the runner uses the bundled CLI so agents see what users get.
-- `claude` and `codex` on `PATH` and signed in.
+- The runner and scenarios: `eval/run.ts` and `eval/scenarios/<id>/` (ARCHITECTURE §14).
+- `npm --prefix app run package` done at the HEAD being measured; the runner uses the bundled CLI so agents see what users get. In a fresh worktree run the app setup first (`npm --prefix app ci`, then `node -e "require('electron')"` from `app/`; AGENTS.md 'Commands').
+- `claude` and `codex` on `PATH` and signed in, and `python3.12` on `PATH` (the real-state check and the scenarios' HTML checks use it).
 
 ## Steps
 
@@ -35,7 +37,8 @@ This skill runs Claude Code and Codex for real in every round and has the other 
 2. **Score** each run in two layers and keep both:
    - automatic checks from the scenario (e.g. `doan check` errors, convention violations, comment events, which comments were resolved, files that must not change, typecheck/build for implementation scenarios) — these decide pass/fail;
    - a judge from the other model family scores the scenario rubric (pass / partial / fail with reasons). The judge never overrides a failed automatic check.
-3. **Classify** every failure, partial and noticeable stall by its layer: guide text, CLI/MCP output or error message, `doan check` rule, or product feature. Quote the transcript line that shows it.
+3. **Classify** every failure, partial and noticeable stall by its layer: guide text, CLI/MCP output or error message, `doan check` rule, or product feature. Quote the transcript line that shows it. Separate a scenario or runner defect (a check or the run setup scored a reasonable run wrong) from a doan usability problem: the former is not an issue row; list it in the round notes for a new scenario id or a runner fix.
+   - Codex stderr is not a complete command log (Codex 0.164, baseline round 2026-10-24): when one tool call runs several commands, stderr prints an `exec` header for only one of them, so transcript checks and the judge can miss a command. Before blaming a Codex run, read its session log, `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*-<session id>.jsonl` (`~/.codex` when `CODEX_HOME` is unset; the session id is on stderr), and copy it into the run directory as evidence.
 4. **Record** in `docs/USABILITY-EVAL.md`: one round row (date, agents and versions, guide hash, CLI version, per-scenario results) and one issue row per new problem (or a note on an existing issue). Do not record what you did not observe.
 5. **Report** to the user: results table, new and recurring issues, and a recommended next step per issue (`/ship` for guide or output wording, `/feature` for product changes, a new scenario when a fixed issue needs a regression check).
 
