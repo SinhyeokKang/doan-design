@@ -1,8 +1,12 @@
 // Read literal arguments without evaluating agent-authored JavaScript. Strings
 // and comments are tokens, so quoted examples cannot become tool invocations.
-function execCalls(source: string): { name: string; command?: string }[] {
-  const tokens = [...source.matchAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|[\w$]+|[^\s]/g)]
+function scriptTokens(source: string): string[] {
+  return [...source.matchAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|[\w$]+|[^\s]/g)]
     .map(m => m[0]).filter(t => !t.startsWith("//") && !t.startsWith("/*"));
+}
+
+function execCalls(source: string): { name: string; command?: string }[] {
+  const tokens = scriptTokens(source);
   const literal = (token: string | undefined): string | undefined => {
     if (!token || !/^["'`]/.test(token) || (token[0] === "`" && token.includes("${"))) return undefined;
     if (token[0] === '"') {
@@ -171,9 +175,35 @@ function invocationOutputs(transcript: string): InvocationOutput[] {
   });
 }
 
-export interface ToolCalls { commands: string[]; mcpTools: string[]; outputs?: InvocationOutput[] }
+export interface ToolSearch { callId: string; input: string; excerpt?: string }
+
+function toolSearches(transcript: string): ToolSearch[] {
+  const searches: ToolSearch[] = [];
+  const results = new Map<string, unknown>();
+  for (const line of transcript.split(/\r?\n/)) {
+    let event;
+    try { event = JSON.parse(line); } catch { continue; }
+    if (!record(event) || event.type !== "response_item" || !record(event.payload)) continue;
+    const p = event.payload;
+    if (typeof p.call_id !== "string") continue;
+    if (p.type === "custom_tool_call_output") results.set(p.call_id, p.output);
+    if (p.type === "custom_tool_call" && /^(?:functions\.)?exec$/.test(String(p.name)) && typeof p.input === "string" && scriptTokens(p.input).includes("ALL_TOOLS"))
+      searches.push({ callId: p.call_id, input: p.input.slice(0, 200) });
+  }
+  return searches.map(search => {
+    if (!results.has(search.callId)) return search;
+    const output = results.get(search.callId);
+    // Keep empty lookup arrays: generic invocation output flattening drops them.
+    const texts = Array.isArray(output) ? output.flatMap(part => record(part) && typeof part.text === "string" ? [part.text] : []) : [];
+    const excerpt = (texts.length ? texts.join("\n") : typeof output === "string" ? output : JSON.stringify(output) ?? "").slice(0, 300);
+    return { ...search, excerpt };
+  });
+}
+
+export interface ToolCalls { commands: string[]; mcpTools: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
 
 export function toolCalls(transcript: string): ToolCalls {
   const outputs = invocationOutputs(transcript);
-  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(outputs.length ? { outputs } : {}) };
+  const searches = toolSearches(transcript);
+  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(outputs.length ? { outputs } : {}), ...(searches.length ? { toolSearches: searches } : {}) };
 }
