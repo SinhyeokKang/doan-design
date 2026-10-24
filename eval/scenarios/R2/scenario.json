@@ -1,0 +1,8 @@
+{
+  "id": "R2",
+  "title": "Restyle the selected call to action",
+  "focus": "active",
+  "init": null,
+  "selection": "selection.json",
+  "timeoutSec": 900
+}

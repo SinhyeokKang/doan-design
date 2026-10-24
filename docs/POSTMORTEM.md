@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-24 — Codex transcript parsing truncated executed commands at prose inside the command
+
+- **Area**: `eval/lib/transcript.ts`, Codex exec header extraction.
+- **Symptom**: R2 missed a real `doan active` invocation after `echo look in app;`, and other scenario checks could miss later command text.
+- **Root cause**: the cwd-removal regex matched the first ` in ` inside the shell command rather than the trailing absolute working-directory field.
+- **Net**: review R-S2-1 reproduced the false negative; earlier transcript tests covered only a plain command. Two new regression tests failed before the fix and pass with the final ` in /` boundary, including single/double quotes, loops, absolute paths inside commands, separate/inline status lines, and echo/tool-result exclusions.
+- **Prevention**: retain the transcript boundary regressions and separate executed command headers from guide/output content. Run `rg -n 'lastIndexOf\(" in /"\)|replace\(/ in ' eval` when changing Codex transcript parsing; the only current match is the corrected boundary in `eval/lib/transcript.ts`. Multiline headers and cwd paths containing ` in /` remain outside the tested format.
+
 ### 2026-10-24 — Focus did not return to the row when Set Up… closed from outside
 
 - **Area**: `app/src/renderer/Sidebar.tsx`, `ProjectTree` setup dialog close effects.

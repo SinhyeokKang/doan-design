@@ -1,0 +1,9 @@
+{
+  "id": "R5",
+  "title": "Read a large operations canvas",
+  "focus": "understand",
+  "init": {
+    "tokenCss": "styles/tokens.css"
+  },
+  "selection": null
+}
