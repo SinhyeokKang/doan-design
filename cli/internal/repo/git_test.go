@@ -262,3 +262,69 @@ func TestGitInfoHomeUsesDiskSpelling(t *testing.T) {
 		}
 	}
 }
+
+func TestGitInfoUnavailableHomeFallsBack(t *testing.T) {
+	root := real(t, t.TempDir())
+	put(t, root, ".git/HEAD", "ref: refs/heads/main")
+	put(t, root, "file", "")
+	for _, home := range []string{filepath.Join(root, "missing"), filepath.Join(root, "file")} {
+		// The root is above these lexical homes and must still be ignored.
+		if got := ReadGit(root, home); got != nil {
+			t.Fatalf("ancestor of %s: %+v", home, got)
+		}
+		other := real(t, t.TempDir())
+		put(t, other, ".git/HEAD", "ref: refs/heads/other")
+		if got := ReadGit(other, home); got == nil || got.Branch != "other" {
+			t.Fatalf("unrelated to %s: %+v", home, got)
+		}
+	}
+}
+
+func TestGitInfoUnavailableRegistrationsKeepsCurrent(t *testing.T) {
+	for _, kind := range []string{"file", "unreadable"} {
+		t.Run(kind, func(t *testing.T) {
+			base := real(t, t.TempDir())
+			main := filepath.Join(base, "main")
+			root := filepath.Join(base, "linked")
+			put(t, main, ".git/HEAD", "ref: refs/heads/main")
+			put(t, root, ".git", "gitdir: ../metadata")
+			put(t, base, "metadata/HEAD", "ref: refs/heads/topic")
+			put(t, base, "metadata/commondir", "../main/.git")
+			path := filepath.Join(main, ".git/worktrees")
+			if kind == "file" {
+				put(t, main, ".git/worktrees", "broken")
+			} else {
+				if err := os.Mkdir(path, 0000); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := os.Chmod(path, 0755); err != nil {
+						t.Error(err)
+					}
+				})
+				if f, err := os.Open(path); err == nil {
+					f.Close()
+					t.Skip("permissions do not prevent directory reads")
+				}
+			}
+			got := ReadGit(root, "")
+			if got == nil || got.Common != filepath.Join(main, ".git") || got.Main != main || got.Branch != "topic" || !reflect.DeepEqual(got.Worktrees, []string{root}) {
+				t.Fatalf("%+v", got)
+			}
+		})
+	}
+}
+
+func TestGitInfoSymlinkHeadOmitsIdentity(t *testing.T) {
+	for _, target := range []string{"refs/heads/main", "missing"} {
+		t.Run(target, func(t *testing.T) {
+			root := real(t, t.TempDir())
+			put(t, root, ".git/refs/heads/main", strings.Repeat("a", 40))
+			link(t, target, filepath.Join(root, ".git/HEAD"))
+			got := ReadGit(root, "")
+			if got == nil || got.Branch != "" || got.Detached != "" || got.Main != root || !reflect.DeepEqual(got.Worktrees, []string{root}) {
+				t.Fatalf("%+v", got)
+			}
+		})
+	}
+}

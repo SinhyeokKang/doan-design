@@ -20,6 +20,9 @@ func TestListGitAndMCPParity(t *testing.T) {
 	if !ok || git["branch"] != "main" || git["main"] != result["root"] || git["common"] != filepath.Join(result["root"].(string), ".git") {
 		t.Fatal(got)
 	}
+	if !reflect.DeepEqual(git["worktrees"], []any{result["root"]}) {
+		t.Fatal("unexpected worktrees", git)
+	}
 	if _, ok := git["detached"]; ok {
 		t.Fatal("unexpected detached", git)
 	}
