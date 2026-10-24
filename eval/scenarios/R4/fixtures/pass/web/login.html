@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in — Fieldnotes</title>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="app.css">
+  <style>
+.login-options { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-6); font-size: 14px; }
+.login-options label { display: flex; align-items: center; gap: var(--space-2); margin: 0; }
+input[type="checkbox"] { accent-color: var(--color-primary); }
+  </style>
+</head>
+<body>
+  <main><section class="card">
+      <h1>Welcome back</h1>
+      <p>Sign in to your Fieldnotes workspace.</p>
+      <form>
+        <div class="field"><label for="email">Email address</label><input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+        <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password"></div>
+        <div class="login-options"><label><input type="checkbox" name="remember"> Remember me</label><a href="mailto:help@example.com">Forgot password?</a></div>
+        <button type="submit">Sign in</button>
+      </form>
+  </section></main>
+</body>
+</html>

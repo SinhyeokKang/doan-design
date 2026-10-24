@@ -1,0 +1,9 @@
+{
+  "id": "R4",
+  "title": "Implement the confirmed login screen",
+  "focus": "implement",
+  "init": {
+    "tokenCss": "web/tokens.css"
+  },
+  "selection": null
+}

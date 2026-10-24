@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="login">
+  <meta name="doan:width" content="640">
+  <title>Login — approved</title>
+  <link rel="stylesheet" href="../web/tokens.css">
+  <style>
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--font-body); color: var(--color-text); background: var(--color-background); }
+main { min-height: 100vh; display: grid; place-items: center; padding: var(--space-8); }
+.card { width: 400px; max-width: 100%; padding: var(--space-8); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-card); }
+h1 { margin: 0 0 var(--space-2); font-size: 28px; line-height: 1.25; }
+p { margin: 0 0 var(--space-6); color: var(--color-muted); line-height: 1.5; }
+a { color: var(--color-primary); }
+label { display: block; margin-bottom: var(--space-2); font-size: 14px; }
+input:not([type="checkbox"]) { width: 100%; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-text); font: inherit; }
+input::placeholder { color: var(--color-muted); }
+.field { margin-bottom: var(--space-4); }
+button { width: 100%; padding: var(--space-3); border: 0; border-radius: var(--radius-control); background: var(--color-primary); color: var(--color-on-primary); font: inherit; font-weight: 600; }
+.login-options { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-6); font-size: 14px; }
+.login-options label { display: flex; align-items: center; gap: var(--space-2); margin: 0; }
+input[type="checkbox"] { accent-color: var(--color-primary); }
+    [data-doan-frame] { width: 640px; min-height: 720px; display: grid; place-items: center; padding: var(--space-8); }
+    .design-note { padding: var(--space-4); margin: 0; }
+  </style>
+</head>
+<body>
+  <p class="design-note">Approved login screen. Not yet implemented; web/login.html is a reserved placeholder. Initial state: empty fields and unchecked Remember me.</p>
+  <section data-doan-frame="login" data-doan-title="Login — initial state" data-doan-implements="web/login.html">
+    <div class="card" data-doan-id="login-card">
+      <h1>Welcome back</h1>
+      <p>Sign in to your Fieldnotes workspace.</p>
+      <form>
+        <div class="field"><label for="email">Email address</label><input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+        <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password"></div>
+        <div class="login-options"><label><input type="checkbox" name="remember"> Remember me</label><a href="mailto:help@example.com">Forgot password?</a></div>
+        <button type="submit">Sign in</button>
+      </form>
+    </div>
+  </section>
+</body>
+</html>
