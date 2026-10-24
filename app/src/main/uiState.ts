@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { renameSync, rmSync, writeFileSync } from "node:fs";
-import { readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { readFile, unlink, writeFile } from "node:fs/promises";
 import { parseUiState, type UiState } from "../restore/uiState";
 
 export const UI_STATE_DELAY_MS = 500;
@@ -12,27 +12,33 @@ export interface UiStateStore {
   // Validates the renderer's value and schedules a write of what survived;
   // false when the whole value is refused (wrong shape or over 64 KiB).
   save(value: unknown): boolean;
-  // Writes a pending value now, synchronously: the app is quitting and the
-  // debounce would otherwise drop the last change.
+  // Writes the last accepted value now, synchronously, unless it is already on
+  // disk: the app is quitting, and neither the debounce nor a write still
+  // running would finish.
   flushSync(): void;
   // Settles after the current write, for callers that must not race it.
   idle(): Promise<void>;
 }
 
+// The rename is synchronous on purpose: an async rename already handed to the
+// thread pool cannot be called back, so it could land after a quit's sync
+// flush and put an older value on disk.
 export interface UiStateFs {
   writeFile(path: string, text: string): Promise<void>;
-  rename(from: string, to: string): Promise<void>;
+  renameSync(from: string, to: string): void;
 }
 
 const defaultFs: UiStateFs = {
   writeFile: (path, text) => writeFile(path, text, { flag: "wx" }),
-  rename,
+  renameSync,
 };
 
 const tempName = (file: string) => `${file}.${randomBytes(6).toString("hex")}.tmp`;
 
 export function createUiStateStore(file: string, savedRoots: () => readonly string[], delayMs = UI_STATE_DELAY_MS, fs: UiStateFs = defaultFs): UiStateStore {
-  let pending: string | null = null;
+  // The newest accepted value that is not on disk yet, whether its write is
+  // waiting for the debounce or already running; a quit flush writes it.
+  let unsaved: string | null = null;
   let timer: NodeJS.Timeout | undefined;
   // Writes run one after another so an older value never renames over a newer
   // one; `latest` also stops a queued write that a quit's sync flush overtook.
@@ -47,7 +53,8 @@ export function createUiStateStore(file: string, savedRoots: () => readonly stri
       try {
         await fs.writeFile(temp, text);
         if (seq !== latest) throw new Error("superseded");
-        await fs.rename(temp, file);
+        fs.renameSync(temp, file);
+        if (unsaved === text) unsaved = null;
       } catch (error) {
         await unlink(temp).catch(() => {});
         if (seq === latest) console.error("doan: cannot save ui-state.json", error);
@@ -75,21 +82,20 @@ export function createUiStateStore(file: string, savedRoots: () => readonly stri
       // the renderer sent, before unknown fields are dropped.
       const state = text === undefined ? null : parseUiState(text, savedRoots());
       if (state === null) return false;
-      pending = `${JSON.stringify(state)}\n`;
+      const next = `${JSON.stringify(state)}\n`;
+      unsaved = next;
       clearTimeout(timer);
       timer = setTimeout(() => {
         timer = undefined;
-        const next = pending;
-        pending = null;
-        if (next !== null) void write(next);
+        void write(next);
       }, delayMs);
       return true;
     },
     flushSync() {
       clearTimeout(timer);
       timer = undefined;
-      const next = pending;
-      pending = null;
+      const next = unsaved;
+      unsaved = null;
       if (next === null) return;
       latest++;
       const temp = tempName(file);
