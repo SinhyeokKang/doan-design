@@ -5,7 +5,10 @@ const harness = vi.hoisted(() => ({ effects: [] as (() => (() => void) | undefin
 vi.mock("react", async importOriginal => ({
   ...await importOriginal<typeof import("react")>(),
   useEffect: (effect: () => (() => void) | undefined) => { harness.effects.push(effect); },
+  useLayoutEffect: () => {},
   useRef: () => ({ current: {} }),
+  useCallback: <T,>(callback: T) => callback,
+  useMemo: <T,>(factory: () => T) => factory(),
   useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, vi.fn()],
 }));
 vi.mock("./Toast", () => ({ useToast: () => ({ toast: null, element: null, show: vi.fn(), action: vi.fn() }) }));

@@ -11,7 +11,7 @@ describe("canvasRows", () => {
       [{ path: "design/a.html", id: "a", title: "Login", width: 1280, frames: [], comments: { open: 2, resolved: 1 } }],
       base,
     );
-    expect(rows).toEqual([{ path: "design/a.html", id: "a", title: "Login", width: 1280, open: 2, resolved: 1, url: `${base}design/a.html` }]);
+    expect(rows).toEqual([{ path: "design/a.html", id: "a", title: "Login", width: 1280, frames: [], open: 2, resolved: 1, url: `${base}design/a.html` }]);
   });
 
   test("omits absent and non-string ids", () => {
@@ -45,8 +45,42 @@ describe("canvasRows", () => {
 
   test("omits a missing title", () => {
     const rows = canvasRows([{ path: "design/b.html", frames: [], comments: { open: 0, resolved: 0 } }], base);
-    expect(rows).toEqual([{ path: "design/b.html", open: 0, resolved: 0, url: `${base}design/b.html` }]);
+    expect(rows).toEqual([{ path: "design/b.html", frames: [], open: 0, resolved: 0, url: `${base}design/b.html` }]);
     expect(rows[0]).not.toHaveProperty("title");
+  });
+
+  test("passes static frames in document order, empty and duplicate ids included", () => {
+    const frames = [{ id: "hero", title: "Hero", implements: "x" }, { id: "" }, { id: "hero" }];
+    const rows = canvasRows([{ path: "design/a.html", frames }], base);
+    expect(rows[0]?.frames).toEqual([{ id: "hero", title: "Hero" }, { id: "" }, { id: "hero" }]);
+    expect(rows[0]).not.toHaveProperty("framesTruncated");
+  });
+
+  test("caps static frames at 1,000 and marks the cut", () => {
+    const frames = Array.from({ length: 1001 }, (_, index) => ({ id: `f${index}` }));
+    const row = canvasRows([{ path: "design/a.html", frames }], base)[0];
+    expect(row?.frames).toHaveLength(1000);
+    expect(row?.frames?.at(-1)).toEqual({ id: "f999" });
+    expect(row?.framesTruncated).toBe(true);
+    const exact = canvasRows([{ path: "design/a.html", frames: frames.slice(0, 1000) }], base)[0];
+    expect(exact?.frames).toHaveLength(1000);
+    expect(exact).not.toHaveProperty("framesTruncated");
+  });
+
+  test("clips long static frame ids and titles like the rendered list", () => {
+    const long = "x".repeat(250);
+    expect(canvasRows([{ path: "design/a.html", frames: [{ id: long, title: long }] }], base)[0]?.frames).toEqual([{ id: "x".repeat(200), title: "x".repeat(200) }]);
+  });
+
+  test("drops malformed frame entries and a frames value that is not a list", () => {
+    const rows = canvasRows([
+      { path: "design/a.html", frames: [null, 3, {}, { id: 4 }, { id: "ok", title: 5 }] },
+      { path: "design/b.html", frames: "hero" },
+      { path: "design/c.html" },
+    ], base);
+    expect(rows[0]?.frames).toEqual([{ id: "ok" }]);
+    expect(rows[1]).not.toHaveProperty("frames");
+    expect(rows[2]).not.toHaveProperty("frames");
   });
 
   test("keeps the CLI order", () => {

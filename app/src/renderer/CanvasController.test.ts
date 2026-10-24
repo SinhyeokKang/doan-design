@@ -259,10 +259,10 @@ describe("selection", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("a frame jump asks the canvas to pick that frame by index and id", () => {
+  it("Select asks the canvas to pick that frame by index and id", () => {
     const h = selectionHarness();
     try {
-      h.controller.jump(1);
+      h.controller.selectFrame(1);
       const posted = h.current().contentWindow.postMessage.mock.calls.map((call) => call[0]);
       expect(posted.slice(-2)).toEqual([{ type: "measure" }, { type: "pick-frame", seq: 1, index: 1, id: "hero" }]);
     } finally { h.controller.dispose(); }
@@ -417,7 +417,7 @@ describe("selection wiring (flow 7)", () => {
     try {
       h.select(1);
       h.key("Escape");
-      h.controller.jump(1);
+      h.controller.selectFrame(1);
       h.layout({ href: h.other.url });
       h.select(1, { href: h.other.url });
       expect(h.state().selection).toMatchObject({ tag: "span" });
@@ -588,7 +588,7 @@ describe("independent pending selection and hover commands", () => {
     try {
       let selectionSeq = 1;
       if (kind === "ancestor" || kind === "reload") h.select(1);
-      if (kind === "frame") h.controller.jump(1);
+      if (kind === "frame") h.controller.selectFrame(1);
       if (kind === "ancestor") { h.controller.selectPath(h.target.path[0]!); selectionSeq = 2; }
       if (kind === "reload") { h.controller.command("reload"); h.layout(); }
       h.receive({ type: "hover", seq: 0, rect: h.target.rect });
@@ -610,7 +610,7 @@ describe("independent pending selection and hover commands", () => {
       h.select(1);
       h.controller.selectPath(h.target.path[0]!);
       if (action === "Escape") h.key("Escape");
-      else h.controller.jump(0);
+      else h.controller.selectFrame(0);
       h.key("Alt");
       h.host.dispatchEvent(Object.assign(new Event("keyup"), { key: "Alt" }));
       h.select(2, { target: { ...h.target, tag: "stale" } });
@@ -756,17 +756,19 @@ it.each(["new guard", "binding change"])("Y3 cancels old pin panel effects after
 });
 
 it("holds manual reload before replacing a document and rejects superseded approval", async () => {
-  const { controller, changed, row } = loadedController();
-  const releases: ((allow: boolean) => void)[] = [];
-  controller.setTransitionGuard(() => new Promise(resolve => releases.push(resolve)));
-  controller.command("reload");
-  expect(changed).not.toHaveBeenCalled();
-  controller.openCanvas("/repo", row);
-  releases[0]?.(true); await Promise.resolve();
-  expect(changed).not.toHaveBeenCalled();
-  releases[1]?.(false); await Promise.resolve();
-  expect(changed).not.toHaveBeenCalled();
-  controller.dispose();
+  const h = selectionHarness();
+  try {
+    h.changed.mockClear();
+    const releases: ((allow: boolean) => void)[] = [];
+    h.controller.setTransitionGuard(() => new Promise(resolve => releases.push(resolve)));
+    h.controller.command("reload");
+    expect(h.changed).not.toHaveBeenCalled();
+    h.controller.openCanvas("/repo", h.other);
+    releases[0]?.(true); await Promise.resolve();
+    expect(h.changed).not.toHaveBeenCalled();
+    releases[1]?.(false); await Promise.resolve();
+    expect(h.changed).not.toHaveBeenCalled();
+  } finally { h.controller.dispose(); }
 });
 
 it("independently rejects replayed canvas intents and approval after same-URL document replacement", async () => {
@@ -803,12 +805,13 @@ it("prevents the triggering Escape from cancelling its newly opened draft dialog
 });
 
 it("keeps synchronous canvas opening when the draft guard immediately allows it", () => {
-  const { controller, changed, row } = loadedController();
+  const h = selectionHarness();
   try {
-    controller.setTransitionGuard(() => true);
-    controller.openCanvas("/repo", row);
-    expect(changed.mock.lastCall?.[0].status).toBe("loading");
-  } finally { controller.dispose(); }
+    h.controller.setTransitionGuard(() => true);
+    h.controller.openCanvas("/repo", h.other);
+    expect(h.state().status).toBe("loading");
+    expect(h.state().open.canvas).toBe(h.other.path);
+  } finally { h.controller.dispose(); }
 });
 
 it("uses freshly revalidated destination metadata after a draft decision", async () => {
@@ -848,4 +851,186 @@ it("switches workspaces through the draft guard and restores the previous canvas
     expect(changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
     expect(board.style.transform).toEqual(before);
   } finally { controller.dispose(); }
+});
+
+
+describe("frame navigation", () => {
+  it("jumps without a guard, selection command or main selection update", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      const selected = h.state().selection;
+      const guard = vi.fn(() => false);
+      h.controller.setTransitionGuard(guard);
+      h.send.mockClear();
+      h.current().contentWindow.postMessage.mockClear();
+      h.controller.jump(0);
+      expect(guard).not.toHaveBeenCalled();
+      expect(h.current().contentWindow.postMessage.mock.calls.map(call => call[0])).toEqual([{ type: "measure" }]);
+      h.layout();
+      expect(h.state().selection).toEqual(selected);
+      expect(h.state().currentFrame).toBe(0);
+      expect(h.send).not.toHaveBeenCalled();
+      expect(h.markOf("jump-highlight")?.hidden).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("keeps the same canvas and selection without consulting the draft guard", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      const guard = vi.fn(() => false);
+      h.controller.setTransitionGuard(guard);
+      h.controller.openCanvas("/repo", h.row);
+      expect(guard).not.toHaveBeenCalled();
+      expect(h.frames).toHaveLength(1);
+      expect(h.state().selection?.tag).toBe("span");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("holds the jump mark for 1.2 seconds and removes it on disposal", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    try {
+      h.controller.jump(0);
+      h.layout();
+      expect(h.markOf("jump-highlight")?.hidden).toBe(false);
+      vi.advanceTimersByTime(1199);
+      expect(h.markOf("jump-highlight")?.hidden).toBe(false);
+      vi.advanceTimersByTime(1);
+      expect(h.markOf("jump-highlight")?.hidden).toBe(true);
+      h.controller.jump(1); h.layout();
+      h.controller.dispose();
+      expect(h.overlay.append.mock.calls.at(-1)?.[0].hidden).toBe(true);
+    } finally { h.controller.dispose(); vi.useRealTimers(); }
+  });
+});
+
+
+it("guards Select and only sends the selection to main after its acknowledgement", () => {
+  const h = selectionHarness();
+  try {
+    const guard = vi.fn(() => false);
+    h.controller.setTransitionGuard(guard);
+    h.current().contentWindow.postMessage.mockClear();
+    h.controller.selectFrame(0);
+    expect(guard).toHaveBeenCalledOnce();
+    expect(h.current().contentWindow.postMessage).not.toHaveBeenCalled();
+    guard.mockReturnValue(true);
+    h.send.mockClear();
+    h.controller.selectFrame(0);
+    expect(h.send).not.toHaveBeenCalled();
+    h.select(1, { target: { ...h.target, element: undefined, frame: { id: "intro" }, frameIndex: 0 } });
+    expect(h.send).toHaveBeenCalledWith(expect.objectContaining({ frame: { id: "intro" } }));
+  } finally { h.controller.dispose(); }
+});
+
+it("opens a static frame by its first rendered id match without selecting it", () => {
+  const h = selectionHarness();
+  try {
+    h.controller.openCanvas("/repo", h.other, "dup");
+    h.layout({ href: h.other.url, frames: [
+      { id: "different", x: 0, y: 0, width: 100, height: 100 },
+      { id: "dup", x: 0, y: 1000, width: 100, height: 100 },
+      { id: "dup", x: 0, y: 2000, width: 100, height: 100 },
+    ] });
+    expect(h.state().currentFrame).toBe(1);
+    expect(h.state().selection).toBeNull();
+    expect(h.current().contentWindow.postMessage.mock.calls.some(([message]) => message.type === "pick-frame")).toBe(false);
+  } finally { h.controller.dispose(); }
+});
+
+
+it.each(["dup", ""])("opens the clicked static index when its id is %j", id => {
+  const h = selectionHarness();
+  try {
+    const found = vi.fn();
+    h.controller.openCanvas("/repo", h.other, id, { index: 1, found });
+    h.layout({ href: h.other.url, frames: [
+      { id, x: 0, y: 0, width: 100, height: 100 },
+      { id, x: 0, y: 1000, width: 100, height: 100 },
+    ] });
+    expect(h.state().currentFrame).toBe(1);
+    expect(found).toHaveBeenCalledExactlyOnceWith(true);
+  } finally { h.controller.dispose(); }
+});
+
+it("reports a missing rendered frame and falls back to the first id match after reordering", () => {
+  const h = selectionHarness();
+  try {
+    const found = vi.fn();
+    h.controller.openCanvas("/repo", h.other, "hero", { index: 0, found });
+    h.layout({ href: h.other.url });
+    expect(h.state().currentFrame).toBe(1);
+    expect(found).toHaveBeenCalledExactlyOnceWith(true);
+    const missing = vi.fn();
+    h.controller.openCanvas("/repo", h.other, "absent", { found: missing });
+    expect(missing).toHaveBeenCalledExactlyOnceWith(false);
+  } finally { h.controller.dispose(); }
+});
+
+it("keeps a picked frame through a live reload of the same canvas before its first layout", () => {
+  const h = selectionHarness();
+  try {
+    const found = vi.fn();
+    h.controller.openCanvas("/repo", h.other, "hero", { found });
+    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [h.row, h.other] }]);
+    expect(found).not.toHaveBeenCalled();
+    h.layout({ href: h.other.url });
+    expect(h.state().currentFrame).toBe(1);
+    expect(found).toHaveBeenCalledExactlyOnceWith(true);
+    // A reload that loses the width still answers the pick.
+    const missing = vi.fn();
+    h.controller.openCanvas("/repo", h.row, "hero", { found: missing });
+    const { width: _width, ...noWidth } = h.row;
+    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 2, canvases: [noWidth, h.other] }]);
+    expect(missing).toHaveBeenCalledExactlyOnceWith(false);
+  } finally { h.controller.dispose(); }
+});
+
+it("forgets navigation memory when a project is removed and added again", () => {
+  const h = selectionHarness();
+  try {
+    const original: FolderEntry = { path: "/repo", kind: "list", servedRev: 0, canvases: [h.row, h.other] };
+    const other: FolderEntry = { path: "/other", kind: "list", servedRev: 0, canvases: [] };
+    h.controller.updateEntries([original, other]);
+    h.controller.openWorkspace("/other", () => {});
+    h.controller.openWorkspace("/repo", () => {});
+    expect(h.state().open.canvas).toBe(h.row.path);
+    h.controller.updateEntries([other]);
+    h.controller.updateEntries([original, other]);
+    h.controller.openWorkspace("/repo", () => {});
+    expect(h.state().open).toBeNull();
+  } finally { h.controller.dispose(); }
+});
+
+it("reports the open canvas leaving its folder's list, but not a closed project", () => {
+  const h = selectionHarness();
+  try {
+    const removed = vi.fn();
+    h.controller.canvasRemoved = removed;
+    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [h.other] }]);
+    expect(removed).toHaveBeenCalledWith(expect.objectContaining({ path: h.row.path }));
+    expect(h.state().open).toBeNull();
+    h.controller.openCanvas("/repo", h.other);
+    h.controller.updateEntries([]);
+    expect(removed).toHaveBeenCalledTimes(1);
+  } finally { h.controller.dispose(); }
+});
+
+it("persisted per-root memory reopens its canvas with its view, and null forgets it", () => {
+  const h = selectionHarness();
+  try {
+    const other: FolderEntry = { path: "/other", kind: "list", servedRev: 0, canvases: [] };
+    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [h.row, h.other] }, other]);
+    h.controller.openWorkspace("/other", () => {});
+    expect(h.controller.memory()).toEqual({ "/repo": { canvas: h.row.path, view: expect.objectContaining({ scale: expect.any(Number) }) } });
+    const view = { scale: 0.5, x: 12, y: -40 };
+    h.controller.remember("/repo", { canvas: h.other.path, view });
+    h.controller.openWorkspace("/repo", () => {});
+    expect(h.state().open.canvas).toBe(h.other.path);
+    expect(h.controller.currentView()).toEqual(view);
+    h.controller.remember("/other", null);
+    expect(Object.keys(h.controller.memory())).toEqual(["/repo"]);
+  } finally { h.controller.dispose(); }
 });

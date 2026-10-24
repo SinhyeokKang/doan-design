@@ -9,12 +9,16 @@ const mocks = await vi.hoisted(async () => {
     static instances: Window[] = [];
     destroyed = false;
     contentsDestroyed = false;
-    webContents = Object.assign(new EventEmitter(), { send: vi.fn(), isDestroyed: () => this.contentsDestroyed, debugger: { name: "debugger" } });
+    webContents = Object.assign(new EventEmitter(), { send: vi.fn(), isDestroyed: () => this.contentsDestroyed, debugger: { name: "debugger" },
+      executeJavaScript: vi.fn(async () => ({ x: 0, y: 0, width: 800, height: 500 })),
+      capturePage: vi.fn(async () => ({ isEmpty: () => false, resize: () => ({ toPNG: () => Buffer.from("png") }) })) });
     show = vi.fn();
     hide = vi.fn();
     isFullScreen = vi.fn(() => false);
     setFullScreen = vi.fn();
     close = vi.fn();
+    destroy = vi.fn(() => { this.destroyed = true; });
+    setContentSize = vi.fn();
     isDestroyed = () => this.destroyed;
     loadFile = vi.fn();
     loadURL = vi.fn();
@@ -32,6 +36,8 @@ const mocks = await vi.hoisted(async () => {
     flow: { add: vi.fn(), scan: vi.fn(), cancel: vi.fn(), addCandidates: vi.fn(), confirm: vi.fn(), judge: vi.fn() },
     createAddFlow: vi.fn(),
     electronShell: { showItemInFolder: vi.fn() },
+    // AppKit notifications by name, as main last subscribed to them.
+    notifications: new Map<string, () => void>(),
     startShell: vi.fn(),
     cliCommand: vi.fn(() => "/bundled/doan"),
     runtime: { socket: "/tmp/doan-x/app.sock", token: "t", file: "/tmp/doan-index-test/runtime.json", disposeSync: vi.fn() },
@@ -45,6 +51,10 @@ const mocks = await vi.hoisted(async () => {
     needsOnboarding: vi.fn(), markClosed: vi.fn(), clipboard: { writeText: vi.fn() },
     menu: vi.fn<(template: MenuItemConstructorOptions[]) => unknown>(),
     dialog: { showOpenDialog: vi.fn(), showMessageBox: vi.fn() },
+    uiState: { read: vi.fn(), save: vi.fn(), flushSync: vi.fn(), idle: vi.fn() },
+    createUiStateStore: vi.fn(),
+    thumbnails: { get: vi.fn(), visible: vi.fn(), entriesChanged: vi.fn(), removed: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() },
+    createThumbnails: vi.fn(),
   };
 });
 
@@ -55,6 +65,7 @@ vi.mock("electron", () => ({
   Menu: { buildFromTemplate: mocks.menu, setApplicationMenu: vi.fn() },
   session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDevicePermissionHandler: vi.fn(), on: mocks.sessionOn } },
   webFrameMain: { fromId: vi.fn() },
+  systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; } },
 }));
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
 vi.mock("./onboarding/machine", () => ({ createMachine: mocks.createMachine, needsOnboarding: mocks.needsOnboarding, markClosed: mocks.markClosed, PATH_LINE: 'export PATH="$HOME/.local/bin:$PATH"' }));
@@ -63,6 +74,8 @@ vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
+vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
+vi.mock("./thumbnails", () => ({ createThumbnails: mocks.createThumbnails }));
 
 beforeEach(async () => {
   vi.resetModules();
@@ -89,6 +102,9 @@ beforeEach(async () => {
   mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
   mocks.createAddFlow.mockReturnValue(mocks.flow);
   mocks.flow.add.mockResolvedValue(OUTCOME);
+  mocks.createUiStateStore.mockReturnValue(mocks.uiState);
+  mocks.createThumbnails.mockReturnValue(mocks.thumbnails);
+  mocks.thumbnails.removed.mockResolvedValue(undefined);
   await import("./index");
   await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
 });
@@ -649,7 +665,7 @@ describe("menus", () => {
     expect(submenu("File").map((entry) => entry.label ?? entry.type)).toEqual(["Add Project…", "separator", "Close Window"]);
     expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
     expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
-    expect(submenu("Go").map((entry) => [entry.label, entry.accelerator])).toEqual([["Home", "Shift+CmdOrCtrl+H"]]);
+    expect(submenu("Go").map((entry) => [entry.label, entry.accelerator])).toEqual([["Home", "Shift+CmdOrCtrl+H"], ["Quick Open…", "CmdOrCtrl+K"]]);
     // Without a removal toast the system Undo keeps working in text fields.
     expect(submenu("Edit")[0]?.role).toBe("undo");
     expect(submenu("Edit").map((entry) => entry.role).filter(Boolean)).toEqual(expect.arrayContaining(["redo", "cut", "copy", "paste", "selectAll"]));
@@ -704,6 +720,19 @@ describe("menus", () => {
     window().webContents.emit(event);
     expect(menuEnabled("Zoom In")).toBe(false);
     expect(submenu("Edit")[0]?.role).toBe("undo");
+  });
+
+  test("Quick Open… is enabled on every screen, disabled under a modal, and tells the renderer", async () => {
+    const contents = window().webContents;
+    expect(menuEnabled("Quick Open…")).toBe(true);
+    for (const screen of ["workspace", "canvas", "home"]) {
+      await invoke("menu:state", contents, null, state(screen));
+      expect(menuEnabled("Quick Open…"), screen).toBe(true);
+    }
+    click("Quick Open…");
+    expect(contents.send).toHaveBeenCalledWith("menu-command", "quickOpen");
+    await invoke("menu:state", contents, null, state("workspace", true));
+    expect(menuEnabled("Quick Open…")).toBe(false);
   });
 
   test("Go > Home tells the renderer", async () => {
@@ -947,6 +976,194 @@ describe("locate and reveal", () => {
     expect(mocks.electronShell.showItemInFolder).not.toHaveBeenCalled();
     await invoke("folders:reveal", contents, null, { path: APP });
     expect(mocks.electronShell.showItemInFolder).toHaveBeenCalledExactlyOnceWith(APP);
+  });
+});
+
+describe("ui state", () => {
+  test("is stored beside folders.json and validated against the saved roots", () => {
+    mocks.shell.entries.mockReturnValue([{ path: "/a" }, { path: "/b", kind: "list" }]);
+    const [file, saved] = mocks.createUiStateStore.mock.calls[0] ?? [];
+    expect(file).toBe("/tmp/doan-index-test/ui-state.json");
+    expect(typeof saved === "function" ? saved() : null).toEqual(["/a", "/b"]);
+  });
+
+  test("get and save answer only the window's main frame", async () => {
+    const contents = window().webContents;
+    mocks.uiState.read.mockResolvedValue({ screen: "home", expanded: {}, lastByRoot: {} });
+    mocks.uiState.save.mockReturnValue(true);
+    expect(await invoke("ui-state:get", contents, null)).toEqual({ screen: "home", expanded: {}, lastByRoot: {} });
+    expect(await invoke("ui-state:save", contents, null, { screen: "home" })).toBe(true);
+    expect(mocks.uiState.save).toHaveBeenCalledExactlyOnceWith({ screen: "home" });
+    mocks.uiState.read.mockClear();
+    mocks.uiState.save.mockClear();
+    for (const [sender, parent] of [[contents, {}], [{}, null]]) {
+      expect(await invoke("ui-state:get", sender, parent)).toBeNull();
+      expect(await invoke("ui-state:save", sender, parent, { screen: "home" })).toBe(false);
+    }
+    expect(mocks.uiState.read).not.toHaveBeenCalled();
+    expect(mocks.uiState.save).not.toHaveBeenCalled();
+  });
+
+  test("a pending save is flushed on quit", () => {
+    mocks.app.emit("will-quit");
+    expect(mocks.uiState.flushSync).toHaveBeenCalledOnce();
+  });
+});
+
+describe("thumbnails", () => {
+  function deps(): import("./thumbnails").ThumbnailDeps {
+    const value = mocks.createThumbnails.mock.calls[0]?.[0];
+    if (!value) throw new Error("thumbnails not created");
+    return value;
+  }
+  // The real capturer on the mocked BrowserWindow: the first capture makes the window.
+  async function captureWindow() {
+    expect(await deps().capturer.capture("http://127.0.0.1:1/t/tok/k/design/a.html", 800)).toEqual(Buffer.from("png"));
+    const hidden = mocks.Window.instances[1];
+    if (!hidden) throw new Error("no capture window");
+    return hidden;
+  }
+
+  test("caches under userData with this app's version and the shell's scope", () => {
+    expect(deps()).toMatchObject({ dir: "/tmp/doan-index-test/thumbnails", appVersion: "9.8.7" });
+    mocks.shell.entries.mockReturnValue([{ path: "/repo", kind: "list" }]);
+    expect(deps().entries()).toEqual([{ path: "/repo", kind: "list" }]);
+    expect(mocks.thumbnails.entriesChanged).toHaveBeenCalledWith([]);
+  });
+
+  test("folder updates reach the thumbnails and their changes reach the window", () => {
+    const changed = mocks.startShell.mock.calls[0]?.[2];
+    if (typeof changed !== "function") throw new Error("no folder listener");
+    changed([{ path: "/repo", kind: "loading" }]);
+    expect(mocks.thumbnails.entriesChanged).toHaveBeenLastCalledWith([{ path: "/repo", kind: "loading" }]);
+    deps().changed({ root: "/repo", path: "design/a.html" });
+    expect(window().webContents.send).toHaveBeenCalledWith("thumbnails:changed", { root: "/repo", path: "design/a.html" });
+  });
+
+  test("thumbnails:get passes a well-formed request from the window and refuses the rest", async () => {
+    const contents = window().webContents;
+    mocks.thumbnails.get.mockResolvedValue({ kind: "pending" });
+    expect(await invoke("thumbnails:get", contents, null, { root: "/repo", path: "design/a.html", visible: true })).toEqual({ kind: "pending" });
+    expect(mocks.thumbnails.get).toHaveBeenCalledExactlyOnceWith("/repo", "design/a.html", true);
+    mocks.thumbnails.get.mockClear();
+    const good = { root: "/repo", path: "design/a.html", visible: false };
+    for (const bad of [null, "x", { root: "/repo", path: "design/a.html" }, { ...good, visible: 1 }, { ...good, root: 3 }, { ...good, path: null }, { ...good, more: 1 }]) {
+      expect(await invoke("thumbnails:get", contents, null, bad)).toEqual({ kind: "unavailable" });
+    }
+    expect(await invoke("thumbnails:get", contents, {}, good)).toEqual({ kind: "unavailable" });
+    expect(await invoke("thumbnails:get", {}, null, good)).toEqual({ kind: "unavailable" });
+    expect(mocks.thumbnails.get).not.toHaveBeenCalled();
+  });
+
+  test("thumbnails:visible accepts only valid visibility from the app frame", async () => {
+    const contents = window().webContents;
+    const good = { root: "/repo", path: "design/a.html", visible: false };
+    await invoke("thumbnails:visible", contents, null, good);
+    expect(mocks.thumbnails.visible).toHaveBeenCalledExactlyOnceWith("/repo", "design/a.html", false);
+    mocks.thumbnails.visible.mockClear();
+    for (const bad of [null, "x", { root: "/repo", path: "design/a.html" }, { ...good, visible: 1 }, { ...good, root: 3 }, { ...good, path: null }, { ...good, more: 1 }]) {
+      await invoke("thumbnails:visible", contents, null, bad);
+    }
+    await invoke("thumbnails:visible", contents, {}, good);
+    await invoke("thumbnails:visible", {}, null, good);
+    const hidden = await captureWindow();
+    await invoke("thumbnails:visible", hidden.webContents, null, good);
+    expect(mocks.thumbnails.visible).not.toHaveBeenCalled();
+  });
+
+  test("the capture window is hidden, sandboxed and has no preload", async () => {
+    const hidden = await captureWindow();
+    expect(hidden.options).toMatchObject({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
+    expect(hidden.options.webPreferences).not.toHaveProperty("preload");
+    expect(hidden.options.webPreferences).not.toHaveProperty("offscreen");
+    expect(hidden.loadURL.mock.calls[0]?.[0]).toMatch(/^data:text\/html;charset=utf-8,/);
+    expect(hidden.setContentSize).toHaveBeenCalledWith(800, 500);
+  });
+
+  test("the capture window is refused as an IPC sender", async () => {
+    const hidden = await captureWindow();
+    mocks.shell.entries.mockReturnValue([{ path: "/repo" }]);
+    expect(await invoke("folders:get", hidden.webContents, null)).toEqual([]);
+    expect(await invoke("ui-state:get", hidden.webContents, null)).toBeNull();
+    expect(await invoke("thumbnails:get", hidden.webContents, null, { root: "/repo", path: "design/a.html", visible: true })).toEqual({ kind: "unavailable" });
+  });
+
+  test("the capture window stays out of activate, Close Window and the window list", async () => {
+    const hidden = await captureWindow();
+    mocks.app.emit("activate");
+    expect(window().show).toHaveBeenCalledOnce();
+    expect(hidden.show).not.toHaveBeenCalled();
+    click("Close Window");
+    expect(window().close).toHaveBeenCalledOnce();
+    expect(hidden.close).not.toHaveBeenCalled();
+    // Its end changes nothing about the app window.
+    hidden.emit("closed");
+    mocks.app.emit("activate");
+    expect(window().show).toHaveBeenCalledTimes(2);
+    expect(mocks.app.listenerCount("window-all-closed")).toBe(0);
+  });
+
+  test("hiding the app window pauses captures and showing it resumes them", () => {
+    window().emit("close", { preventDefault: vi.fn() });
+    expect(window().hide).toHaveBeenCalledOnce();
+    expect(mocks.thumbnails.pause).toHaveBeenCalledOnce();
+    expect(mocks.thumbnails.resume).not.toHaveBeenCalled();
+    mocks.app.emit("activate");
+    expect(mocks.thumbnails.resume).toHaveBeenCalledOnce();
+  });
+
+  test("hiding the whole app pauses captures, and unhiding resumes them only while the window is shown", () => {
+    const notify = (name: string) => mocks.notifications.get(`NSApplicationDid${name}Notification`)?.();
+    notify("Hide");
+    expect(mocks.thumbnails.pause).toHaveBeenCalledOnce();
+    notify("Unhide");
+    expect(mocks.thumbnails.resume).toHaveBeenCalledOnce();
+    // Closed, then hidden and shown again: the window is still closed.
+    window().emit("close", { preventDefault: vi.fn() });
+    notify("Hide");
+    notify("Unhide");
+    expect(mocks.thumbnails.resume).toHaveBeenCalledOnce();
+    // Shown while the app is hidden: nothing runs until the app is back.
+    notify("Hide");
+    mocks.app.emit("activate");
+    expect(mocks.thumbnails.resume).toHaveBeenCalledOnce();
+    notify("Unhide");
+    expect(mocks.thumbnails.resume).toHaveBeenCalledTimes(2);
+  });
+
+  test("a fullscreen window pauses captures once it is really hidden", () => {
+    window().isFullScreen.mockReturnValue(true);
+    window().emit("close", { preventDefault: vi.fn() });
+    expect(mocks.thumbnails.pause).not.toHaveBeenCalled();
+    window().emit("leave-full-screen");
+    expect(mocks.thumbnails.pause).toHaveBeenCalledOnce();
+  });
+
+  // Quit closes every window before will-quit; captures still running then
+  // would open the capture window again and keep the app from quitting.
+  test("a quit disposes the thumbnails once it is allowed, before will-quit", async () => {
+    await invoke("comments:guard", window().webContents, null, true);
+    mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+    expect(mocks.thumbnails.dispose).not.toHaveBeenCalled();
+    const call = window().webContents.send.mock.calls.find(call => call[0] === "comments:transition");
+    await invoke("comments:transition-answer", window().webContents, null, { id: call?.[1].id, allow: true });
+    expect(mocks.thumbnails.dispose).toHaveBeenCalledOnce();
+  });
+
+  test("quitting disposes the thumbnails, and the capturer destroys its window", async () => {
+    mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+    expect(mocks.thumbnails.dispose).toHaveBeenCalledOnce();
+    const hidden = await captureWindow();
+    deps().capturer.close();
+    expect(hidden.destroy).toHaveBeenCalledOnce();
+  });
+
+  test("a removal drops the removed projects' cache with the list from before", async () => {
+    const before = [{ path: "/repo", kind: "list", canvases: [] }, { path: "/other", kind: "list", canvases: [] }];
+    mocks.shell.entries.mockReturnValue(before);
+    mocks.shell.remove.mockResolvedValue({ paths: ["/repo"], indexes: [0] });
+    expect(await invoke("folders:remove", window().webContents, null, { paths: ["/repo"] })).toMatchObject({ kind: "removed" });
+    expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith(["/repo"], before);
   });
 });
 

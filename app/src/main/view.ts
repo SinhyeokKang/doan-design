@@ -1,5 +1,6 @@
 import type { FolderView } from "./cli";
 import type { FolderState } from "./folderState";
+import { capFrames, type StaticFrame } from "./frameCap";
 import { latestChange } from "./latestChange";
 
 // What the renderer gets over IPC. Main narrows the CLI's `canvases` here so the
@@ -12,6 +13,9 @@ export interface CanvasRow {
   width?: number;
   // File mtime from main's stat; absent when the file vanished after `doan ls`.
   mtimeMs?: number;
+  // Static frames from `doan ls` in document order, capped by `capFrames`.
+  frames?: { id: string; title?: string }[];
+  framesTruncated?: boolean;
   open: number;
   resolved: number;
   url: string;
@@ -56,9 +60,30 @@ export function canvasRows(canvases: readonly unknown[], baseUrl: string): Canva
     if (typeof id === "string") row.id = id;
     if (typeof title === "string") row.title = title;
     if (typeof width === "number" && Number.isSafeInteger(width) && width > 0) row.width = width;
+    const frames = staticFrames(Reflect.get(canvas, "frames"));
+    if (frames !== undefined) {
+      const capped = capFrames(frames);
+      row.frames = capped.frames;
+      if (capped.truncated) row.framesTruncated = true;
+    }
     rows.push(row);
   }
   return rows;
+}
+
+// An entry without a string id is dropped rather than failing the canvas; the
+// CLI always writes one (possibly empty), so this only guards a foreign shape.
+function staticFrames(frames: unknown): StaticFrame[] | undefined {
+  if (!Array.isArray(frames)) return undefined;
+  const kept: StaticFrame[] = [];
+  for (const frame of frames) {
+    if (typeof frame !== "object" || frame === null) continue;
+    const id: unknown = Reflect.get(frame, "id");
+    const title: unknown = Reflect.get(frame, "title");
+    if (typeof id !== "string") continue;
+    kept.push(typeof title === "string" ? { id, title } : { id });
+  }
+  return kept;
 }
 
 function commentCount(comments: unknown, key: "open" | "resolved"): number {
