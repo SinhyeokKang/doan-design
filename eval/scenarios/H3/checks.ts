@@ -1,6 +1,6 @@
 import type { Checks } from "../../lib/types.ts";
 
-const copy = ["Ready for dispatch", "Print packing slips", "Three orders are ready for the afternoon pickup.", "Order", "Destination", "Packages", "PK-2048", "North studio", "2 boxes", "PK-2051", "Harbor office", "1 box", "PK-2054", "West workshop", "4 boxes", "Pickup closes at 16:30."];
+const copy = ["Ready for dispatch", "Print packing slips", "Three orders are ready for the afternoon pickup.", "Order", "Destination", "Packages", "PK-2048", "North studio", "PK-2051", "Harbor office", "PK-2054", "West workshop", "box", "boxes", "Pickup closes at 16:30."];
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 const colors = (s: string) => [...strip(s).matchAll(/#[\da-f]{3,8}\b|\brgba?\s*\(/gi)].map(m => m[0].toLowerCase());
 
@@ -30,9 +30,9 @@ const checks: Checks = ctx => {
   };
   visit(target);
   const reachable = sources.join("\n");
-  // Static literal coverage includes JSX text, data arrays and JSX string expressions.
-  // It cannot prove visibility or that every imported helper is rendered; the judge covers that.
-  const normalized = reachable.replace(/\s+/g, " ");
+  // Ignore semantic tags when comparing text; numeric row associations and visibility
+  // need the judge because source text cannot establish rendered data bindings.
+  const normalized = reachable.replace(/<\/?[A-Za-z][^>]*>/g, "").replace(/\s+/g, " ");
   const missing = copy.filter(s => !normalized.includes(s));
   const direct: string[] = [];
   for (const path of changed.filter(p => /\.(?:css|tsx?|jsx?)$/i.test(p))) {

@@ -19,7 +19,16 @@ const checks: Checks = ctx => {
   const conflictOK = conflict.length === 0
     ? open.includes(commentId(9)) && open.includes(commentId(10))
     : conflict.length === 1 && heading === (conflict[0] === 9 ? "Monthly summary" : "Weekly summary") && open.includes(commentId(conflict[0] === 9 ? 10 : 9));
-  const anchors = (d: typeof doc, key: string) => d.nodes.map(n => n.attrs[key]).filter(Boolean).sort();
+  const frame = (d: typeof doc, index: number): string | undefined => {
+    for (let i = index; i >= 0; i = d.nodes[i].parent) {
+      if (d.nodes[i].attrs["data-doan-frame"]) return d.nodes[i].attrs["data-doan-frame"];
+    }
+  };
+  const identities = ["data-doan-frame", "data-doan-id"].every(key => seed.nodes.every((n, i) => {
+    if (!n.attrs[key]) return true;
+    const matches = doc.nodes.flatMap((node, j) => node.attrs[key] === n.attrs[key] ? [j] : []);
+    return matches.length === 1 && frame(doc, matches[0]) === frame(seed, i);
+  }));
   return [
     clean(ctx),
     ...Object.entries(labels).map(([id, label]) => ({ id: `applied_${id}`, pass: text(element(doc, id)) === label, detail: `expected ${label}; found ${text(element(doc, id))}` })),
@@ -30,7 +39,7 @@ const checks: Checks = ctx => {
     { id: "history_preserved", pass: (ctx.read(log) ?? "").startsWith(ctx.seed(log) ?? "") && ctx.seed(log) !== null, detail: "all original human events remain an unchanged prefix" },
     { id: "only_applied_agent_resolves", pass: events.every(e => e.type === "resolve" && e.by?.kind === "agent" && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(e.by?.name ?? "") && Array.from({ length: 10 }, (_, i) => commentId(i + 1)).includes(e.comment)), detail: JSON.stringify(events) },
     { id: "comments_valid", pass: read.code === 0 && read.json?.ok === true && read.json?.result?.warnings?.length === 0, detail: JSON.stringify(read.json) },
-    { id: "ids_stable", pass: ["data-doan-frame", "data-doan-id"].every(key => JSON.stringify(anchors(doc, key)) === JSON.stringify(anchors(seed, key))) && doc.nodes.some(n => n.attrs.name === "doan:canvas" && n.attrs.content === "review-board"), detail: "canvas identity and all frame/element ids preserved" },
+    { id: "ids_stable", pass: identities && doc.nodes.some(n => n.attrs.name === "doan:canvas" && n.attrs.content === "review-board"), detail: "canvas identity and all frame/element ids preserved" },
     { id: "scope_preserved", pass: ctx.changedFiles().every(p => p === path || p === log), detail: ctx.changedFiles().join(", ") },
   ];
 };

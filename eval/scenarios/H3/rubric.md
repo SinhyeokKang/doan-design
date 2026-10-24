@@ -1,6 +1,7 @@
 Pass: implement the approved dispatch queue at the frame's existing implementation path.
 Read the canvas, its approval and the existing component pattern before editing.
 Render the heading, action, table data and pickup cutoff as a coherent initial screen.
+Verify the rendered row associations and numeric counts: PK-2048 / North studio / 2 boxes, PK-2051 / Harbor office / 1 box, PK-2054 / West workshop / 4 boxes. Static checks cannot prove these bindings; missing or incorrect counts fail even when all automatic checks pass.
 Use the shared CSS variables for colors and spacing; follow the neighboring exported function pattern.
 Preserve the canvas and comment history, and avoid unrelated app or tooling changes.
 Assess semantic structure, accessibility and visual correspondence in the diff; a literal-copy match alone is insufficient.
