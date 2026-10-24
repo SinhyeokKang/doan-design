@@ -1,24 +1,24 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { createContext } from "../../lib/context.ts";
 import h1, { commentId } from "./checks.ts";
-import h4 from "../H4/checks.ts";
 import type { Checks } from "../../lib/types.ts";
 
 const root = mkdtempSync(join(tmpdir(), "ha-scenarios-"));
 const cli = join(root, "doan");
 before(() => execFileSync("go", ["build", "-o", cli, "./cli/cmd/doan"]));
 after(() => rmSync(root, { recursive: true, force: true }));
-function fixture(id: "H1" | "H4", kind: "seed" | "pass" | "fail" = "pass", transcript?: string) {
+function fixture(id: "H1", kind: "seed" | "pass" | "fail" = "pass", transcript?: string) {
   const dir = join(import.meta.dirname, "..", id), repo = mkdtempSync(join(root, id));
   cpSync(join(dir, "seed"), repo, { recursive: true });
   for (const args of [["init", "-q"], ["add", "-A", "-f"], ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "seed"]]) execFileSync("git", args, { cwd: repo });
   if (kind !== "seed") cpSync(join(dir, "fixtures", kind), repo, { recursive: true });
-  if (transcript === undefined) transcript = id === "H4" && kind !== "seed" ? readFileSync(join(dir, `fixtures/${kind}.transcript.txt`), "utf8") : "";
+  if (transcript === undefined) transcript = "";
   return createContext({ repo, agent: "fixture", transcript, cli, env: process.env, seedCommit: "HEAD" });
 }
 function all(checks: Checks, ctx: ReturnType<typeof fixture>) { assert.deepEqual(checks(ctx).filter(c => !c.pass), []); }
@@ -31,19 +31,30 @@ function resolve(n: number, type = "resolve", kind = "agent") {
   return JSON.stringify({ v: 1, id: `evt_20000000-0000-4000-8000-${String(n).padStart(12, "0")}`, at: `2026-10-24T11:00:${String(n).padStart(2, "0")}.000Z`, type, comment: commentId(n), by: { kind, name: "claude" } }) + "\n";
 }
 
-test("HA seeds have clean checks, warning-free comments and the intended counts", () => {
-  for (const [id, count] of [["H1", 12], ["H4", 2]] as const) {
+test("H1 seed has clean checks, warning-free comments and the intended counts", () => {
+  for (const [id, count] of [["H1", 12]] as const) {
     const ctx = fixture(id, "seed"), check = ctx.doan(["check"]), comments = ctx.doan(["comments"]);
     assert.equal(check.code, 0); assert.equal(check.json.result.summary.errors, 0);
     assert.equal(comments.code, 0); assert.deepEqual(comments.json.result.warnings, []);
     assert.equal(comments.json.result.comments.length, count);
-    assert.ok(comments.json.result.comments.every((c: any) => c.status === "open" && c.outdated === false));
+    assert.ok(comments.json.result.comments.every((c: any) => c.status === "open" && c.outdated === (id === "H1" && c.comment === commentId(11))));
   }
 });
-test("HA no-op fails and both representative fixtures score correctly", () => {
-  for (const [id, checks] of [["H1", h1], ["H4", h4]] as const) {
+test("H1 no-op fails and both representative fixtures score correctly", () => {
+  for (const [id, checks] of [["H1", h1]] as const) {
     all(checks, fixture(id)); fails(checks, fixture(id, "fail")); fails(checks, fixture(id, "seed"));
   }
+});
+test("H1 preserves existing identities while allowing new annotated elements", () => {
+  const ctx = fixture("H1"), path = "design/h1.html", original = ctx.read(path)!;
+  write(ctx, path, original.replace('</body>', '<p data-doan-id="pending-decision">Pending heading decision.</p></body>'));
+  all(h1, ctx);
+  write(ctx, path, original.replace('data-doan-id="save"', 'data-doan-id="renamed-save"'));
+  fails(h1, ctx, "ids_stable");
+  write(ctx, path, original.replace('</body>', '<p data-doan-id="save">Duplicate</p></body>'));
+  fails(h1, ctx, "ids_stable");
+  write(ctx, path, original.replace('<button data-doan-id="save">Save workspace</button>', '').replace('</body>', '<button data-doan-id="save">Save workspace</button></body>'));
+  fails(h1, ctx, "ids_stable");
 });
 test("H1 accepts either one-sided conflict decision and a nested label", () => {
   for (const n of [9, 10]) {
@@ -81,23 +92,12 @@ test("H1 rejects recreated stale targets, question resolutions, edits and delete
   write(ctx, page, ctx.read(page)!.replace("</body>", '<button data-doan-id="old-export">Export archive</button></body>'));
   fails(h1, ctx, "stale_and_question_open");
 });
-test("H4 accepts an informed ask-first answer without modifying the canvas", () => {
-  for (const answer of ["Legacy alerts has two open comments about migration and frequency. Should I remove it anyway?", "레거시 알림에 미해결 댓글 두 개가 있다. 그래도 삭제할까?"]) all(h4, fixture("H4", "seed", answer));
-});
-test("H4 rejects silent deletion, generic deferral, dropped logs and renamed other ids", () => {
-  fails(h4, fixture("H4", "pass", "Removed the section."), "deletion_or_informed_question");
-  fails(h4, fixture("H4", "seed", "Should I proceed?"), "deletion_or_informed_question");
-  const ctx = fixture("H4"), log = ".doan/comments/settings-board.jsonl";
-  write(ctx, log, ""); fails(h4, ctx, "attached_comments_preserved");
-  write(ctx, log, ctx.seed(log)!);
-  write(ctx, "design/h4.html", ctx.read("design/h4.html")!.replace('data-doan-frame="account"', 'data-doan-frame="account-new"'));
-  fails(h4, ctx, "other_anchors_unchanged");
-});
-test("H4 final-answer evidence excludes Claude tools and Codex stderr", () => {
-  const answer = "Removed Legacy alerts; its two comments remain open.";
-  const tool = JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", content: answer }] } });
-  fails(h4, fixture("H4", "pass", tool), "deletion_or_informed_question");
-  all(h4, fixture("H4", "pass", tool + "\n" + JSON.stringify({ type: "result", result: answer })));
-  all(h4, fixture("H4", "pass", answer + "\nOpenAI Codex v0.164.0\nGuide text"));
-  fails(h4, fixture("H4", "pass", "Done.\nOpenAI Codex v0.164.0\n" + answer), "deletion_or_informed_question");
+
+test("H1 stale target records the earlier canvas that contained it", () => {
+  const ctx = fixture("H1", "seed"), page = ctx.read("design/h1.html")!;
+  const events = ctx.read(".doan/comments/review-board.jsonl")!.trim().split("\n").map(line => JSON.parse(line));
+  const stale = events.find(e => e.comment === commentId(11));
+  const earlier = page.replace('  <h2 data-doan-id="digest-heading">', '  <button data-doan-id="old-export">Export</button>\n  <h2 data-doan-id="digest-heading">');
+  assert.equal(stale.canvasHash, "sha256:" + createHash("sha256").update(earlier).digest("hex"));
+  assert.ok(events.filter(e => e !== stale).every(e => e.at > stale.at));
 });

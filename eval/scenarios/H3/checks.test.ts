@@ -40,3 +40,14 @@ test("H3 accepts tokenized CSS and inline styles, rejects direct color and prote
   writeFileSync(join(ctx.repo, "design/dispatch.html"), ctx.seed("design/dispatch.html")! + "\n");
   assert.ok(failures(ctx).includes("design_and_review_unchanged"));
 });
+test("H3 accepts semantic text and data-driven package rows", () => {
+  const ctx = setup(true), target = "web/src/components/DispatchQueue.tsx", good = ctx.read(target)!;
+  writeFileSync(join(ctx.repo, target), good.replace('Pickup closes at 16:30.', 'Pickup closes at <time dateTime="16:30">16:30</time>.'));
+  assert.deepEqual(failures(ctx), []);
+  const data = 'const orders = [{ id: "PK-2048", destination: "North studio", packages: 2 }, { id: "PK-2051", destination: "Harbor office", packages: 1 }, { id: "PK-2054", destination: "West workshop", packages: 4 }];\n';
+  const rows = '{orders.map(o => <tr key={o.id}><td>{o.id}</td><td>{o.destination}</td><td>{o.packages} {o.packages === 1 ? "box" : "boxes"}</td></tr>)}';
+  writeFileSync(join(ctx.repo, target), data + good.replace(/<tbody>[\s\S]*?<\/tbody>/, `<tbody>${rows}</tbody>`));
+  assert.deepEqual(failures(ctx), []);
+  writeFileSync(join(ctx.repo, target), ctx.read(target)!.replace('North studio', 'Invented destination'));
+  assert.ok(failures(ctx).includes("canvas_copy_in_component"));
+});
