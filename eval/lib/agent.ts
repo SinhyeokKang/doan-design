@@ -3,6 +3,7 @@ import { closeSync, openSync, existsSync, readdirSync, readFileSync, writeFileSy
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Agent } from "./args.ts";
+import { toolCalls, type ToolCalls } from "./transcript.ts";
 
 interface MCPRun { cli: string; runtime: string; configPath: string }
 
@@ -10,7 +11,6 @@ export function agentCommand(agent: Agent, prompt: string, mcp?: MCPRun): { cmd:
   // Pin MCP per invocation: never register the measured CLI in global config.
   // --allowedTools is variadic, so `--` separates the prompt from tool names.
   if (agent === "claude") {
-    if (mcp) writeFileSync(mcp.configPath, JSON.stringify({ mcpServers: { doan: { command: mcp.cli, args: ["mcp"], env: { DOAN_RUNTIME: mcp.runtime } } } }) + "\n");
     return { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", ...(mcp ? ["--mcp-config", mcp.configPath] : []), "--allowedTools", `Bash Read Write Edit Glob Grep${mcp ? " mcp__doan__*" : ""}`, "--", prompt] };
   }
   return { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", ...(mcp ? [
@@ -21,10 +21,10 @@ export function agentCommand(agent: Agent, prompt: string, mcp?: MCPRun): { cmd:
   ] : ["-c", "mcp_servers.doan.enabled=false"]), prompt] };
 }
 
-export function readAgentTranscript(agent: Agent, dir: string, env: NodeJS.ProcessEnv): string {
+export function readAgentTranscript(agent: Agent, dir: string, env: NodeJS.ProcessEnv): { transcript: string; calls: ToolCalls } {
   const stderr = readFileSync(join(dir, "stderr.log"), "utf8");
   const transcript = readFileSync(join(dir, "stdout.log"), "utf8") + "\n" + stderr;
-  if (agent !== "codex") return transcript;
+  if (agent !== "codex") return { transcript, calls: toolCalls(transcript) };
   // stderr omits some commands in batched exec calls. Match the run's session
   // rather than picking the newest rollout, which may belong to another agent.
   try {
@@ -38,11 +38,11 @@ export function readAgentTranscript(agent: Agent, dir: string, env: NodeJS.Proce
     const source = join(matches[0].parentPath, matches[0].name);
     const dest = join(dir, "codex-rollout.jsonl");
     copyFileSync(source, dest);
-    return transcript + "\n" + readFileSync(dest, "utf8");
+    return { transcript, calls: toolCalls(transcript + "\n" + readFileSync(dest, "utf8")) };
   } catch (error) {
     // Keep older Codex versions usable, but leave an explicit evidence gap.
     writeFileSync(join(dir, "codex-rollout-error.txt"), `${(error as Error).message}\n`);
-    return transcript;
+    return { transcript, calls: toolCalls(transcript) };
   }
 }
 

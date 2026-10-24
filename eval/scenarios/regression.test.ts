@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createContext } from "../lib/context.ts";
+import { toolCalls } from "../lib/transcript.ts";
 import type { Checks } from "../lib/types.ts";
 import r1 from "./R1/checks.ts";
 import r2 from "./R2/checks.ts";
@@ -50,7 +51,7 @@ test("R3 accepts an unresolved mixed comment but rejects delete-and-restore comm
   writeFileSync(join(ctx.repo, ".doan/comments/billing.jsonl"), ctx.seed(".doan/comments/billing.jsonl")!);
   all(r3, ctx);
   for (const transcript of [claude("rm design/team.html; git restore design/team.html"), 'exec\n/bin/zsh -lc \'rm design/team.html; git restore design/team.html\' in /tmp/repo succeeded in 20ms:']) {
-    assert.ok(r3({ ...ctx, transcript }).some(c => !c.pass));
+    assert.ok(r3({ ...ctx, transcript, calls: toolCalls(transcript) }).some(c => !c.pass));
   }
 });
 test("W1 accepts inline and linked relative token imports", () => {

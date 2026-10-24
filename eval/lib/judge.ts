@@ -1,5 +1,6 @@
 import type { Agent } from "./args.ts";
 import type { Check } from "./types.ts";
+import { commandWords, toolCalls, type ToolCalls } from "./transcript.ts";
 
 export type Verdict = "pass" | "partial" | "fail";
 export type Layer = "guide" | "output" | "check" | "product" | "none";
@@ -79,7 +80,7 @@ export function parseJudgement(output: string): Judgement | null {
   return null;
 }
 
-export interface JudgeInput { rubric: string; prompt: string; checks: Check[]; changed: string[]; diff: string; transcript: string }
+export interface JudgeInput { rubric: string; prompt: string; checks: Check[]; changed: string[]; diff: string; transcript: string; calls?: ToolCalls }
 
 // The prompt goes through argv, so every part has a cap (macOS ARG_MAX is 1 MiB).
 export const JUDGE_LIMITS = { diff: 60_000, transcript: 40_000, changed: 300, checks: 20_000 };
@@ -87,6 +88,13 @@ export const JUDGE_LIMITS = { diff: 60_000, transcript: 40_000, changed: 300, ch
 export function buildJudgePrompt(input: JudgeInput, limits = JUDGE_LIMITS): string {
   const diff = truncate(input.diff, limits.diff, "head");
   const transcript = truncate(input.transcript, limits.transcript, "tail");
+  // Invocation evidence has its own budget, so verbose tool output cannot evict it.
+  const calls = input.calls ?? toolCalls(input.transcript);
+  const doanActive = {
+    shellInvoked: calls.commands.flatMap(commandWords).some(words => /^(?:.*\/)?doan$/.test(words[0] ?? "") && words[1] === "active"),
+    mcpInvoked: calls.mcpTools.includes("mcp__doan__active"),
+  };
+  const callSummary = truncate(JSON.stringify({ doanActive, ...calls }), 20_000, "head");
   const checks = truncate(JSON.stringify(input.checks, null, 2), limits.checks, "head");
   const more = input.changed.length - limits.changed;
   const changed = input.changed.slice(0, limits.changed).join("\n") + (more > 0 ? `\n(${more} more files)` : "");
@@ -103,6 +111,7 @@ export function buildJudgePrompt(input: JudgeInput, limits = JUDGE_LIMITS): stri
     block(checks.truncated ? `Automatic checks (truncated to the first ${limits.checks} characters)` : "Automatic checks", checks.text),
     block("Changed files since the seed", changed),
     block(diff.truncated ? `Diff (truncated to the first ${limits.diff} characters)` : "Diff", diff.text),
+    block(callSummary.truncated ? "Invoked commands and MCP tools (truncated to the first 20000 characters)" : "Invoked commands and MCP tools", callSummary.text),
     block(transcript.truncated ? `Transcript (truncated to the last ${limits.transcript} characters)` : "Transcript", transcript.text),
   ].join("\n");
 }

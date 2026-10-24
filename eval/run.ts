@@ -70,8 +70,8 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     console.log(`start ${name} (${ws.repo})`);
     const startedAt = new Date().toISOString();
     const proc = await runProcess({ cmd, args, cwd: ws.repo, env: ws.env, timeoutSec: scenario.timeoutSec, stdoutPath: join(dir, "stdout.log"), stderrPath: join(dir, "stderr.log") });
-    const transcript = readAgentTranscript(agent, dir, ws.env);
-    const ctx = createContext({ repo: ws.repo, agent, transcript, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
+    const evidence = readAgentTranscript(agent, dir, ws.env);
+    const ctx = createContext({ repo: ws.repo, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
     const checks = await runChecks(scenario, ctx);
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     let judgement: Judgement | null | "skipped" = "skipped";
@@ -79,7 +79,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
       // An agent can leave a repo git cannot read (deleted .git, say); that is a judge_error, not a lost round.
       try {
         const { changed, diff } = judgeMaterial(ws, ctx);
-        const judged = await judge(agent, buildJudgePrompt({ rubric: scenario.rubric, prompt, checks, changed, diff, transcript }), dir);
+        const judged = await judge(agent, buildJudgePrompt({ rubric: scenario.rubric, prompt, checks, changed, diff, ...evidence }), dir);
         judgement = judged.judgement;
         writeFileSync(join(dir, "judge.json"), JSON.stringify(judgement ?? { judge_error: true, raw: judged.raw }, null, 2) + "\n");
       } catch (error) {

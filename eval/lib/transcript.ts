@@ -101,3 +101,9 @@ export function commandWords(command: string): string[][] {
     return [words];
   });
 }
+
+export interface ToolCalls { commands: string[]; mcpTools: string[] }
+
+export function toolCalls(transcript: string): ToolCalls {
+  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))] };
+}

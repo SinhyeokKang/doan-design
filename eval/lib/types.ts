@@ -1,3 +1,5 @@
+import type { ToolCalls } from "./transcript.ts";
+
 // The contract scenario checks are written against (design.md 'Check contract').
 // Checks read and run only through the context, so the same checks score a
 // real agent run and a self-test fixture.
@@ -10,6 +12,8 @@ export interface CheckContext {
   agent: "claude" | "codex" | "fixture";
   // stdout + stderr of the agent run.
   transcript: string;
+  // Extracted invocation evidence, including the Codex rollout when available.
+  calls: ToolCalls;
   // The packaged CLI (a temporary build in self-test); `--json --repo <repo>` is appended.
   // `json` is the parsed stdout, or null when stdout is not JSON.
   doan(args: string[]): { code: number; json: any };

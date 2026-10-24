@@ -40,6 +40,9 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     symlinkSync(o.cli, join(base, "bin/doan"));
     mkdirSync(join(base, "rt"), { mode: 0o700 });
     const env = { ...process.env, PATH: `${join(base, "bin")}:${process.env.PATH ?? ""}`, DOAN_RUNTIME: join(base, "rt/runtime.json") };
+    if (o.scenario.mcp && o.agent === "claude") {
+      writeFileSync(join(base, "mcp.json"), JSON.stringify({ mcpServers: { doan: { command: o.cli, args: ["mcp"], env: { DOAN_RUNTIME: env.DOAN_RUNTIME } } } }) + "\n");
+    }
     const git = (args: string[]) => must(sh("git", [...GIT, "-C", repo, ...args], repo, env), `git ${args[0]}`);
     git(["init", "-q"]);
     if (o.scenario.init && !existsSync(join(repo, ".doan")))
