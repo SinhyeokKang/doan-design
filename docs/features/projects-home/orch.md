@@ -72,3 +72,5 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: A2-fix 완료(`09cf689` test: red 4개 확인, `c41c63c` fix). 지휘자가 diff를 확인했다(변경 3줄, 리뷰 지적과 일치). 통합하고 A2 워커를 해제했다.
 - 2026-10-25: A2-fix 통합(`be5cf55`, `c3bd3e4`), 통합 HEAD test 1345·typecheck 통과. `ph-a2` worktree를 `git cherry`로 확인한 뒤 제거했다.
 - 2026-10-25: DX 초안 완료(`6ed416e`). 초안 비교 결과 DC를 골랐다(위 '초안 리뷰'). DX 워커는 해제했다. DC 터미널은 재사용이 거부되어(`agent_unconfigured`) 같은 worktree(`ph-dc`)에 새 Claude Opus high 워커로 DC-rev(`ctx_56230c95afca`)를 시작했다.
+- 2026-10-25: R-B1 결과 🔴 0 · 🟡 1(워크트리 항목마다 `diskSpelling`이 디렉터리 전체를 다시 읽어 200개 상한이 I/O를 제한하지 못함) · ⚪ 5. B1 터미널에 B1-fix를 보냈다. 지휘자 결정: 없는 HOME이면 어휘 비교로 대신한다. 읽을 수 없는 `worktrees`는 "등록 없음"으로 보고 `git`의 나머지 필드는 유지한다(design.md "그 항목만 버린다"). 심볼릭 링크 HEAD는 branch·detached를 생략한다. R-B1 워커는 해제했다.
+- 2026-10-25: B1-fix 완료(`a25c4c4` test, `576c55a` fix, `0dce325` postmortem). 지휘자가 git.go diff를 확인했다. B1 전체(6커밋)를 통합한다.
