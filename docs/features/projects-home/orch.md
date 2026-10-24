@@ -54,6 +54,7 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - DC에서 고칠 것: ⑤ CLI 오류 이유 줄 삭제(design.md는 칩과 Retry·Remove만 정했다) ⑥ 상태 줄 동작을 문제 상태 표와 같게(Config error에 Details 추가).
 - DC 질문에 대한 지휘자 결정: "<repo> and N worktrees"의 N은 줄 수 − 1이다. 모노레포 카드 이름은 design.md 규칙(`git.main`의 basename, 예 "web")을 유지하고, 바꿀지는 후속 후보로만 적는다. 줄이 하나인 카드의 브랜치 칩은 비활성으로 그린다.
 - 수정 1차에서 실제 doan 앱(격리된 Playwright `_electron`)으로 초안을 열어 프레임별 스크린샷을 남기게 했다(`shots-DC-app/`).
+- **수정 1차(`1738b62`) 확인, 2026-10-25 지휘자 확정.** ①~⑥이 모두 반영됐다. `doan check` 오류 0, `doan ls` 프레임 id 8개가 같다. 격리된 실제 앱에서 연 스크린샷(`shots-DC-app/`)으로 홈·작업공간·전환기·상태 줄·가드를 확인했고, 일반 Chromium과 배치가 같다. 남은 것: `drop-overlay` 프레임 뒤의 오른쪽 패널은 축약된 채다(오버레이가 덮어 비교 대상이 아니므로 그대로 둔다). 사용자 확인은 결정 로그대로 건너뛴다.
 - DX 초안 사본은 `.scratch/orch/projects-home/draft-DX/`에 두었다. DX 커밋은 통합하지 않는다. `ph-dx` worktree는 기능이 끝날 때까지 남긴다.
 
 ## 진행 기록
@@ -74,3 +75,5 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: DX 초안 완료(`6ed416e`). 초안 비교 결과 DC를 골랐다(위 '초안 리뷰'). DX 워커는 해제했다. DC 터미널은 재사용이 거부되어(`agent_unconfigured`) 같은 worktree(`ph-dc`)에 새 Claude Opus high 워커로 DC-rev(`ctx_56230c95afca`)를 시작했다.
 - 2026-10-25: R-B1 결과 🔴 0 · 🟡 1(워크트리 항목마다 `diskSpelling`이 디렉터리 전체를 다시 읽어 200개 상한이 I/O를 제한하지 못함) · ⚪ 5. B1 터미널에 B1-fix를 보냈다. 지휘자 결정: 없는 HOME이면 어휘 비교로 대신한다. 읽을 수 없는 `worktrees`는 "등록 없음"으로 보고 `git`의 나머지 필드는 유지한다(design.md "그 항목만 버린다"). 심볼릭 링크 HEAD는 branch·detached를 생략한다. R-B1 워커는 해제했다.
 - 2026-10-25: B1-fix 완료(`a25c4c4` test, `576c55a` fix, `0dce325` postmortem). 지휘자가 git.go diff를 확인했다. B1 전체(6커밋)를 통합한다.
+- 2026-10-25: B1 6커밋을 통합했다(`c2b9684`~`569b3dc`). 통합 HEAD에서 `go test`·`go vet`·앱 test(1345) 통과. B1 워커를 해제하고 `ph-a1`을 `git cherry`(+ 없음)로 확인한 뒤 제거했다. E(`ctx_11d216927dd4`, Codex Sol high, worktree `ph-e`) 시작.
+- 2026-10-25: 초안 확정. DC 커밋(`213c0ff`, `1738b62`)을 통합한다. DC-rev 워커를 해제하고 `ph-dc`를 정리한다.
