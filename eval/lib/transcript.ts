@@ -12,8 +12,9 @@ export function shellCommands(transcript: string): string[] {
       }
     } catch { /* Codex's stderr is text, not stream-json. */ }
     if (lines[i] === "exec" && /^\/\S+\s+-[a-z]*c\s/.test(lines[i + 1] ?? "")) {
-      const command = lines[++i].replace(/ in [^\n]+(?: succeeded| exited|$)[\s\S]*$/, "");
-      commands.push(command);
+      const header = lines[++i];
+      const cwdStart = header.lastIndexOf(" in /");
+      commands.push(cwdStart === -1 ? header : header.slice(0, cwdStart));
     }
   }
   return commands;
