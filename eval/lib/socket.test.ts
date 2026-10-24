@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
@@ -48,6 +49,46 @@ test("the fake app writes a runtime file and answers one line per connection", a
     });
     assert.deepEqual(JSON.parse(reply), { v: 1, ok: true, result: { selection } });
     await app.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// The fake app is this test process's only child running socket.ts.
+function fakeAppPid(): number {
+  const pids = execFileSync("pgrep", ["-P", String(process.pid), "-f", "socket.ts"], { encoding: "utf8" }).trim().split("\n");
+  assert.equal(pids.length, 1, `fake app pids: ${pids}`);
+  return Number(pids[0]);
+}
+
+const settlesWithin = (promise: Promise<void>, ms: number) =>
+  Promise.race([promise.then(() => true), new Promise<boolean>(resolve => setTimeout(() => resolve(false), ms))]);
+
+test("close settles when the fake app was killed by a signal before it", async () => {
+  const dir = mkdtempSync("/tmp/doan-eval-test-");
+  try {
+    const app = await startFakeApp({ dir, root: "/r", selection: null });
+    process.kill(fakeAppPid(), "SIGKILL");
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.ok(await settlesWithin(app.close(), 500), "close still pending after the child was killed");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("close settles and kills a fake app that does not exit on its own", async () => {
+  const dir = mkdtempSync("/tmp/doan-eval-test-");
+  try {
+    const app = await startFakeApp({ dir, root: "/r", selection: null });
+    const pid = fakeAppPid();
+    // A stopped process never reads the closed stdin.
+    process.kill(pid, "SIGSTOP");
+    try {
+      assert.ok(await settlesWithin(app.close(), 5000), "close still pending for an unresponsive child");
+      assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+    } finally {
+      try { process.kill(pid, "SIGKILL"); } catch { /* already gone */ }
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
