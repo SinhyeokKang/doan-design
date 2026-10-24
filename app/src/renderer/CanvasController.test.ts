@@ -815,3 +815,28 @@ it("uses freshly revalidated destination metadata after a draft decision", async
     expect(h.state().status).toBe("noWidth");
   } finally { h.controller.dispose(); }
 });
+
+it("switches workspaces through the draft guard and restores the previous canvas view", async () => {
+  const { controller, row, changed } = loadedController();
+  try {
+    const other = { ...row, url: "http://localhost/other.html" };
+    controller.updateEntries([
+      { path: "/repo", kind: "list", servedRev: 0, canvases: [row] },
+      { path: "/other", kind: "list", servedRev: 0, canvases: [other] },
+    ]);
+    controller.command("actualSize");
+    controller.wheel({ dx: 20, dy: 30, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
+    const before = controller.workspaceView();
+    const entered = vi.fn();
+    controller.setTransitionGuard(() => false);
+    controller.openWorkspace("/other", entered);
+    expect(entered).not.toHaveBeenCalled();
+    controller.setTransitionGuard(() => true);
+    controller.openWorkspace("/other", entered);
+    expect(entered).toHaveBeenCalledWith("/other");
+    expect(changed.mock.lastCall?.[0].open).toBeNull();
+    controller.openWorkspace("/repo", entered);
+    expect(changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
+    expect(controller.workspaceView()).toEqual(before);
+  } finally { controller.dispose(); }
+});
