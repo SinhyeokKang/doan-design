@@ -26,7 +26,7 @@
 - `.agents/skills/`: development skills (`.claude/skills/<name>` are symlinks to them).
 - `schema/`: shared JSON Schema 2020-12 definitions (comment-event, config, CLI envelope, runtime and app-socket); `embed.go` embeds them for Go.
 - `schema/fixtures/`: shared valid/invalid JSON (including runtime and app-socket request/response/selection) and JSONL folding fixtures used by both languages.
-- `eval/`: agent-eval tooling run by `/agent-eval` (ARCHITECTURE §14) — `run.ts` (real rounds and `--self-test`), `lib/` (workspace isolation, agent and judge commands, fake app socket, check context, transcript command extraction, result records, with `node --test` tests; `types.ts` is the check contract) and `scenarios/<id>/` (W1, W2, R1–R5, the self-test-only `_example`, and `regression.test.ts` for scenario checks). Results go to `.scratch/agent-eval/<round>/`.
+- `eval/`: agent-eval tooling run by `/agent-eval` (ARCHITECTURE §14) — `run.ts` (real rounds and `--self-test`), `lib/` (workspace isolation, agent and judge commands, fake app socket, check context, transcript command extraction, sanitized rollout fixtures in `lib/fixtures/`, result records, with `node --test` tests; `types.ts` is the check contract) and `scenarios/<id>/` (W1, W2, R1–R5, MCP-enabled R2b, the self-test-only `_example`, and `regression.test.ts` for scenario checks). Results go to `.scratch/agent-eval/<round>/`.
 - `docs/`: product, architecture, and working documents.
 - `.scratch/`: ignored experiments and local handoff evidence.
 
