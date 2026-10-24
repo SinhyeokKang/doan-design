@@ -969,6 +969,25 @@ it("reports a missing rendered frame and falls back to the first id match after 
   } finally { h.controller.dispose(); }
 });
 
+it("keeps a picked frame through a live reload of the same canvas before its first layout", () => {
+  const h = selectionHarness();
+  try {
+    const found = vi.fn();
+    h.controller.openCanvas("/repo", h.other, "hero", { found });
+    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [h.row, h.other] }]);
+    expect(found).not.toHaveBeenCalled();
+    h.layout({ href: h.other.url });
+    expect(h.state().currentFrame).toBe(1);
+    expect(found).toHaveBeenCalledExactlyOnceWith(true);
+    // A reload that loses the width still answers the pick.
+    const missing = vi.fn();
+    h.controller.openCanvas("/repo", h.row, "hero", { found: missing });
+    const { width: _width, ...noWidth } = h.row;
+    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 2, canvases: [noWidth, h.other] }]);
+    expect(missing).toHaveBeenCalledExactlyOnceWith(false);
+  } finally { h.controller.dispose(); }
+});
+
 it("forgets navigation memory when a project is removed and added again", () => {
   const h = selectionHarness();
   try {

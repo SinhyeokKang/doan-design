@@ -381,11 +381,13 @@ export class CanvasController {
   // A new element ends the old document before resetting its measurement viewport.
   private load(row: CanvasRow, fresh: boolean, kind: ActivityEvent["kind"] = fresh ? "opened" : "reloaded"): void {
     this.clearJump();
-    this.pendingFrame = null;
+    // A reload of the same row before its first layout still owes the picked frame.
+    if (fresh) this.pendingFrame = null;
     this.resetAnchors();
     this.loadKind = kind;
     this.applySelectionEffect({ kind: fresh ? "otherCanvas" : "reload" });
     if (row.width === undefined) {
+      this.pendingFrame?.found?.(false);
       this.dropFrame();
       this.state.status = "noWidth";
       this.state.message = 'Missing or invalid board width. Ask the agent to add <meta name="doan:width" content="1440"> to <head>. Run doan check in a terminal to verify.';
