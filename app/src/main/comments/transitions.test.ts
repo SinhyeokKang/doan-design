@@ -8,7 +8,7 @@ test("holds close/quit, ignores forged acknowledgements, and executes only an ap
   const id = send.mock.calls[0]?.[0].id;
   guard.answer({ id: "wrong", allow: true }); expect(action).not.toHaveBeenCalled();
   guard.answer({ id, allow: false }); expect(action).not.toHaveBeenCalled();
-  guard.request({ kind: "close-project", root: "/repo" }, action);
+  guard.request({ kind: "remove-projects", roots: ["/repo"] }, action);
   guard.answer({ id: send.mock.calls[1]?.[0].id, allow: true }); expect(action).toHaveBeenCalledOnce();
 });
 

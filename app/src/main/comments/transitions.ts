@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { object } from "./identity";
-export type Transition = { kind: "quit" } | { kind: "close-project"; root: string } | { kind: "remove-projects"; roots: string[] };
+export type Transition = { kind: "quit" } | { kind: "remove-projects"; roots: string[] };
 export type TransitionRequest = Transition & { id: string };
 // `cancel` runs when the action never will: denied, dropped behind a pending
 // request, or reset with the renderer. A caller awaiting the outcome needs it.

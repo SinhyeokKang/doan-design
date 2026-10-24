@@ -52,7 +52,6 @@ const api = {
   // The stored root, or null when the sheet was cancelled or the folder refused.
   openFolder: (): Promise<string | null> => ipcRenderer.invoke("folders:open"),
   reopenFolder: (path: string): Promise<void> => ipcRenderer.invoke("folders:reopen", path),
-  closeFolder: (path: string): Promise<void> => ipcRenderer.invoke("folders:close", path),
   // Main validates it again and keeps one selection for `doan active`.
   setSelection: (selection: Selection | null): Promise<void> => ipcRenderer.invoke("selection:set", selection),
   // Main reads the canvas with CDP; values and token names are canvas text.

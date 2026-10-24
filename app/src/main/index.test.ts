@@ -331,14 +331,15 @@ test("ignores selection:set from other senders", async () => {
   expect(runtimeState().selection()).toEqual(SELECTION);
 });
 
-test("clears the selection when its project closes", async () => {
+test("clears only the removed project selection", async () => {
+  mocks.shell.remove.mockImplementation(async (paths: string[]) => ({ paths, indexes: [0] }));
   mocks.shell.entries.mockReturnValue([{ path: ROOT }, { path: "/Users/sam/code/other" }]);
   const contents = window().webContents;
   await invoke("selection:set", contents, null, SELECTION);
-  await invoke("folders:close", contents, null, "/Users/sam/code/other");
+  await invoke("folders:remove", contents, null, { paths: ["/Users/sam/code/other"] });
   expect(runtimeState().selection()).toEqual(SELECTION);
-  await invoke("folders:close", contents, null, ROOT);
-  expect(mocks.shell.close).toHaveBeenCalledWith(ROOT);
+  await invoke("folders:remove", contents, null, { paths: [ROOT] });
+  expect(mocks.shell.remove).toHaveBeenCalledWith([ROOT]);
   expect(runtimeState().selection()).toBeNull();
 });
 

@@ -484,13 +484,6 @@ async function start(): Promise<void> {
     if (!fromWindow(event) || typeof path !== "string") return;
     await ready.reopen(path);
   });
-  ipcMain.handle("folders:close", async (event, path: unknown) => {
-    if (!fromWindow(event) || typeof path !== "string") return;
-    transitionGuard.request({ kind: "close-project", root: path }, () => {
-      if (selection?.root === path) selection = null;
-      void ready.close(path);
-    });
-  });
   // Invalid input or a project that is not open clears rather than keeping an
   // older selection the human no longer sees.
   ipcMain.handle("selection:set", (event, value: unknown) => {
