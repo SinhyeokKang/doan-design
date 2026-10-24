@@ -1,0 +1,16 @@
+{
+  "canvas": {
+    "path": "design/checkout.html",
+    "id": "checkout"
+  },
+  "frame": {
+    "id": "checkout",
+    "title": "Checkout"
+  },
+  "element": {
+    "doanId": "cta",
+    "selector": "[data-doan-id=\"cta\"]",
+    "html": "<button data-doan-id=\"cta\" style=\"background: var(--color-muted); color: var(--color-text); padding: var(--space-4)\">Start free trial</button>",
+    "text": "Start free trial"
+  }
+}

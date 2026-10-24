@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="profile">
+  <meta name="doan:width" content="1200">
+  <title>Profile</title>
+  <link rel="stylesheet" href="../styles/tokens.css">
+  <style>
+    body { background: var(--color-surface); color: var(--color-text); }
+    [data-doan-frame] { width: 480px; padding: var(--space-4); }
+
+  </style>
+</head>
+<body>
+  <section data-doan-frame="profile" data-doan-title="Profile">
+    <h1 data-doan-id="heading">Your profile</h1>
+    <div data-doan-id="actions" style="display: flex; gap: var(--space-2)">
+      <button data-doan-id="save">Save</button>
+      <button data-doan-id="cancel">Cancel</button>
+    </div>
+  </section>
+  <p data-doan-id="draft-note">Design draft; this screen is not implemented in code.</p>
+</body>
+</html>
