@@ -373,3 +373,27 @@ code, kbd { font-family: var(--font-sans); }
 .home-shell .btn.primary .kbd { color: var(--accent-ink); border-color: var(--accent-ink); opacity: .6; }
 
 .project-tooltip { padding: 6px 12px; max-width: 420px; }
+
+/* Design navigation: confirmed design/design-nav.html tree-rows and frame-highlight. */
+.side .row.cv { height: 44px; }
+.side .row .tw { flex: none; width: 12px; text-align: center; color: var(--text-4); font-size: 10px; }
+.side .row .two { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.side .row .two > .g, .side .row .two > .d { flex: none; display: block; min-width: 0; max-width: none; overflow: hidden; text-overflow: ellipsis; }
+.side .row .two > .d { font-size: 11px; }
+.side .row .num { min-width: 16px; flex: none; text-align: right; color: var(--text-4); font-size: 11px; }
+.side .row.is-open .g { color: var(--text); }
+.side .row.is-open .glyph { color: var(--accent); }
+.side .row[aria-current="location"] { color: var(--text); background: var(--raised); }
+.side .row[aria-current="location"]::before { content: ""; position: absolute; left: 0; top: 5px; bottom: 5px; width: 2px; background: var(--accent); border-radius: 1px; }
+.side .row[aria-current="location"] .num, .side .row[aria-current="location"] .glyph { color: var(--accent); }
+.sel-mark { flex: none; width: 7px; height: 7px; border: 1px solid var(--accent); transform: rotate(45deg); margin: 0 2px; }
+.row .ra + .sel-mark { margin-left: -2px; }
+.row .ra { display: none; flex: none; gap: 4px; }
+.row:hover .ra, .row:focus-within .ra { display: flex; }
+.ra .btn { padding: 1px 7px; font-size: 11px; border-radius: 6px; }
+.tree-hint { padding: 2px 12px 6px 46px; font: 11.5px/1.5 var(--font-sans); color: var(--text-3); }
+.crumbs button.repo { border-radius: 5px; padding: 1px 4px; margin: 0 -4px; }
+.crumbs button.repo:hover { background: var(--panel-2); color: var(--text); }
+.mark.jump-highlight { border: 2px solid var(--accent-line); border-radius: 1px; box-shadow: 0 0 0 3px var(--accent-soft); animation: frame-jump-fade 1.2s linear forwards; }
+@keyframes frame-jump-fade { 0%, 66.6667% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .mark.jump-highlight { animation: none; } }
