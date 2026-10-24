@@ -282,6 +282,13 @@ describe("served revision", () => {
     expect(rev(changes, root)).toBe(rev0 + 1);
   });
 
+  test("scope is the listed serving scope, and empty for a root that is not open", async () => {
+    const root = servedRepo({ tokenCss: "styles/tokens.css", serve: ["assets"] });
+    const { shell } = await opened(root);
+    expect(shell.scope(root)).toEqual(["assets", "design", "styles/tokens.css"]);
+    expect(shell.scope(join(root, "nope"))).toEqual([]);
+  });
+
   test("an atomic tokenCss save bumps without running doan ls", async () => {
     const counting = countingCli();
     const root = servedRepo({ tokenCss: "styles/tokens.css" });

@@ -8,6 +8,7 @@ import { _electron, type ElectronApplication } from "playwright";
 const { homeRow, goHome, enterProject, requestProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { hoverTooltip }: typeof import("./tooltip") = await import(new URL("./tooltip.ts", import.meta.url).href);
+const { appWindow }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 const beforeRealState = await realState();
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL("../..", import.meta.url));
@@ -50,11 +51,11 @@ process.exit(result.status ?? 1);
   async function menu(label: string) {
     const deadline = Date.now() + 10_000;
     while (true) {
-      const clicked = await app!.evaluate(({ Menu, BrowserWindow }, label) => {
+      const clicked = await app!.evaluate(({ Menu }, [label, window]) => {
         const find = (items: Electron.MenuItem[]): Electron.MenuItem | undefined => { for (const item of items) { if (item.label === label) return item; const child = item.submenu && find(item.submenu.items); if (child) return child; } return undefined; };
         const item = find(Menu.getApplicationMenu()!.items); if (!item?.enabled) return false;
-        item.click(undefined, BrowserWindow.getAllWindows()[0], undefined); return true;
-      }, label);
+        item.click(undefined, window, undefined); return true;
+      }, [label, await appWindow(app!, page)] as const);
       if (clicked) return;
       assert.ok(Date.now() < deadline, `Disabled or missing menu ${label}`);
       await page.waitForTimeout(20);
@@ -71,7 +72,7 @@ process.exit(result.status ?? 1);
     }
   }
   async function add(paths: string[]) { await app!.evaluate(({ dialog }, paths) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: paths }); }, paths); await menu("Add Project…"); }
-  async function addPaths(paths: string[]) { await app!.evaluate(async ({ ipcMain, BrowserWindow }, paths) => { const win = BrowserWindow.getAllWindows()[0]!; const handler = Reflect.get(ipcMain, "_invokeHandlers").get("folders:add-paths"); await handler({ sender: win.webContents, senderFrame: win.webContents.mainFrame }, { paths }); }, paths); }
+  async function addPaths(paths: string[]) { await app!.evaluate(async ({ ipcMain }, [paths, win]) => { const handler = Reflect.get(ipcMain, "_invokeHandlers").get("folders:add-paths"); await handler({ sender: win.webContents, senderFrame: win.webContents.mainFrame }, { paths }); }, [paths, await appWindow(app!, page)] as const); }
   const presentation: Record<string, boolean> = {};
   const checklist = page.getByRole("dialog", { name: "Add projects", exact: true });
   await page.getByText("Add a project to see its design canvases.", { exact: true }).waitFor(); await shot("01-empty");

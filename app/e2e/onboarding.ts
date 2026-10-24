@@ -11,6 +11,7 @@ const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: type
 
 const { hoverTooltip }: typeof import("./tooltip") = await import(new URL("./tooltip.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
+const { appWindow, appWindowCount }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL("../..", import.meta.url));
@@ -52,11 +53,11 @@ async function assertProjectPath(path: Locator, boundary: Locator, expected: str
   assert.equal(measured.title, expected);
 }
 async function menu(name: string) {
-  await app.evaluate(({ Menu, BrowserWindow }, label) => {
+  await app.evaluate(({ Menu }, [label, window]) => {
     const item = Menu.getApplicationMenu()?.items.flatMap(item => item.submenu?.items ?? []).find(item => item.label === label);
     if (!item) throw new Error(`Missing menu item ${label}`);
-    item.click(item, BrowserWindow.getAllWindows()[0], undefined);
-  }, name);
+    item.click(item, window, undefined);
+  }, [name, await appWindow(app, page)] as const);
 }
 async function launch() {
   app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${data}`], env }); running = app;
@@ -66,6 +67,7 @@ async function launch() {
   });
   assert.equal(await app.evaluate(({ app }) => app.getPath("userData")), data);
 }
+const visible = async () => (await appWindow(app, page)).evaluate(window => window.isVisible());
 async function quit() { await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "obSavedClipboard")); }); await app.close(); running = undefined; }
 async function wizardSession() {
   return page.evaluate(() => new Promise((resolve, reject) => {
@@ -150,27 +152,27 @@ else if (args[1] === 'add') {
   await go("CLI"); await button("Skip").click();
   assert.equal(await stepButton("CLI").getAttribute("aria-label"), null);
   const session = await wizardSession();
-  await menu("Close Window"); await wait(() => app.evaluate(({ BrowserWindow }) => !BrowserWindow.getAllWindows()[0]!.isVisible()), "hidden");
-  await app.evaluate(({ app }) => app.emit("activate")); await wait(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()), "shown");
+  await menu("Close Window"); await wait(async () => !await visible(), "hidden");
+  await app.evaluate(({ app }) => app.emit("activate")); await wait(visible, "shown");
   assert.deepEqual(await wizardSession(), session);
   assert.equal(await stepButton("Agents").getAttribute("aria-current"), "step");
   for (const hidden of [false, true]) {
-    if (hidden) { await menu("Close Window"); await wait(() => app.evaluate(({ BrowserWindow }) => !BrowserWindow.getAllWindows()[0]!.isVisible()), "hidden before menu reopen"); }
+    if (hidden) { await menu("Close Window"); await wait(async () => !await visible(), "hidden before menu reopen"); }
     await reopen();
-    await wait(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()), "menu shows wizard window");
+    await wait(visible, "menu shows wizard window");
     assert.deepEqual(await wizardSession(), session, `menu preserves ${hidden ? "hidden" : "visible"} wizard session`);
     assert.equal(await stepButton("Agents").getAttribute("aria-current"), "step");
   }
   const electron = createRequire(import.meta.url)("electron") as string;
   const second = spawn(electron, [join(root, "app"), `--user-data-dir=${data}`], { env, stdio: "ignore" });
   const secondCode = await new Promise<number | null>((resolve, reject) => { const timer = setTimeout(() => { second.kill(); reject(new Error("second instance hung")); }, 10_000); second.on("exit", code => { clearTimeout(timer); resolve(code); }); second.on("error", reject); });
-  assert.equal(secondCode, 0); assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
+  assert.equal(secondCode, 0); assert.equal(await appWindowCount(app), 1);
   assert.deepEqual(await wizardSession(), session);
   await quit(); assert.equal(await exists(join(data, "onboarding.json")), false, "quit does not dismiss");
   await launch(); await ready(); await page.keyboard.press("Escape"); await closed();
   assert.deepEqual(JSON.parse(await readFile(join(data, "onboarding.json"), "utf8")), {});
   await quit(); await launch(); await page.getByRole("button", { name: "Add Project…", exact: true }).first().waitFor(); assert.equal(await wizard().count(), 0);
-  await menu("Close Window"); await reopen(); assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()), true); await button(/^Close/).click(); await closed(); await quit();
+  await menu("Close Window"); await reopen(); assert.equal(await visible(), true); await button(/^Close/).click(); await closed(); await quit();
   await writeFile(join(data, "onboarding.json"), "{broken"); await launch(); await ready();
   await shot("01-first-run");
 

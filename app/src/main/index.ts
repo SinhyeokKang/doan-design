@@ -24,6 +24,8 @@ import { menuState, type Screen } from "./menuState";
 import { removalLabel } from "./removal";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
 import { createThrottle } from "./throttle";
+import { createThumbnails, type ThumbnailReply, type Thumbnails } from "./thumbnails";
+import { createWindowCapturer } from "./thumbnailWindow";
 import { createUiStateStore, type UiStateStore } from "./uiState";
 
 // Must run before `ready`: userData is derived from the name, which makes it
@@ -83,6 +85,7 @@ let quitting = false;
 let cancelPendingHide = () => {};
 let addFlow: AddFlow | undefined;
 let uiState: UiStateStore | undefined;
+let thumbnails: Thumbnails | undefined;
 // The app always starts on Home (design 'Memory model').
 const HOME: MenuInputs = { screen: "home", modal: false, toast: false };
 let menuInputs: MenuInputs = HOME;
@@ -92,9 +95,18 @@ let removal: { id: string; paths: string[]; indexes: number[] } | null = null;
 let removals = 0;
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
 
+// Thumbnails are for the window's overview, so nothing is captured while it
+// is hidden. Paused here rather than on the window's `hide`/`show` events,
+// which macOS did not emit for these calls in the e2e run.
 function showWindow(window: BrowserWindow): void {
   cancelPendingHide();
   window.show();
+  thumbnails?.resume();
+}
+
+function hideWindow(window: BrowserWindow): void {
+  window.hide();
+  thumbnails?.pause();
 }
 
 function isOpen(root: string): boolean {
@@ -255,7 +267,7 @@ function createWindow(): BrowserWindow {
     cancelPendingHide();
     if (window.isFullScreen()) {
       // macOS cannot hide until the transition ends; a later open cancels this close.
-      const hide = () => { cancelPendingHide(); if (!window.isDestroyed()) window.hide(); };
+      const hide = () => { cancelPendingHide(); if (!window.isDestroyed()) hideWindow(window); };
       const timeout = setTimeout(() => cancelPendingHide(), FULLSCREEN_EXIT_WAIT_MS);
       cancelPendingHide = () => {
         clearTimeout(timeout);
@@ -264,7 +276,7 @@ function createWindow(): BrowserWindow {
       };
       window.once("leave-full-screen", hide);
       window.setFullScreen(false);
-    } else window.hide();
+    } else hideWindow(window);
   });
   window.on("closed", () => {
     cancelPendingHide();
@@ -321,9 +333,20 @@ async function start(): Promise<void> {
     for (const root of choices.keys()) {
       if (!entries.some(entry => entry.path === root && entry.kind === "uninitialized")) choices.delete(root);
     }
+    thumbnails?.entriesChanged(entries);
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries, focus);
   }, { response: record => documents.response(record), invalidate });
   shell = ready;
+  // The capture window is made on the first capture and stays out of the
+  // app window's lifecycle: `win` alone is shown, closed and trusted for IPC.
+  const thumbs = createThumbnails({
+    dir: join(userData, "thumbnails"), appVersion: app.getVersion(),
+    entries: () => ready.entries(), scope: (root) => ready.scope(root),
+    capturer: createWindowCapturer(), changed: (target) => send("thumbnails:changed", target),
+  });
+  thumbnails = thumbs;
+  // Starts the once-per-launch cache cleanup even when no folder update follows.
+  thumbs.entriesChanged(ready.entries());
   const comments = createCommentsService({
     authorize: identity => ready.authorizeComments(identity),
     epoch: root => ready.epoch(root),
@@ -432,7 +455,8 @@ async function start(): Promise<void> {
     const roots = paths.map(String);
     return new Promise((resolve) => {
       transitionGuard.request({ kind: "remove-projects", roots }, () => {
-        const entries = ready.entries().filter((entry) => roots.includes(entry.path));
+        const before = ready.entries();
+        const entries = before.filter((entry) => roots.includes(entry.path));
         const label = removalLabel(entries);
         if (selection && roots.includes(selection.root)) selection = null;
         // The list changes before folders.json is written: the old Undo goes
@@ -441,6 +465,7 @@ async function start(): Promise<void> {
         removal = null;
         void ready.remove(roots).then((removed) => {
           if (removed.paths.length === 0) { resolve({ kind: "unavailable" }); return; }
+          void thumbs.removed(removed.paths, before);
           const id = randomUUID();
           if (generation === removals) removal = { id, ...removed };
           resolve({ kind: "removed", removalId: id, label });
@@ -487,6 +512,13 @@ async function start(): Promise<void> {
   uiState = store;
   ipcMain.handle("ui-state:get", (event) => (fromWindow(event) ? store.read() : null));
   ipcMain.handle("ui-state:save", (event, value: unknown) => fromWindow(event) && store.save(value));
+  // A saved root and a listed canvas only; main reads the bytes from its cache.
+  ipcMain.handle("thumbnails:get", (event, value: unknown): Promise<ThumbnailReply> | ThumbnailReply => {
+    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
+      !("root" in value) || typeof value.root !== "string" || !("path" in value) || typeof value.path !== "string" ||
+      !("visible" in value) || typeof value.visible !== "boolean") return { kind: "unavailable" };
+    return thumbs.get(value.root, value.path, value.visible);
+  });
   ipcMain.handle("menu:state", (event, value: unknown) => {
     const next = parseMenuInputs(value);
     if (fromWindow(event) && next !== null) setMenuInputs(next);
@@ -593,6 +625,7 @@ app.on("activate", () => {
 
 app.on("will-quit", () => {
   uiState?.flushSync();
+  thumbnails?.dispose();
   runtime?.disposeSync();
   void shell?.dispose();
 });

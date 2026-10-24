@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication } from "playwright";
 const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
+const { appWindow }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const shots = join(root, ".scratch/U2/runtime");
@@ -303,8 +304,9 @@ try {
   await page.getByRole("button", { name: "Remove repo from doan", exact: true }).click(); await keep();
   await app.evaluate(({ app }) => app.quit()); await keep();
   // Close Window hides the existing window without losing the editor.
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
-  assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible()), false);
+  const appWin = await appWindow(app, page);
+  await appWin.evaluate(window => window.close());
+  assert.equal(await appWin.evaluate(window => window.isVisible()), false);
   await app.evaluate(({ app }) => app.emit("activate"));
   assert.equal(await createBody.inputValue(), "All transitions protected");
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();

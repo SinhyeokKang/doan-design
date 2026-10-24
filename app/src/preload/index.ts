@@ -10,6 +10,7 @@ import type { FolderFocus, ProjectInitResult } from "../main/shell";
 import type { LocateResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, RestoreResult, TokenCssChoice, ViewCommand } from "../main/index";
 import type { InspectResult } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
+import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { UiState } from "../restore/uiState";
 
 // The renderer gets these calls and nothing else: no ipcRenderer, no
@@ -118,6 +119,15 @@ const api = {
   locateProject: (path: string): Promise<LocateResult> => ipcRenderer.invoke("folders:locate", { path }),
   revealProject: (path: string): Promise<void> => ipcRenderer.invoke("folders:reveal", { path }),
   setMenuState: (inputs: MenuInputs): Promise<void> => ipcRenderer.invoke("menu:state", inputs),
+  // `pending` is followed by onThumbnailChanged for the same canvas; ask again then.
+  // `visible` puts the canvas ahead of cards off screen.
+  getThumbnail: (root: string, path: string, visible: boolean): Promise<ThumbnailReply> => ipcRenderer.invoke("thumbnails:get", { root, path, visible }),
+  // A capture finished or failed, or the cached image went stale.
+  onThumbnailChanged(listener: (target: ThumbnailTarget) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, target: ThumbnailTarget) => listener(target);
+    ipcRenderer.on("thumbnails:changed", receive);
+    return () => ipcRenderer.removeListener("thumbnails:changed", receive);
+  },
   // `ui-state.json` as main validated it against the saved roots; null starts at home.
   readUiState: (): Promise<UiState | null> => ipcRenderer.invoke("ui-state:get"),
   // Main validates again and writes the last value after 500 ms; false when refused.
