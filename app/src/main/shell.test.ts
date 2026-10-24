@@ -69,8 +69,8 @@ describe("opening a picked folder", () => {
   test("a subfolder of a broken repo is refused with the CLI's message", async () => {
     const root = writeRepo(dir(), "{");
     const { shell, foldersFile } = await start();
-    const refused = await shell.open(join(root, "design"));
-    expect(refused).toContain("Cannot read config");
+    const opened = await shell.open(join(root, "design"));
+    expect(opened).toEqual({ refused: expect.stringContaining("Cannot read config") });
     expect(shell.entries()).toEqual([]);
     expect(saved(foldersFile)).toEqual([]);
   });
@@ -81,14 +81,14 @@ describe("opening a picked folder", () => {
     const sub = join(root, "sub");
     mkdirSync(join(sub, ".doan", "comments"), { recursive: true });
     const { shell } = await start();
-    expect(await shell.open(sub)).toContain("Cannot read config");
+    expect(await shell.open(sub)).toEqual({ refused: expect.stringContaining("Cannot read config") });
     expect(shell.entries()).toEqual([]);
   });
 
   test("the root of a broken repo is stored and shows its error", async () => {
     const root = writeRepo(dir(), "{");
     const { shell, foldersFile } = await start();
-    expect(await shell.open(root)).toBeNull();
+    expect(await shell.open(root)).toEqual({ root });
     expect(shell.entries()).toEqual([expect.objectContaining({ path: root })]);
     expect(saved(foldersFile)).toEqual([root]);
   });
@@ -96,17 +96,17 @@ describe("opening a picked folder", () => {
   test("a missing CLI refuses the pick instead of storing it", async () => {
     const root = writeRepo(dir());
     const { shell } = await start(join(tmp, "no-such-doan"));
-    expect(await shell.open(root)).toMatch(/^doan CLI error/);
+    expect(await shell.open(root)).toEqual({ refused: expect.stringMatching(/^doan CLI error/) });
     expect(shell.entries()).toEqual([]);
   });
 
   test("a folder that is gone after the dialog is reported, not opened", async () => {
     const { shell } = await start();
     const gone = join(tmp, "gone");
-    expect(await shell.open(gone)).toBe(`Project not found: ${gone}`);
+    expect(await shell.open(gone)).toEqual({ refused: `Project not found: ${gone}` });
     const file = join(dir(), "file.txt");
     writeFileSync(file, "x");
-    expect(await shell.open(file)).toBe(`Project not found: ${file}`);
+    expect(await shell.open(file)).toEqual({ refused: `Project not found: ${file}` });
     expect(shell.entries()).toEqual([]);
   });
 });
@@ -146,7 +146,7 @@ describe("shell races", () => {
   test("the same root opened twice at once is one folder", async () => {
     const root = writeRepo(dir());
     const { shell, foldersFile } = await start();
-    await Promise.all([shell.open(root), shell.open(join(root, "design"))]);
+    expect(await Promise.all([shell.open(root), shell.open(join(root, "design"))])).toEqual([{ root }, { root }]);
     expect(shell.entries().map((entry) => entry.path)).toEqual([root]);
     expect(saved(foldersFile)).toEqual([root]);
   });
@@ -179,7 +179,8 @@ describe("shell races", () => {
     rmSync(root, { recursive: true, force: true });
     await vi.waitFor(() => expect(latest(changes)).toEqual([{ path: root, kind: "notFound" }]), until);
     writeRepo(root);
-    await shell.open(root);
+    // An already stored folder still resolves to its root, so a caller can show it.
+    expect(await shell.open(root)).toEqual({ root });
     await vi.waitFor(() => expect(latest(changes)).toEqual([expect.objectContaining({ path: root, kind: "list" })]), until);
     writeFileSync(join(root, "design", "b.html"), "<!doctype html><title>B</title>");
     await vi.waitFor(() => {

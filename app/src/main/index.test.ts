@@ -25,7 +25,7 @@ const mocks = await vi.hoisted(async () => {
     Window,
     app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", exit: vi.fn(), quit: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
-    shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<string | null>>(), close: vi.fn(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn() },
+    shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), close: vi.fn(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn() },
     startShell: vi.fn(),
     cliCommand: vi.fn(() => "/bundled/doan"),
     runtime: { socket: "/tmp/doan-x/app.sock", token: "t", file: "/tmp/doan-index-test/runtime.json", disposeSync: vi.fn() },
@@ -74,7 +74,7 @@ beforeEach(async () => {
   mocks.inspector.inspect.mockResolvedValue({ ok: true, rows: [] });
   mocks.app.requestSingleInstanceLock.mockReturnValue(true);
   mocks.shell.entries.mockReturnValue([]);
-  mocks.shell.open.mockResolvedValue(null);
+  mocks.shell.open.mockResolvedValue({ root: "/repo" });
   mocks.shell.epoch.mockReturnValue(1);
   mocks.shell.initialize.mockResolvedValue({ kind: "success" });
   mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
@@ -154,6 +154,21 @@ test("shows the window before the Open Project dialog", async () => {
   await invoke("folders:open", window().webContents, null);
   expect(window().show).toHaveBeenCalledOnce();
   expect(mocks.dialog.showOpenDialog).toHaveBeenCalled();
+});
+
+test("Open Project resolves the stored root, or null when cancelled, refused or untrusted", async () => {
+  const contents = window().webContents;
+  expect(await invoke("folders:open", contents, null)).toBeNull();
+  mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/repo/design"] });
+  mocks.shell.open.mockResolvedValueOnce({ root: "/repo" });
+  expect(await invoke("folders:open", contents, null)).toBe("/repo");
+  expect(mocks.shell.open).toHaveBeenLastCalledWith("/repo/design");
+  mocks.shell.open.mockResolvedValueOnce({ refused: "Cannot read config" });
+  expect(await invoke("folders:open", contents, null)).toBeNull();
+  expect(mocks.dialog.showMessageBox).toHaveBeenCalledWith(window(), expect.objectContaining({ type: "error", detail: "Cannot read config" }));
+  mocks.shell.open.mockClear();
+  expect(await invoke("folders:open", contents, {})).toBeNull();
+  expect(mocks.shell.open).not.toHaveBeenCalled();
 });
 
 
@@ -504,6 +519,33 @@ test("wizard close writes only when idle; window close and quit do not mark it c
   expect(await invoke("onboarding:close", contents, null, opened)).toEqual({ kind: "success" });
   expect(mocks.markClosed).toHaveBeenCalledExactlyOnceWith("/tmp/doan-index-test");
 });
+test("first prompt is read and copied only for a stored set-up project, after the clipboard settles", async () => {
+  const contents = window().webContents;
+  const sentence = `Use the doan skill to make a design canvas in ${ROOT} for <what you want to design>.`;
+  mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "list" }, { path: "/plain", kind: "uninitialized" }]);
+  expect(await invoke("onboarding:first-prompt", contents, null, { root: ROOT })).toBe(sentence);
+  for (const request of [{ root: "/plain" }, { root: "/other" }, { root: ROOT, text: "forged" }, { root: 1 }, null, ROOT]) {
+    expect(await invoke("onboarding:first-prompt", contents, null, request)).toBeNull();
+  }
+  expect(await invoke("onboarding:first-prompt", contents, {}, { root: ROOT })).toBeNull();
+  expect(await invoke("onboarding:first-prompt", {}, null, { root: ROOT })).toBeNull();
+  let finish!: () => void;
+  mocks.clipboard.writeText.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+  let settled = false;
+  const copied = Promise.resolve(invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT })).then(value => { settled = true; return value; });
+  await Promise.resolve(); expect(settled).toBe(false); finish();
+  expect(await copied).toEqual({ kind: "success" });
+  expect(mocks.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(sentence);
+  mocks.clipboard.writeText.mockClear();
+  for (const request of [{ kind: "firstPrompt", root: "/plain" }, { kind: "firstPrompt" }, { kind: "firstPrompt", root: ROOT, text: "forged" }, { kind: "firstPrompt", root: "/other" }]) {
+    expect(await invoke("onboarding:copy", contents, null, request)).toEqual({ kind: "stale" });
+  }
+  expect(await invoke("onboarding:copy", contents, {}, { kind: "firstPrompt", root: ROOT })).toEqual({ kind: "stale" });
+  expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
+  mocks.clipboard.writeText.mockRejectedValueOnce(new Error("denied"));
+  expect(await invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT })).toEqual({ kind: "error", message: "denied" });
+});
+
 test("PATH copy awaits the clipboard and refuses arbitrary strings", async () => {
   let finish!: () => void;
   mocks.clipboard.writeText.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));

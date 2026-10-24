@@ -73,6 +73,24 @@ test.each(["doan", "/private/AppTranslocation/copy/doan"])("refuses unavailable 
 function agent(name: string) {
   file(join(home, "bin", name), `#!/bin/sh\nprintf '%s\\n' "$*" >> "$HOME/calls"\nif [ "$2" = get ]; then echo "Error: No MCP server named 'doan' found." >&2; exit 1; fi\nexit 0\n`, 0o755);
 }
+test("state names the paths and targets the wizard shows", async () => {
+  const custom = await machine().read("r");
+  expect(custom.display).toEqual({
+    home, cliPath: join(home, ".local/bin/doan"), cliTarget: cli, stubPath: join(home, ".agents/skills/doan/SKILL.md"),
+    claudeLinkPath: join(home, ".claude/skills/doan"), claudeLinkTarget: "../../.agents/skills/doan", mcpCommand: `${join(home, ".local/bin/doan")} mcp`,
+    configFile: { claude: join(home, ".claude/.claude.json"), codex: join(home, ".codex/config.toml") }, configFromEnv: { claude: true, codex: true },
+    blocked: { cli: null, stub: null, claudeLink: null },
+  });
+  delete env.CLAUDE_CONFIG_DIR; delete env.CODEX_HOME;
+  const defaults = await machine("doan").read("r");
+  expect(defaults.display).toMatchObject({ cliTarget: null, configFile: { claude: join(home, ".claude.json"), codex: join(home, ".codex/config.toml") }, configFromEnv: { claude: false, codex: false } });
+});
+test.each([["target", ".local/bin/doan"], ["parent", ".local/bin"]])("state names the item in the way of a blocked %s", async (_kind, name) => {
+  file(join(home, name), "keep");
+  file(join(home, ".agents/skills/doan"), "keep");
+  const state = await machine().read("r");
+  expect(state.display.blocked).toEqual({ cli: join(home, name), stub: join(home, ".agents/skills/doan"), claudeLink: null });
+});
 test("connect refuses MCP until the CLI link is ours", async () => {
   agent("claude"); const m = machine(); const state = await m.read("r");
   expect((await m.run({ step: "connect", agent: "claude", expected: state.expected })).kind).toBe("unavailable");
