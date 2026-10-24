@@ -8,9 +8,9 @@
     "title": "Checkout"
   },
   "element": {
-    "doanId": "cta",
-    "selector": "[data-doan-id=\"cta\"]",
-    "html": "<button data-doan-id=\"cta\" style=\"background: var(--color-muted); color: var(--color-text); padding: var(--space-4)\">Start free trial</button>",
-    "text": "Start free trial"
+    "doanId": "secondary",
+    "selector": "[data-doan-id=\"secondary\"]",
+    "html": "<button data-doan-id=\"secondary\" style=\"background: var(--color-muted); color: var(--color-text); padding: var(--space-4)\">View plans</button>",
+    "text": "View plans"
   }
 }

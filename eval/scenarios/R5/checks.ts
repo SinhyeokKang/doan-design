@@ -6,7 +6,7 @@ const checks: Checks = ctx => {
   const expected = [
     ["billing_frame_count", "Billing frames: 11"],
     ["overdue_balance_token", "Overdue balance token: --color-warning"],
-    ["receipt_implementation", "Receipt detail implementation: web/billing/receipt-detail.html"],
+    ["receipt_implementation", "Receipt detail implementation: web/billing/view-c.html"],
   ];
   return [
     ...expected.map(([id, answer], index) => ({ id, pass: lines[index] === answer, detail: `expected ${JSON.stringify(answer)}; received ${JSON.stringify(lines[index] ?? null)}` })),

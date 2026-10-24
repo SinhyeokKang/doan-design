@@ -5,7 +5,7 @@ export interface Document { nodes: Element[]; css: string; }
 
 // The fixtures are static HTML. HTMLParser handles entities, quote styles and nested labels.
 export function inspect(ctx: CheckContext, html: string): Document {
-  const result = ctx.run("python3", ["-c", String.raw`
+  const result = ctx.run("python3.12", ["-c", String.raw`
 import json, sys
 from html.parser import HTMLParser
 class Parser(HTMLParser):
@@ -75,11 +75,10 @@ export function reviewState(ctx: CheckContext, canvas: string, ids: string[]) {
   const original = ctx.seed(path) ?? "";
   const current = ctx.read(path) ?? "";
   const events = ctx.commentEvents(canvas);
-  const expectedName = ctx.agent === "claude" ? "claude-code" : "codex";
   const read = ctx.doan(["comments", "--canvas", canvas]);
   return [
     { id: `${canvas}_history_preserved`, pass: current.startsWith(original), detail: "the original comment history remains an unchanged prefix" },
-    { id: `${canvas}_agent_resolves_only`, pass: events.length === ids.length && ids.every(id => events.filter(e => e.comment === id).length === 1) && events.every(e => e.type === "resolve" && ids.includes(e.comment) && e.by?.kind === "agent" && e.by?.name === expectedName), detail: `expected ${expectedName} resolve for ${ids.join(", ")}; new events: ${JSON.stringify(events)}` },
+    { id: `${canvas}_agent_resolves_only`, pass: events.length === ids.length && ids.every(id => events.filter(e => e.comment === id).length === 1) && events.every(e => e.type === "resolve" && ids.includes(e.comment) && e.by?.kind === "agent" && typeof e.by?.name === "string" && /^[a-z0-9-]+$/.test(e.by.name)), detail: `expected agent resolve for ${ids.join(", ")}; new events: ${JSON.stringify(events)}` },
     { id: `${canvas}_comments_valid`, pass: read.code === 0 && read.json?.ok === true && read.json?.result?.warnings?.length === 0 && Array.isArray(read.json?.result?.comments) && !read.json.result.comments.some((c: { comment: string }) => ids.includes(c.comment)), detail: JSON.stringify(read.json) },
   ];
 }

@@ -1,1 +1,1 @@
-Ran doan active --json and used its selected element.
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_active", "name": "Bash", "input": {"command": "doan active --json"}}]}}

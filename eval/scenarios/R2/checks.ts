@@ -1,16 +1,17 @@
+import { shellCommands, commandWords } from "../../lib/transcript.ts";
 import type { Checks } from "../../lib/types.ts";
-import { clean, element, hasToken, inspect, styles } from "../R1/inspect.ts";
+import { clean, element, hasToken, inspect, styles } from "./inspect.ts";
 
 const checks: Checks = ctx => {
   const path = "design/checkout.html";
   const doc = inspect(ctx, ctx.read(path) ?? "");
   const seed = inspect(ctx, ctx.seed(path) ?? "");
-  const cta = element(doc, "cta");
+  const cta = element(doc, "secondary");
   const background = styles(doc, cta)["background-color"] ?? styles(doc, cta).background;
   // Compare structure, attributes, direct text and static styles outside the selected element.
   const snapshot = (d: typeof doc) => d.nodes.filter(n => n.tag !== "style").map(n => {
     const attrs = { ...n.attrs };
-    const selected = attrs["data-doan-id"] === "cta";
+    const selected = attrs["data-doan-id"] === "secondary";
     delete attrs.style; delete attrs.class;
     const children = d.nodes.filter(child => child.parent === d.nodes.indexOf(n));
     let ownText = n.text;
@@ -19,8 +20,8 @@ const checks: Checks = ctx => {
   });
   return [
     clean(ctx),
-    { id: "asked_doan_active", pass: /\bdoan\s+active\b/.test(ctx.transcript), detail: "transcript contains a doan active invocation" },
-    { id: "cta_primary_background", pass: !!cta && hasToken(background, "--color-primary"), detail: `cta background: ${background ?? "(missing)"}` },
+    { id: "asked_doan_active", pass: shellCommands(ctx.transcript).flatMap(commandWords).some(words => /^(?:.*\/)?doan$/.test(words[0] ?? "") && words[1] === "active"), detail: "transcript contains a doan active invocation" },
+    { id: "selected_primary_background", pass: !!cta && hasToken(background, "--color-primary"), detail: `selected background: ${background ?? "(missing)"}` },
     { id: "other_elements_unchanged", pass: JSON.stringify(snapshot(doc)) === JSON.stringify(snapshot(seed)), detail: "non-selected structure, copy, attributes and static declarations match the seed" },
     { id: "only_canvas_changed", pass: ctx.changedFiles().length === 1 && ctx.changedFiles()[0] === path, detail: `changed: ${ctx.changedFiles().join(", ") || "(none)"}` },
   ];
