@@ -1,3 +1,5 @@
+import { connectionSummary } from "../../setup/connectionSummary";
+import { agentsView, idleUi } from "../../renderer/onboardingView";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { mkdtempSync, realpathSync, lstatSync, readdirSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, readlinkSync, rmSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -413,4 +415,36 @@ test("existing other target: sibling auto-update does not stale a pending link r
   expect(pending.message).toBe(`Replace the link pointing to ${other}?`);
   file(join(target, "../claude"), "new version");
   expect(await m.answer({ id: pending.id, allow: true })).toEqual({ kind: "success" });
+});
+
+test.each(["relative", "absolute", "linked-parent"])("our %s Claude link with a missing shared stub is incomplete, not broken", async kind => {
+  agent("claude"); const m = machine();
+  await m.run({ step: "cli", expected: (await m.read("cli")).expected });
+  const link = join(home, ".claude/skills/doan"), shared = join(home, ".agents/skills/doan");
+  mkdirSync(join(link, ".."), { recursive: true });
+  if (kind === "linked-parent") {
+    const realSkills = join(temp, "real-skills"); mkdirSync(realSkills);
+    mkdirSync(join(home, ".agents")); symlinkSync(realSkills, join(home, ".agents/skills"));
+  }
+  symlinkSync(kind === "absolute" ? shared : "../../.agents/skills/doan", link);
+  const before = await m.read("before");
+  expect(before.stub.state).toBe("missing");
+  expect(before.claudeLink.state).toBe("missing");
+  expect(connectionSummary(before, false).claude).toBe("not-connected");
+  const card = agentsView(before, idleUi()).agents.find(card => card.agent === "claude");
+  expect(card?.items.find(item => item.key === "claude-link")).toMatchObject({ chip: { text: "Not installed" } });
+  expect(card?.items.find(item => item.key === "claude-link")?.msg).toBeUndefined();
+  const linkStamp = lstatSync(link).ino;
+  expect(await m.run({ step: "connect", agent: "claude", expected: before.expected })).toEqual({ kind: "success" });
+  expect(lstatSync(link).ino).toBe(linkStamp);
+  expect((await m.read("after")).claudeLink.state).toBe("ours");
+});
+test("a foreign missing Claude target remains broken when the shared stub is missing", async () => {
+  agent("claude"); const link = join(home, ".claude/skills/doan");
+  mkdirSync(join(link, ".."), { recursive: true }); symlinkSync("../../.agents/skills/other", link);
+  const before = await machine().read("before");
+  expect(before.stub.state).toBe("missing"); expect(before.claudeLink.state).toBe("dangling");
+  expect(connectionSummary(before, false).claude).toBe("needs-attention");
+  const card = agentsView(before, idleUi()).agents.find(card => card.agent === "claude");
+  expect(card?.items.find(item => item.key === "claude-link")).toMatchObject({ chip: { text: "Link is broken" } });
 });

@@ -203,6 +203,13 @@ export function createMachine(options: { command: string; version: string; env?:
     const claudeLink: LinkObservation = claudeSharedSkills(ctx)
       ? { state: stub.state === "ours" ? "ours" : "missing", value: null, stamp: `shared:${stamp(ctx.claudeLink)}:${stub.stamp}` }
       : observeLink(ctx.claudeLink, dirname(stubPath));
+    if (stub.state === "missing" && claudeLink.state === "dangling" && claudeLink.value !== null) {
+      const target = isAbsolute(claudeLink.value) ? claudeLink.value : `${dirname(ctx.claudeLink)}/${claudeLink.value}`;
+      const shared = realDirectory(dirname(stubPath));
+      // Connect creates this missing stub before checking the link again. It
+      // repairs our existing link without replacing or confirming the link.
+      if (shared !== null && realDirectory(target) === shared) claudeLink.state = "missing";
+    }
     return { cli: observeLink(cliPath, options.command), stub, claudeLink, agents };
   }
   const claudeLinkValue = (ctx: Context) => relative(realDirectory(dirname(ctx.claudeLink)) ?? dirname(ctx.claudeLink), realDirectory(dirname(stubPath)) ?? dirname(stubPath));
