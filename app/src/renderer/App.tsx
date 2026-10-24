@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { canvasLabel } from "./canvasTree";
 import type { Selection } from "../formats/types";
 import type { FolderEntry } from "../main/view";
@@ -60,7 +60,6 @@ export function App() {
   const [restore, setRestore] = useState<{ state: UiState | null; started: number } | "done" | null>(null);
   const [foldersSeen, setFoldersSeen] = useState(false);
   const [restoreTick, setRestoreTick] = useState(0);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
     if (!viewport.current || !board.current || !overlay.current) return;
     const sendSelection = (selection: Selection | null) => {
@@ -149,25 +148,24 @@ export function App() {
     });
     if (plan.missingCanvas) toast.show(`${canvasLabel({ path: plan.missingCanvas, open: 0, resolved: 0, url: "" })} is no longer in design/`);
   }, [restore, foldersSeen, entries, restoreTick]);
+  // Sent at once, pans included: main debounces the write and flushes it on
+  // quit, while a value still waiting here would be lost to a quick ⌘Q.
   const save = () => {
     if (restore !== "done") return;
-    clearTimeout(saveTimer.current);
-    // Main debounces the write too; this only batches a burst of pans.
-    saveTimer.current = setTimeout(() => {
-      const { screen, loadedRoot, open, expanded } = persisted.current;
-      const instance = controller.current;
-      if (!instance) return;
-      const canvas = open && open.folder === loadedRoot ? open.canvas : undefined;
-      const view = instance.currentView();
-      // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
-      const lastByRoot = { ...instance.memory(), ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
-      const state: UiState = { screen, expanded, lastByRoot, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view } : {}) };
-      void window.doan.saveUiState(state).catch(console.error);
-    }, 100);
+    const { screen, loadedRoot, open, expanded } = persisted.current;
+    const instance = controller.current;
+    if (!instance) return;
+    const canvas = open && open.folder === loadedRoot ? open.canvas : undefined;
+    const view = instance.currentView();
+    // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
+    const lastByRoot = { ...instance.memory(), ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
+    const state: UiState = { screen, expanded, lastByRoot, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view } : {}) };
+    void window.doan.saveUiState(state).catch(console.error);
   };
   const persisted = useRef({ screen, loadedRoot, open: state.open, expanded });
   persisted.current = { screen, loadedRoot, open: state.open, expanded };
-  useEffect(save, [restore, screen, loadedRoot, state.open, expanded]);
+  // At commit, so a change already on screen has been sent.
+  useLayoutEffect(save, [restore, screen, loadedRoot, state.open, expanded]);
   const enter = (root: string, sameCanvas = false) => {
     if (root === loadedRoot) { setScreen("workspace"); return; }
     controller.current?.openWorkspace(root, next => { workspaceFocus.current = null; setLoadedRoot(next); setScreen("workspace"); }, sameCanvas);
