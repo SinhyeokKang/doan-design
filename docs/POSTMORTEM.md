@@ -2,6 +2,22 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — Removing the remembered row removed a card from keyboard navigation
+
+- **Area**: Home card roving tabindex.
+- **Symptom**: after focusing and removing a worktree row, Tab skipped all remaining rows in that card.
+- **Root cause**: ProjectCard retained the removed path in focused state and compared every current row against it. With row menus intentionally outside the Tab order, the card no longer had a keyboard entry row.
+- **Net**: independent R-Cfix review identified the stale-path case. The actual Electron regression failed at “Tab reaches the first remaining row after focused-row removal”; the active-path derivation now falls back to the first remaining row when its remembered path is absent.
+- **Prevention**: derive roving focus from the current item set, including remove and re-root transitions; retain the actual keyboard removal regression. Search `rg -n 'focused|tabIndex|const active' app/src/renderer/Home.tsx` when changing card membership.
+
+### 2026-10-25 — A static draft's overflow match hid an unusable checklist
+
+- **Area**: projects-home checklist CSS, Electron runtime tests and design-sync.
+- **Symptom**: a parent folder with 14 repository candidates put the final checkbox below the visible dialog list, and wheel scrolling could not reach it.
+- **Root cause**: the bounded list copied the static draft's overflow:hidden while retaining max-height:50vh; that rule overrode the native-scroll behavior. The computed-style comparison accepted the matching hidden value without testing whether all live content was reachable.
+- **Net**: independent R-C review caught the failure after the original unit and full runtime suites had passed. A regression now wheels the actual list, checks that the last checkbox rectangle lies inside its bounds and clicks it with mouse coordinates; it failed before overflow-y:auto and passes afterward. The draft difference is explicitly documented.
+- **Prevention**: for every bounded live list, combine style comparison with enough data to overflow and real-input reachability checks. Run `rg -n 'overflow: hidden|max-height|native-scroll' app/src/renderer/styles.css` and inspect each bounded scrolling owner. Do not treat a static match as functional evidence or accept all width/height differences globally; exact reviewed value pairs and mutation rejection tests now enforce this in the projects-home comparator. Related: 2026-10-22 “A zero-mismatch table missed a newly styled child.”
+
 ### 2026-10-25 — An unreadable add pick was offered for set-up as a folder without repos
 
 - **Area**: `app/src/main/addProjects.ts` (`hasGitEntry`, `gitChildren`, `createAddFlow.add`); review R-B2 🟡1.
