@@ -99,6 +99,11 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
 // the app the CLI talks to has to live in another process.
 export async function startFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   const child = spawn(process.execPath, [import.meta.filename, JSON.stringify(o)], { stdio: ["pipe", "pipe", "inherit"] });
+  // Watched from spawn: after a signal, exitCode stays null and "exit" has
+  // already fired, so close must not wait for it again (POSTMORTEM 2026-10-23).
+  const exited = new Promise<void>(resolve => child.once("exit", () => resolve()));
+  // Ending stdin of a child that is already gone fails with EPIPE.
+  child.stdin.on("error", () => undefined);
   await new Promise<void>((resolve, reject) => {
     let out = "";
     child.stdout.on("data", chunk => { out += chunk; if (out.includes("ready\n")) resolve(); });
@@ -106,12 +111,22 @@ export async function startFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   });
   return {
     runtimePath: join(o.dir, "runtime.json"),
-    close: () => new Promise(resolve => {
-      if (child.exitCode !== null) return resolve();
-      child.once("exit", () => resolve());
+    // Bounded either way, so a stuck child cannot hold up the run's disposal.
+    async close() {
       child.stdin.end();
-    }),
+      if (await settlesWithin(exited, CLOSE_GRACE_MS)) return;
+      child.kill("SIGKILL");
+      await settlesWithin(exited, CLOSE_GRACE_MS);
+    },
   };
+}
+
+const CLOSE_GRACE_MS = 2000;
+
+async function settlesWithin(promise: Promise<void>, ms: number): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<boolean>(resolve => { timer = setTimeout(() => resolve(false), ms); });
+  try { return await Promise.race([promise.then(() => true), timeout]); } finally { clearTimeout(timer); }
 }
 
 // Child side. It exits when the runner closes stdin, including when the runner dies.
