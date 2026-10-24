@@ -33,6 +33,14 @@ export type SearchResult = CanvasTarget & (
 
 export type SearchEntry = SearchResult & { fields: readonly string[] };
 
+function searchText(text: string): string {
+  return text.toLowerCase().normalize("NFC");
+}
+
+function searchResult({ fields: _fields, ...result }: SearchEntry): SearchResult {
+  return result;
+}
+
 function canvasLabel(row: SearchCanvas): string {
   return row.title?.trim() || (row.path.split("/").at(-1) ?? row.path).replace(/\.html$/, "");
 }
@@ -45,12 +53,13 @@ export function searchIndex(entries: readonly SearchFolder[], rendered?: Rendere
       const label = canvasLabel(row);
       const target = { root: entry.path, path: row.path, canvasLabel: label };
       index.push({ ...target, kind: "canvas", label,
-        fields: [label, row.path.split("/").at(-1) ?? row.path, row.path, row.id ?? ""].map((field) => field.toLowerCase()) });
+        // The shared scope prefix must not outrank actual title or frame matches.
+        fields: [label, row.path.split("/").at(-1) ?? row.path, row.path.replace(/^design\//, ""), row.id ?? ""].map(searchText) });
       const frames = rendered?.root === entry.path && rendered.path === row.path ? rendered.frames : row.frames ?? [];
       for (const [frameIndex, frame] of frames.slice(0, 1000).entries()) {
         index.push({ ...target, kind: "frame", label: frame.title?.trim() || frame.id,
           frameId: frame.id, frameIndex,
-          fields: [frame.title ?? "", frame.id].map((field) => field.toLowerCase()) });
+          fields: [frame.title ?? "", frame.id].map(searchText) });
       }
     }
   }
@@ -79,9 +88,9 @@ export function searchMatch(
   index: readonly SearchEntry[], query: string, currentRoot: string | null,
   commonOf: (root: string) => string | undefined,
 ): SearchResult[] {
-  const tokens = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const tokens = searchText(query).trim().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) {
-    return index.filter((entry) => entry.kind === "canvas" && (currentRoot === null || entry.root === currentRoot)).slice(0, 50);
+    return index.filter((entry) => entry.kind === "canvas" && (currentRoot === null || entry.root === currentRoot)).slice(0, 50).map(searchResult);
   }
   const common = currentRoot === null ? undefined : commonOf(currentRoot);
   const proximity = new Map<string, number>();
@@ -102,11 +111,15 @@ export function searchMatch(
       rank = entry.root === currentRoot ? 0 : common !== undefined && commonOf(entry.root) === common ? 1 : 2;
       proximity.set(entry.root, rank);
     }
-    matches.push({ entry, score, proximity: rank });
+    // Keep only the visible candidates; broad queries otherwise allocate and
+    // sort tens of thousands of matches that are immediately discarded.
+    const last = matches[49];
+    if (last && (score < last.score || (score === last.score && rank >= last.proximity))) continue;
+    const before = matches.findIndex((match) => score > match.score || (score === match.score && rank < match.proximity));
+    matches.splice(before === -1 ? matches.length : before, 0, { entry, score, proximity: rank });
+    if (matches.length > 50) matches.pop();
   }
-  // Stable sorting retains saved root order and document order within equal ranks.
-  matches.sort((a, b) => b.score - a.score || a.proximity - b.proximity);
-  return matches.slice(0, 50).map(({ entry }) => entry);
+  return matches.map(({ entry }) => searchResult(entry));
 }
 
 export function pickTarget(result: SearchResult, loadedRoot: string | null, openCanvas: string | null): "switch" | "open" | "jump" {

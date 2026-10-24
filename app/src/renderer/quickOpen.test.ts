@@ -160,6 +160,21 @@ describe("quick open matching", () => {
       expect(elapsed).toBeLessThanOrEqual(50);
     }
   });
+
+  it("retains late higher scores and root priorities at the result cap with stable ties", () => {
+    const index = searchIndex([
+      folder("/other", Array.from({ length: 60 }, (_, i) => canvas(`design/screen-${i}.html`, { title: "Discard" }))),
+      folder("/sibling", Array.from({ length: 60 }, (_, i) => canvas(`design/screen-${i}.html`, { title: "Discard" }))),
+      folder("/repo", [canvas("design/current.html", { title: "Discard" })]),
+      folder("/last", [canvas("design/best.html", { title: "Card" })]),
+    ]);
+    const results = searchMatch(index, "card", "/repo", commonOf);
+    expect(results).toHaveLength(50);
+    expect(results.slice(0, 2).map((result) => result.path)).toEqual(["design/best.html", "design/current.html"]);
+    expect(results.slice(2).map((result) => [result.root, result.path])).toEqual(
+      Array.from({ length: 48 }, (_, i) => ["/sibling", `design/screen-${i}.html`]),
+    );
+  });
 });
 
 describe("quick open target", () => {
