@@ -456,6 +456,7 @@ Results:
 | 2026-10-24 | Evaluation disables Codex shell snapshots and rejects missing or mismatched agent-shell CLI resolution evidence | U-003 re-measure found agent output from the older installed CLI while automatic checks used the new package; runner PATH alone was insufficient |
 
 | 2026-10-24 | Handle unavailable MCP writes and sandboxed `active` through guide/output fallbacks: keep human write approval, use shell resolve when approval is unavailable, and ask for the target or suggest "Set Up doan…" when neither shell socket nor MCP active is available; add MCP-only R1b with `shellCli: false` | User decision after loop3 — no product feature, agent config edits, approval relaxation, or socket/structure change; re-measure R1b, R2 and R2b |
+| 2026-10-24 | Harder agent-eval scenarios H1–H4 (entangled comments, vague request, React implementation, deleting a commented target) joined the suite; after three rounds with no new doan usability issue the suite serves as the regression gate, with R1b × Codex and R2 × Codex kept as expected fails and judge-only partials not blocking | User asked for a few harder scenarios and three more rounds before moving on; 114 runs showed no unexplained flip |
 
 ## 8. Open questions
 
