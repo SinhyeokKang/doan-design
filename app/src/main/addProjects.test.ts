@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, test, vi } from "vitest";
@@ -106,11 +106,68 @@ describe("gitChildren", () => {
     for (let i = 0; i < 205; i++) gitDir(parent, `r${String(i).padStart(3, "0")}`);
     const children = await gitChildren(parent);
     expect(children).toHaveLength(200);
-    expect(children.at(-1)).toBe(join(parent, "r199"));
+    expect(children?.at(-1)).toBe(join(parent, "r199"));
   });
 
-  test("an unreadable folder has no children", async () => {
-    expect(await gitChildren(join(tmp, "missing"))).toEqual([]);
+  test("a folder that cannot be listed has no answer rather than no children", async () => {
+    expect(await gitChildren(join(tmp, "missing"))).toBeNull();
+  });
+});
+
+// chmod does not restrict root, so these cannot fail where tests run as root.
+describe.skipIf(process.getuid?.() === 0)("adding a folder that cannot be read", () => {
+  const unreadable = async (mode: number, setUp: (parent: string) => void, check: (parent: string) => Promise<void>) => {
+    const parent = dir();
+    setUp(parent);
+    chmodSync(parent, mode);
+    try {
+      await check(parent);
+    } finally {
+      chmodSync(parent, 0o755);
+    }
+  };
+
+  // A failed read says nothing about what the folder holds, so it must not
+  // lead to the "isn't a repository, set it up?" confirmation (P4).
+  test.each([
+    ["can be searched but not listed", 0o111],
+    ["can be listed but not searched", 0o444],
+  ])("a folder that %s is reported, not offered for set-up", async (_label, mode) => {
+    await unreadable(mode, (parent) => gitDir(parent, "repo"), async (parent) => {
+      const flow = createAddFlow(fake({}).deps);
+      expect(await flow.add([parent])).toEqual({
+        added: [], duplicate: null, messages: [`Couldn’t read ${parent.split("/").at(-1)}.`], scanId: null, confirms: [],
+      });
+    });
+  });
+
+  test("a folder whose only child cannot be read is reported, not offered for set-up", async () => {
+    const parent = dir();
+    const child = dir(parent, "locked");
+    chmodSync(child, 0o000);
+    try {
+      const flow = createAddFlow(fake({}).deps);
+      const outcome = await flow.add([parent]);
+      expect(outcome.confirms).toEqual([]);
+      expect(outcome.messages).toEqual([`Couldn’t read ${parent.split("/").at(-1)}.`]);
+    } finally {
+      chmodSync(child, 0o755);
+    }
+  });
+
+  test("a child that cannot be read does not hide the repos next to it", async () => {
+    const parent = dir();
+    const repo = gitDir(parent, "repo");
+    const child = dir(parent, "locked");
+    chmodSync(child, 0o000);
+    try {
+      const flow = createAddFlow(fake({ [repo]: list(repo) }).deps);
+      const { scanId, messages, confirms } = await flow.add([parent]);
+      expect({ messages, confirms }).toEqual({ messages: [], confirms: [] });
+      expect((await finished(flow, scanId)).items.map((item) => item.path)).toEqual([repo]);
+    } finally {
+      chmodSync(child, 0o755);
+    }
   });
 });
 
@@ -222,9 +279,9 @@ describe("adding picked folders", () => {
     expect(outcome).toMatchObject({ added: [root], scanId: expect.any(String) });
     expect(saved).toEqual([stored, root]);
     const snapshot = await finished(flow, outcome.scanId);
-    expect(snapshot).toMatchObject({ total: 0, finished: 0, done: true });
+    expect(snapshot).toMatchObject({ total: 0, finished: 0, done: true, sources: [] });
     expect(snapshot.items).toEqual([
-      { id: expect.any(String), path: root, name: root.split("/").at(-1), status: "added", checked: false, disabled: true,
+      { id: expect.any(String), path: root, name: root.split("/").at(-1), status: "added", checked: false, disabled: true, canvasCount: null,
         worktrees: [{ id: expect.any(String), path: tree, name: tree.split("/").at(-1), checked: false }] },
     ]);
   });
@@ -280,6 +337,31 @@ describe("scanning a folder of repos", () => {
     expect(checkedIds).toEqual([snapshot.items[0]?.id]);
     expect(calls.filter((call) => "repo" in call.target).map((call) => "repo" in call.target && call.target.repo).sort())
       .toEqual([l.alpha, l.beta, l.delta, l.epsilon, l.gamma, l.zeta].sort());
+  });
+
+  test("names the picked folders and counts the canvases of each ready repo", async () => {
+    const first = dir();
+    const alpha = gitDir(first, "alpha");
+    const second = dir();
+    const beta = gitDir(second, "beta");
+    const repo = dir();
+    const tree = dir();
+    const { deps } = fake({
+      [alpha]: { ...list(alpha), canvases: [{}, {}, {}] } as FolderState,
+      [repo]: list(repo, { common: `${repo}/.git`, main: repo, worktrees: [repo, tree] }),
+    });
+    const flow = createAddFlow(deps);
+    const { scanId } = await flow.add([first, repo, second, first]);
+    const name = (path: string) => path.split("/").at(-1);
+    const snapshot = await finished(flow, scanId);
+    // Only the folders whose children were scanned; the repo stored outright
+    // is its own row.
+    expect(snapshot.sources).toEqual([{ name: name(first), path: first }, { name: name(second), path: second }]);
+    expect(snapshot.items.map(({ path, status, canvasCount }) => ({ path, status, canvasCount }))).toEqual([
+      { path: repo, status: "added", canvasCount: null },
+      { path: alpha, status: "ready", canvasCount: 3 },
+      { path: beta, status: "notSetUp", canvasCount: null },
+    ]);
   });
 
   test("a child with no answer or a timeout reads as unreadable", async () => {

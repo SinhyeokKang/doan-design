@@ -865,6 +865,42 @@ describe("removing and restoring", () => {
     }
     expect(mocks.shell.restore).not.toHaveBeenCalled();
   });
+
+  // The shell changes the list at once and only then waits for folders.json,
+  // so an Undo that arrives during that write must already find the old id gone.
+  test("a removal id expires when the next removal starts, before it is saved", async () => {
+    const contents = window().webContents;
+    const first = await invoke("folders:remove", contents, null, { paths: [APP] }) as { removalId: string };
+    let save!: () => void;
+    mocks.shell.remove.mockImplementationOnce((paths: string[]) => new Promise((resolve) => { save = () => resolve({ paths, indexes: [1] }); }));
+    const second = invoke("folders:remove", contents, null, { paths: [WT] }) as Promise<{ removalId: string }>;
+    expect(await invoke("folders:restore", contents, null, { removalId: first.removalId })).toEqual({ kind: "unavailable" });
+    save();
+    expect(await invoke("folders:restore", contents, null, { removalId: (await second).removalId })).toEqual({ kind: "restored", paths: [WT] });
+    expect(mocks.shell.restore).toHaveBeenCalledExactlyOnceWith([WT], [1]);
+  });
+
+  test("an older removal saved last does not take Undo from the newer one", async () => {
+    const contents = window().webContents;
+    let save!: () => void;
+    mocks.shell.remove.mockImplementationOnce((paths: string[]) => new Promise((resolve) => { save = () => resolve({ paths, indexes: [0] }); }));
+    const first = invoke("folders:remove", contents, null, { paths: [APP] }) as Promise<{ removalId: string }>;
+    const second = await invoke("folders:remove", contents, null, { paths: [WT] }) as { removalId: string };
+    save();
+    expect(await invoke("folders:restore", contents, null, { removalId: (await first).removalId })).toEqual({ kind: "unavailable" });
+    expect(await invoke("folders:restore", contents, null, { removalId: second.removalId })).toEqual({ kind: "restored", paths: [WT] });
+  });
+
+  test("a removal the draft guard cancels keeps the last Undo", async () => {
+    const contents = window().webContents;
+    const first = await invoke("folders:remove", contents, null, { paths: [APP] }) as { removalId: string };
+    await invoke("comments:guard", contents, null, true);
+    const pending = invoke("folders:remove", contents, null, { paths: [WT] }) as Promise<unknown>;
+    const request = contents.send.mock.calls.find((call) => call[0] === "comments:transition")?.[1];
+    await invoke("comments:transition-answer", contents, null, { id: request.id, allow: false });
+    expect(await pending).toEqual({ kind: "cancelled" });
+    expect(await invoke("folders:restore", contents, null, { removalId: first.removalId })).toEqual({ kind: "restored", paths: [APP] });
+  });
 });
 
 describe("locate and reveal", () => {

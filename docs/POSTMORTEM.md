@@ -2,6 +2,30 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — An unreadable add pick was offered for set-up as a folder without repos
+
+- **Area**: `app/src/main/addProjects.ts` (`hasGitEntry`, `gitChildren`, `createAddFlow.add`); review R-B2 🟡1.
+- **Symptom**: adding a folder whose listing failed (mode 0111, 0444, or whose only child was 0000) produced the "isn’t a repository — set it up?" confirmation even when a child repo was inside, reopening the P4 path the add flow was built to close.
+- **Root cause**: both helpers mapped every error to the "absent" answer (`catch { return [] }`, `catch { return false }`), so "could not look" and "looked, found nothing" reached `classifyPick` as the same fact; the classifier only sees `children.length === 0`.
+- **Net**: the independent R-B2 review caught it with a chmod probe; B2's own tests only used readable fixtures and a missing folder, whose expected value pinned the conflation (`[]`). Regressions now cover 0111, 0444, an unreadable only child, and an unreadable child beside a repo; four failed before the fix.
+- **Prevention**: when a filesystem probe feeds a decision, return a distinct "unknown" (null) for errors other than ENOENT/ENOTDIR and branch on it before classifying. Search run: `rg -n 'catch \{' app/src/main/addProjects.ts` — the remaining hit is `realDirectory` (EACCES reads as "not a folder", refused with "Only folders can be added.", never the set-up path). Test fixtures for such probes need at least one permission-denied case (`chmod`, skipped as root).
+
+### 2026-10-25 — Undo of a removal stayed valid while the next removal was being saved
+
+- **Area**: `app/src/main/index.ts` (`folders:remove`, `folders:restore`), `app/src/main/shell.ts` `remove`; review R-B2 🟡2.
+- **Symptom**: after removing A and then B, an Undo for A that arrived while B's folders.json write was pending restored A; with `[A,B,C]` the later B Undo could land B at index 0 (`[B,A,C]`). A removal saved late could also overwrite a newer removal's id.
+- **Root cause**: the shell changes the in-memory list, watchers and the renderer's list at once and only then awaits the disk write, but main replaced `removal` in the `.then` after the write — the id's lifetime followed the save, not the list change it describes.
+- **Net**: R-B2 caught it by holding the second `shell.remove` promise; B2's test awaited each removal fully, so the window never opened. Regressions now hold the save open, check the old id is refused, and check an older save finishing last cannot take Undo; both failed before the fix.
+- **Prevention**: invalidate single-use ids when the action they would undo is superseded (here: guard allowed), and tag async completions with a generation so only the newest may publish. Search run: `rg -n 'removal = |removals' app/src/main/index.ts` — every assignment is the guard path, restore or forget. Tests for undo/restore ids should hold the underlying write pending with a manual promise.
+
+### 2026-10-25 — Locating a project kept the old root's selection
+
+- **Area**: `app/src/main/index.ts` (`folders:locate`); fixed in 0a5acfc; review R-B2 ⚪1.
+- **Symptom**: after Locate replaced a stored root with a new one, the runtime selection (what `doan active` and MCP report) still pointed at the old root, which had just left the list.
+- **Root cause**: Remove cleared a selection on removed roots, but Locate removes the old row through `ready.replace`, a separate path, and the selection reset was written only at Remove's call site.
+- **Net**: B2's own `/code-review` caught it before review; the locate test previously checked only the list. The test now sets a selection on the old root and asserts it is cleared after Locate.
+- **Prevention**: any path that drops a stored root (remove, replace/locate, future ones) must clear state keyed by that root. Search run: `rg -n 'selection = null|ready\.(remove|replace)\(' app/src/main/index.ts` — remove, locate and the old `folders:close` all clear it (render-process-gone/did-navigate clear it unconditionally); check this list when adding another root-dropping path.
+
 ### 2026-10-25 — Bounded git registration reads repeated unbounded path scans
 
 - **Area**: `cli/internal/repo/git.go`, `readWorktreeGitdirs`, `ReadGit`.

@@ -78,3 +78,9 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: B1 6커밋을 통합했다(`c2b9684`~`569b3dc`). 통합 HEAD에서 `go test`·`go vet`·앱 test(1345) 통과. B1 워커를 해제하고 `ph-a1`을 `git cherry`(+ 없음)로 확인한 뒤 제거했다. E(`ctx_11d216927dd4`, Codex Sol high, worktree `ph-e`) 시작.
 - 2026-10-25: 초안 확정. DC 커밋(`213c0ff`, `1738b62`)을 통합한다. DC-rev 워커를 해제하고 `ph-dc`를 정리한다.
 - 2026-10-25: B2 완료(`b37606e` test, `2c2bb3c` feat, `0a5acfc` refactor). test 1424, typecheck, e2e PASS(2c2bb3c 기준) 보고. 계획과의 차이: 추가 결과를 이벤트 하나(`folders:add-outcome`)로 보낸다, `folders:forget-removal`·`menu:state` IPC 추가, Locate는 스캔·확인이 필요한 폴더를 거부한다, Edit 메뉴를 role 대신 풀어 썼다. B2를 먼저 통합해 C를 띄우고, 교차 리뷰 R-B2(Codex Astra medium)를 병렬로 돌린다. 리뷰 지적은 B2 워커가 고친다.
+- 2026-10-25: B2 통합(`059afc6`, `73fc472`, `163331e`). 통합 HEAD에서 typecheck·test(1429)·`go test` 통과. R-B2(`ctx_5a3bbcfd5bf6`, Codex Astra medium)와 C(`ctx_ae984f676a32`, Codex Astra medium, worktree `ph-c`) 시작. B2 워커는 해제했다(Claude 터미널 재사용이 거부되므로 수정은 같은 worktree의 새 워커가 맡는다).
+- 2026-10-25: 통합 HEAD(`163331e` 위)에서 e2e 최종 `runtime-test: PASS`, exit 0(지휘자 실행).
+- 2026-10-25: C 질문 — task 9의 e2e 게이트를 task 10과 합쳐 확인해도 되는가 → 된다. 기존 e2e의 검증 내용은 줄이지 않고 새 UI 경로로 옮긴다(지휘자 판단: 단일 루트 사이드바로 바뀌면 기존 복구 검증이 홈 UI를 필요로 한다).
+- 2026-10-25: R-B2 결과 🔴 0 · 🟡 2(읽지 못한 부모 폴더를 저장소 없는 폴더로 판정해 설정 확인으로 보냄, 다음 제거의 저장이 끝날 때까지 이전 removalId가 유효) · ⚪ 2(Locate 수정의 postmortem 누락 등). B2-fix를 `ph-b2`의 새 Claude Opus high 워커로 보냈다. POSTMORTEM 항목은 충돌을 피하려고 인계 문서로 받고 지휘자가 넣는다. R-B2 워커는 해제했다.
+- 2026-10-25: C 질문 — 체크 목록 표시 필드 부족. 지휘자 결정: 스캔 스냅샷에 원본 폴더(name/path)와 준비된 후보의 canvasCount를 더한다(B2-fix 추가 항목). 워크트리 하위 항목의 브랜치는 넣지 않고 폴더 이름 + 경로로 보인다(워크트리마다 `doan ls`를 더 돌리지 않기 위해). 초안과의 차이로 `docs/DESIGN.md`에 기록한다.
+- 2026-10-25: E 완료(`1c91380`). 새 실패 0(24 pass, 기존 Codex R1b·R2 실패만 반복 재현), 실제 설정 11개 불변. 결과는 `.scratch/agent-eval/projects-home-ls*`로 복사했다. 후속 후보: R5 루브릭 경로 불일치(시나리오 문서 문제, 이 기능 범위 밖).

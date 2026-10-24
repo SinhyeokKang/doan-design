@@ -20,6 +20,8 @@ export interface ScanItem {
   status: CandidateStatus | "checking";
   checked: boolean;
   disabled: boolean;
+  // Set only on a ready repo, from the `ls` the scan already ran.
+  canvasCount: number | null;
   // Never checked by default (R6).
   worktrees: { id: string; path: string; name: string; checked: false }[];
 }
@@ -31,6 +33,9 @@ export interface ScanSnapshot {
   finished: number;
   total: number;
   done: boolean;
+  // The picked folders whose child repos are listed, in pick order. A repo
+  // stored outright (step 4) is its own "added" row, not a source.
+  sources: { name: string; path: string }[];
   items: ScanItem[];
 }
 
@@ -68,27 +73,33 @@ export function droppedPaths(value: unknown): string[] | null {
 }
 
 // lstat: a `.git` file (linked worktree, submodule) counts as much as a directory.
-export async function hasGitEntry(dir: string): Promise<boolean> {
+// null when the entry could not be checked (EACCES, EIO, ...): that says
+// nothing about whether it is there.
+export async function hasGitEntry(dir: string): Promise<boolean | null> {
   try {
     await lstat(join(dir, ".git"));
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === "ENOENT" || code === "ENOTDIR" ? false : null;
   }
 }
 
 // Immediate child directories only, hidden ones and symlinks left out (a link
-// could point anywhere, including back up), first 200 by name.
-export async function gitChildren(dir: string): Promise<string[]> {
+// could point anywhere, including back up), first 200 by name. null when the
+// folder could not be listed, or nothing was found and some child could not be
+// checked: either way "no repos here" would be a guess.
+export async function gitChildren(dir: string): Promise<string[] | null> {
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch {
-    return [];
+    return null;
   }
   const names = entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith(".")).map((entry) => entry.name).sort().slice(0, MAX_CHILDREN);
   const flags = await Promise.all(names.map((name) => hasGitEntry(join(dir, name))));
-  return names.filter((_, i) => flags[i]).map((name) => join(dir, name));
+  const found = names.filter((_, i) => flags[i] === true).map((name) => join(dir, name));
+  return found.length === 0 && flags.includes(null) ? null : found;
 }
 
 async function realDirectory(path: string): Promise<string | null> {
@@ -103,6 +114,7 @@ async function realDirectory(path: string): Promise<string | null> {
 interface Scan {
   id: string;
   seq: number;
+  sources: string[];
   children: string[];
   ids: string[];
   results: Map<string, ScanResult>;
@@ -137,17 +149,20 @@ export function createAddFlow(deps: AddFlowDeps) {
     const saved = deps.saved();
     const trees = (paths: readonly string[]) => paths.map((path) => ({ id: treeId(scan, path), path, name: basename(path), checked: false as const }));
     const added: ScanItem[] = scan.added.map((repo) => ({
-      id: repo.id, path: repo.path, name: basename(repo.path), status: "added", checked: false, disabled: true,
+      id: repo.id, path: repo.path, name: basename(repo.path), status: "added", checked: false, disabled: true, canvasCount: null,
       worktrees: trees(repo.worktrees.filter((tree) => !saved.includes(tree))),
     }));
     const scanned = scanCandidates(scan.children, scan.results, saved).map((candidate, i): ScanItem => {
       const id = scan.ids[i] ?? "";
-      if (!scan.results.has(scan.children[i] ?? "")) {
-        return { id, path: candidate.path, name: candidate.name, status: "checking", checked: false, disabled: true, worktrees: [] };
+      const result = scan.results.get(scan.children[i] ?? "");
+      if (result === undefined) {
+        return { id, path: candidate.path, name: candidate.name, status: "checking", checked: false, disabled: true, canvasCount: null, worktrees: [] };
       }
-      return { ...candidate, id, worktrees: trees(candidate.worktrees.map((tree) => tree.path)) };
+      const canvasCount = candidate.status === "ready" && result.kind === "list" ? result.canvases.length : null;
+      return { ...candidate, id, canvasCount, worktrees: trees(candidate.worktrees.map((tree) => tree.path)) };
     });
-    return { scanId: scan.id, seq: scan.seq, finished: scan.results.size, total: scan.children.length, done: scan.done, items: [...added, ...scanned] };
+    const sources = scan.sources.map((path) => ({ name: basename(path), path }));
+    return { scanId: scan.id, seq: scan.seq, finished: scan.results.size, total: scan.children.length, done: scan.done, sources, items: [...added, ...scanned] };
   };
 
   const publish = (scan: Scan) => {
@@ -191,6 +206,7 @@ export function createAddFlow(deps: AddFlowDeps) {
     cancelCurrent();
     confirms.clear();
     const outcome: AddOutcome = { added: [], duplicate: null, messages: [], scanId: null, confirms: [] };
+    const sources: string[] = [];
     const children: string[] = [];
     const added: Scan["added"] = [];
     let folders = 0;
@@ -201,8 +217,14 @@ export function createAddFlow(deps: AddFlowDeps) {
       const ls = await deps.ls({ cwd: real });
       const asRepo = ls.kind === "error" || ls.kind === "cliError" ? await deps.ls({ repo: real }) : null;
       const hasGit = await hasGitEntry(real);
-      const found = ls.kind === "uninitialized" && !hasGit ? await gitChildren(real) : [];
-      const decision = classifyPick({ path: real, isDir: true, ls, asRepo, hasGit, children: found, saved: deps.saved() });
+      const found = ls.kind === "uninitialized" && hasGit === false ? await gitChildren(real) : [];
+      // Not knowing must not read as "holds no repos": that would offer to set
+      // up the parent (P4).
+      if (found === null || (ls.kind === "uninitialized" && hasGit === null)) {
+        outcome.messages.push(`Couldn’t read ${basename(real)}.`);
+        continue;
+      }
+      const decision = classifyPick({ path: real, isDir: true, ls, asRepo, hasGit: hasGit === true, children: found, saved: deps.saved() });
       switch (decision.kind) {
         case "store": {
           outcome.added.push(...await deps.store([decision.path]));
@@ -218,6 +240,7 @@ export function createAddFlow(deps: AddFlowDeps) {
           outcome.messages.push(decision.message);
           break;
         case "scan":
+          if (!sources.includes(real)) sources.push(real);
           for (const child of found) if (!children.includes(child)) children.push(child);
           break;
         case "confirm": {
@@ -233,7 +256,7 @@ export function createAddFlow(deps: AddFlowDeps) {
     if (folders === 0) outcome.messages.push(ONLY_FOLDERS);
     if (children.length > 0 || added.length > 0) {
       const scan: Scan = {
-        id: randomUUID(), seq: 0, children, ids: children.map(() => randomUUID()), results: new Map(),
+        id: randomUUID(), seq: 0, sources, children, ids: children.map(() => randomUUID()), results: new Map(),
         added, treeIds: new Map(), controller: new AbortController(), done: children.length === 0,
       };
       current = scan;
@@ -299,7 +322,7 @@ export function createAddFlow(deps: AddFlowDeps) {
       if (real === null) return { refused: ONLY_FOLDERS };
       const ls = await deps.ls({ cwd: real });
       const asRepo = ls.kind === "error" || ls.kind === "cliError" ? await deps.ls({ repo: real }) : null;
-      const hasGit = await hasGitEntry(real);
+      const hasGit = (await hasGitEntry(real)) === true;
       const decision = classifyPick({ path: real, isDir: true, ls, asRepo, hasGit, children: [], saved: [] });
       switch (decision.kind) {
         case "store":
