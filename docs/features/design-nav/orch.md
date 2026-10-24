@@ -108,3 +108,4 @@ tasks.md의 앞선 단계와 task 0~14는 모두 위 배치 중 하나에 속한
 - 2026-10-25: R-final 결과 🔴 0 · 🟡 1(F1 화면 밖으로 나간 카드가 큐 우선순위를 유지 — 두 배치 연결 단위 재현) · ⚪ 1(F2 카드 접근 이름이 썸네일 문구로 시작). 둘 다 F-fix(Codex Astra medium, `dn-c2`)로 보냈다(F2는 지휘자 판단으로 고친다). design-sync 근거를 `.scratch/orch/design-nav/design-sync/`로 수거했다. R-final 워커 해제.
 - 2026-10-25: 통합 HEAD `b36000f`에서 지휘자 전체 e2e — 최종 `runtime-test: PASS`, exit 0, 실제 상태(`ui-state.json`·`thumbnails` 포함) 불변. 로그 `.scratch/orch/design-nav/e2e-final-1.log`. 지휘자가 ⌘K 결과 스크린샷을 확인했다(초안과 같은 행 형식).
 - 2026-10-25: F-fix 완료(`c326fba`, `702bb81`) — 가시성 양방향(`thumbnails:visible` IPC, 발신자 검사 유지), 카드 접근 이름 제목 먼저. 지휘자가 main·preload diff를 확인했다. merge로 통합(`a7c4417`), 통합 HEAD typecheck·test 1689 통과. 지휘자 최종 전체 e2e 실행 중. 승격 G 시작.
+- 2026-10-25: 통합 HEAD `a7c4417`에서 지휘자 최종 전체 e2e — `runtime-test: PASS`, exit 0, real-state 불변(65행 모두 unchanged). 로그 `.scratch/orch/design-nav/e2e-final-2.log`. task 13의 `/runtime-test` 게이트 통과.
