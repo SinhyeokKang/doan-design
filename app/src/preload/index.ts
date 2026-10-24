@@ -14,6 +14,7 @@ import type { FolderEntry } from "../main/view";
 // The renderer gets these calls and nothing else: no ipcRenderer, no
 // channel names, no paths it did not receive from main.
 const api = {
+  homeDirectory: (): Promise<string | null> => ipcRenderer.invoke("app:home"),
   readOnboarding: (request: { session: string; requestId: string }): Promise<OnboardingRead> => ipcRenderer.invoke("onboarding:read", request),
   runOnboardingStep: (request: StepRequest): Promise<StepResult> => ipcRenderer.invoke("onboarding:run", request),
   answerOnboardingReplace: (answer: { id: string; allow: boolean }): Promise<StepResult> => ipcRenderer.invoke("onboarding:answer", answer),

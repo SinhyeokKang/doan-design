@@ -267,8 +267,8 @@ export class CanvasController {
         this.dropFrame();
         this.state.status = update.reason === "closed" ? "empty" : "missing";
         this.state.message = update.reason === "closed" ? "Pick a canvas from the list"
-          : update.reason === "notFound" ? `The project ${name} is gone or moved. Reopen it from the sidebar.`
-          : update.reason === "uninitialized" ? `The project ${name} is not initialized. Choose Set Up… in the sidebar.`
+          : update.reason === "notFound" ? `The project ${name} is missing. Use Locate… to find it.`
+          : update.reason === "uninitialized" ? `The project ${name} is not set up. Use Set Up… on Home.`
           : `${open.canvas} is no longer in the list. It was deleted or moved.`;
         break;
       }

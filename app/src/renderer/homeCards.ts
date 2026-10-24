@@ -77,7 +77,7 @@ export function cardRow(entry: FolderEntry, loaded: string | null, selection: Se
 
 // A frame selection shows the frame's title, an element its tag and id.
 function selectionLabel(selection: SelectionView): string | undefined {
-  if (selection.element) return selection.element.doanId === undefined ? selection.tag : `${selection.tag} #${selection.element.doanId}`;
+  if (selection.element) return selection.element.doanId === undefined ? selection.tag : `${selection.tag} · ${selection.element.doanId}`;
   return selection.frame ? (selection.frame.title ?? selection.frame.id) : undefined;
 }
 

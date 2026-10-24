@@ -81,7 +81,7 @@ function ProjectTree({ entries, names, state, open, reroot, remove }: SidebarPro
           <span className="glyph" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
           <Tooltip><TooltipTrigger asChild><span className="g">{name}</span></TooltipTrigger><TooltipContent>{entry.path}</TooltipContent></Tooltip>
           {display.chip && <span className="cnt">{display.chip}</span>}
-          <button className="close-project" aria-label={`Close project ${name}`} onClick={event => { event.stopPropagation(); close(entry.path); }}>×</button>
+          <button className="close-project" aria-label={`Remove ${name} from doan`} onClick={event => { event.stopPropagation(); close(entry.path); }}>×</button>
         </div>
         {expanded && <div role="group">
           {entry.kind === "list" && entry.canvases.length === 0 && <FirstPrompt root={entry.path} />}

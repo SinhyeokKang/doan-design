@@ -1,3 +1,5 @@
+import type { FolderEntry } from "../main/view";
+import { commentContext } from "./projectDisplay";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { CommentsSession } from "./CommentsSession";
 import { CommentsPanel, UnsavedCommentDialog, DeleteCommentDialog, type CommentIntent } from "./CommentsPanel";
@@ -5,7 +7,7 @@ import type { CanvasController, CanvasState } from "./CanvasController";
 import type { AnchorSnapshot } from "./commentAnchors";
 import { outdated, projectList, type ListFilter } from "../comments/projection";
 
-export function useComments(state: CanvasState, controller: RefObject<CanvasController | null>, showWorkspace?: () => void) {
+export function useComments(state: CanvasState, controller: RefObject<CanvasController | null>, showWorkspace: () => void, entries: FolderEntry[]) {
   const [, render] = useState(0);
   const [session] = useState(() => new CommentsSession(window.doan, () => render(n => n + 1)));
   const [anchors, setAnchors] = useState<AnchorSnapshot | null>(null);
@@ -99,7 +101,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       editor={draft ? { mode: draft.origin.kind, target: session.target, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
         onBody: body => session.body(body), onSave: () => { void session.save(); }, onCancel: () => session.answer("discard"), onKeepDraft: focus,
         onCheck: () => { void session.check(); }, onRetryOriginal: () => { void session.retry(); }, onReadLatest: () => { void session.read(true); } } : null} />,
-    dialog: session.deleteConfirmation ? <DeleteCommentDialog comment={session.deleteConfirmation.comment} onCancel={() => { session.cancelDelete(); heading.current?.focus(); }} onConfirm={() => { void session.confirmDelete(); heading.current?.focus(); }} /> : draft && session.draft.transition && <UnsavedCommentDialog target={session.target} context={`${draft.origin.root.split("/").at(-1)} › ${session.identity?.path ?? draft.origin.canvas}`} canSave={canSave}
+    dialog: session.deleteConfirmation ? <DeleteCommentDialog comment={session.deleteConfirmation.comment} onCancel={() => { session.cancelDelete(); heading.current?.focus(); }} onConfirm={() => { void session.confirmDelete(); heading.current?.focus(); }} /> : draft && session.draft.transition && <UnsavedCommentDialog target={session.target} context={commentContext(entries, draft.origin.root, session.identity?.path ?? draft.origin.canvas)} canSave={canSave}
       busy={session.saveView.status === "saving" || session.saveView.status === "checking"} discardBlocked={session.draft.request !== null}
       {...(editorBlocked ? { reason: editorBlocked } : {})} onContinue={() => { showWorkspace?.(); session.answer("continue"); }} onDiscard={() => session.answer("discard")} onSave={() => { void session.save(); }} restoreEditorFocus={focus} />,
   };

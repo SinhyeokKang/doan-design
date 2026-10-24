@@ -387,6 +387,7 @@ async function start(): Promise<void> {
     }
     return ready.initialize(value.root, tokenCss);
   });
+  ipcMain.handle("app:home", event => fromWindow(event) ? process.env.HOME ?? app.getPath("home") : null);
   ipcMain.handle("folders:get", (event) => (fromWindow(event) ? ready.entries() : []));
   const cli = cliCommand(process.env, app.isPackaged, process.resourcesPath);
   const flow = createAddFlow({
