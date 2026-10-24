@@ -252,6 +252,8 @@ else if (args[1] === 'add') {
   console.log("onboarding: 4 project init, pending copy and first prompt");
   const project = await newRepo('project <tag> & "quote"'); const token = join(project, "Tokens.css"); await writeFile(token, ":root { --brand: red; }");
   await go("Project"); await pick(project); await button("Open Project…").click(); await button("Set Up Project").waitFor();
+  const projectValue = wizard().locator(".ob-field .value").first();
+  assert.deepEqual(await projectValue.evaluate(node => ({ display: getComputedStyle(node).display, gap: getComputedStyle(node).gap, pathDisplay: getComputedStyle(node.querySelector(".meta")!).display })), { display: "block", gap: "normal", pathDisplay: "inline" }, "project values retain inline text flow rather than inheriting Inspector flex layout");
   await pick(join(work, "outside.css")); await writeFile(join(work, "outside.css"), ":root{}"); await button("Choose…").click(); await button("Set Up Project").click();
   await wizard().getByRole("alert").waitFor(); assert.equal(await exists(join(project, ".doan/config.json")), false);
   await pick(token); await button("Choose…").click();
