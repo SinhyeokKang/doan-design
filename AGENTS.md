@@ -67,6 +67,7 @@ These apply to conversation replies and reports to the user, and to feature docu
 - `npm --prefix app run typecheck` — TypeScript checks (`tsc --noEmit`).
 - App setup (2026-10-21 user, app-shell): `npm --prefix app ci`, then `node -e "require('electron')"` from `app/` once to download the Electron binary (Electron 45 has no postinstall).
 - `npm --prefix app run build` — build the app into `app/out/` (`electron-vite build`).
+- `npm --prefix app run package` — build the versioned arm64 Go CLI and an unsigned local `app/dist/mac-arm64/doan.app` with electron-builder.
 - `npm --prefix app run e2e` — build, then run the Playwright `_electron` runtime suite (`app/e2e/runtime.ts`); it builds the CLI itself, uses temporary repos/userData and `DOAN_RUNTIME`, verifies that real user state is unchanged, and prints screenshots under `.scratch/runtime-test/`. Require its own final PASS and exit 0; continued steps after a collected failure are not a pass.
 - `DOAN_CLI=<abs path to doan> npm --prefix app run dev -- -- --user-data-dir=<tmp>` — run the app by hand without touching the real `~/Library/Application Support/doan/`.
 - `go build -o <tmp>/doan ./cli/cmd/doan` — build the CLI for `DOAN_CLI`.
