@@ -773,9 +773,9 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   const shown = await readView(page);
   await writeFile(join(repos.canvas, ".doan", "config.json"), "{\n");
   state = await waitView(page, (v) => v.error !== null, "error line on a broken config");
-  const problem = page.getByRole("status").filter({ hasText: "Config error" });
+  const problem = page.getByRole("region", { name: "Project status", exact: true });
   await problem.getByRole("button", { name: "Details", exact: true }).click();
-  assert.equal(state.error, await problem.getByRole("paragraph").textContent());
+  assert.equal(state.error, await problem.getByText(/config\.json/).textContent());
   assert.ok(state.boardShown);
   assertSameView(state, shown, "view kept on a folder error");
   await sleep(QUIET_MS);
