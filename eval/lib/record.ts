@@ -1,3 +1,4 @@
+import { KNOWN_CONDITIONS } from "./known-conditions.ts";
 import type { Agent } from "./args.ts";
 import type { Judgement, Result } from "./judge.ts";
 import type { Check } from "./types.ts";
@@ -34,6 +35,12 @@ export function roundRow(meta: RoundMeta, runs: RunRecord[]): string {
 const cell = (text: string) => text.replace(/\|/g, "\\|").replace(/\n/g, " ");
 
 export function summary(round: string, meta: RoundMeta, runs: RunRecord[]): string {
+  const condition = (run: RunRecord) => {
+    const failed = run.checks.filter(check => !check.pass);
+    if (run.result !== "fail" || run.timedOut || failed.length === 0) return undefined;
+    return KNOWN_CONDITIONS.find(entry => entry.scenario === run.scenario && entry.agent === run.agent
+      && failed.every(check => entry.expectedFailedChecks.includes(check.id)));
+  };
   const judgeCell = (judge: RunRecord["judge"]) => judge === "skipped" ? "skipped" : judge === null ? "judge_error" : judge.verdict;
   const lines = [
     `# agent-eval round ${round}`, "",
@@ -43,10 +50,11 @@ export function summary(round: string, meta: RoundMeta, runs: RunRecord[]): stri
     "| Scenario | Agent | n | Result | Failed checks | Judge | Layer | Seconds | Exit |",
     "|---|---|---|---|---|---|---|---|---|",
     ...runs.map(run => `| ${run.scenario} | ${run.agent} | ${run.n} | ${run.result} | ${cell(run.checks.filter(c => !c.pass).map(c => c.id).join(", "))} | ${judgeCell(run.judge)} | ${typeof run.judge === "object" && run.judge ? run.judge.layer : ""} | ${run.durationSec ?? ""} | ${run.timedOut ? "timeout" : run.exitCode ?? ""} |`),
+    "", ...runs.filter(run => condition(run)).map(run => `- ${run.scenario} / ${run.agent} #${run.n}: ${condition(run)!.note}; recorded result: ${run.result}.`),
     "", "## Issue candidates", "",
-    "Every run that did not pass, with what the checks and the judge saw. Confirm against the transcript before recording an issue.", "",
+    "Every run that did not pass outside the known conditions above, with what the checks and the judge saw. Confirm against the transcript before recording an issue.", "",
   ];
-  const notPassed = runs.filter(run => run.result !== "pass");
+  const notPassed = runs.filter(run => run.result !== "pass" && !(run.result === "fail" && condition(run)));
   if (notPassed.length === 0) lines.push("None.");
   for (const run of notPassed) {
     lines.push(`- **${run.scenario} / ${run.agent} #${run.n}** (${run.result}) — \`${run.dir}\``);

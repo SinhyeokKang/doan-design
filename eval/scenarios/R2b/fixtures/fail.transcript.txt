@@ -1,0 +1,2 @@
+{"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "toolu_skill", "content": "Read the current selection with doan active --json."}]}}
+Guessed the View plans button without calling active.

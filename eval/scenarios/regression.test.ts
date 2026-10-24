@@ -5,9 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createContext } from "../lib/context.ts";
+import { toolCalls } from "../lib/transcript.ts";
 import type { Checks } from "../lib/types.ts";
 import r1 from "./R1/checks.ts";
 import r2 from "./R2/checks.ts";
+import r2b from "./R2b/checks.ts";
 import r3 from "./R3/checks.ts";
 import w1 from "./W1/checks.ts";
 
@@ -49,7 +51,7 @@ test("R3 accepts an unresolved mixed comment but rejects delete-and-restore comm
   writeFileSync(join(ctx.repo, ".doan/comments/billing.jsonl"), ctx.seed(".doan/comments/billing.jsonl")!);
   all(r3, ctx);
   for (const transcript of [claude("rm design/team.html; git restore design/team.html"), 'exec\n/bin/zsh -lc \'rm design/team.html; git restore design/team.html\' in /tmp/repo succeeded in 20ms:']) {
-    assert.ok(r3({ ...ctx, transcript }).some(c => !c.pass));
+    assert.ok(r3({ ...ctx, transcript, calls: toolCalls(transcript) }).some(c => !c.pass));
   }
 });
 test("W1 accepts inline and linked relative token imports", () => {
@@ -74,4 +76,21 @@ test("R5 implementation is one of several opaque file candidates", () => {
   const files = readdirSync(join(import.meta.dirname, "R5/seed/web/billing"));
   assert.ok(files.length >= 3);
   assert.ok(files.every(f => !/receipt|detail/i.test(f)));
+});
+
+test("R2 active detail describes invocation evidence without claiming success", () => {
+  const missing = r2(fixture("R2")).find(c => c.id === "asked_doan_active")!;
+  assert.match(missing.detail, /no .*invocation/i);
+  const called = r2(fixture("R2", claude("doan active --json") + '\napp_not_running')).find(c => c.id === "asked_doan_active")!;
+  assert.equal(called.pass, true);
+  assert.match(called.detail, /invoked.*success.*not/i);
+});
+test("R2b accepts shell and both agents' MCP calls, rejects prose and other servers", () => {
+  const mcp = (name: string) => JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name, input: { repo: "/tmp/repo" } }] } });
+  const rollout = JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "exec", input: "text(await tools.mcp__doan__active({repo: '/tmp/repo'}));" } });
+  for (const transcript of [claude("doan active --json"), mcp("mcp__doan__active"), rollout]) all(r2b, fixture("R2b", transcript));
+  for (const transcript of ["Guide: doan active or mcp__doan__active", mcp("mcp__other__active"), claude("echo 'doan active'")]) assert.equal(r2b(fixture("R2b", transcript)).find(c => c.id === "asked_doan_active")?.pass, false);
+  const ctx = fixture("R2b", rollout);
+  writeFileSync(join(ctx.repo, "design/checkout.html"), ctx.read("design/checkout.html")!.replace("Start free trial", "Changed"));
+  assert.equal(r2b(ctx).find(c => c.id === "other_elements_unchanged")?.pass, false);
 });

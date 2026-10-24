@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { toolCalls } from "./transcript.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand, judgeFor, parseJudgement, truncate } from "./judge.ts";
@@ -66,4 +68,75 @@ test("a fixture whose checks could not run fails the self-test, whichever fixtur
   assert.equal(fixtureProblem("fail", failing, finalResult(failing, "skipped")), null);
   assert.equal(fixtureProblem("pass", passing, finalResult(passing, "skipped")), null);
   assert.match(fixtureProblem("fail", passing, finalResult(passing, "skipped")) ?? "", /all 1 passed/);
+});
+
+test("active invocation evidence survives even an oversized command summary", () => {
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "log tail", calls: {
+    commands: ["echo " + "x".repeat(30000), "doan active --json"], mcpTools: ["mcp__doan__active"],
+  } });
+  assert.ok(prompt.includes('"doanActive":{"shellInvoked":true,"mcpInvoked":true}'));
+  assert.ok(prompt.includes("log tail"));
+  assert.ok(!prompt.includes("x".repeat(20001)));
+});
+
+test("batched rollout errors reach the judge without copying the rollout transcript", () => {
+  const rollout = readFileSync(new URL("./fixtures/codex-batched-output.jsonl", import.meta.url), "utf8");
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "FINAL_ANSWER", calls: toolCalls(rollout) });
+  assert.match(prompt, /app_not_running/);
+  assert.match(prompt, /Cannot connect to Doan: operation not permitted/);
+  assert.match(prompt, /batch/);
+  assert.match(prompt, /FINAL_ANSWER/);
+  assert.ok(!prompt.includes("nextSteps"));
+});
+
+test("long repeated heredocs cannot displace MCP tools or batch excerpts", () => {
+  // loop1 W1-codex repeated a 10,412-character Python heredoc in commands and outputs.
+  const command = "python3 - <<'PY'\n" + "x".repeat(25000) + "\nPY\ndoan check";
+  const calls = { commands: [command, command, "doan active --json"], mcpTools: ["mcp__doan__active"], outputs: [
+    { name: "exec_command", command, callId: "batch-1", scope: "batch" as const, excerpt: "FIRST_BATCH" },
+    { name: "exec_command", command: "doan ls", callId: "batch-1", scope: "batch" as const, excerpt: "FIRST_BATCH" },
+    { name: "mcp__doan__active", callId: "batch-2", scope: "batch" as const, excerpt: "LAST_BATCH" },
+  ] };
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls });
+  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1].split("<<<\n")[1].split("\n>>>")[0]);
+  assert.deepEqual(summary.mcpTools, ["mcp__doan__active"]);
+  assert.deepEqual(summary.doanActive, { shellInvoked: true, mcpInvoked: true });
+  assert.equal(summary.commands.length, 2);
+  assert.ok(summary.commands.every((s: string) => s.length <= 200));
+  assert.equal((JSON.stringify(summary).match(/FIRST_BATCH/g) ?? []).length, 1);
+  assert.match(JSON.stringify(summary), /LAST_BATCH/);
+});
+
+test("tool lookup input and empty results reach the judge", () => {
+  const rollout = readFileSync(new URL("./fixtures/codex-tool-search.jsonl", import.meta.url), "utf8");
+  const calls = toolCalls(rollout);
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls });
+  assert.match(prompt, /"toolSearches":\[/);
+  assert.match(prompt, /ALL_TOOLS/);
+  assert.match(prompt, /"excerpt":"\[\]"/);
+  assert.match(prompt, /app_not_running/);
+  assert.match(prompt, /toolSearches show the agent looking for tools; an empty result means no available tool matched that lookup/);
+});
+
+
+test("doan calls anywhere in long commands survive extraction and batch deduplication", () => {
+  const prefix = "python3 - <<'PY'\n" + "x".repeat(12000) + "\nPY\n";
+  const commands = [prefix + "doan check --json", prefix + "doan ls --json", prefix + "doan active\necho " + "y".repeat(12000)];
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls: {
+    commands, mcpTools: [], outputs: commands.map(command => ({ name: "exec_command", command, callId: "batch", scope: "batch" as const, excerpt: "RESULT" })),
+  } });
+  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1].split("<<<\n")[1].split("\n>>>")[0]);
+  assert.deepEqual(summary.commands, ["doan check --json", "doan ls --json", "doan active"]);
+  assert.deepEqual(summary.outputs[0].calls, summary.commands);
+});
+
+test("many tool searches leave room for invocation output", () => {
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls: {
+    commands: [], mcpTools: [], toolSearches: Array.from({ length: 100 }, (_, i) => ({ callId: `lookup-${i}`, input: "x".repeat(200), excerpt: "y".repeat(300) })),
+    outputs: [{ name: "mcp__doan__active", callId: "active", scope: "call", excerpt: "RETAINED_OUTPUT" }],
+  } });
+  assert.match(prompt, /RETAINED_OUTPUT/);
+  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1].split("<<<\n")[1].split("\n>>>")[0]);
+  assert.equal(summary.toolSearches.length, 10);
+  assert.equal(summary.omittedToolSearches, 90);
 });

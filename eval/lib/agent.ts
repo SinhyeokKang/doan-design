@@ -1,17 +1,49 @@
 import { spawn } from "node:child_process";
-import { closeSync, openSync } from "node:fs";
+import { closeSync, openSync, existsSync, readdirSync, readFileSync, writeFileSync, copyFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { Agent } from "./args.ts";
+import { toolCalls, type ToolCalls } from "./transcript.ts";
 
-export function agentCommand(agent: Agent, prompt: string): { cmd: string; args: string[] } {
-  // Plain -p prints only the final answer; stream-json keeps every tool call in
-  // the transcript, which checks and the judge read (Codex logs commands to stderr).
-  // MCP and the Codex sandbox are pinned so a run does not depend on the user's
-  // global agent config: rounds measure the shell (CLI) path only (spec non-goal),
-  // and a global doan MCP server may point at a CLI other than the one measured.
-  // --allowedTools is variadic, so `--` keeps the prompt from being read as a tool.
-  return agent === "claude"
-    ? { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--allowedTools", "Bash Read Write Edit Glob Grep", "--", prompt] }
-    : { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "mcp_servers.doan.enabled=false", prompt] };
+interface MCPRun { cli: string; runtime: string; configPath: string }
+
+export function agentCommand(agent: Agent, prompt: string, mcp?: MCPRun): { cmd: string; args: string[] } {
+  // Pin MCP per invocation: never register the measured CLI in global config.
+  // --allowedTools is variadic, so `--` separates the prompt from tool names.
+  if (agent === "claude") {
+    return { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", ...(mcp ? ["--mcp-config", mcp.configPath] : []), "--allowedTools", `Bash Read Write Edit Glob Grep${mcp ? " mcp__doan__*" : ""}`, "--", prompt] };
+  }
+  return { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", ...(mcp ? [
+    "-c", `mcp_servers.doan.command=${JSON.stringify(mcp.cli)}`,
+    "-c", 'mcp_servers.doan.args=["mcp"]',
+    "-c", `mcp_servers.doan.env.DOAN_RUNTIME=${JSON.stringify(mcp.runtime)}`,
+    "-c", "mcp_servers.doan.enabled=true",
+  ] : ["-c", "mcp_servers.doan.enabled=false"]), prompt] };
+}
+
+export function readAgentTranscript(agent: Agent, dir: string, env: NodeJS.ProcessEnv): { transcript: string; calls: ToolCalls } {
+  const stderr = readFileSync(join(dir, "stderr.log"), "utf8");
+  const transcript = readFileSync(join(dir, "stdout.log"), "utf8") + "\n" + stderr;
+  if (agent !== "codex") return { transcript, calls: toolCalls(transcript) };
+  // stderr omits some commands in batched exec calls. Match the run's session
+  // rather than picking the newest rollout, which may belong to another agent.
+  try {
+    const id = stderr.match(/^session id:\s*([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\s*$/im)?.[1];
+    if (!id) throw new Error("No Codex session id in stderr");
+    const sessions = join(env.CODEX_HOME || join(env.HOME || homedir(), ".codex"), "sessions");
+    if (!existsSync(sessions)) throw new Error(`Codex sessions directory not found: ${sessions}`);
+    const matches = readdirSync(sessions, { recursive: true, withFileTypes: true })
+      .filter(entry => entry.isFile() && entry.name.startsWith("rollout-") && entry.name.endsWith(`-${id}.jsonl`));
+    if (matches.length !== 1) throw new Error(`Expected one Codex rollout for ${id}, found ${matches.length}`);
+    const source = join(matches[0].parentPath, matches[0].name);
+    const dest = join(dir, "codex-rollout.jsonl");
+    copyFileSync(source, dest);
+    return { transcript, calls: toolCalls(transcript + "\n" + readFileSync(dest, "utf8")) };
+  } catch (error) {
+    // Keep older Codex versions usable, but leave an explicit evidence gap.
+    writeFileSync(join(dir, "codex-rollout-error.txt"), `${(error as Error).message}\n`);
+    return { transcript, calls: toolCalls(transcript) };
+  }
 }
 
 // Process groups still running, so an interrupted runner can take them down;

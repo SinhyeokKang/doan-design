@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, normalize, relative } from "node:path";
+import { toolCalls, type ToolCalls } from "./transcript.ts";
 import type { CheckContext } from "./types.ts";
 
 export function resolveInside(repo: string, path: string): string {
@@ -61,6 +62,7 @@ export interface ContextOptions {
   repo: string;
   agent: CheckContext["agent"];
   transcript: string;
+  calls?: ToolCalls;
   cli: string;
   env: NodeJS.ProcessEnv;
   seedCommit: string;
@@ -85,6 +87,7 @@ export function createContext(o: ContextOptions): CheckContext {
     repo: o.repo,
     agent: o.agent,
     transcript: o.transcript,
+    calls: o.calls ?? toolCalls(o.transcript),
     doan(args) {
       const result = sh(o.cli, [...args, "--json", "--repo", o.repo], o.repo, o.env);
       let json: any = null;

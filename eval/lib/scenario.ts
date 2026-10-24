@@ -8,6 +8,7 @@ export interface Scenario {
   init: { tokenCss: string } | null;
   selection: "selection.json" | null;
   timeoutSec: number;
+  mcp: boolean;
 }
 
 export interface LoadedScenario extends Scenario {
@@ -19,7 +20,7 @@ export interface LoadedScenario extends Scenario {
 }
 
 const FOCUS = ["write", "comments", "active", "injection", "implement", "understand"];
-const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec"];
+const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "mcp"];
 
 function fail(id: string, message: string): never {
   throw new Error(`scenario ${id}: ${message}`);
@@ -44,9 +45,11 @@ export function parseScenarioJson(value: unknown, dirName: string): Scenario {
   }
   const selection = v.selection ?? null;
   if (selection !== null && selection !== "selection.json") fail(dirName, 'selection must be null or "selection.json"');
+  if (v.mcp !== undefined && typeof v.mcp !== "boolean") fail(dirName, "mcp must be boolean");
+  const mcp = v.mcp === true;
   const timeoutSec = v.timeoutSec ?? 900;
   if (!Number.isInteger(timeoutSec) || (timeoutSec as number) < 1) fail(dirName, "timeoutSec must be a positive whole number");
-  return { id: dirName, title: v.title, focus: v.focus as Scenario["focus"], init: init as Scenario["init"], selection: selection as Scenario["selection"], timeoutSec: timeoutSec as number };
+  return { mcp, id: dirName, title: v.title, focus: v.focus as Scenario["focus"], init: init as Scenario["init"], selection: selection as Scenario["selection"], timeoutSec: timeoutSec as number };
 }
 
 export function renderPrompt(template: string, repo: string): string {

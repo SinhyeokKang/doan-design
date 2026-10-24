@@ -368,9 +368,38 @@ func TestMCPOverStdioPipes(t *testing.T) {
 	send(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)
 	send(`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
 	m := next()
-	var list struct{ Tools []struct{ Name string } }
+	var list struct {
+		Tools []struct {
+			Name        string
+			Annotations *struct {
+				ReadOnlyHint bool `json:"readOnlyHint"`
+			}
+		}
+	}
 	if *m.ID != 2 || json.Unmarshal(m.Result, &list) != nil || len(list.Tools) != 7 {
 		t.Fatal(string(m.Result))
+	}
+	wantReadOnly := map[string]bool{
+		"init": false, "ls": true, "comments": true, "resolve_comments": false,
+		"check": true, "active": true, "skill": true,
+	}
+	for _, tool := range list.Tools {
+		want, known := wantReadOnly[tool.Name]
+		if !known {
+			t.Errorf("unexpected or duplicate tool %q", tool.Name)
+			continue
+		}
+		delete(wantReadOnly, tool.Name)
+		if want {
+			if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
+				t.Errorf("tool %s must declare readOnlyHint: true", tool.Name)
+			}
+		} else if tool.Annotations != nil {
+			t.Errorf("tool %s must remain unannotated", tool.Name)
+		}
+	}
+	if len(wantReadOnly) != 0 {
+		t.Errorf("missing tools: %v", wantReadOnly)
 	}
 	dir := t.TempDir()
 	send(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"init","arguments":{"repo":` + fmt.Sprintf("%q", dir) + `}}}`)

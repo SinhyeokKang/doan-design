@@ -7,7 +7,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { assertRealState, realState } from "../app/e2e/real-state.ts";
-import { agentCommand, killRunning, runProcess } from "./lib/agent.ts";
+import { agentCommand, killRunning, runProcess, readAgentTranscript } from "./lib/agent.ts";
 import { parseArgs, type Agent, type Options } from "./lib/args.ts";
 import { createContext, sh } from "./lib/context.ts";
 import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand, judgeFor, parseJudgement, type Judgement } from "./lib/judge.ts";
@@ -64,12 +64,14 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
   try {
     const prompt = renderPrompt(scenario.promptTemplate, ws.repo);
     writeFileSync(join(dir, "prompt.txt"), prompt);
-    const { cmd, args } = agentCommand(agent, prompt);
+    const runtime = ws.env.DOAN_RUNTIME;
+    if (!runtime) throw new Error("Workspace has no DOAN_RUNTIME");
+    const { cmd, args } = agentCommand(agent, prompt, scenario.mcp ? { cli: setup.cli, runtime, configPath: join(ws.base, "mcp.json") } : undefined);
     console.log(`start ${name} (${ws.repo})`);
     const startedAt = new Date().toISOString();
     const proc = await runProcess({ cmd, args, cwd: ws.repo, env: ws.env, timeoutSec: scenario.timeoutSec, stdoutPath: join(dir, "stdout.log"), stderrPath: join(dir, "stderr.log") });
-    const transcript = readFileSync(join(dir, "stdout.log"), "utf8") + readFileSync(join(dir, "stderr.log"), "utf8");
-    const ctx = createContext({ repo: ws.repo, agent, transcript, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
+    const evidence = readAgentTranscript(agent, dir, ws.env);
+    const ctx = createContext({ repo: ws.repo, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
     const checks = await runChecks(scenario, ctx);
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     let judgement: Judgement | null | "skipped" = "skipped";
@@ -77,7 +79,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
       // An agent can leave a repo git cannot read (deleted .git, say); that is a judge_error, not a lost round.
       try {
         const { changed, diff } = judgeMaterial(ws, ctx);
-        const judged = await judge(agent, buildJudgePrompt({ rubric: scenario.rubric, prompt, checks, changed, diff, transcript }), dir);
+        const judged = await judge(agent, buildJudgePrompt({ rubric: scenario.rubric, prompt, checks, changed, diff, ...evidence }), dir);
         judgement = judged.judgement;
         writeFileSync(join(dir, "judge.json"), JSON.stringify(judgement ?? { judge_error: true, raw: judged.raw }, null, 2) + "\n");
       } catch (error) {
