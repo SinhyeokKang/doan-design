@@ -102,8 +102,78 @@ export function commandWords(command: string): string[][] {
   });
 }
 
-export interface ToolCalls { commands: string[]; mcpTools: string[] }
+export interface InvocationOutput {
+  name: string;
+  command?: string;
+  callId: string;
+  scope: "call" | "batch";
+  excerpt: string;
+}
+
+const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+
+function outputParts(value: unknown, depth = 0): { text: string; error: boolean }[] {
+  if (depth > 10) return [];
+  if (typeof value === "string") {
+    try { return outputParts(JSON.parse(value), depth + 1); }
+    catch { return [{ text: value, error: false }]; }
+  }
+  if (Array.isArray(value)) return value.flatMap(part => outputParts(part, depth + 1));
+  if (!record(value)) return [];
+  if (record(value.error) && typeof value.error.code === "string" && typeof value.error.message === "string")
+    return [{ text: `${value.error.code}: ${value.error.message}`, error: true }];
+  for (const key of ["output", "content", "text"]) {
+    if (value[key] !== undefined) return outputParts(value[key], depth + 1);
+  }
+  return [{ text: JSON.stringify(value), error: false }];
+}
+
+function invocationOutputs(transcript: string): InvocationOutput[] {
+  const calls: Omit<InvocationOutput, "excerpt">[] = [];
+  const results = new Map<string, unknown[]>();
+  const addResult = (id: unknown, output: unknown) => {
+    if (typeof id === "string") results.set(id, [...(results.get(id) ?? []), output]);
+  };
+  const addCall = (call: { name: string; command?: string }, id: unknown, scope: "call" | "batch") => {
+    if (typeof id !== "string") return;
+    if (/^mcp__doan__/.test(call.name) || (call.command !== undefined && commandWords(call.command).some(words => /^(?:.*\/)?doan$/.test(words[0] ?? ""))))
+      calls.push({ ...call, callId: id, scope });
+  };
+  for (const line of transcript.split(/\r?\n/)) {
+    let event;
+    try { event = JSON.parse(line); } catch { continue; /* Plain stderr has no result ids. */ }
+    if (!record(event)) continue;
+    const p = event.payload;
+    if (event.type === "response_item" && record(p)) {
+      if (p.type === "function_call_output" || p.type === "custom_tool_call_output") addResult(p.call_id, p.output);
+      // A custom exec result belongs to the whole script, not an identifiable
+      // inner call: output order can differ from invocation order or be omitted.
+      for (const call of rolloutCalls(event)) addCall(call, p.call_id, p.type === "custom_tool_call" ? "batch" : "call");
+    }
+    if (record(event.message) && Array.isArray(event.message.content)) {
+      for (const block of event.message.content) {
+        if (!record(block)) continue;
+        if (event.type === "assistant" && block.type === "tool_use" && typeof block.name === "string") {
+          const command = block.name === "Bash" && record(block.input) && typeof block.input.command === "string" ? block.input.command : undefined;
+          addCall({ name: block.name, ...(command === undefined ? {} : { command }) }, block.id, "call");
+        }
+        if (event.type === "user" && block.type === "tool_result") addResult(block.tool_use_id, block.content);
+      }
+    }
+  }
+  return calls.flatMap(call => {
+    const parts = outputParts(results.get(call.callId));
+    // Prefer structured errors so batch metadata or large successful outputs
+    // cannot hide the reason a doan invocation stalled.
+    const errors = parts.filter(part => part.error);
+    const excerpt = (errors.length ? errors : parts).map(part => part.text).join("\n").slice(0, 300);
+    return excerpt ? [{ ...call, excerpt }] : [];
+  });
+}
+
+export interface ToolCalls { commands: string[]; mcpTools: string[]; outputs?: InvocationOutput[] }
 
 export function toolCalls(transcript: string): ToolCalls {
-  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))] };
+  const outputs = invocationOutputs(transcript);
+  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(outputs.length ? { outputs } : {}) };
 }
