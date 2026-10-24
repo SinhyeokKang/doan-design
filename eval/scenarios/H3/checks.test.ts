@@ -20,6 +20,16 @@ function setup(pass = false, transcript = "") {
 }
 const failures = (ctx: ReturnType<typeof setup>) => checks(ctx).filter(c => !c.pass).map(c => c.id);
 
+test("H3 accepts Notice string props but rejects comment-only cutoff copy", () => {
+  const ctx = setup(true), target = "web/src/components/DispatchQueue.tsx";
+  const good = 'import { Notice } from "./Notice";\n' + ctx.read(target)!.replace(
+    '<p>Pickup closes at 16:30.</p>', '<Notice message="Pickup closes at 16:30." />');
+  writeFileSync(join(ctx.repo, target), good);
+  assert.deepEqual(failures(ctx), []);
+  writeFileSync(join(ctx.repo, target), good.replace('message="Pickup closes at 16:30."', 'message="Missing cutoff"') + '\n/* "Pickup closes at 16:30." */\n// "Pickup closes at 16:30."\n');
+  assert.ok(failures(ctx).includes("canvas_copy_in_component"));
+});
+
 test("H3 rejects an untouched target and comment-only copy", () => {
   const ctx = setup();
   assert.ok(failures(ctx).includes("target_function_implemented"));

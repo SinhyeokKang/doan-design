@@ -5,6 +5,25 @@ import { summary, roundRow, type RunRecord } from "./record.ts";
 const run = (scenario: string, agent: "claude" | "codex", n: number, result: RunRecord["result"]): RunRecord =>
   ({ scenario, agent, n, dir: "", result, checks: [], judge: "skipped", durationSec: 1, exitCode: 0, timedOut: false });
 
+test("R1b Codex write approval condition excludes only expected check failures", () => {
+  const meta = { date: "2026-10-24", versions: {}, guideSha256: "", cliVersion: "" };
+  const checks = ["profile_agent_resolves_only", "profile_comments_valid"].map(id => ({ id, pass: false, detail: "approval refused" }));
+  const record = { ...run("R1b", "codex", 1, "fail"), checks };
+  const text = summary("round", meta, [record, { ...record, agent: "claude" }]);
+  assert.match(text, /MCP write approval refused under approval: never/);
+  assert.match(text, /R1b: codex fail, claude fail/);
+  assert.doesNotMatch(text.split("## Issue candidates")[1], /\*\*R1b \/ codex/);
+  assert.match(text.split("## Issue candidates")[1], /\*\*R1b \/ claude/);
+  for (const unexpected of [
+    { ...record, checks: [...checks, { id: "agent_cli_provenance", pass: false, detail: "wrong CLI" }] },
+    { ...record, checks: [] },
+    { ...record, timedOut: true },
+    { ...record, result: "judge_error" as const },
+  ]) {
+    assert.match(summary("round", meta, [unexpected]).split("## Issue candidates")[1], /\*\*R1b \/ codex/);
+  }
+});
+
 test("the round row groups results by scenario and keeps repeats in order", () => {
   const row = roundRow({ date: "2026-10-24", versions: { claude: "2.1.310 (Claude Code)", codex: "codex-cli 0.164.0" }, guideSha256: "ab".repeat(32), cliVersion: "0.1.0" },
     [run("W1", "claude", 1, "pass"), run("W1", "codex", 1, "fail"), run("W1", "codex", 2, "pass"), run("R2", "claude", 1, "judge_error")]);
