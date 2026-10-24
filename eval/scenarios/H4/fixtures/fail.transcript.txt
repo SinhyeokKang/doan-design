@@ -1,0 +1,1 @@
+Removed the Legacy alerts section and resolved its two comments as applied.

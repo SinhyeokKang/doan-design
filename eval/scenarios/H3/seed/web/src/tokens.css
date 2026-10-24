@@ -1,0 +1,18 @@
+:root {
+  --color-background: #f3f4f6;
+  --color-surface: #ffffff;
+  --color-text: #182230;
+  --color-muted: #586579;
+  --color-border: #ccd3dd;
+  --color-primary: #2455d6;
+  --color-on-primary: #ffffff;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-card: 12px;
+  --radius-control: 6px;
+  --font-body: system-ui, sans-serif;
+}

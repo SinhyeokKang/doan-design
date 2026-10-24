@@ -1,0 +1,7 @@
+.dispatch-queue { padding: var(--space-8); font-family: var(--font-body); color: var(--color-text); background: var(--color-background); }
+.queue-card { max-width: 880px; padding: var(--space-6); border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
+.queue-card header { display: flex; justify-content: space-between; align-items: center; }
+.queue-card p { color: var(--color-muted); }
+.queue-card table { width: 100%; text-align: left; }
+.queue-card td, .queue-card th { padding: var(--space-3); border-bottom: 1px solid var(--color-border); }
+.queue-card button { padding: var(--space-3); background: var(--color-primary); color: var(--color-on-primary); border: 0; border-radius: var(--radius-control); font: inherit; }

@@ -5,6 +5,25 @@ import { summary, roundRow, type RunRecord } from "./record.ts";
 const run = (scenario: string, agent: "claude" | "codex", n: number, result: RunRecord["result"]): RunRecord =>
   ({ scenario, agent, n, dir: "", result, checks: [], judge: "skipped", durationSec: 1, exitCode: 0, timedOut: false });
 
+test("R1b Codex write approval condition excludes only expected check failures", () => {
+  const meta = { date: "2026-10-24", versions: {}, guideSha256: "", cliVersion: "" };
+  const checks = ["profile_agent_resolves_only", "profile_comments_valid"].map(id => ({ id, pass: false, detail: "approval refused" }));
+  const record = { ...run("R1b", "codex", 1, "fail"), checks };
+  const text = summary("round", meta, [record, { ...record, agent: "claude" }]);
+  assert.match(text, /MCP write approval refused under approval: never/);
+  assert.match(text, /R1b: codex fail, claude fail/);
+  assert.doesNotMatch(text.split("## Issue candidates")[1], /\*\*R1b \/ codex/);
+  assert.match(text.split("## Issue candidates")[1], /\*\*R1b \/ claude/);
+  for (const unexpected of [
+    { ...record, checks: [...checks, { id: "agent_cli_provenance", pass: false, detail: "wrong CLI" }] },
+    { ...record, checks: [] },
+    { ...record, timedOut: true },
+    { ...record, result: "judge_error" as const },
+  ]) {
+    assert.match(summary("round", meta, [unexpected]).split("## Issue candidates")[1], /\*\*R1b \/ codex/);
+  }
+});
+
 test("the round row groups results by scenario and keeps repeats in order", () => {
   const row = roundRow({ date: "2026-10-24", versions: { claude: "2.1.310 (Claude Code)", codex: "codex-cli 0.164.0" }, guideSha256: "ab".repeat(32), cliVersion: "0.1.0" },
     [run("W1", "claude", 1, "pass"), run("W1", "codex", 1, "fail"), run("W1", "codex", 2, "pass"), run("R2", "claude", 1, "judge_error")]);
@@ -55,4 +74,67 @@ test("both by-design R2 Codex failed checks are noted without becoming issue can
   ] }]);
   assert.match(unexpected.split("## Issue candidates")[1], /\*\*R2 \/ codex/);
   assert.doesNotMatch(unexpected, /expected fail:/);
+});
+
+test("judge-only partials keep their evidence outside issue candidates without rewriting results", () => {
+  const meta = { date: "2026-10-24", versions: {}, guideSha256: "", cliVersion: "" };
+  const record: RunRecord = {
+    ...run("H3", "codex", 1, "partial"), dir: "H3-codex",
+    checks: [{ id: "canvas_copy_in_component", pass: true, detail: "copy present" }],
+    judge: { verdict: "partial", layer: "none", reasons: ["Failed install omitted from final report"], stalls: ["Install retry"] },
+  };
+  const before = JSON.stringify(record);
+  const text = summary("round", meta, [record]);
+  const partials = text.split("## Judge-only partials")[1]?.split("## ")[0];
+  assert.ok(partials, "summary includes a Judge-only partials section");
+  assert.match(partials, /\*\*H3 \/ codex #1\*\* \(partial\).*`H3-codex`/);
+  assert.match(partials, /judge \(none\): Failed install omitted from final report/);
+  assert.match(partials, /stall: Install retry/);
+  assert.doesNotMatch(text.split("## Issue candidates")[1], /\*\*H3 \/ codex/);
+  assert.match(text.split("## Issue candidates")[1], /None\./);
+  assert.match(text, /H3: codex partial/);
+  assert.match(text, /\| H3 \| codex \| 1 \| partial \|  \| partial \| none \|/);
+  assert.equal(JSON.stringify(record), before);
+
+  for (const unexpected of [
+    { ...record, checks: [...record.checks, { id: "unexpected_edit", pass: false, detail: "changed tooling" }], result: "fail" as const },
+    { ...record, checks: [] },
+    { ...record, timedOut: true },
+    { ...record, judge: { ...record.judge as Exclude<RunRecord["judge"], null | "skipped">, verdict: "fail" as const }, result: "fail" as const },
+    { ...record, judge: null, result: "judge_error" as const },
+    { ...record, judge: "skipped" as const },
+  ]) {
+    const output = summary("round", meta, [unexpected]);
+    assert.match(output.split("## Issue candidates")[1], /\*\*H3 \/ codex/);
+    assert.doesNotMatch(output.split("## Judge-only partials")[1]?.split("## ")[0] ?? "", /\*\*H3 \/ codex/);
+  }
+});
+
+test("known-condition table matches replace only the displayed layer", () => {
+  const meta = { date: "2026-10-24", versions: {}, guideSha256: "", cliVersion: "" };
+  for (const [scenario, checkId] of [["R1b", "profile_agent_resolves_only"], ["R2", "selected_primary_background"]]) {
+    for (const judge of [
+      { verdict: "fail", layer: "product", reasons: ["Known limitation"], stalls: [] },
+      { verdict: "fail", layer: "none", reasons: [], stalls: [] },
+      null, "skipped",
+    ] as RunRecord["judge"][]) {
+      const record = { ...run(scenario, "codex", 1, "fail"), checks: [{ id: checkId, pass: false, detail: "expected" }], judge };
+      const before = JSON.stringify(record);
+      const text = summary("round", meta, [record]);
+      const verdict = judge === null ? "judge_error" : judge === "skipped" ? "skipped" : judge.verdict;
+      assert.ok(text.includes(`| ${scenario} | codex | 1 | fail | ${checkId} | ${verdict} | known |`));
+      assert.equal(JSON.stringify(record), before);
+
+      for (const unexpected of [
+        { ...record, agent: "claude" as const },
+        { ...record, timedOut: true },
+        { ...record, checks: [...record.checks, { id: "unexpected_edit", pass: false, detail: "changed tooling" }] },
+      ]) {
+        const output = summary("round", meta, [unexpected]);
+        assert.doesNotMatch(output, /\| known \|/);
+        const layer = typeof judge === "object" && judge ? judge.layer : "";
+        assert.ok(output.includes(`| ${verdict} | ${layer} |`));
+      }
+    }
+  }
 });
