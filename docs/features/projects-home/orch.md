@@ -60,3 +60,5 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: R-A2 결과 🔴 0 · 🟡 3(저장된 비 git 경로 중복 판정, 정상 비 git 행의 과거 common 재사용, 토스트 교체 후 focus 정지) · ⚪ 1(워크트리 하위 항목 기본 체크 해제 미검증 → B2에 전달). A2 워커에 A2-fix를 보냈다(이번에는 red 선확인을 요구). R-A2 워커는 해제했다.
 - 2026-10-25: A2 터미널은 재사용이 거부되어(`agent_unconfigured`) 해제했다. 같은 worktree(`ph-a2`)에 새 Claude Sonnet high 워커로 A2-fix(`ctx_234db83dd97d`)를 시작했다.
 - 2026-10-25: B1 완료(`ed1f596`, `55bac2c`, `257f15f`). R-A1의 🟡1과 ⚪2~4를 반영했다. `go test`·`go vet` 통과 보고. 교차 리뷰 R-B1(Claude Opus high)을 띄웠다. E(agent-eval)는 R-B1 뒤 통합한 HEAD에서 돈다(리뷰 수정으로 재실행하지 않도록).
+- 2026-10-25: DC 초안 완료(`213c0ff`, worktree의 Claude 쪽). check 오류 0, 프레임 id 일치 보고. DX를 기다려 함께 비교한다.
+- 2026-10-25: A2-fix 완료(`09cf689` test: red 4개 확인, `c41c63c` fix). 지휘자가 diff를 확인했다(변경 3줄, 리뷰 지적과 일치). 통합하고 A2 워커를 해제했다.
