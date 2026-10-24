@@ -457,6 +457,8 @@ async function start(): Promise<void> {
     if ("refused" in judged) return { kind: "refused", message: judged.refused };
     // The row may have been removed while the picker was open.
     if (!fromWindow(event) || storedPath(value) === null) return { kind: "unavailable" };
+    // The old row leaves the list, as on Remove.
+    if (selection?.root === from) selection = null;
     await ready.replace(from, judged.root);
     return { kind: "located", root: judged.root };
   });

@@ -881,7 +881,10 @@ describe("locate and reveal", () => {
     expect(mocks.dialog.showOpenDialog).toHaveBeenCalledWith(window(), expect.objectContaining({ properties: ["openDirectory"] }));
     mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/code/moved"] });
     mocks.flow.judge.mockResolvedValueOnce({ root: "/code/moved" });
+    await invoke("selection:set", contents, null, { root: "/code/other", canvas: { path: "design/a.html" } });
+    expect(runtimeState().selection()).not.toBeNull();
     expect(await invoke("folders:locate", contents, null, { path: "/code/other" })).toEqual({ kind: "located", root: "/code/moved" });
+    expect(runtimeState().selection()).toBeNull();
     expect(mocks.flow.judge).toHaveBeenCalledWith("/code/moved");
     expect(mocks.shell.replace).toHaveBeenCalledExactlyOnceWith("/code/other", "/code/moved");
     mocks.flow.judge.mockResolvedValueOnce({ refused: "Only folders can be added." });
