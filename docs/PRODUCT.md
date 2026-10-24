@@ -454,6 +454,8 @@ Results:
 | 2026-10-24 | Check reports `summary.canvases` and a `no_canvases` warning when zero, while keeping warnings at exit 0 | U-003: distinguish an empty repository from a successfully checked canvas after a generator fails; human output shows the count and the guide explains zero |
 | 2026-10-24 | Evaluation disables Codex shell snapshots and rejects missing or mismatched agent-shell CLI resolution evidence | U-003 re-measure found agent output from the older installed CLI while automatic checks used the new package; runner PATH alone was insufficient |
 
+| 2026-10-24 | Handle unavailable MCP writes and sandboxed `active` through guide/output fallbacks: keep human write approval, use shell resolve when approval is unavailable, and ask for the target or suggest "Set Up doan…" when neither shell socket nor MCP active is available; add MCP-only R1b with `shellCli: false` | User decision after loop3 — no product feature, agent config edits, approval relaxation, or socket/structure change; re-measure R1b, R2 and R2b |
+
 ## 8. Open questions
 
 Carried over from README draft §15. When closed, they move to the matching section and the §7 decision log. Shared fragments (include vs. whole HTML) were closed as up to the agent (2026-10-21, §4 Unit of review).

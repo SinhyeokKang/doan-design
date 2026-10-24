@@ -1,5 +1,5 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { delimiter, join, resolve } from "node:path";
 import type { Agent } from "./args.ts";
 import { sh } from "./context.ts";
 import { assertOutsideCheckout } from "./isolate.ts";
@@ -37,9 +37,21 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     const repo = join(base, "repo");
     cpSync(join(o.scenario.dir, "seed"), repo, { recursive: true });
     mkdirSync(join(base, "bin"));
-    symlinkSync(o.cli, join(base, "bin/doan"));
+    if (o.scenario.shellCli) symlinkSync(o.cli, join(base, "bin/doan"));
+    const inheritedPath = (process.env.PATH ?? "").split(delimiter);
+    // Removing an entire PATH directory would also hide colocated agents/tools.
+    // Substitute only those directories containing doan, preserving PATH order.
+    const path = o.scenario.shellCli ? inheritedPath : inheritedPath.map((entry, index) => {
+      const source = resolve(entry || ".");
+      if (!existsSync(join(source, "doan"))) return entry;
+      const filtered = join(base, `path-${index}`);
+      mkdirSync(filtered);
+      for (const name of readdirSync(source))
+        if (name !== "doan") symlinkSync(join(source, name), join(filtered, name));
+      return filtered;
+    });
     mkdirSync(join(base, "rt"), { mode: 0o700 });
-    const env = { ...process.env, PATH: `${join(base, "bin")}:${process.env.PATH ?? ""}`, DOAN_RUNTIME: join(base, "rt/runtime.json") };
+    const env = { ...process.env, PATH: [join(base, "bin"), ...path].join(delimiter), DOAN_RUNTIME: join(base, "rt/runtime.json") };
     if (o.scenario.mcp && o.agent === "claude") {
       writeFileSync(join(base, "mcp.json"), JSON.stringify({ mcpServers: { doan: { command: o.cli, args: ["mcp"], env: { DOAN_RUNTIME: env.DOAN_RUNTIME } } } }) + "\n");
     }

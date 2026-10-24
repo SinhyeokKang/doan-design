@@ -160,3 +160,42 @@ test("agent CLI provenance rejects missing, stale and ambiguous paths", async ()
     assert.equal(cliProvenance(report, expected).pass, true);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("shellCli false removes inherited doan while preserving colocated tools and MCP", async () => {
+  const { prepareWorkspace } = await import("./workspace.ts");
+  const { loadScenario } = await import("./scenario.ts");
+  const { sh } = await import("./context.ts");
+  const dir = mkdtempSync("/tmp/doan-eval-path-");
+  const original = process.env.PATH;
+  try {
+    writeFileSync(join(dir, "doan"), "#!/bin/sh\necho inherited-doan\n", { mode: 0o755 });
+    writeFileSync(join(dir, "eval-peer"), "#!/bin/sh\necho peer-ok\n", { mode: 0o755 });
+    process.env.PATH = `${dir}:${original}`;
+    const scenario = { ...loadScenario(new URL("../scenarios", import.meta.url).pathname, "R2b"), shellCli: false };
+    const cli = "/tmp/packaged CLI/doan";
+    const ws = await prepareWorkspace({ scenario, agent: "claude", cli, stub: "stub" });
+    try {
+      assert.equal(existsSync(join(ws.base, "bin/doan")), false);
+      assert.notEqual(sh("/bin/sh", ["-c", "command -v doan"], ws.repo, ws.env).code, 0);
+      assert.equal(sh("eval-peer", [], ws.repo, ws.env).stdout.trim(), "peer-ok");
+      assert.equal(JSON.parse(readFileSync(join(ws.base, "mcp.json"), "utf8")).mcpServers.doan.command, cli);
+    } finally { await ws.dispose(); }
+    assert.equal(readFileSync(join(dir, "doan"), "utf8"), "#!/bin/sh\necho inherited-doan\n");
+  } finally {
+    process.env.PATH = original;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("MCP-only provenance requires an explicit absent CLI report", async () => {
+  const { cliProvenance } = await import("./agent.ts");
+  const dir = mkdtempSync("/tmp/doan-eval-provenance-");
+  try {
+    const report = join(dir, "resolved-doan.txt");
+    assert.equal(cliProvenance(report, null).pass, false);
+    writeFileSync(report, "");
+    assert.equal(cliProvenance(report, null).pass, true);
+    writeFileSync(report, "/usr/local/bin/doan\n");
+    assert.equal(cliProvenance(report, null).pass, false);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

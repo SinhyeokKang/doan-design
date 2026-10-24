@@ -64,7 +64,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
   try {
     const resolutionPath = join(ws.base, "resolved-doan.txt");
     const quote = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
-    const prompt = `Evaluation setup: before doing the task, run\ncommand -v doan > ${quote(resolutionPath)}\nfrom your shell without changing PATH. This records the executable used for this run.\n\n` + renderPrompt(scenario.promptTemplate, ws.repo);
+    const prompt = `Evaluation setup: before doing the task, run\ncommand -v doan > ${quote(resolutionPath)}${scenario.shellCli ? "" : " || true"}\nfrom your shell without changing PATH. This records ${scenario.shellCli ? "the executable used for this run" : "that doan is absent from PATH (an empty file is expected)"}.\n\n` + renderPrompt(scenario.promptTemplate, ws.repo);
     writeFileSync(join(dir, "prompt.txt"), prompt);
     const runtime = ws.env.DOAN_RUNTIME;
     if (!runtime) throw new Error("Workspace has no DOAN_RUNTIME");
@@ -75,7 +75,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     const evidence = readAgentTranscript(agent, dir, ws.env);
     const ctx = createContext({ repo: ws.repo, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
     const checks = await runChecks(scenario, ctx);
-    checks.push(cliProvenance(resolutionPath, setup.cli));
+    checks.push(cliProvenance(resolutionPath, scenario.shellCli ? setup.cli : null));
     if (existsSync(resolutionPath)) cpSync(resolutionPath, join(dir, "resolved-doan.txt"));
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     let judgement: Judgement | null | "skipped" = "skipped";
@@ -94,7 +94,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     try { copyRepo(ws.repo, join(dir, "repo")); } catch (error) { writeFileSync(join(dir, "repo-copy-error.txt"), `${(error as Error).stack}\n`); }
     const record: RunRecord = { scenario: scenario.id, agent, n, dir: join(".scratch/agent-eval", setup.options.round, name), result: finalResult(checks, judgement), checks, judge: judgement, durationSec: proc.durationSec, exitCode: proc.code, timedOut: proc.timedOut };
     writeFileSync(join(dir, "meta.json"), JSON.stringify({
-      scenario: scenario.id, agent, n, agentVersion: setup.meta.versions[agent], judge: setup.options.judge ? judgeFor(agent) : null, argv: [cmd, ...args],
+      scenario: scenario.id, shellCli: scenario.shellCli, agent, n, agentVersion: setup.meta.versions[agent], judge: setup.options.judge ? judgeFor(agent) : null, argv: [cmd, ...args],
       // Where the agent reads the rest of its config from; everything else in the environment is inherited as is.
       inheritedConfig: { HOME: process.env.HOME ?? null, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null, CODEX_HOME: process.env.CODEX_HOME ?? null },
       guideSha256: setup.meta.guideSha256, cliVersion: setup.meta.cliVersion, cli: setup.cli, tempRepo: ws.repo, startedAt,
