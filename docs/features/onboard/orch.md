@@ -13,6 +13,7 @@
 | 2026-10-24 | task 12에서 실제 HOME 설치를 허락받았다(링크, 스킬, Claude · Codex 사용자 범위 MCP). doan이 만들지 않은 것을 덮어쓰지 않는다는 규칙은 그대로 적용한다 | 사용자 결정 |
 | 2026-10-24 | 구현 배치는 Codex를 기본으로 쓴다. 판단이 필요한 배치는 Astra medium, 기계적인 배치는 Sol medium으로 둔다. 리뷰도 Codex Astra medium으로 하되, 저장소 밖 쓰기 · 셸 실행 같은 보안 경계가 있는 G의 리뷰만 Claude Opus high로 교차 확인한다 | 지휘자 판단 — 사용자의 Codex 사용 허락과 Claude 사용량 절약. 보안 경계만 다른 모델 계열의 시각을 더한다 |
 | 2026-10-24 | 초안(B)은 Codex가 그린다 | 지휘자 판단 — 위와 같다. select-inspect도 Codex가 그렸다 |
+| 2026-10-24 | 이후 배치는 Opus와 Codex를 섞는다: H · M과 R-G · R-H · R-I 리뷰는 Claude Opus high, J · L은 Codex. 실행 중인 G · K는 Codex로 유지하고, Codex가 구현한 배치는 Opus가 리뷰해 서로 다른 모델 계열이 교차로 본다 | 사용자: "왜 전부 코덱스임? 오푸스랑 적당히 섞지않고?" |
 
 ## 배치
 
