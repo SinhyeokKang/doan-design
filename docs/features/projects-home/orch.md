@@ -46,7 +46,15 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 
 ## 초안 리뷰
 
-(DX · DC가 끝나면 비교 결과와 고른 근거, 가져온 부분을 적는다)
+2026-10-25, 지휘자가 두 초안의 Chromium 스크린샷 8장씩(`.scratch/orch/projects-home/shots-DX/`, `shots-DC/`)과 인계 문서를 비교했다. 두 초안 모두 `doan check` 오류 0(기존 `mock.css` 경고 6), `doan ls`의 프레임 id 8개가 요청과 같다.
+
+- **DC(Claude Opus, `213c0ff`)를 골랐다.** 그린 상태가 더 많다. 모노레포 카드, 키보드 포커스, 긴 이름·경로와 툴팁, 선택할 것이 없는 체크 목록, 상단 바 변형(캔버스 없음·detached·비 git·긴 값), 비 git 초안 가드 문구, 네이티브 메뉴 타일, 토스트 변형(일시정지·긴 라벨)을 그렸다. 홈 줄에 경로를 둘째 줄로 보여서 같은 이름의 워크트리를 구분하기 쉽다.
+- DX(Codex Astra high, `6ed416e`)의 장점: 작업공간 오른쪽 패널을 shipped 그대로 옮겼고, 워크트리 전환기에 문제 상태 다섯 가지를 모두 비활성으로 그렸으며, 상태 줄에 Reading…까지 있다. 줄 상태를 표 하나에 설명과 함께 정리했다.
+- DC에 붙일 것(수정 1차): ① 오른쪽 패널을 shipped Canvas·Comments 그대로 ② 전환기 문제 상태 다섯 가지 타일 ③ 상태 줄 Reading… ④ Open 줄의 긴 Selected 값. 모두 DX에서 가져온다.
+- DC에서 고칠 것: ⑤ CLI 오류 이유 줄 삭제(design.md는 칩과 Retry·Remove만 정했다) ⑥ 상태 줄 동작을 문제 상태 표와 같게(Config error에 Details 추가).
+- DC 질문에 대한 지휘자 결정: "<repo> and N worktrees"의 N은 줄 수 − 1이다. 모노레포 카드 이름은 design.md 규칙(`git.main`의 basename, 예 "web")을 유지하고, 바꿀지는 후속 후보로만 적는다. 줄이 하나인 카드의 브랜치 칩은 비활성으로 그린다.
+- 수정 1차에서 실제 doan 앱(격리된 Playwright `_electron`)으로 초안을 열어 프레임별 스크린샷을 남기게 했다(`shots-DC-app/`).
+- DX 초안 사본은 `.scratch/orch/projects-home/draft-DX/`에 두었다. DX 커밋은 통합하지 않는다. `ph-dx` worktree는 기능이 끝날 때까지 남긴다.
 
 ## 진행 기록
 
@@ -62,3 +70,5 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: B1 완료(`ed1f596`, `55bac2c`, `257f15f`). R-A1의 🟡1과 ⚪2~4를 반영했다. `go test`·`go vet` 통과 보고. 교차 리뷰 R-B1(Claude Opus high)을 띄웠다. E(agent-eval)는 R-B1 뒤 통합한 HEAD에서 돈다(리뷰 수정으로 재실행하지 않도록).
 - 2026-10-25: DC 초안 완료(`213c0ff`, worktree의 Claude 쪽). check 오류 0, 프레임 id 일치 보고. DX를 기다려 함께 비교한다.
 - 2026-10-25: A2-fix 완료(`09cf689` test: red 4개 확인, `c41c63c` fix). 지휘자가 diff를 확인했다(변경 3줄, 리뷰 지적과 일치). 통합하고 A2 워커를 해제했다.
+- 2026-10-25: A2-fix 통합(`be5cf55`, `c3bd3e4`), 통합 HEAD test 1345·typecheck 통과. `ph-a2` worktree를 `git cherry`로 확인한 뒤 제거했다.
+- 2026-10-25: DX 초안 완료(`6ed416e`). 초안 비교 결과 DC를 골랐다(위 '초안 리뷰'). DX 워커는 해제했다. DC 터미널은 재사용이 거부되어(`agent_unconfigured`) 같은 worktree(`ph-dc`)에 새 Claude Opus high 워커로 DC-rev(`ctx_56230c95afca`)를 시작했다.
