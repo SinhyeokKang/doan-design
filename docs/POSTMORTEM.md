@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — Bounded git registration reads repeated unbounded path scans
+
+- **Area**: `cli/internal/repo/git.go`, `readWorktreeGitdirs`, `ReadGit`.
+- **Symptom**: R-B1 measured 1.76 seconds for 200 prunable registrations and 4.05 seconds for 20,000, despite a 200-entry read limit; a symlinked HEAD also displayed a branch SHA as detached.
+- **Root cause**: canonicalizing every metadata entry called `diskSpelling`, which enumerates ancestor directories in full, including the same registrations directory on every iteration. Following HEAD with `Stat` erased its symbolic-reference identity before parsing.
+- **Net**: cross-family R-B1 review exposed both issues. Existing cap tests checked output length rather than I/O cost, and HEAD fixtures covered text but not symlinks. The symlink regression failed before the fix and now passes, as do the existing canonical-worktree-base tests. No timing threshold was added because filesystem timings vary.
+- **Prevention**: canonicalize the registrations directory once, reuse disk-spelled names from bounded `ReadDir`, and canonicalize each final mapped candidate only once. Check `Lstat` before interpreting identity-bearing files. Run `rg -n 'gitDirectory|ReadDir|Lstat' cli/internal/repo/git.go`; retain symlink HEAD and canonical-base regressions. The 200-entry limit bounds registration processing, not all filesystem I/O: ancestor disk-spelling lookups still enumerate directories.
+
 ### 2026-10-24 — Evaluation checks rejected valid markup and natural review reports
 
 - **Area**: `eval/scenarios/H1`, `H3`, `H4`; review `.scratch/review-H.md`, findings H-1 through H-4 (before any recorded round).
