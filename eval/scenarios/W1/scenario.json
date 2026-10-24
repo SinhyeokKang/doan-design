@@ -1,0 +1,9 @@
+{
+  "id": "W1",
+  "title": "Create a profile settings canvas",
+  "focus": "write",
+  "init": {
+    "tokenCss": "styles/tokens.css"
+  },
+  "selection": null
+}

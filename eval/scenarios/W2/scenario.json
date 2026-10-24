@@ -1,0 +1,9 @@
+{
+  "id": "W2",
+  "title": "Extend a reviewed canvas with loading and empty states",
+  "focus": "write",
+  "init": {
+    "tokenCss": "styles/tokens.css"
+  },
+  "selection": null
+}
