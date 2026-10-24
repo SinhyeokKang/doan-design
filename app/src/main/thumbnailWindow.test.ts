@@ -24,7 +24,7 @@ const mocks = await vi.hoisted(async () => {
 });
 vi.mock("electron", () => ({ BrowserWindow: mocks.Window }));
 
-const { createWindowCapturer, frameScript, hostPage, LOAD_LIMIT_MS, SETTLE_MS } = await import("./thumbnailWindow");
+const { CAPTURE_WINDOW_TITLE, createWindowCapturer, frameScript, hostPage, LOAD_LIMIT_MS, SETTLE_MS } = await import("./thumbnailWindow");
 const URL_A = "http://127.0.0.1:1/t/tok/k/design/a.html";
 
 beforeEach(() => {
@@ -105,6 +105,14 @@ test("one window, but a fresh host page and iframe for every canvas", async () =
   expect(mocks.Window.instances).toHaveLength(1);
   expect(only().loadURL.mock.calls.map((call) => call[0])).toEqual([hostPage(1280, 800), hostPage(2400, 1500)]);
   expect(only().webContents.executeJavaScript).toHaveBeenCalledTimes(2);
+});
+
+test("the window carries a fixed title from creation, which no page replaces", async () => {
+  await createWindowCapturer().capture(URL_A, 1280);
+  expect(only().options).toMatchObject({ title: CAPTURE_WINDOW_TITLE, show: false });
+  const event = { preventDefault: vi.fn() };
+  only().emit("page-title-updated", event, "Other", true);
+  expect(event.preventDefault).toHaveBeenCalledOnce();
 });
 
 test.each([

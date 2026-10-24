@@ -7,7 +7,12 @@ export function appWindow(app: ElectronApplication, page: Page): Promise<JSHandl
   return app.browserWindow(page);
 }
 
-// Windows other than the capture window, which only ever shows a data: host page.
+// `CAPTURE_WINDOW_TITLE` in src/main/thumbnailWindow.ts, which imports electron
+// and so cannot be loaded here.
+export const CAPTURE_WINDOW_TITLE = "doan thumbnails";
+
+// Windows other than the capture window. Told apart by its title, which it has
+// from creation: its URL stays empty until the host page loads.
 export function appWindowCount(app: ElectronApplication): Promise<number> {
-  return app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter((window) => !window.webContents.getURL().startsWith("data:")).length);
+  return app.evaluate(({ BrowserWindow }, title) => BrowserWindow.getAllWindows().filter((window) => window.getTitle() !== title).length, CAPTURE_WINDOW_TITLE);
 }

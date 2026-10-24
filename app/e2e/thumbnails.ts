@@ -150,6 +150,19 @@ try {
   assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter(window => window.isVisible()).length), 1, "only the app window is visible");
   assert.equal(await appWindowCount(app), 1);
 
+  // ⌘H and doan › Hide (the `hide` role item sends `hide:`) hide the whole
+  // app without the window's close handler; the queue pauses for that too.
+  await app.evaluate(({ Menu }) => Menu.sendActionToFirstResponder("hide:"));
+  await wait(() => app!.evaluate(({ app }) => app.isHidden()), "the app is hidden");
+  await staleAfter("design/a.html", () => writeFile(join(repo, "design/a.html"), canvas("Alpha", 800, "<h1>While the app is hidden</h1>")), "edit while the app is hidden is noticed");
+  assert.equal((await get("design/a.html")).kind, "pending");
+  const changedWhileAppHidden = (await changes()).length;
+  await page.waitForTimeout(2_000);
+  assert.equal((await changes()).length, changedWhileAppHidden, "nothing is captured while the app is hidden");
+  await app.evaluate(({ app }) => app.show());
+  await wait(async () => !await app!.evaluate(({ app }) => app.isHidden()), "the app is shown again");
+  await wait(async () => (await changes()).length > changedWhileAppHidden, "capture resumes once the app is shown");
+
   // The last ui-state save survives an immediate quit (flushed on will-quit).
   const state = { screen: "workspace" as const, root: repo, canvas: "design/a.html", view: { scale: 1, x: 0, y: 0 }, expanded: {}, lastByRoot: {} };
   assert.equal(await page.evaluate((state) => window.doan.saveUiState(state), state), true);

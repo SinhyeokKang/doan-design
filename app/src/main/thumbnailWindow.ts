@@ -8,6 +8,9 @@ export const THUMBNAIL_WIDTH = 480;
 export const SETTLE_MS = 500;
 export const LOAD_LIMIT_MS = 8000;
 export const JOB_LIMIT_MS = 20_000;
+// Tells the capture window apart from app windows (e2e/windows.ts) from the
+// moment it exists, before its host page has loaded.
+export const CAPTURE_WINDOW_TITLE = "doan thumbnails";
 
 // No script runs in the host but main's; the canvas iframe is the only frame
 // it may hold, and only from the local server.
@@ -58,9 +61,11 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
     // window's (index.ts).
     const created = new BrowserWindow({
       show: false,
+      title: CAPTURE_WINDOW_TITLE,
       useContentSize: true,
       webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
     });
+    created.on("page-title-updated", (event) => event.preventDefault());
     created.webContents.on("did-fail-load", (_event, _code, _text, _url, isMainFrame) => { if (!isMainFrame) frameFailed = true; });
     created.webContents.on("did-frame-navigate", (_event, _url, code, _status, isMainFrame) => { if (!isMainFrame && code >= 400) frameFailed = true; });
     window = created;
