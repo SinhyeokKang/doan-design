@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CanvasRow } from "../main/view";
+import type { ThumbnailReply } from "../main/thumbnails";
 import { buildCanvasTree, type CanvasNode, type TreeNode } from "./canvasTree";
 import { ChangedTime, PathTip } from "./Home";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -58,47 +59,81 @@ export function applyVisibility(current: ReadonlySet<string>, changes: readonly 
 // Thumbnails for one root's cards. Nothing is asked before the first
 // visibility report, so main's queue starts with a card on screen; a pending
 // reply is followed by `onThumbnailChanged`, and so is a stale image.
+export class ThumbnailRequests {
+  private items = new Map<string, ThumbnailState>();
+  private rows: readonly CanvasRow[] = [];
+  private asked = new Set<string>();
+  private visible = new Set<string>();
+  // Only the newest request for a listed path may land: an older reply, or one
+  // for a path removed since (or removed and made again), is dropped.
+  private requests = new Map<string, number>();
+  private seq = 0;
+  private disposed = false;
+
+  constructor(private readonly root: string, private readonly get: (root: string, path: string, onScreen: boolean) => Promise<ThumbnailReply>, private readonly publish: (items: ReadonlyMap<string, ThumbnailState>) => void) {}
+
+  setRows(rows: readonly CanvasRow[]): void {
+    this.rows = rows;
+    const listed = new Set(rows.map(row => row.path));
+    let changed = false;
+    for (const path of new Set([...this.items.keys(), ...this.asked, ...this.visible])) {
+      if (listed.has(path)) continue;
+      const item = this.items.get(path);
+      if (item?.kind === "ready") URL.revokeObjectURL(item.url);
+      changed = this.items.delete(path) || changed;
+      this.asked.delete(path); this.visible.delete(path); this.requests.delete(path);
+    }
+    if (changed) this.publish(new Map(this.items));
+  }
+
+  onVisible(paths: readonly string[]): void {
+    const newly = paths.filter(path => !this.visible.has(path));
+    this.visible = new Set(paths);
+    const capturable = this.rows.filter(row => row.id !== undefined && row.width !== undefined).map(row => row.path);
+    // Seen again: a queued one moves ahead of the rest.
+    for (const path of capturable) if (newly.includes(path) && (!this.asked.has(path) || this.items.get(path)?.kind === "pending")) this.ask(path, true);
+    for (const path of capturable) if (!this.asked.has(path)) this.ask(path, false);
+  }
+
+  changed(path: string): void {
+    if (this.rows.some(row => row.path === path)) this.ask(path, this.visible.has(path));
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    for (const item of this.items.values()) if (item.kind === "ready") URL.revokeObjectURL(item.url);
+    this.items.clear();
+  }
+
+  private ask(path: string, onScreen: boolean): void {
+    const id = ++this.seq;
+    this.asked.add(path);
+    this.requests.set(path, id);
+    void this.get(this.root, path, onScreen).then(reply => {
+      if (this.disposed || this.requests.get(path) !== id) return;
+      const old = this.items.get(path);
+      // Keep showing the old image while a new one is made.
+      if (reply.kind === "pending" && old?.kind === "ready") return;
+      if (old?.kind === "ready") URL.revokeObjectURL(old.url);
+      this.items.set(path, reply.kind === "ready" ? { kind: "ready", url: URL.createObjectURL(new Blob([reply.png as Uint8Array<ArrayBuffer>], { type: "image/png" })) } : reply.kind === "pending" ? { kind: "pending" } : { kind: "failed" });
+      this.publish(new Map(this.items));
+    }, (error: unknown) => console.error("thumbnails:get failed", error));
+  }
+}
+
 export function useThumbnails(root: string | null, rows: readonly CanvasRow[]): { thumbnails: ReadonlyMap<string, ThumbnailState>; onVisible: (paths: readonly string[]) => void } {
   const [thumbnails, setThumbnails] = useState<ReadonlyMap<string, ThumbnailState>>(new Map());
-  const asked = useRef(new Set<string>());
-  const visible = useRef(new Set<string>());
-  const live = useRef({ root, rows, thumbnails });
-  live.current = { root, rows, thumbnails };
-  const ask = useCallback((path: string, onScreen: boolean) => {
-    const at = live.current.root;
-    if (at === null) return;
-    asked.current.add(path);
-    void window.doan.getThumbnail(at, path, onScreen).then(reply => {
-      if (live.current.root !== at) return;
-      setThumbnails(previous => {
-        const old = previous.get(path);
-        // Keep showing the old image while a new one is made.
-        if (reply.kind === "pending" && old?.kind === "ready") return previous;
-        const next = new Map(previous);
-        if (old?.kind === "ready") URL.revokeObjectURL(old.url);
-        next.set(path, reply.kind === "ready" ? { kind: "ready", url: URL.createObjectURL(new Blob([reply.png as Uint8Array<ArrayBuffer>], { type: "image/png" })) } : reply.kind === "pending" ? { kind: "pending" } : { kind: "failed" });
-        return next;
-      });
-    }, (error: unknown) => console.error("thumbnails:get failed", error));
-  }, []);
+  const requests = useRef<ThumbnailRequests | null>(null);
   useEffect(() => {
-    asked.current = new Set();
-    visible.current = new Set();
-    setThumbnails(new Map());
     if (root === null) return;
-    const stop = window.doan.onThumbnailChanged(target => {
-      if (target.root === live.current.root && live.current.rows.some(row => row.path === target.path)) ask(target.path, visible.current.has(target.path));
-    });
-    return () => { stop(); setThumbnails(previous => { for (const item of previous.values()) if (item.kind === "ready") URL.revokeObjectURL(item.url); return new Map(); }); };
-  }, [root, ask]);
-  const onVisible = useCallback((paths: readonly string[]) => {
-    const newly = paths.filter(path => !visible.current.has(path));
-    visible.current = new Set(paths);
-    const capturable = live.current.rows.filter(row => row.id !== undefined && row.width !== undefined).map(row => row.path);
-    // Seen again: a queued one moves ahead of the rest.
-    for (const path of capturable) if (newly.includes(path) && (!asked.current.has(path) || live.current.thumbnails.get(path)?.kind === "pending")) ask(path, true);
-    for (const path of capturable) if (!asked.current.has(path)) ask(path, false);
-  }, [ask]);
+    const current = new ThumbnailRequests(root, (at, path, onScreen) => window.doan.getThumbnail(at, path, onScreen), setThumbnails);
+    requests.current = current;
+    const stop = window.doan.onThumbnailChanged(target => { if (target.root === root) current.changed(target.path); });
+    return () => { stop(); current.dispose(); requests.current = null; setThumbnails(new Map()); };
+  }, [root]);
+  // After the effect above, so a new root's requests get its rows.
+  useEffect(() => { requests.current?.setRows(rows); }, [root, rows]);
+  const onVisible = useCallback((paths: readonly string[]) => requests.current?.onVisible(paths), []);
   return { thumbnails, onVisible };
 }
 
