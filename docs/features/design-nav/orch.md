@@ -16,6 +16,7 @@
 | 2026-10-25 | 초안 요청: 캔버스 `design/design-nav.html`, canvas id `design-nav`. 프레임 id는 `workspace-tree`, `tree-rows`, `overview`, `overview-empty`, `quick-open`, `frame-highlight`, `toasts`다 | 지휘자 판단 — tasks.md '앞선 단계'가 꼽은 상태 목록을 프레임으로 나눴다. 기존 초안의 kebab-case id 관례를 따랐다 |
 | 2026-10-25 | task 12(FirstPrompt 통합)는 이 기능에서 하지 않는다 | 지휘자 판단 — `app-setup`이 아직 main에 없다. 체인 순서상 나중에 병합되는 `app-setup`이 통합을 맡는다(orch-chain.md) |
 | 2026-10-25 | 이 기능은 CLI·MCP 출력과 가이드를 바꾸지 않으므로 `/agent-eval` 회차를 돌리지 않는다 | spec '사용자' — CLI·MCP·스킬은 바뀌지 않는다. AGENTS.md `/agent-eval` 실행 조건에 해당하지 않는다 |
+| 2026-10-25 | 썸네일 8초 제한: `load`가 8초 안에 끝나지 않으면 그때 그려진 화면을 찍는다(design.md). "Preview unavailable"은 iframe 로드 실패, 캡처 오류, 캡처까지 끝나지 않는 작업 전체 상한 초과일 때 보인다. tasks.md task 5의 "8초 제한 → 실패 표시"는 이 작업 전체 상한으로 읽는다 | 지휘자 판단 — design.md가 더 구체적이고, PoC 8에서 8초 시점 캡처가 빈 곳 없이 성공했다. P 인계가 두 문서의 차이를 알렸다 |
 
 ## 배치
 
@@ -44,3 +45,7 @@ tasks.md의 앞선 단계와 task 0~14는 모두 위 배치 중 하나에 속한
 - 각 배치는 `--worktree new-child --base-branch feat-design-nav`로 만든 자기 worktree에서 돈다.
 
 ## 진행 기록
+- 2026-10-25: Run `run_5fa531d27dc7`. 1파 시작 — DX(`ctx_1017df68b758`, Codex Astra high), DC(`ctx_6e84f37d44a7`, Opus high), P(`ctx_ccb8e36d909e`, Codex Astra medium), A1(`ctx_3a4edf6ff5d9`, Sonnet high), A2(`ctx_c737afc282e9`, Codex Astra medium), A3(`ctx_8e0b32221dd9`, Sonnet high). `launch.effective`가 요청과 같다.
+- 2026-10-25: A2 완료(`2736239`, `f60af15`) — test 1457·typecheck 통과 보고. 교차 리뷰 R-A2(`ctx_4b514df50c43`, Opus high). A2 워커는 수정 차례에 대비해 유지(retain).
+- 2026-10-25: A1 완료(`4cca494`) — test 1479·typecheck 통과 보고, 별도 `/code-review`는 돌리지 않았다. 가정 2개(여러 글자 타입어헤드는 현재 행부터 찾음, `capFrames`가 id·제목을 200자로 자름)는 R-A1이 함께 판단한다. 교차 리뷰 R-A1(`ctx_ca4337b75cc4`, Codex Astra medium). A1 워커 해제.
+- 2026-10-25: P 완료·통합(`3a1530f`). PoC 8 통과 — 두 방식 모두 9개 조건 통과, `show:false` 유지(중앙값 655.77ms, 50회 메모리 −26.11MiB, offscreen은 +51.03MiB). 지휘자가 never-load 썸네일을 직접 확인했다. 근거: `.scratch/design-nav/poc-thumb/`. P 워커 해제.
