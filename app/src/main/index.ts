@@ -1,4 +1,5 @@
 import { createMachine, needsOnboarding, markClosed, PATH_LINE, type MachineState } from "./onboarding/machine";
+import { firstSentence } from "./onboarding/states";
 import { createCommentsService } from "./comments/service";
 import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
@@ -354,10 +355,24 @@ async function start(): Promise<void> {
   });
   ipcMain.handle("onboarding:run", (event, value: unknown) => fromWindow(event) && wizardSession ? setup.run(value) : { kind: "stale" });
   ipcMain.handle("onboarding:answer", (event, value: unknown) => fromWindow(event) && wizardSession ? setup.answer(value) : { kind: "stale" });
+  // The sentence names only a stored, set-up project; the renderer never sends text.
+  const readyRoot = (value: unknown): string | null => typeof value === "string" &&
+    ready.entries().some(entry => entry.path === value && entry.kind === "list") ? value : null;
+  ipcMain.handle("onboarding:first-prompt", (event, value: unknown) => {
+    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("root" in value)) return null;
+    const root = readyRoot(value.root);
+    return root === null ? null : firstSentence(root);
+  });
   ipcMain.handle("onboarding:copy", async (event, value: unknown) => {
-    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 1 ||
-      !("kind" in value) || value.kind !== "pathLine") return { kind: "stale" };
-    try { await clipboard.writeText(PATH_LINE); return { kind: "success" }; }
+    if (!fromWindow(event) || typeof value !== "object" || value === null || !("kind" in value)) return { kind: "stale" };
+    let text: string;
+    if (value.kind === "pathLine" && Object.keys(value).length === 1) text = PATH_LINE;
+    else if (value.kind === "firstPrompt" && Object.keys(value).length === 2 && "root" in value) {
+      const root = readyRoot(value.root);
+      if (root === null) return { kind: "stale" };
+      text = firstSentence(root);
+    } else return { kind: "stale" };
+    try { await clipboard.writeText(text); return { kind: "success" }; }
     catch (error) { return { kind: "error", message: error instanceof Error ? error.message : String(error) }; }
   });
   ipcMain.handle("onboarding:close", async (event, value: unknown) => {

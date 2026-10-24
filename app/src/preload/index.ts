@@ -18,6 +18,9 @@ const api = {
   answerOnboardingReplace: (answer: { id: string; allow: boolean }): Promise<StepResult> => ipcRenderer.invoke("onboarding:answer", answer),
   closeOnboarding: (request: OnboardingOpen): Promise<StepResult> => ipcRenderer.invoke("onboarding:close", request),
   copyPathLine: (): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "pathLine" }),
+  // Main builds the sentence from a stored, set-up project; null otherwise.
+  firstPrompt: (root: string): Promise<string | null> => ipcRenderer.invoke("onboarding:first-prompt", { root }),
+  copyFirstPrompt: (root: string): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "firstPrompt", root }),
   onOnboardingOpen(listener: (opened: OnboardingOpen) => void): () => void {
     let active = true, received = false;
     const receive = (_event: Electron.IpcRendererEvent, opened: OnboardingOpen) => { received = true; listener(opened); };
