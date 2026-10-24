@@ -432,6 +432,7 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     // 6. Screenshot.
     await screenshot(page, "2-restarted");
 
+    await setupClosedOutside(app, page, repos, doan);
     await canvasView(app, page, repos);
     await selectInspect(app, page, repos, doan, userData);
     await runtimeEnd(app, doan, userData, repos);
@@ -490,6 +491,48 @@ interface BoardRect {
   y: number;
   width: number;
   height: number;
+}
+
+// 7. A Set Up… form whose row stops being Not initialized outside the app
+// closes and leaves focus on that row (terminal init, folder deleted or
+// renamed) or on the root row (re-root). The rows are closed again afterwards.
+async function setupClosedOutside(app: ElectronApplication, page: Page, repos: Repos, doan: string): Promise<void> {
+  const base = dirname(repos.plain);
+  const inited = join(base, "setup-init");
+  const deleted = join(base, "setup-deleted");
+  const renamed = join(base, "setup-renamed");
+  const outer = join(base, "setup-outer");
+  const inner = join(outer, "inner");
+  for (const path of [inited, deleted, renamed, inner]) await mkdir(path, { recursive: true });
+  for (const path of [inited, deleted, renamed, inner]) {
+    await openFolder(app, page, path);
+    await page.getByRole("treeitem", { name: basename(path), exact: true }).getByText("Not initialized", { exact: true }).waitFor({ timeout: WAIT_MS });
+  }
+  const dialog = page.getByRole("dialog", { name: "Set Up Project", exact: true });
+  const closedOn = async (name: string, change: () => Promise<unknown>, focusPath: string, what: string) => {
+    await page.getByRole("treeitem", { name, exact: true }).getByRole("button", { name: "Set Up…", exact: true }).click();
+    await dialog.waitFor({ timeout: WAIT_MS });
+    await change();
+    await dialog.waitFor({ state: "detached", timeout: WAIT_MS });
+    await expectProduct(what, async () => {
+      await page.waitForFunction(path => {
+        const active = document.activeElement as HTMLElement | null;
+        return active?.getAttribute("role") === "treeitem" && active.getAttribute("aria-level") === "1" && active.dataset.path === path && active.tabIndex === 0;
+      }, focusPath, { timeout: WAIT_MS }).catch(async () => {
+        const active = await page.evaluate(() => `${document.activeElement?.tagName} ${document.activeElement?.getAttribute("aria-label") ?? ""}`);
+        throw new Error(`focus is on ${active}`);
+      });
+    });
+  };
+  await closedOn("setup-init", () => exec(doan, ["init", "--json", "--repo", inited]), inited, "terminal init focuses its row");
+  await closedOn("setup-deleted", () => rm(deleted, { recursive: true, force: true }), deleted, "deleted folder focuses its row");
+  await closedOn("setup-renamed", () => rename(renamed, `${renamed}-moved`), renamed, "renamed folder focuses its row");
+  // Any root event re-reads the row; the re-read then finds the root above.
+  await closedOn("inner", async () => { await exec(doan, ["init", "--json", "--repo", outer]); await writeFile(join(inner, "touch"), ""); }, outer, "terminal re-root focuses the root row");
+  for (const name of ["setup-init", "setup-deleted", "setup-renamed", "setup-outer"]) {
+    await page.getByRole("button", { name: `Close project ${name}`, exact: true }).click();
+    await page.getByRole("treeitem", { name, exact: true }).waitFor({ state: "detached", timeout: WAIT_MS });
+  }
 }
 
 const COMMENT_MAIN = { ...COMMENT, id: "evt_00000000-0000-4000-8000-000000000002", comment: "cmt_00000000-0000-4000-8000-000000000002" };
