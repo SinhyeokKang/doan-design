@@ -53,7 +53,7 @@ const mocks = await vi.hoisted(async () => {
     dialog: { showOpenDialog: vi.fn(), showMessageBox: vi.fn() },
     uiState: { read: vi.fn(), save: vi.fn(), flushSync: vi.fn(), idle: vi.fn() },
     createUiStateStore: vi.fn(),
-    thumbnails: { get: vi.fn(), entriesChanged: vi.fn(), removed: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() },
+    thumbnails: { get: vi.fn(), visible: vi.fn(), entriesChanged: vi.fn(), removed: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() },
     createThumbnails: vi.fn(),
   };
 });
@@ -1053,6 +1053,22 @@ describe("thumbnails", () => {
     expect(await invoke("thumbnails:get", contents, {}, good)).toEqual({ kind: "unavailable" });
     expect(await invoke("thumbnails:get", {}, null, good)).toEqual({ kind: "unavailable" });
     expect(mocks.thumbnails.get).not.toHaveBeenCalled();
+  });
+
+  test("thumbnails:visible accepts only valid visibility from the app frame", async () => {
+    const contents = window().webContents;
+    const good = { root: "/repo", path: "design/a.html", visible: false };
+    await invoke("thumbnails:visible", contents, null, good);
+    expect(mocks.thumbnails.visible).toHaveBeenCalledExactlyOnceWith("/repo", "design/a.html", false);
+    mocks.thumbnails.visible.mockClear();
+    for (const bad of [null, "x", { root: "/repo", path: "design/a.html" }, { ...good, visible: 1 }, { ...good, root: 3 }, { ...good, path: null }, { ...good, more: 1 }]) {
+      await invoke("thumbnails:visible", contents, null, bad);
+    }
+    await invoke("thumbnails:visible", contents, {}, good);
+    await invoke("thumbnails:visible", {}, null, good);
+    const hidden = await captureWindow();
+    await invoke("thumbnails:visible", hidden.webContents, null, good);
+    expect(mocks.thumbnails.visible).not.toHaveBeenCalled();
   });
 
   test("the capture window is hidden, sandboxed and has no preload", async () => {

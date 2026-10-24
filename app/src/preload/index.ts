@@ -122,6 +122,7 @@ const api = {
   // `pending` is followed by onThumbnailChanged for the same canvas; ask again then.
   // `visible` puts the canvas ahead of cards off screen.
   getThumbnail: (root: string, path: string, visible: boolean): Promise<ThumbnailReply> => ipcRenderer.invoke("thumbnails:get", { root, path, visible }),
+  setThumbnailVisibility: (root: string, path: string, visible: boolean): Promise<void> => ipcRenderer.invoke("thumbnails:visible", { root, path, visible }),
   // A capture finished or failed, or the cached image went stale.
   onThumbnailChanged(listener: (target: ThumbnailTarget) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, target: ThumbnailTarget) => listener(target);

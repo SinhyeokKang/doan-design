@@ -432,3 +432,34 @@ test("dispose closes the capture window", () => {
   make(f.deps).dispose();
   expect(f.deps.capturer.close).toHaveBeenCalledOnce();
 });
+
+
+test("visibility changes during cache reads determine the next capture", async () => {
+  const f = fixture(["design/a.html", "design/b.html", "design/c.html"]);
+  f.hold = true;
+  const thumbnails = make(f.deps);
+  await thumbnails.get(f.root, "design/a.html", true);
+  await started(f, 1);
+  const b = thumbnails.get(f.root, "design/b.html", true);
+  const c = thumbnails.get(f.root, "design/c.html", false);
+  thumbnails.visible(f.root, "design/b.html", false);
+  thumbnails.visible(f.root, "design/c.html", true);
+  await Promise.all([b, c]);
+  f.release();
+  await started(f, 2);
+  expect(f.captures.at(-1)?.endsWith("c.html")).toBe(true);
+});
+
+test("visibility updates demote queued cards without scheduling new captures", async () => {
+  const f = fixture(["design/a.html", "design/b.html", "design/c.html"]);
+  f.hold = true;
+  const thumbnails = make(f.deps);
+  for (const path of ["design/a.html", "design/b.html", "design/c.html"]) await thumbnails.get(f.root, path, true);
+  await started(f, 1);
+  thumbnails.visible(f.root, "design/b.html", false);
+  thumbnails.visible("/other", "design/b.html", true);
+  thumbnails.visible(f.root, "design/missing.html", true);
+  f.release();
+  await started(f, 2);
+  expect(f.captures.at(-1)?.endsWith("c.html")).toBe(true);
+});

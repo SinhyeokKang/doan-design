@@ -108,7 +108,7 @@ function requests(root = "/code/acme-web") {
   let shown: ReadonlyMap<string, ThumbnailState> = new Map();
   const thumbs = new ThumbnailRequests(root, (_root, path, onScreen) => new Promise(resolve => {
     asks.push({ path, onScreen, reply: async reply => { resolve(reply); await Promise.resolve(); } });
-  }), items => { shown = items; });
+  }), items => { shown = items; }, () => {});
   const ready: ThumbnailReply = { kind: "ready", png: new Uint8Array([1]) };
   return { thumbs, asks, created, revoked, ready, shown: () => shown };
 }

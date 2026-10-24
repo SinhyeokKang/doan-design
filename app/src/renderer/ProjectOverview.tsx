@@ -70,7 +70,7 @@ export class ThumbnailRequests {
   private seq = 0;
   private disposed = false;
 
-  constructor(private readonly root: string, private readonly get: (root: string, path: string, onScreen: boolean) => Promise<ThumbnailReply>, private readonly publish: (items: ReadonlyMap<string, ThumbnailState>) => void) {}
+  constructor(private readonly root: string, private readonly get: (root: string, path: string, onScreen: boolean) => Promise<ThumbnailReply>, private readonly publish: (items: ReadonlyMap<string, ThumbnailState>) => void, private readonly visibility: (root: string, path: string, visible: boolean) => void) {}
 
   setRows(rows: readonly CanvasRow[]): void {
     this.rows = rows;
@@ -87,11 +87,14 @@ export class ThumbnailRequests {
   }
 
   onVisible(paths: readonly string[]): void {
-    const newly = paths.filter(path => !this.visible.has(path));
-    this.visible = new Set(paths);
+    const next = new Set(paths);
+    for (const path of this.asked) {
+      if (this.visible.has(path) !== next.has(path)) this.visibility(this.root, path, next.has(path));
+    }
+    this.visible = next;
+    if (next.size === 0) return;
     const capturable = this.rows.filter(row => row.id !== undefined && row.width !== undefined).map(row => row.path);
-    // Seen again: a queued one moves ahead of the rest.
-    for (const path of capturable) if (newly.includes(path) && (!this.asked.has(path) || this.items.get(path)?.kind === "pending")) this.ask(path, true);
+    for (const path of capturable) if (next.has(path) && !this.asked.has(path)) this.ask(path, true);
     for (const path of capturable) if (!this.asked.has(path)) this.ask(path, false);
   }
 
@@ -100,6 +103,7 @@ export class ThumbnailRequests {
   }
 
   dispose(): void {
+    this.onVisible([]);
     this.disposed = true;
     for (const item of this.items.values()) if (item.kind === "ready") URL.revokeObjectURL(item.url);
     this.items.clear();
@@ -126,7 +130,9 @@ export function useThumbnails(root: string | null, rows: readonly CanvasRow[]): 
   const requests = useRef<ThumbnailRequests | null>(null);
   useEffect(() => {
     if (root === null) return;
-    const current = new ThumbnailRequests(root, (at, path, onScreen) => window.doan.getThumbnail(at, path, onScreen), setThumbnails);
+    const current = new ThumbnailRequests(root, (at, path, onScreen) => window.doan.getThumbnail(at, path, onScreen), setThumbnails, (at, path, visible) => {
+      void window.doan.setThumbnailVisibility(at, path, visible).catch((error: unknown) => console.error("thumbnails:visible failed", error));
+    });
     requests.current = current;
     const stop = window.doan.onThumbnailChanged(target => { if (target.root === root) current.changed(target.path); });
     return () => { stop(); current.dispose(); requests.current = null; setThumbnails(new Map()); };
@@ -174,7 +180,7 @@ export function ProjectOverview({ root, rows, thumbnails, onVisible, open }: Pro
       if (next) { visible = next; report.current([...next]); }
     }, { root: scroller });
     for (const card of scroller.querySelectorAll<HTMLElement>(".ocard[data-path]")) observer.observe(card);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); report.current([]); };
   }, [orderKey]);
   if (rows.length === 0) return <section className="ov" role="region" aria-label="Overview"><OverviewEmpty root={root} /></section>;
   return <section className="ov native-scroll" role="region" aria-label="Overview" ref={region}>

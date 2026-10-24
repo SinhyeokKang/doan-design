@@ -25,6 +25,7 @@ export interface ThumbnailDeps {
 
 export interface Thumbnails {
   get(root: string, path: string, visible: boolean): Promise<ThumbnailReply>;
+  visible(root: string, path: string, visible: boolean): void;
   // Every folder update: forgets canvases that left the list, re-checks a
   // folder whose served files changed, and cleans the cache once at start.
   entriesChanged(entries: readonly FolderEntry[]): void;
@@ -120,6 +121,8 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
   const known = new Map<string, ThumbnailTarget>();
   // What the cache file, or the attempt now running or last failed, describes.
   const basis = new Map<string, ThumbnailMeta>();
+  // A visibility update can arrive while get is awaiting the cache.
+  const visibility = new Map<string, boolean>();
   const revs = new Map<string, number>();
   // One served signature per folder and served revision.
   const signatures = new Map<string, { rev: number; value: Promise<string> }>();
@@ -252,9 +255,10 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
       if (row?.width === undefined) return { kind: "unavailable" };
       const key = thumbnailKey(root, path);
       known.set(key, target);
+      visibility.set(key, visible);
       if (queue.failed.includes(key)) return { kind: "unavailable" };
       if ((queue.active === key && !queue.activeStale) || queue.pending.some((job) => job.key === key)) {
-        dispatch({ type: "request", key, visible });
+        dispatch({ type: "visible", key, visible });
         return { kind: "pending" };
       }
       const [now, cached] = await Promise.all([current(target), readCache(key)]);
@@ -263,8 +267,14 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
         basis.set(key, cached.meta);
         return { kind: "ready", png: cached.png };
       }
-      dispatch({ type: "request", key, visible });
+      dispatch({ type: "request", key, visible: visibility.get(key) ?? false });
       return { kind: "pending" };
+    },
+    visible(root, path, visible) {
+      const key = thumbnailKey(root, path);
+      if (!known.has(key) || listedRow(deps.entries(), { root, path }) === undefined) return;
+      visibility.set(key, visible);
+      dispatch({ type: "visible", key, visible });
     },
     entriesChanged(entries) {
       for (const [key, target] of known) {
@@ -272,6 +282,7 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
         // A loading or problem row keeps its canvases; a gone root or canvas does not.
         if (entry === undefined || (entry.kind === "list" && !entry.canvases.some((row) => row.path === target.path))) {
           known.delete(key);
+          visibility.delete(key);
           forget(key);
         }
       }
@@ -295,6 +306,7 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
       // Forget them all first: a write waiting for its lock then sees it is stale.
       for (const key of unique) {
         known.delete(key);
+        visibility.delete(key);
         forget(key);
       }
       await Promise.all(unique.map((key) => serial(key, async () => {
