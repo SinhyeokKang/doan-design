@@ -177,7 +177,6 @@ Unverified assumptions among the decisions are verified before implementation. O
 | 4 | Local server serving scope | Responds only to allowed paths, relative links resolve, and a `/.env` request from the iframe fails |
 | 5 | `merge=union` | When two branches append add and delete events to the same JSONL, they merge without conflict and the folded result matches expectations |
 | 6 | Go CLI ↔ Electron socket + Go MCP SDK | Connects via `runtime.json` and receives `active`, and `doan mcp` shows up as a tool in Claude Code and Codex |
-
 | 7a | Onboarding shell discovery | From a minimal `env -i HOME=… SHELL=…` environment, extract PATH (including `~/.local/bin` and `/opt/homebrew/bin`), `CLAUDE_CONFIG_DIR` and `CODEX_HOME` between nonce lines; record whether interactive mode is needed, noise, fish handling and duration |
 | 7b | Onboarding skill discovery | Under temporary HOME/config directories, Codex discovers `~/.agents/skills/doan/SKILL.md` and Claude Code discovers it through a relative `<config>/skills/doan` symlink |
 | 7c | Onboarding MCP registration | With the probed PATH, minimal environment and ignored stdin, both agents add/read/remove isolated user registrations; distinguish scope/command/args, compare config bytes around reads, measure Claude health-check side effects and Codex same-name overwrite behavior |
