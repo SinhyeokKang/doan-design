@@ -26,7 +26,7 @@ test("known R2 Codex condition is noted without hiding or rewriting results", ()
 test("unexpected R2 Codex failures remain issue candidates", () => {
   const meta = { date: "2026-10-24", versions: {}, guideSha256: "", cliVersion: "" };
   const expected = { id: "selected_primary_background", pass: false, detail: "selection unavailable" };
-  for (const checks of [[], [expected, { id: "other_elements_unchanged", pass: false, detail: "unexpected edit" }], [{ id: "only_canvas_changed", pass: false, detail: "other file" }], [{ id: "checks_error", pass: false, detail: "broken check" }]]) {
+  for (const checks of [[], [expected, { id: "other_elements_unchanged", pass: false, detail: "unexpected edit" }], [{ id: "checks_error", pass: false, detail: "broken check" }]]) {
     const text = summary("round", meta, [{ ...run("R2", "codex", 1, "fail"), checks }]);
     assert.match(text.split("## Issue candidates")[1], /\*\*R2 \/ codex/);
     assert.doesNotMatch(text, /expected fail:/);
@@ -36,4 +36,23 @@ test("unexpected R2 Codex failures remain issue candidates", () => {
     assert.match(text.split("## Issue candidates")[1], /\*\*R2 \/ codex/);
     assert.doesNotMatch(text, /expected fail:/);
   }
+});
+
+test("both by-design R2 Codex failed checks are noted without becoming issue candidates", () => {
+  const meta = { date: "2026-10-24", versions: {}, guideSha256: "", cliVersion: "" };
+  const checks = [
+    { id: "selected_primary_background", pass: false, detail: "selection unavailable" },
+    { id: "only_canvas_changed", pass: false, detail: "no file changed" },
+  ];
+  const text = summary("round", meta, [{ ...run("R2", "codex", 1, "fail"), checks }]);
+  assert.match(text, /expected fail: MCP disabled by design \(see R2b\); recorded result: fail/);
+  assert.match(text, /selected_primary_background, only_canvas_changed/);
+  assert.match(text, /R2: codex fail/);
+  assert.doesNotMatch(text.split("## Issue candidates")[1], /\*\*R2 \/ codex/);
+
+  const unexpected = summary("round", meta, [{ ...run("R2", "codex", 1, "fail"), checks: [
+    ...checks, { id: "other_elements_unchanged", pass: false, detail: "unexpected edit" },
+  ] }]);
+  assert.match(unexpected.split("## Issue candidates")[1], /\*\*R2 \/ codex/);
+  assert.doesNotMatch(unexpected, /expected fail:/);
 });
