@@ -186,3 +186,16 @@ test("shellCli false removes inherited doan while preserving colocated tools and
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("MCP-only provenance requires an explicit absent CLI report", async () => {
+  const { cliProvenance } = await import("./agent.ts");
+  const dir = mkdtempSync("/tmp/doan-eval-provenance-");
+  try {
+    const report = join(dir, "resolved-doan.txt");
+    assert.equal(cliProvenance(report, null).pass, false);
+    writeFileSync(report, "");
+    assert.equal(cliProvenance(report, null).pass, true);
+    writeFileSync(report, "/usr/local/bin/doan\n");
+    assert.equal(cliProvenance(report, null).pass, false);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
