@@ -4,7 +4,7 @@ import { parseScenarioJson, renderPrompt, selectIds } from "./scenario.ts";
 
 test("scenario.json is read with its defaults", () => {
   assert.deepEqual(parseScenarioJson({ id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null }, "W1"),
-    { id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null, timeoutSec: 900, mcp: false });
+    { id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null, timeoutSec: 900, mcp: false, shellCli: true });
   assert.equal(parseScenarioJson({ id: "R2", title: "t", focus: "active", init: null, selection: "selection.json", timeoutSec: 60 }, "R2").timeoutSec, 60);
 });
 
@@ -34,4 +34,12 @@ test("scenario MCP is opt-in and must be boolean", () => {
   assert.equal(parseScenarioJson({ ...value, mcp: true }, "R2b").mcp, true);
   assert.equal(parseScenarioJson({ ...value, mcp: false }, "R2b").mcp, false);
   for (const mcp of [null, "true", 1, {}]) assert.throws(() => parseScenarioJson({ ...value, mcp }, "R2b"));
+});
+
+test("shellCli defaults to true and accepts only a boolean", () => {
+  const value = { id: "R1b", title: "MCP comments", focus: "comments", mcp: true };
+  assert.equal(parseScenarioJson(value, "R1b").shellCli, true);
+  assert.equal(parseScenarioJson({ ...value, shellCli: false }, "R1b").shellCli, false);
+  assert.equal(parseScenarioJson({ ...value, shellCli: true }, "R1b").shellCli, true);
+  for (const shellCli of [null, "false", 0, {}]) assert.throws(() => parseScenarioJson({ ...value, shellCli }, "R1b"));
 });
