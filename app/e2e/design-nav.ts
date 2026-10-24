@@ -42,7 +42,7 @@ try {
   await writeFile(join(acme, "design/settings/dupes.html"), canvas("dupes", "Duplicates", 800, [["dup", "First dup"], ["dup", "Second dup"]]));
   // `doan ls` reads the frame statically; the canvas's own script removes it before layout.
   await writeFile(join(acme, "design/settings/ghost.html"), canvas("ghost", "Ghost", 800, [["intro", "Intro"], ["ghost", "Ghost frame"]], "<script>document.querySelector('[data-doan-frame=ghost]').remove()</script>"));
-  await writeFile(join(acme, "design/misc/notes.html"), canvas("notes", "Notes", 800, [["one"]]));
+  await writeFile(join(acme, "design/misc/notes.html"), canvas("notes", "Notes", 800, [["one"], [""]]));
   await writeFile(join(brand, "design/research/card-decline-patterns.html"), canvas("patterns", "Card decline patterns", 800, [["grid"]]));
   for (let index = 1; index <= 24; index++) { const name = String(index).padStart(2, "0"); await writeFile(join(gallery, `design/g${name}.html`), canvas(`g${name}`, `Gallery ${name}`, 800, [["hero"]], `<h1 style="font:80px sans-serif">${name}</h1>`)); }
   await exec("git", ["init", "-q", "-b", "main", acme]);
@@ -206,6 +206,15 @@ try {
   await toast("Card decline patterns was removed from design/");
   await shot("8-removed-toast");
   console.log("design-nav: overview and quick open PASS");
+
+  // A frame without id or title: its "(no id)" label resolves to --text-3, unlike a named frame's.
+  await enterProject(page, acme);
+  await canvasRow(page, "notes.html").click();
+  await loaded("Notes");
+  const labelColor = (name: string) => page.getByRole("treeitem", { name, exact: true }).locator(".g").evaluate(node => getComputedStyle(node).color);
+  const text3 = await page.locator(".side").evaluate(side => { const probe = side.appendChild(document.createElement("span")); probe.style.color = "var(--text-3)"; const color = getComputedStyle(probe).color; probe.remove(); return color; });
+  assert.equal(await labelColor("2 (no id)"), text3, "an id-less frame's label is --text-3");
+  assert.notEqual(await labelColor("1 one"), text3, "a named frame's label is brighter than --text-3");
 
   // Task 10 — relaunch restores the canvas, its view and the tree, not the selection.
   const active = async () => JSON.parse((await exec(cli, ["active", "--json", "--repo", acme], { env })).stdout);
