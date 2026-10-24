@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { CanvasRow } from "../main/view";
 import type { ThumbnailReply } from "../main/thumbnails";
 import { buildCanvasTree, type CanvasNode, type TreeNode } from "./canvasTree";
@@ -194,8 +194,9 @@ export function ProjectOverview({ root, rows, thumbnails, onVisible, open }: Pro
 
 function CanvasCard({ canvas, thumbnail, open, focus, blur }: { canvas: CanvasNode; thumbnail: ThumbnailView; open: (row: CanvasRow) => void; focus: (path: string) => void; blur: (path: string, to: EventTarget | null) => void }) {
   const facts = cardFacts(canvas.row);
-  return <button className="ocard" data-path={canvas.key} onClick={() => open(canvas.row)} onFocus={() => focus(canvas.key)} onBlur={event => blur(canvas.key, event.relatedTarget)}>
-    <div className={`thumb${thumbnail.kind === "pending" ? " pending" : ""}`}>
+  const id = useId();
+  return <button className="ocard" aria-labelledby={`${id}-title ${id}-file`} aria-describedby={`${id}-thumb ${id}-meta`} data-path={canvas.key} onClick={() => open(canvas.row)} onFocus={() => focus(canvas.key)} onBlur={event => blur(canvas.key, event.relatedTarget)}>
+    <div id={`${id}-thumb`} className={`thumb${thumbnail.kind === "pending" ? " pending" : ""}`}>
       {thumbnail.kind === "ready" ? <img src={thumbnail.url} alt="" />
         : thumbnail.kind === "failed" ? <p className="thumb-msg">Preview unavailable</p>
         : thumbnail.kind === "noWidth" ? <p className="thumb-msg">Add <code>doan:width</code> to preview</p>
@@ -203,9 +204,9 @@ function CanvasCard({ canvas, thumbnail, open, focus, blur }: { canvas: CanvasNo
         : null}
     </div>
     <div className="ocard-body">
-      <span className="ocard-title">{canvas.name}</span>
-      <PathTip text={canvas.key.replace(/^design\//, "")}><span className="ocard-file">{canvas.fileName}</span></PathTip>
-      <span className="ocard-meta">{facts.frames && <>{facts.frames} · </>}{facts.open && <><span className="hot">{facts.open}</span> · </>}<ChangedTime at={canvas.row.mtimeMs} /></span>
+      <span id={`${id}-title`} className="ocard-title">{canvas.name}</span>
+      <PathTip text={canvas.key.replace(/^design\//, "")}><span id={`${id}-file`} className="ocard-file">{canvas.fileName}</span></PathTip>
+      <span id={`${id}-meta`} className="ocard-meta">{facts.frames && <>{facts.frames} · </>}{facts.open && <><span className="hot">{facts.open}</span> · </>}<ChangedTime at={canvas.row.mtimeMs} /></span>
     </div>
   </button>;
 }

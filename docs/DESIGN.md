@@ -348,7 +348,7 @@ The same script reads the renderer's accessibility tree through CDP (`Accessibil
 | Surface | Role and name |
 |---|---|
 | Overview | `region` "Overview"; each folder section a `region` named by its path ("design") |
-| Card | `button`, named by its content in order: thumbnail message if any, title, file name, facts ("Checkout checkout.html 6 frames · 3 open · Just now"; "Add doan:width to preview Design tokens tokens.html 3 frames · Just now"); the image is ignored (empty `alt`) |
+| Card | `button`, named by title then file name through `aria-labelledby` ("Design tokens tokens.html"; "Billing & plans billing.html"); `aria-describedby` supplies the thumbnail message and facts ("Add doan:width to preview 1 frame · Just now"; "5 frames · Just now"). The image is ignored (empty `alt`). Rechecked with CDP after the 2026-10-25 F2 fix; evidence below. |
 | Canvas area under the Overview | ignored (`inert`) |
 | Top bar project | `button` "acme-web overview" |
 | Empty Overview | `region` "Overview" with `button` "Copy first prompt" |
@@ -365,3 +365,10 @@ The subset contains 127 pairs, 76 computed properties, text and the offset withi
 ### Regression evidence and verification
 
 The selected-element indent was observed red in `Sidebar.test.tsx` and the action slot red in `app/e2e/design-nav.ts` before their fixes. The id-less frame color is pinned by computed color in `app/e2e/design-nav.ts`, observed red with its `.no-id` rule removed; the Sidebar unit test checks only the class. `app/e2e/design-nav.ts` covers the behavior of tasks 8–10 in the real app: visible cards captured first, focus moving to the next card, the empty state, folder sections and the width hint, an open canvas deleted, Quick Open from the menu on Home and in a workspace (disabled while open, Escape returning focus, another worktree through the draft guard, a duplicate id, a frame missing from the rendered canvas) and restore across real relaunches (canvas, view and tree expansion; a frame selected before quit, with the Inspector and `doan active` set, comes back with neither and is absent from `ui-state.json`; a last pan made just before a quit while the renderer is kept busy; Home, a gone canvas, a gone project, a broken `ui-state.json`). Relaunches quit at once, thumbnail captures included.
+
+
+### Final review follow-up (2026-10-25, design-nav F)
+
+Overview card names now lead with the title and file name; preview messages and metadata remain available as descriptions. `app/e2e/design-nav.ts` opens cards by role/name and asserts the real CDP button name and description for both the missing-width and capturable cards. Evidence: `.scratch/runtime-test/design-nav-1792876126576/overview-card-ax.json` and `3-acme-overview.png`; copied to the conductor's `.scratch/orch/design-nav/evidence-F/design-nav/` for retention. This replaces only the Card row's earlier accessible-name measurement; computed-style measurements above were not rerun.
+
+The final review's scroll regression was observed red (`expected b to be c`) with the actual `ThumbnailRequests` and `thumbnailQueue`. Visibility now travels in both directions, including when the Overview unmounts; main retains visibility updates received during asynchronous cache reads. The connected regression, pending-reply departure test, main scheduling tests and IPC sender-validation tests pass. Final checks: 78 test files / 1,689 tests, typecheck exit 0, and full Electron E2E exit 0 with `runtime-test: PASS`, including design-nav and unchanged real-state fingerprints. The seven runtime checkpoints and three Overview screenshots were opened and inspected. Logs: conductor `.scratch/orch/design-nav/evidence-F/`.
