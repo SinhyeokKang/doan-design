@@ -47,7 +47,7 @@ tasks.md의 앞선 단계와 task 0~14는 모두 위 배치 중 하나에 속한
 
 - 1파: DX ∥ DC ∥ P ∥ A1 ∥ A2 ∥ A3. 각자 새 파일만 만들거나(`design/`, `.scratch/`, 새 순수 함수 파일) PRODUCT §6만 고친다. DX와 DC는 같은 파일을 각자 worktree에 그리고, 고른 쪽만 통합한다.
 - 2파: B(A3 통합 뒤). task 4를 먼저 하고, task 5는 P 결과(`show:false`/`offscreen` 선택)를 받은 뒤 한다.
-- 3파: C1 ∥ C2(B 통합과 초안 확정 뒤). C1은 `Sidebar`·`CanvasController`·`App.tsx` 연결을 맡는다. C2는 새 컴포넌트와 단위 테스트를 먼저 만들고, `App.tsx`·e2e 연결은 C1 통합 뒤 이어 받는다(그때까지 '미룬 항목'). task 11 design-sync는 C2가 마지막에 한다.
+- 3파: C1 ∥ C2(초안 확정 뒤 시작, B와도 병렬). C1은 e2e를, C2는 `App.tsx`·`styles.css`·e2e 연결을 B(와 C1) 통합 뒤로 미룬다. C1은 `Sidebar`·`CanvasController`·`App.tsx` 연결을 맡는다. C2는 새 컴포넌트와 단위 테스트를 먼저 만들고, `App.tsx`·e2e 연결은 C1 통합 뒤 이어 받는다(그때까지 '미룬 항목'). task 11 design-sync는 C2가 마지막에 한다.
 - 각 배치는 `--worktree new-child --base-branch feat-design-nav`로 만든 자기 worktree에서 돈다.
 
 ## 초안 리뷰
@@ -78,3 +78,10 @@ tasks.md의 앞선 단계와 task 0~14는 모두 위 배치 중 하나에 속한
 - 2026-10-25: B 시작(`ctx_4325ed54a20a`, Opus high, `dn-b`). 결정 로그의 8초 규칙·token 서명·`show:false`를 브리프에 넣었다.
 - 2026-10-25: DC-rev 완료(`5dadd63`) — 두 줄 캔버스 행(43행), 마름모 선택 표시(Select 슬롯은 그 앞), 표본 캔버스 배율, 머리말에 12개 결정과 출처. check 오류 0, 프레임 id 7개 유지. 지휘자가 `shots-DCrev/workspace-tree.png`을 확인했다. 실제 앱 렌더 확인을 DC-app(Sonnet high, `dn-dc`)으로 보냈다.
 - 2026-10-25: DC-app 완료(`99472dd`). 초안 확정, 통합(`fbc50fa`, `4ce33c4`, `e1708fa`). `dn-dc` 제거.
+- 2026-10-25: C1(`ctx_e1c197648b35`, Codex Astra medium, `dn-c1`)과 C2(`ctx_47ad3c6f687f`, Opus high, `dn-c2`) 시작. B와 겹치는 e2e 파일과 C1·C2가 겹치는 `App.tsx`·`styles.css`는 선행 통합 뒤로 미루게 했다(브리프 '미룬 항목').
+- 2026-10-25: B 질문 — 렌더러 CSP가 `index.html`이 아니라 `app/electron.vite.config.ts`의 `doan-csp` 플러그인에서 들어간다. 그 파일에서 정책 문자열에 `img-src 'self' blob:`만 더하도록 허락했다(design.md '결정 영향'의 CSP 항목이 승인된 변경이다). 다른 빌드 설정은 바꾸지 않는다.
+- 2026-10-25: C1 상태 — Sidebar에 펼침 상태 props, CanvasController에 `showOverview`·`selectFrame`·`openCanvas` 추가(C2 연결용). C2 1단계 완료(`c010d52`, `568951f`, `b88aca0`, test 1595) — 파일 이름 `QuickOpenDialog.tsx`(대소문자 무시 파일시스템에서 `quickOpen.ts`와 충돌), `Home.tsx`의 `ChangedTime` export를 받아들였다. C2는 B·C1 통합을 기다린다. 1단계 교차 리뷰 R-C2a(Codex Astra medium) 시작.
+- 2026-10-25: C1 질문 — 렌더링 `layout.truncated`가 개수 초과와 문자열 잘림을 함께 뜻함. 지휘자 결정: 메시지 형식은 바꾸지 않는다. 열린 캔버스는 렌더링 프레임이 정확히 1,000개이고 정적 `framesTruncated`가 참일 때만 1,000+를 보인다(정적 목록이 없으면 `layout.truncated`).
+- 2026-10-25: R-C2a 결과 🔴 0 · 🟡 0 · ⚪ 2(실제 포커스·모달·observer 동작은 2단계 실제 앱에서 확인, 루트가 바뀔 때 observer 수명 — `key={root}` 등). 2단계 지시에 함께 보낸다. R-C2a 워커 해제.
+- 2026-10-25: C1 task 6·7 커밋(`bb642ed`, `33d6364`, `6de01d2`, test 1587). e2e는 B 통합을 기다린다. 교차 리뷰 R-C1a(Opus high) 시작.
+- 2026-10-25: C1 상태 — Sidebar의 FirstPrompt를 트리 교체와 함께 뺐으므로, e2e 재개 때 기존 FirstPrompt를 임시로 App의 빈 중앙에 옮기자고 제안. 받아들인다(C2가 0개 상태로 대체).
