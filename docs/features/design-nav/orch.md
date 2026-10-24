@@ -72,3 +72,6 @@ tasks.md의 앞선 단계와 task 0~14는 모두 위 배치 중 하나에 속한
 - 2026-10-25: DX 완료(`f8237c8`) — check 오류 0(기존 경고 6), 프레임 id 7개 일치, 스크린샷 8장 보고. DC를 기다려 비교한다. DX 워커는 피드백 루프에 대비해 유지.
 - 2026-10-25: A2-fix 완료(`6fb0c64`, `08fcb4e`) — scope 상대 경로 색인, NFC, 결과에서 `fields` 제거, 성능 테스트에 부분 일치 쿼리 추가(처음 66.88ms 실패 → 상위 50개만 유지하도록 고쳐 통과). 지휘자가 diff를 확인했다(같은 순위의 입력 순서 유지). A2 통합(`6c49c70`~`c48462a`), 통합 HEAD typecheck·test 1496 통과. A2 워커 해제, `dn-a2` 제거.
 - 2026-10-25: DC 완료(`95b0942`). 초안 비교 결과 DC를 골랐다(위 '초안 리뷰'). DC-rev(`ctx_6de50b873c7b`, Opus high, `dn-dc`)로 붙이기 차례를 보냈다. DX 워커 해제, DX 초안은 `.scratch/orch/design-nav/draft-DX-f8237c8.html`로 보존하고 `dn-dx`를 제거했다.
+- 2026-10-25: A3-fix 완료(`39261c7`) — 큐에 `activeStale`, 메타에 token 서명(폴더 변경 플래그를 대체), 문제 루트는 홈. 큐 회귀 테스트 4개 red→green 보고. 지휘자가 큐 diff를 확인했다. A3 통합(`185d54d`, `510a12a`), 통합 HEAD typecheck·test 1582 통과. A3 워커 해제, `dn-a3` 제거. 1파 순수 함수 배치(A1·A2·A3) 완료.
+- 2026-10-25: B 시작(`ctx_4325ed54a20a`, Opus high, `dn-b`). 결정 로그의 8초 규칙·token 서명·`show:false`를 브리프에 넣었다.
+- 2026-10-25: DC-rev 완료(`5dadd63`) — 두 줄 캔버스 행(43행), 마름모 선택 표시(Select 슬롯은 그 앞), 표본 캔버스 배율, 머리말에 12개 결정과 출처. check 오류 0, 프레임 id 7개 유지. 지휘자가 `shots-DCrev/workspace-tree.png`을 확인했다. 실제 앱 렌더 확인을 DC-app(Sonnet high, `dn-dc`)으로 보냈다.
