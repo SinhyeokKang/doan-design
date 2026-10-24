@@ -18,10 +18,10 @@
 
 | 배치 | tasks | 파일 소유 | 선행 | 모델 · 노력 (이유) | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| A | 0, 1 | `docs/PRODUCT.md`, `AGENTS.md`, `.scratch/onboard/poc7/` | — | Codex Astra medium (격리 판단, 실제 설정을 보호해야 하고 PoC 판정이 필요하다) | tasks 0 · 1 검증, 실제 상태의 키 단위 비교 | 대기 |
-| C | 3 | `cli/internal/repo/`, `cli/internal/cli/init.go`, `mcp.go`, `skill.md`(`--token-css` 설명만) | — | Codex Astra medium (경로 보안 경계) | `go test ./...` · `go vet ./...`, task 3 명령 | 대기 |
-| B | 2 | `design/onboard.html` | A | Codex Astra medium (상태 설계 판단) | `doan check` · `doan ls`, 지휘자 리뷰, 사용자 확정 | 대기 |
-| D | 4 | `app/src/main/onboarding/states.ts`(+test, `fixtures/`), `app/src/main/cli.ts`(`cliCommand`), `app/src/main/folderState.ts`, `app/src/renderer/onboardingView.ts`(+test) | A(fixture, 셸 출력 형식) | Codex Astra medium | `npm --prefix app test` · `typecheck` | 대기 |
+| A | 0, 1 | `docs/PRODUCT.md`, `AGENTS.md`, `.scratch/onboard/poc7/` | — | Codex Astra medium (격리 판단, 실제 설정을 보호해야 하고 PoC 판정이 필요하다) | tasks 0 · 1 검증, 실제 상태의 키 단위 비교 | 완료 — main `13e222e` `d63db08` `f80bae0` `f4b0ee4` |
+| C | 3 | `cli/internal/repo/`, `cli/internal/cli/init.go`, `mcp.go`, `skill.md`(`--token-css` 설명만) | — | Codex Astra medium (경로 보안 경계) | `go test ./...` · `go vet ./...`, task 3 명령 | 완료 — `feat-onboard` `2fc9c86` `04c6ac5`, R-C red 0 / yellow 0 |
+| B | 2 | `design/onboard.html` | A | Codex Astra medium (상태 설계 판단) | `doan check` · `doan ls`, 지휘자 리뷰, 사용자 확정 | 진행 중 |
+| D | 4 | `app/src/main/onboarding/states.ts`(+test, `fixtures/`), `app/src/main/cli.ts`(`cliCommand`), `app/src/main/folderState.ts`, `app/src/renderer/onboardingView.ts`(+test) | A(fixture, 셸 출력 형식) | Codex Astra medium | `npm --prefix app test` · `typecheck` | 진행 중 |
 | E | 5 | `app/package.json`, `app/package-lock.json`, electron-builder 설정, `.gitignore`, AGENTS.md 'Commands' | A(7d 버전), D | Codex Sol medium (기계적) | task 5 검증 | 대기 |
 | F | 6 | `app/src/main/shell.ts`, `cli.ts`(`runLs` 주변), `index.ts`(IPC), `app/src/preload/` | D | Codex Astra medium (재루팅 · 동시성) | task 6 검증 + e2e | 대기 |
 | K | 11 | `cli/internal/cli/skill.md`, `.scratch/onboard/observe/` | C, E | Codex Astra medium (관찰 판단, `claude -p` · `codex exec` 실행) | task 11 검증 | 대기 |
@@ -47,4 +47,8 @@ tasks.md의 task 0~13은 모두 위 배치 중 하나에 속한다.
 
 ## 진행 기록
 
-(배치가 진행되면 추가한다)
+- 2026-10-24 C 첫 시작이 Codex 업데이트 안내(0.163.0 → 0.164.0) 화면에 막혔다. 사용자가 Codex를 직접 업데이트한 뒤 다시 시작했다.
+- 2026-10-24 A의 PoC 7b에서 Claude 격리 호출이 OAuth 만료로 실패했다. 지휘자는 인증 파일 복사를 금지하고, 지휘 세션에서 관찰한 상대 링크 스킬 발견을 근거로 대신 기록하게 했다(PRODUCT §6에 한계를 명시했다). 7c 도중 Codex 업데이트로 실행 파일이 잠시 사라졌고, 다시 탐지해 재시도했다.
+- 2026-10-24 PoC 7 결과를 design.md에 반영했다(`2ab9a1e`): zsh `-lic`, Claude 상태는 설정 파일 읽기 전용 파싱, Codex는 덮어쓰기, 링크 값은 `<config>/skills` 기준으로 계산, electron-builder 26.18.0.
+- 2026-10-24 A를 main에 통합해 push한 뒤 `feat-onboard`를 만들었다. C는 리뷰(red 0 / yellow 0, ⚪ 2: 기존 TOCTOU 한계, 확인하지 않은 I/O 오류 경로)를 거쳐 통합했다. 통합 HEAD에서 `go test ./...` · `go vet ./...` 통과. onboard-a · onboard-c worktree를 제거했다. 증거는 `.scratch/onboard/`(poc7, evidence)에 있다.
+- 2026-10-24 B 질문에 지휘자가 답했다: 창 전체 마법사 배치, 교체 버튼 이름, 상태 칩과 design.md 문구를 함께 쓰는 규칙.
