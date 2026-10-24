@@ -87,3 +87,9 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: C 질문 — e2e `readFolders` 이전 방식. 지휘자 결정: 루트별 캔버스 목록은 각 루트를 열어 역할·이름으로 검증한다. 다른 루트의 watcher 대기는 preload 구독이 아니라 Home 줄(캔버스 수·최근 변경)로 읽는다(R3로 선택이 유지되고, e2e는 역할·접근 이름으로만 읽는다는 2026-10-22 결정).
 - 2026-10-25: B2-fix 통합(`bf7baa5`~`7a954bd`)과 지휘자 POSTMORTEM 커밋(항목 3개). 통합 HEAD typecheck·test(1437) 통과. C에 통합 사실과 새 필드를 알렸다. B2-fix 워커 해제, `ph-b2` 제거. 교차 리뷰 R-B2fix(Codex Astra medium) 시작.
 - 2026-10-25: R-B2fix 결과 새 지적 없음. 두 🟡의 수정 전 실패를 독립 재현했다. 워커 해제.
+- 2026-10-25: C 질문 — 고아가 된 `folders:close`·`closeFolder` 제거를 승인했다(B2 인계가 예고한 고아, C의 전환으로 생김). 별도 refactor 커밋으로 남긴다.
+- 2026-10-25: C 질문 — 오류·loading 줄의 브랜치 표시. 지휘자 결정: 마지막 브랜치를 기억하지 않는다(Home은 경로 + ◌, 작업공간 오류 상태는 브랜치 칩 숨김). CLI 오류 원문은 code 서식 없이 둔다. 둘 다 `docs/DESIGN.md`에 초안과의 편차로 기록한다. task 9·10은 `78290f3`까지 e2e PASS·test 1441 보고.
+- 2026-10-25: C가 독립 리뷰를 요청했다(`65e8eab...fb10d38`, 비교 근거 `evidence-C/`: 27상태·172쌍). R-C(Claude Opus high)를 띄웠다. design-sync가 요구하는 독립 리뷰를 겸한다.
+- 2026-10-25: C 완료(`a21fccf`, 9커밋, B2 수정분을 merge 커밋 `d996c5e`로 받음). unit 1441·typecheck·go·전체 e2e PASS 보고. 측정 7912행 = 일치 7321 · 비표시 동등 483 · 문서화된 차이 108. R-C 결과를 받고 고친 뒤 `feat-projects-home`에 merge로 통합한다(merge 커밋이 있어 cherry-pick 대신).
+- 2026-10-25: R-C 결과 🔴 1(체크 목록이 넘쳐도 스크롤되지 않음, 저장소 14개로 재현) · 🟡 6(캔버스 영역의 옛 사이드바 안내 문구, 상태 줄 Locate…가 홈으로 튕김, 가드 문구에 브랜치 없음, 닿는 상태 미측정, e2e `plain.hint` 동어반복, 고아 `ShellApi.close`) · ⚪ 8. C 터미널에 C-fix를 보냈다. R-C 워커는 해제했다.
+- 2026-10-25: R-C가 물은 결정 4개는 기능 문서와 확정 초안으로 정했다(지휘자 판단). ① design-sync에 닿는 상태(체크 목록 ready 줄·워크트리 하위 줄, 상태 줄 Config error·Not set up, Added 토스트)를 더한다(design-sync 전제: 닿는 상태는 측정한다) ② 경로는 확정 초안대로 HOME 아래를 `~/…`로 줄인다(HOME은 main이 준다, 설정 확인만 절대 경로) ③ 사이드바 ×의 접근 이름을 "Remove <name> from doan"으로 바꾼다(동작이 제거·Undo로 바뀌었다) ④ 카드 키보드는 design.md대로 Tab은 카드 사이, ↑↓는 줄 사이, Enter로 연다. 줄 ··· 버튼은 Tab 순서에서 빼고 Shift+F10·ContextMenu 키로도 연다.
