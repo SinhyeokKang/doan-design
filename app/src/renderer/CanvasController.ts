@@ -13,6 +13,7 @@ import { switchTarget } from "./switchTarget";
 import { activityFor, pushActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
+import { currentFrame } from "./currentFrame";
 
 const MEASURE_ANSWER_MS = 1000;
 
@@ -22,6 +23,7 @@ export interface CanvasState {
   shown: string | null;
   layout: LayoutMessage | null;
   selection: SelectionView | null;
+  currentFrame: number | null;
   // The selection-lost line, until the next selection or canvas change.
   notice: string;
   // Main's inspector rows for the current selection.
@@ -38,7 +40,7 @@ export interface CanvasState {
 export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, notice: "", inspector: null, status: "empty", message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, updated: null, activity: [] };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, updated: null, activity: [] };
 }
 
 // React owns the surrounding shell; only this controller owns the board's children.
@@ -55,6 +57,11 @@ export class CanvasController {
   private loadTimer: ReturnType<typeof setTimeout> | undefined;
   private answerTimer: ReturnType<typeof setTimeout> | undefined;
   private jumpTo: number | null = null;
+  private pendingFrame: { id: string; index?: number; found?: (found: boolean) => void } | null = null;
+  private jumpRect: CanvasRect | null = null;
+  private jumpMark: HTMLElement | null = null;
+  private viewResize: ResizeObserver | null = null;
+  private jumpTimer: ReturnType<typeof setTimeout> | undefined;
   // Selection (design flows 3–7). `seq` orders the renderer's commands against
   // the script's own clicks; each new document starts again at 0.
   private seq = 0;
@@ -193,6 +200,10 @@ export class CanvasController {
     private sendSelection: (selection: Selection | null) => void,
     private inspect: (selector: string) => Promise<InspectResult>,
   ) {
+    if (typeof ResizeObserver !== "undefined" && "nodeType" in viewport) {
+      this.viewResize = new ResizeObserver(() => this.applyView());
+      this.viewResize.observe(viewport as Element);
+    }
     window.addEventListener("message", this.receive);
     window.addEventListener("wheel", this.preventPageZoom, { passive: false });
     window.addEventListener("keydown", this.keydown);
@@ -204,6 +215,7 @@ export class CanvasController {
 
   dispose(): void {
     this.pinResize?.disconnect();
+    this.viewResize?.disconnect();
     window.removeEventListener("message", this.receive);
     window.removeEventListener("wheel", this.preventPageZoom);
     window.removeEventListener("keydown", this.keydown);
@@ -238,6 +250,9 @@ export class CanvasController {
   }
 
   updateEntries(next: FolderEntry[]): void {
+    for (const root of this.workspaceMemory.keys()) {
+      if (!next.some(entry => entry.path === root)) this.workspaceMemory.delete(root);
+    }
     const prev = this.entries;
     this.entries = next;
     const open = this.state.open;
@@ -311,12 +326,35 @@ export class CanvasController {
     }, () => target()?.kind === "list");
   }
 
-  openCanvas(folder: string, row: CanvasRow): void {
+  showOverview(): void {
+    if (!this.state.open) return;
+    this.transition(() => {
+      this.dropFrame();
+      this.state = { ...initialCanvasState(), activity: this.state.activity };
+      this.publish();
+    });
+  }
+
+  openCanvas(folder: string, row: CanvasRow, frameId?: string, target?: { index?: number; found?: (found: boolean) => void }): void {
+    if (this.state.open?.folder === folder && this.state.shown === row.path) {
+      if (frameId !== undefined) {
+        const frames = this.state.layout?.frames ?? [];
+        const index = target?.index !== undefined && frames[target.index]?.id === frameId ? target.index : frames.findIndex(frame => frame.id === frameId);
+        if (index >= 0) this.jump(index);
+        if (this.loading && !this.state.layout) this.pendingFrame = { id: frameId, ...target };
+        else target?.found?.(index >= 0);
+      }
+      return;
+    }
     const current = () => {
       const entry = this.entries.find(entry => entry.path === folder);
       return entry?.kind === "list" ? entry.canvases.find(candidate => candidate.path === row.path && candidate.id === row.id && candidate.url === row.url) : undefined;
     };
-    this.transition(() => this.openCanvasNow(folder, current() ?? row), () => current() !== undefined);
+    this.transition(() => {
+      this.openCanvasNow(folder, current() ?? row);
+      this.pendingFrame = frameId === undefined ? null : { id: frameId, ...target };
+      if (this.pendingFrame && this.state.status === "noWidth") { this.pendingFrame.found?.(false); this.pendingFrame = null; }
+    }, () => current() !== undefined);
   }
 
   private openCanvasNow(folder: string, row: CanvasRow): void {
@@ -328,6 +366,8 @@ export class CanvasController {
 
   // A new element ends the old document before resetting its measurement viewport.
   private load(row: CanvasRow, fresh: boolean, kind: ActivityEvent["kind"] = fresh ? "opened" : "reloaded"): void {
+    this.clearJump();
+    this.pendingFrame = null;
     this.resetAnchors();
     this.loadKind = kind;
     this.applySelectionEffect({ kind: fresh ? "otherCanvas" : "reload" });
@@ -376,6 +416,8 @@ export class CanvasController {
       this.jumpTo = null;
       this.board.style.visibility = "hidden";
       this.state.status = "failed";
+      this.pendingFrame?.found?.(false);
+      this.pendingFrame = null;
       this.applySelectionEffect({ kind: "loadFailed" });
       this.publish();
     }, FIRST_LAYOUT_TIMEOUT_MS);
@@ -383,6 +425,9 @@ export class CanvasController {
   }
 
   private dropFrame(): void {
+    this.clearJump();
+    this.pendingFrame = null;
+    this.state.currentFrame = null;
     this.resetAnchors();
     this.frame?.remove();
     this.frame = null;
@@ -597,6 +642,7 @@ export class CanvasController {
     const documentChanged = message.document !== undefined && message.document !== this.anchorDocument;
     if (documentChanged) { this.resetAnchors(); this.anchorDocument = message.document ?? null; }
     const before = this.layoutDisplayKey();
+    const previousCurrent = this.state.currentFrame;
     const beforeSelection = this.state.selection;
     const previousActivity = this.state.activity;
     const newDocument = this.lastHref !== null && !sameDocument(this.lastHref, message.href);
@@ -606,6 +652,7 @@ export class CanvasController {
     this.lastHref = message.href;
     clearTimeout(this.answerTimer);
     if (newDocument) {
+      this.clearJump();
       this.jumpTo = null;
       this.seq = 0;
       this.acceptedSelectionSeq = 0;
@@ -628,10 +675,18 @@ export class CanvasController {
       const at = new Date();
       this.state.activity = pushActivity(this.state.activity, { ...this.state.open, at, kind: linked ? "opened" : this.loadKind }, 50);
     }
+    if (first && this.pendingFrame !== null) {
+      const target = this.pendingFrame;
+      const index = target.index !== undefined && message.frames[target.index]?.id === target.id ? target.index : message.frames.findIndex(frame => frame.id === target.id);
+      this.jumpTo = index >= 0 ? index : null;
+      this.pendingFrame = null;
+      target.found?.(index >= 0);
+    }
     if (this.jumpTo !== null) {
       const target = message.frames[this.jumpTo];
       if (target !== undefined) {
         this.view = fitFrame(target, this.viewportSize(), FIT_MARGIN, this.view);
+        this.showJump(target);
         this.applyView();
       }
       this.jumpTo = null;
@@ -641,7 +696,8 @@ export class CanvasController {
       else { this.selectedRect = selected; this.drawMarks(); }
     }
     if (this.comments && (documentChanged || first || linked)) this.requestAnchors();
-    if (documentChanged || before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection) this.publish();
+    this.state.currentFrame = this.state.unlisted ? null : currentFrame(message.frames, this.view, this.viewportSize());
+    if (previousCurrent !== this.state.currentFrame || documentChanged || before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection) this.publish();
   }
 
   private markShown(href: string): boolean {
@@ -661,18 +717,42 @@ export class CanvasController {
   }
 
   jump(index: number): void {
-    const target = this.state.layout?.frames[index];
-    this.transition(() => this.jumpNow(index), () => target !== undefined && this.state.layout?.frames[index]?.id === target.id);
-  }
-
-  private jumpNow(index: number): void {
-    if (this.frame?.contentWindow == null) return;
-    // IDs may repeat or be empty; a jump selects the frame by list position.
+    if (this.frame?.contentWindow == null || !this.state.layout?.frames[index] || this.state.unlisted) return;
     this.jumpTo = index;
     this.post({ type: "measure" });
-    // The script answers with a select only if that position still holds this id.
+  }
+
+  selectFrame(index: number): void {
     const frame = this.state.layout?.frames[index];
-    if (frame !== undefined) this.sendCommand({ type: "pick-frame", index, id: frame.id });
+    if (!frame || this.state.unlisted) return;
+    this.transition(() => {
+      this.jump(index);
+      if (frame) this.sendCommand({ type: "pick-frame", index, id: frame.id });
+    }, () => frame !== undefined && this.state.layout?.frames[index]?.id === frame.id);
+  }
+
+  private clearJump(): void {
+    clearTimeout(this.jumpTimer);
+    this.jumpRect = null;
+    if (this.jumpMark) this.jumpMark.hidden = true;
+  }
+
+  private showJump(rect: CanvasRect): void {
+    this.clearJump();
+    this.jumpRect = rect;
+    // A fresh element restarts the CSS animation even for repeated jumps.
+    this.jumpMark?.remove();
+    this.jumpMark = document.createElement("div");
+    this.jumpMark.className = "mark jump-highlight";
+    this.overlay.append(this.jumpMark);
+    this.jumpTimer = setTimeout(() => this.clearJump(), 1200);
+  }
+
+  private drawJump(): void {
+    if (!this.jumpRect || !this.jumpMark) return;
+    const rect = boardRectToScreen(this.view, this.jumpRect);
+    this.jumpMark.hidden = false;
+    Object.assign(this.jumpMark.style, { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.width}px`, height: `${rect.height}px` });
   }
 
   command(name: ViewCommand): void {
@@ -712,8 +792,12 @@ export class CanvasController {
     this.board.style.transform = `translate(${this.view.x}px, ${this.view.y}px) scale(${this.view.scale})`;
     this.drawMarks();
     this.drawPins();
+    this.drawJump();
+    const current = this.state.unlisted ? null : currentFrame(this.state.layout?.frames ?? [], this.view, this.viewportSize());
+    const changedCurrent = current !== this.state.currentFrame;
+    this.state.currentFrame = current;
     const zoom = Math.round(this.view.scale * 100);
-    if (zoom !== this.state.zoom) { this.state.zoom = zoom; this.publish(); }
+    if (zoom !== this.state.zoom || changedCurrent) { this.state.zoom = zoom; this.publish(); }
   }
   // Marks live outside the iframe so the canvas DOM, its MutationObserver and
   // the anchors stay untouched; drawn in screen px so lines stay 1px at any
