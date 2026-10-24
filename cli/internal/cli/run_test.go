@@ -88,7 +88,11 @@ func TestInitAndEmptyCommands(t *testing.T) {
 	for _, cmd := range []string{"ls", "comments", "check"} {
 		got := result(t, root, 0, cmd)
 		key := map[string]string{"ls": "canvases", "comments": "comments", "check": "findings"}[cmd]
-		if len(got[key].([]any)) != 0 {
+		want := 0
+		if cmd == "check" {
+			want = 1
+		}
+		if len(got[key].([]any)) != want {
 			t.Fatal(got)
 		}
 	}

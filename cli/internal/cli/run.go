@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SinhyeokKang/doan-design/cli/internal/check"
 	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
 )
 
@@ -219,6 +220,11 @@ func emit(o Outcome, failure *Error, jsonMode bool, stdout, stderr io.Writer) in
 		return exit
 	}
 	if m, ok := o.Result.(map[string]any); ok {
+		if summary, ok := m["summary"].(check.Summary); ok {
+			if _, e := fmt.Fprintf(stdout, "%d canvases checked\n", summary.Canvases); e != nil {
+				return 1
+			}
+		}
 		for _, key := range []string{"usage", "body"} {
 			if s, ok := m[key].(string); ok {
 				if _, e := io.WriteString(stdout, EscapeControl(s)); e != nil {

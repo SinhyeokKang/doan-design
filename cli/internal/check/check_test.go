@@ -95,7 +95,7 @@ func TestRules(t *testing.T) {
 	if fs := Run(base()); len(fs) != 0 {
 		t.Fatal(fs)
 	}
-	if fs := Run(Input{}); fs == nil || len(fs) != 0 {
+	if fs := Run(Input{}); len(fs) != 1 || fs[0].Code != "no_canvases" {
 		t.Fatal(fs)
 	}
 }
@@ -208,7 +208,7 @@ func TestSortAndSummary(t *testing.T) {
 	if !reflect.DeepEqual(got, want) || fs[2].Token != "--a" || fs[4].URL != "https://a" {
 		t.Fatal(fs)
 	}
-	if s := Summarize(fs); s.Errors != 2 || s.Warnings != 4 {
+	if s := Summarize(fs, len(in.Canvases)+len(in.Unparsable)); s.Errors != 2 || s.Warnings != 4 {
 		t.Fatal(s)
 	}
 }
@@ -233,7 +233,7 @@ func TestUnparsableCanvas(t *testing.T) {
 			t.Fatalf("parse finding: %+v", f)
 		}
 	}
-	if s := Summarize(fs); s.Errors != 2 || s.Warnings != 1 {
+	if s := Summarize(fs, len(in.Canvases)+len(in.Unparsable)); s.Errors != 2 || s.Warnings != 1 {
 		t.Fatalf("summary: %+v", s)
 	}
 	in.Unparsable = map[string]string{}
