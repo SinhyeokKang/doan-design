@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -140,7 +141,7 @@ func TestGitInfoCanonicalAndMissingMapping(t *testing.T) {
 
 func TestGitInfoLimitsAndInvalidEntries(t *testing.T) {
 	base := real(t, t.TempDir())
-	main := filepath.Join(base, "main")
+	main := filepath.Join(base, "z-main")
 	put(t, main, ".git/HEAD", "ref: refs/heads/main")
 	for i := 0; i < 205; i++ {
 		root := filepath.Join(base, fmt.Sprintf("tree%03d", i))
@@ -198,5 +199,66 @@ func TestGitInfoRealGit(t *testing.T) {
 	sort.Strings(want)
 	if got == nil || got.Branch != "topic" || got.Main != main || !reflect.DeepEqual(got.Worktrees, want) {
 		t.Fatal(got)
+	}
+}
+
+func TestGitInfoBareCommonWithLinkedWorktree(t *testing.T) {
+	base := real(t, t.TempDir())
+	common := filepath.Join(base, "bare.git")
+	root := filepath.Join(base, "linked")
+	put(t, root, ".git", "gitdir: ../bare.git/worktrees/topic")
+	put(t, common, "HEAD", "ref: refs/heads/main")
+	put(t, common, "worktrees/topic/HEAD", strings.Repeat("f", 64))
+	put(t, common, "worktrees/topic/commondir", "../..")
+	put(t, common, "worktrees/topic/gitdir", filepath.Join(root, ".git"))
+	got := ReadGit(root, "")
+	if got == nil || got.Common != common || got.Main != "" || got.Detached != strings.Repeat("f", 64) || !reflect.DeepEqual(got.Worktrees, []string{root}) {
+		t.Fatal(got)
+	}
+}
+
+func TestGitInfoCanonicalWorktreeBase(t *testing.T) {
+	base := real(t, t.TempDir())
+	main := filepath.Join(base, "main")
+	root := filepath.Join(base, "linked")
+	put(t, main, ".git/HEAD", "ref: refs/heads/main")
+	put(t, root, ".git", "gitdir: ../admin/entries/topic")
+	put(t, base, "admin/entries/topic/HEAD", "ref: refs/heads/topic")
+	put(t, base, "admin/entries/topic/gitdir", "../../../linked/.git")
+	put(t, base, "admin/entries/topic/commondir", "../../../main/.git")
+	link(t, filepath.Join(base, "admin/entries"), filepath.Join(main, ".git/worktrees"))
+	got := ReadGit(main, "")
+	if got == nil || !reflect.DeepEqual(got.Worktrees, []string{root, main}) {
+		t.Fatal(got)
+	}
+}
+
+func TestGitInfoRejectsFIFO(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, ".git/config", "")
+	if err := syscall.Mkfifo(filepath.Join(root, ".git/HEAD"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := ReadGit(root, ""); got != nil {
+		t.Fatal(got)
+	}
+}
+
+func TestGitInfoHomeUsesDiskSpelling(t *testing.T) {
+	base := real(t, t.TempDir())
+	home := filepath.Join(base, "Home")
+	put(t, home, ".git/HEAD", "ref: refs/heads/dotfiles")
+	child := filepath.Join(home, "project")
+	put(t, child, "keep", "")
+	alias := filepath.Join(base, "alias")
+	link(t, home, alias)
+	if got := ReadGit(child, alias); got != nil {
+		t.Fatal(got)
+	}
+	alternate := filepath.Join(base, "HOME")
+	if _, err := os.Stat(alternate); err == nil {
+		if got := ReadGit(child, alternate); got != nil {
+			t.Fatal(got)
+		}
 	}
 }
