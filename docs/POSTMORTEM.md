@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — A new link state silently removed replacement-guard coverage
+
+- **Area**: `app/src/main/onboarding/states.ts`, `machine.test.ts`, `app/e2e/onboarding.ts`.
+- **Symptom**: after adding `dangling`, removing both foreign-link replacement confirmation guards still left the existing onboarding tests green. An existing other CLI or Claude skill folder could then be overwritten without the tests catching the missing confirmation.
+- **Root cause**: the original replacement fixtures used symlinks to nonexistent `/old` and `/elsewhere` targets. They had exercised `link-other`, but the new classification moved them all to `dangling`. Test names still described replacement coverage without distinguishing existing and absent targets.
+- **Net**: R-A1 mutation testing caught the gap before integration; ordinary green unit tests missed it. A1fix added three existing-target twins while retaining the dangling fixtures. The same deletion mutation now fails all three twins; restoring the guards passes all 98 onboarding tests at that step.
+- **Prevention**: when adding a classification state, audit the actual fixture classification rather than test titles, retain one fixture for every protected branch, and remove each safety guard temporarily to verify its tests fail. Run `rg -n 'symlinkSync\("/(old|elsewhere|missing)' app/src/main/onboarding app/e2e/onboarding.ts` to locate absent-target fixtures; pair replacement cases with real existing files/folders and assert the confirmation text. Run performed on 2026-10-25: four matches in `machine.test.ts`, all retained intentional dangling cases; the three broad replacement cases now have existing-target twins. The e2e missing-target fixture remains a dangling Fix case and is not claimed as existing-target Replace coverage.
+
 ### 2026-10-25 — Removing a project retained its remembered canvas
 
 - **Area**: renderer `CanvasController.updateEntries` and `workspaceMemory`.
