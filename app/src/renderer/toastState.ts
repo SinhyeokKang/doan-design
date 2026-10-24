@@ -40,7 +40,10 @@ export function toastState(state: ToastState, event: ToastEvent): ToastState {
   const { ended: _ended, ...base } = state;
   switch (event.type) {
     case "show":
-      return { ...base, toast: event.toast, remainingMs: TOAST_MS, ...(state.toast ? { ended: { id: state.toast.id, reason: "replaced" as const } } : {}) };
+      // The old element unmounts without a mouseleave or blur; the component
+      // re-reports hover/focus if the new element is under the pointer. `hidden`
+      // belongs to the window, so it stays.
+      return { ...base, toast: event.toast, remainingMs: TOAST_MS, hovered: false, focused: false, ...(state.toast ? { ended: { id: state.toast.id, reason: "replaced" as const } } : {}) };
     case "tick": {
       if (!state.toast || isToastPaused(state)) return base;
       const remainingMs = state.remainingMs - Math.max(event.elapsedMs, 0);

@@ -34,7 +34,7 @@ export function classifyPick({ path, isDir, ls, asRepo, hasGit, children, saved 
     case "list":
       return stored(ls.root);
     case "uninitialized":
-      if (hasGit) return stored(path);
+      if (hasGit || saved.includes(path)) return stored(path);
       return children.length > 0 ? { kind: "scan" } : { kind: "confirm" };
     case "error":
     case "cliError": {

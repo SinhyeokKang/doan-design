@@ -11,11 +11,12 @@ export interface HomeCard {
 // Cards keep the saved order: a card sits where its first row is, and its rows
 // stay in saved order. A row that is not a list has no `git`, so it stays with
 // the card it was last seen in (`lastCommon`, path → common, main's memory)
-// until the app restarts.
+// until the app restarts. A list row is trusted as it is: without `git` it is
+// a project outside git, whatever card it used to be in.
 export function groupProjects(entries: readonly FolderEntry[], lastCommon: ReadonlyMap<string, string>): HomeCard[] {
   const cards = new Map<string, HomeCard>();
   for (const entry of entries) {
-    const common = (entry.kind === "list" ? entry.git?.common : undefined) ?? lastCommon.get(entry.path);
+    const common = entry.kind === "list" ? entry.git?.common : lastCommon.get(entry.path);
     const key = common ?? entry.path;
     const card = cards.get(key);
     if (card) card.rows.push(entry);
