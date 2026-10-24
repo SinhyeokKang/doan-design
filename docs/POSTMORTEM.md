@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-24 — Evaluation checks rejected valid markup and natural review reports
+
+- **Area**: `eval/scenarios/H1`, `H3`, `H4`; review `.scratch/review-H.md`, findings H-1 through H-4 (before any recorded round).
+- **Symptom**: adding an annotated note failed identity preservation, semantic `<time>` markup and data-driven rows failed copy checks, and natural descriptions of retained comments or JSON-fenced Codex answers failed deletion triage. A negated report could satisfy the old status-word gate. The missing-target comment also had the current canvas hash and therefore was not outdated.
+- **Root cause**: checks equated identity preservation with set equality, rendered content with contiguous source literals, and semantic acknowledgment with keyword presence; seed validation checked warning-free folding without checking the intended stale state. Transcript parsing inspected fenced examples and stderr as if they were final-answer events.
+- **Net**: review counterexamples exposed the defects; representative pass/fail fixtures did not exercise valid alternatives. New probes went red before fixes and now cover added IDs, preserved frame membership, the older hash, semantic markup, data rows, paraphrases and fenced JSON. Automated state checks still reject actual comment resolution. Rubric text and result-composition tests cover the negated-report contract, but no live judge was run; self-tests use a fake judge and cannot establish semantic judgment quality.
+- **Prevention**: retain positive alternatives alongside negative controls, compare original identity membership rather than whole-set equality, validate seed intent through the real CLI, and keep language meaning in the judge rubric with explicit negation counterexamples. Run `rg -n 'normalized.includes|hasAttachedComments|anchors\(doc|const answer|function answer|outdated ===' eval/scenarios --glob '*.ts'`; H2 also reads assistant output and leaves question relevance to its judge, H3 retains bounded static atom checks, and H4 isolates stdout/fenced examples before parsing. Recheck these boundaries when their scenario changes; `--no-judge` cannot validate the H4 acknowledgment requirement or H3 numeric row associations.
+
 ### 2026-10-24 — Agent shells bypassed the evaluation runner's packaged CLI
 
 - **Area**: `eval/lib/agent.ts`, `eval/run.ts`
