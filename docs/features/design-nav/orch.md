@@ -57,6 +57,7 @@ tasks.md의 앞선 단계와 task 0~14는 모두 위 배치 중 하나에 속한
 - DX(Codex Astra high, `f8237c8`)의 장점: 캔버스 행을 두 줄(제목·파일 이름)로 나눠 240px에서도 둘 다 읽힌다. 감사 H2(둘 다 잘림)를 직접 푼다. 선택 표시를 속 빈 마름모로 그려 행 폭을 거의 쓰지 않는다(DC의 Selected 태그는 Select 버튼과 함께 있으면 제목을 심하게 자른다 — DC가 스스로 적었다). 작업공간 표본의 캔버스 내용이 줌 배율과 맞아 읽기 좋다.
 - DC에 붙일 것(DC-rev): ① 두 줄 캔버스 행(44px, 폴더·프레임·Overview는 26px 유지) ② 선택 표시를 속 빈 마름모로 ③ 표본 캔버스 내용을 줌 배율에 맞게. 출처를 캔버스 머리말에 적는다.
 - DC가 정하지 않은 채 그린 12개 선택: 1(사이드바 제목 Canvases + 개수, 프로젝트 행을 사이드바에서 뺌 — 제거는 홈에서), 2, 4, 6~12는 받아들인다. 3은 ①로, 5의 Selected 태그는 ②로 대체한다.
+- **붙이기 차례(`5dadd63`)와 앱 렌더 확인(`99472dd`), 2026-10-25 지휘자 확정.** ①~③이 모두 반영됐다. `doan check` 오류 0(기존 경고 6), `doan ls` 프레임 id 7개가 같다(통합 HEAD에서 지휘자 재실행). 격리된 실제 앱에서 연 스크린샷(`shots-DC-app/`)의 요소 사각형 1,860개가 일반 Chromium과 0.6px 넘게 다른 것이 없고, 잘림·높이 고정 문제가 없다. 지휘자가 앱 렌더의 개요 프레임과 Chromium 렌더의 작업공간 프레임을 직접 확인했다. 호버·Select·⌘K 상호작용은 정적 초안이라 확인 대상이 아니다. 사용자 확인은 결정 로그대로 건너뛴다.
 
 ## 진행 기록
 - 2026-10-25: Run `run_5fa531d27dc7`. 1파 시작 — DX(`ctx_1017df68b758`, Codex Astra high), DC(`ctx_6e84f37d44a7`, Opus high), P(`ctx_ccb8e36d909e`, Codex Astra medium), A1(`ctx_3a4edf6ff5d9`, Sonnet high), A2(`ctx_c737afc282e9`, Codex Astra medium), A3(`ctx_8e0b32221dd9`, Sonnet high). `launch.effective`가 요청과 같다.
@@ -75,3 +76,4 @@ tasks.md의 앞선 단계와 task 0~14는 모두 위 배치 중 하나에 속한
 - 2026-10-25: A3-fix 완료(`39261c7`) — 큐에 `activeStale`, 메타에 token 서명(폴더 변경 플래그를 대체), 문제 루트는 홈. 큐 회귀 테스트 4개 red→green 보고. 지휘자가 큐 diff를 확인했다. A3 통합(`185d54d`, `510a12a`), 통합 HEAD typecheck·test 1582 통과. A3 워커 해제, `dn-a3` 제거. 1파 순수 함수 배치(A1·A2·A3) 완료.
 - 2026-10-25: B 시작(`ctx_4325ed54a20a`, Opus high, `dn-b`). 결정 로그의 8초 규칙·token 서명·`show:false`를 브리프에 넣었다.
 - 2026-10-25: DC-rev 완료(`5dadd63`) — 두 줄 캔버스 행(43행), 마름모 선택 표시(Select 슬롯은 그 앞), 표본 캔버스 배율, 머리말에 12개 결정과 출처. check 오류 0, 프레임 id 7개 유지. 지휘자가 `shots-DCrev/workspace-tree.png`을 확인했다. 실제 앱 렌더 확인을 DC-app(Sonnet high, `dn-dc`)으로 보냈다.
+- 2026-10-25: DC-app 완료(`99472dd`). 초안 확정, 통합(`fbc50fa`, `4ce33c4`, `e1708fa`). `dn-dc` 제거.
