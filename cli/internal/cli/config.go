@@ -109,8 +109,11 @@ func configPath(root, path string, token bool) (string, *Error) {
 	if err != nil {
 		return "", internal(err)
 	}
-	if state != repo.Inside {
-		return "", usageError("Config paths must exist inside the repository")
+	if state == repo.Missing {
+		return "", usageError("Config path does not exist")
+	}
+	if state == repo.Outside {
+		return "", usageError("Config path is outside the repository")
 	}
 	info, err := os.Stat(filepath.Join(root, relative))
 	if err != nil {
