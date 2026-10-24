@@ -61,7 +61,7 @@ export type OnboardingRead = { kind: "state"; session: string; state: MachineSta
 function openWizard(): void {
   if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
   showWindow(win);
-  if (machine?.isBusy()) return;
+  if (wizardSession !== null || machine?.isBusy()) return;
   machine?.cancelConfirmation();
   wizardSession = randomUUID();
   win.webContents.send("onboarding:open", { session: wizardSession });
