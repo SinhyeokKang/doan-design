@@ -63,6 +63,9 @@ function blockedParent(path: string): string | null {
   const ancestor = blockedParent(parent);
   if (ancestor) return ancestor;
   const s = stat(parent);
+  if (s.kind === "symlink") {
+    try { return statSync(parent).isDirectory() ? null : parent; } catch { return parent; }
+  }
   return s.kind === "directory" || s.kind === "missing" ? null : parent;
 }
 function safeParents(path: string): boolean { return blockedParent(path) === null; }
@@ -70,14 +73,30 @@ function blockedPath(path: string): string { return blockedParent(path) ?? path;
 function blockedMessage(path: string): string {
   const ancestor = blockedParent(path);
   if (ancestor) return stat(ancestor).kind === "symlink"
-    ? `${ancestor} is a link. doan does not write through links. Move or delete it, then Check Again.`
+    ? `${ancestor} is a link. It does not resolve to a directory. Move or delete it, then Check Again.`
     : `${ancestor} is not a directory. Move or delete it, then Check Again.`;
   return `${path} is in use by something else. Move or delete it, then Check Again.`;
 }
 function observedStat(path: string): PathStat { return { ...stat(path), parentBlocked: !safeParents(path) }; }
 function canonical(path: string): string | null { try { return realpathSync.native(path); } catch { return null; } }
+// Missing suffixes retain their names under the nearest existing real directory.
+function realDirectory(path: string): string | null {
+  const s = stat(path);
+  if (s.kind === "missing") {
+    const parent = dirname(path);
+    if (parent === path) return null;
+    const real = realDirectory(parent);
+    return real === null ? null : join(real, basename(path));
+  }
+  try { return statSync(path).isDirectory() ? canonical(path) : null; } catch { return null; }
+}
+function realTarget(path: string): string | null {
+  const parent = realDirectory(dirname(path));
+  return parent === null ? null : join(parent, basename(path));
+}
 function stamp(path: string): string {
-  try { const s = lstatSync(path); return `${s.dev}:${s.ino}:${s.mode}:${s.size}:${s.mtimeMs}:${s.ctimeMs}`; } catch (error) { return errorCode(error); }
+  const location = realTarget(path);
+  try { const s = lstatSync(path); return `${location}:${s.dev}:${s.ino}:${s.mode}:${s.size}:${s.mtimeMs}:${s.ctimeMs}`; } catch (error) { return `${location}:${errorCode(error)}`; }
 }
 export interface LinkObservation { state: LinkState; value: string | null; stamp: string }
 export interface StubObservation { state: StubState; stamp: string }
@@ -105,6 +124,7 @@ export interface MachineDisplay {
   configFile: Record<Agent, string>; configFromEnv: Record<Agent, boolean>;
   // The item in the way (the target or a non-directory ancestor) of a blocked state.
   blocked: { cli: string | null; stub: string | null; claudeLink: string | null };
+  realPaths?: Partial<Record<"cli" | "stub" | "claudeLink", string>>;
   appVersion: string;
 }
 export interface MachineState {
@@ -116,6 +136,7 @@ export interface StepRequest { step: "cli" | "connect"; agent?: Agent; expected:
 export type StepResult = { kind: "success"; warning?: string } | { kind: "busy" | "stale" | "cancelled" } |
   { kind: "unavailable" | "error"; message: string; original?: string } |
   { kind: "confirm"; id: string; target: "cli" | "stub" | "claudeLink" | "mcp"; message: string };
+class AncestorChanged extends Error {}
 function object(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function equal(a: unknown, b: unknown): boolean { return JSON.stringify(a) === JSON.stringify(b); }
 
@@ -168,11 +189,17 @@ export function createMachine(options: { command: string; version: string; env?:
     const agents = { claude: await readAgent("claude"), codex: await readAgent("codex") };
     return { cli: observeLink(cliPath, options.command), stub: observeStub(stubPath), claudeLink: observeLink(ctx.claudeLink, dirname(stubPath)), agents };
   }
+  const claudeLinkValue = (ctx: Context) => relative(realDirectory(dirname(ctx.claudeLink)) ?? dirname(ctx.claudeLink), realDirectory(dirname(stubPath)) ?? dirname(stubPath));
   async function read(requestId: string): Promise<MachineState> {
     const ctx = await context(), expected = await snapshot(ctx);
+    const realPaths: NonNullable<MachineDisplay["realPaths"]> = {};
+    for (const [key, path] of [["cli", cliPath], ["stub", stubPath], ["claudeLink", ctx.claudeLink]] as const) {
+      const real = realTarget(path);
+      if (real !== null && real !== path) realPaths[key] = real;
+    }
     const display: MachineDisplay = {
       home, cliPath, cliTarget: available ? options.command : null, stubPath,
-      claudeLinkPath: ctx.claudeLink, claudeLinkTarget: relative(dirname(ctx.claudeLink), dirname(stubPath)), mcpCommand: `${cliPath} mcp`,
+      claudeLinkPath: ctx.claudeLink, claudeLinkTarget: claudeLinkValue(ctx), mcpCommand: `${cliPath} mcp`,
       configFile: { claude: claudeConfigFile(ctx), codex: join(ctx.codexDir, "config.toml") },
       configFromEnv: { claude: !!ctx.runEnv.CLAUDE_CONFIG_DIR, codex: !!ctx.runEnv.CODEX_HOME },
       blocked: {
@@ -180,22 +207,26 @@ export function createMachine(options: { command: string; version: string; env?:
         stub: expected.stub.state === "blocked" ? blockedPath(stubPath) : null,
         claudeLink: expected.claudeLink.state === "blocked" ? blockedPath(ctx.claudeLink) : null,
       },
+      ...(Object.keys(realPaths).length ? { realPaths } : {}),
       appVersion: options.version,
     };
     return { requestId, expected, ...expected, available, reason, pathPresent: ctx.probe.ok && pathIncludes(ctx.probe.path, dirname(cliPath)), rcFile: rcFileFor(shellName(env)), probe: ctx.probe, display };
   }
   function writeTarget(path: string, content: string, link: boolean, missing: boolean, check: () => boolean): void {
     if (!check() || !safeParents(path)) throw new Error("Target changed. Check Again.");
-    mkdirSync(dirname(path), { recursive: true });
-    if (!safeParents(path)) throw new Error("Target parent changed. Check Again.");
-    const temporary = join(dirname(path), `.doan-${randomUUID()}.tmp`);
+    const destination = realTarget(path);
+    if (destination === null) throw new AncestorChanged();
+    mkdirSync(dirname(destination), { recursive: true });
+    if (!safeParents(path) || realTarget(path) !== destination) throw new AncestorChanged();
+    const temporary = join(dirname(destination), `.doan-${randomUUID()}.tmp`);
     try {
       if (link) symlinkSync(content, temporary); else writeFileSync(temporary, content, { flag: "wx", mode: 0o644 });
       // Recheck after staging; missing targets must still be created exclusively.
-      if (!safeParents(path) || !check()) throw new Error("Target changed. Check Again.");
+      if (!safeParents(path) || realTarget(path) !== destination) throw new AncestorChanged();
+      if (!check()) throw new Error("Target changed. Check Again.");
       if (missing) {
-        if (link) symlinkSync(content, path); else linkSync(temporary, path);
-      } else renameSync(temporary, path);
+        if (link) symlinkSync(content, destination); else linkSync(temporary, destination);
+      } else renameSync(temporary, destination);
     } catch (error) {
       if (errorCode(error) === "EEXIST") throw new Error("Target changed. Check Again.");
       throw error;
@@ -213,7 +244,7 @@ export function createMachine(options: { command: string; version: string; env?:
       const signature = stamp(path);
       writeTarget(path, value, true, before.state === "missing", () => {
         const now = observeLink(path, expected);
-        return now.state === before.state && now.value === before.value && stamp(path) === signature;
+        return now.stamp === before.stamp && now.state === before.state && now.value === before.value && stamp(path) === signature;
       });
     };
     if (request.step === "cli") {
@@ -234,14 +265,14 @@ export function createMachine(options: { command: string; version: string; env?:
       const before = current.stub, signature = stamp(stubPath);
       writeTarget(stubPath, stub, false, before.state === "missing", () => {
         const now = observeStub(stubPath);
-        return stamp(stubPath) === signature && now.state === before.state;
+        return stamp(stubPath) === signature && now.stamp === before.stamp && now.state === before.state;
       });
       current = await snapshot(ctx);
     }
     if (agent === "claude" && current.claudeLink.state !== "ours") {
       if (current.claudeLink.state === "blocked") return { kind: "unavailable", message: blockedMessage(ctx.claudeLink) };
       if (current.claudeLink.state === "link-other" && approved !== "claudeLink") return confirm("claudeLink", `Replace the link pointing to ${current.claudeLink.value}?`);
-      writeLink(ctx.claudeLink, relative(dirname(ctx.claudeLink), dirname(stubPath)), dirname(stubPath), current.claudeLink);
+      writeLink(ctx.claudeLink, claudeLinkValue(ctx), dirname(stubPath), current.claudeLink);
       current = await snapshot(ctx);
     }
     if (current.stub.state !== "ours" || (agent === "claude" && current.claudeLink.state !== "ours")) return { kind: "stale" };
@@ -269,7 +300,7 @@ export function createMachine(options: { command: string; version: string; env?:
   }
   async function locked(request: Omit<StepRequest, "expected"> & { expected: unknown }, approved?: string): Promise<StepResult> {
     if (busy) return { kind: "busy" }; busy = true;
-    try { return await execute(request, approved); } catch (error) { return { kind: "error", message: message(error) }; } finally { busy = false; }
+    try { return await execute(request, approved); } catch (error) { return error instanceof AncestorChanged ? { kind: "stale" } : { kind: "error", message: message(error) }; } finally { busy = false; }
   }
   return {
     read,

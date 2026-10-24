@@ -50,6 +50,10 @@ const AGENT_NAMES: Record<Agent, string> = { claude: "Claude Code", codex: "Code
 export function tilde(path: string, home: string): string {
   return path === home ? "~" : path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
 }
+function realLocation(state: MachineState | null, key: "cli" | "stub" | "claudeLink"): Part[] {
+  const real = state?.display.realPaths?.[key];
+  return real && state ? [" (at ", { code: tilde(real, state.display.home) }, ")"] : [];
+}
 const parent = (path: string) => path.slice(0, path.lastIndexOf("/"));
 const checkAgain = (reason: string) => `${reason.trim().replace(/\.?$/, ".")} Choose Check Again.`;
 
@@ -84,7 +88,7 @@ export function cliItems(state: MachineState | null, ui: MachineUi): ItemView[] 
   const path = d ? tilde(d.cliPath, d.home) : "~/.local/bin/doan";
   const cli = state?.cli.state;
   const target = d?.cliTarget && (cli === "missing" || cli === "ours") ? [" → ", { code: d.cliTarget }] : [];
-  const item: ItemView = { key: "cli", label: "CLI link", detail: [{ code: path }, ...target], chip: readChip(state, ui) ?? linkChip(cli ?? "missing") };
+  const item: ItemView = { key: "cli", label: "CLI link", detail: [{ code: path }, ...realLocation(state, "cli"), ...target], chip: readChip(state, ui) ?? linkChip(cli ?? "missing") };
   if (cli !== "ours") {
     const disabled = !state || !state.available || cli === "blocked" || ui.checking || ui.running !== null || ui.readError !== null;
     item.button = cli === "link-other" ? { id: "replace", label: "Replace…", primary: true, disabled } : { id: "install", label: "Install", primary: true, disabled };
@@ -122,7 +126,7 @@ function connected(state: MachineState, agent: Agent): boolean {
 export function agentsView(state: MachineState | null, ui: MachineUi): { skill: ItemView; agents: AgentCardView[] } {
   const d = state?.display;
   const skill: ItemView = {
-    key: "skill", label: "Skill", detail: [{ code: d ? tilde(d.stubPath, d.home) : "~/.agents/skills/doan/SKILL.md" }, " · shared by Claude Code and Codex"],
+    key: "skill", label: "Skill", detail: [{ code: d ? tilde(d.stubPath, d.home) : "~/.agents/skills/doan/SKILL.md" }, ...realLocation(state, "stub"), " · shared by Claude Code and Codex"],
     chip: readChip(state, ui) ?? stubChip(state?.stub.state ?? "missing"),
   };
   if (state?.stub.state === "differs") skill.msg = { tone: "warn", parts: ["Modified or from another version"] };
@@ -151,7 +155,7 @@ function agentCard(state: MachineState | null, ui: MachineUi, agent: Agent): Age
   }
   const items: ItemView[] = [];
   if (agent === "claude") {
-    const link: ItemView = { key: "claude-link", label: "Skill link", sub: true, detail: [{ code: tilde(d.claudeLinkPath, d.home) }, " → ", { code: d.claudeLinkTarget }], chip: checking ?? linkChip(state.claudeLink.state) };
+    const link: ItemView = { key: "claude-link", label: "Skill link", sub: true, detail: [{ code: tilde(d.claudeLinkPath, d.home) }, ...realLocation(state, "claudeLink"), " → ", { code: d.claudeLinkTarget }], chip: checking ?? linkChip(state.claudeLink.state) };
     if (state.claudeLink.state === "link-other") link.msg = { tone: "warn", parts: ["Points to another folder: ", { code: state.claudeLink.value ?? "" }] };
     if (state.claudeLink.state === "blocked") link.msg = { tone: "error", parts: [{ code: tilde(d.blocked.claudeLink ?? d.claudeLinkPath, d.home) }, IN_USE] };
     items.push(link);
