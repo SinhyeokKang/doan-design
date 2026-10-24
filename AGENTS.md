@@ -79,7 +79,7 @@ These apply to conversation replies and reports to the user, and to feature docu
 
 ## Workflow (skill lineup)
 
-The source for the 12 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, ported the pipeline from malmoi `.claude/commands/` to fit doan — the deploy, DB, and translation stages were dropped).
+The source for the 13 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, ported the pipeline from malmoi `.claude/commands/` to fit doan — the deploy, DB, and translation stages were dropped).
 
 **Recommended flow**: `/feature` → (`/feature-review`) → `/tdd` → `/implement` → (`/runtime-test`) → `/code-review` → `/refactor` → (`/postmortem`) → push. A small change goes all the way to push with `/ship` alone; a large batch to split across several workers runs through `/orchestrate`.
 
@@ -89,6 +89,7 @@ The source for the 12 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, po
 - `/runtime-test` (2026-10-21, app-shell) launches the real app and checks it; run it after `/implement` or `/refactor` whenever `app/` changed, before `/code-review`.
 - `/design-draft` (2026-10-22) draws a feature's UI draft canvas in `design/` from its feature documents and checks it with `doan check` / `doan ls`. Run it after `/feature-review` and before `/tdd`, on the feature branch; either runtime may draw, and the user confirms the draft in the app before implementation.
 - `/design-sync` compares an app screen's first implementation with its draft canvas in `design/` by computed style in the real app. Run it inside a `/ship` or `/orchestrate` branch; the draft is the source of truth only until that screen's first implementation is on main.
+- `/agent-eval` (2026-10-24) runs the fixed scenarios in `eval/` with real Claude Code and Codex and records results and usability issues in `docs/USABILITY-EVAL.md`. Run it when a PR changes the guide, CLI/MCP output or messages, `doan check` rules, MCP tool descriptions or the skill stub, before a feature's last integration, and after an agent version change. Fixes go through `/ship` or `/feature`.
 - If you fixed a regression or bug, run `/postmortem`. `/implement` · `/refactor` · `/code-review` grep `docs/POSTMORTEM.md` before starting (when the file exists).
 - `/ship` · `/orchestrate` always start by creating a `feat-<slug>` branch from main and end with a push of that branch + a PR. They do not merge.
 - In Orca, start `/orchestrate` workers with `--worktree new-child --base-branch feat-<slug>`: without `--base-branch`, the child worktree branches from main, not from the conductor's checkout (2026-10-24, onboard).
@@ -104,6 +105,7 @@ The source for the 12 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, po
 | docs/DIRECTORY.md | Directory layout, in English | When the layout changes |
 | docs/DESIGN.md | Measured values the app UI relies on, documented deviations from drafts, unverified surfaces, in English. Created by the first `/design-sync` run (app-ui, 2026-10-22) | When `/design-sync` runs or a measured value changes |
 | docs/POSTMORTEM.md | Record of pitfalls from bugs and regressions (newest date first; preserve existing entry content), in English. `/postmortem` creates it on first write | When a regression is fixed |
+| docs/USABILITY-EVAL.md | How agents fare writing and reading doan designs: the usability loop, the issue list and `/agent-eval` rounds, in English (2026-10-24) | When `/agent-eval` runs or an agent usability issue is found or fixed |
 | Documents to create later | `docs/OPERATIONS.md` (feature 9 `dist`) · `docs/CONTRIBUTING.md` · `docs/CODE_OF_CONDUCT.md` · `docs/SECURITY.md` (right before going public) · root `LICENSE` (when the license is decided). All in English | Create them when that time comes. Do not create empty shells ahead of time (2026-10-21 user) |
 | [AGENTS.md](./AGENTS.md) | How we work (this file), in English — the shared source for both runtimes | When the way we work changes |
 
@@ -124,7 +126,7 @@ The source for the 12 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, po
 - **⚠️ Do not create `CLAUDE.md` at the root.** Claude Code (v2.1.277+) reads `AGENTS.md` only when there is no `CLAUDE.md` in the working directory or anywhere above it. If a `CLAUDE.md` appears, this file is ignored without warning. If Claude Code-only rules are truly needed, add a `CLAUDE.md` whose first line is `@AGENTS.md`.
 - **Bedrock · Vertex · Foundry sessions do not read `AGENTS.md`.** If you need to work through those paths, use the `@AGENTS.md` import above.
 - **The response-style re-injection hook is Claude Code only** (`.claude/settings.json`). Codex sessions keep only the response style at the top of this file, so maintain it even in long sessions.
-- **Worker model boundary** — if the session calling workers or subagents is Codex, call only Codex models; if it is Claude Code, call only Claude models. Crossing model families is allowed only with the user's explicit permission.
+- **Worker model boundary** — if the session calling workers or subagents is Codex, call only Codex models; if it is Claude Code, call only Claude models. Crossing model families is allowed only with the user's explicit permission. Standing exception (2026-10-24 user): `/agent-eval` always runs both Claude Code and Codex and has the other family judge each run.
 - **Skill locations differ** — Claude Code looks in `.claude/`, Codex in `.agents/skills/`. The skills used to develop this repo have their source in `.agents/skills/<name>/SKILL.md`, and `.claude/skills/<name>` is a symlink pointing to that directory (2026-10-21 user). There is no generator or mirror sync. When you create a new skill, create the link too. These are different from the doan skill that the product installs into the user's agent (ARCHITECTURE §6 'Skills': `SKILL.md` stub + `doan skill`).
 
 ## References
