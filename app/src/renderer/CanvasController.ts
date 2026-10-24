@@ -289,7 +289,6 @@ export class CanvasController {
   private workspaceMemory = new Map<string, { path: string; view: View }>();
   private workspaceActive = true;
   setWorkspaceActive(active: boolean): void { this.workspaceActive = active; }
-  workspaceView(): View { return { ...this.view }; }
 
   openWorkspace(folder: string, entered: (folder: string) => void, sameCanvas = false): void {
     const target = () => this.entries.find(entry => entry.path === folder);

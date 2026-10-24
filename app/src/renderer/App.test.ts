@@ -8,6 +8,7 @@ vi.mock("react", async importOriginal => ({
   useRef: () => ({ current: {} }),
   useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, vi.fn()],
 }));
+vi.mock("./Toast", () => ({ useToast: () => ({ toast: null, element: null, show: vi.fn(), action: vi.fn() }) }));
 vi.mock("./CanvasController", async importOriginal => ({
   ...await importOriginal<typeof import("./CanvasController")>(),
   CanvasController: class {

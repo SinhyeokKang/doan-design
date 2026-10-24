@@ -4,6 +4,14 @@ import type { FolderEntry } from "../main/view";
 import type { ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
 import { projectNames } from "./projectRow";
+import { DropdownMenu } from "radix-ui";
+import { Home, ProblemActions, PathTip } from "./Home";
+import { AddProjectsDialog, SetUpFolderConfirm } from "./AddProjectsDialog";
+import { ProjectSetupDialog } from "./ProjectSetupDialog";
+import { useToast } from "./Toast";
+import { DropOverlay } from "./DropOverlay";
+import type { AddOutcome } from "../main/addProjects";
+import type { RowAction } from "./homeCards";
 import { groupProjects, cardRow } from "./homeCards";
 import { Sidebar } from "./Sidebar";
 import { useComments } from "./useComments";
@@ -15,6 +23,15 @@ import { Wizard, type Reroot } from "./Onboarding";
 export function App() {
   const [screen, setScreen] = useState<"home" | "workspace">("home");
   const [loadedRoot, setLoadedRoot] = useState<string | null>(null);
+  const [rerootHint, setRerootHint] = useState<{ root: string; message: string; seen?: FolderEntry } | null>(null);
+  const [highlight, setHighlight] = useState<string | null>(null);
+  const [scan, setScan] = useState<string | null>(null);
+  const [confirms, setConfirms] = useState<AddOutcome["confirms"]>([]);
+  const [setup, setSetup] = useState<string | null>(null);
+  const beforeModal = useRef<HTMLElement | null>(null);
+  const focusAfterModal = useRef(false);
+  const focusModalPath = useRef<string | null>(null);
+  const toast = useToast();
   const workspaceFocus = useRef<HTMLElement | null>(null);
   const currentScreen = useRef(screen);
   currentScreen.current = screen;
@@ -59,7 +76,7 @@ export function App() {
     const previous = beforeWizard.current;
     beforeWizard.current = null;
     // On first run nothing had focus, so it goes to the sidebar.
-    const fallback = document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]') ?? document.querySelector<HTMLElement>(".side .section-action");
+    const fallback = document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]') ?? document.querySelector<HTMLElement>('.home-body [data-path][tabindex="0"], .home-shell button');
     (previous?.isConnected ? previous : fallback)?.focus();
   }, [wizard]);
   const comments = useComments(state, controller, () => setScreen("workspace"));
@@ -67,13 +84,13 @@ export function App() {
     workspaceFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setScreen("home");
   };
-  useEffect(() => window.doan.onMenuCommand(name => { if (name === "home") home(); }), []);
   useEffect(() => {
     controller.current?.setWorkspaceActive(screen === "workspace");
     if (screen === "home") {
       const rows = Array.from(document.querySelectorAll<HTMLElement>(".home-body [data-path]"));
       (rows.find(row => row.dataset.path === loadedRoot) ?? rows[0])?.focus();
     } else {
+      if (comments.session.draft.draft) { document.querySelector<HTMLTextAreaElement>(".comments-panel textarea")?.focus(); return; }
       const previous = workspaceFocus.current;
       (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus();
     }
@@ -81,7 +98,6 @@ export function App() {
   useEffect(() => {
     if (loadedRoot && !entries.some(entry => entry.path === loadedRoot)) { setLoadedRoot(null); setScreen("home"); }
   }, [entries, loadedRoot]);
-  useEffect(() => { void window.doan.setMenuState({ screen: screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal: wizard !== null || !!comments.dialog, toast: false }); }, [screen, state.open, wizard, !!comments.dialog]);
   const enter = (root: string, sameCanvas = false) => {
     if (root === loadedRoot) { setScreen("workspace"); return; }
     controller.current?.openWorkspace(root, next => { workspaceFocus.current = null; setLoadedRoot(next); setScreen("workspace"); }, sameCanvas);
@@ -90,45 +106,104 @@ export function App() {
   const card = cards.find(card => card.rows.some(row => row.path === loadedRoot));
   const entry = entries.find(entry => entry.path === loadedRoot);
 
+  const modal = wizard !== null || !!comments.dialog || setup !== null || scan !== null || confirms.length > 0;
+  const live = useRef({ home, enter, toast, modal });
+  live.current = { home, enter, toast, modal };
+  const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement.closest<HTMLElement>(".home-body [data-path]") ?? document.activeElement : null; };
+  const modalClosed = () => { focusAfterModal.current = true; };
+  useEffect(() => {
+    if (modal || !focusAfterModal.current) return;
+    focusAfterModal.current = false;
+    const previous = (focusModalPath.current ? Array.from(document.querySelectorAll<HTMLElement>(".home-body [data-path]")).find(row => row.dataset.path === focusModalPath.current) : null) ?? beforeModal.current;
+    focusModalPath.current = null;
+    (previous?.isConnected ? previous : document.querySelector<HTMLElement>('.home-body [data-path][tabindex="0"], .home-shell button'))?.focus();
+  }, [modal, entries]);
+  useEffect(() => {
+    if (setup && !entries.some(entry => entry.path === setup && (entry.kind === "uninitialized" || entry.kind === "loading"))) {
+      const root = reroot?.from === setup ? reroot.root : setup;
+      focusModalPath.current = root;
+      beforeModal.current = Array.from(document.querySelectorAll<HTMLElement>(".home-body [data-path]")).find(row => row.dataset.path === root) ?? null;
+      setSetup(null); modalClosed();
+    }
+  }, [setup, entries, reroot]);
+  useEffect(() => {
+    if (!rerootHint) return;
+    const entry = entries.find(entry => entry.path === rerootHint.root);
+    if (!entry) setRerootHint(null);
+    else if (!rerootHint.seen || rerootHint.seen.kind === "loading") { if (entry !== rerootHint.seen) setRerootHint({ ...rerootHint, seen: entry }); }
+    else if (entry !== rerootHint.seen) setRerootHint(null);
+  }, [entries, rerootHint]);
+  useEffect(() => { if (!highlight) return; const timer = setTimeout(() => setHighlight(null), 2400); return () => clearTimeout(timer); }, [highlight]);
+  const added = (paths: string[]) => {
+    const root = paths.at(-1);
+    if (!root) return;
+    if (currentScreen.current === "home") setHighlight(root);
+    else live.current.toast.show(`Added ${root.split("/").at(-1)}`, "Open", () => live.current.enter(root));
+  };
+  useEffect(() => window.doan.onAddOutcome(outcome => {
+    added(outcome.added);
+    if (outcome.duplicate) { setScreen("home"); setHighlight(outcome.duplicate); }
+    if (outcome.messages.length) live.current.toast.show(outcome.messages.join("\n"));
+    if (outcome.scanId || outcome.confirms.length) rememberFocus();
+    setScan(outcome.scanId); setConfirms(outcome.confirms);
+  }), []);
+  async function remove(paths: string[]) {
+    const result = await window.doan.removeProjects(paths);
+    if (result.kind === "removed") toast.show(`${result.label} removed. Files stay on disk.`, "Undo", () => { void window.doan.restoreProjects(result.removalId).catch(console.error); }, () => { void window.doan.forgetRemoval(result.removalId).catch(console.error); });
+  }
+  function action(name: RowAction, root: string) {
+    if (name === "setUp") { rememberFocus(); setSetup(root); }
+    else if (name === "remove") void remove([root]);
+    else if (name === "showInFinder") void window.doan.revealProject(root).catch(console.error);
+    else if (name === "retry") void window.doan.reopenFolder(root).catch(console.error);
+    else if (name === "locate") void window.doan.locateProject(root).then(result => { if (result.kind === "refused") toast.show(result.message); }).catch(console.error);
+  }
+  useEffect(() => window.doan.onMenuCommand(name => {
+    if (live.current.modal) return;
+    if (name === "home") live.current.home();
+    else if (live.current.toast.toast?.action === "Undo") live.current.toast.action();
+  }), []);
+  useEffect(() => { void window.doan.setMenuState({ screen: screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo" }); }, [screen, state.open, modal, toast.toast?.action]);
   const command = (name: ViewCommand) => controller.current?.command(name);
   const names = projectNames(entries.map(entry => entry.path));
   const name = names.get(state.open?.folder ?? entries[0]?.path ?? "") ?? "";
   return <TooltipProvider>
-  {screen === "home" && <main className="home-shell">
-    <header className="top"><span className="traffic-space" aria-hidden="true" /><span className="logo"><i />doan</span><span className="spacer" /><button className="btn primary" onClick={() => void window.doan.addProjects()}>+ Add Project</button></header>
-    <section className="home-body" aria-label="Projects home"><div className="sec">Projects</div>
-      {!entries.length && <div className="empty"><b>No projects yet</b><p>Add a project to see its design canvases.</p><button className="btn primary" onClick={() => void window.doan.addProjects()}>Add Project…</button><p>Or drop folders anywhere in this window.</p></div>}
-      <div className="cards">{cards.map(card => <section className="card" key={card.key} aria-label={card.name}><div className="card-head"><b className="card-name">{card.name}</b></div>{card.rows.map(row => <button className="wt" key={row.path} data-path={row.path} aria-label={`Open project ${row.path}`} aria-current={row.path === loadedRoot ? "true" : undefined} onClick={() => enter(row.path)}><span>{cardRow(row, loadedRoot, state.selection).summary?.branch ?? names.get(row.path)}</span><span>{cardRow(row, loadedRoot, state.selection).chip}</span><span className="wt-path">{row.path}</span></button>)}</section>)}</div>
-    </section>
-  </main>}
-  <main className="app-shell workspace" style={{ visibility: screen === "home" ? "hidden" : "visible" }} inert={screen === "home"} aria-hidden={screen === "home"}>
+  {screen === "home" && <Home entries={entries} loaded={loadedRoot} selection={state.selection} highlight={highlight} rerootHint={rerootHint} enter={enter} action={action} remove={paths => void remove(paths)} />}
+  <main className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}`} style={{ visibility: screen === "home" ? "hidden" : "visible" }} inert={screen === "home"} aria-hidden={screen === "home"}>
     <TopBar state={state} name={card?.name ?? name} reload={() => command("reload")} home={home} entry={entry} rows={card?.rows ?? []} enter={root => enter(root, true)} />
-    <Sidebar entries={entries.filter(entry => entry.path === loadedRoot)} names={names} state={state} reroot={reroot} open={(folder, row) => controller.current?.openCanvas(folder, row)} jump={index => controller.current?.jump(index)} />
-    <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} noProjects={entries.length === 0} command={command} />
+    {entry && entry.kind !== "list" && <div className="ws-status" role="status"><span className={`ob-chip${entry.kind === "error" ? " err" : entry.kind === "cliError" || entry.kind === "notFound" ? " warn" : ""}`}>{cardRow(entry, loadedRoot, state.selection).chip}</span>{entry.kind === "notFound" ? <span className="text"><code>{entry.path}</code> is gone or moved.</span> : entry.kind === "uninitialized" ? <span className="text">{card?.name} is not set up.</span> : <span className="spacer" />}<ProblemActions entry={entry} action={action} /><button className="btn ghost" onClick={home}>Go Home</button></div>}
+    <Sidebar entries={entries.filter(entry => entry.path === loadedRoot)} names={names} state={state} reroot={reroot} remove={root => void remove([root])} open={(folder, row) => controller.current?.openCanvas(folder, row)} jump={index => controller.current?.jump(index)} />
+    <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} command={command} />
     <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />{comments.panel}</div>
   </main>
   {comments.dialog}
+  {scan && <AddProjectsDialog key={scan} scanId={scan} close={() => { setScan(null); modalClosed(); }} added={added} />}
+  {!scan && !setup && confirms[0] && <SetUpFolderConfirm key={confirms[0].confirmId} name={confirms[0].name} path={confirms[0].path} cancel={() => { setConfirms(items => items.slice(1)); modalClosed(); }} confirm={async () => { const first = confirms[0]; if (!first) return; const result = await window.doan.confirmFolder(first.confirmId); if (result.kind !== "added") throw new Error("This confirmation is no longer available. Add the folder again."); setConfirms(items => items.slice(1)); setSetup(result.added[0] ?? first.path); focusModalPath.current = result.added[0] ?? first.path; added(result.added); }} />}
+  {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} onClose={() => { setSetup(null); modalClosed(); }} onRerooted={(root, message) => { focusModalPath.current = root; setSetup(null); setHighlight(root); setRerootHint({ root, message }); modalClosed(); }} />}
+  {toast.element}
+  <DropOverlay blocked={modal} />
   {wizard !== null && <Wizard key={wizard} session={wizard} entries={entries} reroot={reroot} onClose={() => { restoreFocus.current = true; setWizard(null); }} />}
   </TooltipProvider>;
 }
 
 function TopBar({ state, name, reload, home, entry, rows, enter }: { state: CanvasState; name: string; reload: () => void; home: () => void; entry: FolderEntry | undefined; rows: FolderEntry[]; enter: (root: string) => void }) {
-  const [switcher, setSwitcher] = useState(false);
   const branch = entry?.kind === "list" ? cardRow(entry, null, null).summary?.branch : undefined;
   return <header className="top">
     <span className="traffic-space" aria-hidden="true" />
     <button className="back" aria-label="Go Home" onClick={home}>←</button><span className="divider" />
-    <div className="crumbs"><span className="repo">{name}</span>{branch && <><span className="sep">›</span><button className="branch" aria-label="Switch worktree" aria-expanded={switcher} disabled={rows.length < 2} onClick={() => setSwitcher(!switcher)}><span className="bn">{branch}</span><span className="caret">▾</span></button></>}{state.open && <><span className="sep">›</span><span className="canvas">{state.open.canvas.replace(/^design\//, "")}</span></>}</div>
-    {switcher && <div className="menu worktree-menu" role="menu" aria-label="Worktrees" onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); setSwitcher(false); } }}>{rows.map(row => <button className="mi" role="menuitem" key={row.path} disabled={row.kind !== "list"} onClick={() => { setSwitcher(false); enter(row.path); }}>{cardRow(row, null, null).summary?.branch ?? row.path.split("/").at(-1)} {cardRow(row, null, null).chip}</button>)}</div>}
+    <div className="crumbs"><PathTip text={name}><span className="repo">{name}</span></PathTip>{branch && <><span className="sep">›</span>
+      <DropdownMenu.Root><DropdownMenu.Trigger asChild><button className="branch" aria-label="Switch worktree" disabled={rows.length < 2}><span className="glyph" aria-hidden="true">⎇</span><span className="bn">{branch}</span><span className="caret">▾</span></button></DropdownMenu.Trigger>
+        <DropdownMenu.Portal><DropdownMenu.Content className="menu" aria-label="Worktrees" sideOffset={5} align="start"><div className="menu-head">Worktrees</div>{rows.map(row => <DropdownMenu.Item className="mi" key={row.path} disabled={row.kind !== "list"} onSelect={() => enter(row.path)}><span className="check" aria-hidden="true">{row.path === entry?.path ? "✓" : ""}</span><span className="label">{cardRow(row, null, null).summary?.branch ?? row.path.split("/").at(-1)}</span><span className="sub">{row.path}</span>{cardRow(row, null, null).chip && <span className="ob-chip">{cardRow(row, null, null).chip}</span>}</DropdownMenu.Item>)}</DropdownMenu.Content></DropdownMenu.Portal>
+      </DropdownMenu.Root></>}{state.open && <><span className="sep">›</span><PathTip text={state.open.canvas.replace(/^design\//, "")}><span className="canvas">{state.open.canvas.replace(/^design\//, "")}</span></PathTip></>}</div>
     <span className="chip">{state.open?.row.width === undefined ? "—" : `${state.open.row.width} px`}</span>
     <span className="spacer" />
     <button className="btn ghost" aria-label="Reload canvas" disabled={!state.open} onClick={reload}>Reload <span className="kbd">⌘R</span></button>
   </header>;
 }
 
-function CanvasPane({ viewport, board, overlay, state, noProjects, command }: {
+function CanvasPane({ viewport, board, overlay, state, command }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>;
-  state: CanvasState; noProjects: boolean; command: (name: ViewCommand) => void;
+  state: CanvasState; command: (name: ViewCommand) => void;
 }) {
   return <section className="area" role="region" aria-label="Canvas" ref={viewport}>
     <div className="board" ref={board} hidden />
@@ -139,8 +214,7 @@ function CanvasPane({ viewport, board, overlay, state, noProjects, command }: {
       {state.notice && <div className="canvas-notice" role="status">{state.notice}</div>}
     </div>
     {state.status && <div className="canvas-status" role="status">
-      {state.status === "empty" && noProjects ? <div className="empty"><b>No projects yet</b><p>Open a repo with Open Project… A repo without <code>.doan/</code> shows how to set it up.</p><button className="btn primary" onClick={() => void window.doan.openFolder()}>Open Project… <span className="kbd">⌘O</span></button></div>
-        : state.status === "loading" ? <p><span className="spinner" aria-hidden="true" />Loading…</p>
+      {state.status === "loading" ? <p><span className="spinner" aria-hidden="true" />Loading…</p>
         : state.status === "failed" ? <div><b>Couldn’t load the canvas</b><br />Run doan check in a terminal<br /><br /><button className="btn" onClick={() => command("reload")}>Reload</button></div>
         : state.status === "noWidth" ? <p><b>Missing or invalid board width.</b>{state.message.slice("Missing or invalid board width.".length)}</p>
         : <p>{state.message}</p>}

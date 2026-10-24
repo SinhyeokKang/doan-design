@@ -53,7 +53,7 @@ function loadedController() {
   const receive = (data = layout) => host.dispatchEvent(Object.assign(new Event("message"), { data, origin: "null", source: frame.contentWindow }));
   receive();
   changed.mockClear();
-  return { controller, changed, receive, layout, row };
+  return { controller, changed, receive, layout, row, board };
 }
 
 it("does not notify React for repeated layouts or geometry-only changes", () => {
@@ -817,7 +817,7 @@ it("uses freshly revalidated destination metadata after a draft decision", async
 });
 
 it("switches workspaces through the draft guard and restores the previous canvas view", async () => {
-  const { controller, row, changed } = loadedController();
+  const { controller, row, changed, board } = loadedController();
   try {
     const other = { ...row, url: "http://localhost/other.html" };
     controller.updateEntries([
@@ -826,7 +826,7 @@ it("switches workspaces through the draft guard and restores the previous canvas
     ]);
     controller.command("actualSize");
     controller.wheel({ dx: 20, dy: 30, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
-    const before = controller.workspaceView();
+    const before = board.style.transform;
     const entered = vi.fn();
     controller.setTransitionGuard(() => false);
     controller.openWorkspace("/other", entered);
@@ -837,6 +837,6 @@ it("switches workspaces through the draft guard and restores the previous canvas
     expect(changed.mock.lastCall?.[0].open).toBeNull();
     controller.openWorkspace("/repo", entered);
     expect(changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
-    expect(controller.workspaceView()).toEqual(before);
+    expect(board.style.transform).toEqual(before);
   } finally { controller.dispose(); }
 });

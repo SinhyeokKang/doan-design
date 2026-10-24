@@ -364,3 +364,17 @@ code, kbd { font-family: var(--font-sans); }
 .home-body { overflow: auto; }
 .wt { width: 100%; text-align: left; }
 .worktree-menu { top: 36px; left: 250px; -webkit-app-region: no-drag; }
+
+.menu[role="menu"] { position: relative; outline: none; z-index: 20; }
+.mi[data-highlighted] { outline: none; background: var(--accent-soft); color: var(--accent); }
+.wt:focus-visible { outline: 1px solid var(--accent-line); outline-offset: -1px; }
+.add-dialog { margin: auto; }
+.add-dialog::backdrop { background: color-mix(in srgb, var(--board-bg) 60%, transparent); }
+.add-dialog .cl { max-height: 50vh; }
+.cl > div + div > .cl-item:first-child { border-top: 1px solid var(--line-2); }
+.scrim { position: absolute; inset: 0; background: var(--board-bg); opacity: .6; }
+.workspace.with-status { grid-template-rows: 40px auto minmax(0, 1fr); }
+.ws-status { grid-column: 1 / -1; flex-wrap: wrap; }
+.ws-status .wt-actions { padding: 0; margin: 0; }
+.ws-status .wt-detail { flex-basis: 100%; margin: 0; }
+.mi[data-disabled] { opacity: .4; }
