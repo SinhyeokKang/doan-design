@@ -35,7 +35,12 @@ export function roundRow(meta: RoundMeta, runs: RunRecord[]): string {
 const cell = (text: string) => text.replace(/\|/g, "\\|").replace(/\n/g, " ");
 
 export function summary(round: string, meta: RoundMeta, runs: RunRecord[]): string {
-  const condition = (run: RunRecord) => KNOWN_CONDITIONS.find(entry => entry.scenario === run.scenario && entry.agent === run.agent);
+  const condition = (run: RunRecord) => {
+    const failed = run.checks.filter(check => !check.pass);
+    if (run.result !== "fail" || run.timedOut || failed.length === 0) return undefined;
+    return KNOWN_CONDITIONS.find(entry => entry.scenario === run.scenario && entry.agent === run.agent
+      && failed.every(check => entry.expectedFailedChecks.includes(check.id)));
+  };
   const judgeCell = (judge: RunRecord["judge"]) => judge === "skipped" ? "skipped" : judge === null ? "judge_error" : judge.verdict;
   const lines = [
     `# agent-eval round ${round}`, "",
