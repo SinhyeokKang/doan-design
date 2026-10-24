@@ -107,8 +107,10 @@ export function buildCanvasTree(rows: readonly CanvasRow[]): TreeNode[] {
 }
 
 // WAI-ARIA APG Tree View. A repeated single letter cycles through the rows of
-// that letter; a longer buffer keeps the current row while it still matches,
-// so typing "ab" does not jump away from "abacus" to "abbey".
+// that letter; a longer buffer searches from the current row inclusive, so
+// continuing to type refines the current match instead of skipping it (typing
+// "ab" stays on "abacus" rather than jumping to "abbey"), as typical tree and
+// list typeahead does.
 export function typeaheadNext(visibleKeys: readonly string[], currentIndex: number, buffer: string): number | null {
   const count = visibleKeys.length;
   if (buffer === "" || count === 0) return null;
@@ -121,9 +123,10 @@ export function typeaheadNext(visibleKeys: readonly string[], currentIndex: numb
     }
     return null;
   };
-  const first = needle[0] ?? "";
-  const repeated = needle.length > 1 && [...needle].every((char) => char === first);
-  if (needle.length === 1 || repeated) return search(first, currentIndex + 1);
+  // Code points, not UTF-16 units: an emoji is one typed character.
+  const chars = [...needle];
+  const first = chars[0] ?? "";
+  if (chars.every((char) => char === first)) return search(first, currentIndex + 1);
   return search(needle, Math.max(currentIndex, 0));
 }
 

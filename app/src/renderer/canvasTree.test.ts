@@ -166,6 +166,14 @@ test("typeaheadNext cycles through one letter when it is repeated", () => {
   expect(typeaheadNext(keys, 3, "aa")).toBe(0);
 });
 
+test("typeaheadNext treats a supplementary-plane character as one character", () => {
+  const keys = ["😀 alpha", "😀 beta", "other"];
+  expect(typeaheadNext(keys, 0, "😀")).toBe(1);
+  expect(typeaheadNext(keys, 1, "😀")).toBe(0);
+  expect(typeaheadNext(keys, 0, "😀😀")).toBe(1);
+  expect(typeaheadNext(keys, 0, "😀 b")).toBe(1);
+});
+
 test("typeaheadNext matches a prefix, not a substring", () => {
   expect(typeaheadNext(["alpha", "beta"], 0, "lp")).toBeNull();
 });
