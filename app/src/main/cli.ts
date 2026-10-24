@@ -8,10 +8,8 @@ export type LsTarget = { repo: string } | { cwd: string };
 
 export type FolderView = FolderState | { kind: "notFound" };
 
-// Bundled CLI paths come with distribution (feature 8); until then a dev build
-// is passed in DOAN_CLI, falling back to `doan` on PATH.
-export function cliCommand(env: NodeJS.ProcessEnv = process.env): string {
-  return env.DOAN_CLI || "doan";
+export function cliCommand(env: NodeJS.ProcessEnv = process.env, packaged = false, resourcesPath = ""): string {
+  return env.DOAN_CLI || (packaged ? `${resourcesPath.replace(/\/+$/, "")}/bin/doan` : "doan");
 }
 
 // `--repo` never walks up, so a saved folder is read as itself. `{cwd}` is for a
