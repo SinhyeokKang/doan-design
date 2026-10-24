@@ -164,7 +164,7 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
         const empty = node.kind === "canvas" && row.expanded && !(opened === node.key && state.layout ? state.layout.frames.length : node.row.frames?.length);
         return <div key={row.key} role="none">
           {node.kind === "canvas" ? <Tooltip><TooltipTrigger asChild>{content}</TooltipTrigger><TooltipContent>{node.row.path.replace(/^design\//, "")}</TooltipContent></Tooltip> : content}
-          {selected && state.selection?.element && <div className="row element-row" style={{ paddingLeft: 12 + row.level * 14 }}><span className="glyph" aria-hidden="true">↳</span><span className="g">{state.selection.element.doanId === undefined ? state.selection.tag : `${state.selection.tag} · ${state.selection.element.doanId}`}</span></div>}
+          {selected && state.selection?.element && <div className="row element-row" style={{ paddingLeft: 32 + row.level * 14 }}><span className="glyph" aria-hidden="true">↳</span><span className="g">{state.selection.element.doanId === undefined ? state.selection.tag : `${state.selection.tag} · ${state.selection.element.doanId}`}</span></div>}
           {empty && <p className="tree-hint">This canvas has no data-doan-frame</p>}
           {truncated && <p className="tree-hint">Showing the first 1,000</p>}
         </div>;

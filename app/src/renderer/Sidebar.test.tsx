@@ -61,3 +61,9 @@ test.each(["loading", "noWidth", "failed"] as const)("keeps static frame rows wh
   expect(html).not.toContain("This canvas has no data-doan-frame");
   expect(html).toMatch(/aria-label="Select static"[^>]*disabled/);
 });
+
+test("the selected element's row sits at the draft's 74px under a level-3 frame", () => {
+  const state = opened();
+  const html = sidebar({ ...state, selection: { ...state.selection!, element: { doanId: "cta", selector: "button", html: "<button></button>" } } });
+  expect(html).toMatch(/<div class="row element-row" style="padding-left:74px">/);
+});
