@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import { join } from "node:path";
 import { test } from "node:test";
-import { agentCommand, runProcess } from "./agent.ts";
+import { agentCommand, runProcess, readAgentTranscript } from "./agent.ts";
 
 test("agent commands match the documented invocations", () => {
   assert.deepEqual(agentCommand("claude", "P"), { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--allowedTools", "Bash Read Write Edit Glob Grep", "--", "P"] });
@@ -54,4 +54,42 @@ test("a spawn that throws still settles", async () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("MCP run config pins the measured CLI and runtime without changing global config", () => {
+  const dir = mkdtempSync("/tmp/doan-eval-test-");
+  try {
+    const mcp = { cli: '/tmp/packaged CLI/doan', runtime: '/tmp/rt/runtime.json', configPath: join(dir, "mcp.json") };
+    const claude = agentCommand("claude", "P", mcp);
+    assert.ok(claude.args.includes("--strict-mcp-config"));
+    assert.equal(claude.args[claude.args.indexOf("--mcp-config") + 1], mcp.configPath);
+    assert.match(claude.args[claude.args.indexOf("--allowedTools") + 1], /mcp__doan__\*/);
+    assert.deepEqual(JSON.parse(readFileSync(mcp.configPath, "utf8")), { mcpServers: { doan: { command: mcp.cli, args: ["mcp"], env: { DOAN_RUNTIME: mcp.runtime } } } });
+    const codex = agentCommand("codex", "P", mcp);
+    assert.deepEqual(codex.args.slice(0, 3), ["exec", "--sandbox", "workspace-write"]);
+    for (const option of [`mcp_servers.doan.command=${JSON.stringify(mcp.cli)}`, 'mcp_servers.doan.args=["mcp"]', `mcp_servers.doan.env.DOAN_RUNTIME=${JSON.stringify(mcp.runtime)}`, "mcp_servers.doan.enabled=true"]) assert.ok(codex.args.includes(option));
+    assert.ok(!codex.args.includes("mcp_servers.doan.enabled=false"));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+test("Codex transcript copies only the matching session rollout from inherited CODEX_HOME", () => {
+  const dir = mkdtempSync("/tmp/doan-eval-test-");
+  try {
+    const home = join(dir, "codex");
+    const sessions = join(home, "sessions/2026/10/24");
+    mkdirSync(sessions, { recursive: true });
+    const id = "11111111-2222-3333-4444-555555555555";
+    const rollout = readFileSync(new URL("./fixtures/codex-batched.jsonl", import.meta.url), "utf8");
+    writeFileSync(join(sessions, `rollout-date-${id}.jsonl`), rollout);
+    writeFileSync(join(sessions, "rollout-other.jsonl"), "unrelated");
+    writeFileSync(join(dir, "stdout.log"), "answer");
+    writeFileSync(join(dir, "stderr.log"), `session id: ${id}\n`);
+    const result = readAgentTranscript("codex", dir, { CODEX_HOME: home });
+    assert.ok(result.includes(rollout));
+    assert.ok(!result.includes("unrelated"));
+    assert.equal(readFileSync(join(dir, "codex-rollout.jsonl"), "utf8"), rollout);
+    assert.equal(readAgentTranscript("claude", dir, { CODEX_HOME: home }), `answer\nsession id: ${id}\n`);
+    writeFileSync(join(dir, "stderr.log"), "no session id");
+    assert.equal(readAgentTranscript("codex", dir, { CODEX_HOME: home }), "answer\nno session id");
+    assert.match(readFileSync(join(dir, "codex-rollout-error.txt"), "utf8"), /session id/i);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

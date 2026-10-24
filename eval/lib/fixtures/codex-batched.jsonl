@@ -1,0 +1,1 @@
+{"type": "response_item", "payload": {"type": "custom_tool_call", "name": "exec", "input": "text(await tools.exec_command({cmd:\"doan active --json\"}));\ntext(await tools.exec_command({cmd:\"rg --files\",max_output_tokens:3000}));"}}

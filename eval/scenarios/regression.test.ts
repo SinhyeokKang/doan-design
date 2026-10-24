@@ -8,6 +8,7 @@ import { createContext } from "../lib/context.ts";
 import type { Checks } from "../lib/types.ts";
 import r1 from "./R1/checks.ts";
 import r2 from "./R2/checks.ts";
+import r2b from "./R2b/checks.ts";
 import r3 from "./R3/checks.ts";
 import w1 from "./W1/checks.ts";
 
@@ -74,4 +75,21 @@ test("R5 implementation is one of several opaque file candidates", () => {
   const files = readdirSync(join(import.meta.dirname, "R5/seed/web/billing"));
   assert.ok(files.length >= 3);
   assert.ok(files.every(f => !/receipt|detail/i.test(f)));
+});
+
+test("R2 active detail describes invocation evidence without claiming success", () => {
+  const missing = r2(fixture("R2")).find(c => c.id === "asked_doan_active")!;
+  assert.match(missing.detail, /no .*invocation/i);
+  const called = r2(fixture("R2", claude("doan active --json") + '\napp_not_running')).find(c => c.id === "asked_doan_active")!;
+  assert.equal(called.pass, true);
+  assert.match(called.detail, /invoked.*success.*not/i);
+});
+test("R2b accepts shell and both agents' MCP calls, rejects prose and other servers", () => {
+  const mcp = (name: string) => JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name, input: { repo: "/tmp/repo" } }] } });
+  const rollout = JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "exec", input: "text(await tools.mcp__doan__active({repo: '/tmp/repo'}));" } });
+  for (const transcript of [claude("doan active --json"), mcp("mcp__doan__active"), rollout]) all(r2b, fixture("R2b", transcript));
+  for (const transcript of ["Guide: doan active or mcp__doan__active", mcp("mcp__other__active"), claude("echo 'doan active'")]) assert.equal(r2b(fixture("R2b", transcript)).find(c => c.id === "asked_doan_active")?.pass, false);
+  const ctx = fixture("R2b", rollout);
+  writeFileSync(join(ctx.repo, "design/checkout.html"), ctx.read("design/checkout.html")!.replace("Continue", "Changed"));
+  assert.equal(r2b(ctx).find(c => c.id === "other_elements_unchanged")?.pass, false);
 });
