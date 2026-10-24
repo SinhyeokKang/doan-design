@@ -38,6 +38,17 @@ export function checkList(value: unknown): Check[] {
   return value;
 }
 
+// What is wrong with a self-test fixture's outcome, or null when it is as expected.
+// A checks_error is a broken checks.ts, not the failure a fail fixture is meant
+// to show, so it never counts as one.
+export function fixtureProblem(kind: "pass" | "fail", checks: Check[], result: Result): string | null {
+  const broken = checks.find(c => c.id === "checks_error");
+  if (broken) return `checks did not run: checks_error (${broken.detail})`;
+  if (kind === "pass" && result !== "pass") return `expected pass, got ${result}: ${checks.filter(c => !c.pass).map(c => `${c.id} (${c.detail})`).join("; ")}`;
+  if (kind === "fail" && !checks.some(c => !c.pass)) return `expected at least one failed check, all ${checks.length} passed`;
+  return null;
+}
+
 export function truncate(text: string, limit: number, keep: "head" | "tail"): { text: string; truncated: boolean } {
   if (text.length <= limit) return { text, truncated: false };
   return { text: keep === "head" ? text.slice(0, limit) : text.slice(text.length - limit), truncated: true };

@@ -10,7 +10,7 @@ import { assertRealState, realState } from "../app/e2e/real-state.ts";
 import { agentCommand, killRunning, runProcess } from "./lib/agent.ts";
 import { parseArgs, type Agent, type Options } from "./lib/args.ts";
 import { createContext, sh } from "./lib/context.ts";
-import { buildJudgePrompt, checkList, finalResult, judgeCommand, judgeFor, parseJudgement, type Judgement } from "./lib/judge.ts";
+import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand, judgeFor, parseJudgement, type Judgement } from "./lib/judge.ts";
 import { summary, type RoundMeta, type RunRecord } from "./lib/record.ts";
 import { loadScenario, renderPrompt, scenarioIds, selectIds, type LoadedScenario } from "./lib/scenario.ts";
 import type { Check, Checks } from "./lib/types.ts";
@@ -122,8 +122,8 @@ async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pa
     buildJudgePrompt({ rubric: scenario.rubric, prompt: scenario.promptTemplate, checks, changed, diff, transcript });
     const judgement = setup.options.judge ? parseJudgement(JSON.stringify({ verdict: "pass", reasons: ["fake judge"], stalls: [], layer: "none" })) : "skipped";
     const result = finalResult(checks, judgement);
-    if (kind === "pass" && result !== "pass") problems.push(`${name}: expected pass, got ${result}: ${checks.filter(c => !c.pass).map(c => `${c.id} (${c.detail})`).join("; ")}`);
-    if (kind === "fail" && !checks.some(c => !c.pass)) problems.push(`${name}: expected at least one failed check, all ${checks.length} passed`);
+    const problem = fixtureProblem(kind, checks, result);
+    if (problem) problems.push(`${name}: ${problem}`);
     if (scenario.selectionValue && kind === "pass") {
       const active = ctx.doan(["active"]);
       // The CLI drops `root` from what it prints; the rest must arrive unchanged.
