@@ -87,6 +87,7 @@ async function main(): Promise<void> {
     await import(new URL("./onboarding.ts", import.meta.url).href);
     await import(new URL("./projects-home.ts", import.meta.url).href);
     await import(new URL("./thumbnails.ts", import.meta.url).href);
+    await import(new URL("./design-nav.ts", import.meta.url).href);
   } finally { await assertRealState(actualState); }
 }
 
@@ -756,7 +757,10 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await openCanvas(page, repos.canvas, "design/gone.html");
   await rm(join(repos.canvas, "design", "gone.html"));
   state = await waitView(page, (v) => v.status === "missing", "deleted canvas notice");
-  assert.equal(state.statusText, "design/gone.html is no longer in the list. It was deleted or moved.");
+  // design-nav: the workspace returns to the Overview and says what went.
+  await page.getByRole("region", { name: "Overview", exact: true }).waitFor();
+  await page.locator(".toast", { hasText: "was removed from design/" }).waitFor();
+  assert.equal(await page.locator(".toast .msg").textContent(), "gone was removed from design/");
   assert.equal(await page.$('[role="region"][aria-label="Canvas"] iframe'), null);
   assert.deepEqual(await currentCanvases(page), []);
 
@@ -1678,7 +1682,9 @@ async function reopenObserved(app: ElectronApplication, page: Page, root: string
   } finally { await rm(gate, { force: true }); await writeFile(config, original); }
 }
 
-async function emptyControls(page: Page): Promise<void> {
+async function emptyControls(page: Page, overview = true): Promise<void> {
+  // design-nav: the Overview covers the canvas area of a listed project, whose controls stay disabled beneath it.
+  if (overview) await page.getByRole("region", { name: "Overview", exact: true }).waitFor();
   assert.equal(await page.getByRole("status", { name: "Zoom", exact: true }).textContent(), "—");
   const panel = page.getByRole("region", { name: "Canvas info", exact: true });
   await panel.getByText("No canvas open", { exact: true }).waitFor();
@@ -1843,7 +1849,7 @@ async function windowLifetime(app: ElectronApplication, page: Page, repos: Repos
   await openCanvas(page, repos.canvas, "design/main.html");
   await rename(repos.canvas, `${repos.canvas}-moved`);
   await waitView(page, view => view.statusText === "The project canvas is missing. Use Locate… to find it.", "project gone message");
-  await emptyControls(page);
+  await emptyControls(page, false);
   await removeHomeProject(page, repos.canvas);
   await waitFolders(page, all => all.every(folder => folder.path !== repos.canvas), "Close removes the missing project");
 }
