@@ -154,7 +154,7 @@ export function App() {
   };
   useEffect(() => window.doan.onAddOutcome(outcome => {
     added(outcome.added);
-    if (outcome.duplicate) { live.current.home(); setHighlight([outcome.duplicate]); }
+    if (outcome.duplicate) { live.current.home(); setHighlight([...outcome.added, outcome.duplicate]); }
     if (outcome.messages.length) live.current.toast.show(outcome.messages.join("\n"));
     if (outcome.scanId || outcome.confirms.length) rememberFocus();
     setScan(outcome.scanId); setConfirms(outcome.confirms);

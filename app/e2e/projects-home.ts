@@ -215,6 +215,10 @@ process.exit(result.status ?? 1);
   await enterProject(page, repo); await add([addedProject]);
   const addedToast = page.getByRole("status").filter({ hasText: "Added added-project" }); await addedToast.getByRole("button", { name: "Open", exact: true }).waitFor(); await shot("11-added-toast");
   await addedToast.getByRole("button", { name: "Open", exact: true }).click(); await page.getByRole("treeitem", { name: "added-project", exact: true }).waitFor();
+  const mixedProject = join(home, "mixed-project"); await configured(mixedProject);
+  await goHome(page); await add([addedProject, mixedProject]); await homeRow(page, mixedProject).waitFor();
+  assert.equal(await page.getByRole("region", { name: "mixed-project", exact: true }).evaluate(node => getComputedStyle(node).boxShadow !== "none"), true, "mixed additions highlight new cards");
+  assert.equal(await page.getByRole("region", { name: "added-project", exact: true }).evaluate(node => getComputedStyle(node).boxShadow !== "none"), true, "mixed additions highlight duplicate cards");
   console.log("projects-home: PASS");
 } catch (error) {
   console.error(error);

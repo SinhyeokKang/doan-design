@@ -2106,7 +2106,7 @@ async function readFolders(page: Page): Promise<FolderView[]> {
   const entries = await page.evaluate(() => new Promise<import("../src/main/view").FolderEntry[]>(resolve => {
     const stop = window.doan.onFolders(entries => { stop(); resolve(entries); });
   }));
-  const rows = page.getByRole("region", { name: "Home", exact: true }).getByRole("button", { name: /^Project / }).or(page.getByRole("region", { name: "Home", exact: true }).getByRole("group", { name: /^Project / }));
+  const rows = page.getByRole("region", { name: "Home", exact: true }).getByRole("button", { name: /^Project / }).or(page.getByRole("region", { name: "Home", exact: true }).getByRole("group", { name: /^Project / })).filter({ has: page.getByRole("button", { name: /^Row menu / }) });
   const paths = await rows.evaluateAll(nodes => nodes.map(node => ({ path: node.querySelector('[aria-label^="Row menu "]')!.getAttribute("aria-label")!.slice(9), current: node.getAttribute("aria-current") === "true" })));
   const result: FolderView[] = [];
   for (const { path, current } of paths) {
