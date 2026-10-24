@@ -299,7 +299,8 @@ try {
   assert.deepEqual(JSON.parse((await exec(cli, ["active", "--json", "--repo", repo], { env: { ...process.env, DOAN_RUNTIME: join(userData, "runtime.json") } })).stdout), selectionBeforeJump, "jump keeps doan active unchanged");
   await frameRows(page).first().press("Space"); await keep();
   await frameRows(page).first().dblclick(); await keep();
-  await frameRows(page).first().focus();
+  // The slot shows on hover (or keyboard focus), as a pointer user reaches it.
+  await frameRows(page).first().hover();
   await frameRows(page).first().getByRole("button", { name: /^Select / }).click(); await keep();
   await canvasRow(page, "a.html").click();
   assert.equal(await dialog.count(), 0, "same canvas keeps the draft and selection");
