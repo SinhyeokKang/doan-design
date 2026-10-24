@@ -2,7 +2,7 @@ import { posix } from "node:path";
 import type { CliRun } from "../folderState";
 
 export type Agent = "claude" | "codex";
-export type LinkState = "missing" | "ours" | "link-other" | "blocked";
+export type LinkState = "missing" | "ours" | "dangling" | "link-other" | "blocked";
 export type StubState = "missing" | "ours" | "differs" | "blocked";
 export type McpState = "missing" | "ours" | "other" | "unknown";
 
@@ -18,12 +18,14 @@ export interface LinkRead {
   // Resolve relative targets and disk spelling in the I/O shell. null means
   // dangling/unresolvable; lowercasing would merge distinct case-sensitive files.
   resolved: string | null;
+  resolutionError?: string;
 }
 
 export function linkState(lstat: PathStat, readlink: LinkRead | null, expected: string): LinkState {
   if (lstat.parentBlocked) return "blocked";
   if (lstat.kind === "missing") return "missing";
   if (lstat.kind !== "symlink" || readlink === null) return "blocked";
+  if (readlink.resolved === null && readlink.resolutionError === "ENOENT") return "dangling";
   return readlink.resolved !== null && readlink.resolved === expected ? "ours" : "link-other";
 }
 
