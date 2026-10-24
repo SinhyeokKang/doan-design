@@ -33,6 +33,7 @@ try {
   await configured(plain); await mkdir(empty); await configured(candidate); await git(candidate, ["init"]); await mkdir(notSetup); await git(notSetup, ["init"]);
   const readyRepo = join(parent, "ready"), readyTree = join(work, "ready-tree");
   await configured(readyRepo); await git(readyRepo, ["init", "-b", "main"]); await git(readyRepo, ["-c", "user.name=Home Test", "-c", "user.email=home@example.test", "add", "."]); await git(readyRepo, ["-c", "user.name=Home Test", "-c", "user.email=home@example.test", "commit", "-m", "fixture"]); await git(readyRepo, ["worktree", "add", "-b", "ready-branch", readyTree]);
+  const uncheckedRepo = join(parent, "unchecked-ready"); await configured(uncheckedRepo); await git(uncheckedRepo, ["init"]);
   const wrapped = join(work, "doan-wrapper.mjs"), failure = join(work, "fail-cli");
   await writeFile(wrapped, `#!/usr/bin/env node
 import { existsSync } from 'node:fs';
@@ -116,6 +117,7 @@ process.exit(result.status ?? 1);
   assert.equal(await pathTooltip.textContent(), repo);
   await page.mouse.move(500, 20);
   await add([candidate]); await homeRow(page, candidate).waitFor();
+  const beforeCandidates: string[] = JSON.parse(await readFile(join(userData, "folders.json"), "utf8"));
   await add([parent]); await checklist.waitFor();
   await checklist.getByText("~/projects", { exact: true }).waitFor();
   const already = checklist.getByRole("checkbox", { name: "candidate", exact: true }); await already.waitFor(); assert.equal(await already.isDisabled(), true);
@@ -123,8 +125,14 @@ process.exit(result.status ?? 1);
   await wait(async () => !await checklist.getByRole("checkbox", { name: "ready", exact: true }).isDisabled(), "ready candidate read completes");
   assert.equal(await checklist.getByRole("checkbox", { name: "ready", exact: true }).isChecked(), true);
   assert.equal(await checklist.getByRole("checkbox", { name: "ready-tree worktree", exact: true }).isChecked(), false);
+  const unchecked = checklist.getByRole("checkbox", { name: "unchecked-ready", exact: true });
+  await wait(async () => !await unchecked.isDisabled(), "unchecked ready candidate read completes");
+  assert.equal(await unchecked.isChecked(), true); await unchecked.uncheck();
   await pending.check(); await checklist.getByRole("button", { name: "Add 2 Projects", exact: true }).click(); await checklist.waitFor({ state: "hidden" });
   assert.equal(await homeRow(page, parent).count(), 0); await homeRow(page, notSetup).getByText("Not set up", { exact: true }).waitFor();
+  const afterCandidates: string[] = JSON.parse(await readFile(join(userData, "folders.json"), "utf8"));
+  assert.deepEqual(afterCandidates.filter(path => !beforeCandidates.includes(path)).sort(), [notSetup, readyRepo].sort(), "only checked candidate paths are saved");
+  await homeRow(page, readyRepo).waitFor(); assert.equal(await homeRow(page, uncheckedRepo).count(), 0); assert.equal(await homeRow(page, readyTree).count(), 0);
   await add([empty]); const confirm = page.getByRole("dialog", { name: "Set up notes as a doan project?", exact: true }); await confirm.waitFor(); await shot("03-confirm");
   assert.match(await confirm.innerText(), /doan will add it as a project that is not set up yet, then open the setup form/);
   await confirm.getByRole("button", { name: "Set Up…", exact: true }).click(); const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true }); await setup.waitFor();
@@ -232,6 +240,23 @@ process.exit(result.status ?? 1);
   await homeRow(page, detached).waitFor({ state: "detached" });
   await acmeCard.getByRole("button", { name: "Project menu acme", exact: true }).focus(); await page.keyboard.press("Tab");
   assert.equal(await homeRow(page, repo).evaluate(node => node === document.activeElement), true, "Tab reaches the first remaining row after focused-row removal");
+  await enterProject(page, repo);
+  await wait(async () => !await panel.getByRole("button", { name: "New canvas comment", exact: true }).isDisabled(), "canvas author ready for missing draft");
+  await panel.getByRole("button", { name: "New canvas comment", exact: true }).click(); await draft.fill("Retained missing-project draft");
+  await rename(repo, `${repo}-missing`);
+  await page.getByRole("region", { name: "Project status", exact: true }).getByText("Missing", { exact: true }).waitFor();
+  await goHome(page); await removeHomeProject(page, mixedProject); await homeRow(page, mixedProject).waitFor({ state: "detached" });
+  assert.equal(await guard.count(), 0, "unrelated removal does not guard the retained draft");
+  for (const all of [false, true]) {
+    if (all) { await acmeCard.getByRole("button", { name: "Project menu acme", exact: true }).click(); await page.getByRole("menuitem", { name: "Remove all", exact: true }).click(); }
+    else await homeRow(page, repo).getByRole("button", { name: "Remove", exact: true }).click();
+    await guard.waitFor(); await guard.getByRole("button", { name: "Keep writing", exact: true }).click();
+    assert.equal(await page.getByRole("region", { name: "Home", exact: true }).count(), 0);
+    assert.equal(await draft.inputValue(), "Retained missing-project draft"); assert.equal(await draft.isVisible(), true);
+    await goHome(page);
+  }
+  await homeRow(page, repo).getByRole("button", { name: "Remove", exact: true }).click(); await guard.waitFor(); await guard.getByRole("button", { name: "Discard", exact: true }).click();
+  await homeRow(page, repo).waitFor({ state: "detached" });
   console.log("projects-home: PASS");
 } catch (error) {
   console.error(error);
