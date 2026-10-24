@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
-import { closeSync, openSync, existsSync, readdirSync, readFileSync, writeFileSync, copyFileSync } from "node:fs";
+import { closeSync, openSync, existsSync, readdirSync, readFileSync, writeFileSync, copyFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Agent } from "./args.ts";
+import type { Check } from "./types.ts";
 import { toolCalls, type ToolCalls } from "./transcript.ts";
 
 interface MCPRun { cli: string; runtime: string; configPath: string }
@@ -13,12 +14,23 @@ export function agentCommand(agent: Agent, prompt: string, mcp?: MCPRun): { cmd:
   if (agent === "claude") {
     return { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", ...(mcp ? ["--mcp-config", mcp.configPath] : []), "--allowedTools", `Bash Read Write Edit Glob Grep${mcp ? " mcp__doan__*" : ""}`, "--", prompt] };
   }
-  return { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", ...(mcp ? [
+  return { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", ...(mcp ? [
     "-c", `mcp_servers.doan.command=${JSON.stringify(mcp.cli)}`,
     "-c", 'mcp_servers.doan.args=["mcp"]',
     "-c", `mcp_servers.doan.env.DOAN_RUNTIME=${JSON.stringify(mcp.runtime)}`,
     "-c", "mcp_servers.doan.enabled=true",
   ] : ["-c", "mcp_servers.doan.enabled=false"]), prompt] };
+}
+
+// Read evidence produced by the agent's shell, not the runner's own PATH lookup.
+export function cliProvenance(report: string, expected: string): Check {
+  try {
+    const resolved = readFileSync(report, "utf8").trim();
+    const pass = realpathSync(resolved) === realpathSync(expected);
+    return { id: "agent_cli_provenance", pass, detail: `agent resolved ${resolved}; expected ${expected}` };
+  } catch (error) {
+    return { id: "agent_cli_provenance", pass: false, detail: `Missing or invalid agent CLI resolution: ${(error as Error).message}` };
+  }
 }
 
 export function readAgentTranscript(agent: Agent, dir: string, env: NodeJS.ProcessEnv): { transcript: string; calls: ToolCalls } {

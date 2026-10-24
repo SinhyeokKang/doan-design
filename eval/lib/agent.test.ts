@@ -9,7 +9,7 @@ import { createContext } from "./context.ts";
 
 test("agent commands match the documented invocations", () => {
   assert.deepEqual(agentCommand("claude", "P"), { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--allowedTools", "Bash Read Write Edit Glob Grep", "--", "P"] });
-  assert.deepEqual(agentCommand("codex", "P"), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "mcp_servers.doan.enabled=false", "P"] });
+  assert.deepEqual(agentCommand("codex", "P"), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", "mcp_servers.doan.enabled=false", "P"] });
 });
 
 test("a run past its time limit is killed with its children and settles once", async () => {
@@ -146,7 +146,9 @@ test("agent CLI provenance rejects missing, stale and ambiguous paths", async ()
     const report = join(dir, "resolved-doan.txt");
     writeFileSync(expected, "measured");
     assert.equal(cliProvenance(report, expected).pass, false);
-    writeFileSync(report, "/old/doan\n");
+    const stale = join(dir, "old-doan");
+    writeFileSync(stale, "older");
+    writeFileSync(report, stale + "\n");
     assert.equal(cliProvenance(report, expected).pass, false);
     writeFileSync(report, expected + "\n/old/doan\n");
     assert.equal(cliProvenance(report, expected).pass, false);

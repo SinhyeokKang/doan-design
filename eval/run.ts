@@ -7,7 +7,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { assertRealState, realState } from "../app/e2e/real-state.ts";
-import { agentCommand, killRunning, runProcess, readAgentTranscript } from "./lib/agent.ts";
+import { agentCommand, cliProvenance, killRunning, runProcess, readAgentTranscript } from "./lib/agent.ts";
 import { parseArgs, type Agent, type Options } from "./lib/args.ts";
 import { createContext, sh } from "./lib/context.ts";
 import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand, judgeFor, parseJudgement, type Judgement } from "./lib/judge.ts";
@@ -62,7 +62,9 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
   mkdirSync(dir, { recursive: true });
   const ws = await prepareWorkspace({ scenario, agent, cli: setup.cli, stub: setup.stub });
   try {
-    const prompt = renderPrompt(scenario.promptTemplate, ws.repo);
+    const resolutionPath = join(ws.base, "resolved-doan.txt");
+    const quote = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
+    const prompt = `Evaluation setup: before doing the task, run\ncommand -v doan > ${quote(resolutionPath)}\nfrom your shell without changing PATH. This records the executable used for this run.\n\n` + renderPrompt(scenario.promptTemplate, ws.repo);
     writeFileSync(join(dir, "prompt.txt"), prompt);
     const runtime = ws.env.DOAN_RUNTIME;
     if (!runtime) throw new Error("Workspace has no DOAN_RUNTIME");
@@ -73,6 +75,8 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     const evidence = readAgentTranscript(agent, dir, ws.env);
     const ctx = createContext({ repo: ws.repo, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
     const checks = await runChecks(scenario, ctx);
+    checks.push(cliProvenance(resolutionPath, setup.cli));
+    if (existsSync(resolutionPath)) cpSync(resolutionPath, join(dir, "resolved-doan.txt"));
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     let judgement: Judgement | null | "skipped" = "skipped";
     if (setup.options.judge) {
