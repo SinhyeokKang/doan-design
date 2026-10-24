@@ -92,3 +92,4 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: R-A1 결과 🔴 0 · 🟡 1(기존 교체 테스트가 모두 없는 대상을 써서 이제 dangling만 지나고, 존재하는 다른 대상의 확인 보호가 무시험 — 변이로 재현) · ⚪ 4 · 결정 3. test 1773·typecheck 재확인, 기존 ipcMain 채널 39개 모두 분류됨. 결정 로그 4행을 정했다. 🟡·결정 1·⚪3을 A1-fix(같은 Codex 터미널)로, 결정 2·3·⚪4는 배치 C 브리프로 보낸다. R-A1 워커 해제.
 - 2026-10-25: A1-fix 질문 — 새 상태가 기존 보호 테스트를 다른 분기로 옮긴 함정을 postmortem에 남길지 → 남긴다(main에 닿지 않았지만 드러나지 않는 함정이다). 초안은 인계에, 반영은 지휘자가 통합 때 한다.
 - 2026-10-25: A1-fix 완료(`bef29df`, `ec831cc`, `30cf34d`) — 존재하는 대상의 교체 테스트 3개(변이로 실패 확인), 우선순위, 자기 스텁 누락은 Not connected. test 1789·typecheck 통과 보고. 지휘자가 machine.ts·connectionSummary diff를 확인했다. A1 통합, postmortem 항목 추가.
+- 2026-10-25: A1 통합(`83eac2d`~`4a92054`). `onboardingView.test.ts`에서 A2와 겹친 충돌을 지휘자가 양쪽을 모두 살려 풀었다. postmortem 항목(`2652dfe`). 통합 HEAD typecheck·test 1817 통과(지휘자 실행). A1 워커 해제, `as-a1` 제거.
