@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { isAbsolute, join, normalize, relative } from "node:path";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { dirname, isAbsolute, join, normalize, relative } from "node:path";
 import type { CheckContext } from "./types.ts";
 
 export function resolveInside(repo: string, path: string): string {
@@ -9,6 +9,22 @@ export function resolveInside(repo: string, path: string): string {
   const rel = relative(repo, full);
   if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) throw new Error(`path leaves the repo: ${path}`);
   return normalize(full);
+}
+
+// readFileSync and existsSync follow links, and the agent may have left one (as
+// the target or any ancestor) pointing out of the repo. The deepest part of the
+// path that exists is resolved, so a missing file under an outside link is
+// refused too, instead of being reported as missing.
+function resolveOnDisk(repo: string, path: string): string {
+  const full = resolveInside(repo, path);
+  let probe = full;
+  let real: string;
+  for (;;) {
+    try { real = realpathSync(probe); break; } catch { probe = dirname(probe); }
+  }
+  const rel = relative(realpathSync(repo), real);
+  if (rel === ".." || rel.startsWith("../") || isAbsolute(rel)) throw new Error(`path leaves the repo: ${path}`);
+  return full;
 }
 
 // The repo-relative form git understands, after the same checks as resolveInside.
@@ -62,7 +78,7 @@ export function createContext(o: ContextOptions): CheckContext {
     return result.code === 0 ? result.stdout : null;
   };
   const read = (path: string): string | null => {
-    const full = resolveInside(o.repo, path);
+    const full = resolveOnDisk(o.repo, path);
     try { return readFileSync(full, "utf8"); } catch { return null; }
   };
   return {
@@ -76,7 +92,7 @@ export function createContext(o: ContextOptions): CheckContext {
       return { code: result.code, json };
     },
     read,
-    exists: path => existsSync(resolveInside(o.repo, path)),
+    exists: path => existsSync(resolveOnDisk(o.repo, path)),
     seed,
     changedFiles() {
       // Against the seed commit, not HEAD, so an agent that commits its work is still seen.
