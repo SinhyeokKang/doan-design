@@ -367,3 +367,50 @@ test("a dangling Claude skill link requires confirmation", async () => {
   expect(result).toMatchObject({ kind: "confirm", target: "claudeLink" });
   expect(readlinkSync(link)).toBe("/missing-doan-skill");
 });
+
+test("existing other target: replacement requires confirmation and rechecks the exact readlink before writing", async () => {
+  const target = join(home, ".local/bin/doan"); mkdirSync(join(target, ".."), { recursive: true }); const other = join(temp, "other-doan"); file(other, "other CLI"); symlinkSync(other, target);
+  const m = machine(); const state = await m.read("r");
+  const result = await m.run({ step: "cli", expected: state.expected }); expect(result.kind).toBe("confirm");
+  if (result.kind !== "confirm") throw new Error("confirmation absent");
+  expect(result.message).toBe(`Replace the link pointing to ${other}?`);
+  const beforeCancel = treeHash(home);
+  expect(await m.answer({ id: result.id, allow: false })).toEqual({ kind: "cancelled" });
+  expect(treeHash(home)).toBe(beforeCancel);
+  const retry = await m.run({ step: "cli", expected: (await m.read("again")).expected });
+  if (retry.kind !== "confirm") throw new Error("confirmation absent");
+  expect(readlinkSync(target)).toBe(other); rmSync(target); symlinkSync("/changed", target);
+  expect((await m.answer({ id: retry.id, allow: true })).kind).toBe("stale"); expect(readlinkSync(target)).toBe("/changed");
+});
+
+test("existing other target: CLI missing: replacements still ask, Cancel writes nothing and approval stops before MCP", async () => {
+  agent("claude"); const m = machine();
+  const stub = join(home, ".agents/skills/doan/SKILL.md"); file(stub, "custom");
+  const link = join(home, ".claude/skills/doan"); mkdirSync(join(link, ".."), { recursive: true }); const other = join(temp, "other-skill"); mkdirSync(other); symlinkSync(other, link);
+  const asked = await m.run({ step: "connect", agent: "claude", expected: (await m.read("1")).expected });
+  if (asked.kind !== "confirm") throw new Error("confirmation absent"); expect(asked.target).toBe("stub");
+  expect(await m.answer({ id: asked.id, allow: false })).toEqual({ kind: "cancelled" });
+  expect(readFileSync(stub, "utf8")).toBe("custom"); expect(readlinkSync(link)).toBe(other);
+  const again = await m.run({ step: "connect", agent: "claude", expected: (await m.read("2")).expected });
+  if (again.kind !== "confirm") throw new Error("confirmation absent");
+  const linkAsk = await m.answer({ id: again.id, allow: true });
+  if (linkAsk.kind !== "confirm") throw new Error("link confirmation absent"); expect(linkAsk.target).toBe("claudeLink");
+  expect(linkAsk.message).toBe(`Replace the link pointing to ${other}?`);
+  const beforeCancel = treeHash(home);
+  expect(await m.answer({ id: linkAsk.id, allow: false })).toEqual({ kind: "cancelled" });
+  expect(treeHash(home)).toBe(beforeCancel);
+  const replacement = await m.run({ step: "connect", agent: "claude", expected: (await m.read("3")).expected });
+  if (replacement.kind !== "confirm") throw new Error("link confirmation absent");
+  expect(await m.answer({ id: replacement.id, allow: true })).toMatchObject({ kind: "unavailable" });
+  expect(readFileSync(stub, "utf8")).toContain("[doan:skill] end of guide"); expect(realpathSync(link)).toBe(join(home, ".agents/skills/doan"));
+  expect(mcpWrites()).toEqual([]);
+});
+
+test("existing other target: sibling auto-update does not stale a pending link replacement", async () => {
+  const target = join(home, ".local/bin/doan"); mkdirSync(join(target, ".."), { recursive: true }); const other = join(temp, "other-doan"); file(other, "other CLI"); symlinkSync(other, target);
+  const m = machine(); const pending = await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  if (pending.kind !== "confirm") throw new Error("confirmation absent");
+  expect(pending.message).toBe(`Replace the link pointing to ${other}?`);
+  file(join(target, "../claude"), "new version");
+  expect(await m.answer({ id: pending.id, allow: true })).toEqual({ kind: "success" });
+});
