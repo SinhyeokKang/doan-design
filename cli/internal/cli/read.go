@@ -113,7 +113,11 @@ func List(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		}
 		items = append(items, item)
 	}
-	return Outcome{Result: map[string]any{"root": r.Root, "scope": scope, "canvases": items}}, nil
+	result := map[string]any{"root": r.Root, "scope": scope, "canvases": items}
+	if git := repo.ReadGit(r.Root, ctx.Home); git != nil {
+		result["git"] = git
+	}
+	return Outcome{Result: result}, nil
 }
 
 type listedComment struct {
