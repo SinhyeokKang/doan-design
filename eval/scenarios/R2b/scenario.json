@@ -1,0 +1,9 @@
+{
+  "id": "R2b",
+  "title": "Restyle the selected call to action with MCP available",
+  "focus": "active",
+  "init": null,
+  "selection": "selection.json",
+  "timeoutSec": 900,
+  "mcp": true
+}
