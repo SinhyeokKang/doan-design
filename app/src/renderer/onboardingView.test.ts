@@ -310,3 +310,16 @@ describe("step 4 and copy", () => {
     expect(tilde("/opt/x", home)).toBe("/opt/x");
   });
 });
+
+
+test("symlinked setup locations show the familiar path and the real location", () => {
+  const state = machine({ display: { realPaths: { cli: "/managed/bin/doan", stub: "/managed/skills/doan/SKILL.md", claudeLink: "/managed/claude/doan" } } });
+  const cli = cliItems(state, ui())[0]?.detail;
+  expect(cli).toContainEqual({ code: "~/.local/bin/doan" });
+  expect(cli).toContainEqual({ code: "/managed/bin/doan" });
+  const view = agentsView(state, ui());
+  expect(view.skill.detail).toContainEqual({ code: "~/.agents/skills/doan/SKILL.md" });
+  expect(view.skill.detail).toContainEqual({ code: "/managed/skills/doan/SKILL.md" });
+  expect(view.agents[0]?.items[0]?.detail).toContainEqual({ code: "~/.claude/skills/doan" });
+  expect(view.agents[0]?.items[0]?.detail).toContainEqual({ code: "/managed/claude/doan" });
+});

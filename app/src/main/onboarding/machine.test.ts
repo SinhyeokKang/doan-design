@@ -47,10 +47,9 @@ test("CLI install is atomic, concurrent requests cannot write twice and stale sn
   expect((await m.run(request)).kind).toBe("stale");
   expect((await m.read("r2")).cli.state).toBe("ours");
 });
-test.each(["file", "directory", "parent-file", "parent-link"])("blocked %s stays byte-identical", async kind => {
+test.each(["file", "directory", "parent-file"])("blocked %s stays byte-identical", async kind => {
   const target = join(home, ".local/bin/doan");
   if (kind === "parent-file") file(join(home, ".local/bin"), "keep");
-  else if (kind === "parent-link") { mkdirSync(join(home, ".local")); symlinkSync(temp, join(home, ".local/bin")); }
   else if (kind === "file") file(target, "keep");
   else mkdirSync(target, { recursive: true });
   const before = treeHash(home);
@@ -155,11 +154,10 @@ test("corrupt or absent onboarding opens; close writes an atomic empty object", 
   await markClosed(userData); expect(await needsOnboarding(userData)).toBe(false); expect(JSON.parse(readFileSync(join(userData, "onboarding.json"), "utf8"))).toEqual({});
 });
 
-test.each(["file-link", "file-directory", "parent-link"])("blocked stub %s stops before MCP and preserves content", async kind => {
+test.each(["file-link", "file-directory"])("blocked stub %s stops before MCP and preserves content", async kind => {
   agent("claude"); const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
   const stub = join(home, ".agents/skills/doan/SKILL.md");
-  if (kind === "parent-link") { mkdirSync(join(home, ".agents")); symlinkSync(temp, join(home, ".agents/skills")); }
-  else { mkdirSync(dirnameForTest(stub), { recursive: true }); if (kind === "file-link") symlinkSync(cli, stub); else mkdirSync(stub); }
+  { mkdirSync(dirnameForTest(stub), { recursive: true }); if (kind === "file-link") symlinkSync(cli, stub); else mkdirSync(stub); }
   const before = treeHash(home);
   const state = await m.read("2"); expect(state.stub.state).toBe("blocked");
   expect((await m.run({ step: "connect", agent: "claude", expected: state.expected })).kind).toBe("unavailable");
@@ -219,7 +217,7 @@ test("canonical identity uses disk spelling and leaves link loops foreign", asyn
 test.each([".local", ".claude", ".agents"].flatMap(name => ["link", "file"].map(kind => ({ name, kind }))))("blocked message identifies ancestor $name ($kind)", async ({ name, kind }) => {
   agent("claude"); const m = machine();
   if (name !== ".local") await m.run({ step: "cli", expected: (await m.read("1")).expected });
-  const ancestor = join(home, name); if (kind === "link") symlinkSync(temp, ancestor); else file(ancestor, "keep");
+  const ancestor = join(home, name); if (kind === "link") symlinkSync(join(temp, "missing"), ancestor); else file(ancestor, "keep");
   const result = await m.run({ step: name === ".local" ? "cli" : "connect", ...(name === ".local" ? {} : { agent: "claude" }), expected: (await m.read("2")).expected });
   expect(result).toMatchObject({ kind: "unavailable", message: expect.stringContaining(`${ancestor} is ${kind === "link" ? "a link" : "not a directory"}.`) });
 });
@@ -256,4 +254,55 @@ test("unreadable and absent registrations stay distinct from run failures", asyn
 test.each(["claude", "codex"] as const)("an invalid %s config location is the shown cause", async name => {
   agent(name); const key = name === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"; env[key] = "~/invalid";
   expect((await machine().read("r")).agents[name].mcp).toEqual({ state: "unknown", value: `${key} must be an absolute path: ~/invalid` });
+});
+
+
+test.each(["skills", "config"])("Claude follows a symlinked %s directory and resolves the relative skill link from its real parent", async kind => {
+  agent("claude");
+  const realConfig = join(home, ".claude"); mkdirSync(join(realConfig, "skills"), { recursive: true });
+  const config = join(home, "profiles/id/home"); mkdirSync(join(config, ".."), { recursive: true });
+  if (kind === "config") symlinkSync(realConfig, config);
+  else { mkdirSync(config); symlinkSync(join(realConfig, "skills"), join(config, "skills")); }
+  env.CLAUDE_CONFIG_DIR = config;
+  const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  const state = await m.read("2");
+  expect(state.claudeLink.state).toBe("missing");
+  expect(state.display.claudeLinkPath).toBe(join(config, "skills/doan"));
+  expect(state.display.realPaths?.claudeLink).toBe(join(realConfig, "skills/doan"));
+  expect(state.display.claudeLinkTarget).toBe("../../.agents/skills/doan");
+  expect(await m.run({ step: "connect", agent: "claude", expected: state.expected })).toEqual({ kind: "success" });
+  expect(readlinkSync(join(realConfig, "skills/doan"))).toBe("../../.agents/skills/doan");
+  expect(readFileSync(join(config, "skills/doan/SKILL.md"), "utf8")).toContain("[doan:skill] end of guide");
+});
+
+test.each([".agents", ".agents/skills", ".local/bin"])("setup follows the existing directory at %s", async name => {
+  agent("claude");
+  const real = join(temp, "managed"); mkdirSync(real);
+  const link = join(home, name); mkdirSync(join(link, ".."), { recursive: true }); symlinkSync(real, link);
+  const m = machine();
+  expect(await m.run({ step: "cli", expected: (await m.read("1")).expected })).toEqual({ kind: "success" });
+  expect(await m.run({ step: "connect", agent: "claude", expected: (await m.read("2")).expected })).toEqual({ kind: "success" });
+  const target = name === ".local/bin" ? "doan" : name === ".agents" ? "skills/doan/SKILL.md" : "doan/SKILL.md";
+  expect(existsSync(join(real, target))).toBe(true);
+  expect(readFileSync(join(home, ".claude/skills/doan/SKILL.md"), "utf8")).toContain("[doan:skill] end of guide");
+});
+
+test.each(["dangling", "file", "loop"])("blocks a %s ancestor link without writing through it", async kind => {
+  const link = join(home, ".local/bin"); mkdirSync(join(home, ".local"));
+  const target = join(temp, "destination"); if (kind === "file") file(target, "keep");
+  symlinkSync(kind === "loop" ? link : target, link);
+  const before = treeHash(temp), m = machine(), state = await m.read("1");
+  expect(state.cli.state).toBe("blocked");
+  expect(await m.run({ step: "cli", expected: state.expected })).toMatchObject({ kind: "unavailable" });
+  expect(treeHash(temp)).toBe(before);
+});
+
+test.each([".local/bin", ".agents/skills", ".claude/skills"])("swapping ancestor %s after the read is stale even with missing final targets", async name => {
+  agent("claude");
+  const first = join(temp, "first"), second = join(temp, "second"); mkdirSync(first); mkdirSync(second);
+  const parent = join(home, name); mkdirSync(join(parent, ".."), { recursive: true }); symlinkSync(first, parent);
+  const m = machine(), state = await m.read("1");
+  rmSync(parent); symlinkSync(second, parent);
+  expect(await m.run({ step: name === ".local/bin" ? "cli" : "connect", ...(name === ".local/bin" ? {} : { agent: "claude" }), expected: state.expected })).toEqual({ kind: "stale" });
+  expect(readdirSync(first)).toEqual([]); expect(readdirSync(second)).toEqual([]);
 });
