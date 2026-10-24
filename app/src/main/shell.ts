@@ -18,8 +18,9 @@ export interface Shell {
   entries(): FolderEntry[];
   epoch(root: string): number | null;
   authorizeComments(identity: CommentIdentity): Promise<{ width: number | null; url: string }>;
-  // Resolves to a message for the human when the folder is not opened.
-  open(picked: string): Promise<string | null>;
+  // The stored root (the picked folder or the repo above it), or a message for
+  // the human when the folder is not opened.
+  open(picked: string): Promise<{ root: string } | { refused: string }>;
   initialize(path: string, tokenCss: string | null): Promise<ProjectInitResult>;
   reopen(path: string): Promise<void>;
   close(path: string): Promise<void>;
@@ -160,26 +161,26 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         // A folder removed after it was picked would make the cwd-based run
         // fail as `spawn doan ENOENT`, which reads like a missing CLI.
         real = await realpath(picked);
-        if (!(await stat(real)).isDirectory()) return `Project not found: ${picked}`;
+        if (!(await stat(real)).isDirectory()) return { refused: `Project not found: ${picked}` };
       } catch {
-        return `Project not found: ${picked}`;
+        return { refused: `Project not found: ${picked}` };
       }
       const state = folderState(await runLs(cli, { cwd: real }));
       const failed = state.kind === "error" || state.kind === "cliError";
       const asRepo = failed ? folderState(await runLs(cli, { repo: real })) : null;
       const decision = openDecision(state, real, asRepo);
-      if ("refuse" in decision) return decision.refuse;
+      if ("refuse" in decision) return { refused: decision.refuse };
       const path = decision.store;
       const existing = folders.get(path);
       if (existing) {
         attach(existing);
-        return null;
+        return { root: path };
       }
       const write = store.add(path);
       add(path);
       onChange(entries());
       logWrite(await write);
-      return null;
+      return { root: path };
     },
     initialize(path, tokenCss) {
       const folder = folders.get(path);

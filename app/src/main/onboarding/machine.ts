@@ -66,6 +66,7 @@ function blockedParent(path: string): string | null {
   return s.kind === "directory" || s.kind === "missing" ? null : parent;
 }
 function safeParents(path: string): boolean { return blockedParent(path) === null; }
+function blockedPath(path: string): string { return blockedParent(path) ?? path; }
 function blockedMessage(path: string): string {
   const ancestor = blockedParent(path);
   if (ancestor) return stat(ancestor).kind === "symlink"
@@ -96,10 +97,19 @@ export interface Expected {
   cli: LinkObservation; stub: StubObservation; claudeLink: LinkObservation;
   agents: Record<Agent, { executable: string | null; config: string; mcp: McpObservation }>;
 }
+// What the wizard shows next to each item. Main computes every path; the
+// renderer only shortens `home` to `~`.
+export interface MachineDisplay {
+  home: string; cliPath: string; cliTarget: string | null; stubPath: string;
+  claudeLinkPath: string; claudeLinkTarget: string; mcpCommand: string;
+  configFile: Record<Agent, string>; configFromEnv: Record<Agent, boolean>;
+  // The item in the way (the target or a non-directory ancestor) of a blocked state.
+  blocked: { cli: string | null; stub: string | null; claudeLink: string | null };
+}
 export interface MachineState {
   requestId: string; expected: Expected; cli: LinkObservation; stub: StubObservation;
   available: boolean; reason: string | null; pathPresent: boolean; rcFile: string | null;
-  probe: ShellProbe; agents: Expected["agents"]; claudeLink: LinkObservation;
+  probe: ShellProbe; agents: Expected["agents"]; claudeLink: LinkObservation; display: MachineDisplay;
 }
 export interface StepRequest { step: "cli" | "connect"; agent?: Agent; expected: Expected }
 export type StepResult = { kind: "success"; warning?: string } | { kind: "busy" | "stale" | "cancelled" } |
@@ -127,11 +137,12 @@ export function createMachine(options: { command: string; env?: NodeJS.ProcessEn
     return { probe, runEnv, claudeDir, codexDir, configValid, claudeLink: join(claudeDir, "skills/doan") };
   }
   type Context = Awaited<ReturnType<typeof context>>;
+  const claudeConfigFile = (ctx: Context) => ctx.runEnv.CLAUDE_CONFIG_DIR ? join(ctx.claudeDir, ".claude.json") : join(home, ".claude.json");
   async function readMcp(agent: Agent, ctx: Context, exe: string | null): Promise<McpObservation> {
     if (!ctx.probe.ok || !ctx.configValid[agent] || !exe) return { state: "unknown", value: "" };
     let result: CliRun;
     if (agent === "claude") {
-      const file = ctx.runEnv.CLAUDE_CONFIG_DIR ? join(ctx.claudeDir, ".claude.json") : join(home, ".claude.json");
+      const file = claudeConfigFile(ctx);
       try { result = { stdout: readFileSync(file, "utf8"), stderr: "", exitCode: 0, timedOut: false }; }
       catch (error) { result = errorCode(error) === "ENOENT" ? { stdout: "{}", stderr: "", exitCode: 0, timedOut: false } : { stdout: "", stderr: message(error), exitCode: 1, timedOut: false }; }
     } else result = await runProcess(exe, ["mcp", "get", "doan", "--json"], ctx.runEnv, AGENT_TIMEOUT_MS);
@@ -151,7 +162,18 @@ export function createMachine(options: { command: string; env?: NodeJS.ProcessEn
   }
   async function read(requestId: string): Promise<MachineState> {
     const ctx = await context(), expected = await snapshot(ctx);
-    return { requestId, expected, ...expected, available, reason, pathPresent: ctx.probe.ok && pathIncludes(ctx.probe.path, dirname(cliPath)), rcFile: rcFileFor(shellName(env)), probe: ctx.probe };
+    const display: MachineDisplay = {
+      home, cliPath, cliTarget: available ? options.command : null, stubPath,
+      claudeLinkPath: ctx.claudeLink, claudeLinkTarget: relative(dirname(ctx.claudeLink), dirname(stubPath)), mcpCommand: `${cliPath} mcp`,
+      configFile: { claude: claudeConfigFile(ctx), codex: join(ctx.codexDir, "config.toml") },
+      configFromEnv: { claude: !!ctx.runEnv.CLAUDE_CONFIG_DIR, codex: !!ctx.runEnv.CODEX_HOME },
+      blocked: {
+        cli: expected.cli.state === "blocked" ? blockedPath(cliPath) : null,
+        stub: expected.stub.state === "blocked" ? blockedPath(stubPath) : null,
+        claudeLink: expected.claudeLink.state === "blocked" ? blockedPath(ctx.claudeLink) : null,
+      },
+    };
+    return { requestId, expected, ...expected, available, reason, pathPresent: ctx.probe.ok && pathIncludes(ctx.probe.path, dirname(cliPath)), rcFile: rcFileFor(shellName(env)), probe: ctx.probe, display };
   }
   function writeTarget(path: string, content: string, link: boolean, missing: boolean, check: () => boolean): void {
     if (!check() || !safeParents(path)) throw new Error("Target changed. Check Again.");

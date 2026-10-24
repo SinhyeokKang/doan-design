@@ -48,7 +48,8 @@ const api = {
   },
   chooseTokenCss: (root: string): Promise<TokenCssChoice> => ipcRenderer.invoke("project:choose-token-css", { root }),
   initializeProject: (request: ProjectInitRequest): Promise<ProjectInitResult> => ipcRenderer.invoke("project:init", request),
-  openFolder: (): Promise<void> => ipcRenderer.invoke("folders:open"),
+  // The stored root, or null when the sheet was cancelled or the folder refused.
+  openFolder: (): Promise<string | null> => ipcRenderer.invoke("folders:open"),
   reopenFolder: (path: string): Promise<void> => ipcRenderer.invoke("folders:reopen", path),
   closeFolder: (path: string): Promise<void> => ipcRenderer.invoke("folders:close", path),
   // Main validates it again and keeps one selection for `doan active`.

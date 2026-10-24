@@ -208,17 +208,20 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-async function openProject(): Promise<void> {
+// Resolves to the stored root so the setup wizard can show the project it opened.
+async function openProject(): Promise<string | null> {
   const window = win;
   const ready = shell;
-  if (!window || window.isDestroyed() || !ready) return;
+  if (!window || window.isDestroyed() || !ready) return null;
   showWindow(window);
   const picked = await dialog.showOpenDialog(window, { title: "Open Project…", properties: ["openDirectory"] });
   const path = picked.filePaths[0];
-  if (picked.canceled || path === undefined) return;
-  const refused = await ready.open(path);
+  if (picked.canceled || path === undefined) return null;
+  const opened = await ready.open(path);
+  if ("root" in opened) return opened.root;
   // Not awaited: the open call has finished; the message box only informs.
-  if (refused !== null && !window.isDestroyed()) void dialog.showMessageBox(window, { type: "error", message: "Can’t open project", detail: refused });
+  if (!window.isDestroyed()) void dialog.showMessageBox(window, { type: "error", message: "Can’t open project", detail: opened.refused });
+  return null;
 }
 
 async function start(): Promise<void> {
@@ -308,10 +311,7 @@ async function start(): Promise<void> {
     return ready.initialize(value.root, tokenCss);
   });
   ipcMain.handle("folders:get", (event) => (fromWindow(event) ? ready.entries() : []));
-  ipcMain.handle("folders:open", async (event) => {
-    if (!fromWindow(event)) return;
-    await openProject();
-  });
+  ipcMain.handle("folders:open", async (event) => (fromWindow(event) ? openProject() : null));
   ipcMain.handle("folders:reopen", async (event, path: unknown) => {
     if (!fromWindow(event) || typeof path !== "string") return;
     await ready.reopen(path);
