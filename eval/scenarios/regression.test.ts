@@ -90,6 +90,6 @@ test("R2b accepts shell and both agents' MCP calls, rejects prose and other serv
   for (const transcript of [claude("doan active --json"), mcp("mcp__doan__active"), rollout]) all(r2b, fixture("R2b", transcript));
   for (const transcript of ["Guide: doan active or mcp__doan__active", mcp("mcp__other__active"), claude("echo 'doan active'")]) assert.equal(r2b(fixture("R2b", transcript)).find(c => c.id === "asked_doan_active")?.pass, false);
   const ctx = fixture("R2b", rollout);
-  writeFileSync(join(ctx.repo, "design/checkout.html"), ctx.read("design/checkout.html")!.replace("Continue", "Changed"));
+  writeFileSync(join(ctx.repo, "design/checkout.html"), ctx.read("design/checkout.html")!.replace("Start free trial", "Changed"));
   assert.equal(r2b(ctx).find(c => c.id === "other_elements_unchanged")?.pass, false);
 });
