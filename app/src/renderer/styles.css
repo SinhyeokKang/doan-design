@@ -381,7 +381,9 @@ code, kbd { font-family: var(--font-sans); }
 .sel-mark { flex: none; width: 7px; height: 7px; border: 1px solid var(--accent); transform: rotate(45deg); margin: 0 2px; }
 .row .ra + .sel-mark { margin-left: -2px; }
 .row .ra { display: none; flex: none; gap: 4px; }
-.row:hover .ra, .row:focus-within .ra { display: flex; }
+/* Keyboard focus only: a clicked row keeps focus, and its Select must not stay up beside the hovered row's. */
+.row:hover .ra, .row:focus-visible .ra { display: flex; }
+.side .row .no-id { color: var(--text-3); }
 .ra .btn { padding: 1px 7px; font-size: 11px; border-radius: 6px; }
 .tree-hint { padding: 2px 12px 6px 46px; font: 11.5px/1.5 var(--font-sans); color: var(--text-3); }
 .crumbs button.repo { border-radius: 5px; padding: 1px 4px; margin: 0 -4px; }

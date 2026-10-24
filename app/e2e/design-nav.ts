@@ -186,6 +186,10 @@ try {
   await wait(async () => await page.locator("header .branch .bn").textContent() === "feat-billing", "entered the feat-billing worktree");
   await loaded("Billing & plans");
   await wait(async () => await current() === "4 Card declined", "moved to the Card declined frame");
+  // A clicked row keeps focus; its Select slot shows only for keyboard focus, so the hovered row's is the only one up.
+  await page.getByRole("treeitem", { name: "4 Card declined", exact: true }).click();
+  await page.getByRole("treeitem", { name: "1 Plans", exact: true }).hover();
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".side .ra")].filter(slot => getComputedStyle(slot).display !== "none").map(slot => slot.closest('[role="treeitem"]')?.getAttribute("aria-label"))), ["1 Plans"]);
 
   // Task 9 — a duplicate id goes to its first frame; a frame the canvas removed gets the toast.
   await quickOpen("second dup");

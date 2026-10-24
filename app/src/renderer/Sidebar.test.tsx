@@ -67,3 +67,10 @@ test("the selected element's row sits at the draft's 74px under a level-3 frame"
   const html = sidebar({ ...state, selection: { ...state.selection!, element: { doanId: "cta", selector: "button", html: "<button></button>" } } });
   expect(html).toMatch(/<div class="row element-row" style="padding-left:74px">/);
 });
+
+test("a frame without id or title is dimmed as the shipped (no id) label", () => {
+  const canvas = { ...row, frames: [{ id: "" }, { id: "named" }] };
+  const html = renderToStaticMarkup(<TooltipProvider><Sidebar entries={[{ path: "/repo", kind: "list", servedRev: 0, canvases: [canvas] }]} state={initialCanvasState()} expanded={{ "/repo": ["design/billing", canvas.path] }} open={() => {}} jump={() => {}} select={() => {}} overview={() => {}} /></TooltipProvider>);
+  expect(html).toContain('<span class="g no-id">(no id)</span>');
+  expect(html).toContain('<span class="g">named</span>');
+});
