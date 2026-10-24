@@ -33,7 +33,9 @@ const checks: Checks = ctx => {
   // Ignore semantic tags when comparing text; numeric row associations and visibility
   // need the judge because source text cannot establish rendered data bindings.
   const normalized = reachable.replace(/<\/?[A-Za-z][^>]*>/g, "").replace(/\s+/g, " ");
-  const missing = copy.filter(s => !normalized.includes(s));
+  // Existing components accept visible copy through props that tag stripping removes.
+  const literals = [...reachable.matchAll(/(["'`])((?:\\.|(?!\1).)*)\1/g)].map(m => m[2]).join("\n");
+  const missing = copy.filter(s => !normalized.includes(s) && !literals.includes(s));
   const direct: string[] = [];
   for (const path of changed.filter(p => /\.(?:css|tsx?|jsx?)$/i.test(p))) {
     const old = colors(ctx.seed(path) ?? "");
