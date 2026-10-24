@@ -53,7 +53,7 @@ function loadedController() {
   const receive = (data = layout) => host.dispatchEvent(Object.assign(new Event("message"), { data, origin: "null", source: frame.contentWindow }));
   receive();
   changed.mockClear();
-  return { controller, changed, receive, layout, row };
+  return { controller, changed, receive, layout, row, board };
 }
 
 it("does not notify React for repeated layouts or geometry-only changes", () => {
@@ -448,12 +448,21 @@ describe("selection wiring (flow 7)", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("points an open canvas of an uninitialized project at Set Up… in the sidebar", () => {
+  it("points an open canvas of an uninitialized project at Set Up… on Home", () => {
     const h = selectionHarness();
     try {
       h.select(1);
       h.controller.updateEntries([{ path: "/repo", kind: "uninitialized" }]);
-      expect(h.state()).toMatchObject({ status: "missing", message: "The project repo is not initialized. Choose Set Up… in the sidebar." });
+      expect(h.state()).toMatchObject({ status: "missing", message: "The project repo is not set up. Use Set Up… on Home." });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("points a missing project at Locate…", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.updateEntries([{ path: "/repo", kind: "notFound" }]);
+      expect(h.state().message).toBe("The project repo is missing. Use Locate… to find it.");
     } finally { h.controller.dispose(); }
   });
 
@@ -814,4 +823,29 @@ it("uses freshly revalidated destination metadata after a draft decision", async
     expect(h.state().open.row.width).toBeUndefined();
     expect(h.state().status).toBe("noWidth");
   } finally { h.controller.dispose(); }
+});
+
+it("switches workspaces through the draft guard and restores the previous canvas view", async () => {
+  const { controller, row, changed, board } = loadedController();
+  try {
+    const other = { ...row, url: "http://localhost/other.html" };
+    controller.updateEntries([
+      { path: "/repo", kind: "list", servedRev: 0, canvases: [row] },
+      { path: "/other", kind: "list", servedRev: 0, canvases: [other] },
+    ]);
+    controller.command("actualSize");
+    controller.wheel({ dx: 20, dy: 30, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
+    const before = board.style.transform;
+    const entered = vi.fn();
+    controller.setTransitionGuard(() => false);
+    controller.openWorkspace("/other", entered);
+    expect(entered).not.toHaveBeenCalled();
+    controller.setTransitionGuard(() => true);
+    controller.openWorkspace("/other", entered);
+    expect(entered).toHaveBeenCalledWith("/other");
+    expect(changed.mock.lastCall?.[0].open).toBeNull();
+    controller.openWorkspace("/repo", entered);
+    expect(changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
+    expect(board.style.transform).toEqual(before);
+  } finally { controller.dispose(); }
 });

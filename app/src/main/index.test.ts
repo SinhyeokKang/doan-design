@@ -27,7 +27,7 @@ const mocks = await vi.hoisted(async () => {
     Window,
     app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
-    shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), close: vi.fn(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
+    shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
       store: vi.fn(), remove: vi.fn(), restore: vi.fn(), replace: vi.fn(), rereadAll: vi.fn() },
     flow: { add: vi.fn(), scan: vi.fn(), cancel: vi.fn(), addCandidates: vi.fn(), confirm: vi.fn(), judge: vi.fn() },
     createAddFlow: vi.fn(),
@@ -331,14 +331,15 @@ test("ignores selection:set from other senders", async () => {
   expect(runtimeState().selection()).toEqual(SELECTION);
 });
 
-test("clears the selection when its project closes", async () => {
+test("clears only the removed project selection", async () => {
+  mocks.shell.remove.mockImplementation(async (paths: string[]) => ({ paths, indexes: [0] }));
   mocks.shell.entries.mockReturnValue([{ path: ROOT }, { path: "/Users/sam/code/other" }]);
   const contents = window().webContents;
   await invoke("selection:set", contents, null, SELECTION);
-  await invoke("folders:close", contents, null, "/Users/sam/code/other");
+  await invoke("folders:remove", contents, null, { paths: ["/Users/sam/code/other"] });
   expect(runtimeState().selection()).toEqual(SELECTION);
-  await invoke("folders:close", contents, null, ROOT);
-  expect(mocks.shell.close).toHaveBeenCalledWith(ROOT);
+  await invoke("folders:remove", contents, null, { paths: [ROOT] });
+  expect(mocks.shell.remove).toHaveBeenCalledWith([ROOT]);
   expect(runtimeState().selection()).toBeNull();
 });
 
@@ -961,4 +962,11 @@ test("window focus re-reads every root at most once a minute", () => {
     window().emit("focus");
     expect(mocks.shell.rereadAll).toHaveBeenCalledOnce();
   } finally { clock.mockRestore(); }
+});
+
+
+test("home path is available only to the application main frame", async () => {
+  expect(await invoke("app:home", window().webContents, null)).toBe(process.env.HOME ?? "/tmp/doan-index-test");
+  expect(await invoke("app:home", {}, null)).toBeNull();
+  expect(await invoke("app:home", window().webContents, {})).toBeNull();
 });

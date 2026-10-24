@@ -387,6 +387,7 @@ async function start(): Promise<void> {
     }
     return ready.initialize(value.root, tokenCss);
   });
+  ipcMain.handle("app:home", event => fromWindow(event) ? process.env.HOME ?? app.getPath("home") : null);
   ipcMain.handle("folders:get", (event) => (fromWindow(event) ? ready.entries() : []));
   const cli = cliCommand(process.env, app.isPackaged, process.resourcesPath);
   const flow = createAddFlow({
@@ -483,13 +484,6 @@ async function start(): Promise<void> {
   ipcMain.handle("folders:reopen", async (event, path: unknown) => {
     if (!fromWindow(event) || typeof path !== "string") return;
     await ready.reopen(path);
-  });
-  ipcMain.handle("folders:close", async (event, path: unknown) => {
-    if (!fromWindow(event) || typeof path !== "string") return;
-    transitionGuard.request({ kind: "close-project", root: path }, () => {
-      if (selection?.root === path) selection = null;
-      void ready.close(path);
-    });
   });
   // Invalid input or a project that is not open clears rather than keeping an
   // older selection the human no longer sees.

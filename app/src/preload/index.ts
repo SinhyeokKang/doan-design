@@ -14,6 +14,7 @@ import type { FolderEntry } from "../main/view";
 // The renderer gets these calls and nothing else: no ipcRenderer, no
 // channel names, no paths it did not receive from main.
 const api = {
+  homeDirectory: (): Promise<string | null> => ipcRenderer.invoke("app:home"),
   readOnboarding: (request: { session: string; requestId: string }): Promise<OnboardingRead> => ipcRenderer.invoke("onboarding:read", request),
   runOnboardingStep: (request: StepRequest): Promise<StepResult> => ipcRenderer.invoke("onboarding:run", request),
   answerOnboardingReplace: (answer: { id: string; allow: boolean }): Promise<StepResult> => ipcRenderer.invoke("onboarding:answer", answer),
@@ -52,7 +53,6 @@ const api = {
   // The stored root, or null when the sheet was cancelled or the folder refused.
   openFolder: (): Promise<string | null> => ipcRenderer.invoke("folders:open"),
   reopenFolder: (path: string): Promise<void> => ipcRenderer.invoke("folders:reopen", path),
-  closeFolder: (path: string): Promise<void> => ipcRenderer.invoke("folders:close", path),
   // Main validates it again and keeps one selection for `doan active`.
   setSelection: (selection: Selection | null): Promise<void> => ipcRenderer.invoke("selection:set", selection),
   // Main reads the canvas with CDP; values and token names are canvas text.

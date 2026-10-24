@@ -25,7 +25,6 @@ export interface Shell {
   open(picked: string): Promise<{ root: string } | { refused: string }>;
   initialize(path: string, tokenCss: string | null): Promise<ProjectInitResult>;
   reopen(path: string): Promise<void>;
-  close(path: string): Promise<void>;
   // Stores roots main already judged, after the stored ones; resolves to the
   // paths that were not stored yet.
   store(paths: readonly string[]): Promise<string[]>;
@@ -259,14 +258,6 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       folder.entry = withCommon(folder, { path, kind: "loading" });
       onChange(entries());
       attach(folder);
-    },
-    async close(path) {
-      const folder = folders.get(path);
-      if (!folder) return;
-      detach(folder);
-      const write = store.remove(path);
-      onChange(entries());
-      logWrite(await write);
     },
     async store(paths) {
       const added = [...new Set(paths)].filter((path) => !folders.has(path));

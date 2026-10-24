@@ -18,6 +18,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Frame, type Locator, type Page } from "playwright";
 
+const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
+
 const { hoverTooltip }: typeof import("./tooltip") = await import(new URL("./tooltip.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 
@@ -47,10 +49,10 @@ interface FolderView {
   path: string;
   state: string;
   status: string;
-  hint: string;
   canvases: CanvasView[];
 }
 
+let inspectAllFolders = true;
 const shots: string[] = [];
 // Steps that fail because of product code are reported, not fixed in e2e;
 // they are collected so the remaining steps still run, and the run fails.
@@ -79,6 +81,7 @@ async function main(): Promise<void> {
     await import(new URL("./anchors.ts", import.meta.url).href);
     await import(new URL("./comments-ui.ts", import.meta.url).href);
     await import(new URL("./onboarding.ts", import.meta.url).href);
+    await import(new URL("./projects-home.ts", import.meta.url).href);
   } finally { await assertRealState(actualState); }
 }
 
@@ -314,6 +317,10 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     await writeFile(join(shotDir, "comment-filesystem.json"), JSON.stringify(foundationRows, null, 2));
     console.log(`comment-filesystem: PASS (${foundationRows.length} checks)`);
     // 1. Open the repos through the dialog.
+    await page.getByText("Add a project to see its design canvases.", { exact: true }).waitFor();
+    await replaceDialog(app, repos.ok);
+    await page.getByRole("button", { name: "Add Project…", exact: true }).first().click();
+    await enterProject(page, repos.ok);
     await emptyControls(page);
     const disabledStyles = await page.getByRole("button", { name: "Zoom out", exact: true }).evaluate(button => ({
       group: getComputedStyle(button.parentElement!.parentElement!).opacity,
@@ -323,11 +330,12 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     assert.equal(await page.getByRole("button", { name: "Reload canvas", exact: true }).evaluate(button => getComputedStyle(button).opacity), "0.4", "disabled Reload opacity");
     assert.equal(await page.getByRole("button", { name: "Reload canvas", exact: true }).evaluate(button => getComputedStyle(button.closest("header")!).lineHeight), "normal", "top bar does not inherit preflight line height");
     await replaceDialog(app, repos.ok);
-    await page.getByRole("button", { name: "Open Project…", exact: true }).first().click();
+    await page.evaluate(() => window.doan.openFolder());
     await waitFolders(page, (folders) => folders.some((f) => f.path === repos.ok && f.state === "list"), "ok repo listed after the button");
     for (const picked of [repos.broken, repos.plain, repos.sub, repos.link, repos.worktree]) {
       await openFolder(app, page, picked);
     }
+    await enterProject(page, repos.ok);
     const project = page.getByRole("treeitem", { name: "ok", exact: true });
     const projectTypography = await project.evaluate(item => {
       const glyph = item.firstElementChild!.firstElementChild!;
@@ -377,8 +385,8 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     assert.equal(broken.status, repos.brokenMessage);
     const plain = byPath(folders, repos.plain);
     assert.equal(plain.state, "uninitialized");
-    assert.equal(plain.status, "Not initialized");
-    assert.equal(plain.hint, "Set up this project to add design/ and .doan/.");
+    assert.equal(plain.status, "Not set up");
+    assert.equal(await homeRow(page, repos.plain).getByRole("button", { name: "Set Up…", exact: true }).isVisible(), true);
     await screenshot(page, "1-opened");
 
     // 3. Watching: a new canvas shows up; a deleted folder becomes "not found";
@@ -387,12 +395,13 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     await waitFolders(page, (all) => hasCanvas(all, repos.ok, "design/added.html"), "added canvas listed");
     await rm(repos.worktree, { recursive: true, force: true });
     folders = await waitFolders(page, (all) => all.some((f) => f.path === repos.worktree && f.state === "notFound"), "deleted folder not found");
-    assert.equal(byPath(folders, repos.worktree).status, "Not found");
+    assert.equal(byPath(folders, repos.worktree).status, "Missing");
     assert.equal(byPath(folders, repos.ok).state, "list");
-    await page.getByRole("treeitem", { name: "ok-worktree", exact: true }).getByRole("button", { name: "Reopen", exact: true }).click();
+    await replaceDialog(app, repos.worktree);
+    await homeRow(page, repos.worktree).getByRole("button", { name: "Locate…", exact: true }).click();
     await waitFolders(page, all => byPath(all, repos.worktree).state === "notFound", "Reopen still missing");
     await cp(repos.ok, repos.worktree, { recursive: true });
-    await reopenObserved(page, "ok-worktree", cli);
+    await reopenObserved(app, page, repos.worktree, cli);
     await waitFolders(page, (all) => all.some((f) => f.path === repos.worktree && f.state === "list"), "re-opened folder listed");
     await writeFile(join(repos.worktree, "design", "again.html"), "<!doctype html><title>Again</title>\n");
     await waitFolders(page, (all) => hasCanvas(all, repos.worktree, "design/again.html"), "re-opened folder watched");
@@ -409,7 +418,7 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     assert.equal(env.headers.get("access-control-allow-origin"), null);
 
     // 5. Closing a folder survives a restart; the rest stay.
-    await page.getByRole("button", { name: "Close project broken", exact: true }).click();
+    await removeHomeProject(page, repos.broken);
     const kept = [repos.ok, repos.plain, repos.worktree];
     await waitFolders(page, (all) => sameList(all.map((f) => f.path), kept), "closed folder gone");
     await waitFor(async () => sameList(JSON.parse(await readFile(join(userData, "folders.json"), "utf8")) as string[], kept), "folders.json saved");
@@ -422,6 +431,7 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     await waitFor(async () => { try { process.kill(idleChildPid, 0); return false; } catch (error) { return error instanceof Error && "code" in error && error.code === "ESRCH"; } }, "utility child exits with parent");
     ({ app, page } = await launch(cli, userData));
     // A tooltip from another row can remain present across pointer movement.
+    await enterProject(page, repos.ok);
     const restartedProject = page.getByRole("treeitem", { name: "ok", exact: true });
     const added = restartedProject.getByRole("treeitem", { name: "added.html", exact: true });
     await hoverTooltip(page, added);
@@ -440,6 +450,7 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     await screenshot(page, "2-restarted");
 
     await setupClosedOutside(app, page, repos, doan);
+    inspectAllFolders = false;
     await canvasView(app, page, repos);
     await selectInspect(app, page, repos, doan, userData);
     await runtimeEnd(app, doan, userData, repos);
@@ -513,18 +524,19 @@ async function setupClosedOutside(app: ElectronApplication, page: Page, repos: R
   for (const path of [inited, deleted, renamed, inner]) await mkdir(path, { recursive: true });
   for (const path of [inited, deleted, renamed, inner]) {
     await openFolder(app, page, path);
-    await page.getByRole("treeitem", { name: basename(path), exact: true }).getByText("Not initialized", { exact: true }).waitFor({ timeout: WAIT_MS });
+    await goHome(page);
+    await homeRow(page, path).getByText("Not set up", { exact: true }).waitFor({ timeout: WAIT_MS });
   }
   const dialog = page.getByRole("dialog", { name: "Set Up Project", exact: true });
   const closedOn = async (name: string, change: () => Promise<unknown>, focusPath: string, what: string) => {
-    await page.getByRole("treeitem", { name, exact: true }).getByRole("button", { name: "Set Up…", exact: true }).click();
+    await homeRow(page, name === "inner" ? inner : join(base, name)).getByRole("button", { name: "Set Up…", exact: true }).click();
     await dialog.waitFor({ timeout: WAIT_MS });
     await change();
     await dialog.waitFor({ state: "detached", timeout: WAIT_MS });
     await expectProduct(what, async () => {
       await page.waitForFunction(path => {
         const active = document.activeElement as HTMLElement | null;
-        return active?.getAttribute("role") === "treeitem" && active.getAttribute("aria-level") === "1" && active.dataset.path === path && active.tabIndex === 0;
+        return active?.dataset.path === path && active.tabIndex === 0;
       }, focusPath, { timeout: WAIT_MS }).catch(async () => {
         const active = await page.evaluate(() => `${document.activeElement?.tagName} ${document.activeElement?.getAttribute("aria-label") ?? ""}`);
         throw new Error(`focus is on ${active}`);
@@ -537,8 +549,8 @@ async function setupClosedOutside(app: ElectronApplication, page: Page, repos: R
   // Any root event re-reads the row; the re-read then finds the root above.
   await closedOn("inner", async () => { await exec(doan, ["init", "--json", "--repo", outer]); await writeFile(join(inner, "touch"), ""); }, outer, "terminal re-root focuses the root row");
   for (const name of ["setup-init", "setup-deleted", "setup-renamed", "setup-outer"]) {
-    await page.getByRole("button", { name: `Close project ${name}`, exact: true }).click();
-    await page.getByRole("treeitem", { name, exact: true }).waitFor({ state: "detached", timeout: WAIT_MS });
+    await removeHomeProject(page, join(base, name));
+    await homeRow(page, join(base, name)).waitFor({ state: "detached", timeout: WAIT_MS });
   }
 }
 
@@ -551,9 +563,10 @@ const QUIET_MS = 1500;
 // Playwright's boundingBox() ignores the board scale inside the iframe.
 async function canvasView(app: ElectronApplication, page: Page, repos: Repos): Promise<void> {
   // C1. Before a canvas is picked, then loading, then the board.
+  await openFolder(app, page, repos.canvas);
+  await enterProject(page, repos.canvas);
   assert.equal((await readView(page)).status, "empty");
   assert.equal((await readView(page)).statusText, "Pick a canvas from the list");
-  await openFolder(app, page, repos.canvas);
   await waitFolders(page, (all) => hasCanvas(all, repos.canvas, "design/main.html"), "canvas repo listed");
   const rows = byPath(await readFolders(page), repos.canvas).canvases;
   const url = (path: string): string => rows.find((c) => c.path === path)?.url ?? assert.fail(`no url for ${path}`);
@@ -723,7 +736,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await writeFile(join(repos.canvas, ".doan", "comments", "main.jsonl"), `${JSON.stringify(COMMENT_MAIN)}\n`);
   await waitFolders(page, (all) => byPath(all, repos.canvas).canvases.some((c) => c.path === "design/main.html" && c.open === "1 open comments"), "comment counted");
   await writeFile(join(repos.ok, "design", "other.html"), "<!doctype html><title>Other</title>\n");
-  await waitFolders(page, (all) => hasCanvas(all, repos.ok, "design/other.html"), "other folder re-read");
+  await waitFolders(page, all => byPath(all, repos.ok).canvases.length === 8, "other folder re-read count on Home");
   await sleep(QUIET_MS);
   assert.ok(await marked(page), "no reload for a comment or another folder");
   assert.equal((await readView(page)).updated, afterTokens.updated);
@@ -760,7 +773,9 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   const shown = await readView(page);
   await writeFile(join(repos.canvas, ".doan", "config.json"), "{\n");
   state = await waitView(page, (v) => v.error !== null, "error line on a broken config");
-  assert.equal(state.error, byPath(await readFolders(page), repos.canvas).status);
+  const problem = page.getByRole("region", { name: "Project status", exact: true });
+  await problem.getByRole("button", { name: "Details", exact: true }).click();
+  assert.equal(state.error, await problem.getByText(/config\.json/).textContent());
   assert.ok(state.boardShown);
   assertSameView(state, shown, "view kept on a folder error");
   await sleep(QUIET_MS);
@@ -810,7 +825,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await waitView(page, (v) => v.frameWidth === NARROW_WIDTH, "iframe width follows the linked canvas");
 
   const token = /^(http:\/\/127\.0\.0\.1:\d+\/t\/[^/]+)\//.exec(url("design/narrow.html"))?.[1] ?? assert.fail("token base");
-  const otherKey = byPath(await readFolders(page), repos.ok).canvases.find((c) => c.path === "design/login.html")?.url ?? assert.fail("other folder url");
+  const otherKey = await servingUrl(page, repos.ok, "design/login.html");
   assert.notEqual(otherKey.slice(0, otherKey.indexOf("/design/")), url("design/narrow.html").slice(0, url("design/narrow.html").indexOf("/design/")));
   for (const target of [`${token}x/`, otherKey]) {
     await clickLink(canvas, target);
@@ -933,6 +948,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
 
   // S2. Open the canvas: nothing selected, and active says so.
   await openFolder(app, page, repos.select);
+  await enterProject(page, repos.select);
   await waitFolders(page, all => hasCanvas(all, repos.select, "design/pick.html"), "select repo listed");
   await openCanvas(page, repos.select, "design/pick.html");
   let canvas = await canvasFrame(page);
@@ -1129,7 +1145,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   // menu: the selection stays, and nothing in the canvas activates.
   await clickAt(page, canvas, "#box");
   await waitInspector(page, v => v?.selector === BOX, "box selected before Ctrl and right clicks");
-  const pickUrl = canvasUrl(await readFolders(page), repos.select, "design/pick.html");
+  const pickUrl = await servingUrl(page, repos.select, "design/pick.html");
   for (const [how, selector] of [["Ctrl", "#go"], ["Ctrl", "#field"], ["Ctrl", "#chip"], ["right", "#go"], ["right", "#field"], ["right", "#chip"]] as const) {
     await expectProduct(`S9 ${how}-click on ${selector} keeps the selection and activates nothing`, async () => {
       if (how === "Ctrl") await page.keyboard.down("Control");
@@ -1188,7 +1204,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await sleep(QUIET_MS);
   assert.deepEqual(await downloadStates(app), ["started", "cancelled"], "the download is cancelled");
   assert.deepEqual(await readdir(downloads), [], "no downloaded file");
-  assert.equal(await canvasFrameUrl(app), canvasUrl(await readFolders(page), repos.select, "design/pick.html"), "the download did not navigate");
+  assert.equal(await canvasFrameUrl(app), await servingUrl(page, repos.select, "design/pick.html"), "the download did not navigate");
 
   // A real ⌥-click follows a link; the other canvas clears the selection.
   await clickAt(page, canvas, "#box");
@@ -1290,7 +1306,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await writeFile(join(repos.select, "design", "pick.html"), pickCanvas(true));
   await waitFolders(page, all => hasCanvas(all, repos.select, "design/pick.html"), "pick canvas back");
   await reselectBox(page, repos);
-  await page.getByRole("button", { name: "Close project select", exact: true }).click();
+  await page.getByRole("button", { name: "Remove select from doan", exact: true }).click();
   await waitFolders(page, all => all.every(folder => folder.path !== repos.select), "select project closed");
   assert.equal(await page.getByRole("region", { name: "Inspector", exact: true }).count(), 0, "closing the project clears the selection");
   assert.deepEqual(pick(await active(repos.select), "exit", "code"), { exit: 3, code: "project_not_open" }, "active after the project is closed");
@@ -1651,16 +1667,23 @@ function canvasUrl(folders: FolderView[], folder: string, canvas: string): strin
   return byPath(folders, folder).canvases.find(c => c.path === canvas)?.url ?? assert.fail(`no url for ${canvas}`);
 }
 
-async function reopenObserved(page: Page, name: string, cli: string): Promise<void> {
-  const project = page.getByRole("treeitem", { name, exact: true });
+async function reopenObserved(app: ElectronApplication, page: Page, root: string, cli: string): Promise<void> {
+  await goHome(page);
+  const project = homeRow(page, root);
+  await replaceDialog(app, root);
+  await project.getByRole("button", { name: "Locate…", exact: true }).click();
+  await homeRow(page, root).and(page.getByRole("button", { name: /^Project / })).waitFor();
+  const config = join(root, ".doan/config.json"), original = await readFile(config);
+  await writeFile(config, "invalid");
+  await project.getByText("Config error", { exact: true }).waitFor();
   const gate = `${cli}.gate`;
   await writeFile(gate, "hold CLI read\n");
   try {
-    await project.getByRole("button", { name: "Reopen", exact: true }).click();
+    await project.getByRole("button", { name: "Retry", exact: true }).click();
     await project.getByText("Reading…", { exact: true }).waitFor();
     await sleep(100);
     assert.equal(await project.getByText("Reading…", { exact: true }).isVisible(), true);
-  } finally { await rm(gate, { force: true }); }
+  } finally { await rm(gate, { force: true }); await writeFile(config, original); }
 }
 
 async function emptyControls(page: Page): Promise<void> {
@@ -1705,7 +1728,7 @@ async function treeKeyboard(page: Page, folder: string): Promise<void> {
   await waitLoaded(page, "Space opens focused canvas");
   await waitFor(async () => (await activityKinds(page)).length === beforeSpace + 1, "Space records a successful open");
   await writeFile(join(folder, "design", "keyboard.html"), canvasHtml("keyboard", 600, "", "<p>keyboard</p>"));
-  await waitFolders(page, all => hasCanvas(all, folder, "design/keyboard.html"), "tree updated");
+  await canvasButton(page, folder, "design/keyboard.html").waitFor();
   assert.equal(await main.evaluate(node => node === document.activeElement), true, "list refresh preserves focus");
 }
 
@@ -1746,16 +1769,18 @@ async function windowLifetime(app: ElectronApplication, page: Page, repos: Repos
   await waitFor(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isFullScreen() === false), "left fullscreen");
   console.log("fullscreen close/activate: same window returned");
   await screenshot(page, "5-restored");
-  await page.getByRole("button", { name: "Close project canvas", exact: true }).click();
+  await page.getByRole("button", { name: "Remove canvas from doan", exact: true }).click();
+  await page.getByRole("region", { name: "Home", exact: true }).waitFor();
+  await openFolder(app, page, repos.canvas);
+  await enterProject(page, repos.canvas);
   await emptyControls(page);
   assert.equal((await readView(page)).statusText, "Pick a canvas from the list");
-  await openFolder(app, page, repos.canvas);
   await waitFolders(page, all => hasCanvas(all, repos.canvas, "design/main.html"), "canvas reopened");
   await openCanvas(page, repos.canvas, "design/main.html");
   await rename(repos.canvas, `${repos.canvas}-moved`);
-  await waitView(page, view => view.statusText === "The project canvas is gone or moved. Reopen it from the sidebar.", "project gone message");
+  await waitView(page, view => view.statusText === "The project canvas is missing. Use Locate… to find it.", "project gone message");
   await emptyControls(page);
-  await page.getByRole("button", { name: "Close project canvas", exact: true }).click();
+  await page.getByRole("button", { name: "Remove canvas from doan", exact: true }).click();
   await waitFolders(page, all => all.every(folder => folder.path !== repos.canvas), "Close removes the missing project");
 }
 
@@ -1764,6 +1789,7 @@ function canvasButton(page: Page, folder: string, canvas: string): Locator {
 }
 
 async function openCanvas(page: Page, folder: string, canvas: string): Promise<ViewState> {
+  await enterProject(page, folder);
   await canvasButton(page, folder, canvas).click();
   return waitLoaded(page, `${canvas} shown`);
 }
@@ -2076,39 +2102,54 @@ async function tooltipPath(page: Page, row: Locator, name: string, key: string):
 }
 
 async function readFolders(page: Page): Promise<FolderView[]> {
-  // Serving URLs are not UI content; read them through the public subscription.
+  await goHome(page);
   const entries = await page.evaluate(() => new Promise<import("../src/main/view").FolderEntry[]>(resolve => {
     const stop = window.doan.onFolders(entries => { stop(); resolve(entries); });
   }));
-  const projects = await page.getByRole("tree", { name: "Projects" }).getByRole("treeitem", { level: 1 }).all();
+  const rows = page.getByRole("region", { name: "Home", exact: true }).getByRole("button", { name: /^Project / }).or(page.getByRole("region", { name: "Home", exact: true }).getByRole("group", { name: /^Project / })).filter({ has: page.getByRole("button", { name: /^Row menu / }) });
+  const paths = await rows.evaluateAll(nodes => nodes.map(node => ({ path: node.querySelector('[aria-label^="Row menu "]')!.getAttribute("aria-label")!.slice(9), current: node.getAttribute("aria-current") === "true" })));
   const result: FolderView[] = [];
-  for (const project of projects) {
-    const name = await project.getAttribute("aria-label") ?? "";
-    const path = await tooltipPath(page, project, name, name);
-    const chip = (await project.getByText(/^(Error|CLI error|Not found|Not initialized)$/).allTextContents())[0] ?? "";
-    const hint = (await project.getByRole("paragraph").allTextContents())[0] ?? "";
-    const state = chip === "Error" ? "error" : chip === "CLI error" ? "cliError" : chip === "Not found" ? "notFound" : chip === "Not initialized" ? "uninitialized" : hint === "Reading…" ? "loading" : "list";
-    const entry = entries.find(entry => entry.path === path);
-    const canvases: CanvasView[] = [];
-    for (const row of await project.getByRole("treeitem", { level: 2 }).all()) {
-      const name = await row.getAttribute("aria-label") ?? "";
-      const fullPath = await tooltipPath(page, row, name, `${path}/${name}`);
-      const canvas = fullPath.slice(path.length + 1);
-      const count = row.getByRole("img", { name: /^\d+ open comments$/ });
-      const open = await count.getAttribute("aria-label") ?? "";
-      const countText = await count.textContent() ?? "";
-      const text = await row.evaluate(node => {
-        const content = node.cloneNode(true) as HTMLElement;
-        // Decorative glyph text would shift the title slice.
-        content.querySelectorAll('[aria-hidden="true"]').forEach(icon => icon.remove());
-        return content.textContent ?? "";
-      });
-      const title = text.slice(name.length, text.length - countText.length).trim();
-      canvases.push({ path: canvas, title, open, url: entry?.kind === "list" ? entry.canvases.find(row => row.path === canvas)?.url ?? "" : "" });
+  for (const { path, current } of paths) {
+    const row = homeRow(page, path);
+    const chip = (await row.getByText(/^(Config error|CLI error|Missing|Not set up|Reading…)$/).allTextContents())[0] ?? "";
+    const state = ({ "Config error": "error", "CLI error": "cliError", Missing: "notFound", "Not set up": "uninitialized", "Reading…": "loading" })[chip] ?? "list";
+    let status = chip;
+    if (state === "error") {
+      const details = row.getByRole("button", { name: "Details", exact: true });
+      if (await details.getAttribute("aria-expanded") !== "true") await details.click();
+      status = (await row.getByRole("paragraph").textContent()) ?? "";
     }
-    result.push({ path, state, status: state === "error" ? hint : chip, hint, canvases });
+    const canvases: CanvasView[] = [];
+    if (state === "list" && (inspectAllFolders || current)) {
+      await enterProject(page, path);
+      const project = page.getByRole("treeitem", { name: basename(path), exact: true });
+      if (await project.getAttribute("aria-expanded") === "false") { await project.focus(); await page.keyboard.press("ArrowRight"); }
+      for (const item of await project.getByRole("treeitem", { level: 2 }).all()) {
+        const name = await item.getAttribute("aria-label") ?? "";
+        const fullPath = await tooltipPath(page, item, name, `${path}/${name}`);
+        const canvas = fullPath.slice(path.length + 1);
+        const count = item.getByRole("img", { name: /^\d+ open comments$/ });
+        const open = await count.getAttribute("aria-label") ?? "";
+        const countText = await count.textContent() ?? "";
+        const text = await item.evaluate(node => { const content = node.cloneNode(true) as HTMLElement; content.querySelectorAll('[aria-hidden="true"]').forEach(icon => icon.remove()); return content.textContent ?? ""; });
+        const entry = entries.find(entry => entry.path === path);
+        canvases.push({ path: canvas, title: text.slice(name.length, text.length - countText.length).trim(), open, url: entry?.kind === "list" ? entry.canvases.find(row => row.path === canvas)?.url ?? "" : "" });
+      }
+      await goHome(page);
+    } else if (state === "list") {
+      const text = await row.textContent() ?? "";
+      const count = Number(text.match(/(\d+) canvas(?:es)?/)?.[1] ?? 0);
+      for (let index = 0; index < count; index++) canvases.push({ path: "", title: "", open: "", url: "" });
+    }
+    result.push({ path, state, status, canvases });
   }
+  const loaded = paths.find(row => row.current);
+  if (loaded && !inspectAllFolders) await enterProject(page, loaded.path);
   return result;
+}
+
+async function servingUrl(page: Page, root: string, path: string): Promise<string> {
+  return page.evaluate(({ root, path }) => new Promise<string>(resolve => { const stop = window.doan.onFolders(entries => { stop(); const entry = entries.find(entry => entry.path === root); resolve(entry?.kind === "list" ? entry.canvases.find(row => row.path === path)?.url ?? "" : ""); }); }), { root, path });
 }
 
 async function waitFolders(page: Page, done: (folders: FolderView[]) => boolean, what: string): Promise<FolderView[]> {
