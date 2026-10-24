@@ -68,6 +68,7 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - DC에 붙일 것(DC-rev): ① FirstPrompt 도움말 둘째 줄에 DX의 개인정보 문장.
 - DC 초안 결정 11개 중 5(Couldn't check도 홈 배너)는 받지 않는다. spec '홈 표시'는 배너를 Needs attention에만 두고, A1의 `homeAlerts`가 이미 그렇게 구현했다. 나머지 1~4, 6~11은 받아들인다(7: 홈 줄 메뉴의 Project Settings…, 10: 3단계 하나 고르기 목록에 워크트리 포함).
 - DX 초안은 `.scratch/orch/app-setup/draft-DX-f2320d2.html`로 보존했다.
+- **붙이기 차례(`467137a`)와 앱 렌더 확인, 2026-10-25 지휘자 확정.** ①과 결정 5 거절(Couldn't check는 칩만)이 반영됐다. 통합 HEAD에서 지휘자가 다시 돌린 `doan check`는 오류 0(기존 경고 6), `doan ls`는 width 1440과 프레임 id 6개가 같다. 격리된 실제 앱 렌더(`shots-DC-app/`)에서 요소 사각형이 Chromium과 0.6px 넘게 다른 것이 없고, DC-rev가 대화상자 겹침의 잘림 2건을 고쳤다. 지휘자가 앱 렌더의 홈 프레임(표의 Couldn't check 행 포함)을 직접 확인했다. 사용자 확인은 결정 로그대로 건너뛴다.
 
 ## 진행 기록
 
@@ -93,3 +94,5 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: A1-fix 질문 — 새 상태가 기존 보호 테스트를 다른 분기로 옮긴 함정을 postmortem에 남길지 → 남긴다(main에 닿지 않았지만 드러나지 않는 함정이다). 초안은 인계에, 반영은 지휘자가 통합 때 한다.
 - 2026-10-25: A1-fix 완료(`bef29df`, `ec831cc`, `30cf34d`) — 존재하는 대상의 교체 테스트 3개(변이로 실패 확인), 우선순위, 자기 스텁 누락은 Not connected. test 1789·typecheck 통과 보고. 지휘자가 machine.ts·connectionSummary diff를 확인했다. A1 통합, postmortem 항목 추가.
 - 2026-10-25: A1 통합(`83eac2d`~`4a92054`). `onboardingView.test.ts`에서 A2와 겹친 충돌을 지휘자가 양쪽을 모두 살려 풀었다. postmortem 항목(`2652dfe`). 통합 HEAD typecheck·test 1817 통과(지휘자 실행). A1 워커 해제, `as-a1` 제거.
+- 2026-10-25: C 시작(`ctx_cd0dad230df5`, Opus high, `as-c`). R-A1 결정 2·3·⚪4, R-G1 ⚪2(루트별 쓰기 직렬화), 빌드 설정 diff 사전 확인을 브리프에 넣었다.
+- 2026-10-25: DC-rev 완료(`467137a`). 초안 확정, 통합(`a6dbb50`, `f57568a`). DC-rev 워커 해제, `as-dc` 제거.
