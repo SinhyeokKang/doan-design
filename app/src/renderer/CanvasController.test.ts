@@ -756,17 +756,19 @@ it.each(["new guard", "binding change"])("Y3 cancels old pin panel effects after
 });
 
 it("holds manual reload before replacing a document and rejects superseded approval", async () => {
-  const { controller, changed, row } = loadedController();
-  const releases: ((allow: boolean) => void)[] = [];
-  controller.setTransitionGuard(() => new Promise(resolve => releases.push(resolve)));
-  controller.command("reload");
-  expect(changed).not.toHaveBeenCalled();
-  controller.openCanvas("/repo", row);
-  releases[0]?.(true); await Promise.resolve();
-  expect(changed).not.toHaveBeenCalled();
-  releases[1]?.(false); await Promise.resolve();
-  expect(changed).not.toHaveBeenCalled();
-  controller.dispose();
+  const h = selectionHarness();
+  try {
+    h.changed.mockClear();
+    const releases: ((allow: boolean) => void)[] = [];
+    h.controller.setTransitionGuard(() => new Promise(resolve => releases.push(resolve)));
+    h.controller.command("reload");
+    expect(h.changed).not.toHaveBeenCalled();
+    h.controller.openCanvas("/repo", h.other);
+    releases[0]?.(true); await Promise.resolve();
+    expect(h.changed).not.toHaveBeenCalled();
+    releases[1]?.(false); await Promise.resolve();
+    expect(h.changed).not.toHaveBeenCalled();
+  } finally { h.controller.dispose(); }
 });
 
 it("independently rejects replayed canvas intents and approval after same-URL document replacement", async () => {
@@ -803,12 +805,13 @@ it("prevents the triggering Escape from cancelling its newly opened draft dialog
 });
 
 it("keeps synchronous canvas opening when the draft guard immediately allows it", () => {
-  const { controller, changed, row } = loadedController();
+  const h = selectionHarness();
   try {
-    controller.setTransitionGuard(() => true);
-    controller.openCanvas("/repo", row);
-    expect(changed.mock.lastCall?.[0].status).toBe("loading");
-  } finally { controller.dispose(); }
+    h.controller.setTransitionGuard(() => true);
+    h.controller.openCanvas("/repo", h.other);
+    expect(h.state().status).toBe("loading");
+    expect(h.state().open.canvas).toBe(h.other.path);
+  } finally { h.controller.dispose(); }
 });
 
 it("uses freshly revalidated destination metadata after a draft decision", async () => {
@@ -898,4 +901,38 @@ describe("frame navigation", () => {
       expect(h.markOf("jump-highlight")?.hidden).toBe(true);
     } finally { h.controller.dispose(); vi.useRealTimers(); }
   });
+});
+
+
+it("guards Select and only sends the selection to main after its acknowledgement", () => {
+  const h = selectionHarness();
+  try {
+    const guard = vi.fn(() => false);
+    h.controller.setTransitionGuard(guard);
+    h.current().contentWindow.postMessage.mockClear();
+    h.controller.selectFrame(0);
+    expect(guard).toHaveBeenCalledOnce();
+    expect(h.current().contentWindow.postMessage).not.toHaveBeenCalled();
+    guard.mockReturnValue(true);
+    h.send.mockClear();
+    h.controller.selectFrame(0);
+    expect(h.send).not.toHaveBeenCalled();
+    h.select(1, { target: { ...h.target, element: undefined, frame: { id: "intro" }, frameIndex: 0 } });
+    expect(h.send).toHaveBeenCalledWith(expect.objectContaining({ frame: { id: "intro" } }));
+  } finally { h.controller.dispose(); }
+});
+
+it("opens a static frame by its first rendered id match without selecting it", () => {
+  const h = selectionHarness();
+  try {
+    h.controller.openCanvas("/repo", h.other, "dup");
+    h.layout({ href: h.other.url, frames: [
+      { id: "different", x: 0, y: 0, width: 100, height: 100 },
+      { id: "dup", x: 0, y: 1000, width: 100, height: 100 },
+      { id: "dup", x: 0, y: 2000, width: 100, height: 100 },
+    ] });
+    expect(h.state().currentFrame).toBe(1);
+    expect(h.state().selection).toBeNull();
+    expect(h.current().contentWindow.postMessage.mock.calls.some(([message]) => message.type === "pick-frame")).toBe(false);
+  } finally { h.controller.dispose(); }
 });
