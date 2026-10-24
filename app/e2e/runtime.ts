@@ -18,6 +18,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Frame, type Locator, type Page } from "playwright";
 
+const { hoverTooltip }: typeof import("./tooltip") = await import(new URL("./tooltip.ts", import.meta.url).href);
+const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
+
 const exec = promisify(execFile);
 const appDir = fileURLToPath(new URL("..", import.meta.url));
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
@@ -57,22 +60,26 @@ let running: ElectronApplication | undefined;
 let work: string | undefined;
 
 async function main(): Promise<void> {
-  const watchdog = setTimeout(() => {
-    console.error(`runtime-test: FAIL\nno result after ${RUN_MS / 1000} s`);
-    running?.process().kill("SIGKILL");
-    if (work !== undefined) rmSync(work, { recursive: true, force: true });
-    process.exit(1);
-  }, RUN_MS);
+  const actualState = await realState();
   try {
-    await runAll();
-  } finally {
-    clearTimeout(watchdog);
-  }
-  if (productFailures.length > 0) throw new Error(`product failures:\n${productFailures.join("\n")}`);
-  // The adapter owns a separate temporary app after the full runtime has closed.
-  // Import failure keeps the combined runtime gate red, including cleanup failures.
-  await import(new URL("./anchors.ts", import.meta.url).href);
-  await import(new URL("./comments-ui.ts", import.meta.url).href);
+    const watchdog = setTimeout(() => {
+      console.error(`runtime-test: FAIL\nno result after ${RUN_MS / 1000} s`);
+      running?.process().kill("SIGKILL");
+      if (work !== undefined) rmSync(work, { recursive: true, force: true });
+      process.exit(1);
+    }, RUN_MS);
+    try {
+      await runAll();
+    } finally {
+      clearTimeout(watchdog);
+    }
+    if (productFailures.length > 0) throw new Error(`product failures:\n${productFailures.join("\n")}`);
+    // The adapter owns a separate temporary app after the full runtime has closed.
+    // Import failure keeps the combined runtime gate red, including cleanup failures.
+    await import(new URL("./anchors.ts", import.meta.url).href);
+    await import(new URL("./comments-ui.ts", import.meta.url).href);
+    await import(new URL("./onboarding.ts", import.meta.url).href);
+  } finally { await assertRealState(actualState); }
 }
 
 async function expectProduct(what: string, check: () => Promise<void>): Promise<void> {
@@ -2049,18 +2056,6 @@ async function recordMessageBoxes(app: ElectronApplication): Promise<void> {
 async function openFolder(app: ElectronApplication, page: Page, picked: string): Promise<void> {
   await replaceDialog(app, picked);
   await page.evaluate(() => window.doan.openFolder());
-}
-
-// A closed tooltip can retain Radix's pointer-entry latch until pointerleave.
-// Clear both that latch and any preceding content before one deliberate entry.
-async function hoverTooltip(page: Page, trigger: Locator): Promise<Locator> {
-  const tooltip = page.getByRole("tooltip");
-  await page.mouse.move(700, 20);
-  if (await tooltip.isVisible()) await page.keyboard.press("Escape");
-  await tooltip.waitFor({ state: "hidden", timeout: 1000 });
-  await trigger.hover();
-  await tooltip.waitFor({ timeout: 1000 });
-  return tooltip;
 }
 
 const tooltipPaths = new WeakMap<Page, Map<string, string>>();
