@@ -21,6 +21,10 @@
 | 2026-10-25 | `doan config --remove-serve`(MCP `removeServe`)는 경로가 디스크에 있을 것을 요구하지 않는다. 저장값과 정규화해 비교한다 | 지휘자 판단(R-G1 결정 1) — design.md의 "없는 serve를 제거하면 `changed:false`"와 Projects 탭 Remove 흐름(마지막 읽기 값을 그대로 넘김). serve 대상은 빌드 산출물처럼 사라질 수 있다(POSTMORTEM 2026-10-22) |
 | 2026-10-25 | `doan config`의 CLI 상대 경로는 저장소 루트 기준이다(cwd 아님). MCP·`init --repo`와 같다 | 지휘자 판단(R-G1 결정 2) — design.md의 "(init과 같다)"가 뜻한 바다. 에이전트가 읽는 규칙이 하나가 되고, 앱은 절대 경로만 넘긴다 |
 | 2026-10-25 | 가이드 문장은 "Change configuration with `config` only when the human asks."로 좁힌다(읽기는 허용) | 지휘자 판단(R-G1 권고) — agent-eval 시나리오가 '요청 없이 바꾸지 않음'을 본다 |
+| 2026-10-25 | 연결 요약에서 이미 알려진 Needs attention 원인이 Couldn't check보다 앞선다(CLI는 translocated가 맨 앞) | 지휘자 판단(R-A1 결정 1) — design.md 표가 우선순위를 정하지 않았다. 배너가 홈의 유일한 신호이고, 알려진 충돌은 Check Again으로 풀리지 않는다 |
+| 2026-10-25 | Claude 스킬 링크가 doan의 공유 스텁 위치를 가리키는데 스텁만 없으면 "Link is broken"이 아니라 Not connected다 | 지휘자 판단(R-A1 ⚪3) — Connect가 확인 없이 고치는 경우이므로 '일부 missing'과 같다 |
+| 2026-10-25 | Settings 창은 `setup:*` 채널만 쓰고 `onboarding:*`은 메인 창 전용으로 둔다. Projects 탭은 전체 `folders:get` 대신 읽기 전용 투영 채널(저장 루트·상태·`git.common`)을 쓴다. 표에 없던 기능(PATH 줄 복사, 마지막 탭 저장, Show in Finder·문제 줄 동작 전달, 메인 창에서 Settings를 탭·줄로 열기)은 이름 붙은 채널로 하나씩 더한다(접두사 허용 금지) | 지휘자 판단(R-A1 결정 2·3) — design.md의 '읽기 전용 프로젝트 채널'과 최소 권한. 배치 C가 구현하고 승격 때 허용 목록 표를 갱신한다 |
+| 2026-10-25 | Settings 포커스일 때 Undo Remove도 비활성이다 | 지휘자 판단(R-A1 ⚪1) — 메인 창 뒤에서 제거를 되돌리지 않게 한다. 승격 때 메뉴 활성 표에 더한다 |
 
 ## 배치
 
@@ -84,3 +88,7 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: G1-fix 완료(`894a539`, `51e641f`, `84f290e`, `1438249`) — 결정 4건, `go test`·`go vet` 통과 보고. 지휘자가 config.go·skill.md diff를 확인했다. 후속 리뷰 R-G1fix(Sonnet high). G1 워커 유지.
 - 2026-10-25: DC 완료(`dd0f695`). 초안 비교 결과 DC를 골랐다(위 '초안 리뷰'). DC-rev(`ctx_1dd318a4edd7`, Sonnet high, `as-dc`)로 붙이기·결정 5 반영·실제 앱 렌더 확인을 보냈다. DX 워커 해제, `as-dx` 제거.
 - 2026-10-25: R-G1fix 결과 🔴 0 · 🟡 0 · ⚪ 5(다른 표기의 삭제된 경로는 '저장소 밖', 저장소 밖을 가리키는 저장값은 못 지움, 추가 쪽은 원값 비교라 `./styles`+`styles` 중복 가능, 상대 `--repo` 테스트 공백, 스타일). ⚪는 받아들인다. G1 워커·R-G1fix 해제. G1 통합.
+- 2026-10-25: G1 통합(`a23c3f7`~`cd8ac3d`). 통합 HEAD `go test`·`go vet` 통과(지휘자 실행). `as-g1` 제거. E 시작(Sonnet high, `as-e`) — 새 시나리오 추가 후 전체 라운드.
+- 2026-10-25: R-A1 결과 🔴 0 · 🟡 1(기존 교체 테스트가 모두 없는 대상을 써서 이제 dangling만 지나고, 존재하는 다른 대상의 확인 보호가 무시험 — 변이로 재현) · ⚪ 4 · 결정 3. test 1773·typecheck 재확인, 기존 ipcMain 채널 39개 모두 분류됨. 결정 로그 4행을 정했다. 🟡·결정 1·⚪3을 A1-fix(같은 Codex 터미널)로, 결정 2·3·⚪4는 배치 C 브리프로 보낸다. R-A1 워커 해제.
+- 2026-10-25: A1-fix 질문 — 새 상태가 기존 보호 테스트를 다른 분기로 옮긴 함정을 postmortem에 남길지 → 남긴다(main에 닿지 않았지만 드러나지 않는 함정이다). 초안은 인계에, 반영은 지휘자가 통합 때 한다.
+- 2026-10-25: A1-fix 완료(`bef29df`, `ec831cc`, `30cf34d`) — 존재하는 대상의 교체 테스트 3개(변이로 실패 확인), 우선순위, 자기 스텁 누락은 Not connected. test 1789·typecheck 통과 보고. 지휘자가 machine.ts·connectionSummary diff를 확인했다. A1 통합, postmortem 항목 추가.
