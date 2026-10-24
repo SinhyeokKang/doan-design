@@ -23,9 +23,10 @@ func ReadGit(root, home string) *GitInfo {
 		return nil
 	}
 	if home != "" {
-		home, ok = gitDirectory(home)
-		if !ok {
-			return nil
+		if canonical, ok := gitDirectory(home); ok {
+			home = canonical
+		} else {
+			home = filepath.Clean(home)
 		}
 	}
 	tree := root
@@ -94,11 +95,20 @@ func ReadGit(root, home string) *GitInfo {
 	if !ok {
 		return nil
 	}
-	head, ok := readGitFile(filepath.Join(gitdir, "HEAD"))
-	if !ok {
+	headPath := filepath.Join(gitdir, "HEAD")
+	headInfo, err := os.Lstat(headPath)
+	if err != nil {
 		return nil
 	}
-	branch, detached := parseHead(head)
+	var branch, detached string
+	// Following a symbolic HEAD would mistake its branch's SHA for detached HEAD.
+	if headInfo.Mode()&os.ModeSymlink == 0 {
+		head, ok := readGitFile(headPath)
+		if !ok {
+			return nil
+		}
+		branch, detached = parseHead(head)
+	}
 	result := &GitInfo{Common: common, Branch: branch, Detached: detached}
 	rel, err := filepath.Rel(tree, root)
 	if err != nil || outside(rel) {
@@ -115,7 +125,7 @@ func ReadGit(root, home string) *GitInfo {
 	}
 	entries, ok := readWorktreeGitdirs(common)
 	if !ok {
-		return nil
+		roots = []string{tree}
 	}
 	for _, path := range worktreeGitdirs(entries) {
 		// The backlink itself must still exist; stale registrations are prunable.
@@ -123,9 +133,7 @@ func ReadGit(root, home string) *GitInfo {
 		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
-		if candidate, ok := gitDirectory(filepath.Dir(path)); ok {
-			roots = append(roots, candidate)
-		}
+		roots = append(roots, filepath.Dir(path))
 	}
 	paths := map[string]bool{root: true}
 	for _, candidate := range mapWorktrees(roots, rel) {
@@ -198,6 +206,10 @@ func readWorktreeGitdirs(common string) ([]worktreeGitdirEntry, bool) {
 	if err != nil || !info.IsDir() {
 		return nil, false
 	}
+	path, ok := gitDirectory(path)
+	if !ok {
+		return nil, false
+	}
 	dir, err := os.Open(path)
 	if err != nil {
 		return nil, false
@@ -212,10 +224,9 @@ func readWorktreeGitdirs(common string) ([]worktreeGitdirEntry, bool) {
 		if !entry.IsDir() {
 			continue
 		}
-		base, ok := gitDirectory(filepath.Join(path, entry.Name()))
-		if !ok {
-			continue
-		}
+		// ReadDir already gives disk-spelled directory names; re-normalizing each
+		// base would rescan the entire registrations directory for every entry.
+		base := filepath.Join(path, entry.Name())
 		if text, ok := readGitFile(filepath.Join(base, "gitdir")); ok {
 			result = append(result, worktreeGitdirEntry{base: base, text: text})
 		}
