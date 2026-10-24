@@ -448,12 +448,21 @@ describe("selection wiring (flow 7)", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("points an open canvas of an uninitialized project at Set Up… in the sidebar", () => {
+  it("points an open canvas of an uninitialized project at Set Up… on Home", () => {
     const h = selectionHarness();
     try {
       h.select(1);
       h.controller.updateEntries([{ path: "/repo", kind: "uninitialized" }]);
-      expect(h.state()).toMatchObject({ status: "missing", message: "The project repo is not initialized. Choose Set Up… in the sidebar." });
+      expect(h.state()).toMatchObject({ status: "missing", message: "The project repo is not set up. Use Set Up… on Home." });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("points a missing project at Locate…", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.updateEntries([{ path: "/repo", kind: "notFound" }]);
+      expect(h.state().message).toBe("The project repo is missing. Use Locate… to find it.");
     } finally { h.controller.dispose(); }
   });
 

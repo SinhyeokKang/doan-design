@@ -49,7 +49,6 @@ interface FolderView {
   path: string;
   state: string;
   status: string;
-  hint: string;
   canvases: CanvasView[];
 }
 
@@ -386,8 +385,8 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     assert.equal(broken.status, repos.brokenMessage);
     const plain = byPath(folders, repos.plain);
     assert.equal(plain.state, "uninitialized");
-    assert.equal(plain.status, "Not initialized");
-    assert.equal(plain.hint, "Set up this project to add design/ and .doan/.");
+    assert.equal(plain.status, "Not set up");
+    assert.equal(await homeRow(page, repos.plain).getByRole("button", { name: "Set Up…", exact: true }).isVisible(), true);
     await screenshot(page, "1-opened");
 
     // 3. Watching: a new canvas shows up; a deleted folder becomes "not found";
@@ -396,7 +395,7 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     await waitFolders(page, (all) => hasCanvas(all, repos.ok, "design/added.html"), "added canvas listed");
     await rm(repos.worktree, { recursive: true, force: true });
     folders = await waitFolders(page, (all) => all.some((f) => f.path === repos.worktree && f.state === "notFound"), "deleted folder not found");
-    assert.equal(byPath(folders, repos.worktree).status, "Not found");
+    assert.equal(byPath(folders, repos.worktree).status, "Missing");
     assert.equal(byPath(folders, repos.ok).state, "list");
     await replaceDialog(app, repos.worktree);
     await homeRow(page, repos.worktree).getByRole("button", { name: "Locate…", exact: true }).click();
@@ -1307,7 +1306,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await writeFile(join(repos.select, "design", "pick.html"), pickCanvas(true));
   await waitFolders(page, all => hasCanvas(all, repos.select, "design/pick.html"), "pick canvas back");
   await reselectBox(page, repos);
-  await page.getByRole("button", { name: "Close project select", exact: true }).click();
+  await page.getByRole("button", { name: "Remove select from doan", exact: true }).click();
   await waitFolders(page, all => all.every(folder => folder.path !== repos.select), "select project closed");
   assert.equal(await page.getByRole("region", { name: "Inspector", exact: true }).count(), 0, "closing the project clears the selection");
   assert.deepEqual(pick(await active(repos.select), "exit", "code"), { exit: 3, code: "project_not_open" }, "active after the project is closed");
@@ -1673,7 +1672,7 @@ async function reopenObserved(app: ElectronApplication, page: Page, root: string
   const project = homeRow(page, root);
   await replaceDialog(app, root);
   await project.getByRole("button", { name: "Locate…", exact: true }).click();
-  await page.getByRole("button", { name: `Project ${root}`, exact: true }).waitFor();
+  await homeRow(page, root).and(page.getByRole("button", { name: /^Project / })).waitFor();
   const config = join(root, ".doan/config.json"), original = await readFile(config);
   await writeFile(config, "invalid");
   await project.getByText("Config error", { exact: true }).waitFor();
@@ -1770,7 +1769,7 @@ async function windowLifetime(app: ElectronApplication, page: Page, repos: Repos
   await waitFor(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isFullScreen() === false), "left fullscreen");
   console.log("fullscreen close/activate: same window returned");
   await screenshot(page, "5-restored");
-  await page.getByRole("button", { name: "Close project canvas", exact: true }).click();
+  await page.getByRole("button", { name: "Remove canvas from doan", exact: true }).click();
   await page.getByRole("region", { name: "Home", exact: true }).waitFor();
   await openFolder(app, page, repos.canvas);
   await enterProject(page, repos.canvas);
@@ -1779,9 +1778,9 @@ async function windowLifetime(app: ElectronApplication, page: Page, repos: Repos
   await waitFolders(page, all => hasCanvas(all, repos.canvas, "design/main.html"), "canvas reopened");
   await openCanvas(page, repos.canvas, "design/main.html");
   await rename(repos.canvas, `${repos.canvas}-moved`);
-  await waitView(page, view => view.statusText === "The project canvas is gone or moved. Reopen it from the sidebar.", "project gone message");
+  await waitView(page, view => view.statusText === "The project canvas is missing. Use Locate… to find it.", "project gone message");
   await emptyControls(page);
-  await page.getByRole("button", { name: "Close project canvas", exact: true }).click();
+  await page.getByRole("button", { name: "Remove canvas from doan", exact: true }).click();
   await waitFolders(page, all => all.every(folder => folder.path !== repos.canvas), "Close removes the missing project");
 }
 
@@ -2107,19 +2106,18 @@ async function readFolders(page: Page): Promise<FolderView[]> {
   const entries = await page.evaluate(() => new Promise<import("../src/main/view").FolderEntry[]>(resolve => {
     const stop = window.doan.onFolders(entries => { stop(); resolve(entries); });
   }));
-  const rows = page.getByRole("region", { name: "Home", exact: true }).getByRole("button", { name: /^Project \// }).or(page.getByRole("region", { name: "Home", exact: true }).getByRole("group", { name: /^Project \// }));
-  const paths = await rows.evaluateAll(nodes => nodes.map(node => ({ path: node.getAttribute("aria-label")!.slice(8), current: node.getAttribute("aria-current") === "true" })));
+  const rows = page.getByRole("region", { name: "Home", exact: true }).getByRole("button", { name: /^Project / }).or(page.getByRole("region", { name: "Home", exact: true }).getByRole("group", { name: /^Project / }));
+  const paths = await rows.evaluateAll(nodes => nodes.map(node => ({ path: node.querySelector('[aria-label^="Row menu "]')!.getAttribute("aria-label")!.slice(9), current: node.getAttribute("aria-current") === "true" })));
   const result: FolderView[] = [];
   for (const { path, current } of paths) {
     const row = homeRow(page, path);
     const chip = (await row.getByText(/^(Config error|CLI error|Missing|Not set up|Reading…)$/).allTextContents())[0] ?? "";
     const state = ({ "Config error": "error", "CLI error": "cliError", Missing: "notFound", "Not set up": "uninitialized", "Reading…": "loading" })[chip] ?? "list";
-    let status = chip === "Missing" ? "Not found" : chip === "Not set up" ? "Not initialized" : chip;
-    let hint = state === "uninitialized" ? "Set up this project to add design/ and .doan/." : "";
+    let status = chip;
     if (state === "error") {
       const details = row.getByRole("button", { name: "Details", exact: true });
       if (await details.getAttribute("aria-expanded") !== "true") await details.click();
-      hint = (await row.getByRole("paragraph").textContent()) ?? ""; status = hint;
+      status = (await row.getByRole("paragraph").textContent()) ?? "";
     }
     const canvases: CanvasView[] = [];
     if (state === "list" && (inspectAllFolders || current)) {
@@ -2140,10 +2138,10 @@ async function readFolders(page: Page): Promise<FolderView[]> {
       await goHome(page);
     } else if (state === "list") {
       const text = await row.textContent() ?? "";
-      const count = Number(text.match(/(\d+) canvases/)?.[1] ?? 0);
+      const count = Number(text.match(/(\d+) canvas(?:es)?/)?.[1] ?? 0);
       for (let index = 0; index < count; index++) canvases.push({ path: "", title: "", open: "", url: "" });
     }
-    result.push({ path, state, status, hint, canvases });
+    result.push({ path, state, status, canvases });
   }
   const loaded = paths.find(row => row.current);
   if (loaded && !inspectAllFolders) await enterProject(page, loaded.path);

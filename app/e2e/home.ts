@@ -1,7 +1,7 @@
 import type { Locator, Page } from "playwright";
 
 export function homeRow(page: Page, root: string): Locator {
-  return page.getByRole("button", { name: `Project ${root}`, exact: true }).or(page.getByRole("group", { name: `Project ${root}`, exact: true }));
+  return page.getByRole("button", { name: /^Project / }).or(page.getByRole("group", { name: /^Project / })).filter({ has: page.getByRole("button", { name: `Row menu ${root}`, exact: true }) });
 }
 export async function goHome(page: Page): Promise<void> {
   const home = page.getByRole("region", { name: "Home", exact: true });
@@ -11,7 +11,7 @@ export async function goHome(page: Page): Promise<void> {
 }
 export async function requestProject(page: Page, root: string): Promise<void> {
   await goHome(page);
-  await page.getByRole("button", { name: `Project ${root}`, exact: true }).click();
+  await homeRow(page, root).and(page.getByRole("button", { name: /^Project / })).click();
 }
 export async function enterProject(page: Page, root: string): Promise<void> {
   const tree = page.getByRole("treeitem", { name: root.split("/").at(-1) ?? root, exact: true });

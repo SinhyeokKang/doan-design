@@ -27,7 +27,7 @@ const mocks = await vi.hoisted(async () => {
     Window,
     app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
-    shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), close: vi.fn(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
+    shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
       store: vi.fn(), remove: vi.fn(), restore: vi.fn(), replace: vi.fn(), rereadAll: vi.fn() },
     flow: { add: vi.fn(), scan: vi.fn(), cancel: vi.fn(), addCandidates: vi.fn(), confirm: vi.fn(), judge: vi.fn() },
     createAddFlow: vi.fn(),
@@ -962,4 +962,11 @@ test("window focus re-reads every root at most once a minute", () => {
     window().emit("focus");
     expect(mocks.shell.rereadAll).toHaveBeenCalledOnce();
   } finally { clock.mockRestore(); }
+});
+
+
+test("home path is available only to the application main frame", async () => {
+  expect(await invoke("app:home", window().webContents, null)).toBe(process.env.HOME ?? "/tmp/doan-index-test");
+  expect(await invoke("app:home", {}, null)).toBeNull();
+  expect(await invoke("app:home", window().webContents, {})).toBeNull();
 });

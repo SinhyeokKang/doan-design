@@ -4,7 +4,7 @@ import { Home } from "./Home";
 import type { FolderEntry } from "../main/view";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-const render = (entries: FolderEntry[], loaded: string | null = null) => renderToStaticMarkup(<TooltipProvider><Home entries={entries} loaded={loaded} selection={null} highlight={null} enter={() => {}} action={() => {}} remove={() => {}} /></TooltipProvider>);
+const render = (entries: FolderEntry[], loaded: string | null = null) => renderToStaticMarkup(<TooltipProvider><Home homeDirectory={null} entries={entries} loaded={loaded} selection={null} highlight={[]} enter={() => {}} action={() => {}} remove={() => {}} /></TooltipProvider>);
 test("empty home explains how to add a project", () => {
   expect(render([])).toContain("Add a project to see its design canvases.");
 });

@@ -32,7 +32,7 @@ test("a problem root uses the shared status chip; recovery lives above the works
   const html = sidebar([{ path: "/code/new-app", kind: "uninitialized" }]);
   expect(html).toContain("Not set up");
   expect(html).not.toContain("Open Project…");
-  expect(html).toContain('aria-label="Close project new-app"');
+  expect(html).toContain('aria-label="Remove new-app from doan"');
 });
 
 test("a project without canvases offers Copy first prompt with the replace hint", () => {

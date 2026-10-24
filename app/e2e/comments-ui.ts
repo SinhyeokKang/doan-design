@@ -297,7 +297,7 @@ try {
   const boardBox = await page.locator("iframe").evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, scale: r.width / el.clientWidth }; });
   await page.keyboard.down("Alt"); await page.mouse.click(boardBox.x + (linkBox.x + 8) * boardBox.scale, boardBox.y + (linkBox.y + 8) * boardBox.scale); await page.keyboard.up("Alt"); await keep();
   assert.equal(await page.locator("iframe").getAttribute("title"), "design/a.html");
-  await page.getByRole("button", { name: "Close project repo", exact: true }).click(); await keep();
+  await page.getByRole("button", { name: "Remove repo from doan", exact: true }).click(); await keep();
   await app.evaluate(({ app }) => app.quit()); await keep();
   // Close Window hides the existing window without losing the editor.
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
