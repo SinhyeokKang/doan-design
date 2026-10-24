@@ -280,6 +280,7 @@ export class CanvasController {
         this.state.shown = null;
         this.state.error = "";
         this.dropFrame();
+        if (update.reason === "missing") this.canvasRemoved?.(open.row);
         this.state.status = update.reason === "closed" ? "empty" : "missing";
         this.state.message = update.reason === "closed" ? "Pick a canvas from the list"
           : update.reason === "notFound" ? `The project ${name} is missing. Use Locate… to find it.`
@@ -302,6 +303,19 @@ export class CanvasController {
   }
 
   private workspaceMemory = new Map<string, { path: string; view: View }>();
+  // The open canvas left the folder's list (deleted or moved).
+  canvasRemoved: ((row: CanvasRow) => void) | null = null;
+  // Pans do not publish state, so persistence listens here.
+  viewChanged: (() => void) | null = null;
+  currentView(): View { return { ...this.view }; }
+  // Per-root memory as saved to and restored from `ui-state.json` (`lastByRoot`).
+  memory(): Record<string, { canvas: string; view: View }> {
+    return Object.fromEntries([...this.workspaceMemory].map(([root, item]) => [root, { canvas: item.path, view: { ...item.view } }]));
+  }
+  remember(root: string, item: { canvas: string; view: View } | null): void {
+    if (item === null) this.workspaceMemory.delete(root);
+    else this.workspaceMemory.set(root, { path: item.canvas, view: { ...item.view } });
+  }
   private workspaceActive = true;
   setWorkspaceActive(active: boolean): void { this.workspaceActive = active; }
 
@@ -367,11 +381,13 @@ export class CanvasController {
   // A new element ends the old document before resetting its measurement viewport.
   private load(row: CanvasRow, fresh: boolean, kind: ActivityEvent["kind"] = fresh ? "opened" : "reloaded"): void {
     this.clearJump();
-    this.pendingFrame = null;
+    // A reload of the same row before its first layout still owes the picked frame.
+    if (fresh) this.pendingFrame = null;
     this.resetAnchors();
     this.loadKind = kind;
     this.applySelectionEffect({ kind: fresh ? "otherCanvas" : "reload" });
     if (row.width === undefined) {
+      this.pendingFrame?.found?.(false);
       this.dropFrame();
       this.state.status = "noWidth";
       this.state.message = 'Missing or invalid board width. Ask the agent to add <meta name="doan:width" content="1440"> to <head>. Run doan check in a terminal to verify.';
@@ -798,6 +814,7 @@ export class CanvasController {
     this.state.currentFrame = current;
     const zoom = Math.round(this.view.scale * 100);
     if (zoom !== this.state.zoom || changedCurrent) { this.state.zoom = zoom; this.publish(); }
+    this.viewChanged?.();
   }
   // Marks live outside the iframe so the canvas DOM, its MutationObserver and
   // the anchors stay untouched; drawn in screen px so lines stay 1px at any

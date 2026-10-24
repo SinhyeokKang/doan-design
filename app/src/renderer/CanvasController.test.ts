@@ -969,6 +969,25 @@ it("reports a missing rendered frame and falls back to the first id match after 
   } finally { h.controller.dispose(); }
 });
 
+it("keeps a picked frame through a live reload of the same canvas before its first layout", () => {
+  const h = selectionHarness();
+  try {
+    const found = vi.fn();
+    h.controller.openCanvas("/repo", h.other, "hero", { found });
+    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [h.row, h.other] }]);
+    expect(found).not.toHaveBeenCalled();
+    h.layout({ href: h.other.url });
+    expect(h.state().currentFrame).toBe(1);
+    expect(found).toHaveBeenCalledExactlyOnceWith(true);
+    // A reload that loses the width still answers the pick.
+    const missing = vi.fn();
+    h.controller.openCanvas("/repo", h.row, "hero", { found: missing });
+    const { width: _width, ...noWidth } = h.row;
+    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 2, canvases: [noWidth, h.other] }]);
+    expect(missing).toHaveBeenCalledExactlyOnceWith(false);
+  } finally { h.controller.dispose(); }
+});
+
 it("forgets navigation memory when a project is removed and added again", () => {
   const h = selectionHarness();
   try {
@@ -982,5 +1001,36 @@ it("forgets navigation memory when a project is removed and added again", () => 
     h.controller.updateEntries([original, other]);
     h.controller.openWorkspace("/repo", () => {});
     expect(h.state().open).toBeNull();
+  } finally { h.controller.dispose(); }
+});
+
+it("reports the open canvas leaving its folder's list, but not a closed project", () => {
+  const h = selectionHarness();
+  try {
+    const removed = vi.fn();
+    h.controller.canvasRemoved = removed;
+    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [h.other] }]);
+    expect(removed).toHaveBeenCalledWith(expect.objectContaining({ path: h.row.path }));
+    expect(h.state().open).toBeNull();
+    h.controller.openCanvas("/repo", h.other);
+    h.controller.updateEntries([]);
+    expect(removed).toHaveBeenCalledTimes(1);
+  } finally { h.controller.dispose(); }
+});
+
+it("persisted per-root memory reopens its canvas with its view, and null forgets it", () => {
+  const h = selectionHarness();
+  try {
+    const other: FolderEntry = { path: "/other", kind: "list", servedRev: 0, canvases: [] };
+    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [h.row, h.other] }, other]);
+    h.controller.openWorkspace("/other", () => {});
+    expect(h.controller.memory()).toEqual({ "/repo": { canvas: h.row.path, view: expect.objectContaining({ scale: expect.any(Number) }) } });
+    const view = { scale: 0.5, x: 12, y: -40 };
+    h.controller.remember("/repo", { canvas: h.other.path, view });
+    h.controller.openWorkspace("/repo", () => {});
+    expect(h.state().open.canvas).toBe(h.other.path);
+    expect(h.controller.currentView()).toEqual(view);
+    h.controller.remember("/other", null);
+    expect(Object.keys(h.controller.memory())).toEqual(["/repo"]);
   } finally { h.controller.dispose(); }
 });

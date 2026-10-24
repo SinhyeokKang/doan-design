@@ -90,7 +90,7 @@ function ProjectCard({ card, ...props }: HomeProps & { card: HomeCard }) {
     })}
   </section></Context>;
 }
-function ChangedTime({ at }: { at: number | undefined }) {
+export function ChangedTime({ at }: { at: number | undefined }) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(timer); }, []);
   if (at === undefined) return <>—</>;

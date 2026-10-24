@@ -307,3 +307,61 @@ At this checkpoint, 64 files / 1,444 unit tests, typecheck, Go tests, build, the
 Independent R-Cfix follow-up confirmed the original findings and four decisions were addressed, then identified the stale full-runtime reader, lost late-read-after-detach coverage, and a card whose remembered keyboard row had been removed. The reader fix is in `55d7fc7`; `a8bdf0c` restores the race test against `remove()` and adds an actual keyboard removal regression, observed failing before `1b07839` derives the active row from the surviving paths. This follow-up changes no measured style or copy values. The final full E2E at `1b07839` exits 0 with `runtime-test: PASS`, including the removal regression, comments-ui, onboarding, projects-home and unchanged real-state fingerprints. Its seven runtime checkpoint PNGs were opened and inspected. Final unit tests pass in 64 files / 1,445 tests, and typecheck passes; the prior Go gate remains valid with no Go changes. Old round-one receipts and logs now live under `evidence-C/round1/`.
 
 One independent-review note remains: Locate into a non-list root can retain the previous missing-project message in the canvas area while the status line correctly shows the new root state. This minor note was left outside the requested red/yellow follow-up fixes and is recorded for integration; no independent clean-review result is claimed.
+
+## Design navigation — initial implementation (2026-10-25)
+
+Reference: the conductor-confirmed `design/design-nav.html` (frames `workspace-tree`, `tree-rows`, `overview`, `overview-empty`, `quick-open`, `frame-highlight`, `toasts`). Batch C1 implemented the tree and the jump highlight, batch C2 the Overview, Quick Open, restore and this comparison.
+
+### Measurement and contracts
+
+`.scratch/design-sync/design-nav/measure.mjs` builds the CLI, launches the built app with a temporary HOME, userData and DOAN_RUNTIME, adds this checkout (for the draft) and temporary fixture repositories, opens the draft as a served canvas and reads computed style and document-local rectangles on both sides in the same Electron process. The fixture mirrors the draft's example: root, `checkout/`, `settings/` and `settings/team/` canvases, open comments, a canvas without `doan:width`, a canvas `doan ls` cannot read, a canvas whose image never loads (held "making" thumbnail), a frame-less canvas, and a second project for Quick Open. Real-state fingerprints were unchanged.
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Overview | Covers the canvas cell (`grid-column: 2`, last row) over the still laid-out canvas area; padding 4px 24px 24px; `--bg`; scrolls | Opening a canvas fits it to the area's size immediately, so the area never leaves layout; the area beneath is `inert` while covered. |
+| Sections | Heading = folder path, case kept, 11.5px `--text-2`, padding 16px 0 10px; count in `--text-4` | Paths are identifiers; the shipped uppercase section style would change them. |
+| Cards | Three-column grid, gap 12; card radius 10, 1px `--line`, `--panel`, hover `--panel-2`; thumb 16:10 with 1px bottom line; body padding 9px 12px 10px, gap 2 | Matches the Home card surface at 215px wide in the shipped window. |
+| Card text | Title 600 12.5px `--text`; file 11px `--text-4`; meta 11px `--text-3`, 4px top margin, open count `--accent`; title and file truncate, meta never | The title is the primary name; the file name stays readable as secondary. |
+| Thumbnail states | Making: plain `--panel-2`; no `doan:width`: 11.5px `--text-3` message with a `--raised` code chip; unreadable: same message in `--warn`; image: `object-fit: cover` from the top | The first screen of the canvas is what the card previews. |
+| Empty Overview | Shipped empty type (15px / 600 title, 12.5px `--text-3` hint) with Copy first prompt | Same copy and behavior as the earlier sidebar first prompt. |
+| Quick Open | Modal `<dialog>` 560px wide, 64px from the top, radius 12, `--raised`, `--shadow-2`; backdrop `--board-bg` at 0.6; input line 12px 14px, 14px text, accent glyph and caret; list max 360px, padding 6; rows 30px, radius 6, active `--accent-soft`; name `--text`, context `--text-3`, project `--text-4` 11.5px; footer 10.5px `--text-3` | One modal surface over Home or a workspace; the project part never truncates. |
+| Tree | Rows 26px, canvas rows 44px two-line; level indent 14px; current row `--raised` with a 2px accent `::before` bar; selected mark a 7px hollow accent diamond; Select slot 11px button | C1's implementation; measured here as task 11 covers every screen of the feature. |
+| Selected element row | Padding-left 74px under a level-3 frame (`32 + level × 14`) | Measured 54px against the draft's 74px; fixed and pinned by a Sidebar unit test. |
+| Row action slot | Shown on hover and on keyboard focus (`:focus-visible`) only | A clicked row keeps focus; with `:focus-within` its Select stayed up beside the hovered row's. Found by the independent review, pinned in e2e. |
+| Frame without id or title | "(no id)" in `--text-3` | The shipped dimmer fallback label; it had been lost in the tree rewrite. Pinned in `app/e2e/design-nav.ts` by computed color against the resolved `--text-3` and a named label. |
+| Jump highlight | 2px `--accent-line` border with a 3px `--accent-soft` halo | Reads as a transient mark, never as the selection. |
+
+### Documented differences
+
+- **Live versus static:** the Overview and the result list scroll (`overflow: auto`, the thin themed `native-scroll` scrollbar) where the static draft clips; clickable cards and results show the pointer cursor where the draft's specimens are static; the jump highlight animates its hold and fade where the draft draws still steps.
+- **Top layer:** Quick Open is a modal `<dialog>` in the top layer, centered by margins (339px each side in the shipped window) and 64px from the top; the draft positions an absolute box with `translateX(-50%)`. The placement is the same.
+- **Native input:** the draft draws the query and placeholder as spans with an accent `::after` caret. The implementation is an `<input>`: the caret is `caret-color: var(--accent)` and shows whenever the input has focus, including the empty state where the draft draws none; the placeholder is `::placeholder` in `--text-4`; native whitespace, overflow and cursor values differ without painting differently. The typed value is not `textContent`.
+- **Card tooltips:** the path under `design/` is the file name's tooltip and the absolute time is the time's tooltip (the shipped Home `ChangedTime`), so no tooltip nests inside another tooltip's trigger. Relative times follow the shipped Home rule ("Yesterday", "Oct 12"), not the draft's sample "1d ago".
+- **Order:** cards and tree rows sort by display name (feature design 'Sidebar tree'), so Roles & permissions precedes Team members where the draft lists them the other way.
+- **Context sizes:** the hover tile is a 418px two-column specimen against the 215px grid card; the result box grows with the number of results; the jump highlight follows the fixture frame; the frame-less hint specimen has a border on both sides (238px inner versus 239px).
+- **Toast for a canvas gone at relaunch:** the saved state has only the canvas path, so the message uses the file name without `.html` ("billing is no longer in design/"), the fallback the draft shows for an untitled canvas.
+
+### Roles and names
+
+The same script reads the renderer's accessibility tree through CDP (`Accessibility.getPartialAXTree` on each element, in the state above) for 37 implementation elements; the draft's specimens are static and carry no roles. Evidence: `.scratch/design-sync/design-nav/ax.md` and `ax.json`.
+
+| Surface | Role and name |
+|---|---|
+| Overview | `region` "Overview"; each folder section a `region` named by its path ("design") |
+| Card | `button`, named by its content in order: thumbnail message if any, title, file name, facts ("Checkout checkout.html 6 frames · 3 open · Just now"; "Add doan:width to preview Design tokens tokens.html 3 frames · Just now"); the image is ignored (empty `alt`) |
+| Canvas area under the Overview | ignored (`inert`) |
+| Top bar project | `button` "acme-web overview" |
+| Empty Overview | `region` "Overview" with `button` "Copy first prompt" |
+| Tree | `tree` "Canvases"; rows `treeitem` with `aria-level` (Overview 1, folders and canvases by depth, frames one deeper), `expanded` on folders and canvases; frame rows "1 Plans", the selected one "2 Upgrade, selected in canvas", an id-less one "3 (no id)"; Chromium reports the focused row as `selected=true` (selection follows focus) since rows set no `aria-selected` |
+| Tree extras | Select slot `button` "Select Card form" (`disabled` on a closed canvas's frame); the selected mark is hidden; the selected element row is a `generic` with static text, not a tree item; the frame-less hint a `paragraph` |
+| Jump highlight | `generic` with no name |
+| Quick Open | `dialog` "Quick Open", `modal`; `combobox` "Search canvases and frames" (`autocomplete=list`, `hasPopup=listbox`, `activedescendant` set, `controls` the list); `listbox` "Results"; results `option` "Card declined — Billing & plans › 4 · acme-web · main", the active one `selected`; "No canvases or frames match" a polite `status` |
+| Toast | polite `status` holding the message |
+
+### Coverage and limits
+
+The subset contains 127 pairs, 76 computed properties, text and the offset within the nearest row, card, dialog or bar (10,080 rows): 9,531 exact, 425 equivalent (border style and color where both widths are 0) and 124 documented in `reviewed.json` with their exact draft and implementation values and the reason, zero unclassified. The first round had 90 pairs; the independent review extended them to children, keyboard focus, closed-canvas rows and the top bar, which surfaced the two tree deviations above. Not measured: the "Preview unavailable" state (no fixture here makes a capture fail; it uses the measured `.thumb-msg`), long-name truncation and tooltips, Quick Open long values, the "1 frame" and "1,000+ frames" variants (unit-tested text), the typeahead, long-row, duplicate-id and truncated-hint tiles of `tree-rows`, the reduced-motion highlight (its 1.2s timing is pinned in `CanvasController.test.ts`) and the other two toast messages (their text is asserted in `app/e2e/design-nav.ts`). Roles and names were read for the states above only; the unmeasured states have none recorded.
+
+### Regression evidence and verification
+
+The selected-element indent was observed red in `Sidebar.test.tsx` and the action slot red in `app/e2e/design-nav.ts` before their fixes. The id-less frame color is pinned by computed color in `app/e2e/design-nav.ts`, observed red with its `.no-id` rule removed; the Sidebar unit test checks only the class. `app/e2e/design-nav.ts` covers the behavior of tasks 8–10 in the real app: visible cards captured first, focus moving to the next card, the empty state, folder sections and the width hint, an open canvas deleted, Quick Open from the menu on Home and in a workspace (disabled while open, Escape returning focus, another worktree through the draft guard, a duplicate id, a frame missing from the rendered canvas) and restore across real relaunches (canvas, view and tree expansion; a frame selected before quit, with the Inspector and `doan active` set, comes back with neither and is absent from `ui-state.json`; a last pan made just before a quit while the renderer is kept busy; Home, a gone canvas, a gone project, a broken `ui-state.json`). Relaunches quit at once, thumbnail captures included.
