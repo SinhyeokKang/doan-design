@@ -452,7 +452,7 @@ Independent review (same runtime, `review-1.md`): 0 red, 5 yellow, 5 notes. The 
 
 ## UX audit recovery update (2026-10-25)
 
-The dated audit is `docs/features/ux-audit-261025/report.md`; dispositions and integration evidence are in its `orch.md`. This update records observed changes, not a new draft comparison. Earlier measurement tables remain historical.
+The dated audit and its dispositions were recorded in `docs/features/ux-audit-261025/` (PR #20) and removed after integration; see the git history. This update records observed changes, not a new draft comparison. Earlier measurement tables remain historical.
 
 - Comments keep readable rows/actions when creation fails, with the creation error below New comment. Inspector shows `Reading styles…` using the existing notice styling while the selected element's values are pending; old computed rows are absent. Actual Electron screenshots and the final stale-response negative control were inspected. Delete Escape retains selection/Inspector and returns focus to Comments. Native OS IME was not exercised.
 - Wizard add scans, confirmations and refusal text remain visible in the wizard. A selected non-list project shows its actual state. PATH-copy and read failures use the existing error presentation. Failed child checklist submissions restore lost focus to Cancel; pointer/keyboard rejection, repeated rejection and unavailable results were observed after disabled rendering. Escape closes only the child, and deliberately moved child focus remains intact.
