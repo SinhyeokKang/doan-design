@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — An uncertain comment request silently blocked every exit
+
+- **Area**: `CommentsSession.ts`, `useComments.tsx`, `CommentsPanel.tsx`.
+- **Symptom**: a retained uncertain request rejected internal movement without an explanation and could permanently block normal quit.
+- **Root cause**: the same unconditional pending-request rejection served navigation and quit, without a distinct explicit-loss approval. The approved policy now distinguishes those intents while preserving the write evidence.
+- **Net**: session and public-hook regressions cover visible rejection, current-intent approval and immutable requests; removing quit routing makes the hook regression fail. Actual Electron UI approvals verify exit code 0, no signal and runtime-file removal. Controlled IPC uncertainty does not reproduce an actual hung directory child. Self-review also caught an intermediate implementation cancelling an ordinary Save and continue destination on an extra rejected quit; a regression now preserves it.
+- **Prevention**: bind exceptional approval to the current quit intent, invalidate stale answers, preserve ordinary destinations when busy requests are rejected, and never use quit approval to release write quarantine. Search run: `rg -n 'guard|uncertainTransition|answerUncertain|destination' app/src/renderer/CommentsSession.ts app/src/renderer/useComments.tsx` locates both the session and main-to-renderer routing; retain public-hook coverage beside session tests and keep actual UI quit assertions instead of successful-path guard bypasses.
+
 ### 2026-10-25 — A failed embedded frame suppressed a healthy outer thumbnail
 
 - **Area**: `app/src/main/thumbnailWindow.ts`.
@@ -17,6 +25,8 @@
 - **Root cause**: document visibility was used as native visibility, and quit guard dispatch assumed the window was already usable.
 - **Net**: audit review found the missing native inputs; focused regressions failed before correction. Actual window-hide and app-hide tests later verified retained Undo and a visible, focused ordinary guard. These tests use enabled menu callbacks/native app actions, not physical key chords; exceptional uncertain-save quit remains undecided.
 - **Prevention**: compose document and native visibility, wait for the initial native state, and reset the elapsed baseline on visibility changes. Reveal main only when actually dispatching a guard, preserving deferred teardown. Search run: `rg -n 'document.hidden|onWindowVisibility|activeTemps|waitFor|suiteGuard|checkedGit|patchCandidates' app/src/renderer/Toast.tsx app/src/main/thumbnails.ts app/e2e/harness.ts eval/lib/context.ts eval/lib/transcript.ts`; Toast is the visibility consumer covered here. Keep expiry deadlines anchored before native show, including expensive screenshot time.
+
+- **Follow-up (2026-10-25, A3b)**: the user subsequently approved a separate uncertain-save quit warning. Its implementation and verification are recorded above; the earlier undecided status is historical.
 
 ### 2026-10-25 — Startup cache collection deleted a live thumbnail temporary file
 
