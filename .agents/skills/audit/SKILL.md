@@ -41,7 +41,7 @@ If a real access/tool blocker prevents further review, report **incomplete**, th
 
 ## Output
 
-Write a Korean report in the conversation; a detailed report may go in `.scratch/audit/<run>/report.md`. Put unreviewed areas and execution limits first, then findings by urgency:
+The lead writes the consolidated report in Korean to `docs/features/audit-YYMMDD/report.md`, using the audit's execution date (for example, `audit-261025`). Record the full execution date, reviewed HEAD/worktree state and completion status inside the report. A continued run updates its existing report and records the continuation dates; a separate run on the same date uses a numeric suffix such as `audit-261025-2` instead of overwriting earlier findings. Reviewer notes and raw evidence remain under `.scratch/audit/<run>/`; include enough source evidence in the report to understand it without those ignored files. Summarize the result and link the report in the conversation. Put unreviewed areas and execution limits first, then findings by urgency:
 
 - **High**: data loss, isolation escape, crash, or broken primary workflow with a concrete trigger.
 - **Medium**: reproducible incorrect behavior or a material contract/regression gap.
@@ -51,6 +51,6 @@ Each finding includes trigger, impact, source evidence, expected behavior and it
 
 ## Limits
 
-Report only: no source or documentation fixes, commits, push, package installation, or automatic test runs. Static inspection cannot certify runtime behavior. Route executable verification to [/verify](../verify/SKILL.md), changed-code review to [/code-review](../code-review/SKILL.md), and agreed fixes through the repository's implementation workflow. Preserve decision conflicts for the user without silently rewriting the decision.
+Report only: the lead may write the designated report under `docs/features/`; no source or other documentation fixes, commits, push, package installation, or automatic test runs. An audit report is not an approved feature plan and does not require placeholder spec/design/tasks files. Static inspection cannot certify runtime behavior. Route executable verification to [/verify](../verify/SKILL.md), changed-code review to [/code-review](../code-review/SKILL.md), and agreed fixes through the repository's implementation workflow. Preserve decision conflicts for the user without silently rewriting the decision.
 
 Adapted from `~/code/malmoi/.claude/commands/audit.md`, inspected on 2026-10-25: specialist parallel review, lead integration, and postmortem recurrence checks. doan uses four relevant perspectives and an explicit coverage completion gate; malmoi's stack-specific checks and mandatory second-tier delegation were not carried over.
