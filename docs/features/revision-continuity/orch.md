@@ -19,13 +19,14 @@
 | 2026-10-26 | 측정 결과(tasks 1·2)는 작업자가 인계 문서에 적고, 지휘자가 tasks.md 해당 항목 아래에 옮긴다 | 지휘자 판단 — 두 측정 배치가 같은 파일을 동시에 고치지 않게 한다 |
 | 2026-10-26 | **사용자 확인 질문을 하지 않고 권장안대로 진행한다.** 결정 지점에서는 지휘자가 권장안을 골라 이 로그에 근거와 함께 적는다. 실제 사용자 상태를 바꾸는 일처럼 되돌리기 어려운 일은 예외로 묻는다 | 사용자 지시("이 루프 링크는 가능한 내 허가 없이 추천안대로 쭉 진행해") |
 | 2026-10-26 | Codex를 적당히 섞어 쓴다. 구현 배치는 Claude Opus가 맡고, 독립 리뷰 일부(R-P, R-A, R-B7, R-E)는 Codex Astra medium이 다른 계열로 읽는다. 첫 줄의 'Opus 단일' 규칙을 대체한다. 쓸 때마다 이 로그에 적는다 | 사용자 지시("모델 경계도 필요하다면 넘어도 괜찮아. Codex 허가할게", "Codex 적당히 섞어 써도 괜찮아. 주 업무는 클로드 코드가 진행하되 적당히 섞어 사용해") |
+| 2026-10-26 | M1 측정에서 Claude Code 저장에 임시 이름이 섞였다. design 2절에 '임시 형제 규칙'(대상 `.html`이 같은 집합에 있을 때 `<대상>.tmp…`·`.<대상>.tmp…`를 판정에서 뺌)을 더하고, Q1은 유지한다 | 지휘자 판단(위임) — 측정 근거 `save-watch-summary.md`. 판정이 틀리면 리로드가 한 번 더 일어날 뿐이고, 대상이 없으면 지금처럼 bump한다. 측정한 패턴만 다룬다 |
 | 2026-10-26 | 이 기능은 CLI·MCP·skills·공유 형식을 바꾸지 않으므로 `/agent-eval` 회차를 돌리지 않는다. 체인의 유일한 실제 회차는 링크 5다 | spec '사용자', design 'CLI·MCP·skills·공유 형식: 바뀌지 않는다', 체인 규칙 |
 
 ## 배치
 
 | 배치 | tasks | 파일 소유 | 선행 | 모델 · 노력 (이유) | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| M1 | 1 | `.scratch/revision-continuity/save-*` | — | Opus medium (스크립트는 단순하고, 격리와 원시 로그 기록이 핵심) | 원시 로그 경로와 요약, real-state 확인 결과 | 대기 |
+| M1 | 1 | `.scratch/revision-continuity/save-*` | — | Opus medium (스크립트는 단순하고, 격리와 원시 로그 기록이 핵심) | 원시 로그 경로와 요약, real-state 확인 결과 | 완료(커밋 없음), 해제·worktree 제거 |
 | M2 | 2 | `.scratch/revision-continuity/t11*` | — | Opus medium (현재 main을 측정만 한다) | 측정 로그·스크린샷 경로, 재현 여부, real-state, exit 0 | 대기 |
 | P | 3, 4 | 순수 함수와 그 테스트: `app/src/comments/draft.ts`, `app/src/renderer/{canvasView,selection}.ts`, `app/src/restore/{uiState,restorePlan}.ts`, `app/src/main/watch.ts`의 `createRefresher`, `classifyDesignChange`의 새 파일, `shouldGuardEscape`·`continueEnabled`·`guardsSelectionChange`의 자리 | — (`classifyDesignChange`·names 누적은 M1 결과 뒤) | Opus high (draft guard와 선택 정체성의 규칙을 정하는 함수들이다) | `npm --prefix app test` red→green, `typecheck` | 대기 |
 | A | 5 | `app/src/main/{watch,shell,thumbnails,view}.ts`와 테스트 | P 통합 | Opus high (폐기된 읽기, rev 유실, 루트 삭제 등 동시성) | test(watch·shell·thumbnails), typecheck | 대기 |
@@ -51,3 +52,4 @@ tasks.md의 1~11은 모두 위 배치 중 하나에 속한다.
 ## 진행 기록
 
 - 2026-10-26: Run `run_bcc4b8f353c5`. 1파 시작 — M1(`ctx_9253d68c30ac`, Opus medium, `rc-m1`), M2(`ctx_1f3cf5ba5a8d`, Opus medium, `rc-m2`), P(`ctx_161ede35bc9f`, Opus high, `rc-p`). `launch.effective`가 요청과 같다.
+- 2026-10-26: M1 완료. Claude Code Write·Edit는 임시 이름 뒤 rename, Codex apply_patch는 제자리 변경이다(Codex 실행 1회, 사용자 허락). 실제 상태는 바뀌지 않았다. design 2절에 임시 형제 규칙을 더했다. M1 해제, `rc-m1` 제거.

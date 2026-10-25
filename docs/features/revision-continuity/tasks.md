@@ -8,6 +8,7 @@
    - Claude Code Write·Edit, Codex apply_patch로 저장한다. 실제 에이전트 실행은 AGENTS의 일회성 등록 방식을 따르고, Codex 실행은 모델 경계를 넘으므로 매번 사용자 허락을 받는다.
    - `mv`, `git checkout`, 임시 파일 뒤 rename으로 저장한다.
    - 검증: 로그 경로와 요약을 이 항목 아래에 적는다. 임시 이름이 섞이면 design 2절과 Q1을 다시 정한 뒤 진행한다. command undecided — needs user confirmation.
+   - **결과 (2026-10-26, M1)**: 스크립트 `.scratch/revision-continuity/save-watch.mjs`, 원시 로그 `save-watch.log`, 요약 `save-watch-summary.md`. Claude Code Write·Edit에 임시 이름 `<file>.tmp.<pid>.<hex>`가 섞였다. Codex apply_patch·`mv`·`git checkout`·일반 쓰기에는 없었다. 루트 watcher 이벤트와 null 이름은 없었다. 실제 상태는 바뀌지 않았다. 방식마다 1회씩 측정했다. design 2절에 임시 형제 규칙을 더하고 Q1을 유지했다(orch.md 결정 로그).
 2. **리로드 중 위치 표시 측정(T-11)**: 확대한 아래쪽 프레임에서 요소를 선택하고 핀을 띄운 뒤, 캔버스 파일을 바꾼다. 0/100/300/800ms에 "Location unavailable", 핀, Selection 목록과 그 빈 상태 문구, iframe 높이를 기록한다.
    - 재현 기준: 한 샘플이라도 "Location unavailable"이나 빈 Selection 목록이 보이면 재현으로 본다.
    - 검증: 측정 로그와 스크린샷 경로를 이 항목 아래에 적는다. 재현되지 않으면 design 7절의 리로드 부분을 "측정만 기록"으로 닫는다. command undecided — needs user confirmation.

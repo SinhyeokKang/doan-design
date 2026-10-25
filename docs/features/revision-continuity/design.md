@@ -67,6 +67,13 @@
   폐기된 읽기에서도 bump를 잃지 않는다(기존 `shell.ts` 주석의 규칙).
 - `CanvasRow.rev`는 그 경로의 rev다. `canvasViewUpdate`의 reload 조건은 "servedRev가 바뀌었거나 열린 행의 rev가 바뀌었다"이다. 썸네일은 servedRev 변화 또는 행 rev 변화로 그 캔버스를 다시 확인한다.
 - 측정 의존: 에이전트 도구가 임시 이름에 쓰고 rename하면, 임시 이름(HTML이 아닌 이름)이 섞여 bump가 일어난다. tasks 1의 측정 결과가 이 경우라면 이 절을 다시 정한다. 예: 임시 이름 패턴을 판정에서 빼기. 이렇게 정할 때 Q1을 다시 확인한다.
+- **측정 결과와 재결정 (2026-10-26, tasks 1, 지휘자 결정 — 사용자가 링크 전체를 권장안대로 진행하라고 위임)**: Claude Code Write·Edit는 매번 같은 폴더에 `<파일 이름>.tmp.<pid>.<16진수>`를 쓰고 대상 이름으로 rename한다. 두 이벤트는 0.5ms 안에 와서 한 debounce에 들어온다. Codex apply_patch, `mv`, `git checkout`, 일반 쓰기에는 임시 이름이 없다. Node 원자적 쓰기는 `.a.html.tmp-<pid>`나 `a.html.tmp`를 썼다. 근거: `.scratch/revision-continuity/save-watch-summary.md`.
+  - 판정에 **임시 형제 규칙**을 더한다. HTML이 아닌 이름 N은 다음을 모두 만족하면 판정에서 뺀다(bump도 rev도 없음).
+    - 같은 names 집합에 캔버스 규칙을 통과한 이름 T가 있다.
+    - N이 T와 같은 폴더에 있다.
+    - N의 basename에서 앞의 점 하나를 뗀 값이 T의 basename + `.tmp`로 시작한다(대소문자 무시).
+  - 대상 T가 같은 집합에 없으면(임시 파일만 남은 경우 등) 지금처럼 bump한다. 잘못 판정하면 리로드가 한 번 더 일어날 뿐이다.
+  - Q1(다른 캔버스 HTML만 바뀌면 리로드하지 않음)은 유지한다. 이 규칙으로 Claude Code 저장에서도 Q1이 성립한다.
 
 ### 3. 같은 id 따라가기 (L-4, R2)
 - `canvasViewUpdate(prev, next, open)`은 열린 행의 id를 `open.row.id`에서 읽는다. 결과는 다음과 같다.
@@ -108,6 +115,7 @@
 ## 순수 함수로 떼어낼 부분 (`/tdd` 대상)
 
 - `classifyDesignChange(names)`: `{bumpServed, revPaths}`를 돌려준다. 다음 경우를 다룬다.
+  - 임시 형제: `a.html.tmp.<pid>.<hex>`+`a.html`, `.a.html.tmp-<pid>`+`a.html`, `a.html.tmp`+`a.html`, 다른 폴더의 같은 이름, 대상 없는 임시 이름 단독, 대문자 `.HTML` 대상
   - null, HTML 아님, `.HTML` 대문자, `.htm`, 점 구간, 하위 경로
   - 이름 정규화(`design/` 접두)
   - 생성·삭제·rename 쌍
