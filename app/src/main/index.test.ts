@@ -1016,6 +1016,14 @@ describe("ui state", () => {
     mocks.app.emit("will-quit");
     expect(mocks.uiState.flushSync).toHaveBeenCalledOnce();
   });
+
+  // FL2: the process can crash (SIGSEGV) between closing the capture window
+  // and will-quit, so the state is on disk before that teardown starts.
+  test("an approved quit flushes the state before disposing thumbnails", () => {
+    mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+    expect(mocks.uiState.flushSync).toHaveBeenCalledOnce();
+    expect(mocks.uiState.flushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.thumbnails.dispose.mock.invocationCallOrder[0] ?? 0);
+  });
 });
 
 describe("thumbnails", () => {

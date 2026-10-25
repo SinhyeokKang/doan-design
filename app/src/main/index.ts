@@ -855,7 +855,9 @@ app.on("before-quit", (event) => {
   transitionGuard.request({ kind: "quit" }, () => {
     // Before quit closes the windows: a capture running then would otherwise
     // open the capture window again, and will-quit would never come.
-    quitting = true; cancelPendingHide(); thumbnails?.dispose();
+    // The state is flushed first: closing the capture window mid-capture has
+    // crashed the process (SIGSEGV) before will-quit ran its flush.
+    quitting = true; cancelPendingHide(); uiState?.flushSync(); thumbnails?.dispose();
     if (approved) app.quit();
   });
   if (!quitting) { event.preventDefault(); approved = true; }
