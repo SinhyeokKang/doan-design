@@ -200,7 +200,7 @@ test.each(["invalid string", "invalid line", "double BOM"])("service list and co
     s.set(Buffer.concat([valid.subarray(0, offset), Buffer.from([0xff]), valid.subarray(offset + 1)]));
   }
   if (mode === "invalid line") s.set(Buffer.concat([Buffer.from([0xff, 10]), valid]));
-  if (mode === "double BOM") s.set(Buffer.concat([Buffer.from("\uFEFF\uFEFF{}\n"), valid]));
+  if (mode === "double BOM") s.set(Buffer.concat([Buffer.from("\uFEFF\uFEFF"), valid, valid]));
   const listed = await s.service.list("window", { ...identity, requestID: "read" });
   expect(listed).toMatchObject({ ok: true, value: { comments: [{ body: mode === "invalid string" ? "�ello 한글" : "Hello 한글" }], warnings: mode === "invalid string" ? [] : [{ code: "invalid_event", line: 1 }] } });
   expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { kind: "all" } })).toMatchObject({ ok: true });
@@ -254,4 +254,17 @@ test("preparing many requests does not copy whole-file baselines", async () => {
     for (let i = 0; i < 8; i++) expect((await create(s, `large-${i}`)).reply).toMatchObject({ ok: true, value: { state: "saved" } });
     expect(from.mock.calls.filter(([input]) => Buffer.isBuffer(input) && input.length >= 1024 * 1024)).toHaveLength(0);
   } finally { from.mockRestore(); }
+});
+
+test("invalid UTF-8 inside a new otherwise valid event is not proof of saved or absent", async () => {
+  const s = setup(); const { payload } = await create(s);
+  const saved = s.bytes();
+  const extra = Buffer.from(saved.toString().replace(/evt_[a-f0-9-]+/, "evt_00000000-0000-4000-8000-000000000099"));
+  const offset = extra.indexOf("Hello");
+  extra[offset] = 0xff;
+  s.set(Buffer.concat([saved, extra]));
+  const calls = vi.mocked(s.deps.append).mock.calls.length;
+  expect(await s.service.status("window", { ...identity, requestID: payload.requestID })).toMatchObject({ ok: true, value: { state: "unknown" } });
+  expect(await s.service.mutate("window", payload)).toMatchObject({ ok: true, value: { state: "unknown" } });
+  expect(s.deps.append).toHaveBeenCalledTimes(calls);
 });
