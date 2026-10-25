@@ -1579,6 +1579,45 @@ describe("Activity", () => {
         ["resolved", ["Kim Doe"]], ["moved", undefined], ["resolved", ["codex"]], ["reloaded", undefined], ["opened", undefined]]);
     } finally { h.controller.dispose(); }
   });
+
+  // R-V V-2: the switch itself ends the baseline, whether or not the other canvas's read arrived.
+  it("takes a baseline again after linking to another canvas and back before any read", () => {
+    const h = activityHarness();
+    try {
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x")] }, hooks());
+      h.layout({ href: h.other.url, document: "linked-b" });
+      h.layout({ href: h.row.url, document: "linked-a" });
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex)] }, hooks());
+      expect(h.state().activity.filter((event: { kind: string }) => event.kind === "resolved")).toEqual([]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("takes a baseline again when the id at the open path changes and changes back before any read", () => {
+    const h = activityHarness();
+    try {
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x")] }, hooks());
+      h.controller.updateEntries(h.list({ ...h.row, id: "c" }, h.other));
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [h.row, h.other] }]);
+      h.layout();
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex)] }, hooks());
+      expect(h.state().activity.filter((event: { kind: string }) => event.kind === "resolved")).toEqual([]);
+    } finally { h.controller.dispose(); }
+  });
+
+  // R-V V-1: Resolved events share the 50-event cap but must not push the label's document event out.
+  it("keeps the document label after 50 resolution reads", () => {
+    const h = activityHarness();
+    try {
+      const comments = Array.from({ length: 50 }, (_, i) => comment(String(i)));
+      h.controller.setComments({ root: "/repo", canvas: "a", comments }, hooks());
+      for (let i = 0; i < 50; i++) {
+        comments[i] = comment(String(i), by.codex);
+        h.controller.setComments({ root: "/repo", canvas: "a", comments }, hooks());
+      }
+      expect(activityFor(h.state().activity, "/repo", h.row.path, "a").every(event => event.kind === "resolved")).toBe(true);
+      expect(h.state().label).toMatch(/^Opened \d\d:\d\d$/);
+    } finally { h.controller.dispose(); }
+  });
 });
 
 describe("Escape and a blank click without a selection (L-17)", () => {
