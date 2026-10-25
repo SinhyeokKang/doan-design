@@ -98,11 +98,13 @@ export class CommentsSession {
     await Promise.all([this.read(), this.author.status === "loading" ? this.retryAuthor() : undefined]);
   }
   // Requests carry the path main checks, so a move is followed only when none
-  // is in flight or unsettled (feature revision-continuity R2).
+  // is in flight or still left for the person to finish (feature
+  // revision-continuity R2). Judged by the card's shown state: `cardPending`
+  // keeps finished entries (and survives `open()`), which must not block forever.
   canFollow(): boolean {
-    const unsettled = ["saving", "checking", "unknown", "check-failed", "recovery-blocked"];
+    const finished = ["idle", "saved", "deleted"];
     return !this.pending && !this.draft.request && !this.busy && !this.deleteConfirmation &&
-      ![...this.mutations.values()].some(state => unsettled.includes(state.status));
+      [...this.mutations.values()].every(state => finished.includes(state.status));
   }
   async read(review = false, card?: string) {
     if (!this.identity) return;

@@ -537,4 +537,37 @@ describe("a canvas moved with the same id", () => {
     await other.session.mutate("delete", "c1"); expect(other.session.canFollow()).toBe(false);
     other.session.cancelDelete(); expect(other.session.canFollow()).toBe(true);
   });
+  // A card change the person still has to finish names the old path, so the
+  // move is not followed and the existing removal handling applies (R2, R-B7 1).
+  test("does not follow while a card change still needs the person: conflict, reviewed", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    api.commentsMutate.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Comment changed; read the latest state before saving." }));
+    await s.mutate("resolve", "c1");
+    expect(s.mutations.get("c1")?.status).toBe("conflict"); expect(s.canFollow()).toBe(false);
+    await s.read(true);
+    expect(s.mutations.get("c1")?.status).toBe("reviewed"); expect(s.canFollow()).toBe(false);
+    await s.confirmCard("c1");
+    expect(api.commentsMutate).toHaveBeenCalledTimes(2);
+    expect(s.mutations.get("c1")?.status).toBe("saved"); expect(s.canFollow()).toBe(true);
+  });
+  test("does not follow while a card change failed or waits for its original retry", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    api.commentsMutate.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Disk full" }));
+    await s.mutate("resolve", "c1");
+    expect(s.mutations.get("c1")?.status).toBe("failed"); expect(s.canFollow()).toBe(false);
+    api.commentsMutate.mockImplementationOnce(async r => reply(r, { state: "unknown" }));
+    await s.cardRetry("c1", false); await s.cardRetry("c1", true);
+    expect(s.mutations.get("c1")?.status).toBe("retry-original"); expect(s.canFollow()).toBe(false);
+  });
+  test("a finished card change does not block a later move", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    api.commentsMutate.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Comment no longer exists." }));
+    await s.mutate("resolve", "c1");
+    expect(s.mutations.get("c1")?.status).toBe("deleted"); expect(s.canFollow()).toBe(true);
+    const reopened = fixture(); await reopened.session.open(identity);
+    reopened.api.commentsMutate.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Disk full" }));
+    await reopened.session.mutate("resolve", "c1");
+    await reopened.session.open({ ...identity, canvas: "b", path: "design/b.html" }); await reopened.session.open(identity);
+    expect(reopened.session.canFollow()).toBe(true);
+  });
 });
