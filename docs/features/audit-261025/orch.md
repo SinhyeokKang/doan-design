@@ -115,3 +115,41 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 - 버튼 높이 별도 Electron 측정: 현재 center에서 22px, stretch에서 22.5px, 명시적 -apple-system에서도 22px. 실사용자 상태 unchanged, exit 0. 첫 probe는 잘못된 Electron import로 실패해 해당 probe 프로세스만 종료했다. H는 같은 스타일의 자연 높이 reference와 비교하도록 단언을 보완하며, 강제 stretch가 실패하는지도 검증한다. 제품 스타일은 바꾸지 않는다.
 - E-fix: H 완료 뒤 기존 E 소유자를 새 Task로 재사용한다. Codex gpt-6-astra medium, 실행 증거와 CSS 도달 판정의 음성 대조가 필요하다. 소유권 eval/의 두 리뷰 지적과 관련 테스트, targeted red→green 후 통합 runner/self-test. 전체 테스트 슬롯은 별도 예약한다.
 - H2: H 통합 뒤 새 child를 통합 브랜치에서 만든다. Codex gpt-6-astra medium, 실제 창·앱 숨김과 guard·Undo 수명 주기 검증. 소유권 app/e2e/comments-ui.ts·projects-home.ts·design-nav.ts 및 직접 필요한 e2e helper. 숨김 Undo, 숨김 종료 guard, ID 없는 유효 width 미리보기와 댓글 제한을 기존 suite에 추가한다. A-M1 미결정 정책은 제외한다. native 실행 슬롯을 예약하고 스크린샷·exit·real-state 근거를 인수한다.
+
+## 지휘자 전체 판정 추적
+
+아래는 원본 31개 발견의 판정이다. 통합 후보는 최종 검증·수용을 뜻하지 않는다. UX 보고서의 52개 발견은 audit 병합 뒤 별도로 추적한다.
+
+| 원본 ID | 판정·범위 | 소유 배치·남은 게이트 |
+|---|---|---|
+| A-M1 | 결함 확인, 불확실한 요청의 종료 정책은 사용자 결정 대기 | 종료와 내부 이동을 구분할 후속 A3; 아직 구현하지 않음 |
+| A-M2 | 채택: 실제 종료 guard를 숨긴 main에 표시하지 않음 | A3a 통합, H2 native·독립 리뷰 대기 |
+| A-M3 | 채택: 공유 fold와 UTF-8/BOM 처리 불일치 | A1 통합, runtime·독립 리뷰 대기 |
+| A-M4 | 채택: Resolve의 APFS 정규화 별칭 실패 재현; Find의 best-effort fallback은 구분 | C 통합·독립 리뷰 통과, 통합 Go·agent-eval 대기 |
+| A-M5 | 채택: native 숨김에서 Undo 타이머 유지 | A2 통합, H2 native·독립 리뷰 대기 |
+| A-M6 | 채택: Python cwd import·Git callback 실행 재현 | E 구현, E-fix 후 재리뷰·통합 검증 대기 |
+| A-L1 | nested iframe 실패 영향 재현, 정책 결정 필요; 이전 job 오염은 미재현 | 기존 시간제한·재시도 정책 유지, 자동 수정하지 않음 |
+| A-L2 | 채택: attributes 실패 후 init 재시도 불가 | C·C-fix 통합·독립 리뷰 통과, 통합 검증 대기 |
+| A-L3 | 채택: 명시적 잘못된 경로의 오류 분류 | C 통합·독립 리뷰 통과, 통합 검증 대기 |
+| A-L4 | 채택: CLI flag 위치·인용으로 실행 증거 누락 | E 구현, 통합 검증 대기 |
+| A-L5 | 채택: 대문자 HTML 확장자의 표시 이름 | A2 통합, runtime·독립 리뷰 대기 |
+| A-L6 | 채택: unknown_version의 문서화된 설명 누락 | C guide·A1 UI 통합, app 리뷰·agent-eval 대기 |
+| A-L7 | 채택: 위저드에 없는 복구 동작을 안내 | A2 통합, runtime·독립 리뷰 대기 |
+| A-L8 | 현재 결함으로 기각: 문자열 생산자·소비자 일치 | 향후 문구 변경 시 함께 점검; 새 상태 구조를 만들지 않음 |
+| A-L9 | 채택: ID 누락을 읽기 실패로 오인 | A2 통합, H2 preview·댓글 제한 검증 대기 |
+| A-L10 | 채택: CDP 댓글 인용문 공백 처리 불일치 | A1 통합, runtime·독립 리뷰 대기 |
+| A-L11 | 채택: 문자열 잘림을 frame 1,000+로 표시 | A2 통합, runtime·독립 리뷰 대기 |
+| A-L12 | 채택: 관찰 예외를 재시도하지 않는 wait | H 통합, helper 10개 통과; full runtime·독립 리뷰 대기 |
+| A-L13 | native 파일 드래그 첫 진입은 미검증 | 기존 문서의 미검증 범위 유지; 임의 host 파일 접근 결함으로 단정하지 않음 |
+| A-L14 | 채택: 실제 임시 파일 쓰기·정리 경합 재현 | A2 통합, runtime·독립 리뷰 대기 |
+| A-L15 | 채택: 매 시도 전체 baseline Buffer 보관 | A1 통합, 불변 request/event 유지; 독립 리뷰 대기 |
+| A-L16 | 기각: setup write 중 일반 quit 허용은 기존 결정 | PRODUCT:565·ARCHITECTURE:245 유지; 기다림·rollback을 추가하지 않음 |
+| A-L17 | 채택: timeout·close가 상태 확인을 우회 | H 통합, timeout fixture·별도 native probe 통과; full runtime·독립 리뷰 대기 |
+| A-L18 | 채택: 썸네일 중 종료의 exit code/signal 미검사 | H 통합, signal fixture 통과; 실제 quit runtime 대기 |
+| A-L19 | 채택: renderer 처리 전 부정 단언 | H 통합, 지연 observer fixture 통과; 실제 renderer 연결 검증 대기 |
+| A-L20 | 채택: disabled 메뉴를 실행하는 helper | H 통합, helper 통과; full runtime·독립 리뷰 대기 |
+| A-L21 | 채택: R5 rubric 경로 불일치 | E 문서 수정, 통합 대기 |
+| A-L22 | 채택: 정상 CSS import 도달 누락 | E 구현 후 거짓 양성 발견, E-fix·재리뷰 대기 |
+| A-L23 | 채택: multiline 연결 import 누락 | E 구현, 통합 검증 대기 |
+| A-L24 | 채택: background와 longhand의 별도 우선순위 | E 구현, 통합 검증 대기 |
+| A-L25 | 채택: apply_patch 삭제 증거 누락 | E 구현 후 미실행 코드 오인 발견, E-fix·재리뷰 대기 |
