@@ -574,6 +574,7 @@ Results:
 | 2026-10-25 | ux-audit: Restore shared shadcn tooltip padding to 12px horizontally and 6px vertically, keeping the global reset unchanged | User decision — scope the correction to the shared tooltip and avoid changing shipped layout elsewhere |
 | 2026-10-25 | ux-audit: Keep creation errors local to New comment, fence begin by document lifetime, consume Delete Escape locally, and show Inspector waiting without old values | Conductor clarification of existing readable-data, selection and draft-lifetime contracts; failed creation must not hide unrelated comments or revive obsolete state |
 | 2026-10-25 | ux-audit: Retry failed Settings reads in place; retain Projects operation ownership and lost focus, label Details forwarding truthfully, and bind installation feedback to the latest request | Conductor clarification of existing Settings recovery and target-queue contracts; preserve config data and user intent without broadening IPC or window-close policy |
+| 2026-10-25 | ux-audit: Keep wizard add outcomes inside the wizard, show the actual selected-project status, settle failed initial connection reads, and retain child-dialog keyboard recovery | Conductor clarification of existing add and setup contracts; users must see completed failures and reach recovery without losing their selected project or closing the parent wizard |
 
 ## 8. Open questions
 
