@@ -138,36 +138,36 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 | 원본 ID | 판정·범위 | 소유 배치·남은 게이트 |
 |---|---|---|
 | A-M1 | 결함 확인, 불확실한 요청의 종료 정책은 사용자 결정 대기 | 종료와 내부 이동을 구분할 후속 A3; 아직 구현하지 않음 |
-| A-M2 | 채택: 실제 종료 guard를 숨긴 main에 표시하지 않음 | A3a 통합·독립 리뷰·H2 native 통과, 최종 공통 gate 대기 |
-| A-M3 | 채택: 공유 fold와 UTF-8/BOM 처리 불일치 | A1 및 UTF-8 보완 통합·독립 리뷰 통과, 최종 공통 gate 대기 |
-| A-M4 | 채택: Resolve의 APFS 정규화 별칭 실패 재현; Find의 best-effort fallback은 구분 | C 통합·독립 리뷰·통합 Go 통과, agent-eval 대기 |
-| A-M5 | 채택: native 숨김에서 Undo 타이머 유지 | A2 통합·독립 리뷰·H2 native 통과, 만료 deadline 보완 검증 중 |
+| A-M2 | 채택: 실제 종료 guard를 숨긴 main에 표시하지 않음 | A3a 통합·독립 리뷰·H2 native 통과, 최종 공통 gate 통과 |
+| A-M3 | 채택: 공유 fold와 UTF-8/BOM 처리 불일치 | A1 및 UTF-8 보완 통합·독립 리뷰 통과, 최종 공통 gate 통과 |
+| A-M4 | 채택: Resolve의 APFS 정규화 별칭 실패 재현; Find의 best-effort fallback은 구분 | C 통합·독립 리뷰·통합 Go 통과, 제한 agent-eval 14회 통과 |
+| A-M5 | 채택: native 숨김에서 Undo 타이머 유지 | A2 통합·독립 리뷰·H2 native 통과, 만료 deadline 보완·독립 리뷰·통합 gate 통과 |
 | A-M6 | 채택: Python cwd import·Git callback 실행 재현 | E/E-fix 통합·독립 재리뷰 통과, 128 unit·15 self-test 통과 |
 | A-L1 | nested iframe 실패 영향 재현, 정책 결정 필요; 이전 job 오염은 미재현 | 기존 시간제한·재시도 정책 유지, 자동 수정하지 않음 |
 | A-L2 | 채택: attributes 실패 후 init 재시도 불가 | C/C-fix 통합·독립 리뷰·통합 Go 통과 |
 | A-L3 | 채택: 명시적 잘못된 경로의 오류 분류 | C 통합·독립 리뷰·통합 Go 통과 |
-| A-L4 | 채택: CLI flag 위치·인용으로 실행 증거 누락 | E 통합, 128 unit·15 self-test 통과, 실제 라운드 대기 |
-| A-L5 | 채택: 대문자 HTML 확장자의 표시 이름 | A2 통합·독립 리뷰 및 관련 native 통과, 최종 공통 gate 대기 |
-| A-L6 | 채택: unknown_version의 문서화된 설명 누락 | C guide·A1 UI 통합·독립 리뷰 통과, agent-eval 대기 |
-| A-L7 | 채택: 위저드에 없는 복구 동작을 안내 | A2 통합·독립 리뷰 및 관련 native 통과, 최종 공통 gate 대기 |
+| A-L4 | 채택: CLI flag 위치·인용으로 실행 증거 누락 | E 통합, 128 unit·15 self-test 통과, 제한 실제 라운드 통과 |
+| A-L5 | 채택: 대문자 HTML 확장자의 표시 이름 | A2 통합·독립 리뷰 및 관련 native 통과, 최종 공통 gate 통과 |
+| A-L6 | 채택: unknown_version의 문서화된 설명 누락 | C guide·A1 UI 통합·독립 리뷰 통과, 제한 agent-eval 14회 통과 |
+| A-L7 | 채택: 위저드에 없는 복구 동작을 안내 | A2 통합·독립 리뷰 및 관련 native 통과, 최종 공통 gate 통과 |
 | A-L8 | 현재 결함으로 기각: 문자열 생산자·소비자 일치 | 향후 문구 변경 시 함께 점검; 새 상태 구조를 만들지 않음 |
 | A-L9 | 채택: ID 누락을 읽기 실패로 오인 | A2 통합·독립 리뷰·H2 preview 및 댓글 제한 통과 |
-| A-L10 | 채택: CDP 댓글 인용문 공백 처리 불일치 | A1 및 UTF-8 보완 통합·독립 리뷰 통과, 최종 공통 gate 대기 |
-| A-L11 | 채택: 문자열 잘림을 frame 1,000+로 표시 | A2 통합·독립 리뷰 및 관련 native 통과, 최종 공통 gate 대기 |
-| A-L12 | 채택: 관찰 예외를 재시도하지 않는 wait | H 통합·독립 리뷰, helper 10개 통과; 최종 공통 gate 대기 |
+| A-L10 | 채택: CDP 댓글 인용문 공백 처리 불일치 | A1 및 UTF-8 보완 통합·독립 리뷰 통과, 최종 공통 gate 통과 |
+| A-L11 | 채택: 문자열 잘림을 frame 1,000+로 표시 | A2 통합·독립 리뷰 및 관련 native 통과, 최종 공통 gate 통과 |
+| A-L12 | 채택: 관찰 예외를 재시도하지 않는 wait | H 통합·독립 리뷰, helper 10개 통과; 최종 공통 gate 통과 |
 | A-L13 | native 파일 드래그 첫 진입은 미검증 | 기존 문서의 미검증 범위 유지; 임의 host 파일 접근 결함으로 단정하지 않음 |
-| A-L14 | 채택: 실제 임시 파일 쓰기·정리 경합 재현 | A2 통합·독립 리뷰 및 관련 native 통과, 최종 공통 gate 대기 |
+| A-L14 | 채택: 실제 임시 파일 쓰기·정리 경합 재현 | A2 통합·독립 리뷰 및 관련 native 통과, 최종 공통 gate 통과 |
 | A-L15 | 채택: 매 시도 전체 baseline Buffer 보관 | A1 통합·독립 리뷰 통과, 불변 request/event 유지 |
 | A-L16 | 기각: setup write 중 일반 quit 허용은 기존 결정 | PRODUCT:565·ARCHITECTURE:245 유지; 기다림·rollback을 추가하지 않음 |
-| A-L17 | 채택: timeout·close가 상태 확인을 우회 | H 통합·독립 리뷰 및 timeout/native probe 통과; 최종 공통 gate 대기 |
+| A-L17 | 채택: timeout·close가 상태 확인을 우회 | H 통합·독립 리뷰 및 timeout/native probe 통과; 최종 공통 gate 통과 |
 | A-L18 | 채택: 썸네일 중 종료의 exit code/signal 미검사 | H 통합·독립 리뷰, signal fixture 및 실제 quit runtime 통과 |
-| A-L19 | 채택: renderer 처리 전 부정 단언 | H 통합·독립 리뷰, 지연 observer/댓글·restore native 통과; Settings ack 보완 중 |
-| A-L20 | 채택: disabled 메뉴를 실행하는 helper | H 통합·독립 리뷰 및 helper 통과; 최종 공통 gate 대기 |
-| A-L21 | 채택: R5 rubric 경로 불일치 | E 문서 통합, 실제 라운드 대기 |
-| A-L22 | 채택: 정상 CSS import 도달 누락 | E/E-fix 통합·재리뷰·unit/self-test 통과, 실제 라운드 대기 |
-| A-L23 | 채택: multiline 연결 import 누락 | E 통합, 128 unit·15 self-test 통과, 실제 라운드 대기 |
-| A-L24 | 채택: background와 longhand의 별도 우선순위 | E 통합, 128 unit·15 self-test 통과, 실제 라운드 대기 |
-| A-L25 | 채택: apply_patch 삭제 증거 누락 | E/E-fix 통합·재리뷰·unit/self-test 통과, 실제 라운드 대기 |
+| A-L19 | 채택: renderer 처리 전 부정 단언 | H 통합·독립 리뷰, 지연 observer/댓글·restore native 통과; Settings ack 보완·통합 gate 통과 |
+| A-L20 | 채택: disabled 메뉴를 실행하는 helper | H 통합·독립 리뷰 및 helper 통과; 최종 공통 gate 통과 |
+| A-L21 | 채택: R5 rubric 경로 불일치 | E 문서 통합, 제한 실제 라운드 통과 |
+| A-L22 | 채택: 정상 CSS import 도달 누락 | E/E-fix 통합·재리뷰·unit/self-test 통과, 제한 실제 라운드 통과 |
+| A-L23 | 채택: multiline 연결 import 누락 | E 통합, 128 unit·15 self-test 통과, 제한 실제 라운드 통과 |
+| A-L24 | 채택: background와 longhand의 별도 우선순위 | E 통합, 128 unit·15 self-test 통과, 제한 실제 라운드 통과 |
+| A-L25 | 채택: apply_patch 삭제 증거 누락 | E/E-fix 통합·재리뷰·unit/self-test 통과, 제한 실제 라운드 통과 |
 
 ### UTF-8 보완 인수와 독립 재리뷰
 
@@ -181,3 +181,13 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 - H2-fix에 build·두 관련 native suite·격리 reset mutation 슬롯을 단독 배정했다. 종료까지 root full runtime/package/real-agent eval은 실행하지 않는다.
 - H2-fix 완료 뒤 독립 IR-H2-fix를 Codex gpt-6-astra medium으로 배정한다. 타이밍 경계와 실제 ack 계약 판단이 필요하며 report만 작성한다.
 - 최종 공통 검증은 `--runtime --eval`, 별도 e2e Node helper tests를 포함한다. 패키지는 검증된 HEAD에서 다시 만든다. 이후 실제 `/agent-eval`은 W1·R1·R2b·R3·R4·R5·H3를 양쪽 에이전트로 실행한다. CLI guide/init/댓글과 수정한 active·patch·CSS·연결 import·rubric 경로를 포괄하는 제한 라운드이며, 나머지 시나리오와 unknown_version 실제 에이전트 노출은 검증했다고 주장하지 않는다.
+
+### 최종 검증과 정책 결정 대기 (2026-10-25)
+
+- H2-fix 원본 `d9a2a0f`는 `011855e`로 통합했다. 독립 IR-H2-fix는 red/yellow 0건이다. close/hide 각각 reset-to-8000 mutation이 절대 deadline에서 실패하고 정상 suite가 통과한 로그·exit·사본을 보관했다. 지휘자는 Undo와 Settings 정상 스크린샷도 확인했다.
+- `011855e`, tracked clean에서 `node .agents/skills/verify/scripts/verify.mjs --runtime --eval`이 최종 `verify: PASS`·exit 0으로 끝났다. verify runner 7, Go test/vet, typecheck, 앱 96파일/2,011개 테스트, eval 128개, self-test 15개 시나리오, 전체 Electron `runtime-test: PASS`를 확인했다. 별도 e2e helper Node 테스트 10개도 exit 0이다. 썸네일 constructor/load/capture 종료 및 Settings까지 통과했고 실사용자 상태는 unchanged였다. 로그 `.scratch/audit-integration-261025/verify-final.log`, 상세 `.scratch/verify/2026-10-25T10-04-48-266Z-54866/`.
+- 같은 HEAD의 package가 exit 0으로 끝났고, `audit-20261025` 실제 라운드(W1/R1/R2b/R3/R4/R5/H3 × Claude/Codex)가 14/14 pass·exit 0·실사용자 상태 unchanged였다. 모든 provenance 검사가 통과했다. H3-Codex 과제 자체의 타입 검사는 의존성 부재·설치 ENOTFOUND로 미완료이며 앱 저장소 타입 검사와 구분한다. 새 doan issue나 judge partial은 없었다. 상세는 USABILITY-EVAL에 기록했다.
+- 이 이후 문서 커밋은 실행 결과·기존 계약의 설명만 변경한다. 제품·테스트·의존성은 `011855e`와 같아 해당 검증을 재사용하며 문서 diff/link만 점검한다.
+- 모든 감독 worker terminal을 release했고, 마지막 timing child도 clean·미통합 `+` 없음·증거 복사 확인 후 Orca로 제거했다. worktree 목록에는 root만 남는다. 기존 일반 Claude peer는 유지한다.
+- 채택한 26개 수정 항목은 통합·리뷰·최종 검증을 마쳤다. A-M1은 앞서 질문한 예외 종료 정책 답변 대기라 구현하지 않았다. A-L1은 nested iframe 실패 정책 미정, A-L13은 실제 Finder 드롭 미검증이다. A-L8/L16은 기각한 이유를 유지한다. audit 완료·병합으로 표시하지 않으며, UX 52개 항목의 수정 지휘도 시작하지 않는다.
+- 검증한 수정분과 미결정을 검토할 수 있도록 현재 branch를 push하고 draft PR로 보관한다. 미결정이 해결되기 전 merge하지 않는다.
