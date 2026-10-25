@@ -46,9 +46,10 @@ export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string 
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
-export type MenuCommand = "home" | "undoRemove" | "quickOpen";
+export type MenuCommand = "home" | "undoRemove" | "quickOpen" | "nextResolved" | "previousResolved";
 // What the renderer reports so main can enable menu items (design 'Menus').
-export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean }
+// `reviewing`: a Review runs on the open canvas (revision-recheck); absent is false.
+export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; reviewing?: boolean }
 export type RemoveResult = { kind: "removed"; removalId: string; label: string } | { kind: "cancelled" } | { kind: "unavailable" };
 export type RestoreResult = { kind: "restored"; paths: string[] } | { kind: "unavailable" };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
@@ -213,7 +214,7 @@ function injectCanvasScript(window: BrowserWindow): void {
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: wizardSession !== null, focusedWindow });
+  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: wizardSession !== null, focusedWindow, reviewing: menuInputs.reviewing === true });
   const undo: MenuItemConstructorOptions = enabled.undoRemove
     ? { label: "Undo Remove", accelerator: "CmdOrCtrl+Z", click: command("undoRemove") }
     : { role: "undo" };
@@ -270,6 +271,11 @@ function setMenu(): void {
       { label: "Go", submenu: [
         { label: "Home", accelerator: "Shift+CmdOrCtrl+H", enabled: enabled.home, click: command("home") },
         { label: "Quick Open…", accelerator: "CmdOrCtrl+K", enabled: enabled.quickOpen, click: command("quickOpen") },
+        { type: "separator" },
+        // ⌘] and ⌘[ are not text-editing keys, so they can stay bound while a
+        // field has focus; they are enabled only during a Review.
+        { label: "Next Resolved Comment", accelerator: "CmdOrCtrl+]", enabled: enabled.resolvedNav, click: command("nextResolved") },
+        { label: "Previous Resolved Comment", accelerator: "CmdOrCtrl+[", enabled: enabled.resolvedNav, click: command("previousResolved") },
       ] },
       { role: "windowMenu" },
     ]),
@@ -280,17 +286,18 @@ function setMenu(): void {
 const homeDirectory = (): string => process.env.HOME ?? app.getPath("home");
 
 function setMenuInputs(next: MenuInputs): void {
-  if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast) return;
+  if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast && next.reviewing === menuInputs.reviewing) return;
   menuInputs = next;
   setMenu();
 }
 
 function parseMenuInputs(value: unknown): MenuInputs | null {
-  if (typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
-    !("screen" in value) || !("modal" in value) || !("toast" in value)) return null;
+  if (typeof value !== "object" || value === null || !("screen" in value) || !("modal" in value) || !("toast" in value)) return null;
+  const reviewing: unknown = Reflect.get(value, "reviewing");
+  if (Object.keys(value).length !== ("reviewing" in value ? 4 : 3) || (reviewing !== undefined && typeof reviewing !== "boolean")) return null;
   const { screen, modal, toast } = value;
   if ((screen !== "home" && screen !== "workspace" && screen !== "canvas") || typeof modal !== "boolean" || typeof toast !== "boolean") return null;
-  return { screen, modal, toast };
+  return reviewing === true ? { screen, modal, toast, reviewing } : { screen, modal, toast };
 }
 
 // Without handlers Electron grants permissions to the app's own main frame.
