@@ -1,8 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { prepareEvent, type MutationIntent } from "../../comments/events";
 import { copyText, type CopyScope } from "../../comments/projection";
-import { fold, parseLines } from "../../formats/fold";
+import { parseLines } from "../../formats/fold";
+import { foldText } from "../../formats/foldText";
 import type { Author, Comment, CommentEvent, Target, Warning } from "../../formats/types";
 import { AppendUncertainError } from "./files";
 import { object } from "./identity";
@@ -31,7 +32,7 @@ export interface ServiceDependencies {
   invalidated(root: string): void;
 }
 interface Origin { requester: string; identity: CommentIdentity; epoch: number; document: DocumentOrigin }
-interface Attempt { payload: unknown; event: CommentEvent; before: Buffer }
+interface Attempt { payload: unknown; event: CommentEvent; before: { length: number; digest: string; warnings: number } }
 const baseKeys = ["root", "path", "canvas", "requestID"];
 function request(value: unknown, extras: string[] = []): CommentRequest {
   if (!object(value) || !baseKeys.every(key => typeof value[key] === "string" && value[key].length > 0 && value[key].length <= 4096 && !value[key].includes("\0")) || Object.keys(value).some(key => ![...baseKeys, ...extras].includes(key))) throw new Error("Invalid comments request.");
@@ -40,11 +41,10 @@ function request(value: unknown, extras: string[] = []): CommentRequest {
 }
 function identityEqual(a: CommentIdentity, b: CommentIdentity) { return a.root === b.root && a.path === b.path && a.canvas === b.canvas; }
 function message(error: unknown): string { return error instanceof Error ? error.message : "Comments operation failed."; }
-function text(bytes: Buffer): string { return new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+function text(bytes: Buffer): string { return new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes); }
+function digest(bytes: Buffer): string { return createHash("sha256").update(bytes).digest("hex"); }
 function readList(bytes: Buffer): Omit<CommentList, "project" | "canvasHash"> {
-  const parsed = parseLines(text(bytes));
-  const folded = fold(parsed.events);
-  return { comments: folded.comments, warnings: [...parsed.warnings, ...folded.warnings].sort((a, b) => a.line - b.line) };
+  return foldText(text(bytes));
 }
 function inspectAttempt(bytes: Buffer, attempt: Attempt): SavedStatus {
   try {
@@ -52,8 +52,10 @@ function inspectAttempt(bytes: Buffer, attempt: Attempt): SavedStatus {
     const matches = parsed.events.filter(({ event }) => event.id === attempt.event.id);
     if (matches.some(({ event }) => !isDeepStrictEqual(event, attempt.event))) return { state: "unknown", error: "Conflicting event content; no retry was written." };
     // New malformed bytes may be a partial write, even if a complete copy exists elsewhere.
-    const previous = parseLines(text(attempt.before));
-    if (parsed.warnings.length > previous.warnings.length || (!bytes.subarray(0, attempt.before.length).equals(attempt.before) && parsed.warnings.length)) return { state: "unknown", error: "Partial or unreadable event data; no retry was written." };
+    const samePrefix = bytes.length >= attempt.before.length && digest(bytes.subarray(0, attempt.before.length)) === attempt.before.digest;
+    // Only an unchanged baseline may contain pre-existing malformed UTF-8.
+    new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(samePrefix ? bytes.subarray(attempt.before.length) : bytes);
+    if (parsed.warnings.length > attempt.before.warnings || (!samePrefix && parsed.warnings.length)) return { state: "unknown", error: "Partial or unreadable event data; no retry was written." };
     if (matches.length) return { state: "saved", event: attempt.event.id, comment: attempt.event.comment };
     return { state: "absent", event: attempt.event.id, comment: attempt.event.comment };
   } catch (error) { return { state: "unknown", error: message(error) }; }
@@ -168,7 +170,7 @@ export function createCommentsService(deps: ServiceDependencies) {
             }
             if (!attempt) {
               const event = prepareEvent(text(latest), value.intent, { id: `evt_${randomUUID()}`, comment: `cmt_${randomUUID()}`, by, now: Date.now(), ...(origin ? { create: { target: origin.document.target, canvasHash: origin.document.hash, documentValid: true } } : {}) });
-              attempt = { payload: structuredClone(value), event, before: Buffer.from(latest) };
+              attempt = { payload: structuredClone(value), event, before: { length: latest.length, digest: digest(latest), warnings: parseLines(text(latest)).warnings.length } };
               attempts.set(attemptKey, attempt);
             }
             return Buffer.from(JSON.stringify(attempt.event) + "\n");
