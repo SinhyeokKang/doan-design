@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, test, vi } from "vitest";
 import type { ThumbnailReply } from "../main/thumbnails";
 import type { CanvasRow } from "../main/view";
+import type { ProjectCanvasComments } from "../main/projectComments";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { applyVisibility, cardFacts, focusAfterRemoval, overviewSections, ProjectOverview, ThumbnailRequests, thumbnailView, type ThumbnailState } from "./ProjectOverview";
 
@@ -13,8 +14,8 @@ const rows = [
   row("design/settings/team/members.html", { title: "Team members" }),
   row("design/settings/billing.html", { title: "Billing & plans" }),
 ];
-const render = (canvases: CanvasRow[], thumbnails: ReadonlyMap<string, ThumbnailState> = new Map()) =>
-  renderToStaticMarkup(<TooltipProvider><ProjectOverview root="/code/acme-web" rows={canvases} thumbnails={thumbnails} onVisible={() => {}} open={() => {}} /></TooltipProvider>);
+const render = (canvases: CanvasRow[], thumbnails: ReadonlyMap<string, ThumbnailState> = new Map(), comments?: readonly ProjectCanvasComments[]) =>
+  renderToStaticMarkup(<TooltipProvider><ProjectOverview root="/code/acme-web" rows={canvases} thumbnails={thumbnails} onVisible={() => {}} open={() => {}} comments={comments} /></TooltipProvider>);
 
 test("sections run root first, then folders in tree order, each with its direct canvases in tree order", () => {
   expect(overviewSections(rows).map(section => [section.key, section.canvases.map(canvas => canvas.name)])).toEqual([
@@ -184,4 +185,15 @@ test("a notice opens the overview as its first child band, and no notice adds no
   const html = renderToStaticMarkup(<TooltipProvider><ProjectOverview root="/code/acme-web" rows={rows} thumbnails={new Map()} onVisible={() => {}} open={() => {}} notice={notice} /></TooltipProvider>);
   expect(html).toContain(`<section class="ov native-scroll" role="region" aria-label="Overview"><div class="canvas-notice" role="status">${notice}</div><section aria-label="design">`);
   expect(render(rows)).not.toContain("canvas-notice");
+});
+
+test("a card shows resolved to review from the project read, matched by canvas ID; zero and a failed read show none", () => {
+  const counts: ProjectCanvasComments[] = [{ id: "design/a.html", open: 3, resolved: 2, toReview: 2 }, { id: "zero", open: 0, resolved: 1, toReview: 0 }, { id: "broken", error: "EACCES" }];
+  expect(cardFacts(row("design/a.html", { open: 3 }), counts)).toEqual({ frames: "0 frames", open: "3 open", review: "2 resolved to review" });
+  expect(cardFacts(row("design/b.html", { id: "zero" }), counts)).toEqual({ frames: "0 frames" });
+  expect(cardFacts(row("design/c.html", { id: "broken", open: 1 }), counts)).toEqual({ frames: "0 frames", open: "1 open" });
+  const { id: _id, ...withoutId } = row("design/a.html");
+  expect(cardFacts(withoutId, counts)).toEqual({ frames: "0 frames" });
+  const html = render([row("design/a.html", { open: 3, mtimeMs: undefined })], new Map(), counts);
+  expect(html).toContain('<span class="ocard-meta"><span>0 frames</span> · <span class="hot">3 open</span> · <span class="review">2 resolved to review</span> · <span>—</span></span>');
 });
