@@ -10,6 +10,7 @@ function state(cli: "ours" | "missing" | "dangling"): MachineState {
   return {
     requestId: "r", cli: link, stub: { state: "ours", stamp: "" }, claudeLink: { state: "ours", value: null, stamp: "" },
     probe: { ok: true, path: "/bin", claudeConfigDir: "", codexHome: "" }, agents: { claude: agent, codex: agent },
+    display: { cliPath: "/h/.local/bin/doan", stubPath: "/h/s", claudeLinkPath: "/h/c", blocked: { cli: null, stub: null, claudeLink: null } },
   } as unknown as MachineState;
 }
 
@@ -34,10 +35,10 @@ beforeEach(() => {
 });
 
 test("starts with no summary, then publishes the read summary and the onboarding flag", async () => {
-  expect(broker.status()).toEqual({ summary: null, checking: false, busy: false, onboardingClosed: false });
+  expect(broker.status()).toEqual({ summary: null, causes: {}, checking: false, busy: false, onboardingClosed: false });
   closed = true;
   const result = await broker.refresh();
-  expect(result).toEqual({ summary: { cli: "connected", claude: "connected", codex: "connected" }, checking: false, busy: false, onboardingClosed: true });
+  expect(result).toEqual({ summary: { cli: "connected", claude: "connected", codex: "connected" }, causes: {}, checking: false, busy: false, onboardingClosed: true });
   expect(published.at(-1)).toEqual(result);
 });
 
@@ -49,6 +50,28 @@ test("keeps the previous summary while a new read runs", async () => {
   await vi.waitFor(() => expect(published.at(-1)).toMatchObject({ checking: true, summary: { cli: "connected" } }));
   later.resolve(state("dangling"));
   expect((await refreshing).summary?.cli).toBe("needs-attention");
+});
+
+test("the causes follow the summary: kept while reading, replaced with the new summary, never ahead of it", async () => {
+  await broker.refresh();
+  const later = deferred<MachineState>();
+  machine.read.mockReturnValueOnce(later.promise);
+  const refreshing = broker.refresh();
+  await vi.waitFor(() => expect(published.at(-1)).toMatchObject({ checking: true, causes: {} }));
+  later.resolve(state("dangling"));
+  expect(await refreshing).toMatchObject({ summary: { cli: "needs-attention" }, causes: { cli: { kind: "cli-dangling" } } });
+  machine.read.mockResolvedValueOnce(state("ours"));
+  expect(await broker.refresh()).toMatchObject({ summary: { cli: "connected" }, causes: {} });
+});
+
+test("a read that started earlier cannot replace a newer summary or its causes", async () => {
+  const slow = deferred<MachineState>();
+  machine.read.mockReturnValueOnce(slow.promise).mockResolvedValueOnce(state("dangling"));
+  const first = broker.read(MAIN, "a");
+  await broker.read(SETTINGS, "b");
+  slow.resolve(state("ours"));
+  await first;
+  expect(broker.status()).toMatchObject({ summary: { cli: "needs-attention" }, causes: { cli: { kind: "cli-dangling" } } });
 });
 
 test("a read that started earlier cannot replace a newer summary", async () => {
@@ -162,4 +185,22 @@ test("every finished setup action refreshes the summary", async () => {
 test("isBusy also reports a machine still writing", () => {
   machine.isBusy.mockReturnValue(true);
   expect(broker.isBusy()).toBe(true);
+});
+
+test("isWriting is true only for the window whose write is running, not for its confirmation", async () => {
+  const slow = deferred<StepResult>();
+  machine.run.mockReturnValueOnce(slow.promise);
+  const running = broker.run(SETTINGS, { step: "cli" });
+  expect(broker.isWriting(SETTINGS)).toBe(true);
+  expect(broker.isWriting(MAIN)).toBe(false);
+  slow.resolve({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
+  await running;
+  expect(broker.isWriting(SETTINGS)).toBe(false);
+  const slowAnswer = deferred<StepResult>();
+  machine.answer.mockReturnValueOnce(slowAnswer.promise);
+  const answering = broker.answer(SETTINGS, { id: "q", allow: true });
+  expect(broker.isWriting(SETTINGS)).toBe(true);
+  slowAnswer.resolve({ kind: "success" });
+  await answering;
+  expect(broker.isWriting(SETTINGS)).toBe(false);
 });

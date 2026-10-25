@@ -140,3 +140,65 @@ test("clear forgets choices and reads (the Settings window closed)", async () =>
   expect(await bridge.write({ root: ROOT, op: "addServe", choiceId: chosen.choiceId })).toEqual({ kind: "unavailable" });
   expect(await bridge.write({ root: ROOT, op: "removeServe", path: "styles" })).toEqual({ kind: "unavailable" });
 });
+
+test("a queued write rechecks the root epoch right before it runs", async () => {
+  const slow = deferred<CliRun>();
+  run.mockReturnValueOnce(slow.promise);
+  const reading = bridge.read({ root: ROOT });
+  const chosen = await bridge.choose({ root: ROOT, kind: "serve" });
+  if (chosen.kind !== "selected") throw new Error("not selected");
+  const writing = bridge.write({ root: ROOT, op: "addServe", choiceId: chosen.choiceId });
+  epochs.set(ROOT, 2);
+  slow.resolve(config([]));
+  await reading;
+  expect(await writing).toEqual({ kind: "unavailable" });
+  expect(run).toHaveBeenCalledOnce();
+});
+
+test("a read that finished after its project was re-added does not fill the serve list", async () => {
+  const slow = deferred<CliRun>();
+  run.mockReturnValueOnce(slow.promise);
+  const reading = bridge.read({ root: ROOT });
+  await Promise.resolve();
+  epochs.set(ROOT, 2);
+  slow.resolve(config(["styles"]));
+  await reading;
+  expect(await bridge.write({ root: ROOT, op: "removeServe", path: "styles" })).toEqual({ kind: "unavailable" });
+  expect(run).toHaveBeenCalledOnce();
+});
+
+test("a read still running when Settings closes does not refill the serve list", async () => {
+  const slow = deferred<CliRun>();
+  run.mockReturnValueOnce(slow.promise);
+  const reading = bridge.read({ root: ROOT });
+  // Let the queued read start its run before Settings closes.
+  await Promise.resolve();
+  expect(run).toHaveBeenCalledOnce();
+  bridge.clear();
+  slow.resolve(config(["styles"]));
+  await reading;
+  expect(await bridge.write({ root: ROOT, op: "removeServe", path: "styles" })).toEqual({ kind: "unavailable" });
+  expect(run).toHaveBeenCalledOnce();
+});
+
+test("a picker sheet that finishes after Settings closes returns no choice", async () => {
+  const sheet = deferred<string | null>();
+  pick.mockReturnValueOnce(sheet.promise);
+  const choosing = bridge.choose({ root: ROOT, kind: "serve" });
+  bridge.clear();
+  sheet.resolve("/repo/tokens/new.css");
+  expect(await choosing).toEqual({ kind: "unavailable" });
+});
+
+test("a request queued before Settings closed does not run after it", async () => {
+  const slow = deferred<CliRun>();
+  run.mockReturnValueOnce(slow.promise);
+  const reading = bridge.read({ root: ROOT });
+  await Promise.resolve();
+  const writing = bridge.write({ root: ROOT, op: "clearTokenCss" });
+  bridge.clear();
+  slow.resolve(config(["styles"]));
+  await reading;
+  expect(await writing).toEqual({ kind: "unavailable" });
+  expect(run).toHaveBeenCalledOnce();
+});

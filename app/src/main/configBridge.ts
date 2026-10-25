@@ -63,14 +63,23 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
   const lastServe = new Map<string, string[]>();
   // `doan config` takes no lock, so calls for one root run one at a time.
   const queues = new Map<string, Promise<unknown>>();
+  // Bumped by clear(): reads, picker sheets and queued calls of an older
+  // Settings session must not touch the next one's choices or serve lists.
+  let session = 0;
 
   const root = (value: Record<string, unknown>): string | null =>
     typeof value.root === "string" && deps.epoch(value.root) !== null ? value.root : null;
 
   const call = (target: string, args: string[]): Promise<ConfigReply> => {
-    const next = (queues.get(target) ?? Promise.resolve()).then(async () => {
+    const epoch = deps.epoch(target);
+    const generation = session;
+    const current = () => generation === session && deps.epoch(target) === epoch;
+    const next = (queues.get(target) ?? Promise.resolve()).then(async (): Promise<ConfigReply> => {
+      // The project may have been removed and re-added, or Settings closed,
+      // while this call waited behind a slower one.
+      if (!current()) return { kind: "unavailable" };
       const reply = configReply(target, await deps.run(target, args));
-      if (reply.kind === "config") lastServe.set(target, reply.serve);
+      if (reply.kind === "config" && current()) lastServe.set(target, reply.serve);
       return reply;
     });
     queues.set(target, next.catch(() => undefined));
@@ -96,9 +105,11 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
       const kind: ConfigKind = value.kind;
       const epoch = target === null ? null : deps.epoch(target);
       if (target === null || epoch === null) return { kind: "unavailable" };
+      const generation = session;
       const path = await deps.pick(target, kind);
-      // The project may have been removed or re-rooted while the sheet was up.
-      if (deps.epoch(target) !== epoch) return { kind: "unavailable" };
+      // The project may have been removed or re-rooted, or Settings closed,
+      // while the sheet was up.
+      if (deps.epoch(target) !== epoch || generation !== session) return { kind: "unavailable" };
       if (path === null) return { kind: "cancelled" };
       const choiceId = randomUUID();
       choices.set(choiceId, { root: target, kind, path, epoch });
@@ -131,6 +142,7 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
 
     // The Settings window closed: its choices and reads go with it.
     clear(): void {
+      session++;
       choices.clear();
       lastServe.clear();
     },

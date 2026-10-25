@@ -259,6 +259,9 @@ function setMenu(): void {
   );
 }
 
+// What Home shortens project paths against; Settings rows get the result.
+const homeDirectory = (): string => process.env.HOME ?? app.getPath("home");
+
 function setMenuInputs(next: MenuInputs): void {
   if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast) return;
   menuInputs = next;
@@ -312,6 +315,10 @@ function createWindow(): BrowserWindow {
   // A new renderer starts on Home again with no toast up.
   window.webContents.on("render-process-gone", () => { selection = null; documents.clear(); transitionGuard.reset(); setMenuInputs(HOME); });
   window.webContents.on("did-navigate", () => { selection = null; documents.clear(); transitionGuard.reset(); setMenuInputs(HOME); });
+  // A lost or closed renderer takes its setup confirmation with it; hiding the
+  // window does not. Read after destroy, webContents throws, so the id is kept now.
+  const owner = window.webContents.id;
+  window.webContents.on("render-process-gone", () => broker?.drop(owner));
   // `.git/HEAD` is not watched, so a branch switched elsewhere shows when the
   // human comes back to the window.
   // The connection summary shares that throttle (app-setup design 'Connections').
@@ -338,6 +345,7 @@ function createWindow(): BrowserWindow {
     } else hideWindow(window);
   });
   window.on("closed", () => {
+    broker?.drop(owner);
     cancelPendingHide();
     if (win === window) win = undefined;
   });
@@ -363,6 +371,9 @@ function createSettingsWindow(tab: SettingsTab): BrowserWindow {
   window.on("focus", () => setFocusedWindow("settings"));
   // Read after destroy, webContents throws, so the owner id is kept now.
   const owner = window.webContents.id;
+  // The wizard's Close refuses while busy; Settings holds its close the same
+  // way, for the red button, ⌘W and Close Window alike. Quit closes it anyway.
+  window.on("close", (event) => { if (!quitting && broker?.isWriting(owner)) event.preventDefault(); });
   const forget = () => { broker?.drop(owner); configBridge?.clear(); };
   window.webContents.on("render-process-gone", forget);
   window.on("closed", () => {
@@ -464,7 +475,7 @@ async function start(): Promise<void> {
     }
     thumbnails?.entriesChanged(entries);
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries, focus);
-    sendSettings("projects", projectRows(entries));
+    sendSettings("projects", projectRows(entries, homeDirectory()));
   }, { response: record => documents.response(record), invalidate });
   shell = ready;
   // The capture window is made on the first capture and stays out of the
@@ -550,7 +561,7 @@ async function start(): Promise<void> {
     }
     return ready.initialize(value.root, tokenCss);
   });
-  handle("app:home", null, event => fromWindow(event) ? process.env.HOME ?? app.getPath("home") : null);
+  handle("app:home", null, event => fromWindow(event) ? homeDirectory() : null);
   handle("folders:get", [], (event) => (fromWindow(event) ? ready.entries() : []));
   const cli = cliCommand(process.env, app.isPackaged, process.resourcesPath);
   const flow = createAddFlow({
@@ -777,7 +788,7 @@ async function start(): Promise<void> {
     settingsWin?.setTitle(SETTINGS_TITLES[tab]);
     return true;
   });
-  handle("projects:get", [], () => projectRows(ready.entries()));
+  handle("projects:get", [], () => projectRows(ready.entries(), homeDirectory()));
   handle("projects:reveal", undefined, (_event, value: unknown) => {
     const path = storedPath(value);
     if (path !== null) electronShell.showItemInFolder(path);
