@@ -6,7 +6,8 @@ import { CONNECTION_NAMES, connectionRow } from "./connectionRowView";
 import "./connectionRows.css";
 
 const MCP_WAITS = "Connect the doan command first; MCP needs it.";
-// main's MCP refusal names the wizard's step 1, which Settings does not have.
+// main's MCP refusal names the wizard's step 1, which Settings does not have; the
+// wizard's rows use the same wording as the dimmed MCP item too.
 const outcomeText = (message: string) => message === "Install the CLI link in step 1 before connecting MCP." ? MCP_WAITS : message;
 export function ConnectionParts({ parts }: { parts: readonly Part[] }) {
   return <>{parts.map((part, index) => typeof part === "string" ? <Fragment key={index}>{part}</Fragment> : <code key={index}>{part.code}</code>)}</>;

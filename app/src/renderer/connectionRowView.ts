@@ -27,8 +27,8 @@ export function connectionRow(state: MachineState | null, row: Row, ui: MachineU
   };
   if (status === "connected") view.parts = [row === "cli" ? "Your agents and your terminal can run doan." : `${name} can use the doan skill and tools.`];
   else if (status === "not-installed") { view.parts = [`${name} isn’t installed on this Mac.`]; action("install", `Install ${name} ↗`); }
-  // A build that cannot connect (no bundled CLI) says why instead of the usual sentence.
-  else if (status === "not-connected") { view.parts = [!state.available && state.reason ? state.reason : row === "cli" ? "Agents can’t run doan until the command is connected." : `${name} is installed but can’t use doan yet.`]; action("run", "Connect"); }
+  // A build that cannot connect (no bundled CLI) says why on the doan command row instead of its usual sentence.
+  else if (status === "not-connected") { view.parts = [row !== "cli" ? `${name} is installed but can’t use doan yet.` : !state.available && state.reason ? state.reason : "Agents can’t run doan until the command is connected."]; action("run", "Connect"); }
   else if (status === "couldnt-check") {
     const reason = !state.probe.ok ? state.probe.reason : row === "cli" ? ui.readError : state.agents[row].mcp.value;
     view.parts = [(reason || "The registration could not be read.").replace(/\.?$/, ".")]; action("check", "Check Again");

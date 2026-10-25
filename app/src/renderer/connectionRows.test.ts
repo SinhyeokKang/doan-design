@@ -65,6 +65,10 @@ test("a development build without DOAN_CLI gives its reason as the row sentence,
   const html = renderToStaticMarkup(createElement(ConnectionRows, { machine: state, ui: idleUi(), rows: ["cli"], run() {}, checkAgain() {}, install() {}, copyPath() {} }));
   expect(html.split(reason)).toHaveLength(2);
   expect(html).not.toContain("Agents can’t run doan until the command is connected.");
+  // Agent rows keep their own sentence; the reason follows it.
+  expect(connectionRow(state, "claude", idleUi()).parts).toEqual(["Claude Code is installed but can’t use doan yet."]);
+  const agentHtml = renderToStaticMarkup(createElement(ConnectionRows, { machine: state, ui: idleUi(), rows: ["claude"], run() {}, checkAgain() {}, install() {}, copyPath() {} }));
+  expect(agentHtml.split(reason)).toHaveLength(2);
 });
 
 test("Connect waiting for the doan command uses the row's wording, not the wizard's step number", () => {
