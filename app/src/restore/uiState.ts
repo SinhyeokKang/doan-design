@@ -11,12 +11,17 @@ export interface UiState {
   screen: "home" | "workspace";
   root?: string;
   canvas?: string;
+  // The open canvas's id, so a restart follows a canvas moved while the app was closed.
+  canvasId?: string;
   view?: UiView;
   expanded: Record<string, string[]>;
   lastByRoot: Record<string, { canvas: string; view: UiView }>;
 }
 
 export const UI_STATE_MAX_BYTES = 64 * 1024;
+
+// The kebab id rule main's comment files enforce (`main/comments/files.ts`).
+const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 // A broken file or a size over the limit is `null`, which starts at home. A
 // wrong-typed optional field or map entry is dropped on its own so one bad
@@ -38,6 +43,7 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
   const root = typeof value["root"] === "string" && saved.has(value["root"]) ? value["root"] : undefined;
   const canvas = root !== undefined && typeof value["canvas"] === "string" && value["canvas"] !== "" ? value["canvas"] : undefined;
   const view = canvas !== undefined ? parseView(value["view"]) : undefined;
+  const canvasId = canvas !== undefined && typeof value["canvasId"] === "string" && CANVAS_ID.test(value["canvasId"]) ? value["canvasId"] : undefined;
   const state: UiState = {
     screen: root === undefined ? "home" : screen,
     expanded: entries(value["expanded"], saved, (item) => (Array.isArray(item) ? item.filter((name) => typeof name === "string") : undefined)),
@@ -49,6 +55,7 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
   };
   if (root !== undefined) state.root = root;
   if (canvas !== undefined) state.canvas = canvas;
+  if (canvasId !== undefined) state.canvasId = canvasId;
   if (view !== undefined) state.view = view;
   return state;
 }
