@@ -36,6 +36,7 @@ export class CommentsSession {
   busy = false;
   beginning = false;
   composing = false;
+  uncertainTransition: { id: string; kind: "quit" | "blocked" } | null = null;
   deleteConfirmation: { request: MutationRequest; comment: Comment } | null = null;
   private revision = 0;
   private readRevision = 0;
@@ -49,6 +50,7 @@ export class CommentsSession {
   constructor(private api: Api, private changed: () => void) {}
   private emit() { this.changed(); }
   private cancelDestination() {
+    this.uncertainTransition = null;
     this.draft = { ...this.draft, transition: null };
     this.destination?.(false); this.destination = null;
   }
@@ -139,21 +141,39 @@ export class CommentsSession {
   }
   body(body: string) { this.draft = transitionDraft(this.draft, { type: "body", body }).state; this.emit(); }
   invalidate(reason: string) {
-    this.destination?.(false); this.destination = null;
+    this.cancelDestination();
     this.draft = transitionDraft(this.draft, { type: "invalidate", reason }).state; this.emit();
   }
   documentLost() {
     if (this.draft.draft?.origin.kind !== "create") return;
-    this.destination?.(false); this.destination = null;
+    this.cancelDestination();
     this.draft = transitionDraft(this.draft, { type: "document-lost" }).state; this.emit();
   }
-  guard(): boolean | Promise<boolean> {
-    if (this.composing || this.beginning || this.busy || this.draft.request) return false;
+  private stablePending() {
+    return this.draft.request !== null && ["unknown", "check-failed", "recovery-blocked"].includes(this.saveView.status);
+  }
+  guard(kind: "move" | "quit" = "move"): boolean | Promise<boolean> {
+    this.cancelDestination();
+    if (this.composing || this.beginning || this.busy) { this.emit(); return false; }
+    if (this.draft.request) {
+      if (!this.stablePending()) { this.emit(); return false; }
+      this.uncertainTransition = { id: crypto.randomUUID(), kind: kind === "quit" ? "quit" : "blocked" };
+      const result = kind === "quit" ? new Promise<boolean>(resolve => { this.destination = resolve; }) : false;
+      this.emit(); return result;
+    }
     if (!this.draft.draft) return true;
-    this.destination?.(false);
     const result = new Promise<boolean>(resolve => { this.destination = resolve; });
     this.draft = transitionDraft(this.draft, { type: "move", destination: crypto.randomUUID() }).state;
     this.emit(); return result;
+  }
+  answerUncertain(id: string, quit: boolean) {
+    const transition = this.uncertainTransition;
+    if (!transition || transition.id !== id) return;
+    if (quit && (transition.kind !== "quit" || !this.stablePending() || this.composing || this.beginning || this.busy)) return;
+    // Approve only this intent. The immutable request and main's guard survive.
+    const resolve = this.destination;
+    this.destination = null; this.uncertainTransition = null;
+    resolve?.(quit); this.emit();
   }
   answer(choice: "continue" | "discard") {
     if (this.draft.request) {
@@ -196,6 +216,7 @@ export class CommentsSession {
   }
   private async settle(status: SavedStatus, request: MutationRequest) {
     if (request !== this.pending || !this.draft.draft) return;
+    if (this.uncertainTransition) this.cancelDestination();
     if (status.state === "saved") {
       this.draft = transitionDraft(this.draft, { type: "saved", request: request.requestID, draft: this.draft.draft.id, outcome: "saved" }).state;
       this.pending = null; this.saveView = { status: "idle" };
@@ -209,11 +230,12 @@ export class CommentsSession {
   }
   async check() {
     if (!this.pending || this.saveView.status === "recovery-blocked" || this.saveView.status === "checking") return;
+    this.cancelDestination();
     const request = this.pending; this.saveView = { status: "checking" }; this.emit();
     try { const { root, path, canvas, requestID } = request; await this.settle(value(await this.api.commentsStatus({ root, path, canvas, requestID }), request), request); }
     catch (error) { this.saveView = { status: "check-failed", message: errorText(error) }; this.emit(); }
   }
-  async retry() { if (this.pending && this.saveView.status === "retry-original") await this.submit(this.pending); }
+  async retry() { if (this.pending && this.saveView.status === "retry-original") { this.cancelDestination(); await this.submit(this.pending); } }
   async copy(scope: CopyScope) {
     if (!this.identity || !this.list || this.readError) return;
     const rev = this.revision, request = this.request(), key = scope.kind === "all" ? "all" : scope.comment;

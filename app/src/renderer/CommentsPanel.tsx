@@ -250,3 +250,33 @@ export function DeleteCommentDialog({ comment, onCancel, onConfirm }: { comment:
       <button type="button" className="comments-btn" onClick={() => { dialog?.close(); onConfirm(); }}>Delete comment</button></div>
   </dialog>;
 }
+
+
+export function UncertainCommentDialog(props: {
+  kind: "quit" | "blocked";
+  context: string;
+  onStay: () => void;
+  onQuit: () => void;
+  restoreEditorFocus: () => void;
+}) {
+  let dialog: HTMLDialogElement | null = null;
+  const stay = () => { dialog?.close(); props.onStay(); props.restoreEditorFocus(); };
+  return <dialog className="comments-dialog" aria-label="Save status could not be confirmed"
+    ref={node => { dialog = node; if (node && !node.open) node.showModal(); }}
+    onCancel={event => { event.preventDefault(); stay(); }}
+    onKeyDown={event => {
+      if (event.key !== "Escape") return;
+      event.preventDefault(); event.stopPropagation();
+      if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) stay();
+    }}>
+    <h3>Save status could not be confirmed</h3>
+    {props.kind === "quit" ? <>
+      <p>If you quit, the memory-only draft will be lost. This draft belongs to {props.context}.</p>
+      <p>Quitting or restarting does not confirm that the comment was saved or that a directory child exited.</p>
+    </> : <p>You cannot leave this draft in {props.context} because its save status could not be confirmed. Your original input is kept.</p>}
+    <div className="comments-tools">
+      <button type="button" className="comments-btn" autoFocus onClick={stay}>{props.kind === "quit" ? "Stay" : "Keep draft"}</button>
+      {props.kind === "quit" && <button type="button" className="comments-btn" onClick={props.onQuit}>Quit anyway</button>}
+    </div>
+  </dialog>;
+}
