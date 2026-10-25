@@ -60,10 +60,13 @@ function raise(state: ReviewState, to: string): ReviewState {
   return state.reviewedTo !== undefined && state.reviewedTo >= to ? state : { ...state, reviewedTo: to };
 }
 
+// The person's own Reopen stays only while the comment is still open, so the
+// summary and Hand off count just those. A read that still shows the resolve
+// they reopened predates their write and keeps the mark.
 function reread(step: ReviewStep, current: ReviewComment | undefined): ReviewStep {
-  if (step.mark === "reopened") return step;
   const base = { comment: step.comment, resolvedAt: step.resolvedAt };
   if (current === undefined) return { ...base, mark: "deleted" };
+  if (step.mark === "reopened" && (current.status !== "resolved" || current.resolvedAt === step.resolvedAt)) return step;
   if (current.status === "resolved") return { ...base, mark: "resolved" };
   return { ...base, mark: "reopenedElsewhere", ...(current.lastResolution ? { reopenedBy: current.lastResolution.reopenedBy } : {}) };
 }
