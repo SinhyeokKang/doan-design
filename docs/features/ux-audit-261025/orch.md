@@ -160,3 +160,5 @@
 | K | onboarding/settings e2e의 설치 응답 소비 완료와 최소 test helper. 제품 코드 변경 없음 | Codex gpt-6-astra medium. 비동기 실제 consumer 완료와 음성 대조의 인과 판단 | 두 창 false/reject·양 순서·최신 오류 보존·재시도, guard 우회 음성 대조 red와 복구 green, 단독 native·독립 리뷰 |
 
 - N은 O가 통합된 현재 HEAD에서 시작한다. K와 N은 파일 소유권이 달라 병렬 진행한다. P는 K와 onboarding.ts가 겹치므로 K 통합 후 새 child에서 시작한다. native/build 슬롯은 한 번에 한 배치만 사용한다. IR-O-fix는 release했으며 O child는 증거를 보존한 뒤 정리한다.
+
+- N `ctx_e5b35cca346b`와 K `ctx_7182d9890fce`의 Astra medium effective 및 turn_start를 확인했다. O child는 clean·8개 patch 모두 통합됨을 확인했고, disabled 재현 스크린샷 23개도 추가 보존·해시 대조했다. Orca 삭제 후 목록에서 부재를 확인했다. 일반 Claude peer는 유지한다.
