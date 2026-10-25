@@ -407,6 +407,7 @@ else if (args[1] === 'add') {
   for (const [attempt, outcome] of (["reject", "reject", "unavailable"] as const).entries()) {
     await submitCandidates().click();
     await wait(async () => await submitCandidates().isDisabled(), "checklist submit pending");
+    await pause(250);
     console.log("checklist pending focus:", await page.evaluate(() => document.activeElement?.tagName));
     await app.evaluate((_electron, outcome) => {
       const pending = Reflect.get(globalThis, "obCandidatesPending");
@@ -417,8 +418,12 @@ else if (args[1] === 'add') {
     await wait(async () => !await submitCandidates().isDisabled(), "checklist retry enabled");
     const focused = await checklist().evaluate(node => node.contains(document.activeElement));
     console.log("checklist settled focus:", await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 400)));
-    if (!focused) reviewFailures.push(`checklist focus lost: ${outcome}`);
-    await shot(`03-checklist-${outcome}`);
+    if (!focused) {
+      reviewFailures.push(`checklist focus lost: ${outcome}`);
+      await page.keyboard.press("Escape");
+      console.log("checklist Escape after lost focus:", { childVisible: await checklist().isVisible(), wizardVisible: await wizard().isVisible() });
+    }
+    await shot(`03-checklist-${attempt}-${outcome}`);
     if (focused && attempt > 0) {
       await page.keyboard.press("Escape"); await checklist().waitFor({ state: "hidden" });
       await wait(() => focusIs(button("Add Project…")), "failed checklist Escape restores wizard focus");
@@ -437,7 +442,6 @@ else if (args[1] === 'add') {
   await app.evaluate(({ ipcMain }) => {
     ipcMain.removeHandler("folders:add-candidates"); ipcMain.handle("folders:add-candidates", Reflect.get(globalThis, "obCandidatesOriginal"));
   });
-  // Repeat the last failure from a disabled submit to test Escape's real focus owner.
   if (reviewFailures.length) throw new Error(reviewFailures.join("; "));
   await shot("03-add-scan");
   await page.keyboard.press("Escape"); await checklist().waitFor({ state: "hidden" });

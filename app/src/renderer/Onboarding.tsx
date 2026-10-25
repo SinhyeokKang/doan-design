@@ -102,6 +102,7 @@ export function Wizard({ session, entries, reroot, homeDirectory, addOutcome, on
   const [adding, setAdding] = useState(false);
   const adoptedAdd = useRef(false);
   const [installError, setInstallError] = useState<string | null>(null);
+  const installs = useRef(0);
   const wait = useContext(FirstPromptContext);
   const title = useRef<HTMLSpanElement>(null);
   const reads = useRef(0);
@@ -231,11 +232,12 @@ export function Wizard({ session, entries, reroot, homeDirectory, addOutcome, on
     });
   }
   async function install(agent: "claude" | "codex") {
+    const request = ++installs.current;
     setInstallError(null);
     try {
       const ok = await window.doan.openInstallPage(agent);
-      if (live.current && !ok) setInstallError("Couldn’t open the install page.");
-    } catch (error) { if (live.current) setInstallError(errorText(error)); }
+      if (live.current && request === installs.current && !ok) setInstallError("Couldn’t open the install page.");
+    } catch (error) { if (live.current && request === installs.current) setInstallError(errorText(error)); }
   }
 
   const closeLatest = useRef(close);
