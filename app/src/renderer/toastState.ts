@@ -13,7 +13,7 @@ export interface ToastState {
   toast: Toast | null;
   remainingMs: number;
   // The timer stops while the pointer is over the toast, it has focus, or the
-  // window is hidden.
+  // window is hidden or an App modal owns input.
   hovered: boolean;
   focused: boolean;
   hidden: boolean;
@@ -43,7 +43,7 @@ export function toastState(state: ToastState, event: ToastEvent): ToastState {
     case "show":
       // The old element unmounts without a mouseleave or blur; the component
       // re-reports hover/focus if the new element is under the pointer. `hidden`
-      // belongs to the window, so it stays.
+      // and `modal` belong to the app, so they stay.
       return { ...base, toast: event.toast, remainingMs: TOAST_MS, hovered: false, focused: false, ...(state.toast ? { ended: { id: state.toast.id, reason: "replaced" as const } } : {}) };
     case "tick": {
       if (!state.toast || isToastPaused(state)) return base;

@@ -123,3 +123,9 @@ export function pickTarget(result: SearchResult, loadedRoot: string | null, open
   if (result.root !== loadedRoot) return "switch";
   return result.path === openCanvas ? "jump" : "open";
 }
+
+export function unavailableCanvasMessage(entry: FolderEntry | undefined, path: string): string {
+  if (entry?.kind === "list") return `${canvasLabel({ path, url: "", open: 0, resolved: 0 })} is no longer in design/`;
+  if (entry?.kind === "loading") return "Project is still being read. Try Open again shortly.";
+  return "Project is unavailable. Check its status on Home and try again.";
+}

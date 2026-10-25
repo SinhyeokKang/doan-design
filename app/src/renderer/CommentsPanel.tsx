@@ -78,7 +78,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
   const { filter, read, author, editor } = props;
   const writesDisabled = props.busy || props.writeBlocked !== null || author.status !== "ready";
   const createDisabled = writesDisabled || props.createBlocked !== null || props.widthInvalid || editor !== null || read.status !== "ready" || (filter.scope === "selection" && !props.selectionAvailable);
-  const editorBlocked = editor && (props.writeBlocked ?? (props.busy ? "A comment change is in progress." : null) ?? (author.status !== "ready" ? "A Git name is required before saving." : null) ?? (editor.mode === "create" && props.widthInvalid ? "Fix doan:width to add comments and show pins." : null) ?? editor.blocked);
+  const editorBlocked = editor && (props.writeBlocked ?? (props.busy ? "A comment change is in progress." : null) ?? (author.status !== "ready" ? "A Git name is required before saving." : null) ?? (editor.mode === "create" && props.widthInvalid ? "Run doan check in a terminal to diagnose the canvas. A readable width is required to add comments and show pins." : null) ?? editor.blocked);
   return <section className="comments-panel native-scroll" aria-label="Comments">
     <div className="comments-head">
       <h3 ref={props.headingRef} tabIndex={-1}>Comments</h3>
@@ -98,7 +98,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
       {props.allCopy.status === "copied" && <p className="comments-helper" role="status">Copied all open comments on this canvas.</p>}
       {props.allCopy.status === "failed" && <p className="comments-helper" role="alert">{props.allCopy.message}</p>}
     </div>
-    {props.widthInvalid && <div className="comments-message warning"><b>Missing or invalid board width.</b>Existing comments are still available. Fix doan:width to add comments and show pins.</div>}
+    {props.widthInvalid && <div className="comments-message warning"><b>Could not read a valid board width.</b>Existing comments are still available. Run doan check in a terminal to diagnose the canvas. A readable width is required to add comments and show pins.</div>}
     {props.writeBlocked && <div className="comments-message error" role="alert"><b>Comments are read-only</b>{props.writeBlocked}</div>}
     {props.createBlocked && <div className="comments-message warning">{props.createBlocked}</div>}
     {author.status !== "ready" && <div className="comments-message warning" role="status">

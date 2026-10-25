@@ -57,6 +57,11 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
   const results = useMemo(() => searchMatch(index, query, currentRoot, root => commons.get(root)), [index, query, currentRoot, commons]);
   const where = useMemo(() => projectWhere(entries), [entries]);
   const current = Math.min(active, Math.max(results.length - 1, 0));
+  const scope = entries.filter(entry => currentRoot === null || entry.path === currentRoot);
+  const emptyText = query.trim() ? "No canvases or frames match"
+    : scope.some(entry => entry.kind === "loading") ? "Project is still being read. Try again shortly."
+    : scope.some(entry => entry.kind !== "list") ? "Project is unavailable. Check its status on Home."
+    : "No canvases to show";
   const dismiss = () => {
     dialog.current?.close();
     // Focus goes back only after the dialog closes: behind an open modal everything is inert.
@@ -91,7 +96,7 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
         }} />
       <span className="kbd">esc</span>
     </div>
-    <QuickOpenList emptyText={query.trim() ? "No canvases or frames match" : entries.some(entry => (currentRoot === null || entry.path === currentRoot) && entry.kind === "loading") ? "Project is still being read. Try again shortly." : entries.some(entry => (currentRoot === null || entry.path === currentRoot) && entry.kind !== "list") ? "Project is unavailable. Check its status on Home." : "No canvases to show"} id={id} results={results} active={current} where={where} pick={choose} activate={setActive} />
+    <QuickOpenList emptyText={emptyText} id={id} results={results} active={current} where={where} pick={choose} activate={setActive} />
     <div className="qo-foot">↑↓ to move · ↩ to open · esc to close</div>
   </dialog>;
 }

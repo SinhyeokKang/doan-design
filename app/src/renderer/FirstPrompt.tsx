@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useId, useMemo, useRef, useState,
 import { firstPromptReducer, type FirstPromptEvent, type FirstPromptState } from "../firstPrompt/firstPrompt";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { arrivalAction, HELPER_LINES, newCanvasText, promptCopyLabel, sentenceParts, SUBJECT_LABEL, SUBJECT_PLACEHOLDER, subjectView, WAITING_TEXT, waitEvent } from "./firstPromptView";
+import { unavailableCanvasMessage } from "./quickOpen";
 import { COPY_FAILED, type CopyState } from "./onboardingView";
 
 // The one first-prompt wait of this app run (renderer memory: a relaunch
@@ -20,9 +21,9 @@ interface WaitDeps {
   wizardOpen: boolean;
   // The root of the workspace on screen; null on Home.
   workspaceRoot: string | null;
-  toast: (message: string, label: string, run: () => void) => void;
+  toast: (message: string, label?: string, run?: () => void) => void;
   projectName: (root: string) => string;
-  openCanvas: (root: string, row: CanvasRow) => void;
+  openCanvas: (root: string, row: CanvasRow, explicit: boolean) => void;
 }
 
 export function useFirstPromptWait(deps: WaitDeps): FirstPromptWait {
@@ -34,11 +35,12 @@ export function useFirstPromptWait(deps: WaitDeps): FirstPromptWait {
     const entry = latest.current.deps.entries.find(candidate => candidate.path === root);
     return entry?.kind === "list" ? entry.canvases.find(candidate => candidate.path === path) : undefined;
   };
-  const openArrived = (root: string, path: string) => {
+  const openArrived = (root: string, path: string, explicit = false) => {
     const row = arrivedRow(root, path);
-    if (row) latest.current.deps.openCanvas(root, row);
+    if (row) latest.current.deps.openCanvas(root, row, explicit);
+    else if (explicit) latest.current.deps.toast(unavailableCanvasMessage(latest.current.deps.entries.find(entry => entry.path === root), path));
   };
-  const showToast = (root: string, path: string) => latest.current.deps.toast(newCanvasText(latest.current.deps.projectName(root)), "Open", () => openArrived(root, path));
+  const showToast = (root: string, path: string) => latest.current.deps.toast(newCanvasText(latest.current.deps.projectName(root)), "Open", () => openArrived(root, path, true));
   // From main: document.hidden stays false while the window is hidden.
   const visible = useRef(true);
   // An arrival while hidden: its toast shows once the window is back.
@@ -76,7 +78,7 @@ export function useFirstPromptWait(deps: WaitDeps): FirstPromptWait {
       const current = latest.current.state;
       if (current.kind !== "arrived") return;
       dispatch({ type: "dismissed" });
-      openArrived(current.root, current.path);
+      openArrived(current.root, current.path, true);
     },
   }), [state]);
 }

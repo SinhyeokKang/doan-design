@@ -334,8 +334,10 @@ export class CanvasController {
   private workspaceActive = true;
   setWorkspaceActive(active: boolean): void {
     this.workspaceActive = active;
-    if (!active) this.waitingWorkspace = null;
+    if (!active) this.cancelWorkspaceOpen();
   }
+
+  cancelWorkspaceOpen(): void { this.waitingWorkspace = null; this.transitionIntent++; }
 
   // A project added a moment ago is still being read when its "Added" toast
   // offers Open; dropping that click left the previous workspace on screen.
@@ -379,7 +381,7 @@ export class CanvasController {
     });
   }
 
-  openCanvas(folder: string, row: CanvasRow, frameId?: string, target?: { index?: number; found?: (found: boolean) => void }): void {
+  openCanvas(folder: string, row: CanvasRow, frameId?: string, target?: { index?: number; found?: (found: boolean) => void; unavailable?: () => void }): void {
     if (this.state.open?.folder === folder && this.state.shown === row.path) {
       if (frameId !== undefined) {
         const frames = this.state.layout?.frames ?? [];
@@ -398,7 +400,11 @@ export class CanvasController {
       this.openCanvasNow(folder, current() ?? row);
       this.pendingFrame = frameId === undefined ? null : { id: frameId, ...target };
       if (this.pendingFrame && this.state.status === "noWidth") { this.pendingFrame.found?.(false); this.pendingFrame = null; }
-    }, () => current() !== undefined);
+    }, () => {
+      if (current() !== undefined) return true;
+      target?.unavailable?.();
+      return false;
+    });
   }
 
   private openCanvasNow(folder: string, row: CanvasRow): void {

@@ -57,7 +57,7 @@ export function ProblemActions({ entry, action, workspace }: { entry: FolderEntr
   if (!workspace) return <>{actions}{message}</>;
   return <div className="ws-recovery" role="region" aria-label="Project status"><div className="ws-status" role="status">
     <span className={`ob-chip${entry.kind === "error" ? " err" : entry.kind === "cliError" || entry.kind === "notFound" ? " warn" : ""}`}>{row.chip}</span>
-    {entry.kind === "notFound" ? <span className="text"><code>{displayPath(entry.path, workspace.homeDirectory)}</code> is gone or moved.</span> : entry.kind === "uninitialized" ? <span className="text">{workspace.name} is not set up.</span> : <span className="spacer" />}
+    {entry.kind === "notFound" ? <span className="text" title={`${displayPath(entry.path, workspace.homeDirectory)} is gone or moved.`}><code>{displayPath(entry.path, workspace.homeDirectory)}</code> is gone or moved.</span> : entry.kind === "uninitialized" ? <span className="text" title={`${workspace.name} is not set up.`}>{workspace.name} is not set up.</span> : <span className="spacer" />}
     {actions}<button className="btn ghost" onClick={workspace.home}>Go Home</button>
   </div>{message && <div className="ws-detail">{message}</div>}</div>;
 }
