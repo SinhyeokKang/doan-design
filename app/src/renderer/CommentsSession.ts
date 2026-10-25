@@ -10,6 +10,9 @@ import type { AuthorView, CopyView, SaveView } from "./CommentsPanel";
 type Api = Pick<DoanApi, "commentsList" | "commentsAuthor" | "commentsBegin" | "commentsMutate" | "commentsStatus" | "commentsCopy" | "setCommentDraftGuard">;
 const emptyDraft = (): DraftState => ({ draft: null, transition: null, request: null, error: null });
 const errorText = (error: unknown) => error instanceof Error ? error.message : "Comments operation failed.";
+// How long the line left in a resolved or reopened card's place stays (feature revision-recheck).
+export const STATUS_LINE_MS = 4000;
+const statusText = { resolve: "Resolved — moved to Resolved.", reopen: "Reopened — moved to Open." } as const;
 export function expectedComment(c: Comment): ExpectedComment {
   return { body: c.body, status: c.status, updatedAt: c.updatedAt, ...(c.resolvedAt === undefined ? {} : { resolvedAt: c.resolvedAt }) };
 }
@@ -56,6 +59,9 @@ export class CommentsSession {
   composing = false;
   uncertainTransition: { id: string; kind: "quit" | "blocked" } | null = null;
   deleteConfirmation: { request: MutationRequest; comment: Comment } | null = null;
+  // Left where a card was after the person's own Resolve or Reopen moved it to the other list.
+  statusLine: { comment: string; text: string } | null = null;
+  private statusTimer: ReturnType<typeof setTimeout> | undefined;
   private revision = 0;
   private beginRevision = 0;
   private readRevision = 0;
@@ -79,6 +85,14 @@ export class CommentsSession {
     if (this.beginning && !this.draft.draft) void this.api.setCommentDraftGuard(false);
     this.beginRevision++; this.beginning = false; this.continuing = null;
   }
+  private showStatus(comment: string, type: keyof typeof statusText) {
+    clearTimeout(this.statusTimer);
+    this.statusLine = { comment, text: statusText[type] };
+    this.statusTimer = setTimeout(() => { this.statusTimer = undefined; this.statusLine = null; this.emit(); }, STATUS_LINE_MS);
+  }
+  // The line stands for a place in this document's list; another canvas or a
+  // replaced document has no such place.
+  private clearStatus() { clearTimeout(this.statusTimer); this.statusTimer = undefined; this.statusLine = null; }
   private request(identity = this.identity): CommentRequest {
     if (!identity) throw new Error("No canvas open.");
     return { ...identity, requestID: crypto.randomUUID() };
@@ -89,6 +103,7 @@ export class CommentsSession {
     this.cancelBegin();
     this.identity = identity;
     this.list = null; this.readError = null; this.identityCause = null; this.createError = null; this.continueError = null; this.copies = new Map(); this.mutations = new Map(); this.deleteConfirmation = null;
+    this.clearStatus();
     if (this.draft.draft && !same(identity, this.draftIdentity)) this.invalidate("The original project or canvas is no longer open.");
     this.emit();
     if (identity) await Promise.all([this.read(), this.retryAuthor()]);
@@ -221,7 +236,7 @@ export class CommentsSession {
   }
   // `loading`: the canvas is still loading, so the new document is not known yet.
   documentLost(loading = false) {
-    this.cancelBegin();
+    this.cancelBegin(); this.clearStatus();
     this.createError = null; this.continueError = null; this.emit();
     if (this.draft.draft?.origin.kind !== "create") return;
     this.cancelDestination();
@@ -372,9 +387,14 @@ export class CommentsSession {
         this.mutations.set(id, /no longer exists/.test(response.error) ? { status: "deleted" } : /Comment changed|Comment status changed/.test(response.error) ? { status: "conflict" } : { status: "failed", message: response.error });
       }
       else {
-        const status = value(response, request);
-        this.mutations.set(id, status.recovery ? { status: "recovery-blocked", message: status.error ?? "Confirm child exit externally, then restart the app." } : { status: status.state === "saved" ? "saved" : status.state === "absent" ? "retry-original" : "unknown" });
-        if (status.state === "saved") { this.cardPending.delete(id); await this.read(); }
+        const status = value(response, request), type = request.intent.type;
+        // "Comment saved … No duplicate was added." answers a status check; a
+        // change that simply succeeded has nothing to say on the card.
+        this.mutations.set(id, status.recovery ? { status: "recovery-blocked", message: status.error ?? "Confirm child exit externally, then restart the app." } : { status: status.state === "saved" ? (check || type === "delete" ? "saved" : "idle") : status.state === "absent" ? "retry-original" : "unknown" });
+        if (status.state === "saved") {
+          this.cardPending.delete(id); await this.read();
+          if (rev === this.revision && (type === "resolve" || type === "reopen")) this.showStatus(id, type);
+        }
       }
     } catch (error) { if (rev === this.revision) this.mutations.set(id, check ? { status: "check-failed", message: errorText(error) } : { status: "unknown" }); }
     finally { this.busy = false; this.emit(); }

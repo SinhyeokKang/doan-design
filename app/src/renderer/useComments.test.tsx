@@ -566,8 +566,11 @@ describe("the panel while comments change underneath (comments-readability task 
 
 describe("focus after the composer and pins (comments-readability task 5)", () => {
   const note: Comment = { comment: "c1", body: "Mark the field", status: "open", target: { element: { doanId: "address", selector: "label", html: "<label/>" } }, canvasHash: "hash", createdBy: { kind: "human", name: "A" }, createdAt: "t", updatedAt: "t" };
-  type Focusable = { name: string; focus: Mock; isConnected: boolean; hasAttribute: (name: string) => boolean; dataset?: { comment: string } };
-  const focusable = (name: string, over: Partial<Focusable> = {}): Focusable => ({ name, focus: vi.fn(), isConnected: true, hasAttribute: () => false, ...over });
+  type Focusable = { name: string; focus: Mock; isConnected: boolean; hasAttribute: (name: string) => boolean; contains: (node: unknown) => boolean; dataset?: { comment: string } };
+  const focusable = (name: string, over: Partial<Focusable> = {}): Focusable => {
+    const element: Focusable = { name, focus: vi.fn(), isConnected: true, hasAttribute: () => false, contains: node => node === element, ...over };
+    return element;
+  };
   // useRef slots in useComments: 0 = input, 1 = heading, 4 = the panel section.
   function dom(cards: string[]) {
     const body = focusable("body"), doc = { body, activeElement: body as unknown };
@@ -790,6 +793,99 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
         arrive();
         expect(focused(page.heading, ...page.cards)).toEqual(expected);
       } finally { vi.useRealTimers(); }
+    });
+  });
+
+  // feature revision-recheck task 6 (design status-lines).
+  describe("a card that leaves the list", () => {
+    const open = (comment: string): Comment => ({ ...note, comment, target: {} });
+    const listed = (comments: Comment[]) => { (window.doan as unknown as Record<string, unknown>).commentsList = async (r: CommentRequest) => ({ ok: true, identity: r, value: { project: 1, comments, warnings: [], canvasHash: "hash" } }); };
+    // Focus on the card's Resolve button, then the person resolves it: the
+    // button disables (focus drops to <body>) and the reread list leaves it out.
+    async function resolveFocused(ids: string[], leaving: string) {
+      const page = dom(ids);
+      const f = await ready(ids.map(open));
+      const card = page.cards.find(card => card.dataset?.comment === leaving)!;
+      const button = focusable(`resolve ${leaving}`);
+      card.contains = node => node === card || node === button;
+      page.doc.activeElement = button; f.panel();
+      f.mutate.mockImplementationOnce(async (r: CommentRequest) => ({ ok: true, identity: r, value: { state: "saved" } }));
+      listed(ids.filter(id => id !== leaving).map(open));
+      f.panel().props.onComment("resolve", leaving);
+      page.doc.activeElement = page.body; f.panel();
+      await vi.waitFor(() => expect(f.session.statusLine).not.toBeNull());
+      page.cards.splice(page.cards.indexOf(card), 1);
+      return { ...f, page, button };
+    }
+    test("focus moves to the next card's article, and the status line stands before it", async () => {
+      const { page, panel, button } = await resolveFocused(["c1", "c2", "c3"], "c1");
+      const props = panel().props;
+      expect(focused(page.heading, button, ...page.cards)).toEqual(["card c2"]);
+      expect(props.statusLine).toEqual({ comment: "c1", text: "Resolved — moved to Resolved.", before: "c2" });
+    });
+    test("a locate on another card while the change saves keeps the status line's place", async () => {
+      const page = dom(["c1", "c2", "c3"]);
+      const f = await ready(["c1", "c2", "c3"].map(open));
+      let finish: (() => void) | undefined;
+      f.mutate.mockImplementationOnce((r: CommentRequest) => new Promise(resolve => { finish = () => resolve({ ok: true, identity: r, value: { state: "saved" } }); }));
+      f.panel().props.onComment("resolve", "c1");
+      f.panel().props.onComment("locate", "c3");
+      listed(["c2", "c3"].map(open)); finish?.();
+      await vi.waitFor(() => expect(f.session.statusLine).not.toBeNull());
+      page.cards.shift();
+      expect(f.panel().props.statusLine?.before).toBe("c2");
+    });
+    test("focus moves to the previous card when the last one leaves", async () => {
+      const { page, panel, button } = await resolveFocused(["c1", "c2", "c3"], "c3");
+      expect(panel().props.statusLine?.before).toBeNull();
+      expect(focused(page.heading, button, ...page.cards)).toEqual(["card c2"]);
+    });
+    test("focus moves to the Comments title when the only card leaves", async () => {
+      const { page, panel, button } = await resolveFocused(["c1"], "c1");
+      panel();
+      expect(focused(page.heading, button)).toEqual(["title"]);
+    });
+    test("focus moves once, and stays where the person puts it next", async () => {
+      const { page, panel } = await resolveFocused(["c1", "c2", "c3"], "c2");
+      panel();
+      expect(page.cards.map(card => card.focus.mock.calls.length)).toEqual([0, 1]);
+      page.doc.activeElement = page.body; panel();
+      expect(page.cards.map(card => card.focus.mock.calls.length)).toEqual([0, 1]);
+    });
+    test("an agent's resolve that removes the focused card follows the same rule", async () => {
+      let invalidated: ((change: { root: string }) => void) | undefined;
+      const page = dom(["c1", "c2"]);
+      const f = setup([open("c1"), open("c2")]);
+      (window.doan as unknown as Record<string, unknown>).onCommentsInvalidated = (callback: typeof invalidated) => { invalidated = callback; return () => {}; };
+      const { session } = f.render({ selection: null });
+      await vi.waitFor(() => expect(session.list).not.toBeNull());
+      page.doc.activeElement = page.cards[0]; f.render({ selection: null });
+      listed([open("c2")]);
+      invalidated?.({ root: "/repo" });
+      await vi.waitFor(() => expect(session.list?.comments.map(c => c.comment)).toEqual(["c2"]));
+      // The focused article itself leaves the document.
+      page.cards[0]!.isConnected = false; const gone = page.cards.shift()!;
+      f.render({ selection: null });
+      expect(focused(page.heading, gone, ...page.cards)).toEqual(["card c2"]);
+      expect(session.statusLine).toBeNull();
+    });
+    test("focus the person moved elsewhere stays there", async () => {
+      const page = dom(["c1", "c2"]);
+      const f = await ready([open("c1"), open("c2")]);
+      page.doc.activeElement = page.cards[0]; f.panel();
+      const row = focusable("row"); page.doc.activeElement = row;
+      listed([open("c2")]); await f.session.read(); page.cards.shift();
+      f.panel();
+      expect(focused(page.heading, row, ...page.cards)).toEqual([]);
+    });
+    test("a list the person changed by filter is not a card leaving", async () => {
+      const page = dom(["c1", "c2"]);
+      const f = await ready([open("c1"), open("c2")]);
+      page.doc.activeElement = page.cards[0]; f.panel();
+      f.panel().props.onFilter({ scope: "canvas", status: "resolved" }); settle(FILTER);
+      page.doc.activeElement = page.body; page.cards.splice(0);
+      f.panel();
+      expect(focused(page.heading)).toEqual([]);
     });
   });
 

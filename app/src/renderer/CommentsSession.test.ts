@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { CommentsSession } from "./CommentsSession";
+import { CommentsSession, STATUS_LINE_MS } from "./CommentsSession";
 import type { DoanApi } from "../preload";
 import type { Comment, Author, Target } from "../formats/types";
 import type { BeginResult, CommentList, CommentRequest, CommentReply, SavedStatus } from "../main/comments/service";
@@ -561,7 +561,7 @@ describe("a canvas moved with the same id", () => {
     expect(s.mutations.get("c1")?.status).toBe("reviewed"); expect(s.canFollow()).toBe(false);
     await s.confirmCard("c1");
     expect(api.commentsMutate).toHaveBeenCalledTimes(2);
-    expect(s.mutations.get("c1")?.status).toBe("saved"); expect(s.canFollow()).toBe(true);
+    expect(s.mutations.get("c1")?.status).toBe("idle"); expect(s.canFollow()).toBe(true);
   });
   test("does not follow while a card change failed or waits for its original retry", async () => {
     const { session: s, api } = fixture(); await s.open(identity);
@@ -598,4 +598,99 @@ test("a refused canvas identity keeps main's cause beside the read error until a
   // An ordinary failure has no cause.
   api.commentsList.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Permission denied" }));
   await s.read(); expect(s.readError).toBe("Permission denied"); expect(s.identityCause).toBeNull();
+});
+
+// feature revision-recheck task 6: a person's own Resolve or Reopen.
+describe("a person's Resolve and Reopen", () => {
+  const resolved: Comment = { ...c, status: "resolved", resolvedBy: { kind: "human", name: "A" }, resolvedAt: "2026-10-23T01:00:00.000Z" };
+  async function opened(comments: Comment[] = [c]) {
+    const f = fixture();
+    f.api.commentsList.mockImplementation(async r => reply<CommentList>(r, { project: 7, canvasHash: "h", comments, warnings: [] }));
+    await f.session.open(identity);
+    return f;
+  }
+  test("a success returns the card to idle and leaves a status line where it was", async () => {
+    const { session: s } = await opened();
+    await s.mutate("resolve", "c1");
+    expect(s.mutations.get("c1")?.status).toBe("idle");
+    expect(s.statusLine).toEqual({ comment: "c1", text: "Resolved — moved to Resolved." });
+    const other = await opened([resolved]);
+    await other.session.mutate("reopen", "c1");
+    expect(other.session.mutations.get("c1")?.status).toBe("idle");
+    expect(other.session.statusLine).toEqual({ comment: "c1", text: "Reopened — moved to Open." });
+  });
+  test("a confirmed reviewed change and a retried original save are ordinary successes", async () => {
+    const { session: s, api } = await opened();
+    api.commentsMutate.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Disk full" }));
+    await s.mutate("resolve", "c1"); expect(s.statusLine).toBeNull();
+    await s.cardRetry("c1", false);
+    expect(s.mutations.get("c1")?.status).toBe("idle"); expect(s.statusLine?.text).toBe("Resolved — moved to Resolved.");
+  });
+  test("only a save confirmed by checking its status says no duplicate was added", async () => {
+    const { session: s, api } = await opened();
+    api.commentsMutate.mockImplementationOnce(async r => reply<SavedStatus>(r, { state: "unknown" }));
+    await s.mutate("resolve", "c1"); expect(s.mutations.get("c1")?.status).toBe("unknown"); expect(s.statusLine).toBeNull();
+    api.commentsStatus.mockImplementationOnce(async r => reply<SavedStatus>(r, { state: "saved" }));
+    await s.cardRetry("c1", true);
+    expect(s.mutations.get("c1")?.status).toBe("saved");
+    expect(s.statusLine?.text).toBe("Resolved — moved to Resolved.");
+  });
+  test("a failed or conflicting change leaves no status line", async () => {
+    const { session: s, api } = await opened();
+    api.commentsMutate.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Comment changed; read the latest state before saving." }));
+    await s.mutate("resolve", "c1");
+    expect(s.mutations.get("c1")?.status).toBe("conflict"); expect(s.statusLine).toBeNull();
+  });
+  test("a delete keeps its own result and leaves no status line", async () => {
+    const { session: s } = await opened();
+    await s.mutate("delete", "c1"); await s.confirmDelete();
+    expect(s.statusLine).toBeNull();
+  });
+  describe("the status line's 4 seconds", () => {
+    test("ends after 4 seconds, and a newer line restarts the count", async () => {
+      vi.useFakeTimers();
+      try {
+        const changed = vi.fn();
+        const { api } = await opened([c, { ...c, comment: "c2" }]);
+        const s = new CommentsSession(api, changed); await s.open(identity);
+        await s.mutate("resolve", "c1");
+        vi.advanceTimersByTime(STATUS_LINE_MS - 1);
+        await s.mutate("resolve", "c2");
+        vi.advanceTimersByTime(STATUS_LINE_MS - 1);
+        expect(s.statusLine).toEqual({ comment: "c2", text: "Resolved — moved to Resolved." });
+        changed.mockClear();
+        vi.advanceTimersByTime(1);
+        expect(s.statusLine).toBeNull(); expect(changed).toHaveBeenCalled();
+      } finally { vi.useRealTimers(); }
+    });
+    test.each([
+      ["another canvas opens", (s: CommentsSession) => s.open({ ...identity, canvas: "b", path: "design/b.html" })],
+      ["the canvas document is replaced", (s: CommentsSession) => { s.documentLost(); }],
+      ["the canvas starts reloading", (s: CommentsSession) => { s.documentLost(true); }],
+    ])("ends with its timer when %s", async (_name, end) => {
+      vi.useFakeTimers();
+      try {
+        const { session: s } = await opened();
+        await s.mutate("resolve", "c1"); expect(s.statusLine).not.toBeNull();
+        expect(vi.getTimerCount()).toBe(1);
+        await end(s);
+        expect(s.statusLine).toBeNull(); expect(vi.getTimerCount()).toBe(0);
+      } finally { vi.useRealTimers(); }
+    });
+    test("a success that lands after another canvas opened leaves no line", async () => {
+      const { session: s, api } = await opened();
+      let finish: (() => void) | undefined;
+      api.commentsMutate.mockImplementationOnce(r => new Promise(resolve => { finish = () => resolve(reply<SavedStatus>(r, { state: "saved" })); }));
+      const resolving = s.mutate("resolve", "c1");
+      await s.open({ ...identity, canvas: "b", path: "design/b.html" });
+      finish?.(); await resolving;
+      expect(s.statusLine).toBeNull();
+    });
+    test("a followed move of the same canvas keeps it", async () => {
+      const { session: s } = await opened();
+      await s.mutate("resolve", "c1");
+      await s.rename("design/moved.html");
+      expect(s.statusLine?.comment).toBe("c1");
+    });
+  });
 });

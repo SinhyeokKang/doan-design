@@ -8,7 +8,7 @@ import { shownAnchors, type AnchorSnapshot } from "./commentAnchors";
 import { mainSelection, selectionIdentity } from "./selection";
 import { outdated, projectList, type ListFilter } from "../comments/projection";
 import { continueEnabled, draftScope, guardsSelectionChange } from "../comments/draft";
-import { sortResolved } from "../comments/resolution";
+import { nextFocus, sortResolved } from "../comments/resolution";
 import type { Target } from "../formats/types";
 
 // A focus move that waits for anchors. `context` is the canvas and selection it
@@ -101,6 +101,9 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   // The selection a card's locate sent: it keeps the list the person was
   // reading (feature revision-recheck). Any next selection change ends it.
   const located = useRef<string | null>(null);
+  // The card a card action came from and the card that followed it then, so
+  // a status line can take the place of a card that left (design status-lines).
+  const place = useRef<{ comment: string; before: string | null } | null>(null);
   useEffect(() => {
     const exempt = selected !== null && selected === located.current;
     located.current = null;
@@ -134,6 +137,11 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   const focus = () => input.current?.focus();
   const opened = () => { focusAfter.current.opener = document.activeElement as HTMLElement | null; };
   function intent(action: CommentIntent, id: string) {
+    // Only actions that can end in a Resolve or Reopen; a locate meanwhile keeps it.
+    if (["resolve", "reopen", "check", "retry", "confirm-reviewed"].includes(action)) {
+      const ids = shown.map(c => c.comment), at = ids.indexOf(id);
+      place.current = { comment: id, before: at === -1 ? null : ids[at + 1] ?? null };
+    }
     if (action === "edit") { opened(); session.edit(id); }
     else if (action === "resolve" || action === "reopen" || action === "delete") void session.mutate(action, id);
     else if (action === "check") void session.cardRetry(id, true);
@@ -219,6 +227,29 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     const holder = document.activeElement;
     for (const request of [after.saved, after.pin]) if (request) { request.context = context; request.holder = holder; }
   });
+  // A card holding focus that leaves the list (the person's Resolve or Reopen,
+  // or an agent's change) hands focus to the next card, else the previous one,
+  // else the title (design status-lines). Never <body>, and never a button: a
+  // second Enter must not resolve the next comment. A list the person changed
+  // (canvas, selection, filter) or focus they moved elsewhere is left alone.
+  const held = useRef<{ comment: string; order: string[]; context: string } | null>(null);
+  const listContext = JSON.stringify([root, canvas, selected, filter.scope, filter.status]);
+  useEffect(() => {
+    const cards = Array.from(panelElement.current?.querySelectorAll<HTMLElement>("article.comments-card") ?? []);
+    const ids = cards.map(card => card.dataset.comment ?? "");
+    if (!held.current && ids.length === 0) return;
+    const last = held.current?.context === listContext ? held.current : null;
+    const active = document.activeElement;
+    // Focus drops to <body> when the card's own button disables while it saves.
+    const lost = !active || active === document.body || !active.isConnected;
+    if (last && lost && !ids.includes(last.comment)) {
+      const next = nextFocus(last.order.filter(id => id === last.comment || ids.includes(id)), last.comment);
+      (next.kind === "card" ? cards.find(card => card.dataset.comment === next.comment) : heading.current)?.focus();
+    }
+    const holder = document.activeElement, card = holder ? cards.find(card => card.contains(holder)) : undefined;
+    held.current = card ? { comment: card.dataset.comment ?? "", order: ids, context: listContext }
+      : last && lost && ids.includes(last.comment) ? { ...last, order: ids } : null;
+  });
   return {
     session,
     panel: (open || draft) && <CommentsPanel filter={currentFilter} selectionAvailable={state.selection !== null && !state.unlisted} selectionNode={snapshot?.selected ?? null}
@@ -228,6 +259,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       missingLocations={snapshot?.status === "answered" ? new Set(comments.filter(c => (c.target.frame || c.target.element) && !snapshot.lookup.nodes.has(c.comment)).map(c => c.comment)) : null}
       author={session.author} identityCause={identityCause} canvasId={canvas ?? ""} frames={frames} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || (session.beginning && !draft)}
       copies={session.copies} allCopy={session.copies.get("all") ?? { status: "idle" }} mutations={session.mutations} headingRef={heading} panelRef={panelElement}
+      statusLine={current && session.statusLine ? { ...session.statusLine, before: place.current?.comment === session.statusLine.comment ? place.current.before : null } : null}
       onFilter={next => { focusAfter.current.pin = null; focusAfter.current.saved = null; setFilter(next); }} onCreate={scope => { opened(); void session.create(scope); }} onComment={intent} onCopy={scope => { void session.copy(scope); }} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
       editor={draft ? { mode: draft.origin.kind, target: session.target, frames: draftFrames, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
         onBody: body => session.body(body), onSave: () => { focusAfter.current.saving = true; void session.save(); },

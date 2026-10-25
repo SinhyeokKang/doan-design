@@ -426,7 +426,7 @@ test("a resolved card's target line locates like an open card's (revision-rechec
   expect(onComment).toHaveBeenCalledExactlyOnceWith("locate", "c1");
 });
 
-describe("resolution meta and Canvas changed (revision-recheck task 6)", () => {
+describe("resolution meta, Canvas changed and status lines (revision-recheck task 6)", () => {
   const codex = { kind: "agent" as const, name: "codex" }, kim = { kind: "human" as const, name: "Kim Doe" };
   const resolved: Comment = { ...comment, status: "resolved", resolvedBy: codex, resolvedAt: "2026-10-25T14:02:10.000Z" };
   const reopened: Comment = { ...comment, lastResolution: { by: codex, at: "2026-10-25T14:02:10.000Z", reopenedBy: kim, reopenedAt: "2026-10-25T14:04:30.000Z" } };
@@ -456,5 +456,30 @@ describe("resolution meta and Canvas changed (revision-recheck task 6)", () => {
   });
   test("a resolved card shows neither Canvas changed nor Freshness unknown", () => {
     for (const freshness of ["outdated", "unknown"] as const) expect(card(resolved, freshness)).not.toMatch(/Canvas changed|Freshness unknown|Outdated/);
+  });
+  describe("the status line in a card's place", () => {
+    const list = (...ids: string[]) => ({ status: "ready" as const, comments: ids.map(id => ({ ...comment, comment: id })), warnings: [] });
+    const line = `<p class="comments-status" role="status">Resolved — moved to Resolved.</p>`;
+    const at = (out: string, part: string) => out.indexOf(part);
+    test("stands before the card that followed the one that left", () => {
+      const out = html(panel({ read: list("c2", "c3"), statusLine: { comment: "c1", text: "Resolved — moved to Resolved.", before: "c3" } }));
+      expect(out).toContain(line);
+      expect(at(out, 'data-comment="c2"')).toBeLessThan(at(out, line));
+      expect(at(out, line)).toBeLessThan(at(out, 'data-comment="c3"'));
+    });
+    test("ends the list when the card was last or its follower is gone too", () => {
+      for (const before of [null, "c9"]) {
+        const out = html(panel({ read: list("c2"), statusLine: { comment: "c1", text: "Resolved — moved to Resolved.", before } }));
+        expect(at(out, 'data-comment="c2"')).toBeLessThan(at(out, line));
+      }
+    });
+    test("stands in an emptied list above its empty message", () => {
+      const out = html(panel({ read: list(), statusLine: { comment: "c1", text: "Resolved — moved to Resolved.", before: null } }));
+      expect(at(out, line)).toBeGreaterThan(-1);
+      expect(at(out, line)).toBeLessThan(at(out, "No open comments"));
+    });
+    test("is not shown in a list that shows the card itself", () => {
+      expect(html(panel({ read: list("c1"), statusLine: { comment: "c1", text: "Resolved — moved to Resolved.", before: null } }))).not.toContain("comments-status");
+    });
   });
 });

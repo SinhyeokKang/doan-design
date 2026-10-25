@@ -70,6 +70,9 @@ export interface CommentsPanelProps {
   copies: ReadonlyMap<string, CopyView>;
   allCopy: CopyView;
   mutations?: ReadonlyMap<string, SaveView>;
+  // Left in a card's place after the person's Resolve or Reopen moved it to
+  // the other list; `before` is the card that followed it, null when it was last.
+  statusLine?: { comment: string; text: string; before: string | null } | null;
   editor: CommentEditorProps | null;
   headingRef?: Ref<HTMLHeadingElement>;
   panelRef?: Ref<HTMLElement>;
@@ -115,6 +118,10 @@ export function CommentsPanel(props: CommentsPanelProps) {
     </section>;
   }
   const elsewhere = filter.scope === "selection" ? Math.max(0, props.canvasOpenCount - props.counts.open) : 0;
+  const shown = read.status === "ready" ? read.comments : [];
+  const line = props.statusLine && !shown.some(c => c.comment === props.statusLine?.comment) ? props.statusLine : null;
+  const lineAt = line ? shown.findIndex(c => c.comment === line.before) : -1;
+  const statusLine = line && <p key="status-line" className="comments-status" role="status">{line.text}</p>;
   const empty = emptyListText(filter.scope, filter.status, elsewhere);
   // The title is the panel's own child so it can stay stuck while the head
   // scrolls away (a sticky h3 inside the head leaves with it).
@@ -154,8 +161,10 @@ export function CommentsPanel(props: CommentsPanelProps) {
             <ul>{warningGroups(read.warnings).map(group => <li key={group.code}>{warningText(group.code)}<span className="lines">{group.label}</span></li>)}</ul>
             <p className="file">{warningFileText(props.canvasId)}</p>
           </div>}
+          {read.comments.length === 0 && statusLine}
           {read.comments.length === 0 && <div className="comments-message"><b>{empty.title}</b>{empty.body}</div>}
-          {read.comments.map(comment => <CommentCard key={comment.comment} comment={comment} frames={props.frames} freshness={props.freshness.get(comment.comment) ?? "unknown"} locationMissing={props.missingLocations?.has(comment.comment) ?? null} disabled={writesDisabled || editor !== null} busy={props.busy} copy={props.copies.get(comment.comment) ?? { status: "idle" }} mutation={props.mutations?.get(comment.comment)} onComment={props.onComment} onCopy={props.onCopy} />)}
+          {read.comments.flatMap((comment, index) => [index === lineAt && statusLine, <CommentCard key={comment.comment} comment={comment} frames={props.frames} freshness={props.freshness.get(comment.comment) ?? "unknown"} locationMissing={props.missingLocations?.has(comment.comment) ?? null} disabled={writesDisabled || editor !== null} busy={props.busy} copy={props.copies.get(comment.comment) ?? { status: "idle" }} mutation={props.mutations?.get(comment.comment)} onComment={props.onComment} onCopy={props.onCopy} />])}
+          {read.comments.length > 0 && lineAt === -1 && statusLine}
         </>}
   </section>;
 }
