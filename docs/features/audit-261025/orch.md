@@ -168,3 +168,9 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 | A-L23 | 채택: multiline 연결 import 누락 | E 구현, 통합 검증 대기 |
 | A-L24 | 채택: background와 longhand의 별도 우선순위 | E 구현, 통합 검증 대기 |
 | A-L25 | 채택: apply_patch 삭제 증거 누락 | E 구현 후 미실행 코드 오인 발견, E-fix·재리뷰 대기 |
+
+### UTF-8 보완 인수와 독립 재리뷰
+
+- A1-fix 원본 `7de6eee`, `cef99e8`: service 회귀 5건 red, 관련 328개 테스트·typecheck green, 실제 CLI 바이트 16건 일치 근거를 인수했다. 증거는 `A1-fix-evidence/`로 복사했다. 구현 terminal은 release하고 child는 재리뷰·통합까지 보존한다.
+- IR-A1-fix는 새 독립 Codex gpt-6-astra medium이다. UTF-8 경계·중복 이벤트 판정·불확실 append 증거를 검토한다. 파일 수정·실행 없이 report만 작성한다.
+- H2-fix `ctx_5f6b3fbe1d13`는 `audit-timing-261025`에서 Astra medium effective/turn_start를 확인했다. Settings 실패 스크린샷에서 Connections와 Fix Link 확인창이 유지된 것을 지휘자가 확인했다. 아직 수정 후 통과는 아니다.
