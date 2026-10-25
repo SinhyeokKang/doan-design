@@ -1,4 +1,4 @@
-import { BrowserWindow } from "electron";
+import { BrowserWindow, webFrameMain, type FrameCreatedDetails } from "electron";
 
 // PoC 8 (PRODUCT §6): `show: false` captured every case `offscreen` did, with
 // less memory, so the window is an ordinary hidden one.
@@ -51,8 +51,6 @@ export interface Capturer {
 
 export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
   let window: BrowserWindow | undefined;
-  // Set by a canvas frame that failed to load or answered with an error.
-  let frameFailed = false;
   // For good: quit closes the window before will-quit, and a capture window
   // opened after that keeps the app from quitting.
   let closed = false;
@@ -70,8 +68,6 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
       webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
     });
     created.on("page-title-updated", (event) => event.preventDefault());
-    created.webContents.on("did-fail-load", (_event, _code, _text, _url, isMainFrame) => { if (!isMainFrame) frameFailed = true; });
-    created.webContents.on("did-frame-navigate", (_event, _url, code, _status, isMainFrame) => { if (!isMainFrame && code >= 400) frameFailed = true; });
     window = created;
     return created;
   };
@@ -81,26 +77,53 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
     window = undefined;
   };
 
-  const run = async (url: string, width: number): Promise<Buffer | null> => {
+  const run = async (url: string, width: number, job: { active: boolean; cleanup: () => void }): Promise<Buffer | null> => {
     const target = open();
+    const current = () => job.active && !closed && !target.isDestroyed();
     const height = Math.round((width * 10) / 16);
-    frameFailed = false;
     target.setContentSize(width, height);
     await target.loadURL(hostPage(width, height));
-    const rect: unknown = await target.webContents.executeJavaScript(frameScript(url));
-    if (frameFailed || !isRect(rect)) return null;
-    const image = await target.webContents.capturePage(rect);
-    if (frameFailed || image.isEmpty()) return null;
+    if (!current()) return null;
+    const contents = target.webContents;
+    let outerFrameId: number | undefined;
+    let frameFailed = false;
+    // Bind the new host's direct child, not its URL: nested frames can use
+    // the same URL, and redirects can replace a frame's renderer process.
+    const created = (_event: Electron.Event, { frame }: FrameCreatedDetails) => {
+      if (current() && outerFrameId === undefined && frame?.parent === contents.mainFrame) outerFrameId = frame.frameTreeNodeId;
+    };
+    const failed = (isMainFrame: boolean, processId: number, routingId: number) => {
+      if (!current() || isMainFrame || outerFrameId === undefined) return;
+      const frame = webFrameMain.fromId(processId, routingId);
+      if (frame?.frameTreeNodeId === outerFrameId) frameFailed = true;
+    };
+    const loadFailed = (_event: Electron.Event, _code: number, _text: string, _url: string, main: boolean, process: number, routing: number) => failed(main, process, routing);
+    const navigated = (_event: Electron.Event, _url: string, code: number, _status: string, main: boolean, process: number, routing: number) => {
+      if (code >= 400) failed(main, process, routing);
+    };
+    contents.on("frame-created", created);
+    contents.on("did-fail-load", loadFailed);
+    contents.on("did-frame-navigate", navigated);
+    job.cleanup = () => {
+      contents.off("frame-created", created);
+      contents.off("did-fail-load", loadFailed);
+      contents.off("did-frame-navigate", navigated);
+    };
+    const rect: unknown = await contents.executeJavaScript(frameScript(url));
+    if (!current() || frameFailed || !isRect(rect)) return null;
+    const image = await contents.capturePage(rect);
+    if (!current() || frameFailed || image.isEmpty()) return null;
     return image.resize({ width: THUMBNAIL_WIDTH, quality: "best" }).toPNG();
   };
 
   return {
     async capture(url, width) {
       if (closed) return null;
+      const job = { active: true, cleanup: () => {} };
       let timer: NodeJS.Timeout | undefined;
       const limit = new Promise<"limit">((resolve) => { timer = setTimeout(() => resolve("limit"), jobLimitMs); });
       try {
-        const result = await Promise.race([run(url, width), limit]);
+        const result = await Promise.race([run(url, width, job), limit]);
         if (closed) return null;
         if (result !== "limit") return result;
         // A job past its limit may still hold the page; the next starts clean.
@@ -110,6 +133,8 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
         discard();
         return null;
       } finally {
+        job.active = false;
+        job.cleanup();
         clearTimeout(timer);
       }
     },

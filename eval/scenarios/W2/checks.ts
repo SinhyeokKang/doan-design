@@ -8,7 +8,7 @@ const checks: Checks = ctx => {
   const frames = (canvas?.frames ?? []).map((f: any) => f.id);
   const originalFrames = ["projects-list", "project-details"];
   const addedFrames = frames.filter((id: string) => !originalFrames.includes(id));
-  const parsed = ctx.run("python3.12", ["-c", `
+  const parsed = ctx.run("python3.12", ["-I", "-c", `
 import json, sys
 from html.parser import HTMLParser
 class Elements(HTMLParser):

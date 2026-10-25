@@ -1,24 +1,24 @@
 // Controlled adapter: production controller/script/pins, without App/CRUD wiring.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
-import { arch, cpus, homedir, platform, release } from "node:os";
+import { arch, cpus, platform, release } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Frame } from "playwright";
 import { build } from "vite";
+const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
+const { rememberApp, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const shots = join(root, ".scratch/comments-ui-A");
-const paths = ["folders.json", "runtime.json"].map(n => join(homedir(), "Library/Application Support/doan", n));
-const fingerprint = (p: string) => readFile(p).then(b => createHash("sha256").update(b).digest("hex"), () => "absent");
-const before = await Promise.all(paths.map(fingerprint));
+const before = await realState();
 const work = await realpath(await mkdtemp("/tmp/doan-anchors-"));
 let app: ElectronApplication | undefined;
+const guard = suiteGuard({ name: "anchors", app: () => app, verify: () => assertRealState(before), cleanup: () => rm(work, { recursive: true, force: true }) });
 try {
   const repo = join(work, "repo"), userData = join(work, "userData"), cli = join(work, "doan");
   await mkdir(join(repo, ".doan"), { recursive: true }); await mkdir(join(repo, "design")); await mkdir(userData); await mkdir(shots, { recursive: true });
@@ -43,7 +43,7 @@ body{margin:0;height:1000px} section{position:absolute;left:80px;top:80px;width:
   await writeFile(join(userData, "onboarding.json"), "{}\n");
   app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env: { ...process.env,
     HOME: home, TMPDIR: work, SHELL: fakeShell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"),
-    DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } });
+    DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } }); rememberApp(app);
   const page = await app.firstWindow(); page.setDefaultTimeout(10_000);
   await enterProject(page, repo);
   await canvasRow(page, "anchors.html").click();
@@ -270,11 +270,12 @@ body{margin:0;height:1000px} section{position:absolute;left:80px;top:80px;width:
     }
   }
   await writeFile(join(shots, "performance.json"), JSON.stringify({ machine: { platform: platform(), release: release(), arch: arch(), cpu: cpus()[0]?.model }, electron: await app.evaluate(() => process.versions.electron), fixture: "100/1000 distinct absolutely positioned nodes in one inner scroller; all pins visible", results: performanceResults }, null, 2));
-  console.log("anchors-test: PASS (controlled adapter; App/CRUD integration remains deferred)");
+
 } catch (error) {
   if (app) await (await app.firstWindow()).screenshot({ path: join(shots, "anchors-failure.png") }).catch(() => {});
   throw error;
 } finally {
-  await app?.close(); await rm(work, { recursive: true, force: true });
-  assert.deepEqual(await Promise.all(paths.map(fingerprint)), before, "real app userData unchanged");
+  await guard.finish();
 }
+
+console.log("anchors-test: PASS (controlled adapter; App/CRUD integration remains deferred)");

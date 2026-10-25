@@ -140,3 +140,12 @@ test("many tool searches leave room for invocation output", () => {
   assert.equal(summary.toolSearches.length, 10);
   assert.equal(summary.omittedToolSearches, 90);
 });
+
+test("unresolved patch candidates are labelled and cannot evict invocation summaries", () => {
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls: {
+    commands: ["doan active --json"], mcpTools: ["mcp__doan__active"], patchCandidates: ["x".repeat(30_000)],
+  } });
+  assert.match(prompt, /"mcpTools":\["mcp__doan__active"\]/);
+  assert.match(prompt, /Unresolved patch candidates.*truncated/);
+  assert.ok(prompt.length < 10_000);
+});

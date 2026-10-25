@@ -2,13 +2,30 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const mocks = await vi.hoisted(async () => {
   const { EventEmitter } = await import("node:events");
+  interface Frame { frameTreeNodeId: number; processId: number; routingId: number; parent: Frame | null }
+  const frames = new Map<string, Frame>();
+  let nextId = 1;
+  function frame(parent: Frame | null): Frame {
+    const id = nextId++;
+    const result = { frameTreeNodeId: id, processId: 10, routingId: id, parent };
+    frames.set(`10:${id}`, result);
+    return result;
+  }
+  const webFrameMain = { fromId: (process: number, routing: number) => frames.get(`${process}:${routing}`) };
   class Window extends EventEmitter {
     static instances: Window[] = [];
     // What the next frame script resolves to; a function runs at call time.
     static frame: () => Promise<unknown> = async () => ({ x: 0, y: 0, width: 1280, height: 800 });
     destroyed = false;
+    outer: Frame | undefined;
+    mainFrame = frame(null);
     webContents = Object.assign(new EventEmitter(), {
-      executeJavaScript: vi.fn((_script: string) => Window.frame()),
+      mainFrame: this.mainFrame,
+      executeJavaScript: vi.fn((_script: string) => {
+        this.outer = frame(this.mainFrame);
+        this.webContents.emit("frame-created", {}, { frame: this.outer });
+        return Window.frame();
+      }),
       capturePage: vi.fn(async (_rect: unknown) => ({ isEmpty: () => false, resize: vi.fn((options: { width: number }) => ({ toPNG: () => Buffer.from(`png${options.width}`) })) })),
     });
     loadURL = vi.fn(async (_url: string) => {});
@@ -20,9 +37,9 @@ const mocks = await vi.hoisted(async () => {
       Window.instances.push(this);
     }
   }
-  return { Window };
+  return { Window, frame, frames, webFrameMain };
 });
-vi.mock("electron", () => ({ BrowserWindow: mocks.Window }));
+vi.mock("electron", () => ({ BrowserWindow: mocks.Window, webFrameMain: mocks.webFrameMain }));
 
 const { CAPTURE_WINDOW_TITLE, createWindowCapturer, frameScript, hostPage, LOAD_LIMIT_MS, SETTLE_MS } = await import("./thumbnailWindow");
 const URL_A = "http://127.0.0.1:1/t/tok/k/design/a.html";
@@ -116,8 +133,8 @@ test("the window carries a fixed title from creation, which no page replaces", a
 });
 
 test.each([
-  ["a canvas frame that fails to load", (window: InstanceType<typeof mocks.Window>) => window.webContents.emit("did-fail-load", {}, -105, "ERR", URL_A, false)],
-  ["a canvas frame answered with 404", (window: InstanceType<typeof mocks.Window>) => window.webContents.emit("did-frame-navigate", {}, URL_A, 404, "Not Found", false)],
+  ["a canvas frame that fails to load", (window: InstanceType<typeof mocks.Window>) => window.webContents.emit("did-fail-load", {}, -105, "ERR", URL_A, false, window.outer!.processId, window.outer!.routingId)],
+  ["a canvas frame answered with 404", (window: InstanceType<typeof mocks.Window>) => window.webContents.emit("did-frame-navigate", {}, URL_A, 404, "Not Found", false, window.outer!.processId, window.outer!.routingId)],
 ])("%s is a failure", async (_name, fail) => {
   const capturer = createWindowCapturer();
   mocks.Window.frame = async () => {
@@ -189,4 +206,70 @@ test("a capture running at close fails, and the next opens no window", async () 
   expect(await running).toBeNull();
   expect(await capturer.capture(URL_A, 1280)).toBeNull();
   expect(mocks.Window.instances).toHaveLength(1);
+});
+
+function failFrame(window: InstanceType<typeof mocks.Window>, frame: NonNullable<typeof window.outer>, kind: "http" | "network", url = URL_A) {
+  if (kind === "http") window.webContents.emit("did-frame-navigate", {}, url, 404, "Not Found", false, frame.processId, frame.routingId);
+  else window.webContents.emit("did-fail-load", {}, -102, "ERR_CONNECTION_REFUSED", url, false, frame.processId, frame.routingId);
+}
+
+test.each(["http", "network"] as const)("a nested %s failure sharing the outer URL still captures the outer canvas", async (kind) => {
+  mocks.Window.frame = async () => {
+    const window = only();
+    const nested = mocks.frame(window.outer!);
+    window.webContents.emit("frame-created", {}, { frame: nested });
+    failFrame(window, nested, kind);
+    return { x: 0, y: 0, width: 1280, height: 800 };
+  };
+  expect(await createWindowCapturer().capture(URL_A, 1280)).toEqual(Buffer.from("png480"));
+});
+
+test("redirected outer failure with a new renderer identity is still unavailable", async () => {
+  mocks.Window.frame = async () => {
+    const window = only();
+    const redirected = { ...window.outer!, processId: 20, routingId: 99 };
+    mocks.frames.set("20:99", redirected);
+    failFrame(window, redirected, "http", "http://127.0.0.1:1/redirected");
+    return { x: 0, y: 0, width: 1280, height: 800 };
+  };
+  expect(await createWindowCapturer().capture(URL_A, 1280)).toBeNull();
+});
+
+test("an obsolete outer frame failure cannot poison a later job in the same window", async () => {
+  const capturer = createWindowCapturer();
+  await capturer.capture(URL_A, 1280);
+  const previous = only().outer!;
+  mocks.Window.frame = async () => {
+    failFrame(only(), previous, "http");
+    failFrame(only(), previous, "network");
+    return { x: 0, y: 0, width: 1280, height: 800 };
+  };
+  expect(await capturer.capture(URL_A, 1280)).toEqual(Buffer.from("png480"));
+});
+
+test("a timed-out window's events and late script result cannot affect its replacement", async () => {
+  const capturer = createWindowCapturer(50);
+  let finish: (value: unknown) => void = () => {};
+  mocks.Window.frame = () => new Promise(resolve => { finish = resolve; });
+  expect(await capturer.capture(URL_A, 1280)).toBeNull();
+  const previous = only();
+  mocks.Window.frame = async () => {
+    failFrame(previous, previous.outer!, "network");
+    finish({ x: 0, y: 0, width: 1280, height: 800 });
+    return { x: 0, y: 0, width: 1280, height: 800 };
+  };
+  expect(await capturer.capture(URL_A, 1280)).toEqual(Buffer.from("png480"));
+  expect(previous.webContents.capturePage).not.toHaveBeenCalled();
+});
+
+test("an outer failure during capturePage still rejects the PNG", async () => {
+  mocks.Window.frame = async () => {
+    const window = only();
+    window.webContents.capturePage.mockImplementationOnce(async () => {
+      failFrame(window, window.outer!, "network");
+      return { isEmpty: () => false, resize: vi.fn(() => ({ toPNG: () => Buffer.from("wrong") })) };
+    });
+    return { x: 0, y: 0, width: 1280, height: 800 };
+  };
+  expect(await createWindowCapturer().capture(URL_A, 1280)).toBeNull();
 });

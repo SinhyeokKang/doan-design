@@ -8,10 +8,19 @@ import type { CanvasRow, FolderEntry } from "./view";
 
 // Holds the cache directory's `mkdir` while set, to stop a cache write midway.
 const mkdirGate = vi.hoisted(() => ({ dir: "", held: false, release: () => {} }));
+const writeGate = vi.hoisted(() => ({ dir: "", temp: "", release: () => {} }));
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
   return {
     ...actual,
+    writeFile: async (...args: Parameters<typeof actual.writeFile>) => {
+      await actual.writeFile(...args);
+      const path = String(args[0]);
+      if (writeGate.dir && path.startsWith(writeGate.dir + "/") && path.endsWith(".tmp")) {
+        writeGate.temp = path;
+        await new Promise<void>(resolve => { writeGate.release = resolve; });
+      }
+    },
     mkdir: async (...args: Parameters<typeof actual.mkdir>) => {
       if (mkdirGate.dir !== "" && String(args[0]) === mkdirGate.dir) {
         mkdirGate.held = true;
@@ -33,6 +42,8 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
   mkdirGate.dir = "";
   mkdirGate.release();
+  writeGate.dir = "";
+  writeGate.release();
 });
 function make(deps: ThumbnailDeps): Thumbnails {
   const thumbnails = createThumbnails(deps);
@@ -462,4 +473,26 @@ test("visibility updates demote queued cards without scheduling new captures", a
   f.release();
   await started(f, 2);
   expect(f.captures.at(-1)?.endsWith("c.html")).toBe(true);
+});
+
+test("startup collection leaves an active temporary write intact while removing orphan temps", async () => {
+  const f = fixture(["design/a.html"]);
+  mkdirSync(f.dir);
+  const orphan = join(f.dir, "old.png.abc.tmp");
+  writeFileSync(orphan, "orphan");
+  const thumbnails = make(f.deps);
+  thumbnails.entriesChanged([...f.entries, { path: "/slow", kind: "loading" }]);
+  writeGate.dir = f.dir;
+  await thumbnails.get(f.root, "design/a.html", true);
+  await vi.waitFor(() => expect(writeGate.temp.startsWith(f.dir)).toBe(true));
+  const temp = writeGate.temp;
+  expect(existsSync(temp)).toBe(true);
+  thumbnails.entriesChanged([...f.entries, { path: "/slow", kind: "notFound" }]);
+  await vi.waitFor(() => expect(existsSync(orphan)).toBe(false));
+  writeGate.dir = "";
+  writeGate.release();
+  await vi.waitFor(() => expect(f.changed).toEqual(["design/a.html"]));
+  expect(asBytes(await thumbnails.get(f.root, "design/a.html", true))).toEqual(ready(PNG("a.html")));
+  expect(existsSync(temp)).toBe(false);
+  expect(readdirSync(f.dir).some(name => name.endsWith(".tmp"))).toBe(false);
 });

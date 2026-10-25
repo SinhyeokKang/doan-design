@@ -569,6 +569,9 @@ Results:
 | 2026-10-25 | Use specialist subagents and lead-owned coverage completion in `/audit`, `/ux-audit` and `/doc-check` | User decision after the first audit stopped with major areas unread — adapt malmoi's perspective/document-owner reviews, integrate evidence centrally, and continue partial coverage instead of reporting a full audit complete |
 | 2026-10-25 | Store `/audit` and `/ux-audit` reports in `docs/features/audit-YYMMDD/report.md` and `docs/features/ux-audit-YYMMDD/report.md`, in Korean with the full execution date | User decision — keep dated audit results as repository documents; reviewer notes and raw evidence remain in scratch storage |
 
+| 2026-10-25 | audit: Unknown comment-save status blocks internal draft-leaving transitions with a visible reason, but normal quit offers a dedicated warning and explicit Quit anyway | User decision — avoid permanent quit lock while stating that the memory-only draft is lost; quitting/restarting does not prove save success or directory-child exit, and quarantine/retry authority remains unchanged |
+| 2026-10-25 | audit: A failed nested iframe does not suppress a thumbnail of the outer canvas; failure of the outer canvas itself still returns unavailable | User decision — retain the visible outer preview without treating an embedded resource failure as a failed canvas load |
+
 ## 8. Open questions
 
 Carried over from README draft §15. When closed, they move to the matching section and the §7 decision log. Shared fragments (include vs. whole HTML) were closed as up to the agent (2026-10-21, §4 Unit of review).

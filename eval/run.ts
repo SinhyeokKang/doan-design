@@ -9,7 +9,7 @@ import { isDeepStrictEqual } from "node:util";
 import { assertRealState, realState } from "../app/e2e/real-state.ts";
 import { agentCommand, cliProvenance, killRunning, runProcess, readAgentTranscript } from "./lib/agent.ts";
 import { parseArgs, type Agent, type Options } from "./lib/args.ts";
-import { createContext, sh } from "./lib/context.ts";
+import { createContext, judgeMaterial, sh } from "./lib/context.ts";
 import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand, judgeFor, parseJudgement, type Judgement } from "./lib/judge.ts";
 import { summary, type RoundMeta, type RunRecord } from "./lib/record.ts";
 import { loadScenario, renderPrompt, scenarioIds, selectIds, type LoadedScenario } from "./lib/scenario.ts";
@@ -34,11 +34,6 @@ async function runChecks(scenario: LoadedScenario, ctx: ReturnType<typeof create
   }
 }
 
-function judgeMaterial(ws: Workspace, ctx: ReturnType<typeof createContext>) {
-  // Intent-to-add makes new files show up in the diff; the index is the temp repo's own.
-  sh("git", ["-C", ws.repo, "add", "-A", "-N", "-f"], ws.repo, ws.env);
-  return { changed: ctx.changedFiles(), diff: sh("git", ["-C", ws.repo, "diff", "--no-color", "--no-ext-diff", ws.seedCommit], ws.repo, ws.env).stdout };
-}
 
 async function judge(agent: Agent, prompt: string, dir: string): Promise<{ judgement: Judgement | null; raw: string }> {
   const judgeAgent = judgeFor(agent);

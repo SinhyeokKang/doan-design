@@ -433,3 +433,13 @@ describe("step 3 pick-one list", () => {
     expect(pickView(snapshot([], []), null).title).toBe("Choose a repository");
   });
 });
+
+test("missing wizard project names its available Open Project action and preserves raw errors", () => {
+  const form = { running: false, token: null, error: null, rerooted: null };
+  const missing = projectStepView({ path: "/gone", kind: "notFound" }, form);
+  expect(missing.error).toContain("Open Project…");
+  expect(missing.error).not.toMatch(/Reopen|Close/);
+  expect(missing.open.disabled).toBe(false);
+  expect(projectStepView({ path: "/gone", kind: "error", message: "Config: raw failure" }, form).error).toBe("Config: raw failure");
+  expect(projectStepView({ path: "/gone", kind: "cliError", reason: "CLI: raw failure" }, form).error).toBe("CLI: raw failure");
+});

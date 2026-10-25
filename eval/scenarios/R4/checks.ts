@@ -1,9 +1,13 @@
 import type { Checks } from "../../lib/types.ts";
 
+function styleBlocks(source: string): string {
+  return [...source.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)].map(m => m[1]).join("\n");
+}
+
 function styles(source: string, path: string): string {
   if (/\.css$/i.test(path)) return source.replace(/\/\*[\s\S]*?\*\//g, "");
   const html = source.replace(/<!--[\s\S]*?-->/g, "");
-  return [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)].map(m => m[1]).join("\n") + "\n" +
+  return styleBlocks(html) + "\n" +
     [...html.matchAll(/\bstyle\s*=\s*(["'])([\s\S]*?)\1/gi)].map(m => `{${m[2]}}`).join("\n");
 }
 
@@ -17,7 +21,7 @@ const checks: Checks = ctx => {
   const page = ctx.read(target) ?? "";
   const changed = ctx.changedFiles();
   const protectedChanges = changed.filter(p => p.startsWith("design/") || p.startsWith(".doan/"));
-  const parsed = ctx.run("python3.12", ["-c", `
+  const parsed = ctx.run("python3.12", ["-I", "-c", `
 import json, sys
 from html.parser import HTMLParser
 class Page(HTMLParser):
@@ -50,6 +54,9 @@ p=Page(); p.feed(sys.argv[1]); print(json.dumps({'text':' '.join(' '.join(p.text
   // Follow local stylesheets and CSS imports so shared styles count as token use.
   const seen = new Set<string>();
   const sheets: string[] = [];
+  const imports = (css: string, parent: string) => {
+    for (const match of css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/@import\s+(?:"([^"]+)"|'([^']+)'|url\(\s*(?:"([^"]+)"|'([^']+)'|([^\s;)'"(]+))\s*\))/gi)) visit(match[1] ?? match[2] ?? match[3] ?? match[4] ?? match[5], parent);
+  };
   const visit = (href: string, parent: string) => {
     if (/^(?:[a-z]+:|\/|#)/i.test(href)) return;
     const parts = parent.split("/").slice(0, -1);
@@ -63,9 +70,10 @@ p=Page(); p.feed(sys.argv[1]); print(json.dumps({'text':' '.join(' '.join(p.text
     const css = ctx.read(path);
     if (css === null) return;
     sheets.push(css);
-    for (const match of css.matchAll(/@import\s+(?:url\(\s*)?["']([^"']+)["']/gi)) visit(match[1], path);
+    imports(css, path);
   };
   links.forEach(href => visit(href, target));
+  imports(styleBlocks(page), target);
   const reachable = styles(page, target) + sheets.join("\n");
   const check = ctx.doan(["check"]);
   return [

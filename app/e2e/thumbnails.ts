@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Page } from "playwright";
+const { rememberApp, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { appWindow, appWindowCount }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 type Reply = import("../src/main/thumbnails").ThumbnailReply;
@@ -19,6 +20,7 @@ const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await realpath(await mkdtemp("/tmp/doan-thumbs-"));
 const shots = join(root, ".scratch/runtime-test", `thumbnails-${Date.now()}`);
 let app: ElectronApplication | undefined;
+const guard = suiteGuard({ name: "thumbnails", app: () => app, verify: () => assertRealState(beforeRealState), cleanup: () => rm(work, { recursive: true, force: true }) });
 let hanging: Server | undefined;
 const key = (repo: string, path: string) => createHash("sha256").update(`${repo}\n${path}`).digest("hex");
 const pngSize = (bytes: Uint8Array) => { const view = Buffer.from(bytes); assert.equal(view.subarray(1, 4).toString(), "PNG"); return { width: view.readUInt32BE(16), height: view.readUInt32BE(20) }; };
@@ -41,6 +43,17 @@ try {
   await writeFile(join(repo, "design/a.html"), canvas("Alpha", 800, "<h1>Alpha</h1>"));
   await writeFile(join(repo, "design/nowidth.html"), canvas("Nowidth", null, "<h1>No width</h1>"));
   await writeFile(join(repo, "design/hang.html"), canvas("Hang", 640, `<img src="http://127.0.0.1:${hangPort}/never">`));
+  const refused = createServer();
+  await new Promise<void>((resolve) => refused.listen(0, "127.0.0.1", resolve));
+  const refusedPort = (refused.address() as { port: number }).port;
+  await new Promise<void>((resolve, reject) => refused.close(error => error ? reject(error) : resolve()));
+  for (const [name, body] of [
+    ["nested-http", '<h1>Outer canvas</h1><iframe src="missing.html" width="50" height="50"></iframe>'],
+    ["nested-network", `<h1>Outer canvas</h1><iframe src="http://127.0.0.1:${refusedPort}/unreachable" width="50" height="50"></iframe>`],
+    ["outer-http", "<h1>This response must not be captured</h1>"],
+    ["outer-network", "<h1>This response must not be captured</h1>"],
+    ["healthy-after", "<h1>Healthy after failures</h1>"],
+  ]) await writeFile(join(repo, `design/${name}.html`), canvas(name!, 800, body!));
   // Never asked for until the quit step, so its captures are still queued then.
   const gallery = join(work, "gallery");
   await mkdir(join(gallery, ".doan"), { recursive: true }); await mkdir(join(gallery, "design"));
@@ -53,7 +66,7 @@ try {
   for (const name of [`${orphan}.png`, `${orphan}.json`, `${orphan}.png.abc.tmp`, "notes.txt"]) await writeFile(join(cache, name), "x");
 
   const env = { ...process.env, HOME: home, SHELL: shell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"), DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") };
-  app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env });
+  app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env }); rememberApp(app);
   const page: Page = await app.firstWindow(); page.setDefaultTimeout(10_000);
   page.on("pageerror", error => console.error("thumbnails pageerror", error));
   async function wait(check: () => Promise<boolean>, name: string, ms = 10_000) {
@@ -112,6 +125,63 @@ try {
   assert.equal(capture.length, 1); assert.equal(capture[0]!.visible, false);
   assert.equal(await appWindowCount(app), 1);
   const firstFrame = capture[0]!.frames[0];
+
+  // Observe actual Electron events as a negative control: a ready PNG alone
+  // cannot establish that the embedded request really failed.
+  await app.evaluate(({ BrowserWindow, webFrameMain, session }, port) => {
+    const failures: { kind: string; outer: boolean; url: string; code: number }[] = [];
+    Reflect.set(globalThis, "thumbnailFailures", failures);
+    const contents = BrowserWindow.getAllWindows().find(window => window.webContents.getURL().startsWith("data:"))!.webContents;
+    const record = (kind: string, url: string, code: number, process: number, routing: number) => {
+      const frame = webFrameMain.fromId(process, routing);
+      failures.push({ kind, outer: frame?.parent === contents.mainFrame, url, code });
+    };
+    contents.on("did-frame-navigate", (_event, url, code, _status, main, process, routing) => {
+      if (!main && code >= 400) record("http", url, code, process, routing);
+    });
+    contents.on("did-fail-load", (_event, code, _text, url, main, process, routing) => {
+      if (!main) record("network", url, code, process, routing);
+    });
+    // Keep metadata/listing valid while making the outer HTTP request fail.
+    session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+      if (details.url.endsWith("/design/outer-http.html")) callback({ redirectURL: details.url.replace("outer-http.html", "missing-outer.html") });
+      else if (details.url.endsWith("/design/outer-network.html")) callback({ redirectURL: `http://127.0.0.1:${port}/unreachable-outer` });
+      else callback({});
+    });
+  }, refusedPort);
+  for (const name of ["nested-http", "nested-network"]) {
+    const bytes = await captured(`design/${name}.html`);
+    assert.deepEqual(pngSize(bytes), { width: 480, height: 300 });
+    const pixel = await page.evaluate(async bytes => {
+      const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: "image/png" }));
+      try {
+        const image = new Image(); image.src = url; await image.decode();
+        const canvas = document.createElement("canvas"); canvas.width = 480; canvas.height = 300;
+        const context = canvas.getContext("2d")!; context.drawImage(image, 0, 0);
+        return [...context.getImageData(240, 240, 1, 1).data];
+      } finally { URL.revokeObjectURL(url); }
+    }, [...bytes]);
+    assert.deepEqual(pixel, [32, 80, 160, 255], `${name}: the PNG contains the rendered outer canvas`);
+    await writeFile(join(shots, `${name}.png`), bytes);
+  }
+  for (const name of ["outer-http", "outer-network"]) {
+    const path = `design/${name}.html`;
+    const before = (await changes()).filter(changed => changed === path).length;
+    assert.equal((await get(path)).kind, "pending");
+    await wait(async () => (await changes()).filter(changed => changed === path).length > before, `${name} failure completes`);
+    assert.deepEqual(await get(path), { kind: "unavailable" }, `${name}: a failed outer canvas has no PNG`);
+    await assert.rejects(stat(join(cache, `${key(repo, path)}.png`)), { code: "ENOENT" });
+  }
+  const failures = await app.evaluate(() => Reflect.get(globalThis, "thumbnailFailures")) as { kind: string; outer: boolean; url: string; code: number }[];
+  for (const [suffix, kind, outer, code] of [
+    ["/missing.html", "http", false, 404],
+    ["/unreachable", "network", false, -102],
+    ["/missing-outer.html", "http", true, 404],
+    ["/unreachable-outer", "network", true, -102],
+  ] as const) assert.ok(failures.some(failure => failure.url.endsWith(suffix) && failure.kind === kind && failure.outer === outer && failure.code === code), `observed ${kind} ${code} in ${outer ? "outer" : "nested"} frame: ${JSON.stringify(failures)}`);
+  console.log(`thumbnails frame failure evidence: ${JSON.stringify(failures)}`);
+  assert.deepEqual(pngSize(await captured("design/healthy-after.html")), { width: 480, height: 300 });
+  await app.evaluate(({ session }) => session.defaultSession.webRequest.onBeforeRequest(null));
 
   // A canvas edit makes it stale; the new capture has a new iframe and a new file.
   await staleAfter("design/a.html", () => writeFile(join(repo, "design/a.html"), canvas("Alpha", 800, "<h1>Alpha edited</h1><p>changed body</p>")), "canvas edit marks the thumbnail stale");
@@ -185,21 +255,22 @@ try {
   const announced = (await changes()).filter(changed => changed.startsWith("design/g")).length;
   assert.ok(announced < 24, "captures are still queued at quit");
   const quitStarted = Date.now();
-  const exited = await Promise.race([app.close().then(() => true), new Promise<false>(resolve => setTimeout(() => resolve(false), 3_000))]);
-  if (!exited) app.process().kill("SIGKILL");
+  await closeApp(app, 3_000);
   app = undefined;
-  assert.ok(exited, "quitting during captures exits within 3 s");
   console.log(`thumbnails: quit during captures took ${Date.now() - quitStarted} ms`);
   assert.deepEqual(JSON.parse(await readFile(join(userData, "ui-state.json"), "utf8")), state, "the last save is on disk after quit");
   // At most the job that was saving when quit began adds to what was announced.
   const left = await readdir(cache);
   assert.deepEqual(left.filter(name => name.endsWith(".tmp")), [], "no temp file is left");
   assert.ok(left.filter(name => name.endsWith(".png")).length <= announced + 1, `no capture is saved after quit (${announced} announced, ${left.join()})`);
-  console.log("thumbnails: PASS");
+
 } catch (error) {
   console.error(error);
   if (app) { const page = await app.firstWindow(); await page.screenshot({ path: join(shots, "failure.png") }).catch(console.error); console.error(`thumbnails screenshot: ${join(shots, "failure.png")}`); await app.evaluate(({ app }) => app.exit(0)).catch(() => {}); }
   throw error;
 } finally {
-  try { hanging?.closeAllConnections(); hanging?.close(); await app?.close(); await rm(work, { recursive: true, force: true }); } finally { await assertRealState(beforeRealState); }
+  hanging?.closeAllConnections(); hanging?.close();
+  await guard.finish();
 }
+
+console.log("thumbnails: PASS");

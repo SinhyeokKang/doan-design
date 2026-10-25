@@ -1,8 +1,26 @@
 import type { Checks } from "../../lib/types.ts";
+import { scriptTokens } from "../../lib/transcript.ts";
 
 const copy = ["Ready for dispatch", "Print packing slips", "Three orders are ready for the afternoon pickup.", "Order", "Destination", "Packages", "PK-2048", "North studio", "PK-2051", "Harbor office", "PK-2054", "West workshop", "box", "boxes", "Pickup closes at 16:30."];
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 const colors = (s: string) => [...strip(s).matchAll(/#[\da-f]{3,8}\b|\brgba?\s*\(/gi)].map(m => m[0].toLowerCase());
+
+function imports(source: string, path: string): string[] {
+  if (/\.css$/i.test(path)) return [...strip(source).matchAll(/@import\s+(?:url\(\s*)?["'](\.[^"']+)["']/g)].map(m => m[1]);
+  const tokens = scriptTokens(source), paths: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (!["import", "export"].includes(tokens[i])) continue;
+    let j = i + 1;
+    if (!/^["']/.test(tokens[j] ?? "")) {
+      // Only static binding lists are relevant; stop before executable code.
+      while (j < tokens.length && /^(?:[\w$]+|[{},*])$/.test(tokens[j]) && tokens[j] !== "from") j++;
+      if (tokens[j] !== "from") continue;
+      j++;
+    }
+    if (/^["']\./.test(tokens[j] ?? "")) paths.push(tokens[j].slice(1, -1));
+  }
+  return paths;
+}
 
 const checks: Checks = ctx => {
   const target = "web/src/components/DispatchQueue.tsx";
@@ -17,12 +35,14 @@ const checks: Checks = ctx => {
     if (raw === null) return;
     const text = strip(raw);
     sources.push(text);
-    for (const match of text.matchAll(/(?:\b(?:import|export)\s+(?:[^;\n]*?\s+from\s+)?|@import\s+(?:url\(\s*)?)["'](\.[^"']+)["']/g)) {
+    for (const imported of imports(raw, path)) {
       const parts = path.split("/").slice(0, -1);
-      for (const part of match[1].split("/")) {
-        if (part === "..") parts.pop();
+      let outside = false;
+      for (const part of imported.split("/")) {
+        if (part === "..") { if (!parts.length) { outside = true; break; } parts.pop(); }
         else if (part !== ".") parts.push(part);
       }
+      if (outside) continue;
       const base = parts.join("/");
       const next = [base, `${base}.tsx`, `${base}.ts`, `${base}/index.tsx`, `${base}/index.ts`].find(p => ctx.exists(p));
       if (next) visit(next);

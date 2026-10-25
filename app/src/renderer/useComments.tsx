@@ -2,7 +2,7 @@ import type { FolderEntry } from "../main/view";
 import { commentContext } from "./projectDisplay";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { CommentsSession } from "./CommentsSession";
-import { CommentsPanel, UnsavedCommentDialog, DeleteCommentDialog, type CommentIntent } from "./CommentsPanel";
+import { CommentsPanel, UnsavedCommentDialog, UncertainCommentDialog, DeleteCommentDialog, type CommentIntent } from "./CommentsPanel";
 import type { CanvasController, CanvasState } from "./CanvasController";
 import type { AnchorSnapshot } from "./commentAnchors";
 import { outdated, projectList, type ListFilter } from "../comments/projection";
@@ -17,6 +17,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   const open = state.open;
   const root = open?.folder, path = open?.canvas, canvas = open?.row.id;
   const draft = session.draft.draft;
+  const uncertain = session.uncertainTransition;
   useEffect(() => {
     setAnchors(null); setFilter({ scope: "canvas", status: "open" });
     void session.open(root && path && canvas ? { root, path, canvas } : null);
@@ -26,7 +27,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   useEffect(() => window.doan.onCommentTransition(request => {
     const root = session.draft.draft?.origin.root ?? session.identity?.root;
     const relevant = request.kind === "quit" || request.roots.includes(root ?? "");
-    void Promise.resolve(relevant ? session.guard() : true).then(allow => window.doan.answerCommentTransition({ id: request.id, allow })).catch(console.error);
+    void Promise.resolve(relevant ? session.guard(request.kind === "quit" ? "quit" : "move") : true).then(allow => window.doan.answerCommentTransition({ id: request.id, allow })).catch(console.error);
   }), [session]);
   useEffect(() => {
     controller.current?.setTransitionGuard(() => session.guard());
@@ -57,7 +58,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     previousDocument.current = document;
   }, [state.layout?.document, state.status, state.hasFrame, session]);
   useEffect(() => { if (state.notice && draft?.origin.kind === "create" && (draft.origin.target.frame || draft.origin.target.element)) session.documentLost(); }, [state.notice, draft?.id, session]);
-  useEffect(() => { if (draft && !session.draft.transition) input.current?.focus(); }, [draft?.id, session.saveView.status, session.draft.transition]);
+  useEffect(() => { if (draft && !session.draft.transition && !uncertain) input.current?.focus(); }, [draft?.id, session.saveView.status, session.draft.transition, uncertain]);
   useEffect(() => {
     setFilter(current => state.selection ? { scope: "selection", status: current.status, node: null } : { scope: "canvas", status: current.status });
   }, [state.selection]);
@@ -101,7 +102,10 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       editor={draft ? { mode: draft.origin.kind, target: session.target, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
         onBody: body => session.body(body), onSave: () => { void session.save(); }, onCancel: () => session.answer("discard"), onKeepDraft: focus,
         onCheck: () => { void session.check(); }, onRetryOriginal: () => { void session.retry(); }, onReadLatest: () => { void session.read(true); } } : null} />,
-    dialog: session.deleteConfirmation ? <DeleteCommentDialog comment={session.deleteConfirmation.comment} onCancel={() => { session.cancelDelete(); heading.current?.focus(); }} onConfirm={() => { void session.confirmDelete(); heading.current?.focus(); }} /> : draft && session.draft.transition && <UnsavedCommentDialog target={session.target} context={commentContext(entries, draft.origin.root, session.identity?.path ?? draft.origin.canvas)} canSave={canSave}
+    dialog: draft && uncertain ? <UncertainCommentDialog key={uncertain.id} kind={uncertain.kind}
+      context={commentContext(entries, draft.origin.root, session.identity?.path ?? draft.origin.canvas)}
+      onStay={() => { showWorkspace(); session.answerUncertain(uncertain.id, false); }}
+      onQuit={() => session.answerUncertain(uncertain.id, true)} restoreEditorFocus={focus} /> : session.deleteConfirmation ? <DeleteCommentDialog comment={session.deleteConfirmation.comment} onCancel={() => { session.cancelDelete(); heading.current?.focus(); }} onConfirm={() => { void session.confirmDelete(); heading.current?.focus(); }} /> : draft && session.draft.transition && <UnsavedCommentDialog target={session.target} context={commentContext(entries, draft.origin.root, session.identity?.path ?? draft.origin.canvas)} canSave={canSave}
       busy={session.saveView.status === "saving" || session.saveView.status === "checking"} discardBlocked={session.draft.request !== null}
       {...(editorBlocked ? { reason: editorBlocked } : {})} onContinue={() => { showWorkspace?.(); session.answer("continue"); }} onDiscard={() => session.answer("discard")} onSave={() => { void session.save(); }} restoreEditorFocus={focus} />,
   };

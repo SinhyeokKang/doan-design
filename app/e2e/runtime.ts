@@ -8,7 +8,6 @@
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { rmSync } from "node:fs";
 import { chmod, cp, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { createRequire, stripTypeScriptTypes } from "node:module";
 import { createConnection } from "node:net";
@@ -18,7 +17,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Frame, type Locator, type Page } from "playwright";
 
-const { appWindow, appWindowCount }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
+const { rememberApp, closeApp, suiteGuard, bounded }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
+const { appWindow, appWindowCount, menu: appMenu }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 const { canvasRow, frameRows }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 
@@ -36,7 +36,6 @@ const realFoldersJson = join(homedir(), "Library", "Application Support", "doan"
 const realRuntimeJson = join(homedir(), "Library", "Application Support", "doan", "runtime.json");
 const shotDir = join(repoRoot, ".scratch", "runtime-test", new Date().toISOString().replace(/[:.]/g, "-"));
 const WAIT_MS = 10_000;
-const CLOSE_MS = 5_000;
 // A passing run takes under a minute; this only ends a run that hangs.
 const RUN_MS = 300_000;
 
@@ -68,17 +67,9 @@ let work: string | undefined;
 async function main(): Promise<void> {
   const actualState = await realState();
   try {
-    const watchdog = setTimeout(() => {
-      console.error(`runtime-test: FAIL\nno result after ${RUN_MS / 1000} s`);
-      running?.process().kill("SIGKILL");
-      if (work !== undefined) rmSync(work, { recursive: true, force: true });
-      process.exit(1);
-    }, RUN_MS);
-    try {
-      await runAll();
-    } finally {
-      clearTimeout(watchdog);
-    }
+    const guard = suiteGuard({ name: "runtime-test", app: () => running, timeoutMs: RUN_MS,
+      verify: () => assertRealState(actualState), cleanup: async () => { if (work) await rm(work, { recursive: true, force: true }); } });
+    try { await runAll(); } finally { await guard.finish(); }
     if (productFailures.length > 0) throw new Error(`product failures:\n${productFailures.join("\n")}`);
     // The adapter owns a separate temporary app after the full runtime has closed.
     // Import failure keeps the combined runtime gate red, including cleanup failures.
@@ -90,7 +81,7 @@ async function main(): Promise<void> {
     await import(new URL("./design-nav.ts", import.meta.url).href);
     await import(new URL("./quit-capture.ts", import.meta.url).href);
     await import(new URL("./settings.ts", import.meta.url).href);
-  } finally { await assertRealState(actualState); }
+  } finally { await bounded(assertRealState(actualState), 10_000, "final real-state verification"); }
 }
 
 async function expectProduct(what: string, check: () => Promise<void>): Promise<void> {
@@ -122,7 +113,6 @@ process.exit(result.status ?? 1);
     await chmod(gatedCli, 0o755);
     await run(gatedCli, join(work, "userData"), repos, cli);
   } finally {
-    await rm(work, { recursive: true, force: true });
     const after = await fingerprint(realFoldersJson);
     assert.equal(after, before, `the real ${realFoldersJson} changed`);
     assert.equal(await fingerprint(realRuntimeJson), runtimeBefore, `the real ${realRuntimeJson} changed`);
@@ -436,7 +426,7 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
       child.once("spawn", () => { if (child.pid) resolve(child.pid); else reject(new Error("Missing utility pid")); });
       child.once("exit", () => reject(new Error("Idle utility exited before spawn")));
     }), join(appDir, "out/main/mkdir-child.js"));
-    await app.close();
+    await closeApp(app);
     await waitFor(async () => { try { process.kill(idleChildPid, 0); return false; } catch (error) { return error instanceof Error && "code" in error && error.code === "ESRCH"; } }, "utility child exits with parent");
     ({ app, page } = await launch(cli, userData));
     // A tooltip from another row can remain present across pointer movement.
@@ -482,11 +472,7 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
   }
 }
 
-// close() waits for the process to exit, which a stuck app never does.
-async function close(app: ElectronApplication): Promise<void> {
-  const closed = await Promise.race([app.close().then(() => true, () => true), sleep(CLOSE_MS).then(() => false)]);
-  if (!closed) app.process().kill("SIGKILL");
-}
+const close = closeApp;
 
 interface ViewState {
   x: number;
@@ -1401,7 +1387,7 @@ async function runtimeEnd(app: ElectronApplication, doan: string, userData: stri
   await waitFor(() => mainWindow(app).then(handle => handle.evaluate(window => window.isVisible() === true)), "the second launch shows the first window");
   assert.equal(await readFile(runtimeJson, "utf8"), content, "runtime.json untouched by the second launch");
   assert.equal((await doanActive(doan, runtimeJson, repos.ok)).exit, 0, "the first app still answers");
-  await app.close();
+  await closeApp(app);
   for (const path of [runtimeJson, socket, dirname(socket)]) assert.equal(await fingerprint(path), "absent", `${path} removed on quit`);
   assert.deepEqual(pick(await doanActive(doan, runtimeJson, repos.ok), "exit", "code"), { exit: 3, code: "app_not_running" }, "active after quit");
 }
@@ -1980,18 +1966,7 @@ async function marked(page: Page): Promise<boolean> {
   return (await canvasFrame(page)).evaluate(() => (window as { doanE2e?: boolean }).doanE2e === true);
 }
 
-async function menu(app: ElectronApplication, label: string): Promise<void> {
-  await app.evaluate(({ Menu }, [name, window]) => {
-    const view = Menu.getApplicationMenu()?.items.find((item) => item.label === "View");
-    const item = view?.submenu?.items.find((entry) => entry.label === name || (name === "Enter Full Screen" && entry.role === "togglefullscreen"));
-    if (!item) throw new Error(`no menu item ${name}`);
-    if (name === "Enter Full Screen") {
-      if (item.role !== "togglefullscreen") throw new Error("Missing togglefullscreen menu role");
-      // Shared desktops may keep another app focused; exercise the real transition directly.
-      window.setFullScreen(true);
-    } else item.click(item, window, undefined);
-  }, [label, await mainWindow(app)] as const);
-}
+const menu = (app: ElectronApplication, label: string) => appMenu(app, mainPages.get(app)!, label);
 
 function zoomFactor(app: ElectronApplication): Promise<number> {
   return mainWindow(app).then(handle => handle.evaluate(window => window.webContents.getZoomFactor() ?? 0));
@@ -2074,7 +2049,7 @@ async function launch(cli: string, userData: string): Promise<{ app: ElectronApp
   env.DOAN_CLI = cli;
   // Chromium's --user-data-dir also moves Electron's userData, so folders.json
   // lands in the temp directory and the real one is never read or written.
-  const app = await _electron.launch({ args: [appDir, `--user-data-dir=${userData}`], env });
+  const app = await _electron.launch({ args: [appDir, `--user-data-dir=${userData}`], env }); rememberApp(app);
   running = app;
   const page = await app.firstWindow();
   mainPages.set(app, page);

@@ -1,22 +1,22 @@
 // Actual App interactions, isolated like runtime.ts; no presentation adapter.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication } from "playwright";
+const { installCommentReadProbe }: typeof import("./renderer-probe") = await import(new URL("./renderer-probe.ts", import.meta.url).href);
+const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
+const { rememberApp, closeApp, suiteGuard, bounded }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { canvasRow, frameRows }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
-const { appWindow }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
+const { appWindow, hideMain }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const shots = join(root, ".scratch/U2/runtime");
-const paths = ["folders.json", "runtime.json"].map(n => join(homedir(), "Library/Application Support/doan", n));
-const fingerprint = (p: string) => readFile(p).then(b => createHash("sha256").update(b).digest("hex"), () => "absent");
-const before = await Promise.all(paths.map(fingerprint));
+const before = await realState();
 const work = await realpath(await mkdtemp("/tmp/doan-comments-ui-"));
 const exec = promisify(execFile);
 async function waitGate(check: () => Promise<boolean>) {
@@ -30,6 +30,7 @@ async function waitGate(check: () => Promise<boolean>) {
   }
 }
 let app: ElectronApplication | undefined;
+const guard = suiteGuard({ name: "comments-ui", app: () => app, verify: () => assertRealState(before), cleanup: () => rm(work, { recursive: true, force: true }) });
 let clipboardSaved = false;
 try {
   const repo = join(work, "repo"), userData = join(work, "userData"), cli = join(work, "doan");
@@ -52,9 +53,10 @@ try {
   await mkdir(home);
   await writeFile(fakeShell, '#!/bin/sh\nPATH=/usr/bin:/bin; export PATH\neval "$2"\n', { mode: 0o755 });
   await writeFile(join(userData, "onboarding.json"), "{}\n");
-  app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env: { ...process.env,
+  const launchOptions = { args: [join(root, "app"), `--user-data-dir=${userData}`], env: { ...process.env,
     HOME: home, TMPDIR: work, SHELL: fakeShell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"),
-    DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } });
+    DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } };
+  app = await _electron.launch(launchOptions); rememberApp(app);
   await app.evaluate(async ({ clipboard, ClipboardItem }) => { const items = await clipboard.read(); Reflect.set(globalThis, "savedClipboardU2", await Promise.all(items.map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)]))))))); });
   clipboardSaved = true;
   const page = await app.firstWindow(); page.setDefaultTimeout(10_000);
@@ -323,12 +325,19 @@ try {
   assert.equal(await page.locator("iframe").getAttribute("title"), "design/a.html");
   await removeHomeProject(page, repo); await keep();
   await app.evaluate(({ app }) => app.quit()); await keep();
-  // Close Window hides the existing window without losing the editor.
+  // Native hiding must not conceal the existing ordinary-draft quit guard.
   const appWin = await appWindow(app, page);
-  await appWin.evaluate(window => window.close());
-  assert.equal(await appWin.evaluate(window => window.isVisible()), false);
-  await app.evaluate(({ app }) => app.emit("activate"));
-  assert.equal(await createBody.inputValue(), "All transitions protected");
+  for (const kind of ["close", "hide"] as const) {
+    await hideMain(app, page, kind);
+    await app.evaluate(({ app }) => app.quit());
+    await dialog.waitFor();
+    await waitGate(() => app!.evaluate(({ app }, window) => !app.isHidden() && window.isVisible() && window.isFocused(), appWin));
+    await page.waitForFunction(() => Reflect.get(window, "nativeVisible") === true);
+    await shot(`08-hidden-quit-${kind}`);
+    await keep();
+    assert.equal(await createBody.inputValue(), "All transitions protected");
+    assert.equal(await createBody.evaluate(node => node === document.activeElement), true);
+  }
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
   await shot("08-author-and-transition-guards");
   // Replace only Electron handlers to model transport/service failures; all
@@ -362,6 +371,24 @@ try {
     return { directChild: message.parentElement === panel, leftInset: rect.left - content.left, rightInset: content.right - rect.right };
   }), { directChild: true, leftInset: 0, rightInset: 0 });
   assert.equal(await createBody.getAttribute("readonly"), "");
+  // Controlled uncertainty enters the real App/preload/main transition path.
+  // This response injection does not reproduce a native directory-child hang.
+  await canvasRow(page, "b.html").click();
+  await dialog.getByText("Save status could not be confirmed", { exact: true }).waitFor();
+  assert.equal(await dialog.getByRole("button", { name: "Quit anyway", exact: true }).count(), 0);
+  assert.equal(await page.locator("iframe").getAttribute("title"), "design/a.html");
+  await dialog.getByRole("button", { name: "Keep draft", exact: true }).click();
+  await removeHomeProject(page, repo);
+  await dialog.getByText("Save status could not be confirmed", { exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  assert.equal(await createBody.inputValue(), "Unknown save body");
+  assert.equal(await createBody.evaluate(node => node === document.activeElement), true);
+  await app.evaluate(({ app }) => app.quit()); await dialog.getByRole("button", { name: "Quit anyway", exact: true }).waitFor();
+  await app.evaluate(({ app }) => app.quit());
+  await shot("09-unknown-quit-cancel");
+  await dialog.getByRole("button", { name: "Stay", exact: true }).click();
+  assert.equal(await createBody.inputValue(), "Unknown save body");
+  assert.equal(await createBody.evaluate(node => node === document.activeElement), true);
   await panel.getByRole("button", { name: "Check saved status", exact: true }).click();
   await cards.filter({ hasText: "Unknown save body" }).waitFor();
   assert.equal((await readFile(file, "utf8")).trim().split("\n").length, beforeUnknown + 1, "lost response adds exactly one event");
@@ -458,12 +485,13 @@ try {
   assert.equal(await cards.filter({ hasText: invalidDate.body }).locator("time").textContent(), invalidDate.at);
   await shot("14-calendar-invalid-readable");
   // Hold an actual old-canvas read across real sidebar navigation.
+  await page.evaluate(installCommentReadProbe);
   await app.evaluate(({ ipcMain }) => {
     const original = Reflect.get(ipcMain, "_invokeHandlers").get("comments:list");
-    const gate = { original, held: false, released: false, release: () => {} }; Reflect.set(globalThis, "commentReadGate", gate);
+    const gate = { original, held: false, requestID: "", release: () => {} }; Reflect.set(globalThis, "commentReadGate", gate);
     ipcMain.removeHandler("comments:list"); ipcMain.handle("comments:list", async (...args) => {
       const result = await original(...args);
-      if (args[1].canvas === "a" && !gate.held) { gate.held = true; await new Promise<void>(resolve => { gate.release = resolve; }); gate.released = true; }
+      if (args[1].canvas === "a" && !gate.held) { gate.held = true; gate.requestID = args[1].requestID; await new Promise<void>(resolve => { gate.release = resolve; }); }
       return result;
     });
   });
@@ -471,10 +499,15 @@ try {
   await waitGate(() => app!.evaluate(() => Reflect.get(globalThis, "commentReadGate").held));
   await canvasRow(page, "b.html").click();
   await panel.getByText("No open comments here", { exact: true }).waitFor();
+  const heldRequest = await app.evaluate(() => Reflect.get(globalThis, "commentReadGate").requestID);
+  await page.waitForTimeout(550);
+  assert.equal(await page.evaluate(id => Reflect.get(window, "commentReadProbe").completed.some((call: { requestID: string }) => call.requestID === id), heldRequest), false);
   await app.evaluate(() => Reflect.get(globalThis, "commentReadGate").release());
-  await waitGate(() => app!.evaluate(() => Reflect.get(globalThis, "commentReadGate").released));
+  await page.waitForFunction(id => Reflect.get(window, "commentReadProbe").completed.some((call: { requestID: string }) => call.requestID === id), heldRequest);
+  assert.deepEqual(await page.evaluate(id => Reflect.get(window, "commentReadProbe").completed.find((call: { requestID: string }) => call.requestID === id), heldRequest), { requestID: heldRequest, canvas: "b", count: 0 });
   assert.equal(await cards.count(), 0); assert.equal(await page.locator("iframe").getAttribute("title"), "design/b.html");
   await app.evaluate(({ ipcMain }) => { ipcMain.removeHandler("comments:list"); ipcMain.handle("comments:list", Reflect.get(globalThis, "commentReadGate").original); });
+  await page.evaluate(() => Reflect.get(window, "commentReadProbe").restore());
   await shot("15-stale-panel-reply");
   await app.evaluate(({ ipcMain }) => {
     const original = Reflect.get(ipcMain, "_invokeHandlers").get("comments:list");
@@ -508,17 +541,81 @@ try {
   assert.equal(await panel.getByRole("button", { name: "Check saved status", exact: true }).count(), 0);
   await shot("16-unrecoverable-unknown");
   assert.deepEqual(presentationFailures, [], "Measured comment presentation regressions");
-  console.log("comments-ui-test: PASS (actual App CRUD, draft transitions, clipboard and watcher)");
+  await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "savedClipboardU2")); });
+  clipboardSaved = false;
+  await canvasRow(page, "b.html").click();
+  await dialog.getByText("Save status could not be confirmed", { exact: true }).waitFor();
+  await dialog.getByRole("button", { name: "Keep draft", exact: true }).click();
+  await removeHomeProject(page, repo);
+  await dialog.getByText("Save status could not be confirmed", { exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  assert.equal(await createBody.inputValue(), "Quarantined draft");
+  await app.evaluate(({ app }) => app.quit());
+  await dialog.getByRole("button", { name: "Quit anyway", exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  assert.equal(await createBody.inputValue(), "Quarantined draft");
+  assert.equal(await createBody.evaluate(node => node === document.activeElement), true);
+  await hideMain(app, page, "hide");
+  await app.evaluate(({ app }) => app.quit());
+  await dialog.getByRole("button", { name: "Quit anyway", exact: true }).waitFor();
+  await shot("16-uncertain-quit-approval");
+  const uncertainProcess = app.process();
+  const uncertainExit = new Promise<{ code: number | null; signal: string | null }>(resolve => uncertainProcess.once("exit", (code, signal) => resolve({ code, signal })));
+  await dialog.getByRole("button", { name: "Quit anyway", exact: true }).click();
+  assert.deepEqual(await bounded(uncertainExit, 5000, "uncertain approved quit"), { code: 0, signal: null });
+  await closeApp(app); app = undefined;
+  assert.equal(await readFile(join(userData, "runtime.json")).then(() => true, () => false), false, "uncertain approved quit removes runtime");
+  app = await _electron.launch(launchOptions); rememberApp(app);
+  const approvalPage = await app.firstWindow(); approvalPage.setDefaultTimeout(10_000);
+  await canvasRow(approvalPage, "a.html").click();
+  const approvalPanel = approvalPage.getByRole("region", { name: "Comments", exact: true });
+  await approvalPanel.getByRole("button", { name: "New canvas comment", exact: true }).click();
+  await approvalPanel.getByRole("textbox", { name: "New comment body" }).fill("Ordinary quit approval");
+  await hideMain(app, approvalPage, "hide");
+  await app.evaluate(({ app }) => app.quit());
+  const approvalDialog = approvalPage.getByRole("dialog"); await approvalDialog.waitFor();
+  await approvalPage.screenshot({ path: join(shots, "17-ordinary-quit-approval.png") });
+  const approvedProcess = app.process();
+  const approvedExit = new Promise<{ code: number | null; signal: string | null }>(resolve => approvedProcess.once("exit", (code, signal) => resolve({ code, signal })));
+  await approvalDialog.getByRole("button", { name: "Discard", exact: true }).click();
+  assert.deepEqual(await bounded(approvedExit, 5000, "ordinary approved quit"), { code: 0, signal: null });
+  await closeApp(app); app = undefined;
+  assert.equal(await readFile(join(userData, "runtime.json")).then(() => true, () => false), false, "approved quit removes runtime");
+  // Also approve a plain unknown response through the same native lifecycle.
+  app = await _electron.launch(launchOptions); rememberApp(app);
+  const unknownPage = await app.firstWindow(); unknownPage.setDefaultTimeout(10_000);
+  await canvasRow(unknownPage, "a.html").click();
+  const unknownPanel = unknownPage.getByRole("region", { name: "Comments", exact: true });
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler("comments:mutate");
+    ipcMain.handle("comments:mutate", (_event, request) => ({ ok: true, identity: request, value: { state: "unknown" } }));
+  });
+  await unknownPanel.getByRole("button", { name: "New canvas comment", exact: true }).click();
+  await unknownPanel.getByRole("textbox", { name: "New comment body" }).fill("Unknown quit approval");
+  await unknownPanel.getByRole("button", { name: "Save comment", exact: true }).click();
+  await unknownPanel.getByText("Save status is unknown", { exact: true }).waitFor();
+  await app.evaluate(({ app }) => app.quit());
+  const unknownDialog = unknownPage.getByRole("dialog");
+  await unknownDialog.getByRole("button", { name: "Quit anyway", exact: true }).waitFor();
+  await unknownPage.screenshot({ path: join(shots, "18-unknown-quit-approval.png") });
+  const unknownProcess = app.process();
+  const unknownExit = new Promise<{ code: number | null; signal: string | null }>(resolve => unknownProcess.once("exit", (code, signal) => resolve({ code, signal })));
+  await unknownDialog.getByRole("button", { name: "Quit anyway", exact: true }).click();
+  assert.deepEqual(await bounded(unknownExit, 5000, "unknown approved quit"), { code: 0, signal: null });
+  await closeApp(app); app = undefined;
+  assert.equal(await readFile(join(userData, "runtime.json")).then(() => true, () => false), false, "unknown approved quit removes runtime");
+
+
+
 } catch (error) {
   console.error(error);
   if (app) await (await app.firstWindow()).screenshot({ path: join(shots, "failure.png") }).catch(() => {});
   throw error;
 } finally {
-  if (app) {
+  try { if (app) {
     if (clipboardSaved) await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "savedClipboardU2")); });
     await (await app.firstWindow()).evaluate(() => window.doan.setCommentDraftGuard(false)).catch(() => {});
-    await app.close();
-  }
-  await rm(work, { recursive: true, force: true });
-  assert.deepEqual(await Promise.all(paths.map(fingerprint)), before, "real app userData unchanged");
+  } } finally { await guard.finish(); }
 }
+
+console.log("comments-ui-test: PASS (actual App CRUD, draft transitions, clipboard and watcher)");

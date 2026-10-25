@@ -256,7 +256,9 @@ function readCommentTarget(target: Target): Omit<Selection, "root" | "canvas"> |
     const node = nodes[0];
     if (nodes.length !== 1 || !node || (frame && !frame.contains(node))) return null;
     const html = [...node.outerHTML];
-    result.element = { selector: original.selector, html: html.slice(0, 2000).join(""), text: [...(node.textContent ?? "")].slice(0, 500).join("") };
+    const text = [...(node.textContent ?? "").replace(/\s+/g, " ").trim()].slice(0, 500).join("");
+    result.element = { selector: original.selector, html: html.slice(0, 2000).join("") };
+    if (text) result.element.text = text;
     if (html.length > 2000) result.element.truncated = true;
     if (original.doanId && [...document.querySelectorAll("[data-doan-id]")].filter(candidate => candidate.getAttribute("data-doan-id") === original.doanId).length === 1) result.element.doanId = original.doanId;
   }

@@ -2,6 +2,63 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — An uncertain comment request silently blocked every exit
+
+- **Area**: `CommentsSession.ts`, `useComments.tsx`, `CommentsPanel.tsx`.
+- **Symptom**: a retained uncertain request rejected internal movement without an explanation and could permanently block normal quit.
+- **Root cause**: the same unconditional pending-request rejection served navigation and quit, without a distinct explicit-loss approval. The approved policy now distinguishes those intents while preserving the write evidence.
+- **Net**: session and public-hook regressions cover visible rejection, current-intent approval and immutable requests; removing quit routing makes the hook regression fail. Actual Electron UI approvals verify exit code 0, no signal and runtime-file removal. Controlled IPC uncertainty does not reproduce an actual hung directory child. Self-review also caught an intermediate implementation cancelling an ordinary Save and continue destination on an extra rejected quit; a regression now preserves it.
+- **Prevention**: bind exceptional approval to the current quit intent, invalidate stale answers, preserve ordinary destinations when busy requests are rejected, and never use quit approval to release write quarantine. Search run: `rg -n 'guard|uncertainTransition|answerUncertain|destination' app/src/renderer/CommentsSession.ts app/src/renderer/useComments.tsx` locates both the session and main-to-renderer routing; retain public-hook coverage beside session tests and keep actual UI quit assertions instead of successful-path guard bypasses.
+
+### 2026-10-25 — A failed embedded frame suppressed a healthy outer thumbnail
+
+- **Area**: `app/src/main/thumbnailWindow.ts`.
+- **Symptom**: a healthy outer canvas containing an iframe with HTTP 404 returned Preview unavailable; unit handlers showed the same classification for a refused nested connection.
+- **Root cause**: failure listeners treated every non-main frame as the canvas, conflating the data host's direct child with its descendants and keeping failure state outside the job.
+- **Net**: the native original-source regression failed at nested HTTP 404. Corrected native runs observed nested HTTP/network failures while validating the outer PNG pixels; outer HTTP/network failures remained unavailable. The original native probe did not reproduce prior-job contamination. Synthetic obsolete-frame/window events cover that boundary without claiming a native reproduction.
+- **Prevention**: bind the fresh host's direct child by lifetime-stable frame identity, not URL or a non-main boolean; keep failure state/listeners scoped to one job and recheck validity after asynchronous work. Preserve outer-error negative controls beside nested-error successes. Search run: `rg -n 'did-fail-load|did-frame-navigate|frame-created|frameFailed' app/src/main/thumbnailWindow.ts` confirms listeners are paired with cleanup and both capture checkpoints test the job-local failure flag. Native proof and source/build hashes are retained in the audit T handoff; constructor/load/capture quit integration is a separate gate.
+
+### 2026-10-25 — Native hiding bypassed renderer-only lifetime checks
+
+- **Area**: `Toast.tsx`, `toastState.ts`, main quit guard in `index.ts`.
+- **Symptom**: an Undo opportunity could expire while the native window/app was hidden; an ordinary draft quit guard could appear only in the hidden main window.
+- **Root cause**: document visibility was used as native visibility, and quit guard dispatch assumed the window was already usable.
+- **Net**: audit review found the missing native inputs; focused regressions failed before correction. Actual window-hide and app-hide tests later verified retained Undo and a visible, focused ordinary guard. These tests use enabled menu callbacks/native app actions, not physical key chords; exceptional uncertain-save quit remains undecided.
+- **Prevention**: compose document and native visibility, wait for the initial native state, and reset the elapsed baseline on visibility changes. Reveal main only when actually dispatching a guard, preserving deferred teardown. Search run: `rg -n 'document.hidden|onWindowVisibility|activeTemps|waitFor|suiteGuard|checkedGit|patchCandidates' app/src/renderer/Toast.tsx app/src/main/thumbnails.ts app/e2e/harness.ts eval/lib/context.ts eval/lib/transcript.ts`; Toast is the visibility consumer covered here. Keep expiry deadlines anchored before native show, including expensive screenshot time.
+
+- **Follow-up (2026-10-25, A3b)**: the user subsequently approved a separate uncertain-save quit warning. Its implementation and verification are recorded above; the earlier undecided status is historical.
+
+### 2026-10-25 — Startup cache collection deleted a live thumbnail temporary file
+
+- **Area**: `app/src/main/thumbnails.ts`.
+- **Symptom**: a held real write lost its temporary file to startup collection, so rename failed with ENOENT and that preview attempt became unavailable.
+- **Root cause**: cleanup treated every temporary file as an orphan while capture writes could already be active.
+- **Net**: a real held-write regression reproduced the race; ordinary successful capture tests did not overlap collection with writing.
+- **Prevention**: register temporary-file ownership before the write await and release it only after publication or failed-write cleanup; keep orphan collection and removed-project serialization tests. The search above finds registration, release and collection exclusion in the same service; it is not a global queue barrier.
+
+### 2026-10-25 — Eval inspection executed repository-configured helpers
+
+- **Area**: Python scenario checks and `eval/lib/context.ts` Git reads/judge diff preparation.
+- **Symptom**: a repo-local Python module and configured Git fsmonitor/clean callbacks executed during harness inspection of an agent repository.
+- **Root cause**: ordinary subprocess defaults permit current-directory imports and Git configuration callbacks even for apparently read-only work.
+- **Net**: isolated marker probes reproduced imports and callbacks; ordinary pass/fail scenario fixtures did not contain hostile configuration.
+- **Prevention**: use Python `-I`; disable fsmonitor, hooks, clean/process filters, external diff and textconv for post-agent Git work, and propagate failures. The search above finds both context reads and judge diff preparation using `checkedGit`. These protections do not sandbox arbitrary agent execution.
+
+### 2026-10-25 — Runtime checks could finish before the evidence or cleanup
+
+- **Area**: `app/e2e/harness.ts`, `renderer-probe.ts`, Settings/comments/restore checks and suite exits.
+- **Symptom**: a late renderer transition could arrive after an unchanged-state assertion; timeout or failed close could skip real-state verification; Playwright close alone did not establish a clean native exit.
+- **Root cause**: tests observed main-side dispatch rather than renderer completion, and cleanup shared the same potentially unbounded path as normal execution.
+- **Net**: delayed observer and termination fixtures exposed the gaps. Integration caught a new Settings payload-shape assertion error even though helper tests passed, so the full run remained failed pending correction.
+- **Prevention**: require positive renderer completion before a negative assertion, bounded settlement with retained child-process identity, explicit code/signal checks and real-state verification on failures. The search above identifies `waitFor` and `suiteGuard`; helper Node tests are separate from Vitest and must be included explicitly in integration accounting. A timeout, forced kill or incomplete verification never qualifies as PASS.
+
+### 2026-10-25 — Init published success before merge setup could fail
+
+- **Area**: `cli/internal/cli/init.go`, init audit/publication regression tests, and canonical path resolution.
+- **Symptom**: an attributes-write failure left a valid config behind, so retry returned the existing-config no-op without completing merge setup. APFS canonical-equivalent path spellings also failed resolution, while malformed explicit repository paths could be mislabeled as internal errors.
+- **Prevention**: stage the complete config, finish attributes, then publish with the existing sibling rename contract; test attributes failure and controlled publication failure followed by retry, foreign CRLF bytes, one union line, temporary-file cleanup and truthful `created`. Preserve on-disk spelling using name equivalence plus filesystem identity, and keep unexpected permission/I/O failures distinct from missing paths.
+- **Review correction**: the first ordering fix used `os.Link`, adding an undocumented hard-link-capable filesystem prerequisite. Independent review removed it in favor of rename; neither exclusive publication nor cross-process transactions are promised. The controlled publication test ran red with a behavior-preserving test seam, not on a physical hard-link-incapable mount. CLI package tests and independent re-review passed; combined integration and real-agent checks are recorded separately in the audit plan.
+
 ### 2026-10-25 — A crash during quit teardown lost the debounced ui-state
 - **Symptom**: design-nav e2e intermittently read `ui-state.json` without `root` after entering a project and quitting at once (≈2 in 30 loaded runs, 0 in 8 idle runs).
 - **Root cause**: the newest state was accepted in main but only flushed on `will-quit`. With a thumbnail capture running, the process died with SIGSEGV right after `before-quit` disposed the capture window, so `will-quit` never ran and the 500 ms debounce left the previous value on disk.
@@ -131,6 +188,8 @@
 - **Net**: review counterexamples exposed the defects; representative pass/fail fixtures did not exercise valid alternatives. New probes went red before fixes and now cover added IDs, preserved frame membership, the older hash, semantic markup, data rows, paraphrases and fenced JSON. Automated state checks still reject actual comment resolution. Rubric text and result-composition tests cover the negated-report contract, but no live judge was run; self-tests use a fake judge and cannot establish semantic judgment quality.
 - **Prevention**: retain positive alternatives alongside negative controls, compare original identity membership rather than whole-set equality, validate seed intent through the real CLI, and keep language meaning in the judge rubric with explicit negation counterexamples. Run `rg -n 'normalized.includes|hasAttachedComments|anchors\(doc|const answer|function answer|outdated ===' eval/scenarios --glob '*.ts'`; H2 also reads assistant output and leaves question relevance to its judge, H3 retains bounded static atom checks, and H4 isolates stdout/fenced examples before parsing. Recheck these boundaries when their scenario changes; `--no-judge` cannot validate the H4 acknowledgment requirement or H3 numeric row associations.
 - **Recurrence (2026-10-24, hard loop 2)**: hard1 H3 rejected four of six valid implementations because stripping JSX tags also removed the existing `Notice` component's `message` string prop. The pass fixture used plain text and missed this seeded component path. The checker now also searches string literals in reachable, comment-stripped sources; the new regression accepts `Notice` props and rejects comment-only cutoff text. Both this regression and the R1b known-condition summary regression failed before their fixes. The prevention grep above was rerun: H3 is the only `normalized.includes` match; H2/H4 assistant-output boundaries and H1 stale-state checks remain separate concerns. Source matching still cannot prove that a prop is rendered; the judge retains that responsibility.
+
+- **Recurrence (2026-10-25, audit)**: CLI flag placement/quoting, CSS imports and multiline module imports were rejected, while split background precedence and missing apply_patch deletion evidence could pass incorrect output. Paired syntax cases fixed these boundaries without changing tasks/seeds. Independent review then found false positives from unexecuted code-mode patch literals and bare/style-attribute imports. Direct records or a single literal call are invocation evidence; all other literals remain separate unresolved candidates. The judge receives a separately bounded candidate block, and CSS traversal starts from actual stylesheet sources. Search run: `rg -n 'document.hidden|onWindowVisibility|activeTemps|waitFor|suiteGuard|checkedGit|patchCandidates' app/src/renderer/Toast.tsx app/src/main/thumbnails.ts app/e2e/harness.ts eval/lib/context.ts eval/lib/transcript.ts`; `patchCandidates` remains separate from automatic `patches`. Full integration runner tests (128) and fake self-tests (15 scenarios) passed at `8755c92`; these do not establish improved real-agent outcomes.
 
 ### 2026-10-24 — Agent shells bypassed the evaluation runner's packaged CLI
 
@@ -403,6 +462,7 @@
 - **Net**: Caught by an independent reviewer that fed 42 identical inputs to both implementations and diffed the outputs. Missed by the fixture suite and by both workers' self-reviews, because fixtures only exercised inputs the plan listed.
 - **Prevention**: For any rule implemented in both TS and Go, state the exact character set / numeric range in design and add a fixture at the boundary (BOM, U+0085, NBSP, CR-only, `1e400`, reversed duplicate order). Expose the composed public function (`foldText`) and test that, not a harness-side composition. Grep for language-default trimming in shared-format code: `grep -rnE '\.trim\(\)|TrimSpace|trimStart|trimEnd' app/src cli`.
 - **Recurrence (2026-10-21, cli-core)**: `repo.ParseConfig` checked `v` with `json.Number.Float64()` but passed the original number to the schema, so `{"v":1.0000000000000001}` was `invalid_config` while `parseLines` accepts the same `v` as 1. Caught by the batch A independent review, not by the batch's own fixtures. Fixed by writing the float back before validation, as `fold.go` does.
+- **Recurrence (2026-10-25, audit)**: the comments service bypassed `foldText` and used fatal/BOM-stripping decoding, hiding valid comments or stripping two BOMs. Independent review then found that tolerant TextDecoder combines malformed multibyte prefixes whereas Go replaces each invalid byte. Test actual service ingress against actual CLI bytes, including truncated prefixes, equal-ID collisions and one/two BOMs; retain strict decoding for uncertain new-tail/changed-prefix proof. Compact baseline length/digest/warning evidence preserves immutable retry identity without retaining the whole old file per request. Search run: `rg -n 'unknown_version|quote|normalize|readList|before:' app/src/main/comments/service.ts app/src/main/inspector.ts cli/internal/cli/skill.md`; service list/copy use `readList` and retry evidence is stored at preparation.
 
 ### 2026-10-21 — Filesystem APIs did not match "missing" and "same file" as the product means them
 

@@ -6,6 +6,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
+const { bounded }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const hash = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
 async function tree(path: string): Promise<unknown> {
   try {
@@ -29,10 +30,10 @@ async function key(path: string, toml: boolean): Promise<string> {
   }
   // Parse TOML rather than matching headers: quoted keys and nested tables are valid.
   // Only the selected key's digest leaves the subprocess; no config is logged.
-  const result = await promisify(execFile)("python3.12", ["-c", 'import hashlib,json,sys,tomllib\nwith open(sys.argv[1],"rb") as f: servers=tomllib.load(f).get("mcp_servers",{}); v={"present":"doan" in servers,"value":servers.get("doan")}\nprint(hashlib.sha256(json.dumps(v,sort_keys=True,separators=(",",":")).encode()).hexdigest())', path]);
+  const result = await promisify(execFile)("python3.12", ["-c", 'import hashlib,json,sys,tomllib\nwith open(sys.argv[1],"rb") as f: servers=tomllib.load(f).get("mcp_servers",{}); v={"present":"doan" in servers,"value":servers.get("doan")}\nprint(hashlib.sha256(json.dumps(v,sort_keys=True,separators=(",",":")).encode()).hexdigest())', path], { timeout: 5_000, killSignal: "SIGKILL" });
   return result.stdout.trim();
 }
-export async function realState(): Promise<Record<string, string>> {
+async function snapshot(): Promise<Record<string, string>> {
   const home = homedir();
   const result: Record<string, string> = {};
   for (const path of new Set([join(home, ".local/bin/doan"), join(home, ".agents/skills/doan"), join(home, ".claude/skills/doan"),
@@ -46,4 +47,8 @@ export async function assertRealState(before: Record<string, string>): Promise<v
   const after = await realState();
   assert.deepEqual(after, before, "real onboarding state changed");
   for (const path of Object.keys(before)) console.log(`real-state: unchanged ${path}`);
+}
+
+export function realState(): Promise<Record<string, string>> {
+  return bounded(snapshot(), 10_000, "real-state snapshot");
 }

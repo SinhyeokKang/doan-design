@@ -86,3 +86,24 @@ test("Claude doan tool results use tool_use_id and skip echo and other MCP tools
     { name: "mcp__doan__active", callId: "b", scope: "call", excerpt: "MCP failed" },
   ]);
 });
+
+test("shell words keep quoted flag assignments together", () => {
+  assert.deepEqual(commandWords('doan --repo="/tmp/my repo" active --json'), [["doan", "--repo=/tmp/my repo", "active", "--json"]]);
+  assert.deepEqual(commandWords('doan -repo=\'active\' check'), [["doan", "-repo=active", "check"]]);
+  assert.deepEqual(commandWords('echo "doan active"'), [["echo", "doan active"]]);
+});
+
+test("only a whole standalone literal patch batch qualifies as code-mode invocation evidence", () => {
+  const patch = '*** Begin Patch\n*** Delete File: design/team.html\n*** End Patch';
+  const calls = (input: string) => toolCalls(JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "exec", input } }));
+  for (const source of [
+    `tools.apply_patch(${JSON.stringify(patch)})`, `/* call */ await tools.apply_patch(${JSON.stringify(patch)}); // end`,
+    `await tools.apply_patch('${patch.replaceAll("\n", "\\n")}');`, 'await tools.apply_patch(`' + patch + '`);',
+  ]) {
+    assert.deepEqual(calls(source).patches, [patch], source);
+    assert.equal(calls(source).patchCandidates, undefined);
+  }
+  const invalidString = `await tools.apply_patch('${patch}');`;
+  assert.equal(calls(invalidString).patches, undefined);
+  assert.deepEqual(calls(invalidString).patchCandidates, [patch]);
+});

@@ -85,7 +85,14 @@ let inspector: Inspector | undefined;
 let selection: Selection | null = null;
 const documents = new DocumentBindings();
 const transitionGuard = createTransitionGuard(request => {
-  if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("comments:transition", request);
+  if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
+    if (request.kind === "quit") {
+      if (appHidden) app.show();
+      showWindow(win);
+      win.focus();
+    }
+    win.webContents.send("comments:transition", request);
+  }
 });
 let wizardSession: string | null = null;
 let machine: ReturnType<typeof createMachine> | undefined;

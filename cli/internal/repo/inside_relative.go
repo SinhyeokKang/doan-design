@@ -17,7 +17,7 @@ func InsideRelative(root, abs string) (State, string, error) {
 	for i, p := range paths {
 		resolved, err := filepath.EvalSymlinks(p)
 		if err != nil {
-			if missingPath(err) {
+			if IsMissingPath(err) {
 				return Missing, "", nil
 			}
 			return "", "", err
@@ -26,7 +26,7 @@ func InsideRelative(root, abs string) (State, string, error) {
 		volumeRoot := filepath.VolumeName(resolved) + string(filepath.Separator)
 		rel, err := diskSpelling(volumeRoot, filepath.Clean(strings.TrimPrefix(resolved, volumeRoot)))
 		if err != nil {
-			if missingPath(err) {
+			if IsMissingPath(err) {
 				return Missing, "", nil
 			}
 			return "", "", err

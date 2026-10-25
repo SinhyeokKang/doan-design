@@ -108,7 +108,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
     {read.status === "loading" ? <div className="comments-message" role="status"><b>Loading comments…</b></div>
       : read.status === "failed" ? <div className="comments-message error" role="alert"><b>Couldn’t read comments</b>{read.message}<div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRead}>Retry</button></div></div>
         : <>
-          {read.warnings.length > 0 && <div className="comments-message warning"><b>Some events could not be read</b><ul>{read.warnings.map((warning, i) => <li key={i}>{warning.code} · line {warning.line}</li>)}</ul></div>}
+          {read.warnings.length > 0 && <div className="comments-message warning"><b>Some events could not be read</b><ul>{read.warnings.map((warning, i) => <li key={i}>{warning.code === "unknown_version" && <>This record was written by a newer version of Doan. </>}{warning.code} · line {warning.line}</li>)}</ul></div>}
           {read.comments.length === 0 && <div className="comments-message"><b>{filter.status === "open" ? "No open comments here" : "No resolved comments here"}</b>{filter.scope === "selection" && props.canvasOpenCount > props.counts.open ? `There are ${props.canvasOpenCount - props.counts.open} open comments elsewhere on this canvas; Copy all open includes them.` : "Leave a note on this target."}</div>}
           {read.comments.map(comment => <CommentCard key={comment.comment} comment={comment} freshness={props.freshness.get(comment.comment) ?? "unknown"} locationMissing={props.missingLocations.has(comment.comment)} disabled={writesDisabled || editor !== null} busy={props.busy} copy={props.copies.get(comment.comment) ?? { status: "idle" }} mutation={props.mutations?.get(comment.comment)} onComment={props.onComment} onCopy={props.onCopy} />)}
         </>}
@@ -248,5 +248,35 @@ export function DeleteCommentDialog({ comment, onCancel, onConfirm }: { comment:
     <p>This comment will be removed and cannot be restored.</p>
     <div className="comments-tools"><button type="button" className="comments-btn" autoFocus onClick={cancel}>Cancel</button>
       <button type="button" className="comments-btn" onClick={() => { dialog?.close(); onConfirm(); }}>Delete comment</button></div>
+  </dialog>;
+}
+
+
+export function UncertainCommentDialog(props: {
+  kind: "quit" | "blocked";
+  context: string;
+  onStay: () => void;
+  onQuit: () => void;
+  restoreEditorFocus: () => void;
+}) {
+  let dialog: HTMLDialogElement | null = null;
+  const stay = () => { dialog?.close(); props.onStay(); props.restoreEditorFocus(); };
+  return <dialog className="comments-dialog" aria-label="Save status could not be confirmed"
+    ref={node => { dialog = node; if (node && !node.open) node.showModal(); }}
+    onCancel={event => { event.preventDefault(); stay(); }}
+    onKeyDown={event => {
+      if (event.key !== "Escape") return;
+      event.preventDefault(); event.stopPropagation();
+      if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) stay();
+    }}>
+    <h3>Save status could not be confirmed</h3>
+    {props.kind === "quit" ? <>
+      <p>If you quit, the memory-only draft will be lost. This draft belongs to {props.context}.</p>
+      <p>Quitting or restarting does not confirm that the comment was saved or that a directory child exited.</p>
+    </> : <p>You cannot leave this draft in {props.context} because its save status could not be confirmed. Your original input is kept.</p>}
+    <div className="comments-tools">
+      <button type="button" className="comments-btn" autoFocus onClick={stay}>{props.kind === "quit" ? "Stay" : "Keep draft"}</button>
+      {props.kind === "quit" && <button type="button" className="comments-btn" onClick={props.onQuit}>Quit anyway</button>}
+    </div>
   </dialog>;
 }

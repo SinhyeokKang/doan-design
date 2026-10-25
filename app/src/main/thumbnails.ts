@@ -83,17 +83,6 @@ async function servedFiles(root: string, scope: readonly string[]): Promise<Toke
   return [...files.values()];
 }
 
-async function writeAtomic(path: string, bytes: Uint8Array | string): Promise<void> {
-  const temp = `${path}.${randomBytes(6).toString("hex")}.tmp`;
-  try {
-    await writeFile(temp, bytes, { flag: "wx" });
-    await rename(temp, path);
-  } catch (error) {
-    await unlink(temp).catch(() => {});
-    throw error;
-  }
-}
-
 function parseMeta(text: string): ThumbnailMeta | null {
   let value: unknown;
   try {
@@ -132,6 +121,22 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
   let running = false;
   let cleaned = false;
   let disposed = false;
+  // Startup collection may overlap a cache write from an already-loaded root.
+  const activeTemps = new Set<string>();
+
+  const writeAtomic = async (path: string, bytes: Uint8Array | string): Promise<void> => {
+    const temp = `${path}.${randomBytes(6).toString("hex")}.tmp`;
+    activeTemps.add(temp);
+    try {
+      await writeFile(temp, bytes, { flag: "wx" });
+      await rename(temp, path);
+    } catch (error) {
+      await unlink(temp).catch(() => {});
+      throw error;
+    } finally {
+      activeTemps.delete(temp);
+    }
+  };
 
   const serial = (key: string, task: () => Promise<void>): Promise<void> => {
     const next = (locks.get(key) ?? Promise.resolve()).then(task);
@@ -244,7 +249,7 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
       return;
     }
     const live = entries.flatMap((entry) => (entry.kind === "list" ? entry.canvases.map((row) => thumbnailKey(entry.path, row.path)) : []));
-    const garbage = [...thumbnailGarbage(names, live), ...names.filter(isTemp)];
+    const garbage = [...thumbnailGarbage(names, live), ...names.filter(name => isTemp(name) && !activeTemps.has(join(deps.dir, name)))];
     await Promise.all(garbage.map((name) => unlink(join(deps.dir, name)).catch(() => {})));
   };
 

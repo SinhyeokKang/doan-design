@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication } from "playwright";
+const { rememberApp, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { requestProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 
@@ -14,7 +15,7 @@ const before = await realState();
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await realpath(await mkdtemp("/tmp/doan-quit-capture-"));
 let running: ElectronApplication | undefined;
-const watchdog = setTimeout(() => { running?.process().kill("SIGKILL"); console.error("quit-capture: timed out"); process.exit(1); }, 60_000);
+const guard = suiteGuard({ name: "quit-capture", app: () => running, verify: () => assertRealState(before), cleanup: () => rm(work, { recursive: true, force: true }), timeoutMs: 60_000 });
 try {
   const home = join(work, "home"), shell = join(work, "shell"), cli = join(work, "doan"), repo = join(work, "repo");
   await mkdir(home);
@@ -30,7 +31,7 @@ try {
     const env = { ...process.env, HOME: home, SHELL: shell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"), DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") };
     // macOS otherwise prompts to restore windows after the intentionally
     // crashing pre-fix run, before Electron's ready event. Process-local only.
-    const app = running = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`, "-ApplePersistenceIgnoreState", "YES"], env });
+    const app = running = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`, "-ApplePersistenceIgnoreState", "YES"], env }); rememberApp(app);
     const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => app.process().once("exit", (code, signal) => resolve({ code, signal })));
     let trace = "";
     app.process().stderr?.on("data", bytes => { trace += String(bytes); });
@@ -71,10 +72,9 @@ try {
     assert.ok(trace.includes("quit-capture: will-quit"), `${phase}: reached will-quit`);
     console.log(`quit-capture: ${phase} PASS`);
   }
-  console.log("quit-capture: PASS");
+
 } finally {
-  clearTimeout(watchdog);
-  if (running) { const child = running.process(); const exited = new Promise<void>(resolve => child.once("exit", () => resolve())); child.kill("SIGKILL"); if (child.exitCode === null && child.signalCode === null) await exited; }
-  await assertRealState(before);
-  await rm(work, { recursive: true, force: true });
+  await guard.finish();
 }
+
+console.log("quit-capture: PASS");
