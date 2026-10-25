@@ -4,6 +4,7 @@ import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createContext } from "../../lib/context.ts";
 import checks from "./checks.ts";
 
@@ -27,7 +28,7 @@ test("R6 seed exposes an open human-reopened comment with its previous agent res
   assert.equal(result.json.result.comments.length, 1);
   const comment = result.json.result.comments[0];
   assert.equal(comment.status, "open");
-  assert.equal(comment.outdated, false);
+  assert.equal(comment.outdated, true);
   assert.deepEqual(comment.lastResolution, {
     at: "2026-10-24T09:00:02.000Z", by: { kind: "agent", name: "codex" },
     reopenedAt: "2026-10-24T09:00:03.000Z",
@@ -35,6 +36,9 @@ test("R6 seed exposes an open human-reopened comment with its previous agent res
   });
   const events = ctx.read(".doan/comments/profile.jsonl")!.trim().split("\n").map(line => JSON.parse(line));
   assert.deepEqual(events.map(e => [e.type, e.by.kind]), [["create", "human"], ["resolve", "agent"], ["reopen", "human"]]);
+  const original = ctx.read("design/profile.html")!.replace(">Save changes</button>", ">Save</button>");
+  assert.equal(events[0].canvasHash, `sha256:${createHash("sha256").update(original).digest("hex")}`);
+  assert.equal(events[0].body, 'Change the Save button label to exactly "Save profile".');
 });
 
 test("R6 pass accepts another agent name and nested button markup", () => {
