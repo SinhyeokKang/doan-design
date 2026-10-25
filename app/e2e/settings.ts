@@ -170,11 +170,13 @@ try {
   check(await retry.count() === 1, "failed config read offers Retry in Settings");
   if (await retry.count()) {
     await app.evaluate(() => { Reflect.get(globalThis, "configReadProbe").fail = false; });
-    await retry.click();
+    await retry.focus(); await settings.keyboard.press("Enter");
     await wait(() => app!.evaluate(() => Reflect.get(globalThis, "configReadProbe").release !== null), "retry read held");
     check(await retry.isDisabled(), "retry cannot launch redundant reads");
     await app.evaluate(() => Reflect.get(globalThis, "configReadProbe").release());
     await settings.getByRole("region", { name: "brand settings" }).getByRole("button", { name: "Change…" }).waitFor();
+    await settings.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    check(await settings.getByRole("region", { name: "brand settings" }).getByRole("button", { name: "Change…" }).evaluate(node => node === document.activeElement), "successful config Retry restores lost focus to Change");
     check(await settings.getByText("Injected config read failure").count() === 0, "successful retry clears its old read error");
     check(await app.evaluate(() => Reflect.get(globalThis, "configReadProbe").calls) === 2, "retry performs exactly one additional read");
   }
@@ -232,7 +234,7 @@ try {
     ipcMain.removeHandler("config:read"); ipcMain.handle("config:read", () => ({ kind: "error", message: "Injected follow-up read failure" }));
     Reflect.set(globalThis, "restoreFollowupRead", () => { ipcMain.removeHandler("config:read"); ipcMain.handle("config:read", original); });
   });
-  await detail.getByRole("button", { name: "Clear", exact: true }).click(); await detail.getByText("None", { exact: true }).waitFor();
+  await detail.getByRole("button", { name: "Clear", exact: true }).focus(); await settings.keyboard.press("Enter"); await detail.getByText("None", { exact: true }).waitFor();
   await detail.getByRole("alert").filter({ hasText: "Injected follow-up read failure" }).waitFor();
   assert.equal(await detail.getByText("assets", { exact: true }).isVisible(), true, "failed follow-up read keeps last config");
   await wait(async () => await detail.getByRole("button", { name: "Change…" }).isEnabled(), "clear settled");
@@ -241,7 +243,7 @@ try {
   await app.evaluate(() => Reflect.get(globalThis, "restoreFollowupRead")());
   if (await retry.count()) { await retry.click(); await settings.getByText("Injected follow-up read failure").waitFor({ state: "hidden" }); }
 
-  await detail.getByRole("button", { name: "Remove", exact: true }).click(); await detail.getByText("Nothing else is served.", { exact: true }).waitFor();
+  await detail.getByRole("button", { name: "Remove", exact: true }).focus(); await settings.keyboard.press("Enter"); await detail.getByText("Nothing else is served.", { exact: true }).waitFor();
   await wait(async () => await detail.getByRole("button", { name: "Add…", exact: true }).isEnabled(), "config controls released");
   await settings.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   check(await detail.getByRole("button", { name: "Add…", exact: true }).evaluate(node => node === document.activeElement), "removing the last Serve row returns focus to Add");
