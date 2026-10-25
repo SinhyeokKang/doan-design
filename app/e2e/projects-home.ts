@@ -173,18 +173,25 @@ process.exit(result.status ?? 1);
         await page.waitForTimeout(2200);
         await hideMain(app, page, kind);
         await page.waitForTimeout(8300);
+        const beforeExpiry = await app.evaluate(() => Reflect.get(globalThis, "removalExpiryProbe").completed.length);
+        const resumed = performance.now();
+        const expiryDeadline = resumed + 7000;
         await showMain(app, page);
         assert.equal(await toast.isVisible(), true, `${kind} preserves Undo beyond eight hidden seconds`);
+        // Delay observation deliberately: screenshot/IPC latency must not extend the expiry budget.
+        if (action === "expire") await page.waitForTimeout(2200);
+        assert.equal(await toast.isVisible(), true, `${kind} retains usable time after return`);
         await shot(`04-native-${kind}-${action}`);
         if (action === "undo") {
           await toast.getByRole("button", { name: "Undo", exact: true }).click();
           await homeRow(page, plain).waitFor();
           assert.deepEqual(JSON.parse(await readFile(join(userData, "folders.json"), "utf8")), beforeRemoval);
         } else {
-          const beforeExpiry = await app.evaluate(() => Reflect.get(globalThis, "removalExpiryProbe").completed.length);
-          const resumed = Date.now();
-          await toast.waitFor({ state: "hidden", timeout: 7000 });
-          assert.ok(Date.now() - resumed > 2000, "resuming retains a usable remaining lifetime");
+          const remaining = expiryDeadline - performance.now();
+          assert.ok(remaining > 0, `${kind} observation exceeded the absolute expiry deadline`);
+          await toast.waitFor({ state: "hidden", timeout: remaining });
+          assert.ok(performance.now() <= expiryDeadline, `${kind} expires within seven seconds of native return`);
+          console.log(`projects-home ${kind} expiry observed ${Math.round(performance.now() - resumed)}ms after native return`);
           await wait(() => app!.evaluate((_electron, count) => Reflect.get(globalThis, "removalExpiryProbe").completed.length === count + 1, beforeExpiry), "expiry invalidation completed");
           const id: string = await app.evaluate(() => Reflect.get(globalThis, "removalExpiryProbe").completed.at(-1));
           assert.deepEqual(await page.evaluate(id => window.doan.restoreProjects(id), id), { kind: "unavailable" });

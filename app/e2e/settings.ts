@@ -96,7 +96,7 @@ try {
   assert.equal(await app.evaluate(() => Reflect.get(globalThis, "forwardedTargetProbe").tab), null);
   await app.evaluate(() => Reflect.get(globalThis, "forwardedTargetProbe").release());
   await wait(() => app!.evaluate(() => Reflect.get(globalThis, "forwardedTargetProbe").tab !== null), "renderer processed forwarded target");
-  assert.equal(await app.evaluate(() => Reflect.get(globalThis, "forwardedTargetProbe").tab), "connections");
+  assert.deepEqual(await app.evaluate(() => Reflect.get(globalThis, "forwardedTargetProbe").tab), { tab: "connections" });
   await app.evaluate(() => Reflect.get(globalThis, "forwardedTargetProbe").restore());
   assert.equal(await confirm.isVisible(), true, "a forwarded target cannot discard a pending setup confirmation");
   assert.equal(await settings.getByRole("tab", { name: "Connections", selected: true }).count(), 1);
