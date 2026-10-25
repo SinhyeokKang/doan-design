@@ -38,3 +38,20 @@ R-contract와 R-harness는 같은 checkout에서 소스를 읽고 서로 다른 
 
 - 두 최종 보고서를 인수했고 보고서별 커밋 `024b229`, `eb33f92`를 main에 push했다.
 - 코드 수정과 실행 검증은 아직 시작하지 않았다.
+
+### 1차 지휘자 판정 및 C 배치 확정
+
+- R-contract 완료: `ctx_1042149a3a7d`, 독립 리뷰 근거 `.scratch/audit-integration-261025/review-contracts.md`. 보고서를 읽고 지정 14개 ID가 모두 다뤄졌음을 확인했다. 워커는 release했고 새 worktree는 만들지 않았다.
+- 채택: A-M2·M3·M4·M5, A-L2·L3·L6·L9·L10·L15. M2·M5는 소스 결함이며 네이티브 런타임 검증은 아직 남았다.
+- A-M4: 지휘자가 임시 APFS 디렉터리에서 NFD 파일을 NFC로 지정한 `init --token-css` 실패(exit 2)를 재현했다. NFD 지정은 성공(exit 0). 근거 `cli-normalization-repro.json`.
+- A-M6: 지휘자가 임시 저장소에서 Python cwd import 및 Git fsmonitor 실행을 재현했다. `-I`, `core.fsmonitor=false`로 각각 차단됨을 확인했다. 근거 `probes.json`, `git-fsmonitor-repro.json`.
+- 기각: A-L16은 PRODUCT의 기존 ‘설정 쓰기 중에도 일반 Cmd+Q 유지’ 결정이다. 종료 대기를 임의로 추가하지 않는다.
+- 재현 후 판정: A-L1·L14. A-M1은 사용자 결정 대기.
+- A-L9는 ID 누락과 파싱 실패를 동일시한 오류다. 유효한 width가 있으면 캡처를 허용하고, 알 수 없는 원인을 단정하지 않는 안내를 사용한다. 댓글 쓰기 제한은 기존 계약을 따른다. CLI 응답 형식을 늘리지 않는다.
+- A-L15는 요청 기록을 지우거나 상한으로 퇴거하지 않는다. 원래 payload/event 및 경고·prefix 판정을 보존하며 파일 전체 baseline만 digest/길이/경고 수로 축약한다. 전체 요청 수의 상한을 보장한다고 보고하지 않는다.
+
+| 확정 구현 배치 | 항목 | 파일 소유권 | 모델·effort | 게이트·상태 |
+|---|---|---|---|---|
+| C | A-M4, A-L2, A-L3, A-L6의 CLI 설명 | `cli/`만. A-L6은 `cli/internal/cli/skill.md` 설명에 한정하고 JSON schema는 보존 | Codex gpt-6-astra medium. 파일 정체성과 실패 분류·부분 초기화 계약을 함께 보존해야 함 | 재현 회귀 red→green, Go test/vet. 문서의 기존 no-op·경로 격리·오류 규칙 유지. 통합 시 관련 agent-eval. 준비 |
+
+C는 통합 브랜치 커밋에서 새 자식 worktree로 시작한다. 보고서 원문, PRODUCT/ARCHITECTURE/POSTMORTEM 및 orch는 수정하지 않고 문서 후보를 handoff에 적는다. 전체 runtime/verify/실제 agent-eval은 지휘자 예약으로 실행한다.
