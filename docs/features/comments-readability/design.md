@@ -93,7 +93,7 @@
 - PRODUCT §5 항목 5의 "Location unavailable" 정의를 유지한다(판정 조건은 `revision-continuity`가 맡는다).
 - PRODUCT §7 2026-10-25 저장 불확실 종료 경고: 의미는 유지하고 문구만 바꾼다.
 - PRODUCT §7 2026-10-22 app-ui 행("Path, ID, Width, Frames, Comments (Open, Resolved) and Activity"): Comments 수를 뺀다. 새 결정 행으로 대체한다.
-- U-50(`docs/features/ux-audit-261025/orch.md:74`, PRODUCT에는 없음): 댓글 대상의 프레임 이름은 title을 먼저 쓴다. Inspector는 id를 유지한다. 새 결정 행으로 기록한다.
+- U-50(ux-audit-261025 orch.md:74, PR #20으로 병합된 뒤 디렉터리는 정리됨, PRODUCT에는 없음): 댓글 대상의 프레임 이름은 title을 먼저 쓴다. Inspector는 id를 유지한다. 새 결정 행으로 기록한다.
 - DESIGN.md comments-ui 측정값(작성기 위치, 대상 줄 스타일, 핀 aria, 패널 구성)이 바뀐다. 새로 측정한 값을 기록한다.
 
 ## POSTMORTEM에서 가져온 함정

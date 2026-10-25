@@ -50,11 +50,10 @@
 7. **skill과 eval**: skill의 `ls` 설명과 고아 안내를 고친다. 새 시나리오 `H8`을 만든다.
    - `H8`: 고아 파일을 seed한다. 에이전트가 `ls`를 읽고 고아 파일을 지우거나 고치지 않고 사용자에게 알리는지 본다. pass·fail fixture를 둔다.
    - 검증: `go test ./...`(skill), `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` PASS. `[커밋]`
-8. **실제 agent-eval**: `npm --prefix app run package` 뒤 `node eval/run.ts --scenarios H8,R1,R1b,R2,W1 --agents claude,codex --repeat 3 --round <name>`을 실행한다(`--no-judge` 없이, `python3.12` 필요).
-   - 기준: H8은 두 에이전트 모두 3/3 pass. 기존 시나리오는 회귀가 없어야 한다.
-   - 미달이면 사용자 결정 지점에서 멈춘다.
-   - 다른 두 기능과 함께 통합하면 한 라운드로 돌린다.
-   - 검증: 결과를 `docs/USABILITY-EVAL.md`에 기록한다. `[커밋]`
+8. **실제 agent-eval(세 기능을 묶은 한 라운드)**: 2026-10-25 사용자 결정(실행 횟수 축소). `npm --prefix app run package` 뒤 `node eval/run.ts --scenarios R6,R7,H6,H7,H8,R1,R2b --agents claude,codex --repeat 2 --round <name>`을 실행한다(`--no-judge` 없이, `python3.12` 필요). 새 시나리오는 `revision-recheck`의 R6, `agent-handoff`의 R7·H6·H7, 이 기능의 H8이다.
+   - 기준: 새 시나리오는 두 에이전트 모두 2/2 pass다. R1·R2b는 이전 라운드보다 나빠지지 않아야 한다.
+   - 미달이면 사용자 결정 지점에서 멈춘다. 원인이 앞선 기능이면 고치는 작업은 그 기능의 후속 `/ship`으로 보낸다.
+   - 검증: 결과와 사용성 문제를 `docs/USABILITY-EVAL.md`에 기록한다. `[커밋]`
 9. **런타임 회귀**: 새 모듈 `app/e2e/project-feedback.ts`를 만들고 `app/e2e/runtime.ts`의 import 목록에 등록한다. 폴링은 iframe 교체를 재시도한다.
    - 댓글 파일 읽기 불가 시 트리가 유지되고 그 캔버스만 오류
    - 캔버스 파일 읽기 불가 행과 갈 곳 잃은 묶음 읽기 전용

@@ -42,11 +42,7 @@
      - `H7`: worktree 불일치.
      - 시나리오마다 pass·fail fixture를 둔다. fail fixture: 적용하지 않은 댓글 해결, 목록 밖 해결, 마지막 답에 보고 없음(H4의 `answer.ts` 재사용), 다른 worktree 수정.
    - 검증: `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` PASS. `[커밋]`
-8. **실제 agent-eval**: `npm --prefix app run package` 뒤 `node eval/run.ts --scenarios H6,R7,H7,R1,R2,R2b,R3 --agents claude,codex --repeat 3 --round <name>`(`--no-judge` 없이, `python3.12` 필요).
-   - 기준: 새 시나리오에서 두 에이전트 모두 3/3 pass. 기존 시나리오는 이전 라운드보다 나빠지지 않는다.
-   - 미달이면 사용자 결정 지점에서 멈춘다. 프롬프트를 바꾸면 새 시나리오 id를 쓴다(ARCH §14).
-   - 같은 브랜치에서 `revision-recheck`·`project-feedback`과 함께 통합하면 한 라운드로 잰다.
-   - 검증: 결과와 사용성 문제를 `docs/USABILITY-EVAL.md`에 기록한다. `[커밋]`
+8. **실제 agent-eval: 이 링크에서는 실행하지 않는다** (2026-10-25 사용자 결정(실행 횟수 축소)). 실제 라운드는 `project-feedback` task 8에서 세 기능을 묶어 한 번에 돈다. 이 링크는 7의 self-test까지만 한다. 그 라운드 전에 skill·CLI 변경이 main에 들어가는 위험은 받아들인다.
 9. **런타임 회귀**: `app/e2e/comments-ui.ts`에 추가하고 `app/e2e/projects-home.ts`의 `/^Selected:/` 단언을 갱신한다. 클립보드는 기존 장치로 저장·복원한다.
    - 대화상자 미리보기, 체크 해제 뒤 Copy N 개수, Selection 빠른 선택
    - 키보드만으로 하는 흐름(Return 복사, Escape 닫기와 포커스 복원)

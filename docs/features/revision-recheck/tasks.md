@@ -45,11 +45,7 @@
 10. **skill 한 줄과 eval 시나리오**: `cli/internal/cli/skill.md`를 고치고, 새 시나리오 `R6`(다시 열린 댓글)를 만든다.
     - R6 구성: seed는 resolve→reopen 이벤트가 든 `.doan/comments/*.jsonl`이다. `prompt.md`, `rubric.md`, `checks.ts`, `fixtures/{pass,fail}`를 둔다.
     - 검증: `go test ./...`(skill 테스트), `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` PASS. `[커밋]`
-11. **실제 agent-eval**: `npm --prefix app run package` 뒤에 실행한다.
-    - 실행: `node eval/run.ts --scenarios R6,R1,R1b,R3,H1,H4 --agents claude,codex --repeat 3 --round <name>`. `--no-judge`는 쓰지 않는다. CLI·MCP 출력이 바뀌므로 기존 댓글 시나리오도 다시 잰다.
-    - 기준: 두 에이전트 모두 R6 3/3 pass, 기존 시나리오는 이전 라운드 대비 회귀 없음. 미달이면 사용자 결정 지점에서 멈춘다. 프롬프트를 바꾸면 새 시나리오 id를 쓴다.
-    - 같은 브랜치에서 `agent-handoff`·`project-feedback`과 함께 통합하면 세 기능의 시나리오를 한 라운드로 잰다.
-    - 검증: 결과를 `docs/USABILITY-EVAL.md`에 기록한다. `[커밋]`
+11. **실제 agent-eval: 이 링크에서는 실행하지 않는다** (2026-10-25 사용자 결정(실행 횟수 축소)). 세 기능(`revision-recheck`, `agent-handoff`, `project-feedback`)의 실제 라운드는 `project-feedback` task 8에서 한 번에 돈다. 이 링크는 10의 self-test까지만 한다. 그 라운드 전에 skill·CLI 변경이 main에 들어가는 위험은 받아들인다.
 12. **런타임 회귀**: 새 모듈 `app/e2e/revision-recheck.ts`를 만들고 `app/e2e/runtime.ts`의 import 목록에 등록한다. 폴링은 iframe 교체를 재시도하고, 재시작 시나리오는 exit code와 signal을 확인한다.
     - 화면 밖 대상으로 위치로 가기(열린 댓글, 해결된 댓글, 필터 유지)
     - CLI resolve 뒤 알림, Review 단계(Next, Reopen, Done), Esc 진행 보존, ⌘] 메뉴
