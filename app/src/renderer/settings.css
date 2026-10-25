@@ -51,6 +51,8 @@ code { font-family: var(--font-sans); }
 .st-lead { flex: 1; font-size: 12px; line-height: 1.6; color: var(--text-2); }
 .st-notice { font-size: 11.5px; line-height: 1.5; color: var(--text-2); border-left: 2px solid var(--warn); padding: 2px 0 2px 8px; margin-bottom: 12px; }
 
+.st-notice.error { border-left-color: var(--err); }
+
 .pj { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 0; }
 .pj-list { background: var(--panel); border-right: 1px solid var(--line); overflow: hidden; padding: 2px 0 8px; }
 .pj-group { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 4px; font: 11.5px var(--font-sans); color: var(--text-2); }
@@ -63,7 +65,7 @@ code { font-family: var(--font-sans); }
 .pj-row .wt-path { padding-left: 18px; }
 .pj-detail { min-height: 0; overflow: hidden; padding: 16px 18px; }
 .pj-name { font: 600 13px var(--font-sans); color: var(--text); overflow-wrap: anywhere; }
-.pj-name .meta { font-weight: 400; margin-left: 4px; }
+.pj-name .meta { font-weight: 400; margin-left: 4px; white-space: normal; overflow-wrap: anywhere; }
 .pj-sec { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-2); }
 .pj-sec .ihead { display: flex; align-items: center; gap: 8px; }
 .saved { letter-spacing: 0; text-transform: none; color: var(--ok); font-size: 11px; }
