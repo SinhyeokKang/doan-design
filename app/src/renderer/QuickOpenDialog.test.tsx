@@ -74,3 +74,12 @@ test("no match shows the spec's sentence instead of options", () => {
   expect(html).toContain('<p class="qo-none" role="status">No canvases or frames match</p>');
   expect(html).not.toContain('role="option"');
 });
+
+test("empty query distinguishes no available canvases from no search matches", () => {
+  const empty = renderToStaticMarkup(<QuickOpen entries={[]} currentRoot={null} pick={() => {}} close={() => {}} />);
+  expect(empty).toContain("No canvases to show");
+  const reading = renderToStaticMarkup(<QuickOpen entries={[{ kind: "loading", path: "/repo" }]} currentRoot="/repo" pick={() => {}} close={() => {}} />);
+  expect(reading).toContain("Project is still being read");
+  const problem = renderToStaticMarkup(<QuickOpen entries={[{ kind: "notFound", path: "/repo" }]} currentRoot="/repo" pick={() => {}} close={() => {}} />);
+  expect(problem).toContain("Project is unavailable");
+});

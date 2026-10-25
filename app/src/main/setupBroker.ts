@@ -76,9 +76,9 @@ export function createSetupBroker(deps: SetupBrokerDeps) {
       result = { state, summary: connectionSummary(state, deps.translocated), causes: connectionCauses(state, deps.translocated) };
       return result;
     } finally {
-      const fresh = result !== undefined && seq > shown;
+      const fresh = seq > shown;
       if (fresh) shown = seq;
-      publish({ checking: --running > 0, ...(fresh && result ? { summary: result.summary, causes: result.causes } : {}) });
+      publish({ checking: --running > 0, ...(fresh ? { summary: result?.summary ?? status.summary ?? { cli: "couldnt-check", claude: "couldnt-check", codex: "couldnt-check" }, causes: result?.causes ?? status.causes } : {}) });
     }
   }
 

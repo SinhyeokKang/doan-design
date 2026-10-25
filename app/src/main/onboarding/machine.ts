@@ -281,10 +281,11 @@ export function createMachine(options: { command: string; version: string; env?:
     }
     const agent = request.agent;
     if (!agent) return { kind: "unavailable", message: "Choose an agent first." };
+    const agentName = agent === "claude" ? "Claude Code" : "Codex";
     const cliWasOurs = current.cli.state === "ours";
     if (!ctx.probe.ok) return { kind: "unavailable", message: ctx.probe.reason };
     if (!ctx.configValid[agent]) return { kind: "unavailable", message: configInvalid(agent, ctx) };
-    if (!current.agents[agent].executable) return { kind: "unavailable", message: `Couldn't find ${agent}. Install it, then Check Again.` };
+    if (!current.agents[agent].executable) return { kind: "unavailable", message: `Couldn't find ${agentName}. Install it, then choose Check Again.` };
     if (current.stub.state === "blocked") return { kind: "unavailable", message: blockedMessage(stubPath) };
     if (current.stub.state !== "ours") {
       if (current.stub.state === "differs" && approved !== "stub") return confirm("stub", "Your edits to SKILL.md will be replaced.");
@@ -315,7 +316,7 @@ export function createMachine(options: { command: string; version: string; env?:
     const invoke = async (args: string[]) => {
       if (observeLink(cliPath, options.command).state !== "ours") throw new Error("CLI link changed. Check Again.");
       const result = await runProcess(exe, args, ctx.runEnv, AGENT_TIMEOUT_MS);
-      if (result.timedOut || result.spawnError || result.exitCode !== 0) throw new Error(result.spawnError ? `Couldn't run ${agent} at ${exe}. Check Again. ${result.spawnError}` : result.timedOut ? `${agent} timed out. Check Again.` : result.stderr || `${agent} failed.`);
+      if (result.timedOut || result.spawnError || result.exitCode !== 0) throw new Error(result.spawnError ? `Couldn't run ${agentName} at ${exe}. Choose Check Again. ${result.spawnError}` : result.timedOut ? `${agentName} timed out. Choose Check Again.` : result.stderr || `${agentName} failed. Choose Check Again.`);
     };
     try {
       if (registration.state === "other" && agent === "claude") {

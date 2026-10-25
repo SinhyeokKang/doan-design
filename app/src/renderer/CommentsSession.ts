@@ -27,6 +27,7 @@ export class CommentsSession {
   identity: CommentIdentity | null = null;
   list: CommentList | null = null;
   readError: string | null = null;
+  createError: string | null = null;
   author: AuthorView = { status: "loading" };
   draft = emptyDraft();
   target: Target = {};
@@ -39,6 +40,7 @@ export class CommentsSession {
   uncertainTransition: { id: string; kind: "quit" | "blocked" } | null = null;
   deleteConfirmation: { request: MutationRequest; comment: Comment } | null = null;
   private revision = 0;
+  private beginRevision = 0;
   private readRevision = 0;
   private authorRevision = 0;
   private origin: BeginResult | null = null;
@@ -54,6 +56,12 @@ export class CommentsSession {
     this.draft = { ...this.draft, transition: null };
     this.destination?.(false); this.destination = null;
   }
+  private cancelBegin() {
+    // Release before a new begin can acquire the guard. Late IPC completions
+    // must never release it on behalf of the obsolete document.
+    if (this.beginning && !this.draft.draft) void this.api.setCommentDraftGuard(false);
+    this.beginRevision++; this.beginning = false;
+  }
   private request(identity = this.identity): CommentRequest {
     if (!identity) throw new Error("No canvas open.");
     return { ...identity, requestID: crypto.randomUUID() };
@@ -61,8 +69,9 @@ export class CommentsSession {
   async open(identity: CommentIdentity | null) {
     if (same(identity, this.identity)) return;
     this.revision++;
+    this.cancelBegin();
     this.identity = identity;
-    this.list = null; this.readError = null; this.copies = new Map(); this.mutations = new Map(); this.deleteConfirmation = null;
+    this.list = null; this.readError = null; this.createError = null; this.copies = new Map(); this.mutations = new Map(); this.deleteConfirmation = null;
     if (this.draft.draft && !same(identity, this.draftIdentity)) this.invalidate("The original project or canvas is no longer open.");
     this.emit();
     if (identity) await Promise.all([this.read(), this.retryAuthor()]);
@@ -113,20 +122,20 @@ export class CommentsSession {
   }
   async create(scope: "canvas" | "selection") {
     if (!this.identity || !this.list || this.draft.draft || this.busy || this.beginning || this.author.status !== "ready") return;
-    const rev = this.revision, request = this.request();
-    this.beginning = true; this.emit();
+    const begin = ++this.beginRevision, request = this.request();
+    this.beginning = true; this.createError = null; this.emit();
     try {
       const origin = value(await this.api.commentsBegin({ ...request, scope }), request);
-      if (rev !== this.revision || this.draft.draft) return;
+      if (begin !== this.beginRevision || this.draft.draft) return;
       // Establish main's guard before exposing an editable draft.
       await this.api.setCommentDraftGuard(true);
-      if (rev !== this.revision) { await this.api.setCommentDraftGuard(false); return; }
+      if (begin !== this.beginRevision) return;
       this.origin = origin; this.project = origin.project; this.draftIdentity = { ...this.identity };
       this.target = structuredClone(origin.target);
       this.draft = beginDraft(crypto.randomUUID(), { kind: "create", ...this.identity, generation: 0, canvasHash: origin.hash, target: origin.target }, "");
       this.saveView = { status: "idle" };
-    } catch (error) { if (rev === this.revision) this.readError = errorText(error); }
-    finally { this.beginning = false; this.emit(); }
+    } catch (error) { if (begin === this.beginRevision) this.createError = errorText(error); }
+    finally { if (begin === this.beginRevision) this.beginning = false; this.emit(); }
   }
   edit(id: string) {
     if (!this.identity || !this.list || this.draft.draft || this.busy || this.author.status !== "ready") return;
@@ -145,6 +154,8 @@ export class CommentsSession {
     this.draft = transitionDraft(this.draft, { type: "invalidate", reason }).state; this.emit();
   }
   documentLost() {
+    this.cancelBegin();
+    this.createError = null; this.emit();
     if (this.draft.draft?.origin.kind !== "create") return;
     this.cancelDestination();
     this.draft = transitionDraft(this.draft, { type: "document-lost" }).state; this.emit();

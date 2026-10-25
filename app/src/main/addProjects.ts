@@ -331,7 +331,7 @@ export function createAddFlow(deps: AddFlowDeps) {
         case "refuse":
           return { refused: decision.message };
         default:
-          return { refused: `${basename(real)} isn’t a doan project or a git repository.` };
+          return { refused: `${basename(real)} isn’t the current project folder. Choose the folder where this project is now located.` };
       }
     },
   };

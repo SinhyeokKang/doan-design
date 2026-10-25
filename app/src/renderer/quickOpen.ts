@@ -1,5 +1,5 @@
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { canvasLabel } from "./canvasTree";
+import { canvasLabel, frameLabel } from "./canvasTree";
 
 export interface SearchFrame {
   id: string;
@@ -54,7 +54,7 @@ export function searchIndex(entries: readonly SearchFolder[], rendered?: Rendere
         fields: [label, row.path.split("/").at(-1) ?? row.path, row.path.replace(/^design\//, ""), row.id ?? ""].map(searchText) });
       const frames = rendered?.root === entry.path && rendered.path === row.path ? rendered.frames : row.frames ?? [];
       for (const [frameIndex, frame] of frames.slice(0, 1000).entries()) {
-        index.push({ ...target, kind: "frame", label: frame.title?.trim() || frame.id,
+        index.push({ ...target, kind: "frame", label: frameLabel(frame, frameIndex).name,
           frameId: frame.id, frameIndex,
           fields: [frame.title ?? "", frame.id].map(searchText) });
       }
@@ -122,4 +122,11 @@ export function searchMatch(
 export function pickTarget(result: SearchResult, loadedRoot: string | null, openCanvas: string | null): "switch" | "open" | "jump" {
   if (result.root !== loadedRoot) return "switch";
   return result.path === openCanvas ? "jump" : "open";
+}
+
+export function unavailableCanvasMessage(entry: FolderEntry | undefined, path: string): string {
+  if (entry?.kind === "list" && entry.canvases.some(row => row.path === path)) return "Canvas changed while opening. Choose it again from the Sidebar or Quick Open.";
+  if (entry?.kind === "list") return `${canvasLabel({ path, url: "", open: 0, resolved: 0 })} is no longer in design/`;
+  if (entry?.kind === "loading") return "Project is still being read. Try Open again shortly.";
+  return "Project is unavailable. Check its status on Home and try again.";
 }

@@ -14,6 +14,7 @@ const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: type
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { appWindow, appWindowCount, menu: appMenu }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 
+const { wizardInstallConsumers, settledInstallConsumer }: typeof import("./renderer-probe") = await import(new URL("./renderer-probe.ts", import.meta.url).href);
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await realpath(await mkdtemp("/tmp/ob-"));
@@ -154,6 +155,21 @@ else if (args[1] === 'add') {
   await page.keyboard.press("Tab"); assert.equal(await focusIs(button(/^Close/)), true);
   await page.keyboard.press("Shift+Tab"); assert.equal(await focusIs(button("Continue")), true);
   await page.keyboard.press("Tab"); assert.equal(await focusIs(button(/^Close/)), true);
+  // The newest stale reply is a failed read, including before this wizard has any state.
+  await app.evaluate(({ ipcMain }) => {
+    const handlers = Reflect.get(ipcMain, "_invokeHandlers");
+    Reflect.set(globalThis, "obReadOriginal", handlers.get("onboarding:read"));
+    ipcMain.removeHandler("onboarding:read");
+    ipcMain.handle("onboarding:read", () => ({ kind: "stale" }));
+  });
+  await page.reload(); await ready();
+  await card("cli").getByText("Couldn’t check", { exact: true }).waitFor();
+  assert.equal(await card("cli").getByText("Checking…", { exact: true }).count(), 0);
+  await shot("00-read-failure");
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler("onboarding:read"); ipcMain.handle("onboarding:read", Reflect.get(globalThis, "obReadOriginal"));
+  });
+  await check(); assert.equal(await card("cli").getByText("Couldn’t check", { exact: true }).count(), 0);
   await go("First prompt");
   assert.equal(await wizard().locator(".fp-none p").textContent(), "Add a project first. Your first canvas goes in its design/ folder.");
   await button("Add Project…").waitFor(); assert.equal(await subject(wizard()).count(), 0);
@@ -173,6 +189,31 @@ else if (args[1] === 'add') {
   assert.deepEqual(await wizardSession(), session);
   await quit(); assert.equal(await exists(join(data, "onboarding.json")), false, "quit does not dismiss");
   await launch(); await ready(); await page.keyboard.press("Escape"); await closed();
+  // Exercise Home's public status projection without changing the setup machine.
+  const mainWindow = await appWindow(app, page);
+  await mainWindow.evaluate(win => win.webContents.send("setup:status", {
+    summary: { cli: "couldnt-check", claude: "couldnt-check", codex: "couldnt-check" },
+    causes: {}, checking: false, busy: false, onboardingClosed: true,
+  }));
+  await wait(async () => await page.locator(".conns .st").allTextContents().then(labels => labels.every(label => label === "Couldn’t check")), "Home failed first result");
+  assert.equal(await page.getByRole("button", { name: "doan command: Couldn’t check", exact: true }).isEnabled(), true);
+  await shot("00-home-read-failure");
+  await mainWindow.evaluate(win => win.webContents.send("setup:status", {
+    summary: { cli: "needs-attention", claude: "couldnt-check", codex: "couldnt-check" },
+    causes: { cli: { kind: "cli-dangling" } }, checking: false, busy: true, onboardingClosed: true,
+  }));
+  const banner = page.getByRole("status", { name: "Connection problem" });
+  await banner.getByText("Another window is running a setup step. These buttons work again when it finishes.").waitFor();
+  assert.equal(await banner.getByRole("button", { name: "Check Again", exact: true }).isDisabled(), true);
+  await shot("00-home-busy");
+  await mainWindow.evaluate(win => win.webContents.send("setup:status", {
+    summary: { cli: "needs-attention", claude: "couldnt-check", codex: "couldnt-check" },
+    causes: { cli: { kind: "cli-dangling" } }, checking: true, busy: false, onboardingClosed: true,
+  }));
+  await banner.getByRole("button", { name: "Checking…", exact: true }).waitFor();
+  assert.equal(await banner.getByText(/Another window/).count(), 0);
+  await page.evaluate(() => window.doan.checkSetupAgain());
+  await wait(async () => (await page.locator(".conns .st").allTextContents()).every(label => label !== "Couldn’t check" && label !== "Checking…"), "Home recovers");
   assert.deepEqual(JSON.parse(await readFile(join(data, "onboarding.json"), "utf8")), {});
   await quit(); await launch(); await page.getByRole("button", { name: "Add Project…", exact: true }).first().waitFor(); assert.equal(await wizard().count(), 0);
   await reopen(); assert.equal(await visible(), true); await button(/^Close/).click(); await closed(); await quit();
@@ -195,6 +236,9 @@ else if (args[1] === 'add') {
   await card("cli").getByText("Use doan in your terminal", { exact: false }).waitFor(); await card("cli").getByText("~/.zshrc", { exact: true }).waitFor();
   await clipboardGate(); await button("Copy").click(); await button("Copying…").waitFor(); await busy();
   await releaseCopy(true); await button("Retry copy").waitFor(); assert.equal(await button(/^Close/).isDisabled(), false);
+  const pathError = card("cli").getByRole("alert");
+  assert.match(await pathError.getAttribute("class") ?? "", /ob-msg error/);
+  await shot("01-path-copy-failed");
   await button("Retry copy").click(); await busy(); await releaseCopy(false); await button("Copied").waitFor();
   assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), 'export PATH="$HOME/.local/bin:$PATH"'); await restoreCopy();
   await page.keyboard.press("Escape"); await closed(); await reopen(); confirm = page.getByRole("alertdialog");
@@ -208,6 +252,69 @@ else if (args[1] === 'add') {
   await button("Install Claude Code ↗").click(); await button("Install Codex ↗").click();
   await wait(async () => (await app.evaluate(() => Reflect.get(globalThis, "obOpened").length)) === 2, "install pages opened");
   assert.deepEqual(await app.evaluate(() => Reflect.get(globalThis, "obOpened")), ["https://code.claude.com/docs/en/setup", "https://learn.chatgpt.com/docs/codex/cli"]);
+  await app.evaluate(({ ipcMain }) => {
+    const handlers = Reflect.get(ipcMain, "_invokeHandlers");
+    Reflect.set(globalThis, "obInstallOriginal", handlers.get("setup:open-external"));
+    ipcMain.removeHandler("setup:open-external");
+    ipcMain.handle("setup:open-external", () => false);
+  });
+  await button("Install Claude Code ↗").click();
+  await wizard().getByRole("alert").filter({ hasText: "Couldn’t open the install page." }).waitFor();
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler("setup:open-external");
+    ipcMain.handle("setup:open-external", () => { throw new Error("Injected install failure"); });
+  });
+  await button("Install Codex ↗").click();
+  await wizard().getByRole("alert").filter({ hasText: "Injected install failure" }).waitFor();
+  await shot("02-install-failure");
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler("setup:open-external"); ipcMain.handle("setup:open-external", Reflect.get(globalThis, "obInstallOriginal"));
+  });
+  const reviewFailures: string[] = [];
+  const installProbe = await wizardInstallConsumers(page);
+  const installClick = (agent: "Claude Code" | "Codex") => installProbe.click(button(`Install ${agent} ↗`));
+  try {
+    await settledInstallConsumer(page, await installClick("Codex"));
+    assert.equal(await wizard().getByRole("alert").count(), 0, "consumed install retry clears error");
+    await app.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler("setup:open-external");
+      Reflect.set(globalThis, "obInstallPending", []);
+      ipcMain.handle("setup:open-external", () => new Promise((resolve, reject) => Reflect.get(globalThis, "obInstallPending").push({ resolve, reject })));
+    });
+    for (const failure of ["false", "reject"] as const) for (const oldFirst of [false, true]) {
+      const ids: [number, number] = [await installClick("Claude Code"), await installClick("Codex")];
+      await wait(async () => await app.evaluate(() => Reflect.get(globalThis, "obInstallPending").length) === 2, "two install requests held");
+      for (const index of oldFirst ? [0, 1] : [1, 0]) {
+        await app.evaluate((_electron, { index, failure }) => {
+          const request = Reflect.get(globalThis, "obInstallPending")[index];
+          if (index === 0 && failure === "reject") request.reject(new Error("Old install failure"));
+          else request.resolve(index === 1);
+        }, { index, failure });
+        await settledInstallConsumer(page, ids[index]!);
+        assert.deepEqual(await wizard().getByRole("alert").allTextContents(), [], `consumed stale install ${failure}, oldFirst=${oldFirst}, index=${index}`);
+        if (oldFirst && index === 0) assert.equal(await page.evaluate(id => Reflect.get(window, "installConsumers")[id].completed, ids[1]), false, "B remains pending after A is consumed");
+      }
+      const alerts = await wizard().getByRole("alert").allTextContents();
+      console.log("install ordering", { failure, oldFirst, alerts });
+      if (alerts.length) reviewFailures.push(`stale install error: ${failure}, oldFirst=${oldFirst}`);
+      await app.evaluate(() => Reflect.set(globalThis, "obInstallPending", []));
+    }
+    // A newer failure must survive an older successful completion.
+    const latestIds: [number, number] = [await installClick("Claude Code"), await installClick("Codex")];
+    await wait(async () => await app.evaluate(() => Reflect.get(globalThis, "obInstallPending").length) === 2, "latest failure requests held");
+    await app.evaluate(() => Reflect.get(globalThis, "obInstallPending")[1].reject(new Error("Latest install failure")));
+    await settledInstallConsumer(page, latestIds[1]);
+    await wizard().getByRole("alert").filter({ hasText: "Latest install failure" }).waitFor();
+    await app.evaluate(() => Reflect.get(globalThis, "obInstallPending")[0].resolve(true));
+    await settledInstallConsumer(page, latestIds[0]);
+    assert.match(await wizard().getByRole("alert").textContent() ?? "", /Latest install failure/);
+    await app.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler("setup:open-external"); ipcMain.handle("setup:open-external", Reflect.get(globalThis, "obInstallOriginal"));
+    });
+    await settledInstallConsumer(page, await installClick("Codex"));
+    assert.equal(await wizard().getByRole("alert").count(), 0, "consumed latest failure retry clears error");
+    await shot("02-install-consumed");
+  } finally { await installProbe.dispose(); }
   await shellMode("timeout"); await check(); await wizard().getByText(/didn’t answer in time/).first().waitFor();
   for (const agent of ["claude", "codex"] as const) {
     await card(agent).getByText("Couldn’t check", { exact: true }).waitFor();
@@ -287,7 +394,139 @@ else if (args[1] === 'add') {
   console.log("onboarding: 4 project init, pending copy and first prompt");
   const project = await newRepo('company-monorepo/packages/applications/marketing-web-frontend/project <tag> & "quote"'); const token = join(project, "Tokens.css"); await writeFile(token, ":root { --brand: red; }");
   // Step 4's Add Project… runs Home's add flow; a repository that is not set up goes back to step 3's form.
-  await go("First prompt"); await pick(project); await button("Add Project…").click(); await button("Set Up Project").waitFor();
+  await go("First prompt");
+  const addParent = join(work, "add-repos");
+  await mkdir(addParent);
+  const addA = await setUpRepo("add-repos/one"), addB = await setUpRepo("add-repos/two");
+  await pick(addParent); await button("Add Project…").click();
+  const checklist = () => wizard().getByRole("dialog", { name: "Add projects", exact: true });
+  await checklist().waitFor();
+  await wait(async () => !await checklist().getByRole("button", { name: "Add 2 Projects", exact: true }).isDisabled(), "step 4 scan finished");
+  assert.equal(await checklist().getByRole("checkbox", { checked: true }).count(), 2);
+  await wizard().locator(".ob-title").evaluate(node => node.focus());
+  assert.equal(await checklist().evaluate(node => node.contains(document.activeElement)), true, "wizard behind scan is inert");
+  await page.keyboard.press("Tab");
+  assert.equal(await checklist().evaluate(node => node.contains(document.activeElement)), true);
+  await app.evaluate(({ ipcMain }) => {
+    Reflect.set(globalThis, "obCandidatesOriginal", Reflect.get(ipcMain, "_invokeHandlers").get("folders:add-candidates"));
+    ipcMain.removeHandler("folders:add-candidates");
+    ipcMain.handle("folders:add-candidates", () => new Promise((resolve, reject) => Reflect.set(globalThis, "obCandidatesPending", { resolve, reject })));
+  });
+  const submitCandidates = () => checklist().getByRole("button", { name: "Add 2 Projects", exact: true });
+  for (const [attempt, outcome] of (["reject", "reject", "unavailable", "reject", "reject", "unavailable"] as const).entries()) {
+    if (attempt < 3) await submitCandidates().click();
+    else { await submitCandidates().focus(); await page.keyboard.press("Enter"); }
+    await wait(async () => await submitCandidates().isDisabled(), "checklist submit pending");
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    await shot(`03-checklist-${attempt}-pending`);
+    console.log("checklist pending focus:", await page.evaluate(() => document.activeElement?.tagName));
+    await app.evaluate((_electron, outcome) => {
+      const pending = Reflect.get(globalThis, "obCandidatesPending");
+      if (outcome === "reject") pending.reject(new Error("Injected checklist failure"));
+      else pending.resolve({ kind: "unavailable" });
+    }, outcome);
+    await checklist().getByRole("alert").filter({ hasText: outcome === "reject" ? "Injected checklist failure" : "This checklist is no longer available." }).waitFor();
+    await wait(async () => !await submitCandidates().isDisabled(), "checklist retry enabled");
+    const focused = await checklist().evaluate(node => node.contains(document.activeElement));
+    console.log("checklist settled focus:", await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 400)));
+    if (!focused) {
+      reviewFailures.push(`checklist focus lost: ${outcome}`);
+      await page.keyboard.press("Escape");
+      console.log("checklist Escape after lost focus:", { childVisible: await checklist().isVisible(), wizardVisible: await wizard().isVisible() });
+    }
+    await shot(`03-checklist-${attempt}-${outcome}`);
+    if (focused && attempt % 3 > 0) {
+      await page.keyboard.press("Escape"); await checklist().waitFor({ state: "hidden" });
+      await wait(() => focusIs(button("Add Project…")), "failed checklist Escape restores wizard focus");
+      assert.equal(await wizard().isVisible(), true);
+      await pick(addParent); await button("Add Project…").click(); await checklist().waitFor();
+      await wait(async () => !await submitCandidates().isDisabled(), "retry checklist ready");
+    }
+  }
+  // A deliberate focus move within the dialog must survive settlement.
+  await submitCandidates().click();
+  await wait(async () => await submitCandidates().isDisabled(), "checklist preservation pending");
+  await checklist().getByRole("heading").evaluate(node => { node.tabIndex = -1; node.focus(); });
+  await app.evaluate(() => Reflect.get(globalThis, "obCandidatesPending").reject(new Error("Injected checklist failure")));
+  await wait(async () => !await submitCandidates().isDisabled(), "checklist preservation settled");
+  assert.equal(await checklist().getByRole("heading").evaluate(node => node === document.activeElement), true, "preserve deliberate dialog focus");
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler("folders:add-candidates"); ipcMain.handle("folders:add-candidates", Reflect.get(globalThis, "obCandidatesOriginal"));
+  });
+  if (reviewFailures.length) throw new Error(reviewFailures.join("; "));
+  await shot("03-add-scan");
+  await page.keyboard.press("Escape"); await checklist().waitFor({ state: "hidden" });
+  await wait(() => focusIs(button("Add Project…")), "scan cancel restores wizard focus");
+  assert.equal(await wizard().isVisible(), true);
+  const addPlain = join(work, "add-plain"); await mkdir(addPlain);
+  await pick(addPlain); await button("Add Project…").click();
+  const addConfirm = wizard().getByRole("dialog", { name: "Set up add-plain as a doan project?", exact: true });
+  await addConfirm.waitFor();
+  assert.equal(await focusIs(addConfirm.getByRole("button", { name: "Cancel", exact: true })), true);
+  await app.evaluate(({ ipcMain }) => {
+    const handlers = Reflect.get(ipcMain, "_invokeHandlers");
+    Reflect.set(globalThis, "obFolderOriginal", handlers.get("folders:confirm-folder"));
+    ipcMain.removeHandler("folders:confirm-folder");
+    ipcMain.handle("folders:confirm-folder", () => { throw new Error("Injected folder failure"); });
+  });
+  await addConfirm.getByRole("button", { name: "Set Up…", exact: true }).click();
+  const folderError = addConfirm.getByRole("alert");
+  await folderError.waitFor();
+  assert.match(await folderError.getAttribute("class") ?? "", /ob-msg error/);
+  assert.ok(!(await folderError.textContent())?.startsWith("Error:"));
+  await shot("03-add-confirm");
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler("folders:confirm-folder"); ipcMain.handle("folders:confirm-folder", Reflect.get(globalThis, "obFolderOriginal"));
+  });
+  await page.keyboard.press("Escape"); await addConfirm.waitFor({ state: "hidden" });
+  await wait(() => focusIs(button("Add Project…")), "confirm cancel restores wizard focus");
+  await button("Add Project…").click(); await addConfirm.waitFor();
+  await addConfirm.getByRole("button", { name: "Set Up…", exact: true }).click();
+  await button("Set Up Project").waitFor();
+  await wizard().locator(".ob-field .value").getByText(addPlain, { exact: true }).waitFor();
+  await reopen(); await go("First prompt");
+  const direct = await setUpRepo("direct-add");
+  const brokenParent = join(work, "broken-parent"), refusedChild = join(brokenParent, "child");
+  await mkdir(join(brokenParent, ".doan"), { recursive: true }); await mkdir(refusedChild);
+  await writeFile(join(brokenParent, ".doan/config.json"), "{broken");
+  await app.evaluate(({ dialog }, paths) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: paths }); }, [direct, addParent, refusedChild]);
+  await button("Add Project…").click(); await checklist().waitFor();
+  const mixedRefusal = await wizard().locator(".ob-form > [role=alert]").textContent();
+  assert.match(mixedRefusal ?? "", /config/i);
+  await checklist().getByRole("button", { name: "Add 2 Projects", exact: true }).click();
+  await checklist().waitFor({ state: "hidden" });
+  await subject(wizard()).waitFor();
+  assert.ok((await wizard().locator(".ob-sentence").textContent())?.includes(direct), "later scan preserves the first directly added project");
+  assert.equal(await wizard().getByRole("alert").textContent(), mixedRefusal, "mixed refusal remains visible after the scan");
+  const multiStored = JSON.parse(await readFile(join(data, "folders.json"), "utf8")) as string[];
+  assert.ok(multiStored.includes(addA) && multiStored.includes(addB));
+  await reopen(); await go("First prompt");
+  const mixedDirect = await setUpRepo("mixed-direct"), mixedPlain = join(work, "mixed-plain"); await mkdir(mixedPlain);
+  await app.evaluate(({ dialog }, paths) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: paths }); }, [mixedDirect, mixedPlain]);
+  await button("Add Project…").click();
+  const mixedConfirm = wizard().getByRole("dialog", { name: "Set up mixed-plain as a doan project?", exact: true });
+  await mixedConfirm.waitFor(); await mixedConfirm.getByRole("button", { name: "Set Up…", exact: true }).click();
+  await button("Set Up Project").waitFor();
+  await wizard().locator(".ob-field .value").getByText(mixedPlain, { exact: true }).waitFor();
+  await writeFile(join(mixedDirect, "design/later.html"), canvasHtml("Later")); await listed(mixedDirect, "design/later.html");
+  assert.equal(await wizard().locator(".ob-field .value").getByText(mixedPlain, { exact: true }).count(), 1, "late folder update preserves explicit setup choice");
+  await reopen(); await go("First prompt");
+  await pick(join(work, "missing-folder")); await button("Add Project…").click();
+  await wizard().getByRole("alert").waitFor();
+  assert.match(await wizard().getByRole("alert").textContent() ?? "", /folder/);
+  await shot("03-add-refused");
+  await pick(project); await button("Add Project…").click(); await button("Set Up Project").waitFor();
+  await go("First prompt");
+  assert.equal(await wizard().getByText("Not set up", { exact: true }).count(), 1);
+  assert.equal(await wizard().getByText(/Add a project first/).count(), 0);
+  assert.equal(await subject(wizard()).count(), 0);
+  await shot("03-skipped-project");
+  await button("Set Up…").click(); await button("Set Up Project").waitFor();
+  // A new session has no chosen project; a duplicate must be adopted visibly.
+  await reopen(); await go("First prompt"); await pick(project); await button("Add Project…").click();
+  await button("Set Up Project").waitFor();
+  await wizard().getByRole("status").filter({ hasText: "Already added" }).waitFor();
+  await shot("03-add-duplicate");
   assert.equal(await stepButton("Project").getAttribute("aria-current"), "step");
   await assertProjectPath(wizard().locator(".ob-field .meta"), button("Open Project…"), project, "wizard");
   const projectValue = wizard().locator(".ob-field .value").first();
@@ -451,6 +690,17 @@ else if (args[1] === 'add') {
   throw error;
 } finally {
   try { if (running) { await page.evaluate(() => window.doan.setCommentDraftGuard(false)); await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "obSavedClipboard")); }); } } finally { await guard.finish(); }
+}
+
+for (const args of [[], ["--dev"]]) {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(process.execPath, [join(root, "app/e2e/presentation.ts"), ...args], { stdio: "inherit" });
+    child.once("error", reject);
+    child.once("close", (code, signal) => {
+      if (code === 0 && signal === null) resolve();
+      else reject(new Error(`presentation ${args.length ? "DEV" : "production"} failed: code=${code}, signal=${signal}`));
+    });
+  });
 }
 
 console.log("onboarding-test: PASS");

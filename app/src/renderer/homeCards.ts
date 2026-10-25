@@ -1,4 +1,5 @@
 import type { FolderEntry } from "../main/view";
+import { frameLabel } from "./canvasTree";
 import type { SelectionView } from "./selection";
 
 export interface HomeCard {
@@ -78,7 +79,7 @@ export function cardRow(entry: FolderEntry, loaded: string | null, selection: Se
 // A frame selection shows the frame's title, an element its tag and id.
 function selectionLabel(selection: SelectionView): string | undefined {
   if (selection.element) return selection.element.doanId === undefined ? selection.tag : `${selection.tag} · ${selection.element.doanId}`;
-  return selection.frame ? (selection.frame.title ?? selection.frame.id) : undefined;
+  return selection.frame ? frameLabel(selection.frame, 0).name : undefined;
 }
 
 function basename(path: string): string {

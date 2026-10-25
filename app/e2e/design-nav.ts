@@ -61,6 +61,7 @@ while (existsSync(${JSON.stringify(folderGate)})) await new Promise(resolve => s
 const result = spawnSync(${JSON.stringify(cli)}, process.argv.slice(2), { stdio: 'inherit' });
 process.exit(result.status ?? 1);
 `, { mode: 0o755 });
+  let traceRestore = false;
   let stateBeforeLaunch = "";
   const stateVersion = async () => { const info = await stat(join(userData, "ui-state.json")).catch(() => null); return info ? `${info.ino}:${info.mtimeMs}` : "absent"; };
   async function launch(delayFolders = false): Promise<void> {
@@ -68,6 +69,18 @@ process.exit(result.status ?? 1);
     if (delayFolders) await writeFile(folderGate, "held");
     app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env: { ...env, DOAN_CLI: delayFolders ? gatedCli : cli } }); rememberApp(app);
     page = await app.firstWindow(); page.setDefaultTimeout(10_000);
+    if (traceRestore) {
+      console.log("normal restore trace attached", page.frames().map(frame => frame.url()));
+      page.on("framenavigated", frame => console.log("normal restore frame navigation", frame.url()));
+      page.on("requestfailed", request => console.log("normal restore request failed", request.url(), request.failure()));
+      page.on("response", response => console.log("normal restore response", response.status(), response.url()));
+      await page.evaluate(() => {
+        addEventListener("message", event => {
+          if (event.data?.type === "layout") console.log("normal restore layout", JSON.stringify({ href: event.data.href, document: event.data.document, viewport: event.data.viewport, frames: event.data.frames?.length, current: event.source === document.querySelector<HTMLIFrameElement>(".board iframe")?.contentWindow }));
+        });
+      });
+      page.on("console", message => { if (message.text().startsWith("normal restore layout")) console.log(message.text()); });
+    }
     page.on("pageerror", error => console.error("design-nav pageerror", error));
     if (delayFolders) {
       await page.getByRole("region", { name: "Home", exact: true }).waitFor();
@@ -131,6 +144,385 @@ process.exit(result.status ?? 1);
   }
 
   await launch();
+  // UX N: keep startup reads pending until a real, newer user navigation commits.
+  const navigationFailures: string[] = [];
+  async function navigationCheck(name: string, run: () => Promise<void>) {
+    if (process.env.DOAN_NAV_CASES && !process.env.DOAN_NAV_CASES.split(",").includes(name)) return;
+    try { await run(); console.log(`navigation regression PASS: ${name}`); }
+    catch (error) { console.error(`navigation regression FAIL: ${name}`, error); navigationFailures.push(`${name}: ${String(error)}`); await shot(`N-failed-${name}`); }
+  }
+  const listedEntries = await page.evaluate(() => new Promise<import("../src/main/view").FolderEntry[]>(resolve => {
+    const stop = window.doan.onFolders(entries => { if (entries.length === 5 && entries.every(entry => entry.kind === "list")) { stop(); resolve(entries); } });
+  }));
+  const restoreCdp = await page.context().newCDPSession(page);
+  const rendererScripts: { scriptId: string; url: string }[] = [];
+  restoreCdp.on("Debugger.scriptParsed", script => { if (script.url.includes("/assets/index-") && script.url.endsWith(".js")) rendererScripts.push(script); });
+  await restoreCdp.send("Debugger.enable");
+  const rendererScript = rendererScripts.at(-1);
+  assert.ok(rendererScript, "the actual App renderer script was parsed");
+  const { scriptSource } = await restoreCdp.send("Debugger.getScriptSource", { scriptId: rendererScript.scriptId });
+  const readStart = scriptSource.indexOf("window.doan.readUiState()");
+  assert.ok(readStart >= 0);
+  const firstThen = scriptSource.indexOf(".then((state)", readStart);
+  const finalThen = scriptSource.indexOf(".then((state)", firstThen + 1);
+  assert.ok(finalThen > firstThen);
+  // A false conditional breakpoint is a test-only logpoint in the actual
+  // final consumer. The subsequent page task cannot run until it returns.
+  const guarded = scriptSource.indexOf("if (active && !restoreCancelled.current)", finalThen);
+  const callbackBody = guarded >= 0 && guarded < finalThen + 200 ? guarded : scriptSource.indexOf("state,", finalThen);
+  assert.ok(callbackBody > finalThen && callbackBody < finalThen + 200);
+  const lineNumber = scriptSource.slice(0, callbackBody).split("\n").length - 1;
+  const columnNumber = callbackBody - scriptSource.lastIndexOf("\n", callbackBody) - 1;
+  const consumerBreakpoint = await restoreCdp.send("Debugger.setBreakpointByUrl", {
+    url: rendererScript.url, lineNumber, columnNumber,
+    condition: '(globalThis.restoreReadProbe ??= { consumed: 0 }).consumed++, false',
+  });
+  assert.ok(consumerBreakpoint.locations.length, "the consumer logpoint resolves in the production bundle");
+  console.log("startup read consumer logpoint", { lineNumber, columnNumber, source: scriptSource.split("\n")[lineNumber] });
+  for (const held of ["ui", "folders"] as const) {
+    if (process.env.DOAN_NAV_CASES && !process.env.DOAN_NAV_CASES.split(",").includes(`late-${held}-restore`)) continue;
+    await navigationCheck(`late-${held}-restore`, async () => {
+      await app!.evaluate(({ ipcMain }, [entries, savedRoot, freshRoot, held]) => {
+        const handlers = Reflect.get(ipcMain, "_invokeHandlers");
+        const probe = { ui: handlers.get("ui-state:get"), folders: handlers.get("folders:get"), releases: [] as (() => void)[], reads: 0 };
+        Reflect.set(globalThis, "navigationProbe", probe);
+        const saved = { screen: "workspace", root: savedRoot, expanded: { [savedRoot]: ["design/settings"], [freshRoot]: [] }, lastByRoot: { [freshRoot]: { canvas: "design/stale.html", view: { scale: 1, tx: 0, ty: 0 } } } };
+        ipcMain.removeHandler("ui-state:get");
+        ipcMain.handle("ui-state:get", () => { probe.reads++; return held === "ui" ? new Promise(resolve => probe.releases.push(() => resolve(saved))) : saved; });
+        ipcMain.removeHandler("folders:get");
+        ipcMain.handle("folders:get", () => held === "folders" ? entries.map(entry => entry.path === savedRoot ? { path: entry.path, kind: "loading" } : entry) : entries);
+      }, [listedEntries, acme, brand, held] as const);
+      await page.reload();
+      await page.getByRole("region", { name: "Home", exact: true }).waitFor();
+      await enterProject(page, brand); await overview().waitFor();
+      await card("Card decline patterns").click(); await loaded("Card decline patterns");
+      await goHome(page); await page.getByRole("region", { name: "Home", exact: true }).waitFor();
+      if (held === "folders") await page.evaluate(root => {
+        const element = document.querySelector(".home-shell");
+        if (!element) throw new Error("Home must be committed before arming the folder consumer probe");
+        const key = Object.keys(element).find(key => key.startsWith("__reactFiber$"));
+        if (!key) throw new Error("Missing App fiber");
+        type Hook = { memoizedState?: { current?: { updateEntries?: (entries: { path: string; kind: string }[]) => void } }; next?: Hook };
+        type Fiber = { memoizedState?: Hook; return?: Fiber };
+        let controller: { updateEntries: (entries: { path: string; kind: string }[]) => void } | undefined;
+        for (let fiber = Reflect.get(element, key) as Fiber | undefined; fiber; fiber = fiber.return) {
+          for (let hook = fiber.memoizedState; hook; hook = hook.next) {
+            const candidate = hook.memoizedState?.current;
+            if (typeof candidate?.updateEntries === "function") controller = candidate as typeof controller;
+          }
+        }
+        if (!controller) throw new Error("Missing actual CanvasController");
+        const original = controller.updateEntries;
+        const probe = { consumed: 0, restore: () => { controller.updateEntries = original; } };
+        Reflect.set(window, "restoreFolderProbe", probe);
+        controller.updateEntries = function (entries) {
+          original.call(this, entries);
+          if (entries.some(entry => entry.path === root && entry.kind === "list")) probe.consumed++;
+        };
+      }, acme);
+      const expectedReads = await app!.evaluate(({ BrowserWindow }, [entries, held]) => {
+        const probe = Reflect.get(globalThis, "navigationProbe");
+        if (!probe.reads) throw new Error("No initial ui read was held");
+        if (held === "ui") probe.releases.splice(0).forEach((release: () => void) => release());
+        else BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries);
+        return probe.reads;
+      }, [listedEntries, held] as const);
+      await page.waitForFunction(([held, expected]) => Reflect.get(window, held === "ui" ? "restoreReadProbe" : "restoreFolderProbe")?.consumed >= (held === "ui" ? expected : 1), [held, expectedReads] as const);
+      console.log("startup consumer completed", held, await page.evaluate(held => Reflect.get(window, held === "ui" ? "restoreReadProbe" : "restoreFolderProbe").consumed, held));
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      assert.equal(await page.getByRole("region", { name: "Home", exact: true }).isVisible(), true, "late startup restore cannot replace newer Home intent");
+      await enterProject(page, brand); await loaded("Card decline patterns");
+      assert.equal(await canvasTitle(), "Card decline patterns", "new navigation memory survives restore");
+      assert.equal(await page.getByRole("treeitem", { name: "research", exact: true }).getAttribute("aria-expanded"), "true", "new expansion survives restore");
+    });
+    await app!.evaluate(({ ipcMain }) => {
+      const probe = Reflect.get(globalThis, "navigationProbe");
+      ipcMain.removeHandler("ui-state:get"); ipcMain.handle("ui-state:get", probe.ui);
+      ipcMain.removeHandler("folders:get"); ipcMain.handle("folders:get", probe.folders);
+    });
+  }
+  await restoreCdp.send("Debugger.removeBreakpoint", { breakpointId: consumerBreakpoint.breakpointId });
+  await restoreCdp.send("Debugger.disable");
+  await restoreCdp.detach();
+  await page.reload();
+  await navigationCheck("unhealthy-overview", async () => {
+    await goHome(page); await enterProject(page, empty); await overview().waitFor();
+    const problems: import("../src/main/view").FolderEntry[] = [
+      { path: empty, kind: "loading" }, { path: empty, kind: "error", message: "fixture config failure" },
+      { path: empty, kind: "notFound" }, { path: empty, kind: "uninitialized" }, { path: empty, kind: "cliError", reason: "fixture CLI failure" },
+    ];
+    for (const problem of problems) {
+      await app!.evaluate(({ BrowserWindow }, [entries, problem]) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries.map(entry => entry.path === problem.path ? problem : entry)), [listedEntries, problem] as const);
+      await page.getByRole("region", { name: "Project status", exact: true }).waitFor();
+      await wait(async () => !(await overview().isVisible()), `${problem.kind} replaces Overview`);
+      assert.equal(await page.getByText("Pick a canvas from the list", { exact: true }).isVisible(), false);
+      const message = await page.locator(".canvas-status").textContent();
+      console.log("unhealthy Overview", problem.kind, message);
+      assert.ok(message?.trim());
+      if (problem.kind === "cliError") await shot("N-unhealthy-overview");
+      await app!.evaluate(({ BrowserWindow }, entries) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries), listedEntries);
+      await overview().waitFor();
+    }
+  });
+  await app!.evaluate(({ BrowserWindow }, entries) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries), listedEntries);
+  const publishEntries = async (entries: import("../src/main/view").FolderEntry[]) => app!.evaluate(({ BrowserWindow }, entries) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries), entries);
+  const publishAdded = async (paths: string[]) => app!.evaluate(({ BrowserWindow }, paths) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders:add-outcome", { added: paths, duplicate: null, messages: [], scanId: null, confirms: [] }), paths);
+  const activeFocus = () => page.evaluate(() => {
+    const node = document.activeElement;
+    return { tag: node?.tagName, text: node?.textContent?.slice(0, 120), label: node?.getAttribute("aria-label"), hidden: !!node?.closest('[inert], [aria-hidden="true"]'), rect: node?.getBoundingClientRect().toJSON() };
+  });
+  for (const loading of [false, true]) await navigationCheck(`added-problem-${loading ? "delayed" : "immediate"}`, async () => {
+    await publishEntries(listedEntries); await goHome(page); await enterProject(page, brand);
+    const path = join(work, "added-problem");
+    await publishEntries([...listedEntries, { kind: loading ? "loading" : "uninitialized", path }]);
+    await publishAdded([path]);
+    await page.locator(".toast").getByRole("button", { name: "Open", exact: true }).click();
+    if (loading) await publishEntries([...listedEntries, { kind: "uninitialized", path }]);
+    await page.getByRole("region", { name: "Home", exact: true }).waitFor();
+    const row = page.locator(`.home-body [data-path="${path}"]`);
+    assert.equal(await row.evaluate(node => !!node.closest(".card.flash")), true, "problem Added target is highlighted on Home");
+    await row.getByRole("button", { name: "Set Up…", exact: true }).waitFor();
+    await shot(`N-added-problem-${loading}`);
+  });
+  await publishEntries(listedEntries);
+  await navigationCheck("multiple-added-count", async () => {
+    await goHome(page); await enterProject(page, brand);
+    await publishAdded([acme, empty]);
+    await page.locator(".toast .msg").getByText("Added 2 projects", { exact: true }).waitFor();
+    await page.locator(".toast").getByRole("button", { name: "Open", exact: true }).click();
+    await overview().waitFor();
+    assert.equal(await page.getByRole("button", { name: "empty overview", exact: true }).count(), 1);
+  });
+  await navigationCheck("quick-open-native-focus", async () => {
+    await goHome(page); await enterProject(page, brand);
+    const origin = page.getByRole("button", { name: "brand-kit overview", exact: true });
+    await origin.focus(); await quickOpen(""); await page.keyboard.press("Escape");
+    assert.equal(await origin.evaluate(node => node === document.activeElement), true, "native close keeps a valid origin");
+    console.log("Quick Open native close focus", await activeFocus());
+  });
+  await navigationCheck("workspace-setup-close-focus", async () => {
+    await goHome(page); await enterProject(page, empty);
+    await rm(join(empty, ".doan/config.json"));
+    const status = page.getByRole("region", { name: "Project status", exact: true });
+    await status.getByRole("button", { name: "Set Up…", exact: true }).click();
+    const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true });
+    await setup.waitFor(); await page.keyboard.press("Escape"); await setup.waitFor({ state: "hidden" });
+    console.log("workspace setup close focus", await activeFocus());
+    assert.equal(await status.getByRole("button", { name: "Set Up…", exact: true }).evaluate(node => node === document.activeElement), true);
+    await status.getByRole("button", { name: "Set Up…", exact: true }).click(); await setup.waitFor();
+    await writeFile(join(empty, ".doan/config.json"), '{"v":1}');
+    await setup.waitFor({ state: "hidden" }); await overview().waitFor();
+    console.log("workspace external setup focus", await activeFocus());
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.workspace') && !document.activeElement?.closest('[inert]')), true);
+    await shot("N-workspace-setup-focus");
+  });
+  await writeFile(join(empty, ".doan/config.json"), '{"v":1}');
+  await publishEntries(listedEntries);
+  await navigationCheck("focused-toast-replacement", async () => {
+    await goHome(page); await enterProject(page, brand);
+    const origin = page.getByRole("button", { name: "brand-kit overview", exact: true });
+    await origin.focus(); await publishAdded([acme]);
+    await page.locator(".toast button").focus();
+    await publishAdded([empty]);
+    await page.locator(".toast .msg").getByText("Added empty", { exact: true }).waitFor();
+    console.log("focused toast replacement", await activeFocus());
+    assert.equal(await origin.evaluate(node => node === document.activeElement), true);
+    await origin.focus(); await publishAdded([acme]);
+    assert.equal(await origin.evaluate(node => node === document.activeElement), true, "an unfocused toast does not move focus");
+  });
+  await navigationCheck("modal-toast-replacement-focus", async () => {
+    await goHome(page); await enterProject(page, brand);
+    await page.getByRole("button", { name: "brand-kit overview", exact: true }).focus();
+    await publishAdded([acme]); await page.locator(".toast button").focus();
+    await quickOpen("");
+    await publishAdded([empty]);
+    const input = dialog().getByRole("combobox");
+    assert.equal(await input.evaluate(node => node === document.activeElement), true, "replacement cannot steal modal focus");
+    await page.keyboard.press("Escape"); await dialog().waitFor({ state: "hidden" });
+    console.log("removed Quick Open origin focus", await activeFocus());
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest(".workspace") && !document.activeElement?.closest("[inert]")), true, "a removed origin falls back to the current visible screen");
+  });
+  await navigationCheck("modal-toast-remaining-time", async () => {
+    await goHome(page); await enterProject(page, brand);
+    await page.mouse.move(5, 5);
+    await page.getByRole("button", { name: "brand-kit overview", exact: true }).focus();
+    await publishAdded([acme]); await page.locator(".toast").waitFor();
+    const born = performance.now();
+    await page.waitForTimeout(2500);
+    await quickOpen("");
+    const paused = performance.now();
+    await page.waitForTimeout(8500);
+    assert.equal(await page.locator(".toast").count(), 1, "modal preserves an inaccessible toast beyond eight seconds");
+    await page.keyboard.press("Escape");
+    const resumed = performance.now();
+    await page.waitForTimeout(1500);
+    assert.equal(await page.locator(".toast").count(), 1, "resume retains usable time");
+    const deadline = resumed + 8000 - (paused - born) + 700;
+    await page.locator(".toast").waitFor({ state: "hidden", timeout: Math.max(1, deadline - performance.now()) });
+    console.log("modal toast clock", { beforePause: paused - born, pausedFor: resumed - paused, expiredAfterResume: performance.now() - resumed });
+  });
+  if (await dialog().isVisible()) await page.keyboard.press("Escape");
+  await navigationCheck("workspace-retry-focus", async () => {
+    await publishEntries(listedEntries); await goHome(page); await enterProject(page, empty); await overview().waitFor();
+    await app!.evaluate(({ ipcMain }) => {
+      Reflect.set(globalThis, "retryOriginal", Reflect.get(ipcMain, "_invokeHandlers").get("folders:reopen"));
+      ipcMain.removeHandler("folders:reopen"); ipcMain.handle("folders:reopen", () => {});
+    });
+    try {
+      await publishEntries(listedEntries.map(entry => entry.path === empty ? { path: empty, kind: "cliError", reason: "fixture" } : entry));
+      const retry = page.getByRole("region", { name: "Project status", exact: true }).getByRole("button", { name: "Retry", exact: true });
+      await retry.focus(); await page.keyboard.press("Enter");
+      await publishEntries(listedEntries); await overview().waitFor();
+      console.log("Retry replaced focus", await activeFocus());
+      assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.workspace') && document.activeElement !== document.body), true);
+      await publishEntries(listedEntries.map(entry => entry.path === empty ? { path: empty, kind: "cliError", reason: "fixture" } : entry));
+      await retry.focus(); await page.keyboard.press("Enter");
+      const destination = page.getByRole("button", { name: "empty overview", exact: true });
+      await destination.focus(); await publishEntries(listedEntries); await overview().waitFor();
+      assert.equal(await destination.evaluate(node => node === document.activeElement), true, "Retry completion preserves deliberately moved focus");
+    } finally {
+      await app!.evaluate(({ ipcMain }) => { ipcMain.removeHandler("folders:reopen"); ipcMain.handle("folders:reopen", Reflect.get(globalThis, "retryOriginal")); });
+    }
+  });
+  await navigationCheck("stale-quick-open", async () => {
+    await publishEntries(listedEntries); await goHome(page); await enterProject(page, acme);
+    await page.getByRole("button", { name: "acme-web overview", exact: true }).click(); await overview().waitFor();
+    await card("Billing & plans").click(); await loaded("Billing & plans");
+    const panel = page.getByRole("region", { name: "Comments", exact: true });
+    await wait(() => panel.getByRole("button", { name: "New canvas comment", exact: true }).isEnabled(), "stale Open draft ready");
+    await panel.getByRole("button", { name: "New canvas comment", exact: true }).click();
+    await panel.getByRole("textbox", { name: "New comment body" }).fill("Keep the draft until the chosen transition is approved");
+    await quickOpen("Card decline patterns"); await page.keyboard.press("Enter");
+    const discard = page.getByRole("button", { name: "Discard", exact: true }); await discard.waitFor();
+    await publishEntries(listedEntries.map(entry => entry.path === brand ? { kind: "cliError", path: brand, reason: "held failure" } : entry));
+    await discard.click();
+    await page.locator(".toast .msg").getByText("Project is unavailable. Check its status on Home and try again.", { exact: true }).waitFor();
+    await loaded("Billing & plans");
+    await shot("N-stale-quick-open");
+    await publishEntries(listedEntries);
+  });
+  for (const outcome of ["id", "url", "cliError", "missing-path", "removed"] as const) {
+    await navigationCheck(`waiting-open-${outcome}`, async () => {
+      await publishEntries(listedEntries); await goHome(page); await enterProject(page, acme);
+      await page.getByRole("button", { name: "acme-web overview", exact: true }).click(); await overview().waitFor();
+      await card("Billing & plans").click(); await loaded("Billing & plans");
+      const panel = page.getByRole("region", { name: "Comments", exact: true });
+      await wait(() => panel.getByRole("button", { name: "New canvas comment", exact: true }).isEnabled(), "draft ready");
+      await panel.getByRole("button", { name: "New canvas comment", exact: true }).click();
+      await panel.getByRole("textbox", { name: "New comment body" }).fill("Guard the cross-root Open");
+      await page.evaluate(targetRoot => {
+        const element = document.querySelector(".workspace")!;
+        const key = Object.keys(element).find(key => key.startsWith("__reactFiber$"));
+        if (!key) throw new Error("Missing App fiber");
+        type Entry = import("../src/main/view").FolderEntry;
+        type Controller = import("../src/renderer/CanvasController").CanvasController;
+        type Hook = { memoizedState?: { current?: Controller }; next?: Hook };
+        type Fiber = { memoizedState?: Hook; return?: Fiber };
+        let controller: Controller | undefined;
+        for (let fiber = Reflect.get(element, key) as Fiber | undefined; fiber; fiber = fiber.return) {
+          for (let hook = fiber.memoizedState; hook; hook = hook.next) {
+            if (typeof hook.memoizedState?.current?.updateEntries === "function") controller = hook.memoizedState.current;
+          }
+        }
+        if (!controller) throw new Error("Missing controller");
+        controller.remember(targetRoot, null);
+        const original = controller.updateEntries, workspace = controller.openWorkspace, canvas = controller.openCanvas;
+        const probe = { updating: false, consumed: 0, callbacks: [] as { kind: string; updating: boolean }[],
+          waiting: () => !!Reflect.get(controller!, "waitingWorkspace"),
+          restore: () => { controller!.updateEntries = original; controller!.openWorkspace = workspace; controller!.openCanvas = canvas; } };
+        const observe = (callback: ((entry: Entry | undefined) => void) | undefined) => callback && ((entry: Entry | undefined) => {
+          callback(entry);
+          probe.callbacks.push({ kind: entry?.kind ?? "removed", updating: probe.updating });
+        });
+        controller.updateEntries = function (entries) { probe.updating = true; try { original.call(this, entries); probe.consumed++; } finally { probe.updating = false; } };
+        controller.openWorkspace = function (root, entered, same, unavailable) { workspace.call(this, root, entered, same, observe(unavailable)); };
+        controller.openCanvas = function (root, row, frame, target) { canvas.call(this, root, row, frame, target?.unavailable ? { ...target, unavailable: observe(target.unavailable)! } : target); };
+        Reflect.set(window, "openConsumption", probe);
+      }, brand);
+      await quickOpen("Card decline patterns"); await page.keyboard.press("Enter");
+      const discard = page.getByRole("button", { name: "Discard", exact: true }); await discard.waitFor();
+      const identity = outcome === "id" || outcome === "url";
+      const latest = listedEntries.flatMap(entry => entry.path !== brand ? [entry] : outcome === "removed" ? []
+        : outcome === "cliError" ? [{ kind: "cliError" as const, path: brand, reason: "held failure" }]
+        : entry.kind === "list" ? [{ ...entry, canvases: outcome === "missing-path" ? [] : entry.canvases.map(row => ({ ...row, [outcome]: row[outcome as "id" | "url"] + "-changed" })) }] : [entry]);
+      await publishEntries(identity ? latest : listedEntries.map(entry => entry.path === brand ? { kind: "loading", path: brand } : entry));
+      await page.waitForFunction(() => Reflect.get(window, "openConsumption").consumed > 0);
+      await discard.click();
+      if (!identity) {
+        await page.waitForFunction(() => Reflect.get(window, "openConsumption").waiting());
+        await publishEntries(latest);
+      }
+      await page.waitForFunction(() => Reflect.get(window, "openConsumption").callbacks.length > 0);
+      const consumed = await page.evaluate(() => Reflect.get(window, "openConsumption").callbacks);
+      console.log("waiting Open actual callback consumption", outcome, consumed);
+      const expected = identity ? "Canvas changed while opening. Choose it again from the Sidebar or Quick Open."
+        : outcome === "missing-path" ? "card-decline-patterns is no longer in design/" : "Project is unavailable. Check its status on Home and try again.";
+      await page.locator(".toast .msg").getByText(expected, { exact: true }).waitFor();
+      const actual = await page.locator(".toast .msg").textContent();
+      await shot(`Nfix-open-${outcome}`);
+      await page.evaluate(() => Reflect.get(window, "openConsumption").restore());
+      assert.equal(actual, expected);
+      assert.deepEqual(consumed, [{ kind: outcome === "removed" ? "removed" : outcome === "cliError" ? "cliError" : "list", updating: !identity }]);
+      if (identity || outcome === "missing-path") { await overview().waitFor(); assert.equal(await iframe().count(), 0); }
+      else assert.equal(await canvasTitle(), "Billing & plans");
+    });
+    await page.evaluate(() => Reflect.get(window, "openConsumption")?.restore());
+  }
+  await navigationCheck("workspace-setup-success-focus", async () => {
+    await goHome(page); await enterProject(page, empty);
+    await rm(join(empty, ".doan/config.json"));
+    const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true });
+    await page.getByRole("region", { name: "Project status", exact: true }).getByRole("button", { name: "Set Up…", exact: true }).click();
+    await setup.getByRole("button", { name: "Set Up Project", exact: true }).click();
+    await setup.waitFor({ state: "hidden" }); await overview().waitFor();
+    console.log("workspace setup success focus", await activeFocus());
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.workspace') && !document.activeElement?.closest('[inert]')), true);
+  });
+  await navigationCheck("workspace-setup-reroot-focus", async () => {
+    await goHome(page); await enterProject(page, empty);
+    await rm(join(empty, ".doan/config.json"));
+    const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true });
+    await page.getByRole("region", { name: "Project status", exact: true }).getByRole("button", { name: "Set Up…", exact: true }).click();
+    await setup.waitFor();
+    await app!.evaluate(({ BrowserWindow }, [entries, from, root]) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries.filter(entry => entry.path !== from), { from, root }), [listedEntries, empty, brand] as const);
+    await setup.waitFor({ state: "hidden" });
+    console.log("workspace setup re-root focus", await activeFocus());
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.workspace') && !document.activeElement?.closest('[inert]')), true);
+    await writeFile(join(empty, ".doan/config.json"), '{"v":1}'); await publishEntries(listedEntries);
+  });
+  await navigationCheck("width-copy-and-quick-open-presentation", async () => {
+    await publishEntries(listedEntries); await goHome(page); await enterProject(page, acme);
+    await page.getByRole("button", { name: "acme-web overview", exact: true }).click(); await overview().waitFor();
+    await card("Design tokens").click();
+    const status = page.locator(".canvas-status");
+    await status.getByText("Could not read a valid board width.", { exact: true }).waitFor();
+    assert.equal(await status.textContent(), "Could not read a valid board width. Run doan check in a terminal to diagnose the canvas.");
+    await quickOpen("card decl");
+    assert.equal(await dialog().locator(".qo-list.native-scroll").count(), 1);
+    const fields = await dialog().locator(".qo-item .t, .qo-item .c, .qo-item .w").evaluateAll(nodes => nodes.map(node => ({ text: node.textContent, title: node.getAttribute("title"), width: node.getBoundingClientRect().width, scroll: node.scrollWidth })));
+    assert.ok(fields.length > 0);
+    for (const field of fields) assert.equal(field.title, field.text);
+    console.log("Quick Open full text fields", fields);
+    await shot("N-quick-open-fields"); await page.keyboard.press("Escape");
+  });
+  await navigationCheck("first-run-wizard-home-focus", async () => {
+    await quit();
+    await rm(join(userData, "onboarding.json"));
+    await writeFile(join(userData, "ui-state.json"), JSON.stringify({ screen: "home", expanded: {}, lastByRoot: {} }));
+    await launch();
+    const wizard = page.getByRole("dialog", { name: "Set Up doan", exact: true });
+    await wizard.waitFor(); await page.keyboard.press("Escape"); await wizard.waitFor({ state: "hidden" });
+    console.log("first-run Home wizard focus", await activeFocus());
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.home-shell') && !document.activeElement?.closest('[inert]')), true);
+    await page.keyboard.press("Tab");
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.home-shell')), true, "Tab continues on the visible Home screen");
+    await shot("N-first-run-home-focus");
+  });
+  if (navigationFailures.length) throw new Error(navigationFailures.join("\n"));
+  if (process.env.DOAN_NAV_REGRESSION_ONLY === "1") {
+    await quit();
+  } else {
+  await goHome(page);
   await page.evaluate(() => { const seen: string[] = []; Reflect.set(window, "thumbChanges", seen); window.doan.onThumbnailChanged(({ path }) => seen.push(path)); });
   await page.getByRole("region", { name: "Home", exact: true }).waitFor();
 
@@ -284,12 +676,16 @@ process.exit(result.status ?? 1);
   const saved = JSON.parse(await readFile(join(userData, "ui-state.json"), "utf8"));
   assert.equal(saved.canvas, "design/settings/billing.html");
   assert.equal("selection" in saved, false, "ui-state.json has no selection");
+  console.log("normal restore saved state", JSON.stringify(saved));
+  traceRestore = true;
   await launch();
+  traceRestore = false;
   await loaded("Billing & plans");
   await wait(async () => await board() === view, `restored view ${view}`);
   assert.equal(await page.getByRole("treeitem", { name: "misc", exact: true }).getAttribute("aria-expanded"), "false", "tree expansion restored");
   assert.equal(await inspector().count(), 0, "no selection after restore");
   assert.equal((await active()).result?.selection, undefined, "doan active is empty after restore");
+  console.log("normal restore completed", await page.evaluate(() => ({ iframe: document.querySelector<HTMLIFrameElement>(".board iframe")?.src, status: document.querySelector(".canvas-status")?.textContent, frames: document.querySelectorAll('.side [role="treeitem"]').length })));
   await shot("9-restored");
 
   // App.save only runs after restore is done; a new atomic state write is a
@@ -368,8 +764,14 @@ process.exit(result.status ?? 1);
   console.log("design-nav: restore PASS");
   await quit();
 
+  }
 } catch (error) {
   console.error(error);
+  if (app) console.error("navigation failure diagnostics", await page.evaluate(async () => {
+    const iframe = document.querySelector<HTMLIFrameElement>(".board iframe");
+    const entries = await new Promise<import("../src/main/view").FolderEntry[]>(resolve => { const stop = window.doan.onFolders(value => { stop(); resolve(value); }); });
+    return { iframe: iframe?.src, status: document.querySelector(".canvas-status")?.textContent, entries, resources: performance.getEntriesByType("resource").map(item => item.name), saved: await window.doan.readUiState() };
+  }).catch(String));
   if (app) { await page.screenshot({ path: join(shots, "failure.png") }).catch(console.error); console.error(`design-nav screenshot: ${join(shots, "failure.png")}`); await app.evaluate(({ app }) => app.exit(0)).catch(() => {}); }
   throw error;
 } finally {

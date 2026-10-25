@@ -1,7 +1,8 @@
 import { useEffect, useReducer, useRef } from "react";
 import { initialToastState, toastState } from "./toastState";
 
-export function useToast() {
+export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) {
+  const previousFocus = useRef<HTMLElement | null>(null);
   const [state, dispatch] = useReducer(toastState, initialToastState);
   const handlers = useRef(new Map<string, { run?: () => void; expire?: () => void }>());
   const timerAt = useRef(0);
@@ -32,9 +33,19 @@ export function useToast() {
       dispatch({ type: "show", toast: { id, message, ...(label ? { action: label } : {}) } });
     },
     action,
+    setModal(on: boolean) { timerAt.current = performance.now(); dispatch({ type: "modal", on }); },
     element: state.toast && <div key={state.toast.id} className={`toast${state.toast.action ? "" : " solo"}`} role="status"
+      ref={node => {
+        if (!node) return;
+        return () => {
+          if (node.contains(document.activeElement)) {
+            const previous = previousFocus.current;
+            queueMicrotask(() => restoreFocus?.(previous));
+          }
+        };
+      }}
       onMouseEnter={() => dispatch({ type: "hover", on: true })} onMouseLeave={() => { timerAt.current = performance.now(); dispatch({ type: "hover", on: false }); }}
-      onFocus={() => dispatch({ type: "focus", on: true })} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) { timerAt.current = performance.now(); dispatch({ type: "focus", on: false }); } }}>
+      onFocus={event => { if (!event.currentTarget.contains(event.relatedTarget)) previousFocus.current = event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null; dispatch({ type: "focus", on: true }); }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) { timerAt.current = performance.now(); dispatch({ type: "focus", on: false }); } }}>
       <span className="msg">{state.toast.message}</span>{state.toast.action && <button className="btn" onClick={action}>{state.toast.action}</button>}
     </div>,
   };

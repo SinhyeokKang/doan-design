@@ -13,10 +13,11 @@ export interface ToastState {
   toast: Toast | null;
   remainingMs: number;
   // The timer stops while the pointer is over the toast, it has focus, or the
-  // window is hidden.
+  // window is hidden or an App modal owns input.
   hovered: boolean;
   focused: boolean;
   hidden: boolean;
+  modal: boolean;
   // The toast the last event took away, so the caller can tell main a removal's
   // undo window is over without re-deriving it.
   ended?: ToastEnd;
@@ -25,13 +26,13 @@ export interface ToastState {
 export type ToastEvent =
   | { type: "show"; toast: Toast }
   | { type: "tick"; elapsedMs: number }
-  | { type: "hover" | "focus" | "hidden"; on: boolean }
+  | { type: "hover" | "focus" | "hidden" | "modal"; on: boolean }
   | { type: "action" };
 
-export const initialToastState: ToastState = { toast: null, remainingMs: 0, hovered: false, focused: false, hidden: false };
+export const initialToastState: ToastState = { toast: null, remainingMs: 0, hovered: false, focused: false, hidden: false, modal: false };
 
 export function isToastPaused(state: ToastState): boolean {
-  return state.hovered || state.focused || state.hidden;
+  return state.hovered || state.focused || state.hidden || state.modal;
 }
 
 // Pure so the timer logic runs on a fake clock: the component feeds `tick` with
@@ -42,7 +43,7 @@ export function toastState(state: ToastState, event: ToastEvent): ToastState {
     case "show":
       // The old element unmounts without a mouseleave or blur; the component
       // re-reports hover/focus if the new element is under the pointer. `hidden`
-      // belongs to the window, so it stays.
+      // and `modal` belong to the app, so they stay.
       return { ...base, toast: event.toast, remainingMs: TOAST_MS, hovered: false, focused: false, ...(state.toast ? { ended: { id: state.toast.id, reason: "replaced" as const } } : {}) };
     case "tick": {
       if (!state.toast || isToastPaused(state)) return base;
@@ -56,6 +57,8 @@ export function toastState(state: ToastState, event: ToastEvent): ToastState {
       return { ...base, focused: event.on };
     case "hidden":
       return { ...base, hidden: event.on };
+    case "modal":
+      return { ...base, modal: event.on };
     case "action":
       if (!state.toast?.action) return base;
       return gone(base, state.toast, "action");

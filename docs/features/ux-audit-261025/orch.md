@@ -1,0 +1,230 @@
+# UX 감사 수정 지휘 — 2026-10-25
+
+- 원본: [report.md](./report.md). 원본은 당시 소스 검토 기록으로 보존한다.
+- 시작: `ea753025afd2843bf5602777aa1c7f3a1f259f9f`, audit PR #19 병합 뒤 clean main에서 `feat-ux-audit-261025`를 만들었다.
+- 목표: 52건을 현재 코드·결정과 대조하고, 확인된 결함만 수정·독립 검토·실제 앱 검증 후 push/PR/병합한다. 사용자 승인으로 두 단계의 병합을 수행한다.
+- 지휘자는 코드 대신 문서·통합을 담당한다. 승인된 전용 종료 경고·중첩 iframe 캡처와 deferred quit teardown을 유지한다.
+
+## 검토 계획과 검증
+
+화면 인벤토리 S1–S14와 공유 개념 8개는 원본 §4를 따른다. 각 리뷰어가 모든 해당 화면에서 양쪽 소스를 비교하고, 미해당·누락과 실제 실행이 필요한 주장을 구분한다. 원본의 확정 표시도 재검증하며 새로운 디자인·제품 결정을 임의로 만들지 않는다. 소스 검토가 실제 포커스·픽셀 일치를 입증하지는 않는다.
+
+| 배치 | 관점·담당 | 파일 소유권 | 모델·근거 | 게이트·상태 |
+|---|---|---|---|---|
+| R-W | Meaning and wording; U-7, U-9, U-13, U-15, U-20, U-22, U-23, U-25, U-26, U-27, U-30, U-32, U-46, U-47, U-48, U-49, U-50 | 읽기 전용, `.scratch/ux-integration-261025/review-W.md`만 작성 | Codex gpt-6-astra medium. 기존 결정·상태 계약과 거짓 양성 판단 | 항목별 근거·수정/해결됨/기각/미검증/결정 필요, 화면 커버리지; 준비 |
+| R-A | Actions and recovery; U-1, U-3, U-4, U-5, U-7, U-11, U-12, U-18, U-19, U-21, U-23, U-24, U-26, U-28, U-32, U-33, U-51 | 읽기 전용, `.scratch/ux-integration-261025/review-A.md`만 작성 | Codex gpt-6-astra medium. 기존 결정·상태 계약과 거짓 양성 판단 | 항목별 근거·수정/해결됨/기각/미검증/결정 필요, 화면 커버리지; 준비 |
+| R-T | State transitions; U-2, U-6, U-10, U-14, U-16, U-17, U-18, U-21, U-22, U-25, U-28, U-29, U-33 | 읽기 전용, `.scratch/ux-integration-261025/review-T.md`만 작성 | Codex gpt-6-astra medium. 기존 결정·상태 계약과 거짓 양성 판단 | 항목별 근거·수정/해결됨/기각/미검증/결정 필요, 화면 커버리지; 준비 |
+| R-P | Presentation; U-8, U-19, U-29, U-31, U-34, U-35, U-36, U-37, U-38, U-39, U-40, U-41, U-42, U-43, U-44, U-45, U-46, U-50, U-51, U-52 | 읽기 전용, `.scratch/ux-integration-261025/review-P.md`만 작성 | Codex gpt-6-astra medium. 기존 결정·상태 계약과 거짓 양성 판단 | 항목별 근거·수정/해결됨/기각/미검증/결정 필요, 화면 커버리지; 준비 |
+
+네 관점은 읽기만 하므로 3명 병렬 후 남은 1명 순서로 진행한다. 보고서를 통합한 다음 코드 소유권·모델·검증 명령을 별도 배치 표에 확정·커밋한다. 구현은 충돌 없는 child worktree, native/build/full gate는 한 번에 하나다. 각 구현은 회귀 red→green(버그), 관련 테스트·typecheck·필요한 실제 앱 증거, 별도 작성자의 코드 리뷰를 받는다. 통합은 `verify --runtime`, eval 관련 변경이 있으면 `--eval`과 별도 agent-eval 적용 여부를 판단한다.
+
+## 전체 발견 소유권
+
+| ID | 최초 검토 담당 | 최초 처분·담당 계획 (통합 결과는 아래 기록) |
+|---|---|---|
+| U-1 | R-A | audit에서 해결: stable unknown/check-failed/recovery-blocked 경고. saving/checking의 승인 금지는 유지(CommentsSession.guard) |
+| U-2 | R-T | 채택, N 예정: App restore가 새 사용자 intent·expanded·memory를 덮지 않게 한다 |
+| U-3 | R-A | 채택, N 예정: Added Open의 non-list 결과는 Home 해당 행으로 안내; 늦은 intent 폐기 |
+| U-4 | R-A | 채택, O: Home multi-add 유지, wizard 내부 결과와 실제 프로젝트 상태 표시 |
+| U-5 | R-A | 채택, S 예정: config 읽기 오류의 Retry·오류 초기화 |
+| U-6 | R-T | 채택, N 예정: App 모달 후 현재 화면·inert/disabled를 고려한 포커스 |
+| U-7 | R-W, R-A | audit에서 해결: onboardingView의 실제 Open Project 안내; Home 복구 전체 이식은 불필요 |
+| U-8 | R-P | 채택, P 예정: primary에만 기존 accent-ink 안쪽 outline로 식별 가능하게 함; 실측 필요 |
+| U-9 | R-W | 일부 채택, N 예정: id 없는 preview는 해결, noWidth의 파싱 원인 단정만 교정 |
+| U-10 | R-T | 일부 채택, N 예정: no-canvas 문제 안내. 과거 Sidebar/Overview 목록 캐시는 계약에 없어 추가하지 않음 |
+| U-11 | R-A | 채택, C: begin 오류를 readError와 분리해 목록 유지 |
+| U-12 | R-A | 라벨만 채택, S 예정: Settings Details 전달은 ARCH §7의 명시 계약, 펼침 삼각형 대신 실제 효과 표시 |
+| U-13 | R-W | 기각: connectionRowView 요약과 onboardingView 구성요소 진단은 다른 상태 범주(PRODUCT §5.0) |
+| U-14 | R-T | 채택, O: 최신 연결 읽기 실패와 Checking 구분, 기존 summary 유지 |
+| U-15 | R-W | 수량만 채택, N 예정: 다중 Added 개수 표시. 카드명과 실제 폴더명 차이는 유지(PRODUCT 카드명 결정) |
+| U-16 | R-T | 일부 채택, N 예정: native hidden은 audit에서 해결. modal 동안 잔여 시간 보존 |
+| U-17 | R-T | 채택, C: Delete dialog가 Escape/IME를 소유하고 selection 유지 |
+| U-18 | R-A, R-T | 채택, S 예정: Projects picker/confirm/write 중 기존 target queue·tab/row 보호 |
+| U-19 | R-A, R-P | 채택, O: 두 누락 오류에 기존 ob-msg error 적용, 실제 자식 cascade 확인 |
+| U-20 | R-W | 채택, O: 앱 작성 agent 오류의 표시 이름만 교정; 원문 오류/명령은 유지 |
+| U-21 | R-A, R-T | 범위 축소 채택, N/S 예정: 실제 재현한 사라진 action의 포커스만 보완; Quick Open close 자체의 유실은 미검증 |
+| U-22 | R-W, R-T | 채택, N 예정: 명시적 Open 실패에 listed-missing과 root unavailable을 구분해 안내 |
+| U-23 | R-W, R-A | 채택, S 예정: forward false를 project changed로 단정하지 않는 안내, boolean 계약 유지 |
+| U-24 | R-A | 채택, O: wizard 설치 링크 false/reject 안내 |
+| U-25 | R-W, R-T | 채택, N 예정: 빈 query와 no match 구분; loading/problem을 정상 empty로 단정하지 않음 |
+| U-26 | R-W, R-A | 일부 채택, O/N: Error.message, busy 해제 조건, 기존 복구 경로 안내만 보완 |
+| U-27 | R-W | 기각: on Home은 실행 가능한 ARCH §13의 명시 문구, 기존 결정 유지 |
+| U-28 | R-A, R-T | 채택, N 예정: 포커스된 toast가 사라질 때만 현재 유효한 위치 복원; workspace/selection 복구 금지 |
+| U-29 | R-T, R-P | 채택, C: Inspector loading에 Reading styles… 표시; 이전 선택 값 재사용 금지 |
+| U-30 | R-W | 채택, N 예정: selection 상실 문구에 frame 포함, 동작은 유지 |
+| U-31 | R-P | 일부 채택, P/N 예정: pin은 canvas chrome 아래; toast 실제 겹침을 측정 후 최소 위치 보완 |
+| U-32 | R-W, R-A | 기각: chips/Finish는 Connections 탭, Fix는 문제 행이라는 PRODUCT §5.0 결정 |
+| U-33 | R-A, R-T | 기각: ARCH §7은 open canvas 기준 메뉴를 명시. hasFrame으로 Reload까지 비활성화하지 않음 |
+| U-34 | R-P | 채택, P 예정: main .ob-reason code의 color/radius/padding 누락만 복구, raised 배경 유지 |
+| U-35 | R-P | 사용자 승인, P 예정: 공용 TooltipContent에만 6px 12px, global reset·PathTip 유지 |
+| U-36 | R-P | 채택, N 예정: worktree menu 상태 chip에 기존 entry.kind tone 적용, 새 상태 모델 없음 |
+| U-37 | R-P | 범위 축소 채택, P/N 예정: 두 renderer color-scheme dark, Quick Open native-scroll; canvas tokens와 전체 scrollbar 굵기는 유지 |
+| U-38 | R-P | 미검증·필수 수정 제외: cold-load flash·native Light 외형은 미관찰. nativeTheme 강제는 canvas에도 영향이 있어 추가하지 않음 |
+| U-39 | R-P | 채택, P 예정: 두 HTML entry의 stylesheet link로 shared/Settings CSS 로드, JS import 제거·CSP 유지 |
+| U-40 | R-P | 좁게 채택, N/S/P: 잘리는 전체 텍스트 접근과 viewport/branch/error wrapping; tooltip 전면 교체 없음 |
+| U-41 | R-P | 기각: 모든 행·버튼 hover 통일 계약 없음; 선택/포커스/disabled 차이 유지 |
+| U-42 | R-P | 기각: 공용 정지 로딩 표시+텍스트이며 회전 계약/교차 화면 불일치 근거 없음 |
+| U-43 | R-P | 채택, S: install/read 오류만 err modifier, busy warn 유지 |
+| U-44 | R-P | 채택, P: fp-input.invalid:focus-visible 오류 outline만 보완; textarea 통일 안 함 |
+| U-45 | R-P | 기각: 부모 배경·plain error의 문서화된 차이. 실제 자식 누락은 U-34로 제한 |
+| U-46 | R-W, R-P | 보류: picker 제목 차이가 OS 표시 결함인지는 미검증. 기존 동작별 제목을 강제 통일하지 않음 |
+| U-47 | R-W | 기각: 의미 차이 없고 기존 문서도 두 표기를 사용. raw 출력 일괄 치환 금지 |
+| U-48 | R-W | 기각: 문제 행/메뉴/복수 카드의 효과 범위가 다르며 PRODUCT·ARCH의 Remove 결정과 일치 |
+| U-49 | R-W | 기각: Fix는 원인별 Settings 안내로 가는 PRODUCT 결정; 자동 수리 버튼 아님 |
+| U-50 | R-W, R-P | fallback만 채택, N 예정: Home/Quick Open의 빈 title/id를 기존 frameLabel로 처리, Inspector/댓글 id 유지 |
+| U-51 | R-A, R-P | 기각: 손실/삭제 승인과 setup 진행은 다른 동작, 모든 확인의 primary 규칙 없음. 명시 Cancel 확인 추가도 하지 않음 |
+| U-52 | R-P | 기각: DESIGN에 이미 각 패널 제목 측정값 기록, 중복 문서/일괄 통일 안 함 |
+
+## 사용자 결정과 검토 진행
+
+- U-35: 공용 shadcn 툴팁만 좌우 12px·상하 6px로 복구한다는 사용자 답변을 인수했다. 전역 reset과 별도 PathTip은 유지한다. PRODUCT §8 미결정을 닫고 §7·ARCHITECTURE에 기록했다.
+- R-W `ctx_c764468a4596`, R-A `ctx_aa516ef31c55`, R-T `ctx_2203c8cc6a37` 모두 Astra medium effective 및 turn_start를 확인했다. R-P는 다음 빈 슬롯에서 진행한다.
+- 지휘자가 직접 확인한 계약: wizard 4단계는 Home의 여러 폴더 추가 흐름을 쓰며, Settings Details는 좁은 projection으로 main에 전달한다. 원본 권고를 그대로 적용해 이 계약을 바꾸지 않는다. 잘못된 피드백·라벨을 최소한으로 바로잡는 방식을 검토한다.
+
+## 구현 배치 — 1차
+
+| 배치 | 채택 범위 | 파일 소유권 | 모델·근거 | 검증 |
+|---|---|---|---|---|
+| C | U-11 생성 오류 분리, U-17 Delete Escape 격리, U-29 Inspector loading 표시 | CommentsSession/useComments/CommentsPanel/RightPanel 및 직접 tests, app/e2e/comments-ui.ts | Codex gpt-6-astra medium. 비동기 오류·초안/선택 수명과 모달 키 소유권 판단 | 관련 회귀 red→green·typecheck, 예약 후 실제 앱의 Escape/선택·오류·보류 inspect 관찰, 독립 리뷰 |
+
+- R-A·R-T의 지정 항목과 화면 커버리지를 인수하고 지휘자가 직접 읽은 소스와 대조했다. R-A는 같은 agent를 R-P로 즉시 재사용했고 turn_start를 확인했다. R-T는 release했다.
+- C는 기존 불확실 요청/종료 정책을 바꾸지 않는다. 생성 실패는 목록 오류와 분리하고 기존 New comment로 재시도한다. Delete Escape는 해당 dialog만 닫는다. Inspector는 새 선택의 이전 값을 유지하지 않고 Reading styles…만 보여준다.
+- U-1 안정된 불확실 상태, U-7은 audit에서 해결됐다. U-32·U-33·U-51은 명시 계약 또는 서로 다른 동작의 차이로 현재 변경을 채택하지 않는다. U-10은 과거 트리 캐시 추가 대신 no-canvas 문제 안내만 수정한다. 실제 Quick Open 포커스 유실은 재현 전 결함으로 단정하지 않는다.
+- R-P가 CSS/표현 소스를 읽는 동안 C는 별도 child에서만 구현한다. C 파일을 다른 구현 배치에 동시에 맡기지 않는다. root 검토 기준 소스는 유지한다.
+
+| 배치 | 채택 범위 | 파일 소유권 | 모델·근거 | 검증 |
+|---|---|---|---|---|
+| O | U-4 wizard 안의 추가 결과·기존 문제 프로젝트, U-14 첫 연결 읽기 실패, U-19 오류 표현, U-20 agent 표시 이름, U-24 설치 링크 실패, U-26 catch/busy 안내 | Onboarding/onboardingView/ConnectionRows/AddProjectsDialog/Home/App, main setupBroker 및 onboarding/machine, 직접 tests, app/e2e/onboarding.ts | Codex gpt-6-astra medium. 여러 창의 읽기 순서·추가 결과·모달 소유권 판단 | 상태별 단위 red→green·typecheck, 예약된 wizard native 결과/가시성·오류 복구, 독립 리뷰 |
+
+- O는 C와 파일이 겹치지 않아 병렬 구현한다. 이후 navigation 배치 N은 App/Home과 겹치므로 O 통합 뒤에 시작한다. Settings 배치 S는 별도 파일을 맡을 수 있다. CSS·tooltip·CSS entry 수정은 후속 P에 남긴다.
+- R-W를 인수하고 release했다. U-13 연결 요약과 구성요소 진단, U-15 카드명과 작업 폴더명, U-27 현재 Set Up 안내, U-47 아포스트로피, U-48 제거 라벨, U-49 배너 CTA는 기존 의미·결정 차이를 유지한다. U-15 복수 추가 개수와 U-50 빈 프레임 이름 fallback은 별도 최소 수정 대상으로 남긴다.
+
+- C `ctx_2b545f0bccce`, O `ctx_2247da837b6b`는 새 child에서 Astra medium effective 및 turn_start를 확인했다. R-P `ctx_bdc939b1b30d`는 R-A와 동일 process를 재사용하며 새 launch 모델 값이 null이므로 이전 effective 증거와 process identity를 근거로 기록한다.
+
+| 배치 | 채택 범위 | 파일 소유권 | 모델·근거 | 검증 |
+|---|---|---|---|---|
+| S | U-5 config Retry, U-12 전달 라벨, U-18 pane 소유권, U-21 Settings 포커스, U-23 거부 안내, U-40 긴 branch, U-43 오류 severity | settingsProjects/settingsWindow/settings.css 및 직접 tests, app/e2e/settings.ts | Codex gpt-6-astra medium. 확인·쓰기·전달 target 경합과 포커스 판단 | 관련 red→green·typecheck, 단독 Settings native 경합/포커스/긴 내용, 독립 리뷰 |
+
+- R-P의 20건·S1–S14 커버리지를 인수하고 release했다. 네 관점 모두 소스 검토를 마쳤으며 실제 화면 주장은 해당 구현의 native gate에 남긴다.
+- S는 C/O와 독립이다. 후속 P는 S의 settings.css와 O의 ConnectionRows가 통합된 뒤 시작한다. S의 좁은 오류 modifier·긴 branch 보완 외 전체 hover/색상 통일은 하지 않는다.
+
+- C 원본 `dd8608a`, `8d83200`, `f2f8e6c`와 4건 red→관련 135개 green·typecheck·build·comments-ui PASS/exit 0·real-state unchanged를 인수했다. 증거를 root `C-evidence/`로 복사해 해시를 대조했다. 작성자는 release하고 child는 독립 검토까지 보존한다.
+- IR-C: Codex gpt-6-astra medium. 생성/읽기 오류 경계, modal Escape/IME, inspect 늦은 응답 및 실제 fixture 주장 검토가 필요하다. 8개 파일 전체 diff와 원 로그/스크린샷을 읽는 report-only 검토다. 원 작성자와 다른 worker를 사용한다.
+- C가 실제 종료 후 반환한 native/build 슬롯을 O에 배정했다. S와 root는 해당 실행을 겹치지 않는다. O는 SetupStatus 타입 확장 없이 최초 실패를 기존 couldnt-check summary로 표현하고 기존 summary는 유지한다고 보고했다.
+
+- IR-C는 red 0 / yellow 1이다. 같은 canvas의 문서 교체 뒤 보류 begin 오류가 다시 createError를 채우는 경합을 발견했다. generation을 begin에만 한정해 무효화하며 기존 list/card revision과 immutable 저장 요청은 유지하도록 C-fix에 돌려보낸다. Inspector 늦은 응답 검증의 main-release+100ms 대기도 renderer 처리 확인으로 강화한다.
+- C-fix: 기존 comments child에 새 Codex gpt-6-astra medium을 배정한다. 비동기 오류 권한·guard 수명과 회귀 증거의 판정이 필요하다. CommentsSession/test와 comments-ui fixture만 소유한다. 보류 요청 red→green·관련 tests/typecheck, 예약 후 native 재실행, 별도 작성자 재리뷰를 받는다. IR-C worker는 release했다.
+
+- C-fix `ctx_2e970407904b`의 Astra medium effective·turn_start를 확인했다. native/build는 O→S→C-fix 순서로 배정한다.
+- O의 혼합 추가: 직접 추가·후속 scan은 먼저 채택한 프로젝트를 보존한다. 사용자가 일반 폴더의 Set Up을 명시적으로 확인한 경우에만 그 root의 기존 wizard 3단계 폼으로 이동한다. 별도 dialog를 겹치지 않는다. 기존 명시적 설정 동작에 따른 지휘자 판단이며, 늦은 완료가 새 선택을 덮지 않는지 검증한다.
+
+## 구현 배치 — 후속
+
+| 배치 | 채택 범위 | 파일 소유권·선행 조건 | 모델·근거 | 검증 |
+|---|---|---|---|---|
+| N | U-2/3/6/9/10/15/16/21/22/25/26/28/30/36/37/40/50의 탐색·문구·포커스 범위 | O 통합 후 App/CanvasController/Home/homeCards/QuickOpen/FirstPrompt/Toast/toastState/selection 및 직접 tests, Locate 안내의 main/addProjects, projects-home/design-nav/runtime 직접 회귀. CSS·HTML 제외 | Codex gpt-6-astra medium. 사용자 intent와 늦은 응답·모달/토스트 포커스 수명 판단 | 보류 응답 회귀 red→green·typecheck, 단독 native의 실제 focus/시간/상태, 독립 리뷰 |
+| P | U-8/31/34/35/37/39/40/44의 좁은 CSS·표현 범위 | O·S 통합 후 styles/settings.css, HTML entries와 CSS import, Overview title, 직접 tests 및 presentation fixture를 onboarding suite에 연결. N 파일 제외 | Codex gpt-6-astra medium. CSS cascade·CSP·실제 hit-test/치수 판단 | 실제 computed style/geometry red→green·typecheck, 단독 dev와 production 증거, 독립 리뷰 |
+
+- N과 P는 파일 소유권이 겹치지 않는다. native/build/full gate는 계속 직렬이며 공통 문서의 현재 측정값은 지휘자가 증거를 검토한 뒤 갱신한다.
+
+## 독립 구현 리뷰 계획
+
+| 배치 | 대상·소유권 | 모델·근거 | 완료 조건 |
+|---|---|---|---|
+| IR-O | O 전체 diff·인계 증거 읽기, root scratch review-O.md만 작성 | Codex gpt-6-astra medium. 혼합 추가의 명시적 선택과 늦은 결과, 모달·읽기 수명 판단 | 전체 파일·호출 경계 검토, 실제 red/green·화면 증거 대조, 발견을 O 소유자에게 반환 |
+| IR-S | S 전체 diff·인계 증거 읽기, root scratch review-S.md만 작성 | Codex gpt-6-astra medium. picker/confirm/write 중 target queue와 실제 포커스 판단 | 전체 파일·좁은 IPC 계약·오류/긴 내용 증거 대조, 발견을 S 소유자에게 반환 |
+| IR-C-fix | C 전체 및 C-fix diff·인계 증거 읽기, root scratch review-C-fix.md만 작성 | Codex gpt-6-astra medium. begin 권한·main guard 순서와 Inspector 음성 대조의 유효성 판단 | C-1의 late reject/success/guard/new retry 및 기존 C 계약 재검토, 발견을 C 소유자에게 반환 |
+
+각 리뷰는 해당 구현 완료 후 다른 작성자에게 맡긴다. 빌드·실행·코드 수정은 하지 않으며 최종 통합 gate는 별도로 실행한다.
+
+- O `04c1727`·`9be1099`·`17c35f4`를 인수했다. 관련 196 tests·typecheck·build·최종 onboarding-test PASS/exit 0, real-state/clipboard 복구 증거를 받았다. 혼합 추가 fixture의 잘못된 기대를 제품 회귀 red로 계산하지 않는다. root O-evidence의 39개 파일을 원본과 해시 대조했고, 최종 스크린샷 5개에서 읽기/복사 실패·추가 scan/확인·미설정 프로젝트 표시를 직접 확인했다.
+- O는 release, child는 리뷰까지 보존한다. IR-O `ctx_188d43dbe520`의 Astra medium effective·turn_start를 확인했다. source/build 해시는 최종 실행 후 clean `17c35f4`에서 캡처했으며 사전 불변 증명으로 표기하지 않는다. S가 다음 native/build 슬롯을 인수했다.
+
+- C-fix `cc73398`의 7건 red→green·142 tests·typecheck·build·최종 comments-ui PASS/exit 0을 인수했다. Inspector의 첫 보류 요청만 stale 검사를 우회한 대조는 정확한 late-frame assertion에서 exit 1이었다. 양쪽 사용자 상태와 정상 Electron 종료가 확인됐고 build 해시는 실행 전후 동일했다. root에 20개 증거 파일을 해시 대조해 복사했으며 지휘자도 실패/정상 Inspector 화면을 비교했다. 작성자는 release, IR-C-fix `ctx_f8911eae3daf`의 Astra medium effective·turn_start를 확인했다.
+- IR-O는 red 0/yellow 2이다. 오래된 설치 링크 실패가 최신 성공 뒤 표시되는 경합과 체크리스트 제출 실패 뒤 포커스 복구 누락을 채택했다. 후자는 실제 재현부터 수행한다. O-fix는 기존 O child에서 Codex gpt-6-astra medium으로 Onboarding/AddProjectsDialog·직접 tests/onboarding fixture만 수정한다. 비동기 요청 소유권과 중첩 modal의 키 처리 판단이 필요하다. red→green·실제 focus·재리뷰를 받고 원 커밋은 유지한다. IR-O는 release했다.
+
+- IR-C-fix red 0/yellow 0을 인수하고 C를 `589ab56`·`84c00f7`·`5876b08`·`4438232`로 통합했다. 통합 전체 검증은 후속 배치가 들어온 뒤 실행한다. reviewer를 release하고 clean child의 `git cherry`에 `+`가 없음을 확인한 뒤 Orca로 삭제했으며 목록에서 사라진 것을 확인했다. POSTMORTEM의 생성 오류 수명 및 Escape/renderer 소비 완료 재발 기록을 갱신했다.
+- O-fix `ctx_e98adc0f05b2`의 Astra medium effective·turn_start를 확인했다. 설치 순서 경합은 native red가 확인됐지만 checklist 포커스 유실은 첫 실제 실행에서 재현되지 않았다. 보류 요청과 실제 입력을 더 확인하고 재현되지 않으면 해당 제품 코드는 유지한다.
+- S의 신규 Retry 성공 뒤 포커스 유실을 지휘자가 추가 점검하도록 요청했고 실제 red→green을 받았다. O 리뷰에서 확인한 설치 오류의 최신 요청 소유권을 같은 Settings handler에도 재현·수정하도록 S에 맡겼다. 기존 순차 Retry PASS와 겹친 요청 검증을 구분한다.
+
+- IR-O-fix는 O-fix 인계 후 별도 작성자의 Codex gpt-6-astra medium으로 진행한다. 최신 설치 요청과 중첩 dialog의 실제 입력·실패 증거를 판정해야 하므로 이 모델을 선택했다. 전체 O diff와 후속 수정, red/green·미재현 근거를 읽고 root scratch review-O-fix.md만 작성한다. 추측한 포커스 결함을 고치도록 강제하지 않고 최종 근거로 판정한다.
+
+- O-fix는 실제 disabled 렌더링을 기다리자 pointer/keyboard의 reject·반복 reject·unavailable 6건에서 BODY 포커스와 Escape 차단을 재현했다. `9b07d6b`의 최종 native PASS/SHELL_EXIT=0·196 tests·typecheck·실행 전후 247파일 SHA256 일치를 인수했다. 증거 50개를 root에 해시 대조해 복사했고 지휘자도 최종 reject/unavailable의 Cancel 포커스 화면을 확인했다. 작성자는 release, IR-O-fix `ctx_21efc8571e49`의 Astra medium effective·turn_start를 확인했다.
+- S는 최초 19건·Retry 포커스 1건·설치 순서 3개 assertion의 red와 최종 Settings PASS/exit 0·26 tests·typecheck를 인수했다. root S-evidence의 42파일을 원본과 해시 대조했고 지휘자도 최종 긴 branch·config Retry·Serve 확인 화면을 확인했다. IR-S `ctx_f296dc0bc976`는 Astra medium으로 전체 diff를 검토해 red 0/yellow 0이었다.
+- S를 `b4842c5`·`c30109d`·`9c434e3`·`3c389f0`·`851ce23`로 통합했다. 작성자와 리뷰어를 release하고 clean child·미통합 patch 없음·증거 보존을 확인한 뒤 Orca로 삭제했으며 목록에서 부재를 확인했다. S의 final manifest는 Settings JS/CSS 2파일만 대조한 근거다. renderer IPC reject는 정적 확인이며 실제 OS sheet·tooltip 그림은 미검증이다. 하이픈 없는 긴 branch의 실측은 P에 넘겼다.
+
+- IR-O-fix는 제품 결함 두 건을 닫았고 red 0/yellow 1을 남겼다. 설치 순서 fixture의 100ms 대기는 실제 renderer 소비 완료를 입증하지 못한다. 지휘자가 S의 같은 150ms 부재 단언도 확인했다. O의 8개 커밋을 `469b355`부터 `e0915f6`까지 통합하되 이 검증 결함은 완료로 계산하지 않고 K에서 두 창을 함께 보강한다. 최종 통합 gate는 K 완료 뒤 실행한다.
+
+| 배치 | 범위·소유권 | 모델·근거 | 검증·순서 |
+|---|---|---|---|
+| K | onboarding/settings e2e의 설치 응답 소비 완료와 최소 test helper. 제품 코드 변경 없음 | Codex gpt-6-astra medium. 비동기 실제 consumer 완료와 음성 대조의 인과 판단 | 두 창 false/reject·양 순서·최신 오류 보존·재시도, guard 우회 음성 대조 red와 복구 green, 단독 native·독립 리뷰 |
+
+- N은 O가 통합된 현재 HEAD에서 시작한다. K와 N은 파일 소유권이 달라 병렬 진행한다. P는 K와 onboarding.ts가 겹치므로 K 통합 후 새 child에서 시작한다. native/build 슬롯은 한 번에 한 배치만 사용한다. IR-O-fix는 release했으며 O child는 증거를 보존한 뒤 정리한다.
+
+- N `ctx_e5b35cca346b`와 K `ctx_7182d9890fce`의 Astra medium effective 및 turn_start를 확인했다. O child는 clean·8개 patch 모두 통합됨을 확인했고, disabled 재현 스크린샷 23개도 추가 보존·해시 대조했다. Orca 삭제 후 목록에서 부재를 확인했다. 일반 Claude peer는 유지한다.
+
+| 독립 리뷰 | 대상·소유권 | 모델·근거 | 완료 조건 |
+|---|---|---|---|
+| IR-K | K 전체 e2e/helper diff·인계·원시 증거, scratch review-K.md만 작성 | Codex gpt-6-astra medium. 실제 consumer 완료와 mutation red의 인과 판단 | 양 창 모든 순서의 소비 완료·React 반영, 복구 source/build 일치·정상 종료 확인 |
+| IR-N | N 전체 탐색·포커스 diff·인계·원시 증거, scratch review-N.md만 작성 | Codex gpt-6-astra medium. 최신 intent·draft guard·modal/toast 수명 판단 | 항목별 계약·모든 파일/호출 경계, 의미 있는 red와 native 증거, 누락·회귀 보고 |
+| IR-P | P 전체 스타일·entry·fixture diff·인계·원시 증거, scratch review-P-final.md만 작성 | Codex gpt-6-astra medium. CSS cascade/CSP·치수·hit-test 판단 | 승인한 tooltip 범위, dev/production 실제 관찰, 모든 파일과 제외 범위 확인 |
+
+- 각 리뷰는 해당 작성자가 아닌 worker에게 완료 후 맡긴다. K는 현재 단독 native/build 슬롯을 받았으며, N은 소스·단위 작업을 이어간다.
+
+- U-9 추가 대조에서 CommentsPanel도 동일한 width 부재를 원인 진단으로 단정하는 문구를 사용함을 확인했다(`useComments`의 widthInvalid는 row.width 부재일 뿐이다). C가 종료·통합돼 소유권 충돌이 없으므로 N에 CommentsPanel의 width 안내 문자열과 직접 기대값만 추가한다. comment 상태·쓰기·draft 수명은 바꾸지 않는다.
+
+- P의 선행 조건을 더 좁혔다. K와 겹치는 것은 onboarding suite 연결뿐이므로 P는 CSS·HTML·독립 실행 presentation fixture를 먼저 맡고 onboarding/settings fixture를 건드리지 않는다. K 통합 뒤 별도 P 후속 작업에서 suite 연결을 맡긴다. N/K/P의 현재 파일 소유권은 겹치지 않으며 native/build는 K→N 순서 뒤 P에 배정한다. 이 순서 변경은 승인한 수정 범위를 바꾸지 않는다.
+
+- P `ctx_b42cc33d55da`의 Astra medium effective·turn_start를 확인했다. 기준은 `011a2bd`이며 suite 연결은 별도 후속 소유권으로 남긴다.
+
+- K `bf3c1c5`를 인수했다. 실제 Wizard return·Settings then/catch 완료를 요청별로 관찰한 뒤 렌더를 확인한다. 두 창의 guard 우회 대조는 정확한 stale-error 단언에서 exit 1, 원복한 최종 onboarding/Settings는 PASS·exit 0·real-state 불변이었다. 실행 전후 267개 해시와 clean을 인수했고 root에 150개 증거 파일을 해시 대조해 복사했다. 지휘자도 최종 두 창의 설치 재시도 화면을 열어 확인했다.
+- K 작성자를 release하고 IR-K `ctx_63ac29150f4d`의 Astra medium effective·turn_start를 확인했다. child는 독립 리뷰까지 보존한다. N에 K의 실제 프로세스 종료 뒤 native/build 슬롯을 배정했다.
+
+- IR-K red 0/yellow 0을 인수해 O의 남은 yellow와 S의 같은 소비 확인 공백을 닫았다. `98db3e1`로 통합했으며 두 창 renderer reject도 현재 fixture 범위에서 검증됐다. reviewer를 release하고 clean·미통합 patch 없음·증거 보존을 확인한 뒤 K child를 Orca로 삭제했다. 전체 합본 gate는 N/P와 suite 연결 뒤 실행한다.
+
+- N의 첫 부분 native는 정상 종료·PASS를 보고했다. Quick Open close의 기존 포커스 복귀는 재현상 정상이라 유지한다. 지휘자는 late readUiState/folders fixture의 main 해제 뒤 두 rAF만으로는 실제 응답 소비가 확인되지 않는 점을 발견해 최종 검증 전에 보강하도록 반환했다. 이 부분 green으로 해당 경합의 완료를 확정하지 않는다. N이 슬롯을 반환해 P의 production/dev 실측에 배정했다.
+
+| 후속 배치 | 소유권·선행 조건 | 모델·근거 | 검증 |
+|---|---|---|---|
+| P2 | P 완료 뒤 같은 child에서 K 선행 커밋을 받고 onboarding.ts에 production/dev presentation 순차 연결. N runtime.ts 제외 | 기존 P 작성자의 Codex gpt-6-astra medium 재사용. 기존 fixture cleanup·오류 전파 경계를 이미 파악한 작성자가 최소 연결 | typecheck·실패 전파 검토, 본문 불변 시 P native 증거 재사용, 최종 합본 runtime에서 새 연결 실제 실행·독립 P 리뷰 |
+
+- P2는 P 완료 후 새 Task로만 전달한다. K/P/N 코드 소유권은 계속 분리하며 전체 runtime PASS 전에 presentation의 양 실행이 끝나야 한다.
+
+- P 지휘자 검토에서 canvas의 강제 `color-scheme:light` computed 값만으로는 `prefers-color-scheme` 보존이 입증되지 않는 점을 확인했다. [CSS Color Adjustment §2.1](https://drafts.csswg.org/css-color-adjust-1/#color-scheme-prop)을 확인했으며 embedding element의 scheme이 iframe의 preferred scheme이 된다. P2에 실제 iframe media/CSS 전후 비교와 필요 시 iframe 경계만 기존 normal로 복구하는 최소 CSS를 추가한다. 기존 canvas 보존 조건의 검증이며 OS/nativeTheme는 바꾸지 않는다. 판단이 필요한 이 경계까지 기존 Astra medium이 맡고, 변경 시 production/dev native를 새로 실행한다.
+
+- P 작성자가 완료 신호 전에 canvas 보존 검증을 현재 Task에서 마치겠다고 확인 요청했고 지휘자가 승인했다. 따라서 위 P2의 theme 검증 배정은 P로 되돌린다. P2는 원래 suite 연결만 맡는다. N이 현재 native 슬롯을 사용하며 P는 비교 fixture를 준비하고 다음 순서로 검증한다.
+
+- N의 `72dfdaf`부터 `a3e05b1`까지 14개 커밋과 최종 97파일/2070 tests·typecheck·design-nav PASS/exit 0·real-state 불변을 인수했다. projects-home 전체 PASS는 이후 Quick Open 종료 변경과 겹치지 않는 증거로 재사용한다. 첫 정상 재시작의 iframe 첫 layout 실패는 원인 미확정이며 재실행 성공으로 해결됐다고 처리하지 않는다. 해당 실패 당시 URL/network 덤프는 없고 후속 fixture에만 진단을 추가했다. root N-evidence에 221개 파일을 복사해 SHA256을 대조했으며 지휘자도 실패 화면과 Home 포커스 화면을 확인했다.
+- N 작성자를 release하고 IR-N `ctx_8a7b02c48850`의 Astra medium effective·turn_start를 확인했다. 원인 미확정 첫 layout 실패와 실제 소비 완료 관찰, 사라진 Quick Open origin의 포커스 복구까지 독립 검토한다. N child는 리뷰 종료까지 보존한다.
+- P가 다음 native/build 슬롯을 인수했다. 실제 sandbox iframe media 비교의 첫 production 실행에서는 root normal/dark 양쪽 모두 light 선호를 보고해 canvas 영향이 재현되지 않았다. 이 관측만으로 CSS 경계 수정을 추가하지 않으며 최초 생성·재생성과 DEV 결과까지 확인한 범위로 결론을 제한한다.
+
+- P의 `ac85c0e`·`8a78209`·`cff7931`과 최종 production 55개/DEV 29개 검사·typecheck·정상 종료·real-state 보존을 인수했다. 원본과 SHA256을 대조해 root P-evidence에 183파일을 보존했고 지휘자도 토스트 간격·툴팁·긴 Settings branch 화면을 확인했다. 실제 iframe media는 최초 생성/normal 기준선 재생성/dark 복원/dark 재생성 모두 현재 엔진과 OS 선호에서 같았다. 기존 Radix의 특정 inline-style CSP 경고는 남기며 다른 경고를 허용하지 않는다.
+- P2 `ctx_8a57714a5179`는 동일 proven process를 재사용하고 turn_start를 확인했다. 재사용 launch의 model/effort는 null이므로 P의 기존 Astra medium effective를 근거로 한다. 최초 요청은 current root와 child terminal 불일치로 preflight 거부됐으며 Task ready와 기존 소유권을 확인한 뒤 정확한 child를 지정했다. 새 중복 Task/worker는 만들지 않았다.
+- IR-N red 0/yellow 3을 인수하고 리뷰어를 release했다. N-1은 같은 path의 id/url 변경을 삭제로 안내하고, N-2는 controller가 새 entries를 소비하는 동안 이전 React entries로 안내한다. N-3은 원인 미확정 정상 재시작 실패다. N-fix에 기존 child의 App/CanvasController/quickOpen 및 직접 회귀·design-nav만 맡긴다. Codex gpt-6-astra medium: 최신 데이터와 사용자 intent 경합 및 첫 layout 실패의 인과 판단이 필요하다. N-1/2 red→green, N-3 원시 증거·소스 경계 조사, 단독 native·재리뷰 뒤 통합한다. 근거 없는 반복 실행이나 N-3 해결 주장은 금지한다.
+- N-fix `ctx_b97d653b7ded`의 Astra medium effective·turn_start를 확인했고 단독 native/build 슬롯을 배정했다. 후속 IR-N-fix도 다른 작성자의 Astra medium으로 최신 데이터/정체성 안내와 첫 layout 조사 증거를 판단한다. 읽기 전용이며 root review-N-fix.md만 작성한다.
+- P2 `5fe3a90`의 onboarding 종료 뒤 production→DEV 순차 연결을 인수했다. typecheck 및 추출한 실제 연결 코드의 비네이티브 실패 전파 검사는 통과했다. 기존 P 제품/fixture 본문은 불변이라 native 결과를 재사용하되 새 합본 경로는 최종 gate에서 실행한다. K 중복 선행 커밋 `b88f0b9`는 재통합하지 않는다. 4개 P2 증거 파일을 해시 대조해 보존하고 작성자를 release했다. IR-P `ctx_d4e698e4b595`의 Astra medium effective·turn_start를 확인했으며 P/P2 전체를 독립 검토한다.
+- IR-P red 0/yellow 0을 인수했다. 270개 manifest 중 이후 K/P2가 바꾼 세 fixture 외 제품·presentation·build가 일치했다. P/P2를 `77d8bdb`·`2925174`·`c8d8032`·`f6db3ca`로 통합하고 reviewer를 release했다. clean child·모든 patch 통합·증거 보존을 확인한 뒤 P child를 Orca로 삭제했으며 목록에서 사라진 것을 확인했다. 실제 합본 실행은 N-fix 인수 후 진행한다.
+- N-fix `ed19103`·`8196ef7`·`aa02c82`·`fd3bcb8`을 인수했다. 124 focused tests·typecheck·전체 design-nav PASS/SHELL_EXIT:0·real-state 보존과 전후/원복 해시 일치를 확인했다. 동일 최종 fixture의 이전 소스 음성 대조는 다섯 사례 모두 실패했다. 콜백 완료 뒤에도 React가 이전 toast를 보여줄 수 있어 정확한 렌더 완료를 기다렸으며, 기대값을 완화하지 않았다. N-3은 과거 원인 미확정으로 남는다. 새 정상 복원에서 HTTP 200·현재 iframe의 첫 layout 5프레임을 관찰했지만 과거 실패의 설명으로 쓰지 않는다. root Nfix-evidence에 241파일을 해시 대조해 보존했고 지휘자도 변경된 대상/읽기 실패의 실제 안내 화면을 확인했다.
+- N-fix 작성자를 release하고 IR-N-fix `ctx_40a5ea1a0fd8`의 Astra medium effective·turn_start를 확인했다. 단독 native/build 슬롯은 반환됐으며 모든 코드 통합 뒤 지휘자 gate에 사용한다.
+
+- IR-N-fix는 red 0이며 N-1/2를 닫았다. 남은 yellow 1은 N-3의 원인 미확정 관측이고 구체적인 통합 차단 회귀는 발견하지 않았다. 지휘자는 이를 해결로 표기하지 않고 합본 gate로 진행한다. N/N-fix 18개 커밋을 `53dfef7`부터 `88dcca0`까지 순서대로 통합했다. reviewer를 release했고 clean·모든 patch 통합·증거 보존을 확인한 뒤 N child를 Orca로 삭제했으며 목록에 root만 남은 것을 확인했다.
+
+## 합본 검증 계획
+
+- 52건의 처분: 채택 범위 36건 통합, audit에서 이미 해결 2건(U-1/7), 기존 계약·근거에 따른 기각 12건, 미검증 2건(U-38/46). 원본 리포트의 발견과 각 항목의 축소·제외 범위는 보존한다.
+- C/O/S/K/N/P/P2 전체를 포함한 clean HEAD에서 `node .agents/skills/verify/scripts/verify.mjs --runtime`을 실행한다. Go·타입·단위·build·전체 Electron 및 presentation production/DEV 연결을 순차 검증하며 실행 중 소스는 고정한다.
+- 이번 단계는 app와 문서만 바꿨으며 CLI/MCP/guide/eval runner 변경이 없다. 따라서 audit 단계의 eval runner 및 실제 양 에이전트 검증을 기존 증거로 참조하고, 새 eval 실행으로 주장하지 않는다. audit의 fake runner 128 unit/15 fixture와 실제 14/14 결과 및 그 범위 제한은 audit orch에 있다.
+- N-3 과거 첫 layout 실패, 기존 production Radix inline-style CSP 경고, U-38/46과 실제 native Finder drag/drop은 해결·검증 완료로 집계하지 않는다. 합본 결과와 push/PR/병합 영수증은 아래에 추가한다.
+
+- clean `32d635e`의 첫 합본 gate는 runner 7 tests·Go test/vet·typecheck 뒤 app-test에서 exit 1로 멈췄다(97파일 중 1실패, 2076개 중 1실패). P가 추가한 Overview 제목의 title 속성을 기존 ProjectOverview 문자열 정규식이 허용하지 않는다. 제품 결함으로 숨기거나 통과로 집계하지 않으며 Electron은 아직 실행하지 않았다. V-fix는 ProjectOverview.test.tsx의 직접 기대만 고쳐 title과 표시 텍스트를 함께 검증한다. Codex gpt-6.1-sol medium: 구현 변경 없는 좁은 테스트 정합성 수정이다. 관련 테스트·typecheck·독립 리뷰 후 전체 gate를 다시 실행한다.
+- V-fix `ctx_9fe274c39694`의 Sol medium effective·turn_start를 확인했다. 후속 IR-Vfix는 다른 작성자의 Sol low로 기대값 한 곳과 실제 markup, 회귀 로그만 검토한다. 판단 범위가 좁으며 테스트 의미를 약화하지 않았는지가 완료 기준이다. 원 gate 로그는 `.scratch/ux-integration-261025/verify-final.log`, 단계별 기록은 `.scratch/verify/2026-10-25T12-48-34-901Z-48873/`에 보존한다.
+- V-fix `eaad4ff`를 `5829d3b`로 통합했다. 제목의 title 속성과 표시 텍스트를 함께 확인하는 기대값 한 줄만 바꿨다. 관련 12 tests·typecheck 통과와 IR-Vfix `ctx_7eee33807904`의 Sol low effective·turn_start 및 red 0/yellow 0을 확인했다. 작성자·reviewer를 release하고 clean·미통합 patch 없음·증거 보존을 확인한 뒤 child를 삭제했다. Orca 목록에 이 repo의 root만 남았고 reclaimable worker는 없다. 새 clean HEAD에서 전체 gate를 다시 실행하며 첫 실패 기록은 보존한다.
+
+## 최종 통합 결과 — 2026-10-25
+
+- clean `763d9ccd7c2541e310daec63bdde3e30a40d8e67`에서 `node .agents/skills/verify/scripts/verify.mjs --runtime`이 exit 0, 최종 `verify: PASS`와 `runtime-test: PASS`로 끝났다. 실행 중 tracked 파일을 바꾸지 않았고 종료 뒤에도 clean이었다. 이후 커밋은 이 결과와 원본 리포트의 후속 링크만 기록한다.
+- 공통 runner 7 tests, Go test/vet, TypeScript typecheck, 97파일의 2076 tests, app build와 전체 Electron suite가 통과했다. 새 onboarding 연결에서 presentation production/DEV도 각각 PASS였고 프로젝트 홈·탐색·설정 및 real-state 불변 검사를 통과했다. eval은 위 계획대로 audit의 기존 증거를 참조하며 이번 실행으로 집계하지 않는다.
+- 통합 로그: `.scratch/ux-integration-261025/verify-final-2.log`. 단계별 기록: `.scratch/verify/2026-10-25T12-59-21-365Z-68881/`. 첫 실패 로그도 그대로 보존했다.
+- 지휘자는 새 `2026-10-25T13-00-06-537Z/6-selection.png`·`7-inspector-values.png`에서 선택·Inspector 표시를, `presentation-production-1792933422886/tooltip-Fit.png`·`settings-unbroken-branch.png`에서 툴팁 여백과 긴 branch 줄바꿈을 확인했다. 모두 `.scratch/runtime-test/` 아래에 있다.
+- C/S/O/K/N/N-fix/P/P2/V-fix를 통합하고 독립 검토를 마쳤다. 채택 36건·기존 audit 해결 2건·기각 12건·미검증 2건으로 52건의 처분을 닫았다. N-3 과거 첫 layout 실패의 원인, 기존 Radix CSP 경고, U-38/46 및 실제 Finder drag/drop은 앞서 기록한 한계를 유지한다.
+- 모든 완료 worker를 정리했고 이 repo의 Orca child는 없다. 다음은 사용자에게 이미 승인받은 feature push·PR 병합 뒤 새 일반 Claude 세션에 사람의 검토→피드백→수정 확인 UX 감사를 인계하는 순서다. 새 세션은 이 Run의 후속 worker가 아니다.

@@ -52,3 +52,31 @@ test('a held toast is dropped when its canvas is gone on show, while the project
   h.deps.entries = [{ path: '/project', kind: 'list', canvases: [] }]; h.render(); h.visibility(true);
   expect(h.toast).not.toHaveBeenCalled();
 });
+
+test('explicit arrival Open distinguishes a missing canvas from an unavailable root', () => {
+  for (const entry of [
+    { path: '/project', kind: 'list', canvases: [] },
+    { path: '/project', kind: 'loading' },
+    { path: '/project', kind: 'cliError', reason: 'failed' },
+    null,
+  ]) {
+    const h = setup(); h.deps.workspaceRoot = null;
+    h.deps.entries = withCanvas; h.render();
+    const open = h.toast.mock.calls[0]?.[2];
+    expect(open).toBeTypeOf('function');
+    h.deps.entries = entry ? [entry] : []; h.render();
+    open();
+    expect(h.openCanvas).not.toHaveBeenCalled();
+    expect(h.toast.mock.lastCall?.[0]).toBe(entry?.kind === 'list'
+      ? 'new is no longer in design/'
+      : entry?.kind === 'loading' ? 'Project is still being read. Try Open again shortly.'
+      : 'Project is unavailable. Check its status on Home and try again.');
+  }
+});
+
+test('explicit Open keeps its feedback ownership through a later draft guard', () => {
+  const h = setup(); h.deps.workspaceRoot = null;
+  h.deps.entries = withCanvas; h.render();
+  h.toast.mock.calls[0]?.[2]();
+  expect(h.openCanvas).toHaveBeenCalledWith('/project', withCanvas[0]?.canvases[0], true);
+});

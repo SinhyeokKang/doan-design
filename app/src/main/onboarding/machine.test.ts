@@ -239,7 +239,7 @@ test("sibling auto-update does not stale a pending link replacement", async () =
 test("invoke-time ENOENT names the detected executable", async () => {
   const exe = join(home, "bin/claude"); file(exe, "#!/missing/interpreter\n", 0o755);
   const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
-  expect(await m.run({ step: "connect", agent: "claude", expected: (await m.read("2")).expected })).toMatchObject({ kind: "error", message: expect.stringContaining(`Couldn't run claude at ${exe}. Check Again.`) });
+  expect(await m.run({ step: "connect", agent: "claude", expected: (await m.read("2")).expected })).toMatchObject({ kind: "error", message: expect.stringContaining(`Couldn't run Claude Code at ${exe}. Choose Check Again.`) });
 });
 
 test("a Codex registration that cannot be run keeps the agent, path and cause", async () => {
@@ -447,4 +447,25 @@ test("a foreign missing Claude target remains broken when the shared stub is mis
   expect(connectionSummary(before, false).claude).toBe("needs-attention");
   const card = agentsView(before, idleUi()).agents.find(card => card.agent === "claude");
   expect(card?.items.find(item => item.key === "claude-link")).toMatchObject({ chip: { text: "Link is broken" } });
+});
+
+test.each(["claude", "codex"] as const)("missing %s uses the display name and actionable check guidance", async agent => {
+  const m = machine(); const state = await m.read("missing");
+  expect(await m.run({ step: "connect", agent, expected: state.expected })).toMatchObject({
+    kind: "unavailable", message: `Couldn't find ${agent === "claude" ? "Claude Code" : "Codex"}. Install it, then choose Check Again.`,
+  });
+});
+
+test.each((["claude", "codex"] as const).flatMap(agent => [false, true].map(raw => ({ agent, raw }))))("$agent failure keeps raw stderr or uses its display name", async ({ agent, raw }) => {
+  const exe = join(home, "bin", agent);
+  file(exe, `#!/bin/sh
+if [ "$2" = get ]; then echo "Error: No MCP server named 'doan' found." >&2; exit 1; fi
+${raw ? "echo 'raw claude /codex/path failed' >&2" : ""}
+exit 1
+`, 0o755);
+  const m = machine();
+  await m.run({ step: "cli", expected: (await m.read("cli")).expected });
+  expect(await m.run({ step: "connect", agent, expected: (await m.read("agent")).expected })).toMatchObject({
+    kind: "error", message: raw ? "raw claude /codex/path failed\n" : `${agent === "claude" ? "Claude Code" : "Codex"} failed. Choose Check Again.`,
+  });
 });

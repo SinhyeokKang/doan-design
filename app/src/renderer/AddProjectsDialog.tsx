@@ -9,6 +9,11 @@ export function AddProjectsDialog({ scanId, close, added, homeDirectory }: { hom
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
+  const cancelButton = useRef<HTMLButtonElement>(null);
+  // Disabling submit can leave focus on body; preserve deliberate focus inside the dialog.
+  useEffect(() => {
+    if (error && !busy && dialog.current?.open && document.activeElement === document.body) cancelButton.current?.focus();
+  }, [error, busy]);
   useEffect(() => window.doan.watchScan(scanId, setSnapshot), [scanId]);
   const selected = snapshot?.items.flatMap(item => [...(!item.disabled && (choices.get(item.id) ?? item.checked) ? [item.id] : []), ...item.worktrees.filter(tree => choices.get(tree.id) ?? tree.checked).map(tree => tree.id)]) ?? [];
   const choose = (id: string, value: boolean) => setChoices(previous => new Map(previous).set(id, value));
@@ -19,7 +24,7 @@ export function AddProjectsDialog({ scanId, close, added, homeDirectory }: { hom
       const result = await window.doan.addCandidates(scanId, selected);
       if (result.kind === "added") { dialog.current?.close(); added(result.added); close(); }
       else setError("This checklist is no longer available. Add the folder again.");
-    } catch (failure) { setError(String(failure)); }
+    } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
     finally { setBusy(false); }
   }
   const source = snapshot?.sources.length === 1 ? snapshot.sources[0] : undefined;
@@ -35,7 +40,7 @@ export function AddProjectsDialog({ scanId, close, added, homeDirectory }: { hom
       </div>)}
     </div>
     {error && <p role="alert" className="ob-msg error">{error}</p>}
-    <div className="add-foot">{!snapshot?.done ? <span className="scan" role="status"><span className="spinner" />{snapshot?.finished ?? 0} of {snapshot?.total ?? 0} checked</span> : <span className="meta">{selected.length} selected</span>}<span className="spacer" /><button className="btn" autoFocus disabled={busy} onClick={cancel}>{worktreesOnly ? "Not Now" : "Cancel"}</button><button className="btn primary" disabled={!snapshot?.done || !selected.length || busy} onClick={() => void submit()}>{worktreesOnly ? "Add Worktrees" : selected.length ? `Add ${selected.length} Project${selected.length === 1 ? "" : "s"}` : "Add Projects"}</button></div>
+    <div className="add-foot">{!snapshot?.done ? <span className="scan" role="status"><span className="spinner" />{snapshot?.finished ?? 0} of {snapshot?.total ?? 0} checked</span> : <span className="meta">{selected.length} selected</span>}<span className="spacer" /><button className="btn" ref={cancelButton} autoFocus disabled={busy} onClick={cancel}>{worktreesOnly ? "Not Now" : "Cancel"}</button><button className="btn primary" disabled={!snapshot?.done || !selected.length || busy} onClick={() => void submit()}>{worktreesOnly ? "Add Worktrees" : selected.length ? `Add ${selected.length} Project${selected.length === 1 ? "" : "s"}` : "Add Projects"}</button></div>
   </dialog>;
 }
 
@@ -43,8 +48,11 @@ export function SetUpFolderConfirm({ name, path, confirm, cancel }: { name: stri
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
+  const retry = useRef<HTMLButtonElement>(null);
+  // The submitting button became disabled, so a rejected request may leave focus on body.
+  useEffect(() => { if (error && !busy) retry.current?.focus(); }, [error, busy]);
   const close = () => { if (!busy) { dialog.current?.close(); cancel(); } };
   return <dialog className="ob-dialog" aria-label={`Set up ${name} as a doan project?`} ref={node => { dialog.current = node; if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); close(); }} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); } }}>
-    <h3>Set up {name} as a doan project?</h3><p><code>{path}</code> isn't a repository. doan will add it as a project that is not set up yet, then open the setup form.</p>{error && <p role="alert">{error}</p>}<div className="ob-buttons"><button className="btn" autoFocus disabled={busy} onClick={close}>Cancel</button><button className="btn primary" disabled={busy} onClick={() => { setBusy(true); void confirm().catch(failure => { setError(String(failure)); setBusy(false); }); }}>Set Up…</button></div>
+    <h3>Set up {name} as a doan project?</h3><p><code>{path}</code> isn't a repository. doan will add it as a project that is not set up yet, then open the setup form.</p>{error && <p role="alert" className="ob-msg error">{error}</p>}<div className="ob-buttons"><button className="btn" autoFocus disabled={busy} onClick={close}>Cancel</button><button className="btn primary" ref={retry} disabled={busy} onClick={() => { setBusy(true); void confirm().catch(failure => { setError(failure instanceof Error ? failure.message : String(failure)); setBusy(false); }); }}>Set Up…</button></div>
   </dialog>;
 }

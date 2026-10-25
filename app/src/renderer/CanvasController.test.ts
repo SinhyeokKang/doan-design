@@ -4,6 +4,7 @@ import type { FolderEntry } from "../main/view";
 import { projectList } from "../comments/projection";
 import { CanvasController } from "./CanvasController";
 import { FIRST_LAYOUT_TIMEOUT_MS } from "./viewport";
+import { unavailableCanvasMessage } from "./quickOpen";
 import { SELECTION_LOST } from "./selection";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -1116,5 +1117,131 @@ it("persisted per-root memory reopens its canvas with its view, and null forgets
     expect(h.controller.currentView()).toEqual(view);
     h.controller.remember("/other", null);
     expect(Object.keys(h.controller.memory())).toEqual(["/repo"]);
+  } finally { h.controller.dispose(); }
+});
+
+it("does not diagnose missing markup when the board width could not be read", () => {
+  const h = loadedController();
+  try {
+    const { width, ...row } = h.row;
+    h.controller.updateEntries([{ kind: "list", path: "/repo", servedRev: 1, canvases: [row] }]);
+    expect(h.changed.mock.lastCall?.[0].message).toBe("Could not read a valid board width. Run doan check in a terminal to diagnose the canvas.");
+  } finally { h.controller.dispose(); }
+});
+
+it("reports a non-list Added Open target immediately or after loading, through the draft guard", async () => {
+  const h = loadedController();
+  try {
+    const repo: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
+    const problem: FolderEntry = { kind: "uninitialized", path: "/added" };
+    const entered = vi.fn(), unavailable = vi.fn();
+    h.controller.setTransitionGuard(() => true);
+    h.controller.updateEntries([repo, problem]);
+    h.controller.openWorkspace("/added", entered, false, unavailable);
+    expect(unavailable).toHaveBeenCalledOnce();
+    unavailable.mockClear();
+    h.controller.updateEntries([repo, { kind: "loading", path: "/added" }]);
+    h.controller.openWorkspace("/added", entered, false, unavailable);
+    const answers: ((allow: boolean) => void)[] = [];
+    h.controller.setTransitionGuard(() => new Promise<boolean>(resolve => answers.push(resolve)));
+    h.controller.updateEntries([repo, problem]);
+    expect(unavailable).not.toHaveBeenCalled();
+    answers[0]?.(false); await Promise.resolve();
+    expect(unavailable).not.toHaveBeenCalled();
+    h.controller.setTransitionGuard(() => true);
+    h.controller.updateEntries([repo, { kind: "loading", path: "/added" }]);
+    h.controller.openWorkspace("/added", entered, false, unavailable);
+    h.controller.updateEntries([repo, problem]);
+    expect(unavailable).toHaveBeenCalledOnce();
+    expect(entered).not.toHaveBeenCalled();
+    expect(h.changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
+  } finally { h.controller.dispose(); }
+});
+
+it("does not apply Added Open recovery after a newer navigation", () => {
+  const h = loadedController();
+  try {
+    const repo: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
+    const unavailable = vi.fn();
+    h.controller.updateEntries([repo, { kind: "loading", path: "/added" }]);
+    h.controller.openWorkspace("/added", vi.fn(), false, unavailable);
+    h.controller.showOverview();
+    h.controller.updateEntries([repo, { kind: "uninitialized", path: "/added" }]);
+    expect(unavailable).not.toHaveBeenCalled();
+  } finally { h.controller.dispose(); }
+});
+
+it("reports a canvas that becomes unavailable while the user approves its draft guard", async () => {
+  const h = loadedController();
+  try {
+    const target = { ...h.row, path: "design/next.html", url: "http://localhost/next.html" };
+    h.controller.updateEntries([{ kind: "list", path: "/repo", servedRev: 0, canvases: [h.row, target] }]);
+    let approve: (allow: boolean) => void = () => {};
+    h.controller.setTransitionGuard(() => new Promise<boolean>(resolve => { approve = resolve; }));
+    const unavailable = vi.fn();
+    h.controller.openCanvas("/repo", target, undefined, { unavailable });
+    h.controller.updateEntries([{ kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] }]);
+    approve(true); await Promise.resolve();
+    expect(unavailable).toHaveBeenCalledOnce();
+    expect(h.changed.mock.lastCall?.[0].open?.canvas).toBe(h.row.path);
+  } finally { h.controller.dispose(); }
+});
+
+it("leaving the workspace supersedes a pending Added recovery approval", async () => {
+  const h = loadedController();
+  try {
+    const repo: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
+    h.controller.updateEntries([repo, { path: "/added", kind: "loading" }]);
+    const unavailable = vi.fn();
+    h.controller.openWorkspace("/added", vi.fn(), false, unavailable);
+    let approve: (allow: boolean) => void = () => {};
+    h.controller.setTransitionGuard(() => new Promise<boolean>(resolve => { approve = resolve; }));
+    h.controller.updateEntries([repo, { path: "/added", kind: "uninitialized" }]);
+    h.controller.setWorkspaceActive(false);
+    approve(true); await Promise.resolve();
+    expect(unavailable).not.toHaveBeenCalled();
+  } finally { h.controller.dispose(); }
+});
+
+
+it.each(["id", "url"])("reports a changed %s after guarded cross-root navigation without opening it", async field => {
+  const h = loadedController();
+  try {
+    const source: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
+    const row = { ...h.row, id: "original" };
+    const target: FolderEntry = { kind: "list", path: "/target", servedRev: 0, canvases: [row] };
+    h.controller.updateEntries([source, target]);
+    let approve = (_allowed: boolean) => {};
+    let draft = true;
+    h.controller.setTransitionGuard(() => draft ? new Promise<boolean>(resolve => { approve = resolve; }) : true);
+    const messages: string[] = [];
+    const unavailable = (entry: FolderEntry | undefined) => messages.push(unavailableCanvasMessage(entry, row.path));
+    h.controller.openWorkspace("/target", root => h.controller.openCanvas(root, row, undefined, { unavailable }), false, unavailable);
+    const changed = { ...target, canvases: [{ ...row, [field]: "changed" }] };
+    h.controller.updateEntries([source, changed]);
+    expect(messages).toEqual([]);
+    draft = false; approve(true); await Promise.resolve();
+    expect(messages).toEqual(["Canvas changed while opening. Choose it again from the Sidebar or Quick Open."]);
+    expect(h.changed.mock.lastCall?.[0].open).toBeNull();
+  } finally { h.controller.dispose(); }
+});
+
+it.each(["cliError", "missing-path", "removed"])("passes the consumed %s entry to the waiting Open callback before returning", async kind => {
+  const h = loadedController();
+  try {
+    const source: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
+    const target: FolderEntry = { kind: "list", path: "/target", servedRev: 0, canvases: [h.row] };
+    h.controller.updateEntries([source, target]);
+    let approve = (_allowed: boolean) => {};
+    let draft = true;
+    h.controller.setTransitionGuard(() => draft ? new Promise<boolean>(resolve => { approve = resolve; }) : true);
+    const unavailable = vi.fn();
+    h.controller.openWorkspace("/target", root => h.controller.openCanvas(root, h.row, undefined, { unavailable }), false, unavailable);
+    h.controller.updateEntries([source, { kind: "loading", path: "/target" }]);
+    draft = false; approve(true); await Promise.resolve();
+    expect(unavailable).not.toHaveBeenCalled();
+    const latest: FolderEntry | undefined = kind === "removed" ? undefined : kind === "missing-path" ? { ...target, canvases: [] } : { kind: "cliError", path: "/target", reason: "failed" };
+    h.controller.updateEntries(latest ? [source, latest] : [source]);
+    expect(unavailable).toHaveBeenCalledExactlyOnceWith(latest);
   } finally { h.controller.dispose(); }
 });

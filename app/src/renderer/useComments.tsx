@@ -96,7 +96,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       read={session.readError ? { status: "failed", message: session.readError } : session.list ? { status: "ready", comments: scoped(filter.status), warnings: session.list.warnings } : { status: "loading" }}
       freshness={new Map(comments.map(c => [c.comment, outdated(c.canvasHash, session.list?.canvasHash ?? null)]))}
       missingLocations={new Set(comments.filter(c => (c.target.frame || c.target.element) && !snapshot?.lookup.nodes.has(c.comment)).map(c => c.comment))}
-      author={session.author} writeBlocked={writeBlocked} createBlocked={createBlocked} widthInvalid={widthInvalid} busy={session.busy || session.beginning}
+      author={session.author} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || session.beginning}
       copies={session.copies} allCopy={session.copies.get("all") ?? { status: "idle" }} mutations={session.mutations} headingRef={heading}
       onFilter={setFilter} onCreate={scope => { void session.create(scope); }} onComment={intent} onCopy={scope => { void session.copy(scope); }} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
       editor={draft ? { mode: draft.origin.kind, target: session.target, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,

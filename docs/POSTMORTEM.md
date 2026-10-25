@@ -2,6 +2,54 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — Navigation feedback read the previous React snapshot
+
+- **Area**: `App.tsx`, `CanvasController.ts`, `quickOpen.ts`.
+- **Symptom**: a waiting Open reported that a project was still being read after its read had failed or the root had disappeared. A still-listed path whose ID or URL changed during draft approval was incorrectly described as deleted.
+- **Root cause**: the controller completed synchronously inside the folders event, before React committed `setEntries(next)` and refreshed the callback's ref. Separately, availability copy treated every rejected identity in a healthy list as a missing path.
+- **Net**: independent review traced both cases. Real cross-root draft approval and loading completion regressions reproduced changed ID/URL and failure/missing-path/removed outcomes. With the final rendered-state wait unchanged, all five old-source cases still fail; the corrected complete design-nav run passes. Waiting only for the callback could read the prior toast before React committed, so the final fixture checks actual callback consumption and the exact rendered message.
+- **Prevention**: carry the state used by the synchronous producer into its callback; a render-ref is not necessarily the latest consumed state. Test path absence separately from identity replacement, preserving identity guards. Search run: `rg -n 'unavailable\?\.|unavailableCanvasMessage|setEntries\(next\)|updateEntries\(next\)' app/src/renderer/CanvasController.ts app/src/renderer/App.tsx app/src/renderer/quickOpen.ts` locates the event, controller and both explicit UI callers. Automatic arrival expiry must remain silent.
+
+### 2026-10-25 — Production CSS extraction concealed missing development styles
+
+- **Area**: renderer HTML entries, `ConnectionRows.tsx`, `settings.ts`, and `app/e2e/presentation.ts`.
+- **Symptom**: shared connection rows and Settings styles appeared correct in the production bundle but used missing/default styles in the actual development renderer.
+- **Root cause**: JavaScript CSS imports caused development style injection that the existing strict CSP rejected; production extraction hid that difference. Parent appearance and built output links alone did not test the development path.
+- **Net**: an actual Vite renderer run reproduced missing child styles and CSP warnings before HTML stylesheet links restored them without relaxing CSP. Final production and DEV computed-style checks passed. A separate pre-existing Radix menu inline-style warning remains explicitly classified by its exact hash, not ignored as a general CSP exception.
+- **Prevention**: verify actual development and production entry loading and representative child computed styles, while preserving stylesheet order. Search run: `rg -n 'import.*\.css|rel="stylesheet"|ob-reason code' app/src/renderer/index.html app/src/renderer/settings.html app/src/renderer/settings.ts app/src/renderer/ConnectionRows.tsx app/src/renderer/styles.css app/src/renderer/settings.css app/src/renderer/connectionRows.css`. The two entries own links; token imports and the shared raised-background override remain. Check iframe media preferences separately from computed color-scheme when changing renderer appearance.
+
+### 2026-10-25 — Delayed startup restoration replaced newer navigation
+
+- **Area**: `App.tsx`, `CanvasController.ts`, `app/e2e/design-nav.ts`.
+- **Symptom**: a held initial UI-state read or saved-root listing could restore an old workspace after the user had already navigated Home, expanded the tree or established newer navigation memory.
+- **Root cause**: asynchronous startup restoration had no cancellation owner spanning both its initial read and its later root wait. Completing initialization was treated as unconditional authority over current intent.
+- **Net**: holding each response and observing its actual renderer consumer reproduced the old App replacing Home. The first native green merely waited two frames after main release; the final fixture instead observes the real read callback and controller update before checking the rendered outcome. This does not explain the separate single normal-restart first-layout failure recorded in the N handoff.
+- **Prevention**: invalidate unapplied restore at explicit navigation/tree changes and reject obsolete read completions. Search run: `rg -n 'restoreCancelled|cancelWorkspaceOpen' app/src/renderer/App.tsx app/src/renderer/CanvasController.ts` locates the startup and pending-workspace owners. Retain both held-response cases and the ordinary restore gate; do not infer startup correctness from one successful relaunch.
+
+### 2026-10-25 — An older install failure replaced newer feedback
+
+- **Area**: `Onboarding.tsx`, `settingsWindow.tsx`.
+- **Symptom**: a held installation-link request could fail after a later request succeeded and display an obsolete error; failure while the newer request was pending had the same ownership problem.
+- **Root cause**: the callbacks checked component liveness but not which installation request owned feedback. Sequential failure/retry coverage missed overlapping requests.
+- **Net**: wizard and Settings native regressions failed before local request counters fenced both false and rejection paths. Follow-up tests now observe the actual renderer consumer before checking feedback. Temporarily allowing older request numbers fails the precise stale-error assertion in both windows; restored final runs pass. This does not establish actual OS browser-failure behavior.
+- **Prevention**: bind feedback to the latest operation as well as the live component, and cover both completion orders, newest failure followed by older success, and consumed retry success. Search run: `rg -n 'installs.current|installRequests' app/src/renderer/Onboarding.tsx app/src/renderer/settingsWindow.tsx` finds both owners. Keep these local counters separate from setup write locks and window lifetime.
+
+### 2026-10-25 — A failed first connection read looked permanently unfinished
+
+- **Area**: `app/src/main/setupBroker.ts`.
+- **Symptom**: when the first machine read failed, the summary stayed null after checking ended, leaving the UI without a settled connection result.
+- **Root cause**: only successful reads supplied a summary and advanced its displayed sequence. Failure could therefore leave initial state unresolved or let an older success overwrite a newer failed read.
+- **Net**: focused regressions cover first failure, recovery, retention of previous summary/causes and late results; the onboarding native fixture observes the failed summary supplied through the public status push. It does not reproduce the underlying machine-read failure in Electron.
+- **Prevention**: model settled failure separately from never-read state, advance freshness for failed reads too, and preserve the last known result when available. Search run: `rg -n 'shown|running|summary: result' app/src/main/setupBroker.ts` identifies the sequence and pending-read count; retain overlapping success/failure tests without treating one failure as completion of every pending read.
+
+### 2026-10-25 — Comment creation errors hid readable comments and outlived their document
+
+- **Area**: `CommentsSession.ts`, `CommentsPanel.tsx`, `useComments.tsx`.
+- **Symptom**: a failed begin replaced the readable list with a read error. After separating that error, a held begin could still revive an obsolete error or draft after the same canvas document was replaced.
+- **Root cause**: creation and reading shared one error channel; the initial fix fenced creation only by canvas identity, although document loss can retain that identity. An obsolete guard completion could also release a newer operation's guard.
+- **Net**: the original focused regression and actual App check verified retained comments and retry. Independent review found the missing held-begin ordering; seven session regressions then failed against the previous production source and passed with begin-specific invalidation. Related 142 tests and the final comments-ui native suite passed. The exact begin/guard races have session evidence, not a new native reproduction.
+- **Prevention**: keep operation errors separate from readable data, invalidate each operation when its document ends, and release its guard at invalidation rather than from an obsolete asynchronous completion. Search run: `rg -n 'cancelBegin|beginRevision|documentLost|setCommentDraftGuard' app/src/renderer/CommentsSession.ts app/src/renderer/useComments.tsx app/src/main/index.ts app/src/preload/index.ts` identifies the begin owner, document hooks and guard transport. Preserve list/card generations and immutable pending saves; test late reject, success, held guard, concurrent retry and failed retry against the real handler's synchronous ordering.
+
 ### 2026-10-25 — An uncertain comment request silently blocked every exit
 
 - **Area**: `CommentsSession.ts`, `useComments.tsx`, `CommentsPanel.tsx`.
@@ -28,6 +76,8 @@
 
 - **Follow-up (2026-10-25, A3b)**: the user subsequently approved a separate uncertain-save quit warning. Its implementation and verification are recorded above; the earlier undecided status is historical.
 
+- **Recurrence (2026-10-25, UX N)**: an App modal could consume a toast opportunity while preventing its action. Modal pause now composes with existing pause inputs and preserves remaining time. The native test holds the modal past eight seconds, then checks expiry against the remaining-time deadline; existing native hide/close absolute deadlines remain. Search run: `rg -n 'setModal|isToastPaused' app/src/renderer/App.tsx app/src/renderer/Toast.tsx app/src/renderer/toastState.ts`.
+
 ### 2026-10-25 — Startup cache collection deleted a live thumbnail temporary file
 
 - **Area**: `app/src/main/thumbnails.ts`.
@@ -51,6 +101,10 @@
 - **Root cause**: tests observed main-side dispatch rather than renderer completion, and cleanup shared the same potentially unbounded path as normal execution.
 - **Net**: delayed observer and termination fixtures exposed the gaps. Integration caught a new Settings payload-shape assertion error even though helper tests passed, so the full run remained failed pending correction.
 - **Prevention**: require positive renderer completion before a negative assertion, bounded settlement with retained child-process identity, explicit code/signal checks and real-state verification on failures. The search above identifies `waitFor` and `suiteGuard`; helper Node tests are separate from Vitest and must be included explicitly in integration accounting. A timeout, forced kill or incomplete verification never qualifies as PASS.
+
+- **Recurrence (2026-10-25, UX C)**: the new Inspector test initially waited for main's release plus 100ms, which did not prove the stale response was consumed. A test-only observer now records completion of the actual controller callback before checking the latest values. Bypassing only the first held request's tag comparison makes that same native assertion fail with the old frame dimensions; restoring protection passes. `rg -n 'inspectProbeC|requestRows' app/src/renderer/CanvasController.ts app/e2e/comments-ui.ts` locates the production consumer and its test observer. The observer fails explicitly if the expected React/controller structure is unavailable; it adds no production API.
+
+- **Recurrence (2026-10-25, UX K)**: the O/S install fixtures initially used a 100/150ms pause after main released a response, allowing an unconsumed stale error to pass. Settings now observes its real click handler’s terminal then/catch chain; Wizard uses a test-only non-pausing CDP return breakpoint because its callback discards the async return. Both fail explicitly if the expected consumer shape changes, identify each request, and wait for renderer frames after completion. A-first checks occur while B is still pending. Search run: `rg -n 'armInstallConsumer|wizardInstallConsumers|settledInstallConsumer' app/e2e/renderer-probe.ts app/e2e/onboarding.ts app/e2e/settings.ts`. The targeted guard bypass fails at the first stale-false case in each window; it is not a separate mutation run for every order. No production observer API was introduced.
 
 ### 2026-10-25 — Init published success before merge setup could fail
 
@@ -76,6 +130,8 @@
 - **Net**: the unchanged e2e caught it only intermittently; unit tests had covered only list entries. A wrapper CLI that delays the added folder's read made the failure deterministic (3/3) before the fix.
 - **Prevention**: an action offered before a read finishes must wait for that read (and be superseded by later navigation) rather than check the state once. Search: `rg -n 'kind !== "list"\) return|kind === "list"' app/src/renderer` for other one-shot checks on entries that may still be loading; Home's row activation already only enters list rows.
 
+- **Recurrence (2026-10-25, UX N)**: a completed non-list read still silently consumed Added/Open. That explicit action now returns to the highlighted Home row, after current-intent and draft revalidation; ordinary opens keep their prior behavior. Newer Home intent also cancels a pending approval. Controlled loading/error and guard races fail before the fix and pass afterward. The same explicit-failure distinction is covered for FirstPrompt and Quick Open; automatic arrival expiry stays silent.
+
 ### 2026-10-25 — A TS helper hid its TSX component on case-insensitive macOS
 
 - **Area**: `app/src/renderer/ConnectionRows.tsx`, former `connectionRows.ts`, now `connectionRowView.ts`.
@@ -99,6 +155,8 @@
 - **Root cause**: tab-button disabling did not cover the independent `onTarget` entry point. The renderer's component lifetime and main's operation lifetime diverged.
 - **Net**: the new actual-window regression failed in the first full runtime run. The Settings root now queues the latest forwarded target while a setup operation owns the current pane, restores the current native title, and applies the target after settlement. The regression verifies the dialog and current tab survive, then the queued Projects target opens after Cancel.
 - **Prevention**: run `rg -n 'setTarget|queuedTarget|onTarget' app/src/renderer/settingsWindow.tsx`; protect both local tab clicks and externally forwarded targets whenever a pane owns pending confirmation state. Keep the actual-window cross-window target test, not only a disabled-tab assertion.
+
+- **Recurrence (2026-10-25, UX S)**: Projects picker, Serve confirmation and config writes did not report pane ownership to that queue, so local selection or a forwarded target could unmount their UI. The actual Settings regression failed before Projects reused the existing lock/queue and passed afterward. Config Retry, Clear and last Serve removal also lost focus when their action disappeared; actual keyboard regressions now verify the surviving Change/Add destination and preservation of deliberately moved focus. Search run: `rg -n 'setTarget|queuedTarget|onTarget|onBusy|returnFocus|installRequests' app/src/renderer/settingsWindow.tsx app/src/renderer/settingsProjects.tsx` identifies both pane owners and focus callbacks. Keep ordinary reads navigable and do not turn pane protection into a new close/quit policy.
 
 ### 2026-10-25 — A new link state silently removed replacement-guard coverage
 
@@ -231,6 +289,8 @@
 - **Net**: batch I's onboarding runtime probe caught it; unit tests could not (no DOM, and the rule is Chromium's inert/modal focus behavior). A new runtime step (`setupClosedOutside` in `app/e2e/runtime.ts`) covering terminal init, delete, rename and terminal re-root failed with focus on BODY before the fix and passes after.
 - **Prevention**: never focus content behind an open modal dialog; close the dialog (or wait for it to unmount) before focusing. Run `rg -n 'showModal|focusRow|focusAfterSetup' app/src/renderer` to find modal owners and focus moves that may run while a modal is open.
 
+- **Recurrence (2026-10-25, UX N)**: a connected origin can be hidden/inert, disabled, replaced by recovery, or removed with a toast. Quick Open can still hold focus in a closed but connected input before unmount. Current-screen fallback now excludes unusable targets, preserves deliberate focus and valid native return, and handles that removed-origin close. Actual keyboard regressions cover setup completion/re-root, Retry/Locate, Undo/toast replacement and Quick Open Escape. Search run: `rg -n 'focusCurrent|recoveryFocus|activeElement' app/src/renderer/App.tsx app/src/renderer/Toast.tsx`; do not replace a real missing-origin reproduction with forced BODY focus.
+
 ### 2026-10-24 — Setup rejected linked configuration directories
 
 - **Area**: `app/src/main/onboarding/machine.ts`, setup display.
@@ -255,6 +315,8 @@
 - **Root cause**: a button disabled while its action runs drops focus to `<body>`, so a key handler on the overlay element never saw Escape or Tab. A modal `<dialog>` already open in `<main>` stays in the top layer above a non-modal overlay, and `inert` on `<main>` made both unclickable. `doan init` success can arrive before main publishes the re-read when a watcher read supersedes it, so advancing on the first non-loading state missed the list.
 - **Net**: H's real-window script found the first two (step 13 reproduces the stacking); the independent review found the third. Fixes: a window `keydown` listener in capture, the wizard itself as a modal `<dialog>`, and `advanceAfter` waiting for the listed project (seen red first). Batch I's e2e covers Escape after a delayed copy, the wizard over both modals, and an init reply held until the list is published.
 - **Prevention**: for overlays, handle keys on the window and do not assume focus stays inside after a control disables itself; stack a new layer as a modal when other modals may be open. Run `rg -n 'showModal|addEventListener\("keydown"|advanceAfter' app/src/renderer`.
+
+- **Recurrence (2026-10-25, UX O)**: nested Add confirmation/checklist failures could leave focus on BODY while the wizard intentionally delegated keys to the child. A fast reply initially retained button focus and did not reproduce the checklist defect. Holding the request until disabled rendering, two animation frames and a screenshot reproduced pointer/keyboard reject, repeated reject and unavailable failures; all six passed after lost focus was restored to Cancel. Deliberate focus changes remain intact, and Escape closes only the child. Search run: `rg -n 'activeElement|busy|error' app/src/renderer/AddProjectsDialog.tsx` locates both recovery effects; retain the disabled-render precondition rather than programmatically forcing BODY focus.
 
 ### 2026-10-24 — Setup writes to missing targets could overwrite a competitor
 
@@ -295,6 +357,8 @@
 - **Root cause**: wrapping every approval in a Promise delayed an established synchronous path. Separately, the Escape which initiated confirmation still had its browser default action, so it could cancel the dialog opened during that event.
 - **Net**: actual App tests caught Escape cancellation, while the unchanged full runtime caught delayed Loading. Static modal callbacks and isolated asynchronous session tests missed both timing boundaries. No existing expectation was relaxed.
 - **Prevention**: run `rg -n 'transitionGuard|showModal|onCancel|preventDefault' app/src/renderer`; preserve an immediate boolean result when no draft exists, and prevent the initiating Escape's default only when guarding a draft. Keep both the synchronous controller regression and actual Escape/Continue/focus interaction. Existing tooltip Escape ownership remains covered by the earlier runtime regression.
+
+- **Recurrence (2026-10-25, UX C)**: Delete confirmation did not consume Escape, allowing the app's selection-clear handler to run as well. Its handler now prevents default and propagation while retaining IME guards. Event regressions cover ordinary/composing/keyCode-229 input, and actual Electron verifies the dialog closes while selection and Inspector values remain and focus returns to Comments. `rg -n 'comments-message|createError|onKeyDown|inspectProbeC|requestRows' app/src/renderer/CommentsPanel.tsx app/src/renderer/CommentsSession.ts app/src/renderer/CanvasController.ts app/e2e/comments-ui.ts` also finds the ordinary and uncertain confirmation handlers; those existing distinct transition policies remain unchanged. Actual OS IME composition was not exercised.
 
 ### 2026-10-23 — Comment copy reported success before the clipboard committed
 
@@ -453,6 +517,8 @@
 
 - **Recurrence (2026-10-24, onboard)**: project fields reused the Inspector's `.value` class. Its unscoped `display: flex; gap: 6px` silently changed project-name/path flow despite 1,286 passing unit tests. Child-level Electron comparison found block → flex and inline → block differences. The onboarding E2E assertion failed with `flex / 6px / block` before `.ob-field .value` restored `block / normal / inline`; the Inspector remains unchanged.
 - **Prevention**: when reusing a short presentation class, inspect all matching selectors and read computed display/gap on its children. `rg -n 'className=.*value|\.value \{' app/src/renderer` finds the Inspector value components and the two onboarding field call sites. Keep the computed-style assertion in `app/e2e/onboarding.ts`; color-only comparisons would miss this inheritance.
+
+- **Recurrence (2026-10-25, UX P)**: main `.ob-reason code` inherited the intended raised background but lacked the text color, radius and horizontal padding present in Settings. Actual child measurements exposed the mismatch; the narrow shared selector restores 4px radius and 0/4px padding while retaining the background override. The same real-tooltip checks found shared TooltipContent at zero padding under the unlayered global reset; the approved scoped rule restores 6px/12px without changing that reset or PathTip. Retain both parent and child checks in production and DEV.
 
 ### 2026-10-21 — TS and Go comment folding diverged on inputs the shared fixtures did not cover
 

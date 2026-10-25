@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MachineState, StepResult } from "../main/onboarding/machine";
 import type { SettingsTab, SettingsTarget } from "../main/settings";
 import type { SetupStatus } from "../main/setupBroker";
@@ -17,6 +17,7 @@ export function SettingsWindow() {
   const lock = useRef(false), currentTab = useRef<SettingsTab>(tab);
   const queuedTarget = useRef<SettingsTarget | null>(null);
   lock.current = locked; currentTab.current = tab;
+  const reportBusy = useCallback((busy: boolean) => { lock.current = busy; setLocked(busy); }, []);
   function select(next: SettingsTab) { setTab(next); void window.doanSettings.saveTab(next).then(ok => { if (!ok) setError("Couldn’t save the Settings tab."); }).catch(error => setError(error instanceof Error ? error.message : String(error))); }
   useEffect(() => {
     if (locked || !queuedTarget.current) return;
@@ -41,13 +42,14 @@ export function SettingsWindow() {
     })().catch(error => { if (live) setError(error instanceof Error ? error.message : String(error)); });
     return () => { live = false; unsubscribe(); };
   }, []);
-  return <main className="settings-shell"><div className="st-tabbar"><div className="st-tabs" role="tablist" aria-label="Settings">{(["connections", "projects"] as const).map(value => <button key={value} className="st-tab" role="tab" disabled={locked} aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} onClick={() => select(value)} onKeyDown={event => {
+  return <main className="settings-shell"><div className="st-tabbar"><div className="st-tabs" role="tablist" aria-label="Settings">{(["connections", "projects"] as const).map(value => <button key={value} className="st-tab" role="tab" disabled={locked} aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} onClick={() => { if (!lock.current) select(value); }} onKeyDown={event => {
+    if (lock.current) return;
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault(); const next = event.key === "Home" ? "connections" : event.key === "End" ? "projects" : value === "connections" ? "projects" : "connections";
     select(next); event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button")[next === "connections" ? 0 : 1]?.focus();
   }}>{value === "connections" ? "Connections" : "Projects"}</button>)}</div></div>
     {error && <p role="alert" className="pj-msg">{error}</p>}
-    {tab === "connections" ? <SettingsConnections onBusy={setLocked} target={target?.tab === "connections" ? target : null} /> : <SettingsProjects target={target?.tab === "projects" ? target : null} />}
+    {tab === "connections" ? <SettingsConnections onBusy={reportBusy} target={target?.tab === "connections" ? target : null} /> : <SettingsProjects onBusy={reportBusy} target={target?.tab === "projects" ? target : null} />}
   </main>;
 }
 function SettingsConnections({ target, onBusy }: { onBusy: (busy: boolean) => void; target: Extract<SettingsTarget, { tab: "connections" }> | null }) {
@@ -55,6 +57,7 @@ function SettingsConnections({ target, onBusy }: { onBusy: (busy: boolean) => vo
   const [ui, setUi] = useState<MachineUi>(() => ({ ...idleUi(), checking: true }));
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
+  const installRequests = useRef(0);
   const [justConnected, setJustConnected] = useState<Row | null>(null);
   const [confirm, setConfirm] = useState<{ id: string; target: "cli" | "stub" | "claudeLink" | "mcp"; row: Row } | null>(null);
   useEffect(() => { onBusy(ui.running !== null); return () => onBusy(false); }, [ui.running]);
@@ -111,11 +114,11 @@ function SettingsConnections({ target, onBusy }: { onBusy: (busy: boolean) => vo
   const view = confirm && machine ? connectionConfirm(confirm.target, confirm.row === "cli" ? "claude" : confirm.row, machine) : null;
   return <section className="st-body" role="tabpanel" aria-label="Connections"><div className="st-head"><p className="st-lead">Your agents reach doan through these three. Each row says whether that works right now.</p><button className="btn" disabled={busy || ui.checking} onClick={check}>Check Again</button></div>
     {status?.busy && !ui.running && <p className="st-notice" role="status">Another window is running a setup step. These buttons work again when it finishes.</p>}
-    {installError && <p className="st-notice" role="alert">{installError}</p>}
-    {ui.readError && <p className="st-notice" role="alert">{ui.readError}</p>}
+    {installError && <p className="st-notice error" role="alert">{installError}</p>}
+    {ui.readError && <p className="st-notice error" role="alert">{ui.readError}</p>}
     <ConnectionRows machine={machine} ui={ui} rows={["cli", "claude", "codex"]} busy={busy} target={rowTarget} justConnected={justConnected} run={run} checkAgain={check} install={agent => {
-      setInstallError(null);
-      void window.doanSettings.openInstallPage(agent).then(ok => { if (live.current && !ok) setInstallError("Couldn’t open the install page."); }).catch(error => { if (live.current) setInstallError(error instanceof Error ? error.message : String(error)); });
+      const request = ++installRequests.current; setInstallError(null);
+      void window.doanSettings.openInstallPage(agent).then(ok => { if (live.current && request === installRequests.current && !ok) setInstallError("Couldn’t open the install page."); }).catch(error => { if (live.current && request === installRequests.current) setInstallError(error instanceof Error ? error.message : String(error)); });
     }} copyPath={() => {
       setUi(current => ({ ...current, pathCopy: "copying" }));
       void window.doanSettings.copyPathLine().then(result => { if (live.current) setUi(current => ({ ...current, pathCopy: result.kind === "success" ? "copied" : "failed" })); }).catch(() => { if (live.current) setUi(current => ({ ...current, pathCopy: "failed" })); });

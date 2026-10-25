@@ -37,7 +37,7 @@ function setup() {
   for (const effect of hooks.effects) { const cleanup = effect(); if (cleanup) cleanups.push(cleanup); }
   toast.show("Removed", "Undo", vi.fn());
   return {
-    stop, listeners,
+    stop, listeners, modal: (on: boolean) => toast.setModal(on),
     native: (visible: boolean) => native(visible),
     hidden: (hidden: boolean) => { doc.hidden = hidden; listeners.forEach(listener => listener()); },
     tick: (elapsed: number) => { now += elapsed; vi.advanceTimersByTime(100); },
@@ -76,4 +76,14 @@ test("document visibility cannot resume a natively hidden window, and unmount un
   expect(h.stop).toHaveBeenCalledOnce();
   expect(h.listeners.size).toBe(0);
   expect(vi.getTimerCount()).toBe(0);
+});
+
+test("an App modal pauses the hook clock and resumes only the remaining time", () => {
+  const h = setup(); h.native(true); h.tick(2500);
+  h.modal(true); h.tick(20000);
+  expect(h.remaining()).toBe(5500);
+  h.jump(30000); h.modal(false); h.tick(5400);
+  expect(h.remaining()).toBe(100);
+  h.tick(100);
+  expect(hooks.state?.ended).toMatchObject({ reason: "expired" });
 });

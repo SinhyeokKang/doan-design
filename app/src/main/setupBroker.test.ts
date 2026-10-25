@@ -204,3 +204,26 @@ test("isWriting is true only for the window whose write is running, not for its 
   await answering;
   expect(broker.isWriting(SETTINGS)).toBe(false);
 });
+
+test("a failed first read settles unknown chips and a later read recovers", async () => {
+  machine.read.mockRejectedValueOnce(new Error("probe failed"));
+  expect(await broker.read(MAIN, "failed")).toEqual({ kind: "stale" });
+  expect(broker.status()).toMatchObject({ checking: false, summary: { cli: "couldnt-check", claude: "couldnt-check", codex: "couldnt-check" } });
+  await broker.read(MAIN, "recovered");
+  expect(broker.status().summary?.cli).toBe("connected");
+});
+
+test("refresh failure preserves the last summary and releases checking", async () => {
+  await broker.refresh();
+  machine.read.mockRejectedValueOnce(new Error("probe failed"));
+  expect(await broker.refresh()).toMatchObject({ checking: false, summary: { cli: "connected" } });
+});
+
+test("late read failure cannot overwrite a newer success", async () => {
+  let reject!: (reason: Error) => void;
+  machine.read.mockReturnValueOnce(new Promise<MachineState>((_resolve, fail) => { reject = fail; }));
+  const old = broker.read(MAIN, "old");
+  await broker.read(MAIN, "new");
+  reject(new Error("old failure")); await old;
+  expect(broker.status()).toMatchObject({ checking: false, summary: { cli: "connected" } });
+});

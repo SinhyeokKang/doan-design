@@ -83,7 +83,7 @@ test("the overview shows thumbnail states without inferring parse failure from m
   expect(html).toContain('class="thumb pending"');
   expect(html).toContain("Preview unavailable");
   expect(html).not.toContain("Can&#x27;t read this canvas");
-  expect(html).toMatch(/<span id="[^"]+-title" class="ocard-title">legacy-checkout<\/span>/);
+  expect(html).toMatch(/<span id="[^"]+-title" class="ocard-title" title="legacy-checkout">legacy-checkout<\/span>/);
   expect(html).toContain("1 frame · ");
   expect(html).toContain('<span class="hot">2 open</span>');
   // Zero open comments are not shown.
