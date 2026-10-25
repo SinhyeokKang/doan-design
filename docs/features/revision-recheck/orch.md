@@ -1,0 +1,56 @@
+# revision-recheck — orch
+
+- 원본: [spec.md](./spec.md) · [design.md](./design.md) · [tasks.md](./tasks.md)
+- 시작 해시: `9e04887`(main)
+- 통합 브랜치: `feat-revision-recheck`(main에서 만듦)
+- 지휘: Claude Code(Opus). review-loop 체인 링크 3(`.scratch/handoff/review-loop-chain.md`). 지휘자는 배치 코드를 고치지 않는다. 지휘자가 쓰는 것은 이 문서, 통합 커밋, 문서 최신화 커밋뿐이다.
+- 지휘 자료(브리프·인계·리뷰·근거): `.scratch/orch/revision-recheck/`
+
+## 결정 로그
+
+| 날짜 | 결정 | 근거 |
+|---|---|---|
+| 2026-10-26 | 사용자 확인 질문을 하지 않고 권장안대로 진행한다. 결정 지점에서는 지휘자가 권장안을 골라 이 로그에 근거와 함께 적는다. 실제 사용자 상태를 바꾸는 일은 예외로 묻는다 | 사용자(체인 규칙, "이 루프 링크는 가능한 내 허가 없이 추천안대로 쭉 진행해", "링크 5까지 전부 다") |
+| 2026-10-26 | 구현은 Claude Opus가 맡고 Codex를 적당히 섞는다. 기계적인 배치 A(fold)와 K(skill·R6)는 Codex `gpt-6.1-sol` medium, 독립 리뷰 일부는 Codex `gpt-6-astra` medium이 다른 계열로 읽는다. 쓸 때마다 진행 기록에 적는다 | 사용자(체인 규칙, "Codex 적당히 섞어 써도 괜찮아. 주 업무는 클로드 코드가 진행하되 적당히 섞어 사용해") |
+| 2026-10-26 | 이 링크의 PR은 통합과 `/verify` 통과 뒤 main에 병합한다(`/orchestrate`의 병합 금지를 이 체인에서만 대체) | 사용자(체인 규칙, "링크마다 메인에 병합하면서 간다") |
+| 2026-10-26 | tasks 1 측정 명령: 작업자가 `.scratch/revision-recheck/measure.mjs`(Playwright `_electron`, `app/e2e/runtime.ts`의 격리 방식)를 만들어 `node .scratch/revision-recheck/measure.mjs`로 돌린다. `comments:project`가 아직 없으므로, main과 같은 경로(`doan ls` 한 번 + 행 id별 댓글 파일 읽기 + `fold`)를 Node에서 재고, Home 첫 렌더 시간은 지금 앱에서 잰다. 각 3회, 전후로 `real-state.ts`를 확인하고 exit 0으로 끝낸다. M이 IPC를 만든 뒤 T(e2e 배치)가 실제 IPC로 한 번 다시 잰다 | 지휘자 판단 — AGENTS.md 'Commands'의 `/design-sync` 측정 스크립트 형식, 링크 1·2와 같은 방식. 기준(500ms) 초과면 tasks 1대로 8을 멈추고 대안을 정한다(이때도 지휘자가 권장안으로 정한다) |
+| 2026-10-26 | tasks 14 남은 참조 검사: `git grep -n -e 'revision-recheck' -e 'features/revision-recheck' -- . ':!docs/features/*' ':!design/*'` | 지휘자 판단 — 링크 1·2와 같은 검사. `design/`의 확정 초안은 제외한다 |
+| 2026-10-26 | `/design-sync`는 새 표면 `review-notice`, `review-bar`, `review-done`에만 돌린다(배치 B 안에서). 나머지(카드, Activity, Home, Overview)는 이미 main에 있는 화면이라 tasks의 측정과 e2e를 따른다 | design.md '초안 요청', 체인 규칙 |
+| 2026-10-26 | `/agent-eval` 실제 회차를 돌리지 않는다. 10의 self-test까지만 한다 | tasks 11, 체인 규칙(유일한 실제 회차는 링크 5) |
+| 2026-10-26 | Done 요약의 "Hand off…"는 넘기기 대화상자(`agent-handoff`, 링크 4)가 아직 없으므로 이 링크에서는 렌더하지 않는다. 요약은 다시 연 id 목록을 상태로 갖고, 대화상자를 여는 콜백이 주어질 때만 Hand off…를 보인다. 링크 4가 그 콜백을 연결하도록 `docs/features/agent-handoff/tasks.md`에 한 줄을 더하고 체인 인계 문서에 적는다 | 지휘자 판단 — 없는 대화상자를 흉내 내면 링크 4가 지울 코드가 생기고(AGENTS '앞서 만들기 금지'), 기존 Copy 흐름에 잇는 것은 승인되지 않은 동작이다 |
+
+## 배치
+
+| 배치 | tasks | 파일 소유 | 선행 | 모델 · 노력 (이유) | 검증 게이트 | 상태 |
+|---|---|---|---|---|---|---|
+| X | 1 | `.scratch/revision-recheck/` | — | Opus medium (격리된 측정 스크립트) | 측정 로그, `real-state.ts` 전후 동일, exit 0 | 대기 |
+| A | 2 | `app/src/formats/{fold,types}.ts`, `cli/internal/formats/{fold,types}.go`, `schema/fixtures/fold/`, 각 테스트, `cli` 패키지 `comments`·MCP 출력 테스트 | — | Codex `gpt-6.1-sol` medium (fixture가 규칙을 다 정한 기계적 변경) | `go test ./...`, `go vet ./...`, `npm --prefix app test` | 대기 |
+| P | 3, 4 (renderer 순수 함수) | 새 파일 `app/src/comments/review.ts`·`resolution.ts`(이름은 작업자가 정함)와 테스트, `app/src/renderer/activity.ts`·`canvasView.ts`의 순수 함수와 테스트 | — | Opus high (Review 상태 기계의 진행·Done 범위 규칙) | test red→green, typecheck | 대기 |
+| S | 3, 4 (service), 9 main | `app/src/main/comments/{service,events,transitions}.ts`, `app/src/comments/events.ts`, `app/src/preload/index.ts`의 intent 타입, 각 테스트 | — | Opus high (이벤트 2개 attempt의 saved/absent/unknown 판정과 재시도) | test red→green, typecheck | 대기 |
+| L | 5 | `CanvasController.ts`, `canvasScript.ts`(필요 시), `useComments.tsx`(locate 표지), `CommentsPanel.tsx`(대상 줄 클릭), 각 테스트 | P 통합 | Opus high (선택 정체성 규칙의 예외, 리로드·이동 펜스) | test, typecheck | 대기 |
+| M | 8 main | 새 `app/src/main/reviewState.ts`, `comments:project` IPC(`main/index.ts`, 새 main 모듈), `menuState.ts`와 Go 메뉴, `preload/index.ts`, 각 테스트 | S 통합 | Opus high (기기 로컬 저장소 검증, 늦은 응답 버림, 메뉴 상태) | test, typecheck | 대기 |
+| K | 10 | `cli/internal/cli/skill.md`와 skill 테스트, 새 `eval/scenarios/R6/` | A 통합 | Codex `gpt-6.1-sol` medium (기존 R 시나리오 형식을 따르는 작업) | `go test ./...`, `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` PASS | 대기 |
+| C | 6 | `CommentsPanel.tsx`, `CommentsSession.ts`, `useComments.tsx`, `styles.css`, 각 테스트 | L 통합 | Opus high (상태 줄 타이머 수명, 사라지는 카드의 포커스) | test, typecheck | 대기 |
+| V | 7 | `activity.ts`, `canvasView.ts`, `RightPanel.tsx`, `CanvasController.ts`의 Activity 기록, 각 테스트 | L 통합 | Opus medium (P가 만든 순수 함수를 잇는 작업) | test, typecheck | 대기 |
+| H | 8 Home·Overview | `Home.tsx`, `homeCards.ts`, `ProjectOverview.tsx`와 테스트, 필요한 `App.tsx` 연결 | M 통합 | Opus medium (IPC 결과를 표시) | test, typecheck | 대기 |
+| B | 8 renderer, `/design-sync` | `CommentsPanel.tsx`, `useComments.tsx`, `CommentsSession.ts`, `App.tsx`, `styles.css`, 새 Review 모듈, 테스트, `docs/DESIGN.md` 측정값 | C, V, H, M 통합 | Opus high (Review 진행·Esc 우선순위·포커스, 알림의 동기 계산) | test, typecheck, `/design-sync` 측정 일치 | 대기 |
+| E | 9 renderer | `CommentsPanel.tsx`, `useComments.tsx`, `CommentsSession.ts`, `styles.css`, 테스트 | B 통합 | Opus high (Save and reopen 결과 처리, 새 댓글 저장 뒤 삭제 확인) | test, typecheck | 대기 |
+| T | 12 | 새 `app/e2e/revision-recheck.ts`, `app/e2e/runtime.ts` import, 낡은 단언이 생긴 다른 e2e 모듈 | E 통합 | Opus high (실제 창 시나리오, 재시작·숨김) | 모듈 단독 실행 PASS(전체 e2e는 지휘자) | 대기 |
+| R-* | 배치별 리뷰 | 보고서만 | 각 구현 배치 | Codex `gpt-6-astra` medium과 Opus high를 번갈아 쓴다(배치별로 진행 기록에 적는다) | `/code-review`, 🔴 0 | — |
+| 지휘자 | 13 | — | 전부 통합 | — | `node .agents/skills/verify/scripts/verify.mjs --runtime --eval` 최종 PASS, exit 0 | 대기 |
+| G | 14 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/USABILITY-EVAL.md`, `docs/DIRECTORY.md`, 이 디렉터리 삭제 | 13 | Opus medium (승격 위치가 tasks 14에 다 나와 있다) | 문서 diff 검토, 위 git grep 결과 없음 | 대기 |
+
+tasks.md의 1~14는 모두 위 배치 중 하나에 속한다(11은 실행하지 않는 결정, 13은 지휘자).
+
+## 순서와 파일 겹침
+
+- 1파: X ∥ A ∥ P ∥ S. X는 `.scratch`만, A는 formats·fixture만, P는 새 순수 모듈과 `activity.ts`·`canvasView.ts`, S는 main comments만 고친다.
+- 2파: L(P 뒤) ∥ M(S 뒤) ∥ K(A 뒤). L은 renderer, M은 main·preload, K는 skill·eval만 고친다.
+- 3파: C ∥ V(L 뒤), H(M 뒤). C는 CommentsPanel·CommentsSession·useComments·styles, V는 activity·canvasView·RightPanel·CanvasController, H는 Home·homeCards·ProjectOverview를 고친다. V가 해결 Activity를 위해 CommentsSession을 고쳐야 하면 지휘자에게 묻는다(C가 가진다).
+- 4파: B(C·V·H·M 뒤). 5파: E(B 뒤). 6파: T(E 뒤). 그 뒤 지휘자 `/verify --runtime --eval`, G, PR, 병합.
+- 각 배치는 `--worktree new-child --base-branch feat-revision-recheck`로 만든 자기 worktree에서 돈다.
+- 링크 1·2에서 남은 일: 화면 잠금 때문에 전체 runtime 묶음이 돌지 않았다. 이 링크의 `verify --runtime` 전에 `ioreg -n Root -d1`로 잠금 상태를 확인한다. 풀려 있으면 이 실행이 링크 1·2도 덮는다. 잠겨 있으면 통과로 세지 않고 그대로 보고한다.
+
+## 진행 기록
+
+- 2026-10-26: 시작. 화면 잠금 상태 `CGSSessionScreenIsLocked = Yes`.
