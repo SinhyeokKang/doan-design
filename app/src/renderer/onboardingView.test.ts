@@ -1,10 +1,11 @@
+import type { ScanSnapshot } from "../main/addProjects";
 import { describe, expect, test } from "vitest";
 import type { MachineState } from "../main/onboarding/machine";
+import type { CanvasRow } from "../main/view";
 import { PATH_LINE } from "../main/onboarding/machine";
-import { firstSentence } from "../main/onboarding/states";
 import {
-  advanceAfter, agentsView, cliItems, confirmView, copyFor, copyLabel, COPY_FAILED, footerView, idleUi, indicatorView, initMessage, nextFocusIndex,
-  PATH_LINE_TEXT, projectStepView, promptParts, registrationText, stepsDone, tilde, wizardBusy, type MachineUi,
+  advanceAfter, agentsView, NO_AGENT_NOTICE, promptStepView, cliItems, confirmView, copyFor, copyLabel, COPY_FAILED, footerView, idleUi, indicatorView, initMessage, nextFocusIndex,
+  PATH_LINE_TEXT, pickView, projectStepView, registrationText, STEP_COPY, stepsDone, tilde, wizardBusy, type MachineUi,
 } from "./onboardingView";
 
 const home = "/Users/alex";
@@ -110,7 +111,7 @@ describe("step 2 — Agents", () => {
   });
   test("detection results: not installed and couldn't check have no Connect or items", () => {
     const missing = ours(); missing.agents.codex = { ...missing.agents.codex, executable: null };
-    expect(agentsView(missing, ui()).agents[1]).toEqual({ agent: "codex", head: { key: "codex", label: "Codex", detail: ["Not installed"] }, items: [] });
+    expect(agentsView(missing, ui()).agents[1]).toEqual({ agent: "codex", head: { key: "codex", label: "Codex", detail: ["Not installed"], link: { target: "codex", label: "Install Codex ↗" } }, items: [] });
     const failed = agentsView(ours({ probe: { ok: false, reason: "Login shell timed out." } }), ui()).agents[0];
     expect(failed).toMatchObject({ head: { detail: [], detailChip: { text: "Couldn’t check", tone: "warn" }, msg: { tone: "warn", parts: ["Login shell timed out. Choose Check Again."] } }, items: [] });
     expect(failed?.head.button).toBeUndefined();
@@ -273,6 +274,10 @@ describe("step 3 — Project", () => {
     expect(projectStepView({ path: "/code/acme", kind: "loading" }, { running: false, token: null, error: null, rerooted: null })).toMatchObject({ message: "Reading…" });
     expect(projectStepView({ path: "/code/acme", kind: "error", message: "Cannot read config" }, { running: false, token: null, error: null, rerooted: null })).toMatchObject({ error: "Cannot read config" });
   });
+  test("a refused Open Project… shows main's message as an error, with or without a project", () => {
+    expect(projectStepView(null, { running: false, token: null, error: null, rerooted: null, refused: "Can’t open /x: not a folder." })).toEqual({ value: null, open: { primary: true, disabled: false }, error: "Can’t open /x: not a folder." });
+    expect(projectStepView({ path: "/code/acme", kind: "list", servedRev: 0, canvases: [] }, { running: false, token: null, error: null, rerooted: null, refused: "No." })).toMatchObject({ chip: "Already set up", error: "No." });
+  });
   test("init results become one line of copy, or nothing on success", () => {
     expect(initMessage({ kind: "success" })).toBeNull();
     expect(initMessage({ kind: "error", message: "Token CSS must be a file inside the repository.", guidance: "Check the project and choose a CSS file inside it, then try again." })).toBe("Token CSS must be a file inside the repository. Check the project and choose a CSS file inside it, then try again.");
@@ -298,9 +303,7 @@ describe("moving on after Open Project… or Set Up Project", () => {
 });
 
 describe("step 4 and copy", () => {
-  test("the placeholder is marked and copy labels match comments", () => {
-    expect(promptParts(firstSentence("/code/acme"))).toEqual([{ text: "Use the doan skill to make a design canvas in /code/acme for " }, { text: "<what you want to design>", mark: true }, { text: "." }]);
-    expect(promptParts("plain")).toEqual([{ text: "plain" }]);
+  test("copy labels match comments", () => {
     expect(["idle", "copying", "copied", "failed"].map(state => copyLabel(state as "idle"))).toEqual(["Copy", "Copying…", "Copied", "Retry copy"]);
   });
   test("home is shortened to ~ only at a path boundary", () => {
@@ -336,4 +339,97 @@ test("Claude shared skills display installed without a self-link target", () => 
 test("Claude invalid config display omits an unresolved link destination", () => {
   const state = machine({ display: { claudeLinkPath: "rel/claude/skills/doan", claudeLinkTarget: "" } });
   expect(agentsView(state, ui()).agents[0]!.items[0]!.detail).toEqual([{ code: "rel/claude/skills/doan" }]);
+});
+
+
+describe("install links and the no-agent notice", () => {
+  const none = { claude: { executable: null, config: `${home}/.claude`, mcp: { state: "missing" as const, value: "" } }, codex: { executable: null, config: `${home}/.codex`, mcp: { state: "missing" as const, value: "" } } };
+  test("an agent with no executable gets an install link; a found one does not", () => {
+    const view = agentsView(machine({ agents: { ...none, codex: { ...none.codex, executable: "/opt/homebrew/bin/codex" } } }), ui());
+    expect(view.agents[0]?.head.link).toEqual({ target: "claude", label: "Install Claude Code ↗" });
+    expect(view.agents[1]?.head.link).toBeUndefined();
+  });
+  test("with neither agent installed the notice says what to do", () => {
+    const view = agentsView(machine({ agents: none }), ui());
+    expect(view.agents.map(card => card.head.link?.target)).toEqual(["claude", "codex"]);
+    expect(view.notice).toBe("doan works through Claude Code or Codex. Install one, then choose Check Again.");
+    expect(view.notice).toBe(NO_AGENT_NOTICE);
+  });
+  test("one installed agent, an unread state, a running check or a failed probe show no notice", () => {
+    expect(agentsView(machine(), ui()).notice).toBeUndefined();
+    expect(agentsView(machine({ agents: { ...none, claude: { ...none.claude, executable: "/opt/homebrew/bin/claude" } } }), ui()).notice).toBeUndefined();
+    expect(agentsView(null, ui()).notice).toBeUndefined();
+    expect(agentsView(machine({ agents: none }), ui({ checking: true })).notice).toBeUndefined();
+    expect(agentsView(machine({ agents: none }), ui({ readError: "timed out" })).notice).toBeUndefined();
+    expect(agentsView(machine({ agents: none, probe: { ok: false, reason: "The shell did not answer." } }), ui()).notice).toBeUndefined();
+  });
+  test("a probe failure and an unread state offer no install link", () => {
+    expect(agentsView(null, ui()).agents.map(card => card.head.link)).toEqual([undefined, undefined]);
+    expect(agentsView(machine({ agents: none, probe: { ok: false, reason: "The shell did not answer." } }), ui()).agents.map(card => card.head.link)).toEqual([undefined, undefined]);
+  });
+});
+
+describe("step 4 branches", () => {
+  const row = (path: string, title?: string): CanvasRow => ({ path, ...(title ? { title } : {}), open: 0, resolved: 0, url: `http://127.0.0.1/${path}` });
+  const list = row("design/b.html", "Pricing");
+  test("without a project the step offers Add Project…", () => {
+    const addProject = { text: ["Add a project first. Your first canvas goes in its ", { code: "design/" }, " folder."], label: "Add Project…", primary: true, disabled: false };
+    expect(promptStepView(null, null, false)).toEqual({ addProject });
+    expect(promptStepView(null, null, true).addProject?.disabled).toBe(true);
+    // An arrival without a project cannot be shown.
+    expect(promptStepView(null, list, false)).toEqual({ addProject });
+  });
+  test("with a project and no arrival only the first prompt shows", () => {
+    expect(promptStepView("/code/acme", null, false)).toEqual({});
+  });
+  test("an arrival shows Canvas ready with Open, named by title or file name", () => {
+    expect(promptStepView("/code/acme", list, false)).toEqual({ ready: { text: "Canvas ready: Pricing", open: { label: "Open", disabled: false } } });
+    expect(promptStepView("/code/acme", row("design/sign-in.html"), false).ready?.text).toBe("Canvas ready: sign-in");
+    expect(promptStepView("/code/acme", list, true).ready?.open.disabled).toBe(true);
+  });
+});
+
+test("dangling CLI links show Link is broken and Fix instead of another copy", () => {
+  expect(cliItems(machine({ cli: { state: "dangling", value: "/gone", stamp: "s" } }), ui())[0]).toMatchObject({
+    chip: { text: "Link is broken", tone: "warn" }, button: { id: "replace", label: "Fix…" },
+    msg: { tone: "warn", parts: ["Link is broken: ", { code: "/gone" }] },
+  });
+});
+
+test("every step has the draft's outcome-first heading and lead; step labels stay as shipped", () => {
+  expect(STEP_COPY).toEqual([
+    { heading: "Let your agents run doan", lead: ["Claude Code and Codex use the doan command to make and check your canvases. Connect it so they can find it."] },
+    { heading: "Connect Claude Code or Codex", lead: ["Your agent draws canvases with the doan skill and tools. Connect the agents you use; nothing changes until you choose Connect."] },
+    { heading: "Choose where canvases live", lead: ["Pick a repository. doan keeps its canvases in ", { code: "design/" }, ", next to the code they describe."] },
+    { heading: "Ask for your first canvas", lead: ["Describe a screen, copy the sentence and paste it into Claude Code or Codex. The canvas opens here when it arrives."] },
+  ]);
+});
+
+describe("step 3 pick-one list", () => {
+  const snapshot = (items: ScanSnapshot["items"], sources = [{ name: "code", path: "/Users/alex/code" }]): ScanSnapshot => ({ scanId: "s", seq: 1, finished: items.length, total: items.length, done: true, sources, items });
+  const item = (name: string, status: ScanSnapshot["items"][number]["status"], extra: Partial<ScanSnapshot["items"][number]> = {}): ScanSnapshot["items"][number] =>
+    ({ id: name, path: `/Users/alex/code/${name}`, name, status, checked: status === "ready", disabled: status === "added" || status === "unreadable" || status === "checking", canvasCount: status === "ready" ? 14 : null, worktrees: [], ...extra });
+  test("repositories and their worktrees are radios; added, unreadable and checking ones are disabled", () => {
+    const view = pickView(snapshot([
+      item("acme-web", "ready", { worktrees: [{ id: "t1", path: "/Users/alex/code/worktrees/feat-billing/acme-web", name: "feat-billing", checked: false }] }),
+      item("billing-api", "notSetUp"), item("one", "ready", { canvasCount: 1 }), item("old", "added"), item("legacy-cms", "unreadable"), item("new", "checking"),
+    ]), "/Users/alex");
+    expect(view.title).toBe("Choose a repository in code");
+    expect(view.lead).toEqual([{ code: "~/code" }, " isn’t a repository. Choose one repository inside it."]);
+    expect(view.rows).toEqual([
+      { id: "acme-web", name: "acme-web", label: "acme-web", path: "~/code/acme-web", sub: false, disabled: false, chip: { text: "14 canvases", tone: "ok" } },
+      { id: "t1", name: "feat-billing", label: "acme-web, feat-billing worktree", path: "~/code/worktrees/feat-billing/acme-web", sub: true, disabled: false },
+      { id: "billing-api", name: "billing-api", label: "billing-api", path: "~/code/billing-api", sub: false, disabled: false, chip: { text: "Not set up" } },
+      { id: "one", name: "one", label: "one", path: "~/code/one", sub: false, disabled: false, chip: { text: "1 canvas", tone: "ok" } },
+      { id: "old", name: "old", label: "old", path: "~/code/old", sub: false, disabled: true, chip: { text: "Already added" } },
+      { id: "legacy-cms", name: "legacy-cms", label: "legacy-cms", path: "~/code/legacy-cms", sub: false, disabled: true, chip: { text: "Couldn't read", tone: "warn" } },
+      { id: "new", name: "new", label: "new", path: "~/code/new", sub: false, disabled: true, chip: { text: "Checking…" } },
+    ]);
+    expect(view.initial).toBe("acme-web");
+  });
+  test("the first choice is the first enabled row; none when nothing can be chosen", () => {
+    expect(pickView(snapshot([item("old", "added", { worktrees: [{ id: "t1", path: "/w/old", name: "feat", checked: false }] })]), null).initial).toBe("t1");
+    expect(pickView(snapshot([item("legacy-cms", "unreadable")]), null).initial).toBeNull();
+    expect(pickView(snapshot([], []), null).title).toBe("Choose a repository");
+  });
 });

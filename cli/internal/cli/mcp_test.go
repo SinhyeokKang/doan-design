@@ -168,6 +168,7 @@ func TestMCPToolList(t *testing.T) {
 	}
 	want := map[string][]string{
 		"init":             {"repo", "tokenCss"},
+		"config":           {"addServe", "clearTokenCss", "removeServe", "repo", "tokenCss"},
 		"ls":               {"repo"},
 		"comments":         {"canvas", "repo"},
 		"resolve_comments": {"agent", "ids", "repo"},
@@ -194,8 +195,11 @@ func TestMCPToolList(t *testing.T) {
 		for k, p := range schema.Properties {
 			keys = append(keys, k)
 			typ := "string"
-			if k == "ids" {
+			if k == "ids" || k == "addServe" || k == "removeServe" {
 				typ = "array"
+			}
+			if k == "clearTokenCss" {
+				typ = "boolean"
 			}
 			if p["type"] != typ {
 				t.Fatal(tool.Name, k, p)

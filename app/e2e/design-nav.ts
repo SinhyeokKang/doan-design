@@ -126,7 +126,7 @@ try {
   // Task 8 — a workspace without canvases.
   await enterProject(page, empty);
   await overview().getByText("No canvases in design/ yet", { exact: true }).waitFor();
-  await overview().getByRole("button", { name: "Copy first prompt", exact: true }).waitFor();
+  await overview().getByRole("textbox", { name: "What do you want to design?", exact: true }).waitFor();
   await shot("2-empty-overview");
 
   // Task 8 — cards by folder, the doan:width hint, a card opens its canvas.

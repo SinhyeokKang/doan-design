@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { canvasLabel } from "./canvasTree";
 import type { Selection } from "../formats/types";
-import type { FolderEntry } from "../main/view";
+import type { CanvasRow, FolderEntry } from "../main/view";
 import type { ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
 import { projectNames } from "./projectRow";
@@ -21,6 +21,7 @@ import { RightPanel } from "./RightPanel";
 import { updatedText } from "./canvasView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
 import { Wizard, type Reroot } from "./Onboarding";
+import { FirstPromptContext, useFirstPromptWait } from "./FirstPrompt";
 import { ProjectOverview, useThumbnails } from "./ProjectOverview";
 import { QuickOpen } from "./QuickOpenDialog";
 import { pickTarget, type SearchResult } from "./quickOpen";
@@ -234,6 +235,13 @@ export function App() {
       }).catch(error => { if (workspace) setLocating(null); console.error(error); });
     }
   }
+  useEffect(() => window.doan.onProjectAction(request => {
+    if (live.current.modal) return;
+    if (request.action === "details") {
+      const entry = entries.find(entry => entry.path === request.path);
+      if (entry?.kind === "error") toast.show(entry.message);
+    } else action(request.action, request.path);
+  }), [entries, loadedRoot]);
   useEffect(() => window.doan.onMenuCommand(name => {
     if (live.current.modal) return;
     if (name === "home") live.current.home();
@@ -258,7 +266,16 @@ export function App() {
   const rendered = useMemo(() => state.open && state.layout ? { root: state.open.folder, path: state.open.canvas, frames: state.layout.frames } : undefined, [state.open?.folder, state.open?.canvas, state.layout]);
   const names = projectNames(entries.map(entry => entry.path));
   const name = names.get(state.open?.folder ?? entries[0]?.path ?? "") ?? "";
-  return <TooltipProvider>
+  const firstPrompt = useFirstPromptWait({
+    entries, wizardOpen: wizard !== null, workspaceRoot: screen === "workspace" ? loadedRoot : null,
+    toast: (message, label, run) => toast.show(message, label, run),
+    projectName: root => cards.find(card => card.rows.some(row => row.path === root))?.name ?? names.get(root) ?? root,
+    openCanvas: (root: string, row: CanvasRow) => {
+      if (root === loadedRoot) { setScreen("workspace"); controller.current?.openCanvas(root, row); }
+      else controller.current?.openWorkspace(root, next => { workspaceFocus.current = null; setLoadedRoot(next); setScreen("workspace"); controller.current?.openCanvas(next, row); });
+    },
+  });
+  return <TooltipProvider><FirstPromptContext.Provider value={firstPrompt}>
   {screen === "home" && <Home homeDirectory={homeDirectory} entries={entries} loaded={loadedRoot} selection={state.selection} highlight={highlight} rerootHint={rerootHint} enter={enter} action={action} remove={paths => void remove(paths)} />}
   <main className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}`} style={{ visibility: screen === "home" ? "hidden" : "visible" }} inert={screen === "home"} aria-hidden={screen === "home"}>
     <TopBar homeDirectory={homeDirectory} state={state} name={card?.name ?? name} reload={() => command("reload")} overview={() => controller.current?.showOverview()} home={home} entry={entry} rows={card?.rows ?? []} enter={root => enter(root, true)} />
@@ -275,8 +292,8 @@ export function App() {
   {quickOpen && <QuickOpen entries={entries} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => setQuickOpen(false)} />}
   {toast.element}
   <DropOverlay blocked={modal} />
-  {wizard !== null && <Wizard key={wizard} session={wizard} entries={entries} reroot={reroot} onClose={() => { restoreFocus.current = true; setWizard(null); }} />}
-  </TooltipProvider>;
+  {wizard !== null && <Wizard key={wizard} session={wizard} entries={entries} reroot={reroot} homeDirectory={homeDirectory} onClose={() => { restoreFocus.current = true; setWizard(null); }} />}
+  </FirstPromptContext.Provider></TooltipProvider>;
 }
 
 function TopBar({ state, name, reload, overview, home, entry, rows, enter, homeDirectory }: { homeDirectory: string | null; state: CanvasState; name: string; reload: () => void; overview: () => void; home: () => void; entry: FolderEntry | undefined; rows: FolderEntry[]; enter: (root: string) => void }) {

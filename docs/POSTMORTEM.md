@@ -2,6 +2,52 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — A crash during quit teardown lost the debounced ui-state
+- **Symptom**: design-nav e2e intermittently read `ui-state.json` without `root` after entering a project and quitting at once (≈2 in 30 loaded runs, 0 in 8 idle runs).
+- **Root cause**: the newest state was accepted in main but only flushed on `will-quit`. With a thumbnail capture running, the process died with SIGSEGV right after `before-quit` disposed the capture window, so `will-quit` never ran and the 500 ms debounce left the previous value on disk.
+- **Net**: a main-side trace of save/before-quit/will-quit plus Electron's exit signal caught it; the assertion alone looked like a renderer race.
+- **Prevention**: flush durable state before any teardown that can fail (`rg -n 'flushSync|thumbnails\?\.dispose' app/src/main/index.ts`); keep the index regression that orders flush before dispose. The crash itself is still open.
+
+### 2026-10-25 — A toast's Open was dropped while its project was still loading
+
+- **Area**: `app/src/renderer/CanvasController.ts` (`openWorkspace`, `updateEntries`), `app/src/renderer/App.tsx` (`added` toast), `app/e2e/projects-home.ts`.
+- **Symptom**: the projects-home e2e intermittently timed out after clicking the "Added added-project" toast's Open (2/10 standalone runs on feat-app-setup); the screenshot showed the toast gone and the previous workspace still open.
+- **Root cause**: main sends the add outcome right after storing the folder, before its first `ls --repo` read finishes, so the toast can offer Open for an entry that is still `loading`. `openWorkspace` treated any non-list entry as "nothing to open" and silently returned. Latent since the toast existed; app-setup's extra IPC and process load made the read slower relative to the click.
+- **Net**: the unchanged e2e caught it only intermittently; unit tests had covered only list entries. A wrapper CLI that delays the added folder's read made the failure deterministic (3/3) before the fix.
+- **Prevention**: an action offered before a read finishes must wait for that read (and be superseded by later navigation) rather than check the state once. Search: `rg -n 'kind !== "list"\) return|kind === "list"' app/src/renderer` for other one-shot checks on entries that may still be loading; Home's row activation already only enters list rows.
+
+### 2026-10-25 — A TS helper hid its TSX component on case-insensitive macOS
+
+- **Area**: `app/src/renderer/ConnectionRows.tsx`, former `connectionRows.ts`, now `connectionRowView.ts`.
+- **Symptom**: the early helper tests and typecheck passed, but wiring the real Settings import resolved `./ConnectionRows` to the helper `.ts` file and failed with missing component exports / TS1149.
+- **Root cause**: extension probing finds `.ts` before `.tsx`; the basenames differed only by letter case on a case-insensitive filesystem. The initial program did not exercise the component's production import.
+- **Net**: wiring Settings into the production entry exposed the error; helper-only tests and the earlier typecheck missed it. The component and helper now have different basenames. The earlier design-nav handoff already documented the same issue: `QuickOpenDialog.tsx` was named that way because `./QuickOpen` resolved to `quickOpen.ts` (source: `.scratch/orch/design-nav/handoff-C2.md`, line 38 in the conductor checkout).
+- **Prevention**: when pairing a component and helper, make their basenames distinct beyond capitalization and compile a real consumer. A scan of case-folded `.ts`/`.tsx` stems under `app/src` on 2026-10-25 found no remaining collisions. `rg --files app/src/renderer | rg 'Connection|connection|QuickOpen|quickOpen'` locates the known pairs.
+
+### 2026-10-25 — Calling the Quit menu item's JS click did not quit macOS Electron
+
+- **Area**: `app/e2e/windows.ts`, Settings lifetime e2e.
+- **Symptom**: every Settings behavior passed, but invoking the Quit menu role through `MenuItem.click` left both windows alive and the close-event assertion timed out after 30 seconds.
+- **Root cause**: this native macOS menu role did not execute through the JS click path used for the app's custom commands. The role must be exercised through its native action in this harness.
+- **Net**: the actual close-event assertion caught it; locating an enabled Quit item and calling its click handler did not prove a quit occurred. `Menu.sendActionToFirstResponder("terminate:")` reaches the real app quit lifecycle; e2e confirms both pages close.
+- **Prevention**: run `rg -n 'item\\.click|sendActionToFirstResponder' app/e2e` and distinguish custom JS commands from native roles. Existing `runtime.ts` handles fullscreen separately, and `thumbnails.ts` already uses the native `hide:` selector. Other click helpers found in projects-home, design-nav and onboarding currently serve custom commands; do not claim native-role coverage from those calls alone.
+
+### 2026-10-25 — A forwarded Settings target discarded a pending setup confirmation
+
+- **Area**: `app/src/renderer/settingsWindow.tsx`, `app/e2e/settings.ts`.
+- **Symptom**: while Fix the doan link? was open, Home requested Projects in the same Settings window. The tab switch unmounted Connections and discarded its confirmation while main still held that setup lock.
+- **Root cause**: tab-button disabling did not cover the independent `onTarget` entry point. The renderer's component lifetime and main's operation lifetime diverged.
+- **Net**: the new actual-window regression failed in the first full runtime run. The Settings root now queues the latest forwarded target while a setup operation owns the current pane, restores the current native title, and applies the target after settlement. The regression verifies the dialog and current tab survive, then the queued Projects target opens after Cancel.
+- **Prevention**: run `rg -n 'setTarget|queuedTarget|onTarget' app/src/renderer/settingsWindow.tsx`; protect both local tab clicks and externally forwarded targets whenever a pane owns pending confirmation state. Keep the actual-window cross-window target test, not only a disabled-tab assertion.
+
+### 2026-10-25 — A new link state silently removed replacement-guard coverage
+
+- **Area**: `app/src/main/onboarding/states.ts`, `machine.test.ts`, `app/e2e/onboarding.ts`.
+- **Symptom**: after adding `dangling`, removing both foreign-link replacement confirmation guards still left the existing onboarding tests green. An existing other CLI or Claude skill folder could then be overwritten without the tests catching the missing confirmation.
+- **Root cause**: the original replacement fixtures used symlinks to nonexistent `/old` and `/elsewhere` targets. They had exercised `link-other`, but the new classification moved them all to `dangling`. Test names still described replacement coverage without distinguishing existing and absent targets.
+- **Net**: R-A1 mutation testing caught the gap before integration; ordinary green unit tests missed it. A1fix added three existing-target twins while retaining the dangling fixtures. The same deletion mutation now fails all three twins; restoring the guards passes all 98 onboarding tests at that step.
+- **Prevention**: when adding a classification state, audit the actual fixture classification rather than test titles, retain one fixture for every protected branch, and remove each safety guard temporarily to verify its tests fail. Run `rg -n 'symlinkSync\("/(old|elsewhere|missing)' app/src/main/onboarding app/e2e/onboarding.ts` to locate absent-target fixtures; pair replacement cases with real existing files/folders and assert the confirmation text. Run performed on 2026-10-25: four matches in `machine.test.ts`, all retained intentional dangling cases; the three broad replacement cases now have existing-target twins. The e2e missing-target fixture remains a dangling Fix case and is not claimed as existing-target Replace coverage.
+
 ### 2026-10-25 — Removing a project retained its remembered canvas
 
 - **Area**: renderer `CanvasController.updateEntries` and `workspaceMemory`.

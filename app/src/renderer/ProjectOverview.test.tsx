@@ -91,11 +91,11 @@ test("the overview shows each thumbnail state, the parse-failure card and folder
   expect(html.match(/<button[^>]*class="ocard"/g)).toHaveLength(5);
 });
 
-test("a workspace without canvases shows the empty state with Copy first prompt", () => {
+test("a workspace without canvases keeps the heading and shows the first prompt composer in a card", () => {
   const html = render([]);
-  expect(html).toContain("<b>No canvases in design/ yet</b>");
-  expect(html).toMatch(/<button[^>]*class="btn"[^>]*>Copy first prompt<\/button>/);
-  expect(html).toContain("Replace &lt;what you want to design&gt; before sending.");
+  expect(html).toMatch(/^<section class="ov" role="region" aria-label="Overview"><div class="empty"><b>No canvases in design\/ yet<\/b><div class="fp-card"><div class="ob-prompt">/);
+  expect(html).toContain('<p class="ob-sentence">Use the doan skill to make a design canvas in /code/acme-web for <mark class="slot">…</mark>.</p>');
+  expect(html).not.toContain("Copy first prompt");
   expect(html).not.toContain("ocard");
 });
 

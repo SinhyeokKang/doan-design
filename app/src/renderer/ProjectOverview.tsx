@@ -3,8 +3,7 @@ import type { CanvasRow } from "../main/view";
 import type { ThumbnailReply } from "../main/thumbnails";
 import { buildCanvasTree, type CanvasNode, type TreeNode } from "./canvasTree";
 import { ChangedTime, PathTip } from "./Home";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
-import { copyLabel, COPY_FAILED, type CopyState } from "./onboardingView";
+import { FirstPrompt } from "./FirstPrompt";
 
 // Keyed by canvas path. A path with no entry has not been captured yet.
 export type ThumbnailState = { kind: "pending" } | { kind: "ready"; url: string } | { kind: "failed" };
@@ -211,26 +210,10 @@ function CanvasCard({ canvas, thumbnail, open, focus, blur }: { canvas: CanvasNo
   </button>;
 }
 
-// The shipped first-prompt copy, moved from the sidebar to the center.
+// The heading stays; the composer replaces the shipped Copy first prompt (app-setup).
 function OverviewEmpty({ root }: { root: string }) {
-  const [sentence, setSentence] = useState<string | null>(null);
-  const [copy, setCopy] = useState<CopyState>("idle");
-  useEffect(() => {
-    let live = true;
-    void window.doan.firstPrompt(root).then(text => { if (live) setSentence(text); }, () => undefined);
-    return () => { live = false; };
-  }, [root]);
-  async function copyPrompt() {
-    setCopy("copying");
-    let ok = false;
-    try { ok = (await window.doan.copyFirstPrompt(root)).kind === "success"; } catch { /* Shown as Retry copy. */ }
-    setCopy(ok ? "copied" : "failed");
-  }
-  const button = <button type="button" className="btn" disabled={copy === "copying"} onClick={() => void copyPrompt()}>{copy === "idle" ? "Copy first prompt" : copyLabel(copy)}</button>;
   return <div className="empty">
     <b>No canvases in design/ yet</b>
-    {/* Always inside the Tooltip, so the sentence arriving does not remount a focused button. */}
-    <Tooltip><TooltipTrigger asChild>{button}</TooltipTrigger>{sentence !== null && <TooltipContent className="prompt-tooltip" collisionPadding={8}>{sentence}</TooltipContent>}</Tooltip>
-    {copy === "failed" ? <p role="alert">{COPY_FAILED}</p> : <p>Replace &lt;what you want to design&gt; before sending.</p>}
+    <div className="fp-card"><FirstPrompt root={root} /></div>
   </div>;
 }

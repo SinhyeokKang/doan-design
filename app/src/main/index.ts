@@ -1,5 +1,5 @@
 import { createMachine, needsOnboarding, markClosed, PATH_LINE, type MachineState } from "./onboarding/machine";
-import { firstSentence } from "./onboarding/states";
+import { isTranslocated } from "./onboarding/states";
 import { createCommentsService } from "./comments/service";
 import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
@@ -15,13 +15,18 @@ import { validateSelection } from "../formats/validate";
 import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } from "./canvasFrame";
 import { canvasScriptSource } from "./canvasScript";
 import { createAddFlow, droppedPaths, type AddFlow } from "./addProjects";
-import { cliCommand, runLs } from "./cli";
+import { cliCommand, runConfig, runLs } from "./cli";
+import { createConfigBridge, type ConfigBridge } from "./configBridge";
 import { folderState } from "./folderState";
 import type { InspectResult } from "./inspect";
 import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
 import { menuState, type Screen } from "./menuState";
 import { removalLabel } from "./removal";
+import { senderAllowed, type WindowKind } from "./senderAllowed";
+import { INSTALL_URLS, parseExternalTarget, parseForwardedAction, parseSettingsTab, parseSettingsTarget, projectRows, SETTINGS_TITLES, SETTINGS_WINDOW, type SettingsTab, type SettingsTarget } from "./settings";
+import { createSetupBroker, type SetupBroker } from "./setupBroker";
+import { promptSentence } from "../firstPrompt/promptSentence";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
 import { createThrottle } from "./throttle";
 import { createThumbnails, type ThumbnailReply, type Thumbnails } from "./thumbnails";
@@ -44,6 +49,11 @@ export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean }
 export type RemoveResult = { kind: "removed"; removalId: string; label: string } | { kind: "cancelled" } | { kind: "unavailable" };
 export type RestoreResult = { kind: "restored"; paths: string[] } | { kind: "unavailable" };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
+// The wizard's Open Project…: one folder, judged as Add Project… judges it. A
+// checklist or a confirmation finishes through `folders:add-candidates` (one
+// id) or `folders:confirm-folder`, whose `added` holds the one root.
+export type OpenProjectResult = { kind: "stored"; root: string } | { kind: "choose"; scanId: string } |
+  { kind: "confirm"; confirmId: string; path: string; name: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
 
 // The window only ever shows the bundled UI; canvases live in a sandboxed
 // iframe whose navigation stays on the local server. Anything else a page tries
@@ -59,6 +69,14 @@ app.on("web-contents-created", (_event, contents) => {
 });
 
 let win: BrowserWindow | undefined;
+// Settings is its own window, made on demand and destroyed on close. Its
+// webContents is the only other one IPC accepts; the capture window never is.
+let settingsWin: BrowserWindow | undefined;
+let focusedWindow: WindowKind = "main";
+// Where the next Settings window, or the open one, should go; taken once.
+let settingsTarget: SettingsTarget | null = null;
+let broker: SetupBroker | undefined;
+let configBridge: ConfigBridge | undefined;
 let shell: Shell | undefined;
 let runtime: Runtime | undefined;
 let inspector: Inspector | undefined;
@@ -73,14 +91,6 @@ let wizardSession: string | null = null;
 let machine: ReturnType<typeof createMachine> | undefined;
 export type OnboardingOpen = { session: string };
 export type OnboardingRead = { kind: "state"; session: string; state: MachineState } | { kind: "stale" };
-function openWizard(): void {
-  if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
-  showWindow(win);
-  if (wizardSession !== null || machine?.isBusy()) return;
-  machine?.cancelConfirmation();
-  wizardSession = randomUUID();
-  win.webContents.send("onboarding:open", { session: wizardSession });
-}
 let quitting = false;
 let cancelPendingHide = () => {};
 let addFlow: AddFlow | undefined;
@@ -106,18 +116,24 @@ function syncThumbnailPause(): void {
   if (windowShown && !appHidden) thumbnails?.resume();
   else thumbnails?.pause();
 }
+// The first prompt's arrival shows a toast rather than opening a canvas while
+// the window is hidden; document.hidden stayed false after hide() in a real run.
+function visibilityChanged(): void {
+  syncThumbnailPause();
+  send("window:visible", { visible: windowShown && !appHidden });
+}
 
 function showWindow(window: BrowserWindow): void {
   cancelPendingHide();
   window.show();
   windowShown = true;
-  syncThumbnailPause();
+  visibilityChanged();
 }
 
 function hideWindow(window: BrowserWindow): void {
   window.hide();
   windowShown = false;
-  syncThumbnailPause();
+  visibilityChanged();
 }
 
 function isOpen(root: string): boolean {
@@ -128,8 +144,35 @@ function send(channel: string, ...args: unknown[]): void {
   if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send(channel, ...args);
 }
 
+function sendSettings(channel: string, ...args: unknown[]): void {
+  if (settingsWin && !settingsWin.isDestroyed() && !settingsWin.webContents.isDestroyed()) settingsWin.webContents.send(channel, ...args);
+}
+
 function fromWindow(event: IpcMainInvokeEvent): boolean {
   return win !== undefined && !win.isDestroyed() && fromAppFrame(event, win);
+}
+
+// A registered window's main frame, or nothing: iframes, the capture window
+// and windows that are gone are not senders.
+function senderKind(event: IpcMainInvokeEvent): WindowKind | undefined {
+  if (fromWindow(event)) return "main";
+  if (settingsWin !== undefined && !settingsWin.isDestroyed() && fromAppFrame(event, settingsWin)) return "settings";
+  return undefined;
+}
+
+// Every channel goes through the per-window allowlist; `refused` is what a
+// sender that may not call it gets, the same as a forged request.
+function handle(channel: string, refused: unknown, handler: (event: IpcMainInvokeEvent, value: unknown, kind: WindowKind) => unknown): void {
+  ipcMain.handle(channel, (event, value: unknown) => {
+    const kind = senderKind(event);
+    return kind !== undefined && senderAllowed(channel, kind) ? handler(event, value, kind) : refused;
+  });
+}
+
+function setFocusedWindow(kind: WindowKind): void {
+  if (focusedWindow === kind) return;
+  focusedWindow = kind;
+  setMenu();
 }
 
 const canvasScriptText = canvasScriptSource();
@@ -159,7 +202,7 @@ function injectCanvasScript(window: BrowserWindow): void {
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast);
+  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: wizardSession !== null, focusedWindow });
   const undo: MenuItemConstructorOptions = enabled.undoRemove
     ? { label: "Undo Remove", accelerator: "CmdOrCtrl+Z", click: command("undoRemove") }
     : { role: "undo" };
@@ -167,7 +210,7 @@ function setMenu(): void {
     Menu.buildFromTemplate([
       { label: "doan", submenu: [
         { role: "about" },
-        { label: "Set Up doan…", click: openWizard },
+        { label: "Settings…", accelerator: "CmdOrCtrl+,", enabled: enabled.settings, click: () => openSettings(null) },
         { type: "separator" }, { role: "services" }, { type: "separator" },
         { role: "hide" }, { role: "hideOthers" }, { role: "unhide" },
         { type: "separator" }, { role: "quit" },
@@ -177,7 +220,14 @@ function setMenu(): void {
         submenu: [
           { label: "Add Project…", accelerator: "CmdOrCtrl+O", enabled: enabled.addProject, click: () => { void addFromDialog(); } },
           { type: "separator" },
-          { label: "Close Window", accelerator: "CmdOrCtrl+W", click: () => { if (win && !win.isDestroyed()) win.close(); } },
+          // Closes Settings when it has focus (destroyed), else hides the main window.
+          // Electron names the focused window; an inactive app may name none.
+          { label: "Close Window", accelerator: "CmdOrCtrl+W", click: (_item, focused) => {
+            const settings = settingsWin && !settingsWin.isDestroyed() ? settingsWin : undefined;
+            const target = focused !== undefined && (focused === win || focused === settings) ? focused
+              : focusedWindow === "settings" && settings ? settings : win;
+            if (target && !target.isDestroyed()) target.close();
+          } },
         ],
       },
       // The `editMenu` role's items, spelled out so Undo can be swapped.
@@ -214,6 +264,9 @@ function setMenu(): void {
     ]),
   );
 }
+
+// What Home shortens project paths against; Settings rows get the result.
+const homeDirectory = (): string => process.env.HOME ?? app.getPath("home");
 
 function setMenuInputs(next: MenuInputs): void {
   if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast) return;
@@ -268,10 +321,18 @@ function createWindow(): BrowserWindow {
   // A new renderer starts on Home again with no toast up.
   window.webContents.on("render-process-gone", () => { selection = null; documents.clear(); transitionGuard.reset(); setMenuInputs(HOME); });
   window.webContents.on("did-navigate", () => { selection = null; documents.clear(); transitionGuard.reset(); setMenuInputs(HOME); });
+  // A lost or closed renderer takes its setup confirmation with it; hiding the
+  // window does not. Read after destroy, webContents throws, so the id is kept now.
+  const owner = window.webContents.id;
+  window.webContents.on("render-process-gone", () => broker?.drop(owner));
   // `.git/HEAD` is not watched, so a branch switched elsewhere shows when the
   // human comes back to the window.
+  // The connection summary shares that throttle (app-setup design 'Connections').
   const reread = createThrottle(60_000);
-  window.on("focus", () => { if (reread()) shell?.rereadAll(); });
+  window.on("focus", () => {
+    setFocusedWindow("main");
+    if (reread()) { shell?.rereadAll(); void broker?.refresh(); }
+  });
   window.on("close", (event) => {
     if (quitting) return;
     event.preventDefault();
@@ -290,10 +351,63 @@ function createWindow(): BrowserWindow {
     } else hideWindow(window);
   });
   window.on("closed", () => {
+    broker?.drop(owner);
     cancelPendingHide();
     if (win === window) win = undefined;
   });
   return window;
+}
+
+function createSettingsWindow(tab: SettingsTab): BrowserWindow {
+  const window = new BrowserWindow({
+    ...SETTINGS_WINDOW,
+    title: SETTINGS_TITLES[tab],
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: fileURLToPath(new URL("../preload/settings.cjs", import.meta.url)),
+    },
+  });
+  const devUrl = process.env.ELECTRON_RENDERER_URL;
+  if (!app.isPackaged && devUrl) void window.loadURL(`${devUrl.replace(/\/+$/, "")}/settings.html`);
+  else void window.loadFile(fileURLToPath(new URL("../renderer/settings.html", import.meta.url)));
+  // The title names the current tab, which main sets; the page's <title> must not replace it.
+  window.on("page-title-updated", (event) => event.preventDefault());
+  window.on("focus", () => setFocusedWindow("settings"));
+  // Read after destroy, webContents throws, so the owner id is kept now.
+  const owner = window.webContents.id;
+  // The wizard's Close refuses while busy; Settings holds its close the same
+  // way, for the red button, ⌘W and Close Window alike. Quit closes it anyway.
+  window.on("close", (event) => { if (!quitting && broker?.isWriting(owner)) event.preventDefault(); });
+  const forget = () => { broker?.drop(owner); configBridge?.clear(); };
+  window.webContents.on("render-process-gone", forget);
+  window.on("closed", () => {
+    forget();
+    if (settingsWin === window) { settingsWin = undefined; settingsTarget = null; }
+    setFocusedWindow("main");
+  });
+  return window;
+}
+
+// Settings…, a home chip, the banner's Fix… or a row's Project Settings….
+// Not while the wizard is open (the menu item is disabled then too), and not
+// before setup can answer it.
+function openSettings(target: SettingsTarget | null): boolean {
+  if (wizardSession !== null || broker === undefined || uiState === undefined) return false;
+  settingsTarget = target;
+  if (settingsWin && !settingsWin.isDestroyed()) {
+    if (target) {
+      settingsWin.setTitle(SETTINGS_TITLES[target.tab]);
+      sendSettings("settings:target", target);
+    }
+    settingsWin.show();
+    settingsWin.focus();
+  } else settingsWin = createSettingsWindow(target?.tab ?? uiState.readSettingsTab() ?? "connections");
+  // Its focus event does not come while the app is inactive.
+  setFocusedWindow("settings");
+  void broker.refresh();
+  return true;
 }
 
 // Resolves to the stored root so the setup wizard can show the project it opened.
@@ -310,6 +424,27 @@ async function openProject(): Promise<string | null> {
   // Not awaited: the open call has finished; the message box only informs.
   if (!window.isDestroyed()) void dialog.showMessageBox(window, { type: "error", message: "Can’t open project", detail: opened.refused });
   return null;
+}
+
+async function openOneProject(): Promise<OpenProjectResult> {
+  const window = win;
+  const flow = addFlow;
+  if (!window || window.isDestroyed() || !flow) return { kind: "unavailable" };
+  showWindow(window);
+  const picked = await dialog.showOpenDialog(window, { title: "Open Project…", properties: ["openDirectory"] });
+  const path = picked.filePaths[0];
+  if (picked.canceled || path === undefined) return { kind: "cancelled" };
+  const outcome = await flow.add([path]);
+  const stored = outcome.added[0] ?? outcome.duplicate;
+  if (stored !== undefined && stored !== null) {
+    // The wizard takes the one project; the worktree checklist Add Project… offers is not shown.
+    if (outcome.scanId !== null) flow.cancel(outcome.scanId);
+    return { kind: "stored", root: stored };
+  }
+  if (outcome.scanId !== null) return { kind: "choose", scanId: outcome.scanId };
+  const confirm = outcome.confirms[0];
+  if (confirm) return { kind: "confirm", ...confirm };
+  return { kind: "refused", message: outcome.messages.join(" ") };
 }
 
 // Add Project…: several folders at once. A hidden window is shown first, as
@@ -346,6 +481,7 @@ async function start(): Promise<void> {
     }
     thumbnails?.entriesChanged(entries);
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries, focus);
+    sendSettings("projects", projectRows(entries, homeDirectory()));
   }, { response: record => documents.response(record), invalidate });
   shell = ready;
   // The capture window is made on the first capture and stays out of the
@@ -358,8 +494,8 @@ async function start(): Promise<void> {
   thumbnails = thumbs;
   // Electron has no app hide event. AppKit posts these at the end of
   // NSApplication's hide:/unhide:, which the `hide` role item (⌘H) sends.
-  systemPreferences.subscribeLocalNotification("NSApplicationDidHideNotification", () => { appHidden = true; syncThumbnailPause(); });
-  systemPreferences.subscribeLocalNotification("NSApplicationDidUnhideNotification", () => { appHidden = false; syncThumbnailPause(); });
+  systemPreferences.subscribeLocalNotification("NSApplicationDidHideNotification", () => { appHidden = true; visibilityChanged(); });
+  systemPreferences.subscribeLocalNotification("NSApplicationDidUnhideNotification", () => { appHidden = false; visibilityChanged(); });
   // Starts the once-per-launch cache cleanup even when no folder update follows.
   thumbs.entriesChanged(ready.entries());
   const comments = createCommentsService({
@@ -386,15 +522,15 @@ async function start(): Promise<void> {
   });
   const commentMethods: (keyof typeof comments)[] = ["list", "begin", "mutate", "status", "author", "copy"];
   for (const method of commentMethods) {
-    ipcMain.handle(`comments:${method}`, (event, value: unknown) => {
+    handle(`comments:${method}`, { ok: false, identity: null, error: "The request was refused." }, (event, value: unknown) => {
       if (!fromWindow(event)) return { ok: false, identity: null, error: "The request was refused." };
       return comments[method](String(event.sender.id), value);
     });
   }
-  ipcMain.handle("comments:guard", (event, value: unknown) => {
+  handle("comments:guard", undefined, (event, value: unknown) => {
     if (fromWindow(event) && typeof value === "boolean") transitionGuard.set(value);
   });
-  ipcMain.handle("comments:transition-answer", (event, value: unknown) => {
+  handle("comments:transition-answer", undefined, (event, value: unknown) => {
     if (fromWindow(event)) transitionGuard.answer(value);
   });
   // `doan active` is an extra; the app works without it, and the CLI then
@@ -406,7 +542,7 @@ async function start(): Promise<void> {
 
   const unavailable = { kind: "unavailable" as const, message: "The project setup request is no longer valid." };
   const canSetUp = (root: string) => ready.entries().some(entry => entry.path === root && entry.kind === "uninitialized");
-  ipcMain.handle("project:choose-token-css", async (event, value: unknown): Promise<TokenCssChoice> => {
+  handle("project:choose-token-css", unavailable, async (event, value: unknown): Promise<TokenCssChoice> => {
     if (!fromWindow(event) || !win || typeof value !== "object" || value === null ||
       Object.keys(value).length !== 1 || !("root" in value) || typeof value.root !== "string" || !canSetUp(value.root)) return unavailable;
     const root = value.root;
@@ -419,7 +555,7 @@ async function start(): Promise<void> {
     choices.set(root, choice);
     return { kind: "selected", choiceId: choice.id, path: choice.path };
   });
-  ipcMain.handle("project:init", async (event, value: unknown): Promise<ProjectInitResult> => {
+  handle("project:init", unavailable, async (event, value: unknown): Promise<ProjectInitResult> => {
     if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 2 ||
       !("root" in value) || typeof value.root !== "string" || !("choiceId" in value) ||
       (value.choiceId !== null && typeof value.choiceId !== "string") || !canSetUp(value.root)) return unavailable;
@@ -431,8 +567,9 @@ async function start(): Promise<void> {
     }
     return ready.initialize(value.root, tokenCss);
   });
-  ipcMain.handle("app:home", event => fromWindow(event) ? process.env.HOME ?? app.getPath("home") : null);
-  ipcMain.handle("folders:get", (event) => (fromWindow(event) ? ready.entries() : []));
+  handle("app:home", null, event => fromWindow(event) ? homeDirectory() : null);
+  handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
+  handle("folders:get", [], (event) => (fromWindow(event) ? ready.entries() : []));
   const cli = cliCommand(process.env, app.isPackaged, process.resourcesPath);
   const flow = createAddFlow({
     ls: async (target, signal) => folderState(await runLs(cli, target, undefined, signal)),
@@ -441,27 +578,27 @@ async function start(): Promise<void> {
     progress: (snapshot) => send("folders:scan-progress", snapshot),
   });
   addFlow = flow;
-  ipcMain.handle("folders:add", async (event) => { if (fromWindow(event)) await addFromDialog(); });
-  ipcMain.handle("folders:add-paths", async (event, value: unknown) => {
+  handle("folders:add", undefined, async (event) => { if (fromWindow(event)) await addFromDialog(); });
+  handle("folders:add-paths", undefined, async (event, value: unknown) => {
     const paths = droppedPaths(value);
     if (!fromWindow(event) || paths === null) return;
     send("folders:add-outcome", await flow.add(paths));
   });
   const scanId = (value: unknown): string | null => typeof value === "object" && value !== null && Object.keys(value).length === 1 &&
     "scanId" in value && typeof value.scanId === "string" ? value.scanId : null;
-  ipcMain.handle("folders:scan", (event, value: unknown) => {
+  handle("folders:scan", null, (event, value: unknown) => {
     const id = scanId(value);
     return fromWindow(event) && id !== null ? flow.scan(id) : null;
   });
-  ipcMain.handle("folders:scan-cancel", (event, value: unknown) => {
+  handle("folders:scan-cancel", undefined, (event, value: unknown) => {
     const id = scanId(value);
     if (fromWindow(event) && id !== null) flow.cancel(id);
   });
-  ipcMain.handle("folders:add-candidates", (event, value: unknown) => (fromWindow(event) ? flow.addCandidates(value) : { kind: "unavailable" }));
-  ipcMain.handle("folders:confirm-folder", (event, value: unknown) => (fromWindow(event) ? flow.confirm(value) : { kind: "unavailable" }));
+  handle("folders:add-candidates", { kind: "unavailable" }, (event, value: unknown) => (fromWindow(event) ? flow.addCandidates(value) : { kind: "unavailable" }));
+  handle("folders:confirm-folder", { kind: "unavailable" }, (event, value: unknown) => (fromWindow(event) ? flow.confirm(value) : { kind: "unavailable" }));
   // A row or a whole card. The draft guard asks once when a draft is open; the
   // renderer knows whether the draft belongs to one of these roots.
-  ipcMain.handle("folders:remove", (event, value: unknown): Promise<RemoveResult> | RemoveResult => {
+  handle("folders:remove", { kind: "unavailable" }, (event, value: unknown): Promise<RemoveResult> | RemoveResult => {
     if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("paths" in value)) return { kind: "unavailable" };
     const paths: unknown = value.paths;
     const stored = ready.entries();
@@ -490,7 +627,7 @@ async function start(): Promise<void> {
   });
   const removalId = (value: unknown): string | null => typeof value === "object" && value !== null && Object.keys(value).length === 1 &&
     "removalId" in value && typeof value.removalId === "string" ? value.removalId : null;
-  ipcMain.handle("folders:restore", async (event, value: unknown): Promise<RestoreResult> => {
+  handle("folders:restore", { kind: "unavailable" }, async (event, value: unknown): Promise<RestoreResult> => {
     const id = removalId(value);
     if (!fromWindow(event) || id === null || removal?.id !== id) return { kind: "unavailable" };
     const { paths, indexes } = removal;
@@ -498,10 +635,10 @@ async function start(): Promise<void> {
     return { kind: "restored", paths: await ready.restore(paths, indexes) };
   });
   // The toast expired: Undo is gone, so is what it needed.
-  ipcMain.handle("folders:forget-removal", (event, value: unknown) => {
+  handle("folders:forget-removal", undefined, (event, value: unknown) => {
     if (fromWindow(event) && removal !== null && removalId(value) === removal.id) removal = null;
   });
-  ipcMain.handle("folders:locate", async (event, value: unknown): Promise<LocateResult> => {
+  handle("folders:locate", { kind: "unavailable" }, async (event, value: unknown): Promise<LocateResult> => {
     const from = storedPath(value);
     if (!fromWindow(event) || from === null || !win) return { kind: "unavailable" };
     const picked = await dialog.showOpenDialog(win, { title: "Locate…", properties: ["openDirectory"] });
@@ -518,102 +655,183 @@ async function start(): Promise<void> {
   });
   // The root only: the config may live elsewhere after a re-root, and TS does
   // not build `.doan/` paths (POSTMORTEM "Guessing the repo root in TS").
-  ipcMain.handle("folders:reveal", (event, value: unknown) => {
+  handle("folders:reveal", undefined, (event, value: unknown) => {
     const path = storedPath(value);
     if (fromWindow(event) && path !== null) electronShell.showItemInFolder(path);
   });
   // Validated against the saved roots in main; the renderer's copy is not trusted.
   const store = createUiStateStore(join(userData, "ui-state.json"), () => ready.entries().map((entry) => entry.path));
   uiState = store;
-  ipcMain.handle("ui-state:get", (event) => (fromWindow(event) ? store.read() : null));
-  ipcMain.handle("ui-state:save", (event, value: unknown) => fromWindow(event) && store.save(value));
+  handle("ui-state:get", null, (event) => (fromWindow(event) ? store.read() : null));
+  handle("ui-state:save", false, (event, value: unknown) => fromWindow(event) && store.save(value));
   // A saved root and a listed canvas only; main reads the bytes from its cache.
-  ipcMain.handle("thumbnails:get", (event, value: unknown): Promise<ThumbnailReply> | ThumbnailReply => {
+  handle("thumbnails:get", { kind: "unavailable" }, (event, value: unknown): Promise<ThumbnailReply> | ThumbnailReply => {
     if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
       !("root" in value) || typeof value.root !== "string" || !("path" in value) || typeof value.path !== "string" ||
       !("visible" in value) || typeof value.visible !== "boolean") return { kind: "unavailable" };
     return thumbs.get(value.root, value.path, value.visible);
   });
-  ipcMain.handle("thumbnails:visible", (event, value: unknown) => {
+  handle("thumbnails:visible", undefined, (event, value: unknown) => {
     if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
       !("root" in value) || typeof value.root !== "string" || !("path" in value) || typeof value.path !== "string" ||
       !("visible" in value) || typeof value.visible !== "boolean") return;
     thumbs.visible(value.root, value.path, value.visible);
   });
-  ipcMain.handle("menu:state", (event, value: unknown) => {
+  handle("menu:state", undefined, (event, value: unknown) => {
     const next = parseMenuInputs(value);
     if (fromWindow(event) && next !== null) setMenuInputs(next);
   });
-  ipcMain.handle("folders:open", async (event) => (fromWindow(event) ? openProject() : null));
-  ipcMain.handle("folders:reopen", async (event, path: unknown) => {
+  handle("folders:open", null, async (event) => (fromWindow(event) ? openProject() : null));
+  handle("folders:reopen", undefined, async (event, path: unknown) => {
     if (!fromWindow(event) || typeof path !== "string") return;
     await ready.reopen(path);
   });
   // Invalid input or a project that is not open clears rather than keeping an
   // older selection the human no longer sees.
-  ipcMain.handle("selection:set", (event, value: unknown) => {
+  handle("selection:set", undefined, (event, value: unknown) => {
     if (!fromWindow(event)) return;
     selection = validateSelection(value) && isOpen(value.root) ? value : null;
   });
-  ipcMain.handle("inspect:get", async (event, request: unknown): Promise<InspectResult> => {
+  handle("inspect:get", { ok: false, reason: "The request was refused." }, async (event, request: unknown): Promise<InspectResult> => {
     const selector = parseInspectRequest(request);
     if (!fromWindow(event) || selector === null || inspector === undefined) return { ok: false, reason: "The request was refused." };
     return inspector.inspect(selector);
   });
 
-  machine = createMachine({ command: cliCommand(process.env, app.isPackaged, process.resourcesPath), version: app.getVersion() });
+  const command = cliCommand(process.env, app.isPackaged, process.resourcesPath);
+  machine = createMachine({ command, version: app.getVersion() });
   const setup = machine;
+  const setupBroker = createSetupBroker({
+    machine: setup, translocated: isTranslocated(command),
+    onboardingClosed: async () => !await needsOnboarding(userData),
+    publish: (status) => { send("setup:status", status); sendSettings("setup:status", status); },
+  });
+  broker = setupBroker;
   const validSession = (value: unknown): value is { session: string } => typeof value === "object" && value !== null &&
     "session" in value && typeof value.session === "string" && value.session === wizardSession;
-  ipcMain.handle("onboarding:get-open", event => {
-    if (!fromWindow(event) || !wizardSession) return null;
-    setup.cancelConfirmation();
+  const requestId = (value: unknown, keys: number): string | null => typeof value === "object" && value !== null && Object.keys(value).length === keys &&
+    "requestId" in value && typeof value.requestId === "string" && value.requestId !== "" && value.requestId.length <= 128 ? value.requestId : null;
+  // A renderer that mounts again has lost the confirmation it showed.
+  handle("onboarding:get-open", null, event => {
+    if (!wizardSession) return null;
+    setupBroker.cancelConfirmation(event.sender.id);
     return { session: wizardSession };
   });
-  let latestRead = "";
-  ipcMain.handle("onboarding:read", async (event, value: unknown): Promise<OnboardingRead> => {
-    if (!fromWindow(event) || !validSession(value) || Object.keys(value).length !== 2 ||
-      !("requestId" in value) || typeof value.requestId !== "string" || !value.requestId || value.requestId.length > 128) return { kind: "stale" };
-    const requestId = value.requestId, session = value.session;
-    const readToken = randomUUID(); latestRead = readToken;
-    const state = await setup.read(requestId);
-    return fromWindow(event) && wizardSession === session && latestRead === readToken ? { kind: "state", session, state } : { kind: "stale" };
+  handle("onboarding:read", { kind: "stale" }, async (event, value: unknown): Promise<OnboardingRead> => {
+    const id = requestId(value, 2);
+    if (!validSession(value) || id === null) return { kind: "stale" };
+    const session = value.session;
+    const read = await setupBroker.read(event.sender.id, id);
+    return read.kind === "state" && fromWindow(event) && wizardSession === session ? { kind: "state", session, state: read.state } : { kind: "stale" };
   });
-  ipcMain.handle("onboarding:run", (event, value: unknown) => fromWindow(event) && wizardSession ? setup.run(value) : { kind: "stale" });
-  ipcMain.handle("onboarding:answer", (event, value: unknown) => fromWindow(event) && wizardSession ? setup.answer(value) : { kind: "stale" });
-  // The sentence names only a stored, set-up project; the renderer never sends text.
+  handle("onboarding:run", { kind: "stale" }, (event, value: unknown) => wizardSession ? setupBroker.run(event.sender.id, value) : { kind: "stale" });
+  handle("onboarding:answer", { kind: "stale" }, (event, value: unknown) => wizardSession ? setupBroker.answer(event.sender.id, value) : { kind: "stale" });
+  // Settings and the home use these; the read token and the lock owner are the sending window.
+  handle("setup:status", null, () => setupBroker.status());
+  handle("setup:read", { kind: "stale" }, async (event, value: unknown, kind) => {
+    const id = requestId(value, 1);
+    if (id === null) return { kind: "stale" };
+    const read = await setupBroker.read(event.sender.id, id);
+    return senderKind(event) === kind ? read : { kind: "stale" };
+  });
+  handle("setup:run", { kind: "stale" }, (event, value: unknown) => setupBroker.run(event.sender.id, value));
+  handle("setup:answer", { kind: "stale" }, (event, value: unknown) => setupBroker.answer(event.sender.id, value));
+  handle("setup:check-again", null, () => setupBroker.refresh());
+  handle("setup:open-external", false, async (_event, value: unknown) => {
+    const target = parseExternalTarget(value);
+    if (target === null) return false;
+    try { await electronShell.openExternal(INSTALL_URLS[target]); return true; } catch { return false; }
+  });
+  const copy = async (text: string) => {
+    try { await clipboard.writeText(text); return { kind: "success" as const }; }
+    catch (error) { return { kind: "error" as const, message: error instanceof Error ? error.message : String(error) }; }
+  };
+  handle("setup:copy-path-line", { kind: "stale" }, (_event, value: unknown) => value === undefined ? copy(PATH_LINE) : { kind: "stale" });
+  // The sentence names only a stored, set-up project. `subject` is the one
+  // free text the renderer sends; promptSentence checks it.
   const readyRoot = (value: unknown): string | null => typeof value === "string" &&
     ready.entries().some(entry => entry.path === value && entry.kind === "list") ? value : null;
-  ipcMain.handle("onboarding:first-prompt", (event, value: unknown) => {
-    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("root" in value)) return null;
+  const promptText = (value: Record<string, unknown>, fixed: number): string | null => {
     const root = readyRoot(value.root);
-    return root === null ? null : firstSentence(root);
-  });
-  ipcMain.handle("onboarding:copy", async (event, value: unknown) => {
-    if (!fromWindow(event) || typeof value !== "object" || value === null || !("kind" in value)) return { kind: "stale" };
-    let text: string;
+    if (root === null || Object.keys(value).length - fixed !== 2 || !("subject" in value)) return null;
+    const text = typeof value.subject === "string" ? promptSentence(root, value.subject) : null;
+    return typeof text === "string" ? text : null;
+  };
+  handle("onboarding:first-prompt", null, (_event, value: unknown) =>
+    typeof value === "object" && value !== null && "root" in value ? promptText(value as Record<string, unknown>, 0) : null);
+  handle("onboarding:copy", { kind: "stale" }, async (_event, value: unknown) => {
+    if (typeof value !== "object" || value === null || !("kind" in value)) return { kind: "stale" };
+    let text: string | null = null;
     if (value.kind === "pathLine" && Object.keys(value).length === 1) text = PATH_LINE;
-    else if (value.kind === "firstPrompt" && Object.keys(value).length === 2 && "root" in value) {
-      const root = readyRoot(value.root);
-      if (root === null) return { kind: "stale" };
-      text = firstSentence(root);
-    } else return { kind: "stale" };
-    try { await clipboard.writeText(text); return { kind: "success" }; }
-    catch (error) { return { kind: "error", message: error instanceof Error ? error.message : String(error) }; }
+    else if (value.kind === "firstPrompt" && "root" in value) text = promptText(value as Record<string, unknown>, 1);
+    return text === null ? { kind: "stale" } : copy(text);
   });
-  ipcMain.handle("onboarding:close", async (event, value: unknown) => {
-    if (!fromWindow(event) || !validSession(value) || Object.keys(value).length !== 1) return { kind: "stale" };
-    if (setup.isBusy()) return { kind: "busy" };
+  handle("onboarding:open-project", { kind: "unavailable" }, () => openOneProject());
+  handle("onboarding:close", { kind: "stale" }, async (event, value: unknown) => {
+    if (!validSession(value) || Object.keys(value).length !== 1) return { kind: "stale" };
+    if (setupBroker.isBusy()) return { kind: "busy" };
     let warning: string | undefined;
     try { await markClosed(userData); }
     catch (error) {
       warning = error instanceof Error ? error.message : String(error);
       console.warn("Could not save onboarding dismissal:", warning);
     }
-    setup.cancelConfirmation(); wizardSession = null;
+    setupBroker.cancelConfirmation(event.sender.id); wizardSession = null;
+    setupBroker.setOnboardingClosed(warning === undefined);
+    setMenu();
     return { kind: "success", ...(warning === undefined ? {} : { warning }) };
   });
+
+  const storedRoot = (root: string) => ready.entries().some(entry => entry.path === root);
+  handle("settings:open", false, (_event, value: unknown) => {
+    const target = parseSettingsTarget(value, storedRoot);
+    return target !== null && openSettings(target);
+  });
+  handle("settings:take-target", null, () => { const target = settingsTarget; settingsTarget = null; return target; });
+  handle("settings:tab-get", null, () => store.readSettingsTab() ?? "connections");
+  handle("settings:tab-save", false, (_event, value: unknown) => {
+    const tab = typeof value === "object" && value !== null && Object.keys(value).length === 1 && "tab" in value ? parseSettingsTab(value.tab) : null;
+    if (tab === null || !store.saveSettingsTab(tab)) return false;
+    settingsWin?.setTitle(SETTINGS_TITLES[tab]);
+    return true;
+  });
+  handle("projects:get", [], () => projectRows(ready.entries(), homeDirectory()));
+  handle("projects:reveal", undefined, (_event, value: unknown) => {
+    const path = storedPath(value);
+    if (path !== null) electronShell.showItemInFolder(path);
+  });
+  // A problem row's action runs where the home is: the main window comes forward and does it.
+  handle("projects:forward-action", false, (_event, value: unknown) => {
+    const request = parseForwardedAction(value, storedRoot);
+    if (request === null || !win || win.isDestroyed() || menuInputs.modal) return false;
+    showWindow(win);
+    win.focus();
+    send("projects:action", request);
+    return true;
+  });
+  const bridge = createConfigBridge({
+    run: (root, args) => runConfig(command, root, args),
+    epoch: root => ready.entries().some(entry => entry.path === root && entry.kind === "list") ? ready.epoch(root) : null,
+    async pick(root, kind) {
+      const window = settingsWin;
+      if (!window || window.isDestroyed()) return null;
+      const picked = await dialog.showOpenDialog(window, kind === "tokenCss"
+        ? { title: "Choose Token CSS", properties: ["openFile"], defaultPath: root, filters: [{ name: "CSS", extensions: ["css"] }] }
+        : { title: "Add to Serve", properties: ["openFile", "openDirectory"], defaultPath: root });
+      return picked.canceled ? null : picked.filePaths[0] ?? null;
+    },
+  });
+  configBridge = bridge;
+  handle("config:read", { kind: "unavailable" }, (_event, value: unknown) => bridge.read(value));
+  handle("config:choose", { kind: "unavailable" }, async (event, value: unknown) => {
+    const choice = await bridge.choose(value);
+    return senderKind(event) === "settings" ? choice : { kind: "unavailable" };
+  });
+  handle("config:write", { kind: "unavailable" }, (_event, value: unknown) => bridge.write(value));
+
   if (await needsOnboarding(userData)) wizardSession = randomUUID();
+  setMenu();
+  void setupBroker.refresh();
   win = createWindow();
 }
 
@@ -637,7 +855,9 @@ app.on("before-quit", (event) => {
   transitionGuard.request({ kind: "quit" }, () => {
     // Before quit closes the windows: a capture running then would otherwise
     // open the capture window again, and will-quit would never come.
-    quitting = true; cancelPendingHide(); thumbnails?.dispose();
+    // The state is flushed first: closing the capture window mid-capture has
+    // crashed the process (SIGSEGV) before will-quit ran its flush.
+    quitting = true; cancelPendingHide(); uiState?.flushSync(); thumbnails?.dispose();
     if (approved) app.quit();
   });
   if (!quitting) { event.preventDefault(); approved = true; }

@@ -1,0 +1,106 @@
+@import "./tokens.css";
+/* Primitives and pane rules from the accepted design/app-setup.html draft that this window renders. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; }
+button { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { opacity: .4; cursor: default; }
+button { outline: none; }
+ol, ul { list-style: none; }
+.meta { font: 11.5px var(--font-sans); color: var(--text-3); white-space: nowrap; }
+.btn { font: 500 12px var(--font-sans); color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+.glyph { color: var(--text-4); width: 12px; flex: none; text-align: center; }
+.ihead { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); margin-bottom: 8px; }
+
+/* Onboarding items, chips and dialogs used by the connection rows and confirmations. */
+.ob-card { width: 640px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.ob-item { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line-2); }
+.ob-card > :last-child { border-bottom: 0; }
+.ob-label { font-size: 12px; font-weight: 600; color: var(--text); }
+.ob-item.dimmed { opacity: .4; }
+.ob-detail { font-size: 11.5px; line-height: 1.5; color: var(--text-3); min-width: 0; overflow-wrap: anywhere; }
+code { font-family: var(--font-sans); }
+.ob-detail code, .ob-msg code, .ob-dialog code, .ob-reason code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
+.ob-status { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.ob-msg { grid-column: 2 / -1; font-size: 11.5px; line-height: 1.5; color: var(--text-2); overflow-wrap: anywhere; }
+.ob-msg.warn { border-left: 2px solid var(--warn); padding-left: 8px; }
+.ob-msg.error { border-left: 2px solid var(--err); padding-left: 8px; }
+.ob-msg.ok { color: var(--ok); }
+.ob-reason { grid-column: 2 / -1; font-size: 11.5px; line-height: 1.5; color: var(--text-3); }
+.ob-chip { font-size: 10.5px; line-height: 1.5; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; color: var(--text-3); white-space: nowrap; }
+.ob-chip.ok { color: var(--ok); }
+.ob-chip.warn { color: var(--warn); }
+.ob-chip.err { color: var(--err); }
+.ob-copyline { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; }
+.ob-copyline output { flex: 1; min-width: 0; font-size: 12px; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; overflow-wrap: anywhere; }
+.ob-dialog { width: 440px; background: var(--raised); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-2); border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
+.ob-dialog h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+.ob-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-2); margin-bottom: 12px; }
+.ob-compare { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px 10px; font-size: 11.5px; line-height: 1.5; margin-bottom: 16px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.ob-compare dt { color: var(--text-3); }
+.ob-compare dd { color: var(--text); overflow-wrap: anywhere; }
+.ob-buttons { display: flex; justify-content: flex-end; gap: 6px; }
+
+.st-tabbar { display: flex; justify-content: center; padding: 4px 20px 10px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.st-tabs { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; width: 240px; }
+.st-tab { flex: 1; min-width: 0; padding: 5px 7px; font-size: 11.5px; border-radius: 4px; color: var(--text-3); }
+.st-tab[aria-selected="true"] { color: var(--accent); background: var(--accent-soft); }
+.st-body { min-height: 0; overflow: hidden; padding: 16px 20px 20px; }
+.st-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.st-lead { flex: 1; font-size: 12px; line-height: 1.6; color: var(--text-2); }
+.st-notice { font-size: 11.5px; line-height: 1.5; color: var(--text-2); border-left: 2px solid var(--warn); padding: 2px 0 2px 8px; margin-bottom: 12px; }
+
+.pj { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 0; }
+.pj-list { background: var(--panel); border-right: 1px solid var(--line); overflow: hidden; padding: 2px 0 8px; }
+.pj-group { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 4px; font: 11.5px var(--font-sans); color: var(--text-2); }
+.pj-group .r { color: var(--text-4); }
+.pj-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; width: 100%; padding: 6px 10px 6px 14px; text-align: left; position: relative; }
+.pj-row[aria-selected="true"] { background: var(--raised); }
+.pj-row[aria-selected="true"]::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 2px; background: var(--accent); border-radius: 1px; }
+.pj-row .wt-label { font-size: 12px; }
+.pj-row[aria-selected="true"] .glyph { color: var(--accent); }
+.pj-row .wt-path { padding-left: 18px; }
+.pj-detail { min-height: 0; overflow: hidden; padding: 16px 18px; }
+.pj-name { font: 600 13px var(--font-sans); color: var(--text); overflow-wrap: anywhere; }
+.pj-name .meta { font-weight: 400; margin-left: 4px; }
+.pj-sec { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-2); }
+.pj-sec .ihead { display: flex; align-items: center; gap: 8px; }
+.saved { letter-spacing: 0; text-transform: none; color: var(--ok); font-size: 11px; }
+.pj-val { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; color: var(--text); }
+.pj-val .v { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.pj-val .v.none { color: var(--text-3); }
+.pj-val .btn, .pj-serve .btn { padding: 3px 9px; font-size: 11.5px; }
+.pj-helper { margin-top: 6px; font-size: 11px; line-height: 1.5; color: var(--text-3); }
+/* Reading… stands alone under the project name, a little further from it than a helper from its value. */
+.pj-name + .pj-helper { margin-top: 10px; }
+.pj-serve { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+.pj-serve li { display: flex; align-items: center; gap: 8px; padding: 5px 6px 5px 10px; border-top: 1px solid var(--line-2); font-size: 12px; color: var(--text); }
+.pj-serve li:first-child { border-top: 0; }
+.pj-serve li .v { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.pj-msg { margin-top: 8px; font-size: 11.5px; line-height: 1.5; color: var(--text-2); border-left: 2px solid var(--err); padding-left: 8px; overflow-wrap: anywhere; }
+.pj-empty { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
+.pj-empty b { font-size: 13px; font-weight: 600; }
+.pj-empty p { max-width: 300px; font-size: 12px; line-height: 1.6; color: var(--text-3); }
+
+html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+button { border: 0; background: transparent; }
+button.btn { border: 1px solid var(--line); background: var(--panel-2); }
+button.btn.primary { border-color: var(--accent); background: var(--accent); }
+button.btn.ghost { border-color: transparent; background: transparent; }
+button:focus-visible { outline: 1px solid var(--accent-line); outline-offset: -1px; }
+.settings-shell { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.st-body, .pj-list, .pj-detail { overflow: auto; }
+.st-body.pj { padding: 0; }
+.ob-dialog { margin: auto; }
+.ob-dialog::backdrop { background: var(--board-bg); opacity: .6; }
+.pj-detail .wt-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.pj-detail .wt-actions .btn { padding: 2px 8px; font-size: 11px; }
+.pj-detail .ihead .ob-chip { letter-spacing: 0; text-transform: none; }
+.saved.pending { color: var(--text-3); }
+.wt-label { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+.wt-label .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wt-label .name.path { color: var(--text-2); }
+.wt-path { grid-column: 1 / 2; font-size: 11px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.settings-shell .cn-card { width: auto; }

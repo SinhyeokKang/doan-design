@@ -1,3 +1,5 @@
+import { connectionSummary } from "../../setup/connectionSummary";
+import { agentsView, idleUi } from "../../renderer/onboardingView";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { mkdtempSync, realpathSync, lstatSync, readdirSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, readlinkSync, rmSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -91,13 +93,17 @@ test.each([["target", ".local/bin/doan"], ["parent", ".local/bin"]])("state name
   expect(state.display.blocked).toEqual({ cli: join(home, name), stub: join(home, ".agents/skills/doan"), claudeLink: null });
 });
 const mcpWrites = () => existsSync(join(home, "calls")) ? readFileSync(join(home, "calls"), "utf8").split("\n").filter(line => /^mcp (add|remove)/.test(line)) : [];
-function cliNotOurs(kind: "missing" | "link-other" | "blocked") {
+function cliNotOurs(kind: "missing" | "dangling" | "link-other" | "blocked") {
   const target = join(home, ".local/bin/doan");
-  if (kind === "link-other") { mkdirSync(join(target, ".."), { recursive: true }); symlinkSync("/old", target); }
+  if (kind === "link-other" || kind === "dangling") {
+    const old = join(temp, "old-doan");
+    if (kind === "link-other") file(old, "old CLI");
+    mkdirSync(join(target, ".."), { recursive: true }); symlinkSync(old, target);
+  }
   else if (kind === "blocked") file(target, "keep");
 }
 // design.md flow 6: only MCP needs the step 1 link; the stub and Claude link do not.
-test.each((["missing", "link-other", "blocked"] as const).flatMap(cliKind => (["claude", "codex"] as const).map(name => ({ cliKind, name }))))("CLI $cliKind: $name connect installs the stub and link but never writes MCP", async ({ cliKind, name }) => {
+test.each((["missing", "dangling", "link-other", "blocked"] as const).flatMap(cliKind => (["claude", "codex"] as const).map(name => ({ cliKind, name }))))("CLI $cliKind: $name connect installs the stub and link but never writes MCP", async ({ cliKind, name }) => {
   agent(name); cliNotOurs(cliKind); const m = machine(); const state = await m.read("r");
   expect(await m.run({ step: "connect", agent: name, expected: state.expected })).toEqual({ kind: "unavailable", message: "Install the CLI link in step 1 before connecting MCP." });
   expect(readFileSync(join(home, ".agents/skills/doan/SKILL.md"), "utf8")).toContain("[doan:skill] end of guide");
@@ -337,4 +343,108 @@ test("relative Claude config never displays a resolved destination or link targe
   expect(state.display.realPaths?.claudeLink).toBeUndefined();
   expect(state.display.claudeLinkTarget).toBe("");
   expect(await m.run({ step: "connect", agent: "claude", expected: state.expected })).toMatchObject({ kind: "unavailable", message: expect.stringContaining("must be an absolute path") });
+});
+
+test("a dangling CLI link is diagnosed separately and requires approval before replacement", async () => {
+  cliNotOurs("dangling"); const m = machine(); const state = await m.read("r");
+  expect(state.cli.state).toBe("dangling");
+  const target = join(home, ".local/bin/doan"), old = readlinkSync(target);
+  const result = await m.run({ step: "cli", expected: state.expected });
+  expect(result).toMatchObject({ kind: "confirm", message: `Current: ${old} (missing). New: ${cli}` });
+  if (result.kind !== "confirm") throw new Error("confirmation absent");
+  expect(readlinkSync(target)).toBe(old);
+  expect(await m.answer({ id: result.id, allow: false })).toEqual({ kind: "cancelled" });
+  expect(readlinkSync(target)).toBe(old);
+  const retry = await m.run({ step: "cli", expected: (await m.read("r2")).expected });
+  if (retry.kind !== "confirm") throw new Error("confirmation absent");
+  expect(await m.answer({ id: retry.id, allow: true })).toEqual({ kind: "success" });
+  expect((await m.read("r3")).cli.state).toBe("ours");
+});
+test("a dangling Claude skill link requires confirmation", async () => {
+  agent("claude"); const m = machine();
+  await m.run({ step: "cli", expected: (await m.read("r1")).expected });
+  const link = join(home, ".claude/skills/doan"); mkdirSync(join(link, ".."), { recursive: true }); symlinkSync("/missing-doan-skill", link);
+  const state = await m.read("r2"); expect(state.claudeLink.state).toBe("dangling");
+  const result = await m.run({ step: "connect", agent: "claude", expected: state.expected });
+  expect(result).toMatchObject({ kind: "confirm", target: "claudeLink" });
+  expect(readlinkSync(link)).toBe("/missing-doan-skill");
+});
+
+test("existing other target: replacement requires confirmation and rechecks the exact readlink before writing", async () => {
+  const target = join(home, ".local/bin/doan"); mkdirSync(join(target, ".."), { recursive: true }); const other = join(temp, "other-doan"); file(other, "other CLI"); symlinkSync(other, target);
+  const m = machine(); const state = await m.read("r");
+  const result = await m.run({ step: "cli", expected: state.expected }); expect(result.kind).toBe("confirm");
+  if (result.kind !== "confirm") throw new Error("confirmation absent");
+  expect(result.message).toBe(`Replace the link pointing to ${other}?`);
+  const beforeCancel = treeHash(home);
+  expect(await m.answer({ id: result.id, allow: false })).toEqual({ kind: "cancelled" });
+  expect(treeHash(home)).toBe(beforeCancel);
+  const retry = await m.run({ step: "cli", expected: (await m.read("again")).expected });
+  if (retry.kind !== "confirm") throw new Error("confirmation absent");
+  expect(readlinkSync(target)).toBe(other); rmSync(target); symlinkSync("/changed", target);
+  expect((await m.answer({ id: retry.id, allow: true })).kind).toBe("stale"); expect(readlinkSync(target)).toBe("/changed");
+});
+
+test("existing other target: CLI missing: replacements still ask, Cancel writes nothing and approval stops before MCP", async () => {
+  agent("claude"); const m = machine();
+  const stub = join(home, ".agents/skills/doan/SKILL.md"); file(stub, "custom");
+  const link = join(home, ".claude/skills/doan"); mkdirSync(join(link, ".."), { recursive: true }); const other = join(temp, "other-skill"); mkdirSync(other); symlinkSync(other, link);
+  const asked = await m.run({ step: "connect", agent: "claude", expected: (await m.read("1")).expected });
+  if (asked.kind !== "confirm") throw new Error("confirmation absent"); expect(asked.target).toBe("stub");
+  expect(await m.answer({ id: asked.id, allow: false })).toEqual({ kind: "cancelled" });
+  expect(readFileSync(stub, "utf8")).toBe("custom"); expect(readlinkSync(link)).toBe(other);
+  const again = await m.run({ step: "connect", agent: "claude", expected: (await m.read("2")).expected });
+  if (again.kind !== "confirm") throw new Error("confirmation absent");
+  const linkAsk = await m.answer({ id: again.id, allow: true });
+  if (linkAsk.kind !== "confirm") throw new Error("link confirmation absent"); expect(linkAsk.target).toBe("claudeLink");
+  expect(linkAsk.message).toBe(`Replace the link pointing to ${other}?`);
+  const beforeCancel = treeHash(home);
+  expect(await m.answer({ id: linkAsk.id, allow: false })).toEqual({ kind: "cancelled" });
+  expect(treeHash(home)).toBe(beforeCancel);
+  const replacement = await m.run({ step: "connect", agent: "claude", expected: (await m.read("3")).expected });
+  if (replacement.kind !== "confirm") throw new Error("link confirmation absent");
+  expect(await m.answer({ id: replacement.id, allow: true })).toMatchObject({ kind: "unavailable" });
+  expect(readFileSync(stub, "utf8")).toContain("[doan:skill] end of guide"); expect(realpathSync(link)).toBe(join(home, ".agents/skills/doan"));
+  expect(mcpWrites()).toEqual([]);
+});
+
+test("existing other target: sibling auto-update does not stale a pending link replacement", async () => {
+  const target = join(home, ".local/bin/doan"); mkdirSync(join(target, ".."), { recursive: true }); const other = join(temp, "other-doan"); file(other, "other CLI"); symlinkSync(other, target);
+  const m = machine(); const pending = await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  if (pending.kind !== "confirm") throw new Error("confirmation absent");
+  expect(pending.message).toBe(`Replace the link pointing to ${other}?`);
+  file(join(target, "../claude"), "new version");
+  expect(await m.answer({ id: pending.id, allow: true })).toEqual({ kind: "success" });
+});
+
+test.each(["relative", "absolute", "linked-parent"])("our %s Claude link with a missing shared stub is incomplete, not broken", async kind => {
+  agent("claude"); const m = machine();
+  await m.run({ step: "cli", expected: (await m.read("cli")).expected });
+  const link = join(home, ".claude/skills/doan"), shared = join(home, ".agents/skills/doan");
+  mkdirSync(join(link, ".."), { recursive: true });
+  if (kind === "linked-parent") {
+    const realSkills = join(temp, "real-skills"); mkdirSync(realSkills);
+    mkdirSync(join(home, ".agents")); symlinkSync(realSkills, join(home, ".agents/skills"));
+  }
+  symlinkSync(kind === "absolute" ? shared : "../../.agents/skills/doan", link);
+  const before = await m.read("before");
+  expect(before.stub.state).toBe("missing");
+  expect(before.claudeLink.state).toBe("missing");
+  expect(connectionSummary(before, false).claude).toBe("not-connected");
+  const card = agentsView(before, idleUi()).agents.find(card => card.agent === "claude");
+  expect(card?.items.find(item => item.key === "claude-link")).toMatchObject({ chip: { text: "Not installed" } });
+  expect(card?.items.find(item => item.key === "claude-link")?.msg).toBeUndefined();
+  const linkStamp = lstatSync(link).ino;
+  expect(await m.run({ step: "connect", agent: "claude", expected: before.expected })).toEqual({ kind: "success" });
+  expect(lstatSync(link).ino).toBe(linkStamp);
+  expect((await m.read("after")).claudeLink.state).toBe("ours");
+});
+test("a foreign missing Claude target remains broken when the shared stub is missing", async () => {
+  agent("claude"); const link = join(home, ".claude/skills/doan");
+  mkdirSync(join(link, ".."), { recursive: true }); symlinkSync("../../.agents/skills/other", link);
+  const before = await machine().read("before");
+  expect(before.stub.state).toBe("missing"); expect(before.claudeLink.state).toBe("dangling");
+  expect(connectionSummary(before, false).claude).toBe("needs-attention");
+  const card = agentsView(before, idleUi()).agents.find(card => card.agent === "claude");
+  expect(card?.items.find(item => item.key === "claude-link")).toMatchObject({ chip: { text: "Link is broken" } });
 });

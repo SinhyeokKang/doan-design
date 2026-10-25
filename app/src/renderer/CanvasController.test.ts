@@ -853,6 +853,90 @@ it("switches workspaces through the draft guard and restores the previous canvas
   } finally { controller.dispose(); }
 });
 
+it("opens a workspace whose project is still being read once the read lists it", () => {
+  const { controller, row, changed } = loadedController();
+  try {
+    const repo: FolderEntry = { path: "/repo", kind: "list", servedRev: 0, canvases: [row] };
+    controller.updateEntries([repo, { path: "/added", kind: "loading" }]);
+    const entered = vi.fn();
+    controller.openWorkspace("/added", entered);
+    expect(entered).not.toHaveBeenCalled();
+    expect(changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
+    controller.updateEntries([repo, { path: "/added", kind: "list", servedRev: 0, canvases: [] }]);
+    expect(entered).toHaveBeenCalledExactlyOnceWith("/added");
+    expect(changed.mock.lastCall?.[0].open).toBeNull();
+    controller.updateEntries([repo, { path: "/added", kind: "list", servedRev: 1, canvases: [] }]);
+    expect(entered).toHaveBeenCalledOnce();
+  } finally { controller.dispose(); }
+});
+
+it("drops a waiting workspace open when a later navigation, a failed read or leaving the workspace supersedes it", () => {
+  const { controller, row } = loadedController();
+  try {
+    const repo: FolderEntry = { path: "/repo", kind: "list", servedRev: 0, canvases: [row] };
+    const listed: FolderEntry = { path: "/added", kind: "list", servedRev: 0, canvases: [] };
+    const entered = vi.fn();
+    const supersede = [
+      () => controller.openCanvas("/repo", { ...row, path: "design/b.html", url: "http://localhost/b.html" }),
+      () => controller.updateEntries([repo, { path: "/added", kind: "error", message: "bad config" }]),
+      () => controller.setWorkspaceActive(false),
+    ];
+    for (const later of supersede) {
+      controller.updateEntries([repo, { path: "/added", kind: "loading" }]);
+      controller.openWorkspace("/added", entered);
+      later();
+      controller.updateEntries([repo, listed]);
+      controller.setWorkspaceActive(true);
+    }
+    expect(entered).not.toHaveBeenCalled();
+  } finally { controller.dispose(); }
+});
+
+it("asks the draft guard again before entering a waited-for workspace", async () => {
+  const { controller, row, changed } = loadedController();
+  try {
+    const repo: FolderEntry = { path: "/repo", kind: "list", servedRev: 0, canvases: [row] };
+    const answers: ((allow: boolean) => void)[] = [];
+    let hasDraft = false;
+    const guard = vi.fn(() => hasDraft ? new Promise<boolean>(resolve => answers.push(resolve)) : true);
+    controller.setTransitionGuard(guard);
+    const entered = vi.fn();
+    // The click passes the guard with no draft; a draft is started while the read is pending.
+    const waitWithDraft = (path: string) => {
+      hasDraft = false;
+      controller.updateEntries([repo, { path, kind: "loading" }]);
+      controller.openWorkspace(path, entered);
+      hasDraft = true;
+      controller.updateEntries([repo, { path, kind: "list", servedRev: 0, canvases: [] }]);
+    };
+
+    waitWithDraft("/kept");
+    expect(guard).toHaveBeenCalledTimes(2);
+    answers[0]?.(false); await Promise.resolve();
+    expect(entered).not.toHaveBeenCalled();
+    expect(changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
+
+    waitWithDraft("/superseded");
+    controller.showOverview();
+    answers[1]?.(true); await Promise.resolve();
+    expect(entered).not.toHaveBeenCalled();
+    answers[2]?.(false); await Promise.resolve();
+
+    waitWithDraft("/discarded");
+    expect(entered).not.toHaveBeenCalled();
+    answers[3]?.(true); await Promise.resolve();
+    expect(entered).toHaveBeenCalledExactlyOnceWith("/discarded");
+    expect(changed.mock.lastCall?.[0].open).toBeNull();
+
+    hasDraft = false;
+    entered.mockClear();
+    controller.updateEntries([repo, { path: "/ready", kind: "loading" }]);
+    controller.openWorkspace("/ready", entered);
+    controller.updateEntries([repo, { path: "/ready", kind: "list", servedRev: 0, canvases: [] }]);
+    expect(entered).toHaveBeenCalledExactlyOnceWith("/ready");
+  } finally { controller.dispose(); }
+});
+
 
 describe("frame navigation", () => {
   it("jumps without a guard, selection command or main selection update", () => {

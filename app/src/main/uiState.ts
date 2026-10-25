@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
-import { renameSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { readFile, unlink, writeFile } from "node:fs/promises";
 import { parseUiState, type UiState } from "../restore/uiState";
+import { parseSettingsTab, type SettingsTab } from "./settings";
 
 export const UI_STATE_DELAY_MS = 500;
 
@@ -18,6 +19,10 @@ export interface UiStateStore {
   flushSync(): void;
   // Settles after the current write, for callers that must not race it.
   idle(): Promise<void>;
+  // The Settings window's last tab, kept in the same file beside the main
+  // window's state; neither window's save drops the other's part.
+  readSettingsTab(): SettingsTab | null;
+  saveSettingsTab(value: unknown): boolean;
 }
 
 // The rename is synchronous on purpose: an async rename already handed to the
@@ -44,6 +49,37 @@ export function createUiStateStore(file: string, savedRoots: () => readonly stri
   // one; `latest` also stops a queued write that a quit's sync flush overtook.
   let writing: Promise<void> = Promise.resolve();
   let latest = 0;
+  // The two parts of the file as last saved or, before the first save of
+  // this run, as read from disk once (synchronously: the file is at most
+  // 64 KiB and a quit flush must be able to compose it).
+  let loaded = false;
+  let main: UiState | null = null;
+  let tab: SettingsTab | null = null;
+  const load = () => {
+    if (loaded) return;
+    loaded = true;
+    try {
+      const text = readFileSync(file, "utf8");
+      main = parseUiState(text, savedRoots());
+      const value: unknown = JSON.parse(text);
+      tab = typeof value === "object" && value !== null ? parseSettingsTab(Reflect.get(value, "settingsTab")) : null;
+    } catch {
+      // A missing or broken file has nothing to keep.
+    }
+  };
+  const compose = () => {
+    const state = main ?? { screen: "home", expanded: {}, lastByRoot: {} };
+    return `${JSON.stringify(tab === null ? state : { ...state, settingsTab: tab })}\n`;
+  };
+  const schedule = () => {
+    const next = compose();
+    unsaved = next;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = undefined;
+      void write(next);
+    }, delayMs);
+  };
 
   const write = (text: string): Promise<void> => {
     const seq = ++latest;
@@ -82,13 +118,9 @@ export function createUiStateStore(file: string, savedRoots: () => readonly stri
       // the renderer sent, before unknown fields are dropped.
       const state = text === undefined ? null : parseUiState(text, savedRoots());
       if (state === null) return false;
-      const next = `${JSON.stringify(state)}\n`;
-      unsaved = next;
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = undefined;
-        void write(next);
-      }, delayMs);
+      load();
+      main = state;
+      schedule();
       return true;
     },
     flushSync() {
@@ -109,5 +141,17 @@ export function createUiStateStore(file: string, savedRoots: () => readonly stri
       }
     },
     idle: () => writing,
+    readSettingsTab() {
+      load();
+      return tab;
+    },
+    saveSettingsTab(value) {
+      const next = parseSettingsTab(value);
+      if (next === null) return false;
+      load();
+      tab = next;
+      schedule();
+      return true;
+    },
   };
 }

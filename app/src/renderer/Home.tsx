@@ -6,6 +6,11 @@ import { cardRow, groupProjects, type HomeCard, type RowAction } from "./homeCar
 import type { SelectionView } from "./selection";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
+import type { SetupStatus } from "../main/setupBroker";
+import { homeAlerts } from "../setup/homeAlerts";
+import { CONNECTION_LABELS, CONNECTION_NAMES, connectionBanner } from "./connectionRowView";
+import { ConnectionParts } from "./ConnectionRows";
+
 interface HomeProps {
   homeDirectory: string | null;
   entries: FolderEntry[];
@@ -18,10 +23,22 @@ interface HomeProps {
   remove: (roots: string[]) => void;
 }
 export function Home(props: HomeProps) {
+  const [setup, setSetup] = useState<SetupStatus | null>(null);
+  useEffect(() => window.doan.onSetupStatus(setSetup), []);
+  const alerts = setup?.summary ? homeAlerts(setup.summary, props.entries, setup.onboardingClosed) : {};
   const cards = groupProjects(props.entries, new Map(props.entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
-  return <main className="home-shell">
-    <header className="top"><span className="traffic-space" aria-hidden="true" /><span className="logo"><i />doan</span><span className="spacer" /><button className="btn" aria-label="Add Project…" onClick={() => void window.doan.addProjects()}>+ Add Project… <span className="kbd">⌘O</span></button></header>
-    <section className="home-body" aria-label="Home" style={cards.length ? undefined : { padding: 0 }}>
+  const bannerLines = (alerts.banner ?? []).map(row => {
+    const cause = setup?.causes?.[row];
+    return cause ? connectionBanner({ ...cause, ...(cause.path ? { path: displayPath(cause.path, props.homeDirectory) } : {}) }, row) : [`${CONNECTION_NAMES[row]} needs attention. Open Settings to fix the connection.`];
+  }).filter((parts, index, lines) => lines.findIndex(line => JSON.stringify(line) === JSON.stringify(parts)) === index);
+  return <main className={`home-shell${alerts.banner ? " with-setup-banner" : ""}`}>
+    <header className="top"><span className="traffic-space" aria-hidden="true" /><span className="logo"><i />doan</span><span className="spacer" /><div className="conns" role="group" aria-label="Connections">{(["cli", "claude", "codex"] as const).map(row => {
+      const state = setup?.summary?.[row]; const label = state ? CONNECTION_LABELS[state] : "Checking…";
+      return <button className="conn" key={row} aria-label={`${CONNECTION_NAMES[row]}: ${label}`} onClick={() => void window.doan.openSettings({ tab: "connections" })}><span className={`conn-dot${state === "connected" ? "" : state === "needs-attention" ? " warn" : state === "couldnt-check" ? " unknown" : " off"}`} aria-hidden="true" />{CONNECTION_NAMES[row]} <span className="st">{label}</span></button>;
+    })}</div><button className="btn" aria-label="Add Project…" onClick={() => void window.doan.addProjects()}>+ Add Project… <span className="kbd">⌘O</span></button></header>
+    {alerts.banner && <div className="ws-status banner" role="status" aria-label="Connection problem"><span className="ob-chip warn">Needs attention</span><span className="text">{bannerLines.map(parts => <span className="line" key={JSON.stringify(parts)}><ConnectionParts parts={parts} /></span>)}</span><button className="btn" onClick={() => void window.doan.openSettings({ tab: "connections", connection: alerts.banner![0]! })}>Fix…</button><button className="btn ghost" disabled={setup?.checking || setup?.busy} onClick={() => void window.doan.checkSetupAgain()}>Check Again</button></div>}
+    <section className={`home-body${alerts.finishCard ? " with-finish" : ""}`} aria-label="Home" style={cards.length || alerts.finishCard ? undefined : { padding: 0 }}>
+      {alerts.finishCard && <section className={`finish${cards.length ? "" : " empty-home"}`} aria-labelledby="finish-heading"><div className="finish-head"><h2 id="finish-heading">Finish setting up doan</h2><span className="meta">{alerts.finishCard.length} left</span></div>{alerts.finishCard.map(item => <div className="finish-item" key={item}><span className="glyph" aria-hidden="true">○</span><b>{item === "cli" ? "Connect the doan command" : item === "agents" ? "Connect Claude Code or Codex" : "Add a project"}</b><p>{item === "cli" ? "Agents run doan through it." : item === "agents" ? "Your agent makes the canvases you review here." : "Canvases live in a repository’s design/ folder."}</p><button className="btn" onClick={() => item === "project" ? void window.doan.addProjects() : void window.doan.openSettings({ tab: "connections" })}>{item === "project" ? "Add Project…" : "Settings › Connections"}</button></div>)}</section>}
       {cards.length ? <><div className="sec">Projects <span className="r">{cards.length}</span></div><div className="cards">{cards.map(card => <ProjectCard key={card.key} card={card} {...props} />)}</div></>
         : <div className="empty"><b>No projects yet</b><p>Add a project to see its design canvases.</p><button className="btn primary" onClick={() => void window.doan.addProjects()}>Add Project… <span className="kbd">⌘O</span></button><p className="meta">Or drop folders anywhere in this window.</p></div>}
     </section>
@@ -71,7 +88,7 @@ function ProjectCard({ card, ...props }: HomeProps & { card: HomeCard }) {
     <div className="card-head"><PathTip text={card.name}><span className="card-name">{card.name}</span></PathTip>{card.rows.length > 1 && <span className="meta">{card.rows.length} worktrees</span>}<span className="spacer" /><More label={`Project menu ${card.name}`} actions={actions} /></div>
     {card.rows.map((entry, index) => {
       const row = cardRow(entry, props.loaded, props.selection);
-      const actions = [{ label: "Show in Finder", run: () => props.action("showInFinder", entry.path) }, { label: "Remove from doan", run: () => props.remove([entry.path]) }];
+      const actions = [{ label: "Show in Finder", run: () => props.action("showInFinder", entry.path) }, { label: "Project Settings…", run: () => { void window.doan.openSettings({ tab: "projects", project: entry.path }); } }, { label: "Remove from doan", run: () => props.remove([entry.path]) }];
       const activate = (node: HTMLElement) => entry.kind === "list" ? props.enter(entry.path) : node.querySelector<HTMLButtonElement>(".wt-actions button")?.focus();
       return <Context key={entry.path} actions={actions}><div className={`wt${row.chip ? " problem" : ""}`} data-path={entry.path} role={row.chip ? "group" : "button"} aria-label={`Project ${row.summary?.branch ?? displayPath(entry.path, props.homeDirectory)} · ${row.chip ?? `${row.summary?.canvases ?? 0} ${row.summary?.canvases === 1 ? "canvas" : "canvases"} · ${row.summary?.openComments ?? 0} open comments`} · ${entry.path}`} aria-current={row.current ? "true" : undefined} tabIndex={active === entry.path ? 0 : -1}
         onFocus={event => { if (event.target === event.currentTarget) setFocused(entry.path); }} onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) activate(event.currentTarget); }}

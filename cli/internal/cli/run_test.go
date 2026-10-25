@@ -380,11 +380,11 @@ func TestMCPOverStdioPipes(t *testing.T) {
 			}
 		}
 	}
-	if *m.ID != 2 || json.Unmarshal(m.Result, &list) != nil || len(list.Tools) != 7 {
+	if *m.ID != 2 || json.Unmarshal(m.Result, &list) != nil || len(list.Tools) != 8 {
 		t.Fatal(string(m.Result))
 	}
 	wantReadOnly := map[string]bool{
-		"init": false, "ls": true, "comments": true, "resolve_comments": false,
+		"init": false, "config": false, "ls": true, "comments": true, "resolve_comments": false,
 		"check": true, "active": true, "skill": true,
 	}
 	for _, tool := range list.Tools {

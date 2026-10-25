@@ -27,6 +27,12 @@ export function runInit(cli: string, folder: string, tokenCss: string | null, ti
   return runCli(cli, initArgs(folder, tokenCss), undefined, timeoutMs);
 }
 
+// `args` holds only absolute paths, so the CLI's root-relative rule never
+// meets a path the app spelled relative to something else.
+export function runConfig(cli: string, root: string, args: readonly string[], timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
+  return runCli(cli, ["config", "--json", "--repo", root, ...args], undefined, timeoutMs);
+}
+
 // Checked before running, because a missing folder must show as "folder not
 // found" rather than as the CLI's `repo_not_found` ("not initialized").
 export async function readFolder(cli: string, path: string, timeoutMs = CLI_TIMEOUT_MS): Promise<FolderView> {

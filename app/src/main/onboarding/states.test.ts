@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { linkState, stubState, mcpState, parseShellProbe, findOnPath, pathIncludes, rcFileFor, isTranslocated, mcpAddArgs, mcpRemoveArgs, initArgs, firstSentence } from "./states";
+import { linkState, stubState, mcpState, parseShellProbe, findOnPath, pathIncludes, rcFileFor, isTranslocated, mcpAddArgs, mcpRemoveArgs, initArgs } from "./states";
 import type { CliRun } from "../folderState";
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
@@ -12,8 +12,11 @@ describe("linkState", () => {
     expect(linkState({ kind: "symlink" }, { value: "/APP/DOAN", resolved: "/app/doan" }, "/app/doan")).toBe("ours");
   });
   test("never calls a broken link missing or ours", () => {
-    expect(linkState({ kind: "symlink" }, { value: "/gone", resolved: null }, "/gone")).toBe("link-other");
+    expect(linkState({ kind: "symlink" }, { value: "/gone", resolved: null, resolutionError: "ENOENT" }, "/gone")).toBe("dangling");
     expect(linkState({ kind: "symlink" }, { value: "/other", resolved: "/other" }, "/expected")).toBe("link-other");
+  });
+  test.each(["ELOOP", "EACCES", "ENOTDIR"])("does not diagnose %s as a missing target", resolutionError => {
+    expect(linkState({ kind: "symlink" }, { value: "/other", resolved: null, resolutionError }, "/expected")).toBe("link-other");
   });
   test("blocks nonlinks, unreadable links and unsafe parents", () => {
     for (const kind of ["file", "directory", "other"] as const) expect(linkState({ kind }, null, "/app")).toBe("blocked");
@@ -127,5 +130,4 @@ test("builds argv without shell interpolation and keeps Claude user scope", () =
   expect(mcpRemoveArgs("codex")).toEqual(["mcp", "remove", "doan"]);
   expect(initArgs("/tmp/project", null)).toEqual(["init", "--json", "--repo", "/tmp/project"]);
   expect(initArgs("/tmp/project", "/tmp/project/a b.css")).toEqual(["init", "--json", "--repo", "/tmp/project", "--token-css", "/tmp/project/a b.css"]);
-  expect(firstSentence("/tmp/my project")).toBe("Use the doan skill to make a design canvas in /tmp/my project for <what you want to design>.");
 });

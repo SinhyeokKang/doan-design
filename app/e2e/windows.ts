@@ -16,3 +16,35 @@ export const CAPTURE_WINDOW_TITLE = "doan thumbnails";
 export function appWindowCount(app: ElectronApplication): Promise<number> {
   return app.evaluate(({ BrowserWindow }, title) => BrowserWindow.getAllWindows().filter((window) => window.getTitle() !== title).length, CAPTURE_WINDOW_TITLE);
 }
+
+// Wait for the page URL, including a window still navigating from about:blank.
+export async function settingsPage(app: ElectronApplication): Promise<Page> {
+  const deadline = Date.now() + 10_000;
+  for (;;) {
+    const page = app.windows().find(page => /\/settings\.html(?:[?#]|$)/.test(page.url()));
+    if (page) return page;
+    if (Date.now() >= deadline) throw new Error("Settings window did not load settings.html");
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+}
+
+export async function menu(app: ElectronApplication, page: Page, label: string): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  for (;;) {
+    const clicked = await app.evaluate(({ Menu }, [label, window]) => {
+      const find = (items: Electron.MenuItem[]): Electron.MenuItem | undefined => {
+        for (const item of items) { if (item.label === label) return item; const child = item.submenu && find(item.submenu.items); if (child) return child; }
+        return undefined;
+      };
+      const item = find(Menu.getApplicationMenu()!.items);
+      if (!item?.enabled) return false;
+      // macOS roles are native selectors; MenuItem.click only runs JS handlers.
+      if (item.role === "quit") Menu.sendActionToFirstResponder("terminate:");
+      else item.click(undefined, window, undefined);
+      return true;
+    }, [label, await appWindow(app, page)] as const);
+    if (clicked) return;
+    if (Date.now() >= deadline) throw new Error(`Disabled or missing menu ${label}`);
+    await page.waitForTimeout(20);
+  }
+}

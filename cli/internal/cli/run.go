@@ -39,6 +39,8 @@ type Flags struct {
 	JSON                          bool
 	Repo, TokenCSS, Canvas, Agent string
 	TokenCSSSet, CanvasSet        bool
+	ClearTokenCSS                 bool
+	AddServe, RemoveServe         []string
 }
 
 var Version = "dev"
@@ -47,6 +49,7 @@ var agentName = regexp.MustCompile(`^[a-z0-9-]+$`)
 
 const usage = `Usage: doan <command> [--repo <path>] [--json]
   init [--token-css <path>]
+  config [--token-css <path> | --clear-token-css] [--add-serve <path>]... [--remove-serve <path>]...
   ls
   comments [--canvas <id>]
   comment resolve <cmt_id>... --agent <name>
@@ -94,6 +97,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs.BoolVar(&f.JSON, "json", false, "")
 	fs.StringVar(&f.Repo, "repo", "", "")
 	fs.StringVar(&f.TokenCSS, "token-css", "", "")
+	fs.BoolVar(&f.ClearTokenCSS, "clear-token-css", false, "")
+	fs.Func("add-serve", "", func(s string) error { f.AddServe = append(f.AddServe, s); return nil })
+	fs.Func("remove-serve", "", func(s string) error { f.RemoveServe = append(f.RemoveServe, s); return nil })
 	fs.StringVar(&f.Canvas, "canvas", "", "")
 	fs.StringVar(&f.Agent, "agent", "", "")
 	pos, err := SplitArgs(args, fs)
@@ -111,6 +117,11 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		cmd := pos[0]
 		allowed := map[string]bool{"json": true, "repo": true}
 		switch cmd {
+		case "config":
+			allowed["token-css"] = true
+			allowed["clear-token-css"] = true
+			allowed["add-serve"] = true
+			allowed["remove-serve"] = true
 		case "init":
 			allowed["token-css"] = true
 		case "comments":
@@ -175,6 +186,8 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 					switch cmd {
 					case "init":
 						o, failure = Init(ctx, f, pos[1:])
+					case "config":
+						o, failure = Config(ctx, f, pos[1:])
 					case "ls":
 						o, failure = List(ctx, f, pos[1:])
 					case "comments":

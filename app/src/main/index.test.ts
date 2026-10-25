@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { BrowserWindowConstructorOptions, MenuItemConstructorOptions } from "electron";
+import { displayPath } from "../renderer/projectDisplay";
 
 const OUTCOME = { added: ["/repo"], duplicate: null, messages: [], scanId: null, confirms: [] };
 
@@ -7,13 +8,16 @@ const mocks = await vi.hoisted(async () => {
   const { EventEmitter } = await import("node:events");
   class Window extends EventEmitter {
     static instances: Window[] = [];
+    static ids = 0;
     destroyed = false;
     contentsDestroyed = false;
-    webContents = Object.assign(new EventEmitter(), { send: vi.fn(), isDestroyed: () => this.contentsDestroyed, debugger: { name: "debugger" },
+    webContents = Object.assign(new EventEmitter(), { id: ++Window.ids, send: vi.fn(), isDestroyed: () => this.contentsDestroyed, debugger: { name: "debugger" },
       executeJavaScript: vi.fn(async () => ({ x: 0, y: 0, width: 800, height: 500 })),
       capturePage: vi.fn(async () => ({ isEmpty: () => false, resize: () => ({ toPNG: () => Buffer.from("png") }) })) });
     show = vi.fn();
     hide = vi.fn();
+    focus = vi.fn();
+    setTitle = vi.fn();
     isFullScreen = vi.fn(() => false);
     setFullScreen = vi.fn();
     close = vi.fn();
@@ -35,11 +39,12 @@ const mocks = await vi.hoisted(async () => {
       store: vi.fn(), remove: vi.fn(), restore: vi.fn(), replace: vi.fn(), rereadAll: vi.fn() },
     flow: { add: vi.fn(), scan: vi.fn(), cancel: vi.fn(), addCandidates: vi.fn(), confirm: vi.fn(), judge: vi.fn() },
     createAddFlow: vi.fn(),
-    electronShell: { showItemInFolder: vi.fn() },
+    electronShell: { showItemInFolder: vi.fn(), openExternal: vi.fn() },
     // AppKit notifications by name, as main last subscribed to them.
     notifications: new Map<string, () => void>(),
     startShell: vi.fn(),
     cliCommand: vi.fn(() => "/bundled/doan"),
+    runConfig: vi.fn(),
     runtime: { socket: "/tmp/doan-x/app.sock", token: "t", file: "/tmp/doan-index-test/runtime.json", disposeSync: vi.fn() },
     startRuntime: vi.fn(),
     sessionOn: vi.fn(),
@@ -51,7 +56,7 @@ const mocks = await vi.hoisted(async () => {
     needsOnboarding: vi.fn(), markClosed: vi.fn(), clipboard: { writeText: vi.fn() },
     menu: vi.fn<(template: MenuItemConstructorOptions[]) => unknown>(),
     dialog: { showOpenDialog: vi.fn(), showMessageBox: vi.fn() },
-    uiState: { read: vi.fn(), save: vi.fn(), flushSync: vi.fn(), idle: vi.fn() },
+    uiState: { read: vi.fn(), save: vi.fn(), flushSync: vi.fn(), idle: vi.fn(), readSettingsTab: vi.fn(), saveSettingsTab: vi.fn() },
     createUiStateStore: vi.fn(),
     thumbnails: { get: vi.fn(), visible: vi.fn(), entriesChanged: vi.fn(), removed: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() },
     createThumbnails: vi.fn(),
@@ -69,13 +74,19 @@ vi.mock("electron", () => ({
 }));
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
 vi.mock("./onboarding/machine", () => ({ createMachine: mocks.createMachine, needsOnboarding: mocks.needsOnboarding, markClosed: mocks.markClosed, PATH_LINE: 'export PATH="$HOME/.local/bin:$PATH"' }));
-vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand }));
+vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand, runConfig: mocks.runConfig }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
 vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
 vi.mock("./thumbnails", () => ({ createThumbnails: mocks.createThumbnails }));
+
+// A machine read where everything is connected.
+const MACHINE = {
+  requestId: "r", cli: { state: "ours" }, stub: { state: "ours" }, claudeLink: { state: "ours" }, probe: { ok: true, path: "/bin" },
+  agents: { claude: { executable: "/bin/claude", mcp: { state: "ours" } }, codex: { executable: "/bin/codex", mcp: { state: "ours" } } },
+};
 
 beforeEach(async () => {
   vi.resetModules();
@@ -86,7 +97,7 @@ beforeEach(async () => {
   mocks.needsOnboarding.mockResolvedValue(true);
   mocks.markClosed.mockResolvedValue(undefined);
   mocks.createMachine.mockReturnValue(mocks.machine);
-  mocks.machine.read.mockResolvedValue({ requestId: "r" });
+  mocks.machine.read.mockResolvedValue(MACHINE);
   mocks.machine.run.mockResolvedValue({ kind: "success" });
   mocks.machine.isBusy.mockReturnValue(false);
   mocks.app.whenReady.mockResolvedValue();
@@ -103,6 +114,9 @@ beforeEach(async () => {
   mocks.createAddFlow.mockReturnValue(mocks.flow);
   mocks.flow.add.mockResolvedValue(OUTCOME);
   mocks.createUiStateStore.mockReturnValue(mocks.uiState);
+  mocks.uiState.readSettingsTab.mockReturnValue(null);
+  mocks.uiState.saveSettingsTab.mockReturnValue(true);
+  mocks.electronShell.openExternal.mockResolvedValue(undefined);
   mocks.createThumbnails.mockReturnValue(mocks.thumbnails);
   mocks.thumbnails.removed.mockResolvedValue(undefined);
   await import("./index");
@@ -150,9 +164,10 @@ test.each(["window", "contents"])("does not send to destroyed %s", (target) => {
   const send = () => Reflect.apply(click ?? (() => { throw new Error("no click handler"); }), undefined, []);
   const changed = mocks.startShell.mock.calls[0]?.[2];
   if (typeof changed !== "function") throw new Error("no folder listener");
+  const sent = () => window().webContents.send.mock.calls.filter(([channel]) => channel === "view-command" || channel === "folders").length;
   send();
   changed([]);
-  expect(window().webContents.send).toHaveBeenCalledTimes(2);
+  expect(sent()).toBe(2);
   window().webContents.send.mockClear();
   if (target === "window") window().destroyed = true;
   else window().contentsDestroyed = true;
@@ -516,31 +531,28 @@ test("wires packaged CLI selection with the runtime environment", () => {
 });
 
 
-test.each([false, true])("onboarding menu preserves an open session (hidden: %s)", async hidden => {
+// The wizard opens on first run only; nothing reopens it (POSTMORTEM "The
+// setup menu discarded an open wizard session": showing the window is checked
+// apart from the session).
+test.each([false, true])("hiding and showing the window keeps an open wizard session (hidden: %s)", async hidden => {
   const contents = window().webContents;
   const first = await invoke("onboarding:get-open", contents, null);
   expect(first).toEqual({ session: expect.any(String) });
-  const setup = item("Set Up doan…"); expect(setup.accelerator).toBeUndefined();
-  const menu = mocks.menu.mock.calls[0]?.[0][0];
-  expect(Array.isArray(menu?.submenu) && menu.submenu.slice(0, 2).map(i => i.role ?? i.label)).toEqual(["about", "Set Up doan…"]);
-  mocks.machine.cancelConfirmation.mockClear();
   if (hidden) window().emit("close", { preventDefault: vi.fn() });
-  Reflect.apply(setup.click!, undefined, []);
+  mocks.app.emit("activate");
   expect(window().show).toHaveBeenCalled();
-  expect(mocks.machine.cancelConfirmation).not.toHaveBeenCalled();
   expect(await invoke("onboarding:get-open", contents, null)).toEqual(first);
   expect(window().webContents.send).not.toHaveBeenCalledWith("onboarding:open", expect.anything());
   expect(mocks.markClosed).not.toHaveBeenCalled();
 });
-test("stale wizard read cannot publish after reopening and rejects iframe callers", async () => {
+test("stale wizard read cannot publish after the wizard closes and rejects iframe callers", async () => {
   const contents = window().webContents;
   const opened = await invoke("onboarding:get-open", contents, null) as { session: string };
   let finish!: (value: unknown) => void;
   mocks.machine.read.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   const waiting = invoke("onboarding:read", contents, null, { session: opened.session, requestId: "r" });
   await invoke("onboarding:close", contents, null, opened);
-  Reflect.apply(item("Set Up doan…").click!, undefined, []);
-  finish({ requestId: "r" }); expect(await waiting).toEqual({ kind: "stale" });
+  finish(MACHINE); expect(await waiting).toEqual({ kind: "stale" });
   mocks.machine.run.mockClear();
   await invoke("onboarding:run", contents, {}, {}); await invoke("onboarding:run", {}, null, {});
   expect(mocks.machine.run).not.toHaveBeenCalled();
@@ -556,31 +568,33 @@ test("wizard close writes only when idle; window close and quit do not mark it c
   expect(await invoke("onboarding:close", contents, null, opened)).toEqual({ kind: "success" });
   expect(mocks.markClosed).toHaveBeenCalledExactlyOnceWith("/tmp/doan-index-test");
 });
-test("first prompt is read and copied only for a stored set-up project, after the clipboard settles", async () => {
+test("first prompt is read and copied only for a stored set-up project and a subject, after the clipboard settles", async () => {
   const contents = window().webContents;
-  const sentence = `Use the doan skill to make a design canvas in ${ROOT} for <what you want to design>.`;
+  const subject = "a sign-in screen";
+  const sentence = `Use the doan skill to make a design canvas in ${ROOT} for ${subject}.`;
   mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "list" }, { path: "/plain", kind: "uninitialized" }]);
-  expect(await invoke("onboarding:first-prompt", contents, null, { root: ROOT })).toBe(sentence);
-  for (const request of [{ root: "/plain" }, { root: "/other" }, { root: ROOT, text: "forged" }, { root: 1 }, null, ROOT]) {
+  expect(await invoke("onboarding:first-prompt", contents, null, { root: ROOT, subject })).toBe(sentence);
+  // The placeholder form without a subject is gone with the composer.
+  for (const request of [{ root: ROOT }, { root: "/plain", subject }, { root: "/other", subject }, { root: ROOT, text: "forged" }, { root: ROOT, subject, text: "forged" }, { root: 1, subject }, null, ROOT]) {
     expect(await invoke("onboarding:first-prompt", contents, null, request)).toBeNull();
   }
-  expect(await invoke("onboarding:first-prompt", contents, {}, { root: ROOT })).toBeNull();
-  expect(await invoke("onboarding:first-prompt", {}, null, { root: ROOT })).toBeNull();
+  expect(await invoke("onboarding:first-prompt", contents, {}, { root: ROOT, subject })).toBeNull();
+  expect(await invoke("onboarding:first-prompt", {}, null, { root: ROOT, subject })).toBeNull();
   let finish!: () => void;
   mocks.clipboard.writeText.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
   let settled = false;
-  const copied = Promise.resolve(invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT })).then(value => { settled = true; return value; });
+  const copied = Promise.resolve(invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT, subject })).then(value => { settled = true; return value; });
   await Promise.resolve(); expect(settled).toBe(false); finish();
   expect(await copied).toEqual({ kind: "success" });
   expect(mocks.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(sentence);
   mocks.clipboard.writeText.mockClear();
-  for (const request of [{ kind: "firstPrompt", root: "/plain" }, { kind: "firstPrompt" }, { kind: "firstPrompt", root: ROOT, text: "forged" }, { kind: "firstPrompt", root: "/other" }]) {
+  for (const request of [{ kind: "firstPrompt", root: ROOT }, { kind: "firstPrompt", root: "/plain", subject }, { kind: "firstPrompt", subject }, { kind: "firstPrompt", root: ROOT, text: "forged" }, { kind: "firstPrompt", root: "/other", subject }]) {
     expect(await invoke("onboarding:copy", contents, null, request)).toEqual({ kind: "stale" });
   }
-  expect(await invoke("onboarding:copy", contents, {}, { kind: "firstPrompt", root: ROOT })).toEqual({ kind: "stale" });
+  expect(await invoke("onboarding:copy", contents, {}, { kind: "firstPrompt", root: ROOT, subject })).toEqual({ kind: "stale" });
   expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
   mocks.clipboard.writeText.mockRejectedValueOnce(new Error("denied"));
-  expect(await invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT })).toEqual({ kind: "error", message: "denied" });
+  expect(await invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT, subject })).toEqual({ kind: "error", message: "denied" });
 });
 
 test("PATH copy awaits the clipboard and refuses arbitrary strings", async () => {
@@ -603,14 +617,6 @@ test("the wizard's machine shows this app's version", async () => {
   await vi.waitFor(() => expect(mocks.createMachine).toHaveBeenCalledExactlyOnceWith({ command: "/bundled/doan", version: "9.8.7" }));
 });
 
-test("the setup menu still shows the window during an active machine operation", async () => {
-  const initial = await invoke("onboarding:get-open", window().webContents, null);
-  mocks.machine.isBusy.mockReturnValue(true);
-  Reflect.apply(item("Set Up doan…").click!, undefined, []);
-  expect(window().show).toHaveBeenCalled();
-  expect(await invoke("onboarding:get-open", window().webContents, null)).toEqual(initial);
-});
-
 test("close failure closes this session and returns a logged warning", async () => {
   const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
   const contents = window().webContents;
@@ -622,26 +628,25 @@ test("close failure closes this session and returns a logged warning", async () 
   warning.mockRestore();
 });
 
-test("get-open clears a lost confirmation only for the app main frame", async () => {
+test("get-open clears a lost confirmation only for the app main frame that owns it", async () => {
   const contents = window().webContents;
+  const opened = await invoke("onboarding:get-open", contents, null);
+  mocks.machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
+  expect(await invoke("onboarding:run", contents, null, { step: "cli", expected: {} })).toMatchObject({ kind: "confirm" });
   mocks.machine.cancelConfirmation.mockClear();
   await invoke("onboarding:get-open", {}, null);
   await invoke("onboarding:get-open", contents, {});
   expect(mocks.machine.cancelConfirmation).not.toHaveBeenCalled();
-  await invoke("onboarding:get-open", contents, null);
+  expect(await invoke("onboarding:get-open", contents, null)).toEqual(opened);
   expect(mocks.machine.cancelConfirmation).toHaveBeenCalledOnce();
 });
 
-
-test("the onboarding menu starts a fresh session only after the wizard closes", async () => {
+test("a closed wizard stays closed: get-open answers nothing", async () => {
   const contents = window().webContents;
   const first = await invoke("onboarding:get-open", contents, null);
   expect(await invoke("onboarding:close", contents, null, first)).toEqual({ kind: "success" });
-  Reflect.apply(item("Set Up doan…").click!, undefined, []);
-  const second = await invoke("onboarding:get-open", contents, null);
-  expect(second).toEqual({ session: expect.any(String) });
-  expect(second).not.toEqual(first);
-  expect(window().webContents.send).toHaveBeenCalledExactlyOnceWith("onboarding:open", second);
+  expect(await invoke("onboarding:get-open", contents, null)).toBeNull();
+  expect(window().webContents.send).not.toHaveBeenCalledWith("onboarding:open", expect.anything());
 });
 
 function click(label: string): void {
@@ -662,6 +667,9 @@ const state = (screen: string, modal = false, toast = false) => ({ screen, modal
 describe("menus", () => {
   test("pins the item names and accelerators", () => {
     expect(template().map((menu) => menu.label ?? menu.role)).toEqual(["doan", "File", "Edit", "View", "Go", "windowMenu"]);
+    // Settings… replaces Set Up doan… right after About (orch.md decision).
+    expect(submenu("doan").map((entry) => entry.label ?? entry.role ?? entry.type)).toEqual(["about", "Settings…", "separator", "services", "separator", "hide", "hideOthers", "unhide", "separator", "quit"]);
+    expect(item("Settings…").accelerator).toBe("CmdOrCtrl+,");
     expect(submenu("File").map((entry) => entry.label ?? entry.type)).toEqual(["Add Project…", "separator", "Close Window"]);
     expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
     expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
@@ -1008,6 +1016,14 @@ describe("ui state", () => {
     mocks.app.emit("will-quit");
     expect(mocks.uiState.flushSync).toHaveBeenCalledOnce();
   });
+
+  // FL2: the process can crash (SIGSEGV) between closing the capture window
+  // and will-quit, so the state is on disk before that teardown starts.
+  test("an approved quit flushes the state before disposing thumbnails", () => {
+    mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+    expect(mocks.uiState.flushSync).toHaveBeenCalledOnce();
+    expect(mocks.uiState.flushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.thumbnails.dispose.mock.invocationCallOrder[0] ?? 0);
+  });
 });
 
 describe("thumbnails", () => {
@@ -1131,6 +1147,22 @@ describe("thumbnails", () => {
     expect(mocks.thumbnails.resume).toHaveBeenCalledTimes(2);
   });
 
+  test("the main renderer learns when the window or the whole app is hidden and shown; only it may ask", async () => {
+    const visible = () => vi.mocked(window().webContents.send).mock.calls.filter(([channel]) => channel === "window:visible").map(([, value]) => value);
+    const notify = (name: string) => mocks.notifications.get(`NSApplicationDid${name}Notification`)?.();
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: true });
+    window().emit("close", { preventDefault: vi.fn() });
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: false });
+    mocks.app.emit("activate");
+    notify("Hide");
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: false });
+    notify("Unhide");
+    expect(visible()).toEqual([{ visible: false }, { visible: true }, { visible: false }, { visible: true }]);
+    expect(await invoke("window:visible", {}, null)).toBeNull();
+    // Settings is refused by the test that runs every main-only channel from it.
+    expect(await invoke("window:visible", (await captureWindow()).webContents, null)).toBeNull();
+  });
+
   test("a fullscreen window pauses captures once it is really hidden", () => {
     window().isFullScreen.mockReturnValue(true);
     window().emit("close", { preventDefault: vi.fn() });
@@ -1186,4 +1218,414 @@ test("home path is available only to the application main frame", async () => {
   expect(await invoke("app:home", window().webContents, null)).toBe(process.env.HOME ?? "/tmp/doan-index-test");
   expect(await invoke("app:home", {}, null)).toBeNull();
   expect(await invoke("app:home", window().webContents, {})).toBeNull();
+});
+
+describe("settings window", () => {
+  const LIST = { path: ROOT, kind: "list", canvases: [], servedRev: 0, git: { common: `${ROOT}/.git`, main: ROOT, worktrees: [ROOT] } };
+  async function closeWizard(): Promise<void> {
+    const contents = window().webContents;
+    await invoke("onboarding:close", contents, null, await invoke("onboarding:get-open", contents, null));
+  }
+  function settings() {
+    const found = mocks.Window.instances.find((candidate) => candidate.options.width === 640);
+    if (!found) throw new Error("no settings window");
+    return found;
+  }
+  async function openSettings() {
+    await closeWizard();
+    click("Settings…");
+    return settings();
+  }
+
+  test("Settings… is disabled while the wizard is open and opens one 640×560 window", async () => {
+    expect(menuEnabled("Settings…")).toBe(false);
+    click("Settings…");
+    expect(mocks.Window.instances).toHaveLength(1);
+    await closeWizard();
+    expect(menuEnabled("Settings…")).toBe(true);
+    click("Settings…");
+    click("Settings…");
+    expect(mocks.Window.instances).toHaveLength(2);
+    const created = settings();
+    expect(created.options).toMatchObject({ width: 640, height: 560, resizable: false, minimizable: false, maximizable: false, fullscreenable: false, title: "Connections",
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: expect.stringMatching(/\/preload\/settings\.cjs$/) } });
+    expect(created.loadFile).toHaveBeenCalledWith(expect.stringMatching(/\/renderer\/settings\.html$/));
+    expect(created.focus).toHaveBeenCalledOnce();
+    const titled = { preventDefault: vi.fn() };
+    created.emit("page-title-updated", titled);
+    expect(titled.preventDefault).toHaveBeenCalled();
+  });
+
+  test("opens on the last saved tab", async () => {
+    mocks.uiState.readSettingsTab.mockReturnValue("projects");
+    expect((await openSettings()).options.title).toBe("Projects");
+  });
+
+  test("Settings refuses main-only channels like a foreign sender, and only Settings gets config", async () => {
+    const { senderAllowed } = await import("./senderAllowed");
+    mocks.shell.entries.mockReturnValue([LIST]);
+    const contents = (await openSettings()).webContents;
+    const value = { root: ROOT, path: ROOT, paths: [ROOT], kind: "firstPrompt", session: "x", requestId: "r", scanId: "s" };
+    for (const channel of mocks.ipc.keys()) {
+      if (senderAllowed(channel, "settings")) continue;
+      expect(await invoke(channel, contents, null, value), channel).toEqual(await invoke(channel, {}, null, value));
+    }
+    expect(mocks.shell.reopen).not.toHaveBeenCalled();
+    expect(mocks.shell.remove).not.toHaveBeenCalled();
+    expect(mocks.inspector.inspect).not.toHaveBeenCalled();
+    expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
+    expect(mocks.electronShell.showItemInFolder).not.toHaveBeenCalled();
+    mocks.runConfig.mockResolvedValue({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { repo: ROOT, serve: [], changed: false } }) });
+    expect(await invoke("config:read", window().webContents, null, { root: ROOT })).toEqual({ kind: "unavailable" });
+    expect(await invoke("config:read", contents, {}, { root: ROOT })).toEqual({ kind: "unavailable" });
+    expect(mocks.runConfig).not.toHaveBeenCalled();
+    expect(await invoke("config:read", contents, null, { root: ROOT })).toEqual({ kind: "config", root: ROOT, tokenCss: null, serve: [], changed: false });
+    expect(mocks.runConfig).toHaveBeenCalledExactlyOnceWith("/bundled/doan", ROOT, []);
+    expect(await invoke("setup:status", contents, null)).toMatchObject({ busy: false });
+  });
+
+  test("an unregistered window (the capture window) and a subframe of the app window are refused on every channel", async () => {
+    const stranger = new mocks.Window({ show: false });
+    const value = { root: ROOT, path: ROOT, paths: [ROOT], step: "cli", requestId: "r" };
+    expect(mocks.ipc.size).toBeGreaterThan(0);
+    for (const channel of mocks.ipc.keys()) {
+      const refused = await invoke(channel, {}, null, value);
+      expect(await invoke(channel, stranger.webContents, null, value), channel).toEqual(refused);
+      expect(await invoke(channel, window().webContents, {}, value), channel).toEqual(refused);
+    }
+    expect(await invoke("setup:status", stranger.webContents, null)).toBeNull();
+    expect(await invoke("folders:get", stranger.webContents, null)).toEqual([]);
+    expect(await invoke("projects:get", stranger.webContents, null)).toEqual([]);
+  });
+
+  test("config:choose attaches the sheet to Settings and returns only a choice id and the path", async () => {
+    mocks.shell.entries.mockReturnValue([LIST]);
+    const created = await openSettings();
+    mocks.dialog.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: [`${ROOT}/tokens.css`] });
+    const chosen = await invoke("config:choose", created.webContents, null, { root: ROOT, kind: "tokenCss" }) as { kind: string; choiceId: string };
+    expect(chosen).toEqual({ kind: "selected", choiceId: expect.any(String), path: `${ROOT}/tokens.css` });
+    expect(mocks.dialog.showOpenDialog).toHaveBeenCalledWith(created, expect.objectContaining({ defaultPath: ROOT, properties: ["openFile"] }));
+    mocks.runConfig.mockResolvedValue({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { repo: ROOT, tokenCss: "tokens.css", serve: [], changed: true } }) });
+    expect(await invoke("config:write", created.webContents, null, { root: ROOT, op: "setTokenCss", choiceId: chosen.choiceId })).toMatchObject({ kind: "config", changed: true });
+    expect(mocks.runConfig).toHaveBeenCalledWith("/bundled/doan", ROOT, ["--token-css", `${ROOT}/tokens.css`]);
+  });
+
+  test("Close Window closes Settings only when it has focus; the main window still hides", async () => {
+    const created = await openSettings();
+    created.emit("focus");
+    click("Close Window");
+    expect(created.close).toHaveBeenCalledOnce();
+    expect(window().close).not.toHaveBeenCalled();
+    // Not turned into a hide: Settings really closes, with ⌘Q too.
+    const closing = { preventDefault: vi.fn() };
+    created.emit("close", closing);
+    expect(closing.preventDefault).not.toHaveBeenCalled();
+    created.emit("closed");
+    click("Close Window");
+    expect(window().close).toHaveBeenCalledOnce();
+    mocks.app.emit("activate");
+    expect(window().show).toHaveBeenCalled();
+    expect(created.show).not.toHaveBeenCalled();
+  });
+
+  describe("closing while its own write runs", () => {
+    async function startWrite(created: ReturnType<typeof settings>) {
+      let finish!: (value: unknown) => void;
+      mocks.machine.run.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const writing = invoke("setup:run", created.webContents, null, { step: "cli", expected: {} });
+      return { finish, writing };
+    }
+
+    test("the red button and Close Window are held until the write settles", async () => {
+      const created = await openSettings();
+      const { finish, writing } = await startWrite(created);
+      const held = { preventDefault: vi.fn() };
+      created.emit("close", held);
+      expect(held.preventDefault).toHaveBeenCalledOnce();
+      expect(mocks.machine.cancelConfirmation).not.toHaveBeenCalled();
+      finish({ kind: "success" });
+      expect(await writing).toEqual({ kind: "success" });
+      const free = { preventDefault: vi.fn() };
+      created.emit("close", free);
+      expect(free.preventDefault).not.toHaveBeenCalled();
+    });
+
+    test("an answered confirmation is a running write again", async () => {
+      const created = await openSettings();
+      mocks.machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
+      await invoke("setup:run", created.webContents, null, { step: "cli", expected: {} });
+      const asking = { preventDefault: vi.fn() };
+      created.emit("close", asking);
+      expect(asking.preventDefault).not.toHaveBeenCalled();
+      let finish!: (value: unknown) => void;
+      mocks.machine.answer.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const answering = invoke("setup:answer", created.webContents, null, { id: "q", allow: true });
+      const held = { preventDefault: vi.fn() };
+      created.emit("close", held);
+      expect(held.preventDefault).toHaveBeenCalledOnce();
+      finish({ kind: "success" });
+      await answering;
+    });
+
+    test("a pending confirmation does not hold the close; closing cancels it and frees the lock", async () => {
+      const created = await openSettings();
+      mocks.machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
+      await invoke("setup:run", created.webContents, null, { step: "cli", expected: {} });
+      const closing = { preventDefault: vi.fn() };
+      created.emit("close", closing);
+      expect(closing.preventDefault).not.toHaveBeenCalled();
+      created.emit("closed");
+      expect(mocks.machine.cancelConfirmation).toHaveBeenCalledOnce();
+      expect(await invoke("setup:run", window().webContents, null, { step: "cli", expected: {} })).toEqual({ kind: "success" });
+    });
+
+    test("the wizard's or main window's write does not hold Settings", async () => {
+      const created = await openSettings();
+      let finish!: (value: unknown) => void;
+      mocks.machine.run.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const writing = invoke("setup:run", window().webContents, null, { step: "cli", expected: {} });
+      const closing = { preventDefault: vi.fn() };
+      created.emit("close", closing);
+      expect(closing.preventDefault).not.toHaveBeenCalled();
+      finish({ kind: "success" });
+      await writing;
+    });
+
+    test("quitting is not held", async () => {
+      const created = await openSettings();
+      const { finish, writing } = await startWrite(created);
+      mocks.app.emit("before-quit");
+      const closing = { preventDefault: vi.fn() };
+      created.emit("close", closing);
+      expect(closing.preventDefault).not.toHaveBeenCalled();
+      finish({ kind: "success" });
+      await writing;
+    });
+  });
+
+  test("Close Window acts on the window Electron reports as focused, and a just-opened Settings counts as focused", async () => {
+    const created = await openSettings();
+    // No focus event yet (an inactive app gets none): opening it is enough.
+    click("Close Window");
+    expect(created.close).toHaveBeenCalledOnce();
+    created.close.mockClear();
+    const close = item("Close Window").click;
+    if (!close) throw new Error("no click handler");
+    Reflect.apply(close, undefined, [item("Close Window"), window(), undefined]);
+    expect(window().close).toHaveBeenCalledOnce();
+    expect(created.close).not.toHaveBeenCalled();
+    window().emit("focus");
+    Reflect.apply(close, undefined, [item("Close Window"), created, undefined]);
+    expect(created.close).toHaveBeenCalledOnce();
+  });
+
+  test("Settings focus disables main-window items including Undo Remove", async () => {
+    const created = await openSettings();
+    window().emit("focus");
+    await invoke("menu:state", window().webContents, null, state("canvas", false, true));
+    expect(submenu("Edit")[0]).toMatchObject({ label: "Undo Remove" });
+    created.emit("focus");
+    for (const label of ["Add Project…", "Home", "Quick Open…", "Zoom In", "Reload Canvas"]) expect(menuEnabled(label), label).toBe(false);
+    expect(submenu("Edit")[0]?.role).toBe("undo");
+    expect(menuEnabled("Settings…")).toBe(true);
+    window().emit("focus");
+    expect(menuEnabled("Add Project…")).toBe(true);
+    expect(submenu("Edit")[0]).toMatchObject({ label: "Undo Remove" });
+  });
+
+  test("the wizard and Settings cannot write at the same time: one gets busy", async () => {
+    const contents = window().webContents;
+    await invoke("onboarding:get-open", contents, null);
+    let finish!: (value: unknown) => void;
+    mocks.machine.run.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const wizard = invoke("onboarding:run", contents, null, { step: "cli", expected: {} });
+    const outcome = await invoke("onboarding:close", contents, null, await invoke("onboarding:get-open", contents, null));
+    expect(outcome).toEqual({ kind: "busy" });
+    finish({ kind: "success" });
+    expect(await wizard).toEqual({ kind: "success" });
+    await closeWizard();
+    click("Settings…");
+    mocks.machine.run.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const fromSettings = invoke("setup:run", settings().webContents, null, { step: "cli", expected: {} });
+    expect(await invoke("setup:run", contents, null, { step: "cli", expected: {} })).toEqual({ kind: "busy" });
+    finish({ kind: "success" });
+    expect(await fromSettings).toEqual({ kind: "success" });
+  });
+
+  test("a closed Settings window releases its confirmation", async () => {
+    const created = await openSettings();
+    mocks.machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
+    expect(await invoke("setup:run", created.webContents, null, { step: "cli", expected: {} })).toMatchObject({ kind: "confirm" });
+    expect(await invoke("setup:answer", window().webContents, null, { id: "q", allow: true })).toEqual({ kind: "busy" });
+    mocks.machine.cancelConfirmation.mockClear();
+    created.emit("closed");
+    expect(mocks.machine.cancelConfirmation).toHaveBeenCalledOnce();
+    expect(await invoke("setup:run", window().webContents, null, { step: "cli", expected: {} })).toEqual({ kind: "success" });
+  });
+
+  test.each(["render-process-gone", "closed"])("the main window's %s releases its confirmation", async event => {
+    const contents = window().webContents;
+    mocks.machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
+    expect(await invoke("setup:run", contents, null, { step: "cli", expected: {} })).toMatchObject({ kind: "confirm" });
+    mocks.machine.cancelConfirmation.mockClear();
+    if (event === "closed") window().emit("closed"); else contents.emit(event);
+    expect(mocks.machine.cancelConfirmation).toHaveBeenCalledOnce();
+  });
+
+  test("hiding the main window keeps its confirmation", async () => {
+    const contents = window().webContents;
+    mocks.machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
+    expect(await invoke("setup:run", contents, null, { step: "cli", expected: {} })).toMatchObject({ kind: "confirm" });
+    mocks.machine.cancelConfirmation.mockClear();
+    window().emit("close", { preventDefault: vi.fn() });
+    expect(mocks.machine.cancelConfirmation).not.toHaveBeenCalled();
+  });
+
+  test("the summary is read at start, on main focus once a minute, on Settings open and Check Again, and sent to both windows", async () => {
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now");
+    try {
+      await vi.waitFor(() => expect(mocks.machine.read).toHaveBeenCalledOnce());
+      await vi.waitFor(() => expect(window().webContents.send).toHaveBeenCalledWith("setup:status", { summary: { cli: "connected", claude: "connected", codex: "connected" }, causes: {}, checking: false, busy: false, onboardingClosed: false }));
+      clock.mockReturnValue(now + 1_000);
+      window().emit("focus");
+      clock.mockReturnValue(now + 120_000);
+      window().emit("focus");
+      await vi.waitFor(() => expect(mocks.machine.read).toHaveBeenCalledTimes(2));
+      mocks.needsOnboarding.mockResolvedValue(false);
+      const created = await openSettings();
+      await vi.waitFor(() => expect(mocks.machine.read).toHaveBeenCalledTimes(3));
+      expect(await invoke("setup:check-again", created.webContents, null)).toMatchObject({ onboardingClosed: true });
+      expect(mocks.machine.read).toHaveBeenCalledTimes(4);
+      expect(created.webContents.send).toHaveBeenCalledWith("setup:status", expect.objectContaining({ onboardingClosed: true }));
+    } finally { clock.mockRestore(); }
+  });
+
+  test("setup:read answers the Settings window with the state and its summary", async () => {
+    const created = await openSettings();
+    expect(await invoke("setup:read", created.webContents, null, { requestId: "x" })).toEqual({ kind: "state", state: MACHINE, summary: { cli: "connected", claude: "connected", codex: "connected" } });
+    for (const bad of [{}, { requestId: "" }, { requestId: "x", session: "s" }, null]) expect(await invoke("setup:read", created.webContents, null, bad)).toEqual({ kind: "stale" });
+  });
+
+  test("install pages: only the two fixed URLs open", async () => {
+    expect(await invoke("setup:open-external", window().webContents, null, { target: "codex" })).toBe(true);
+    expect(mocks.electronShell.openExternal).toHaveBeenCalledExactlyOnceWith("https://learn.chatgpt.com/docs/codex/cli");
+    for (const bad of [{ target: "https://evil.example" }, { target: "claude", url: "x" }, "claude"]) {
+      expect(await invoke("setup:open-external", window().webContents, null, bad)).toBe(false);
+    }
+    expect(mocks.electronShell.openExternal).toHaveBeenCalledOnce();
+  });
+
+  test("the PATH line is copied for Settings after the clipboard settles", async () => {
+    const created = await openSettings();
+    let finish!: () => void;
+    mocks.clipboard.writeText.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    let settled = false;
+    const copied = Promise.resolve(invoke("setup:copy-path-line", created.webContents, null)).then(value => { settled = true; return value; });
+    await Promise.resolve(); expect(settled).toBe(false); finish();
+    expect(await copied).toEqual({ kind: "success" });
+    expect(mocks.clipboard.writeText).toHaveBeenCalledWith('export PATH="$HOME/.local/bin:$PATH"');
+    expect(await invoke("setup:copy-path-line", created.webContents, null, { text: "forged" })).toEqual({ kind: "stale" });
+  });
+
+  test("main opens Settings at a tab and row; the target is taken once and later ones are sent", async () => {
+    mocks.shell.entries.mockReturnValue([LIST]);
+    await closeWizard();
+    expect(await invoke("settings:open", window().webContents, null, { tab: "projects", project: "/elsewhere" })).toBe(false);
+    expect(await invoke("settings:open", window().webContents, null, { tab: "projects", project: ROOT })).toBe(true);
+    const created = settings();
+    expect(created.options.title).toBe("Projects");
+    expect(await invoke("settings:take-target", created.webContents, null)).toEqual({ tab: "projects", project: ROOT });
+    expect(await invoke("settings:take-target", created.webContents, null)).toBeNull();
+    expect(await invoke("settings:open", window().webContents, null, { tab: "connections", connection: "cli" })).toBe(true);
+    expect(mocks.Window.instances).toHaveLength(2);
+    expect(created.webContents.send).toHaveBeenCalledWith("settings:target", { tab: "connections", connection: "cli" });
+    expect(created.setTitle).toHaveBeenCalledWith("Connections");
+  });
+
+  test("the last tab is read and saved as a tab only, and names the window", async () => {
+    const created = await openSettings();
+    expect(await invoke("settings:tab-get", created.webContents, null)).toBe("connections");
+    expect(await invoke("settings:tab-save", created.webContents, null, { tab: "projects" })).toBe(true);
+    expect(mocks.uiState.saveSettingsTab).toHaveBeenCalledExactlyOnceWith("projects");
+    expect(created.setTitle).toHaveBeenCalledWith("Projects");
+    for (const bad of [{ tab: "general" }, "projects", { tab: "projects", screen: "home" }]) expect(await invoke("settings:tab-save", created.webContents, null, bad)).toBe(false);
+    expect(mocks.uiState.save).not.toHaveBeenCalled();
+  });
+
+  test("Projects sees a read-only projection, reveals stored roots and forwards row actions to the main window", async () => {
+    // The same home Home gets from app:home.
+    const home = process.env.HOME ?? "/tmp/doan-index-test";
+    mocks.shell.entries.mockReturnValue([LIST, { path: "/plain", kind: "uninitialized" }, { path: `${home}/work`, kind: "uninitialized" }]);
+    const created = await openSettings();
+    expect(await invoke("app:home", window().webContents, null)).toBe(home);
+    expect(await invoke("projects:get", created.webContents, null)).toEqual([
+      { path: ROOT, displayPath: displayPath(ROOT, home), kind: "list", git: { common: `${ROOT}/.git`, main: ROOT } },
+      { path: "/plain", displayPath: "/plain", kind: "uninitialized" },
+      { path: `${home}/work`, displayPath: "~/work", kind: "uninitialized" },
+    ]);
+    const changed = mocks.startShell.mock.calls[0]?.[2];
+    if (typeof changed !== "function") throw new Error("no folder listener");
+    changed([{ path: "/plain", kind: "uninitialized" }]);
+    expect(created.webContents.send).toHaveBeenCalledWith("projects", [{ path: "/plain", displayPath: "/plain", kind: "uninitialized" }]);
+    await invoke("projects:reveal", created.webContents, null, { path: "/plain" });
+    await invoke("projects:reveal", created.webContents, null, { path: "/other" });
+    expect(mocks.electronShell.showItemInFolder).toHaveBeenCalledExactlyOnceWith("/plain");
+    window().emit("close", { preventDefault: vi.fn() });
+    expect(await invoke("projects:forward-action", created.webContents, null, { path: "/plain", action: "setUp" })).toBe(true);
+    expect(window().show).toHaveBeenCalled();
+    expect(window().focus).toHaveBeenCalled();
+    expect(window().webContents.send).toHaveBeenCalledWith("projects:action", { path: "/plain", action: "setUp" });
+    expect(await invoke("projects:forward-action", created.webContents, null, { path: "/plain", action: "showInFinder" })).toBe(false);
+  });
+
+  test("Settings cannot forward project actions while the main window has a modal", async () => {
+    mocks.shell.entries.mockReturnValue([{ path: "/plain", kind: "uninitialized" }]);
+    const created = await openSettings();
+    await invoke("menu:state", window().webContents, null, { screen: "home", modal: true, toast: false });
+    window().webContents.send.mockClear();
+    window().focus.mockClear();
+    for (const action of ["setUp", "locate", "remove", "retry", "details"]) {
+      expect(await invoke("projects:forward-action", created.webContents, null, { path: "/plain", action })).toBe(false);
+    }
+    expect(window().webContents.send).not.toHaveBeenCalledWith("projects:action", expect.anything());
+    expect(window().focus).not.toHaveBeenCalled();
+    await invoke("menu:state", window().webContents, null, { screen: "home", modal: false, toast: false });
+    expect(await invoke("projects:forward-action", created.webContents, null, { path: "/plain", action: "setUp" })).toBe(true);
+  });
+
+  test("first prompt takes a subject and builds the sentence with promptSentence", async () => {
+    const contents = window().webContents;
+    mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "list" }]);
+    const sentence = `Use the doan skill to make a design canvas in ${ROOT} for a sign-in screen.`;
+    expect(await invoke("onboarding:first-prompt", contents, null, { root: ROOT, subject: "  a sign-in screen... " })).toBe(sentence);
+    for (const subject of ["", "a\nb", "x".repeat(501), 3]) expect(await invoke("onboarding:first-prompt", contents, null, { root: ROOT, subject })).toBeNull();
+    expect(await invoke("onboarding:first-prompt", contents, null, { root: "/other", subject: "a" })).toBeNull();
+    mocks.clipboard.writeText.mockResolvedValue(undefined);
+    expect(await invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT, subject: "a sign-in screen" })).toEqual({ kind: "success" });
+    expect(mocks.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(sentence);
+    expect(await invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT, subject: "a\u0007" })).toEqual({ kind: "stale" });
+    expect(await invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT, subject: "a", extra: 1 })).toEqual({ kind: "stale" });
+  });
+
+  test("the wizard's Open Project… judges one folder as Add Project… does", async () => {
+    const contents = window().webContents;
+    const outcome = (over: object) => ({ ...OUTCOME, added: [], ...over });
+    expect(await invoke("onboarding:open-project", contents, null)).toEqual({ kind: "cancelled" });
+    mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/picked"] });
+    mocks.flow.add.mockResolvedValueOnce(outcome({ added: ["/repo"], scanId: "trees" }));
+    expect(await invoke("onboarding:open-project", contents, null)).toEqual({ kind: "stored", root: "/repo" });
+    expect(mocks.flow.cancel).toHaveBeenCalledExactlyOnceWith("trees");
+    expect(mocks.dialog.showOpenDialog).toHaveBeenLastCalledWith(window(), expect.objectContaining({ properties: ["openDirectory"] }));
+    expect(mocks.flow.add).toHaveBeenLastCalledWith(["/picked"]);
+    mocks.flow.add.mockResolvedValueOnce(outcome({ duplicate: "/stored" }));
+    expect(await invoke("onboarding:open-project", contents, null)).toEqual({ kind: "stored", root: "/stored" });
+    mocks.flow.add.mockResolvedValueOnce(outcome({ scanId: "scan" }));
+    expect(await invoke("onboarding:open-project", contents, null)).toEqual({ kind: "choose", scanId: "scan" });
+    mocks.flow.add.mockResolvedValueOnce(outcome({ confirms: [{ confirmId: "c", path: "/picked", name: "picked" }] }));
+    expect(await invoke("onboarding:open-project", contents, null)).toEqual({ kind: "confirm", confirmId: "c", path: "/picked", name: "picked" });
+    mocks.flow.add.mockResolvedValueOnce(outcome({ messages: ["Couldn’t read picked."] }));
+    expect(await invoke("onboarding:open-project", contents, null)).toEqual({ kind: "refused", message: "Couldn’t read picked." });
+    expect(window().webContents.send).not.toHaveBeenCalledWith("folders:add-outcome", expect.anything());
+  });
 });

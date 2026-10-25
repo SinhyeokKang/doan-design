@@ -1,7 +1,10 @@
+import type { ScanSnapshot } from "../main/addProjects";
 import type { MachineState } from "../main/onboarding/machine";
 import type { Agent } from "../main/onboarding/states";
 import type { ProjectInitResult } from "../main/shell";
-import type { FolderEntry } from "../main/view";
+import type { CanvasRow, FolderEntry } from "../main/view";
+import { canvasLabel } from "./canvasTree";
+import { displayPath } from "./projectDisplay";
 import { projectRow, type DetailPart } from "./projectRow";
 
 // Internal state names (ours, link-other, …) stop here; components only see copy.
@@ -23,6 +26,8 @@ export interface ItemView {
   reason?: string;
   dimmed?: true;
   copyLine?: { text: string; button: ButtonView };
+  // Opens the agent's install page; main maps the target to a fixed URL.
+  link?: { target: Agent; label: string };
 }
 export interface AgentCardView { agent: Agent; head: ItemView; items: ItemView[] }
 
@@ -44,8 +49,21 @@ export const COPY_FAILED = "Couldn’t copy. Your clipboard could not be updated
 const CHANGED = "It changed after you looked, so nothing was replaced.";
 const TRANSLOCATED = "Move doan to Applications, then open it again.";
 const IN_USE = " is in use by something else. Move or delete it, then Check Again.";
-const PLACEHOLDER = "<what you want to design>";
 const AGENT_NAMES: Record<Agent, string> = { claude: "Claude Code", codex: "Codex" };
+
+// Copy from the confirmed draft (design/app-setup.html, frame wizard).
+export const STEP_COPY: readonly { heading: string; lead: Part[] }[] = [
+  { heading: "Let your agents run doan", lead: ["Claude Code and Codex use the doan command to make and check your canvases. Connect it so they can find it."] },
+  { heading: "Connect Claude Code or Codex", lead: ["Your agent draws canvases with the doan skill and tools. Connect the agents you use; nothing changes until you choose Connect."] },
+  { heading: "Choose where canvases live", lead: ["Pick a repository. doan keeps its canvases in ", { code: "design/" }, ", next to the code they describe."] },
+  { heading: "Ask for your first canvas", lead: ["Describe a screen, copy the sentence and paste it into Claude Code or Codex. The canvas opens here when it arrives."] },
+];
+export const NO_AGENT_NOTICE = "doan works through Claude Code or Codex. Install one, then choose Check Again.";
+const installLabel = (agent: Agent) => `Install ${AGENT_NAMES[agent]} ↗`;
+const ADD_PROJECT_LABEL = "Add Project…";
+const NO_PROJECT_TEXT: Part[] = ["Add a project first. Your first canvas goes in its ", { code: "design/" }, " folder."];
+const OPEN_LABEL = "Open";
+const canvasReadyText = (name: string) => `Canvas ready: ${name}`;
 
 export function tilde(path: string, home: string): string {
   return path === home ? "~" : path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
@@ -73,6 +91,7 @@ function linkChip(state: MachineState["cli"]["state"]): Chip {
   switch (state) {
     case "missing": return { text: "Not installed" };
     case "ours": return { text: "Installed", tone: "ok" };
+    case "dangling": return { text: "Link is broken", tone: "warn" };
     case "link-other": return { text: "Needs replacement", tone: "warn" };
     case "blocked": return { text: "Unavailable", tone: "err" };
   }
@@ -91,13 +110,14 @@ export function cliItems(state: MachineState | null, ui: MachineUi): ItemView[] 
   const item: ItemView = { key: "cli", label: "CLI link", detail: [{ code: path }, ...realLocation(state, "cli"), ...target], chip: readChip(state, ui) ?? linkChip(cli ?? "missing") };
   if (cli !== "ours") {
     const disabled = !state || !state.available || cli === "blocked" || ui.checking || ui.running !== null || ui.readError !== null;
-    item.button = cli === "link-other" ? { id: "replace", label: "Replace…", primary: true, disabled } : { id: "install", label: "Install", primary: true, disabled };
+    item.button = cli === "dangling" ? { id: "replace", label: "Fix…", primary: true, disabled } : cli === "link-other" ? { id: "replace", label: "Replace…", primary: true, disabled } : { id: "install", label: "Install", primary: true, disabled };
   }
   if (ui.readError !== null) item.msg = { tone: "warn", parts: [checkAgain(ui.readError)] };
   else if (state && !state.available && state.reason) {
     if (state.reason === TRANSLOCATED) item.msg = { tone: "warn", parts: [state.reason] };
     else item.reason = state.reason;
   } else if (state && cli === "link-other") item.msg = { tone: "warn", parts: ["Points to another copy: ", { code: state.cli.value ?? "" }] };
+  else if (state && cli === "dangling") item.msg = { tone: "warn", parts: ["Link is broken: ", { code: state.cli.value ?? "" }] };
   else if (state && cli === "blocked") item.msg = { tone: "error", parts: [{ code: tilde(state.display.blocked.cli ?? state.display.cliPath, state.display.home) }, IN_USE] };
   const outcome = ui.outcome.cli;
   if (outcome?.kind === "changed") item.reason = CHANGED;
@@ -123,7 +143,8 @@ function connected(state: MachineState, agent: Agent): boolean {
   return a.executable !== null && state.stub.state === "ours" && a.mcp.state === "ours" && (agent === "codex" || state.claudeLink.state === "ours");
 }
 
-export function agentsView(state: MachineState | null, ui: MachineUi): { skill: ItemView; agents: AgentCardView[] } {
+export interface AgentsStepView { skill: ItemView; agents: AgentCardView[]; notice?: string }
+export function agentsView(state: MachineState | null, ui: MachineUi): AgentsStepView {
   const d = state?.display;
   const skill: ItemView = {
     key: "skill", label: "Skill", detail: [{ code: d ? tilde(d.stubPath, d.home) : "~/.agents/skills/doan/SKILL.md" }, ...realLocation(state, "stub"), " · shared by Claude Code and Codex"],
@@ -132,7 +153,9 @@ export function agentsView(state: MachineState | null, ui: MachineUi): { skill: 
   if (state?.stub.state === "differs") skill.msg = { tone: "warn", parts: ["Modified or from another version"] };
   if (state?.stub.state === "blocked") skill.msg = { tone: "error", parts: [{ code: tilde(state.display.blocked.stub ?? state.display.stubPath, state.display.home) }, IN_USE] };
   const agents = (["claude", "codex"] as const).map(agent => agentCard(state, ui, agent));
-  return { skill, agents };
+  // Only a settled, successful read can say that no agent is installed.
+  const noAgent = state !== null && state.probe.ok && !ui.checking && ui.readError === null && agents.every(card => card.head.link !== undefined);
+  return { skill, agents, ...(noAgent ? { notice: NO_AGENT_NOTICE } : {}) };
 }
 
 function stubChip(state: MachineState["stub"]["state"]): Chip {
@@ -144,7 +167,7 @@ function agentCard(state: MachineState | null, ui: MachineUi, agent: Agent): Age
   if (state === null) return { agent, head: { key: agent, label, detail: [], detailChip: readChip(state, ui) ?? { text: "Checking…" } }, items: [] };
   if (!state.probe.ok) return { agent, head: { key: agent, label, detail: [], detailChip: { text: "Couldn’t check", tone: "warn" }, msg: { tone: "warn", parts: [checkAgain(state.probe.reason)] } }, items: [] };
   const found = state.agents[agent];
-  if (found.executable === null) return { agent, head: { key: agent, label, detail: ["Not installed"] }, items: [] };
+  if (found.executable === null) return { agent, head: { key: agent, label, detail: ["Not installed"], link: { target: agent, label: installLabel(agent) } }, items: [] };
   const d = state.display, checking = readChip(state, ui);
   const head: ItemView = { key: agent, label, detail: ["Found at ", { code: found.executable }] };
   if (connected(state, agent)) head.msg = { tone: "ok", parts: [`Connected. Start a new ${label} session to use doan.`] };
@@ -157,6 +180,7 @@ function agentCard(state: MachineState | null, ui: MachineUi, agent: Agent): Age
   if (agent === "claude") {
     const link: ItemView = { key: "claude-link", label: "Skill link", sub: true, detail: d.claudeSharedSkills ? ["Uses the shared skill folder"] : [{ code: tilde(d.claudeLinkPath, d.home) }, ...realLocation(state, "claudeLink"), ...(d.claudeLinkTarget ? [" → ", { code: d.claudeLinkTarget }] : [])], chip: checking ?? linkChip(state.claudeLink.state) };
     if (state.claudeLink.state === "link-other") link.msg = { tone: "warn", parts: ["Points to another folder: ", { code: state.claudeLink.value ?? "" }] };
+    if (state.claudeLink.state === "dangling") link.msg = { tone: "warn", parts: ["Link is broken: ", { code: state.claudeLink.value ?? "" }] };
     if (state.claudeLink.state === "blocked") link.msg = { tone: "error", parts: [{ code: tilde(d.blocked.claudeLink ?? d.claudeLinkPath, d.home) }, IN_USE] };
     items.push(link);
   }
@@ -267,7 +291,20 @@ export function nextFocusIndex(count: number, index: number, shift: boolean): nu
   return null;
 }
 
-export interface ProjectForm { running: boolean; token: string | null; error: string | null; rerooted: string | null }
+export interface PromptStepView {
+  addProject?: { text: Part[]; label: string; primary: true; disabled: boolean };
+  ready?: { text: string; open: { label: string; disabled: boolean } };
+}
+// Without a project the step offers Add Project… in place of the first prompt;
+// once the waited-for canvas has arrived it shows Canvas ready with Open.
+export function promptStepView(project: string | null, arrived: CanvasRow | null, busy: boolean): PromptStepView {
+  if (project === null) return { addProject: { text: NO_PROJECT_TEXT, label: ADD_PROJECT_LABEL, primary: true, disabled: busy } };
+  if (arrived === null) return {};
+  return { ready: { text: canvasReadyText(canvasLabel(arrived)), open: { label: OPEN_LABEL, disabled: busy } } };
+}
+
+// `refused`: main's message when Open Project… could not use the picked folder.
+export interface ProjectForm { running: boolean; token: string | null; error: string | null; rerooted: string | null; refused?: string | null }
 export interface ProjectStepView {
   value: { name: string; path: string } | null;
   open: { primary: boolean; disabled: boolean };
@@ -279,7 +316,8 @@ export interface ProjectStepView {
 export const NO_TOKEN_HELPER = "Without token CSS, doan check won’t flag hardcoded colors.";
 export function projectStepView(entry: FolderEntry | null, form: ProjectForm): ProjectStepView {
   const open = { primary: entry === null, disabled: form.running };
-  if (entry === null) return { value: null, open };
+  const refused = form.refused ? { error: form.refused } : {};
+  if (entry === null) return { value: null, open, ...refused };
   const view: ProjectStepView = { value: { name: entry.path.split("/").filter(Boolean).at(-1) ?? entry.path, path: entry.path }, open };
   if (form.rerooted) view.message = form.rerooted;
   switch (entry.kind) {
@@ -293,6 +331,7 @@ export function projectStepView(entry: FolderEntry | null, form: ProjectForm): P
       view.error = row.detail?.map(part => typeof part === "string" ? part : part.code).join("") || row.status || "";
     }
   }
+  if (form.refused) view.error = form.refused;
   return view;
 }
 export function formView(form: ProjectForm): NonNullable<ProjectStepView["form"]> {
@@ -319,9 +358,28 @@ export function initMessage(result: ProjectInitResult): string | null {
   }
 }
 
-export function promptParts(sentence: string): { text: string; mark?: true }[] {
-  const at = sentence.indexOf(PLACEHOLDER);
-  if (at < 0) return [{ text: sentence }];
-  const before = sentence.slice(0, at), after = sentence.slice(at + PLACEHOLDER.length);
-  return [...(before ? [{ text: before }] : []), { text: PLACEHOLDER, mark: true as const }, ...(after ? [{ text: after }] : [])];
+export interface PickRow { id: string; name: string; label: string; path: string; sub: boolean; disabled: boolean; chip?: Chip }
+export interface PickView { title: string; lead: Part[]; rows: PickRow[]; initial: string | null }
+// Wizard step 3 when the picked folder holds repositories: one root only, so
+// the add checklist becomes radios (draft wizard, "A folder of repositories").
+export function pickView(snapshot: ScanSnapshot, home: string | null): PickView {
+  const source = snapshot.sources.length === 1 ? snapshot.sources[0] : undefined;
+  const rows = snapshot.items.flatMap((item): PickRow[] => [
+    { id: item.id, name: item.name, label: item.name, path: displayPath(item.path, home), sub: false, disabled: item.disabled, chip: scanChip(item) },
+    ...item.worktrees.map(tree => ({ id: tree.id, name: tree.name, label: `${item.name}, ${tree.name} worktree`, path: displayPath(tree.path, home), sub: true, disabled: false })),
+  ]);
+  return {
+    title: source ? `Choose a repository in ${source.name}` : "Choose a repository",
+    lead: source ? [{ code: displayPath(source.path, home) }, " isn’t a repository. Choose one repository inside it."] : ["Choose one repository."],
+    rows, initial: rows.find(row => !row.disabled)?.id ?? null,
+  };
+}
+function scanChip(item: ScanSnapshot["items"][number]): Chip {
+  switch (item.status) {
+    case "ready": return { text: `${item.canvasCount ?? 0} ${item.canvasCount === 1 ? "canvas" : "canvases"}`, tone: "ok" };
+    case "notSetUp": return { text: "Not set up" };
+    case "added": return { text: "Already added" };
+    case "unreadable": return { text: "Couldn't read", tone: "warn" };
+    case "checking": return { text: "Checking…" };
+  }
 }

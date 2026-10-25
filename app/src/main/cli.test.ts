@@ -2,7 +2,8 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, inject, test } from "vitest";
-import { cliCommand, readFolder, runLs, runInit } from "./cli";
+import { cliCommand, readFolder, runConfig, runLs, runInit } from "./cli";
+import { configReply } from "./configBridge";
 import { folderState, initOutcome } from "./folderState";
 
 const cli = inject("doanCli");
@@ -162,4 +163,20 @@ test("packaged cliCommand never falls back to PATH and DOAN_CLI wins", () => {
 test("runInit settles timeout and spawn errors", async () => {
   expect(initOutcome(await runInit(fakeCli("sleep 30"), dir(), null, 50))).toMatchObject({ kind: "cliError", reason: "timed out after 10 s" });
   expect(initOutcome(await runInit(join(tmp, "missing"), dir(), null))).toMatchObject({ kind: "cliError", reason: expect.stringContaining("ENOENT") });
+});
+
+test("runConfig reads and writes through the real CLI with absolute paths", async () => {
+  const root = repo();
+  writeFileSync(join(root, "tokens.css"), ":root{}");
+  mkdirSync(join(root, "styles"));
+  expect(configReply(root, await runConfig(cli, root, []))).toEqual({ kind: "config", root, tokenCss: null, serve: [], changed: false });
+  expect(configReply(root, await runConfig(cli, root, ["--token-css", join(root, "tokens.css"), "--add-serve", join(root, "styles")])))
+    .toEqual({ kind: "config", root, tokenCss: "tokens.css", serve: ["styles"], changed: true });
+  expect(configReply(root, await runConfig(cli, root, ["--remove-serve", join(root, "styles"), "--clear-token-css"])))
+    .toEqual({ kind: "config", root, tokenCss: null, serve: [], changed: true });
+  const outside = configReply(root, await runConfig(cli, root, ["--add-serve", tmp]));
+  expect(outside).toMatchObject({ kind: "error", message: expect.stringContaining("outside the repository") });
+  writeFileSync(join(root, ".doan", "config.json"), "{broken");
+  expect(configReply(root, await runConfig(cli, root, ["--clear-token-css"]))).toMatchObject({ kind: "error" });
+  expect(readFileSync(join(root, ".doan", "config.json"), "utf8")).toBe("{broken");
 });

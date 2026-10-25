@@ -104,7 +104,12 @@ export interface McpObservation { state: McpState; value: string }
 function observeLink(path: string, expected: string): LinkObservation {
   const s = observedStat(path); let value: string | null = null;
   if (!s.parentBlocked && s.kind === "symlink") { try { value = readlinkSync(path); } catch { /* An unreadable link is blocked. */ } }
-  return { state: linkState(s, value === null ? null : { value, resolved: canonical(path) }, canonical(expected) ?? expected), value, stamp: stamp(path) };
+  let resolved: string | null = null;
+  let resolutionError: string | undefined;
+  if (value !== null) {
+    try { resolved = realpathSync.native(path); } catch (error) { resolutionError = errorCode(error); }
+  }
+  return { state: linkState(s, value === null ? null : { value, resolved, ...(resolutionError ? { resolutionError } : {}) }, canonical(expected) ?? expected), value, stamp: stamp(path) };
 }
 function observeStub(path: string): StubObservation {
   const d = observedStat(dirname(path)), f = observedStat(path); let content: string | null = null;
@@ -198,6 +203,13 @@ export function createMachine(options: { command: string; version: string; env?:
     const claudeLink: LinkObservation = claudeSharedSkills(ctx)
       ? { state: stub.state === "ours" ? "ours" : "missing", value: null, stamp: `shared:${stamp(ctx.claudeLink)}:${stub.stamp}` }
       : observeLink(ctx.claudeLink, dirname(stubPath));
+    if (stub.state === "missing" && claudeLink.state === "dangling" && claudeLink.value !== null) {
+      const target = isAbsolute(claudeLink.value) ? claudeLink.value : `${dirname(ctx.claudeLink)}/${claudeLink.value}`;
+      const shared = realDirectory(dirname(stubPath));
+      // Connect creates this missing stub before checking the link again. It
+      // repairs our existing link without replacing or confirming the link.
+      if (shared !== null && realDirectory(target) === shared) claudeLink.state = "missing";
+    }
     return { cli: observeLink(cliPath, options.command), stub, claudeLink, agents };
   }
   const claudeLinkValue = (ctx: Context) => relative(realDirectory(dirname(ctx.claudeLink)) ?? dirname(ctx.claudeLink), realDirectory(dirname(stubPath)) ?? dirname(stubPath));
@@ -263,6 +275,7 @@ export function createMachine(options: { command: string; version: string; env?:
     if (request.step === "cli") {
       if (current.cli.state === "blocked") return { kind: "unavailable", message: blockedMessage(cliPath) };
       if (current.cli.state === "ours") return { kind: "success" };
+      if (current.cli.state === "dangling" && approved !== "cli") return confirm("cli", `Current: ${current.cli.value} (missing). New: ${options.command}`);
       if (current.cli.state === "link-other" && approved !== "cli") return confirm("cli", `Replace the link pointing to ${current.cli.value}?`);
       writeLink(cliPath, options.command, options.command, current.cli); return { kind: "success" };
     }
@@ -284,6 +297,7 @@ export function createMachine(options: { command: string; version: string; env?:
     }
     if (agent === "claude" && current.claudeLink.state !== "ours") {
       if (current.claudeLink.state === "blocked") return { kind: "unavailable", message: blockedMessage(ctx.claudeLink) };
+      if (current.claudeLink.state === "dangling" && approved !== "claudeLink") return confirm("claudeLink", `Current: ${current.claudeLink.value} (missing). New: ${dirname(stubPath)}`);
       if (current.claudeLink.state === "link-other" && approved !== "claudeLink") return confirm("claudeLink", `Replace the link pointing to ${current.claudeLink.value}?`);
       writeLink(ctx.claudeLink, claudeLinkValue(ctx), dirname(stubPath), current.claudeLink);
       current = await snapshot(ctx);
