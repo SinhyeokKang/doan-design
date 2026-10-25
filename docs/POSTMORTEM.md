@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — A toast's Open was dropped while its project was still loading
+
+- **Area**: `app/src/renderer/CanvasController.ts` (`openWorkspace`, `updateEntries`), `app/src/renderer/App.tsx` (`added` toast), `app/e2e/projects-home.ts`.
+- **Symptom**: the projects-home e2e intermittently timed out after clicking the "Added added-project" toast's Open (2/10 standalone runs on feat-app-setup); the screenshot showed the toast gone and the previous workspace still open.
+- **Root cause**: main sends the add outcome right after storing the folder, before its first `ls --repo` read finishes, so the toast can offer Open for an entry that is still `loading`. `openWorkspace` treated any non-list entry as "nothing to open" and silently returned. Latent since the toast existed; app-setup's extra IPC and process load made the read slower relative to the click.
+- **Net**: the unchanged e2e caught it only intermittently; unit tests had covered only list entries. A wrapper CLI that delays the added folder's read made the failure deterministic (3/3) before the fix.
+- **Prevention**: an action offered before a read finishes must wait for that read (and be superseded by later navigation) rather than check the state once. Search: `rg -n 'kind !== "list"\) return|kind === "list"' app/src/renderer` for other one-shot checks on entries that may still be loading; Home's row activation already only enters list rows.
+
 ### 2026-10-25 — A TS helper hid its TSX component on case-insensitive macOS
 
 - **Area**: `app/src/renderer/ConnectionRows.tsx`, former `connectionRows.ts`, now `connectionRowView.ts`.
