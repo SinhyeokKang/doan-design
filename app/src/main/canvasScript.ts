@@ -484,11 +484,12 @@ export function canvasScript(lib: CanvasLib): void {
   let draftGuard = false;
   let transitionIntent = 0;
   let pendingTransition: { intent: number; apply: () => void; seq: number } | null = null;
-  const requestTransition = (apply: () => void) => {
+  // `kind` lets the app let a selection through while still asking before a link leaves.
+  const requestTransition = (apply: () => void, kind: "selection" | "navigation") => {
     const intent = ++transitionIntent;
     if (!draftGuard) { pendingTransition = null; apply(); return; }
     pendingTransition = { intent, apply, seq };
-    post({ type: "transition-intent", document: documentToken, href: location.href, viewport: innerHeight, intent });
+    post({ type: "transition-intent", document: documentToken, href: location.href, viewport: innerHeight, intent, kind });
   };
   addEventListener("message", (event: MessageEvent) => {
     if (event.source !== parent) return;
@@ -556,7 +557,7 @@ export function canvasScript(lib: CanvasLib): void {
             event.preventDefault();
             if (draftGuard) event.stopImmediatePropagation();
             const href = link.getAttribute("href") ?? "";
-            requestTransition(() => { if (link.isConnected && link.getAttribute("href") === href) location.assign(href); });
+            requestTransition(() => { if (link.isConnected && link.getAttribute("href") === href) location.assign(href); }, "navigation");
           }
           return;
         }
@@ -569,7 +570,7 @@ export function canvasScript(lib: CanvasLib): void {
           if (active !== null && !isRoot(active) && "blur" in active && typeof active.blur === "function") active.blur();
         } else if (type === "click") {
           const target = event.target;
-          requestTransition(() => { if (!isElement(target) || target.isConnected) choose(target); });
+          requestTransition(() => { if (!isElement(target) || target.isConnected) choose(target); }, "selection");
         }
       },
       { capture: true },
@@ -582,7 +583,7 @@ export function canvasScript(lib: CanvasLib): void {
     setTimeout(() => {
       const active = document.activeElement;
       if (alt || active === null || !["iframe", "frame", "object", "embed"].includes(active.localName)) return;
-      requestTransition(() => { if (active.isConnected) choose(active); });
+      requestTransition(() => { if (active.isConnected) choose(active); }, "selection");
     }, 0);
   });
 

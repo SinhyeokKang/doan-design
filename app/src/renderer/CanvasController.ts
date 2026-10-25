@@ -17,6 +17,9 @@ import { currentFrame } from "./currentFrame";
 
 const MEASURE_ANSWER_MS = 1000;
 
+// A selection change inside the open canvas, or anything that leaves it.
+export type TransitionDestination = "selection" | "navigation";
+
 export interface CanvasState {
   hasFrame: boolean;
   open: (OpenCanvas & { row: CanvasRow }) | null;
@@ -29,6 +32,8 @@ export interface CanvasState {
   // Main's inspector rows for the current selection.
   inspector: InspectorView | null;
   status: "empty" | "loading" | "noWidth" | "failed" | "missing" | null;
+  // The reloaded document is still being asked for the previous selection.
+  reanchoring: boolean;
   message: string;
   error: string;
   unlisted: boolean;
@@ -40,7 +45,7 @@ export interface CanvasState {
 export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, updated: null, activity: [] };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, updated: null, activity: [] };
 }
 
 // React owns the surrounding shell; only this controller owns the board's children.
@@ -91,19 +96,23 @@ export class CanvasController {
   private commentRevision = 0;
   private pendingPin: { seq: number; intent: number; generation: number; revision: number; destination: PinDestination } | null = null;
 
-  private transitionGuard: (() => boolean | Promise<boolean>) | null = null;
+  private transitionGuard: ((destination: TransitionDestination) => boolean | Promise<boolean>) | null = null;
   private transitionIntent = 0;
   private inputGuard = false;
+  private selectionGuard = false;
   private canvasIntent = 0;
-  setTransitionGuard(guard: (() => boolean | Promise<boolean>) | null): void { this.transitionGuard = guard; }
-  setDraftGuard(active: boolean): void {
+  setTransitionGuard(guard: ((destination: TransitionDestination) => boolean | Promise<boolean>) | null): void { this.transitionGuard = guard; }
+  // `selection`: whether a selection change inside the open canvas is guarded
+  // too; a draft blocked as `reloaded` lets it through (comments/draft.ts).
+  setDraftGuard(active: boolean, selection = active): void {
     this.inputGuard = active;
+    this.selectionGuard = active && selection;
     this.post({ type: "draft-guard", active });
   }
-  private transition(apply: () => void, valid: () => boolean = () => true): void {
+  private transition(apply: () => void, valid: () => boolean = () => true, destination: TransitionDestination = "navigation"): void {
     const intent = ++this.transitionIntent, frame = this.frame, href = this.lastHref, document = this.state.layout?.document;
     if (!this.transitionGuard) { apply(); return; }
-    const allowed = this.transitionGuard();
+    const allowed = this.transitionGuard(destination);
     if (typeof allowed === "boolean") { if (allowed && valid()) apply(); return; }
     void allowed.then(allow => {
       if (allow && intent === this.transitionIntent && frame === this.frame && href === this.lastHref && document === this.state.layout?.document && valid()) apply();
@@ -230,6 +239,7 @@ export class CanvasController {
     const open = this.state.open;
     this.state.updated = open ? activityFor(this.state.activity, open.folder, open.canvas)[0]?.at ?? null : null;
     this.state.hasFrame = this.frame !== null;
+    this.state.reanchoring = this.reanchor !== null;
     this.syncMain();
     this.changed({ ...this.state });
   }
@@ -521,7 +531,7 @@ export class CanvasController {
       this.canvasIntent = message.intent;
       const frame = this.frame, document = message.document;
       this.transition(() => this.post({ type: "transition-answer", document, intent: message.intent }),
-        () => frame === this.frame && document === this.state.layout?.document);
+        () => frame === this.frame && document === this.state.layout?.document, message.kind);
       return;
     }
     if (message.type === "wheel") { this.wheel(message, boardToScreen(this.view, message)); return; }
@@ -636,7 +646,7 @@ export class CanvasController {
     this.post({ ...message, seq: this.hoverSeq });
   }
 
-  private escape(): void { this.transition(() => this.escapeNow()); }
+  private escape(): void { this.transition(() => this.escapeNow(), undefined, "selection"); }
 
   private escapeNow(): void {
     if (this.state.selection === null && this.reanchor === null) return;
@@ -645,7 +655,7 @@ export class CanvasController {
     this.publish();
   }
 
-  selectPath(item: PathItem): void { this.transition(() => this.selectPathNow(item)); }
+  selectPath(item: PathItem): void { this.transition(() => this.selectPathNow(item), undefined, "selection"); }
 
   private selectPathNow(item: PathItem): void {
     if (this.frame === null) return;
@@ -662,7 +672,7 @@ export class CanvasController {
       return;
     }
     if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || event.defaultPrevented || editableTarget(event.target)) return;
-    if (this.inputGuard) event.preventDefault();
+    if (this.selectionGuard) event.preventDefault();
     this.escape();
   };
 
@@ -780,7 +790,7 @@ export class CanvasController {
     this.transition(() => {
       this.jump(index);
       if (frame) this.sendCommand({ type: "pick-frame", index, id: frame.id });
-    }, () => frame !== undefined && this.state.layout?.frames[index]?.id === frame.id);
+    }, () => frame !== undefined && this.state.layout?.frames[index]?.id === frame.id, "selection");
   }
 
   private clearJump(): void {

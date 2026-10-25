@@ -123,7 +123,8 @@ export interface AnchorsMessage {
   rects: (PinGeometry & { node: string })[];
 }
 
-export interface TransitionIntentMessage { type: "transition-intent"; document: string; href: string; viewport: number; intent: number }
+// `kind` tells a selection inside this canvas from a link that navigates away.
+export interface TransitionIntentMessage { type: "transition-intent"; document: string; href: string; viewport: number; intent: number; kind: "selection" | "navigation" }
 
 export type CanvasMessage = TransitionIntentMessage | LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage;
 
@@ -177,8 +178,8 @@ function parseRect(raw: unknown): CanvasRect | null {
 export function parseCanvasMessage(data: unknown): CanvasMessage | null {
   if (!isRecord(data)) return null;
   if (data.type === "transition-intent") {
-    if (!within(data.document, MAX_STRING) || !data.document || !within(data.href, MAX_HREF) || !nonNegative(data.viewport) || !seqValue(data.intent)) return null;
-    return { type: "transition-intent", document: data.document, href: data.href, viewport: data.viewport, intent: data.intent };
+    if (!within(data.document, MAX_STRING) || !data.document || !within(data.href, MAX_HREF) || !nonNegative(data.viewport) || !seqValue(data.intent) || (data.kind !== "selection" && data.kind !== "navigation")) return null;
+    return { type: "transition-intent", document: data.document, href: data.href, viewport: data.viewport, intent: data.intent, kind: data.kind };
   }
   if (data.type === "anchors") return parseAnchors(data);
   if (data.type === "layout") return parseLayout(data);

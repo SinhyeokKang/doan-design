@@ -23,6 +23,21 @@ export interface CommentEditorProps {
   onCheck: () => void;
   onRetryOriginal: () => void;
   onReadLatest: () => void;
+  // Present while a new comment is blocked as `reloaded` (comments/draft.ts).
+  continue?: ContinueEditor | null;
+}
+export interface ContinueEditor {
+  enabled: boolean;
+  // Why the button is disabled; it takes the place of the preview line.
+  reason: string | null;
+  // Where "Continue on current version" would continue.
+  preview: Target;
+  // "Continue on canvas", once a missing selection has offered it.
+  canvas: { enabled: boolean } | null;
+  starting: "current" | "canvas" | null;
+  error: string | null;
+  onContinue: () => void;
+  onCanvas: () => void;
 }
 export interface CommentsPanelProps {
   filter: ListFilter;
@@ -114,7 +129,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
           {read.comments.length === 0 && <div className="comments-message"><b>{filter.status === "open" ? "No open comments here" : "No resolved comments here"}</b>{filter.scope === "selection" && props.canvasOpenCount > props.counts.open ? `There are ${props.canvasOpenCount - props.counts.open} open comments elsewhere on this canvas; Copy all open includes them.` : "Leave a note on this target."}</div>}
           {read.comments.map(comment => <CommentCard key={comment.comment} comment={comment} freshness={props.freshness.get(comment.comment) ?? "unknown"} locationMissing={props.missingLocations.has(comment.comment)} disabled={writesDisabled || editor !== null} busy={props.busy} copy={props.copies.get(comment.comment) ?? { status: "idle" }} mutation={props.mutations?.get(comment.comment)} onComment={props.onComment} onCopy={props.onCopy} />)}
         </>}
-    {editor && <CommentEditor {...editor} blocked={editorBlocked || null} />}
+    {editor && <CommentEditor {...editor} blocked={editor.continue ? editor.blocked : editorBlocked || null} />}
   </section>;
 }
 
@@ -176,8 +191,10 @@ function SaveMessage({ state }: { state: SaveView }) {
   }
 }
 
+const CONTINUE_REASON_ID = "comments-continue-reason";
+
 export function CommentEditor(props: CommentEditorProps) {
-  const { state } = props;
+  const { state, continue: next } = props;
   const locked = pending(state) || state.status === "saved";
   const cannotSave = locked || !!props.blocked || !props.body.trim() || state.status === "conflict" || state.status === "deleted";
   const label = props.mode === "create" ? "New comment" : "Your unsaved edit";
@@ -185,9 +202,13 @@ export function CommentEditor(props: CommentEditorProps) {
     <label>{label}<span className="comments-target">To: {targetText(props.target)}</span><textarea ref={props.inputRef} aria-label={`${label} body`} value={props.body} readOnly={locked} onChange={event => { if (!locked) props.onBody(event.currentTarget.value); }} /></label>
     <div className="comments-tools">
       <button type="button" className="comments-btn" disabled={state.status === "saving" || state.status === "saved"} onClick={locked ? props.onKeepDraft : props.onCancel}>{locked ? "Keep draft" : "Cancel"}</button>
-      {state.status === "retry-original" ? <button type="button" className="comments-btn primary" disabled={!!props.blocked} onClick={props.onRetryOriginal}>Retry original save</button> : <button type="button" className="comments-btn primary" disabled={cannotSave} onClick={props.onSave}>{state.status === "saving" ? "Saving…" : state.status === "reviewed" ? "Save reviewed changes" : props.mode === "edit" ? "Save changes" : "Save comment"}</button>}
+      {next?.canvas && <button key="continue-canvas" type="button" className="comments-btn" disabled={!next.canvas.enabled || next.starting !== null} onClick={next.onCanvas}>{next.starting === "canvas" ? "Starting…" : "Continue on canvas"}</button>}
+      {next ? <button key="continue" type="button" className="comments-btn primary" disabled={!next.enabled || next.starting !== null} aria-describedby={next.reason === null ? undefined : CONTINUE_REASON_ID} onClick={next.onContinue}>{next.starting === "current" ? "Starting…" : "Continue on current version"}</button>
+        : state.status === "retry-original" ? <button key="retry-original" type="button" className="comments-btn primary" disabled={!!props.blocked} onClick={props.onRetryOriginal}>Retry original save</button> : <button key="save" type="button" className="comments-btn primary" disabled={cannotSave} onClick={props.onSave}>{state.status === "saving" ? "Saving…" : state.status === "reviewed" ? "Save reviewed changes" : props.mode === "edit" ? "Save changes" : "Save comment"}</button>}
     </div>
     {props.blocked && <p className="comments-helper" role="status">{props.blocked}</p>}
+    {next && (next.reason === null ? <p className="comments-helper">Continues on {targetText(next.preview)}.</p> : <p className="comments-helper" id={CONTINUE_REASON_ID}>{next.reason}</p>)}
+    {next?.error && <p className="comments-helper" role="alert">Couldn’t continue on the current version: {next.error.replace(/\.$/, "")}. Your text is kept.</p>}
     {props.blocked && props.mode === "edit" && !locked && <button type="button" className="comments-btn" onClick={props.onReadLatest}>Read latest state</button>}
     </div>
     {state.status !== "idle" && <div className={`comments-message ${state.status === "failed" || state.status === "check-failed" || state.status === "deleted" ? "error" : state.status === "unknown" || state.status === "conflict" || state.status === "recovery-blocked" ? "warning" : ""}`} role="status"><SaveMessage state={state} />

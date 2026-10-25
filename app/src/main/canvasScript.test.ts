@@ -1187,6 +1187,7 @@ describe("draft preselection protocol", () => {
     command({ type: "draft-guard", active: true });
     click(canvas, span);
     const first = ofType(canvas, "transition-intent").at(-1)!;
+    expect(first.kind).toBe("selection");
     expect(ofType(canvas, "select")).toHaveLength(0);
     click(canvas, hero);
     const second = ofType(canvas, "transition-intent").at(-1)!;
@@ -1199,6 +1200,19 @@ describe("draft preselection protocol", () => {
     expect(ofType(canvas, "select")[0]?.target).toMatchObject({ frame: { id: "hero" } });
     command({ type: "transition-answer", document: second.document, intent: second.intent });
     expect(ofType(canvas, "select")).toHaveLength(1);
+  });
+  test("an ⌥-clicked link asks as navigation and waits for the answer", () => {
+    const anchor = node("a", { href: "other.html" }, [node("b")]);
+    const canvas = fakeCanvas({ readyState: "interactive", body: node("body", {}, [anchor]) });
+    canvas.fromParent({ type: "draft-guard", active: true });
+    let stopped = 0;
+    click(canvas, anchor, { altKey: true, stopImmediatePropagation: () => { stopped++; } } as Partial<FakeEvent>);
+    expect(stopped).toBe(1);
+    const intent = ofType(canvas, "transition-intent").at(-1)!;
+    expect(intent.kind).toBe("navigation");
+    expect(canvas.assigned).toEqual([]);
+    canvas.fromParent({ type: "transition-answer", document: intent.document, intent: intent.intent });
+    expect(canvas.assigned).toEqual(["other.html"]);
   });
   test("native composition Escape does not emit a transition", () => {
     const { canvas, span } = heroCanvas();

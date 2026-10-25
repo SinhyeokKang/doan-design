@@ -196,3 +196,76 @@ test("delete Escape is consumed without cancelling during IME", () => {
   }
   expect(onConfirm).not.toHaveBeenCalled();
 });
+
+describe("continue a blocked new comment", () => {
+  const notice = "The canvas reloaded while you were writing. Your text is kept — continue on the current version to save it.";
+  const pay = { element: { doanId: "pay", selector: "button", html: "<button/>" } };
+  function blocked(over: Partial<NonNullable<CommentEditorProps["continue"]>> = {}, props: Partial<CommentEditorProps> = {}): CommentEditorProps {
+    return editor({ blocked: notice, ...props, continue: { enabled: true, reason: null, preview: pay, canvas: null, starting: null, error: null, onContinue: noop, onCanvas: noop, ...over } });
+  }
+  const keyed = (node: ReactNode, label: string): string | null => {
+    for (const child of Children.toArray(node)) {
+      if (!isValidElement<ElementProps>(child)) continue;
+      if (child.type === "button" && Children.toArray(child.props.children).join("") === label) return child.key;
+      const found = keyed(child.props.children, label);
+      if (found !== null) return found;
+    }
+    return null;
+  };
+
+  test("puts Continue on current version in the primary slot with the notice and preview under the tools", () => {
+    const onContinue = vi.fn();
+    const props = blocked({ onContinue });
+    const out = renderToStaticMarkup(<CommentEditor {...props} />);
+    expect(out).not.toContain("Save comment");
+    expect(out).toMatch(/Cancel<\/button><button[^>]*class="comments-btn primary"[^>]*>Continue on current version<\/button><\/div><p class="comments-helper" role="status">The canvas reloaded/);
+    expect(out).toContain(`<p class="comments-helper">Continues on Element · pay.</p>`);
+    expect(out).not.toContain("aria-describedby");
+    find(CommentEditor(props), "Continue on current version").onClick?.();
+    expect(onContinue).toHaveBeenCalledOnce();
+    expect(renderToStaticMarkup(<CommentEditor {...blocked({ preview: {} })} />)).toContain("Continues on Canvas.");
+  });
+  test("renders the continue button as its own element, never the Save node", () => {
+    const saveKey = keyed(CommentEditor(editor()), "Save comment");
+    const continueKey = keyed(CommentEditor(blocked()), "Continue on current version");
+    expect(continueKey).not.toBeNull(); expect(continueKey).not.toBe(saveKey);
+  });
+  test("shows Starting… disabled while the body stays editable", () => {
+    const props = blocked({ enabled: false, starting: "current" });
+    expect(find(CommentEditor(props), "Starting…").disabled).toBe(true);
+    const out = renderToStaticMarkup(<CommentEditor {...props} />);
+    expect(out).not.toContain("readOnly"); expect(out).not.toContain("readonly");
+    expect(find(CommentEditor(props), "Cancel").disabled).toBe(false);
+  });
+  test("a failure is an alert under the preview, and the button can retry", () => {
+    const props = blocked({ error: "doan CLI error." });
+    const out = renderToStaticMarkup(<CommentEditor {...props} />);
+    expect(out).toContain(`Continues on Element · pay.</p><p class="comments-helper" role="alert">Couldn’t continue on the current version: doan CLI error. Your text is kept.</p>`);
+    expect(find(CommentEditor(props), "Continue on current version").disabled).toBe(false);
+  });
+  test("a disabled reason replaces the preview and describes the button", () => {
+    const out = renderToStaticMarkup(<CommentEditor {...blocked({ enabled: false, reason: "Waiting for the canvas to finish loading." })} />);
+    expect(out).toMatch(/<button[^>]*disabled=""[^>]*aria-describedby="comments-continue-reason"|<button[^>]*aria-describedby="comments-continue-reason"[^>]*disabled=""/);
+    expect(out).toContain(`<p class="comments-helper" id="comments-continue-reason">Waiting for the canvas to finish loading.</p>`);
+    expect(out).not.toContain("Continues on");
+  });
+  test("selection gone offers Continue on canvas between Cancel and the primary", () => {
+    const onCanvas = vi.fn();
+    const gone = "Your selection is no longer in the canvas. Select an element or frame, or continue on the whole canvas.";
+    const props = blocked({ enabled: false, reason: gone, canvas: { enabled: true }, onCanvas });
+    const out = renderToStaticMarkup(<CommentEditor {...props} />);
+    expect(out).toMatch(/>Cancel<\/button><button type="button" class="comments-btn">Continue on canvas<\/button><button[^>]*primary[^>]*>Continue on current version</);
+    find(CommentEditor(props), "Continue on canvas").onClick?.();
+    expect(onCanvas).toHaveBeenCalledOnce();
+    expect(find(CommentEditor(blocked({ enabled: false, canvas: { enabled: false }, starting: "canvas" })), "Starting…").disabled).toBe(true);
+  });
+  test("the panel keeps the reload notice in the editor over panel-level reasons", () => {
+    const out = html(panel({ widthInvalid: true, editor: blocked() }));
+    expect(out).toContain(`<p class="comments-helper" role="status">${notice.replace("—", "—")}</p>`);
+  });
+  test("an unavailable draft keeps the shipped editor with a disabled Save", () => {
+    const props = editor({ blocked: "Original document or target is unavailable." });
+    expect(find(CommentEditor(props), "Save comment").disabled).toBe(true);
+    expect(renderToStaticMarkup(<CommentEditor {...props} />)).not.toContain("Continue");
+  });
+});

@@ -100,9 +100,16 @@ describe("document-lost reason", () => {
   it("is unavailable when the caller passes no identity", () => {
     expect(lostWith({}).draft?.lost).toBe("unavailable");
   });
-  it("is reloaded while the canvas is loading, whatever the identity", () => {
+  it("is reloaded while the canvas is loading and its identity is unknown or the same", () => {
     expect(lostWith({ identity: null, loading: true }).draft?.lost).toBe("reloaded");
-    expect(lostWith({ identity: { root: "/repo", canvas: "other" }, loading: true }).draft?.lost).toBe("reloaded");
+    expect(lostWith({ loading: true }).draft?.lost).toBe("reloaded");
+    expect(lostWith({ identity: here, loading: true }).draft?.lost).toBe("reloaded");
+  });
+  it.each([
+    ["a same-path canvas id change", { root: "/repo", canvas: "other" }],
+    ["another root", { root: "/other", canvas: "home" }],
+  ])("is unavailable while loading after %s", (_name, identity) => {
+    expect(lostWith({ identity, loading: true }).draft?.lost).toBe("unavailable");
   });
   it("is decided again by the latest loss", () => {
     const unavailable = lostWith({ identity: null });

@@ -779,14 +779,14 @@ it("independently rejects replayed canvas intents and approval after same-URL do
     const allow: ((value: boolean) => void)[] = [];
     const guard = vi.fn(() => new Promise<boolean>(resolve => allow.push(resolve)));
     h.controller.setTransitionGuard(guard);
-    h.receive({ type: "transition-intent", document: "one", intent: 2 });
-    h.receive({ type: "transition-intent", document: "one", intent: 1 });
-    h.receive({ type: "transition-intent", document: "one", intent: 2 });
+    h.receive({ type: "transition-intent", document: "one", intent: 2, kind: "selection" });
+    h.receive({ type: "transition-intent", document: "one", intent: 1, kind: "selection" });
+    h.receive({ type: "transition-intent", document: "one", intent: 2, kind: "selection" });
     expect(guard).toHaveBeenCalledTimes(1);
     h.layout({ document: "two" });
     allow[0]?.(true); await Promise.resolve();
     expect(h.current().contentWindow.postMessage.mock.calls.some(([message]) => message.type === "transition-answer")).toBe(false);
-    h.receive({ type: "transition-intent", document: "two", intent: 1 });
+    h.receive({ type: "transition-intent", document: "two", intent: 1, kind: "selection" });
     expect(guard).toHaveBeenCalledTimes(2);
     allow[1]?.(true); await Promise.resolve();
     expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "transition-answer", document: "two", intent: 1 }, "*");
@@ -802,6 +802,80 @@ it("prevents the triggering Escape from cancelling its newly opened draft dialog
     h.host.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
     expect(h.state().selection).not.toBeNull();
+  } finally { h.controller.dispose(); }
+});
+
+describe("a draft blocked as reloaded", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  // The session answers same-canvas selection changes at once and asks about everything else.
+  function blockedHarness() {
+    const h = selectionHarness();
+    h.layout({ document: "one" });
+    const asked: string[] = [];
+    const guard = vi.fn((destination: "selection" | "navigation") => destination === "selection" ? true : new Promise<boolean>(() => { asked.push(destination); }));
+    h.controller.setTransitionGuard(guard);
+    h.controller.setDraftGuard(true, false);
+    const posted = () => h.current().contentWindow.postMessage.mock.calls.map(([message]) => message);
+    return { ...h, guard, asked, posted };
+  }
+
+  it("changes the selection on a canvas click, Select, ancestor path, blank margin and Escape without asking", () => {
+    const h = blockedHarness();
+    try {
+      h.receive({ type: "transition-intent", document: "one", intent: 1, kind: "selection" });
+      expect(h.posted().at(-1)).toEqual({ type: "transition-answer", document: "one", intent: 1 });
+      h.controller.selectFrame(0);
+      expect(h.posted().at(-1)).toMatchObject({ type: "pick-frame", index: 0, id: "intro" });
+      h.select(2);
+      h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
+      expect(h.posted().at(-1)).toMatchObject({ type: "select-anchor", doanId: "cta" });
+      h.select(3);
+      h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
+      expect(h.state().selection).toBeNull();
+      h.select(4);
+      const escape = Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" });
+      h.host.dispatchEvent(escape);
+      expect(h.state().selection).toBeNull();
+      expect(escape.defaultPrevented).toBe(false);
+      expect(h.guard.mock.calls.every(([destination]) => destination === "selection")).toBe(true);
+      expect(h.asked).toEqual([]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("still asks before another canvas, an in-canvas link, Reload or Overview", () => {
+    const h = blockedHarness();
+    try {
+      h.receive({ type: "transition-intent", document: "one", intent: 1, kind: "navigation" });
+      h.controller.openCanvas("/repo", h.other);
+      h.controller.command("reload");
+      h.controller.showOverview();
+      h.controller.openWorkspace("/repo", () => {});
+      expect(h.asked).toEqual(["navigation", "navigation", "navigation", "navigation", "navigation"]);
+      expect(h.posted().some(message => message.type === "transition-answer")).toBe(false);
+      expect(h.state().open.canvas).toBe(h.row.path);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("drops a transition intent without a known kind", () => {
+    const h = blockedHarness();
+    try {
+      h.receive({ type: "transition-intent", document: "one", intent: 1 });
+      expect(h.guard).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+});
+
+it("reports reanchoring while a reloaded canvas looks for the selection", () => {
+  const h = selectionHarness();
+  try {
+    expect(h.state().reanchoring).toBe(false);
+    h.select(1);
+    h.controller.command("reload");
+    expect(h.state().reanchoring).toBe(true);
+    h.layout();
+    expect(h.state().reanchoring).toBe(true);
+    h.select(1);
+    expect(h.state().reanchoring).toBe(false);
   } finally { h.controller.dispose(); }
 });
 

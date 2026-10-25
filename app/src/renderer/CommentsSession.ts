@@ -1,4 +1,4 @@
-import { beginDraft, transitionDraft, type DraftState } from "../comments/draft";
+import { beginDraft, guardsSelectionChange, transitionDraft, type DraftState } from "../comments/draft";
 import type { ExpectedComment, MutationIntent } from "../comments/events";
 import type { CopyScope } from "../comments/projection";
 import type { Comment, Target } from "../formats/types";
@@ -28,6 +28,8 @@ export class CommentsSession {
   list: CommentList | null = null;
   readError: string | null = null;
   createError: string | null = null;
+  // A failed continue keeps the blocked draft; its error is separate from a create failure.
+  continueError: string | null = null;
   author: AuthorView = { status: "loading" };
   draft = emptyDraft();
   target: Target = {};
@@ -36,6 +38,12 @@ export class CommentsSession {
   mutations = new Map<string, SaveView>();
   busy = false;
   beginning = false;
+  // The scope of the continue being started, while `beginning`.
+  continuing: "canvas" | "selection" | null = null;
+  // The draft id a continue produced, so the editor puts the caret at the end once.
+  continued: string | null = null;
+  // The draft id whose missing selection offered "Continue on canvas" (set by the editor).
+  canvasOffered: string | null = null;
   composing = false;
   uncertainTransition: { id: string; kind: "quit" | "blocked" } | null = null;
   deleteConfirmation: { request: MutationRequest; comment: Comment } | null = null;
@@ -60,7 +68,7 @@ export class CommentsSession {
     // Release before a new begin can acquire the guard. Late IPC completions
     // must never release it on behalf of the obsolete document.
     if (this.beginning && !this.draft.draft) void this.api.setCommentDraftGuard(false);
-    this.beginRevision++; this.beginning = false;
+    this.beginRevision++; this.beginning = false; this.continuing = null;
   }
   private request(identity = this.identity): CommentRequest {
     if (!identity) throw new Error("No canvas open.");
@@ -71,7 +79,7 @@ export class CommentsSession {
     this.revision++;
     this.cancelBegin();
     this.identity = identity;
-    this.list = null; this.readError = null; this.createError = null; this.copies = new Map(); this.mutations = new Map(); this.deleteConfirmation = null;
+    this.list = null; this.readError = null; this.createError = null; this.continueError = null; this.copies = new Map(); this.mutations = new Map(); this.deleteConfirmation = null;
     if (this.draft.draft && !same(identity, this.draftIdentity)) this.invalidate("The original project or canvas is no longer open.");
     this.emit();
     if (identity) await Promise.all([this.read(), this.retryAuthor()]);
@@ -137,6 +145,28 @@ export class CommentsSession {
     } catch (error) { if (begin === this.beginRevision) this.createError = errorText(error); }
     finally { if (begin === this.beginRevision) this.beginning = false; this.emit(); }
   }
+  // A new begin on the current version for a create draft blocked as `reloaded`.
+  // Main's guard stays true for the blocked draft throughout: an obsolete or
+  // failed continue leaves that draft, so nothing here ever releases it.
+  async continueDraft(scope: "canvas" | "selection") {
+    const draft = this.draft.draft;
+    if (!this.identity || !draft || draft.origin.kind !== "create" || draft.lost !== "reloaded" || this.draft.request || this.busy || this.beginning || this.author.status !== "ready") return;
+    const begin = ++this.beginRevision, request = this.request(), identity = { ...this.identity };
+    this.beginning = true; this.continuing = scope; this.continueError = null; this.emit();
+    try {
+      const origin = value(await this.api.commentsBegin({ ...request, scope }), request);
+      if (begin !== this.beginRevision || this.draft.draft?.id !== draft.id) return;
+      await this.api.setCommentDraftGuard(true);
+      if (begin !== this.beginRevision) return;
+      const result = transitionDraft(this.draft, { type: "continue", id: crypto.randomUUID(), origin: { kind: "create", ...identity, generation: 0, canvasHash: origin.hash, target: origin.target } });
+      if (result.effect.type !== "focus-editor") return;
+      this.origin = origin; this.project = origin.project; this.draftIdentity = identity;
+      this.target = structuredClone(origin.target);
+      this.draft = result.state; this.continued = result.state.draft?.id ?? null;
+      this.saveView = { status: "idle" };
+    } catch (error) { if (begin === this.beginRevision) this.continueError = errorText(error); }
+    finally { if (begin === this.beginRevision) { this.beginning = false; this.continuing = null; } this.emit(); }
+  }
   edit(id: string) {
     if (!this.identity || !this.list || this.draft.draft || this.busy || this.author.status !== "ready") return;
     const comment = this.list.comments.find(c => c.comment === id);
@@ -153,12 +183,14 @@ export class CommentsSession {
     this.cancelDestination();
     this.draft = transitionDraft(this.draft, { type: "invalidate", reason }).state; this.emit();
   }
-  documentLost() {
+  // `loading`: the canvas is still loading, so the new document is not known yet.
+  documentLost(loading = false) {
     this.cancelBegin();
-    this.createError = null; this.emit();
+    this.createError = null; this.continueError = null; this.emit();
     if (this.draft.draft?.origin.kind !== "create") return;
     this.cancelDestination();
-    this.draft = transitionDraft(this.draft, { type: "document-lost" }).state; this.emit();
+    const identity = this.identity && { root: this.identity.root, canvas: this.identity.canvas };
+    this.draft = transitionDraft(this.draft, { type: "document-lost", identity, loading }).state; this.emit();
   }
   private stablePending() {
     return this.draft.request !== null && ["unknown", "check-failed", "recovery-blocked"].includes(this.saveView.status);
@@ -179,6 +211,12 @@ export class CommentsSession {
     this.draft = transitionDraft(this.draft, { type: "move", destination: crypto.randomUUID() }).state;
     this.emit(); return result;
   }
+  // A selection change inside the open canvas. A draft blocked as `reloaded`
+  // cannot be saved and keeps its body, so the change is not asked about.
+  guardSelection(): boolean | Promise<boolean> {
+    if (this.draft.draft && !guardsSelectionChange(this.draft, "selection") && !this.composing && !this.beginning && !this.busy) return true;
+    return this.guard();
+  }
   answerUncertain(id: string, quit: boolean) {
     const transition = this.uncertainTransition;
     if (!transition || transition.id !== id) return;
@@ -193,6 +231,8 @@ export class CommentsSession {
       if (choice === "continue") { this.draft = { ...this.draft, transition: null }; this.destination?.(false); this.destination = null; this.emit(); }
       return;
     }
+    // A continue still starting belongs to the discarded draft.
+    if (choice === "discard") this.cancelBegin();
     this.draft = transitionDraft(this.draft, { type: "answer", choice }).state;
     this.destination?.(choice === "discard"); this.destination = null;
     if (choice === "discard") { this.pending = null; void this.api.setCommentDraftGuard(false); }
