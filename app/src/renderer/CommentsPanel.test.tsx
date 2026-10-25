@@ -51,7 +51,8 @@ describe("Comments presentation", () => {
   });
   test("width invalidity blocks only creation, retaining editing and copying", () => {
     const out = html(panel({ widthInvalid: true }));
-    expect(out).toContain("Fix doan:width");
+    expect(out).toContain("Could not read a valid board width.");
+    expect(out).toContain("Run doan check in a terminal");
     expect(find(CommentsPanel(panel({ widthInvalid: true })), "New canvas comment").disabled).toBe(true);
     expect(find(CommentCard({ comment, freshness: "same", locationMissing: true, disabled: false, busy: false, copy: { status: "idle" }, onComment: noop, onCopy: noop }), "Edit").disabled).toBe(false);
     expect(find(CommentsPanel(panel({ widthInvalid: true })), "Copy all open").disabled).toBe(false);

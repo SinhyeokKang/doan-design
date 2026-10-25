@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickTarget, searchIndex, searchMatch, type SearchCanvas, type SearchFolder } from "./quickOpen";
+import { unavailableCanvasMessage, pickTarget, searchIndex, searchMatch, type SearchCanvas, type SearchFolder } from "./quickOpen";
 
 function canvas(path: string, extra: Partial<SearchCanvas> = {}): SearchCanvas {
   return { path, open: 0, resolved: 0, url: `http://localhost/${path}`, ...extra };
@@ -193,4 +193,11 @@ describe("quick open target", () => {
 it("uses the tree fallback for blank frame labels", () => {
   const index = searchIndex([{ kind: "list", path: "/repo", servedRev: 0, canvases: [{ path: "design/a.html", url: "u", open: 0, resolved: 0, frames: [{ id: "", title: "  " }] }] }]);
   expect(index.find(row => row.kind === "frame")?.label).toBe("(no id)");
+});
+
+it("only calls a canvas missing when its project was successfully listed", () => {
+  expect(unavailableCanvasMessage({ kind: "list", path: "/p", servedRev: 0, canvases: [] }, "design/moved.html")).toBe("moved is no longer in design/");
+  expect(unavailableCanvasMessage({ kind: "loading", path: "/p" }, "design/moved.html")).toBe("Project is still being read. Try Open again shortly.");
+  expect(unavailableCanvasMessage({ kind: "cliError", path: "/p", reason: "failed" }, "design/moved.html")).toBe("Project is unavailable. Check its status on Home and try again.");
+  expect(unavailableCanvasMessage(undefined, "design/moved.html")).toBe("Project is unavailable. Check its status on Home and try again.");
 });
