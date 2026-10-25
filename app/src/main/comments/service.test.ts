@@ -1,5 +1,6 @@
 import { expect, test, vi } from "vitest";
 import { createCommentsService } from "./service";
+import { authorizeCanvas } from "./identity";
 import type { CommentIdentity, ServiceDependencies } from "./service";
 import { AppendUncertainError } from "./files";
 import { MkdirTerminationUnconfirmedError } from "./mkdir";
@@ -327,4 +328,29 @@ test("one leading BOM preserves a valid multibyte body", async () => {
   const s = setup(); await create(s);
   s.set(Buffer.concat([Buffer.from("\uFEFF"), s.bytes()]));
   expect(await s.service.list("window", { ...identity, requestID: "read" })).toMatchObject({ ok: true, value: { comments: [{ body: "Hello 한글" }], warnings: [] } });
+});
+
+test.each([
+  { cause: "invalid", canvas: "Invalid", canvases: [{ path: identity.path, id: "Invalid" }] },
+  { cause: "duplicate", canvas: "a", canvases: [{ path: identity.path, id: "a" }, { path: "design/b.html", id: "a" }] },
+  { cause: "missing", canvas: "a", canvases: [] },
+  { cause: "missing", canvas: "a", canvases: [{ path: "design/b.html", id: "a" }] },
+])("returns the $cause identity cause from authorization", async ({ cause, canvas, canvases }) => {
+  const s = setup();
+  vi.mocked(s.deps.authorize).mockImplementation(async requested => ({
+    ...authorizeCanvas(requested, { kind: "list", root: identity.root, canvases }), url: "http://canvas",
+  }));
+  const request = { ...identity, canvas, requestID: "read" };
+  expect(await s.service.list("window", request)).toEqual({
+    ok: false, identity: request, error: "Canvas identity is missing, changed or duplicated.", cause,
+  });
+  expect(s.deps.read).not.toHaveBeenCalled();
+});
+test("non-identity failures omit cause even with the same error message", async () => {
+  const s = setup();
+  const request = { ...identity, requestID: "read" };
+  vi.mocked(s.deps.read).mockRejectedValue(new Error("Canvas identity is missing, changed or duplicated."));
+  expect(await s.service.list("window", request)).toEqual({
+    ok: false, identity: request, error: "Canvas identity is missing, changed or duplicated.",
+  });
 });
