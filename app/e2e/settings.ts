@@ -74,6 +74,27 @@ try {
   await settings.getByRole("alert").getByText("Couldn’t open the install page.", { exact: true }).waitFor();
   check(await settings.getByRole("alert").evaluate(node => (() => { const probe = document.createElement("span"); probe.style.color = "var(--err)"; document.body.append(probe); const expected = getComputedStyle(probe).color; probe.remove(); return getComputedStyle(node).borderLeftColor === expected; })()), "install failure uses the error border");
   assert.equal(await cliRow.getByRole("button", { name: "Fix…" }).isEnabled(), true, "an install-page failure cannot disable connection actions");
+  await app.evaluate(({ shell }) => {
+    const pending: ((ok: boolean) => void)[] = [];
+    shell.openExternal = () => new Promise<void>((resolve, reject) => pending.push(ok => ok ? resolve() : reject(new Error("Injected obsolete install failure"))));
+    Reflect.set(globalThis, "settingsInstallRequests", pending);
+  });
+  const installCodex = settings.getByRole("button", { name: "Install Codex ↗", exact: true });
+  await installCodex.click(); await installCodex.click();
+  await wait(() => app!.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests").length === 2), "two install requests held");
+  await app.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests")[1](true));
+  await app.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests")[0](false));
+  await settings.waitForTimeout(150);
+  check(await settings.getByRole("alert").count() === 0, "older install failure cannot replace the latest successful request");
+  await installCodex.click(); await installCodex.click();
+  await wait(() => app!.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests").length === 4), "next install request pair held");
+  await app.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests")[2](false));
+  await settings.waitForTimeout(150);
+  check(await settings.getByRole("alert").count() === 0, "older install failure stays hidden while the latest request is pending");
+  await app.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests")[3](true));
+  await settings.waitForTimeout(150);
+  check(await settings.getByRole("alert").count() === 0, "latest install success leaves no obsolete failure");
+
   await app.evaluate(({ ipcMain }) => {
     const original = Reflect.get(ipcMain, "_invokeHandlers").get("setup:read");
     ipcMain.removeHandler("setup:read"); ipcMain.handle("setup:read", () => ({ kind: "stale" }));
@@ -179,6 +200,19 @@ try {
     check(await settings.getByRole("region", { name: "brand settings" }).getByRole("button", { name: "Change…" }).evaluate(node => node === document.activeElement), "successful config Retry restores lost focus to Change");
     check(await settings.getByText("Injected config read failure").count() === 0, "successful retry clears its old read error");
     check(await app.evaluate(() => Reflect.get(globalThis, "configReadProbe").calls) === 2, "retry performs exactly one additional read");
+    await app.evaluate(() => { Reflect.get(globalThis, "configReadProbe").fail = true; });
+    await settings.getByRole("option", { name: "~/acme", exact: true }).click();
+    await settings.getByRole("alert").filter({ hasText: "Injected config read failure" }).waitFor();
+    await settings.getByRole("option", { name: "~/brand", exact: true }).click();
+    await settings.getByRole("alert").filter({ hasText: "Injected config read failure" }).waitFor();
+    await app.evaluate(() => { const probe = Reflect.get(globalThis, "configReadProbe"); probe.fail = false; probe.release = null; });
+    await retry.focus(); await settings.keyboard.press("Enter");
+    await wait(() => app!.evaluate(() => Reflect.get(globalThis, "configReadProbe").release !== null), "second retry held");
+    await settings.getByRole("option", { name: "~/brand", selected: true }).focus();
+    await app.evaluate(() => Reflect.get(globalThis, "configReadProbe").release());
+    await settings.getByRole("region", { name: "brand settings" }).getByRole("button", { name: "Change…" }).waitFor();
+    await settings.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    assert.equal(await settings.getByRole("option", { name: "~/brand", selected: true }).evaluate(node => node === document.activeElement), true, "Retry cannot steal focus the user moved to a surviving project row");
   }
   await app.evaluate(() => Reflect.get(globalThis, "configReadProbe").restore());
   await settings.getByRole("option", { name: "~/acme", exact: true }).click();
