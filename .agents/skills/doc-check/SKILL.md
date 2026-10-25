@@ -1,6 +1,6 @@
 ---
 name: doc-check
-description: Find documentation drift across doan in both directions, from docs to implementation and implementation to docs. Correct verified factual documentation errors and omissions; report decision conflicts and unverified claims without changing code or historical evidence.
+description: Find documentation drift across doan using document-owner subagents that check both docs-to-code and code-to-docs. Integrate their evidence and correct verified factual errors and omissions; preserve decisions and historical evidence.
 ---
 
 # Documentation drift check
@@ -14,6 +14,14 @@ Read [AGENTS.md](../../../AGENTS.md), [PRODUCT.md](../../../docs/PRODUCT.md), an
 - Classify documents before comparing: current decisions, current factual reference, active feature plan, or historical evidence. Do not treat every document as a description of today's shipped code.
 - Treat `docs/features/<slug>/` as an active plan: check its links, internal consistency and stated progress, but do not rewrite intended behavior to match unfinished implementation. Missing documents explicitly deferred by AGENTS are not drift.
 
+## Document-owner subagents
+
+Assign every inventoried document to a read-only reviewer, using one subagent per substantial document and named groups for small related skills/references. All documents must have an owner; grouping must not hide unchecked files. Use the invoking agent's model family under AGENTS unless the user explicitly authorizes otherwise. Run independent reviewers in parallel within the available limit, then continue in waves. Do not require nested delegation.
+
+Give each reviewer the full assigned documents, their authority/history classification, implementation inventory, both passes below, and a distinct evidence path under `.scratch/doc-check/<run>/`. Each reviewer reads every assigned section and verifies both directions against actual source, including defaults, conditions and exceptions. It returns discrepancies with proposed corrections, sections/topics covered in each pass, and remaining work. A filename/keyword scan alone does not count as a completed pass.
+
+Reviewers write only their own evidence files. The lead owns all documentation edits and commits, so reviewers cannot race over shared facts or edit the decisions they are evaluating. Reviewer proposals are not automatically accepted.
+
 ## Check both directions
 
 1. **Docs to code**: verify named files, symbols, commands, options, formats, architecture relationships and workflow steps against their definitions and call sites. Check relative links and skill symlinks. Read enough surrounding code to establish the claim; a text match alone is insufficient.
@@ -24,6 +32,14 @@ For each discrepancy record the document location, implementation evidence, auth
 - **Verified factual drift**: obsolete path/command, incorrect description, broken link, or omission of already-decided behavior. Correct it in place during this run; no per-item confirmation is needed.
 - **Decision conflict**: implementation disagrees with a product/architecture decision, or a new policy would be needed. Leave the decision intact, report the conflict, and ask only for the unresolved decision. Continue independent factual corrections.
 - **Unverified claim**: depends on runtime observation, measurement, or an unavailable environment. Mark it unverified in the report; do not invent a replacement fact.
+
+## Integrate and finish coverage
+
+The lead checks each proposed correction against source and document authority, merges reports about the same fact, and cross-checks statements repeated across PRODUCT, ARCHITECTURE, AGENTS, README and skills. Resolve conflicting reviewer claims before editing. Apply verified factual corrections together so one document does not retain the opposite statement; leave actual decision conflicts for the user while continuing independent work.
+
+Maintain a document/section coverage table with separate docs-to-code and code-to-docs status. Reassign partial or untouched sections until the requested scope has been checked in both directions. Listing unchecked documents is an interim checkpoint, not permission to stop. Context limits require preserving progress and resuming. If subagents are unavailable, disclose that and perform the same review sequentially; an access/tool blocker must be reported as incomplete with the remaining scope.
+
+Report review coverage separately from correction status. A fully inspected decision conflict may remain unresolved, and a historical measurement may remain runtime-unverified; neither permits silently skipping static checks or claiming all drift is fixed. Exclude historical content from current-state reconciliation only under the authority rules above, with the reason recorded.
 
 ## Preserve evidence
 
@@ -38,4 +54,4 @@ Recheck every changed reference against its target, inspect the diff for altered
 
 Report in Korean: unresolved decisions and unchecked areas first, corrected files with evidence, then coverage and checks actually performed. Do not claim the whole repository is synchronized if any area remains unchecked. Use `.scratch/doc-check/<run>/` for detailed evidence; do not add a permanent duplicate drift ledger.
 
-Adapted from `~/code/malmoi/.claude/commands/doc-check.md`, inspected on 2026-10-25: bidirectional checks and separation of decisions from factual drift. doan's document authority, history preservation, language rules, and symlinks replace malmoi-specific conventions.
+Adapted from `~/code/malmoi/.claude/commands/doc-check.md`, inspected on 2026-10-25: parallel document owners, two passes per reviewer, and lead integration of repeated facts. doan adds explicit coverage completion and keeps factual fixes with the lead; its document authority, history preservation, language rules, and symlinks replace malmoi-specific conventions.
