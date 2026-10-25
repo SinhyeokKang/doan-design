@@ -3,8 +3,9 @@
 // comment writable; the open canvas changing offers "Continue on current
 // version"; a moved canvas is followed by its id, a duplicate id returns to the
 // Overview, scope and Escape survive saves, a no-width canvas hides "Location
-// unavailable", and a canvas moved while the app was closed is restored. Its
-// own temp repo, userData and HOME. Each scenario is reported on its own so one
+// unavailable", a blank in-canvas click with nothing selected asks nothing, a
+// root switch after a move is a normal Open, and a canvas moved while the app
+// was closed is restored. Its own temp repos, userData and HOME. Each scenario is reported on its own so one
 // failure does not hide the rest; any failure fails the module.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
@@ -40,7 +41,7 @@ const canvas = (id: string, title: string, options: { width?: number | null; oth
 
 const failures: string[] = [];
 try {
-  const userData = join(work, "userData"), home = join(work, "home"), cli = join(work, "doan"), shell = join(work, "shell"), repo = join(work, "proj");
+  const userData = join(work, "userData"), home = join(work, "home"), cli = join(work, "doan"), shell = join(work, "shell"), repo = join(work, "proj"), other = join(work, "other");
   const design = (path: string) => join(repo, "design", path);
   await mkdir(userData); await mkdir(home); await mkdir(shots, { recursive: true });
   await writeFile(join(userData, "onboarding.json"), "{}");
@@ -59,9 +60,15 @@ try {
   await writeFile(design(".stash/x2.html"), canvas("x", "X copy"));
   await writeFile(design("w.html"), canvas("w", "Wide canvas"));
   await writeFile(design("r.html"), canvas("r", "Restored canvas"));
+  await writeFile(design("sub/s.html"), canvas("s", "Switch canvas"));
+  // The other root's open canvas sits at the move's source path (R-B7fix 🟡1).
+  await mkdir(join(other, "design/sub"), { recursive: true }); await mkdir(join(other, ".doan"));
+  await writeFile(join(other, ".doan/config.json"), '{"v":1}');
+  await writeFile(join(other, "design/sub/s.html"), canvas("s-other", "Other switch canvas"));
   await exec("git", ["init", "-q", "-b", "main", repo]);
   await exec("git", ["-C", repo, "config", "user.name", "Continuity Author"]); await exec("git", ["-C", repo, "config", "user.email", "continuity@example.test"]);
-  await writeFile(join(userData, "folders.json"), JSON.stringify([repo]));
+  await exec("git", ["init", "-q", "-b", "main", other]);
+  await writeFile(join(userData, "folders.json"), JSON.stringify([repo, other]));
   const env = { ...process.env, HOME: home, TMPDIR: work, SHELL: shell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"), DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") };
 
   async function launch(): Promise<void> {
@@ -178,9 +185,10 @@ try {
     }
   }
 
-  // Records, per animation frame, whether a reload of the open canvas briefly
-  // shows an empty list, no pins or "Location unavailable" (T-11). Logged only:
-  // B8 owns the fix, and the gap lasts tens of milliseconds.
+  // Samples every animation frame across a reload of the open canvas (T-11): the
+  // list must never be empty and "Location unavailable" must never appear. Pins
+  // may drop for a frame or two by design (§7: they redraw after the new layout),
+  // so they and the iframe height are only logged.
   async function traceReload(label: string, change: () => Promise<void>): Promise<void> {
     await page.evaluate(() => {
       const sample = () => {
@@ -214,8 +222,10 @@ try {
         minIframeHeight: Math.min(...samples.map(sample => sample.iframeHeight ?? Infinity)),
       };
     });
-    const visible = result.emptyList + result.pinsDropped + result.unavailable > 0;
-    console.log(`revision-continuity T-11 ${label}: gap ${visible ? "VISIBLE" : "not seen"} ${JSON.stringify(result)}`);
+    console.log(`revision-continuity T-11 ${label}: ${JSON.stringify(result)}`);
+    assert.ok(result.baseline.cards > 0, `${label}: comments listed before the reload`);
+    assert.equal(result.emptyList, 0, `${label}: frames with an empty comment list`);
+    assert.equal(result.unavailable, 0, `${label}: frames with "Location unavailable"`);
   }
 
   await launch();
@@ -332,7 +342,7 @@ try {
     await saveNew(body);
   });
 
-  await scenario("t11-record-selection", async () => {
+  await scenario("t11-selection-reload", async () => {
     await openCanvas("a.html", "A canvas");
     await select("Child target", "child");
     if (await scopePressed("Selection") !== "true") await panel().getByRole("group", { name: "Comment scope" }).getByRole("button", { name: "Selection", exact: true }).click();
@@ -359,6 +369,24 @@ try {
     await escape();
     await holds(async () => await draftDialog().count() === 0, "Escape with no selection opens no dialog", 600);
     assert.equal(await createBody().inputValue(), body);
+    await recover();
+  });
+
+  await scenario("6b-blank-canvas-click-without-selection", async () => {
+    await openCanvas("a.html", "A canvas");
+    // The canvas's own background (html/body, outside any frame) is blank:
+    // with no draft it clears a selection, so the click below does reach the canvas.
+    const blank = () => frame().locator("body").click({ position: { x: 20, y: 20 }, timeout: 2_000 });
+    await select("Child target", "child");
+    await retry(blank, "blank click");
+    await wait(async () => await selected() === null, "a blank in-canvas click clears the selection");
+    await button("New canvas comment").click();
+    const body = "Blank click keeps me quietly";
+    await createBody().fill(body);
+    await retry(blank, "blank click with a draft");
+    await holds(async () => await draftDialog().count() === 0, "a blank in-canvas click with no selection opens no dialog", 600);
+    assert.equal(await createBody().inputValue(), body);
+    assert.equal(await selected(), null);
     await recover();
   });
 
@@ -417,6 +445,22 @@ try {
     });
     await shot("3-moved-activity");
     if (problems.length) throw new Error(problems.join("; "));
+  });
+
+  await scenario("3b-root-switch-after-move", async () => {
+    await openCanvas("s.html", "Switch canvas");
+    await page.getByRole("button", { name: "Collapse Switch canvas", exact: true }).click();
+    await wait(async () => await canvasRow(page, "s.html").getAttribute("aria-expanded") === "false", "open canvas row collapsed");
+    await rename(design("sub/s.html"), design("sub/s2.html"));
+    await wait(async () => await iframePath() === "design/sub/s2.html", "the renamed canvas is followed");
+    await holds(async () => await canvasRow(page, "s2.html").getAttribute("aria-expanded") === "false", "the moved row stays collapsed", 300);
+    await enterProject(page, other);
+    await canvasRow(page, "s.html").click();
+    await wait(async () => await page.locator("header .canvas").textContent() === "Other switch canvas", "the other root's canvas at the move source shown");
+    await enterProject(page, repo);
+    await wait(async () => await page.locator("header .canvas").textContent() === "Switch canvas" && await iframePath() === "design/sub/s2.html", "the remembered canvas restored");
+    await wait(async () => await canvasRow(page, "s2.html").getAttribute("aria-expanded") === "true", "a normal Open after the root switch expands the row");
+    await shot("3b-root-switch");
   });
 
   await scenario("4-move-duplicate-id", async () => {
