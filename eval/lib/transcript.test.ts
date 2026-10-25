@@ -86,3 +86,9 @@ test("Claude doan tool results use tool_use_id and skip echo and other MCP tools
     { name: "mcp__doan__active", callId: "b", scope: "call", excerpt: "MCP failed" },
   ]);
 });
+
+test("shell words keep quoted flag assignments together", () => {
+  assert.deepEqual(commandWords('doan --repo="/tmp/my repo" active --json'), [["doan", "--repo=/tmp/my repo", "active", "--json"]]);
+  assert.deepEqual(commandWords('doan -repo=\'active\' check'), [["doan", "-repo=active", "check"]]);
+  assert.deepEqual(commandWords('echo "doan active"'), [["echo", "doan active"]]);
+});
