@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi, type Mock } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { useComments } from "./useComments";
 import { initialCanvasState, type CanvasController, type CanvasState } from "./CanvasController";
@@ -6,6 +6,7 @@ import { createTransitionGuard, type TransitionRequest } from "../main/comments/
 import type { CommentRequest } from "../main/comments/service";
 import type { Comment } from "../formats/types";
 import type { AnchorSnapshot, CommentHooks } from "./commentAnchors";
+import { READ_FAILED_EDITOR } from "../comments/panelText";
 
 const harness = vi.hoisted(() => ({ effects: [] as (() => void | (() => void))[], deps: [] as (readonly unknown[] | undefined)[], states: [] as unknown[], setters: [] as ReturnType<typeof vi.fn>[], updates: [] as [number, unknown][], index: 0, refs: [] as { current: unknown }[], refIndex: 0 }));
 vi.mock("react", async original => ({
@@ -424,5 +425,83 @@ describe("comment locations (W-9, T-11)", () => {
     expect(show(snapshot("answered", [["c1", "n1"]], "n1"))).toContain("Mark the field");
     expect(show(snapshot("pending"))).toContain("Mark the field");
     expect(show(snapshot("none"))).not.toContain("Mark the field");
+  });
+});
+
+describe("the panel while comments change underneath (comments-readability task 4)", () => {
+  const note: Comment = { comment: "c1", body: "Mark the field", status: "open", target: {}, canvasHash: "hash", createdBy: { kind: "human", name: "A" }, createdAt: "t", updatedAt: "t" };
+  const agent: Comment = { ...note, comment: "c2", body: "From the agent", createdBy: { kind: "agent", name: "Claude Code" } };
+  const api = () => window.doan as unknown as Record<string, unknown>;
+  async function ready(comments: Comment[] = []) {
+    const f = setup(comments);
+    const rendered = f.render({ selection: null });
+    await vi.waitFor(() => { expect(rendered.session.author.status).toBe("ready"); expect(rendered.session.list).not.toBeNull(); });
+    return { ...f, session: rendered.session };
+  }
+
+  test.each([false, true])("an external comment keeps the composer's input and focus (IME composing: %s)", async composing => {
+    let invalidated: ((change: { root: string }) => void) | undefined;
+    const field = { focus: vi.fn(), setSelectionRange: vi.fn(), value: "" }, heading = { focus: vi.fn() };
+    harness.refs[0] = { current: field }; harness.refs[1] = { current: heading };
+    const f = setup();
+    api().onCommentsInvalidated = (callback: typeof invalidated) => { invalidated = callback; return () => {}; };
+    const { session } = f.render({ selection: null });
+    await vi.waitFor(() => { expect(session.author.status).toBe("ready"); expect(session.list).not.toBeNull(); });
+    await session.create("canvas"); f.render({ selection: null });
+    expect(field.focus).toHaveBeenCalledOnce();
+    if (composing) for (const [type, listener] of (window.addEventListener as Mock).mock.calls) if (type === "compositionstart") (listener as () => void)();
+    session.body("한글 입력");
+    api().commentsList = async (r: CommentRequest) => ({ ok: true, identity: r, value: { project: 1, comments: [agent], warnings: [], canvasHash: "hash" } });
+    invalidated?.({ root: "/repo" });
+    await vi.waitFor(() => expect(session.list?.comments).toEqual([agent]));
+    const { markup } = f.render({ selection: null });
+    expect(markup).toContain("From the agent");
+    expect(markup).toContain(">한글 입력</textarea>");
+    expect(session.draft.draft?.body).toBe("한글 입력");
+    expect(session.composing).toBe(composing);
+    expect(field.focus).toHaveBeenCalledOnce(); expect(heading.focus).not.toHaveBeenCalled();
+  });
+
+  test("while reads fail, an editing draft's Save is disabled and the read failure is one block", async () => {
+    const { session, render } = await ready([note]);
+    session.edit("c1"); session.body("Changed");
+    api().commentsList = async (r: CommentRequest) => ({ ok: false, identity: r, error: "Permission denied." });
+    await session.read();
+    const { markup } = render({ selection: null });
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Save changes<\/button>/);
+    expect(markup).toContain(READ_FAILED_EDITOR);
+    expect(markup).toContain("Couldn’t read comments");
+    expect(markup).not.toContain("Comments are read-only");
+  });
+
+  test.each([
+    ["duplicate", "Another canvas uses the ID a"],
+    ["invalid", "This canvas ID isn&#x27;t valid"],
+    ["missing", "This canvas has no ID"],
+  ] as const)("main's %s cause replaces loading, Git name, filters and tools with one block", async (cause, title) => {
+    const f = setup();
+    api().commentsList = async (r: CommentRequest) => ({ ok: false, identity: r, error: "Canvas identity refused.", cause });
+    const { session } = f.render({ selection: null });
+    await vi.waitFor(() => expect(session.identityCause).toBe(cause));
+    const { markup } = f.render({ selection: null });
+    expect(markup).toContain(`<b>${title}</b>`);
+    for (const text of ["Loading comments…", "Couldn’t read comments", "Comments are read-only", "Comment on canvas", "Copy all open", "Comment scope"]) expect(markup).not.toContain(text);
+  });
+
+  test("a row without a canvas id is the missing block", () => {
+    const f = setup();
+    const { id: _id, ...withoutId } = row;
+    const { markup } = f.render({ open: { folder: "/repo", canvas: row.path, row: withoutId }, selection: null });
+    expect(markup).toContain("<b>This canvas has no ID</b>");
+    for (const text of ["Loading comments…", "Comments are read-only", "Comment on canvas"]) expect(markup).not.toContain(text);
+  });
+
+  test("target lines use the rendered frames' titles", async () => {
+    const framed: Comment = { ...note, target: { frame: "shipping" } };
+    const { render } = await ready([framed]);
+    const shipping = { id: "shipping", title: "Shipping", x: 0, y: 0, width: 10, height: 10 };
+    expect(render({ selection: null, layout: { ...layout("one"), frames: [shipping] } }).markup).toContain("Frame · Shipping");
+    // Without a layout, the ls row's static frames name it.
+    expect(render({ selection: null, layout: null, open: { folder: "/repo", canvas: row.path, row: { ...row, frames: [{ id: "shipping", title: "Ship" }] } } }).markup).toContain("Frame · Ship");
   });
 });

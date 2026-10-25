@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 import type { Comment } from "../formats/types";
 import { foldText } from "../formats/foldText";
+import { READ_FAILED_EDITOR } from "../comments/panelText";
 import { CommentsPanel, DeleteCommentDialog, CommentCard, CommentEditor, UnsavedCommentDialog, UncertainCommentDialog, type CommentsPanelProps, type CommentEditorProps } from "./CommentsPanel";
 
 // Tests call the editor as a plain function to read its element tree, outside
@@ -12,7 +13,7 @@ vi.mock("react", async original => ({ ...await original<typeof import("react")>(
 const comment: Comment = { comment: "c1", status: "open", body: '<script>alert("x")</script>\n  Keep spaces ', target: { element: { doanId: "submit", selector: "button", html: "<button/>" } }, canvasHash: "h", createdBy: { kind: "human", name: "Alex Morgan", email: "alex@example.com" }, createdAt: "2026-10-23T01:42:00Z", updatedAt: "2026-10-23T01:42:00Z" };
 const noop = () => {};
 function panel(overrides: Partial<CommentsPanelProps> = {}): CommentsPanelProps {
-  return { filter: { scope: "canvas", status: "open" }, selectionAvailable: true, counts: { open: 1, resolved: 0 }, canvasOpenCount: 1, read: { status: "ready", comments: [comment], warnings: [] }, freshness: new Map(), missingLocations: new Set(), author: { status: "ready" }, writeBlocked: null, createBlocked: null, widthInvalid: false, busy: false, copies: new Map(), allCopy: { status: "idle" }, editor: null, onFilter: noop, onCreate: noop, onComment: noop, onCopy: noop, onRead: noop, onRetryAuthor: noop, ...overrides };
+  return { filter: { scope: "canvas", status: "open" }, selectionAvailable: true, counts: { open: 1, resolved: 0 }, canvasOpenCount: 1, read: { status: "ready", comments: [comment], warnings: [] }, freshness: new Map(), missingLocations: new Set(), author: { status: "ready" }, identityCause: null, canvasId: "checkout", frames: [], writeBlocked: null, createBlocked: null, widthInvalid: false, busy: false, copies: new Map(), allCopy: { status: "idle" }, editor: null, onFilter: noop, onCreate: noop, onComment: noop, onCopy: noop, onRead: noop, onRetryAuthor: noop, ...overrides };
 }
 function editor(overrides: Partial<CommentEditorProps> = {}): CommentEditorProps {
   return { mode: "create", target: comment.target, body: "Original body", state: { status: "idle" }, blocked: null, onBody: noop, onSave: noop, onCancel: noop, onKeepDraft: noop, onCheck: noop, onRetryOriginal: noop, onReadLatest: noop, ...overrides };
@@ -31,47 +32,85 @@ const html = (props: CommentsPanelProps) => renderToStaticMarkup(<CommentsPanel 
 describe("Comments presentation", () => {
   test("renders plain text, author identity, targets and independent location/freshness badges", () => {
     const out = html(panel({ freshness: new Map([["c1", "outdated"]]), missingLocations: new Set(["c1"]) }));
-    for (const text of ["Alex Morgan", "alex@example.com", ">AM<", "Element · submit", "Outdated", "Location unavailable", "&lt;script&gt;", "\n  Keep spaces "]) expect(out).toContain(text);
+    for (const text of ["Alex Morgan", "alex@example.com", ">AM<", "Element · button submit", "Outdated", "Location unavailable", "&lt;script&gt;", "\n  Keep spaces "]) expect(out).toContain(text);
     const unknown = html(panel({ missingLocations: null }));
     expect(unknown).not.toContain("Location unavailable");
-    expect(html(panel())).toContain(`<button type="button" class="comments-target">Element · submit</button>`);
+    expect(html(panel())).toContain(`<button type="button" class="comments-target locatable" title="Show on canvas\nbutton">Element · button submit</button>`);
     expect(out).not.toContain("<script>");
     expect(html(panel({ freshness: new Map([["c1", "unknown"]]) }))).toContain("Freshness unknown");
   });
   test("shows the target line as text with no locate action when no document is rendered", () => {
     // Draft no-document frame: --text-2 text, no Show on canvas action, title = selector.
     const unknown = html(panel({ missingLocations: null }));
-    expect(unknown).toContain(`<span class="comments-target" title="button">Element · submit</span>`);
+    expect(unknown).toContain(`<span class="comments-target" title="button">Element · button submit</span>`);
     expect(unknown).not.toMatch(/<button[^>]*comments-target/);
-    const frame = renderToStaticMarkup(<CommentCard comment={{ ...comment, target: { frame: "hero" } }} freshness="same" locationMissing={null} disabled={false} busy={false} copy={{ status: "idle" }} onComment={noop} onCopy={noop} />);
-    expect(frame).toContain(`<span class="comments-target">Frame · hero</span>`);
-    // A located document keeps the shipped button, disabled only where it cannot locate.
-    expect(html(panel({ missingLocations: new Set(["c1"]) }))).toContain(`<button type="button" class="comments-target" disabled="">Element · submit</button>`);
+    const frame = renderToStaticMarkup(<CommentCard comment={{ ...comment, target: { frame: "hero" } }} frames={[]} freshness="same" locationMissing={null} disabled={false} busy={false} copy={{ status: "idle" }} onComment={noop} onCopy={noop} />);
+    expect(frame).toContain(`<span class="comments-target" title="[data-doan-frame=&quot;hero&quot;]">Frame · hero</span>`);
+  });
+  test("an unlocatable target is a full-opacity span with the reason beside its badge, never a disabled button", () => {
+    // POSTMORTEM 2026-10-22 app-ui: the old disabled button took the global button:disabled opacity.
+    const missing = html(panel({ missingLocations: new Set(["c1"]) }));
+    expect(missing).toContain(`<span class="comments-target" title="button">Element · button submit</span>`);
+    expect(missing).not.toMatch(/<button[^>]*comments-target/);
+    expect(missing).toContain(`<span class="comments-badge warning">Location unavailable</span><span class="comments-badge-note">Not found in the current canvas.</span></div>`);
+    expect(html(panel())).not.toContain("Not found in the current canvas.");
+    const canvas = html(panel({ read: { status: "ready", comments: [{ ...comment, target: {} }], warnings: [] } }));
+    expect(canvas).toContain(`<span class="comments-target" title="Canvas">Canvas</span>`);
+  });
+  test("frame names come from the given frames, titles first", () => {
+    const framed = { ...comment, target: { frame: "hero", element: { selector: "[data-doan-frame=\"hero\"] > p", html: "<p class=x>Big  \n title</p>", text: "Big  \n title" } } };
+    const out = html(panel({ frames: [{ id: "hero", title: "Hero banner" }], read: { status: "ready", comments: [framed], warnings: [] } }));
+    expect(out).toContain(`title="Show on canvas\n[data-doan-frame=&quot;hero&quot;] &gt; p">Element · p “Big title” · in Hero banner</button>`);
   });
   test("renders all three target kinds without inferring from the list filter", () => {
-    for (const [target, label] of [[{}, "Canvas"], [{ frame: "hero" }, "Frame · hero"], [comment.target, "Element · submit"]] as const) {
-      expect(renderToStaticMarkup(<CommentEditor {...editor({ target })} />)).toContain(`To: ${label}`);
+    for (const [target, label] of [[{}, "Canvas"], [{ frame: "hero" }, "Frame · Hero"], [comment.target, "Element · button submit"]] as const) {
+      expect(renderToStaticMarkup(<CommentEditor {...editor({ target })} frames={[{ id: "hero", title: "Hero" }]} />)).toContain(`To: ${label}`);
     }
+    expect(renderToStaticMarkup(<CommentEditor {...editor()} frames={[]} />)).toContain(`<span class="comments-target" title="button">To: Element · button submit</span>`);
     const onFilter = vi.fn();
     const props = panel({ editor: editor(), onFilter });
     find(CommentsPanel(props), "Selection").onClick?.();
     expect(onFilter).toHaveBeenCalledWith({ scope: "selection", node: null, status: "open" });
-    expect(html({ ...props, filter: { scope: "selection", node: "n1", status: "resolved" } })).toContain("To: Element · submit");
+    expect(html({ ...props, filter: { scope: "selection", node: "n1", status: "resolved" } })).toContain("To: Element · button submit");
   });
   test("distinguishes loading, failed reads, empty results and fold warnings", () => {
     expect(html(panel({ read: { status: "loading" } }))).toContain("Loading comments…");
     const failed = html(panel({ read: { status: "failed", message: "Permission denied" } }));
     expect(failed).toContain("Couldn’t read comments");
     expect(failed).not.toContain("No open comments");
-    expect(html(panel({ read: { status: "ready", comments: [], warnings: [{ code: "unknown_version", line: 3 }] } }))).toContain("unknown_version · line 3");
-    expect(html(panel({ read: { status: "ready", comments: [], warnings: [] } }))).toContain("No open comments here");
+    expect(failed).not.toContain("Comments are read-only");
+    expect(html(panel({ read: { status: "ready", comments: [], warnings: [{ code: "unknown_version", line: 3 }] } }))).toContain("<li>This record was written by a newer version of Doan.<span class=\"lines\">Line 3</span></li>");
+    expect(html(panel({ read: { status: "ready", comments: [], warnings: [] } }))).toContain("<b>No open comments</b>Choose Comment on canvas, or select an element or frame.");
+  });
+  test("groups warnings by code with their lines and closes the block with one file line", () => {
+    const warnings = [{ code: "invalid_event", line: 9 }, { code: "agent_not_allowed", line: 12 }, { code: "invalid_event", line: 5 }] as const;
+    const out = html(panel({ read: { status: "ready", comments: [comment], warnings } }));
+    const block = /<div class="comments-message warning comments-warnings">.*?<\/div>/s.exec(out)?.[0] ?? "";
+    expect(block).toBe(`<div class="comments-message warning comments-warnings"><b>Some comment changes were ignored</b><ul>`
+      + `<li>A line could not be read and was skipped.<span class="lines">Lines 5, 9</span></li>`
+      + `<li>An agent tried to add or edit a comment. Agents can only resolve, so it was ignored.<span class="lines">Line 12</span></li></ul>`
+      + `<p class="file">In .doan/comments/checkout.jsonl. Ask your agent to run doan comments and fix the file.</p></div>`);
+    expect(out.split("Some comment changes were ignored")).toHaveLength(2);
+    expect(out.split(".doan/comments/")).toHaveLength(2);
+  });
+  test.each([
+    ["selection", "open", 0, "No open comments on this selection", "Comment on selection to add one."],
+    ["selection", "open", 1, "No open comments on this selection", "There is 1 open comment elsewhere on this canvas; Copy all open includes it."],
+    ["selection", "open", 4, "No open comments on this selection", "There are 4 open comments elsewhere on this canvas; Copy all open includes them."],
+    ["canvas", "open", 0, "No open comments", "Choose Comment on canvas, or select an element or frame."],
+    ["selection", "resolved", 0, "No resolved comments on this selection", "Resolved comments appear here."],
+    ["canvas", "resolved", 0, "No resolved comments", "Comments you or your agent resolve appear here."],
+  ] as const)("an empty %s %s list (%i elsewhere) reads its own title and body", (scope, status, elsewhere, title, body) => {
+    const filter = scope === "selection" ? { scope, node: "n1", status } : { scope, status };
+    const out = html(panel({ filter, counts: { open: 0, resolved: 0 }, canvasOpenCount: elsewhere, read: { status: "ready", comments: [], warnings: [] } }));
+    expect(out).toContain(`<div class="comments-message"><b>${title}</b>${body}</div>`);
   });
   test("width invalidity blocks only creation, retaining editing and copying", () => {
     const out = html(panel({ widthInvalid: true }));
     expect(out).toContain("Could not read a valid board width.");
     expect(out).toContain("Run doan check in a terminal");
-    expect(find(CommentsPanel(panel({ widthInvalid: true })), "New canvas comment").disabled).toBe(true);
-    expect(find(CommentCard({ comment, freshness: "same", locationMissing: true, disabled: false, busy: false, copy: { status: "idle" }, onComment: noop, onCopy: noop }), "Edit").disabled).toBe(false);
+    expect(find(CommentsPanel(panel({ widthInvalid: true })), "Comment on canvas").disabled).toBe(true);
+    expect(find(CommentCard({ comment, frames: [], freshness: "same", locationMissing: true, disabled: false, busy: false, copy: { status: "idle" }, onComment: noop, onCopy: noop }), "Edit").disabled).toBe(false);
     expect(find(CommentsPanel(panel({ widthInvalid: true })), "Copy all open").disabled).toBe(false);
   });
   test("all-open copy stays available on an empty resolved selection and sends the all intent", () => {
@@ -82,22 +121,23 @@ describe("Comments presentation", () => {
     button.onClick?.();
     expect(onCopy).toHaveBeenCalledWith({ kind: "all" });
   });
-  test("resolved card disables single copy and explains reopening", () => {
+  test("resolved card disables single copy without the reopen hint", () => {
     const out = html(panel({ read: { status: "ready", comments: [{ ...comment, status: "resolved" }], warnings: [] } }));
     expect(out).toMatch(/<button[^>]*disabled=""[^>]*>Copy<\/button>/);
-    expect(out).toContain("Reopen this comment before copying.");
+    expect(out).not.toContain("Reopen this comment before copying.");
     expect(out).toContain("Reopen</button>");
   });
   test("missing author blocks all mutations but keeps copy and retry available", () => {
     const out = html(panel({ author: { status: "missing" } }));
     expect(out).toContain("Set your Git name");
     expect(out).toContain("git user.name");
+    expect(out).toContain("<p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Copy remains available.</p>");
     for (const label of ["Edit", "Resolve", "Delete"]) expect(out).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*>${label}</button>`));
     expect(out).toMatch(/<button[^>]*>Copy<\/button>/);
   });
   test("card intents include the original id; copy feedback is visible", () => {
     const onComment = vi.fn(), onCopy = vi.fn();
-    const card = CommentCard({ comment, freshness: "same", locationMissing: true, disabled: false, busy: false, copy: { status: "copied" }, onComment, onCopy });
+    const card = CommentCard({ comment, frames: [], freshness: "same", locationMissing: true, disabled: false, busy: false, copy: { status: "copied" }, onComment, onCopy });
     find(card, "Edit").onClick?.();
     find(card, "Copied").onClick?.();
     expect(onComment).toHaveBeenCalledWith("edit", "c1");
@@ -110,43 +150,43 @@ describe("Draft recovery presentation", () => {
   test.each(["unknown", "checking", "check-failed", "retry-original"] as const)("%s keeps the original body read-only and prevents a fresh save", status => {
     const state = status === "check-failed" ? { status, message: "Read failed" } : { status };
     const props = editor({ state });
-    const out = renderToStaticMarkup(<CommentEditor {...props} />);
+    const out = renderToStaticMarkup(<CommentEditor {...props} frames={[]} />);
     expect(out).toMatch(/<textarea[^>]*readOnly=""/);
     expect(out).toContain("Original body");
-    if (status !== "retry-original") expect(find(CommentEditor(props), "Save comment").disabled).toBe(true);
-    else expect(find(CommentEditor(props), "Retry original save").disabled).toBe(false);
+    if (status !== "retry-original") expect(find(CommentEditor({ ...props, frames: [] }), "Save comment").disabled).toBe(true);
+    else expect(find(CommentEditor({ ...props, frames: [] }), "Retry original save").disabled).toBe(false);
     expect(out).toContain("Keep draft");
   });
   test("recovery blocking preserves immutable input and offers neither check nor save retry", () => {
     const props = editor({ state: { status: "recovery-blocked", message: "Wait until the pending writer has exited." } });
-    const out = renderToStaticMarkup(<CommentEditor {...props} />);
+    const out = renderToStaticMarkup(<CommentEditor {...props} frames={[]} />);
     expect(out).toContain("Wait until the pending writer has exited.");
     expect(out).toMatch(/<textarea[^>]*readOnly=""/);
-    expect(find(CommentEditor(props), "Save comment").disabled).toBe(true);
+    expect(find(CommentEditor({ ...props, frames: [] }), "Save comment").disabled).toBe(true);
     expect(out).not.toContain("Check saved status</button>");
     expect(out).not.toContain("Retry original save</button>");
     expect(out).toContain("Keep draft");
   });
   test("conflict preserves input and requires latest-state review before saving", () => {
     const props = editor({ mode: "edit", state: { status: "conflict" } });
-    expect(find(CommentEditor(props), "Save changes").disabled).toBe(true);
-    expect(renderToStaticMarkup(<CommentEditor {...props} />)).toContain("Original body");
+    expect(find(CommentEditor({ ...props, frames: [] }), "Save changes").disabled).toBe(true);
+    expect(renderToStaticMarkup(<CommentEditor {...props} frames={[]} />)).toContain("Original body");
     const reviewed = editor({ mode: "edit", state: { status: "reviewed", latest: comment } });
-    expect(find(CommentEditor(reviewed), "Save reviewed changes").disabled).toBe(false);
-    expect(renderToStaticMarkup(<CommentEditor {...reviewed} />)).toContain("Latest saved comment · Open");
+    expect(find(CommentEditor({ ...reviewed, frames: [] }), "Save reviewed changes").disabled).toBe(false);
+    expect(renderToStaticMarkup(<CommentEditor {...reviewed} frames={[]} />)).toContain("Latest saved comment · Open");
   });
   test("empty body, blocked target and saving disable submission; failed save keeps text", () => {
     for (const props of [editor({ body: " \n " }), editor({ blocked: "Original target unavailable" }), editor({ state: { status: "saving" } })]) {
-      const out = renderToStaticMarkup(<CommentEditor {...props} />);
+      const out = renderToStaticMarkup(<CommentEditor {...props} frames={[]} />);
       expect(out).toMatch(/<button[^>]*disabled=""[^>]*>(Save comment|Saving…)<\/button>/);
     }
-    expect(renderToStaticMarkup(<CommentEditor {...editor({ state: { status: "failed", message: "Write failed" } })} />)).toContain("Original body");
+    expect(renderToStaticMarkup(<CommentEditor {...editor({ state: { status: "failed", message: "Write failed" } })} frames={[]} />)).toContain("Original body");
   });
   // CommentsSession.guardSelection lets a blocked draft's same-canvas selection
   // change through without touching a pending transition; that holds because
   // the dialog is modal, so no canvas click, pin or blank click reaches the page.
   test("unsaved dialog opens modal", () => {
-    const dialog = UnsavedCommentDialog({ target: comment.target, context: "website / sign-in", canSave: false, busy: false, onContinue: noop, onDiscard: noop, onSave: noop, restoreEditorFocus: noop });
+    const dialog = UnsavedCommentDialog({ target: comment.target, frames: [], context: "website / sign-in", canSave: false, busy: false, onContinue: noop, onDiscard: noop, onSave: noop, restoreEditorFocus: noop });
     const node = { open: false, showModal: vi.fn(), show: vi.fn() };
     (dialog.props.ref as (node: unknown) => void)(node);
     expect(node.showModal).toHaveBeenCalledOnce();
@@ -154,7 +194,7 @@ describe("Draft recovery presentation", () => {
   });
   test("unsaved dialog Escape continues and restores editor focus, except during IME", () => {
     const onContinue = vi.fn(), restoreEditorFocus = vi.fn();
-    const dialog = UnsavedCommentDialog({ target: comment.target, context: "website / sign-in", canSave: true, busy: false, onContinue, onDiscard: noop, onSave: noop, restoreEditorFocus });
+    const dialog = UnsavedCommentDialog({ target: comment.target, frames: [], context: "website / sign-in", canSave: true, busy: false, onContinue, onDiscard: noop, onSave: noop, restoreEditorFocus });
     const key = { key: "Escape", nativeEvent: { isComposing: true, keyCode: 229 }, preventDefault: vi.fn(), stopPropagation: vi.fn() };
     dialog.props.onKeyDown(key);
     expect(onContinue).not.toHaveBeenCalled();
@@ -163,6 +203,10 @@ describe("Draft recovery presentation", () => {
     expect(restoreEditorFocus).toHaveBeenCalledOnce();
     expect(renderToStaticMarkup(dialog)).toContain("Save and continue");
   });
+  test("unsaved dialog shows the target on its own To: line, not inside the sentence", () => {
+    const out = renderToStaticMarkup(<UnsavedCommentDialog target={comment.target} frames={[]} context="website / sign-in" canSave busy={false} onContinue={noop} onDiscard={noop} onSave={noop} restoreEditorFocus={noop} />);
+    expect(out).toContain(`<p>Your unsaved comment belongs to website / sign-in. Save it before moving, discard it, or keep writing here.</p><p class="comments-target">To: Element · button submit</p>`);
+  });
 });
 
 // Reproduction source: independent R-U2 ReviewDate.test.tsx.
@@ -170,14 +214,14 @@ test("calendar-invalid v1 timestamps remain readable after folding", () => {
   const event = { v: 1, type: "create", id: "evt_00000000-0000-4000-8000-000000000001", comment: "cmt_00000000-0000-4000-8000-000000000001", at: "2026-10-23T00:00:60.000Z", by: { kind: "human", name: "A" }, body: "Visible note", target: {}, canvasHash: "sha256:" + "a".repeat(64) };
   const folded = foldText(JSON.stringify(event)); expect(folded.comments).toHaveLength(1);
   const accepted = folded.comments[0]; if (!accepted) throw new Error("Missing folded comment");
-  const out = renderToStaticMarkup(<CommentCard comment={accepted} freshness="unknown" locationMissing={false} disabled={false} busy={false} copy={{ status: "idle" }} onComment={noop} onCopy={noop} />);
+  const out = renderToStaticMarkup(<CommentCard comment={accepted} frames={[]} freshness="unknown" locationMissing={false} disabled={false} busy={false} copy={{ status: "idle" }} onComment={noop} onCopy={noop} />);
   expect(out).toContain("Visible note"); expect(out).toContain(event.at);
 });
 
 test("newer-version warning explains the record and preserves valid comments", () => {
   const out = html(panel({ read: { status: "ready", comments: [comment], warnings: [{ code: "unknown_version", line: 3 }] } }));
   expect(out).toContain("written by a newer version of Doan");
-  expect(out).toContain("unknown_version · line 3");
+  expect(out).toContain("Line 3");
   expect(out).toContain("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;\n  Keep spaces ");
 });
 
@@ -187,8 +231,7 @@ test("uncertain quit explicitly warns about memory loss and cancellation restore
   const dialog = UncertainCommentDialog({ kind: "quit", context: "repo / a", onStay, onQuit, restoreEditorFocus });
   const out = renderToStaticMarkup(dialog);
   expect(out).toContain("Save status could not be confirmed");
-  expect(out).toContain("memory-only draft will be lost");
-  expect(out).toContain("does not confirm that the comment was saved or that a directory child exited");
+  expect(out).toContain("<p>If you quit, this draft is lost. Quitting does not tell Doan whether the save finished, and restarting does not confirm it either. Check the comment after you reopen Doan.</p>");
   expect(find(dialog, "Stay").disabled).not.toBe(true);
   find(dialog, "Quit anyway").onClick?.(); expect(onQuit).toHaveBeenCalledOnce();
   const key = { key: "Escape", nativeEvent: { isComposing: true, keyCode: 229 }, preventDefault: vi.fn(), stopPropagation: vi.fn() };
@@ -209,7 +252,7 @@ test("begin error stays beside creation without disabling existing actions", () 
   expect(out).toContain("Cannot start comment");
   expect(out).not.toContain("Comments are read-only");
   expect(out).not.toContain("Couldn’t read comments");
-  expect(find(CommentsPanel(props), "New canvas comment").disabled).toBe(false);
+  expect(find(CommentsPanel(props), "Comment on canvas").disabled).toBe(false);
   expect(find(CommentsPanel(props), "Copy all open").disabled).toBe(false);
 });
 test("delete Escape is consumed without cancelling during IME", () => {
@@ -243,35 +286,35 @@ describe("continue a blocked new comment", () => {
   test("puts Continue on current version in the primary slot with the notice and preview under the tools", () => {
     const onContinue = vi.fn();
     const props = blocked({ onContinue });
-    const out = renderToStaticMarkup(<CommentEditor {...props} />);
+    const out = renderToStaticMarkup(<CommentEditor {...props} frames={[]} />);
     expect(out).not.toContain("Save comment");
     expect(out).toMatch(/Cancel<\/button><button[^>]*class="comments-btn primary"[^>]*>Continue on current version<\/button><\/div><p class="comments-helper" role="status">The canvas reloaded/);
-    expect(out).toContain(`<p class="comments-helper">Continues on Element · pay.</p>`);
+    expect(out).toContain(`<p class="comments-helper">Continues on Element · button pay.</p>`);
     expect(out).not.toContain("aria-describedby");
-    find(CommentEditor(props), "Continue on current version").onClick?.();
+    find(CommentEditor({ ...props, frames: [] }), "Continue on current version").onClick?.();
     expect(onContinue).toHaveBeenCalledOnce();
-    expect(renderToStaticMarkup(<CommentEditor {...blocked({ preview: {} })} />)).toContain("Continues on Canvas.");
+    expect(renderToStaticMarkup(<CommentEditor {...blocked({ preview: {} })} frames={[]} />)).toContain("Continues on Canvas.");
   });
   test("renders the continue button as its own element, never the Save node", () => {
-    const saveKey = keyed(CommentEditor(editor()), "Save comment");
-    const continueKey = keyed(CommentEditor(blocked()), "Continue on current version");
+    const saveKey = keyed(CommentEditor({ ...editor(), frames: [] }), "Save comment");
+    const continueKey = keyed(CommentEditor({ ...blocked(), frames: [] }), "Continue on current version");
     expect(continueKey).not.toBeNull(); expect(continueKey).not.toBe(saveKey);
   });
   test("shows Starting… disabled while the body stays editable", () => {
     const props = blocked({ enabled: false, starting: "current" });
-    expect(find(CommentEditor(props), "Starting…").disabled).toBe(true);
-    const out = renderToStaticMarkup(<CommentEditor {...props} />);
+    expect(find(CommentEditor({ ...props, frames: [] }), "Starting…").disabled).toBe(true);
+    const out = renderToStaticMarkup(<CommentEditor {...props} frames={[]} />);
     expect(out).not.toContain("readOnly"); expect(out).not.toContain("readonly");
-    expect(find(CommentEditor(props), "Cancel").disabled).toBe(false);
+    expect(find(CommentEditor({ ...props, frames: [] }), "Cancel").disabled).toBe(false);
   });
   test("a failure is an alert under the preview, and the button can retry", () => {
     const props = blocked({ error: "doan CLI error." });
-    const out = renderToStaticMarkup(<CommentEditor {...props} />);
-    expect(out).toContain(`Continues on Element · pay.</p><p class="comments-helper" role="alert">Couldn’t continue on the current version: doan CLI error. Your text is kept.</p>`);
-    expect(find(CommentEditor(props), "Continue on current version").disabled).toBe(false);
+    const out = renderToStaticMarkup(<CommentEditor {...props} frames={[]} />);
+    expect(out).toContain(`Continues on Element · button pay.</p><p class="comments-helper" role="alert">Couldn’t continue on the current version: doan CLI error. Your text is kept.</p>`);
+    expect(find(CommentEditor({ ...props, frames: [] }), "Continue on current version").disabled).toBe(false);
   });
   test("a disabled reason replaces the preview and describes the button", () => {
-    const out = renderToStaticMarkup(<CommentEditor {...blocked({ enabled: false, reason: "Waiting for the canvas to finish loading." })} />);
+    const out = renderToStaticMarkup(<CommentEditor {...blocked({ enabled: false, reason: "Waiting for the canvas to finish loading." })} frames={[]} />);
     expect(out).toMatch(/<button[^>]*disabled=""[^>]*aria-describedby="«r1»"|<button[^>]*aria-describedby="«r1»"[^>]*disabled=""/);
     expect(out).toContain(`<p class="comments-helper" id="«r1»">Waiting for the canvas to finish loading.</p>`);
     expect(out).not.toContain("Continues on");
@@ -280,11 +323,11 @@ describe("continue a blocked new comment", () => {
     const onCanvas = vi.fn();
     const gone = "Your selection is no longer in the canvas. Select an element or frame, or continue on the whole canvas.";
     const props = blocked({ enabled: false, reason: gone, canvas: { enabled: true }, onCanvas });
-    const out = renderToStaticMarkup(<CommentEditor {...props} />);
+    const out = renderToStaticMarkup(<CommentEditor {...props} frames={[]} />);
     expect(out).toMatch(/>Cancel<\/button><button type="button" class="comments-btn">Continue on canvas<\/button><button[^>]*primary[^>]*>Continue on current version</);
-    find(CommentEditor(props), "Continue on canvas").onClick?.();
+    find(CommentEditor({ ...props, frames: [] }), "Continue on canvas").onClick?.();
     expect(onCanvas).toHaveBeenCalledOnce();
-    expect(find(CommentEditor(blocked({ enabled: false, canvas: { enabled: false }, starting: "canvas" })), "Starting…").disabled).toBe(true);
+    expect(find(CommentEditor({ ...blocked({ enabled: false, canvas: { enabled: false }, starting: "canvas" }), frames: [] }), "Starting…").disabled).toBe(true);
   });
   test("the panel keeps the reload notice in the editor over panel-level reasons", () => {
     const out = html(panel({ widthInvalid: true, editor: blocked() }));
@@ -292,7 +335,38 @@ describe("continue a blocked new comment", () => {
   });
   test("an unavailable draft keeps the shipped editor with a disabled Save", () => {
     const props = editor({ blocked: "Original document or target is unavailable." });
-    expect(find(CommentEditor(props), "Save comment").disabled).toBe(true);
-    expect(renderToStaticMarkup(<CommentEditor {...props} />)).not.toContain("Continue");
+    expect(find(CommentEditor({ ...props, frames: [] }), "Save comment").disabled).toBe(true);
+    expect(renderToStaticMarkup(<CommentEditor {...props} frames={[]} />)).not.toContain("Continue");
+  });
+});
+
+describe("identity, read failure and head controls", () => {
+  test.each([
+    ["missing", "This canvas has no ID", "Ask your agent to add a unique doan:canvas ID. Run doan check in a terminal to see details."],
+    ["invalid", "This canvas ID isn't valid", "Ask your agent to add a unique doan:canvas ID. Run doan check in a terminal to see details."],
+    ["duplicate", "Another canvas uses the ID checkout", "Ask your agent to give one of them a different ID. Run doan check in a terminal to see details."],
+  ] as const)("the %s canvas ID cause shows only its block: no loading, Git name, filters or tools", (cause, title, body) => {
+    const out = html(panel({ identityCause: cause, read: { status: "loading" }, author: { status: "missing" }, writeBlocked: "A valid, unique canvas ID is required." }));
+    expect(out).toContain(`<div class="comments-message error" role="alert"><b>${title.replace("'", "&#x27;")}</b>${body}</div>`);
+    for (const text of ["Loading comments…", "Set your Git name", "Comment scope", "Comment status", "Copy all open", "Comment on canvas", "Comments are read-only"]) expect(out).not.toContain(text);
+    expect(out.match(/comments-message/g)).toHaveLength(1);
+  });
+  test("an identity block keeps an open editor blocked", () => {
+    const props = panel({ identityCause: "missing", writeBlocked: "A valid, unique canvas ID is required.", editor: editor({ mode: "edit" }) });
+    expect(find(CommentsPanel(props), "Save changes").disabled).toBe(true);
+    expect(html(props)).toContain("This canvas has no ID");
+  });
+  test("a read failure is one block and keeps an editing draft from saving", () => {
+    const props = panel({ read: { status: "failed", message: "Permission denied." }, editor: editor({ mode: "edit" }) });
+    const out = html(props);
+    expect(find(CommentsPanel(props), "Save changes").disabled).toBe(true);
+    expect(out).toContain(`<p class="comments-helper" role="status">${READ_FAILED_EDITOR}</p>`);
+    expect(out).not.toContain("Comments are read-only");
+    expect(out.match(/Couldn’t read comments/g)).toHaveLength(1);
+  });
+  test("names the create button by scope and explains a disabled Selection scope", () => {
+    expect(find(CommentsPanel(panel({ filter: { scope: "selection", node: "n1", status: "open" } })), "Comment on selection").disabled).toBe(false);
+    expect(html(panel({ selectionAvailable: false }))).toContain(`<button type="button" aria-pressed="false" disabled="" title="Select an element or frame in the canvas">Selection</button>`);
+    expect(html(panel())).not.toContain("Select an element or frame in the canvas");
   });
 });

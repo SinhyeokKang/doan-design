@@ -571,3 +571,18 @@ describe("a canvas moved with the same id", () => {
     expect(reopened.session.canFollow()).toBe(true);
   });
 });
+
+test("a refused canvas identity keeps main's cause beside the read error until a read succeeds or another canvas opens", async () => {
+  const { session: s, api } = fixture();
+  api.commentsList.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Canvas id is not unique.", cause: "duplicate" }));
+  await s.open(identity);
+  expect(s.identityCause).toBe("duplicate"); expect(s.readError).toBe("Canvas id is not unique."); expect(s.list).toBeNull();
+  await s.read();
+  expect(s.identityCause).toBeNull(); expect(s.list?.comments).toEqual([c]);
+  api.commentsList.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Canvas id is invalid.", cause: "invalid" }));
+  await s.read(); expect(s.identityCause).toBe("invalid");
+  await s.open({ ...identity, canvas: "b", path: "design/b.html" }); expect(s.identityCause).toBeNull();
+  // An ordinary failure has no cause.
+  api.commentsList.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Permission denied" }));
+  await s.read(); expect(s.readError).toBe("Permission denied"); expect(s.identityCause).toBeNull();
+});
