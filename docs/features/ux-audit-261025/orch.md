@@ -146,3 +146,5 @@
 - IR-C-fix red 0/yellow 0을 인수하고 C를 `589ab56`·`84c00f7`·`5876b08`·`4438232`로 통합했다. 통합 전체 검증은 후속 배치가 들어온 뒤 실행한다. reviewer를 release하고 clean child의 `git cherry`에 `+`가 없음을 확인한 뒤 Orca로 삭제했으며 목록에서 사라진 것을 확인했다. POSTMORTEM의 생성 오류 수명 및 Escape/renderer 소비 완료 재발 기록을 갱신했다.
 - O-fix `ctx_e98adc0f05b2`의 Astra medium effective·turn_start를 확인했다. 설치 순서 경합은 native red가 확인됐지만 checklist 포커스 유실은 첫 실제 실행에서 재현되지 않았다. 보류 요청과 실제 입력을 더 확인하고 재현되지 않으면 해당 제품 코드는 유지한다.
 - S의 신규 Retry 성공 뒤 포커스 유실을 지휘자가 추가 점검하도록 요청했고 실제 red→green을 받았다. O 리뷰에서 확인한 설치 오류의 최신 요청 소유권을 같은 Settings handler에도 재현·수정하도록 S에 맡겼다. 기존 순차 Retry PASS와 겹친 요청 검증을 구분한다.
+
+- IR-O-fix는 O-fix 인계 후 별도 작성자의 Codex gpt-6-astra medium으로 진행한다. 최신 설치 요청과 중첩 dialog의 실제 입력·실패 증거를 판정해야 하므로 이 모델을 선택했다. 전체 O diff와 후속 수정, red/green·미재현 근거를 읽고 root scratch review-O-fix.md만 작성한다. 추측한 포커스 결함을 고치도록 강제하지 않고 최종 근거로 판정한다.
