@@ -2,83 +2,141 @@
 
 ## 영향받는 구성 요소
 
-- **앱 renderer**: `CommentsPanel.tsx`(해결 메타, 재확인 영역, 성공 상태 줄, 해결 카드 편집), `useComments.tsx`·`CommentsSession.ts`(정렬, 확인 상태, 성공 처리, 포커스), `CanvasController.ts`(대상 위치로 이동, Activity 종류), `activity.ts`, `RightPanel.tsx`, `Home.tsx`·`homeCards.ts`·`ProjectOverview.tsx`(확인할 수), `App.tsx`(알림).
-- **앱 main**: 기기 로컬 확인 상태 저장소(Q2 결정). `ui-state.json`처럼 main이 검증하는 파일 하나를 더하거나 `ui-state.json`에 항목을 더한다. 캔버스 바이트 해시는 댓글 목록 응답의 기존 `canvasHash`를 쓴다.
-- **공유 형식과 CLI**: fold 출력에 선택적 `lastResolution {by, at, reopenedAt}`을 더한다(TS·Go, 공유 fold fixture, CLI `comments` 출력 ARCH §12). 댓글 이벤트 스키마와 `v`는 바뀌지 않는다.
-- **skills**: skill 본문에 "`lastResolution`이 있는 열린 댓글은 이전 해결이 받아들여지지 않은 것"을 한 줄 더한다. 이 경우 `/agent-eval` 실행 대상이다.
+- **공유 형식(fold)**: `app/src/formats/fold.ts`, `cli/internal/formats/fold.go`, `types.ts`, `types.go`, 공유 fixture `schema/fixtures/fold/`.
+- **CLI·MCP**: `doan comments`와 MCP `comments` 출력에 `lastResolution`이 저절로 붙는다(`read.go`의 `listedComment`가 `formats.Comment`를 포함한다). skill 본문 `cli/internal/cli/skill.md`에 한 줄을 더한다.
+- **앱 main**
+  - 확인 상태 저장소: 새 파일 `main/reviewState.ts`가 `<userData>/review-state.json`을 쓴다.
+  - 프로젝트 댓글 읽기 IPC(아래 3절). `project-feedback`이 이것을 확장한다.
+  - 메뉴: Go 메뉴의 Next/Previous Resolved Comment.
+  - `comments/service.ts`, `comments/events.ts`: `edit-reopen` intent와 이벤트 2개짜리 attempt.
+- **앱 renderer**
+  - `CommentsPanel.tsx`: 해결 메타, Review 바, 알림, 상태 줄, 해결 카드 편집, Canvas changed, Comment on selection instead
+  - `CommentsSession.ts`, `useComments.tsx`: 정렬, 확인 상태, 성공 처리, 포커스, 위치로 가기 표지
+  - `CanvasController.ts`: 위치로 가기, 비선택 이동
+  - `activity.ts`, `RightPanel.tsx`, `App.tsx`
+  - `Home.tsx`, `homeCards.ts`, `ProjectOverview.tsx`
 
 ## 동작
 
-### 1. 대상 위치로 가기 (L-1, L-20)
-- `CanvasController.locate(node)`: 앵커 스냅샷의 노드 사각형(board 좌표)으로 `fitFrame`과 같은 방식의 이동과 1.2초 강조를 한다. 그다음 기존 선택 경로(`select-comment` 또는 `selectPath`)로 선택한다. 이 동작은 핀 표시 여부에 의존하지 않는다. 기존 가드와 펜스(의도, 문서, 바인딩 리비전)를 유지한다.
-- 스냅샷에 화면 밖 노드의 사각형이 있는지 먼저 확인한다(`canvasScript` 앵커 응답). 없으면 앵커 질의에 사각형을 더한다. 내부 메시지만 바뀌고 저장 형식은 그대로다.
-- 이동으로 생긴 선택 변화는 범위 맞춤 효과를 일으키지 않는다(`revision-continuity`의 선택 정체성 규칙을 확장해, 목록에서 시작한 선택에는 범위를 바꾸지 않는다).
+### 1. 위치로 가기 (L-1, L-20)
+- `CanvasController.locate(node, comment)`는 앵커 스냅샷의 노드 사각형으로 이동하고 강조한 뒤, `select-anchor`(`selectPathNow`) 경로로 선택한다.
+  - 앵커 사각형은 프로토콜을 바꾸지 않아도 이미 있다. iframe 높이가 문서 전체이므로 `canvasScript.ts`가 매칭된 노드의 board 좌표 사각형을 보내고, `AnchorSnapshot.rects`에 해결된 댓글 것까지 있다.
+  - 이동은 `fitFrame`과 같이 배율을 바꾸지 않는다. 화면만 옮겨 사각형을 가운데에 둔다(`locateView`). 사각형이 뷰포트보다 크면 위쪽 가장자리에 맞춘다.
+- 이 경로는 핀 경로(`select-comment` → `hooks.open`)를 쓰지 않는다. 그래서 상태 필터가 Open으로 바뀌지 않는다. renderer는 "locate가 요청한 선택 정체성" 표지를 두고, 범위 맞춤 효과는 그 정체성과 같으면 건너뛴다. 이 표지는 `revision-continuity`의 `selectionIdentity` 규칙을 넓힌 예외이며, 결정 영향에 적는다.
+- Review 단계의 이동은 `jumpToNode(node)`다. 화면 이동과 강조만 하고 선택은 하지 않는다(RR3). 트리 프레임 점프와 같은 규칙이다.
 
-### 2. 해결 메타와 정렬 (L-7)
-- 카드: 해결 상태면 작성 줄 아래에 "Resolved by <name> · <relative>"를 둔다. 사람이면 Git 이름이다.
-- Resolved 목록: `resolvedAt` 역순으로 정렬한다. Open은 작성 순서를 유지한다.
-- 다시 열린 카드에 "Reopened · was resolved by codex 3 min ago"를 보인다.
+### 2. 해결 메타와 `lastResolution` (L-7, Q5, RR5①)
+- fold 규칙
+  - `reopen`: 해결 상태 댓글을 열면서 `lastResolution = {by: resolvedBy, at: resolvedAt, reopenedBy: event.by, reopenedAt: event.at}`을 둔다.
+  - 다음 `resolve`: `lastResolution`을 지운다.
+  - 이미 열린 댓글에 대한 `reopen`은 지금처럼 무시한다.
+  - `delete`는 지금처럼 댓글을 숨긴다.
+- Go는 포인터와 `omitempty`를 쓴다. ARCH §2 "optional keys omitted, never null"을 지킨다.
+- 바뀌는 기존 fixture의 `expected.json`(5개): basic-lifecycle, shuffled-lines, delete-followups, human-unicode-tied-lifecycle, reopen-idempotent. 새 fixture는 `fold/reopen-cycles`(해결·다시 열기 여러 회), `fold/lastresolution-tie`(같은 시각)다.
+- 카드
+  - 해결 상태: "Resolved by <name> · <relative>"
+  - 다시 열린 열린 댓글: "Reopened by <name> · <relative>"와 "Previously resolved by <name>"
+- Resolved 목록은 `resolvedAt` 역순이고, 같으면 comment id 순이다.
 
-### 3. 재확인 흐름 (N1, Q1·Q2)
-- 확인 기준은 기기 로컬에 둔다. 캔버스별 `lastCheckedAt`을 쓴다(Q2 결정). `resolvedAt > lastCheckedAt`인 해결 댓글이 "확인할 것"이다. 처음 열린 캔버스는 `lastCheckedAt`이 없으므로 그 캔버스의 해결 댓글 전체가 대상이다. 다만 앱이 처음 이 기능을 켤 때 기존 캔버스는 현재 시각으로 초기화해 과거 해결이 쏟아지지 않게 한다.
-- 알림: 열린 캔버스에서 확인할 것이 생기면 Comments 머리에 "3 resolved since you last checked · Review"를 띄운다. 숨김·재시작 뒤에도 같은 기준으로 계산하므로 다시 보인다.
-- Review(Q1 결정): 확인할 것을 해결 시각 순으로 하나씩 보인다. 단계마다 대상 위치로 가기(1번), 해당 카드 강조, [Reopen] [Next] [Previous] [Done]을 둔다. Reopen은 기존 reopen 이벤트를 쓴다. Done이나 마지막 Next는 `lastCheckedAt`을 그 시점까지의 최대 `resolvedAt`으로 올린다. 재확인 중의 Esc는 Review를 닫되 `lastCheckedAt`을 바꾸지 않는다.
-- 재확인 상태는 승인이 아니다. 저장소 파일에 기록하지 않고, 다른 사람이나 에이전트에게 보이지 않는다.
-- Home 행과 Overview 카드: 확인할 것이 있으면 "N to check"를 열린 수 옆에 둔다. 계산에는 main이 캔버스별 해결 시각 최대값이 필요하다. `ls`의 캔버스 행에는 해결 시각이 없으므로, 그 프로젝트의 댓글 파일을 읽어 계산한다(성능 측정 필요, tasks 1).
+### 3. 재확인 (N1, Q1, Q2, RR1–RR4)
+- **확인 상태 저장소**
+  - main 전용 파일 `review-state.json`: `{v:1, since, canvases: {"<root>\u0000<canvasId>": lastReviewedAt}}`.
+  - renderer는 IPC로 읽고, 올리는 동작만 요청한다. main은 값을 올리기만 하고 내리지 않는다.
+  - 처음 만들 때 `since`는 현재 시각이다. 처음 보는 (root, canvas id)의 기준은 `since`다. 기능을 처음 켤 때 과거 해결이 쏟아지지 않게 하기 위해서다.
+  - 프로젝트를 제거하면 그 root의 항목을 지운다.
+- **확인 대상 판정**: `toReview(comments, lastReviewedAt, self)`. 다음을 모두 만족하는 댓글이다.
+  - 상태가 `resolved`다.
+  - `resolvedAt > lastReviewedAt`이다.
+  - `resolvedBy`가 현재 Git 이름의 사람(`kind: human`, name 일치)이 아니다(RR2).
+- **프로젝트 댓글 읽기 IPC**: `comments:project(root)`. 새로 받은 `ls` 한 번의 캔버스 행 id들의 댓글 파일만 읽어 fold한다. 파일 집합을 다시 열거하지 않는다(ARCH §13). 결과는 캔버스 id별 열린 수, 확인 대상 수, 해결 목록 요약이다.
+  - 파일 하나가 실패하면 그 캔버스만 오류로 둔다.
+  - 무효화 신호가 오면 다시 읽고 요청 revision으로 늦은 응답을 버린다.
+  - Home·Overview는 이 결과로 "N resolved to review"를 보인다. `project-feedback`은 갈 곳 잃은 파일을 이 IPC에 더한다.
+- **Review 상태 기계**: `reviewState(fixed, cursor, extras)`. 동작은 `next | previous | reopen | done | close | arrived | changed`다.
+  - `fixed`는 시작할 때의 확인 대상 집합으로, 해결 시각 오름차순이다.
+  - 새로 도착한 해결은 `extras`로 끝에 붙는다.
+  - 마지막 review 시각 올리기
+    - Next: 지나간 단계의 `resolvedAt`
+    - Done: `fixed`의 최대 `resolvedAt`
+    - close(Esc, ×, 다른 캔버스로 이동): 지금까지 지나간 진행만 남긴다.
+  - 단계 표시: 다시 열림이나 삭제는 그 단계에 표시하고 건너뛰게 한다. 대상이 없으면 이동하지 않는다.
+- **UI**
+  - 알림과 Review 바는 Comments 머리 바로 아래에 둔다. 머리 아래 배너 순서는 오류·id 안내 → 재확인 → 넘기기다. 각 배너는 한 줄이고 넘치면 말줄임한다.
+  - Done 뒤 요약: "Reviewed N · Reopened M · Hand off…". Hand off…는 `agent-handoff` 대화상자를 열고, 다시 연 id들을 미리 체크하라고 넘긴다.
+- **메뉴**: Go 메뉴 "Next Resolved Comment ⌘]", "Previous Resolved Comment ⌘[". `menu:state`에 `reviewing`을 더한다. 텍스트 입력과 충돌하는 키는 쓰지 않는다.
 
-### 4. Activity와 Updated (L-7, T-10)
-- Activity 종류를 `opened | changed | reloaded | resolved`로 늘린다. `changed`는 리로드 전후 캔버스 해시가 다를 때다. `resolved`는 댓글 재읽기에서 open→resolved로 바뀐 수와 해결자를 묶는다.
-- 하단 라벨: 최신 항목이 `opened`면 "Opened HH:MM", `changed`면 "Changed HH:MM", 그 밖이면 지금처럼 "Updated HH:MM"이다. 날짜가 오늘이 아니면 날짜를 붙인다.
-- 이 변경은 PRODUCT §7 2026-10-22("Updated shows the open canvas's last successful load")를 바꾼다. 결정 로그에 기록한다.
+### 4. Activity와 하단 라벨 (L-7, T-10)
+- Activity 종류: `opened | changed | reloaded | moved | resolved`.
+  - `changed`: 리로드 전후의 캔버스 행 rev(`revision-continuity`)가 다르다.
+  - `resolved`: 댓글을 다시 읽었을 때 open에서 resolved로 바뀐 것을 묶는다(해결자 이름 목록).
+    - 첫 읽기와 `open()` 초기화는 기준선으로만 쓰고 기록하지 않는다.
+    - 사람의 Resolve도 넣는다.
+- Activity 키는 `revision-continuity`가 (root, canvas id)로 옮긴다.
+- 하단 라벨: `bottomLabel(latest, now)`.
+- 이 변경은 PRODUCT §7 2026-10-22 app-ui의 Updated/Activity 정의를 대체한다.
 
 ### 5. 사람의 Resolve·Reopen 성공 (L-9)
-- 카드 변경 성공은 `mutations`를 `idle`로 돌리고, 목록에서 사라진 자리에 4초 동안 상태 줄("Resolved · Undo" 없음, 단순 상태)을 둔다. `saved` 상태와 "No duplicate was added."는 상태 확인으로 확정된 경우에만 쓴다.
-- 포커스: 사라진 카드의 다음 카드 조작, 없으면 이전 카드, 둘 다 없으면 Comments 제목. 에이전트의 해결로 포커스된 카드가 사라질 때도 같다.
+- 카드 변경이 성공하면 `mutations`를 `idle`로 돌린다. `saved`와 "No duplicate was added."는 상태 확인으로 확정된 경우에만 쓴다.
+- 상태 줄 `{commentId, text}`는 4초 동안 남는다. 캔버스가 바뀌거나 문서가 교체되면 타이머를 정리한다.
+- 포커스: `nextFocus(cards, removedId)` → 다음 카드 article(`tabIndex=-1`), 이전 카드, Comments 제목 순서다. Resolve 버튼 자체로는 보내지 않는다. Enter를 두 번 눌러 다음 댓글까지 해결되는 일을 막기 위해서다.
 
 ### 6. 해결된 댓글 편집 (L-10, Q4)
-- 결정(Q4): 해결된 댓글의 편집기 기본 버튼은 "Save and reopen"이다. 보조 버튼 "Save only"를 둔다. 편집기 안내에 "Agents read open comments only."를 보인다. "Save and reopen"은 edit와 reopen 이벤트를 한 번의 쓰기(같은 파일 한 번의 append)로 기록한다. ARCH §2 "한 파일의 새 줄을 한 번의 write로"를 지킨다. 불변 요청과 재시도 규칙도 두 이벤트를 하나의 요청으로 다룬다.
+- 새 intent `{type: "edit-reopen", comment, body, expected}`.
+  - edit 이벤트를 준비한다.
+  - 그 줄을 더한 텍스트를 기준으로 reopen 이벤트를 `at + 1ms`로 이어서 준비한다.
+  - 두 줄을 한 번의 append로 쓴다(ARCH §2 쓰기 규칙).
+- `Attempt.events[]`로 일반화한다.
+  - 두 id가 모두 있으면 saved, 모두 없으면 absent, 하나만 있으면 unknown이다.
+  - 응답의 `event`는 첫 이벤트 id다.
+  - 같은 request ID로 재시도하면 같은 두 이벤트를 쓴다.
+- `project-feedback`의 `orphan` 요청 종류도 같은 검증 코드를 고친다. 그래서 이 작업이 먼저 들어간다.
 
-### 7. Outdated (L-14, Q3)
-- 결정(Q3): 이름을 "Canvas changed"로 바꾸고 title "The canvas changed after this comment was written."을 단다. 열린 카드에서는 중립색, 해결 카드에서는 표시하지 않는다. 계산은 지금처럼 작성 시 해시와 현재 바이트를 비교한다.
+### 7. Canvas changed (L-14, Q3)
+- 라벨 "Canvas changed", title "The canvas changed after this comment was written."이다. 열린 카드에서는 중립 배지로 보이고, 해결 카드에서는 렌더하지 않는다. "Freshness unknown"도 같은 규칙을 따른다.
 
 ### 8. 사라진 대상 (L-16, Q6)
-- 결정(Q6): Location unavailable 카드에 "Comment on selection instead"를 둔다. 현재 선택이 있으면 같은 본문으로 새 댓글 초안을 시작하고, 저장되면 원래 댓글을 삭제할지 확인한다(기존 삭제 확인을 재사용). 자동 재부착이 아니라 사람의 명시 동작이므로 Q2(재부착 없음)를 유지한다.
+- 열린 댓글이고 Location unavailable일 때만 보인다.
+- 현재 선택으로 같은 본문의 생성 초안을 시작한다. 기존 begin을 쓰고, 본문을 미리 채운다.
+- 저장에 성공하면 삭제 확인 대화상자를 연다(기존 Delete 대화상자를 변형). 실패하면 원본은 그대로다.
 
 ## 순수 함수로 떼어낼 부분 (`/tdd` 대상)
 
-- `toCheck(comments, lastCheckedAt)`, `advanceCheck(state, action)` — Review 단계 상태 기계(next/previous/reopen/done/esc).
-- `sortResolved(comments)`.
-- `activityKind(previousHash, nextHash, manual)`, `resolvedActivity(before, after)`.
+- fold `lastResolution`(TS·Go 공유 fixture).
+- `toReview`, `reviewState`.
+- `sortResolved`, `resolutionText`, `reopenText`.
+- `activityKind(prevRev, nextRev)`, `resolvedActivity(before, after)`.
 - `bottomLabel(latest, now)`.
-- `nextFocus(cards, removedId)`.
-- `resolutionText(comment, now)`.
-- `fold`의 `lastResolution`(TS·Go 공유 fixture).
-- 위치 이동 계산 `locateView(rect, viewport, view)`.
+- `nextFocus(cards, removedId)`, `locateView(rect, viewport, view)`.
+- `reviewSummary(result)`.
+- service `prepareEditReopen`, `inspectAttempt(events[])`.
 
 ## 형식 변경
 
-- 공유 이벤트 스키마: 없음.
-- fold 출력과 CLI `comments` 응답: 선택적 필드를 추가한다. 공유 fold fixture로 TS와 Go가 같은 결과를 내는지 확인한다.
-- 기기 로컬: 캔버스별 `lastCheckedAt`(Q2 결정).
+- 이벤트 스키마와 `v`는 바뀌지 않는다.
+- fold 출력과 CLI `comments` 응답에 선택적 `lastResolution`을 더한다. ARCH §2의 fold Output과 §12를 갱신한다.
+- 기기 로컬에 `review-state.json`(main 전용)을 더한다. ARCH §7에 기록한다.
+- 내부 IPC: `comments:project`, review 상태 읽기·올리기, `edit-reopen` intent, `menu:state.reviewing`.
 
 ## 컨벤션 영향
 
-- skill 규칙에 한 줄을 추가한다. `doan check` 규칙은 바뀌지 않는다.
+- skill 규칙에 한 줄을 더한다: "An open comment with `lastResolution` was resolved before and reopened by a human; your previous change was not accepted — read the body again before applying." `doan check` 규칙은 바뀌지 않는다.
 
 ## 결정 영향
 
-- 승인을 미룬 결정: 유지한다. 재확인 표시는 로컬이며 공유되지 않는다.
-- PRODUCT §7 2026-10-22 Updated/Activity 정의: 바꾼다(위 4번).
-- PRODUCT §5 항목 5 Q2(재부착 없음): 유지한다(위 8번은 사람의 명시 동작).
-- PRODUCT §5 항목 5 Q5(Outdated 계산): 계산은 유지하고 표시만 바꾼다(Q3 결정).
-- ARCH §2 쓰기 규칙: Save and reopen은 한 번의 append로 두 이벤트를 쓴다.
+- 승인을 미룬 결정은 유지한다. 마지막 review 시각은 로컬의 본 표시이고, 공유하지 않는다. PRODUCT §7에 다음 문장으로 기록한다: "lastReviewedAt is a device-local seen marker, not approval; not shared, invisible to agents".
+- PRODUCT §7 2026-10-22 Updated/Activity 정의는 대체한다(4절).
+- PRODUCT §5 항목 5 comments-ui Q2(재부착 없음)는 유지한다. 8절은 사람이 명시적으로 하는 동작이다.
+- PRODUCT §5 항목 5 comments-ui Q5(Outdated 계산)는 계산을 유지하고 표시만 바꾼다.
+- `revision-continuity`의 범위 맞춤 규칙은 확장한다. 목록에서 시작한 locate 선택은 예외로 둔다.
+- ARCH §2 쓰기 규칙: Save and reopen은 이벤트 2개를 한 번의 append로 쓴다.
+- design-nav 결정 9(이동은 선택하지 않음)를 Review 단계에도 적용한다.
 
 ## POSTMORTEM에서 가져온 함정
 
-- 2026-10-25 "Comment creation errors…": 작업 오류와 읽을 수 있는 데이터를 분리하고, 문서 수명에 묶는다.
-- 2026-10-25 "focus after disappearing action"(UX N 재발 항목): 사라지는 동작 뒤 포커스는 현재 유효한 위치로 복원한다.
+- 2026-10-25 "Comment creation errors hid readable comments and outlived their document": 작업 오류와 읽을 수 있는 데이터를 분리하고, 각각을 문서 수명에 묶는다.
 - 2026-10-25 "Navigation feedback read the previous React snapshot": 알림 계산은 동기 생산자가 쓴 상태를 콜백에 넘긴다.
+- ux-audit L-9와 ARCH "Anchors and pins"의 사라지는 핀 포커스 규칙: 사라지는 동작 뒤에는 현재 유효한 위치로 포커스를 돌린다.
 
-## PoC 의존
+## 측정 의존
 
-- 없음. Home·Overview의 "N to check" 계산 비용은 tasks 1에서 측정한다.
+- PoC 의존은 없다. Home·Overview 수 계산 비용은 tasks 1에서 잰다. 기준을 넘으면 대안은 `ls` 행에 확인 대상 수 계산에 필요한 최대 `resolvedAt`을 싣는 것이다. 이 대안은 사용자와 정한다.
