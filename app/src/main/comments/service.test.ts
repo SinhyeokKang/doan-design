@@ -268,3 +268,63 @@ test("invalid UTF-8 inside a new otherwise valid event is not proof of saved or 
   expect(await s.service.mutate("window", payload)).toMatchObject({ ok: true, value: { state: "unknown" } });
   expect(s.deps.append).toHaveBeenCalledTimes(calls);
 });
+
+const byteCases = [
+  { name: "truncated three-byte prefix", hex: "e282", body: "��" },
+  { name: "truncated four-byte prefix", hex: "f09f92", body: "���" },
+  { name: "short four-byte prefix", hex: "f09f", body: "��" },
+  { name: "interrupted continuation", hex: "e28241", body: "��A" },
+  { name: "stray continuation", hex: "80bf", body: "��" },
+  { name: "overlong two-byte", hex: "c0af", body: "��" },
+  { name: "overlong three-byte", hex: "e09fbf", body: "���" },
+  { name: "overlong four-byte", hex: "f08fbfbf", body: "����" },
+  { name: "surrogate", hex: "eda080", body: "���" },
+  { name: "above Unicode maximum", hex: "f4908080", body: "����" },
+  { name: "invalid lead", hex: "f5808080", body: "����" },
+  { name: "valid boundaries", hex: "c280dfbfe0a080ed9fbfee8080efbfbff0908080f48fbfbf", body: "\u0080\u07ff\u0800\ud7ff\ue000\uffff\u{10000}\u{10ffff}" },
+  { name: "valid Korean astral and BOM", hex: "ed959cf09f9880efbbbf", body: "한😀\uFEFF" },
+];
+function replaceBody(valid: Buffer, body: Buffer): Buffer {
+  const start = valid.indexOf("Hello 한글");
+  return Buffer.concat([valid.subarray(0, start), body, valid.subarray(start + Buffer.byteLength("Hello 한글"))]);
+}
+test.each(byteCases)("Go byte parity at list/copy/edit ingress: $name", async ({ hex, body }) => {
+  const s = setup(); await create(s);
+  const event = JSON.parse(s.bytes().toString());
+  const before = replaceBody(s.bytes(), Buffer.from(hex, "hex"));
+  s.set(before);
+  expect(await s.service.list("window", { ...identity, requestID: "read" })).toMatchObject({ ok: true, value: { comments: [{ body }], warnings: [] } });
+  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { kind: "one", comment: event.comment } })).toMatchObject({ ok: true });
+  expect(s.deps.clipboard).toHaveBeenCalledWith(expect.stringContaining(event.comment));
+  expect(await s.service.mutate("window", { ...identity, project: 1, requestID: "edit", intent: { type: "edit", comment: event.comment, body: "Edited", expected: { body, status: "open", updatedAt: event.at } } })).toMatchObject({ ok: true, value: { state: "saved" } });
+  expect(s.bytes().subarray(0, before.length)).toEqual(before);
+});
+
+test("raw truncated prefix conflicts with one literal replacement for an equal event ID", async () => {
+  const s = setup(); await create(s);
+  const valid = s.bytes();
+  const event = JSON.parse(valid.toString());
+  s.set(Buffer.concat([replaceBody(valid, Buffer.from([0xe2, 0x82])), replaceBody(valid, Buffer.from("�"))]));
+  expect(await s.service.list("window", { ...identity, requestID: "read" })).toMatchObject({ ok: true, value: { comments: [], warnings: [{ code: "conflicting_duplicate", line: 1 }, { code: "conflicting_duplicate", line: 2 }] } });
+  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { kind: "one", comment: event.comment } })).toMatchObject({ ok: false });
+  expect(s.deps.clipboard).not.toHaveBeenCalled();
+});
+
+test.each(["tail", "changed prefix"])("truncated multibyte %s never proves an uncertain append", async mode => {
+  const s = setup(); await create(s, "baseline");
+  const baseline = s.bytes();
+  const { payload } = await create(s, "pending");
+  const saved = s.bytes();
+  const malformed = replaceBody(baseline, Buffer.from([0xe2, 0x82]));
+  s.set(mode === "tail" ? Buffer.concat([saved, malformed]) : Buffer.concat([malformed, saved.subarray(baseline.length)]));
+  const calls = vi.mocked(s.deps.append).mock.calls.length;
+  expect(await s.service.status("window", { ...identity, requestID: payload.requestID })).toMatchObject({ ok: true, value: { state: "unknown" } });
+  expect(await s.service.mutate("window", payload)).toMatchObject({ ok: true, value: { state: "unknown" } });
+  expect(s.deps.append).toHaveBeenCalledTimes(calls);
+});
+
+test("one leading BOM preserves a valid multibyte body", async () => {
+  const s = setup(); await create(s);
+  s.set(Buffer.concat([Buffer.from("\uFEFF"), s.bytes()]));
+  expect(await s.service.list("window", { ...identity, requestID: "read" })).toMatchObject({ ok: true, value: { comments: [{ body: "Hello 한글" }], warnings: [] } });
+});
