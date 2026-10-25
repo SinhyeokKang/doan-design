@@ -250,9 +250,9 @@ func TestFindReportsDiskSpelling(t *testing.T) {
 	}
 }
 
-func TestFindKeepsPathWhenSpellingLookupFails(t *testing.T) {
+func TestFindUnicodeDiskSpelling(t *testing.T) {
 	parent := real(t, t.TempDir())
-	// "한" in NFD: APFS opens it by its NFC spelling, but no directory entry matches that spelling.
+	// APFS opens the NFD directory by its NFC spelling.
 	root := filepath.Join(parent, "한")
 	put(t, root, ".doan/config.json", `{"v":1}`)
 	nfc := filepath.Join(parent, "한")
@@ -262,7 +262,7 @@ func TestFindKeepsPathWhenSpellingLookupFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	r, err := Find(nfc, "")
-	if err != nil || r.Root != nfc {
+	if err != nil || r.Root != root {
 		t.Fatalf("%q %v", r.Root, err)
 	}
 }
