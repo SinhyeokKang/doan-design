@@ -142,7 +142,3 @@ export function mcpRemoveArgs(agent: Agent): string[] {
 export function initArgs(folder: string, tokenCss: string | null): string[] {
   return ["init", "--json", "--repo", folder, ...(tokenCss === null ? [] : ["--token-css", tokenCss])];
 }
-
-export function firstSentence(root: string): string {
-  return `Use the doan skill to make a design canvas in ${root} for <what you want to design>.`;
-}

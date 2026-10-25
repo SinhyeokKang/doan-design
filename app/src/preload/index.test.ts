@@ -135,8 +135,6 @@ test("onboarding uses fixed channels and ignores an initial open response after 
   await api.readOnboarding({ session: "new", requestId: "r" }); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:read", { session: "new", requestId: "r" });
   await api.closeOnboarding({ session: "new" }); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:close", { session: "new" });
   await api.copyPathLine(); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:copy", { kind: "pathLine" });
-  await api.copyFirstPrompt("/repo"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:copy", { kind: "firstPrompt", root: "/repo" });
-  await api.firstPrompt("/repo"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:first-prompt", { root: "/repo" });
 });
 
 test("project add, scan, remove, restore, locate and reveal use fixed channels", async () => {
@@ -255,9 +253,7 @@ test("thumbnail visibility uses its fixed channel in both directions", async () 
   ]);
 });
 
-test("first prompt sends the subject only when there is one", async () => {
-  await api.firstPrompt("/repo");
-  expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:first-prompt", { root: "/repo" });
+test("first prompt always sends the subject", async () => {
   await api.firstPrompt("/repo", "a sign-in screen");
   expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:first-prompt", { root: "/repo", subject: "a sign-in screen" });
   await api.copyFirstPrompt("/repo", "a sign-in screen");

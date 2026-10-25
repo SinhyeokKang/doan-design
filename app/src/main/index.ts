@@ -1,5 +1,5 @@
 import { createMachine, needsOnboarding, markClosed, PATH_LINE, type MachineState } from "./onboarding/machine";
-import { firstSentence, isTranslocated } from "./onboarding/states";
+import { isTranslocated } from "./onboarding/states";
 import { createCommentsService } from "./comments/service";
 import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
@@ -730,16 +730,12 @@ async function start(): Promise<void> {
   };
   handle("setup:copy-path-line", { kind: "stale" }, (_event, value: unknown) => value === undefined ? copy(PATH_LINE) : { kind: "stale" });
   // The sentence names only a stored, set-up project. `subject` is the one
-  // free text the renderer sends; promptSentence checks it. The `{root}` form
-  // is the placeholder sentence today's wizard and overview copy, until the
-  // FirstPrompt composer replaces them.
+  // free text the renderer sends; promptSentence checks it.
   const readyRoot = (value: unknown): string | null => typeof value === "string" &&
     ready.entries().some(entry => entry.path === value && entry.kind === "list") ? value : null;
   const promptText = (value: Record<string, unknown>, fixed: number): string | null => {
-    const keys = Object.keys(value).length - fixed;
     const root = readyRoot(value.root);
-    if (root === null || !(keys === 1 || (keys === 2 && "subject" in value))) return null;
-    if (keys === 1) return firstSentence(root);
+    if (root === null || Object.keys(value).length - fixed !== 2 || !("subject" in value)) return null;
     const text = typeof value.subject === "string" ? promptSentence(root, value.subject) : null;
     return typeof text === "string" ? text : null;
   };

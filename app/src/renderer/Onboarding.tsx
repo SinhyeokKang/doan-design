@@ -1,12 +1,17 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useContext, useEffect, useRef, useState } from "react";
+import type { OpenProjectResult } from "../main/index";
+import type { ScanSnapshot } from "../main/addProjects";
 import type { MachineState, StepRequest, StepResult } from "../main/onboarding/machine";
 import type { Agent } from "../main/onboarding/states";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
 import type { FolderEntry } from "../main/view";
 import {
-  advanceAfter, agentsView, cliItems, confirmView, copyFor, copyLabel, COPY_FAILED, footerView, idleUi, indicatorView, nextFocusIndex, projectStepView, promptParts, stepsDone, wizardBusy,
-  type ConfirmView, type CopyState, type FooterView, type IndicatorStep, type ItemView, type MachineUi, type Part, type Row, type RowOutcome,
+  advanceAfter, agentsView, cliItems, confirmView, copyFor, footerView, idleUi, indicatorView, nextFocusIndex, pickView, projectStepView, promptStepView, STEP_COPY, stepsDone, wizardBusy,
+  type ConfirmView, type FooterView, type IndicatorStep, type ItemView, type MachineUi, type Part, type Row, type RowOutcome,
 } from "./onboardingView";
+import { SetUpFolderConfirm } from "./AddProjectsDialog";
+import { FirstPrompt, FirstPromptContext } from "./FirstPrompt";
+import { PathTip } from "./Home";
 import { ProjectFields, useProjectSetup } from "./ProjectSetupDialog";
 
 export type Reroot = FolderFocus & { seq: number };
@@ -27,6 +32,7 @@ export function Item({ item, act, head = false }: { item: ItemView; act: (id: No
       <span className="ob-status">
         {item.chip && <span className={chipClass(item.chip.tone)}>{item.chip.text}</span>}
         {button && <button type="button" className={button.primary ? "btn primary" : "btn"} disabled={button.disabled} onClick={() => act(button.id)}>{button.label}</button>}
+        {item.link && <button type="button" className="btn" onClick={() => { if (item.link) void window.doan.openInstallPage(item.link.target).catch(console.error); }}>{item.link.label}</button>}
       </span>
       {item.copyLine && <span className="ob-copyline"><output>{item.copyLine.text}</output><button type="button" className="btn" disabled={item.copyLine.button.disabled} onClick={() => act("copyPath")}>{item.copyLine.button.label}</button></span>}
       {item.msg && <span className={`ob-msg ${item.msg.tone}`} role={item.msg.tone === "error" ? "alert" : undefined}><Parts parts={item.msg.parts} /></span>}
@@ -89,10 +95,12 @@ function outcomeOf(result: StepResult): RowOutcome | undefined {
   }
 }
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
-const nameOf = (path: string) => path.split("/").filter(Boolean).at(-1) ?? path;
+
+// A modal stacked over the wizard by step 3's Open Project….
+type Layer = { kind: "choose"; scanId: string } | { kind: "confirm"; confirmId: string; path: string; name: string };
 
 // The full-window "Set Up doan" wizard. Mounted once per main wizard session.
-export function Wizard({ session, entries, reroot, onClose }: { session: string; entries: FolderEntry[]; reroot: Reroot | null; onClose: () => void }) {
+export function Wizard({ session, entries, reroot, homeDirectory, onClose }: { session: string; entries: FolderEntry[]; reroot: Reroot | null; homeDirectory: string | null; onClose: () => void }) {
   const [step, setStep] = useState(0);
   const [machine, setMachine] = useState<MachineState | null>(null);
   const [ui, setUi] = useState<MachineUi>(() => ({ ...idleUi(), checking: true }));
@@ -101,13 +109,18 @@ export function Wizard({ session, entries, reroot, onClose }: { session: string;
   const [rerooted, setRerooted] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [projectBusy, setProjectBusy] = useState(false);
-  const [promptCopy, setPromptCopy] = useState<CopyState>("idle");
+  const [promptBusy, setPromptBusy] = useState(false);
   const [promptCopied, setPromptCopied] = useState(false);
+  const [layer, setLayer] = useState<Layer | null>(null);
+  const [refused, setRefused] = useState<string | null>(null);
+  // The roots stored when step 4's Add Project… was chosen; the first new one becomes the project.
+  const [addingFrom, setAddingFrom] = useState<ReadonlySet<string> | null>(null);
+  const wait = useContext(FirstPromptContext);
   const title = useRef<HTMLSpanElement>(null);
   const reads = useRef(0);
   const live = useRef(true);
-  // Set when a project was just opened or set up: move on once main lists it.
-  const [advance, setAdvance] = useState<"open" | "setup" | null>(null);
+  // Set when a project was just opened, set up or added from step 4: move on once main lists it.
+  const [advance, setAdvance] = useState<"open" | "setup" | "add" | null>(null);
   const entry = project === null ? undefined : entries.find(candidate => candidate.path === project);
 
   async function read() {
@@ -131,11 +144,19 @@ export function Wizard({ session, entries, reroot, onClose }: { session: string;
 
   useEffect(() => {
     if (!advance || !entry) return;
-    const next = advanceAfter(advance, entry.kind);
+    const next = advanceAfter(advance === "add" ? "open" : advance, entry.kind);
     if (next === "wait") return;
     setAdvance(null);
     if (next === "advance") setStep(3);
+    // Added from step 4 but not set up: the setup form is step 3's.
+    else if (advance === "add") setStep(2);
   }, [advance, entry?.kind, project]);
+  useEffect(() => {
+    const added = addingFrom && entries.find(candidate => !addingFrom.has(candidate.path));
+    if (!added) return;
+    setAddingFrom(null);
+    adopt(added.path, "add");
+  }, [entries, addingFrom]);
   useEffect(() => {
     if (reroot && project === reroot.from) { setProject(reroot.root); setRerooted(`This folder is inside ${reroot.root}, which is already set up.`); }
   }, [reroot?.seq]);
@@ -165,20 +186,41 @@ export function Wizard({ session, entries, reroot, onClose }: { session: string;
     if (copied) setUi(current => ({ ...current, pathCopy: copied }));
   }
 
-  const busy = wizardBusy({ running: ui.running, confirming: confirm !== null, projectBusy, closing, pathCopy: ui.pathCopy, promptCopy });
-  async function close() {
-    if (busy) return;
+  const busy = wizardBusy({ running: ui.running, confirming: confirm !== null, projectBusy, closing, pathCopy: ui.pathCopy, promptCopy: promptBusy ? "copying" : "idle" });
+  // True once the wizard closed.
+  async function close(): Promise<boolean> {
+    if (busy) return false;
     setClosing(true);
     let result: StepResult;
     try { result = await window.doan.closeOnboarding({ session }); } catch (error) { result = { kind: "error", message: errorText(error) }; }
-    if (!live.current) return;
+    if (!live.current) return false;
     setClosing(false);
     // A warning means onboarding.json was not saved; the wizard still closes for this run.
-    if (result.kind === "success" || result.kind === "stale") onClose();
+    if (result.kind !== "success" && result.kind !== "stale") return false;
+    onClose();
+    return true;
+  }
+  function adopt(root: string, cause: "open" | "add") { setAdvance(cause); setRerooted(null); setRefused(null); setProject(root); }
+  async function openProject() {
+    let result: OpenProjectResult;
+    try { result = await window.doan.openProject(); } catch { return; }
+    if (!live.current) return;
+    setRefused(null);
+    if (result.kind === "stored") adopt(result.root, "open");
+    else if (result.kind === "choose") setLayer({ kind: "choose", scanId: result.scanId });
+    else if (result.kind === "confirm") setLayer({ kind: "confirm", confirmId: result.confirmId, path: result.path, name: result.name });
+    else if (result.kind === "refused") setRefused(result.message);
+  }
+  function addProject() {
+    setAddingFrom(new Set(entries.map(candidate => candidate.path)));
+    void window.doan.addProjects().catch(console.error);
   }
 
   const closeLatest = useRef(close);
   closeLatest.current = close;
+  // A stacked modal (a confirmation, the pick-one list) answers its own keys.
+  const stacked = useRef(false);
+  stacked.current = confirm !== null || layer !== null;
   const overlay = useRef<HTMLDialogElement | null>(null);
   // On the window, in capture: a button that turns disabled while it runs drops
   // focus to <body>, and keys from there must still reach the wizard. Capture
@@ -187,6 +229,9 @@ export function Wizard({ session, entries, reroot, onClose }: { session: string;
     const keydown = (event: globalThis.KeyboardEvent) => {
       // A confirmation dialog answers its own keys.
       if (event.target instanceof Element && event.target.closest("dialog") !== null && event.target.closest("dialog") !== overlay.current) return;
+      // Focus fell out of a stacked modal (a button disabled itself while it
+      // runs): the key must not reach the wizard behind it.
+      if (stacked.current) { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); } return; }
       if (event.key === "Escape") {
         event.preventDefault(); event.stopPropagation();
         if (!event.isComposing) void closeLatest.current();
@@ -222,56 +267,97 @@ export function Wizard({ session, entries, reroot, onClose }: { session: string;
     </div>
     <StepIndicator steps={indicatorView(step, done, busy)} go={go} />
     <div className="ob-body native-scroll"><div className="ob-form">
+      <h2>{STEP_COPY[step]?.heading}</h2>
+      <p className="ob-lead"><Parts parts={STEP_COPY[step]?.lead ?? []} /></p>
       {step === 0 && <>
-        <h2>Install the doan command</h2>
-        <p className="ob-lead">Your terminal and your agents run doan through a link in <code>~/.local/bin</code>. The link points to the copy inside this app.</p>
         <div className="ob-card">{cliItems(machine, ui).map(item => <Item key={item.key} item={item} act={id => act(id, "cli")} />)}</div>
       </>}
       {step === 1 && <AgentsStep machine={machine} ui={ui} act={(id, row) => act(id, row)} />}
-      {step === 2 && <ProjectStep key={project ?? ""} project={project} entry={entry ?? null} rerooted={rerooted} setBusy={setProjectBusy}
-        open={async () => {
-          let root: string | null = null;
-          try { root = await window.doan.openFolder(); } catch { /* The sheet reports its own failures. */ }
-          if (!live.current || root === null) return;
-          setAdvance("open"); setRerooted(null); setProject(root);
-        }}
+      {step === 2 && <ProjectStep key={project ?? ""} project={project} entry={entry ?? null} rerooted={rerooted} refused={refused} setBusy={setProjectBusy} open={openProject}
         setUpDone={(result) => {
           if (result.kind === "success") setAdvance("setup");
           else if (result.kind === "rerooted") { setProject(result.root); setRerooted(result.message); }
         }} />}
-      {step === 3 && <PromptStep project={entry?.kind === "list" ? entry.path : null} copy={promptCopy} setCopy={setPromptCopy} copied={() => setPromptCopied(true)} />}
+      {step === 3 && <PromptStep entry={entry?.kind === "list" ? entry : null} busy={busy} setBusy={setPromptBusy} copied={() => setPromptCopied(true)} addProject={addProject}
+        openReady={async () => { if (await close()) wait.open(); }} />}
     </div></div>
     <WizardFooter view={footerView(step, !!done[step], busy, ui.checking)} checkAgain={checkAgain} skip={() => go(step + 1)} next={() => { if (step === 3) void close(); else go(step + 1); }} />
     {confirmed && <ConfirmDialog view={confirmed} answer={answer} />}
+    {layer?.kind === "choose" && <PickOneDialog key={layer.scanId} scanId={layer.scanId} homeDirectory={homeDirectory} close={() => setLayer(null)} chosen={root => { setLayer(null); adopt(root, "open"); }} />}
+    {layer?.kind === "confirm" && <SetUpFolderConfirm key={layer.confirmId} name={layer.name} path={layer.path} cancel={() => setLayer(null)}
+      confirm={async () => {
+        const result = await window.doan.confirmFolder(layer.confirmId);
+        const root = result.kind === "added" ? result.added[0] : undefined;
+        if (root === undefined) throw new Error("This confirmation is no longer available. Open the folder again.");
+        setLayer(null); adopt(root, "open");
+      }} />}
+  </dialog>;
+}
+
+// Step 3 picked a folder of repositories: choose exactly one, worktrees included.
+function PickOneDialog({ scanId, homeDirectory, close, chosen }: { scanId: string; homeDirectory: string | null; close: () => void; chosen: (root: string) => void }) {
+  const [snapshot, setSnapshot] = useState<ScanSnapshot | null>(null);
+  const [choice, setChoice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => window.doan.watchScan(scanId, setSnapshot), [scanId]);
+  const view = snapshot ? pickView(snapshot, homeDirectory) : null;
+  const picked = choice ?? view?.initial ?? null;
+  const cancel = () => { if (busy) return; void window.doan.cancelScan(scanId).catch(console.error); dialog.current?.close(); close(); };
+  async function submit() {
+    if (picked === null) return;
+    setBusy(true); setError("");
+    try {
+      const result = await window.doan.addCandidates(scanId, [picked]);
+      const root = result.kind === "added" ? result.added[0] : undefined;
+      if (root !== undefined) { dialog.current?.close(); chosen(root); return; }
+      setError("This list is no longer available. Open the folder again.");
+    } catch (failure) { setError(String(failure)); }
+    setBusy(false);
+  }
+  return <dialog className="add-dialog" aria-label={view?.title ?? "Choose a repository"} aria-busy={busy} ref={node => { dialog.current = node; if (node && !node.open) node.showModal(); }}
+    onCancel={event => { event.preventDefault(); cancel(); }} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); } }}>
+    <h3>{view?.title ?? "Choose a repository"}</h3>
+    <p className="lead"><Parts parts={view?.lead ?? []} /></p>
+    <div className="cl native-scroll" role="radiogroup" aria-label="Repositories">
+      {view?.rows.map(row => <div className={`cl-item${row.sub ? " sub" : ""}${row.disabled ? " off" : ""}`} key={row.id}>
+        <input type="radio" name={`pick-${scanId}`} aria-label={row.label} disabled={row.disabled || busy} checked={picked === row.id} onChange={() => setChoice(row.id)} />
+        <PathTip text={row.name}><span className="cl-name">{row.name}{row.sub && <span className="kind">worktree</span>}</span></PathTip>
+        {row.chip ? <span className={chipClass(row.chip.tone)}>{row.chip.text}</span> : <span />}
+        <PathTip text={row.path}><span className="cl-path">{row.path}</span></PathTip>
+      </div>)}
+    </div>
+    {error && <p role="alert" className="ob-msg error">{error}</p>}
+    <div className="add-foot">{snapshot && !snapshot.done && <span className="scan" role="status"><span className="spinner" />{snapshot.finished} of {snapshot.total} checked</span>}<span className="spacer" />
+      <button type="button" className="btn" autoFocus disabled={busy} onClick={cancel}>Cancel</button>
+      <button type="button" className="btn primary" disabled={picked === null || busy} onClick={() => void submit()}>Choose</button></div>
   </dialog>;
 }
 
 function AgentsStep({ machine, ui, act }: { machine: MachineState | null; ui: MachineUi; act: (id: NonNullable<ItemView["button"]>["id"], row: Agent) => void }) {
   const view = agentsView(machine, ui);
   return <>
-    <h2>Connect your agents</h2>
-    <p className="ob-lead">Connect installs the doan skill and registers the doan MCP server for that agent. Nothing changes until you choose Connect.</p>
     <div className="ob-card"><Item item={view.skill} act={() => {}} /></div>
     {view.agents.map(card => <div className="ob-card" key={card.agent}>
       <Item item={card.head} head act={id => act(id, card.agent)} />
       {card.items.map(item => <Item key={item.key} item={item} act={id => act(id, card.agent)} />)}
     </div>)}
+    {view.notice && <p className="cn-note" role="status">{view.notice}</p>}
   </>;
 }
 
-function ProjectStep({ project, entry, rerooted, setBusy, open, setUpDone }: {
-  project: string | null; entry: FolderEntry | null; rerooted: string | null; setBusy: (busy: boolean) => void;
+function ProjectStep({ project, entry, rerooted, refused, setBusy, open, setUpDone }: {
+  project: string | null; entry: FolderEntry | null; rerooted: string | null; refused: string | null; setBusy: (busy: boolean) => void;
   open: () => Promise<void>; setUpDone: (result: ProjectInitResult) => void;
 }) {
   const setup = useProjectSetup(project ?? "");
   const [opening, setOpening] = useState(false);
   const running = setup.form.running || opening;
   useEffect(() => { setBusy(running); return () => setBusy(false); }, [running]);
-  const view = projectStepView(entry ?? (project ? { path: project, kind: "loading" } : null), { ...setup.form, running, rerooted });
+  const view = projectStepView(entry ?? (project ? { path: project, kind: "loading" } : null), { ...setup.form, running, rerooted, refused });
   const openProject = async () => { setOpening(true); try { await open(); } finally { setOpening(false); } };
   return <>
-    <h2>Set up a project</h2>
-    <p className="ob-lead">Choose a repository. doan adds <code>design/</code> for canvases and <code>.doan/</code> for its settings.</p>
     <div className="ob-card">
       <div className="ob-field">
         <span className="ob-label">Project</span>
@@ -290,37 +376,20 @@ function ProjectStep({ project, entry, rerooted, setBusy, open, setUpDone }: {
   </>;
 }
 
-// The copy state lives in the Wizard so a pending copy keeps the wizard busy.
-function PromptStep({ project, copy, setCopy, copied }: { project: string | null; copy: CopyState; setCopy: (copy: CopyState) => void; copied: () => void }) {
-  // undefined while main is asked; null when it has no sentence for this project.
-  const [sentence, setSentence] = useState<string | null | undefined>(undefined);
-  // The project a pending copy belongs to; null once this step unmounts.
-  const target = useRef<string | null>(null);
-  useEffect(() => {
-    let live = true;
-    target.current = project;
-    setSentence(undefined); setCopy("idle");
-    if (project) void window.doan.firstPrompt(project).then(text => { if (live) setSentence(text); }, () => { if (live) setSentence(null); });
-    return () => { live = false; target.current = null; };
-  }, [project]);
-  async function copyPrompt() {
-    if (!project) return;
-    setCopy("copying");
-    const result = await copyFor(project, () => target.current, () => window.doan.copyFirstPrompt(project));
-    if (result === null) return;
-    setCopy(result);
-    if (result === "copied") copied();
+// Step 4: the shared first prompt, Add Project… without a project, and
+// Canvas ready once the waited-for canvas arrived in this project.
+function PromptStep({ entry, busy, setBusy, copied, addProject, openReady }: {
+  entry: Extract<FolderEntry, { kind: "list" }> | null; busy: boolean; setBusy: (busy: boolean) => void; copied: () => void; addProject: () => void; openReady: () => Promise<void>;
+}) {
+  const wait = useContext(FirstPromptContext);
+  const arrived = entry && wait.state.kind === "arrived" && wait.state.root === entry.path ? wait.state.path : null;
+  const view = promptStepView(entry?.path ?? null, entry?.canvases.find(row => row.path === arrived) ?? null, busy);
+  if (view.addProject) {
+    const add = view.addProject;
+    return <div className="ob-card"><div className="ob-prompt"><div className="fp-none"><p><Parts parts={add.text} /></p>
+      <button type="button" className="btn primary" disabled={add.disabled} onClick={addProject}>{add.label}</button></div></div></div>;
   }
-  return <>
-    <h2>Send your first prompt</h2>
-    <p className="ob-lead">Paste this into a new Claude Code or Codex session to make the first canvas{project ? ` in ${nameOf(project)}` : ""}.</p>
-    <div className="ob-card"><div className="ob-prompt">
-      {project === null || sentence === null ? <p className="ob-reason">Open a project first.</p> : sentence !== undefined && <>
-        <p className="ob-sentence">{promptParts(sentence).map((part, index) => part.mark ? <mark key={index}>{part.text}</mark> : <Fragment key={index}>{part.text}</Fragment>)}</p>
-        {copy === "failed" && <p className="ob-msg error" role="alert">{COPY_FAILED}</p>}
-        <div className="ob-actions"><span className="ob-helper">Replace &lt;what you want to design&gt; before sending.</span>
-          <button type="button" className="btn primary" disabled={copy === "copying"} onClick={() => void copyPrompt()}>{copyLabel(copy)}</button></div>
-      </>}
-    </div></div>
-  </>;
+  const ready = view.ready && <div className="fp-ready" role="status"><span className="dot" aria-hidden="true" /><span className="msg">{view.ready.text}</span>
+    <button type="button" className="btn primary" disabled={view.ready.open.disabled} onClick={() => void openReady()}>{view.ready.open.label}</button></div>;
+  return <div className="ob-card"><FirstPrompt key={entry?.path} root={entry?.path ?? ""} ready={ready || undefined} onBusy={setBusy} onCopied={copied} /></div>;
 }

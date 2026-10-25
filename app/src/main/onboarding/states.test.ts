@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { linkState, stubState, mcpState, parseShellProbe, findOnPath, pathIncludes, rcFileFor, isTranslocated, mcpAddArgs, mcpRemoveArgs, initArgs, firstSentence } from "./states";
+import { linkState, stubState, mcpState, parseShellProbe, findOnPath, pathIncludes, rcFileFor, isTranslocated, mcpAddArgs, mcpRemoveArgs, initArgs } from "./states";
 import type { CliRun } from "../folderState";
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
@@ -130,5 +130,4 @@ test("builds argv without shell interpolation and keeps Claude user scope", () =
   expect(mcpRemoveArgs("codex")).toEqual(["mcp", "remove", "doan"]);
   expect(initArgs("/tmp/project", null)).toEqual(["init", "--json", "--repo", "/tmp/project"]);
   expect(initArgs("/tmp/project", "/tmp/project/a b.css")).toEqual(["init", "--json", "--repo", "/tmp/project", "--token-css", "/tmp/project/a b.css"]);
-  expect(firstSentence("/tmp/my project")).toBe("Use the doan skill to make a design canvas in /tmp/my project for <what you want to design>.");
 });

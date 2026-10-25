@@ -10,7 +10,6 @@ import { _electron, type ElectronApplication, type Locator, type Page } from "pl
 const { canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 
-const { hoverTooltip }: typeof import("./tooltip") = await import(new URL("./tooltip.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { appWindow, appWindowCount }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 
@@ -117,6 +116,17 @@ async function clipboardGate() {
 async function releaseCopy(fail: boolean) { await wait(() => app.evaluate(() => typeof Reflect.get(globalThis, "obClipboard").release === "function"), "clipboard pending"); await app.evaluate(async ({ clipboard }, fail) => { const gate = Reflect.get(globalThis, "obClipboard"); if (await clipboard.readText() !== gate.previous) throw new Error("clipboard changed before settlement"); const release = gate.release; gate.release = null; await release(fail); gate.previous = await clipboard.readText(); }, fail); }
 async function restoreCopy() { await app.evaluate(({ clipboard }) => { clipboard.writeText = Reflect.get(globalThis, "obClipboard").original; }); }
 async function focusIs(locator: Locator) { return locator.evaluate(node => node === document.activeElement); }
+const subject = (scope: Locator) => scope.getByRole("textbox", { name: "What do you want to design?", exact: true });
+const waiting = (scope: Locator) => scope.getByRole("status").filter({ hasText: "Waiting for a canvas in design/…" });
+const overview = () => page.getByRole("region", { name: "Overview", exact: true });
+const openCanvas = () => page.locator(".crumbs .canvas");
+const canvasHtml = (title: string) => `<!doctype html><title>${title}</title><meta name="doan:canvas" content="${title.toLowerCase()}"><meta name="doan:width" content="800"><style>button{margin:50px;padding:30px}</style><button data-doan-id="target">Target</button>`;
+// The renderer saw `root` listed with `path` (main publishes after its own read).
+async function listed(root: string, path: string) {
+  await wait(() => page.evaluate(([root, path]) => new Promise<boolean>(resolve => { const stop = window.doan.onFolders(entries => { stop(); resolve(entries.some(e => e.path === root && e.kind === "list" && e.canvases.some(row => row.path === path))); }); }), [root, path] as const), `${root} lists ${path}`);
+}
+async function setUpRepo(name: string) { const path = await newRepo(name); await init(path); return path; }
+async function copyWaiting(scope: Locator, text: string) { await subject(scope).fill(text); await scope.getByRole("button", { name: "Copy", exact: true }).click(); await waiting(scope).waitFor(); }
 
 try {
   await Promise.all([mkdir(home, { recursive: true }), mkdir(data), mkdir(bin), mkdir(shots, { recursive: true }), mkdir(claudeConfig, { recursive: true }), mkdir(codexConfig, { recursive: true })]);
@@ -149,6 +159,8 @@ else if (args[1] === 'add') {
   await page.keyboard.press("Shift+Tab"); assert.equal(await focusIs(button("Continue")), true);
   await page.keyboard.press("Tab"); assert.equal(await focusIs(button(/^Close/)), true);
   await go("First prompt");
+  assert.equal(await wizard().locator(".fp-none p").textContent(), "Add a project first. Your first canvas goes in its design/ folder.");
+  await button("Add Project…").waitFor(); assert.equal(await subject(wizard()).count(), 0);
   assert.equal(await stepButton("Agents").getAttribute("aria-label"), null);
   assert.equal(await stepButton("Project").getAttribute("aria-label"), null);
   await go("CLI"); await button("Skip").click();
@@ -191,6 +203,11 @@ else if (args[1] === 'add') {
   console.log("onboarding: 3 agent detection, partial setup and MCP states");
   await shellMode("missing"); await go("Agents"); await check();
   for (const agent of ["claude", "codex"] as const) assert.equal(await card(agent).getByText("Not installed", { exact: true }).count(), 1); assert.equal(await wizard().getByRole("button", { name: "Connect", exact: true }).count(), 0);
+  await wizard().getByRole("status").filter({ hasText: "doan works through Claude Code or Codex. Install one, then choose Check Again." }).waitFor();
+  await app.evaluate(({ shell }) => { const opened: string[] = []; Reflect.set(globalThis, "obOpened", opened); shell.openExternal = async url => { opened.push(url); }; });
+  await button("Install Claude Code ↗").click(); await button("Install Codex ↗").click();
+  await wait(async () => (await app.evaluate(() => Reflect.get(globalThis, "obOpened").length)) === 2, "install pages opened");
+  assert.deepEqual(await app.evaluate(() => Reflect.get(globalThis, "obOpened")), ["https://code.claude.com/docs/en/setup", "https://learn.chatgpt.com/docs/codex/cli"]);
   await shellMode("timeout"); await check(); await wizard().getByText(/didn’t answer in time/).first().waitFor();
   for (const agent of ["claude", "codex"] as const) {
     await card(agent).getByText("Couldn’t check", { exact: true }).waitFor();
@@ -265,7 +282,9 @@ else if (args[1] === 'add') {
 
   console.log("onboarding: 4 project init, pending copy and first prompt");
   const project = await newRepo('company-monorepo/packages/applications/marketing-web-frontend/project <tag> & "quote"'); const token = join(project, "Tokens.css"); await writeFile(token, ":root { --brand: red; }");
-  await go("Project"); await pick(project); await button("Open Project…").click(); await button("Set Up Project").waitFor();
+  // Step 4's Add Project… runs Home's add flow; a repository that is not set up goes back to step 3's form.
+  await go("First prompt"); await pick(project); await button("Add Project…").click(); await button("Set Up Project").waitFor();
+  assert.equal(await stepButton("Project").getAttribute("aria-current"), "step");
   await assertProjectPath(wizard().locator(".ob-field .meta"), button("Open Project…"), project, "wizard");
   const projectValue = wizard().locator(".ob-field .value").first();
   assert.deepEqual(await projectValue.evaluate(node => ({ display: getComputedStyle(node).display, gap: getComputedStyle(node).gap, pathDisplay: getComputedStyle(node.querySelector(".meta")!).display })), { display: "block", gap: "normal", pathDisplay: "inline-block" }, "project values retain inline text flow rather than inheriting Inspector flex layout");
@@ -288,28 +307,44 @@ else if (args[1] === 'add') {
   await wait(() => app.evaluate(() => !!Reflect.get(globalThis, "obInitResult")), "init result");
   await wait(async () => await page.evaluate(root => new Promise<boolean>(resolve => { const stop = window.doan.onFolders(entries => { stop(); resolve(entries.some(e => e.path === root && e.kind === "list")); }); }), project), "watcher listed init");
   await app.evaluate(({ ipcMain }) => { Reflect.get(globalThis, "obInitReply")(); ipcMain.removeHandler("project:init"); ipcMain.handle("project:init", Reflect.get(globalThis, "obInitOriginal")); });
-  await wizard().getByRole("heading", { name: "Send your first prompt" }).waitFor();
+  await wizard().getByRole("heading", { name: "Ask for your first canvas" }).waitFor();
   const config = JSON.parse(await readFile(join(project, ".doan/config.json"), "utf8")); assert.equal(config.tokenCss, "Tokens.css");
-  const sentence = `Use the doan skill to make a design canvas in ${project} for <what you want to design>.`;
-  assert.equal(await wizard().locator(".ob-sentence").textContent(), sentence); assert.equal(await wizard().locator("tag").count(), 0);
+  const sentenceFor = (text: string) => `Use the doan skill to make a design canvas in ${project} for ${text}.`;
+  // Empty: the subject slot shows an ellipsis and Copy waits for input.
+  assert.equal(await wizard().locator(".ob-sentence").textContent(), sentenceFor("…")); assert.equal(await button("Copy").isDisabled(), true);
+  await subject(wizard()).fill("x".repeat(501));
+  await wizard().getByRole("alert").filter({ hasText: "Use one line of plain text, up to 500 characters." }).waitFor(); await wizard().getByText("501 / 500", { exact: true }).waitFor();
+  assert.equal(await wizard().locator(".ob-sentence").count(), 0); assert.equal(await button("Copy").isDisabled(), true);
+  const typed = "a sign-in <b>screen</b> & SSO...";
+  await subject(wizard()).fill(typed);
+  await wait(async () => await wizard().locator(".ob-sentence").textContent() === sentenceFor("a sign-in <b>screen</b> & SSO"), "live preview from main");
+  assert.equal(await wizard().locator(".ob-sentence mark").textContent(), "a sign-in <b>screen</b> & SSO"); assert.equal(await wizard().locator(".ob-sentence b").count(), 0); assert.equal(await wizard().locator("tag").count(), 0);
   assert.equal(await stepButton("First prompt").getAttribute("aria-label"), null);
-  await clipboardGate(); await button("Copy").click(); await button("Copying…").waitFor(); await busy(); await releaseCopy(true); await button("Retry copy").waitFor();
-  assert.equal(await stepButton("First prompt").getAttribute("aria-label"), null); await button("Retry copy").click(); await busy(); await releaseCopy(false); await button("Copied").waitFor();
-  assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), sentence); assert.equal(await stepButton("First prompt").getAttribute("aria-label"), "First prompt, completed"); await restoreCopy();
+  // Waiting shows only after the clipboard write settled; a failed write never waits.
+  await clipboardGate(); await button("Copy").click(); await button("Copying…").waitFor(); await busy(); assert.equal(await waiting(wizard()).count(), 0);
+  await releaseCopy(true); await button("Retry copy").waitFor(); assert.equal(await waiting(wizard()).count(), 0);
+  await wizard().getByRole("alert").filter({ hasText: "Couldn’t copy. Your clipboard could not be updated. Try again." }).waitFor();
+  assert.equal(await stepButton("First prompt").getAttribute("aria-label"), null); await button("Retry copy").click(); await busy(); assert.equal(await waiting(wizard()).count(), 0);
+  await releaseCopy(false); await button("Copied").waitFor(); await waiting(wizard()).waitFor();
+  assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), sentenceFor("a sign-in <b>screen</b> & SSO")); assert.equal(await stepButton("First prompt").getAttribute("aria-label"), "First prompt, completed"); await restoreCopy();
+  // Editing while waiting keeps the wait.
+  await subject(wizard()).fill(`${typed} and passkeys`); await button("Copy again").waitFor(); assert.equal(await waiting(wizard()).count(), 1);
   await shot("03-first-prompt"); await button("Done").click(); await closed();
+  // The wait goes on after Done; in that workspace the new canvas opens by itself.
   await enterProject(page, project);
-  let row = page.getByRole("region", { name: "Overview", exact: true });
-  const copy = row.getByRole("button", { name: "Copy first prompt", exact: true }); await copy.waitFor();
-  assert.equal(await (await hoverTooltip(page, copy)).textContent(), sentence); await page.keyboard.press("Escape"); assert.equal(await (await hoverTooltip(page, copy)).textContent(), sentence); await page.keyboard.press("Escape");
-  await clipboardGate(); await copy.click(); await row.getByRole("button", { name: "Copying…", exact: true }).waitFor(); await releaseCopy(true); await row.getByRole("button", { name: "Retry copy", exact: true }).click(); await releaseCopy(false); await row.getByRole("button", { name: "Copied", exact: true }).waitFor(); await restoreCopy();
-  assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), sentence);
+  let row = overview();
+  await waiting(row).waitFor(); assert.equal(await row.locator(".ob-sentence").textContent(), sentenceFor("…"));
+  await clipboardGate(); await subject(row).fill("a pricing page"); await row.getByRole("button", { name: "Copy", exact: true }).click(); await row.getByRole("button", { name: "Copying…", exact: true }).waitFor();
+  await releaseCopy(true); await row.getByRole("button", { name: "Retry copy", exact: true }).click(); await releaseCopy(false); await row.getByRole("button", { name: "Copied", exact: true }).waitFor(); await waiting(row).waitFor(); await restoreCopy();
+  assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), sentenceFor("a pricing page"));
+  await writeFile(join(project, "design/first.html"), canvasHtml("First")); await wait(async () => await openCanvas().textContent() === "First", "arrival opened in its workspace");
 
   console.log("onboarding: 5 sidebar setup, re-root and modal/draft preservation");
   const plain = await newRepo("company-monorepo/packages/applications/marketing-web-frontend/plain"); await open(plain); let plainRow = homeRow(page, plain); await plainRow.getByRole("button", { name: "Set Up…", exact: true }).click();
   const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true }); await setup.waitFor();
   await assertProjectPath(setup.locator(":scope > p"), setup, plain, "setup dialog");
   assert.equal(await focusIs(setup.getByRole("button", { name: "Choose…", exact: true })), true);
-  await setup.getByRole("button", { name: "Set Up Project", exact: true }).click(); await setup.waitFor({ state: "hidden" }); await enterProject(page, plain); plainRow = page.getByRole("region", { name: "Overview", exact: true }); await plainRow.getByRole("button", { name: "Copy first prompt", exact: true }).waitFor();
+  await setup.getByRole("button", { name: "Set Up Project", exact: true }).click(); await setup.waitFor({ state: "hidden" }); await enterProject(page, plain); plainRow = overview(); await subject(plainRow).waitFor();
   const noToken = JSON.parse(await readFile(join(plain, ".doan/config.json"), "utf8")); assert.equal(noToken.tokenCss, undefined);
   const terminal = await newRepo("terminal"); await open(terminal); const terminalRow = homeRow(page, terminal); await terminalRow.getByRole("button", { name: "Set Up…", exact: true }).click(); await init(terminal); await setup.waitFor({ state: "hidden" });
   const parent = await newRepo("parent"), child = join(parent, "child"); await mkdir(child); await open(child); const childRow = homeRow(page, child); await childRow.getByRole("button", { name: "Set Up…", exact: true }).click(); await init(parent);
@@ -322,18 +357,22 @@ else if (args[1] === 'add') {
   const restartParent = await newRepo("restart-parent"), restartChild = join(restartParent, "child"); await mkdir(restartChild); await open(restartChild); await homeRow(page, restartChild).getByRole("button", { name: "Set Up…", exact: true }).waitFor(); await quit(); await init(restartParent); await launch();
   row = page.getByRole("region", { name: "Overview", exact: true }); parentRow = page.getByRole("region", { name: "Overview", exact: true }); plainRow = page.getByRole("region", { name: "Overview", exact: true });
   await enterProject(page, restartParent);
-  await page.getByRole("region", { name: "Overview", exact: true }).getByRole("button", { name: "Copy first prompt", exact: true }).waitFor(); assert.equal(await exists(join(restartChild, ".doan/config.json")), false);
+  await subject(overview()).waitFor(); assert.equal(await exists(join(restartChild, ".doan/config.json")), false);
   // Reopen re-asks upward after the previously stored child disappears.
   const reopenParent = await newRepo("reopen-parent"), reopenChild = join(reopenParent, "reopen-child"); await mkdir(reopenChild); await open(reopenChild);
   const reopenRow = homeRow(page, reopenChild); await reopenRow.getByRole("button", { name: "Set Up…", exact: true }).waitFor();
   await rename(reopenChild, `${reopenChild}-away`); await reopenRow.getByRole("button", { name: "Locate…", exact: true }).waitFor(); await init(reopenParent); await rename(`${reopenChild}-away`, reopenChild);
   await pick(reopenChild); await reopenRow.getByRole("button", { name: "Locate…", exact: true }).click(); await enterProject(page, reopenParent);
-  await page.getByRole("region", { name: "Overview", exact: true }).getByRole("button", { name: "Copy first prompt", exact: true }).waitFor(); assert.equal(await exists(join(reopenChild, ".doan/config.json")), false);
+  await subject(overview()).waitFor(); assert.equal(await exists(join(reopenChild, ".doan/config.json")), false);
   await enterProject(page, project);
-  await reopen(); await go("Project"); await pick(project); await button("Open Project…").click(); await wizard().getByRole("heading", { name: "Send your first prompt" }).waitFor(); await button("Done").click(); await closed();
-  await enterProject(page, project); row = page.getByRole("region", { name: "Overview", exact: true });
-  const html = '<!doctype html><title>First</title><meta name="doan:canvas" content="first"><meta name="doan:width" content="800"><style>button{margin:50px;padding:30px}</style><button data-doan-id="target">Target</button>';
-  await writeFile(join(project, "design/first.html"), html); await canvasRow(page, "first.html").click(); assert.equal(await row.getByRole("button", { name: "Copy first prompt", exact: true }).count(), 0);
+  // A relaunch forgets the wait. The wizard detects a new canvas in a project that already has one: Canvas ready, then Open closes it.
+  await reopen(); await go("Project"); await pick(project); await button("Open Project…").click(); await wizard().getByRole("heading", { name: "Ask for your first canvas" }).waitFor();
+  await copyWaiting(wizard(), "a second screen"); await writeFile(join(project, "design/second.html"), canvasHtml("Second"));
+  const canvasReady = wizard().getByRole("status").filter({ hasText: "Canvas ready: Second" }); await canvasReady.waitFor(); await shot("03b-canvas-ready");
+  await canvasReady.getByRole("button", { name: "Open", exact: true }).click(); await closed(); await wait(async () => await openCanvas().textContent() === "Second", "Canvas ready Open opened it");
+  assert.deepEqual(JSON.parse(await readFile(join(data, "onboarding.json"), "utf8")), {});
+  await enterProject(page, project); row = overview();
+  await canvasRow(page, "first.html").click(); assert.equal(await subject(page.locator("body")).count(), 0);
   await page.frameLocator("iframe").getByRole("button", { name: "Target", exact: true }).click();
   const panel = page.getByRole("region", { name: "Comments", exact: true }); await panel.getByRole("button", { name: "New selection comment", exact: true }).click();
   const draft = panel.getByRole("textbox", { name: "New comment body" }); await draft.fill("Keep this draft");
@@ -345,6 +384,52 @@ else if (args[1] === 'add') {
   await keep.click(); assert.equal(await draft.inputValue(), "Keep this draft");
   await shot("04-draft-preserved");
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  console.log("onboarding: 6 step 3 single pick, not-a-repository confirmation");
+  const repos = join(work, "repos"); await mkdir(repos);
+  const alpha = await setUpRepo("repos/alpha"), beta = await newRepo("repos/beta");
+  await exec("git", ["-C", alpha, "commit", "--allow-empty", "-m", "init"], { env }); const alphaTree = join(work, "trees/alpha-feat");
+  await exec("git", ["-C", alpha, "worktree", "add", "-b", "feat", alphaTree], { env });
+  await reopen(); await go("Project"); await pick(repos); await button("Open Project…").click();
+  const chooser = page.getByRole("dialog", { name: "Choose a repository in repos", exact: true }); await chooser.waitFor();
+  assert.equal(await chooser.locator(".lead").textContent(), `${repos} isn’t a repository. Choose one repository inside it.`);
+  const radios = chooser.getByRole("radiogroup", { name: "Repositories" }).getByRole("radio");
+  await wait(async () => await radios.count() === 3, "repositories and worktree listed");
+  assert.deepEqual(await radios.evaluateAll(nodes => nodes.map(node => node.getAttribute("aria-label"))), ["alpha", "alpha, alpha-feat worktree", "beta"]);
+  assert.equal(await chooser.getByRole("radio", { checked: true }).count(), 1);
+  await shot("05-pick-one");
+  await page.keyboard.press("Escape"); await chooser.waitFor({ state: "hidden" }); assert.equal(await wizard().isVisible(), true);
+  await button("Open Project…").click(); await chooser.waitFor(); await wait(async () => await radios.count() === 3, "list again");
+  await chooser.getByRole("radio", { name: "beta", exact: true }).check(); await chooser.getByRole("radio", { name: "alpha", exact: true }).check(); await chooser.getByRole("radio", { name: "beta", exact: true }).check();
+  assert.equal(await chooser.getByRole("radio", { checked: true }).count(), 1);
+  await chooser.getByRole("button", { name: "Choose", exact: true }).click(); await chooser.waitFor({ state: "hidden" });
+  await button("Set Up Project").waitFor(); await wizard().locator(".ob-field .value").first().getByText(beta, { exact: true }).waitFor();
+  const stored = async () => JSON.parse(await readFile(join(data, "folders.json"), "utf8")) as string[];
+  assert.ok((await stored()).includes(beta)); assert.ok(!(await stored()).includes(alpha)); assert.ok(!(await stored()).includes(alphaTree));
+  const notes = join(work, "notes"); await mkdir(notes); await pick(notes); await button("Open Project…").click();
+  const notRepo = page.getByRole("dialog", { name: "Set up notes as a doan project?", exact: true }); await notRepo.waitFor();
+  assert.equal(await focusIs(notRepo.getByRole("button", { name: "Cancel", exact: true })), true);
+  await page.keyboard.press("Escape"); await notRepo.waitFor({ state: "hidden" }); assert.equal(await wizard().isVisible(), true); assert.ok(!(await stored()).includes(notes));
+  await button("Open Project…").click(); await notRepo.waitFor(); await notRepo.getByRole("button", { name: "Set Up…", exact: true }).click(); await notRepo.waitFor({ state: "hidden" });
+  await button("Set Up Project").waitFor(); await wizard().locator(".ob-field .value").first().getByText(notes, { exact: true }).waitFor(); assert.ok((await stored()).includes(notes));
+  await page.keyboard.press("Escape"); await closed();
+
+  console.log("onboarding: 7 arrival toasts, hidden window and removal");
+  const toastProject = await setUpRepo("toast-a"); await open(toastProject); await enterProject(page, toastProject);
+  await copyWaiting(overview(), "a toast screen"); await goHome(page);
+  await writeFile(join(toastProject, "design/toasted.html"), canvasHtml("Toasted"));
+  const toast = page.locator(".toast").filter({ hasText: "New canvas in toast-a" }); await toast.waitFor(); await shot("06-arrival-toast");
+  await toast.getByRole("button", { name: "Open", exact: true }).click(); await wait(async () => await openCanvas().textContent() === "Toasted", "toast Open opened it");
+  const hiddenProject = await setUpRepo("hidden-b"); await open(hiddenProject); await enterProject(page, hiddenProject);
+  await copyWaiting(overview(), "a hidden screen"); await menu("Close Window"); await wait(async () => !await visible(), "hidden");
+  await writeFile(join(hiddenProject, "design/later.html"), canvasHtml("Later")); await listed(hiddenProject, "design/later.html");
+  await app.evaluate(({ app }) => app.emit("activate")); await wait(visible, "shown");
+  await page.locator(".toast").filter({ hasText: "New canvas in hidden-b" }).waitFor(); assert.equal(await openCanvas().count(), 0, "a hidden arrival does not open by itself");
+  const goneProject = await setUpRepo("gone-c"); await open(goneProject); await enterProject(page, goneProject);
+  await copyWaiting(overview(), "a removed screen"); await removeHomeProject(page, goneProject);
+  await writeFile(join(goneProject, "design/orphan.html"), canvasHtml("Orphan")); await open(goneProject); await listed(goneProject, "design/orphan.html");
+  await pause(1_000); assert.equal(await page.locator(".toast").filter({ hasText: "New canvas in gone-c" }).count(), 0, "removing the project cancelled the wait");
+  assert.equal(await page.getByRole("region", { name: "Home", exact: true }).isVisible(), true);
   await quit();
 } catch (error) {
   if (running) { try { console.error("onboarding active element:", await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 500))); await shot("failure"); } catch (shotError) { console.error("onboarding screenshot failed", shotError); } }
