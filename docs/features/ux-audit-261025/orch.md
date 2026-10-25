@@ -191,3 +191,5 @@
 - P2는 P 완료 후 새 Task로만 전달한다. K/P/N 코드 소유권은 계속 분리하며 전체 runtime PASS 전에 presentation의 양 실행이 끝나야 한다.
 
 - P 지휘자 검토에서 canvas의 강제 `color-scheme:light` computed 값만으로는 `prefers-color-scheme` 보존이 입증되지 않는 점을 확인했다. [CSS Color Adjustment §2.1](https://drafts.csswg.org/css-color-adjust-1/#color-scheme-prop)을 확인했으며 embedding element의 scheme이 iframe의 preferred scheme이 된다. P2에 실제 iframe media/CSS 전후 비교와 필요 시 iframe 경계만 기존 normal로 복구하는 최소 CSS를 추가한다. 기존 canvas 보존 조건의 검증이며 OS/nativeTheme는 바꾸지 않는다. 판단이 필요한 이 경계까지 기존 Astra medium이 맡고, 변경 시 production/dev native를 새로 실행한다.
+
+- P 작성자가 완료 신호 전에 canvas 보존 검증을 현재 Task에서 마치겠다고 확인 요청했고 지휘자가 승인했다. 따라서 위 P2의 theme 검증 배정은 P로 되돌린다. P2는 원래 suite 연결만 맡는다. N이 현재 native 슬롯을 사용하며 P는 비교 fixture를 준비하고 다음 순서로 검증한다.
