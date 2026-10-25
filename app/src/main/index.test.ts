@@ -1359,7 +1359,7 @@ describe("settings window", () => {
     const clock = vi.spyOn(Date, "now");
     try {
       await vi.waitFor(() => expect(mocks.machine.read).toHaveBeenCalledOnce());
-      await vi.waitFor(() => expect(window().webContents.send).toHaveBeenCalledWith("setup:status", { summary: { cli: "connected", claude: "connected", codex: "connected" }, checking: false, busy: false, onboardingClosed: false }));
+      await vi.waitFor(() => expect(window().webContents.send).toHaveBeenCalledWith("setup:status", { summary: { cli: "connected", claude: "connected", codex: "connected" }, causes: {}, checking: false, busy: false, onboardingClosed: false }));
       clock.mockReturnValue(now + 1_000);
       window().emit("focus");
       clock.mockReturnValue(now + 120_000);

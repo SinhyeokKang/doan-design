@@ -270,10 +270,10 @@ test("setup status: the current value is asked for, and an event that came first
   const listener = vi.fn();
   const stop = api.onSetupStatus(listener);
   expect(mocks.invoke).toHaveBeenCalledWith("setup:status");
-  emitter.emit("setup:status", {}, { summary: null, checking: true, busy: false, onboardingClosed: false });
-  resolve({ summary: null, checking: false, busy: false, onboardingClosed: false });
+  emitter.emit("setup:status", {}, { summary: null, causes: {}, checking: true, busy: false, onboardingClosed: false });
+  resolve({ summary: null, causes: {}, checking: false, busy: false, onboardingClosed: false });
   await Promise.resolve();
-  expect(listener).toHaveBeenCalledExactlyOnceWith({ summary: null, checking: true, busy: false, onboardingClosed: false });
+  expect(listener).toHaveBeenCalledExactlyOnceWith({ summary: null, causes: {}, checking: true, busy: false, onboardingClosed: false });
   stop();
   expect(emitter.listenerCount("setup:status")).toBe(0);
 });

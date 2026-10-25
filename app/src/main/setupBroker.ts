@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { connectionSummary, type ConnectionSummary } from "../setup/connectionSummary";
+import { connectionCauses, type ConnectionCauses } from "./setupCauses";
 import type { MachineState, StepResult } from "./onboarding/machine";
 import { setupLock, type SetupLock, type SetupLockAction } from "./setupLock";
 
@@ -8,6 +9,9 @@ import { setupLock, type SetupLock, type SetupLockAction } from "./setupLock";
 export interface SetupStatus {
   // null until the first read finishes ("Checking…").
   summary: ConnectionSummary | null;
+  // Why each Needs-attention row of `summary` needs it; always from the same
+  // read as `summary`, `{}` until the first read.
+  causes: ConnectionCauses;
   // A read is running; the previous summary is still shown meanwhile.
   checking: boolean;
   // A setup write or its confirmation holds the app-wide lock.
@@ -40,7 +44,7 @@ const failure = (error: unknown): StepResult => ({ kind: "error", message: error
 // `busy` and a window that goes away cannot leave it behind.
 export function createSetupBroker(deps: SetupBrokerDeps) {
   let lock: SetupLock = { kind: "idle" };
-  let status: SetupStatus = { summary: null, checking: false, busy: false, onboardingClosed: false };
+  let status: SetupStatus = { summary: null, causes: {}, checking: false, busy: false, onboardingClosed: false };
   // Each window's newest read; a window's older read answers stale.
   const reads = new Map<number, string>();
   let started = 0, shown = 0, running = 0;
@@ -63,18 +67,18 @@ export function createSetupBroker(deps: SetupBrokerDeps) {
 
   // Every read updates the summary, but one that started before the shown
   // one cannot replace it.
-  async function machineRead(requestId: string): Promise<{ state: MachineState; summary: ConnectionSummary }> {
+  async function machineRead(requestId: string): Promise<{ state: MachineState; summary: ConnectionSummary; causes: ConnectionCauses }> {
     const seq = ++started;
     if (running++ === 0) publish({ checking: true });
-    let result: { state: MachineState; summary: ConnectionSummary } | undefined;
+    let result: { state: MachineState; summary: ConnectionSummary; causes: ConnectionCauses } | undefined;
     try {
       const state = await deps.machine.read(requestId);
-      result = { state, summary: connectionSummary(state, deps.translocated) };
+      result = { state, summary: connectionSummary(state, deps.translocated), causes: connectionCauses(state, deps.translocated) };
       return result;
     } finally {
       const fresh = result !== undefined && seq > shown;
       if (fresh) shown = seq;
-      publish({ checking: --running > 0, ...(fresh && result ? { summary: result.summary } : {}) });
+      publish({ checking: --running > 0, ...(fresh && result ? { summary: result.summary, causes: result.causes } : {}) });
     }
   }
 

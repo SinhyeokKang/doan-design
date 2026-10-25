@@ -34,10 +34,10 @@ beforeEach(() => {
 });
 
 test("starts with no summary, then publishes the read summary and the onboarding flag", async () => {
-  expect(broker.status()).toEqual({ summary: null, checking: false, busy: false, onboardingClosed: false });
+  expect(broker.status()).toEqual({ summary: null, causes: {}, checking: false, busy: false, onboardingClosed: false });
   closed = true;
   const result = await broker.refresh();
-  expect(result).toEqual({ summary: { cli: "connected", claude: "connected", codex: "connected" }, checking: false, busy: false, onboardingClosed: true });
+  expect(result).toEqual({ summary: { cli: "connected", claude: "connected", codex: "connected" }, causes: {}, checking: false, busy: false, onboardingClosed: true });
   expect(published.at(-1)).toEqual(result);
 });
 
@@ -49,6 +49,28 @@ test("keeps the previous summary while a new read runs", async () => {
   await vi.waitFor(() => expect(published.at(-1)).toMatchObject({ checking: true, summary: { cli: "connected" } }));
   later.resolve(state("dangling"));
   expect((await refreshing).summary?.cli).toBe("needs-attention");
+});
+
+test("the causes follow the summary: kept while reading, replaced with the new summary, never ahead of it", async () => {
+  await broker.refresh();
+  const later = deferred<MachineState>();
+  machine.read.mockReturnValueOnce(later.promise);
+  const refreshing = broker.refresh();
+  await vi.waitFor(() => expect(published.at(-1)).toMatchObject({ checking: true, causes: {} }));
+  later.resolve(state("dangling"));
+  expect(await refreshing).toMatchObject({ summary: { cli: "needs-attention" }, causes: { cli: "dangling" } });
+  machine.read.mockResolvedValueOnce(state("ours"));
+  expect(await broker.refresh()).toMatchObject({ summary: { cli: "connected" }, causes: {} });
+});
+
+test("a read that started earlier cannot replace a newer summary or its causes", async () => {
+  const slow = deferred<MachineState>();
+  machine.read.mockReturnValueOnce(slow.promise).mockResolvedValueOnce(state("dangling"));
+  const first = broker.read(MAIN, "a");
+  await broker.read(SETTINGS, "b");
+  slow.resolve(state("ours"));
+  await first;
+  expect(broker.status()).toMatchObject({ summary: { cli: "needs-attention" }, causes: { cli: "dangling" } });
 });
 
 test("a read that started earlier cannot replace a newer summary", async () => {

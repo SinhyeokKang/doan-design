@@ -30,12 +30,16 @@ test("the projects projection keeps only what grouping and chips need", () => {
     { path: "/repo", kind: "list", canvases: [{ path: "design/a.html", open: 1, resolved: 0, url: "http://127.0.0.1:1/t/x/a" }], servedRev: 3, changedAt: 9,
       git: { common: "/repo/.git", main: "/repo", branch: "main", worktrees: ["/repo", "/repo-fix"] } },
     { path: "/repo-fix", kind: "error", message: "broken config", lastCommon: "/repo/.git" },
+    { path: "/repo-review", kind: "list", canvases: [], servedRev: 1, git: { common: "/repo/.git", main: "/repo", detached: "3f9c2a1d5e7b", worktrees: ["/repo", "/repo-review"] } },
+    { path: "/repo-bare", kind: "list", canvases: [], servedRev: 1, git: { common: "/repo/.git", worktrees: [] } },
     { path: "/plain", kind: "uninitialized" },
     { path: "/gone", kind: "notFound" },
   ];
   expect(projectRows(entries)).toEqual([
-    { path: "/repo", kind: "list", git: { common: "/repo/.git", main: "/repo" } },
+    { path: "/repo", kind: "list", git: { common: "/repo/.git", main: "/repo", branch: "main" } },
     { path: "/repo-fix", kind: "error", lastCommon: "/repo/.git" },
+    { path: "/repo-review", kind: "list", git: { common: "/repo/.git", main: "/repo", detached: "3f9c2a1d5e7b" } },
+    { path: "/repo-bare", kind: "list", git: { common: "/repo/.git" } },
     { path: "/plain", kind: "uninitialized" },
     { path: "/gone", kind: "notFound" },
   ]);
