@@ -30,9 +30,12 @@ export function useFirstPromptWait(deps: WaitDeps): FirstPromptWait {
   const dispatch = (event: FirstPromptEvent) => setState(current => firstPromptReducer(current, event));
   const latest = useRef({ deps, state });
   latest.current = { deps, state };
-  const openArrived = (root: string, path: string) => {
+  const arrivedRow = (root: string, path: string) => {
     const entry = latest.current.deps.entries.find(candidate => candidate.path === root);
-    const row = entry?.kind === "list" ? entry.canvases.find(candidate => candidate.path === path) : undefined;
+    return entry?.kind === "list" ? entry.canvases.find(candidate => candidate.path === path) : undefined;
+  };
+  const openArrived = (root: string, path: string) => {
+    const row = arrivedRow(root, path);
     if (row) latest.current.deps.openCanvas(root, row);
   };
   const showToast = (root: string, path: string) => latest.current.deps.toast(newCanvasText(latest.current.deps.projectName(root)), "Open", () => openArrived(root, path));
@@ -43,8 +46,12 @@ export function useFirstPromptWait(deps: WaitDeps): FirstPromptWait {
   useEffect(() => window.doan.onWindowVisible(value => {
     visible.current = value;
     const held = pending.current;
-    if (value && held) { pending.current = null; showToast(held.root, held.path); }
+    // Open would find no row for a project or canvas removed while hidden.
+    if (value && held) { pending.current = null; if (arrivedRow(held.root, held.path)) showToast(held.root, held.path); }
   }), []);
+  useEffect(() => {
+    if (pending.current && !deps.entries.some(entry => entry.path === pending.current?.root)) pending.current = null;
+  }, [deps.entries]);
   useEffect(() => {
     const event = waitEvent(state, deps.entries);
     if (event) dispatch(event);
