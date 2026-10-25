@@ -119,10 +119,14 @@ describe("Inspector for a frame", () => {
 });
 
 describe("Canvas info", () => {
-  test("ends with the inspection hint when a canvas is open", () => {
-    const row = { path: "design/a.html", id: "a", url: "u", width: 600, open: 0, resolved: 0 };
+  test("puts the one-sentence hint above Activity and shows no comment counts", () => {
+    const row = { path: "design/a.html", id: "a", url: "u", width: 600, open: 2, resolved: 1 };
     const html = renderToStaticMarkup(<RightPanel state={{ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row } }} selectPath={() => {}} />);
-    expect(html).toMatch(/aria-label="Activity">.*<\/section><p class="pempty">Click an element or frame to inspect it\. Frames are also listed in the sidebar\.<\/p><\/aside>$/);
+    expect(html).toContain('<dd>—</dd></dl></div><p class="pempty">Click an element or frame to inspect or comment on it.</p><section class="isec activity" aria-label="Activity">');
+    expect(html).toMatch(/<\/section><\/aside>$/);
+    expect(html).not.toContain("Frames are also listed");
+    expect(html).not.toContain("Comments");
+    expect(html).not.toContain("Resolved");
   });
 
   test("shows a move as Moved with the previous file name, cut with its full name in the tooltip", () => {

@@ -195,7 +195,7 @@ try {
     }
     await frame.locator("section").click();
     const panel = page.getByRole("region", { name: "Comments", exact: true });
-    await panel.getByRole("button", { name: "New selection comment", exact: true }).click();
+    await panel.getByRole("button", { name: "Comment on selection", exact: true }).click();
     await panel.getByRole("textbox", { name: "New comment body" }).fill("Presentation pin");
     await focus(page, panel.getByRole("button", { name: "Save comment", exact: true }), "comments primary focus");
     await panel.getByRole("button", { name: "Save comment", exact: true }).click();

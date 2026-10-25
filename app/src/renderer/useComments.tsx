@@ -2,13 +2,17 @@ import type { FolderEntry } from "../main/view";
 import { commentContext } from "./projectDisplay";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { CommentsSession } from "./CommentsSession";
-import { CommentsPanel, UnsavedCommentDialog, UncertainCommentDialog, DeleteCommentDialog, type CommentIntent } from "./CommentsPanel";
-import type { CanvasController, CanvasState } from "./CanvasController";
+import { CommentsPanel, UnsavedCommentDialog, UncertainCommentDialog, DeleteCommentDialog, revealComposer, type CommentIntent } from "./CommentsPanel";
+import { MEASURE_ANSWER_MS, type CanvasController, type CanvasState } from "./CanvasController";
 import { shownAnchors, type AnchorSnapshot } from "./commentAnchors";
 import { mainSelection, selectionIdentity } from "./selection";
 import { outdated, projectList, type ListFilter } from "../comments/projection";
 import { continueEnabled, draftScope, guardsSelectionChange } from "../comments/draft";
 import type { Target } from "../formats/types";
+
+// A focus move that waits for anchors. `context` is the canvas and selection it
+// belongs to; `holder` held focus after the last render that kept it.
+type Deferred = { since: AnchorSnapshot | null; context?: string; holder?: Element | null };
 
 export function useComments(state: CanvasState, controller: RefObject<CanvasController | null>, showWorkspace: () => void, entries: FolderEntry[]) {
   const [, render] = useState(0);
@@ -51,7 +55,10 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     controller.current?.setComments({ root: identity.root, canvas: identity.canvas, comments: session.list.comments }, {
       changed: snapshot => { latestAnchors.current = snapshot; setAnchors(previous => shownAnchors(previous, snapshot)); },
       guard: () => session.guardSelection(),
-      open: destination => setFilter({ scope: "selection", status: "open", node: destination.node }),
+      open: destination => {
+        focusAfter.current.pin = { node: destination.node, since: latestAnchors.current };
+        setFilter({ scope: "selection", status: "open", node: destination.node });
+      },
       focusFallback: () => heading.current?.focus(),
     });
   }, [session, session.list, controller]);
@@ -65,6 +72,10 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     return () => { window.removeEventListener("compositionstart", start, true); window.removeEventListener("compositionend", end, true); };
   }, [session]);
   const previousDocument = useRef<string | undefined>(undefined);
+  const panelElement = useRef<HTMLElement>(null);
+  // Where focus goes when the composer closes or a pin opens its comments.
+  const focusAfter = useRef<{ editing: boolean; opener: HTMLElement | null; cancelled: boolean; saving: boolean;
+    saved: (Deferred & { comment: string }) | null; pin: (Deferred & { node: string }) | null }>({ editing: false, opener: null, cancelled: false, saving: false, saved: null, pin: null });
   // A reload of the same row ends the document when it starts, not when its
   // layout arrives, so a draft is already `reloaded` if that layout never comes;
   // a draft begun during that wait is lost when the load fails.
@@ -78,7 +89,8 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   useEffect(() => {
     const field = input.current;
     if (!draft || session.draft.transition || uncertain || !field) return;
-    field.focus();
+    field.focus({ preventScroll: true });
+    revealComposer(field);
     // A continued draft keeps its text; the caret goes after it.
     if (session.continued === draft.id) { session.continued = null; field.setSelectionRange(field.value.length, field.value.length); }
   }, [draft?.id, session.saveView.status, session.draft.transition, uncertain]);
@@ -93,18 +105,28 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     if (latest?.status === "pending") setAnchors(latest);
   }, [selected]);
   const identity = session.identity;
-  const comments = session.list?.comments ?? [];
+  // session.open() for a newly opened row runs in an effect, so the render
+  // before it still holds the previous canvas's read results (R-W 🟡1).
+  const current = !!identity && identity.root === root && identity.canvas === canvas;
+  const list = current ? session.list : null, readError = current ? session.readError : null;
+  const comments = list?.comments ?? [];
   const snapshot = anchors && identity && anchors.lookup.root === identity.root && anchors.lookup.canvas === identity.canvas ? anchors : null;
   const lookup = snapshot?.lookup ?? { root: identity?.root ?? "", canvas: identity?.canvas ?? "", generation: 0, nodes: new Map<string, string>() };
   const currentFilter: ListFilter = filter.scope === "selection" ? { ...filter, node: snapshot?.selected ?? null } : filter;
   const scoped = (status: "open" | "resolved") => projectList(comments, lookup, lookup, { ...currentFilter, status });
-  const writeBlocked = !identity ? "A valid, unique canvas ID is required." : session.readError;
+  // An open row without an id never reaches main, so the renderer names that cause itself.
+  const identityCause = open && !canvas ? "missing" : current ? session.identityCause : null;
+  const writeBlocked = !identity || identityCause ? "A valid, unique canvas ID is required." : null;
+  const frames = state.layout?.frames ?? open?.row.frames ?? [];
+  // Another canvas's frames could lend a draft's frame id the wrong title.
+  const draftFrames = draft && draft.origin.root === root && draft.origin.canvas === canvas ? frames : [];
   const createBlocked = state.unlisted || !state.hasFrame || state.status !== null ? "The original canvas document is unavailable." : null;
   const widthInvalid = !!open && open.row.width === undefined;
   const editorBlocked = draft?.blocked ?? (draft?.origin.kind === "create" ? createBlocked : null);
   const focus = () => input.current?.focus();
+  const opened = () => { focusAfter.current.opener = document.activeElement as HTMLElement | null; };
   function intent(action: CommentIntent, id: string) {
-    if (action === "edit") session.edit(id);
+    if (action === "edit") { opened(); session.edit(id); }
     else if (action === "resolve" || action === "reopen" || action === "delete") void session.mutate(action, id);
     else if (action === "check") void session.cardRetry(id, true);
     else if (action === "retry") void session.cardRetry(id, false);
@@ -134,25 +156,79 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       error: session.continueError,
       onContinue: () => { void session.continueDraft(scope); }, onCanvas: () => { void session.continueDraft("canvas"); } };
   })() : null;
-  const canSave = !!draft && !session.draft.request && !!draft.body.trim() && !editorBlocked && !writeBlocked && session.author.status === "ready" && !["conflict", "deleted"].includes(session.saveView.status);
+  const canSave = !!draft && !session.draft.request && !!draft.body.trim() && !editorBlocked && !writeBlocked && !session.readError && session.author.status === "ready" && !["conflict", "deleted"].includes(session.saveView.status);
+  // design/comments-readability.html (composer-small, panel-details): Save →
+  // the saved card, Cancel → the opening button, a pin → its first card once
+  // the list for it renders; otherwise the title. Focus never stays on <body>.
+  const editing = !!draft;
+  useEffect(() => {
+    const after = focusAfter.current, closed = after.editing && !editing;
+    after.editing = editing;
+    const cards = () => Array.from(panelElement.current?.querySelectorAll<HTMLElement>("article.comments-card") ?? []);
+    const latest = latestAnchors.current;
+    // A Selection list shows a card only after the anchors asked for since
+    // `since` answer; no rendered document means no answer will come.
+    const listed = (since: AnchorSnapshot | null) => !latest || latest.status === "none" || (latest !== since && latest.status === "answered" && snapshot === latest);
+    if (session.savedComment !== null) {
+      // Save and continue in the draft dialog leaves focus to its destination.
+      const saved = after.saved = after.saving ? { comment: session.savedComment, since: latest } : null;
+      after.saving = false; session.savedComment = null;
+      // The reread list's anchors may never answer; the title keeps focus then.
+      if (saved) setTimeout(() => { if (focusAfter.current.saved === saved) focusAfter.current.saved = null; }, MEASURE_ANSWER_MS);
+    }
+    if (!after.saved && !after.pin && !closed) return;
+    // A deferred move belongs to the action that asked for it, like a pin's
+    // completion (POSTMORTEM 2026-10-23): a composer, editor or dialog owning
+    // focus, another canvas or selection, or focus moved elsewhere ends it.
+    const context = JSON.stringify([root, canvas, selected]);
+    const owned = editing || session.beginning || !!session.deleteConfirmation;
+    const active = document.activeElement;
+    const stale = (request: Deferred) => owned || (request.context !== undefined && request.context !== context) ||
+      (request.holder !== undefined && active !== request.holder && !!active && active !== document.body && active.isConnected);
+    if (after.saved && stale(after.saved)) after.saved = null;
+    if (after.pin && stale(after.pin)) after.pin = null;
+    const place = () => {
+      const saved = after.saved;
+      if (saved) {
+        const card = cards().find(card => card.dataset.comment === saved.comment);
+        if (card || listed(saved.since)) { after.saved = null; after.opener = null; (card ?? heading.current)?.focus(); return; }
+      }
+      const pin = after.pin;
+      if (pin && listed(pin.since)) {
+        after.pin = null;
+        if (latest?.status === "answered") ((latest.selected === pin.node ? cards()[0] : undefined) ?? heading.current)?.focus();
+        return;
+      }
+      if (!closed) return;
+      const { opener, cancelled } = after;
+      after.opener = null; after.cancelled = false;
+      if (cancelled && opener && opener !== document.body && opener.isConnected && !opener.hasAttribute("disabled")) opener.focus();
+      else if (cancelled || !active || active === document.body || !active.isConnected) heading.current?.focus();
+    };
+    place();
+    // Read after this run's own moves, so the title taking focus is not "elsewhere".
+    const holder = document.activeElement;
+    for (const request of [after.saved, after.pin]) if (request) { request.context = context; request.holder = holder; }
+  });
   return {
     session,
     panel: (open || draft) && <CommentsPanel filter={currentFilter} selectionAvailable={state.selection !== null && !state.unlisted} selectionNode={snapshot?.selected ?? null}
       counts={{ open: scoped("open").length, resolved: scoped("resolved").length }} canvasOpenCount={comments.filter(c => c.status === "open").length}
-      read={session.readError ? { status: "failed", message: session.readError } : session.list ? { status: "ready", comments: scoped(filter.status), warnings: session.list.warnings } : { status: "loading" }}
-      freshness={new Map(comments.map(c => [c.comment, outdated(c.canvasHash, session.list?.canvasHash ?? null)]))}
+      read={readError ? { status: "failed", message: readError } : list ? { status: "ready", comments: scoped(filter.status), warnings: list.warnings } : { status: "loading" }}
+      freshness={new Map(comments.map(c => [c.comment, outdated(c.canvasHash, list?.canvasHash ?? null)]))}
       missingLocations={snapshot?.status === "answered" ? new Set(comments.filter(c => (c.target.frame || c.target.element) && !snapshot.lookup.nodes.has(c.comment)).map(c => c.comment)) : null}
-      author={session.author} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || (session.beginning && !draft)}
-      copies={session.copies} allCopy={session.copies.get("all") ?? { status: "idle" }} mutations={session.mutations} headingRef={heading}
-      onFilter={setFilter} onCreate={scope => { void session.create(scope); }} onComment={intent} onCopy={scope => { void session.copy(scope); }} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
-      editor={draft ? { mode: draft.origin.kind, target: session.target, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
-        onBody: body => session.body(body), onSave: () => { void session.save(); }, onCancel: () => session.answer("discard"), onKeepDraft: focus,
-        onCheck: () => { void session.check(); }, onRetryOriginal: () => { void session.retry(); }, onReadLatest: () => { void session.read(true); }, continue: continueEditor } : null} />,
+      author={session.author} identityCause={identityCause} canvasId={canvas ?? ""} frames={frames} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || (session.beginning && !draft)}
+      copies={session.copies} allCopy={session.copies.get("all") ?? { status: "idle" }} mutations={session.mutations} headingRef={heading} panelRef={panelElement}
+      onFilter={next => { focusAfter.current.pin = null; focusAfter.current.saved = null; setFilter(next); }} onCreate={scope => { opened(); void session.create(scope); }} onComment={intent} onCopy={scope => { void session.copy(scope); }} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
+      editor={draft ? { mode: draft.origin.kind, target: session.target, frames: draftFrames, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
+        onBody: body => session.body(body), onSave: () => { focusAfter.current.saving = true; void session.save(); },
+        onCancel: () => { session.answer("discard"); if (!session.draft.draft) focusAfter.current.cancelled = true; }, onKeepDraft: focus,
+        onCheck: () => { focusAfter.current.saving = true; void session.check(); }, onRetryOriginal: () => { focusAfter.current.saving = true; void session.retry(); }, onReadLatest: () => { void session.read(true); }, continue: continueEditor } : null} />,
     dialog: draft && uncertain ? <UncertainCommentDialog key={uncertain.id} kind={uncertain.kind}
       context={commentContext(entries, draft.origin.root, session.identity?.path ?? draft.origin.canvas)}
       onStay={() => { showWorkspace(); session.answerUncertain(uncertain.id, false); }}
-      onQuit={() => session.answerUncertain(uncertain.id, true)} restoreEditorFocus={focus} /> : session.deleteConfirmation ? <DeleteCommentDialog comment={session.deleteConfirmation.comment} onCancel={() => { session.cancelDelete(); heading.current?.focus(); }} onConfirm={() => { void session.confirmDelete(); heading.current?.focus(); }} /> : draft && session.draft.transition && <UnsavedCommentDialog target={session.target} context={commentContext(entries, draft.origin.root, session.identity?.path ?? draft.origin.canvas)} canSave={canSave}
+      onQuit={() => session.answerUncertain(uncertain.id, true)} restoreEditorFocus={focus} /> : session.deleteConfirmation ? <DeleteCommentDialog comment={session.deleteConfirmation.comment} onCancel={() => { session.cancelDelete(); heading.current?.focus(); }} onConfirm={() => { void session.confirmDelete(); heading.current?.focus(); }} /> : draft && session.draft.transition && <UnsavedCommentDialog target={session.target} frames={draftFrames} context={commentContext(entries, draft.origin.root, session.identity?.path ?? draft.origin.canvas)} canSave={canSave}
       busy={session.saveView.status === "saving" || session.saveView.status === "checking"} discardBlocked={session.draft.request !== null}
-      {...(editorBlocked ? { reason: editorBlocked } : {})} onContinue={() => { showWorkspace?.(); session.answer("continue"); }} onDiscard={() => session.answer("discard")} onSave={() => { void session.save(); }} restoreEditorFocus={focus} />,
+      {...(editorBlocked ? { reason: editorBlocked } : {})} onContinue={() => { showWorkspace?.(); session.answer("continue"); }} onDiscard={() => session.answer("discard")} onSave={() => { focusAfter.current.saving = false; void session.save(); }} restoreEditorFocus={focus} />,
   };
 }

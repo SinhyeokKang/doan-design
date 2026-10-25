@@ -1,6 +1,11 @@
 import { useId, type Ref } from "react";
 import type { Comment, Target, Warning } from "../formats/types";
 import type { CopyScope, ListFilter } from "../comments/projection";
+import { targetLabel } from "../comments/targetLabel";
+import { READ_FAILED_EDITOR, WARNINGS_TITLE, commentsPanelState, emptyListText, identityText, warningFileText, warningGroups, warningText, type IdentityCause } from "../comments/panelText";
+
+// Frame ids with their titles, from the ls row or the rendered canvas, to name comment targets.
+export type TargetFrames = ReadonlyArray<{ id: string; title?: string }>;
 
 export type CopyView = { status: "idle" | "copying" | "copied" } | { status: "failed"; message: string };
 export type AuthorView = { status: "ready" | "loading" | "missing" } | { status: "failed"; message: string };
@@ -12,6 +17,8 @@ export type SaveView =
 export interface CommentEditorProps {
   mode: "create" | "edit";
   target: Target;
+  // The draft's own canvas's frames; empty while another canvas is shown.
+  frames: TargetFrames;
   body: string;
   state: SaveView;
   blocked: string | null;
@@ -50,6 +57,10 @@ export interface CommentsPanelProps {
   // Null without a rendered document to look in: no badge and no locate.
   missingLocations: ReadonlySet<string> | null;
   author: AuthorView;
+  // A refused canvas identity replaces the rest of the panel with one block.
+  identityCause: IdentityCause;
+  canvasId: string;
+  frames: TargetFrames;
   writeBlocked: string | null;
   createBlocked: string | null;
   createError?: string | null;
@@ -60,6 +71,7 @@ export interface CommentsPanelProps {
   mutations?: ReadonlyMap<string, SaveView>;
   editor: CommentEditorProps | null;
   headingRef?: Ref<HTMLHeadingElement>;
+  panelRef?: Ref<HTMLElement>;
   onFilter: (filter: ListFilter) => void;
   onCreate: (scope: ListFilter["scope"]) => void;
   onComment: (intent: CommentIntent, comment: string) => void;
@@ -79,10 +91,6 @@ function relativeTime(at: string): string {
   return formatter.format(Math.round(seconds / 86400), "day");
 }
 
-function targetText(target: Target): string {
-  if (target.element) return `Element · ${target.element.doanId ?? target.element.selector}`;
-  return target.frame ? `Frame · ${target.frame}` : "Canvas";
-}
 function pending(state: SaveView): boolean {
   return ["saving", "unknown", "checking", "check-failed", "retry-original", "recovery-blocked"].includes(state.status);
 }
@@ -94,12 +102,26 @@ export function CommentsPanel(props: CommentsPanelProps) {
   const { filter, read, author, editor } = props;
   const writesDisabled = props.busy || props.writeBlocked !== null || author.status !== "ready";
   const createDisabled = writesDisabled || props.createBlocked !== null || props.widthInvalid || editor !== null || read.status !== "ready" || (filter.scope === "selection" && !props.selectionAvailable);
-  const editorBlocked = editor && (props.writeBlocked ?? (props.busy ? "A comment change is in progress." : null) ?? (author.status !== "ready" ? "A Git name is required before saving." : null) ?? (editor.mode === "create" && props.widthInvalid ? "Run doan check in a terminal to diagnose the canvas. A readable width is required to add comments and show pins." : null) ?? editor.blocked);
-  return <section className="comments-panel native-scroll" aria-label="Comments">
+  const editorBlocked = editor && (props.writeBlocked ?? (read.status === "failed" ? READ_FAILED_EDITOR : null) ?? (props.busy ? "A comment change is in progress." : null) ?? (author.status !== "ready" ? "A Git name is required before saving." : null) ?? (editor.mode === "create" && props.widthInvalid ? "Run doan check in a terminal to diagnose the canvas. A readable width is required to add comments and show pins." : null) ?? editor.blocked);
+  const state = commentsPanelState(props.identityCause, read, author);
+  const editorView = editor && <CommentEditor {...editor} blocked={editor.continue ? editor.blocked : editorBlocked || null} />;
+  if (state.kind === "identity") {
+    const text = identityText(state.cause, props.canvasId);
+    return <section ref={props.panelRef} className="comments-panel native-scroll" aria-label="Comments">
+      <h3 ref={props.headingRef} className="comments-title alone" tabIndex={-1}>Comments</h3>
+      {editorView}
+      <div className="comments-message error" role="alert"><b>{text.title}</b>{text.body}</div>
+    </section>;
+  }
+  const elsewhere = filter.scope === "selection" ? Math.max(0, props.canvasOpenCount - props.counts.open) : 0;
+  const empty = emptyListText(filter.scope, filter.status, elsewhere);
+  // The title is the panel's own child so it can stay stuck while the head
+  // scrolls away (a sticky h3 inside the head leaves with it).
+  return <section ref={props.panelRef} className="comments-panel native-scroll" aria-label="Comments">
+    <h3 ref={props.headingRef} className="comments-title" tabIndex={-1}>Comments</h3>
     <div className="comments-head">
-      <h3 ref={props.headingRef} tabIndex={-1}>Comments</h3>
       <div className="comments-segment" role="group" aria-label="Comment scope">
-        <button type="button" aria-pressed={filter.scope === "selection"} disabled={!props.selectionAvailable || props.widthInvalid} onClick={() => props.onFilter({ scope: "selection", node: props.selectionNode ?? null, status: filter.status })}>Selection</button>
+        <button type="button" aria-pressed={filter.scope === "selection"} disabled={!props.selectionAvailable || props.widthInvalid} title={props.selectionAvailable ? undefined : "Select an element or frame in the canvas"} onClick={() => props.onFilter({ scope: "selection", node: props.selectionNode ?? null, status: filter.status })}>Selection</button>
         <button type="button" aria-pressed={filter.scope === "canvas"} onClick={() => props.onFilter({ scope: "canvas", status: filter.status })}>Canvas</button>
       </div>
       <div className="comments-segment" role="group" aria-label="Comment status">
@@ -108,34 +130,38 @@ export function CommentsPanel(props: CommentsPanelProps) {
       </div>
       <div className="comments-tools">
         <button type="button" className="comments-btn" disabled={read.status !== "ready" || props.canvasOpenCount === 0 || props.allCopy.status === "copying"} title="All open comments on this canvas, regardless of the visible filter" onClick={() => props.onCopy({ kind: "all" })}>{copyLabel(props.allCopy, true)}</button>
-        <button type="button" className="comments-btn" disabled={createDisabled} onClick={() => props.onCreate(filter.scope)}>{filter.scope === "canvas" ? "New canvas comment" : "New selection comment"}</button>
+        <button type="button" className="comments-btn" disabled={createDisabled} onClick={() => props.onCreate(filter.scope)}>{filter.scope === "canvas" ? "Comment on canvas" : "Comment on selection"}</button>
       </div>
       {props.createError && <p className="comments-helper" role="alert">Couldn’t start comment: {props.createError}</p>}
       {props.allCopy.status === "copied" && <p className="comments-helper" role="status">Copied all open comments on this canvas.</p>}
       {props.allCopy.status === "failed" && <p className="comments-helper" role="alert">{props.allCopy.message}</p>}
     </div>
+    {editorView}
     {props.widthInvalid && <div className="comments-message warning"><b>Could not read a valid board width.</b>Existing comments are still available. Run doan check in a terminal to diagnose the canvas. A readable width is required to add comments and show pins.</div>}
     {props.writeBlocked && <div className="comments-message error" role="alert"><b>Comments are read-only</b>{props.writeBlocked}</div>}
     {props.createBlocked && <div className="comments-message warning">{props.createBlocked}</div>}
-    {author.status !== "ready" && <div className="comments-message warning" role="status">
+    {state.authorBlock && <div className="comments-message warning" role="status">
       <b>{author.status === "loading" ? "Checking Git name…" : author.status === "missing" ? "Set your Git name" : "Couldn’t read Git identity"}</b>
       {author.status === "failed" ? author.message : "Set git user.name for this repository in your terminal, then choose Retry. Your email is optional."}
-      <p>Editing, resolving, reopening and deleting stay unavailable until a name is configured. Copy remains available.</p>
+      <p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Copy remains available.</p>
       <div className="comments-tools"><button type="button" className="comments-btn" disabled={author.status === "loading"} onClick={props.onRetryAuthor}>Retry</button></div>
     </div>}
     {read.status === "loading" ? <div className="comments-message" role="status"><b>Loading comments…</b></div>
       : read.status === "failed" ? <div className="comments-message error" role="alert"><b>Couldn’t read comments</b>{read.message}<div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRead}>Retry</button></div></div>
         : <>
-          {read.warnings.length > 0 && <div className="comments-message warning"><b>Some events could not be read</b><ul>{read.warnings.map((warning, i) => <li key={i}>{warning.code === "unknown_version" && <>This record was written by a newer version of Doan. </>}{warning.code} · line {warning.line}</li>)}</ul></div>}
-          {read.comments.length === 0 && <div className="comments-message"><b>{filter.status === "open" ? "No open comments here" : "No resolved comments here"}</b>{filter.scope === "selection" && props.canvasOpenCount > props.counts.open ? `There are ${props.canvasOpenCount - props.counts.open} open comments elsewhere on this canvas; Copy all open includes them.` : "Leave a note on this target."}</div>}
-          {read.comments.map(comment => <CommentCard key={comment.comment} comment={comment} freshness={props.freshness.get(comment.comment) ?? "unknown"} locationMissing={props.missingLocations?.has(comment.comment) ?? null} disabled={writesDisabled || editor !== null} busy={props.busy} copy={props.copies.get(comment.comment) ?? { status: "idle" }} mutation={props.mutations?.get(comment.comment)} onComment={props.onComment} onCopy={props.onCopy} />)}
+          {read.warnings.length > 0 && <div className="comments-message warning comments-warnings"><b>{WARNINGS_TITLE}</b>
+            <ul>{warningGroups(read.warnings).map(group => <li key={group.code}>{warningText(group.code)}<span className="lines">{group.label}</span></li>)}</ul>
+            <p className="file">{warningFileText(props.canvasId)}</p>
+          </div>}
+          {read.comments.length === 0 && <div className="comments-message"><b>{empty.title}</b>{empty.body}</div>}
+          {read.comments.map(comment => <CommentCard key={comment.comment} comment={comment} frames={props.frames} freshness={props.freshness.get(comment.comment) ?? "unknown"} locationMissing={props.missingLocations?.has(comment.comment) ?? null} disabled={writesDisabled || editor !== null} busy={props.busy} copy={props.copies.get(comment.comment) ?? { status: "idle" }} mutation={props.mutations?.get(comment.comment)} onComment={props.onComment} onCopy={props.onCopy} />)}
         </>}
-    {editor && <CommentEditor {...editor} blocked={editor.continue ? editor.blocked : editorBlocked || null} />}
   </section>;
 }
 
 export interface CommentCardProps {
   comment: Comment;
+  frames: TargetFrames;
   freshness: "same" | "outdated" | "unknown";
   // Null: no rendered document, so the target line is text without locate.
   locationMissing: boolean | null;
@@ -146,16 +172,18 @@ export interface CommentCardProps {
   onComment: (intent: CommentIntent, comment: string) => void;
   onCopy: (scope: CopyScope) => void;
 }
-export function CommentCard({ comment, freshness, locationMissing, disabled, busy, copy, mutation, onComment, onCopy }: CommentCardProps) {
+export function CommentCard({ comment, frames, freshness, locationMissing, disabled, busy, copy, mutation, onComment, onCopy }: CommentCardProps) {
   const { createdBy } = comment;
   const initials = createdBy.name.trim().split(/\s+/).slice(0, 2).map(word => Array.from(word)[0] ?? "").join("").toUpperCase();
   const locked = disabled || busy || (mutation !== undefined && mutation.status !== "idle" && mutation.status !== "saved");
-  return <article className="comments-card" aria-label={`Comment by ${createdBy.name}`} aria-busy={busy || mutation?.status === "saving"}>
+  const target = targetLabel(comment.target, frames);
+  return <article className="comments-card" tabIndex={-1} data-comment={comment.comment} aria-label={`Comment by ${createdBy.name}`} aria-busy={busy || mutation?.status === "saving"}>
     <div className="comments-author"><span className="comments-avatar" aria-hidden="true">{initials}</span><div className="comments-by"><b>{createdBy.name}</b>{createdBy.kind === "human" && createdBy.email && <span className="comments-email">{createdBy.email}</span>}<time dateTime={comment.createdAt} title={comment.createdAt}>{relativeTime(comment.createdAt)}</time></div></div>
-    {locationMissing === null
-      ? <span className="comments-target" title={comment.target.element?.selector}>{targetText(comment.target)}</span>
-      : <button type="button" className="comments-target" disabled={locationMissing || (!comment.target.frame && !comment.target.element)} onClick={() => onComment("locate", comment.comment)}>{targetText(comment.target)}</button>}
-    <div className="comments-badges"><span className={`comments-badge ${comment.status}`}>{comment.status === "open" ? "Open" : "Resolved"}</span>{freshness !== "same" && <span className="comments-badge warning">{freshness === "outdated" ? "Outdated" : "Freshness unknown"}</span>}{locationMissing && <span className="comments-badge warning">Location unavailable</span>}</div>
+    {locationMissing === false && target.locatableHint
+      ? <button type="button" className="comments-target locatable" title={`Show on canvas\n${target.title}`} onClick={() => onComment("locate", comment.comment)}>{target.text}</button>
+      // A span, not a disabled button: the global button:disabled opacity would fade it.
+      : <span className="comments-target" title={target.title}>{target.text}</span>}
+    <div className="comments-badges"><span className={`comments-badge ${comment.status}`}>{comment.status === "open" ? "Open" : "Resolved"}</span>{freshness !== "same" && <span className="comments-badge warning">{freshness === "outdated" ? "Outdated" : "Freshness unknown"}</span>}{locationMissing && <><span className="comments-badge warning">Location unavailable</span><span className="comments-badge-note">Not found in the current canvas.</span></>}</div>
     <p className="comments-body">{comment.body}</p>
     <div className="comments-tools">
       <button type="button" className="comments-btn" disabled={locked} onClick={() => onComment("edit", comment.comment)}>Edit</button>
@@ -163,7 +191,6 @@ export function CommentCard({ comment, freshness, locationMissing, disabled, bus
       <button type="button" className="comments-btn" disabled={comment.status === "resolved" || copy.status === "copying"} onClick={() => onCopy({ kind: "one", comment: comment.comment })}>{copyLabel(copy)}</button>
       <button type="button" className="comments-btn" disabled={locked} onClick={() => onComment("delete", comment.comment)}>Delete</button>
     </div>
-    {comment.status === "resolved" && <p className="comments-helper">Reopen this comment before copying.</p>}
     {copy.status === "copied" && <p className="comments-helper" role="status">Copied</p>}
     {copy.status === "failed" && <p className="comments-helper" role="alert">{copy.message}</p>}
     {mutation && mutation.status !== "idle" && <div className={`comments-message ${mutation.status === "failed" || mutation.status === "check-failed" || mutation.status === "deleted" ? "error" : mutation.status === "unknown" || mutation.status === "conflict" || mutation.status === "recovery-blocked" ? "warning" : ""}`} role="status">
@@ -195,14 +222,25 @@ function SaveMessage({ state }: { state: SaveView }) {
   }
 }
 
+// Focusing the input alone can leave Save below a short panel; the composer
+// then goes right under the sticky title (design composer-small).
+export function revealComposer(field: HTMLElement): void {
+  const panel = field.closest<HTMLElement>(".comments-panel"), composer = field.closest<HTMLElement>(".comments-composer");
+  if (!panel || !composer) return;
+  const title = panel.querySelector<HTMLElement>(".comments-title")?.offsetHeight ?? 0;
+  const top = composer.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop;
+  if (top < panel.scrollTop + title || top + composer.offsetHeight > panel.scrollTop + panel.clientHeight) panel.scrollTop = top - title;
+}
+
 export function CommentEditor(props: CommentEditorProps) {
   const { state, continue: next } = props;
+  const target = targetLabel(props.target, props.frames);
   const reasonId = useId();
   const locked = pending(state) || state.status === "saved";
   const cannotSave = locked || !!props.blocked || !props.body.trim() || state.status === "conflict" || state.status === "deleted";
   const label = props.mode === "create" ? "New comment" : "Your unsaved edit";
   return <><div className="comments-composer" aria-busy={state.status === "saving" || state.status === "checking"}>
-    <label>{label}<span className="comments-target">To: {targetText(props.target)}</span><textarea ref={props.inputRef} aria-label={`${label} body`} value={props.body} readOnly={locked} onChange={event => { if (!locked) props.onBody(event.currentTarget.value); }} /></label>
+    <label>{label}<span className="comments-target" title={target.title}>To: {target.text}</span><textarea ref={props.inputRef} aria-label={`${label} body`} value={props.body} readOnly={locked} onChange={event => { if (!locked) props.onBody(event.currentTarget.value); }} /></label>
     <div className="comments-tools">
       <button type="button" className="comments-btn" disabled={state.status === "saving" || state.status === "saved"} onClick={locked ? props.onKeepDraft : props.onCancel}>{locked ? "Keep draft" : "Cancel"}</button>
       {next?.canvas && <button key="continue-canvas" type="button" className="comments-btn" disabled={!next.canvas.enabled || next.starting !== null} onClick={next.onCanvas}>{next.starting === "canvas" ? "Starting…" : "Continue on canvas"}</button>}
@@ -210,7 +248,7 @@ export function CommentEditor(props: CommentEditorProps) {
         : state.status === "retry-original" ? <button key="retry-original" type="button" className="comments-btn primary" disabled={!!props.blocked} onClick={props.onRetryOriginal}>Retry original save</button> : <button key="save" type="button" className="comments-btn primary" disabled={cannotSave} onClick={props.onSave}>{state.status === "saving" ? "Saving…" : state.status === "reviewed" ? "Save reviewed changes" : props.mode === "edit" ? "Save changes" : "Save comment"}</button>}
     </div>
     {props.blocked && <p className="comments-helper" role="status">{props.blocked}</p>}
-    {next && (next.reason === null ? <p className="comments-helper">Continues on {targetText(next.preview)}.</p> : <p className="comments-helper" id={reasonId}>{next.reason}</p>)}
+    {next && (next.reason === null ? <p className="comments-helper">Continues on {targetLabel(next.preview, props.frames).text}.</p> : <p className="comments-helper" id={reasonId}>{next.reason}</p>)}
     {next?.error && <p className="comments-helper" role="alert">Couldn’t continue on the current version: {next.error.replace(/\.$/, "")}. Your text is kept.</p>}
     {props.blocked && props.mode === "edit" && !locked && <button type="button" className="comments-btn" onClick={props.onReadLatest}>Read latest state</button>}
     </div>
@@ -225,6 +263,7 @@ export function CommentEditor(props: CommentEditorProps) {
 
 export interface UnsavedCommentDialogProps {
   target: Target;
+  frames: TargetFrames;
   context: string;
   canSave: boolean;
   busy: boolean;
@@ -253,7 +292,8 @@ export function UnsavedCommentDialog(props: UnsavedCommentDialogProps) {
       if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) keepWriting();
     }}>
     <h3>{props.canSave ? "Save your comment first?" : "Keep this draft?"}</h3>
-    <p>Your unsaved comment belongs to {targetText(props.target)} in {props.context}. {props.canSave ? "Save it before moving, discard it, or keep writing here." : "Saving is unavailable. Discard the draft to continue or keep writing on the original draft."}</p>
+    <p>Your unsaved comment belongs to {props.context}. {props.canSave ? "Save it before moving, discard it, or keep writing here." : "Saving is unavailable. Discard the draft to continue or keep writing on the original draft."}</p>
+    <p className="comments-target">To: {targetLabel(props.target, props.frames).text}</p>
     {props.reason && <p role="status">{props.reason}</p>}
     <div className="comments-tools">
       <button type="button" className="comments-btn" autoFocus disabled={props.busy} onClick={keepWriting}>Keep writing</button>
@@ -301,10 +341,8 @@ export function UncertainCommentDialog(props: {
       if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) stay();
     }}>
     <h3>Save status could not be confirmed</h3>
-    {props.kind === "quit" ? <>
-      <p>If you quit, the memory-only draft will be lost. This draft belongs to {props.context}.</p>
-      <p>Quitting or restarting does not confirm that the comment was saved or that a directory child exited.</p>
-    </> : <p>You cannot leave this draft in {props.context} because its save status could not be confirmed. Your original input is kept.</p>}
+    {props.kind === "quit" ? <p>If you quit, this draft is lost. Quitting does not tell Doan whether the save finished, and restarting does not confirm it either. Check the comment after you reopen Doan.</p>
+      : <p>You cannot leave this draft in {props.context} because its save status could not be confirmed. Your original input is kept.</p>}
     <div className="comments-tools">
       <button type="button" className="comments-btn" autoFocus onClick={stay}>{props.kind === "quit" ? "Stay" : "Keep draft"}</button>
       {props.kind === "quit" && <button type="button" className="comments-btn" onClick={props.onQuit}>Quit anyway</button>}

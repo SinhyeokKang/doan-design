@@ -12,3 +12,21 @@ test("exact Go listing identity is required; width-only invalidity permits exist
     { ...listing, canvases: [...listing.canvases, { path: "design/b.html", id: "a" }] },
   ]) expect(() => authorizeCanvas(identity, bad)).toThrow();
 });
+
+const refusals = [
+  { cause: "invalid", requested: { ...identity, canvas: "Invalid" }, canvases: [{ path: identity.path, id: "Invalid" }] },
+  { cause: "invalid", requested: { ...identity, canvas: "Invalid" }, canvases: [{ path: identity.path, id: "Invalid" }, { path: "design/b.html", id: "Invalid" }] },
+  { cause: "duplicate", requested: identity, canvases: [...listing.canvases, { path: "design/b.html", id: "a" }] },
+  { cause: "missing", requested: identity, canvases: [] },
+  { cause: "missing", requested: identity, canvases: [{ path: "design/b.html", id: "a" }] },
+];
+test.each(refusals)("reports $cause from the requested id and listing rows", ({ cause, requested, canvases }) => {
+  expect(() => authorizeCanvas(requested, { ...listing, canvases })).toThrow(expect.objectContaining({
+    message: "Canvas identity is missing, changed or duplicated.", cause,
+  }));
+});
+test("unavailable projects have no canvas identity cause", () => {
+  try { authorizeCanvas(identity, { ...listing, root: "/other" }); }
+  catch (error) { expect(error).not.toHaveProperty("cause"); return; }
+  throw new Error("Expected project rejection.");
+});

@@ -15,7 +15,7 @@ import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, S
 import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { currentFrame } from "./currentFrame";
 
-const MEASURE_ANSWER_MS = 1000;
+export const MEASURE_ANSWER_MS = 1000;
 const REMEASURE_MS = 50;
 
 // A selection change inside the open canvas, or anything that leaves it.

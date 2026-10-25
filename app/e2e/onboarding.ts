@@ -617,7 +617,7 @@ else if (args[1] === 'add') {
   await enterProject(page, project); row = overview();
   await canvasRow(page, "first.html").click(); assert.equal(await subject(page.locator("body")).count(), 0);
   await page.frameLocator("iframe").getByRole("button", { name: "Target", exact: true }).click();
-  const panel = page.getByRole("region", { name: "Comments", exact: true }); await panel.getByRole("button", { name: "New selection comment", exact: true }).click();
+  const panel = page.getByRole("region", { name: "Comments", exact: true }); await panel.getByRole("button", { name: "Comment on selection", exact: true }).click();
   const draft = panel.getByRole("textbox", { name: "New comment body" }); await draft.fill("Keep this draft");
   const active = async () => JSON.parse((await exec(cli, ["active", "--json", "--repo", project], { env })).stdout);
   assert.equal((await active()).result?.selection?.element?.doanId, "target");

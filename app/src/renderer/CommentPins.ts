@@ -1,3 +1,4 @@
+import { pluralComments } from "../comments/panelText";
 import type { CommentPin } from "../comments/projection";
 
 // Screen-space children of the overlay, outside the transformed board.
@@ -33,7 +34,7 @@ export class CommentPins {
         this.overlay.append(button);
       }
       button.textContent = String(pin.comments.length);
-      button.setAttribute("aria-label", `${pin.comments.length} open comments`);
+      button.setAttribute("aria-label", pluralComments(pin.comments.length));
       button.style.left = `${pin.x}px`;
       button.style.top = `${pin.y}px`;
     }
