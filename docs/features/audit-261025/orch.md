@@ -201,3 +201,6 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 - A3b: Codex gpt-6-astra medium. 불확실 요청·guard·비동기 답변·quit 수명 주기 판단이 필요하다. 소유 파일은 CommentsSession/useComments/CommentsPanel 및 직접 연결 App·draft·transitions/index와 관련 테스트, comments-ui e2e. 서비스 저장/권한 계약은 변경하지 않는다. 단위 red→green·typecheck, native unknown/recovery-blocked 취소·종료와 내부 이동 차단을 검증한다.
 - T: Codex gpt-6-astra medium. Electron frame 식별·오래된 이벤트·job 수명 주기 판단이 필요하다. 소유 파일은 thumbnailWindow와 해당 테스트, thumbnails e2e만이다. 외곽 404/unreachable과 내부 404/unreachable, 연속 캡처의 단위/실제 앱 대조를 수행한다.
 - 두 배치는 별도 child로 병렬 구현한다. root는 문서/통합을 계속 담당하며, native build/runtime 슬롯은 반드시 직렬 예약한다. 각각 완료 뒤 별도 작성자의 독립 리뷰를 받고 최종 공통 gate를 다시 수행한다. 이전 실제 agent-eval의 CLI/guide/eval 구현은 이번 두 app-only 수정과 무관해 증거를 재사용한다. 그 뒤 PR #19를 갱신·병합하고 UX 수정을 시작한다.
+
+- A3b Dispatch `ctx_265779b173a1`, T Dispatch `ctx_bd118346d0b3` 모두 Astra medium effective와 turn_start를 확인했다. T에 원래 구현 native red→수정 후 thumbnails 단독 실행 슬롯을 배정했다.
+- 독립 리뷰 IR-T·IR-A3b는 각각 Codex gpt-6-astra medium으로 진행한다. 전자는 프레임/작업 수명과 failure 분류, 후자는 immutable 요청·종료 승인·취소·늦은 응답을 검토한다. 작성자는 자기 diff를 리뷰하지 않으며 report만 작성한다.
