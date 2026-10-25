@@ -2,6 +2,13 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — Init published success before merge setup could fail
+
+- **Area**: `cli/internal/cli/init.go`, init audit/publication regression tests, and canonical path resolution.
+- **Symptom**: an attributes-write failure left a valid config behind, so retry returned the existing-config no-op without completing merge setup. APFS canonical-equivalent path spellings also failed resolution, while malformed explicit repository paths could be mislabeled as internal errors.
+- **Prevention**: stage the complete config, finish attributes, then publish with the existing sibling rename contract; test attributes failure and controlled publication failure followed by retry, foreign CRLF bytes, one union line, temporary-file cleanup and truthful `created`. Preserve on-disk spelling using name equivalence plus filesystem identity, and keep unexpected permission/I/O failures distinct from missing paths.
+- **Review correction**: the first ordering fix used `os.Link`, adding an undocumented hard-link-capable filesystem prerequisite. Independent review removed it in favor of rename; neither exclusive publication nor cross-process transactions are promised. The controlled publication test ran red with a behavior-preserving test seam, not on a physical hard-link-incapable mount. CLI package tests and independent re-review passed; combined integration and real-agent checks are recorded separately in the audit plan.
+
 ### 2026-10-25 — A crash during quit teardown lost the debounced ui-state
 - **Symptom**: design-nav e2e intermittently read `ui-state.json` without `root` after entering a project and quitting at once (≈2 in 30 loaded runs, 0 in 8 idle runs).
 - **Root cause**: the newest state was accepted in main but only flushed on `will-quit`. With a thumbnail capture running, the process died with SIGSEGV right after `before-quit` disposed the capture window, so `will-quit` never ran and the 500 ms debounce left the previous value on disk.
