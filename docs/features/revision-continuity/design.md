@@ -179,3 +179,11 @@
   - `no-document` — 폭 없음, 로드 실패, 목록에 없는 문서에서 대상 줄이 텍스트로 보이고 "Location unavailable" 배지가 없음.
 - 그리지 않는 것: Esc·빈 여백, 범위 유지(화면 변화 없음), 리로드 중 깜빡임 처리(T-11, 측정에서 재현될 때만 한다).
 - `/design-sync` 비교 대상: `continue-draft`, `selection-gone`, `duplicate-id`의 새 요소. 나머지는 이미 main에 있는 화면(작업 공간, Comments 패널, Activity, 토스트)을 코드와 `docs/DESIGN.md` 그대로 옮긴다.
+
+### 초안 확정 (2026-10-25, 링크 0 지휘자 검토)
+
+- 초안 `design/revision-continuity.html`을 확정했다. 사용자가 확정을 지휘자에게 맡겼다.
+- 막힌 이유별 비활성 문구(초안의 draft copy)를 그대로 쓴다: "Waiting for the canvas to finish loading.", "The current version has no readable width. Run doan check in a terminal.", "The current version couldn’t load. Reload the canvas to try again.", "The page shown is not a listed canvas. Return to the canvas to continue.", "Finding your selection in the current version…". 비활성 이유는 "Continues on …" 줄 자리에 보이고 `aria-describedby`로 연결한다.
+- 막힌 `reloaded` 편집기에서는 "Continue on current version"이 Save comment 대신 primary 자리에 온다. 안내와 "Continues on …"은 도구 아래 helper 줄이고, 실패 alert는 셋째 helper 줄이다. selection-gone에서는 "Continue on canvas"가 Cancel과 primary 사이에 온다.
+- 중복 id: 이동과 재시작 모두 Overview로 돌아간다. Overview 맨 위 `.canvas-notice`(`role="status"`)에 같은 문장이 보이고, 이동 때는 토스트도 함께 뜬다. 재시작 때는 기존 restore 토스트 자리에 이 문장이 들어간다. 이 띠는 다른 캔버스를 열거나 Overview를 떠나면 사라진다.
+- Activity의 Moved 행은 "Moved · from <파일 이름>"이다. 파일 이름은 `--text-3`으로 보이고, 넘치면 말줄임하며 전체 이름은 tooltip으로 본다.
