@@ -571,6 +571,7 @@ Results:
 
 | 2026-10-25 | audit: Unknown comment-save status blocks internal draft-leaving transitions with a visible reason, but normal quit offers a dedicated warning and explicit Quit anyway | User decision — avoid permanent quit lock while stating that the memory-only draft is lost; quitting/restarting does not prove save success or directory-child exit, and quarantine/retry authority remains unchanged |
 | 2026-10-25 | audit: A failed nested iframe does not suppress a thumbnail of the outer canvas; failure of the outer canvas itself still returns unavailable | User decision — retain the visible outer preview without treating an embedded resource failure as a failed canvas load |
+| 2026-10-25 | ux-audit: Restore shared shadcn tooltip padding to 12px horizontally and 6px vertically, keeping the global reset unchanged | User decision — scope the correction to the shared tooltip and avoid changing shipped layout elsewhere |
 
 ## 8. Open questions
 
@@ -578,7 +579,7 @@ Carried over from README draft §15. When closed, they move to the matching sect
 
 - Open source license type (MIT · Apache-2.0, etc.)
 - A comment event `at` that matches the schema pattern but is not a calendar time (`2026-02-30`, `T24`, a `:60` second) can only come from a hand-edited file; if it is a file's max `at`, `doan comment resolve` on that file fails with `internal_error` (2026-10-21, cli-core user decision to defer). Options: a calendar check in the schema (TS and Go together), or a dedicated error code.
-- Shipped shadcn tooltips paint with zero padding: the unlayered `* { padding: 0 }` reset in `app/src/renderer/styles.css` overrides their `px-3 py-1.5`. The onboarding first-prompt tooltip exception was removed with the composer in app-setup (2026-10-25); historical measurements remain in DESIGN.md. Decide whether to fix the reset or each tooltip.
+Closed on 2026-10-25 (ux-audit, §7): restore the shared shadcn tooltip to 12px horizontal and 6px vertical padding without changing the global reset. Historical zero-padding measurements remain in DESIGN.md.
 - The comments-ui `Frame was detached` polling race was fixed on 2026-10-25 (POSTMORTEM 2026-10-25). The comment-filesystem check that expected `process.kill(pid, 0)` to throw ESRCH and got no exception (`Missing expected exception`) is still not investigated.
 
 Closed on 2026-10-24 (onboard, §7): `doan init --token-css` accepts an absolute path inside the repo; a not-initialized subfolder is re-rooted to its enclosing repo at read and before setup, so the app never creates a nested repo.
