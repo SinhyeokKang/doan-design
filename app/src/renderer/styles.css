@@ -64,7 +64,7 @@ code, kbd { font-family: var(--font-sans); }
 .row:hover { background: var(--panel-2); }
 .glyph { color: var(--text-4); width: 12px; flex: none; text-align: center; }
 .cnt { font: 10.5px var(--font-sans); color: var(--text-3); }
-.cnt.hot, .accent { color: var(--accent); }
+.cnt.hot { color: var(--accent); }
 .err { color: var(--err); font: 10.5px var(--font-sans); }
 .hint { padding: 2px 12px 6px 34px; font: 11.5px/1.5 var(--font-sans); color: var(--text-3); overflow-wrap: anywhere; }
 .hint code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
@@ -88,7 +88,8 @@ code, kbd { font-family: var(--font-sans); }
 .empty p { color: var(--text-3); max-width: 320px; font-size: 12.5px; line-height: 1.6; }
 .canvas-notices { position: absolute; top: 0; left: 0; right: 0; z-index: 1; pointer-events: none; }
 .canvas-notice { padding: 7px 12px; background: var(--accent-soft); color: var(--accent); font: 11px var(--font-sans); }
-.updated { position: absolute; left: 12px; bottom: 12px; pointer-events: none; }
+/* It sits on the canvas content, so the panel color goes behind it (design/comments-readability.html). */
+.updated { position: absolute; left: 12px; bottom: 12px; pointer-events: none; background: var(--panel); padding: 3px 8px; border-radius: 6px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); display: inline-block; }
 .zctl { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 6px; align-items: center; }
 .zctl.disabled { opacity: .4; }
@@ -138,10 +139,14 @@ code, kbd { font-family: var(--font-sans); }
 .doan-attributes .prop { overflow: visible; text-overflow: clip; }
 
 /* Presentation values from design/comments-ui.html; integration owns the panel split. */
-.comments-panel { width: 100%; min-width: 0; min-height: 0; overflow: auto; background: var(--panel); overflow-wrap: anywhere; }
+/* Size containment lets a short panel shrink the input by its own height, not the window's. */
+.comments-panel { width: 100%; min-width: 0; min-height: 0; overflow: auto; background: var(--panel); overflow-wrap: anywhere; container-type: size; }
 .comments-head { padding: 12px; border-bottom: 1px solid var(--line-2); }
-.comments-head h3 { font-size: 12px; font-weight: 700; margin-bottom: 10px; }
-.comments-head h3:focus-visible { outline: 1px solid var(--accent-line); }
+/* A direct child of the scrolling panel: a sticky title inside .comments-head would leave with the head. */
+.comments-title { position: sticky; top: 0; z-index: 1; background: var(--panel); font-size: 12px; font-weight: 700; padding: 12px 12px 10px; }
+.comments-title:focus-visible { outline: 1px solid var(--accent-line); }
+.comments-title + .comments-head { padding-top: 0; }
+.comments-title.alone { padding-bottom: 12px; border-bottom: 1px solid var(--line-2); }
 .comments-segment { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; margin-bottom: 8px; }
 .comments-segment button { flex: 1; min-width: 0; padding: 5px 7px; font-size: 11.5px; border-radius: 4px; color: var(--text-3); }
 .comments-segment button[aria-pressed=true] { color: var(--accent); background: var(--accent-soft); }
@@ -159,6 +164,7 @@ code, kbd { font-family: var(--font-sans); }
 .comments-target { display: block; max-width: 100%; color: var(--text-2); font-size: 10.5px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px; text-align: left; }
 /* Only a locatable target is a button; the unlocatable twin is a span, so button:disabled opacity never reaches it. */
 .comments-target.locatable { color: var(--accent); width: 100%; }
+.comments-target.locatable:hover { text-decoration: underline; }
 .comments-badges { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
 .comments-badge { display: inline-block; font-size: 10px; line-height: 1.5; padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--text-3); }
 .comments-badge.open { color: var(--accent); }
@@ -178,6 +184,7 @@ code, kbd { font-family: var(--font-sans); }
 .comments-composer label > .comments-target { margin-top: 8px; }
 .comments-composer textarea { display: block; width: 100%; min-width: 0; min-height: 104px; resize: none; font: 12px/1.6 var(--font-sans); background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 9px; margin: 8px 0; }
 .comments-composer textarea:focus-visible { outline: 1px solid var(--accent-line); }
+@container (max-height: 359px) { .comments-composer textarea { min-height: 64px; } }
 .comments-helper { font-size: 10.5px; line-height: 1.5; color: var(--text-3); margin: 8px 0; overflow-wrap: anywhere; }
 .comments-dialog { width: 410px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; margin: auto; background: var(--raised); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-2); border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
 .comments-dialog::backdrop { background: var(--board-bg); opacity: .6; }

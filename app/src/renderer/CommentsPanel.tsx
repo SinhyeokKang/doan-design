@@ -71,6 +71,7 @@ export interface CommentsPanelProps {
   mutations?: ReadonlyMap<string, SaveView>;
   editor: CommentEditorProps | null;
   headingRef?: Ref<HTMLHeadingElement>;
+  panelRef?: Ref<HTMLElement>;
   onFilter: (filter: ListFilter) => void;
   onCreate: (scope: ListFilter["scope"]) => void;
   onComment: (intent: CommentIntent, comment: string) => void;
@@ -106,17 +107,19 @@ export function CommentsPanel(props: CommentsPanelProps) {
   const editorView = editor && <CommentEditor {...editor} blocked={editor.continue ? editor.blocked : editorBlocked || null} />;
   if (state.kind === "identity") {
     const text = identityText(state.cause, props.canvasId);
-    return <section className="comments-panel native-scroll" aria-label="Comments">
-      <div className="comments-head"><h3 ref={props.headingRef} tabIndex={-1}>Comments</h3></div>
-      <div className="comments-message error" role="alert"><b>{text.title}</b>{text.body}</div>
+    return <section ref={props.panelRef} className="comments-panel native-scroll" aria-label="Comments">
+      <h3 ref={props.headingRef} className="comments-title alone" tabIndex={-1}>Comments</h3>
       {editorView}
+      <div className="comments-message error" role="alert"><b>{text.title}</b>{text.body}</div>
     </section>;
   }
   const elsewhere = filter.scope === "selection" ? Math.max(0, props.canvasOpenCount - props.counts.open) : 0;
   const empty = emptyListText(filter.scope, filter.status, elsewhere);
-  return <section className="comments-panel native-scroll" aria-label="Comments">
+  // The title is the panel's own child so it can stay stuck while the head
+  // scrolls away (a sticky h3 inside the head leaves with it).
+  return <section ref={props.panelRef} className="comments-panel native-scroll" aria-label="Comments">
+    <h3 ref={props.headingRef} className="comments-title" tabIndex={-1}>Comments</h3>
     <div className="comments-head">
-      <h3 ref={props.headingRef} tabIndex={-1}>Comments</h3>
       <div className="comments-segment" role="group" aria-label="Comment scope">
         <button type="button" aria-pressed={filter.scope === "selection"} disabled={!props.selectionAvailable || props.widthInvalid} title={props.selectionAvailable ? undefined : "Select an element or frame in the canvas"} onClick={() => props.onFilter({ scope: "selection", node: props.selectionNode ?? null, status: filter.status })}>Selection</button>
         <button type="button" aria-pressed={filter.scope === "canvas"} onClick={() => props.onFilter({ scope: "canvas", status: filter.status })}>Canvas</button>
@@ -133,6 +136,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
       {props.allCopy.status === "copied" && <p className="comments-helper" role="status">Copied all open comments on this canvas.</p>}
       {props.allCopy.status === "failed" && <p className="comments-helper" role="alert">{props.allCopy.message}</p>}
     </div>
+    {editorView}
     {props.widthInvalid && <div className="comments-message warning"><b>Could not read a valid board width.</b>Existing comments are still available. Run doan check in a terminal to diagnose the canvas. A readable width is required to add comments and show pins.</div>}
     {props.writeBlocked && <div className="comments-message error" role="alert"><b>Comments are read-only</b>{props.writeBlocked}</div>}
     {props.createBlocked && <div className="comments-message warning">{props.createBlocked}</div>}
@@ -152,7 +156,6 @@ export function CommentsPanel(props: CommentsPanelProps) {
           {read.comments.length === 0 && <div className="comments-message"><b>{empty.title}</b>{empty.body}</div>}
           {read.comments.map(comment => <CommentCard key={comment.comment} comment={comment} frames={props.frames} freshness={props.freshness.get(comment.comment) ?? "unknown"} locationMissing={props.missingLocations?.has(comment.comment) ?? null} disabled={writesDisabled || editor !== null} busy={props.busy} copy={props.copies.get(comment.comment) ?? { status: "idle" }} mutation={props.mutations?.get(comment.comment)} onComment={props.onComment} onCopy={props.onCopy} />)}
         </>}
-    {editorView}
   </section>;
 }
 
@@ -174,7 +177,7 @@ export function CommentCard({ comment, frames, freshness, locationMissing, disab
   const initials = createdBy.name.trim().split(/\s+/).slice(0, 2).map(word => Array.from(word)[0] ?? "").join("").toUpperCase();
   const locked = disabled || busy || (mutation !== undefined && mutation.status !== "idle" && mutation.status !== "saved");
   const target = targetLabel(comment.target, frames);
-  return <article className="comments-card" aria-label={`Comment by ${createdBy.name}`} aria-busy={busy || mutation?.status === "saving"}>
+  return <article className="comments-card" tabIndex={-1} data-comment={comment.comment} aria-label={`Comment by ${createdBy.name}`} aria-busy={busy || mutation?.status === "saving"}>
     <div className="comments-author"><span className="comments-avatar" aria-hidden="true">{initials}</span><div className="comments-by"><b>{createdBy.name}</b>{createdBy.kind === "human" && createdBy.email && <span className="comments-email">{createdBy.email}</span>}<time dateTime={comment.createdAt} title={comment.createdAt}>{relativeTime(comment.createdAt)}</time></div></div>
     {locationMissing === false && target.locatableHint
       ? <button type="button" className="comments-target locatable" title={`Show on canvas\n${target.title}`} onClick={() => onComment("locate", comment.comment)}>{target.text}</button>
@@ -217,6 +220,16 @@ function SaveMessage({ state }: { state: SaveView }) {
     case "deleted": return <><b>This comment was deleted</b>Your input is kept for reference. It cannot be saved to the deleted comment.</>;
     case "saved": return <><b>Comment saved</b>The original comment is in the file. No duplicate was added.</>;
   }
+}
+
+// Focusing the input alone can leave Save below a short panel; the composer
+// then goes right under the sticky title (design composer-small).
+export function revealComposer(field: HTMLElement): void {
+  const panel = field.closest<HTMLElement>(".comments-panel"), composer = field.closest<HTMLElement>(".comments-composer");
+  if (!panel || !composer) return;
+  const title = panel.querySelector<HTMLElement>(".comments-title")?.offsetHeight ?? 0;
+  const top = composer.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop;
+  if (top < panel.scrollTop + title || top + composer.offsetHeight > panel.scrollTop + panel.clientHeight) panel.scrollTop = top - title;
 }
 
 export function CommentEditor(props: CommentEditorProps) {

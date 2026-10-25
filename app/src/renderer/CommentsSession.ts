@@ -48,6 +48,9 @@ export class CommentsSession {
   continuing: "canvas" | "selection" | null = null;
   // The draft id a continue produced, so the editor puts the caret at the end once.
   continued: string | null = null;
+  // The comment a save just wrote, once the list has been read again, so the
+  // panel moves focus to its card once (cleared by the panel).
+  savedComment: string | null = null;
   // The draft id whose missing selection offered "Continue on canvas" (set by the editor).
   canvasOffered: string | null = null;
   composing = false;
@@ -304,11 +307,13 @@ export class CommentsSession {
     if (request !== this.pending || !this.draft.draft) return;
     if (this.uncertainTransition) this.cancelDestination();
     if (status.state === "saved") {
+      const origin = this.draft.draft.origin;
       this.draft = transitionDraft(this.draft, { type: "saved", request: request.requestID, draft: this.draft.draft.id, outcome: "saved" }).state;
       this.pending = null; this.saveView = { status: "idle" };
       await this.api.setCommentDraftGuard(false);
       this.destination?.(true); this.destination = null;
       await this.read();
+      this.savedComment = status.comment ?? (origin.kind === "edit" ? origin.comment : null);
     } else if (status.recovery === "child-exit-required") this.saveView = { status: "recovery-blocked", message: status.error ?? "Confirm externally that the directory child exited, then restart the app." };
     else this.saveView = { status: status.state === "absent" ? "retry-original" : "unknown" };
     if (status.state !== "saved") this.cancelDestination();
