@@ -404,8 +404,9 @@ else if (args[1] === 'add') {
     ipcMain.handle("folders:add-candidates", () => new Promise((resolve, reject) => Reflect.set(globalThis, "obCandidatesPending", { resolve, reject })));
   });
   const submitCandidates = () => checklist().getByRole("button", { name: "Add 2 Projects", exact: true });
-  for (const [attempt, outcome] of (["reject", "reject", "unavailable"] as const).entries()) {
-    await submitCandidates().click();
+  for (const [attempt, outcome] of (["reject", "reject", "unavailable", "reject", "reject", "unavailable"] as const).entries()) {
+    if (attempt < 3) await submitCandidates().click();
+    else { await submitCandidates().focus(); await page.keyboard.press("Enter"); }
     await wait(async () => await submitCandidates().isDisabled(), "checklist submit pending");
     await pause(250);
     console.log("checklist pending focus:", await page.evaluate(() => document.activeElement?.tagName));
@@ -424,7 +425,7 @@ else if (args[1] === 'add') {
       console.log("checklist Escape after lost focus:", { childVisible: await checklist().isVisible(), wizardVisible: await wizard().isVisible() });
     }
     await shot(`03-checklist-${attempt}-${outcome}`);
-    if (focused && attempt > 0) {
+    if (focused && attempt % 3 > 0) {
       await page.keyboard.press("Escape"); await checklist().waitFor({ state: "hidden" });
       await wait(() => focusIs(button("Add Project…")), "failed checklist Escape restores wizard focus");
       assert.equal(await wizard().isVisible(), true);
