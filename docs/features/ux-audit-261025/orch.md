@@ -181,3 +181,5 @@
 - K 작성자를 release하고 IR-K `ctx_63ac29150f4d`의 Astra medium effective·turn_start를 확인했다. child는 독립 리뷰까지 보존한다. N에 K의 실제 프로세스 종료 뒤 native/build 슬롯을 배정했다.
 
 - IR-K red 0/yellow 0을 인수해 O의 남은 yellow와 S의 같은 소비 확인 공백을 닫았다. `98db3e1`로 통합했으며 두 창 renderer reject도 현재 fixture 범위에서 검증됐다. reviewer를 release하고 clean·미통합 patch 없음·증거 보존을 확인한 뒤 K child를 Orca로 삭제했다. 전체 합본 gate는 N/P와 suite 연결 뒤 실행한다.
+
+- N의 첫 부분 native는 정상 종료·PASS를 보고했다. Quick Open close의 기존 포커스 복귀는 재현상 정상이라 유지한다. 지휘자는 late readUiState/folders fixture의 main 해제 뒤 두 rAF만으로는 실제 응답 소비가 확인되지 않는 점을 발견해 최종 검증 전에 보강하도록 반환했다. 이 부분 green으로 해당 경합의 완료를 확정하지 않는다. N이 슬롯을 반환해 P의 production/dev 실측에 배정했다.
