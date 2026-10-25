@@ -167,3 +167,15 @@
   - `mv`
   - `git checkout`
   - atomic rename
+
+## 초안 요청 (2026-10-25 사용자, 링크 0)
+
+- 캔버스: `design/revision-continuity.html`, canvas id `revision-continuity`, 폭 1440.
+- 프레임 (id — 담을 상태):
+  - `continue-draft` — 막힌 새 댓글 편집기. 안내(`role="status"`)와 "Continues on <대상>."; "Continue on current version"의 활성, "Starting…", 실패 alert와 재시도, 비활성과 이유(로딩, 폭 없음, 로드 실패, 목록에 없는 문서, 선택을 다시 찾는 중); 성공 뒤(To: 새 대상, 본문 유지); `unavailable`로 막힌 경우(기존 문구, 버튼 없음).
+  - `selection-gone` — 선택 초안인데 현재 선택이 없음. 안내 문구와 보조 버튼 "Continue on canvas"; 같은 캔버스에서 요소를 클릭하면 대화상자 없이 To:가 바뀌는 모습.
+  - `moved` — 같은 id 따라가기. 뷰·트리 펼침·포커스 행 유지, 새 경로의 트리 행, Activity "Moved · from <이전 파일 이름>".
+  - `duplicate-id` — 토스트와 캔버스 영역의 "<title> moved, but <n> canvases now use the ID <id>. Run doan check in a terminal."; 재시작 복원에서 저장된 id가 중복일 때 Overview와 안내.
+  - `no-document` — 폭 없음, 로드 실패, 목록에 없는 문서에서 대상 줄이 텍스트로 보이고 "Location unavailable" 배지가 없음.
+- 그리지 않는 것: Esc·빈 여백, 범위 유지(화면 변화 없음), 리로드 중 깜빡임 처리(T-11, 측정에서 재현될 때만 한다).
+- `/design-sync` 비교 대상: `continue-draft`, `selection-gone`, `duplicate-id`의 새 요소. 나머지는 이미 main에 있는 화면(작업 공간, Comments 패널, Activity, 토스트)을 코드와 `docs/DESIGN.md` 그대로 옮긴다.
