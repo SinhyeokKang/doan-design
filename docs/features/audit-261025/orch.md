@@ -95,3 +95,8 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 - IR-E: `ctx_b27489a00957`, A1 구현자를 독립 eval 리뷰에 재사용했다. Codex gpt-6-astra medium, 실행 경계와 정적 평가 판정 검토. eval만 읽고 `.scratch/review-E.md`를 작성한다.
 - H: `ctx_328b75053815`, E 구현자를 app/e2e 하네스 수정에 재사용했다. Codex gpt-6-astra medium, 종료·시간제한·비동기 검증 판단. A2 문구 단언 두 곳은 포함하되 네이티브 숨김/no-ID 회귀는 통합 뒤 별도 Task로 남긴다.
 - HEAD `6c6135c`의 `npm --prefix app run e2e`는 exit 1, 최종 `runtime-test: FAIL`이다. projects-home.ts:188 버튼 높이가 기대 21px 대신 22px이었다. `.scratch/audit-integration-261025/runtime-C-A1.log`와 failure.png를 확인했다. main/comments-ui/onboarding은 통과했으나 뒤의 suite는 미실행이다. 실사용자 상태는 unchanged였다. H에 원인 분석을 요청했으며 단언 완화로 통과시키지 않는다. 전체 런타임 슬롯을 반환했다.
+
+### E 리뷰와 독립 가능한 종료 수정
+
+- IR-E 완료: 필수 수정 0, 권장 수정 2. 미실행 조건문·함수 속 patch를 실행된 삭제로 판정하는 문제와 R4의 잘못된 bare import·style 속성 import 도달 판정을 채택했다. E 소유자의 H 완료 후 별도 E-fix로 돌린다. 근거는 `E-evidence/review-E.md`에 보존했다.
+- A3a: A-M2만 먼저 수정한다. 파일 소유권은 `app/src/main/index.ts`, `index.test.ts`. 숨긴 창/앱에서 실제 댓글 guard가 필요한 종료에만 창을 표시·집중시키고, 승인 뒤 setImmediate 종료와 상태 flush 순서를 유지한다. Codex gpt-6-astra medium: 네이티브 종료 재진입·guard 수명 주기 판단. 기존 A1 소유자를 IR-E 완료 후 재사용한다. 단위 red→green·typecheck를 인수하고 실제 숨김 종료는 통합 runtime에서 검증한다. A-M1 전용 종료 경고는 사용자 응답 전 구현하지 않는다.
