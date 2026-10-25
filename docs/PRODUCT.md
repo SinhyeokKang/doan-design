@@ -573,6 +573,7 @@ Results:
 | 2026-10-25 | audit: A failed nested iframe does not suppress a thumbnail of the outer canvas; failure of the outer canvas itself still returns unavailable | User decision — retain the visible outer preview without treating an embedded resource failure as a failed canvas load |
 | 2026-10-25 | ux-audit: Restore shared shadcn tooltip padding to 12px horizontally and 6px vertically, keeping the global reset unchanged | User decision — scope the correction to the shared tooltip and avoid changing shipped layout elsewhere |
 | 2026-10-25 | ux-audit: Keep creation errors local to New comment, fence begin by document lifetime, consume Delete Escape locally, and show Inspector waiting without old values | Conductor clarification of existing readable-data, selection and draft-lifetime contracts; failed creation must not hide unrelated comments or revive obsolete state |
+| 2026-10-25 | ux-audit: Retry failed Settings reads in place; retain Projects operation ownership and lost focus, label Details forwarding truthfully, and bind installation feedback to the latest request | Conductor clarification of existing Settings recovery and target-queue contracts; preserve config data and user intent without broadening IPC or window-close policy |
 
 ## 8. Open questions
 
