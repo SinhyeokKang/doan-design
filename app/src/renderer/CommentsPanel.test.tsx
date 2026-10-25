@@ -145,3 +145,10 @@ test("calendar-invalid v1 timestamps remain readable after folding", () => {
   const out = renderToStaticMarkup(<CommentCard comment={accepted} freshness="unknown" locationMissing={false} disabled={false} busy={false} copy={{ status: "idle" }} onComment={noop} onCopy={noop} />);
   expect(out).toContain("Visible note"); expect(out).toContain(event.at);
 });
+
+ test("newer-version warning explains the record and preserves valid comments", () => {
+  const out = html(panel({ read: { status: "ready", comments: [comment], warnings: [{ code: "unknown_version", line: 3 }] } }));
+  expect(out).toContain("written by a newer version of Doan");
+  expect(out).toContain("unknown_version · line 3");
+  expect(out).toContain(comment.body);
+});

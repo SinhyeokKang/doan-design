@@ -191,3 +191,67 @@ test("copy reports asynchronous clipboard rejection", async () => {
   s.deps.clipboard = () => rejected;
   expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { kind: "all" } })).toMatchObject({ ok: false, error: "Clipboard unavailable" });
 });
+
+test.each(["invalid string", "invalid line", "double BOM"])("service list and copy tolerate %s without losing valid comments", async mode => {
+  const s = setup(); await create(s);
+  const valid = s.bytes();
+  if (mode === "invalid string") {
+    const offset = valid.indexOf("Hello");
+    s.set(Buffer.concat([valid.subarray(0, offset), Buffer.from([0xff]), valid.subarray(offset + 1)]));
+  }
+  if (mode === "invalid line") s.set(Buffer.concat([Buffer.from([0xff, 10]), valid]));
+  if (mode === "double BOM") s.set(Buffer.concat([Buffer.from("\uFEFF\uFEFF{}\n"), valid]));
+  const listed = await s.service.list("window", { ...identity, requestID: "read" });
+  expect(listed).toMatchObject({ ok: true, value: { comments: [{ body: mode === "invalid string" ? "�ello 한글" : "Hello 한글" }], warnings: mode === "invalid string" ? [] : [{ code: "invalid_event", line: 1 }] } });
+  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { kind: "all" } })).toMatchObject({ ok: true });
+  expect(s.deps.clipboard).toHaveBeenCalledWith(expect.stringContaining(mode === "invalid string" ? "�ello 한글" : "Hello 한글"));
+});
+
+test("existing malformed bytes do not block editing an unrelated valid comment", async () => {
+  const s = setup(); await create(s);
+  const event = JSON.parse(s.bytes().toString());
+  const before = Buffer.concat([Buffer.from([0xff, 10]), s.bytes()]);
+  s.set(before);
+  expect(await s.service.mutate("window", { ...identity, project: 1, requestID: "edit-invalid-baseline", intent: { type: "edit", comment: event.comment, body: "Edited", expected: { body: event.body, status: "open", updatedAt: event.at } } })).toMatchObject({ ok: true, value: { state: "saved" } });
+  expect(s.bytes().subarray(0, before.length)).toEqual(before);
+  expect(await s.service.list("window", { ...identity, requestID: "read" })).toMatchObject({ ok: true, value: { comments: [{ body: "Edited" }], warnings: [{ code: "invalid_event", line: 1 }] } });
+});
+
+test.each([false, true])("new malformed UTF-8 tail stays unknown with matching event present=%s", async present => {
+  const s = setup(); const { payload } = await create(s);
+  s.set(Buffer.concat([present ? s.bytes() : Buffer.alloc(0), Buffer.from([0xff, 10])]));
+  const calls = vi.mocked(s.deps.append).mock.calls.length;
+  expect(await s.service.status("window", { ...identity, requestID: payload.requestID })).toMatchObject({ ok: true, value: { state: "unknown" } });
+  expect(await s.service.mutate("window", payload)).toMatchObject({ ok: true, value: { state: "unknown" } });
+  expect(s.deps.append).toHaveBeenCalledTimes(calls);
+});
+
+test("changed baseline bytes with the same warning count remain unknown", async () => {
+  const s = setup(); s.set(Buffer.from("bad\n"));
+  const { payload } = await create(s);
+  s.set(Buffer.from(s.bytes().toString().replace("bad", "BAD")));
+  expect(await s.service.status("window", { ...identity, requestID: payload.requestID })).toMatchObject({ ok: true, value: { state: "unknown" } });
+});
+
+test("malformed baseline permits exact absence and immutable retry but no new invalid tail", async () => {
+  const s = setup(); const baseline = Buffer.from([0xff, 10]); s.set(baseline);
+  const { payload, reply } = await create(s);
+  expect(reply).toMatchObject({ ok: true, value: { state: "saved" } });
+  const saved = Buffer.from(s.bytes());
+  s.set(baseline);
+  expect(await s.service.status("window", { ...identity, requestID: payload.requestID })).toMatchObject({ ok: true, value: { state: "absent" } });
+  vi.mocked(s.deps.author).mockResolvedValue({ kind: "human", name: "Different" });
+  expect(await s.service.mutate("window", payload)).toMatchObject({ ok: true, value: { state: "saved" } });
+  expect(s.bytes()).toEqual(saved);
+  s.set(Buffer.concat([saved, Buffer.from([0xff])]));
+  expect(await s.service.status("window", { ...identity, requestID: payload.requestID })).toMatchObject({ ok: true, value: { state: "unknown" } });
+});
+
+test("preparing many requests does not copy whole-file baselines", async () => {
+  const s = setup(); s.set(Buffer.from(" ".repeat(1024 * 1024) + "\n"));
+  const from = vi.spyOn(Buffer, "from");
+  try {
+    for (let i = 0; i < 8; i++) expect((await create(s, `large-${i}`)).reply).toMatchObject({ ok: true, value: { state: "saved" } });
+    expect(from.mock.calls.filter(([input]) => Buffer.isBuffer(input) && input.length >= 1024 * 1024)).toHaveLength(0);
+  } finally { from.mockRestore(); }
+});

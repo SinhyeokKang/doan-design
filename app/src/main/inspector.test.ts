@@ -367,3 +367,28 @@ for (const invalidation of ["remove", "unspecified detach", "debugger loss", "ne
     expect(docs.current("FRAME", CANVAS)).toBeNull();
   });
 }
+
+test.each([
+  [" \n Hello\t  world \r ", "Hello world"],
+  [" \n\t ", undefined],
+  ["  " + "😀".repeat(501), "😀".repeat(500)],
+])("serialized comment target normalizes text %j", async (text, expected) => {
+  const { runInNewContext } = await import("node:vm");
+  const { DocumentBindings } = await import("./comments/document");
+  const docs = new DocumentBindings();
+  vi.spyOn(docs, "current").mockReturnValue({ root: "/repo", path: "design/a.html", hash: "sha256:" + "a".repeat(64), generation: "loader" });
+  const dbg = new FakeDebugger();
+  const original = dbg.sendCommand.bind(dbg);
+  vi.spyOn(dbg, "sendCommand").mockImplementation(async (method, params, session) => {
+    if (method !== "Runtime.evaluate") return original(method, params, session);
+    if (!params || !("expression" in params) || typeof params.expression !== "string") throw new Error("Missing serialized expression");
+    const node = { outerHTML: "<p>text</p>", textContent: text };
+    const value: unknown = runInNewContext(params.expression, { document: { querySelectorAll: () => [node] } });
+    return { result: { value } };
+  });
+  const inspector = createInspector(dbg, () => BASE, docs);
+  dbg.target("S1", "iframe", { id: "FRAME", parentId: "MAIN", url: CANVAS });
+  const result = await inspector.commentDocument({ root: "/repo", path: "design/a.html", canvas: "a" }, CANVAS, { element: { selector: "p", html: "<p>text</p>" } });
+  expect(result.target.element?.text).toBe(expected);
+  if (expected === undefined) expect(result.target.element).not.toHaveProperty("text");
+});
