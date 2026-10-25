@@ -70,7 +70,7 @@ test("a reload is Changed only when the canvas row revision differs", () => {
 describe("resolvedActivity", () => {
   const kim: Author = { kind: "human", name: "Kim Doe", email: "kim@example.com" };
   const codex: Author = { kind: "agent", name: "codex" };
-  const comment = (id: string, resolvedBy?: Author, resolvedAt?: string): Comment => ({
+  const comment = (id: string, resolvedBy?: Author, resolvedAt = ""): Comment => ({
     comment: id, status: resolvedBy ? "resolved" : "open", body: "Body", target: {}, canvasHash: "sha256-x",
     createdBy: kim, createdAt: "2026-10-25T09:00:00.000Z", updatedAt: "2026-10-25T09:00:00.000Z",
     ...(resolvedBy ? { resolvedBy, resolvedAt } : {}),

@@ -1,3 +1,5 @@
+import { compareText } from "../comments/resolution";
+import type { Comment } from "../formats/types";
 import type { CanvasRow } from "../main/view";
 
 export interface ActivityEvent {
@@ -6,9 +8,12 @@ export interface ActivityEvent {
   canvas: string;
   id?: string;
   at: Date;
-  kind: "opened" | "reloaded" | "moved";
+  kind: "opened" | "changed" | "reloaded" | "moved" | "resolved";
   // The path a `moved` canvas left.
   from?: string;
+  // `resolved`: how many comments turned resolved and who resolved them.
+  count?: number;
+  resolvedBy?: string[];
 }
 
 // A canvas's events are keyed by (root, canvas id), so a move keeps them and
@@ -39,4 +44,22 @@ export function pushActivity(log: readonly ActivityEvent[], event: ActivityEvent
 export function timeText(at: Date): string {
   const two = (value: number) => String(value).padStart(2, "0");
   return `${two(at.getHours())}:${two(at.getMinutes())}:${two(at.getSeconds())}`;
+}
+
+// Changed needs evidence: without both row revisions a reload is only Reloaded.
+export function activityKind(prevRev: number | undefined, nextRev: number | undefined): "changed" | "reloaded" {
+  return prevRev !== undefined && nextRev !== undefined && prevRev !== nextRev ? "changed" : "reloaded";
+}
+
+// Comments that were open in `before` and are resolved in `after`, with each
+// resolver named once in resolve order. `before` is null on the first read,
+// which is the baseline and records nothing.
+export function resolvedActivity(before: readonly Comment[] | null, after: readonly Comment[]): { count: number; resolvedBy: string[] } | null {
+  if (before === null) return null;
+  const wasOpen = new Set(before.filter((comment) => comment.status === "open").map((comment) => comment.comment));
+  const turned = after
+    .filter((comment) => comment.status === "resolved" && wasOpen.has(comment.comment))
+    .sort((a, b) => compareText(a.resolvedAt ?? "", b.resolvedAt ?? ""));
+  if (turned.length === 0) return null;
+  return { count: turned.length, resolvedBy: [...new Set(turned.map((comment) => comment.resolvedBy?.name ?? ""))] };
 }

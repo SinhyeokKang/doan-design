@@ -56,7 +56,7 @@ describe("toReview", () => {
 });
 
 function review(...minutes: number[]): ReviewState {
-  return startReview(minutes.map((minute, index) => resolved(`cmt_${index + 1}`, minute)));
+  return startReview(minutes.map((minute, index) => resolved(`cmt_${index + 1}`, minute))) as ReviewState;
 }
 const step = (state: ReviewState) => state.steps[state.cursor];
 
