@@ -10,7 +10,7 @@ import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem
 import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, sameDocument, type OpenCanvas } from "./canvasView";
 import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
-import { activityFor, moveActivity, pushActivity, type ActivityEvent } from "./activity";
+import { activityFor, activityKey, pushActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { currentFrame } from "./currentFrame";
@@ -250,7 +250,7 @@ export class CanvasController {
 
   private publish(): void {
     const open = this.state.open;
-    this.state.updated = open ? activityFor(this.state.activity, open.folder, open.canvas)[0]?.at ?? null : null;
+    this.state.updated = open ? activityFor(this.state.activity, open.folder, open.canvas, open.row.id)[0]?.at ?? null : null;
     this.state.hasFrame = this.frame !== null;
     this.state.reanchoring = this.reanchor !== null;
     this.syncMain();
@@ -315,7 +315,7 @@ export class CanvasController {
         this.state.shown = to;
         const remembered = this.workspaceMemory.get(open.folder);
         if (remembered?.path === open.canvas) remembered.path = to;
-        this.state.activity = pushActivity(moveActivity(this.state.activity, open.folder, open.canvas, to), { folder: open.folder, canvas: to, at, kind: "moved", from: open.canvas }, 50);
+        this.state.activity = pushActivity(this.state.activity, { ...activityKey(open.folder, update.canvas), at, kind: "moved", from: open.canvas }, 50);
         // The same canvas reloaded at its new path: the view stays and the selection is asked for again.
         this.load(update.canvas, false, "moved");
         this.canvasMoved?.({ folder: open.folder, from: open.canvas, row: update.canvas });
@@ -773,7 +773,7 @@ export class CanvasController {
     if (this.state.unlisted) this.clearAnchors();
     if ((first || linked) && this.state.open && !this.state.unlisted && (linked || this.loadKind !== "moved")) {
       const at = new Date();
-      this.state.activity = pushActivity(this.state.activity, { ...this.state.open, at, kind: linked ? "opened" : this.loadKind }, 50);
+      this.state.activity = pushActivity(this.state.activity, { ...activityKey(this.state.open.folder, this.state.open.row), at, kind: linked ? "opened" : this.loadKind }, 50);
     }
     if (first && this.pendingFrame !== null) {
       const target = this.pendingFrame;

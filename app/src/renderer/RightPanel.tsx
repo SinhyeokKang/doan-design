@@ -17,7 +17,7 @@ export function RightPanel({ state, selectPath }: { state: CanvasState; selectPa
     {!open || !info ? <p className="pempty">No canvas open</p> : <>
       <div className="isec"><dl className="kv"><dt>Path</dt><dd>{info.path}</dd><dt>ID</dt><dd>{info.id}</dd><dt>Width</dt><dd>{info.width}</dd><dt>Frames</dt><dd>{info.frames}</dd></dl></div>
       <div className="isec"><h3 className="ihead">Comments</h3><dl className="kv"><dt>Open</dt><dd className="accent">{info.open}</dd><dt>Resolved</dt><dd>{info.resolved}</dd></dl></div>
-      <section className="isec activity" aria-label="Activity"><h3 className="ihead">Activity</h3><ol>{activityFor(state.activity, open.folder, open.canvas).map((event, index) => <li className="tl-row" key={index}><time>{timeText(event.at)}</time><b>{event.kind === "opened" ? "Opened" : event.kind === "moved" ? "Moved" : "Reloaded"}</b>{event.kind === "moved" && <span className="from" title={movedFrom(event)}>· from {movedFrom(event)}</span>}</li>)}</ol></section>
+      <section className="isec activity" aria-label="Activity"><h3 className="ihead">Activity</h3><ol>{activityFor(state.activity, open.folder, open.canvas, open.row.id).map((event, index) => <li className="tl-row" key={index}><time>{timeText(event.at)}</time><b>{event.kind === "opened" ? "Opened" : event.kind === "moved" ? "Moved" : "Reloaded"}</b>{event.kind === "moved" && <span className="from" title={movedFrom(event)}>· from {movedFrom(event)}</span>}</li>)}</ol></section>
       <p className="pempty">Click an element or frame to inspect it. Frames are also listed in the sidebar.</p>
     </>}
   </aside>;

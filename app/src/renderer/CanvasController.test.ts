@@ -1365,9 +1365,39 @@ describe("a canvas moved with the same id", () => {
       h.controller.updateEntries(h.list(h.moved, h.other));
       h.layout({ href: h.moved.url });
       const activity = h.state().activity;
-      expect(activityFor(activity, "/repo", h.moved.path).map(event => [event.kind, event.from])).toEqual([["moved", h.row.path], ["opened", undefined]]);
-      expect(activityFor(activity, "/repo", h.row.path)).toEqual([]);
+      expect(activityFor(activity, "/repo", h.moved.path, "a").map(event => [event.kind, event.from])).toEqual([["moved", h.row.path], ["opened", undefined]]);
       expect(h.state().updated).toEqual(activity[0]?.at);
+    } finally { h.controller.dispose(); }
+  });
+
+  // Activity is keyed by (root, canvas id) (R-B7 3); the path is only where it was.
+  it("does not give a new canvas id at a reused path the previous id's history, before or after a move", () => {
+    const h = movedHarness();
+    try {
+      const replacement = { ...h.row, id: "replacement" };
+      h.controller.updateEntries(h.list(replacement, h.other));
+      h.layout();
+      expect(activityFor(h.state().activity, "/repo", h.row.path, "replacement").map(event => event.kind)).toEqual(["reloaded"]);
+      expect(h.state().updated).toEqual(h.state().activity[0]?.at);
+      const moved = { ...replacement, path: "design/new.html", url: "http://localhost/t/k/f/design/new.html" };
+      h.controller.updateEntries(h.list(moved, h.other));
+      h.layout({ href: moved.url });
+      expect(activityFor(h.state().activity, "/repo", moved.path, "replacement").map(event => event.kind)).toEqual(["moved", "reloaded"]);
+      expect(activityFor(h.state().activity, "/repo", h.row.path, "a").map(event => event.kind)).toEqual(["opened"]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("keeps the history of a canvas left at the destination path under its own id", () => {
+    const h = movedHarness();
+    try {
+      h.controller.openCanvas("/repo", h.other);
+      h.layout({ href: h.other.url });
+      h.controller.openCanvas("/repo", h.row);
+      h.layout();
+      const moved = { ...h.row, path: h.other.path, url: h.other.url };
+      h.controller.updateEntries(h.list(moved, { ...h.other, path: "design/c.html", url: "http://localhost/t/k/f/design/c.html" }));
+      expect(activityFor(h.state().activity, "/repo", h.other.path, "a").map(event => event.kind)).toEqual(["moved", "opened", "opened"]);
+      expect(activityFor(h.state().activity, "/repo", "design/c.html", "b").map(event => event.kind)).toEqual(["opened"]);
     } finally { h.controller.dispose(); }
   });
 

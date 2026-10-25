@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { activityFor, movedFrom, moveActivity, pushActivity, timeText, type ActivityEvent } from "./activity";
+import { activityFor, movedFrom, pushActivity, timeText, type ActivityEvent } from "./activity";
 
 const event = (second: number, extra: Partial<ActivityEvent> = {}): ActivityEvent => ({ folder: "/repo", canvas: "design/a.html", at: new Date(2026, 9, 22, 14, 3, second), kind: "opened", ...extra });
 
@@ -31,14 +31,26 @@ test("formats local time with 24-hour digits independently of locale", () => {
   expect(timeText(new Date(2026, 9, 22, 14, 3, 21))).toBe("14:03:21");
 });
 
-test("a move carries the canvas's events to the new path and drops events of whatever sat there before", () => {
-  const log = [event(1), event(2, { canvas: "design/flows/a.html" }), event(3, { folder: "/other" }), event(4, { canvas: "design/b.html" })];
-  const moved = moveActivity(log, "/repo", "design/a.html", "design/flows/a.html");
-  expect(activityFor(moved, "/repo", "design/flows/a.html")).toEqual([event(1, { canvas: "design/flows/a.html" })]);
-  expect(activityFor(moved, "/repo", "design/a.html")).toEqual([]);
-  expect(activityFor(moved, "/other", "design/a.html")).toEqual([event(3, { folder: "/other" })]);
-  expect(activityFor(moved, "/repo", "design/b.html")).toHaveLength(1);
-  expect(log).toHaveLength(4);
+test("keys a canvas with an id by its id across paths, and one without by its path", () => {
+  const log = [
+    event(4, { canvas: "design/flows/a.html", id: "a", kind: "moved", from: "design/a.html" }),
+    event(3, { id: "replacement" }),
+    event(2, { id: "a" }),
+    event(1),
+    event(0, { folder: "/other", id: "a" }),
+  ];
+  expect(activityFor(log, "/repo", "design/flows/a.html", "a").map((item) => item.at.getSeconds())).toEqual([4, 2]);
+  expect(activityFor(log, "/repo", "design/a.html", "replacement").map((item) => item.at.getSeconds())).toEqual([3]);
+  expect(activityFor(log, "/repo", "design/a.html").map((item) => item.at.getSeconds())).toEqual([1]);
+  expect(activityFor(log, "/repo", "design/a.html", "").map((item) => item.at.getSeconds())).toEqual([1]);
+});
+
+test("keeps the per-canvas limit by canvas id, not by path", () => {
+  let log = pushActivity([], event(1, { id: "a" }), 1);
+  log = pushActivity(log, event(2, { id: "b" }), 1);
+  expect(log.map((item) => item.at.getSeconds())).toEqual([2, 1]);
+  log = pushActivity(log, event(3, { canvas: "design/flows/a.html", id: "a" }), 1);
+  expect(log.map((item) => item.at.getSeconds())).toEqual([3, 2]);
 });
 
 test("names the previous file of a move by its file name", () => {
