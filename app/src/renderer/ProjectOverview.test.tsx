@@ -35,15 +35,15 @@ test("card facts count static frames, singular and capped, and show open comment
   expect(cardFacts(row("design/a.html", { frames: frames(0) }))).toEqual({ frames: "0 frames" });
   expect(cardFacts(row("design/a.html", { frames: frames(1000), framesTruncated: true, open: 3 }))).toEqual({ frames: "1,000+ frames", open: "3 open" });
   expect(cardFacts(row("design/a.html", { frames: frames(1000) }))).toEqual({ frames: "1,000 frames" });
-  // A canvas `doan ls` could not parse has no frame count.
+  // Missing ID does not invalidate known frame facts.
   const { id: _id, ...broken } = row("design/a.html", { open: 2 });
-  expect(cardFacts(broken)).toEqual({ open: "2 open" });
+  expect(cardFacts(broken)).toEqual({ frames: "0 frames", open: "2 open" });
 });
 
-test("thumbnail view: unreadable beats a missing width, which beats the capture state", () => {
+test("thumbnail view: missing width beats capture state; missing id does not", () => {
   const { id: _id, ...broken } = row("design/a.html");
   const { width: _width, ...noWidth } = row("design/a.html");
-  expect(thumbnailView(broken, { kind: "ready", url: "blob:x" })).toEqual({ kind: "broken" });
+  expect(thumbnailView(broken, { kind: "ready", url: "blob:x" })).toEqual({ kind: "ready", url: "blob:x" });
   expect(thumbnailView(noWidth, { kind: "failed" })).toEqual({ kind: "noWidth" });
   expect(thumbnailView(row("design/a.html"), undefined)).toEqual({ kind: "pending" });
   expect(thumbnailView(row("design/a.html"), { kind: "failed" })).toEqual({ kind: "failed" });
@@ -68,7 +68,7 @@ test("visibility changes report a new set only when it changed", () => {
   expect(after && [...after]).toEqual(["b"]);
 });
 
-test("the overview shows each thumbnail state, the parse-failure card and folder headings with counts", () => {
+test("the overview shows thumbnail states without inferring parse failure from missing metadata", () => {
   const { id: _id, title: _title, ...broken } = row("design/checkout/legacy-checkout.html", { mtimeMs: Date.now() });
   const { width: _width, ...noWidth } = rows[0]!;
   const html = render([noWidth, rows[1]!, rows[2]!, broken, { ...rows[4]!, open: 2, frames: [{ id: "plans" }] }], new Map<string, ThumbnailState>([
@@ -78,11 +78,11 @@ test("the overview shows each thumbnail state, the parse-failure card and folder
   expect(html).toContain('aria-label="Overview"');
   expect(html).toMatch(/<div class="sec">design <span class="r">2<\/span><\/div>/);
   expect(html).toMatch(/<div class="sec">design\/checkout <span class="r">2<\/span><\/div>/);
-  expect(html).toContain("Add <code>doan:width</code> to preview");
+  expect(html).toContain("Preview needs a valid <code>doan:width</code> — run doan check");
   expect(html).toContain('<img src="blob:thumb" alt=""');
   expect(html).toContain('class="thumb pending"');
   expect(html).toContain("Preview unavailable");
-  expect(html).toContain('<p class="thumb-msg warn">Can&#x27;t read this canvas — run doan check</p>');
+  expect(html).not.toContain("Can&#x27;t read this canvas");
   expect(html).toMatch(/<span id="[^"]+-title" class="ocard-title">legacy-checkout<\/span>/);
   expect(html).toContain("1 frame · ");
   expect(html).toContain('<span class="hot">2 open</span>');
@@ -165,4 +165,15 @@ test("thumbnails: leaving the root releases every image and drops late replies",
   expect(h.revoked).toHaveBeenCalledWith("blob:1");
   await h.asks.find(ask => ask.path === b.path)!.reply(h.ready);
   expect(h.created).toHaveBeenCalledTimes(1);
+});
+
+ test("thumbnail requests accept valid width without an id and retain known frames", () => {
+  const h = requests();
+  const { id: _id, ...missingID } = row("design/no-id.html", { frames: [{ id: "known" }] });
+  const { width: _width, ...noWidth } = row("design/no-width.html");
+  h.thumbs.setRows([missingID, noWidth]);
+  h.thumbs.onVisible([missingID.path, noWidth.path]);
+  expect(h.asks.map(ask => ask.path)).toEqual([missingID.path]);
+  expect(cardFacts(missingID)).toEqual({ frames: "1 frame" });
+  h.thumbs.dispose();
 });
