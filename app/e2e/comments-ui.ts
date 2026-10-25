@@ -54,8 +54,8 @@ try {
   await writeFile(join(readRepo, "design/r.html"), html("r").replace(/<section[^]*$/, '<section data-doan-frame="ship" data-doan-title="Shipping"><p style="margin:0;padding:10px;width:fit-content">Delivery takes 3–5 business days after the order ships.</p></section>'));
   await writeFile(join(readRepo, "design/w.html"), html("w"));
   const warnedComment = `cmt_${randomUUID()}`, conflictedEvent = `evt_${randomUUID()}`, by = { kind: "human", name: "Merge Author" };
-  const created = JSON.stringify({ v: 1, id: `evt_${randomUUID()}`, at: "2026-10-26T01:00:00.000Z", type: "create", comment: warnedComment, by, body: "Original body", canvasHash: `sha256:${"0".repeat(64)}`, target: {} });
-  const edited = (body: string) => JSON.stringify({ v: 1, id: conflictedEvent, at: "2026-10-26T02:00:00.000Z", type: "edit", comment: warnedComment, by, body });
+  const created = JSON.stringify({ v: 1, id: `evt_${randomUUID()}`, at: "2026-10-20T01:00:00.000Z", type: "create", comment: warnedComment, by, body: "Original body", canvasHash: `sha256:${"0".repeat(64)}`, target: {} });
+  const edited = (body: string) => JSON.stringify({ v: 1, id: conflictedEvent, at: "2026-10-20T02:00:00.000Z", type: "edit", comment: warnedComment, by, body });
   // A write cut short leaves line 2 unreadable; both branches then rewrote the same edit line.
   const merged = join(readRepo, ".doan/comments/w.jsonl"), mergeBase = join(work, "merge-base.jsonl"), theirs = join(work, "merge-theirs.jsonl");
   const log = (edit: string) => `${created}\n{"v":1,"id":"evt_\n${edit}\n`;
@@ -202,8 +202,16 @@ try {
   const readBoard = await page.locator("iframe").evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, scale: r.width / el.clientWidth }; });
   await page.mouse.click(readBoard.x + textPoint.x * readBoard.scale, readBoard.y + textPoint.y * readBoard.scale);
   await waitGate(async () => await page.getByRole("region", { name: "Inspector", exact: true }).locator("h3").first().textContent() === "p");
-  await panel.getByRole("button", { name: "Comment on selection", exact: true }).waitFor();
+  // The spec's small-window layout is measured with three comments already listed.
+  for (const body of ["First listed", "Second listed", "Third listed"]) {
+    await panel.getByRole("button", { name: "Comment on selection", exact: true }).click();
+    await boundaryBody.fill(body);
+    await panel.getByRole("button", { name: "Save comment", exact: true }).click();
+    await cards.filter({ hasText: body }).waitFor();
+  }
+  assert.equal(await cards.count(), 3);
   await resize(960, 600);
+  let readFailed = false;
   try {
     await panel.getByRole("button", { name: "Comment on selection", exact: true }).click();
     await page.waitForFunction(() => document.activeElement?.tagName === "TEXTAREA");
@@ -216,9 +224,10 @@ try {
     const reach = () => panel.evaluate(el => {
       const r = el.getBoundingClientRect(), top = r.top + el.clientTop, bottom = top + el.clientHeight, left = r.left + el.clientLeft, right = left + el.clientWidth;
       const inside = (selector: string) => { const p = el.querySelector(selector)!.getBoundingClientRect(); return p.top >= top && p.bottom <= bottom && p.left >= left && p.right <= right; };
-      return { short: el.clientHeight < 360, title: inside(".comments-title"), to: inside(".comments-composer label > .comments-target"), input: inside(".comments-composer textarea"), save: inside(".comments-composer .comments-btn.primary") };
+      const inWindow = r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth;
+      return { inWindow, short: el.clientHeight < 360, title: inside(".comments-title"), to: inside(".comments-composer label > .comments-target"), input: inside(".comments-composer textarea"), save: inside(".comments-composer .comments-btn.primary") };
     });
-    const reachable = { short: true, title: true, to: true, input: true, save: true };
+    const reachable = { inWindow: true, short: true, title: true, to: true, input: true, save: true };
     await waitGate(async () => JSON.stringify(await reach()) === JSON.stringify(reachable)).catch(() => {});
     assert.deepEqual(await reach(), reachable, "composer reachable at 960 x 600");
     await boundaryBody.fill("Ships too slowly");
@@ -228,13 +237,18 @@ try {
     assert.equal(await readableTarget.textContent(), "Element · p “Delivery takes 3–5 business days after t…” · in Shipping");
     assert.match(await readableTarget.getAttribute("title") ?? "", /^Show on canvas\n\[data-doan-frame="ship"\] > p/);
     await shot("00f-readable-target-small-window");
+  } catch (error) {
+    readFailed = true; throw error;
   } finally {
-    await resize(1238, 780);
+    // A failed restore must not replace the assertion that brought us here.
+    await resize(1238, 780).catch(error => { if (!readFailed) throw error; console.error("restoring the window size failed:", error); });
   }
   // Warnings from the merged log: one grouped block with line numbers and the file line.
   await canvasRow(page, "w.html").click();
   const warnings = panel.locator(".comments-warnings");
   await warnings.waitFor();
+  // The Git name check runs beside the read and has its own loading block.
+  await panel.getByText("Checking Git name…", { exact: true }).waitFor({ state: "hidden" });
   assert.equal(await panel.locator(".comments-message").count(), 1);
   assert.equal(await warnings.locator("b").textContent(), "Some comment changes were ignored");
   assert.deepEqual(await warnings.locator("li").evaluateAll(items => items.map(item => [item.firstChild?.textContent, item.querySelector(".lines")?.textContent])), [
