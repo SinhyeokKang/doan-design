@@ -330,7 +330,7 @@ export function App() {
     <TopBar homeDirectory={homeDirectory} state={state} name={card?.name ?? name} reload={() => command("reload")} overview={() => { cancelRestore(); controller.current?.showOverview(); }} home={home} entry={entry} rows={card?.rows ?? []} enter={root => enter(root, true)} />
     {entry && entry.kind !== "list" && <ProblemActions entry={entry} action={action} workspace={{ name: card?.name ?? name, homeDirectory, home }} />}
     <Sidebar entries={entries.filter(entry => entry.path === loadedRoot)} state={state} expanded={expanded} onExpandedChange={(root, paths) => { cancelRestore(); setExpanded(previous => ({ ...previous, [root]: paths })); }} open={(folder, row, frameId, index) => { cancelRestore(); controller.current?.openCanvas(folder, row, frameId, index === undefined ? undefined : { index }); }} jump={index => controller.current?.jump(index)} select={index => controller.current?.selectFrame(index)} overview={() => { cancelRestore(); controller.current?.showOverview(); }} />
-    <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} command={command} covered={overview !== null} />
+    <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null} />
     {overview && <ProjectOverview key={overview.path} root={overview.path} rows={overview.canvases} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible} open={row => { cancelRestore(); controller.current?.openCanvas(overview.path, row); }} />}
     <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />{comments.panel}</div>
   </main>
@@ -360,14 +360,14 @@ function TopBar({ state, name, reload, overview, home, entry, rows, enter, homeD
   </header>;
 }
 
-function CanvasPane({ viewport, board, overlay, state, entry, command, covered }: {
+function CanvasPane({ viewport, board, overlay, state, entry, projectName, command, covered }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>;
-  state: CanvasState; entry: FolderEntry | undefined; command: (name: ViewCommand) => void; covered: boolean;
+  state: CanvasState; entry: FolderEntry | undefined; projectName: string; command: (name: ViewCommand) => void; covered: boolean;
 }) {
   const problem = !state.open && entry && entry.kind !== "list" ? entry : null;
   const problemMessage = problem?.kind === "loading" ? "Reading project…"
-    : problem?.kind === "notFound" ? "The project is missing. Use Locate… to find it."
-    : problem?.kind === "uninitialized" ? "The project is not set up. Use Set Up… to continue."
+    : problem?.kind === "notFound" ? `The project ${projectName} is missing. Use Locate… to find it.`
+    : problem?.kind === "uninitialized" ? `The project ${projectName} is not set up. Use Set Up… on Home.`
     : problem?.kind === "error" ? "Could not read the project configuration. Use Details or Retry above."
     : problem?.kind === "cliError" ? "Could not read the project. Use Retry above." : null;
   // Stays laid out under the Overview: opening a canvas fits it to this size at once.
