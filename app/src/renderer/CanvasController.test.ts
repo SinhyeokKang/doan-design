@@ -1185,3 +1185,19 @@ it("reports a canvas that becomes unavailable while the user approves its draft 
     expect(h.changed.mock.lastCall?.[0].open?.canvas).toBe(h.row.path);
   } finally { h.controller.dispose(); }
 });
+
+it("leaving the workspace supersedes a pending Added recovery approval", async () => {
+  const h = loadedController();
+  try {
+    const repo: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
+    h.controller.updateEntries([repo, { path: "/added", kind: "loading" }]);
+    const unavailable = vi.fn();
+    h.controller.openWorkspace("/added", vi.fn(), false, unavailable);
+    let approve: (allow: boolean) => void = () => {};
+    h.controller.setTransitionGuard(() => new Promise<boolean>(resolve => { approve = resolve; }));
+    h.controller.updateEntries([repo, { path: "/added", kind: "uninitialized" }]);
+    h.controller.setWorkspaceActive(false);
+    approve(true); await Promise.resolve();
+    expect(unavailable).not.toHaveBeenCalled();
+  } finally { h.controller.dispose(); }
+});
