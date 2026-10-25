@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import type { MachineState } from "../main/onboarding/machine";
 import type { Agent } from "../main/onboarding/states";
 import { agentsView, cliItems, copyLabel, PATH_LINE_TEXT, COPY_FAILED, type ItemView, type MachineUi, type Part, type Row } from "./onboardingView";
-import { CONNECTION_NAMES, connectionRow } from "./connectionRows";
+import { CONNECTION_NAMES, connectionRow } from "./connectionRowView";
 import "./connectionRows.css";
 
 export function ConnectionParts({ parts }: { parts: readonly Part[] }) {

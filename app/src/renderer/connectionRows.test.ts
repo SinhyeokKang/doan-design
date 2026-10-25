@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { MachineState } from "../main/onboarding/machine";
-import { connectionRow, connectionConfirm, connectionBanner } from "./connectionRows";
+import { connectionRow, connectionConfirm, connectionBanner } from "./connectionRowView";
 import { idleUi } from "./onboardingView";
 const home = "/Users/alex";
 const app = "/Applications/doan.app/Contents/Resources/bin/doan";
