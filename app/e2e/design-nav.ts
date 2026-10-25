@@ -457,6 +457,7 @@ process.exit(result.status ?? 1);
       console.log("waiting Open actual callback consumption", outcome, consumed);
       const expected = identity ? "Canvas changed while opening. Choose it again from the Sidebar or Quick Open."
         : outcome === "missing-path" ? "card-decline-patterns is no longer in design/" : "Project is unavailable. Check its status on Home and try again.";
+      await page.locator(".toast .msg").getByText(expected, { exact: true }).waitFor();
       const actual = await page.locator(".toast .msg").textContent();
       await shot(`Nfix-open-${outcome}`);
       await page.evaluate(() => Reflect.get(window, "openConsumption").restore());
