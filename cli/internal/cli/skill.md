@@ -28,6 +28,8 @@ F. Explain changes in the conversation. Do not reply to comments. Agents only re
 G. State on the canvas when something drawn is not in code, including new copy, translation keys, and components. Choose the presentation yourself.
 H. Keep ids unchanged when moving a canvas file so its comments follow it.
 
+An open comment with `lastResolution` was resolved before and reopened by a human; your previous change was not accepted — read the body again before applying.
+
 ## Commands
 
 - `doan config --json`: read the current `tokenCss` and `serve`. To update them, use `--token-css <path>`, `--clear-token-css`, repeatable `--add-serve <path>` or `--remove-serve <path>`. Token CSS and clear cannot be combined. Paths are relative to the repository root, or absolute inside the repository; stored paths use repository-relative on-disk spelling. Added serve paths must exist and cannot be the repository root, `.git` or inside `.git/` or `.doan/`; removal also accepts stored paths whose targets no longer exist. Unchanged values do not rewrite the file. Change configuration with `config` only when the user asks.
