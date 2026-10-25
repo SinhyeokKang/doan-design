@@ -58,6 +58,10 @@ try {
   await cliRow.getByText("Link is broken", { exact: true }).waitFor();
   await wait(() => cliRow.getByRole("button", { name: "Fix…" }).evaluate(node => node === document.activeElement), "banner target action focus");
   await settings.screenshot({ path: join(shots, "02-connections.png") });
+  await app.evaluate(({ shell }) => { shell.openExternal = async () => { throw new Error("Injected install-page failure"); }; });
+  await settings.getByRole("button", { name: "Install Codex ↗", exact: true }).click();
+  await settings.getByRole("alert").getByText("Couldn’t open the install page.", { exact: true }).waitFor();
+  assert.equal(await cliRow.getByRole("button", { name: "Fix…" }).isEnabled(), true, "an install-page failure cannot disable connection actions");
   await cliRow.getByRole("button", { name: "Copy", exact: true }).click(); await cliRow.getByRole("button", { name: "Copied", exact: true }).waitFor();
   assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), 'export PATH="$HOME/.local/bin:$PATH"');
   await cliRow.getByRole("button", { name: "Fix…" }).click();
@@ -133,6 +137,10 @@ try {
   await rm(cli); await rename(`${cli}.real`, cli);
   await settings.getByRole("option").filter({ hasText: "~/gone" }).click();
   await settings.getByRole("region", { name: "gone settings" }).getByRole("button", { name: "Locate…" }).waitFor();
+  const missingRoot = settings.getByRole("region", { name: "gone settings" }).locator(".pj-sec");
+  assert.equal(await missingRoot.locator(".ob-chip.warn").innerText(), "Missing");
+  assert.equal(await missingRoot.locator("code").innerText(), "~/gone");
+  assert.equal(await missingRoot.locator(".wt-actions").count(), 1);
   await settings.getByRole("option").filter({ hasText: "~/plain" }).click();
   await settings.getByRole("region", { name: "plain settings" }).getByRole("button", { name: "Set Up…" }).click();
   const setup = page.getByRole("dialog", { name: /Set Up Project/ });
