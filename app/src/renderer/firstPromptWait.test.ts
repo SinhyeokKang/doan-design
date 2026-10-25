@@ -73,3 +73,10 @@ test('explicit arrival Open distinguishes a missing canvas from an unavailable r
       : 'Project is unavailable. Check its status on Home and try again.');
   }
 });
+
+test('explicit Open keeps its feedback ownership through a later draft guard', () => {
+  const h = setup(); h.deps.workspaceRoot = null;
+  h.deps.entries = withCanvas; h.render();
+  h.toast.mock.calls[0]?.[2]();
+  expect(h.openCanvas).toHaveBeenCalledWith('/project', withCanvas[0]?.canvases[0], true);
+});
