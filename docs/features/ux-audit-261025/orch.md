@@ -174,3 +174,5 @@
 - U-9 추가 대조에서 CommentsPanel도 동일한 width 부재를 원인 진단으로 단정하는 문구를 사용함을 확인했다(`useComments`의 widthInvalid는 row.width 부재일 뿐이다). C가 종료·통합돼 소유권 충돌이 없으므로 N에 CommentsPanel의 width 안내 문자열과 직접 기대값만 추가한다. comment 상태·쓰기·draft 수명은 바꾸지 않는다.
 
 - P의 선행 조건을 더 좁혔다. K와 겹치는 것은 onboarding suite 연결뿐이므로 P는 CSS·HTML·독립 실행 presentation fixture를 먼저 맡고 onboarding/settings fixture를 건드리지 않는다. K 통합 뒤 별도 P 후속 작업에서 suite 연결을 맡긴다. N/K/P의 현재 파일 소유권은 겹치지 않으며 native/build는 K→N 순서 뒤 P에 배정한다. 이 순서 변경은 승인한 수정 범위를 바꾸지 않는다.
+
+- P `ctx_b42cc33d55da`의 Astra medium effective·turn_start를 확인했다. 기준은 `011a2bd`이며 suite 연결은 별도 후속 소유권으로 남긴다.
