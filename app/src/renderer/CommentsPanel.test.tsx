@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 import type { Comment } from "../formats/types";
 import { foldText } from "../formats/foldText";
-import { CommentsPanel, CommentCard, CommentEditor, UnsavedCommentDialog, UncertainCommentDialog, type CommentsPanelProps, type CommentEditorProps } from "./CommentsPanel";
+import { CommentsPanel, DeleteCommentDialog, CommentCard, CommentEditor, UnsavedCommentDialog, UncertainCommentDialog, type CommentsPanelProps, type CommentEditorProps } from "./CommentsPanel";
 
 const comment: Comment = { comment: "c1", status: "open", body: '<script>alert("x")</script>\n  Keep spaces ', target: { element: { doanId: "submit", selector: "button", html: "<button/>" } }, canvasHash: "h", createdBy: { kind: "human", name: "Alex Morgan", email: "alex@example.com" }, createdAt: "2026-10-23T01:42:00Z", updatedAt: "2026-10-23T01:42:00Z" };
 const noop = () => {};
@@ -173,4 +173,25 @@ test("blocked movement explains uncertainty without offering discard or quit", (
   expect(out).toContain("Save status could not be confirmed");
   expect(out).toContain("cannot leave this draft"); expect(out).toContain("repo / a");
   expect(out).not.toContain("Quit anyway"); expect(out).not.toContain("Discard"); expect(out).toContain("Keep draft");
+});
+
+test("begin error stays beside creation without disabling existing actions", () => {
+  const props = panel({ createError: "Cannot start comment" });
+  const out = html(props);
+  expect(out).toContain("Cannot start comment");
+  expect(out).not.toContain("Comments are read-only");
+  expect(out).not.toContain("Couldn’t read comments");
+  expect(find(CommentsPanel(props), "New canvas comment").disabled).toBe(false);
+  expect(find(CommentsPanel(props), "Copy all open").disabled).toBe(false);
+});
+test("delete Escape is consumed without cancelling during IME", () => {
+  const onCancel = vi.fn(), onConfirm = vi.fn();
+  const dialog = DeleteCommentDialog({ comment, onCancel, onConfirm });
+  for (const nativeEvent of [{ isComposing: true, keyCode: 27 }, { isComposing: false, keyCode: 229 }, { isComposing: false, keyCode: 27 }]) {
+    const event = { key: "Escape", nativeEvent, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    dialog.props.onKeyDown?.(event);
+    expect(event.preventDefault).toHaveBeenCalledOnce(); expect(event.stopPropagation).toHaveBeenCalledOnce();
+    expect(onCancel).toHaveBeenCalledTimes(nativeEvent.isComposing || nativeEvent.keyCode === 229 ? 0 : 1);
+  }
+  expect(onConfirm).not.toHaveBeenCalled();
 });

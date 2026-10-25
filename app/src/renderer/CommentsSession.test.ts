@@ -197,3 +197,18 @@ test("a rejected shortcut during ordinary Save and continue does not cancel its 
   expect(s.guard("quit")).toBe(false);
   finish?.(); await save; expect(await movement).toBe(true);
 });
+
+test("begin failure preserves reads and copy, clears on retry and document loss", async () => {
+  const { session: s, api } = fixture(); await s.open(identity);
+  api.commentsBegin.mockRejectedValueOnce(new Error("Cannot start comment"));
+  await s.create("canvas");
+  expect(s.readError).toBeNull(); expect(s.list?.comments).toEqual([c]);
+  expect(s.createError).toBe("Cannot start comment");
+  await s.copy({ kind: "all" }); expect(api.commentsCopy).toHaveBeenCalledOnce();
+  const retry = s.create("canvas"); expect(s.createError).toBeNull(); await retry;
+  expect(s.draft.draft?.origin.kind).toBe("create"); s.answer("discard");
+  api.commentsBegin.mockRejectedValueOnce(new Error("Old document")); await s.create("canvas");
+  s.documentLost(); expect(s.createError).toBeNull();
+  api.commentsBegin.mockRejectedValueOnce(new Error("Old canvas")); await s.create("canvas");
+  await s.open({ ...identity, canvas: "b" }); expect(s.createError).toBeNull();
+});
