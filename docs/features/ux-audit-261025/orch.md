@@ -176,3 +176,6 @@
 - P의 선행 조건을 더 좁혔다. K와 겹치는 것은 onboarding suite 연결뿐이므로 P는 CSS·HTML·독립 실행 presentation fixture를 먼저 맡고 onboarding/settings fixture를 건드리지 않는다. K 통합 뒤 별도 P 후속 작업에서 suite 연결을 맡긴다. N/K/P의 현재 파일 소유권은 겹치지 않으며 native/build는 K→N 순서 뒤 P에 배정한다. 이 순서 변경은 승인한 수정 범위를 바꾸지 않는다.
 
 - P `ctx_b42cc33d55da`의 Astra medium effective·turn_start를 확인했다. 기준은 `011a2bd`이며 suite 연결은 별도 후속 소유권으로 남긴다.
+
+- K `bf3c1c5`를 인수했다. 실제 Wizard return·Settings then/catch 완료를 요청별로 관찰한 뒤 렌더를 확인한다. 두 창의 guard 우회 대조는 정확한 stale-error 단언에서 exit 1, 원복한 최종 onboarding/Settings는 PASS·exit 0·real-state 불변이었다. 실행 전후 267개 해시와 clean을 인수했고 root에 150개 증거 파일을 해시 대조해 복사했다. 지휘자도 최종 두 창의 설치 재시도 화면을 열어 확인했다.
+- K 작성자를 release하고 IR-K `ctx_63ac29150f4d`의 Astra medium effective·turn_start를 확인했다. child는 독립 리뷰까지 보존한다. N에 K의 실제 프로세스 종료 뒤 native/build 슬롯을 배정했다.
