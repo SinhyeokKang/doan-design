@@ -132,3 +132,5 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: D1-fix 질문 — 🟡1은 main의 `projects:forward-action`이 즉시 true를 돌려 App 가드만으로 실패시킬 수 없다 → main 핸들러에 모달 가드와 테스트를 더하도록 허락(App 가드도 유지). postmortem은 생략.
 - 2026-10-25: D2-fix 완료·통합(`010617f` → 통합 브랜치) — 보류한 도착은 프로젝트가 사라지면 버리고, 다시 보일 때 캔버스 줄이 있을 때만 토스트. 숨김+마법사 → Canvas ready 고정 테스트. 지휘자가 diff 확인, renderer 테스트·typecheck 통과. `as-d2f` 제거.
 - 2026-10-25: D1-fix 전체 e2e는 FL 측정과 겹치므로 건너뛰게 했다. 통합 HEAD 전체 e2e는 FL 통합 뒤 지휘자가 돌린다.
+- 2026-10-25: D1-fix 완료·통합(커밋 5개, 마지막 `0842feb`) — main·App 모달 가드, Saving…은 쓰기 중만, 문제 줄 상세를 초안대로, 배너 중복 제거, Settings 포커스 60초 스로틀, ⚪1·2·4·5·6. 지휘자가 main 핸들러 diff 확인, 통합 HEAD typecheck·test 1956·build 통과. `as-d1f` 제거. 남은 배치: FL.
+- 2026-10-25: FL 질문 — 수정 `71e0ff1`(느린 읽기 결정적 재현 수정 전 3/3 실패, 수정 뒤 projects-home 10/10; 기준 실패율 2/10). 통합 브랜치를 merge한 뒤 전체 e2e 한 번을 허락했다(통합 상태 e2e를 겸한다).
