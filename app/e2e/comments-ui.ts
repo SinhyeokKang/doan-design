@@ -1,22 +1,22 @@
 // Actual App interactions, isolated like runtime.ts; no presentation adapter.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication } from "playwright";
+const { installCommentReadProbe }: typeof import("./renderer-probe") = await import(new URL("./renderer-probe.ts", import.meta.url).href);
+const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
+const { rememberApp, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { canvasRow, frameRows }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 const { appWindow }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const shots = join(root, ".scratch/U2/runtime");
-const paths = ["folders.json", "runtime.json"].map(n => join(homedir(), "Library/Application Support/doan", n));
-const fingerprint = (p: string) => readFile(p).then(b => createHash("sha256").update(b).digest("hex"), () => "absent");
-const before = await Promise.all(paths.map(fingerprint));
+const before = await realState();
 const work = await realpath(await mkdtemp("/tmp/doan-comments-ui-"));
 const exec = promisify(execFile);
 async function waitGate(check: () => Promise<boolean>) {
@@ -30,6 +30,7 @@ async function waitGate(check: () => Promise<boolean>) {
   }
 }
 let app: ElectronApplication | undefined;
+const guard = suiteGuard({ name: "comments-ui", app: () => app, verify: () => assertRealState(before), cleanup: () => rm(work, { recursive: true, force: true }) });
 let clipboardSaved = false;
 try {
   const repo = join(work, "repo"), userData = join(work, "userData"), cli = join(work, "doan");
@@ -54,7 +55,7 @@ try {
   await writeFile(join(userData, "onboarding.json"), "{}\n");
   app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env: { ...process.env,
     HOME: home, TMPDIR: work, SHELL: fakeShell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"),
-    DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } });
+    DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } }); rememberApp(app);
   await app.evaluate(async ({ clipboard, ClipboardItem }) => { const items = await clipboard.read(); Reflect.set(globalThis, "savedClipboardU2", await Promise.all(items.map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)]))))))); });
   clipboardSaved = true;
   const page = await app.firstWindow(); page.setDefaultTimeout(10_000);
@@ -458,12 +459,13 @@ try {
   assert.equal(await cards.filter({ hasText: invalidDate.body }).locator("time").textContent(), invalidDate.at);
   await shot("14-calendar-invalid-readable");
   // Hold an actual old-canvas read across real sidebar navigation.
+  await page.evaluate(installCommentReadProbe);
   await app.evaluate(({ ipcMain }) => {
     const original = Reflect.get(ipcMain, "_invokeHandlers").get("comments:list");
-    const gate = { original, held: false, released: false, release: () => {} }; Reflect.set(globalThis, "commentReadGate", gate);
+    const gate = { original, held: false, requestID: "", release: () => {} }; Reflect.set(globalThis, "commentReadGate", gate);
     ipcMain.removeHandler("comments:list"); ipcMain.handle("comments:list", async (...args) => {
       const result = await original(...args);
-      if (args[1].canvas === "a" && !gate.held) { gate.held = true; await new Promise<void>(resolve => { gate.release = resolve; }); gate.released = true; }
+      if (args[1].canvas === "a" && !gate.held) { gate.held = true; gate.requestID = args[1].requestID; await new Promise<void>(resolve => { gate.release = resolve; }); }
       return result;
     });
   });
@@ -471,10 +473,15 @@ try {
   await waitGate(() => app!.evaluate(() => Reflect.get(globalThis, "commentReadGate").held));
   await canvasRow(page, "b.html").click();
   await panel.getByText("No open comments here", { exact: true }).waitFor();
+  const heldRequest = await app.evaluate(() => Reflect.get(globalThis, "commentReadGate").requestID);
+  await page.waitForTimeout(550);
+  assert.equal(await page.evaluate(id => Reflect.get(window, "commentReadProbe").completed.some((call: { requestID: string }) => call.requestID === id), heldRequest), false);
   await app.evaluate(() => Reflect.get(globalThis, "commentReadGate").release());
-  await waitGate(() => app!.evaluate(() => Reflect.get(globalThis, "commentReadGate").released));
+  await page.waitForFunction(id => Reflect.get(window, "commentReadProbe").completed.some((call: { requestID: string }) => call.requestID === id), heldRequest);
+  assert.deepEqual(await page.evaluate(id => Reflect.get(window, "commentReadProbe").completed.find((call: { requestID: string }) => call.requestID === id), heldRequest), { requestID: heldRequest, canvas: "b", count: 0 });
   assert.equal(await cards.count(), 0); assert.equal(await page.locator("iframe").getAttribute("title"), "design/b.html");
   await app.evaluate(({ ipcMain }) => { ipcMain.removeHandler("comments:list"); ipcMain.handle("comments:list", Reflect.get(globalThis, "commentReadGate").original); });
+  await page.evaluate(() => Reflect.get(window, "commentReadProbe").restore());
   await shot("15-stale-panel-reply");
   await app.evaluate(({ ipcMain }) => {
     const original = Reflect.get(ipcMain, "_invokeHandlers").get("comments:list");
@@ -508,17 +515,16 @@ try {
   assert.equal(await panel.getByRole("button", { name: "Check saved status", exact: true }).count(), 0);
   await shot("16-unrecoverable-unknown");
   assert.deepEqual(presentationFailures, [], "Measured comment presentation regressions");
-  console.log("comments-ui-test: PASS (actual App CRUD, draft transitions, clipboard and watcher)");
+
 } catch (error) {
   console.error(error);
   if (app) await (await app.firstWindow()).screenshot({ path: join(shots, "failure.png") }).catch(() => {});
   throw error;
 } finally {
-  if (app) {
+  try { if (app) {
     if (clipboardSaved) await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "savedClipboardU2")); });
     await (await app.firstWindow()).evaluate(() => window.doan.setCommentDraftGuard(false)).catch(() => {});
-    await app.close();
-  }
-  await rm(work, { recursive: true, force: true });
-  assert.deepEqual(await Promise.all(paths.map(fingerprint)), before, "real app userData unchanged");
+  } } finally { await guard.finish(); }
 }
+
+console.log("comments-ui-test: PASS (actual App CRUD, draft transitions, clipboard and watcher)");

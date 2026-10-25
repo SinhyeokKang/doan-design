@@ -5,11 +5,12 @@
 // relaunches. Its own temp repos, userData and HOME.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Page } from "playwright";
+const { rememberApp, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { appWindow }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 const { canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
@@ -23,7 +24,7 @@ const shots = join(root, ".scratch/runtime-test", `design-nav-${Date.now()}`);
 let app: ElectronApplication | undefined;
 let page!: Page;
 // A passing run takes about a minute; this only ends a run that hangs.
-const watchdog = setTimeout(() => { console.error("design-nav: FAIL\nno result after 240 s"); app?.process().kill("SIGKILL"); process.exit(1); }, 240_000);
+const guard = suiteGuard({ name: "design-nav", app: () => app, verify: () => assertRealState(beforeRealState), cleanup: () => rm(work, { recursive: true, force: true }), timeoutMs: 240_000 });
 
 const canvas = (id: string, title: string, width: number | null, frames: [string, string?][], extra = "") =>
   `<!doctype html><title>${title}</title><meta name="doan:canvas" content="${id}">${width === null ? "" : `<meta name="doan:width" content="${width}">`}<style>body{margin:0}section{height:360px;margin:40px;background:#ddd}</style>${frames.map(([frame, label]) => `<section data-doan-frame="${frame}"${label ? ` data-doan-title="${label}"` : ""}>${label ?? frame}</section>`).join("")}${extra}`;
@@ -52,20 +53,45 @@ try {
   await writeFile(join(userData, "folders.json"), JSON.stringify([acme, feat, brand, empty, gallery]));
   const env = { ...process.env, HOME: home, SHELL: shell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"), DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") };
 
-  async function launch(): Promise<void> {
-    app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env });
+  const folderGate = join(work, "initial-folders.gate"), gatedCli = join(work, "gated-cli.mjs");
+  await writeFile(gatedCli, `#!/usr/bin/env node
+import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+while (existsSync(${JSON.stringify(folderGate)})) await new Promise(resolve => setTimeout(resolve, 20));
+const result = spawnSync(${JSON.stringify(cli)}, process.argv.slice(2), { stdio: 'inherit' });
+process.exit(result.status ?? 1);
+`, { mode: 0o755 });
+  let stateBeforeLaunch = "";
+  const stateVersion = async () => { const info = await stat(join(userData, "ui-state.json")).catch(() => null); return info ? `${info.ino}:${info.mtimeMs}` : "absent"; };
+  async function launch(delayFolders = false): Promise<void> {
+    stateBeforeLaunch = await stateVersion();
+    if (delayFolders) await writeFile(folderGate, "held");
+    app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env: { ...env, DOAN_CLI: delayFolders ? gatedCli : cli } }); rememberApp(app);
     page = await app.firstWindow(); page.setDefaultTimeout(10_000);
     page.on("pageerror", error => console.error("design-nav pageerror", error));
+    if (delayFolders) {
+      await page.getByRole("region", { name: "Home", exact: true }).waitFor();
+      await page.waitForTimeout(750);
+      await rm(folderGate);
+      await page.evaluate(() => new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => { stop(); reject(new Error("Initial folder results never reached the renderer")); }, 10_000);
+        const stop = window.doan.onFolders(entries => {
+          if (entries.length && entries.every(entry => entry.kind !== "loading")) {
+            clearTimeout(timer); stop(); requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+          }
+        });
+      }));
+    }
   }
   async function quit(): Promise<void> {
     const process = app!.process();
     const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => process.once("exit", (code, signal) => resolve({ code, signal })));
-    await app!.close(); app = undefined;
+    await closeApp(app); app = undefined;
     assert.deepEqual(await exited, { code: 0, signal: null }, "quit exits cleanly, including during thumbnail capture");
   }
-  async function relaunch(): Promise<void> {
+  async function relaunch(delayFolders = false): Promise<void> {
     await quit();
-    await launch();
+    await launch(delayFolders);
   }
   async function wait(check: () => Promise<boolean>, name: string, ms = 10_000) {
     const end = Date.now() + ms;
@@ -136,13 +162,13 @@ try {
   await enterProject(page, acme);
   await overview().waitFor();
   assert.deepEqual(await overview().locator(".sec").allTextContents(), ["design 1", "design/misc 1", "design/settings 3"]);
-  assert.equal(await card("Design tokens").locator(".thumb-msg").textContent(), "Add doan:width to preview");
+  assert.equal(await card("Design tokens").locator(".thumb-msg").textContent(), "Preview needs a valid doan:width — run doan check");
   assert.equal(await card("Billing & plans").locator(".ocard-meta").textContent().then(text => text?.split(" · ")[0]), "5 frames");
   const cdp = await page.context().newCDPSession(page);
   const ax = await cdp.send("Accessibility.getFullAXTree");
   const tokenCard = ax.nodes.find(node => node.role?.value === "button" && node.name?.value === "Design tokens tokens.html");
   assert.ok(tokenCard, "the card name leads with title and file name");
-  assert.match(tokenCard.description?.value ?? "", /^Add doan:width to preview 1 frame/);
+  assert.match(tokenCard.description?.value ?? "", /^Preview needs a valid doan:width — run doan check 1 frame/);
   const billingCard = ax.nodes.find(node => node.role?.value === "button" && node.name?.value === "Billing & plans billing.html");
   assert.ok(billingCard, "a capturable card has the same title-first name");
   assert.match(billingCard.description?.value ?? "", /5 frames/);
@@ -266,11 +292,14 @@ try {
   assert.equal((await active()).result?.selection, undefined, "doan active is empty after restore");
   await shot("9-restored");
 
+  // App.save only runs after restore is done; a new atomic state write is a
+  // positive renderer commit checkpoint, unlike the initial Home paint.
+  const restoreCommitted = () => wait(async () => await stateVersion() !== stateBeforeLaunch, "renderer restore committed ui-state");
   // Home at quit starts on Home, without loading the workspace.
   await goHome(page);
-  await relaunch();
+  await relaunch(true);
   await page.getByRole("region", { name: "Home", exact: true }).waitFor();
-  await page.waitForTimeout(500);
+  await restoreCommitted();
   assert.equal(await page.locator("iframe").count(), 0, "the hidden workspace is not loaded");
 
   // The last canvas is gone: its project's Overview with a toast.
@@ -288,9 +317,9 @@ try {
   await overview().waitFor();
   await quit();
   await rm(brand, { recursive: true, force: true });
-  await launch();
+  await launch(true);
   await page.getByRole("region", { name: "Home", exact: true }).waitFor();
-  await page.waitForTimeout(500);
+  await restoreCommitted();
   assert.equal(await page.getByRole("region", { name: "Home", exact: true }).isVisible(), true, "a gone project restores to Home");
 
   // A broken ui-state.json starts on Home.
@@ -298,18 +327,19 @@ try {
   await quit();
   assert.equal(JSON.parse(await readFile(join(userData, "ui-state.json"), "utf8")).root, gallery);
   await writeFile(join(userData, "ui-state.json"), "{broken");
-  await launch();
+  await launch(true);
   await page.getByRole("region", { name: "Home", exact: true }).waitFor();
-  await page.waitForTimeout(500);
+  await restoreCommitted();
   assert.equal(await page.getByRole("region", { name: "Home", exact: true }).isVisible(), true, "a broken ui-state.json starts on Home");
   console.log("design-nav: restore PASS");
   await quit();
-  console.log("design-nav: PASS");
+
 } catch (error) {
   console.error(error);
   if (app) { await page.screenshot({ path: join(shots, "failure.png") }).catch(console.error); console.error(`design-nav screenshot: ${join(shots, "failure.png")}`); await app.evaluate(({ app }) => app.exit(0)).catch(() => {}); }
   throw error;
 } finally {
-  clearTimeout(watchdog);
-  try { await app?.close(); await rm(work, { recursive: true, force: true }); } finally { await assertRealState(beforeRealState); }
+  await guard.finish();
 }
+
+console.log("design-nav: PASS");

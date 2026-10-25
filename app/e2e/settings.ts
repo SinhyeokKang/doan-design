@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Page } from "playwright";
+const { rememberApp, waitFor, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { settingsPage, menu, appWindow, appWindowCount }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 const { homeRow, enterProject, goHome }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
@@ -17,10 +18,8 @@ const before = await realState();
 let app: ElectronApplication | undefined, page: Page | undefined, settings: Page | undefined;
 const errors: string[] = [];
 let clipboardSaved = false;
-async function wait(check: () => Promise<boolean>, what: string) {
-  const deadline = Date.now() + 15_000;
-  while (!await check()) { if (Date.now() > deadline) throw new Error(`settings timeout: ${what}`); await new Promise(resolve => setTimeout(resolve, 30)); }
-}
+const guard = suiteGuard({ name: "settings", app: () => app, verify: () => assertRealState(before), cleanup: () => rm(work, { recursive: true, force: true }) });
+const wait = waitFor;
 try {
   const home = join(work, "home"), data = join(work, "data"), cli = join(work, "doan"), shell = join(work, "zsh");
   const repo = join(home, "acme"), second = join(home, "brand"), missing = join(home, "gone"), plain = join(home, "plain");
@@ -43,7 +42,7 @@ try {
   await exec("git", ["init", "-q", "-b", "main", branched]); await exec("git", ["-C", branched, "-c", "user.name=Settings", "-c", "user.email=settings@example.test", "commit", "-q", "--allow-empty", "-m", "init"]);
   await writeFile(join(data, "folders.json"), JSON.stringify([repo, second, plain, missing, branched]));
   const env = { ...process.env, HOME: home, SHELL: shell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"), DOAN_CLI: cli, DOAN_RUNTIME: join(data, "runtime.json") };
-  app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${data}`], env });
+  app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${data}`], env }); rememberApp(app);
   await app.evaluate(async ({ clipboard, ClipboardItem }) => {
     Reflect.set(globalThis, "settingsClipboard", await Promise.all((await clipboard.read()).map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)])))))));
   });
@@ -77,8 +76,28 @@ try {
   await cliRow.getByRole("button", { name: "Fix…" }).click();
   const confirm = settings.getByRole("alertdialog", { name: "Fix the doan link?" });
   await confirm.waitFor(); assert.equal(await confirm.getByRole("button", { name: "Cancel" }).evaluate(node => node === document.activeElement), true);
+  await app.evaluate(({ ipcMain }, window) => {
+    const send = window.webContents.send;
+    const saveTab = Reflect.get(ipcMain, "_invokeHandlers").get("settings:tab-save");
+    const probe = { held: false, tab: null as unknown, release: () => {}, restore: () => {
+      window.webContents.send = send; ipcMain.removeHandler("settings:tab-save"); ipcMain.handle("settings:tab-save", saveTab);
+    } };
+    window.webContents.send = function (channel, ...args) {
+      if (channel === "settings:target") { probe.held = true; probe.release = () => send.call(this, channel, ...args); }
+      else send.call(this, channel, ...args);
+    };
+    ipcMain.removeHandler("settings:tab-save");
+    ipcMain.handle("settings:tab-save", async (...args) => { const result = await saveTab(...args); if (probe.held) probe.tab = args[1]; return result; });
+    Reflect.set(globalThis, "forwardedTargetProbe", probe);
+  }, await appWindow(app, settings));
   await page.evaluate(project => window.doan.openSettings({ tab: "projects", project }), second);
-  await settings.waitForTimeout(100);
+  await wait(() => app!.evaluate(() => Reflect.get(globalThis, "forwardedTargetProbe").held), "target held before delivery");
+  await settings.waitForTimeout(250);
+  assert.equal(await app.evaluate(() => Reflect.get(globalThis, "forwardedTargetProbe").tab), null);
+  await app.evaluate(() => Reflect.get(globalThis, "forwardedTargetProbe").release());
+  await wait(() => app!.evaluate(() => Reflect.get(globalThis, "forwardedTargetProbe").tab !== null), "renderer processed forwarded target");
+  assert.equal(await app.evaluate(() => Reflect.get(globalThis, "forwardedTargetProbe").tab), "connections");
+  await app.evaluate(() => Reflect.get(globalThis, "forwardedTargetProbe").restore());
   assert.equal(await confirm.isVisible(), true, "a forwarded target cannot discard a pending setup confirmation");
   assert.equal(await settings.getByRole("tab", { name: "Connections", selected: true }).count(), 1);
   await wait(async () => await (await appWindow(app!, settings!)).evaluate(window => window.getTitle()) === "Connections", "pending confirmation keeps the native tab title");
@@ -175,20 +194,16 @@ try {
   const quitLabel = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.flatMap(item => item.submenu?.items ?? []).find(item => item.role === "quit")!.label);
   await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "settingsClipboard")); });
   clipboardSaved = false;
-  const closed = app.waitForEvent("close"); await menu(app, settings, quitLabel); await closed;
+  const closed = app.waitForEvent("close"); await menu(app, settings, quitLabel); await closed; await closeApp(app);
   assert.equal(page.isClosed(), true); assert.equal(settings.isClosed(), true); app = undefined;
   assert.deepEqual(errors, []);
-  console.log(`settings screenshots: ${shots}`); console.log("settings: PASS");
+  console.log(`settings screenshots: ${shots}`);
 } catch (error) {
   if (page && !page.isClosed()) await page.screenshot({ path: join(shots, "failure-main.png") }).catch(console.error);
   if (settings && !settings.isClosed()) await settings.screenshot({ path: join(shots, "failure-settings.png") }).catch(console.error);
   throw error;
 } finally {
-  try {
-    try { if (app && clipboardSaved) await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "settingsClipboard")); }); }
-    finally { await app?.close(); }
-  } finally {
-    try { await rm(work, { recursive: true, force: true }); }
-    finally { await assertRealState(before); }
-  }
+  try { if (app && clipboardSaved) await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "settingsClipboard")); }); } finally { await guard.finish(); }
 }
+
+console.log("settings: PASS");

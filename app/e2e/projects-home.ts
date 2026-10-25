@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication } from "playwright";
+const { intrinsicButton }: typeof import("./intrinsic") = await import(new URL("./intrinsic.ts", import.meta.url).href);
+const { rememberApp, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, enterProject, requestProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
@@ -16,6 +18,7 @@ const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await realpath(await mkdtemp("/tmp/doan-home-"));
 const shots = join(root, ".scratch/runtime-test", `projects-home-${Date.now()}`);
 let app: ElectronApplication | undefined;
+const guard = suiteGuard({ name: "projects-home", app: () => app, verify: () => assertRealState(beforeRealState), cleanup: () => rm(work, { recursive: true, force: true }) });
 try {
   const userData = join(work, "userData"), home = join(work, "home"), cli = join(work, "doan"), shell = join(work, "shell");
   await mkdir(userData); await mkdir(home); await mkdir(shots, { recursive: true });
@@ -47,7 +50,7 @@ const result = spawnSync(${JSON.stringify(cli)}, process.argv.slice(2), { stdio:
 process.exit(result.status ?? 1);
 `, { mode: 0o755 });
   env.DOAN_CLI = wrapped;
-  app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env });
+  app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env }); rememberApp(app);
   const page = await app.firstWindow(); page.setDefaultTimeout(10_000);
   page.on("pageerror", error => console.error("projects-home pageerror", error));
   const shot = async (name: string) => { const path = join(shots, `${name}.png`); await page.screenshot({ path }); console.log(`projects-home screenshot: ${path}`); };
@@ -185,7 +188,23 @@ process.exit(result.status ?? 1);
   await writeFile(join(repo, ".doan/config.json"), "bad");
   const workspaceConfig = page.getByRole("status").filter({ has: page.getByRole("button", { name: "Details", exact: true }) });
   await workspaceConfig.getByText("Config error", { exact: true }).waitFor(); await shot("08-workspace-config");
-  assert.equal((await workspaceConfig.getByRole("button", { name: "Show in Finder", exact: true }).boundingBox())?.height, 21, "status buttons keep their intrinsic height");
+  const finder = workspaceConfig.getByRole("button", { name: "Show in Finder", exact: true });
+  const natural = await finder.evaluate(intrinsicButton);
+  assert.equal(natural.actual, natural.natural, "status buttons keep their intrinsic height");
+  const parentStyle = await finder.evaluate(node => {
+    const parent = node.parentElement!, previous = parent.getAttribute("style");
+    parent.style.alignItems = "stretch";
+    parent.style.minHeight = `${node.getBoundingClientRect().height + 8}px`;
+    return previous;
+  });
+  try {
+    const stretched = await finder.evaluate(intrinsicButton);
+    assert.throws(() => assert.equal(stretched.actual, stretched.natural), "the intrinsic-height check detects flex stretch");
+  } finally {
+    await finder.evaluate((node, previous) => { if (previous === null) node.parentElement!.removeAttribute("style"); else node.parentElement!.setAttribute("style", previous); }, parentStyle);
+  }
+  const restored = await finder.evaluate(intrinsicButton);
+  assert.equal(restored.actual, restored.natural, "stretch control restores the original DOM style");
   await workspaceConfig.getByRole("button", { name: "Details", exact: true }).click(); await page.getByRole("region", { name: "Project status", exact: true }).getByText(/^Cannot read config:/).waitFor(); await shot("09-workspace-details");
   const detailsBounds = await workspaceConfig.getByRole("button", { name: "Details", exact: true }).boundingBox(), homeBounds = await workspaceConfig.getByRole("button", { name: "Go Home", exact: true }).boundingBox();
   assert.ok(homeBounds && detailsBounds && Math.abs(homeBounds.y + homeBounds.height / 2 - detailsBounds.y - detailsBounds.height / 2) < 1, "Go Home stays on the action line when details expand");
@@ -265,11 +284,13 @@ process.exit(result.status ?? 1);
   }
   await homeRow(page, repo).getByRole("button", { name: "Remove", exact: true }).click(); await guard.waitFor(); await guard.getByRole("button", { name: "Discard", exact: true }).click();
   await homeRow(page, repo).waitFor({ state: "detached" });
-  console.log("projects-home: PASS");
+
 } catch (error) {
   console.error(error);
   if (app) { const page = await app.firstWindow(); await page.screenshot({ path: join(shots, "failure.png") }).catch(console.error); console.error(`projects-home screenshot: ${join(shots, "failure.png")}`); await app.evaluate(({ app }) => app.exit(0)).catch(() => {}); }
   throw error;
 } finally {
-  try { await app?.close(); await rm(work, { recursive: true, force: true }); } finally { await assertRealState(beforeRealState); }
+  await guard.finish();
 }
+
+console.log("projects-home: PASS");

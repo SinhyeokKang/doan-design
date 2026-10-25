@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Page } from "playwright";
+const { rememberApp, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { appWindow, appWindowCount }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 type Reply = import("../src/main/thumbnails").ThumbnailReply;
@@ -19,6 +20,7 @@ const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await realpath(await mkdtemp("/tmp/doan-thumbs-"));
 const shots = join(root, ".scratch/runtime-test", `thumbnails-${Date.now()}`);
 let app: ElectronApplication | undefined;
+const guard = suiteGuard({ name: "thumbnails", app: () => app, verify: () => assertRealState(beforeRealState), cleanup: () => rm(work, { recursive: true, force: true }) });
 let hanging: Server | undefined;
 const key = (repo: string, path: string) => createHash("sha256").update(`${repo}\n${path}`).digest("hex");
 const pngSize = (bytes: Uint8Array) => { const view = Buffer.from(bytes); assert.equal(view.subarray(1, 4).toString(), "PNG"); return { width: view.readUInt32BE(16), height: view.readUInt32BE(20) }; };
@@ -53,7 +55,7 @@ try {
   for (const name of [`${orphan}.png`, `${orphan}.json`, `${orphan}.png.abc.tmp`, "notes.txt"]) await writeFile(join(cache, name), "x");
 
   const env = { ...process.env, HOME: home, SHELL: shell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"), DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") };
-  app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env });
+  app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env }); rememberApp(app);
   const page: Page = await app.firstWindow(); page.setDefaultTimeout(10_000);
   page.on("pageerror", error => console.error("thumbnails pageerror", error));
   async function wait(check: () => Promise<boolean>, name: string, ms = 10_000) {
@@ -185,21 +187,22 @@ try {
   const announced = (await changes()).filter(changed => changed.startsWith("design/g")).length;
   assert.ok(announced < 24, "captures are still queued at quit");
   const quitStarted = Date.now();
-  const exited = await Promise.race([app.close().then(() => true), new Promise<false>(resolve => setTimeout(() => resolve(false), 3_000))]);
-  if (!exited) app.process().kill("SIGKILL");
+  await closeApp(app, 3_000);
   app = undefined;
-  assert.ok(exited, "quitting during captures exits within 3 s");
   console.log(`thumbnails: quit during captures took ${Date.now() - quitStarted} ms`);
   assert.deepEqual(JSON.parse(await readFile(join(userData, "ui-state.json"), "utf8")), state, "the last save is on disk after quit");
   // At most the job that was saving when quit began adds to what was announced.
   const left = await readdir(cache);
   assert.deepEqual(left.filter(name => name.endsWith(".tmp")), [], "no temp file is left");
   assert.ok(left.filter(name => name.endsWith(".png")).length <= announced + 1, `no capture is saved after quit (${announced} announced, ${left.join()})`);
-  console.log("thumbnails: PASS");
+
 } catch (error) {
   console.error(error);
   if (app) { const page = await app.firstWindow(); await page.screenshot({ path: join(shots, "failure.png") }).catch(console.error); console.error(`thumbnails screenshot: ${join(shots, "failure.png")}`); await app.evaluate(({ app }) => app.exit(0)).catch(() => {}); }
   throw error;
 } finally {
-  try { hanging?.closeAllConnections(); hanging?.close(); await app?.close(); await rm(work, { recursive: true, force: true }); } finally { await assertRealState(beforeRealState); }
+  hanging?.closeAllConnections(); hanging?.close();
+  await guard.finish();
 }
+
+console.log("thumbnails: PASS");
