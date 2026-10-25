@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import * as context from "./context.ts";
 
-for (const trigger of ["fsmonitor", "clean", "process", "textconv", "external", "hook"]) {
+for (const trigger of ["none", "fsmonitor", "clean", "process", "textconv", "external", "hook"]) {
   test(`post-agent Git preserves changes without executing ${trigger}`, () => {
     const repo = mkdtempSync(join(tmpdir(), "doan-git-boundary-"));
     const marker = join(repo, "marker"), hook = join(repo, ".git/probe");

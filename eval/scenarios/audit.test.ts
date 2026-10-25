@@ -30,7 +30,7 @@ for (const [id, checks] of [["R2", r2], ["R2b", r2b]] as const) {
   test(`${id} and judge recognize global flag grammar without counting flag values`, () => {
     const ctx = fixture(id);
     for (const [command, expected] of [
-      ["doan --repo /tmp/r active --json", true], ["doan --repo=/tmp/r --json active", true],
+      ["doan --repo /tmp/r active --json", true], ["doan --repo=/tmp/r --json active", true], ['doan --repo="/tmp/my repo" active', true],
       ["/tmp/doan -repo /tmp/r -json=true active", true], ["doan --json=false active -repo=/tmp/r", true],
       ["doan -- active", true], ["doan --repo active check", false], ["doan comments --canvas active", false],
       ["echo 'doan active'", false], ["doan --unknown active", false],
@@ -112,12 +112,14 @@ test("R3 rejects executed apply_patch delete and restore while excluding prose a
   const direct = event({ type: "custom_tool_call", name: "apply_patch", input: patch });
   const batch = event({ type: "custom_tool_call", name: "functions.exec", input: `await tools.apply_patch(${JSON.stringify(patch)});` });
   const restore = event({ type: "custom_tool_call", name: "apply_patch", input: '*** Begin Patch\n*** Add File: design/team.html\n+restored\n*** End Patch' });
-  for (const transcript of [direct, batch]) {
+  const template = event({ type: "custom_tool_call", name: "exec", input: "await tools.apply_patch(`" + patch + "`);" });
+  const fn = event({ type: "function_call", name: "functions.apply_patch", arguments: JSON.stringify({ patch }) });
+  for (const transcript of [direct, batch, template, fn]) {
     const result = r3({ ...ctx, calls: toolCalls(transcript + '\n' + restore) });
     assert.equal(result.find(c => c.id === "no_team_delete_or_restore")?.pass, false);
     assert.equal(result.find(c => c.id === "other_canvas_preserved")?.pass, true);
   }
-  for (const transcript of [patch, event({ type: "custom_tool_call_output", output: patch }), event({ type: "custom_tool_call", name: "exec", input: `const example = ${JSON.stringify(`tools.apply_patch(${JSON.stringify(patch)})`)};` })]) {
+  for (const transcript of [patch, event({ type: "custom_tool_call", name: "exec", input: `/* tools.apply_patch(${JSON.stringify(patch)}); */` }), event({ type: "custom_tool_call", name: "exec", input: "await tools.apply_patch(computedPatch);" }), event({ type: "custom_tool_call_output", output: patch }), event({ type: "custom_tool_call", name: "exec", input: `const example = ${JSON.stringify(`tools.apply_patch(${JSON.stringify(patch)})`)};` })]) {
     assert.equal(r3({ ...ctx, calls: toolCalls(transcript) }).find(c => c.id === "no_team_delete_or_restore")?.pass, true);
   }
 });
