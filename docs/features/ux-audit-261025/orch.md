@@ -139,3 +139,6 @@
 
 - O `04c1727`·`9be1099`·`17c35f4`를 인수했다. 관련 196 tests·typecheck·build·최종 onboarding-test PASS/exit 0, real-state/clipboard 복구 증거를 받았다. 혼합 추가 fixture의 잘못된 기대를 제품 회귀 red로 계산하지 않는다. root O-evidence의 39개 파일을 원본과 해시 대조했고, 최종 스크린샷 5개에서 읽기/복사 실패·추가 scan/확인·미설정 프로젝트 표시를 직접 확인했다.
 - O는 release, child는 리뷰까지 보존한다. IR-O `ctx_188d43dbe520`의 Astra medium effective·turn_start를 확인했다. source/build 해시는 최종 실행 후 clean `17c35f4`에서 캡처했으며 사전 불변 증명으로 표기하지 않는다. S가 다음 native/build 슬롯을 인수했다.
+
+- C-fix `cc73398`의 7건 red→green·142 tests·typecheck·build·최종 comments-ui PASS/exit 0을 인수했다. Inspector의 첫 보류 요청만 stale 검사를 우회한 대조는 정확한 late-frame assertion에서 exit 1이었다. 양쪽 사용자 상태와 정상 Electron 종료가 확인됐고 build 해시는 실행 전후 동일했다. root에 20개 증거 파일을 해시 대조해 복사했으며 지휘자도 실패/정상 Inspector 화면을 비교했다. 작성자는 release, IR-C-fix `ctx_f8911eae3daf`의 Astra medium effective·turn_start를 확인했다.
+- IR-O는 red 0/yellow 2이다. 오래된 설치 링크 실패가 최신 성공 뒤 표시되는 경합과 체크리스트 제출 실패 뒤 포커스 복구 누락을 채택했다. 후자는 실제 재현부터 수행한다. O-fix는 기존 O child에서 Codex gpt-6-astra medium으로 Onboarding/AddProjectsDialog·직접 tests/onboarding fixture만 수정한다. 비동기 요청 소유권과 중첩 modal의 키 처리 판단이 필요하다. red→green·실제 focus·재리뷰를 받고 원 커밋은 유지한다. IR-O는 release했다.
