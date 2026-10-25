@@ -145,3 +145,4 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: R-P 결과 🔴 0 · 🟡 0 · ⚪ 6 · 결정 3. 결정 21개 승격, §7 표 연속, IPC 표 58개가 코드와 일치. 묶음 대체 행은 받아들인다. ⚪1~6(index.ts 제외)을 P-fix(같은 Codex 터미널)로 보냈다. R-P 해제.
 - 2026-10-25: P-fix 완료·통합(`bec82a6`~`1df3fb2`). 통합 HEAD typecheck·test 1961 통과.
 - 2026-10-25: FL2 완료·통합(`0c954fa`) — 원인: 종료 승인 뒤 썸네일 캡처 창을 닫는 중 main이 SIGSEGV로 죽어 will-quit의 ui-state flush가 돌지 않았다. 종료 때 썸네일 정리 전에 `uiState.flushSync()`를 부르도록 고쳤다(단위 회귀 red→green, design-nav 단독 5/5). SIGSEGV 자체는 설명·수정되지 않았다(design-nav의 캡처 경로, 기준 비교 없음) — 최종 보고에 적는다. postmortem 추가. 통합 HEAD test 1962·typecheck 통과. `as-fl2`·`as-p` 제거. 지휘자 최종 전체 e2e 실행 중.
+- 2026-10-25: 통합 HEAD 지휘자 최종 전체 e2e — `runtime-test: PASS`, exit 0, real-state 불변(로그 `.scratch/orch/app-setup/e2e-final.log`). `go test`·`go vet` 통과. task 12 게이트 통과. 기능 문서를 지운다(사본 `.scratch/orch/app-setup/feature-docs/`).
