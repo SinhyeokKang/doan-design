@@ -100,3 +100,10 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 
 - IR-E 완료: 필수 수정 0, 권장 수정 2. 미실행 조건문·함수 속 patch를 실행된 삭제로 판정하는 문제와 R4의 잘못된 bare import·style 속성 import 도달 판정을 채택했다. E 소유자의 H 완료 후 별도 E-fix로 돌린다. 근거는 `E-evidence/review-E.md`에 보존했다.
 - A3a: A-M2만 먼저 수정한다. 파일 소유권은 `app/src/main/index.ts`, `index.test.ts`. 숨긴 창/앱에서 실제 댓글 guard가 필요한 종료에만 창을 표시·집중시키고, 승인 뒤 setImmediate 종료와 상태 flush 순서를 유지한다. Codex gpt-6-astra medium: 네이티브 종료 재진입·guard 수명 주기 판단. 기존 A1 소유자를 IR-E 완료 후 재사용한다. 단위 red→green·typecheck를 인수하고 실제 숨김 종료는 통합 runtime에서 검증한다. A-M1 전용 종료 경고는 사용자 응답 전 구현하지 않는다.
+
+### A3a·C-fix 인수 및 재리뷰
+
+- A3a 원본 `0258a35`, `924eebd`를 인수했다. index 테스트 4개 red→136개 green, typecheck green. 실제 Cmd+W·Cmd+H 종료 확인창 검증은 미완료다.
+- C-fix 원본 `4dcf5ba`, `b15de37`를 인수했다. publication 실패 주입·재시도 회귀와 CLI package tests, vet 근거를 복사했다. 실제 hard-link 미지원 마운트 실행은 없으며 테스트 scaffold를 둔 red의 한계를 handoff에 남겼다.
+- IR-C-fix `ctx_3daf3af3690c`: 이전 독립 C 리뷰자를 재사용한다. Codex gpt-6-astra medium, publication 실패·복구 계약 검토. CLI 보완 diff와 handoff만 읽고 report를 작성하며 실행하지 않는다. 계획 파일 생성 명령이 실패했는데 후속 dispatch가 실행되어 선행 커밋 절차를 지키지 못했다. 즉시 brief와 이 기록을 복구했다. C-fix 구현 터미널은 release했고, child는 C/A2 통합·리뷰가 끝날 때까지 보존한다.
+- A2 통합 후보: `ac64c4b`, `45951d5`. 실제 runtime와 독립 리뷰 완료 전까지 최종 수용으로 표시하지 않는다.
