@@ -80,3 +80,14 @@
 - U-35: 공용 shadcn 툴팁만 좌우 12px·상하 6px로 복구한다는 사용자 답변을 인수했다. 전역 reset과 별도 PathTip은 유지한다. PRODUCT §8 미결정을 닫고 §7·ARCHITECTURE에 기록했다.
 - R-W `ctx_c764468a4596`, R-A `ctx_aa516ef31c55`, R-T `ctx_2203c8cc6a37` 모두 Astra medium effective 및 turn_start를 확인했다. R-P는 다음 빈 슬롯에서 진행한다.
 - 지휘자가 직접 확인한 계약: wizard 4단계는 Home의 여러 폴더 추가 흐름을 쓰며, Settings Details는 좁은 projection으로 main에 전달한다. 원본 권고를 그대로 적용해 이 계약을 바꾸지 않는다. 잘못된 피드백·라벨을 최소한으로 바로잡는 방식을 검토한다.
+
+## 구현 배치 — 1차
+
+| 배치 | 채택 범위 | 파일 소유권 | 모델·근거 | 검증 |
+|---|---|---|---|---|
+| C | U-11 생성 오류 분리, U-17 Delete Escape 격리, U-29 Inspector loading 표시 | CommentsSession/useComments/CommentsPanel/RightPanel 및 직접 tests, app/e2e/comments-ui.ts | Codex gpt-6-astra medium. 비동기 오류·초안/선택 수명과 모달 키 소유권 판단 | 관련 회귀 red→green·typecheck, 예약 후 실제 앱의 Escape/선택·오류·보류 inspect 관찰, 독립 리뷰 |
+
+- R-A·R-T의 지정 항목과 화면 커버리지를 인수하고 지휘자가 직접 읽은 소스와 대조했다. R-A는 같은 agent를 R-P로 즉시 재사용했고 turn_start를 확인했다. R-T는 release했다.
+- C는 기존 불확실 요청/종료 정책을 바꾸지 않는다. 생성 실패는 목록 오류와 분리하고 기존 New comment로 재시도한다. Delete Escape는 해당 dialog만 닫는다. Inspector는 새 선택의 이전 값을 유지하지 않고 Reading styles…만 보여준다.
+- U-1 안정된 불확실 상태, U-7은 audit에서 해결됐다. U-32·U-33·U-51은 명시 계약 또는 서로 다른 동작의 차이로 현재 변경을 채택하지 않는다. U-10은 과거 트리 캐시 추가 대신 no-canvas 문제 안내만 수정한다. 실제 Quick Open 포커스 유실은 재현 전 결함으로 단정하지 않는다.
+- R-P가 CSS/표현 소스를 읽는 동안 C는 별도 child에서만 구현한다. C 파일을 다른 구현 배치에 동시에 맡기지 않는다. root 검토 기준 소스는 유지한다.
