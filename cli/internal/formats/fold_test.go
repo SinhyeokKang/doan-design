@@ -93,3 +93,43 @@ func TestIdenticalDuplicatesRetainSmallestLine(t *testing.T) {
 		t.Fatalf("warnings = %#v; want %#v", got, want)
 	}
 }
+
+func TestTiedHumanResolutionOnReopen(t *testing.T) {
+	input, err := os.ReadFile(filepath.Join("..", "..", "..", "schema", "fixtures", "fold", "human-unicode-tied-lifecycle", "events.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed := ParseLines(string(input))
+	var events []LocatedEvent
+	for _, located := range parsed.Events {
+		if located.Event.ID != "evt_00000000-0000-4000-8000-00000000000e" {
+			events = append(events, located)
+		}
+	}
+	reopened := Fold(events)
+	if len(reopened.Comments) != 1 || len(reopened.Warnings) != 0 {
+		t.Fatal(reopened)
+	}
+	data, err := json.Marshal(reopened.Comments[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{
+		"by":         map[string]any{"kind": "human", "name": "Renée"},
+		"at":         "2026-10-23T10:00:00.123Z",
+		"reopenedBy": map[string]any{"kind": "human", "name": "김하나 👩🏽‍💻 é"},
+		"reopenedAt": "2026-10-23T10:00:00.123Z",
+	}
+	if got["status"] != "open" || !reflect.DeepEqual(got["lastResolution"], want) {
+		t.Fatal(got)
+	}
+	for _, key := range []string{"resolvedBy", "resolvedAt"} {
+		if _, exists := got[key]; exists {
+			t.Fatalf("reopened comment includes %s: %v", key, got)
+		}
+	}
+}

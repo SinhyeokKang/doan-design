@@ -1,0 +1,51 @@
+{
+  "comments": [
+    {
+      "comment": "cmt_00000000-0000-4000-8000-000000000001",
+      "status": "open",
+      "body": "Original",
+      "target": {},
+      "canvasHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "createdBy": {
+        "kind": "human",
+        "name": "Sam",
+        "email": "sam@example.com"
+      },
+      "createdAt": "2026-10-21T10:00:01.000Z",
+      "updatedAt": "2026-10-21T10:00:01.000Z",
+      "lastResolution": {
+        "by": {
+          "kind": "agent",
+          "name": "codex"
+        },
+        "at": "2026-10-21T10:00:02.000Z",
+        "reopenedBy": {
+          "kind": "human",
+          "name": "Sam",
+          "email": "sam@example.com"
+        },
+        "reopenedAt": "2026-10-21T10:00:02.000Z"
+      }
+    },
+    {
+      "comment": "cmt_00000000-0000-4000-8000-000000000002",
+      "status": "resolved",
+      "body": "Original",
+      "target": {},
+      "canvasHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "createdBy": {
+        "kind": "human",
+        "name": "Sam",
+        "email": "sam@example.com"
+      },
+      "createdAt": "2026-10-21T10:00:01.000Z",
+      "updatedAt": "2026-10-21T10:00:01.000Z",
+      "resolvedBy": {
+        "kind": "human",
+        "name": "Renée"
+      },
+      "resolvedAt": "2026-10-21T10:00:02.000Z"
+    }
+  ],
+  "warnings": []
+}
