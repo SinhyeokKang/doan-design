@@ -36,11 +36,13 @@ try {
   const readyRepo = join(parent, "ready"), readyTree = join(work, "ready-tree");
   await configured(readyRepo); await git(readyRepo, ["init", "-b", "main"]); await git(readyRepo, ["-c", "user.name=Home Test", "-c", "user.email=home@example.test", "add", "."]); await git(readyRepo, ["-c", "user.name=Home Test", "-c", "user.email=home@example.test", "commit", "-m", "fixture"]); await git(readyRepo, ["worktree", "add", "-b", "ready-branch", readyTree]);
   const uncheckedRepo = join(parent, "unchecked-ready"); await configured(uncheckedRepo); await git(uncheckedRepo, ["init"]);
-  const wrapped = join(work, "doan-wrapper.mjs"), failure = join(work, "fail-cli");
+  const wrapped = join(work, "doan-wrapper.mjs"), failure = join(work, "fail-cli"), slow = join(work, "slow-cli");
+  // `slow` holds a path whose saved-folder read (`ls --repo`) takes 2 s.
   await writeFile(wrapped, `#!/usr/bin/env node
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 if (existsSync(${JSON.stringify(failure)}) && process.argv.includes(${JSON.stringify(candidate)})) process.exit(1);
+if (existsSync(${JSON.stringify(slow)}) && process.argv.includes(readFileSync(${JSON.stringify(slow)}, 'utf8'))) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
 const result = spawnSync(${JSON.stringify(cli)}, process.argv.slice(2), { stdio: 'inherit' });
 process.exit(result.status ?? 1);
 `, { mode: 0o755 });
@@ -231,9 +233,10 @@ process.exit(result.status ?? 1);
   assert.equal(await lastCandidate.isChecked(), true);
   await checklist.getByRole("button", { name: "Cancel", exact: true }).click();
   const addedProject = join(home, "added-project"); await configured(addedProject);
-  await enterProject(page, repo); await add([addedProject]);
+  // The toast's Open is clicked while the added project is still being read.
+  await enterProject(page, repo); await writeFile(slow, addedProject); await add([addedProject]);
   const addedToast = page.getByRole("status").filter({ hasText: "Added added-project" }); await addedToast.getByRole("button", { name: "Open", exact: true }).waitFor(); await shot("11-added-toast");
-  await addedToast.getByRole("button", { name: "Open", exact: true }).click(); await page.getByRole("button", { name: "added-project overview", exact: true }).waitFor();
+  await addedToast.getByRole("button", { name: "Open", exact: true }).click(); await page.getByRole("button", { name: "added-project overview", exact: true }).waitFor(); await rm(slow);
   const mixedProject = join(home, "mixed-project"); await configured(mixedProject);
   await goHome(page); await add([addedProject, mixedProject]); await homeRow(page, mixedProject).waitFor();
   assert.equal(await page.getByRole("region", { name: "mixed-project", exact: true }).evaluate(node => getComputedStyle(node).boxShadow !== "none"), true, "mixed additions highlight new cards");

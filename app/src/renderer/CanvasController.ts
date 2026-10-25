@@ -250,6 +250,17 @@ export class CanvasController {
   }
 
   updateEntries(next: FolderEntry[]): void {
+    this.applyEntries(next);
+    // After the open canvas has followed this update, so the entered workspace
+    // starts from the new list rather than being diffed against the old one.
+    const waiting = this.waitingWorkspace;
+    const kind = waiting && next.find(entry => entry.path === waiting.folder)?.kind;
+    if (!waiting || kind === "loading") return;
+    this.waitingWorkspace = null;
+    if (kind === "list" && waiting.intent === this.transitionIntent) waiting.open();
+  }
+
+  private applyEntries(next: FolderEntry[]): void {
     for (const root of this.workspaceMemory.keys()) {
       if (!next.some(entry => entry.path === root)) this.workspaceMemory.delete(root);
     }
@@ -317,27 +328,42 @@ export class CanvasController {
     else this.workspaceMemory.set(root, { path: item.canvas, view: { ...item.view } });
   }
   private workspaceActive = true;
-  setWorkspaceActive(active: boolean): void { this.workspaceActive = active; }
+  setWorkspaceActive(active: boolean): void {
+    this.workspaceActive = active;
+    if (!active) this.waitingWorkspace = null;
+  }
+
+  // A project added a moment ago is still being read when its "Added" toast
+  // offers Open; dropping that click left the previous workspace on screen.
+  // Any later transition bumps `transitionIntent` and so supersedes the wait.
+  private waitingWorkspace: { folder: string; intent: number; open: () => void } | null = null;
 
   openWorkspace(folder: string, entered: (folder: string) => void, sameCanvas = false): void {
-    const target = () => this.entries.find(entry => entry.path === folder);
+    const kind = () => this.entries.find(entry => entry.path === folder)?.kind;
     this.transition(() => {
-      const entry = target();
-      if (entry?.kind !== "list") return;
-      const open = this.state.open;
-      if (open) this.workspaceMemory.set(open.folder, { path: open.canvas, view: { ...this.view } });
-      const remembered = this.workspaceMemory.get(folder);
-      const row = switchTarget(sameCanvas ? open?.row.id : undefined, entry.canvases, remembered?.path);
-      if (row) {
-        this.openCanvasNow(folder, row);
-        if (remembered?.path === row.path) { this.view = { ...remembered.view }; this.applyView(); }
-      } else {
-        this.dropFrame();
-        this.state = { ...initialCanvasState(), activity: this.state.activity };
-        this.publish();
-      }
-      entered(folder);
-    }, () => target()?.kind === "list");
+      this.waitingWorkspace = null;
+      const open = () => this.enterWorkspace(folder, entered, sameCanvas);
+      if (kind() === "loading") this.waitingWorkspace = { folder, intent: this.transitionIntent, open };
+      else open();
+    }, () => kind() === "list" || kind() === "loading");
+  }
+
+  private enterWorkspace(folder: string, entered: (folder: string) => void, sameCanvas: boolean): void {
+    const entry = this.entries.find(entry => entry.path === folder);
+    if (entry?.kind !== "list") return;
+    const open = this.state.open;
+    if (open) this.workspaceMemory.set(open.folder, { path: open.canvas, view: { ...this.view } });
+    const remembered = this.workspaceMemory.get(folder);
+    const row = switchTarget(sameCanvas ? open?.row.id : undefined, entry.canvases, remembered?.path);
+    if (row) {
+      this.openCanvasNow(folder, row);
+      if (remembered?.path === row.path) { this.view = { ...remembered.view }; this.applyView(); }
+    } else {
+      this.dropFrame();
+      this.state = { ...initialCanvasState(), activity: this.state.activity };
+      this.publish();
+    }
+    entered(folder);
   }
 
   showOverview(): void {
