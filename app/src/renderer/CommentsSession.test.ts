@@ -105,3 +105,78 @@ describe("application comment session", () => {
   });
 
 });
+
+
+describe("uncertain draft transitions", () => {
+  async function uncertain(recovery = false) {
+    const f = fixture(); await f.session.open(identity); await f.session.create("canvas"); f.session.body("memory only");
+    f.api.commentsMutate.mockImplementationOnce(async r => reply(r, { state: "unknown", ...(recovery ? { recovery: "child-exit-required" as const } : {}) }));
+    await f.session.save(); return f;
+  }
+  test.each([false, true])("internal movement explains the block and cannot approve quit (recovery %s)", async recovery => {
+    const { session: s, api } = await uncertain(recovery);
+    const before = structuredClone(s.draft);
+    expect(s.guard()).toBe(false);
+    expect(s.uncertainTransition?.kind).toBe("blocked");
+    s.answerUncertain(s.uncertainTransition!.id, true);
+    expect(s.draft).toEqual(before);
+    expect(api.setCommentDraftGuard).not.toHaveBeenCalledWith(false);
+  });
+  test.each([false, true])("quit cancellation preserves request; only the current explicit approval succeeds (recovery %s)", async recovery => {
+    const { session: s, api } = await uncertain(recovery);
+    const before = structuredClone(s.draft);
+    const first = s.guard("quit"), firstID = s.uncertainTransition!.id;
+    s.answerUncertain(firstID, false); expect(await first).toBe(false);
+    expect(s.draft).toEqual(before);
+    const second = s.guard("quit"), secondID = s.uncertainTransition!.id;
+    s.answerUncertain(firstID, true);
+    expect(s.uncertainTransition?.id).toBe(secondID);
+    s.answerUncertain(secondID, true); expect(await second).toBe(true);
+    expect(s.draft).toEqual(before);
+    expect(api.commentsMutate).toHaveBeenCalledTimes(1); expect(api.commentsStatus).not.toHaveBeenCalled();
+    expect(api.setCommentDraftGuard).not.toHaveBeenCalledWith(false);
+  });
+  test("a superseding internal movement cancels quit and cannot reuse its approval", async () => {
+    const { session: s } = await uncertain();
+    const quit = s.guard("quit"), id = s.uncertainTransition!.id;
+    expect(s.guard()).toBe(false); expect(await quit).toBe(false);
+    s.answerUncertain(id, true); expect(s.uncertainTransition?.kind).toBe("blocked");
+  });
+  test("repeated quit replaces its renderer intent, and busy or composition never permits approval", async () => {
+    const { session: s } = await uncertain();
+    const old = s.guard("quit"), oldID = s.uncertainTransition!.id;
+    const current = s.guard("quit"), id = s.uncertainTransition!.id;
+    expect(await old).toBe(false); s.answerUncertain(oldID, true);
+    s.composing = true; s.answerUncertain(id, true); expect(s.uncertainTransition?.id).toBe(id);
+    s.composing = false; s.busy = true; s.answerUncertain(id, true); expect(s.uncertainTransition?.id).toBe(id);
+    s.busy = false; s.answerUncertain(id, false); expect(await current).toBe(false);
+    s.composing = true; expect(s.guard("quit")).toBe(false); expect(s.uncertainTransition).toBeNull();
+  });
+  test("checking cannot open or later approve an exceptional quit; failed checks can warn again", async () => {
+    const { session: s, api } = await uncertain();
+    const quit = s.guard("quit"), id = s.uncertainTransition!.id;
+    let rejectCheck: ((error: Error) => void) | undefined;
+    api.commentsStatus.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectCheck = reject; }));
+    const check = s.check(); expect(await quit).toBe(false);
+    expect(s.guard("quit")).toBe(false); s.answerUncertain(id, true);
+    rejectCheck?.(new Error("Read failed")); await check;
+    expect(s.saveView.status).toBe("check-failed");
+    const next = s.guard("quit"); expect(s.uncertainTransition?.kind).toBe("quit");
+    s.answerUncertain(s.uncertainTransition!.id, false); expect(await next).toBe(false);
+  });
+  test("a late saved status cannot turn a cancelled quit into permission", async () => {
+    const { session: s, api } = await uncertain();
+    const quit = s.guard("quit"), id = s.uncertainTransition!.id;
+    s.answerUncertain(id, false);
+    api.commentsStatus.mockImplementationOnce(async r => reply(r, { state: "saved" }));
+    await s.check(); s.answerUncertain(id, true);
+    expect(await quit).toBe(false); expect(s.draft.draft).toBeNull(); expect(s.guard()).toBe(true);
+  });
+  test("an in-flight save does not offer a loss confirmation", async () => {
+    const { session: s, api } = fixture(); await s.open(identity); await s.create("canvas"); s.body("saving");
+    let finish: (() => void) | undefined;
+    api.commentsMutate.mockImplementationOnce(r => new Promise(resolve => { finish = () => resolve(reply(r, { state: "saved" })); }));
+    const save = s.save(); expect(s.guard("quit")).toBe(false); expect(s.uncertainTransition).toBeNull();
+    finish?.(); await save;
+  });
+});

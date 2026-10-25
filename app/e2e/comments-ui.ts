@@ -371,6 +371,24 @@ try {
     return { directChild: message.parentElement === panel, leftInset: rect.left - content.left, rightInset: content.right - rect.right };
   }), { directChild: true, leftInset: 0, rightInset: 0 });
   assert.equal(await createBody.getAttribute("readonly"), "");
+  // Controlled uncertainty enters the real App/preload/main transition path.
+  // This response injection does not reproduce a native directory-child hang.
+  await canvasRow(page, "b.html").click();
+  await dialog.getByText("Save status could not be confirmed", { exact: true }).waitFor();
+  assert.equal(await dialog.getByRole("button", { name: "Quit anyway", exact: true }).count(), 0);
+  assert.equal(await page.locator("iframe").getAttribute("title"), "design/a.html");
+  await dialog.getByRole("button", { name: "Keep draft", exact: true }).click();
+  await removeHomeProject(page, repo);
+  await dialog.getByText("Save status could not be confirmed", { exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  assert.equal(await createBody.inputValue(), "Unknown save body");
+  assert.equal(await createBody.evaluate(node => node === document.activeElement), true);
+  await app.evaluate(({ app }) => app.quit()); await dialog.getByRole("button", { name: "Quit anyway", exact: true }).waitFor();
+  await app.evaluate(({ app }) => app.quit());
+  await shot("09-unknown-quit-cancel");
+  await dialog.getByRole("button", { name: "Stay", exact: true }).click();
+  assert.equal(await createBody.inputValue(), "Unknown save body");
+  assert.equal(await createBody.evaluate(node => node === document.activeElement), true);
   await panel.getByRole("button", { name: "Check saved status", exact: true }).click();
   await cards.filter({ hasText: "Unknown save body" }).waitFor();
   assert.equal((await readFile(file, "utf8")).trim().split("\n").length, beforeUnknown + 1, "lost response adds exactly one event");
@@ -525,10 +543,28 @@ try {
   assert.deepEqual(presentationFailures, [], "Measured comment presentation regressions");
   await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "savedClipboardU2")); });
   clipboardSaved = false;
-  // End the exceptional fixture using the suite's existing cleanup bypass.
-  // Ordinary quit approval is tested in a fresh session, with no uncertain write.
-  await page.evaluate(() => window.doan.setCommentDraftGuard(false));
+  await canvasRow(page, "b.html").click();
+  await dialog.getByText("Save status could not be confirmed", { exact: true }).waitFor();
+  await dialog.getByRole("button", { name: "Keep draft", exact: true }).click();
+  await removeHomeProject(page, repo);
+  await dialog.getByText("Save status could not be confirmed", { exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  assert.equal(await createBody.inputValue(), "Quarantined draft");
+  await app.evaluate(({ app }) => app.quit());
+  await dialog.getByRole("button", { name: "Quit anyway", exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  assert.equal(await createBody.inputValue(), "Quarantined draft");
+  assert.equal(await createBody.evaluate(node => node === document.activeElement), true);
+  await hideMain(app, page, "hide");
+  await app.evaluate(({ app }) => app.quit());
+  await dialog.getByRole("button", { name: "Quit anyway", exact: true }).waitFor();
+  await shot("16-uncertain-quit-approval");
+  const uncertainProcess = app.process();
+  const uncertainExit = new Promise<{ code: number | null; signal: string | null }>(resolve => uncertainProcess.once("exit", (code, signal) => resolve({ code, signal })));
+  await dialog.getByRole("button", { name: "Quit anyway", exact: true }).click();
+  assert.deepEqual(await bounded(uncertainExit, 5000, "uncertain approved quit"), { code: 0, signal: null });
   await closeApp(app); app = undefined;
+  assert.equal(await readFile(join(userData, "runtime.json")).then(() => true, () => false), false, "uncertain approved quit removes runtime");
   app = await _electron.launch(launchOptions); rememberApp(app);
   const approvalPage = await app.firstWindow(); approvalPage.setDefaultTimeout(10_000);
   await canvasRow(approvalPage, "a.html").click();
@@ -540,9 +576,9 @@ try {
   const approvalDialog = approvalPage.getByRole("dialog"); await approvalDialog.waitFor();
   await approvalPage.screenshot({ path: join(shots, "17-ordinary-quit-approval.png") });
   const approvedProcess = app.process();
-  const approvedExit = new Promise<void>(resolve => approvedProcess.once("exit", () => resolve()));
+  const approvedExit = new Promise<{ code: number | null; signal: string | null }>(resolve => approvedProcess.once("exit", (code, signal) => resolve({ code, signal })));
   await approvalDialog.getByRole("button", { name: "Discard", exact: true }).click();
-  await bounded(approvedExit, 5000, "ordinary approved quit");
+  assert.deepEqual(await bounded(approvedExit, 5000, "ordinary approved quit"), { code: 0, signal: null });
   await closeApp(app); app = undefined;
   assert.equal(await readFile(join(userData, "runtime.json")).then(() => true, () => false), false, "approved quit removes runtime");
 

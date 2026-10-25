@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 import type { Comment } from "../formats/types";
 import { foldText } from "../formats/foldText";
-import { CommentsPanel, CommentCard, CommentEditor, UnsavedCommentDialog, type CommentsPanelProps, type CommentEditorProps } from "./CommentsPanel";
+import { CommentsPanel, CommentCard, CommentEditor, UnsavedCommentDialog, UncertainCommentDialog, type CommentsPanelProps, type CommentEditorProps } from "./CommentsPanel";
 
 const comment: Comment = { comment: "c1", status: "open", body: '<script>alert("x")</script>\n  Keep spaces ', target: { element: { doanId: "submit", selector: "button", html: "<button/>" } }, canvasHash: "h", createdBy: { kind: "human", name: "Alex Morgan", email: "alex@example.com" }, createdAt: "2026-10-23T01:42:00Z", updatedAt: "2026-10-23T01:42:00Z" };
 const noop = () => {};
@@ -151,4 +151,26 @@ test("newer-version warning explains the record and preserves valid comments", (
   expect(out).toContain("written by a newer version of Doan");
   expect(out).toContain("unknown_version · line 3");
   expect(out).toContain("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;\n  Keep spaces ");
+});
+
+
+test("uncertain quit explicitly warns about memory loss and cancellation restores focus", () => {
+  const onStay = vi.fn(), onQuit = vi.fn(), restoreEditorFocus = vi.fn();
+  const dialog = UncertainCommentDialog({ kind: "quit", context: "repo / a", onStay, onQuit, restoreEditorFocus });
+  const out = renderToStaticMarkup(dialog);
+  expect(out).toContain("Save status could not be confirmed");
+  expect(out).toContain("memory-only draft will be lost");
+  expect(out).toContain("does not confirm that the comment was saved or that a directory child exited");
+  expect(find(dialog, "Stay").disabled).not.toBe(true);
+  find(dialog, "Quit anyway").onClick?.(); expect(onQuit).toHaveBeenCalledOnce();
+  const key = { key: "Escape", nativeEvent: { isComposing: true, keyCode: 229 }, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+  dialog.props.onKeyDown(key); expect(onStay).not.toHaveBeenCalled();
+  dialog.props.onKeyDown({ ...key, nativeEvent: { isComposing: false, keyCode: 27 } });
+  expect(onStay).toHaveBeenCalledOnce(); expect(restoreEditorFocus).toHaveBeenCalledOnce();
+});
+test("blocked movement explains uncertainty without offering discard or quit", () => {
+  const out = renderToStaticMarkup(<UncertainCommentDialog kind="blocked" context="repo / a" onStay={noop} onQuit={noop} restoreEditorFocus={noop} />);
+  expect(out).toContain("Save status could not be confirmed");
+  expect(out).toContain("cannot leave this draft"); expect(out).toContain("repo / a");
+  expect(out).not.toContain("Quit anyway"); expect(out).not.toContain("Discard"); expect(out).toContain("Keep draft");
 });
