@@ -7,7 +7,7 @@ const mainOnly = new Set([
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "ui-state:get", "ui-state:save", "onboarding:get-open", "onboarding:close", "onboarding:first-prompt", "onboarding:copy",
   // Settings reads setup through `setup:*` and projects through the projection only.
   "onboarding:read", "onboarding:run", "onboarding:answer", "onboarding:open-project", "folders:get", "settings:open",
-  "window:visible",
+  "window:visible", "comments:project", "review-state:get", "review-state:raise",
 ]);
 const shared = new Set(["setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get"]);
 const settingsOnly = new Set([

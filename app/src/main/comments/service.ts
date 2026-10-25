@@ -67,7 +67,7 @@ function text(bytes: Buffer): string {
   return parts.join("");
 }
 function digest(bytes: Buffer): string { return createHash("sha256").update(bytes).digest("hex"); }
-function readList(bytes: Buffer): Omit<CommentList, "project" | "canvasHash"> {
+export function readList(bytes: Buffer): Omit<CommentList, "project" | "canvasHash"> {
   return foldText(text(bytes));
 }
 export function attemptBaseline(bytes: Buffer): Baseline {
