@@ -16,6 +16,7 @@ const shots = join(root, ".scratch/runtime-test", `settings-${Date.now()}`);
 const before = await realState();
 let app: ElectronApplication | undefined, page: Page | undefined, settings: Page | undefined;
 const errors: string[] = [];
+let clipboardSaved = false;
 async function wait(check: () => Promise<boolean>, what: string) {
   const deadline = Date.now() + 15_000;
   while (!await check()) { if (Date.now() > deadline) throw new Error(`settings timeout: ${what}`); await new Promise(resolve => setTimeout(resolve, 30)); }
@@ -41,6 +42,7 @@ try {
   await app.evaluate(async ({ clipboard, ClipboardItem }) => {
     Reflect.set(globalThis, "settingsClipboard", await Promise.all((await clipboard.read()).map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)])))))));
   });
+  clipboardSaved = true;
   page = await app.firstWindow(); page.setDefaultTimeout(15_000); page.on("pageerror", error => errors.push(String(error)));
   await page.getByRole("button", { name: "doan command: Needs attention", exact: true }).waitFor();
   const banner = page.getByRole("status", { name: "Connection problem" });
@@ -56,6 +58,10 @@ try {
   await cliRow.getByText("Link is broken", { exact: true }).waitFor();
   await wait(() => cliRow.getByRole("button", { name: "Fix…" }).evaluate(node => node === document.activeElement), "banner target action focus");
   await settings.screenshot({ path: join(shots, "02-connections.png") });
+  await app.evaluate(({ shell }) => { shell.openExternal = async () => { throw new Error("Injected install-page failure"); }; });
+  await settings.getByRole("button", { name: "Install Codex ↗", exact: true }).click();
+  await settings.getByRole("alert").getByText("Couldn’t open the install page.", { exact: true }).waitFor();
+  assert.equal(await cliRow.getByRole("button", { name: "Fix…" }).isEnabled(), true, "an install-page failure cannot disable connection actions");
   await cliRow.getByRole("button", { name: "Copy", exact: true }).click(); await cliRow.getByRole("button", { name: "Copied", exact: true }).waitFor();
   assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), 'export PATH="$HOME/.local/bin:$PATH"');
   await cliRow.getByRole("button", { name: "Fix…" }).click();
@@ -73,6 +79,7 @@ try {
   await cliRow.getByRole("button", { name: "Fix…" }).click(); await confirm.getByRole("button", { name: "Fix Link" }).click();
   await cliRow.getByText("Connected", { exact: true }).waitFor(); await banner.waitFor({ state: "hidden" });
   assert.equal(await readlink(cliLink), cli);
+  await settings.getByRole("tab", { name: "Projects" }).click();
   await menu(app, settings, "Close Window"); await wait(async () => settings!.isClosed(), "Settings closed");
   assert.equal(await appWindowCount(app), 1); assert.equal(await (await appWindow(app, page)).evaluate(window => window.isVisible()), true);
   await page.getByRole("button", { name: "Codex: Not installed", exact: true }).click(); settings = await settingsPage(app);
@@ -96,6 +103,15 @@ try {
   const detail = settings.getByRole("region", { name: "acme settings", exact: true });
   await detail.getByRole("button", { name: "Change…" }).waitFor();
   async function pick(path: string) { await app!.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }); }, path); }
+  await app.evaluate(({ dialog }) => {
+    dialog.showOpenDialog = () => new Promise(resolve => { Reflect.set(globalThis, "settingsPickerCancel", () => resolve({ canceled: true, filePaths: [] })); });
+  });
+  await detail.getByRole("button", { name: "Change…" }).click();
+  await wait(() => app!.evaluate(() => typeof Reflect.get(globalThis, "settingsPickerCancel") === "function"), "config picker opened");
+  assert.equal(await detail.getByText("Saving…", { exact: true }).count(), 0, "picking a path is not saving config");
+  assert.equal(await detail.getByRole("button", { name: "Change…" }).isDisabled(), true);
+  await app.evaluate(() => Reflect.get(globalThis, "settingsPickerCancel")());
+  await wait(async () => !await detail.getByRole("button", { name: "Change…" }).isDisabled(), "picker cancellation releases controls");
   await pick(join(repo, "styles/tokens.css")); await detail.getByRole("button", { name: "Change…" }).click();
   await detail.getByText("✓ Saved", { exact: true }).waitFor(); await detail.getByText("styles/tokens.css", { exact: true }).waitFor();
   await wait(async () => await page!.locator("iframe[data-settings-before]").count() === 0, "token config reloads the open canvas");
@@ -121,9 +137,22 @@ try {
   await rm(cli); await rename(`${cli}.real`, cli);
   await settings.getByRole("option").filter({ hasText: "~/gone" }).click();
   await settings.getByRole("region", { name: "gone settings" }).getByRole("button", { name: "Locate…" }).waitFor();
+  const missingRoot = settings.getByRole("region", { name: "gone settings" }).locator(".pj-sec");
+  assert.equal(await missingRoot.locator(".ob-chip.warn").innerText(), "Missing");
+  assert.equal(await missingRoot.locator("code").innerText(), "~/gone");
+  assert.equal(await missingRoot.locator(".wt-actions").count(), 1);
   await settings.getByRole("option").filter({ hasText: "~/plain" }).click();
   await settings.getByRole("region", { name: "plain settings" }).getByRole("button", { name: "Set Up…" }).click();
-  await page.getByRole("dialog", { name: /Set Up Project/ }).waitFor(); await page.keyboard.press("Escape");
+  const setup = page.getByRole("dialog", { name: /Set Up Project/ });
+  await setup.waitFor();
+  const beforeSetup = await setup.innerText();
+  await settings.getByRole("option").filter({ hasText: "~/gone" }).click();
+  await settings.getByRole("region", { name: "gone settings" }).getByRole("button", { name: "Remove", exact: true }).click();
+  await settings.getByRole("alert").getByText("This project changed. Try again on Home.", { exact: true }).waitFor();
+  assert.equal(await setup.innerText(), beforeSetup, "forwarding cannot replace the open main dialog");
+  assert.equal(await settings.getByRole("option").filter({ hasText: "~/gone" }).count(), 1, "forwarding cannot remove a project behind the modal");
+  await page.keyboard.press("Escape");
+  await settings.getByRole("option").filter({ hasText: "~/plain" }).click();
   await settings.getByRole("region", { name: "plain settings" }).getByRole("button", { name: "Remove", exact: true }).click();
   await settings.getByRole("option").filter({ hasText: "~/plain" }).waitFor({ state: "hidden" });
   await settings.getByRole("option", { name: "~/acme", selected: true }).waitFor();
@@ -132,6 +161,7 @@ try {
   assert.equal(await appWindowCount(app), 2);
   const quitLabel = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.flatMap(item => item.submenu?.items ?? []).find(item => item.role === "quit")!.label);
   await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "settingsClipboard")); });
+  clipboardSaved = false;
   const closed = app.waitForEvent("close"); await menu(app, settings, quitLabel); await closed;
   assert.equal(page.isClosed(), true); assert.equal(settings.isClosed(), true); app = undefined;
   assert.deepEqual(errors, []);
@@ -142,7 +172,7 @@ try {
   throw error;
 } finally {
   try {
-    try { if (app) await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "settingsClipboard")); }); }
+    try { if (app && clipboardSaved) await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "settingsClipboard")); }); }
     finally { await app?.close(); }
   } finally {
     try { await rm(work, { recursive: true, force: true }); }

@@ -53,6 +53,9 @@ describe("arrivalAction", () => {
   test("the open wizard shows Canvas ready, whatever else is true", () => {
     expect(arrivalAction({ wizardOpen: true, hidden: true, workspaceRoot: root }, root)).toBe("wizard");
   });
+  test("a hidden app with the wizard open still shows Canvas ready, not a toast (orch.md decision)", () => {
+    expect(arrivalAction({ wizardOpen: true, hidden: true, workspaceRoot: null }, root)).toBe("wizard");
+  });
   test("a hidden app shows a toast, even in that workspace", () => {
     expect(arrivalAction({ wizardOpen: false, hidden: true, workspaceRoot: root }, root)).toBe("toast");
   });

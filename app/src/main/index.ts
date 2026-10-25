@@ -803,7 +803,7 @@ async function start(): Promise<void> {
   // A problem row's action runs where the home is: the main window comes forward and does it.
   handle("projects:forward-action", false, (_event, value: unknown) => {
     const request = parseForwardedAction(value, storedRoot);
-    if (request === null || !win || win.isDestroyed()) return false;
+    if (request === null || !win || win.isDestroyed() || menuInputs.modal) return false;
     showWindow(win);
     win.focus();
     send("projects:action", request);

@@ -236,6 +236,7 @@ export function App() {
     }
   }
   useEffect(() => window.doan.onProjectAction(request => {
+    if (live.current.modal) return;
     if (request.action === "details") {
       const entry = entries.find(entry => entry.path === request.path);
       if (entry?.kind === "error") toast.show(entry.message);
