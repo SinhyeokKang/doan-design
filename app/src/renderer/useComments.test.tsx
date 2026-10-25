@@ -5,7 +5,7 @@ import { initialCanvasState, type CanvasController, type CanvasState } from "./C
 import { createTransitionGuard, type TransitionRequest } from "../main/comments/transitions";
 import type { CommentRequest } from "../main/comments/service";
 
-const harness = vi.hoisted(() => ({ effects: [] as (() => void | (() => void))[], states: [] as unknown[], index: 0, refs: [] as { current: unknown }[], refIndex: 0 }));
+const harness = vi.hoisted(() => ({ effects: [] as (() => void | (() => void))[], states: [] as unknown[], setters: [] as ReturnType<typeof vi.fn>[], index: 0, refs: [] as { current: unknown }[], refIndex: 0 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
   useEffect: (effect: () => void | (() => void)) => { harness.effects.push(effect); },
@@ -16,10 +16,11 @@ vi.mock("react", async original => ({
   useState: (initial: unknown) => {
     const i = harness.index++;
     if (!(i in harness.states)) harness.states[i] = typeof initial === "function" ? initial() : initial;
-    return [harness.states[i], vi.fn()];
+    // Recorded so a test can see which state a render tried to replace.
+    return [harness.states[i], harness.setters[i] = vi.fn()];
   },
 }));
-afterEach(() => { vi.unstubAllGlobals(); harness.effects = []; harness.states = []; harness.index = 0; harness.refs = []; harness.refIndex = 0; });
+afterEach(() => { vi.unstubAllGlobals(); harness.effects = []; harness.states = []; harness.setters = []; harness.index = 0; harness.refs = []; harness.refIndex = 0; });
 
 test("public main transition wiring separates blocked removal from exceptional quit and authenticates each answer", async () => {
   let listener: ((request: TransitionRequest) => void) | undefined;
@@ -77,7 +78,7 @@ describe("a new comment blocked by a reload", () => {
       commentsList: async (r: CommentRequest) => ({ ok: true, identity: r, value: { project: 1, comments: [], warnings: [], canvasHash: "hash" } }),
       commentsAuthor: async (r: CommentRequest) => ({ ok: true, identity: r, value: { kind: "human", name: "A" } }),
     } });
-    const controller = { setTransitionGuard: vi.fn(), setComments: vi.fn(), setDraftGuard: vi.fn() };
+    const controller = { setTransitionGuard: vi.fn(), setComments: vi.fn(), setDraftGuard: vi.fn(), setFollowGuard: vi.fn() };
     const ref = { current: controller as unknown as CanvasController };
     const base: CanvasState = { ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, hasFrame: true, layout: layout("one"), selection: label };
     const render = (over: Partial<CanvasState> = {}) => {
@@ -153,6 +154,58 @@ describe("a new comment blocked by a reload", () => {
     f.render({ status: "loading", layout: null });
     expect(session.draft.request).not.toBeNull();
     expect(f.render({ layout: layout("two") }).markup).not.toContain("Continue on current version");
+  });
+
+  test("a move to another path with the same id renames the session and keeps filters and anchors", async () => {
+    const { render, controller } = setup();
+    const { session } = render();
+    await vi.waitFor(() => expect(session.list).not.toBeNull());
+    const list = session.list;
+    const movedRow = { ...row, path: "design/flows/a.html", url: "http://localhost/flows/a.html" };
+    render({ open: { folder: "/repo", canvas: movedRow.path, row: movedRow }, shown: movedRow.path, status: "loading", layout: null });
+    // Only the selection effect's own functional update may touch the filter; no reset, no cleared anchors.
+    const replaced = harness.setters.slice(2, 4).flatMap(setter => setter.mock.calls.filter(([value]) => typeof value !== "function"));
+    expect(replaced).toEqual([]);
+    expect(session.identity).toEqual({ root: "/repo", canvas: "a", path: movedRow.path });
+    expect(session.list).toBe(list);
+    await vi.waitFor(() => expect(controller.setComments).toHaveBeenCalled());
+    const other = { ...row, id: "b", path: "design/b.html" };
+    render({ open: { folder: "/repo", canvas: other.path, row: other } });
+    expect(harness.setters[3]).toHaveBeenCalledWith({ scope: "canvas", status: "open" });
+    expect(harness.setters[2]).toHaveBeenCalledWith(null);
+  });
+
+  test("a followed move blocks a new comment as reloaded and keeps an edit draft saving to the new path", async () => {
+    const { render, mutate } = setup();
+    const { session } = render();
+    await vi.waitFor(() => expect(session.author.status).toBe("ready"));
+    await session.create("canvas"); session.body("keep"); render();
+    const movedRow = { ...row, path: "design/flows/a.html", url: "http://localhost/flows/a.html" };
+    render({ open: { folder: "/repo", canvas: movedRow.path, row: movedRow }, shown: movedRow.path, status: "loading", layout: null, selection: null });
+    expect(session.draft.draft).toMatchObject({ body: "keep", lost: "reloaded" });
+    session.answer("discard");
+    const c1 = { comment: "c1", body: "Before", status: "open", target: {}, canvasHash: "hash", createdBy: { kind: "human", name: "A" }, createdAt: "t", updatedAt: "t" };
+    (window.doan as unknown as { commentsList: unknown }).commentsList = async (r: CommentRequest) => ({ ok: true, identity: r, value: { project: 1, comments: [c1], warnings: [], canvasHash: "hash" } });
+    await session.read();
+    session.edit("c1"); session.body("after");
+    const back = { ...row, path: "design/a.html" };
+    render({ open: { folder: "/repo", canvas: back.path, row: back }, shown: back.path, status: "loading", layout: null, selection: null });
+    await session.read();
+    expect(session.identity?.path).toBe(back.path);
+    expect(session.draft.draft).toMatchObject({ body: "after", blocked: null });
+    expect(session.saveView.status).toBe("idle");
+    await session.save();
+    expect(mutate.mock.lastCall?.[0]).toMatchObject({ path: back.path, intent: { type: "edit", comment: "c1" } });
+  });
+
+  test("tells the controller whether a move can be followed", async () => {
+    const { render, controller } = setup();
+    const { session } = render();
+    await vi.waitFor(() => expect(session.list).not.toBeNull());
+    const follow = (controller.setFollowGuard.mock.lastCall as [() => boolean])[0];
+    expect(follow()).toBe(true);
+    session.deleteConfirmation = { request: { root: "/repo", path: row.path, canvas: "a", requestID: "r", project: 1, intent: { type: "delete", comment: "c", expected: { body: "", status: "open", updatedAt: "" } } }, comment: {} as never };
+    expect(follow()).toBe(false);
   });
 
   test("a load of another canvas id at the same path stays unavailable without continue", async () => {

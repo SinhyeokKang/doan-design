@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { activityFor, pushActivity, timeText, type ActivityEvent } from "./activity";
+import { activityFor, movedFrom, moveActivity, pushActivity, timeText, type ActivityEvent } from "./activity";
 
 const event = (second: number, extra: Partial<ActivityEvent> = {}): ActivityEvent => ({ folder: "/repo", canvas: "design/a.html", at: new Date(2026, 9, 22, 14, 3, second), kind: "opened", ...extra });
 
@@ -29,4 +29,19 @@ test("puts the latest insertion first for simultaneous events", () => {
 test("formats local time with 24-hour digits independently of locale", () => {
   expect(timeText(new Date(2026, 9, 22, 0, 0, 5))).toBe("00:00:05");
   expect(timeText(new Date(2026, 9, 22, 14, 3, 21))).toBe("14:03:21");
+});
+
+test("a move carries the canvas's events to the new path and drops events of whatever sat there before", () => {
+  const log = [event(1), event(2, { canvas: "design/flows/a.html" }), event(3, { folder: "/other" }), event(4, { canvas: "design/b.html" })];
+  const moved = moveActivity(log, "/repo", "design/a.html", "design/flows/a.html");
+  expect(activityFor(moved, "/repo", "design/flows/a.html")).toEqual([event(1, { canvas: "design/flows/a.html" })]);
+  expect(activityFor(moved, "/repo", "design/a.html")).toEqual([]);
+  expect(activityFor(moved, "/other", "design/a.html")).toEqual([event(3, { folder: "/other" })]);
+  expect(activityFor(moved, "/repo", "design/b.html")).toHaveLength(1);
+  expect(log).toHaveLength(4);
+});
+
+test("names the previous file of a move by its file name", () => {
+  expect(movedFrom({ ...event(1), kind: "moved", from: "design/checkout.html" })).toBe("checkout.html");
+  expect(movedFrom({ ...event(1), kind: "moved", from: "design/flows/old name.html" })).toBe("old name.html");
 });

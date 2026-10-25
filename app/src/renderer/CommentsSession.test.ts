@@ -348,10 +348,10 @@ describe("continue a blocked new comment on the current version", () => {
     const retry = s.continueDraft("selection"); expect(s.continueError).toBeNull(); await retry;
     expect(s.draft.draft?.blocked).toBeNull(); neverReleased(api);
   });
-  test.each(["documentLost", "moved"])("late success after %s cannot replace the draft or touch the guard", async kind => {
+  test.each(["documentLost", "moved", "renamed"])("late success after %s cannot replace the draft or touch the guard", async kind => {
     const { session: s, api } = await blocked();
     const begin = hold(api), started = s.continueDraft("selection");
-    if (kind === "documentLost") s.documentLost(); else await s.open({ ...identity, path: "design/moved/a.html" });
+    if (kind === "documentLost") s.documentLost(); else if (kind === "moved") await s.open({ ...identity, path: "design/moved/a.html" }); else await s.rename("design/moved/a.html");
     expect(s.beginning).toBe(false);
     const before = structuredClone(s.draft);
     begin.release(); await started;
@@ -435,5 +435,106 @@ describe("continue a blocked new comment on the current version", () => {
     const begin = hold(api), started = s.continueDraft("selection");
     expect(s.guardSelection()).toBe(false);
     begin.release(); await started;
+  });
+});
+
+describe("a canvas moved with the same id", () => {
+  const moved = "design/flows/a.html";
+  function held<T>() {
+    let release!: (value: T) => void;
+    return { promise: new Promise<T>(resolve => { release = resolve; }), release: (value: T) => release(value) };
+  }
+
+  test("renames the identity, keeps the list and reads it again for the new path", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    const list = s.list;
+    await s.rename(moved);
+    expect(s.identity).toEqual({ ...identity, path: moved });
+    expect(api.commentsList).toHaveBeenLastCalledWith(expect.objectContaining({ ...identity, path: moved }));
+    expect(s.list).toEqual(list); expect(s.readError).toBeNull();
+    expect(api.commentsAuthor).toHaveBeenCalledTimes(1);
+  });
+  test("an in-flight read for the old path cannot replace the result or set a read error", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    const late = held<CommentReply<CommentList>>();
+    let oldRequest: CommentRequest | undefined;
+    api.commentsList.mockImplementationOnce(r => { oldRequest = r; return late.promise; });
+    const reading = s.read();
+    api.commentsList.mockImplementationOnce(async r => reply(r, { project: 7, canvasHash: "new", comments: [], warnings: [] }));
+    await s.rename(moved);
+    late.release(reply(oldRequest!, { project: 7, canvasHash: "old", comments: [c], warnings: [] })); await reading;
+    expect(s.list?.canvasHash).toBe("new"); expect(s.readError).toBeNull();
+    const failing = held<CommentReply<CommentList>>();
+    api.commentsList.mockImplementationOnce(() => failing.promise);
+    const second = s.read();
+    await s.rename("design/again/a.html");
+    failing.release({ ok: false, identity: { ...identity, path: moved, requestID: "x" }, error: "Path changed" } as CommentReply<CommentList>); await second;
+    expect(s.readError).toBeNull();
+  });
+  test("an in-flight copy for the old path cannot report afterwards", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    const late = held<CommentReply<{ copied: true }>>();
+    api.commentsCopy.mockImplementationOnce(() => late.promise);
+    const copying = s.copy({ kind: "all" });
+    await s.rename(moved);
+    late.release({ ok: false, identity: { ...identity, requestID: "x" }, error: "Canvas not found" } as CommentReply<{ copied: true }>); await copying;
+    expect(s.copies.get("all")).toBeUndefined(); expect(s.readError).toBeNull();
+  });
+  test("an author read still pending is asked again for the renamed canvas", async () => {
+    const { session: s, api } = fixture();
+    const late = held<CommentReply<Author>>();
+    api.commentsAuthor.mockImplementationOnce(() => late.promise);
+    const opening = s.open(identity);
+    await s.rename(moved);
+    expect(s.author.status).toBe("ready");
+    late.release(reply({ ...identity, requestID: "x" }, { kind: "human", name: "A" })); await opening;
+    expect(s.author.status).toBe("ready");
+  });
+  test("an edit draft without a request saves to the new path after the move", async () => {
+    const { session: s, api } = fixture(); await s.open(identity); s.edit("c1"); s.body("after the move");
+    expect(s.canFollow()).toBe(true);
+    await s.rename(moved);
+    expect(s.draft.draft?.blocked).toBeNull();
+    await s.save();
+    expect(api.commentsMutate.mock.calls[0]?.[0]).toMatchObject({ root: "/repo", canvas: "a", path: moved, intent: { type: "edit", comment: "c1", body: "after the move" } });
+  });
+  test("a create draft is blocked as reloaded once the moved document loads", async () => {
+    const { session: s } = fixture(); await s.open(identity); await s.create("canvas"); s.body("keep");
+    expect(s.canFollow()).toBe(true);
+    await s.rename(moved); s.documentLost(true);
+    expect(s.draft.draft).toMatchObject({ body: "keep", lost: "reloaded" });
+  });
+  test("a create begin still in flight is cancelled and releases main's guard", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    const late = held<CommentReply<BeginResult>>();
+    let request: CommentRequest | undefined;
+    api.commentsBegin.mockImplementationOnce(r => { request = r; return late.promise; });
+    const creating = s.create("canvas");
+    await s.rename(moved);
+    late.release(reply(request!, { origin: "old", project: 7, generation: "g", hash: "h", target: {} })); await creating;
+    expect(s.draft.draft).toBeNull(); expect(s.beginning).toBe(false);
+  });
+  test("does not follow while a save is in flight or uncertain", async () => {
+    const { session: s, api } = fixture(); await s.open(identity); s.edit("c1"); s.body("x");
+    const late = held<CommentReply<SavedStatus>>();
+    api.commentsMutate.mockImplementationOnce(() => late.promise);
+    const saving = s.save();
+    expect(s.canFollow()).toBe(false);
+    late.release({ ok: false, identity: { ...identity, requestID: "x" }, error: "Stale" } as CommentReply<SavedStatus>);
+    await saving;
+    expect(s.saveView.status).toBe("unknown"); expect(s.canFollow()).toBe(false);
+  });
+  test("does not follow while a card change is in flight or unsettled, or a delete confirmation is open", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    const late = held<CommentReply<SavedStatus>>();
+    let request: CommentRequest | undefined;
+    api.commentsMutate.mockImplementationOnce(r => { request = r; return late.promise; });
+    const resolving = s.mutate("resolve", "c1");
+    expect(s.canFollow()).toBe(false);
+    late.release(reply(request!, { state: "unknown" })); await resolving;
+    expect(s.mutations.get("c1")?.status).toBe("unknown"); expect(s.canFollow()).toBe(false);
+    const other = fixture(); await other.session.open(identity);
+    await other.session.mutate("delete", "c1"); expect(other.session.canFollow()).toBe(false);
+    other.session.cancelDelete(); expect(other.session.canFollow()).toBe(true);
   });
 });

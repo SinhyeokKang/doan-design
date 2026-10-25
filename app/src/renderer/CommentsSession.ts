@@ -84,6 +84,26 @@ export class CommentsSession {
     this.emit();
     if (identity) await Promise.all([this.read(), this.retryAuthor()]);
   }
+  // The open canvas moved to `path` with the same id: the same comments, so
+  // the list, filters and anchors stay. The bumped revision drops replies for
+  // the old path; an edit draft without a request follows to save there.
+  async rename(path: string) {
+    if (!this.identity || this.identity.path === path) return;
+    this.revision++;
+    this.cancelBegin();
+    this.identity = { ...this.identity, path };
+    if (this.draft.draft?.origin.kind === "edit" && !this.draft.request && this.draftIdentity) this.draftIdentity = { ...this.draftIdentity, path };
+    this.createError = null; this.continueError = null; this.copies = new Map();
+    this.emit();
+    await Promise.all([this.read(), this.author.status === "loading" ? this.retryAuthor() : undefined]);
+  }
+  // Requests carry the path main checks, so a move is followed only when none
+  // is in flight or unsettled (feature revision-continuity R2).
+  canFollow(): boolean {
+    const unsettled = ["saving", "checking", "unknown", "check-failed", "recovery-blocked"];
+    return !this.pending && !this.draft.request && !this.busy && !this.deleteConfirmation &&
+      ![...this.mutations.values()].some(state => unsettled.includes(state.status));
+  }
   async read(review = false, card?: string) {
     if (!this.identity) return;
     const rev = this.revision, read = ++this.readRevision, request = this.request();

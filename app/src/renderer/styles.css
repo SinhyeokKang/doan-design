@@ -106,8 +106,9 @@ code, kbd { font-family: var(--font-sans); }
 .kv dd { overflow-wrap: anywhere; }
 .activity { border: 0; }
 .tl-row { display: flex; gap: 8px; padding: 3px 12px 3px 0; font: 11px var(--font-sans); color: var(--text-3); }
-.tl-row time { color: var(--text-4); width: 54px; }
+.tl-row time { color: var(--text-4); width: 54px; flex: none; }
 .tl-row b { font-weight: 400; color: var(--text-2); }
+.tl-row .from { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row.element-row { padding-left: 40px; color: var(--accent); background: var(--accent-soft); }
 .truncate { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inspect-head { padding: 12px; border-bottom: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 6px; }
@@ -399,6 +400,8 @@ code, kbd { font-family: var(--font-sans); }
 .workspace > .area, .workspace > .ov { grid-column: 2; grid-row: -2; }
 .ov { min-height: 0; overflow: auto; padding: 4px 24px 24px; position: relative; z-index: 1; background: var(--bg); }
 /* Section headings are folder paths, so they keep their case. */
+/* The shipped .canvas-notice band, stretched over the Overview's own padding. */
+.ov > .canvas-notice { margin: -4px -24px 0; }
 .ov .sec { padding: 16px 0 10px; text-transform: none; letter-spacing: 0; font-size: 11.5px; color: var(--text-2); }
 .ocards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .ocard { display: block; width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }

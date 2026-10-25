@@ -13,6 +13,24 @@ interface SidebarProps {
   overview: () => void;
   expanded?: Record<string, string[]>;
   onExpandedChange?: (root: string, paths: string[]) => void;
+  // The open canvas's last move, so the focused row follows it.
+  moved?: CanvasMove | null;
+}
+export interface CanvasMove { root: string; from: string; to: string }
+
+// Row keys are the canvas path, and `<path>\n<index>` for its frames.
+export function movedKey(key: string, from: string, to: string): string {
+  return key === from ? to : key.startsWith(`${from}\n`) ? to + key.slice(from.length) : key;
+}
+
+// Expanded tree keys after the open canvas moved: its own row keeps its
+// state, and the folders it moved into open.
+export function moveExpanded(paths: readonly string[], from: string, to: string): string[] {
+  const next = new Set(paths.filter(path => path !== from));
+  const parts = to.split("/");
+  for (let i = 1; i < parts.length; i++) next.add(parts.slice(0, i).join("/"));
+  if (paths.includes(from)) next.add(to);
+  return [...next];
 }
 interface VisibleRow { key: string; node: RowNode; level: number; parent?: string | undefined; expanded?: boolean; }
 
@@ -20,7 +38,7 @@ function RowActions({ actions }: { actions: { name: string; label: string; disab
   return <span className="ra">{actions.map(action => <button key={action.name} type="button" className="btn" tabIndex={-1} aria-label={action.label} disabled={action.disabled} onClick={event => { event.stopPropagation(); action.run(); }} onDoubleClick={event => event.stopPropagation()}>{action.name}</button>)}</span>;
 }
 
-export function Sidebar({ entries, state, open, jump, select, overview, expanded: saved, onExpandedChange }: SidebarProps) {
+export function Sidebar({ entries, state, open, jump, select, overview, expanded: saved, onExpandedChange, moved = null }: SidebarProps) {
   const tree = useRef<HTMLDivElement>(null);
   const pointer = useRef(false);
   const rowElements = useRef(new Map<string, HTMLElement>());
@@ -33,6 +51,11 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
   const entry = entries[0];
   const root = entry?.path ?? "";
   const canvases = entry?.kind === "list" ? entry.canvases : [];
+  const [followed, setFollowed] = useState(moved);
+  if (followed !== moved) {
+    setFollowed(moved);
+    if (moved?.root === root) setFocused(key => movedKey(key, moved.from, moved.to));
+  }
   const nodes = buildCanvasTree(canvases).flatMap(node => node.kind === "folder" && node.key === "design" ? node.children : [node]);
   const defaults: string[] = [];
   const folders = (nodes: TreeNode[]) => { for (const node of nodes) if (node.kind === "folder") { defaults.push(node.key); folders(node.children); } };
@@ -76,7 +99,10 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
   useLayoutEffect(() => {
     const lost = removedFocus.current;
     removedFocus.current = null;
-    if (lost && !rowElements.current.has(lost)) {
+    // A row whose canvas moved is the same row at its new key.
+    const same = lost && moved?.root === root ? rowElements.current.get(movedKey(lost, moved.from, moved.to)) : undefined;
+    if (same) same.focus();
+    else if (lost && !rowElements.current.has(lost)) {
       const index = Math.max(0, previousRows.current.findIndex(row => row.key === lost));
       const next = visible[Math.min(index, visible.length - 1)];
       if (next) rowElements.current.get(next.key)?.focus();

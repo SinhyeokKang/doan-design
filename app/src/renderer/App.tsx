@@ -15,10 +15,10 @@ import { DropOverlay } from "./DropOverlay";
 import type { AddOutcome } from "../main/addProjects";
 import type { RowAction } from "./homeCards";
 import { groupProjects, cardRow } from "./homeCards";
-import { Sidebar } from "./Sidebar";
+import { moveExpanded, Sidebar, type CanvasMove } from "./Sidebar";
 import { useComments } from "./useComments";
 import { RightPanel } from "./RightPanel";
-import { updatedText } from "./canvasView";
+import { duplicateIdText, updatedText } from "./canvasView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
 import { Wizard, type Reroot } from "./Onboarding";
 import { FirstPromptContext, useFirstPromptWait } from "./FirstPrompt";
@@ -62,6 +62,10 @@ export function App() {
   const restoreFocus = useRef(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, string[]>>({});
+  const [moved, setMoved] = useState<CanvasMove | null>(null);
+  // Why the open canvas was closed, shown on its project's Overview until another
+  // canvas opens or the Overview is left (design/revision-continuity.html, duplicate-id).
+  const [overviewNotice, setOverviewNotice] = useState<{ root: string; text: string } | null>(null);
   // The saved ui state until the restore is applied, then "done"; null while it is read.
   const [restore, setRestore] = useState<{ state: UiState | null; started: number } | "done" | null>(null);
   const restoreCancelled = useRef(false);
@@ -94,7 +98,16 @@ export function App() {
       }
       setEntries(next); instance.updateEntries(next); setFoldersSeen(true);
     });
-    instance.canvasRemoved = row => live.current.toast.show(`${canvasLabel(row)} was removed from design/`);
+    instance.canvasRemoved = ({ folder, row, duplicates }) => {
+      if (duplicates === null) { live.current.toast.show(`${canvasLabel(row)} was removed from design/`); return; }
+      const text = duplicateIdText(row, duplicates);
+      live.current.toast.show(text);
+      setOverviewNotice({ root: folder, text });
+    };
+    instance.canvasMoved = ({ folder, from, row }) => {
+      setExpanded(previous => previous[folder] ? { ...previous, [folder]: moveExpanded(previous[folder], from, row.path) } : previous);
+      setMoved({ root: folder, from, to: row.path });
+    };
     instance.viewChanged = () => live.current.save();
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace") instance.command(name); });
     return () => { stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
@@ -172,6 +185,15 @@ export function App() {
       if (row) controller.current?.openCanvas(next, row);
     });
     if (plan.missingCanvas) toast.show(`${canvasLabel({ path: plan.missingCanvas, open: 0, resolved: 0, url: "" })} is no longer in design/`);
+    if (plan.duplicateId && listed?.kind === "list") {
+      const { id, count } = plan.duplicateId, saved = restore.state.canvas;
+      const named = listed.canvases.find(row => row.path === saved && row.id === id) ?? listed.canvases.find(row => row.id === id);
+      if (named) {
+        const text = duplicateIdText(named, count);
+        toast.show(text);
+        setOverviewNotice({ root: plan.root, text });
+      }
+    }
   }, [restore, foldersSeen, entries, restoreTick]);
   // Sent at once, pans included: main debounces the write and flushes it on
   // quit, while a value still waiting here would be lost to a quick ⌘Q.
@@ -181,10 +203,11 @@ export function App() {
     const instance = controller.current;
     if (!instance) return;
     const canvas = open && open.folder === loadedRoot ? open.canvas : undefined;
+    const canvasId = canvas ? open?.row.id : undefined;
     const view = instance.currentView();
     // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
     const lastByRoot = { ...instance.memory(), ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
-    const state: UiState = { screen, expanded, lastByRoot, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view } : {}) };
+    const state: UiState = { screen, expanded, lastByRoot, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}) };
     void window.doan.saveUiState(state).catch(console.error);
   };
   const persisted = useRef({ screen, loadedRoot, open: state.open, expanded });
@@ -309,6 +332,12 @@ export function App() {
   }
   const thumbs = useThumbnails(entry?.kind === "list" ? entry.path : null, entry?.kind === "list" ? entry.canvases : []);
   const overview = screen === "workspace" && entry?.kind === "list" && !state.open ? entry : null;
+  const shownOverview = overview?.path ?? null;
+  const previousOverview = useRef(shownOverview);
+  useEffect(() => {
+    if (previousOverview.current !== null && previousOverview.current !== shownOverview) setOverviewNotice(null);
+    previousOverview.current = shownOverview;
+  }, [shownOverview]);
   const rendered = useMemo(() => state.open && state.layout ? { root: state.open.folder, path: state.open.canvas, frames: state.layout.frames } : undefined, [state.open?.folder, state.open?.canvas, state.layout]);
   const names = projectNames(entries.map(entry => entry.path));
   const name = names.get(state.open?.folder ?? entries[0]?.path ?? "") ?? "";
@@ -329,9 +358,9 @@ export function App() {
   <main className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}`} style={{ visibility: screen === "home" ? "hidden" : "visible" }} inert={screen === "home"} aria-hidden={screen === "home"}>
     <TopBar homeDirectory={homeDirectory} state={state} name={card?.name ?? name} reload={() => command("reload")} overview={() => { cancelRestore(); controller.current?.showOverview(); }} home={home} entry={entry} rows={card?.rows ?? []} enter={root => enter(root, true)} />
     {entry && entry.kind !== "list" && <ProblemActions entry={entry} action={action} workspace={{ name: card?.name ?? name, homeDirectory, home }} />}
-    <Sidebar entries={entries.filter(entry => entry.path === loadedRoot)} state={state} expanded={expanded} onExpandedChange={(root, paths) => { cancelRestore(); setExpanded(previous => ({ ...previous, [root]: paths })); }} open={(folder, row, frameId, index) => { cancelRestore(); controller.current?.openCanvas(folder, row, frameId, index === undefined ? undefined : { index }); }} jump={index => controller.current?.jump(index)} select={index => controller.current?.selectFrame(index)} overview={() => { cancelRestore(); controller.current?.showOverview(); }} />
+    <Sidebar entries={entries.filter(entry => entry.path === loadedRoot)} state={state} expanded={expanded} moved={moved} onExpandedChange={(root, paths) => { cancelRestore(); setExpanded(previous => ({ ...previous, [root]: paths })); }} open={(folder, row, frameId, index) => { cancelRestore(); controller.current?.openCanvas(folder, row, frameId, index === undefined ? undefined : { index }); }} jump={index => controller.current?.jump(index)} select={index => controller.current?.selectFrame(index)} overview={() => { cancelRestore(); controller.current?.showOverview(); }} />
     <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null} />
-    {overview && <ProjectOverview key={overview.path} root={overview.path} rows={overview.canvases} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible} open={row => { cancelRestore(); controller.current?.openCanvas(overview.path, row); }} />}
+    {overview && <ProjectOverview key={overview.path} root={overview.path} rows={overview.canvases} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null} open={row => { cancelRestore(); controller.current?.openCanvas(overview.path, row); }} />}
     <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />{comments.panel}</div>
   </main>
   {comments.dialog}

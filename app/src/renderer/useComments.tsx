@@ -21,9 +21,16 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   const draft = session.draft.draft;
   const uncertain = session.uncertainTransition;
   useEffect(() => {
+    const current = session.identity;
+    // The same canvas at another path (a followed move) keeps filters and anchors.
+    if (path && current && current.root === root && current.canvas === canvas) { void session.rename(path); return; }
     setAnchors(null); setFilter({ scope: "canvas", status: "open" });
     void session.open(root && path && canvas ? { root, path, canvas } : null);
   }, [session, root, path, canvas]);
+  useEffect(() => {
+    controller.current?.setFollowGuard(() => session.canFollow());
+    return () => controller.current?.setFollowGuard(null);
+  }, [session, controller]);
   useEffect(() => { if (session.identity) void session.read(); }, [session, state.layout?.document, open?.row.width]);
   useEffect(() => window.doan.onCommentsInvalidated(change => { if (change.root === session.identity?.root) void session.read(); }), [session]);
   useEffect(() => window.doan.onCommentTransition(request => {

@@ -4,6 +4,7 @@ import {
   canvasAtHref,
   canvasViewUpdate,
   cliErrorText,
+  duplicateIdText,
   frameLabel,
   INITIAL_HEIGHT,
   layoutHeight,
@@ -167,6 +168,12 @@ describe("canvasViewUpdate: row revisions and canvas ids", () => {
     expect(canvasViewUpdate(prev, [list("/repo", 1, [a(), b()])], { ...home, row: {} })).toMatchObject({ kind: "reload", idChanged: true });
   });
 
+  test("an id change wins over a served bump or a previous non-list entry in the same update", () => {
+    expect(canvasViewUpdate(prev, [list("/repo", 2, [a({ id: "renamed" }), b()])], home)).toEqual({ kind: "reload", canvas: a({ id: "renamed" }), idChanged: true });
+    const failed: FolderEntry[] = [{ path: "/repo", kind: "error", message: "Cannot read config" }];
+    expect(canvasViewUpdate(failed, [list("/repo", 1, [a({ id: "renamed" }), b()])], home)).toEqual({ kind: "reload", canvas: a({ id: "renamed" }), idChanged: true });
+  });
+
   test("an empty id and no id are the same canvas id", () => {
     const blank = [list("/repo", 1, [row("design/a.html", { id: "", rev: 1 })])];
     expect(canvasViewUpdate(blank, blank, { ...home, row: {} })).toEqual({ kind: "none" });
@@ -317,4 +324,9 @@ describe("updatedText", () => {
     expect(updatedText(new Date(2026, 9, 22, 14, 3, 21))).toBe("Updated 14:03:21");
     expect(updatedText(new Date(2026, 9, 22, 9, 0, 5))).toBe("Updated 09:00:05");
   });
+});
+
+test("names the moved canvas, the count and the id when several canvases share it", () => {
+  expect(duplicateIdText(row("design/checkout.html", { id: "checkout", title: "Checkout" }), 2)).toBe("Checkout moved, but 2 canvases now use the ID checkout. Run doan check in a terminal.");
+  expect(duplicateIdText(row("design/flows/cart.html", { id: "cart" }), 3)).toBe("cart moved, but 3 canvases now use the ID cart. Run doan check in a terminal.");
 });

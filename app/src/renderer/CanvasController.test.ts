@@ -6,6 +6,7 @@ import { CanvasController } from "./CanvasController";
 import { FIRST_LAYOUT_TIMEOUT_MS } from "./viewport";
 import { unavailableCanvasMessage } from "./quickOpen";
 import { SELECTION_LOST } from "./selection";
+import { activityFor } from "./activity";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -132,7 +133,7 @@ function selectionHarness() {
   const markOf = (kind: string) => marks.find((mark) => mark.className.split(" ").includes(kind));
   const state = () => changed.mock.lastCall?.[0];
   layout();
-  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections };
+  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections, board };
 }
 
 describe("selection", () => {
@@ -1169,7 +1170,7 @@ it("reports the open canvas leaving its folder's list, but not a closed project"
     const removed = vi.fn();
     h.controller.canvasRemoved = removed;
     h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [h.other] }]);
-    expect(removed).toHaveBeenCalledWith(expect.objectContaining({ path: h.row.path }));
+    expect(removed).toHaveBeenCalledWith({ folder: "/repo", row: expect.objectContaining({ path: h.row.path }), duplicates: null });
     expect(h.state().open).toBeNull();
     h.controller.openCanvas("/repo", h.other);
     h.controller.updateEntries([]);
@@ -1318,4 +1319,115 @@ it.each(["cliError", "missing-path", "removed"])("passes the consumed %s entry t
     h.controller.updateEntries(latest ? [source, latest] : [source]);
     expect(unavailable).toHaveBeenCalledExactlyOnceWith(latest);
   } finally { h.controller.dispose(); }
+});
+
+describe("a canvas moved with the same id", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  function movedHarness() {
+    const h = selectionHarness();
+    const moved = { ...h.row, path: "design/flows/a.html", url: "http://localhost/t/k/f/design/flows/a.html" };
+    const removed = vi.fn(), followed = vi.fn();
+    h.controller.canvasRemoved = removed;
+    h.controller.canvasMoved = followed;
+    const list = (...canvases: object[]) => [{ path: "/repo", kind: "list" as const, servedRev: 0, canvases }] as FolderEntry[];
+    return { ...h, moved, removed, followed, list };
+  }
+
+  it("keeps the canvas open at its new path with the view, and finds the selection again there", () => {
+    const h = movedHarness();
+    try {
+      h.select(1);
+      h.controller.wheel({ dx: 30, dy: 40, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
+      const transform = h.board.style.transform, old = h.current();
+      h.controller.updateEntries(h.list(h.moved, h.other));
+      expect(h.current()).not.toBe(old);
+      expect(h.board.style.transform).toBe(transform);
+      expect(h.state()).toMatchObject({ open: { folder: "/repo", canvas: h.moved.path, row: h.moved }, shown: h.moved.path, reanchoring: true, status: null });
+      expect(h.removed).not.toHaveBeenCalled();
+      expect(h.followed).toHaveBeenCalledExactlyOnceWith({ folder: "/repo", from: h.row.path, row: h.moved });
+      // While the new document is asked for the anchor, main already has the new path with the old selectors.
+      expect(h.send).toHaveBeenLastCalledWith({ root: "/repo", canvas: { path: h.moved.path, id: "a" }, frame: { id: "hero" }, element: h.target.element });
+      h.layout({ href: h.moved.url });
+      expect(h.current().contentWindow.postMessage).toHaveBeenCalledWith({ type: "select-anchor", seq: 1, doanId: "cta", selector: '[data-doan-id="cta"]' }, "*");
+      h.select(1, { href: h.moved.url });
+      expect(h.state()).toMatchObject({ reanchoring: false, notice: "" });
+      expect(h.state().selection).toMatchObject({ element: h.target.element });
+      expect(h.board.style.transform).toBe(transform);
+      const frames = h.frames.length;
+      h.controller.openCanvas("/repo", h.moved);
+      expect(h.frames).toHaveLength(frames);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("moves the activity to the new path and adds Moved once", () => {
+    const h = movedHarness();
+    try {
+      h.controller.updateEntries(h.list(h.moved, h.other));
+      h.layout({ href: h.moved.url });
+      const activity = h.state().activity;
+      expect(activityFor(activity, "/repo", h.moved.path).map(event => [event.kind, event.from])).toEqual([["moved", h.row.path], ["opened", undefined]]);
+      expect(activityFor(activity, "/repo", h.row.path)).toEqual([]);
+      expect(h.state().updated).toEqual(activity[0]?.at);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("shows the selection-lost notice when the moved document no longer has the anchor", () => {
+    const h = movedHarness();
+    try {
+      h.select(1);
+      h.controller.updateEntries(h.list(h.moved, h.other));
+      h.layout({ href: h.moved.url });
+      h.select(1, { href: h.moved.url, target: null });
+      expect(h.state()).toMatchObject({ selection: null, notice: SELECTION_LOST, reanchoring: false });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("reloads once when the rename and a content change arrive in one update", () => {
+    const h = movedHarness();
+    try {
+      const frames = h.frames.length;
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 3, canvases: [{ ...h.moved, rev: 4 }, h.other] }]);
+      expect(h.frames).toHaveLength(frames + 1);
+      expect(h.followed).toHaveBeenCalledOnce();
+      expect(h.state().activity.filter((event: { kind: string }) => event.kind === "moved")).toHaveLength(1);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("treats the move as a removal while the comments session cannot follow", () => {
+    const h = movedHarness();
+    try {
+      h.select(1);
+      h.controller.setFollowGuard(() => false);
+      h.controller.updateEntries(h.list(h.moved, h.other));
+      expect(h.removed).toHaveBeenCalledExactlyOnceWith({ folder: "/repo", row: h.row, duplicates: null });
+      expect(h.followed).not.toHaveBeenCalled();
+      expect(h.state()).toMatchObject({ open: null, selection: null, status: "missing", message: "design/a.html is no longer in the list. It was deleted or moved." });
+      expect(h.send).toHaveBeenLastCalledWith(null);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("closes with the duplicate count when several canvases now use the id", () => {
+    const h = movedHarness();
+    try {
+      h.select(1);
+      h.controller.updateEntries(h.list(h.moved, { ...h.moved, path: "design/copy.html", url: "http://localhost/t/k/f/design/copy.html" }, h.other));
+      expect(h.removed).toHaveBeenCalledExactlyOnceWith({ folder: "/repo", row: h.row, duplicates: 2 });
+      expect(h.followed).not.toHaveBeenCalled();
+      expect(h.state()).toMatchObject({ open: null, selection: null, status: "missing" });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("clears the selection when another canvas id now sits at the same path", () => {
+    const h = movedHarness();
+    try {
+      h.select(1);
+      const old = h.current();
+      h.controller.updateEntries(h.list({ ...h.row, id: "replaced" }, h.other));
+      expect(h.current()).not.toBe(old);
+      expect(h.state()).toMatchObject({ selection: null, notice: "", reanchoring: false, open: { canvas: h.row.path, row: { id: "replaced" } } });
+      expect(h.send).toHaveBeenLastCalledWith(null);
+      expect(h.followed).not.toHaveBeenCalled();
+      expect(h.removed).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
 });

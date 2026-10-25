@@ -10,7 +10,7 @@ import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem
 import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, sameDocument, type OpenCanvas } from "./canvasView";
 import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
-import { activityFor, pushActivity, type ActivityEvent } from "./activity";
+import { activityFor, moveActivity, pushActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { currentFrame } from "./currentFrame";
@@ -58,6 +58,7 @@ export class CanvasController {
   private view: View = { x: 0, y: 0, scale: 1 };
   private lastHref: string | null = null;
   private loading = false;
+  // `moved` was logged when the move was seen, so its first layout logs nothing.
   private loadKind: ActivityEvent["kind"] = "opened";
   private loadTimer: ReturnType<typeof setTimeout> | undefined;
   private answerTimer: ReturnType<typeof setTimeout> | undefined;
@@ -97,6 +98,9 @@ export class CanvasController {
   private pendingPin: { seq: number; intent: number; generation: number; revision: number; destination: PinDestination } | null = null;
 
   private transitionGuard: ((destination: TransitionDestination) => boolean | Promise<boolean>) | null = null;
+  // Whether the comments session can follow the open canvas to a new path.
+  private followGuard: (() => boolean) | null = null;
+  setFollowGuard(guard: (() => boolean) | null): void { this.followGuard = guard; }
   private transitionIntent = 0;
   private inputGuard = false;
   private selectionGuard = false;
@@ -282,7 +286,9 @@ export class CanvasController {
     this.entries = next;
     const open = this.state.open;
     if (open === null) return;
-    const update = canvasViewUpdate(prev, next, open);
+    const found = canvasViewUpdate(prev, next, open);
+    // A pending or unsettled comment request names the old path, so the move is a removal (R2).
+    const update = found.kind === "moved" && this.followGuard?.() === false ? { kind: "clear" as const, reason: "missing" as const } : found;
     // Reads the flow-7 table for every folder update in one place. For reload
     // and clear, load() and dropFrame() apply the same effect again, so either
     // path alone keeps the rule (the clearing-row tests go red only without both).
@@ -293,6 +299,19 @@ export class CanvasController {
         this.state.open = { ...open, row: update.canvas };
         this.load(update.canvas, false);
         break;
+      case "moved": {
+        const to = update.canvas.path, at = new Date();
+        this.state.error = "";
+        this.state.open = { folder: open.folder, canvas: to, row: update.canvas };
+        this.state.shown = to;
+        const remembered = this.workspaceMemory.get(open.folder);
+        if (remembered?.path === open.canvas) remembered.path = to;
+        this.state.activity = pushActivity(moveActivity(this.state.activity, open.folder, open.canvas, to), { folder: open.folder, canvas: to, at, kind: "moved", from: open.canvas }, 50);
+        // The same canvas reloaded at its new path: the view stays and the selection is asked for again.
+        this.load(update.canvas, false, "moved");
+        this.canvasMoved?.({ folder: open.folder, from: open.canvas, row: update.canvas });
+        break;
+      }
       case "resize":
         this.state.error = "";
         this.state.open = { ...open, row: update.canvas };
@@ -305,7 +324,7 @@ export class CanvasController {
         this.state.shown = null;
         this.state.error = "";
         this.dropFrame();
-        if (update.reason === "missing") this.canvasRemoved?.(open.row);
+        if (update.reason === "missing" || update.reason === "duplicateId") this.canvasRemoved?.({ folder: open.folder, row: open.row, duplicates: update.reason === "duplicateId" ? update.count : null });
         this.state.status = update.reason === "closed" ? "empty" : "missing";
         this.state.message = update.reason === "closed" ? "Pick a canvas from the list"
           : update.reason === "notFound" ? `The project ${name} is missing. Use Locate… to find it.`
@@ -328,8 +347,11 @@ export class CanvasController {
   }
 
   private workspaceMemory = new Map<string, { path: string; view: View }>();
-  // The open canvas left the folder's list (deleted or moved).
-  canvasRemoved: ((row: CanvasRow) => void) | null = null;
+  // The open canvas left the folder's list (deleted or moved). `duplicates`:
+  // how many rows now use its id, when that is why it was not followed.
+  canvasRemoved: ((removed: { folder: string; row: CanvasRow; duplicates: number | null }) => void) | null = null;
+  // The open canvas was followed to `row`, the row of the list that decided it.
+  canvasMoved: ((move: { folder: string; from: string; row: CanvasRow }) => void) | null = null;
   // Pans do not publish state, so persistence listens here.
   viewChanged: (() => void) | null = null;
   currentView(): View { return { ...this.view }; }
@@ -733,7 +755,7 @@ export class CanvasController {
     this.state.layout = message;
     const linked = this.markShown(message.href);
     if (this.state.unlisted) this.clearAnchors();
-    if ((first || linked) && this.state.open && !this.state.unlisted) {
+    if ((first || linked) && this.state.open && !this.state.unlisted && (linked || this.loadKind !== "moved")) {
       const at = new Date();
       this.state.activity = pushActivity(this.state.activity, { ...this.state.open, at, kind: linked ? "opened" : this.loadKind }, 50);
     }

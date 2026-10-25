@@ -1,4 +1,5 @@
 import { timeText } from "./activity";
+import { canvasLabel } from "./canvasTree";
 import type { CanvasRow, FolderEntry } from "../main/view";
 
 // Keyed by folder path, not by URL: the folder key in the URL changes when a
@@ -58,6 +59,11 @@ export function canvasViewUpdate(prev: readonly FolderEntry[], entries: readonly
       return { kind: "none" };
     }
   }
+}
+
+// Why a moved canvas was not followed (design/revision-continuity.html, duplicate-id).
+export function duplicateIdText(row: CanvasRow, count: number): string {
+  return `${canvasLabel(row)} moved, but ${count} canvases now use the ID ${row.id ?? ""}. Run doan check in a terminal.`;
 }
 
 export function cliErrorText(reason: string): string {

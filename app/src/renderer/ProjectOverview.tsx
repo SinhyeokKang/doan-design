@@ -148,9 +148,11 @@ interface ProjectOverviewProps {
   // Paths of the cards on screen, so their thumbnails are made first.
   onVisible: (paths: readonly string[]) => void;
   open: (row: CanvasRow) => void;
+  // A band at the top, such as why the open canvas was closed.
+  notice?: string | null;
 }
 
-export function ProjectOverview({ root, rows, thumbnails, onVisible, open }: ProjectOverviewProps) {
+export function ProjectOverview({ root, rows, thumbnails, onVisible, open, notice }: ProjectOverviewProps) {
   const region = useRef<HTMLElement>(null);
   const sections = overviewSections(rows);
   const order = sections.flatMap(section => section.canvases.map(canvas => canvas.key));
@@ -182,6 +184,7 @@ export function ProjectOverview({ root, rows, thumbnails, onVisible, open }: Pro
   }, [orderKey]);
   if (rows.length === 0) return <section className="ov" role="region" aria-label="Overview"><OverviewEmpty root={root} /></section>;
   return <section className="ov native-scroll" role="region" aria-label="Overview" ref={region}>
+    {notice && <div className="canvas-notice" role="status">{notice}</div>}
     {sections.map(section => <section key={section.key} aria-label={section.key}>
       <div className="sec">{section.key} <span className="r">{section.canvases.length}</span></div>
       <div className="ocards">{section.canvases.map(canvas => <CanvasCard key={canvas.key} canvas={canvas} thumbnail={thumbnailView(canvas.row, thumbnails.get(canvas.key))} open={open}

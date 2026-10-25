@@ -178,3 +178,10 @@ test("thumbnail requests accept valid width without an id and retain known frame
   expect(cardFacts(missingID)).toEqual({ frames: "1 frame" });
   h.thumbs.dispose();
 });
+
+test("a notice opens the overview as its first child band, and no notice adds nothing", () => {
+  const notice = "Checkout moved, but 2 canvases now use the ID checkout. Run doan check in a terminal.";
+  const html = renderToStaticMarkup(<TooltipProvider><ProjectOverview root="/code/acme-web" rows={rows} thumbnails={new Map()} onVisible={() => {}} open={() => {}} notice={notice} /></TooltipProvider>);
+  expect(html).toContain(`<section class="ov native-scroll" role="region" aria-label="Overview"><div class="canvas-notice" role="status">${notice}</div><section aria-label="design">`);
+  expect(render(rows)).not.toContain("canvas-notice");
+});
