@@ -153,15 +153,17 @@ export class CommentsSession {
     return this.draft.request !== null && ["unknown", "check-failed", "recovery-blocked"].includes(this.saveView.status);
   }
   guard(kind: "move" | "quit" = "move"): boolean | Promise<boolean> {
-    this.cancelDestination();
+    if (this.uncertainTransition) this.cancelDestination();
     if (this.composing || this.beginning || this.busy) { this.emit(); return false; }
     if (this.draft.request) {
       if (!this.stablePending()) { this.emit(); return false; }
+      this.cancelDestination();
       this.uncertainTransition = { id: crypto.randomUUID(), kind: kind === "quit" ? "quit" : "blocked" };
       const result = kind === "quit" ? new Promise<boolean>(resolve => { this.destination = resolve; }) : false;
       this.emit(); return result;
     }
     if (!this.draft.draft) return true;
+    this.cancelDestination();
     const result = new Promise<boolean>(resolve => { this.destination = resolve; });
     this.draft = transitionDraft(this.draft, { type: "move", destination: crypto.randomUUID() }).state;
     this.emit(); return result;
