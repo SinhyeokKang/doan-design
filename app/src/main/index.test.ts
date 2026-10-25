@@ -1571,6 +1571,21 @@ describe("settings window", () => {
     expect(await invoke("projects:forward-action", created.webContents, null, { path: "/plain", action: "showInFinder" })).toBe(false);
   });
 
+  test("Settings cannot forward project actions while the main window has a modal", async () => {
+    mocks.shell.entries.mockReturnValue([{ path: "/plain", kind: "uninitialized" }]);
+    const created = await openSettings();
+    await invoke("menu:state", window().webContents, null, { screen: "home", modal: true, toast: false });
+    window().webContents.send.mockClear();
+    window().focus.mockClear();
+    for (const action of ["setUp", "locate", "remove", "retry", "details"]) {
+      expect(await invoke("projects:forward-action", created.webContents, null, { path: "/plain", action })).toBe(false);
+    }
+    expect(window().webContents.send).not.toHaveBeenCalledWith("projects:action", expect.anything());
+    expect(window().focus).not.toHaveBeenCalled();
+    await invoke("menu:state", window().webContents, null, { screen: "home", modal: false, toast: false });
+    expect(await invoke("projects:forward-action", created.webContents, null, { path: "/plain", action: "setUp" })).toBe(true);
+  });
+
   test("first prompt takes a subject and builds the sentence with promptSentence", async () => {
     const contents = window().webContents;
     mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "list" }]);
