@@ -33,7 +33,7 @@ const mocks = await vi.hoisted(async () => {
   }
   return {
     Window,
-    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
+    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
     shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
       store: vi.fn(), remove: vi.fn(), restore: vi.fn(), replace: vi.fn(), rereadAll: vi.fn() },
@@ -1681,4 +1681,60 @@ test("a cancelled quit leaves thumbnails alive and allows a later approved quit"
   await new Promise<void>(resolve => setImmediate(resolve));
   expect(mocks.thumbnails.dispose).toHaveBeenCalledOnce();
   expect(mocks.app.quit).toHaveBeenCalledOnce();
+});
+
+
+test.each(["window", "app", "both"])("guarded quit reveals and focuses main before dispatch after hiding %s", async hidden => {
+  const main = window(), contents = main.webContents;
+  if (hidden !== "app") main.emit("close", { preventDefault: vi.fn() });
+  if (hidden !== "window") mocks.notifications.get("NSApplicationDidHideNotification")?.();
+  mocks.app.show.mockImplementationOnce(() => { mocks.notifications.get("NSApplicationDidUnhideNotification")?.(); });
+  await invoke("comments:guard", contents, null, true);
+  contents.send.mockClear();
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  expect(main.show).toHaveBeenCalledOnce();
+  expect(main.focus).toHaveBeenCalledOnce();
+  expect(mocks.app.show).toHaveBeenCalledTimes(hidden === "window" ? 0 : 1);
+  const index = contents.send.mock.calls.findIndex(call => call[0] === "comments:transition");
+  const request = contents.send.mock.calls[index]?.[1];
+  expect(request).toMatchObject({ kind: "quit" });
+  expect(main.show.mock.invocationCallOrder[0]).toBeLessThan(main.focus.mock.invocationCallOrder[0] ?? 0);
+  expect(main.focus.mock.invocationCallOrder[0]).toBeLessThan(contents.send.mock.invocationCallOrder[index] ?? 0);
+  if (hidden !== "window") expect(mocks.app.show.mock.invocationCallOrder[0]).toBeLessThan(main.show.mock.invocationCallOrder[0] ?? 0);
+  expect(await invoke("window:visible", contents, null)).toEqual({ visible: true });
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  expect(main.show).toHaveBeenCalledOnce();
+  expect(contents.send.mock.calls.filter(call => call[0] === "comments:transition")).toHaveLength(1);
+  await invoke("comments:transition-answer", contents, null, { id: "stale", allow: true });
+  await invoke("comments:transition-answer", contents, {}, { id: request.id, allow: true });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  expect(mocks.app.quit).not.toHaveBeenCalled();
+  await invoke("comments:transition-answer", contents, null, { id: request.id, allow: false });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  expect(mocks.app.quit).not.toHaveBeenCalled();
+  expect(mocks.thumbnails.dispose).not.toHaveBeenCalled();
+});
+
+test.each(["window", "app", "both"])("unguarded quit does not reveal hidden %s", async hidden => {
+  const main = window();
+  if (hidden !== "app") main.emit("close", { preventDefault: vi.fn() });
+  if (hidden !== "window") mocks.notifications.get("NSApplicationDidHideNotification")?.();
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  expect(main.show).not.toHaveBeenCalled();
+  expect(main.focus).not.toHaveBeenCalled();
+  expect(mocks.app.show).not.toHaveBeenCalled();
+  expect(mocks.app.quit).not.toHaveBeenCalled();
+  await new Promise<void>(resolve => setImmediate(resolve));
+  expect(mocks.app.quit).toHaveBeenCalledOnce();
+});
+
+test("guarded quit cancels a pending fullscreen hide before presenting the guard", async () => {
+  const main = window();
+  main.isFullScreen.mockReturnValue(true);
+  main.emit("close", { preventDefault: vi.fn() });
+  await invoke("comments:guard", main.webContents, null, true);
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  main.emit("leave-full-screen");
+  expect(main.show).toHaveBeenCalledOnce();
+  expect(main.hide).not.toHaveBeenCalled();
 });
