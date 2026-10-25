@@ -27,7 +27,8 @@ export interface Thumbnails {
   get(root: string, path: string, visible: boolean): Promise<ThumbnailReply>;
   visible(root: string, path: string, visible: boolean): void;
   // Every folder update: forgets canvases that left the list, re-checks a
-  // folder whose served files changed, and cleans the cache once at start.
+  // folder whose served files changed or only the canvases whose row revision
+  // moved, and cleans the cache once at start.
   entriesChanged(entries: readonly FolderEntry[]): void;
   // Removed projects lose their cache files; `before` is the list before removal.
   removed(roots: readonly string[], before: readonly FolderEntry[]): Promise<void>;
@@ -112,7 +113,8 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
   const basis = new Map<string, ThumbnailMeta>();
   // A visibility update can arrive while get is awaiting the cache.
   const visibility = new Map<string, boolean>();
-  const revs = new Map<string, number>();
+  // Per root, the servedRev and row revisions of the last update.
+  const revs = new Map<string, { served: number; rows: Map<string, number | undefined> }>();
   // One served signature per folder and served revision.
   const signatures = new Map<string, { rev: number; value: Promise<string> }>();
   // Cache writes and removals of one key run one after another, so a removal
@@ -228,10 +230,11 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
     dispatch({ type: "forget", key });
   };
 
-  const recheck = async (root: string) => {
+  // `paths` limits the check to those canvases; without it, every canvas of the root.
+  const recheck = async (root: string, paths?: ReadonlySet<string>) => {
     for (const [key, target] of known) {
       const before = basis.get(key);
-      if (target.root !== root || before === undefined) continue;
+      if (target.root !== root || before === undefined || (paths !== undefined && !paths.has(target.path))) continue;
       const now = await current(target);
       if (basis.get(key) !== before) continue;
       if (now === null || thumbnailStale(before, now, deps.appVersion, now.tokens)) {
@@ -294,8 +297,15 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
       for (const entry of entries) {
         if (entry.kind !== "list") continue;
         const seen = revs.get(entry.path);
-        revs.set(entry.path, entry.servedRev);
-        if (seen !== undefined && seen !== entry.servedRev) void recheck(entry.path);
+        revs.set(entry.path, { served: entry.servedRev, rows: new Map(entry.canvases.map((row) => [row.path, row.rev])) });
+        if (seen === undefined) continue;
+        if (seen.served !== entry.servedRev) {
+          void recheck(entry.path);
+          continue;
+        }
+        // The served signature still stands, so only these canvases can be stale.
+        const moved = new Set(entry.canvases.filter((row) => seen.rows.get(row.path) !== row.rev).map((row) => row.path));
+        if (moved.size > 0) void recheck(entry.path, moved);
       }
       for (const root of revs.keys()) if (!entries.some((entry) => entry.path === root)) revs.delete(root);
       for (const root of signatures.keys()) if (!entries.some((entry) => entry.path === root)) signatures.delete(root);

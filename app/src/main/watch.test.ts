@@ -9,6 +9,7 @@ import {
   unlinkSync,
   watch as fsWatch,
   writeFileSync,
+  type FSWatcher,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -197,9 +198,20 @@ async function watchScope(root: string, scope: string[]): Promise<Recorder> {
   calls = [];
   return {
     calls: () => calls,
-    merged: () => ({ reread: calls.some((call) => call.reread), served: calls.some((call) => call.served) }),
+    merged: () => {
+      const names = mergedNames(calls);
+      return { reread: calls.some((call) => call.reread), served: calls.some((call) => call.served), ...(names === undefined ? {} : { names }) };
+    },
     reset: () => (calls = []),
   };
+}
+
+// Like the refresher: a union, unknown once any call had an unknown name, and
+// absent when no call carried names. Sorted, so a test can compare it.
+function mergedNames(calls: readonly Change[]): string[] | null | undefined {
+  if (calls.some((call) => call.names === null)) return null;
+  const names = calls.flatMap((call) => call.names ?? []);
+  return calls.some((call) => call.names !== undefined) ? [...new Set(names)].sort() : undefined;
 }
 
 async function expectChange(w: Recorder, change: () => void, expected: Change): Promise<void> {
@@ -237,10 +249,54 @@ function recursivePaths(): string[] {
 }
 
 describe("watchFolder classifies changes", () => {
-  test("a design/ change needs a re-read and is a served change", async () => {
+  // Whether a design/ change is served is the shell's call, made from the names.
+  test("a design/ change needs a re-read and carries its names", async () => {
     const root = repo();
     const w = await watchScope(root, ["design"]);
-    await expectChange(w, () => writeFileSync(join(root, "design", "b.html"), ""), BOTH);
+    await expectChange(w, () => writeFileSync(join(root, "design", "b.html"), ""), { ...REREAD, names: ["b.html"] });
+    await expectChange(w, () => {
+      mkdirSync(join(root, "design", "sub"));
+      writeFileSync(join(root, "design", "sub", "c.html"), "");
+    }, { ...REREAD, names: ["sub", "sub/c.html"] });
+  });
+
+  // Claude Code saves through `<name>.tmp.<pid>.<hex>` renamed over the file;
+  // both names arrive within one debounce (revision-continuity task 1).
+  test("a save through a temporary sibling carries both names in one call", async () => {
+    const root = repo();
+    const w = await watchScope(root, ["design"]);
+    w.reset();
+    writeFileSync(join(root, "design", "a.html.tmp.4242.0123456789ab"), "<!doctype html><title>x</title>");
+    renameSync(join(root, "design", "a.html.tmp.4242.0123456789ab"), join(root, "design", "a.html"));
+    expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
+    await sleep(400);
+    expect(w.calls()).toHaveLength(1);
+    expect(w.merged()).toEqual({ ...REREAD, names: ["a.html", "a.html.tmp.4242.0123456789ab"] });
+  });
+
+  // A dead design/ watcher reports no name, so the shell cannot tell what changed.
+  test("an error on the design/ watcher re-reads with unknown names", async () => {
+    const root = repo();
+    vi.mocked(fsWatch).mockClear();
+    const w = await watchScope(root, ["design"]);
+    const index = watchedPaths().indexOf(join(root, "design"));
+    const watcher = vi.mocked(fsWatch).mock.results[index]?.value as FSWatcher | undefined;
+    expect(watcher).toBeDefined();
+    await expectChange(w, () => watcher?.emit("error", new Error("gone")), { ...REREAD, names: null });
+  });
+
+  // The root watcher sees design/ itself go and come back; that is served
+  // whatever the design/ watcher reported, since every file in it changed.
+  test("design/ deleted and created again is a served change", async () => {
+    const root = repo();
+    const w = await watchScope(root, ["design"]);
+    w.reset();
+    rmSync(join(root, "design"), { recursive: true });
+    mkdirSync(join(root, "design"));
+    writeFileSync(join(root, "design", "a.html"), "<!doctype html>");
+    expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
+    await settle(() => w.calls().length);
+    expect(w.merged()).toMatchObject(BOTH);
   });
 
   test("a .doan/ change only needs a re-read", async () => {
@@ -349,7 +405,7 @@ describe("watchFolder classifies changes", () => {
     vi.mocked(fsWatch).mockClear();
     const w = await watchScope(root, ["design", "design/assets"]);
     expect(watchedPaths()).not.toContain(join(root, "design", "assets"));
-    await expectChange(w, () => writeFileSync(join(root, "design", "assets", "x.css"), "x{}"), BOTH);
+    await expectChange(w, () => writeFileSync(join(root, "design", "assets", "x.css"), "x{}"), { ...REREAD, names: ["assets/x.css"] });
   });
 
   // `doan ls` reports a symlinked `design` by its real path, and the root
@@ -364,7 +420,7 @@ describe("watchFolder classifies changes", () => {
     await expectChange(w, () => writeFileSync(join(root, "docs", "design", "sub", "a.html"), ""), SERVED);
   });
 
-  test("design/ and a served file changing together make one call with both flags", async () => {
+  test("design/ and a served file changing together make one call with both flags and the names", async () => {
     const root = repo();
     mkdirSync(join(root, "assets"));
     const w = await watchScope(root, ["assets", "design"]);
@@ -373,7 +429,7 @@ describe("watchFolder classifies changes", () => {
     writeFileSync(join(root, "assets", "x.css"), "x{}");
     expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
     await sleep(400);
-    expect(w.calls()).toEqual([BOTH]);
+    expect(w.calls()).toEqual([{ ...BOTH, names: ["b.html"] }]);
   });
 
   test("changes less than 200 ms apart make one call", async () => {
