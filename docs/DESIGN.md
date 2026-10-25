@@ -125,12 +125,12 @@ The draft iframe and mounted application are measured in the same built Electron
 | Right column | 280px outer width; 279px content after the shared divider | Retains the established shell column. |
 | Inspector / Comments viewports | 278px / 462px outer heights in the 1238 × 780 window; Inspector clientHeight 277 | The Inspector bottom divider belongs to its 278px allocation. |
 | Independent scrolling | Comments scrollTop 0 → 50 while Inspector stays 0; Inspector 0 → 347.5 while Comments stays 50 | Wheel input stays within the panel under the pointer. |
-| Comments heading | 12px / 700; 10px bottom margin; header padding 12px | Preserves the draft heading hierarchy. |
+| Comments heading | 12px / 700; 10px bottom margin; header padding 12px. Superseded 2026-10-26: `h3.comments-title` is a sticky direct child of the panel with padding 12px 12px 10px (see 'comments-readability update') | Preserves the draft heading hierarchy. |
 | Scope/status segments | Padding 3px, gap 4px, radius 7px, 1px border; buttons 11.5px with 5px 7px padding | Keeps selection and status controls compact. |
 | Actions | 11px / 500 / normal line-height; 4px 7px padding; 1px border; radius 7px; inline-flex, 6px gap, centered, nowrap | Prevents message line-height from inflating recovery actions. Primary actions use weight 600. |
 | Author | Avatar 26 × 26, radius 50%, 10px / 600; author row gap 8px; name 11.5px / 600; email/time 10px / 15px | Keeps author metadata subordinate to body text. |
-| Body / target / badge | Body 12px / 19.2px and pre-wrap; target 10.5px / 15.75px; badge 10px / 15px, 1px 5px padding, radius 4px | Preserves plain text and compact target/status labels. |
-| Composer | Padding 12px; target starts 8px below label text; textarea minimum height 104px, padding 9px, radius 6px, 12px / 19.2px | Matches the visible label/target/input rhythm while retaining a native wrapping label. |
+| Body / target / badge | Body 12px / 19.2px and pre-wrap; target 10.5px / 15.75px (one line with an ellipsis since 2026-10-26); badge 10px / 15px, 1px 5px padding, radius 4px | Preserves plain text and compact target/status labels. |
+| Composer | Padding 12px; target starts 8px below label text; textarea minimum height 104px (64px in a panel under 360px since 2026-10-26), padding 9px, radius 6px, 12px / 19.2px | Matches the visible label/target/input rhythm while retaining a native wrapping label. |
 | Recovery messages | Full panel content width, excluding a reserved native scrollbar; padding 12px; body 11.5px / 18.4px; heading 12px / 700 | Avoids a second inset inside the composer. Empty action groups are omitted from editor messages. |
 | Message severity | Errors use a 2px error rule; unknown/conflict/quarantined recovery use warning; checking, confirmed absence, reviewed and saved states are neutral | Does not visually label a successful status check as a warning. Only reached states are claimed below. |
 | Unsaved modal | Width 410px; padding 20px; radius 12px; heading 15px / 700; body 12px / 19.2px | Keeps the three transition actions within the approved dialog width. |
@@ -166,6 +166,33 @@ Eleven presentation checks in `app/e2e/comments-ui.ts` were observed red before 
 An instrumented measurement also exposed the test choosing Canvas before Reload's selection reanchor completed. The test now waits for the original iframe to disconnect and the selected mark to return before choosing the list scope. The failed run is preserved; no product timing fix is claimed. Other measurement-harness failures (missing focus evidence and an undefined candidate) are preserved and excluded from the final comparison. The comparator removes stale outputs before regeneration and writes source/raw-data hashes only after successful completion.
 
 At source `876ee54`, 1,112 tests in 46 files, typecheck, build, measurement and comparison all passed. The full E2E exited 0 with its own `runtime-test: PASS`; the seven runtime checkpoint images were retained and directly inspected. Each final command has an observed exit/time/source-hash receipt. The conductor relayed independent R-S review with no product red/yellow findings and authorized finalization with the stated limits. R-S reconstructed all 166,816 rows from the raw values/text and checked the 75 snapshot/source hashes. Its evidence is reconstruction and receipt inspection; no additional Electron run is claimed.
+
+### comments-readability update (2026-10-26)
+
+Reference: the conductor-confirmed `design/comments-readability.html` (frames `target-labels`, `composer-small`, `warnings`, `identity-blocks`, `empty-lists`, `dialogs`, `panel-details`). comments-ui was already on main, so this was not a `/design-sync` loop: batch E measured the implementation against the draft with `.scratch/comments-readability/measure.mjs` (Playwright `_electron`, the `app/e2e/runtime.ts` isolation: temporary HOME, SHELL, userData, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `DOAN_CLI`, `DOAN_RUNTIME`, `real-state.ts` before and after). The draft is opened as a canvas in the same app build. Fixture: canvas `checkout` with frame Shipping, three comments on the `label` “Address” (no doan-id), one element comment whose target was removed (Location unavailable) and one canvas comment; a rewrite brings up the Updated label. Two runs each measured both window sizes: 40 of 40 checks passed in each, the values were identical, the app quit with code 0 and real state was unchanged.
+
+| Element | 960 × 600 | 1238 × 780 | Draft |
+|---|---|---|---|
+| Comments panel after the editor opens | clientHeight 282, scrollTop 114 | clientHeight 462, scrollTop 0 | 282 / 114 and 462 / 0 |
+| Title, “To:”, input, Save tops inside the panel client rect | 0, 70, 93.8, 165.8 px — all inside | 0, 184, 207.8, 319.8 px — all inside | Same numbers |
+| Scope / status filters after scrolling up | Inside (tops 37, 76) | Inside (37, 76) | — |
+| Input minimum height | 64px | 104px | 64 / 104 |
+| Comments title | `position: sticky`, top 0 | Same | — |
+| “To:” line | `span`, `nowrap`, `ellipsis`: “To: Element · label “Address” · in Shipping” | Same | Same |
+| Locatable target | `button.locatable`, rgb(240, 119, 58), opacity 1, title “Show on canvas\n[data-doan-frame="shipping"] > label:nth-of-type(1)”, underline on hover | Same | Same color |
+| Location unavailable / canvas target | `span`, rgb(181, 179, 171), opacity 1, title = selector / “Canvas” | Same | Same |
+| Badge note | “Not found in the current canvas.”, rgb(143, 142, 135) | Same | Same |
+| Updated label | Background rgb(23, 23, 23), padding 3px 8px, radius 6px, contrast 5.45 | Same | Contrast 5.45 |
+| Card action rows | All five cards one row, 23px | Same | — |
+| Pin aria | “3 open comments” | Same | — |
+| Focus after Cancel | The “Comment on selection” button that opened the editor | Same | — |
+| Focus after pin Enter | The first `article.comments-card` | Same | — |
+
+Panel composition changed with this update: Canvas info has no COMMENTS section (Path, ID, Width, Frames, then the guidance sentence, then Activity); the editor sits directly below `.comments-head`, above warnings and the list; warnings are one grouped block; an identity problem leaves only the title and its block. Their copy and order are pinned by unit tests and by `app/e2e/comments-ui.ts` steps 00e–00h (identity blocks and fixing a duplicate, the 960 × 600 target line and editor reach with three comments, warnings from a real `git merge-file --union`, a single read-failure block and Retry).
+
+Not verified in a real window: the singular pin aria (“1 open comment”, unit tests only); pin Enter focus after an asynchronous filter change (measured only with the selection and its three cards already listed); reaching the filters by wheel input (the measurement set `scrollTop`); the measured “To:” text was short enough not to be cut (00f checks a cut excerpt). The screen was locked during measurement, so DOM focus was measured but native window focus was not, and `comments-ui.ts` step 08, which waits for native window focus, stopped there in the batch runs.
+
+Evidence: the conductor's `.scratch/orch/comments-readability/evidence-E/measure/` (`measure.mjs`, `measure-1.log`, `measure-2.log`, `run-*/measurements.json` and four screenshots per size per run).
 
 ## Onboarding — initial implementation (2026-10-24)
 
