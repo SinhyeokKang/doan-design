@@ -73,3 +73,9 @@ C는 통합 브랜치 커밋에서 새 자식 worktree로 시작한다. 보고�
 | H | A-L12·L17~L20 및 수용한 앱 동작의 런타임 회귀 | `app/e2e/`만 | Codex gpt-6-astra medium. 시간 초과 정산과 부정 단언의 증거 도착 | 앱 배치 통합 뒤 runtime 실행 예약. 먼저 하네스 회귀 red→green. 대기 |
 
 C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이지만 가용 워커 자리에 따라 다음 wave로 보낸다. A3는 A1과 CommentsPanel 소유권이 겹치므로 직렬이다. H는 앱 코드의 테스트 변경을 소유하며 full runtime은 다른 실행과 겹치지 않는다. 각 배치가 만든 postmortem 후보는 지휘자가 문서별 커밋으로 통합한다. 기존 리뷰 워커는 구현 소유자로 전환하지 않고 release한다.
+
+### 실행 중 발견
+
+- A-L1 재현(지휘자, 2026-10-25): 실제 Electron 45에서 현 `thumbnailWindow.ts`를 타입만 제거해 임시 앱으로 실행했다. 정상 캔버스는 캡처되고, 정상 외곽 문서 안의 iframe 404는 전체 미리보기를 unavailable로 만들었다. 직접 캔버스 404도 unavailable이었다. 끝나지 않는 이미지가 있는 작업은 약 8.1초 후 캡처됐고 다음 정상 작업도 성공했다. 이전 작업의 실패 오염은 이 probe에서 재현되지 않았다. 실제 사용자 상태 불변 검사를 통과했다. 근거 `.scratch/audit-integration-261025/thumbnail-probe.{mjs,json}`. nested 실패가 외곽 미리보기를 막아야 하는지는 기존 문서가 명확히 정하지 않아 아직 수정하지 않는다. 첫 두 probe 준비는 TS/esbuild API 부재로 실행 전에 실패했고, Node 내장 타입 제거로 probe를 실행했다.
+- E 워커가 실제 judgeMaterial Git 호출에서 clean filter 실행도 임시 marker로 재현했다. 같은 post-agent 경계의 좁은 방어를 추가하도록 지시했다. 완전한 sandbox라고 보고하지 않는다.
+- 실행 워커: C `ctx_64080f504c8e` (`audit-cli-261025`), E `ctx_2a1afc30c998` (`audit-eval-261025`), A1 `ctx_e2c78120d993` (`audit-comments-261025`). 요청 모델과 effective 모델 모두 gpt-6-astra medium, turn_start 관찰 완료.
