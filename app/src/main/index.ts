@@ -92,6 +92,7 @@ let machine: ReturnType<typeof createMachine> | undefined;
 export type OnboardingOpen = { session: string };
 export type OnboardingRead = { kind: "state"; session: string; state: MachineState } | { kind: "stale" };
 let quitting = false;
+let quitScheduled = false;
 let cancelPendingHide = () => {};
 let addFlow: AddFlow | undefined;
 let uiState: UiStateStore | undefined;
@@ -851,16 +852,20 @@ app.on("second-instance", () => {
 
 app.on("before-quit", (event) => {
   if (quitting) return;
-  let approved = false;
+  event.preventDefault();
+  if (quitScheduled) return;
   transitionGuard.request({ kind: "quit" }, () => {
-    // Before quit closes the windows: a capture running then would otherwise
-    // open the capture window again, and will-quit would never come.
-    // The state is flushed first: closing the capture window mid-capture has
-    // crashed the process (SIGSEGV) before will-quit ran its flush.
-    quitting = true; cancelPendingHide(); uiState?.flushSync(); thumbnails?.dispose();
-    if (approved) app.quit();
+    // An inspector quit can interrupt a BrowserWindow constructor before its
+    // JS wrapper exists. Electron then crashes trying to emit its close event.
+    // Let the native stack unwind before either disposal or app.quit().
+    quitScheduled = true;
+    setImmediate(() => {
+      // Stop the queue before Electron closes windows so it cannot reopen
+      // the capture window and block will-quit. Persist state before teardown.
+      quitting = true; cancelPendingHide(); uiState?.flushSync(); thumbnails?.dispose();
+      app.quit();
+    });
   });
-  if (!quitting) { event.preventDefault(); approved = true; }
 });
 app.on("activate", () => {
   if (win && !win.isDestroyed()) showWindow(win);
