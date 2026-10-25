@@ -16,6 +16,9 @@ export interface CanvasRow {
   // Static frames from `doan ls` in document order, capped by `capFrames`.
   frames?: { id: string; title?: string }[];
   framesTruncated?: boolean;
+  // Bumped by the shell when this file changed without a served bump, so the
+  // open canvas and its thumbnail reload for their own file only.
+  rev?: number;
   open: number;
   resolved: number;
   url: string;

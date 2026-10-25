@@ -467,6 +467,82 @@ describe("createRefresher", () => {
     refresher.close();
   });
 
+  test("unions design names across triggers within one debounce", async () => {
+    const runs: Change[] = [];
+    const refresher = createRefresher(async (change) => {
+      runs.push(change);
+    }, 50);
+    refresher.trigger({ reread: true, served: false, names: ["a.html"] });
+    await sleep(20);
+    refresher.trigger({ reread: true, served: false, names: ["sub/b.html", "a.html"] });
+    await sleep(120);
+    expect(runs).toEqual([{ reread: true, served: false, names: ["a.html", "sub/b.html"] }]);
+    refresher.close();
+  });
+
+  test("leaves names out of a run no design event reached", async () => {
+    const runs: Change[] = [];
+    const refresher = createRefresher(async (change) => {
+      runs.push(change);
+    }, 20);
+    refresher.trigger(REREAD);
+    refresher.trigger(SERVED);
+    await sleep(80);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).not.toHaveProperty("names");
+    refresher.close();
+  });
+
+  test("a trigger without names keeps the names gathered so far", async () => {
+    const runs: Change[] = [];
+    const refresher = createRefresher(async (change) => {
+      runs.push(change);
+    }, 50);
+    refresher.trigger({ reread: true, served: false, names: ["a.html"] });
+    refresher.trigger(SERVED);
+    refresher.trigger(REREAD);
+    await sleep(120);
+    expect(runs).toEqual([{ reread: true, served: true, names: ["a.html"] }]);
+    refresher.close();
+  });
+
+  test("an unknown name sticks until a run takes it", async () => {
+    const runs: Change[] = [];
+    const refresher = createRefresher(async (change) => {
+      runs.push(change);
+    }, 50);
+    refresher.trigger({ reread: true, served: false, names: ["a.html"] });
+    refresher.trigger({ reread: true, served: false, names: null });
+    refresher.trigger({ reread: true, served: false, names: ["b.html"] });
+    await sleep(120);
+    refresher.trigger({ reread: true, served: false, names: ["c.html"] });
+    await sleep(120);
+    expect(runs).toEqual([
+      { reread: true, served: false, names: null },
+      { reread: true, served: false, names: ["c.html"] },
+    ]);
+    refresher.close();
+  });
+
+  test("names arriving during a run reach the run after it, not the running one", async () => {
+    const runs: Change[] = [];
+    const seen: (readonly string[] | null | undefined)[] = [];
+    const refresher = createRefresher(async (change) => {
+      runs.push(change);
+      seen.push(change.names === null || change.names === undefined ? change.names : [...change.names]);
+      await sleep(150);
+    }, 20);
+    refresher.trigger({ reread: true, served: false, names: ["a.html"] });
+    await sleep(60);
+    refresher.trigger({ reread: true, served: false, names: ["b.html"] });
+    refresher.trigger({ reread: true, served: false, names: null });
+    await sleep(500);
+    expect(seen).toEqual([["a.html"], null]);
+    // The running change was not mutated by the later triggers.
+    expect(runs[0]).toEqual({ reread: true, served: false, names: ["a.html"] });
+    refresher.close();
+  });
+
   test("carries a change made during a run into the run after it", async () => {
     const runs: Change[] = [];
     const refresher = createRefresher(async (change) => {
