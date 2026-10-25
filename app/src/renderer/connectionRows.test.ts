@@ -1,5 +1,8 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import type { MachineState } from "../main/onboarding/machine";
+import { ConnectionRows } from "./ConnectionRows";
 import { connectionRow, connectionConfirm, connectionBanner } from "./connectionRowView";
 import { idleUi } from "./onboardingView";
 const home = "/Users/alex";
@@ -53,4 +56,24 @@ test("shared skill and MCP conflict copy identifies the cause", () => {
 test("blocked shared skill wins over a foreign Claude link and stays read-only", () => {
   const state = machine(); state.stub.state = "blocked"; state.claudeLink.state = "link-other";
   expect(connectionRow(state, "claude", idleUi())).toMatchObject({ cause: "Path is blocked.", action: { kind: "check" } });
+});
+
+test("a development build without DOAN_CLI gives its reason as the row sentence, once", () => {
+  const reason = "This build has no bundled CLI. Set DOAN_CLI.";
+  const state = machine({ available: false, reason, display: { cliTarget: null } });
+  expect(connectionRow(state, "cli", idleUi())).toMatchObject({ status: "Not connected", parts: [reason], action: { label: "Connect", disabled: true } });
+  const html = renderToStaticMarkup(createElement(ConnectionRows, { machine: state, ui: idleUi(), rows: ["cli"], run() {}, checkAgain() {}, install() {}, copyPath() {} }));
+  expect(html.split(reason)).toHaveLength(2);
+  expect(html).not.toContain("Agents can’t run doan until the command is connected.");
+  // Agent rows keep their own sentence; the reason follows it.
+  expect(connectionRow(state, "claude", idleUi()).parts).toEqual(["Claude Code is installed but can’t use doan yet."]);
+  const agentHtml = renderToStaticMarkup(createElement(ConnectionRows, { machine: state, ui: idleUi(), rows: ["claude"], run() {}, checkAgain() {}, install() {}, copyPath() {} }));
+  expect(agentHtml.split(reason)).toHaveLength(2);
+});
+
+test("Connect waiting for the doan command uses the row's wording, not the wizard's step number", () => {
+  const ui = { ...idleUi(), outcome: { claude: { kind: "unavailable" as const, message: "Install the CLI link in step 1 before connecting MCP." } } };
+  const html = renderToStaticMarkup(createElement(ConnectionRows, { machine: machine({ cli: { state: "dangling", value: "/gone", stamp: "s" } }), ui, rows: ["claude"], run() {}, checkAgain() {}, install() {}, copyPath() {} }));
+  expect(html).toContain("Connect the doan command first; MCP needs it.");
+  expect(html).not.toContain("step 1");
 });

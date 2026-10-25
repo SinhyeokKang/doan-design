@@ -26,7 +26,9 @@ try {
   const repo = join(home, "acme"), second = join(home, "brand"), missing = join(home, "gone"), plain = join(home, "plain");
   await mkdir(data); await mkdir(join(home, ".local/bin"), { recursive: true }); await mkdir(shots, { recursive: true });
   await writeFile(join(data, "onboarding.json"), "{}");
-  await writeFile(shell, '#!/bin/sh\nPATH=/usr/bin:/bin; export PATH\neval "$2"\n', { mode: 0o755 });
+  // Claude Code is installed (never run here) so its MCP item waits for the doan command.
+  const bin = join(work, "bin"); await mkdir(bin); await writeFile(join(bin, "claude"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+  await writeFile(shell, `#!/bin/sh\nPATH=${bin}:/usr/bin:/bin; export PATH\neval "$2"\n`, { mode: 0o755 });
   await exec("go", ["build", "-o", cli, "./cli/cmd/doan"], { cwd: root });
   const cliLink = join(home, ".local/bin/doan"); await symlink(join(work, "gone-doan"), cliLink);
   for (const project of [repo, second]) {
@@ -36,7 +38,10 @@ try {
     await writeFile(join(project, "design/canvas.html"), '<!doctype html><title>Settings canvas</title><meta name="doan:canvas" content="settings"><meta name="doan:width" content="800"><link rel="stylesheet" href="../styles/tokens.css"><style>body { color: var(--test-color, red); min-height: 600px; }</style><section data-doan-frame="hero"><p>Settings canvas</p></section>');
   }
   await mkdir(plain); await mkdir(join(repo, "assets")); await writeFile(join(work, "outside.css"), ':root {}');
-  await writeFile(join(data, "folders.json"), JSON.stringify([repo, second, plain, missing]));
+  const branched = join(home, "branched");
+  await mkdir(join(branched, ".doan"), { recursive: true }); await writeFile(join(branched, ".doan/config.json"), '{"v":1}');
+  await exec("git", ["init", "-q", "-b", "main", branched]); await exec("git", ["-C", branched, "-c", "user.name=Settings", "-c", "user.email=settings@example.test", "commit", "-q", "--allow-empty", "-m", "init"]);
+  await writeFile(join(data, "folders.json"), JSON.stringify([repo, second, plain, missing, branched]));
   const env = { ...process.env, HOME: home, SHELL: shell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"), DOAN_CLI: cli, DOAN_RUNTIME: join(data, "runtime.json") };
   app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${data}`], env });
   await app.evaluate(async ({ clipboard, ClipboardItem }) => {
@@ -58,6 +63,11 @@ try {
   await cliRow.getByText("Link is broken", { exact: true }).waitFor();
   await wait(() => cliRow.getByRole("button", { name: "Fix…" }).evaluate(node => node === document.activeElement), "banner target action focus");
   await settings.screenshot({ path: join(shots, "02-connections.png") });
+  // MCP waits for the doan command: its reason sits right under the dimmed item.
+  const claudeRow = settings.locator('.cn-row[data-connection="claude"]');
+  await claudeRow.locator(".cn-name").click();
+  assert.equal(await claudeRow.locator(".ob-notice").evaluate(node => getComputedStyle(node).paddingTop), "0px");
+  await claudeRow.locator(".cn-name").click();
   await app.evaluate(({ shell }) => { shell.openExternal = async () => { throw new Error("Injected install-page failure"); }; });
   await settings.getByRole("button", { name: "Install Codex ↗", exact: true }).click();
   await settings.getByRole("alert").getByText("Couldn’t open the install page.", { exact: true }).waitFor();
@@ -156,6 +166,9 @@ try {
   await settings.getByRole("region", { name: "plain settings" }).getByRole("button", { name: "Remove", exact: true }).click();
   await settings.getByRole("option").filter({ hasText: "~/plain" }).waitFor({ state: "hidden" });
   await settings.getByRole("option", { name: "~/acme", selected: true }).waitFor();
+  // A worktree row names its branch in the heading and in the region's name.
+  await settings.getByRole("option").filter({ hasText: "~/branched" }).click();
+  assert.equal(await settings.getByRole("region", { name: "branched (main) settings", exact: true }).locator(".pj-name").textContent(), "branched main");
   await menu(app, settings, "Close Window"); await wait(async () => settings!.isClosed(), "final Settings closed");
   await menu(app, page, "Settings…"); settings = await settingsPage(app); await settings.getByRole("tab", { name: "Projects", selected: true }).waitFor();
   assert.equal(await appWindowCount(app), 2);

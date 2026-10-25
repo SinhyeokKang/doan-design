@@ -105,7 +105,8 @@ function ProjectDetail({ entry, name, displayPath }: { entry: FolderEntry; name:
   const notice = (section: ConfigKind) => busy === section ? <span className="saved pending" role="status">Saving…</span> : saved === section ? <span className="saved" role="status">✓ Saved</span> : null;
   const message = (section: ConfigKind | null) => error?.section === section ? <p className="pj-msg" role="alert">{error.message}</p> : null;
   const disabled = !!busy || picking || reading || !!choice;
-  return <div className="pj-detail" role="region" aria-label={`${name} settings`}><p className="pj-name">{name}{row.summary?.branch && <span className="meta">{row.summary.branch}</span>}</p>
+  const branch = row.summary?.branch;
+  return <div className="pj-detail" role="region" aria-label={`${name}${branch ? ` (${branch})` : ""} settings`}><p className="pj-name">{name}{branch && <> <span className="meta">{branch}</span></>}</p>
     {reading && !config && entry.kind === "list" ? <p className="pj-helper">Reading…</p> : <div className="pj-sec"><p className="ihead">Root {row.chip && <span className={chipClass(entry)}>{row.chip}</span>}</p><p className="pj-val"><span className="v">{entry.kind === "notFound" ? <><code>{displayPath}</code> is gone or moved.</> : entry.path}</span></p>
     {entry.kind !== "list" && <div className="wt-actions">{row.actions.map(value => <button className={`btn${value === "remove" || value === "details" ? " ghost" : ""}`} key={value} onClick={() => action(value)}>{labels[value]}</button>)}</div>}</div>}
     {message(null)}

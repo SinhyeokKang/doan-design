@@ -185,7 +185,15 @@ export function Wizard({ session, entries, reroot, homeDirectory, onClose }: { s
     return true;
   }
   function adopt(root: string, cause: "open" | "add") { setAdvance(cause); setRerooted(null); setRefused(null); setProject(root); }
+  // Open Project… is disabled while main answers, so a stacked modal opened
+  // from it would hand focus back to <body> when cancelled.
+  const openFocus = useRef<HTMLElement | null>(null);
+  function cancelLayer() {
+    setLayer(null);
+    requestAnimationFrame(() => { const node = openFocus.current; if (node?.isConnected && !node.matches(":disabled")) node.focus(); });
+  }
   async function openProject() {
+    openFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     let result: OpenProjectResult;
     try { result = await window.doan.openProject(); } catch { return; }
     if (!live.current) return;
@@ -265,8 +273,8 @@ export function Wizard({ session, entries, reroot, homeDirectory, onClose }: { s
     </div></div>
     <WizardFooter view={footerView(step, !!done[step], busy, ui.checking)} checkAgain={checkAgain} skip={() => go(step + 1)} next={() => { if (step === 3) void close(); else go(step + 1); }} />
     {confirmed && <ConfirmDialog view={confirmed} answer={answer} />}
-    {layer?.kind === "choose" && <PickOneDialog key={layer.scanId} scanId={layer.scanId} homeDirectory={homeDirectory} close={() => setLayer(null)} chosen={root => { setLayer(null); adopt(root, "open"); }} />}
-    {layer?.kind === "confirm" && <SetUpFolderConfirm key={layer.confirmId} name={layer.name} path={layer.path} cancel={() => setLayer(null)}
+    {layer?.kind === "choose" && <PickOneDialog key={layer.scanId} scanId={layer.scanId} homeDirectory={homeDirectory} close={cancelLayer} chosen={root => { setLayer(null); adopt(root, "open"); }} />}
+    {layer?.kind === "confirm" && <SetUpFolderConfirm key={layer.confirmId} name={layer.name} path={layer.path} cancel={cancelLayer}
       confirm={async () => {
         const result = await window.doan.confirmFolder(layer.confirmId);
         const root = result.kind === "added" ? result.added[0] : undefined;
