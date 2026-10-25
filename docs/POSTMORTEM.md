@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — Comment creation errors hid readable comments and outlived their document
+
+- **Area**: `CommentsSession.ts`, `CommentsPanel.tsx`, `useComments.tsx`.
+- **Symptom**: a failed begin replaced the readable list with a read error. After separating that error, a held begin could still revive an obsolete error or draft after the same canvas document was replaced.
+- **Root cause**: creation and reading shared one error channel; the initial fix fenced creation only by canvas identity, although document loss can retain that identity. An obsolete guard completion could also release a newer operation's guard.
+- **Net**: the original focused regression and actual App check verified retained comments and retry. Independent review found the missing held-begin ordering; seven session regressions then failed against the previous production source and passed with begin-specific invalidation. Related 142 tests and the final comments-ui native suite passed. The exact begin/guard races have session evidence, not a new native reproduction.
+- **Prevention**: keep operation errors separate from readable data, invalidate each operation when its document ends, and release its guard at invalidation rather than from an obsolete asynchronous completion. Search run: `rg -n 'cancelBegin|beginRevision|documentLost|setCommentDraftGuard' app/src/renderer/CommentsSession.ts app/src/renderer/useComments.tsx app/src/main/index.ts app/src/preload/index.ts` identifies the begin owner, document hooks and guard transport. Preserve list/card generations and immutable pending saves; test late reject, success, held guard, concurrent retry and failed retry against the real handler's synchronous ordering.
+
 ### 2026-10-25 — An uncertain comment request silently blocked every exit
 
 - **Area**: `CommentsSession.ts`, `useComments.tsx`, `CommentsPanel.tsx`.
@@ -51,6 +59,8 @@
 - **Root cause**: tests observed main-side dispatch rather than renderer completion, and cleanup shared the same potentially unbounded path as normal execution.
 - **Net**: delayed observer and termination fixtures exposed the gaps. Integration caught a new Settings payload-shape assertion error even though helper tests passed, so the full run remained failed pending correction.
 - **Prevention**: require positive renderer completion before a negative assertion, bounded settlement with retained child-process identity, explicit code/signal checks and real-state verification on failures. The search above identifies `waitFor` and `suiteGuard`; helper Node tests are separate from Vitest and must be included explicitly in integration accounting. A timeout, forced kill or incomplete verification never qualifies as PASS.
+
+- **Recurrence (2026-10-25, UX C)**: the new Inspector test initially waited for main's release plus 100ms, which did not prove the stale response was consumed. A test-only observer now records completion of the actual controller callback before checking the latest values. Bypassing only the first held request's tag comparison makes that same native assertion fail with the old frame dimensions; restoring protection passes. `rg -n 'inspectProbeC|requestRows' app/src/renderer/CanvasController.ts app/e2e/comments-ui.ts` locates the production consumer and its test observer. The observer fails explicitly if the expected React/controller structure is unavailable; it adds no production API.
 
 ### 2026-10-25 — Init published success before merge setup could fail
 
@@ -295,6 +305,8 @@
 - **Root cause**: wrapping every approval in a Promise delayed an established synchronous path. Separately, the Escape which initiated confirmation still had its browser default action, so it could cancel the dialog opened during that event.
 - **Net**: actual App tests caught Escape cancellation, while the unchanged full runtime caught delayed Loading. Static modal callbacks and isolated asynchronous session tests missed both timing boundaries. No existing expectation was relaxed.
 - **Prevention**: run `rg -n 'transitionGuard|showModal|onCancel|preventDefault' app/src/renderer`; preserve an immediate boolean result when no draft exists, and prevent the initiating Escape's default only when guarding a draft. Keep both the synchronous controller regression and actual Escape/Continue/focus interaction. Existing tooltip Escape ownership remains covered by the earlier runtime regression.
+
+- **Recurrence (2026-10-25, UX C)**: Delete confirmation did not consume Escape, allowing the app's selection-clear handler to run as well. Its handler now prevents default and propagation while retaining IME guards. Event regressions cover ordinary/composing/keyCode-229 input, and actual Electron verifies the dialog closes while selection and Inspector values remain and focus returns to Comments. `rg -n 'comments-message|createError|onKeyDown|inspectProbeC|requestRows' app/src/renderer/CommentsPanel.tsx app/src/renderer/CommentsSession.ts app/src/renderer/CanvasController.ts app/e2e/comments-ui.ts` also finds the ordinary and uncertain confirmation handlers; those existing distinct transition policies remain unchanged. Actual OS IME composition was not exercised.
 
 ### 2026-10-23 — Comment copy reported success before the clipboard committed
 
