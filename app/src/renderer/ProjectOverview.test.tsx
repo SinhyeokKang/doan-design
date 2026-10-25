@@ -85,7 +85,7 @@ test("the overview shows thumbnail states without inferring parse failure from m
   expect(html).toContain("Preview unavailable");
   expect(html).not.toContain("Can&#x27;t read this canvas");
   expect(html).toMatch(/<span id="[^"]+-title" class="ocard-title" title="legacy-checkout">legacy-checkout<\/span>/);
-  expect(html).toContain("1 frame · ");
+  expect(html).toContain("1 frame</span> · ");
   expect(html).toContain('<span class="hot">2 open</span>');
   // Zero open comments are not shown.
   expect(html).not.toContain("0 open");
@@ -194,6 +194,6 @@ test("a card shows resolved to review from the project read, matched by canvas I
   expect(cardFacts(row("design/c.html", { id: "broken", open: 1 }), counts)).toEqual({ frames: "0 frames", open: "1 open" });
   const { id: _id, ...withoutId } = row("design/a.html");
   expect(cardFacts(withoutId, counts)).toEqual({ frames: "0 frames" });
-  const html = render([row("design/a.html", { open: 3, mtimeMs: undefined })], new Map(), counts);
-  expect(html).toContain('<span class="ocard-meta"><span>0 frames</span> · <span class="hot">3 open</span> · <span class="review">2 resolved to review</span> · <span>—</span></span>');
+  const html = render([row("design/a.html", { open: 3 })], new Map(), counts);
+  expect(html).toContain('class="ocard-meta"><span>0 frames</span> · <span class="hot">3 open</span> · <span class="review">2 resolved to review</span> · <span>—</span></span>');
 });

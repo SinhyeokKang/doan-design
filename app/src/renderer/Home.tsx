@@ -1,8 +1,10 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ContextMenu, DropdownMenu } from "radix-ui";
+import type { ProjectCanvasComments } from "../main/projectComments";
 import type { FolderEntry } from "../main/view";
+import { pluralComments } from "../comments/panelText";
 import { displayPath } from "./projectDisplay";
-import { cardRow, groupProjects, type HomeCard, type RowAction } from "./homeCards";
+import { cardRow, groupProjects, measureNarrow, ProjectCommentReads, type HomeCard, type RowAction } from "./homeCards";
 import type { SelectionView } from "./selection";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
@@ -18,6 +20,8 @@ interface HomeProps {
   selection: SelectionView | null;
   highlight: string[];
   rerootHint?: { root: string; message: string } | null;
+  // `comments:project` counts by root; a root without one shows no review count.
+  comments?: ReadonlyMap<string, readonly ProjectCanvasComments[]>;
   enter: (root: string) => void;
   action: (action: RowAction, root: string) => void;
   remove: (roots: string[]) => void;
@@ -43,6 +47,26 @@ export function Home(props: HomeProps) {
         : <div className="empty"><b>No projects yet</b><p>Add a project to see its design canvases.</p><button className="btn primary" onClick={() => void window.doan.addProjects()}>Add Project… <span className="kbd">⌘O</span></button><p className="meta">Or drop folders anywhere in this window.</p></div>}
     </section>
   </main>;
+}
+
+// Counts for `roots` (list rows only), read again when a root's ls row
+// changes or main invalidates its comments. `refresh` is for a change main
+// does not announce, such as a review-state raise.
+export function useProjectComments(entries: readonly FolderEntry[], roots: readonly string[]): { comments: ReadonlyMap<string, readonly ProjectCanvasComments[]>; refresh: (root: string) => void } {
+  const [comments, setComments] = useState<ReadonlyMap<string, readonly ProjectCanvasComments[]>>(new Map());
+  const reads = useRef<ProjectCommentReads | null>(null);
+  useEffect(() => {
+    const current = new ProjectCommentReads((root, revision) => window.doan.projectComments(root, revision), setComments);
+    reads.current = current;
+    const stop = window.doan.onCommentsInvalidated(change => current.refresh(change.root));
+    return () => { stop(); current.dispose(); reads.current = null; };
+  }, []);
+  const rootsKey = roots.join("\0");
+  const tracked = useMemo(() => new Map(entries.flatMap(entry => entry.kind === "list" && roots.includes(entry.path) ? [[entry.path, JSON.stringify(entry)] as const] : [])), [entries, rootsKey]);
+  // After the effect above, so the first roots reach a live reader.
+  useEffect(() => { reads.current?.track(tracked); }, [tracked]);
+  const refresh = useCallback((root: string) => reads.current?.refresh(root), []);
+  return { comments, refresh };
 }
 
 export function PathTip({ text, children }: { text: string; children: ReactNode }) {
@@ -82,15 +106,17 @@ function ProjectCard({ card, ...props }: HomeProps & { card: HomeCard }) {
   const [focused, setFocused] = useState<string | null>(null);
   const active = card.rows.some(row => row.path === focused) ? focused : card.rows[0]?.path;
   const flash = card.rows.some(row => props.highlight.includes(row.path));
+  const narrow = useNarrowRows(element);
   useEffect(() => { if (flash) element.current?.scrollIntoView({ block: "nearest" }); }, [flash]);
   const actions = [{ label: "Remove all", run: () => props.remove(card.rows.map(row => row.path)) }];
   return <Context actions={actions}><section ref={element} className={`card${flash ? " flash" : ""}`} aria-label={card.name}>
     <div className="card-head"><PathTip text={card.name}><span className="card-name">{card.name}</span></PathTip>{card.rows.length > 1 && <span className="meta">{card.rows.length} worktrees</span>}<span className="spacer" /><More label={`Project menu ${card.name}`} actions={actions} /></div>
     {card.rows.map((entry, index) => {
-      const row = cardRow(entry, props.loaded, props.selection);
+      const row = cardRow(entry, props.loaded, props.selection, props.comments?.get(entry.path));
+      const review = row.summary?.toReview ? `${row.summary.toReview} resolved to review` : undefined;
       const actions = [{ label: "Show in Finder", run: () => props.action("showInFinder", entry.path) }, { label: "Project Settings…", run: () => { void window.doan.openSettings({ tab: "projects", project: entry.path }); } }, { label: "Remove from doan", run: () => props.remove([entry.path]) }];
       const activate = (node: HTMLElement) => entry.kind === "list" ? props.enter(entry.path) : node.querySelector<HTMLButtonElement>(".wt-actions button")?.focus();
-      return <Context key={entry.path} actions={actions}><div className={`wt${row.chip ? " problem" : ""}`} data-path={entry.path} role={row.chip ? "group" : "button"} aria-label={`Project ${row.summary?.branch ?? displayPath(entry.path, props.homeDirectory)} · ${row.chip ?? `${row.summary?.canvases ?? 0} ${row.summary?.canvases === 1 ? "canvas" : "canvases"} · ${row.summary?.openComments ?? 0} open comments`} · ${entry.path}`} aria-current={row.current ? "true" : undefined} tabIndex={active === entry.path ? 0 : -1}
+      return <Context key={entry.path} actions={actions}><div className={`wt${row.chip ? " problem" : ""}${narrow.has(entry.path) ? " narrow" : ""}`} data-path={entry.path} role={row.chip ? "group" : "button"} aria-label={`Project ${row.summary?.branch ?? displayPath(entry.path, props.homeDirectory)} · ${row.chip ?? `${row.summary?.canvases ?? 0} ${row.summary?.canvases === 1 ? "canvas" : "canvases"} · ${pluralComments(row.summary?.openComments ?? 0)}${review ? ` · ${review}` : ""}`} · ${entry.path}`} aria-current={row.current ? "true" : undefined} tabIndex={active === entry.path ? 0 : -1}
         onFocus={event => { if (event.target === event.currentTarget) setFocused(entry.path); }} onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) activate(event.currentTarget); }}
         onKeyDown={event => {
           if (event.target !== event.currentTarget) return;
@@ -98,7 +124,7 @@ function ProjectCard({ card, ...props }: HomeProps & { card: HomeCard }) {
           if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); const next = element.current?.querySelectorAll<HTMLElement>(".wt")[index + (event.key === "ArrowUp" ? -1 : 1)]; next?.focus(); }
         }}>
         <span className="wt-label"><span className="glyph" aria-hidden="true">{row.summary?.branch ? "⎇" : "◌"}</span><PathTip text={row.summary?.branch ?? entry.path}><span className={`name${row.summary?.branch ? "" : " path"}`}>{row.summary?.branch ?? displayPath(entry.path, props.homeDirectory)}</span></PathTip>{row.current && <span className="open-tag">Open</span>}</span>
-        <span className="wt-end">{row.chip ? <span className={`ob-chip${row.chip === "Config error" ? " err" : row.chip === "Missing" || row.chip === "CLI error" ? " warn" : ""}`}>{row.chip}</span> : row.summary && <span className="wt-sum">{row.summary.canvases} {row.summary.canvases === 1 ? "canvas" : "canvases"}{row.summary.openComments > 0 && <> · <span className="hot">{row.summary.openComments} open</span></>} · <ChangedTime at={row.summary.changedAt} /></span>}<More row label={`Row menu ${entry.path}`} actions={actions} /></span>
+        <span className="wt-end">{row.chip ? <span className={`ob-chip${row.chip === "Config error" ? " err" : row.chip === "Missing" || row.chip === "CLI error" ? " warn" : ""}`}>{row.chip}</span> : row.summary && <span className="wt-sum"><span>{row.summary.canvases} {row.summary.canvases === 1 ? "canvas" : "canvases"}</span>{row.summary.openComments > 0 && <> · <span className="hot">{row.summary.openComments} open</span></>}{review && <> · <span className="review">{review}</span></>} · <span><ChangedTime at={row.summary.changedAt} /></span></span>}<More row label={`Row menu ${entry.path}`} actions={actions} /></span>
         {row.summary?.branch && <PathTip text={entry.path}><span className="wt-path">{displayPath(entry.path, props.homeDirectory)}</span></PathTip>}
         {row.selected && <PathTip text={`Selected: ${row.selected}`}><span className="wt-sel">Selected: <b>{row.selected}</b></span></PathTip>}
         {row.chip && <ProblemActions entry={entry} action={props.action} />}
@@ -107,6 +133,25 @@ function ProjectCard({ card, ...props }: HomeProps & { card: HomeCard }) {
     })}
   </section></Context>;
 }
+// Paths of the card's rows that show their summary on its own line,
+// measured again on every render and whenever the card's width changes.
+function useNarrowRows(card: RefObject<HTMLElement | null>): ReadonlySet<string> {
+  const [narrow, setNarrow] = useState<ReadonlySet<string>>(new Set());
+  const measure = useCallback(() => {
+    if (!card.current) return;
+    const next = measureNarrow(card.current);
+    setNarrow(previous => previous.size === next.size && [...next].every(path => previous.has(path)) ? previous : next);
+  }, [card]);
+  useLayoutEffect(measure);
+  useEffect(() => {
+    if (!card.current || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(card.current);
+    return () => observer.disconnect();
+  }, [measure]);
+  return narrow;
+}
+
 export function ChangedTime({ at }: { at: number | undefined }) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(timer); }, []);

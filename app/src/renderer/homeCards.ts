@@ -1,3 +1,4 @@
+import type { ProjectCanvasComments, ProjectComments } from "../main/projectComments";
 import type { FolderEntry } from "../main/view";
 import { frameLabel } from "./canvasTree";
 import type { SelectionView } from "./selection";
@@ -37,7 +38,7 @@ export interface CardRow {
   // The first action takes focus when a problem row is clicked.
   actions: RowAction[];
   // Only for a list row; the view formats `changedAt`.
-  summary?: { branch?: string; canvases: number; openComments: number; changedAt?: number };
+  summary?: { branch?: string; canvases: number; openComments: number; toReview?: number; changedAt?: number };
   // This row is the loaded workspace ("Open").
   current: boolean;
   // "Selected: <selected>" while `current`.
@@ -47,8 +48,9 @@ export interface CardRow {
 }
 
 // `loaded` is the root of the loaded workspace, `selection` the one the
-// renderer holds for it. Design 'Problem rows' table.
-export function cardRow(entry: FolderEntry, loaded: string | null, selection: SelectionView | null): CardRow {
+// renderer holds for it, `comments` its `comments:project` counts. Design
+// 'Problem rows' table.
+export function cardRow(entry: FolderEntry, loaded: string | null, selection: SelectionView | null, comments?: readonly ProjectCanvasComments[]): CardRow {
   const current = loaded === entry.path;
   const selected = current && selection ? selectionLabel(selection) : undefined;
   const row = { current, ...(selected === undefined ? {} : { selected }) };
@@ -65,15 +67,93 @@ export function cardRow(entry: FolderEntry, loaded: string | null, selection: Se
       return { ...row, chip: "CLI error", actions: ["retry", "remove"] };
     case "list": {
       const branch = entry.git?.branch ?? (entry.git?.detached === undefined ? undefined : `detached ${entry.git.detached.slice(0, 7)}`);
+      const toReview = reviewTotal(comments);
       const summary = {
         ...(branch === undefined ? {} : { branch }),
         canvases: entry.canvases.length,
         openComments: entry.canvases.reduce((sum, canvas) => sum + canvas.open, 0),
+        ...(toReview === undefined ? {} : { toReview }),
         ...(entry.changedAt === undefined ? {} : { changedAt: entry.changedAt }),
       };
       return { ...row, actions: [], summary };
     }
   }
+}
+
+// One canvas whose comment file failed hides the row's count: a sum without
+// it would be a wrong count, not a partial one (conductor decision, batch H).
+export function reviewTotal(comments: readonly ProjectCanvasComments[] | undefined): number | undefined {
+  let total = 0;
+  for (const canvas of comments ?? []) {
+    if ("error" in canvas) return undefined;
+    total += canvas.toReview;
+  }
+  return comments === undefined ? undefined : total;
+}
+
+// `comments:project` reads for the roots on screen. A root is read again when
+// its ls row changes (an agent's resolve reaches the app only through the
+// watcher's ls) and when the app's own write invalidates it; a review-state
+// raise notifies nothing, so its owner calls `refresh`. Only the newest
+// request per root may land.
+export class ProjectCommentReads {
+  private items = new Map<string, readonly ProjectCanvasComments[]>();
+  // root → the ls row it was last read for.
+  private tracked = new Map<string, string>();
+  private latest = new Map<string, number>();
+  private seq = 0;
+  private disposed = false;
+
+  constructor(private readonly get: (root: string, revision: number) => Promise<ProjectComments | null>, private readonly publish: (items: ReadonlyMap<string, readonly ProjectCanvasComments[]>) => void) {}
+
+  // A root left untracked keeps its last counts, so coming back shows them
+  // until the new read lands.
+  track(roots: ReadonlyMap<string, string>): void {
+    for (const root of [...this.tracked.keys()]) {
+      if (!roots.has(root)) { this.tracked.delete(root); this.latest.delete(root); }
+    }
+    for (const [root, signature] of roots) {
+      if (this.tracked.get(root) === signature) continue;
+      this.tracked.set(root, signature);
+      this.read(root);
+    }
+  }
+
+  refresh(root: string): void {
+    if (this.tracked.has(root)) this.read(root);
+  }
+
+  dispose(): void {
+    this.disposed = true;
+  }
+
+  private read(root: string): void {
+    const revision = ++this.seq;
+    this.latest.set(root, revision);
+    void this.get(root, revision).then(reply => {
+      if (this.disposed || this.latest.get(root) !== revision) return;
+      if (reply?.kind === "list" && reply.root === root && reply.revision === revision) this.items.set(root, reply.canvases);
+      else this.items.delete(root);
+      this.publish(new Map(this.items));
+    }, (error: unknown) => console.error("comments:project failed", error));
+  }
+}
+
+// Rows whose branch would be cut off beside their summary; the view puts
+// those summaries on a line of their own (`narrow`). Each row is measured in
+// the wide layout, so the answer never depends on the class it gives.
+export function measureNarrow(card: HTMLElement): Set<string> {
+  const narrow = new Set<string>();
+  for (const row of card.querySelectorAll<HTMLElement>(".wt[data-path]")) {
+    const name = row.querySelector<HTMLElement>(".wt-label .name");
+    const path = row.dataset.path;
+    if (!name || !row.querySelector(".wt-sum") || path === undefined) continue;
+    const was = row.classList.contains("narrow");
+    row.classList.remove("narrow");
+    if (name.scrollWidth > name.clientWidth) narrow.add(path);
+    row.classList.toggle("narrow", was);
+  }
+  return narrow;
 }
 
 // A frame selection shows the frame's title, an element its tag and id.

@@ -7,7 +7,7 @@ import { CanvasController, initialCanvasState, type CanvasState } from "./Canvas
 import { projectNames } from "./projectRow";
 import { DropdownMenu } from "radix-ui";
 import { displayPath } from "./projectDisplay";
-import { Home, ProblemActions, PathTip } from "./Home";
+import { Home, ProblemActions, PathTip, useProjectComments } from "./Home";
 import { AddProjectsDialog, SetUpFolderConfirm } from "./AddProjectsDialog";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { useToast } from "./Toast";
@@ -333,6 +333,11 @@ export function App() {
   const thumbs = useThumbnails(entry?.kind === "list" ? entry.path : null, entry?.kind === "list" ? entry.canvases : []);
   const overview = screen === "workspace" && entry?.kind === "list" && !state.open ? entry : null;
   const shownOverview = overview?.path ?? null;
+  // Only roots on screen are read: an open canvas being edited would otherwise
+  // cost a second ls per change. A root is read again when it comes back on
+  // screen, so `projectComments.refresh` matters only for one already shown.
+  const countedRoots = useMemo(() => screen === "home" ? entries.map(entry => entry.path) : shownOverview ? [shownOverview] : [], [screen, entries, shownOverview]);
+  const projectComments = useProjectComments(entries, countedRoots);
   const previousOverview = useRef(shownOverview);
   useEffect(() => {
     if (previousOverview.current !== null && previousOverview.current !== shownOverview) setOverviewNotice(null);
@@ -354,13 +359,13 @@ export function App() {
     },
   });
   return <TooltipProvider><FirstPromptContext.Provider value={firstPrompt}>
-  {screen === "home" && <Home homeDirectory={homeDirectory} entries={entries} loaded={loadedRoot} selection={state.selection} highlight={highlight} rerootHint={rerootHint} enter={enter} action={action} remove={paths => void remove(paths)} />}
+  {screen === "home" && <Home homeDirectory={homeDirectory} entries={entries} loaded={loadedRoot} selection={state.selection} highlight={highlight} rerootHint={rerootHint} comments={projectComments.comments} enter={enter} action={action} remove={paths => void remove(paths)} />}
   <main className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}`} style={{ visibility: screen === "home" ? "hidden" : "visible" }} inert={screen === "home"} aria-hidden={screen === "home"}>
     <TopBar homeDirectory={homeDirectory} state={state} name={card?.name ?? name} reload={() => command("reload")} overview={() => { cancelRestore(); controller.current?.showOverview(); }} home={home} entry={entry} rows={card?.rows ?? []} enter={root => enter(root, true)} />
     {entry && entry.kind !== "list" && <ProblemActions entry={entry} action={action} workspace={{ name: card?.name ?? name, homeDirectory, home }} />}
     <Sidebar entries={entries.filter(entry => entry.path === loadedRoot)} state={state} expanded={expanded} moved={moved} onExpandedChange={(root, paths) => { cancelRestore(); setExpanded(previous => ({ ...previous, [root]: paths })); }} open={(folder, row, frameId, index) => { cancelRestore(); controller.current?.openCanvas(folder, row, frameId, index === undefined ? undefined : { index }); }} jump={index => controller.current?.jump(index)} select={index => controller.current?.selectFrame(index)} overview={() => { cancelRestore(); controller.current?.showOverview(); }} />
     <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null} />
-    {overview && <ProjectOverview key={overview.path} root={overview.path} rows={overview.canvases} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null} open={row => { cancelRestore(); controller.current?.openCanvas(overview.path, row); }} />}
+    {overview && <ProjectOverview key={overview.path} root={overview.path} rows={overview.canvases} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null} comments={projectComments.comments.get(overview.path)} open={row => { cancelRestore(); controller.current?.openCanvas(overview.path, row); }} />}
     <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />{comments.panel}</div>
   </main>
   {comments.dialog}

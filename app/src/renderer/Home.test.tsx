@@ -28,7 +28,7 @@ test("problem rows use the action table and do not leak CLI error reasons", () =
 const counted = (open: number): FolderEntry => ({ kind: "list", path: "/code/main", servedRev: 0, canvases: [{ path: "design/a.html", id: "a", url: "u", open, resolved: 1 }], git: { common: "/code/main/.git", main: "/code/main", branch: "main", worktrees: [] } });
 test("a row shows open, then resolved to review, from the project read", () => {
   const html = render([counted(2)], null, new Map([["/code/main", [{ id: "a", open: 2, resolved: 1, toReview: 1 }]]]));
-  expect(html).toMatch(/<span class="hot">2 open<\/span><\/span> · <span class="review">1 resolved to review<\/span> · <span>/);
+  expect(html).toMatch(/<span class="hot">2 open<\/span> · <span class="review">1 resolved to review<\/span> · <span>/);
   expect(html).toContain('aria-label="Project main · 1 canvas · 2 open comments · 1 resolved to review · /code/main"');
 });
 test("a zero count, a missing read and a failed canvas show no resolved to review", () => {

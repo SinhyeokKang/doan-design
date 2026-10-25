@@ -157,6 +157,16 @@ describe("ProjectCommentReads", () => {
     expect(h.shown().get("/r1")).toEqual([a]);
   });
 
+  test("a root that comes back on screen is read again, with its last counts kept meanwhile", async () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"]]));
+    await h.asks[0]!.reply(h.list("/r1", h.asks[0]!.revision, [a]));
+    h.project.track(new Map());
+    h.project.track(new Map([["/r1", "s1"]]));
+    expect(h.asks).toHaveLength(2);
+    expect(h.shown().get("/r1")).toEqual([a]);
+  });
+
   test("an invalidation reads a tracked root again; an untracked root is ignored", () => {
     const h = reads();
     h.project.track(new Map([["/r1", "s1"]]));
