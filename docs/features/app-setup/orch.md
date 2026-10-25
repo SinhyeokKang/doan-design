@@ -26,6 +26,7 @@
 | 2026-10-25 | Settings 창은 `setup:*` 채널만 쓰고 `onboarding:*`은 메인 창 전용으로 둔다. Projects 탭은 전체 `folders:get` 대신 읽기 전용 투영 채널(저장 루트·상태·`git.common`)을 쓴다. 표에 없던 기능(PATH 줄 복사, 마지막 탭 저장, Show in Finder·문제 줄 동작 전달, 메인 창에서 Settings를 탭·줄로 열기)은 이름 붙은 채널로 하나씩 더한다(접두사 허용 금지) | 지휘자 판단(R-A1 결정 2·3) — design.md의 '읽기 전용 프로젝트 채널'과 최소 권한. 배치 C가 구현하고 승격 때 허용 목록 표를 갱신한다 |
 | 2026-10-25 | Settings 포커스일 때 Undo Remove도 비활성이다 | 지휘자 판단(R-A1 ⚪1) — 메인 창 뒤에서 제거를 되돌리지 않게 한다. 승격 때 메뉴 활성 표에 더한다 |
 | 2026-10-25 | U-004(H5-codex: 서빙 범위 밖 CSS를 말없이 복사)는 이 기능 안에서 가이드로 고친다. 고친 뒤 H5(3회)와 W1·W2·R5를 다시 잰다 | 지휘자 판단 — task 6 통과 조건(새 시나리오 통과)이고, 원인 층이 G1이 바꾼 가이드 문장이다 |
+| 2026-10-25 | `doan config --add-serve`(MCP `addServe`)는 `.git`과 그 안쪽 경로를 루트·`.doan/`처럼 거부한다. 제거·`repo.Scope`·init은 바꾸지 않는다 | 사용자 결정 — 캔버스 스크립트가 원격 URL 자격 증명이 있을 수 있는 `.git/config`를 읽지 못하게 한다(R-G1 ⚪1) |
 
 ## 배치
 
@@ -102,3 +103,5 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: C 빌드 설정 게이트 — `electron.vite.config.ts` diff(페이지별 CSP: 메인 창 문자열 그대로, Settings는 `default-src 'self'`만; renderer·preload 입력에 settings 추가)를 사용자에게 보였고 사용자가 승인했다.
 - 2026-10-25: G2 완료·통합 — 가이드 7번에 '범위 밖 CSS는 config를 바꾸지 말고 최종 답에서 알리고, 복사 같은 우회도 알린다'를 더했다. H5 양쪽 3/3, W1·W2·R5 양쪽 통과, real-state 불변. 지휘자가 가이드 diff를 확인했고 통합 HEAD `go test` 통과. G2 워커 해제, `as-g2` 제거.
 - 2026-10-25: C 완료 보고(outcome failed — 두 질문이 답을 받기 전에 턴이 끝났다). main·preload 커밋 `da8f863`, `b51360b`, `82d1b10`, test 1884·typecheck·build 통과, e2e는 메뉴 재열기 검증에서 FAIL. 지휘자 판단: e2e의 같은 세션 메뉴 재열기 검증 5곳은 지운다(tasks.md task 10 '메뉴가 없어지므로 지운다'). C-finish(`ctx_1ce75b50e5e6`, Sonnet high, `as-c`)로 빌드 설정 커밋·e2e 수정·전체 e2e를 보냈다. C 워커 해제.
+- 2026-10-25: 사용자 결정 — serve에 `.git`을 막는다. G3(Codex Astra medium, `as-g3`)로 보냈다.
+- 2026-10-25: G3 완료·통합(`.git` 거부, 별칭·워크트리 `.git` 파일 포함). 손으로 쓴 `.git` serve 항목은 여전히 서빙 범위에 든다(범위 밖, 최종 보고에 적는다). 지휘자가 diff를 확인했고 통합 HEAD `go test`·`go vet` 통과. 가이드 문장이 바뀌었으므로 task 12에서 `/agent-eval`을 한 번 더 돈다. G3 해제, `as-g3` 제거.
