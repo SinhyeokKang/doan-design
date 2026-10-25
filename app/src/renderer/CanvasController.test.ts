@@ -3,7 +3,9 @@ import type { InspectResult, InspectRow } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
 import { projectList } from "../comments/projection";
 import { CanvasController } from "./CanvasController";
-import { FIRST_LAYOUT_TIMEOUT_MS } from "./viewport";
+import { FIRST_LAYOUT_TIMEOUT_MS, locateView } from "./viewport";
+import type { AnchorSnapshot } from "./commentAnchors";
+import type { Comment } from "../formats/types";
 import { unavailableCanvasMessage } from "./quickOpen";
 import { SELECTION_LOST } from "./selection";
 import { activityFor } from "./activity";
@@ -1674,6 +1676,200 @@ describe("layout height without animation frames (150 px reload stall)", () => {
       h.layout({ document: "two", viewport: 2600, height: 2600 });
       vi.advanceTimersByTime(1000);
       expect(measures()).toEqual([{ type: "measure" }]);
+    } finally { h.controller.dispose(); }
+  });
+});
+
+// feature revision-recheck task 5: a card's target line goes to its target
+// even when no pin shows it, and Review steps move without selecting (RR3).
+describe("locate and jump to a comment's node", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  const by = { kind: "human" as const, name: "A" };
+  const open: Comment = { comment: "o", status: "open", body: "x", target: { frame: "hero", element: { doanId: "cta", selector: '[data-doan-id="cta"]', html: "<span/>" } }, canvasHash: "h", createdAt: "t", updatedAt: "t", createdBy: by };
+  const resolved: Comment = { ...open, comment: "r", status: "resolved", target: { frame: "intro" } };
+  // Far below the 600 px viewport, so neither has a pin on screen.
+  const far = { x: 40, y: 3000, width: 200, height: 100 };
+  function locateHarness(rects: { node: string; x: number; y: number; width: number; height: number }[] = [{ node: "n1", ...far }, { node: "n2", ...far, y: 4000 }],
+    candidates: Record<string, Record<string, string[]>> = { o: { doanId: ["n1"], selector: ["n1"] }, r: { frame: ["n2"] } }) {
+    const h = selectionHarness(), changed = vi.fn(), open_ = vi.fn(), guard = vi.fn(async () => true);
+    h.layout({ document: "doc" });
+    h.controller.setComments({ root: "/repo", canvas: "a", comments: [open, resolved] }, { changed, open: open_, guard, focusFallback: vi.fn() });
+    const reply = (document = "doc") => {
+      const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+      h.receive({ type: "anchors", document, generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+        results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: candidates[t.id] ?? {} })), rects });
+    };
+    reply();
+    const snapshot = (): AnchorSnapshot => changed.mock.lastCall![0];
+    const posted = () => h.current().contentWindow.postMessage.mock.calls.map(c => c[0]);
+    const viewport = { width: 800, height: 600 };
+    return { ...h, changed, open: open_, guard, reply, snapshot, posted, viewport };
+  }
+
+  it("moves an open comment's target into view without zooming, highlights it and selects it through select-anchor, not the pin path", () => {
+    vi.useFakeTimers();
+    const h = locateHarness();
+    try {
+      const before = h.controller.currentView(), { lookup } = h.snapshot();
+      expect(lookup.nodes.get("o")).toBe("n1");
+      h.current().contentWindow.postMessage.mockClear();
+      const selecting = vi.fn();
+      h.controller.locate("n1", lookup.generation, open, selecting);
+      expect(h.controller.currentView()).toEqual(locateView(far, h.viewport, before));
+      expect(h.controller.currentView().scale).toBe(before.scale);
+      expect(h.markOf("jump-highlight")?.hidden).toBe(false);
+      expect(selecting).toHaveBeenCalledOnce();
+      expect(h.posted()).toEqual([{ type: "select-anchor", seq: 1, doanId: "cta", selector: '[data-doan-id="cta"]' }]);
+      h.select(1);
+      expect(h.state().selection.element.doanId).toBe("cta");
+      expect(h.open).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1200);
+      expect(h.markOf("jump-highlight")?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("locates a resolved comment, which never has a pin, by its frame", () => {
+    const h = locateHarness();
+    try {
+      const before = h.controller.currentView(), { lookup } = h.snapshot();
+      h.current().contentWindow.postMessage.mockClear();
+      h.controller.locate("n2", lookup.generation, resolved);
+      expect(h.controller.currentView()).toEqual(locateView({ ...far, y: 4000 }, h.viewport, before));
+      expect(h.posted()).toEqual([{ type: "select-anchor", seq: 1, frame: "intro" }]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("goes to the element matched by its selector when its data-doan-id is duplicated", () => {
+    const h = locateHarness([{ node: "n1", ...far }, { node: "n3", ...far, y: 4500 }], { o: { doanId: ["n1", "n3"], selector: ["n3"] } });
+    try {
+      const before = h.controller.currentView(), { lookup } = h.snapshot();
+      expect(lookup.nodes.get("o")).toBe("n3");
+      h.controller.locate("n3", lookup.generation, open);
+      expect(h.controller.currentView()).toEqual(locateView({ ...far, y: 4500 }, h.viewport, before));
+    } finally { h.controller.dispose(); }
+  });
+
+  it("does nothing for a target that is not in the current anchors", () => {
+    const h = locateHarness([{ node: "n1", ...far }], { o: { doanId: ["n1"], selector: ["n1"] } });
+    try {
+      const before = h.controller.currentView(), { lookup } = h.snapshot();
+      h.current().contentWindow.postMessage.mockClear();
+      const selecting = vi.fn();
+      // The resolved comment's frame was not found, and a node it was never mapped to is not its target.
+      h.controller.locate("n2", lookup.generation, resolved, selecting);
+      h.controller.locate("n1", lookup.generation, resolved, selecting);
+      expect(h.controller.currentView()).toEqual(before);
+      expect(h.posted()).toEqual([]);
+      expect(selecting).not.toHaveBeenCalled();
+      expect(h.markOf("jump-highlight")).toBeUndefined();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("does nothing on a canvas without a width", () => {
+    const h = locateHarness();
+    try {
+      const { lookup } = h.snapshot();
+      const { width: _width, ...row } = h.row;
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [row, h.other] }]);
+      expect(h.state().status).toBe("noWidth");
+      const before = h.controller.currentView(), selecting = vi.fn();
+      h.controller.locate("n1", lookup.generation, open, selecting);
+      h.controller.jumpToNode("n1", lookup.generation);
+      expect(h.controller.currentView()).toEqual(before);
+      expect(selecting).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  it.each(["reload", "moved"])("drops a locate from the previous document after a %s, also once the new document answers", kind => {
+    const h = locateHarness();
+    try {
+      const { lookup } = h.snapshot();
+      if (kind === "reload") h.controller.command("reload");
+      else h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, path: "design/flows/a.html", url: "http://localhost/t/k/f/design/flows/a.html" }, h.other] }]);
+      const href = kind === "reload" ? h.row.url : "http://localhost/t/k/f/design/flows/a.html";
+      const before = h.controller.currentView(), selecting = vi.fn();
+      h.controller.locate("n1", lookup.generation, open, selecting);
+      expect(h.controller.currentView()).toEqual(before);
+      // Node tokens restart in the new document, so the same token may name another element there.
+      h.layout({ document: "doc2", href });
+      const q = h.posted().filter(c => c.type === "anchors-query").at(-1);
+      h.receive({ type: "anchors", href, document: "doc2", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+        results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: ["n1"], doanId: ["n1"], selector: ["n1"] } })), rects: [{ node: "n1", ...far, y: 100 }] });
+      h.current().contentWindow.postMessage.mockClear();
+      h.controller.locate("n1", lookup.generation, open, selecting);
+      h.controller.jumpToNode("n1", lookup.generation);
+      expect(h.controller.currentView()).toEqual(before);
+      expect(h.posted()).toEqual([]);
+      expect(selecting).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("does not select in a new document when the draft guard answers after a reload", async () => {
+    const h = locateHarness();
+    try {
+      let answer: (allowed: boolean) => void = () => {};
+      h.controller.setTransitionGuard(() => new Promise(resolve => { answer = resolve; }));
+      const { lookup } = h.snapshot(), selecting = vi.fn();
+      h.controller.locate("n1", lookup.generation, open, selecting);
+      const old = h.current();
+      h.controller.setTransitionGuard(null);
+      h.controller.command("reload");
+      h.layout({ document: "doc2" });
+      answer(true); await Promise.resolve(); await Promise.resolve();
+      for (const frame of [old, h.current()]) expect(frame.contentWindow.postMessage.mock.calls.some(c => c[0].type === "select-anchor")).toBe(false);
+      expect(selecting).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("does not select a target whose comment left the anchors while the draft guard waited", async () => {
+    const h = locateHarness();
+    try {
+      let answer: (allowed: boolean) => void = () => {};
+      h.controller.setTransitionGuard(() => new Promise(resolve => { answer = resolve; }));
+      const { lookup } = h.snapshot(), selecting = vi.fn();
+      h.controller.locate("n1", lookup.generation, open, selecting);
+      // Deleted by an agent meanwhile: the same document answers without it.
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [resolved] }, { changed: h.changed, open: h.open, guard: h.guard, focusFallback: vi.fn() });
+      h.reply();
+      expect(h.snapshot().lookup.generation).toBe(lookup.generation);
+      answer(true); await Promise.resolve(); await Promise.resolve();
+      expect(h.posted().some(c => c.type === "select-anchor")).toBe(false);
+      expect(selecting).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("asks the draft guard before selecting, and keeps the selection when it refuses", () => {
+    const h = locateHarness();
+    try {
+      const guard = vi.fn(() => false);
+      h.controller.setTransitionGuard(guard);
+      const { lookup } = h.snapshot(), before = h.controller.currentView(), selecting = vi.fn();
+      h.current().contentWindow.postMessage.mockClear();
+      h.controller.locate("n1", lookup.generation, open, selecting);
+      expect(guard).toHaveBeenCalledExactlyOnceWith("selection");
+      expect(h.posted().some(c => c.type === "select-anchor")).toBe(false);
+      expect(selecting).not.toHaveBeenCalled();
+      // Moving the view is not a selection change, like a frame jump.
+      expect(h.controller.currentView()).toEqual(locateView(far, h.viewport, before));
+    } finally { h.controller.dispose(); }
+  });
+
+  it("jumps to a node without a guard, selection command or main selection update (RR3)", () => {
+    const h = locateHarness();
+    try {
+      h.select(1);
+      const selected = h.state().selection, guard = vi.fn(() => false);
+      h.controller.setTransitionGuard(guard);
+      h.send.mockClear(); h.current().contentWindow.postMessage.mockClear();
+      const before = h.controller.currentView(), { lookup } = h.snapshot();
+      expect(h.controller.jumpToNode("n2", lookup.generation)).toBe(true);
+      expect(h.controller.currentView()).toEqual(locateView({ ...far, y: 4000 }, h.viewport, before));
+      expect(h.markOf("jump-highlight")?.hidden).toBe(false);
+      expect(guard).not.toHaveBeenCalled();
+      expect(h.posted()).toEqual([]);
+      expect(h.send).not.toHaveBeenCalled();
+      expect(h.state().selection).toEqual(selected);
+      expect(h.controller.jumpToNode("missing", lookup.generation)).toBe(false);
     } finally { h.controller.dispose(); }
   });
 });

@@ -873,3 +873,105 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
     });
   });
 });
+
+// feature revision-recheck task 5: locate selects through the selection path,
+// so the picked scope and status stay; only that one selection is exempt from
+// the scope fit (L-13), and only once its select was actually sent.
+describe("locate from a card's target line", () => {
+  const open: Comment = { comment: "c1", body: "On the label", status: "open", target: { frame: "shipping", element: label.element }, canvasHash: "hash", createdBy: { kind: "human", name: "A" }, createdAt: "t", updatedAt: "t" };
+  const done: Comment = { ...open, comment: "c2", body: "On pay", status: "resolved", target: { frame: "payment", element: pay.element } };
+  const frameOnly: Comment = { ...open, comment: "c3", body: "On the frame", status: "resolved", target: { frame: "payment" } };
+  const paymentFrame = { tag: "section", frame: { id: "payment" }, frameIndex: 1, path: [] };
+  async function located(selection: CanvasState["selection"] = null) {
+    const f = setup([open, done, frameOnly]);
+    let sending = true;
+    const locate = vi.fn((_node: string, _generation: number, _comment: Comment, selecting?: () => void) => { if (sending) selecting?.(); });
+    const activatePin = vi.fn(), selectPath = vi.fn();
+    Object.assign(f.controller, { locate, activatePin, selectPath });
+    const { session } = f.render({ selection });
+    settle(FILTER);
+    await vi.waitFor(() => expect(session.list).not.toBeNull());
+    f.render({ selection });
+    (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation: 4, nodes: new Map([["c1", "n1"], ["c2", "n2"], ["c3", "n3"]]) }, rects: new Map(), selected: null, status: "answered" });
+    settle(ANCHORS);
+    const panel = (at: CanvasState["selection"]) => f.render({ selection: at }).panel as unknown as { props: CommentsPanelProps };
+    return { ...f, locate, activatePin, selectPath, panel, refuse: () => { sending = false; } };
+  }
+
+  test("a resolved card keeps the Resolved status and the Canvas scope after its target is selected", async () => {
+    const f = await located();
+    f.panel(null).props.onFilter({ scope: "canvas", status: "resolved" }); settle(FILTER);
+    f.panel(null).props.onComment("locate", "c2");
+    expect(f.locate).toHaveBeenCalledExactlyOnceWith("n2", 4, done, expect.any(Function));
+    const selected = { ...pay, frame: { id: "payment" } };
+    f.render({ selection: selected }); settle(FILTER);
+    expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "resolved" });
+    expect(f.panel(selected).props.read).toMatchObject({ status: "ready", comments: [done, frameOnly] });
+    // Only that selection was asked for: the next one fits the scope again,
+    // also when the person picks the located target again by hand.
+    f.render({ selection: label }); settle(FILTER);
+    expect(harness.states[FILTER]).toMatchObject({ scope: "selection", status: "resolved" });
+    f.panel(label).props.onFilter({ scope: "canvas", status: "resolved" }); settle(FILTER);
+    f.render({ selection: selected }); settle(FILTER);
+    expect(harness.states[FILTER]).toMatchObject({ scope: "selection", status: "resolved" });
+  });
+
+  test("an open card goes through locate, never the pin path that switches to Open", async () => {
+    const f = await located();
+    f.panel(null).props.onFilter({ scope: "canvas", status: "open" }); settle(FILTER);
+    f.panel(null).props.onComment("locate", "c1");
+    expect(f.activatePin).not.toHaveBeenCalled();
+    expect(f.selectPath).not.toHaveBeenCalled();
+    expect(f.locate).toHaveBeenCalledExactlyOnceWith("n1", 4, open, expect.any(Function));
+    f.render({ selection: label }); settle(FILTER);
+    expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "open" });
+  });
+
+  test("a frame target is exempt by its frame identity", async () => {
+    const f = await located();
+    f.panel(null).props.onFilter({ scope: "canvas", status: "resolved" }); settle(FILTER);
+    f.panel(null).props.onComment("locate", "c3");
+    f.render({ selection: paymentFrame }); settle(FILTER);
+    expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "resolved" });
+  });
+
+  test("a locate whose select was never sent leaves the next selection of that target to the scope fit", async () => {
+    const f = await located();
+    f.refuse();
+    f.panel(null).props.onFilter({ scope: "canvas", status: "resolved" }); settle(FILTER);
+    f.panel(null).props.onComment("locate", "c2");
+    f.render({ selection: pay }); settle(FILTER);
+    expect(harness.states[FILTER]).toMatchObject({ scope: "selection", status: "resolved" });
+  });
+
+  test("a locate that resolves to another element does not exempt it", async () => {
+    const f = await located();
+    f.panel(null).props.onFilter({ scope: "canvas", status: "resolved" }); settle(FILTER);
+    f.panel(null).props.onComment("locate", "c2");
+    f.render({ selection: label }); settle(FILTER);
+    expect(harness.states[FILTER]).toMatchObject({ scope: "selection", status: "resolved" });
+    // Nor does the target picked by hand after that.
+    f.render({ selection: pay }); settle(FILTER);
+    expect(harness.states[FILTER]).toMatchObject({ scope: "selection", status: "resolved" });
+  });
+
+  test("the exempt selection still drops a retained answer measured for the previous one (R-B8)", async () => {
+    const f = await located();
+    f.panel(null).props.onFilter({ scope: "canvas", status: "resolved" }); settle(FILTER);
+    f.panel(null).props.onComment("locate", "c2");
+    (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation: 4, nodes: new Map() }, rects: new Map(), selected: null, status: "pending" });
+    settle(ANCHORS);
+    expect(harness.states[ANCHORS]).toMatchObject({ status: "answered" });
+    f.render({ selection: pay }); settle(FILTER); settle(ANCHORS);
+    expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "resolved" });
+    expect(harness.states[ANCHORS]).toMatchObject({ status: "pending" });
+  });
+
+  test("no node in the current answer means no locate", async () => {
+    const f = await located();
+    (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation: 5, nodes: new Map() }, rects: new Map(), selected: null, status: "answered" });
+    settle(ANCHORS);
+    f.panel(null).props.onComment("locate", "c2");
+    expect(f.locate).not.toHaveBeenCalled();
+  });
+});

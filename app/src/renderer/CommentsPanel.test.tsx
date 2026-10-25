@@ -418,3 +418,10 @@ describe("revealComposer", () => {
     expect(above.panel.scrollTop).toBe(152 - 37);
   });
 });
+
+test("a resolved card's target line locates like an open card's (revision-recheck task 5)", () => {
+  const onComment = vi.fn();
+  const card = CommentCard({ comment: { ...comment, status: "resolved" }, frames: [], freshness: "same", locationMissing: false, disabled: false, busy: false, copy: { status: "idle" }, onComment, onCopy: noop });
+  find(card, "Element · button submit").onClick?.();
+  expect(onComment).toHaveBeenCalledExactlyOnceWith("locate", "c1");
+});
