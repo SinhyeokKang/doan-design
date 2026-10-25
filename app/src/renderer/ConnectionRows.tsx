@@ -3,7 +3,6 @@ import type { MachineState } from "../main/onboarding/machine";
 import type { Agent } from "../main/onboarding/states";
 import { agentsView, cliItems, copyLabel, PATH_LINE_TEXT, COPY_FAILED, type ItemView, type MachineUi, type Part, type Row } from "./onboardingView";
 import { CONNECTION_NAMES, connectionRow } from "./connectionRowView";
-import "./connectionRows.css";
 
 const MCP_WAITS = "Connect the doan command first; MCP needs it.";
 // main's MCP refusal names the wizard's step 1, which Settings does not have; the

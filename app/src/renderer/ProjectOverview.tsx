@@ -201,7 +201,7 @@ function CanvasCard({ canvas, thumbnail, open, focus, blur }: { canvas: CanvasNo
         : null}
     </div>
     <div className="ocard-body">
-      <span id={`${id}-title`} className="ocard-title">{canvas.name}</span>
+      <span id={`${id}-title`} className="ocard-title" title={canvas.name}>{canvas.name}</span>
       <PathTip text={canvas.key.replace(/^design\//, "")}><span id={`${id}-file`} className="ocard-file">{canvas.fileName}</span></PathTip>
       <span id={`${id}-meta`} className="ocard-meta">{facts.frames && <>{facts.frames} · </>}{facts.open && <><span className="hot">{facts.open}</span> · </>}<ChangedTime at={canvas.row.mtimeMs} /></span>
     </div>

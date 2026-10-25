@@ -23,6 +23,7 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+:root { color-scheme: dark; }
 html, body, #root { width: 100%; height: 100%; overflow: hidden; }
 /* Keep Tailwind preflight's inherited 1.5 line height out of the shell. */
 body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; }
@@ -30,6 +31,8 @@ button { cursor: pointer; font: inherit; color: inherit; }
 button:disabled { opacity: .4; cursor: default; }
 button, [role="treeitem"] { outline: none; }
 button:focus-visible, [role="treeitem"].row:focus-visible { outline: 1px solid var(--accent-line); outline-offset: -1px; }
+.btn.primary:focus-visible, .comments-btn.primary:focus-visible { outline-color: var(--accent-ink); outline-offset: -3px; }
+[data-slot="tooltip-content"] { padding: 6px 12px; }
 ol { list-style: none; }
 code, kbd { font-family: var(--font-sans); }
 .app-shell { display: grid; grid-template-columns: 240px minmax(0, 1fr) 280px; grid-template-rows: 40px minmax(0, 1fr); height: 100%; background: var(--bg); }
@@ -69,7 +72,8 @@ code, kbd { font-family: var(--font-sans); }
 .area { position: relative; overflow: hidden; background-color: var(--board-bg); background-image: radial-gradient(var(--board-dot) 1px, transparent 1px); background-size: 16px 16px; }
 .board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .board iframe { display: block; border: 0; }
-.overlay { position: absolute; inset: 0; pointer-events: none; }
+/* Keep pin focus ordering inside the overlay, below canvas chrome. */
+.overlay { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 /* Overlay marks (select-inspect draft): screen px, so lines stay 1px at any scale. */
 .mark { position: absolute; border: 1px solid var(--accent-line); }
 .mark.hover { border-style: dashed; }
@@ -77,7 +81,7 @@ code, kbd { font-family: var(--font-sans); }
 .canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 18px; text-align: center; color: var(--text-2); font: 12.5px/1.6 var(--font-sans); pointer-events: none; }
 .canvas-status button { pointer-events: auto; }
 .canvas-status b { color: var(--text); font-weight: 500; }
-.canvas-status > :not(.empty) { max-width: 260px; }
+.canvas-status > :not(.empty) { max-width: 260px; overflow-wrap: anywhere; }
 .spinner { display: block; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); margin: 0 auto 10px; }
 .empty { font-size: 13px; color: var(--text); position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; line-height: normal; }
 .empty b { font-size: 15px; font-weight: 600; }
@@ -209,7 +213,7 @@ code, kbd { font-family: var(--font-sans); }
 .ob-item.dimmed { opacity: .4; }
 .ob-item.ob-notice { padding-top: 0; }
 .ob-detail { font-size: 11.5px; line-height: 1.5; color: var(--text-3); min-width: 0; overflow-wrap: anywhere; }
-.ob-detail code, .ob-msg code, .ob-lead code, .ob-dialog code, .ob-field code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
+.ob-detail code, .ob-msg code, .ob-lead code, .ob-dialog code, .ob-field code, .ob-reason code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
 .ob-status { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .ob-msg { grid-column: 2 / -1; font-size: 11.5px; line-height: 1.5; color: var(--text-2); overflow-wrap: anywhere; }
 .ob-msg.warn { border-left: 2px solid var(--warn); padding-left: 8px; }
@@ -290,6 +294,8 @@ code, kbd { font-family: var(--font-sans); }
 .mi .check { width: 12px; flex: none; color: var(--accent); }
 .mi .sub { color: var(--text-4); font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .mi .label { flex: none; }
+.menu[aria-label="Worktrees"] { max-width: calc(100vw - 16px); }
+.menu[aria-label="Worktrees"] .label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .menu-sep { height: 1px; background: var(--line); margin: 4px 2px; }
 .menu-head { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); padding: 6px 10px 4px; }
 
@@ -312,6 +318,8 @@ code, kbd { font-family: var(--font-sans); }
 .scan .spinner { width: 12px; height: 12px; border-width: 2px; margin: 0; }
 
 .toast { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 12px; max-width: 560px; background: var(--raised); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-2); padding: 8px 8px 8px 14px; font: 12.5px/1.5 var(--font-sans); color: var(--text); }
+/* The visible canvas toolbar reaches 40.5px above the window bottom. */
+.workspace[aria-hidden="false"]:has(.area:not([inert])) ~ .toast { bottom: 46px; }
 .toast .msg { min-width: 0; overflow-wrap: anywhere; }
 .toast.solo { padding-right: 14px; }
 
@@ -433,6 +441,7 @@ code, kbd { font-family: var(--font-sans); }
 .fp-input::placeholder { color: var(--text-4); }
 .fp-input.invalid { border-color: var(--err); }
 .fp-input:focus-visible { outline: 1px solid var(--accent-line); outline-offset: -1px; }
+.fp-input.invalid:focus-visible { outline-color: var(--err); }
 .fp-error { font-size: 11.5px; line-height: 1.5; color: var(--text-2); border-left: 2px solid var(--err); padding-left: 8px; }
 .ob-sentence mark.slot { background: var(--panel-2); color: var(--text-4); }
 .fp-wait { display: flex; align-items: center; gap: 8px; font-size: 11.5px; line-height: 1.5; color: var(--text-2); }

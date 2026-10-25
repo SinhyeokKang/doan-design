@@ -1,5 +1,6 @@
 @import "./tokens.css";
 /* Primitives and pane rules from the accepted design/app-setup.html draft that this window renders. */
+:root { color-scheme: dark; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; }
 button { cursor: pointer; font: inherit; color: inherit; }
@@ -91,6 +92,7 @@ button.btn { border: 1px solid var(--line); background: var(--panel-2); }
 button.btn.primary { border-color: var(--accent); background: var(--accent); }
 button.btn.ghost { border-color: transparent; background: transparent; }
 button:focus-visible { outline: 1px solid var(--accent-line); outline-offset: -1px; }
+.btn.primary:focus-visible { outline-color: var(--accent-ink); outline-offset: -3px; }
 .settings-shell { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
 .st-body, .pj-list, .pj-detail { overflow: auto; }
 .st-body.pj { padding: 0; }
