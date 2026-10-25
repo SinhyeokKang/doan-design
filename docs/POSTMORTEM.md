@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — Production CSS extraction concealed missing development styles
+
+- **Area**: renderer HTML entries, `ConnectionRows.tsx`, `settings.ts`, and `app/e2e/presentation.ts`.
+- **Symptom**: shared connection rows and Settings styles appeared correct in the production bundle but used missing/default styles in the actual development renderer.
+- **Root cause**: JavaScript CSS imports caused development style injection that the existing strict CSP rejected; production extraction hid that difference. Parent appearance and built output links alone did not test the development path.
+- **Net**: an actual Vite renderer run reproduced missing child styles and CSP warnings before HTML stylesheet links restored them without relaxing CSP. Final production and DEV computed-style checks passed. A separate pre-existing Radix menu inline-style warning remains explicitly classified by its exact hash, not ignored as a general CSP exception.
+- **Prevention**: verify actual development and production entry loading and representative child computed styles, while preserving stylesheet order. Search run: `rg -n 'import.*\.css|rel="stylesheet"|ob-reason code' app/src/renderer/index.html app/src/renderer/settings.html app/src/renderer/settings.ts app/src/renderer/ConnectionRows.tsx app/src/renderer/styles.css app/src/renderer/settings.css app/src/renderer/connectionRows.css`. The two entries own links; token imports and the shared raised-background override remain. Check iframe media preferences separately from computed color-scheme when changing renderer appearance.
+
 ### 2026-10-25 — Delayed startup restoration replaced newer navigation
 
 - **Area**: `App.tsx`, `CanvasController.ts`, `app/e2e/design-nav.ts`.
@@ -501,6 +509,8 @@
 
 - **Recurrence (2026-10-24, onboard)**: project fields reused the Inspector's `.value` class. Its unscoped `display: flex; gap: 6px` silently changed project-name/path flow despite 1,286 passing unit tests. Child-level Electron comparison found block → flex and inline → block differences. The onboarding E2E assertion failed with `flex / 6px / block` before `.ob-field .value` restored `block / normal / inline`; the Inspector remains unchanged.
 - **Prevention**: when reusing a short presentation class, inspect all matching selectors and read computed display/gap on its children. `rg -n 'className=.*value|\.value \{' app/src/renderer` finds the Inspector value components and the two onboarding field call sites. Keep the computed-style assertion in `app/e2e/onboarding.ts`; color-only comparisons would miss this inheritance.
+
+- **Recurrence (2026-10-25, UX P)**: main `.ob-reason code` inherited the intended raised background but lacked the text color, radius and horizontal padding present in Settings. Actual child measurements exposed the mismatch; the narrow shared selector restores 4px radius and 0/4px padding while retaining the background override. The same real-tooltip checks found shared TooltipContent at zero padding under the unlayered global reset; the approved scoped rule restores 6px/12px without changing that reset or PathTip. Retain both parent and child checks in production and DEV.
 
 ### 2026-10-21 — TS and Go comment folding diverged on inputs the shared fixtures did not cover
 
