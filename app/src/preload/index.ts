@@ -36,6 +36,9 @@ const api = {
   answerOnboardingReplace: (answer: { id: string; allow: boolean }): Promise<StepResult> => ipcRenderer.invoke("onboarding:answer", answer),
   closeOnboarding: (request: OnboardingOpen): Promise<StepResult> => ipcRenderer.invoke("onboarding:close", request),
   copyPathLine: (): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "pathLine" }),
+  // Hidden: closed with the app running, or the whole app hidden (⌘H).
+  onWindowVisible: (listener: (visible: boolean) => void): (() => void) =>
+    subscribe<{ visible: boolean }>("window:visible", "window:visible", value => listener(value.visible)),
   // Main builds the sentence from a stored, set-up project and the subject
   // (promptSentence); null when either is refused.
   firstPrompt: (root: string, subject: string): Promise<string | null> => ipcRenderer.invoke("onboarding:first-prompt", { root, subject }),

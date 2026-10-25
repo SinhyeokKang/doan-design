@@ -260,6 +260,18 @@ test("first prompt always sends the subject", async () => {
   expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:copy", { kind: "firstPrompt", root: "/repo", subject: "a sign-in screen" });
 });
 
+test("window visibility: the current value is asked for, and later changes follow", async () => {
+  mocks.invoke.mockResolvedValueOnce({ visible: true });
+  const listener = vi.fn();
+  const stop = api.onWindowVisible(listener);
+  expect(mocks.invoke).toHaveBeenLastCalledWith("window:visible");
+  await Promise.resolve(); await Promise.resolve();
+  emitter.emit("window:visible", {}, { visible: false });
+  expect(listener.mock.calls).toEqual([[true], [false]]);
+  stop();
+  expect(emitter.listenerCount("window:visible")).toBe(0);
+});
+
 test("setup status: the current value is asked for, and an event that came first wins", async () => {
   let resolve: (value: unknown) => void = () => { throw new Error("no initial read"); };
   mocks.invoke.mockImplementation(() => new Promise((done) => { resolve = done; }));

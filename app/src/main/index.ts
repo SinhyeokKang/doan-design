@@ -116,18 +116,24 @@ function syncThumbnailPause(): void {
   if (windowShown && !appHidden) thumbnails?.resume();
   else thumbnails?.pause();
 }
+// The first prompt's arrival shows a toast rather than opening a canvas while
+// the window is hidden; document.hidden stayed false after hide() in a real run.
+function visibilityChanged(): void {
+  syncThumbnailPause();
+  send("window:visible", { visible: windowShown && !appHidden });
+}
 
 function showWindow(window: BrowserWindow): void {
   cancelPendingHide();
   window.show();
   windowShown = true;
-  syncThumbnailPause();
+  visibilityChanged();
 }
 
 function hideWindow(window: BrowserWindow): void {
   window.hide();
   windowShown = false;
-  syncThumbnailPause();
+  visibilityChanged();
 }
 
 function isOpen(root: string): boolean {
@@ -488,8 +494,8 @@ async function start(): Promise<void> {
   thumbnails = thumbs;
   // Electron has no app hide event. AppKit posts these at the end of
   // NSApplication's hide:/unhide:, which the `hide` role item (⌘H) sends.
-  systemPreferences.subscribeLocalNotification("NSApplicationDidHideNotification", () => { appHidden = true; syncThumbnailPause(); });
-  systemPreferences.subscribeLocalNotification("NSApplicationDidUnhideNotification", () => { appHidden = false; syncThumbnailPause(); });
+  systemPreferences.subscribeLocalNotification("NSApplicationDidHideNotification", () => { appHidden = true; visibilityChanged(); });
+  systemPreferences.subscribeLocalNotification("NSApplicationDidUnhideNotification", () => { appHidden = false; visibilityChanged(); });
   // Starts the once-per-launch cache cleanup even when no folder update follows.
   thumbs.entriesChanged(ready.entries());
   const comments = createCommentsService({
@@ -562,6 +568,7 @@ async function start(): Promise<void> {
     return ready.initialize(value.root, tokenCss);
   });
   handle("app:home", null, event => fromWindow(event) ? homeDirectory() : null);
+  handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
   handle("folders:get", [], (event) => (fromWindow(event) ? ready.entries() : []));
   const cli = cliCommand(process.env, app.isPackaged, process.resourcesPath);
   const flow = createAddFlow({

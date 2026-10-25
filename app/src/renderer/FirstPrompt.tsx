@@ -35,18 +35,29 @@ export function useFirstPromptWait(deps: WaitDeps): FirstPromptWait {
     const row = entry?.kind === "list" ? entry.canvases.find(candidate => candidate.path === path) : undefined;
     if (row) latest.current.deps.openCanvas(root, row);
   };
+  const showToast = (root: string, path: string) => latest.current.deps.toast(newCanvasText(latest.current.deps.projectName(root)), "Open", () => openArrived(root, path));
+  // From main: document.hidden stays false while the window is hidden.
+  const visible = useRef(true);
+  // An arrival while hidden: its toast shows once the window is back.
+  const pending = useRef<{ root: string; path: string } | null>(null);
+  useEffect(() => window.doan.onWindowVisible(value => {
+    visible.current = value;
+    const held = pending.current;
+    if (value && held) { pending.current = null; showToast(held.root, held.path); }
+  }), []);
   useEffect(() => {
     const event = waitEvent(state, deps.entries);
     if (event) dispatch(event);
   }, [state, deps.entries]);
   useEffect(() => {
     if (state.kind !== "arrived") return;
-    const action = arrivalAction({ wizardOpen: deps.wizardOpen, hidden: document.hidden, workspaceRoot: deps.workspaceRoot }, state.root);
+    const action = arrivalAction({ wizardOpen: deps.wizardOpen, hidden: !visible.current, workspaceRoot: deps.workspaceRoot }, state.root);
     if (action === "wizard") return;
     const { root, path } = state;
     dispatch({ type: "dismissed" });
     if (action === "open") openArrived(root, path);
-    else deps.toast(newCanvasText(deps.projectName(root)), "Open", () => openArrived(root, path));
+    else if (visible.current) showToast(root, path);
+    else pending.current = { root, path };
   }, [state, deps.wizardOpen]);
   return useMemo(() => ({
     state,

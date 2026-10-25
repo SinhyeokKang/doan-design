@@ -1139,6 +1139,22 @@ describe("thumbnails", () => {
     expect(mocks.thumbnails.resume).toHaveBeenCalledTimes(2);
   });
 
+  test("the main renderer learns when the window or the whole app is hidden and shown; only it may ask", async () => {
+    const visible = () => vi.mocked(window().webContents.send).mock.calls.filter(([channel]) => channel === "window:visible").map(([, value]) => value);
+    const notify = (name: string) => mocks.notifications.get(`NSApplicationDid${name}Notification`)?.();
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: true });
+    window().emit("close", { preventDefault: vi.fn() });
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: false });
+    mocks.app.emit("activate");
+    notify("Hide");
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: false });
+    notify("Unhide");
+    expect(visible()).toEqual([{ visible: false }, { visible: true }, { visible: false }, { visible: true }]);
+    expect(await invoke("window:visible", {}, null)).toBeNull();
+    // Settings is refused by the test that runs every main-only channel from it.
+    expect(await invoke("window:visible", (await captureWindow()).webContents, null)).toBeNull();
+  });
+
   test("a fullscreen window pauses captures once it is really hidden", () => {
     window().isFullScreen.mockReturnValue(true);
     window().emit("close", { preventDefault: vi.fn() });
