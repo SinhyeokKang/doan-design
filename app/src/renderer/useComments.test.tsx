@@ -369,13 +369,15 @@ describe("comment locations (W-9, T-11)", () => {
     return { ...f, show };
   }
   const locate = /<button type="button" class="comments-target"( disabled="")?>Element · address<\/button>/;
+  const text = `<span class="comments-target" title="label">Element · address</span>`;
 
   test("without a document answer there is no badge and the target is text", async () => {
     const { render, show } = await bound(null);
     for (const markup of [render({ selection: null }).markup, show(snapshot("none")), show(snapshot("pending"))]) {
       expect(markup).toContain("Mark the field");
       expect(markup).not.toContain("Location unavailable");
-      expect(locate.exec(markup)?.[1]).toBe(` disabled=""`);
+      expect(markup).toContain(text);
+      expect(markup).not.toMatch(locate);
     }
     const answered = show(snapshot("answered", [["c1", "n1"]]));
     expect(locate.exec(answered)?.[1]).toBeUndefined();
@@ -396,7 +398,7 @@ describe("comment locations (W-9, T-11)", () => {
     expect(locate.exec(show(snapshot("answered", [["c1", "n1"]])))?.[1]).toBeUndefined();
     expect(locate.exec(show(snapshot("pending")))?.[1]).toBeUndefined();
     // The controller's measure limit ends the wait.
-    expect(locate.exec(show(snapshot("none")))?.[1]).toBe(` disabled=""`);
+    expect(show(snapshot("none"))).toContain(text);
   });
 
   test("a new selection ends a retained answer, so its list is not the previous element's (R-B8)", async () => {

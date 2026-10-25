@@ -152,7 +152,9 @@ export function CommentCard({ comment, freshness, locationMissing, disabled, bus
   const locked = disabled || busy || (mutation !== undefined && mutation.status !== "idle" && mutation.status !== "saved");
   return <article className="comments-card" aria-label={`Comment by ${createdBy.name}`} aria-busy={busy || mutation?.status === "saving"}>
     <div className="comments-author"><span className="comments-avatar" aria-hidden="true">{initials}</span><div className="comments-by"><b>{createdBy.name}</b>{createdBy.kind === "human" && createdBy.email && <span className="comments-email">{createdBy.email}</span>}<time dateTime={comment.createdAt} title={comment.createdAt}>{relativeTime(comment.createdAt)}</time></div></div>
-    <button type="button" className="comments-target" disabled={locationMissing !== false || (!comment.target.frame && !comment.target.element)} onClick={() => onComment("locate", comment.comment)}>{targetText(comment.target)}</button>
+    {locationMissing === null
+      ? <span className="comments-target" title={comment.target.element?.selector}>{targetText(comment.target)}</span>
+      : <button type="button" className="comments-target" disabled={locationMissing || (!comment.target.frame && !comment.target.element)} onClick={() => onComment("locate", comment.comment)}>{targetText(comment.target)}</button>}
     <div className="comments-badges"><span className={`comments-badge ${comment.status}`}>{comment.status === "open" ? "Open" : "Resolved"}</span>{freshness !== "same" && <span className="comments-badge warning">{freshness === "outdated" ? "Outdated" : "Freshness unknown"}</span>}{locationMissing && <span className="comments-badge warning">Location unavailable</span>}</div>
     <p className="comments-body">{comment.body}</p>
     <div className="comments-tools">

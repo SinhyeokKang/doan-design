@@ -34,10 +34,19 @@ describe("Comments presentation", () => {
     for (const text of ["Alex Morgan", "alex@example.com", ">AM<", "Element · submit", "Outdated", "Location unavailable", "&lt;script&gt;", "\n  Keep spaces "]) expect(out).toContain(text);
     const unknown = html(panel({ missingLocations: null }));
     expect(unknown).not.toContain("Location unavailable");
-    expect(unknown).toContain(`<button type="button" class="comments-target" disabled="">Element · submit</button>`);
     expect(html(panel())).toContain(`<button type="button" class="comments-target">Element · submit</button>`);
     expect(out).not.toContain("<script>");
     expect(html(panel({ freshness: new Map([["c1", "unknown"]]) }))).toContain("Freshness unknown");
+  });
+  test("shows the target line as text with no locate action when no document is rendered", () => {
+    // Draft no-document frame: --text-2 text, no Show on canvas action, title = selector.
+    const unknown = html(panel({ missingLocations: null }));
+    expect(unknown).toContain(`<span class="comments-target" title="button">Element · submit</span>`);
+    expect(unknown).not.toMatch(/<button[^>]*comments-target/);
+    const frame = renderToStaticMarkup(<CommentCard comment={{ ...comment, target: { frame: "hero" } }} freshness="same" locationMissing={null} disabled={false} busy={false} copy={{ status: "idle" }} onComment={noop} onCopy={noop} />);
+    expect(frame).toContain(`<span class="comments-target">Frame · hero</span>`);
+    // A located document keeps the shipped button, disabled only where it cannot locate.
+    expect(html(panel({ missingLocations: new Set(["c1"]) }))).toContain(`<button type="button" class="comments-target" disabled="">Element · submit</button>`);
   });
   test("renders all three target kinds without inferring from the list filter", () => {
     for (const [target, label] of [[{}, "Canvas"], [{ frame: "hero" }, "Frame · hero"], [comment.target, "Element · submit"]] as const) {
