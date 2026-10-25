@@ -41,7 +41,28 @@ function request(value: unknown, extras: string[] = []): CommentRequest {
 }
 function identityEqual(a: CommentIdentity, b: CommentIdentity) { return a.root === b.root && a.path === b.path && a.canvas === b.canvas; }
 function message(error: unknown): string { return error instanceof Error ? error.message : "Comments operation failed."; }
-function text(bytes: Buffer): string { return new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes); }
+function text(bytes: Buffer): string {
+  // Go's JSON reader advances one byte per invalid rune; TextDecoder consumes
+  // truncated prefixes together. Decode only valid spans and preserve the BOM
+  // for parseLines to strip exactly once.
+  const parts: string[] = [];
+  let start = 0;
+  for (let i = 0; i < bytes.length;) {
+    const lead = bytes.readUInt8(i);
+    if (lead < 0x80) { i++; continue; }
+    const size = lead >= 0xc2 && lead <= 0xdf ? 2 : lead >= 0xe0 && lead <= 0xef ? 3 : lead >= 0xf0 && lead <= 0xf4 ? 4 : 0;
+    // Shortest encodings only, excluding surrogates and scalars above U+10FFFF.
+    const low = lead === 0xe0 ? 0xa0 : lead === 0xf0 ? 0x90 : 0x80;
+    const high = lead === 0xed ? 0x9f : lead === 0xf4 ? 0x8f : 0xbf;
+    let valid = size > 0 && i + size <= bytes.length && bytes.readUInt8(i + 1) >= low && bytes.readUInt8(i + 1) <= high;
+    for (let j = 2; valid && j < size; j++) valid = bytes.readUInt8(i + j) >= 0x80 && bytes.readUInt8(i + j) <= 0xbf;
+    if (valid) { i += size; continue; }
+    parts.push(bytes.toString("utf8", start, i), "\uFFFD");
+    start = ++i;
+  }
+  parts.push(bytes.toString("utf8", start));
+  return parts.join("");
+}
 function digest(bytes: Buffer): string { return createHash("sha256").update(bytes).digest("hex"); }
 function readList(bytes: Buffer): Omit<CommentList, "project" | "canvasHash"> {
   return foldText(text(bytes));
