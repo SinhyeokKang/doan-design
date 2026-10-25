@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — An older install failure replaced newer feedback
+
+- **Area**: `Onboarding.tsx`, `settingsWindow.tsx`.
+- **Symptom**: a held installation-link request could fail after a later request succeeded and display an obsolete error; failure while the newer request was pending had the same ownership problem.
+- **Root cause**: the callbacks checked component liveness but not which installation request owned feedback. Sequential failure/retry coverage missed overlapping requests.
+- **Net**: wizard and Settings native regressions failed before local request counters fenced both false and rejection paths. Follow-up tests now observe the actual renderer consumer before checking feedback. Temporarily allowing older request numbers fails the precise stale-error assertion in both windows; restored final runs pass. This does not establish actual OS browser-failure behavior.
+- **Prevention**: bind feedback to the latest operation as well as the live component, and cover both completion orders, newest failure followed by older success, and consumed retry success. Search run: `rg -n 'installs.current|installRequests' app/src/renderer/Onboarding.tsx app/src/renderer/settingsWindow.tsx` finds both owners. Keep these local counters separate from setup write locks and window lifetime.
+
 ### 2026-10-25 — A failed first connection read looked permanently unfinished
 
 - **Area**: `app/src/main/setupBroker.ts`.
@@ -69,6 +77,8 @@
 - **Prevention**: require positive renderer completion before a negative assertion, bounded settlement with retained child-process identity, explicit code/signal checks and real-state verification on failures. The search above identifies `waitFor` and `suiteGuard`; helper Node tests are separate from Vitest and must be included explicitly in integration accounting. A timeout, forced kill or incomplete verification never qualifies as PASS.
 
 - **Recurrence (2026-10-25, UX C)**: the new Inspector test initially waited for main's release plus 100ms, which did not prove the stale response was consumed. A test-only observer now records completion of the actual controller callback before checking the latest values. Bypassing only the first held request's tag comparison makes that same native assertion fail with the old frame dimensions; restoring protection passes. `rg -n 'inspectProbeC|requestRows' app/src/renderer/CanvasController.ts app/e2e/comments-ui.ts` locates the production consumer and its test observer. The observer fails explicitly if the expected React/controller structure is unavailable; it adds no production API.
+
+- **Recurrence (2026-10-25, UX K)**: the O/S install fixtures initially used a 100/150ms pause after main released a response, allowing an unconsumed stale error to pass. Settings now observes its real click handler’s terminal then/catch chain; Wizard uses a test-only non-pausing CDP return breakpoint because its callback discards the async return. Both fail explicitly if the expected consumer shape changes, identify each request, and wait for renderer frames after completion. A-first checks occur while B is still pending. Search run: `rg -n 'armInstallConsumer|wizardInstallConsumers|settledInstallConsumer' app/e2e/renderer-probe.ts app/e2e/onboarding.ts app/e2e/settings.ts`. The targeted guard bypass fails at the first stale-false case in each window; it is not a separate mutation run for every order. No production observer API was introduced.
 
 ### 2026-10-25 — Init published success before merge setup could fail
 
