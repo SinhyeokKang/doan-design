@@ -229,7 +229,7 @@ process.exit(result.status ?? 1);
   const panel = page.getByRole("region", { name: "Comments", exact: true }); await panel.getByRole("button", { name: "Comment on selection", exact: true }).click();
   const draft = panel.getByRole("textbox", { name: "New comment body", exact: true }); await draft.fill("Retain this draft");
   await goHome(page); await removeHomeProject(page, repo);
-  const guard = page.getByRole("dialog").filter({ hasText: "Keep writing" }); await guard.waitFor(); assert.match(await guard.textContent() ?? "", /in acme \(main\) › shared\.html/);
+  const guard = page.getByRole("dialog").filter({ hasText: "Keep writing" }); await guard.waitFor(); assert.match(await guard.textContent() ?? "", /Your unsaved comment belongs to acme \(main\) › shared\.html\./); assert.equal(await guard.locator(".comments-target").textContent(), "To: Element · button target · in Hero");
   await guard.getByRole("button", { name: "Keep writing", exact: true }).click(); assert.equal(await draft.inputValue(), "Retain this draft"); assert.equal(await draft.evaluate(node => node === document.activeElement), true);
   await page.getByRole("button", { name: "Switch worktree", exact: true }).click(); presentation.radio = await page.getByRole("menuitemradio", { name: /^main /, checked: true }).isVisible(); await page.getByRole("menuitemradio", { name: /^billing / }).click(); await guard.waitFor();
   await guard.getByRole("button", { name: "Discard", exact: true }).click(); await canvasRow(page, "shared.html").and(page.locator(".is-open")).waitFor();
