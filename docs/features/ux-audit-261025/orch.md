@@ -114,3 +114,15 @@
 
 - IR-C는 red 0 / yellow 1이다. 같은 canvas의 문서 교체 뒤 보류 begin 오류가 다시 createError를 채우는 경합을 발견했다. generation을 begin에만 한정해 무효화하며 기존 list/card revision과 immutable 저장 요청은 유지하도록 C-fix에 돌려보낸다. Inspector 늦은 응답 검증의 main-release+100ms 대기도 renderer 처리 확인으로 강화한다.
 - C-fix: 기존 comments child에 새 Codex gpt-6-astra medium을 배정한다. 비동기 오류 권한·guard 수명과 회귀 증거의 판정이 필요하다. CommentsSession/test와 comments-ui fixture만 소유한다. 보류 요청 red→green·관련 tests/typecheck, 예약 후 native 재실행, 별도 작성자 재리뷰를 받는다. IR-C worker는 release했다.
+
+- C-fix `ctx_2e970407904b`의 Astra medium effective·turn_start를 확인했다. native/build는 O→S→C-fix 순서로 배정한다.
+- O의 혼합 추가: 직접 추가·후속 scan은 먼저 채택한 프로젝트를 보존한다. 사용자가 일반 폴더의 Set Up을 명시적으로 확인한 경우에만 그 root의 기존 wizard 3단계 폼으로 이동한다. 별도 dialog를 겹치지 않는다. 기존 명시적 설정 동작에 따른 지휘자 판단이며, 늦은 완료가 새 선택을 덮지 않는지 검증한다.
+
+## 구현 배치 — 후속
+
+| 배치 | 채택 범위 | 파일 소유권·선행 조건 | 모델·근거 | 검증 |
+|---|---|---|---|---|
+| N | U-2/3/6/9/10/15/16/21/22/25/26/28/30/36/37/40/50의 탐색·문구·포커스 범위 | O 통합 후 App/CanvasController/Home/homeCards/QuickOpen/FirstPrompt/Toast/toastState/selection 및 직접 tests, Locate 안내의 main/addProjects, projects-home/design-nav/runtime 직접 회귀. CSS·HTML 제외 | Codex gpt-6-astra medium. 사용자 intent와 늦은 응답·모달/토스트 포커스 수명 판단 | 보류 응답 회귀 red→green·typecheck, 단독 native의 실제 focus/시간/상태, 독립 리뷰 |
+| P | U-8/31/34/35/37/39/40/44의 좁은 CSS·표현 범위 | O·S 통합 후 styles/settings.css, HTML entries와 CSS import, Overview title, 직접 tests 및 presentation fixture를 onboarding suite에 연결. N 파일 제외 | Codex gpt-6-astra medium. CSS cascade·CSP·실제 hit-test/치수 판단 | 실제 computed style/geometry red→green·typecheck, 단독 dev와 production 증거, 독립 리뷰 |
+
+- N과 P는 파일 소유권이 겹치지 않는다. native/build/full gate는 계속 직렬이며 공통 문서의 현재 측정값은 지휘자가 증거를 검토한 뒤 갱신한다.
