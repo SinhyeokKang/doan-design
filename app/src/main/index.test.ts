@@ -1781,7 +1781,7 @@ describe("review state and project comments", () => {
   test("the store lives beside folders.json and prunes against the saved roots", () => {
     const [file, saved] = mocks.createReviewStore.mock.calls[0] ?? [];
     expect(file).toBe("/tmp/doan-index-test/review-state.json");
-    expect(typeof saved === "function" ? saved() : null).toEqual([APP, WT]);
+    expect(typeof saved === "function" ? saved() : null).toEqual(entries.map((entry) => entry.path));
   });
 
   test("read and raise answer only the window's main frame, for a saved root and a valid request", async () => {

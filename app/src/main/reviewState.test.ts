@@ -145,6 +145,16 @@ describe("validation and recovery", () => {
     expect(onDisk(path)).toEqual({ v: 1, since: T0, canvases: { [key("/repo", "home")]: T1 } });
   });
 
+  // Main creates the store at startup, before any removal can be pending Undo.
+  test("loads when created, so a root removed later is not pruned before it can come back", () => {
+    const path = file();
+    writeFileSync(path, JSON.stringify({ v: 1, since: T0, canvases: { [key("/repo", "home")]: T1 } }));
+    let roots = ["/repo"];
+    const store = createReviewStore(path, () => roots, clock(T2));
+    roots = [];
+    expect(store.marker("/repo", "home")).toEqual({ since: T0, lastReviewedAt: T1 });
+  });
+
   test("a valid file that needs no change is not rewritten", () => {
     const path = file();
     const text = `${JSON.stringify({ v: 1, since: T0, canvases: { [key("/repo", "home")]: T1 } })}\n`;

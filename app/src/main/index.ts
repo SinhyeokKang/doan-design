@@ -15,14 +15,17 @@ import { validateSelection } from "../formats/validate";
 import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } from "./canvasFrame";
 import { canvasScriptSource } from "./canvasScript";
 import { createAddFlow, droppedPaths, type AddFlow } from "./addProjects";
-import { cliCommand, runConfig, runLs } from "./cli";
+import { cliCommand, readFolder, runConfig, runLs } from "./cli";
 import { createConfigBridge, type ConfigBridge } from "./configBridge";
 import { folderState } from "./folderState";
 import type { InspectResult } from "./inspect";
 import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
 import { menuState, type Screen } from "./menuState";
+import { parseProjectCommentsRequest, readProjectComments, type ProjectComments } from "./projectComments";
 import { removalLabel } from "./removal";
+import { createReviewStore, parseReviewRaise, parseReviewRead } from "./reviewState";
+import type { ReviewMarker } from "../comments/review";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
 import { INSTALL_URLS, parseExternalTarget, parseForwardedAction, parseSettingsTab, parseSettingsTarget, projectRows, SETTINGS_TITLES, SETTINGS_WINDOW, type SettingsTab, type SettingsTarget } from "./settings";
 import { createSetupBroker, type SetupBroker } from "./setupBroker";
@@ -579,6 +582,8 @@ async function start(): Promise<void> {
   handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
   handle("folders:get", [], (event) => (fromWindow(event) ? ready.entries() : []));
   const cli = cliCommand(process.env, app.isPackaged, process.resourcesPath);
+  const storedRoot = (root: string) => ready.entries().some(entry => entry.path === root);
+  const reviews = createReviewStore(join(userData, "review-state.json"), () => ready.entries().map((entry) => entry.path));
   const flow = createAddFlow({
     ls: async (target, signal) => folderState(await runLs(cli, target, undefined, signal)),
     saved: () => ready.entries().map((entry) => entry.path),
@@ -604,6 +609,12 @@ async function start(): Promise<void> {
   });
   handle("folders:add-candidates", { kind: "unavailable" }, (event, value: unknown) => (fromWindow(event) ? flow.addCandidates(value) : { kind: "unavailable" }));
   handle("folders:confirm-folder", { kind: "unavailable" }, (event, value: unknown) => (fromWindow(event) ? flow.confirm(value) : { kind: "unavailable" }));
+  // Review markers outlive a removal while Undo can bring the project back;
+  // a root stored again meanwhile keeps them.
+  const removedForGood = (paths: readonly string[]) => {
+    const gone = paths.filter(path => !ready.entries().some(entry => entry.path === path));
+    if (gone.length > 0) reviews.forget(gone);
+  };
   // A row or a whole card. The draft guard asks once when a draft is open; the
   // renderer knows whether the draft belongs to one of these roots.
   handle("folders:remove", { kind: "unavailable" }, (event, value: unknown): Promise<RemoveResult> | RemoveResult => {
@@ -622,12 +633,14 @@ async function start(): Promise<void> {
         // The list changes before folders.json is written: the old Undo goes
         // now, not when the write ends.
         const generation = ++removals;
+        if (removal !== null) removedForGood(removal.paths);
         removal = null;
         void ready.remove(roots).then((removed) => {
           if (removed.paths.length === 0) { resolve({ kind: "unavailable" }); return; }
           void thumbs.removed(removed.paths, before);
           const id = randomUUID();
           if (generation === removals) removal = { id, ...removed };
+          else removedForGood(removed.paths);
           resolve({ kind: "removed", removalId: id, label });
         });
       }, () => resolve({ kind: "cancelled" }));
@@ -644,7 +657,7 @@ async function start(): Promise<void> {
   });
   // The toast expired: Undo is gone, so is what it needed.
   handle("folders:forget-removal", undefined, (event, value: unknown) => {
-    if (fromWindow(event) && removal !== null && removalId(value) === removal.id) removal = null;
+    if (fromWindow(event) && removal !== null && removalId(value) === removal.id) { removedForGood(removal.paths); removal = null; }
   });
   handle("folders:locate", { kind: "unavailable" }, async (event, value: unknown): Promise<LocateResult> => {
     const from = storedPath(value);
@@ -672,6 +685,23 @@ async function start(): Promise<void> {
   uiState = store;
   handle("ui-state:get", null, (event) => (fromWindow(event) ? store.read() : null));
   handle("ui-state:save", false, (event, value: unknown) => fromWindow(event) && store.save(value));
+  // revision-recheck: the renderer reads markers and may only ask for raises.
+  handle("review-state:get", null, (event, value: unknown): ReviewMarker | null => {
+    const request = parseReviewRead(value);
+    return fromWindow(event) && request !== null && storedRoot(request.root) ? reviews.marker(request.root, request.canvas) : null;
+  });
+  handle("review-state:raise", null, (event, value: unknown): ReviewMarker | null => {
+    const request = parseReviewRaise(value);
+    return fromWindow(event) && request !== null && storedRoot(request.root) ? reviews.raise(request.root, request.canvas, request.at) : null;
+  });
+  handle("comments:project", null, (event, value: unknown): Promise<ProjectComments> | null => {
+    const request = parseProjectCommentsRequest(value);
+    if (!fromWindow(event) || request === null || !storedRoot(request.root)) return null;
+    return readProjectComments({
+      list: root => readFolder(cli, root), read: readCommentBytes, author: readAuthor,
+      marker: (root, canvas) => reviews.marker(root, canvas),
+    }, request);
+  });
   // A saved root and a listed canvas only; main reads the bytes from its cache.
   handle("thumbnails:get", { kind: "unavailable" }, (event, value: unknown): Promise<ThumbnailReply> | ThumbnailReply => {
     if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
@@ -790,7 +820,6 @@ async function start(): Promise<void> {
     return { kind: "success", ...(warning === undefined ? {} : { warning }) };
   });
 
-  const storedRoot = (root: string) => ready.entries().some(entry => entry.path === root);
   handle("settings:open", false, (_event, value: unknown) => {
     const target = parseSettingsTarget(value, storedRoot);
     return target !== null && openSettings(target);
