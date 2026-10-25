@@ -61,8 +61,47 @@ func TestFindUnusableInputPaths(t *testing.T) {
 
 func TestMissingPathKeepsIOErrors(t *testing.T) {
 	for _, cause := range []error{syscall.EACCES, syscall.EPERM, syscall.EIO} {
-		if missingPath(&os.PathError{Op: "stat", Path: "repo", Err: cause}) {
+		if IsMissingPath(&os.PathError{Op: "stat", Path: "repo", Err: cause}) {
 			t.Fatalf("classified %v as missing", cause)
 		}
+	}
+}
+
+func TestDiskSpellingDoesNotChooseUnrelatedHardlink(t *testing.T) {
+	root := real(t, t.TempDir())
+	const disk = "한.css"
+	put(t, root, disk, "")
+	if _, err := os.Stat(filepath.Join(root, "한.css")); os.IsNotExist(err) {
+		t.Skip("filesystem distinguishes canonical Unicode names")
+	} else if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(filepath.Join(root, disk), filepath.Join(root, "a.css")); err != nil {
+		t.Fatal(err)
+	}
+	got, err := diskSpelling(root, "한.css")
+	if err != nil || got != disk {
+		t.Fatalf("%q %v", got, err)
+	}
+}
+
+func TestDiskSpellingRespectsFilesystemCase(t *testing.T) {
+	root := real(t, t.TempDir())
+	put(t, root, "lower.css", "")
+	_, statErr := os.Stat(filepath.Join(root, "LOWER.CSS"))
+	got, err := diskSpelling(root, "LOWER.CSS")
+	if os.IsNotExist(statErr) {
+		if !os.IsNotExist(err) {
+			t.Fatalf("invented alias %q: %v", got, err)
+		}
+		put(t, root, "LOWER.CSS", "distinct")
+		got, err = diskSpelling(root, "LOWER.CSS")
+		if err != nil || got != "LOWER.CSS" {
+			t.Fatalf("exact match: %q %v", got, err)
+		}
+	} else if statErr != nil {
+		t.Fatal(statErr)
+	} else if err != nil || got != "lower.css" {
+		t.Fatalf("alias: %q %v", got, err)
 	}
 }

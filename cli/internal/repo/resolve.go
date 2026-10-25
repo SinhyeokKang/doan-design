@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 type State string
@@ -42,7 +44,7 @@ func Resolve(root, base, p string) (State, string, error) {
 	}
 	resolved, err := filepath.EvalSymlinks(candidate)
 	if err != nil {
-		if missingPath(err) {
+		if IsMissingPath(err) {
 			return Missing, "", nil
 		}
 		return "", "", err
@@ -60,7 +62,7 @@ func Resolve(root, base, p string) (State, string, error) {
 	}
 	rel, err = diskSpelling(realRoot, rel)
 	if err != nil {
-		if missingPath(err) {
+		if IsMissingPath(err) {
 			return Missing, "", nil
 		}
 		return "", "", err
@@ -68,7 +70,8 @@ func Resolve(root, base, p string) (State, string, error) {
 	return Inside, filepath.ToSlash(rel), nil
 }
 
-func missingPath(err error) bool {
+// IsMissingPath identifies unusable input paths without hiding permission or I/O failures.
+func IsMissingPath(err error) bool {
 	if os.IsNotExist(err) {
 		return true
 	}
@@ -100,8 +103,22 @@ func diskSpelling(root, rel string) (string, error) {
 			}
 		}
 		if name == "" {
+			// Let the filesystem decide which case or Unicode spellings are aliases.
+			// Lstat keeps a symlink distinct from its target and other links to it.
+			requested, err := os.Lstat(filepath.Join(dir, part))
+			if err != nil {
+				return "", err
+			}
+			normalized := norm.NFC.String(part)
 			for _, entry := range entries {
-				if strings.EqualFold(entry.Name(), part) {
+				if !strings.EqualFold(norm.NFC.String(entry.Name()), normalized) {
+					continue
+				}
+				info, err := entry.Info()
+				if err != nil {
+					return "", err
+				}
+				if os.SameFile(requested, info) {
 					name = entry.Name()
 					break
 				}

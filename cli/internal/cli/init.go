@@ -28,13 +28,16 @@ func Init(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	}
 	root, e = filepath.EvalSymlinks(root)
 	if e != nil {
-		if os.IsNotExist(e) {
-			return Outcome{}, usageError("Repository directory does not exist")
+		if repo.IsMissingPath(e) {
+			return Outcome{}, usageError("Repository directory does not exist or cannot be resolved")
 		}
 		return Outcome{}, internal(e)
 	}
 	st, e := os.Stat(root)
 	if e != nil {
+		if repo.IsMissingPath(e) {
+			return Outcome{}, usageError("Repository directory does not exist or cannot be resolved")
+		}
 		return Outcome{}, internal(e)
 	}
 	if !st.IsDir() {
@@ -166,10 +169,23 @@ func Init(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if e != nil {
 		return Outcome{}, internal(e)
 	}
-	if e := os.WriteFile(configPath, append(b, '\n'), 0644); e != nil {
+	// A discoverable config marks initialization complete, including merge setup.
+	staged, e := os.CreateTemp(filepath.Dir(configPath), ".config-*")
+	if e != nil {
 		return Outcome{}, internal(e)
 	}
-	created = append(created, ".doan/config.json")
+	defer os.Remove(staged.Name())
+	if e := staged.Chmod(0644); e != nil {
+		staged.Close()
+		return Outcome{}, internal(e)
+	}
+	if _, e := staged.Write(append(b, '\n')); e != nil {
+		staged.Close()
+		return Outcome{}, internal(e)
+	}
+	if e := staged.Close(); e != nil {
+		return Outcome{}, internal(e)
+	}
 	if !has {
 		newline := "\n"
 		if bytes.Contains(attrs, []byte("\r\n")) {
@@ -184,6 +200,11 @@ func Init(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		}
 		created = append(created, ".gitattributes")
 	}
+	// Publish exclusively so a concurrent initializer's config is not overwritten.
+	if e := os.Link(staged.Name(), configPath); e != nil {
+		return Outcome{}, internal(e)
+	}
+	created = append(created, ".doan/config.json")
 	sort.Strings(created)
 	result["initialized"] = true
 	result["created"] = created

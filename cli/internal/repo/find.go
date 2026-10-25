@@ -38,21 +38,24 @@ func Find(start, repoFlag string) (Repository, error) {
 	dir, err = filepath.EvalSymlinks(absolute)
 	if err != nil {
 		code := "internal_error"
-		if os.IsNotExist(err) {
+		if IsMissingPath(err) {
 			code = "repo_not_found"
 		}
 		return Repository{}, &Error{Code: code, Message: err.Error(), Cause: err}
 	}
-	// EvalSymlinks keeps the caller's letter case (from --repo or $PWD), so one
-	// repo would get several roots. The spelling lookup is best effort: an
-	// unlistable ancestor or a name that differs only in Unicode normalization
-	// (APFS matches NFC to NFD, EqualFold does not) keeps the resolved path.
+	// EvalSymlinks keeps caller case and Unicode normalization, so one repo
+	// would get several roots. An unlistable ancestor keeps this best effort
+	// lookup from replacing the already resolved path.
 	if rel, err := diskSpelling(string(filepath.Separator), strings.TrimPrefix(dir, string(filepath.Separator))); err == nil {
 		dir = filepath.Join(string(filepath.Separator), rel)
 	}
 	info, err := os.Stat(dir)
 	if err != nil {
-		return Repository{}, &Error{Code: "internal_error", Message: err.Error(), Cause: err}
+		code := "internal_error"
+		if IsMissingPath(err) {
+			code = "repo_not_found"
+		}
+		return Repository{}, &Error{Code: code, Message: err.Error(), Cause: err}
 	}
 	if !info.IsDir() {
 		return Repository{}, &Error{Code: "repo_not_found", Message: "Repository path is not a directory"}
