@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — A failed first connection read looked permanently unfinished
+
+- **Area**: `app/src/main/setupBroker.ts`.
+- **Symptom**: when the first machine read failed, the summary stayed null after checking ended, leaving the UI without a settled connection result.
+- **Root cause**: only successful reads supplied a summary and advanced its displayed sequence. Failure could therefore leave initial state unresolved or let an older success overwrite a newer failed read.
+- **Net**: focused regressions cover first failure, recovery, retention of previous summary/causes and late results; the onboarding native fixture observes the failed summary supplied through the public status push. It does not reproduce the underlying machine-read failure in Electron.
+- **Prevention**: model settled failure separately from never-read state, advance freshness for failed reads too, and preserve the last known result when available. Search run: `rg -n 'shown|running|summary: result' app/src/main/setupBroker.ts` identifies the sequence and pending-read count; retain overlapping success/failure tests without treating one failure as completion of every pending read.
+
 ### 2026-10-25 — Comment creation errors hid readable comments and outlived their document
 
 - **Area**: `CommentsSession.ts`, `CommentsPanel.tsx`, `useComments.tsx`.
@@ -267,6 +275,8 @@
 - **Root cause**: a button disabled while its action runs drops focus to `<body>`, so a key handler on the overlay element never saw Escape or Tab. A modal `<dialog>` already open in `<main>` stays in the top layer above a non-modal overlay, and `inert` on `<main>` made both unclickable. `doan init` success can arrive before main publishes the re-read when a watcher read supersedes it, so advancing on the first non-loading state missed the list.
 - **Net**: H's real-window script found the first two (step 13 reproduces the stacking); the independent review found the third. Fixes: a window `keydown` listener in capture, the wizard itself as a modal `<dialog>`, and `advanceAfter` waiting for the listed project (seen red first). Batch I's e2e covers Escape after a delayed copy, the wizard over both modals, and an init reply held until the list is published.
 - **Prevention**: for overlays, handle keys on the window and do not assume focus stays inside after a control disables itself; stack a new layer as a modal when other modals may be open. Run `rg -n 'showModal|addEventListener\("keydown"|advanceAfter' app/src/renderer`.
+
+- **Recurrence (2026-10-25, UX O)**: nested Add confirmation/checklist failures could leave focus on BODY while the wizard intentionally delegated keys to the child. A fast reply initially retained button focus and did not reproduce the checklist defect. Holding the request until disabled rendering, two animation frames and a screenshot reproduced pointer/keyboard reject, repeated reject and unavailable failures; all six passed after lost focus was restored to Cancel. Deliberate focus changes remain intact, and Escape closes only the child. Search run: `rg -n 'activeElement|busy|error' app/src/renderer/AddProjectsDialog.tsx` locates both recovery effects; retain the disabled-render precondition rather than programmatically forcing BODY focus.
 
 ### 2026-10-24 — Setup writes to missing targets could overwrite a competitor
 
