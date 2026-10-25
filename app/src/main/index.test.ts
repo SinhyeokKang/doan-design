@@ -564,7 +564,9 @@ test("wizard close writes only when idle; window close and quit do not mark it c
   const contents = window().webContents;
   const opened = await invoke("onboarding:get-open", contents, null) as { session: string };
   window().emit("close", { preventDefault: vi.fn() });
-  mocks.app.emit("before-quit", { preventDefault: vi.fn() }); expect(mocks.markClosed).not.toHaveBeenCalled();
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  expect(mocks.markClosed).not.toHaveBeenCalled();
   mocks.machine.isBusy.mockReturnValue(true);
   expect(await invoke("onboarding:close", contents, null, opened)).toEqual({ kind: "busy" });
   mocks.machine.isBusy.mockReturnValue(false);
@@ -1020,8 +1022,8 @@ describe("ui state", () => {
     expect(mocks.uiState.flushSync).toHaveBeenCalledOnce();
   });
 
-  // FL2: the process can crash (SIGSEGV) between closing the capture window
-  // and will-quit, so the state is on disk before that teardown starts.
+  // Native teardown can fail before will-quit, so accepted state must already
+  // be on disk when teardown starts.
   test("an approved quit flushes the state before disposing thumbnails", async () => {
     mocks.app.emit("before-quit", { preventDefault: vi.fn() });
     await new Promise<void>(resolve => setImmediate(resolve));
