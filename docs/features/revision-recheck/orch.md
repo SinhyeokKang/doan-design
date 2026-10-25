@@ -54,3 +54,7 @@ tasks.md의 1~14는 모두 위 배치 중 하나에 속한다(11은 실행하지
 ## 진행 기록
 
 - 2026-10-26: 시작. 화면 잠금 상태 `CGSSessionScreenIsLocked = Yes`.
+- 2026-10-26: Run `run_1da72bfa7b5d`. 1파 시작 — X(`ctx_5b62f582630a`, Opus medium, `rr-x`), A(`ctx_b28aa5b1f1c9`, Codex `gpt-6.1-sol` medium, `rr-a`), P(`ctx_02705dfb7988`, Opus high, `rr-p`), S(`ctx_5feffb581d64`, Opus high, `rr-s`). `launch.effective`가 요청과 같다.
+- 2026-10-26: A 알림 — 기존 fixture 5개 중 delete-followups(최종 삭제)와 human-unicode-tied-lifecycle(최종 해결)은 최종 상태가 같아 expected.json을 그대로 두고, 중간 상태는 prefix 단언으로 고정한다. 받아들였다.
+- 2026-10-26: X 완료 — tasks 1 측정 결과를 tasks.md 1에 옮겼다(최대 149ms, 기준 500ms 안). 커밋 없음. X 해제.
+- 2026-10-26: S 질문 — `edit-reopen` intent를 더하면 renderer `CommentsSession.ts:354`의 confirmCard 가드가 typecheck를 깨뜨린다. 허락: S가 그 가드에 `edit-reopen`을 더한다(edit처럼 초안 경로로 간다, E가 연결).
