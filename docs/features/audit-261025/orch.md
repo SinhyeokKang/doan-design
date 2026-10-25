@@ -126,6 +126,13 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 - E-fix 독립 재리뷰는 추가 must-fix/should-fix 0건이다. budget red는 원래 기준이 아닌 중간 구현에서 재현한 실패라는 한계도 확인했다. E 구현·보완은 `8837859`부터 `e385972`까지 통합했다. IR-E-fix 작성자를 IR-H에 재사용한다: Codex gpt-6-astra medium, 종료·비동기 renderer 처리 증거 검토; H/H2 e2e diff만 읽고 root scratch report를 작성한다.
 - H2 통합은 `3c4775e`이다. 다음 공통 게이트는 전체 통합 HEAD에서 `/verify --runtime --eval`로 실행하며, 실행 중 root tracked 파일을 변경하지 않는다. E 원래/보완 full runner 및 H2가 다루지 않은 runtime suite까지 포함한다.
 
+### 통합 gate와 마지막 리뷰 보완
+
+- `8755c92`의 공통 gate는 exit 1이다. Go test/vet, typecheck, 앱 1,994개 테스트, eval 128개 테스트와 15개 self-test는 통과했다. runtime의 main·comments·onboarding·projects-home·thumbnails·design-nav·quit-capture는 진행됐으나 Settings의 새 단언이 `{tab: "connections"}`를 문자열 `"connections"`와 비교해 실패했다. 최종 runtime-test는 FAIL이며 실사용자 상태 검사는 unchanged였다. 로그는 `.scratch/audit-integration-261025/verify-combined.log`이다.
+- IR-app은 red 0/yellow 1: 잘린 `E2 82`를 앱은 U+FFFD 하나, Go는 둘로 읽는다. 지휘자의 실제 Node/Go probe도 차이를 재현했다. A1-fix 새 소유자(Codex gpt-6-astra medium)가 service byte ingress·직접 필요한 helper/tests만 수정한다. BOM·공유 fold·불확실 append의 엄격한 증거 검사를 보존하고 실제 CLI parity와 단위 red→green을 확인한다.
+- IR-H는 red 0/yellow 1: Undo 만료의 7초 기준이 screenshot 뒤에서 시작해 reset-to-8s 회귀를 가릴 수 있다. H2-fix 새 소유자(Codex gpt-6-astra medium)가 projects-home의 복귀 기준 deadline·좁은 mutation 검증을 보완한다. 위 Settings payload 단언도 실제 계약대로 교정하도록 범위를 추가했다. 소유권은 해당 e2e 두 파일과 직접 필요한 helper/tests이며 production은 수정하지 않는다. native 슬롯에서 두 관련 suite를 직렬 검증한다.
+- 리뷰 terminal은 모두 release했다. E/H와 H2 자식도 clean·미통합 커밋 없음·증거 복사 확인 후 Orca에서 제거했다. 두 후속 워커는 이 통합 브랜치에서 새 child로 시작한다. 사용자 결정 대기 A-M1과 A-L1은 그대로다.
+
 아래는 원본 31개 발견의 판정이다. 통합 후보는 최종 검증·수용을 뜻하지 않는다. UX 보고서의 52개 발견은 audit 병합 뒤 별도로 추적한다.
 
 | 원본 ID | 판정·범위 | 소유 배치·남은 게이트 |
