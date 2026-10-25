@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Author, Comment } from "../formats/types";
-import { nextFocus, reopenText, resolutionText, sortResolved } from "./resolution";
+import { nextFocus, reopenText, resolutionText, sortResolved, type NamedLine } from "./resolution";
 
 const kim: Author = { kind: "human", name: "Kim Doe", email: "kim@example.com" };
 const codex: Author = { kind: "agent", name: "codex" };
@@ -28,11 +28,14 @@ describe("sortResolved", () => {
 
 // The relative part is the caller's shipped formatter; these tests pin the words around it.
 const relative = (at: string) => `rel(${at})`;
+const lineText = (line: NamedLine) => line.lead + line.name + line.tail;
 
 describe("resolutionText", () => {
-  test("names the resolver, with an agent's runtime name", () => {
-    expect(resolutionText(comment("cmt_a", "2026-10-25T10:00:00.000Z"), relative)).toBe("Resolved by codex · rel(2026-10-25T10:00:00.000Z)");
-    expect(resolutionText({ ...comment("cmt_a", "2026-10-25T10:00:00.000Z"), resolvedBy: kim }, relative)).toBe("Resolved by Kim Doe · rel(2026-10-25T10:00:00.000Z)");
+  test("names the resolver, with an agent's runtime name, apart from the words around it", () => {
+    const line = resolutionText(comment("cmt_a", "2026-10-25T10:00:00.000Z"), relative)!;
+    expect(line).toEqual({ lead: "Resolved by ", name: "codex", tail: " · rel(2026-10-25T10:00:00.000Z)", at: "2026-10-25T10:00:00.000Z" });
+    expect(lineText(line)).toBe("Resolved by codex · rel(2026-10-25T10:00:00.000Z)");
+    expect(lineText(resolutionText({ ...comment("cmt_a", "2026-10-25T10:00:00.000Z"), resolvedBy: kim }, relative)!)).toBe("Resolved by Kim Doe · rel(2026-10-25T10:00:00.000Z)");
   });
 
   test("has nothing to say for an open comment", () => {
@@ -43,10 +46,11 @@ describe("resolutionText", () => {
 describe("reopenText", () => {
   test("names who reopened it and who had resolved it", () => {
     const lastResolution = { by: codex, at: "2026-10-25T10:00:00.000Z", reopenedBy: kim, reopenedAt: "2026-10-25T10:09:00.000Z" };
-    expect(reopenText({ ...comment("cmt_a"), lastResolution }, relative)).toEqual({
-      reopened: "Reopened by Kim Doe · rel(2026-10-25T10:09:00.000Z)",
-      previously: "Previously resolved by codex",
-    });
+    const lines = reopenText({ ...comment("cmt_a"), lastResolution }, relative)!;
+    expect(lines.reopened).toEqual({ lead: "Reopened by ", name: "Kim Doe", tail: " · rel(2026-10-25T10:09:00.000Z)", at: "2026-10-25T10:09:00.000Z" });
+    expect(lineText(lines.reopened)).toBe("Reopened by Kim Doe · rel(2026-10-25T10:09:00.000Z)");
+    expect(lines.previously).toEqual({ lead: "Previously resolved by ", name: "codex", tail: "" });
+    expect(lineText(lines.previously)).toBe("Previously resolved by codex");
   });
 
   test("has nothing to say without a last resolution or once resolved again", () => {

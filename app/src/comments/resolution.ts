@@ -1,9 +1,8 @@
-import type { Author, Comment } from "../formats/types";
+import type { Comment } from "../formats/types";
 
-// Declared here rather than imported from formats/: fold adds `lastResolution`
-// to an open comment that was reopened, and drops it once it is resolved again.
-export interface LastResolution { by: Author; at: string; reopenedBy: Author; reopenedAt: string }
-export type ResolvedComment = Comment & { lastResolution?: LastResolution };
+// A line's words around the name, so the card can set the name apart
+// (design/revision-recheck.html, resolution-meta). `at` goes in `title`.
+export interface NamedLine { lead: string; name: string; tail: string; at?: string }
 
 // Code-unit order, not locale order: timestamps share one fixed pattern, so
 // this is time order, and ids compare the same way everywhere.
@@ -18,15 +17,19 @@ export function sortResolved<T extends Comment>(comments: readonly T[]): T[] {
 
 // `relative` is the panel's relative-time formatter; the caller puts the
 // absolute time in `title`.
-export function resolutionText(comment: Comment, relative: (at: string) => string): string | null {
+export function resolutionText(comment: Comment, relative: (at: string) => string): NamedLine | null {
   if (comment.status !== "resolved" || !comment.resolvedBy || comment.resolvedAt === undefined) return null;
-  return `Resolved by ${comment.resolvedBy.name} · ${relative(comment.resolvedAt)}`;
+  return { lead: "Resolved by ", name: comment.resolvedBy.name, tail: ` · ${relative(comment.resolvedAt)}`, at: comment.resolvedAt };
 }
 
-export function reopenText(comment: ResolvedComment, relative: (at: string) => string): { reopened: string; previously: string } | null {
+// fold keeps `lastResolution` only on an open comment that was reopened.
+export function reopenText(comment: Comment, relative: (at: string) => string): { reopened: NamedLine; previously: NamedLine } | null {
   const last = comment.lastResolution;
   if (comment.status !== "open" || !last) return null;
-  return { reopened: `Reopened by ${last.reopenedBy.name} · ${relative(last.reopenedAt)}`, previously: `Previously resolved by ${last.by.name}` };
+  return {
+    reopened: { lead: "Reopened by ", name: last.reopenedBy.name, tail: ` · ${relative(last.reopenedAt)}`, at: last.reopenedAt },
+    previously: { lead: "Previously resolved by ", name: last.by.name, tail: "" },
+  };
 }
 
 // Where focus goes when a card leaves the list (`cards` in list order, before

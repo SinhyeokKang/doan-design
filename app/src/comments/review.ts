@@ -1,7 +1,7 @@
-import type { Author } from "../formats/types";
-import { compareText, type ResolvedComment } from "./resolution";
+import type { Author, Comment } from "../formats/types";
+import { compareText } from "./resolution";
 
-export type ReviewComment = ResolvedComment;
+export type ReviewComment = Comment;
 
 // `since` is when this device started keeping review times; a canvas never
 // reviewed here counts from it, so turning the feature on does not list
