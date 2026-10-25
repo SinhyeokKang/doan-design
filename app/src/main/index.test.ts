@@ -182,7 +182,7 @@ test("defines the requested window geometry and File menu", () => {
   expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
 });
 
-test("hides on close and shows the same window on activate", () => {
+test("hides on close and shows the same window on activate", async () => {
   const event = { preventDefault: vi.fn() };
   window().emit("close", event);
   expect(event.preventDefault).toHaveBeenCalledOnce();
@@ -190,7 +190,8 @@ test("hides on close and shows the same window on activate", () => {
   mocks.app.emit("activate");
   expect(window().show).toHaveBeenCalledOnce();
   expect(mocks.Window.instances).toHaveLength(1);
-  mocks.app.emit("before-quit");
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  await new Promise<void>(resolve => setImmediate(resolve));
   const quitting = { preventDefault: vi.fn() };
   window().emit("close", quitting);
   expect(quitting.preventDefault).not.toHaveBeenCalled();
@@ -277,9 +278,10 @@ test("leaves fullscreen before hiding on close and reuses the window on activate
   expect(mocks.Window.instances).toHaveLength(1);
 });
 
-test("does not intercept fullscreen close while quitting", () => {
+test("does not intercept fullscreen close while quitting", async () => {
   window().isFullScreen.mockReturnValue(true);
-  mocks.app.emit("before-quit");
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  await new Promise<void>(resolve => setImmediate(resolve));
   const event = { preventDefault: vi.fn() };
   window().emit("close", event);
   expect(event.preventDefault).not.toHaveBeenCalled();
@@ -477,6 +479,7 @@ test("a guarded quit waits for a matching main-frame acknowledgement", async () 
   await invoke("comments:transition-answer", window().webContents, {}, { id: call?.[1].id, allow: true });
   expect(mocks.app.quit).not.toHaveBeenCalled();
   await invoke("comments:transition-answer", window().webContents, null, { id: call?.[1].id, allow: true });
+  await new Promise<void>(resolve => setImmediate(resolve));
   expect(mocks.app.quit).toHaveBeenCalledOnce();
 });
 
@@ -1019,8 +1022,9 @@ describe("ui state", () => {
 
   // FL2: the process can crash (SIGSEGV) between closing the capture window
   // and will-quit, so the state is on disk before that teardown starts.
-  test("an approved quit flushes the state before disposing thumbnails", () => {
+  test("an approved quit flushes the state before disposing thumbnails", async () => {
     mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+    await new Promise<void>(resolve => setImmediate(resolve));
     expect(mocks.uiState.flushSync).toHaveBeenCalledOnce();
     expect(mocks.uiState.flushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.thumbnails.dispose.mock.invocationCallOrder[0] ?? 0);
   });
@@ -1179,11 +1183,13 @@ describe("thumbnails", () => {
     expect(mocks.thumbnails.dispose).not.toHaveBeenCalled();
     const call = window().webContents.send.mock.calls.find(call => call[0] === "comments:transition");
     await invoke("comments:transition-answer", window().webContents, null, { id: call?.[1].id, allow: true });
+    await new Promise<void>(resolve => setImmediate(resolve));
     expect(mocks.thumbnails.dispose).toHaveBeenCalledOnce();
   });
 
   test("quitting disposes the thumbnails, and the capturer destroys its window", async () => {
     mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+    await new Promise<void>(resolve => setImmediate(resolve));
     expect(mocks.thumbnails.dispose).toHaveBeenCalledOnce();
     const hidden = await captureWindow();
     deps().capturer.close();
@@ -1394,7 +1400,8 @@ describe("settings window", () => {
     test("quitting is not held", async () => {
       const created = await openSettings();
       const { finish, writing } = await startWrite(created);
-      mocks.app.emit("before-quit");
+      mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+      await new Promise<void>(resolve => setImmediate(resolve));
       const closing = { preventDefault: vi.fn() };
       created.emit("close", closing);
       expect(closing.preventDefault).not.toHaveBeenCalled();
@@ -1628,4 +1635,48 @@ describe("settings window", () => {
     expect(await invoke("onboarding:open-project", contents, null)).toEqual({ kind: "refused", message: "Couldn’t read picked." });
     expect(window().webContents.send).not.toHaveBeenCalledWith("folders:add-outcome", expect.anything());
   });
+});
+
+// A quit can reenter Electron while a BrowserWindow constructor is emitting
+// layout events, before its JS wrapper exists (macOS SIGSEGV at WillCloseWindow).
+test("an approved quit prevents native window teardown until the next event-loop turn", async () => {
+  const event = { preventDefault: vi.fn() };
+  mocks.app.emit("before-quit", event);
+  expect(event.preventDefault).toHaveBeenCalledOnce();
+  expect(mocks.thumbnails.dispose).not.toHaveBeenCalled();
+  expect(mocks.app.quit).not.toHaveBeenCalled();
+  await new Promise<void>(resolve => setImmediate(resolve));
+  expect(mocks.uiState.flushSync).toHaveBeenCalledOnce();
+  expect(mocks.thumbnails.dispose).toHaveBeenCalledOnce();
+  expect(mocks.uiState.flushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.thumbnails.dispose.mock.invocationCallOrder[0] ?? 0);
+  expect(mocks.app.quit).toHaveBeenCalledOnce();
+  expect(mocks.thumbnails.dispose.mock.invocationCallOrder[0]).toBeLessThan(mocks.app.quit.mock.invocationCallOrder[0] ?? 0);
+  const resumed = { preventDefault: vi.fn() };
+  mocks.app.emit("before-quit", resumed);
+  expect(resumed.preventDefault).not.toHaveBeenCalled();
+});
+
+test("repeated quit requests before deferred teardown schedule only one quit", async () => {
+  const events = [{ preventDefault: vi.fn() }, { preventDefault: vi.fn() }];
+  for (const event of events) mocks.app.emit("before-quit", event);
+  for (const event of events) expect(event.preventDefault).toHaveBeenCalledOnce();
+  await new Promise<void>(resolve => setImmediate(resolve));
+  expect(mocks.thumbnails.dispose).toHaveBeenCalledOnce();
+  expect(mocks.app.quit).toHaveBeenCalledOnce();
+});
+
+test("a cancelled quit leaves thumbnails alive and allows a later approved quit", async () => {
+  await invoke("comments:guard", window().webContents, null, true);
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  const call = window().webContents.send.mock.calls.find(call => call[0] === "comments:transition");
+  await invoke("comments:transition-answer", window().webContents, null, { id: call?.[1].id, allow: false });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  expect(mocks.thumbnails.dispose).not.toHaveBeenCalled();
+  expect(mocks.app.quit).not.toHaveBeenCalled();
+  await invoke("comments:guard", window().webContents, null, false);
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  expect(mocks.thumbnails.dispose).not.toHaveBeenCalled();
+  await new Promise<void>(resolve => setImmediate(resolve));
+  expect(mocks.thumbnails.dispose).toHaveBeenCalledOnce();
+  expect(mocks.app.quit).toHaveBeenCalledOnce();
 });

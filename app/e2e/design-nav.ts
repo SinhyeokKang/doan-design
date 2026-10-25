@@ -58,7 +58,10 @@ try {
     page.on("pageerror", error => console.error("design-nav pageerror", error));
   }
   async function quit(): Promise<void> {
+    const process = app!.process();
+    const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => process.once("exit", (code, signal) => resolve({ code, signal })));
     await app!.close(); app = undefined;
+    assert.deepEqual(await exited, { code: 0, signal: null }, "quit exits cleanly, including during thumbnail capture");
   }
   async function relaunch(): Promise<void> {
     await quit();
