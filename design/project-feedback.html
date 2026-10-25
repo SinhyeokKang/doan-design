@@ -410,11 +410,30 @@ button { border: 0; background: transparent; }
 .fb-count { padding: 0 12px 8px 46px; font-size: 11px; line-height: 1.5; color: var(--text-3); }
 .fb-count b { color: var(--text-2); font-weight: 400; }
 
+/* ---------- Links 1–4 (confirmed drafts), copied so the shipped screens here show their result ---------- */
+/* comments-readability §1–2: the target line is one line with an ellipsis; the full selector lives in title. */
+.comments-target { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+/* comments-readability §3: the Comments title is a sticky direct child of the panel, outside the head. */
+.comments-title { position: sticky; top: 0; z-index: 1; background: var(--panel); font-size: 12px; font-weight: 700; padding: 12px 12px 10px; }
+.comments-title + .comments-head { padding-top: 0; }
+.comments-title.alone { padding-bottom: 12px; border-bottom: 1px solid var(--line-2); }
+/* comments-readability §5 / revision-recheck: the bottom label sits on the panel colour. */
+.updated { background: var(--panel); padding: 3px 8px; border-radius: 6px; }
+/* agent-handoff handed-off: inline next to Hand off… in the head tools. */
+.handoff-summary { font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
+/* revision-recheck review-notice. */
+.rr-banner { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 12px; border-bottom: 1px solid var(--line-2); background: var(--panel-2); font-size: 11.5px; color: var(--text-2); }
+.rr-banner .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rr-banner .text b { font-weight: 600; color: var(--text); }
+/* revision-recheck home-counts. */
+.wt-sum .rr-review, .ocard-meta .rr-review { color: var(--text-2); }
+.wt.rr-narrow .wt-sum { grid-column: 1 / -1; white-space: normal; padding-left: 18px; }
+.wt.rr-narrow .wt-sum > span { white-space: nowrap; }
+.ocard-meta.rr-wrap { white-space: normal; }
+.ocard-meta.rr-wrap > span { white-space: nowrap; }
+
 /* ---------- New: id change notice (Comments head) ---------- */
 .comments-message.notice .comments-btn { margin-left: 6px; vertical-align: baseline; padding: 1px 7px; }
-/* Stand-ins for the banners other drafts own, so the order reads; their look is theirs. */
-.standin { border: 1px dashed var(--line); }
-.standin .tag { float: right; font-size: 10px; color: var(--text-4); }
 
 /* ---------- New: tree row read errors ---------- */
 .row .warn-mark { flex: none; color: var(--warn); font-size: 11px; }
@@ -424,10 +443,6 @@ button { border: 0; background: transparent; }
 .tree-detail { margin: 2px 12px 6px 46px; font-size: 11.5px; line-height: 1.5; color: var(--text-2); border-left: 2px solid var(--err); padding-left: 8px; overflow-wrap: anywhere; }
 .comments-message .detail { margin-top: 8px; border-left: 2px solid var(--err); padding-left: 8px; }
 
-/* ---------- New: Home summary ---------- */
-/* Narrow: the comment counts take their own line under the path, so the first line keeps canvases and time. */
-.wt-counts { grid-column: 1 / -1; font: 11px var(--font-sans); color: var(--text-3); padding-left: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wt-counts .hot, .wt-sum .hot { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -436,9 +451,9 @@ button { border: 0; background: transparent; }
 <h1>Project feedback — draft</h1>
 <p><b>Scope.</b> Feature <code>project-feedback</code> (docs/features/project-feedback/spec.md and design.md, draft request of 2026-10-25). With the Overview shown, the right column becomes the <b>Feedback</b> panel: every comment of the project grouped by canvas and frame, with “Comments without a canvas” first. Comment files whose canvas id no longer exists (orphans) get cards there that can be resolved, reopened and deleted. A canvas whose id just changed tells its Comments panel where its comments went. A file <code>doan ls</code> cannot read turns into a warning on that tree row instead of a project-wide “Config error”. The Home row summary adds “· 3 without a canvas”.</p>
 <p><b>New.</b> <code>feedback-panel</code>, <code>feedback-states</code> and <code>orphan-cards</code> are new surfaces (FeedbackPanel.tsx does not exist yet, so they carry no data-doan-implements); <code>/design-sync</code> compares the main specimen and every labelled tile of these three. <code>id-change-notice</code>, <code>tree-errors</code> and <code>home-summary</code> add to shipped screens: only the elements marked “new” there are new; the rest is copied for context and is already measured in docs/DESIGN.md.</p>
-<p><b>Copied from shipped screens.</b> Window 1238 × 780, top bar 40, columns 240 / rest / 280, the tree rows and hints, the Overview and its cards, the empty Overview with the first prompt, the right column and Canvas info, the Comments head, segments, cards, messages, Git name block and delete dialog, the Home card and row, and the focus ring come from app/src/renderer/styles.css, App.tsx, Sidebar.tsx, ProjectOverview.tsx, FirstPrompt.tsx, RightPanel.tsx, CommentsPanel.tsx and Home.tsx, with the measured values in docs/DESIGN.md (App shell, Comments, Projects home, Design navigation, app-setup). The CSS below is copied from design/design-nav.html (shell and Overview) and styles.css (Comments, first prompt); the new rules are under “New”.</p>
-<p><b>Drawn by other drafts in parallel</b> (the conductor aligns them): the card target line follows <code>comments-readability</code> (<code>Element · label “Address” · in Shipping</code>, location unavailable = plain text); “N resolved to review”, the review banner and Resolved-by lines are <code>revision-recheck</code>; “Hand off…” and “Handed off 3 · 14:02:10” are <code>agent-handoff</code>. Their banners appear here only as dashed stand-ins to show order. The Comments head still shows the shipped “Copy all open”, which <code>agent-handoff</code> renames. Canvas info is drawn without its Comments counts, which <code>comments-readability</code> removes (its Q3).</p>
-<p><b>Draft copy</b> (not given by the feature documents; the implementation matches it, listed in the handoff): the panel title “Feedback”; counts on the Open/Resolved segments as in Comments; group counts; the non-kebab row “Not a canvas ID — doan can't show or change these comments.”; “Details ▸ / ▾” on tree errors and in the Comments read failure; the narrow Home layout (counts on a second line under the path).</p>
+<p><b>Copied from shipped screens.</b> Window 1238 × 780, top bar 40, columns 240 / rest / 280, the tree rows and hints, the Overview and its cards, the empty Overview with the first prompt, the right column and Canvas info, the Comments head, segments, cards, messages, Git name block and delete dialog, the Home card and row, and the focus ring come from app/src/renderer/styles.css, App.tsx, Sidebar.tsx, ProjectOverview.tsx, FirstPrompt.tsx, RightPanel.tsx, CommentsPanel.tsx and Home.tsx, with the measured values in docs/DESIGN.md (App shell, Comments, Projects home, Design navigation, app-setup). The CSS below is copied from design/design-nav.html (shell and Overview) and styles.css (Comments, first prompt), then the confirmed link 1–4 drafts; the new rules are under “New”.</p>
+<p><b>After links 1–4.</b> project-feedback is implemented last, so the shipped screens here show the result of the four confirmed drafts (design/revision-continuity.html, comments-readability.html, revision-recheck.html, agent-handoff.html), not today's main: the sticky Comments title outside the head, the head tools “Hand off…” and “Comment on canvas” / “Comment on selection”, the empty texts and the Git name sentence, Canvas info without COMMENTS and with the hint above Activity, and the one-line card target in targetLabel form (<code>comments-readability</code>); “Handed off 3 · 14:02:10” inline next to Hand off… (<code>agent-handoff</code>); the review notice, the bottom label “Opened 14:02” / “Changed 14:20” on the panel colour and “N resolved to review” on Home rows and Overview cards (<code>revision-recheck</code>). Those looks are owned by those drafts; the CSS is copied under “Links 1–4”.</p>
+<p><b>Draft copy</b> (not given by the feature documents; the implementation matches it, listed in the handoff): the panel title “Feedback”; counts on the Open/Resolved segments as in Comments; group counts; the non-kebab row “Not a canvas ID — doan can't show or change these comments.”; “Details ▸ / ▾” on tree errors and in the Comments read failure.</p>
 <p><b>References.</b> Grouped, collapsible comment lists by file with a count per group follow the VS Code Comments panel and Problems panel — <b>recalled from memory, not checked</b>. Everything else is doan's own shipped tree (Sidebar.tsx role="tree") and Comments card. Sorcerer, Orca, Claude Design, ego-browser and Storybook were not checked for this draft.</p>
 <p><b>Example data.</b> User Kim Doe (git user.name). Repository acme-web, main checkout at ~/code/acme-web, linked worktree feat-billing. <code>design/</code> holds 2026-10-checkout-revamp.html (title “Checkout”, id <code>checkout-revamp</code>), tokens.html, checkout/{cart, checkout, legacy-checkout}.html and settings/{billing, profile}.html. Two canvases are titled “Checkout”, so both show their file name in Feedback. The agent changed checkout.html's id from <code>checkout-v1</code> to <code>checkout</code>, leaving <code>.doan/comments/checkout-v1.jsonl</code> without a canvas; a deleted canvas left <code>promo-banner.jsonl</code>.</p>
 </header>
@@ -446,7 +461,7 @@ button { border: 0; background: transparent; }
 <!-- ===================================================== feedback-panel -->
 <section class="frame" data-doan-frame="feedback-panel" data-doan-title="Overview with the Feedback panel">
 <div class="flabel"><h2>Overview — Feedback panel</h2><span class="nic">new · not in code: right column</span><span class="nic">draft copy: “Feedback”, segment and group counts</span></div>
-<p class="note">Main specimen: acme-web with no canvas open. The center is the shipped Overview; the right column, which showed “Canvas · No canvas open”, is now <b>Feedback</b> (<code>role="region"</code>, heading “Feedback”). On top, the Open/Resolved segment (shipped Comments segment) with the project's counts. Below it one tree (<code>role="tree"</code>, label “Feedback”): <b>Comments without a canvas</b> first (only when there are some), one group per orphan file (its old id); then one group per canvas in Overview card order; inside a canvas, “Whole canvas” first (canvas targets), then frames in document order, then stored frames <code>doan ls</code> no longer lists as “&lt;id&gt; (not in canvas)” in <code>--text-3</code>. A group shows only when it holds a comment of the chosen status. Rows are the comment's target label without its “ · in &lt;frame&gt;” part, then the first line of its body. Both “Checkout” canvases show their file name; Billing &amp; plans does not. “1 resolved to review” sits under a canvas head when that canvas has resolutions to check. Payment, both orphan files and Billing &amp; plans are collapsed. Keyboard focus is on the “Disable until the form is valid” row; the pointer is over the Whole canvas row.</p>
+<p class="note">Main specimen: acme-web with no canvas open. The center is the shipped Overview, with <code>revision-recheck</code>'s “1 resolved to review” on the two cards whose Feedback group shows it; the right column, which showed “Canvas · No canvas open”, is now <b>Feedback</b> (<code>role="region"</code>, heading “Feedback”). On top, the Open/Resolved segment (shipped Comments segment) with the project's counts. Below it one tree (<code>role="tree"</code>, label “Feedback”): <b>Comments without a canvas</b> first (only when there are some), one group per orphan file (its old id); then one group per canvas in Overview card order; inside a canvas, “Whole canvas” first (canvas targets), then frames in document order, then stored frames <code>doan ls</code> no longer lists as “&lt;id&gt; (not in canvas)” in <code>--text-3</code>. A group shows only when it holds a comment of the chosen status. Rows are the comment's target label without its “ · in &lt;frame&gt;” part, then the first line of its body. Both “Checkout” canvases show their file name; Billing &amp; plans does not. “1 resolved to review” sits under a canvas head when that canvas has resolutions to check. Payment, both orphan files and Billing &amp; plans are collapsed. Keyboard focus is on the “Disable until the form is valid” row; the pointer is over the Whole canvas row.</p>
 <p class="note"><b>Behavior (not visible).</b> Arrow keys as in the Sidebar tree: ↑↓ move, Home/End jump to first/last, → expands a collapsed group or moves into it, ← collapses or moves to the parent; Enter or a click opens. The “N resolved to review” buttons and orphan card buttons are Tab stops (not <code>tabIndex=-1</code>). A comment row opens its canvas (draft guard applies), sets the Comments status filter to the row's status and the scope to Canvas, goes to the target and moves focus to that comment's card; the last review time does not change. “N resolved to review” opens the canvas and starts Review (<code>revision-recheck</code>). When a focused row or group disappears, focus goes to the next row, else the previous one, else the “Feedback” heading. Each canvas group is a <code>treeitem</code> with <code>aria-expanded</code>; its accessible name is its title, plus the file name when shown.</p>
 <div class="win ws" data-doan-id="fp-window">
  <div class="top"><div class="lights"><i></i><i></i><i></i></div><button class="back" aria-label="Go Home">←</button><span class="divider" aria-hidden="true"></span>
@@ -471,7 +486,7 @@ button { border: 0; background: transparent; }
   <section aria-label="design">
    <div class="sec">design <span class="r">2</span></div>
    <div class="ocards">
-    <button class="ocard"><div class="thumb"><div class="shot grid" role="img" aria-label="Preview"><span class="n"></span><span class="c"></span><span class="c"></span></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">2026-10-checkout-revamp.html</span><span class="ocard-meta">4 frames · <span class="hot">2 open</span> · 1h ago</span></div></button>
+    <button class="ocard"><div class="thumb"><div class="shot grid" role="img" aria-label="Preview"><span class="n"></span><span class="c"></span><span class="c"></span></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">2026-10-checkout-revamp.html</span><span class="ocard-meta rr-wrap" data-doan-id="fp-card-review"><span>4 frames</span> · <span class="hot">2 open</span> · <span class="rr-review">1 resolved to review</span> · <span>1h ago</span></span></div></button>
     <button class="ocard"><div class="thumb"><p class="thumb-msg">Preview needs a valid <code>doan:width</code> — run doan check</p></div><div class="ocard-body"><span class="ocard-title">Design tokens</span><span class="ocard-file">tokens.html</span><span class="ocard-meta">3 frames · Oct 12</span></div></button>
    </div>
   </section>
@@ -486,7 +501,7 @@ button { border: 0; background: transparent; }
   <section aria-label="design/settings">
    <div class="sec">design/settings <span class="r">2</span></div>
    <div class="ocards">
-    <button class="ocard"><div class="thumb"><div class="shot" role="img" aria-label="Preview"><span class="n"></span><span class="c"></span><span class="l" style="top:32%"></span><span class="b" style="top:70%"></span></div></div><div class="ocard-body"><span class="ocard-title">Billing &amp; plans</span><span class="ocard-file">billing.html</span><span class="ocard-meta">5 frames · <span class="hot">2 open</span> · 5m ago</span></div></button>
+    <button class="ocard"><div class="thumb"><div class="shot" role="img" aria-label="Preview"><span class="n"></span><span class="c"></span><span class="l" style="top:32%"></span><span class="b" style="top:70%"></span></div></div><div class="ocard-body"><span class="ocard-title">Billing &amp; plans</span><span class="ocard-file">billing.html</span><span class="ocard-meta rr-wrap"><span>5 frames</span> · <span class="hot">2 open</span> · <span class="rr-review">1 resolved to review</span> · <span>5m ago</span></span></div></button>
     <button class="ocard"><div class="thumb"><p class="thumb-msg">Preview unavailable</p></div><div class="ocard-body"><span class="ocard-title">Profile</span><span class="ocard-file">profile.html</span><span class="ocard-meta">2 frames · 6d ago</span></div></button>
    </div>
   </section>
@@ -734,11 +749,11 @@ Say so in the placeholder.</p>
 
 <h3 class="states-head">Writing</h3>
 <div class="tiles four">
- <div><p class="tile-label"><b>Git name missing</b> — the shipped Git name block opens the orphan group (Feedback has no other writes); Resolve, Reopen and Delete are disabled until Retry finds a name.</p>
+ <div><p class="tile-label"><b>Git name missing</b> — the Git name block (sentence after <code>comments-readability</code> and <code>agent-handoff</code>) opens the orphan group (Feedback has no other writes); Resolve, Reopen and Delete are disabled until Retry finds a name.</p>
   <div class="panel-spec" data-doan-id="oc-git-spec">
    <div class="fb-tree" role="tree" aria-label="Feedback">
     <div class="row fb-orphans" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Comments without a canvas</span><span class="cnt hot">1</span></div>
-    <div class="comments-message warning inset" role="status" data-doan-id="oc-git"><b>Set your Git name</b>Set git user.name for this repository in your terminal, then choose Retry. Your email is optional.<div class="comments-tools"><button type="button" class="comments-btn">Retry</button></div></div>
+    <div class="comments-message warning inset" role="status" data-doan-id="oc-git"><b>Set your Git name</b>Set git user.name for this repository in your terminal, then choose Retry. Your email is optional.<p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Hand off remains available.</p><div class="comments-tools"><button type="button" class="comments-btn">Retry</button></div></div>
     <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="0"><span class="tw" aria-hidden="true">▾</span><span class="g">promo-banner</span><span class="cnt hot">1</span></div>
     <p class="fb-note">No canvas uses the ID promo-banner. Give a canvas this ID again to bring these comments back, or ask your agent.</p>
     <article class="comments-card" aria-label="Comment by Kim Doe">
@@ -777,14 +792,14 @@ Say so in the placeholder.</p>
    <p>This comment will be removed and cannot be restored.</p>
    <div class="comments-tools"><button type="button" class="comments-btn focus">Cancel</button><button type="button" class="comments-btn">Delete comment</button></div>
   </div></div>
- <div><p class="tile-label"><b>Long values</b> — long id, author, email and body wrap inside the column (shipped <code>overflow-wrap: anywhere</code>).</p>
+ <div><p class="tile-label"><b>Long values</b> — long id, author, email and body wrap inside the column (shipped <code>overflow-wrap: anywhere</code>). The target line is the targetLabel (<code>comments-readability</code>), one line with an ellipsis; the full selector is only its <code>title</code>.</p>
   <div class="panel-spec" data-doan-id="oc-long-spec">
    <div class="fb-tree" role="tree" aria-label="Feedback">
     <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="0"><span class="tw" aria-hidden="true">▾</span><span class="g">checkout-summary-with-promo-code-and-gift-card-v2</span><span class="cnt hot">1</span></div>
     <p class="fb-note" data-doan-id="oc-long-notice">No canvas uses the ID checkout-summary-with-promo-code-and-gift-card-v2. Give a canvas this ID again to bring these comments back, or ask your agent.</p>
     <article class="comments-card" aria-label="Comment by Alexandra Konstantinopoulou-Whitfield">
      <div class="comments-author"><span class="comments-avatar" aria-hidden="true">AK</span><div class="comments-by"><b>Alexandra Konstantinopoulou-Whitfield</b><span class="comments-email">alexandra.konstantinopoulou-whitfield@design.acme-enterprises.example</span><time title="2026-10-25T07:00:00Z">5 minutes ago</time></div></div>
-     <span class="comments-target static">Element · [data-doan-frame="summary"] &gt; div:nth-of-type(2) &gt; ul:nth-of-type(1) &gt; li:nth-of-type(3)</span>
+     <span class="comments-target static" title="[data-doan-frame=&quot;summary&quot;] &gt; div:nth-of-type(2) &gt; ul:nth-of-type(1) &gt; li:nth-of-type(3)" data-doan-id="oc-long-target">Element · li · in summary</span>
      <div class="comments-badges"><span class="comments-badge open">Open</span></div>
      <p class="comments-body" data-doan-id="oc-long-body">Thepromocodelineandthegiftcardlineshouldneverstackwithoutadividerbecausetotalsbecomeunreadable.</p>
      <div class="comments-tools"><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Delete</button></div>
@@ -797,7 +812,7 @@ Say so in the placeholder.</p>
 <!-- ===================================================== id-change-notice -->
 <section class="frame" data-doan-frame="id-change-notice" data-doan-title="Id change notice in Comments" data-doan-implements="app/src/renderer/CommentsPanel.tsx">
 <div class="flabel"><h2>Comments — id change notice</h2><span class="nic">new: the notice line only</span></div>
-<p class="note">Main specimen: checkout.html is open; the agent just changed its <code>doan:canvas</code> from <code>checkout-v1</code> to <code>checkout</code>. Its three comments stay in <code>checkout-v1.jsonl</code>, so the panel counts drop to 0. The first banner under the Comments head says so, with Show. Everything else is the shipped workspace (Canvas info shows the new ID). <b>Behavior:</b> Show goes to the Overview (draft guard applies), expands “Comments without a canvas” and that file group, and moves focus to the file group head. The notice disappears when the id is changed back or the file has no visible comments left. It lives in the controller's memory only: a restart, or a change made while the app was closed, shows nothing here (the Feedback group still shows it).</p>
+<p class="note">Main specimen: checkout.html is open; the agent just changed its <code>doan:canvas</code> from <code>checkout-v1</code> to <code>checkout</code>. Its three comments stay in <code>checkout-v1.jsonl</code>, so the panel counts drop to 0. The first banner under the Comments head says so, with Show. Everything else is the workspace as links 1–4 leave it (Canvas info shows the new ID; the reload that saw the edit is “Changed”). <b>Behavior:</b> Show goes to the Overview (draft guard applies), expands “Comments without a canvas” and that file group, and moves focus to the file group head. The notice disappears when the id is changed back or the file has no visible comments left. It lives in the controller's memory only: a restart, or a change made while the app was closed, shows nothing here (the Feedback group still shows it).</p>
 <div class="win ws" data-doan-id="id-window">
  <div class="top"><div class="lights"><i></i><i></i><i></i></div><button class="back" aria-label="Go Home">←</button><span class="divider" aria-hidden="true"></span>
   <nav class="crumbs" aria-label="Location"><button class="repo" aria-label="acme-web overview">acme-web</button><span class="sep" aria-hidden="true">›</span><button class="branch" aria-label="Switch worktree"><span class="glyph" aria-hidden="true">⎇</span><span class="bn">main</span><span class="caret" aria-hidden="true">▾</span></button><span class="sep" aria-hidden="true">›</span><span class="canvas">Checkout</span></nav>
@@ -822,19 +837,21 @@ Say so in the placeholder.</p>
   <div class="mframe z" style="left:42px;top:40px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Cart</span><span>Checkout</span></div><div class="mcard"><h4>Shipping address</h4><div class="mline"></div><div class="mline"></div><div class="mline"></div><div class="mbtn">Continue to payment</div></div></div></div>
   <span class="ftag" style="left:42px;top:462px">Payment</span>
   <div class="mframe z" style="left:42px;top:480px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Cart</span><span>Checkout</span></div><div class="mcard"><h4>Payment</h4><div class="mline"></div><div class="mbtn">Pay now</div></div></div></div>
-  <output class="updated meta"><span class="dot"></span> Updated just now</output>
+  <output class="updated meta"><span class="dot"></span> Changed 14:20</output>
   <div class="zctl"><div class="zoom"><button>−</button><output>44%</output><button>+</button></div><button class="btn">Fit <span class="kbd">⌘1</span></button></div>
  </section>
  <div class="right-stack">
   <aside class="right native-scroll" role="region" aria-label="Canvas info">
    <h2 class="phead">Canvas</h2>
    <div class="isec"><dl class="kv"><dt>Path</dt><dd>design/checkout/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>2</dd></dl></div>
-   <section class="isec activity" aria-label="Activity"><h3 class="ihead">Activity</h3><ol><li class="tl-row"><time>14:20:41</time><b>Reloaded</b></li><li class="tl-row"><time>14:02:10</time><b>Opened</b></li></ol></section>
+   <p class="pempty">Click an element or frame to inspect or comment on it.</p>
+   <section class="isec activity" aria-label="Activity"><h3 class="ihead">Activity</h3><ol><li class="tl-row"><time>14:20:41</time><b>Changed</b></li><li class="tl-row"><time>14:02:10</time><b>Opened</b></li></ol></section>
   </aside>
   <section class="comments-panel native-scroll" aria-label="Comments" data-doan-id="id-comments">
-   <div class="comments-head"><h3>Comments</h3><div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false" disabled>Selection</button><button type="button" aria-pressed="true">Canvas</button></div><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 0</button><button type="button" aria-pressed="false">Resolved 0</button></div><div class="comments-tools"><button type="button" class="comments-btn" disabled>Copy all open</button><button type="button" class="comments-btn">New canvas comment</button></div></div>
+   <h3 class="comments-title" tabindex="-1">Comments</h3>
+   <div class="comments-head"><div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false" disabled title="Select an element or frame in the canvas">Selection</button><button type="button" aria-pressed="true">Canvas</button></div><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 0</button><button type="button" aria-pressed="false">Resolved 0</button></div><div class="comments-tools"><button type="button" class="comments-btn" disabled>Hand off…</button><button type="button" class="comments-btn">Comment on canvas</button></div></div>
    <div class="comments-message warning notice" role="status" data-doan-id="id-notice">3 comments still use the old ID checkout-v1 and no longer show here.<button type="button" class="comments-btn" data-doan-id="id-notice-show">Show</button></div>
-   <div class="comments-message"><b>No open comments here</b>Leave a note on this target.</div>
+   <div class="comments-message"><b>No open comments</b>Choose Comment on canvas, or select an element or frame.</div>
   </section>
  </div>
 </div>
@@ -849,18 +866,18 @@ Say so in the placeholder.</p>
   <div class="panel-spec" data-doan-id="id-long-spec">
    <div class="comments-message warning notice" role="status" data-doan-id="id-notice-long">12 comments still use the old ID checkout-summary-with-promo-code-and-gift-card-v2 and no longer show here.<button type="button" class="comments-btn">Show</button></div>
   </div></div>
- <div><p class="tile-label"><b>Order under the head</b> — error / id notice, then review, then hand off. The dashed blocks stand in for the other drafts' banners.</p>
+ <div><p class="tile-label"><b>Order under the head</b> — the old-ID notice, then <code>revision-recheck</code>'s review notice. “Handed off 3 · 14:02:10” is not a banner: it sits in the head tools next to Hand off… (<code>agent-handoff</code>).</p>
   <div class="panel-spec" data-doan-id="id-order-spec">
-   <div class="comments-head"><h3>Comments</h3><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 2</button><button type="button" aria-pressed="false">Resolved 3</button></div></div>
+   <h3 class="comments-title">Comments</h3>
+   <div class="comments-head"><div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false" disabled title="Select an element or frame in the canvas">Selection</button><button type="button" aria-pressed="true">Canvas</button></div><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 2</button><button type="button" aria-pressed="false">Resolved 3</button></div><div class="comments-tools"><button type="button" class="comments-btn">Hand off…</button><span class="handoff-summary" data-doan-id="id-order-handoff">Handed off 3 · 14:02:10</span><button type="button" class="comments-btn">Comment on canvas</button></div></div>
    <div class="comments-message warning notice" role="status">3 comments still use the old ID checkout-v1 and no longer show here.<button type="button" class="comments-btn">Show</button></div>
-   <div class="comments-message standin" data-doan-id="id-order-review"><span class="tag">revision-recheck</span>3 resolved · Review</div>
-   <div class="comments-message standin" data-doan-id="id-order-handoff"><span class="tag">agent-handoff</span>Handed off 3 · 14:02:10</div>
+   <div class="rr-banner" data-doan-id="id-order-review"><span class="text"><b>3 resolved</b> since your last review</span><button type="button" class="comments-btn">Review</button></div>
   </div></div>
- <div><p class="tile-label"><b>With an id error</b> — the new id is taken by another canvas: the notice stays first, above the identity block <code>comments-readability</code> owns (stand-in).</p>
+ <div><p class="tile-label"><b>With an id error</b> — the new id is taken by another canvas: the notice stays first, above <code>comments-readability</code>'s canvas-ID block. With an ID cause the panel shows only the title and the blocks (no filters, tools or review notice).</p>
   <div class="panel-spec" data-doan-id="id-error-spec">
-   <div class="comments-head"><h3>Comments</h3></div>
+   <h3 class="comments-title alone">Comments</h3>
    <div class="comments-message warning notice" role="status">3 comments still use the old ID checkout-v1 and no longer show here.<button type="button" class="comments-btn">Show</button></div>
-   <div class="comments-message error standin" data-doan-id="id-error-block"><span class="tag">comments-readability</span><b>Another canvas uses the ID cart</b>Ask your agent to give one of them a different ID. Run doan check in a terminal to see details.</div>
+   <div class="comments-message error" role="alert" data-doan-id="id-error-block"><b>Another canvas uses the ID cart</b>Ask your agent to give one of them a different ID. Run doan check in a terminal to see details.</div>
   </div></div>
  <div><p class="tile-label"><b>Where Show lands</b> — the Overview's Feedback panel, group expanded, focus on the file group head.</p>
   <div class="panel-spec" data-doan-id="id-show-spec">
@@ -877,7 +894,7 @@ Say so in the placeholder.</p>
 
 <!-- ===================================================== tree-errors -->
 <section class="frame" data-doan-frame="tree-errors" data-doan-title="Tree rows with read errors" data-doan-implements="app/src/renderer/Sidebar.tsx">
-<div class="flabel"><h2>Tree — read errors</h2><span class="nic">new: warning mark, sentence, Details; Comments Details</span><span class="nic">draft copy: “Details”</span></div>
+<div class="flabel"><h2>Tree — read errors</h2><span class="nic">new: warning mark, sentence, Details; Comments Details; Overview card sentence</span><span class="nic">draft copy: “Details”</span></div>
 <p class="note">Main specimen: <code>doan ls</code> succeeded, but it could not read <code>.doan/comments/checkout.jsonl</code> (the row has <code>commentsError</code>) nor <code>design/checkout/legacy-checkout.html</code> (the row has <code>error</code>). The tree stays. Each of those rows shows a <code>--warn</code> “⚠” in place of the comment count and, under the row, the fixed sentence with Details; the row's <code>aria-describedby</code> points at the sentence. Details (<code>aria-expanded</code>, a Tab stop under the row) shows the raw <code>message</code> — a repo-relative path and the kind of failure, never an absolute path. Checkout is open: Canvas info and the canvas still work, and only its Comments panel shows “Couldn’t read comments”, with Retry and Details.</p>
 <div class="win ws" data-doan-id="te-window">
  <div class="top"><div class="lights"><i></i><i></i><i></i></div><button class="back" aria-label="Go Home">←</button><span class="divider" aria-hidden="true"></span>
@@ -910,17 +927,19 @@ Say so in the placeholder.</p>
   <div class="mframe z" style="left:42px;top:40px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Cart</span><span>Checkout</span></div><div class="mcard"><h4>Shipping address</h4><div class="mline"></div><div class="mline"></div><div class="mline"></div><div class="mbtn">Continue to payment</div></div></div></div>
   <span class="ftag" style="left:42px;top:462px">Payment</span>
   <div class="mframe z" style="left:42px;top:480px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Cart</span><span>Checkout</span></div><div class="mcard"><h4>Payment</h4><div class="mline"></div><div class="mbtn">Pay now</div></div></div></div>
-  <output class="updated meta"><span class="dot"></span> Updated 2m ago</output>
+  <output class="updated meta"><span class="dot"></span> Opened 14:02</output>
   <div class="zctl"><div class="zoom"><button>−</button><output>44%</output><button>+</button></div><button class="btn">Fit <span class="kbd">⌘1</span></button></div>
  </section>
  <div class="right-stack">
   <aside class="right native-scroll" role="region" aria-label="Canvas info">
    <h2 class="phead">Canvas</h2>
    <div class="isec"><dl class="kv"><dt>Path</dt><dd>design/checkout/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>2</dd></dl></div>
+   <p class="pempty">Click an element or frame to inspect or comment on it.</p>
    <section class="isec activity" aria-label="Activity"><h3 class="ihead">Activity</h3><ol><li class="tl-row"><time>14:02:10</time><b>Opened</b></li></ol></section>
   </aside>
   <section class="comments-panel native-scroll" aria-label="Comments" data-doan-id="te-comments">
-   <div class="comments-head"><h3>Comments</h3><div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false" disabled>Selection</button><button type="button" aria-pressed="true">Canvas</button></div><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 0</button><button type="button" aria-pressed="false">Resolved 0</button></div><div class="comments-tools"><button type="button" class="comments-btn" disabled>Copy all open</button><button type="button" class="comments-btn" disabled>New canvas comment</button></div></div>
+   <h3 class="comments-title" tabindex="-1">Comments</h3>
+   <div class="comments-head"><div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false" disabled title="Select an element or frame in the canvas">Selection</button><button type="button" aria-pressed="true">Canvas</button></div><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 0</button><button type="button" aria-pressed="false">Resolved 0</button></div><div class="comments-tools"><button type="button" class="comments-btn" disabled>Hand off…</button><button type="button" class="comments-btn" disabled>Comment on canvas</button></div></div>
    <div class="comments-message error" role="alert" data-doan-id="te-read-failed"><b>Couldn’t read comments</b><div class="comments-tools"><button type="button" class="comments-btn">Retry</button><button type="button" class="comments-btn" aria-expanded="true" data-doan-id="te-read-details">Details ▾</button></div><p class="detail" data-doan-id="te-read-detail">unreadable_comments: .doan/comments/checkout.jsonl: permission denied</p></div>
   </section>
  </div>
@@ -944,26 +963,26 @@ Say so in the placeholder.</p>
    <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" aria-describedby="te-s3" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Design tokens</span><span class="d">tokens.html</span></span><span class="warn-mark" aria-hidden="true">⚠</span></div>
    <p class="tree-hint warn l1" id="te-s3">Couldn’t read this canvas’s comments — run doan check<br><button class="btn" aria-expanded="false">Details ▸</button></p>
   </div></div>
- <div><p class="tile-label"><b>Overview card</b> of the unreadable canvas — shipped, unchanged.</p>
+ <div><p class="tile-label"><b>Overview card</b> of the unreadable canvas — <span class="nic">new</span> sentence, the same as its tree row: “Can't read this canvas — run doan check”.</p>
   <div class="ocard" style="width:215px" data-doan-id="te-card"><div class="thumb"><p class="thumb-msg warn">Can't read this canvas — run doan check</p></div><div class="ocard-body"><span class="ocard-title">legacy-checkout</span><span class="ocard-file">legacy-checkout.html</span><span class="ocard-meta">Yesterday</span></div></div></div>
 </div>
 </section>
 
 <!-- ===================================================== home-summary -->
 <section class="frame" data-doan-frame="home-summary" data-doan-title="Home summary with comments without a canvas" data-doan-implements="app/src/renderer/Home.tsx">
-<div class="flabel"><h2>Home — summary line</h2><span class="nic">new: “· 3 without a canvas”, narrow second line</span><span class="nic">draft layout: narrow</span></div>
-<p class="note">The shipped Home row (Home.tsx, <code>.wt-sum</code>) gains “· 1 resolved to review” (<code>revision-recheck</code>) and “· 3 without a canvas” after “2 open”, in that order; each item shows only when above 0. When the row is too narrow for the whole line, the three comment items move together to a second line under the path, so their order never splits. The Overview card shows no “without a canvas” count. How “resolved to review” looks is <code>revision-recheck</code>'s <code>home-counts</code>; here it is plain <code>--text-3</code>.</p>
+<div class="flabel"><h2>Home — summary line</h2><span class="nic">new: “· 3 without a canvas”</span></div>
+<p class="note">The Home row as <code>revision-recheck</code>'s <code>home-counts</code> draws it (“2 open · 1 resolved to review”, <code>--text-2</code> for the review count) gains “· 3 without a canvas” right after it, in plain <code>--text-3</code>; each item shows only when above 0. When the row is too narrow for the summary next to the branch, the whole summary drops to its own line under the branch and wraps between items (<code>revision-recheck</code>'s accepted layout). Overview cards show “N resolved to review” as <code>home-counts</code> does, and never a “without a canvas” count.</p>
 <div class="tiles two-wide">
  <div><p class="tile-label"><b>Wide</b> — a 1,680 px window (card 528 px): one line.</p>
   <div class="card" style="width:528px" data-doan-id="hs-wide">
    <div class="card-head"><span class="card-name">acme-web</span><span class="meta">2 worktrees</span><span class="spacer"></span><button class="more" aria-label="Project menu acme-web">···</button></div>
-   <div class="wt" role="button" tabindex="0" aria-label="Project main · 4 canvases · 2 open comments · 1 resolved to review · 3 without a canvas · /Users/kim/code/acme-web" data-doan-id="hs-wide-row"><span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum" data-doan-id="hs-wide-sum">4 canvases · <span class="hot">2 open</span> · 1 resolved to review · 3 without a canvas · <time>5m ago</time></span><button class="more" tabindex="-1" aria-label="Row menu">···</button></span><span class="wt-path">~/code/acme-web</span></div>
+   <div class="wt" role="button" tabindex="0" aria-label="Project main · 4 canvases · 2 open comments · 1 resolved to review · 3 without a canvas · /Users/kim/code/acme-web" data-doan-id="hs-wide-row"><span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum" data-doan-id="hs-wide-sum">4 canvases · <span class="hot">2 open</span> · <span class="rr-review">1 resolved to review</span> · <span data-doan-id="hs-wide-orphans">3 without a canvas</span> · <time>5m ago</time></span><button class="more" tabindex="-1" aria-label="Row menu">···</button></span><span class="wt-path">~/code/acme-web</span></div>
    <div class="wt" role="button" tabindex="-1"><span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">feat-billing</span></span><span class="wt-end"><span class="wt-sum">3 canvases · <span class="hot">1 open</span> · <time>Yesterday</time></span><button class="more" tabindex="-1" aria-label="Row menu">···</button></span><span class="wt-path">~/code/acme-web-billing</span></div>
   </div></div>
- <div><p class="tile-label"><b>Narrow</b> — the shipped 1,238 px window (card 381 px): the comment items take the second line.</p>
+ <div><p class="tile-label"><b>Narrow</b> — the shipped 1,238 px window (card 381 px): the whole summary drops under the branch and wraps between items.</p>
   <div class="card" style="width:381px" data-doan-id="hs-narrow">
    <div class="card-head"><span class="card-name">acme-web</span><span class="meta">2 worktrees</span><span class="spacer"></span><button class="more" aria-label="Project menu acme-web">···</button></div>
-   <div class="wt" role="button" tabindex="0" data-doan-id="hs-narrow-row"><span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum">4 canvases · <time>5m ago</time></span><button class="more" tabindex="-1" aria-label="Row menu">···</button></span><span class="wt-path">~/code/acme-web</span><span class="wt-counts" data-doan-id="hs-narrow-counts"><span class="hot">2 open</span> · 1 resolved to review · 3 without a canvas</span></div>
+   <div class="wt rr-narrow" role="button" tabindex="0" data-doan-id="hs-narrow-row"><span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">main</span></span><span class="wt-end"><button class="more" tabindex="-1" aria-label="Row menu">···</button></span><span class="wt-sum" data-doan-id="hs-narrow-sum"><span>4 canvases</span> · <span class="hot">2 open</span> · <span class="rr-review">1 resolved to review</span> · <span>3 without a canvas</span> · <span><time>5m ago</time></span></span><span class="wt-path">~/code/acme-web</span></div>
    <div class="wt" role="button" tabindex="-1"><span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">feat-billing</span></span><span class="wt-end"><span class="wt-sum">3 canvases · <span class="hot">1 open</span> · <time>Yesterday</time></span><button class="more" tabindex="-1" aria-label="Row menu">···</button></span><span class="wt-path">~/code/acme-web-billing</span></div>
   </div></div>
  <div><p class="tile-label"><b>Only without a canvas</b> — no open comment on any canvas: the line starts with the orphan item.</p>
@@ -971,10 +990,10 @@ Say so in the placeholder.</p>
    <div class="card-head"><span class="card-name">billing-api</span><span class="spacer"></span><button class="more" aria-label="Project menu billing-api">···</button></div>
    <div class="wt" role="button" tabindex="0"><span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum" data-doan-id="hs-only-sum">0 canvases · 2 without a canvas · <time>3d ago</time></span><button class="more" tabindex="-1" aria-label="Row menu">···</button></span><span class="wt-path">~/code/billing-api</span></div>
   </div></div>
- <div><p class="tile-label"><b>Overview card</b> — unchanged shipped meta; no “without a canvas” count on cards (orphans belong to no canvas).</p>
+ <div><p class="tile-label"><b>Overview card</b> — <code>home-counts</code> meta with “1 resolved to review” where the canvas has some; no “without a canvas” count on cards (orphans belong to no canvas).</p>
   <div class="ocards" style="width:442px;grid-template-columns:repeat(2,minmax(0,1fr))" data-doan-id="hs-cards">
    <div class="ocard"><div class="thumb"><div class="shot"><span class="n"></span><span class="c"></span><span class="l" style="top:34%"></span><span class="b" style="top:62%"></span></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">checkout.html</span><span class="ocard-meta" data-doan-id="hs-card-meta">6 frames · <span class="hot">4 open</span> · 2h ago</span></div></div>
-   <div class="ocard"><div class="thumb"><div class="shot grid"><span class="n"></span><span class="c"></span><span class="c"></span></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">2026-10-checkout-revamp.html</span><span class="ocard-meta">4 frames · <span class="hot">2 open</span> · 1h ago</span></div></div>
+   <div class="ocard"><div class="thumb"><div class="shot grid"><span class="n"></span><span class="c"></span><span class="c"></span></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">2026-10-checkout-revamp.html</span><span class="ocard-meta rr-wrap"><span>4 frames</span> · <span class="hot">2 open</span> · <span class="rr-review">1 resolved to review</span> · <span>1h ago</span></span></div></div>
   </div></div>
 </div>
 </section>
