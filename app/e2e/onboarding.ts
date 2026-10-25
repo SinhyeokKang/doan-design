@@ -77,7 +77,8 @@ async function wizardSession() {
   }));
 }
 async function ready() { await wizard().waitFor(); await wait(async () => !await button("Check Again").isDisabled(), "machine read"); }
-async function reopen() { await menu("Set Up doan…"); await ready(); }
+// The setup menu item is gone; a wizard comes back only on a launch without onboarding.json.
+async function reopen() { await quit(); await rm(join(data, "onboarding.json"), { force: true }); await launch(); await ready(); }
 async function check() { await button("Check Again").click(); await wait(async () => !await button("Check Again").isDisabled(), "Check Again settled"); }
 async function go(name: string) { await stepButton(name).click(); }
 async function closed() { await wizard().waitFor({ state: "hidden" }); }
@@ -157,13 +158,6 @@ else if (args[1] === 'add') {
   await app.evaluate(({ app }) => app.emit("activate")); await wait(visible, "shown");
   assert.deepEqual(await wizardSession(), session);
   assert.equal(await stepButton("Agents").getAttribute("aria-current"), "step");
-  for (const hidden of [false, true]) {
-    if (hidden) { await menu("Close Window"); await wait(async () => !await visible(), "hidden before menu reopen"); }
-    await reopen();
-    await wait(visible, "menu shows wizard window");
-    assert.deepEqual(await wizardSession(), session, `menu preserves ${hidden ? "hidden" : "visible"} wizard session`);
-    assert.equal(await stepButton("Agents").getAttribute("aria-current"), "step");
-  }
   const electron = createRequire(import.meta.url)("electron") as string;
   const second = spawn(electron, [join(root, "app"), `--user-data-dir=${data}`], { env, stdio: "ignore" });
   const secondCode = await new Promise<number | null>((resolve, reject) => { const timer = setTimeout(() => { second.kill(); reject(new Error("second instance hung")); }, 10_000); second.on("exit", code => { clearTimeout(timer); resolve(code); }); second.on("error", reject); });
@@ -173,7 +167,7 @@ else if (args[1] === 'add') {
   await launch(); await ready(); await page.keyboard.press("Escape"); await closed();
   assert.deepEqual(JSON.parse(await readFile(join(data, "onboarding.json"), "utf8")), {});
   await quit(); await launch(); await page.getByRole("button", { name: "Add Project…", exact: true }).first().waitFor(); assert.equal(await wizard().count(), 0);
-  await menu("Close Window"); await reopen(); assert.equal(await visible(), true); await button(/^Close/).click(); await closed(); await quit();
+  await reopen(); assert.equal(await visible(), true); await button(/^Close/).click(); await closed(); await quit();
   await writeFile(join(data, "onboarding.json"), "{broken"); await launch(); await ready();
   await shot("01-first-run");
 
@@ -181,7 +175,7 @@ else if (args[1] === 'add') {
   await mkdir(join(home, ".local/bin"), { recursive: true }); await writeFile(cliLink, "occupied"); await check();
   await wizard().getByText(/is in use by something else/).waitFor(); assert.equal(await button("Install").isDisabled(), true);
   assert.equal(await readFile(cliLink, "utf8"), "occupied"); await rm(cliLink); await symlink("/missing/other-doan", cliLink); await check();
-  await button("Fix…").click(); const confirm = page.getByRole("alertdialog"); await confirm.waitFor();
+  await button("Fix…").click(); let confirm = page.getByRole("alertdialog"); await confirm.waitFor();
   assert.equal(await focusIs(confirm.getByRole("button", { name: "Cancel", exact: true })), true);
   await page.keyboard.press("Escape"); await confirm.waitFor({ state: "hidden" }); assert.equal(await wizard().isVisible(), true);
   assert.equal(await readlink(cliLink), "/missing/other-doan"); await check(); await button("Fix…").click();
@@ -191,7 +185,7 @@ else if (args[1] === 'add') {
   await releaseCopy(true); await button("Retry copy").waitFor(); assert.equal(await button(/^Close/).isDisabled(), false);
   await button("Retry copy").click(); await busy(); await releaseCopy(false); await button("Copied").waitFor();
   assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), 'export PATH="$HOME/.local/bin:$PATH"'); await restoreCopy();
-  await page.keyboard.press("Escape"); await closed(); await reopen();
+  await page.keyboard.press("Escape"); await closed(); await reopen(); confirm = page.getByRole("alertdialog");
 
   await rm(cliLink); await check(); await button("Install").click(); await wait(async () => { try { return await readlink(cliLink) === cli; } catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") return false; throw e; } }, "missing link installed");
   console.log("onboarding: 3 agent detection, partial setup and MCP states");
@@ -315,7 +309,6 @@ else if (args[1] === 'add') {
   const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true }); await setup.waitFor();
   await assertProjectPath(setup.locator(":scope > p"), setup, plain, "setup dialog");
   assert.equal(await focusIs(setup.getByRole("button", { name: "Choose…", exact: true })), true);
-  await reopen(); await button(/^Close/).click(); await closed(); assert.equal(await setup.isVisible(), true); assert.equal(await focusIs(setup.getByRole("button", { name: "Choose…", exact: true })), true);
   await setup.getByRole("button", { name: "Set Up Project", exact: true }).click(); await setup.waitFor({ state: "hidden" }); await enterProject(page, plain); plainRow = page.getByRole("region", { name: "Overview", exact: true }); await plainRow.getByRole("button", { name: "Copy first prompt", exact: true }).waitFor();
   const noToken = JSON.parse(await readFile(join(plain, ".doan/config.json"), "utf8")); assert.equal(noToken.tokenCss, undefined);
   const terminal = await newRepo("terminal"); await open(terminal); const terminalRow = homeRow(page, terminal); await terminalRow.getByRole("button", { name: "Set Up…", exact: true }).click(); await init(terminal); await setup.waitFor({ state: "hidden" });
@@ -337,18 +330,19 @@ else if (args[1] === 'add') {
   await pick(reopenChild); await reopenRow.getByRole("button", { name: "Locate…", exact: true }).click(); await enterProject(page, reopenParent);
   await page.getByRole("region", { name: "Overview", exact: true }).getByRole("button", { name: "Copy first prompt", exact: true }).waitFor(); assert.equal(await exists(join(reopenChild, ".doan/config.json")), false);
   await enterProject(page, project);
-  await page.getByRole("treeitem", { name: "Overview", exact: true }).focus(); await reopen(); await go("Project"); await pick(project); await button("Open Project…").click(); await wizard().getByRole("heading", { name: "Send your first prompt" }).waitFor(); await button("Done").click(); await closed(); assert.equal(await focusIs(page.getByRole("treeitem", { name: "Overview", exact: true })), true);
+  await reopen(); await go("Project"); await pick(project); await button("Open Project…").click(); await wizard().getByRole("heading", { name: "Send your first prompt" }).waitFor(); await button("Done").click(); await closed();
+  await enterProject(page, project); row = page.getByRole("region", { name: "Overview", exact: true });
   const html = '<!doctype html><title>First</title><meta name="doan:canvas" content="first"><meta name="doan:width" content="800"><style>button{margin:50px;padding:30px}</style><button data-doan-id="target">Target</button>';
   await writeFile(join(project, "design/first.html"), html); await canvasRow(page, "first.html").click(); assert.equal(await row.getByRole("button", { name: "Copy first prompt", exact: true }).count(), 0);
   await page.frameLocator("iframe").getByRole("button", { name: "Target", exact: true }).click();
   const panel = page.getByRole("region", { name: "Comments", exact: true }); await panel.getByRole("button", { name: "New selection comment", exact: true }).click();
   const draft = panel.getByRole("textbox", { name: "New comment body" }); await draft.fill("Keep this draft");
   const active = async () => JSON.parse((await exec(cli, ["active", "--json", "--repo", project], { env })).stdout);
-  const selected = await active(); assert.equal(selected.result?.selection?.element?.doanId, "target"); await reopen(); await page.keyboard.press("Escape"); await closed(); assert.equal(await draft.inputValue(), "Keep this draft"); assert.deepEqual(await active(), selected); assert.equal(await focusIs(draft), true);
+  assert.equal((await active()).result?.selection?.element?.doanId, "target");
   const unsaved = page.getByRole("dialog").filter({ hasText: "Keep writing" });
   // Trigger the real draft guard by opening another canvas.
   await requestProject(page, parent); await unsaved.waitFor(); const keep = unsaved.getByRole("button", { name: "Keep writing", exact: true }); await keep.focus();
-  await reopen(); await button(/^Close/).click(); await closed(); assert.equal(await unsaved.isVisible(), true); assert.equal(await focusIs(keep), true); await keep.click(); assert.equal(await draft.inputValue(), "Keep this draft");
+  await keep.click(); assert.equal(await draft.inputValue(), "Keep this draft");
   await shot("04-draft-preserved");
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
   await quit();
