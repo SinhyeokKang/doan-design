@@ -892,6 +892,51 @@ it("drops a waiting workspace open when a later navigation, a failed read or lea
   } finally { controller.dispose(); }
 });
 
+it("asks the draft guard again before entering a waited-for workspace", async () => {
+  const { controller, row, changed } = loadedController();
+  try {
+    const repo: FolderEntry = { path: "/repo", kind: "list", servedRev: 0, canvases: [row] };
+    const answers: ((allow: boolean) => void)[] = [];
+    let hasDraft = false;
+    const guard = vi.fn(() => hasDraft ? new Promise<boolean>(resolve => answers.push(resolve)) : true);
+    controller.setTransitionGuard(guard);
+    const entered = vi.fn();
+    // The click passes the guard with no draft; a draft is started while the read is pending.
+    const waitWithDraft = (path: string) => {
+      hasDraft = false;
+      controller.updateEntries([repo, { path, kind: "loading" }]);
+      controller.openWorkspace(path, entered);
+      hasDraft = true;
+      controller.updateEntries([repo, { path, kind: "list", servedRev: 0, canvases: [] }]);
+    };
+
+    waitWithDraft("/kept");
+    expect(guard).toHaveBeenCalledTimes(2);
+    answers[0]?.(false); await Promise.resolve();
+    expect(entered).not.toHaveBeenCalled();
+    expect(changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
+
+    waitWithDraft("/superseded");
+    controller.showOverview();
+    answers[1]?.(true); await Promise.resolve();
+    expect(entered).not.toHaveBeenCalled();
+    answers[2]?.(false); await Promise.resolve();
+
+    waitWithDraft("/discarded");
+    expect(entered).not.toHaveBeenCalled();
+    answers[3]?.(true); await Promise.resolve();
+    expect(entered).toHaveBeenCalledExactlyOnceWith("/discarded");
+    expect(changed.mock.lastCall?.[0].open).toBeNull();
+
+    hasDraft = false;
+    entered.mockClear();
+    controller.updateEntries([repo, { path: "/ready", kind: "loading" }]);
+    controller.openWorkspace("/ready", entered);
+    controller.updateEntries([repo, { path: "/ready", kind: "list", servedRev: 0, canvases: [] }]);
+    expect(entered).toHaveBeenCalledExactlyOnceWith("/ready");
+  } finally { controller.dispose(); }
+});
+
 
 describe("frame navigation", () => {
   it("jumps without a guard, selection command or main selection update", () => {

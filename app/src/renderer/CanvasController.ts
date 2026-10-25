@@ -257,7 +257,11 @@ export class CanvasController {
     const kind = waiting && next.find(entry => entry.path === waiting.folder)?.kind;
     if (!waiting || kind === "loading") return;
     this.waitingWorkspace = null;
-    if (kind === "list" && waiting.intent === this.transitionIntent) waiting.open();
+    // A draft can start while the read is pending, so the click's approval is
+    // stale: ask again, and re-validate the result like any other transition.
+    if (kind === "list" && waiting.intent === this.transitionIntent) {
+      this.transition(waiting.open, () => this.entries.find(entry => entry.path === waiting.folder)?.kind === "list");
+    }
   }
 
   private applyEntries(next: FolderEntry[]): void {
