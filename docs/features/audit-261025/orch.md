@@ -174,3 +174,10 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 - A1-fix 원본 `7de6eee`, `cef99e8`: service 회귀 5건 red, 관련 328개 테스트·typecheck green, 실제 CLI 바이트 16건 일치 근거를 인수했다. 증거는 `A1-fix-evidence/`로 복사했다. 구현 terminal은 release하고 child는 재리뷰·통합까지 보존한다.
 - IR-A1-fix는 새 독립 Codex gpt-6-astra medium이다. UTF-8 경계·중복 이벤트 판정·불확실 append 증거를 검토한다. 파일 수정·실행 없이 report만 작성한다.
 - H2-fix `ctx_5f6b3fbe1d13`는 `audit-timing-261025`에서 Astra medium effective/turn_start를 확인했다. Settings 실패 스크린샷에서 Connections와 Fix Link 확인창이 유지된 것을 지휘자가 확인했다. 아직 수정 후 통과는 아니다.
+
+### 재리뷰 수용과 남은 통합 검증
+
+- IR-A1-fix는 must/should 0건이다. 로컬 Go 소스와 실제 CLI 증거까지 대조한 report를 인수하고 `687c06e`, `9329868`로 통합했다. 리뷰 terminal을 release했으며 UTF-8 child는 clean·미통합 `+` 없음·증거 복사 후 제거하고 목록에서 부재를 확인했다.
+- H2-fix에 build·두 관련 native suite·격리 reset mutation 슬롯을 단독 배정했다. 종료까지 root full runtime/package/real-agent eval은 실행하지 않는다.
+- H2-fix 완료 뒤 독립 IR-H2-fix를 Codex gpt-6-astra medium으로 배정한다. 타이밍 경계와 실제 ack 계약 판단이 필요하며 report만 작성한다.
+- 최종 공통 검증은 `--runtime --eval`, 별도 e2e Node helper tests를 포함한다. 패키지는 검증된 HEAD에서 다시 만든다. 이후 실제 `/agent-eval`은 W1·R1·R2b·R3·R4·R5·H3를 양쪽 에이전트로 실행한다. CLI guide/init/댓글과 수정한 active·patch·CSS·연결 import·rubric 경로를 포괄하는 제한 라운드이며, 나머지 시나리오와 unknown_version 실제 에이전트 노출은 검증했다고 주장하지 않는다.
