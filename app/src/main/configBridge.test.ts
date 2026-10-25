@@ -171,10 +171,14 @@ test("a read still running when Settings closes does not refill the serve list",
   const slow = deferred<CliRun>();
   run.mockReturnValueOnce(slow.promise);
   const reading = bridge.read({ root: ROOT });
+  // Let the queued read start its run before Settings closes.
+  await Promise.resolve();
+  expect(run).toHaveBeenCalledOnce();
   bridge.clear();
   slow.resolve(config(["styles"]));
   await reading;
   expect(await bridge.write({ root: ROOT, op: "removeServe", path: "styles" })).toEqual({ kind: "unavailable" });
+  expect(run).toHaveBeenCalledOnce();
 });
 
 test("a picker sheet that finishes after Settings closes returns no choice", async () => {
