@@ -74,14 +74,14 @@ it("does not notify React for repeated layouts or geometry-only changes", () => 
   } finally { controller.dispose(); }
 });
 
-it("uses the open canvas's last successful activity for Updated", () => {
+it("labels the open canvas with its last successful activity", () => {
   const { controller, changed, row } = loadedController();
   try {
     const { width: _width, ...withoutWidth } = row;
     controller.openCanvas("/repo", { ...withoutWidth, path: "design/b.html" });
-    expect(changed.mock.lastCall?.[0].updated).toBeNull();
+    expect(changed.mock.lastCall?.[0].label).toBeNull();
     controller.openCanvas("/repo", row);
-    expect(changed.mock.lastCall?.[0].updated).toBeInstanceOf(Date);
+    expect(changed.mock.lastCall?.[0].label).toMatch(/^Opened \d\d:\d\d$/);
   } finally { controller.dispose(); }
 });
 
@@ -1388,7 +1388,7 @@ describe("a canvas moved with the same id", () => {
       h.layout({ href: h.moved.url });
       const activity = h.state().activity;
       expect(activityFor(activity, "/repo", h.moved.path, "a").map(event => [event.kind, event.from])).toEqual([["moved", h.row.path], ["opened", undefined]]);
-      expect(h.state().updated).toEqual(activity[0]?.at);
+      expect(h.state().label).toMatch(/^Moved \d\d:\d\d$/);
     } finally { h.controller.dispose(); }
   });
 
@@ -1400,7 +1400,7 @@ describe("a canvas moved with the same id", () => {
       h.controller.updateEntries(h.list(replacement, h.other));
       h.layout();
       expect(activityFor(h.state().activity, "/repo", h.row.path, "replacement").map(event => event.kind)).toEqual(["reloaded"]);
-      expect(h.state().updated).toEqual(h.state().activity[0]?.at);
+      expect(h.state().label).toMatch(/^Reloaded \d\d:\d\d$/);
       const moved = { ...replacement, path: "design/new.html", url: "http://localhost/t/k/f/design/new.html" };
       h.controller.updateEntries(h.list(moved, h.other));
       h.layout({ href: moved.url });
@@ -1480,6 +1480,103 @@ describe("a canvas moved with the same id", () => {
       expect(h.send).toHaveBeenLastCalledWith(null);
       expect(h.followed).not.toHaveBeenCalled();
       expect(h.removed).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+});
+
+describe("Activity", () => {
+  function activityHarness() {
+    const h = selectionHarness();
+    const list = (...canvases: object[]) => [{ path: "/repo", kind: "list" as const, servedRev: 0, canvases }] as FolderEntry[];
+    return { ...h, list };
+  }
+
+  it("records a reload as Changed when the row revision moved, counting a missing one as 0, and as Reloaded otherwise", () => {
+    const h = activityHarness();
+    const kinds = () => activityFor(h.state().activity, "/repo", h.row.path, "a").map(event => event.kind);
+    try {
+      // ARCH §13: a row without rev has not changed since the folder was added.
+      h.controller.updateEntries(h.list({ ...h.row, rev: 1 }, h.other));
+      h.layout();
+      expect(kinds()).toEqual(["changed", "opened"]);
+      expect(h.state().label).toMatch(/^Changed \d\d:\d\d$/);
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, rev: 1 }, h.other] }]);
+      h.layout();
+      expect(kinds()).toEqual(["reloaded", "changed", "opened"]);
+      expect(h.state().label).toMatch(/^Reloaded /);
+      h.controller.command("reload");
+      h.layout();
+      expect(kinds()[0]).toBe("reloaded");
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, rev: 2 }, h.other] }]);
+      h.layout();
+      expect(kinds()[0]).toBe("changed");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("keeps Changed when a plain reload replaces a changed one before it lays out", () => {
+    const h = activityHarness();
+    try {
+      h.controller.updateEntries(h.list({ ...h.row, rev: 1 }, h.other));
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, rev: 1 }, h.other] }]);
+      h.layout();
+      expect(activityFor(h.state().activity, "/repo", h.row.path, "a").map(event => event.kind)).toEqual(["changed", "opened"]);
+    } finally { h.controller.dispose(); }
+  });
+
+  const by = { codex: { kind: "agent" as const, name: "codex" }, kim: { kind: "human" as const, name: "Kim Doe", email: "kim@example.com" } };
+  const comment = (id: string, resolvedBy?: Comment["resolvedBy"], resolvedAt = "2026-10-26T10:00:00.000Z"): Comment => ({ comment: id, target: { frame: "hero" }, status: resolvedBy ? "resolved" : "open", body: "x",
+    canvasHash: "h", createdAt: "t", updatedAt: "t", createdBy: by.kim, ...(resolvedBy ? { resolvedBy, resolvedAt } : {}) });
+  const hooks = () => ({ changed: vi.fn(), open: vi.fn(), guard: vi.fn(async () => true), focusFallback: vi.fn() });
+
+  it("groups comments that turned resolved between reads, after a baseline first read", () => {
+    const h = activityHarness();
+    const kinds = () => activityFor(h.state().activity, "/repo", h.row.path, "a").map(event => event.kind);
+    try {
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y"), comment("z"), comment("w")] }, hooks());
+      expect(kinds()).toEqual(["opened"]);
+      h.changed.mockClear();
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y", by.codex, "2026-10-26T10:01:00.000Z"), comment("z", by.kim, "2026-10-26T10:02:00.000Z"), comment("w")] }, hooks());
+      const [latest] = activityFor(h.state().activity, "/repo", h.row.path, "a");
+      expect(latest).toMatchObject({ kind: "resolved", count: 2, resolvedBy: ["codex", "Kim Doe"] });
+      expect(h.changed).toHaveBeenCalled();
+      // Resolved is about comments, so the label keeps the document event.
+      expect(h.state().label).toMatch(/^Opened /);
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y", by.codex), comment("z", by.kim), comment("w", by.kim)] }, hooks());
+      expect(kinds()).toEqual(["resolved", "resolved", "opened"]);
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y", by.codex), comment("z", by.kim), comment("w", by.kim)] }, hooks());
+      expect(kinds()).toEqual(["resolved", "resolved", "opened"]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("takes the first read after the canvas opens again as a baseline, and ignores another canvas's comments", () => {
+    const h = activityHarness();
+    const resolved = () => h.state().activity.filter((event: { kind: string }) => event.kind === "resolved");
+    try {
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x")] }, hooks());
+      h.controller.setComments({ root: "/repo", canvas: "b", comments: [comment("x", by.codex)] }, hooks());
+      expect(resolved()).toEqual([]);
+      h.controller.openCanvas("/repo", h.other);
+      h.layout({ href: h.other.url });
+      h.controller.openCanvas("/repo", h.row);
+      h.layout();
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex)] }, hooks());
+      expect(resolved()).toEqual([]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("keeps the baseline across a reload and a followed move", () => {
+    const h = activityHarness();
+    try {
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x"), comment("y")] }, hooks());
+      h.controller.command("reload");
+      h.layout();
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y")] }, hooks());
+      const moved = { ...h.row, path: "design/flows/a.html", url: "http://localhost/t/k/f/design/flows/a.html" };
+      h.controller.updateEntries(h.list(moved, h.other));
+      h.layout({ href: moved.url });
+      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y", by.kim)] }, hooks());
+      expect(activityFor(h.state().activity, "/repo", moved.path, "a").map(event => [event.kind, event.resolvedBy])).toEqual([
+        ["resolved", ["Kim Doe"]], ["moved", undefined], ["resolved", ["codex"]], ["reloaded", undefined], ["opened", undefined]]);
     } finally { h.controller.dispose(); }
   });
 });

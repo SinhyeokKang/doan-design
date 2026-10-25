@@ -138,6 +138,18 @@ describe("Canvas info", () => {
     expect(html).toContain('<li class="tl-row"><time>14:09:03</time><b>Reloaded</b></li>');
   });
 
+  test("names Changed and a Resolved entry with its count and resolvers", () => {
+    const row = { path: "design/pricing.html", id: "pricing", url: "u", width: 1440, open: 0, resolved: 0 };
+    const at = (minute: number, second: number) => new Date(2026, 9, 26, 14, minute, second);
+    const activity = [
+      { folder: "/repo", canvas: row.path, id: row.id, at: at(9, 30), kind: "resolved" as const, count: 2, resolvedBy: ["codex", "Kim Doe"] },
+      { folder: "/repo", canvas: row.path, id: row.id, at: at(5, 41), kind: "changed" as const },
+      { folder: "/repo", canvas: row.path, id: row.id, at: at(2, 10), kind: "opened" as const },
+    ];
+    const html = renderToStaticMarkup(<RightPanel state={{ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, activity }} selectPath={() => {}} />);
+    expect(html).toContain('<ol><li class="tl-row"><time>14:09:30</time><b>Resolved 2 · codex, Kim Doe</b></li><li class="tl-row"><time>14:05:41</time><b>Changed</b></li><li class="tl-row"><time>14:02:10</time><b>Opened</b></li></ol>');
+  });
+
   test("lists only the open canvas id's events, not another id's at the same path", () => {
     const row = { path: "design/a.html", id: "replacement", url: "u", width: 600, open: 0, resolved: 0 };
     const activity = [{ folder: "/repo", canvas: row.path, id: "a", at: new Date(2026, 9, 26, 14, 9, 3), kind: "opened" as const }];

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Author, Comment } from "../formats/types";
-import { activityFor, activityKind, movedFrom, pushActivity, resolvedActivity, timeText, type ActivityEvent } from "./activity";
+import { activityFor, activityKind, activityText, movedFrom, pushActivity, resolvedActivity, timeText, type ActivityEvent } from "./activity";
 
 const event = (second: number, extra: Partial<ActivityEvent> = {}): ActivityEvent => ({ folder: "/repo", canvas: "design/a.html", at: new Date(2026, 9, 22, 14, 3, second), kind: "opened", ...extra });
 
@@ -65,6 +65,11 @@ test("a reload is Changed only when the canvas row revision differs", () => {
   expect(activityKind(undefined, 4)).toBe("reloaded");
   expect(activityKind(4, undefined)).toBe("reloaded");
   expect(activityKind(undefined, undefined)).toBe("reloaded");
+});
+
+test("names each kind, and a Resolved entry with its count and resolvers", () => {
+  expect((["opened", "changed", "reloaded", "moved"] as const).map(kind => activityText(event(1, { kind })))).toEqual(["Opened", "Changed", "Reloaded", "Moved"]);
+  expect(activityText(event(1, { kind: "resolved", count: 2, resolvedBy: ["codex", "Kim Doe"] }))).toBe("Resolved 2 · codex, Kim Doe");
 });
 
 describe("resolvedActivity", () => {

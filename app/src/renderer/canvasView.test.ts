@@ -12,7 +12,6 @@ import {
   layoutHeight,
   MAX_HEIGHT,
   sameDocument,
-  updatedText,
 } from "./canvasView";
 
 const open = { folder: "/repo", canvas: "design/a.html", row: {} };
@@ -319,13 +318,6 @@ describe("frameLabel", () => {
 
 test("frameLabel preserves duplicate ids as separate labels", () => {
   expect([{ id: "dup", title: "First" }, { id: "dup", title: "Second" }].map(frameLabel)).toEqual([{ id: "dup", title: "First" }, { id: "dup", title: "Second" }]);
-});
-
-describe("updatedText", () => {
-  test("shows local hours, minutes and seconds", () => {
-    expect(updatedText(new Date(2026, 9, 22, 14, 3, 21))).toBe("Updated 14:03:21");
-    expect(updatedText(new Date(2026, 9, 22, 9, 0, 5))).toBe("Updated 09:00:05");
-  });
 });
 
 test("names the moved canvas, the count and the id when several canvases share it", () => {
