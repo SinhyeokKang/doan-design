@@ -107,3 +107,11 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 - C-fix 원본 `4dcf5ba`, `b15de37`를 인수했다. publication 실패 주입·재시도 회귀와 CLI package tests, vet 근거를 복사했다. 실제 hard-link 미지원 마운트 실행은 없으며 테스트 scaffold를 둔 red의 한계를 handoff에 남겼다.
 - IR-C-fix `ctx_3daf3af3690c`: 이전 독립 C 리뷰자를 재사용한다. Codex gpt-6-astra medium, publication 실패·복구 계약 검토. CLI 보완 diff와 handoff만 읽고 report를 작성하며 실행하지 않는다. 계획 파일 생성 명령이 실패했는데 후속 dispatch가 실행되어 선행 커밋 절차를 지키지 못했다. 즉시 brief와 이 기록을 복구했다. C-fix 구현 터미널은 release했고, child는 C/A2 통합·리뷰가 끝날 때까지 보존한다.
 - A2 통합 후보: `ac64c4b`, `45951d5`. 실제 runtime와 독립 리뷰 완료 전까지 최종 수용으로 표시하지 않는다.
+
+### 하네스 보완 후 검증 배치
+
+- C-fix 독립 재리뷰는 추가 수정 0건으로 끝났다. 통합 후보 `29b5953`, `5f1c0b4`; A3a 통합 후보 `bf01356`, `44e554c`.
+- CLI/A2와 댓글/A3a 자식 worktree는 tracked clean, `git cherry`에 미통합 `+` 없음, 필요한 handoff·log·review 복사를 확인한 뒤 Orca로 제거했다. 두 terminal은 release했고 worktree 목록에서 두 child가 사라졌다.
+- 버튼 높이 별도 Electron 측정: 현재 center에서 22px, stretch에서 22.5px, 명시적 -apple-system에서도 22px. 실사용자 상태 unchanged, exit 0. 첫 probe는 잘못된 Electron import로 실패해 해당 probe 프로세스만 종료했다. H는 같은 스타일의 자연 높이 reference와 비교하도록 단언을 보완하며, 강제 stretch가 실패하는지도 검증한다. 제품 스타일은 바꾸지 않는다.
+- E-fix: H 완료 뒤 기존 E 소유자를 새 Task로 재사용한다. Codex gpt-6-astra medium, 실행 증거와 CSS 도달 판정의 음성 대조가 필요하다. 소유권 eval/의 두 리뷰 지적과 관련 테스트, targeted red→green 후 통합 runner/self-test. 전체 테스트 슬롯은 별도 예약한다.
+- H2: H 통합 뒤 새 child를 통합 브랜치에서 만든다. Codex gpt-6-astra medium, 실제 창·앱 숨김과 guard·Undo 수명 주기 검증. 소유권 app/e2e/comments-ui.ts·projects-home.ts·design-nav.ts 및 직접 필요한 e2e helper. 숨김 Undo, 숨김 종료 guard, ID 없는 유효 width 미리보기와 댓글 제한을 기존 suite에 추가한다. A-M1 미결정 정책은 제외한다. native 실행 슬롯을 예약하고 스크린샷·exit·real-state 근거를 인수한다.
