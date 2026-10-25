@@ -25,7 +25,13 @@
    - 핀 Enter 뒤 activeElement
    - Updated 라벨 대비
    - 카드 동작 줄 줄바꿈
-   - 검증: 측정 로그와 스크린샷 경로를 이 항목 아래에 적는다. command undecided — needs user confirmation.
+   - 검증: 측정 로그와 스크린샷 경로를 이 항목 아래에 적는다. 명령은 orch.md 결정 로그대로 `node .scratch/comments-readability/measure.mjs`(`npm --prefix app run build` 뒤)다.
+   - **결과 (2026-10-26, 배치 E)**: 2회 실행, 매회 두 크기를 재서 40개 검사 모두 통과했다. 두 실행의 값이 같고, 종료 코드 0, 실제 상태는 바뀌지 않았다.
+     - 960×600: 작성기를 열면 패널 client height 282, scrollTop 114다. 제목·To:·입력란·Save의 위쪽은 패널 안 0, 70, 93.8, 165.8px이다. 입력란 최소 높이는 64px이고, 위로 스크롤하면 범위·상태 필터에 닿는다. 확정 초안과 숫자가 같다.
+     - 1238×780: 패널 462, scrollTop 0, 네 요소 모두 패널 안, 입력란 104px. 초안과 같다.
+     - 대상 줄: 위치를 찾을 수 있으면 `button.locatable`, rgb(240,119,58), opacity 1, title "Show on canvas\n<선택자>", hover 밑줄. Location unavailable과 캔버스 댓글은 `span`, rgb(181,179,171), opacity 1. 배지 설명 "Not found in the current canvas."는 rgb(143,142,135)다.
+     - Updated 라벨: 배경 rgb(23,23,23), 3px 8px, 6px, 대비 5.45(초안과 같다). 카드 동작 줄은 카드 5개 모두 한 줄(23px)이다. 핀 aria는 "3 open comments"다. Cancel 뒤 포커스는 "Comment on selection", 핀 Enter 뒤 포커스는 첫 카드 article이다.
+     - 근거: `.scratch/orch/comments-readability/evidence-E/measure/`(`measure-1.log`, `measure-2.log`, `run-*/measurements.json`, 크기별 스크린샷 4장), 스크립트 사본 `.scratch/comments-readability/measure.mjs`. 화면이 잠긴 상태에서 쟀다(DOM 포커스는 동작한다).
 7. **런타임 회귀**: `app/e2e/comments-ui.ts`에 추가한다. 창 크기는 `runtime.ts`의 크기 조정 도구를 export해 쓰거나 `electronApp.evaluate`로 바꾼다.
    - doan-id 없는 요소의 대상 표시와 960×600의 To: 한 줄 말줄임
    - 960×600에서 작성기에 도달할 수 있는지
