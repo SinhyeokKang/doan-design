@@ -445,12 +445,12 @@ test.each([
 test("inspectAttempt is saved only when every event is present and absent only when none is", () => {
   const base = Buffer.from(JSON.stringify({ v: 1, id: "evt_00000000-0000-4000-8000-000000000001", comment: "cmt_00000000-0000-4000-8000-000000000001", at: "2026-01-01T00:00:00.000Z", type: "create", by: { kind: "human", name: "Kim" }, body: "b", target: {}, canvasHash: "sha256:" + "a".repeat(64) }) + "\n");
   const event = (n: number, type: "edit" | "reopen") => ({ v: 1, id: `evt_00000000-0000-4000-8000-00000000000${n}`, comment: "cmt_00000000-0000-4000-8000-000000000001", at: `2026-01-01T00:00:00.00${n}Z`, by: { kind: "human", name: "Kim" }, type, ...(type === "edit" ? { body: "e" } : {}) }) as CommentEvent;
-  const events = [event(2, "edit"), event(3, "reopen")];
+  const events: [CommentEvent, CommentEvent] = [event(2, "edit"), event(3, "reopen")];
   const evidence = { events, before: attemptBaseline(base) };
   const withLines = (...added: CommentEvent[]) => Buffer.concat([base, ...added.map(e => Buffer.from(JSON.stringify(e) + "\n"))]);
-  expect(inspectAttempt(withLines(...events), evidence)).toEqual({ state: "saved", event: events[0]?.id, comment: events[0]?.comment });
-  expect(inspectAttempt(base, evidence)).toEqual({ state: "absent", event: events[0]?.id, comment: events[0]?.comment });
+  expect(inspectAttempt(withLines(...events), evidence)).toEqual({ state: "saved", event: events[0].id, comment: events[0].comment });
+  expect(inspectAttempt(base, evidence)).toEqual({ state: "absent", event: events[0].id, comment: events[0].comment });
   for (const one of events) expect(inspectAttempt(withLines(one), evidence)).toMatchObject({ state: "unknown" });
-  expect(inspectAttempt(withLines(events[0] as CommentEvent, { ...(events[1] as CommentEvent), at: "2026-01-01T00:00:00.009Z" }), evidence)).toMatchObject({ state: "unknown" });
-  expect(inspectAttempt(withLines(events[0] as CommentEvent), { events: [events[0] as CommentEvent], before: attemptBaseline(base) })).toMatchObject({ state: "saved" });
+  expect(inspectAttempt(withLines(events[0], { ...events[1], at: "2026-01-01T00:00:00.009Z" }), evidence)).toMatchObject({ state: "unknown" });
+  expect(inspectAttempt(withLines(events[0]), { events: [events[0]], before: attemptBaseline(base) })).toMatchObject({ state: "saved" });
 });

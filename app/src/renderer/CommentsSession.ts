@@ -351,7 +351,7 @@ export class CommentsSession {
   }
   async confirmCard(id: string) {
     const state = this.mutations.get(id), previous = this.cardPending.get(id);
-    if (state?.status !== "reviewed" || !previous || !this.list || !same(previous, this.identity) || previous.intent.type === "create" || previous.intent.type === "edit") return;
+    if (state?.status !== "reviewed" || !previous || !this.list || !same(previous, this.identity) || previous.intent.type === "create" || previous.intent.type === "edit" || previous.intent.type === "edit-reopen") return;
     const request: MutationRequest = { ...this.request(), project: this.list.project, intent: { type: previous.intent.type, comment: id, expected: expectedComment(state.latest) } };
     if (request.intent.type === "delete") { this.deleteConfirmation = { request, comment: structuredClone(state.latest) }; this.emit(); return; }
     this.cardPending.set(id, request); await this.cardSubmit(id, request, false);

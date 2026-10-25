@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { prepareEvent, type MutationIntent } from "../../comments/events";
+import { prepareEditReopen, prepareEvent, type EventAuthority, type MutationIntent } from "../../comments/events";
 import { copyText, type CopyScope } from "../../comments/projection";
 import { parseLines } from "../../formats/fold";
 import { foldText } from "../../formats/foldText";
@@ -32,7 +32,10 @@ export interface ServiceDependencies {
   invalidated(root: string): void;
 }
 interface Origin { requester: string; identity: CommentIdentity; epoch: number; document: DocumentOrigin }
-interface Attempt { payload: unknown; event: CommentEvent; before: { length: number; digest: string; warnings: number } }
+export interface Baseline { length: number; digest: string; warnings: number }
+// One request may write several events in one append; they stand or fall together.
+export interface AttemptEvidence { events: readonly [CommentEvent, ...CommentEvent[]]; before: Baseline }
+interface Attempt extends AttemptEvidence { payload: unknown }
 const baseKeys = ["root", "path", "canvas", "requestID"];
 function request(value: unknown, extras: string[] = []): CommentRequest {
   if (!object(value) || !baseKeys.every(key => typeof value[key] === "string" && value[key].length > 0 && value[key].length <= 4096 && !value[key].includes("\0")) || Object.keys(value).some(key => ![...baseKeys, ...extras].includes(key))) throw new Error("Invalid comments request.");
@@ -67,18 +70,27 @@ function digest(bytes: Buffer): string { return createHash("sha256").update(byte
 function readList(bytes: Buffer): Omit<CommentList, "project" | "canvasHash"> {
   return foldText(text(bytes));
 }
-function inspectAttempt(bytes: Buffer, attempt: Attempt): SavedStatus {
+export function attemptBaseline(bytes: Buffer): Baseline {
+  return { length: bytes.length, digest: digest(bytes), warnings: parseLines(text(bytes)).warnings.length };
+}
+export function inspectAttempt(bytes: Buffer, attempt: AttemptEvidence): SavedStatus {
   try {
     const parsed = parseLines(text(bytes));
-    const matches = parsed.events.filter(({ event }) => event.id === attempt.event.id);
-    if (matches.some(({ event }) => !isDeepStrictEqual(event, attempt.event))) return { state: "unknown", error: "Conflicting event content; no retry was written." };
+    const [first] = attempt.events;
+    const found = attempt.events.map(expected => {
+      const matches = parsed.events.filter(({ event }) => event.id === expected.id);
+      return { matches: matches.length, conflict: matches.some(({ event }) => !isDeepStrictEqual(event, expected)) };
+    });
+    if (found.some(({ conflict }) => conflict)) return { state: "unknown", error: "Conflicting event content; no retry was written." };
     // New malformed bytes may be a partial write, even if a complete copy exists elsewhere.
     const samePrefix = bytes.length >= attempt.before.length && digest(bytes.subarray(0, attempt.before.length)) === attempt.before.digest;
     // Only an unchanged baseline may contain pre-existing malformed UTF-8.
     new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(samePrefix ? bytes.subarray(attempt.before.length) : bytes);
     if (parsed.warnings.length > attempt.before.warnings || (!samePrefix && parsed.warnings.length)) return { state: "unknown", error: "Partial or unreadable event data; no retry was written." };
-    if (matches.length) return { state: "saved", event: attempt.event.id, comment: attempt.event.comment };
-    return { state: "absent", event: attempt.event.id, comment: attempt.event.comment };
+    const present = found.filter(({ matches }) => matches > 0).length;
+    // A partial set cannot be completed: appending the rest would split one request across two writes.
+    if (present > 0 && present < found.length) return { state: "unknown", error: "Only part of the saved request was found; no retry was written." };
+    return { state: present ? "saved" : "absent", event: first.id, comment: first.comment };
   } catch (error) { return { state: "unknown", error: message(error) }; }
 }
 
@@ -86,12 +98,19 @@ function validIntent(value: unknown): value is MutationIntent {
   if (!object(value)) return false;
   const exact = (keys: string[]) => Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
   if (value.type === "create") return exact(["type", "body"]) && typeof value.body === "string" && value.body.trim().length > 0;
-  if (!["edit", "delete", "resolve", "reopen"].includes(String(value.type)) || typeof value.comment !== "string" || !object(value.expected)) return false;
-  if (!exact(value.type === "edit" ? ["type", "comment", "body", "expected"] : ["type", "comment", "expected"])) return false;
+  const withBody = value.type === "edit" || value.type === "edit-reopen";
+  if (!["edit", "edit-reopen", "delete", "resolve", "reopen"].includes(String(value.type)) || typeof value.comment !== "string" || !object(value.expected)) return false;
+  if (!exact(withBody ? ["type", "comment", "body", "expected"] : ["type", "comment", "expected"])) return false;
   const expected = value.expected;
   return typeof expected.body === "string" && (expected.status === "open" || expected.status === "resolved") && typeof expected.updatedAt === "string" &&
     (expected.resolvedAt === undefined || typeof expected.resolvedAt === "string") && Object.keys(expected).every(key => ["body", "status", "updatedAt", "resolvedAt"].includes(key)) &&
-    (value.type !== "edit" || (typeof value.body === "string" && value.body.trim().length > 0));
+    (!withBody || (typeof value.body === "string" && value.body.trim().length > 0));
+}
+function prepare(latest: Buffer, intent: unknown, authority: EventAuthority, ids: readonly string[]): AttemptEvidence["events"] {
+  if (!object(intent) || intent.type !== "edit-reopen") return [prepareEvent(text(latest), intent, authority)];
+  const reopen = ids[1];
+  if (!reopen) throw new Error("No prepared reopen event.");
+  return prepareEditReopen(text(latest), intent, authority, reopen);
 }
 
 export function createCommentsService(deps: ServiceDependencies) {
@@ -186,25 +205,28 @@ export function createCommentsService(deps: ServiceDependencies) {
             }
             if (origin && (current.width === null || !await deps.validateDocument(r, origin.document, current.url))) throw new Error("Original document or target changed; the draft was not saved.");
             if (deps.epoch(r.root) !== epoch) throw new Error("Project was closed or reopened.");
+            const create = origin ? { create: { target: origin.document.target, canvasHash: origin.document.hash, documentValid: true } } : {};
             if (attempt) {
-              prepareEvent(text(latest), value.intent, { id: attempt.event.id, comment: attempt.event.comment, by: attempt.event.by, now: Date.parse(attempt.event.at), ...(origin ? { create: { target: origin.document.target, canvasHash: origin.document.hash, documentValid: true } } : {}) });
+              // Revalidate against the latest file, but write the stored events unchanged.
+              const [first] = attempt.events;
+              prepare(latest, value.intent, { id: first.id, comment: first.comment, by: first.by, now: Date.parse(first.at), ...create }, attempt.events.map(event => event.id));
             }
             if (!attempt) {
-              const event = prepareEvent(text(latest), value.intent, { id: `evt_${randomUUID()}`, comment: `cmt_${randomUUID()}`, by, now: Date.now(), ...(origin ? { create: { target: origin.document.target, canvasHash: origin.document.hash, documentValid: true } } : {}) });
-              attempt = { payload: structuredClone(value), event, before: { length: latest.length, digest: digest(latest), warnings: parseLines(text(latest)).warnings.length } };
+              const events = prepare(latest, value.intent, { id: `evt_${randomUUID()}`, comment: `cmt_${randomUUID()}`, by, now: Date.now(), ...create }, [`evt_${randomUUID()}`, `evt_${randomUUID()}`]);
+              attempt = { payload: structuredClone(value), events, before: attemptBaseline(latest) };
               attempts.set(attemptKey, attempt);
             }
-            return Buffer.from(JSON.stringify(attempt.event) + "\n");
+            return Buffer.from(attempt.events.map(event => JSON.stringify(event) + "\n").join(""));
           });
         } catch (error) {
           if (error instanceof MkdirTerminationUnconfirmedError) { blockedRoots.add(r.root); return blocked(); }
-          if (error instanceof AppendUncertainError) return { state: "unknown", error: message(error), ...(attempt ? { event: attempt.event.id, comment: attempt.event.comment } : {}) };
+          if (error instanceof AppendUncertainError) return { state: "unknown", error: message(error), ...(attempt ? { event: attempt.events[0].id, comment: attempt.events[0].comment } : {}) };
           throw error;
         }
         deps.invalidated(r.root);
         if (!attempt) return { state: "unknown", error: "No prepared event." };
         const confirmed = await check(r, attempt);
-        return confirmed.state === "absent" ? { state: "unknown", event: attempt.event.id, comment: attempt.event.comment, error: "The append completed, but the current file no longer contains it. Check saved status." } : confirmed;
+        return confirmed.state === "absent" ? { state: "unknown", event: attempt.events[0].id, comment: attempt.events[0].comment, error: "The append completed, but the current file no longer contains it. Check saved status." } : confirmed;
       }));
     },
     copy(_who: string, value: unknown): Promise<CommentReply<{ copied: true }>> {
