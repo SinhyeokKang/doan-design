@@ -25,6 +25,7 @@
 | 2026-10-26 | B7을 R-B6과 병렬로 시작한다. R-B6의 지적 중 B7이 가진 파일의 것은 B7 통합 뒤 새 수정 작업자에게 보낸다 | 지휘자 판단 — B6 test 2239·typecheck 통과, B7은 B6 파일을 이어 받으므로 리뷰를 기다리면 직렬 대기만 길어진다 |
 | 2026-10-26 | R-B7 🟡 3건(이동 뒤 검토 확인 무응답 → 검토·복구 중 카드는 R2대로 이동 차단, 접힌 트리 행이 이동 뒤 펼쳐짐 → 이동에서는 새 조상만 펼침, Activity가 경로 키라 이전 id 기록이 섞임 → (root, canvas id) 키)은 B8 통합 뒤 새 작업자 B7fix(Opus high)가 고친다 | 지휘자 판단 — 세 수정이 B8이 지금 가진 `CommentsSession.ts`·`CanvasController.ts`와 겹친다. 고칠 방향은 design 3절과 키 원칙이 이미 정했다 |
 | 2026-10-26 | E를 둘로 나눈다. E1은 지금 e2e 모듈만 쓰고 모듈 단독 실행(`npm --prefix app run build` 뒤 `node app/e2e/revision-continuity.ts`)으로 확인한다. E2는 B8·B7fix 통합 뒤 모듈을 다시 돌리고 `/design-sync`를 한다 | 지휘자 판단 — e2e 파일만 고치므로 B8과 겹치지 않는다. 모듈 단독 실행은 전체 묶음이 아니라서 '전체 e2e는 지휘자만' 규칙과 맞는다. 작업자는 완료 뒤 후속 지시를 놓치기 쉬우므로 2단계는 새 작업자가 맡는다 |
+| 2026-10-26 | 리로드 뒤 iframe이 150px에 멈추는 현상(M2: 스크린샷을 찍을 때 2/10, B8: 찍지 않아도 1/20)은 조사 배치 S(Opus high, 코드 수정 없음)가 원인을 찾고, 고침은 결과를 보고 정한다 | 지휘자 판단 — 핀이 사라지고 Reload로만 돌아오므로 리뷰 흐름을 끊는 결함이다. 기존부터 있었는지 먼저 확인해야 범위를 정할 수 있다 |
 | 2026-10-26 | 이 기능은 CLI·MCP·skills·공유 형식을 바꾸지 않으므로 `/agent-eval` 회차를 돌리지 않는다. 체인의 유일한 실제 회차는 링크 5다 | spec '사용자', design 'CLI·MCP·skills·공유 형식: 바뀌지 않는다', 체인 규칙 |
 
 ## 배치
@@ -37,7 +38,7 @@
 | A | 5 | `app/src/main/{watch,shell,thumbnails,view}.ts`와 테스트 | P 통합 | Opus high (폐기된 읽기, rev 유실, 루트 삭제 등 동시성) | test(watch·shell·thumbnails), typecheck | 통합 1046d17 · 리뷰 R-A 진행 |
 | B6 | 6 | `CommentsSession.ts`, `useComments.tsx`, `CommentsPanel.tsx`, `CanvasController.ts`, `draft.ts` 연결, `styles.css`와 각 테스트 | P 통합 | Opus high (begin 펜스, guard 수명, 늦은 완료) | test, typecheck | 통합 03bf480 · 리뷰 R-B6 진행 |
 | B7 | 7 | B6 파일 + `activity.ts`, `Sidebar.tsx`, `App.tsx`, `app/src/main/uiState.ts`와 테스트 | B6 통합 | Opus high (이동 따라가기의 요청 상태 판정, 진행 중 read 무효화) | test, typecheck | 통합 5b02787 · 리뷰 R-B7 진행 |
-| B8 | 8 | `CanvasController.ts`, `useComments.tsx`, `CommentsPanel.tsx`, `commentAnchors.ts`와 테스트 | B7 통합, M2 결과 | Opus high (Esc 기본 동작과 범위 효과에, T-11이 재현되어 앵커 pending의 수명이 더해진다) | test, typecheck | 진행(R-B6 🟡·⚪4·⚪5 포함) |
+| B8 | 8 | `CanvasController.ts`, `useComments.tsx`, `CommentsPanel.tsx`, `commentAnchors.ts`와 테스트 | B7 통합, M2 결과 | Opus high (Esc 기본 동작과 범위 효과에, T-11이 재현되어 앵커 pending의 수명이 더해진다) | test, typecheck | 통합 2ad0fff · 리뷰 R-B8 진행 |
 | E1·E2 | 9, design-sync | `app/e2e/revision-continuity.ts`, `app/e2e/runtime.ts` import, design-sync가 고칠 렌더러 CSS·마크업, `docs/DESIGN.md`, `.scratch/design-sync/revision-continuity/` | B8 통합 | Opus high (iframe 교체를 지나는 폴링, 재시작 시나리오, 실측 비교) | 모듈 단독 실행 PASS(전체 e2e는 지휘자), design-sync 완료 조건 | 대기 |
 | R-* | 배치별 리뷰 | 보고서만 | 각 구현 배치 | R-P·R-A·R-B7·R-E: Codex Astra medium (다른 계열의 읽기). R-B6·R-B8: Opus high | `/code-review`, 🔴 0 | — |
 | 지휘자 | 10 | — | 전부 통합 | — | `node .agents/skills/verify/scripts/verify.mjs --runtime` 최종 PASS, exit 0 | 대기 |
@@ -75,3 +76,5 @@ tasks.md의 1~11은 모두 위 배치 중 하나에 속한다.
 - 2026-10-26: B8(`ctx_697cf7c49852`, Opus high, `rc-b8`)과 R-B7(`ctx_605ba2093612`, Codex `gpt-6-astra` medium, `rc-r-b7`) 시작.
 - 2026-10-26: R-B7 완료(Codex Astra medium) — 🔴 0 · 🟡 3 · ⚪ 0, 세 가지 모두 재현 테스트로 확인(`evidence-R-B7/`). B7fix로 보낸다(결정 로그). R-B7 해제, `rc-r-b7` 제거.
 - 2026-10-26: E1(`ctx_71bd48a94dde`, Opus high, `rc-e1`) 시작.
+- 2026-10-26: B8 완료(`d99345c`) — red 14건 뒤 green. t11 재측정: 빈 Selection 목록 20/20→0/20, Location unavailable 6/10→0/10, Canvas 범위 유지 10/10. 핀은 설계대로 새 layout 뒤 다시 그린다. 150px 정지 1/20이 스크린샷 없이도 나왔다. 통합(`2ad0fff`), 통합 HEAD test 2282·typecheck 통과(지휘자 실행). B8 해제, `rc-b8` 제거.
+- 2026-10-26: B7fix(`ctx_21a2e85acf67`, Opus high, `rc-b7fix`), S(`ctx_3e19e22189e5`, Opus high, `rc-s`), R-B8(`ctx_d1233d7cc313`, Opus high, `rc-r-b8`) 시작.
