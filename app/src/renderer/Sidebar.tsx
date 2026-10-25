@@ -69,11 +69,16 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
     onExpandedChange?.(root, paths);
   };
   const toggle = (key: string) => { const next = new Set(expanded); if (next.has(key)) next.delete(key); else next.add(key); change(next); };
+  const lastOpened = useRef<string | null>(null);
   useEffect(() => {
+    const previous = lastOpened.current;
+    lastOpened.current = opened;
     if (!opened) return;
+    // A move is the same row: it keeps its own expansion and only the folders it moved into open.
+    const same = moved?.root === root && moved.from === previous && moved.to === opened;
     const next = new Set(saved?.[root] ?? memory[root] ?? defaults);
     const parts = opened.split("/");
-    for (let i = 1; i <= parts.length; i++) next.add(parts.slice(0, i).join("/"));
+    for (let i = 1; i <= parts.length - (same ? 1 : 0); i++) next.add(parts.slice(0, i).join("/"));
     change(next);
   }, [root, opened]);
 
