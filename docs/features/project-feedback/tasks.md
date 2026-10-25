@@ -81,6 +81,6 @@
       - §12: `ls` 응답 계약
       - §13: 프로젝트 상태, 행 오류
       - §14·`docs/USABILITY-EVAL.md`: H8
-    - DESIGN.md: Feedback 패널은 초안이 없는 새 화면이므로 측정값과 미검증 표면만 적는다.
+    - DESIGN.md: Feedback 패널은 링크 0 초안(`design/project-feedback.html`)과 `/design-sync`의 측정값, 미검증 표면을 적는다.
     - 그 뒤 `docs/features/project-feedback/`를 삭제한다.
     - 검증: 위치 목록을 하나씩 확인한다. 남은 참조 검사는 command undecided — needs user confirmation이고, 진행 중인 다른 기능 문서의 참조는 판정에서 뺀다. `[커밋]`
