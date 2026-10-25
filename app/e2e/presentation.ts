@@ -89,7 +89,7 @@ try {
   await exec("git", ["-C", repo, "commit", "-qm", "init"]);
   await exec("git", ["-C", repo, "worktree", "add", "-qb", "second", tree]);
   const title = "UnbrokenCanvasTitle".repeat(15);
-  await writeFile(join(repo, "design/canvas.html"), `<!doctype html><title>${title}</title><meta name="doan:canvas" content="presentation"><meta name="doan:width" content="800"><style>:root{color-scheme:light}body{margin:0;background:#eee;min-height:900px}section{margin:80px;width:500px;height:300px;background:#ddd}</style><section data-doan-frame="hero">Presentation frame</section>`);
+  await writeFile(join(repo, "design/canvas.html"), `<!doctype html><title>${title}</title><meta name="doan:canvas" content="presentation"><meta name="doan:width" content="800"><style>section{color:rgb(1,2,3)}@media(prefers-color-scheme:dark){section{color:rgb(4,5,6)}}body{margin:0;background:#eee;min-height:900px}section{margin:80px;width:500px;height:300px;background:#ddd}</style><section data-doan-frame="hero">Presentation frame</section>`);
   await writeFile(join(repo, "design/no-width.html"), '<!doctype html><title>No width</title><meta name="doan:canvas" content="no-width"><p>No width</p>');
   await writeFile(join(data, "folders.json"), JSON.stringify([repo, tree, empty, removed]));
   await exec("go", ["build", "-o", cli, "./cli/cmd/doan"], { cwd: root });
@@ -140,7 +140,6 @@ try {
   await shot(settings, "settings-unbroken-branch");
   check(messages.length === 0, `${dev ? "DEV" : "production"} entry stylesheet CSP`, messages);
   await (await appWindow(app, settings)).evaluate(window => window.close());
-  if (!dev) {
     await enterProject(page, empty); await firstPrompt(page, "overview");
     await enterProject(page, repo);
     const cardTitle = page.locator(".ocard-title").filter({ hasText: title }); await cardTitle.waitFor();
@@ -148,7 +147,35 @@ try {
     await canvasRow(page, "canvas.html").click();
     const frame = page.locator("iframe").contentFrame(); await frame.locator("section").waitFor();
     await page.locator(".zctl:not(.disabled)").waitFor();
-    check(await frame.locator("html").evaluate(el => getComputedStyle(el).colorScheme) === "light", "canvas keeps its light theme", await frame.locator("html").evaluate(el => getComputedStyle(el).colorScheme));
+    // An iframe's preferred scheme comes from its embedding element. Compare
+    // with the pre-change renderer default without changing OS preferences.
+    const canvasScheme = async () => frame.locator("section").evaluate(el => ({
+      dark: matchMedia("(prefers-color-scheme: dark)").matches,
+      light: matchMedia("(prefers-color-scheme: light)").matches,
+      color: getComputedStyle(el).color,
+    }));
+    const initialScheme = await canvasScheme();
+    const reloadCanvas = async () => {
+      const previous = await page.locator("iframe").elementHandle(); assert.ok(previous);
+      await page.getByRole("button", { name: "Reload canvas", exact: true }).click();
+      await waitFor(async () => !await previous.evaluate(el => el.isConnected), "recreated canvas iframe");
+      await frame.locator("section").waitFor(); await page.locator(".zctl:not(.disabled)").waitFor();
+    };
+    await page.locator("html").evaluate(el => { el.style.colorScheme = "normal"; });
+    await reloadCanvas();
+    await frame.locator("section").evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    const baselineScheme = await canvasScheme();
+    await page.locator("html").evaluate(el => { el.style.removeProperty("color-scheme"); });
+    await frame.locator("section").evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    const actualScheme = await canvasScheme();
+    await reloadCanvas();
+    const recreatedScheme = await canvasScheme();
+    const embeddingScheme = await page.locator("iframe").evaluate(el => ({ scheme: getComputedStyle(el).colorScheme, sandbox: el.getAttribute("sandbox") }));
+    check([initialScheme, actualScheme, recreatedScheme].every(value => JSON.stringify(value) === JSON.stringify(baselineScheme)), "canvas media preference survives renderer dark scheme", { initialScheme, baselineScheme, actualScheme, recreatedScheme, embeddingScheme });
+    check(await page.locator("html").evaluate(el => getComputedStyle(el).colorScheme) === "dark", "actual renderer source remains dark after media probe", actualScheme);
+    console.log("media probe engine", await app.evaluate(() => ({ electron: process.versions.electron, chrome: process.versions.chrome })));
+    await shot(page, "canvas-media-preference");
+  if (!dev) {
     for (const [label, trigger] of [["Sidebar", canvasRow(page, "canvas.html").locator(".g")], ["Fit", page.getByRole("button", { name: "Fit", exact: true })], ["PathTip", page.locator(".repo")]] as const) {
       await hoverTooltip(page, trigger);
       const content = page.locator('[data-slot="tooltip-content"]'); const m = await styles(content);
@@ -189,7 +216,8 @@ try {
         // Notices deliberately ignore pointer events; inspect paint order with that temporarily enabled.
         const target = document.querySelector<HTMLElement>(chrome)!; const old = target.style.pointerEvents; target.style.pointerEvents = "auto";
         const hits = document.elementsFromPoint(r.x + r.width / 2, r.y + r.height / 2); target.style.pointerEvents = old;
-        return { top: hits[0]?.className, above: hits.indexOf(pin) > hits.findIndex(el => el === target || target.contains(el)), z: getComputedStyle(pin).zIndex, nodes: all.length };
+        const chromeIndex = hits.findIndex(el => el === target || target.contains(el)), pinIndex = hits.indexOf(pin);
+        return { top: hits[0]?.className, above: chromeIndex >= 0 && pinIndex > chromeIndex, chromeIndex, pinIndex, z: getComputedStyle(pin).zIndex, nodes: all.length };
       }, chrome);
       check(stacking.above && stacking.z === "3", `focused pin below ${chrome}`, stacking); await shot(page, `pin-${chrome.slice(1)}`);
     }
