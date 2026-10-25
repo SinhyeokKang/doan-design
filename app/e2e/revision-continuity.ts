@@ -31,13 +31,17 @@ let page!: Page;
 const guard = suiteGuard({ name: "revision-continuity", app: () => app, verify: () => assertRealState(beforeRealState), cleanup: () => rm(work, { recursive: true, force: true }), timeoutMs: 300_000 });
 
 const RELOADED = "The canvas reloaded while you were writing. Your text is kept — continue on the current version to save it.";
+const LOADING = "Waiting for the canvas to finish loading.";
+const LOAD_FAILED = "The current version couldn\u2019t load. Reload the canvas to try again.";
+// The canvas script cannot reach the app, so the reloaded document never lays out.
+const SILENT = "<script>window.parent = { postMessage() {} };</script>";
 const SELECTION_GONE = "Your selection is no longer in the canvas. Select an element or frame, or continue on the whole canvas.";
 // `rev` changes the bytes without changing what is rendered.
-const canvas = (id: string, title: string, options: { width?: number | null; other?: boolean; rev?: string } = {}) =>
+const canvas = (id: string, title: string, options: { width?: number | null; other?: boolean; rev?: string; extra?: string } = {}) =>
   `<!doctype html><title>${title}</title><meta name="doan:canvas" content="${id}">${options.width === null ? "" : `<meta name="doan:width" content="${options.width ?? 800}">`}`
   + "<style>body{margin:0;min-height:700px;background:#eee;font:14px sans-serif}section{margin:50px;width:500px;height:300px;background:#ccc;padding:20px}button{display:block;margin:20px;padding:16px}</style>"
   + `<section data-doan-frame="hero" data-doan-title="Hero"><button data-doan-id="child">Child target</button>${options.other === false ? "" : '<button data-doan-id="other">Other target</button>'}</section>`
-  + (options.rev ? `<!-- rev ${options.rev} -->` : "");
+  + (options.extra ?? "") + (options.rev ? `<!-- rev ${options.rev} -->` : "");
 
 const failures: string[] = [];
 try {
@@ -232,7 +236,7 @@ try {
   await enterProject(page, repo);
 
   let aRev = 0;
-  const touchA = (options: { other?: boolean } = {}) => writeFile(design("a.html"), canvas("a", "A canvas", { ...options, rev: String(++aRev) }));
+  const touchA = (options: { other?: boolean; extra?: string } = {}) => writeFile(design("a.html"), canvas("a", "A canvas", { ...options, rev: String(++aRev) }));
 
   await scenario("1-other-canvas-change", async () => {
     await openCanvas("a.html", "A canvas");
@@ -337,6 +341,40 @@ try {
     } finally {
       await app!.evaluate(({ ipcMain }) => { ipcMain.removeHandler("comments:begin"); ipcMain.handle("comments:begin", Reflect.get(globalThis, "rcBegin")); });
     }
+    await continueButton().click();
+    await button("Save comment").waitFor();
+    await saveNew(body);
+  });
+
+  await scenario("2d-reload-never-lays-out", async () => {
+    await openCanvas("a.html", "A canvas");
+    await clearSelection();
+    await button("New canvas comment").click();
+    const body = "Kept through a failed reload";
+    await createBody().fill(body);
+    const disabledWith = async (reason: string) => {
+      await panel().getByText(reason, { exact: true }).waitFor({ timeout: 3_000 });
+      assert.equal(await continueButton().isDisabled(), true, `continue disabled: ${reason}`);
+    };
+    // A fresh draft is blocked as reloaded when the reload starts, so a load
+    // that never lays out cannot leave it without Continue (F2 item 2).
+    await touchA({ extra: SILENT });
+    await panel().getByRole("status").filter({ hasText: RELOADED }).waitFor({ timeout: 3_000 });
+    await disabledWith(LOADING);
+    await panel().getByText(LOAD_FAILED, { exact: true }).waitFor({ timeout: 10_000 });
+    assert.equal(await continueButton().isDisabled(), true, "continue disabled after the failed load");
+    await panel().getByRole("status").filter({ hasText: RELOADED }).waitFor();
+    await shot("2d-load-failed");
+    await touchA();
+    await wait(() => continueButton().isEnabled(), "continue enabled once the canvas loads again", 15_000);
+    // Already blocked as reloaded: a second reload keeps Continue disabled
+    // until its document lays out, not only after the timeout (F2 item 1).
+    await touchA({ extra: SILENT });
+    await disabledWith(LOADING);
+    await shot("2d-reloading");
+    await touchA();
+    await wait(() => continueButton().isEnabled(), "continue enabled after the reload", 15_000);
+    assert.equal(await createBody().inputValue(), body);
     await continueButton().click();
     await button("Save comment").waitFor();
     await saveNew(body);

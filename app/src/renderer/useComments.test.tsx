@@ -296,6 +296,45 @@ describe("a reload that has not laid out yet", () => {
     expect(render({ selection: null, layout: layout("two") }).markup).toContain("Continues on Canvas.");
     disabled(render({ selection: null, layout: layout("two"), reloading: true }).markup, "Waiting for the canvas to finish loading.");
   });
+
+  test("blocks a fresh draft as reloaded when the reload starts, keeps it after a failed load, and continues after Reload canvas (probe)", async () => {
+    const { session, render } = await drafting();
+    // The first render runs the document effect; the second shows its result.
+    const shown = (over: Partial<CanvasState>) => { render(over); return render(over).markup; };
+    disabled(shown({ selection: null, reloading: true }), "Waiting for the canvas to finish loading.");
+    expect(session.draft.draft).toMatchObject({ body: "keep", lost: "reloaded" });
+    const failed = shown({ selection: null, status: "failed" });
+    expect(session.draft.draft?.lost).toBe("reloaded");
+    const editor = failed.slice(failed.indexOf('class="comments-composer"'));
+    expect(editor).toContain("The canvas reloaded while you were writing.");
+    expect(editor).not.toContain("The original canvas document is unavailable.");
+    disabled(failed, "The current version couldn\u2019t load. Reload the canvas to try again.");
+    disabled(shown({ selection: null, status: "loading" }), "Waiting for the canvas to finish loading.");
+    const loaded = shown({ selection: null, layout: layout("two") });
+    expect(session.draft.draft?.lost).toBe("reloaded");
+    expect(loaded).toContain("Continues on Canvas.");
+    expect(loaded).not.toMatch(/<button[^>]*disabled=""[^>]*>Continue on current version<\/button>/);
+  });
+
+  test("a draft started during the reload is reloaded when that reload fails", async () => {
+    const f = setup();
+    const { session } = f.render({ selection: null });
+    await vi.waitFor(() => expect(session.author.status).toBe("ready"));
+    f.render({ selection: null, reloading: true });
+    await session.create("canvas"); session.body("keep");
+    f.render({ selection: null, reloading: true });
+    expect(session.draft.draft?.lost).toBeNull();
+    f.render({ selection: null, status: "failed" });
+    expect(session.draft.draft).toMatchObject({ body: "keep", lost: "reloaded" });
+  });
+
+  test("a row without an id stays unavailable when its reload starts (R-B6)", async () => {
+    const { session, render } = await drafting();
+    const { id: _id, ...withoutId } = row;
+    const markup = render({ open: { folder: "/repo", canvas: row.path, row: withoutId }, selection: null, reloading: true }).markup;
+    expect(session.draft.draft?.lost).toBe("unavailable");
+    expect(markup).not.toContain("Continue on current version");
+  });
 });
 
 test("a canvas that loses its id while reloading cannot continue the draft", async () => {

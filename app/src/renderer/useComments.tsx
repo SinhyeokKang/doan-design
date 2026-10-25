@@ -65,11 +65,15 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     return () => { window.removeEventListener("compositionstart", start, true); window.removeEventListener("compositionend", end, true); };
   }, [session]);
   const previousDocument = useRef<string | undefined>(undefined);
+  // A reload of the same row ends the document when it starts, not when its
+  // layout arrives, so a draft is already `reloaded` if that layout never comes;
+  // a draft begun during that wait is lost when the load fails.
+  const loading = state.status === "loading" || state.reloading;
   useEffect(() => {
     const document = state.layout?.document;
-    if (previousDocument.current !== undefined && (document !== previousDocument.current || state.status === "loading" || !state.hasFrame)) session.documentLost(state.status === "loading");
+    if (previousDocument.current !== undefined && (document !== previousDocument.current || loading || state.status === "failed" || !state.hasFrame)) session.documentLost(loading);
     previousDocument.current = document;
-  }, [state.layout?.document, state.status, state.hasFrame, session]);
+  }, [state.layout?.document, state.status, loading, state.hasFrame, session]);
   useEffect(() => { if (state.notice && draft?.origin.kind === "create" && (draft.origin.target.frame || draft.origin.target.element)) session.documentLost(); }, [state.notice, draft?.id, session]);
   useEffect(() => {
     const field = input.current;
