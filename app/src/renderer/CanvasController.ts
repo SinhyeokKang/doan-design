@@ -10,7 +10,7 @@ import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem
 import { bottomLabel, canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGHT, sameDocument, type OpenCanvas } from "./canvasView";
 import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
-import { activityFor, activityKey, activityKind, pushActivity, resolvedActivity, type ActivityEvent } from "./activity";
+import { activityKey, activityKind, pushActivity, resolvedActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, locateView, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { currentFrame } from "./currentFrame";
@@ -43,7 +43,7 @@ export interface CanvasState {
   error: string;
   unlisted: boolean;
   zoom: number;
-  // The bottom label, from the open canvas's activity at the last publish.
+  // The bottom label, from the open canvas's latest document event at the last publish.
   label: string | null;
   activity: ActivityEvent[];
 }
@@ -58,6 +58,11 @@ export function initialCanvasState(): CanvasState {
 // was added, so a missing one is 0, not unknown.
 function reloadKind(before: CanvasRow, after: CanvasRow): ActivityEvent["kind"] {
   return activityKind(before.rev ?? 0, after.rev ?? 0);
+}
+
+// The identity Activity groups a canvas's events by (activity.ts sameCanvas).
+function documentKey(key: Pick<ActivityEvent, "folder" | "canvas" | "id">): string {
+  return JSON.stringify([key.folder, key.id ?? null, key.id === undefined ? key.canvas : null]);
 }
 
 // React owns the surrounding shell; only this controller owns the board's children.
@@ -102,8 +107,11 @@ export class CanvasController {
   private anchorRevision = 0;
   private comments: CommentBinding | null = null;
   // The last comments read for the open canvas, which the next read is compared
-  // with for Resolved activity. Cleared when a canvas is opened.
+  // with for Resolved activity. Cleared when another canvas opens or is shown.
   private commentBaseline: CommentBinding | null = null;
+  // The latest document event per canvas, for the bottom label: Resolved events
+  // share the Activity cap and could otherwise push it out of the log.
+  private lastDocument = new Map<string, ActivityEvent>();
   private commentHooks: CommentHooks | null = null;
   private anchors: AnchorSnapshot | null = null;
   private pinLayer: CommentPins | null = null;
@@ -152,6 +160,13 @@ export class CanvasController {
     this.requestAnchors();
   }
 
+  // A switch to another (root, canvas id) ends the comparison even when the
+  // other canvas's read never arrived; a followed move or reload keeps it.
+  private endBaselineUnless(before: NonNullable<CanvasState["open"]>): void {
+    const open = this.state.open;
+    if (!open || documentKey(activityKey(open.folder, open.row)) !== documentKey(activityKey(before.folder, before.row))) this.commentBaseline = null;
+  }
+
   // Bindings arrive with every comments read, including after the person's own
   // Resolve. The first read of an opened canvas is only the baseline.
   private recordResolved(binding: CommentBinding): void {
@@ -163,6 +178,11 @@ export class CanvasController {
     if (resolved === null) return;
     this.state.activity = pushActivity(this.state.activity, { ...activityKey(open.folder, open.row), at: new Date(), kind: "resolved", ...resolved }, 50);
     this.publish();
+  }
+
+  private recordDocument(event: ActivityEvent): void {
+    this.state.activity = pushActivity(this.state.activity, event, 50);
+    this.lastDocument.set(documentKey(event), event);
   }
 
   private resetAnchors(): void {
@@ -307,7 +327,8 @@ export class CanvasController {
 
   private publish(): void {
     const open = this.state.open;
-    this.state.label = open ? bottomLabel(activityFor(this.state.activity, open.folder, open.canvas, open.row.id), new Date()) : null;
+    const latest = open ? this.lastDocument.get(documentKey(activityKey(open.folder, open.row))) : undefined;
+    this.state.label = latest ? bottomLabel([latest], new Date()) : null;
     this.state.hasFrame = this.frame !== null;
     this.state.reanchoring = this.reanchor !== null;
     this.state.reloading = this.loading && this.state.status === null;
@@ -373,7 +394,7 @@ export class CanvasController {
         this.state.shown = to;
         const remembered = this.workspaceMemory.get(open.folder);
         if (remembered?.path === open.canvas) remembered.path = to;
-        this.state.activity = pushActivity(this.state.activity, { ...activityKey(open.folder, update.canvas), at, kind: "moved", from: open.canvas }, 50);
+        this.recordDocument({ ...activityKey(open.folder, update.canvas), at, kind: "moved", from: open.canvas });
         // The same canvas reloaded at its new path: the view stays and the selection is asked for again.
         this.load(update.canvas, false, "moved");
         this.canvasMoved?.({ folder: open.folder, from: open.canvas, row: update.canvas });
@@ -409,6 +430,7 @@ export class CanvasController {
         break;
       }
     }
+    this.endBaselineUnless(open);
     if (this.comments && !this.matchingComments()) this.clearAnchors();
     this.publish();
   }
@@ -852,7 +874,7 @@ export class CanvasController {
     if (this.state.unlisted) this.clearAnchors();
     if ((first || linked) && this.state.open && !this.state.unlisted && (linked || this.loadKind !== "moved")) {
       const at = new Date();
-      this.state.activity = pushActivity(this.state.activity, { ...activityKey(this.state.open.folder, this.state.open.row), at, kind: linked ? "opened" : this.loadKind }, 50);
+      this.recordDocument({ ...activityKey(this.state.open.folder, this.state.open.row), at, kind: linked ? "opened" : this.loadKind });
     }
     if (first && this.pendingFrame !== null) {
       const target = this.pendingFrame;
@@ -901,6 +923,7 @@ export class CanvasController {
     if (linked) {
       this.state.open = { folder: open.folder, canvas: row.path, row };
       if (row.width !== undefined) this.setFrameWidth(row.width);
+      this.endBaselineUnless(open);
     }
     this.state.shown = row?.path ?? null;
     this.state.unlisted = row === undefined;
