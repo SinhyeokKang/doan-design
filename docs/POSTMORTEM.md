@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — Navigation feedback read the previous React snapshot
+
+- **Area**: `App.tsx`, `CanvasController.ts`, `quickOpen.ts`.
+- **Symptom**: a waiting Open reported that a project was still being read after its read had failed or the root had disappeared. A still-listed path whose ID or URL changed during draft approval was incorrectly described as deleted.
+- **Root cause**: the controller completed synchronously inside the folders event, before React committed `setEntries(next)` and refreshed the callback's ref. Separately, availability copy treated every rejected identity in a healthy list as a missing path.
+- **Net**: independent review traced both cases. Real cross-root draft approval and loading completion regressions reproduced changed ID/URL and failure/missing-path/removed outcomes. With the final rendered-state wait unchanged, all five old-source cases still fail; the corrected complete design-nav run passes. Waiting only for the callback could read the prior toast before React committed, so the final fixture checks actual callback consumption and the exact rendered message.
+- **Prevention**: carry the state used by the synchronous producer into its callback; a render-ref is not necessarily the latest consumed state. Test path absence separately from identity replacement, preserving identity guards. Search run: `rg -n 'unavailable\?\.|unavailableCanvasMessage|setEntries\(next\)|updateEntries\(next\)' app/src/renderer/CanvasController.ts app/src/renderer/App.tsx app/src/renderer/quickOpen.ts` locates the event, controller and both explicit UI callers. Automatic arrival expiry must remain silent.
+
 ### 2026-10-25 — Production CSS extraction concealed missing development styles
 
 - **Area**: renderer HTML entries, `ConnectionRows.tsx`, `settings.ts`, and `app/e2e/presentation.ts`.
