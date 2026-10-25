@@ -852,7 +852,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
     const seen: { shown: boolean } = { shown: false };
     (window as { doanSeenUnlisted?: { shown: boolean } }).doanSeenUnlisted = seen;
     new MutationObserver(() => {
-      if ([...region.querySelectorAll('[role="status"]')].some(node => node.textContent === "This page is not a listed canvas")) seen.shown = true;
+      if ([...region.querySelectorAll('[role="status"]')].some(node => node.textContent === "This page is not a listed canvas. Choose a canvas from the Sidebar.")) seen.shown = true;
     }).observe(region, { childList: true, subtree: true, characterData: true });
   });
   canvas = await canvasFrame(page);
@@ -1884,8 +1884,8 @@ async function readView(page: Page): Promise<ViewState> {
   return {
     ...geometry, status, statusText, zoom, updated,
     boardShown: await viewport.locator("iframe").isVisible(),
-    error: notices.find(text => text !== statusText && text !== zoom && text.trim() !== updated && text !== "This page is not a listed canvas") ?? null,
-    unlisted: notices.includes("This page is not a listed canvas"),
+    error: notices.find(text => text !== statusText && text !== zoom && text.trim() !== updated && text !== "This page is not a listed canvas. Choose a canvas from the Sidebar.") ?? null,
+    unlisted: notices.includes("This page is not a listed canvas. Choose a canvas from the Sidebar."),
   };
 }
 

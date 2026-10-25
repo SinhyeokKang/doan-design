@@ -153,7 +153,12 @@ process.exit(result.status ?? 1);
   const saved = JSON.parse(await readFile(join(userData, "folders.json"), "utf8"));
   await removeHomeProject(page, plain); const toast = page.getByRole("status").filter({ hasText: "Files stay on disk." }); await toast.waitFor(); await shot("04-toast");
   await toast.hover(); await page.waitForTimeout(8200); assert.equal(await toast.isVisible(), true);
-  await toast.getByRole("button", { name: "Undo", exact: true }).click(); await homeRow(page, plain).waitFor(); assert.deepEqual(JSON.parse(await readFile(join(userData, "folders.json"), "utf8")), saved);
+  await toast.getByRole("button", { name: "Undo", exact: true }).focus(); await page.keyboard.press("Enter"); await homeRow(page, plain).waitFor();
+  const undoFocus = await page.evaluate(() => ({ tag: document.activeElement?.tagName, label: document.activeElement?.getAttribute("aria-label"), visibleHome: !!document.activeElement?.closest(".home-shell"), rect: document.activeElement?.getBoundingClientRect().toJSON() }));
+  console.log("keyboard Undo focus", undoFocus);
+  assert.equal(undoFocus.visibleHome, true, "keyboard Undo returns focus to a surviving Home control");
+  assert.equal(await page.locator(".workspace").getAttribute("inert"), "", "Undo does not reopen a workspace");
+  assert.deepEqual(JSON.parse(await readFile(join(userData, "folders.json"), "utf8")), saved);
   await removeHomeProject(page, plain); await toast.waitFor(); await menu("Undo Remove"); await homeRow(page, plain).waitFor();
   // Count completed production invalidations, not merely queued IPC sends.
   await app.evaluate(({ ipcMain }) => {

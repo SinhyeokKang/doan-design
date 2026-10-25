@@ -134,12 +134,38 @@ process.exit(result.status ?? 1);
   // UX N: keep startup reads pending until a real, newer user navigation commits.
   const navigationFailures: string[] = [];
   async function navigationCheck(name: string, run: () => Promise<void>) {
+    if (process.env.DOAN_NAV_CASES && !process.env.DOAN_NAV_CASES.split(",").includes(name)) return;
     try { await run(); console.log(`navigation regression PASS: ${name}`); }
     catch (error) { console.error(`navigation regression FAIL: ${name}`, error); navigationFailures.push(`${name}: ${String(error)}`); await shot(`N-failed-${name}`); }
   }
   const listedEntries = await page.evaluate(() => new Promise<import("../src/main/view").FolderEntry[]>(resolve => {
     const stop = window.doan.onFolders(entries => { if (entries.length === 5 && entries.every(entry => entry.kind === "list")) { stop(); resolve(entries); } });
   }));
+  const restoreCdp = await page.context().newCDPSession(page);
+  const rendererScripts: { scriptId: string; url: string }[] = [];
+  restoreCdp.on("Debugger.scriptParsed", script => { if (script.url.includes("/assets/index-") && script.url.endsWith(".js")) rendererScripts.push(script); });
+  await restoreCdp.send("Debugger.enable");
+  const rendererScript = rendererScripts.at(-1);
+  assert.ok(rendererScript, "the actual App renderer script was parsed");
+  const { scriptSource } = await restoreCdp.send("Debugger.getScriptSource", { scriptId: rendererScript.scriptId });
+  const readStart = scriptSource.indexOf("window.doan.readUiState()");
+  assert.ok(readStart >= 0);
+  const firstThen = scriptSource.indexOf(".then((state)", readStart);
+  const finalThen = scriptSource.indexOf(".then((state)", firstThen + 1);
+  assert.ok(finalThen > firstThen);
+  // A false conditional breakpoint is a test-only logpoint in the actual
+  // final consumer. The subsequent page task cannot run until it returns.
+  const guarded = scriptSource.indexOf("if (active && !restoreCancelled.current)", finalThen);
+  const callbackBody = guarded >= 0 && guarded < finalThen + 200 ? guarded : scriptSource.indexOf("state,", finalThen);
+  assert.ok(callbackBody > finalThen && callbackBody < finalThen + 200);
+  const lineNumber = scriptSource.slice(0, callbackBody).split("\n").length - 1;
+  const columnNumber = callbackBody - scriptSource.lastIndexOf("\n", callbackBody) - 1;
+  const consumerBreakpoint = await restoreCdp.send("Debugger.setBreakpointByUrl", {
+    url: rendererScript.url, lineNumber, columnNumber,
+    condition: '(globalThis.restoreReadProbe ??= { consumed: 0 }).consumed++, false',
+  });
+  assert.ok(consumerBreakpoint.locations.length, "the consumer logpoint resolves in the production bundle");
+  console.log("startup read consumer logpoint", { lineNumber, columnNumber, source: scriptSource.split("\n")[lineNumber] });
   for (const held of ["ui", "folders"] as const) {
     await navigationCheck(`late-${held}-restore`, async () => {
       await app!.evaluate(({ ipcMain }, [entries, savedRoot, freshRoot, held]) => {
@@ -157,12 +183,38 @@ process.exit(result.status ?? 1);
       await enterProject(page, brand); await overview().waitFor();
       await card("Card decline patterns").click(); await loaded("Card decline patterns");
       await goHome(page); await page.getByRole("region", { name: "Home", exact: true }).waitFor();
-      await app!.evaluate(({ BrowserWindow }, [entries, held]) => {
+      if (held === "folders") await page.evaluate(root => {
+        const element = document.querySelector(".home-shell");
+        if (!element) throw new Error("Home must be committed before arming the folder consumer probe");
+        const key = Object.keys(element).find(key => key.startsWith("__reactFiber$"));
+        if (!key) throw new Error("Missing App fiber");
+        type Hook = { memoizedState?: { current?: { updateEntries?: (entries: { path: string; kind: string }[]) => void } }; next?: Hook };
+        type Fiber = { memoizedState?: Hook; return?: Fiber };
+        let controller: { updateEntries: (entries: { path: string; kind: string }[]) => void } | undefined;
+        for (let fiber = Reflect.get(element, key) as Fiber | undefined; fiber; fiber = fiber.return) {
+          for (let hook = fiber.memoizedState; hook; hook = hook.next) {
+            const candidate = hook.memoizedState?.current;
+            if (typeof candidate?.updateEntries === "function") controller = candidate as typeof controller;
+          }
+        }
+        if (!controller) throw new Error("Missing actual CanvasController");
+        const original = controller.updateEntries;
+        const probe = { consumed: 0, restore: () => { controller.updateEntries = original; } };
+        Reflect.set(window, "restoreFolderProbe", probe);
+        controller.updateEntries = function (entries) {
+          original.call(this, entries);
+          if (entries.some(entry => entry.path === root && entry.kind === "list")) probe.consumed++;
+        };
+      }, acme);
+      const expectedReads = await app!.evaluate(({ BrowserWindow }, [entries, held]) => {
         const probe = Reflect.get(globalThis, "navigationProbe");
         if (!probe.reads) throw new Error("No initial ui read was held");
         if (held === "ui") probe.releases.splice(0).forEach((release: () => void) => release());
         else BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries);
+        return probe.reads;
       }, [listedEntries, held] as const);
+      await page.waitForFunction(([held, expected]) => Reflect.get(window, held === "ui" ? "restoreReadProbe" : "restoreFolderProbe")?.consumed >= (held === "ui" ? expected : 1), [held, expectedReads] as const);
+      console.log("startup consumer completed", held, await page.evaluate(held => Reflect.get(window, held === "ui" ? "restoreReadProbe" : "restoreFolderProbe").consumed, held));
       await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
       assert.equal(await page.getByRole("region", { name: "Home", exact: true }).isVisible(), true, "late startup restore cannot replace newer Home intent");
       await enterProject(page, brand); await loaded("Card decline patterns");
@@ -175,15 +227,28 @@ process.exit(result.status ?? 1);
       ipcMain.removeHandler("folders:get"); ipcMain.handle("folders:get", probe.folders);
     });
   }
+  await restoreCdp.send("Debugger.removeBreakpoint", { breakpointId: consumerBreakpoint.breakpointId });
+  await restoreCdp.send("Debugger.disable");
+  await restoreCdp.detach();
   await page.reload();
   await navigationCheck("unhealthy-overview", async () => {
     await goHome(page); await enterProject(page, empty); await overview().waitFor();
-    await app!.evaluate(({ BrowserWindow }, [entries, path]) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries.map(entry => entry.path === path ? { path, kind: "cliError", reason: "held failure" } : entry)), [listedEntries, empty] as const);
-    await page.getByRole("region", { name: "Project status", exact: true }).waitFor();
-    assert.equal(await page.getByText("Pick a canvas from the list", { exact: true }).isVisible(), false);
-    await shot("N-unhealthy-overview");
-    await app!.evaluate(({ BrowserWindow }, entries) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries), listedEntries);
-    await overview().waitFor();
+    const problems: import("../src/main/view").FolderEntry[] = [
+      { path: empty, kind: "loading" }, { path: empty, kind: "error", message: "fixture config failure" },
+      { path: empty, kind: "notFound" }, { path: empty, kind: "uninitialized" }, { path: empty, kind: "cliError", reason: "fixture CLI failure" },
+    ];
+    for (const problem of problems) {
+      await app!.evaluate(({ BrowserWindow }, [entries, problem]) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries.map(entry => entry.path === problem.path ? problem : entry)), [listedEntries, problem] as const);
+      await page.getByRole("region", { name: "Project status", exact: true }).waitFor();
+      await wait(async () => !(await overview().isVisible()), `${problem.kind} replaces Overview`);
+      assert.equal(await page.getByText("Pick a canvas from the list", { exact: true }).isVisible(), false);
+      const message = await page.locator(".canvas-status").textContent();
+      console.log("unhealthy Overview", problem.kind, message);
+      assert.ok(message?.trim());
+      if (problem.kind === "cliError") await shot("N-unhealthy-overview");
+      await app!.evaluate(({ BrowserWindow }, entries) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries), listedEntries);
+      await overview().waitFor();
+    }
   });
   await app!.evaluate(({ BrowserWindow }, entries) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries), listedEntries);
   const publishEntries = async (entries: import("../src/main/view").FolderEntry[]) => app!.evaluate(({ BrowserWindow }, entries) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries), entries);
@@ -292,6 +357,73 @@ process.exit(result.status ?? 1);
     } finally {
       await app!.evaluate(({ ipcMain }) => { ipcMain.removeHandler("folders:reopen"); ipcMain.handle("folders:reopen", Reflect.get(globalThis, "retryOriginal")); });
     }
+  });
+  await navigationCheck("stale-quick-open", async () => {
+    await publishEntries(listedEntries); await goHome(page); await enterProject(page, acme);
+    await page.getByRole("button", { name: "acme-web overview", exact: true }).click(); await overview().waitFor();
+    await card("Billing & plans").click(); await loaded("Billing & plans");
+    const panel = page.getByRole("region", { name: "Comments", exact: true });
+    await wait(() => panel.getByRole("button", { name: "New canvas comment", exact: true }).isEnabled(), "stale Open draft ready");
+    await panel.getByRole("button", { name: "New canvas comment", exact: true }).click();
+    await panel.getByRole("textbox", { name: "New comment body" }).fill("Keep the draft until the chosen transition is approved");
+    await quickOpen("Card decline patterns"); await page.keyboard.press("Enter");
+    const discard = page.getByRole("button", { name: "Discard", exact: true }); await discard.waitFor();
+    await publishEntries(listedEntries.map(entry => entry.path === brand ? { kind: "cliError", path: brand, reason: "held failure" } : entry));
+    await discard.click();
+    await page.locator(".toast .msg").getByText("Project is unavailable. Check its status on Home and try again.", { exact: true }).waitFor();
+    await loaded("Billing & plans");
+    await shot("N-stale-quick-open");
+    await publishEntries(listedEntries);
+  });
+  await navigationCheck("workspace-setup-success-focus", async () => {
+    await goHome(page); await enterProject(page, empty);
+    await rm(join(empty, ".doan/config.json"));
+    const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true });
+    await page.getByRole("region", { name: "Project status", exact: true }).getByRole("button", { name: "Set Up…", exact: true }).click();
+    await setup.getByRole("button", { name: "Set Up Project", exact: true }).click();
+    await setup.waitFor({ state: "hidden" }); await overview().waitFor();
+    console.log("workspace setup success focus", await activeFocus());
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.workspace') && !document.activeElement?.closest('[inert]')), true);
+  });
+  await navigationCheck("workspace-setup-reroot-focus", async () => {
+    await goHome(page); await enterProject(page, empty);
+    await rm(join(empty, ".doan/config.json"));
+    const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true });
+    await page.getByRole("region", { name: "Project status", exact: true }).getByRole("button", { name: "Set Up…", exact: true }).click();
+    await setup.waitFor();
+    await app!.evaluate(({ BrowserWindow }, [entries, from, root]) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries.filter(entry => entry.path !== from), { from, root }), [listedEntries, empty, brand] as const);
+    await setup.waitFor({ state: "hidden" });
+    console.log("workspace setup re-root focus", await activeFocus());
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.workspace') && !document.activeElement?.closest('[inert]')), true);
+    await writeFile(join(empty, ".doan/config.json"), '{"v":1}'); await publishEntries(listedEntries);
+  });
+  await navigationCheck("width-copy-and-quick-open-presentation", async () => {
+    await publishEntries(listedEntries); await goHome(page); await enterProject(page, acme);
+    await page.getByRole("button", { name: "acme-web overview", exact: true }).click(); await overview().waitFor();
+    await card("Design tokens").click();
+    const status = page.locator(".canvas-status");
+    await status.getByText("Could not read a valid board width.", { exact: true }).waitFor();
+    assert.equal(await status.textContent(), "Could not read a valid board width. Run doan check in a terminal to diagnose the canvas.");
+    await quickOpen("card decl");
+    assert.equal(await dialog().locator(".qo-list.native-scroll").count(), 1);
+    const fields = await dialog().locator(".qo-item .t, .qo-item .c, .qo-item .w").evaluateAll(nodes => nodes.map(node => ({ text: node.textContent, title: node.getAttribute("title"), width: node.getBoundingClientRect().width, scroll: node.scrollWidth })));
+    assert.ok(fields.length > 0);
+    for (const field of fields) assert.equal(field.title, field.text);
+    console.log("Quick Open full text fields", fields);
+    await shot("N-quick-open-fields"); await page.keyboard.press("Escape");
+  });
+  await navigationCheck("first-run-wizard-home-focus", async () => {
+    await quit();
+    await rm(join(userData, "onboarding.json"));
+    await writeFile(join(userData, "ui-state.json"), JSON.stringify({ screen: "home", expanded: {}, lastByRoot: {} }));
+    await launch();
+    const wizard = page.getByRole("dialog", { name: "Set Up doan", exact: true });
+    await wizard.waitFor(); await page.keyboard.press("Escape"); await wizard.waitFor({ state: "hidden" });
+    console.log("first-run Home wizard focus", await activeFocus());
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.home-shell') && !document.activeElement?.closest('[inert]')), true);
+    await page.keyboard.press("Tab");
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.home-shell')), true, "Tab continues on the visible Home screen");
+    await shot("N-first-run-home-focus");
   });
   if (navigationFailures.length) throw new Error(navigationFailures.join("\n"));
   if (process.env.DOAN_NAV_REGRESSION_ONLY === "1") {
