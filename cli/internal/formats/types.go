@@ -44,16 +44,24 @@ type Warning struct {
 }
 
 type Comment struct {
-	Comment    string  `json:"comment"`
-	Status     string  `json:"status"`
-	Body       string  `json:"body"`
-	Target     Target  `json:"target"`
-	CanvasHash string  `json:"canvasHash"`
-	CreatedBy  Author  `json:"createdBy"`
-	CreatedAt  string  `json:"createdAt"`
-	UpdatedAt  string  `json:"updatedAt"`
-	ResolvedBy *Author `json:"resolvedBy,omitempty"`
-	ResolvedAt *string `json:"resolvedAt,omitempty"`
+	Comment        string          `json:"comment"`
+	Status         string          `json:"status"`
+	Body           string          `json:"body"`
+	Target         Target          `json:"target"`
+	CanvasHash     string          `json:"canvasHash"`
+	CreatedBy      Author          `json:"createdBy"`
+	CreatedAt      string          `json:"createdAt"`
+	UpdatedAt      string          `json:"updatedAt"`
+	ResolvedBy     *Author         `json:"resolvedBy,omitempty"`
+	ResolvedAt     *string         `json:"resolvedAt,omitempty"`
+	LastResolution *LastResolution `json:"lastResolution,omitempty"`
+}
+
+type LastResolution struct {
+	By         Author `json:"by"`
+	At         string `json:"at"`
+	ReopenedBy Author `json:"reopenedBy"`
+	ReopenedAt string `json:"reopenedAt"`
 }
 
 type ParseResult struct {

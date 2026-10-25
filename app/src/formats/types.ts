@@ -53,6 +53,12 @@ export interface Comment {
   updatedAt: string;
   resolvedBy?: Author;
   resolvedAt?: string;
+  lastResolution?: {
+    by: Author;
+    at: string;
+    reopenedBy: Author;
+    reopenedAt: string;
+  };
 }
 
 export interface ParseResult {

@@ -121,10 +121,19 @@ export function fold(events: LocatedEvent[]): FoldResult {
           comment.status = "resolved";
           comment.resolvedBy = event.by;
           comment.resolvedAt = event.at;
+          delete comment.lastResolution;
         }
         break;
       case "reopen":
         if (comment.status === "resolved") {
+          if (comment.resolvedBy !== undefined && comment.resolvedAt !== undefined) {
+            comment.lastResolution = {
+              by: comment.resolvedBy,
+              at: comment.resolvedAt,
+              reopenedBy: event.by,
+              reopenedAt: event.at,
+            };
+          }
           comment.status = "open";
           delete comment.resolvedBy;
           delete comment.resolvedAt;
