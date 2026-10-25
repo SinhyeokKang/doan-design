@@ -219,3 +219,12 @@
 - clean `32d635e`의 첫 합본 gate는 runner 7 tests·Go test/vet·typecheck 뒤 app-test에서 exit 1로 멈췄다(97파일 중 1실패, 2076개 중 1실패). P가 추가한 Overview 제목의 title 속성을 기존 ProjectOverview 문자열 정규식이 허용하지 않는다. 제품 결함으로 숨기거나 통과로 집계하지 않으며 Electron은 아직 실행하지 않았다. V-fix는 ProjectOverview.test.tsx의 직접 기대만 고쳐 title과 표시 텍스트를 함께 검증한다. Codex gpt-6.1-sol medium: 구현 변경 없는 좁은 테스트 정합성 수정이다. 관련 테스트·typecheck·독립 리뷰 후 전체 gate를 다시 실행한다.
 - V-fix `ctx_9fe274c39694`의 Sol medium effective·turn_start를 확인했다. 후속 IR-Vfix는 다른 작성자의 Sol low로 기대값 한 곳과 실제 markup, 회귀 로그만 검토한다. 판단 범위가 좁으며 테스트 의미를 약화하지 않았는지가 완료 기준이다. 원 gate 로그는 `.scratch/ux-integration-261025/verify-final.log`, 단계별 기록은 `.scratch/verify/2026-10-25T12-48-34-901Z-48873/`에 보존한다.
 - V-fix `eaad4ff`를 `5829d3b`로 통합했다. 제목의 title 속성과 표시 텍스트를 함께 확인하는 기대값 한 줄만 바꿨다. 관련 12 tests·typecheck 통과와 IR-Vfix `ctx_7eee33807904`의 Sol low effective·turn_start 및 red 0/yellow 0을 확인했다. 작성자·reviewer를 release하고 clean·미통합 patch 없음·증거 보존을 확인한 뒤 child를 삭제했다. Orca 목록에 이 repo의 root만 남았고 reclaimable worker는 없다. 새 clean HEAD에서 전체 gate를 다시 실행하며 첫 실패 기록은 보존한다.
+
+## 최종 통합 결과 — 2026-10-25
+
+- clean `763d9ccd7c2541e310daec63bdde3e30a40d8e67`에서 `node .agents/skills/verify/scripts/verify.mjs --runtime`이 exit 0, 최종 `verify: PASS`와 `runtime-test: PASS`로 끝났다. 실행 중 tracked 파일을 바꾸지 않았고 종료 뒤에도 clean이었다. 이후 커밋은 이 결과와 원본 리포트의 후속 링크만 기록한다.
+- 공통 runner 7 tests, Go test/vet, TypeScript typecheck, 97파일의 2076 tests, app build와 전체 Electron suite가 통과했다. 새 onboarding 연결에서 presentation production/DEV도 각각 PASS였고 프로젝트 홈·탐색·설정 및 real-state 불변 검사를 통과했다. eval은 위 계획대로 audit의 기존 증거를 참조하며 이번 실행으로 집계하지 않는다.
+- 통합 로그: `.scratch/ux-integration-261025/verify-final-2.log`. 단계별 기록: `.scratch/verify/2026-10-25T12-59-21-365Z-68881/`. 첫 실패 로그도 그대로 보존했다.
+- 지휘자는 새 `2026-10-25T13-00-06-537Z/6-selection.png`·`7-inspector-values.png`에서 선택·Inspector 표시를, `presentation-production-1792933422886/tooltip-Fit.png`·`settings-unbroken-branch.png`에서 툴팁 여백과 긴 branch 줄바꿈을 확인했다. 모두 `.scratch/runtime-test/` 아래에 있다.
+- C/S/O/K/N/N-fix/P/P2/V-fix를 통합하고 독립 검토를 마쳤다. 채택 36건·기존 audit 해결 2건·기각 12건·미검증 2건으로 52건의 처분을 닫았다. N-3 과거 첫 layout 실패의 원인, 기존 Radix CSP 경고, U-38/46 및 실제 Finder drag/drop은 앞서 기록한 한계를 유지한다.
+- 모든 완료 worker를 정리했고 이 repo의 Orca child는 없다. 다음은 사용자에게 이미 승인받은 feature push·PR 병합 뒤 새 일반 Claude 세션에 사람의 검토→피드백→수정 확인 UX 감사를 인계하는 순서다. 새 세션은 이 Run의 후속 worker가 아니다.
