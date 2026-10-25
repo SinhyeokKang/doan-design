@@ -1,4 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { pluralComments } from "../comments/panelText";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { CanvasState } from "./CanvasController";
 import { buildCanvasTree, frameLabel, rowAction, typeaheadKey, typeaheadNext, type RowNode, type TreeNode } from "./canvasTree";
@@ -191,7 +192,7 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
           }
         }} role="treeitem" aria-label={`${label}${selected ? ", selected in canvas" : ""}`} aria-current={current ? "location" : undefined} aria-expanded={row.expanded} aria-level={row.level} aria-posinset={positions.get(row.key)} aria-setsize={siblings.get(row.parent)?.length} aria-describedby={comments ? commentId : undefined} tabIndex={active === row.key ? 0 : -1} className={`row${node.kind === "canvas" ? " cv" : ""}${node.kind === "canvas" && node.key === opened ? " is-open" : ""}`} style={{ paddingLeft: 12 + (row.level - 1) * 14 }} onFocus={event => { if (event.target === event.currentTarget) setFocused(row.key); }} onClick={event => { event.currentTarget.focus(); act(row); }} onDoubleClick={() => act(row, true)} onKeyDown={event => keys(event, row, index)}>
           {row.expanded !== undefined ? <button type="button" className="tw" tabIndex={-1} aria-label={`${row.expanded ? "Collapse" : "Expand"} ${label}`} onClick={event => { event.stopPropagation(); event.currentTarget.closest<HTMLElement>('[role="treeitem"]')?.focus(); toggle(row.key); }} onDoubleClick={event => event.stopPropagation()}><span aria-hidden="true">{row.expanded ? "▾" : "▸"}</span></button> : <span className="tw" aria-hidden="true" />}
-          {node.kind === "canvas" ? <><span className="glyph" aria-hidden="true">◧</span><span className="two"><span className="g">{node.name}</span><span className="d">{node.fileName}</span></span>{comments && <span id={commentId} role="img" className="cnt hot" aria-label={`${node.row.open} open comments`}>{node.row.open}</span>}</>
+          {node.kind === "canvas" ? <><span className="glyph" aria-hidden="true">◧</span><span className="two"><span className="g">{node.name}</span><span className="d">{node.fileName}</span></span>{comments && <span id={commentId} role="img" className="cnt hot" aria-label={pluralComments(node.row.open)}>{node.row.open}</span>}</>
             : isFrame ? <><span className="num" aria-hidden="true">{node.index + 1}</span><span className={node.frame.title?.trim() || node.frame.id ? "g" : "g no-id"}>{frameName}</span><RowActions actions={[{ name: "Select", label: `Select ${frameName}`, disabled: node.canvas !== opened || !state.layout, run: () => select(node.index) }]} />{selected && <span className="sel-mark" aria-hidden="true" />}</>
             : <>{node.kind === "overview" && <span className="glyph" aria-hidden="true">▦</span>}<span className="g">{label}</span></>}
         </div>;

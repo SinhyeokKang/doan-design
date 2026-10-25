@@ -373,7 +373,7 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
       { path: "design/deep.html", title: "deep", open: "", url: "" },
       { path: "design/foo-bar.html", title: "Foo bar", open: "", url: "" },
       { path: "design/foo.html", title: "Foo", open: "", url: "" },
-      { path: "design/login.html", title: "Login screen", open: "1 open comments", url: "" },
+      { path: "design/login.html", title: "Login screen", open: "1 open comment", url: "" },
     ];
     for (const path of [repos.ok, repos.worktree]) {
       const folder = byPath(folders, path);
@@ -577,7 +577,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   let state = await waitLoaded(page, "main canvas shown");
   assert.deepEqual(await currentCanvases(page), [`${repos.canvas}\ndesign/main.html`]);
   assert.equal(await page.getAttribute('[role="region"][aria-label="Canvas"] iframe', "sandbox"), "allow-scripts");
-  assert.deepEqual(await panelValues(page), { Path: "design/main.html", ID: "main", Width: "1200 px", Frames: "6", Open: "0", Resolved: "0" });
+  assert.deepEqual(await panelValues(page), { Path: "design/main.html", ID: "main", Width: "1200 px", Frames: "6" });
   assert.deepEqual(await activityKinds(page), ["Opened"]);
   await treeKeyboard(app, page, repos.canvas, repos.ok);
 
@@ -716,7 +716,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
 
   await markCanvas(page);
   await writeFile(join(repos.canvas, ".doan", "comments", "main.jsonl"), `${JSON.stringify(COMMENT_MAIN)}\n`);
-  await waitFolders(page, (all) => byPath(all, repos.canvas).canvases.some((c) => c.path === "design/main.html" && c.open === "1 open comments"), "comment counted");
+  await waitFolders(page, (all) => byPath(all, repos.canvas).canvases.some((c) => c.path === "design/main.html" && c.open === "1 open comment"), "comment counted");
   await writeFile(join(repos.ok, "design", "other.html"), "<!doctype html><title>Other</title>\n");
   await waitFolders(page, all => byPath(all, repos.ok).canvases.length === 8, "other folder re-read count on Home");
   await sleep(QUIET_MS);
@@ -937,7 +937,7 @@ async function selectInspect(app: ElectronApplication, page: Page, repos: Repos,
   await waitFolders(page, all => hasCanvas(all, repos.select, "design/pick.html"), "select repo listed");
   await openCanvas(page, repos.select, "design/pick.html");
   let canvas = await canvasFrame(page);
-  await page.getByRole("region", { name: "Canvas info", exact: true }).getByText("Click an element or frame to inspect it. Frames are also listed in the sidebar.", { exact: true }).waitFor();
+  await page.getByRole("region", { name: "Canvas info", exact: true }).getByText("Click an element or frame to inspect or comment on it.", { exact: true }).waitFor();
   assert.deepEqual(await active(repos.select), { exit: 0, ok: true, repo: repos.select }, "active without a selection");
 
   await inspectorValues(app, page, canvas);
@@ -2187,7 +2187,7 @@ async function readFolders(page: Page): Promise<FolderView[]> {
         const name = await item.getAttribute("aria-label") ?? "";
         const relative = await tooltipPath(page, item, name, `${path}/${filename}`);
         const canvas = `design/${relative}`;
-        const count = item.getByRole("img", { name: /^\d+ open comments$/ });
+        const count = item.getByRole("img", { name: /^\d+ open comments?$/ });
         const open = await count.count() ? await count.getAttribute("aria-label") ?? "" : "";
         canvases.push({ path: canvas, title: name, open, url: listed.find(row => row.path === canvas)?.url ?? "" });
       }
