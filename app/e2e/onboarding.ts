@@ -408,7 +408,8 @@ else if (args[1] === 'add') {
     if (attempt < 3) await submitCandidates().click();
     else { await submitCandidates().focus(); await page.keyboard.press("Enter"); }
     await wait(async () => await submitCandidates().isDisabled(), "checklist submit pending");
-    await pause(250);
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    await shot(`03-checklist-${attempt}-pending`);
     console.log("checklist pending focus:", await page.evaluate(() => document.activeElement?.tagName));
     await app.evaluate((_electron, outcome) => {
       const pending = Reflect.get(globalThis, "obCandidatesPending");
