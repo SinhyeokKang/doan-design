@@ -56,6 +56,7 @@ export function Inspector({ selection, inspector, selectPath }: { selection: Sel
       </nav>}
       {selection.interactive && <p className="use-hint">{selection.interactive === "link" ? "⌥-click to follow this link" : "⌥-click to use it"}</p>}
     </div>
+    {inspector?.status === "loading" && <p className="canvas-notice" role="status">Reading styles…</p>}
     {inspector?.status === "failed" && <p className="inspect-failed">{inspector.reason}</p>}
     {INSPECT_GROUPS.map(([group, heading]) => {
       const groupRows = rows.filter(row => row.group === group);

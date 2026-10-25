@@ -36,6 +36,7 @@ export interface CommentsPanelProps {
   author: AuthorView;
   writeBlocked: string | null;
   createBlocked: string | null;
+  createError?: string | null;
   widthInvalid: boolean;
   busy: boolean;
   copies: ReadonlyMap<string, CopyView>;
@@ -93,6 +94,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
         <button type="button" className="comments-btn" disabled={read.status !== "ready" || props.canvasOpenCount === 0 || props.allCopy.status === "copying"} title="All open comments on this canvas, regardless of the visible filter" onClick={() => props.onCopy({ kind: "all" })}>{copyLabel(props.allCopy, true)}</button>
         <button type="button" className="comments-btn" disabled={createDisabled} onClick={() => props.onCreate(filter.scope)}>{filter.scope === "canvas" ? "New canvas comment" : "New selection comment"}</button>
       </div>
+      {props.createError && <p className="comments-helper" role="alert">Couldn’t start comment: {props.createError}</p>}
       {props.allCopy.status === "copied" && <p className="comments-helper" role="status">Copied all open comments on this canvas.</p>}
       {props.allCopy.status === "failed" && <p className="comments-helper" role="alert">{props.allCopy.message}</p>}
     </div>
@@ -242,7 +244,12 @@ export function DeleteCommentDialog({ comment, onCancel, onConfirm }: { comment:
   let dialog: HTMLDialogElement | null = null;
   const cancel = () => { dialog?.close(); onCancel(); };
   return <dialog className="comments-dialog" aria-label="Delete this comment?" ref={node => { dialog = node; if (node && !node.open) node.showModal(); }}
-    onCancel={event => { event.preventDefault(); cancel(); }}>
+    onCancel={event => { event.preventDefault(); cancel(); }}
+    onKeyDown={event => {
+      if (event.key !== "Escape") return;
+      event.preventDefault(); event.stopPropagation();
+      if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) cancel();
+    }}>
     <h3>Delete this comment?</h3>
     <p className="comments-body">{comment.body}</p>
     <p>This comment will be removed and cannot be restored.</p>

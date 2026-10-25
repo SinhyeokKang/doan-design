@@ -27,6 +27,7 @@ export class CommentsSession {
   identity: CommentIdentity | null = null;
   list: CommentList | null = null;
   readError: string | null = null;
+  createError: string | null = null;
   author: AuthorView = { status: "loading" };
   draft = emptyDraft();
   target: Target = {};
@@ -62,7 +63,7 @@ export class CommentsSession {
     if (same(identity, this.identity)) return;
     this.revision++;
     this.identity = identity;
-    this.list = null; this.readError = null; this.copies = new Map(); this.mutations = new Map(); this.deleteConfirmation = null;
+    this.list = null; this.readError = null; this.createError = null; this.copies = new Map(); this.mutations = new Map(); this.deleteConfirmation = null;
     if (this.draft.draft && !same(identity, this.draftIdentity)) this.invalidate("The original project or canvas is no longer open.");
     this.emit();
     if (identity) await Promise.all([this.read(), this.retryAuthor()]);
@@ -114,7 +115,7 @@ export class CommentsSession {
   async create(scope: "canvas" | "selection") {
     if (!this.identity || !this.list || this.draft.draft || this.busy || this.beginning || this.author.status !== "ready") return;
     const rev = this.revision, request = this.request();
-    this.beginning = true; this.emit();
+    this.beginning = true; this.createError = null; this.emit();
     try {
       const origin = value(await this.api.commentsBegin({ ...request, scope }), request);
       if (rev !== this.revision || this.draft.draft) return;
@@ -125,7 +126,7 @@ export class CommentsSession {
       this.target = structuredClone(origin.target);
       this.draft = beginDraft(crypto.randomUUID(), { kind: "create", ...this.identity, generation: 0, canvasHash: origin.hash, target: origin.target }, "");
       this.saveView = { status: "idle" };
-    } catch (error) { if (rev === this.revision) this.readError = errorText(error); }
+    } catch (error) { if (rev === this.revision) this.createError = errorText(error); }
     finally { this.beginning = false; this.emit(); }
   }
   edit(id: string) {
@@ -145,6 +146,7 @@ export class CommentsSession {
     this.draft = transitionDraft(this.draft, { type: "invalidate", reason }).state; this.emit();
   }
   documentLost() {
+    this.createError = null; this.emit();
     if (this.draft.draft?.origin.kind !== "create") return;
     this.cancelDestination();
     this.draft = transitionDraft(this.draft, { type: "document-lost" }).state; this.emit();
