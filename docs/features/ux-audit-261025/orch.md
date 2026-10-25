@@ -183,3 +183,9 @@
 - IR-K red 0/yellow 0을 인수해 O의 남은 yellow와 S의 같은 소비 확인 공백을 닫았다. `98db3e1`로 통합했으며 두 창 renderer reject도 현재 fixture 범위에서 검증됐다. reviewer를 release하고 clean·미통합 patch 없음·증거 보존을 확인한 뒤 K child를 Orca로 삭제했다. 전체 합본 gate는 N/P와 suite 연결 뒤 실행한다.
 
 - N의 첫 부분 native는 정상 종료·PASS를 보고했다. Quick Open close의 기존 포커스 복귀는 재현상 정상이라 유지한다. 지휘자는 late readUiState/folders fixture의 main 해제 뒤 두 rAF만으로는 실제 응답 소비가 확인되지 않는 점을 발견해 최종 검증 전에 보강하도록 반환했다. 이 부분 green으로 해당 경합의 완료를 확정하지 않는다. N이 슬롯을 반환해 P의 production/dev 실측에 배정했다.
+
+| 후속 배치 | 소유권·선행 조건 | 모델·근거 | 검증 |
+|---|---|---|---|
+| P2 | P 완료 뒤 같은 child에서 K 선행 커밋을 받고 onboarding.ts에 production/dev presentation 순차 연결. N runtime.ts 제외 | 기존 P 작성자의 Codex gpt-6-astra medium 재사용. 기존 fixture cleanup·오류 전파 경계를 이미 파악한 작성자가 최소 연결 | typecheck·실패 전파 검토, 본문 불변 시 P native 증거 재사용, 최종 합본 runtime에서 새 연결 실제 실행·독립 P 리뷰 |
+
+- P2는 P 완료 후 새 Task로만 전달한다. K/P/N 코드 소유권은 계속 분리하며 전체 runtime PASS 전에 presentation의 양 실행이 끝나야 한다.
