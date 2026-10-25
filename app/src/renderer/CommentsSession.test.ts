@@ -186,3 +186,14 @@ describe("uncertain draft transitions", () => {
     finish?.(); await save;
   });
 });
+
+
+test("a rejected shortcut during ordinary Save and continue does not cancel its destination", async () => {
+  const { session: s, api } = fixture(); await s.open(identity); await s.create("canvas"); s.body("ordinary");
+  const movement = s.guard();
+  let finish: (() => void) | undefined;
+  api.commentsMutate.mockImplementationOnce(r => new Promise(resolve => { finish = () => resolve(reply(r, { state: "saved" })); }));
+  const save = s.save();
+  expect(s.guard("quit")).toBe(false);
+  finish?.(); await save; expect(await movement).toBe(true);
+});
