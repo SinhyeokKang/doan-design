@@ -134,3 +134,4 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: D1-fix 전체 e2e는 FL 측정과 겹치므로 건너뛰게 했다. 통합 HEAD 전체 e2e는 FL 통합 뒤 지휘자가 돌린다.
 - 2026-10-25: D1-fix 완료·통합(커밋 5개, 마지막 `0842feb`) — main·App 모달 가드, Saving…은 쓰기 중만, 문제 줄 상세를 초안대로, 배너 중복 제거, Settings 포커스 60초 스로틀, ⚪1·2·4·5·6. 지휘자가 main 핸들러 diff 확인, 통합 HEAD typecheck·test 1956·build 통과. `as-d1f` 제거. 남은 배치: FL.
 - 2026-10-25: FL 질문 — 수정 `71e0ff1`(느린 읽기 결정적 재현 수정 전 3/3 실패, 수정 뒤 projects-home 10/10; 기준 실패율 2/10). 통합 브랜치를 merge한 뒤 전체 e2e 한 번을 허락했다(통합 상태 e2e를 겸한다).
+- 2026-10-25: FL 완료(`71e0ff1`, 통합 브랜치 merge `f360b52`) — 원인: 'Added' 토스트가 첫 `ls --repo` 읽기 전에 뜨고 `openWorkspace`가 loading 항목의 클릭을 버렸다(main `4803e22`부터 잠재, app-setup이 타이밍만 바꿈). 읽기를 기다렸다 들어가도록 고쳤다. 기준 2/10 실패 → 10/10, 느린 읽기 재현 수정 전 3/3 실패. merge 상태 전체 e2e PASS(exit 0, real-state 78 불변). merge로 통합, postmortem 추가, 통합 HEAD typecheck·test 1958 통과(지휘자 실행). 남은 UX 틈(기다리는 동안 표시 없음)은 최종 보고에 적는다. `as-fl` 제거.
