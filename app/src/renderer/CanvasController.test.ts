@@ -402,6 +402,26 @@ describe("selection wiring (flow 7)", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // The previous layout stays shown with a null status, so only `reloading`
+  // tells the Comments panel the new document is not known yet (F2).
+  it("reports a reload of the open canvas as reloading until its first layout or the timeout", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    try {
+      expect(h.state()).toMatchObject({ status: null, reloading: false });
+      h.controller.command("reload");
+      expect(h.state()).toMatchObject({ status: null, reloading: true });
+      h.layout({ document: "two" });
+      expect(h.state()).toMatchObject({ status: null, reloading: false });
+      h.controller.command("reload");
+      expect(h.state().reloading).toBe(true);
+      vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS);
+      expect(h.state()).toMatchObject({ status: "failed", reloading: false });
+      h.controller.command("reload");
+      expect(h.state()).toMatchObject({ status: "loading", reloading: false });
+    } finally { h.controller.dispose(); }
+  });
+
   it("a document that never answers measure after its load is unlisted and clears the selection", () => {
     vi.useFakeTimers();
     const h = selectionHarness();

@@ -163,7 +163,7 @@ describe("continue on the current version", () => {
   });
 });
 
-const ready: ContinueContext = { canvas: { status: null, unlisted: false, hasFrame: true }, reanchoring: false, author: "ready", selection: true };
+const ready: ContinueContext = { canvas: { status: null, unlisted: false, hasFrame: true, reloading: false }, reanchoring: false, author: "ready", selection: true };
 const canvasOrigin = { ...origin, target: {} };
 const reloadedSelection = lostWith({ identity: here });
 const reloadedCanvas = lostWith({ identity: here }, canvasOrigin);
@@ -186,18 +186,20 @@ describe("continueEnabled", () => {
     expect(continueEnabled(state, ready)).toEqual({ kind: "hidden" });
   });
   it.each<[string, Partial<ContinueContext>, string]>([
-    ["loading", { canvas: { status: "loading", unlisted: false, hasFrame: true } }, "Waiting for the canvas to finish loading."],
-    ["no frame yet", { canvas: { status: null, unlisted: false, hasFrame: false } }, "Waiting for the canvas to finish loading."],
-    ["no width", { canvas: { status: "noWidth", unlisted: false, hasFrame: true } }, "The current version has no readable width. Run doan check in a terminal."],
-    ["a failed load", { canvas: { status: "failed", unlisted: false, hasFrame: true } }, "The current version couldn\u2019t load. Reload the canvas to try again."],
-    ["an unlisted document", { canvas: { status: null, unlisted: true, hasFrame: true } }, "The page shown is not a listed canvas. Return to the canvas to continue."],
+    ["loading", { canvas: { status: "loading", unlisted: false, hasFrame: true, reloading: false } }, "Waiting for the canvas to finish loading."],
+    // The previous layout stays shown while a reload of the open canvas waits for its first layout (F2).
+    ["a reload not laid out yet", { canvas: { status: null, unlisted: false, hasFrame: true, reloading: true } }, "Waiting for the canvas to finish loading."],
+    ["no frame yet", { canvas: { status: null, unlisted: false, hasFrame: false, reloading: false } }, "Waiting for the canvas to finish loading."],
+    ["no width", { canvas: { status: "noWidth", unlisted: false, hasFrame: true, reloading: false } }, "The current version has no readable width. Run doan check in a terminal."],
+    ["a failed load", { canvas: { status: "failed", unlisted: false, hasFrame: true, reloading: false } }, "The current version couldn\u2019t load. Reload the canvas to try again."],
+    ["an unlisted document", { canvas: { status: null, unlisted: true, hasFrame: true, reloading: false } }, "The page shown is not a listed canvas. Return to the canvas to continue."],
     ["finding the selection", { reanchoring: true, selection: false }, "Finding your selection in the current version\u2026"],
   ])("is disabled while %s, with the draft copy as the reason", (_name, context, reason) => {
     expect(continueEnabled(reloadedSelection, { ...ready, ...context })).toEqual({ kind: "disabled", reason, canvas: false });
     expect(Object.values(CONTINUE_REASONS)).toContain(reason);
   });
   it("puts the document reason before finding the selection", () => {
-    expect(continueEnabled(reloadedSelection, { ...ready, canvas: { status: "loading", unlisted: false, hasFrame: true }, reanchoring: true })).toEqual({ kind: "disabled", reason: CONTINUE_REASONS.loading, canvas: false });
+    expect(continueEnabled(reloadedSelection, { ...ready, canvas: { status: "loading", unlisted: false, hasFrame: true, reloading: false }, reanchoring: true })).toEqual({ kind: "disabled", reason: CONTINUE_REASONS.loading, canvas: false });
   });
   it.each(["loading", "missing", "failed"] as const)("is disabled without a reason while the author is %s; the editor already says why", (author) => {
     expect(continueEnabled(reloadedSelection, { ...ready, author })).toEqual({ kind: "disabled", reason: null, canvas: false });

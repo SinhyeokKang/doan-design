@@ -273,6 +273,31 @@ describe("the Comments scope across a reload or a move (L-13)", () => {
   });
 });
 
+// A reload of the open canvas keeps its previous layout and a null status
+// until the new document lays out; only `reloading` says so (F2, E2 probes).
+describe("a reload that has not laid out yet", () => {
+  async function drafting() {
+    const f = setup();
+    const { session } = f.render({ selection: null });
+    await vi.waitFor(() => expect(session.author.status).toBe("ready"));
+    await session.create("canvas"); session.body("keep"); f.render({ selection: null });
+    return { ...f, session };
+  }
+  const disabled = (markup: string, reason: string) => {
+    const id = new RegExp(`<p class="comments-helper" id="([^"]+)">${reason}</p>`).exec(markup)?.[1];
+    expect(id).toBeDefined();
+    expect(markup).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*aria-describedby="${id}"[^>]*>Continue on current version</button>|<button[^>]*aria-describedby="${id}"[^>]*disabled=""[^>]*>Continue on current version</button>`));
+  };
+
+  test("keeps Continue disabled as loading while a second reload is pending (probe2)", async () => {
+    const { session, render } = await drafting();
+    render({ selection: null, layout: layout("two") });
+    expect(session.draft.draft?.lost).toBe("reloaded");
+    expect(render({ selection: null, layout: layout("two") }).markup).toContain("Continues on Canvas.");
+    disabled(render({ selection: null, layout: layout("two"), reloading: true }).markup, "Waiting for the canvas to finish loading.");
+  });
+});
+
 test("a canvas that loses its id while reloading cannot continue the draft", async () => {
   const { render, begin, controller } = setup();
   const { session } = render({ selection: null });

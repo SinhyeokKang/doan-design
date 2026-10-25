@@ -35,6 +35,10 @@ export interface CanvasState {
   status: "empty" | "loading" | "noWidth" | "failed" | "missing" | null;
   // The reloaded document is still being asked for the previous selection.
   reanchoring: boolean;
+  // A reload of the open canvas has not laid out its new document yet. The
+  // previous layout stays shown and `status` stays null meanwhile, so this is
+  // the only sign that the document on screen is about to be replaced.
+  reloading: boolean;
   message: string;
   error: string;
   unlisted: boolean;
@@ -46,7 +50,7 @@ export interface CanvasState {
 export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, updated: null, activity: [] };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, updated: null, activity: [] };
 }
 
 // React owns the surrounding shell; only this controller owns the board's children.
@@ -257,6 +261,7 @@ export class CanvasController {
     this.state.updated = open ? activityFor(this.state.activity, open.folder, open.canvas, open.row.id)[0]?.at ?? null : null;
     this.state.hasFrame = this.frame !== null;
     this.state.reanchoring = this.reanchor !== null;
+    this.state.reloading = this.loading && this.state.status === null;
     this.syncMain();
     this.changed({ ...this.state });
   }
@@ -832,7 +837,7 @@ export class CanvasController {
       }, MEASURE_ANSWER_MS);
     }
     this.state.currentFrame = this.state.unlisted ? null : currentFrame(message.frames, this.view, this.viewportSize());
-    if (previousCurrent !== this.state.currentFrame || documentChanged || before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection) this.publish();
+    if (first || previousCurrent !== this.state.currentFrame || documentChanged || before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection) this.publish();
   }
 
   private markShown(href: string): boolean {

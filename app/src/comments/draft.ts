@@ -113,7 +113,7 @@ export const CONTINUE_REASONS = {
 
 // Renderer state continueEnabled reads; `canvas` mirrors CanvasState.
 export interface ContinueContext {
-  canvas: { status: "empty" | "loading" | "noWidth" | "failed" | "missing" | null; unlisted: boolean; hasFrame: boolean };
+  canvas: { status: "empty" | "loading" | "noWidth" | "failed" | "missing" | null; unlisted: boolean; hasFrame: boolean; reloading: boolean };
   reanchoring: boolean;
   author: "loading" | "ready" | "missing" | "failed";
   selection: boolean;
@@ -135,11 +135,11 @@ export function draftScope(origin: Extract<DraftOrigin, { kind: "create" }>): "s
 // pending or uncertain save keeps its own controls.
 export function continueEnabled(draft: DraftState, state: ContinueContext): ContinueView {
   if (!continuable(draft) || draft.draft?.origin.kind !== "create") return { kind: "hidden" };
-  const { status, unlisted, hasFrame } = state.canvas;
+  const { status, unlisted, hasFrame, reloading } = state.canvas;
   const reason = status === "noWidth" ? CONTINUE_REASONS.noWidth
     : status === "failed" ? CONTINUE_REASONS.failed
     : status === null && unlisted ? CONTINUE_REASONS.unlisted
-    : status !== null || !hasFrame ? CONTINUE_REASONS.loading
+    : status !== null || !hasFrame || reloading ? CONTINUE_REASONS.loading
     : state.reanchoring ? CONTINUE_REASONS.reanchoring
     : null;
   if (reason !== null) return { kind: "disabled", reason, canvas: false };

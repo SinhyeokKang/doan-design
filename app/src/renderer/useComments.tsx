@@ -114,7 +114,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       else if (node && comment?.target.frame) controller.current?.selectPath({ label: "Comment target", selector: `[data-doan-frame="${CSS.escape(comment.target.frame)}"]` });
     }
   }
-  const continueView = continueEnabled(session.draft, { canvas: { status: state.status, unlisted: state.unlisted, hasFrame: state.hasFrame },
+  const continueView = continueEnabled(session.draft, { canvas: { status: state.status, unlisted: state.unlisted, hasFrame: state.hasFrame, reloading: state.reloading },
     reanchoring: state.reanchoring, author: session.author.status, selection: state.selection !== null && !state.unlisted });
   // After a missing selection offered "Continue on canvas", picking a new element
   // keeps it for that draft (design/revision-continuity.html, selection-gone 2b).
