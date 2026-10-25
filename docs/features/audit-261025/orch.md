@@ -137,13 +137,13 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 
 | 원본 ID | 판정·범위 | 소유 배치·남은 게이트 |
 |---|---|---|
-| A-M1 | 결함 확인, 불확실한 요청의 종료 정책은 사용자 결정 대기 | 종료와 내부 이동을 구분할 후속 A3; 아직 구현하지 않음 |
+| A-M1 | 채택: 전용 종료 경고를 사용자 승인 | A3b 통합·독립 리뷰·실제 승인 종료·최종 공통 gate 통과 |
 | A-M2 | 채택: 실제 종료 guard를 숨긴 main에 표시하지 않음 | A3a 통합·독립 리뷰·H2 native 통과, 최종 공통 gate 통과 |
 | A-M3 | 채택: 공유 fold와 UTF-8/BOM 처리 불일치 | A1 및 UTF-8 보완 통합·독립 리뷰 통과, 최종 공통 gate 통과 |
 | A-M4 | 채택: Resolve의 APFS 정규화 별칭 실패 재현; Find의 best-effort fallback은 구분 | C 통합·독립 리뷰·통합 Go 통과, 제한 agent-eval 14회 통과 |
 | A-M5 | 채택: native 숨김에서 Undo 타이머 유지 | A2 통합·독립 리뷰·H2 native 통과, 만료 deadline 보완·독립 리뷰·통합 gate 통과 |
 | A-M6 | 채택: Python cwd import·Git callback 실행 재현 | E/E-fix 통합·독립 재리뷰 통과, 128 unit·15 self-test 통과 |
-| A-L1 | nested iframe 실패 영향 재현, 정책 결정 필요; 이전 job 오염은 미재현 | 기존 시간제한·재시도 정책 유지, 자동 수정하지 않음 |
+| A-L1 | 채택: 내부 iframe 실패 시 외곽 캡처를 사용자 승인; 이전 job 오염은 미재현 | T 통합·독립 리뷰·내부/외곽 실패 대조·최종 공통 gate 통과 |
 | A-L2 | 채택: attributes 실패 후 init 재시도 불가 | C/C-fix 통합·독립 리뷰·통합 Go 통과 |
 | A-L3 | 채택: 명시적 잘못된 경로의 오류 분류 | C 통합·독립 리뷰·통합 Go 통과 |
 | A-L4 | 채택: CLI flag 위치·인용으로 실행 증거 누락 | E 통합, 128 unit·15 self-test 통과, 제한 실제 라운드 통과 |
@@ -207,3 +207,12 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 
 - T 원본 `128d33c`, `2b48ba4`를 `83d2363`, `0922f97`로 통합했다. 단위 red 4건→43건 green·typecheck, 실제 기존 구현 nested HTTP red→수정 후 thumbnails PASS·exit 0·실사용자 상태 unchanged 근거를 인수했다. 외곽 HTTP/network 실패 음성 대조와 중첩 실패 PNG 픽셀을 검증했으며 지휘자도 두 PNG를 열어 확인했다. 이전 작업 오염은 synthetic 단위 근거뿐임을 유지한다.
 - T 구현 terminal은 release, child는 독립 IR-T `ctx_4cd42f4c1c7c`가 읽는 동안 보존한다. A3b는 T 슬롯 반환 후 단독 build/comments-ui 실행을 승인받았다. 관련 127개 단위 테스트·typecheck 및 quit 연결 제거 mutation 실패 보고를 인수했으며 실제 native·독립 검토는 아직이다.
+
+### 승인된 정책 통합 완료 (2026-10-25)
+
+- A3b 원본 5개 커밋을 `f89837e`, `5662b7a`, `e458793`, `ec11c3e`, `4c2e7a6`으로 통합했다. 초기 12건 red, public quit routing 제거 mutation 실패, 추가 ordinary destination 회귀 red 뒤 관련 129개 테스트와 native comments-ui가 통과했다. unknown/quarantined/ordinary UI 승인마다 code 0·signal null·runtime 파일 제거를 확인했다. 실제 directory child hang은 재현하지 않았다.
+- IR-T와 IR-A3b 모두 red/yellow 0건이다. 별도 작성자의 전체 diff·증거·한계 검토를 인수했고 지휘자도 중첩 실패 PNG 및 전용 종료 경고 스크린샷을 직접 열어 확인했다. 리뷰는 새 테스트 실행을 주장하지 않는다.
+- clean `4c2e7a6`에서 `verify --runtime --eval`이 최종 `verify: PASS`·exit 0이다. runner 7, Go test/vet, typecheck, 앱 97파일/2,031개, eval 128개, fake self-test 15개, 전체 Electron `runtime-test: PASS` 및 실사용자 상태 unchanged를 확인했다. constructor/load/capture quit, 전용 경고, 외곽/중첩 실패 대조가 함께 통과했다. 로그 `.scratch/audit-integration-261025/verify-approved-policies.log`, 상세 `.scratch/verify/2026-10-25T10-37-31-057Z-84417/`.
+- 변경 없는 별도 e2e helper 10개 및 `011855e`에서 측정한 실제 agent-eval 14/14 증거를 재사용한다. 후속 두 배치는 renderer/thumbnail과 직접 테스트만 바꿨으며 CLI/guide/eval은 그대로다. H3-Codex 과제 타입 검사 미완료 한계도 유지한다.
+- 감독 worker를 모두 release했다. 마지막 capture/quit child는 clean·미통합 `+` 없음·증거 사본을 확인하고 Orca로 제거했으며 worktree 목록에는 root만 남는다. 일반 Claude peer는 유지한다.
+- 현재 최종 판정은 수정 28건, 기각 2건(A-L8/L16), 미검증 1건(A-L13)이다. 위의 미결정·draft 보관 기록은 당시 상태이며 두 사용자 결정으로 해소됐다. 역사 리포트는 보존한다. 이후 커밋은 문서만 바꾸므로 이 검증을 재사용한다. PR #19를 갱신·병합한 뒤에만 UX 52건 검토·수정 지휘를 시작한다.
