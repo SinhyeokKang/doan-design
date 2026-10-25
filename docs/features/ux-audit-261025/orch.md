@@ -111,3 +111,6 @@
 - C 원본 `dd8608a`, `8d83200`, `f2f8e6c`와 4건 red→관련 135개 green·typecheck·build·comments-ui PASS/exit 0·real-state unchanged를 인수했다. 증거를 root `C-evidence/`로 복사해 해시를 대조했다. 작성자는 release하고 child는 독립 검토까지 보존한다.
 - IR-C: Codex gpt-6-astra medium. 생성/읽기 오류 경계, modal Escape/IME, inspect 늦은 응답 및 실제 fixture 주장 검토가 필요하다. 8개 파일 전체 diff와 원 로그/스크린샷을 읽는 report-only 검토다. 원 작성자와 다른 worker를 사용한다.
 - C가 실제 종료 후 반환한 native/build 슬롯을 O에 배정했다. S와 root는 해당 실행을 겹치지 않는다. O는 SetupStatus 타입 확장 없이 최초 실패를 기존 couldnt-check summary로 표현하고 기존 summary는 유지한다고 보고했다.
+
+- IR-C는 red 0 / yellow 1이다. 같은 canvas의 문서 교체 뒤 보류 begin 오류가 다시 createError를 채우는 경합을 발견했다. generation을 begin에만 한정해 무효화하며 기존 list/card revision과 immutable 저장 요청은 유지하도록 C-fix에 돌려보낸다. Inspector 늦은 응답 검증의 main-release+100ms 대기도 renderer 처리 확인으로 강화한다.
+- C-fix: 기존 comments child에 새 Codex gpt-6-astra medium을 배정한다. 비동기 오류 권한·guard 수명과 회귀 증거의 판정이 필요하다. CommentsSession/test와 comments-ui fixture만 소유한다. 보류 요청 red→green·관련 tests/typecheck, 예약 후 native 재실행, 별도 작성자 재리뷰를 받는다. IR-C worker는 release했다.
