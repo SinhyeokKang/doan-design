@@ -138,36 +138,36 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 | 원본 ID | 판정·범위 | 소유 배치·남은 게이트 |
 |---|---|---|
 | A-M1 | 결함 확인, 불확실한 요청의 종료 정책은 사용자 결정 대기 | 종료와 내부 이동을 구분할 후속 A3; 아직 구현하지 않음 |
-| A-M2 | 채택: 실제 종료 guard를 숨긴 main에 표시하지 않음 | A3a 통합, H2 native·독립 리뷰 대기 |
-| A-M3 | 채택: 공유 fold와 UTF-8/BOM 처리 불일치 | A1 통합, runtime·독립 리뷰 대기 |
-| A-M4 | 채택: Resolve의 APFS 정규화 별칭 실패 재현; Find의 best-effort fallback은 구분 | C 통합·독립 리뷰 통과, 통합 Go·agent-eval 대기 |
-| A-M5 | 채택: native 숨김에서 Undo 타이머 유지 | A2 통합, H2 native·독립 리뷰 대기 |
-| A-M6 | 채택: Python cwd import·Git callback 실행 재현 | E 구현, E-fix 후 재리뷰·통합 검증 대기 |
+| A-M2 | 채택: 실제 종료 guard를 숨긴 main에 표시하지 않음 | A3a 통합·독립 리뷰·H2 native 통과, 최종 공통 gate 대기 |
+| A-M3 | 채택: 공유 fold와 UTF-8/BOM 처리 불일치 | A1 및 UTF-8 보완 통합·독립 리뷰 통과, 최종 공통 gate 대기 |
+| A-M4 | 채택: Resolve의 APFS 정규화 별칭 실패 재현; Find의 best-effort fallback은 구분 | C 통합·독립 리뷰·통합 Go 통과, agent-eval 대기 |
+| A-M5 | 채택: native 숨김에서 Undo 타이머 유지 | A2 통합·독립 리뷰·H2 native 통과, 만료 deadline 보완 검증 중 |
+| A-M6 | 채택: Python cwd import·Git callback 실행 재현 | E/E-fix 통합·독립 재리뷰 통과, 128 unit·15 self-test 통과 |
 | A-L1 | nested iframe 실패 영향 재현, 정책 결정 필요; 이전 job 오염은 미재현 | 기존 시간제한·재시도 정책 유지, 자동 수정하지 않음 |
-| A-L2 | 채택: attributes 실패 후 init 재시도 불가 | C·C-fix 통합·독립 리뷰 통과, 통합 검증 대기 |
-| A-L3 | 채택: 명시적 잘못된 경로의 오류 분류 | C 통합·독립 리뷰 통과, 통합 검증 대기 |
-| A-L4 | 채택: CLI flag 위치·인용으로 실행 증거 누락 | E 구현, 통합 검증 대기 |
-| A-L5 | 채택: 대문자 HTML 확장자의 표시 이름 | A2 통합, runtime·독립 리뷰 대기 |
-| A-L6 | 채택: unknown_version의 문서화된 설명 누락 | C guide·A1 UI 통합, app 리뷰·agent-eval 대기 |
-| A-L7 | 채택: 위저드에 없는 복구 동작을 안내 | A2 통합, runtime·독립 리뷰 대기 |
+| A-L2 | 채택: attributes 실패 후 init 재시도 불가 | C/C-fix 통합·독립 리뷰·통합 Go 통과 |
+| A-L3 | 채택: 명시적 잘못된 경로의 오류 분류 | C 통합·독립 리뷰·통합 Go 통과 |
+| A-L4 | 채택: CLI flag 위치·인용으로 실행 증거 누락 | E 통합, 128 unit·15 self-test 통과, 실제 라운드 대기 |
+| A-L5 | 채택: 대문자 HTML 확장자의 표시 이름 | A2 통합·독립 리뷰 및 관련 native 통과, 최종 공통 gate 대기 |
+| A-L6 | 채택: unknown_version의 문서화된 설명 누락 | C guide·A1 UI 통합·독립 리뷰 통과, agent-eval 대기 |
+| A-L7 | 채택: 위저드에 없는 복구 동작을 안내 | A2 통합·독립 리뷰 및 관련 native 통과, 최종 공통 gate 대기 |
 | A-L8 | 현재 결함으로 기각: 문자열 생산자·소비자 일치 | 향후 문구 변경 시 함께 점검; 새 상태 구조를 만들지 않음 |
-| A-L9 | 채택: ID 누락을 읽기 실패로 오인 | A2 통합, H2 preview·댓글 제한 검증 대기 |
-| A-L10 | 채택: CDP 댓글 인용문 공백 처리 불일치 | A1 통합, runtime·독립 리뷰 대기 |
-| A-L11 | 채택: 문자열 잘림을 frame 1,000+로 표시 | A2 통합, runtime·독립 리뷰 대기 |
-| A-L12 | 채택: 관찰 예외를 재시도하지 않는 wait | H 통합, helper 10개 통과; full runtime·독립 리뷰 대기 |
+| A-L9 | 채택: ID 누락을 읽기 실패로 오인 | A2 통합·독립 리뷰·H2 preview 및 댓글 제한 통과 |
+| A-L10 | 채택: CDP 댓글 인용문 공백 처리 불일치 | A1 및 UTF-8 보완 통합·독립 리뷰 통과, 최종 공통 gate 대기 |
+| A-L11 | 채택: 문자열 잘림을 frame 1,000+로 표시 | A2 통합·독립 리뷰 및 관련 native 통과, 최종 공통 gate 대기 |
+| A-L12 | 채택: 관찰 예외를 재시도하지 않는 wait | H 통합·독립 리뷰, helper 10개 통과; 최종 공통 gate 대기 |
 | A-L13 | native 파일 드래그 첫 진입은 미검증 | 기존 문서의 미검증 범위 유지; 임의 host 파일 접근 결함으로 단정하지 않음 |
-| A-L14 | 채택: 실제 임시 파일 쓰기·정리 경합 재현 | A2 통합, runtime·독립 리뷰 대기 |
-| A-L15 | 채택: 매 시도 전체 baseline Buffer 보관 | A1 통합, 불변 request/event 유지; 독립 리뷰 대기 |
+| A-L14 | 채택: 실제 임시 파일 쓰기·정리 경합 재현 | A2 통합·독립 리뷰 및 관련 native 통과, 최종 공통 gate 대기 |
+| A-L15 | 채택: 매 시도 전체 baseline Buffer 보관 | A1 통합·독립 리뷰 통과, 불변 request/event 유지 |
 | A-L16 | 기각: setup write 중 일반 quit 허용은 기존 결정 | PRODUCT:565·ARCHITECTURE:245 유지; 기다림·rollback을 추가하지 않음 |
-| A-L17 | 채택: timeout·close가 상태 확인을 우회 | H 통합, timeout fixture·별도 native probe 통과; full runtime·독립 리뷰 대기 |
-| A-L18 | 채택: 썸네일 중 종료의 exit code/signal 미검사 | H 통합, signal fixture 통과; 실제 quit runtime 대기 |
-| A-L19 | 채택: renderer 처리 전 부정 단언 | H 통합, 지연 observer fixture 통과; 실제 renderer 연결 검증 대기 |
-| A-L20 | 채택: disabled 메뉴를 실행하는 helper | H 통합, helper 통과; full runtime·독립 리뷰 대기 |
-| A-L21 | 채택: R5 rubric 경로 불일치 | E 문서 수정, 통합 대기 |
-| A-L22 | 채택: 정상 CSS import 도달 누락 | E 구현 후 거짓 양성 발견, E-fix·재리뷰 대기 |
-| A-L23 | 채택: multiline 연결 import 누락 | E 구현, 통합 검증 대기 |
-| A-L24 | 채택: background와 longhand의 별도 우선순위 | E 구현, 통합 검증 대기 |
-| A-L25 | 채택: apply_patch 삭제 증거 누락 | E 구현 후 미실행 코드 오인 발견, E-fix·재리뷰 대기 |
+| A-L17 | 채택: timeout·close가 상태 확인을 우회 | H 통합·독립 리뷰 및 timeout/native probe 통과; 최종 공통 gate 대기 |
+| A-L18 | 채택: 썸네일 중 종료의 exit code/signal 미검사 | H 통합·독립 리뷰, signal fixture 및 실제 quit runtime 통과 |
+| A-L19 | 채택: renderer 처리 전 부정 단언 | H 통합·독립 리뷰, 지연 observer/댓글·restore native 통과; Settings ack 보완 중 |
+| A-L20 | 채택: disabled 메뉴를 실행하는 helper | H 통합·독립 리뷰 및 helper 통과; 최종 공통 gate 대기 |
+| A-L21 | 채택: R5 rubric 경로 불일치 | E 문서 통합, 실제 라운드 대기 |
+| A-L22 | 채택: 정상 CSS import 도달 누락 | E/E-fix 통합·재리뷰·unit/self-test 통과, 실제 라운드 대기 |
+| A-L23 | 채택: multiline 연결 import 누락 | E 통합, 128 unit·15 self-test 통과, 실제 라운드 대기 |
+| A-L24 | 채택: background와 longhand의 별도 우선순위 | E 통합, 128 unit·15 self-test 통과, 실제 라운드 대기 |
+| A-L25 | 채택: apply_patch 삭제 증거 누락 | E/E-fix 통합·재리뷰·unit/self-test 통과, 실제 라운드 대기 |
 
 ### UTF-8 보완 인수와 독립 재리뷰
 
