@@ -91,3 +91,10 @@
 - C는 기존 불확실 요청/종료 정책을 바꾸지 않는다. 생성 실패는 목록 오류와 분리하고 기존 New comment로 재시도한다. Delete Escape는 해당 dialog만 닫는다. Inspector는 새 선택의 이전 값을 유지하지 않고 Reading styles…만 보여준다.
 - U-1 안정된 불확실 상태, U-7은 audit에서 해결됐다. U-32·U-33·U-51은 명시 계약 또는 서로 다른 동작의 차이로 현재 변경을 채택하지 않는다. U-10은 과거 트리 캐시 추가 대신 no-canvas 문제 안내만 수정한다. 실제 Quick Open 포커스 유실은 재현 전 결함으로 단정하지 않는다.
 - R-P가 CSS/표현 소스를 읽는 동안 C는 별도 child에서만 구현한다. C 파일을 다른 구현 배치에 동시에 맡기지 않는다. root 검토 기준 소스는 유지한다.
+
+| 배치 | 채택 범위 | 파일 소유권 | 모델·근거 | 검증 |
+|---|---|---|---|---|
+| O | U-4 wizard 안의 추가 결과·기존 문제 프로젝트, U-14 첫 연결 읽기 실패, U-19 오류 표현, U-20 agent 표시 이름, U-24 설치 링크 실패, U-26 catch/busy 안내 | Onboarding/onboardingView/ConnectionRows/AddProjectsDialog/Home/App, main setupBroker 및 onboarding/machine, 직접 tests, app/e2e/onboarding.ts | Codex gpt-6-astra medium. 여러 창의 읽기 순서·추가 결과·모달 소유권 판단 | 상태별 단위 red→green·typecheck, 예약된 wizard native 결과/가시성·오류 복구, 독립 리뷰 |
+
+- O는 C와 파일이 겹치지 않아 병렬 구현한다. 이후 navigation 배치 N은 App/Home과 겹치므로 O 통합 뒤에 시작한다. Settings 배치 S는 별도 파일을 맡을 수 있다. CSS·tooltip·CSS entry 수정은 후속 P에 남긴다.
+- R-W를 인수하고 release했다. U-13 연결 요약과 구성요소 진단, U-15 카드명과 작업 폴더명, U-27 현재 Set Up 안내, U-47 아포스트로피, U-48 제거 라벨, U-49 배너 CTA는 기존 의미·결정 차이를 유지한다. U-15 복수 추가 개수와 U-50 빈 프레임 이름 fallback은 별도 최소 수정 대상으로 남긴다.
