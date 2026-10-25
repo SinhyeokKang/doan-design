@@ -179,3 +179,5 @@
 
 - K `bf3c1c5`를 인수했다. 실제 Wizard return·Settings then/catch 완료를 요청별로 관찰한 뒤 렌더를 확인한다. 두 창의 guard 우회 대조는 정확한 stale-error 단언에서 exit 1, 원복한 최종 onboarding/Settings는 PASS·exit 0·real-state 불변이었다. 실행 전후 267개 해시와 clean을 인수했고 root에 150개 증거 파일을 해시 대조해 복사했다. 지휘자도 최종 두 창의 설치 재시도 화면을 열어 확인했다.
 - K 작성자를 release하고 IR-K `ctx_63ac29150f4d`의 Astra medium effective·turn_start를 확인했다. child는 독립 리뷰까지 보존한다. N에 K의 실제 프로세스 종료 뒤 native/build 슬롯을 배정했다.
+
+- IR-K red 0/yellow 0을 인수해 O의 남은 yellow와 S의 같은 소비 확인 공백을 닫았다. `98db3e1`로 통합했으며 두 창 renderer reject도 현재 fixture 범위에서 검증됐다. reviewer를 release하고 clean·미통합 patch 없음·증거 보존을 확인한 뒤 K child를 Orca로 삭제했다. 전체 합본 gate는 N/P와 suite 연결 뒤 실행한다.
