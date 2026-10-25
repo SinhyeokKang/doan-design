@@ -450,3 +450,20 @@ test("validates Alt state messages separately from Escape", () => {
     expect(parseCanvasMessage({ type: "key", key: "Alt", alt, href: HREF, seq: 2, viewport: 150 })).toBeNull();
   }
 });
+
+describe("parseCanvasMessage: transition-intent", () => {
+  const intent = (over: Record<string, unknown> = {}) => ({ type: "transition-intent", document: "d1", href: "http://x/a.html", viewport: 150, intent: 1, kind: "selection", ...over });
+  test("keeps the kind that separates a selection from a link", () => {
+    expect(parseCanvasMessage(intent())).toEqual(intent());
+    expect(parseCanvasMessage(intent({ kind: "navigation" }))).toHaveProperty("kind", "navigation");
+  });
+  test("keeps the flag of a click that only clears the selection", () => {
+    expect(parseCanvasMessage(intent({ clear: true }))).toEqual(intent({ clear: true }));
+  });
+  test.each([false, "true", 1])("rejects clear %j", clear => {
+    expect(parseCanvasMessage(intent({ clear }))).toBeNull();
+  });
+  test.each([undefined, "other", 1])("rejects kind %j", kind => {
+    expect(parseCanvasMessage(intent({ kind }))).toBeNull();
+  });
+});

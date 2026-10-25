@@ -6,6 +6,7 @@ import { CanvasController } from "./CanvasController";
 import { FIRST_LAYOUT_TIMEOUT_MS } from "./viewport";
 import { unavailableCanvasMessage } from "./quickOpen";
 import { SELECTION_LOST } from "./selection";
+import { activityFor } from "./activity";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -96,7 +97,7 @@ interface FakeMark {
 function selectionHarness() {
   const host = new EventTarget();
   vi.stubGlobal("window", host);
-  const frames: (EventTarget & { contentWindow: { postMessage: ReturnType<typeof vi.fn> } })[] = [];
+  const frames: (EventTarget & { contentWindow: { postMessage: ReturnType<typeof vi.fn> }; style: Record<string, string> })[] = [];
   const marks: FakeMark[] = [];
   vi.stubGlobal("document", {
     createElement: (tag: string) => {
@@ -132,7 +133,7 @@ function selectionHarness() {
   const markOf = (kind: string) => marks.find((mark) => mark.className.split(" ").includes(kind));
   const state = () => changed.mock.lastCall?.[0];
   layout();
-  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections };
+  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections, board };
 }
 
 describe("selection", () => {
@@ -398,6 +399,26 @@ describe("selection wiring (flow 7)", () => {
       vi.advanceTimersByTime(1);
       expect(h.state().status).toBe("failed");
       cleared(h);
+    } finally { h.controller.dispose(); }
+  });
+
+  // The previous layout stays shown with a null status, so only `reloading`
+  // tells the Comments panel the new document is not known yet (F2).
+  it("reports a reload of the open canvas as reloading until its first layout or the timeout", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    try {
+      expect(h.state()).toMatchObject({ status: null, reloading: false });
+      h.controller.command("reload");
+      expect(h.state()).toMatchObject({ status: null, reloading: true });
+      h.layout({ document: "two" });
+      expect(h.state()).toMatchObject({ status: null, reloading: false });
+      h.controller.command("reload");
+      expect(h.state().reloading).toBe(true);
+      vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS);
+      expect(h.state()).toMatchObject({ status: "failed", reloading: false });
+      h.controller.command("reload");
+      expect(h.state()).toMatchObject({ status: "loading", reloading: false });
     } finally { h.controller.dispose(); }
   });
 
@@ -779,14 +800,14 @@ it("independently rejects replayed canvas intents and approval after same-URL do
     const allow: ((value: boolean) => void)[] = [];
     const guard = vi.fn(() => new Promise<boolean>(resolve => allow.push(resolve)));
     h.controller.setTransitionGuard(guard);
-    h.receive({ type: "transition-intent", document: "one", intent: 2 });
-    h.receive({ type: "transition-intent", document: "one", intent: 1 });
-    h.receive({ type: "transition-intent", document: "one", intent: 2 });
+    h.receive({ type: "transition-intent", document: "one", intent: 2, kind: "selection" });
+    h.receive({ type: "transition-intent", document: "one", intent: 1, kind: "selection" });
+    h.receive({ type: "transition-intent", document: "one", intent: 2, kind: "selection" });
     expect(guard).toHaveBeenCalledTimes(1);
     h.layout({ document: "two" });
     allow[0]?.(true); await Promise.resolve();
     expect(h.current().contentWindow.postMessage.mock.calls.some(([message]) => message.type === "transition-answer")).toBe(false);
-    h.receive({ type: "transition-intent", document: "two", intent: 1 });
+    h.receive({ type: "transition-intent", document: "two", intent: 1, kind: "selection" });
     expect(guard).toHaveBeenCalledTimes(2);
     allow[1]?.(true); await Promise.resolve();
     expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "transition-answer", document: "two", intent: 1 }, "*");
@@ -802,6 +823,80 @@ it("prevents the triggering Escape from cancelling its newly opened draft dialog
     h.host.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
     expect(h.state().selection).not.toBeNull();
+  } finally { h.controller.dispose(); }
+});
+
+describe("a draft blocked as reloaded", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  // The session answers same-canvas selection changes at once and asks about everything else.
+  function blockedHarness() {
+    const h = selectionHarness();
+    h.layout({ document: "one" });
+    const asked: string[] = [];
+    const guard = vi.fn((destination: "selection" | "navigation") => destination === "selection" ? true : new Promise<boolean>(() => { asked.push(destination); }));
+    h.controller.setTransitionGuard(guard);
+    h.controller.setDraftGuard(true, false);
+    const posted = () => h.current().contentWindow.postMessage.mock.calls.map(([message]) => message);
+    return { ...h, guard, asked, posted };
+  }
+
+  it("changes the selection on a canvas click, Select, ancestor path, blank margin and Escape without asking", () => {
+    const h = blockedHarness();
+    try {
+      h.receive({ type: "transition-intent", document: "one", intent: 1, kind: "selection" });
+      expect(h.posted().at(-1)).toEqual({ type: "transition-answer", document: "one", intent: 1 });
+      h.controller.selectFrame(0);
+      expect(h.posted().at(-1)).toMatchObject({ type: "pick-frame", index: 0, id: "intro" });
+      h.select(2);
+      h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
+      expect(h.posted().at(-1)).toMatchObject({ type: "select-anchor", doanId: "cta" });
+      h.select(3);
+      h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
+      expect(h.state().selection).toBeNull();
+      h.select(4);
+      const escape = Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" });
+      h.host.dispatchEvent(escape);
+      expect(h.state().selection).toBeNull();
+      expect(escape.defaultPrevented).toBe(false);
+      expect(h.guard.mock.calls.every(([destination]) => destination === "selection")).toBe(true);
+      expect(h.asked).toEqual([]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("still asks before another canvas, an in-canvas link, Reload or Overview", () => {
+    const h = blockedHarness();
+    try {
+      h.receive({ type: "transition-intent", document: "one", intent: 1, kind: "navigation" });
+      h.controller.openCanvas("/repo", h.other);
+      h.controller.command("reload");
+      h.controller.showOverview();
+      h.controller.openWorkspace("/repo", () => {});
+      expect(h.asked).toEqual(["navigation", "navigation", "navigation", "navigation", "navigation"]);
+      expect(h.posted().some(message => message.type === "transition-answer")).toBe(false);
+      expect(h.state().open.canvas).toBe(h.row.path);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("drops a transition intent without a known kind", () => {
+    const h = blockedHarness();
+    try {
+      h.receive({ type: "transition-intent", document: "one", intent: 1 });
+      expect(h.guard).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+});
+
+it("reports reanchoring while a reloaded canvas looks for the selection", () => {
+  const h = selectionHarness();
+  try {
+    expect(h.state().reanchoring).toBe(false);
+    h.select(1);
+    h.controller.command("reload");
+    expect(h.state().reanchoring).toBe(true);
+    h.layout();
+    expect(h.state().reanchoring).toBe(true);
+    h.select(1);
+    expect(h.state().reanchoring).toBe(false);
   } finally { h.controller.dispose(); }
 });
 
@@ -1095,7 +1190,7 @@ it("reports the open canvas leaving its folder's list, but not a closed project"
     const removed = vi.fn();
     h.controller.canvasRemoved = removed;
     h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [h.other] }]);
-    expect(removed).toHaveBeenCalledWith(expect.objectContaining({ path: h.row.path }));
+    expect(removed).toHaveBeenCalledWith({ folder: "/repo", row: expect.objectContaining({ path: h.row.path }), duplicates: null });
     expect(h.state().open).toBeNull();
     h.controller.openCanvas("/repo", h.other);
     h.controller.updateEntries([]);
@@ -1244,4 +1339,341 @@ it.each(["cliError", "missing-path", "removed"])("passes the consumed %s entry t
     h.controller.updateEntries(latest ? [source, latest] : [source]);
     expect(unavailable).toHaveBeenCalledExactlyOnceWith(latest);
   } finally { h.controller.dispose(); }
+});
+
+describe("a canvas moved with the same id", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  function movedHarness() {
+    const h = selectionHarness();
+    const moved = { ...h.row, path: "design/flows/a.html", url: "http://localhost/t/k/f/design/flows/a.html" };
+    const removed = vi.fn(), followed = vi.fn();
+    h.controller.canvasRemoved = removed;
+    h.controller.canvasMoved = followed;
+    const list = (...canvases: object[]) => [{ path: "/repo", kind: "list" as const, servedRev: 0, canvases }] as FolderEntry[];
+    return { ...h, moved, removed, followed, list };
+  }
+
+  it("keeps the canvas open at its new path with the view, and finds the selection again there", () => {
+    const h = movedHarness();
+    try {
+      h.select(1);
+      h.controller.wheel({ dx: 30, dy: 40, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
+      const transform = h.board.style.transform, old = h.current();
+      h.controller.updateEntries(h.list(h.moved, h.other));
+      expect(h.current()).not.toBe(old);
+      expect(h.board.style.transform).toBe(transform);
+      expect(h.state()).toMatchObject({ open: { folder: "/repo", canvas: h.moved.path, row: h.moved }, shown: h.moved.path, reanchoring: true, status: null });
+      expect(h.removed).not.toHaveBeenCalled();
+      expect(h.followed).toHaveBeenCalledExactlyOnceWith({ folder: "/repo", from: h.row.path, row: h.moved });
+      // While the new document is asked for the anchor, main already has the new path with the old selectors.
+      expect(h.send).toHaveBeenLastCalledWith({ root: "/repo", canvas: { path: h.moved.path, id: "a" }, frame: { id: "hero" }, element: h.target.element });
+      h.layout({ href: h.moved.url });
+      expect(h.current().contentWindow.postMessage).toHaveBeenCalledWith({ type: "select-anchor", seq: 1, doanId: "cta", selector: '[data-doan-id="cta"]' }, "*");
+      h.select(1, { href: h.moved.url });
+      expect(h.state()).toMatchObject({ reanchoring: false, notice: "" });
+      expect(h.state().selection).toMatchObject({ element: h.target.element });
+      expect(h.board.style.transform).toBe(transform);
+      const frames = h.frames.length;
+      h.controller.openCanvas("/repo", h.moved);
+      expect(h.frames).toHaveLength(frames);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("moves the activity to the new path and adds Moved once", () => {
+    const h = movedHarness();
+    try {
+      h.controller.updateEntries(h.list(h.moved, h.other));
+      h.layout({ href: h.moved.url });
+      const activity = h.state().activity;
+      expect(activityFor(activity, "/repo", h.moved.path, "a").map(event => [event.kind, event.from])).toEqual([["moved", h.row.path], ["opened", undefined]]);
+      expect(h.state().updated).toEqual(activity[0]?.at);
+    } finally { h.controller.dispose(); }
+  });
+
+  // Activity is keyed by (root, canvas id) (R-B7 3); the path is only where it was.
+  it("does not give a new canvas id at a reused path the previous id's history, before or after a move", () => {
+    const h = movedHarness();
+    try {
+      const replacement = { ...h.row, id: "replacement" };
+      h.controller.updateEntries(h.list(replacement, h.other));
+      h.layout();
+      expect(activityFor(h.state().activity, "/repo", h.row.path, "replacement").map(event => event.kind)).toEqual(["reloaded"]);
+      expect(h.state().updated).toEqual(h.state().activity[0]?.at);
+      const moved = { ...replacement, path: "design/new.html", url: "http://localhost/t/k/f/design/new.html" };
+      h.controller.updateEntries(h.list(moved, h.other));
+      h.layout({ href: moved.url });
+      expect(activityFor(h.state().activity, "/repo", moved.path, "replacement").map(event => event.kind)).toEqual(["moved", "reloaded"]);
+      expect(activityFor(h.state().activity, "/repo", h.row.path, "a").map(event => event.kind)).toEqual(["opened"]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("keeps the history of a canvas left at the destination path under its own id", () => {
+    const h = movedHarness();
+    try {
+      h.controller.openCanvas("/repo", h.other);
+      h.layout({ href: h.other.url });
+      h.controller.openCanvas("/repo", h.row);
+      h.layout();
+      const moved = { ...h.row, path: h.other.path, url: h.other.url };
+      h.controller.updateEntries(h.list(moved, { ...h.other, path: "design/c.html", url: "http://localhost/t/k/f/design/c.html" }));
+      expect(activityFor(h.state().activity, "/repo", h.other.path, "a").map(event => event.kind)).toEqual(["moved", "opened", "opened"]);
+      expect(activityFor(h.state().activity, "/repo", "design/c.html", "b").map(event => event.kind)).toEqual(["opened"]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("shows the selection-lost notice when the moved document no longer has the anchor", () => {
+    const h = movedHarness();
+    try {
+      h.select(1);
+      h.controller.updateEntries(h.list(h.moved, h.other));
+      h.layout({ href: h.moved.url });
+      h.select(1, { href: h.moved.url, target: null });
+      expect(h.state()).toMatchObject({ selection: null, notice: SELECTION_LOST, reanchoring: false });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("reloads once when the rename and a content change arrive in one update", () => {
+    const h = movedHarness();
+    try {
+      const frames = h.frames.length;
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 3, canvases: [{ ...h.moved, rev: 4 }, h.other] }]);
+      expect(h.frames).toHaveLength(frames + 1);
+      expect(h.followed).toHaveBeenCalledOnce();
+      expect(h.state().activity.filter((event: { kind: string }) => event.kind === "moved")).toHaveLength(1);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("treats the move as a removal while the comments session cannot follow", () => {
+    const h = movedHarness();
+    try {
+      h.select(1);
+      h.controller.setFollowGuard(() => false);
+      h.controller.updateEntries(h.list(h.moved, h.other));
+      expect(h.removed).toHaveBeenCalledExactlyOnceWith({ folder: "/repo", row: h.row, duplicates: null });
+      expect(h.followed).not.toHaveBeenCalled();
+      expect(h.state()).toMatchObject({ open: null, selection: null, status: "missing", message: "design/a.html is no longer in the list. It was deleted or moved." });
+      expect(h.send).toHaveBeenLastCalledWith(null);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("closes with the duplicate count when several canvases now use the id", () => {
+    const h = movedHarness();
+    try {
+      h.select(1);
+      h.controller.updateEntries(h.list(h.moved, { ...h.moved, path: "design/copy.html", url: "http://localhost/t/k/f/design/copy.html" }, h.other));
+      expect(h.removed).toHaveBeenCalledExactlyOnceWith({ folder: "/repo", row: h.row, duplicates: 2 });
+      expect(h.followed).not.toHaveBeenCalled();
+      expect(h.state()).toMatchObject({ open: null, selection: null, status: "missing" });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("clears the selection when another canvas id now sits at the same path", () => {
+    const h = movedHarness();
+    try {
+      h.select(1);
+      const old = h.current();
+      h.controller.updateEntries(h.list({ ...h.row, id: "replaced" }, h.other));
+      expect(h.current()).not.toBe(old);
+      expect(h.state()).toMatchObject({ selection: null, notice: "", reanchoring: false, open: { canvas: h.row.path, row: { id: "replaced" } } });
+      expect(h.send).toHaveBeenLastCalledWith(null);
+      expect(h.followed).not.toHaveBeenCalled();
+      expect(h.removed).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+});
+
+describe("Escape and a blank click without a selection (L-17)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const escapeKey = () => Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" });
+
+  it("neither asks about a draft nor prevents Escape, and still cancels a pending Open", async () => {
+    const h = selectionHarness();
+    try {
+      const allow: ((value: boolean) => void)[] = [];
+      const guard = vi.fn(() => new Promise<boolean>(resolve => allow.push(resolve)));
+      h.controller.setDraftGuard(true);
+      h.controller.setTransitionGuard(guard);
+      h.controller.openCanvas("/repo", h.other);
+      expect(guard).toHaveBeenCalledOnce();
+      const event = escapeKey();
+      h.host.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+      expect(guard).toHaveBeenCalledOnce();
+      allow[0]?.(true); await Promise.resolve();
+      expect(h.state().open.canvas).toBe(h.row.path);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("skips the guard for an Escape forwarded from the canvas and a blank margin click", () => {
+    const h = selectionHarness();
+    try {
+      const guard = vi.fn(() => false);
+      h.controller.setDraftGuard(true);
+      h.controller.setTransitionGuard(guard);
+      h.receive({ type: "key", seq: 0, key: "Escape" });
+      h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
+      expect(guard).not.toHaveBeenCalled();
+      h.select(1);
+      h.receive({ type: "key", seq: 1, key: "Escape" });
+      expect(guard).toHaveBeenLastCalledWith("selection");
+      expect(h.state().selection).not.toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("lets a click on the canvas background through without asking when nothing is selected (R-B8)", () => {
+    const h = selectionHarness();
+    try {
+      h.layout({ document: "doc" });
+      const guard = vi.fn(() => false);
+      h.controller.setDraftGuard(true);
+      h.controller.setTransitionGuard(guard);
+      h.current().contentWindow.postMessage.mockClear();
+      h.receive({ type: "transition-intent", document: "doc", intent: 1, kind: "selection", clear: true });
+      expect(guard).not.toHaveBeenCalled();
+      expect(h.current().contentWindow.postMessage.mock.calls.map(call => call[0])).toContainEqual({ type: "transition-answer", document: "doc", intent: 1 });
+      // An element click still asks, and so does a background click once something is selected.
+      h.receive({ type: "transition-intent", document: "doc", intent: 2, kind: "selection" });
+      expect(guard).toHaveBeenCalledExactlyOnceWith("selection");
+      h.select(1);
+      h.receive({ type: "transition-intent", document: "doc", intent: 3, kind: "selection", clear: true });
+      expect(guard).toHaveBeenCalledTimes(2);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("still asks before a background click clears a selection the reloaded canvas looks for", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.command("reload");
+      h.layout({ document: "doc2" });
+      expect(h.state().reanchoring).toBe(true);
+      const guard = vi.fn(() => false);
+      h.controller.setDraftGuard(true);
+      h.controller.setTransitionGuard(guard);
+      h.receive({ type: "transition-intent", document: "doc2", intent: 1, kind: "selection", clear: true });
+      expect(guard).toHaveBeenCalledExactlyOnceWith("selection");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("still guards Escape while the reloaded canvas looks for the selection", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.command("reload");
+      expect(h.state().reanchoring).toBe(true);
+      const guard = vi.fn(() => false);
+      h.controller.setDraftGuard(true);
+      h.controller.setTransitionGuard(guard);
+      const event = escapeKey();
+      h.host.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(guard).toHaveBeenCalledExactlyOnceWith("selection");
+      expect(h.state().reanchoring).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+});
+
+describe("comment anchors through a reload (T-11, W-9)", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  const status = (h: ReturnType<typeof pinHarness>) => h.changed.mock.lastCall?.[0].status;
+
+  it("is pending while the same canvas reloads and answered once the new document replies", () => {
+    const h = pinHarness();
+    try {
+      expect(status(h)).toBe("answered");
+      h.controller.command("reload");
+      expect(status(h)).toBe("pending");
+      h.layout({ document: "doc2" });
+      expect(status(h)).toBe("pending");
+      // A late answer from the old document does not end the wait.
+      h.reply();
+      expect(status(h)).toBe("pending");
+      const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+      h.receive({ type: "anchors", document: "doc2", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+        results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: [t.id] } })), rects: q.targets.map((t: { id: string }) => ({ node: t.id, x: 10, y: 10, width: 10, height: 10 })) });
+      expect(status(h)).toBe("answered");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("ends the wait as none when the laid-out document never answers within the measure limit (R-B8)", async () => {
+    vi.useFakeTimers();
+    const h = pinHarness();
+    try {
+      h.controller.command("reload");
+      h.layout({ document: "doc2" });
+      vi.advanceTimersByTime(999);
+      expect(status(h)).toBe("pending");
+      vi.advanceTimersByTime(1);
+      expect(status(h)).toBe("none");
+      expect(h.changed.mock.lastCall?.[0].lookup.nodes.size).toBe(0);
+      expect(h.state().status).toBeNull();
+      // Nothing is left to locate, so the panel shows the target as text instead of a silent no-op.
+      const before = h.current().contentWindow.postMessage.mock.calls.length;
+      await h.controller.activatePin("a");
+      expect(h.current().contentWindow.postMessage.mock.calls.slice(before).map(c => c[0].type)).not.toContain("select-comment");
+      // A late answer still lands.
+      const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+      h.receive({ type: "anchors", document: "doc2", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+        results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: [t.id] } })), rects: q.targets.map((t: { id: string }) => ({ node: t.id, x: 10, y: 10, width: 10, height: 10 })) });
+      expect(status(h)).toBe("answered");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("keeps an answer that arrived within the measure limit", () => {
+    vi.useFakeTimers();
+    const h = pinHarness();
+    try {
+      h.controller.command("reload");
+      h.layout({ document: "doc2" });
+      vi.advanceTimersByTime(500);
+      const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+      h.receive({ type: "anchors", document: "doc2", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+        results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: [t.id] } })), rects: q.targets.map((t: { id: string }) => ({ node: t.id, x: 10, y: 10, width: 10, height: 10 })) });
+      h.changed.mockClear();
+      vi.advanceTimersByTime(5000);
+      expect(h.changed).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("ends the wait when the reload fails, the page is unlisted, the width is gone or the id changes", () => {
+    vi.useFakeTimers();
+    const cases: [string, (h: ReturnType<typeof pinHarness>) => void][] = [
+      ["failed", h => { h.controller.command("reload"); vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS); }],
+      ["unlisted", h => { h.current().dispatchEvent(new Event("load")); expect(status(h)).toBe("pending"); vi.advanceTimersByTime(1000); }],
+      ["no width", h => { const { width: _width, ...row } = h.row; h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [row, h.other] }]); }],
+      ["another id", h => { h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, id: "replaced" }, h.other] }]); }],
+    ];
+    for (const [name, end] of cases) {
+      const h = pinHarness();
+      try {
+        end(h);
+        expect([name, status(h)]).toEqual([name, "none"]);
+      } finally { h.controller.dispose(); }
+    }
+  });
+});
+
+describe("layout height without animation frames (150 px reload stall)", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it("asks a document whose first layout was measured before it had a viewport to measure again", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    const measures = () => h.current().contentWindow.postMessage.mock.calls.map(call => call[0]).filter(message => message.type === "measure");
+    try {
+      h.controller.command("reload");
+      h.layout({ document: "two", viewport: 0, height: 0 });
+      expect(h.current().style).toMatchObject({ height: "150px" });
+      h.current().contentWindow.postMessage.mockClear();
+      vi.advanceTimersByTime(50);
+      expect(measures()).toEqual([{ type: "measure" }]);
+      h.layout({ document: "two", viewport: 150, height: 2600 });
+      expect(h.current().style).toMatchObject({ height: "2600px" });
+      h.current().contentWindow.postMessage.mockClear();
+      vi.advanceTimersByTime(50);
+      h.layout({ document: "two", viewport: 2600, height: 2600 });
+      vi.advanceTimersByTime(1000);
+      expect(measures()).toEqual([{ type: "measure" }]);
+    } finally { h.controller.dispose(); }
+  });
 });

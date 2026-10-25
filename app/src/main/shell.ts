@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { readFolder, runLs, runInit } from "./cli";
 import { insertAt, replaceAt } from "./folders";
 import { openFolderStore } from "./folderStore";
+import { classifyDesignChange } from "./designChange";
 import { folderState, initOutcome, reconcileFolders, type InitOutcome } from "./folderState";
 import { startServer, type LocalServer } from "./serve/server";
 import { folderEntry, openDecision, type FolderEntry } from "./view";
@@ -54,6 +55,9 @@ interface Folder {
   reads: number;
   // Lives here rather than in a read, so a discarded stale read keeps its bump.
   servedRev: number;
+  // Per canvas path (CanvasRow.rev), kept here for the same reason. Never
+  // pruned: a canvas that comes back must not reuse a revision already seen.
+  canvasRevs: Map<string, number>;
   // The scope last given to the server.
   scope: string[];
   // The last `git.common` seen; memory only (design 'app side').
@@ -93,7 +97,10 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
   };
 
   const refresh = async (folder: Folder, change: Change): Promise<string | null | false> => {
-    if (change.served) folder.servedRev++;
+    // Decided before the read: names say what changed, the listing does not.
+    const design = change.names === undefined ? undefined : classifyDesignChange(change.names);
+    if (change.served || design?.bumpServed) folder.servedRev++;
+    for (const path of design?.revPaths ?? []) folder.canvasRevs.set(path, (folder.canvasRevs.get(path) ?? 0) + 1);
     if (!change.reread) {
       // A `tokenCss`/`serve` change leaves the list as it is, so it goes out
       // without waiting for `doan ls`.
@@ -141,7 +148,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       folder.servedRev++;
     }
     folder.watch?.setScope(scope);
-    folder.entry = withCommon(folder, folderEntry(folder.path, view, baseUrl(folder.key), folder.servedRev, mtimes));
+    folder.entry = withCommon(folder, withRevs(folder, folderEntry(folder.path, view, baseUrl(folder.key), folder.servedRev, mtimes)));
     if (view.kind === "notFound") {
       // A watcher on a deleted root is dead and is never re-armed (watch.ts);
       // opening the folder again attaches a fresh one.
@@ -167,6 +174,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       watch: undefined,
       reads: 0,
       servedRev: 0,
+      canvasRevs: new Map(),
       scope: [],
       common: undefined,
     };
@@ -177,6 +185,16 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
 
   const withCommon = (folder: Folder, entry: FolderEntry): FolderEntry =>
     folder.common === undefined ? entry : { ...entry, lastCommon: folder.common };
+
+  // A row whose file never changed while the folder was open has no `rev`.
+  const withRevs = (folder: Folder, entry: FolderEntry): FolderEntry => {
+    if (entry.kind !== "list") return entry;
+    const canvases = entry.canvases.map((row) => {
+      const rev = folder.canvasRevs.get(row.path);
+      return rev === undefined ? row : { ...row, rev };
+    });
+    return { ...entry, canvases };
+  };
 
   // Keeps each surviving folder (its watcher and server key) in `paths` order.
   const reorder = (paths: readonly string[]) => {

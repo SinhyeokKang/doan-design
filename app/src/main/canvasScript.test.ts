@@ -1187,6 +1187,7 @@ describe("draft preselection protocol", () => {
     command({ type: "draft-guard", active: true });
     click(canvas, span);
     const first = ofType(canvas, "transition-intent").at(-1)!;
+    expect(first.kind).toBe("selection");
     expect(ofType(canvas, "select")).toHaveLength(0);
     click(canvas, hero);
     const second = ofType(canvas, "transition-intent").at(-1)!;
@@ -1200,9 +1201,40 @@ describe("draft preselection protocol", () => {
     command({ type: "transition-answer", document: second.document, intent: second.intent });
     expect(ofType(canvas, "select")).toHaveLength(1);
   });
+  test("a click on the document's own background asks as a clear; a click on an element does not", () => {
+    const { canvas, span } = heroCanvas();
+    canvas.fromParent({ type: "draft-guard", active: true });
+    click(canvas, canvas.body);
+    const background = ofType(canvas, "transition-intent").at(-1)!;
+    expect(background).toMatchObject({ kind: "selection", clear: true });
+    canvas.fromParent({ type: "transition-answer", document: background.document, intent: background.intent });
+    expect(ofType(canvas, "clear")).toHaveLength(1);
+    click(canvas, span);
+    expect(ofType(canvas, "transition-intent").at(-1)).not.toHaveProperty("clear");
+  });
+  test("an ⌥-clicked link asks as navigation and waits for the answer", () => {
+    const anchor = node("a", { href: "other.html" }, [node("b")]);
+    const canvas = fakeCanvas({ readyState: "interactive", body: node("body", {}, [anchor]) });
+    canvas.fromParent({ type: "draft-guard", active: true });
+    let stopped = 0;
+    click(canvas, anchor, { altKey: true, stopImmediatePropagation: () => { stopped++; } } as Partial<FakeEvent>);
+    expect(stopped).toBe(1);
+    const intent = ofType(canvas, "transition-intent").at(-1)!;
+    expect(intent.kind).toBe("navigation");
+    expect(canvas.assigned).toEqual([]);
+    canvas.fromParent({ type: "transition-answer", document: intent.document, intent: intent.intent });
+    expect(canvas.assigned).toEqual(["other.html"]);
+  });
   test("native composition Escape does not emit a transition", () => {
     const { canvas, span } = heroCanvas();
     canvas.fireWindow("keydown", input({ target: span, key: "Escape", isComposing: true }));
     expect(ofType(canvas, "key")).toHaveLength(0);
+  });
+});
+
+describe("nextHeight after a first measurement of 0", () => {
+  test("does not freeze at 0 when the document has content once the iframe is 0 tall", () => {
+    const first = nextHeight(null, 0, 150);
+    expect(nextHeight(first, 2600, 0)).toEqual({ sent: 2600, inner: 0, frozen: false });
   });
 });

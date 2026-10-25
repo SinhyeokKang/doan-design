@@ -1,5 +1,6 @@
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import { MAX_SCALE } from "../renderer/viewport";
 import { RESTORE_LOADING_WAIT_MS, restorePlan } from "./restorePlan";
 import type { UiState } from "./uiState";
 
@@ -100,4 +101,54 @@ test.each<FolderEntry>([
 ])("a problem state goes home: problem rows never enter a workspace: $kind", (entry) => {
   expect(restorePlan(state(), [entry], 0)).toEqual({ kind: "home" });
   expect(restorePlan(state(), [entry], 60_000)).toEqual({ kind: "home" });
+});
+
+describe("restoring by the saved canvas id", () => {
+  const idRow = (path: string, id?: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ ...row(path), ...(id === undefined ? {} : { id }), width: 1200, ...extra });
+  const rows = (...canvases: CanvasRow[]): FolderEntry[] => [{ path: "/repo/a", kind: "list", canvases, servedRev: 0 }];
+
+  test("opens the one row with the id at its saved path", () => {
+    expect(restorePlan(state({ canvasId: "home" }), rows(idRow("a.html", "home"), idRow("b.html", "other")), 0))
+      .toEqual({ kind: "workspace", root: "/repo/a", canvas: { path: "a.html", view } });
+  });
+
+  test("follows the id to a new path", () => {
+    expect(restorePlan(state({ canvasId: "home" }), rows(idRow("b.html", "other"), idRow("sub/a.html", "home")), 0))
+      .toEqual({ kind: "workspace", root: "/repo/a", canvas: { path: "sub/a.html", view } });
+  });
+
+  test("prefers the id over another canvas now at the saved path", () => {
+    expect(restorePlan(state({ canvasId: "home" }), rows(idRow("a.html", "other"), idRow("moved.html", "home")), 0))
+      .toEqual({ kind: "workspace", root: "/repo/a", canvas: { path: "moved.html", view } });
+  });
+
+  test("opens the overview with the duplicate id when two or more rows use it", () => {
+    expect(restorePlan(state({ canvasId: "home" }), rows(idRow("a.html", "home"), idRow("b.html", "home")), 0))
+      .toEqual({ kind: "workspace", root: "/repo/a", canvas: null, duplicateId: { id: "home", count: 2 } });
+    expect(restorePlan(state({ canvasId: "home" }), rows(idRow("x.html", "home"), idRow("y.html", "home"), idRow("z.html", "home")), 0))
+      .toEqual({ kind: "workspace", root: "/repo/a", canvas: null, duplicateId: { id: "home", count: 3 } });
+  });
+
+  test("falls back to the saved path when no row has the id", () => {
+    expect(restorePlan(state({ canvasId: "home" }), rows(idRow("a.html", "renamed")), 0))
+      .toEqual({ kind: "workspace", root: "/repo/a", canvas: { path: "a.html", view } });
+    expect(restorePlan(state({ canvasId: "home" }), rows(idRow("b.html", "other")), 0))
+      .toEqual({ kind: "workspace", root: "/repo/a", canvas: null, missingCanvas: "a.html" });
+  });
+
+  test("restores by path from a file saved before canvas ids", () => {
+    expect(restorePlan(state(), rows(idRow("a.html", "other"), idRow("b.html", "home")), 0))
+      .toEqual({ kind: "workspace", root: "/repo/a", canvas: { path: "a.html", view } });
+  });
+
+  test("restores a row without a width; the canvas shows its own no-width state", () => {
+    const noWidth: CanvasRow = { ...row("moved.html"), id: "home" };
+    expect(restorePlan(state({ canvasId: "home" }), rows(noWidth), 0))
+      .toEqual({ kind: "workspace", root: "/repo/a", canvas: { path: "moved.html", view } });
+  });
+
+  test("clamps the view of a canvas found by id", () => {
+    expect(restorePlan(state({ canvasId: "home", view: { scale: 99, x: 0, y: 0 } }), rows(idRow("b.html", "home")), 0))
+      .toMatchObject({ canvas: { path: "b.html", view: { scale: MAX_SCALE } } });
+  });
 });

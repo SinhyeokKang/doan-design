@@ -6,8 +6,14 @@ const DEBOUNCE_MS = 200;
 export interface Change {
   // `design/` or `.doan/` changed, so `doan ls` has to run again.
   reread: boolean;
-  // A served file changed (`design/`, `tokenCss`, `serve`), so an open canvas reloads.
+  // A served file outside `design/` changed (`tokenCss`, `serve`), or `design/`
+  // itself came or went, so an open canvas reloads. A change inside `design/`
+  // leaves this false and carries `names`; the shell decides from them.
   served: boolean;
+  // Names under `design/`, relative to it, for the shell to decide whether only
+  // canvas rows changed; `null` when an event had no name. Absent when no
+  // `design/` event is in the change.
+  names?: readonly string[] | null;
 }
 
 const REREAD: Change = { reread: true, served: false };
@@ -28,13 +34,16 @@ export interface FolderWatch {
 // Debounces triggers into one run; a trigger during a run queues exactly one
 // more run after it, so `doan ls` never runs twice at once for a folder and
 // the last change is never missed. Flags pile up until a run takes them, so a
-// change that lands during a run reaches the run queued after it.
+// change that lands during a run reaches the run queued after it. Names are a
+// union, and one unknown name makes the whole set unknown until a run takes it;
+// a trigger without names (not a `design/` event) leaves them as they are.
 export function createRefresher(run: (change: Change) => Promise<void>, delayMs = DEBOUNCE_MS): Refresher {
   let timer: NodeJS.Timeout | undefined;
   let running = false;
   let again = false;
   let closed = false;
   let pending: Change = { reread: false, served: false };
+  let names: Set<string> | null | undefined;
 
   const schedule = () => {
     clearTimeout(timer);
@@ -43,8 +52,9 @@ export function createRefresher(run: (change: Change) => Promise<void>, delayMs 
   const start = async () => {
     timer = undefined;
     running = true;
-    const change = pending;
+    const change: Change = names === undefined ? pending : { ...pending, names: names === null ? null : [...names] };
     pending = { reread: false, served: false };
+    names = undefined;
     try {
       await run(change);
     } catch (error) {
@@ -59,6 +69,8 @@ export function createRefresher(run: (change: Change) => Promise<void>, delayMs 
   const trigger = (change: Change) => {
     if (closed) return;
     pending = { reread: pending.reread || change.reread, served: pending.served || change.served };
+    if (change.names === null) names = null;
+    else if (change.names !== undefined && names !== null) names = new Set([...(names ?? []), ...change.names]);
     if (running) {
       again = true;
       return;
@@ -96,8 +108,9 @@ interface Target {
 export function watchFolder(root: string, refresh: (change: Change) => Promise<void>): FolderWatch {
   const refresher = createRefresher(refresh);
   const armed = new Map<string, Armed>();
+  const design: Target = { path: join(root, "design"), recursive: true, change: REREAD };
   const fixed: Target[] = [
-    { path: join(root, "design"), recursive: true, change: BOTH },
+    design,
     { path: join(root, ".doan"), recursive: false, change: REREAD },
     { path: join(root, ".doan", "comments"), recursive: false, change: REREAD },
   ];
@@ -118,6 +131,9 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
     const target = targets().find((candidate) => candidate.path === path);
     if (target === undefined) return undefined;
     if (target.names && filename !== null && !target.names.has(filename)) return undefined;
+    // Names are judged only here, never on the root watcher: the root's own
+    // deletion arrives there under the root's name (POSTMORTEM 2026-10-22).
+    if (target === design) return { ...REREAD, names: filename === null ? null : [filename] };
     return target.change;
   };
 

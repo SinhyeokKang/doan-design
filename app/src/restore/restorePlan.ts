@@ -10,9 +10,10 @@ export type RestorePlan =
   // The saved root is still loading; ask again when the list changes or time passes.
   | { kind: "wait" }
   // `canvas: null` is the overview. `missingCanvas` is the saved path that is
-  // no longer listed, for the "is no longer in design/" toast. `view` is
-  // applied as the canvas opens; the board stays hidden until its first layout.
-  | { kind: "workspace"; root: string; canvas: { path: string; view?: UiView } | null; missingCanvas?: string };
+  // no longer listed, for the "is no longer in design/" toast; `duplicateId`
+  // is the saved canvas id now used by several rows. `view` is applied as the
+  // canvas opens; the board stays hidden until its first layout.
+  | { kind: "workspace"; root: string; canvas: { path: string; view?: UiView } | null; missingCanvas?: string; duplicateId?: { id: string; count: number } };
 
 // `elapsedMs` is time since the restore started; the caller owns the clock.
 export function restorePlan(state: UiState | null, entries: readonly FolderEntry[], elapsedMs: number): RestorePlan {
@@ -24,7 +25,12 @@ export function restorePlan(state: UiState | null, entries: readonly FolderEntry
   // A problem row never enters a workspace (ARCHITECTURE §3 'Memory'), restored or not.
   if (entry.kind !== "list") return { kind: "home" };
   if (state.canvas === undefined) return { kind: "workspace", root, canvas: null };
-  const path = state.canvas;
+  // The saved id wins over the saved path: the file may have moved, or another
+  // canvas may now sit at the path. No row with the id falls back to the path.
+  const { canvasId } = state;
+  const same = canvasId === undefined ? [] : entry.canvases.filter((row) => row.id === canvasId);
+  if (canvasId !== undefined && same.length > 1) return { kind: "workspace", root, canvas: null, duplicateId: { id: canvasId, count: same.length } };
+  const path = same[0]?.path ?? state.canvas;
   if (!entry.canvases.some((row) => row.path === path)) return { kind: "workspace", root, canvas: null, missingCanvas: path };
   return { kind: "workspace", root, canvas: state.view === undefined ? { path } : { path, view: { ...state.view, scale: Math.min(MAX_SCALE, Math.max(MIN_SCALE, state.view.scale)) } } };
 }

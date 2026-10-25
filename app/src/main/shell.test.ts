@@ -208,6 +208,10 @@ function has(entry: ListEntry | undefined, path: string): boolean {
   return entry?.canvases.some((canvas) => canvas.path === path) ?? false;
 }
 
+function rowRev(changes: FolderEntry[][], root: string, path: string): number | undefined {
+  return listed(latest(changes), root)?.canvases.find((canvas) => canvas.path === path)?.rev;
+}
+
 // Wraps the real CLI so each `--repo` read (the shell's re-reads) is counted
 // and waits while `hold` exists.
 function countingCli(): { path: string; hold: string; reads: () => number } {
@@ -271,10 +275,11 @@ async function opened(root: string, cliPath = cli, onEntries?: (entries: FolderE
 }
 
 describe("served revision", () => {
-  test("a design/ change publishes the new list together with the bump", async () => {
+  test("a non-canvas design/ change publishes the new list together with the bump", async () => {
     const root = servedRepo({});
     const { changes, rev0 } = await opened(root);
     writeFileSync(join(root, "design", "b.html"), "<!doctype html><title>B</title>");
+    writeFileSync(join(root, "design", "b.css"), "b{}");
     await vi.waitFor(() => expect(has(listed(latest(changes), root), "design/b.html")).toBe(true), until);
     const first = changes.map((entries) => listed(entries, root)).find((entry) => has(entry, "design/b.html"));
     expect(first?.servedRev).toBe(rev0 + 1);
@@ -363,6 +368,7 @@ describe("served revision", () => {
     const { changes, rev0 } = await opened(root);
     for (let i = 0; i < 4; i++) {
       writeFileSync(join(root, "design", `b${i}.html`), "<!doctype html>");
+      writeFileSync(join(root, "design", `b${i}.css`), "b{}");
       await sleep(40);
     }
     await vi.waitFor(() => expect(has(listed(latest(changes), root), "design/b3.html")).toBe(true), until);
@@ -390,6 +396,7 @@ describe("served revision", () => {
     const reads = counting.reads();
     writeFileSync(counting.hold, "");
     writeFileSync(join(root, "design", "b.html"), "<!doctype html>");
+    writeFileSync(join(root, "design", "b.css"), "b{}");
     await vi.waitFor(() => expect(counting.reads()).toBe(reads + 1), until);
     writeFileSync(join(root, "assets", "x.css"), "y{}");
     // Past the debounce, so the serve change is queued behind the running read.
@@ -400,13 +407,14 @@ describe("served revision", () => {
     expect(first?.servedRev).toBe(rev0 + 1);
   });
 
-  test("a discarded stale read keeps its bump", async () => {
+  test("a discarded stale read keeps its bump and its row revisions", async () => {
     const counting = countingCli();
     const root = servedRepo({});
     const { shell, changes, rev0 } = await opened(root, counting.path);
     const reads = counting.reads();
     writeFileSync(counting.hold, "");
     writeFileSync(join(root, "design", "b.html"), "<!doctype html>");
+    writeFileSync(join(root, "design", "b.css"), "b{}");
     await vi.waitFor(() => expect(counting.reads()).toBe(reads + 1), until);
     // Re-opening starts a newer read, so the watcher's read is discarded.
     await shell.open(root);
@@ -415,6 +423,47 @@ describe("served revision", () => {
     await vi.waitFor(() => expect(has(listed(latest(changes), root), "design/b.html")).toBe(true), until);
     await sleep(500);
     expect(rev(changes, root)).toBe(rev0 + 1);
+    // Only the discarded watcher read saw the name; the re-open read had none.
+    expect(rowRev(changes, root, "design/b.html")).toBeGreaterThanOrEqual(1);
+  });
+
+  // Another canvas's save must not reload the open one (revision-continuity Q1).
+  test.each<[string, (root: string) => void]>([
+    ["a plain write", (root) => writeFileSync(join(root, "design", "b.html"), "<!doctype html><title>B2</title>")],
+    ["a save through a temporary sibling", (root) => {
+      writeFileSync(join(root, "design", "b.html.tmp.4242.0123456789ab"), "<!doctype html><title>B2</title>");
+      renameSync(join(root, "design", "b.html.tmp.4242.0123456789ab"), join(root, "design", "b.html"));
+    }],
+  ])("a canvas change by %s moves only that row's revision", async (_label, change) => {
+    const root = servedRepo({});
+    writeFileSync(join(root, "design", "b.html"), "<!doctype html><title>B</title>");
+    const { changes, rev0 } = await opened(root);
+    const a = rowRev(changes, root, "design/a.html");
+    const b = rowRev(changes, root, "design/b.html") ?? 0;
+    change(root);
+    await vi.waitFor(() => expect(rowRev(changes, root, "design/b.html")).toBeGreaterThan(b), until);
+    await sleep(500);
+    expect(rev(changes, root)).toBe(rev0);
+    expect(rowRev(changes, root, "design/a.html")).toBe(a);
+  });
+
+  test("a non-canvas file under design/ bumps", async () => {
+    const root = servedRepo({});
+    const { changes, rev0 } = await opened(root);
+    const a = rowRev(changes, root, "design/a.html");
+    writeFileSync(join(root, "design", "style.css"), "a{}");
+    await vi.waitFor(() => expect(rev(changes, root)).toBe(rev0 + 1), until);
+    expect(rowRev(changes, root, "design/a.html")).toBe(a);
+  });
+
+  // The served path's own watcher dies with it; the re-arm reports the change.
+  test("a nested serve directory deleted bumps", async () => {
+    const root = servedRepo({ serve: ["web/dist"] });
+    mkdirSync(join(root, "web", "dist"), { recursive: true });
+    writeFileSync(join(root, "web", "dist", "a.css"), "a{}");
+    const { changes, rev0 } = await opened(root);
+    rmSync(join(root, "web", "dist"), { recursive: true });
+    await vi.waitFor(() => expect(rev(changes, root)).toBeGreaterThan(rev0), until);
   });
 });
 

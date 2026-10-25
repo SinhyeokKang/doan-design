@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { initialCanvasState, type CanvasState } from "./CanvasController";
-import { Sidebar } from "./Sidebar";
+import { movedKey, moveExpanded, Sidebar } from "./Sidebar";
 import type { CanvasRow } from "../main/view";
 import { TooltipProvider } from "./components/ui/tooltip";
 
@@ -73,4 +73,22 @@ test("a frame without id or title is dimmed as the shipped (no id) label", () =>
   const html = renderToStaticMarkup(<TooltipProvider><Sidebar entries={[{ path: "/repo", kind: "list", servedRev: 0, canvases: [canvas] }]} state={initialCanvasState()} expanded={{ "/repo": ["design/billing", canvas.path] }} open={() => {}} jump={() => {}} select={() => {}} overview={() => {}} /></TooltipProvider>);
   expect(html).toContain('<span class="g no-id">(no id)</span>');
   expect(html).toContain('<span class="g">named</span>');
+});
+
+test("a move carries the canvas row and its frame rows to the new path", () => {
+  expect(movedKey("design/a.html", "design/a.html", "design/flows/a.html")).toBe("design/flows/a.html");
+  expect(movedKey("design/a.html\n1", "design/a.html", "design/flows/a.html")).toBe("design/flows/a.html\n1");
+  expect(movedKey("design/a.html.bak", "design/a.html", "design/flows/a.html")).toBe("design/a.html.bak");
+  expect(movedKey("overview", "design/a.html", "design/flows/a.html")).toBe("overview");
+});
+
+test("a move into another folder expands the new ancestors and moves the canvas row's expansion", () => {
+  expect(moveExpanded(["design/old", "design/old/a.html"], "design/old/a.html", "design/flows/sub/a.html"))
+    .toEqual(["design/old", "design", "design/flows", "design/flows/sub", "design/flows/sub/a.html"]);
+  expect(moveExpanded(["design/old"], "design/old/a.html", "design/flows/a.html")).toEqual(["design/old", "design", "design/flows"]);
+  const canvas = { ...row, path: "design/flows/sub/a.html", title: "Moved" };
+  const html = renderToStaticMarkup(<TooltipProvider><Sidebar entries={[{ path: "/repo", kind: "list", servedRev: 0, canvases: [canvas] }]} state={initialCanvasState()} expanded={{ "/repo": moveExpanded([row.path], row.path, canvas.path) }} open={() => {}} jump={() => {}} select={() => {}} overview={() => {}} /></TooltipProvider>);
+  expect(html).toMatch(/aria-label="flows"[^>]*aria-expanded="true"/);
+  expect(html).toMatch(/aria-label="sub"[^>]*aria-expanded="true"/);
+  expect(html).toMatch(/aria-label="Moved"[^>]*aria-expanded="true"/);
 });

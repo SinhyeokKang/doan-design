@@ -124,6 +124,8 @@ function touch(path: string, content?: string): void {
   utimesSync(path, later, later);
 }
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 // get() answers before its job reaches the capturer, so a test waits for the
 // capture to start before it releases one.
 const started = (f: Fixture, count: number) => vi.waitFor(() => expect(f.captures).toHaveLength(count));
@@ -265,6 +267,47 @@ test("a token CSS change makes every thumbnail of the folder stale; a canvas-onl
   thumbnails.entriesChanged(bump(f));
   await vi.waitFor(() => expect(f.changed.sort()).toEqual(["design/a.html", "design/b.html"]));
   expect(await thumbnails.get(f.root, "design/a.html", true)).toEqual({ kind: "pending" });
+});
+
+function bumpRow(f: Fixture, path: string): FolderEntry[] {
+  f.entries = f.entries.map((entry) => (entry.kind === "list"
+    ? { ...entry, canvases: entry.canvases.map((canvas) => (canvas.path === path ? { ...canvas, rev: (canvas.rev ?? 0) + 1 } : canvas)) }
+    : entry));
+  return f.entries;
+}
+
+// The shell moves a row's revision, not servedRev, when only that canvas file
+// changed; only that canvas is checked, so an untouched one is not even looked at.
+test("a row revision without a served bump re-checks only that canvas", async () => {
+  const f = fixture();
+  const thumbnails = make(f.deps);
+  thumbnails.entriesChanged(f.entries);
+  for (const path of ["design/a.html", "design/b.html"]) await thumbnails.get(f.root, path, true);
+  await vi.waitFor(() => expect(f.changed).toHaveLength(2));
+  f.changed.length = 0;
+  // a.html changes on disk too, but nothing reported it: it is not re-checked.
+  touch(join(f.root, "design/a.html"), "<title>A2</title>");
+  touch(join(f.root, "design/b.html"), "<title>B2</title>");
+  thumbnails.entriesChanged(bumpRow(f, "design/b.html"));
+  await vi.waitFor(() => expect(f.changed).toEqual(["design/b.html"]));
+  await vi.waitFor(() => expect(f.captures).toHaveLength(2));
+  await sleep(100);
+  expect(f.changed).toEqual(["design/b.html"]);
+  expect(await thumbnails.get(f.root, "design/b.html", true)).toEqual({ kind: "pending" });
+  await vi.waitFor(() => expect(f.captures).toHaveLength(3));
+  expect(f.captures.at(-1)).toMatch(/design\/b\.html$/);
+});
+
+test("a row revision on a canvas whose file did not change keeps its thumbnail", async () => {
+  const f = fixture();
+  const thumbnails = make(f.deps);
+  thumbnails.entriesChanged(f.entries);
+  await thumbnails.get(f.root, "design/a.html", true);
+  await vi.waitFor(() => expect(f.changed).toHaveLength(1));
+  thumbnails.entriesChanged(bumpRow(f, "design/a.html"));
+  await sleep(100);
+  expect(f.changed).toHaveLength(1);
+  expect((await thumbnails.get(f.root, "design/a.html", true)).kind).toBe("ready");
 });
 
 test("a token CSS edit or an app update while the app was closed is caught at the next get", async () => {

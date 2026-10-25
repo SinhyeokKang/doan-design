@@ -133,3 +133,28 @@ test("a prototype-polluting key is not a saved root", () => {
 test("unknown fields are not carried over", () => {
   expect(parse({ screen: "home", selection: { id: "x" }, extra: 1 })).toEqual({ screen: "home", expanded: {}, lastByRoot: {} });
 });
+
+test("reads the open canvas id beside its path", () => {
+  const state = { screen: "workspace", root: "/repo/a", canvas: "billing.html", canvasId: "billing-v2", view, expanded: {}, lastByRoot: {} };
+  expect(parse(state)).toEqual(state);
+});
+
+test("a file without a canvas id has none", () => {
+  expect(parse({ screen: "workspace", root: "/repo/a", canvas: "billing.html", expanded: {}, lastByRoot: {} })).not.toHaveProperty("canvasId");
+});
+
+test.each([["upper case", "Billing"], ["a space", "bill ing"], ["a leading dash", "-billing"], ["a double dash", "bill--ing"], ["empty", ""], ["a number", 7], ["null", null]])(
+  "drops a canvas id with %s and keeps the rest",
+  (_name, canvasId) => {
+    expect(parse({ screen: "workspace", root: "/repo/a", canvas: "billing.html", canvasId, view, expanded: {}, lastByRoot: {} }))
+      .toEqual({ screen: "workspace", root: "/repo/a", canvas: "billing.html", view, expanded: {}, lastByRoot: {} });
+  },
+);
+
+test("drops a canvas id that comes without a canvas", () => {
+  expect(parse({ screen: "workspace", root: "/repo/a", canvasId: "billing", expanded: {}, lastByRoot: {} }))
+    .toEqual({ screen: "workspace", root: "/repo/a", expanded: {}, lastByRoot: {} });
+  // A canvas outside the saved roots is dropped, and its id with it.
+  expect(parse({ screen: "workspace", root: "/elsewhere", canvas: "billing.html", canvasId: "billing", expanded: {}, lastByRoot: {} }))
+    .toEqual({ screen: "home", expanded: {}, lastByRoot: {} });
+});

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { activityFor, pushActivity, timeText, type ActivityEvent } from "./activity";
+import { activityFor, movedFrom, pushActivity, timeText, type ActivityEvent } from "./activity";
 
 const event = (second: number, extra: Partial<ActivityEvent> = {}): ActivityEvent => ({ folder: "/repo", canvas: "design/a.html", at: new Date(2026, 9, 22, 14, 3, second), kind: "opened", ...extra });
 
@@ -29,4 +29,31 @@ test("puts the latest insertion first for simultaneous events", () => {
 test("formats local time with 24-hour digits independently of locale", () => {
   expect(timeText(new Date(2026, 9, 22, 0, 0, 5))).toBe("00:00:05");
   expect(timeText(new Date(2026, 9, 22, 14, 3, 21))).toBe("14:03:21");
+});
+
+test("keys a canvas with an id by its id across paths, and one without by its path", () => {
+  const log = [
+    event(4, { canvas: "design/flows/a.html", id: "a", kind: "moved", from: "design/a.html" }),
+    event(3, { id: "replacement" }),
+    event(2, { id: "a" }),
+    event(1),
+    event(0, { folder: "/other", id: "a" }),
+  ];
+  expect(activityFor(log, "/repo", "design/flows/a.html", "a").map((item) => item.at.getSeconds())).toEqual([4, 2]);
+  expect(activityFor(log, "/repo", "design/a.html", "replacement").map((item) => item.at.getSeconds())).toEqual([3]);
+  expect(activityFor(log, "/repo", "design/a.html").map((item) => item.at.getSeconds())).toEqual([1]);
+  expect(activityFor(log, "/repo", "design/a.html", "").map((item) => item.at.getSeconds())).toEqual([1]);
+});
+
+test("keeps the per-canvas limit by canvas id, not by path", () => {
+  let log = pushActivity([], event(1, { id: "a" }), 1);
+  log = pushActivity(log, event(2, { id: "b" }), 1);
+  expect(log.map((item) => item.at.getSeconds())).toEqual([2, 1]);
+  log = pushActivity(log, event(3, { canvas: "design/flows/a.html", id: "a" }), 1);
+  expect(log.map((item) => item.at.getSeconds())).toEqual([3, 2]);
+});
+
+test("names the previous file of a move by its file name", () => {
+  expect(movedFrom({ ...event(1), kind: "moved", from: "design/checkout.html" })).toBe("checkout.html");
+  expect(movedFrom({ ...event(1), kind: "moved", from: "design/flows/old name.html" })).toBe("old name.html");
 });

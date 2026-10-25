@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import { CommentsSession } from "./CommentsSession";
 import type { DoanApi } from "../preload";
-import type { Comment, Author } from "../formats/types";
+import type { Comment, Author, Target } from "../formats/types";
 import type { BeginResult, CommentList, CommentRequest, CommentReply, SavedStatus } from "../main/comments/service";
 const identity = { root: "/repo", canvas: "a", path: "design/a.html" };
 const c: Comment = { comment: "c1", body: "Before", status: "open", target: {}, canvasHash: "h", createdBy: { kind: "human", name: "A" }, createdAt: "2026-10-23T00:00:00.000Z", updatedAt: "2026-10-23T00:00:00.000Z" };
@@ -283,4 +283,291 @@ test("a newer failed begin cannot strand the obsolete begin's main guard", async
   rejectNew(new Error("Current failure")); await next;
   expect(s.createError).toBe("Current failure"); expect(s.beginning).toBe(false);
   expect(api.setCommentDraftGuard).toHaveBeenLastCalledWith(false);
+});
+
+describe("continue a blocked new comment on the current version", () => {
+  type Begin = Awaited<ReturnType<DoanApi["commentsBegin"]>>;
+  async function blocked(scope: "canvas" | "selection" = "selection", body = "first line\nsecond line") {
+    const f = fixture(); await f.session.open(identity); await f.session.create(scope); f.session.body(body);
+    f.session.documentLost();
+    f.api.setCommentDraftGuard.mockClear();
+    return f;
+  }
+  function hold(api: ReturnType<typeof fixture>["api"], target: Target = { element: { doanId: "pay", selector: "button", html: "<button/>" } }) {
+    let release!: () => void, fail!: (error: Error) => void;
+    api.commentsBegin.mockImplementationOnce(r => new Promise<Begin>((resolve, reject) => {
+      release = () => resolve(reply<BeginResult>(r, { origin: "fresh", project: 7, generation: "loader2", hash: "h2", target }));
+      fail = reject;
+    }));
+    return { release: () => release(), fail: (error: Error) => fail(error) };
+  }
+  const neverReleased = (api: ReturnType<typeof fixture>["api"]) => expect(api.setCommentDraftGuard).not.toHaveBeenCalledWith(false);
+
+  test("a document loss on the same canvas blocks the create draft as reloaded", async () => {
+    const { session: s } = await blocked();
+    expect(s.draft.draft?.lost).toBe("reloaded");
+    expect(s.draft.draft?.blocked).toBe("The canvas reloaded while you were writing. Your text is kept — continue on the current version to save it.");
+  });
+  test("a document loss while another canvas is open stays unavailable", async () => {
+    const { session: s } = fixture(); await s.open(identity); await s.create("canvas");
+    await s.open({ ...identity, canvas: "b", path: "design/b.html" }); s.documentLost(true);
+    expect(s.draft.draft?.lost).toBe("unavailable");
+    expect(s.draft.draft?.blocked).toBe("Original document or target is unavailable.");
+  });
+  test("success replaces the draft with the new origin and the body as of success", async () => {
+    const { session: s, api } = await blocked();
+    const old = s.draft.draft!.id, begin = hold(api);
+    const started = s.continueDraft("selection");
+    expect(s.beginning).toBe(true); expect(s.continuing).toBe("selection");
+    s.body("first line\nsecond line\nthird line");
+    begin.release(); await started;
+    expect(api.commentsBegin).toHaveBeenLastCalledWith(expect.objectContaining({ ...identity, scope: "selection" }));
+    expect(api.setCommentDraftGuard).toHaveBeenCalledExactlyOnceWith(true);
+    expect(s.draft.draft).toMatchObject({ body: "first line\nsecond line\nthird line", blocked: null, lost: null, origin: { kind: "create", canvasHash: "h2", target: { element: { doanId: "pay" } } } });
+    expect(s.draft.draft?.id).not.toBe(old); expect(s.continued).toBe(s.draft.draft?.id);
+    expect(s.target).toEqual({ element: { doanId: "pay", selector: "button", html: "<button/>" } });
+    expect(s.beginning).toBe(false); expect(s.continuing).toBeNull();
+    await s.save();
+    expect(api.commentsMutate.mock.calls[0]?.[0]).toMatchObject({ origin: "fresh", intent: { type: "create", body: "first line\nsecond line\nthird line" } });
+  });
+  test("Continue on canvas begins a canvas draft from a selection draft", async () => {
+    const { session: s, api } = await blocked();
+    api.commentsBegin.mockImplementationOnce(async r => reply<BeginResult>(r, { origin: "fresh", project: 7, generation: "loader2", hash: "h2", target: {} }));
+    await s.continueDraft("canvas");
+    expect(api.commentsBegin).toHaveBeenLastCalledWith(expect.objectContaining({ scope: "canvas" }));
+    expect(s.draft.draft?.origin).toMatchObject({ target: {} }); expect(s.target).toEqual({});
+  });
+  test("failure keeps the blocked draft and its body, and a retry can succeed", async () => {
+    const { session: s, api } = await blocked();
+    const old = structuredClone(s.draft);
+    api.commentsBegin.mockRejectedValueOnce(new Error("A readable width is required to add comments."));
+    await s.continueDraft("selection");
+    expect(s.continueError).toBe("A readable width is required to add comments.");
+    expect(s.createError).toBeNull();
+    expect(s.draft).toEqual(old); expect(s.beginning).toBe(false); expect(s.continuing).toBeNull();
+    const retry = s.continueDraft("selection"); expect(s.continueError).toBeNull(); await retry;
+    expect(s.draft.draft?.blocked).toBeNull(); neverReleased(api);
+  });
+  test.each(["documentLost", "moved", "renamed"])("late success after %s cannot replace the draft or touch the guard", async kind => {
+    const { session: s, api } = await blocked();
+    const begin = hold(api), started = s.continueDraft("selection");
+    if (kind === "documentLost") s.documentLost(); else if (kind === "moved") await s.open({ ...identity, path: "design/moved/a.html" }); else await s.rename("design/moved/a.html");
+    expect(s.beginning).toBe(false);
+    const before = structuredClone(s.draft);
+    begin.release(); await started;
+    expect(s.draft).toEqual(before); expect(s.draft.draft?.body).toBe("first line\nsecond line");
+    expect(api.setCommentDraftGuard).not.toHaveBeenCalled();
+  });
+  test("late failure after a document loss leaves no error", async () => {
+    const { session: s, api } = await blocked();
+    const begin = hold(api), started = s.continueDraft("selection");
+    s.documentLost(); begin.fail(new Error("Obsolete document")); await started;
+    expect(s.continueError).toBeNull(); expect(s.draft.draft?.lost).toBe("reloaded"); neverReleased(api);
+  });
+  test("a held guard confirmation replaces the draft only while its begin is current", async () => {
+    const { session: s, api } = await blocked();
+    let confirm!: () => void;
+    api.setCommentDraftGuard.mockImplementationOnce(() => new Promise<void>(resolve => { confirm = resolve; }));
+    const first = s.continueDraft("selection");
+    await vi.waitFor(() => expect(api.setCommentDraftGuard).toHaveBeenCalledOnce());
+    expect(s.draft.draft?.lost).toBe("reloaded");
+    s.documentLost(); confirm(); await first;
+    expect(s.draft.draft?.lost).toBe("reloaded"); expect(s.beginning).toBe(false);
+    api.setCommentDraftGuard.mockImplementationOnce(() => new Promise<void>(resolve => { confirm = resolve; }));
+    const second = s.continueDraft("selection");
+    await vi.waitFor(() => expect(api.setCommentDraftGuard).toHaveBeenCalledTimes(2));
+    expect(s.draft.draft?.lost).toBe("reloaded");
+    confirm(); await second;
+    expect(s.draft.draft?.lost).toBeNull(); neverReleased(api);
+  });
+  test("a double click begins once", async () => {
+    const { session: s, api } = await blocked();
+    const begin = hold(api), first = s.continueDraft("selection"), second = s.continueDraft("selection"), third = s.continueDraft("canvas");
+    begin.release(); await Promise.all([first, second, third]);
+    expect(api.commentsBegin).toHaveBeenCalledTimes(2);
+    expect(api.setCommentDraftGuard).toHaveBeenCalledExactlyOnceWith(true);
+  });
+  test.each(["missing", "failed"] as const)("does nothing while the author is %s", async status => {
+    const { session: s, api } = await blocked();
+    s.author = status === "failed" ? { status, message: "git failed" } : { status };
+    await s.continueDraft("selection");
+    expect(api.commentsBegin).toHaveBeenCalledTimes(1); expect(s.draft.draft?.lost).toBe("reloaded");
+  });
+  test("a click during IME composition continues and carries the committed text", async () => {
+    const { session: s, api } = await blocked("canvas", "한");
+    s.composing = true;
+    const begin = hold(api, {}), started = s.continueDraft("canvas");
+    s.body("한글"); s.composing = false;
+    begin.release(); await started;
+    expect(s.draft.draft).toMatchObject({ body: "한글", lost: null });
+  });
+  test("does not continue an unavailable draft or one with an uncertain save", async () => {
+    const { session: s, api } = fixture(); await s.open(identity); await s.create("canvas"); s.body("keep");
+    api.commentsMutate.mockImplementationOnce(async r => reply(r, { state: "unknown" }));
+    await s.save(); s.documentLost();
+    expect(s.draft.request).not.toBeNull();
+    await s.continueDraft("canvas");
+    expect(api.commentsBegin).toHaveBeenCalledTimes(1);
+    const other = fixture(); await other.session.open(identity); await other.session.create("canvas");
+    await other.session.open({ ...identity, canvas: "b", path: "design/b.html" }); other.session.documentLost();
+    await other.session.continueDraft("canvas");
+    expect(other.api.commentsBegin).toHaveBeenCalledTimes(1);
+  });
+  test("discarding during a begin keeps the guard released", async () => {
+    const { session: s, api } = await blocked();
+    const begin = hold(api), started = s.continueDraft("selection");
+    s.answer("discard"); begin.release(); await started;
+    expect(s.draft.draft).toBeNull(); expect(s.beginning).toBe(false);
+    expect(api.setCommentDraftGuard).toHaveBeenCalledExactlyOnceWith(false);
+  });
+  test("same-canvas selection changes skip the guard only while the draft is continuable", async () => {
+    const { session: s } = await blocked();
+    expect(s.guardSelection()).toBe(true); expect(s.draft.transition).toBeNull();
+    const navigation = s.guard(); expect(navigation).toBeInstanceOf(Promise); s.answer("continue"); expect(await navigation).toBe(false);
+    s.composing = true; expect(s.guardSelection()).toBe(false); s.composing = false;
+    const ordinary = fixture(); await ordinary.session.open(identity); await ordinary.session.create("canvas");
+    const asked = ordinary.session.guardSelection(); expect(asked).toBeInstanceOf(Promise);
+    ordinary.session.answer("continue"); expect(await asked).toBe(false);
+    const empty = fixture(); await empty.session.open(identity); expect(empty.session.guardSelection()).toBe(true);
+  });
+  test("a selection change while starting waits for the begin", async () => {
+    const { session: s, api } = await blocked();
+    const begin = hold(api), started = s.continueDraft("selection");
+    expect(s.guardSelection()).toBe(false);
+    begin.release(); await started;
+  });
+});
+
+describe("a canvas moved with the same id", () => {
+  const moved = "design/flows/a.html";
+  function held<T>() {
+    let release!: (value: T) => void;
+    return { promise: new Promise<T>(resolve => { release = resolve; }), release: (value: T) => release(value) };
+  }
+
+  test("renames the identity, keeps the list and reads it again for the new path", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    const list = s.list;
+    await s.rename(moved);
+    expect(s.identity).toEqual({ ...identity, path: moved });
+    expect(api.commentsList).toHaveBeenLastCalledWith(expect.objectContaining({ ...identity, path: moved }));
+    expect(s.list).toEqual(list); expect(s.readError).toBeNull();
+    expect(api.commentsAuthor).toHaveBeenCalledTimes(1);
+  });
+  test("an in-flight read for the old path cannot replace the result or set a read error", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    const late = held<CommentReply<CommentList>>();
+    let oldRequest: CommentRequest | undefined;
+    api.commentsList.mockImplementationOnce(r => { oldRequest = r; return late.promise; });
+    const reading = s.read();
+    api.commentsList.mockImplementationOnce(async r => reply(r, { project: 7, canvasHash: "new", comments: [], warnings: [] }));
+    await s.rename(moved);
+    late.release(reply(oldRequest!, { project: 7, canvasHash: "old", comments: [c], warnings: [] })); await reading;
+    expect(s.list?.canvasHash).toBe("new"); expect(s.readError).toBeNull();
+    const failing = held<CommentReply<CommentList>>();
+    api.commentsList.mockImplementationOnce(() => failing.promise);
+    const second = s.read();
+    await s.rename("design/again/a.html");
+    failing.release({ ok: false, identity: { ...identity, path: moved, requestID: "x" }, error: "Path changed" } as CommentReply<CommentList>); await second;
+    expect(s.readError).toBeNull();
+  });
+  test("an in-flight copy for the old path cannot report afterwards", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    const late = held<CommentReply<{ copied: true }>>();
+    api.commentsCopy.mockImplementationOnce(() => late.promise);
+    const copying = s.copy({ kind: "all" });
+    await s.rename(moved);
+    late.release({ ok: false, identity: { ...identity, requestID: "x" }, error: "Canvas not found" } as CommentReply<{ copied: true }>); await copying;
+    expect(s.copies.get("all")).toBeUndefined(); expect(s.readError).toBeNull();
+  });
+  test("an author read still pending is asked again for the renamed canvas", async () => {
+    const { session: s, api } = fixture();
+    const late = held<CommentReply<Author>>();
+    api.commentsAuthor.mockImplementationOnce(() => late.promise);
+    const opening = s.open(identity);
+    await s.rename(moved);
+    expect(s.author.status).toBe("ready");
+    late.release(reply({ ...identity, requestID: "x" }, { kind: "human", name: "A" })); await opening;
+    expect(s.author.status).toBe("ready");
+  });
+  test("an edit draft without a request saves to the new path after the move", async () => {
+    const { session: s, api } = fixture(); await s.open(identity); s.edit("c1"); s.body("after the move");
+    expect(s.canFollow()).toBe(true);
+    await s.rename(moved);
+    expect(s.draft.draft?.blocked).toBeNull();
+    await s.save();
+    expect(api.commentsMutate.mock.calls[0]?.[0]).toMatchObject({ root: "/repo", canvas: "a", path: moved, intent: { type: "edit", comment: "c1", body: "after the move" } });
+  });
+  test("a create draft is blocked as reloaded once the moved document loads", async () => {
+    const { session: s } = fixture(); await s.open(identity); await s.create("canvas"); s.body("keep");
+    expect(s.canFollow()).toBe(true);
+    await s.rename(moved); s.documentLost(true);
+    expect(s.draft.draft).toMatchObject({ body: "keep", lost: "reloaded" });
+  });
+  test("a create begin still in flight is cancelled and releases main's guard", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    const late = held<CommentReply<BeginResult>>();
+    let request: CommentRequest | undefined;
+    api.commentsBegin.mockImplementationOnce(r => { request = r; return late.promise; });
+    const creating = s.create("canvas");
+    await s.rename(moved);
+    late.release(reply(request!, { origin: "old", project: 7, generation: "g", hash: "h", target: {} })); await creating;
+    expect(s.draft.draft).toBeNull(); expect(s.beginning).toBe(false);
+  });
+  test("does not follow while a save is in flight or uncertain", async () => {
+    const { session: s, api } = fixture(); await s.open(identity); s.edit("c1"); s.body("x");
+    const late = held<CommentReply<SavedStatus>>();
+    api.commentsMutate.mockImplementationOnce(() => late.promise);
+    const saving = s.save();
+    expect(s.canFollow()).toBe(false);
+    late.release({ ok: false, identity: { ...identity, requestID: "x" }, error: "Stale" } as CommentReply<SavedStatus>);
+    await saving;
+    expect(s.saveView.status).toBe("unknown"); expect(s.canFollow()).toBe(false);
+  });
+  test("does not follow while a card change is in flight or unsettled, or a delete confirmation is open", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    const late = held<CommentReply<SavedStatus>>();
+    let request: CommentRequest | undefined;
+    api.commentsMutate.mockImplementationOnce(r => { request = r; return late.promise; });
+    const resolving = s.mutate("resolve", "c1");
+    expect(s.canFollow()).toBe(false);
+    late.release(reply(request!, { state: "unknown" })); await resolving;
+    expect(s.mutations.get("c1")?.status).toBe("unknown"); expect(s.canFollow()).toBe(false);
+    const other = fixture(); await other.session.open(identity);
+    await other.session.mutate("delete", "c1"); expect(other.session.canFollow()).toBe(false);
+    other.session.cancelDelete(); expect(other.session.canFollow()).toBe(true);
+  });
+  // A card change the person still has to finish names the old path, so the
+  // move is not followed and the existing removal handling applies (R2, R-B7 1).
+  test("does not follow while a card change still needs the person: conflict, reviewed", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    api.commentsMutate.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Comment changed; read the latest state before saving." }));
+    await s.mutate("resolve", "c1");
+    expect(s.mutations.get("c1")?.status).toBe("conflict"); expect(s.canFollow()).toBe(false);
+    await s.read(true);
+    expect(s.mutations.get("c1")?.status).toBe("reviewed"); expect(s.canFollow()).toBe(false);
+    await s.confirmCard("c1");
+    expect(api.commentsMutate).toHaveBeenCalledTimes(2);
+    expect(s.mutations.get("c1")?.status).toBe("saved"); expect(s.canFollow()).toBe(true);
+  });
+  test("does not follow while a card change failed or waits for its original retry", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    api.commentsMutate.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Disk full" }));
+    await s.mutate("resolve", "c1");
+    expect(s.mutations.get("c1")?.status).toBe("failed"); expect(s.canFollow()).toBe(false);
+    api.commentsMutate.mockImplementationOnce(async r => reply(r, { state: "unknown" }));
+    await s.cardRetry("c1", false); await s.cardRetry("c1", true);
+    expect(s.mutations.get("c1")?.status).toBe("retry-original"); expect(s.canFollow()).toBe(false);
+  });
+  test("a finished card change does not block a later move", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    api.commentsMutate.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Comment no longer exists." }));
+    await s.mutate("resolve", "c1");
+    expect(s.mutations.get("c1")?.status).toBe("deleted"); expect(s.canFollow()).toBe(true);
+    const reopened = fixture(); await reopened.session.open(identity);
+    reopened.api.commentsMutate.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Disk full" }));
+    await reopened.session.mutate("resolve", "c1");
+    await reopened.session.open({ ...identity, canvas: "b", path: "design/b.html" }); await reopened.session.open(identity);
+    expect(reopened.session.canFollow()).toBe(true);
+  });
 });

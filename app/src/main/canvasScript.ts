@@ -15,12 +15,13 @@ export interface HeightState {
 // `min-height: 100vh` style canvases grow with the iframe we resize to fit
 // them. Right after our own resize (the viewport became the height we sent),
 // a document that still outgrows the viewport is chasing it, so the last sent
-// height is kept until this document ends.
+// height is kept until this document ends. Not after a sent 0: that was measured
+// before the iframe was laid out, and no document chases a 0 px viewport.
 export function nextHeight(prev: HeightState | null, measured: number, inner: number): HeightState {
   if (prev === null) return { sent: measured, inner, frozen: false };
   if (prev.frozen) return prev;
   const ownResize = inner !== prev.inner && Math.abs(inner - prev.sent) <= 1;
-  if (ownResize && measured > inner + 1) return { sent: prev.sent, inner: prev.inner, frozen: true };
+  if (ownResize && prev.sent > 0 && measured > inner + 1) return { sent: prev.sent, inner: prev.inner, frozen: true };
   return { sent: measured, inner, frozen: false };
 }
 
@@ -484,11 +485,14 @@ export function canvasScript(lib: CanvasLib): void {
   let draftGuard = false;
   let transitionIntent = 0;
   let pendingTransition: { intent: number; apply: () => void; seq: number } | null = null;
-  const requestTransition = (apply: () => void) => {
+  // `kind` lets the app let a selection through while still asking before a link leaves.
+  // `clear`: the click only clears the selection, which changes nothing when
+  // the app has none (L-17).
+  const requestTransition = (apply: () => void, kind: "selection" | "navigation", clear = false) => {
     const intent = ++transitionIntent;
     if (!draftGuard) { pendingTransition = null; apply(); return; }
     pendingTransition = { intent, apply, seq };
-    post({ type: "transition-intent", document: documentToken, href: location.href, viewport: innerHeight, intent });
+    post({ type: "transition-intent", document: documentToken, href: location.href, viewport: innerHeight, intent, kind, ...(clear ? { clear: true } : {}) });
   };
   addEventListener("message", (event: MessageEvent) => {
     if (event.source !== parent) return;
@@ -556,7 +560,7 @@ export function canvasScript(lib: CanvasLib): void {
             event.preventDefault();
             if (draftGuard) event.stopImmediatePropagation();
             const href = link.getAttribute("href") ?? "";
-            requestTransition(() => { if (link.isConnected && link.getAttribute("href") === href) location.assign(href); });
+            requestTransition(() => { if (link.isConnected && link.getAttribute("href") === href) location.assign(href); }, "navigation");
           }
           return;
         }
@@ -569,7 +573,7 @@ export function canvasScript(lib: CanvasLib): void {
           if (active !== null && !isRoot(active) && "blur" in active && typeof active.blur === "function") active.blur();
         } else if (type === "click") {
           const target = event.target;
-          requestTransition(() => { if (!isElement(target) || target.isConnected) choose(target); });
+          requestTransition(() => { if (!isElement(target) || target.isConnected) choose(target); }, "selection", isElement(target) && isRoot(target));
         }
       },
       { capture: true },
@@ -582,7 +586,7 @@ export function canvasScript(lib: CanvasLib): void {
     setTimeout(() => {
       const active = document.activeElement;
       if (alt || active === null || !["iframe", "frame", "object", "embed"].includes(active.localName)) return;
-      requestTransition(() => { if (active.isConnected) choose(active); });
+      requestTransition(() => { if (active.isConnected) choose(active); }, "selection");
     }, 0);
   });
 
