@@ -142,7 +142,7 @@ What the human does is **view + comment**; approval is deferred until after the 
 ### CLI `doan`
 
 8. `doan init`: creates `design/` and `.doan/` in the repo, adds union merge for comments to `.gitattributes`, and asks for the token CSS path. Does the same as app onboarding step 3, from the terminal. It does not install skills (2026-10-21): installing the skill stub is tied to detecting Claude Code and Codex, so it belongs to onboarding step 2 (#8 `onboard`).
-9. `doan ls` · `doan comments` · `doan comment resolve` · `doan skill`. They only read and write repo files, so they work without the app. `ls` also returns optional `git` (branch/worktrees) when the repo is in a Git worktree (2026-10-25).
+9. `doan ls` · `doan comments` · `doan comment resolve` · `doan skill` · `doan config`. They only read and write repo files, so they work without the app. `ls` also returns optional `git` (branch/worktrees) when the repo is in a Git worktree (2026-10-25).
 10. `doan active`: returns the frame or element the human selected in the app. Lets the agent find the target from just "fix this". Requires the app to be running.
 11. `doan check` does **static checks only**. It looks at what HTML parsing alone can catch: undefined `var(--*)`, duplicate `data-doan-id`, missing or duplicate canvas ids and frame ids, missing `doan:width` (error), comment files with no matching canvas, and whether `data-doan-implements` target files exist. External URLs (CDN scripts and fonts) are not blocked but shown as a warning list (2026-10-21). If token CSS exists and hex or rgb colors are used directly, it warns (2026-10-21). Comment files with no matching canvas are a warning, not an error (2026-10-21). Full criteria: ARCHITECTURE §1 'Conventions'.
 
