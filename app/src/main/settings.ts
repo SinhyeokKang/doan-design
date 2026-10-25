@@ -1,3 +1,4 @@
+import { displayPath } from "../renderer/projectDisplay";
 import type { FolderEntry } from "./view";
 
 // Pure parts of the Settings window (app-setup design 'Settings 창'). Kept free
@@ -25,9 +26,11 @@ export const INSTALL_URLS: Record<ExternalTarget, string> = {
 
 // What the Projects tab may see of a saved project: enough to group rows by
 // repository, name a worktree like Home (`branch`, else `detached <first 7 of
-// sha>`) and pick a chip, nothing of its canvases.
+// sha>`) and pick a chip, nothing of its canvases. `displayPath` is `path`
+// shortened as Home shows it, so the window needs no home directory of its own.
 export interface ProjectRow {
   path: string;
+  displayPath: string;
   kind: FolderEntry["kind"];
   lastCommon?: string;
   git?: { common: string; main?: string; branch?: string; detached?: string };
@@ -58,9 +61,9 @@ export function parseSettingsTarget(value: unknown, stored: (root: string) => bo
   return null;
 }
 
-export function projectRows(entries: readonly FolderEntry[]): ProjectRow[] {
+export function projectRows(entries: readonly FolderEntry[], home: string | null): ProjectRow[] {
   return entries.map(entry => {
-    const row: ProjectRow = { path: entry.path, kind: entry.kind };
+    const row: ProjectRow = { path: entry.path, displayPath: displayPath(entry.path, home), kind: entry.kind };
     if (entry.lastCommon !== undefined) row.lastCommon = entry.lastCommon;
     if (entry.kind === "list" && entry.git) {
       const { common, main, branch, detached } = entry.git;

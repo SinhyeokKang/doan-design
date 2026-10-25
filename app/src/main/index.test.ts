@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { BrowserWindowConstructorOptions, MenuItemConstructorOptions } from "electron";
+import { displayPath } from "../renderer/projectDisplay";
 
 const OUTCOME = { added: ["/repo"], duplicate: null, messages: [], scanId: null, confirms: [] };
 
@@ -1527,15 +1528,20 @@ describe("settings window", () => {
   });
 
   test("Projects sees a read-only projection, reveals stored roots and forwards row actions to the main window", async () => {
-    mocks.shell.entries.mockReturnValue([LIST, { path: "/plain", kind: "uninitialized" }]);
+    // The same home Home gets from app:home.
+    const home = process.env.HOME ?? "/tmp/doan-index-test";
+    mocks.shell.entries.mockReturnValue([LIST, { path: "/plain", kind: "uninitialized" }, { path: `${home}/work`, kind: "uninitialized" }]);
     const created = await openSettings();
+    expect(await invoke("app:home", window().webContents, null)).toBe(home);
     expect(await invoke("projects:get", created.webContents, null)).toEqual([
-      { path: ROOT, kind: "list", git: { common: `${ROOT}/.git`, main: ROOT } }, { path: "/plain", kind: "uninitialized" },
+      { path: ROOT, displayPath: displayPath(ROOT, home), kind: "list", git: { common: `${ROOT}/.git`, main: ROOT } },
+      { path: "/plain", displayPath: "/plain", kind: "uninitialized" },
+      { path: `${home}/work`, displayPath: "~/work", kind: "uninitialized" },
     ]);
     const changed = mocks.startShell.mock.calls[0]?.[2];
     if (typeof changed !== "function") throw new Error("no folder listener");
     changed([{ path: "/plain", kind: "uninitialized" }]);
-    expect(created.webContents.send).toHaveBeenCalledWith("projects", [{ path: "/plain", kind: "uninitialized" }]);
+    expect(created.webContents.send).toHaveBeenCalledWith("projects", [{ path: "/plain", displayPath: "/plain", kind: "uninitialized" }]);
     await invoke("projects:reveal", created.webContents, null, { path: "/plain" });
     await invoke("projects:reveal", created.webContents, null, { path: "/other" });
     expect(mocks.electronShell.showItemInFolder).toHaveBeenCalledExactlyOnceWith("/plain");

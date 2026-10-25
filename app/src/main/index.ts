@@ -259,6 +259,9 @@ function setMenu(): void {
   );
 }
 
+// What Home shortens project paths against; Settings rows get the result.
+const homeDirectory = (): string => process.env.HOME ?? app.getPath("home");
+
 function setMenuInputs(next: MenuInputs): void {
   if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast) return;
   menuInputs = next;
@@ -472,7 +475,7 @@ async function start(): Promise<void> {
     }
     thumbnails?.entriesChanged(entries);
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries, focus);
-    sendSettings("projects", projectRows(entries));
+    sendSettings("projects", projectRows(entries, homeDirectory()));
   }, { response: record => documents.response(record), invalidate });
   shell = ready;
   // The capture window is made on the first capture and stays out of the
@@ -558,7 +561,7 @@ async function start(): Promise<void> {
     }
     return ready.initialize(value.root, tokenCss);
   });
-  handle("app:home", null, event => fromWindow(event) ? process.env.HOME ?? app.getPath("home") : null);
+  handle("app:home", null, event => fromWindow(event) ? homeDirectory() : null);
   handle("folders:get", [], (event) => (fromWindow(event) ? ready.entries() : []));
   const cli = cliCommand(process.env, app.isPackaged, process.resourcesPath);
   const flow = createAddFlow({
@@ -789,7 +792,7 @@ async function start(): Promise<void> {
     settingsWin?.setTitle(SETTINGS_TITLES[tab]);
     return true;
   });
-  handle("projects:get", [], () => projectRows(ready.entries()));
+  handle("projects:get", [], () => projectRows(ready.entries(), homeDirectory()));
   handle("projects:reveal", undefined, (_event, value: unknown) => {
     const path = storedPath(value);
     if (path !== null) electronShell.showItemInFolder(path);
