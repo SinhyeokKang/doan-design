@@ -368,6 +368,9 @@ function createSettingsWindow(tab: SettingsTab): BrowserWindow {
   window.on("focus", () => setFocusedWindow("settings"));
   // Read after destroy, webContents throws, so the owner id is kept now.
   const owner = window.webContents.id;
+  // The wizard's Close refuses while busy; Settings holds its close the same
+  // way, for the red button, ⌘W and Close Window alike. Quit closes it anyway.
+  window.on("close", (event) => { if (!quitting && broker?.isWriting(owner)) event.preventDefault(); });
   const forget = () => { broker?.drop(owner); configBridge?.clear(); };
   window.webContents.on("render-process-gone", forget);
   window.on("closed", () => {

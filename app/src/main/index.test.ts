@@ -1301,6 +1301,81 @@ describe("settings window", () => {
     expect(created.show).not.toHaveBeenCalled();
   });
 
+  describe("closing while its own write runs", () => {
+    async function startWrite(created: ReturnType<typeof settings>) {
+      let finish!: (value: unknown) => void;
+      mocks.machine.run.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const writing = invoke("setup:run", created.webContents, null, { step: "cli", expected: {} });
+      return { finish, writing };
+    }
+
+    test("the red button and Close Window are held until the write settles", async () => {
+      const created = await openSettings();
+      const { finish, writing } = await startWrite(created);
+      const held = { preventDefault: vi.fn() };
+      created.emit("close", held);
+      expect(held.preventDefault).toHaveBeenCalledOnce();
+      expect(mocks.machine.cancelConfirmation).not.toHaveBeenCalled();
+      finish({ kind: "success" });
+      expect(await writing).toEqual({ kind: "success" });
+      const free = { preventDefault: vi.fn() };
+      created.emit("close", free);
+      expect(free.preventDefault).not.toHaveBeenCalled();
+    });
+
+    test("an answered confirmation is a running write again", async () => {
+      const created = await openSettings();
+      mocks.machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
+      await invoke("setup:run", created.webContents, null, { step: "cli", expected: {} });
+      const asking = { preventDefault: vi.fn() };
+      created.emit("close", asking);
+      expect(asking.preventDefault).not.toHaveBeenCalled();
+      let finish!: (value: unknown) => void;
+      mocks.machine.answer.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const answering = invoke("setup:answer", created.webContents, null, { id: "q", allow: true });
+      const held = { preventDefault: vi.fn() };
+      created.emit("close", held);
+      expect(held.preventDefault).toHaveBeenCalledOnce();
+      finish({ kind: "success" });
+      await answering;
+    });
+
+    test("a pending confirmation does not hold the close; closing cancels it and frees the lock", async () => {
+      const created = await openSettings();
+      mocks.machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
+      await invoke("setup:run", created.webContents, null, { step: "cli", expected: {} });
+      const closing = { preventDefault: vi.fn() };
+      created.emit("close", closing);
+      expect(closing.preventDefault).not.toHaveBeenCalled();
+      created.emit("closed");
+      expect(mocks.machine.cancelConfirmation).toHaveBeenCalledOnce();
+      expect(await invoke("setup:run", window().webContents, null, { step: "cli", expected: {} })).toEqual({ kind: "success" });
+    });
+
+    test("the wizard's or main window's write does not hold Settings", async () => {
+      const created = await openSettings();
+      let finish!: (value: unknown) => void;
+      mocks.machine.run.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const writing = invoke("setup:run", window().webContents, null, { step: "cli", expected: {} });
+      const closing = { preventDefault: vi.fn() };
+      created.emit("close", closing);
+      expect(closing.preventDefault).not.toHaveBeenCalled();
+      finish({ kind: "success" });
+      await writing;
+    });
+
+    test("quitting is not held", async () => {
+      const created = await openSettings();
+      const { finish, writing } = await startWrite(created);
+      mocks.app.emit("before-quit");
+      const closing = { preventDefault: vi.fn() };
+      created.emit("close", closing);
+      expect(closing.preventDefault).not.toHaveBeenCalled();
+      finish({ kind: "success" });
+      await writing;
+    });
+  });
+
   test("Close Window acts on the window Electron reports as focused, and a just-opened Settings counts as focused", async () => {
     const created = await openSettings();
     // No focus event yet (an inactive app gets none): opening it is enough.

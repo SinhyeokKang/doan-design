@@ -186,3 +186,21 @@ test("isBusy also reports a machine still writing", () => {
   machine.isBusy.mockReturnValue(true);
   expect(broker.isBusy()).toBe(true);
 });
+
+test("isWriting is true only for the window whose write is running, not for its confirmation", async () => {
+  const slow = deferred<StepResult>();
+  machine.run.mockReturnValueOnce(slow.promise);
+  const running = broker.run(SETTINGS, { step: "cli" });
+  expect(broker.isWriting(SETTINGS)).toBe(true);
+  expect(broker.isWriting(MAIN)).toBe(false);
+  slow.resolve({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
+  await running;
+  expect(broker.isWriting(SETTINGS)).toBe(false);
+  const slowAnswer = deferred<StepResult>();
+  machine.answer.mockReturnValueOnce(slowAnswer.promise);
+  const answering = broker.answer(SETTINGS, { id: "q", allow: true });
+  expect(broker.isWriting(SETTINGS)).toBe(true);
+  slowAnswer.resolve({ kind: "success" });
+  await answering;
+  expect(broker.isWriting(SETTINGS)).toBe(false);
+});

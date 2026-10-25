@@ -159,6 +159,8 @@ export function createSetupBroker(deps: SetupBrokerDeps) {
       if (lock.kind === "writing" && lock.owner === owner) apply({ type: "release", owner, operation: lock.operation });
     },
     isBusy: () => lock.kind !== "idle" || deps.machine.isBusy(),
+    // A pending confirmation is not a running write: closing its window cancels it.
+    isWriting: (owner: number) => lock.kind === "writing" && lock.owner === owner,
     setOnboardingClosed(closed: boolean): void {
       if (status.onboardingClosed !== closed) publish({ onboardingClosed: closed });
     },
