@@ -7,6 +7,7 @@ import type { CommentRequest } from "../main/comments/service";
 import type { Comment } from "../formats/types";
 import type { AnchorSnapshot, CommentHooks } from "./commentAnchors";
 import { READ_FAILED_EDITOR } from "../comments/panelText";
+import type { CommentsPanelProps } from "./CommentsPanel";
 
 const harness = vi.hoisted(() => ({ effects: [] as (() => void | (() => void))[], deps: [] as (readonly unknown[] | undefined)[], states: [] as unknown[], setters: [] as ReturnType<typeof vi.fn>[], updates: [] as [number, unknown][], index: 0, refs: [] as { current: unknown }[], refIndex: 0 }));
 vi.mock("react", async original => ({
@@ -93,6 +94,8 @@ function setup(comments: Comment[] = []) {
     commentsList: async (r: CommentRequest) => ({ ok: true, identity: r, value: { project: 1, comments, warnings: [], canvasHash: "hash" } }),
     commentsAuthor: async (r: CommentRequest) => ({ ok: true, identity: r, value: { kind: "human", name: "A" } }),
   } });
+  // Focus moves read the active element; tests that check them replace this.
+  vi.stubGlobal("document", { body: null, activeElement: null });
   const controller = { setTransitionGuard: vi.fn(), setComments: vi.fn(), setDraftGuard: vi.fn(), setFollowGuard: vi.fn() };
   const ref = { current: controller as unknown as CanvasController };
   const base: CanvasState = { ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, hasFrame: true, layout: layout("one"), selection: label };
@@ -503,5 +506,144 @@ describe("the panel while comments change underneath (comments-readability task 
     expect(render({ selection: null, layout: { ...layout("one"), frames: [shipping] } }).markup).toContain("Frame · Shipping");
     // Without a layout, the ls row's static frames name it.
     expect(render({ selection: null, layout: null, open: { folder: "/repo", canvas: row.path, row: { ...row, frames: [{ id: "shipping", title: "Ship" }] } } }).markup).toContain("Frame · Ship");
+  });
+});
+
+describe("focus after the composer and pins (comments-readability task 5)", () => {
+  const note: Comment = { comment: "c1", body: "Mark the field", status: "open", target: { element: { doanId: "address", selector: "label", html: "<label/>" } }, canvasHash: "hash", createdBy: { kind: "human", name: "A" }, createdAt: "t", updatedAt: "t" };
+  type Focusable = { focus: Mock; isConnected: boolean; hasAttribute: (name: string) => boolean; dataset?: { comment: string } };
+  const focusable = (over: Partial<Focusable> = {}): Focusable => ({ focus: vi.fn(), isConnected: true, hasAttribute: () => false, ...over });
+  // useRef slots in useComments: 0 = input, 1 = heading, 4 = the panel section.
+  function dom(cards: string[]) {
+    const body = focusable(), doc = { body, activeElement: body as unknown };
+    vi.stubGlobal("document", doc);
+    const field = { ...focusable(), setSelectionRange: vi.fn(), value: "", closest: () => null }, heading = focusable();
+    const elements = cards.map(comment => focusable({ dataset: { comment } }));
+    harness.refs[0] = { current: field }; harness.refs[1] = { current: heading };
+    harness.refs[4] = { current: { querySelectorAll: () => elements } };
+    return { doc, body, field, heading, cards: elements };
+  }
+  async function ready(comments: Comment[], selection: CanvasState["selection"] = null) {
+    const f = setup(comments);
+    const { session } = f.render({ selection });
+    await vi.waitFor(() => { expect(session.author.status).toBe("ready"); expect(session.list).not.toBeNull(); });
+    const panel = () => f.render({ selection }).panel as unknown as { props: CommentsPanelProps };
+    // Binds the read list to the controller, as the next React render would.
+    panel();
+    return { ...f, session, panel };
+  }
+  const focused = (...elements: Focusable[]) => elements.filter(element => element.focus.mock.calls.length > 0);
+
+  test("Save moves focus to the saved card once the list is read again", async () => {
+    const page = dom(["c1", "c2"]);
+    const { session, render, mutate } = await ready([note]);
+    await session.create("canvas"); render({ selection: null }); session.body("New note");
+    mutate.mockImplementationOnce(async (r: CommentRequest) => ({ ok: true, identity: r, value: { state: "saved", comment: "c2" } }));
+    await session.save();
+    render({ selection: null });
+    expect(focused(page.heading, ...page.cards)).toEqual([page.cards[1]]);
+    expect(session.savedComment).toBeNull();
+  });
+
+  test("Save of a card the list no longer shows moves focus to the Comments title", async () => {
+    const page = dom(["c1"]);
+    const { session, render, mutate } = await ready([note]);
+    await session.create("canvas"); render({ selection: null }); session.body("Filtered out");
+    mutate.mockImplementationOnce(async (r: CommentRequest) => ({ ok: true, identity: r, value: { state: "saved", comment: "c9" } }));
+    await session.save();
+    render({ selection: null });
+    expect(focused(page.heading, ...page.cards)).toEqual([page.heading]);
+  });
+
+  test.each(["create", "edit"] as const)("Cancel of a %s draft returns focus to the button that opened it", async mode => {
+    const page = dom(["c1"]);
+    const { session, panel } = await ready([note]);
+    const opener = focusable();
+    page.doc.activeElement = opener;
+    if (mode === "create") { panel().props.onCreate("canvas"); await vi.waitFor(() => expect(session.draft.draft).not.toBeNull()); }
+    else panel().props.onComment("edit", "c1");
+    // The Cancel button goes with the composer, so focus starts on <body>.
+    page.doc.activeElement = page.body;
+    panel().props.editor!.onCancel();
+    expect(session.draft.draft).toBeNull();
+    panel();
+    expect(focused(opener, page.heading, ...page.cards)).toEqual([opener]);
+  });
+
+  test("Cancel falls back to the Comments title when the opening button is gone", async () => {
+    const page = dom(["c1"]);
+    const { panel } = await ready([note]);
+    const opener = focusable({ isConnected: false });
+    page.doc.activeElement = opener;
+    panel().props.onComment("edit", "c1");
+    page.doc.activeElement = page.body;
+    panel().props.editor!.onCancel();
+    panel();
+    expect(focused(opener, page.heading)).toEqual([page.heading]);
+  });
+
+  test("a composer closed any other way never leaves focus on <body>, and keeps focus that moved elsewhere", async () => {
+    const page = dom(["c1"]);
+    const { session, panel } = await ready([note]);
+    session.edit("c1"); panel();
+    const leaving = session.guard(); session.answer("discard"); await leaving;
+    panel();
+    expect(focused(page.heading)).toEqual([page.heading]);
+    page.heading.focus.mockClear();
+    session.edit("c1"); panel();
+    const row = focusable(); page.doc.activeElement = row;
+    const again = session.guard(); session.answer("discard"); await again;
+    panel();
+    expect(focused(page.heading, row)).toEqual([]);
+  });
+
+  describe("pins", () => {
+    const snapshot = (nodes: [string, string][], selected: string | null): AnchorSnapshot =>
+      ({ lookup: { root: "/repo", canvas: "a", generation: 1, nodes: new Map(nodes) }, rects: new Map(), selected, status: "answered" });
+    const destination = { node: "n1", comments: ["c1"], originalTarget: note.target };
+    async function pinned(cards: string[]) {
+      const page = dom(cards);
+      const f = await ready([note], label);
+      const hooks = () => f.controller.setComments.mock.lastCall![1] as CommentHooks;
+      const show = (next: AnchorSnapshot) => { hooks().changed(next); settle(ANCHORS); f.panel(); };
+      show(snapshot([["c1", "n1"]], null));
+      return { ...f, page, hooks, show };
+    }
+
+    test("after a pin opens its comments, focus waits for the filtered list and lands on the first card", async () => {
+      const { page, hooks, show, panel } = await pinned(["c1"]);
+      hooks().open(destination); settle(FILTER); panel();
+      expect(harness.states[FILTER]).toMatchObject({ scope: "selection" });
+      // The open list still belongs to the previous answer.
+      expect(focused(page.heading, ...page.cards)).toEqual([]);
+      show(snapshot([["c1", "n1"]], "n1"));
+      expect(focused(page.heading, ...page.cards)).toEqual([page.cards[0]]);
+      // Settled once: later answers do not move focus again.
+      show(snapshot([["c1", "n1"]], "n1"));
+      expect(page.cards[0]!.focus).toHaveBeenCalledOnce();
+    });
+
+    test("without a card to show, focus lands on the Comments title", async () => {
+      const { page, hooks, show, panel } = await pinned([]);
+      hooks().open(destination); settle(FILTER); panel();
+      show(snapshot([], "n1"));
+      expect(focused(page.heading)).toEqual([page.heading]);
+    });
+
+    test("with a draft open, the draft dialog keeps focus until it is answered", async () => {
+      const { page, hooks, show, panel, session, render } = await pinned(["c1"]);
+      session.edit("c1"); panel();
+      page.field.focus.mockClear();
+      const allowed = hooks().guard(destination);
+      expect(allowed).toBeInstanceOf(Promise);
+      const { dialog } = render({ selection: label });
+      expect(renderToStaticMarkup(<>{dialog}</>)).toContain("Keep writing");
+      expect(focused(page.field, page.heading, ...page.cards)).toEqual([]);
+      session.answer("discard");
+      expect(await allowed).toBe(true);
+      hooks().open(destination); settle(FILTER); panel();
+      show(snapshot([["c1", "n1"]], "n1"));
+      expect(focused(page.field, ...page.cards)).toEqual([page.cards[0]]);
+    });
   });
 });

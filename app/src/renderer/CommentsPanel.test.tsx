@@ -4,7 +4,7 @@ import { describe, expect, test, vi } from "vitest";
 import type { Comment } from "../formats/types";
 import { foldText } from "../formats/foldText";
 import { READ_FAILED_EDITOR } from "../comments/panelText";
-import { CommentsPanel, DeleteCommentDialog, CommentCard, CommentEditor, UnsavedCommentDialog, UncertainCommentDialog, type CommentsPanelProps, type CommentEditorProps } from "./CommentsPanel";
+import { CommentsPanel, DeleteCommentDialog, CommentCard, CommentEditor, UnsavedCommentDialog, UncertainCommentDialog, revealComposer, type CommentsPanelProps, type CommentEditorProps } from "./CommentsPanel";
 
 // Tests call the editor as a plain function to read its element tree, outside
 // a React render; its reason id still comes from useId in the app.
@@ -368,5 +368,53 @@ describe("identity, read failure and head controls", () => {
     expect(find(CommentsPanel(panel({ filter: { scope: "selection", node: "n1", status: "open" } })), "Comment on selection").disabled).toBe(false);
     expect(html(panel({ selectionAvailable: false }))).toContain(`<button type="button" aria-pressed="false" disabled="" title="Select an element or frame in the canvas">Selection</button>`);
     expect(html(panel())).not.toContain("Select an element or frame in the canvas");
+  });
+});
+
+describe("panel layout (comments-readability §3, composer-small)", () => {
+  const order = (out: string, ...parts: string[]) => {
+    const at = parts.map(part => out.indexOf(part));
+    for (const index of at) expect(index).toBeGreaterThanOrEqual(0);
+    expect(at).toEqual([...at].sort((a, b) => a - b));
+  };
+  test("the sticky title is the panel's first child, outside the head", () => {
+    expect(html(panel())).toMatch(/^<section class="comments-panel native-scroll" aria-label="Comments"><h3 class="comments-title" tabindex="-1">Comments<\/h3><div class="comments-head"><div class="comments-segment"/);
+    expect(html(panel({ identityCause: "missing" }))).toMatch(/^<section[^>]*><h3 class="comments-title alone" tabindex="-1">Comments<\/h3><div class="comments-message error"/);
+  });
+  test("the composer and a card editor open right under the head, above messages, warnings and the list", () => {
+    const warnings = { status: "ready" as const, comments: [comment], warnings: [{ code: "invalid_event" as const, line: 3 }] };
+    for (const mode of ["create", "edit"] as const) {
+      const out = html(panel({ read: warnings, widthInvalid: true, createBlocked: "The original canvas document is unavailable.", author: { status: "missing" }, editor: editor({ mode }) }));
+      order(out, 'class="comments-head"', 'class="comments-composer"', "Could not read a valid board width.", "The original canvas document is unavailable.", "Set your Git name", "Some comment changes were ignored", 'class="comments-card"');
+    }
+    order(html(panel({ read: { status: "failed", message: "Permission denied." }, editor: editor({ mode: "edit" }) })), 'class="comments-composer"', "Couldn’t read comments");
+    order(html(panel({ read: { status: "loading" }, editor: editor() })), 'class="comments-composer"', "Loading comments…");
+    order(html(panel({ identityCause: "duplicate", editor: editor({ mode: "edit" }) })), 'class="comments-title alone"', 'class="comments-composer"', "Another canvas uses the ID checkout");
+  });
+  test("cards take programmatic focus and name their comment", () => {
+    expect(html(panel())).toContain(`<article class="comments-card" tabindex="-1" data-comment="c1" aria-label="Comment by Alex Morgan"`);
+  });
+});
+
+describe("revealComposer", () => {
+  // Offsets from the panel's top edge at scroll 0, as measured in the draft at 960 × 600.
+  function layout({ composerTop, composerHeight, clientHeight, scrollTop = 0 }: { composerTop: number; composerHeight: number; clientHeight: number; scrollTop?: number }) {
+    const panel = { scrollTop, clientHeight, getBoundingClientRect: () => ({ top: 100 }), querySelector: () => ({ offsetHeight: 37 }) };
+    const composer = { offsetHeight: composerHeight, getBoundingClientRect: () => ({ top: 100 + composerTop - panel.scrollTop }) };
+    const field = { closest: (selector: string) => selector === ".comments-panel" ? panel : selector === ".comments-composer" ? composer : null };
+    return { panel, field: field as unknown as HTMLElement };
+  }
+  test("scrolls a composer that does not fit to just under the sticky title", () => {
+    const { panel, field } = layout({ composerTop: 152, composerHeight: 168, clientHeight: 282 });
+    revealComposer(field);
+    expect(panel.scrollTop).toBe(152 - 37);
+  });
+  test("leaves a composer that fits where it is, and brings back one scrolled above the title", () => {
+    const fits = layout({ composerTop: 152, composerHeight: 168, clientHeight: 462 });
+    revealComposer(fits.field);
+    expect(fits.panel.scrollTop).toBe(0);
+    const above = layout({ composerTop: 152, composerHeight: 168, clientHeight: 462, scrollTop: 400 });
+    revealComposer(above.field);
+    expect(above.panel.scrollTop).toBe(152 - 37);
   });
 });
