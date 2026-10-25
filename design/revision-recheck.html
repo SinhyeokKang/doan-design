@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="revision-recheck">
+<meta name="doan:width" content="1440">
+<title>Revision recheck — draft</title>
+<link rel="stylesheet" href="../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="mock.css">
+<style>
+/* Shipped rules, copied from app/src/renderer/styles.css (base, Canvas panel, Comments panel, Home, Overview). */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; }
+button { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { opacity: .4; cursor: default; }
+button { outline: none; }
+button:focus-visible { outline: 1px solid var(--accent-line); outline-offset: -1px; }
+.comments-btn.primary:focus-visible { outline-color: var(--accent-ink); outline-offset: -3px; }
+ol { list-style: none; }
+.spacer { flex: 1; }
+.meta { font: 11.5px var(--font-sans); color: var(--text-3); white-space: nowrap; }
+.btn { font: 500 12px var(--font-sans); color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.kbd { font: 10.5px var(--font-sans); color: var(--text-3); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+.right { background: var(--panel); border-left: 1px solid var(--line); }
+.sec { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 6px; }
+.sec .r { letter-spacing: 0; text-transform: none; color: var(--text-4); }
+.glyph { color: var(--text-4); width: 12px; flex: none; text-align: center; }
+.area { position: relative; overflow: hidden; background-color: var(--board-bg); background-image: radial-gradient(var(--board-dot) 1px, transparent 1px); background-size: 16px 16px; }
+.updated { position: absolute; left: 12px; bottom: 12px; pointer-events: none; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); display: inline-block; }
+.phead { font: 600 12px var(--font-sans); padding: 11px 14px 10px; border-bottom: 1px solid var(--line); }
+.pempty { padding: 14px; font: 12.5px var(--font-sans); color: var(--text-3); }
+.isec { padding: 10px 12px 12px; border-bottom: 1px solid var(--line-2); }
+.ihead { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); margin-bottom: 8px; }
+.kv { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 5px 8px; font: 11.5px var(--font-sans); }
+.kv dt { color: var(--text-3); }
+.kv dd { overflow-wrap: anywhere; }
+.accent { color: var(--accent); }
+.activity { border: 0; }
+.tl-row { display: flex; gap: 8px; padding: 3px 12px 3px 0; font: 11px var(--font-sans); color: var(--text-3); }
+.tl-row time { color: var(--text-4); width: 54px; }
+.tl-row b { font-weight: 400; color: var(--text-2); }
+.mark { position: absolute; border: 1px solid var(--accent-line); }
+.mark.jump-highlight { border: 2px solid var(--accent-line); border-radius: 1px; box-shadow: 0 0 0 3px var(--accent-soft); }
+.comments-panel { width: 100%; min-width: 0; min-height: 0; overflow: auto; background: var(--panel); overflow-wrap: anywhere; }
+.comments-head { padding: 12px; border-bottom: 1px solid var(--line-2); }
+.comments-head h3 { font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+.comments-segment { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; margin-bottom: 8px; }
+.comments-segment button { flex: 1; min-width: 0; padding: 5px 7px; font-size: 11.5px; border-radius: 4px; color: var(--text-3); border: 0; background: transparent; }
+.comments-segment button[aria-pressed=true] { color: var(--accent); background: var(--accent-soft); }
+.comments-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.comments-btn { line-height: normal; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; max-width: 100%; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); font-size: 11px; font-weight: 500; padding: 4px 7px; }
+.comments-btn.primary { font-weight: 600; background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.comments-card { padding: 12px; border-bottom: 1px solid var(--line-2); }
+.comments-author { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 9px; }
+.comments-avatar { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--raised); color: var(--text-2); display: grid; place-items: center; font-size: 10px; font-weight: 600; }
+.comments-by { min-width: 0; flex: 1; }
+.comments-by b { display: block; font-size: 11.5px; font-weight: 600; overflow-wrap: anywhere; }
+.comments-by time, .comments-email { display: block; font-size: 10px; color: var(--text-3); line-height: 1.5; overflow-wrap: anywhere; }
+.comments-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; margin: 8px 0 10px; }
+.comments-target { display: block; max-width: 100%; color: var(--text-2); font-size: 10.5px; line-height: 1.5; overflow-wrap: anywhere; margin-bottom: 6px; text-align: left; border: 0; background: transparent; }
+.comments-badges { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.comments-badge { display: inline-block; font-size: 10px; line-height: 1.5; padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--text-3); }
+.comments-badge.open { color: var(--accent); }
+.comments-badge.warning { color: var(--warn); }
+.comments-badge.resolved { color: var(--ok); }
+.comments-message { padding: 12px; font-size: 11.5px; line-height: 1.6; color: var(--text-2); border-bottom: 1px solid var(--line-2); overflow-wrap: anywhere; }
+.comments-message b { display: block; color: var(--text); margin-bottom: 4px; font-size: 12px; }
+.comments-message.error { border-left: 2px solid var(--err); }
+.comments-composer { padding: 12px; border-bottom: 1px solid var(--line-2); }
+.comments-composer label { display: block; font-size: 11.5px; margin: 0 0 8px; }
+.comments-composer label > .comments-target { margin-top: 8px; }
+.comments-composer textarea { display: block; width: 100%; min-width: 0; min-height: 104px; resize: none; font: 12px/1.6 var(--font-sans); background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 9px; margin: 8px 0; }
+.comments-helper { font-size: 10.5px; line-height: 1.5; color: var(--text-3); margin: 8px 0; overflow-wrap: anywhere; }
+.comments-dialog { width: 410px; background: var(--raised); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-2); border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
+.comments-dialog h3 { font-size: 15px; margin-bottom: 10px; font-weight: 700; }
+.comments-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-2); margin-bottom: 12px; }
+.comments-dialog .comments-tools { justify-content: flex-end; }
+.home-body { min-height: 0; overflow: auto; padding: 8px 32px 32px; position: relative; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
+.card-head { display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 14px; min-width: 0; }
+.card-name { font: 600 13px var(--font-sans); color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.more { flex: none; width: 24px; height: 22px; border-radius: 6px; color: var(--text-3); display: grid; place-items: center; font-size: 13px; letter-spacing: 1px; border: 0; background: transparent; }
+.wt { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; padding: 8px 8px 8px 14px; border-top: 1px solid var(--line-2); position: relative; cursor: pointer; min-width: 0; width: 100%; text-align: left; }
+.wt-label { display: flex; align-items: center; gap: 6px; min-width: 0; font: 12.5px var(--font-sans); color: var(--text); white-space: nowrap; }
+.wt-label .glyph { width: 12px; }
+.wt-label .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wt-end { display: flex; align-items: center; gap: 6px; justify-content: flex-end; white-space: nowrap; }
+.wt-sum { font: 11px var(--font-sans); color: var(--text-3); white-space: nowrap; }
+.wt-sum .hot { color: var(--accent); }
+.wt-path { grid-column: 1 / 2; font: 11px var(--font-sans); color: var(--text-4); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 18px; }
+.ov { min-height: 0; overflow: auto; padding: 4px 24px 24px; position: relative; background: var(--bg); }
+.ov .sec { padding: 16px 0 10px; text-transform: none; letter-spacing: 0; font-size: 11.5px; color: var(--text-2); }
+.ocards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.ocard { display: block; width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
+.thumb { aspect-ratio: 16 / 10; background: var(--board-bg); border-bottom: 1px solid var(--line); position: relative; overflow: hidden; display: grid; place-items: center; }
+.ocard-body { display: grid; gap: 2px; padding: 9px 12px 10px; min-width: 0; }
+.ocard-title { font: 600 12.5px var(--font-sans); color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ocard-file { font: 11px var(--font-sans); color: var(--text-4); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ocard-meta { font: 11px var(--font-sans); color: var(--text-3); white-space: nowrap; margin-top: 4px; }
+.ocard-meta .hot { color: var(--accent); }
+
+/* Proposed: new surfaces of this feature (not in code). */
+.rr-banner { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 12px; border-bottom: 1px solid var(--line-2); background: var(--panel-2); font-size: 11.5px; color: var(--text-2); }
+.rr-banner .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rr-banner .text b { font-weight: 600; color: var(--text); }
+.rr-banner.err { border-left: 2px solid var(--err); }
+.rr-banner-help { padding: 0 12px 6px; margin: 0; background: var(--panel-2); border-bottom: 1px solid var(--line-2); }
+.rr-bar { position: sticky; top: 0; z-index: 1; padding: 10px 12px 12px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
+.rr-step { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.rr-step output { flex: 1; font-size: 11.5px; font-weight: 600; color: var(--text); }
+.rr-close { width: 22px; height: 22px; border-radius: 6px; color: var(--text-3); border: 0; background: transparent; font-size: 13px; }
+.rr-bar .comments-target { margin-bottom: 2px; }
+.rr-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; margin: 4px 0 6px; }
+.rr-meta { font-size: 10.5px; line-height: 1.5; color: var(--text-3); overflow-wrap: anywhere; }
+.rr-flag { font-size: 11px; line-height: 1.5; color: var(--text-2); margin: 6px 0 0; }
+.rr-flag.warn { color: var(--warn); }
+.rr-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.rr-nav { display: flex; gap: 6px; margin-top: 8px; }
+.rr-nav .end { margin-left: auto; }
+.rr-head-collapsed h3 { margin-bottom: 8px; }
+.rr-resolution { font-size: 10.5px; line-height: 1.5; color: var(--text-3); margin: 6px 0 0; overflow-wrap: anywhere; }
+.rr-resolution b { font-weight: 500; color: var(--text-2); }
+.rr-status { padding: 10px 12px; border-bottom: 1px solid var(--line-2); font-size: 11.5px; line-height: 1.6; color: var(--text-2); }
+.rr-status button { border: 0; background: transparent; color: var(--accent); font-size: 11.5px; text-decoration: underline; text-underline-offset: 2px; margin-left: 4px; }
+.rr-danger { color: var(--err); }
+.wt-sum .rr-review, .ocard-meta .rr-review { color: var(--text-2); }
+.wt.rr-narrow .wt-sum { grid-column: 1 / -1; white-space: normal; padding-left: 18px; }
+.wt.rr-narrow .wt-sum > span { white-space: nowrap; }
+.ocard-meta.rr-wrap { white-space: normal; }
+.tl-row time { flex: none; }
+.ocard-meta.rr-wrap > span { white-space: nowrap; }
+
+/* Draft-only layout. */
+body { width: 1440px; height: auto; padding: 48px; background: var(--board-bg); }
+button { border: 0; background: transparent; }
+.comments-btn { border: 1px solid var(--line); background: var(--panel-2); }
+.comments-btn.primary { background: var(--accent); border-color: var(--accent); }
+.btn { border: 1px solid var(--line); background: var(--panel-2); }
+.intro { max-width: 1238px; margin-bottom: 36px; }
+.intro h1 { font-size: 30px; margin-bottom: 12px; }
+.intro p, .note { font-size: 12px; line-height: 1.65; color: var(--text-3); margin: 10px 0; }
+.intro b, .note b { color: var(--text-2); font-weight: 600; }
+.intro code, .note code, .tile-label code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
+.frame { padding: 24px; margin-bottom: 32px; background: var(--bg); border: 1px solid var(--line); border-radius: 16px; }
+.flabel { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+.flabel h2 { font-size: 18px; }
+.nic { border: 1px dashed var(--warn); color: var(--warn); font-size: 10px; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.tiles { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; }
+.tile { width: 280px; }
+.tile.wide { width: 410px; }
+.tile-label { font-size: 12px; color: var(--text-2); margin: 0 0 10px; line-height: 1.5; }
+.specimen { width: 280px; background: var(--panel); border-left: 1px solid var(--line); }
+.specimen.tall { max-height: 640px; overflow: hidden; }
+.mbar { display: flex; gap: 16px; font-size: 13px; padding: 4px 10px; color: var(--text); }
+.mbar b { font-weight: 600; }
+.mbar .on { background: var(--raised); border-radius: 5px; padding: 0 6px; }
+.gmenu { width: 300px; background: var(--raised); border-radius: 9px; padding: 5px; box-shadow: var(--shadow-2); font-size: 13px; }
+.gmenu div { display: flex; justify-content: space-between; padding: 4px 10px; border-radius: 5px; color: var(--text); }
+.gmenu div span { color: var(--text-3); }
+.gmenu div.off { color: var(--text-4); }
+.gmenu div.off span { color: var(--text-4); }
+.gmenu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
+.scene { position: relative; width: 280px; height: 150px; border: 1px solid var(--line); }
+.scene .updated { left: 10px; bottom: 10px; }
+.scene-mock { position: absolute; left: 20px; top: 16px; width: 200px; height: 96px; background: var(--mock-bg); color: var(--mock-ink); font-size: 11px; padding: 10px; }
+.scene-mock i { display: block; margin-top: 10px; width: 90px; height: 22px; border-radius: 4px; background: var(--mock-brand); }
+.home-wrap { background: var(--bg); padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+</style>
+</head>
+<body>
+
+<header class="intro">
+<h1>Revision recheck — draft</h1>
+<p><b>Scope.</b> What a human sees when they come back after handing comments to an agent: who resolved what and when, a notice when resolved comments are waiting, a fixed Review bar that steps through them, the Done summary, success status lines after Resolve and Reopen, editing a resolved comment, a missing target, Activity kinds and the bottom label, and the Home and Overview counts. Source: <code>docs/features/revision-recheck/spec.md</code> and <code>design.md</code> (draft request at the end of design.md).</p>
+<p><b>New frames (all new surfaces, not in code):</b> <code>review-notice</code>, <code>review-bar</code>, <code>review-done</code>. <code>/design-sync</code> compares these three. The other frames show shipped screens with the feature’s changes drawn on them; every changed or added part is marked with a dashed “new” tag.</p>
+<p><b>Copied from shipped screens.</b> Comment cards, editor, messages and dialog: <code>app/src/renderer/CommentsPanel.tsx</code> and the comments rules of <code>styles.css</code> (DESIGN.md “Comments — initial comments-ui implementation”). Canvas panel and Activity: <code>RightPanel.tsx</code>, <code>activity.ts</code>. Bottom label: <code>App.tsx</code> <code>.updated</code>. Home rows: <code>Home.tsx</code>, <code>homeCards.ts</code> (DESIGN.md “Projects home”). Overview cards: <code>ProjectOverview.tsx</code> (DESIGN.md “Design navigation”). Go menu items: <code>app/src/main/index.ts</code>. Jump highlight: <code>.mark.jump-highlight</code> (design-nav).</p>
+<p><b>Drawn with sibling features’ copy.</b> Target lines use the <code>targetLabel</code> format from <code>comments-readability</code> (“Element · button cta-primary · in Pricing”). Activity “Moved · from …” follows <code>revision-continuity</code>. The Comments head keeps the shipped “Copy all open”; <code>agent-handoff</code> renames it to “Hand off…”. The conductor aligns the shared visuals (banner order, Home summary line) across drafts.</p>
+<p><b>References.</b> No outside product was consulted; every pattern here comes from the shipped app and the existing drafts in <code>design/</code> (checked in this repo). Proposed copy where the documents give none is listed in the frames and in the handoff.</p>
+</header>
+
+<!-- ============================================================ -->
+<section class="frame" data-doan-frame="resolution-meta" data-doan-title="Resolution meta and Resolved order" data-doan-implements="app/src/renderer/CommentsPanel.tsx">
+<div class="flabel"><h2>Resolution meta</h2><span class="nic">new: “Resolved by” / “Reopened by” / “Previously resolved by” lines</span><span class="nic">new: Outdated → neutral “Canvas changed”, hidden on resolved cards</span><span class="nic">new: Resolved list by resolve time</span></div>
+<p class="note">The line sits under the badges. The name is the resolver’s name; an agent shows its runtime name (<code>claude-code</code>, <code>codex</code>). The relative time carries the absolute time in <code>title</code> (same as the shipped created time). Resolved lists sort by <code>resolvedAt</code> newest first, ties by comment id; the created times below are deliberately out of that order. “Canvas changed” keeps the shipped Outdated calculation; on open cards it uses the neutral badge, on resolved cards it is not rendered. “Freshness unknown” follows the same rule.</p>
+<div class="tiles">
+
+ <div class="tile">
+  <p class="tile-label"><b>Resolved list</b> — newest resolve first</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="comments-head">
+    <h3>Comments</h3>
+    <div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false">Selection</button><button type="button" aria-pressed="true">Canvas</button></div>
+    <div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="false">Open 2</button><button type="button" aria-pressed="true">Resolved 3</button></div>
+    <div class="comments-tools"><button type="button" class="comments-btn">Copy all open</button><button type="button" class="comments-btn">New canvas comment</button></div>
+   </div>
+   <article class="comments-card" aria-label="Comment by Kim Doe">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@example.com</span><time title="2026-10-25T09:10:00.000Z">5 hours ago</time></div></div>
+    <button type="button" class="comments-target">Element · button cta-primary · in Pricing</button>
+    <div class="comments-badges"><span class="comments-badge resolved">Resolved</span></div>
+    <p class="rr-resolution" data-doan-id="resolved-by"><time title="2026-10-25T14:02:10.000Z">Resolved by <b>codex</b> · 3 min ago</time></p>
+    <p class="comments-body">Make the primary button full width on mobile.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn">Edit</button><button type="button" class="comments-btn">Reopen</button><button type="button" class="comments-btn" disabled>Copy</button><button type="button" class="comments-btn">Delete</button></div>
+    <p class="comments-helper">Reopen this comment before copying.</p>
+   </article>
+   <article class="comments-card" aria-label="Comment by Kim Doe">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@example.com</span><time title="2026-10-25T11:40:00.000Z">2 hours ago</time></div></div>
+    <button type="button" class="comments-target">Frame · Pricing</button>
+    <div class="comments-badges"><span class="comments-badge resolved">Resolved</span></div>
+    <p class="rr-resolution"><time title="2026-10-25T13:05:00.000Z">Resolved by <b>claude-code</b> · 1 hour ago</time></p>
+    <p class="comments-body">Plans should line up at the top edge.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn">Edit</button><button type="button" class="comments-btn">Reopen</button><button type="button" class="comments-btn" disabled>Copy</button><button type="button" class="comments-btn">Delete</button></div>
+    <p class="comments-helper">Reopen this comment before copying.</p>
+   </article>
+   <article class="comments-card" aria-label="Comment by Kim Doe">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@example.com</span><time title="2026-10-24T16:00:00.000Z">yesterday</time></div></div>
+    <button type="button" class="comments-target">Canvas</button>
+    <div class="comments-badges"><span class="comments-badge resolved">Resolved</span></div>
+    <p class="rr-resolution"><time title="2026-10-23T10:00:00.000Z">Resolved by <b>Alexandria Montgomery-Featherstonehaugh</b> · 2 days ago</time></p>
+    <p class="comments-body">Use the new brand color everywhere.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn">Edit</button><button type="button" class="comments-btn">Reopen</button><button type="button" class="comments-btn" disabled>Copy</button><button type="button" class="comments-btn">Delete</button></div>
+    <p class="comments-helper">Reopen this comment before copying.</p>
+   </article>
+  </section>
+ </div>
+
+ <div class="tile">
+  <p class="tile-label"><b>Open list</b> — a reopened comment and a plain open comment after the canvas changed</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="comments-head">
+    <h3>Comments</h3>
+    <div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false">Selection</button><button type="button" aria-pressed="true">Canvas</button></div>
+    <div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 2</button><button type="button" aria-pressed="false">Resolved 3</button></div>
+    <div class="comments-tools"><button type="button" class="comments-btn">Copy all open</button><button type="button" class="comments-btn">New canvas comment</button></div>
+   </div>
+   <article class="comments-card" aria-label="Comment by Kim Doe">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@example.com</span><time title="2026-10-25T10:00:00.000Z">4 hours ago</time></div></div>
+    <button type="button" class="comments-target">Element · h2 “Choose your plan” · in Pricing</button>
+    <div class="comments-badges"><span class="comments-badge open">Open</span><span class="comments-badge" data-doan-id="canvas-changed" title="The canvas changed after this comment was written.">Canvas changed</span></div>
+    <p class="rr-resolution" data-doan-id="reopened-by"><time title="2026-10-25T14:04:30.000Z">Reopened by <b>Kim Doe</b> · 1 min ago</time></p>
+    <p class="rr-resolution" data-doan-id="previously-resolved">Previously resolved by <b>codex</b></p>
+    <p class="comments-body">The heading still wraps on narrow screens. Keep it on one line.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn">Edit</button><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Copy</button><button type="button" class="comments-btn">Delete</button></div>
+   </article>
+   <article class="comments-card" aria-label="Comment by Kim Doe">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@example.com</span><time title="2026-10-25T09:00:00.000Z">5 hours ago</time></div></div>
+    <button type="button" class="comments-target">Frame · Checkout</button>
+    <div class="comments-badges"><span class="comments-badge open">Open</span><span class="comments-badge" title="The canvas changed after this comment was written.">Canvas changed</span></div>
+    <p class="comments-body">Add a back link to the cart.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn">Edit</button><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Copy</button><button type="button" class="comments-btn">Delete</button></div>
+   </article>
+  </section>
+ </div>
+
+ <div class="tile wide">
+  <p class="tile-label"><b>Badge before and after</b></p>
+  <p class="tile-label">Shipped (open card): <span class="comments-badge warning">Outdated</span> &nbsp; → &nbsp; proposed: <span class="comments-badge">Canvas changed</span></p>
+  <p class="tile-label">Shipped (resolved card): <span class="comments-badge resolved">Resolved</span> <span class="comments-badge warning">Outdated</span> &nbsp; → &nbsp; proposed: <span class="comments-badge resolved">Resolved</span> only</p>
+  <p class="tile-label">Unknown freshness on an open card: <span class="comments-badge">Freshness unknown</span> (neutral; hidden on resolved cards)</p>
+  <p class="note"><code>title</code> on “Canvas changed”: “The canvas changed after this comment was written.” Relative times use the short form drawn here (“3 min ago”); the shipped created time uses <code>Intl.RelativeTimeFormat</code> long form (“3 minutes ago”) — see the handoff.</p>
+ </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section class="frame" data-doan-frame="review-notice" data-doan-title="Review notice" data-doan-implements="app/src/renderer/CommentsPanel.tsx">
+<div class="flabel"><h2>Review notice</h2><span class="nic">new · not in code</span><span class="nic">draft copy: Review button label</span></div>
+<p class="note">One line directly under the Comments head; the text ellipsizes before the button shrinks. It counts resolved comments since this device’s last review of this canvas, excluding ones resolved by the current Git name. It shows again with the same rule after the window is hidden and shown or the app restarts. Banner order under the head: error / duplicate-id notice → review → hand off.</p>
+<div class="tiles">
+
+ <div class="tile">
+  <p class="tile-label"><b>Canvas seen before</b></p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="comments-head">
+    <h3>Comments</h3>
+    <div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false">Selection</button><button type="button" aria-pressed="true">Canvas</button></div>
+    <div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 1</button><button type="button" aria-pressed="false">Resolved 3</button></div>
+    <div class="comments-tools"><button type="button" class="comments-btn">Copy all open</button><button type="button" class="comments-btn">New canvas comment</button></div>
+   </div>
+   <div class="rr-banner" data-doan-id="review-notice"><span class="text"><b>3 resolved</b> since your last review</span><button type="button" class="comments-btn" data-doan-id="review-notice-button">Review</button></div>
+   <article class="comments-card" aria-label="Comment by Kim Doe">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@example.com</span><time title="2026-10-25T09:00:00.000Z">5 hours ago</time></div></div>
+    <button type="button" class="comments-target">Frame · Checkout</button>
+    <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+    <p class="comments-body">Add a back link to the cart.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn">Edit</button><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Copy</button><button type="button" class="comments-btn">Delete</button></div>
+   </article>
+  </section>
+ </div>
+
+ <div class="tile">
+  <p class="tile-label"><b>First time this device sees the canvas</b> · and a long count</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="rr-banner"><span class="text"><b>3 resolved</b></span><button type="button" class="comments-btn">Review</button></div>
+  </section>
+  <p class="tile-label" style="margin-top:16px">Long count — the text ellipsizes, the button stays whole</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="rr-banner"><span class="text" title="1,284 resolved since your last review"><b>1,284 resolved</b> since your last review</span><button type="button" class="comments-btn">Review</button></div>
+  </section>
+  <p class="tile-label" style="margin-top:16px"><b>A draft is open</b> — Review is disabled; the reason is linked to the button (<code>aria-describedby</code>)</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="rr-banner"><span class="text"><b>3 resolved</b> since your last review</span><button type="button" class="comments-btn" disabled aria-describedby="rr-draft-reason">Review</button></div>
+   <p class="comments-helper rr-banner-help" id="rr-draft-reason" data-doan-id="review-notice-blocked">Finish or cancel your comment to start Review.</p>
+  </section>
+ </div>
+
+ <div class="tile">
+  <p class="tile-label"><b>Banner order</b> under the head (each banner one line)</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="comments-head">
+    <h3>Comments</h3>
+    <div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false">Selection</button><button type="button" aria-pressed="true">Canvas</button></div>
+    <div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 1</button><button type="button" aria-pressed="false">Resolved 3</button></div>
+    <div class="comments-tools"><button type="button" class="comments-btn">Copy all open</button><button type="button" class="comments-btn">New canvas comment</button></div>
+   </div>
+   <div class="rr-banner err" role="alert"><span class="text">1 · Error or duplicate-id notice (copy from its own feature)</span></div>
+   <div class="rr-banner"><span class="text"><b>3 resolved</b> since your last review</span><button type="button" class="comments-btn">Review</button></div>
+   <div class="rr-banner"><span class="text">3 · Hand off line — drawn by agent-handoff</span></div>
+  </section>
+  <p class="note">Position only: the first and third rows are owned by <code>revision-continuity</code> / shipped errors and <code>agent-handoff</code>.</p>
+ </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section class="frame" data-doan-frame="review-bar" data-doan-title="Review bar" data-doan-implements="app/src/renderer/CommentsPanel.tsx">
+<div class="flabel"><h2>Review bar</h2><span class="nic">new · not in code</span><span class="nic">proposed: after Reopen, Reopen and Edit and reopen… disappear</span></div>
+<p class="note">Review replaces the notice with a bar fixed under the Comments head; the two filter rows (scope and status) collapse while it is open, the list keeps scrolling under it. The step is <code>role="status"</code>. Moving to a step pans the canvas to that target and plays the 1.2 s jump highlight, without changing selection, Inspector, <code>doan active</code> or a draft. Steps are in resolve-time order; resolves that arrive during Review join the end (“2 of 4”) but are outside Done’s range.</p>
+<div class="tiles">
+
+ <div class="tile">
+  <p class="tile-label"><b>Step 1 of 3</b> — Previous disabled; filter rows collapsed</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="comments-head rr-head-collapsed">
+    <h3>Comments</h3>
+    <div class="comments-tools"><button type="button" class="comments-btn">Copy all open</button><button type="button" class="comments-btn">New canvas comment</button></div>
+   </div>
+   <div class="rr-bar" role="region" aria-label="Review" data-doan-id="review-bar">
+    <div class="rr-step"><output role="status" data-doan-id="review-step">Review 1 of 3</output><button type="button" class="rr-close" aria-label="Close Review" data-doan-id="review-close">×</button></div>
+    <span class="comments-target" data-doan-id="review-target">Element · button cta-primary · in Pricing</span>
+    <p class="rr-excerpt" data-doan-id="review-excerpt">Make the primary button full width on mobile. On desktop keep it at its natural width, and keep the 12 px gap to the secondary link so the pair still reads as one group.</p>
+    <p class="rr-meta" data-doan-id="review-resolution"><time title="2026-10-25T14:02:10.000Z">Resolved by codex · 3 min ago</time></p>
+    <div class="rr-actions"><button type="button" class="comments-btn" data-doan-id="review-reopen">Reopen</button><button type="button" class="comments-btn" data-doan-id="review-edit-reopen">Edit and reopen…</button></div>
+    <div class="rr-nav"><button type="button" class="comments-btn" disabled data-doan-id="review-previous">Previous</button><button type="button" class="comments-btn primary end" data-doan-id="review-next">Next</button></div>
+   </div>
+   <article class="comments-card" aria-label="Comment by Kim Doe">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@example.com</span><time title="2026-10-25T09:00:00.000Z">5 hours ago</time></div></div>
+    <button type="button" class="comments-target">Frame · Checkout</button>
+    <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+    <p class="comments-body">Add a back link to the cart.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn">Edit</button><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Copy</button><button type="button" class="comments-btn">Delete</button></div>
+   </article>
+  </section>
+ </div>
+
+ <div class="tile">
+  <p class="tile-label"><b>Step 2 of 3</b></p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="rr-bar" role="region" aria-label="Review">
+    <div class="rr-step"><output role="status">Review 2 of 3</output><button type="button" class="rr-close" aria-label="Close Review">×</button></div>
+    <span class="comments-target">Frame · Pricing</span>
+    <p class="rr-excerpt">Plans should line up at the top edge.</p>
+    <p class="rr-meta"><time title="2026-10-25T14:03:00.000Z">Resolved by claude-code · 2 min ago</time></p>
+    <div class="rr-actions"><button type="button" class="comments-btn">Reopen</button><button type="button" class="comments-btn">Edit and reopen…</button></div>
+    <div class="rr-nav"><button type="button" class="comments-btn">Previous</button><button type="button" class="comments-btn primary end">Next</button></div>
+   </div>
+  </section>
+  <p class="tile-label" style="margin-top:16px"><b>Step 3 of 3</b> — Next becomes Done</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="rr-bar" role="region" aria-label="Review">
+    <div class="rr-step"><output role="status">Review 3 of 3</output><button type="button" class="rr-close" aria-label="Close Review">×</button></div>
+    <span class="comments-target">Canvas</span>
+    <p class="rr-excerpt">Use the new brand color everywhere.</p>
+    <p class="rr-meta"><time title="2026-10-25T14:04:00.000Z">Resolved by Alexandria Montgomery-Featherstonehaugh · 1 min ago</time></p>
+    <div class="rr-actions"><button type="button" class="comments-btn">Reopen</button><button type="button" class="comments-btn">Edit and reopen…</button></div>
+    <div class="rr-nav"><button type="button" class="comments-btn">Previous</button><button type="button" class="comments-btn primary end" data-doan-id="review-done-button">Done</button></div>
+   </div>
+  </section>
+ </div>
+
+ <div class="tile">
+  <p class="tile-label"><b>Only one</b> — no Previous; Done</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="rr-bar" role="region" aria-label="Review">
+    <div class="rr-step"><output role="status">Review 1 of 1</output><button type="button" class="rr-close" aria-label="Close Review">×</button></div>
+    <span class="comments-target">Element · button cta-primary · in Pricing</span>
+    <p class="rr-excerpt">Make the primary button full width on mobile.</p>
+    <p class="rr-meta"><time title="2026-10-25T14:02:10.000Z">Resolved by codex · 3 min ago</time></p>
+    <div class="rr-actions"><button type="button" class="comments-btn">Reopen</button><button type="button" class="comments-btn">Edit and reopen…</button></div>
+    <div class="rr-nav"><button type="button" class="comments-btn primary end">Done</button></div>
+   </div>
+  </section>
+  <p class="tile-label" style="margin-top:16px"><b>After Reopen</b> in this step — Next stays</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="rr-bar" role="region" aria-label="Review">
+    <div class="rr-step"><output role="status">Review 2 of 3</output><button type="button" class="rr-close" aria-label="Close Review">×</button></div>
+    <span class="comments-target">Frame · Pricing</span>
+    <p class="rr-excerpt">Plans should line up at the top edge.</p>
+    <p class="rr-meta"><time title="2026-10-25T14:03:00.000Z">Resolved by claude-code · 2 min ago</time></p>
+    <p class="rr-flag" data-doan-id="review-reopened">Reopened</p>
+    <div class="rr-nav"><button type="button" class="comments-btn">Previous</button><button type="button" class="comments-btn primary end">Next</button></div>
+   </div>
+  </section>
+ </div>
+
+ <div class="tile">
+  <p class="tile-label"><b>Reopened elsewhere</b> during Review — only Next</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="rr-bar" role="region" aria-label="Review">
+    <div class="rr-step"><output role="status">Review 2 of 3</output><button type="button" class="rr-close" aria-label="Close Review">×</button></div>
+    <span class="comments-target">Frame · Pricing</span>
+    <p class="rr-excerpt">Plans should line up at the top edge.</p>
+    <p class="rr-flag" data-doan-id="review-reopened-by">Reopened by codex</p>
+    <div class="rr-nav"><button type="button" class="comments-btn primary end">Next</button></div>
+   </div>
+  </section>
+  <p class="tile-label" style="margin-top:16px"><b>Deleted</b> during Review — only Next</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="rr-bar" role="region" aria-label="Review">
+    <div class="rr-step"><output role="status">Review 2 of 3</output><button type="button" class="rr-close" aria-label="Close Review">×</button></div>
+    <span class="comments-target">Frame · Pricing</span>
+    <p class="rr-excerpt">Plans should line up at the top edge.</p>
+    <p class="rr-flag" data-doan-id="review-deleted">Deleted</p>
+    <div class="rr-nav"><button type="button" class="comments-btn primary end">Next</button></div>
+   </div>
+  </section>
+ </div>
+
+ <div class="tile">
+  <p class="tile-label"><b>Target not found</b> — the canvas does not move</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="rr-bar" role="region" aria-label="Review">
+    <div class="rr-step"><output role="status">Review 1 of 3</output><button type="button" class="rr-close" aria-label="Close Review">×</button></div>
+    <span class="comments-target">Element · div promo-banner · in Home</span>
+    <p class="rr-excerpt">Remove the promo banner.</p>
+    <p class="rr-meta"><time title="2026-10-25T14:01:00.000Z">Resolved by codex · 4 min ago</time></p>
+    <p class="rr-flag warn" data-doan-id="review-not-found">Not found in the current canvas</p>
+    <div class="rr-actions"><button type="button" class="comments-btn">Reopen</button><button type="button" class="comments-btn">Edit and reopen…</button></div>
+    <div class="rr-nav"><button type="button" class="comments-btn" disabled>Previous</button><button type="button" class="comments-btn primary end">Next</button></div>
+   </div>
+  </section>
+  <p class="tile-label" style="margin-top:16px"><b>A resolve arrived during Review</b> — the set grows to 4</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="rr-bar" role="region" aria-label="Review">
+    <div class="rr-step"><output role="status" data-doan-id="review-step-extras">Review 2 of 4</output><button type="button" class="rr-close" aria-label="Close Review">×</button></div>
+    <span class="comments-target">Frame · Pricing</span>
+    <p class="rr-excerpt">Plans should line up at the top edge.</p>
+    <p class="rr-meta"><time title="2026-10-25T14:03:00.000Z">Resolved by claude-code · 2 min ago</time></p>
+    <div class="rr-actions"><button type="button" class="comments-btn">Reopen</button><button type="button" class="comments-btn">Edit and reopen…</button></div>
+    <div class="rr-nav"><button type="button" class="comments-btn">Previous</button><button type="button" class="comments-btn primary end">Next</button></div>
+   </div>
+  </section>
+ </div>
+
+ <div class="tile">
+  <p class="tile-label"><b>Canvas during a step</b> — pan and jump highlight, no selection mark</p>
+  <div class="scene area">
+   <div class="scene-mock">Pricing<i></i></div>
+   <div class="mark jump-highlight" style="left:28px;top:54px;width:94px;height:26px"></div>
+  </div>
+  <p class="tile-label" style="margin-top:16px"><b>Go menu</b> (native) — enabled only during Review</p>
+  <div class="mbar"><b>doan</b><span>File</span><span>Edit</span><span>View</span><span class="on">Go</span><span>Window</span></div>
+  <div style="padding-left:40px">
+   <div class="gmenu" data-doan-id="go-menu"><div>Home <span>⇧⌘H</span></div><div>Quick Open… <span>⌘K</span></div><hr><div>Next Resolved Comment <span>⌘]</span></div><div>Previous Resolved Comment <span>⌘[</span></div></div>
+  </div>
+  <p class="tile-label" style="margin-top:10px">Outside Review both new items are disabled:</p>
+  <div class="gmenu"><div class="off">Next Resolved Comment <span>⌘]</span></div><div class="off">Previous Resolved Comment <span>⌘[</span></div></div>
+ </div>
+
+ <div class="tile wide">
+  <p class="tile-label"><b>Not visible — keyboard, focus, names</b></p>
+  <p class="note">Moving to another step puts focus on Next (or Done). Closing Review (× or Esc) returns focus to the notice’s Review button, or to the Comments heading when the notice is gone. Esc handles, in order: an open dialog → the editor → Review (close) → selection (clear). ⌘] / ⌘[ follow Next / Previous; they do not fire inside text inputs. The bar is a region named “Review”; × is named “Close Review”.</p>
+  <p class="note">Last-review time: Next raises it to the resolve time of the step just passed; Esc or × keep that progress; Done raises it to the end of the set fixed at start. Moving to another canvas or Home ends Review and keeps passed progress. Reload or a moved canvas keeps the same step by comment id. Edit and reopen… opens the Save and reopen editor (frame <code>edit-reopen</code>).</p>
+ </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section class="frame" data-doan-frame="review-done" data-doan-title="Review done summary" data-doan-implements="app/src/renderer/CommentsPanel.tsx">
+<div class="flabel"><h2>Review done</h2><span class="nic">new · not in code</span><span class="nic">proposed: close ×, “Reviewed 3” without Hand off… when nothing was reopened</span></div>
+<p class="note">After Done the bar is replaced by one summary line in the same place. Hand off… opens the <code>agent-handoff</code> dialog with the reopened comments pre-checked. Proposed (conductor-approved): the line has a close ×, and it also clears when a new review notice appears or the canvas or project changes. Focus after Done goes to the Hand off… button, or to × when there is none.</p>
+<div class="tiles">
+ <div class="tile">
+  <p class="tile-label"><b>Reviewed 3 · Reopened 1</b></p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="comments-head">
+    <h3>Comments</h3>
+    <div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false">Selection</button><button type="button" aria-pressed="true">Canvas</button></div>
+    <div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 2</button><button type="button" aria-pressed="false">Resolved 2</button></div>
+    <div class="comments-tools"><button type="button" class="comments-btn">Copy all open</button><button type="button" class="comments-btn">New canvas comment</button></div>
+   </div>
+   <div class="rr-banner" role="status" data-doan-id="review-done"><span class="text" data-doan-id="review-done-text">Reviewed 3 · Reopened 1</span><button type="button" class="comments-btn" data-doan-id="review-done-handoff">Hand off…</button><button type="button" class="rr-close" aria-label="Close summary" data-doan-id="review-done-close">×</button></div>
+   <article class="comments-card" aria-label="Comment by Kim Doe">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@example.com</span><time title="2026-10-25T11:40:00.000Z">2 hours ago</time></div></div>
+    <button type="button" class="comments-target">Frame · Pricing</button>
+    <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+    <p class="rr-resolution"><time title="2026-10-25T14:06:00.000Z">Reopened by <b>Kim Doe</b> · just now</time></p>
+    <p class="rr-resolution">Previously resolved by <b>claude-code</b></p>
+    <p class="comments-body">Plans should line up at the top edge.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn">Edit</button><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Copy</button><button type="button" class="comments-btn">Delete</button></div>
+   </article>
+  </section>
+ </div>
+ <div class="tile">
+  <p class="tile-label"><b>Nothing reopened</b> (proposed)</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="rr-banner" role="status"><span class="text">Reviewed 3</span><button type="button" class="rr-close" aria-label="Close summary">×</button></div>
+  </section>
+  <p class="tile-label" style="margin-top:16px"><b>Long counts</b></p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="rr-banner" role="status"><span class="text" title="Reviewed 1,284 · Reopened 312">Reviewed 1,284 · Reopened 312</span><button type="button" class="comments-btn">Hand off…</button><button type="button" class="rr-close" aria-label="Close summary">×</button></div>
+  </section>
+ </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section class="frame" data-doan-frame="status-lines" data-doan-title="Resolve and Reopen status lines" data-doan-implements="app/src/renderer/CommentsPanel.tsx">
+<div class="flabel"><h2>Status lines after Resolve and Reopen</h2><span class="nic">new: status line in the card’s place</span><span class="nic">changed: “No duplicate was added.” only on the checked recovery path</span></div>
+<p class="note">When a human’s Resolve or Reopen succeeds, the card leaves the current list and a <code>role="status"</code> line stays in its place for 4 seconds. Focus moves to the next card’s article (<code>tabIndex=-1</code>), else the previous card, else the Comments heading — never to a Resolve button, so pressing Enter twice cannot resolve the next comment. The same focus rule applies when an agent’s resolve removes the focused card. “Show” (after Save and reopen) switches the status filter to Open and locates that comment.</p>
+<div class="tiles">
+ <div class="tile">
+  <p class="tile-label"><b>Resolved</b> in the Open list</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="comments-head">
+    <h3>Comments</h3>
+    <div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false">Selection</button><button type="button" aria-pressed="true">Canvas</button></div>
+    <div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 1</button><button type="button" aria-pressed="false">Resolved 4</button></div>
+    <div class="comments-tools"><button type="button" class="comments-btn">Copy all open</button><button type="button" class="comments-btn">New canvas comment</button></div>
+   </div>
+   <p class="rr-status" role="status" data-doan-id="status-resolved">Resolved — moved to Resolved.</p>
+   <article class="comments-card" aria-label="Comment by Kim Doe" tabindex="-1">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@example.com</span><time title="2026-10-25T09:00:00.000Z">5 hours ago</time></div></div>
+    <button type="button" class="comments-target">Frame · Checkout</button>
+    <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+    <p class="comments-body">Add a back link to the cart.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn">Edit</button><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Copy</button><button type="button" class="comments-btn">Delete</button></div>
+   </article>
+  </section>
+  <p class="note">The next card receives focus.</p>
+ </div>
+ <div class="tile">
+  <p class="tile-label"><b>Reopened</b> in the Resolved list</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <p class="rr-status" role="status" data-doan-id="status-reopened">Reopened — moved to Open.</p>
+  </section>
+  <p class="tile-label" style="margin-top:16px"><b>Saved and reopened</b> from the resolved editor</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <p class="rr-status" role="status" data-doan-id="status-reopened-show">Reopened — moved to Open.<button type="button" data-doan-id="status-show">Show</button></p>
+  </section>
+ </div>
+ <div class="tile">
+  <p class="tile-label"><b>Recovery path only</b> — after “Check saved status” confirmed the save (shipped copy, unchanged)</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="comments-message" role="status"><b>Comment saved</b>The original comment is in the file. No duplicate was added.</div>
+  </section>
+  <p class="note">A normal successful Resolve or Reopen no longer shows this message; the card returns to idle and the status line above is used.</p>
+ </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section class="frame" data-doan-frame="edit-reopen" data-doan-title="Editing a resolved comment" data-doan-implements="app/src/renderer/CommentsPanel.tsx">
+<div class="flabel"><h2>Editing a resolved comment</h2><span class="nic">new: Save and reopen (primary), Save only, helper</span></div>
+<p class="note">The shipped editor, opened from Edit on a resolved card or from Edit and reopen… in the Review bar. Save and reopen writes the edit and a reopen in one append; afterwards the comment is back in <code>doan comments</code> and the status line “Reopened — moved to Open. Show” appears. Save only keeps it resolved. Open comments keep the shipped single “Save changes”. Button order follows the shipped editor: Cancel, then secondary, then primary last.</p>
+<div class="tiles">
+ <div class="tile">
+  <p class="tile-label"><b>Resolved comment in edit</b></p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <article class="comments-card" aria-label="Comment by Kim Doe">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@example.com</span><time title="2026-10-25T09:10:00.000Z">5 hours ago</time></div></div>
+    <button type="button" class="comments-target">Element · button cta-primary · in Pricing</button>
+    <div class="comments-badges"><span class="comments-badge resolved">Resolved</span></div>
+    <p class="rr-resolution"><time title="2026-10-25T14:02:10.000Z">Resolved by <b>codex</b> · 3 min ago</time></p>
+    <p class="comments-body">Make the primary button full width on mobile.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn" disabled>Edit</button><button type="button" class="comments-btn" disabled>Reopen</button><button type="button" class="comments-btn" disabled>Copy</button><button type="button" class="comments-btn" disabled>Delete</button></div>
+   </article>
+   <div class="comments-composer" data-doan-id="edit-reopen-editor">
+    <label>Your unsaved edit<span class="comments-target">To: Element · button cta-primary · in Pricing</span><textarea aria-label="Your unsaved edit body">Make the primary button full width on mobile, including the sticky footer variant.</textarea></label>
+    <div class="comments-tools"><button type="button" class="comments-btn">Cancel</button><button type="button" class="comments-btn" data-doan-id="save-only">Save only</button><button type="button" class="comments-btn primary" data-doan-id="save-reopen">Save and reopen</button></div>
+    <p class="comments-helper" data-doan-id="edit-reopen-helper">Agents read open comments only.</p>
+   </div>
+  </section>
+ </div>
+ <div class="tile">
+  <p class="tile-label"><b>Saving</b> — both buttons lock (shipped saving copy)</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="comments-composer" aria-busy="true">
+    <label>Your unsaved edit<span class="comments-target">To: Element · button cta-primary · in Pricing</span><textarea aria-label="Your unsaved edit body" readonly>Make the primary button full width on mobile, including the sticky footer variant.</textarea></label>
+    <div class="comments-tools"><button type="button" class="comments-btn" disabled>Cancel</button><button type="button" class="comments-btn" disabled>Save only</button><button type="button" class="comments-btn primary" disabled>Saving…</button></div>
+    <p class="comments-helper">Agents read open comments only.</p>
+   </div>
+   <div class="comments-message" role="status"><b>Saving…</b>Your input is kept until saving finishes.</div>
+  </section>
+ </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section class="frame" data-doan-frame="missing-target" data-doan-title="Missing target" data-doan-implements="app/src/renderer/CommentsPanel.tsx">
+<div class="flabel"><h2>Missing target</h2><span class="nic">new: “Comment on selection instead”</span><span class="nic">new: delete-original dialog</span></div>
+<p class="note">Only on an open comment whose location is unavailable (comments are not re-attached; this is an explicit human action). The button starts a new comment draft on the current selection with the same body; its author is the current Git name. After that save succeeds a confirmation asks whether to delete the original. If the save fails, the original is untouched. The dialog reuses the shipped Delete dialog surface; Esc and Keep both close it without deleting.</p>
+<div class="tiles">
+ <div class="tile">
+  <p class="tile-label"><b>With a selection</b> — enabled</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <article class="comments-card" aria-label="Comment by Kim Doe">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@example.com</span><time title="2026-10-24T16:00:00.000Z">yesterday</time></div></div>
+    <button type="button" class="comments-target" disabled>Element · div promo-banner · in Home</button>
+    <div class="comments-badges"><span class="comments-badge open">Open</span><span class="comments-badge warning">Location unavailable</span></div>
+    <p class="comments-body">Shorten the promo text to one line.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn">Edit</button><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Copy</button><button type="button" class="comments-btn">Delete</button></div>
+    <div class="comments-tools" style="margin-top:6px"><button type="button" class="comments-btn" data-doan-id="comment-on-selection">Comment on selection instead</button></div>
+   </article>
+  </section>
+ </div>
+ <div class="tile">
+  <p class="tile-label"><b>No selection</b> — disabled, reason linked</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <article class="comments-card" aria-label="Comment by Kim Doe">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@example.com</span><time title="2026-10-24T16:00:00.000Z">yesterday</time></div></div>
+    <button type="button" class="comments-target" disabled>Element · div promo-banner · in Home</button>
+    <div class="comments-badges"><span class="comments-badge open">Open</span><span class="comments-badge warning">Location unavailable</span></div>
+    <p class="comments-body">Shorten the promo text to one line.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn">Edit</button><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Copy</button><button type="button" class="comments-btn">Delete</button></div>
+    <div class="comments-tools" style="margin-top:6px"><button type="button" class="comments-btn" disabled aria-describedby="rr-no-selection">Comment on selection instead</button></div>
+    <p class="comments-helper" id="rr-no-selection" data-doan-id="comment-on-selection-reason">Select an element or frame first.</p>
+   </article>
+  </section>
+ </div>
+ <div class="tile">
+  <p class="tile-label"><b>Draft on the selection</b> — same body, prefilled (shipped create editor)</p>
+  <section class="specimen comments-panel" aria-label="Comments">
+   <div class="comments-composer">
+    <label>New comment<span class="comments-target">To: Element · p promo-text · in Home</span><textarea aria-label="New comment body">Shorten the promo text to one line.</textarea></label>
+    <div class="comments-tools"><button type="button" class="comments-btn">Cancel</button><button type="button" class="comments-btn primary">Save comment</button></div>
+   </div>
+  </section>
+ </div>
+ <div class="tile wide">
+  <p class="tile-label"><b>After the save</b></p>
+  <div class="comments-dialog" role="dialog" aria-label="Delete the original comment?" data-doan-id="delete-original-dialog">
+   <h3>Delete the original comment?</h3>
+   <p>Your text was saved as a new comment on Element · p promo-text · in Home.</p>
+   <div class="comments-tools"><button type="button" class="comments-btn" data-doan-id="keep-both">Keep both</button><button type="button" class="comments-btn rr-danger" data-doan-id="delete-original">Delete original</button></div>
+  </div>
+  <p class="note">Keep both has initial focus (the shipped Delete dialog focuses Cancel). Delete original uses the error color as the destructive action.</p>
+ </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section class="frame" data-doan-frame="activity-label" data-doan-title="Activity kinds and bottom label" data-doan-implements="app/src/renderer/RightPanel.tsx">
+<div class="flabel"><h2>Activity and bottom label</h2><span class="nic">new: Changed, Moved, Resolved kinds</span><span class="nic">changed: bottom label “Updated” → latest kind, HH:MM</span></div>
+<p class="note">Activity (newest first, shipped HH:MM:SS) separates opening, a reload where the canvas row rev changed, a reload where it did not, a move, and comments that turned resolved on a re-read (resolver names, including a human’s own Resolve). The first read on open is the baseline and is not recorded. The bottom label shows the latest of Opened / Changed / Reloaded / Moved as “Kind HH:MM”; a Resolved entry does not change it. A date is added when the time is not today. This replaces the 2026-10-22 app-ui “Updated” definition.</p>
+<div class="tiles">
+ <div class="tile">
+  <p class="tile-label"><b>Canvas panel</b> — Activity</p>
+  <aside class="right specimen" role="region" aria-label="Canvas info">
+   <h2 class="phead">Canvas</h2>
+   <div class="isec"><dl class="kv"><dt>Path</dt><dd>design/pricing.html</dd><dt>ID</dt><dd>pricing</dd><dt>Width</dt><dd>1440</dd><dt>Frames</dt><dd>4</dd></dl></div>
+   <div class="isec"><h3 class="ihead">Comments</h3><dl class="kv"><dt>Open</dt><dd class="accent">1</dd><dt>Resolved</dt><dd>3</dd></dl></div>
+   <section class="isec activity" aria-label="Activity" data-doan-id="activity"><h3 class="ihead">Activity</h3><ol>
+    <li class="tl-row" data-doan-id="activity-resolved"><time>14:09:30</time><b>Resolved 2 · codex, Kim Doe</b></li>
+    <li class="tl-row" data-doan-id="activity-moved"><time>14:07:12</time><b>Moved · from pricing-old.html</b></li>
+    <li class="tl-row" data-doan-id="activity-reloaded"><time>14:06:03</time><b>Reloaded</b></li>
+    <li class="tl-row" data-doan-id="activity-changed"><time>14:05:41</time><b>Changed</b></li>
+    <li class="tl-row"><time>14:02:10</time><b>Opened</b></li>
+   </ol></section>
+   <p class="pempty">Click an element or frame to inspect it. Frames are also listed in the sidebar.</p>
+  </aside>
+ </div>
+ <div class="tile">
+  <p class="tile-label"><b>Long resolver list</b> — wraps inside the row; proposed <code>flex: none</code> on the time column so it does not shrink</p>
+  <aside class="right specimen" role="region" aria-label="Canvas info">
+   <section class="isec activity" aria-label="Activity"><h3 class="ihead">Activity</h3><ol>
+    <li class="tl-row"><time>14:12:00</time><b>Resolved 4 · claude-code, codex, Kim Doe, Alexandria Montgomery-Featherstonehaugh</b></li>
+    <li class="tl-row"><time>14:09:30</time><b>Resolved 1 · codex</b></li>
+   </ol></section>
+  </aside>
+ </div>
+ <div class="tile">
+  <p class="tile-label"><b>Bottom label</b> (canvas area, bottom left)</p>
+  <div class="scene area" style="height:60px"><output class="updated meta" data-doan-id="bottom-label"><span class="dot"></span> Opened 14:02</output></div>
+  <div class="scene area" style="margin-top:8px;height:60px"><output class="updated meta"><span class="dot"></span> Changed 14:05</output></div>
+  <div class="scene area" style="margin-top:8px;height:60px"><output class="updated meta"><span class="dot"></span> Reloaded 14:06</output></div>
+  <div class="scene area" style="margin-top:8px;height:60px"><output class="updated meta"><span class="dot"></span> Moved 14:07</output></div>
+  <div class="scene area" style="margin-top:8px;height:60px"><output class="updated meta" data-doan-id="bottom-label-dated"><span class="dot"></span> Changed Oct 24 18:40</output></div>
+  <p class="note">Shipped: “Updated 14:02:10”. Date format “Oct 24” follows the Home changed time (<code>month: "short", day: "numeric"</code>).</p>
+ </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section class="frame" data-doan-frame="home-counts" data-doan-title="Home and Overview counts" data-doan-implements="app/src/renderer/Home.tsx">
+<div class="flabel"><h2>Home and Overview counts</h2><span class="nic">new: “N resolved to review”</span><span class="nic">proposed: narrow rows move the summary to its own line</span></div>
+<p class="note">Counts come from the project comments read (one <code>ls</code>, per-canvas fold). Home row summary order: “2 open · 1 resolved to review” (then <code>project-feedback</code> appends “· 3 without a canvas”). When the row is too narrow for the summary next to the branch, the whole summary drops to its own line under the branch and wraps between items. A count of 0 is not shown. The shipped row and card copy (“N canvases”, “N frames”, changed time) is unchanged.</p>
+<div class="tiles">
+ <div class="tile wide" style="width:560px">
+  <p class="tile-label"><b>Home row — wide</b></p>
+  <div class="home-wrap">
+   <section class="card" aria-label="acme-web">
+    <div class="card-head"><span class="card-name">acme-web</span><span class="meta">2 worktrees</span><span class="spacer"></span><button class="more" aria-label="Project menu acme-web">···</button></div>
+    <div class="wt" role="button" tabindex="0">
+     <span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">main</span></span>
+     <span class="wt-end"><span class="wt-sum" data-doan-id="home-summary">4 canvases · <span class="hot">2 open</span> · <span class="rr-review" data-doan-id="home-review-count">1 resolved to review</span> · <time>5m ago</time></span><button class="more" tabindex="-1" aria-label="Row menu">···</button></span>
+     <span class="wt-path">~/code/acme-web</span>
+    </div>
+    <div class="wt" role="button" tabindex="-1">
+     <span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">feat-checkout</span></span>
+     <span class="wt-end"><span class="wt-sum">2 canvases · <span class="rr-review">3 resolved to review</span> · <time>1h ago</time></span><button class="more" tabindex="-1" aria-label="Row menu">···</button></span>
+     <span class="wt-path">~/code/acme-web-checkout</span>
+    </div>
+   </section>
+  </div>
+ </div>
+ <div class="tile" style="width:320px">
+  <p class="tile-label"><b>Home row — narrow</b> (summary on its own line)</p>
+  <div class="home-wrap">
+   <section class="card" aria-label="acme-web">
+    <div class="card-head"><span class="card-name">acme-web</span><span class="spacer"></span><button class="more" aria-label="Project menu acme-web">···</button></div>
+    <div class="wt rr-narrow" role="button" tabindex="0">
+     <span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">feat-very-long-branch-name-for-checkout</span></span>
+     <span class="wt-end"><button class="more" tabindex="-1" aria-label="Row menu">···</button></span>
+     <span class="wt-sum" data-doan-id="home-summary-narrow"><span>4 canvases</span> · <span class="hot">2 open</span> · <span class="rr-review">1 resolved to review</span> · <span><time>5m ago</time></span></span>
+     <span class="wt-path">~/code/acme-web-checkout</span>
+    </div>
+   </section>
+  </div>
+ </div>
+ <div class="tile wide" style="width:870px">
+  <p class="tile-label"><b>Overview cards</b> — real Overview width (canvas area at a 1440 px window)</p>
+  <div class="ov home-wrap">
+   <div class="ocards">
+    <div class="ocard"><div class="thumb"></div><div class="ocard-body"><span class="ocard-title">Pricing</span><span class="ocard-file">pricing.html</span><span class="ocard-meta rr-wrap" data-doan-id="ocard-meta"><span>4 frames</span> · <span class="hot">12 open</span> · <span class="rr-review" data-doan-id="ocard-review-count">3 resolved to review</span> · <span>5m ago</span></span></div></div>
+    <div class="ocard"><div class="thumb"></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">checkout.html</span><span class="ocard-meta rr-wrap"><span>1 frame</span> · <span class="rr-review">1 resolved to review</span> · <span>1h ago</span></span></div></div>
+    <div class="ocard"><div class="thumb"></div><div class="ocard-body"><span class="ocard-title">Home</span><span class="ocard-file">home.html</span><span class="ocard-meta">2 frames · Yesterday</span></div></div>
+   </div>
+  </div>
+  <p class="note">Overview cards never show the without-a-canvas count (<code>project-feedback</code>). “resolved to review” uses <code>--text-2</code>, so the open count keeps the accent. The shipped meta line is <code>nowrap</code>; with the new item it overflows narrower cards (smaller windows), so the proposal lets it wrap between items.</p>
+ </div>
+</div>
+</section>
+
+</body>
+</html>
