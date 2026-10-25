@@ -3,7 +3,7 @@ import { parseLines } from "../formats/fold";
 import { foldText } from "../formats/foldText";
 import type { CommentEvent } from "../formats/types";
 import { validateCommentEvent } from "../formats/validate";
-import { nextEventTime, prepareEvent } from "./events";
+import { nextEventTime, prepareEditReopen, prepareEvent } from "./events";
 
 const eid = (n: number) => `evt_00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const cid = "cmt_00000000-0000-4000-8000-000000000001";
@@ -82,5 +82,38 @@ describe("event preparation", () => {
     for (const field of ["by", "at", "id", "canvasHash", "target", "path"]) expect(() => prepareEvent("", { type: "create", body: "new", [field]: "forged" }, context)).toThrow();
     expect(() => prepareEvent("", { type: "create", body: "new" }, { ...context, by: { kind: "human", name: " " } })).toThrow();
     expect(() => prepareEvent("", { type: "create", body: "new" }, { ...context, by: { kind: "agent", name: "agent" } })).toThrow();
+  });
+});
+
+describe("edit and reopen preparation", () => {
+  const resolved: CommentEvent = { v: 1, id: eid(2), comment: cid, at: "2026-01-01T00:00:01.000Z", type: "resolve", by: { kind: "agent", name: "codex" } };
+  const resolvedExpected = { body: "original", status: "resolved", updatedAt: created.at, resolvedAt: resolved.at } as const;
+  const intent = { type: "edit-reopen", comment: cid, body: "revised", expected: resolvedExpected } as const;
+  const authority = { id: eid(3), comment: cid, by, now: 0 };
+
+  it("prepares the edit, then the reopen 1 ms later against the text with the edit appended", () => {
+    const [edit, reopen] = prepareEditReopen(textOf(created, resolved), intent, authority, eid(4));
+    expect(edit).toEqual({ v: 1, id: eid(3), at: "2026-01-01T00:00:01.001Z", by, comment: cid, type: "edit", body: "revised" });
+    expect(reopen).toEqual({ v: 1, id: eid(4), at: "2026-01-01T00:00:01.002Z", by, comment: cid, type: "reopen" });
+    expect(validateCommentEvent(edit) && validateCommentEvent(reopen)).toBe(true);
+    expect(foldText(textOf(created, resolved, edit, reopen)).comments[0]).toMatchObject({ status: "open", body: "revised", updatedAt: edit.at });
+  });
+  it("keeps the 1 ms step from a later clock and from a text without a trailing newline", () => {
+    const now = Date.parse("2026-06-01T00:00:00.000Z");
+    const [edit, reopen] = prepareEditReopen(textOf(created, resolved) + "\n", intent, { ...authority, now }, eid(4));
+    expect([edit.at, reopen.at]).toEqual(["2026-06-01T00:00:00.000Z", "2026-06-01T00:00:00.001Z"]);
+  });
+  it("rejects an open comment, a stale expected state, a blank body and a reused reopen id", () => {
+    expect(() => prepareEditReopen(textOf(created), { ...intent, expected }, authority, eid(4))).toThrow("Comment status changed.");
+    expect(() => prepareEditReopen(textOf(created, resolved), { ...intent, expected: { ...resolvedExpected, body: "other" } }, authority, eid(4))).toThrow("Comment changed");
+    expect(() => prepareEditReopen(textOf(created, resolved), { ...intent, body: " \n" }, authority, eid(4))).toThrow();
+    expect(() => prepareEditReopen(textOf(created, resolved), intent, authority, eid(3))).toThrow("Event id already exists");
+    expect(() => prepareEditReopen(textOf(created, resolved), intent, authority, eid(1))).toThrow("Event id already exists");
+  });
+  it("rejects other intent shapes, and the single-event path rejects edit-reopen", () => {
+    for (const bad of [{ ...intent, type: "edit" }, { ...intent, extra: 1 }, { type: "edit-reopen", comment: cid, expected: resolvedExpected }]) {
+      expect(() => prepareEditReopen(textOf(created, resolved), bad, authority, eid(4))).toThrow();
+    }
+    expect(() => prepareEvent(textOf(created, resolved), intent, authority)).toThrow("Invalid comment mutation.");
   });
 });
