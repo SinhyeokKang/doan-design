@@ -118,6 +118,10 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 
 ## 지휘자 전체 판정 추적
 
+- H 통합 후보는 `5c5916f`, `ba546b9`, `0b3ef78`, `0c9f20d`이다. root의 Node helper tests 10개도 exit 0으로 통과했다.
+- E-fix `15d6c52`, `ca01a23`, `7d9fca9`, `e64267d`를 인수했다. 관련 44개 테스트와 추가 standalone-form 포함 25개 테스트가 통과했으며 full runner/self-test는 통합 게이트로 남겼다. 구현 terminal을 release하고 child는 통합·리뷰까지 보존한다.
+- IR-E-fix: 독립 Codex gpt-6-astra medium, 여섯 eval 파일의 실행 증거·judge 예산·CSS 도달 경계 재리뷰. tracked 파일 읽기와 root scratch report만 허용한다. H2 `ctx_552688d6ccd7`는 `audit-native-261025`에서 Astra medium effective/turn_start를 확인했고, 세 관련 native suite의 단독 실행 슬롯을 받았다.
+
 아래는 원본 31개 발견의 판정이다. 통합 후보는 최종 검증·수용을 뜻하지 않는다. UX 보고서의 52개 발견은 audit 병합 뒤 별도로 추적한다.
 
 | 원본 ID | 판정·범위 | 소유 배치·남은 게이트 |
