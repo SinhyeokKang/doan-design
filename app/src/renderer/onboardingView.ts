@@ -3,6 +3,7 @@ import type { MachineState } from "../main/onboarding/machine";
 import type { Agent } from "../main/onboarding/states";
 import type { ProjectInitResult } from "../main/shell";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import { cardRow } from "./homeCards";
 import { canvasLabel } from "./canvasTree";
 import { displayPath } from "./projectDisplay";
 import { projectRow, type DetailPart } from "./projectRow";
@@ -292,13 +293,15 @@ export function nextFocusIndex(count: number, index: number, shift: boolean): nu
 }
 
 export interface PromptStepView {
+  project?: { path: string; status: string; label: string; disabled: boolean };
   addProject?: { text: Part[]; label: string; primary: true; disabled: boolean };
   ready?: { text: string; open: { label: string; disabled: boolean } };
 }
 // Without a project the step offers Add Project… in place of the first prompt;
 // once the waited-for canvas has arrived it shows Canvas ready with Open.
-export function promptStepView(project: string | null, arrived: CanvasRow | null, busy: boolean): PromptStepView {
+export function promptStepView(project: FolderEntry | null, arrived: CanvasRow | null, busy: boolean): PromptStepView {
   if (project === null) return { addProject: { text: NO_PROJECT_TEXT, label: ADD_PROJECT_LABEL, primary: true, disabled: busy } };
+  if (project.kind !== "list") return { project: { path: project.path, status: cardRow(project, null, null).chip ?? "Reading…", label: project.kind === "uninitialized" ? "Set Up…" : "Review Project", disabled: busy } };
   if (arrived === null) return {};
   return { ready: { text: canvasReadyText(canvasLabel(arrived)), open: { label: OPEN_LABEL, disabled: busy } } };
 }

@@ -75,7 +75,7 @@ function Details({ machine, ui, row, copyPath }: Pick<ConnectionRowsProps, "mach
       {machine?.probe.ok && !machine.pathPresent ? <div className="cn-opt"><span className="cn-opt-head">Use doan in your terminal <span className="ob-chip">Optional</span></span>
         <p>{machine.rcFile ? <>Add this line to <code>{machine.rcFile}</code>, then open a new terminal. Agents don’t need it.</> : "Add ~/.local/bin to PATH in your shell configuration, then choose Check Again."}</p>
         {machine.rcFile && <span className="ob-copyline"><output>{PATH_LINE_TEXT}</output><button className="btn" disabled={ui.pathCopy === "copying"} onClick={copyPath}>{copyLabel(ui.pathCopy)}</button></span>}
-        {ui.pathCopy === "failed" && <p role="alert">{COPY_FAILED}</p>}</div> : items.slice(1).map(item => <DetailItem key={item.key} item={item} />)}</>;
+        {ui.pathCopy === "failed" && <p role="alert" className="ob-msg error">{COPY_FAILED}</p>}</div> : items.slice(1).map(item => <DetailItem key={item.key} item={item} />)}</>;
   }
   const agents = agentsView(machine, detailUi);
   const agent = agents.agents.find(card => card.agent === row);

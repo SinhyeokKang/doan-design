@@ -53,6 +53,9 @@ export function App() {
   const controller = useRef<CanvasController | null>(null);
   const [reroot, setReroot] = useState<Reroot | null>(null);
   const [wizard, setWizard] = useState<string | null>(null);
+  const [wizardAddOutcome, setWizardAddOutcome] = useState<AddOutcome | null>(null);
+  const wizardOpen = useRef(false);
+  wizardOpen.current = wizard !== null;
   const beforeWizard = useRef<HTMLElement | null>(null);
   const restoreFocus = useRef(false);
   const [quickOpen, setQuickOpen] = useState(false);
@@ -85,6 +88,7 @@ export function App() {
     const active = document.activeElement;
     // A reopen while the wizard is up keeps the focus it came from.
     if (!(active instanceof HTMLElement && active.closest(".ob-overlay"))) beforeWizard.current = active instanceof HTMLElement && active !== document.body ? active : null;
+    setWizardAddOutcome(null);
     setWizard(opened.session);
   }), []);
   useEffect(() => {
@@ -210,6 +214,7 @@ export function App() {
     else live.current.toast.show(`Added ${root.split("/").at(-1)}`, "Open", () => live.current.enter(root));
   };
   useEffect(() => window.doan.onAddOutcome(outcome => {
+    if (wizardOpen.current) { setWizardAddOutcome(outcome); return; }
     added(outcome.added);
     if (outcome.duplicate) { live.current.home(); setHighlight([...outcome.added, outcome.duplicate]); }
     if (outcome.messages.length) live.current.toast.show(outcome.messages.join("\n"));
@@ -292,7 +297,7 @@ export function App() {
   {quickOpen && <QuickOpen entries={entries} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => setQuickOpen(false)} />}
   {toast.element}
   <DropOverlay blocked={modal} />
-  {wizard !== null && <Wizard key={wizard} session={wizard} entries={entries} reroot={reroot} homeDirectory={homeDirectory} onClose={() => { restoreFocus.current = true; setWizard(null); }} />}
+  {wizard !== null && <Wizard key={wizard} session={wizard} addOutcome={wizardAddOutcome} entries={entries} reroot={reroot} homeDirectory={homeDirectory} onClose={() => { restoreFocus.current = true; setWizard(null); }} />}
   </FirstPromptContext.Provider></TooltipProvider>;
 }
 
