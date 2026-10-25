@@ -218,7 +218,7 @@ test("rowAction: a frame of a closed canvas opens and jumps, with Select disable
   expect(rowAction(frameNode("design/login.html"), "design/other.html")).toEqual({ primary: "open-jump", secondary: "none" });
 });
 
- test("canvas labels strip HTML extensions case-insensitively and keep title priority", () => {
+test("canvas labels strip HTML extensions case-insensitively and keep title priority", () => {
   for (const path of ["design/A.HTML", "design/A.HtMl"]) {
     expect(canvasLabel(row(path))).toBe("A");
     expect(canvasLabel(row(path, { title: " Named " }))).toBe("Named");

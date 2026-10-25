@@ -434,7 +434,7 @@ describe("step 3 pick-one list", () => {
   });
 });
 
- test("missing wizard project names its available Open Project action and preserves raw errors", () => {
+test("missing wizard project names its available Open Project action and preserves raw errors", () => {
   const form = { running: false, token: null, error: null, rerooted: null };
   const missing = projectStepView({ path: "/gone", kind: "notFound" }, form);
   expect(missing.error).toContain("Open Project…");

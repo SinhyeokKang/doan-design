@@ -475,7 +475,7 @@ test("visibility updates demote queued cards without scheduling new captures", a
   expect(f.captures.at(-1)?.endsWith("c.html")).toBe(true);
 });
 
- test("startup collection leaves an active temporary write intact while removing orphan temps", async () => {
+test("startup collection leaves an active temporary write intact while removing orphan temps", async () => {
   const f = fixture(["design/a.html"]);
   mkdirSync(f.dir);
   const orphan = join(f.dir, "old.png.abc.tmp");

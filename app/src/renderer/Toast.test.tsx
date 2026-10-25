@@ -25,8 +25,8 @@ afterEach(() => {
 
 function setup() {
   let now = 0;
-  vi.spyOn(performance, "now").mockImplementation(() => now);
   vi.useFakeTimers();
+  vi.spyOn(performance, "now").mockImplementation(() => now);
   let native: (visible: boolean) => void = () => {};
   const stop = vi.fn();
   vi.stubGlobal("window", { doan: { onWindowVisible: (listener: typeof native) => { native = listener; return stop; } } });

@@ -8,9 +8,12 @@ export function useToast() {
   useEffect(() => {
     timerAt.current = performance.now();
     const timer = setInterval(() => { const now = performance.now(); dispatch({ type: "tick", elapsedMs: now - timerAt.current }); timerAt.current = now; }, 100);
-    const visibility = () => { timerAt.current = performance.now(); dispatch({ type: "hidden", on: document.hidden }); };
+    // Pause until the initial invoke or a newer native push establishes visibility.
+    let nativeVisible = false;
+    const visibility = () => { timerAt.current = performance.now(); dispatch({ type: "hidden", on: document.hidden || !nativeVisible }); };
     visibility(); document.addEventListener("visibilitychange", visibility);
-    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", visibility); };
+    const stop = window.doan.onWindowVisible(visible => { nativeVisible = visible; visibility(); });
+    return () => { stop(); clearInterval(timer); document.removeEventListener("visibilitychange", visibility); };
   }, []);
   useEffect(() => {
     if (!state.ended) return;

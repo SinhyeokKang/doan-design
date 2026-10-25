@@ -323,6 +323,7 @@ export function projectStepView(entry: FolderEntry | null, form: ProjectForm): P
   switch (entry.kind) {
     case "list": view.chip = "Already set up"; break;
     case "loading": view.message ??= "Reading…"; break;
+    case "notFound": view.error = `${entry.path} is gone or moved. Choose Open Project… to select its current location or another project.`; break;
     case "uninitialized":
       view.form = { ...formView(form) };
       break;

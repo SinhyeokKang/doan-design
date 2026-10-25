@@ -7,7 +7,7 @@ import { FirstPrompt } from "./FirstPrompt";
 
 // Keyed by canvas path. A path with no entry has not been captured yet.
 export type ThumbnailState = { kind: "pending" } | { kind: "ready"; url: string } | { kind: "failed" };
-export type ThumbnailView = ThumbnailState | { kind: "broken" } | { kind: "noWidth" };
+export type ThumbnailView = ThumbnailState | { kind: "noWidth" };
 
 export interface OverviewSection {
   key: string;
@@ -27,15 +27,14 @@ export function overviewSections(rows: readonly CanvasRow[]): OverviewSection[] 
   return sections;
 }
 
-// A canvas without `id` is one `doan ls` could not parse; its frame list means nothing.
+// An absent canvas ID says nothing about the supplied frame metadata.
 export function cardFacts(row: CanvasRow): { frames?: string; open?: string } {
   const count = row.frames?.length ?? 0;
-  const frames = row.id === undefined ? undefined : row.framesTruncated ? "1,000+ frames" : `${count.toLocaleString("en-US")} ${count === 1 ? "frame" : "frames"}`;
+  const frames = row.frames === undefined ? undefined : row.framesTruncated ? "1,000+ frames" : `${count.toLocaleString("en-US")} ${count === 1 ? "frame" : "frames"}`;
   return { ...(frames === undefined ? {} : { frames }), ...(row.open > 0 ? { open: `${row.open} open` } : {}) };
 }
 
 export function thumbnailView(row: CanvasRow, state: ThumbnailState | undefined): ThumbnailView {
-  if (row.id === undefined) return { kind: "broken" };
   if (row.width === undefined) return { kind: "noWidth" };
   return state ?? { kind: "pending" };
 }
@@ -92,13 +91,13 @@ export class ThumbnailRequests {
     }
     this.visible = next;
     if (next.size === 0) return;
-    const capturable = this.rows.filter(row => row.id !== undefined && row.width !== undefined).map(row => row.path);
+    const capturable = this.rows.filter(row => row.width !== undefined).map(row => row.path);
     for (const path of capturable) if (next.has(path) && !this.asked.has(path)) this.ask(path, true);
     for (const path of capturable) if (!this.asked.has(path)) this.ask(path, false);
   }
 
   changed(path: string): void {
-    if (this.rows.some(row => row.path === path)) this.ask(path, this.visible.has(path));
+    if (this.rows.some(row => row.path === path && row.width !== undefined)) this.ask(path, this.visible.has(path));
   }
 
   dispose(): void {
@@ -198,8 +197,7 @@ function CanvasCard({ canvas, thumbnail, open, focus, blur }: { canvas: CanvasNo
     <div id={`${id}-thumb`} className={`thumb${thumbnail.kind === "pending" ? " pending" : ""}`}>
       {thumbnail.kind === "ready" ? <img src={thumbnail.url} alt="" />
         : thumbnail.kind === "failed" ? <p className="thumb-msg">Preview unavailable</p>
-        : thumbnail.kind === "noWidth" ? <p className="thumb-msg">Add <code>doan:width</code> to preview</p>
-        : thumbnail.kind === "broken" ? <p className="thumb-msg warn">Can't read this canvas — run doan check</p>
+        : thumbnail.kind === "noWidth" ? <p className="thumb-msg">Preview needs a valid <code>doan:width</code> — run doan check</p>
         : null}
     </div>
     <div className="ocard-body">

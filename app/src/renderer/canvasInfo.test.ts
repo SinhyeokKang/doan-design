@@ -17,7 +17,7 @@ test("distinguishes no frames from truncated layout", () => {
   expect(canvasInfo(row, { frames: [], truncated: true }).frames).toBe("0");
 });
 
- test("frame overflow requires 1000 rendered frames and the static count evidence when available", () => {
+test("frame overflow requires 1000 rendered frames and the static count evidence when available", () => {
   const frames = Array.from({ length: 1000 }, () => ({ id: "frame" }));
   expect(canvasInfo(row, { frames: [{}], truncated: true }).frames).toBe("1");
   expect(canvasInfo({ ...row, frames }, { frames, truncated: true }).frames).toBe("1000");

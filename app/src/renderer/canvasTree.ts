@@ -46,7 +46,7 @@ export function canvasLabel(row: CanvasRow): string {
   const title = row.title?.trim();
   if (title) return title;
   const fileName = fileNameOf(row.path);
-  const stem = fileName.endsWith(".html") ? fileName.slice(0, -".html".length) : fileName;
+  const stem = fileName.toLowerCase().endsWith(".html") ? fileName.slice(0, -".html".length) : fileName;
   return stem === "" ? fileName : stem;
 }
 
