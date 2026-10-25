@@ -58,6 +58,8 @@ These apply to conversation replies and reports to the user, and to feature docu
 
 ## Commands
 
+- `node .agents/skills/verify/scripts/verify.mjs [--runtime] [--eval]` — shared sequential gates for `/verify`, `/ship`, and `/orchestrate` (2026-10-25). Runs runner tests, Go tests/vet, app typecheck/tests/build; `--runtime` replaces the build step with the full e2e command, and `--eval` adds eval unit tests and fake-agent self-tests. Stops on failure and retains logs under `.scratch/verify/`. See `/verify` for scope selection, ownership, and evidence reuse; real `/agent-eval` remains separate.
+- `node --test .agents/skills/verify/scripts/verify.test.mjs` — shared gate runner regression tests.
 - `go test ./...` — Go tests, from the repo root.
 - `go vet ./...` — Go static checks, from the repo root.
 - `go run ./cli/cmd/doan <command> [--repo <path>] [--json]` — run the CLI by hand (2026-10-21 user, cli-core). Point `--repo` at a temporary directory, not this repo. Exception: `/design-sync`, and checking this repo's `design/` drafts, run the read-only `ls` and `check` with `--repo .` (2026-10-22; widened to draft checks 2026-10-22, app-ui).
@@ -82,13 +84,17 @@ These apply to conversation replies and reports to the user, and to feature docu
 
 ## Workflow (skill lineup)
 
-The source for the 13 skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, ported the pipeline from malmoi `.claude/commands/` to fit doan — the deploy, DB, and translation stages were dropped).
+The source for development skills is `.agents/skills/<name>/SKILL.md` (2026-10-21, ported the pipeline from malmoi `.claude/commands/` to fit doan — the deploy, DB, and translation stages were dropped).
 
-**Recommended flow**: `/feature` → (`/feature-review`) → `/tdd` → `/implement` → (`/runtime-test`) → `/code-review` → `/refactor` → (`/postmortem`) → push. A small change goes all the way to push with `/ship` alone; a large batch to split across several workers runs through `/orchestrate`.
+**Recommended flow**: `/feature` → (`/feature-review`) → `/tdd` → `/implement` → (`/runtime-test`) → `/code-review` → `/refactor` → (`/postmortem`) → `/verify` → push. A small change goes all the way to push with `/ship` alone; a large batch to split across several workers runs through `/orchestrate`.
 
 - **Terms** (2026-10-21 user): a **feature** is a logical division of the MVP feature list (PRODUCT §5). One feature = one `/feature` run = one `docs/features/<slug>/`. A **batch** is a bundle of work that `/orchestrate` hands to a worker when implementing one feature. One feature can be implemented by several workers and several batches.
 - `/feature` is the starting point of a feature. Its output goes in `docs/features/<slug>/` (spec·design·tasks); when the feature is done, promote the conclusions to PRODUCT.md (product judgment) and ARCHITECTURE.md (structure, formats, conventions) and delete that directory.
 - `/code-review` refers to this repo's skill. It is different from Claude Code's built-in `code-review`.
+- `/audit` (2026-10-25) reviews the whole codebase against decisions, contracts, boundaries, lifecycles and postmortem prevention rules. Reports findings and coverage only; `/code-review` remains the changed-code review.
+- `/doc-check` (2026-10-25) checks docs against code and code against docs, and corrects verified factual documentation drift. Decision conflicts require a decision; historical evidence and unverified measurements are preserved.
+- `/ux-audit` (2026-10-25) compares wording, states, actions, recovery and tokens across implemented screens. Reports only; `/design-sync` remains the first-implementation measurement workflow.
+- `/verify` (2026-10-25) runs the shared command above. Include `--runtime` for app changes and `--eval` for eval runner changes; follow its evidence-reuse rule to avoid repeating runtime tests on unchanged implementation. Coordinate full verification and runtime/stress suites across workers: the runner lock covers only its own checkout. Docs-only changes use targeted checks.
 - `/runtime-test` (2026-10-21, app-shell) launches the real app and checks it; run it after `/implement` or `/refactor` whenever `app/` changed, before `/code-review`.
 - `/design-draft` (2026-10-22) draws a feature's UI draft canvas in `design/` from its feature documents and checks it with `doan check` / `doan ls`. Run it after `/feature-review` and before `/tdd`, on the feature branch; either runtime may draw, and the user confirms the draft in the app before implementation.
 - `/design-sync` compares an app screen's first implementation with its draft canvas in `design/` by computed style in the real app. Run it inside a `/ship` or `/orchestrate` branch; the draft is the source of truth only until that screen's first implementation is on main.
