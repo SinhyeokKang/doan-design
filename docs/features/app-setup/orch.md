@@ -138,3 +138,4 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: 4파 시작 — S(design-sync, `ctx_908970b44dfb`, Opus high, `as-s`), E2(최종 agent-eval 전체 라운드, Sonnet high, `as-e2` — G2·G3로 가이드가 다시 바뀜), R-final(브랜치 전체 리뷰, Codex Astra medium, `as-rf`; FL 변경의 교차 리뷰 포함).
 - 2026-10-25: R-final 결과 🔴 0 · 🟡 1(FL의 기다린 작업공간 진입이 그동안 생긴 댓글 초안 보호를 건너뜀 — 단위 재현) · ⚪ 0. IPC 등록 58개와 허용 목록 일치, 빌드 산출물 CSP 확인, test 1958·typecheck·build·go test/vet 재확인. FL-fix(Opus high, `as-flf`)로 보냈다. R-final 해제.
 - 2026-10-25: FL-fix 완료·통합(`d5d2bf6`) — 기다린 프로젝트 진입을 `transition()`으로 다시 보내 초안 보호를 다시 묻고 비동기 답 뒤 재검증. test 1959·typecheck·build, projects-home 단독 3/3 PASS 보고. 지휘자가 diff 확인. `as-flf`·`as-rf` 제거. S에 통합 브랜치 merge를 알린다.
+- 2026-10-25: E2 완료·통합(`67a6379`) — 최종 전체 라운드 `app-setup-final-20261025`(28회, judge 켬, real-state 불변, provenance 통과). 알려진 R1b·R2 codex 실패만 있고 H5는 양쪽 통과, 이전 라운드 대비 새 실패 없음. `as-e2` 제거.
