@@ -3,10 +3,11 @@
 // comment writable; the open canvas changing offers "Continue on current
 // version"; a moved canvas is followed by its id, a duplicate id returns to the
 // Overview, scope and Escape survive saves, a no-width canvas hides "Location
-// unavailable", a blank in-canvas click with nothing selected asks nothing, a
-// root switch after a move is a normal Open, and a canvas moved while the app
-// was closed is restored. Its own temp repos, userData and HOME. Each scenario is reported on its own so one
-// failure does not hide the rest; any failure fails the module.
+// unavailable" and shows the target line as text, a blank in-canvas click with
+// nothing selected asks nothing, a root switch after a move is a normal Open,
+// and a canvas moved while the app was closed is restored. Its own temp repos,
+// userData and HOME. Each scenario is reported on its own so one failure does
+// not hide the rest; any failure fails the module.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
@@ -192,7 +193,9 @@ try {
   // Samples every animation frame across a reload of the open canvas (T-11): the
   // list must never be empty and "Location unavailable" must never appear. Pins
   // may drop for a frame or two by design (§7: they redraw after the new layout),
-  // so they and the iframe height are only logged.
+  // so they and the iframe height are only logged. The badge is found by its text,
+  // so a renamed class cannot turn the count into a silent 0; a covered window
+  // that stops animation frames fails on the frame count instead of passing empty.
   async function traceReload(label: string, change: () => Promise<void>): Promise<void> {
     await page.evaluate(() => {
       const sample = () => {
@@ -200,7 +203,13 @@ try {
         const iframe = document.querySelector<HTMLIFrameElement>(".board iframe");
         return {
           cards: panel?.querySelectorAll("article").length ?? 0,
-          unavailable: [...panel?.querySelectorAll(".comments-badge.warning") ?? []].filter(badge => badge.textContent === "Location unavailable").length,
+          unavailable: (() => {
+            if (!panel) return 0;
+            const walker = document.createTreeWalker(panel, NodeFilter.SHOW_TEXT);
+            let count = 0;
+            while (walker.nextNode()) if (walker.currentNode.nodeValue === "Location unavailable") count++;
+            return count;
+          })(),
           pins: document.querySelectorAll(".comment-pin").length,
           iframeHeight: iframe ? Math.round(iframe.getBoundingClientRect().height) : null,
         };
@@ -228,6 +237,8 @@ try {
     });
     console.log(`revision-continuity T-11 ${label}: ${JSON.stringify(result)}`);
     assert.ok(result.baseline.cards > 0, `${label}: comments listed before the reload`);
+    assert.ok(result.frames > 0, `${label}: animation frames sampled`);
+    assert.equal(result.last?.cards, result.baseline.cards, `${label}: the same comments listed after the reload`);
     assert.equal(result.emptyList, 0, `${label}: frames with an empty comment list`);
     assert.equal(result.unavailable, 0, `${label}: frames with "Location unavailable"`);
   }
@@ -522,8 +533,16 @@ try {
     await wait(async () => { const listed = await row("design/w.html"); return listed !== null && listed.width === undefined; }, "w.html listed without width");
     if (await scopePressed("Canvas") !== "true") await panel().getByRole("group", { name: "Comment scope" }).getByRole("button", { name: "Canvas", exact: true }).click();
     await wait(async () => await scopePressed("Canvas") === "true", "Canvas scope");
-    await wait(async () => await cards().filter({ hasText: "Wide element note" }).count() === 1, "the element comment is listed");
+    const note = cards().filter({ hasText: "Wide element note" });
+    await wait(async () => await note.count() === 1, "the element comment is listed");
+    // The renderer must have reached no width first, or the negative window below proves nothing.
+    await page.getByRole("region", { name: "Canvas", exact: true }).getByText("Could not read a valid board width.").waitFor();
     await holds(async () => await panel().getByText("Location unavailable", { exact: true }).count() === 0, "no Location unavailable without a rendered document", 1_000);
+    // The target line is text with no Show on canvas action, titled with the selector.
+    const target = note.locator(".comments-target");
+    assert.equal(await target.evaluate(node => node.tagName), "SPAN");
+    assert.equal(await note.getByRole("button", { name: "Element · child", exact: true }).count(), 0);
+    assert.equal(await target.getAttribute("title"), '[data-doan-id="child"]');
     await shot("7-no-width");
   });
 
