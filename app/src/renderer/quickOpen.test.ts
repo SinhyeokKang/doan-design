@@ -203,6 +203,6 @@ it("only calls a canvas missing when its project was successfully listed", () =>
 });
 
 it("does not call a still-listed canvas deleted when its captured identity became stale", () => {
-  expect(unavailableCanvasMessage(folder("/repo", [canvas("design/a.html")]), "design/a.html"))
+  expect(unavailableCanvasMessage({ kind: "list", path: "/repo", servedRev: 0, canvases: [canvas("design/a.html")] }, "design/a.html"))
     .toBe("Canvas changed while opening. Choose it again from the Sidebar or Quick Open.");
 });

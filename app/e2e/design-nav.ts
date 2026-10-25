@@ -61,6 +61,7 @@ while (existsSync(${JSON.stringify(folderGate)})) await new Promise(resolve => s
 const result = spawnSync(${JSON.stringify(cli)}, process.argv.slice(2), { stdio: 'inherit' });
 process.exit(result.status ?? 1);
 `, { mode: 0o755 });
+  let traceRestore = false;
   let stateBeforeLaunch = "";
   const stateVersion = async () => { const info = await stat(join(userData, "ui-state.json")).catch(() => null); return info ? `${info.ino}:${info.mtimeMs}` : "absent"; };
   async function launch(delayFolders = false): Promise<void> {
@@ -68,6 +69,18 @@ process.exit(result.status ?? 1);
     if (delayFolders) await writeFile(folderGate, "held");
     app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env: { ...env, DOAN_CLI: delayFolders ? gatedCli : cli } }); rememberApp(app);
     page = await app.firstWindow(); page.setDefaultTimeout(10_000);
+    if (traceRestore) {
+      console.log("normal restore trace attached", page.frames().map(frame => frame.url()));
+      page.on("framenavigated", frame => console.log("normal restore frame navigation", frame.url()));
+      page.on("requestfailed", request => console.log("normal restore request failed", request.url(), request.failure()));
+      page.on("response", response => console.log("normal restore response", response.status(), response.url()));
+      await page.evaluate(() => {
+        addEventListener("message", event => {
+          if (event.data?.type === "layout") console.log("normal restore layout", JSON.stringify({ href: event.data.href, document: event.data.document, viewport: event.data.viewport, frames: event.data.frames?.length, current: event.source === document.querySelector<HTMLIFrameElement>(".board iframe")?.contentWindow }));
+        });
+      });
+      page.on("console", message => { if (message.text().startsWith("normal restore layout")) console.log(message.text()); });
+    }
     page.on("pageerror", error => console.error("design-nav pageerror", error));
     if (delayFolders) {
       await page.getByRole("region", { name: "Home", exact: true }).waitFor();
@@ -397,7 +410,7 @@ process.exit(result.status ?? 1);
       await wait(() => panel.getByRole("button", { name: "New canvas comment", exact: true }).isEnabled(), "draft ready");
       await panel.getByRole("button", { name: "New canvas comment", exact: true }).click();
       await panel.getByRole("textbox", { name: "New comment body" }).fill("Guard the cross-root Open");
-      await page.evaluate(() => {
+      await page.evaluate(targetRoot => {
         const element = document.querySelector(".workspace")!;
         const key = Object.keys(element).find(key => key.startsWith("__reactFiber$"));
         if (!key) throw new Error("Missing App fiber");
@@ -412,6 +425,7 @@ process.exit(result.status ?? 1);
           }
         }
         if (!controller) throw new Error("Missing controller");
+        controller.remember(targetRoot, null);
         const original = controller.updateEntries, workspace = controller.openWorkspace, canvas = controller.openCanvas;
         const probe = { updating: false, consumed: 0, callbacks: [] as { kind: string; updating: boolean }[],
           waiting: () => !!Reflect.get(controller!, "waitingWorkspace"),
@@ -422,9 +436,9 @@ process.exit(result.status ?? 1);
         });
         controller.updateEntries = function (entries) { probe.updating = true; try { original.call(this, entries); probe.consumed++; } finally { probe.updating = false; } };
         controller.openWorkspace = function (root, entered, same, unavailable) { workspace.call(this, root, entered, same, observe(unavailable)); };
-        controller.openCanvas = function (root, row, frame, target) { canvas.call(this, root, row, frame, target && { ...target, unavailable: observe(target.unavailable) }); };
+        controller.openCanvas = function (root, row, frame, target) { canvas.call(this, root, row, frame, target?.unavailable ? { ...target, unavailable: observe(target.unavailable)! } : target); };
         Reflect.set(window, "openConsumption", probe);
-      });
+      }, brand);
       await quickOpen("Card decline patterns"); await page.keyboard.press("Enter");
       const discard = page.getByRole("button", { name: "Discard", exact: true }); await discard.waitFor();
       const identity = outcome === "id" || outcome === "url";
@@ -448,7 +462,8 @@ process.exit(result.status ?? 1);
       await page.evaluate(() => Reflect.get(window, "openConsumption").restore());
       assert.equal(actual, expected);
       assert.deepEqual(consumed, [{ kind: outcome === "removed" ? "removed" : outcome === "cliError" ? "cliError" : "list", updating: !identity }]);
-      assert.equal(await canvasTitle(), identity || outcome === "missing-path" ? "" : "Billing & plans");
+      if (identity || outcome === "missing-path") { await overview().waitFor(); assert.equal(await iframe().count(), 0); }
+      else assert.equal(await canvasTitle(), "Billing & plans");
     });
     await page.evaluate(() => Reflect.get(window, "openConsumption")?.restore());
   }
@@ -660,12 +675,16 @@ process.exit(result.status ?? 1);
   const saved = JSON.parse(await readFile(join(userData, "ui-state.json"), "utf8"));
   assert.equal(saved.canvas, "design/settings/billing.html");
   assert.equal("selection" in saved, false, "ui-state.json has no selection");
+  console.log("normal restore saved state", JSON.stringify(saved));
+  traceRestore = true;
   await launch();
+  traceRestore = false;
   await loaded("Billing & plans");
   await wait(async () => await board() === view, `restored view ${view}`);
   assert.equal(await page.getByRole("treeitem", { name: "misc", exact: true }).getAttribute("aria-expanded"), "false", "tree expansion restored");
   assert.equal(await inspector().count(), 0, "no selection after restore");
   assert.equal((await active()).result?.selection, undefined, "doan active is empty after restore");
+  console.log("normal restore completed", await page.evaluate(() => ({ iframe: document.querySelector<HTMLIFrameElement>(".board iframe")?.src, status: document.querySelector(".canvas-status")?.textContent, frames: document.querySelectorAll('.side [role="treeitem"]').length })));
   await shot("9-restored");
 
   // App.save only runs after restore is done; a new atomic state write is a
