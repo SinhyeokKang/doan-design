@@ -22,6 +22,7 @@
 | 2026-10-26 | M1 측정에서 Claude Code 저장에 임시 이름이 섞였다. design 2절에 '임시 형제 규칙'(대상 `.html`이 같은 집합에 있을 때 `<대상>.tmp…`·`.<대상>.tmp…`를 판정에서 뺌)을 더하고, Q1은 유지한다 | 지휘자 판단(위임) — 측정 근거 `save-watch-summary.md`. 판정이 틀리면 리로드가 한 번 더 일어날 뿐이고, 대상이 없으면 지금처럼 bump한다. 측정한 패턴만 다룬다 |
 | 2026-10-26 | T-11이 재현됐으므로 design 7절의 리로드 부분(새 문서의 앵커가 응답할 때까지 이전 배지·Selection 목록 유지)을 B8이 구현한다. B8과 R-B8을 high로 올린다. 스크린샷을 찍을 때만 보인 150px 정지는 B8·E가 재현하면 보고하게 한다 | tasks 2 재현 기준(한 샘플이라도), M2 결과 |
 | 2026-10-26 | P를 리뷰 전에 통합하고 A·B6를 바로 시작한다. R-P의 지적은 그 파일을 지금 가진 배치(main → A, draft·renderer → B6, restore → B7)로 보낸다 | 지휘자 판단 — 순수 함수라 테스트 2189개와 typecheck가 통과한 상태에서 통합해도 위험이 낮고, 2파를 리뷰 뒤로 미루면 대기만 길어진다. 이전 체인의 '늦은 리뷰 지적은 지금 소유한 배치로' 규칙 |
+| 2026-10-26 | B7을 R-B6과 병렬로 시작한다. R-B6의 지적 중 B7이 가진 파일의 것은 B7 통합 뒤 새 수정 작업자에게 보낸다 | 지휘자 판단 — B6 test 2239·typecheck 통과, B7은 B6 파일을 이어 받으므로 리뷰를 기다리면 직렬 대기만 길어진다 |
 | 2026-10-26 | 이 기능은 CLI·MCP·skills·공유 형식을 바꾸지 않으므로 `/agent-eval` 회차를 돌리지 않는다. 체인의 유일한 실제 회차는 링크 5다 | spec '사용자', design 'CLI·MCP·skills·공유 형식: 바뀌지 않는다', 체인 규칙 |
 
 ## 배치
@@ -32,8 +33,8 @@
 | M2 | 2 | `.scratch/revision-continuity/t11*` | — | Opus medium (현재 main을 측정만 한다) | 측정 로그·스크린샷 경로, 재현 여부, real-state, exit 0 | 완료(재현, 커밋 없음), 해제·worktree 제거 |
 | P | 3, 4 | 순수 함수와 그 테스트: `app/src/comments/draft.ts`, `app/src/renderer/{canvasView,selection}.ts`, `app/src/restore/{uiState,restorePlan}.ts`, `app/src/main/watch.ts`의 `createRefresher`, `classifyDesignChange`의 새 파일, `shouldGuardEscape`·`continueEnabled`·`guardsSelectionChange`의 자리 | — (`classifyDesignChange`·names 누적은 M1 결과 뒤) | Opus high (draft guard와 선택 정체성의 규칙을 정하는 함수들이다) | `npm --prefix app test` red→green, `typecheck` | 통합 47c8573, 1be53c7, 6089517 · 리뷰 R-P 진행 |
 | A | 5 | `app/src/main/{watch,shell,thumbnails,view}.ts`와 테스트 | P 통합 | Opus high (폐기된 읽기, rev 유실, 루트 삭제 등 동시성) | test(watch·shell·thumbnails), typecheck | 통합 1046d17 · 리뷰 R-A 진행 |
-| B6 | 6 | `CommentsSession.ts`, `useComments.tsx`, `CommentsPanel.tsx`, `CanvasController.ts`, `draft.ts` 연결, `styles.css`와 각 테스트 | P 통합 | Opus high (begin 펜스, guard 수명, 늦은 완료) | test, typecheck | 진행 |
-| B7 | 7 | B6 파일 + `activity.ts`, `Sidebar.tsx`, `App.tsx`, `app/src/main/uiState.ts`와 테스트 | B6 통합 | Opus high (이동 따라가기의 요청 상태 판정, 진행 중 read 무효화) | test, typecheck | 대기 |
+| B6 | 6 | `CommentsSession.ts`, `useComments.tsx`, `CommentsPanel.tsx`, `CanvasController.ts`, `draft.ts` 연결, `styles.css`와 각 테스트 | P 통합 | Opus high (begin 펜스, guard 수명, 늦은 완료) | test, typecheck | 통합 03bf480 · 리뷰 R-B6 진행 |
+| B7 | 7 | B6 파일 + `activity.ts`, `Sidebar.tsx`, `App.tsx`, `app/src/main/uiState.ts`와 테스트 | B6 통합 | Opus high (이동 따라가기의 요청 상태 판정, 진행 중 read 무효화) | test, typecheck | 진행 |
 | B8 | 8 | `CanvasController.ts`, `useComments.tsx`, `CommentsPanel.tsx`, `commentAnchors.ts`와 테스트 | B7 통합, M2 결과 | Opus high (Esc 기본 동작과 범위 효과에, T-11이 재현되어 앵커 pending의 수명이 더해진다) | test, typecheck | 대기 |
 | E | 9, design-sync | `app/e2e/revision-continuity.ts`, `app/e2e/runtime.ts` import, design-sync가 고칠 렌더러 CSS·마크업, `docs/DESIGN.md`, `.scratch/design-sync/revision-continuity/` | B8 통합 | Opus high (iframe 교체를 지나는 폴링, 재시작 시나리오, 실측 비교) | 모듈 단독 실행 PASS(전체 e2e는 지휘자), design-sync 완료 조건 | 대기 |
 | R-* | 배치별 리뷰 | 보고서만 | 각 구현 배치 | R-P·R-A·R-B7·R-E: Codex Astra medium (다른 계열의 읽기). R-B6·R-B8: Opus high | `/code-review`, 🔴 0 | — |
@@ -62,3 +63,5 @@ tasks.md의 1~11은 모두 위 배치 중 하나에 속한다.
 - 2026-10-26: R-P 완료(Codex Astra medium) — 🔴 0 · 🟡 0 · ⚪ 1(같은 갱신에서 id 변경과 servedRev 변경이 함께 올 때의 우선순위 테스트 공백, 변형 검사로 확인). ⚪은 `canvasView.ts`를 연결하는 B7에 보낸다. 근거: `evidence-R-P/`. R-P 해제, `rc-r-p` 제거.
 - 2026-10-26: B6 질문 2 — 로딩 중이면 identity와 관계없이 `reloaded`로 두는 P의 규칙은 id가 바뀐 다른 캔버스에서도 이어 쓰기를 허용한다. 결정: identity를 알고 origin과 root·id가 다르면 로딩 중에도 `unavailable`이다. design 1절의 '로딩 중 일단 reloaded'는 새 문서를 아직 모를 때만 적용한다.
 - 2026-10-26: A 완료(`f2dd832`) — red(watch 5·shell 3·thumbnails 1) 뒤 green. 통합(`1046d17`), 통합 HEAD test 2198·typecheck 통과(지휘자 실행). 열린 캔버스 자신의 저장은 이제 servedRev가 아니라 행 rev로 리로드된다(e2e C7이 이 경로에 기댄다 — 최종 e2e에서 확인). 심볼릭 링크 `design`은 served 대상으로 남아 전과 같이 bump한다. A 해제, `rc-a` 제거. R-A(`ctx_a699ea35f964`, Codex `gpt-6-astra` medium, `rc-r-a`) 시작.
+- 2026-10-26: B6 완료(`9b5ba7b`) — red 뒤 green. 승인한 확장 2건(transition-intent `kind`, `loss()` 규칙). 통합(`03bf480`), 통합 HEAD test 2239·typecheck 통과(지휘자 실행). "Continues on …" 미리보기는 지금의 `targetText`를 쓴다(더 풍부한 라벨은 comments-readability 범위). B6 해제, `rc-b6` 제거.
+- 2026-10-26: B7(`ctx_56974e4965ee`, Opus high, `rc-b7`)과 R-B6(`ctx_309fc869ea48`, Opus high, `rc-r-b6`) 시작. B7에 R-P ⚪(id 변경과 servedRev 동시 변경 테스트)와 B6의 요청(이동 중 begin 무효화)을 넣었다.
