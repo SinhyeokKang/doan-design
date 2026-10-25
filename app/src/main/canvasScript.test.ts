@@ -1201,6 +1201,17 @@ describe("draft preselection protocol", () => {
     command({ type: "transition-answer", document: second.document, intent: second.intent });
     expect(ofType(canvas, "select")).toHaveLength(1);
   });
+  test("a click on the document's own background asks as a clear; a click on an element does not", () => {
+    const { canvas, span } = heroCanvas();
+    canvas.fromParent({ type: "draft-guard", active: true });
+    click(canvas, canvas.body);
+    const background = ofType(canvas, "transition-intent").at(-1)!;
+    expect(background).toMatchObject({ kind: "selection", clear: true });
+    canvas.fromParent({ type: "transition-answer", document: background.document, intent: background.intent });
+    expect(ofType(canvas, "clear")).toHaveLength(1);
+    click(canvas, span);
+    expect(ofType(canvas, "transition-intent").at(-1)).not.toHaveProperty("clear");
+  });
   test("an ⌥-clicked link asks as navigation and waits for the answer", () => {
     const anchor = node("a", { href: "other.html" }, [node("b")]);
     const canvas = fakeCanvas({ readyState: "interactive", body: node("body", {}, [anchor]) });

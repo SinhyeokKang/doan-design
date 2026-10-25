@@ -571,6 +571,12 @@ export class CanvasController {
       if (message.document !== this.state.layout?.document || message.href !== this.lastHref || message.viewport !== this.frameHeight || message.intent <= this.canvasIntent) return;
       this.canvasIntent = message.intent;
       const frame = this.frame, document = message.document;
+      // Like a blank margin click (escape), clearing nothing does not ask.
+      if (message.clear && !shouldGuardEscape(this.state.selection, this.reanchor)) {
+        this.transitionIntent++;
+        this.post({ type: "transition-answer", document, intent: message.intent });
+        return;
+      }
       this.transition(() => this.post({ type: "transition-answer", document, intent: message.intent }),
         () => frame === this.frame && document === this.state.layout?.document, message.kind);
       return;

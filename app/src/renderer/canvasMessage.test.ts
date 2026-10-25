@@ -457,6 +457,12 @@ describe("parseCanvasMessage: transition-intent", () => {
     expect(parseCanvasMessage(intent())).toEqual(intent());
     expect(parseCanvasMessage(intent({ kind: "navigation" }))).toHaveProperty("kind", "navigation");
   });
+  test("keeps the flag of a click that only clears the selection", () => {
+    expect(parseCanvasMessage(intent({ clear: true }))).toEqual(intent({ clear: true }));
+  });
+  test.each([false, "true", 1])("rejects clear %j", clear => {
+    expect(parseCanvasMessage(intent({ clear }))).toBeNull();
+  });
   test.each([undefined, "other", 1])("rejects kind %j", kind => {
     expect(parseCanvasMessage(intent({ kind }))).toBeNull();
   });

@@ -486,11 +486,13 @@ export function canvasScript(lib: CanvasLib): void {
   let transitionIntent = 0;
   let pendingTransition: { intent: number; apply: () => void; seq: number } | null = null;
   // `kind` lets the app let a selection through while still asking before a link leaves.
-  const requestTransition = (apply: () => void, kind: "selection" | "navigation") => {
+  // `clear`: the click only clears the selection, which changes nothing when
+  // the app has none (L-17).
+  const requestTransition = (apply: () => void, kind: "selection" | "navigation", clear = false) => {
     const intent = ++transitionIntent;
     if (!draftGuard) { pendingTransition = null; apply(); return; }
     pendingTransition = { intent, apply, seq };
-    post({ type: "transition-intent", document: documentToken, href: location.href, viewport: innerHeight, intent, kind });
+    post({ type: "transition-intent", document: documentToken, href: location.href, viewport: innerHeight, intent, kind, ...(clear ? { clear: true } : {}) });
   };
   addEventListener("message", (event: MessageEvent) => {
     if (event.source !== parent) return;
@@ -571,7 +573,7 @@ export function canvasScript(lib: CanvasLib): void {
           if (active !== null && !isRoot(active) && "blur" in active && typeof active.blur === "function") active.blur();
         } else if (type === "click") {
           const target = event.target;
-          requestTransition(() => { if (!isElement(target) || target.isConnected) choose(target); }, "selection");
+          requestTransition(() => { if (!isElement(target) || target.isConnected) choose(target); }, "selection", isElement(target) && isRoot(target));
         }
       },
       { capture: true },

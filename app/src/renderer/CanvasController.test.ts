@@ -1500,6 +1500,41 @@ describe("Escape and a blank click without a selection (L-17)", () => {
     } finally { h.controller.dispose(); }
   });
 
+  it("lets a click on the canvas background through without asking when nothing is selected (R-B8)", () => {
+    const h = selectionHarness();
+    try {
+      h.layout({ document: "doc" });
+      const guard = vi.fn(() => false);
+      h.controller.setDraftGuard(true);
+      h.controller.setTransitionGuard(guard);
+      h.current().contentWindow.postMessage.mockClear();
+      h.receive({ type: "transition-intent", document: "doc", intent: 1, kind: "selection", clear: true });
+      expect(guard).not.toHaveBeenCalled();
+      expect(h.current().contentWindow.postMessage.mock.calls.map(call => call[0])).toContainEqual({ type: "transition-answer", document: "doc", intent: 1 });
+      // An element click still asks, and so does a background click once something is selected.
+      h.receive({ type: "transition-intent", document: "doc", intent: 2, kind: "selection" });
+      expect(guard).toHaveBeenCalledExactlyOnceWith("selection");
+      h.select(1);
+      h.receive({ type: "transition-intent", document: "doc", intent: 3, kind: "selection", clear: true });
+      expect(guard).toHaveBeenCalledTimes(2);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("still asks before a background click clears a selection the reloaded canvas looks for", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.command("reload");
+      h.layout({ document: "doc2" });
+      expect(h.state().reanchoring).toBe(true);
+      const guard = vi.fn(() => false);
+      h.controller.setDraftGuard(true);
+      h.controller.setTransitionGuard(guard);
+      h.receive({ type: "transition-intent", document: "doc2", intent: 1, kind: "selection", clear: true });
+      expect(guard).toHaveBeenCalledExactlyOnceWith("selection");
+    } finally { h.controller.dispose(); }
+  });
+
   it("still guards Escape while the reloaded canvas looks for the selection", () => {
     const h = selectionHarness();
     try {
