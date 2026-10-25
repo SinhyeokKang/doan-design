@@ -1540,6 +1540,46 @@ describe("comment anchors through a reload (T-11, W-9)", () => {
     } finally { h.controller.dispose(); }
   });
 
+  it("ends the wait as none when the laid-out document never answers within the measure limit (R-B8)", async () => {
+    vi.useFakeTimers();
+    const h = pinHarness();
+    try {
+      h.controller.command("reload");
+      h.layout({ document: "doc2" });
+      vi.advanceTimersByTime(999);
+      expect(status(h)).toBe("pending");
+      vi.advanceTimersByTime(1);
+      expect(status(h)).toBe("none");
+      expect(h.changed.mock.lastCall?.[0].lookup.nodes.size).toBe(0);
+      expect(h.state().status).toBeNull();
+      // Nothing is left to locate, so the panel shows the target as text instead of a silent no-op.
+      const before = h.current().contentWindow.postMessage.mock.calls.length;
+      await h.controller.activatePin("a");
+      expect(h.current().contentWindow.postMessage.mock.calls.slice(before).map(c => c[0].type)).not.toContain("select-comment");
+      // A late answer still lands.
+      const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+      h.receive({ type: "anchors", document: "doc2", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+        results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: [t.id] } })), rects: q.targets.map((t: { id: string }) => ({ node: t.id, x: 10, y: 10, width: 10, height: 10 })) });
+      expect(status(h)).toBe("answered");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("keeps an answer that arrived within the measure limit", () => {
+    vi.useFakeTimers();
+    const h = pinHarness();
+    try {
+      h.controller.command("reload");
+      h.layout({ document: "doc2" });
+      vi.advanceTimersByTime(500);
+      const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+      h.receive({ type: "anchors", document: "doc2", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+        results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: [t.id] } })), rects: q.targets.map((t: { id: string }) => ({ node: t.id, x: 10, y: 10, width: 10, height: 10 })) });
+      h.changed.mockClear();
+      vi.advanceTimersByTime(5000);
+      expect(h.changed).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
   it("ends the wait when the reload fails, the page is unlisted, the width is gone or the id changes", () => {
     vi.useFakeTimers();
     const cases: [string, (h: ReturnType<typeof pinHarness>) => void][] = [

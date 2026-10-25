@@ -327,6 +327,31 @@ describe("comment locations (W-9, T-11)", () => {
     expect(show(snapshot("none"))).not.toContain("Location unavailable");
   });
 
+  test("a retained answer that never gets replaced ends with none and its target turns to text (R-B8)", async () => {
+    const { show } = await bound(null);
+    expect(locate.exec(show(snapshot("answered", [["c1", "n1"]])))?.[1]).toBeUndefined();
+    expect(locate.exec(show(snapshot("pending")))?.[1]).toBeUndefined();
+    // The controller's measure limit ends the wait.
+    expect(locate.exec(show(snapshot("none")))?.[1]).toBe(` disabled=""`);
+  });
+
+  test("a new selection ends a retained answer, so its list is not the previous element's (R-B8)", async () => {
+    const { show, render, controller } = await bound(label);
+    show(snapshot("answered", [["c1", "n1"]], "n1"));
+    expect(show(snapshot("pending"))).toContain("Mark the field");
+    render({ selection: pay });
+    settle(FILTER); settle(ANCHORS);
+    expect(harness.states[FILTER]).toMatchObject({ scope: "selection" });
+    expect(render({ selection: pay }).markup).not.toContain("Mark the field");
+    // The wait goes on without the old answer until the document answers.
+    (controller.setComments.mock.lastCall![1] as CommentHooks).changed(snapshot("pending"));
+    settle(ANCHORS);
+    expect(render({ selection: pay }).markup).not.toContain("Mark the field");
+    (controller.setComments.mock.lastCall![1] as CommentHooks).changed(snapshot("answered", [["c1", "n1"]], "n2"));
+    settle(ANCHORS);
+    expect(render({ selection: pay }).markup).not.toContain("Mark the field");
+  });
+
   test("keeps the Selection list until the reloaded document answers", async () => {
     const { show } = await bound(label);
     expect(harness.states[FILTER]).toMatchObject({ scope: "selection" });

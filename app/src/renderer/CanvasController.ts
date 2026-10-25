@@ -64,6 +64,7 @@ export class CanvasController {
   private loadTimer: ReturnType<typeof setTimeout> | undefined;
   private answerTimer: ReturnType<typeof setTimeout> | undefined;
   private remeasureTimer: ReturnType<typeof setTimeout> | undefined;
+  private anchorsTimer: ReturnType<typeof setTimeout> | undefined;
   private jumpTo: number | null = null;
   private pendingFrame: { id: string; index?: number; found?: (found: boolean) => void } | null = null;
   private jumpRect: CanvasRect | null = null;
@@ -186,6 +187,7 @@ export class CanvasController {
     const ids = new Set(binding.comments.map(comment => comment.comment));
     if (message.results.length !== ids.size || message.results.some(result => !ids.has(result.id))) return;
     this.anchorRevision = message.revision;
+    clearTimeout(this.anchorsTimer);
     this.anchors = anchorSnapshot(binding.comments, { root: binding.root, canvas: binding.canvas, generation: this.anchorGeneration }, { ...message, selected: this.state.selection !== null && message.selectionSeq === this.acceptedSelectionSeq ? message.selected : null });
     this.drawPins();
     this.commentHooks?.changed(this.anchors);
@@ -506,6 +508,7 @@ export class CanvasController {
     this.loading = true;
     clearTimeout(this.answerTimer);
     clearTimeout(this.remeasureTimer);
+    clearTimeout(this.anchorsTimer);
     clearTimeout(this.loadTimer);
     this.loadTimer = setTimeout(() => {
       if (!this.loading || this.frame === null) return;
@@ -537,6 +540,7 @@ export class CanvasController {
     clearTimeout(this.loadTimer);
     clearTimeout(this.answerTimer);
     clearTimeout(this.remeasureTimer);
+    clearTimeout(this.anchorsTimer);
     this.board.hidden = true;
     this.state.unlisted = false;
   }
@@ -809,6 +813,18 @@ export class CanvasController {
       else { this.selectedRect = selected; this.drawMarks(); }
     }
     if (this.comments && (documentChanged || first || linked)) this.requestAnchors();
+    // The panel keeps the last answer while this wait lasts, and the canvas
+    // answers on an animation frame it may never get; a laid-out document that
+    // stays silent ends the wait like an unlisted one (R-B8).
+    if (first || documentChanged) {
+      clearTimeout(this.anchorsTimer);
+      const generation = this.anchorGeneration;
+      this.anchorsTimer = setTimeout(() => {
+        if (generation !== this.anchorGeneration || this.anchors?.status !== "pending") return;
+        this.anchors = { ...this.anchors, status: "none" };
+        this.commentHooks?.changed(this.anchors);
+      }, MEASURE_ANSWER_MS);
+    }
     this.state.currentFrame = this.state.unlisted ? null : currentFrame(message.frames, this.view, this.viewportSize());
     if (previousCurrent !== this.state.currentFrame || documentChanged || before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection) this.publish();
   }

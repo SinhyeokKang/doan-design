@@ -17,6 +17,8 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   const [filter, setFilter] = useState<ListFilter>({ scope: "canvas", status: "open" });
   const input = useRef<HTMLTextAreaElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  // The controller's own snapshot, which a retained answer stands in for.
+  const latestAnchors = useRef<AnchorSnapshot | null>(null);
   const open = state.open;
   const root = open?.folder, path = open?.canvas, canvas = open?.row.id;
   const draft = session.draft.draft;
@@ -47,7 +49,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     const identity = session.identity;
     if (!identity || !session.list) return;
     controller.current?.setComments({ root: identity.root, canvas: identity.canvas, comments: session.list.comments }, {
-      changed: snapshot => setAnchors(previous => shownAnchors(previous, snapshot)),
+      changed: snapshot => { latestAnchors.current = snapshot; setAnchors(previous => shownAnchors(previous, snapshot)); },
       guard: () => session.guardSelection(),
       open: destination => setFilter({ scope: "selection", status: "open", node: destination.node }),
       focusFallback: () => heading.current?.focus(),
@@ -81,6 +83,10 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   const selected = open && state.selection ? selectionIdentity(mainSelection(open, state.selection)) : null;
   useEffect(() => {
     setFilter(current => selected !== null ? { scope: "selection", status: current.status, node: null } : { scope: "canvas", status: current.status });
+    // A retained answer was measured for the previous selection; listing it
+    // for a new one would show another element's comments (R-B8).
+    const latest = latestAnchors.current;
+    if (latest?.status === "pending") setAnchors(latest);
   }, [selected]);
   const identity = session.identity;
   const comments = session.list?.comments ?? [];
