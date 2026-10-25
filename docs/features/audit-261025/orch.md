@@ -55,3 +55,21 @@ R-contract와 R-harness는 같은 checkout에서 소스를 읽고 서로 다른 
 | C | A-M4, A-L2, A-L3, A-L6의 CLI 설명 | `cli/`만. A-L6은 `cli/internal/cli/skill.md` 설명에 한정하고 JSON schema는 보존 | Codex gpt-6-astra medium. 파일 정체성과 실패 분류·부분 초기화 계약을 함께 보존해야 함 | 재현 회귀 red→green, Go test/vet. 문서의 기존 no-op·경로 격리·오류 규칙 유지. 통합 시 관련 agent-eval. 준비 |
 
 C는 통합 브랜치 커밋에서 새 자식 worktree로 시작한다. 보고서 원문, PRODUCT/ARCHITECTURE/POSTMORTEM 및 orch는 수정하지 않고 문서 후보를 handoff에 적는다. 전체 runtime/verify/실제 agent-eval은 지휘자 예약으로 실행한다.
+
+### 2차 지휘자 판정 및 E·A1·A2·H 배치 확정
+
+- R-harness 완료: `ctx_27b9e66ab4a7`, `.scratch/audit-integration-261025/review-harness.md`. 지휘자가 지정 17개 ID와 소스 근거를 확인했다.
+- 채택: A-M6, A-L4·L5·L7·L11·L12·L17~L25. 하네스의 실패 정산·증거 도착 누락과 실제 앱 결함을 구분한다. 실행으로 확인하지 않은 flake나 실제 라운드 오판정을 발생 사실처럼 쓰지 않는다.
+- 기각: A-L8은 현재 생산자·소비자 문구가 일치한다. 향후 문구 변경 시 상태가 드리프트할 유지보수 위험이며, 이번에 새 상태 프레임워크를 만들 근거는 아니다.
+- 재현 필요: A-L13. 네이티브 드롭이 Add UI를 우회하는지 확인해야 한다. 사용자가 드롭한 파일 권한을 임의 host 접근이나 HTTP serving 범위 위반으로 단정한 설명은 채택하지 않는다.
+- A-L7은 위저드가 실제 제공하는 Open Project…를 안내하는 수정만 채택한다. Home 액션을 통째로 붙이거나 전면 모델 통합을 하지 않는다.
+
+| 확정 구현 배치 | 항목 | 파일 소유권 | 모델·effort | 게이트·상태 |
+|---|---|---|---|---|
+| E | A-M6, A-L4·L21~L25 | `eval/` 전체. 시나리오 task/seed/의도 변경 금지 | Codex gpt-6-astra medium. 실행 경계와 checker false pass/fail 판단 | 실제 helper 회귀 red→green, runner tests, 모든 scenario self-test. 준비 |
+| A1 | A-M3, A-L6 앱 설명·L10·L15 | `app/src/main/comments/`, `app/src/main/inspector.ts`와 해당 test, `app/src/renderer/CommentsPanel.tsx`와 해당 test, `app/src/formats/`의 직접 필요한 fixture/test | Codex gpt-6-astra medium. 불확실한 append와 immutable retry 보존 | 실제 service·직렬화 CDP 경로 red→green, app typecheck. 준비 |
+| A2 | A-M5, A-L5·L7·L9·L11, 재현 뒤 A-L14 | `Toast.tsx`·`toastState`·`canvasTree`·`onboardingView`·`projectRow`·`ProjectOverview`·`canvasInfo` 및 해당 단위 테스트; `main/thumbnails` 및 해당 test | Codex gpt-6-astra medium. native hide·cache 경합·표시 계약 | targeted red→green, app typecheck, 통합 native runtime. 대기 |
+| A3 | A-M1·M2, UX U-1 직접 중복 | `CommentsSession`·`useComments`·`comments/draft`·`CommentsPanel`·main `index`·`comments/transitions` 및 관련 test | Codex gpt-6-astra medium. 미확정 쓰기와 quit 수명 주기 | A1 통합 및 사용자 결정 뒤. 기존 setImmediate teardown 보존. 대기 |
+| H | A-L12·L17~L20 및 수용한 앱 동작의 런타임 회귀 | `app/e2e/`만 | Codex gpt-6-astra medium. 시간 초과 정산과 부정 단언의 증거 도착 | 앱 배치 통합 뒤 runtime 실행 예약. 먼저 하네스 회귀 red→green. 대기 |
+
+C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이지만 가용 워커 자리에 따라 다음 wave로 보낸다. A3는 A1과 CommentsPanel 소유권이 겹치므로 직렬이다. H는 앱 코드의 테스트 변경을 소유하며 full runtime은 다른 실행과 겹치지 않는다. 각 배치가 만든 postmortem 후보는 지휘자가 문서별 커밋으로 통합한다. 기존 리뷰 워커는 구현 소유자로 전환하지 않고 release한다.
