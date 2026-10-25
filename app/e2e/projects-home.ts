@@ -11,7 +11,7 @@ const { canvasRow }: typeof import("./design-tree") = await import(new URL("./de
 const { homeRow, goHome, enterProject, requestProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { hoverTooltip }: typeof import("./tooltip") = await import(new URL("./tooltip.ts", import.meta.url).href);
-const { appWindow }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
+const { appWindow, hideMain, showMain }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 const beforeRealState = await realState();
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL("../..", import.meta.url));
@@ -155,6 +155,48 @@ process.exit(result.status ?? 1);
   await toast.hover(); await page.waitForTimeout(8200); assert.equal(await toast.isVisible(), true);
   await toast.getByRole("button", { name: "Undo", exact: true }).click(); await homeRow(page, plain).waitFor(); assert.deepEqual(JSON.parse(await readFile(join(userData, "folders.json"), "utf8")), saved);
   await removeHomeProject(page, plain); await toast.waitFor(); await menu("Undo Remove"); await homeRow(page, plain).waitFor();
+  // Count completed production invalidations, not merely queued IPC sends.
+  await app.evaluate(({ ipcMain }) => {
+    const original = Reflect.get(ipcMain, "_invokeHandlers").get("folders:forget-removal");
+    const probe = { original, completed: [] as string[] }; Reflect.set(globalThis, "removalExpiryProbe", probe);
+    ipcMain.removeHandler("folders:forget-removal");
+    ipcMain.handle("folders:forget-removal", async (...args) => {
+      const result = await original(...args); probe.completed.push(args[1].removalId); return result;
+    });
+  });
+  try {
+    for (const kind of ["close", "hide"] as const) {
+      for (const action of ["undo", "expire"] as const) {
+        const beforeRemoval = JSON.parse(await readFile(join(userData, "folders.json"), "utf8"));
+        await removeHomeProject(page, plain); await toast.waitFor();
+        await page.mouse.move(5, 5); await homeRow(page, repo).focus();
+        await page.waitForTimeout(2200);
+        await hideMain(app, page, kind);
+        await page.waitForTimeout(8300);
+        await showMain(app, page);
+        assert.equal(await toast.isVisible(), true, `${kind} preserves Undo beyond eight hidden seconds`);
+        await shot(`04-native-${kind}-${action}`);
+        if (action === "undo") {
+          await toast.getByRole("button", { name: "Undo", exact: true }).click();
+          await homeRow(page, plain).waitFor();
+          assert.deepEqual(JSON.parse(await readFile(join(userData, "folders.json"), "utf8")), beforeRemoval);
+        } else {
+          const beforeExpiry = await app.evaluate(() => Reflect.get(globalThis, "removalExpiryProbe").completed.length);
+          const resumed = Date.now();
+          await toast.waitFor({ state: "hidden", timeout: 7000 });
+          assert.ok(Date.now() - resumed > 2000, "resuming retains a usable remaining lifetime");
+          await wait(() => app!.evaluate((_electron, count) => Reflect.get(globalThis, "removalExpiryProbe").completed.length === count + 1, beforeExpiry), "expiry invalidation completed");
+          const id: string = await app.evaluate(() => Reflect.get(globalThis, "removalExpiryProbe").completed.at(-1));
+          assert.deepEqual(await page.evaluate(id => window.doan.restoreProjects(id), id), { kind: "unavailable" });
+          await page.waitForTimeout(500);
+          assert.equal(await app.evaluate((_electron, id) => Reflect.get(globalThis, "removalExpiryProbe").completed.filter((value: string) => value === id).length, id), 1);
+          await add([plain]); await homeRow(page, plain).waitFor();
+        }
+      }
+    }
+  } finally {
+    await app.evaluate(({ ipcMain }) => { ipcMain.removeHandler("folders:forget-removal"); ipcMain.handle("folders:forget-removal", Reflect.get(globalThis, "removalExpiryProbe").original); });
+  }
   await enterProject(page, repo); await canvasRow(page, "shared.html").click(); await page.frameLocator("iframe").getByRole("button", { name: "Target", exact: true }).click();
   const active = async () => JSON.parse((await exec(cli, ["active", "--json", "--repo", repo], { env })).stdout);
   const before = await active(); assert.equal(before.result.selection.element.doanId, "target"); const frame = await page.locator("iframe").elementHandle(); assert.ok(frame);

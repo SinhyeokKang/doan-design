@@ -9,10 +9,10 @@ import { promisify } from "node:util";
 import { _electron, type ElectronApplication } from "playwright";
 const { installCommentReadProbe }: typeof import("./renderer-probe") = await import(new URL("./renderer-probe.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
-const { rememberApp, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
+const { rememberApp, closeApp, suiteGuard, bounded }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { canvasRow, frameRows }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
-const { appWindow }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
+const { appWindow, hideMain }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const shots = join(root, ".scratch/U2/runtime");
@@ -53,9 +53,10 @@ try {
   await mkdir(home);
   await writeFile(fakeShell, '#!/bin/sh\nPATH=/usr/bin:/bin; export PATH\neval "$2"\n', { mode: 0o755 });
   await writeFile(join(userData, "onboarding.json"), "{}\n");
-  app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env: { ...process.env,
+  const launchOptions = { args: [join(root, "app"), `--user-data-dir=${userData}`], env: { ...process.env,
     HOME: home, TMPDIR: work, SHELL: fakeShell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"),
-    DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } }); rememberApp(app);
+    DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } };
+  app = await _electron.launch(launchOptions); rememberApp(app);
   await app.evaluate(async ({ clipboard, ClipboardItem }) => { const items = await clipboard.read(); Reflect.set(globalThis, "savedClipboardU2", await Promise.all(items.map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)]))))))); });
   clipboardSaved = true;
   const page = await app.firstWindow(); page.setDefaultTimeout(10_000);
@@ -324,12 +325,19 @@ try {
   assert.equal(await page.locator("iframe").getAttribute("title"), "design/a.html");
   await removeHomeProject(page, repo); await keep();
   await app.evaluate(({ app }) => app.quit()); await keep();
-  // Close Window hides the existing window without losing the editor.
+  // Native hiding must not conceal the existing ordinary-draft quit guard.
   const appWin = await appWindow(app, page);
-  await appWin.evaluate(window => window.close());
-  assert.equal(await appWin.evaluate(window => window.isVisible()), false);
-  await app.evaluate(({ app }) => app.emit("activate"));
-  assert.equal(await createBody.inputValue(), "All transitions protected");
+  for (const kind of ["close", "hide"] as const) {
+    await hideMain(app, page, kind);
+    await app.evaluate(({ app }) => app.quit());
+    await dialog.waitFor();
+    await waitGate(() => app!.evaluate(({ app }, window) => !app.isHidden() && window.isVisible() && window.isFocused(), appWin));
+    await page.waitForFunction(() => Reflect.get(window, "nativeVisible") === true);
+    await shot(`08-hidden-quit-${kind}`);
+    await keep();
+    assert.equal(await createBody.inputValue(), "All transitions protected");
+    assert.equal(await createBody.evaluate(node => node === document.activeElement), true);
+  }
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
   await shot("08-author-and-transition-guards");
   // Replace only Electron handlers to model transport/service failures; all
@@ -515,6 +523,29 @@ try {
   assert.equal(await panel.getByRole("button", { name: "Check saved status", exact: true }).count(), 0);
   await shot("16-unrecoverable-unknown");
   assert.deepEqual(presentationFailures, [], "Measured comment presentation regressions");
+  await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "savedClipboardU2")); });
+  clipboardSaved = false;
+  // End the exceptional fixture using the suite's existing cleanup bypass.
+  // Ordinary quit approval is tested in a fresh session, with no uncertain write.
+  await page.evaluate(() => window.doan.setCommentDraftGuard(false));
+  await closeApp(app); app = undefined;
+  app = await _electron.launch(launchOptions); rememberApp(app);
+  const approvalPage = await app.firstWindow(); approvalPage.setDefaultTimeout(10_000);
+  await canvasRow(approvalPage, "a.html").click();
+  const approvalPanel = approvalPage.getByRole("region", { name: "Comments", exact: true });
+  await approvalPanel.getByRole("button", { name: "New canvas comment", exact: true }).click();
+  await approvalPanel.getByRole("textbox", { name: "New comment body" }).fill("Ordinary quit approval");
+  await hideMain(app, approvalPage, "hide");
+  await app.evaluate(({ app }) => app.quit());
+  const approvalDialog = approvalPage.getByRole("dialog"); await approvalDialog.waitFor();
+  await approvalPage.screenshot({ path: join(shots, "17-ordinary-quit-approval.png") });
+  const approvedProcess = app.process();
+  const approvedExit = new Promise<void>(resolve => approvedProcess.once("exit", () => resolve()));
+  await approvalDialog.getByRole("button", { name: "Discard", exact: true }).click();
+  await bounded(approvedExit, 5000, "ordinary approved quit");
+  await closeApp(app); app = undefined;
+  assert.equal(await readFile(join(userData, "runtime.json")).then(() => true, () => false), false, "approved quit removes runtime");
+
 
 } catch (error) {
   console.error(error);

@@ -56,3 +56,25 @@ export async function menu(app: ElectronApplication, page: Page, label: string):
     await page.waitForTimeout(20);
   }
 }
+
+// Observe the production native visibility channel; document.hidden alone does
+// not prove that AppKit hid the application.
+export async function hideMain(app: ElectronApplication, page: Page, kind: "close" | "hide"): Promise<void> {
+  await page.evaluate(() => {
+    Reflect.get(window, "nativeVisibilityStop")?.();
+    Reflect.set(window, "nativeVisible", undefined);
+    Reflect.set(window, "nativeVisibilityStop", window.doan.onWindowVisible(visible => Reflect.set(window, "nativeVisible", visible)));
+  });
+  await page.waitForFunction(() => Reflect.get(window, "nativeVisible") === true);
+  if (kind === "close") await menu(app, page, "Close Window");
+  else await app.evaluate(({ app }) => app.hide());
+  await page.waitForFunction(() => Reflect.get(window, "nativeVisible") === false);
+  if (kind === "close") {
+    if (await (await appWindow(app, page)).evaluate(window => window.isVisible())) throw new Error("Close Window did not hide main");
+  } else if (!await app.evaluate(({ app }) => app.isHidden())) throw new Error("Application Hide did not hide app");
+}
+
+export async function showMain(app: ElectronApplication, page: Page): Promise<void> {
+  await app.evaluate(({ app }, window) => { app.show(); app.emit("activate"); window.focus(); }, await appWindow(app, page));
+  await page.waitForFunction(() => Reflect.get(window, "nativeVisible") === true);
+}

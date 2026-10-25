@@ -331,6 +331,40 @@ process.exit(result.status ?? 1);
   await page.getByRole("region", { name: "Home", exact: true }).waitFor();
   await restoreCommitted();
   assert.equal(await page.getByRole("region", { name: "Home", exact: true }).isVisible(), true, "a broken ui-state.json starts on Home");
+  // Add metadata edge cases late so earlier fixture counts and restore gates stay fixed.
+  await app!.evaluate(({ ipcMain }) => {
+    const original = Reflect.get(ipcMain, "_invokeHandlers").get("thumbnails:get");
+    const probe = { original, requested: [] as string[] }; Reflect.set(globalThis, "metadataThumbnailProbe", probe);
+    ipcMain.removeHandler("thumbnails:get"); ipcMain.handle("thumbnails:get", (...args) => {
+      probe.requested.push(args[1].path); return original(...args);
+    });
+  });
+  try {
+    await writeFile(join(empty, "design/no-id.html"), canvas("unused", "Missing ID", 800, [["hero", "Known hero"]]).replace('<meta name="doan:canvas" content="unused">', ""));
+    await writeFile(join(empty, "design/bad-id.html"), canvas("invalid id!", "Invalid ID", 800, [["hero", "Known hero"], ["footer", "Known footer"]]));
+    await writeFile(join(empty, "design/no-width.html"), canvas("no-width", "Missing width", null, [["hero"]]));
+    await enterProject(page, empty); await overview().waitFor();
+    for (const [title, path, facts] of [["Missing ID", "design/no-id.html", "1 frame"], ["Invalid ID", "design/bad-id.html", "2 frames"]]) {
+      await wait(async () => card(title!).locator("img").evaluate(img => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0), `${title} displays decoded thumbnail`);
+      assert.ok((await app!.evaluate(() => Reflect.get(globalThis, "metadataThumbnailProbe").requested)).includes(path));
+      assert.match(await card(title!).innerText(), new RegExp(facts!));
+    }
+    await card("Missing width").getByText("Preview needs a valid doan:width — run doan check", { exact: true }).waitFor();
+    await shot("11-metadata-thumbnails");
+    for (const title of ["Missing ID", "Invalid ID"]) {
+      await card(title).click(); await loaded(title);
+      const comments = page.getByRole("region", { name: "Comments", exact: true });
+      await comments.getByText("A valid, unique canvas ID is required.", { exact: false }).waitFor();
+      await comments.getByRole("group", { name: "Comment scope" }).getByRole("button", { name: "Canvas", exact: true }).click();
+      await wait(async () => comments.getByRole("button", { name: "New canvas comment", exact: true }).isDisabled(), `${title} cannot create comments`);
+      assert.equal(await comments.getByRole("textbox", { name: "New comment body" }).count(), 0);
+      await shot(`12-${title.replaceAll(" ", "-").toLowerCase()}-comments`);
+      await page.getByRole("button", { name: "empty overview", exact: true }).click(); await overview().waitFor();
+    }
+    assert.equal((await app!.evaluate(() => Reflect.get(globalThis, "metadataThumbnailProbe").requested)).includes("design/no-width.html"), false, "missing width never requests capture after overview and canvas processing");
+  } finally {
+    await app!.evaluate(({ ipcMain }) => { ipcMain.removeHandler("thumbnails:get"); ipcMain.handle("thumbnails:get", Reflect.get(globalThis, "metadataThumbnailProbe").original); });
+  }
   console.log("design-nav: restore PASS");
   await quit();
 
