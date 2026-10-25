@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — A failed embedded frame suppressed a healthy outer thumbnail
+
+- **Area**: `app/src/main/thumbnailWindow.ts`.
+- **Symptom**: a healthy outer canvas containing an iframe with HTTP 404 returned Preview unavailable; unit handlers showed the same classification for a refused nested connection.
+- **Root cause**: failure listeners treated every non-main frame as the canvas, conflating the data host's direct child with its descendants and keeping failure state outside the job.
+- **Net**: the native original-source regression failed at nested HTTP 404. Corrected native runs observed nested HTTP/network failures while validating the outer PNG pixels; outer HTTP/network failures remained unavailable. The original native probe did not reproduce prior-job contamination. Synthetic obsolete-frame/window events cover that boundary without claiming a native reproduction.
+- **Prevention**: bind the fresh host's direct child by lifetime-stable frame identity, not URL or a non-main boolean; keep failure state/listeners scoped to one job and recheck validity after asynchronous work. Preserve outer-error negative controls beside nested-error successes. Search run: `rg -n 'did-fail-load|did-frame-navigate|frame-created|frameFailed' app/src/main/thumbnailWindow.ts` confirms listeners are paired with cleanup and both capture checkpoints test the job-local failure flag. Native proof and source/build hashes are retained in the audit T handoff; constructor/load/capture quit integration is a separate gate.
+
 ### 2026-10-25 — Native hiding bypassed renderer-only lifetime checks
 
 - **Area**: `Toast.tsx`, `toastState.ts`, main quit guard in `index.ts`.
