@@ -564,6 +564,7 @@ Results:
 | 2026-10-25 | app-setup: Projects uses main’s actual CLI timeout/spawn-error copy | Conductor R-D1 D-3 decision — the draft text was a sample, not an alternate error contract |
 | 2026-10-25 | app-setup: Refuse Settings close during its own setup write; permit close during a pending confirmation and keep normal quit behavior | Conductor-approved C-guard — matches wizard write protection; settlement does not automatically close the window |
 | 2026-10-25 | app-setup: Use Copy again after editing a waiting prompt | Conductor D2/S decision — expresses the repeat copy; the draft specimen was reconciled in design-sync |
+| 2026-10-25 | Defer approved quit teardown by one event-loop turn; retain state flush and terminal thumbnail disposal before native window closing | Quit-crash investigation: Electron can reenter quit before a thumbnail window constructor has a JS wrapper; the deterministic native regression fails before this containment and passes after it (ARCHITECTURE §3, POSTMORTEM) |
 
 ## 8. Open questions
 
