@@ -8,16 +8,24 @@ export interface OpenCanvas {
   canvas: string;
 }
 
+// `idChanged`: the same path now holds another canvas id, which is another
+// canvas. `moved`: the open path left the list and exactly one row has its id.
 export type CanvasViewUpdate =
-  | { kind: "reload"; canvas: CanvasRow }
+  | { kind: "reload"; canvas: CanvasRow; idChanged?: boolean }
+  | { kind: "moved"; canvas: CanvasRow; from: string }
   | { kind: "resize"; canvas: CanvasRow }
   | { kind: "clear"; reason: "missing" | "closed" | "notFound" | "uninitialized" }
+  | { kind: "clear"; reason: "duplicateId"; count: number }
   | { kind: "errorLine"; message: string }
   | { kind: "none" };
 
+// An empty id is no id: `doan ls` may list one, and it names nothing.
+const canvasId = (row: Pick<CanvasRow, "id">) => row.id || undefined;
+
 // What the open canvas needs after a folder list update. Only `reload`,
-// `resize` and `clear` touch the iframe; an error keeps the last view.
-export function canvasViewUpdate(prev: readonly FolderEntry[], entries: readonly FolderEntry[], open: OpenCanvas): CanvasViewUpdate {
+// `moved`, `resize` and `clear` touch the iframe; an error keeps the last view.
+// The canvas id is read from `open.row`, the row the open document came from.
+export function canvasViewUpdate(prev: readonly FolderEntry[], entries: readonly FolderEntry[], open: OpenCanvas & { row: Pick<CanvasRow, "id"> }): CanvasViewUpdate {
   const entry = entries.find((candidate) => candidate.path === open.folder);
   if (entry === undefined) return { kind: "clear", reason: "closed" };
   switch (entry.kind) {
@@ -32,13 +40,20 @@ export function canvasViewUpdate(prev: readonly FolderEntry[], entries: readonly
     case "loading":
       return { kind: "none" };
     case "list": {
+      const id = canvasId(open.row);
       const canvas = entry.canvases.find((row) => row.path === open.canvas);
-      if (canvas === undefined) return { kind: "clear", reason: "missing" };
+      if (canvas === undefined) {
+        const same = id === undefined ? [] : entry.canvases.filter((row) => canvasId(row) === id);
+        if (same.length === 1 && same[0]) return { kind: "moved", canvas: same[0], from: open.canvas };
+        return same.length > 1 ? { kind: "clear", reason: "duplicateId", count: same.length } : { kind: "clear", reason: "missing" };
+      }
+      if (canvasId(canvas) !== id) return { kind: "reload", canvas, idChanged: true };
       const before = prev.find((candidate) => candidate.path === open.folder);
       // A failed folder is not served and its revision is not shown, so
       // anything may have changed since the last list.
       if (before?.kind !== "list" || before.servedRev !== entry.servedRev) return { kind: "reload", canvas };
       const old = before.canvases.find((row) => row.path === open.canvas);
+      if (old?.rev !== canvas.rev) return { kind: "reload", canvas };
       if (old?.width !== canvas.width) return { kind: "resize", canvas };
       return { kind: "none" };
     }

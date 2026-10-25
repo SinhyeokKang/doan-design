@@ -10,10 +10,9 @@ import {
   MAX_HEIGHT,
   sameDocument,
   updatedText,
-  type OpenCanvas,
 } from "./canvasView";
 
-const open: OpenCanvas = { folder: "/repo", canvas: "design/a.html" };
+const open = { folder: "/repo", canvas: "design/a.html", row: {} };
 
 function row(path: string, extra: Partial<CanvasRow> = {}): CanvasRow {
   return { path, open: 0, resolved: 0, url: `http://127.0.0.1:1/t/tok/k/${path}`, width: 1200, ...extra };
@@ -105,9 +104,72 @@ describe("canvasViewUpdate", () => {
     // The other folder drops the canvas and changes revision; the open folder is unchanged.
     const now = [list("/other", 5, [row("design/b.html")]), ...before];
     expect(canvasViewUpdate(prev, now, open)).toEqual({ kind: "none" });
-    expect(canvasViewUpdate(prev, now, { folder: "/other", canvas: "design/a.html" })).toEqual({ kind: "clear", reason: "missing" });
+    expect(canvasViewUpdate(prev, now, { folder: "/other", canvas: "design/a.html", row: {} })).toEqual({ kind: "clear", reason: "missing" });
     const widened = [list("/other", 1, [row("design/a.html", { width: 375 })]), ...before];
     expect(canvasViewUpdate(prev, widened, open)).toEqual({ kind: "none" });
+  });
+});
+
+describe("canvasViewUpdate: row revisions and canvas ids", () => {
+  const home = { folder: "/repo", canvas: "design/a.html", row: { id: "home" } };
+  const a = (extra: Partial<CanvasRow> = {}) => row("design/a.html", { id: "home", rev: 1, ...extra });
+  const b = (extra: Partial<CanvasRow> = {}) => row("design/b.html", { id: "other", rev: 1, ...extra });
+  const prev = [list("/repo", 1, [a(), b()])];
+
+  test("reloads when the open row's revision changes without a served bump", () => {
+    expect(canvasViewUpdate(prev, [list("/repo", 1, [a({ rev: 2 }), b()])], home)).toEqual({ kind: "reload", canvas: a({ rev: 2 }) });
+  });
+
+  test("does nothing when only another canvas's row revision changes", () => {
+    expect(canvasViewUpdate(prev, [list("/repo", 1, [a(), b({ rev: 2 })])], home)).toEqual({ kind: "none" });
+  });
+
+  test("still reloads on a served bump when row revisions are unchanged", () => {
+    expect(canvasViewUpdate(prev, [list("/repo", 2, [a(), b()])], home)).toEqual({ kind: "reload", canvas: a() });
+  });
+
+  test("follows the open canvas to the one row with its id", () => {
+    const moved = row("design/sub/a.html", { id: "home", rev: 1 });
+    expect(canvasViewUpdate(prev, [list("/repo", 1, [b(), moved])], home)).toEqual({ kind: "moved", canvas: moved, from: "design/a.html" });
+  });
+
+  test("carries the new width when a move and a width change land together", () => {
+    const moved = row("design/a2.html", { id: "home", rev: 3, width: 375 });
+    expect(canvasViewUpdate(prev, [list("/repo", 2, [moved, b()])], home)).toEqual({ kind: "moved", canvas: moved, from: "design/a.html" });
+  });
+
+  test("follows a move after a folder read that failed", () => {
+    const moved = row("design/a2.html", { id: "home" });
+    const failed: FolderEntry[] = [{ path: "/repo", kind: "error", message: "Cannot read config" }];
+    expect(canvasViewUpdate(failed, [list("/repo", 1, [moved])], home)).toEqual({ kind: "moved", canvas: moved, from: "design/a.html" });
+  });
+
+  test("clears with the count when two or more rows now use the id", () => {
+    const two = [row("design/a2.html", { id: "home" }), row("design/a3.html", { id: "home" }), b()];
+    expect(canvasViewUpdate(prev, [list("/repo", 1, two)], home)).toEqual({ kind: "clear", reason: "duplicateId", count: 2 });
+    const three = [...two, row("design/a4.html", { id: "home" })];
+    expect(canvasViewUpdate(prev, [list("/repo", 1, three)], home)).toEqual({ kind: "clear", reason: "duplicateId", count: 3 });
+  });
+
+  test("clears as missing when no row has the id", () => {
+    expect(canvasViewUpdate(prev, [list("/repo", 1, [b()])], home)).toEqual({ kind: "clear", reason: "missing" });
+  });
+
+  test("clears as missing when the open row has no id", () => {
+    const now = [list("/repo", 1, [row("design/a2.html"), row("design/a3.html", { id: "" })])];
+    expect(canvasViewUpdate(prev, now, { ...home, row: {} })).toEqual({ kind: "clear", reason: "missing" });
+    expect(canvasViewUpdate(prev, now, { ...home, row: { id: "" } })).toEqual({ kind: "clear", reason: "missing" });
+  });
+
+  test("reloads as another canvas when the id at the same path changes", () => {
+    expect(canvasViewUpdate(prev, [list("/repo", 1, [a({ id: "renamed" }), b()])], home)).toEqual({ kind: "reload", canvas: a({ id: "renamed" }), idChanged: true });
+    expect(canvasViewUpdate(prev, [list("/repo", 1, [row("design/a.html", { rev: 1 }), b()])], home)).toMatchObject({ kind: "reload", idChanged: true });
+    expect(canvasViewUpdate(prev, [list("/repo", 1, [a(), b()])], { ...home, row: {} })).toMatchObject({ kind: "reload", idChanged: true });
+  });
+
+  test("an empty id and no id are the same canvas id", () => {
+    const blank = [list("/repo", 1, [row("design/a.html", { id: "", rev: 1 })])];
+    expect(canvasViewUpdate(blank, blank, { ...home, row: {} })).toEqual({ kind: "none" });
   });
 });
 

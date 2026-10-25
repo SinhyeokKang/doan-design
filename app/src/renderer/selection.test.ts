@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { HoverMessage, LayoutMessage, SelectMessage, SelectTarget } from "./canvasMessage";
-import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, sizeLabel, type SelectionView } from "./selection";
+import type { Selection } from "../formats/types";
+import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, selectionIdentity, shouldGuardEscape, sizeLabel, type SelectionView } from "./selection";
 
 const HREF = "http://127.0.0.1:4000/t/tok/key/design/a.html";
 const rect = { x: 1, y: 2, width: 3, height: 4 };
@@ -89,6 +90,19 @@ describe("selectionAfter", () => {
     expect(selectionAfter({ kind: "clear", reason: "missing" })).toEqual({ keep: false, mark: false, notice: false });
   });
 
+  test("a reload that changed the canvas id at the same path clears without a notice", () => {
+    expect(selectionAfter({ kind: "reload", idChanged: true })).toEqual({ keep: false, mark: false, notice: false });
+    expect(selectionAfter({ kind: "reload", idChanged: false })).toEqual({ keep: true, mark: false, notice: false });
+  });
+
+  test("a move to another path reanchors like a reload", () => {
+    expect(selectionAfter({ kind: "moved" })).toEqual({ keep: true, mark: false, notice: false });
+  });
+
+  test("a duplicated id clears", () => {
+    expect(selectionAfter({ kind: "clear", reason: "duplicateId" })).toEqual({ keep: false, mark: false, notice: false });
+  });
+
   test("a closed, missing or uninitialized project clears", () => {
     for (const reason of ["closed", "notFound", "uninitialized"] as const) expect(selectionAfter({ kind: "clear", reason })).toEqual({ keep: false, mark: false, notice: false });
   });
@@ -149,5 +163,62 @@ describe("editableTarget", () => {
     expect(editableTarget({ tagName: "BUTTON", isContentEditable: false })).toBe(false);
     expect(editableTarget(null)).toBe(false);
     expect(editableTarget({})).toBe(false);
+  });
+});
+
+describe("selectionIdentity", () => {
+  const canvas = { path: "design/a.html", id: "home" };
+  const element = (over: Partial<Selection> = {}, el: Partial<NonNullable<Selection["element"]>> = {}): Selection =>
+    ({ root: "/repo", canvas, frame: { id: "hero" }, element: { doanId: "cta", selector: '[data-doan-id="cta"]', html: "<a></a>", ...el }, ...over });
+  const plain = (selector: string, over: Partial<Selection> = {}): Selection => ({ root: "/repo", canvas, element: { selector, html: "<a></a>" }, ...over });
+  const frame = (over: Partial<Selection> = {}): Selection => ({ root: "/repo", canvas, frame: { id: "hero", title: "Hero" }, ...over });
+
+  test("is null without a selection", () => {
+    expect(selectionIdentity(null)).toBeNull();
+  });
+
+  test("keeps an element by its doanId across selector, markup, path and frame changes", () => {
+    const key = selectionIdentity(element());
+    expect(selectionIdentity(element({}, { selector: "body > a:nth-of-type(2)", html: "<a>new</a>", text: "new" }))).toBe(key);
+    expect(selectionIdentity(element({ canvas: { path: "design/moved/a.html", id: "home" } }))).toBe(key);
+    expect(selectionIdentity(element({ frame: { id: "footer" } }))).toBe(key);
+    expect(selectionIdentity(element({}, { doanId: "other" }))).not.toBe(key);
+  });
+
+  test("keys an element without a doanId by its selector", () => {
+    const key = selectionIdentity(plain("main > a"));
+    expect(selectionIdentity(plain("main > a", { canvas: { path: "design/b.html", id: "home" }, frame: { id: "hero" } }))).toBe(key);
+    expect(selectionIdentity(plain("main > b"))).not.toBe(key);
+    // A doanId equal to another element's selector is still a different key.
+    expect(selectionIdentity(element({}, { doanId: "main > a" }))).not.toBe(key);
+  });
+
+  test("keys a frame by its id, not its title or path", () => {
+    const key = selectionIdentity(frame());
+    expect(selectionIdentity(frame({ frame: { id: "hero", title: "Renamed" } }))).toBe(key);
+    expect(selectionIdentity(frame({ canvas: { path: "design/moved.html", id: "home" } }))).toBe(key);
+    expect(selectionIdentity(frame({ frame: { id: "footer" } }))).not.toBe(key);
+  });
+
+  test("tells an element from a frame with the same name", () => {
+    expect(selectionIdentity(element({}, { doanId: "hero" }))).not.toBe(selectionIdentity(frame()));
+  });
+
+  test("changes with the root or the canvas id", () => {
+    for (const make of [element, frame]) {
+      const key = selectionIdentity(make());
+      expect(selectionIdentity(make({ root: "/other" }))).not.toBe(key);
+      expect(selectionIdentity(make({ canvas: { path: "design/a.html", id: "renamed" } }))).not.toBe(key);
+      expect(selectionIdentity(make({ canvas: { path: "design/a.html" } }))).not.toBe(key);
+    }
+  });
+});
+
+describe("shouldGuardEscape", () => {
+  test("guards only while a selection exists or is being found again", () => {
+    expect(shouldGuardEscape(null, null)).toBe(false);
+    expect(shouldGuardEscape(view, null)).toBe(true);
+    expect(shouldGuardEscape(null, { doanId: "cta", selector: '[data-doan-id="cta"]' })).toBe(true);
+    expect(shouldGuardEscape(null, {})).toBe(true);
   });
 });
