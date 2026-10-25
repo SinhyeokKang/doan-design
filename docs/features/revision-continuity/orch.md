@@ -78,3 +78,4 @@ tasks.md의 1~11은 모두 위 배치 중 하나에 속한다.
 - 2026-10-26: E1(`ctx_71bd48a94dde`, Opus high, `rc-e1`) 시작.
 - 2026-10-26: B8 완료(`d99345c`) — red 14건 뒤 green. t11 재측정: 빈 Selection 목록 20/20→0/20, Location unavailable 6/10→0/10, Canvas 범위 유지 10/10. 핀은 설계대로 새 layout 뒤 다시 그린다. 150px 정지 1/20이 스크린샷 없이도 나왔다. 통합(`2ad0fff`), 통합 HEAD test 2282·typecheck 통과(지휘자 실행). B8 해제, `rc-b8` 제거.
 - 2026-10-26: B7fix(`ctx_21a2e85acf67`, Opus high, `rc-b7fix`), S(`ctx_3e19e22189e5`, Opus high, `rc-s`), R-B8(`ctx_d1233d7cc313`, Opus high, `rc-r-b8`) 시작.
+- 2026-10-26: E1 완료(`1f2393a`) — 모듈 단독 실행(B8 전 기준)에서 1·2·2c·4·8 통과, 3(이동 뒤 접은 행이 펼쳐짐 = R-B7 🟡2)·5·6·7(B8 범위) 실패로 예상과 같다. 실패한 이어 쓰기 뒤 포커스는 다시 활성이 된 버튼에 남는다(R-B6 ⚪3 확인). T-11 간격은 기록만 한다. 통합(`2501505`), typecheck 통과. 근거: `evidence-E1/`. E1 해제, `rc-e1` 제거.
