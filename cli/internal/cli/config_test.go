@@ -217,3 +217,64 @@ func TestConfigPathErrorsExplainMissingAndOutside(t *testing.T) {
 		}
 	}
 }
+
+func TestConfigRejectsGitServeWithoutWriting(t *testing.T) {
+	for _, kind := range []string{"directory", "worktree-file"} {
+		t.Run(kind, func(t *testing.T) {
+			root := initialized(t)
+			if kind == "directory" {
+				putFile(t, root, ".git/config", "[remote \"origin\"]\nurl = private\n")
+			} else {
+				putFile(t, root, ".git", "gitdir: "+t.TempDir()+"\n")
+			}
+			if err := os.Symlink(".git", filepath.Join(root, "git-link")); err != nil {
+				t.Fatal(err)
+			}
+			putFile(t, root, "assets/file", "")
+			paths := []string{".git", "git-link"}
+			if kind == "directory" {
+				paths = append(paths, ".git/config", "git-link/config")
+			}
+			if _, err := os.Stat(filepath.Join(root, ".GIT")); err == nil {
+				paths = append(paths, ".GIT")
+				if kind == "directory" {
+					paths = append(paths, ".GIT/CONFIG")
+				}
+			}
+			cs := mcpClient(t)
+			for _, path := range paths {
+				for _, absolute := range []bool{false, true} {
+					input := path
+					if absolute {
+						input = filepath.Join(root, input)
+					}
+					t.Run(input, func(t *testing.T) {
+						before := readFile(t, root, ".doan/config.json")
+						got := runJSON(t, root, 2, "config", "--add-serve", "assets", "--add-serve", input)
+						failure := got["error"].(map[string]any)
+						if failure["code"] != "usage_error" || !strings.Contains(failure["message"].(string), ".git") {
+							t.Fatal(got)
+						}
+						toolCode(t, cs, "config", map[string]any{"repo": root, "addServe": []string{"assets", input}}, "usage_error")
+						if readFile(t, root, ".doan/config.json") != before {
+							t.Fatal("rejected addition changed config")
+						}
+					})
+				}
+				putFile(t, root, ".doan/config.json", `{"v":1,"serve":["`+path+`"]}`)
+				got := result(t, root, 0, "config", "--remove-serve", path)
+				if got["changed"] != true || len(got["serve"].([]any)) != 0 {
+					t.Fatal(got)
+				}
+				putFile(t, root, ".doan/config.json", `{"v":1,"serve":["`+path+`"]}`)
+				got = callTool(t, cs, "config", map[string]any{"repo": root, "removeServe": []string{path}})
+				if got["ok"] != true || len(got["result"].(map[string]any)["serve"].([]any)) != 0 {
+					t.Fatal(got)
+				}
+			}
+			putFile(t, root, ".github/file", "")
+			putFile(t, root, "nested/.git/file", "")
+			result(t, root, 0, "config", "--add-serve", ".github", "--add-serve", "nested/.git")
+		})
+	}
+}
