@@ -1,3 +1,4 @@
+import { connectionCauses, type Cause as BannerCause } from "../main/setupCauses";
 import type { MachineState } from "../main/onboarding/machine";
 import type { Agent } from "../main/onboarding/states";
 import { connectionSummary, type ConnectionStatus } from "../setup/connectionSummary";
@@ -19,9 +20,10 @@ export function connectionRow(state: MachineState | null, row: Row, ui: MachineU
   if (!state) return { status: ui.readError ? "Couldn’t check" : "Checking…", parts: ui.readError ? [ui.readError] : [] };
   const status = connectionSummary(state, state.reason === TRANSLOCATED)[row];
   const name = CONNECTION_NAMES[row];
+  const cause = connectionCauses(state, state.reason === TRANSLOCATED)[row];
   const view: ConnectionView = { status: CONNECTION_LABELS[status], parts: [], ...(status === "connected" ? { tone: "ok" } : status === "needs-attention" || status === "couldnt-check" ? { tone: "warn" } : {}) };
   const action = (kind: "run" | "check" | "install", label: string) => {
-    view.action = { kind, label, primary: kind === "run", disabled: busy || ui.checking || ui.running !== null || (kind === "run" && !state.available) };
+    view.action = { kind, label, primary: kind === "run", disabled: busy || ui.checking || ui.readError !== null || ui.running !== null || (kind === "run" && !state.available) };
   };
   if (status === "connected") view.parts = [row === "cli" ? "Your agents and your terminal can run doan." : `${name} can use the doan skill and tools.`];
   else if (status === "not-installed") { view.parts = [`${name} isn’t installed on this Mac.`]; action("install", `Install ${name} ↗`); }
@@ -31,15 +33,15 @@ export function connectionRow(state: MachineState | null, row: Row, ui: MachineU
     view.parts = [(reason || "The registration could not be read.").replace(/\.?$/, ".")]; action("check", "Check Again");
   } else {
     action("run", "Fix…");
-    if (row === "cli" && state.reason === TRANSLOCATED) { view.cause = "Running outside Applications."; view.parts = [TRANSLOCATED]; delete view.action; }
-    else if (row === "cli" && state.cli.state === "dangling") { view.cause = "Link is broken."; view.parts = ["The file it points to no longer exists, so agents can’t reach doan."]; }
-    else if (row === "cli" && state.cli.state === "link-other") { view.cause = "Points to another copy."; view.parts = ["Agents run a different doan, not the one in this app."]; }
-    else if (row !== "cli" && state.agents[row].mcp.state === "other") { view.cause = "MCP runs another command."; view.parts = [`${name}’s doan server runs `, { code: registrationText(row, state.agents[row].mcp.value) }, ", not this app’s doan."]; }
-    else if (row !== "cli" && state.stub.state === "differs") { view.cause = "Skill was changed."; view.parts = ["The shared doan skill differs from this app’s version."]; }
-    else if (row === "claude" && (state.claudeLink.state === "link-other" || state.claudeLink.state === "dangling")) { view.cause = state.claudeLink.state === "dangling" ? "Skill link is broken." : "Skill link points elsewhere."; view.parts = [state.claudeLink.state === "dangling" ? "The doan skill folder it points to no longer exists." : "Claude Code reads a different doan skill folder."]; }
+    if (cause?.kind === "translocated") { view.cause = "Running outside Applications."; view.parts = [TRANSLOCATED]; delete view.action; }
+    else if (cause?.kind === "cli-dangling") { view.cause = "Link is broken."; view.parts = ["The file it points to no longer exists, so agents can’t reach doan."]; }
+    else if (cause?.kind === "cli-other") { view.cause = "Points to another copy."; view.parts = ["Agents run a different doan, not the one in this app."]; }
+    else if (row !== "cli" && cause?.kind === "mcp-other") { view.cause = "MCP runs another command."; view.parts = [`${name}’s doan server runs `, { code: registrationText(row, state.agents[row].mcp.value) }, ", not this app’s doan."]; }
+    else if (cause?.kind === "skill-differs") { view.cause = "Skill was changed."; view.parts = ["The shared doan skill differs from this app’s version."]; }
+    else if (cause?.kind === "claude-link-other" || cause?.kind === "claude-link-dangling") { view.cause = state.claudeLink.state === "dangling" ? "Skill link is broken." : "Skill link points elsewhere."; view.parts = [state.claudeLink.state === "dangling" ? "The doan skill folder it points to no longer exists." : "Claude Code reads a different doan skill folder."]; }
     else {
       const d = state.display;
-      const path = row === "cli" ? d.blocked.cli ?? d.cliPath : state.stub.state === "blocked" ? d.blocked.stub ?? d.stubPath : d.blocked.claudeLink ?? d.claudeLinkPath;
+      const path = cause?.path ?? (row === "cli" ? d.cliPath : d.stubPath);
       view.cause = "Path is blocked."; view.parts = [{ code: tilde(path, d.home) }, " is in use by something else. Move or delete it, then Check Again."]; action("check", "Check Again");
     }
   }
@@ -55,11 +57,7 @@ export function connectionConfirm(target: "cli" | "stub" | "claudeLink" | "mcp",
   return confirmView(target, agent, state);
 }
 
-// Structural input matches the broker's per-row cause projection.
-export interface BannerCause {
-  kind: "cli-dangling" | "cli-other" | "cli-blocked" | "translocated" | "mcp-other" | "skill-differs" | "skill-blocked" | "claude-link-other" | "claude-link-dangling" | "claude-link-blocked";
-  path?: string;
-}
+export type { Cause as BannerCause } from "../main/setupCauses";
 export function connectionBanner(cause: BannerCause, row: Row): Part[] {
   const name = CONNECTION_NAMES[row];
   switch (cause.kind) {

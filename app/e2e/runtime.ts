@@ -88,6 +88,7 @@ async function main(): Promise<void> {
     await import(new URL("./projects-home.ts", import.meta.url).href);
     await import(new URL("./thumbnails.ts", import.meta.url).href);
     await import(new URL("./design-nav.ts", import.meta.url).href);
+    await import(new URL("./settings.ts", import.meta.url).href);
   } finally { await assertRealState(actualState); }
 }
 

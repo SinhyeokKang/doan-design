@@ -112,3 +112,13 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: D2 질문 — 대기 중 입력을 고쳤을 때 버튼 문구: 초안 타일 설명은 'Copy again', 표본 버튼은 'Copy' → 'Copy again'(설명과 브리프가 같고, 클립보드에 이전 문장이 있음을 알린다). 표본 불일치는 task 11에서 고친다.
 - 2026-10-25: C-api 완료(`0180d3d`, test 1898) — 후속 두 메시지를 읽기 전에 끝나 원인 이름이 합의와 다르고 R-C 수정이 빠졌다. C-api2(Sonnet high, `as-c2`)로 합의 형식 전환과 R-C 🟡 3·⚪1을 보냈다. 초안에 없는 원인 문장(skill-blocked, claude-link-dangling·blocked)은 D1이 쓴다. C-api 워커 해제.
 - 2026-10-25: D1 공유 연결 줄 선행 커밋(`5a54a1e`, 새 파일 4개)을 일찍 통합(`b3a2482`). 통합 HEAD typecheck·renderer 테스트 통과. D2에 merge를 알렸다.
+- 2026-10-25: D1 질문 — e2e `projects-home.ts`의 줄 메뉴 구분선 수 단언을 새 메뉴(Project Settings… 추가)에 맞게 고치도록 허락했다.
+- 2026-10-25: D1 공유 helper 이름 변경(`connectionRows.ts` → `connectionRowView.ts`, 대소문자 무시 파일시스템에서 `ConnectionRows.tsx`와 충돌) 두 커밋을 통합(`bb227e7`, `15b17be`), typecheck·renderer 테스트 통과. D2에 다시 merge를 알렸다. D1에 settings e2e 단독 실행(진단용)을 허락했다.
+- 2026-10-25: C-api2 완료(`65bcd6f`, `4d4cb5b`, `93d17ba`) — 합의된 원인 형식, R-C 🟡 3·⚪1 수정, test 1905 보고. C-api·C-api2 통합(`30a12ce`~`e498627`), 통합 HEAD typecheck·test 1910·build 통과(지휘자 실행). D1·D2에 merge를 알렸다. 후속 리뷰 R-Capi(Codex Astra medium). C-api2 해제.
+- 2026-10-25: D1 보고 — 초안은 'Closing Settings waits too'(쓰기 중 닫기 대기)인데 main에 없다. R-Capi 뒤 C 후속 차례에서 main에 닫기 대기를 넣는다(마법사의 기존 busy 규칙과 같다).
+- 2026-10-25: R-Capi 결과 🔴 0 · 🟡 0 · ⚪ 1(실행 중 읽기 회귀 테스트의 시작 시점 보강). R-C 재현 4개가 현재 코드에서 통과. C-guard(Sonnet high, `as-c2`)로 Settings 쓰기 중 닫기 대기와 ⚪1을 보냈다. R-Capi 해제.
+- 2026-10-25: D1 질문 — Projects 목록 경로를 초안처럼 ~/…로 줄일 수단이 Settings에 없다 → C-guard가 main에서 `ProjectRow.displayPath`를 더한다(새 채널·셸 프로브 없음). Root 상세는 절대 경로 그대로.
+- 2026-10-25: C-guard 완료·통합(`b11f599`, `b91bd44`, `50061fa`) — Settings 자기 쓰기 중 닫기는 마법사처럼 거부(초안의 'waits'를 거부 후 재시도로 받아들인다), ⚪1, `displayPath`. 통합 HEAD typecheck·test 1917 통과(지휘자 실행). C 배치 완료: `as-c`(R-C 재현은 `.scratch/orch/app-setup/review-c-repro/`로 복사)·`as-c2` 제거. D1·D2에 merge를 알렸다.
+- 2026-10-25: D2 질문 — 앱이 숨겨진 동안 renderer가 그 사실을 알 수 없다(실측). main→renderer 가시성 이벤트(창 hide/show와 ⌘H 모두, main 전용 채널 하나)를 D2가 main·preload에 더하도록 허락했다.
+- 2026-10-25: D2 완료(`b22710c`, `564a809` window:visible, `a1e3a51` 마법사 1·2단계에 공유 줄; `2e91ca3`은 통합 브랜치 merge) — test 1947·typecheck·build·전체 e2e PASS 보고. `{root}` 형과 `firstSentence`를 지웠고 `folders:open`은 테스트에서만 쓴다. 교차 리뷰 R-D2(Codex Astra medium, e2e 없음). D1 통합 뒤 D2는 다시 merge가 필요하다. D2 워커 해제.
+- 2026-10-25: D1 완료(`e1e69dd`) — test 1918·typecheck·build·전체 e2e PASS 보고(중간 실행의 기존 projects-home 토스트 단계 실패는 바꾸지 않은 재실행에서 통과, 원인 미확정: 타이밍 또는 D2 e2e 동시 실행). 초안에 없던 원인 문장 3개를 D1이 썼다. 통합(`211102b`), postmortem 3건 추가. 통합 HEAD typecheck·test 1918·build 통과(지휘자 실행). D1 워커 해제.
