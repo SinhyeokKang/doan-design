@@ -26,12 +26,12 @@ Conducts one small, surgical change in the order **`/tdd` → commit → `/imple
 2. **Commit #0 `test:`** — tests and fixtures only. Committing in a red state is normal. Skip only when `/tdd` created no files.
 3. **`/implement`** — gate: all tests green + type check passes + 🔴/🟡 resolved. Collect the flags (format, docs, postmortem candidate).
 4. **Commit #1 `feat:`/`fix:`** — implementation only.
-5. **`/code-review`** — no gate. Pass findings to 6. If there is even one 🔴, 6 cannot be skipped.
+5. **`/code-review`** — run the AGENTS-required `/runtime-test` first when `app/` changed; it must pass before review. Review itself has no gate. Pass findings to 6. If there is even one 🔴, 6 cannot be skipped. If 6 changes app code, repeat the affected runtime verification before accepting the revised review.
 6. **`/refactor`** — skip if there are 0 findings or only ⚪. Stop if a stop condition hits (expected value, format, CLI contract, conventions change). Do not move on with 🔴 remaining.
 7. **Commit #2 `refactor:`** — only if 6 changed code.
 8. **`/postmortem`** [gated] — only if commit #1 is `fix:` or there is a postmortem candidate. If it changed something, commit with `docs(postmortem):`.
 9. **Docs freshness** — skim the diff to be pushed once and see whether it disagrees with `docs/PRODUCT.md` or `docs/ARCHITECTURE.md`. If a decision was newly made or reversed, update the relevant section and the §7 decision log (date and rationale). If a feature started with `/feature` is finished, promote the conclusions to PRODUCT (product judgments) and ARCHITECTURE (structure, formats, conventions) and delete `docs/features/<slug>/`. If the way of working changed, update AGENTS.md. PRODUCT, ARCHITECTURE, and AGENTS.md are written in English. Split commits per document (`docs(PRODUCT): ...`).
-10. **Final gate** — rerun tests and type checks at the HEAD to be pushed (skip if docs only).
+10. **Final gate** — use [/verify](../verify/SKILL.md) at the HEAD to be pushed. Select `--runtime` and `--eval` from the change scope; unchanged implementation may reuse earlier runtime evidence under that skill's rule. Pure docs changes use targeted reference checks. The separate AGENTS `/agent-eval` requirement still applies.
 11. **push** — `git push -u origin feat-<slug>`, then `gh pr create --base main`. PR title and body are in English. Claude sessions append the attribution line the session provides to the end of the body. Do not merge.
 
 **Commit rules**: English Conventional Commits. Stage paths one at a time (no `git add -A` or whole directories). If `.env`, `*.pem`, or credential files are staged, stop. Claude session commits end with the `Co-Authored-By` line the session provides; Codex session commits end with `Co-Authored-By: Codex <noreply@openai.com>`.
