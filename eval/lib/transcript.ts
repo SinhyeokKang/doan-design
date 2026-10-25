@@ -1,11 +1,32 @@
 // Read literal arguments without evaluating agent-authored JavaScript. Strings
 // and comments are tokens, so quoted examples cannot become tool invocations.
-function scriptTokens(source: string): string[] {
+export function scriptTokens(source: string): string[] {
   return [...source.matchAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|[\w$]+|[^\s]/g)]
     .map(m => m[0]).filter(t => !t.startsWith("//") && !t.startsWith("/*"));
 }
 
-function execCalls(source: string): { name: string; command?: string }[] {
+// Mirror the CLI's known flag arities; a flag value is never command evidence.
+export function doanCommand(words: string[]): string | undefined {
+  if (!/^(?:.*\/)?doan$/.test(words[0] ?? "")) return undefined;
+  const values = ["repo", "token-css", "add-serve", "remove-serve", "canvas", "agent"];
+  const booleans = ["json", "clear-token-css"];
+  const positionals: string[] = [];
+  for (let i = 1; i < words.length; i++) {
+    const word = words[i];
+    if (word === "--") { positionals.push(...words.slice(i + 1)); break; }
+    if (!word.startsWith("-") || word === "-") { positionals.push(word); continue; }
+    const match = word.match(/^--?([^=]+)(?:=(.*))?$/);
+    if (!match) return undefined;
+    const [, name, value] = match;
+    if (values.includes(name)) { if (value === undefined && ++i >= words.length) return undefined; }
+    else if (!booleans.includes(name) || (value !== undefined && !/^(?:1|0|t|T|true|TRUE|True|f|F|false|FALSE|False)$/.test(value))) return undefined;
+  }
+  return positionals[0];
+}
+
+interface ExtractedCall { name: string; command?: string; patch?: string }
+
+function execCalls(source: string): ExtractedCall[] {
   const tokens = scriptTokens(source);
   const literal = (token: string | undefined): string | undefined => {
     if (!token || !/^["'`]/.test(token) || (token[0] === "`" && token.includes("${"))) return undefined;
@@ -18,10 +39,15 @@ function execCalls(source: string): { name: string; command?: string }[] {
       return escapes[escape] ?? escape;
     });
   };
-  const calls: { name: string; command?: string }[] = [];
+  const calls: ExtractedCall[] = [];
   for (let i = 0; i < tokens.length - 4; i++) {
     if (tokens[i] !== "tools" || tokens[i + 1] !== "." || tokens[i + 3] !== "(") continue;
     const name = tokens[i + 2];
+    if (name === "apply_patch") {
+      const patch = literal(tokens[i + 4]);
+      if (patch !== undefined && tokens[i + 5] === ")") calls.push({ name, patch });
+      continue;
+    }
     if (name !== "exec_command") { if (/^mcp__/.test(name)) calls.push({ name }); continue; }
     if (tokens[i + 4] !== "{") continue;
     let depth = 1;
@@ -37,11 +63,19 @@ function execCalls(source: string): { name: string; command?: string }[] {
   return calls;
 }
 
-function rolloutCalls(event: { type?: string; payload?: { type?: string; name?: string; input?: string; arguments?: string } }): { name: string; command?: string }[] {
+function rolloutCalls(event: { type?: string; payload?: { type?: string; name?: string; input?: string; arguments?: string } }): ExtractedCall[] {
   if (event.type !== "response_item") return [];
   const p = event.payload;
+  if (p?.type === "custom_tool_call" && /^(?:functions\.)?apply_patch$/.test(p.name ?? "") && typeof p.input === "string") return [{ name: "apply_patch", patch: p.input }];
   if (p?.type === "custom_tool_call" && /^(?:functions\.)?exec$/.test(p.name ?? "") && typeof p.input === "string") return execCalls(p.input);
   if (p?.type !== "function_call" || typeof p.name !== "string") return [];
+  if (/^(?:functions\.)?apply_patch$/.test(p.name)) {
+    try {
+      const args = JSON.parse(p.arguments ?? "");
+      const patch = typeof args === "string" ? args : args.patch ?? args.input;
+      return typeof patch === "string" ? [{ name: "apply_patch", patch }] : [];
+    } catch { return []; }
+  }
   if (p.name === "exec_command" || p.name === "functions.exec_command") {
     try {
       const args = JSON.parse(p.arguments ?? "");
@@ -94,10 +128,10 @@ export function shellCommands(transcript: string): string[] {
 // Preserve quoted arguments so echoing a command cannot count as invoking it.
 export function commandWords(command: string): string[][] {
   const groups: string[][] = [[]];
-  for (const token of command.matchAll(/"(?:\\.|[^"\\])*"|'[^']*'|[;&|\n]+|[^\s;&|"']+/g)) {
+  for (const token of command.matchAll(/[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|[^\s;&|"'])+/g)) {
     const value = token[0];
     if (/^[;&|\n]+$/.test(value)) groups.push([]);
-    else groups.at(-1)!.push(/^["']/.test(value) ? value.slice(1, -1) : value);
+    else groups.at(-1)!.push(value.replace(/"((?:\\.|[^"\\])*)"|'([^']*)'/g, (_, double, single) => single ?? double.replace(/\\([\$`"\\\n])/g, "$1")));
   }
   return groups.filter(g => g.length).flatMap(words => {
     if (/^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[0]) && /^-[a-z]*c$/.test(words[1] ?? "") && words[2]) return commandWords(words[2]);
@@ -200,10 +234,14 @@ function toolSearches(transcript: string): ToolSearch[] {
   });
 }
 
-export interface ToolCalls { commands: string[]; mcpTools: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
+export interface ToolCalls { commands: string[]; mcpTools: string[]; patches?: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
 
 export function toolCalls(transcript: string): ToolCalls {
   const outputs = invocationOutputs(transcript);
   const searches = toolSearches(transcript);
-  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(outputs.length ? { outputs } : {}), ...(searches.length ? { toolSearches: searches } : {}) };
+  const patches = transcript.split(/\r?\n/).flatMap(line => {
+    try { return rolloutCalls(JSON.parse(line)).flatMap(call => call.patch === undefined ? [] : [call.patch]); }
+    catch { return []; }
+  });
+  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(patches.length ? { patches } : {}), ...(outputs.length ? { outputs } : {}), ...(searches.length ? { toolSearches: searches } : {}) };
 }

@@ -1,6 +1,6 @@
 import type { Agent } from "./args.ts";
 import type { Check } from "./types.ts";
-import { commandWords, toolCalls, type ToolCalls } from "./transcript.ts";
+import { commandWords, doanCommand, toolCalls, type ToolCalls } from "./transcript.ts";
 
 export type Verdict = "pass" | "partial" | "fail";
 export type Layer = "guide" | "output" | "check" | "product" | "none";
@@ -99,7 +99,7 @@ export function buildJudgePrompt(input: JudgeInput, limits = JUDGE_LIMITS): stri
   // Invocation evidence has its own budget, so verbose tool output cannot evict it.
   const calls = input.calls ?? toolCalls(input.transcript);
   const doanActive = {
-    shellInvoked: calls.commands.flatMap(commandWords).some(words => /^(?:.*\/)?doan$/.test(words[0] ?? "") && words[1] === "active"),
+    shellInvoked: calls.commands.flatMap(commandWords).some(words => doanCommand(words) === "active"),
     mcpInvoked: calls.mcpTools.includes("mcp__doan__active"),
   };
   const outputs = [...new Set((calls.outputs ?? []).map(output => output.callId))].map(callId => {

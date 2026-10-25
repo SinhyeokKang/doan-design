@@ -6,7 +6,7 @@ const checks: Checks = ctx => {
   const canvases = listing.json?.result?.canvases ?? [];
   const findings = check.json?.result?.findings ?? [];
   const documents = canvases.map((canvas: any) => ({ path: canvas.path, html: ctx.read(canvas.path) ?? "" }));
-  const links = ctx.run("python3.12", ["-c", `
+  const links = ctx.run("python3.12", ["-I", "-c", `
 import json, sys
 from html.parser import HTMLParser
 class Links(HTMLParser):

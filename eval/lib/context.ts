@@ -73,8 +73,29 @@ export function sh(cmd: string, args: string[], cwd: string, env: NodeJS.Process
   return { code: result.status ?? -1, stdout: result.stdout ?? "", stderr: (result.stderr ?? "") + (result.error ? `\n${result.error.message}` : "") };
 }
 
+// Post-agent Git reads must not launch repository-configured helpers. Filters
+// also run during diff conversion and intent-to-add, independently of textconv.
+function checkedGit(repo: string, args: string[], env: NodeJS.ProcessEnv) {
+  const config = sh("git", ["-C", repo, "config", "--null", "--get-regexp", "^filter\\..*\\.(clean|process|required)$"], repo, env);
+  if (config.code !== 0 && config.code !== 1) throw new Error(`git config failed: ${config.stderr}`);
+  const overrides = ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"];
+  for (const entry of config.stdout.split("\0").filter(Boolean)) {
+    const key = entry.split("\n")[0];
+    overrides.push("-c", `${key}=${key.endsWith(".required") ? "false" : ""}`);
+  }
+  return sh("git", ["-C", repo, ...overrides, ...args], repo, env);
+}
+
+export function judgeMaterial(ws: { repo: string; env: NodeJS.ProcessEnv; seedCommit: string }, ctx: CheckContext) {
+  const added = checkedGit(ws.repo, ["add", "-A", "-N", "-f"], ws.env);
+  if (added.code !== 0) throw new Error(`git add failed: ${added.stderr}`);
+  const diff = checkedGit(ws.repo, ["diff", "--no-color", "--no-ext-diff", "--no-textconv", ws.seedCommit], ws.env);
+  if (diff.code !== 0) throw new Error(`git diff failed: ${diff.stderr}`);
+  return { changed: ctx.changedFiles(), diff: diff.stdout };
+}
+
 export function createContext(o: ContextOptions): CheckContext {
-  const git = (args: string[]) => sh("git", ["-C", o.repo, ...args], o.repo, o.env);
+  const git = (args: string[]) => checkedGit(o.repo, args, o.env);
   const seed = (path: string): string | null => {
     const result = git(["show", `${o.seedCommit}:${repoPath(o.repo, path)}`]);
     return result.code === 0 ? result.stdout : null;
@@ -99,7 +120,7 @@ export function createContext(o: ContextOptions): CheckContext {
     seed,
     changedFiles() {
       // Against the seed commit, not HEAD, so an agent that commits its work is still seen.
-      const tracked = git(["diff", "--name-only", "-z", "--no-renames", o.seedCommit]);
+      const tracked = git(["diff", "--name-only", "-z", "--no-renames", "--no-ext-diff", "--no-textconv", o.seedCommit]);
       const untracked = git(["ls-files", "-z", "--others"]);
       // git's last stderr line names the cause; the rest is a usage dump.
       if (tracked.code !== 0 || untracked.code !== 0) throw new Error(`git failed: ${(tracked.stderr || untracked.stderr).trim().split("\n").pop()}`);

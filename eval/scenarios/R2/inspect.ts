@@ -5,7 +5,7 @@ export interface Document { nodes: Element[]; css: string; }
 
 // The fixtures are static HTML. HTMLParser handles entities, quote styles and nested labels.
 export function inspect(ctx: CheckContext, html: string): Document {
-  const result = ctx.run("python3.12", ["-c", String.raw`
+  const result = ctx.run("python3.12", ["-I", "-c", String.raw`
 import json, sys
 from html.parser import HTMLParser
 class Parser(HTMLParser):
@@ -52,7 +52,8 @@ export function styles(doc: Document, node: Element | undefined): Record<string,
     for (const declaration of body.split(";")) {
       const split = declaration.indexOf(":");
       if (split < 0) continue;
-      const key = declaration.slice(0, split).trim().toLowerCase();
+      const property = declaration.slice(0, split).trim().toLowerCase();
+      const key = property === "background" ? "background-color" : property;
       const raw = declaration.slice(split + 1).trim();
       const priority = rank + (/!important\s*$/i.test(raw) ? 100000 : 0);
       if ((ranks[key] ?? -1) <= priority) { out[key] = raw.replace(/\s*!important\s*$/i, "").trim(); ranks[key] = priority; }

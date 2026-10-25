@@ -5,7 +5,7 @@ export interface Document { nodes: Element[]; css: string; }
 
 // The fixtures are static HTML. HTMLParser handles entities, quote styles and nested labels.
 export function inspect(ctx: CheckContext, html: string): Document {
-  const result = ctx.run("python3.12", ["-c", String.raw`
+  const result = ctx.run("python3.12", ["-I", "-c", String.raw`
 import json, sys
 from html.parser import HTMLParser
 class Parser(HTMLParser):
