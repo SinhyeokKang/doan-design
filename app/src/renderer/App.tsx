@@ -202,8 +202,8 @@ export function App() {
 
   const modal = wizard !== null || !!comments.dialog || setup !== null || scan !== null || confirms.length > 0 || quickOpen;
   useLayoutEffect(() => { toast.setModal(modal); }, [modal]);
-  const live = useRef({ home, enter, toast, modal, save, entries });
-  live.current = { home, enter, toast, modal, save, entries };
+  const live = useRef({ home, enter, toast, modal, save });
+  live.current = { home, enter, toast, modal, save };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement.closest<HTMLElement>(".home-body [data-path]") ?? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -299,8 +299,8 @@ export function App() {
     setQuickOpen(false);
     const target = entries.find(entry => entry.path === result.root);
     const row = target?.kind === "list" ? target.canvases.find(row => row.path === result.path) : undefined;
-    const unavailable = () => live.current.toast.show(unavailableCanvasMessage(live.current.entries.find(entry => entry.path === result.root), result.path));
-    if (!row) { unavailable(); return; }
+    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.path));
+    if (!row) { unavailable(target); return; }
     const frameId = result.kind === "frame" ? result.frameId : undefined;
     const found = (ok: boolean) => { if (!ok) live.current.toast.show("This frame is not in the rendered canvas"); };
     const openIt = (root: string) => controller.current?.openCanvas(root, row, frameId, { unavailable, ...(frameId === undefined ? {} : { found }) });
@@ -318,7 +318,7 @@ export function App() {
     projectName: root => cards.find(card => card.rows.some(row => row.path === root))?.name ?? names.get(root) ?? root,
     openCanvas: (root: string, row: CanvasRow, explicit: boolean) => {
       cancelRestore();
-      const unavailable = () => live.current.toast.show(unavailableCanvasMessage(live.current.entries.find(entry => entry.path === root), row.path));
+      const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, row.path));
       const open = (next: string) => controller.current?.openCanvas(next, row, undefined, explicit ? { unavailable } : undefined);
       if (root === loadedRoot) { setScreen("workspace"); open(root); }
       else controller.current?.openWorkspace(root, next => { workspaceFocus.current = null; setLoadedRoot(next); setScreen("workspace"); open(next); }, false, explicit ? unavailable : undefined);

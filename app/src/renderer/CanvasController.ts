@@ -344,11 +344,11 @@ export class CanvasController {
   // Any later transition bumps `transitionIntent` and so supersedes the wait.
   private waitingWorkspace: { folder: string; intent: number; open: () => void; unavailable: boolean } | null = null;
 
-  openWorkspace(folder: string, entered: (folder: string) => void, sameCanvas = false, unavailable?: () => void): void {
+  openWorkspace(folder: string, entered: (folder: string) => void, sameCanvas = false, unavailable?: (entry: FolderEntry | undefined) => void): void {
     const kind = () => this.entries.find(entry => entry.path === folder)?.kind;
     this.transition(() => {
       this.waitingWorkspace = null;
-      const open = () => { if (kind() === "list") this.enterWorkspace(folder, entered, sameCanvas); else unavailable?.(); };
+      const open = () => { if (kind() === "list") this.enterWorkspace(folder, entered, sameCanvas); else unavailable?.(this.entries.find(entry => entry.path === folder)); };
       if (kind() === "loading") this.waitingWorkspace = { folder, intent: this.transitionIntent, open, unavailable: !!unavailable };
       else open();
     }, () => kind() === "list" || kind() === "loading" || !!unavailable);
@@ -381,7 +381,7 @@ export class CanvasController {
     });
   }
 
-  openCanvas(folder: string, row: CanvasRow, frameId?: string, target?: { index?: number; found?: (found: boolean) => void; unavailable?: () => void }): void {
+  openCanvas(folder: string, row: CanvasRow, frameId?: string, target?: { index?: number; found?: (found: boolean) => void; unavailable?: (entry: FolderEntry | undefined) => void }): void {
     if (this.state.open?.folder === folder && this.state.shown === row.path) {
       if (frameId !== undefined) {
         const frames = this.state.layout?.frames ?? [];
@@ -402,7 +402,7 @@ export class CanvasController {
       if (this.pendingFrame && this.state.status === "noWidth") { this.pendingFrame.found?.(false); this.pendingFrame = null; }
     }, () => {
       if (current() !== undefined) return true;
-      target?.unavailable?.();
+      target?.unavailable?.(this.entries.find(entry => entry.path === folder));
       return false;
     });
   }
