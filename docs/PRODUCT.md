@@ -566,6 +566,7 @@ Results:
 | 2026-10-25 | app-setup: Use Copy again after editing a waiting prompt | Conductor D2/S decision — expresses the repeat copy; the draft specimen was reconciled in design-sync |
 | 2026-10-25 | Defer approved quit teardown by one event-loop turn; retain state flush and terminal thumbnail disposal before native window closing | Quit-crash investigation: Electron can reenter quit before a thumbnail window constructor has a JS wrapper; the deterministic native regression fails before this containment and passes after it (ARCHITECTURE §3, POSTMORTEM) |
 | 2026-10-25 | Add development skills `/audit`, `/doc-check`, `/ux-audit` and `/verify`; keep their procedures in AGENTS and skill sources | User decision — repository-wide maintenance complements diff review, and one sequential verification command prevents workflow gates from diverging; merge automation remains deferred until the planned dev/main split at deployment |
+| 2026-10-25 | Use specialist subagents and lead-owned coverage completion in `/audit`, `/ux-audit` and `/doc-check` | User decision after the first audit stopped with major areas unread — adapt malmoi's perspective/document-owner reviews, integrate evidence centrally, and continue partial coverage instead of reporting a full audit complete |
 
 ## 8. Open questions
 
