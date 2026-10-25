@@ -581,6 +581,30 @@ try {
   assert.deepEqual(await bounded(approvedExit, 5000, "ordinary approved quit"), { code: 0, signal: null });
   await closeApp(app); app = undefined;
   assert.equal(await readFile(join(userData, "runtime.json")).then(() => true, () => false), false, "approved quit removes runtime");
+  // Also approve a plain unknown response through the same native lifecycle.
+  app = await _electron.launch(launchOptions); rememberApp(app);
+  const unknownPage = await app.firstWindow(); unknownPage.setDefaultTimeout(10_000);
+  await canvasRow(unknownPage, "a.html").click();
+  const unknownPanel = unknownPage.getByRole("region", { name: "Comments", exact: true });
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler("comments:mutate");
+    ipcMain.handle("comments:mutate", (_event, request) => ({ ok: true, identity: request, value: { state: "unknown" } }));
+  });
+  await unknownPanel.getByRole("button", { name: "New canvas comment", exact: true }).click();
+  await unknownPanel.getByRole("textbox", { name: "New comment body" }).fill("Unknown quit approval");
+  await unknownPanel.getByRole("button", { name: "Save comment", exact: true }).click();
+  await unknownPanel.getByText("Save status is unknown", { exact: true }).waitFor();
+  await app.evaluate(({ app }) => app.quit());
+  const unknownDialog = unknownPage.getByRole("dialog");
+  await unknownDialog.getByRole("button", { name: "Quit anyway", exact: true }).waitFor();
+  await unknownPage.screenshot({ path: join(shots, "18-unknown-quit-approval.png") });
+  const unknownProcess = app.process();
+  const unknownExit = new Promise<{ code: number | null; signal: string | null }>(resolve => unknownProcess.once("exit", (code, signal) => resolve({ code, signal })));
+  await unknownDialog.getByRole("button", { name: "Quit anyway", exact: true }).click();
+  assert.deepEqual(await bounded(unknownExit, 5000, "unknown approved quit"), { code: 0, signal: null });
+  await closeApp(app); app = undefined;
+  assert.equal(await readFile(join(userData, "runtime.json")).then(() => true, () => false), false, "unknown approved quit removes runtime");
+
 
 
 } catch (error) {

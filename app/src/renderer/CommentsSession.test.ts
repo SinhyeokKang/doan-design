@@ -172,6 +172,12 @@ describe("uncertain draft transitions", () => {
     await s.check(); s.answerUncertain(id, true);
     expect(await quit).toBe(false); expect(s.draft.draft).toBeNull(); expect(s.guard()).toBe(true);
   });
+  test("confirmed absence keeps its existing retry contract without an unknown-save warning", async () => {
+    const { session: s } = await uncertain();
+    await s.check(); expect(s.saveView.status).toBe("retry-original");
+    expect(s.guard("quit")).toBe(false); expect(s.uncertainTransition).toBeNull();
+    await s.retry(); expect(s.draft.draft).toBeNull(); expect(s.guard("quit")).toBe(true);
+  });
   test("an in-flight save does not offer a loss confirmation", async () => {
     const { session: s, api } = fixture(); await s.open(identity); await s.create("canvas"); s.body("saving");
     let finish: (() => void) | undefined;
