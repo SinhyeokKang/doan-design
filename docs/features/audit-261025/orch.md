@@ -204,3 +204,6 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 
 - A3b Dispatch `ctx_265779b173a1`, T Dispatch `ctx_bd118346d0b3` 모두 Astra medium effective와 turn_start를 확인했다. T에 원래 구현 native red→수정 후 thumbnails 단독 실행 슬롯을 배정했다.
 - 독립 리뷰 IR-T·IR-A3b는 각각 Codex gpt-6-astra medium으로 진행한다. 전자는 프레임/작업 수명과 failure 분류, 후자는 immutable 요청·종료 승인·취소·늦은 응답을 검토한다. 작성자는 자기 diff를 리뷰하지 않으며 report만 작성한다.
+
+- T 원본 `128d33c`, `2b48ba4`를 `83d2363`, `0922f97`로 통합했다. 단위 red 4건→43건 green·typecheck, 실제 기존 구현 nested HTTP red→수정 후 thumbnails PASS·exit 0·실사용자 상태 unchanged 근거를 인수했다. 외곽 HTTP/network 실패 음성 대조와 중첩 실패 PNG 픽셀을 검증했으며 지휘자도 두 PNG를 열어 확인했다. 이전 작업 오염은 synthetic 단위 근거뿐임을 유지한다.
+- T 구현 terminal은 release, child는 독립 IR-T `ctx_4cd42f4c1c7c`가 읽는 동안 보존한다. A3b는 T 슬롯 반환 후 단독 build/comments-ui 실행을 승인받았다. 관련 127개 단위 테스트·typecheck 및 quit 연결 제거 mutation 실패 보고를 인수했으며 실제 native·독립 검토는 아직이다.
