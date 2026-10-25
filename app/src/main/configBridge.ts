@@ -3,9 +3,8 @@ import { isAbsolute, join } from "node:path";
 import { validateEnvelope } from "../formats/validate";
 import type { CliRun } from "./folderState";
 
-// The Projects tab's config (app-setup design 'Projects 탭'). The app never
-// writes `.doan/config.json` itself: every read and write is `doan config`
-// (POSTMORTEM 2026-10-22, config writes stay in Go).
+// Keep config parsing and writes in Go by delegating to `doan config`
+// (ARCHITECTURE §7, Config bridge; POSTMORTEM 2026-10-22).
 
 export type ConfigKind = "tokenCss" | "serve";
 export type ConfigReply =

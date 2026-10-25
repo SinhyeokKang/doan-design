@@ -1,5 +1,5 @@
-// First prompt wait state (app-setup design.md 'First prompt'). Renderer memory
-// only: a restart forgets it. Pure so the wizard and the empty workspace share it.
+// Keep waiting in renderer memory so restart forgets it; share the pure state
+// between wizard and empty workspace (ARCHITECTURE §7, FirstPrompt state).
 
 export interface ArrivalRow { path: string; mtimeMs?: number }
 

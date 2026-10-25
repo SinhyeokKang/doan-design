@@ -251,9 +251,6 @@ code, kbd { font-family: var(--font-sans); }
 .setup-dialog { width: 520px; }
 .setup-dialog .ob-buttons { margin-top: 16px; }
 .reroot-hint { padding-left: 12px; }
-/* Draft decision: a full sentence with a long path wraps instead of running past the window.
-   The padding restates the shadcn px-3 py-1.5, which the unlayered reset above overrides. */
-.prompt-tooltip { max-width: 420px; padding: 6px 12px; }
 
 .home-body { min-height: 0; overflow: auto; padding: 8px 32px 32px; position: relative; }
 .home-body .sec { padding: 16px 0 10px; }

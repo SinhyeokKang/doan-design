@@ -1,6 +1,5 @@
-// The first prompt sentence. Pure and shared: main builds the preview and the
-// clipboard text with this function, and the renderer uses it to know whether
-// Copy is available, so both always agree (app-setup design.md 'First prompt').
+// Share validation so main preview/clipboard text and renderer Copy availability
+// agree (ARCHITECTURE §7, Onboarding and project preload contract).
 
 export const MAX_SUBJECT_LENGTH = 500;
 

@@ -1,8 +1,8 @@
 import { displayPath } from "../renderer/projectDisplay";
 import type { FolderEntry } from "./view";
 
-// Pure parts of the Settings window (app-setup design 'Settings 창'). Kept free
-// of Electron so the request parsers can be tested on their own.
+// Keep request parsing independent of Electron so the Settings boundary can be
+// tested on its own (ARCHITECTURE §7, Settings, setup status and first-prompt IPC).
 
 export type SettingsTab = "connections" | "projects";
 export type ConnectionRow = "cli" | "claude" | "codex";
