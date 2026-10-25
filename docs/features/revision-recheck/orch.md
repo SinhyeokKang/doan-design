@@ -58,3 +58,4 @@ tasks.md의 1~14는 모두 위 배치 중 하나에 속한다(11은 실행하지
 - 2026-10-26: A 알림 — 기존 fixture 5개 중 delete-followups(최종 삭제)와 human-unicode-tied-lifecycle(최종 해결)은 최종 상태가 같아 expected.json을 그대로 두고, 중간 상태는 prefix 단언으로 고정한다. 받아들였다.
 - 2026-10-26: X 완료 — tasks 1 측정 결과를 tasks.md 1에 옮겼다(최대 149ms, 기준 500ms 안). 커밋 없음. X 해제.
 - 2026-10-26: S 질문 — `edit-reopen` intent를 더하면 renderer `CommentsSession.ts:354`의 confirmCard 가드가 typecheck를 깨뜨린다. 허락: S가 그 가드에 `edit-reopen`을 더한다(edit처럼 초안 경로로 간다, E가 연결).
+- 2026-10-26: A 완료(Codex Sol medium, `3b11f3d`, `4a91aa0`) — red 뒤 green, go test·vet, 앱 테스트 2426, typecheck 통과. 바뀐 기존 expected.json은 3개(승인한 차이). 통합(`e9a766b`, `8395a0f`), 통합 HEAD go test 통과(지휘자 실행). A 해제, `rr-a` 제거. R-A(Opus medium, 다른 계열 리뷰)와 K(Codex `gpt-6.1-sol` medium) 시작.
