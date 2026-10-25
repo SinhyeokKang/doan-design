@@ -87,3 +87,11 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 - A1 작업 완료: 원본 `af812bc`, `a276ac4`, `a14739a`, `2d4a9cb`. 소유한 6개 파일만 변경했고, 수정된 테스트를 원래 구현에 다시 대조한 10개 red와 관련 417개 테스트·typecheck green을 인수했다. 실제 CLI 바이트 입력 3건 대조도 인수했다. 통합 runtime와 독립 리뷰는 미완료다. 증거는 `A1-evidence/`에 복사했다.
 - IR-C 모델: Codex gpt-6-astra medium. A1 구현 워커를 독립 CLI 리뷰에 즉시 재사용한다(자기 구현을 리뷰하지 않음). 대상은 C diff뿐이며 소스 수정·실행 금지, `.scratch/review-C.md`만 작성한다. 특히 hard-link publication의 파일시스템 제약, 경로 정체성, 실패 복구와 기존 init 계약을 검토한다.
 - E가 전체 runner tests → self-test 슬롯을 사용 중이다. 다른 full/runtime/stress 실행은 예약하지 않았다.
+
+### C 리뷰 보완·A2 인수·통합 런타임 실패
+
+- IR-C 완료: 필수 수정 0, 권장 수정 1. `os.Link`가 init에 문서화되지 않은 파일시스템 조건을 추가하므로 C-fix에서 기존 sibling-temp rename 방식으로 되돌리고, attributes 기록 뒤 publication 실패·재시도 회귀를 추가한다. 기존 비트랜잭션 계약을 유지하며 rename의 배타성을 주장하지 않는다. 모델은 기존 C 소유자의 Codex gpt-6-astra medium: 파일시스템 실패·복구 판단이 필요하다.
+- A2 완료: 원본 `faa52ec`, `d819a08`, 161개 관련 테스트·typecheck 통과 근거를 `A2-evidence/`로 복사했다. 아직 통합·독립 리뷰·네이티브 숨김 검증 전이다. A2 소유자는 C-fix 새 Task로 즉시 재사용한다.
+- IR-E: `ctx_b27489a00957`, A1 구현자를 독립 eval 리뷰에 재사용했다. Codex gpt-6-astra medium, 실행 경계와 정적 평가 판정 검토. eval만 읽고 `.scratch/review-E.md`를 작성한다.
+- H: `ctx_328b75053815`, E 구현자를 app/e2e 하네스 수정에 재사용했다. Codex gpt-6-astra medium, 종료·시간제한·비동기 검증 판단. A2 문구 단언 두 곳은 포함하되 네이티브 숨김/no-ID 회귀는 통합 뒤 별도 Task로 남긴다.
+- HEAD `6c6135c`의 `npm --prefix app run e2e`는 exit 1, 최종 `runtime-test: FAIL`이다. projects-home.ts:188 버튼 높이가 기대 21px 대신 22px이었다. `.scratch/audit-integration-261025/runtime-C-A1.log`와 failure.png를 확인했다. main/comments-ui/onboarding은 통과했으나 뒤의 suite는 미실행이다. 실사용자 상태는 unchanged였다. H에 원인 분석을 요청했으며 단언 완화로 통과시키지 않는다. 전체 런타임 슬롯을 반환했다.
