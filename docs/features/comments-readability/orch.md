@@ -30,7 +30,8 @@
 | Q | 5 일부 | `RightPanel.tsx`, `canvasInfo.ts`, `CommentPins.ts`, `Sidebar.tsx`(aria)와 테스트, `app/e2e/{anchors,runtime}.ts`의 aria·Canvas 정보 단언 | P 통합 | Opus medium (문구와 구성 제거) | test, typecheck | 통합 5d1abd1, 6964435 |
 | L | 5 나머지 | `CommentsPanel.tsx`, `styles.css`, `App.tsx`, 포커스에 필요한 `CommentPins.ts`·`Sidebar.tsx`와 테스트 | W, Q 통합 | Opus high (비동기 필터 뒤 포커스, 대화상자와의 순서, container 높이) | test, typecheck | 통합 479f5de, aae3766 |
 | E | 6, 7 | `.scratch/comments-readability/`, `app/e2e/comments-ui.ts`, `app/e2e/runtime.ts` export | L 통합 | Opus high (실제 창 도달성 측정, fixture 경고, identity 캔버스 시나리오) | 측정 로그·스크린샷, 모듈 단독 실행 PASS(전체 e2e는 지휘자) | 대기 |
-| F | R-W 🟡1·⚪2 | `useComments.tsx`와 테스트 | L 통합 | Opus high (렌더 시점의 세션 정체성 판정) | test red→green, typecheck | 진행 |
+| F | R-W 🟡1·⚪2 | `useComments.tsx`와 테스트 | L 통합 | Opus high (렌더 시점의 세션 정체성 판정) | test red→green, typecheck | 통합 352bf4b, 54a0130 |
+| F2 | R-L 🟡1·⚪1, postmortem | `useComments.tsx`와 테스트, `docs/POSTMORTEM.md` | F 통합 | Opus high (비동기 완료를 최신 의도에 묶는 수명) | test red→green, typecheck | 진행 |
 | R-* | 배치별 리뷰 | 보고서만 | 각 구현 배치 | R-PM·R-Q·R-L: Codex `gpt-6-astra` medium. R-W·R-E: Opus high. R-G: Opus medium | `/code-review`, 🔴 0 | — |
 | 지휘자 | 8 | — | 전부 통합 | — | `node .agents/skills/verify/scripts/verify.mjs --runtime` 최종 PASS, exit 0 | 대기 |
 | G | 9 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/DIRECTORY.md`, 이 디렉터리 삭제 | 8 | Opus medium (승격 위치가 tasks 9에 다 나와 있다) | 문서 diff 검토, 위 git grep 결과 없음 | 대기 |
@@ -66,3 +67,4 @@ tasks.md의 1~9는 모두 위 배치 중 하나에 속한다.
 - 2026-10-26: 4파 시작 — F(`ctx_f33d20f40350`, Opus high, `cr-f`, R-W 수정), R-L(`ctx_2669067d8b04`, Codex `gpt-6-astra` medium, `cr-r-l`), E(`ctx_358544aac2f2`, Opus high, `cr-e`). 리뷰 모델 배정을 바꿨다: R-L은 Codex, R-E는 Opus high(E가 실제 창 측정이라 같은 계열로 재현하기 쉽다). E는 e2e와 `.scratch`만 고치므로 F와 겹치지 않아 병렬로 돈다.
 - 2026-10-26: F 질문 — 캔버스 전환 첫 렌더에 이전 캔버스의 readError도 새 캔버스의 읽기 실패로 보인다. 허락: 패널 읽기 상태도 같은 조건(세션 identity = 열린 행)으로 막아 그 렌더는 로딩으로 보인다. `canSave`는 세션의 readError를 그대로 쓴다.
 - 2026-10-26: R-L 완료(Codex Astra medium) — 🔴 0 · 🟡 1 · ⚪ 1. 🟡: 지연된 저장·핀 포커스 요청이 그 뒤에 연 새 작성기의 입력 포커스를 가져간다(IME 조합 중 포함, 재현 3건). ⚪: 저장 뒤 앵커 재조회에 응답이 없으면 포커스 대기가 끝나지 않는다. 결정: 지연 포커스는 그것을 시작한 사용자 동작에 묶고, 새 작성기·편집기·대화상자, 다른 선택이나 캔버스, 필터 변경에서 버린다. 앵커 무응답이면 측정 응답 제한 시간 뒤 제목에 남기고 끝낸다. F 통합 뒤 수정 배치 F2(Opus high)가 맡는다. 근거: `evidence-R-L/`. R-L 해제, `cr-r-l` 제거.
+- 2026-10-26: F 완료(`0b56dad`, `358fe4b`) — red 1건 뒤 green, 변이 검사 4건이 각각 새 테스트 하나를 실패시킴. 세션 identity가 열린 행(root + canvas id)과 같을 때만 목록·readError·원인을 패널에 쓴다. 통합(`352bf4b`, `54a0130`), 통합 HEAD test 2409·typecheck 통과(지휘자 실행). F 해제, `cr-f` 제거. F2(`ctx_519455999cff`, Opus high, `cr-f2`) 시작 — R-L 수정과 두 리뷰 결함의 postmortem.
