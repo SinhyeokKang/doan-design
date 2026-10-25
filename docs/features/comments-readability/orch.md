@@ -26,7 +26,7 @@
 |---|---|---|---|---|---|---|
 | P | 1, 2 | `app/src/comments/targetLabel.ts`, `app/src/comments/panelText.ts`와 테스트(새 파일) | — | Opus high (대상 표시의 경계와 패널 상태 우선순위가 다른 기능의 기준이 된다) | `npm --prefix app test` red→green, `typecheck` | 통합 1603ed5, 47b71cc |
 | M | 3 | `app/src/main/comments/{identity,service}.ts`, `app/src/preload/index.ts` 타입과 각 테스트 | — | Codex `gpt-6.1-sol` medium (원인 코드를 더하는 작은 기계적 변경) | test(identity·service), typecheck | 통합 2932e4d, f2132f8 |
-| W | 4 | `CommentsPanel.tsx`, `useComments.tsx`, `styles.css`(대상 줄), 두 테스트, e2e 버튼 이름·문구(`presentation`, `design-nav`, `projects-home`, `onboarding`, `comments-ui`, `revision-continuity`) | P, M 통합 | Opus high (읽기 실패와 쓰기 차단 분리, identity 블록, 작성 중 외부 갱신·IME 유지) | test, typecheck | 대기 |
+| W | 4 | `CommentsPanel.tsx`, `useComments.tsx`, `styles.css`(대상 줄), 두 테스트, e2e 버튼 이름·문구(`presentation`, `design-nav`, `projects-home`, `onboarding`, `comments-ui`, `revision-continuity`) | P, M 통합 | Opus high (읽기 실패와 쓰기 차단 분리, identity 블록, 작성 중 외부 갱신·IME 유지) | test, typecheck | 통합 f8891d2, 536b43b |
 | Q | 5 일부 | `RightPanel.tsx`, `canvasInfo.ts`, `CommentPins.ts`, `Sidebar.tsx`(aria)와 테스트, `app/e2e/{anchors,runtime}.ts`의 aria·Canvas 정보 단언 | P 통합 | Opus medium (문구와 구성 제거) | test, typecheck | 통합 5d1abd1, 6964435 |
 | L | 5 나머지 | `CommentsPanel.tsx`, `styles.css`, `App.tsx`, 포커스에 필요한 `CommentPins.ts`·`Sidebar.tsx`와 테스트 | W, Q 통합 | Opus high (비동기 필터 뒤 포커스, 대화상자와의 순서, container 높이) | test, typecheck | 대기 |
 | E | 6, 7 | `.scratch/comments-readability/`, `app/e2e/comments-ui.ts`, `app/e2e/runtime.ts` export | L 통합 | Opus high (실제 창 도달성 측정, fixture 경고, identity 캔버스 시나리오) | 측정 로그·스크린샷, 모듈 단독 실행 PASS(전체 e2e는 지휘자) | 대기 |
@@ -57,3 +57,5 @@ tasks.md의 1~9는 모두 위 배치 중 하나에 속한다.
 - 2026-10-26: R-PM 완료(Codex Astra medium) — 🔴 0 · 🟡 0 · ⚪ 1(원인 타입을 두 곳에 따로 선언). W가 이미 한 타입으로 합치는 중이다. R-PM 해제, `cr-r-pm` 제거.
 - 2026-10-26: Q 완료(`3775005`, `74edbca`) — red 5건 뒤 green, test 2364·typecheck 통과. 남은 것: `styles.css`의 `.accent` 규칙이 쓰이지 않게 됨(L에 보낸다), Home·Project Overview의 'N open comments'는 단수형을 적용하지 않음(브리프 범위 밖, Home 요약은 spec대로 `revision-recheck`·`project-feedback`가 정리). 통합(`5d1abd1`, `6964435`). Q 해제, `cr-q` 제거. R-Q(Codex `gpt-6-astra` medium, `cr-r-q`) 시작.
 - 2026-10-26: R-Q 완료(Codex Astra medium) — 🔴 0 · 🟡 0 · ⚪ 1(쓰이지 않는 `.accent`, L에 이미 넣었다). R-Q 해제, `cr-r-q` 제거.
+- 2026-10-26: W 완료(`6a9f18f`, `022c347`) — red 35건 뒤 green. 승인한 확장: `CommentsSession.ts` read 경로, `panelText.ts`의 type import. 계획과 다른 점: 쓰기 응답의 identity 원인은 블록으로 보이지 않고 다음 읽기에서 보인다, identity 블록 아래에도 열린 편집기는 남는다(막힌 채), 경고 목록 CSS를 더했다. revision-continuity 모듈 단독 실행(화면 잠김)은 첫 실행에 t11 1건 실패, base와 재실행은 모두 통과. 통합(`f8891d2`, `536b43b`), 통합 HEAD test 2389·typecheck 통과(지휘자 실행). W 해제, `cr-w` 제거.
+- 2026-10-26: 3파 시작 — L(`ctx_861936f2a932`, Opus high, `cr-l`), R-W(`ctx_487ce6f407a2`, Opus high, `cr-r-w`). R-W 지적 중 L이 가진 파일의 것은 L 통합 뒤 수정 배치로 보낸다.
