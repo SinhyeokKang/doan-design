@@ -215,3 +215,5 @@
 - C/O/S/K/N/P/P2 전체를 포함한 clean HEAD에서 `node .agents/skills/verify/scripts/verify.mjs --runtime`을 실행한다. Go·타입·단위·build·전체 Electron 및 presentation production/DEV 연결을 순차 검증하며 실행 중 소스는 고정한다.
 - 이번 단계는 app와 문서만 바꿨으며 CLI/MCP/guide/eval runner 변경이 없다. 따라서 audit 단계의 eval runner 및 실제 양 에이전트 검증을 기존 증거로 참조하고, 새 eval 실행으로 주장하지 않는다. audit의 fake runner 128 unit/15 fixture와 실제 14/14 결과 및 그 범위 제한은 audit orch에 있다.
 - N-3 과거 첫 layout 실패, 기존 production Radix inline-style CSP 경고, U-38/46과 실제 native Finder drag/drop은 해결·검증 완료로 집계하지 않는다. 합본 결과와 push/PR/병합 영수증은 아래에 추가한다.
+
+- clean `32d635e`의 첫 합본 gate는 runner 7 tests·Go test/vet·typecheck 뒤 app-test에서 exit 1로 멈췄다(97파일 중 1실패, 2076개 중 1실패). P가 추가한 Overview 제목의 title 속성을 기존 ProjectOverview 문자열 정규식이 허용하지 않는다. 제품 결함으로 숨기거나 통과로 집계하지 않으며 Electron은 아직 실행하지 않았다. V-fix는 ProjectOverview.test.tsx의 직접 기대만 고쳐 title과 표시 텍스트를 함께 검증한다. Codex gpt-6.1-sol medium: 구현 변경 없는 좁은 테스트 정합성 수정이다. 관련 테스트·typecheck·독립 리뷰 후 전체 gate를 다시 실행한다.
