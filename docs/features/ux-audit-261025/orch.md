@@ -20,7 +20,7 @@
 
 ## 전체 발견 소유권
 
-| ID | 최초 검토 담당 | 현재 상태 |
+| ID | 최초 검토 담당 | 최초 처분·담당 계획 (통합 결과는 아래 기록) |
 |---|---|---|
 | U-1 | R-A | audit에서 해결: stable unknown/check-failed/recovery-blocked 경고. saving/checking의 승인 금지는 유지(CommentsSession.guard) |
 | U-2 | R-T | 채택, N 예정: App restore가 새 사용자 intent·expanded·memory를 덮지 않게 한다 |
@@ -206,3 +206,12 @@
 - IR-P red 0/yellow 0을 인수했다. 270개 manifest 중 이후 K/P2가 바꾼 세 fixture 외 제품·presentation·build가 일치했다. P/P2를 `77d8bdb`·`2925174`·`c8d8032`·`f6db3ca`로 통합하고 reviewer를 release했다. clean child·모든 patch 통합·증거 보존을 확인한 뒤 P child를 Orca로 삭제했으며 목록에서 사라진 것을 확인했다. 실제 합본 실행은 N-fix 인수 후 진행한다.
 - N-fix `ed19103`·`8196ef7`·`aa02c82`·`fd3bcb8`을 인수했다. 124 focused tests·typecheck·전체 design-nav PASS/SHELL_EXIT:0·real-state 보존과 전후/원복 해시 일치를 확인했다. 동일 최종 fixture의 이전 소스 음성 대조는 다섯 사례 모두 실패했다. 콜백 완료 뒤에도 React가 이전 toast를 보여줄 수 있어 정확한 렌더 완료를 기다렸으며, 기대값을 완화하지 않았다. N-3은 과거 원인 미확정으로 남는다. 새 정상 복원에서 HTTP 200·현재 iframe의 첫 layout 5프레임을 관찰했지만 과거 실패의 설명으로 쓰지 않는다. root Nfix-evidence에 241파일을 해시 대조해 보존했고 지휘자도 변경된 대상/읽기 실패의 실제 안내 화면을 확인했다.
 - N-fix 작성자를 release하고 IR-N-fix `ctx_40a5ea1a0fd8`의 Astra medium effective·turn_start를 확인했다. 단독 native/build 슬롯은 반환됐으며 모든 코드 통합 뒤 지휘자 gate에 사용한다.
+
+- IR-N-fix는 red 0이며 N-1/2를 닫았다. 남은 yellow 1은 N-3의 원인 미확정 관측이고 구체적인 통합 차단 회귀는 발견하지 않았다. 지휘자는 이를 해결로 표기하지 않고 합본 gate로 진행한다. N/N-fix 18개 커밋을 `53dfef7`부터 `88dcca0`까지 순서대로 통합했다. reviewer를 release했고 clean·모든 patch 통합·증거 보존을 확인한 뒤 N child를 Orca로 삭제했으며 목록에 root만 남은 것을 확인했다.
+
+## 합본 검증 계획
+
+- 52건의 처분: 채택 범위 36건 통합, audit에서 이미 해결 2건(U-1/7), 기존 계약·근거에 따른 기각 12건, 미검증 2건(U-38/46). 원본 리포트의 발견과 각 항목의 축소·제외 범위는 보존한다.
+- C/O/S/K/N/P/P2 전체를 포함한 clean HEAD에서 `node .agents/skills/verify/scripts/verify.mjs --runtime`을 실행한다. Go·타입·단위·build·전체 Electron 및 presentation production/DEV 연결을 순차 검증하며 실행 중 소스는 고정한다.
+- 이번 단계는 app와 문서만 바꿨으며 CLI/MCP/guide/eval runner 변경이 없다. 따라서 audit 단계의 eval runner 및 실제 양 에이전트 검증을 기존 증거로 참조하고, 새 eval 실행으로 주장하지 않는다. audit의 fake runner 128 unit/15 fixture와 실제 14/14 결과 및 그 범위 제한은 audit orch에 있다.
+- N-3 과거 첫 layout 실패, 기존 production Radix inline-style CSP 경고, U-38/46과 실제 native Finder drag/drop은 해결·검증 완료로 집계하지 않는다. 합본 결과와 push/PR/병합 영수증은 아래에 추가한다.
