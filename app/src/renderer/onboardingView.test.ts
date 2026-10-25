@@ -380,12 +380,12 @@ describe("step 4 branches", () => {
     expect(promptStepView(null, list, false)).toEqual({ addProject });
   });
   test("with a project and no arrival only the first prompt shows", () => {
-    expect(promptStepView("/code/acme", null, false)).toEqual({});
+    expect(promptStepView({ kind: "list", path: "/code/acme", canvases: [], servedRev: 0 }, null, false)).toEqual({});
   });
   test("an arrival shows Canvas ready with Open, named by title or file name", () => {
-    expect(promptStepView("/code/acme", list, false)).toEqual({ ready: { text: "Canvas ready: Pricing", open: { label: "Open", disabled: false } } });
-    expect(promptStepView("/code/acme", row("design/sign-in.html"), false).ready?.text).toBe("Canvas ready: sign-in");
-    expect(promptStepView("/code/acme", list, true).ready?.open.disabled).toBe(true);
+    expect(promptStepView({ kind: "list", path: "/code/acme", canvases: [], servedRev: 0 }, list, false)).toEqual({ ready: { text: "Canvas ready: Pricing", open: { label: "Open", disabled: false } } });
+    expect(promptStepView({ kind: "list", path: "/code/acme", canvases: [], servedRev: 0 }, row("design/sign-in.html"), false).ready?.text).toBe("Canvas ready: sign-in");
+    expect(promptStepView({ kind: "list", path: "/code/acme", canvases: [], servedRev: 0 }, list, true).ready?.open.disabled).toBe(true);
   });
 });
 
@@ -442,4 +442,17 @@ test("missing wizard project names its available Open Project action and preserv
   expect(missing.open.disabled).toBe(false);
   expect(projectStepView({ path: "/gone", kind: "error", message: "Config: raw failure" }, form).error).toBe("Config: raw failure");
   expect(projectStepView({ path: "/gone", kind: "cliError", reason: "CLI: raw failure" }, form).error).toBe("CLI: raw failure");
+});
+
+
+test.each([
+  [{ kind: "uninitialized", path: "/code/p" }, "Not set up", "Set Up…"],
+  [{ kind: "loading", path: "/code/p" }, "Reading…", "Review Project"],
+  [{ kind: "notFound", path: "/code/p" }, "Missing", "Review Project"],
+  [{ kind: "error", path: "/code/p", message: "Bad config" }, "Config error", "Review Project"],
+  [{ kind: "cliError", path: "/code/p", reason: "timed out" }, "CLI error", "Review Project"],
+] as const)("step 4 keeps the chosen $0.kind project's true state", (entry, status, label) => {
+  const view = promptStepView(entry, null, false);
+  expect(view).toEqual({ project: { path: entry.path, status, label, disabled: false } });
+  expect(promptStepView(entry, null, true).project?.disabled).toBe(true);
 });

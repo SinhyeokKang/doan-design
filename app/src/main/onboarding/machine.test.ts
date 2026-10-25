@@ -448,3 +448,10 @@ test("a foreign missing Claude target remains broken when the shared stub is mis
   const card = agentsView(before, idleUi()).agents.find(card => card.agent === "claude");
   expect(card?.items.find(item => item.key === "claude-link")).toMatchObject({ chip: { text: "Link is broken" } });
 });
+
+test.each(["claude", "codex"] as const)("missing %s uses the display name and actionable check guidance", async agent => {
+  const m = machine(); const state = await m.read("missing");
+  expect(await m.run({ step: "connect", agent, expected: state.expected })).toMatchObject({
+    kind: "unavailable", message: `Couldn't find ${agent === "claude" ? "Claude Code" : "Codex"}. Install it, then choose Check Again.`,
+  });
+});
