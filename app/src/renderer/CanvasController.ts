@@ -2,7 +2,7 @@ import { projectPins, type CommentPin } from "../comments/projection";
 import { anchorSnapshot, type AnchorSnapshot, type CommentBinding, type CommentHooks, type PinDestination } from "./commentAnchors";
 import { CommentPins } from "./CommentPins";
 import type { AnchorsMessage } from "./canvasMessage";
-import type { Selection } from "../formats/types";
+import type { Comment, Selection } from "../formats/types";
 import type { ViewCommand } from "../main/index";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { CanvasRow, FolderEntry } from "../main/view";
@@ -12,7 +12,7 @@ import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
 import { activityFor, activityKey, pushActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
-import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
+import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, locateView, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { currentFrame } from "./currentFrame";
 
 export const MEASURE_ANSWER_MS = 1000;
@@ -220,6 +220,31 @@ export class CanvasController {
       !this.pins.some(pin => pin.node === node)) return;
     this.pendingPin = { seq: this.seq + 1, intent, generation, revision, destination };
     this.sendCommand({ type: "select-comment", node, document: this.anchorDocument, generation, request: this.anchorRequest });
+  }
+
+  // Moves the view to a node of the current anchors at the same zoom and
+  // highlights it, without selecting (Review steps, RR3; like a frame jump).
+  // `generation` is the anchors' lookup the node came from: node tokens
+  // restart in every new document, so an older one may name another element.
+  jumpToNode(node: string, generation: number): boolean {
+    const rect = generation === this.anchorGeneration ? this.anchors?.rects.get(node) : undefined;
+    if (!rect || this.frame === null) return false;
+    this.view = locateView(rect, this.viewportSize(), this.view);
+    this.showJump(rect);
+    this.applyView();
+    return true;
+  }
+
+  // A card's target line: unlike a pin, it works for a target no pin shows
+  // (off screen, resolved) and selects through select-anchor, so the panel's
+  // filters stay (feature revision-recheck). `selecting` runs only when the
+  // select is actually sent, after the draft guard.
+  locate(node: string, generation: number, comment: Comment, selecting?: () => void): void {
+    const current = () => generation === this.anchorGeneration && this.anchors?.lookup.nodes.get(comment.comment) === node;
+    if (!current() || !this.jumpToNode(node, generation)) return;
+    const { frame, element } = comment.target;
+    const anchor = element ? { ...(element.doanId === undefined ? {} : { doanId: element.doanId }), selector: element.selector } : { frame };
+    this.transition(() => { selecting?.(); this.sendCommand({ type: "select-anchor", ...anchor }); }, current, "selection");
   }
 
   constructor(
