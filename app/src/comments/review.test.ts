@@ -162,6 +162,25 @@ describe("reviewState", () => {
     ]);
   });
 
+  test("a step the person reopened and someone then deleted reads as deleted", () => {
+    const state = reviewState(reviewState(review(1), { type: "reopen" }), { type: "changed", comments: [] });
+    expect(step(state)).toEqual({ comment: "cmt_1", resolvedAt: at(1), mark: "deleted" });
+    expect(reviewSummary(reviewState(state, { type: "done" }))).toEqual({ text: "Reviewed 1", reopened: [] });
+  });
+
+  test("a step the person reopened and an agent resolved again reads as resolved and can be reopened again", () => {
+    let state = reviewState(review(1), { type: "reopen" });
+    state = reviewState(state, { type: "changed", comments: [resolved("cmt_1", 8)] });
+    expect(step(state)).toEqual({ comment: "cmt_1", resolvedAt: at(1), mark: "resolved" });
+    expect(reviewSummary(reviewState(state, { type: "done" }))).toEqual({ text: "Reviewed 1", reopened: [] });
+    expect(step(reviewState(state, { type: "reopen" }))?.mark).toBe("reopened");
+  });
+
+  test("a read that still shows the resolve the person just reopened keeps the Reopen", () => {
+    const state = reviewState(reviewState(review(1), { type: "reopen" }), { type: "changed", comments: [resolved("cmt_1", 1)] });
+    expect(step(state)?.mark).toBe("reopened");
+  });
+
   test("a step reopened elsewhere and resolved again reads as resolved", () => {
     let state = reviewState(review(1), { type: "changed", comments: [comment("cmt_1")] });
     expect(step(state)?.mark).toBe("reopenedElsewhere");
