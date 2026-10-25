@@ -18,7 +18,7 @@ import { groupProjects, cardRow } from "./homeCards";
 import { moveExpanded, Sidebar, type CanvasMove } from "./Sidebar";
 import { useComments } from "./useComments";
 import { RightPanel } from "./RightPanel";
-import { duplicateIdText, updatedText } from "./canvasView";
+import { duplicateIdText } from "./canvasView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
 import { Wizard, type Reroot } from "./Onboarding";
 import { FirstPromptContext, useFirstPromptWait } from "./FirstPrompt";
@@ -414,7 +414,7 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
         : state.status === "noWidth" ? <p><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
         : <p>{state.message}</p>}
     </div>}
-    {state.updated && state.open && <output className="updated meta" aria-label={updatedText(state.updated)}><span className="dot" /> {updatedText(state.updated)}</output>}
+    {state.label && state.open && <output className="updated meta" aria-label={state.label}><span className="dot" /> {state.label}</output>}
     <div className={`zctl${state.hasFrame ? "" : " disabled"}`}>
       <div className="zoom">
         <button aria-label="Zoom out" disabled={!state.hasFrame} onClick={() => command("zoomOut")}>−</button>

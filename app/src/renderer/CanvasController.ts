@@ -7,10 +7,10 @@ import type { ViewCommand } from "../main/index";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem, type SelectionMessage } from "./canvasMessage";
-import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGHT, sameDocument, type OpenCanvas } from "./canvasView";
+import { bottomLabel, canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGHT, sameDocument, type OpenCanvas } from "./canvasView";
 import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
-import { activityFor, activityKey, pushActivity, type ActivityEvent } from "./activity";
+import { activityFor, activityKey, activityKind, pushActivity, resolvedActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, locateView, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { currentFrame } from "./currentFrame";
@@ -43,14 +43,21 @@ export interface CanvasState {
   error: string;
   unlisted: boolean;
   zoom: number;
-  updated: Date | null;
+  // The bottom label, from the open canvas's activity at the last publish.
+  label: string | null;
   activity: ActivityEvent[];
 }
 
 export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, updated: null, activity: [] };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, label: null, activity: [] };
+}
+
+// ARCH §13: a row has no `rev` until main sees its file change after the folder
+// was added, so a missing one is 0, not unknown.
+function reloadKind(before: CanvasRow, after: CanvasRow): ActivityEvent["kind"] {
+  return activityKind(before.rev ?? 0, after.rev ?? 0);
 }
 
 // React owns the surrounding shell; only this controller owns the board's children.
@@ -94,6 +101,9 @@ export class CanvasController {
   private anchorRequest = 0;
   private anchorRevision = 0;
   private comments: CommentBinding | null = null;
+  // The last comments read for the open canvas, which the next read is compared
+  // with for Resolved activity. Cleared when a canvas is opened.
+  private commentBaseline: CommentBinding | null = null;
   private commentHooks: CommentHooks | null = null;
   private anchors: AnchorSnapshot | null = null;
   private pinLayer: CommentPins | null = null;
@@ -134,11 +144,25 @@ export class CanvasController {
     this.commentRevision++;
     this.comments = { ...binding, comments: structuredClone([...binding.comments]) };
     this.commentHooks = hooks;
+    this.recordResolved(this.comments);
     if (!this.pinResize && typeof ResizeObserver !== "undefined" && "nodeType" in this.viewport) {
       this.pinResize = new ResizeObserver(() => this.drawPins());
       this.pinResize.observe(this.viewport as Element);
     }
     this.requestAnchors();
+  }
+
+  // Bindings arrive with every comments read, including after the person's own
+  // Resolve. The first read of an opened canvas is only the baseline.
+  private recordResolved(binding: CommentBinding): void {
+    const open = this.state.open;
+    if (!open || binding.root !== open.folder || binding.canvas !== open.row.id) return;
+    const base = this.commentBaseline;
+    this.commentBaseline = binding;
+    const resolved = resolvedActivity(base?.root === binding.root && base.canvas === binding.canvas ? base.comments : null, binding.comments);
+    if (resolved === null) return;
+    this.state.activity = pushActivity(this.state.activity, { ...activityKey(open.folder, open.row), at: new Date(), kind: "resolved", ...resolved }, 50);
+    this.publish();
   }
 
   private resetAnchors(): void {
@@ -283,7 +307,7 @@ export class CanvasController {
 
   private publish(): void {
     const open = this.state.open;
-    this.state.updated = open ? activityFor(this.state.activity, open.folder, open.canvas, open.row.id)[0]?.at ?? null : null;
+    this.state.label = open ? bottomLabel(activityFor(this.state.activity, open.folder, open.canvas, open.row.id), new Date()) : null;
     this.state.hasFrame = this.frame !== null;
     this.state.reanchoring = this.reanchor !== null;
     this.state.reloading = this.loading && this.state.status === null;
@@ -340,7 +364,7 @@ export class CanvasController {
       case "reload":
         this.state.error = "";
         this.state.open = { ...open, row: update.canvas };
-        this.load(update.canvas, false);
+        this.load(update.canvas, false, reloadKind(open.row, update.canvas));
         break;
       case "moved": {
         const to = update.canvas.path, at = new Date();
@@ -358,7 +382,7 @@ export class CanvasController {
       case "resize":
         this.state.error = "";
         this.state.open = { ...open, row: update.canvas };
-        if (update.canvas.width === undefined || this.frame === null) this.load(update.canvas, this.frame === null, "reloaded");
+        if (update.canvas.width === undefined || this.frame === null) this.load(update.canvas, this.frame === null, reloadKind(open.row, update.canvas));
         else this.setFrameWidth(update.canvas.width);
         break;
       case "clear": {
@@ -495,7 +519,9 @@ export class CanvasController {
     // A reload of the same row before its first layout still owes the picked frame.
     if (fresh) this.pendingFrame = null;
     this.resetAnchors();
-    this.loadKind = kind;
+    if (fresh) this.commentBaseline = null;
+    // A plain reload that replaces a changed one before its layout keeps Changed.
+    this.loadKind = !fresh && this.loading && this.loadKind === "changed" && kind === "reloaded" ? "changed" : kind;
     this.applySelectionEffect({ kind: fresh ? "otherCanvas" : "reload" });
     if (row.width === undefined) {
       this.pendingFrame?.found?.(false);

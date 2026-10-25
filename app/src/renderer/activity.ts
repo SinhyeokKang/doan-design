@@ -46,6 +46,12 @@ export function timeText(at: Date): string {
   return `${two(at.getHours())}:${two(at.getMinutes())}:${two(at.getSeconds())}`;
 }
 
+const KIND_TEXT = { opened: "Opened", changed: "Changed", reloaded: "Reloaded", moved: "Moved", resolved: "Resolved" } as const;
+
+export function activityText(event: ActivityEvent): string {
+  return event.kind === "resolved" ? `Resolved ${event.count ?? 0} · ${(event.resolvedBy ?? []).join(", ")}` : KIND_TEXT[event.kind];
+}
+
 // Changed needs evidence: without both row revisions a reload is only Reloaded.
 export function activityKind(prevRev: number | undefined, nextRev: number | undefined): "changed" | "reloaded" {
   return prevRev !== undefined && nextRev !== undefined && prevRev !== nextRev ? "changed" : "reloaded";
