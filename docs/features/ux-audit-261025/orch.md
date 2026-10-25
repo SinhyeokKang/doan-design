@@ -126,3 +126,13 @@
 | P | U-8/31/34/35/37/39/40/44의 좁은 CSS·표현 범위 | O·S 통합 후 styles/settings.css, HTML entries와 CSS import, Overview title, 직접 tests 및 presentation fixture를 onboarding suite에 연결. N 파일 제외 | Codex gpt-6-astra medium. CSS cascade·CSP·실제 hit-test/치수 판단 | 실제 computed style/geometry red→green·typecheck, 단독 dev와 production 증거, 독립 리뷰 |
 
 - N과 P는 파일 소유권이 겹치지 않는다. native/build/full gate는 계속 직렬이며 공통 문서의 현재 측정값은 지휘자가 증거를 검토한 뒤 갱신한다.
+
+## 독립 구현 리뷰 계획
+
+| 배치 | 대상·소유권 | 모델·근거 | 완료 조건 |
+|---|---|---|---|
+| IR-O | O 전체 diff·인계 증거 읽기, root scratch review-O.md만 작성 | Codex gpt-6-astra medium. 혼합 추가의 명시적 선택과 늦은 결과, 모달·읽기 수명 판단 | 전체 파일·호출 경계 검토, 실제 red/green·화면 증거 대조, 발견을 O 소유자에게 반환 |
+| IR-S | S 전체 diff·인계 증거 읽기, root scratch review-S.md만 작성 | Codex gpt-6-astra medium. picker/confirm/write 중 target queue와 실제 포커스 판단 | 전체 파일·좁은 IPC 계약·오류/긴 내용 증거 대조, 발견을 S 소유자에게 반환 |
+| IR-C-fix | C 전체 및 C-fix diff·인계 증거 읽기, root scratch review-C-fix.md만 작성 | Codex gpt-6-astra medium. begin 권한·main guard 순서와 Inspector 음성 대조의 유효성 판단 | C-1의 late reject/success/guard/new retry 및 기존 C 계약 재검토, 발견을 C 소유자에게 반환 |
+
+각 리뷰는 해당 구현 완료 후 다른 작성자에게 맡긴다. 빌드·실행·코드 수정은 하지 않으며 최종 통합 gate는 별도로 실행한다.
