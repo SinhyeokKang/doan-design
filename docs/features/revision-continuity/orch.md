@@ -17,7 +17,8 @@
 | 2026-10-26 | tasks 11 남은 참조 검사: `git grep -n -e 'revision-continuity' -e 'features/revision-continuity' -- . ':!docs/features/*' ':!design/*'` | 사용자 답변(권장안) |
 | 2026-10-26 | 새 표면(`continue-draft`, `selection-gone`, `duplicate-id`의 새 요소)은 확정 초안 `design/revision-continuity.html`에 대고 `/design-sync`를 돌린다. tasks.md에 따로 항목이 없으므로 배치 E가 tasks 9와 함께 맡는다 | 지휘자 판단 — 체인 규칙("새 표면은 design-sync"), design.md '초안 요청'의 비교 대상 |
 | 2026-10-26 | 측정 결과(tasks 1·2)는 작업자가 인계 문서에 적고, 지휘자가 tasks.md 해당 항목 아래에 옮긴다 | 지휘자 판단 — 두 측정 배치가 같은 파일을 동시에 고치지 않게 한다 |
-| 2026-10-26 | **사용자 확인 질문을 하지 않고 권장안대로 진행한다.** 결정 지점에서는 지휘자가 권장안을 골라 이 로그에 근거와 함께 적는다. 모델 경계 넘기와 실제 상태를 바꾸는 일처럼 되돌리기 어려운 일은 예외로 묻는다 | 사용자 지시("이 루프 링크는 가능한 내 허가 없이 추천안대로 쭉 진행해") |
+| 2026-10-26 | **사용자 확인 질문을 하지 않고 권장안대로 진행한다.** 결정 지점에서는 지휘자가 권장안을 골라 이 로그에 근거와 함께 적는다. 실제 사용자 상태를 바꾸는 일처럼 되돌리기 어려운 일은 예외로 묻는다 | 사용자 지시("이 루프 링크는 가능한 내 허가 없이 추천안대로 쭉 진행해") |
+| 2026-10-26 | 필요하면 모델 경계를 넘어 Codex를 써도 된다. 작업자와 리뷰어는 그대로 Opus로 두고, Codex는 Codex 동작을 측정할 때처럼 꼭 필요한 곳에만 쓴다. 쓸 때마다 이 로그에 적는다 | 사용자 지시("모델 경계도 필요하다면 넘어도 괜찮아. Codex 허가할게") |
 | 2026-10-26 | 이 기능은 CLI·MCP·skills·공유 형식을 바꾸지 않으므로 `/agent-eval` 회차를 돌리지 않는다. 체인의 유일한 실제 회차는 링크 5다 | spec '사용자', design 'CLI·MCP·skills·공유 형식: 바뀌지 않는다', 체인 규칙 |
 
 ## 배치
@@ -48,3 +49,5 @@ tasks.md의 1~11은 모두 위 배치 중 하나에 속한다.
 - 각 배치는 `--worktree new-child --base-branch feat-revision-continuity`로 만든 자기 worktree에서 돈다.
 
 ## 진행 기록
+
+- 2026-10-26: Run `run_bcc4b8f353c5`. 1파 시작 — M1(`ctx_9253d68c30ac`, Opus medium, `rc-m1`), M2(`ctx_1f3cf5ba5a8d`, Opus medium, `rc-m2`), P(`ctx_161ede35bc9f`, Opus high, `rc-p`). `launch.effective`가 요청과 같다.
