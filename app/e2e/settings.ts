@@ -10,6 +10,7 @@ const { realState, assertRealState }: typeof import("./real-state") = await impo
 const { settingsPage, menu, appWindow, appWindowCount }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 const { homeRow, enterProject, goHome }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 const { canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
+const { armInstallConsumer, settledInstallConsumer }: typeof import("./renderer-probe") = await import(new URL("./renderer-probe.ts", import.meta.url).href);
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await realpath(await mkdtemp("/tmp/doan-settings-"));
@@ -74,26 +75,51 @@ try {
   await settings.getByRole("alert").getByText("Couldn’t open the install page.", { exact: true }).waitFor();
   check(await settings.getByRole("alert").evaluate(node => (() => { const probe = document.createElement("span"); probe.style.color = "var(--err)"; document.body.append(probe); const expected = getComputedStyle(probe).color; probe.remove(); return getComputedStyle(node).borderLeftColor === expected; })()), "install failure uses the error border");
   assert.equal(await cliRow.getByRole("button", { name: "Fix…" }).isEnabled(), true, "an install-page failure cannot disable connection actions");
-  await app.evaluate(({ shell }) => {
-    const pending: ((ok: boolean) => void)[] = [];
-    shell.openExternal = () => new Promise<void>((resolve, reject) => pending.push(ok => ok ? resolve() : reject(new Error("Injected obsolete install failure"))));
-    Reflect.set(globalThis, "settingsInstallRequests", pending);
-  });
   const installCodex = settings.getByRole("button", { name: "Install Codex ↗", exact: true });
-  await installCodex.click(); await installCodex.click();
-  await wait(() => app!.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests").length === 2), "two install requests held");
-  await app.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests")[1](true));
-  await app.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests")[0](false));
-  await settings.waitForTimeout(150);
-  check(await settings.getByRole("alert").count() === 0, "older install failure cannot replace the latest successful request");
-  await installCodex.click(); await installCodex.click();
-  await wait(() => app!.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests").length === 4), "next install request pair held");
-  await app.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests")[2](false));
-  await settings.waitForTimeout(150);
-  check(await settings.getByRole("alert").count() === 0, "older install failure stays hidden while the latest request is pending");
-  await app.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests")[3](true));
-  await settings.waitForTimeout(150);
-  check(await settings.getByRole("alert").count() === 0, "latest install success leaves no obsolete failure");
+  const installClick = async () => {
+    const id = await installCodex.evaluate(armInstallConsumer);
+    await installCodex.click();
+    return id;
+  };
+  await app.evaluate(({ ipcMain }) => {
+    const original = Reflect.get(ipcMain, "_invokeHandlers").get("setup:open-external");
+    Reflect.set(globalThis, "settingsInstallOriginal", original);
+    ipcMain.removeHandler("setup:open-external");
+    Reflect.set(globalThis, "settingsInstallRequests", []);
+    ipcMain.handle("setup:open-external", () => new Promise((resolve, reject) => Reflect.get(globalThis, "settingsInstallRequests").push({ resolve, reject })));
+  });
+  // Transport rejection is distinct from shell.openExternal rejection, which
+  // the real main handler maps to false (covered above).
+  for (const failure of ["false", "reject"] as const) for (const oldFirst of [false, true]) {
+    const ids: [number, number] = [await installClick(), await installClick()];
+    await wait(() => app!.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests").length === 2), "two install requests held");
+    for (const index of oldFirst ? [0, 1] : [1, 0]) {
+      await app.evaluate((_electron, { index, failure }) => {
+        const request = Reflect.get(globalThis, "settingsInstallRequests")[index];
+        if (index === 0 && failure === "reject") request.reject(new Error("Old install failure"));
+        else request.resolve(index === 1);
+      }, { index, failure });
+      await settledInstallConsumer(settings, ids[index]!);
+      assert.deepEqual(await settings.getByRole("alert").allTextContents(), [], `consumed stale install ${failure}, oldFirst=${oldFirst}, index=${index}`);
+      if (oldFirst && index === 0) assert.equal(await settings.evaluate(id => Reflect.get(window, "installConsumers")[id].completed, ids[1]), false, "B remains pending after A is consumed");
+    }
+    await app.evaluate(() => Reflect.set(globalThis, "settingsInstallRequests", []));
+  }
+  const latestIds: [number, number] = [await installClick(), await installClick()];
+  await wait(() => app!.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests").length === 2), "latest failure requests held");
+  await app.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests")[1].reject(new Error("Latest install failure")));
+  await settledInstallConsumer(settings, latestIds[1]);
+  await settings.getByRole("alert").filter({ hasText: "Latest install failure" }).waitFor();
+  await app.evaluate(() => Reflect.get(globalThis, "settingsInstallRequests")[0].resolve(true));
+  await settledInstallConsumer(settings, latestIds[0]);
+  assert.match(await settings.getByRole("alert").textContent() ?? "", /Latest install failure/);
+  await app.evaluate(({ ipcMain, shell }) => {
+    ipcMain.removeHandler("setup:open-external"); ipcMain.handle("setup:open-external", Reflect.get(globalThis, "settingsInstallOriginal"));
+    shell.openExternal = async () => {};
+  });
+  await settledInstallConsumer(settings, await installClick());
+  assert.equal(await settings.getByRole("alert").count(), 0, "consumed successful retry clears error");
+  await settings.screenshot({ path: join(shots, "02-install-consumed.png") });
 
   await app.evaluate(({ ipcMain }) => {
     const original = Reflect.get(ipcMain, "_invokeHandlers").get("setup:read");

@@ -14,6 +14,7 @@ const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: type
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { appWindow, appWindowCount, menu: appMenu }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 
+const { wizardInstallConsumers, settledInstallConsumer }: typeof import("./renderer-probe") = await import(new URL("./renderer-probe.ts", import.meta.url).href);
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const work = await realpath(await mkdtemp("/tmp/ob-"));
@@ -269,43 +270,51 @@ else if (args[1] === 'add') {
   await app.evaluate(({ ipcMain }) => {
     ipcMain.removeHandler("setup:open-external"); ipcMain.handle("setup:open-external", Reflect.get(globalThis, "obInstallOriginal"));
   });
-  await button("Install Codex ↗").click();
-  await wait(async () => await wizard().getByRole("alert").count() === 0, "install retry clears error");
   const reviewFailures: string[] = [];
-  await app.evaluate(({ ipcMain }) => {
-    ipcMain.removeHandler("setup:open-external");
-    Reflect.set(globalThis, "obInstallPending", []);
-    ipcMain.handle("setup:open-external", () => new Promise((resolve, reject) => Reflect.get(globalThis, "obInstallPending").push({ resolve, reject })));
-  });
-  for (const failure of ["false", "reject"] as const) for (const oldFirst of [false, true]) {
-    await button("Install Claude Code ↗").click(); await button("Install Codex ↗").click();
-    await wait(async () => await app.evaluate(() => Reflect.get(globalThis, "obInstallPending").length) === 2, "two install requests held");
-    for (const index of oldFirst ? [0, 1] : [1, 0]) {
-      await app.evaluate((_electron, { index, failure }) => {
-        const request = Reflect.get(globalThis, "obInstallPending")[index];
-        if (index === 0 && failure === "reject") request.reject(new Error("Old install failure"));
-        else request.resolve(index === 1);
-      }, { index, failure });
-      await pause(100);
+  const installProbe = await wizardInstallConsumers(page);
+  const installClick = (agent: "Claude Code" | "Codex") => installProbe.click(button(`Install ${agent} ↗`));
+  try {
+    await settledInstallConsumer(page, await installClick("Codex"));
+    assert.equal(await wizard().getByRole("alert").count(), 0, "consumed install retry clears error");
+    await app.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler("setup:open-external");
+      Reflect.set(globalThis, "obInstallPending", []);
+      ipcMain.handle("setup:open-external", () => new Promise((resolve, reject) => Reflect.get(globalThis, "obInstallPending").push({ resolve, reject })));
+    });
+    for (const failure of ["false", "reject"] as const) for (const oldFirst of [false, true]) {
+      const ids: [number, number] = [await installClick("Claude Code"), await installClick("Codex")];
+      await wait(async () => await app.evaluate(() => Reflect.get(globalThis, "obInstallPending").length) === 2, "two install requests held");
+      for (const index of oldFirst ? [0, 1] : [1, 0]) {
+        await app.evaluate((_electron, { index, failure }) => {
+          const request = Reflect.get(globalThis, "obInstallPending")[index];
+          if (index === 0 && failure === "reject") request.reject(new Error("Old install failure"));
+          else request.resolve(index === 1);
+        }, { index, failure });
+        await settledInstallConsumer(page, ids[index]!);
+        assert.deepEqual(await wizard().getByRole("alert").allTextContents(), [], `consumed stale install ${failure}, oldFirst=${oldFirst}, index=${index}`);
+        if (oldFirst && index === 0) assert.equal(await page.evaluate(id => Reflect.get(window, "installConsumers")[id].completed, ids[1]), false, "B remains pending after A is consumed");
+      }
+      const alerts = await wizard().getByRole("alert").allTextContents();
+      console.log("install ordering", { failure, oldFirst, alerts });
+      if (alerts.length) reviewFailures.push(`stale install error: ${failure}, oldFirst=${oldFirst}`);
+      await app.evaluate(() => Reflect.set(globalThis, "obInstallPending", []));
     }
-    const alerts = await wizard().getByRole("alert").allTextContents();
-    console.log("install ordering", { failure, oldFirst, alerts });
-    if (alerts.length) reviewFailures.push(`stale install error: ${failure}, oldFirst=${oldFirst}`);
-    await app.evaluate(() => Reflect.set(globalThis, "obInstallPending", []));
-  }
-  // A newer failure must survive an older successful completion.
-  await button("Install Claude Code ↗").click(); await button("Install Codex ↗").click();
-  await wait(async () => await app.evaluate(() => Reflect.get(globalThis, "obInstallPending").length) === 2, "latest failure requests held");
-  await app.evaluate(() => Reflect.get(globalThis, "obInstallPending")[1].reject(new Error("Latest install failure")));
-  await wizard().getByRole("alert").filter({ hasText: "Latest install failure" }).waitFor();
-  await app.evaluate(() => Reflect.get(globalThis, "obInstallPending")[0].resolve(true));
-  await pause(100);
-  assert.match(await wizard().getByRole("alert").textContent() ?? "", /Latest install failure/);
-  await app.evaluate(({ ipcMain }) => {
-    ipcMain.removeHandler("setup:open-external"); ipcMain.handle("setup:open-external", Reflect.get(globalThis, "obInstallOriginal"));
-  });
-  await button("Install Codex ↗").click();
-  await wait(async () => await wizard().getByRole("alert").count() === 0, "latest failure retry clears error");
+    // A newer failure must survive an older successful completion.
+    const latestIds: [number, number] = [await installClick("Claude Code"), await installClick("Codex")];
+    await wait(async () => await app.evaluate(() => Reflect.get(globalThis, "obInstallPending").length) === 2, "latest failure requests held");
+    await app.evaluate(() => Reflect.get(globalThis, "obInstallPending")[1].reject(new Error("Latest install failure")));
+    await settledInstallConsumer(page, latestIds[1]);
+    await wizard().getByRole("alert").filter({ hasText: "Latest install failure" }).waitFor();
+    await app.evaluate(() => Reflect.get(globalThis, "obInstallPending")[0].resolve(true));
+    await settledInstallConsumer(page, latestIds[0]);
+    assert.match(await wizard().getByRole("alert").textContent() ?? "", /Latest install failure/);
+    await app.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler("setup:open-external"); ipcMain.handle("setup:open-external", Reflect.get(globalThis, "obInstallOriginal"));
+    });
+    await settledInstallConsumer(page, await installClick("Codex"));
+    assert.equal(await wizard().getByRole("alert").count(), 0, "consumed latest failure retry clears error");
+    await shot("02-install-consumed");
+  } finally { await installProbe.dispose(); }
   await shellMode("timeout"); await check(); await wizard().getByText(/didn’t answer in time/).first().waitFor();
   for (const agent of ["claude", "codex"] as const) {
     await card(agent).getByText("Couldn’t check", { exact: true }).waitFor();
