@@ -28,9 +28,10 @@
 | M | 3 | `app/src/main/comments/{identity,service}.ts`, `app/src/preload/index.ts` 타입과 각 테스트 | — | Codex `gpt-6.1-sol` medium (원인 코드를 더하는 작은 기계적 변경) | test(identity·service), typecheck | 통합 2932e4d, f2132f8 |
 | W | 4 | `CommentsPanel.tsx`, `useComments.tsx`, `styles.css`(대상 줄), 두 테스트, e2e 버튼 이름·문구(`presentation`, `design-nav`, `projects-home`, `onboarding`, `comments-ui`, `revision-continuity`) | P, M 통합 | Opus high (읽기 실패와 쓰기 차단 분리, identity 블록, 작성 중 외부 갱신·IME 유지) | test, typecheck | 통합 f8891d2, 536b43b |
 | Q | 5 일부 | `RightPanel.tsx`, `canvasInfo.ts`, `CommentPins.ts`, `Sidebar.tsx`(aria)와 테스트, `app/e2e/{anchors,runtime}.ts`의 aria·Canvas 정보 단언 | P 통합 | Opus medium (문구와 구성 제거) | test, typecheck | 통합 5d1abd1, 6964435 |
-| L | 5 나머지 | `CommentsPanel.tsx`, `styles.css`, `App.tsx`, 포커스에 필요한 `CommentPins.ts`·`Sidebar.tsx`와 테스트 | W, Q 통합 | Opus high (비동기 필터 뒤 포커스, 대화상자와의 순서, container 높이) | test, typecheck | 대기 |
+| L | 5 나머지 | `CommentsPanel.tsx`, `styles.css`, `App.tsx`, 포커스에 필요한 `CommentPins.ts`·`Sidebar.tsx`와 테스트 | W, Q 통합 | Opus high (비동기 필터 뒤 포커스, 대화상자와의 순서, container 높이) | test, typecheck | 통합 479f5de, aae3766 |
 | E | 6, 7 | `.scratch/comments-readability/`, `app/e2e/comments-ui.ts`, `app/e2e/runtime.ts` export | L 통합 | Opus high (실제 창 도달성 측정, fixture 경고, identity 캔버스 시나리오) | 측정 로그·스크린샷, 모듈 단독 실행 PASS(전체 e2e는 지휘자) | 대기 |
-| R-* | 배치별 리뷰 | 보고서만 | 각 구현 배치 | R-PM·R-Q·R-E: Codex `gpt-6-astra` medium. R-W·R-L: Opus high. R-G: Opus medium | `/code-review`, 🔴 0 | — |
+| F | R-W 🟡1·⚪2 | `useComments.tsx`와 테스트 | L 통합 | Opus high (렌더 시점의 세션 정체성 판정) | test red→green, typecheck | 진행 |
+| R-* | 배치별 리뷰 | 보고서만 | 각 구현 배치 | R-PM·R-Q·R-L: Codex `gpt-6-astra` medium. R-W·R-E: Opus high. R-G: Opus medium | `/code-review`, 🔴 0 | — |
 | 지휘자 | 8 | — | 전부 통합 | — | `node .agents/skills/verify/scripts/verify.mjs --runtime` 최종 PASS, exit 0 | 대기 |
 | G | 9 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/DIRECTORY.md`, 이 디렉터리 삭제 | 8 | Opus medium (승격 위치가 tasks 9에 다 나와 있다) | 문서 diff 검토, 위 git grep 결과 없음 | 대기 |
 
@@ -61,3 +62,5 @@ tasks.md의 1~9는 모두 위 배치 중 하나에 속한다.
 - 2026-10-26: 3파 시작 — L(`ctx_861936f2a932`, Opus high, `cr-l`), R-W(`ctx_487ce6f407a2`, Opus high, `cr-r-w`). R-W 지적 중 L이 가진 파일의 것은 L 통합 뒤 수정 배치로 보낸다.
 - 2026-10-26: L 질문 — Save 뒤 포커스에 저장된 댓글 id가 필요한데 `CommentsSession.settle`이 버린다. 허락: L이 `CommentsSession.ts`에 `savedComment` 필드를 더한다(목록 차이로 추정하면 외부 댓글이 함께 올 때 틀린다).
 - 2026-10-26: R-W 완료(Opus high) — 🔴 0 · 🟡 1 · ⚪ 3. 🟡: 캔버스를 바꾼 첫 렌더에서 이전 캔버스의 identity 원인이 새 캔버스 id로 보인다("Another canvas uses the ID b", role=alert). 세션 identity가 열린 행과 같을 때만 원인과 목록을 쓰게 고친다. 🟡와 ⚪2(`draftFrames`, `canSave`의 readError 훅 테스트)는 L 통합 뒤 수정 배치 F가 맡는다(L이 지금 `useComments.tsx`를 가진다). ⚪1(중복 해제 뒤 블록이 사라지는 e2e 단언)은 E에 넣는다. noWidth 캔버스에서 중복을 고쳐도 블록이 남는 것은 드문 조합이라 기록만 한다. ⚪3(열린 캔버스 없이 남은 초안의 read-only 블록)은 이전부터 있던 동작이라 고치지 않는다. W의 다른 점 3·4는 spec에 맞다고 판정했다. 근거: `evidence-R-W/`. R-W 해제, `cr-r-w` 제거.
+- 2026-10-26: L 완료(`709f741`, `b808747`) — red 15건 뒤 green. 승인한 확장 `CommentsSession.savedComment`. 계획과 다른 점: 960×600에서 포커스만으로는 Save가 패널 밖에 남아 `revealComposer`로 스크롤한다, Save 뒤 포커스는 다시 읽은 목록의 앵커가 답할 때까지 제목이 가진다, 초안 대화상자의 Save and continue는 포커스를 카드로 옮기지 않는다. 격리 실제 창 확인(화면 잠김, DOM 포커스는 동작)에서 두 크기 모두 제목·To:·입력란·Save가 패널 안에 있었다. comments-ui 단독 실행은 08단계의 네이티브 창 포커스 대기에서 멈췄다(화면 잠금, 링크 1과 같은 지점). 통합(`479f5de`, `aae3766`), 통합 HEAD test 2406·typecheck 통과(지휘자 실행). 근거: `evidence-L/`. L 해제, `cr-l` 제거.
+- 2026-10-26: 4파 시작 — F(`ctx_f33d20f40350`, Opus high, `cr-f`, R-W 수정), R-L(`ctx_2669067d8b04`, Codex `gpt-6-astra` medium, `cr-r-l`), E(`ctx_358544aac2f2`, Opus high, `cr-e`). 리뷰 모델 배정을 바꿨다: R-L은 Codex, R-E는 Opus high(E가 실제 창 측정이라 같은 계열로 재현하기 쉽다). E는 e2e와 `.scratch`만 고치므로 F와 겹치지 않아 병렬로 돈다.
