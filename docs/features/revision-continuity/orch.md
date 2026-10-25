@@ -31,7 +31,7 @@
 | M1 | 1 | `.scratch/revision-continuity/save-*` | — | Opus medium (스크립트는 단순하고, 격리와 원시 로그 기록이 핵심) | 원시 로그 경로와 요약, real-state 확인 결과 | 완료(커밋 없음), 해제·worktree 제거 |
 | M2 | 2 | `.scratch/revision-continuity/t11*` | — | Opus medium (현재 main을 측정만 한다) | 측정 로그·스크린샷 경로, 재현 여부, real-state, exit 0 | 완료(재현, 커밋 없음), 해제·worktree 제거 |
 | P | 3, 4 | 순수 함수와 그 테스트: `app/src/comments/draft.ts`, `app/src/renderer/{canvasView,selection}.ts`, `app/src/restore/{uiState,restorePlan}.ts`, `app/src/main/watch.ts`의 `createRefresher`, `classifyDesignChange`의 새 파일, `shouldGuardEscape`·`continueEnabled`·`guardsSelectionChange`의 자리 | — (`classifyDesignChange`·names 누적은 M1 결과 뒤) | Opus high (draft guard와 선택 정체성의 규칙을 정하는 함수들이다) | `npm --prefix app test` red→green, `typecheck` | 통합 47c8573, 1be53c7, 6089517 · 리뷰 R-P 진행 |
-| A | 5 | `app/src/main/{watch,shell,thumbnails,view}.ts`와 테스트 | P 통합 | Opus high (폐기된 읽기, rev 유실, 루트 삭제 등 동시성) | test(watch·shell·thumbnails), typecheck | 진행 |
+| A | 5 | `app/src/main/{watch,shell,thumbnails,view}.ts`와 테스트 | P 통합 | Opus high (폐기된 읽기, rev 유실, 루트 삭제 등 동시성) | test(watch·shell·thumbnails), typecheck | 통합 1046d17 · 리뷰 R-A 진행 |
 | B6 | 6 | `CommentsSession.ts`, `useComments.tsx`, `CommentsPanel.tsx`, `CanvasController.ts`, `draft.ts` 연결, `styles.css`와 각 테스트 | P 통합 | Opus high (begin 펜스, guard 수명, 늦은 완료) | test, typecheck | 진행 |
 | B7 | 7 | B6 파일 + `activity.ts`, `Sidebar.tsx`, `App.tsx`, `app/src/main/uiState.ts`와 테스트 | B6 통합 | Opus high (이동 따라가기의 요청 상태 판정, 진행 중 read 무효화) | test, typecheck | 대기 |
 | B8 | 8 | `CanvasController.ts`, `useComments.tsx`, `CommentsPanel.tsx`, `commentAnchors.ts`와 테스트 | B7 통합, M2 결과 | Opus high (Esc 기본 동작과 범위 효과에, T-11이 재현되어 앵커 pending의 수명이 더해진다) | test, typecheck | 대기 |
@@ -61,3 +61,4 @@ tasks.md의 1~11은 모두 위 배치 중 하나에 속한다.
 - 2026-10-26: B6 질문 — 같은 캔버스 클릭과 Alt-클릭 링크 이동이 같은 transition-intent로 온다. 결정: `canvasScript.ts`의 transition-intent에 `kind: selection | navigation`을 더한다(B6 소유로 추가). 링크 이동의 가드를 유지하기 위해서다.
 - 2026-10-26: R-P 완료(Codex Astra medium) — 🔴 0 · 🟡 0 · ⚪ 1(같은 갱신에서 id 변경과 servedRev 변경이 함께 올 때의 우선순위 테스트 공백, 변형 검사로 확인). ⚪은 `canvasView.ts`를 연결하는 B7에 보낸다. 근거: `evidence-R-P/`. R-P 해제, `rc-r-p` 제거.
 - 2026-10-26: B6 질문 2 — 로딩 중이면 identity와 관계없이 `reloaded`로 두는 P의 규칙은 id가 바뀐 다른 캔버스에서도 이어 쓰기를 허용한다. 결정: identity를 알고 origin과 root·id가 다르면 로딩 중에도 `unavailable`이다. design 1절의 '로딩 중 일단 reloaded'는 새 문서를 아직 모를 때만 적용한다.
+- 2026-10-26: A 완료(`f2dd832`) — red(watch 5·shell 3·thumbnails 1) 뒤 green. 통합(`1046d17`), 통합 HEAD test 2198·typecheck 통과(지휘자 실행). 열린 캔버스 자신의 저장은 이제 servedRev가 아니라 행 rev로 리로드된다(e2e C7이 이 경로에 기댄다 — 최종 e2e에서 확인). 심볼릭 링크 `design`은 served 대상으로 남아 전과 같이 bump한다. A 해제, `rc-a` 제거. R-A(`ctx_a699ea35f964`, Codex `gpt-6-astra` medium, `rc-r-a`) 시작.
