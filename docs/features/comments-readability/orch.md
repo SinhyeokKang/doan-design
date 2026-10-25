@@ -18,6 +18,7 @@
 | 2026-10-26 | `/design-sync` 루프는 돌리지 않는다. 바뀌는 화면이 모두 main에 있는 comments-ui이고, 확정 초안 `design/comments-readability.html`은 tasks 6 측정의 기준으로만 쓴다 | design.md '초안 요청'("`/design-sync` 루프 대상이 아니다"), 체인 규칙("이미 있는 화면은 tasks의 측정을 따른다") |
 | 2026-10-26 | `/agent-eval` 회차를 돌리지 않는다 | spec '에이전트: 바뀌는 것이 없다', 체인 규칙(유일한 실제 회차는 링크 5) |
 | 2026-10-26 | tasks 5를 둘로 나눈다. Q는 CommentsPanel·useComments·styles.css 밖의 표현(Canvas 정보 수 제거와 안내 순서, 핀·사이드바 aria 단수형)을 W와 병렬로 맡고, L은 W·Q 통합 뒤 작성기 위치, sticky 제목, 작은 패널 입력란, 포커스 규칙, Updated 배경, 대상 줄 hover를 맡는다 | 지휘자 판단 — 같은 파일을 두 배치가 동시에 고치지 않게 하고, Q의 파일은 W와 겹치지 않는다 |
+| 2026-10-26 | 잘못된 canvas id는 앱에서 '없음' 블록("This canvas has no ID")으로 보인다. `doan ls`가 형식이 틀린 id를 행에서 빼므로 앱은 없음과 잘못됨을 구분할 수 없다. e2e는 두 캔버스 모두 이 문구를 정확히 단언한다. main의 `invalid` 원인은 그대로 둔다. 승격 때 알려진 한계와 PRODUCT §8 열린 질문(구분하려면 CLI 변경이 필요)으로 적는다 | 지휘자 판단 — spec과 design이 'CLI 바뀌지 않음'을 정했고, ARCH는 앱이 캔버스 meta를 다시 읽지 않게 한다. 다음 행동 문장은 두 경우에 모두 맞다 |
 
 ## 배치
 
@@ -55,3 +56,4 @@ tasks.md의 1~9는 모두 위 배치 중 하나에 속한다.
 - 2026-10-26: W 질문 — renderer `CommentsSession.ts`가 응답의 `cause`를 버린다. 허락: W가 `CommentsSession.ts`와 테스트의 read 경로를 고쳐 identity 원인을 세션에 남기고, `panelText.ts`는 main의 `CanvasIdentityCause`를 type import해 한 타입으로 둔다.
 - 2026-10-26: R-PM 완료(Codex Astra medium) — 🔴 0 · 🟡 0 · ⚪ 1(원인 타입을 두 곳에 따로 선언). W가 이미 한 타입으로 합치는 중이다. R-PM 해제, `cr-r-pm` 제거.
 - 2026-10-26: Q 완료(`3775005`, `74edbca`) — red 5건 뒤 green, test 2364·typecheck 통과. 남은 것: `styles.css`의 `.accent` 규칙이 쓰이지 않게 됨(L에 보낸다), Home·Project Overview의 'N open comments'는 단수형을 적용하지 않음(브리프 범위 밖, Home 요약은 spec대로 `revision-recheck`·`project-feedback`가 정리). 통합(`5d1abd1`, `6964435`). Q 해제, `cr-q` 제거. R-Q(Codex `gpt-6-astra` medium, `cr-r-q`) 시작.
+- 2026-10-26: R-Q 완료(Codex Astra medium) — 🔴 0 · 🟡 0 · ⚪ 1(쓰이지 않는 `.accent`, L에 이미 넣었다). R-Q 해제, `cr-r-q` 제거.
