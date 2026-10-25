@@ -1169,3 +1169,19 @@ it("does not apply Added Open recovery after a newer navigation", () => {
     expect(unavailable).not.toHaveBeenCalled();
   } finally { h.controller.dispose(); }
 });
+
+it("reports a canvas that becomes unavailable while the user approves its draft guard", async () => {
+  const h = loadedController();
+  try {
+    const target = { ...h.row, path: "design/next.html", url: "http://localhost/next.html" };
+    h.controller.updateEntries([{ kind: "list", path: "/repo", servedRev: 0, canvases: [h.row, target] }]);
+    let approve: (allow: boolean) => void = () => {};
+    h.controller.setTransitionGuard(() => new Promise<boolean>(resolve => { approve = resolve; }));
+    const unavailable = vi.fn();
+    h.controller.openCanvas("/repo", target, undefined, { unavailable });
+    h.controller.updateEntries([{ kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] }]);
+    approve(true); await Promise.resolve();
+    expect(unavailable).toHaveBeenCalledOnce();
+    expect(h.changed.mock.lastCall?.[0].open?.canvas).toBe(h.row.path);
+  } finally { h.controller.dispose(); }
+});
