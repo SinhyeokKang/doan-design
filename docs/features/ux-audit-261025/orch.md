@@ -107,3 +107,7 @@
 
 - R-P의 20건·S1–S14 커버리지를 인수하고 release했다. 네 관점 모두 소스 검토를 마쳤으며 실제 화면 주장은 해당 구현의 native gate에 남긴다.
 - S는 C/O와 독립이다. 후속 P는 S의 settings.css와 O의 ConnectionRows가 통합된 뒤 시작한다. S의 좁은 오류 modifier·긴 branch 보완 외 전체 hover/색상 통일은 하지 않는다.
+
+- C 원본 `dd8608a`, `8d83200`, `f2f8e6c`와 4건 red→관련 135개 green·typecheck·build·comments-ui PASS/exit 0·real-state unchanged를 인수했다. 증거를 root `C-evidence/`로 복사해 해시를 대조했다. 작성자는 release하고 child는 독립 검토까지 보존한다.
+- IR-C: Codex gpt-6-astra medium. 생성/읽기 오류 경계, modal Escape/IME, inspect 늦은 응답 및 실제 fixture 주장 검토가 필요하다. 8개 파일 전체 diff와 원 로그/스크린샷을 읽는 report-only 검토다. 원 작성자와 다른 worker를 사용한다.
+- C가 실제 종료 후 반환한 native/build 슬롯을 O에 배정했다. S와 root는 해당 실행을 겹치지 않는다. O는 SetupStatus 타입 확장 없이 최초 실패를 기존 couldnt-check summary로 표현하고 기존 summary는 유지한다고 보고했다.
