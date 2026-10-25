@@ -188,6 +188,31 @@ else if (args[1] === 'add') {
   assert.deepEqual(await wizardSession(), session);
   await quit(); assert.equal(await exists(join(data, "onboarding.json")), false, "quit does not dismiss");
   await launch(); await ready(); await page.keyboard.press("Escape"); await closed();
+  // Exercise Home's public status projection without changing the setup machine.
+  const mainWindow = await appWindow(app, page);
+  await mainWindow.evaluate(win => win.webContents.send("setup:status", {
+    summary: { cli: "couldnt-check", claude: "couldnt-check", codex: "couldnt-check" },
+    causes: {}, checking: false, busy: false, onboardingClosed: true,
+  }));
+  await wait(async () => await page.locator(".conns .st").allTextContents().then(labels => labels.every(label => label === "Couldn’t check")), "Home failed first result");
+  assert.equal(await page.getByRole("button", { name: "doan command: Couldn’t check", exact: true }).isEnabled(), true);
+  await shot("00-home-read-failure");
+  await mainWindow.evaluate(win => win.webContents.send("setup:status", {
+    summary: { cli: "needs-attention", claude: "couldnt-check", codex: "couldnt-check" },
+    causes: { cli: { kind: "cli-dangling" } }, checking: false, busy: true, onboardingClosed: true,
+  }));
+  const banner = page.getByRole("status", { name: "Connection problem" });
+  await banner.getByText("Another window is running a setup step. These buttons work again when it finishes.").waitFor();
+  assert.equal(await banner.getByRole("button", { name: "Check Again", exact: true }).isDisabled(), true);
+  await shot("00-home-busy");
+  await mainWindow.evaluate(win => win.webContents.send("setup:status", {
+    summary: { cli: "needs-attention", claude: "couldnt-check", codex: "couldnt-check" },
+    causes: { cli: { kind: "cli-dangling" } }, checking: true, busy: false, onboardingClosed: true,
+  }));
+  await banner.getByRole("button", { name: "Checking…", exact: true }).waitFor();
+  assert.equal(await banner.getByText(/Another window/).count(), 0);
+  await page.evaluate(() => window.doan.checkSetupAgain());
+  await wait(async () => (await page.locator(".conns .st").allTextContents()).every(label => label !== "Couldn’t check" && label !== "Checking…"), "Home recovers");
   assert.deepEqual(JSON.parse(await readFile(join(data, "onboarding.json"), "utf8")), {});
   await quit(); await launch(); await page.getByRole("button", { name: "Add Project…", exact: true }).first().waitFor(); assert.equal(await wizard().count(), 0);
   await reopen(); assert.equal(await visible(), true); await button(/^Close/).click(); await closed(); await quit();
@@ -210,6 +235,9 @@ else if (args[1] === 'add') {
   await card("cli").getByText("Use doan in your terminal", { exact: false }).waitFor(); await card("cli").getByText("~/.zshrc", { exact: true }).waitFor();
   await clipboardGate(); await button("Copy").click(); await button("Copying…").waitFor(); await busy();
   await releaseCopy(true); await button("Retry copy").waitFor(); assert.equal(await button(/^Close/).isDisabled(), false);
+  const pathError = card("cli").getByRole("alert");
+  assert.match(await pathError.getAttribute("class") ?? "", /ob-msg error/);
+  await shot("01-path-copy-failed");
   await button("Retry copy").click(); await busy(); await releaseCopy(false); await button("Copied").waitFor();
   assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), 'export PATH="$HOME/.local/bin:$PATH"'); await restoreCopy();
   await page.keyboard.press("Escape"); await closed(); await reopen(); confirm = page.getByRole("alertdialog");
@@ -327,12 +355,16 @@ else if (args[1] === 'add') {
   await mkdir(addParent);
   const addA = await setUpRepo("add-repos/one"), addB = await setUpRepo("add-repos/two");
   await pick(addParent); await button("Add Project…").click();
-  const checklist = wizard().getByRole("dialog", { name: "Add projects", exact: true });
-  await checklist.waitFor();
-  await wait(async () => !await checklist.getByRole("button", { name: "Add 2 Projects", exact: true }).isDisabled(), "step 4 scan finished");
-  assert.equal(await checklist.getByRole("checkbox", { checked: true }).count(), 2);
+  const checklist = () => wizard().getByRole("dialog", { name: "Add projects", exact: true });
+  await checklist().waitFor();
+  await wait(async () => !await checklist().getByRole("button", { name: "Add 2 Projects", exact: true }).isDisabled(), "step 4 scan finished");
+  assert.equal(await checklist().getByRole("checkbox", { checked: true }).count(), 2);
+  await wizard().locator(".ob-title").evaluate(node => node.focus());
+  assert.equal(await checklist().evaluate(node => node.contains(document.activeElement)), true, "wizard behind scan is inert");
+  await page.keyboard.press("Tab");
+  assert.equal(await checklist().evaluate(node => node.contains(document.activeElement)), true);
   await shot("03-add-scan");
-  await page.keyboard.press("Escape"); await checklist.waitFor({ state: "hidden" });
+  await page.keyboard.press("Escape"); await checklist().waitFor({ state: "hidden" });
   await wait(() => focusIs(button("Add Project…")), "scan cancel restores wizard focus");
   assert.equal(await wizard().isVisible(), true);
   const addPlain = join(work, "add-plain"); await mkdir(addPlain);
@@ -340,14 +372,53 @@ else if (args[1] === 'add') {
   const addConfirm = wizard().getByRole("dialog", { name: "Set up add-plain as a doan project?", exact: true });
   await addConfirm.waitFor();
   assert.equal(await focusIs(addConfirm.getByRole("button", { name: "Cancel", exact: true })), true);
+  await app.evaluate(({ ipcMain }) => {
+    const handlers = Reflect.get(ipcMain, "_invokeHandlers");
+    Reflect.set(globalThis, "obFolderOriginal", handlers.get("folders:confirm-folder"));
+    ipcMain.removeHandler("folders:confirm-folder");
+    ipcMain.handle("folders:confirm-folder", () => { throw new Error("Injected folder failure"); });
+  });
+  await addConfirm.getByRole("button", { name: "Set Up…", exact: true }).click();
+  const folderError = addConfirm.getByRole("alert");
+  await folderError.waitFor();
+  assert.match(await folderError.getAttribute("class") ?? "", /ob-msg error/);
+  assert.ok(!(await folderError.textContent())?.startsWith("Error:"));
   await shot("03-add-confirm");
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler("folders:confirm-folder"); ipcMain.handle("folders:confirm-folder", Reflect.get(globalThis, "obFolderOriginal"));
+  });
   await page.keyboard.press("Escape"); await addConfirm.waitFor({ state: "hidden" });
   await wait(() => focusIs(button("Add Project…")), "confirm cancel restores wizard focus");
-  await pick(addParent); await button("Add Project…").click(); await checklist.waitFor();
-  await checklist.getByRole("button", { name: "Add 2 Projects", exact: true }).click();
+  await button("Add Project…").click(); await addConfirm.waitFor();
+  await addConfirm.getByRole("button", { name: "Set Up…", exact: true }).click();
+  await button("Set Up Project").waitFor();
+  await wizard().locator(".ob-field .value").getByText(addPlain, { exact: true }).waitFor();
+  await reopen(); await go("First prompt");
+  const direct = await setUpRepo("direct-add");
+  const brokenParent = join(work, "broken-parent"), refusedChild = join(brokenParent, "child");
+  await mkdir(join(brokenParent, ".doan"), { recursive: true }); await mkdir(refusedChild);
+  await writeFile(join(brokenParent, ".doan/config.json"), "{broken");
+  await app.evaluate(({ dialog }, paths) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: paths }); }, [direct, addParent, refusedChild]);
+  await button("Add Project…").click(); await checklist().waitFor();
+  const mixedRefusal = await wizard().locator(".ob-form > [role=alert]").textContent();
+  assert.match(mixedRefusal ?? "", /config/i);
+  await checklist().getByRole("button", { name: "Add 2 Projects", exact: true }).click();
+  await checklist().waitFor({ state: "hidden" });
   await subject(wizard()).waitFor();
+  assert.ok((await wizard().locator(".ob-sentence").textContent())?.includes(direct), "later scan preserves the first directly added project");
+  assert.equal(await wizard().getByRole("alert").textContent(), mixedRefusal, "mixed refusal remains visible after the scan");
   const multiStored = JSON.parse(await readFile(join(data, "folders.json"), "utf8")) as string[];
   assert.ok(multiStored.includes(addA) && multiStored.includes(addB));
+  await reopen(); await go("First prompt");
+  const mixedDirect = await setUpRepo("mixed-direct"), mixedPlain = join(work, "mixed-plain"); await mkdir(mixedPlain);
+  await app.evaluate(({ dialog }, paths) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: paths }); }, [mixedDirect, mixedPlain]);
+  await button("Add Project…").click();
+  const mixedConfirm = wizard().getByRole("dialog", { name: "Set up mixed-plain as a doan project?", exact: true });
+  await mixedConfirm.waitFor(); await mixedConfirm.getByRole("button", { name: "Set Up…", exact: true }).click();
+  await button("Set Up Project").waitFor();
+  await wizard().locator(".ob-field .value").getByText(mixedPlain, { exact: true }).waitFor();
+  await writeFile(join(mixedDirect, "design/later.html"), canvasHtml("Later")); await listed(mixedDirect, "design/later.html");
+  assert.equal(await wizard().locator(".ob-field .value").getByText(mixedPlain, { exact: true }).count(), 1, "late folder update preserves explicit setup choice");
   await reopen(); await go("First prompt");
   await pick(join(work, "missing-folder")); await button("Add Project…").click();
   await wizard().getByRole("alert").waitFor();
@@ -358,11 +429,13 @@ else if (args[1] === 'add') {
   assert.equal(await wizard().getByText("Not set up", { exact: true }).count(), 1);
   assert.equal(await wizard().getByText(/Add a project first/).count(), 0);
   assert.equal(await subject(wizard()).count(), 0);
+  await shot("03-skipped-project");
   await button("Set Up…").click(); await button("Set Up Project").waitFor();
   // A new session has no chosen project; a duplicate must be adopted visibly.
   await reopen(); await go("First prompt"); await pick(project); await button("Add Project…").click();
   await button("Set Up Project").waitFor();
   await wizard().getByRole("status").filter({ hasText: "Already added" }).waitFor();
+  await shot("03-add-duplicate");
   assert.equal(await stepButton("Project").getAttribute("aria-current"), "step");
   await assertProjectPath(wizard().locator(".ob-field .meta"), button("Open Project…"), project, "wizard");
   const projectValue = wizard().locator(".ob-field .value").first();
