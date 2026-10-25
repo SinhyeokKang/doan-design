@@ -5,6 +5,10 @@ import type { Comment } from "../formats/types";
 import { foldText } from "../formats/foldText";
 import { CommentsPanel, DeleteCommentDialog, CommentCard, CommentEditor, UnsavedCommentDialog, UncertainCommentDialog, type CommentsPanelProps, type CommentEditorProps } from "./CommentsPanel";
 
+// Tests call the editor as a plain function to read its element tree, outside
+// a React render; its reason id still comes from useId in the app.
+vi.mock("react", async original => ({ ...await original<typeof import("react")>(), useId: () => "«r1»" }));
+
 const comment: Comment = { comment: "c1", status: "open", body: '<script>alert("x")</script>\n  Keep spaces ', target: { element: { doanId: "submit", selector: "button", html: "<button/>" } }, canvasHash: "h", createdBy: { kind: "human", name: "Alex Morgan", email: "alex@example.com" }, createdAt: "2026-10-23T01:42:00Z", updatedAt: "2026-10-23T01:42:00Z" };
 const noop = () => {};
 function panel(overrides: Partial<CommentsPanelProps> = {}): CommentsPanelProps {
@@ -28,6 +32,10 @@ describe("Comments presentation", () => {
   test("renders plain text, author identity, targets and independent location/freshness badges", () => {
     const out = html(panel({ freshness: new Map([["c1", "outdated"]]), missingLocations: new Set(["c1"]) }));
     for (const text of ["Alex Morgan", "alex@example.com", ">AM<", "Element · submit", "Outdated", "Location unavailable", "&lt;script&gt;", "\n  Keep spaces "]) expect(out).toContain(text);
+    const unknown = html(panel({ missingLocations: null }));
+    expect(unknown).not.toContain("Location unavailable");
+    expect(unknown).toContain(`<button type="button" class="comments-target" disabled="">Element · submit</button>`);
+    expect(html(panel())).toContain(`<button type="button" class="comments-target">Element · submit</button>`);
     expect(out).not.toContain("<script>");
     expect(html(panel({ freshness: new Map([["c1", "unknown"]]) }))).toContain("Freshness unknown");
   });
@@ -124,6 +132,16 @@ describe("Draft recovery presentation", () => {
       expect(out).toMatch(/<button[^>]*disabled=""[^>]*>(Save comment|Saving…)<\/button>/);
     }
     expect(renderToStaticMarkup(<CommentEditor {...editor({ state: { status: "failed", message: "Write failed" } })} />)).toContain("Original body");
+  });
+  // CommentsSession.guardSelection lets a blocked draft's same-canvas selection
+  // change through without touching a pending transition; that holds because
+  // the dialog is modal, so no canvas click, pin or blank click reaches the page.
+  test("unsaved dialog opens modal", () => {
+    const dialog = UnsavedCommentDialog({ target: comment.target, context: "website / sign-in", canSave: false, busy: false, onContinue: noop, onDiscard: noop, onSave: noop, restoreEditorFocus: noop });
+    const node = { open: false, showModal: vi.fn(), show: vi.fn() };
+    (dialog.props.ref as (node: unknown) => void)(node);
+    expect(node.showModal).toHaveBeenCalledOnce();
+    expect(node.show).not.toHaveBeenCalled();
   });
   test("unsaved dialog Escape continues and restores editor focus, except during IME", () => {
     const onContinue = vi.fn(), restoreEditorFocus = vi.fn();
@@ -245,8 +263,8 @@ describe("continue a blocked new comment", () => {
   });
   test("a disabled reason replaces the preview and describes the button", () => {
     const out = renderToStaticMarkup(<CommentEditor {...blocked({ enabled: false, reason: "Waiting for the canvas to finish loading." })} />);
-    expect(out).toMatch(/<button[^>]*disabled=""[^>]*aria-describedby="comments-continue-reason"|<button[^>]*aria-describedby="comments-continue-reason"[^>]*disabled=""/);
-    expect(out).toContain(`<p class="comments-helper" id="comments-continue-reason">Waiting for the canvas to finish loading.</p>`);
+    expect(out).toMatch(/<button[^>]*disabled=""[^>]*aria-describedby="«r1»"|<button[^>]*aria-describedby="«r1»"[^>]*disabled=""/);
+    expect(out).toContain(`<p class="comments-helper" id="«r1»">Waiting for the canvas to finish loading.</p>`);
     expect(out).not.toContain("Continues on");
   });
   test("selection gone offers Continue on canvas between Cancel and the primary", () => {

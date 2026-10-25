@@ -1431,3 +1431,99 @@ describe("a canvas moved with the same id", () => {
     } finally { h.controller.dispose(); }
   });
 });
+
+describe("Escape and a blank click without a selection (L-17)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const escapeKey = () => Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" });
+
+  it("neither asks about a draft nor prevents Escape, and still cancels a pending Open", async () => {
+    const h = selectionHarness();
+    try {
+      const allow: ((value: boolean) => void)[] = [];
+      const guard = vi.fn(() => new Promise<boolean>(resolve => allow.push(resolve)));
+      h.controller.setDraftGuard(true);
+      h.controller.setTransitionGuard(guard);
+      h.controller.openCanvas("/repo", h.other);
+      expect(guard).toHaveBeenCalledOnce();
+      const event = escapeKey();
+      h.host.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+      expect(guard).toHaveBeenCalledOnce();
+      allow[0]?.(true); await Promise.resolve();
+      expect(h.state().open.canvas).toBe(h.row.path);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("skips the guard for an Escape forwarded from the canvas and a blank margin click", () => {
+    const h = selectionHarness();
+    try {
+      const guard = vi.fn(() => false);
+      h.controller.setDraftGuard(true);
+      h.controller.setTransitionGuard(guard);
+      h.receive({ type: "key", seq: 0, key: "Escape" });
+      h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
+      expect(guard).not.toHaveBeenCalled();
+      h.select(1);
+      h.receive({ type: "key", seq: 1, key: "Escape" });
+      expect(guard).toHaveBeenLastCalledWith("selection");
+      expect(h.state().selection).not.toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("still guards Escape while the reloaded canvas looks for the selection", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.command("reload");
+      expect(h.state().reanchoring).toBe(true);
+      const guard = vi.fn(() => false);
+      h.controller.setDraftGuard(true);
+      h.controller.setTransitionGuard(guard);
+      const event = escapeKey();
+      h.host.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(guard).toHaveBeenCalledExactlyOnceWith("selection");
+      expect(h.state().reanchoring).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+});
+
+describe("comment anchors through a reload (T-11, W-9)", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  const status = (h: ReturnType<typeof pinHarness>) => h.changed.mock.lastCall?.[0].status;
+
+  it("is pending while the same canvas reloads and answered once the new document replies", () => {
+    const h = pinHarness();
+    try {
+      expect(status(h)).toBe("answered");
+      h.controller.command("reload");
+      expect(status(h)).toBe("pending");
+      h.layout({ document: "doc2" });
+      expect(status(h)).toBe("pending");
+      // A late answer from the old document does not end the wait.
+      h.reply();
+      expect(status(h)).toBe("pending");
+      const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+      h.receive({ type: "anchors", document: "doc2", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+        results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: [t.id] } })), rects: q.targets.map((t: { id: string }) => ({ node: t.id, x: 10, y: 10, width: 10, height: 10 })) });
+      expect(status(h)).toBe("answered");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("ends the wait when the reload fails, the page is unlisted, the width is gone or the id changes", () => {
+    vi.useFakeTimers();
+    const cases: [string, (h: ReturnType<typeof pinHarness>) => void][] = [
+      ["failed", h => { h.controller.command("reload"); vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS); }],
+      ["unlisted", h => { h.current().dispatchEvent(new Event("load")); expect(status(h)).toBe("pending"); vi.advanceTimersByTime(1000); }],
+      ["no width", h => { const { width: _width, ...row } = h.row; h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [row, h.other] }]); }],
+      ["another id", h => { h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, id: "replaced" }, h.other] }]); }],
+    ];
+    for (const [name, end] of cases) {
+      const h = pinHarness();
+      try {
+        end(h);
+        expect([name, status(h)]).toEqual([name, "none"]);
+      } finally { h.controller.dispose(); }
+    }
+  });
+});

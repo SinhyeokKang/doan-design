@@ -22,8 +22,9 @@ export type DraftAction =
   | { type: "save"; request: string }
   | { type: "saved"; draft: string; request: string; outcome: "saved" | "failed" | "unknown"; error?: string }
   | { type: "invalidate"; reason: string }
-  // `identity` is the session's current root and canvas id; `loading` counts
-  // as the same canvas until the load settles, unless `identity` says otherwise.
+  // `identity` is the session's current root and canvas id, null without one;
+  // `loading` counts as the same canvas until the load settles, only when
+  // `identity` is not passed.
   | { type: "document-lost"; identity?: { root: string; canvas: string } | null; loading?: boolean }
   // A new begin on the current version succeeded; the body moves over as it is now.
   | { type: "continue"; id: string; origin: DraftOrigin };
@@ -43,7 +44,9 @@ export function beginDraft(id: string, origin: DraftOrigin, body: string): Draft
 function loss(origin: DraftOrigin, action: Extract<DraftAction, { type: "document-lost" }>): DraftLoss {
   const identity = action.identity;
   // A known other canvas (including a same-path id change) is never the same
-  // canvas, even while it loads; loading only stands in for an unknown identity.
+  // canvas, even while it loads, and neither is a canvas without an id (null);
+  // loading only stands in for an identity the caller did not pass.
+  if (identity === null) return "unavailable";
   if (identity) return identity.root === origin.root && identity.canvas === origin.canvas ? "reloaded" : "unavailable";
   return action.loading ? "reloaded" : "unavailable";
 }

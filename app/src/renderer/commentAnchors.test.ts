@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { acceptCanvasMessage } from "./canvasMessage";
-import { anchorSnapshot } from "./commentAnchors";
+import { anchorSnapshot, shownAnchors, type AnchorSnapshot } from "./commentAnchors";
 import type { Comment } from "../formats/types";
 
 const comment = (id: string, target: Comment["target"]): Comment => ({ comment: id, target, status: "open", body: "x", canvasHash: "h", createdBy: { kind: "human", name: "A" }, createdAt: "t", updatedAt: "t" });
@@ -34,5 +34,23 @@ describe("anchor response boundary", () => {
     const results = Array.from({ length: 1001 }, (_, i) => ({ id: String(i), candidates: { selector: ["n1"] } }));
     const parsed = acceptCanvasMessage({ source: 1, origin: "null", data: { ...response, results } }, 1);
     expect(parsed?.type === "anchors" && parsed.results.length).toBe(1001);
+  });
+});
+
+describe("the snapshot the panel shows through a reload (T-11)", () => {
+  const snapshot = (status: AnchorSnapshot["status"], canvas = "a"): AnchorSnapshot => ({ lookup: { root: "/repo", canvas, generation: 1, nodes: new Map() }, rects: new Map(), selected: null, status });
+  it("keeps the last answer of the same canvas while its next document is pending", () => {
+    const answered = snapshot("answered");
+    expect(shownAnchors(answered, snapshot("pending"))).toBe(answered);
+  });
+  it("takes the next snapshot otherwise", () => {
+    for (const [previous, next] of [
+      [null, snapshot("pending")],
+      [snapshot("none"), snapshot("pending")],
+      [snapshot("pending"), snapshot("pending")],
+      [snapshot("answered", "b"), snapshot("pending")],
+      [snapshot("answered"), snapshot("none")],
+      [snapshot("answered"), snapshot("answered")],
+    ] as const) expect(shownAnchors(previous, next)).toBe(next);
   });
 });

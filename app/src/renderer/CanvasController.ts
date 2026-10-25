@@ -11,7 +11,7 @@ import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, sameDocum
 import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
 import { activityFor, moveActivity, pushActivity, type ActivityEvent } from "./activity";
-import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
+import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { currentFrame } from "./currentFrame";
 
@@ -145,9 +145,18 @@ export class CanvasController {
 
   private clearAnchors(): void {
     const binding = this.comments;
-    this.anchors = binding ? { lookup: { root: binding.root, canvas: binding.canvas, generation: this.anchorGeneration, nodes: new Map() }, rects: new Map(), selected: null } : null;
+    this.anchors = binding ? { lookup: { root: binding.root, canvas: binding.canvas, generation: this.anchorGeneration, nodes: new Map() }, rects: new Map(), selected: null,
+      status: this.anchorsExpected(binding) ? "pending" : "none" } : null;
     this.drawPins();
     if (this.anchors) this.commentHooks?.changed(this.anchors);
+  }
+
+  // A document of the bound canvas is loading or about to answer. A failed
+  // load, a missing width or an unlisted page ends the wait (clearAnchors).
+  private anchorsExpected(binding: CommentBinding): boolean {
+    const open = this.state.open;
+    return !!open && binding.root === open.folder && binding.canvas === open.row.id && this.frame !== null &&
+      !this.state.unlisted && (this.state.status === null || this.state.status === "loading");
   }
 
   private matchingComments(): CommentBinding | null {
@@ -503,6 +512,7 @@ export class CanvasController {
       this.pendingFrame?.found?.(false);
       this.pendingFrame = null;
       this.applySelectionEffect({ kind: "loadFailed" });
+      this.clearAnchors();
       this.publish();
     }, FIRST_LAYOUT_TIMEOUT_MS);
     this.publish();
@@ -538,6 +548,7 @@ export class CanvasController {
       this.applySelectionEffect({ kind: "unlisted" });
       this.state.shown = null;
       this.state.unlisted = true;
+      this.clearAnchors();
       this.publish();
     }, MEASURE_ANSWER_MS);
     // The sandbox has an opaque origin, so a concrete target origin cannot match it.
@@ -668,7 +679,12 @@ export class CanvasController {
     this.post({ ...message, seq: this.hoverSeq });
   }
 
-  private escape(): void { this.transition(() => this.escapeNow(), undefined, "selection"); }
+  // Without a selection to clear, Esc and a blank click skip the draft guard;
+  // the bumped intent still cancels a pending Open (feature revision-continuity L-17).
+  private escape(): void {
+    if (!shouldGuardEscape(this.state.selection, this.reanchor)) { this.transitionIntent++; return; }
+    this.transition(() => this.escapeNow(), undefined, "selection");
+  }
 
   private escapeNow(): void {
     if (this.state.selection === null && this.reanchor === null) return;
@@ -694,7 +710,7 @@ export class CanvasController {
       return;
     }
     if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || event.defaultPrevented || editableTarget(event.target)) return;
-    if (this.selectionGuard) event.preventDefault();
+    if (this.selectionGuard && shouldGuardEscape(this.state.selection, this.reanchor)) event.preventDefault();
     this.escape();
   };
 

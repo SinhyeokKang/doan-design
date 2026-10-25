@@ -4,11 +4,19 @@ import { useComments } from "./useComments";
 import { initialCanvasState, type CanvasController, type CanvasState } from "./CanvasController";
 import { createTransitionGuard, type TransitionRequest } from "../main/comments/transitions";
 import type { CommentRequest } from "../main/comments/service";
+import type { Comment } from "../formats/types";
+import type { AnchorSnapshot, CommentHooks } from "./commentAnchors";
 
-const harness = vi.hoisted(() => ({ effects: [] as (() => void | (() => void))[], states: [] as unknown[], setters: [] as ReturnType<typeof vi.fn>[], index: 0, refs: [] as { current: unknown }[], refIndex: 0 }));
+const harness = vi.hoisted(() => ({ effects: [] as (() => void | (() => void))[], deps: [] as (readonly unknown[] | undefined)[], states: [] as unknown[], setters: [] as ReturnType<typeof vi.fn>[], updates: [] as [number, unknown][], index: 0, refs: [] as { current: unknown }[], refIndex: 0 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
-  useEffect: (effect: () => void | (() => void)) => { harness.effects.push(effect); },
+  // Like React, an effect whose dependencies did not change since the last render is skipped.
+  useEffect: (effect: () => void | (() => void), deps?: readonly unknown[]) => {
+    const i = harness.effects.length, previous = harness.deps[i];
+    const changed = !deps || !previous || deps.some((value, j) => !Object.is(value, previous[j]));
+    harness.deps[i] = deps;
+    harness.effects.push(changed ? effect : () => {});
+  },
   useRef: (initial: unknown = null) => {
     const i = harness.refIndex++;
     return harness.refs[i] ??= { current: initial };
@@ -17,10 +25,10 @@ vi.mock("react", async original => ({
     const i = harness.index++;
     if (!(i in harness.states)) harness.states[i] = typeof initial === "function" ? initial() : initial;
     // Recorded so a test can see which state a render tried to replace.
-    return [harness.states[i], harness.setters[i] = vi.fn()];
+    return [harness.states[i], harness.setters[i] = vi.fn((update: unknown) => { harness.updates.push([i, update]); })];
   },
 }));
-afterEach(() => { vi.unstubAllGlobals(); harness.effects = []; harness.states = []; harness.setters = []; harness.index = 0; harness.refs = []; harness.refIndex = 0; });
+afterEach(() => { vi.unstubAllGlobals(); harness.effects = []; harness.deps = []; harness.states = []; harness.updates = []; harness.setters = []; harness.index = 0; harness.refs = []; harness.refIndex = 0; });
 
 test("public main transition wiring separates blocked removal from exceptional quit and authenticates each answer", async () => {
   let listener: ((request: TransitionRequest) => void) | undefined;
@@ -63,32 +71,40 @@ test("public main transition wiring separates blocked removal from exceptional q
   expect(remove).not.toHaveBeenCalled();
 });
 
+const row = { path: "design/a.html", id: "a", url: "http://localhost/a.html", width: 600, open: 0, resolved: 0 };
+const label = { tag: "label", frame: { id: "shipping" }, frameIndex: 0, element: { doanId: "address", selector: "label", html: "<label/>" }, path: [] };
+const pay = { tag: "button", frame: { id: "payment" }, frameIndex: 1, element: { doanId: "pay", selector: "button", html: "<button/>" }, path: [] };
+const layout = (document: string) => ({ type: "layout" as const, href: row.url, height: 150, viewport: 150, frames: [], truncated: false, document });
+// useState slots in useComments: 2 = anchors, 3 = filter.
+const ANCHORS = 2, FILTER = 3;
+// Applies the recorded set-state calls for one slot, as React would before the next render.
+function settle(slot: number) {
+  for (const [index, update] of harness.updates) if (index === slot) harness.states[slot] = typeof update === "function" ? (update as (value: unknown) => unknown)(harness.states[slot]) : update;
+  harness.updates = harness.updates.filter(([index]) => index !== slot);
+}
+function setup(comments: Comment[] = []) {
+  const guard = vi.fn(async (_active: boolean) => {});
+  const begin = vi.fn(async (r: CommentRequest & { scope: string }) => ({ ok: true, identity: r, value: { project: 1, origin: "origin", hash: "hash", target: r.scope === "canvas" ? {} : { frame: "payment", element: pay.element } } }));
+  const mutate = vi.fn(async (r: CommentRequest) => ({ ok: true, identity: r, value: { state: "unknown" } }));
+  vi.stubGlobal("window", { addEventListener: vi.fn(), removeEventListener: vi.fn(), doan: {
+    onCommentsInvalidated: () => () => {}, onCommentTransition: () => () => {}, answerCommentTransition: vi.fn(),
+    setCommentDraftGuard: guard, commentsBegin: begin, commentsMutate: mutate,
+    commentsList: async (r: CommentRequest) => ({ ok: true, identity: r, value: { project: 1, comments, warnings: [], canvasHash: "hash" } }),
+    commentsAuthor: async (r: CommentRequest) => ({ ok: true, identity: r, value: { kind: "human", name: "A" } }),
+  } });
+  const controller = { setTransitionGuard: vi.fn(), setComments: vi.fn(), setDraftGuard: vi.fn(), setFollowGuard: vi.fn() };
+  const ref = { current: controller as unknown as CanvasController };
+  const base: CanvasState = { ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, hasFrame: true, layout: layout("one"), selection: label };
+  const render = (over: Partial<CanvasState> = {}) => {
+    harness.index = 0; harness.refIndex = 0; harness.effects = [];
+    const result = useComments({ ...base, ...over }, ref, vi.fn(), []);
+    for (const effect of harness.effects) effect();
+    return { ...result, markup: renderToStaticMarkup(<>{result.panel}</>) };
+  };
+  return { guard, begin, mutate, controller, render };
+}
+
 describe("a new comment blocked by a reload", () => {
-  const row = { path: "design/a.html", id: "a", url: "http://localhost/a.html", width: 600, open: 0, resolved: 0 };
-  const label = { tag: "label", frame: { id: "shipping" }, frameIndex: 0, element: { doanId: "address", selector: "label", html: "<label/>" }, path: [] };
-  const pay = { tag: "button", frame: { id: "payment" }, frameIndex: 1, element: { doanId: "pay", selector: "button", html: "<button/>" }, path: [] };
-  const layout = (document: string) => ({ type: "layout" as const, href: row.url, height: 150, viewport: 150, frames: [], truncated: false, document });
-  function setup() {
-    const guard = vi.fn(async (_active: boolean) => {});
-    const begin = vi.fn(async (r: CommentRequest & { scope: string }) => ({ ok: true, identity: r, value: { project: 1, origin: "origin", hash: "hash", target: r.scope === "canvas" ? {} : { frame: "payment", element: pay.element } } }));
-    const mutate = vi.fn(async (r: CommentRequest) => ({ ok: true, identity: r, value: { state: "unknown" } }));
-    vi.stubGlobal("window", { addEventListener: vi.fn(), removeEventListener: vi.fn(), doan: {
-      onCommentsInvalidated: () => () => {}, onCommentTransition: () => () => {}, answerCommentTransition: vi.fn(),
-      setCommentDraftGuard: guard, commentsBegin: begin, commentsMutate: mutate,
-      commentsList: async (r: CommentRequest) => ({ ok: true, identity: r, value: { project: 1, comments: [], warnings: [], canvasHash: "hash" } }),
-      commentsAuthor: async (r: CommentRequest) => ({ ok: true, identity: r, value: { kind: "human", name: "A" } }),
-    } });
-    const controller = { setTransitionGuard: vi.fn(), setComments: vi.fn(), setDraftGuard: vi.fn(), setFollowGuard: vi.fn() };
-    const ref = { current: controller as unknown as CanvasController };
-    const base: CanvasState = { ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, hasFrame: true, layout: layout("one"), selection: label };
-    const render = (over: Partial<CanvasState> = {}) => {
-      harness.index = 0; harness.refIndex = 0; harness.effects = [];
-      const result = useComments({ ...base, ...over }, ref, vi.fn(), []);
-      for (const effect of harness.effects) effect();
-      return { ...result, markup: renderToStaticMarkup(<>{result.panel}</>) };
-    };
-    return { guard, begin, mutate, controller, render };
-  }
   async function blocked() {
     const f = setup();
     const { session } = f.render();
@@ -117,7 +133,9 @@ describe("a new comment blocked by a reload", () => {
 
   test("disables continue with a reason while loading and reanchoring, then continues on the current selection", async () => {
     const { session, begin, guard, render } = await blocked();
-    expect(render({ status: "loading", layout: null, selection: null }).markup).toContain(`id="comments-continue-reason">Waiting for the canvas to finish loading.`);
+    const loading = render({ status: "loading", layout: null, selection: null }).markup;
+    const reason = /<p class="comments-helper" id="([^"]+)">Waiting for the canvas to finish loading.<\/p>/.exec(loading)?.[1];
+    expect(loading).toContain(`aria-describedby="${reason}"`);
     expect(render({ layout: layout("two"), selection: label, reanchoring: true }).markup).toContain("Finding your selection in the current version…");
     const ready = render({ layout: layout("two"), selection: pay });
     expect(ready.markup).toContain("Continues on Element · pay.");
@@ -217,5 +235,103 @@ describe("a new comment blocked by a reload", () => {
     const markup = render({ open: { folder: "/repo", canvas: row.path, row: other }, status: "loading", layout: null, selection: null }).markup;
     expect(session.draft.draft?.lost).toBe("unavailable");
     expect(markup).not.toContain("Continue on current version");
+  });
+});
+
+describe("the Comments scope across a reload or a move (L-13)", () => {
+  test("keeps a picked Canvas scope while the same selection is found again, and follows a new or no selection", async () => {
+    const { render } = setup();
+    const { session } = render();
+    settle(FILTER);
+    expect(harness.states[FILTER]).toMatchObject({ scope: "selection" });
+    harness.states[FILTER] = { scope: "canvas", status: "open" };
+    await vi.waitFor(() => expect(session.identity).not.toBeNull());
+    // The reload finds the same doanId under a rewritten selector, then the canvas moves.
+    render({ selection: { ...label, element: { ...label.element, selector: "form > label" } } });
+    const moved = { ...row, path: "design/flows/a.html", url: "http://localhost/flows/a.html" };
+    const at = { open: { folder: "/repo", canvas: moved.path, row: moved }, shown: moved.path };
+    render({ ...at, selection: { ...label } });
+    settle(FILTER);
+    expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "open" });
+    render({ ...at, selection: pay });
+    settle(FILTER);
+    expect(harness.states[FILTER]).toMatchObject({ scope: "selection" });
+    render({ ...at, selection: null });
+    settle(FILTER);
+    expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "open" });
+  });
+
+  test("a rewritten selector is a new element when the element has no doanId", () => {
+    const { render } = setup();
+    const plain = { ...label, element: { selector: "label", html: "<label/>" } };
+    render({ selection: plain });
+    settle(FILTER);
+    harness.states[FILTER] = { scope: "canvas", status: "open" };
+    render({ selection: { ...plain, element: { ...plain.element, selector: "form > label" } } });
+    settle(FILTER);
+    expect(harness.states[FILTER]).toMatchObject({ scope: "selection" });
+  });
+});
+
+test("a canvas that loses its id while reloading cannot continue the draft", async () => {
+  const { render, begin, controller } = setup();
+  const { session } = render({ selection: null });
+  await vi.waitFor(() => expect(session.author.status).toBe("ready"));
+  await session.create("canvas"); session.body("keep"); render({ selection: null });
+  const { id: _id, ...withoutId } = row;
+  const open = { folder: "/repo", canvas: row.path, row: withoutId };
+  render({ open, status: "loading", layout: null, selection: null });
+  expect(session.identity).toBeNull();
+  expect(session.draft.draft).toMatchObject({ body: "keep", lost: "unavailable" });
+  const loaded = render({ open, layout: layout("two"), selection: null });
+  expect(loaded.markup).not.toContain("Continue on current version");
+  expect(controller.setDraftGuard).toHaveBeenLastCalledWith(true, true);
+  await session.continueDraft("canvas");
+  expect(begin).toHaveBeenCalledOnce();
+});
+
+describe("comment locations (W-9, T-11)", () => {
+  const c1: Comment = { comment: "c1", body: "Mark the field", status: "open", target: { element: { doanId: "address", selector: "label", html: "<label/>" } }, canvasHash: "hash", createdBy: { kind: "human", name: "A" }, createdAt: "t", updatedAt: "t" };
+  const snapshot = (status: AnchorSnapshot["status"], nodes: [string, string][] = [], selected: string | null = null): AnchorSnapshot =>
+    ({ lookup: { root: "/repo", canvas: "a", generation: 1, nodes: new Map(nodes) }, rects: new Map(), selected, status });
+  async function bound(selection: CanvasState["selection"]) {
+    const f = setup([c1]);
+    const { session } = f.render({ selection });
+    settle(FILTER);
+    await vi.waitFor(() => expect(session.list).not.toBeNull());
+    f.render({ selection });
+    const hooks = f.controller.setComments.mock.lastCall![1] as CommentHooks;
+    const show = (next: AnchorSnapshot) => { hooks.changed(next); settle(ANCHORS); return f.render({ selection }).markup; };
+    return { ...f, show };
+  }
+  const locate = /<button type="button" class="comments-target"( disabled="")?>Element · address<\/button>/;
+
+  test("without a document answer there is no badge and the target is text", async () => {
+    const { render, show } = await bound(null);
+    for (const markup of [render({ selection: null }).markup, show(snapshot("none")), show(snapshot("pending"))]) {
+      expect(markup).toContain("Mark the field");
+      expect(markup).not.toContain("Location unavailable");
+      expect(locate.exec(markup)?.[1]).toBe(` disabled=""`);
+    }
+    const answered = show(snapshot("answered", [["c1", "n1"]]));
+    expect(locate.exec(answered)?.[1]).toBeUndefined();
+    expect(show(snapshot("answered"))).toContain("Location unavailable");
+  });
+
+  test("keeps the last answer while the canvas reloads and drops it when no document will answer", async () => {
+    const { show } = await bound(null);
+    expect(show(snapshot("answered", [["c1", "n1"]]))).not.toContain("Location unavailable");
+    expect(show(snapshot("pending"))).not.toContain("Location unavailable");
+    expect(show(snapshot("answered"))).toContain("Location unavailable");
+    expect(show(snapshot("pending"))).toContain("Location unavailable");
+    expect(show(snapshot("none"))).not.toContain("Location unavailable");
+  });
+
+  test("keeps the Selection list until the reloaded document answers", async () => {
+    const { show } = await bound(label);
+    expect(harness.states[FILTER]).toMatchObject({ scope: "selection" });
+    expect(show(snapshot("answered", [["c1", "n1"]], "n1"))).toContain("Mark the field");
+    expect(show(snapshot("pending"))).toContain("Mark the field");
+    expect(show(snapshot("none"))).not.toContain("Mark the field");
   });
 });

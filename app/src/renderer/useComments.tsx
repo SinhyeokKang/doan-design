@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { CommentsSession } from "./CommentsSession";
 import { CommentsPanel, UnsavedCommentDialog, UncertainCommentDialog, DeleteCommentDialog, type CommentIntent } from "./CommentsPanel";
 import type { CanvasController, CanvasState } from "./CanvasController";
-import type { AnchorSnapshot } from "./commentAnchors";
+import { shownAnchors, type AnchorSnapshot } from "./commentAnchors";
+import { mainSelection, selectionIdentity } from "./selection";
 import { outdated, projectList, type ListFilter } from "../comments/projection";
 import { continueEnabled, draftScope, guardsSelectionChange } from "../comments/draft";
 import type { Target } from "../formats/types";
@@ -46,7 +47,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     const identity = session.identity;
     if (!identity || !session.list) return;
     controller.current?.setComments({ root: identity.root, canvas: identity.canvas, comments: session.list.comments }, {
-      changed: snapshot => setAnchors(snapshot),
+      changed: snapshot => setAnchors(previous => shownAnchors(previous, snapshot)),
       guard: () => session.guardSelection(),
       open: destination => setFilter({ scope: "selection", status: "open", node: destination.node }),
       focusFallback: () => heading.current?.focus(),
@@ -75,9 +76,12 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     // A continued draft keeps its text; the caret goes after it.
     if (session.continued === draft.id) { session.continued = null; field.setSelectionRange(field.value.length, field.value.length); }
   }, [draft?.id, session.saveView.status, session.draft.transition, uncertain]);
+  // A reload or a move finds the same selection again; only a new one
+  // overrides the scope a person picked (feature revision-continuity L-13).
+  const selected = open && state.selection ? selectionIdentity(mainSelection(open, state.selection)) : null;
   useEffect(() => {
-    setFilter(current => state.selection ? { scope: "selection", status: current.status, node: null } : { scope: "canvas", status: current.status });
-  }, [state.selection]);
+    setFilter(current => selected !== null ? { scope: "selection", status: current.status, node: null } : { scope: "canvas", status: current.status });
+  }, [selected]);
   const identity = session.identity;
   const comments = session.list?.comments ?? [];
   const snapshot = anchors && identity && anchors.lookup.root === identity.root && anchors.lookup.canvas === identity.canvas ? anchors : null;
@@ -108,13 +112,14 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     reanchoring: state.reanchoring, author: session.author.status, selection: state.selection !== null && !state.unlisted });
   // After a missing selection offered "Continue on canvas", picking a new element
   // keeps it for that draft (design/revision-continuity.html, selection-gone 2b).
-  if (draft && continueView.kind === "disabled" && continueView.canvas) session.canvasOffered = draft.id;
+  const offering = !!draft && continueView.kind === "disabled" && continueView.canvas;
+  useEffect(() => { if (offering && draft) session.canvasOffered = draft.id; }, [session, offering, draft?.id]);
   const continueEditor = draft?.origin.kind === "create" && continueView.kind !== "hidden" ? (() => {
     const scope = draftScope(draft.origin), selection = state.selection;
     const preview: Target = scope === "canvas" || !selection ? {} : { ...(selection.frame ? { frame: selection.frame.id } : {}), ...(selection.element ? { element: selection.element } : {}) };
     const canvasEnabled = continueView.kind === "enabled" || (continueView.kind === "disabled" && continueView.canvas);
     return { enabled: continueView.kind === "enabled", reason: continueView.kind === "disabled" ? continueView.reason : null, preview,
-      canvas: scope === "selection" && session.canvasOffered === draft.id ? { enabled: canvasEnabled } : null,
+      canvas: scope === "selection" && (offering || session.canvasOffered === draft.id) ? { enabled: canvasEnabled } : null,
       starting: !session.beginning || !session.continuing ? null : session.continuing === scope ? "current" as const : "canvas" as const,
       error: session.continueError,
       onContinue: () => { void session.continueDraft(scope); }, onCanvas: () => { void session.continueDraft("canvas"); } };
@@ -126,7 +131,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       counts={{ open: scoped("open").length, resolved: scoped("resolved").length }} canvasOpenCount={comments.filter(c => c.status === "open").length}
       read={session.readError ? { status: "failed", message: session.readError } : session.list ? { status: "ready", comments: scoped(filter.status), warnings: session.list.warnings } : { status: "loading" }}
       freshness={new Map(comments.map(c => [c.comment, outdated(c.canvasHash, session.list?.canvasHash ?? null)]))}
-      missingLocations={new Set(comments.filter(c => (c.target.frame || c.target.element) && !snapshot?.lookup.nodes.has(c.comment)).map(c => c.comment))}
+      missingLocations={snapshot?.status === "answered" ? new Set(comments.filter(c => (c.target.frame || c.target.element) && !snapshot.lookup.nodes.has(c.comment)).map(c => c.comment)) : null}
       author={session.author} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || (session.beginning && !draft)}
       copies={session.copies} allCopy={session.copies.get("all") ?? { status: "idle" }} mutations={session.mutations} headingRef={heading}
       onFilter={setFilter} onCreate={scope => { void session.create(scope); }} onComment={intent} onCopy={scope => { void session.copy(scope); }} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}

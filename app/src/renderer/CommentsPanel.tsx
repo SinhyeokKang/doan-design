@@ -1,4 +1,4 @@
-import type { Ref } from "react";
+import { useId, type Ref } from "react";
 import type { Comment, Target, Warning } from "../formats/types";
 import type { CopyScope, ListFilter } from "../comments/projection";
 
@@ -47,7 +47,8 @@ export interface CommentsPanelProps {
   canvasOpenCount: number;
   read: { status: "loading" } | { status: "failed"; message: string } | { status: "ready"; comments: readonly Comment[]; warnings: readonly Warning[] };
   freshness: ReadonlyMap<string, "same" | "outdated" | "unknown">;
-  missingLocations: ReadonlySet<string>;
+  // Null without a rendered document to look in: no badge and no locate.
+  missingLocations: ReadonlySet<string> | null;
   author: AuthorView;
   writeBlocked: string | null;
   createBlocked: string | null;
@@ -127,7 +128,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
         : <>
           {read.warnings.length > 0 && <div className="comments-message warning"><b>Some events could not be read</b><ul>{read.warnings.map((warning, i) => <li key={i}>{warning.code === "unknown_version" && <>This record was written by a newer version of Doan. </>}{warning.code} · line {warning.line}</li>)}</ul></div>}
           {read.comments.length === 0 && <div className="comments-message"><b>{filter.status === "open" ? "No open comments here" : "No resolved comments here"}</b>{filter.scope === "selection" && props.canvasOpenCount > props.counts.open ? `There are ${props.canvasOpenCount - props.counts.open} open comments elsewhere on this canvas; Copy all open includes them.` : "Leave a note on this target."}</div>}
-          {read.comments.map(comment => <CommentCard key={comment.comment} comment={comment} freshness={props.freshness.get(comment.comment) ?? "unknown"} locationMissing={props.missingLocations.has(comment.comment)} disabled={writesDisabled || editor !== null} busy={props.busy} copy={props.copies.get(comment.comment) ?? { status: "idle" }} mutation={props.mutations?.get(comment.comment)} onComment={props.onComment} onCopy={props.onCopy} />)}
+          {read.comments.map(comment => <CommentCard key={comment.comment} comment={comment} freshness={props.freshness.get(comment.comment) ?? "unknown"} locationMissing={props.missingLocations?.has(comment.comment) ?? null} disabled={writesDisabled || editor !== null} busy={props.busy} copy={props.copies.get(comment.comment) ?? { status: "idle" }} mutation={props.mutations?.get(comment.comment)} onComment={props.onComment} onCopy={props.onCopy} />)}
         </>}
     {editor && <CommentEditor {...editor} blocked={editor.continue ? editor.blocked : editorBlocked || null} />}
   </section>;
@@ -136,7 +137,8 @@ export function CommentsPanel(props: CommentsPanelProps) {
 export interface CommentCardProps {
   comment: Comment;
   freshness: "same" | "outdated" | "unknown";
-  locationMissing: boolean;
+  // Null: no rendered document, so the target line is text without locate.
+  locationMissing: boolean | null;
   disabled: boolean;
   busy: boolean;
   copy: CopyView;
@@ -150,7 +152,7 @@ export function CommentCard({ comment, freshness, locationMissing, disabled, bus
   const locked = disabled || busy || (mutation !== undefined && mutation.status !== "idle" && mutation.status !== "saved");
   return <article className="comments-card" aria-label={`Comment by ${createdBy.name}`} aria-busy={busy || mutation?.status === "saving"}>
     <div className="comments-author"><span className="comments-avatar" aria-hidden="true">{initials}</span><div className="comments-by"><b>{createdBy.name}</b>{createdBy.kind === "human" && createdBy.email && <span className="comments-email">{createdBy.email}</span>}<time dateTime={comment.createdAt} title={comment.createdAt}>{relativeTime(comment.createdAt)}</time></div></div>
-    <button type="button" className="comments-target" disabled={locationMissing || (!comment.target.frame && !comment.target.element)} onClick={() => onComment("locate", comment.comment)}>{targetText(comment.target)}</button>
+    <button type="button" className="comments-target" disabled={locationMissing !== false || (!comment.target.frame && !comment.target.element)} onClick={() => onComment("locate", comment.comment)}>{targetText(comment.target)}</button>
     <div className="comments-badges"><span className={`comments-badge ${comment.status}`}>{comment.status === "open" ? "Open" : "Resolved"}</span>{freshness !== "same" && <span className="comments-badge warning">{freshness === "outdated" ? "Outdated" : "Freshness unknown"}</span>}{locationMissing && <span className="comments-badge warning">Location unavailable</span>}</div>
     <p className="comments-body">{comment.body}</p>
     <div className="comments-tools">
@@ -191,10 +193,9 @@ function SaveMessage({ state }: { state: SaveView }) {
   }
 }
 
-const CONTINUE_REASON_ID = "comments-continue-reason";
-
 export function CommentEditor(props: CommentEditorProps) {
   const { state, continue: next } = props;
+  const reasonId = useId();
   const locked = pending(state) || state.status === "saved";
   const cannotSave = locked || !!props.blocked || !props.body.trim() || state.status === "conflict" || state.status === "deleted";
   const label = props.mode === "create" ? "New comment" : "Your unsaved edit";
@@ -203,11 +204,11 @@ export function CommentEditor(props: CommentEditorProps) {
     <div className="comments-tools">
       <button type="button" className="comments-btn" disabled={state.status === "saving" || state.status === "saved"} onClick={locked ? props.onKeepDraft : props.onCancel}>{locked ? "Keep draft" : "Cancel"}</button>
       {next?.canvas && <button key="continue-canvas" type="button" className="comments-btn" disabled={!next.canvas.enabled || next.starting !== null} onClick={next.onCanvas}>{next.starting === "canvas" ? "Starting…" : "Continue on canvas"}</button>}
-      {next ? <button key="continue" type="button" className="comments-btn primary" disabled={!next.enabled || next.starting !== null} aria-describedby={next.reason === null ? undefined : CONTINUE_REASON_ID} onClick={next.onContinue}>{next.starting === "current" ? "Starting…" : "Continue on current version"}</button>
+      {next ? <button key="continue" type="button" className="comments-btn primary" disabled={!next.enabled || next.starting !== null} aria-describedby={next.reason === null ? undefined : reasonId} onClick={next.onContinue}>{next.starting === "current" ? "Starting…" : "Continue on current version"}</button>
         : state.status === "retry-original" ? <button key="retry-original" type="button" className="comments-btn primary" disabled={!!props.blocked} onClick={props.onRetryOriginal}>Retry original save</button> : <button key="save" type="button" className="comments-btn primary" disabled={cannotSave} onClick={props.onSave}>{state.status === "saving" ? "Saving…" : state.status === "reviewed" ? "Save reviewed changes" : props.mode === "edit" ? "Save changes" : "Save comment"}</button>}
     </div>
     {props.blocked && <p className="comments-helper" role="status">{props.blocked}</p>}
-    {next && (next.reason === null ? <p className="comments-helper">Continues on {targetText(next.preview)}.</p> : <p className="comments-helper" id={CONTINUE_REASON_ID}>{next.reason}</p>)}
+    {next && (next.reason === null ? <p className="comments-helper">Continues on {targetText(next.preview)}.</p> : <p className="comments-helper" id={reasonId}>{next.reason}</p>)}
     {next?.error && <p className="comments-helper" role="alert">Couldn’t continue on the current version: {next.error.replace(/\.$/, "")}. Your text is kept.</p>}
     {props.blocked && props.mode === "edit" && !locked && <button type="button" className="comments-btn" onClick={props.onReadLatest}>Read latest state</button>}
     </div>
