@@ -7,7 +7,7 @@ import type { ViewCommand } from "../main/index";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem, type SelectionMessage } from "./canvasMessage";
-import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, sameDocument, type OpenCanvas } from "./canvasView";
+import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGHT, sameDocument, type OpenCanvas } from "./canvasView";
 import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
 import { activityFor, activityKey, pushActivity, type ActivityEvent } from "./activity";
@@ -16,6 +16,7 @@ import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, 
 import { currentFrame } from "./currentFrame";
 
 const MEASURE_ANSWER_MS = 1000;
+const REMEASURE_MS = 50;
 
 // A selection change inside the open canvas, or anything that leaves it.
 export type TransitionDestination = "selection" | "navigation";
@@ -62,6 +63,7 @@ export class CanvasController {
   private loadKind: ActivityEvent["kind"] = "opened";
   private loadTimer: ReturnType<typeof setTimeout> | undefined;
   private answerTimer: ReturnType<typeof setTimeout> | undefined;
+  private remeasureTimer: ReturnType<typeof setTimeout> | undefined;
   private jumpTo: number | null = null;
   private pendingFrame: { id: string; index?: number; found?: (found: boolean) => void } | null = null;
   private jumpRect: CanvasRect | null = null;
@@ -503,6 +505,7 @@ export class CanvasController {
     this.state.unlisted = false;
     this.loading = true;
     clearTimeout(this.answerTimer);
+    clearTimeout(this.remeasureTimer);
     clearTimeout(this.loadTimer);
     this.loadTimer = setTimeout(() => {
       if (!this.loading || this.frame === null) return;
@@ -533,6 +536,7 @@ export class CanvasController {
     this.clearSelection(false);
     clearTimeout(this.loadTimer);
     clearTimeout(this.answerTimer);
+    clearTimeout(this.remeasureTimer);
     this.board.hidden = true;
     this.state.unlisted = false;
   }
@@ -749,6 +753,15 @@ export class CanvasController {
     // Against the height before this layout resizes the iframe, as layoutHeight does.
     const selected = selectedFromLayout({ ...this.expectation(), href: message.href }, message);
     this.setFrameHeight(layoutHeight(this.lastHref, this.frameHeight, message));
+    // A layout that does not confirm the current height (measured before the
+    // iframe had its viewport, or before our resize) needs another one, and the
+    // canvas sends that one on an animation frame an off-screen iframe never
+    // gets. `measure` is answered without one.
+    clearTimeout(this.remeasureTimer);
+    if (Math.abs(message.viewport - this.frameHeight) > 1 || Math.min(message.height, MAX_HEIGHT) !== this.frameHeight) {
+      const frame = this.frame;
+      this.remeasureTimer = setTimeout(() => { if (frame === this.frame) this.post({ type: "measure" }); }, REMEASURE_MS);
+    }
     this.lastHref = message.href;
     clearTimeout(this.answerTimer);
     if (newDocument) {

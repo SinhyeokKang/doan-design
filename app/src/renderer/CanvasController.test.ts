@@ -97,7 +97,7 @@ interface FakeMark {
 function selectionHarness() {
   const host = new EventTarget();
   vi.stubGlobal("window", host);
-  const frames: (EventTarget & { contentWindow: { postMessage: ReturnType<typeof vi.fn> } })[] = [];
+  const frames: (EventTarget & { contentWindow: { postMessage: ReturnType<typeof vi.fn> }; style: Record<string, string> })[] = [];
   const marks: FakeMark[] = [];
   vi.stubGlobal("document", {
     createElement: (tag: string) => {
@@ -1555,5 +1555,30 @@ describe("comment anchors through a reload (T-11, W-9)", () => {
         expect([name, status(h)]).toEqual([name, "none"]);
       } finally { h.controller.dispose(); }
     }
+  });
+});
+
+describe("layout height without animation frames (150 px reload stall)", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it("asks a document whose first layout was measured before it had a viewport to measure again", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    const measures = () => h.current().contentWindow.postMessage.mock.calls.map(call => call[0]).filter(message => message.type === "measure");
+    try {
+      h.controller.command("reload");
+      h.layout({ document: "two", viewport: 0, height: 0 });
+      expect(h.current().style).toMatchObject({ height: "150px" });
+      h.current().contentWindow.postMessage.mockClear();
+      vi.advanceTimersByTime(50);
+      expect(measures()).toEqual([{ type: "measure" }]);
+      h.layout({ document: "two", viewport: 150, height: 2600 });
+      expect(h.current().style).toMatchObject({ height: "2600px" });
+      h.current().contentWindow.postMessage.mockClear();
+      vi.advanceTimersByTime(50);
+      h.layout({ document: "two", viewport: 2600, height: 2600 });
+      vi.advanceTimersByTime(1000);
+      expect(measures()).toEqual([{ type: "measure" }]);
+    } finally { h.controller.dispose(); }
   });
 });

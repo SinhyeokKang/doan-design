@@ -15,12 +15,13 @@ export interface HeightState {
 // `min-height: 100vh` style canvases grow with the iframe we resize to fit
 // them. Right after our own resize (the viewport became the height we sent),
 // a document that still outgrows the viewport is chasing it, so the last sent
-// height is kept until this document ends.
+// height is kept until this document ends. Not after a sent 0: that was measured
+// before the iframe was laid out, and no document chases a 0 px viewport.
 export function nextHeight(prev: HeightState | null, measured: number, inner: number): HeightState {
   if (prev === null) return { sent: measured, inner, frozen: false };
   if (prev.frozen) return prev;
   const ownResize = inner !== prev.inner && Math.abs(inner - prev.sent) <= 1;
-  if (ownResize && measured > inner + 1) return { sent: prev.sent, inner: prev.inner, frozen: true };
+  if (ownResize && prev.sent > 0 && measured > inner + 1) return { sent: prev.sent, inner: prev.inner, frozen: true };
   return { sent: measured, inner, frozen: false };
 }
 

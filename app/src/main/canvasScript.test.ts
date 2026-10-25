@@ -1220,3 +1220,10 @@ describe("draft preselection protocol", () => {
     expect(ofType(canvas, "key")).toHaveLength(0);
   });
 });
+
+describe("nextHeight after a first measurement of 0", () => {
+  test("does not freeze at 0 when the document has content once the iframe is 0 tall", () => {
+    const first = nextHeight(null, 0, 150);
+    expect(nextHeight(first, 2600, 0)).toEqual({ sent: 2600, inner: 0, frozen: false });
+  });
+});
