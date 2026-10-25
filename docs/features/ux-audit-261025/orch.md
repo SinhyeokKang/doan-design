@@ -29,7 +29,7 @@
 | U-5 | R-A | 채택, S 예정: config 읽기 오류의 Retry·오류 초기화 |
 | U-6 | R-T | 채택, N 예정: App 모달 후 현재 화면·inert/disabled를 고려한 포커스 |
 | U-7 | R-W, R-A | audit에서 해결: onboardingView의 실제 Open Project 안내; Home 복구 전체 이식은 불필요 |
-| U-8 | R-P | 재판정 대기 |
+| U-8 | R-P | 채택, P 예정: primary에만 기존 accent-ink 안쪽 outline로 식별 가능하게 함; 실측 필요 |
 | U-9 | R-W | 일부 채택, N 예정: id 없는 preview는 해결, noWidth의 파싱 원인 단정만 교정 |
 | U-10 | R-T | 일부 채택, N 예정: no-canvas 문제 안내. 과거 Sidebar/Overview 목록 캐시는 계약에 없어 추가하지 않음 |
 | U-11 | R-A | 채택, C: begin 오류를 readError와 분리해 목록 유지 |
@@ -40,7 +40,7 @@
 | U-16 | R-T | 일부 채택, N 예정: native hidden은 audit에서 해결. modal 동안 잔여 시간 보존 |
 | U-17 | R-T | 채택, C: Delete dialog가 Escape/IME를 소유하고 selection 유지 |
 | U-18 | R-A, R-T | 채택, S 예정: Projects picker/confirm/write 중 기존 target queue·tab/row 보호 |
-| U-19 | R-A, R-P | 재판정 대기 |
+| U-19 | R-A, R-P | 채택, O: 두 누락 오류에 기존 ob-msg error 적용, 실제 자식 cascade 확인 |
 | U-20 | R-W | 채택, O: 앱 작성 agent 오류의 표시 이름만 교정; 원문 오류/명령은 유지 |
 | U-21 | R-A, R-T | 범위 축소 채택, N/S 예정: 실제 재현한 사라진 action의 포커스만 보완; Quick Open close 자체의 유실은 미검증 |
 | U-22 | R-W, R-T | 채택, N 예정: 명시적 Open 실패에 listed-missing과 root unavailable을 구분해 안내 |
@@ -52,28 +52,28 @@
 | U-28 | R-A, R-T | 채택, N 예정: 포커스된 toast가 사라질 때만 현재 유효한 위치 복원; workspace/selection 복구 금지 |
 | U-29 | R-T, R-P | 채택, C: Inspector loading에 Reading styles… 표시; 이전 선택 값 재사용 금지 |
 | U-30 | R-W | 채택, N 예정: selection 상실 문구에 frame 포함, 동작은 유지 |
-| U-31 | R-P | 재판정 대기 |
+| U-31 | R-P | 일부 채택, P/N 예정: pin은 canvas chrome 아래; toast 실제 겹침을 측정 후 최소 위치 보완 |
 | U-32 | R-W, R-A | 기각: chips/Finish는 Connections 탭, Fix는 문제 행이라는 PRODUCT §5.0 결정 |
 | U-33 | R-A, R-T | 기각: ARCH §7은 open canvas 기준 메뉴를 명시. hasFrame으로 Reload까지 비활성화하지 않음 |
-| U-34 | R-P | 재판정 대기 |
-| U-35 | R-P | 재판정 대기 |
-| U-36 | R-P | 재판정 대기 |
-| U-37 | R-P | 재판정 대기 |
-| U-38 | R-P | 재판정 대기 |
-| U-39 | R-P | 재판정 대기 |
-| U-40 | R-P | 재판정 대기 |
-| U-41 | R-P | 재판정 대기 |
-| U-42 | R-P | 재판정 대기 |
-| U-43 | R-P | 재판정 대기 |
-| U-44 | R-P | 재판정 대기 |
-| U-45 | R-P | 재판정 대기 |
+| U-34 | R-P | 채택, P 예정: main .ob-reason code의 color/radius/padding 누락만 복구, raised 배경 유지 |
+| U-35 | R-P | 사용자 승인, P 예정: 공용 TooltipContent에만 6px 12px, global reset·PathTip 유지 |
+| U-36 | R-P | 채택, N 예정: worktree menu 상태 chip에 기존 entry.kind tone 적용, 새 상태 모델 없음 |
+| U-37 | R-P | 범위 축소 채택, P/N 예정: 두 renderer color-scheme dark, Quick Open native-scroll; canvas tokens와 전체 scrollbar 굵기는 유지 |
+| U-38 | R-P | 미검증·필수 수정 제외: cold-load flash·native Light 외형은 미관찰. nativeTheme 강제는 canvas에도 영향이 있어 추가하지 않음 |
+| U-39 | R-P | 채택, P 예정: 두 HTML entry의 stylesheet link로 shared/Settings CSS 로드, JS import 제거·CSP 유지 |
+| U-40 | R-P | 좁게 채택, N/S/P: 잘리는 전체 텍스트 접근과 viewport/branch/error wrapping; tooltip 전면 교체 없음 |
+| U-41 | R-P | 기각: 모든 행·버튼 hover 통일 계약 없음; 선택/포커스/disabled 차이 유지 |
+| U-42 | R-P | 기각: 공용 정지 로딩 표시+텍스트이며 회전 계약/교차 화면 불일치 근거 없음 |
+| U-43 | R-P | 채택, S: install/read 오류만 err modifier, busy warn 유지 |
+| U-44 | R-P | 채택, P: fp-input.invalid:focus-visible 오류 outline만 보완; textarea 통일 안 함 |
+| U-45 | R-P | 기각: 부모 배경·plain error의 문서화된 차이. 실제 자식 누락은 U-34로 제한 |
 | U-46 | R-W, R-P | 보류: picker 제목 차이가 OS 표시 결함인지는 미검증. 기존 동작별 제목을 강제 통일하지 않음 |
 | U-47 | R-W | 기각: 의미 차이 없고 기존 문서도 두 표기를 사용. raw 출력 일괄 치환 금지 |
 | U-48 | R-W | 기각: 문제 행/메뉴/복수 카드의 효과 범위가 다르며 PRODUCT·ARCH의 Remove 결정과 일치 |
 | U-49 | R-W | 기각: Fix는 원인별 Settings 안내로 가는 PRODUCT 결정; 자동 수리 버튼 아님 |
 | U-50 | R-W, R-P | fallback만 채택, N 예정: Home/Quick Open의 빈 title/id를 기존 frameLabel로 처리, Inspector/댓글 id 유지 |
 | U-51 | R-A, R-P | 기각: 손실/삭제 승인과 setup 진행은 다른 동작, 모든 확인의 primary 규칙 없음. 명시 Cancel 확인 추가도 하지 않음 |
-| U-52 | R-P | 재판정 대기 |
+| U-52 | R-P | 기각: DESIGN에 이미 각 패널 제목 측정값 기록, 중복 문서/일괄 통일 안 함 |
 
 ## 사용자 결정과 검토 진행
 
@@ -100,3 +100,10 @@
 - R-W를 인수하고 release했다. U-13 연결 요약과 구성요소 진단, U-15 카드명과 작업 폴더명, U-27 현재 Set Up 안내, U-47 아포스트로피, U-48 제거 라벨, U-49 배너 CTA는 기존 의미·결정 차이를 유지한다. U-15 복수 추가 개수와 U-50 빈 프레임 이름 fallback은 별도 최소 수정 대상으로 남긴다.
 
 - C `ctx_2b545f0bccce`, O `ctx_2247da837b6b`는 새 child에서 Astra medium effective 및 turn_start를 확인했다. R-P `ctx_bdc939b1b30d`는 R-A와 동일 process를 재사용하며 새 launch 모델 값이 null이므로 이전 effective 증거와 process identity를 근거로 기록한다.
+
+| 배치 | 채택 범위 | 파일 소유권 | 모델·근거 | 검증 |
+|---|---|---|---|---|
+| S | U-5 config Retry, U-12 전달 라벨, U-18 pane 소유권, U-21 Settings 포커스, U-23 거부 안내, U-40 긴 branch, U-43 오류 severity | settingsProjects/settingsWindow/settings.css 및 직접 tests, app/e2e/settings.ts | Codex gpt-6-astra medium. 확인·쓰기·전달 target 경합과 포커스 판단 | 관련 red→green·typecheck, 단독 Settings native 경합/포커스/긴 내용, 독립 리뷰 |
+
+- R-P의 20건·S1–S14 커버리지를 인수하고 release했다. 네 관점 모두 소스 검토를 마쳤으며 실제 화면 주장은 해당 구현의 native gate에 남긴다.
+- S는 C/O와 독립이다. 후속 P는 S의 settings.css와 O의 ConnectionRows가 통합된 뒤 시작한다. S의 좁은 오류 modifier·긴 branch 보완 외 전체 hover/색상 통일은 하지 않는다.
