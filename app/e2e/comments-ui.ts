@@ -359,7 +359,7 @@ try {
   await shot("06-external-conflict");
   // Width-only invalidity retains existing management and copy.
   await writeFile(join(repo, "design/a.html"), html("a").replace('<meta name="doan:width" content="800">', ""));
-  await panel.getByText("Missing or invalid board width.", { exact: true }).waitFor();
+  await panel.getByText("Could not read a valid board width.", { exact: true }).waitFor();
   assert.equal(await panel.getByRole("button", { name: "New canvas comment", exact: true }).isDisabled(), true);
   const manage = cards.filter({ hasText: "My concurrent edit" });
   assert.equal(await manage.getByRole("button", { name: "Edit", exact: true }).isEnabled(), true);

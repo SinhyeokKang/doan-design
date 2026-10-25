@@ -131,6 +131,173 @@ process.exit(result.status ?? 1);
   }
 
   await launch();
+  // UX N: keep startup reads pending until a real, newer user navigation commits.
+  const navigationFailures: string[] = [];
+  async function navigationCheck(name: string, run: () => Promise<void>) {
+    try { await run(); console.log(`navigation regression PASS: ${name}`); }
+    catch (error) { console.error(`navigation regression FAIL: ${name}`, error); navigationFailures.push(`${name}: ${String(error)}`); await shot(`N-failed-${name}`); }
+  }
+  const listedEntries = await page.evaluate(() => new Promise<import("../src/main/view").FolderEntry[]>(resolve => {
+    const stop = window.doan.onFolders(entries => { if (entries.length === 5 && entries.every(entry => entry.kind === "list")) { stop(); resolve(entries); } });
+  }));
+  for (const held of ["ui", "folders"] as const) {
+    await navigationCheck(`late-${held}-restore`, async () => {
+      await app!.evaluate(({ ipcMain }, [entries, savedRoot, freshRoot, held]) => {
+        const handlers = Reflect.get(ipcMain, "_invokeHandlers");
+        const probe = { ui: handlers.get("ui-state:get"), folders: handlers.get("folders:get"), releases: [] as (() => void)[], reads: 0 };
+        Reflect.set(globalThis, "navigationProbe", probe);
+        const saved = { screen: "workspace", root: savedRoot, expanded: { [savedRoot]: ["design/settings"], [freshRoot]: [] }, lastByRoot: { [freshRoot]: { canvas: "design/stale.html", view: { scale: 1, tx: 0, ty: 0 } } } };
+        ipcMain.removeHandler("ui-state:get");
+        ipcMain.handle("ui-state:get", () => { probe.reads++; return held === "ui" ? new Promise(resolve => probe.releases.push(() => resolve(saved))) : saved; });
+        ipcMain.removeHandler("folders:get");
+        ipcMain.handle("folders:get", () => held === "folders" ? entries.map(entry => entry.path === savedRoot ? { path: entry.path, kind: "loading" } : entry) : entries);
+      }, [listedEntries, acme, brand, held] as const);
+      await page.reload();
+      await page.getByRole("region", { name: "Home", exact: true }).waitFor();
+      await enterProject(page, brand); await overview().waitFor();
+      await card("Card decline patterns").click(); await loaded("Card decline patterns");
+      await goHome(page); await page.getByRole("region", { name: "Home", exact: true }).waitFor();
+      await app!.evaluate(({ BrowserWindow }, [entries, held]) => {
+        const probe = Reflect.get(globalThis, "navigationProbe");
+        if (!probe.reads) throw new Error("No initial ui read was held");
+        if (held === "ui") probe.releases.splice(0).forEach((release: () => void) => release());
+        else BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries);
+      }, [listedEntries, held] as const);
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      assert.equal(await page.getByRole("region", { name: "Home", exact: true }).isVisible(), true, "late startup restore cannot replace newer Home intent");
+      await enterProject(page, brand); await loaded("Card decline patterns");
+      assert.equal(await canvasTitle(), "Card decline patterns", "new navigation memory survives restore");
+      assert.equal(await page.getByRole("treeitem", { name: "research", exact: true }).getAttribute("aria-expanded"), "true", "new expansion survives restore");
+    });
+    await app!.evaluate(({ ipcMain }) => {
+      const probe = Reflect.get(globalThis, "navigationProbe");
+      ipcMain.removeHandler("ui-state:get"); ipcMain.handle("ui-state:get", probe.ui);
+      ipcMain.removeHandler("folders:get"); ipcMain.handle("folders:get", probe.folders);
+    });
+  }
+  await page.reload();
+  await navigationCheck("unhealthy-overview", async () => {
+    await goHome(page); await enterProject(page, empty); await overview().waitFor();
+    await app!.evaluate(({ BrowserWindow }, [entries, path]) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries.map(entry => entry.path === path ? { path, kind: "cliError", reason: "held failure" } : entry)), [listedEntries, empty] as const);
+    await page.getByRole("region", { name: "Project status", exact: true }).waitFor();
+    assert.equal(await page.getByText("Pick a canvas from the list", { exact: true }).isVisible(), false);
+    await shot("N-unhealthy-overview");
+    await app!.evaluate(({ BrowserWindow }, entries) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries), listedEntries);
+    await overview().waitFor();
+  });
+  await app!.evaluate(({ BrowserWindow }, entries) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries), listedEntries);
+  const publishEntries = async (entries: import("../src/main/view").FolderEntry[]) => app!.evaluate(({ BrowserWindow }, entries) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders", entries), entries);
+  const publishAdded = async (paths: string[]) => app!.evaluate(({ BrowserWindow }, paths) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().startsWith("file:") && win.webContents.getURL().includes("index.html"))!.webContents.send("folders:add-outcome", { added: paths, duplicate: null, messages: [], scanId: null, confirms: [] }), paths);
+  const activeFocus = () => page.evaluate(() => {
+    const node = document.activeElement;
+    return { tag: node?.tagName, text: node?.textContent?.slice(0, 120), label: node?.getAttribute("aria-label"), hidden: !!node?.closest('[inert], [aria-hidden="true"]'), rect: node?.getBoundingClientRect().toJSON() };
+  });
+  for (const loading of [false, true]) await navigationCheck(`added-problem-${loading ? "delayed" : "immediate"}`, async () => {
+    await publishEntries(listedEntries); await goHome(page); await enterProject(page, brand);
+    const path = join(work, "added-problem");
+    await publishEntries([...listedEntries, { kind: loading ? "loading" : "uninitialized", path }]);
+    await publishAdded([path]);
+    await page.locator(".toast").getByRole("button", { name: "Open", exact: true }).click();
+    if (loading) await publishEntries([...listedEntries, { kind: "uninitialized", path }]);
+    await page.getByRole("region", { name: "Home", exact: true }).waitFor();
+    const row = page.locator(`.home-body [data-path="${path}"]`);
+    assert.equal(await row.evaluate(node => !!node.closest(".card.flash")), true, "problem Added target is highlighted on Home");
+    await row.getByRole("button", { name: "Set Up…", exact: true }).waitFor();
+    await shot(`N-added-problem-${loading}`);
+  });
+  await publishEntries(listedEntries);
+  await navigationCheck("multiple-added-count", async () => {
+    await goHome(page); await enterProject(page, brand);
+    await publishAdded([acme, empty]);
+    await page.locator(".toast .msg").getByText("Added 2 projects", { exact: true }).waitFor();
+    await page.locator(".toast").getByRole("button", { name: "Open", exact: true }).click();
+    await overview().waitFor();
+    assert.equal(await page.getByRole("button", { name: "empty overview", exact: true }).count(), 1);
+  });
+  await navigationCheck("quick-open-native-focus", async () => {
+    await goHome(page); await enterProject(page, brand);
+    const origin = page.getByRole("button", { name: "brand-kit overview", exact: true });
+    await origin.focus(); await quickOpen(""); await page.keyboard.press("Escape");
+    assert.equal(await origin.evaluate(node => node === document.activeElement), true, "native close keeps a valid origin");
+    console.log("Quick Open native close focus", await activeFocus());
+  });
+  await navigationCheck("workspace-setup-close-focus", async () => {
+    await goHome(page); await enterProject(page, empty);
+    await rm(join(empty, ".doan/config.json"));
+    const status = page.getByRole("region", { name: "Project status", exact: true });
+    await status.getByRole("button", { name: "Set Up…", exact: true }).click();
+    const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true });
+    await setup.waitFor(); await page.keyboard.press("Escape"); await setup.waitFor({ state: "hidden" });
+    console.log("workspace setup close focus", await activeFocus());
+    assert.equal(await status.getByRole("button", { name: "Set Up…", exact: true }).evaluate(node => node === document.activeElement), true);
+    await status.getByRole("button", { name: "Set Up…", exact: true }).click(); await setup.waitFor();
+    await writeFile(join(empty, ".doan/config.json"), '{"v":1}');
+    await setup.waitFor({ state: "hidden" }); await overview().waitFor();
+    console.log("workspace external setup focus", await activeFocus());
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.workspace') && !document.activeElement?.closest('[inert]')), true);
+    await shot("N-workspace-setup-focus");
+  });
+  await writeFile(join(empty, ".doan/config.json"), '{"v":1}');
+  await publishEntries(listedEntries);
+  await navigationCheck("focused-toast-replacement", async () => {
+    await goHome(page); await enterProject(page, brand);
+    const origin = page.getByRole("button", { name: "brand-kit overview", exact: true });
+    await origin.focus(); await publishAdded([acme]);
+    await page.locator(".toast button").focus();
+    await publishAdded([empty]);
+    await page.locator(".toast .msg").getByText("Added empty", { exact: true }).waitFor();
+    console.log("focused toast replacement", await activeFocus());
+    assert.equal(await origin.evaluate(node => node === document.activeElement), true);
+    await origin.focus(); await publishAdded([acme]);
+    assert.equal(await origin.evaluate(node => node === document.activeElement), true, "an unfocused toast does not move focus");
+  });
+  await navigationCheck("modal-toast-remaining-time", async () => {
+    await goHome(page); await enterProject(page, brand);
+    await page.mouse.move(5, 5);
+    await page.getByRole("button", { name: "brand-kit overview", exact: true }).focus();
+    await publishAdded([acme]); await page.locator(".toast").waitFor();
+    const born = performance.now();
+    await page.waitForTimeout(2500);
+    await quickOpen("");
+    const paused = performance.now();
+    await page.waitForTimeout(8500);
+    assert.equal(await page.locator(".toast").count(), 1, "modal preserves an inaccessible toast beyond eight seconds");
+    await page.keyboard.press("Escape");
+    const resumed = performance.now();
+    await page.waitForTimeout(1500);
+    assert.equal(await page.locator(".toast").count(), 1, "resume retains usable time");
+    const deadline = resumed + 8000 - (paused - born) + 700;
+    await page.locator(".toast").waitFor({ state: "hidden", timeout: Math.max(1, deadline - performance.now()) });
+    console.log("modal toast clock", { beforePause: paused - born, pausedFor: resumed - paused, expiredAfterResume: performance.now() - resumed });
+  });
+  if (await dialog().isVisible()) await page.keyboard.press("Escape");
+  await navigationCheck("workspace-retry-focus", async () => {
+    await publishEntries(listedEntries); await goHome(page); await enterProject(page, empty); await overview().waitFor();
+    await app!.evaluate(({ ipcMain }) => {
+      Reflect.set(globalThis, "retryOriginal", Reflect.get(ipcMain, "_invokeHandlers").get("folders:reopen"));
+      ipcMain.removeHandler("folders:reopen"); ipcMain.handle("folders:reopen", () => {});
+    });
+    try {
+      await publishEntries(listedEntries.map(entry => entry.path === empty ? { path: empty, kind: "cliError", reason: "fixture" } : entry));
+      const retry = page.getByRole("region", { name: "Project status", exact: true }).getByRole("button", { name: "Retry", exact: true });
+      await retry.focus(); await page.keyboard.press("Enter");
+      await publishEntries(listedEntries); await overview().waitFor();
+      console.log("Retry replaced focus", await activeFocus());
+      assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.workspace') && document.activeElement !== document.body), true);
+      await publishEntries(listedEntries.map(entry => entry.path === empty ? { path: empty, kind: "cliError", reason: "fixture" } : entry));
+      await retry.focus(); await page.keyboard.press("Enter");
+      const destination = page.getByRole("button", { name: "empty overview", exact: true });
+      await destination.focus(); await publishEntries(listedEntries); await overview().waitFor();
+      assert.equal(await destination.evaluate(node => node === document.activeElement), true, "Retry completion preserves deliberately moved focus");
+    } finally {
+      await app!.evaluate(({ ipcMain }) => { ipcMain.removeHandler("folders:reopen"); ipcMain.handle("folders:reopen", Reflect.get(globalThis, "retryOriginal")); });
+    }
+  });
+  if (navigationFailures.length) throw new Error(navigationFailures.join("\n"));
+  if (process.env.DOAN_NAV_REGRESSION_ONLY === "1") {
+    await quit();
+  } else {
+  await goHome(page);
   await page.evaluate(() => { const seen: string[] = []; Reflect.set(window, "thumbChanges", seen); window.doan.onThumbnailChanged(({ path }) => seen.push(path)); });
   await page.getByRole("region", { name: "Home", exact: true }).waitFor();
 
@@ -368,6 +535,7 @@ process.exit(result.status ?? 1);
   console.log("design-nav: restore PASS");
   await quit();
 
+  }
 } catch (error) {
   console.error(error);
   if (app) { await page.screenshot({ path: join(shots, "failure.png") }).catch(console.error); console.error(`design-nav screenshot: ${join(shots, "failure.png")}`); await app.evaluate(({ app }) => app.exit(0)).catch(() => {}); }

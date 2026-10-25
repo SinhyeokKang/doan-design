@@ -735,10 +735,10 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   assert.equal(state.updated, "");
   const noWidthHeading = page.getByRole("region", { name: "Canvas", exact: true }).getByRole("status").locator("b");
   assert.equal(await noWidthHeading.count(), 1, "no-width heading has exactly one emphasized element");
-  assert.equal(await noWidthHeading.textContent(), "Missing or invalid board width.", "no-width heading remains emphasized");
+  assert.equal(await noWidthHeading.textContent(), "Could not read a valid board width.", "no-width heading remains emphasized");
   assert.equal(
     state.statusText,
-    'Missing or invalid board width. Ask the agent to add <meta name="doan:width" content="1440"> to <head>. Run doan check in a terminal to verify.',
+    'Could not read a valid board width. Run doan check in a terminal to diagnose the canvas.',
   );
   assert.equal(await page.$('[role="region"][aria-label="Canvas"] iframe'), null);
   for (const name of ["Zoom out", "Zoom in", "Fit"]) assert.equal(await page.getByRole("button", { name, exact: true }).isDisabled(), true);
@@ -910,7 +910,7 @@ interface ActiveResult {
 
 const BOX = '[data-doan-id="box"]';
 const CHIP = '[data-doan-frame="card"] > div:nth-of-type(2)';
-const LOST = "The selected element is no longer in the canvas.";
+const LOST = "The selection is no longer in the canvas.";
 
 // Select-inspect steps (select-inspect design flows 1–13). The canvas
 // repo is gone after the window steps, so these run on their own repo.
@@ -1864,7 +1864,7 @@ async function waitNoCanvasDocument(page: Page, what: string): Promise<void> {
 async function readView(page: Page): Promise<ViewState> {
   const viewport = page.getByRole("region", { name: "Canvas", exact: true });
   const notices = await viewport.getByRole("status").allTextContents();
-  const statusText = notices.find(text => /^(Loading…|Couldn’t load|Missing or invalid|Pick a canvas|No projects yet|The project |design\/)/.test(text)) ?? "";
+  const statusText = notices.find(text => /^(Loading…|Couldn’t load|Could not read a valid|Pick a canvas|No projects yet|The project |design\/)/.test(text)) ?? "";
   const zoom = await viewport.getByRole("status", { name: /^Zoom(?: \d+%)?$/ }).textContent() ?? "";
   const updated = (await viewport.getByRole("status", { name: /^Updated / }).allTextContents())[0]?.trim() ?? "";
   const geometry = await viewport.evaluate(viewport => {
@@ -1880,7 +1880,7 @@ async function readView(page: Page): Promise<ViewState> {
       frameHeight: frameRect ? frameRect.height / matrix.a : 0,
     };
   });
-  const status = !statusText ? "" : statusText === "Loading…" ? "loading" : statusText.startsWith("Couldn’t load") ? "failed" : statusText.startsWith("Missing or invalid") ? "noWidth" : statusText === "Pick a canvas from the list" || statusText.startsWith("No projects yet") ? "empty" : "missing";
+  const status = !statusText ? "" : statusText === "Loading…" ? "loading" : statusText.startsWith("Couldn’t load") ? "failed" : statusText.startsWith("Could not read a valid") ? "noWidth" : statusText === "Pick a canvas from the list" || statusText.startsWith("No projects yet") ? "empty" : "missing";
   return {
     ...geometry, status, statusText, zoom, updated,
     boardShown: await viewport.locator("iframe").isVisible(),
