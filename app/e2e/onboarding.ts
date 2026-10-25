@@ -35,7 +35,10 @@ async function exists(path: string) { try { await readFile(path); return true; }
 const wizard = () => page.getByRole("dialog", { name: "Set Up doan", exact: true });
 const button = (name: string | RegExp) => wizard().getByRole("button", { name, exact: true });
 const stepButton = (name: string) => wizard().getByRole("list", { name: "Steps" }).getByRole("button").filter({ hasText: name });
-const card = (agent: "claude" | "codex") => wizard().locator(".ob-card").filter({ has: page.locator(".ob-agent").filter({ hasText: agent === "claude" ? "Claude Code" : "Codex" }) });
+// Steps 1–2 draw the Settings connection rows; the footer keeps its own Check Again.
+const card = (row: "cli" | "claude" | "codex") => wizard().locator(`.cn-row[data-connection="${row}"]`);
+const footerCheck = () => wizard().locator(".ob-foot").getByRole("button", { name: "Check Again", exact: true });
+async function details(row: "cli" | "claude" | "codex") { const name = card(row).locator(".cn-name"); if (await name.getAttribute("aria-expanded") !== "true") await name.click(); }
 async function shot(name: string) { const path = join(shots, `${name}.png`); await page.screenshot({ path }); console.log(`screenshot: ${path}`); }
 async function assertProjectPath(path: Locator, boundary: Locator, expected: string, label: string) {
   const measured = await path.evaluate(node => {
@@ -75,10 +78,10 @@ async function wizardSession() {
     const stop = window.doan.onOnboardingOpen(opened => { clearTimeout(timer); stop(); resolve(opened); });
   }));
 }
-async function ready() { await wizard().waitFor(); await wait(async () => !await button("Check Again").isDisabled(), "machine read"); }
+async function ready() { await wizard().waitFor(); await wait(async () => !await footerCheck().isDisabled(), "machine read"); }
 // The setup menu item is gone; a wizard comes back only on a launch without onboarding.json.
 async function reopen() { await quit(); await rm(join(data, "onboarding.json"), { force: true }); await launch(); await ready(); }
-async function check() { await button("Check Again").click(); await wait(async () => !await button("Check Again").isDisabled(), "Check Again settled"); }
+async function check() { await footerCheck().click(); await wait(async () => !await footerCheck().isDisabled(), "Check Again settled"); }
 async function go(name: string) { await stepButton(name).click(); }
 async function closed() { await wizard().waitFor({ state: "hidden" }); }
 async function pick(path: string) { await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }); }, path); }
@@ -93,7 +96,7 @@ async function shellMode(value: "normal" | "missing" | "timeout") {
 }
 async function connect(agent: "claude" | "codex") {
   await card(agent).getByRole("button", { name: "Connect", exact: true }).click();
-  await wait(async () => !await button("Check Again").isDisabled(), `${agent} connect`, 35_000);
+  await wait(async () => !await footerCheck().isDisabled(), `${agent} connect`, 35_000);
 }
 async function busy() {
   await wait(() => button(/^Close/).isDisabled(), "wizard busy propagated");
@@ -185,21 +188,25 @@ else if (args[1] === 'add') {
 
   console.log("onboarding: 2 CLI blockers, replacement and delayed PATH copy");
   await mkdir(join(home, ".local/bin"), { recursive: true }); await writeFile(cliLink, "occupied"); await check();
-  await wizard().getByText(/is in use by something else/).waitFor(); assert.equal(await button("Install").isDisabled(), true);
+  await card("cli").getByText(/is in use by something else/).waitFor(); await card("cli").getByText("Path is blocked.", { exact: true }).waitFor();
+  assert.deepEqual(await card("cli").locator(".cn-end button").allTextContents(), ["Check Again"]);
   assert.equal(await readFile(cliLink, "utf8"), "occupied"); await rm(cliLink); await symlink("/missing/other-doan", cliLink); await check();
-  await button("Fix…").click(); let confirm = page.getByRole("alertdialog"); await confirm.waitFor();
+  await card("cli").getByText("Link is broken.", { exact: true }).waitFor(); await shot("01b-broken-link");
+  await button("Fix…").click(); let confirm = page.getByRole("alertdialog", { name: "Fix the doan link?" }); await confirm.waitFor();
+  assert.equal(await confirm.locator(".ob-compare dd").first().textContent(), "/missing/other-doan (missing)");
   assert.equal(await focusIs(confirm.getByRole("button", { name: "Cancel", exact: true })), true);
   await page.keyboard.press("Escape"); await confirm.waitFor({ state: "hidden" }); assert.equal(await wizard().isVisible(), true);
   assert.equal(await readlink(cliLink), "/missing/other-doan"); await check(); await button("Fix…").click();
-  await confirm.getByRole("button", { name: "Replace Link", exact: true }).click(); await wait(async () => await readlink(cliLink) === cli, "CLI replaced"); await check();
-  await wizard().getByText("Not on PATH", { exact: true }).waitFor(); await wizard().getByText("~/.zshrc", { exact: true }).waitFor();
+  await confirm.getByRole("button", { name: "Fix Link", exact: true }).click(); await wait(async () => await readlink(cliLink) === cli, "CLI replaced"); await check(); confirm = page.getByRole("alertdialog");
+  await card("cli").getByText("Connected", { exact: true }).waitFor(); await details("cli");
+  await card("cli").getByText("Use doan in your terminal", { exact: false }).waitFor(); await card("cli").getByText("~/.zshrc", { exact: true }).waitFor();
   await clipboardGate(); await button("Copy").click(); await button("Copying…").waitFor(); await busy();
   await releaseCopy(true); await button("Retry copy").waitFor(); assert.equal(await button(/^Close/).isDisabled(), false);
   await button("Retry copy").click(); await busy(); await releaseCopy(false); await button("Copied").waitFor();
   assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), 'export PATH="$HOME/.local/bin:$PATH"'); await restoreCopy();
   await page.keyboard.press("Escape"); await closed(); await reopen(); confirm = page.getByRole("alertdialog");
 
-  await rm(cliLink); await check(); await button("Install").click(); await wait(async () => { try { return await readlink(cliLink) === cli; } catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") return false; throw e; } }, "missing link installed");
+  await rm(cliLink); await check(); await card("cli").getByRole("button", { name: "Connect", exact: true }).click(); await wait(async () => { try { return await readlink(cliLink) === cli; } catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") return false; throw e; } }, "missing link installed");
   console.log("onboarding: 3 agent detection, partial setup and MCP states");
   await shellMode("missing"); await go("Agents"); await check();
   for (const agent of ["claude", "codex"] as const) assert.equal(await card(agent).getByText("Not installed", { exact: true }).count(), 1); assert.equal(await wizard().getByRole("button", { name: "Connect", exact: true }).count(), 0);
@@ -225,32 +232,35 @@ else if (args[1] === 'add') {
     assert.equal(await card(agent).getByText("Failed", { exact: true }).count(), 0);
   }
   await rm(cliLink); await symlink(cli, cliLink); await check();
-  await mode("codex", "unknown"); await check(); const unknown = await card("codex").textContent(), unknownMutations = await mutations(); await connect("codex");
+  // An unreadable registration offers Check Again only, so nothing can write over it.
+  await mode("codex", "unknown"); await check(); const unknownMutations = await mutations();
+  await card("codex").getByText("Couldn’t check", { exact: true }).waitFor(); await card("codex").getByText(/Unreadable registration/).waitFor();
+  assert.deepEqual(await card("codex").locator(".cn-end button").allTextContents(), ["Check Again"]);
+  await card("codex").getByRole("button", { name: "Check Again", exact: true }).click(); await wait(async () => !await footerCheck().isDisabled(), "row Check Again settled");
   assert.deepEqual(await mutations(), unknownMutations, "unknown Codex MCP causes no mutation");
-  assert.equal(await card("codex").textContent(), unknown); await card("codex").getByText(/Unreadable registration/).waitFor();
   await writeFile(join(bin, "codex"), "#!/missing/interpreter\n", { mode: 0o755 }); await check(); await card("codex").getByText(/Couldn't run Codex.*ENOENT/).waitFor();
   await writeFile(join(bin, "codex"), agentScript, { mode: 0o755 }); await mode("codex", "timeout"); await check(); await card("codex").getByText(/didn’t answer in 10 s/).waitFor(); await mode("codex", ""); await check();
-  await writeFile(stub, "user edits"); await check(); await card("claude").getByRole("button", { name: "Connect", exact: true }).click(); await confirm.waitFor();
+  await writeFile(stub, "user edits"); await check(); await card("claude").getByText("Skill was changed.", { exact: true }).waitFor(); await card("claude").getByRole("button", { name: "Fix…", exact: true }).click(); await confirm.waitFor();
   await confirm.getByRole("button", { name: "Cancel", exact: true }).click(); await check(); assert.equal(await readFile(stub, "utf8"), "user edits");
-  await card("claude").getByRole("button", { name: "Connect", exact: true }).click(); await confirm.waitFor();
+  await card("claude").getByRole("button", { name: "Fix…", exact: true }).click(); await confirm.waitFor();
   await confirm.getByText(/doan 0.1.0/).waitFor(); await confirm.getByRole("button", { name: "Replace Skill", exact: true }).click();
-  await wait(async () => !await button("Check Again").isDisabled(), "stub replace");
+  await wait(async () => !await footerCheck().isDisabled(), "stub replace");
   assert.ok((await readFile(stub, "utf8")).includes("doan skill"));
   await mode("codex", "fail"); await connect("codex"); await card("codex").getByText(/Injected add failure/).waitFor();
   assert.ok(await exists(stub)); assert.equal(await exists(join(codexConfig, "config.toml")), false);
   const addsBefore = (await records()).filter(call => call.agent === "codex" && call.args[1] === "add").length;
   await mode("codex", "hold"); await writeFile(join(work, "agent.gate"), ""); await card("codex").getByRole("button", { name: "Connect", exact: true }).click();
   await wait(async () => (await records()).filter(call => call.agent === "codex" && call.args[1] === "add").length > addsBefore, "fresh agent add started"); await busy(); await rm(join(work, "agent.gate"));
-  await wait(async () => !await button("Check Again").isDisabled(), "Connect settled"); await mode("codex", "");
+  await wait(async () => !await footerCheck().isDisabled(), "Connect settled"); await mode("codex", "");
   for (const agent of ["claude", "codex"]) assert.ok((await mutations()).some(call => call.agent === agent && JSON.stringify(call.args) === JSON.stringify(["mcp", "add", ...(agent === "claude" ? ["--scope", "user"] : []), "doan", "--", cliLink, "mcp"])));
   await writeFile(join(claudeConfig, ".claude.json"), JSON.stringify({ mcpServers: { doan: { command: "/other", args: [] } } })); await check();
-  const prior = await mutations(); await card("claude").getByRole("button", { name: "Connect", exact: true }).click(); await confirm.waitFor(); await confirm.getByRole("button", { name: "Cancel", exact: true }).click(); await check(); assert.deepEqual(await mutations(), prior);
-  await card("claude").getByRole("button", { name: "Connect", exact: true }).click(); await confirm.waitFor(); await confirm.getByRole("button", { name: "Replace MCP Registration", exact: true }).click();
-  await wait(async () => !await button("Check Again").isDisabled(), "MCP replace");
+  const prior = await mutations(); await card("claude").getByRole("button", { name: "Fix…", exact: true }).click(); await confirm.waitFor(); await confirm.getByRole("button", { name: "Cancel", exact: true }).click(); await check(); assert.deepEqual(await mutations(), prior);
+  await card("claude").getByRole("button", { name: "Fix…", exact: true }).click(); await confirm.waitFor(); await confirm.getByRole("button", { name: "Replace MCP Registration", exact: true }).click();
+  await wait(async () => !await footerCheck().isDisabled(), "MCP replace");
   assert.deepEqual((await mutations()).slice(-2).map(call => call.args), [["mcp", "remove", "--scope", "user", "doan"], ["mcp", "add", "--scope", "user", "doan", "--", cliLink, "mcp"]]);
   await rm(claudeLink); await symlink("/missing/skill", claudeLink); await check();
-  await card("claude").getByRole("button", { name: "Connect", exact: true }).click(); await confirm.waitFor(); await confirm.getByRole("button", { name: "Cancel", exact: true }).click(); await check(); assert.equal(await readlink(claudeLink), "/missing/skill");
-  await card("claude").getByRole("button", { name: "Connect", exact: true }).click(); await confirm.waitFor(); await confirm.getByRole("button", { name: "Replace Link", exact: true }).click(); await wait(async () => !await button("Check Again").isDisabled(), "skill link replaced"); assert.equal(await readlink(claudeLink), "../../.agents/skills/doan");
+  await card("claude").getByRole("button", { name: "Fix…", exact: true }).click(); await confirm.waitFor(); await confirm.getByRole("button", { name: "Cancel", exact: true }).click(); await check(); assert.equal(await readlink(claudeLink), "/missing/skill");
+  await card("claude").getByRole("button", { name: "Fix…", exact: true }).click(); await confirm.waitFor(); await confirm.getByRole("button", { name: "Replace Link", exact: true }).click(); await wait(async () => !await footerCheck().isDisabled(), "skill link replaced"); assert.equal(await readlink(claudeLink), "../../.agents/skills/doan");
   console.log("onboarding: symlinked Claude skills and shared-directory alias");
   const skills = join(claudeConfig, "skills"), realSkills = join(home, "custom/deep/skills");
   await rm(skills, { recursive: true }); await mkdir(realSkills, { recursive: true }); await symlink(realSkills, skills);
@@ -258,7 +268,7 @@ else if (args[1] === 'add') {
   assert.equal(await readlink(join(realSkills, "doan")), relative(realSkills, dirname(stub)));
   assert.equal(await realpath(claudeLink), await realpath(dirname(stub)));
   assert.equal(await readlink(skills), realSkills);
-  await card("claude").getByText("Installed", { exact: true }).waitFor();
+  await details("claude"); await card("claude").locator(".ob-item").filter({ hasText: "Skill link" }).getByText("Installed", { exact: true }).waitFor();
   await shot("02a-symlinked-skills");
 
   await rm(skills); await symlink(join(home, ".agents/skills"), skills);
@@ -269,8 +279,8 @@ else if (args[1] === 'add') {
   }));
   const aliasBefore = await stamps(), aliasMutations = await mutations();
   await check();
-  await card("claude").getByText("Uses the shared skill folder", { exact: true }).waitFor();
-  await card("claude").getByText("Installed", { exact: true }).waitFor();
+  await details("claude"); await card("claude").getByText("Uses the shared skill folder", { exact: true }).waitFor();
+  await card("claude").locator(".ob-item").filter({ hasText: "Skill link" }).getByText("Installed", { exact: true }).waitFor();
   assert.equal(await card("claude").getByRole("button", { name: "Connect", exact: true }).count(), 0);
   await check();
   assert.deepEqual(await stamps(), aliasBefore, "recognizing the shared skills alias writes nothing");

@@ -203,12 +203,9 @@ code, kbd { font-family: var(--font-sans); }
 .ob-foot .meta { margin-right: 6px; }
 .ob-card { width: 640px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
 .ob-card + .ob-card { margin-top: 14px; }
-.ob-item, .ob-agent { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line-2); }
+.ob-item { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line-2); }
 .ob-card > :last-child { border-bottom: 0; }
-.ob-agent { padding-top: 14px; }
 .ob-label { font-size: 12px; font-weight: 600; color: var(--text); }
-.ob-agent .ob-label { font-size: 12.5px; }
-.ob-item.sub .ob-label { font-weight: 500; color: var(--text-2); padding-left: 12px; }
 .ob-item.dimmed { opacity: .4; }
 .ob-item.ob-notice { padding-top: 0; }
 .ob-detail { font-size: 11.5px; line-height: 1.5; color: var(--text-3); min-width: 0; overflow-wrap: anywhere; }

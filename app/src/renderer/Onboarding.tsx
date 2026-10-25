@@ -2,14 +2,15 @@ import { Fragment, useContext, useEffect, useRef, useState } from "react";
 import type { OpenProjectResult } from "../main/index";
 import type { ScanSnapshot } from "../main/addProjects";
 import type { MachineState, StepRequest, StepResult } from "../main/onboarding/machine";
-import type { Agent } from "../main/onboarding/states";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
 import type { FolderEntry } from "../main/view";
 import {
-  advanceAfter, agentsView, cliItems, confirmView, copyFor, footerView, idleUi, indicatorView, nextFocusIndex, pickView, projectStepView, promptStepView, STEP_COPY, stepsDone, wizardBusy,
-  type ConfirmView, type FooterView, type IndicatorStep, type ItemView, type MachineUi, type Part, type Row, type RowOutcome,
+  advanceAfter, agentsView, copyFor, footerView, idleUi, indicatorView, nextFocusIndex, pickView, projectStepView, promptStepView, STEP_COPY, stepsDone, wizardBusy,
+  type ConfirmView, type FooterView, type IndicatorStep, type MachineUi, type Part, type Row, type RowOutcome,
 } from "./onboardingView";
 import { SetUpFolderConfirm } from "./AddProjectsDialog";
+import { ConnectionRows } from "./ConnectionRows";
+import { connectionConfirm } from "./connectionRowView";
 import { FirstPrompt, FirstPromptContext } from "./FirstPrompt";
 import { PathTip } from "./Home";
 import { ProjectFields, useProjectSetup } from "./ProjectSetupDialog";
@@ -22,26 +23,6 @@ function Parts({ parts }: { parts: readonly Part[] }) {
   return <>{parts.map((part, index) => typeof part === "string" ? <Fragment key={index}>{part}</Fragment> : <code key={index}>{part.code}</code>)}</>;
 }
 
-export function Item({ item, act, head = false }: { item: ItemView; act: (id: NonNullable<ItemView["button"]>["id"]) => void; head?: boolean }) {
-  const button = item.button;
-  const className = head ? "ob-agent" : item.sub ? "ob-item sub" : "ob-item";
-  return <>
-    <div className={item.dimmed ? `${className} dimmed` : className}>
-      <span className="ob-label">{item.label}</span>
-      <span className="ob-detail">{item.detailChip && <span className={chipClass(item.detailChip.tone)}>{item.detailChip.text}</span>}<Parts parts={item.detail} /></span>
-      <span className="ob-status">
-        {item.chip && <span className={chipClass(item.chip.tone)}>{item.chip.text}</span>}
-        {button && <button type="button" className={button.primary ? "btn primary" : "btn"} disabled={button.disabled} onClick={() => act(button.id)}>{button.label}</button>}
-        {item.link && <button type="button" className="btn" onClick={() => { if (item.link) void window.doan.openInstallPage(item.link.target).catch(console.error); }}>{item.link.label}</button>}
-      </span>
-      {item.copyLine && <span className="ob-copyline"><output>{item.copyLine.text}</output><button type="button" className="btn" disabled={item.copyLine.button.disabled} onClick={() => act("copyPath")}>{item.copyLine.button.label}</button></span>}
-      {item.msg && <span className={`ob-msg ${item.msg.tone}`} role={item.msg.tone === "error" ? "alert" : undefined}><Parts parts={item.msg.parts} /></span>}
-      {item.reason && !item.dimmed && <span className="ob-reason">{item.reason}</span>}
-    </div>
-    {/* A dimmed item keeps its notice readable in a row of its own (draft wizard-agents). */}
-    {item.reason && item.dimmed && <div className="ob-item sub ob-notice"><span /><span className="ob-reason">{item.reason}</span></div>}
-  </>;
-}
 const chipClass = (tone: "ok" | "warn" | "err" | undefined) => tone ? `ob-chip ${tone}` : "ob-chip";
 
 export function StepIndicator({ steps, go }: { steps: IndicatorStep[]; go: (step: number) => void }) {
@@ -105,6 +86,8 @@ export function Wizard({ session, entries, reroot, homeDirectory, onClose }: { s
   const [machine, setMachine] = useState<MachineState | null>(null);
   const [ui, setUi] = useState<MachineUi>(() => ({ ...idleUi(), checking: true }));
   const [confirm, setConfirm] = useState<{ id: string; target: "cli" | "stub" | "claudeLink" | "mcp"; row: Row } | null>(null);
+  // The agent Connect just finished for: its row says to start a new session until Check Again.
+  const [justConnected, setJustConnected] = useState<Row | null>(null);
   const [project, setProject] = useState<string | null>(null);
   const [rerooted, setRerooted] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
@@ -166,6 +149,7 @@ export function Wizard({ session, entries, reroot, homeDirectory, onClose }: { s
     try { result = await request; } catch (error) { result = { kind: "error", message: errorText(error) }; }
     if (!live.current) return;
     if (result.kind === "confirm") { setConfirm({ id: result.id, target: result.target, row }); return; }
+    if (result.kind === "success" && row !== "cli") setJustConnected(row);
     setUi(current => ({ ...current, running: null, outcome: { ...current.outcome, [row]: outcomeOf(result) } }));
     await read();
   }
@@ -247,12 +231,12 @@ export function Wizard({ session, entries, reroot, homeDirectory, onClose }: { s
 
   const done = stepsDone(machine, entry, promptCopied);
   const go = (next: number) => { if (!busy) setStep(Math.max(0, Math.min(3, next))); };
-  const act = (id: NonNullable<ItemView["button"]>["id"], row: Row) => {
-    if (id === "copyPath") void copyPath();
-    else run(row);
-  };
-  const checkAgain = () => { setUi(current => ({ ...current, outcome: {} })); void read(); };
-  const confirmed = confirm && machine ? confirmView(confirm.target, confirm.row === "cli" ? "claude" : confirm.row, machine) : null;
+  const checkAgain = () => { setUi(current => ({ ...current, outcome: {} })); setJustConnected(null); void read(); };
+  const confirmed = confirm && machine ? connectionConfirm(confirm.target, confirm.row === "cli" ? "claude" : confirm.row, machine) : null;
+  // Steps 1–2 draw the Settings connection rows (conductor decision reuse-row).
+  const rows = (connections: readonly Row[]) => <ConnectionRows machine={machine} ui={ui} rows={connections} busy={busy} justConnected={justConnected} run={run} checkAgain={checkAgain}
+    install={agent => void window.doan.openInstallPage(agent).catch(console.error)} copyPath={() => void copyPath()} />;
+  const noAgent = step === 1 ? agentsView(machine, ui).notice : undefined;
 
   // A modal <dialog> sits above any app dialog already open (setup, comments),
   // which would otherwise stay on top and leave both unclickable.
@@ -269,10 +253,8 @@ export function Wizard({ session, entries, reroot, homeDirectory, onClose }: { s
     <div className="ob-body native-scroll"><div className="ob-form">
       <h2>{STEP_COPY[step]?.heading}</h2>
       <p className="ob-lead"><Parts parts={STEP_COPY[step]?.lead ?? []} /></p>
-      {step === 0 && <>
-        <div className="ob-card">{cliItems(machine, ui).map(item => <Item key={item.key} item={item} act={id => act(id, "cli")} />)}</div>
-      </>}
-      {step === 1 && <AgentsStep machine={machine} ui={ui} act={(id, row) => act(id, row)} />}
+      {step === 0 && rows(["cli"])}
+      {step === 1 && <>{rows(["claude", "codex"])}{noAgent && <p className="cn-note" role="status">{noAgent}</p>}</>}
       {step === 2 && <ProjectStep key={project ?? ""} project={project} entry={entry ?? null} rerooted={rerooted} refused={refused} setBusy={setProjectBusy} open={openProject}
         setUpDone={(result) => {
           if (result.kind === "success") setAdvance("setup");
@@ -333,18 +315,6 @@ function PickOneDialog({ scanId, homeDirectory, close, chosen }: { scanId: strin
       <button type="button" className="btn" autoFocus disabled={busy} onClick={cancel}>Cancel</button>
       <button type="button" className="btn primary" disabled={picked === null || busy} onClick={() => void submit()}>Choose</button></div>
   </dialog>;
-}
-
-function AgentsStep({ machine, ui, act }: { machine: MachineState | null; ui: MachineUi; act: (id: NonNullable<ItemView["button"]>["id"], row: Agent) => void }) {
-  const view = agentsView(machine, ui);
-  return <>
-    <div className="ob-card"><Item item={view.skill} act={() => {}} /></div>
-    {view.agents.map(card => <div className="ob-card" key={card.agent}>
-      <Item item={card.head} head act={id => act(id, card.agent)} />
-      {card.items.map(item => <Item key={item.key} item={item} act={id => act(id, card.agent)} />)}
-    </div>)}
-    {view.notice && <p className="cn-note" role="status">{view.notice}</p>}
-  </>;
 }
 
 function ProjectStep({ project, entry, rerooted, refused, setBusy, open, setUpDone }: {
