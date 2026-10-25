@@ -2,6 +2,7 @@ import { useId, type Ref } from "react";
 import type { Comment, Target, Warning } from "../formats/types";
 import type { CopyScope, ListFilter } from "../comments/projection";
 import { targetLabel } from "../comments/targetLabel";
+import { reopenText, resolutionText, type NamedLine } from "../comments/resolution";
 import { READ_FAILED_EDITOR, WARNINGS_TITLE, commentsPanelState, emptyListText, identityText, warningFileText, warningGroups, warningText, type IdentityCause } from "../comments/panelText";
 
 // Frame ids with their titles, from the ls row or the rendered canvas, to name comment targets.
@@ -177,13 +178,17 @@ export function CommentCard({ comment, frames, freshness, locationMissing, disab
   const initials = createdBy.name.trim().split(/\s+/).slice(0, 2).map(word => Array.from(word)[0] ?? "").join("").toUpperCase();
   const locked = disabled || busy || (mutation !== undefined && mutation.status !== "idle" && mutation.status !== "saved");
   const target = targetLabel(comment.target, frames);
+  const resolution = resolutionText(comment, relativeTime), reopen = reopenText(comment, relativeTime);
   return <article className="comments-card" tabIndex={-1} data-comment={comment.comment} aria-label={`Comment by ${createdBy.name}`} aria-busy={busy || mutation?.status === "saving"}>
     <div className="comments-author"><span className="comments-avatar" aria-hidden="true">{initials}</span><div className="comments-by"><b>{createdBy.name}</b>{createdBy.kind === "human" && createdBy.email && <span className="comments-email">{createdBy.email}</span>}<time dateTime={comment.createdAt} title={comment.createdAt}>{relativeTime(comment.createdAt)}</time></div></div>
     {locationMissing === false && target.locatableHint
       ? <button type="button" className="comments-target locatable" title={`Show on canvas\n${target.title}`} onClick={() => onComment("locate", comment.comment)}>{target.text}</button>
       // A span, not a disabled button: the global button:disabled opacity would fade it.
       : <span className="comments-target" title={target.title}>{target.text}</span>}
-    <div className="comments-badges"><span className={`comments-badge ${comment.status}`}>{comment.status === "open" ? "Open" : "Resolved"}</span>{freshness !== "same" && <span className="comments-badge warning">{freshness === "outdated" ? "Outdated" : "Freshness unknown"}</span>}{locationMissing && <><span className="comments-badge warning">Location unavailable</span><span className="comments-badge-note">Not found in the current canvas.</span></>}</div>
+    {/* A resolved card's canvas is expected to have changed since, so freshness is not news there (feature revision-recheck Q3). */}
+    <div className="comments-badges"><span className={`comments-badge ${comment.status}`}>{comment.status === "open" ? "Open" : "Resolved"}</span>{comment.status === "open" && freshness !== "same" && (freshness === "outdated" ? <span className="comments-badge" title="The canvas changed after this comment was written.">Canvas changed</span> : <span className="comments-badge">Freshness unknown</span>)}{locationMissing && <><span className="comments-badge warning">Location unavailable</span><span className="comments-badge-note">Not found in the current canvas.</span></>}</div>
+    {resolution && <ResolutionLine line={resolution} />}
+    {reopen && <><ResolutionLine line={reopen.reopened} /><ResolutionLine line={reopen.previously} /></>}
     <p className="comments-body">{comment.body}</p>
     <div className="comments-tools">
       <button type="button" className="comments-btn" disabled={locked} onClick={() => onComment("edit", comment.comment)}>Edit</button>
@@ -203,6 +208,11 @@ export function CommentCard({ comment, frames, freshness, locationMissing, disab
       </div>
     </div>}
   </article>;
+}
+
+function ResolutionLine({ line }: { line: NamedLine }) {
+  const text = <>{line.lead}<b>{line.name}</b>{line.tail}</>;
+  return <p className="comments-resolution">{line.at === undefined ? text : <time dateTime={line.at} title={line.at}>{text}</time>}</p>;
 }
 
 function SaveMessage({ state }: { state: SaveView }) {

@@ -8,6 +8,7 @@ import { shownAnchors, type AnchorSnapshot } from "./commentAnchors";
 import { mainSelection, selectionIdentity } from "./selection";
 import { outdated, projectList, type ListFilter } from "../comments/projection";
 import { continueEnabled, draftScope, guardsSelectionChange } from "../comments/draft";
+import { sortResolved } from "../comments/resolution";
 import type { Target } from "../formats/types";
 
 // A focus move that waits for anchors. `context` is the canvas and selection it
@@ -119,6 +120,8 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   const lookup = snapshot?.lookup ?? { root: identity?.root ?? "", canvas: identity?.canvas ?? "", generation: 0, nodes: new Map<string, string>() };
   const currentFilter: ListFilter = filter.scope === "selection" ? { ...filter, node: snapshot?.selected ?? null } : filter;
   const scoped = (status: "open" | "resolved") => projectList(comments, lookup, lookup, { ...currentFilter, status });
+  // Open cards keep the created order; resolved ones read as a history of resolves.
+  const shown = filter.status === "resolved" ? sortResolved(scoped("resolved")) : scoped("open");
   // An open row without an id never reaches main, so the renderer names that cause itself.
   const identityCause = open && !canvas ? "missing" : current ? session.identityCause : null;
   const writeBlocked = !identity || identityCause ? "A valid, unique canvas ID is required." : null;
@@ -220,7 +223,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     session,
     panel: (open || draft) && <CommentsPanel filter={currentFilter} selectionAvailable={state.selection !== null && !state.unlisted} selectionNode={snapshot?.selected ?? null}
       counts={{ open: scoped("open").length, resolved: scoped("resolved").length }} canvasOpenCount={comments.filter(c => c.status === "open").length}
-      read={readError ? { status: "failed", message: readError } : list ? { status: "ready", comments: scoped(filter.status), warnings: list.warnings } : { status: "loading" }}
+      read={readError ? { status: "failed", message: readError } : list ? { status: "ready", comments: shown, warnings: list.warnings } : { status: "loading" }}
       freshness={new Map(comments.map(c => [c.comment, outdated(c.canvasHash, list?.canvasHash ?? null)]))}
       missingLocations={snapshot?.status === "answered" ? new Set(comments.filter(c => (c.target.frame || c.target.element) && !snapshot.lookup.nodes.has(c.comment)).map(c => c.comment)) : null}
       author={session.author} identityCause={identityCause} canvasId={canvas ?? ""} frames={frames} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || (session.beginning && !draft)}

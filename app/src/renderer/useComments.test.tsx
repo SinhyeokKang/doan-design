@@ -975,3 +975,21 @@ describe("locate from a card's target line", () => {
     expect(f.locate).not.toHaveBeenCalled();
   });
 });
+
+describe("the Resolved list order (revision-recheck task 6)", () => {
+  test("lists the newest resolve first, ties by comment id, whatever the created order", async () => {
+    const base: Comment = { comment: "c1", body: "Note", status: "resolved", target: {}, canvasHash: "hash", createdBy: { kind: "human", name: "A" }, createdAt: "2026-10-25T09:00:00.000Z", updatedAt: "t", resolvedBy: { kind: "agent", name: "codex" } };
+    const f = setup([
+      { ...base, comment: "c1", resolvedAt: "2026-10-25T10:00:00.000Z" },
+      { ...base, comment: "c3", resolvedAt: "2026-10-25T12:00:00.000Z" },
+      { ...base, comment: "c2", resolvedAt: "2026-10-25T10:00:00.000Z" },
+      { ...base, comment: "c4", status: "open" },
+    ]);
+    const { session } = f.render({ selection: null });
+    await vi.waitFor(() => expect(session.list).not.toBeNull());
+    const props = () => (f.render({ selection: null }).panel as unknown as { props: CommentsPanelProps }).props;
+    props().onFilter({ scope: "canvas", status: "resolved" }); settle(FILTER);
+    const read = props().read;
+    expect(read.status === "ready" && read.comments.map(c => c.comment)).toEqual(["c3", "c1", "c2"]);
+  });
+});

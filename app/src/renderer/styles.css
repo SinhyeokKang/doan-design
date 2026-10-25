@@ -171,6 +171,9 @@ code, kbd { font-family: var(--font-sans); }
 .comments-badge.warning { color: var(--warn); }
 .comments-badge.resolved { color: var(--ok); }
 .comments-badge-note { font-size: 10px; line-height: 1.5; color: var(--text-3); padding: 2px 0; }
+/* Values from design/revision-recheck.html (resolution-meta). */
+.comments-resolution { font-size: 10.5px; line-height: 1.5; color: var(--text-3); margin: 6px 0 0; overflow-wrap: anywhere; }
+.comments-resolution b { font-weight: 500; color: var(--text-2); }
 .comments-message { padding: 12px; font-size: 11.5px; line-height: 1.6; color: var(--text-2); border-bottom: 1px solid var(--line-2); overflow-wrap: anywhere; }
 .comments-message b { display: block; color: var(--text); margin-bottom: 4px; font-size: 12px; }
 .comments-message.error { border-left: 2px solid var(--err); }

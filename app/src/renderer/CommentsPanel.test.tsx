@@ -4,7 +4,7 @@ import { describe, expect, test, vi } from "vitest";
 import type { Comment } from "../formats/types";
 import { foldText } from "../formats/foldText";
 import { READ_FAILED_EDITOR } from "../comments/panelText";
-import { CommentsPanel, DeleteCommentDialog, CommentCard, CommentEditor, UnsavedCommentDialog, UncertainCommentDialog, revealComposer, type CommentsPanelProps, type CommentEditorProps } from "./CommentsPanel";
+import { CommentsPanel, DeleteCommentDialog, CommentCard, CommentEditor, UnsavedCommentDialog, UncertainCommentDialog, revealComposer, type CommentsPanelProps, type CommentEditorProps, type CommentCardProps } from "./CommentsPanel";
 
 // Tests call the editor as a plain function to read its element tree, outside
 // a React render; its reason id still comes from useId in the app.
@@ -32,7 +32,7 @@ const html = (props: CommentsPanelProps) => renderToStaticMarkup(<CommentsPanel 
 describe("Comments presentation", () => {
   test("renders plain text, author identity, targets and independent location/freshness badges", () => {
     const out = html(panel({ freshness: new Map([["c1", "outdated"]]), missingLocations: new Set(["c1"]) }));
-    for (const text of ["Alex Morgan", "alex@example.com", ">AM<", "Element · button submit", "Outdated", "Location unavailable", "&lt;script&gt;", "\n  Keep spaces "]) expect(out).toContain(text);
+    for (const text of ["Alex Morgan", "alex@example.com", ">AM<", "Element · button submit", "Canvas changed", "Location unavailable", "&lt;script&gt;", "\n  Keep spaces "]) expect(out).toContain(text);
     const unknown = html(panel({ missingLocations: null }));
     expect(unknown).not.toContain("Location unavailable");
     expect(html(panel())).toContain(`<button type="button" class="comments-target locatable" title="Show on canvas\nbutton">Element · button submit</button>`);
@@ -424,4 +424,37 @@ test("a resolved card's target line locates like an open card's (revision-rechec
   const card = CommentCard({ comment: { ...comment, status: "resolved" }, frames: [], freshness: "same", locationMissing: false, disabled: false, busy: false, copy: { status: "idle" }, onComment, onCopy: noop });
   find(card, "Element · button submit").onClick?.();
   expect(onComment).toHaveBeenCalledExactlyOnceWith("locate", "c1");
+});
+
+describe("resolution meta and Canvas changed (revision-recheck task 6)", () => {
+  const codex = { kind: "agent" as const, name: "codex" }, kim = { kind: "human" as const, name: "Kim Doe" };
+  const resolved: Comment = { ...comment, status: "resolved", resolvedBy: codex, resolvedAt: "2026-10-25T14:02:10.000Z" };
+  const reopened: Comment = { ...comment, lastResolution: { by: codex, at: "2026-10-25T14:02:10.000Z", reopenedBy: kim, reopenedAt: "2026-10-25T14:04:30.000Z" } };
+  const card = (c: Comment, freshness: CommentCardProps["freshness"] = "same") => renderToStaticMarkup(<CommentCard comment={c} frames={[]} freshness={freshness} locationMissing={false} disabled={false} busy={false} copy={{ status: "idle" }} onComment={noop} onCopy={noop} />);
+  test("a resolved card names its resolver under the badges, with the absolute time in title", () => {
+    vi.useFakeTimers({ now: Date.parse("2026-10-25T14:05:10.000Z") });
+    try {
+      const out = card(resolved);
+      expect(out).toContain(`<p class="comments-resolution"><time dateTime="2026-10-25T14:02:10.000Z" title="2026-10-25T14:02:10.000Z">Resolved by <b>codex</b> · 3 minutes ago</time></p>`);
+      expect(out.indexOf('class="comments-badges"')).toBeLessThan(out.indexOf('class="comments-resolution"'));
+      expect(out.indexOf('class="comments-resolution"')).toBeLessThan(out.indexOf('class="comments-body"'));
+    } finally { vi.useRealTimers(); }
+  });
+  test("a reopened open card says who reopened it and who had resolved it", () => {
+    vi.useFakeTimers({ now: Date.parse("2026-10-25T14:05:30.000Z") });
+    try {
+      const out = card(reopened);
+      expect(out).toContain(`<p class="comments-resolution"><time dateTime="2026-10-25T14:04:30.000Z" title="2026-10-25T14:04:30.000Z">Reopened by <b>Kim Doe</b> · 1 minute ago</time></p><p class="comments-resolution">Previously resolved by <b>codex</b></p>`);
+      expect(card(comment)).not.toContain("comments-resolution");
+    } finally { vi.useRealTimers(); }
+  });
+  test("an open card shows Canvas changed and Freshness unknown as neutral badges", () => {
+    expect(card(comment, "outdated")).toContain(`<span class="comments-badge" title="The canvas changed after this comment was written.">Canvas changed</span>`);
+    expect(card(comment, "unknown")).toContain(`<span class="comments-badge">Freshness unknown</span>`);
+    for (const freshness of ["outdated", "unknown"] as const) expect(card(comment, freshness)).not.toContain("comments-badge warning");
+    expect(card(comment, "same")).not.toMatch(/Canvas changed|Freshness unknown/);
+  });
+  test("a resolved card shows neither Canvas changed nor Freshness unknown", () => {
+    for (const freshness of ["outdated", "unknown"] as const) expect(card(resolved, freshness)).not.toMatch(/Canvas changed|Freshness unknown|Outdated/);
+  });
 });
