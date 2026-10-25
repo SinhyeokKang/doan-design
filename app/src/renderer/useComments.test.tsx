@@ -971,8 +971,8 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
 });
 
 // feature revision-recheck task 5: locate selects through the selection path,
-// so the picked scope and status stay; only that one selection is exempt from
-// the scope fit (L-13), and only once its select was actually sent.
+// so the picked scope and status stay; only the selection that answers it
+// (`located`, set by the controller) is exempt from the scope fit (L-13).
 describe("locate from a card's target line", () => {
   const open: Comment = { comment: "c1", body: "On the label", status: "open", target: { frame: "shipping", element: label.element }, canvasHash: "hash", createdBy: { kind: "human", name: "A" }, createdAt: "t", updatedAt: "t" };
   const done: Comment = { ...open, comment: "c2", body: "On pay", status: "resolved", target: { frame: "payment", element: pay.element } };
@@ -980,8 +980,7 @@ describe("locate from a card's target line", () => {
   const paymentFrame = { tag: "section", frame: { id: "payment" }, frameIndex: 1, path: [] };
   async function located(selection: CanvasState["selection"] = null) {
     const f = setup([open, done, frameOnly]);
-    let sending = true;
-    const locate = vi.fn((_node: string, _generation: number, _comment: Comment, selecting?: () => void) => { if (sending) selecting?.(); });
+    const locate = vi.fn();
     const activatePin = vi.fn(), selectPath = vi.fn();
     Object.assign(f.controller, { locate, activatePin, selectPath });
     const { session } = f.render({ selection });
@@ -991,16 +990,16 @@ describe("locate from a card's target line", () => {
     (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation: 4, nodes: new Map([["c1", "n1"], ["c2", "n2"], ["c3", "n3"]]) }, rects: new Map(), selected: null, status: "answered" });
     settle(ANCHORS);
     const panel = (at: CanvasState["selection"]) => f.render({ selection: at }).panel as unknown as { props: CommentsPanelProps };
-    return { ...f, locate, activatePin, selectPath, panel, refuse: () => { sending = false; } };
+    return { ...f, locate, activatePin, selectPath, panel };
   }
 
   test("a resolved card keeps the Resolved status and the Canvas scope after its target is selected", async () => {
     const f = await located();
     f.panel(null).props.onFilter({ scope: "canvas", status: "resolved" }); settle(FILTER);
     f.panel(null).props.onComment("locate", "c2");
-    expect(f.locate).toHaveBeenCalledExactlyOnceWith("n2", 4, done, expect.any(Function));
+    expect(f.locate).toHaveBeenCalledExactlyOnceWith("n2", 4, done);
     const selected = { ...pay, frame: { id: "payment" } };
-    f.render({ selection: selected }); settle(FILTER);
+    f.render({ selection: selected, located: true }); settle(FILTER);
     expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "resolved" });
     expect(f.panel(selected).props.read).toMatchObject({ status: "ready", comments: [done, frameOnly] });
     // Only that selection was asked for: the next one fits the scope again,
@@ -1018,8 +1017,8 @@ describe("locate from a card's target line", () => {
     f.panel(null).props.onComment("locate", "c1");
     expect(f.activatePin).not.toHaveBeenCalled();
     expect(f.selectPath).not.toHaveBeenCalled();
-    expect(f.locate).toHaveBeenCalledExactlyOnceWith("n1", 4, open, expect.any(Function));
-    f.render({ selection: label }); settle(FILTER);
+    expect(f.locate).toHaveBeenCalledExactlyOnceWith("n1", 4, open);
+    f.render({ selection: label, located: true }); settle(FILTER);
     expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "open" });
   });
 
@@ -1027,27 +1026,38 @@ describe("locate from a card's target line", () => {
     const f = await located();
     f.panel(null).props.onFilter({ scope: "canvas", status: "resolved" }); settle(FILTER);
     f.panel(null).props.onComment("locate", "c3");
-    f.render({ selection: paymentFrame }); settle(FILTER);
+    f.render({ selection: paymentFrame, located: true }); settle(FILTER);
     expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "resolved" });
   });
 
-  test("a locate whose select was never sent leaves the next selection of that target to the scope fit", async () => {
+  // R-L L-1: the canvas may name the target differently from the stored one
+  // (its doanId gone, or a parent's new doanId shortening the selector).
+  test.each([
+    ["loses its doanId", { selector: "button", html: "<button/>" }],
+    ["gets a shorter selector", { selector: '[data-doan-id="wrapper"] > button', html: "<button/>" }],
+  ])("the answer keeps the scope when the target %s", async (_case, element) => {
     const f = await located();
-    f.refuse();
     f.panel(null).props.onFilter({ scope: "canvas", status: "resolved" }); settle(FILTER);
     f.panel(null).props.onComment("locate", "c2");
+    f.render({ selection: { ...pay, element }, located: true }); settle(FILTER);
+    expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "resolved" });
+  });
+
+  // R-L L-2: select-anchor answers null once the target is gone.
+  test("a failed locate leaves a later selection of that target to the scope fit", async () => {
+    const f = await located();
+    f.panel(null).props.onFilter({ scope: "canvas", status: "resolved" }); settle(FILTER);
+    f.panel(null).props.onComment("locate", "c2");
+    f.render({ selection: null }); settle(FILTER);
     f.render({ selection: pay }); settle(FILTER);
     expect(harness.states[FILTER]).toMatchObject({ scope: "selection", status: "resolved" });
   });
 
-  test("a locate that resolves to another element does not exempt it", async () => {
+  test("a selection that does not answer the locate fits the scope", async () => {
     const f = await located();
     f.panel(null).props.onFilter({ scope: "canvas", status: "resolved" }); settle(FILTER);
     f.panel(null).props.onComment("locate", "c2");
     f.render({ selection: label }); settle(FILTER);
-    expect(harness.states[FILTER]).toMatchObject({ scope: "selection", status: "resolved" });
-    // Nor does the target picked by hand after that.
-    f.render({ selection: pay }); settle(FILTER);
     expect(harness.states[FILTER]).toMatchObject({ scope: "selection", status: "resolved" });
   });
 
@@ -1058,7 +1068,7 @@ describe("locate from a card's target line", () => {
     (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation: 4, nodes: new Map() }, rects: new Map(), selected: null, status: "pending" });
     settle(ANCHORS);
     expect(harness.states[ANCHORS]).toMatchObject({ status: "answered" });
-    f.render({ selection: pay }); settle(FILTER); settle(ANCHORS);
+    f.render({ selection: pay, located: true }); settle(FILTER); settle(ANCHORS);
     expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "resolved" });
     expect(harness.states[ANCHORS]).toMatchObject({ status: "pending" });
   });

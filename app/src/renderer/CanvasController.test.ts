@@ -1849,15 +1849,14 @@ describe("locate and jump to a comment's node", () => {
       const before = h.controller.currentView(), { lookup } = h.snapshot();
       expect(lookup.nodes.get("o")).toBe("n1");
       h.current().contentWindow.postMessage.mockClear();
-      const selecting = vi.fn();
-      h.controller.locate("n1", lookup.generation, open, selecting);
+      h.controller.locate("n1", lookup.generation, open);
       expect(h.controller.currentView()).toEqual(locateView(far, h.viewport, before));
       expect(h.controller.currentView().scale).toBe(before.scale);
       expect(h.markOf("jump-highlight")?.hidden).toBe(false);
-      expect(selecting).toHaveBeenCalledOnce();
       expect(h.posted()).toEqual([{ type: "select-anchor", seq: 1, doanId: "cta", selector: '[data-doan-id="cta"]' }]);
       h.select(1);
       expect(h.state().selection.element.doanId).toBe("cta");
+      expect(h.state().located).toBe(true);
       expect(h.open).not.toHaveBeenCalled();
       vi.advanceTimersByTime(1200);
       expect(h.markOf("jump-highlight")?.hidden).toBe(true);
@@ -1890,13 +1889,11 @@ describe("locate and jump to a comment's node", () => {
     try {
       const before = h.controller.currentView(), { lookup } = h.snapshot();
       h.current().contentWindow.postMessage.mockClear();
-      const selecting = vi.fn();
       // The resolved comment's frame was not found, and a node it was never mapped to is not its target.
-      h.controller.locate("n2", lookup.generation, resolved, selecting);
-      h.controller.locate("n1", lookup.generation, resolved, selecting);
+      h.controller.locate("n2", lookup.generation, resolved);
+      h.controller.locate("n1", lookup.generation, resolved);
       expect(h.controller.currentView()).toEqual(before);
       expect(h.posted()).toEqual([]);
-      expect(selecting).not.toHaveBeenCalled();
       expect(h.markOf("jump-highlight")).toBeUndefined();
     } finally { h.controller.dispose(); }
   });
@@ -1908,11 +1905,10 @@ describe("locate and jump to a comment's node", () => {
       const { width: _width, ...row } = h.row;
       h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [row, h.other] }]);
       expect(h.state().status).toBe("noWidth");
-      const before = h.controller.currentView(), selecting = vi.fn();
-      h.controller.locate("n1", lookup.generation, open, selecting);
+      const before = h.controller.currentView();
+      h.controller.locate("n1", lookup.generation, open);
       h.controller.jumpToNode("n1", lookup.generation);
       expect(h.controller.currentView()).toEqual(before);
-      expect(selecting).not.toHaveBeenCalled();
     } finally { h.controller.dispose(); }
   });
 
@@ -1923,8 +1919,8 @@ describe("locate and jump to a comment's node", () => {
       if (kind === "reload") h.controller.command("reload");
       else h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, path: "design/flows/a.html", url: "http://localhost/t/k/f/design/flows/a.html" }, h.other] }]);
       const href = kind === "reload" ? h.row.url : "http://localhost/t/k/f/design/flows/a.html";
-      const before = h.controller.currentView(), selecting = vi.fn();
-      h.controller.locate("n1", lookup.generation, open, selecting);
+      const before = h.controller.currentView();
+      h.controller.locate("n1", lookup.generation, open);
       expect(h.controller.currentView()).toEqual(before);
       // Node tokens restart in the new document, so the same token may name another element there.
       h.layout({ document: "doc2", href });
@@ -1932,11 +1928,10 @@ describe("locate and jump to a comment's node", () => {
       h.receive({ type: "anchors", href, document: "doc2", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
         results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: ["n1"], doanId: ["n1"], selector: ["n1"] } })), rects: [{ node: "n1", ...far, y: 100 }] });
       h.current().contentWindow.postMessage.mockClear();
-      h.controller.locate("n1", lookup.generation, open, selecting);
+      h.controller.locate("n1", lookup.generation, open);
       h.controller.jumpToNode("n1", lookup.generation);
       expect(h.controller.currentView()).toEqual(before);
       expect(h.posted()).toEqual([]);
-      expect(selecting).not.toHaveBeenCalled();
     } finally { h.controller.dispose(); }
   });
 
@@ -1945,15 +1940,14 @@ describe("locate and jump to a comment's node", () => {
     try {
       let answer: (allowed: boolean) => void = () => {};
       h.controller.setTransitionGuard(() => new Promise(resolve => { answer = resolve; }));
-      const { lookup } = h.snapshot(), selecting = vi.fn();
-      h.controller.locate("n1", lookup.generation, open, selecting);
+      const { lookup } = h.snapshot();
+      h.controller.locate("n1", lookup.generation, open);
       const old = h.current();
       h.controller.setTransitionGuard(null);
       h.controller.command("reload");
       h.layout({ document: "doc2" });
       answer(true); await Promise.resolve(); await Promise.resolve();
       for (const frame of [old, h.current()]) expect(frame.contentWindow.postMessage.mock.calls.some(c => c[0].type === "select-anchor")).toBe(false);
-      expect(selecting).not.toHaveBeenCalled();
     } finally { h.controller.dispose(); }
   });
 
@@ -1962,15 +1956,14 @@ describe("locate and jump to a comment's node", () => {
     try {
       let answer: (allowed: boolean) => void = () => {};
       h.controller.setTransitionGuard(() => new Promise(resolve => { answer = resolve; }));
-      const { lookup } = h.snapshot(), selecting = vi.fn();
-      h.controller.locate("n1", lookup.generation, open, selecting);
+      const { lookup } = h.snapshot();
+      h.controller.locate("n1", lookup.generation, open);
       // Deleted by an agent meanwhile: the same document answers without it.
       h.controller.setComments({ root: "/repo", canvas: "a", comments: [resolved] }, { changed: h.changed, open: h.open, guard: h.guard, focusFallback: vi.fn() });
       h.reply();
       expect(h.snapshot().lookup.generation).toBe(lookup.generation);
       answer(true); await Promise.resolve(); await Promise.resolve();
       expect(h.posted().some(c => c.type === "select-anchor")).toBe(false);
-      expect(selecting).not.toHaveBeenCalled();
     } finally { h.controller.dispose(); }
   });
 
@@ -1979,14 +1972,83 @@ describe("locate and jump to a comment's node", () => {
     try {
       const guard = vi.fn(() => false);
       h.controller.setTransitionGuard(guard);
-      const { lookup } = h.snapshot(), before = h.controller.currentView(), selecting = vi.fn();
+      const { lookup } = h.snapshot(), before = h.controller.currentView();
       h.current().contentWindow.postMessage.mockClear();
-      h.controller.locate("n1", lookup.generation, open, selecting);
+      h.controller.locate("n1", lookup.generation, open);
       expect(guard).toHaveBeenCalledExactlyOnceWith("selection");
       expect(h.posted().some(c => c.type === "select-anchor")).toBe(false);
-      expect(selecting).not.toHaveBeenCalled();
       // Moving the view is not a selection change, like a frame jump.
       expect(h.controller.currentView()).toEqual(locateView(far, h.viewport, before));
+      // Nothing was sent, so the person's own next pick is not the locate's answer.
+      h.select(1);
+      expect(h.state().located).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  // R-L L-1/L-2: the scope exemption belongs to the answer of that one
+  // select-anchor, whatever identity it carries, and ends with the request.
+  it("marks only the answer to its own select-anchor as located", () => {
+    const h = locateHarness();
+    try {
+      expect(h.state().located).toBe(false);
+      h.controller.locate("n1", h.snapshot().lookup.generation, open);
+      // The answer may name the target differently from the stored one.
+      h.select(1, { target: { ...h.target, element: { selector: "section > div > span", html: "<span>x</span>" } } });
+      expect(h.state().located).toBe(true);
+      // The person's next pick raises seq in the canvas.
+      h.select(2);
+      expect(h.state().located).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("leaves no mark for a later selection when the target is gone at select time", () => {
+    const h = locateHarness();
+    try {
+      h.controller.locate("n1", h.snapshot().lookup.generation, open);
+      h.receive({ type: "select", seq: 1, target: null });
+      expect(h.state().located).toBe(false);
+      h.select(2);
+      expect(h.state().located).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("ends the locate on a newer command before its answer", () => {
+    const h = locateHarness();
+    try {
+      h.controller.locate("n1", h.snapshot().lookup.generation, open);
+      h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
+      h.select(1);
+      h.select(2);
+      expect(h.state().located).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("ends the locate and its mark with the document, though seq restarts in the next one", () => {
+    const h = locateHarness();
+    try {
+      h.controller.locate("n1", h.snapshot().lookup.generation, open);
+      h.controller.command("reload");
+      h.layout({ document: "doc2" });
+      // Seq 1 again, now from the person in the new document.
+      h.select(1);
+      expect(h.state().located).toBe(false);
+      h.reply("doc2");
+      h.controller.locate("n1", h.snapshot().lookup.generation, open);
+      h.select(2);
+      expect(h.state().located).toBe(true);
+      h.controller.command("reload");
+      expect(h.state().located).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("drops the mark with a cleared selection", () => {
+    const h = locateHarness();
+    try {
+      h.controller.locate("n1", h.snapshot().lookup.generation, open);
+      h.select(1);
+      expect(h.state().located).toBe(true);
+      h.receive({ type: "clear", seq: 2 });
+      expect(h.state().located).toBe(false);
     } finally { h.controller.dispose(); }
   });
 
