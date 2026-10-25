@@ -101,13 +101,17 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     if (latest?.status === "pending") setAnchors(latest);
   }, [selected]);
   const identity = session.identity;
-  const comments = session.list?.comments ?? [];
+  // session.open() for a newly opened row runs in an effect, so the render
+  // before it still holds the previous canvas's read results (R-W 🟡1).
+  const current = !!identity && identity.root === root && identity.canvas === canvas;
+  const list = current ? session.list : null, readError = current ? session.readError : null;
+  const comments = list?.comments ?? [];
   const snapshot = anchors && identity && anchors.lookup.root === identity.root && anchors.lookup.canvas === identity.canvas ? anchors : null;
   const lookup = snapshot?.lookup ?? { root: identity?.root ?? "", canvas: identity?.canvas ?? "", generation: 0, nodes: new Map<string, string>() };
   const currentFilter: ListFilter = filter.scope === "selection" ? { ...filter, node: snapshot?.selected ?? null } : filter;
   const scoped = (status: "open" | "resolved") => projectList(comments, lookup, lookup, { ...currentFilter, status });
   // An open row without an id never reaches main, so the renderer names that cause itself.
-  const identityCause = open && !canvas ? "missing" : session.identityCause;
+  const identityCause = open && !canvas ? "missing" : current ? session.identityCause : null;
   const writeBlocked = !identity || identityCause ? "A valid, unique canvas ID is required." : null;
   const frames = state.layout?.frames ?? open?.row.frames ?? [];
   // Another canvas's frames could lend a draft's frame id the wrong title.
@@ -188,8 +192,8 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     session,
     panel: (open || draft) && <CommentsPanel filter={currentFilter} selectionAvailable={state.selection !== null && !state.unlisted} selectionNode={snapshot?.selected ?? null}
       counts={{ open: scoped("open").length, resolved: scoped("resolved").length }} canvasOpenCount={comments.filter(c => c.status === "open").length}
-      read={session.readError ? { status: "failed", message: session.readError } : session.list ? { status: "ready", comments: scoped(filter.status), warnings: session.list.warnings } : { status: "loading" }}
-      freshness={new Map(comments.map(c => [c.comment, outdated(c.canvasHash, session.list?.canvasHash ?? null)]))}
+      read={readError ? { status: "failed", message: readError } : list ? { status: "ready", comments: scoped(filter.status), warnings: list.warnings } : { status: "loading" }}
+      freshness={new Map(comments.map(c => [c.comment, outdated(c.canvasHash, list?.canvasHash ?? null)]))}
       missingLocations={snapshot?.status === "answered" ? new Set(comments.filter(c => (c.target.frame || c.target.element) && !snapshot.lookup.nodes.has(c.comment)).map(c => c.comment)) : null}
       author={session.author} identityCause={identityCause} canvasId={canvas ?? ""} frames={frames} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || (session.beginning && !draft)}
       copies={session.copies} allCopy={session.copies.get("all") ?? { status: "idle" }} mutations={session.mutations} headingRef={heading} panelRef={panelElement}
