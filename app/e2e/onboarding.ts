@@ -692,4 +692,15 @@ else if (args[1] === 'add') {
   try { if (running) { await page.evaluate(() => window.doan.setCommentDraftGuard(false)); await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "obSavedClipboard")); }); } } finally { await guard.finish(); }
 }
 
+for (const args of [[], ["--dev"]]) {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(process.execPath, [join(root, "app/e2e/presentation.ts"), ...args], { stdio: "inherit" });
+    child.once("error", reject);
+    child.once("close", (code, signal) => {
+      if (code === 0 && signal === null) resolve();
+      else reject(new Error(`presentation ${args.length ? "DEV" : "production"} failed: code=${code}, signal=${signal}`));
+    });
+  });
+}
+
 console.log("onboarding-test: PASS");
