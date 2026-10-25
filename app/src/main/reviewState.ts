@@ -53,7 +53,7 @@ interface State { since: string; canvases: Map<string, string> }
 
 // Invalid entries are dropped one by one; anything wrong with the file itself
 // starts again from now, which hides past resolves rather than flooding them.
-function parse(text: string, saved: ReadonlySet<string>): State | null {
+function parse(text: string, saved: ReadonlySet<string> | null): State | null {
   let value: unknown;
   try { value = JSON.parse(text); } catch { return null; }
   if (!exact(value, ["v", "since", "canvases"]) || value.v !== 1 || !validTimestamp(value.since)) return null;
@@ -62,7 +62,7 @@ function parse(text: string, saved: ReadonlySet<string>): State | null {
   const kept = new Map<string, string>();
   for (const [key, at] of Object.entries(canvases)) {
     const parts = key.split(SEPARATOR);
-    if (parts.length !== 2 || !validRoot(parts[0]) || !validCanvas(parts[1]) || !validTimestamp(at) || !saved.has(parts[0])) continue;
+    if (parts.length !== 2 || !validRoot(parts[0]) || !validCanvas(parts[1]) || !validTimestamp(at) || (saved !== null && !saved.has(parts[0]))) continue;
     kept.set(key, at);
   }
   return { since: value.since, canvases: kept };
@@ -70,7 +70,7 @@ function parse(text: string, saved: ReadonlySet<string>): State | null {
 
 const serialize = (state: State) => `${JSON.stringify({ v: 1, since: state.since, canvases: Object.fromEntries(state.canvases) })}\n`;
 
-export function createReviewStore(file: string, savedRoots: () => readonly string[], now: () => Date = () => new Date()): ReviewStore {
+export function createReviewStore(file: string, savedRoots: () => readonly string[] | null, now: () => Date = () => new Date()): ReviewStore {
   // Synchronous like the rest of this store: raises are rare (a Review step),
   // the file is small, and a write that is already done cannot be lost to a
   // quit that skips its teardown (POSTMORTEM "A crash during quit teardown").
@@ -95,7 +95,9 @@ export function createReviewStore(file: string, savedRoots: () => readonly strin
     // past resolves rather than flooding them, but is worth a trace.
     if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) console.error("doan: cannot read review-state.json", error);
   }
-  const state = (text === null ? null : parse(text, new Set(savedRoots()))) ?? { since: now().toISOString(), canvases: new Map<string, string>() };
+  const roots = savedRoots();
+  // A failed folders.json read says nothing about which roots were removed.
+  const state = (text === null ? null : parse(text, roots === null ? null : new Set(roots))) ?? { since: now().toISOString(), canvases: new Map<string, string>() };
   if (text !== serialize(state)) write(state);
   const markerOf = (key: string): ReviewMarker => {
     const at = state.canvases.get(key);

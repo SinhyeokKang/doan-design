@@ -110,7 +110,7 @@ beforeEach(async () => {
   mocks.machine.isBusy.mockReturnValue(false);
   mocks.app.whenReady.mockResolvedValue();
   mocks.startShell.mockResolvedValue(mocks.shell);
-  mocks.readFoldersFileForPruning.mockResolvedValue([]);
+  mocks.readFoldersFileForPruning.mockResolvedValue(entries.map((entry) => entry.path));
   mocks.startRuntime.mockResolvedValue(mocks.runtime);
   mocks.createInspector.mockReturnValue(mocks.inspector);
   mocks.inspector.inspect.mockResolvedValue({ ok: true, rows: [] });
@@ -1785,6 +1785,8 @@ describe("review state and project comments", () => {
     const [file, saved] = mocks.createReviewStore.mock.calls[0] ?? [];
     expect(file).toBe("/tmp/doan-index-test/review-state.json");
     expect(typeof saved === "function" ? saved() : null).toEqual(entries.map((entry) => entry.path));
+    mocks.shell.entries.mockReturnValue([]);
+    expect(typeof saved === "function" ? saved() : null).toEqual(entries.map((entry) => entry.path));
   });
 
   test("startup leaves pruning unauthorized when folders.json could not be read", async () => {
@@ -1792,7 +1794,7 @@ describe("review state and project comments", () => {
     vi.resetModules();
     mocks.createReviewStore.mockClear();
     await import("./index");
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await vi.waitFor(() => expect(mocks.createReviewStore).toHaveBeenCalledOnce());
     const [, saved] = mocks.createReviewStore.mock.calls[0] ?? [];
     expect(mocks.readFoldersFileForPruning).toHaveBeenCalledWith("/tmp/doan-index-test/folders.json");
     expect(typeof saved === "function" ? saved() : "missing callback").toBeNull();

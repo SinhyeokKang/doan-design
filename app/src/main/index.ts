@@ -25,6 +25,7 @@ import { menuState, type Screen } from "./menuState";
 import { parseProjectCommentsRequest, readProjectComments, type ProjectComments } from "./projectComments";
 import { removalLabel } from "./removal";
 import { createReviewStore, parseReviewRaise, parseReviewRead } from "./reviewState";
+import { readFoldersFileForPruning } from "./folderStore";
 import type { ReviewMarker } from "../comments/review";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
 import { INSTALL_URLS, parseExternalTarget, parseForwardedAction, parseSettingsTab, parseSettingsTarget, projectRows, SETTINGS_TITLES, SETTINGS_WINDOW, type SettingsTab, type SettingsTarget } from "./settings";
@@ -493,6 +494,7 @@ async function start(): Promise<void> {
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("comments:invalidated", { root });
   };
   const choices = new Map<string, { id: string; path: string; epoch: number }>();
+  const savedRoots = await readFoldersFileForPruning(join(userData, "folders.json"));
   const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
     for (const root of choices.keys()) {
       if (!entries.some(entry => entry.path === root && entry.kind === "uninitialized")) choices.delete(root);
@@ -590,7 +592,7 @@ async function start(): Promise<void> {
   handle("folders:get", [], (event) => (fromWindow(event) ? ready.entries() : []));
   const cli = cliCommand(process.env, app.isPackaged, process.resourcesPath);
   const storedRoot = (root: string) => ready.entries().some(entry => entry.path === root);
-  const reviews = createReviewStore(join(userData, "review-state.json"), () => ready.entries().map((entry) => entry.path));
+  const reviews = createReviewStore(join(userData, "review-state.json"), () => savedRoots);
   const flow = createAddFlow({
     ls: async (target, signal) => folderState(await runLs(cli, target, undefined, signal)),
     saved: () => ready.entries().map((entry) => entry.path),
