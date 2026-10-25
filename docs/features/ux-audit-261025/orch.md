@@ -22,39 +22,39 @@
 
 | ID | 최초 검토 담당 | 현재 상태 |
 |---|---|---|
-| U-1 | R-A | 재판정 대기 |
-| U-2 | R-T | 재판정 대기 |
-| U-3 | R-A | 재판정 대기 |
-| U-4 | R-A | 재판정 대기 |
-| U-5 | R-A | 재판정 대기 |
-| U-6 | R-T | 재판정 대기 |
-| U-7 | R-W, R-A | 재판정 대기 |
+| U-1 | R-A | audit에서 해결: stable unknown/check-failed/recovery-blocked 경고. saving/checking의 승인 금지는 유지(CommentsSession.guard) |
+| U-2 | R-T | 채택, N 예정: App restore가 새 사용자 intent·expanded·memory를 덮지 않게 한다 |
+| U-3 | R-A | 채택, N 예정: Added Open의 non-list 결과는 Home 해당 행으로 안내; 늦은 intent 폐기 |
+| U-4 | R-A | 채택, O: Home multi-add 유지, wizard 내부 결과와 실제 프로젝트 상태 표시 |
+| U-5 | R-A | 채택, S 예정: config 읽기 오류의 Retry·오류 초기화 |
+| U-6 | R-T | 채택, N 예정: App 모달 후 현재 화면·inert/disabled를 고려한 포커스 |
+| U-7 | R-W, R-A | audit에서 해결: onboardingView의 실제 Open Project 안내; Home 복구 전체 이식은 불필요 |
 | U-8 | R-P | 재판정 대기 |
-| U-9 | R-W | 재판정 대기 |
-| U-10 | R-T | 재판정 대기 |
-| U-11 | R-A | 재판정 대기 |
-| U-12 | R-A | 재판정 대기 |
-| U-13 | R-W | 재판정 대기 |
-| U-14 | R-T | 재판정 대기 |
-| U-15 | R-W | 재판정 대기 |
-| U-16 | R-T | 재판정 대기 |
-| U-17 | R-T | 재판정 대기 |
-| U-18 | R-A, R-T | 재판정 대기 |
+| U-9 | R-W | 일부 채택, N 예정: id 없는 preview는 해결, noWidth의 파싱 원인 단정만 교정 |
+| U-10 | R-T | 일부 채택, N 예정: no-canvas 문제 안내. 과거 Sidebar/Overview 목록 캐시는 계약에 없어 추가하지 않음 |
+| U-11 | R-A | 채택, C: begin 오류를 readError와 분리해 목록 유지 |
+| U-12 | R-A | 라벨만 채택, S 예정: Settings Details 전달은 ARCH §7의 명시 계약, 펼침 삼각형 대신 실제 효과 표시 |
+| U-13 | R-W | 기각: connectionRowView 요약과 onboardingView 구성요소 진단은 다른 상태 범주(PRODUCT §5.0) |
+| U-14 | R-T | 채택, O: 최신 연결 읽기 실패와 Checking 구분, 기존 summary 유지 |
+| U-15 | R-W | 수량만 채택, N 예정: 다중 Added 개수 표시. 카드명과 실제 폴더명 차이는 유지(PRODUCT 카드명 결정) |
+| U-16 | R-T | 일부 채택, N 예정: native hidden은 audit에서 해결. modal 동안 잔여 시간 보존 |
+| U-17 | R-T | 채택, C: Delete dialog가 Escape/IME를 소유하고 selection 유지 |
+| U-18 | R-A, R-T | 채택, S 예정: Projects picker/confirm/write 중 기존 target queue·tab/row 보호 |
 | U-19 | R-A, R-P | 재판정 대기 |
-| U-20 | R-W | 재판정 대기 |
-| U-21 | R-A, R-T | 재판정 대기 |
-| U-22 | R-W, R-T | 재판정 대기 |
-| U-23 | R-W, R-A | 재판정 대기 |
-| U-24 | R-A | 재판정 대기 |
-| U-25 | R-W, R-T | 재판정 대기 |
-| U-26 | R-W, R-A | 재판정 대기 |
-| U-27 | R-W | 재판정 대기 |
-| U-28 | R-A, R-T | 재판정 대기 |
-| U-29 | R-T, R-P | 재판정 대기 |
-| U-30 | R-W | 재판정 대기 |
+| U-20 | R-W | 채택, O: 앱 작성 agent 오류의 표시 이름만 교정; 원문 오류/명령은 유지 |
+| U-21 | R-A, R-T | 범위 축소 채택, N/S 예정: 실제 재현한 사라진 action의 포커스만 보완; Quick Open close 자체의 유실은 미검증 |
+| U-22 | R-W, R-T | 채택, N 예정: 명시적 Open 실패에 listed-missing과 root unavailable을 구분해 안내 |
+| U-23 | R-W, R-A | 채택, S 예정: forward false를 project changed로 단정하지 않는 안내, boolean 계약 유지 |
+| U-24 | R-A | 채택, O: wizard 설치 링크 false/reject 안내 |
+| U-25 | R-W, R-T | 채택, N 예정: 빈 query와 no match 구분; loading/problem을 정상 empty로 단정하지 않음 |
+| U-26 | R-W, R-A | 일부 채택, O/N: Error.message, busy 해제 조건, 기존 복구 경로 안내만 보완 |
+| U-27 | R-W | 기각: on Home은 실행 가능한 ARCH §13의 명시 문구, 기존 결정 유지 |
+| U-28 | R-A, R-T | 채택, N 예정: 포커스된 toast가 사라질 때만 현재 유효한 위치 복원; workspace/selection 복구 금지 |
+| U-29 | R-T, R-P | 채택, C: Inspector loading에 Reading styles… 표시; 이전 선택 값 재사용 금지 |
+| U-30 | R-W | 채택, N 예정: selection 상실 문구에 frame 포함, 동작은 유지 |
 | U-31 | R-P | 재판정 대기 |
-| U-32 | R-W, R-A | 재판정 대기 |
-| U-33 | R-A, R-T | 재판정 대기 |
+| U-32 | R-W, R-A | 기각: chips/Finish는 Connections 탭, Fix는 문제 행이라는 PRODUCT §5.0 결정 |
+| U-33 | R-A, R-T | 기각: ARCH §7은 open canvas 기준 메뉴를 명시. hasFrame으로 Reload까지 비활성화하지 않음 |
 | U-34 | R-P | 재판정 대기 |
 | U-35 | R-P | 재판정 대기 |
 | U-36 | R-P | 재판정 대기 |
@@ -67,12 +67,12 @@
 | U-43 | R-P | 재판정 대기 |
 | U-44 | R-P | 재판정 대기 |
 | U-45 | R-P | 재판정 대기 |
-| U-46 | R-W, R-P | 재판정 대기 |
-| U-47 | R-W | 재판정 대기 |
-| U-48 | R-W | 재판정 대기 |
-| U-49 | R-W | 재판정 대기 |
-| U-50 | R-W, R-P | 재판정 대기 |
-| U-51 | R-A, R-P | 재판정 대기 |
+| U-46 | R-W, R-P | 보류: picker 제목 차이가 OS 표시 결함인지는 미검증. 기존 동작별 제목을 강제 통일하지 않음 |
+| U-47 | R-W | 기각: 의미 차이 없고 기존 문서도 두 표기를 사용. raw 출력 일괄 치환 금지 |
+| U-48 | R-W | 기각: 문제 행/메뉴/복수 카드의 효과 범위가 다르며 PRODUCT·ARCH의 Remove 결정과 일치 |
+| U-49 | R-W | 기각: Fix는 원인별 Settings 안내로 가는 PRODUCT 결정; 자동 수리 버튼 아님 |
+| U-50 | R-W, R-P | fallback만 채택, N 예정: Home/Quick Open의 빈 title/id를 기존 frameLabel로 처리, Inspector/댓글 id 유지 |
+| U-51 | R-A, R-P | 기각: 손실/삭제 승인과 setup 진행은 다른 동작, 모든 확인의 primary 규칙 없음. 명시 Cancel 확인 추가도 하지 않음 |
 | U-52 | R-P | 재판정 대기 |
 
 ## 사용자 결정과 검토 진행
@@ -98,3 +98,5 @@
 
 - O는 C와 파일이 겹치지 않아 병렬 구현한다. 이후 navigation 배치 N은 App/Home과 겹치므로 O 통합 뒤에 시작한다. Settings 배치 S는 별도 파일을 맡을 수 있다. CSS·tooltip·CSS entry 수정은 후속 P에 남긴다.
 - R-W를 인수하고 release했다. U-13 연결 요약과 구성요소 진단, U-15 카드명과 작업 폴더명, U-27 현재 Set Up 안내, U-47 아포스트로피, U-48 제거 라벨, U-49 배너 CTA는 기존 의미·결정 차이를 유지한다. U-15 복수 추가 개수와 U-50 빈 프레임 이름 fallback은 별도 최소 수정 대상으로 남긴다.
+
+- C `ctx_2b545f0bccce`, O `ctx_2247da837b6b`는 새 child에서 Astra medium effective 및 turn_start를 확인했다. R-P `ctx_bdc939b1b30d`는 R-A와 동일 process를 재사용하며 새 launch 모델 값이 null이므로 이전 effective 증거와 process identity를 근거로 기록한다.
