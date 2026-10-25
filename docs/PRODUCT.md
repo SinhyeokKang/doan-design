@@ -572,6 +572,7 @@ Results:
 | 2026-10-25 | audit: Unknown comment-save status blocks internal draft-leaving transitions with a visible reason, but normal quit offers a dedicated warning and explicit Quit anyway | User decision — avoid permanent quit lock while stating that the memory-only draft is lost; quitting/restarting does not prove save success or directory-child exit, and quarantine/retry authority remains unchanged |
 | 2026-10-25 | audit: A failed nested iframe does not suppress a thumbnail of the outer canvas; failure of the outer canvas itself still returns unavailable | User decision — retain the visible outer preview without treating an embedded resource failure as a failed canvas load |
 | 2026-10-25 | ux-audit: Restore shared shadcn tooltip padding to 12px horizontally and 6px vertically, keeping the global reset unchanged | User decision — scope the correction to the shared tooltip and avoid changing shipped layout elsewhere |
+| 2026-10-25 | ux-audit: Keep creation errors local to New comment, fence begin by document lifetime, consume Delete Escape locally, and show Inspector waiting without old values | Conductor clarification of existing readable-data, selection and draft-lifetime contracts; failed creation must not hide unrelated comments or revive obsolete state |
 
 ## 8. Open questions
 
