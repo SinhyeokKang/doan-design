@@ -215,8 +215,11 @@ function setMenu(): void {
           { label: "Add Project…", accelerator: "CmdOrCtrl+O", enabled: enabled.addProject, click: () => { void addFromDialog(); } },
           { type: "separator" },
           // Closes Settings when it has focus (destroyed), else hides the main window.
-          { label: "Close Window", accelerator: "CmdOrCtrl+W", click: () => {
-            const target = focusedWindow === "settings" && settingsWin && !settingsWin.isDestroyed() ? settingsWin : win;
+          // Electron names the focused window; an inactive app may name none.
+          { label: "Close Window", accelerator: "CmdOrCtrl+W", click: (_item, focused) => {
+            const settings = settingsWin && !settingsWin.isDestroyed() ? settingsWin : undefined;
+            const target = focused !== undefined && (focused === win || focused === settings) ? focused
+              : focusedWindow === "settings" && settings ? settings : win;
             if (target && !target.isDestroyed()) target.close();
           } },
         ],
@@ -384,6 +387,8 @@ function openSettings(target: SettingsTarget | null): boolean {
     settingsWin.show();
     settingsWin.focus();
   } else settingsWin = createSettingsWindow(target?.tab ?? uiState.readSettingsTab() ?? "connections");
+  // Its focus event does not come while the app is inactive.
+  setFocusedWindow("settings");
   void broker.refresh();
   return true;
 }

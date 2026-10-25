@@ -1294,8 +1294,25 @@ describe("settings window", () => {
     expect(created.show).not.toHaveBeenCalled();
   });
 
+  test("Close Window acts on the window Electron reports as focused, and a just-opened Settings counts as focused", async () => {
+    const created = await openSettings();
+    // No focus event yet (an inactive app gets none): opening it is enough.
+    click("Close Window");
+    expect(created.close).toHaveBeenCalledOnce();
+    created.close.mockClear();
+    const close = item("Close Window").click;
+    if (!close) throw new Error("no click handler");
+    Reflect.apply(close, undefined, [item("Close Window"), window(), undefined]);
+    expect(window().close).toHaveBeenCalledOnce();
+    expect(created.close).not.toHaveBeenCalled();
+    window().emit("focus");
+    Reflect.apply(close, undefined, [item("Close Window"), created, undefined]);
+    expect(created.close).toHaveBeenCalledOnce();
+  });
+
   test("Settings focus disables main-window items including Undo Remove", async () => {
     const created = await openSettings();
+    window().emit("focus");
     await invoke("menu:state", window().webContents, null, state("canvas", false, true));
     expect(submenu("Edit")[0]).toMatchObject({ label: "Undo Remove" });
     created.emit("focus");
