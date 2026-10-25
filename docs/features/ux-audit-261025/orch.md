@@ -193,3 +193,7 @@
 - P 지휘자 검토에서 canvas의 강제 `color-scheme:light` computed 값만으로는 `prefers-color-scheme` 보존이 입증되지 않는 점을 확인했다. [CSS Color Adjustment §2.1](https://drafts.csswg.org/css-color-adjust-1/#color-scheme-prop)을 확인했으며 embedding element의 scheme이 iframe의 preferred scheme이 된다. P2에 실제 iframe media/CSS 전후 비교와 필요 시 iframe 경계만 기존 normal로 복구하는 최소 CSS를 추가한다. 기존 canvas 보존 조건의 검증이며 OS/nativeTheme는 바꾸지 않는다. 판단이 필요한 이 경계까지 기존 Astra medium이 맡고, 변경 시 production/dev native를 새로 실행한다.
 
 - P 작성자가 완료 신호 전에 canvas 보존 검증을 현재 Task에서 마치겠다고 확인 요청했고 지휘자가 승인했다. 따라서 위 P2의 theme 검증 배정은 P로 되돌린다. P2는 원래 suite 연결만 맡는다. N이 현재 native 슬롯을 사용하며 P는 비교 fixture를 준비하고 다음 순서로 검증한다.
+
+- N의 `72dfdaf`부터 `a3e05b1`까지 14개 커밋과 최종 97파일/2070 tests·typecheck·design-nav PASS/exit 0·real-state 불변을 인수했다. projects-home 전체 PASS는 이후 Quick Open 종료 변경과 겹치지 않는 증거로 재사용한다. 첫 정상 재시작의 iframe 첫 layout 실패는 원인 미확정이며 재실행 성공으로 해결됐다고 처리하지 않는다. 해당 실패 당시 URL/network 덤프는 없고 후속 fixture에만 진단을 추가했다. root N-evidence에 221개 파일을 복사해 SHA256을 대조했으며 지휘자도 실패 화면과 Home 포커스 화면을 확인했다.
+- N 작성자를 release하고 IR-N `ctx_8a7b02c48850`의 Astra medium effective·turn_start를 확인했다. 원인 미확정 첫 layout 실패와 실제 소비 완료 관찰, 사라진 Quick Open origin의 포커스 복구까지 독립 검토한다. N child는 리뷰 종료까지 보존한다.
+- P가 다음 native/build 슬롯을 인수했다. 실제 sandbox iframe media 비교의 첫 production 실행에서는 root normal/dark 양쪽 모두 light 선호를 보고해 canvas 영향이 재현되지 않았다. 이 관측만으로 CSS 경계 수정을 추가하지 않으며 최초 생성·재생성과 DEV 결과까지 확인한 범위로 결론을 제한한다.
