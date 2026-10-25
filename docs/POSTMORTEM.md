@@ -2,6 +2,30 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — A TS helper hid its TSX component on case-insensitive macOS
+
+- **Area**: `app/src/renderer/ConnectionRows.tsx`, former `connectionRows.ts`, now `connectionRowView.ts`.
+- **Symptom**: the early helper tests and typecheck passed, but wiring the real Settings import resolved `./ConnectionRows` to the helper `.ts` file and failed with missing component exports / TS1149.
+- **Root cause**: extension probing finds `.ts` before `.tsx`; the basenames differed only by letter case on a case-insensitive filesystem. The initial program did not exercise the component's production import.
+- **Net**: wiring Settings into the production entry exposed the error; helper-only tests and the earlier typecheck missed it. The component and helper now have different basenames. The earlier design-nav handoff already documented the same issue: `QuickOpenDialog.tsx` was named that way because `./QuickOpen` resolved to `quickOpen.ts` (source: `.scratch/orch/design-nav/handoff-C2.md`, line 38 in the conductor checkout).
+- **Prevention**: when pairing a component and helper, make their basenames distinct beyond capitalization and compile a real consumer. A scan of case-folded `.ts`/`.tsx` stems under `app/src` on 2026-10-25 found no remaining collisions. `rg --files app/src/renderer | rg 'Connection|connection|QuickOpen|quickOpen'` locates the known pairs.
+
+### 2026-10-25 — Calling the Quit menu item's JS click did not quit macOS Electron
+
+- **Area**: `app/e2e/windows.ts`, Settings lifetime e2e.
+- **Symptom**: every Settings behavior passed, but invoking the Quit menu role through `MenuItem.click` left both windows alive and the close-event assertion timed out after 30 seconds.
+- **Root cause**: this native macOS menu role did not execute through the JS click path used for the app's custom commands. The role must be exercised through its native action in this harness.
+- **Net**: the actual close-event assertion caught it; locating an enabled Quit item and calling its click handler did not prove a quit occurred. `Menu.sendActionToFirstResponder("terminate:")` reaches the real app quit lifecycle; e2e confirms both pages close.
+- **Prevention**: run `rg -n 'item\\.click|sendActionToFirstResponder' app/e2e` and distinguish custom JS commands from native roles. Existing `runtime.ts` handles fullscreen separately, and `thumbnails.ts` already uses the native `hide:` selector. Other click helpers found in projects-home, design-nav and onboarding currently serve custom commands; do not claim native-role coverage from those calls alone.
+
+### 2026-10-25 — A forwarded Settings target discarded a pending setup confirmation
+
+- **Area**: `app/src/renderer/settingsWindow.tsx`, `app/e2e/settings.ts`.
+- **Symptom**: while Fix the doan link? was open, Home requested Projects in the same Settings window. The tab switch unmounted Connections and discarded its confirmation while main still held that setup lock.
+- **Root cause**: tab-button disabling did not cover the independent `onTarget` entry point. The renderer's component lifetime and main's operation lifetime diverged.
+- **Net**: the new actual-window regression failed in the first full runtime run. The Settings root now queues the latest forwarded target while a setup operation owns the current pane, restores the current native title, and applies the target after settlement. The regression verifies the dialog and current tab survive, then the queued Projects target opens after Cancel.
+- **Prevention**: run `rg -n 'setTarget|queuedTarget|onTarget' app/src/renderer/settingsWindow.tsx`; protect both local tab clicks and externally forwarded targets whenever a pane owns pending confirmation state. Keep the actual-window cross-window target test, not only a disabled-tab assertion.
+
 ### 2026-10-25 — A new link state silently removed replacement-guard coverage
 
 - **Area**: `app/src/main/onboarding/states.ts`, `machine.test.ts`, `app/e2e/onboarding.ts`.
