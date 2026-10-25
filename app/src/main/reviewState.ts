@@ -90,7 +90,11 @@ export function createReviewStore(file: string, savedRoots: () => readonly strin
   // removed while the app could not forget them (a quit with the Undo toast
   // up) are pruned here on the next launch.
   let text: string | null = null;
-  try { text = readFileSync(file, "utf8"); } catch { /* missing or unreadable: start from now */ }
+  try { text = readFileSync(file, "utf8"); } catch (error) {
+    // Missing on first launch; anything else starts from now too, which hides
+    // past resolves rather than flooding them, but is worth a trace.
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) console.error("doan: cannot read review-state.json", error);
+  }
   const state = (text === null ? null : parse(text, new Set(savedRoots()))) ?? { since: now().toISOString(), canvases: new Map<string, string>() };
   if (text !== serialize(state)) write(state);
   const markerOf = (key: string): ReviewMarker => {

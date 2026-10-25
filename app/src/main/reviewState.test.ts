@@ -24,9 +24,12 @@ const key = (root: string, canvas: string) => `${root}\u0000${canvas}`;
 describe("first use", () => {
   test("creates the file with since = now and no canvases", () => {
     const path = file();
+    const error = vi.spyOn(console, "error");
     const store = createReviewStore(path, saved, clock(T0));
     expect(store.marker("/repo", "home")).toEqual({ since: T0 });
     expect(onDisk(path)).toEqual({ v: 1, since: T0, canvases: {} });
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
   });
 
   test("keeps since from the file on later launches", () => {
@@ -111,6 +114,7 @@ describe("validation and recovery", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const store = createReviewStore(path, saved, clock(T2));
+      expect(error).toHaveBeenCalledWith("doan: cannot read review-state.json", expect.anything());
       expect(store.marker("/repo", "home")).toEqual({ since: T2 });
       expect(store.raise("/repo", "home", "2026-10-26T12:00:00.000Z")).toEqual({ since: T2, lastReviewedAt: "2026-10-26T12:00:00.000Z" });
     } finally {
