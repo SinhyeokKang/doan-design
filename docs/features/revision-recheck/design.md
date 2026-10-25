@@ -140,3 +140,27 @@
 ## 측정 의존
 
 - PoC 의존은 없다. Home·Overview 수 계산 비용은 tasks 1에서 잰다. 기준을 넘으면 대안은 `ls` 행에 확인 대상 수 계산에 필요한 최대 `resolvedAt`을 싣는 것이다. 이 대안은 사용자와 정한다.
+
+## 초안 요청 (2026-10-25 사용자, 링크 0)
+
+- 캔버스: `design/revision-recheck.html`, canvas id `revision-recheck`, 폭 1440.
+- 프레임 (id — 담을 상태):
+  - `resolution-meta` — "Resolved by codex · 3 min ago"(절대 시각은 title), "Reopened by <name> · <상대 시각>"과 "Previously resolved by <name>", 해결 시각 역순 Resolved 목록, 열린 카드의 중립 "Canvas changed" 배지(해결 카드에는 없음).
+  - `review-notice` — "3 resolved · Review"와 "3 resolved since your last review · Review"; 초안이 열려 있을 때 비활성 Review와 "Finish or cancel your comment to start Review."; 머리 아래 배너 순서(오류·id 안내 → 재확인 → 넘기기).
+  - `review-bar` — "Review 1/2/3 of 3", 하나뿐일 때(Previous 없음), 마지막 단계 Done, Reopen 뒤 "Reopened", "Reopened by codex"·"Deleted" 단계, "Not found in the current canvas", extras로 늘어난 "2 of 4", 필터 줄 접힘, Go 메뉴 "Next Resolved Comment ⌘]"·"Previous Resolved Comment ⌘[".
+  - `review-done` — "Reviewed 3 · Reopened 1 · Hand off…".
+  - `status-lines` — "Resolved — moved to Resolved.", "Reopened — moved to Open.", "Reopened — moved to Open. Show".
+  - `edit-reopen` — 해결된 댓글 편집기: "Save and reopen"(primary), "Save only", "Agents read open comments only.".
+  - `missing-target` — "Comment on selection instead"의 활성과 비활성("Select an element or frame first."), "Delete the original comment?" 대화상자 [Keep both] [Delete original].
+  - `activity-label` — Activity 종류 Opened·Changed·Reloaded·Moved·"Resolved 2 · codex, Kim Doe", 하단 라벨 네 가지와 날짜가 붙은 경우.
+  - `home-counts` — Home 행과 Overview 카드의 "N resolved to review", 요약 줄 "2 open · 1 resolved to review"의 넓은 폭과 좁은 폭. 셋째 항목 "· 3 without a canvas"는 `project-feedback` 초안이 더한다.
+- `/design-sync` 비교 대상: `review-notice`, `review-bar`, `review-done`(새 표면). 나머지 프레임의 이미 main에 있는 화면(카드, Activity, Home, Overview)은 코드와 `docs/DESIGN.md` 그대로 옮기고, 바뀌는 부분만 그린다.
+
+### 초안 확정 (2026-10-25, 링크 0 지휘자 검토)
+
+- 초안 `design/revision-recheck.html`을 확정했다. 사용자가 확정을 지휘자에게 맡겼다. 초안은 comments-readability가 반영된 화면 위에 그렸다.
+- Done 요약에는 닫기 ×가 있다. 새 재확인 알림이 뜨거나 캔버스·root가 바뀌면 사라진다. 다시 연 댓글이 0개면 "Reviewed 3"만 보이고 Hand off…는 없다.
+- Review 단계에서 Reopen을 누르면 "Reopened"가 보이고 Reopen과 Edit and reopen…은 사라진다. Previous와 Next는 그대로다.
+- 해결 메타의 상대 시각은 shipped `relativeTime`(Intl 긴 형식, 예: "3 minutes ago")을 쓴다. spec의 "3 min ago"는 예시다.
+- 머리 아래 배너 순서는 오류·canvas ID 블록 또는 이전 id 안내(project-feedback) → 재확인 알림이다. "Handed off …"는 배너가 아니라 머리 도구 줄에 있다(agent-handoff).
+- 초안 제안을 그대로 쓴다: Review 바는 sticky 제목 아래 `top: 37px`에 붙는다. Activity 시각 열은 `flex: none`이다. Overview 카드 메타는 항목 사이에서 줄바꿈한다. Home 행이 좁으면 요약 전체가 브랜치 아래 줄로 내려가 항목 사이에서 줄바꿈한다. "resolved to review"는 `--text-2`다. Delete original은 `--err`이고 Keep both에 처음 포커스가 간다. 날짜가 붙은 하단 라벨은 "Changed Oct 24 18:40" 형식이다. 알림의 Review는 보조 버튼, Next와 Done은 primary다. × 이름은 "Close Review"와 "Close summary"다.

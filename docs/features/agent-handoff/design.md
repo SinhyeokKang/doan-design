@@ -100,3 +100,22 @@
 ## PoC 의존
 
 - 없다.
+
+## 초안 요청 (2026-10-25 사용자, 링크 0)
+
+- 캔버스: `design/agent-handoff.html`, canvas id `agent-handoff`, 폭 1440.
+- 프레임 (id — 담을 상태):
+  - `dialog` — "Hand off to your agent": 프로젝트·worktree·캔버스 이름, 체크박스 행(`targetLabel`, 본문 첫 줄 말줄임), All / None / Selection, 접힌 "Show instruction", [Cancel] [Copy 3].
+  - `dialog-states` — 카드에서 연 경우(그 댓글만 체크, 그 행으로 스크롤), 8행을 넘는 목록의 내부 스크롤, 체크 0개(Copy 비활성과 "Choose at least one comment."), Selection 비활성 이유 두 가지, 펼친 지시문 미리보기, worktree 안내(브랜치 있음·없음).
+  - `copy-states` — "Copying…", 실패 alert와 "Retry copy", 성공 문구와 [Done](1개일 때 단수형 포함), "2 comments are no longer open and were removed from the list. Review and copy again.".
+  - `handed-off` — Comments 머리의 "Hand off…"와 "Handed off 3 · 14:02:10", 열린 카드의 "Hand off…", 해결 카드에는 없음, 카드별 Copied 없음.
+  - `fix-this` — Inspector `use-hint` 아래 "Your agent can read this selection — say “fix this”.", Home "Selected for your agent:".
+- 키보드 순서와 포커스 복원은 `dialog` 주석으로 적는다.
+- `/design-sync` 비교 대상: `dialog`, `dialog-states`, `copy-states`(새 표면). `handed-off`와 `fix-this`는 이미 main에 있는 화면에 더하는 부분만 그린다.
+
+### 초안 확정 (2026-10-25, 링크 0 지휘자 검토)
+
+- 초안 `design/agent-handoff.html`을 확정했다. 사용자가 확정을 지휘자에게 맡겼다.
+- 복사가 성공하면 버튼은 [Done]만 남는다. 목록과 All / None / Selection은 보이되 비활성으로 두어, 복사한 집합의 기록으로 남긴다. 다른 집합을 넘기려면 대화상자를 다시 연다.
+- worktree 안내는 컨트롤이 없는 정적 텍스트라 Tab 정지점을 두지 않는다. spec의 Tab 순서는 읽는 순서로 본다.
+- 초안 제안을 그대로 쓴다: 대화상자 폭 480px, 높이 상한은 창 높이 − 32px, 행 44px, 목록 최대 8행(352px), 미리보기 최대 160px. 맥락 줄은 `project › ⎇ branch › canvas title`이고, 브랜치가 없으면 `project › folder name › canvas title`이다. 체크가 0개면 "Copy 0"(비활성)이다. 복사 중에는 Cancel도 비활성이지만 Escape로 닫을 수 있다. 상태 줄은 버튼 줄 위에 둔다. "Handed off 3 · 14:02:10"은 머리 도구 줄의 Hand off… 옆에 둔다.

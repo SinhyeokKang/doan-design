@@ -104,3 +104,24 @@
 ## PoC 의존
 
 - 없다.
+
+## 초안 요청 (2026-10-25 사용자, 링크 0)
+
+- 캔버스: `design/comments-readability.html`, canvas id `comments-readability`, 폭 1440.
+- comments-ui는 이미 main에 있다. 이 초안은 바뀌는 부분의 기준을 보이는 것이고, `/design-sync` 루프 대상이 아니다. 구현 확인은 tasks의 측정으로 한다.
+- 프레임 (id — 담을 상태):
+  - `target-labels` — 1절 형식의 대상 표시(텍스트 발췌, doan-id, Frame, Canvas, 긴 값 말줄임, tag 없음); 위치를 찾을 수 있는 대상 줄(accent 버튼)과 찾을 수 없는 대상 줄(`--text-2` 텍스트); "Location unavailable" 배지와 "Not found in the current canvas.".
+  - `composer-small` — 960×600, 댓글 3개: 머리 바로 아래 작성기, sticky 제목, To:·입력란(64px)·Save가 패널 안에 보임. 1238×780 비교.
+  - `warnings` — 코드별 묶음 "Some comment changes were ignored", 줄 번호, 블록 끝 파일 안내; 읽기 실패 단일 블록.
+  - `identity-blocks` — id 없음·잘못됨·중복 블록 하나만 보이는 패널; 그 위에 `project-feedback`의 이전 id 안내 줄이 있는 경우.
+  - `empty-lists` — Open/Resolved × Selection/Canvas 네 조합과 elsewhere.
+  - `dialogs` — 초안 대화상자의 "To: …" 별도 줄, 저장 불확실 종료 대화상자 문구.
+  - `panel-details` — COMMENTS 구역이 없는 Canvas 정보, Activity 위의 안내, Updated 라벨 배경, Selection 범위 비활성 title, "Comment on selection"/"Comment on canvas", Git 이름 문구.
+- 화면에 보이지 않는 항목(포커스 이동, 핀 aria 단수형)은 해당 프레임의 주석으로만 적는다.
+
+### 초안 확정 (2026-10-25, 링크 0 지휘자 검토)
+
+- 초안 `design/comments-readability.html`을 확정했다. 사용자가 확정을 지휘자에게 맡겼다.
+- 3절 보충: sticky 제목은 `.comments-head` 안의 h3가 아니라 스크롤 패널의 직계 자식 제목(`h3.comments-title`)으로 둔다. 초안에서 h3를 머리 안에 두면 960×600에서 13px 밀려나는 것을 측정했다. 작은 패널 입력란은 `.comments-panel`의 `container-type: size`와 `@container (max-height: 359px)`로 줄인다.
+- Canvas 정보 안내는 5절 표의 한 문장 "Click an element or frame to inspect or comment on it."만 둔다. shipped의 둘째 문장 "Frames are also listed in the sidebar."는 없앤다.
+- 초안 문구를 그대로 쓴다: 줄 번호 하나는 "Line 12"이다. 편집기가 열린 채 읽기에 실패하면 "Comments couldn’t be read. Choose Retry, then save."를 보인다. "Not found in the current canvas."는 배지 줄 안에 `--text-3`으로 둔다. Updated 라벨은 `--panel` 배경, 3×8px 패딩, 6px 모서리를 쓴다.

@@ -1,0 +1,1006 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="project-feedback">
+<meta name="doan:width" content="1440">
+<title>Project feedback — draft</title>
+<link rel="stylesheet" href="../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="mock.css">
+<style>
+/* Copied from design/design-nav.html, whose rules match the shipped app/src/renderer/styles.css (shell, top bar, sidebar rows, canvas area, right panel, tree, Overview). */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; }
+button { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { opacity: .4; cursor: default; }
+button { outline: none; }
+ol, ul { list-style: none; }
+code, kbd { font-family: var(--font-sans); }
+.top { display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.traffic-space { width: 52px; flex: none; }
+.logo { font: 600 13px var(--font-sans); display: flex; align-items: center; gap: 8px; }
+.logo i { width: 18px; height: 18px; border-radius: 5px; background: var(--accent); }
+.spacer { flex: 1; }
+.meta { font: 11.5px var(--font-sans); color: var(--text-3); white-space: nowrap; }
+.chip { font: 11.5px var(--font-sans); color: var(--text-2); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.btn { font: 500 12px var(--font-sans); color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+.kbd { font: 10.5px var(--font-sans); color: var(--text-3); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+.side { background: var(--panel); border-right: 1px solid var(--line); }
+.right { background: var(--panel); border-left: 1px solid var(--line); }
+.sec { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 6px; }
+.sec .r { letter-spacing: 0; text-transform: none; color: var(--text-4); }
+.row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 12px; font: 12.5px var(--font-sans); color: var(--text-2); position: relative; white-space: nowrap; cursor: pointer; }
+.row .g { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.row .d { color: var(--text-4); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+.glyph { color: var(--text-4); width: 12px; flex: none; text-align: center; }
+.cnt { font: 10.5px var(--font-sans); color: var(--text-3); }
+.cnt.hot, .accent { color: var(--accent); }
+.hint { padding: 2px 12px 6px 34px; font: 11.5px/1.5 var(--font-sans); color: var(--text-3); overflow-wrap: anywhere; }
+.recovery .btn { padding: 2px 8px; font-size: 11px; margin: 4px 4px 0 0; }
+.row.element-row { padding-left: 40px; color: var(--accent); background: var(--accent-soft); }
+.area { position: relative; overflow: hidden; background-color: var(--board-bg); background-image: radial-gradient(var(--board-dot) 1px, transparent 1px); background-size: 16px 16px; }
+.overlay { position: absolute; inset: 0; pointer-events: none; }
+.mark { position: absolute; border: 1px solid var(--accent-line); }
+.dims { position: absolute; top: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: var(--accent); color: var(--accent-ink); font: 600 10px var(--font-sans); padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.empty { font-size: 13px; color: var(--text); position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; line-height: normal; }
+.empty b { font-size: 15px; font-weight: 600; }
+.empty p { color: var(--text-3); max-width: 320px; font-size: 12.5px; line-height: 1.6; }
+.spinner { display: block; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); margin: 0 auto 10px; }
+.updated { position: absolute; left: 12px; bottom: 12px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); display: inline-block; }
+.zctl { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 6px; align-items: center; }
+.zctl.disabled { opacity: .4; }
+.zoom { display: flex; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font: 12px var(--font-sans); }
+.zoom button { padding: 4px 9px; color: var(--text-2); }
+.zoom output { padding: 4px 8px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); min-width: 48px; text-align: center; }
+.phead { font: 600 12px var(--font-sans); padding: 11px 14px 10px; border-bottom: 1px solid var(--line); }
+.pempty { padding: 14px; font: 12.5px var(--font-sans); color: var(--text-3); }
+.isec { padding: 10px 12px 12px; border-bottom: 1px solid var(--line-2); }
+.ihead { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); margin-bottom: 8px; }
+.kv { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 5px 8px; font: 11.5px var(--font-sans); }
+.kv dt { color: var(--text-3); }
+.kv dd { overflow-wrap: anywhere; }
+.activity { border: 0; }
+.tl-row { display: flex; gap: 8px; padding: 3px 12px 3px 0; font: 11px var(--font-sans); color: var(--text-3); }
+.tl-row time { color: var(--text-4); width: 54px; }
+.tl-row b { font-weight: 400; color: var(--text-2); }
+.truncate { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inspect-head { padding: 12px; border-bottom: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 6px; }
+.inspect-head h3 { font-size: 12.5px; font-weight: 600; }
+.selector { color: var(--text-2); font-size: 11.5px; }
+.head-kv { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 5px 8px; font-size: 11.5px; }
+.head-kv dt { color: var(--text-3); }
+.ancestors { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.ancestors button { max-width: 100%; padding: 3px 5px; border-radius: 4px; font-size: 11px; color: var(--text-2); background: var(--panel-2); }
+.ancestors button[aria-current="true"] { color: var(--accent); background: var(--accent-soft); }
+.ancestors span { color: var(--text-4); font-size: 11px; }
+.inspect-row { margin-bottom: 7px; font-size: 11.5px; }
+.inspect-row:last-child { margin-bottom: 0; }
+.value-line { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 16px; }
+.prop { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.value { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.value.default { color: var(--text-4); }
+.native-scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--raised) transparent; }
+.right-stack { min-height: 0; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--line); }
+.right-stack > .right { min-height: 100px; flex: 0 1 278px; border-left: 0; border-bottom: 1px solid var(--line); }
+.right-stack > .comments-panel { min-height: 160px; flex: 1 1 0; }
+.comments-panel { width: 100%; min-width: 0; min-height: 0; overflow: auto; background: var(--panel); overflow-wrap: anywhere; }
+.comments-head { padding: 12px; border-bottom: 1px solid var(--line-2); }
+.comments-head h3 { font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+.comments-segment { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; margin-bottom: 8px; }
+.comments-segment button { flex: 1; min-width: 0; padding: 5px 7px; font-size: 11.5px; border-radius: 4px; color: var(--text-3); }
+.comments-segment button[aria-pressed=true] { color: var(--accent); background: var(--accent-soft); }
+.comments-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.comments-btn { line-height: normal; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; max-width: 100%; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); font-size: 11px; font-weight: 500; padding: 4px 7px; }
+.comments-message { padding: 12px; font-size: 11.5px; line-height: 1.6; color: var(--text-2); border-bottom: 1px solid var(--line-2); overflow-wrap: anywhere; }
+.comments-message b { display: block; color: var(--text); margin-bottom: 4px; font-size: 12px; }
+/* Shipped workspace top bar (projects-home). */
+.back { flex: none; width: 26px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--text-2); font-size: 14px; }
+.top .divider { width: 1px; height: 18px; background: var(--line); flex: none; margin: 0 -4px; }
+.crumbs { flex: 0 1 auto; display: flex; align-items: center; gap: 6px; min-width: 0; font: 12px var(--font-sans); color: var(--text-3); white-space: nowrap; }
+.crumbs .repo { color: var(--text-2); min-width: 48px; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+.crumbs .sep { color: var(--text-4); flex: none; }
+.crumbs .canvas { color: var(--text); min-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+.branch { position: relative; flex: 0 1 auto; min-width: 72px; display: inline-flex; align-items: center; gap: 5px; max-width: 240px; font: 12px var(--font-sans); color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px 2px 7px; }
+.branch .bn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.branch .caret { color: var(--text-3); font-size: 10px; }
+/* Shipped Home (projects-home), used behind Quick Open. */
+.home-body { min-height: 0; overflow: hidden; padding: 8px 32px 32px; position: relative; }
+.home-body .sec { padding: 16px 0 10px; }
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
+.card-head { display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 14px; min-width: 0; }
+.card-name { font: 600 13px var(--font-sans); color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-head .meta { flex: none; }
+.more { flex: none; width: 24px; height: 22px; border-radius: 6px; color: var(--text-3); display: grid; place-items: center; font-size: 13px; letter-spacing: 1px; }
+.wt { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; padding: 8px 8px 8px 14px; border-top: 1px solid var(--line-2); position: relative; min-width: 0; }
+.wt[aria-current="true"] { background: var(--raised); }
+.wt[aria-current="true"]::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; background: var(--accent); border-radius: 1px; }
+.wt-label { display: flex; align-items: center; gap: 6px; min-width: 0; font: 12.5px var(--font-sans); color: var(--text); white-space: nowrap; }
+.wt-label .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wt-label .name.path { color: var(--text-2); }
+.wt-end { display: flex; align-items: center; gap: 6px; justify-content: flex-end; white-space: nowrap; }
+.wt-sum { font: 11px var(--font-sans); color: var(--text-3); white-space: nowrap; }
+.wt-sum .hot { color: var(--accent); }
+.wt-path { grid-column: 1 / 2; font: 11px var(--font-sans); color: var(--text-4); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 18px; }
+.open-tag { flex: none; font: 600 10px var(--font-sans); color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 1px 6px; }
+.scrim { position: absolute; inset: 0; background: var(--board-bg); opacity: .6; }
+/* Shared toast (projects-home Toast.tsx). */
+.toast { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 12px; max-width: 560px; background: var(--raised); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-2); padding: 8px 8px 8px 14px; font: 12.5px/1.5 var(--font-sans); color: var(--text); }
+.toast.static { position: relative; left: auto; bottom: auto; transform: none; width: fit-content; }
+.toast .msg { min-width: 0; overflow-wrap: anywhere; }
+.toast.solo { padding-right: 14px; }
+/* In-app and native menu specimens (projects-home draft). */
+.menu { position: absolute; z-index: 5; min-width: 200px; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-2); padding: 4px; }
+.menu.static { position: relative; }
+.mi { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px; border-radius: 5px; font: 12px var(--font-sans); color: var(--text); text-align: left; white-space: nowrap; }
+.mi .r { margin-left: auto; color: var(--text-3); font-size: 11px; }
+.mi:disabled { opacity: .4; }
+.menu-sep { height: 1px; background: var(--line); margin: 4px 2px; }
+.menu-head { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); padding: 6px 10px 4px; }
+.mtable { width: 640px; border-collapse: collapse; font: 11.5px var(--font-sans); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.mtable th, .mtable td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line-2); color: var(--text-2); vertical-align: top; }
+.mtable th { font-weight: 600; color: var(--text-3); font-size: 10.5px; }
+.mtable td.y { color: var(--ok); }
+.mtable td.n { color: var(--text-4); }
+.mtable tr:last-child td { border-bottom: 0; }
+.mtable tr.new td { background: var(--accent-soft); }
+/* The shipped focus ring (button:focus-visible, treeitem:focus-visible), drawn statically. */
+.focus { outline: 1px solid var(--accent-line); outline-offset: -1px; }
+.tooltip { position: relative; width: fit-content; max-width: 420px; background: var(--text); color: var(--bg); border-radius: 6px; padding: 6px 12px; font-size: 12px; line-height: 1.5; }
+.tooltip::after { content: ""; position: absolute; left: 24px; top: -4px; width: 10px; height: 10px; background: var(--text); transform: rotate(45deg); border-radius: 2px; }
+
+/* Board layout (draft only), as in design/projects-home.html. */
+body { width: 1440px; padding: 48px; background: var(--board-bg); }
+/* The app gets these from Tailwind preflight, which the draft does not load. */
+button { border: 0; background: transparent; }
+.intro { max-width: 1238px; margin-bottom: 36px; }
+.intro h1 { font-size: 30px; margin-bottom: 12px; }
+.intro p, .note { font-size: 12px; line-height: 1.65; color: var(--text-3); margin: 10px 0; }
+.intro b, .note b { color: var(--text-2); font-weight: 600; }
+.intro code, .note code, .tile-label code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
+.frame { padding: 24px; margin-bottom: 32px; background: var(--bg); border: 1px solid var(--line); border-radius: 16px; }
+.flabel { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.flabel h2 { font-size: 18px; }
+.nic { border: 1px dashed var(--warn); color: var(--warn); font-size: 10px; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.states-head { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); margin: 28px 0 12px; }
+.tiles { display: grid; grid-template-columns: 640px 640px; gap: 24px 14px; align-items: start; }
+.tiles.three { grid-template-columns: repeat(3, 418px); }
+.tile-label { font-size: 12px; color: var(--text-2); margin: 0 0 8px; line-height: 1.5; }
+.tile-label b { color: var(--text); font-weight: 600; }
+.lights { display: flex; gap: 8px; width: 52px; flex: none; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; background: var(--tl-red); }
+.lights i:nth-child(2) { background: var(--tl-yellow); }
+.lights i:nth-child(3) { background: var(--tl-green); }
+.strip { width: 640px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); position: relative; }
+/* A sidebar specimen at the shipped 240 px width. */
+.side.spec { width: 240px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; padding-bottom: 6px; }
+.caption { font: 11px/1.5 var(--font-sans); color: var(--text-3); margin-top: 6px; }
+.caption kbd { color: var(--text-2); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: 10.5px; }
+
+/* Window. Size from DESIGN.md 'App shell' (1238 × 780, top bar 40). */
+.win { width: 1238px; height: 780px; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-2); background: var(--bg); display: grid; grid-template-rows: 40px minmax(0, 1fr); position: relative; }
+.win.ws { grid-template-columns: 240px minmax(0, 1fr) 280px; }
+.win.ws > .top { grid-column: 1 / -1; }
+.win + .win { margin-top: 24px; }
+
+/* ---------- Shipped: design tree (design-nav) ---------- */
+/* One row per node. Level indent is 14 px; a twisty slot (12 px) precedes the kind glyph so expandable and leaf rows align. */
+.row .tw { width: 12px; flex: none; text-align: center; color: var(--text-4); font-size: 10px; }
+.row.l2 { padding-left: 26px; }
+.row.l3 { padding-left: 40px; }
+.row.l4 { padding-left: 54px; }
+.row.element-row.l5 { padding-left: 74px; }
+/* Canvas rows are two lines (44 px): title, then the dimmer file name; each line truncates on its own, so neither takes width from the other. */
+.row.cv { height: 44px; }
+.row .two { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.row .two > .g, .row .two > .d { flex: none; display: block; min-width: 0; max-width: none; overflow: hidden; text-overflow: ellipsis; }
+.row .two > .d { font-size: 11px; }
+.row .num { min-width: 16px; flex: none; text-align: right; color: var(--text-4); font-size: 11px; }
+.row .no-id { color: var(--text-3); }
+.row.folder .g { color: var(--text-2); }
+.row.is-open .g { color: var(--text); }
+.row.is-open .glyph { color: var(--accent); }
+/* Current location: the shipped current mark (raised + 2 px accent bar), now on the viewed frame. */
+.row[aria-current="location"] { color: var(--text); background: var(--raised); }
+.row[aria-current="location"]::before { content: ""; position: absolute; left: 0; top: 5px; bottom: 5px; width: 2px; background: var(--accent); border-radius: 1px; }
+.row[aria-current="location"] .num, .row[aria-current="location"] .glyph { color: var(--accent); }
+.row.hov { background: var(--panel-2); }
+/* Selected in canvas: a hollow diamond at the row's right edge, so current and selected never share a look and the title keeps its width. The action slot sits before it. */
+.sel-mark { flex: none; width: 7px; height: 7px; border: 1px solid var(--accent); transform: rotate(45deg); margin: 0 2px; }
+.row .ra + .sel-mark { margin-left: -2px; }
+/* Row action slot: hidden until the row is hovered or focused. */
+.row .ra { display: none; flex: none; gap: 4px; }
+.row.hov .ra, .row.focus .ra { display: flex; }
+.ra .btn { padding: 1px 7px; font-size: 11px; border-radius: 6px; }
+.tree-hint { padding: 2px 12px 6px 46px; font: 11.5px/1.5 var(--font-sans); color: var(--text-3); }
+/* The repo name in the top bar becomes a button to the Overview. */
+.crumbs button.repo { border-radius: 5px; padding: 1px 4px; margin: 0 -4px; }
+.crumbs button.repo.hov { background: var(--panel-2); color: var(--text); }
+
+/* ---------- Shipped: Overview (design-nav) ---------- */
+.ov { min-height: 0; overflow: hidden; padding: 4px 24px 24px; position: relative; background: var(--bg); }
+/* Section headings are folder paths, so they keep their case. */
+.ov .sec { padding: 16px 0 10px; text-transform: none; letter-spacing: 0; font-size: 11.5px; color: var(--text-2); }
+.ocards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.ocard { display: block; width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
+.ocard.hov { background: var(--panel-2); }
+.thumb { aspect-ratio: 16 / 10; background: var(--board-bg); border-bottom: 1px solid var(--line); position: relative; overflow: hidden; display: grid; place-items: center; }
+.thumb.pending { background: var(--panel-2); }
+.thumb-msg { font: 11.5px/1.5 var(--font-sans); color: var(--text-3); padding: 0 14px; text-align: center; }
+.thumb-msg code { color: var(--text-2); background: var(--raised); border-radius: 4px; padding: 0 4px; }
+.thumb-msg.warn { color: var(--warn); }
+.ocard-body { display: grid; gap: 2px; padding: 9px 12px 10px; min-width: 0; }
+.ocard-title { font: 600 12.5px var(--font-sans); color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ocard-file { font: 11px var(--font-sans); color: var(--text-4); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ocard-meta { font: 11px var(--font-sans); color: var(--text-3); white-space: nowrap; margin-top: 4px; }
+.ocard-meta .hot { color: var(--accent); }
+/* Preview image stand-in: the canvas's first screen, in the mock colors of the design a human reviews. */
+.shot { position: absolute; inset: 0; background: var(--mock-bg); }
+.shot .n { position: absolute; left: 0; right: 0; top: 0; height: 12%; border-bottom: 1px solid var(--mock-line); }
+.shot .n::after { content: ""; position: absolute; left: 6%; top: 40%; width: 14%; height: 22%; background: var(--mock-ink); border-radius: 1px; }
+.shot .c { position: absolute; left: 30%; right: 30%; top: 22%; bottom: 14%; border: 1px solid var(--mock-line); border-radius: 4px; }
+.shot .l { position: absolute; left: 36%; right: 36%; height: 7%; background: var(--mock-fill); border-radius: 2px; }
+.shot .b { position: absolute; left: 36%; right: 36%; height: 9%; background: var(--mock-brand); border-radius: 3px; }
+.shot.grid .c { left: 6%; right: 54%; }
+.shot.grid .c + .c { left: 54%; right: 6%; }
+
+/* Mock canvas inside the workspace specimens (the design a human reviews; colors from design/mock.css). */
+.mframe { position: absolute; background: var(--mock-bg); color: var(--mock-ink); box-shadow: var(--shadow-1); overflow: hidden; }
+.ftag { position: absolute; font: 10.5px var(--font-sans); color: var(--text-3); white-space: nowrap; }
+.mnav { height: 34px; border-bottom: 1px solid var(--mock-line); display: flex; align-items: center; gap: 14px; padding: 0 16px; font-size: 10.5px; color: var(--mock-ink-2); }
+.mnav b { color: var(--mock-ink); font-size: 11.5px; margin-right: auto; }
+.mcard { margin: 34px auto 0; width: 260px; border: 1px solid var(--mock-line); border-radius: 10px; padding: 18px; font-size: 11.5px; }
+.mcard h4 { font-size: 14px; margin-bottom: 10px; }
+.mnote { border: 1px solid var(--mock-line); background: var(--mock-fill); border-radius: 6px; padding: 7px 9px; margin-bottom: 10px; font-size: 11px; }
+.mline { height: 26px; border: 1px solid var(--mock-line); border-radius: 6px; margin-bottom: 9px; background: var(--mock-fill); }
+.mbtn { height: 30px; border-radius: 7px; background: var(--mock-brand); color: var(--mock-brand-ink); display: grid; place-items: center; font-weight: 600; }
+/* Main specimens: a 1440 × 900 frame laid out at full size, then scaled to the 44 % zoom label. */
+.mframe.z { width: 634px; height: 396px; }
+.mpage { width: 1440px; height: 900px; transform: scale(.44); transform-origin: 0 0; }
+.mpage .mnav { height: 64px; padding: 0 40px; gap: 32px; font-size: 18px; }
+.mpage .mnav b { font-size: 22px; }
+.mpage .mcard { margin-top: 96px; width: 520px; padding: 36px; border-radius: 16px; font-size: 18px; }
+.mpage .mcard h4 { font-size: 30px; margin-bottom: 22px; }
+.mpage .mnote { padding: 14px 18px; border-radius: 10px; margin-bottom: 18px; font-size: 18px; }
+.mpage .mline { height: 52px; border-radius: 10px; margin-bottom: 16px; }
+.mpage .mbtn { height: 56px; border-radius: 12px; font-size: 20px; }
+
+/* Shipped Comments panel and right stack, copied from app/src/renderer/styles.css. */
+/* Presentation values from design/comments-ui.html; integration owns the panel split. */
+.comments-panel { width: 100%; min-width: 0; min-height: 0; overflow: auto; background: var(--panel); overflow-wrap: anywhere; }
+.comments-head { padding: 12px; border-bottom: 1px solid var(--line-2); }
+.comments-head h3 { font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+.comments-head h3:focus-visible { outline: 1px solid var(--accent-line); }
+.comments-segment { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; margin-bottom: 8px; }
+.comments-segment button { flex: 1; min-width: 0; padding: 5px 7px; font-size: 11.5px; border-radius: 4px; color: var(--text-3); }
+.comments-segment button[aria-pressed=true] { color: var(--accent); background: var(--accent-soft); }
+.comments-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.comments-btn { line-height: normal; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; max-width: 100%; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); font-size: 11px; font-weight: 500; padding: 4px 7px; }
+.comments-btn.primary { font-weight: 600; background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.comments-card { padding: 12px; border-bottom: 1px solid var(--line-2); }
+.comments-author { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 9px; }
+.comments-avatar { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--raised); color: var(--text-2); display: grid; place-items: center; font-size: 10px; font-weight: 600; }
+.comments-by { min-width: 0; flex: 1; }
+.comments-by b { display: block; font-size: 11.5px; font-weight: 600; overflow-wrap: anywhere; }
+.comments-by time, .comments-email { display: block; font-size: 10px; color: var(--text-3); line-height: 1.5; overflow-wrap: anywhere; }
+.comments-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; margin: 8px 0 10px; }
+.comments-target { display: block; max-width: 100%; color: var(--text-2); font-size: 10.5px; line-height: 1.5; overflow-wrap: anywhere; margin-bottom: 6px; text-align: left; }
+.comments-badges { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.comments-badge { display: inline-block; font-size: 10px; line-height: 1.5; padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--text-3); }
+.comments-badge.open { color: var(--accent); }
+.comments-badge.warning { color: var(--warn); }
+.comments-badge.resolved { color: var(--ok); }
+.comments-message { padding: 12px; font-size: 11.5px; line-height: 1.6; color: var(--text-2); border-bottom: 1px solid var(--line-2); overflow-wrap: anywhere; }
+.comments-message b { display: block; color: var(--text); margin-bottom: 4px; font-size: 12px; }
+.comments-message.error { border-left: 2px solid var(--err); }
+.comments-message.warning { border-left: 2px solid var(--warn); }
+.comments-message .comments-tools { margin-top: 10px; }
+.comments-composer { padding: 12px; border-bottom: 1px solid var(--line-2); }
+.comments-composer label { display: block; font-size: 11.5px; margin: 0 0 8px; }
+.comments-composer label > .comments-target { margin-top: 8px; }
+.comments-composer textarea { display: block; width: 100%; min-width: 0; min-height: 104px; resize: none; font: 12px/1.6 var(--font-sans); background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 9px; margin: 8px 0; }
+.comments-composer textarea:focus-visible { outline: 1px solid var(--accent-line); }
+.comments-helper { font-size: 10.5px; line-height: 1.5; color: var(--text-3); margin: 8px 0; overflow-wrap: anywhere; }
+.comments-dialog { width: 410px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; margin: auto; background: var(--raised); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-2); border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
+.comments-dialog::backdrop { background: var(--board-bg); opacity: .6; }
+.comments-dialog h3 { font-size: 15px; margin-bottom: 10px; font-weight: 700; }
+.comments-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-2); margin-bottom: 12px; }
+.comments-dialog .comments-tools { justify-content: flex-end; }
+
+.right-stack { min-height: 0; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--line); }
+.right-stack > .right { min-height: 100px; flex: 0 1 278px; border-left: 0; border-bottom: 1px solid var(--line); }
+.right-stack > .comments-panel { min-height: 160px; flex: 1 1 0; }
+.right-stack > .right:only-child { flex: 1; border-bottom: 0; }
+
+/* Shipped first prompt and onboarding text, copied from app/src/renderer/styles.css (empty Overview). */
+.ob-field .ob-helper { grid-column: 2 / -1; }
+.ob-helper { font-size: 11px; line-height: 1.5; color: var(--text-3); overflow-wrap: anywhere; }
+.ob-changes { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--text-2); }
+.ob-actions { display: flex; align-items: center; gap: 8px; padding: 12px 14px; }
+.ob-actions .ob-helper { flex: 1; }
+.ob-sentence { font-size: 12.5px; line-height: 1.7; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-wrap: anywhere; }
+.ob-sentence mark { background: var(--accent-soft); color: var(--accent); border-radius: 3px; padding: 0 2px; }
+.ob-prompt { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.ob-prompt .ob-actions { padding: 0; }
+.fp-field { display: grid; gap: 6px; }
+.fp-labelrow { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.fp-label { font-size: 12px; font-weight: 600; color: var(--text); }
+.fp-count { font-size: 10.5px; color: var(--text-3); }
+.fp-count.err { color: var(--err); }
+.fp-input { display: block; width: 100%; font: 12.5px var(--font-sans); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; outline: none; }
+.fp-input::placeholder { color: var(--text-4); }
+.fp-input.invalid { border-color: var(--err); }
+.fp-input:focus-visible { outline: 1px solid var(--accent-line); outline-offset: -1px; }
+.fp-input.invalid:focus-visible { outline-color: var(--err); }
+.fp-error { font-size: 11.5px; line-height: 1.5; color: var(--text-2); border-left: 2px solid var(--err); padding-left: 8px; }
+.ob-sentence mark.slot { background: var(--panel-2); color: var(--text-4); }
+.fp-wait { display: flex; align-items: center; gap: 8px; font-size: 11.5px; line-height: 1.5; color: var(--text-2); }
+.fp-wait .spinner { width: 12px; height: 12px; border-width: 2px; margin: 0; flex: none; }
+.fp-ready { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); font-size: 12px; color: var(--text); }
+.fp-ready .msg { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.fp-card { width: 520px; max-width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; text-align: left; }
+/* The shipped .empty p rule would narrow and dim the composer's paragraphs inside the empty Overview. */
+.empty .fp-card .ob-sentence { max-width: none; font-size: 12.5px; line-height: 1.7; color: var(--text); }
+.empty .fp-card .fp-error, .empty .fp-card .ob-msg { max-width: none; font-size: 11.5px; line-height: 1.5; color: var(--text-2); }
+.fp-none { display: flex; align-items: center; gap: 12px; }
+.fp-none p { flex: 1; font-size: 11.5px; line-height: 1.5; color: var(--text-3); }
+.ob-detail code, .ob-msg code, .ob-lead code, .ob-dialog code, .ob-field code, .ob-reason code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
+.ob-status { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.ob-msg { grid-column: 2 / -1; font-size: 11.5px; line-height: 1.5; color: var(--text-2); overflow-wrap: anywhere; }
+.ob-msg.warn { border-left: 2px solid var(--warn); padding-left: 8px; }
+.ob-msg.error { border-left: 2px solid var(--err); padding-left: 8px; }
+.ob-msg.ok { color: var(--ok); }
+.ob-msg.ob-wide { grid-column: 1 / -1; }
+.ob-reason { grid-column: 2 / -1; font-size: 11.5px; line-height: 1.5; color: var(--text-3); }
+.ob-chip { font-size: 10.5px; line-height: 1.5; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; color: var(--text-3); white-space: nowrap; }
+.ob-chip.ok { color: var(--ok); }
+.ob-chip.warn { color: var(--warn); }
+.ob-chip.err { color: var(--err); }
+
+/* Board helpers for this draft. */
+.tiles.four { grid-template-columns: repeat(4, 296px); gap: 24px 16px; }
+.tiles.two-wide { grid-template-columns: 640px 640px; }
+/* A right-column specimen at the shipped 280 px width (279 px content after the divider). */
+.panel-spec { width: 280px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); }
+.panel-spec.fixed { height: 360px; }
+.spec-gap { height: 1px; background: var(--line); }
+
+/* ---------- New: Feedback panel (Overview right column) ---------- */
+/* With the Overview shown, the right column holds one panel that fills it, as .right:only-child does today. */
+.feedback { display: flex; flex-direction: column; min-height: 0; overflow: auto; background: var(--panel); overflow-wrap: anywhere; }
+.right-stack > .feedback { flex: 1; }
+.feedback .phead:focus-visible, .feedback .phead.focus { outline: 1px solid var(--accent-line); outline-offset: -1px; }
+.fb-filter { padding: 10px 12px 2px; border-bottom: 1px solid var(--line-2); }
+.fb-tree { padding: 4px 0 8px; }
+/* Group heads reuse the 26 px tree row; level indent 14 px like the Sidebar. */
+.fb-tree .row { cursor: default; }
+.fb-tree .row .g { color: var(--text-2); }
+.fb-tree .row.fb-l2 { padding-left: 26px; }
+.fb-tree .row.fb-l2 .g { color: var(--text-2); }
+.fb-tree .row .cnt { flex: none; }
+.fb-tree .row.fb-orphans .g { color: var(--text); }
+.fb-tree .row .g.missing { color: var(--text-3); }
+.fb-tree .row.hov, .fb-item.hov, .fb-canvas.hov { background: var(--panel-2); }
+/* Canvas group head: title, then the file name only when another canvas has the same title, then the review entry. */
+.fb-canvas { display: grid; grid-template-columns: 12px 12px minmax(0, 1fr) auto; column-gap: 8px; row-gap: 2px; align-items: center; min-height: 26px; padding: 5px 12px 5px 12px; font: 12.5px var(--font-sans); color: var(--text); position: relative; }
+.fb-canvas .tw { width: 12px; text-align: center; color: var(--text-4); font-size: 10px; }
+.fb-canvas .glyph { color: var(--text-4); }
+.fb-canvas .g { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fb-canvas .d { grid-column: 3 / -1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--text-4); }
+.fb-canvas .fb-review { grid-column: 3 / -1; justify-self: start; margin-top: 2px; }
+/* The review entry: a Tab-reachable button inside the head, accent text like the open count. */
+.fb-review { font: 11px var(--font-sans); color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; white-space: nowrap; }
+/* Comment rows: target label, then the first line of the body; both one line. Indent = a level-3 row's text start. */
+.fb-item { display: grid; gap: 1px; padding: 5px 12px 6px 60px; min-width: 0; position: relative; }
+.fb-item.fb-l2 { padding-left: 46px; }
+.fb-item .t { font-size: 10.5px; line-height: 1.5; color: var(--text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fb-item .b { font-size: 12px; line-height: 1.5; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fb-item .when { font-size: 10px; line-height: 1.5; color: var(--text-3); }
+/* Messages inside a group keep the shipped Comments message look, indented to the group's children. */
+.fb-tree .comments-message { border-bottom: 0; margin: 2px 12px 6px 26px; padding: 8px 10px; }
+.fb-tree .comments-message.inset { margin-left: 12px; }
+.fb-note { margin: 2px 12px 8px 12px; padding: 8px 10px; font-size: 11.5px; line-height: 1.6; color: var(--text-2); border-left: 2px solid var(--line); }
+.fb-note.warning { border-left-color: var(--warn); }
+/* Orphan comment cards: the shipped card, full width under its file group. */
+.fb-tree .comments-card { border-bottom: 0; border-top: 1px solid var(--line-2); }
+.comments-target.static { color: var(--text-2); cursor: default; }
+.fb-count { padding: 0 12px 8px 46px; font-size: 11px; line-height: 1.5; color: var(--text-3); }
+.fb-count b { color: var(--text-2); font-weight: 400; }
+
+/* ---------- Links 1–4 (confirmed drafts), copied so the shipped screens here show their result ---------- */
+/* comments-readability §1–2: the target line is one line with an ellipsis; the full selector lives in title. */
+.comments-target { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+/* comments-readability §3: the Comments title is a sticky direct child of the panel, outside the head. */
+.comments-title { position: sticky; top: 0; z-index: 1; background: var(--panel); font-size: 12px; font-weight: 700; padding: 12px 12px 10px; }
+.comments-title + .comments-head { padding-top: 0; }
+.comments-title.alone { padding-bottom: 12px; border-bottom: 1px solid var(--line-2); }
+/* comments-readability §5 / revision-recheck: the bottom label sits on the panel colour. */
+.updated { background: var(--panel); padding: 3px 8px; border-radius: 6px; }
+/* agent-handoff handed-off: inline next to Hand off… in the head tools. */
+.handoff-summary { font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
+/* revision-recheck review-notice. */
+.rr-banner { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 12px; border-bottom: 1px solid var(--line-2); background: var(--panel-2); font-size: 11.5px; color: var(--text-2); }
+.rr-banner .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rr-banner .text b { font-weight: 600; color: var(--text); }
+/* revision-recheck home-counts. */
+.wt-sum .rr-review, .ocard-meta .rr-review { color: var(--text-2); }
+.wt.rr-narrow .wt-sum { grid-column: 1 / -1; white-space: normal; padding-left: 18px; }
+.wt.rr-narrow .wt-sum > span { white-space: nowrap; }
+.ocard-meta.rr-wrap { white-space: normal; }
+/* revision-recheck resolution-meta: the resolution line under the badges. */
+.rr-resolution { font-size: 10.5px; line-height: 1.5; color: var(--text-3); margin: 6px 0 0; overflow-wrap: anywhere; }
+.rr-resolution b { font-weight: 500; color: var(--text-2); }
+.ocard-meta.rr-wrap > span { white-space: nowrap; }
+
+/* ---------- New: id change notice (Comments head) ---------- */
+.comments-message.notice .comments-btn { margin-left: 6px; vertical-align: baseline; padding: 1px 7px; }
+
+/* ---------- New: tree row read errors ---------- */
+.row .warn-mark { flex: none; color: var(--warn); font-size: 11px; }
+.tree-hint.warn { color: var(--warn); padding-left: 46px; }
+.tree-hint.warn.l1 { padding-left: 32px; }
+.tree-hint .btn { padding: 1px 7px; font-size: 11px; margin: 4px 0 0; color: var(--text-2); }
+.tree-detail { margin: 2px 12px 6px 46px; font-size: 11.5px; line-height: 1.5; color: var(--text-2); border-left: 2px solid var(--err); padding-left: 8px; overflow-wrap: anywhere; }
+.comments-message .detail { margin-top: 8px; border-left: 2px solid var(--err); padding-left: 8px; }
+
+</style>
+</head>
+<body>
+
+<header class="intro">
+<h1>Project feedback — draft</h1>
+<p><b>Scope.</b> Feature <code>project-feedback</code> (docs/features/project-feedback/spec.md and design.md, draft request of 2026-10-25). With the Overview shown, the right column becomes the <b>Feedback</b> panel: every comment of the project grouped by canvas and frame, with “Comments without a canvas” first. Comment files whose canvas id no longer exists (orphans) get cards there that can be resolved, reopened and deleted. A canvas whose id just changed tells its Comments panel where its comments went. A file <code>doan ls</code> cannot read turns into a warning on that tree row instead of a project-wide “Config error”. The Home row summary adds “· 3 without a canvas”.</p>
+<p><b>New.</b> <code>feedback-panel</code>, <code>feedback-states</code> and <code>orphan-cards</code> are new surfaces (FeedbackPanel.tsx does not exist yet, so they carry no data-doan-implements); <code>/design-sync</code> compares the main specimen and every labelled tile of these three. <code>id-change-notice</code>, <code>tree-errors</code> and <code>home-summary</code> add to shipped screens: only the elements marked “new” there are new; the rest is copied for context and is already measured in docs/DESIGN.md.</p>
+<p><b>Copied from shipped screens.</b> Window 1238 × 780, top bar 40, columns 240 / rest / 280, the tree rows and hints, the Overview and its cards, the empty Overview with the first prompt, the right column and Canvas info, the Comments head, segments, cards, messages, Git name block and delete dialog, the Home card and row, and the focus ring come from app/src/renderer/styles.css, App.tsx, Sidebar.tsx, ProjectOverview.tsx, FirstPrompt.tsx, RightPanel.tsx, CommentsPanel.tsx and Home.tsx, with the measured values in docs/DESIGN.md (App shell, Comments, Projects home, Design navigation, app-setup). The CSS below is copied from design/design-nav.html (shell and Overview) and styles.css (Comments, first prompt), then the confirmed link 1–4 drafts; the new rules are under “New”.</p>
+<p><b>After links 1–4.</b> project-feedback is implemented last, so the shipped screens here show the result of the four confirmed drafts (design/revision-continuity.html, comments-readability.html, revision-recheck.html, agent-handoff.html), not today's main: the sticky Comments title outside the head, the head tools “Hand off…” and “Comment on canvas” / “Comment on selection”, the empty texts and the Git name sentence, Canvas info without COMMENTS and with the hint above Activity, and the one-line card target in targetLabel form (<code>comments-readability</code>); “Handed off 3 · 14:02:10” inline next to Hand off… (<code>agent-handoff</code>); the review notice, the bottom label “Opened 14:02” / “Changed 14:20” on the panel colour and “N resolved to review” on Home rows and Overview cards, and the “Resolved by …” line on resolved orphan cards (<code>revision-recheck</code>). Those looks are owned by those drafts; the CSS is copied under “Links 1–4”.</p>
+<p><b>Draft copy</b> (not given by the feature documents; the implementation matches it, listed in the handoff): the panel title “Feedback”; counts on the Open/Resolved segments as in Comments; group counts; the non-kebab row “Not a canvas ID — doan can't show or change these comments.”; “Details ▸ / ▾” on tree errors and in the Comments read failure.</p>
+<p><b>References.</b> Grouped, collapsible comment lists by file with a count per group follow the VS Code Comments panel and Problems panel — <b>recalled from memory, not checked</b>. Everything else is doan's own shipped tree (Sidebar.tsx role="tree") and Comments card. Sorcerer, Orca, Claude Design, ego-browser and Storybook were not checked for this draft.</p>
+<p><b>Example data.</b> User Kim Doe (git user.name). Repository acme-web, main checkout at ~/code/acme-web, linked worktree feat-billing. <code>design/</code> holds 2026-10-checkout-revamp.html (title “Checkout”, id <code>checkout-revamp</code>), tokens.html, checkout/{cart, checkout, legacy-checkout}.html and settings/{billing, profile}.html. Two canvases are titled “Checkout”, so both show their file name in Feedback. The agent changed checkout.html's id from <code>checkout-v1</code> to <code>checkout</code>, leaving <code>.doan/comments/checkout-v1.jsonl</code> without a canvas; a deleted canvas left <code>promo-banner.jsonl</code>.</p>
+</header>
+
+<!-- ===================================================== feedback-panel -->
+<section class="frame" data-doan-frame="feedback-panel" data-doan-title="Overview with the Feedback panel">
+<div class="flabel"><h2>Overview — Feedback panel</h2><span class="nic">new · not in code: right column</span><span class="nic">draft copy: “Feedback”, segment and group counts</span></div>
+<p class="note">Main specimen: acme-web with no canvas open. The center is the shipped Overview, with <code>revision-recheck</code>'s “1 resolved to review” on the two cards whose Feedback group shows it; the right column, which showed “Canvas · No canvas open”, is now <b>Feedback</b> (<code>role="region"</code>, heading “Feedback”). On top, the Open/Resolved segment (shipped Comments segment) with the project's counts. Below it one tree (<code>role="tree"</code>, label “Feedback”): <b>Comments without a canvas</b> first (only when there are some), one group per orphan file (its old id); then one group per canvas in Overview card order; inside a canvas, “Whole canvas” first (canvas targets), then frames in document order, then stored frames <code>doan ls</code> no longer lists as “&lt;id&gt; (not in canvas)” in <code>--text-3</code>. A group shows only when it holds a comment of the chosen status. Rows are the comment's target label without its “ · in &lt;frame&gt;” part, then the first line of its body. Both “Checkout” canvases show their file name; Billing &amp; plans does not. “1 resolved to review” sits under a canvas head when that canvas has resolutions to check. Payment, both orphan files and Billing &amp; plans are collapsed. Keyboard focus is on the “Disable until the form is valid” row; the pointer is over the Whole canvas row.</p>
+<p class="note"><b>Behavior (not visible).</b> Arrow keys as in the Sidebar tree: ↑↓ move, Home/End jump to first/last, → expands a collapsed group or moves into it, ← collapses or moves to the parent; Enter or a click opens. The “N resolved to review” buttons and orphan card buttons are Tab stops (not <code>tabIndex=-1</code>). A comment row opens its canvas (draft guard applies), sets the Comments status filter to the row's status and the scope to Canvas, goes to the target and moves focus to that comment's card; the last review time does not change. “N resolved to review” opens the canvas and starts Review (<code>revision-recheck</code>). When a focused row or group disappears, focus goes to the next row, else the previous one, else the “Feedback” heading. Each canvas group is a <code>treeitem</code> with <code>aria-expanded</code>; its accessible name is its title, plus the file name when shown.</p>
+<div class="win ws" data-doan-id="fp-window">
+ <div class="top"><div class="lights"><i></i><i></i><i></i></div><button class="back" aria-label="Go Home">←</button><span class="divider" aria-hidden="true"></span>
+  <nav class="crumbs" aria-label="Location"><button class="repo" aria-label="acme-web overview">acme-web</button><span class="sep" aria-hidden="true">›</span><button class="branch" aria-label="Switch worktree"><span class="glyph" aria-hidden="true">⎇</span><span class="bn">main</span><span class="caret" aria-hidden="true">▾</span></button></nav>
+  <span class="chip">—</span><span class="spacer"></span><button class="btn ghost" aria-label="Reload canvas" disabled>Reload <span class="kbd">⌘R</span></button></div>
+ <aside class="side native-scroll">
+  <div class="sec">Canvases <span class="r">7</span></div>
+  <div role="tree" aria-label="Canvases">
+   <div class="row" role="treeitem" aria-level="1" aria-current="location" tabindex="-1"><span class="tw" aria-hidden="true"></span><span class="glyph" aria-hidden="true">▦</span><span class="g">Overview</span></div>
+   <div class="row folder" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">checkout</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Cart</span><span class="d">cart.html</span></span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Checkout</span><span class="d">checkout.html</span></span><span class="cnt hot">4</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">legacy-checkout</span><span class="d">legacy-checkout.html</span></span></div>
+   <div class="row folder" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">settings</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Billing &amp; plans</span><span class="d">billing.html</span></span><span class="cnt hot">2</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Profile</span><span class="d">profile.html</span></span></div>
+   <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Checkout</span><span class="d">2026-10-checkout-revamp.html</span></span><span class="cnt hot">2</span></div>
+   <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Design tokens</span><span class="d">tokens.html</span></span></div>
+  </div>
+ </aside>
+ <main class="ov" aria-label="Overview">
+  <section aria-label="design">
+   <div class="sec">design <span class="r">2</span></div>
+   <div class="ocards">
+    <button class="ocard"><div class="thumb"><div class="shot grid" role="img" aria-label="Preview"><span class="n"></span><span class="c"></span><span class="c"></span></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">2026-10-checkout-revamp.html</span><span class="ocard-meta rr-wrap" data-doan-id="fp-card-review"><span>4 frames</span> · <span class="hot">2 open</span> · <span class="rr-review">1 resolved to review</span> · <span>1h ago</span></span></div></button>
+    <button class="ocard"><div class="thumb"><p class="thumb-msg">Preview needs a valid <code>doan:width</code> — run doan check</p></div><div class="ocard-body"><span class="ocard-title">Design tokens</span><span class="ocard-file">tokens.html</span><span class="ocard-meta">3 frames · Oct 12</span></div></button>
+   </div>
+  </section>
+  <section aria-label="design/checkout">
+   <div class="sec">design/checkout <span class="r">3</span></div>
+   <div class="ocards">
+    <button class="ocard"><div class="thumb pending"></div><div class="ocard-body"><span class="ocard-title">Cart</span><span class="ocard-file">cart.html</span><span class="ocard-meta">2 frames · 3h ago</span></div></button>
+    <button class="ocard"><div class="thumb"><div class="shot" role="img" aria-label="Preview"><span class="n"></span><span class="c"></span><span class="l" style="top:34%"></span><span class="l" style="top:46%"></span><span class="b" style="top:62%"></span></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">checkout.html</span><span class="ocard-meta">6 frames · <span class="hot">4 open</span> · 2h ago</span></div></button>
+    <button class="ocard"><div class="thumb"><div class="shot" role="img" aria-label="Preview"><span class="n"></span><span class="c"></span><span class="l" style="top:40%"></span></div></div><div class="ocard-body"><span class="ocard-title">legacy-checkout</span><span class="ocard-file">legacy-checkout.html</span><span class="ocard-meta">2 frames · Yesterday</span></div></button>
+   </div>
+  </section>
+  <section aria-label="design/settings">
+   <div class="sec">design/settings <span class="r">2</span></div>
+   <div class="ocards">
+    <button class="ocard"><div class="thumb"><div class="shot" role="img" aria-label="Preview"><span class="n"></span><span class="c"></span><span class="l" style="top:32%"></span><span class="b" style="top:70%"></span></div></div><div class="ocard-body"><span class="ocard-title">Billing &amp; plans</span><span class="ocard-file">billing.html</span><span class="ocard-meta rr-wrap"><span>5 frames</span> · <span class="hot">2 open</span> · <span class="rr-review">1 resolved to review</span> · <span>5m ago</span></span></div></button>
+    <button class="ocard"><div class="thumb"><p class="thumb-msg">Preview unavailable</p></div><div class="ocard-body"><span class="ocard-title">Profile</span><span class="ocard-file">profile.html</span><span class="ocard-meta">2 frames · 6d ago</span></div></button>
+   </div>
+  </section>
+ </main>
+ <div class="right-stack">
+  <section class="feedback native-scroll" role="region" aria-label="Feedback" data-doan-id="fp-panel">
+   <h2 class="phead" tabindex="-1" data-doan-id="fp-title">Feedback</h2>
+   <div class="fb-filter"><div class="comments-segment" role="group" aria-label="Comment status" data-doan-id="fp-segment"><button type="button" aria-pressed="true" data-doan-id="fp-open">Open 11</button><button type="button" aria-pressed="false" data-doan-id="fp-resolved">Resolved 4</button></div></div>
+   <div class="fb-tree" role="tree" aria-label="Feedback" data-doan-id="fp-tree">
+    <div class="row fb-orphans" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1" data-doan-id="fp-orphans"><span class="tw" aria-hidden="true">▾</span><span class="g">Comments without a canvas</span><span class="cnt hot">3</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1" data-doan-id="fp-orphan-file"><span class="tw" aria-hidden="true">▸</span><span class="g">checkout-v1</span><span class="cnt hot">2</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="g">promo-banner</span><span class="cnt hot">1</span></div>
+    <div class="fb-canvas" role="treeitem" aria-level="1" aria-expanded="true" aria-label="Checkout 2026-10-checkout-revamp.html" tabindex="-1" data-doan-id="fp-canvas-dup"><span class="tw" aria-hidden="true">▾</span><span class="glyph" aria-hidden="true">◧</span><span class="g" data-doan-id="fp-canvas-title">Checkout</span><span class="cnt hot">2</span><span class="d" data-doan-id="fp-canvas-file">2026-10-checkout-revamp.html</span><button type="button" class="fb-review" data-doan-id="fp-review">1 resolved to review</button></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="-1" data-doan-id="fp-whole"><span class="tw" aria-hidden="true">▾</span><span class="g">Whole canvas</span><span class="cnt hot">1</span></div>
+    <div class="fb-item hov" role="treeitem" aria-level="3" tabindex="-1" data-doan-id="fp-item-hover"><span class="t">Canvas</span><span class="b">Tighten the vertical rhythm between the sections; it reads loose on the summary.</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Hero</span><span class="cnt hot">1</span></div>
+    <div class="fb-item" role="treeitem" aria-level="3" tabindex="-1" data-doan-id="fp-item"><span class="t" data-doan-id="fp-item-target">Element · button hero-cta</span><span class="b" data-doan-id="fp-item-body">Shorten this to “Start checkout”.</span></div>
+    <div class="fb-canvas" role="treeitem" aria-level="1" aria-expanded="true" aria-label="Checkout checkout.html" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Checkout</span><span class="cnt hot">4</span><span class="d">checkout.html</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Shipping</span><span class="cnt hot">2</span></div>
+    <div class="fb-item" role="treeitem" aria-level="3" tabindex="-1"><span class="t">Element · label “Address”</span><span class="b">Accept two address lines; the second one is optional and should say so in the placeholder.</span></div>
+    <div class="fb-item focus" role="treeitem" aria-level="3" tabindex="0" data-doan-id="fp-item-focus"><span class="t">Element · button ship-next</span><span class="b">Disable until the form is valid</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1" data-doan-id="fp-collapsed"><span class="tw" aria-hidden="true">▸</span><span class="g">Payment</span><span class="cnt hot">1</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="-1" data-doan-id="fp-not-in-canvas"><span class="tw" aria-hidden="true">▾</span><span class="g missing">summary-v1 (not in canvas)</span><span class="cnt hot">1</span></div>
+    <div class="fb-item" role="treeitem" aria-level="3" tabindex="-1"><span class="t">Frame · summary-v1</span><span class="b">Show the order total before tax as well.</span></div>
+    <div class="fb-canvas" role="treeitem" aria-level="1" aria-expanded="false" aria-label="Billing &amp; plans" tabindex="-1" data-doan-id="fp-canvas"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Billing &amp; plans</span><span class="cnt hot">2</span><button type="button" class="fb-review">1 resolved to review</button></div>
+   </div>
+  </section>
+ </div>
+</div>
+
+<h3 class="states-head">Panel states in this frame</h3>
+<div class="tiles four">
+ <div><p class="tile-label"><b>Resolved</b> — the same tree with Resolved chosen; rows run by resolution time, newest first (as <code>revision-recheck</code>'s Resolved list), so the order inside a frame can differ from Open. Counts are resolved counts in <code>--text-3</code>.</p>
+  <div class="panel-spec" data-doan-id="fp-resolved-spec">
+   <h2 class="phead">Feedback</h2>
+   <div class="fb-filter"><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="false">Open 11</button><button type="button" aria-pressed="true">Resolved 4</button></div></div>
+   <div class="fb-tree" role="tree" aria-label="Feedback">
+    <div class="row fb-orphans" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Comments without a canvas</span><span class="cnt">1</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="g">checkout-v1</span><span class="cnt">1</span></div>
+    <div class="fb-canvas" role="treeitem" aria-level="1" aria-expanded="true" aria-label="Checkout checkout.html" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Checkout</span><span class="cnt">3</span><span class="d">checkout.html</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Shipping</span><span class="cnt">2</span></div>
+    <div class="fb-item" role="treeitem" aria-level="3" tabindex="0" data-doan-id="fp-resolved-item"><span class="t">Element · input postcode</span><span class="b">Validate the postcode on blur, not on every key.</span></div>
+    <div class="fb-item" role="treeitem" aria-level="3" tabindex="-1"><span class="t">Frame · Shipping</span><span class="b">Move the delivery dates above the address.</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Payment</span><span class="cnt">1</span></div>
+    <div class="fb-item" role="treeitem" aria-level="3" tabindex="-1"><span class="t">Element · label “Card number”</span><span class="b">Group the digits in fours.</span></div>
+   </div>
+  </div></div>
+ <div><p class="tile-label"><b>Hover and keyboard focus</b> — hover tints a row or group head (<code>--panel-2</code>); keyboard focus draws the shipped 1 px ring on the row, the head or the review button.</p>
+  <div class="panel-spec" data-doan-id="fp-focus-spec">
+   <div class="fb-tree" role="tree" aria-label="Feedback">
+    <div class="fb-canvas hov" role="treeitem" aria-level="1" aria-expanded="true" aria-label="Checkout 2026-10-checkout-revamp.html" tabindex="-1" data-doan-id="fp-head-hover"><span class="tw" aria-hidden="true">▾</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Checkout</span><span class="cnt hot">2</span><span class="d">2026-10-checkout-revamp.html</span><button type="button" class="fb-review focus" data-doan-id="fp-review-focus">1 resolved to review</button></div>
+    <div class="row fb-l2 focus" role="treeitem" aria-level="2" aria-expanded="true" tabindex="0" data-doan-id="fp-group-focus"><span class="tw" aria-hidden="true">▾</span><span class="g">Whole canvas</span><span class="cnt hot">1</span></div>
+    <div class="fb-item" role="treeitem" aria-level="3" tabindex="-1"><span class="t">Canvas</span><span class="b">Tighten the vertical rhythm between the sections; it reads loose on the summary.</span></div>
+   </div>
+  </div></div>
+ <div><p class="tile-label"><b>Long values</b> — group titles, file names, targets and body lines truncate with an ellipsis on one line; counts and the review button never truncate. The full body is in the canvas's Comments card.</p>
+  <div class="panel-spec" data-doan-id="fp-long-spec">
+   <div class="fb-tree" role="tree" aria-label="Feedback">
+    <div class="row fb-orphans" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Comments without a canvas</span><span class="cnt hot">128</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1" data-doan-id="fp-long-orphan"><span class="tw" aria-hidden="true">▸</span><span class="g">checkout-summary-with-promo-code-and-gift-card-v2</span><span class="cnt hot">128</span></div>
+    <div class="fb-canvas" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1" data-doan-id="fp-long-canvas"><span class="tw" aria-hidden="true">▾</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Progressive profile — step 3 with skip and resume</span><span class="cnt hot">1,204</span><span class="d">flows/onboarding/step-3-skip-and-resume-with-saved-progress.html</span><button type="button" class="fb-review">312 resolved to review</button></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Billing address with a very long frame title from the design</span><span class="cnt hot">3</span></div>
+    <div class="fb-item" role="treeitem" aria-level="3" tabindex="-1" data-doan-id="fp-long-item"><span class="t">Element · label “Apartment, suite, unit, building, floor, etc. (optional)”</span><span class="b">Thisfieldlabelisfartoolongforasinglelineonsmallscreensanditwrapsunderthecheckbox</span></div>
+   </div>
+  </div></div>
+ <div><p class="tile-label"><b>Zero counts</b> — a group without comments of the chosen status is not shown; with Open chosen a canvas whose only news is resolutions still shows its head with the review button and count 0, since that button is Feedback's entry to Review. <span class="nic">draft rule</span> (conductor, 2026-10-25)</p>
+  <div class="panel-spec" data-doan-id="fp-zero-spec">
+   <div class="fb-tree" role="tree" aria-label="Feedback">
+    <div class="fb-canvas" role="treeitem" aria-level="1" aria-expanded="false" aria-label="Profile" tabindex="-1" data-doan-id="fp-zero-canvas"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Profile</span><span class="cnt">0</span><button type="button" class="fb-review">2 resolved to review</button></div>
+   </div>
+  </div></div>
+</div>
+</section>
+
+<!-- ===================================================== feedback-states -->
+<section class="frame" data-doan-frame="feedback-states" data-doan-title="Feedback panel states">
+<div class="flabel"><h2>Feedback — states</h2><span class="nic">new · not in code</span></div>
+<p class="note">Each tile is the Feedback panel at the shipped 280 px. Messages use the shipped Comments message (<code>.comments-message</code>; error = 2 px <code>--err</code> rule). While reading or after a full failure the segment shows no counts. A late reply is dropped by request id and revision, so a tile never mixes two reads. The last specimen is a whole window: a project with orphan files and no canvases.</p>
+<div class="tiles four">
+ <div><p class="tile-label"><b>Reading</b> — first read after the Overview opens (<code>role="status"</code>). Later re-reads keep the tree and change nothing visible.</p>
+  <div class="panel-spec fixed" data-doan-id="fs-loading-spec">
+   <h2 class="phead">Feedback</h2>
+   <div class="fb-filter"><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open</button><button type="button" aria-pressed="false">Resolved</button></div></div>
+   <div class="comments-message" role="status" data-doan-id="fs-loading"><b>Reading comments…</b></div>
+  </div></div>
+ <div><p class="tile-label"><b>Whole read failed</b> — one block with Retry; no tree (<code>role="alert"</code>).</p>
+  <div class="panel-spec fixed" data-doan-id="fs-failed-spec">
+   <h2 class="phead">Feedback</h2>
+   <div class="fb-filter"><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open</button><button type="button" aria-pressed="false">Resolved</button></div></div>
+   <div class="comments-message error" role="alert" data-doan-id="fs-failed"><b>Couldn’t read comments</b><div class="comments-tools"><button type="button" class="comments-btn" data-doan-id="fs-failed-retry">Retry</button></div></div>
+  </div></div>
+ <div><p class="tile-label"><b>One canvas failed</b> — the same block inside that canvas's group (its comment file could not be read); the other groups read normally. The canvas head has no count.</p>
+  <div class="panel-spec fixed" data-doan-id="fs-partial-spec">
+   <h2 class="phead">Feedback</h2>
+   <div class="fb-filter"><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 7</button><button type="button" aria-pressed="false">Resolved 1</button></div></div>
+   <div class="fb-tree" role="tree" aria-label="Feedback">
+    <div class="fb-canvas" role="treeitem" aria-level="1" aria-expanded="false" aria-label="Checkout 2026-10-checkout-revamp.html" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Checkout</span><span class="cnt hot">5</span><span class="d">2026-10-checkout-revamp.html</span></div>
+    <div class="fb-canvas" role="treeitem" aria-level="1" aria-expanded="true" aria-label="Checkout checkout.html" tabindex="0" data-doan-id="fs-partial-head"><span class="tw" aria-hidden="true">▾</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Checkout</span><span></span><span class="d">checkout.html</span></div>
+    <div class="comments-message error" role="alert" data-doan-id="fs-partial"><b>Couldn’t read comments</b><div class="comments-tools"><button type="button" class="comments-btn">Retry</button></div></div>
+    <div class="fb-canvas" role="treeitem" aria-level="1" aria-expanded="false" aria-label="Billing &amp; plans" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="g">Billing &amp; plans</span><span class="cnt hot">2</span></div>
+   </div>
+  </div></div>
+ <div><p class="tile-label"><b>Empty</b> — no comment of the chosen status anywhere in the project, orphans included. Open above, Resolved below.</p>
+  <div class="panel-spec" data-doan-id="fs-empty-open-spec">
+   <h2 class="phead">Feedback</h2>
+   <div class="fb-filter"><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 0</button><button type="button" aria-pressed="false">Resolved 6</button></div></div>
+   <div class="comments-message" data-doan-id="fs-empty-open"><b>No open comments in this project</b></div>
+  </div>
+  <div class="panel-spec" style="margin-top:12px" data-doan-id="fs-empty-resolved-spec">
+   <h2 class="phead">Feedback</h2>
+   <div class="fb-filter"><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="false">Open 2</button><button type="button" aria-pressed="true">Resolved 0</button></div></div>
+   <div class="comments-message" data-doan-id="fs-empty-resolved"><b>No resolved comments in this project</b></div>
+  </div></div>
+</div>
+
+<h3 class="states-head">Only comments without a canvas</h3>
+<p class="note">billing-api has no canvas left in <code>design/</code>, but <code>.doan/comments/invoice.jsonl</code> still has comments. The center is the shipped empty Overview (“No canvases in design/ yet” with the first prompt); Feedback shows only the “Comments without a canvas” group, expanded, with its file group and cards (cards as in <code>orphan-cards</code>).</p>
+<div class="win ws" data-doan-id="fs-orphan-window">
+ <div class="top"><div class="lights"><i></i><i></i><i></i></div><button class="back" aria-label="Go Home">←</button><span class="divider" aria-hidden="true"></span>
+  <nav class="crumbs" aria-label="Location"><button class="repo" aria-label="billing-api overview">billing-api</button><span class="sep" aria-hidden="true">›</span><button class="branch" aria-label="Switch worktree" disabled><span class="glyph" aria-hidden="true">⎇</span><span class="bn">main</span><span class="caret" aria-hidden="true">▾</span></button></nav>
+  <span class="chip">—</span><span class="spacer"></span><button class="btn ghost" aria-label="Reload canvas" disabled>Reload <span class="kbd">⌘R</span></button></div>
+ <aside class="side native-scroll">
+  <div class="sec">Canvases <span class="r">0</span></div>
+  <div role="tree" aria-label="Canvases"><div class="row" role="treeitem" aria-level="1" aria-current="location" tabindex="0"><span class="tw" aria-hidden="true"></span><span class="glyph" aria-hidden="true">▦</span><span class="g">Overview</span></div></div>
+ </aside>
+ <main class="ov" aria-label="Overview">
+  <div class="empty">
+   <b>No canvases in design/ yet</b>
+   <div class="fp-card"><div class="ob-prompt">
+    <div class="fp-field"><div class="fp-labelrow"><label class="fp-label">What do you want to design?</label></div><input class="fp-input" type="text" placeholder="a sign-in screen with SSO"></div>
+    <p class="ob-sentence">Use the doan skill to make a design canvas in /Users/kim/code/billing-api for <mark class="slot">&lt;what you want to design&gt;</mark>.</p>
+    <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.<br>Your input stays in doan until you copy it.</span><button class="btn primary" disabled>Copy</button></div>
+   </div></div>
+  </div>
+ </main>
+ <div class="right-stack">
+  <section class="feedback native-scroll" role="region" aria-label="Feedback" data-doan-id="fs-orphan-panel">
+   <h2 class="phead" tabindex="-1">Feedback</h2>
+   <div class="fb-filter"><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 2</button><button type="button" aria-pressed="false">Resolved 0</button></div></div>
+   <div class="fb-tree" role="tree" aria-label="Feedback">
+    <div class="row fb-orphans" role="treeitem" aria-level="1" aria-expanded="true" tabindex="0" data-doan-id="fs-orphan-group"><span class="tw" aria-hidden="true">▾</span><span class="g">Comments without a canvas</span><span class="cnt hot">2</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">invoice</span><span class="cnt hot">2</span></div>
+    <p class="fb-note">No canvas uses the ID invoice. Give a canvas this ID again to bring these comments back, or ask your agent.</p>
+    <article class="comments-card" aria-label="Comment by Kim Doe">
+     <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@acme.dev</span><time title="2026-10-24T09:12:00Z">yesterday</time></div></div>
+     <span class="comments-target static">Frame · line-items</span>
+     <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+     <p class="comments-body">Right-align the amounts.</p>
+     <div class="comments-tools"><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Delete</button></div>
+    </article>
+    <article class="comments-card" aria-label="Comment by Kim Doe">
+     <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@acme.dev</span><time title="2026-10-24T09:14:00Z">yesterday</time></div></div>
+     <span class="comments-target static">Canvas</span>
+     <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+     <p class="comments-body">Add the paid stamp state.</p>
+     <div class="comments-tools"><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Delete</button></div>
+    </article>
+   </div>
+  </section>
+ </div>
+</div>
+</section>
+
+<!-- ===================================================== orphan-cards -->
+<section class="frame" data-doan-frame="orphan-cards" data-doan-title="Comments without a canvas — cards">
+<div class="flabel"><h2>Comments without a canvas — cards</h2><span class="nic">new · not in code</span><span class="nic">draft copy: non-kebab row</span></div>
+<p class="note">An expanded orphan file group (its old id) starts with the notice, then shows each comment as the shipped Comments card: author, email, time, target, status badge, the resolution lines of <code>revision-recheck</code>'s <code>resolution-meta</code> (“Resolved by &lt;name&gt; · &lt;relative time&gt;” under the badges on a resolved card, absolute time in <code>title</code>; “Reopened by …” / “Previously resolved by …” on a reopened open card) and the whole body, with its buttons always visible. Open cards have Resolve and Delete; resolved cards have Reopen and Delete. There is no Edit, no Copy/Hand off, no New comment, and the target line is plain text (<code>--text-2</code>) because the canvas is gone. Delete opens the shipped “Delete this comment?” dialog. Saving, failure, Git name missing and save-status-unknown messages are the shipped card messages. Orphan files whose comments are all deleted (or have no readable line) are not shown; <code>doan check</code> still warns about them.</p>
+<div class="tiles four">
+ <div><p class="tile-label"><b>Open</b> — notice, then cards with Resolve and Delete.</p>
+  <div class="panel-spec" data-doan-id="oc-open-spec">
+   <div class="fb-tree" role="tree" aria-label="Feedback">
+    <div class="row fb-orphans" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Comments without a canvas</span><span class="cnt hot">3</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="0" data-doan-id="oc-file"><span class="tw" aria-hidden="true">▾</span><span class="g">checkout-v1</span><span class="cnt hot">2</span></div>
+    <p class="fb-note" data-doan-id="oc-notice">No canvas uses the ID checkout-v1. Give a canvas this ID again to bring these comments back, or ask your agent.</p>
+    <article class="comments-card" aria-label="Comment by Kim Doe" data-doan-id="oc-card-open">
+     <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@acme.dev</span><time title="2026-10-25T05:02:00Z">2 hours ago</time></div></div>
+     <span class="comments-target static" data-doan-id="oc-target">Element · label “Address” · in shipping</span>
+     <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+     <p class="comments-body" data-doan-id="oc-body">Accept two address lines; the second one is optional.
+Say so in the placeholder.</p>
+     <div class="comments-tools"><button type="button" class="comments-btn" data-doan-id="oc-resolve">Resolve</button><button type="button" class="comments-btn" data-doan-id="oc-delete">Delete</button></div>
+    </article>
+    <article class="comments-card" aria-label="Comment by codex">
+     <div class="comments-author"><span class="comments-avatar" aria-hidden="true">C</span><div class="comments-by"><b>codex</b><time title="2026-10-25T06:40:00Z">25 minutes ago</time></div></div>
+     <span class="comments-target static">Frame · payment</span>
+     <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+     <p class="comments-body">Which card brands should the icons show?</p>
+     <div class="comments-tools"><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Delete</button></div>
+    </article>
+   </div>
+  </div></div>
+ <div><p class="tile-label"><b>Resolved</b> — Resolved chosen: the resolved card shows “Resolved by codex · 3 minutes ago” under the badges and has Reopen and Delete.</p>
+  <div class="panel-spec" data-doan-id="oc-resolved-spec">
+   <div class="fb-tree" role="tree" aria-label="Feedback">
+    <div class="row fb-orphans" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Comments without a canvas</span><span class="cnt">1</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="0"><span class="tw" aria-hidden="true">▾</span><span class="g">checkout-v1</span><span class="cnt">1</span></div>
+    <p class="fb-note">No canvas uses the ID checkout-v1. Give a canvas this ID again to bring these comments back, or ask your agent.</p>
+    <article class="comments-card" aria-label="Comment by Kim Doe" data-doan-id="oc-card-resolved">
+     <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@acme.dev</span><time title="2026-10-23T11:20:00Z">2 days ago</time></div></div>
+     <span class="comments-target static">Element · input postcode · in shipping</span>
+     <div class="comments-badges"><span class="comments-badge resolved">Resolved</span></div>
+     <p class="rr-resolution" data-doan-id="oc-resolved-by"><time title="2026-10-25T07:02:00Z">Resolved by <b>codex</b> · 3 minutes ago</time></p>
+     <p class="comments-body">Validate the postcode on blur, not on every key.</p>
+     <div class="comments-tools"><button type="button" class="comments-btn" data-doan-id="oc-reopen">Reopen</button><button type="button" class="comments-btn">Delete</button></div>
+    </article>
+   </div>
+  </div></div>
+ <div><p class="tile-label"><b>Read-only</b> — a canvas row has a read or parse error, so these comments may belong to it: the notice changes and the buttons are hidden (warning rule).</p>
+  <div class="panel-spec" data-doan-id="oc-readonly-spec">
+   <div class="fb-tree" role="tree" aria-label="Feedback">
+    <div class="row fb-orphans" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Comments without a canvas</span><span class="cnt hot">2</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="0"><span class="tw" aria-hidden="true">▾</span><span class="g">checkout-v1</span><span class="cnt hot">2</span></div>
+    <p class="fb-note warning" data-doan-id="oc-readonly">Some canvases couldn’t be read; these comments may belong to one of them.</p>
+    <article class="comments-card" aria-label="Comment by Kim Doe" data-doan-id="oc-card-readonly">
+     <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@acme.dev</span><time title="2026-10-25T05:02:00Z">2 hours ago</time></div></div>
+     <span class="comments-target static">Element · label “Address” · in shipping</span>
+     <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+     <p class="comments-body">Accept two address lines; the second one is optional.
+Say so in the placeholder.</p>
+    </article>
+    <article class="comments-card" aria-label="Comment by codex">
+     <div class="comments-author"><span class="comments-avatar" aria-hidden="true">C</span><div class="comments-by"><b>codex</b><time title="2026-10-25T06:40:00Z">25 minutes ago</time></div></div>
+     <span class="comments-target static">Frame · payment</span>
+     <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+     <p class="comments-body">Which card brands should the icons show?</p>
+    </article>
+   </div>
+  </div></div>
+ <div><p class="tile-label"><b>Name is not a canvas ID</b> — <code>Checkout_Old.jsonl</code> can never match a canvas: a read-only row with counts only, no cards. <span class="nic">draft copy</span></p>
+  <div class="panel-spec" data-doan-id="oc-nonkebab-spec">
+   <div class="fb-tree" role="tree" aria-label="Feedback">
+    <div class="row fb-orphans" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Comments without a canvas</span><span class="cnt hot">3</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" tabindex="0" data-doan-id="oc-nonkebab"><span class="tw" aria-hidden="true"></span><span class="g">Checkout_Old</span><span class="cnt hot">3</span></div>
+    <p class="fb-count" data-doan-id="oc-nonkebab-text"><b>3 open · 1 resolved.</b> Not a canvas ID — doan can't show or change these comments.</p>
+   </div>
+  </div>
+  <p class="tile-label" style="margin-top:20px"><b>Orphan file unreadable</b> — the shipped read failure inside that file group; no notice, no cards, no count.</p>
+  <div class="panel-spec" data-doan-id="oc-unreadable-spec">
+   <div class="fb-tree" role="tree" aria-label="Feedback">
+    <div class="row fb-orphans" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Comments without a canvas</span><span class="cnt hot">2</span></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="0" data-doan-id="oc-unreadable-file"><span class="tw" aria-hidden="true">▾</span><span class="g">promo-banner</span></div>
+    <div class="comments-message error" role="alert" data-doan-id="oc-unreadable"><b>Couldn’t read comments</b><div class="comments-tools"><button type="button" class="comments-btn">Retry</button></div></div>
+   </div>
+  </div></div>
+</div>
+
+<h3 class="states-head">Writing</h3>
+<div class="tiles four">
+ <div><p class="tile-label"><b>Git name missing</b> — the Git name block (sentence after <code>comments-readability</code> and <code>agent-handoff</code>) opens the orphan group (Feedback has no other writes); Resolve, Reopen and Delete are disabled until Retry finds a name.</p>
+  <div class="panel-spec" data-doan-id="oc-git-spec">
+   <div class="fb-tree" role="tree" aria-label="Feedback">
+    <div class="row fb-orphans" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Comments without a canvas</span><span class="cnt hot">1</span></div>
+    <div class="comments-message warning inset" role="status" data-doan-id="oc-git"><b>Set your Git name</b>Set git user.name for this repository in your terminal, then choose Retry. Your email is optional.<p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Hand off remains available.</p><div class="comments-tools"><button type="button" class="comments-btn">Retry</button></div></div>
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="0"><span class="tw" aria-hidden="true">▾</span><span class="g">promo-banner</span><span class="cnt hot">1</span></div>
+    <p class="fb-note">No canvas uses the ID promo-banner. Give a canvas this ID again to bring these comments back, or ask your agent.</p>
+    <article class="comments-card" aria-label="Comment by Kim Doe">
+     <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@acme.dev</span><time title="2026-10-20T08:00:00Z">5 days ago</time></div></div>
+     <span class="comments-target static">Element · button promo-close</span>
+     <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+     <p class="comments-body">The close button needs a larger hit area.</p>
+     <div class="comments-tools"><button type="button" class="comments-btn" disabled data-doan-id="oc-git-resolve">Resolve</button><button type="button" class="comments-btn" disabled>Delete</button></div>
+    </article>
+   </div>
+  </div></div>
+ <div><p class="tile-label"><b>Save failed</b> and <b>status unknown</b> — the shipped card messages, here for Resolve.</p>
+  <div class="panel-spec" data-doan-id="oc-save-spec">
+   <article class="comments-card" aria-label="Comment by codex">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">C</span><div class="comments-by"><b>codex</b><time title="2026-10-25T06:40:00Z">25 minutes ago</time></div></div>
+    <span class="comments-target static">Frame · payment</span>
+    <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+    <p class="comments-body">Which card brands should the icons show?</p>
+    <div class="comments-tools"><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Delete</button></div>
+    <div class="comments-message error" role="status" data-doan-id="oc-save-failed"><b>Couldn’t save comment</b>The comment file no longer exists.<div class="comments-tools"><button type="button" class="comments-btn">Retry</button></div></div>
+   </article>
+   <div class="spec-gap"></div>
+   <article class="comments-card" aria-label="Comment by Kim Doe">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">KD</span><div class="comments-by"><b>Kim Doe</b><span class="comments-email">kim@acme.dev</span><time title="2026-10-25T05:02:00Z">2 hours ago</time></div></div>
+    <span class="comments-target static">Element · label “Address” · in shipping</span>
+    <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+    <p class="comments-body">Accept two address lines.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn" disabled>Resolve</button><button type="button" class="comments-btn" disabled>Delete</button></div>
+    <div class="comments-message warning" role="status" data-doan-id="oc-save-unknown"><b>Save status is unknown</b>The response was lost. Check whether this comment was saved before trying again.<div class="comments-tools"><button type="button" class="comments-btn">Check saved status</button></div></div>
+   </article>
+  </div></div>
+ <div><p class="tile-label"><b>Delete</b> — the shipped confirmation dialog, unchanged.</p>
+  <div class="comments-dialog" style="width:296px;position:relative" data-doan-id="oc-delete-dialog">
+   <h3>Delete this comment?</h3>
+   <p class="comments-body">Which card brands should the icons show?</p>
+   <p>This comment will be removed and cannot be restored.</p>
+   <div class="comments-tools"><button type="button" class="comments-btn focus">Cancel</button><button type="button" class="comments-btn">Delete comment</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>Long values</b> — long id, author, email and body wrap inside the column (shipped <code>overflow-wrap: anywhere</code>). The target line is the targetLabel (<code>comments-readability</code>), one line with an ellipsis; the full selector is only its <code>title</code>.</p>
+  <div class="panel-spec" data-doan-id="oc-long-spec">
+   <div class="fb-tree" role="tree" aria-label="Feedback">
+    <div class="row fb-l2" role="treeitem" aria-level="2" aria-expanded="true" tabindex="0"><span class="tw" aria-hidden="true">▾</span><span class="g">checkout-summary-with-promo-code-and-gift-card-v2</span><span class="cnt hot">1</span></div>
+    <p class="fb-note" data-doan-id="oc-long-notice">No canvas uses the ID checkout-summary-with-promo-code-and-gift-card-v2. Give a canvas this ID again to bring these comments back, or ask your agent.</p>
+    <article class="comments-card" aria-label="Comment by Alexandra Konstantinopoulou-Whitfield">
+     <div class="comments-author"><span class="comments-avatar" aria-hidden="true">AK</span><div class="comments-by"><b>Alexandra Konstantinopoulou-Whitfield</b><span class="comments-email">alexandra.konstantinopoulou-whitfield@design.acme-enterprises.example</span><time title="2026-10-25T07:00:00Z">5 minutes ago</time></div></div>
+     <span class="comments-target static" title="[data-doan-frame=&quot;summary&quot;] &gt; div:nth-of-type(2) &gt; ul:nth-of-type(1) &gt; li:nth-of-type(3)" data-doan-id="oc-long-target">Element · li · in summary</span>
+     <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+     <p class="comments-body" data-doan-id="oc-long-body">Thepromocodelineandthegiftcardlineshouldneverstackwithoutadividerbecausetotalsbecomeunreadable.</p>
+     <div class="comments-tools"><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Delete</button></div>
+    </article>
+   </div>
+  </div></div>
+</div>
+</section>
+
+<!-- ===================================================== id-change-notice -->
+<section class="frame" data-doan-frame="id-change-notice" data-doan-title="Id change notice in Comments" data-doan-implements="app/src/renderer/CommentsPanel.tsx">
+<div class="flabel"><h2>Comments — id change notice</h2><span class="nic">new: the notice line only</span></div>
+<p class="note">Main specimen: checkout.html is open; the agent just changed its <code>doan:canvas</code> from <code>checkout-v1</code> to <code>checkout</code>. Its three comments stay in <code>checkout-v1.jsonl</code>, so the panel counts drop to 0. The first banner under the Comments head says so, with Show. Everything else is the workspace as links 1–4 leave it (Canvas info shows the new ID; the reload that saw the edit is “Changed”). <b>Behavior:</b> Show goes to the Overview (draft guard applies), expands “Comments without a canvas” and that file group, and moves focus to the file group head. The notice disappears when the id is changed back or the file has no visible comments left. It lives in the controller's memory only: a restart, or a change made while the app was closed, shows nothing here (the Feedback group still shows it).</p>
+<div class="win ws" data-doan-id="id-window">
+ <div class="top"><div class="lights"><i></i><i></i><i></i></div><button class="back" aria-label="Go Home">←</button><span class="divider" aria-hidden="true"></span>
+  <nav class="crumbs" aria-label="Location"><button class="repo" aria-label="acme-web overview">acme-web</button><span class="sep" aria-hidden="true">›</span><button class="branch" aria-label="Switch worktree"><span class="glyph" aria-hidden="true">⎇</span><span class="bn">main</span><span class="caret" aria-hidden="true">▾</span></button><span class="sep" aria-hidden="true">›</span><span class="canvas">Checkout</span></nav>
+  <span class="chip">1440 px</span><span class="spacer"></span><button class="btn ghost" aria-label="Reload canvas">Reload <span class="kbd">⌘R</span></button></div>
+ <aside class="side native-scroll">
+  <div class="sec">Canvases <span class="r">7</span></div>
+  <div role="tree" aria-label="Canvases">
+   <div class="row" role="treeitem" aria-level="1" tabindex="-1"><span class="tw" aria-hidden="true"></span><span class="glyph" aria-hidden="true">▦</span><span class="g">Overview</span></div>
+   <div class="row folder" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">checkout</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Cart</span><span class="d">cart.html</span></span></div>
+   <div class="row cv l2 is-open" role="treeitem" aria-level="2" aria-expanded="true" tabindex="0"><span class="tw" aria-hidden="true">▾</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Checkout</span><span class="d">checkout.html</span></span></div>
+   <div class="row l3" role="treeitem" aria-level="3" aria-current="location" tabindex="-1"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">1</span><span class="g">Shipping</span></div>
+   <div class="row l3" role="treeitem" aria-level="3" tabindex="-1"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">2</span><span class="g">Payment</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">legacy-checkout</span><span class="d">legacy-checkout.html</span></span></div>
+   <div class="row folder" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="g">settings</span></div>
+   <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Checkout</span><span class="d">2026-10-checkout-revamp.html</span></span><span class="cnt hot">2</span></div>
+   <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Design tokens</span><span class="d">tokens.html</span></span></div>
+  </div>
+ </aside>
+ <section class="area" role="region" aria-label="Canvas">
+  <span class="ftag" style="left:42px;top:22px">Shipping</span>
+  <div class="mframe z" style="left:42px;top:40px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Cart</span><span>Checkout</span></div><div class="mcard"><h4>Shipping address</h4><div class="mline"></div><div class="mline"></div><div class="mline"></div><div class="mbtn">Continue to payment</div></div></div></div>
+  <span class="ftag" style="left:42px;top:462px">Payment</span>
+  <div class="mframe z" style="left:42px;top:480px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Cart</span><span>Checkout</span></div><div class="mcard"><h4>Payment</h4><div class="mline"></div><div class="mbtn">Pay now</div></div></div></div>
+  <output class="updated meta"><span class="dot"></span> Changed 14:20</output>
+  <div class="zctl"><div class="zoom"><button>−</button><output>44%</output><button>+</button></div><button class="btn">Fit <span class="kbd">⌘1</span></button></div>
+ </section>
+ <div class="right-stack">
+  <aside class="right native-scroll" role="region" aria-label="Canvas info">
+   <h2 class="phead">Canvas</h2>
+   <div class="isec"><dl class="kv"><dt>Path</dt><dd>design/checkout/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>2</dd></dl></div>
+   <p class="pempty">Click an element or frame to inspect or comment on it.</p>
+   <section class="isec activity" aria-label="Activity"><h3 class="ihead">Activity</h3><ol><li class="tl-row"><time>14:20:41</time><b>Changed</b></li><li class="tl-row"><time>14:02:10</time><b>Opened</b></li></ol></section>
+  </aside>
+  <section class="comments-panel native-scroll" aria-label="Comments" data-doan-id="id-comments">
+   <h3 class="comments-title" tabindex="-1">Comments</h3>
+   <div class="comments-head"><div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false" disabled title="Select an element or frame in the canvas">Selection</button><button type="button" aria-pressed="true">Canvas</button></div><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 0</button><button type="button" aria-pressed="false">Resolved 0</button></div><div class="comments-tools"><button type="button" class="comments-btn" disabled>Hand off…</button><button type="button" class="comments-btn">Comment on canvas</button></div></div>
+   <div class="comments-message warning notice" role="status" data-doan-id="id-notice">3 comments still use the old ID checkout-v1 and no longer show here.<button type="button" class="comments-btn" data-doan-id="id-notice-show">Show</button></div>
+   <div class="comments-message"><b>No open comments</b>Choose Comment on canvas, or select an element or frame.</div>
+  </section>
+ </div>
+</div>
+
+<h3 class="states-head">Notice variants and banner order</h3>
+<div class="tiles four">
+ <div><p class="tile-label"><b>One comment</b> — singular wording.</p>
+  <div class="panel-spec" data-doan-id="id-one-spec">
+   <div class="comments-message warning notice" role="status" data-doan-id="id-notice-one">1 comment still uses the old ID checkout-v1 and no longer shows here.<button type="button" class="comments-btn">Show</button></div>
+  </div>
+  <p class="tile-label" style="margin-top:20px"><b>Long old id</b> — wraps like any message.</p>
+  <div class="panel-spec" data-doan-id="id-long-spec">
+   <div class="comments-message warning notice" role="status" data-doan-id="id-notice-long">12 comments still use the old ID checkout-summary-with-promo-code-and-gift-card-v2 and no longer show here.<button type="button" class="comments-btn">Show</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>Order under the head</b> — the old-ID notice, then <code>revision-recheck</code>'s review notice. “Handed off 3 · 14:02:10” is not a banner: it sits in the head tools next to Hand off… (<code>agent-handoff</code>).</p>
+  <div class="panel-spec" data-doan-id="id-order-spec">
+   <h3 class="comments-title">Comments</h3>
+   <div class="comments-head"><div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false" disabled title="Select an element or frame in the canvas">Selection</button><button type="button" aria-pressed="true">Canvas</button></div><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 2</button><button type="button" aria-pressed="false">Resolved 3</button></div><div class="comments-tools"><button type="button" class="comments-btn">Hand off…</button><span class="handoff-summary" data-doan-id="id-order-handoff">Handed off 3 · 14:02:10</span><button type="button" class="comments-btn">Comment on canvas</button></div></div>
+   <div class="comments-message warning notice" role="status">3 comments still use the old ID checkout-v1 and no longer show here.<button type="button" class="comments-btn">Show</button></div>
+   <div class="rr-banner" data-doan-id="id-order-review"><span class="text"><b>3 resolved</b> since your last review</span><button type="button" class="comments-btn">Review</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>With an id error</b> — the new id is taken by another canvas: the notice stays first, above <code>comments-readability</code>'s canvas-ID block. With an ID cause the panel shows only the title and the blocks (no filters, tools or review notice).</p>
+  <div class="panel-spec" data-doan-id="id-error-spec">
+   <h3 class="comments-title alone">Comments</h3>
+   <div class="comments-message warning notice" role="status">3 comments still use the old ID checkout-v1 and no longer show here.<button type="button" class="comments-btn">Show</button></div>
+   <div class="comments-message error" role="alert" data-doan-id="id-error-block"><b>Another canvas uses the ID cart</b>Ask your agent to give one of them a different ID. Run doan check in a terminal to see details.</div>
+  </div></div>
+ <div><p class="tile-label"><b>Where Show lands</b> — the Overview's Feedback panel, group expanded, focus on the file group head.</p>
+  <div class="panel-spec" data-doan-id="id-show-spec">
+   <h2 class="phead">Feedback</h2>
+   <div class="fb-filter"><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 11</button><button type="button" aria-pressed="false">Resolved 4</button></div></div>
+   <div class="fb-tree" role="tree" aria-label="Feedback">
+    <div class="row fb-orphans" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">Comments without a canvas</span><span class="cnt hot">3</span></div>
+    <div class="row fb-l2 focus" role="treeitem" aria-level="2" aria-expanded="true" tabindex="0" data-doan-id="id-show-target"><span class="tw" aria-hidden="true">▾</span><span class="g">checkout-v1</span><span class="cnt hot">2</span></div>
+    <p class="fb-note">No canvas uses the ID checkout-v1. Give a canvas this ID again to bring these comments back, or ask your agent.</p>
+   </div>
+  </div></div>
+</div>
+</section>
+
+<!-- ===================================================== tree-errors -->
+<section class="frame" data-doan-frame="tree-errors" data-doan-title="Tree rows with read errors" data-doan-implements="app/src/renderer/Sidebar.tsx">
+<div class="flabel"><h2>Tree — read errors</h2><span class="nic">new: warning mark, sentence, Details; Comments Details; Overview card sentence</span><span class="nic">draft copy: “Details”</span></div>
+<p class="note">Main specimen: <code>doan ls</code> succeeded, but it could not read <code>.doan/comments/checkout.jsonl</code> (the row has <code>commentsError</code>) nor <code>design/checkout/legacy-checkout.html</code> (the row has <code>error</code>). The tree stays. Each of those rows shows a <code>--warn</code> “⚠” in place of the comment count and, under the row, the fixed sentence with Details; the row's <code>aria-describedby</code> points at the sentence. Details (<code>aria-expanded</code>, a Tab stop under the row) shows the raw <code>message</code> — a repo-relative path and the kind of failure, never an absolute path. Checkout is open: Canvas info and the canvas still work, and only its Comments panel shows “Couldn’t read comments”, with Retry and Details.</p>
+<div class="win ws" data-doan-id="te-window">
+ <div class="top"><div class="lights"><i></i><i></i><i></i></div><button class="back" aria-label="Go Home">←</button><span class="divider" aria-hidden="true"></span>
+  <nav class="crumbs" aria-label="Location"><button class="repo" aria-label="acme-web overview">acme-web</button><span class="sep" aria-hidden="true">›</span><button class="branch" aria-label="Switch worktree"><span class="glyph" aria-hidden="true">⎇</span><span class="bn">main</span><span class="caret" aria-hidden="true">▾</span></button><span class="sep" aria-hidden="true">›</span><span class="canvas">Checkout</span></nav>
+  <span class="chip">1440 px</span><span class="spacer"></span><button class="btn ghost" aria-label="Reload canvas">Reload <span class="kbd">⌘R</span></button></div>
+ <aside class="side native-scroll">
+  <div class="sec">Canvases <span class="r">7</span></div>
+  <div role="tree" aria-label="Canvases">
+   <div class="row" role="treeitem" aria-level="1" tabindex="-1"><span class="tw" aria-hidden="true"></span><span class="glyph" aria-hidden="true">▦</span><span class="g">Overview</span></div>
+   <div class="row folder" role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span class="tw" aria-hidden="true">▾</span><span class="g">checkout</span></div>
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Cart</span><span class="d">cart.html</span></span></div>
+   <div role="none">
+    <div class="row cv l2 is-open" role="treeitem" aria-level="2" aria-expanded="true" aria-describedby="te-comments-hint" tabindex="0" data-doan-id="te-row-comments"><span class="tw" aria-hidden="true">▾</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Checkout</span><span class="d">checkout.html</span></span><span class="warn-mark" aria-hidden="true" data-doan-id="te-mark">⚠</span></div>
+    <p class="tree-hint warn" id="te-comments-hint" data-doan-id="te-comments-hint">Couldn’t read this canvas’s comments — run doan check<br><button class="btn" aria-expanded="false" data-doan-id="te-details">Details ▸</button></p>
+   </div>
+   <div class="row l3" role="treeitem" aria-level="3" aria-current="location" tabindex="-1"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">1</span><span class="g">Shipping</span></div>
+   <div class="row l3" role="treeitem" aria-level="3" tabindex="-1"><span class="tw" aria-hidden="true"></span><span class="num" aria-hidden="true">2</span><span class="g">Payment</span></div>
+   <div role="none">
+    <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" aria-describedby="te-canvas-hint" tabindex="-1" data-doan-id="te-row-canvas"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">legacy-checkout</span><span class="d">legacy-checkout.html</span></span><span class="warn-mark" aria-hidden="true">⚠</span></div>
+    <p class="tree-hint warn" id="te-canvas-hint" data-doan-id="te-canvas-hint">Can't read this canvas — run doan check<br><button class="btn" aria-expanded="true">Details ▾</button></p>
+    <p class="tree-detail" data-doan-id="te-canvas-detail">unreadable_canvas: design/checkout/legacy-checkout.html: permission denied</p>
+   </div>
+   <div class="row folder" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="g">settings</span></div>
+   <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Checkout</span><span class="d">2026-10-checkout-revamp.html</span></span><span class="cnt hot">2</span></div>
+   <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Design tokens</span><span class="d">tokens.html</span></span></div>
+  </div>
+ </aside>
+ <section class="area" role="region" aria-label="Canvas">
+  <span class="ftag" style="left:42px;top:22px">Shipping</span>
+  <div class="mframe z" style="left:42px;top:40px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Cart</span><span>Checkout</span></div><div class="mcard"><h4>Shipping address</h4><div class="mline"></div><div class="mline"></div><div class="mline"></div><div class="mbtn">Continue to payment</div></div></div></div>
+  <span class="ftag" style="left:42px;top:462px">Payment</span>
+  <div class="mframe z" style="left:42px;top:480px"><div class="mpage"><div class="mnav"><b>Acme</b><span>Cart</span><span>Checkout</span></div><div class="mcard"><h4>Payment</h4><div class="mline"></div><div class="mbtn">Pay now</div></div></div></div>
+  <output class="updated meta"><span class="dot"></span> Opened 14:02</output>
+  <div class="zctl"><div class="zoom"><button>−</button><output>44%</output><button>+</button></div><button class="btn">Fit <span class="kbd">⌘1</span></button></div>
+ </section>
+ <div class="right-stack">
+  <aside class="right native-scroll" role="region" aria-label="Canvas info">
+   <h2 class="phead">Canvas</h2>
+   <div class="isec"><dl class="kv"><dt>Path</dt><dd>design/checkout/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>2</dd></dl></div>
+   <p class="pempty">Click an element or frame to inspect or comment on it.</p>
+   <section class="isec activity" aria-label="Activity"><h3 class="ihead">Activity</h3><ol><li class="tl-row"><time>14:02:10</time><b>Opened</b></li></ol></section>
+  </aside>
+  <section class="comments-panel native-scroll" aria-label="Comments" data-doan-id="te-comments">
+   <h3 class="comments-title" tabindex="-1">Comments</h3>
+   <div class="comments-head"><div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false" disabled title="Select an element or frame in the canvas">Selection</button><button type="button" aria-pressed="true">Canvas</button></div><div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 0</button><button type="button" aria-pressed="false">Resolved 0</button></div><div class="comments-tools"><button type="button" class="comments-btn" disabled>Hand off…</button><button type="button" class="comments-btn" disabled>Comment on canvas</button></div></div>
+   <div class="comments-message error" role="alert" data-doan-id="te-read-failed"><b>Couldn’t read comments</b><div class="comments-tools"><button type="button" class="comments-btn">Retry</button><button type="button" class="comments-btn" aria-expanded="true" data-doan-id="te-read-details">Details ▾</button></div><p class="detail" data-doan-id="te-read-detail">unreadable_comments: .doan/comments/checkout.jsonl: permission denied</p></div>
+  </section>
+ </div>
+</div>
+
+<h3 class="states-head">Row specimens</h3>
+<div class="tiles four">
+ <div><p class="tile-label"><b>Comment file unreadable</b>, Details closed, row collapsed — the sentence shows whether or not the row is expanded.</p>
+  <div class="side spec" data-doan-id="te-spec-comments">
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" aria-describedby="te-s1" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Checkout</span><span class="d">checkout.html</span></span><span class="warn-mark" aria-hidden="true">⚠</span></div>
+   <p class="tree-hint warn" id="te-s1">Couldn’t read this canvas’s comments — run doan check<br><button class="btn" aria-expanded="false">Details ▸</button></p>
+  </div></div>
+ <div><p class="tile-label"><b>Canvas file unreadable</b>, Details open — no id, so no frames and no count; the title falls back to the file name as on the Overview card.</p>
+  <div class="side spec" data-doan-id="te-spec-canvas">
+   <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" aria-describedby="te-s2" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">legacy-checkout</span><span class="d">legacy-checkout.html</span></span><span class="warn-mark" aria-hidden="true">⚠</span></div>
+   <p class="tree-hint warn" id="te-s2">Can't read this canvas — run doan check<br><button class="btn" aria-expanded="true">Details ▾</button></p>
+   <p class="tree-detail">unreadable_canvas: design/checkout/legacy-checkout.html: permission denied</p>
+  </div></div>
+ <div><p class="tile-label"><b>Root-level canvas</b> — the sentence is indented one level less, as the shipped hint follows its row's level.</p>
+  <div class="side spec" data-doan-id="te-spec-root">
+   <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" aria-describedby="te-s3" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Design tokens</span><span class="d">tokens.html</span></span><span class="warn-mark" aria-hidden="true">⚠</span></div>
+   <p class="tree-hint warn l1" id="te-s3">Couldn’t read this canvas’s comments — run doan check<br><button class="btn" aria-expanded="false">Details ▸</button></p>
+  </div></div>
+ <div><p class="tile-label"><b>Overview card</b> of the unreadable canvas — <span class="nic">new</span> sentence, the same as its tree row: “Can't read this canvas — run doan check”.</p>
+  <div class="ocard" style="width:215px" data-doan-id="te-card"><div class="thumb"><p class="thumb-msg warn">Can't read this canvas — run doan check</p></div><div class="ocard-body"><span class="ocard-title">legacy-checkout</span><span class="ocard-file">legacy-checkout.html</span><span class="ocard-meta">Yesterday</span></div></div></div>
+</div>
+</section>
+
+<!-- ===================================================== home-summary -->
+<section class="frame" data-doan-frame="home-summary" data-doan-title="Home summary with comments without a canvas" data-doan-implements="app/src/renderer/Home.tsx">
+<div class="flabel"><h2>Home — summary line</h2><span class="nic">new: “· 3 without a canvas”</span></div>
+<p class="note">The Home row as <code>revision-recheck</code>'s <code>home-counts</code> draws it (“2 open · 1 resolved to review”, <code>--text-2</code> for the review count) gains “· 3 without a canvas” right after it, in plain <code>--text-3</code>; each item shows only when above 0. When the row is too narrow for the summary next to the branch, the whole summary drops to its own line under the branch and wraps between items (<code>revision-recheck</code>'s accepted layout). Overview cards show “N resolved to review” as <code>home-counts</code> does, and never a “without a canvas” count.</p>
+<div class="tiles two-wide">
+ <div><p class="tile-label"><b>Wide</b> — a 1,680 px window (card 528 px): one line.</p>
+  <div class="card" style="width:528px" data-doan-id="hs-wide">
+   <div class="card-head"><span class="card-name">acme-web</span><span class="meta">2 worktrees</span><span class="spacer"></span><button class="more" aria-label="Project menu acme-web">···</button></div>
+   <div class="wt" role="button" tabindex="0" aria-label="Project main · 4 canvases · 2 open comments · 1 resolved to review · 3 without a canvas · /Users/kim/code/acme-web" data-doan-id="hs-wide-row"><span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum" data-doan-id="hs-wide-sum">4 canvases · <span class="hot">2 open</span> · <span class="rr-review">1 resolved to review</span> · <span data-doan-id="hs-wide-orphans">3 without a canvas</span> · <time>5m ago</time></span><button class="more" tabindex="-1" aria-label="Row menu">···</button></span><span class="wt-path">~/code/acme-web</span></div>
+   <div class="wt" role="button" tabindex="-1"><span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">feat-billing</span></span><span class="wt-end"><span class="wt-sum">3 canvases · <span class="hot">1 open</span> · <time>Yesterday</time></span><button class="more" tabindex="-1" aria-label="Row menu">···</button></span><span class="wt-path">~/code/acme-web-billing</span></div>
+  </div></div>
+ <div><p class="tile-label"><b>Narrow</b> — the shipped 1,238 px window (card 381 px): the whole summary drops under the branch and wraps between items.</p>
+  <div class="card" style="width:381px" data-doan-id="hs-narrow">
+   <div class="card-head"><span class="card-name">acme-web</span><span class="meta">2 worktrees</span><span class="spacer"></span><button class="more" aria-label="Project menu acme-web">···</button></div>
+   <div class="wt rr-narrow" role="button" tabindex="0" data-doan-id="hs-narrow-row"><span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">main</span></span><span class="wt-end"><button class="more" tabindex="-1" aria-label="Row menu">···</button></span><span class="wt-sum" data-doan-id="hs-narrow-sum"><span>4 canvases</span> · <span class="hot">2 open</span> · <span class="rr-review">1 resolved to review</span> · <span>3 without a canvas</span> · <span><time>5m ago</time></span></span><span class="wt-path">~/code/acme-web</span></div>
+   <div class="wt" role="button" tabindex="-1"><span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">feat-billing</span></span><span class="wt-end"><span class="wt-sum">3 canvases · <span class="hot">1 open</span> · <time>Yesterday</time></span><button class="more" tabindex="-1" aria-label="Row menu">···</button></span><span class="wt-path">~/code/acme-web-billing</span></div>
+  </div></div>
+ <div><p class="tile-label"><b>Only without a canvas</b> — no open comment on any canvas: the line starts with the orphan item.</p>
+  <div class="card" style="width:381px" data-doan-id="hs-only">
+   <div class="card-head"><span class="card-name">billing-api</span><span class="spacer"></span><button class="more" aria-label="Project menu billing-api">···</button></div>
+   <div class="wt" role="button" tabindex="0"><span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum" data-doan-id="hs-only-sum">0 canvases · 2 without a canvas · <time>3d ago</time></span><button class="more" tabindex="-1" aria-label="Row menu">···</button></span><span class="wt-path">~/code/billing-api</span></div>
+  </div></div>
+ <div><p class="tile-label"><b>Overview card</b> — <code>home-counts</code> meta with “1 resolved to review” where the canvas has some; no “without a canvas” count on cards (orphans belong to no canvas).</p>
+  <div class="ocards" style="width:442px;grid-template-columns:repeat(2,minmax(0,1fr))" data-doan-id="hs-cards">
+   <div class="ocard"><div class="thumb"><div class="shot"><span class="n"></span><span class="c"></span><span class="l" style="top:34%"></span><span class="b" style="top:62%"></span></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">checkout.html</span><span class="ocard-meta" data-doan-id="hs-card-meta">6 frames · <span class="hot">4 open</span> · 2h ago</span></div></div>
+   <div class="ocard"><div class="thumb"><div class="shot grid"><span class="n"></span><span class="c"></span><span class="c"></span></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">2026-10-checkout-revamp.html</span><span class="ocard-meta rr-wrap"><span>4 frames</span> · <span class="hot">2 open</span> · <span class="rr-review">1 resolved to review</span> · <span>1h ago</span></span></div></div>
+  </div></div>
+</div>
+</section>
+
+</body>
+</html>

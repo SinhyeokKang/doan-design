@@ -110,3 +110,23 @@
 ## 측정 의존
 
 - PoC 의존은 없다. 댓글 파일이 많은 프로젝트의 읽기 비용과 무효화 빈도는 tasks 1에서 잰다.
+
+## 초안 요청 (2026-10-25 사용자, 링크 0)
+
+- 캔버스: `design/project-feedback.html`, canvas id `project-feedback`, 폭 1440.
+- 프레임 (id — 담을 상태):
+  - `feedback-panel` — Overview와 오른쪽 Feedback 패널: Open/Resolved 전환, "Comments without a canvas" → 캔버스 묶음 → 프레임 묶음, "Whole canvas", "<id> (not in canvas)", 같은 제목 캔버스의 파일 이름, "N resolved to review", 접힌 묶음, 포커스 행.
+  - `feedback-states` — "Reading comments…", 전체 실패와 Retry, 일부 캔버스 실패, 빈 Open·Resolved, 갈 곳 잃은 댓글만 있음(Overview "No canvases in design/ yet").
+  - `orphan-cards` — "No canvas uses the ID <id>. …" 안내, 열린 카드 Resolve/Delete, 해결 카드 Reopen/Delete, 읽기 전용("Some canvases couldn’t be read; …", 버튼 없음), kebab이 아닌 id의 수만 있는 행, 읽을 수 없는 고아 파일, Git 이름 없음.
+  - `id-change-notice` — Comments 머리 "3 comments still use the old ID <old-id> and no longer show here. Show"(1개일 때 단수형), 머리 아래 배너 순서.
+  - `tree-errors` — 트리 행의 경고 표시와 고정 문장 두 가지, Details의 원문, 그 캔버스 Comments 패널의 "Couldn’t read comments".
+  - `home-summary` — "2 open · 1 resolved to review · 3 without a canvas"의 넓은 폭과 좁은 폭(둘째 줄), 갈 곳 잃은 수가 없는 Overview 카드. 앞의 두 항목은 `revision-recheck` 초안의 `home-counts`와 같게 그린다.
+- `/design-sync` 비교 대상: `feedback-panel`, `feedback-states`, `orphan-cards`(새 표면). 나머지는 이미 main에 있는 화면에 더하는 부분만 그린다.
+
+### 초안 확정 (2026-10-25, 링크 0 지휘자 검토)
+
+- 초안 `design/project-feedback.html`을 확정했다. 사용자가 확정을 지휘자에게 맡겼다. 초안은 링크 1–4의 결과(Hand off…, Comment on canvas, comments-readability 문구, revision-recheck의 해결 메타·하단 라벨·Home·Overview 수)가 반영된 화면 위에 그렸다.
+- Feedback(Open)에서는 열린 댓글이 0개여도 "N resolved to review"가 있는 캔버스 묶음의 머리를 보인다. 고른 상태의 댓글이 없는 다른 묶음은 숨긴다.
+- Home 행의 좁은 배치는 revision-recheck의 것(요약 전체가 브랜치 아래 줄로 내려가 항목 사이에서 줄바꿈)을 따르고, 끝에 "· 3 without a canvas"를 더한다. Overview 카드에는 "N resolved to review"만 보이고 갈 곳 잃은 수는 보이지 않는다.
+- 갈 곳 잃은 해결 카드도 공유 Comments 카드이므로 "Resolved by <name> · <상대 시각>"을 보인다. 대상 줄은 `targetLabel` 형식이고, 전체 선택자는 title에만 둔다.
+- 초안 문구를 그대로 쓴다: 패널 제목 "Feedback", 상태 전환 "Open N"/"Resolved N"(읽는 중이거나 전체가 실패하면 수 없음), 묶음 머리 오른쪽의 수, kebab이 아닌 id 행 "**3 open · 1 resolved.** Not a canvas ID — doan can't show or change these comments.", 오류 행과 읽기 실패의 "Details ▸/▾" 펼침(`aria-expanded`). 읽을 수 없는 캔버스의 Overview 카드에도 트리 행과 같은 문장 "Can't read this canvas — run doan check"를 보인다.
