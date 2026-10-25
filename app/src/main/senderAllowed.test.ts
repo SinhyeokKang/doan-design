@@ -7,6 +7,8 @@ const mainOnly = [
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "ui-state:get", "ui-state:save", "onboarding:get-open", "onboarding:close", "onboarding:first-prompt", "onboarding:copy",
   // Settings reads setup through `setup:*` and projects through the projection only (orch.md R-A1).
   "onboarding:read", "onboarding:run", "onboarding:answer", "onboarding:open-project", "folders:get", "settings:open",
+  // The first prompt's arrival rule needs to know whether the window is hidden.
+  "window:visible",
 ];
 const shared = ["setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get"];
 const settingsOnly = [

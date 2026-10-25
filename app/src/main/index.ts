@@ -1,5 +1,5 @@
 import { createMachine, needsOnboarding, markClosed, PATH_LINE, type MachineState } from "./onboarding/machine";
-import { firstSentence, isTranslocated } from "./onboarding/states";
+import { isTranslocated } from "./onboarding/states";
 import { createCommentsService } from "./comments/service";
 import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
@@ -116,18 +116,24 @@ function syncThumbnailPause(): void {
   if (windowShown && !appHidden) thumbnails?.resume();
   else thumbnails?.pause();
 }
+// The first prompt's arrival shows a toast rather than opening a canvas while
+// the window is hidden; document.hidden stayed false after hide() in a real run.
+function visibilityChanged(): void {
+  syncThumbnailPause();
+  send("window:visible", { visible: windowShown && !appHidden });
+}
 
 function showWindow(window: BrowserWindow): void {
   cancelPendingHide();
   window.show();
   windowShown = true;
-  syncThumbnailPause();
+  visibilityChanged();
 }
 
 function hideWindow(window: BrowserWindow): void {
   window.hide();
   windowShown = false;
-  syncThumbnailPause();
+  visibilityChanged();
 }
 
 function isOpen(root: string): boolean {
@@ -488,8 +494,8 @@ async function start(): Promise<void> {
   thumbnails = thumbs;
   // Electron has no app hide event. AppKit posts these at the end of
   // NSApplication's hide:/unhide:, which the `hide` role item (⌘H) sends.
-  systemPreferences.subscribeLocalNotification("NSApplicationDidHideNotification", () => { appHidden = true; syncThumbnailPause(); });
-  systemPreferences.subscribeLocalNotification("NSApplicationDidUnhideNotification", () => { appHidden = false; syncThumbnailPause(); });
+  systemPreferences.subscribeLocalNotification("NSApplicationDidHideNotification", () => { appHidden = true; visibilityChanged(); });
+  systemPreferences.subscribeLocalNotification("NSApplicationDidUnhideNotification", () => { appHidden = false; visibilityChanged(); });
   // Starts the once-per-launch cache cleanup even when no folder update follows.
   thumbs.entriesChanged(ready.entries());
   const comments = createCommentsService({
@@ -562,6 +568,7 @@ async function start(): Promise<void> {
     return ready.initialize(value.root, tokenCss);
   });
   handle("app:home", null, event => fromWindow(event) ? homeDirectory() : null);
+  handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
   handle("folders:get", [], (event) => (fromWindow(event) ? ready.entries() : []));
   const cli = cliCommand(process.env, app.isPackaged, process.resourcesPath);
   const flow = createAddFlow({
@@ -741,16 +748,12 @@ async function start(): Promise<void> {
   };
   handle("setup:copy-path-line", { kind: "stale" }, (_event, value: unknown) => value === undefined ? copy(PATH_LINE) : { kind: "stale" });
   // The sentence names only a stored, set-up project. `subject` is the one
-  // free text the renderer sends; promptSentence checks it. The `{root}` form
-  // is the placeholder sentence today's wizard and overview copy, until the
-  // FirstPrompt composer replaces them.
+  // free text the renderer sends; promptSentence checks it.
   const readyRoot = (value: unknown): string | null => typeof value === "string" &&
     ready.entries().some(entry => entry.path === value && entry.kind === "list") ? value : null;
   const promptText = (value: Record<string, unknown>, fixed: number): string | null => {
-    const keys = Object.keys(value).length - fixed;
     const root = readyRoot(value.root);
-    if (root === null || !(keys === 1 || (keys === 2 && "subject" in value))) return null;
-    if (keys === 1) return firstSentence(root);
+    if (root === null || Object.keys(value).length - fixed !== 2 || !("subject" in value)) return null;
     const text = typeof value.subject === "string" ? promptSentence(root, value.subject) : null;
     return typeof text === "string" ? text : null;
   };

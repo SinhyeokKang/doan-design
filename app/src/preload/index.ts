@@ -36,14 +36,14 @@ const api = {
   answerOnboardingReplace: (answer: { id: string; allow: boolean }): Promise<StepResult> => ipcRenderer.invoke("onboarding:answer", answer),
   closeOnboarding: (request: OnboardingOpen): Promise<StepResult> => ipcRenderer.invoke("onboarding:close", request),
   copyPathLine: (): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "pathLine" }),
+  // Hidden: closed with the app running, or the whole app hidden (⌘H).
+  onWindowVisible: (listener: (visible: boolean) => void): (() => void) =>
+    subscribe<{ visible: boolean }>("window:visible", "window:visible", value => listener(value.visible)),
   // Main builds the sentence from a stored, set-up project and the subject
-  // (promptSentence); null when either is refused. Without a subject it is the
-  // old placeholder sentence, kept until the FirstPrompt composer replaces it.
-  firstPrompt: (root: string, subject?: string): Promise<string | null> =>
-    ipcRenderer.invoke("onboarding:first-prompt", subject === undefined ? { root } : { root, subject }),
+  // (promptSentence); null when either is refused.
+  firstPrompt: (root: string, subject: string): Promise<string | null> => ipcRenderer.invoke("onboarding:first-prompt", { root, subject }),
   // Resolves after the clipboard write settled.
-  copyFirstPrompt: (root: string, subject?: string): Promise<StepResult> =>
-    ipcRenderer.invoke("onboarding:copy", subject === undefined ? { kind: "firstPrompt", root } : { kind: "firstPrompt", root, subject }),
+  copyFirstPrompt: (root: string, subject: string): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "firstPrompt", root, subject }),
   // The wizard's Open Project…: one folder, judged as Add Project… judges it.
   openProject: (): Promise<OpenProjectResult> => ipcRenderer.invoke("onboarding:open-project"),
   // Home chips, banner and Finish card; null only if main refused.

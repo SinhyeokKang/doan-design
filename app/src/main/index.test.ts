@@ -568,31 +568,33 @@ test("wizard close writes only when idle; window close and quit do not mark it c
   expect(await invoke("onboarding:close", contents, null, opened)).toEqual({ kind: "success" });
   expect(mocks.markClosed).toHaveBeenCalledExactlyOnceWith("/tmp/doan-index-test");
 });
-test("first prompt is read and copied only for a stored set-up project, after the clipboard settles", async () => {
+test("first prompt is read and copied only for a stored set-up project and a subject, after the clipboard settles", async () => {
   const contents = window().webContents;
-  const sentence = `Use the doan skill to make a design canvas in ${ROOT} for <what you want to design>.`;
+  const subject = "a sign-in screen";
+  const sentence = `Use the doan skill to make a design canvas in ${ROOT} for ${subject}.`;
   mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "list" }, { path: "/plain", kind: "uninitialized" }]);
-  expect(await invoke("onboarding:first-prompt", contents, null, { root: ROOT })).toBe(sentence);
-  for (const request of [{ root: "/plain" }, { root: "/other" }, { root: ROOT, text: "forged" }, { root: 1 }, null, ROOT]) {
+  expect(await invoke("onboarding:first-prompt", contents, null, { root: ROOT, subject })).toBe(sentence);
+  // The placeholder form without a subject is gone with the composer.
+  for (const request of [{ root: ROOT }, { root: "/plain", subject }, { root: "/other", subject }, { root: ROOT, text: "forged" }, { root: ROOT, subject, text: "forged" }, { root: 1, subject }, null, ROOT]) {
     expect(await invoke("onboarding:first-prompt", contents, null, request)).toBeNull();
   }
-  expect(await invoke("onboarding:first-prompt", contents, {}, { root: ROOT })).toBeNull();
-  expect(await invoke("onboarding:first-prompt", {}, null, { root: ROOT })).toBeNull();
+  expect(await invoke("onboarding:first-prompt", contents, {}, { root: ROOT, subject })).toBeNull();
+  expect(await invoke("onboarding:first-prompt", {}, null, { root: ROOT, subject })).toBeNull();
   let finish!: () => void;
   mocks.clipboard.writeText.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
   let settled = false;
-  const copied = Promise.resolve(invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT })).then(value => { settled = true; return value; });
+  const copied = Promise.resolve(invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT, subject })).then(value => { settled = true; return value; });
   await Promise.resolve(); expect(settled).toBe(false); finish();
   expect(await copied).toEqual({ kind: "success" });
   expect(mocks.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(sentence);
   mocks.clipboard.writeText.mockClear();
-  for (const request of [{ kind: "firstPrompt", root: "/plain" }, { kind: "firstPrompt" }, { kind: "firstPrompt", root: ROOT, text: "forged" }, { kind: "firstPrompt", root: "/other" }]) {
+  for (const request of [{ kind: "firstPrompt", root: ROOT }, { kind: "firstPrompt", root: "/plain", subject }, { kind: "firstPrompt", subject }, { kind: "firstPrompt", root: ROOT, text: "forged" }, { kind: "firstPrompt", root: "/other", subject }]) {
     expect(await invoke("onboarding:copy", contents, null, request)).toEqual({ kind: "stale" });
   }
-  expect(await invoke("onboarding:copy", contents, {}, { kind: "firstPrompt", root: ROOT })).toEqual({ kind: "stale" });
+  expect(await invoke("onboarding:copy", contents, {}, { kind: "firstPrompt", root: ROOT, subject })).toEqual({ kind: "stale" });
   expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
   mocks.clipboard.writeText.mockRejectedValueOnce(new Error("denied"));
-  expect(await invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT })).toEqual({ kind: "error", message: "denied" });
+  expect(await invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT, subject })).toEqual({ kind: "error", message: "denied" });
 });
 
 test("PATH copy awaits the clipboard and refuses arbitrary strings", async () => {
@@ -1135,6 +1137,22 @@ describe("thumbnails", () => {
     expect(mocks.thumbnails.resume).toHaveBeenCalledOnce();
     notify("Unhide");
     expect(mocks.thumbnails.resume).toHaveBeenCalledTimes(2);
+  });
+
+  test("the main renderer learns when the window or the whole app is hidden and shown; only it may ask", async () => {
+    const visible = () => vi.mocked(window().webContents.send).mock.calls.filter(([channel]) => channel === "window:visible").map(([, value]) => value);
+    const notify = (name: string) => mocks.notifications.get(`NSApplicationDid${name}Notification`)?.();
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: true });
+    window().emit("close", { preventDefault: vi.fn() });
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: false });
+    mocks.app.emit("activate");
+    notify("Hide");
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: false });
+    notify("Unhide");
+    expect(visible()).toEqual([{ visible: false }, { visible: true }, { visible: false }, { visible: true }]);
+    expect(await invoke("window:visible", {}, null)).toBeNull();
+    // Settings is refused by the test that runs every main-only channel from it.
+    expect(await invoke("window:visible", (await captureWindow()).webContents, null)).toBeNull();
   });
 
   test("a fullscreen window pauses captures once it is really hidden", () => {
