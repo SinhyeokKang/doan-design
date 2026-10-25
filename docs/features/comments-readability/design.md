@@ -118,3 +118,10 @@
   - `dialogs` — 초안 대화상자의 "To: …" 별도 줄, 저장 불확실 종료 대화상자 문구.
   - `panel-details` — COMMENTS 구역이 없는 Canvas 정보, Activity 위의 안내, Updated 라벨 배경, Selection 범위 비활성 title, "Comment on selection"/"Comment on canvas", Git 이름 문구.
 - 화면에 보이지 않는 항목(포커스 이동, 핀 aria 단수형)은 해당 프레임의 주석으로만 적는다.
+
+### 초안 확정 (2026-10-25, 링크 0 지휘자 검토)
+
+- 초안 `design/comments-readability.html`을 확정했다. 사용자가 확정을 지휘자에게 맡겼다.
+- 3절 보충: sticky 제목은 `.comments-head` 안의 h3가 아니라 스크롤 패널의 직계 자식 제목(`h3.comments-title`)으로 둔다. 초안에서 h3를 머리 안에 두면 960×600에서 13px 밀려나는 것을 측정했다. 작은 패널 입력란은 `.comments-panel`의 `container-type: size`와 `@container (max-height: 359px)`로 줄인다.
+- Canvas 정보 안내는 5절 표의 한 문장 "Click an element or frame to inspect or comment on it."만 둔다. shipped의 둘째 문장 "Frames are also listed in the sidebar."는 없앤다.
+- 초안 문구를 그대로 쓴다: 줄 번호 하나는 "Line 12"이다. 편집기가 열린 채 읽기에 실패하면 "Comments couldn’t be read. Choose Retry, then save."를 보인다. "Not found in the current canvas."는 배지 줄 안에 `--text-3`으로 둔다. Updated 라벨은 `--panel` 배경, 3×8px 패딩, 6px 모서리를 쓴다.
