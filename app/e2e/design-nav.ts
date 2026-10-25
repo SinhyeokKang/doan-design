@@ -167,6 +167,7 @@ process.exit(result.status ?? 1);
   assert.ok(consumerBreakpoint.locations.length, "the consumer logpoint resolves in the production bundle");
   console.log("startup read consumer logpoint", { lineNumber, columnNumber, source: scriptSource.split("\n")[lineNumber] });
   for (const held of ["ui", "folders"] as const) {
+    if (process.env.DOAN_NAV_CASES && !process.env.DOAN_NAV_CASES.split(",").includes(`late-${held}-restore`)) continue;
     await navigationCheck(`late-${held}-restore`, async () => {
       await app!.evaluate(({ ipcMain }, [entries, savedRoot, freshRoot, held]) => {
         const handlers = Reflect.get(ipcMain, "_invokeHandlers");
@@ -315,6 +316,18 @@ process.exit(result.status ?? 1);
     assert.equal(await origin.evaluate(node => node === document.activeElement), true);
     await origin.focus(); await publishAdded([acme]);
     assert.equal(await origin.evaluate(node => node === document.activeElement), true, "an unfocused toast does not move focus");
+  });
+  await navigationCheck("modal-toast-replacement-focus", async () => {
+    await goHome(page); await enterProject(page, brand);
+    await page.getByRole("button", { name: "brand-kit overview", exact: true }).focus();
+    await publishAdded([acme]); await page.locator(".toast button").focus();
+    await quickOpen("");
+    await publishAdded([empty]);
+    const input = dialog().getByRole("combobox");
+    assert.equal(await input.evaluate(node => node === document.activeElement), true, "replacement cannot steal modal focus");
+    await page.keyboard.press("Escape"); await dialog().waitFor({ state: "hidden" });
+    console.log("removed Quick Open origin focus", await activeFocus());
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest(".workspace") && !document.activeElement?.closest("[inert]")), true, "a removed origin falls back to the current visible screen");
   });
   await navigationCheck("modal-toast-remaining-time", async () => {
     await goHome(page); await enterProject(page, brand);
@@ -670,6 +683,11 @@ process.exit(result.status ?? 1);
   }
 } catch (error) {
   console.error(error);
+  if (app) console.error("navigation failure diagnostics", await page.evaluate(async () => {
+    const iframe = document.querySelector<HTMLIFrameElement>(".board iframe");
+    const entries = await new Promise<import("../src/main/view").FolderEntry[]>(resolve => { const stop = window.doan.onFolders(value => { stop(); resolve(value); }); });
+    return { iframe: iframe?.src, status: document.querySelector(".canvas-status")?.textContent, entries, resources: performance.getEntriesByType("resource").map(item => item.name), saved: await window.doan.readUiState() };
+  }).catch(String));
   if (app) { await page.screenshot({ path: join(shots, "failure.png") }).catch(console.error); console.error(`design-nav screenshot: ${join(shots, "failure.png")}`); await app.evaluate(({ app }) => app.exit(0)).catch(() => {}); }
   throw error;
 } finally {
