@@ -64,6 +64,7 @@ const mocks = await vi.hoisted(async () => {
     createReviewStore: vi.fn(),
     readProjectComments: vi.fn(),
     readFolder: vi.fn(),
+    readFoldersFileForPruning: vi.fn(),
   };
 });
 
@@ -80,6 +81,7 @@ vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
 vi.mock("./onboarding/machine", () => ({ createMachine: mocks.createMachine, needsOnboarding: mocks.needsOnboarding, markClosed: mocks.markClosed, PATH_LINE: 'export PATH="$HOME/.local/bin:$PATH"' }));
 vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
+vi.mock("./folderStore", () => ({ readFoldersFileForPruning: mocks.readFoldersFileForPruning }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
@@ -108,6 +110,7 @@ beforeEach(async () => {
   mocks.machine.isBusy.mockReturnValue(false);
   mocks.app.whenReady.mockResolvedValue();
   mocks.startShell.mockResolvedValue(mocks.shell);
+  mocks.readFoldersFileForPruning.mockResolvedValue([]);
   mocks.startRuntime.mockResolvedValue(mocks.runtime);
   mocks.createInspector.mockReturnValue(mocks.inspector);
   mocks.inspector.inspect.mockResolvedValue({ ok: true, rows: [] });
@@ -1782,6 +1785,17 @@ describe("review state and project comments", () => {
     const [file, saved] = mocks.createReviewStore.mock.calls[0] ?? [];
     expect(file).toBe("/tmp/doan-index-test/review-state.json");
     expect(typeof saved === "function" ? saved() : null).toEqual(entries.map((entry) => entry.path));
+  });
+
+  test("startup leaves pruning unauthorized when folders.json could not be read", async () => {
+    mocks.readFoldersFileForPruning.mockResolvedValue(null);
+    vi.resetModules();
+    mocks.createReviewStore.mockClear();
+    await import("./index");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const [, saved] = mocks.createReviewStore.mock.calls[0] ?? [];
+    expect(mocks.readFoldersFileForPruning).toHaveBeenCalledWith("/tmp/doan-index-test/folders.json");
+    expect(typeof saved === "function" ? saved() : "missing callback").toBeNull();
   });
 
   test("read and raise answer only the window's main frame, for a saved root and a valid request", async () => {

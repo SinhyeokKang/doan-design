@@ -2,7 +2,7 @@ import { chmodSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "vitest";
-import { openFolderStore, readFoldersFile, writeFoldersFile } from "./folderStore";
+import { openFolderStore, readFoldersFile, readFoldersFileForPruning, writeFoldersFile } from "./folderStore";
 
 const tmp = mkdtempSync(join(tmpdir(), "doan-folders-"));
 let count = 0;
@@ -20,6 +20,26 @@ function dir(): string {
 }
 
 describe("readFoldersFile", () => {
+  test.each(["{not json", "null", "{}", '["/a", 1]'])("invalid contents are unknown for pruning but remain an empty list for other callers: %s", async (contents) => {
+    const file = join(dir(), "folders.json");
+    writeFileSync(file, contents);
+    expect(await readFoldersFileForPruning(file)).toBeNull();
+    expect(await readFoldersFile(file)).toEqual([]);
+  });
+
+  test("pruning distinguishes a missing file from a read failure", async () => {
+    const file = join(dir(), "folders.json");
+    expect(await readFoldersFileForPruning(file)).toEqual([]);
+    mkdirSync(file);
+    expect(await readFoldersFileForPruning(file)).toBeNull();
+  });
+
+  test("pruning uses the same normalization as the folder store", async () => {
+    const file = join(dir(), "folders.json");
+    writeFileSync(file, '["/a", "", "/b", "/a"]');
+    expect(await readFoldersFileForPruning(file)).toEqual(["/a", "/b"]);
+  });
+
   test("a missing file is an empty list", async () => {
     expect(await readFoldersFile(join(dir(), "folders.json"))).toEqual([]);
   });

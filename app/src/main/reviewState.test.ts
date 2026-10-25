@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, test, vi } from "vitest";
 import { createReviewStore, parseReviewRaise, parseReviewRead } from "./reviewState";
+import { readFoldersFileForPruning } from "./folderStore";
 
 const tmp = mkdtempSync(join(tmpdir(), "doan-review-state-"));
 let count = 0;
@@ -89,6 +90,56 @@ describe("raise", () => {
 });
 
 describe("validation and recovery", () => {
+  test("an unknown saved-root list does not authorize pruning", () => {
+    const path = file();
+    const text = `${JSON.stringify({ v: 1, since: T0, canvases: { [key("/repo", "home")]: T1 } })}\n`;
+    writeFileSync(path, text);
+    const store = createReviewStore(path, () => null, clock(T2));
+    expect(store.marker("/repo", "home")).toEqual({ since: T0, lastReviewedAt: T1 });
+    expect(readFileSync(path, "utf8")).toBe(text);
+  });
+
+  test.each(["{broken", "null", '["/repo", 1]'])("keeps markers when folders.json is invalid: %s", async (contents) => {
+    const path = file();
+    const folders = join(path, "..", "folders.json");
+    writeFileSync(folders, contents);
+    const text = `${JSON.stringify({ v: 1, since: T0, canvases: { [key("/repo", "home")]: T1 } })}\n`;
+    writeFileSync(path, text);
+    const roots = await readFoldersFileForPruning(folders);
+    const store = createReviewStore(path, () => roots, clock(T2));
+    expect(store.marker("/repo", "home")).toEqual({ since: T0, lastReviewedAt: T1 });
+    expect(readFileSync(path, "utf8")).toBe(text);
+  });
+
+  test("keeps markers when folders.json cannot be read", async () => {
+    const path = file();
+    const folders = join(path, "..", "folders.json");
+    writeFileSync(folders, '["/repo"]');
+    const text = `${JSON.stringify({ v: 1, since: T0, canvases: { [key("/repo", "home")]: T1 } })}\n`;
+    writeFileSync(path, text);
+    chmodSync(folders, 0o000);
+    try {
+      const roots = await readFoldersFileForPruning(folders);
+      expect(roots).toBeNull();
+      const store = createReviewStore(path, () => roots, clock(T2));
+      expect(store.marker("/repo", "home")).toEqual({ since: T0, lastReviewedAt: T1 });
+      expect(readFileSync(path, "utf8")).toBe(text);
+    } finally {
+      chmodSync(folders, 0o600);
+    }
+  });
+
+  test.each([null, '["/other"]'])("prunes markers after successfully reading folders.json: %s", async (contents) => {
+    const path = file();
+    const folders = join(path, "..", "folders.json");
+    if (contents !== null) writeFileSync(folders, contents);
+    writeFileSync(path, JSON.stringify({ v: 1, since: T0, canvases: { [key("/repo", "home")]: T1 } }));
+    const roots = await readFoldersFileForPruning(folders);
+    const store = createReviewStore(path, () => roots, clock(T2));
+    expect(store.marker("/repo", "home")).toEqual({ since: T0 });
+    expect(onDisk(path)).toEqual({ v: 1, since: T0, canvases: {} });
+  });
+
   test.each([
     ["broken JSON", "{broken"],
     ["an array", "[]"],
