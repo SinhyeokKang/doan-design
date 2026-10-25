@@ -376,7 +376,7 @@ test.each([
   const { runInNewContext } = await import("node:vm");
   const { DocumentBindings } = await import("./comments/document");
   const docs = new DocumentBindings();
-  vi.spyOn(docs, "current").mockReturnValue({ root: "/repo", path: "design/a.html", hash: "sha256:" + "a".repeat(64), generation: "loader" });
+  vi.spyOn(docs, "current").mockReturnValue({ root: "/repo", path: "design/a.html", hash: "sha256:" + "a".repeat(64), generation: "loader", frame: "FRAME", marker: "response", complete: true, stable: true });
   const dbg = new FakeDebugger();
   const original = dbg.sendCommand.bind(dbg);
   vi.spyOn(dbg, "sendCommand").mockImplementation(async (method, params, session) => {

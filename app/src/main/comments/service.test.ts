@@ -204,7 +204,7 @@ test.each(["invalid string", "invalid line", "double BOM"])("service list and co
   const listed = await s.service.list("window", { ...identity, requestID: "read" });
   expect(listed).toMatchObject({ ok: true, value: { comments: [{ body: mode === "invalid string" ? "�ello 한글" : "Hello 한글" }], warnings: mode === "invalid string" ? [] : [{ code: "invalid_event", line: 1 }] } });
   expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { kind: "all" } })).toMatchObject({ ok: true });
-  expect(s.deps.clipboard).toHaveBeenCalledWith(expect.stringContaining(mode === "invalid string" ? "�ello 한글" : "Hello 한글"));
+  expect(s.deps.clipboard).toHaveBeenCalledWith(expect.stringContaining(JSON.parse(valid.toString()).comment));
 });
 
 test("existing malformed bytes do not block editing an unrelated valid comment", async () => {

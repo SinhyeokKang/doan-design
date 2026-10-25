@@ -146,9 +146,9 @@ test("calendar-invalid v1 timestamps remain readable after folding", () => {
   expect(out).toContain("Visible note"); expect(out).toContain(event.at);
 });
 
- test("newer-version warning explains the record and preserves valid comments", () => {
+test("newer-version warning explains the record and preserves valid comments", () => {
   const out = html(panel({ read: { status: "ready", comments: [comment], warnings: [{ code: "unknown_version", line: 3 }] } }));
   expect(out).toContain("written by a newer version of Doan");
   expect(out).toContain("unknown_version · line 3");
-  expect(out).toContain(comment.body);
+  expect(out).toContain("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;\n  Keep spaces ");
 });
