@@ -79,3 +79,11 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 - A-L1 재현(지휘자, 2026-10-25): 실제 Electron 45에서 현 `thumbnailWindow.ts`를 타입만 제거해 임시 앱으로 실행했다. 정상 캔버스는 캡처되고, 정상 외곽 문서 안의 iframe 404는 전체 미리보기를 unavailable로 만들었다. 직접 캔버스 404도 unavailable이었다. 끝나지 않는 이미지가 있는 작업은 약 8.1초 후 캡처됐고 다음 정상 작업도 성공했다. 이전 작업의 실패 오염은 이 probe에서 재현되지 않았다. 실제 사용자 상태 불변 검사를 통과했다. 근거 `.scratch/audit-integration-261025/thumbnail-probe.{mjs,json}`. nested 실패가 외곽 미리보기를 막아야 하는지는 기존 문서가 명확히 정하지 않아 아직 수정하지 않는다. 첫 두 probe 준비는 TS/esbuild API 부재로 실행 전에 실패했고, Node 내장 타입 제거로 probe를 실행했다.
 - E 워커가 실제 judgeMaterial Git 호출에서 clean filter 실행도 임시 marker로 재현했다. 같은 post-agent 경계의 좁은 방어를 추가하도록 지시했다. 완전한 sandbox라고 보고하지 않는다.
 - 실행 워커: C `ctx_64080f504c8e` (`audit-cli-261025`), E `ctx_2a1afc30c998` (`audit-eval-261025`), A1 `ctx_e2c78120d993` (`audit-comments-261025`). 요청 모델과 effective 모델 모두 gpt-6-astra medium, turn_start 관찰 완료.
+
+### C·A1 handoff와 리뷰 예약
+
+- C 작업 완료: 원본 `aee3635`, `9990e65`, `4643743`; 통합 후보 `6b0af1a`, `6aae16e`, `0cae486`. repo/cli package tests와 Go vet 통과 근거를 인수했다. 독립 리뷰 전이므로 수용 완료가 아니다. 증거는 `.scratch/audit-integration-261025/C-evidence/`에 복사했다.
+- C 워커는 즉시 새 A2 Dispatch `ctx_e194a72b35c6`로 재사용했다. 같은 process incarnation과 기존 Astra medium 설정을 유지하며, reuse receipt의 모델 필드는 null이다. `audit-cli-261025` child에서 C 이후 A2 파일만 수정한다.
+- A1 작업 완료: 원본 `af812bc`, `a276ac4`, `a14739a`, `2d4a9cb`. 소유한 6개 파일만 변경했고, 수정된 테스트를 원래 구현에 다시 대조한 10개 red와 관련 417개 테스트·typecheck green을 인수했다. 실제 CLI 바이트 입력 3건 대조도 인수했다. 통합 runtime와 독립 리뷰는 미완료다. 증거는 `A1-evidence/`에 복사했다.
+- IR-C 모델: Codex gpt-6-astra medium. A1 구현 워커를 독립 CLI 리뷰에 즉시 재사용한다(자기 구현을 리뷰하지 않음). 대상은 C diff뿐이며 소스 수정·실행 금지, `.scratch/review-C.md`만 작성한다. 특히 hard-link publication의 파일시스템 제약, 경로 정체성, 실패 복구와 기존 init 계약을 검토한다.
+- E가 전체 runner tests → self-test 슬롯을 사용 중이다. 다른 full/runtime/stress 실행은 예약하지 않았다.
