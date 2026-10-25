@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-26 — A failed saved-folder read erased review markers
+
+- **Area**: `app/src/main/folderStore.ts`, `reviewState.ts`, and startup wiring in `index.ts`.
+- **Symptom**: corrupt or unreadable `folders.json` became an empty saved-root list at startup, so pruning rewrote `review-state.json` without its review markers. Restoring the folder list could then show resolutions that had already been reviewed.
+- **Root cause**: the tolerant folder reader used the same `[]` fallback for an empty list and a failed read. Review-state pruning treated that fallback as evidence that every root had been removed.
+- **Net**: the existing startup-pruning tests supplied valid lists only. The M2 unknown-list regression failed with a missing `lastReviewedAt`; new disk-backed cases cover malformed contents, a permission-denied read, a missing file, and a valid list omitting the root. Startup tests also check failure propagation and retain the successfully read snapshot even when shell entries differ.
+- **Prevention**: destructive pruning needs a successfully read source list; preserve an unknown result separately from an empty list. Keep the nullable pruning reader and regressions above. Search run: `rg -n 'readFoldersFile|savedRoots\(\)|saved\.has|catch' app/src/main/{folderStore,reviewState,uiState}.ts` finds the guarded review parser, the folder-store fallback used to start the app, and UI-state validation against saved roots. UI-state restoration intentionally falls back to Home and is outside this marker fix.
+
 ### 2026-10-26 — A reload that never laid out left a new comment unblocked
 
 - **Area**: `app/src/renderer/CanvasController.ts` (`publish`, `CanvasState.reloading`), `app/src/renderer/useComments.tsx` (document effect), `app/src/comments/draft.ts` (`continueEnabled`).
