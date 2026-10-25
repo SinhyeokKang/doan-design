@@ -24,7 +24,7 @@ export function doanCommand(words: string[]): string | undefined {
   return positionals[0];
 }
 
-interface ExtractedCall { name: string; command?: string; patch?: string }
+interface ExtractedCall { name: string; command?: string; patch?: string; patchCandidate?: string }
 
 function execCalls(source: string): ExtractedCall[] {
   const tokens = scriptTokens(source);
@@ -45,7 +45,17 @@ function execCalls(source: string): ExtractedCall[] {
     const name = tokens[i + 2];
     if (name === "apply_patch") {
       const patch = literal(tokens[i + 4]);
-      if (patch !== undefined && tokens[i + 5] === ")") calls.push({ name, patch });
+      if (patch !== undefined && tokens[i + 5] === ")") {
+        // A whole batch consisting of one literal call has no earlier statement
+        // that can skip it or throw. Everything else stays lexical evidence only.
+        const argument = tokens[i + 4]!;
+        const simpleLiteral = argument[0] === '"' || (!/\\(?![\\'"`nrtbfv0]|u[\da-fA-F]{4}|x[\da-fA-F]{2}|\r?\n)/.test(argument) &&
+          !/\\0[0-9]/.test(argument) && (argument[0] === "`" || !/[\r\n]/.test(argument)));
+        const start = tokens[0] === "await" ? 1 : 0;
+        const end = tokens.at(-1) === ";" ? tokens.length - 1 : tokens.length;
+        const standalone = simpleLiteral && i === start && end === i + 6;
+        calls.push(standalone ? { name, patch } : { name, patchCandidate: patch });
+      }
       continue;
     }
     if (name !== "exec_command") { if (/^mcp__/.test(name)) calls.push({ name }); continue; }
@@ -234,14 +244,16 @@ function toolSearches(transcript: string): ToolSearch[] {
   });
 }
 
-export interface ToolCalls { commands: string[]; mcpTools: string[]; patches?: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
+export interface ToolCalls { commands: string[]; mcpTools: string[]; patches?: string[]; patchCandidates?: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
 
 export function toolCalls(transcript: string): ToolCalls {
   const outputs = invocationOutputs(transcript);
   const searches = toolSearches(transcript);
-  const patches = transcript.split(/\r?\n/).flatMap(line => {
-    try { return rolloutCalls(JSON.parse(line)).flatMap(call => call.patch === undefined ? [] : [call.patch]); }
+  const patchCalls = transcript.split(/\r?\n/).flatMap(line => {
+    try { return rolloutCalls(JSON.parse(line)); }
     catch { return []; }
   });
-  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(patches.length ? { patches } : {}), ...(outputs.length ? { outputs } : {}), ...(searches.length ? { toolSearches: searches } : {}) };
+  const patches = patchCalls.flatMap(call => call.patch === undefined ? [] : [call.patch]);
+  const patchCandidates = patchCalls.flatMap(call => call.patchCandidate === undefined ? [] : [call.patchCandidate]);
+  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(patches.length ? { patches } : {}), ...(patchCandidates.length ? { patchCandidates } : {}), ...(outputs.length ? { outputs } : {}), ...(searches.length ? { toolSearches: searches } : {}) };
 }
