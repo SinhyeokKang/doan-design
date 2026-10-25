@@ -228,7 +228,8 @@ else if (args[1] === 'add') {
     assert.ok((await readFile(stub, "utf8")).includes("doan skill"));
     if (agent === "claude") assert.equal(await readlink(claudeLink), "../../.agents/skills/doan");
     assert.deepEqual(await mutations(), prior, `${agent}/${state}: no MCP mutation`);
-    await card(agent).getByText("Install the CLI link in step 1 before connecting MCP.", { exact: true }).waitFor();
+    // main's refusal names step 1; the row words it like the dimmed MCP item.
+    await card(agent).locator('.cn-say[role="alert"]').getByText("Connect the doan command first; MCP needs it.", { exact: true }).waitFor();
     assert.equal(await card(agent).getByText("Failed", { exact: true }).count(), 0);
   }
   await rm(cliLink); await symlink(cli, cliLink); await check();
@@ -438,6 +439,14 @@ else if (args[1] === 'add') {
   await writeFile(join(hiddenProject, "design/later.html"), canvasHtml("Later")); await listed(hiddenProject, "design/later.html");
   await app.evaluate(({ app }) => app.emit("activate")); await wait(visible, "shown");
   await page.locator(".toast").filter({ hasText: "New canvas in hidden-b" }).waitFor(); assert.equal(await openCanvas().count(), 0, "a hidden arrival does not open by itself");
+  // ⌘H hides the whole app (the native hide: selector), not only the window.
+  const appHidden = await setUpRepo("hidden-d"); await open(appHidden); await enterProject(page, appHidden);
+  await copyWaiting(overview(), "an app hidden screen");
+  await app.evaluate(({ Menu }) => Menu.sendActionToFirstResponder("hide:")); await wait(async () => !await visible(), "app hidden");
+  await writeFile(join(appHidden, "design/away.html"), canvasHtml("Away")); await listed(appHidden, "design/away.html");
+  assert.equal(await page.locator(".toast").filter({ hasText: "New canvas in hidden-d" }).count(), 0, "no toast while the app is hidden");
+  await app.evaluate(({ app }) => app.show()); await wait(visible, "app shown");
+  await page.locator(".toast").filter({ hasText: "New canvas in hidden-d" }).waitFor(); assert.equal(await openCanvas().count(), 0, "an arrival during ⌘H does not open by itself");
   const goneProject = await setUpRepo("gone-c"); await open(goneProject); await enterProject(page, goneProject);
   await copyWaiting(overview(), "a removed screen"); await removeHomeProject(page, goneProject);
   await writeFile(join(goneProject, "design/orphan.html"), canvasHtml("Orphan")); await open(goneProject); await listed(goneProject, "design/orphan.html");
