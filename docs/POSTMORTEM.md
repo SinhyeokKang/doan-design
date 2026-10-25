@@ -2,6 +2,12 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — A crash during quit teardown lost the debounced ui-state
+- **Symptom**: design-nav e2e intermittently read `ui-state.json` without `root` after entering a project and quitting at once (≈2 in 30 loaded runs, 0 in 8 idle runs).
+- **Root cause**: the newest state was accepted in main but only flushed on `will-quit`. With a thumbnail capture running, the process died with SIGSEGV right after `before-quit` disposed the capture window, so `will-quit` never ran and the 500 ms debounce left the previous value on disk.
+- **Net**: a main-side trace of save/before-quit/will-quit plus Electron's exit signal caught it; the assertion alone looked like a renderer race.
+- **Prevention**: flush durable state before any teardown that can fail (`rg -n 'flushSync|thumbnails\?\.dispose' app/src/main/index.ts`); keep the index regression that orders flush before dispose. The crash itself is still open.
+
 ### 2026-10-25 — A toast's Open was dropped while its project was still loading
 
 - **Area**: `app/src/renderer/CanvasController.ts` (`openWorkspace`, `updateEntries`), `app/src/renderer/App.tsx` (`added` toast), `app/e2e/projects-home.ts`.
