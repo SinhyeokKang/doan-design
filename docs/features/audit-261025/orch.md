@@ -121,6 +121,8 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 - H 통합 후보는 `5c5916f`, `ba546b9`, `0b3ef78`, `0c9f20d`이다. root의 Node helper tests 10개도 exit 0으로 통과했다.
 - E-fix `15d6c52`, `ca01a23`, `7d9fca9`, `e64267d`를 인수했다. 관련 44개 테스트와 추가 standalone-form 포함 25개 테스트가 통과했으며 full runner/self-test는 통합 게이트로 남겼다. 구현 terminal을 release하고 child는 통합·리뷰까지 보존한다.
 - IR-E-fix: 독립 Codex gpt-6-astra medium, 여섯 eval 파일의 실행 증거·judge 예산·CSS 도달 경계 재리뷰. tracked 파일 읽기와 root scratch report만 허용한다. H2 `ctx_552688d6ccd7`는 `audit-native-261025`에서 Astra medium effective/turn_start를 확인했고, 세 관련 native suite의 단독 실행 슬롯을 받았다.
+- H2 원본 `0d5bfb5`: comments-ui, projects-home, design-nav가 각각 자체 PASS·exit 0·real-state unchanged로 끝났다. 숨김 뒤 Undo, 일반 종료 guard, ID 없는 미리보기·댓글 제한의 새 스크린샷을 지휘자도 확인했고 `H2-evidence/`로 복사했다. 물리 키 조합 대신 실제 enabled 메뉴 callback·app.hide·app.quit의 native 효과를 검증했다. 수정 전 native red와 Save 승인 경로는 주장하지 않는다.
+- IR-app: H2 작성자를 구현하지 않은 A1/A2/A3a production·unit diff의 독립 리뷰에 재사용한다. Codex gpt-6-astra medium, 저장 불확실성·캐시 경합·네이티브 수명 주기 판단. 자기 H2 테스트는 리뷰 대상에서 제외한다. 관련 native 세 suite는 통과했고 전체 root 통합 gate는 별도로 수행한다.
 
 아래는 원본 31개 발견의 판정이다. 통합 후보는 최종 검증·수용을 뜻하지 않는다. UX 보고서의 52개 발견은 audit 병합 뒤 별도로 추적한다.
 
