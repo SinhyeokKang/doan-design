@@ -48,7 +48,7 @@ tasks.md의 1~14는 모두 위 배치 중 하나에 속한다(11은 실행하지
 - 1파: X ∥ A ∥ P ∥ S. X는 `.scratch`만, A는 formats·fixture만, P는 새 순수 모듈과 `activity.ts`·`canvasView.ts`, S는 main comments만 고친다.
 - 2파: L(P 뒤) ∥ M(S 뒤) ∥ K(A 뒤). L은 renderer, M은 main·preload, K는 skill·eval만 고친다.
 - 3파: C ∥ V(L 뒤), H(M 뒤). C는 CommentsPanel·CommentsSession·useComments·styles, V는 activity·canvasView·RightPanel·CanvasController, H는 Home·homeCards·ProjectOverview를 고친다. V가 해결 Activity를 위해 CommentsSession을 고쳐야 하면 지휘자에게 묻는다(C가 가진다).
-- 4파: B(C·V·H·M 뒤). 5파: E(B 뒤). 6파: T(E 뒤). 그 뒤 지휘자 `/verify --runtime --eval`, G, PR, 병합.
+- 4파: L2(C·V2 뒤, R-L 수정). 5파: E(L2 뒤). 6파: B(E·H 뒤, Edit and reopen…이 E의 편집기를 연다). 7파: T(B 뒤). (2026-10-26 순서 변경: E를 B 앞으로 옮겼다.) 그 뒤 지휘자 `/verify --runtime --eval`, G, PR, 병합.
 - 각 배치는 `--worktree new-child --base-branch feat-revision-recheck`로 만든 자기 worktree에서 돈다.
 - 링크 1·2에서 남은 일: 화면 잠금 때문에 전체 runtime 묶음이 돌지 않았다. 이 링크의 `verify --runtime` 전에 `ioreg -n Root -d1`로 잠금 상태를 확인한다. 풀려 있으면 이 실행이 링크 1·2도 덮는다. 잠겨 있으면 통과로 세지 않고 그대로 보고한다.
 
@@ -84,3 +84,4 @@ tasks.md의 1~14는 모두 위 배치 중 하나에 속한다(11은 실행하지
 - 2026-10-26: M2(`ctx_e434ccfec743`, Codex Sol medium, `rr-m2`) 시작 영수증은 `outcome_unknown`(turn 시작 미관측)이었다. worker-read에서 liveness live, activity working을 확인해 다시 띄우지 않았다.
 - 2026-10-26: M2 질문 — 허락: `docs/POSTMORTEM.md`를 별도 docs 커밋으로 직접 고친다. 새 reader 연결에 필요하면 `index.test.ts`도 고친다.
 - 2026-10-26: R-V 완료(Codex Astra medium) — 🔴 0 · 🟡 2 · ⚪ 0. V-1: 해결 기록이 캔버스별 50개 제한을 채우면 마지막 문서 이벤트가 밀려나 하단 라벨이 사라진다. V-2: 링크로 A → B → A를 오가면 B의 읽기 전에 A의 옛 기준값을 다시 써서 가짜 Resolved가 기록된다. 둘 다 `CanvasController.ts`라 수정 배치 V2(Opus medium)를 지금 시작한다(C와 겹치지 않음). L2는 C와 V2 통합 뒤에 시작한다. R-V 해제, `rr-r-v` 제거.
+- 2026-10-26: C 완료(`20844e2`, `ddf9dde`, `723b8fb`) — 해결 메타(부분 반환, formats 타입), Canvas changed, Resolved 정렬, 4초 상태 줄(캔버스·문서 교체 때 타이머 정리), 카드가 빠질 때 `nextFocus`(사람·에이전트). 계획과 다른 점: 상태 확인 복구 경로에서도 상태 줄을 보인다, 상태 줄 위치는 카드를 빼는 의도에서만 기록한다. 통합(`4a5e413`, `e288cee`, `9865812`), 통합 HEAD test 2596·typecheck 통과(지휘자 실행). C 해제, `rr-c` 제거. R-C(Opus high) 시작.
