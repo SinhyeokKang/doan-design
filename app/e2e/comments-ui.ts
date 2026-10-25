@@ -210,6 +210,68 @@ try {
   await cards.filter({ hasText: "Child note" }).waitFor();
   await page.waitForFunction(() => document.querySelectorAll(".comments-card").length === 1 && document.querySelector(".comments-card")?.textContent?.includes("Child note"));
   assert.equal(await cards.count(), 1, "selection excludes canvas comment");
+  // UX audit U-11/U-17/U-29: failures and modal keys retain the current context.
+  await app.evaluate(({ ipcMain }) => {
+    Reflect.set(globalThis, "beginOriginalC", Reflect.get(ipcMain, "_invokeHandlers").get("comments:begin"));
+    ipcMain.removeHandler("comments:begin");
+    ipcMain.handle("comments:begin", (_event, request) => ({ ok: false, identity: request, error: "Injected begin failure" }));
+  });
+  try {
+    await panel.getByRole("button", { name: "New selection comment", exact: true }).click();
+    await panel.getByText("Couldn’t start comment: Injected begin failure", { exact: true }).waitFor();
+    assert.equal(await cards.count(), 1);
+    for (const name of ["Edit", "Resolve", "Delete", "Copy"]) assert.equal(await cards.getByRole("button", { name, exact: true }).isEnabled(), true);
+    assert.equal(await panel.getByText("Comments are read-only", { exact: true }).count(), 0);
+    await shot("C-begin-failed-list-retained");
+  } finally {
+    await app.evaluate(({ ipcMain }) => { ipcMain.removeHandler("comments:begin"); ipcMain.handle("comments:begin", Reflect.get(globalThis, "beginOriginalC")); });
+  }
+  await panel.getByRole("button", { name: "New selection comment", exact: true }).click();
+  await createBody.waitFor();
+  assert.equal(await panel.getByText("Couldn’t start comment: Injected begin failure", { exact: true }).count(), 0);
+  await panel.getByRole("button", { name: "Cancel", exact: true }).click();
+  const activeC = async () => JSON.parse((await exec(cli, ["active", "--json", "--repo", repo], { env: { ...process.env, DOAN_RUNTIME: join(userData, "runtime.json") } })).stdout);
+  const selectedC = await activeC();
+  const inspectorC = page.getByRole("region", { name: "Inspector", exact: true });
+  await inspectorC.getByText("Width", { exact: true }).waitFor();
+  const inspectorBeforeC = await inspectorC.innerText();
+  await cards.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("dialog", { name: "Delete this comment?", exact: true }).press("Escape");
+  assert.equal(await page.getByRole("dialog").count(), 0);
+  assert.deepEqual(await activeC(), selectedC);
+  assert.equal(await inspectorC.innerText(), inspectorBeforeC);
+  assert.equal(await panel.getByRole("heading", { name: "Comments", exact: true }).evaluate(el => el === document.activeElement), true);
+  await shot("C-delete-escape-selection-retained");
+  await app.evaluate(({ ipcMain }) => {
+    const original = Reflect.get(ipcMain, "_invokeHandlers").get("inspect:get");
+    const gate = { original, held: false, released: false, release: () => {} };
+    Reflect.set(globalThis, "inspectGateC", gate);
+    ipcMain.removeHandler("inspect:get");
+    ipcMain.handle("inspect:get", async (...args) => {
+      const result = await original(...args);
+      if (!gate.held) { gate.held = true; await new Promise<void>(resolve => { gate.release = resolve; }); gate.released = true; }
+      return result;
+    });
+  });
+  try {
+    await inspectorC.getByRole("button", { name: "hero", exact: true }).click();
+    await waitGate(() => app!.evaluate(() => Reflect.get(globalThis, "inspectGateC").held));
+    await inspectorC.getByRole("status").getByText("Reading styles…", { exact: true }).waitFor();
+    assert.equal(await inspectorC.getByText("Width", { exact: true }).count(), 0);
+    await shot("C-inspector-reading");
+    await frame.getByRole("button", { name: "Child target" }).click();
+    await inspectorC.getByText("Width", { exact: true }).waitFor();
+    assert.equal(await inspectorC.getByText("Reading styles…", { exact: true }).count(), 0);
+    const newer = await inspectorC.innerText();
+    await app.evaluate(() => Reflect.get(globalThis, "inspectGateC").release());
+    await waitGate(() => app!.evaluate(() => Reflect.get(globalThis, "inspectGateC").released));
+    await page.waitForTimeout(100);
+    assert.equal(await inspectorC.innerText(), newer, "late frame inspection cannot overwrite child values");
+    await shot("C-inspector-newer-completed");
+  } finally {
+    await app.evaluate(({ ipcMain }) => { const gate = Reflect.get(globalThis, "inspectGateC"); gate.release(); ipcMain.removeHandler("inspect:get"); ipcMain.handle("inspect:get", gate.original); });
+  }
+
   await cards.getByRole("button", { name: "Copy", exact: true }).click();
   await cards.getByRole("button", { name: "Copied", exact: true }).waitFor();
   let copied = await app.evaluate(({ clipboard }) => clipboard.readText());
