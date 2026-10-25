@@ -148,3 +148,7 @@
 - S의 신규 Retry 성공 뒤 포커스 유실을 지휘자가 추가 점검하도록 요청했고 실제 red→green을 받았다. O 리뷰에서 확인한 설치 오류의 최신 요청 소유권을 같은 Settings handler에도 재현·수정하도록 S에 맡겼다. 기존 순차 Retry PASS와 겹친 요청 검증을 구분한다.
 
 - IR-O-fix는 O-fix 인계 후 별도 작성자의 Codex gpt-6-astra medium으로 진행한다. 최신 설치 요청과 중첩 dialog의 실제 입력·실패 증거를 판정해야 하므로 이 모델을 선택했다. 전체 O diff와 후속 수정, red/green·미재현 근거를 읽고 root scratch review-O-fix.md만 작성한다. 추측한 포커스 결함을 고치도록 강제하지 않고 최종 근거로 판정한다.
+
+- O-fix는 실제 disabled 렌더링을 기다리자 pointer/keyboard의 reject·반복 reject·unavailable 6건에서 BODY 포커스와 Escape 차단을 재현했다. `9b07d6b`의 최종 native PASS/SHELL_EXIT=0·196 tests·typecheck·실행 전후 247파일 SHA256 일치를 인수했다. 증거 50개를 root에 해시 대조해 복사했고 지휘자도 최종 reject/unavailable의 Cancel 포커스 화면을 확인했다. 작성자는 release, IR-O-fix `ctx_21efc8571e49`의 Astra medium effective·turn_start를 확인했다.
+- S는 최초 19건·Retry 포커스 1건·설치 순서 3개 assertion의 red와 최종 Settings PASS/exit 0·26 tests·typecheck를 인수했다. root S-evidence의 42파일을 원본과 해시 대조했고 지휘자도 최종 긴 branch·config Retry·Serve 확인 화면을 확인했다. IR-S `ctx_f296dc0bc976`는 Astra medium으로 전체 diff를 검토해 red 0/yellow 0이었다.
+- S를 `b4842c5`·`c30109d`·`9c434e3`·`3c389f0`·`851ce23`로 통합했다. 작성자와 리뷰어를 release하고 clean child·미통합 patch 없음·증거 보존을 확인한 뒤 Orca로 삭제했으며 목록에서 부재를 확인했다. S의 final manifest는 Settings JS/CSS 2파일만 대조한 근거다. renderer IPC reject는 정적 확인이며 실제 OS sheet·tooltip 그림은 미검증이다. 하이픈 없는 긴 branch의 실측은 P에 넘겼다.
