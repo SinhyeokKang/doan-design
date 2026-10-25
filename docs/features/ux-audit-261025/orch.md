@@ -217,3 +217,4 @@
 - N-3 과거 첫 layout 실패, 기존 production Radix inline-style CSP 경고, U-38/46과 실제 native Finder drag/drop은 해결·검증 완료로 집계하지 않는다. 합본 결과와 push/PR/병합 영수증은 아래에 추가한다.
 
 - clean `32d635e`의 첫 합본 gate는 runner 7 tests·Go test/vet·typecheck 뒤 app-test에서 exit 1로 멈췄다(97파일 중 1실패, 2076개 중 1실패). P가 추가한 Overview 제목의 title 속성을 기존 ProjectOverview 문자열 정규식이 허용하지 않는다. 제품 결함으로 숨기거나 통과로 집계하지 않으며 Electron은 아직 실행하지 않았다. V-fix는 ProjectOverview.test.tsx의 직접 기대만 고쳐 title과 표시 텍스트를 함께 검증한다. Codex gpt-6.1-sol medium: 구현 변경 없는 좁은 테스트 정합성 수정이다. 관련 테스트·typecheck·독립 리뷰 후 전체 gate를 다시 실행한다.
+- V-fix `ctx_9fe274c39694`의 Sol medium effective·turn_start를 확인했다. 후속 IR-Vfix는 다른 작성자의 Sol low로 기대값 한 곳과 실제 markup, 회귀 로그만 검토한다. 판단 범위가 좁으며 테스트 의미를 약화하지 않았는지가 완료 기준이다. 원 gate 로그는 `.scratch/ux-integration-261025/verify-final.log`, 단계별 기록은 `.scratch/verify/2026-10-25T12-48-34-901Z-48873/`에 보존한다.
