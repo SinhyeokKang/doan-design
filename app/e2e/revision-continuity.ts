@@ -318,7 +318,11 @@ try {
     assert.equal(await panel().locator(".comments-composer .comments-target").textContent(), "To: Element · button child · in Hero");
     await saveNew(gone);
     assert.equal((await savedBodies("a")).find(event => event.body === gone)?.target?.element?.doanId, "child");
+    // Brings Other target back and waits for that reload: left pending, it can
+    // fall outside the watcher's 200 ms debounce of the next scenario's own write
+    // and block that draft again after it was continued.
     await touchA();
+    await wait(async () => await frame().getByRole("button", { name: "Other target", exact: true }).count() === 1, "Other target restored");
   });
 
   await scenario("2c-continue-failure-keeps-focus", async () => {
