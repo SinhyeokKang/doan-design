@@ -47,7 +47,24 @@ try {
     await exec("git", ["init", project]); await exec("git", ["-C", project, "config", "user.name", "Boundary Author"]);
     await exec("git", ["-C", project, "config", "user.email", "boundary@example.test"]);
   }
-  await writeFile(join(userData, "folders.json"), JSON.stringify([repo, originRepo, destinationRepo]));
+  // A target without doan-id, and a log with an invalid line and a union-merged conflicting duplicate.
+  const readRepo = join(work, "readability");
+  await mkdir(join(readRepo, ".doan/comments"), { recursive: true }); await mkdir(join(readRepo, "design"));
+  await writeFile(join(readRepo, ".doan/config.json"), '{"v":1}');
+  await writeFile(join(readRepo, "design/r.html"), html("r").replace(/<section[^]*$/, '<section data-doan-frame="ship" data-doan-title="Shipping"><p style="margin:0;padding:10px;width:fit-content">Delivery takes 3–5 business days after the order ships.</p></section>'));
+  await writeFile(join(readRepo, "design/w.html"), html("w"));
+  const warnedComment = `cmt_${randomUUID()}`, conflictedEvent = `evt_${randomUUID()}`, by = { kind: "human", name: "Merge Author" };
+  const created = JSON.stringify({ v: 1, id: `evt_${randomUUID()}`, at: "2026-10-26T01:00:00.000Z", type: "create", comment: warnedComment, by, body: "Original body", canvasHash: `sha256:${"0".repeat(64)}`, target: {} });
+  const edited = (body: string) => JSON.stringify({ v: 1, id: conflictedEvent, at: "2026-10-26T02:00:00.000Z", type: "edit", comment: warnedComment, by, body });
+  // A write cut short leaves line 2 unreadable; both branches then rewrote the same edit line.
+  const merged = join(readRepo, ".doan/comments/w.jsonl"), mergeBase = join(work, "merge-base.jsonl"), theirs = join(work, "merge-theirs.jsonl");
+  const log = (edit: string) => `${created}\n{"v":1,"id":"evt_\n${edit}\n`;
+  await writeFile(merged, log(edited("Ours"))); await writeFile(mergeBase, log(edited("Base"))); await writeFile(theirs, log(edited("Theirs")));
+  await exec("git", ["merge-file", "--union", merged, mergeBase, theirs]);
+  assert.equal((await readFile(merged, "utf8")).trim().split("\n").length, 4, "union merge kept both edit lines");
+  await exec("git", ["init", readRepo]); await exec("git", ["-C", readRepo, "config", "user.name", "Readable Author"]);
+  await exec("git", ["-C", readRepo, "config", "user.email", "readable@example.test"]);
+  await writeFile(join(userData, "folders.json"), JSON.stringify([repo, originRepo, destinationRepo, readRepo]));
   await exec("go", ["build", "-o", cli, "./cli/cmd/doan"], { cwd: root });
   const home = join(work, "home"), fakeShell = join(work, "fake-shell");
   await mkdir(home);
@@ -155,6 +172,7 @@ try {
     assert.equal(await panel.getByRole("button", { name: /^Comment on (canvas|selection)$/ }).count(), 0);
     assert.equal(await panel.getByRole("group", { name: "Comment scope" }).count(), 0);
     assert.equal(await panel.getByText("Comments are read-only", { exact: true }).count(), 0);
+    assert.equal(await panel.locator(".comments-message").count(), 1, "one identity block");
   };
   for (const invalid of [html("BAD_ID"), html("shared").replace('<meta name="doan:canvas" content="shared">', "")]) {
     await writeFile(join(destinationRepo, "design/shared.html"), invalid); await blocked.waitFor();
@@ -168,6 +186,85 @@ try {
   await panelOnly();
   assert.equal(await logBytes(destinationLog), afterMissing);
   await shot("00e-invalid-duplicate-id");
+  await rm(join(destinationRepo, "design/duplicate.html"));
+  await panel.getByRole("alert").filter({ hasText: "Another canvas uses the ID shared" }).waitFor({ state: "hidden" });
+  await panel.getByRole("group", { name: "Comment scope" }).waitFor();
+
+  // Readable target lines and a reachable composer in the minimum window.
+  const readWindow = await appWindow(app, page);
+  const resize = async (width: number, height: number) => {
+    await readWindow.evaluate((window, size) => window.setSize(size.width, size.height), { width, height });
+    await page.waitForFunction(width => innerWidth === width, width);
+  };
+  await enterProject(page, readRepo); await canvasRow(page, "r.html").click();
+  // Playwright's own point misses the text inside the scaled board; map it through the iframe scale.
+  const textPoint = await page.frameLocator("iframe").getByText("Delivery takes", { exact: false }).evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  const readBoard = await page.locator("iframe").evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, scale: r.width / el.clientWidth }; });
+  await page.mouse.click(readBoard.x + textPoint.x * readBoard.scale, readBoard.y + textPoint.y * readBoard.scale);
+  await waitGate(async () => await page.getByRole("region", { name: "Inspector", exact: true }).locator("h3").first().textContent() === "p");
+  await panel.getByRole("button", { name: "Comment on selection", exact: true }).waitFor();
+  await resize(960, 600);
+  try {
+    await panel.getByRole("button", { name: "Comment on selection", exact: true }).click();
+    await page.waitForFunction(() => document.activeElement?.tagName === "TEXTAREA");
+    const toLine = await panel.locator(".comments-composer label > .comments-target").evaluate(el => {
+      const s = getComputedStyle(el);
+      return { text: el.textContent, nowrap: s.whiteSpace === "nowrap", ellipsis: s.textOverflow === "ellipsis", cut: el.scrollWidth > el.clientWidth, oneLine: el.getBoundingClientRect().height <= parseFloat(s.lineHeight) + 1 };
+    });
+    assert.deepEqual(toLine, { text: "To: Element · p “Delivery takes 3–5 business days after t…” · in Shipping", nowrap: true, ellipsis: true, cut: true, oneLine: true });
+    // Client rect, not border box: the native scrollbar is outside the reachable area.
+    const reach = () => panel.evaluate(el => {
+      const r = el.getBoundingClientRect(), top = r.top + el.clientTop, bottom = top + el.clientHeight, left = r.left + el.clientLeft, right = left + el.clientWidth;
+      const inside = (selector: string) => { const p = el.querySelector(selector)!.getBoundingClientRect(); return p.top >= top && p.bottom <= bottom && p.left >= left && p.right <= right; };
+      return { short: el.clientHeight < 360, title: inside(".comments-title"), to: inside(".comments-composer label > .comments-target"), input: inside(".comments-composer textarea"), save: inside(".comments-composer .comments-btn.primary") };
+    });
+    const reachable = { short: true, title: true, to: true, input: true, save: true };
+    await waitGate(async () => JSON.stringify(await reach()) === JSON.stringify(reachable)).catch(() => {});
+    assert.deepEqual(await reach(), reachable, "composer reachable at 960 x 600");
+    await boundaryBody.fill("Ships too slowly");
+    await panel.getByRole("button", { name: "Save comment", exact: true }).click();
+    const readableTarget = cards.filter({ hasText: "Ships too slowly" }).locator(".comments-target");
+    await waitGate(async () => await readableTarget.evaluate(el => el.tagName) === "BUTTON");
+    assert.equal(await readableTarget.textContent(), "Element · p “Delivery takes 3–5 business days after t…” · in Shipping");
+    assert.match(await readableTarget.getAttribute("title") ?? "", /^Show on canvas\n\[data-doan-frame="ship"\] > p/);
+    await shot("00f-readable-target-small-window");
+  } finally {
+    await resize(1238, 780);
+  }
+  // Warnings from the merged log: one grouped block with line numbers and the file line.
+  await canvasRow(page, "w.html").click();
+  const warnings = panel.locator(".comments-warnings");
+  await warnings.waitFor();
+  assert.equal(await panel.locator(".comments-message").count(), 1);
+  assert.equal(await warnings.locator("b").textContent(), "Some comment changes were ignored");
+  assert.deepEqual(await warnings.locator("li").evaluateAll(items => items.map(item => [item.firstChild?.textContent, item.querySelector(".lines")?.textContent])), [
+    ["A line could not be read and was skipped.", "Line 2"],
+    ["Two versions of the same change disagree, so both were ignored.", "Lines 3, 4"],
+  ]);
+  assert.deepEqual(await warnings.locator("p.file").allTextContents(), ["In .doan/comments/w.jsonl. Ask your agent to run doan comments and fix the file."]);
+  await cards.filter({ hasText: "Original body" }).waitFor(); assert.equal(await cards.count(), 1);
+  await shot("00g-grouped-warnings");
+  // A read failure is one block, not a read-only one, and Retry recovers.
+  await app.evaluate(({ ipcMain }) => {
+    Reflect.set(globalThis, "readFailureOriginal", Reflect.get(ipcMain, "_invokeHandlers").get("comments:list"));
+    ipcMain.removeHandler("comments:list");
+    ipcMain.handle("comments:list", (_event, request) => ({ ok: false, identity: request, error: "Injected read failure" }));
+  });
+  try {
+    await canvasRow(page, "r.html").click();
+    await panel.getByRole("alert").filter({ hasText: "Couldn’t read comments" }).waitFor();
+    // The Git name check runs beside the read; its loading block is not part of the failure.
+    await panel.getByText("Checking Git name…", { exact: true }).waitFor({ state: "hidden" });
+    assert.equal(await panel.locator(".comments-message").count(), 1);
+    assert.equal(await panel.getByText("Comments are read-only", { exact: true }).count(), 0);
+    assert.equal(await cards.count(), 0);
+    await shot("00h-read-failure");
+  } finally {
+    await app.evaluate(({ ipcMain }) => { ipcMain.removeHandler("comments:list"); ipcMain.handle("comments:list", Reflect.get(globalThis, "readFailureOriginal")); });
+  }
+  await panel.getByRole("button", { name: "Retry", exact: true }).click();
+  await cards.filter({ hasText: "Ships too slowly" }).waitFor();
+  assert.equal(await panel.locator(".comments-message").count(), 0);
 
   await enterProject(page, repo);
   await canvasRow(page, "a.html").click();
