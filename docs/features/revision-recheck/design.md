@@ -22,7 +22,7 @@
 - `CanvasController.locate(node, comment)`는 앵커 스냅샷의 노드 사각형으로 이동하고 강조한 뒤, `select-anchor`(`selectPathNow`) 경로로 선택한다.
   - 앵커 사각형은 프로토콜을 바꾸지 않아도 이미 있다. iframe 높이가 문서 전체이므로 `canvasScript.ts`가 매칭된 노드의 board 좌표 사각형을 보내고, `AnchorSnapshot.rects`에 해결된 댓글 것까지 있다.
   - 이동은 `fitFrame`과 같이 배율을 바꾸지 않는다. 화면만 옮겨 사각형을 가운데에 둔다(`locateView`). 사각형이 뷰포트보다 크면 위쪽 가장자리에 맞춘다.
-- 이 경로는 핀 경로(`select-comment` → `hooks.open`)를 쓰지 않는다. 그래서 상태 필터가 Open으로 바뀌지 않는다. renderer는 "locate가 요청한 선택 정체성" 표지를 두고, 범위 맞춤 효과는 그 정체성과 같으면 건너뛴다. 이 표지는 `revision-continuity`의 `selectionIdentity` 규칙을 넓힌 예외이며, 결정 영향에 적는다.
+- 이 경로는 핀 경로(`select-comment` → `hooks.open`)를 쓰지 않는다. 그래서 상태 필터가 Open으로 바뀌지 않는다. controller는 locate가 보낸 select-anchor에 답한 선택에만 표지(`CanvasState.located`)를 단다. 다른 답, 선택 해제, 로드, iframe 안 이동에서 표지가 끝난다. 범위 맞춤 효과는 이 표지가 있는 선택에서만 건너뛴다(2026-10-26 R-L 수정, 처음 설계는 저장된 대상으로 정체성을 예측했다). 이 표지는 `revision-continuity`의 `selectionIdentity` 규칙을 넓힌 예외이며, 결정 영향에 적는다.
 - Review 단계의 이동은 `jumpToNode(node)`다. 화면 이동과 강조만 하고 선택은 하지 않는다(RR3). 트리 프레임 점프와 같은 규칙이다.
 
 ### 2. 해결 메타와 `lastResolution` (L-7, Q5, RR5①)
