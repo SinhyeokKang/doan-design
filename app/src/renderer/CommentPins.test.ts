@@ -12,11 +12,14 @@ it("keeps focus during geometry updates and falls back only when the focused nod
   layer.render([{ node: "same", comments: ["a", "b"], x: 30, y: 40 }, { node: "child", comments: ["c"], x: 30, y: 40 }]);
   expect(buttons).toHaveLength(2);
   expect(buttons[0]?.style.height).toBe("24px");
+  expect(buttons[0]?.setAttribute).toHaveBeenLastCalledWith("aria-label", "2 open comments");
+  expect(buttons[1]?.setAttribute).toHaveBeenLastCalledWith("aria-label", "1 open comment");
   document.activeElement = buttons[0];
   layer.render([{ node: "same", comments: ["a"], x: 300, y: 400 }]);
   expect(buttons).toHaveLength(2);
   expect(fallback).not.toHaveBeenCalled();
   expect(buttons[0]?.style.left).toBe("300px");
+  expect(buttons[0]?.setAttribute).toHaveBeenLastCalledWith("aria-label", "1 open comment");
   buttons[0]?.dispatchEvent(new Event("click"));
   expect(activate).toHaveBeenCalledWith("same");
   layer.render([]);

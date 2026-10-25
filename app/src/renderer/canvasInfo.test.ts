@@ -4,12 +4,13 @@ import { canvasInfo } from "./canvasInfo";
 
 const row: CanvasRow = { path: "design/a.html", id: "a", width: 1440, open: 2, resolved: 1, url: "url" };
 
-test("shows all canvas values and counts", () => {
-  expect(canvasInfo(row, { frames: [{}, {}], truncated: false })).toEqual({ path: "design/a.html", id: "a", width: "1440 px", frames: "2", open: "2", resolved: "1" });
+// Comment counts live only in the Comments panel (comments-readability Q3).
+test("shows the canvas values without comment counts", () => {
+  expect(canvasInfo(row, { frames: [{}, {}], truncated: false })).toEqual({ path: "design/a.html", id: "a", width: "1440 px", frames: "2" });
 });
 
-test("uses a dash for missing width, id and layout, preserving zero comments", () => {
-  expect(canvasInfo({ path: "design/a.html", url: "url", open: 0, resolved: 0 }, null)).toEqual({ path: "design/a.html", id: "—", width: "—", frames: "—", open: "0", resolved: "0" });
+test("uses a dash for missing width, id and layout", () => {
+  expect(canvasInfo({ path: "design/a.html", url: "url", open: 0, resolved: 0 }, null)).toEqual({ path: "design/a.html", id: "—", width: "—", frames: "—" });
 });
 
 test("distinguishes no frames from truncated layout", () => {

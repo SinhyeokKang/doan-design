@@ -38,8 +38,9 @@ test("does not turn a clipped title into a 1,000+ frame count", () => {
   expect(sidebar(state)).not.toContain('Showing the first 1,000');
 });
 
-test("shows a positive open-comment badge", () => {
-  expect(sidebar(initialCanvasState(), { ...row, open: 2 })).toContain('2 open comments');
+test("shows a positive open-comment badge, singular for one", () => {
+  expect(sidebar(initialCanvasState(), { ...row, open: 2 })).toContain('aria-label="2 open comments"');
+  expect(sidebar(initialCanvasState(), { ...row, open: 1 })).toContain('aria-label="1 open comment"');
 });
 
 
