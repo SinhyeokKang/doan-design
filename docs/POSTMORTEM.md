@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — Delayed startup restoration replaced newer navigation
+
+- **Area**: `App.tsx`, `CanvasController.ts`, `app/e2e/design-nav.ts`.
+- **Symptom**: a held initial UI-state read or saved-root listing could restore an old workspace after the user had already navigated Home, expanded the tree or established newer navigation memory.
+- **Root cause**: asynchronous startup restoration had no cancellation owner spanning both its initial read and its later root wait. Completing initialization was treated as unconditional authority over current intent.
+- **Net**: holding each response and observing its actual renderer consumer reproduced the old App replacing Home. The first native green merely waited two frames after main release; the final fixture instead observes the real read callback and controller update before checking the rendered outcome. This does not explain the separate single normal-restart first-layout failure recorded in the N handoff.
+- **Prevention**: invalidate unapplied restore at explicit navigation/tree changes and reject obsolete read completions. Search run: `rg -n 'restoreCancelled|cancelWorkspaceOpen' app/src/renderer/App.tsx app/src/renderer/CanvasController.ts` locates the startup and pending-workspace owners. Retain both held-response cases and the ordinary restore gate; do not infer startup correctness from one successful relaunch.
+
 ### 2026-10-25 — An older install failure replaced newer feedback
 
 - **Area**: `Onboarding.tsx`, `settingsWindow.tsx`.
@@ -51,6 +59,8 @@
 - **Prevention**: compose document and native visibility, wait for the initial native state, and reset the elapsed baseline on visibility changes. Reveal main only when actually dispatching a guard, preserving deferred teardown. Search run: `rg -n 'document.hidden|onWindowVisibility|activeTemps|waitFor|suiteGuard|checkedGit|patchCandidates' app/src/renderer/Toast.tsx app/src/main/thumbnails.ts app/e2e/harness.ts eval/lib/context.ts eval/lib/transcript.ts`; Toast is the visibility consumer covered here. Keep expiry deadlines anchored before native show, including expensive screenshot time.
 
 - **Follow-up (2026-10-25, A3b)**: the user subsequently approved a separate uncertain-save quit warning. Its implementation and verification are recorded above; the earlier undecided status is historical.
+
+- **Recurrence (2026-10-25, UX N)**: an App modal could consume a toast opportunity while preventing its action. Modal pause now composes with existing pause inputs and preserves remaining time. The native test holds the modal past eight seconds, then checks expiry against the remaining-time deadline; existing native hide/close absolute deadlines remain. Search run: `rg -n 'setModal|isToastPaused' app/src/renderer/App.tsx app/src/renderer/Toast.tsx app/src/renderer/toastState.ts`.
 
 ### 2026-10-25 — Startup cache collection deleted a live thumbnail temporary file
 
@@ -103,6 +113,8 @@
 - **Root cause**: main sends the add outcome right after storing the folder, before its first `ls --repo` read finishes, so the toast can offer Open for an entry that is still `loading`. `openWorkspace` treated any non-list entry as "nothing to open" and silently returned. Latent since the toast existed; app-setup's extra IPC and process load made the read slower relative to the click.
 - **Net**: the unchanged e2e caught it only intermittently; unit tests had covered only list entries. A wrapper CLI that delays the added folder's read made the failure deterministic (3/3) before the fix.
 - **Prevention**: an action offered before a read finishes must wait for that read (and be superseded by later navigation) rather than check the state once. Search: `rg -n 'kind !== "list"\) return|kind === "list"' app/src/renderer` for other one-shot checks on entries that may still be loading; Home's row activation already only enters list rows.
+
+- **Recurrence (2026-10-25, UX N)**: a completed non-list read still silently consumed Added/Open. That explicit action now returns to the highlighted Home row, after current-intent and draft revalidation; ordinary opens keep their prior behavior. Newer Home intent also cancels a pending approval. Controlled loading/error and guard races fail before the fix and pass afterward. The same explicit-failure distinction is covered for FirstPrompt and Quick Open; automatic arrival expiry stays silent.
 
 ### 2026-10-25 — A TS helper hid its TSX component on case-insensitive macOS
 
@@ -260,6 +272,8 @@
 - **Root cause**: the effect that closed the dialog called `setSetup(null)` and `focus()` on the row in the same tick. The modal `<dialog>` was still open, so everything behind it was inert and `focus()` was a no-op; the later unmount left focus on the body. Closes started by the dialog worked only because they call `dialog.close()` first.
 - **Net**: batch I's onboarding runtime probe caught it; unit tests could not (no DOM, and the rule is Chromium's inert/modal focus behavior). A new runtime step (`setupClosedOutside` in `app/e2e/runtime.ts`) covering terminal init, delete, rename and terminal re-root failed with focus on BODY before the fix and passes after.
 - **Prevention**: never focus content behind an open modal dialog; close the dialog (or wait for it to unmount) before focusing. Run `rg -n 'showModal|focusRow|focusAfterSetup' app/src/renderer` to find modal owners and focus moves that may run while a modal is open.
+
+- **Recurrence (2026-10-25, UX N)**: a connected origin can be hidden/inert, disabled, replaced by recovery, or removed with a toast. Quick Open can still hold focus in a closed but connected input before unmount. Current-screen fallback now excludes unusable targets, preserves deliberate focus and valid native return, and handles that removed-origin close. Actual keyboard regressions cover setup completion/re-root, Retry/Locate, Undo/toast replacement and Quick Open Escape. Search run: `rg -n 'focusCurrent|recoveryFocus|activeElement' app/src/renderer/App.tsx app/src/renderer/Toast.tsx`; do not replace a real missing-origin reproduction with forced BODY focus.
 
 ### 2026-10-24 — Setup rejected linked configuration directories
 
