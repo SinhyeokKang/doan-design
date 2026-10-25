@@ -193,3 +193,11 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 - 검증한 수정분과 미결정을 검토할 수 있도록 현재 branch를 push하고 draft PR로 보관한다. 미결정이 해결되기 전 merge하지 않는다.
 
 - Push 완료: `feat-audit-261025`, draft PR https://github.com/SinhyeokKang/doan-design/pull/19. 병합하지 않았다. 기록 후 문서의 로컬 Markdown 링크 존재와 `git diff --check`를 확인했다.
+
+### 사용자 결정 후 재개 (2026-10-25)
+
+- 사용자가 A-M1 전용 종료 경고를 승인했다. 내부 이동은 이유를 표시하며 차단하고, 종료만 메모리 초안 소실·저장 여부 미확인 경고 뒤 명시적으로 승인한다. 종료/재시작으로 저장 성공·자식 종료를 보장하거나 quarantine을 해제하지 않는다.
+- 사용자가 A-L1의 내부 iframe 실패 허용을 승인했다. 외곽 캔버스 자체의 실패는 unavailable이며 정상 외곽의 렌더링 결과는 캡처한다. 이전 job 오염은 probe에서 미재현이라는 기록을 유지한다.
+- A3b: Codex gpt-6-astra medium. 불확실 요청·guard·비동기 답변·quit 수명 주기 판단이 필요하다. 소유 파일은 CommentsSession/useComments/CommentsPanel 및 직접 연결 App·draft·transitions/index와 관련 테스트, comments-ui e2e. 서비스 저장/권한 계약은 변경하지 않는다. 단위 red→green·typecheck, native unknown/recovery-blocked 취소·종료와 내부 이동 차단을 검증한다.
+- T: Codex gpt-6-astra medium. Electron frame 식별·오래된 이벤트·job 수명 주기 판단이 필요하다. 소유 파일은 thumbnailWindow와 해당 테스트, thumbnails e2e만이다. 외곽 404/unreachable과 내부 404/unreachable, 연속 캡처의 단위/실제 앱 대조를 수행한다.
+- 두 배치는 별도 child로 병렬 구현한다. root는 문서/통합을 계속 담당하며, native build/runtime 슬롯은 반드시 직렬 예약한다. 각각 완료 뒤 별도 작성자의 독립 리뷰를 받고 최종 공통 gate를 다시 수행한다. 이전 실제 agent-eval의 CLI/guide/eval 구현은 이번 두 app-only 수정과 무관해 증거를 재사용한다. 그 뒤 PR #19를 갱신·병합하고 UX 수정을 시작한다.
