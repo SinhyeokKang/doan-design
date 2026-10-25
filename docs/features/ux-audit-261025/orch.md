@@ -152,3 +152,11 @@
 - O-fix는 실제 disabled 렌더링을 기다리자 pointer/keyboard의 reject·반복 reject·unavailable 6건에서 BODY 포커스와 Escape 차단을 재현했다. `9b07d6b`의 최종 native PASS/SHELL_EXIT=0·196 tests·typecheck·실행 전후 247파일 SHA256 일치를 인수했다. 증거 50개를 root에 해시 대조해 복사했고 지휘자도 최종 reject/unavailable의 Cancel 포커스 화면을 확인했다. 작성자는 release, IR-O-fix `ctx_21efc8571e49`의 Astra medium effective·turn_start를 확인했다.
 - S는 최초 19건·Retry 포커스 1건·설치 순서 3개 assertion의 red와 최종 Settings PASS/exit 0·26 tests·typecheck를 인수했다. root S-evidence의 42파일을 원본과 해시 대조했고 지휘자도 최종 긴 branch·config Retry·Serve 확인 화면을 확인했다. IR-S `ctx_f296dc0bc976`는 Astra medium으로 전체 diff를 검토해 red 0/yellow 0이었다.
 - S를 `b4842c5`·`c30109d`·`9c434e3`·`3c389f0`·`851ce23`로 통합했다. 작성자와 리뷰어를 release하고 clean child·미통합 patch 없음·증거 보존을 확인한 뒤 Orca로 삭제했으며 목록에서 부재를 확인했다. S의 final manifest는 Settings JS/CSS 2파일만 대조한 근거다. renderer IPC reject는 정적 확인이며 실제 OS sheet·tooltip 그림은 미검증이다. 하이픈 없는 긴 branch의 실측은 P에 넘겼다.
+
+- IR-O-fix는 제품 결함 두 건을 닫았고 red 0/yellow 1을 남겼다. 설치 순서 fixture의 100ms 대기는 실제 renderer 소비 완료를 입증하지 못한다. 지휘자가 S의 같은 150ms 부재 단언도 확인했다. O의 8개 커밋을 `469b355`부터 `e0915f6`까지 통합하되 이 검증 결함은 완료로 계산하지 않고 K에서 두 창을 함께 보강한다. 최종 통합 gate는 K 완료 뒤 실행한다.
+
+| 배치 | 범위·소유권 | 모델·근거 | 검증·순서 |
+|---|---|---|---|
+| K | onboarding/settings e2e의 설치 응답 소비 완료와 최소 test helper. 제품 코드 변경 없음 | Codex gpt-6-astra medium. 비동기 실제 consumer 완료와 음성 대조의 인과 판단 | 두 창 false/reject·양 순서·최신 오류 보존·재시도, guard 우회 음성 대조 red와 복구 green, 단독 native·독립 리뷰 |
+
+- N은 O가 통합된 현재 HEAD에서 시작한다. K와 N은 파일 소유권이 달라 병렬 진행한다. P는 K와 onboarding.ts가 겹치므로 K 통합 후 새 child에서 시작한다. native/build 슬롯은 한 번에 한 배치만 사용한다. IR-O-fix는 release했으며 O child는 증거를 보존한 뒤 정리한다.
