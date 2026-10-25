@@ -271,6 +271,41 @@ else if (args[1] === 'add') {
   });
   await button("Install Codex ↗").click();
   await wait(async () => await wizard().getByRole("alert").count() === 0, "install retry clears error");
+  const reviewFailures: string[] = [];
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler("setup:open-external");
+    Reflect.set(globalThis, "obInstallPending", []);
+    ipcMain.handle("setup:open-external", () => new Promise((resolve, reject) => Reflect.get(globalThis, "obInstallPending").push({ resolve, reject })));
+  });
+  for (const failure of ["false", "reject"] as const) for (const oldFirst of [false, true]) {
+    await button("Install Claude Code ↗").click(); await button("Install Codex ↗").click();
+    await wait(async () => await app.evaluate(() => Reflect.get(globalThis, "obInstallPending").length) === 2, "two install requests held");
+    for (const index of oldFirst ? [0, 1] : [1, 0]) {
+      await app.evaluate((_electron, { index, failure }) => {
+        const request = Reflect.get(globalThis, "obInstallPending")[index];
+        if (index === 0 && failure === "reject") request.reject(new Error("Old install failure"));
+        else request.resolve(index === 1);
+      }, { index, failure });
+      await pause(100);
+    }
+    const alerts = await wizard().getByRole("alert").allTextContents();
+    console.log("install ordering", { failure, oldFirst, alerts });
+    if (alerts.length) reviewFailures.push(`stale install error: ${failure}, oldFirst=${oldFirst}`);
+    await app.evaluate(() => Reflect.set(globalThis, "obInstallPending", []));
+  }
+  // A newer failure must survive an older successful completion.
+  await button("Install Claude Code ↗").click(); await button("Install Codex ↗").click();
+  await wait(async () => await app.evaluate(() => Reflect.get(globalThis, "obInstallPending").length) === 2, "latest failure requests held");
+  await app.evaluate(() => Reflect.get(globalThis, "obInstallPending")[1].reject(new Error("Latest install failure")));
+  await wizard().getByRole("alert").filter({ hasText: "Latest install failure" }).waitFor();
+  await app.evaluate(() => Reflect.get(globalThis, "obInstallPending")[0].resolve(true));
+  await pause(100);
+  assert.match(await wizard().getByRole("alert").textContent() ?? "", /Latest install failure/);
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler("setup:open-external"); ipcMain.handle("setup:open-external", Reflect.get(globalThis, "obInstallOriginal"));
+  });
+  await button("Install Codex ↗").click();
+  await wait(async () => await wizard().getByRole("alert").count() === 0, "latest failure retry clears error");
   await shellMode("timeout"); await check(); await wizard().getByText(/didn’t answer in time/).first().waitFor();
   for (const agent of ["claude", "codex"] as const) {
     await card(agent).getByText("Couldn’t check", { exact: true }).waitFor();
@@ -363,6 +398,47 @@ else if (args[1] === 'add') {
   assert.equal(await checklist().evaluate(node => node.contains(document.activeElement)), true, "wizard behind scan is inert");
   await page.keyboard.press("Tab");
   assert.equal(await checklist().evaluate(node => node.contains(document.activeElement)), true);
+  await app.evaluate(({ ipcMain }) => {
+    Reflect.set(globalThis, "obCandidatesOriginal", Reflect.get(ipcMain, "_invokeHandlers").get("folders:add-candidates"));
+    ipcMain.removeHandler("folders:add-candidates");
+    ipcMain.handle("folders:add-candidates", () => new Promise((resolve, reject) => Reflect.set(globalThis, "obCandidatesPending", { resolve, reject })));
+  });
+  const submitCandidates = () => checklist().getByRole("button", { name: "Add 2 Projects", exact: true });
+  for (const [attempt, outcome] of (["reject", "reject", "unavailable"] as const).entries()) {
+    await submitCandidates().click();
+    await wait(async () => await submitCandidates().isDisabled(), "checklist submit pending");
+    console.log("checklist pending focus:", await page.evaluate(() => document.activeElement?.tagName));
+    await app.evaluate((_electron, outcome) => {
+      const pending = Reflect.get(globalThis, "obCandidatesPending");
+      if (outcome === "reject") pending.reject(new Error("Injected checklist failure"));
+      else pending.resolve({ kind: "unavailable" });
+    }, outcome);
+    await checklist().getByRole("alert").filter({ hasText: outcome === "reject" ? "Injected checklist failure" : "This checklist is no longer available." }).waitFor();
+    await wait(async () => !await submitCandidates().isDisabled(), "checklist retry enabled");
+    const focused = await checklist().evaluate(node => node.contains(document.activeElement));
+    console.log("checklist settled focus:", await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 400)));
+    if (!focused) reviewFailures.push(`checklist focus lost: ${outcome}`);
+    await shot(`03-checklist-${outcome}`);
+    if (focused && attempt > 0) {
+      await page.keyboard.press("Escape"); await checklist().waitFor({ state: "hidden" });
+      await wait(() => focusIs(button("Add Project…")), "failed checklist Escape restores wizard focus");
+      assert.equal(await wizard().isVisible(), true);
+      await pick(addParent); await button("Add Project…").click(); await checklist().waitFor();
+      await wait(async () => !await submitCandidates().isDisabled(), "retry checklist ready");
+    }
+  }
+  // A deliberate focus move within the dialog must survive settlement.
+  await submitCandidates().click();
+  await wait(async () => await submitCandidates().isDisabled(), "checklist preservation pending");
+  await checklist().getByRole("heading").evaluate(node => { node.tabIndex = -1; node.focus(); });
+  await app.evaluate(() => Reflect.get(globalThis, "obCandidatesPending").reject(new Error("Injected checklist failure")));
+  await wait(async () => !await submitCandidates().isDisabled(), "checklist preservation settled");
+  assert.equal(await checklist().getByRole("heading").evaluate(node => node === document.activeElement), true, "preserve deliberate dialog focus");
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler("folders:add-candidates"); ipcMain.handle("folders:add-candidates", Reflect.get(globalThis, "obCandidatesOriginal"));
+  });
+  // Repeat the last failure from a disabled submit to test Escape's real focus owner.
+  if (reviewFailures.length) throw new Error(reviewFailures.join("; "));
   await shot("03-add-scan");
   await page.keyboard.press("Escape"); await checklist().waitFor({ state: "hidden" });
   await wait(() => focusIs(button("Add Project…")), "scan cancel restores wizard focus");
