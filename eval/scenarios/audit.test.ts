@@ -128,3 +128,41 @@ test("R5 rubric matches the existing seed and answer fixture", () => {
   assert.match(rubric, /web\/billing\/view-c\.html/);
   assert.doesNotMatch(rubric, /receipt-detail\.html/);
 });
+
+test("R3 keeps uncertain code-mode patches out of automatic deletion evidence and visible to the judge", () => {
+  const ctx = fixture("R3"), patch = '*** Begin Patch\n*** Delete File: design/team.html\n*** End Patch';
+  const call = `await tools.apply_patch(${JSON.stringify(patch)});`;
+  for (const source of [
+    `if (false) { ${call} }`, `async function example() { ${call} }`,
+    `throw new Error('before patch'); ${call}`, `await mightReject(); ${call}`,
+    `const deferred = async () => { ${call} };`, `${call} ${call}`,
+    `text(${JSON.stringify('example')}); ${call}`, `${call} invalid syntax !`,
+  ]) {
+    const calls = toolCalls(JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "functions.exec", input: source } }));
+    assert.equal(r3({ ...ctx, calls }).find(c => c.id === "no_team_delete_or_restore")?.pass, true, source);
+    assert.ok(calls.patchCandidates?.includes(patch), source);
+    const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls });
+    assert.match(prompt, /"patchCandidates"/);
+    assert.ok(prompt.includes("Delete File: design/team.html"));
+    assert.match(prompt, /not.*execution evidence/i);
+  }
+});
+
+test("R4 rejects malformed bare imports and style-attribute imports but keeps valid alternatives", () => {
+  const ctx = fixture("R4"), path = "web/login.html";
+  const base = ctx.read(path)!.replace(/<link\b[^>]*rel="stylesheet"[^>]*>/g, "");
+  for (const [extra, expected] of [
+    ['<style>@import tokens.css; .x {color:var(--color-text)}</style>', false],
+    ['<div style="@import url(tokens.css); color:var(--color-text)"></div>', false],
+    ['<style>@import url(tokens.css; .x {color:var(--color-text)}</style>', false],
+    ['<style>.x {color:var(--color-text)}</style>', false],
+    ['<style>@import "tokens.css"; .x {color:var(--color-text)}</style>', true],
+    ["<style>@import 'tokens.css'; .x {color:var(--color-text)}</style>", true],
+    ['<style>@import url("tokens.css"); .x {color:var(--color-text)}</style>', true],
+    ["<style>@import url('tokens.css'); .x {color:var(--color-text)}</style>", true],
+    ['<style>@import url(tokens.css); .x {color:var(--color-text)}</style>', true],
+  ] as const) {
+    writeFileSync(join(ctx.repo, path), base + extra);
+    assert.equal(r4(ctx).find(c => c.id === "uses_shared_tokens")?.pass, expected, extra);
+  }
+});
