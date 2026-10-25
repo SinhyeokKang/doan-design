@@ -12,6 +12,11 @@ import (
 )
 
 func Init(ctx Context, f Flags, args []string) (Outcome, *Error) {
+	return initWithRename(ctx, f, args, os.Rename)
+}
+
+// A per-call publisher lets tests fail after attributes are written without timing races.
+func initWithRename(ctx Context, f Flags, args []string, rename func(string, string) error) (Outcome, *Error) {
 	if len(args) != 0 {
 		return Outcome{}, usageError("init takes no positional arguments")
 	}
@@ -200,8 +205,8 @@ func Init(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		}
 		created = append(created, ".gitattributes")
 	}
-	// Publish exclusively so a concurrent initializer's config is not overwritten.
-	if e := os.Link(staged.Name(), configPath); e != nil {
+	// Publish only after merge setup; independent initializers are not serialized.
+	if e := rename(staged.Name(), configPath); e != nil {
 		return Outcome{}, internal(e)
 	}
 	created = append(created, ".doan/config.json")
