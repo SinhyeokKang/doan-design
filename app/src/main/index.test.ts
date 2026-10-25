@@ -1257,8 +1257,15 @@ describe("settings window", () => {
     expect(await invoke("setup:status", contents, null)).toMatchObject({ busy: false });
   });
 
-  test("an unregistered window (the capture window) is refused on every channel", async () => {
+  test("an unregistered window (the capture window) and a subframe of the app window are refused on every channel", async () => {
     const stranger = new mocks.Window({ show: false });
+    const value = { root: ROOT, path: ROOT, paths: [ROOT], step: "cli", requestId: "r" };
+    expect(mocks.ipc.size).toBeGreaterThan(0);
+    for (const channel of mocks.ipc.keys()) {
+      const refused = await invoke(channel, {}, null, value);
+      expect(await invoke(channel, stranger.webContents, null, value), channel).toEqual(refused);
+      expect(await invoke(channel, window().webContents, {}, value), channel).toEqual(refused);
+    }
     expect(await invoke("setup:status", stranger.webContents, null)).toBeNull();
     expect(await invoke("folders:get", stranger.webContents, null)).toEqual([]);
     expect(await invoke("projects:get", stranger.webContents, null)).toEqual([]);
@@ -1352,6 +1359,24 @@ describe("settings window", () => {
     created.emit("closed");
     expect(mocks.machine.cancelConfirmation).toHaveBeenCalledOnce();
     expect(await invoke("setup:run", window().webContents, null, { step: "cli", expected: {} })).toEqual({ kind: "success" });
+  });
+
+  test.each(["render-process-gone", "closed"])("the main window's %s releases its confirmation", async event => {
+    const contents = window().webContents;
+    mocks.machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
+    expect(await invoke("setup:run", contents, null, { step: "cli", expected: {} })).toMatchObject({ kind: "confirm" });
+    mocks.machine.cancelConfirmation.mockClear();
+    if (event === "closed") window().emit("closed"); else contents.emit(event);
+    expect(mocks.machine.cancelConfirmation).toHaveBeenCalledOnce();
+  });
+
+  test("hiding the main window keeps its confirmation", async () => {
+    const contents = window().webContents;
+    mocks.machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
+    expect(await invoke("setup:run", contents, null, { step: "cli", expected: {} })).toMatchObject({ kind: "confirm" });
+    mocks.machine.cancelConfirmation.mockClear();
+    window().emit("close", { preventDefault: vi.fn() });
+    expect(mocks.machine.cancelConfirmation).not.toHaveBeenCalled();
   });
 
   test("the summary is read at start, on main focus once a minute, on Settings open and Check Again, and sent to both windows", async () => {

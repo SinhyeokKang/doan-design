@@ -312,6 +312,10 @@ function createWindow(): BrowserWindow {
   // A new renderer starts on Home again with no toast up.
   window.webContents.on("render-process-gone", () => { selection = null; documents.clear(); transitionGuard.reset(); setMenuInputs(HOME); });
   window.webContents.on("did-navigate", () => { selection = null; documents.clear(); transitionGuard.reset(); setMenuInputs(HOME); });
+  // A lost or closed renderer takes its setup confirmation with it; hiding the
+  // window does not. Read after destroy, webContents throws, so the id is kept now.
+  const owner = window.webContents.id;
+  window.webContents.on("render-process-gone", () => broker?.drop(owner));
   // `.git/HEAD` is not watched, so a branch switched elsewhere shows when the
   // human comes back to the window.
   // The connection summary shares that throttle (app-setup design 'Connections').
@@ -338,6 +342,7 @@ function createWindow(): BrowserWindow {
     } else hideWindow(window);
   });
   window.on("closed", () => {
+    broker?.drop(owner);
     cancelPendingHide();
     if (win === window) win = undefined;
   });
