@@ -575,6 +575,7 @@ Results:
 | 2026-10-25 | ux-audit: Retry failed Settings reads in place; retain Projects operation ownership and lost focus, label Details forwarding truthfully, and bind installation feedback to the latest request | Conductor clarification of existing Settings recovery and target-queue contracts; preserve config data and user intent without broadening IPC or window-close policy |
 | 2026-10-25 | ux-audit: Keep wizard add outcomes inside the wizard, show the actual selected-project status, settle failed initial connection reads, and retain child-dialog keyboard recovery | Conductor clarification of existing add and setup contracts; users must see completed failures and reach recovery without losing their selected project or closing the parent wizard |
 | 2026-10-25 | ux-audit: Preserve newer navigation over delayed startup restore, make explicit Open failures actionable, and retain modal toast time and lost keyboard focus | Conductor clarification of existing navigation and recovery contracts; asynchronous completion must not replace the user's current destination or silently consume an offered action |
+| 2026-10-25 | ux-audit: Restore primary/error focus visibility, keep pins and toasts clear of canvas controls, and load shared styles through HTML entries | Conductor clarification of existing presentation and CSP constraints, based on actual production/development regressions; keep canvas tokens, native appearance policy and unrelated visual differences unchanged |
 
 ## 8. Open questions
 
