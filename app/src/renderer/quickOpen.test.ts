@@ -201,3 +201,8 @@ it("only calls a canvas missing when its project was successfully listed", () =>
   expect(unavailableCanvasMessage({ kind: "cliError", path: "/p", reason: "failed" }, "design/moved.html")).toBe("Project is unavailable. Check its status on Home and try again.");
   expect(unavailableCanvasMessage(undefined, "design/moved.html")).toBe("Project is unavailable. Check its status on Home and try again.");
 });
+
+it("does not call a still-listed canvas deleted when its captured identity became stale", () => {
+  expect(unavailableCanvasMessage(folder("/repo", [canvas("design/a.html")]), "design/a.html"))
+    .toBe("Canvas changed while opening. Choose it again from the Sidebar or Quick Open.");
+});

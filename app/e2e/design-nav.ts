@@ -388,6 +388,70 @@ process.exit(result.status ?? 1);
     await shot("N-stale-quick-open");
     await publishEntries(listedEntries);
   });
+  for (const outcome of ["id", "url", "cliError", "missing-path", "removed"] as const) {
+    await navigationCheck(`waiting-open-${outcome}`, async () => {
+      await publishEntries(listedEntries); await goHome(page); await enterProject(page, acme);
+      await page.getByRole("button", { name: "acme-web overview", exact: true }).click(); await overview().waitFor();
+      await card("Billing & plans").click(); await loaded("Billing & plans");
+      const panel = page.getByRole("region", { name: "Comments", exact: true });
+      await wait(() => panel.getByRole("button", { name: "New canvas comment", exact: true }).isEnabled(), "draft ready");
+      await panel.getByRole("button", { name: "New canvas comment", exact: true }).click();
+      await panel.getByRole("textbox", { name: "New comment body" }).fill("Guard the cross-root Open");
+      await page.evaluate(() => {
+        const element = document.querySelector(".workspace")!;
+        const key = Object.keys(element).find(key => key.startsWith("__reactFiber$"));
+        if (!key) throw new Error("Missing App fiber");
+        type Entry = import("../src/main/view").FolderEntry;
+        type Controller = import("../src/renderer/CanvasController").CanvasController;
+        type Hook = { memoizedState?: { current?: Controller }; next?: Hook };
+        type Fiber = { memoizedState?: Hook; return?: Fiber };
+        let controller: Controller | undefined;
+        for (let fiber = Reflect.get(element, key) as Fiber | undefined; fiber; fiber = fiber.return) {
+          for (let hook = fiber.memoizedState; hook; hook = hook.next) {
+            if (typeof hook.memoizedState?.current?.updateEntries === "function") controller = hook.memoizedState.current;
+          }
+        }
+        if (!controller) throw new Error("Missing controller");
+        const original = controller.updateEntries, workspace = controller.openWorkspace, canvas = controller.openCanvas;
+        const probe = { updating: false, consumed: 0, callbacks: [] as { kind: string; updating: boolean }[],
+          waiting: () => !!Reflect.get(controller!, "waitingWorkspace"),
+          restore: () => { controller!.updateEntries = original; controller!.openWorkspace = workspace; controller!.openCanvas = canvas; } };
+        const observe = (callback: ((entry: Entry | undefined) => void) | undefined) => callback && ((entry: Entry | undefined) => {
+          callback(entry);
+          probe.callbacks.push({ kind: entry?.kind ?? "removed", updating: probe.updating });
+        });
+        controller.updateEntries = function (entries) { probe.updating = true; try { original.call(this, entries); probe.consumed++; } finally { probe.updating = false; } };
+        controller.openWorkspace = function (root, entered, same, unavailable) { workspace.call(this, root, entered, same, observe(unavailable)); };
+        controller.openCanvas = function (root, row, frame, target) { canvas.call(this, root, row, frame, target && { ...target, unavailable: observe(target.unavailable) }); };
+        Reflect.set(window, "openConsumption", probe);
+      });
+      await quickOpen("Card decline patterns"); await page.keyboard.press("Enter");
+      const discard = page.getByRole("button", { name: "Discard", exact: true }); await discard.waitFor();
+      const identity = outcome === "id" || outcome === "url";
+      const latest = listedEntries.flatMap(entry => entry.path !== brand ? [entry] : outcome === "removed" ? []
+        : outcome === "cliError" ? [{ kind: "cliError" as const, path: brand, reason: "held failure" }]
+        : entry.kind === "list" ? [{ ...entry, canvases: outcome === "missing-path" ? [] : entry.canvases.map(row => ({ ...row, [outcome]: row[outcome as "id" | "url"] + "-changed" })) }] : [entry]);
+      await publishEntries(identity ? latest : listedEntries.map(entry => entry.path === brand ? { kind: "loading", path: brand } : entry));
+      await page.waitForFunction(() => Reflect.get(window, "openConsumption").consumed > 0);
+      await discard.click();
+      if (!identity) {
+        await page.waitForFunction(() => Reflect.get(window, "openConsumption").waiting());
+        await publishEntries(latest);
+      }
+      await page.waitForFunction(() => Reflect.get(window, "openConsumption").callbacks.length > 0);
+      const consumed = await page.evaluate(() => Reflect.get(window, "openConsumption").callbacks);
+      console.log("waiting Open actual callback consumption", outcome, consumed);
+      const expected = identity ? "Canvas changed while opening. Choose it again from the Sidebar or Quick Open."
+        : outcome === "missing-path" ? "card-decline-patterns is no longer in design/" : "Project is unavailable. Check its status on Home and try again.";
+      const actual = await page.locator(".toast .msg").textContent();
+      await shot(`Nfix-open-${outcome}`);
+      await page.evaluate(() => Reflect.get(window, "openConsumption").restore());
+      assert.equal(actual, expected);
+      assert.deepEqual(consumed, [{ kind: outcome === "removed" ? "removed" : outcome === "cliError" ? "cliError" : "list", updating: !identity }]);
+      assert.equal(await canvasTitle(), identity || outcome === "missing-path" ? "" : "Billing & plans");
+    });
+    await page.evaluate(() => Reflect.get(window, "openConsumption")?.restore());
+  }
   await navigationCheck("workspace-setup-success-focus", async () => {
     await goHome(page); await enterProject(page, empty);
     await rm(join(empty, ".doan/config.json"));
