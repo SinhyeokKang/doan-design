@@ -90,3 +90,4 @@ tasks.md의 1~11은 모두 위 배치 중 하나에 속한다.
 - 2026-10-26: F(`ctx_85f75db29ad9`, Opus high, `rc-f`) 시작 — 150px 정지, 유지한 앵커 답의 끝, 캔버스 안 빈 배경 클릭, Sidebar 이동 판정. E2는 F가 같은 renderer 파일을 고치므로 F 통합 뒤 시작한다.
 - 2026-10-26: F 완료(`c6b8955`, `1747f62`, `90367c7`, `30409e5`, `45bd9b9`) — 항목마다 red 뒤 green, s11 0/20 정지(두 빌드). 캔버스 안 빈 배경 클릭은 transition-intent에 `clear` 표시를 더해 구분한다. Sidebar 이동은 `moved` 객체 자체를 한 번 쓰는 표지로 쓴다. POSTMORTEM 항목 추가. 통합(`313ea7e`, `5bfea9b`, `d00cfd6`, `73bc08e`, `fb16f7d`), 통합 HEAD test 2311·typecheck 통과(지휘자 실행). F 해제, `rc-f` 제거.
 - 2026-10-26: R-F(`ctx_043ed6deee70`, Codex `gpt-6-astra` medium, `rc-r-f`)와 E2(`ctx_62ebdf4a71d5`, Opus high, `rc-e2`) 시작. E2는 모듈 재실행, T-11 단언, `/design-sync`를 맡는다.
+- 2026-10-26: R-F 완료(Codex Astra medium) — 🔴 0 · 🟡 0 · ⚪ 0. 이전 재현 시나리오와 타이머 수명을 다시 확인했다. R-F 해제, `rc-r-f` 제거.
