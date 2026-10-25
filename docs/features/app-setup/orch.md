@@ -130,3 +130,5 @@ tasks.md의 앞선 단계와 task 1~13은 모두 위 배치 중 하나에 속한
 - 2026-10-25: R-D1 결과 🔴 0 · 🟡 3(Settings가 보낸 문제 줄 동작이 메인 창의 열린 대화상자를 무시, 파일 선택기가 열린 동안 Saving… 표시, 문제 줄 상세가 초안과 다름 — 앞의 둘 재현) · ⚪ 7 · 결정 3(결정 로그). test 1918·typecheck·build 재확인. D2-merge 통합 뒤 D1-fix로 보낸다. R-D1 해제.
 - 2026-10-25: D2-merge 완료(`27e50d8`, 충돌은 styles.css만) — test 1948·typecheck·build, 전체 e2e는 projects-home 토스트 Open 단계에서 한 번 실패 후 재실행 PASS(real-state 불변). D2를 merge로 통합(`73a0132`), 통합 HEAD typecheck·test 1948·build 통과(지휘자 실행). `as-d1`·`as-d2` 제거. projects-home 토스트 Open 단계 실패가 세 번째(두 번은 다른 e2e 없이)라 우연이 아니다 → FL(Opus high)로 원인 조사. D1-fix(Codex Astra medium), D2-fix(Sonnet high)를 병렬로 시작. 전체 e2e는 지휘자 허락으로 한 번에 하나만.
 - 2026-10-25: D1-fix 질문 — 🟡1은 main의 `projects:forward-action`이 즉시 true를 돌려 App 가드만으로 실패시킬 수 없다 → main 핸들러에 모달 가드와 테스트를 더하도록 허락(App 가드도 유지). postmortem은 생략.
+- 2026-10-25: D2-fix 완료·통합(`010617f` → 통합 브랜치) — 보류한 도착은 프로젝트가 사라지면 버리고, 다시 보일 때 캔버스 줄이 있을 때만 토스트. 숨김+마법사 → Canvas ready 고정 테스트. 지휘자가 diff 확인, renderer 테스트·typecheck 통과. `as-d2f` 제거.
+- 2026-10-25: D1-fix 전체 e2e는 FL 측정과 겹치므로 건너뛰게 했다. 통합 HEAD 전체 e2e는 FL 통합 뒤 지휘자가 돌린다.
