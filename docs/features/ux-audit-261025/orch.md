@@ -142,3 +142,7 @@
 
 - C-fix `cc73398`의 7건 red→green·142 tests·typecheck·build·최종 comments-ui PASS/exit 0을 인수했다. Inspector의 첫 보류 요청만 stale 검사를 우회한 대조는 정확한 late-frame assertion에서 exit 1이었다. 양쪽 사용자 상태와 정상 Electron 종료가 확인됐고 build 해시는 실행 전후 동일했다. root에 20개 증거 파일을 해시 대조해 복사했으며 지휘자도 실패/정상 Inspector 화면을 비교했다. 작성자는 release, IR-C-fix `ctx_f8911eae3daf`의 Astra medium effective·turn_start를 확인했다.
 - IR-O는 red 0/yellow 2이다. 오래된 설치 링크 실패가 최신 성공 뒤 표시되는 경합과 체크리스트 제출 실패 뒤 포커스 복구 누락을 채택했다. 후자는 실제 재현부터 수행한다. O-fix는 기존 O child에서 Codex gpt-6-astra medium으로 Onboarding/AddProjectsDialog·직접 tests/onboarding fixture만 수정한다. 비동기 요청 소유권과 중첩 modal의 키 처리 판단이 필요하다. red→green·실제 focus·재리뷰를 받고 원 커밋은 유지한다. IR-O는 release했다.
+
+- IR-C-fix red 0/yellow 0을 인수하고 C를 `589ab56`·`84c00f7`·`5876b08`·`4438232`로 통합했다. 통합 전체 검증은 후속 배치가 들어온 뒤 실행한다. reviewer를 release하고 clean child의 `git cherry`에 `+`가 없음을 확인한 뒤 Orca로 삭제했으며 목록에서 사라진 것을 확인했다. POSTMORTEM의 생성 오류 수명 및 Escape/renderer 소비 완료 재발 기록을 갱신했다.
+- O-fix `ctx_e98adc0f05b2`의 Astra medium effective·turn_start를 확인했다. 설치 순서 경합은 native red가 확인됐지만 checklist 포커스 유실은 첫 실제 실행에서 재현되지 않았다. 보류 요청과 실제 입력을 더 확인하고 재현되지 않으면 해당 제품 코드는 유지한다.
+- S의 신규 Retry 성공 뒤 포커스 유실을 지휘자가 추가 점검하도록 요청했고 실제 red→green을 받았다. O 리뷰에서 확인한 설치 오류의 최신 요청 소유권을 같은 Settings handler에도 재현·수정하도록 S에 맡겼다. 기존 순차 Retry PASS와 겹친 요청 검증을 구분한다.
