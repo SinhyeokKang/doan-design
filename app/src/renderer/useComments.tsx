@@ -3,12 +3,16 @@ import { commentContext } from "./projectDisplay";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { CommentsSession } from "./CommentsSession";
 import { CommentsPanel, UnsavedCommentDialog, UncertainCommentDialog, DeleteCommentDialog, revealComposer, type CommentIntent } from "./CommentsPanel";
-import type { CanvasController, CanvasState } from "./CanvasController";
+import { MEASURE_ANSWER_MS, type CanvasController, type CanvasState } from "./CanvasController";
 import { shownAnchors, type AnchorSnapshot } from "./commentAnchors";
 import { mainSelection, selectionIdentity } from "./selection";
 import { outdated, projectList, type ListFilter } from "../comments/projection";
 import { continueEnabled, draftScope, guardsSelectionChange } from "../comments/draft";
 import type { Target } from "../formats/types";
+
+// A focus move that waits for anchors. `context` is the canvas and selection it
+// belongs to; `holder` held focus after the last render that kept it.
+type Deferred = { since: AnchorSnapshot | null; context?: string; holder?: Element | null };
 
 export function useComments(state: CanvasState, controller: RefObject<CanvasController | null>, showWorkspace: () => void, entries: FolderEntry[]) {
   const [, render] = useState(0);
@@ -71,7 +75,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   const panelElement = useRef<HTMLElement>(null);
   // Where focus goes when the composer closes or a pin opens its comments.
   const focusAfter = useRef<{ editing: boolean; opener: HTMLElement | null; cancelled: boolean; saving: boolean;
-    saved: { comment: string; since: AnchorSnapshot | null } | null; pin: { node: string; since: AnchorSnapshot | null } | null }>({ editing: false, opener: null, cancelled: false, saving: false, saved: null, pin: null });
+    saved: (Deferred & { comment: string }) | null; pin: (Deferred & { node: string }) | null }>({ editing: false, opener: null, cancelled: false, saving: false, saved: null, pin: null });
   // A reload of the same row ends the document when it starts, not when its
   // layout arrives, so a draft is already `reloaded` if that layout never comes;
   // a draft begun during that wait is lost when the load fails.
@@ -167,26 +171,44 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     const listed = (since: AnchorSnapshot | null) => !latest || latest.status === "none" || (latest !== since && latest.status === "answered" && snapshot === latest);
     if (session.savedComment !== null) {
       // Save and continue in the draft dialog leaves focus to its destination.
-      after.saved = after.saving ? { comment: session.savedComment, since: latest } : null;
+      const saved = after.saved = after.saving ? { comment: session.savedComment, since: latest } : null;
       after.saving = false; session.savedComment = null;
+      // The reread list's anchors may never answer; the title keeps focus then.
+      if (saved) setTimeout(() => { if (focusAfter.current.saved === saved) focusAfter.current.saved = null; }, MEASURE_ANSWER_MS);
     }
-    const saved = after.saved;
-    if (saved) {
-      const card = cards().find(card => card.dataset.comment === saved.comment);
-      if (card || listed(saved.since)) { after.saved = null; after.opener = null; (card ?? heading.current)?.focus(); return; }
-    }
-    const pin = after.pin;
-    if (pin && listed(pin.since)) {
-      after.pin = null;
-      if (latest?.status === "answered") ((latest.selected === pin.node ? cards()[0] : undefined) ?? heading.current)?.focus();
-      return;
-    }
-    if (!closed) return;
-    const { opener, cancelled } = after;
-    after.opener = null; after.cancelled = false;
+    if (!after.saved && !after.pin && !closed) return;
+    // A deferred move belongs to the action that asked for it, like a pin's
+    // completion (POSTMORTEM 2026-10-23): a composer, editor or dialog owning
+    // focus, another canvas or selection, or focus moved elsewhere ends it.
+    const context = JSON.stringify([root, canvas, selected]);
+    const owned = editing || session.beginning || !!session.deleteConfirmation;
     const active = document.activeElement;
-    if (cancelled && opener && opener !== document.body && opener.isConnected && !opener.hasAttribute("disabled")) opener.focus();
-    else if (cancelled || !active || active === document.body || !active.isConnected) heading.current?.focus();
+    const stale = (request: Deferred) => owned || (request.context !== undefined && request.context !== context) ||
+      (request.holder !== undefined && active !== request.holder && !!active && active !== document.body && active.isConnected);
+    if (after.saved && stale(after.saved)) after.saved = null;
+    if (after.pin && stale(after.pin)) after.pin = null;
+    const place = () => {
+      const saved = after.saved;
+      if (saved) {
+        const card = cards().find(card => card.dataset.comment === saved.comment);
+        if (card || listed(saved.since)) { after.saved = null; after.opener = null; (card ?? heading.current)?.focus(); return; }
+      }
+      const pin = after.pin;
+      if (pin && listed(pin.since)) {
+        after.pin = null;
+        if (latest?.status === "answered") ((latest.selected === pin.node ? cards()[0] : undefined) ?? heading.current)?.focus();
+        return;
+      }
+      if (!closed) return;
+      const { opener, cancelled } = after;
+      after.opener = null; after.cancelled = false;
+      if (cancelled && opener && opener !== document.body && opener.isConnected && !opener.hasAttribute("disabled")) opener.focus();
+      else if (cancelled || !active || active === document.body || !active.isConnected) heading.current?.focus();
+    };
+    place();
+    // Read after this run's own moves, so the title taking focus is not "elsewhere".
+    const holder = document.activeElement;
+    for (const request of [after.saved, after.pin]) if (request) { request.context = context; request.holder = holder; }
   });
   return {
     session,
@@ -197,7 +219,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       missingLocations={snapshot?.status === "answered" ? new Set(comments.filter(c => (c.target.frame || c.target.element) && !snapshot.lookup.nodes.has(c.comment)).map(c => c.comment)) : null}
       author={session.author} identityCause={identityCause} canvasId={canvas ?? ""} frames={frames} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || (session.beginning && !draft)}
       copies={session.copies} allCopy={session.copies.get("all") ?? { status: "idle" }} mutations={session.mutations} headingRef={heading} panelRef={panelElement}
-      onFilter={next => { focusAfter.current.pin = null; setFilter(next); }} onCreate={scope => { opened(); void session.create(scope); }} onComment={intent} onCopy={scope => { void session.copy(scope); }} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
+      onFilter={next => { focusAfter.current.pin = null; focusAfter.current.saved = null; setFilter(next); }} onCreate={scope => { opened(); void session.create(scope); }} onComment={intent} onCopy={scope => { void session.copy(scope); }} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
       editor={draft ? { mode: draft.origin.kind, target: session.target, frames: draftFrames, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
         onBody: body => session.body(body), onSave: () => { focusAfter.current.saving = true; void session.save(); },
         onCancel: () => { session.answer("discard"); if (!session.draft.draft) focusAfter.current.cancelled = true; }, onKeepDraft: focus,

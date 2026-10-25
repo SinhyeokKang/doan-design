@@ -768,6 +768,16 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
       expect(focused(page.heading, ...page.cards)).toEqual([]);
     });
 
+    test("the title taking focus while the card waits is not focus moved elsewhere", async () => {
+      const { page, render, arrive } = await savedWaiting();
+      page.heading.focus.mockImplementation(() => { page.doc.activeElement = page.heading; });
+      page.doc.activeElement = page.body;
+      render({ selection: label });
+      expect(page.doc.activeElement).toBe(page.heading);
+      arrive();
+      expect(focused(...page.cards)).toEqual(["card c2"]);
+    });
+
     // The reread list's anchors may never answer; the title keeps focus (R-L ⚪1).
     test.each([[MEASURE_ANSWER_MS - 1, ["card c2"]], [MEASURE_ANSWER_MS, []]])("an answer %i ms after the save moves focus to: %j", async (elapsed, expected) => {
       const { page, render, arrive } = await savedWaiting();
@@ -839,6 +849,17 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
       page.doc.activeElement = page.field; session.body("Writing");
       page.heading.focus.mockClear(); page.field.focus.mockClear();
       page.cards.push(focusable("card c1", { dataset: { comment: "c1" } }));
+      show(snapshot([["c1", "n1"]], "n1"));
+      expect(focused(page.heading, ...page.cards)).toEqual([]);
+    });
+
+    // Focus has not moved yet: the comment being begun or the dialog owns it.
+    test.each(["a new comment being begun", "a card editor", "the delete dialog"])("%s ends the wait", async owner => {
+      const { page, hooks, show, panel, session } = await pinned(["c1"]);
+      hooks().open(destination); settle(FILTER); panel();
+      if (owner === "the delete dialog") panel().props.onComment("delete", "c1");
+      else if (owner === "a card editor") panel().props.onComment("edit", "c1");
+      else { panel().props.onCreate("selection"); expect(session.beginning).toBe(true); }
       show(snapshot([["c1", "n1"]], "n1"));
       expect(focused(page.heading, ...page.cards)).toEqual([]);
     });
