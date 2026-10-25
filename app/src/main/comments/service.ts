@@ -6,7 +6,7 @@ import { parseLines } from "../../formats/fold";
 import { foldText } from "../../formats/foldText";
 import type { Author, Comment, CommentEvent, Target, Warning } from "../../formats/types";
 import { AppendUncertainError } from "./files";
-import { object } from "./identity";
+import { CanvasIdentityError, object, type CanvasIdentityCause } from "./identity";
 import { MkdirTerminationUnconfirmedError } from "./mkdir";
 
 export interface CommentIdentity { root: string; path: string; canvas: string }
@@ -15,7 +15,7 @@ export interface BeginRequest extends CommentRequest { scope: "canvas" | "select
 export interface MutationRequest extends CommentRequest { project: number; intent: MutationIntent; origin?: string }
 export interface CopyRequest extends CommentRequest { scope: CopyScope }
 export interface DocumentOrigin { generation: string; hash: string; target: Target }
-export type CommentReply<T> = { ok: true; identity: CommentRequest; value: T } | { ok: false; identity: CommentRequest | null; error: string };
+export type CommentReply<T> = { ok: true; identity: CommentRequest; value: T } | { ok: false; identity: CommentRequest | null; error: string; cause?: CanvasIdentityCause };
 export interface CommentList { project: number; canvasHash: string | null; comments: Comment[]; warnings: Warning[] }
 export interface SavedStatus { state: "saved" | "absent" | "unknown"; recovery?: "child-exit-required"; event?: string; comment?: string; error?: string }
 export interface BeginResult extends DocumentOrigin { origin: string; project: number }
@@ -118,7 +118,7 @@ export function createCommentsService(deps: ServiceDependencies) {
   const reply = async <T>(value: unknown, extras: string[], run: (r: CommentRequest) => Promise<T>): Promise<CommentReply<T>> => {
     let r: CommentRequest | null = null;
     try { r = request(value, extras); return { ok: true, identity: r, value: await run(r) }; }
-    catch (error) { return { ok: false, identity: r, error: message(error) }; }
+    catch (error) { return { ok: false, identity: r, error: message(error), ...(error instanceof CanvasIdentityError ? { cause: error.cause } : {}) }; }
   };
   const check = async (r: CommentRequest, attempt: Attempt): Promise<SavedStatus> => {
     try { return inspectAttempt(await deps.read(r.root, r.canvas), attempt); }
