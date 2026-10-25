@@ -2,6 +2,38 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-25 — Native hiding bypassed renderer-only lifetime checks
+
+- **Area**: `Toast.tsx`, `toastState.ts`, main quit guard in `index.ts`.
+- **Symptom**: an Undo opportunity could expire while the native window/app was hidden; an ordinary draft quit guard could appear only in the hidden main window.
+- **Root cause**: document visibility was used as native visibility, and quit guard dispatch assumed the window was already usable.
+- **Net**: audit review found the missing native inputs; focused regressions failed before correction. Actual window-hide and app-hide tests later verified retained Undo and a visible, focused ordinary guard. These tests use enabled menu callbacks/native app actions, not physical key chords; exceptional uncertain-save quit remains undecided.
+- **Prevention**: compose document and native visibility, wait for the initial native state, and reset the elapsed baseline on visibility changes. Reveal main only when actually dispatching a guard, preserving deferred teardown. Search run: `rg -n 'document.hidden|onWindowVisibility|activeTemps|waitFor|suiteGuard|checkedGit|patchCandidates' app/src/renderer/Toast.tsx app/src/main/thumbnails.ts app/e2e/harness.ts eval/lib/context.ts eval/lib/transcript.ts`; Toast is the visibility consumer covered here. Keep expiry deadlines anchored before native show, including expensive screenshot time.
+
+### 2026-10-25 — Startup cache collection deleted a live thumbnail temporary file
+
+- **Area**: `app/src/main/thumbnails.ts`.
+- **Symptom**: a held real write lost its temporary file to startup collection, so rename failed with ENOENT and that preview attempt became unavailable.
+- **Root cause**: cleanup treated every temporary file as an orphan while capture writes could already be active.
+- **Net**: a real held-write regression reproduced the race; ordinary successful capture tests did not overlap collection with writing.
+- **Prevention**: register temporary-file ownership before the write await and release it only after publication or failed-write cleanup; keep orphan collection and removed-project serialization tests. The search above finds registration, release and collection exclusion in the same service; it is not a global queue barrier.
+
+### 2026-10-25 — Eval inspection executed repository-configured helpers
+
+- **Area**: Python scenario checks and `eval/lib/context.ts` Git reads/judge diff preparation.
+- **Symptom**: a repo-local Python module and configured Git fsmonitor/clean callbacks executed during harness inspection of an agent repository.
+- **Root cause**: ordinary subprocess defaults permit current-directory imports and Git configuration callbacks even for apparently read-only work.
+- **Net**: isolated marker probes reproduced imports and callbacks; ordinary pass/fail scenario fixtures did not contain hostile configuration.
+- **Prevention**: use Python `-I`; disable fsmonitor, hooks, clean/process filters, external diff and textconv for post-agent Git work, and propagate failures. The search above finds both context reads and judge diff preparation using `checkedGit`. These protections do not sandbox arbitrary agent execution.
+
+### 2026-10-25 — Runtime checks could finish before the evidence or cleanup
+
+- **Area**: `app/e2e/harness.ts`, `renderer-probe.ts`, Settings/comments/restore checks and suite exits.
+- **Symptom**: a late renderer transition could arrive after an unchanged-state assertion; timeout or failed close could skip real-state verification; Playwright close alone did not establish a clean native exit.
+- **Root cause**: tests observed main-side dispatch rather than renderer completion, and cleanup shared the same potentially unbounded path as normal execution.
+- **Net**: delayed observer and termination fixtures exposed the gaps. Integration caught a new Settings payload-shape assertion error even though helper tests passed, so the full run remained failed pending correction.
+- **Prevention**: require positive renderer completion before a negative assertion, bounded settlement with retained child-process identity, explicit code/signal checks and real-state verification on failures. The search above identifies `waitFor` and `suiteGuard`; helper Node tests are separate from Vitest and must be included explicitly in integration accounting. A timeout, forced kill or incomplete verification never qualifies as PASS.
+
 ### 2026-10-25 — Init published success before merge setup could fail
 
 - **Area**: `cli/internal/cli/init.go`, init audit/publication regression tests, and canonical path resolution.
@@ -410,6 +442,7 @@
 - **Net**: Caught by an independent reviewer that fed 42 identical inputs to both implementations and diffed the outputs. Missed by the fixture suite and by both workers' self-reviews, because fixtures only exercised inputs the plan listed.
 - **Prevention**: For any rule implemented in both TS and Go, state the exact character set / numeric range in design and add a fixture at the boundary (BOM, U+0085, NBSP, CR-only, `1e400`, reversed duplicate order). Expose the composed public function (`foldText`) and test that, not a harness-side composition. Grep for language-default trimming in shared-format code: `grep -rnE '\.trim\(\)|TrimSpace|trimStart|trimEnd' app/src cli`.
 - **Recurrence (2026-10-21, cli-core)**: `repo.ParseConfig` checked `v` with `json.Number.Float64()` but passed the original number to the schema, so `{"v":1.0000000000000001}` was `invalid_config` while `parseLines` accepts the same `v` as 1. Caught by the batch A independent review, not by the batch's own fixtures. Fixed by writing the float back before validation, as `fold.go` does.
+- **Recurrence (2026-10-25, audit)**: the comments service bypassed `foldText` and used fatal/BOM-stripping decoding, hiding valid comments or stripping two BOMs. Independent review then found that tolerant TextDecoder combines malformed multibyte prefixes whereas Go replaces each invalid byte. Test actual service ingress against actual CLI bytes, including truncated prefixes, equal-ID collisions and one/two BOMs; retain strict decoding for uncertain new-tail/changed-prefix proof. Compact baseline length/digest/warning evidence preserves immutable retry identity without retaining the whole old file per request. Search run: `rg -n 'unknown_version|quote|normalize|readList|before:' app/src/main/comments/service.ts app/src/main/inspector.ts cli/internal/cli/skill.md`; service list/copy use `readList` and retry evidence is stored at preparation.
 
 ### 2026-10-21 — Filesystem APIs did not match "missing" and "same file" as the product means them
 
