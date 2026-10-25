@@ -170,3 +170,5 @@
 | IR-P | P 전체 스타일·entry·fixture diff·인계·원시 증거, scratch review-P-final.md만 작성 | Codex gpt-6-astra medium. CSS cascade/CSP·치수·hit-test 판단 | 승인한 tooltip 범위, dev/production 실제 관찰, 모든 파일과 제외 범위 확인 |
 
 - 각 리뷰는 해당 작성자가 아닌 worker에게 완료 후 맡긴다. K는 현재 단독 native/build 슬롯을 받았으며, N은 소스·단위 작업을 이어간다.
+
+- U-9 추가 대조에서 CommentsPanel도 동일한 width 부재를 원인 진단으로 단정하는 문구를 사용함을 확인했다(`useComments`의 widthInvalid는 row.width 부재일 뿐이다). C가 종료·통합돼 소유권 충돌이 없으므로 N에 CommentsPanel의 width 안내 문자열과 직접 기대값만 추가한다. comment 상태·쓰기·draft 수명은 바꾸지 않는다.
