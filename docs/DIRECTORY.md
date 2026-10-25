@@ -2,7 +2,7 @@
 
 - `go.mod` and `go.sum`: root Go module and pinned dependencies.
 - `cli/cmd/doan/`: the `doan` binary; `main` only calls `cli.Run`.
-- `cli/internal/cli/`: `Run`, argument splitting, envelopes and exit codes, command bodies, human output, the embedded `doan skill` body (`skill.md`), the assembly of `check` input (Reach), and the `doan mcp` stdio server (`mcp.go`), plus `active.go` (runtime read, bounded unix-socket client and app-error mapping).
+- `cli/internal/cli/`: `Run`, argument splitting, envelopes and exit codes, command bodies, human output, the embedded `doan skill` body (`skill.md`), the assembly of `check` input (Reach), and the `doan mcp` stdio server (`mcp.go`), plus `active.go` (runtime read, bounded unix-socket client and app-error mapping), `config.go` (config reads, path validation and writes) and `config_ops.go` (pure config operations).
 - `cli/internal/repo/`: repo discovery, config parsing, in-repo path resolution, canvas and comment file listing, and the serving scope (`scope.go`, shared by `ls` and `check`); read-only Git metadata discovery (`git.go`) and pure parsing (`git_parse.go`).
 - `cli/internal/canvas/`: pure HTML canvas model and CSS scanner.
 - `cli/internal/check/`: pure `doan check` rules.
@@ -30,7 +30,7 @@
 - `.agents/skills/`: development skills (`.claude/skills/<name>` are symlinks to them).
 - `schema/`: shared JSON Schema 2020-12 definitions (comment-event, config, CLI envelope, runtime and app-socket); `embed.go` embeds them for Go.
 - `schema/fixtures/`: shared valid/invalid JSON (including runtime and app-socket request/response/selection) and JSONL folding fixtures used by both languages.
-- `eval/`: agent-eval tooling run by `/agent-eval` (ARCHITECTURE §14) — `run.ts` (real rounds and `--self-test`), `lib/` (workspace isolation, agent and judge commands, fake app socket, check context, transcript command extraction, sanitized rollout fixtures in `lib/fixtures/`, result records, with `node --test` tests; `types.ts` is the check contract) and `scenarios/<id>/` (W1, W2, R1–R5, MCP-enabled R2b, the self-test-only `_example`, and `regression.test.ts` for scenario checks). Results go to `.scratch/agent-eval/<round>/`.
+- `eval/`: agent-eval tooling run by `/agent-eval` (ARCHITECTURE §14) — `run.ts` (real rounds and `--self-test`), `lib/` (workspace isolation, agent and judge commands, fake app socket, check context, transcript command extraction, sanitized rollout fixtures in `lib/fixtures/`, result records, with `node --test` tests; `types.ts` is the check contract) and `scenarios/<id>/` (W1, W2, H1–H5, R1–R5, MCP-enabled R2b, the self-test-only `_example`, and `regression.test.ts` for scenario checks). Results go to `.scratch/agent-eval/<round>/`.
 - `docs/`: product, architecture, and working documents.
 - `.scratch/`: ignored experiments and local handoff evidence.
 
