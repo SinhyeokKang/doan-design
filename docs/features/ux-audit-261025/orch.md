@@ -136,3 +136,6 @@
 | IR-C-fix | C 전체 및 C-fix diff·인계 증거 읽기, root scratch review-C-fix.md만 작성 | Codex gpt-6-astra medium. begin 권한·main guard 순서와 Inspector 음성 대조의 유효성 판단 | C-1의 late reject/success/guard/new retry 및 기존 C 계약 재검토, 발견을 C 소유자에게 반환 |
 
 각 리뷰는 해당 구현 완료 후 다른 작성자에게 맡긴다. 빌드·실행·코드 수정은 하지 않으며 최종 통합 gate는 별도로 실행한다.
+
+- O `04c1727`·`9be1099`·`17c35f4`를 인수했다. 관련 196 tests·typecheck·build·최종 onboarding-test PASS/exit 0, real-state/clipboard 복구 증거를 받았다. 혼합 추가 fixture의 잘못된 기대를 제품 회귀 red로 계산하지 않는다. root O-evidence의 39개 파일을 원본과 해시 대조했고, 최종 스크린샷 5개에서 읽기/복사 실패·추가 scan/확인·미설정 프로젝트 표시를 직접 확인했다.
+- O는 release, child는 리뷰까지 보존한다. IR-O `ctx_188d43dbe520`의 Astra medium effective·turn_start를 확인했다. source/build 해시는 최종 실행 후 clean `17c35f4`에서 캡처했으며 사전 불변 증명으로 표기하지 않는다. S가 다음 native/build 슬롯을 인수했다.
