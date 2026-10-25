@@ -259,8 +259,8 @@ export class CanvasController {
     this.waitingWorkspace = null;
     // A draft can start while the read is pending, so the click's approval is
     // stale: ask again, and re-validate the result like any other transition.
-    if (kind === "list" && waiting.intent === this.transitionIntent) {
-      this.transition(waiting.open, () => this.entries.find(entry => entry.path === waiting.folder)?.kind === "list");
+    if (waiting.intent === this.transitionIntent && (kind === "list" || waiting.unavailable)) {
+      this.transition(waiting.open, () => this.entries.find(entry => entry.path === waiting.folder)?.kind !== "loading");
     }
   }
 
@@ -340,16 +340,16 @@ export class CanvasController {
   // A project added a moment ago is still being read when its "Added" toast
   // offers Open; dropping that click left the previous workspace on screen.
   // Any later transition bumps `transitionIntent` and so supersedes the wait.
-  private waitingWorkspace: { folder: string; intent: number; open: () => void } | null = null;
+  private waitingWorkspace: { folder: string; intent: number; open: () => void; unavailable: boolean } | null = null;
 
-  openWorkspace(folder: string, entered: (folder: string) => void, sameCanvas = false): void {
+  openWorkspace(folder: string, entered: (folder: string) => void, sameCanvas = false, unavailable?: () => void): void {
     const kind = () => this.entries.find(entry => entry.path === folder)?.kind;
     this.transition(() => {
       this.waitingWorkspace = null;
-      const open = () => this.enterWorkspace(folder, entered, sameCanvas);
-      if (kind() === "loading") this.waitingWorkspace = { folder, intent: this.transitionIntent, open };
+      const open = () => { if (kind() === "list") this.enterWorkspace(folder, entered, sameCanvas); else unavailable?.(); };
+      if (kind() === "loading") this.waitingWorkspace = { folder, intent: this.transitionIntent, open, unavailable: !!unavailable };
       else open();
-    }, () => kind() === "list" || kind() === "loading");
+    }, () => kind() === "list" || kind() === "loading" || !!unavailable);
   }
 
   private enterWorkspace(folder: string, entered: (folder: string) => void, sameCanvas: boolean): void {
@@ -420,7 +420,7 @@ export class CanvasController {
       this.pendingFrame?.found?.(false);
       this.dropFrame();
       this.state.status = "noWidth";
-      this.state.message = 'Missing or invalid board width. Ask the agent to add <meta name="doan:width" content="1440"> to <head>. Run doan check in a terminal to verify.';
+      this.state.message = "Could not read a valid board width. Run doan check in a terminal to diagnose the canvas.";
       this.publish();
       return;
     }

@@ -17,6 +17,7 @@ export interface ToastState {
   hovered: boolean;
   focused: boolean;
   hidden: boolean;
+  modal: boolean;
   // The toast the last event took away, so the caller can tell main a removal's
   // undo window is over without re-deriving it.
   ended?: ToastEnd;
@@ -25,13 +26,13 @@ export interface ToastState {
 export type ToastEvent =
   | { type: "show"; toast: Toast }
   | { type: "tick"; elapsedMs: number }
-  | { type: "hover" | "focus" | "hidden"; on: boolean }
+  | { type: "hover" | "focus" | "hidden" | "modal"; on: boolean }
   | { type: "action" };
 
-export const initialToastState: ToastState = { toast: null, remainingMs: 0, hovered: false, focused: false, hidden: false };
+export const initialToastState: ToastState = { toast: null, remainingMs: 0, hovered: false, focused: false, hidden: false, modal: false };
 
 export function isToastPaused(state: ToastState): boolean {
-  return state.hovered || state.focused || state.hidden;
+  return state.hovered || state.focused || state.hidden || state.modal;
 }
 
 // Pure so the timer logic runs on a fake clock: the component feeds `tick` with
@@ -56,6 +57,8 @@ export function toastState(state: ToastState, event: ToastEvent): ToastState {
       return { ...base, focused: event.on };
     case "hidden":
       return { ...base, hidden: event.on };
+    case "modal":
+      return { ...base, modal: event.on };
     case "action":
       if (!state.toast?.action) return base;
       return gone(base, state.toast, "action");

@@ -332,7 +332,7 @@ function CanvasPane({ viewport, board, overlay, state, command, covered }: {
     {state.status && <div className="canvas-status" role="status">
       {state.status === "loading" ? <p><span className="spinner" aria-hidden="true" />Loading…</p>
         : state.status === "failed" ? <div><b>Couldn’t load the canvas</b><br />Run doan check in a terminal<br /><br /><button className="btn" onClick={() => command("reload")}>Reload</button></div>
-        : state.status === "noWidth" ? <p><b>Missing or invalid board width.</b>{state.message.slice("Missing or invalid board width.".length)}</p>
+        : state.status === "noWidth" ? <p><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
         : <p>{state.message}</p>}
     </div>}
     {state.updated && state.open && <output className="updated meta" aria-label={updatedText(state.updated)}><span className="dot" /> {updatedText(state.updated)}</output>}

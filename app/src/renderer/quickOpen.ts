@@ -1,5 +1,5 @@
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { canvasLabel } from "./canvasTree";
+import { canvasLabel, frameLabel } from "./canvasTree";
 
 export interface SearchFrame {
   id: string;
@@ -54,7 +54,7 @@ export function searchIndex(entries: readonly SearchFolder[], rendered?: Rendere
         fields: [label, row.path.split("/").at(-1) ?? row.path, row.path.replace(/^design\//, ""), row.id ?? ""].map(searchText) });
       const frames = rendered?.root === entry.path && rendered.path === row.path ? rendered.frames : row.frames ?? [];
       for (const [frameIndex, frame] of frames.slice(0, 1000).entries()) {
-        index.push({ ...target, kind: "frame", label: frame.title?.trim() || frame.id,
+        index.push({ ...target, kind: "frame", label: frameLabel(frame, frameIndex).name,
           frameId: frame.id, frameIndex,
           fields: [frame.title ?? "", frame.id].map(searchText) });
       }

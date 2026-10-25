@@ -7,7 +7,7 @@ import { sameDocument, type CanvasViewUpdate } from "./canvasView";
 // pan or a scroll never re-renders React.
 export type SelectionView = Omit<SelectTarget, "rect">;
 
-export const SELECTION_LOST = "The selected element is no longer in the canvas.";
+export const SELECTION_LOST = "The selection is no longer in the canvas.";
 
 // What the renderer last asked of or heard from the canvas script: its
 // document, the iframe height (the script's innerHeight) and the seq.

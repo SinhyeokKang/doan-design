@@ -91,19 +91,19 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
         }} />
       <span className="kbd">esc</span>
     </div>
-    <QuickOpenList id={id} results={results} active={current} where={where} pick={choose} activate={setActive} />
+    <QuickOpenList emptyText={query.trim() ? "No canvases or frames match" : entries.some(entry => (currentRoot === null || entry.path === currentRoot) && entry.kind === "loading") ? "Project is still being read. Try again shortly." : entries.some(entry => (currentRoot === null || entry.path === currentRoot) && entry.kind !== "list") ? "Project is unavailable. Check its status on Home." : "No canvases to show"} id={id} results={results} active={current} where={where} pick={choose} activate={setActive} />
     <div className="qo-foot">↑↓ to move · ↩ to open · esc to close</div>
   </dialog>;
 }
 
-export function QuickOpenList({ id, results, active, where, pick, activate }: { id: string; results: readonly SearchResult[]; active: number; where: ReadonlyMap<string, string>; pick: (result: SearchResult) => void; activate: (index: number) => void }) {
-  return <div className="qo-list" role="listbox" id={id} aria-label="Results">
-    {results.length === 0 ? <p className="qo-none" role="status">No canvases or frames match</p> : results.map((result, index) => {
+export function QuickOpenList({ emptyText = "No canvases or frames match", id, results, active, where, pick, activate }: { emptyText?: string; id: string; results: readonly SearchResult[]; active: number; where: ReadonlyMap<string, string>; pick: (result: SearchResult) => void; activate: (index: number) => void }) {
+  return <div className="qo-list native-scroll" role="listbox" id={id} aria-label="Results">
+    {results.length === 0 ? <p className="qo-none" role="status">{emptyText}</p> : results.map((result, index) => {
       const parts = resultParts(result, where);
       return <div className="qo-item" role="option" id={`${id}-${index}`} aria-selected={index === active} key={`${result.root}\n${result.path}\n${result.kind === "frame" ? result.frameIndex : ""}`}
         // Keep focus in the input so the keys keep working after a click.
         onMouseDown={event => event.preventDefault()} onMouseMove={() => { if (index !== active) activate(index); }} onClick={() => pick(result)}>
-        <span className="glyph" aria-hidden="true">{parts.glyph}</span><span className="t">{parts.name}</span><span className="c">{parts.context}</span><span className="w">{parts.where}</span>
+        <span className="glyph" aria-hidden="true">{parts.glyph}</span><span className="t" title={parts.name}>{parts.name}</span><span className="c" title={parts.context}>{parts.context}</span><span className="w" title={parts.where}>{parts.where}</span>
       </div>;
     })}
   </div>;
