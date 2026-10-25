@@ -100,7 +100,7 @@ describe("selectionAfter", () => {
   });
 
   test("the notice text is the design's", () => {
-    expect(SELECTION_LOST).toBe("The selected element is no longer in the canvas.");
+    expect(SELECTION_LOST).toBe("The selection is no longer in the canvas.");
   });
 });
 

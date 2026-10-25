@@ -68,3 +68,20 @@ describe("toastState", () => {
     expect(run([{ type: "tick", elapsedMs: 5000 }])).toEqual(initialToastState);
   });
 });
+
+test("modal pause composes with native, hover and focus pauses without renewing the deadline", () => {
+  let state = toastState(initialToastState, { type: "show", toast: { id: "one", message: "Removed", action: "Undo" } });
+  state = toastState(state, { type: "tick", elapsedMs: 3000 });
+  state = toastState(state, { type: "modal", on: true });
+  state = toastState(state, { type: "tick", elapsedMs: 20000 });
+  expect(state.remainingMs).toBe(5000);
+  state = toastState(state, { type: "hidden", on: true });
+  state = toastState(state, { type: "modal", on: false });
+  state = toastState(state, { type: "tick", elapsedMs: 20000 });
+  expect(state.remainingMs).toBe(5000);
+  state = toastState(state, { type: "hidden", on: false });
+  state = toastState(state, { type: "tick", elapsedMs: 4999 });
+  expect(state.toast?.id).toBe("one");
+  state = toastState(state, { type: "tick", elapsedMs: 1 });
+  expect(state.ended).toEqual({ id: "one", reason: "expired" });
+});

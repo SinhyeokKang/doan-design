@@ -500,7 +500,7 @@ describe("judging a located folder", () => {
     const flow = createAddFlow(deps);
     expect(await flow.judge(file)).toEqual({ refused: "Only folders can be added." });
     expect(await flow.judge(join(tmp, "gone"))).toEqual({ refused: "Only folders can be added." });
-    expect(await flow.judge(plain)).toEqual({ refused: `${plain.split("/").at(-1)} isn’t a doan project or a git repository.` });
+    expect(await flow.judge(plain)).toEqual({ refused: `${plain.split("/").at(-1)} isn’t the current project folder. Choose the folder where this project is now located.` });
     mkdirSync(join(tmp, "broken"));
     expect(await flow.judge(join(tmp, "broken"))).toEqual({ refused: "bad config" });
   });

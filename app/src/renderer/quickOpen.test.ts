@@ -189,3 +189,8 @@ describe("quick open target", () => {
     }
   });
 });
+
+it("uses the tree fallback for blank frame labels", () => {
+  const index = searchIndex([{ kind: "list", path: "/repo", servedRev: 0, canvases: [{ path: "design/a.html", url: "u", open: 0, resolved: 0, frames: [{ id: "", title: "  " }] }] }]);
+  expect(index.find(row => row.kind === "frame")?.label).toBe("(no id)");
+});

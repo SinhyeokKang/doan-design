@@ -96,6 +96,8 @@ describe("cardRow", () => {
     const entry = listRow("/p");
     expect(cardRow(entry, "/p", frame)).toMatchObject({ current: true, selected: "Home screen" });
     expect(cardRow(entry, "/p", { ...frame, frame: { id: "home" } }).selected).toBe("home");
+    expect(cardRow(entry, "/p", { ...frame, frame: { id: "", title: "  " } }).selected).toBe("(no id)");
+    expect(cardRow(entry, "/p", { ...frame, frame: { id: "home", title: "  Home  " } }).selected).toBe("Home");
     expect(cardRow(entry, "/p", element).selected).toBe("button · save");
     expect(cardRow(entry, "/p", null)).toEqual({ current: true, actions: [], summary: { canvases: 0, openComments: 0 } });
   });

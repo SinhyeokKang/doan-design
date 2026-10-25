@@ -1118,3 +1118,54 @@ it("persisted per-root memory reopens its canvas with its view, and null forgets
     expect(Object.keys(h.controller.memory())).toEqual(["/repo"]);
   } finally { h.controller.dispose(); }
 });
+
+it("does not diagnose missing markup when the board width could not be read", () => {
+  const h = loadedController();
+  try {
+    const { width, ...row } = h.row;
+    h.controller.updateEntries([{ kind: "list", path: "/repo", servedRev: 1, canvases: [row] }]);
+    expect(h.changed.mock.lastCall?.[0].message).toBe("Could not read a valid board width. Run doan check in a terminal to diagnose the canvas.");
+  } finally { h.controller.dispose(); }
+});
+
+it("reports a non-list Added Open target immediately or after loading, through the draft guard", async () => {
+  const h = loadedController();
+  try {
+    const repo: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
+    const problem: FolderEntry = { kind: "uninitialized", path: "/added" };
+    const entered = vi.fn(), unavailable = vi.fn();
+    h.controller.setTransitionGuard(() => true);
+    h.controller.updateEntries([repo, problem]);
+    h.controller.openWorkspace("/added", entered, false, unavailable);
+    expect(unavailable).toHaveBeenCalledOnce();
+    unavailable.mockClear();
+    h.controller.updateEntries([repo, { kind: "loading", path: "/added" }]);
+    h.controller.openWorkspace("/added", entered, false, unavailable);
+    const answers: ((allow: boolean) => void)[] = [];
+    h.controller.setTransitionGuard(() => new Promise<boolean>(resolve => answers.push(resolve)));
+    h.controller.updateEntries([repo, problem]);
+    expect(unavailable).not.toHaveBeenCalled();
+    answers[0]?.(false); await Promise.resolve();
+    expect(unavailable).not.toHaveBeenCalled();
+    h.controller.setTransitionGuard(() => true);
+    h.controller.updateEntries([repo, { kind: "loading", path: "/added" }]);
+    h.controller.openWorkspace("/added", entered, false, unavailable);
+    h.controller.updateEntries([repo, problem]);
+    expect(unavailable).toHaveBeenCalledOnce();
+    expect(entered).not.toHaveBeenCalled();
+    expect(h.changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
+  } finally { h.controller.dispose(); }
+});
+
+it("does not apply Added Open recovery after a newer navigation", () => {
+  const h = loadedController();
+  try {
+    const repo: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
+    const unavailable = vi.fn();
+    h.controller.updateEntries([repo, { kind: "loading", path: "/added" }]);
+    h.controller.openWorkspace("/added", vi.fn(), false, unavailable);
+    h.controller.showOverview();
+    h.controller.updateEntries([repo, { kind: "uninitialized", path: "/added" }]);
+    expect(unavailable).not.toHaveBeenCalled();
+  } finally { h.controller.dispose(); }
+});
