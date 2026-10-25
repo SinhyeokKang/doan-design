@@ -12,6 +12,8 @@
 2. **리로드 중 위치 표시 측정(T-11)**: 확대한 아래쪽 프레임에서 요소를 선택하고 핀을 띄운 뒤, 캔버스 파일을 바꾼다. 0/100/300/800ms에 "Location unavailable", 핀, Selection 목록과 그 빈 상태 문구, iframe 높이를 기록한다.
    - 재현 기준: 한 샘플이라도 "Location unavailable"이나 빈 Selection 목록이 보이면 재현으로 본다.
    - 검증: 측정 로그와 스크린샷 경로를 이 항목 아래에 적는다. 재현되지 않으면 design 7절의 리로드 부분을 "측정만 기록"으로 닫는다. command undecided — needs user confirmation.
+   - **결과 (2026-10-26, M2): 재현됐다.** 스크립트 `.scratch/revision-continuity/t11.mjs`, 데이터 `t11.json`·`t11-freq-*.json`, 요약 `t11-summary.md`, 스크린샷 `t11-shots/`. 리로드할 때마다(10/10) 새 iframe `load` 시점(쓰기 뒤 240–267ms)에 Selection 목록이 비고 핀이 사라졌다가 15–45ms 뒤 돌아왔다. Canvas 범위에서는 6~7/10에서 모든 카드에 "Location unavailable"이 한 프레임 보였다. 고정 샘플(0/100/300/800ms)과 스크린샷은 이 구간을 놓쳐서, 판정은 애니메이션 프레임마다 남긴 DOM 기록으로 했다. 실제 상태는 바뀌지 않았고 exit 0이다. design 7절의 리로드 부분(앵커 pending)을 구현한다(배치 B8).
+   - 덧붙인 관찰: Canvas 범위가 리로드 뒤 Selection으로 돌아갔다(L-13, tasks 8이 다룬다). 리로드 중 스크린샷을 찍은 실행에서만 iframe이 150px 높이로 5초 넘게 멈춘 경우가 있었다(2/10, 찍지 않으면 0/20). 원인은 조사하지 않았다(`t11-freq-shot-shots/runcanvas-1-stuck.png`).
 3. **순수 함수 테스트 먼저(`/tdd`)**: design의 "순수 함수" 목록과 그 경우를 모두 다룬다.
    - `classifyDesignChange`, refresher names 누적
    - `canvasViewUpdate`
