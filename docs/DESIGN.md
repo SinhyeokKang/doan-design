@@ -478,3 +478,44 @@ Presentation measurements in P's final production and DEV runs (Electron 45.0.0,
 Production retains a pre-existing Radix inline-style CSP warning with exact hash `nzTgYzXYDNe6BAHiiI7NNlfK8n/auuOAhh2t92YvuXo=` when the worktree menu invokes react-remove-scroll-bar. Entry-loading checks have zero CSP warnings; later checks recognize only that exact baseline warning. The menu remained operable and measured, but every scroll-lock/OS appearance behavior was not verified. No CSP permission was broadened. Final screenshots include `toast-960-long.png`, `tooltip-Fit.png`, `settings-unbroken-branch.png` and `canvas-media-preference.png` in `P-evidence`.
 
 Evidence retained in the conductor's `.scratch/ux-integration-261025/`: `C-evidence`, `C-fix-evidence`, `O-evidence`, `O-fix-evidence`, `S-evidence`, and independent review reports. The follow-up K fixtures observe request-specific renderer completion before checking feedback in both windows. The targeted stale-guard bypass fails the exact stale-error assertion; restored runs pass. This supersedes the original O/S time-based absence evidence for those installation paths. Combined integration verification is separate from these worker results.
+
+## Revision continuity — initial implementation (2026-10-26)
+
+Reference: the conductor-confirmed `design/revision-continuity.html` (frames `continue-draft`, `selection-gone`, `duplicate-id` compared as first implementations; `moved` and `no-document` checked only for their new Activity row and the no-badge target line). Batch E2 of the revision-continuity orchestration measured it at `4e7247c`; no implementation change was needed.
+
+### Measurement and contracts
+
+`.scratch/design-sync/revision-continuity/measure.mjs` builds the CLI, launches the built app at 1238 × 780 with a temporary HOME, SHELL, userData, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `DOAN_CLI` and `DOAN_RUNTIME`, opens this checkout's draft as a served canvas and a temporary fixture repository, and reads computed style, document-local rectangles, text, `aria-describedby` targets, `disabled`, `title`, truncation and sibling order on both sides in the same Electron process. States are real: a file rewrite blocks the draft as reloaded; main's `comments:begin` handler is held (Starting…) or answers `{ ok: false, error: "doan CLI error." }` as main does on a CLI failure; a canvas without `doan:width`; a canvas that swallows its own layout messages (load failed, then a second such rewrite for loading); a canvas that navigates itself to `about:blank` after the reload (not a listed canvas); real `mv` of the open canvas; a duplicate id by rename and, after a real quit, at relaunch. Real-state fingerprints were unchanged and every quit exited with code 0.
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Continue on current version | The editor's primary slot (sibling index 1 after Cancel): `.comments-btn.primary`, 11px / 600, padding 4px 7px, radius 7, `--accent` background and border, `--accent-ink` text; "Starting…" and every blocked state disabled at opacity .4 | It replaces Save comment in place, so the editor keeps one primary action. |
+| Continue on canvas | Between Cancel and the primary (index 1, primary index 2): the secondary `.comments-btn`, 11px / 500, `--panel-2` background, 1px `--line` border | A secondary choice that never competes with the primary. |
+| Helper lines | Notice (`role="status"`), "Continues on …" or the disabled reason, and the failure (`role="alert"`) in that order below the tools: `.comments-helper`, 10.5px / 15.75px, `--text-3`, margin 8px 0 | The tools stay in the same place in every blocked state; the reason line sits where the preview would. |
+| Disabled reason | The disabled primary's `aria-describedby` resolves to the reason line's text for loading, no width, load failed, not a listed canvas and selection gone (CDP description equals the line) | A disabled button explains itself to a screen reader. |
+| Failure text | "Couldn’t continue on the current version: doan CLI error. Your text is kept." for main's `error: "doan CLI error."` (trailing period folded) | Exactly the draft copy. |
+| Overview notice | First child of `.ov`: the shipped `.canvas-notice` (padding 7px 12px, 11px, `--accent` on `--accent-soft`), margin −4px −24px 0 so it spans the Overview's padding, `role="status"` | The same band at a move and at relaunch. |
+| Duplicate-id toast | The shipped solo toast (12.5px / 1.5, `--raised`, 1px `--line`, radius 10, padding 8px 14px), `role="status"`; at relaunch it takes the restore toast's place | No new toast variant. |
+| Activity Moved row | Shipped `.tl-row` (11px, gap 8, `--text-3`); "Moved" in the event style (`--text-2`, 400); "· from <file name>" in `--text-3`, `nowrap` with ellipsis, title = the file name | A long previous name truncates without pushing the time or the event word. |
+
+### Documented differences
+
+`.scratch/design-sync/revision-continuity/classify.py` classifies every differing row of the comparison (111 pairs, 16 states, 7,280 rows): 6,879 exact, 217 equivalent (zero-width borders: preflight `solid` against the draft's `none`), 184 documented, zero unclassified. The documented groups:
+
+- **Target text and fixture copy:** "To:" lines, "Continues on …" and card targets use today's target text ("Element · child"); the draft uses comments-readability's format, which is not shipped (draft intro, 'Target lines'). Fixture names, ids, times, counts and an Outdated badge differ.
+- **No-document target line:** the app keeps the shipped disabled target button (opacity .4, shrink-to-fit width, no title), the same as a canvas-wide comment's target (Comments section above). The draft draws comments-readability's text-only span (`--text-2`, title = selector, `docs/features/comments-readability/design.md` §1), which belongs to that feature. The badge itself is absent as drawn.
+- **Specimen frame:** the draft's 280px tiles have a 1px border on both sides (278px inner) where the app's column has only its left border (279px); the cropped reason tiles omit the label and textarea and sit outside `.comments-panel`, so their offsets and `overflow-wrap` differ; the restart strip is 640px against the wider Overview.
+- **Focus:** where the user has just typed, the app's textarea keeps focus and shows the shipped `:focus-visible` ring the unfocused draft tile lacks. After a continue, the ring matches except its offset: 0 in the app (the shipped composer ring) against −1px from the draft's generic static `.focus` rule.
+- **Live surfaces:** the Overview scrolls (Design navigation, 'Live versus static'); each Overview folder is its own `<section>`; the app titles every Moved row, where the draft titles only its long specimen.
+
+### Roles and names
+
+CDP (`Accessibility.getPartialAXTree`) in the measured states: Continue on current version and Continue on canvas are `button`s named by their text; the disabled primary's description is the reason line; Starting… is a disabled `button`; the notice, the Overview band and both toasts are polite atomic `status`es; the failure is an assertive `alert`; after a continue the textarea "New comment body" is focused; the no-document target is a disabled `button` named by its target text. Evidence: `ax.json` next to the script.
+
+### Coverage and limits
+
+Not reached: the "Finding your selection in the current version…" reason (a transient reanchor; the same `.comments-helper[id]` element as the five reasons measured), the long-target tile (`cd-long`) and the long duplicate-id toast (`dup-toast-long`), hover and keyboard focus rings of the new buttons (shipped `.comments-btn` primitives, see 'UX audit recovery update'). Tab order follows the DOM order measured above; the module asserts focus at the end of the body after a continue. The load-failed and loading reasons appear only for a draft already blocked as reloaded: a draft that is not yet blocked shows no notice while a reload has not laid out and becomes "unavailable" when the load fails.
+
+### Regression evidence and verification
+
+The loop found no deviation to fix, so no new test pins a value. Behavior of these surfaces is pinned in `app/e2e/revision-continuity.ts` (continue, selection gone, forced failure, move, duplicate id, restart, no-width location, blank in-canvas click, root switch after a move, and the per-frame reload trace) and in the unit tests of batches B6–B8 and F.
