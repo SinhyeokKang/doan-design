@@ -10,6 +10,7 @@ function state(cli: "ours" | "missing" | "dangling"): MachineState {
   return {
     requestId: "r", cli: link, stub: { state: "ours", stamp: "" }, claudeLink: { state: "ours", value: null, stamp: "" },
     probe: { ok: true, path: "/bin", claudeConfigDir: "", codexHome: "" }, agents: { claude: agent, codex: agent },
+    display: { cliPath: "/h/.local/bin/doan", stubPath: "/h/s", claudeLinkPath: "/h/c", blocked: { cli: null, stub: null, claudeLink: null } },
   } as unknown as MachineState;
 }
 
@@ -58,7 +59,7 @@ test("the causes follow the summary: kept while reading, replaced with the new s
   const refreshing = broker.refresh();
   await vi.waitFor(() => expect(published.at(-1)).toMatchObject({ checking: true, causes: {} }));
   later.resolve(state("dangling"));
-  expect(await refreshing).toMatchObject({ summary: { cli: "needs-attention" }, causes: { cli: "dangling" } });
+  expect(await refreshing).toMatchObject({ summary: { cli: "needs-attention" }, causes: { cli: { kind: "cli-dangling" } } });
   machine.read.mockResolvedValueOnce(state("ours"));
   expect(await broker.refresh()).toMatchObject({ summary: { cli: "connected" }, causes: {} });
 });
@@ -70,7 +71,7 @@ test("a read that started earlier cannot replace a newer summary or its causes",
   await broker.read(SETTINGS, "b");
   slow.resolve(state("ours"));
   await first;
-  expect(broker.status()).toMatchObject({ summary: { cli: "needs-attention" }, causes: { cli: "dangling" } });
+  expect(broker.status()).toMatchObject({ summary: { cli: "needs-attention" }, causes: { cli: { kind: "cli-dangling" } } });
 });
 
 test("a read that started earlier cannot replace a newer summary", async () => {
