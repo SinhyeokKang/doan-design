@@ -18,7 +18,7 @@
 | 2026-10-26 | 새 표면(`continue-draft`, `selection-gone`, `duplicate-id`의 새 요소)은 확정 초안 `design/revision-continuity.html`에 대고 `/design-sync`를 돌린다. tasks.md에 따로 항목이 없으므로 배치 E가 tasks 9와 함께 맡는다 | 지휘자 판단 — 체인 규칙("새 표면은 design-sync"), design.md '초안 요청'의 비교 대상 |
 | 2026-10-26 | 측정 결과(tasks 1·2)는 작업자가 인계 문서에 적고, 지휘자가 tasks.md 해당 항목 아래에 옮긴다 | 지휘자 판단 — 두 측정 배치가 같은 파일을 동시에 고치지 않게 한다 |
 | 2026-10-26 | **사용자 확인 질문을 하지 않고 권장안대로 진행한다.** 결정 지점에서는 지휘자가 권장안을 골라 이 로그에 근거와 함께 적는다. 실제 사용자 상태를 바꾸는 일처럼 되돌리기 어려운 일은 예외로 묻는다 | 사용자 지시("이 루프 링크는 가능한 내 허가 없이 추천안대로 쭉 진행해") |
-| 2026-10-26 | 필요하면 모델 경계를 넘어 Codex를 써도 된다. 작업자와 리뷰어는 그대로 Opus로 두고, Codex는 Codex 동작을 측정할 때처럼 꼭 필요한 곳에만 쓴다. 쓸 때마다 이 로그에 적는다 | 사용자 지시("모델 경계도 필요하다면 넘어도 괜찮아. Codex 허가할게") |
+| 2026-10-26 | Codex를 적당히 섞어 쓴다. 구현 배치는 Claude Opus가 맡고, 독립 리뷰 일부(R-P, R-A, R-B7, R-E)는 Codex Astra medium이 다른 계열로 읽는다. 첫 줄의 'Opus 단일' 규칙을 대체한다. 쓸 때마다 이 로그에 적는다 | 사용자 지시("모델 경계도 필요하다면 넘어도 괜찮아. Codex 허가할게", "Codex 적당히 섞어 써도 괜찮아. 주 업무는 클로드 코드가 진행하되 적당히 섞어 사용해") |
 | 2026-10-26 | 이 기능은 CLI·MCP·skills·공유 형식을 바꾸지 않으므로 `/agent-eval` 회차를 돌리지 않는다. 체인의 유일한 실제 회차는 링크 5다 | spec '사용자', design 'CLI·MCP·skills·공유 형식: 바뀌지 않는다', 체인 규칙 |
 
 ## 배치
@@ -33,7 +33,7 @@
 | B7 | 7 | B6 파일 + `activity.ts`, `Sidebar.tsx`, `App.tsx`, `app/src/main/uiState.ts`와 테스트 | B6 통합 | Opus high (이동 따라가기의 요청 상태 판정, 진행 중 read 무효화) | test, typecheck | 대기 |
 | B8 | 8 | `CanvasController.ts`, `useComments.tsx`, `CommentsPanel.tsx`, `commentAnchors.ts`와 테스트 | B7 통합, M2 결과 | Opus medium(T-11 재현 시 high) (Esc 기본 동작과 범위 효과. 재현되면 앵커 pending의 수명이 더해진다) | test, typecheck | 대기 |
 | E | 9, design-sync | `app/e2e/revision-continuity.ts`, `app/e2e/runtime.ts` import, design-sync가 고칠 렌더러 CSS·마크업, `docs/DESIGN.md`, `.scratch/design-sync/revision-continuity/` | B8 통합 | Opus high (iframe 교체를 지나는 폴링, 재시작 시나리오, 실측 비교) | 모듈 단독 실행 PASS(전체 e2e는 지휘자), design-sync 완료 조건 | 대기 |
-| R-* | 배치별 리뷰 | 보고서만 | 각 구현 배치 | Opus, P·A·B6·B7·E는 high, B8은 medium | `/code-review`, 🔴 0 | — |
+| R-* | 배치별 리뷰 | 보고서만 | 각 구현 배치 | R-P·R-A·R-B7·R-E: Codex Astra medium (다른 계열의 읽기). R-B6: Opus high, R-B8: Opus medium | `/code-review`, 🔴 0 | — |
 | 지휘자 | 10 | — | 전부 통합 | — | `node .agents/skills/verify/scripts/verify.mjs --runtime` 최종 PASS, exit 0 | 대기 |
 | G | 11 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`(E가 쓴 것 외), 이 디렉터리 삭제 | 10 | Opus medium (승격 위치가 tasks 11에 다 나와 있다) | 문서 diff 검토, 위 git grep 결과 없음 | 대기 |
 
