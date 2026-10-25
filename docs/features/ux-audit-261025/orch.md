@@ -74,3 +74,9 @@
 | U-50 | R-W, R-P | 재판정 대기 |
 | U-51 | R-A, R-P | 재판정 대기 |
 | U-52 | R-P | 재판정 대기 |
+
+## 사용자 결정과 검토 진행
+
+- U-35: 공용 shadcn 툴팁만 좌우 12px·상하 6px로 복구한다는 사용자 답변을 인수했다. 전역 reset과 별도 PathTip은 유지한다. PRODUCT §8 미결정을 닫고 §7·ARCHITECTURE에 기록했다.
+- R-W `ctx_c764468a4596`, R-A `ctx_aa516ef31c55`, R-T `ctx_2203c8cc6a37` 모두 Astra medium effective 및 turn_start를 확인했다. R-P는 다음 빈 슬롯에서 진행한다.
+- 지휘자가 직접 확인한 계약: wizard 4단계는 Home의 여러 폴더 추가 흐름을 쓰며, Settings Details는 좁은 projection으로 main에 전달한다. 원본 권고를 그대로 적용해 이 계약을 바꾸지 않는다. 잘못된 피드백·라벨을 최소한으로 바로잡는 방식을 검토한다.
