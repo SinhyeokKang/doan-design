@@ -509,6 +509,59 @@ describe("the panel while comments change underneath (comments-readability task 
     // Without a layout, the ls row's static frames name it.
     expect(render({ selection: null, layout: null, open: { folder: "/repo", canvas: row.path, row: { ...row, frames: [{ id: "shipping", title: "Ship" }] } } }).markup).toContain("Frame · Ship");
   });
+
+  const b = { ...row, path: "design/b.html", id: "b", url: "http://localhost/b.html", frames: [{ id: "shipping", title: "Ship B" }, { id: "payment", title: "Pay B" }] };
+  const onB = { selection: null, layout: null, open: { folder: "/repo", canvas: b.path, row: b } };
+
+  // R-W 🟡1: session.open(B) runs in an effect, so the first render with B's
+  // row still holds A's read results.
+  test("the first render after switching canvases shows none of the previous canvas's cause, failure or comments", async () => {
+    const f = setup();
+    api().commentsList = async (r: CommentRequest) => r.canvas === "a" ? { ok: false, identity: r, error: "Canvas identity refused.", cause: "duplicate" } : { ok: true, identity: r, value: { project: 1, comments: [], warnings: [], canvasHash: "hash" } };
+    const { session } = f.render({ selection: null });
+    await vi.waitFor(() => expect(session.identityCause).toBe("duplicate"));
+    const failed = f.render(onB).markup;
+    for (const text of ["Another canvas uses the ID", "Couldn’t read comments", "Comments are read-only"]) expect(failed).not.toContain(text);
+    expect(failed).toContain("Loading comments…");
+
+    const framed: Comment = { ...note, target: { frame: "shipping" } };
+    api().commentsList = async (r: CommentRequest) => ({ ok: true, identity: r, value: { project: 1, comments: r.canvas === "a" ? [framed] : [], warnings: [], canvasHash: "hash" } });
+    f.render(); await vi.waitFor(() => expect(session.list?.comments).toEqual([framed]));
+    const listed = f.render(onB).markup;
+    expect(listed).not.toContain("Mark the field");
+    expect(listed).not.toContain("Ship B");
+    expect(listed).toContain("Loading comments…");
+    await vi.waitFor(() => expect(session.identity?.canvas).toBe("b"));
+    await vi.waitFor(() => expect(session.list).not.toBeNull());
+    expect(f.render(onB).markup).toContain("No open comments");
+  });
+
+  test("a draft left from another canvas names its frame by id, not by the open canvas's titles", async () => {
+    const { session, render } = await ready();
+    await session.create("selection");
+    expect(render({ selection: null }).markup).toContain("To: Element · button pay · in payment");
+    render(onB);
+    await vi.waitFor(() => expect(session.identity?.canvas).toBe("b"));
+    const { markup } = render(onB);
+    expect(markup).toContain("To: Element · button pay · in payment");
+    expect(markup).not.toContain("Pay B");
+  });
+
+  test("while reads fail, the draft dialog cannot save", async () => {
+    const { session, controller, render } = await ready();
+    await session.create("canvas"); session.body("Ship it");
+    render({ selection: null });
+    const transition = controller.setTransitionGuard.mock.lastCall![0] as (destination: "selection" | "navigation") => boolean | Promise<boolean>;
+    void transition("navigation");
+    const save = /<button[^>]*>Save and continue<\/button>/;
+    expect(renderToStaticMarkup(render({ selection: null }).dialog)).toMatch(save);
+    expect(renderToStaticMarkup(render({ selection: null }).dialog)).not.toContain("disabled");
+    api().commentsList = async (r: CommentRequest) => ({ ok: false, identity: r, error: "Permission denied." });
+    await session.read();
+    const dialog = renderToStaticMarkup(render({ selection: null }).dialog);
+    expect(dialog).toContain("Keep this draft?");
+    expect(dialog).toMatch(/<button[^>]*disabled=""[^>]*>Save and continue<\/button>/);
+  });
 });
 
 describe("focus after the composer and pins (comments-readability task 5)", () => {
