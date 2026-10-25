@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import * as harness from "./harness.ts";
+const harness: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 
 test("observation rejection is retried, persistent rejection is preserved, false times out", async () => {
   const failure = new Error("frame detached"); let tries = 0;
@@ -15,9 +15,14 @@ test("observation rejection is retried, persistent rejection is preserved, false
 });
 
 test("a crash is not a successful close even after state has persisted", async () => {
-  const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"]);
-  await once(child, "spawn");
-  await assert.rejects(harness.closeApp({ process: () => child, close: async () => { child.kill("SIGTERM"); } }, 100), /SIGTERM/);
+  const root = await mkdtemp("/tmp/doan-close-test-");
+  try {
+    await writeFile(join(root, "ui-state.json"), '{"screen":"home"}');
+    const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"]);
+    await once(child, "spawn");
+    await assert.rejects(harness.closeApp({ process: () => child, close: async () => { child.kill("SIGTERM"); } }, 100), /SIGTERM/);
+    assert.equal(await readFile(join(root, "ui-state.json"), "utf8"), '{"screen":"home"}');
+  } finally { await rm(root, { recursive: true, force: true }); }
 });
 
 for (const mode of ["suite-hang", "close-hang", "verify-hang"]) {
@@ -50,3 +55,9 @@ ${mode === "suite-hang" ? "await new Promise(() => {});" : "try { await guard.fi
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 }
+
+test("normal close waits for exit code zero even when close resolves earlier", async () => {
+  const child = spawn(process.execPath, ["-e", "setTimeout(() => process.exit(0), 40)"]);
+  await harness.closeApp({ process: () => child, close: async () => {} }, 1000);
+  assert.equal(child.exitCode, 0); assert.equal(child.signalCode, null);
+});
