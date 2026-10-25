@@ -23,7 +23,7 @@
 
 | 배치 | tasks | 파일 소유 | 선행 | 모델 · 노력 (이유) | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| P | 1, 2 | `app/src/comments/targetLabel.ts`, `app/src/comments/panelText.ts`와 테스트(새 파일) | — | Opus high (대상 표시의 경계와 패널 상태 우선순위가 다른 기능의 기준이 된다) | `npm --prefix app test` red→green, `typecheck` | 대기 |
+| P | 1, 2 | `app/src/comments/targetLabel.ts`, `app/src/comments/panelText.ts`와 테스트(새 파일) | — | Opus high (대상 표시의 경계와 패널 상태 우선순위가 다른 기능의 기준이 된다) | `npm --prefix app test` red→green, `typecheck` | 통합 1603ed5, 47b71cc |
 | M | 3 | `app/src/main/comments/{identity,service}.ts`, `app/src/preload/index.ts` 타입과 각 테스트 | — | Codex `gpt-6.1-sol` medium (원인 코드를 더하는 작은 기계적 변경) | test(identity·service), typecheck | 통합 2932e4d, f2132f8 |
 | W | 4 | `CommentsPanel.tsx`, `useComments.tsx`, `styles.css`(대상 줄), 두 테스트, e2e 버튼 이름·문구(`presentation`, `design-nav`, `projects-home`, `onboarding`, `comments-ui`, `revision-continuity`) | P, M 통합 | Opus high (읽기 실패와 쓰기 차단 분리, identity 블록, 작성 중 외부 갱신·IME 유지) | test, typecheck | 대기 |
 | Q | 5 일부 | `RightPanel.tsx`, `canvasInfo.ts`, `CommentPins.ts`, `Sidebar.tsx`(aria)와 테스트, `app/e2e/{anchors,runtime}.ts`의 aria·Canvas 정보 단언 | P 통합 | Opus medium (문구와 구성 제거) | test, typecheck | 대기 |
@@ -50,3 +50,5 @@ tasks.md의 1~9는 모두 위 배치 중 하나에 속한다.
 - 2026-10-26: Run `run_c1d82675f0e6`. 1파 시작 — P(`ctx_12b058718fa3`, Opus high, `cr-p`), M(`ctx_13b7e1b6bd81`, Codex `gpt-6.1-sol` medium, `cr-m`). `launch.effective`가 요청과 같다.
 - 2026-10-26: P 질문 3건, 권장안대로 답했다. (1) 읽기 실패와 Git 이름 블록은 서로 독립이라 함께 보인다. identity 원인은 나머지를 모두 가리고, 로딩 중에도 identity 블록만 보인다. (2) `commentsPanelState`는 `{kind:'identity', cause} | {kind:'panel', read, authorBlock}`을 돌려주고, id가 필요한 문구는 `identityText(cause, canvasId)`·`warningFileText(canvasId)`가 만든다. (3) 선택이 없으면 범위가 Canvas로 바뀌므로(`useComments.tsx`) 따로 문구를 두지 않는다.
 - 2026-10-26: M 완료(Codex Sol medium, `5acffd6`, `a80387d`) — red 9건 뒤 green, test 2329·typecheck 통과. preload는 `CommentReply`를 그대로 가져오므로 바꾸지 않았다. 통합(`2932e4d`, `f2132f8`). M 해제, `cr-m` 제거.
+- 2026-10-26: P 완료(`1172cfa`, `0da4729`) — red(새 모듈 2개 import 실패) 뒤 green. 통합(`1603ed5`, `47b71cc`), 통합 HEAD test 2364·typecheck 통과(지휘자 실행). P 해제, `cr-p` 제거.
+- 2026-10-26: 2파 시작 — W(`ctx_98f0dfe35314`, Opus high, `cr-w`), Q(`ctx_128b64903b44`, Opus medium, `cr-q`), R-PM(`ctx_913c75d0851e`, Codex `gpt-6-astra` medium, `cr-r-pm`). `launch.effective`가 요청과 같다.
