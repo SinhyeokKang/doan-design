@@ -310,6 +310,8 @@ Skills teach the items below, and `doan check` checks the ones that can be measu
 - **Frame-count evidence** (2026-10-25, audit): Canvas Info caps rendered frames at 1,000 and uses static `framesTruncated` when a static list exists. Only without a static list does it fall back to layout `truncated`, which also covers clipped strings. Missing canvas ID does not erase independently supplied frame facts.
 - **Quick Open:** `quickOpen.ts` builds the index from healthy list entries: canvas display name/file name/path below `design/`/id, frame title/id (no canvas-name field added to frame entries), at most 1,000 frames per canvas. Rendered frames replace static ones for the open canvas. Index/query lowercase and NFC normalization precede token-AND matching; summed prefix/word-start/substring scores sort before root proximity (current, same `git.common`, other), with stable input order for ties and at most 50 results. Empty query keeps saved/index order for current-root canvases or all canvases on Home. `QuickOpenDialog.tsx` is a modal dialog with combobox/listbox and focus return on Escape; the file name avoids case-insensitive collision with `quickOpen.ts`. Target selection guards root/canvas transitions, preserves same-canvas selection and jumps by first rendered matching id.
 
+- **Shared tooltip padding** (2026-10-25, ux-audit): the shared shadcn tooltip uses 12px horizontal and 6px vertical padding through a scoped rule. The unlayered global reset remains unchanged; existing PathTip styling is separate.
+
 ## 8. CLI stack: Go native binary (2026-10-21)
 
 - The CLI `doan` is a native binary written in Go. `doan mcp` is in the same binary.
