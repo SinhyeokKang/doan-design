@@ -58,3 +58,6 @@ tasks.md의 1~11은 모두 위 배치 중 하나에 속한다.
 - 2026-10-26: M2 완료. T-11이 재현됐다(리로드마다 Selection 목록이 비고 핀이 15–45ms 사라짐, Canvas 범위에서 6~7/10은 Location unavailable). 실제 상태는 바뀌지 않았다. M2 해제, `rc-m2` 제거.
 - 2026-10-26: P 완료(`c26eb63`, `e8e8a9b`, `61c60af`) — red 63건 확인 뒤 green. 통합(`47c8573`, `1be53c7`, `6089517`), 통합 HEAD test 2189·typecheck 통과(지휘자 실행). `classifyDesignChange`는 새 파일 `app/src/main/designChange.ts`. B7 전까지 옮겨진 캔버스는 옛 경로에 머무는 중간 상태다(P 인계). P 해제, `rc-p` 제거.
 - 2026-10-26: 2파 시작 — A(`ctx_1b45994c9f6f`, Opus high, `rc-a`), B6(`ctx_80a1f9aeb851`, Opus high, `rc-b6`), R-P(`ctx_1b37ed41c5e9`, Codex `gpt-6-astra` medium, `rc-r-p`). `launch.effective`가 요청과 같다.
+- 2026-10-26: B6 질문 — 같은 캔버스 클릭과 Alt-클릭 링크 이동이 같은 transition-intent로 온다. 결정: `canvasScript.ts`의 transition-intent에 `kind: selection | navigation`을 더한다(B6 소유로 추가). 링크 이동의 가드를 유지하기 위해서다.
+- 2026-10-26: R-P 완료(Codex Astra medium) — 🔴 0 · 🟡 0 · ⚪ 1(같은 갱신에서 id 변경과 servedRev 변경이 함께 올 때의 우선순위 테스트 공백, 변형 검사로 확인). ⚪은 `canvasView.ts`를 연결하는 B7에 보낸다. 근거: `evidence-R-P/`. R-P 해제, `rc-r-p` 제거.
+- 2026-10-26: B6 질문 2 — 로딩 중이면 identity와 관계없이 `reloaded`로 두는 P의 규칙은 id가 바뀐 다른 캔버스에서도 이어 쓰기를 허용한다. 결정: identity를 알고 origin과 root·id가 다르면 로딩 중에도 `unavailable`이다. design 1절의 '로딩 중 일단 reloaded'는 새 문서를 아직 모를 때만 적용한다.
