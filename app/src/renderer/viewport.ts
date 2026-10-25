@@ -105,6 +105,18 @@ export function fitFrame(rect: Rect, viewport: Size, margin: number, current: Vi
   return { x, y, scale };
 }
 
+// Locate moves the board without zooming: the rect is centered at the current
+// scale, and one taller than the viewport is read from its top, as in fitFrame.
+export function locateView(rect: Rect, viewport: Size, view: View): View {
+  if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) return view;
+  const x = viewport.width / 2 - (rect.x + rect.width / 2) * view.scale;
+  const y =
+    rect.height * view.scale > viewport.height
+      ? FIT_MARGIN - rect.y * view.scale
+      : viewport.height / 2 - (rect.y + rect.height / 2) * view.scale;
+  return { x, y, scale: view.scale };
+}
+
 export interface WheelInput {
   dx: number;
   dy: number;

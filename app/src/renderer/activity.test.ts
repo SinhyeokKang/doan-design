@@ -1,5 +1,6 @@
-import { expect, test } from "vitest";
-import { activityFor, movedFrom, pushActivity, timeText, type ActivityEvent } from "./activity";
+import { describe, expect, test } from "vitest";
+import type { Author, Comment } from "../formats/types";
+import { activityFor, activityKind, movedFrom, pushActivity, resolvedActivity, timeText, type ActivityEvent } from "./activity";
 
 const event = (second: number, extra: Partial<ActivityEvent> = {}): ActivityEvent => ({ folder: "/repo", canvas: "design/a.html", at: new Date(2026, 9, 22, 14, 3, second), kind: "opened", ...extra });
 
@@ -56,4 +57,44 @@ test("keeps the per-canvas limit by canvas id, not by path", () => {
 test("names the previous file of a move by its file name", () => {
   expect(movedFrom({ ...event(1), kind: "moved", from: "design/checkout.html" })).toBe("checkout.html");
   expect(movedFrom({ ...event(1), kind: "moved", from: "design/flows/old name.html" })).toBe("old name.html");
+});
+
+test("a reload is Changed only when the canvas row revision differs", () => {
+  expect(activityKind(3, 4)).toBe("changed");
+  expect(activityKind(4, 4)).toBe("reloaded");
+  expect(activityKind(undefined, 4)).toBe("reloaded");
+  expect(activityKind(4, undefined)).toBe("reloaded");
+  expect(activityKind(undefined, undefined)).toBe("reloaded");
+});
+
+describe("resolvedActivity", () => {
+  const kim: Author = { kind: "human", name: "Kim Doe", email: "kim@example.com" };
+  const codex: Author = { kind: "agent", name: "codex" };
+  const comment = (id: string, resolvedBy?: Author, resolvedAt = ""): Comment => ({
+    comment: id, status: resolvedBy ? "resolved" : "open", body: "Body", target: {}, canvasHash: "sha256-x",
+    createdBy: kim, createdAt: "2026-10-25T09:00:00.000Z", updatedAt: "2026-10-25T09:00:00.000Z",
+    ...(resolvedBy ? { resolvedBy, resolvedAt } : {}),
+  });
+
+  test("counts comments that turned resolved and names each resolver once, in resolve order", () => {
+    const before = [comment("cmt_a"), comment("cmt_b"), comment("cmt_c"), comment("cmt_d"), comment("cmt_e", codex, "2026-10-25T09:30:00.000Z")];
+    const after = [
+      comment("cmt_a", kim, "2026-10-25T10:02:00.000Z"),
+      comment("cmt_b", codex, "2026-10-25T10:01:00.000Z"),
+      comment("cmt_c", codex, "2026-10-25T10:03:00.000Z"),
+      comment("cmt_d"),
+      comment("cmt_e", codex, "2026-10-25T09:30:00.000Z"),
+    ];
+    expect(resolvedActivity(before, after)).toEqual({ count: 3, resolvedBy: ["codex", "Kim Doe"] });
+  });
+
+  test("records nothing for a resolve and reopen between two reads, a new comment or a deleted one", () => {
+    expect(resolvedActivity([comment("cmt_a")], [comment("cmt_a")])).toBeNull();
+    expect(resolvedActivity([], [comment("cmt_new", codex, "2026-10-25T10:01:00.000Z")])).toBeNull();
+    expect(resolvedActivity([comment("cmt_a")], [])).toBeNull();
+  });
+
+  test("the first read is a baseline only", () => {
+    expect(resolvedActivity(null, [comment("cmt_a", codex, "2026-10-25T10:01:00.000Z")])).toBeNull();
+  });
 });

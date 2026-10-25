@@ -18,6 +18,7 @@
 | 2026-10-26 | `/design-sync`는 새 표면 `review-notice`, `review-bar`, `review-done`에만 돌린다(배치 B 안에서). 나머지(카드, Activity, Home, Overview)는 이미 main에 있는 화면이라 tasks의 측정과 e2e를 따른다 | design.md '초안 요청', 체인 규칙 |
 | 2026-10-26 | `/agent-eval` 실제 회차를 돌리지 않는다. 10의 self-test까지만 한다 | tasks 11, 체인 규칙(유일한 실제 회차는 링크 5) |
 | 2026-10-26 | Done 요약의 "Hand off…"는 넘기기 대화상자(`agent-handoff`, 링크 4)가 아직 없으므로 이 링크에서는 렌더하지 않는다. 요약은 다시 연 id 목록을 상태로 갖고, 대화상자를 여는 콜백이 주어질 때만 Hand off…를 보인다. 링크 4가 그 콜백을 연결하도록 `docs/features/agent-handoff/tasks.md`에 한 줄을 더하고 체인 인계 문서에 적는다 | 지휘자 판단 — 없는 대화상자를 흉내 내면 링크 4가 지울 코드가 생기고(AGENTS '앞서 만들기 금지'), 기존 Copy 흐름에 잇는 것은 승인되지 않은 동작이다 |
+| 2026-10-26 | 3파의 C·V·H는 `styles.css`를 함께 고친다. V는 Activity 시각 열 규칙 하나, H는 Home·Overview 요약 규칙만 고치고, 각자 별도 커밋으로 둔다. 겹치는 hunk가 생기면 나중에 통합되는 배치가 통합 브랜치를 merge해 해결한다 | 지휘자 판단 — 규칙 블록이 서로 달라 겹칠 가능성이 낮고, CSS 몇 줄 때문에 배치를 직렬로 돌리면 한 파가 늘어난다 |
 
 ## 배치
 
@@ -59,3 +60,12 @@ tasks.md의 1~14는 모두 위 배치 중 하나에 속한다(11은 실행하지
 - 2026-10-26: X 완료 — tasks 1 측정 결과를 tasks.md 1에 옮겼다(최대 149ms, 기준 500ms 안). 커밋 없음. X 해제.
 - 2026-10-26: S 질문 — `edit-reopen` intent를 더하면 renderer `CommentsSession.ts:354`의 confirmCard 가드가 typecheck를 깨뜨린다. 허락: S가 그 가드에 `edit-reopen`을 더한다(edit처럼 초안 경로로 간다, E가 연결).
 - 2026-10-26: A 완료(Codex Sol medium, `3b11f3d`, `4a91aa0`) — red 뒤 green, go test·vet, 앱 테스트 2426, typecheck 통과. 바뀐 기존 expected.json은 3개(승인한 차이). 통합(`e9a766b`, `8395a0f`), 통합 HEAD go test 통과(지휘자 실행). A 해제, `rr-a` 제거. R-A(Opus medium, 다른 계열 리뷰)와 K(Codex `gpt-6.1-sol` medium) 시작.
+- 2026-10-26: S 완료(`1c1582a`, `c04a6a9`) — red 12건 뒤 green. 계획과 다른 점: fold가 에이전트의 edit·reopen을 무시하므로 '그 사이 에이전트 변경' 테스트는 사람 변경 → 거부, 에이전트 줄 → 저장(시각만 뒤로 밀림)으로 고정했다(받아들임). 통합(`2ff8385`, `a46f28e`), 통합 HEAD test 2443·typecheck 통과(지휘자 실행). S 해제, `rr-s` 제거. R-S(Codex `gpt-6-astra` medium), M(`ctx_0ad2d8a829fa`, Opus high, `rr-m`) 시작.
+- 2026-10-26: M 질문 2건, 권장안대로 답했다. (1) P가 아직 통합되지 않아 `toReview`가 없다(브리프 오류). M은 나머지를 먼저 만들고, P 통합 뒤 지휘자 알림을 받으면 통합 브랜치를 merge해 연결한다. 그 전에 끝나면 연결을 미룬 항목으로 남긴다. (2) 프로젝트 제거에 Undo가 있으므로 제거가 확정될 때(토스트 만료 `folders:forget-removal`, 새 제거로 대체) 그 root 항목을 지우고, 첫 로드 때 `folders.json`에 없는 root를 정리한다. 복원하면 항목을 남긴다.
+- 2026-10-26: R-A 완료(Opus medium) — 🔴 0 · 🟡 0 · ⚪ 3(TS는 resolvedBy를 확인하고 Go는 바로 역참조하는 비대칭, 출력은 같음 / ARCH §2 승격은 G가 함 / 인계 해시가 통합 해시와 다름). 고칠 것 없음. R-A 해제, `rr-r-a` 제거.
+- 2026-10-26: P 완료(`ef24692`, `cea7bb6`) — red 뒤 green, test 2469·typecheck 통과. 계획과 다른 점(받아들임): `bottomLabel`이 이벤트 목록을 받아 Resolved를 건너뜀, 상대 시각 함수를 인자로 받음(`relativeTime`이 CommentsPanel 안에 있다), `toReview`가 `{since, lastReviewedAt?}`를 받음, `startReview` 추가, `reviewSummary`가 다시 연 id를 함께 돌려줌, 알 수 없는 rev는 reloaded. `resolution.ts`의 구조적 `LastResolution` 타입은 A 타입으로 바꿔야 한다(C에 넣는다). 통합(`fd5513a`, `2c3a463`), 통합 HEAD test 2489·typecheck 통과(지휘자 실행). P 해제, `rr-p` 제거. M에 P 통합을 알렸다. R-P(Codex `gpt-6-astra` medium), L(`ctx_0bff76ba8829`, Opus high, `rr-l`) 시작.
+- 2026-10-26: R-S 완료(Codex Astra medium) — 🔴 0 · 🟡 0 · ⚪ 0. R-S 해제, `rr-r-s` 제거.
+- 2026-10-26: K 완료(Codex Sol medium, `a931a40`, `b6b6c24`) — skill 한 줄(red 뒤 green), R6 시나리오(시드: 에이전트 해결 → 사람 다시 열기, pass/fail fixture). go test, eval 테스트 133, self-test 16개 시나리오 PASS. 통합(`8b4380a`, `4cd826c`), 통합 HEAD `cli` go test·eval 테스트 133 통과(지휘자 실행). K 해제, `rr-k` 제거. R-K(Opus medium, 다른 계열 리뷰) 시작.
+- 2026-10-26: M 질문 — `comments:project`가 패널과 같은 방식으로 fold하도록 `service.ts`의 `readList`를 export해 재사용한다. 허락(잘못된 UTF-8 처리가 패널과 달라지지 않게 한다).
+- 2026-10-26: R-P 완료(Codex Astra medium) — 🔴 0 · 🟡 1 · ⚪ 0. 🟡 P-1: Review 중 직접 다시 연 단계가 이후 삭제·재해결을 반영하지 않는다(재현 2건, `evidence-R-P/repro.mjs`). P의 다른 점 8개는 모두 받아들일 수 있다고 판정했다. 수정 배치 P2(Opus medium, `review.ts`만) 시작. 요약의 'Reopened M'은 이 Review에서 다시 열었고 아직 열린 댓글만 센다. R-P 해제, `rr-r-p` 제거.
+- 2026-10-26: R-K 완료(Opus medium) — 🔴 0 · 🟡 1 · ⚪ 2. 🟡: R6 시드의 create `canvasHash`가 바뀐 뒤 파일의 해시라 `outdated: false`가 나오고, 생성 시점 본문이 나중의 잘못된 라벨을 미리 지목해 함정이 쉬워진다. 기록된 회차가 없으므로 같은 id에서 고친다(ARCH §14). ⚪ 2개(나머지 캔버스는 rubric으로만 판정, 인식 rubric이 judge 부분점을 낼 수 있음)는 링크 5 실제 회차에서 본다. 수정 배치 K2(Codex `gpt-6.1-sol` medium) 시작. R-K 해제, `rr-r-k` 제거.

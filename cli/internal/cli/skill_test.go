@@ -102,6 +102,13 @@ func TestSkillConfigRequiresHumanRequest(t *testing.T) {
 	}
 }
 
+func TestSkillGuideReopenedComment(t *testing.T) {
+	want := "An open comment with `lastResolution` was resolved before and reopened by a human; your previous change was not accepted — read the body again before applying."
+	if !strings.Contains(skillBody, want) {
+		t.Fatal("missing reopened comment guidance")
+	}
+}
+
 func TestSkillReportsUnservedCSSInFinalAnswer(t *testing.T) {
 	for _, required := range []string{
 		"CSS the user names or the canvas needs is outside that scope",

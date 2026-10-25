@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import type { ActivityEvent } from "./activity";
 import {
+  bottomLabel,
   canvasAtHref,
   canvasViewUpdate,
   cliErrorText,
@@ -329,4 +331,34 @@ describe("updatedText", () => {
 test("names the moved canvas, the count and the id when several canvases share it", () => {
   expect(duplicateIdText(row("design/checkout.html", { id: "checkout", title: "Checkout" }), 2)).toBe("Checkout moved, but 2 canvases now use the ID checkout. Run doan check in a terminal.");
   expect(duplicateIdText(row("design/flows/cart.html", { id: "cart" }), 3)).toBe("cart moved, but 3 canvases now use the ID cart. Run doan check in a terminal.");
+});
+
+describe("bottomLabel", () => {
+  const now = new Date(2026, 9, 24, 14, 10);
+  const event = (kind: ActivityEvent["kind"], at: Date): ActivityEvent => ({ folder: "/repo", canvas: "design/a.html", at, kind });
+
+  test("names the latest kind with local hours and minutes today", () => {
+    expect(bottomLabel([event("opened", new Date(2026, 9, 24, 14, 2, 10))], now)).toBe("Opened 14:02");
+    expect(bottomLabel([event("changed", new Date(2026, 9, 24, 14, 5)), event("opened", new Date(2026, 9, 24, 14, 2))], now)).toBe("Changed 14:05");
+    expect(bottomLabel([event("reloaded", new Date(2026, 9, 24, 9, 6))], now)).toBe("Reloaded 09:06");
+    expect(bottomLabel([event("moved", new Date(2026, 9, 24, 14, 7))], now)).toBe("Moved 14:07");
+  });
+
+  test("a Resolved entry does not change the label", () => {
+    const resolved: ActivityEvent = { ...event("resolved", new Date(2026, 9, 24, 14, 9)), resolvedBy: ["codex"], count: 1 };
+    expect(bottomLabel([resolved, event("reloaded", new Date(2026, 9, 24, 14, 6))], now)).toBe("Reloaded 14:06");
+    expect(bottomLabel([resolved], now)).toBeNull();
+    expect(bottomLabel([], now)).toBeNull();
+  });
+
+  test("adds the date when the time is not today", () => {
+    expect(bottomLabel([event("changed", new Date(2026, 9, 23, 18, 40))], now)).toBe("Changed Oct 23 18:40");
+    expect(bottomLabel([event("opened", new Date(2025, 9, 24, 14, 2))], now)).toBe("Opened Oct 24 14:02");
+  });
+
+  test("tells the two sides of midnight apart", () => {
+    const justAfter = new Date(2026, 9, 25, 0, 1);
+    expect(bottomLabel([event("changed", new Date(2026, 9, 24, 23, 59))], justAfter)).toBe("Changed Oct 24 23:59");
+    expect(bottomLabel([event("changed", new Date(2026, 9, 25, 0, 0))], justAfter)).toBe("Changed 00:00");
+  });
 });
