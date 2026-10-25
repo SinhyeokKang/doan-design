@@ -191,3 +191,5 @@ C·E·A1은 소유 파일이 달라 병렬 가능하다. A2도 별도 파일이�
 - 모든 감독 worker terminal을 release했고, 마지막 timing child도 clean·미통합 `+` 없음·증거 복사 확인 후 Orca로 제거했다. worktree 목록에는 root만 남는다. 기존 일반 Claude peer는 유지한다.
 - 채택한 26개 수정 항목은 통합·리뷰·최종 검증을 마쳤다. A-M1은 앞서 질문한 예외 종료 정책 답변 대기라 구현하지 않았다. A-L1은 nested iframe 실패 정책 미정, A-L13은 실제 Finder 드롭 미검증이다. A-L8/L16은 기각한 이유를 유지한다. audit 완료·병합으로 표시하지 않으며, UX 52개 항목의 수정 지휘도 시작하지 않는다.
 - 검증한 수정분과 미결정을 검토할 수 있도록 현재 branch를 push하고 draft PR로 보관한다. 미결정이 해결되기 전 merge하지 않는다.
+
+- Push 완료: `feat-audit-261025`, draft PR https://github.com/SinhyeokKang/doan-design/pull/19. 병합하지 않았다. 기록 후 문서의 로컬 Markdown 링크 존재와 `git diff --check`를 확인했다.
