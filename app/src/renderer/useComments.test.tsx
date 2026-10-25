@@ -139,13 +139,13 @@ describe("a new comment blocked by a reload", () => {
     expect(loading).toContain(`aria-describedby="${reason}"`);
     expect(render({ layout: layout("two"), selection: label, reanchoring: true }).markup).toContain("Finding your selection in the current version…");
     const ready = render({ layout: layout("two"), selection: pay });
-    expect(ready.markup).toContain("Continues on Element · pay.");
+    expect(ready.markup).toContain("Continues on Element · button pay · in payment.");
     expect(ready.markup).not.toContain("Continue on canvas");
     expect(ready.markup).toContain("The canvas reloaded while you were writing.");
     await session.continueDraft("selection");
     expect(begin).toHaveBeenLastCalledWith(expect.objectContaining({ scope: "selection" }));
     const after = render({ layout: layout("two"), selection: pay });
-    expect(after.markup).toContain("To: Element · pay");
+    expect(after.markup).toContain("To: Element · button pay");
     expect(after.markup).toContain("Save comment");
     expect(after.markup).toContain("Mark the required fields.\nKeep the hint.");
     expect(guard.mock.calls.map(([active]) => active)).toEqual([true, true]);
@@ -158,7 +158,7 @@ describe("a new comment blocked by a reload", () => {
     expect(gone).toMatch(/<button type="button" class="comments-btn">Continue on canvas<\/button>/);
     const picked = render({ layout: layout("two"), selection: pay }).markup;
     expect(picked).toContain("Continue on canvas");
-    expect(picked).toContain("Continues on Element · pay.");
+    expect(picked).toContain("Continues on Element · button pay · in payment.");
     await session.continueDraft("canvas");
     expect(begin).toHaveBeenLastCalledWith(expect.objectContaining({ scope: "canvas" }));
     expect(render({ layout: layout("two"), selection: pay }).markup).toContain("To: Canvas");
@@ -369,8 +369,8 @@ describe("comment locations (W-9, T-11)", () => {
     const show = (next: AnchorSnapshot) => { hooks.changed(next); settle(ANCHORS); return f.render({ selection }).markup; };
     return { ...f, show };
   }
-  const locate = /<button type="button" class="comments-target"( disabled="")?>Element · address<\/button>/;
-  const text = `<span class="comments-target" title="label">Element · address</span>`;
+  const locate = /<button type="button" class="comments-target locatable"[^>]*>Element · label address<\/button>/;
+  const text = `<span class="comments-target" title="label">Element · label address</span>`;
 
   test("without a document answer there is no badge and the target is text", async () => {
     const { render, show } = await bound(null);
@@ -381,7 +381,7 @@ describe("comment locations (W-9, T-11)", () => {
       expect(markup).not.toMatch(locate);
     }
     const answered = show(snapshot("answered", [["c1", "n1"]]));
-    expect(locate.exec(answered)?.[1]).toBeUndefined();
+    expect(answered).toMatch(locate);
     expect(show(snapshot("answered"))).toContain("Location unavailable");
   });
 
@@ -396,8 +396,8 @@ describe("comment locations (W-9, T-11)", () => {
 
   test("a retained answer that never gets replaced ends with none and its target turns to text (R-B8)", async () => {
     const { show } = await bound(null);
-    expect(locate.exec(show(snapshot("answered", [["c1", "n1"]])))?.[1]).toBeUndefined();
-    expect(locate.exec(show(snapshot("pending")))?.[1]).toBeUndefined();
+    expect(show(snapshot("answered", [["c1", "n1"]]))).toMatch(locate);
+    expect(show(snapshot("pending"))).toMatch(locate);
     // The controller's measure limit ends the wait.
     expect(show(snapshot("none"))).toContain(text);
   });

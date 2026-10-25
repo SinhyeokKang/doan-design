@@ -98,7 +98,12 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   const lookup = snapshot?.lookup ?? { root: identity?.root ?? "", canvas: identity?.canvas ?? "", generation: 0, nodes: new Map<string, string>() };
   const currentFilter: ListFilter = filter.scope === "selection" ? { ...filter, node: snapshot?.selected ?? null } : filter;
   const scoped = (status: "open" | "resolved") => projectList(comments, lookup, lookup, { ...currentFilter, status });
-  const writeBlocked = !identity ? "A valid, unique canvas ID is required." : session.readError;
+  // An open row without an id never reaches main, so the renderer names that cause itself.
+  const identityCause = open && !canvas ? "missing" : session.identityCause;
+  const writeBlocked = !identity || identityCause ? "A valid, unique canvas ID is required." : null;
+  const frames = state.layout?.frames ?? open?.row.frames ?? [];
+  // Another canvas's frames could lend a draft's frame id the wrong title.
+  const draftFrames = draft && draft.origin.root === root && draft.origin.canvas === canvas ? frames : [];
   const createBlocked = state.unlisted || !state.hasFrame || state.status !== null ? "The original canvas document is unavailable." : null;
   const widthInvalid = !!open && open.row.width === undefined;
   const editorBlocked = draft?.blocked ?? (draft?.origin.kind === "create" ? createBlocked : null);
@@ -134,7 +139,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       error: session.continueError,
       onContinue: () => { void session.continueDraft(scope); }, onCanvas: () => { void session.continueDraft("canvas"); } };
   })() : null;
-  const canSave = !!draft && !session.draft.request && !!draft.body.trim() && !editorBlocked && !writeBlocked && session.author.status === "ready" && !["conflict", "deleted"].includes(session.saveView.status);
+  const canSave = !!draft && !session.draft.request && !!draft.body.trim() && !editorBlocked && !writeBlocked && !session.readError && session.author.status === "ready" && !["conflict", "deleted"].includes(session.saveView.status);
   return {
     session,
     panel: (open || draft) && <CommentsPanel filter={currentFilter} selectionAvailable={state.selection !== null && !state.unlisted} selectionNode={snapshot?.selected ?? null}
@@ -142,16 +147,16 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       read={session.readError ? { status: "failed", message: session.readError } : session.list ? { status: "ready", comments: scoped(filter.status), warnings: session.list.warnings } : { status: "loading" }}
       freshness={new Map(comments.map(c => [c.comment, outdated(c.canvasHash, session.list?.canvasHash ?? null)]))}
       missingLocations={snapshot?.status === "answered" ? new Set(comments.filter(c => (c.target.frame || c.target.element) && !snapshot.lookup.nodes.has(c.comment)).map(c => c.comment)) : null}
-      author={session.author} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || (session.beginning && !draft)}
+      author={session.author} identityCause={identityCause} canvasId={canvas ?? ""} frames={frames} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || (session.beginning && !draft)}
       copies={session.copies} allCopy={session.copies.get("all") ?? { status: "idle" }} mutations={session.mutations} headingRef={heading}
       onFilter={setFilter} onCreate={scope => { void session.create(scope); }} onComment={intent} onCopy={scope => { void session.copy(scope); }} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
-      editor={draft ? { mode: draft.origin.kind, target: session.target, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
+      editor={draft ? { mode: draft.origin.kind, target: session.target, frames: draftFrames, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
         onBody: body => session.body(body), onSave: () => { void session.save(); }, onCancel: () => session.answer("discard"), onKeepDraft: focus,
         onCheck: () => { void session.check(); }, onRetryOriginal: () => { void session.retry(); }, onReadLatest: () => { void session.read(true); }, continue: continueEditor } : null} />,
     dialog: draft && uncertain ? <UncertainCommentDialog key={uncertain.id} kind={uncertain.kind}
       context={commentContext(entries, draft.origin.root, session.identity?.path ?? draft.origin.canvas)}
       onStay={() => { showWorkspace(); session.answerUncertain(uncertain.id, false); }}
-      onQuit={() => session.answerUncertain(uncertain.id, true)} restoreEditorFocus={focus} /> : session.deleteConfirmation ? <DeleteCommentDialog comment={session.deleteConfirmation.comment} onCancel={() => { session.cancelDelete(); heading.current?.focus(); }} onConfirm={() => { void session.confirmDelete(); heading.current?.focus(); }} /> : draft && session.draft.transition && <UnsavedCommentDialog target={session.target} context={commentContext(entries, draft.origin.root, session.identity?.path ?? draft.origin.canvas)} canSave={canSave}
+      onQuit={() => session.answerUncertain(uncertain.id, true)} restoreEditorFocus={focus} /> : session.deleteConfirmation ? <DeleteCommentDialog comment={session.deleteConfirmation.comment} onCancel={() => { session.cancelDelete(); heading.current?.focus(); }} onConfirm={() => { void session.confirmDelete(); heading.current?.focus(); }} /> : draft && session.draft.transition && <UnsavedCommentDialog target={session.target} frames={draftFrames} context={commentContext(entries, draft.origin.root, session.identity?.path ?? draft.origin.canvas)} canSave={canSave}
       busy={session.saveView.status === "saving" || session.saveView.status === "checking"} discardBlocked={session.draft.request !== null}
       {...(editorBlocked ? { reason: editorBlocked } : {})} onContinue={() => { showWorkspace?.(); session.answer("continue"); }} onDiscard={() => session.answer("discard")} onSave={() => { void session.save(); }} restoreEditorFocus={focus} />,
   };

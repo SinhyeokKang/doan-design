@@ -2,6 +2,7 @@ import { beginDraft, guardsSelectionChange, transitionDraft, type DraftState } f
 import type { ExpectedComment, MutationIntent } from "../comments/events";
 import type { CopyScope } from "../comments/projection";
 import type { Comment, Target } from "../formats/types";
+import type { CanvasIdentityCause } from "../main/comments/identity";
 import type { BeginResult, CommentIdentity, CommentList, CommentReply, CommentRequest, MutationRequest, SavedStatus } from "../main/comments/service";
 import type { DoanApi } from "../preload";
 import type { AuthorView, CopyView, SaveView } from "./CommentsPanel";
@@ -15,9 +16,12 @@ export function expectedComment(c: Comment): ExpectedComment {
 function same(a: CommentIdentity | null, b: CommentIdentity | null): boolean {
   return a?.root === b?.root && a?.canvas === b?.canvas && a?.path === b?.path;
 }
+class RefusedIdentity extends Error {
+  constructor(message: string, readonly identityCause: CanvasIdentityCause) { super(message); }
+}
 function value<T>(reply: CommentReply<T>, request: CommentRequest): T {
   if (!reply.identity || !same(reply.identity, request) || reply.identity.requestID !== request.requestID) throw new Error("Stale comments response.");
-  if (!reply.ok) throw new Error(reply.error);
+  if (!reply.ok) throw reply.cause ? new RefusedIdentity(reply.error, reply.cause) : new Error(reply.error);
   return reply.value;
 }
 
@@ -27,6 +31,8 @@ export class CommentsSession {
   identity: CommentIdentity | null = null;
   list: CommentList | null = null;
   readError: string | null = null;
+  // Why main refused this canvas's identity on the last read, if it did.
+  identityCause: CanvasIdentityCause | null = null;
   createError: string | null = null;
   // A failed continue keeps the blocked draft; its error is separate from a create failure.
   continueError: string | null = null;
@@ -79,7 +85,7 @@ export class CommentsSession {
     this.revision++;
     this.cancelBegin();
     this.identity = identity;
-    this.list = null; this.readError = null; this.createError = null; this.continueError = null; this.copies = new Map(); this.mutations = new Map(); this.deleteConfirmation = null;
+    this.list = null; this.readError = null; this.identityCause = null; this.createError = null; this.continueError = null; this.copies = new Map(); this.mutations = new Map(); this.deleteConfirmation = null;
     if (this.draft.draft && !same(identity, this.draftIdentity)) this.invalidate("The original project or canvas is no longer open.");
     this.emit();
     if (identity) await Promise.all([this.read(), this.retryAuthor()]);
@@ -112,7 +118,7 @@ export class CommentsSession {
     try {
       const list = value(await this.api.commentsList(request), request);
       if (rev !== this.revision || read !== this.readRevision) return;
-      this.list = list; this.readError = null;
+      this.list = list; this.readError = null; this.identityCause = null;
       if (review) for (const [id, state] of this.mutations) {
         if (state.status !== "conflict" || (card !== undefined && card !== id)) continue;
         const current = list.comments.find(c => c.comment === id), pending = this.cardPending.get(id);
@@ -132,7 +138,12 @@ export class CommentsSession {
           this.saveView = { status: "reviewed", latest: current };
         } else if (JSON.stringify(expectedComment(current)) !== JSON.stringify(draft.origin.expected)) this.saveView = { status: "conflict" };
       }
-    } catch (error) { if (rev === this.revision && read === this.readRevision) this.readError = errorText(error); }
+    } catch (error) {
+      if (rev === this.revision && read === this.readRevision) {
+        this.readError = errorText(error);
+        this.identityCause = error instanceof RefusedIdentity ? error.identityCause : null;
+      }
+    }
     this.emit();
   }
   async retryAuthor() {

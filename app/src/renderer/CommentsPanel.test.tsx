@@ -16,7 +16,7 @@ function panel(overrides: Partial<CommentsPanelProps> = {}): CommentsPanelProps 
   return { filter: { scope: "canvas", status: "open" }, selectionAvailable: true, counts: { open: 1, resolved: 0 }, canvasOpenCount: 1, read: { status: "ready", comments: [comment], warnings: [] }, freshness: new Map(), missingLocations: new Set(), author: { status: "ready" }, identityCause: null, canvasId: "checkout", frames: [], writeBlocked: null, createBlocked: null, widthInvalid: false, busy: false, copies: new Map(), allCopy: { status: "idle" }, editor: null, onFilter: noop, onCreate: noop, onComment: noop, onCopy: noop, onRead: noop, onRetryAuthor: noop, ...overrides };
 }
 function editor(overrides: Partial<CommentEditorProps> = {}): CommentEditorProps {
-  return { mode: "create", target: comment.target, body: "Original body", state: { status: "idle" }, blocked: null, onBody: noop, onSave: noop, onCancel: noop, onKeepDraft: noop, onCheck: noop, onRetryOriginal: noop, onReadLatest: noop, ...overrides };
+  return { mode: "create", target: comment.target, frames: [], body: "Original body", state: { status: "idle" }, blocked: null, onBody: noop, onSave: noop, onCancel: noop, onKeepDraft: noop, onCheck: noop, onRetryOriginal: noop, onReadLatest: noop, ...overrides };
 }
 interface ElementProps { children?: ReactNode; disabled?: boolean; readOnly?: boolean; onClick?: () => void; onKeyDown?: (event: { key: string; nativeEvent: { isComposing: boolean; keyCode: number }; preventDefault: () => void; stopPropagation: () => void }) => void }
 function find(node: ReactNode, label: string): ElementProps {
@@ -64,9 +64,9 @@ describe("Comments presentation", () => {
   });
   test("renders all three target kinds without inferring from the list filter", () => {
     for (const [target, label] of [[{}, "Canvas"], [{ frame: "hero" }, "Frame · Hero"], [comment.target, "Element · button submit"]] as const) {
-      expect(renderToStaticMarkup(<CommentEditor {...editor({ target })} frames={[{ id: "hero", title: "Hero" }]} />)).toContain(`To: ${label}`);
+      expect(renderToStaticMarkup(<CommentEditor {...editor({ target, frames: [{ id: "hero", title: "Hero" }] })} />)).toContain(`To: ${label}`);
     }
-    expect(renderToStaticMarkup(<CommentEditor {...editor()} frames={[]} />)).toContain(`<span class="comments-target" title="button">To: Element · button submit</span>`);
+    expect(renderToStaticMarkup(<CommentEditor {...editor()} />)).toContain(`<span class="comments-target" title="button">To: Element · button submit</span>`);
     const onFilter = vi.fn();
     const props = panel({ editor: editor(), onFilter });
     find(CommentsPanel(props), "Selection").onClick?.();
@@ -150,37 +150,37 @@ describe("Draft recovery presentation", () => {
   test.each(["unknown", "checking", "check-failed", "retry-original"] as const)("%s keeps the original body read-only and prevents a fresh save", status => {
     const state = status === "check-failed" ? { status, message: "Read failed" } : { status };
     const props = editor({ state });
-    const out = renderToStaticMarkup(<CommentEditor {...props} frames={[]} />);
+    const out = renderToStaticMarkup(<CommentEditor {...props} />);
     expect(out).toMatch(/<textarea[^>]*readOnly=""/);
     expect(out).toContain("Original body");
-    if (status !== "retry-original") expect(find(CommentEditor({ ...props, frames: [] }), "Save comment").disabled).toBe(true);
-    else expect(find(CommentEditor({ ...props, frames: [] }), "Retry original save").disabled).toBe(false);
+    if (status !== "retry-original") expect(find(CommentEditor(props), "Save comment").disabled).toBe(true);
+    else expect(find(CommentEditor(props), "Retry original save").disabled).toBe(false);
     expect(out).toContain("Keep draft");
   });
   test("recovery blocking preserves immutable input and offers neither check nor save retry", () => {
     const props = editor({ state: { status: "recovery-blocked", message: "Wait until the pending writer has exited." } });
-    const out = renderToStaticMarkup(<CommentEditor {...props} frames={[]} />);
+    const out = renderToStaticMarkup(<CommentEditor {...props} />);
     expect(out).toContain("Wait until the pending writer has exited.");
     expect(out).toMatch(/<textarea[^>]*readOnly=""/);
-    expect(find(CommentEditor({ ...props, frames: [] }), "Save comment").disabled).toBe(true);
+    expect(find(CommentEditor(props), "Save comment").disabled).toBe(true);
     expect(out).not.toContain("Check saved status</button>");
     expect(out).not.toContain("Retry original save</button>");
     expect(out).toContain("Keep draft");
   });
   test("conflict preserves input and requires latest-state review before saving", () => {
     const props = editor({ mode: "edit", state: { status: "conflict" } });
-    expect(find(CommentEditor({ ...props, frames: [] }), "Save changes").disabled).toBe(true);
-    expect(renderToStaticMarkup(<CommentEditor {...props} frames={[]} />)).toContain("Original body");
+    expect(find(CommentEditor(props), "Save changes").disabled).toBe(true);
+    expect(renderToStaticMarkup(<CommentEditor {...props} />)).toContain("Original body");
     const reviewed = editor({ mode: "edit", state: { status: "reviewed", latest: comment } });
-    expect(find(CommentEditor({ ...reviewed, frames: [] }), "Save reviewed changes").disabled).toBe(false);
-    expect(renderToStaticMarkup(<CommentEditor {...reviewed} frames={[]} />)).toContain("Latest saved comment · Open");
+    expect(find(CommentEditor(reviewed), "Save reviewed changes").disabled).toBe(false);
+    expect(renderToStaticMarkup(<CommentEditor {...reviewed} />)).toContain("Latest saved comment · Open");
   });
   test("empty body, blocked target and saving disable submission; failed save keeps text", () => {
     for (const props of [editor({ body: " \n " }), editor({ blocked: "Original target unavailable" }), editor({ state: { status: "saving" } })]) {
-      const out = renderToStaticMarkup(<CommentEditor {...props} frames={[]} />);
+      const out = renderToStaticMarkup(<CommentEditor {...props} />);
       expect(out).toMatch(/<button[^>]*disabled=""[^>]*>(Save comment|Saving…)<\/button>/);
     }
-    expect(renderToStaticMarkup(<CommentEditor {...editor({ state: { status: "failed", message: "Write failed" } })} frames={[]} />)).toContain("Original body");
+    expect(renderToStaticMarkup(<CommentEditor {...editor({ state: { status: "failed", message: "Write failed" } })} />)).toContain("Original body");
   });
   // CommentsSession.guardSelection lets a blocked draft's same-canvas selection
   // change through without touching a pending transition; that holds because
@@ -286,35 +286,35 @@ describe("continue a blocked new comment", () => {
   test("puts Continue on current version in the primary slot with the notice and preview under the tools", () => {
     const onContinue = vi.fn();
     const props = blocked({ onContinue });
-    const out = renderToStaticMarkup(<CommentEditor {...props} frames={[]} />);
+    const out = renderToStaticMarkup(<CommentEditor {...props} />);
     expect(out).not.toContain("Save comment");
     expect(out).toMatch(/Cancel<\/button><button[^>]*class="comments-btn primary"[^>]*>Continue on current version<\/button><\/div><p class="comments-helper" role="status">The canvas reloaded/);
     expect(out).toContain(`<p class="comments-helper">Continues on Element · button pay.</p>`);
     expect(out).not.toContain("aria-describedby");
-    find(CommentEditor({ ...props, frames: [] }), "Continue on current version").onClick?.();
+    find(CommentEditor(props), "Continue on current version").onClick?.();
     expect(onContinue).toHaveBeenCalledOnce();
-    expect(renderToStaticMarkup(<CommentEditor {...blocked({ preview: {} })} frames={[]} />)).toContain("Continues on Canvas.");
+    expect(renderToStaticMarkup(<CommentEditor {...blocked({ preview: {} })} />)).toContain("Continues on Canvas.");
   });
   test("renders the continue button as its own element, never the Save node", () => {
-    const saveKey = keyed(CommentEditor({ ...editor(), frames: [] }), "Save comment");
-    const continueKey = keyed(CommentEditor({ ...blocked(), frames: [] }), "Continue on current version");
+    const saveKey = keyed(CommentEditor(editor()), "Save comment");
+    const continueKey = keyed(CommentEditor(blocked()), "Continue on current version");
     expect(continueKey).not.toBeNull(); expect(continueKey).not.toBe(saveKey);
   });
   test("shows Starting… disabled while the body stays editable", () => {
     const props = blocked({ enabled: false, starting: "current" });
-    expect(find(CommentEditor({ ...props, frames: [] }), "Starting…").disabled).toBe(true);
-    const out = renderToStaticMarkup(<CommentEditor {...props} frames={[]} />);
+    expect(find(CommentEditor(props), "Starting…").disabled).toBe(true);
+    const out = renderToStaticMarkup(<CommentEditor {...props} />);
     expect(out).not.toContain("readOnly"); expect(out).not.toContain("readonly");
-    expect(find(CommentEditor({ ...props, frames: [] }), "Cancel").disabled).toBe(false);
+    expect(find(CommentEditor(props), "Cancel").disabled).toBe(false);
   });
   test("a failure is an alert under the preview, and the button can retry", () => {
     const props = blocked({ error: "doan CLI error." });
-    const out = renderToStaticMarkup(<CommentEditor {...props} frames={[]} />);
+    const out = renderToStaticMarkup(<CommentEditor {...props} />);
     expect(out).toContain(`Continues on Element · button pay.</p><p class="comments-helper" role="alert">Couldn’t continue on the current version: doan CLI error. Your text is kept.</p>`);
-    expect(find(CommentEditor({ ...props, frames: [] }), "Continue on current version").disabled).toBe(false);
+    expect(find(CommentEditor(props), "Continue on current version").disabled).toBe(false);
   });
   test("a disabled reason replaces the preview and describes the button", () => {
-    const out = renderToStaticMarkup(<CommentEditor {...blocked({ enabled: false, reason: "Waiting for the canvas to finish loading." })} frames={[]} />);
+    const out = renderToStaticMarkup(<CommentEditor {...blocked({ enabled: false, reason: "Waiting for the canvas to finish loading." })} />);
     expect(out).toMatch(/<button[^>]*disabled=""[^>]*aria-describedby="«r1»"|<button[^>]*aria-describedby="«r1»"[^>]*disabled=""/);
     expect(out).toContain(`<p class="comments-helper" id="«r1»">Waiting for the canvas to finish loading.</p>`);
     expect(out).not.toContain("Continues on");
@@ -323,11 +323,11 @@ describe("continue a blocked new comment", () => {
     const onCanvas = vi.fn();
     const gone = "Your selection is no longer in the canvas. Select an element or frame, or continue on the whole canvas.";
     const props = blocked({ enabled: false, reason: gone, canvas: { enabled: true }, onCanvas });
-    const out = renderToStaticMarkup(<CommentEditor {...props} frames={[]} />);
+    const out = renderToStaticMarkup(<CommentEditor {...props} />);
     expect(out).toMatch(/>Cancel<\/button><button type="button" class="comments-btn">Continue on canvas<\/button><button[^>]*primary[^>]*>Continue on current version</);
-    find(CommentEditor({ ...props, frames: [] }), "Continue on canvas").onClick?.();
+    find(CommentEditor(props), "Continue on canvas").onClick?.();
     expect(onCanvas).toHaveBeenCalledOnce();
-    expect(find(CommentEditor({ ...blocked({ enabled: false, canvas: { enabled: false }, starting: "canvas" }), frames: [] }), "Starting…").disabled).toBe(true);
+    expect(find(CommentEditor(blocked({ enabled: false, canvas: { enabled: false }, starting: "canvas" })), "Starting…").disabled).toBe(true);
   });
   test("the panel keeps the reload notice in the editor over panel-level reasons", () => {
     const out = html(panel({ widthInvalid: true, editor: blocked() }));
@@ -335,8 +335,8 @@ describe("continue a blocked new comment", () => {
   });
   test("an unavailable draft keeps the shipped editor with a disabled Save", () => {
     const props = editor({ blocked: "Original document or target is unavailable." });
-    expect(find(CommentEditor({ ...props, frames: [] }), "Save comment").disabled).toBe(true);
-    expect(renderToStaticMarkup(<CommentEditor {...props} frames={[]} />)).not.toContain("Continue");
+    expect(find(CommentEditor(props), "Save comment").disabled).toBe(true);
+    expect(renderToStaticMarkup(<CommentEditor {...props} />)).not.toContain("Continue");
   });
 });
 
@@ -353,13 +353,13 @@ describe("identity, read failure and head controls", () => {
   });
   test("an identity block keeps an open editor blocked", () => {
     const props = panel({ identityCause: "missing", writeBlocked: "A valid, unique canvas ID is required.", editor: editor({ mode: "edit" }) });
-    expect(find(CommentsPanel(props), "Save changes").disabled).toBe(true);
+    expect(html(props)).toMatch(/<button[^>]*disabled=""[^>]*>Save changes<\/button>/);
     expect(html(props)).toContain("This canvas has no ID");
   });
   test("a read failure is one block and keeps an editing draft from saving", () => {
     const props = panel({ read: { status: "failed", message: "Permission denied." }, editor: editor({ mode: "edit" }) });
     const out = html(props);
-    expect(find(CommentsPanel(props), "Save changes").disabled).toBe(true);
+    expect(out).toMatch(/<button[^>]*disabled=""[^>]*>Save changes<\/button>/);
     expect(out).toContain(`<p class="comments-helper" role="status">${READ_FAILED_EDITOR}</p>`);
     expect(out).not.toContain("Comments are read-only");
     expect(out.match(/Couldn’t read comments/g)).toHaveLength(1);

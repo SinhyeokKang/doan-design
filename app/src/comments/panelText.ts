@@ -1,6 +1,7 @@
 import type { Warning } from "../formats/types";
+import type { CanvasIdentityCause } from "../main/comments/identity";
 
-export type IdentityCause = "missing" | "invalid" | "duplicate" | null;
+export type IdentityCause = CanvasIdentityCause | null;
 
 export const WARNINGS_TITLE = "Some comment changes were ignored";
 export const READ_FAILED_EDITOR = "Comments couldn’t be read. Choose Retry, then save.";

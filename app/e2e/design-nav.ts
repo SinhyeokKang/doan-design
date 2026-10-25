@@ -389,8 +389,8 @@ process.exit(result.status ?? 1);
     await page.getByRole("button", { name: "acme-web overview", exact: true }).click(); await overview().waitFor();
     await card("Billing & plans").click(); await loaded("Billing & plans");
     const panel = page.getByRole("region", { name: "Comments", exact: true });
-    await wait(() => panel.getByRole("button", { name: "New canvas comment", exact: true }).isEnabled(), "stale Open draft ready");
-    await panel.getByRole("button", { name: "New canvas comment", exact: true }).click();
+    await wait(() => panel.getByRole("button", { name: "Comment on canvas", exact: true }).isEnabled(), "stale Open draft ready");
+    await panel.getByRole("button", { name: "Comment on canvas", exact: true }).click();
     await panel.getByRole("textbox", { name: "New comment body" }).fill("Keep the draft until the chosen transition is approved");
     await quickOpen("Card decline patterns"); await page.keyboard.press("Enter");
     const discard = page.getByRole("button", { name: "Discard", exact: true }); await discard.waitFor();
@@ -407,8 +407,8 @@ process.exit(result.status ?? 1);
       await page.getByRole("button", { name: "acme-web overview", exact: true }).click(); await overview().waitFor();
       await card("Billing & plans").click(); await loaded("Billing & plans");
       const panel = page.getByRole("region", { name: "Comments", exact: true });
-      await wait(() => panel.getByRole("button", { name: "New canvas comment", exact: true }).isEnabled(), "draft ready");
-      await panel.getByRole("button", { name: "New canvas comment", exact: true }).click();
+      await wait(() => panel.getByRole("button", { name: "Comment on canvas", exact: true }).isEnabled(), "draft ready");
+      await panel.getByRole("button", { name: "Comment on canvas", exact: true }).click();
       await panel.getByRole("textbox", { name: "New comment body" }).fill("Guard the cross-root Open");
       await page.evaluate(targetRoot => {
         const element = document.querySelector(".workspace")!;
@@ -586,8 +586,8 @@ process.exit(result.status ?? 1);
 
   // Task 9 — another worktree's frame, through the draft guard.
   const panel = page.getByRole("region", { name: "Comments", exact: true });
-  await wait(() => panel.getByRole("button", { name: "New canvas comment", exact: true }).isEnabled(), "comments ready");
-  await panel.getByRole("button", { name: "New canvas comment", exact: true }).click();
+  await wait(() => panel.getByRole("button", { name: "Comment on canvas", exact: true }).isEnabled(), "comments ready");
+  await panel.getByRole("button", { name: "Comment on canvas", exact: true }).click();
   await panel.getByRole("textbox", { name: "New comment body" }).fill("Draft before Quick Open");
   await quickOpen("card decl");
   await wait(async () => (await options()).length === 3, "card decl results");
@@ -747,12 +747,13 @@ process.exit(result.status ?? 1);
     }
     await card("Missing width").getByText("Preview needs a valid doan:width — run doan check", { exact: true }).waitFor();
     await shot("11-metadata-thumbnails");
+    // doan ls drops a malformed id, so the app cannot tell an invalid id from a missing one.
     for (const title of ["Missing ID", "Invalid ID"]) {
       await card(title).click(); await loaded(title);
       const comments = page.getByRole("region", { name: "Comments", exact: true });
-      await comments.getByText("A valid, unique canvas ID is required.", { exact: false }).waitFor();
-      await comments.getByRole("group", { name: "Comment scope" }).getByRole("button", { name: "Canvas", exact: true }).click();
-      await wait(async () => comments.getByRole("button", { name: "New canvas comment", exact: true }).isDisabled(), `${title} cannot create comments`);
+      await comments.getByRole("alert").filter({ hasText: "This canvas has no ID" }).waitFor();
+      assert.equal(await comments.getByRole("group", { name: "Comment scope" }).count(), 0, `${title} shows no filters`);
+      assert.equal(await comments.getByRole("button", { name: /^Comment on (canvas|selection)$/ }).count(), 0, `${title} cannot create comments`);
       assert.equal(await comments.getByRole("textbox", { name: "New comment body" }).count(), 0);
       await shot(`12-${title.replaceAll(" ", "-").toLowerCase()}-comments`);
       await page.getByRole("button", { name: "empty overview", exact: true }).click(); await overview().waitFor();

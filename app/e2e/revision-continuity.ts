@@ -251,7 +251,7 @@ try {
 
   await scenario("1-other-canvas-change", async () => {
     await openCanvas("a.html", "A canvas");
-    await button("New canvas comment").click();
+    await button("Comment on canvas").click();
     const body = "Written while b changes";
     await createBody().fill(body);
     const iframe = await page.locator(".board iframe").elementHandle(); assert.ok(iframe);
@@ -279,19 +279,19 @@ try {
   await scenario("2-continue-on-current-version", async () => {
     await openCanvas("a.html", "A canvas");
     await select("Child target", "child");
-    await button("New selection comment").click();
+    await button("Comment on selection").click();
     const body = "First line\nsecond line kept";
     await createBody().fill(body);
     await touchA();
     await panel().getByRole("status").filter({ hasText: RELOADED }).waitFor();
     assert.equal(await button("Save comment").count(), 0, "Continue takes the primary place");
     await wait(() => continueButton().isEnabled(), "continue enabled once the selection is found");
-    await panel().getByText("Continues on Element · child.", { exact: true }).waitFor();
+    await panel().getByText("Continues on Element · button child · in Hero.", { exact: true }).waitFor();
     await shot("2a-blocked");
     await continueButton().click();
     await button("Save comment").waitFor();
     assert.equal(await createBody().inputValue(), body);
-    assert.equal(await panel().locator(".comments-composer .comments-target").textContent(), "To: Element · child");
+    assert.equal(await panel().locator(".comments-composer .comments-target").textContent(), "To: Element · button child · in Hero");
     await wait(() => page.evaluate(() => { const node = document.activeElement; return node instanceof HTMLTextAreaElement && node.selectionStart === node.value.length && node.selectionEnd === node.value.length; }), "focus at the end of the body");
     await saveNew(body);
     const saved = (await savedBodies("a")).find(event => event.body === body);
@@ -300,7 +300,7 @@ try {
 
     // The selected element is gone in the new version: pick another one without a dialog, then continue.
     await select("Other target", "other");
-    await button("New selection comment").click();
+    await button("Comment on selection").click();
     const gone = "Selection removed under me";
     await createBody().fill(gone);
     await touchA({ other: false });
@@ -315,7 +315,7 @@ try {
     await wait(() => continueButton().isEnabled(), "continue enabled on the new selection");
     await continueButton().click();
     await button("Save comment").waitFor();
-    assert.equal(await panel().locator(".comments-composer .comments-target").textContent(), "To: Element · child");
+    assert.equal(await panel().locator(".comments-composer .comments-target").textContent(), "To: Element · button child · in Hero");
     await saveNew(gone);
     assert.equal((await savedBodies("a")).find(event => event.body === gone)?.target?.element?.doanId, "child");
     await touchA();
@@ -326,7 +326,7 @@ try {
     // lost selection) disable the button instead of failing a click.
     await openCanvas("a.html", "A canvas");
     await clearSelection();
-    await button("New canvas comment").click();
+    await button("Comment on canvas").click();
     const body = "Retry after a failed continue";
     await createBody().fill(body);
     await touchA();
@@ -360,7 +360,7 @@ try {
   await scenario("2d-reload-never-lays-out", async () => {
     await openCanvas("a.html", "A canvas");
     await clearSelection();
-    await button("New canvas comment").click();
+    await button("Comment on canvas").click();
     const body = "Kept through a failed reload";
     await createBody().fill(body);
     const disabledWith = async (reason: string) => {
@@ -412,7 +412,7 @@ try {
   await scenario("6-escape-without-selection", async () => {
     await openCanvas("a.html", "A canvas");
     await clearSelection();
-    await button("New canvas comment").click();
+    await button("Comment on canvas").click();
     const body = "Escape keeps me quietly";
     await createBody().fill(body);
     await escape();
@@ -429,7 +429,7 @@ try {
     await select("Child target", "child");
     await retry(blank, "blank click");
     await wait(async () => await selected() === null, "a blank in-canvas click clears the selection");
-    await button("New canvas comment").click();
+    await button("Comment on canvas").click();
     const body = "Blank click keeps me quietly";
     await createBody().fill(body);
     await retry(blank, "blank click with a draft");
@@ -448,7 +448,7 @@ try {
     await page.getByRole("button", { name: "Collapse Moving canvas", exact: true }).click();
     await wait(async () => await canvasRow(page, "m.html").getAttribute("aria-expanded") === "false", "open canvas row collapsed");
     await select("Child target", "child");
-    await button("New selection comment").click();
+    await button("Comment on selection").click();
     await createBody().fill("Before the move");
     await saveNew("Before the move");
     await cards().filter({ hasText: "Before the move" }).getByRole("button", { name: "Edit", exact: true }).click();
@@ -526,7 +526,7 @@ try {
   await scenario("7-no-width-location", async () => {
     await openCanvas("w.html", "Wide canvas");
     await select("Child target", "child");
-    await button("New selection comment").click();
+    await button("Comment on selection").click();
     await createBody().fill("Wide element note");
     await saveNew("Wide element note");
     await writeFile(design("w.html"), canvas("w", "Wide canvas", { width: null }));
@@ -541,7 +541,7 @@ try {
     // The target line is text with no Show on canvas action, titled with the selector.
     const target = note.locator(".comments-target");
     assert.equal(await target.evaluate(node => node.tagName), "SPAN");
-    assert.equal(await note.getByRole("button", { name: "Element · child", exact: true }).count(), 0);
+    assert.equal(await note.getByRole("button", { name: "Element · button child · in Hero", exact: true }).count(), 0);
     assert.equal(await target.getAttribute("title"), '[data-doan-id="child"]');
     await shot("7-no-width");
   });
