@@ -140,3 +140,18 @@
 ## 측정 의존
 
 - PoC 의존은 없다. Home·Overview 수 계산 비용은 tasks 1에서 잰다. 기준을 넘으면 대안은 `ls` 행에 확인 대상 수 계산에 필요한 최대 `resolvedAt`을 싣는 것이다. 이 대안은 사용자와 정한다.
+
+## 초안 요청 (2026-10-25 사용자, 링크 0)
+
+- 캔버스: `design/revision-recheck.html`, canvas id `revision-recheck`, 폭 1440.
+- 프레임 (id — 담을 상태):
+  - `resolution-meta` — "Resolved by codex · 3 min ago"(절대 시각은 title), "Reopened by <name> · <상대 시각>"과 "Previously resolved by <name>", 해결 시각 역순 Resolved 목록, 열린 카드의 중립 "Canvas changed" 배지(해결 카드에는 없음).
+  - `review-notice` — "3 resolved · Review"와 "3 resolved since your last review · Review"; 초안이 열려 있을 때 비활성 Review와 "Finish or cancel your comment to start Review."; 머리 아래 배너 순서(오류·id 안내 → 재확인 → 넘기기).
+  - `review-bar` — "Review 1/2/3 of 3", 하나뿐일 때(Previous 없음), 마지막 단계 Done, Reopen 뒤 "Reopened", "Reopened by codex"·"Deleted" 단계, "Not found in the current canvas", extras로 늘어난 "2 of 4", 필터 줄 접힘, Go 메뉴 "Next Resolved Comment ⌘]"·"Previous Resolved Comment ⌘[".
+  - `review-done` — "Reviewed 3 · Reopened 1 · Hand off…".
+  - `status-lines` — "Resolved — moved to Resolved.", "Reopened — moved to Open.", "Reopened — moved to Open. Show".
+  - `edit-reopen` — 해결된 댓글 편집기: "Save and reopen"(primary), "Save only", "Agents read open comments only.".
+  - `missing-target` — "Comment on selection instead"의 활성과 비활성("Select an element or frame first."), "Delete the original comment?" 대화상자 [Keep both] [Delete original].
+  - `activity-label` — Activity 종류 Opened·Changed·Reloaded·Moved·"Resolved 2 · codex, Kim Doe", 하단 라벨 네 가지와 날짜가 붙은 경우.
+  - `home-counts` — Home 행과 Overview 카드의 "N resolved to review", 요약 줄 "2 open · 1 resolved to review"의 넓은 폭과 좁은 폭. 셋째 항목 "· 3 without a canvas"는 `project-feedback` 초안이 더한다.
+- `/design-sync` 비교 대상: `review-notice`, `review-bar`, `review-done`(새 표면). 나머지 프레임의 이미 main에 있는 화면(카드, Activity, Home, Overview)은 코드와 `docs/DESIGN.md` 그대로 옮기고, 바뀌는 부분만 그린다.
