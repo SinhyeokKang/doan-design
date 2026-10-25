@@ -2041,6 +2041,17 @@ describe("locate and jump to a comment's node", () => {
     } finally { h.controller.dispose(); }
   });
 
+  it("ends the locate when the canvas navigates to another document on its own", () => {
+    const h = locateHarness();
+    try {
+      h.controller.locate("n1", h.snapshot().lookup.generation, open);
+      const href = "http://localhost/t/k/f/design/c.html";
+      h.layout({ document: "doc2", href });
+      h.select(1, { href });
+      expect(h.state().located).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
   it("drops the mark with a cleared selection", () => {
     const h = locateHarness();
     try {

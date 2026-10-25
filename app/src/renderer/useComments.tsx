@@ -98,15 +98,13 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   // A reload or a move finds the same selection again; only a new one
   // overrides the scope a person picked (feature revision-continuity L-13).
   const selected = open && state.selection ? selectionIdentity(mainSelection(open, state.selection)) : null;
-  // The selection a card's locate sent: it keeps the list the person was
-  // reading (feature revision-recheck). Any next selection change ends it.
-  const located = useRef<string | null>(null);
   // The card a card action came from and the card that followed it then, so
   // a status line can take the place of a card that left (design status-lines).
   const place = useRef<{ comment: string; before: string | null } | null>(null);
   useEffect(() => {
-    const exempt = selected !== null && selected === located.current;
-    located.current = null;
+    // The answer to a card's locate keeps the list the person was reading
+    // (feature revision-recheck); the controller ends that with the answer.
+    const exempt = selected !== null && state.located;
     if (!exempt) setFilter(current => selected !== null ? { scope: "selection", status: current.status, node: null } : { scope: "canvas", status: current.status });
     // A retained answer was measured for the previous selection; listing it
     // for a new one would show another element's comments (R-B8).
@@ -151,10 +149,8 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     else if (action === "locate") {
       const node = snapshot?.lookup.nodes.get(id);
       const comment = comments.find(c => c.comment === id);
-      if (!snapshot || !node || !comment || !root || !path) return;
-      const { frame, element } = comment.target;
-      const target = selectionIdentity({ root, canvas: { path, ...(canvas ? { id: canvas } : {}) }, ...(frame ? { frame: { id: frame } } : {}), ...(element ? { element } : {}) });
-      controller.current?.locate(node, snapshot.lookup.generation, comment, () => { located.current = target; });
+      if (!snapshot || !node || !comment) return;
+      controller.current?.locate(node, snapshot.lookup.generation, comment);
     }
   }
   const continueView = continueEnabled(session.draft, { canvas: { status: state.status, unlisted: state.unlisted, hasFrame: state.hasFrame, reloading: state.reloading },

@@ -27,6 +27,10 @@ export interface CanvasState {
   shown: string | null;
   layout: LayoutMessage | null;
   selection: SelectionView | null;
+  // The selection answers a card's locate, so the panel keeps its scope for
+  // it (feature revision-recheck). Any other answer, a cleared selection or a
+  // load ends it.
+  located: boolean;
   currentFrame: number | null;
   // The selection-lost line, until the next selection or canvas change.
   notice: string;
@@ -51,7 +55,7 @@ export interface CanvasState {
 export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, label: null, activity: [] };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, located: false, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, label: null, activity: [] };
 }
 
 // ARCH §13: a row has no `rev` until main sees its file change after the folder
@@ -121,6 +125,9 @@ export class CanvasController {
   // Selection acknowledgements refresh queries without replacing the binding.
   private commentRevision = 0;
   private pendingPin: { seq: number; intent: number; generation: number; revision: number; destination: PinDestination } | null = null;
+  // The seq of a card's locate select-anchor until any answer or a new document;
+  // a newer command's answer carries a higher seq.
+  private pendingLocate: number | null = null;
 
   private transitionGuard: ((destination: TransitionDestination) => boolean | Promise<boolean>) | null = null;
   // Whether the comments session can follow the open canvas to a new path.
@@ -281,14 +288,15 @@ export class CanvasController {
 
   // A card's target line: unlike a pin, it works for a target no pin shows
   // (off screen, resolved) and selects through select-anchor, so the panel's
-  // filters stay (feature revision-recheck). `selecting` runs only when the
-  // select is actually sent, after the draft guard.
-  locate(node: string, generation: number, comment: Comment, selecting?: () => void): void {
+  // filters stay (feature revision-recheck). Only the answer to this command
+  // is `located`: the canvas may name the target differently from the stored
+  // one, and a failed answer must not mark a later selection (R-L L-1, L-2).
+  locate(node: string, generation: number, comment: Comment): void {
     const current = () => generation === this.anchorGeneration && this.anchors?.lookup.nodes.get(comment.comment) === node;
     if (!current() || !this.jumpToNode(node, generation)) return;
     const { frame, element } = comment.target;
     const anchor = element ? { ...(element.doanId === undefined ? {} : { doanId: element.doanId }), selector: element.selector } : { frame };
-    this.transition(() => { selecting?.(); this.sendCommand({ type: "select-anchor", ...anchor }); }, current, "selection");
+    this.transition(() => { this.sendCommand({ type: "select-anchor", ...anchor }); this.pendingLocate = this.seq; }, current, "selection");
   }
 
   constructor(
@@ -577,6 +585,9 @@ export class CanvasController {
     this.setFrameHeight(INITIAL_HEIGHT);
     this.lastHref = null;
     this.jumpTo = null;
+    // Seq restarts, so a pending locate's seq could match the next document's answers.
+    this.pendingLocate = null;
+    this.state.located = false;
     this.seq = 0;
     this.acceptedSelectionSeq = 0;
     this.hoverSeq = 0;
@@ -690,6 +701,8 @@ export class CanvasController {
     // A sent pin's acknowledgement is document state, not a newer user intent.
     if (pin?.seq !== message.seq) this.pinIntent++;
     this.pendingPin = null;
+    const located = this.pendingLocate === message.seq;
+    this.pendingLocate = null;
     this.seq = message.seq;
     this.acceptedSelectionSeq = message.seq;
     if (message.type === "clear") { this.clearSelection(false); this.publish(); return; }
@@ -699,6 +712,7 @@ export class CanvasController {
     this.markHidden = false;
     this.selectedRect = verdict === "apply" ? rect : null;
     this.state.selection = view;
+    this.state.located = located;
     this.state.notice = "";
     this.drawMarks();
     this.requestRows(view);
@@ -744,6 +758,7 @@ export class CanvasController {
   // Does not publish: callers publish once with their other changes.
   private clearSelection(notice: boolean): void {
     this.pendingPin = null;
+    this.state.located = false;
     this.pinIntent++;
     this.state.selection = null;
     this.state.inspector = null;
@@ -855,6 +870,7 @@ export class CanvasController {
     if (newDocument) {
       this.clearJump();
       this.jumpTo = null;
+      this.pendingLocate = null;
       this.seq = 0;
       this.acceptedSelectionSeq = 0;
       this.hoverSeq = 0;
