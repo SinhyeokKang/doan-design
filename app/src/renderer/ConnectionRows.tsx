@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import type { MachineState } from "../main/onboarding/machine";
 import type { Agent } from "../main/onboarding/states";
 import { agentsView, cliItems, copyLabel, PATH_LINE_TEXT, COPY_FAILED, type ItemView, type MachineUi, type Part, type Row } from "./onboardingView";
@@ -50,12 +50,12 @@ export function ConnectionRows({ machine, ui, rows, busy = false, target, justCo
     </div>;
   })}</div>;
 }
-function DetailItem({ item }: { item: ItemView }) {
+function DetailItem({ item, reason }: { item: ItemView; reason?: ReactNode }) {
   return <><div className={`ob-item${item.dimmed ? " dimmed" : ""}`}>
     <span className="ob-label">{item.label}</span><span className="ob-detail"><ConnectionParts parts={item.detail} /></span>
     <span className="ob-status">{item.chip && <span className={`ob-chip${item.chip.tone ? ` ${item.chip.tone}` : ""}`}>{item.chip.text}</span>}</span>
     {item.msg && <span className={`ob-msg ${item.msg.tone}`}><ConnectionParts parts={item.msg.parts} /></span>}
-    {item.reason && !item.dimmed && <span className="ob-reason">{item.reason}</span>}
+    {(reason || item.reason) && !item.dimmed && <span className="ob-reason">{reason ?? item.reason}</span>}
   </div>{item.reason && item.dimmed && <div className="ob-item ob-notice"><span /><span className="ob-reason">{item.reason}</span></div>}</>;
 }
 function Details({ machine, ui, row, copyPath }: Pick<ConnectionRowsProps, "machine" | "ui" | "copyPath"> & { row: Row }) {
@@ -67,7 +67,7 @@ function Details({ machine, ui, row, copyPath }: Pick<ConnectionRowsProps, "mach
       link.msg = { tone: "warn", parts: ["Points to ", { code: machine.cli.value ?? "" }, ", which no longer exists."] };
       delete link.reason;
     }
-    return <>{link && <DetailItem item={link} />}{machine?.cli.state === "dangling" && <p className="cn-link-next">Fix points it to <code>{machine.display.cliTarget}</code>.</p>}
+    return <>{link && <DetailItem item={link} reason={machine?.cli.state === "dangling" ? <>Fix points it to <code>{machine.display.cliTarget}</code>.</> : undefined} />}
       {machine?.probe.ok && !machine.pathPresent ? <div className="cn-opt"><span className="cn-opt-head">Use doan in your terminal <span className="ob-chip">Optional</span></span>
         <p>{machine.rcFile ? <>Add this line to <code>{machine.rcFile}</code>, then open a new terminal. Agents don’t need it.</> : "Add ~/.local/bin to PATH in your shell configuration, then choose Check Again."}</p>
         {machine.rcFile && <span className="ob-copyline"><output>{PATH_LINE_TEXT}</output><button className="btn" disabled={ui.pathCopy === "copying"} onClick={copyPath}>{copyLabel(ui.pathCopy)}</button></span>}

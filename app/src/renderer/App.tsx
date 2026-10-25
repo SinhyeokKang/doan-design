@@ -234,6 +234,12 @@ export function App() {
       }).catch(error => { if (workspace) setLocating(null); console.error(error); });
     }
   }
+  useEffect(() => window.doan.onProjectAction(request => {
+    if (request.action === "details") {
+      const entry = entries.find(entry => entry.path === request.path);
+      if (entry?.kind === "error") toast.show(entry.message);
+    } else action(request.action, request.path);
+  }), [entries, loadedRoot]);
   useEffect(() => window.doan.onMenuCommand(name => {
     if (live.current.modal) return;
     if (name === "home") live.current.home();

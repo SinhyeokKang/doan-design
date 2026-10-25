@@ -49,3 +49,8 @@ test("shared skill and MCP conflict copy identifies the cause", () => {
   state.agents.claude.mcp = { state: "other", value: '{"command":"/other/doan","args":["mcp"]}' };
   expect(connectionRow(state, "claude", idleUi())).toMatchObject({ cause: "MCP runs another command.", parts: ["Claude Code’s doan server runs ", { code: "/other/doan mcp" }, ", not this app’s doan."] });
 });
+
+test("blocked shared skill wins over a foreign Claude link and stays read-only", () => {
+  const state = machine(); state.stub.state = "blocked"; state.claudeLink.state = "link-other";
+  expect(connectionRow(state, "claude", idleUi())).toMatchObject({ cause: "Path is blocked.", action: { kind: "check" } });
+});
