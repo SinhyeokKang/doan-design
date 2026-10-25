@@ -61,3 +61,11 @@ test("normal close waits for exit code zero even when close resolves earlier", a
   await harness.closeApp({ process: () => child, close: async () => {} }, 1000);
   assert.equal(child.exitCode, 0); assert.equal(child.signalCode, null);
 });
+
+test("cleanup retains the child handle after Playwright disposes its process accessor", async () => {
+  const child = spawn(process.execPath, ["-e", "setTimeout(() => process.exit(0), 40)"]);
+  let disposed = false, cleaned = false;
+  const app = { process: () => { if (disposed) throw new Error("disposed dispatcher"); return child; }, close: async () => { await once(child, "exit"); disposed = true; } };
+  const guard = harness.suiteGuard({ name: "disposed-fixture", timeoutMs: 200, app: () => app, verify: async () => {}, cleanup: async () => { cleaned = true; } });
+  await assert.doesNotReject(guard.finish()); assert.equal(cleaned, true);
+});
