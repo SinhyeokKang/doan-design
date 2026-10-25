@@ -409,6 +409,8 @@ else if (args[1] === 'add') {
   assert.equal(await chooser.getByRole("radio", { checked: true }).count(), 1);
   await shot("05-pick-one");
   await page.keyboard.press("Escape"); await chooser.waitFor({ state: "hidden" }); assert.equal(await wizard().isVisible(), true);
+  // Open Project… was disabled while main answered, so the closed modal must not return focus to <body>.
+  await wait(() => focusIs(button("Open Project…")), "focus returns to Open Project… after the pick-one list");
   await button("Open Project…").click(); await chooser.waitFor(); await wait(async () => await radios.count() === 3, "list again");
   await chooser.getByRole("radio", { name: "beta", exact: true }).check(); await chooser.getByRole("radio", { name: "alpha", exact: true }).check(); await chooser.getByRole("radio", { name: "beta", exact: true }).check();
   assert.equal(await chooser.getByRole("radio", { checked: true }).count(), 1);
@@ -420,6 +422,7 @@ else if (args[1] === 'add') {
   const notRepo = page.getByRole("dialog", { name: "Set up notes as a doan project?", exact: true }); await notRepo.waitFor();
   assert.equal(await focusIs(notRepo.getByRole("button", { name: "Cancel", exact: true })), true);
   await page.keyboard.press("Escape"); await notRepo.waitFor({ state: "hidden" }); assert.equal(await wizard().isVisible(), true); assert.ok(!(await stored()).includes(notes));
+  await wait(() => focusIs(button("Open Project…")), "focus returns to Open Project… after not-a-repository");
   await button("Open Project…").click(); await notRepo.waitFor(); await notRepo.getByRole("button", { name: "Set Up…", exact: true }).click(); await notRepo.waitFor({ state: "hidden" });
   await button("Set Up Project").waitFor(); await wizard().locator(".ob-field .value").first().getByText(notes, { exact: true }).waitFor(); assert.ok((await stored()).includes(notes));
   await page.keyboard.press("Escape"); await closed();
