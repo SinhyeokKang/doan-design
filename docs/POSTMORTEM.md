@@ -110,6 +110,8 @@
 - **Net**: the new actual-window regression failed in the first full runtime run. The Settings root now queues the latest forwarded target while a setup operation owns the current pane, restores the current native title, and applies the target after settlement. The regression verifies the dialog and current tab survive, then the queued Projects target opens after Cancel.
 - **Prevention**: run `rg -n 'setTarget|queuedTarget|onTarget' app/src/renderer/settingsWindow.tsx`; protect both local tab clicks and externally forwarded targets whenever a pane owns pending confirmation state. Keep the actual-window cross-window target test, not only a disabled-tab assertion.
 
+- **Recurrence (2026-10-25, UX S)**: Projects picker, Serve confirmation and config writes did not report pane ownership to that queue, so local selection or a forwarded target could unmount their UI. The actual Settings regression failed before Projects reused the existing lock/queue and passed afterward. Config Retry, Clear and last Serve removal also lost focus when their action disappeared; actual keyboard regressions now verify the surviving Change/Add destination and preservation of deliberately moved focus. Search run: `rg -n 'setTarget|queuedTarget|onTarget|onBusy|returnFocus|installRequests' app/src/renderer/settingsWindow.tsx app/src/renderer/settingsProjects.tsx` identifies both pane owners and focus callbacks. Keep ordinary reads navigable and do not turn pane protection into a new close/quit policy.
+
 ### 2026-10-25 — A new link state silently removed replacement-guard coverage
 
 - **Area**: `app/src/main/onboarding/states.ts`, `machine.test.ts`, `app/e2e/onboarding.ts`.
