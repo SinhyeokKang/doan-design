@@ -5,6 +5,9 @@ import { agentsView, cliItems, copyLabel, PATH_LINE_TEXT, COPY_FAILED, type Item
 import { CONNECTION_NAMES, connectionRow } from "./connectionRowView";
 import "./connectionRows.css";
 
+const MCP_WAITS = "Connect the doan command first; MCP needs it.";
+// main's MCP refusal names the wizard's step 1, which Settings does not have.
+const outcomeText = (message: string) => message === "Install the CLI link in step 1 before connecting MCP." ? MCP_WAITS : message;
 export function ConnectionParts({ parts }: { parts: readonly Part[] }) {
   return <>{parts.map((part, index) => typeof part === "string" ? <Fragment key={index}>{part}</Fragment> : <code key={index}>{part.code}</code>)}</>;
 }
@@ -44,8 +47,8 @@ export function ConnectionRows({ machine, ui, rows, busy = false, target, justCo
       <button className="cn-name" aria-expanded={!!expanded[row]} onClick={() => setExpanded(current => ({ ...current, [row]: !current[row] }))}><span className="tw" aria-hidden="true">{expanded[row] ? "▾" : "▸"}</span>{CONNECTION_NAMES[row]}</button>
       <span className="cn-end"><span className={`ob-chip${view.tone ? ` ${view.tone}` : ""}`}>{view.status}</span>{view.action && <button className={`btn${view.action.primary ? " primary" : ""}`} disabled={view.action.disabled} onClick={() => view.action?.kind === "check" ? checkAgain() : view.action?.kind === "install" && row !== "cli" ? install(row) : run(row)}>{view.action.label}</button>}</span>
       {(view.parts.length > 0 || view.cause) && <p className={`cn-say${justConnected === row && row !== "cli" && view.status === "Connected" ? " ok" : ""}`}>{justConnected === row && row !== "cli" && view.status === "Connected" ? `Connected. Start a new ${CONNECTION_NAMES[row]} session to use doan.` : <>{view.cause && <><b>{view.cause}</b>{" "}</>}<ConnectionParts parts={view.parts} /></>}</p>}
-      {machine && !machine.available && machine.reason && view.cause !== "Running outside Applications." && <p className="cn-say">{machine.reason}</p>}
-      {outcome && <p className="cn-say" role="alert">{outcome.kind === "changed" ? "It changed after you looked, so nothing was replaced." : outcome.message}</p>}
+      {machine && !machine.available && machine.reason && view.cause !== "Running outside Applications." && !view.parts.includes(machine.reason) && <p className="cn-say">{machine.reason}</p>}
+      {outcome && <p className="cn-say" role="alert">{outcome.kind === "changed" ? "It changed after you looked, so nothing was replaced." : outcomeText(outcome.message)}</p>}
       {expanded[row] && <div className="cn-details"><Details machine={machine} ui={ui} row={row} copyPath={copyPath} /></div>}
     </div>;
   })}</div>;
@@ -76,5 +79,5 @@ function Details({ machine, ui, row, copyPath }: Pick<ConnectionRowsProps, "mach
   const agents = agentsView(machine, detailUi);
   const agent = agents.agents.find(card => card.agent === row);
   const skill = { ...agents.skill, detail: agents.skill.detail.map(part => part === " · shared by Claude Code and Codex" ? ` · shared with ${row === "claude" ? "Codex" : "Claude Code"}` : part) };
-  return <>{machine?.agents[row].executable && <DetailItem item={{ key: "found", label: "Found at", detail: [{ code: machine.agents[row].executable }] }} />}<DetailItem item={skill} />{agent?.items.map(item => <DetailItem key={item.key} item={item.dimmed ? { ...item, reason: "Connect the doan command first; MCP needs it." } : item} />)}</>;
+  return <>{machine?.agents[row].executable && <DetailItem item={{ key: "found", label: "Found at", detail: [{ code: machine.agents[row].executable }] }} />}<DetailItem item={skill} />{agent?.items.map(item => <DetailItem key={item.key} item={item.dimmed ? { ...item, reason: MCP_WAITS } : item} />)}</>;
 }
