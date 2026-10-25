@@ -212,3 +212,75 @@ test("begin failure preserves reads and copy, clears on retry and document loss"
   api.commentsBegin.mockRejectedValueOnce(new Error("Old canvas")); await s.create("canvas");
   await s.open({ ...identity, canvas: "b" }); expect(s.createError).toBeNull();
 });
+
+describe("begin authority after document loss", () => {
+  test("late rejection stays cleared and a new document can report its own failure", async () => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    let reject!: (error: Error) => void;
+    api.commentsBegin.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }));
+    const old = s.create("canvas"); s.documentLost(); await s.open(identity);
+    reject(new Error("Obsolete document")); await old;
+    expect(s.createError).toBeNull(); expect(s.list?.comments).toEqual([c]);
+    api.commentsBegin.mockRejectedValueOnce(new Error("Current document")); await s.create("canvas");
+    expect(s.createError).toBe("Current document");
+    await s.create("canvas"); expect(s.createError).toBeNull(); expect(s.draft.draft).not.toBeNull();
+  });
+  test.each([false, true])("late success cannot create an obsolete draft or release a newer begin (retry %s)", async retry => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    const original = api.commentsBegin.getMockImplementation()!;
+    let release!: () => void, releaseNew!: () => void;
+    api.commentsBegin.mockImplementationOnce(r => new Promise(resolve => { release = () => { void original(r).then(resolve); }; }));
+    const old = s.create("canvas"); s.documentLost(); await s.open(identity);
+    api.setCommentDraftGuard.mockClear();
+    let next: Promise<void> | undefined;
+    if (retry) {
+      api.commentsBegin.mockImplementationOnce(r => new Promise(resolve => { releaseNew = () => { void original(r).then(resolve); }; }));
+      next = s.create("canvas");
+      expect(api.commentsBegin).toHaveBeenCalledTimes(2);
+    }
+    release(); await old;
+    expect(s.draft.draft).toBeNull(); expect(s.beginning).toBe(retry);
+    expect(api.setCommentDraftGuard).not.toHaveBeenCalled();
+    if (retry) { releaseNew(); await next; expect(s.draft.draft).not.toBeNull(); }
+  });
+  test.each(["pending", "ready", "none"])("old guard completion preserves newer %s owner", async newer => {
+    const { session: s, api } = fixture(); await s.open(identity);
+    let release!: () => void;
+    api.setCommentDraftGuard.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    const old = s.create("canvas"); await vi.waitFor(() => expect(api.setCommentDraftGuard).toHaveBeenCalledOnce());
+    s.documentLost(); await s.open(identity);
+    expect(api.setCommentDraftGuard).toHaveBeenLastCalledWith(false);
+    api.setCommentDraftGuard.mockClear();
+    let next: Promise<void> | undefined, releaseNew!: () => void;
+    if (newer !== "none") {
+      if (newer === "pending") {
+        const original = api.commentsBegin.getMockImplementation()!;
+        api.commentsBegin.mockImplementationOnce(r => new Promise(resolve => { releaseNew = () => { void original(r).then(resolve); }; }));
+      }
+      next = s.create("canvas");
+      expect(api.commentsBegin).toHaveBeenCalledTimes(2);
+      if (newer === "ready") await next;
+    }
+    release(); await old;
+    expect(s.beginning).toBe(newer === "pending");
+    if (newer === "none") { expect(s.draft.draft).toBeNull(); expect(api.setCommentDraftGuard).not.toHaveBeenCalled(); }
+    else {
+      expect(api.setCommentDraftGuard).not.toHaveBeenCalledWith(false);
+      if (newer === "pending") { releaseNew(); await next; }
+      expect(s.draft.draft).not.toBeNull();
+    }
+  });
+});
+
+test("a newer failed begin cannot strand the obsolete begin's main guard", async () => {
+  const { session: s, api } = fixture(); await s.open(identity);
+  let releaseGuard!: () => void, rejectNew!: (error: Error) => void;
+  api.setCommentDraftGuard.mockImplementationOnce(() => new Promise(resolve => { releaseGuard = resolve; }));
+  const old = s.create("canvas"); await vi.waitFor(() => expect(api.setCommentDraftGuard).toHaveBeenCalledOnce());
+  s.documentLost();
+  api.commentsBegin.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectNew = reject; }));
+  const next = s.create("canvas"); releaseGuard(); await old;
+  rejectNew(new Error("Current failure")); await next;
+  expect(s.createError).toBe("Current failure"); expect(s.beginning).toBe(false);
+  expect(api.setCommentDraftGuard).toHaveBeenLastCalledWith(false);
+});
