@@ -57,6 +57,7 @@ function SettingsConnections({ target, onBusy }: { onBusy: (busy: boolean) => vo
   const [ui, setUi] = useState<MachineUi>(() => ({ ...idleUi(), checking: true }));
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
+  const installRequests = useRef(0);
   const [justConnected, setJustConnected] = useState<Row | null>(null);
   const [confirm, setConfirm] = useState<{ id: string; target: "cli" | "stub" | "claudeLink" | "mcp"; row: Row } | null>(null);
   useEffect(() => { onBusy(ui.running !== null); return () => onBusy(false); }, [ui.running]);
@@ -116,8 +117,8 @@ function SettingsConnections({ target, onBusy }: { onBusy: (busy: boolean) => vo
     {installError && <p className="st-notice error" role="alert">{installError}</p>}
     {ui.readError && <p className="st-notice error" role="alert">{ui.readError}</p>}
     <ConnectionRows machine={machine} ui={ui} rows={["cli", "claude", "codex"]} busy={busy} target={rowTarget} justConnected={justConnected} run={run} checkAgain={check} install={agent => {
-      setInstallError(null);
-      void window.doanSettings.openInstallPage(agent).then(ok => { if (live.current && !ok) setInstallError("Couldn’t open the install page."); }).catch(error => { if (live.current) setInstallError(error instanceof Error ? error.message : String(error)); });
+      const request = ++installRequests.current; setInstallError(null);
+      void window.doanSettings.openInstallPage(agent).then(ok => { if (live.current && request === installRequests.current && !ok) setInstallError("Couldn’t open the install page."); }).catch(error => { if (live.current && request === installRequests.current) setInstallError(error instanceof Error ? error.message : String(error)); });
     }} copyPath={() => {
       setUi(current => ({ ...current, pathCopy: "copying" }));
       void window.doanSettings.copyPathLine().then(result => { if (live.current) setUi(current => ({ ...current, pathCopy: result.kind === "success" ? "copied" : "failed" })); }).catch(() => { if (live.current) setUi(current => ({ ...current, pathCopy: "failed" })); });
