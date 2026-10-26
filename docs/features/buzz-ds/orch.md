@@ -36,6 +36,7 @@
 | 2026-10-26 | A7 버튼 적용 범위: `.btn`·`.comments-btn` 전부 `doan-button`(클래스에서 변형을 정함), 다이얼로그 액션 행만 40px이고 나머지는 sm, 옛 규칙 삭제. 사이드바 26px 행의 hover 액션(`.side .row .ra`)만 `buzz-project`까지 좁은 예외. 아이콘 버튼은 `doan-icon-button`과 lucide 글리프 | 지휘자 판단 — B3 질문, tasks A7 '클래스만 입힌다' |
 | 2026-10-26 | e2e의 comments-ui가 실제 클립보드가 빈 항목(타입 0개)이라 시작부터 막혀, B3가 `pbcopy`로 placeholder를 한 번 넣는 것을 허락했다 | 지휘자 판단 — 잃는 데이터 없음 |
 | 2026-10-26 | R3 판정: 드롭 오버레이 글자는 `text-on-prominent`, 점선도 `text-on-prominent`로 바꿔 3:1을 넘긴다. 행 막대 제거는 금지 규칙에 따라 승인하고 A10에서 대응표 문구를 고친다. inset 띠 위 subtle 버튼은 DESIGN.md에 중간 상태로 적고 화면 자식에 넘긴다. 정보 글자의 `text-disabled`는 `text-metadata`로 지금 고친다. floating·메뉴 블록은 doan 구조로 다시 쓴다. 모달 위 모달은 위저드 위 다이얼로그 단계를 onboarding suite에 더한다 | 지휘자 판단 — R3 권고 |
+| 2026-10-26 | S3까지 통합한 상태로 지금 main에 병합한다. `/verify --runtime` 실패(comments-ui `:566`, main에서도 재현되는 기존 실패)는 미충족으로 PR에 적고 넘어간다. S4(A9 DESIGN.md, A10 결론 승격과 이 디렉터리 삭제)는 병합 뒤 남은 일로 진행한다 | 사용자 |
 | 2026-10-26 | A10(결론 승격과 `docs/features/buzz-ds/` 삭제)은 지휘자가 통합 뒤 직접 한다 | orchestrate 스킬 §5 |
 
 ## batch 표
@@ -69,3 +70,4 @@
 - 2026-10-26: B1r2(Opus medium, worktree `buzz-ds-b1r2`) — `--violet-1..12`와 짝 값으로 바꿨다. 9 `#973be1`(흰 글자 5.21:1, Lc −80), hover `#9033d9`, pressed `#8a2dd2`, 12 `#432517`→`#342743`. 핀 테두리는 `neutral-12`. 대비 쌍 모두 통과. 통합 ca62bf9·ad27aa9. 지휘자 확인: typecheck 통과, 단위 테스트는 계획된 `accentPlaces` red 하나(3064 통과), `doan check` 오류 0·경고 12, orange·citrus·옛 hex grep 0건, 초안 diff 확인. 검토용 Artifact 3판으로 갱신. B1r2 터미널 release. 여기까지가 S2(A5 확정)다.
 - 2026-10-26: B3(Opus high, worktree `buzz-ds-b3`) 완료 보고 — 커밋 14개(5b272b4~eda9d3d). 단위 3070 통과, typecheck·build·`doan check` 오류 0, spec grep 0건, comments-ui 뒤 suite 10개와 presentation 두 모드 PASS. 전체 e2e는 comments-ui `:566`에서 멈춰 최종 PASS 없음. B3 터미널 release.
 - 2026-10-26: R3(Opus high) 리뷰 — 🔴 0, 🟡 6, ⚪ 10(지휘자 `.scratch/review-B3.md`). handoff 주장 모두 참. 수정 라운드 B3r1로 🟡1·2·4·5·6과 ⚪3·5·7을 보낸다. R3 터미널 release.
+- 2026-10-26: B3·B3r1 통합(23커밋, 1e8b5d2까지). 통합 HEAD에서 `verify.mjs --runtime` — 앞 단계 통과, runtime에서 comments-ui `:566` 시간 초과로 FAILED(로그 `.scratch/conductor/verify-runtime.log`). 사용자가 맥을 쓰지 않는 상태에서도 같다. B3r1 터미널 release.
