@@ -583,7 +583,7 @@ else if (args[1] === 'add') {
   await writeFile(join(project, "design/first.html"), canvasHtml("First")); await wait(async () => await openCanvas().textContent() === "First", "arrival opened in its workspace");
 
   console.log("onboarding: 5 sidebar setup, re-root and modal/draft preservation");
-  const plain = await newRepo("company-monorepo/packages/applications/marketing-web-frontend/plain"); await open(plain); let plainRow = homeRow(page, plain); await plainRow.getByRole("button", { name: "Set Up…", exact: true }).click();
+  const plain = await newRepo("company-monorepo/packages/applications/marketing-web-frontend/experiments/2026-campaign-landing-pages/plain"); await open(plain); let plainRow = homeRow(page, plain); await plainRow.getByRole("button", { name: "Set Up…", exact: true }).click();
   const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true }); await setup.waitFor();
   await assertProjectPath(setup.locator(":scope > p"), setup, plain, "setup dialog");
   assert.equal(await focusIs(setup.getByRole("button", { name: "Choose…", exact: true })), true);
