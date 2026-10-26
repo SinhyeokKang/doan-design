@@ -112,3 +112,5 @@
 - E는 Codex app-server가 같은 그룹 자식을 남기고 exit(7)하면 `turn.failed` 없이 running이 유지되는 추가 결함을 재현했다(`.scratch/E-runtime-ninth.log`, 15초 관찰). 지휘자가 runner exit 경로를 확인하고 F-A3의 진행 중 종료 처리 범위에 전달했다. transport 사망 시 즉시 실패·소유 그룹 정리를 시작하되, 예약 해제는 실제 그룹 종료 확인 뒤여야 한다. E의 기대값과 런타임 슬롯은 유지한다.
 
 - F-A3 (`task_34040a8a1048`, `ctx_0158c7c99d5b`)는 `f100324`, `3873f11`로 Claude 실제 child exit와 SDK 구조화 오류 태그를 함께 확인해 종료를 분류했다. 집중 47개·typecheck 통과 보고와 diff를 지휘자가 E 재현에 대조하고 통합했다. release 완료, E에 원본 두 커밋 적용·재빌드·실제 Electron 재검증을 요청했다. Codex 추가 사례는 F-A3 마무리 후 도착해 미처리이므로 F-A4(Astra medium)가 별도 수행한다. E의 full/runtime 슬롯은 유지한다.
+
+- E는 fake Claude가 비JSON stdout 한 줄 뒤 살아 있으면 15초 내 실패가 없는 관찰을 보고했다. 지휘자가 설치된 SDK 0.3.310의 ProcessTransport.readMessages에서 parse 실패 시 Non-JSON stdout 로그 후 continue하는 코드를 확인했다. design에는 15초 턴 제한·SDK raw parser 중복 구현 계약이 없으므로 지휘자의 E brief 기대를 정정했다. 원래 실패 관찰은 보존하고 Claude는 잡음 뒤 정상 응답·잡음만 있을 때 중단/Quit 정리를 검증한다. 직접 파싱하는 Codex malformed protocol 실패와 실제 프로세스 종료 실패 요구는 유지한다.
