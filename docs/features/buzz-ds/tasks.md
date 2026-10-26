@@ -42,7 +42,7 @@ design.md '초안 요청'대로 `design/buzz-ds.html`을 그린다. 그린 뒤 �
 ## S3
 
 ### A6. 셀렉터 대응표 적용
-design.md '셀렉터 대응표'의 모든 줄을 옮긴다(orange, 무채색, opacity, scrim). 코멘트 저장 버튼 두 곳에 `submit` modifier를 붙인다. 바뀐 e2e 고정값(disabled `opacity 0.4`: `app/e2e/presentation.ts:66`, `app/e2e/runtime.ts:331-332`; 충돌 규칙 색 `app/e2e/comments-ui.ts:683` 등)을 갱신한다.
+design.md '셀렉터 대응표'의 모든 줄을 옮긴다(violet, 무채색, opacity, scrim). 코멘트 저장 버튼 두 곳에 `submit` modifier를 붙인다. 바뀐 e2e 고정값(disabled `opacity 0.4`: `app/e2e/presentation.ts:66`, `app/e2e/runtime.ts:331-332`; 충돌 규칙 색 `app/e2e/comments-ui.ts:683` 등)을 갱신한다.
 - 검증: `grep -rniE '#f0773a|#3a2117|#1a0b03' app/src` 결과 없음. 기존 이름 별칭 grep(spec 완료 조건) 결과 없음. `accentPlaces`, `contrastPairs` 실제 파일 테스트 green. `npm --prefix app run e2e` 최종 PASS.
 
 ── commit: `feat(app): map accents to light roles` ──
