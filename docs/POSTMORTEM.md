@@ -2,6 +2,38 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-27 — Awaited conversation work outlived its current turn
+
+- **Area**: `app/src/main/conversation/service.ts` (R-A-1).
+- **Symptom**: a send preparing while another start archived its conversation still appended messages and reused the closing Codex runner; a delayed send rejection could fail a later turn.
+- **Root cause**: admission was checked before an await, while asynchronous callbacks were attributed only by conversation ID.
+- **Net**: ordinary own-Codex reuse tests passed; held preparation and delayed rejection tests failed before the state/generation fences.
+- **Prevention**: recheck current metadata and live execution identity after preparation and opening, before acceptance; fence transport rejection by live identity and turn ID. Keep pending-send/replacement, uncertain close, late event and old-turn rejection regressions. Ran `rg -n 'turnId|\.send\(' app/src/main/conversation/service.ts`; matches are the live-turn fences and send routing.
+
+### 2026-10-27 — A rejected conversation replacement had already changed current history
+
+- **Area**: `app/src/main/conversation/store.ts`, `service.ts` (R-A-2).
+- **Symptom**: a rejected start left the old conversation archived and an empty new current after archive or initial-log persistence failed.
+- **Root cause**: index publication preceded history validation and event persistence, with no rollback or restart recovery.
+- **Net**: successful replacements missed the problem. Corrupt-history, archive, partial new-log, index and invalid-prompt tests reproduced the rejection boundary; an interrupted rollback fixture verifies restart recovery.
+- **Prevention**: validate prompt and old histories first, publish a store-local undo record before appending, and use the final index rename as the commit point. Roll back only the same inode to its prior size; refuse exposure if recovery cannot finish. Test failures before commit and restart on either side of the index rename. Ran `rg -n 'acceptStart|recoverStart' app/src/main/conversation/{service,store}.ts`. This is application recovery, not multi-file atomicity, concurrent-writer coordination or fsync/power-loss durability.
+
+### 2026-10-27 — Stable canvas lookup retained a stale execution path
+
+- **Area**: `app/src/main/conversation/service.ts`, `app/src/main/index.ts` (R-A-3).
+- **Symptom**: lookup found a moved canvas conversation by ID, but send rejected its old path.
+- **Root cause**: lookup and admission used different identity rules and metadata never refreshed after a move.
+- **Net**: unchanged-path tests passed. A move with the same ID failed before lookup and send refreshed from the current listing.
+- **Prevention**: resolve an ID to exactly one listed canvas before preparation and final admission, then refresh the stored path and prompt. Keep missing, changed and duplicate-ID refusal tests and exact-path-only behavior. Do not infer a new ID binding from an old path. Ran `rg -n 'sameCanvas' app/src/main/conversation/service.ts`; replacement and newDesign binding retain their existing identity comparison.
+
+### 2026-10-27 — A session association was mistaken for stored Codex session presence
+
+- **Area**: `app/src/main/conversation/prepare.ts`, `io.ts` (R-A-4).
+- **Symptom**: resume preview reported available with a valid association but no corresponding Codex session.
+- **Root cause**: profile/version checks were treated as existence evidence and the eventual resume refusal was assumed to satisfy preview.
+- **Net**: a synthetic empty profile reproduced false availability. Header identity, cwd/version, malformed metadata, duplicate rollout, linked file/directory and oversized-header tests now cover read-only existence evidence.
+- **Prevention**: for supported 0.163.0 storage, require one bounded, regular, no-follow rollout whose first `session_meta` identifies the requested session and canonical cwd. A filename or empty loaded-thread list is not evidence. Exhausted bounds and uncertain evidence mean unavailable; presence does not establish writer availability. Preserve authoritative resume ownership checks. Ran `rg -n 'session_meta' app/src/main/conversation/io.ts`; only the Codex presence reader matches.
+
 ### 2026-10-27 — Protocol readiness lagged behind process and turn ownership
 
 - **Area**: `app/src/main/conversation/runners.ts`, `service.ts`, and their boundary tests.
@@ -27,6 +59,8 @@
 - **Root cause**: `Stat` followed the final link, and history and append opened the pathname separately. This repeats the dangling-write lesson in the 2026-10-21 “Filesystem APIs did not match missing and same file” entry, with an additional check-to-open race: adding `Lstat` alone would still permit final-file or parent replacement.
 - **Net**: independent R-C review caught both existing and dangling escapes. F-C reproduced both as failing sentinel assertions before the fix; ordinary output/hash/concurrency tests had missed the boundary. Deterministic tests now replace a final name before and after opening, replace the parent or ancestor before pinning, and replace the parent after pinning; they also reject directories and FIFOs.
 - **Prevention**: canonicalize profile/default paths as before, capture the userData directory identity, walk its canonical components with descriptor-relative `O_DIRECTORY|O_NOFOLLOW`, compare the opened directory identity, and open the final name relative to that pinned descriptor with `O_NOFOLLOW`. Require a regular-file descriptor before any read/write; use the same `O_APPEND` descriptor for history and each single-write line. Exclusive creation plus a no-follow reopen handles competing creation; `O_NONBLOCK` keeps FIFO rejection from hanging check. Run `rg -n 'os\.(Stat|Open|OpenFile)|unix\.Openat' cli/internal/cli/sessions.go cli/internal/cli/active.go cli/internal/comments` (performed 2026-10-27): session log opens now use `Openat`; `active.go` and `comments/append.go` remain separate review candidates, not findings fixed here. Retain temporary-sentinel tests for existing/dangling links and deterministic replacement tests. This pins object identity, not its pathname: relocation of an already-open object, hard links, concurrent in-place writes and transactional hash deduplication are not prevented.
+
+- **Recurrence (2026-10-27, R-A-5)**: the app conversation store also validated history through one open and appended through another. A deterministic regular-file replacement test failed before `append` read and wrote the same verified `O_RDWR|O_APPEND` descriptor. This pins the opened object; ancestor replacement and unrelated in-place writes remain unproved. Ran `rg -n 'openRegular|readDescriptor' app/src/main/conversation/{io,store}.ts`; the other matches are read-only session readers and index/recovery operations. Every append still scans the whole history with the existing 256 MiB limit; no cache, rotation or stress claim was added.
 
 ### 2026-10-27 — Runtime clipboard capture constructed an item with no MIME types
 
