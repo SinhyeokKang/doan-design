@@ -58,9 +58,11 @@ export class CommentsSession {
   canvasOffered: string | null = null;
   composing = false;
   uncertainTransition: { id: string; kind: "quit" | "blocked" } | null = null;
-  deleteConfirmation: { request: MutationRequest; comment: Comment } | null = null;
-  // Left where a card was after the person's own Resolve or Reopen moved it to the other list.
-  statusLine: { comment: string; text: string } | null = null;
+  // `replacedOn`: the target of the new comment that replaced this one (Comment on selection instead).
+  deleteConfirmation: { request: MutationRequest; comment: Comment; replacedOn?: Target } | null = null;
+  // Left where a card was after the person's own Resolve or Reopen moved it to
+  // the other list; `show` after Save and reopen, which leaves from the editor.
+  statusLine: { comment: string; text: string; show?: true } | null = null;
   private statusTimer: ReturnType<typeof setTimeout> | undefined;
   private revision = 0;
   private beginRevision = 0;
@@ -71,6 +73,8 @@ export class CommentsSession {
   private project = 0;
   private pending: MutationRequest | null = null;
   private cardPending = new Map<string, MutationRequest>();
+  // The create draft written to replace a comment whose target is gone.
+  private replacing: { draft: string; comment: string } | null = null;
   private destination: ((allowed: boolean) => void) | null = null;
   constructor(private api: Api, private changed: () => void) {}
   private emit() { this.changed(); }
@@ -85,9 +89,9 @@ export class CommentsSession {
     if (this.beginning && !this.draft.draft) void this.api.setCommentDraftGuard(false);
     this.beginRevision++; this.beginning = false; this.continuing = null;
   }
-  private showStatus(comment: string, type: keyof typeof statusText) {
+  private showStatus(comment: string, type: keyof typeof statusText, show = false) {
     clearTimeout(this.statusTimer);
-    this.statusLine = { comment, text: statusText[type] };
+    this.statusLine = { comment, text: statusText[type], ...(show ? { show: true as const } : {}) };
     this.statusTimer = setTimeout(() => { this.statusTimer = undefined; this.statusLine = null; this.emit(); }, STATUS_LINE_MS);
   }
   // The line stands for a place in this document's list; another canvas or a
@@ -179,7 +183,7 @@ export class CommentsSession {
     }
     this.emit();
   }
-  async create(scope: "canvas" | "selection") {
+  async create(scope: "canvas" | "selection", body = "", replaces?: string) {
     if (!this.identity || !this.list || this.draft.draft || this.busy || this.beginning || this.author.status !== "ready") return;
     const begin = ++this.beginRevision, request = this.request();
     this.beginning = true; this.createError = null; this.emit();
@@ -191,7 +195,8 @@ export class CommentsSession {
       if (begin !== this.beginRevision) return;
       this.origin = origin; this.project = origin.project; this.draftIdentity = { ...this.identity };
       this.target = structuredClone(origin.target);
-      this.draft = beginDraft(crypto.randomUUID(), { kind: "create", ...this.identity, generation: 0, canvasHash: origin.hash, target: origin.target }, "");
+      this.draft = beginDraft(crypto.randomUUID(), { kind: "create", ...this.identity, generation: 0, canvasHash: origin.hash, target: origin.target }, body);
+      this.replacing = replaces === undefined || !this.draft.draft ? null : { draft: this.draft.draft.id, comment: replaces };
       this.saveView = { status: "idle" };
     } catch (error) { if (begin === this.beginRevision) this.createError = errorText(error); }
     finally { if (begin === this.beginRevision) this.beginning = false; this.emit(); }
@@ -214,9 +219,16 @@ export class CommentsSession {
       this.origin = origin; this.project = origin.project; this.draftIdentity = identity;
       this.target = structuredClone(origin.target);
       this.draft = result.state; this.continued = result.state.draft?.id ?? null;
+      if (this.replacing?.draft === draft.id && this.continued) this.replacing = { ...this.replacing, draft: this.continued };
       this.saveView = { status: "idle" };
     } catch (error) { if (begin === this.beginRevision) this.continueError = errorText(error); }
     finally { if (begin === this.beginRevision) { this.beginning = false; this.continuing = null; } this.emit(); }
+  }
+  // A comment is not re-attached (PRODUCT §5 item 5): the person writes the same
+  // body anew on the selection and then decides about the original.
+  async commentInstead(id: string) {
+    const comment = this.list?.comments.find(c => c.comment === id);
+    if (comment?.status === "open") await this.create("selection", comment.body, id);
   }
   edit(id: string) {
     if (!this.identity || !this.list || this.draft.draft || this.busy || this.author.status !== "ready") return;
@@ -289,14 +301,16 @@ export class CommentsSession {
     if (choice === "discard") { this.pending = null; void this.api.setCommentDraftGuard(false); }
     this.emit();
   }
-  async save() {
+  // `reopen`: Save and reopen on a resolved comment, one append of edit and reopen.
+  async save(reopen = false) {
     const draft = this.draft.draft;
     if (!draft || !this.draftIdentity || this.pending || this.author.status !== "ready" || ["conflict", "deleted"].includes(this.saveView.status)) return;
     const requestID = crypto.randomUUID();
     const result = transitionDraft(this.draft, { type: "save", request: requestID });
     if (result.effect.type !== "save") return;
     this.draft = result.state;
-    const intent: MutationIntent = draft.origin.kind === "create" ? { type: "create", body: draft.body } : { type: "edit", comment: draft.origin.comment, expected: draft.origin.expected, body: draft.body };
+    const intent: MutationIntent = draft.origin.kind === "create" ? { type: "create", body: draft.body }
+      : { type: reopen && draft.origin.expected.status === "resolved" ? "edit-reopen" : "edit", comment: draft.origin.comment, expected: draft.origin.expected, body: draft.body };
     this.pending = structuredClone({ ...this.draftIdentity, project: this.project, requestID, intent, ...(this.origin ? { origin: this.origin.origin } : {}) });
     await this.submit(this.pending);
   }
@@ -322,13 +336,18 @@ export class CommentsSession {
     if (request !== this.pending || !this.draft.draft) return;
     if (this.uncertainTransition) this.cancelDestination();
     if (status.state === "saved") {
-      const origin = this.draft.draft.origin;
+      const origin = this.draft.draft.origin, rev = this.revision, target = structuredClone(this.target);
+      const replacing = this.replacing?.draft === this.draft.draft.id ? this.replacing.comment : null;
+      if (replacing !== null) this.replacing = null;
       this.draft = transitionDraft(this.draft, { type: "saved", request: request.requestID, draft: this.draft.draft.id, outcome: "saved" }).state;
       this.pending = null; this.saveView = { status: "idle" };
       await this.api.setCommentDraftGuard(false);
       this.destination?.(true); this.destination = null;
       await this.read();
       this.savedComment = status.comment ?? (origin.kind === "edit" ? origin.comment : null);
+      if (rev === this.revision && origin.kind === "edit" && request.intent.type === "edit-reopen") this.showStatus(origin.comment, "reopen", true);
+      const original = rev === this.revision && replacing !== null ? this.list?.comments.find(c => c.comment === replacing) : undefined;
+      if (original && this.list) this.deleteConfirmation = { request: { ...this.request(), project: this.list.project, intent: { type: "delete", comment: original.comment, expected: expectedComment(original) } }, comment: structuredClone(original), replacedOn: target };
     } else if (status.recovery === "child-exit-required") this.saveView = { status: "recovery-blocked", message: status.error ?? "Confirm externally that the directory child exited, then restart the app." };
     else this.saveView = { status: status.state === "absent" ? "retry-original" : "unknown" };
     if (status.state !== "saved") this.cancelDestination();

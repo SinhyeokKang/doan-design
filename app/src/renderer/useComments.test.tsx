@@ -912,6 +912,61 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
     });
   });
 
+  describe("editing a resolved comment and replacing a missing target (revision-recheck task 9)", () => {
+    const open = (comment: string): Comment => ({ ...note, comment, target: {} });
+    const resolved = (comment: string): Comment => ({ ...note, comment, target: {}, status: "resolved", resolvedAt: "2026-10-23T00:00:00.000Z", resolvedBy: { kind: "agent", name: "codex" } });
+    const listed = (comments: Comment[]) => { (window.doan as unknown as Record<string, unknown>).commentsList = async (r: CommentRequest) => ({ ok: true, identity: r, value: { project: 1, comments, warnings: [], canvasHash: "hash" } }); };
+    const saved = (comment?: string) => async (r: CommentRequest) => ({ ok: true, identity: r, value: { state: "saved", ...(comment ? { comment } : {}) } });
+    test("the entry point opens a resolved comment's editor; Save and reopen leaves a line whose Show lists Open and focuses the card", async () => {
+      const page = dom(["c1", "c2"]);
+      const f = await ready([resolved("c1"), resolved("c2")]);
+      f.panel().props.onFilter({ scope: "canvas", status: "resolved" }); settle(FILTER);
+      f.render({ selection: null }).editComment("c1");
+      const editor = f.panel().props.editor!;
+      expect(editor.mode).toBe("edit"); expect(editor.saveOnly).toBeTypeOf("function");
+      editor.onBody("After");
+      f.mutate.mockImplementationOnce(saved());
+      listed([{ ...open("c1"), body: "After" }, resolved("c2")]);
+      f.panel().props.editor!.onSave();
+      await vi.waitFor(() => expect(f.session.statusLine?.show).toBe(true));
+      expect(f.mutate.mock.calls[0]?.[0]).toMatchObject({ intent: { type: "edit-reopen", comment: "c1", body: "After" } });
+      page.cards.shift();
+      expect(f.panel().props.statusLine).toEqual({ comment: "c1", text: "Reopened — moved to Open.", show: true, before: "c2" });
+      f.panel().props.onShowStatus!("c1"); settle(FILTER);
+      expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "open" });
+      const card = focusable("card c1", { dataset: { comment: "c1" } });
+      page.cards.splice(0, page.cards.length, card);
+      f.panel();
+      expect(card.focus).toHaveBeenCalledOnce();
+      // The request ends with the render that answered it.
+      card.focus.mockClear(); f.panel();
+      expect(card.focus).not.toHaveBeenCalled();
+    });
+    test("Save only on a resolved comment sends the edit intent", async () => {
+      dom(["c1"]);
+      const f = await ready([resolved("c1")]);
+      f.render({ selection: null }).editComment("c1");
+      f.mutate.mockImplementationOnce(saved());
+      f.panel().props.editor!.onBody("After");
+      f.panel().props.editor!.saveOnly!();
+      await vi.waitFor(() => expect(f.mutate).toHaveBeenCalledOnce());
+      expect(f.mutate.mock.calls[0]?.[0]).toMatchObject({ intent: { type: "edit", comment: "c1", body: "After" } });
+    });
+    test("Comment on selection instead drafts the same body on the selection, then asks about the original with the new target", async () => {
+      dom(["c1"]);
+      const f = await ready([open("c1")], pay);
+      f.panel().props.onComment("comment-instead", "c1");
+      await vi.waitFor(() => expect(f.session.draft.draft?.body).toBe(note.body));
+      expect(f.begin.mock.calls[0]?.[0]).toMatchObject({ scope: "selection" });
+      f.mutate.mockImplementationOnce(saved("c2"));
+      f.panel().props.editor!.onSave();
+      await vi.waitFor(() => expect(f.session.deleteConfirmation).not.toBeNull());
+      const dialog = renderToStaticMarkup(<>{f.render({ selection: pay }).dialog}</>);
+      expect(dialog).toContain("Delete the original comment?");
+      expect(dialog).toMatch(/Your text was saved as a new comment on Element · button pay[^<]*\./);
+    });
+  });
+
   describe("pins", () => {
     const snapshot = (nodes: [string, string][], selected: string | null): AnchorSnapshot =>
       ({ lookup: { root: "/repo", canvas: "a", generation: 1, nodes: new Map(nodes) }, rects: new Map(), selected, status: "answered" });

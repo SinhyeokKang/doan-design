@@ -9,6 +9,7 @@ import { mainSelection, selectionIdentity } from "./selection";
 import { outdated, projectList, type ListFilter } from "../comments/projection";
 import { continueEnabled, draftScope, guardsSelectionChange } from "../comments/draft";
 import { nextFocus, sortResolved } from "../comments/resolution";
+import { targetLabel } from "../comments/targetLabel";
 import type { Target } from "../formats/types";
 
 // A focus move that waits for anchors. `context` is the canvas and selection it
@@ -144,6 +145,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     // Only actions that can end in a Resolve or Reopen; a locate meanwhile keeps it.
     if (["resolve", "reopen", "check", "retry", "confirm-reviewed"].includes(action)) remember(id);
     if (action === "edit") { opened(); session.edit(id); }
+    else if (action === "comment-instead") { opened(); void session.commentInstead(id); }
     else if (action === "resolve" || action === "reopen" || action === "delete") void session.mutate(action, id);
     else if (action === "check") void session.cardRetry(id, true);
     else if (action === "retry") void session.cardRetry(id, false);
@@ -226,6 +228,16 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     const holder = document.activeElement;
     for (const request of [after.saved, after.pin]) if (request) { request.context = context; request.holder = holder; }
   });
+  // Show after Save and reopen lists Open, and the next render focuses that
+  // card (else the title, as the Show button itself is gone); it ends there.
+  const showing = useRef<string | null>(null);
+  useEffect(() => {
+    const comment = showing.current;
+    if (comment === null) return;
+    showing.current = null;
+    const card = Array.from(panelElement.current?.querySelectorAll<HTMLElement>("article.comments-card") ?? []).find(card => card.dataset.comment === comment);
+    (card ?? heading.current)?.focus();
+  });
   // A card holding focus that leaves the list (the person's Resolve or Reopen,
   // or an agent's change) hands focus to the next card, else the previous one,
   // else the title (design status-lines). Never <body>, and never a button: a
@@ -252,8 +264,12 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     held.current = card ? { comment: card.dataset.comment ?? "", order: ids, context: listContext }
       : last && lost && session.busy && ids.includes(last.comment) ? { ...last, order: ids } : null;
   });
+  const resolvedEdit = draft?.origin.kind === "edit" && draft.origin.expected.status === "resolved" ? draft.origin.comment : null;
+  const replacedOn = session.deleteConfirmation?.replacedOn;
   return {
     session,
+    // Opens a comment's editor; a resolved one's offers Save and reopen (for the Review bar's Edit and reopen…).
+    editComment: (id: string) => intent("edit", id),
     panel: (open || draft) && <CommentsPanel filter={currentFilter} selectionAvailable={state.selection !== null && !state.unlisted} selectionNode={snapshot?.selected ?? null}
       counts={{ open: scoped("open").length, resolved: scoped("resolved").length }} canvasOpenCount={comments.filter(c => c.status === "open").length}
       read={readError ? { status: "failed", message: readError } : list ? { status: "ready", comments: shown, warnings: list.warnings } : { status: "loading" }}
@@ -262,15 +278,18 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       author={session.author} identityCause={identityCause} canvasId={canvas ?? ""} frames={frames} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || (session.beginning && !draft)}
       copies={session.copies} allCopy={session.copies.get("all") ?? { status: "idle" }} mutations={session.mutations} headingRef={heading} panelRef={panelElement}
       statusLine={current && session.statusLine ? { ...session.statusLine, before: places.current.get(session.statusLine.comment) ?? null } : null}
+      onShowStatus={comment => { focusAfter.current.pin = null; focusAfter.current.saved = null; showing.current = comment; setFilter(current => ({ ...current, status: "open" })); }}
       onFilter={next => { focusAfter.current.pin = null; focusAfter.current.saved = null; setFilter(next); }} onCreate={scope => { opened(); void session.create(scope); }} onComment={intent} onCopy={scope => { void session.copy(scope); }} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
       editor={draft ? { mode: draft.origin.kind, target: session.target, frames: draftFrames, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
-        onBody: body => session.body(body), onSave: () => { focusAfter.current.saving = true; void session.save(); },
+        onBody: body => session.body(body),
+        onSave: () => { focusAfter.current.saving = true; if (resolvedEdit !== null) remember(resolvedEdit); void session.save(resolvedEdit !== null); },
+        saveOnly: resolvedEdit === null ? null : () => { focusAfter.current.saving = true; void session.save(); },
         onCancel: () => { session.answer("discard"); if (!session.draft.draft) focusAfter.current.cancelled = true; }, onKeepDraft: focus,
         onCheck: () => { focusAfter.current.saving = true; void session.check(); }, onRetryOriginal: () => { focusAfter.current.saving = true; void session.retry(); }, onReadLatest: () => { void session.read(true); }, continue: continueEditor } : null} />,
     dialog: draft && uncertain ? <UncertainCommentDialog key={uncertain.id} kind={uncertain.kind}
       context={commentContext(entries, draft.origin.root, session.identity?.path ?? draft.origin.canvas)}
       onStay={() => { showWorkspace(); session.answerUncertain(uncertain.id, false); }}
-      onQuit={() => session.answerUncertain(uncertain.id, true)} restoreEditorFocus={focus} /> : session.deleteConfirmation ? <DeleteCommentDialog comment={session.deleteConfirmation.comment} onCancel={() => { session.cancelDelete(); heading.current?.focus(); }} onConfirm={() => { void session.confirmDelete(); heading.current?.focus(); }} /> : draft && session.draft.transition && <UnsavedCommentDialog target={session.target} frames={draftFrames} context={commentContext(entries, draft.origin.root, session.identity?.path ?? draft.origin.canvas)} canSave={canSave}
+      onQuit={() => session.answerUncertain(uncertain.id, true)} restoreEditorFocus={focus} /> : session.deleteConfirmation ? <DeleteCommentDialog comment={session.deleteConfirmation.comment} {...(replacedOn ? { replacedOn: targetLabel(replacedOn, frames).text } : {})} onCancel={() => { session.cancelDelete(); heading.current?.focus(); }} onConfirm={() => { void session.confirmDelete(); heading.current?.focus(); }} /> : draft && session.draft.transition && <UnsavedCommentDialog target={session.target} frames={draftFrames} context={commentContext(entries, draft.origin.root, session.identity?.path ?? draft.origin.canvas)} canSave={canSave}
       busy={session.saveView.status === "saving" || session.saveView.status === "checking"} discardBlocked={session.draft.request !== null}
       {...(editorBlocked ? { reason: editorBlocked } : {})} onContinue={() => { showWorkspace?.(); session.answer("continue"); }} onDiscard={() => session.answer("discard")} onSave={() => { focusAfter.current.saving = false; void session.save(); }} restoreEditorFocus={focus} />,
   };

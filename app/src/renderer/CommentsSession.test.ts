@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { CommentsSession, STATUS_LINE_MS } from "./CommentsSession";
+import { CommentsSession, STATUS_LINE_MS, expectedComment } from "./CommentsSession";
 import type { DoanApi } from "../preload";
 import type { Comment, Author, Target } from "../formats/types";
 import type { BeginResult, CommentList, CommentRequest, CommentReply, SavedStatus } from "../main/comments/service";
@@ -692,5 +692,105 @@ describe("a person's Resolve and Reopen", () => {
       await s.rename("design/moved.html");
       expect(s.statusLine?.comment).toBe("c1");
     });
+  });
+});
+describe("editing a resolved comment and replacing a missing target (revision-recheck task 9)", () => {
+  const resolved: Comment = { ...c, status: "resolved", resolvedAt: "2026-10-23T01:00:00.000Z", resolvedBy: { kind: "agent", name: "codex" } };
+  async function opened(comments: Comment[] = [resolved]) {
+    const f = fixture();
+    f.api.commentsList.mockImplementation(async r => reply<CommentList>(r, { project: 7, canvasHash: "h", comments, warnings: [] }));
+    await f.session.open(identity);
+    return f;
+  }
+  const changed = (r: CommentRequest): CommentReply<SavedStatus> => ({ ok: false, identity: r, error: "Comment changed; read the latest state before saving." });
+  test("Save and reopen sends one edit-reopen intent, then the line in its place offers Show", async () => {
+    const { session: s, api } = await opened();
+    api.commentsList.mockImplementation(async r => reply<CommentList>(r, { project: 7, canvasHash: "h", comments: [{ ...c, body: "After" }], warnings: [] }));
+    s.edit("c1"); s.body("After"); await s.save(true);
+    expect(api.commentsMutate).toHaveBeenCalledOnce();
+    expect(api.commentsMutate.mock.calls[0]?.[0].intent).toEqual({ type: "edit-reopen", comment: "c1", body: "After", expected: expectedComment(resolved) });
+    expect(s.draft.draft).toBeNull(); expect(s.savedComment).toBe("c1");
+    expect(s.statusLine).toEqual({ comment: "c1", text: "Reopened — moved to Open.", show: true });
+  });
+  test("Save only stays the edit intent and leaves no line", async () => {
+    const { session: s, api } = await opened();
+    s.edit("c1"); s.body("After"); await s.save();
+    expect(api.commentsMutate.mock.calls[0]?.[0].intent).toEqual({ type: "edit", comment: "c1", body: "After", expected: expectedComment(resolved) });
+    expect(s.statusLine).toBeNull();
+  });
+  test("a retry after a confirmed absence resends the same request, so main writes the same two events", async () => {
+    const { session: s, api } = await opened();
+    api.commentsMutate.mockImplementationOnce(async r => reply<SavedStatus>(r, { state: "unknown" }));
+    s.edit("c1"); s.body("After"); await s.save(true);
+    expect(s.statusLine).toBeNull();
+    await s.check(); expect(s.saveView.status).toBe("retry-original");
+    await s.retry();
+    expect(api.commentsMutate).toHaveBeenCalledTimes(2);
+    expect(api.commentsMutate.mock.calls[1]?.[0]).toEqual(api.commentsMutate.mock.calls[0]?.[0]);
+    expect(api.commentsMutate.mock.calls[1]?.[0].intent.type).toBe("edit-reopen");
+    expect(s.statusLine?.show).toBe(true);
+  });
+  test("a save the status check confirms reopens like a direct one", async () => {
+    const { session: s, api } = await opened();
+    api.commentsMutate.mockImplementationOnce(async r => reply<SavedStatus>(r, { state: "unknown" }));
+    api.commentsStatus.mockImplementationOnce(async r => reply<SavedStatus>(r, { state: "saved" }));
+    s.edit("c1"); s.body("After"); await s.save(true); await s.check();
+    expect(s.draft.draft).toBeNull(); expect(s.statusLine?.show).toBe(true);
+  });
+  test("a change made in between (an agent's resolve again, a person's edit) is a conflict that keeps the text and adds nothing", async () => {
+    const { session: s, api } = await opened();
+    api.commentsMutate.mockImplementationOnce(async r => changed(r));
+    s.edit("c1"); s.body("After"); await s.save(true);
+    expect(s.saveView.status).toBe("conflict"); expect(s.draft.draft?.body).toBe("After");
+    expect(api.commentsMutate).toHaveBeenCalledOnce(); expect(s.statusLine).toBeNull();
+  });
+
+  const missing: Comment = { ...c, body: "Shorten the promo.", target: { element: { doanId: "promo", selector: "div", html: "<div/>" } } };
+  const created: Comment = { ...c, comment: "c2", body: "Shorten the promo.", target: { frame: "hero" } };
+  test("Comment on selection instead starts a selection draft with the same body; its save asks whether to delete the original", async () => {
+    const { session: s, api } = await opened([missing]);
+    await s.commentInstead("c1");
+    expect(api.commentsBegin.mock.calls[0]?.[0]).toMatchObject({ scope: "selection" });
+    expect(s.draft.draft?.origin.kind).toBe("create"); expect(s.draft.draft?.body).toBe("Shorten the promo.");
+    api.commentsMutate.mockImplementationOnce(async r => reply<SavedStatus>(r, { state: "saved", comment: "c2" }));
+    api.commentsList.mockImplementation(async r => reply<CommentList>(r, { project: 7, canvasHash: "h", comments: [missing, created], warnings: [] }));
+    await s.save();
+    expect(api.commentsMutate.mock.calls[0]?.[0].intent).toEqual({ type: "create", body: "Shorten the promo." });
+    expect(s.deleteConfirmation?.comment.comment).toBe("c1");
+    expect(s.deleteConfirmation?.replacedOn).toEqual({ frame: "hero" });
+    expect(s.deleteConfirmation?.request.intent).toEqual({ type: "delete", comment: "c1", expected: expectedComment(missing) });
+    await s.confirmDelete();
+    expect(api.commentsMutate).toHaveBeenCalledTimes(2);
+    expect(api.commentsMutate.mock.calls[1]?.[0].intent).toMatchObject({ type: "delete", comment: "c1" });
+  });
+  test("declining the delete keeps both", async () => {
+    const { session: s, api } = await opened([missing]);
+    await s.commentInstead("c1"); await s.save();
+    expect(s.deleteConfirmation?.replacedOn).toBeDefined();
+    s.cancelDelete();
+    expect(s.deleteConfirmation).toBeNull(); expect(api.commentsMutate).toHaveBeenCalledOnce();
+  });
+  test("a failed save of the new comment keeps the original and asks nothing", async () => {
+    const { session: s, api } = await opened([missing]);
+    await s.commentInstead("c1");
+    api.commentsMutate.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Permission denied" }));
+    await s.save();
+    expect(s.deleteConfirmation).toBeNull(); expect(s.draft.draft?.body).toBe("Shorten the promo.");
+    expect(api.commentsMutate).toHaveBeenCalledOnce();
+    // A later plain comment is not a replacement.
+    s.answer("discard"); await s.create("selection"); s.body("Other"); await s.save();
+    expect(s.deleteConfirmation).toBeNull();
+  });
+  test("an original that is gone by the time the new comment saves asks nothing", async () => {
+    const { session: s, api } = await opened([missing]);
+    await s.commentInstead("c1");
+    api.commentsList.mockImplementation(async r => reply<CommentList>(r, { project: 7, canvasHash: "h", comments: [created], warnings: [] }));
+    await s.save();
+    expect(s.deleteConfirmation).toBeNull();
+  });
+  test("a resolved comment has no replacement", async () => {
+    const { session: s, api } = await opened([{ ...missing, status: "resolved", resolvedAt: "2026-10-23T01:00:00.000Z" }]);
+    await s.commentInstead("c1");
+    expect(api.commentsBegin).not.toHaveBeenCalled(); expect(s.draft.draft).toBeNull();
   });
 });

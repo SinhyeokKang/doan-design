@@ -483,3 +483,71 @@ describe("resolution meta, Canvas changed and status lines (revision-recheck tas
     });
   });
 });
+
+describe("editing a resolved comment and replacing a missing target (revision-recheck task 9)", () => {
+  const buttons = (out: string) => [...out.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map(match => match[1]);
+  test("a resolved comment's editor puts Save and reopen last as primary, Save only before it, and says why", () => {
+    const out = renderToStaticMarkup(<CommentEditor {...editor({ mode: "edit", saveOnly: noop })} />);
+    expect(buttons(out)).toEqual(["Cancel", "Save only", "Save and reopen"]);
+    expect(out).toContain(`<button type="button" class="comments-btn primary">Save and reopen</button>`);
+    expect(out).toContain(`<p class="comments-helper">Agents read open comments only.</p>`);
+    const onSave = vi.fn(), saveOnly = vi.fn(), tree = CommentEditor(editor({ mode: "edit", onSave, saveOnly }));
+    find(tree, "Save and reopen").onClick?.(); find(tree, "Save only").onClick?.();
+    expect(onSave).toHaveBeenCalledOnce(); expect(saveOnly).toHaveBeenCalledOnce();
+  });
+  test("an open comment's editor keeps the single Save changes", () => {
+    const out = renderToStaticMarkup(<CommentEditor {...editor({ mode: "edit" })} />);
+    expect(buttons(out)).toEqual(["Cancel", "Save changes"]);
+    expect(out).not.toContain("Agents read open comments only.");
+  });
+  test("both saves lock while saving", () => {
+    const tree = CommentEditor(editor({ mode: "edit", saveOnly: noop, state: { status: "saving" } }));
+    expect(find(tree, "Save only").disabled).toBe(true); expect(find(tree, "Saving…").disabled).toBe(true);
+  });
+  test("a retry of the original save offers only that retry", () => {
+    const out = renderToStaticMarkup(<CommentEditor {...editor({ mode: "edit", saveOnly: noop, state: { status: "retry-original" } })} />);
+    expect(buttons(out)).toEqual(["Keep draft", "Retry original save"]);
+  });
+  test("the line after Save and reopen offers Show", () => {
+    const onShowStatus = vi.fn();
+    const props = panel({ filter: { scope: "canvas", status: "resolved" }, read: { status: "ready", comments: [], warnings: [] }, statusLine: { comment: "c1", text: "Reopened — moved to Open.", before: null, show: true }, onShowStatus });
+    expect(html(props)).toContain(`<p class="comments-status" role="status">Reopened — moved to Open.<button type="button">Show</button></p>`);
+    find(CommentsPanel(props), "Show").onClick?.();
+    expect(onShowStatus).toHaveBeenCalledExactlyOnceWith("c1");
+    expect(html({ ...props, statusLine: { comment: "c1", text: "Reopened — moved to Open.", before: null } })).not.toContain("Show</button>");
+  });
+
+  const missing = (over: Partial<CommentsPanelProps> = {}) => html(panel({ missingLocations: new Set(["c1"]), ...over }));
+  test("an open comment whose location is unavailable offers Comment on selection instead", () => {
+    const onComment = vi.fn(), props = panel({ missingLocations: new Set(["c1"]), onComment });
+    expect(html(props)).toContain(`<button type="button" class="comments-btn">Comment on selection instead</button>`);
+    const card = CommentCard({ comment, frames: [], freshness: "same", locationMissing: true, disabled: false, busy: false, copy: { status: "idle" }, instead: "ready", onComment, onCopy: noop });
+    find(card, "Comment on selection instead").onClick?.();
+    expect(onComment).toHaveBeenCalledExactlyOnceWith("comment-instead", "c1");
+  });
+  test("without a selection it is disabled, with the reason linked to it", () => {
+    const out = missing({ selectionAvailable: false });
+    expect(out).toContain(`<button type="button" class="comments-btn" disabled="" aria-describedby="«r1»">Comment on selection instead</button>`);
+    expect(out).toContain(`<p class="comments-helper" id="«r1»">Select an element or frame first.</p>`);
+    expect(missing()).not.toContain("Select an element or frame first.");
+  });
+  test("it locks with the card's other writes", () => {
+    expect(missing({ busy: true })).toContain(`disabled="">Comment on selection instead`);
+    expect(missing({ widthInvalid: true })).toContain(`disabled="">Comment on selection instead`);
+  });
+  test("a resolved comment, a found location or no rendered document has no such button", () => {
+    expect(missing({ read: { status: "ready", comments: [{ ...comment, status: "resolved" }], warnings: [] } })).not.toContain("Comment on selection instead");
+    expect(html(panel())).not.toContain("Comment on selection instead");
+    expect(html(panel({ missingLocations: null }))).not.toContain("Comment on selection instead");
+  });
+  test("after the new comment saves, the Delete dialog asks about the original, Keep both first", () => {
+    const onCancel = vi.fn(), onConfirm = vi.fn();
+    const dialog = DeleteCommentDialog({ comment, replacedOn: "Element · p promo-text · in Home", onCancel, onConfirm });
+    const out = renderToStaticMarkup(dialog);
+    expect(out).toContain(`aria-label="Delete the original comment?"`);
+    expect(out).toContain("<h3>Delete the original comment?</h3><p>Your text was saved as a new comment on Element · p promo-text · in Home.</p>");
+    expect(out).toContain(`<button type="button" class="comments-btn" autofocus="">Keep both</button><button type="button" class="comments-btn danger">Delete original</button>`);
+    find(dialog, "Keep both").onClick?.(); expect(onCancel).toHaveBeenCalledOnce(); expect(onConfirm).not.toHaveBeenCalled();
+    find(dialog, "Delete original").onClick?.(); expect(onConfirm).toHaveBeenCalledOnce();
+  });
+});

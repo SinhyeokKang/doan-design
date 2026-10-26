@@ -10,7 +10,7 @@ export type TargetFrames = ReadonlyArray<{ id: string; title?: string }>;
 
 export type CopyView = { status: "idle" | "copying" | "copied" } | { status: "failed"; message: string };
 export type AuthorView = { status: "ready" | "loading" | "missing" } | { status: "failed"; message: string };
-export type CommentIntent = "locate" | "edit" | "resolve" | "reopen" | "delete" | "retry" | "check" | "read-latest" | "confirm-reviewed";
+export type CommentIntent = "locate" | "edit" | "resolve" | "reopen" | "delete" | "retry" | "check" | "read-latest" | "confirm-reviewed" | "comment-instead";
 export type SaveView =
   | { status: "idle" | "saving" | "unknown" | "checking" | "retry-original" | "conflict" | "deleted" | "saved" }
   | { status: "failed" | "check-failed" | "recovery-blocked"; message: string }
@@ -33,6 +33,8 @@ export interface CommentEditorProps {
   onReadLatest: () => void;
   // Present while a new comment is blocked as `reloaded` (comments/draft.ts).
   continue?: ContinueEditor | null;
+  // Present for a resolved comment: Save then reopens it, and this saves only.
+  saveOnly?: (() => void) | null;
 }
 export interface ContinueEditor {
   enabled: boolean;
@@ -72,7 +74,9 @@ export interface CommentsPanelProps {
   mutations?: ReadonlyMap<string, SaveView>;
   // Left in a card's place after the person's Resolve or Reopen moved it to
   // the other list; `before` is the card that followed it, null when it was last.
-  statusLine?: { comment: string; text: string; before: string | null } | null;
+  statusLine?: { comment: string; text: string; before: string | null; show?: boolean } | null;
+  // Show on the line after Save and reopen: list Open and focus that card.
+  onShowStatus?: (comment: string) => void;
   editor: CommentEditorProps | null;
   headingRef?: Ref<HTMLHeadingElement>;
   panelRef?: Ref<HTMLElement>;
@@ -121,7 +125,8 @@ export function CommentsPanel(props: CommentsPanelProps) {
   const shown = read.status === "ready" ? read.comments : [];
   const line = props.statusLine && !shown.some(c => c.comment === props.statusLine?.comment) ? props.statusLine : null;
   const lineAt = line ? shown.findIndex(c => c.comment === line.before) : -1;
-  const statusLine = line && <p key="status-line" className="comments-status" role="status">{line.text}</p>;
+  const statusLine = line && <p key="status-line" className="comments-status" role="status">{line.text}{line.show && <button type="button" onClick={() => props.onShowStatus?.(line.comment)}>Show</button>}</p>;
+  const instead = props.createBlocked !== null || props.widthInvalid ? "blocked" : props.selectionAvailable ? "ready" : "no-selection";
   const empty = emptyListText(filter.scope, filter.status, elsewhere);
   // The title is the panel's own child so it can stay stuck while the head
   // scrolls away (a sticky h3 inside the head leaves with it).
@@ -163,7 +168,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
           </div>}
           {read.comments.length === 0 && statusLine}
           {read.comments.length === 0 && <div className="comments-message"><b>{empty.title}</b>{empty.body}</div>}
-          {read.comments.flatMap((comment, index) => [index === lineAt && statusLine, <CommentCard key={comment.comment} comment={comment} frames={props.frames} freshness={props.freshness.get(comment.comment) ?? "unknown"} locationMissing={props.missingLocations?.has(comment.comment) ?? null} disabled={writesDisabled || editor !== null} busy={props.busy} copy={props.copies.get(comment.comment) ?? { status: "idle" }} mutation={props.mutations?.get(comment.comment)} onComment={props.onComment} onCopy={props.onCopy} />])}
+          {read.comments.flatMap((comment, index) => [index === lineAt && statusLine, <CommentCard key={comment.comment} comment={comment} frames={props.frames} freshness={props.freshness.get(comment.comment) ?? "unknown"} locationMissing={props.missingLocations?.has(comment.comment) ?? null} disabled={writesDisabled || editor !== null} busy={props.busy} copy={props.copies.get(comment.comment) ?? { status: "idle" }} mutation={props.mutations?.get(comment.comment)} instead={instead} onComment={props.onComment} onCopy={props.onCopy} />])}
           {read.comments.length > 0 && lineAt === -1 && statusLine}
         </>}
   </section>;
@@ -179,15 +184,18 @@ export interface CommentCardProps {
   busy: boolean;
   copy: CopyView;
   mutation?: SaveView | undefined;
+  // Whether "Comment on selection instead" can start a new comment now.
+  instead?: "ready" | "no-selection" | "blocked";
   onComment: (intent: CommentIntent, comment: string) => void;
   onCopy: (scope: CopyScope) => void;
 }
-export function CommentCard({ comment, frames, freshness, locationMissing, disabled, busy, copy, mutation, onComment, onCopy }: CommentCardProps) {
+export function CommentCard({ comment, frames, freshness, locationMissing, disabled, busy, copy, mutation, instead = "blocked", onComment, onCopy }: CommentCardProps) {
   const { createdBy } = comment;
   const initials = createdBy.name.trim().split(/\s+/).slice(0, 2).map(word => Array.from(word)[0] ?? "").join("").toUpperCase();
   const locked = disabled || busy || (mutation !== undefined && mutation.status !== "idle" && mutation.status !== "saved");
   const target = targetLabel(comment.target, frames);
   const resolution = resolutionText(comment, relativeTime), reopen = reopenText(comment, relativeTime);
+  const reasonId = useId();
   return <article className="comments-card" tabIndex={-1} data-comment={comment.comment} aria-label={`Comment by ${createdBy.name}`} aria-busy={busy || mutation?.status === "saving"}>
     <div className="comments-author"><span className="comments-avatar" aria-hidden="true">{initials}</span><div className="comments-by"><b>{createdBy.name}</b>{createdBy.kind === "human" && createdBy.email && <span className="comments-email">{createdBy.email}</span>}<time dateTime={comment.createdAt} title={comment.createdAt}>{relativeTime(comment.createdAt)}</time></div></div>
     {locationMissing === false && target.locatableHint
@@ -205,6 +213,11 @@ export function CommentCard({ comment, frames, freshness, locationMissing, disab
       <button type="button" className="comments-btn" disabled={comment.status === "resolved" || copy.status === "copying"} onClick={() => onCopy({ kind: "one", comment: comment.comment })}>{copyLabel(copy)}</button>
       <button type="button" className="comments-btn" disabled={locked} onClick={() => onComment("delete", comment.comment)}>Delete</button>
     </div>
+    {/* An explicit human action on a target that is gone; comments are never re-attached (feature revision-recheck Q6). */}
+    {comment.status === "open" && locationMissing && <>
+      <div className="comments-tools instead"><button type="button" className="comments-btn" disabled={locked || instead !== "ready"} aria-describedby={instead === "no-selection" ? reasonId : undefined} onClick={() => onComment("comment-instead", comment.comment)}>Comment on selection instead</button></div>
+      {instead === "no-selection" && <p className="comments-helper" id={reasonId}>Select an element or frame first.</p>}
+    </>}
     {copy.status === "copied" && <p className="comments-helper" role="status">Copied</p>}
     {copy.status === "failed" && <p className="comments-helper" role="alert">{copy.message}</p>}
     {mutation && mutation.status !== "idle" && <div className={`comments-message ${mutation.status === "failed" || mutation.status === "check-failed" || mutation.status === "deleted" ? "error" : mutation.status === "unknown" || mutation.status === "conflict" || mutation.status === "recovery-blocked" ? "warning" : ""}`} role="status">
@@ -264,8 +277,12 @@ export function CommentEditor(props: CommentEditorProps) {
       <button type="button" className="comments-btn" disabled={state.status === "saving" || state.status === "saved"} onClick={locked ? props.onKeepDraft : props.onCancel}>{locked ? "Keep draft" : "Cancel"}</button>
       {next?.canvas && <button key="continue-canvas" type="button" className="comments-btn" disabled={!next.canvas.enabled || next.starting !== null} onClick={next.onCanvas}>{next.starting === "canvas" ? "Starting…" : "Continue on canvas"}</button>}
       {next ? <button key="continue" type="button" className="comments-btn primary" disabled={!next.enabled || next.starting !== null} aria-describedby={next.reason === null ? undefined : reasonId} onClick={next.onContinue}>{next.starting === "current" ? "Starting…" : "Continue on current version"}</button>
-        : state.status === "retry-original" ? <button key="retry-original" type="button" className="comments-btn primary" disabled={!!props.blocked} onClick={props.onRetryOriginal}>Retry original save</button> : <button key="save" type="button" className="comments-btn primary" disabled={cannotSave} onClick={props.onSave}>{state.status === "saving" ? "Saving…" : state.status === "reviewed" ? "Save reviewed changes" : props.mode === "edit" ? "Save changes" : "Save comment"}</button>}
+        : state.status === "retry-original" ? <button key="retry-original" type="button" className="comments-btn primary" disabled={!!props.blocked} onClick={props.onRetryOriginal}>Retry original save</button> : <>
+          {props.saveOnly && <button key="save-only" type="button" className="comments-btn" disabled={cannotSave} onClick={props.saveOnly}>Save only</button>}
+          <button key="save" type="button" className="comments-btn primary" disabled={cannotSave} onClick={props.onSave}>{state.status === "saving" ? "Saving…" : props.saveOnly ? "Save and reopen" : state.status === "reviewed" ? "Save reviewed changes" : props.mode === "edit" ? "Save changes" : "Save comment"}</button>
+        </>}
     </div>
+    {props.saveOnly && <p className="comments-helper">Agents read open comments only.</p>}
     {props.blocked && <p className="comments-helper" role="status">{props.blocked}</p>}
     {next && (next.reason === null ? <p className="comments-helper">Continues on {targetLabel(next.preview, props.frames).text}.</p> : <p className="comments-helper" id={reasonId}>{next.reason}</p>)}
     {next?.error && <p className="comments-helper" role="alert">Couldn’t continue on the current version: {next.error.replace(/\.$/, "")}. Your text is kept.</p>}
@@ -323,21 +340,24 @@ export function UnsavedCommentDialog(props: UnsavedCommentDialogProps) {
 }
 
 
-export function DeleteCommentDialog({ comment, onCancel, onConfirm }: { comment: Comment; onCancel: () => void; onConfirm: () => void }) {
+// `replacedOn`: the target label of the new comment that took this one's text;
+// the dialog then asks about the original (feature revision-recheck Q6).
+export function DeleteCommentDialog({ comment, replacedOn, onCancel, onConfirm }: { comment: Comment; replacedOn?: string; onCancel: () => void; onConfirm: () => void }) {
   let dialog: HTMLDialogElement | null = null;
   const cancel = () => { dialog?.close(); onCancel(); };
-  return <dialog className="comments-dialog" aria-label="Delete this comment?" ref={node => { dialog = node; if (node && !node.open) node.showModal(); }}
+  const title = replacedOn === undefined ? "Delete this comment?" : "Delete the original comment?";
+  return <dialog className="comments-dialog" aria-label={title} ref={node => { dialog = node; if (node && !node.open) node.showModal(); }}
     onCancel={event => { event.preventDefault(); cancel(); }}
     onKeyDown={event => {
       if (event.key !== "Escape") return;
       event.preventDefault(); event.stopPropagation();
       if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) cancel();
     }}>
-    <h3>Delete this comment?</h3>
-    <p className="comments-body">{comment.body}</p>
-    <p>This comment will be removed and cannot be restored.</p>
-    <div className="comments-tools"><button type="button" className="comments-btn" autoFocus onClick={cancel}>Cancel</button>
-      <button type="button" className="comments-btn" onClick={() => { dialog?.close(); onConfirm(); }}>Delete comment</button></div>
+    <h3>{title}</h3>
+    {replacedOn === undefined ? <><p className="comments-body">{comment.body}</p><p>This comment will be removed and cannot be restored.</p></>
+      : <p>Your text was saved as a new comment on {replacedOn}.</p>}
+    <div className="comments-tools"><button type="button" className="comments-btn" autoFocus onClick={cancel}>{replacedOn === undefined ? "Cancel" : "Keep both"}</button>
+      <button type="button" className={replacedOn === undefined ? "comments-btn" : "comments-btn danger"} onClick={() => { dialog?.close(); onConfirm(); }}>{replacedOn === undefined ? "Delete comment" : "Delete original"}</button></div>
   </dialog>;
 }
 
