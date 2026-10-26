@@ -51,8 +51,9 @@ design '순수 함수로 분리할 부분' 1~8. 다음 경우를 각 함수 테�
 - `pickSession`: 기록 없음, 같은 캔버스 기록 둘(`at` 순서와 같은 `at`), 시계가 뒤로 간 기록, 삭제되거나 옮겨진 캔버스, 다른 worktree(`root`), root 밖 `cwd`, CLI 없음, Codex 세션 id 없음, configDir 누락·현재 프로필 불일치, symlink cwd가 root 밖, 없어진 cwd, 알려지지 않은 버전, 점유와 확인 불가, 최신 기록 실패 시 옛 세션으로 돌아가지 않음.
 - 변환: 에이전트 비정상 종료, 로그인 안 됨, 권한 요청과 답, Claude aborted_tools/Codex interrupted, Codex decline 뒤 정상 완료, active-writer → session_in_use, 종료 이벤트 중복 방지.
 - `foldConversation`: 턴 중간 종료(`crashed`), 답하지 않은 권한 요청(`expired`), 새 대화로 보관, `newDesign` 대화가 첫 캔버스에 묶임.
+- snapshot/구독 버퍼 병합: 같은 대화의 `seq` 정렬·중복 제거, 다른 대화와 분리, read 중·병합 중 들어온 이벤트, 후속 이벤트 없이 마지막 종료 이벤트 반영.
 - `anchorTokens`: 빠진 번호, 남는 앵커, 상한 초과.
-- `turnState`: `waitingPermission`에서 중단과 종료, 실행 중 `send`(`busy`).
+- `turnState`: `waitingPermission`에서 중단과 종료, 실행 중 `send`(`busy`). 세션 소유 상태 판정은 `{runtime, canonical configDir, sessionId}`가 같은 다른 대화의 starting/running/idle Codex 소유를 `session_in_use`로 막고, 다른 세션과 자기 Codex 서버의 send는 허용한다. 임시 새 세션 예약 → 알려진 id 전환·충돌, Claude 프로세스/Codex 서버 종료 확인에 따른 해제, 실패·불확실한 정리에서 예약/소유 유지도 검증한다.
 - `turnPrompt`: 지시문이 담긴 캔버스 글자.
 - `agentEnv`: 상속받은 세션 변수 제거, `DOAN_RUNTIME` 전달, runtime별 configDir·cwd 검증.
 - Go: 세션 변수 없음, 두 런타임 변수가 함께 있음, 잘못된 `DOAN_RUNTIME`, 해시가 같은 캔버스, 충돌하는 Codex id, 기본 configDir 정규화·잘못된 경로, MCP 호출의 기록 생략.
@@ -79,10 +80,10 @@ design '순수 함수로 분리할 부분' 1~8. 다음 경우를 각 함수 테�
 
 ### A2. 에이전트 실행기와 대화 저장
 P2에서 고른 방식으로 열기(`resume`/`new`/`newDesign`), 보내기, 스트리밍, 권한 답, 중단, 닫기·다시 열기, 저장(받는 즉시 append)과 재시작 복원. doan 소유 프로세스 그룹 종료. 사용자 daemon은 종료하지 않는다. 매 resume/send 점유 재검사, unknown fail closed, configDir·cwd 재검사와 자동 fork 금지를 검증한다.
-- 검증: `npm --prefix app test`, `npm --prefix app run typecheck`.
+- 검증: `npm --prefix app test`, `npm --prefix app run typecheck`. 같은 세션을 가리키는 두 캔버스의 동시 start와 대기 중인 start에서 검사·예약이 분리되지 않고 두 번째 요청이 `session_in_use`인지, 다른 세션은 실행되는지 확인한다. 거절된 start/send는 user.message·archive를 남기지 않는다. 새 세션 id 전 임시 예약과 id 전환, 자기 Codex 서버 send, Claude 종료/Codex 서버 종료 전 소유 유지, 프로세스를 만든 뒤의 시작 실패·정리 실패·종료 미확인은 예약을 유지하고, spawn하지 않았음이 확인된 실패는 예약을 취소하는지도 검증한다.
 
 ### A3. IPC와 preload
-design 'IPC 계약'(main 창 한정, 입력 검증, 오류 코드).
+design 'IPC 계약'(main 창 한정, 입력 검증, 오류 코드). 기존 preload listener를 먼저 등록해 버퍼링한 뒤 read하고 snapshot과 버퍼를 병합해 계속 전달하는 계약을 테스트 소비자로 검증한다. 새 IPC/replay API와 실제 UI는 만들지 않으며 UI 소비자는 buzz-conversation이 맡는다.
 - 검증: `npm --prefix app test`(저장되지 않은 root → `project_not_open`, 목록에 없는 캔버스 → `canvas_not_found`, 크기 상한, 다른 창 발신 거절), `npm --prefix app run build`.
 
 ### A4. 프로세스 수명과 종료
@@ -99,8 +100,8 @@ before-quit 정리, 창 숨김 뒤 Quit, 실행 중 Quit.
 2. `resumeTarget` → resume 열기 → 이벤트 순서.
 3. 권한 요청이 이벤트로 올라오고 답이 돌아간다.
 4. 가짜 에이전트가 캔버스를 쓰면 다시 그려진다.
-5. 스트리밍 중 렌더러를 다시 불러와도 `read`와 `seq`로 빠짐과 중복이 없다.
-6. 실행 중 `send` → `busy`.
+5. 스트리밍 중 렌더러를 다시 불러와 listener 등록·버퍼링 → read → snapshot/버퍼 seq 병합 → 계속 전달 순서를 확인한다. read snapshot이 확정된 뒤 병합 전에 마지막 `turn.done`을 보내고 이후 이벤트는 보내지 않아도 종료가 반영돼야 한다. snapshot과 버퍼 양쪽에 든 이벤트는 한 번만 반영한다. 실제 UI 대신 테스트 소비자로 검증한다.
+6. 실행 중 `send` → `busy`. 두 캔버스가 같은 세션을 가리키면 먼저 시작한 대화의 예약·실행·Codex idle 서버 소유 중 두 번째 start/send는 `session_in_use`이고 user.message·archive 부수 효과가 없다. 시작을 지연시켜 겹친 start도 검증한다. 다른 세션은 동시에 실행되고 자기 Codex 서버 send는 가능하다. 새 세션 id 전후 예약 전환을 확인하며, Claude 턴 프로세스/Codex 서버의 종료를 확인해야 다른 대화가 이어받을 수 있고 실패·불확실한 정리를 비점유로 취급하지 않는다.
 7. 중단.
 8. 가짜 에이전트 비정상 종료 → `turn.failed{process_exited}`.
 9. 에이전트를 PATH에서 뺀 상태 → `cli_missing`. resume/send의 확인 불가 → `session_unavailable`, 열린 터미널·Codex active-writer → `session_in_use`, 새 세션의 미지원 버전 → `runtime_unsupported`. 수락 전 거절 시 사용자 메시지·보관 부수 효과가 없고 사용자 daemon은 살아 있다.
