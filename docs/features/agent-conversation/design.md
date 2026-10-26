@@ -3,7 +3,7 @@
 ## 전체 흐름
 
 1. 에이전트가 터미널에서 캔버스를 쓰고 `doan check`를 돌린다. doan이 내용이 바뀐 캔버스를 그 세션에 묶어 기기 로컬에 기록한다('세션 기록').
-2. UI는 `conversation:resumeTarget`으로 이어받을 세션이 있는지 미리 본다. 사람이 대상(캔버스, 프레임, 요소 또는 좌표)을 고르고 말하면 렌더러가 `conversation:start`로 대화를 연다.
+2. 대화는 캔버스당 하나다(2026-10-26 user). UI는 `conversation:resumeTarget`으로 이어받을 세션이 있는지 미리 본다. 사람은 입력창에서 말하고, 필요하면 피커로 캔버스의 요소나 좌표를 골라 글 안에 앵커로 넣는다. 렌더러가 그 캔버스의 대화가 없으면 `conversation:start`로 열고, 있으면 `conversation:send`로 보낸다.
 3. main이 기록된 세션을 **같은 세션 그대로** 이어받거나(`resume`), 새 세션을 연다(`new`, `newDesign`). 첫 메시지에 대상 정보를 붙여 보낸다('턴 프롬프트').
 4. main이 에이전트 출력을 doan 대화 이벤트로 바꿔 받는 즉시 기기 로컬에 저장하고 렌더러에 보낸다.
 5. 에이전트가 캔버스 파일을 쓰면 지금의 파일 감시와 다시 그리기가 그대로 반영한다.
@@ -46,9 +46,11 @@ PoC 결과로 전송 방식과 세션 기록 경로가 정해지기 전에는 �
 ## 대화
 
 - **열기 방식**: `resume`(기록된 세션을 같은 세션으로 이어받기), `new`(같은 repo에서 새 세션), `newDesign`(프로젝트와 주제를 받아 새 세션. 지금 FirstPrompt 문장을 첫 메시지로 쓰고, 첫 캔버스가 생기면 대화의 앵커를 그 캔버스로 채운다). Codex 세션 id를 얻지 못하면 Codex는 `new`와 `newDesign`만 지원한다.
-- **턴 프롬프트** (`turnPrompt`): 사람의 말 앞에 대상 블록을 붙인다. 대상 블록에는 repo 상대 캔버스 경로와 id, 프레임 id와 제목, 요소의 `data-doan-id` 또는 셀렉터·태그·글자 발췌(지금 코멘트 대상과 같은 정보), 좌표 마커면 프레임 기준 오프셋이 들어간다. 캔버스에서 온 글자는 데이터로 표시해서 사람의 말과 구분한다(스킬 규칙 A와 같다). 끝에 "고친 뒤 `doan check`를 돌려라"를 붙인다.
+- **캔버스당 하나**: 한 캔버스(id, 없으면 path)에 열린 대화는 하나다. `conversation:start`를 다시 부르면 기존 대화를 보관하고 새 대화를 연다. 보관한 대화는 읽기만 된다. `newDesign` 대화는 첫 캔버스가 생기면 그 캔버스의 대화가 된다.
+- **앵커는 메시지에**: 앵커는 대화가 아니라 `user.message`에 붙는다. 한 메시지에 여러 개를 넣을 수 있고, 글 안의 자리는 `{{1}}`, `{{2}}` 같은 표지로 남는다.
+- **턴 프롬프트** (`turnPrompt`): 사람의 글에서 표지마다 대상 정보를 풀어 붙인다. 대상 정보에는 repo 상대 캔버스 경로와 id, 프레임 id와 제목, 요소의 `data-doan-id` 또는 셀렉터·태그·글자 발췌(지금 코멘트 대상과 같은 정보), 좌표 마커면 프레임 기준 오프셋이 들어간다. 캔버스에서 온 글자는 데이터로 표시해서 사람의 말과 구분한다(스킬 규칙 A와 같다). 끝에 "고친 뒤 `doan check`를 돌려라"를 붙인다.
 - **이벤트** (저장과 렌더러 공통, 모두 `{conversationId, seq, turnId, at}`를 가진다):
-  - `user.message` — 사람이 보낸 글.
+  - `user.message` — `{text, anchors: [anchor]}`. `text`의 `{{n}}`이 `anchors[n-1]`을 가리킨다.
   - `turn.started`
   - `message.delta`, `message.done` — 에이전트 글. delta도 저장해서 턴 중간에 렌더러를 다시 불러와도 글이 빠지지 않게 한다.
   - `activity` — `{kind: "edit" | "read" | "command" | "other", path?, insideDesign?, summary}`.
@@ -56,10 +58,10 @@ PoC 결과로 전송 방식과 세션 기록 경로가 정해지기 전에는 �
   - `turn.done`
   - `turn.failed` — `{code, detail?}`. 코드는 `cli_missing`, `not_logged_in`, `session_unavailable`, `session_in_use`, `process_exited`, `rate_limited`, `unknown`이다. 사람이 읽을 문장은 렌더러가 코드별로 쓰고, 원문 출력 발췌는 `detail`에 둔다.
   - `interrupted` — `{reason: "user" | "appQuit" | "crashed"}`.
-  - `conversation.closed`, `conversation.reopened`.
+  - `conversation.archived` — 새 대화가 이 대화를 대신했다.
 - **동시성**: 한 대화에 턴은 하나만 돈다. 실행 중에 보낸 `send`는 `busy`로 거절하고 큐는 두지 않는다. 렌더러는 거절된 입력을 지우지 않는다.
 - **재시작**: 저장된 이벤트를 접을 때(`foldConversation`) `turn.done`, `turn.failed`, `interrupted` 없이 끝난 턴은 `interrupted{reason: "crashed"}`로, 답하지 않은 `permission.request`는 `expired`로 본다. 재시작 뒤 `send`는 저장된 세션을 다시 이어받는다.
-- **저장**: 기기 로컬 `<userData>/conversations/<id>.jsonl`(이벤트 append, 각 줄에 `v: 1`)과 목록 인덱스(2026-10-26 user). 앵커, 세션 참조(`{runtime, origin: "resumed" | "new" | "newDesign", sessionId}`), 제목, open/closed 상태를 담는다. 팀과 공유하지 않는다. 정리 정책은 이번에 두지 않는다.
+- **저장**: 기기 로컬 `<userData>/conversations/<id>.jsonl`(이벤트 append, 각 줄에 `v: 1`)과 목록 인덱스(2026-10-26 user). 캔버스, 세션 참조(`{runtime, origin: "resumed" | "new" | "newDesign", sessionId}`), 제목, current/archived 상태를 담는다. 팀과 공유하지 않는다. 정리 정책은 이번에 두지 않는다.
 
 ## 권한
 
@@ -80,20 +82,21 @@ PoC 결과로 전송 방식과 세션 기록 경로가 정해지기 전에는 �
 UI 자식이 이것만 보고 화면을 만든다. main 창의 main frame만 호출할 수 있고, 이벤트도 main 창에만 보낸다(Settings와 썸네일 창 제외). 렌더러는 enum, 불투명 id, 저장된 root, 캔버스 경로, 사람의 글만 보내고 main이 경로와 명령을 만든다(ARCHITECTURE §7 preload 규칙과 같다). 캔버스 경로는 그 root의 목록에 있는지 확인하고(`thumbnails:get`과 같은 검증), 셀렉터·글자·사람의 글에는 크기 상한을 둔다.
 
 - `conversation:resumeTarget({root, canvas})` → `{available: true, runtime, lastCheckAt}` 또는 `{available: false, reason: "no_record" | "cli_missing" | "outside_root" | "runtime_unsupported"}`.
-- `conversation:list(root)` → 대화 요약 `{conversationId, anchor?, title, state: "open" | "closed", turn: "idle" | "running" | "waitingPermission" | "failed", session: {runtime, origin}, lastAt}`.
-- `conversation:start({root, mode: "resume" | "new" | "newDesign", runtime?, anchor?, subject?, text})` → `{conversationId}` 또는 오류. `runtime`은 `new`·`newDesign`에서 필수, `subject`는 `newDesign`에서 필수, `anchor`는 `newDesign`이 아니면 선택이다.
-- `conversation:send({conversationId, text})`, `conversation:interrupt({conversationId})`, `conversation:answerPermission({conversationId, requestId, optionId})`, `conversation:close({conversationId})`, `conversation:reopen({conversationId})`.
+- `conversation:forCanvas({root, canvas})` → 그 캔버스의 현재 대화 요약(없으면 `null`)과 보관한 대화 요약 목록. 요약은 `{conversationId, canvas, title, state: "current" | "archived", turn: "idle" | "running" | "waitingPermission" | "failed", session: {runtime, origin}, lastAt}`.
+- `conversation:start({root, mode: "resume" | "new" | "newDesign", runtime?, canvas?, subject?, text, anchors?})` → `{conversationId}` 또는 오류. `canvas`는 `newDesign`이 아니면 필수, `runtime`은 `new`·`newDesign`에서 필수, `subject`는 `newDesign`에서 필수다. 그 캔버스에 현재 대화가 있으면 보관하고 새로 연다.
+- `conversation:send({conversationId, text, anchors?})`, `conversation:interrupt({conversationId})`, `conversation:answerPermission({conversationId, requestId, optionId})`.
 - `conversation:read({conversationId})` → `{events, lastSeq, turn, pendingPermission?}`. 렌더러는 `read` 뒤 구독한 이벤트를 `seq`로 합쳐 빠짐과 중복을 막는다.
 - `onConversationEvent(listener)` → 위 이벤트.
 - 오류 코드: `bad_request`, `project_not_open`, `canvas_not_found`, `no_agent`, `cli_missing`, `no_session`, `session_in_use`, `busy`, `not_found`(없는 대화), `stale`(이미 끝난 권한 요청).
-- 앵커: `{canvas: {path, id?}, frame?: {id, title?}, element?: {doanId?, selector, text?}, point?: {frameId?, dx, dy}}`. 요소는 코멘트처럼 `data-doan-id` → 셀렉터 순으로 찾고, 못 찾으면 UI가 위치를 찾을 수 없는 상태를 보인다. 캔버스가 옮겨지면 revision-continuity의 id 기반 복원을 따른다.
+- 앵커(메시지 안): `{frame?: {id, title?}, element?: {doanId?, selector, text?}, point?: {frameId?, dx, dy}}`. 캔버스는 대화의 캔버스다. 한 메시지의 앵커는 정해진 개수 이하로 제한한다. 요소는 코멘트처럼 `data-doan-id` → 셀렉터 순으로 찾고, 못 찾으면 UI가 위치를 찾을 수 없는 상태를 보인다. 캔버스가 옮겨지면 revision-continuity의 id 기반 복원을 따른다.
 
 ## 순수 함수로 분리할 부분 (`/tdd` 대상)
 
 1. `pickSession(records, root, canvas, available)` — 이어받을 세션 고르기(`resumeTarget` 포함).
 2. `turnPrompt(anchor, text, context)` — 턴 프롬프트. 지시문이 담긴 캔버스 글자 케이스를 포함한다.
 3. 런타임 출력 → doan 이벤트 변환(9b에서 고른 방식마다 하나). 픽스처는 PoC 출력에서 경로·세션 id·대화 내용을 지운 줄이다.
-4. `foldConversation(events)` — 저장된 이벤트 → 대화 상태(재시작 규칙 포함).
+4. `foldConversation(events)` — 저장된 이벤트 → 대화 상태(재시작 규칙, 보관 포함).
+8. `anchorTokens(text, anchors)` — 글의 `{{n}}` 표지와 앵커 목록이 맞는지 검사(빠진 번호, 남는 앵커, 상한).
 5. `turnState(state, event)` — 프로세스 상태 기계.
 6. `agentEnv(probe, runtime, appRuntime)` — 실행 환경.
 7. Go: `sessionFromEnv(env)`(두 런타임 변수가 함께 있을 때의 우선순위 포함), `sessionRecordPath(env)`(실패 시 없음), 해시 비교로 남길 줄 고르기.
@@ -134,5 +137,11 @@ ARCHITECTURE §1 컨벤션과 `doan check` 규칙은 바뀌지 않는다. `check
 3. 권한: 에이전트 자체 설정을 따르고 doan은 정책을 더하지 않는다. 묻는 요청은 모두 대화창으로 올린다 (2026-10-26 user).
 4. 이어받기: fork하지 않고 같은 세션에 이어 쓴다. 터미널에서 열려 있는지 알아챌 수 있으면 `session_in_use`로 막는다 (2026-10-26 user, PoC 9d).
 5. Codex 세션 id를 얻지 못하면 Codex는 새 세션만 지원한다 (2026-10-26 user).
-6. 대화는 닫기와 다시 열기를 지원한다. 닫힌 대화의 핀은 UI가 숨긴다 (2026-10-26 user).
+6. 대화는 캔버스당 하나다. 앵커는 메시지 안에 들어가고 한 메시지에 여럿일 수 있다. 끝내려면 새 대화를 시작하고 이전 대화는 보관한다. 리뷰 때 정한 '닫기·다시 열기'를 대체한다 (2026-10-26 user).
 7. 새 디자인 시작(`newDesign`)은 이 feature 범위다 (2026-10-26 user).
+
+## 대화 UI 자식에 넘길 것 (기반 범위 밖, 2026-10-26 user)
+
+- 입력창 옆에 요소 피커를 둔다. 켜면 캔버스가 지금의 요소 선택 모드가 되고(Esc로 취소), 요소를 클릭하면 입력창 커서 자리에 인라인 칩이 들어가고 포커스가 입력창으로 돌아온다. 빈 곳 클릭은 좌표 칩이다. 보낸 메시지의 칩을 누르면 캔버스가 그 대상으로 이동하고 강조한다.
+- 칩은 메신저의 멘션처럼 액센트로 하이라이트한다. 추천은 연한 채움(violet 3~4)과 진한 글자(violet 12)다. 레퍼런스는 일반 멘션을 무채색으로 두지만(`DESIGN.md` 'Mentions', `~/code/buzz-app@c40dfdf4`), doan의 앵커 칩은 메시지의 핵심 대상이라 액센트를 쓴다. 액센트 자리가 늘어나므로 부모 공통 결정 2를 고친다.
+- 오른쪽 패널의 대화 탭은 그 캔버스의 현재 대화를 보인다. 대화 목록 버튼은 보관한 대화를 보는 용도로 줄어든다.

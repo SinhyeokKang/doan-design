@@ -43,10 +43,11 @@ JSON Schema와 정상·오류 픽스처(design '포맷 변경'의 오류 목록)
 ## T. 순수 함수
 
 ### T1. 테스트 (`/tdd`)
-design '순수 함수로 분리할 부분' 1~7. 다음 경우를 각 함수 테스트에 넣는다.
+design '순수 함수로 분리할 부분' 1~8. 다음 경우를 각 함수 테스트에 넣는다.
 - `pickSession`: 기록 없음, 같은 캔버스 기록 둘(`at` 순서와 같은 `at`), 시계가 뒤로 간 기록, 삭제되거나 옮겨진 캔버스, 다른 worktree(`root`), root 밖 `cwd`, CLI 없음, Codex 세션 id 없음.
 - 변환: 에이전트 비정상 종료, 로그인 안 됨, 권한 요청과 답.
-- `foldConversation`: 턴 중간 종료(`crashed`), 답하지 않은 권한 요청(`expired`), 닫기와 다시 열기, `newDesign`의 사후 앵커.
+- `foldConversation`: 턴 중간 종료(`crashed`), 답하지 않은 권한 요청(`expired`), 새 대화로 보관, `newDesign` 대화가 첫 캔버스에 묶임.
+- `anchorTokens`: 빠진 번호, 남는 앵커, 상한 초과.
 - `turnState`: `waitingPermission`에서 중단과 종료, 실행 중 `send`(`busy`).
 - `turnPrompt`: 지시문이 담긴 캔버스 글자.
 - `agentEnv`: 상속받은 세션 변수 제거, `DOAN_RUNTIME` 전달.
@@ -99,7 +100,7 @@ before-quit 정리, 창 숨김 뒤 Quit, 실행 중 Quit.
 7. 중단.
 8. 가짜 에이전트 비정상 종료 → `turn.failed{process_exited}`.
 9. 에이전트를 PATH에서 뺀 상태 → `cli_missing`.
-10. 닫기와 다시 열기.
+10. 같은 캔버스에서 새 대화 시작 → 이전 대화 보관, 메시지 하나에 앵커 둘.
 11. 재시작 뒤 복원.
 12. 권한 대기 중 Quit, 창 숨김 뒤 Quit → 정리와 exit 0.
 
