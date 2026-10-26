@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-27 — Filtering error replies hid duplicate native settlement
+
+- **Area**: `app/e2e/conversation.ts`, `conversation-checks.ts` (F-E).
+- **Symptom**: the exactly-once assertion accepted one wrong error plus one success for the same native request; ordinary crash evidence was described as single-terminal without counting every terminal event after cleanup.
+- **Root cause**: counting began after payload filtering, and a request ID without its server identity was treated as sufficient correlation. Presence of one expected terminal event was mistaken for uniqueness.
+- **Net**: R-E synthetic probes exposed the assertion gaps while the real fake-peer run emitted correct replies. The new isolated regressions reject mixed error/success duplicates, wrong error code/message, and another server's or request's response; positive controls retain accept/decline/error payloads.
+- **Prevention**: collect every response for the exact server PID and request ID before checking count and the sole complete payload. Recheck after server exit to include late duplicates; count all terminal kinds after owned-process cleanup. Ran `rg -n 'suiteGuard|verifyConversation|assertCodexResponse|settles exactly once' app/e2e --glob '*.ts'`; native response assertions are confined to the conversation suite/helper and their regression tests. Keep typecheck evidence separate from Node's TypeScript-stripping runtime and record the actual child exit, not a logging wrapper's exit.
+
 ### 2026-10-27 — SDK process death reached failure classification before group release
 
 - **Area**: `app/src/main/conversation/runners.ts` (F-A3).
@@ -251,6 +259,8 @@
 - **Recurrence (2026-10-25, UX C)**: the new Inspector test initially waited for main's release plus 100ms, which did not prove the stale response was consumed. A test-only observer now records completion of the actual controller callback before checking the latest values. Bypassing only the first held request's tag comparison makes that same native assertion fail with the old frame dimensions; restoring protection passes. `rg -n 'inspectProbeC|requestRows' app/src/renderer/CanvasController.ts app/e2e/comments-ui.ts` locates the production consumer and its test observer. The observer fails explicitly if the expected React/controller structure is unavailable; it adds no production API.
 
 - **Recurrence (2026-10-25, UX K)**: the O/S install fixtures initially used a 100/150ms pause after main released a response, allowing an unconsumed stale error to pass. Settings now observes its real click handler’s terminal then/catch chain; Wizard uses a test-only non-pausing CDP return breakpoint because its callback discards the async return. Both fail explicitly if the expected consumer shape changes, identify each request, and wait for renderer frames after completion. A-first checks occur while B is still pending. Search run: `rg -n 'armInstallConsumer|wizardInstallConsumers|settledInstallConsumer' app/e2e/renderer-probe.ts app/e2e/onboarding.ts app/e2e/settings.ts`. The targeted guard bypass fails at the first stale-false case in each window; it is not a separate mutation run for every order. No production observer API was introduced.
+
+- **Recurrence (2026-10-27, F-E)**: conversation verification copied wire evidence before asserting real state and peer disappearance in one callback. A rejected copy skipped both checks even though suiteGuard still propagated failure. Keep the three obligations independently attempted and aggregate every failure into suiteGuard; synthetic callback failures prove copy/state/peer attempts and cleanup without changing real user files. The prevention search `rg -n 'suiteGuard|verifyConversation|assertCodexResponse|settles exactly once' app/e2e --glob '*.ts'` finds other suites delegating real-state checks directly; no other copy-before-state callback appears in those matches.
 
 ### 2026-10-25 — Init published success before merge setup could fail
 
