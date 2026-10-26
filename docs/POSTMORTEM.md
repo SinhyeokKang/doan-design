@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-27 — Runtime clipboard capture constructed an item with no MIME types
+
+- **Area**: `app/e2e/clipboard.ts`, `clipboard.test.ts`, and the comments-ui, onboarding, agent-handoff and settings adapters.
+- **Symptom**: integrated verification at `207aea0` stopped at `comments-ui.ts:77`, before comment scenarios, because Electron rejected `new ClipboardItem({})`.
+- **Root cause**: four capture callbacks assumed every native item exposed at least one MIME type. Electron 45 can return an item with an empty `types` array, but its constructor requires at least one type. Native items also need eager payload reconstruction before they can be written back.
+- **Net**: the real integrated runtime caught the constructor failure; the harness lacked fake clipboard edge tests. The original callback reproduced the same exception with a fake empty item before implementation. The new helper's first test run failed on its missing module, then eight fake-dependency tests passed, covering ordered readable payloads, empty and mixed items, capture failures before mutation, and retry after restoration failure. Existing copy-service tests only covered text-write settlement.
+- **Prevention**: run `rg -n 'new ClipboardItem|clipboard\.read\(' app/e2e`; the shared helper is now the only native-item reconstruction site. Skip entries with no exposed payload types, capture every exposed payload before permitting a clipboard test, and abort on any unreadable payload without publishing a partial snapshot. Restore empty snapshots with `clear`, await nonempty writes, and retain a failed restoration for retry. Require `node --test 'app/e2e/*.test.ts'` for harness changes. Electron's installed API exposes only the payload types returned by `read`; this does not establish preservation of native formats that Electron never exposes.
+
 ### 2026-10-27 — Session schema rejected literal backslashes in POSIX canvas names
 
 - **Area**: `schema/sessions.v1.schema.json`, shared `schema/fixtures/sessions/`.
