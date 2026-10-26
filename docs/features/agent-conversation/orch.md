@@ -29,7 +29,7 @@
 | D | D1, D2 | PRODUCT 결정, feature 계약의 PoC 확정 내용 | P | Astra medium — 제품 범위와 실험 결과 대조 | §3·§7 및 스킬 변경 판단 | 리뷰 보완·통합 완료 |
 | S | S1 | `schema/`, Go·TS formats 등록과 테스트 | D | Sol medium — 공유 포맷과 픽스처 구현 | Go·TS 포맷 테스트 | 통합 완료, 런타임 기존 예외 유지 |
 | C | T1·T2의 Go 부분, C1 | `cli/internal/cli/` 세션 기록과 테스트, 필요 시 MCP 배선 | S | Astra medium — 출력 보존·경로·동시 append | red→green, Go test/vet, 필요 시 agent-eval | 구현 완료, 독립 리뷰 중 |
-| T | T1·T2의 TS 부분 | `app/src/main/conversation/` 순수 함수·계약·테스트 | S | Astra medium — 이벤트·복구·권한 상태 계약 | red→green, app test/typecheck | 구현 시작 |
+| T | T1·T2의 TS 부분 | `app/src/main/conversation/` 순수 함수·계약·테스트 | S | Astra medium — 이벤트·복구·권한 상태 계약 | red→green, app test/typecheck | 구현 완료, 독립 리뷰 중 |
 | A | A2, A3, A4 | conversation 실행기·저장·IPC, main 수명, preload와 타입 | C, T | Astra medium — 프로세스·저장·IPC 경계 | app test/typecheck/build 및 E 종료 검증 | 대기 |
 | E | A1, E1, E2 | `app/e2e/`, `.scratch/` 실험, PRODUCT 관찰 | A | Astra medium — 실제 앱·종료·상태 불변 실증 | 하네스 red→green, 가짜 에이전트 12단계, 실제 에이전트 관찰 | 대기 |
 | V | E3 | 통합 검증 증거 | E, 리뷰 | Sol high — 순차 게이트와 증거 확인 | verify --runtime, 필요 시 --eval 및 agent-eval | 대기 |
@@ -79,3 +79,4 @@
 - R-F-H (`task_e4ada6f5bd0a`, `ctx_f942e9b644a0`)는 🔴 0, 🟡 0 및 후속 어댑터 증거를 확인했다. release 후 F-H를 `13f34b8`, `06c5056`으로 통합했다. HEAD `06c5056`의 기본 verify는 exit 0 / PASS (`.scratch/verify/2026-10-26T16-58-37-059Z-19847/`), 별도 하네스 18개 테스트도 exit 0이다. 동일 runtime 구현을 다시 실행하지 않고 F-H의 comments-ui 기존 실패와 후속 10개 PASS를 재사용한다(런타임 전체는 미충족). 하네스 child는 227개 증거 복사 검증·clean·미통합 없음 확인 후 제거했고 목록 부재 확인. C/T는 별도 checkout에서 병렬 구현한다. T에 full app unit-test 슬롯, C에 Go test/vet를 배정하며 runtime/stress는 실행하지 않는다.
 - C (`task_d628266c94a1`, `ctx_1eb6def1be30`)는 `8f7efe5`, `f52463d`, `f4141fb`, `dc1d683`, `65c766f`를 제출했다. 출력 불변·MCP 제외·손상 기록·8개 프로세스 append 및 부분 읽기 실패에 대한 red→green, 전체 Go test/vet 통과를 보고했다. C 터미널 release 완료. R-C는 Astra medium으로 독립 검토한다. T (`task_c28a5192de0b`, `ctx_4720f8d45d4a`)는 계속 구현 중이다.
 - R-C (`task_c4aa26509b68`, `ctx_a1af76981c7d`)는 🔴 1건을 격리 재현했다. sessions.jsonl 링크를 따라 외부 기존 파일을 수정하거나 새 파일을 생성한다. 리뷰 터미널 release 완료. F-C는 Astra medium으로 no-follow/descriptor 경계와 교체 경쟁 회귀를 수정하고 postmortem을 남긴다. C 통합은 독립 재검토 전까지 보류한다.
+- T는 `e6a20b7`, `fd31422`, `e9947d6`으로 순수 규칙 7개 모듈·타입·정제 픽스처와 신규 테스트 72개를 제출했다. red 및 최종 앱 3195개 테스트/typecheck exit 0을 보고했다. T 터미널 release 완료. R-T는 Astra medium으로 모든 모듈·경계·인계 주장을 검토한다. 실제 I/O·IPC·프로세스·저장은 A, 런타임 증거는 A/E 소유로 남는다.
