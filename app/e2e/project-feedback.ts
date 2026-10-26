@@ -560,6 +560,12 @@ try {
     await treeItem("Zeta note").click();
     await wait(async () => (await selected())?.includes("z1") ?? false, "control: the late anchors locate the target", 10_000);
     await focusOn(focus => focus.tag === "ARTICLE" && focus.comment === z.one, "control: focus on its card");
+    // A double click on the row: its second press lands on the opened canvas
+    // view, and is part of the same click.
+    await overview();
+    await treeItem("Zeta note").dblclick();
+    await wait(async () => (await selected())?.includes("z1") ?? false, "double click: the target is located", 10_000);
+    await focusOn(focus => focus.tag === "ARTICLE" && focus.comment === z.one, "double click: focus on its card");
     // The row click, then a blank press on the Canvas before the anchors answer.
     await overview();
     await treeItem("Zeta note").click();
