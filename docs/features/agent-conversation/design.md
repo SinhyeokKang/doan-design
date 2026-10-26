@@ -67,6 +67,8 @@ PRODUCT §6에 새 줄로 기록한다. 실험 코드는 `.scratch/agent-convers
   - `interrupted` — `{reason: "user" | "appQuit" | "crashed"}`.
   - `conversation.archived` — 새 대화가 이 대화를 대신했다.
 - **동시성**: 한 대화에 턴은 하나만 돈다. 실행 중에 보낸 `send`는 `busy`로 거절하고 큐는 두지 않는다. 렌더러는 거절된 입력을 지우지 않는다.
+- **앱 내부 세션 소유권**: main은 대화별 `busy`와 별도로 `{runtime, canonical configDir, sessionId}`에 실행 소유 대화를 기록한다. cwd·root·캔버스가 달라도 같은 키면 같은 세션이다. 세션을 열기 전에 검사와 예약을 한 번에 처리하고, 수락 전에 예약을 확보한다. 다른 대화가 같은 키를 시작 중·실행 중·소유 중이면 `session_in_use`로 거절하며 `user.message`와 보관 부수 효과를 남기지 않는다. 대기 중인 start도 이 예약에 포함해 같은 세션의 시작이 겹치지 않게 한다. 서로 다른 세션은 동시에 실행할 수 있다. 자기 대화가 유지하는 Codex 서버로 보내는 send는 소유권 때문에 거절하지 않으며 턴별 `busy`와 외부 점유 검사는 그대로 적용한다.
+- **새 세션 예약**: `new`·`newDesign`은 id를 받기 전까지 해당 시작 요청/대화에 임시 예약을 두어 중복 실행을 막는다. 서로 다른 새 세션 요청을 하나의 빈 sessionId로 묶지 않는다. id를 받으면 main이 같은 처리 안에서 기존 키의 소유자를 검사하고 알려진 세션 키로 예약을 옮긴 뒤 수락한다. 충돌하면 `session_in_use`로 거절하고 생성한 프로세스를 정리한다. 임시 예약도 정리 완료 확인 전에는 해제하지 않는다. 이는 main 내부 실행 관리이며 프로세스 간 전역 잠금을 추가하지 않는다.
 - **재시작**: 저장된 이벤트를 접을 때(`foldConversation`) `turn.done`, `turn.failed`, `interrupted` 없이 끝난 턴은 `interrupted{reason: "crashed"}`로, 답하지 않은 `permission.request`는 `expired`로 본다. 재시작 뒤 `send`는 저장된 세션을 다시 이어받는다.
 - **저장**: 기기 로컬 `<userData>/conversations/<id>.jsonl`(이벤트 append, 각 줄에 `v: 1`)과 목록 인덱스(2026-10-26 user). 캔버스, 세션 참조(`{runtime, origin: "resumed" | "new" | "newDesign", sessionId, configDir, cwd}`), 제목, current/archived 상태를 담는다. 팀과 공유하지 않는다. 정리 정책은 이번에 두지 않는다.
 
@@ -79,6 +81,7 @@ PRODUCT §6에 새 줄로 기록한다. 실험 코드는 `.scratch/agent-convers
 ## 프로세스 수명
 
 - Claude는 턴마다 SDK/CLI를 열고 동일 세션으로 재개한다. Codex는 대화마다 app-server 하나를 유지하고 턴 사이에도 살려 둔다(PoC에서 검증한 실행 방식). 보관·앱 종료 때 닫으며 재시작 때 같은 세션을 다시 연다. 동시에 도는 대화 수의 상한은 UI 자식이 정하고, 기반은 상한을 두지 않는다.
+- 세션 소유권은 Claude 턴 프로세스의 종료, Codex 대화 서버의 종료를 확인한 뒤에만 해제한다. Codex의 턴 완료·idle은 서버 소유권을 풀지 않는다. 종료 이벤트 저장, kill 요청, 호출자 기한 만료는 종료 확인을 대신하지 않는다. 시작 실패나 보관·중단 시 정리가 실패하거나 종료 여부가 불확실하면 예약/소유권을 유지한다. spawn하지 않았음이 확인된 시작 실패만 프로세스 종료 대기 없이 예약을 취소한다. 외부 Claude 접속 경쟁에 관한 승인된 한계는 그대로다.
 - 상태: `idle → starting → streaming ⇄ waitingPermission → idle`, 실패는 `failed`, 중단은 `interrupted`. 순수 상태 기계(`turnState`)다.
 - 자식 프로세스는 프로세스 그룹으로 띄운다. 끝낼 때는 doan이 생성하고 소유한 그룹에만 SIGTERM을 보내고 짧은 유예 뒤 SIGKILL을 보낸다. 호출자 정리는 자식 종료 확인과 별개로 기한 안에 끝낸다(POSTMORTEM 2026-10-23 'A utility-process kill request left its caller pending').
 - 앱 종료: `before-quit`은 동기라 자식 종료를 기다리지 않는다. 이벤트는 받는 즉시 append하므로 종료 때 남은 저장이 없다(POSTMORTEM 2026-10-25 'A crash during quit teardown lost the debounced ui-state'). 실행 중인 턴은 `interrupted{appQuit}`를 쓰고 프로세스 그룹을 끝낸다. 기존 종료 확인과 같은 경로를 쓴다(POSTMORTEM 2026-10-25 'Native hiding bypassed renderer-only lifetime checks', 'An uncertain comment request silently blocked every exit').
@@ -94,10 +97,10 @@ UI 자식이 이것만 보고 화면을 만든다. main 창의 main frame만 호
 - `conversation:forCanvas({root, canvas})` → 그 캔버스의 현재 대화 요약(없으면 `null`)과 보관한 대화 요약 목록. 요약은 `{conversationId, canvas, title, state: "current" | "archived", turn: "idle" | "running" | "waitingPermission" | "failed", session: {runtime, origin}, lastAt}`.
 - `conversation:start({root, mode: "resume" | "new" | "newDesign", runtime?, canvas?, subject?, text, anchors?})` → `{conversationId}` 또는 오류. `canvas`는 `newDesign`이 아니면 필수, `runtime`은 `new`·`newDesign`에서 필수, `subject`는 `newDesign`에서 필수다. 그 캔버스에 현재 대화가 있으면 보관하고 새로 연다.
 - `conversation:send({conversationId, text, anchors?})`, `conversation:interrupt({conversationId})`, `conversation:answerPermission({conversationId, requestId, optionId})`.
-- `conversation:read({conversationId})` → `{events, lastSeq, turn, pendingPermission?}`. 렌더러는 `read` 뒤 구독한 이벤트를 `seq`로 합쳐 빠짐과 중복을 막는다.
+- `conversation:read({conversationId})` → `{events, lastSeq, turn, pendingPermission?}`. 소비자는 먼저 `onConversationEvent` listener를 등록해 대상 대화 이벤트를 버퍼링하고, 그 뒤 `read`를 호출한다. snapshot과 버퍼를 `conversationId`별 `seq` 순으로 합쳐 중복을 제거한다. 병합 중 들어온 이벤트도 같은 버퍼로 받아 순서대로 처리하고, listener를 해제하거나 다시 등록하는 틈 없이 이후 이벤트 전달을 계속한다. 마지막 종료 이벤트 뒤에 후속 이벤트가 없어도 반영돼야 한다. 새 IPC나 replay API는 추가하지 않는다. T는 병합 규칙, A는 preload 구독·read 경계와 테스트 소비자를 검증하고 실제 UI 소비자는 이후 buzz-conversation이 구현한다.
 - `onConversationEvent(listener)` → 위 이벤트.
 - 오류 코드: `bad_request`, `project_not_open`, `canvas_not_found`, `no_agent`, `cli_missing`, `no_session`, `session_unavailable`, `runtime_unsupported`, `session_in_use`, `busy`, `not_logged_in`, `process_exited`, `rate_limited`, `unknown`, `not_found`(없는 대화), `stale`(이미 끝난 권한 요청).
-- `resumeTarget`은 미리보기이며 실행 권한을 예약하지 않는다. `start`와 각 `send`는 root/cwd/configDir·버전·세션 점유를 다시 확인한다. 요청 수락 전 실패는 IPC 오류로 반환하고 기존 대화를 보관하거나 user.message를 추가하지 않는다. 세션 열기/점유 확인이 끝나기 전에 start를 수락하지 않는다. 수락 후 transport 오류는 같은 코드의 `turn.failed`로 저장한다. 기록 없음은 `no_session`(미리보기는 `no_record`), root 밖 cwd는 `start`/`send`에서 `session_unavailable`(미리보기는 `outside_root`), 설정 불일치·사라진 세션·확인 불가 식별은 `session_unavailable`, 알려지지 않은 버전은 resume/send에서 `session_unavailable`, 새 세션 시작에서 `runtime_unsupported`다. 자동 재시도·fork·새 세션 전환은 하지 않는다.
+- `resumeTarget`은 미리보기이며 실행 권한을 예약하지 않는다. `start`와 각 `send`는 root/cwd/configDir·버전·세션 점유를 다시 확인한다. 요청 수락 전 실패는 IPC 오류로 반환하고 기존 대화를 보관하거나 user.message를 추가하지 않는다. start는 위 main 내부 예약 확보와 세션 열기/점유 확인을 모두 마친 뒤에만 수락한다. 수락 후 transport 오류는 같은 코드의 `turn.failed`로 저장한다. 기록 없음은 `no_session`(미리보기는 `no_record`), root 밖 cwd는 `start`/`send`에서 `session_unavailable`(미리보기는 `outside_root`), 설정 불일치·사라진 세션·확인 불가 식별은 `session_unavailable`, 알려지지 않은 버전은 resume/send에서 `session_unavailable`, 새 세션 시작에서 `runtime_unsupported`다. 자동 재시도·fork·새 세션 전환은 하지 않는다.
 - Codex `thread/resume`의 `already has an active writer` 거절은 `session_in_use`다. 빈 `thread/loaded/list`를 사용 가능 증거로 삼지 않는다. 터미널이 닫혀도 daemon이 잠금을 가질 수 있으며 사용자 daemon을 죽이거나 재설정하지 않는다.
 - Claude는 검증된 버전의 `sessions/<pid>.json`에서 interactive 세션/config/cwd를 확인하고 OS PID와 `procStart`를 `TZ=UTC`로 대조한다. 살아 있는 같은 세션이면 `session_in_use`, 읽기·파싱·PID 정체 확인 실패는 `session_unavailable`다. 죽은 PID나 PID 재사용으로 옛 process임이 확인된 잔여 registry만 점유에서 제외한다. 확인한 버전에서 registry 디렉터리를 정상적으로 읽었고 살아 있는 일치 항목이 없을 때만 비점유로 본다. registry 디렉터리 부재·읽기 실패를 빈 목록으로 바꾸지 않는다. cwd가 달라도 같은 configDir·sessionId의 살아 있는 interactive process면 점유다. 매 resume/send 직전 재검사한다. 검사 후 접속 경쟁은 위 9d 사용자 결정으로 수용했으며 이후 접속을 막는 잠금으로 설명하지 않는다.
 - 앵커(메시지 안): `{frame?: {id, title?}, element?: {doanId?, selector, text?}, point?: {frameId?, dx, dy}}`. 캔버스는 대화의 캔버스다. 한 메시지의 앵커는 정해진 개수 이하로 제한한다. 요소는 코멘트처럼 `data-doan-id` → 셀렉터 순으로 찾고, 못 찾으면 UI가 위치를 찾을 수 없는 상태를 보인다. 캔버스가 옮겨지면 revision-continuity의 id 기반 복원을 따른다.
@@ -107,9 +110,9 @@ UI 자식이 이것만 보고 화면을 만든다. main 창의 main frame만 호
 1. `pickSession(records, root, canvas, available)` — 이어받을 세션 고르기(`resumeTarget` 포함). 디렉터리·버전·점유 검사의 I/O는 호출부가 맡고 순수 함수에는 확인 결과를 전달한다.
 2. `turnPrompt(anchor, text, context)` — 턴 프롬프트. 지시문이 담긴 캔버스 글자 케이스를 포함한다.
 3. 런타임 출력 → doan 이벤트 변환(9b에서 고른 방식마다 하나). 픽스처는 PoC 출력에서 경로·세션 id·대화 내용을 지운 줄이다.
-4. `foldConversation(events)` — 저장된 이벤트 → 대화 상태(재시작 규칙, 보관 포함).
+4. `foldConversation(events)` — 저장된 이벤트 → 대화 상태(재시작 규칙, 보관 포함). read snapshot과 구독 버퍼의 대화별 seq 정렬·중복 제거 규칙도 순수 함수로 검증한다.
 8. `anchorTokens(text, anchors)` — 글의 `{{n}}` 표지와 앵커 목록이 맞는지 검사(빠진 번호, 남는 앵커, 상한).
-5. `turnState(state, event)` — 프로세스 상태 기계.
+5. `turnState(state, event)` — 프로세스 상태 기계. main이 전달한 세션 예약·소유 상태의 판정과 검증된 종료에 따른 해제 규칙도 순수 함수로 검증한다.
 6. `agentEnv(probe, runtime, appRuntime)` — 실행 환경.
 7. Go: `sessionFromEnv(env)`(두 런타임 변수·충돌하는 Codex id의 기록 생략 포함), `sessionRecordPath(env)`(실패 시 없음), 해시 비교로 남길 줄 고르기.
 
