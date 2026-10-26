@@ -1,25 +1,41 @@
 # buzz-restyle — tasks (부모)
 
-부모의 task는 자식 feature를 순서대로 끝내는 것이다. 각 자식의 구현 task는 그 자식의 `tasks.md`에 있다.
+부모의 task는 하네스를 준비하고, 자식 feature를 끝내고, 마지막에 정리하는 것이다. 각 자식의 구현 task는 그 자식의 `tasks.md`에 있다. 부모는 `/ship`이나 `/orchestrate`로 진행하지 않는다. 이 문서의 수정은 하네스·문서 변경 경로(AGENTS.md 'Commit conventions')로 대화 중에 커밋한다.
 
-자식을 시작할 때:
-- `/feature <slug>`로 자식 문서를 만들고, [design.md](./design.md)의 해당 조사 메모를 자식 `design.md`로 옮긴다.
-- 자식 문서에 'Buzz clone 참조 규칙'을 따른다고 적는다.
-- 자식이 공통 결정과 다르게 가야 하면 진행 전에 사용자에게 확인하고, 이 부모의 spec을 고친다.
+자식 하나를 시작하고 끝내는 절차는 [design.md](./design.md)의 '자식 진행 규칙'을 따른다.
 
-각 줄의 검증은 같다: 자식 문서의 마지막 task 완료(결론 승격, 자식 디렉터리 삭제)와 PR 머지.
+## H. 하네스 준비 (첫 화면 자식 `buzz-shell` 전에)
 
-- [ ] 0. `buzz-ds` — 문서 있음: [`../buzz-ds/`](../buzz-ds/spec.md)
-- [ ] 1. `buzz-shell`
-- [ ] 2. `buzz-onboarding`
-- [ ] 3. `buzz-home`
-- [ ] 4. `buzz-search`
-- [ ] 5. `buzz-project`
-- [ ] 6. `buzz-canvas`
-- [ ] 7. `buzz-inspector`
-- [ ] 8. `buzz-comment`
-- [ ] 9. `buzz-settings`
-- [ ] 10. 부모 정리: 조사 메모가 모두 자식으로 옮겨졌는지, `docs/DESIGN.md`에 "buzz-ds 이전" 표시가 남지 않았는지 확인하고 `docs/features/buzz-restyle/`을 삭제한다.
-  - 검증: `grep -n 'buzz-ds 이전' docs/DESIGN.md` 결과가 없고, 디렉터리가 없다.
+- [ ] H1. AGENTS.md Workflow 'Terms'에 부모 feature를 정의한다: 자식 feature를 정의하고 공통 결정을 보관하는 허브, `/ship`·`/orchestrate` 대상이 아님, 마지막 자식 뒤 삭제.
+  - 검증: `grep -n 'parent feature' AGENTS.md`에 정의 줄이 있다.
+- [ ] H2. AGENTS.md의 `/design-sync` 규칙과 `.agents/skills/design-sync/SKILL.md`를 넓힌다: 리디자인 자식의 새 초안은 그 자식이 머지될 때까지 정본이다(공통 결정 11).
+  - 검증: 두 파일에 리디자인 초안 문장이 있다(`grep -n 'redesign' AGENTS.md .agents/skills/design-sync/SKILL.md`).
+
+── commit: `docs(agents): define parent features` / `docs(skills): let design-sync follow redesign drafts` ──
+
+## C. 자식 feature
+
+각 줄의 검증: main에서 `test ! -d docs/features/<slug>`가 통과하고, '자식 진행 규칙' 5의 `verify.mjs --runtime` PASS가 그 자식의 PR에 기록되어 있으며, 'DESIGN.md 절과 담당' 표에서 그 자식이 지울 표시가 남아 있지 않다(`grep -n 'buzz-ds 이전' docs/DESIGN.md`로 해당 절 확인). 체크는 다음 자식을 시작하는 세션이 머지를 확인한 뒤 한다.
+
+- [ ] C0. `buzz-ds` — 문서 있음: [`../buzz-ds/`](../buzz-ds/spec.md)
+- [ ] C1. `buzz-shell`
+- [ ] C2. `buzz-onboarding`
+- [ ] C3. `buzz-home`
+- [ ] C4. `buzz-search`
+- [ ] C5. `buzz-project`
+- [ ] C6. `buzz-canvas`
+- [ ] C7. `buzz-inspector`
+- [ ] C8. `buzz-comment`
+- [ ] C9. `buzz-settings`
+
+## Z. 부모 정리
+
+- [ ] Z1. 남은 표시, 다크 잔재, PRODUCT §7 기록을 확인하고 이 디렉터리를 지운다.
+  - 검증:
+    - `grep -n 'buzz-ds 이전' docs/DESIGN.md` 결과 없음
+    - `grep -nE 'color-scheme: *dark|#121212|#171717|#1d1d1d|#ecebe4|#f0773a' app/src/renderer/*.css` 결과 없음
+    - PRODUCT §7에 spec '완료 조건'의 대체 기록이 모두 있음
+    - design.md '자식 feature 조사 메모'에 남은 메모가 없음
+    - `docs/features/buzz-restyle/`가 없음
 
 ── commit: `docs(feature): remove buzz-restyle after all screens` ──
