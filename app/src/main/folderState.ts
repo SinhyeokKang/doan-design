@@ -55,6 +55,7 @@ export function folderState(run: CliRun): FolderState {
 // Orphans are shown and gate the app's writes (`orphanWriteAllowed`), so an
 // entry is kept only whole and only with the fields the app reads; a malformed
 // one is dropped rather than failing a listing that is otherwise good, like `git`.
+// An empty id is kept: it is the file `.jsonl`, shown by its counts only.
 function orphanFile(value: unknown): OrphanFile[] {
   if (typeof value !== "object" || value === null) return [];
   const id: unknown = Reflect.get(value, "id");
@@ -62,7 +63,7 @@ function orphanFile(value: unknown): OrphanFile[] {
   const uncertain: unknown = Reflect.get(value, "uncertain");
   const comments: unknown = Reflect.get(value, "comments");
   const error: unknown = Reflect.get(value, "error");
-  if (typeof id !== "string" || id === "" || typeof file !== "string" || typeof uncertain !== "boolean") return [];
+  if (typeof id !== "string" || typeof file !== "string" || typeof uncertain !== "boolean") return [];
   if (error !== undefined && !isRowError(error)) return [];
   let counts: OrphanFile["comments"];
   if (comments !== undefined) {

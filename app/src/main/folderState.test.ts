@@ -216,6 +216,14 @@ describe("folderState partial failure and orphans", () => {
     expect(extra).toEqual({ kind: "list", root: "/repo", scope: ["design", "tokens.css"], canvases, orphans: [orphan] });
   });
 
+  // A file named `.jsonl` has the empty stem as its id; doan check warns about
+  // it, and Feedback shows its ls counts like any id that is not a canvas id.
+  test("keeps an orphan whose id is empty", () => {
+    const empty = { id: "", file: ".doan/comments/.jsonl", comments: { open: 1, resolved: 0 }, uncertain: false };
+    const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, orphans: [empty] } }) }));
+    expect(state).toEqual({ kind: "list", root: "/repo", scope: ["design", "tokens.css"], canvases, orphans: [empty] });
+  });
+
   // Orphans are shown and gate writes; a malformed entry is dropped rather
   // than failing the listing, and an absent field is no orphans at all.
   test("drops malformed orphan entries and keeps the listing", () => {
@@ -223,7 +231,6 @@ describe("folderState partial failure and orphans", () => {
       null,
       "x",
       { ...orphan, id: 1 },
-      { ...orphan, id: "" },
       { ...orphan, file: undefined },
       { ...orphan, uncertain: "no" },
       { id: "x", file: ".doan/comments/x.jsonl", comments: { open: 2, resolved: 1 } },

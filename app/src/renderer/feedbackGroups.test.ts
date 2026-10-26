@@ -115,9 +115,45 @@ describe("feedbackGroups", () => {
     expect(done.canvases.map(group => group.row.id)).toEqual(["a", "b"]);
   });
 
-  test("leaves out rows without an id and rows ls could not read", () => {
+  test("leaves out rows ls could not read and rows without an id or comments", () => {
     const rows = [row("design/none.html", undefined), row("design/broken.html", undefined, { error: { code: "unreadable_canvas", message: "m" } })];
     expect(feedbackGroups([], rows, [], "open").canvases).toEqual([]);
+  });
+
+  // orch.md 2026-10-26 (R-T4 🟡1): ls sends no id for an invalid or duplicate
+  // doan:canvas but still counts its comments, which comments:project never
+  // reads. The canvas keeps its Overview place with the ls counts only.
+  test("a canvas without a usable id but with ls comments is a count-only group in Overview order", () => {
+    const rows = [row("design/a.html", "a"), row("design/bad.html", undefined, { title: "Bad", open: 2, resolved: 1 }), row("design/c.html", "c")];
+    const files = [file("a", [comment({})]), file("c", [comment({})])];
+    const open = feedbackGroups(files, rows, [], "open");
+    expect(open.canvases.map(group => [group.row.path, group.kind])).toEqual([["design/a.html", "comments"], ["design/bad.html", "countOnly"], ["design/c.html", "comments"]]);
+    expect(open.canvases[1]).toEqual({ key: "canvas:design/bad.html", row: rows[1], name: "Bad", kind: "countOnly", count: 2, open: 2, resolved: 1, note: "This canvas needs a unique, valid ID — run doan check" });
+    expect(open.counts).toEqual({ open: 4, resolved: 1 });
+    expect(feedbackGroups(files, rows, [], "resolved").canvases.map(group => [group.row.path, group.kind === "countOnly" ? group.count : null])).toEqual([["design/bad.html", 1]]);
+    const noResolved = [row("design/bad.html", undefined, { open: 2 })];
+    expect(feedbackGroups([], noResolved, [], "resolved").canvases).toEqual([]);
+  });
+
+  test("a count-only canvas follows the same-title file name rule", () => {
+    const rows = [row("design/checkout.html", "checkout", { title: "Checkout" }), row("design/old/checkout.html", undefined, { title: "Checkout", open: 1 })];
+    const view = feedbackGroups([file("checkout", [comment({})])], rows, [], "open");
+    expect(view.canvases.map(group => [group.kind, group.name, group.fileName])).toEqual([["comments", "Checkout", "checkout.html"], ["countOnly", "Checkout", "checkout.html"]]);
+  });
+
+  // Two files sharing one id both lose the id and both carry that id's counts
+  // (cli read.go); ls does not say which rows share it, so each card's group
+  // shows the counts its Overview card shows, and both add to the segments.
+  test("two rows sharing one id are two count-only groups, as the Overview shows two cards", () => {
+    const rows = [row("design/a.html", undefined, { open: 1 }), row("design/b.html", undefined, { open: 1 })];
+    const view = feedbackGroups([], rows, [], "open");
+    expect(view.canvases.map(group => [group.key, group.kind === "countOnly" ? group.count : null])).toEqual([["canvas:design/a.html", 1], ["canvas:design/b.html", 1]]);
+    expect(view.counts).toEqual({ open: 2, resolved: 0 });
+  });
+
+  test("a canvas without a usable id whose comments ls could not read is an error group", () => {
+    const rows = [row("design/bad.html", undefined, { commentsError: { code: "unreadable_comments", message: ".doan/comments/Bad.jsonl: permission denied" } })];
+    expect(feedbackGroups([], rows, [], "resolved").canvases.map(group => group.kind === "error" ? group.error : group.kind)).toEqual([".doan/comments/Bad.jsonl: permission denied"]);
   });
 
   test("a canvas whose comments could not be read is a group-level error in both views, outside the counts", () => {
@@ -131,8 +167,14 @@ describe("feedbackGroups", () => {
     expect(feedbackGroups(files, rows, [], "open").counts).toEqual({ open: 1, resolved: 0 });
   });
 
-  test("a canvas id with no file read yet has no comments", () => {
-    expect(feedbackGroups([], [row("design/a.html", "a")], [], "open").canvases).toEqual([]);
+  // R-T4 ⚪3: the renderer's ls and comments:project's reply can be from
+  // different moments, so a missing entry is "not read yet", not zero comments.
+  test("a canvas id with no file entry is pending with its ls counts, hidden when ls has none of the status", () => {
+    const rows = [row("design/a.html", "a", { open: 2, resolved: 0 }), row("design/b.html", "b")];
+    const open = feedbackGroups([], rows, [], "open");
+    expect(open.canvases).toEqual([{ key: "canvas:design/a.html", row: rows[0], name: "a", kind: "pending", count: 2 }]);
+    expect(open.counts).toEqual({ open: 2, resolved: 0 });
+    expect(feedbackGroups([], rows, [], "resolved").canvases).toEqual([]);
   });
 
   // The fold drops duplicate lines a union merge leaves, as the CLI's does.
@@ -196,6 +238,20 @@ describe("feedbackGroups orphans", () => {
       { key: "orphan:.doan/comments/Foo.jsonl", id: "Foo", file: ".doan/comments/Foo.jsonl", kind: "countOnly", count: 3, open: 3, resolved: 1 },
     ]);
     expect(feedbackGroups([], [], [orphan("Foo", 3, 0)], "resolved").orphans).toBeNull();
+  });
+
+  test("a kebab file with no file entry is pending with its ls counts", () => {
+    const view = feedbackGroups([], [], [orphan("old", 2, 1)], "open");
+    expect(view.orphans).toEqual({ readOnly: false, count: 2, files: [{ key: "orphan:.doan/comments/old.jsonl", id: "old", file: ".doan/comments/old.jsonl", kind: "pending", count: 2 }] });
+    expect(view.counts).toEqual({ open: 2, resolved: 1 });
+    expect(feedbackGroups([], [], [orphan("old", 2, 0)], "resolved").orphans).toBeNull();
+  });
+
+  test("a file named .jsonl (empty id) is a count-only row", () => {
+    const empty: OrphanFile = { id: "", file: ".doan/comments/.jsonl", comments: { open: 1, resolved: 0 }, uncertain: false };
+    expect(feedbackGroups([], [], [empty], "open").orphans?.files).toEqual([
+      { key: "orphan:.doan/comments/.jsonl", id: "", file: ".doan/comments/.jsonl", kind: "countOnly", count: 1, open: 1, resolved: 0 },
+    ]);
   });
 
   test("a file ls or main could not read is an error group in both views", () => {
