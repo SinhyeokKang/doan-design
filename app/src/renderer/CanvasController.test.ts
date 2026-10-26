@@ -766,7 +766,7 @@ it.each(["new guard", "binding change"])("Y3 cancels old pin panel effects after
       h.hooks.guard.mockImplementation(() => new Promise(resolve => { answer = resolve; }));
       pending = h.controller.activatePin("b");
     } else { h.bind([h.comments[1]!]); h.reply(); }
-    h.select(1);
+    h.select(1, { answer: "select-comment" });
     expect(h.state().selection.element.doanId).toBe("cta");
     expect(h.open).not.toHaveBeenCalled();
     if (pending) {

@@ -697,11 +697,14 @@ export class CanvasController {
       return;
     }
     if (message.type === "hover") { this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks(); return; }
-    const pin = this.pendingPin;
+    // A click can take a sent command's seq before the canvas drops it, so an
+    // answer is the message the canvas marks as one, at that command's seq.
+    const answer = message.type === "select" ? message.answer : undefined;
+    const pin = this.pendingPin?.seq === message.seq && answer === "select-comment" ? this.pendingPin : null;
     // A sent pin's acknowledgement is document state, not a newer user intent.
-    if (pin?.seq !== message.seq) this.pinIntent++;
+    if (pin === null) this.pinIntent++;
     this.pendingPin = null;
-    const located = this.pendingLocate === message.seq;
+    const located = this.pendingLocate === message.seq && answer === "select-anchor";
     this.pendingLocate = null;
     this.seq = message.seq;
     this.acceptedSelectionSeq = message.seq;
@@ -717,7 +720,7 @@ export class CanvasController {
     this.drawMarks();
     this.requestRows(view);
     this.publish();
-    if (pin?.seq === message.seq && pin.intent === this.pinIntent && pin.generation === this.anchorGeneration &&
+    if (pin !== null && pin.intent === this.pinIntent && pin.generation === this.anchorGeneration &&
       pin.revision === this.commentRevision) this.commentHooks?.open(pin.destination);
     if (this.comments) this.requestAnchors();
   }
