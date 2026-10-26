@@ -41,8 +41,10 @@ function panel(initial: Partial<FeedbackPanelProps>) {
   const body: Node = { name: "body", isConnected: true, focus: vi.fn(), contains: () => false };
   const doc = { body, activeElement: body as unknown };
   vi.stubGlobal("document", doc);
-  let press: ((event: { target: unknown }) => void) | undefined;
-  vi.stubGlobal("window", { addEventListener: (type: string, listener: typeof press) => { if (type === "pointerdown") press = listener; }, removeEventListener: () => {} });
+  // A press as the window sees it: pointerdown, then mousedown with its click count.
+  const listeners = new Map<string, (event: { target: unknown; detail: number }) => void>();
+  vi.stubGlobal("window", { addEventListener: (type: string, listener: (event: { target: unknown; detail: number }) => void) => { listeners.set(type, listener); }, removeEventListener: () => {} });
+  const press = (target: unknown, detail = 1) => { listeners.get("pointerdown")?.({ target, detail: 0 }); listeners.get("mousedown")?.({ target, detail }); };
   const nodes = new Map<string, Node>();
   const node = (name: string): Node => {
     let found = nodes.get(name);
@@ -98,7 +100,7 @@ function panel(initial: Partial<FeedbackPanelProps>) {
     walk(tree);
     return found as { focusIn: () => void; focusOut: () => void };
   };
-  return { doc, body, node, render, cardProps, press: (target: unknown) => press?.({ target }), props: () => props };
+  return { doc, body, node, render, cardProps, press, props: () => props };
 }
 
 describe("an orphan card that leaves while it held focus (R-V1 🟡3)", () => {
@@ -240,6 +242,14 @@ describe("Show from the id-change notice (R-V1 🟡4)", () => {
     f.press(f.node("blank Overview"));
     vi.advanceTimersByTime(REVEAL_MS + 1); f.revealed();
     expect(f.node("title").focus).not.toHaveBeenCalled();
+  });
+
+  // A double click on Show: its second press is part of the same click.
+  test("the second press of a double click does not end it", () => {
+    const f = waiting();
+    f.press(f.node("blank Overview"), 2); f.revealed();
+    f.render({ read: after }); f.revealed();
+    expect(f.node(head).focus).toHaveBeenCalledOnce();
   });
 
   // The Show click's own press lands before the request exists.

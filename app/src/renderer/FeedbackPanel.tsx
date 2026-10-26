@@ -160,16 +160,22 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
 
   // An outside press is the person moving focus away, though it may leave
   // focus on <body> with no render before an agent's change removes the card
-  // (useComments, R-E E-3). A press on the card's own button is not. Any press
-  // ends Show's wait the same way; Show's own press came before it began.
+  // (useComments, R-E E-3). A press on the card's own button is not.
   useEffect(() => {
     const press = (event: Event) => {
       const key = held.current;
       if (key !== null && !elements.current.get(key)?.contains(event.target as Node | null)) held.current = null;
-      if (revealWait.current) endLatest.current(false);
     };
     window.addEventListener("pointerdown", press, true);
     return () => window.removeEventListener("pointerdown", press, true);
+  }, []);
+  // Any press ends Show's wait the same way. Show's own press came before it
+  // began, and a double click's second press is part of that click
+  // (useComments' arrival).
+  useEffect(() => {
+    const press = (event: MouseEvent) => { if (event.detail <= 1 && revealWait.current) endLatest.current(false); };
+    window.addEventListener("mousedown", press, true);
+    return () => window.removeEventListener("mousedown", press, true);
   }, []);
 
   // Every focusable in DOM order: tree rows and orphan cards.

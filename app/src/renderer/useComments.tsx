@@ -370,11 +370,13 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   // ARRIVAL_MS it ends too, on the title if focus is still on <body>.
   const arrival = useRef<(CommentArrival & Deferred & { until: number }) | null>(null);
   // Any press ends it too: one on a blank area leaves focus on <body>, as the
-  // request left it (POSTMORTEM R-C/R-E). The row's own press came before it.
+  // request left it (POSTMORTEM R-C/R-E). The row's own press came before it,
+  // and a double click's second press is part of that click. mousedown, as
+  // Chromium's pointerdown carries no click count (detail 0).
   useEffect(() => {
-    const press = () => { arrival.current = null; };
-    window.addEventListener("pointerdown", press, true);
-    return () => window.removeEventListener("pointerdown", press, true);
+    const press = (event: MouseEvent) => { if (event.detail <= 1) arrival.current = null; };
+    window.addEventListener("mousedown", press, true);
+    return () => window.removeEventListener("mousedown", press, true);
   }, []);
   const expire = (request: Deferred) => {
     if (arrival.current !== request) return;

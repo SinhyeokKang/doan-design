@@ -817,8 +817,9 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
     const open = (comment: string): Comment => ({ ...note, comment, target: {} });
     const listed = (comments: Comment[]) => { (window.doan as unknown as Record<string, unknown>).commentsList = async (r: CommentRequest) => ({ ok: true, identity: r, value: { project: 1, comments, warnings: [], canvasHash: "hash" } }); };
     // The person's pointer press, as the window's capture listeners see it.
-    const press = (target: unknown) => {
-      for (const [type, listener] of (window.addEventListener as Mock).mock.calls) if (type === "pointerdown") (listener as (event: { target: unknown }) => void)({ target });
+    const press = (target: unknown, detail = 1) => {
+      for (const [type, listener] of (window.addEventListener as Mock).mock.calls) if (type === "pointerdown") (listener as (event: { target: unknown; detail: number }) => void)({ target, detail: 0 });
+      for (const [type, listener] of (window.addEventListener as Mock).mock.calls) if (type === "mousedown") (listener as (event: { target: unknown; detail: number }) => void)({ target, detail });
     };
     // Focus on the card's Resolve button, then the person resolves it: the
     // button disables (focus drops to <body>) and the reread list leaves it out.
@@ -1554,8 +1555,9 @@ describe("Review on the open canvas", () => {
 
     // A press on a blank area leaves focus on <body>, where the request left
     // it, so only the press tells the person moved on (POSTMORTEM R-C/R-E).
-    const press = (target: unknown) => {
-      for (const [type, listener] of (window.addEventListener as Mock).mock.calls) if (type === "pointerdown") (listener as (event: { target: unknown }) => void)({ target });
+    const press = (target: unknown, detail = 1) => {
+      for (const [type, listener] of (window.addEventListener as Mock).mock.calls) if (type === "pointerdown") (listener as (event: { target: unknown; detail: number }) => void)({ target, detail: 0 });
+      for (const [type, listener] of (window.addEventListener as Mock).mock.calls) if (type === "mousedown") (listener as (event: { target: unknown; detail: number }) => void)({ target, detail });
     };
 
     test("a press on a blank area, though focus stays on <body>", async () => {
@@ -1579,6 +1581,16 @@ describe("Review on the open canvas", () => {
         f.render();
         expect(f.heading.focus).not.toHaveBeenCalled();
       } finally { vi.useRealTimers(); }
+    });
+
+    // A double click on the row: its second press is part of the same click.
+    test("the second press of a double click does not end it", async () => {
+      const f = await waiting();
+      press(element("blank workspace"), 2);
+      answer(f, 5);
+      f.render();
+      expect(f.locate).toHaveBeenCalledExactlyOnceWith("n2", 5, two);
+      expect(f.card.focus).toHaveBeenCalledOnce();
     });
 
     // The row click's own press lands before the canvas opens and asks.
