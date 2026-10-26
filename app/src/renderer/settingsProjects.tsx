@@ -6,6 +6,7 @@ import type { ConfigWrite } from "../preload/settings";
 import { cardRow, groupProjects, type RowAction } from "./homeCards";
 import { NO_TOKEN_HELPER } from "./onboardingView";
 import { SettingsDialog } from "./SettingsDialog";
+import { AlertIcon } from "./AlertIcon";
 
 const chipClass = (entry: FolderEntry) => `ob-chip${entry.kind === "error" ? " err" : entry.kind === "notFound" || entry.kind === "cliError" ? " warn" : ""}`;
 const baseName = (path: string) => path.split("/").filter(Boolean).at(-1) ?? path;
@@ -126,7 +127,7 @@ function ProjectDetail({ entry, name, displayPath, onBusy }: { entry: FolderEntr
     void promise.catch(error => setError({ section: null, message: error instanceof Error ? error.message : String(error) }));
   }
   const notice = (section: ConfigKind) => busy === section ? <span className="saved pending" role="status">Saving…</span> : saved === section ? <span className="saved" role="status">✓ Saved</span> : null;
-  const message = (section: ConfigKind | null) => error?.section === section ? <p className="pj-msg" role="alert">{error.message}</p> : null;
+  const message = (section: ConfigKind | null) => error?.section === section ? <p className="pj-msg" role="alert"><AlertIcon /><span>{error.message}</span></p> : null;
   const disabled = !!busy || picking || reading || !!choice;
   useEffect(() => {
     if (disabled || !returnFocus.current) return;
@@ -144,7 +145,7 @@ function ProjectDetail({ entry, name, displayPath, onBusy }: { entry: FolderEntr
     {reading && !config && entry.kind === "list" ? <p className="pj-helper">Reading…</p> : <div className="pj-sec"><p className="ihead">Root {row.chip && <span className={chipClass(entry)}>{row.chip}</span>}</p><p className="pj-val"><span className="v">{entry.kind === "notFound" ? <><code>{displayPath}</code> is gone or moved.</> : entry.path}</span></p>
     {entry.kind !== "list" && <div className="wt-actions">{row.actions.map(value => <button className={`btn${value === "remove" || value === "details" ? " ghost" : ""}`} key={value} onClick={() => action(value)}>{labels[value]}</button>)}</div>}</div>}
     {message(null)}
-    {entry.kind === "list" && readError && <div><p className="pj-msg" role="alert">{readError}</p><button className="btn" disabled={disabled} onClick={() => { rememberFocus("tokenCss"); void read(); }}>Retry</button></div>}
+    {entry.kind === "list" && readError && <div><p className="pj-msg" role="alert"><AlertIcon /><span>{readError}</span></p><button className="btn" disabled={disabled} onClick={() => { rememberFocus("tokenCss"); void read(); }}>Retry</button></div>}
     {entry.kind === "list" && config && <><div className="pj-sec"><p className="ihead">Token CSS {notice("tokenCss")}</p><p className="pj-val"><span className={`v${config.tokenCss ? "" : " none"}`}>{config.tokenCss ?? "None"}</span><button ref={tokenButton} className="btn" disabled={disabled} onClick={() => void choose("tokenCss")}>Change…</button>{config.tokenCss && <button className="btn ghost" disabled={disabled} onClick={() => void write({ root: entry.path, op: "clearTokenCss" }, "tokenCss")}>Clear</button>}</p>{!config.tokenCss && <p className="pj-helper">{NO_TOKEN_HELPER}</p>}{message("tokenCss")}</div>
       <div className="pj-sec"><p className="ihead">Serve {notice("serve")}</p>{config.serve.length > 0 && <ul className="pj-serve">{config.serve.map(path => <li key={path}><span className="v">{path}</span><button className="btn ghost" disabled={disabled} onClick={() => void write({ root: entry.path, op: "removeServe", path }, "serve")}>Remove</button></li>)}</ul>}<p className="pj-val">{config.serve.length === 0 && <span className="v none">Nothing else is served.</span>}<button ref={serveButton} className="btn" disabled={disabled} onClick={() => void choose("serve")}>Add…</button></p><p className="pj-helper">Canvases can read files in design/, the token CSS and these paths.</p>{message("serve")}</div></>}
     {choice && <SettingsDialog title="Add to serve?" verb="Add to Serve" answer={allow => { const selected = choice; setChoice(null); if (allow) void write({ root: entry.path, op: "addServe", choiceId: selected.choiceId }, "serve"); }}><p>Canvases in this project will be able to read <code>{choice.path}</code>. Add it to serve?</p></SettingsDialog>}

@@ -8,6 +8,10 @@ import { handoffRows } from "../comments/handoff";
 import { COPY_FAILED } from "./onboardingView";
 import type { HandoffCopy, HandoffDialog } from "./CommentsSession";
 import { HandOffDialog, handoffContext, staleText, type HandOffDialogProps } from "./HandOffDialog";
+import { AlertIcon } from "./AlertIcon";
+
+// The icon that leads every error and warning, as the components render it.
+const icon = renderToStaticMarkup(<AlertIcon />), icon20 = renderToStaticMarkup(<AlertIcon size={20} />);
 
 const comment = (id: string, body: string, target: Comment["target"] = {}): Comment => ({
   comment: id, body, status: "open", target, canvasHash: "h", createdBy: { kind: "human", name: "A" }, createdAt: `2026-10-25T0${id.slice(1)}:00:00.000Z`, updatedAt: "2026-10-25T00:00:00.000Z",
@@ -62,7 +66,7 @@ describe("the Hand off dialog", () => {
     const out = html(props({ notice: "Comments are per worktree. Your agent should work in feat-checkout (~/code/acme-web-checkout)." }));
     const stops = [...out.matchAll(/<(button|input|summary)[^>]*>([^<]*)/g)].map(([, tag, text]) => tag === "input" ? "row" : text);
     expect(stops).toEqual(["All", "None", "Selection", "row", "row", "row", "Show instruction", "Cancel", "Copy 3"]);
-    expect(out).toContain(`</details><p class="handoff-notice">Comments are per worktree. Your agent should work in feat-checkout (~/code/acme-web-checkout).</p><div class="handoff-actions">`);
+    expect(out).toContain(`</details><p class="handoff-notice doan-notice warning">${icon}<span>Comments are per worktree. Your agent should work in feat-checkout (~/code/acme-web-checkout).</span></p><div class="handoff-actions">`);
     expect(out).not.toMatch(/tabindex="0"/);
   });
   test("the preview is the checked ids' instruction; nothing checked disables Copy 0 and draws no preview", () => {
@@ -98,7 +102,7 @@ describe("copy states", () => {
   });
   test("a failure shows the copy failure in an alert and offers Retry copy with the checks kept", () => {
     const onCopy = vi.fn(), tree = HandOffDialog(props({ onCopy }, { copy: { status: "failed" } }));
-    expect(html(at({ status: "failed" }))).toContain(`<p class="handoff-status error" role="alert">${COPY_FAILED.replace("’", "’")}</p><div class="handoff-actions">`);
+    expect(html(at({ status: "failed" }))).toContain(`<p class="handoff-status doan-notice error" role="alert">${icon}<span>${COPY_FAILED.replace("’", "’")}</span></p><div class="handoff-actions">`);
     expect(boxes(tree).every(box => !box.disabled && box.checked)).toBe(true);
     expect(button(tree, "Cancel").disabled).toBe(false);
     button(tree, "Retry copy").onClick?.(); expect(onCopy).toHaveBeenCalledOnce();
@@ -106,7 +110,7 @@ describe("copy states", () => {
   test("success leaves only Done, with the list and quick select shown but disabled", () => {
     const onClose = vi.fn(), tree = HandOffDialog(props({ onClose }, { copy: { status: "copied", count: 3 } }));
     const out = html(at({ status: "copied", count: 3 }));
-    expect(out).toContain(`<p class="handoff-status ok" role="status">Copied an instruction for 3 comments. Paste it into your Claude Code or Codex session.</p><div class="handoff-actions"><span class="spacer"></span><button type="button" class="comments-btn primary" autofocus="">Done</button></div>`);
+    expect(out).toContain(`<p class="handoff-status doan-notice ok" role="status">Copied an instruction for 3 comments. Paste it into your Claude Code or Codex session.</p><div class="handoff-actions"><span class="spacer"></span><button type="button" class="comments-btn primary" autofocus="">Done</button></div>`);
     expect(html(at({ status: "copied", count: 1 }))).toContain("Copied an instruction for 1 comment. Paste it");
     expect(out).not.toContain("Cancel");
     expect(boxes(tree).every(box => box.disabled)).toBe(true);
@@ -114,7 +118,7 @@ describe("copy states", () => {
     button(tree, "Done").onClick?.(); expect(onClose).toHaveBeenCalledOnce();
   });
   test("a refusal names how many comments left the list", () => {
-    expect(html(at({ status: "stale", count: 2 }))).toContain(`<p class="handoff-status warning" role="alert">2 comments are no longer open and were removed from the list. Review and copy again.</p>`);
+    expect(html(at({ status: "stale", count: 2 }))).toContain(`<p class="handoff-status doan-notice warning" role="alert">${icon}<span>2 comments are no longer open and were removed from the list. Review and copy again.</span></p>`);
     expect(staleText(1)).toBe("1 comment is no longer open and was removed from the list. Review and copy again.");
     const tree = HandOffDialog(at({ status: "stale", count: 2 }));
     expect(button(tree, "Copy 3").disabled).toBe(false); expect(button(tree, "All").disabled).toBe(false);

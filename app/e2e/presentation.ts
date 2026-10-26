@@ -41,10 +41,11 @@ async function token(page: Page, name: string) {
   return page.evaluate(name => { const el = document.createElement("span"); el.style.color = `var(${name})`; document.body.append(el); const color = getComputedStyle(el).color; el.remove(); return color; }, name);
 }
 async function shot(page: Page, name: string) { const path = join(shots, `${name}.png`); await page.screenshot({ path }); console.log(`screenshot: ${path}`); }
-async function focus(page: Page, node: Locator, label: string, primary = true) {
+async function focus(page: Page, node: Locator, label: string) {
   const unfocused = await styles(node); await page.keyboard.press("Tab"); await node.focus();
-  const measured = await styles(node), expected = await token(page, primary ? "--accent-ink" : "--accent-line");
-  check(await node.evaluate(el => el.matches(":focus-visible")) && measured.outline[0] === expected && measured.outline[1] === "1px" && measured.outline[2] === (primary ? "-3px" : "-1px"), label, measured);
+  // One outer ring for every button, primary or not.
+  const measured = await styles(node), expected = await token(page, "--border-focus");
+  check(await node.evaluate(el => el.matches(":focus-visible")) && measured.outline[0] === expected && measured.outline[1] === "2px" && measured.outline[2] === "2px", label, measured);
   check(unfocused.width === measured.width && unfocused.height === measured.height, `${label} geometry unchanged`, measured);
 }
 async function reason(page: Page, label: string) {
@@ -52,7 +53,7 @@ async function reason(page: Page, label: string) {
   if (await row.locator(".cn-name").getAttribute("aria-expanded") !== "true") await row.locator(".cn-name").click();
   const child = row.locator(".ob-reason code"); await child.waitFor();
   const m = await styles(child);
-  check(m.color === await token(page, "--text-2") && m.background === await token(page, "--raised") && m.radius === "4px" && JSON.stringify(m.padding) === JSON.stringify(["0px", "4px", "0px", "4px"]), `${label} actual reason code`, m);
+  check(m.color === await token(page, "--text-subtle") && m.background === await token(page, "--surface-panel") && m.radius === "4px" && JSON.stringify(m.padding) === JSON.stringify(["0px", "4px", "0px", "4px"]), `${label} actual reason code`, m);
   const shared = await styles(row);
   check(shared.display === "grid" && shared.gap === "4px 12px" && shared.padding[0] === "12px", `${label} shared connection CSS`, shared);
   check(await page.locator("html").evaluate(el => getComputedStyle(el).colorScheme) === "light", `${label} renderer light`, await styles(page.locator("html")));
@@ -61,14 +62,15 @@ async function firstPrompt(page: Page, label: string) {
   const input = page.locator(".fp-input"); await input.waitFor();
   await input.fill("a".repeat(501));
   const invalid = await styles(input);
-  check(await input.getAttribute("aria-invalid") === "true" && invalid.outline[0] === await token(page, "--err") && invalid.border === await token(page, "--err") && await page.locator(".fp-error").isVisible(), `${label} invalid focus`, invalid);
+  check(await input.getAttribute("aria-invalid") === "true" && invalid.outline[0] === await token(page, "--border-danger") && invalid.border === await token(page, "--border-danger") && await page.locator(".fp-error").isVisible(), `${label} invalid focus`, invalid);
   const disabled = page.locator(".ob-prompt .btn.primary");
-  check(await disabled.isDisabled() && (await styles(disabled)).opacity === "0.4", `${label} disabled primary preserved`, await styles(disabled));
+  const disabledStyles = await styles(disabled);
+  check(await disabled.isDisabled() && disabledStyles.opacity === "1" && disabledStyles.color === await token(page, "--text-disabled") && disabledStyles.background === await token(page, "--affordance-disabled"), `${label} disabled primary preserved`, disabledStyles);
   await shot(page, `${label}-invalid-focus`);
   await input.press("Tab");
-  check((await styles(input)).border === await token(page, "--err"), `${label} invalid blur border`, await styles(input));
+  check((await styles(input)).border === await token(page, "--border-danger"), `${label} invalid blur border`, await styles(input));
   await input.fill("a sign-in screen");
-  check(await input.getAttribute("aria-invalid") === null && (await styles(input)).outline[0] === await token(page, "--accent-line"), `${label} valid focus`, await styles(input));
+  check(await input.getAttribute("aria-invalid") === null && (await styles(input)).outline[0] === await token(page, "--border-focus"), `${label} valid focus`, await styles(input));
   await focus(page, page.locator(".ob-prompt .btn.primary"), `${label} primary focus`);
   await shot(page, `${label}-focus`);
 }
@@ -191,8 +193,8 @@ try {
       check(JSON.stringify(m.padding) === JSON.stringify(["6px", "12px", "6px", "12px"]), `${label} four-sided tooltip padding`, m);
       await shot(page, `tooltip-${label}`); await page.keyboard.press("Escape");
     }
-    await focus(page, page.getByRole("button", { name: "Fit", exact: true }), "ordinary focus", false);
-    await focus(page, page.getByRole("button", { name: "Reload canvas", exact: true }), "ghost focus", false);
+    await focus(page, page.getByRole("button", { name: "Fit", exact: true }), "ordinary focus");
+    await focus(page, page.getByRole("button", { name: "Reload canvas", exact: true }), "ghost focus");
     for (const width of [960, 1238]) {
     await (await appWindow(app, page)).evaluate((window, width) => window.setContentSize(width, 780), width);
     await page.getByRole("button", { name: "Switch worktree" }).click();

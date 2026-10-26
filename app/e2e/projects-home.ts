@@ -83,7 +83,7 @@ process.exit(result.status ?? 1);
   const checklist = page.getByRole("dialog", { name: "Add projects", exact: true });
   await page.getByText("Add a project to see its design canvases.", { exact: true }).waitFor(); await shot("01-empty");
   assert.equal(await page.locator(".empty .kbd").evaluate(node => getComputedStyle(node).color === getComputedStyle(node.parentElement!).color), true, "primary shortcut uses the primary ink");
-  assert.equal(await page.locator(".empty .kbd").evaluate(node => getComputedStyle(node).opacity), "0.6");
+  assert.equal(await page.locator(".empty .kbd").evaluate(node => getComputedStyle(node).opacity), "1", "the shortcut is not dimmed");
   await add([repo]); await checklist.waitFor();
   assert.equal(await checklist.getByRole("checkbox", { name: "billing worktree", exact: true }).isChecked(), false);
   await checklist.getByRole("checkbox", { name: "billing worktree", exact: true }).check();

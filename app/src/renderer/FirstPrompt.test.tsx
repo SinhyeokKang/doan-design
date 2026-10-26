@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { FirstPromptView, type FirstPromptViewProps } from "./FirstPrompt";
+import { AlertIcon } from "./AlertIcon";
+
+// The icon that leads every error and warning, as the components render it.
+const icon = renderToStaticMarkup(<AlertIcon />), icon20 = renderToStaticMarkup(<AlertIcon size={20} />);
 
 const root = "/Users/alex/code/billing-api";
 const sentence = (subject: string) => `Use the doan skill to make a design canvas in ${root} for ${subject}.`;
@@ -26,14 +30,14 @@ describe("FirstPromptView", () => {
     const html = render({ subject: "a".repeat(517), sentence: null });
     expect(html).toContain('<label class="fp-label" for="fp">What do you want to design?</label><span class="fp-count err">517 / 500</span>');
     expect(html).toContain('class="fp-input invalid" id="fp" type="text" placeholder="a sign-in screen with SSO" aria-invalid="true"');
-    expect(html).toContain('<p class="fp-error" role="alert">Use one line of plain text, up to 500 characters.</p>');
+    expect(html).toContain(`<p class="fp-error" role="alert">${icon}<span>Use one line of plain text, up to 500 characters.</span></p>`);
     expect(html).not.toContain("ob-sentence");
     expect(html).toContain('<button type="button" class="btn primary" disabled="">Copy</button>');
   });
 
   test("a control character: the same message without a count", () => {
     const html = render({ subject: "a pricing page\twith three tiers" });
-    expect(html).toContain('<p class="fp-error" role="alert">Use one line of plain text, up to 500 characters.</p>');
+    expect(html).toContain(`<p class="fp-error" role="alert">${icon}<span>Use one line of plain text, up to 500 characters.</span></p>`);
     expect(html).not.toContain("fp-count");
   });
 
@@ -52,7 +56,7 @@ describe("FirstPromptView", () => {
 
   test("copy failed: the shipped failure sentence and Retry copy, helper kept", () => {
     const html = render({ subject: "x", sentence: sentence("x"), copy: "failed" });
-    expect(html).toContain('<p class="ob-msg error" role="alert">Couldn’t copy. Your clipboard could not be updated. Try again.</p>');
+    expect(html).toContain(`<p class="ob-msg error" role="alert">${icon}<span>Couldn’t copy. Your clipboard could not be updated. Try again.</span></p>`);
     expect(html).toContain(`<div class="ob-actions">${HELPER}<button type="button" class="btn primary">Retry copy</button></div>`);
   });
 

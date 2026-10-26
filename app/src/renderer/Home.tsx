@@ -11,6 +11,7 @@ import type { SetupStatus } from "../main/setupBroker";
 import { homeAlerts } from "../setup/homeAlerts";
 import { CONNECTION_LABELS, CONNECTION_NAMES, connectionBanner } from "./connectionRowView";
 import { ConnectionParts } from "./ConnectionRows";
+import { AlertIcon } from "./AlertIcon";
 
 interface HomeProps {
   homeDirectory: string | null;
@@ -79,7 +80,7 @@ export function ProblemActions({ entry, action, workspace }: { entry: FolderEntr
   const [details, setDetails] = useState(false);
   const row = cardRow(entry, null, null);
   const actions = <div className="wt-actions">{row.actions.map(name => <button className={`btn${name === "remove" || name === "details" ? " ghost" : ""}`} key={name} aria-label={labels[name]} aria-expanded={name === "details" ? details : undefined} onClick={() => name === "details" ? setDetails(!details) : action(name, entry.path)}>{labels[name]}{name === "details" && (details ? " ▾" : " ▸")}</button>)}</div>;
-  const message = details && row.detail && (workspace ? <span className="ob-msg error">{row.detail}</span> : <p className="wt-detail ob-msg error">{row.detail}</p>);
+  const message = details && row.detail && (workspace ? <span className="ob-msg error"><AlertIcon /><span>{row.detail}</span></span> : <p className="wt-detail ob-msg error"><AlertIcon /><span>{row.detail}</span></p>);
   if (!workspace) return <>{actions}{message}</>;
   return <div className="ws-recovery" role="region" aria-label="Project status"><div className="ws-status" role="status">
     <span className={`ob-chip${entry.kind === "error" ? " err" : entry.kind === "cliError" || entry.kind === "notFound" ? " warn" : ""}`}>{row.chip}</span>

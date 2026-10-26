@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ProjectInitResult } from "../main/shell";
 import { formView, initMessage, type ProjectForm } from "./onboardingView";
+import { AlertIcon } from "./AlertIcon";
 
 // One project setup form, used by the wizard's Project step and the sidebar's
 // Set Up… dialog. Main keeps the picked CSS file; the renderer holds only its ID.
@@ -47,7 +48,7 @@ export function ProjectFields({ form, choose, chooseRef }: { form: ProjectForm; 
       <span className="ob-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span>
       <span />
     </div>
-    {view.error && <div className="ob-field"><span className="ob-msg error ob-wide" role="alert">{view.error}</span></div>}
+    {view.error && <div className="ob-field"><span className="ob-msg error ob-wide" role="alert"><AlertIcon /><span>{view.error}</span></span></div>}
   </>;
 }
 

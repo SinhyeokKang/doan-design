@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ScanSnapshot } from "../main/addProjects";
 import { displayPath } from "./projectDisplay";
 import { PathTip } from "./Home";
+import { AlertIcon } from "./AlertIcon";
 
 export function AddProjectsDialog({ scanId, close, added, homeDirectory }: { homeDirectory: string | null; scanId: string; close: () => void; added: (paths: string[]) => void }) {
   const [snapshot, setSnapshot] = useState<ScanSnapshot | null>(null);
@@ -39,7 +40,7 @@ export function AddProjectsDialog({ scanId, close, added, homeDirectory }: { hom
         {item.worktrees.map(tree => <div className={`cl-item${worktreesOnly ? "" : " sub"}`} key={tree.id}><input type="checkbox" aria-label={`${tree.name} worktree`} disabled={busy} checked={choices.get(tree.id) ?? tree.checked} onChange={event => choose(tree.id, event.target.checked)} /><PathTip text={tree.name}><span className="cl-name">{tree.name}<span className="kind">worktree</span></span></PathTip><span /><PathTip text={tree.path}><span className="cl-path">{displayPath(tree.path, homeDirectory)}</span></PathTip></div>)}
       </div>)}
     </div>
-    {error && <p role="alert" className="ob-msg error">{error}</p>}
+    {error && <p role="alert" className="ob-msg error"><AlertIcon /><span>{error}</span></p>}
     <div className="add-foot">{!snapshot?.done ? <span className="scan" role="status"><span className="spinner" />{snapshot?.finished ?? 0} of {snapshot?.total ?? 0} checked</span> : <span className="meta">{selected.length} selected</span>}<span className="spacer" /><button className="btn" ref={cancelButton} autoFocus disabled={busy} onClick={cancel}>{worktreesOnly ? "Not Now" : "Cancel"}</button><button className="btn primary" disabled={!snapshot?.done || !selected.length || busy} onClick={() => void submit()}>{worktreesOnly ? "Add Worktrees" : selected.length ? `Add ${selected.length} Project${selected.length === 1 ? "" : "s"}` : "Add Projects"}</button></div>
   </dialog>;
 }
@@ -53,6 +54,6 @@ export function SetUpFolderConfirm({ name, path, confirm, cancel }: { name: stri
   useEffect(() => { if (error && !busy) retry.current?.focus(); }, [error, busy]);
   const close = () => { if (!busy) { dialog.current?.close(); cancel(); } };
   return <dialog className="ob-dialog" aria-label={`Set up ${name} as a doan project?`} ref={node => { dialog.current = node; if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); close(); }} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); } }}>
-    <h3>Set up {name} as a doan project?</h3><p><code>{path}</code> isn't a repository. doan will add it as a project that is not set up yet, then open the setup form.</p>{error && <p role="alert" className="ob-msg error">{error}</p>}<div className="ob-buttons"><button className="btn" autoFocus disabled={busy} onClick={close}>Cancel</button><button className="btn primary" ref={retry} disabled={busy} onClick={() => { setBusy(true); void confirm().catch(failure => { setError(failure instanceof Error ? failure.message : String(failure)); setBusy(false); }); }}>Set Up…</button></div>
+    <h3>Set up {name} as a doan project?</h3><p><code>{path}</code> isn't a repository. doan will add it as a project that is not set up yet, then open the setup form.</p>{error && <p role="alert" className="ob-msg error"><AlertIcon /><span>{error}</span></p>}<div className="ob-buttons"><button className="btn" autoFocus disabled={busy} onClick={close}>Cancel</button><button className="btn primary" ref={retry} disabled={busy} onClick={() => { setBusy(true); void confirm().catch(failure => { setError(failure instanceof Error ? failure.message : String(failure)); setBusy(false); }); }}>Set Up…</button></div>
   </dialog>;
 }

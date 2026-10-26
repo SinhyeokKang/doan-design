@@ -182,7 +182,7 @@
 
   /* Type roles: size, line height, tracking and weight travel together. Regular
      is for reading and form labels, medium for actions and structure. */
-  --font-sans: var(--font-system-sans);
+  --type-family: var(--font-system-sans);
   --type-weight-regular: 400;
   --type-weight-medium: 500;
   --type-caption-size: 12px;
@@ -226,7 +226,7 @@
   /* Old drafts pair this mid grey with the white accent ink on primary buttons: 3.95:1,
      under the body target, accepted because those drafts are history, not screens. */
   --accent: var(--border-prominent);
-  --accent-ink: var(--violet-ink);
+  --accent-ink: var(--text-on-accent);
   --accent-soft: var(--surface-navigation-selected);
   --accent-line: var(--border-focus);
   --board-bg: var(--surface-inset);
@@ -239,4 +239,5 @@
   --tl-red: var(--window-close);
   --tl-yellow: var(--window-minimize);
   --tl-green: var(--window-zoom);
+  --font-sans: var(--type-family);
 }

@@ -7,6 +7,7 @@ import { connectionConfirm } from "./connectionRowView";
 import { idleUi, type MachineUi, type Row } from "./onboardingView";
 import { SettingsDialog } from "./SettingsDialog";
 import { SettingsProjects } from "./settingsProjects";
+import { AlertIcon } from "./AlertIcon";
 
 export function SettingsWindow() {
   const [tab, setTab] = useState<SettingsTab>("connections");
@@ -48,7 +49,7 @@ export function SettingsWindow() {
     event.preventDefault(); const next = event.key === "Home" ? "connections" : event.key === "End" ? "projects" : value === "connections" ? "projects" : "connections";
     select(next); event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button")[next === "connections" ? 0 : 1]?.focus();
   }}>{value === "connections" ? "Connections" : "Projects"}</button>)}</div></div>
-    {error && <p role="alert" className="pj-msg">{error}</p>}
+    {error && <p role="alert" className="pj-msg"><AlertIcon /><span>{error}</span></p>}
     {tab === "connections" ? <SettingsConnections onBusy={reportBusy} target={target?.tab === "connections" ? target : null} /> : <SettingsProjects onBusy={reportBusy} target={target?.tab === "projects" ? target : null} />}
   </main>;
 }
@@ -113,9 +114,9 @@ function SettingsConnections({ target, onBusy }: { onBusy: (busy: boolean) => vo
   const busy = !!status?.busy || ui.running !== null;
   const view = confirm && machine ? connectionConfirm(confirm.target, confirm.row === "cli" ? "claude" : confirm.row, machine) : null;
   return <section className="st-body" role="tabpanel" aria-label="Connections"><div className="st-head"><p className="st-lead">Your agents reach doan through these three. Each row says whether that works right now.</p><button className="btn" disabled={busy || ui.checking} onClick={check}>Check Again</button></div>
-    {status?.busy && !ui.running && <p className="st-notice" role="status">Another window is running a setup step. These buttons work again when it finishes.</p>}
-    {installError && <p className="st-notice error" role="alert">{installError}</p>}
-    {ui.readError && <p className="st-notice error" role="alert">{ui.readError}</p>}
+    {status?.busy && !ui.running && <p className="st-notice doan-notice warning" role="status"><AlertIcon /><span>Another window is running a setup step. These buttons work again when it finishes.</span></p>}
+    {installError && <p className="st-notice doan-notice error" role="alert"><AlertIcon /><span>{installError}</span></p>}
+    {ui.readError && <p className="st-notice doan-notice error" role="alert"><AlertIcon /><span>{ui.readError}</span></p>}
     <ConnectionRows machine={machine} ui={ui} rows={["cli", "claude", "codex"]} busy={busy} target={rowTarget} justConnected={justConnected} run={run} checkAgain={check} install={agent => {
       const request = ++installRequests.current; setInstallError(null);
       void window.doanSettings.openInstallPage(agent).then(ok => { if (live.current && request === installRequests.current && !ok) setInstallError("Couldn’t open the install page."); }).catch(error => { if (live.current && request === installRequests.current) setInstallError(error instanceof Error ? error.message : String(error)); });

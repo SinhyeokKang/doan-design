@@ -5,7 +5,11 @@ import type { ProjectComments } from "../main/projectComments";
 import type { CanvasRow, OrphanFile } from "../main/view";
 import { OrphanSession, orphanKey } from "./CommentsSession";
 import { FeedbackPanel, type FeedbackPanelProps } from "./FeedbackPanel";
+import { AlertIcon } from "./AlertIcon";
 import type { ProjectRead } from "./homeCards";
+
+// The icon that leads every error and warning, as the components render it.
+const icon = renderToStaticMarkup(<AlertIcon />), icon20 = renderToStaticMarkup(<AlertIcon size={20} />);
 
 // project-feedback spec 'Feedback 패널' and '갈 곳 잃은 댓글'; draft frames
 // `feedback-panel`, `feedback-states` and `orphan-cards` (their English copy).
@@ -35,7 +39,7 @@ describe("FeedbackPanel states (draft feedback-states)", () => {
   test("a failed read: one alert block with Retry, no counts, no tree", () => {
     const html = render({ read: { kind: "failed" } });
     expect(html).toContain('<button type="button" aria-pressed="true">Open</button>');
-    expect(html).toContain('<div class="comments-message error" role="alert"><b>Couldn’t read comments</b><div class="comments-tools"><button type="button" class="comments-btn">Retry</button></div></div>');
+    expect(html).toContain(`<div class="comments-message error" role="alert">${icon20}<b>Couldn’t read comments</b><div class="comments-tools"><button type="button" class="comments-btn">Retry</button></div></div>`);
     expect(html).not.toContain('role="tree"');
   });
 
@@ -50,7 +54,7 @@ describe("FeedbackPanel states (draft feedback-states)", () => {
     const head = html.indexOf('aria-label="Checkout"');
     expect(head).toBeGreaterThan(-1);
     expect(html.slice(head)).toMatch(/^aria-label="Checkout"[^>]*>(?:(?!<\/div>).)*<span class="g">Checkout<\/span><span><\/span>/);
-    expect(html).toContain('<div class="comments-message error" role="alert"><b>Couldn’t read comments</b><div class="comments-tools"><button type="button" class="comments-btn">Retry</button><button type="button" class="comments-btn" aria-label="Details" aria-expanded="false">Details ▸</button></div></div>');
+    expect(html).toContain(`<div class="comments-message error" role="alert">${icon20}<b>Couldn’t read comments</b><div class="comments-tools"><button type="button" class="comments-btn">Retry</button><button type="button" class="comments-btn" aria-label="Details" aria-expanded="false">Details ▸</button></div></div>`);
   });
 
   test("only comments without a canvas: that group alone", () => {
@@ -105,7 +109,7 @@ describe("FeedbackPanel orphan cards (draft orphan-cards)", () => {
 
   test("notice, then the shared card with Resolve and Delete, no Edit, no locate", () => {
     const html = render({ read: list([], [orphan("checkout-v1", 1, 1)], [{ id: "checkout-v1", comments: [open, done] }]) });
-    expect(html).toContain('<p class="fb-note">No canvas uses the ID checkout-v1. Give a canvas this ID again to bring these comments back, or ask your agent.</p>');
+    expect(html).toContain('<p class="fb-note doan-notice">No canvas uses the ID checkout-v1. Give a canvas this ID again to bring these comments back, or ask your agent.</p>');
     expect(html).toContain('<article class="comments-card" tabindex="-1" data-comment="' + open.comment + '" aria-label="Comment by Kim Doe">');
     expect(html).toContain('<span class="comments-target static" title="[data-doan-id=&quot;address&quot;]">Element · label address · in shipping</span>');
     expect(html).toContain('<p class="comments-body">Accept two address lines.\nSay so in the placeholder.</p><div class="comments-tools"><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Delete</button></div>');
@@ -121,7 +125,7 @@ describe("FeedbackPanel orphan cards (draft orphan-cards)", () => {
 
   test("read-only while some canvas could not be read: warning notice, no buttons", () => {
     const html = render({ read: list([], [orphan("checkout-v1", 1, 0, { uncertain: true })], [{ id: "checkout-v1", comments: [open] }]) });
-    expect(html).toContain('<p class="fb-note warning">Some canvases couldn’t be read; these comments may belong to one of them.</p>');
+    expect(html).toContain(`<p class="fb-note doan-notice warning">${icon}Some canvases couldn’t be read; these comments may belong to one of them.</p>`);
     expect(html).not.toContain(">Resolve<");
     expect(html).not.toContain(">Delete<");
   });
@@ -143,7 +147,7 @@ describe("FeedbackPanel orphan cards (draft orphan-cards)", () => {
     const orphans = new OrphanSession({ orphanCommentsMutate: vi.fn(async r => ({ ok: false as const, identity: { root: r.root, canvas: r.canvas, requestID: r.requestID }, error: "Configure a Git user name before saving comments." })), orphanCommentsStatus: vi.fn() }, () => {});
     await orphans.mutate("resolve", { root: "/code/acme", canvas: "promo-banner", project: 4 }, open);
     const html = render({ orphans, read: list([], [orphan("promo-banner", 1, 0)], [{ id: "promo-banner", comments: [open] }]) });
-    expect(html).toContain('<span class="cnt hot">1</span></div><div class="comments-message warning inset" role="status"><b>Set your Git name</b>Set git user.name for this repository in your terminal, then choose Retry. Your email is optional.<p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Hand off remains available.</p><div class="comments-tools"><button type="button" class="comments-btn">Retry</button></div></div>');
+    expect(html).toContain('<span class="cnt hot">1</span></div><div class="comments-message warning inset" role="status">' + icon20 + '<b>Set your Git name</b>Set git user.name for this repository in your terminal, then choose Retry. Your email is optional.<p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Hand off remains available.</p><div class="comments-tools"><button type="button" class="comments-btn">Retry</button></div></div>');
     expect(html).toContain('<button type="button" class="comments-btn" disabled="">Resolve</button><button type="button" class="comments-btn" disabled="">Delete</button>');
   });
 
@@ -152,7 +156,7 @@ describe("FeedbackPanel orphan cards (draft orphan-cards)", () => {
     await orphans.mutate("resolve", { root: "/code/acme", canvas: "checkout-v1", project: 4 }, open);
     expect(orphans.mutations.get(orphanKey("/code/acme", "checkout-v1", open.comment))?.status).toBe("failed");
     const html = render({ orphans, read: list([], [orphan("checkout-v1", 1, 0)], [{ id: "checkout-v1", comments: [open] }]) });
-    expect(html).toContain('<div class="comments-message error" role="status"><b>Couldn’t save comment</b>The comment file no longer exists.<div class="comments-tools"><button type="button" class="comments-btn">Retry</button></div></div>');
+    expect(html).toContain('<div class="comments-message error" role="status">' + icon20 + '<b>Couldn’t save comment</b>The comment file no longer exists.<div class="comments-tools"><button type="button" class="comments-btn">Retry</button></div></div>');
   });
 
   test("no project epoch in the read: no write is possible", () => {

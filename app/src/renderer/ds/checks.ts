@@ -72,6 +72,13 @@ function rootTokens(css: string) {
   return tokens;
 }
 
+// tokens.css keeps its palette in the first :root block, so a name defined there is a
+// palette step and anything later is a role or a legacy name.
+function paletteNames(css: string) {
+  const first = blocks(css).find(block => isRoot(block.prelude));
+  return new Set(first?.declarations.filter(d => d.prop.startsWith("--")).map(d => d.prop) ?? []);
+}
+
 const varPattern = /var\(\s*(--[\w-]+)/g;
 const runtimeVariable = (name: string) => name.startsWith("--tw-") || name.startsWith("--radix-");
 
@@ -109,7 +116,7 @@ export const legacyNames = ["bg", "panel", "panel-2", "raised", "line", "line-2"
 
 /** Lists problems with the legacy names, which must stay as aliases of roles in the same file. */
 export function legacyAliases(tokensCss: string): string[] {
-  const tokens = rootTokens(tokensCss), problems: string[] = [];
+  const tokens = rootTokens(tokensCss), palette = paletteNames(tokensCss), problems: string[] = [];
   for (const name of legacyNames) {
     const value = tokens.get(name);
     if (value === undefined) { problems.push(`${name} is missing`); continue; }
@@ -117,15 +124,32 @@ export function legacyAliases(tokensCss: string): string[] {
     if (!target) problems.push(`${name} is not a var() alias: ${value}`);
     else if (!tokens.has(target)) problems.push(`${name} points to undefined ${target}`);
     else if (legacyNames.includes(target)) problems.push(`${name} points to legacy name ${target}`);
+    else if (palette.has(target)) problems.push(`${name} points to palette step ${target}`);
   }
   return problems;
 }
 
-export const violetRoles = ["--surface-sidebar-selected", "--text-sidebar-selected", "--affordance-sidebar-hover", "--affordance-accent", "--affordance-accent-hover", "--affordance-accent-pressed", "--text-on-accent", "--surface-comment", "--text-comment", "--border-pin"];
-const readsViolet = (text: string) => [...text.matchAll(varPattern)].some(match => violetRoles.includes(match[1]!) || match[1]!.startsWith("--violet-"));
+// Every token whose var() chain reaches a --violet-* palette step, so a role or a legacy
+// name that only forwards to violet counts as violet too.
+function violetNames(tokensCss: string) {
+  const tokens = rootTokens(tokensCss), memo = new Map<string, boolean>();
+  const reaches = (name: string, seen: Set<string>): boolean => {
+    if (name.startsWith("--violet-")) return true;
+    const known = memo.get(name);
+    if (known !== undefined) return known;
+    const value = tokens.get(name);
+    if (value === undefined || seen.has(name)) return false;
+    const result = [...value.matchAll(varPattern)].some(match => reaches(match[1]!, new Set([...seen, name])));
+    memo.set(name, result);
+    return result;
+  };
+  return new Set([...tokens.keys()].filter(name => reaches(name, new Set())));
+}
 
-/** Lists, in source order, each selector (or TS file, or `@theme`) that reads a violet role. */
-export function accentPlaces(files: SourceFile[]): string[] {
+/** Lists, in source order, each selector (or TS file, or `@theme`) that reads a token reaching violet. */
+export function accentPlaces(files: SourceFile[], tokensCss: string): string[] {
+  const violet = violetNames(tokensCss);
+  const readsViolet = (text: string) => [...text.matchAll(varPattern)].some(match => match[1]!.startsWith("--violet-") || violet.has(match[1]!));
   const places: string[] = [];
   const add = (place: string) => { if (!places.includes(place)) places.push(place); };
   for (const file of files) {
@@ -140,6 +164,75 @@ export function accentPlaces(files: SourceFile[]): string[] {
     }
   }
   return places;
+}
+
+export interface EdgeStripe { path: string; line: number; selector: string; declaration: string }
+
+// A start-side rule may only be a 1px pane divider in a neutral border role; anything
+// thicker or coloured marks a message, notice, card or row, which the design forbids.
+const neutralDividers = ["--border-standard", "--border-prominent"];
+const startSide = /^border-(left|inline-start)(-width|-color)?$/;
+const lengthPx = (token: string) => /^-?\d*\.?\d+px$/.test(token) ? Math.abs(parseFloat(token)) : token === "0" ? 0 : undefined;
+
+function stripeAllowed(width: number, colour: string | undefined) {
+  if (width === 0) return true;
+  if (width >= 2) return false;
+  if (colour === undefined) return true;
+  const role = /^var\(\s*(--[\w-]+)\s*\)$/.exec(colour)?.[1];
+  return role !== undefined && neutralDividers.includes(role);
+}
+
+function startBorderAllowed(prop: string, value: string) {
+  if (/^(0|none|hidden)$/.test(value)) return true;
+  const part = startSide.exec(prop)?.[2];
+  if (part === "-width") return (lengthPx(value) ?? 2) < 2;
+  if (part === "-color") return stripeAllowed(1, value);
+  const words = splitWords(value);
+  const width = words.map(lengthPx).find(px => px !== undefined);
+  const colour = words.find(word => lengthPx(word) === undefined && !/^(solid|dashed|dotted|double|groove|ridge|inset|outset|thin|medium|thick)$/.test(word));
+  return stripeAllowed(width ?? 1, colour);
+}
+
+// Splits a value on spaces outside parentheses.
+function splitWords(text: string) {
+  const words: string[] = [];
+  let depth = 0, current = "";
+  for (const ch of text) {
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    if (/\s/.test(ch) && depth === 0) { if (current) words.push(current); current = ""; }
+    else current += ch;
+  }
+  if (current) words.push(current);
+  return words;
+}
+
+// An inset shadow with a horizontal offset and no vertical one draws a side stripe.
+function insetStripeAllowed(value: string) {
+  return splitTopLevel(value).every(layer => {
+    const words = splitWords(layer);
+    if (!words.includes("inset")) return true;
+    const lengths = words.map(lengthPx).filter((px): px is number => px !== undefined);
+    const [x = 0, y = 0] = lengths;
+    if (x === 0 || y !== 0) return true;
+    return stripeAllowed(x, words.find(word => word !== "inset" && lengthPx(word) === undefined));
+  });
+}
+
+/** Lists start-side border and inset-shadow stripes in renderer CSS that are thicker than 1px or not neutral. */
+export function edgeStripes(files: SourceFile[]): EdgeStripe[] {
+  const found: EdgeStripe[] = [];
+  for (const file of files) {
+    if (!file.path.endsWith(".css")) continue;
+    for (const block of blocks(file.text)) {
+      for (const d of block.declarations) {
+        const allowed = startSide.test(d.prop) ? startBorderAllowed(d.prop, d.value)
+          : d.prop === "box-shadow" ? insetStripeAllowed(d.value) : true;
+        if (!allowed) found.push({ path: file.path, line: lineAt(file.text, d.valueStart), selector: block.prelude, declaration: `${d.prop}: ${d.value}` });
+      }
+    }
+  }
+  return found;
 }
 
 /** The inner corner that stays concentric with an outer one: max(0, outer − inset − border). */

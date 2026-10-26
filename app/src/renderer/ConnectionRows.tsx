@@ -3,6 +3,7 @@ import type { MachineState } from "../main/onboarding/machine";
 import type { Agent } from "../main/onboarding/states";
 import { agentsView, cliItems, copyLabel, PATH_LINE_TEXT, COPY_FAILED, type ItemView, type MachineUi, type Part, type Row } from "./onboardingView";
 import { CONNECTION_NAMES, connectionRow } from "./connectionRowView";
+import { AlertIcon } from "./AlertIcon";
 
 const MCP_WAITS = "Connect the doan command first; MCP needs it.";
 // main's MCP refusal names the wizard's step 1, which Settings does not have; the
@@ -57,7 +58,7 @@ function DetailItem({ item, reason }: { item: ItemView; reason?: ReactNode }) {
   return <><div className={`ob-item${item.dimmed ? " dimmed" : ""}`}>
     <span className="ob-label">{item.label}</span><span className="ob-detail"><ConnectionParts parts={item.detail} /></span>
     <span className="ob-status">{item.chip && <span className={`ob-chip${item.chip.tone ? ` ${item.chip.tone}` : ""}`}>{item.chip.text}</span>}</span>
-    {item.msg && <span className={`ob-msg ${item.msg.tone}`}><ConnectionParts parts={item.msg.parts} /></span>}
+    {item.msg && <span className={`ob-msg ${item.msg.tone}`}>{item.msg.tone !== "ok" && <AlertIcon />}<span><ConnectionParts parts={item.msg.parts} /></span></span>}
     {(reason || item.reason) && !item.dimmed && <span className="ob-reason">{reason ?? item.reason}</span>}
   </div>{item.reason && item.dimmed && <div className="ob-item ob-notice"><span /><span className="ob-reason">{item.reason}</span></div>}</>;
 }
@@ -74,7 +75,7 @@ function Details({ machine, ui, row, copyPath }: Pick<ConnectionRowsProps, "mach
       {machine?.probe.ok && !machine.pathPresent ? <div className="cn-opt"><span className="cn-opt-head">Use doan in your terminal <span className="ob-chip">Optional</span></span>
         <p>{machine.rcFile ? <>Add this line to <code>{machine.rcFile}</code>, then open a new terminal. Agents don’t need it.</> : "Add ~/.local/bin to PATH in your shell configuration, then choose Check Again."}</p>
         {machine.rcFile && <span className="ob-copyline"><output>{PATH_LINE_TEXT}</output><button className="btn" disabled={ui.pathCopy === "copying"} onClick={copyPath}>{copyLabel(ui.pathCopy)}</button></span>}
-        {ui.pathCopy === "failed" && <p role="alert" className="ob-msg error">{COPY_FAILED}</p>}</div> : items.slice(1).map(item => <DetailItem key={item.key} item={item} />)}</>;
+        {ui.pathCopy === "failed" && <p role="alert" className="ob-msg error"><AlertIcon /><span>{COPY_FAILED}</span></p>}</div> : items.slice(1).map(item => <DetailItem key={item.key} item={item} />)}</>;
   }
   const agents = agentsView(machine, detailUi);
   const agent = agents.agents.find(card => card.agent === row);

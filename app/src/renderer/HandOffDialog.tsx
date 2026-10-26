@@ -5,6 +5,7 @@ import { handoffCopied, quickSelect, type QuickKind } from "../comments/handoff"
 import { groupProjects } from "./homeCards";
 import { COPY_FAILED } from "./onboardingView";
 import type { HandoffDialog } from "./CommentsSession";
+import { AlertIcon } from "./AlertIcon";
 
 // design/agent-handoff.html, frames dialog, dialog-states and copy-states.
 
@@ -81,10 +82,10 @@ export function HandOffDialog({ dialog, context, notice, onToggle, onQuick, onCo
       </label>)}
     </div>}
     {n > 0 && <details className="handoff-instruction"><summary>Show instruction</summary><div className="handoff-preview">{copyText(dialog.root, dialog.canvas, rows.map(row => row.comment), checked)}</div></details>}
-    {notice && <p className="handoff-notice">{notice}</p>}
-    {copy.status === "failed" && <p className="handoff-status error" role="alert">{COPY_FAILED}</p>}
-    {copy.status === "stale" && <p className="handoff-status warning" role="alert">{staleText(copy.count)}</p>}
-    {copy.status === "copied" && <p className="handoff-status ok" role="status">{handoffCopied(copy.count)}</p>}
+    {notice && <p className="handoff-notice doan-notice warning"><AlertIcon /><span>{notice}</span></p>}
+    {copy.status === "failed" && <p className="handoff-status doan-notice error" role="alert"><AlertIcon /><span>{COPY_FAILED}</span></p>}
+    {copy.status === "stale" && <p className="handoff-status doan-notice warning" role="alert"><AlertIcon /><span>{staleText(copy.count)}</span></p>}
+    {copy.status === "copied" && <p className="handoff-status doan-notice ok" role="status">{handoffCopied(copy.count)}</p>}
     <div className="handoff-actions">
       {n === 0 && !locked ? <span className="comments-helper">Choose at least one comment.</span> : <span className="spacer" />}
       {!copied && <button type="button" className="comments-btn" disabled={copying} onClick={close}>Cancel</button>}

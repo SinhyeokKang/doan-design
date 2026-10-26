@@ -4,7 +4,11 @@ import { describe, expect, test, vi } from "vitest";
 import type { Comment } from "../formats/types";
 import { foldText } from "../formats/foldText";
 import { READ_FAILED_EDITOR } from "../comments/panelText";
+import { AlertIcon } from "./AlertIcon";
 import { CommentsPanel, DeleteCommentDialog, CommentCard, CommentEditor, UnsavedCommentDialog, UncertainCommentDialog, revealComposer, type CommentsPanelProps, type CommentEditorProps, type CommentCardProps } from "./CommentsPanel";
+
+// The icon that leads every error and warning, as the components render it.
+const icon = renderToStaticMarkup(<AlertIcon />), icon20 = renderToStaticMarkup(<AlertIcon size={20} />);
 
 // Tests call the editor as a plain function to read its element tree, outside
 // a React render; its reason id still comes from useId in the app.
@@ -89,7 +93,7 @@ describe("Comments presentation", () => {
     const warnings = [{ code: "invalid_event", line: 9 }, { code: "agent_not_allowed", line: 12 }, { code: "invalid_event", line: 5 }] as const;
     const out = html(panel({ read: { status: "ready", comments: [comment], warnings } }));
     const block = /<div class="comments-message warning comments-warnings">.*?<\/div>/s.exec(out)?.[0] ?? "";
-    expect(block).toBe(`<div class="comments-message warning comments-warnings"><b>Some comment changes were ignored</b><ul>`
+    expect(block).toBe(`<div class="comments-message warning comments-warnings">${icon20}<b>Some comment changes were ignored</b><ul>`
       + `<li>A line could not be read and was skipped.<span class="lines">Lines 5, 9</span></li>`
       + `<li>An agent tried to add or edit a comment. Agents can only resolve, so it was ignored.<span class="lines">Line 12</span></li></ul>`
       + `<p class="file">In .doan/comments/checkout.jsonl. Ask your agent to run doan comments and fix the file.</p></div>`);
@@ -394,7 +398,7 @@ describe("identity, read failure and head controls", () => {
     ["duplicate", "Another canvas uses the ID checkout", "Ask your agent to give one of them a different ID. Run doan check in a terminal to see details."],
   ] as const)("the %s canvas ID cause shows only its block: no loading, Git name, filters or tools", (cause, title, body) => {
     const out = html(panel({ identityCause: cause, read: { status: "loading" }, author: { status: "missing" }, writeBlocked: "A valid, unique canvas ID is required." }));
-    expect(out).toContain(`<div class="comments-message error" role="alert"><b>${title.replace("'", "&#x27;")}</b>${body}</div>`);
+    expect(out).toContain(`<div class="comments-message error" role="alert">${icon20}<b>${title.replace("'", "&#x27;")}</b>${body}</div>`);
     for (const text of ["Loading comments…", "Set your Git name", "Comment scope", "Comment status", "Hand off…", "Comment on canvas", "Comments are read-only"]) expect(out).not.toContain(text);
     expect(out.match(/comments-message/g)).toHaveLength(1);
   });
@@ -536,7 +540,7 @@ describe("editing a resolved comment and replacing a missing target (revision-re
   test("a resolved comment's editor puts Save and reopen last as primary, Save only before it, and says why", () => {
     const out = renderToStaticMarkup(<CommentEditor {...editor({ mode: "edit", saveOnly: noop })} />);
     expect(buttons(out)).toEqual(["Cancel", "Save only", "Save and reopen"]);
-    expect(out).toContain(`<button type="button" class="comments-btn primary">Save and reopen</button>`);
+    expect(out).toContain(`<button type="button" class="comments-btn primary submit">Save and reopen</button>`);
     expect(out).toContain(`<p class="comments-helper">Agents read open comments only.</p>`);
     const onSave = vi.fn(), saveOnly = vi.fn(), tree = CommentEditor(editor({ mode: "edit", onSave, saveOnly }));
     find(tree, "Save and reopen").onClick?.(); find(tree, "Save only").onClick?.();
@@ -603,7 +607,7 @@ describe("editing a resolved comment and replacing a missing target (revision-re
 // the head, above the review notice, and above the canvas-ID block.
 describe("id change notice", () => {
   const notice = { text: "3 comments still use the old ID checkout-v1 and no longer show here.", onShow: noop };
-  const banner = '<div class="comments-message warning notice" role="status">3 comments still use the old ID checkout-v1 and no longer show here.<button type="button" class="comments-btn">Show</button></div>';
+  const banner = `<div class="comments-message warning notice" role="status">${icon}3 comments still use the old ID checkout-v1 and no longer show here.<button type="button" class="comments-btn">Show</button></div>`;
 
   test("sits right under the head, before the review notice", () => {
     const html = renderToStaticMarkup(<CommentsPanel {...panel({ idNotice: notice, reviewNotice: { count: 3, firstSeen: false, blocked: false, onStart: noop } })} />);

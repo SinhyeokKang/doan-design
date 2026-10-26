@@ -14,6 +14,7 @@ import { connectionConfirm } from "./connectionRowView";
 import { FirstPrompt, FirstPromptContext } from "./FirstPrompt";
 import { PathTip } from "./Home";
 import { ProjectFields, useProjectSetup } from "./ProjectSetupDialog";
+import { AlertIcon } from "./AlertIcon";
 
 export type Reroot = FolderFocus & { seq: number };
 
@@ -293,12 +294,12 @@ export function Wizard({ session, entries, reroot, homeDirectory, addOutcome, on
     <div className="ob-body native-scroll"><div className="ob-form">
       <h2>{STEP_COPY[step]?.heading}</h2>
       <p className="ob-lead"><Parts parts={STEP_COPY[step]?.lead ?? []} /></p>
-      {ui.readError && <p className="ob-msg error" role="alert">{ui.readError}</p>}
-      {installError && <p className="ob-msg error" role="alert">{installError}</p>}
+      {ui.readError && <p className="ob-msg error" role="alert"><AlertIcon /><span>{ui.readError}</span></p>}
+      {installError && <p className="ob-msg error" role="alert"><AlertIcon /><span>{installError}</span></p>}
       {addMessage && <p role="status">{addMessage}</p>}
-      {step !== 2 && refused && <p className="ob-msg error" role="alert">{refused}</p>}
+      {step !== 2 && refused && <p className="ob-msg error" role="alert"><AlertIcon /><span>{refused}</span></p>}
       {step === 0 && rows(["cli"])}
-      {step === 1 && <>{rows(["claude", "codex"])}{noAgent && <p className="cn-note" role="status">{noAgent}</p>}</>}
+      {step === 1 && <>{rows(["claude", "codex"])}{noAgent && <p className="cn-note doan-notice warning" role="status"><AlertIcon /><span>{noAgent}</span></p>}</>}
       {step === 2 && <ProjectStep key={project ?? ""} project={project} entry={entry ?? null} rerooted={rerooted} refused={refused} setBusy={setProjectBusy} open={openProject}
         setUpDone={(result) => {
           if (result.kind === "success") setAdvance("setup");
@@ -366,7 +367,7 @@ function PickOneDialog({ scanId, homeDirectory, close, chosen }: { scanId: strin
         <PathTip text={row.path}><span className="cl-path">{row.path}</span></PathTip>
       </div>)}
     </div>
-    {error && <p role="alert" className="ob-msg error">{error}</p>}
+    {error && <p role="alert" className="ob-msg error"><AlertIcon /><span>{error}</span></p>}
     <div className="add-foot">{snapshot && !snapshot.done && <span className="scan" role="status"><span className="spinner" />{snapshot.finished} of {snapshot.total} checked</span>}<span className="spacer" />
       <button type="button" className="btn" autoFocus disabled={busy} onClick={cancel}>Cancel</button>
       <button type="button" className="btn primary" disabled={picked === null || busy} onClick={() => void submit()}>Choose</button></div>
@@ -391,7 +392,7 @@ function ProjectStep({ project, entry, rerooted, refused, setBusy, open, setUpDo
         {view.chip ? <span className="ob-chip ok">{view.chip}</span>
           : <button type="button" className={view.open.primary ? "btn primary" : "btn"} disabled={view.open.disabled} onClick={() => void openProject()}>Open Project…</button>}
         {view.message && <span className="ob-msg">{view.message}</span>}
-        {view.error && <span className="ob-msg error" role="alert">{view.error}</span>}
+        {view.error && <span className="ob-msg error" role="alert"><AlertIcon /><span>{view.error}</span></span>}
       </div>
       {view.form && <>
         <ProjectFields form={{ ...setup.form, running }} choose={() => void setup.choose()} />

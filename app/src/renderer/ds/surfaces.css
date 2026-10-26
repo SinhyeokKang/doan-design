@@ -158,6 +158,24 @@
   .doan-dialog[open]::backdrop { opacity: 0; }
 }
 
+/* Notices are an inset fill, never a coloured edge. A warning or an error leads with an
+   icon so that colour is not the only signal; the icon sits on the first line of text. */
+.doan-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1h);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-row);
+  background: var(--surface-inset);
+  color: var(--text-subtle);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line-height);
+  overflow-wrap: anywhere;
+}
+.doan-notice.warning > .doan-alert-icon { color: var(--text-warning); }
+.doan-notice.error > .doan-alert-icon { color: var(--text-danger); }
+.doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
+
 .doan-scroll { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
 
 @media (prefers-reduced-motion: reduce) {

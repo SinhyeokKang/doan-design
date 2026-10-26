@@ -4,7 +4,8 @@ import { targetLabel } from "../comments/targetLabel";
 import type { Comment } from "../formats/types";
 import type { CanvasRow } from "../main/view";
 import { orphanKey, type OrphanSession, type OrphanTarget } from "./CommentsSession";
-import { relativeTime, ResolutionLine, SaveMessage } from "./CommentsPanel";
+import { AlertIcon } from "./AlertIcon";
+import { relativeTime, ResolutionLine, SaveMessage, saveTone } from "./CommentsPanel";
 import { ErrorDetails } from "./ErrorDetails";
 import { feedbackFocusAfterRemoval, feedbackGroups, feedbackKey, feedbackTree, ORPHANS_KEY, type FeedbackFile, type FeedbackTreeRow, type OrphanGroup } from "./feedbackGroups";
 import type { ProjectRead } from "./homeCards";
@@ -218,7 +219,7 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
   // Open counts in the accent; a zero (a head shown for its review entry) is not news.
   const counter = (count: number) => <span className={status === "open" && count > 0 ? "cnt hot" : "cnt"}>{count.toLocaleString("en-US")}</span>;
   const segment = (label: string, value: Comment["status"], count?: number) => <button type="button" aria-pressed={status === value} onClick={() => setStatus(value)}>{count === undefined ? label : `${label} ${count}`}</button>;
-  const readFailed = (detail: string) => <div className="comments-message error" role="alert"><b>Couldn’t read comments</b><ErrorDetails className="comments-btn" detail={detail}>{(button, shown) => <><div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRetry}>Retry</button>{button}</div>{shown && <p className="detail">{shown}</p>}</>}</ErrorDetails></div>;
+  const readFailed = (detail: string) => <div className="comments-message error" role="alert"><AlertIcon size={20} /><b>Couldn’t read comments</b><ErrorDetails className="comments-btn" detail={detail}>{(button, shown) => <><div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRetry}>Retry</button>{button}</div>{shown && <p className="detail">{shown}</p>}</>}</ErrorDetails></div>;
   const reading = <div className="comments-message" role="status"><b>Reading comments…</b></div>;
   const gitMissing = props.orphans.gitMissing(root);
   // A resolve or reopen that took its file's last card of this status takes
@@ -244,7 +245,7 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
     const lineAt = shownLine ? ids.indexOf(places.current.get(orphanKey(root, group.id, shownLine.comment)) ?? "") : -1;
     const statusLine = shownLine && <p key="status-line" className="comments-status" role="status">{shownLine.text}</p>;
     return <>
-      <p className={readOnly ? "fb-note warning" : "fb-note"}>{readOnly ? READ_ONLY : NOTICE(group.id)}</p>
+      <p className={readOnly ? "fb-note doan-notice warning" : "fb-note doan-notice"}>{readOnly && <AlertIcon />}{readOnly ? READ_ONLY : NOTICE(group.id)}</p>
       {group.comments.flatMap((comment, index) => {
         const key = orphanKey(root, group.id, comment.comment);
         order.push(cardKey(key));
@@ -267,7 +268,7 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
         return <>
           {item(row, index, "row fb-orphans", <>{twisty(row)}<span className="g">Comments without a canvas</span>{counter(row.section.count)}</>)}
           {row.expanded && homeless}
-          {row.expanded && gitMissing && !row.section.readOnly && <div className="comments-message warning inset" role="status"><b>Set your Git name</b>Set git user.name for this repository in your terminal, then choose Retry. Your email is optional.<p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Hand off remains available.</p><div className="comments-tools"><button type="button" className="comments-btn" disabled={props.orphans.busy} onClick={props.onRetryGit}>Retry</button></div></div>}
+          {row.expanded && gitMissing && !row.section.readOnly && <div className="comments-message warning inset" role="status"><AlertIcon size={20} /><b>Set your Git name</b>Set git user.name for this repository in your terminal, then choose Retry. Your email is optional.<p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Hand off remains available.</p><div className="comments-tools"><button type="button" className="comments-btn" disabled={props.orphans.busy} onClick={props.onRetryGit}>Retry</button></div></div>}
         </>;
       case "orphanFile": {
         const group = row.group;
@@ -302,7 +303,7 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
     <div className="fb-filter"><div className="comments-segment" role="group" aria-label="Comment status">{segment("Open", "open", view?.counts.open)}{segment("Resolved", "resolved", view?.counts.resolved)}</div></div>
     {!view?.orphans && homeless}
     {!read ? reading
-      : read.kind === "failed" ? <div className="comments-message error" role="alert"><b>Couldn’t read comments</b><div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRetry}>Retry</button></div></div>
+      : read.kind === "failed" ? <div className="comments-message error" role="alert"><AlertIcon size={20} /><b>Couldn’t read comments</b><div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRetry}>Retry</button></div></div>
       : empty ? <div className="comments-message"><b>{status === "open" ? "No open comments in this project" : "No resolved comments in this project"}</b></div>
       : <div className="fb-tree" role="tree" aria-label="Feedback">{rows.map((row, index) => <div key={row.key} role="none">{content(row, index)}</div>)}</div>}
   </section>;
@@ -329,7 +330,7 @@ function OrphanCard({ comment, readOnly, mutation, disabled, cardRef, focusIn, f
       <button type="button" className="comments-btn" disabled={locked} onClick={() => onIntent(comment.status === "open" ? "resolve" : "reopen")}>{comment.status === "open" ? "Resolve" : "Reopen"}</button>
       <button type="button" className="comments-btn" disabled={locked} onClick={() => onIntent("delete")}>Delete</button>
     </div>}
-    {!readOnly && mutation && mutation.status !== "idle" && <div className={`comments-message ${mutation.status === "failed" || mutation.status === "check-failed" || mutation.status === "deleted" ? "error" : mutation.status === "unknown" || mutation.status === "conflict" || mutation.status === "recovery-blocked" ? "warning" : ""}`} role="status">
+    {!readOnly && mutation && mutation.status !== "idle" && <div className={`comments-message ${saveTone(mutation.status)}`} role="status">{saveTone(mutation.status) && <AlertIcon size={20} />}
       <SaveMessage state={mutation} />
       <div className="comments-tools">
         {(mutation.status === "unknown" || mutation.status === "check-failed" || mutation.status === "checking") && <button type="button" className="comments-btn" disabled={mutation.status === "checking"} onClick={() => onIntent("check")}>Check saved status</button>}

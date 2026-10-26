@@ -651,8 +651,9 @@ try {
   const measuredPin = page.getByRole("button", { name: "2 open comments", exact: true }).first();
   await page.keyboard.press("Tab"); await measuredPin.focus();
   presentation("Focused pin ring", await measuredPin.evaluate(el => {
-    const s = getComputedStyle(el); return [s.outlineWidth, s.outlineOffset, s.outlineColor === getComputedStyle(document.body).color, s.zIndex];
-  }), ["2px", "2px", true, "3"]);
+    const probe = document.body.appendChild(document.createElement("span")); probe.style.color = "var(--border-focus)"; const ring = getComputedStyle(probe).color; probe.remove();
+    const s = getComputedStyle(el); return [s.outlineWidth, s.outlineOffset, s.outlineColor === ring, s.zIndex, s.boxShadow.includes("4px")];
+  }), ["2px", "2px", true, "3", true]);
   // External deletion keeps an edit visible but makes saving impossible.
   await cards.filter({ hasText: "Equivalent frame element" }).getByRole("button", { name: "Edit", exact: true }).click();
   await panel.getByRole("textbox", { name: "Your unsaved edit body" }).fill("Keep deleted body");
@@ -678,9 +679,12 @@ try {
   await writeFile(file, await readFile(file, "utf8") + JSON.stringify({ v: 1, id: `evt_${randomUUID()}`, comment: frameCreate.comment, type: "edit", body: "Changed before resolve", by: { kind: "human", name: "External" }, at: new Date(Math.max(Date.now(), ...currentEvents.map(event => Date.parse(event.at))) + 1).toISOString() }) + "\n");
   await app.evaluate(({ ipcMain }) => { const gate = Reflect.get(globalThis, "cardConflictGate"); ipcMain.removeHandler("comments:mutate"); ipcMain.handle("comments:mutate", gate.original); gate.release(); });
   await panel.getByText("This comment changed elsewhere", { exact: true }).waitFor();
-  presentation("Card conflict warning rule", await panel.getByText("This comment changed elsewhere", { exact: true }).evaluate(el => {
-    const s = getComputedStyle(el.parentElement!); return [s.borderLeftWidth, s.borderLeftColor];
-  }), ["2px", "rgb(79, 52, 34)"]);
+  // A warning is a status block led by its icon, never a coloured left rule.
+  presentation("Card conflict warning block", await panel.getByText("This comment changed elsewhere", { exact: true }).evaluate(el => {
+    const block = el.parentElement!, icon = block.querySelector(":scope > .doan-alert-icon");
+    const probe = document.body.appendChild(document.createElement("span")); probe.style.color = "var(--text-warning)"; const warning = getComputedStyle(probe).color; probe.remove();
+    const s = getComputedStyle(block); return [s.borderLeftWidth, s.borderLeftWidth === s.borderRightWidth, icon !== null && getComputedStyle(icon).color === warning];
+  }), ["1px", true, true]);
   await cards.filter({ hasText: "Changed before resolve" }).getByRole("button", { name: "Read latest state", exact: true }).click();
   const beforeReviewedResolve = await readFile(file, "utf8");
   await cards.filter({ hasText: "Changed before resolve" }).getByRole("button", { name: "Confirm reviewed change", exact: true }).click();

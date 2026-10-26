@@ -4,6 +4,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import { arrivalAction, HELPER_LINES, newCanvasText, promptCopyLabel, sentenceParts, SUBJECT_LABEL, SUBJECT_PLACEHOLDER, subjectView, WAITING_TEXT, waitEvent } from "./firstPromptView";
 import { unavailableCanvasMessage } from "./quickOpen";
 import { COPY_FAILED, type CopyState } from "./onboardingView";
+import { AlertIcon } from "./AlertIcon";
 
 // The one first-prompt wait of this app run (renderer memory: a relaunch
 // forgets it). App owns it because an arrival is shown wherever the user is.
@@ -108,9 +109,9 @@ export function FirstPromptView({ id, root, subject, sentence, copy, copiedSubje
       <div className="fp-labelrow"><label className="fp-label" htmlFor={id}>{SUBJECT_LABEL}</label>{view.count && <span className="fp-count err">{view.count}</span>}</div>
       <input className={view.error ? "fp-input invalid" : "fp-input"} id={id} type="text" placeholder={SUBJECT_PLACEHOLDER} aria-invalid={view.error ? true : undefined} value={subject} onChange={event => change(event.target.value)} />
     </div>
-    {view.error ? <p className="fp-error" role="alert">{view.error}</p>
+    {view.error ? <p className="fp-error" role="alert"><AlertIcon /><span>{view.error}</span></p>
       : <p className="ob-sentence">{parts.before}{parts.mark && <mark className={parts.slot ? "slot" : undefined}>{parts.mark}</mark>}{parts.after}</p>}
-    {copy === "failed" && <p className="ob-msg error" role="alert">{COPY_FAILED}</p>}
+    {copy === "failed" && <p className="ob-msg error" role="alert"><AlertIcon /><span>{COPY_FAILED}</span></p>}
     {ready ?? <div className="ob-actions">
       {waiting ? <><span className="fp-wait" role="status"><span className="spinner" aria-hidden="true" />{WAITING_TEXT}</span><span className="spacer" /></>
         : <span className="ob-helper">{HELPER_LINES[0]}<br />{HELPER_LINES[1]}</span>}
