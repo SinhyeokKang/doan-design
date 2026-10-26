@@ -1,6 +1,6 @@
 import { useId, type KeyboardEvent, type Ref } from "react";
 import type { Comment, Target, Warning } from "../formats/types";
-import type { CopyScope, ListFilter } from "../comments/projection";
+import type { ListFilter } from "../comments/projection";
 import { targetLabel } from "../comments/targetLabel";
 import { reopenText, resolutionText, type NamedLine } from "../comments/resolution";
 import { ReviewBar, ReviewDone, ReviewNotice, type ReviewBarView, type ReviewDoneView, type ReviewNoticeView } from "./ReviewBar";
@@ -89,7 +89,7 @@ export interface CommentsPanelProps {
   onFilter: (filter: ListFilter) => void;
   onCreate: (scope: ListFilter["scope"]) => void;
   onComment: (intent: CommentIntent, comment: string) => void;
-  onCopy: (scope: CopyScope) => void;
+  onCopy: (key: "all" | string) => void;
   onRead: () => void;
   onRetryAuthor: () => void;
 }
@@ -150,7 +150,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
       </div>
       </>}
       <div className="comments-tools">
-        <button type="button" className="comments-btn" disabled={read.status !== "ready" || props.canvasOpenCount === 0 || props.allCopy.status === "copying"} title="All open comments on this canvas, regardless of the visible filter" onClick={() => props.onCopy({ kind: "all" })}>{copyLabel(props.allCopy, true)}</button>
+        <button type="button" className="comments-btn" disabled={read.status !== "ready" || props.canvasOpenCount === 0 || props.allCopy.status === "copying"} title="All open comments on this canvas, regardless of the visible filter" onClick={() => props.onCopy("all")}>{copyLabel(props.allCopy, true)}</button>
         <button type="button" className="comments-btn" disabled={createDisabled} onClick={() => props.onCreate(filter.scope)}>{filter.scope === "canvas" ? "Comment on canvas" : "Comment on selection"}</button>
       </div>
       {props.createError && <p className="comments-helper" role="alert">Couldn’t start comment: {props.createError}</p>}
@@ -198,7 +198,7 @@ export interface CommentCardProps {
   // Whether "Comment on selection instead" can start a new comment now.
   instead?: "ready" | "no-selection" | "blocked";
   onComment: (intent: CommentIntent, comment: string) => void;
-  onCopy: (scope: CopyScope) => void;
+  onCopy: (key: "all" | string) => void;
 }
 export function CommentCard({ comment, frames, freshness, locationMissing, disabled, busy, copy, mutation, instead = "blocked", onComment, onCopy }: CommentCardProps) {
   const { createdBy } = comment;
@@ -221,7 +221,7 @@ export function CommentCard({ comment, frames, freshness, locationMissing, disab
     <div className="comments-tools">
       <button type="button" className="comments-btn" disabled={locked} onClick={() => onComment("edit", comment.comment)}>Edit</button>
       <button type="button" className="comments-btn" disabled={locked} onClick={() => onComment(comment.status === "open" ? "resolve" : "reopen", comment.comment)}>{comment.status === "open" ? "Resolve" : "Reopen"}</button>
-      <button type="button" className="comments-btn" disabled={comment.status === "resolved" || copy.status === "copying"} onClick={() => onCopy({ kind: "one", comment: comment.comment })}>{copyLabel(copy)}</button>
+      <button type="button" className="comments-btn" disabled={comment.status === "resolved" || copy.status === "copying"} onClick={() => onCopy(comment.comment)}>{copyLabel(copy)}</button>
       <button type="button" className="comments-btn" disabled={locked} onClick={() => onComment("delete", comment.comment)}>Delete</button>
     </div>
     {/* An explicit human action on a target that is gone; comments are never re-attached (feature revision-recheck Q6). */}

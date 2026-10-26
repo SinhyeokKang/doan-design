@@ -1,6 +1,5 @@
 import { beginDraft, guardsSelectionChange, transitionDraft, type DraftState } from "../comments/draft";
 import type { ExpectedComment, MutationIntent } from "../comments/events";
-import type { CopyScope } from "../comments/projection";
 import { reviewState, reviewSummary, startReview, toReview, type ReviewMarker, type ReviewState } from "../comments/review";
 import type { Comment, Target } from "../formats/types";
 import type { CanvasIdentityCause } from "../main/comments/identity";
@@ -397,9 +396,11 @@ export class CommentsSession {
     catch (error) { this.saveView = { status: "check-failed", message: errorText(error) }; this.emit(); }
   }
   async retry() { if (this.pending && this.saveView.status === "retry-original") { this.cancelDestination(); await this.submit(this.pending); } }
-  async copy(scope: CopyScope) {
+  // "all" copies every open comment on the canvas; otherwise `key` is one comment id.
+  async copy(key: "all" | string) {
     if (!this.identity || !this.list || this.readError) return;
-    const rev = this.revision, request = this.request(), key = scope.kind === "all" ? "all" : scope.comment;
+    const rev = this.revision, request = this.request();
+    const scope = { comments: key === "all" ? this.list.comments.filter(c => c.status === "open").map(c => c.comment) : [key] };
     this.copies.set(key, { status: "copying" }); this.emit();
     try { value(await this.api.commentsCopy({ ...request, scope }), request); if (rev === this.revision) this.copies.set(key, { status: "copied" }); }
     catch (error) { if (rev === this.revision) this.copies.set(key, { status: "failed", message: errorText(error) }); }

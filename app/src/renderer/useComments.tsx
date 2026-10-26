@@ -369,7 +369,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       onShowStatus={comment => { focusAfter.current.pin = null; focusAfter.current.saved = null; showing.current = comment; setFilter(current => ({ ...current, status: "open" })); intent("locate", comment); }}
       reviewNotice={noticeShown ? { count: pending.length, firstSeen: session.marker?.lastReviewedAt === undefined, blocked: !!draft || session.beginning, onStart: startReview } : null}
       reviewBar={reviewBar} reviewDone={current && session.reviewDone ? { text: session.reviewDone.text, onClose: closeSummary } : null}
-      onFilter={next => { focusAfter.current.pin = null; focusAfter.current.saved = null; setFilter(next); }} onCreate={scope => { opened(); void session.create(scope); }} onComment={intent} onCopy={scope => { void session.copy(scope); }} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
+      onFilter={next => { focusAfter.current.pin = null; focusAfter.current.saved = null; setFilter(next); }} onCreate={scope => { opened(); void session.create(scope); }} onComment={intent} onCopy={key => { void session.copy(key); }} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
       editor={draft ? { mode: draft.origin.kind, target: session.target, frames: draftFrames, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
         onBody: body => session.body(body),
         onSave: () => { focusAfter.current.saving = true; if (resolvedEdit !== null) remember(resolvedEdit); void session.save(resolvedEdit !== null); },

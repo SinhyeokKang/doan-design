@@ -1,5 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { expect, test, vi } from "vitest";
-import { attemptBaseline, createCommentsService, inspectAttempt } from "./service";
+import { attemptBaseline, createCommentsService, inspectAttempt, parseCopyScope } from "./service";
 import type { CommentEvent } from "../../formats/types";
 import { authorizeCanvas } from "./identity";
 import type { CommentIdentity, ServiceDependencies } from "./service";
@@ -176,12 +177,14 @@ test("unconfirmed mkdir blocks same, new and concurrent cross-canvas saves until
   expect(await s.service.mutate("window", { ...payload, root: "/other", project: 2, origin: independent.value.origin })).toMatchObject({ ok: true, value: { state: "saved" } });
 });
 
+function createdId(s: ReturnType<typeof setup>): string { return JSON.parse(s.bytes().toString().trim().split("\n")[0] ?? "{}").comment; }
 test("copy waits for the actual clipboard commit before reporting copied", async () => {
   const s = setup(); await create(s);
+  const id = createdId(s);
   let finish: (() => void) | undefined;
   s.deps.clipboard = () => new Promise<void>(resolve => { finish = resolve; });
   let settled = false;
-  const copy = s.service.copy("window", { ...identity, requestID: "copy", scope: { kind: "all" } }).then(result => { settled = true; return result; });
+  const copy = s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: [id] } }).then(result => { settled = true; return result; });
   await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
   expect(settled).toBe(false);
   finish?.(); expect(await copy).toMatchObject({ ok: true, value: { copied: true } });
@@ -191,7 +194,75 @@ test("copy reports asynchronous clipboard rejection", async () => {
   const rejected = Promise.reject(new Error("Clipboard unavailable"));
   void rejected.catch(() => {});
   s.deps.clipboard = () => rejected;
-  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { kind: "all" } })).toMatchObject({ ok: false, error: "Clipboard unavailable" });
+  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: [createdId(s)] } })).toMatchObject({ ok: false, error: "Clipboard unavailable" });
+});
+test("copy reports synchronous clipboard failure", async () => {
+  const s = setup(); await create(s);
+  s.deps.clipboard = () => { throw new Error("Clipboard unavailable"); };
+  const reply = await s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: [createdId(s)] } });
+  expect(reply).toMatchObject({ ok: false, error: "Clipboard unavailable" });
+  expect(reply).not.toHaveProperty("code");
+});
+test.each([
+  ["missing scope", undefined],
+  ["array scope", [["a"]]],
+  ["old all scope", { kind: "all" }],
+  ["old one scope", { kind: "one", comment: "a" }],
+  ["extra key", { comments: ["a"], kind: "all" }],
+  ["not an array", { comments: "a" }],
+  ["empty set", { comments: [] }],
+  ["1,001 ids", { comments: Array.from({ length: 1001 }, (_, i) => `c${i}`) }],
+  ["empty id", { comments: [""] }],
+  ["non-string id", { comments: [1] }],
+  ["4,097-unit id", { comments: ["x".repeat(4097)] }],
+  ["NUL in id", { comments: ["a\0b"] }],
+  ["duplicate ids", { comments: ["a", "b", "a"] }],
+])("parseCopyScope rejects %s", (_name, scope) => {
+  expect(() => parseCopyScope(scope)).toThrow("Invalid copy scope.");
+});
+test("parseCopyScope accepts 1 to 1,000 distinct bounded ids and copies the array", () => {
+  const ids = Array.from({ length: 1000 }, (_, i) => `c${i}`);
+  const input = { comments: ids };
+  const parsed = parseCopyScope(input);
+  expect(parsed).toEqual({ comments: ids });
+  ids.push("later"); expect(parsed.comments).toHaveLength(1000);
+  expect(parseCopyScope({ comments: ["😀".repeat(2048)] })).toEqual({ comments: ["😀".repeat(2048)] });
+});
+test("copy rejects an invalid scope before reading the disk", async () => {
+  const s = setup(); await create(s);
+  vi.mocked(s.deps.read).mockClear();
+  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { kind: "all" } })).toMatchObject({ ok: false, error: "Invalid copy scope." });
+  expect(s.deps.read).not.toHaveBeenCalled();
+  expect(s.deps.clipboard).not.toHaveBeenCalled();
+});
+test("copy rereads the disk and rejects not_open when any id is not an open comment on that canvas", async () => {
+  const s = setup(); await create(s, "r1"); const first = createdId(s);
+  await create(s, "r2"); const second = JSON.parse(s.bytes().toString().trim().split("\n")[1] ?? "{}").comment;
+  const ok = await s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: [second, first] } });
+  expect(ok).toMatchObject({ ok: true, value: { copied: true } });
+  expect(JSON.parse(vi.mocked(s.deps.clipboard).mock.calls[0]?.[0].split("\n").at(-1) ?? "").comments).toEqual([first, second]);
+  vi.mocked(s.deps.clipboard).mockClear();
+  for (const ids of [[first, "cmt_unknown"], [first, "cmt_from_another_canvas"]]) {
+    expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: ids } })).toMatchObject({ ok: false, code: "not_open", identity: { requestID: "copy" } });
+  }
+  const before = s.bytes();
+  expect(await s.service.mutate("window", { ...identity, project: 1, requestID: "resolve", intent: { type: "resolve", comment: second, expected: { body: "Hello 한글", status: "open", updatedAt: JSON.parse(before.toString().trim().split("\n")[1] ?? "{}").at } } })).toMatchObject({ ok: true, value: { state: "saved" } });
+  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: [first, second] } })).toMatchObject({ ok: false, code: "not_open" });
+  expect(s.deps.clipboard).not.toHaveBeenCalled();
+});
+test("a resolve landing between main's read and the clipboard write still reports the copy it wrote", async () => {
+  const s = setup(); await create(s); const id = createdId(s);
+  let finish: (() => void) | undefined;
+  s.deps.clipboard = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+  const copy = s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: [id] } });
+  await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+  // An agent's CLI resolve writes the file directly, outside the app's queue.
+  s.set(Buffer.concat([s.bytes(), Buffer.from(JSON.stringify({ v: 1, id: `evt_${randomUUID()}`, at: "2099-01-01T00:00:00.000Z", comment: id, by: { kind: "agent", name: "claude" }, type: "resolve" }) + "\n")]));
+  finish?.();
+  expect(await copy).toMatchObject({ ok: true, value: { copied: true } });
+  expect(s.deps.clipboard).toHaveBeenCalledWith(expect.stringContaining(id));
+  s.deps.clipboard = vi.fn();
+  expect(await s.service.copy("window", { ...identity, requestID: "again", scope: { comments: [id] } })).toMatchObject({ ok: false, code: "not_open" });
 });
 
 test.each(["invalid string", "invalid line", "double BOM"])("service list and copy tolerate %s without losing valid comments", async mode => {
@@ -205,7 +276,7 @@ test.each(["invalid string", "invalid line", "double BOM"])("service list and co
   if (mode === "double BOM") s.set(Buffer.concat([Buffer.from("\uFEFF\uFEFF"), valid, valid]));
   const listed = await s.service.list("window", { ...identity, requestID: "read" });
   expect(listed).toMatchObject({ ok: true, value: { comments: [{ body: mode === "invalid string" ? "�ello 한글" : "Hello 한글" }], warnings: mode === "invalid string" ? [] : [{ code: "invalid_event", line: 1 }] } });
-  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { kind: "all" } })).toMatchObject({ ok: true });
+  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: [JSON.parse(valid.toString()).comment] } })).toMatchObject({ ok: true });
   expect(s.deps.clipboard).toHaveBeenCalledWith(expect.stringContaining(JSON.parse(valid.toString()).comment));
 });
 
@@ -296,7 +367,7 @@ test.each(byteCases)("Go byte parity at list/copy/edit ingress: $name", async ({
   const before = replaceBody(s.bytes(), Buffer.from(hex, "hex"));
   s.set(before);
   expect(await s.service.list("window", { ...identity, requestID: "read" })).toMatchObject({ ok: true, value: { comments: [{ body }], warnings: [] } });
-  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { kind: "one", comment: event.comment } })).toMatchObject({ ok: true });
+  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: [event.comment] } })).toMatchObject({ ok: true });
   expect(s.deps.clipboard).toHaveBeenCalledWith(expect.stringContaining(event.comment));
   expect(await s.service.mutate("window", { ...identity, project: 1, requestID: "edit", intent: { type: "edit", comment: event.comment, body: "Edited", expected: { body, status: "open", updatedAt: event.at } } })).toMatchObject({ ok: true, value: { state: "saved" } });
   expect(s.bytes().subarray(0, before.length)).toEqual(before);
@@ -308,7 +379,7 @@ test("raw truncated prefix conflicts with one literal replacement for an equal e
   const event = JSON.parse(valid.toString());
   s.set(Buffer.concat([replaceBody(valid, Buffer.from([0xe2, 0x82])), replaceBody(valid, Buffer.from("�"))]));
   expect(await s.service.list("window", { ...identity, requestID: "read" })).toMatchObject({ ok: true, value: { comments: [], warnings: [{ code: "conflicting_duplicate", line: 1 }, { code: "conflicting_duplicate", line: 2 }] } });
-  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { kind: "one", comment: event.comment } })).toMatchObject({ ok: false });
+  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: [event.comment] } })).toMatchObject({ ok: false, code: "not_open" });
   expect(s.deps.clipboard).not.toHaveBeenCalled();
 });
 

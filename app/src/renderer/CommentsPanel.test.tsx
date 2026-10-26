@@ -119,7 +119,7 @@ describe("Comments presentation", () => {
     const button = find(CommentsPanel(props), "Copy all open");
     expect(button.disabled).toBe(false);
     button.onClick?.();
-    expect(onCopy).toHaveBeenCalledWith({ kind: "all" });
+    expect(onCopy).toHaveBeenCalledWith("all");
   });
   test("resolved card disables single copy without the reopen hint", () => {
     const out = html(panel({ read: { status: "ready", comments: [{ ...comment, status: "resolved" }], warnings: [] } }));
@@ -141,7 +141,7 @@ describe("Comments presentation", () => {
     find(card, "Edit").onClick?.();
     find(card, "Copied").onClick?.();
     expect(onComment).toHaveBeenCalledWith("edit", "c1");
-    expect(onCopy).toHaveBeenCalledWith({ kind: "one", comment: "c1" });
+    expect(onCopy).toHaveBeenCalledWith("c1");
     expect(html(panel({ allCopy: { status: "failed", message: "Clipboard unavailable" } }))).toContain("Clipboard unavailable");
   });
 });

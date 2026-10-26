@@ -47,7 +47,7 @@ test("app events round trip through the real Go reader and agent resolve, preser
   const expected = { body: comment.body, status: comment.status, updatedAt: comment.updatedAt, resolvedAt: comment.resolvedAt };
   expect(await service.mutate("window", { ...identity, project: 1, requestID: "reopen", intent: { type: "reopen", comment: id, expected } })).toMatchObject({ ok: true, value: { state: "saved" } });
   expect(await service.begin("window", { ...identity, requestID: "bad-width", scope: "canvas" })).toMatchObject({ ok: false });
-  expect(await service.copy("window", { ...identity, requestID: "copy", scope: { kind: "all" } })).toMatchObject({ ok: true });
+  expect(await service.copy("window", { ...identity, requestID: "copy", scope: { comments: [id] } })).toMatchObject({ ok: true });
   expect(JSON.parse(execFileSync(cli, ["comments", "--json", "--repo", root], { encoding: "utf8" })).result.comments).toHaveLength(1);
   expect((await readFile(file, "utf8")).split("\n").filter(Boolean)).toHaveLength(3);
 });
