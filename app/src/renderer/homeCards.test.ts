@@ -184,8 +184,9 @@ describe("ProjectCommentReads", () => {
   });
 
   // tasks 1 stage 1: main sends `comments:invalidated` before its `doan ls`,
-  // and the ls row it then sends changes too. One refresh, one read.
-  test("the ls row change that follows an invalidation does not read again", () => {
+  // and the ls row it then sends changes too. The row change only re-arms the
+  // one trailing read; the interval keeps the pair to one read a second.
+  test("the ls row change that follows an invalidation waits for the interval", () => {
     const h = reads();
     h.project.track(new Map([["/r1", "s1"]]));
     vi.advanceTimersByTime(5000);
@@ -193,10 +194,69 @@ describe("ProjectCommentReads", () => {
     vi.advanceTimersByTime(250);
     h.project.track(new Map([["/r1", "s2"]]));
     vi.advanceTimersByTime(5000);
+    expect(h.asks.map(ask => ask.at)).toEqual([10_000, 15_000, 16_000]);
+  });
+
+  // R-V2 ⚪1: an invalidation answered by an unchanged ls row must not swallow
+  // a later, unrelated row change.
+  test("unchanged, delayed and mixed ls rows after an invalidation", () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s0"]]));
+    vi.advanceTimersByTime(5000);
+    h.project.invalidated("/r1");
+    h.project.track(new Map([["/r1", "s0"]]));
+    vi.advanceTimersByTime(5000);
     expect(h.asks).toHaveLength(2);
-    // A later row change on its own reads again.
-    h.project.track(new Map([["/r1", "s3"]]));
+    // Unchanged above; a distinct row much later is read.
+    h.project.track(new Map([["/r1", "s1"]]));
     expect(h.asks).toHaveLength(3);
+    // Delayed: the row lands after the invalidation's read and its interval.
+    vi.advanceTimersByTime(5000);
+    h.project.invalidated("/r1");
+    vi.advanceTimersByTime(3000);
+    h.project.track(new Map([["/r1", "s2"]]));
+    expect(h.asks).toHaveLength(5);
+    // Mixed: an invalidation, an unrelated root's row, then this root's row.
+    vi.advanceTimersByTime(5000);
+    h.project.invalidated("/r1");
+    h.project.track(new Map([["/r1", "s2"], ["/r2", "t0"]]));
+    h.project.track(new Map([["/r1", "s3"], ["/r2", "t0"]]));
+    vi.advanceTimersByTime(5000);
+    expect(h.asks.map(ask => ask.root)).toEqual(["/r1", "/r1", "/r1", "/r1", "/r1", "/r1", "/r2", "/r1"]);
+  });
+
+  // R-V2 🟡1: the trigger, not the next read's start, ends a reply's validity.
+  test.each([
+    ["invalidated", "a late list"],
+    ["invalidated", "a late unavailable"],
+    ["refresh", "a late list"],
+    ["refresh", "a late unavailable"],
+  ] as const)("after %s, %s reply started before it is dropped while the next read waits", async (trigger, kind) => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"]]));
+    await h.asks[0]!.reply(h.list("/r1", h.asks[0]!.revision, [a]));
+    vi.advanceTimersByTime(5000);
+    h.project.refresh("/r1");
+    const old = h.asks[1]!;
+    vi.advanceTimersByTime(100);
+    h.project[trigger]("/r1");
+    expect(h.asks).toHaveLength(2);
+    await old.reply(kind === "a late list" ? h.list("/r1", old.revision, [{ ...a, toReview: 9 }]) : { root: "/r1", revision: old.revision, kind: "unavailable" });
+    expect(h.publish).toHaveBeenCalledTimes(1);
+    expect(h.shown().get("/r1")).toEqual([a]);
+    vi.advanceTimersByTime(900);
+    expect(h.asks).toHaveLength(3);
+    await h.asks[2]!.reply(h.list("/r1", h.asks[2]!.revision, [{ ...a, toReview: 3 }]));
+    expect(h.shown().get("/r1")).toEqual([{ ...a, toReview: 3 }]);
+  });
+
+  test("a row change alone does not drop the reply in flight", async () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"]]));
+    vi.advanceTimersByTime(100);
+    h.project.track(new Map([["/r1", "s2"]]));
+    await h.asks[0]!.reply(h.list("/r1", h.asks[0]!.revision, [a]));
+    expect(h.shown().get("/r1")).toEqual([a]);
   });
 
   test("while invalidations keep coming, a root is read at most once a second and once after the last", () => {

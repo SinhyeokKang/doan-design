@@ -125,19 +125,18 @@ export const PROJECT_READ_INTERVAL_MS = 1000;
 // watcher's ls), when main invalidates it, and when its owner calls `refresh`
 // for a change main does not announce (a review-state raise). Per root, reads
 // start at most once per interval; a trigger inside it waits for one trailing
-// read, so the last change is always read. Only the newest request per root
-// may land.
+// read, so the last change is always read. An invalidation or a refresh ends
+// the reply in flight at once, not when the trailing read starts: the reply
+// may predate the change. A row change does not, because main invalidates
+// before the ls that changes the row. Otherwise only the newest read may land.
 export class ProjectCommentReads {
   private items = new Map<string, readonly ProjectCanvasComments[]>();
   // root → the ls row it was last read for.
   private tracked = new Map<string, string>();
+  // root → the revision whose reply may still land.
   private latest = new Map<string, number>();
   private started = new Map<string, number>();
   private waiting = new Map<string, ReturnType<typeof setTimeout>>();
-  // Roots invalidated since their last ls row change. Main invalidates before
-  // the `doan ls` whose row then changes, and every read runs its own ls, so
-  // that row change is already covered (tasks 1 stage 1 measured the pair).
-  private invalidatedRoots = new Set<string>();
   private seq = 0;
   private disposed = false;
 
@@ -148,26 +147,25 @@ export class ProjectCommentReads {
   track(roots: ReadonlyMap<string, string>): void {
     for (const root of [...this.tracked.keys()]) {
       if (roots.has(root)) continue;
-      this.tracked.delete(root); this.latest.delete(root); this.started.delete(root); this.invalidatedRoots.delete(root);
+      this.tracked.delete(root); this.latest.delete(root); this.started.delete(root);
       clearTimeout(this.waiting.get(root)); this.waiting.delete(root);
     }
     for (const [root, signature] of roots) {
       const previous = this.tracked.get(root);
       if (previous === signature) continue;
       this.tracked.set(root, signature);
-      if (previous !== undefined && this.invalidatedRoots.delete(root)) continue;
       this.request(root);
     }
   }
 
   invalidated(root: string): void {
-    if (!this.tracked.has(root)) return;
-    this.invalidatedRoots.add(root);
-    this.request(root);
+    this.refresh(root);
   }
 
   refresh(root: string): void {
-    if (this.tracked.has(root)) this.request(root);
+    if (!this.tracked.has(root)) return;
+    this.latest.delete(root);
+    this.request(root);
   }
 
   dispose(): void {
