@@ -775,13 +775,17 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   // No layout within 5 s: the failure state, then Reload. The canvas
   // swallows its own layouts until `quietUntil`, so the first load fails and
   // the retry, at least 5 s later, loads. The deadline is written again just
-  // before the click, so a slow folder list cannot use it up.
+  // before the click, so a slow folder list cannot use it up. The click waits
+  // for that write's row rev: a rev bump arriving after the open reloads as
+  // Changed, which the Reload below would then keep.
   const quietPath = join(repos.canvas, "design", "quiet.html");
   const quietCanvas = (until: number) => canvasHtml("quiet", 800, "", `<script>if (Date.now() < ${until}) window.parent = { postMessage() {} };</script><div style="height:400px">quiet</div>`);
   await writeFile(quietPath, quietCanvas(0));
   await waitFolders(page, (all) => hasCanvas(all, repos.canvas, "design/quiet.html"), "quiet canvas listed");
+  const quietRev = await canvasRev(page, repos.canvas, "design/quiet.html");
   const quietUntil = Date.now() + 4500;
   await writeFile(quietPath, quietCanvas(quietUntil));
+  await waitFor(async () => await canvasRev(page, repos.canvas, "design/quiet.html") !== quietRev, "quiet canvas row rev after its rewrite");
   await canvasButton(page, repos.canvas, "design/quiet.html").click();
   assert.ok(Date.now() < quietUntil - 1000, "quiet canvas opened well before its quiet time ends");
   state = await waitView(page, (v) => v.status === "failed", "failure state after 5 s without a layout");
@@ -2209,6 +2213,10 @@ async function readFolders(page: Page): Promise<FolderView[]> {
 
 async function servingUrl(page: Page, root: string, path: string): Promise<string> {
   return page.evaluate(({ root, path }) => new Promise<string>(resolve => { const stop = window.doan.onFolders(entries => { stop(); const entry = entries.find(entry => entry.path === root); resolve(entry?.kind === "list" ? entry.canvases.find(row => row.path === path)?.url ?? "" : ""); }); }), { root, path });
+}
+
+async function canvasRev(page: Page, root: string, path: string): Promise<number | null> {
+  return page.evaluate(({ root, path }) => new Promise<number | null>(resolve => { const stop = window.doan.onFolders(entries => { stop(); const entry = entries.find(entry => entry.path === root); resolve(entry?.kind === "list" ? entry.canvases.find(row => row.path === path)?.rev ?? null : null); }); }), { root, path });
 }
 
 async function waitFolders(page: Page, done: (folders: FolderView[]) => boolean, what: string): Promise<FolderView[]> {
