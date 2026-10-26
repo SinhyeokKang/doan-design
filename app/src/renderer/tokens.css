@@ -69,6 +69,8 @@
 :root {
   --bg-app: var(--neutral-quiet-hover);
   --bg-scrim: var(--neutral-scrim);
+  /* The drop target is the whole window, so its scrim recedes the content further than a modal's. */
+  --bg-scrim-drop: color-mix(in srgb, var(--bg-scrim) 50%, black);
   --surface-panel: var(--neutral-1);
   --surface-popover: var(--neutral-1);
   --surface-elevated-glass: var(--neutral-glass);
