@@ -108,3 +108,5 @@
 - V-A (`task_0ec93ea37385`, `ctx_d363652e8ccb`, Sol medium)는 clean HEAD `26d764e`에서 의존성 동기화·통합 검증을 실행했다. runner 7개·Go test/vet·typecheck·앱 3290개·runtime build 통과, 전체 runtime은 기존 comments-ui:567에서만 실패했다. 후속 10개 모두 exit 0/PASS·실제 상태 불변·정리 확인. `.scratch/handoff-V-A.md`, `.scratch/verify/2026-10-26T19-07-11-968Z-83405/` 참조. release 완료. E는 Astra medium으로 A1/E1/E2를 수행하며 실제 상태 감시 red는 임시 simulated HOME에만 작성한다. 기존 사용자 승인 범위의 격리 실제 Claude/Codex 호출을 허용하고 독립 인증은 구현하지 않는다.
 
 - E (`task_1c62e9b1672e`, `ctx_34515353797e`)는 실제 Electron/main/preload→SDK→fake Claude에서 exit(7)이 `process_exited` 대신 `unknown`으로 기록됨을 재현했다(`.scratch/E-runtime-sixth.log`). 상태·소유 PID 정리는 통과했고 제품 파일은 수정하지 않았다. F-A3는 Astra medium으로 이 종료 분류만 회귀 수정한다. E는 runtime/full-test 슬롯과 e2e 파일을 유지하고 나머지 검증을 진행하며 F-A3는 focused fake-runner/typecheck만 실행한다.
+
+- E는 Codex app-server가 같은 그룹 자식을 남기고 exit(7)하면 `turn.failed` 없이 running이 유지되는 추가 결함을 재현했다(`.scratch/E-runtime-ninth.log`, 15초 관찰). 지휘자가 runner exit 경로를 확인하고 F-A3의 진행 중 종료 처리 범위에 전달했다. transport 사망 시 즉시 실패·소유 그룹 정리를 시작하되, 예약 해제는 실제 그룹 종료 확인 뒤여야 한다. E의 기대값과 런타임 슬롯은 유지한다.
