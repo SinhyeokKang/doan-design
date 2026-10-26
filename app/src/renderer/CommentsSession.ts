@@ -500,16 +500,17 @@ export class CommentsSession {
   }
   // Called once main confirmed the person's own Reopen, right before the
   // reread: that read bumps the read revision in the same turn, so no read
-  // issued before the write can reach the Review afterwards (R-F F-2).
+  // issued before the write can reach the Review afterwards (R-F F-2). By
+  // comment id: Review may have moved on while the write was in flight.
   private reviewReopened(id: string) {
     const run = this.review;
-    if (!run || !sameCanvas(run, this.identity) || run.state.steps[run.state.cursor]?.comment !== id) return;
-    this.review = { ...run, state: reviewState(run.state, { type: "reopen" }) };
+    if (!run || !sameCanvas(run, this.identity)) return;
+    this.review = { ...run, state: reviewState(run.state, { type: "reopen", comment: id }) };
   }
   private reviewRead(comments: readonly Comment[]) {
     const run = this.review;
     if (run && sameCanvas(run, this.identity)) {
-      let state = reviewState(run.state, { type: "changed", comments });
+      let state = reviewState(run.state, { type: "changed", comments, self: this.self });
       state = reviewState(state, { type: "arrived", comments: this.pendingReview() });
       const known = new Map(run.comments);
       for (const comment of comments) if (state.steps.some(step => step.comment === comment.comment)) known.set(comment.comment, structuredClone(comment));
@@ -529,6 +530,10 @@ export class CommentsSession {
     void raised?.then(next => {
       if (next && tag === this.markerRevision && sameCanvas(run, this.identity)) { this.marker = next; this.emit(); }
       this.onReviewed?.(run.root);
-    }).catch(console.error);
+    }).catch(error => {
+      // The local raise may not have reached main; read what main kept.
+      console.error(error);
+      void this.readMarker();
+    });
   }
 }

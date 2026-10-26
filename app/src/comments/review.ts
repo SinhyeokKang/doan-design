@@ -41,10 +41,15 @@ export interface ReviewState {
   reviewedTo?: string;
 }
 
+// `reopen` with `comment` marks that step, wherever the cursor has moved
+// since the person's write. `changed` with `self` takes a reopen by the
+// current Git name as the person's own: main announces the append before it
+// answers the write, so that read can arrive first.
 export type ReviewAction =
-  | { type: "next" | "previous" | "reopen" | "done" | "close" }
+  | { type: "next" | "previous" | "done" | "close" }
+  | { type: "reopen"; comment?: string }
   | { type: "arrived"; comments: readonly ReviewComment[] }
-  | { type: "changed"; comments: readonly ReviewComment[] };
+  | { type: "changed"; comments: readonly ReviewComment[]; self?: string | null };
 
 function stepOf(comment: ReviewComment): ReviewStep {
   return { comment: comment.comment, resolvedAt: comment.resolvedAt ?? "", mark: "resolved" };
@@ -63,12 +68,14 @@ function raise(state: ReviewState, to: string): ReviewState {
 // The person's own Reopen stays only while the comment is still open, so the
 // summary and Hand off count just those. A read that still shows the resolve
 // they reopened predates their write and keeps the mark.
-function reread(step: ReviewStep, current: ReviewComment | undefined): ReviewStep {
+function reread(step: ReviewStep, current: ReviewComment | undefined, self: string | null): ReviewStep {
   const base = { comment: step.comment, resolvedAt: step.resolvedAt };
   if (current === undefined) return { ...base, mark: "deleted" };
   if (step.mark === "reopened" && (current.status !== "resolved" || current.resolvedAt === step.resolvedAt)) return step;
   if (current.status === "resolved") return { ...base, mark: "resolved" };
-  return { ...base, mark: "reopenedElsewhere", ...(current.lastResolution ? { reopenedBy: current.lastResolution.reopenedBy } : {}) };
+  const by = current.lastResolution?.reopenedBy;
+  if (self !== null && by?.kind === "human" && by.name === self) return { ...base, mark: "reopened" };
+  return { ...base, mark: "reopenedElsewhere", ...(by ? { reopenedBy: by } : {}) };
 }
 
 export function reviewState(state: ReviewState, action: ReviewAction): ReviewState {
@@ -81,9 +88,11 @@ export function reviewState(state: ReviewState, action: ReviewAction): ReviewSta
       return { ...raise(state, step.resolvedAt), cursor: state.cursor + 1 };
     case "previous":
       return state.cursor === 0 ? state : { ...state, cursor: state.cursor - 1 };
-    case "reopen":
-      if (step?.mark !== "resolved") return state;
-      return { ...state, steps: state.steps.map((item, index) => index === state.cursor ? { ...item, mark: "reopened" } : item) };
+    case "reopen": {
+      const at = action.comment === undefined ? state.cursor : state.steps.findIndex(item => item.comment === action.comment);
+      if (state.steps[at]?.mark !== "resolved") return state;
+      return { ...state, steps: state.steps.map((item, index) => index === at ? { ...item, mark: "reopened" } : item) };
+    }
     case "done": {
       if (state.cursor !== last) return state;
       const end = state.steps.slice(0, state.fixed).reduce((max, item) => item.resolvedAt > max ? item.resolvedAt : max, "");
@@ -99,7 +108,7 @@ export function reviewState(state: ReviewState, action: ReviewAction): ReviewSta
     }
     case "changed": {
       const byId = new Map(action.comments.map((comment) => [comment.comment, comment]));
-      return { ...state, steps: state.steps.map((item) => reread(item, byId.get(item.comment))) };
+      return { ...state, steps: state.steps.map((item) => reread(item, byId.get(item.comment), action.self ?? null)) };
     }
   }
 }

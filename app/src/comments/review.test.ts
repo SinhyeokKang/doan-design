@@ -145,6 +145,20 @@ describe("reviewState", () => {
     expect(state).toMatchObject({ cursor: 2, reviewedTo: at(2) });
   });
 
+  test("Reopen of a named comment marks that step wherever the cursor is", () => {
+    const state = reviewState(reviewState(review(1, 2), { type: "next" }), { type: "reopen", comment: "cmt_1" });
+    expect(state.steps.map((item) => item.mark)).toEqual(["reopened", "resolved"]);
+    expect(state.cursor).toBe(1);
+    expect(reviewState(state, { type: "reopen", comment: "cmt_9" })).toEqual(state);
+  });
+
+  test("a reread takes a reopen by the current Git name as the person's own, another person's as elsewhere", () => {
+    const by = (reopenedBy: Author) => comment("cmt_1", { lastResolution: { by: codex, at: at(1), reopenedBy, reopenedAt: at(6) } });
+    expect(step(reviewState(review(1), { type: "changed", comments: [by(kim)], self: "Kim Doe" }))?.mark).toBe("reopened");
+    expect(step(reviewState(review(1), { type: "changed", comments: [by(human("Alex"))], self: "Kim Doe" }))?.mark).toBe("reopenedElsewhere");
+    expect(step(reviewState(review(1), { type: "changed", comments: [by(kim)] }))?.mark).toBe("reopenedElsewhere");
+  });
+
   test("Reopen does nothing on a step reopened elsewhere or deleted", () => {
     const state = reviewState(review(1), { type: "changed", comments: [] });
     expect(step(state)?.mark).toBe("deleted");

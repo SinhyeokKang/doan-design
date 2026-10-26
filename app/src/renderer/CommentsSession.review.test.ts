@@ -249,6 +249,49 @@ describe("a Review", () => {
     expect(step(s).mark).toBe("reopened");
   });
 
+  // Code review 🟡1: main sends the invalidation right after the append, so its read can answer before the write does.
+  test("the person's Reopen stays Reopened when the invalidation's read answers before the write's reply", async () => {
+    const f = fixture();
+    const { session: s, api } = f;
+    await s.open(identity);
+    s.startReview();
+    let answer: (() => void) | undefined;
+    api.commentsMutate.mockImplementationOnce(r => new Promise(resolve => { answer = () => resolve(reply(r, { state: "saved" })); }));
+    const reopening = s.reopenStep();
+    await settled();
+    f.set([reopened(one), two, three]); await s.read();
+    answer?.(); await reopening;
+    expect(step(s).mark).toBe("reopened");
+    s.moveReview("next"); s.moveReview("next"); s.moveReview("done");
+    expect(s.reviewDone?.text).toBe("Reviewed 3 · Reopened 1");
+  });
+
+  test("the person's Reopen stays Reopened after Review moved on before the reply, and a card's Reopen of another step counts too", async () => {
+    const f = fixture();
+    const { session: s, api } = f;
+    await s.open(identity);
+    s.startReview();
+    let answer: (() => void) | undefined;
+    api.commentsMutate.mockImplementationOnce(r => new Promise(resolve => { answer = () => resolve(reply(r, { state: "saved" })); }));
+    const reopening = s.reopenStep();
+    await settled();
+    s.moveReview("next");
+    f.set([reopened(one), two, three]); answer?.(); await reopening;
+    api.commentsMutate.mockImplementationOnce(async r => { f.set([reopened(one), two, reopened(three)]); return reply(r, { state: "saved" }); });
+    await s.mutate("reopen", "c3");
+    expect(s.review?.state.steps.map(item => item.mark)).toEqual(["reopened", "resolved", "reopened"]);
+  });
+
+  test("a reopen by someone else stays Reopened by them", async () => {
+    const f = fixture();
+    const { session: s } = f;
+    await s.open(identity);
+    s.startReview();
+    f.set([reopened(one, { kind: "human", name: "Kim Doe" }), two, three]); await s.read();
+    expect(step(s)).toMatchObject({ mark: "reopenedElsewhere" });
+    expect(s.review?.state.steps[0]?.reopenedBy).toEqual({ kind: "human", name: "Kim Doe" });
+  });
+
   test("a failed Reopen leaves the step resolved", async () => {
     const { session: s, api } = fixture();
     await s.open(identity);

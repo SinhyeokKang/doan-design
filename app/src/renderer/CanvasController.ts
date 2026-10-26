@@ -855,7 +855,7 @@ export class CanvasController {
   private clickOnMargin = (event: MouseEvent): void => {
     if (!Object.is(event.target, this.viewport) && !Object.is(event.target, this.board)) return;
     if (event.button !== 0 || event.ctrlKey || event.altKey) return;
-    this.escape();
+    this.clearOnEscape();
   };
 
   private onLayout(message: LayoutMessage): void {

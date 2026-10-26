@@ -312,7 +312,8 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     const find = (selector: string) => panelElement.current?.querySelector?.<HTMLElement>(selector) ?? null;
     if (target === "step") find(".review-next")?.focus();
     else if (target === "done") (find(".review-handoff") ?? find(".review-done-close") ?? heading.current)?.focus();
-    else ((noticeShown ? find(".review-start") : null) ?? heading.current)?.focus();
+    // A disabled Review (an editor is open) cannot take focus; the title does.
+    else ((noticeShown ? find(".review-start:not(:disabled)") : null) ?? heading.current)?.focus();
   });
   const step = run?.state.steps[run.state.cursor];
   const stepComment = step && (comments.find(c => c.comment === step.comment) ?? session.reviewComment(step.comment));
@@ -325,7 +326,9 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     mark: step.mark, ...(step.reopenedBy ? { reopenedBy: step.reopenedBy.name } : {}), notFound: run.notFound === step.comment,
     writesDisabled: session.busy || session.beginning || !!draft || !!writeBlocked || session.author.status !== "ready",
     onPrevious: () => moveReview("previous"), onNext: () => moveReview("next"), onDone: () => moveReview("done"), onClose: () => moveReview("close"),
-    onReopen: () => { remember(step.comment); reviewFocus.current = "step"; void session.reopenStep(); },
+    // Focus goes to Next only for a change that started (it sets busy at once),
+    // so a refused Reopen leaves no focus request for a later render.
+    onReopen: () => { remember(step.comment); void session.reopenStep(); if (session.busy) reviewFocus.current = "step"; },
     onEditReopen: () => intent("edit", step.comment),
   } : null;
   const resolvedEdit = draft?.origin.kind === "edit" && draft.origin.expected.status === "resolved" ? draft.origin.comment : null;

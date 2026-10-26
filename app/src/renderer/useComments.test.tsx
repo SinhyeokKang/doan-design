@@ -1191,7 +1191,8 @@ describe("Review on the open canvas", () => {
     vi.stubGlobal("document", doc);
     const heading = element("title"), next = element("next"), start = element("review"), close = element("close");
     harness.refs[1] = { current: heading };
-    const selectors: Record<string, Element | null> = { ".review-next": next, ".review-start": start, ".review-done-close": close };
+    // `.review-start` answers only while enabled, as `:not(:disabled)` would.
+    const selectors: Record<string, Element | null> = { ".review-next": next, ".review-start": start, ".review-start:not(:disabled)": start, ".review-done-close": close };
     harness.refs[4] = { current: { querySelectorAll: () => [], querySelector: (selector: string) => selectors[selector] ?? null } };
     const f = setup(comments);
     let visible: ((value: boolean) => void) | undefined;
@@ -1215,7 +1216,7 @@ describe("Review on the open canvas", () => {
     settle(ANCHORS);
     const props = (over: Partial<CanvasState> = {}) => (render(over).panel as unknown as { props: CommentsPanelProps }).props;
     const escape = () => (setEscapeHandler.mock.lastCall![0] as () => boolean)();
-    return { ...f, session, render, props, doc, heading, next, start, close, raise, readMarker, jumpToNode, locate, reviewed, escape, visible: (value: boolean) => visible?.(value) };
+    return { ...f, session, render, props, doc, heading, next, start, close, selectors, raise, readMarker, jumpToNode, locate, reviewed, escape, visible: (value: boolean) => visible?.(value) };
   }
 
   test("the notice counts resolves since the last review; a first-seen canvas and a seen one read differently", async () => {
@@ -1277,6 +1278,32 @@ describe("Review on the open canvas", () => {
     f.props().reviewDone!.onClose();
     f.props();
     expect(f.heading.focus).toHaveBeenCalledOnce();
+  });
+
+  // Code review 🟡3: a disabled Review button cannot take focus; the title does.
+  test("closing Review while an editor holds Review disabled sends focus to the title", async () => {
+    const f = await reviewing();
+    f.props().reviewNotice!.onStart();
+    f.props().reviewBar!.onEditReopen();
+    expect(f.props().reviewBar?.writesDisabled).toBe(true);
+    f.selectors[".review-start:not(:disabled)"] = null;
+    f.props().reviewBar!.onClose();
+    f.props();
+    expect(f.props().reviewNotice).toMatchObject({ blocked: true });
+    expect(f.start.focus).not.toHaveBeenCalled();
+    expect(f.heading.focus).toHaveBeenCalledOnce();
+  });
+
+  test("Reopen moves focus to Next only when the change starts", async () => {
+    const f = await reviewing();
+    f.props().reviewNotice!.onStart();
+    f.props();
+    f.next.focus.mockClear();
+    f.props().reviewBar!.onEditReopen();
+    // An editor is open, so the step's Reopen does nothing.
+    f.props().reviewBar!.onReopen();
+    f.props(); f.props();
+    expect(f.next.focus).not.toHaveBeenCalled();
   });
 
   test("Edit and reopen… opens the resolved comment's Save and reopen editor", async () => {

@@ -2145,6 +2145,19 @@ describe("an Escape handler set by the panel (revision-recheck Review)", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // Code review 🟡2: only an Escape closes Review; a click on the margin still clears the selection.
+  it("is not asked for a click on the blank margin", () => {
+    const h = selectionHarness();
+    try {
+      const handler = vi.fn(() => true);
+      h.controller.setEscapeHandler(handler);
+      h.select(1);
+      h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
+      expect(handler).not.toHaveBeenCalled();
+      expect(h.state().selection).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
   it("is not asked for an Escape typed into a text field, and is removed with null", () => {
     const h = selectionHarness();
     try {
