@@ -39,7 +39,7 @@ export function ProjectFields({ form, choose, chooseRef }: { form: ProjectForm; 
   return <>
     <div className="ob-field">
       <span className="ob-label">Token CSS</span>
-      <span className={view.token === null ? "value none" : "value"} title={view.token ?? undefined}>{view.token ?? "None"}</span>
+      <span className={view.token === null ? "value none" : "value token-path"} title={view.token ?? undefined}>{view.token ?? "None"}</span>
       <button type="button" className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={view.choose.disabled} ref={chooseRef} onClick={choose}>Choose…</button>
       {view.helper && <span className="ob-helper">{view.helper}</span>}
     </div>

@@ -40,7 +40,7 @@ code { font-family: var(--type-family); }
 .ob-copyline { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; }
 .ob-copyline output { flex: 1; min-width: 0; padding: var(--space-1h) var(--space-3); border-radius: var(--radius-chip); background: var(--surface-panel); color: var(--text-standard); overflow-wrap: anywhere; }
 .ob-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.ob-compare { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px 10px; font-size: 11.5px; line-height: 1.5; margin-bottom: 16px; padding: 10px 12px; background: var(--surface-panel); border: 1px solid var(--border-standard); border-radius: 8px; }
+.ob-compare { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: var(--space-1h) var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-row); background: var(--surface-panel); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .ob-compare dt { color: var(--text-metadata); }
 .ob-compare dd { color: var(--text-standard); overflow-wrap: anywhere; }
 

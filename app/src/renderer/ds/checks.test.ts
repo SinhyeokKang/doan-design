@@ -64,6 +64,10 @@ const rolePairs: ContrastPair[] = [
   { fg: "--text-danger", bg: "--surface-panel", kind: "body" },
   { fg: "--text-warning", bg: "--surface-panel", kind: "body" },
   { fg: "--text-success", bg: "--surface-panel", kind: "body" },
+  // Status pills: each status text on its own fill.
+  { fg: "--text-danger", bg: "--affordance-danger", kind: "body" },
+  { fg: "--text-warning", bg: "--affordance-warning", kind: "body" },
+  { fg: "--text-success", bg: "--affordance-success", kind: "body" },
   // Tooltip and canvas dimension capsules share the prominent fill; pressed is the lightest step.
   { fg: "--text-on-prominent", bg: "--affordance-prominent-pressed", kind: "body" },
   { fg: "--affordance-prominent", bg: "--surface-panel", kind: "nontext" },
