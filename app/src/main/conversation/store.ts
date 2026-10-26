@@ -1,7 +1,7 @@
-import { closeSync, constants, mkdirSync, renameSync, unlinkSync, writeSync } from "node:fs";
+import { closeSync, constants, fstatSync, ftruncateSync, mkdirSync, renameSync, unlinkSync, writeSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { canonicalDirectory, openRegular, readRegular } from "./io";
+import { canonicalDirectory, openRegular, readRegular, readDescriptor } from "./io";
 import { absolutePath, object } from "./sessions";
 import { anchorTokens, validAnchor } from "./prompt";
 import type { Canvas, ConversationEvent, EventPayload, Runtime } from "./types";
@@ -43,12 +43,18 @@ function event(value: unknown, id: string, seq: number): value is ConversationEv
 }
 export class ConversationStore {
   private readonly directory: string;
+  private accepting = false;
   constructor(userData: string) {
     const root = canonicalDirectory(userData); this.directory = join(root, "conversations");
     try { mkdirSync(this.directory, { mode: 0o700 }); } catch (error) { if (!object(error) || error.code !== "EEXIST") throw error; }
     if (canonicalDirectory(this.directory) !== this.directory) throw new Error("Linked conversation directory");
+    this.recoverStart();
   }
   list(): ConversationMetadata[] {
+    if (!this.accepting) this.recoverStart();
+    return this.readIndex();
+  }
+  private readIndex(): ConversationMetadata[] {
     let text: string;
     try { text = readRegular(join(this.directory, "index.json")); } catch (error) { if (object(error) && error.code === "ENOENT") return []; throw error; }
     const raw: unknown = JSON.parse(text);
@@ -56,16 +62,63 @@ export class ConversationStore {
     return raw.conversations;
   }
   save(entries: readonly ConversationMetadata[]): void {
+    if (!this.accepting) this.recoverStart();
     if (!entries.every(metadata)) throw new Error("Invalid conversation index");
     const path = join(this.directory, `index-${randomUUID()}.tmp`);
     const fd = openRegular(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL);
     try { this.write(fd, JSON.stringify({ v: 1, conversations: entries })); } finally { closeSync(fd); }
     try { renameSync(path, join(this.directory, "index.json")); } catch (error) { unlinkSync(path); throw error; }
   }
+  // The index rename is the commit point. An undo record survives interrupted log writes.
+  acceptStart(entries: ConversationMetadata[], id: string, writes: { id: string; turn: string; body: EventPayload }[]): ConversationEvent[] {
+    this.recoverStart();
+    const previous = [...new Set(writes.map(w => w.id).filter(old => old !== id))].map(old => {
+      const fd = openRegular(join(this.directory, `${old}.jsonl`));
+      try { this.parse(readDescriptor(fd, 256 * 1024 * 1024), old); const stat = fstatSync(fd); return { id: old, size: stat.size, ino: stat.ino, dev: stat.dev }; } finally { closeSync(fd); }
+    });
+    const journal = join(this.directory, "start-undo.json");
+    const temp = join(this.directory, `undo-${randomUUID()}.tmp`);
+    const fd = openRegular(temp, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL);
+    try { this.write(fd, JSON.stringify({ id, previous })); } finally { closeSync(fd); }
+    renameSync(temp, journal);
+    let saved: ConversationEvent[];
+    this.accepting = true;
+    try {
+      saved = writes.map(w => this.append(w.id, w.turn, w.body));
+      this.save(entries);
+    } catch (error) { this.recoverStart(); throw error; } finally { this.accepting = false; }
+    // A cleanup failure cannot turn a committed start into a rejected operation.
+    try { unlinkSync(journal); } catch (error) { console.error("doan: committed start cleanup deferred", error); }
+    return saved;
+  }
+  private recoverStart(): void {
+    const journal = join(this.directory, "start-undo.json");
+    let text: string;
+    try { text = readRegular(journal); } catch (error) { if (object(error) && error.code === "ENOENT") return; throw error; }
+    const raw: unknown = JSON.parse(text);
+    if (!object(raw) || !validId(raw.id) || !Array.isArray(raw.previous)) throw new Error("Invalid start recovery record");
+    if (!this.readIndex().some(m => m.conversationId === raw.id)) {
+      for (const old of raw.previous) {
+        if (!object(old) || !validId(old.id) || typeof old.size !== "number" || !Number.isSafeInteger(old.size) || old.size < 0 || typeof old.ino !== "number" || typeof old.dev !== "number") throw new Error("Invalid start recovery record");
+        const fd = openRegular(join(this.directory, `${old.id}.jsonl`), constants.O_RDWR);
+        try {
+          const stat = fstatSync(fd);
+          if (stat.ino !== old.ino || stat.dev !== old.dev || stat.size < old.size) throw new Error("Recovery file identity changed");
+          ftruncateSync(fd, old.size);
+        } finally { closeSync(fd); }
+      }
+      try { unlinkSync(join(this.directory, `${raw.id}.jsonl`)); } catch (error) { if (!object(error) || error.code !== "ENOENT") throw error; }
+    }
+    unlinkSync(journal);
+  }
   read(id: string): ConversationEvent[] {
+    if (!this.accepting) this.recoverStart();
     if (!validId(id)) throw new Error("Invalid conversation ID");
     let text: string;
     try { text = readRegular(join(this.directory, `${id}.jsonl`), 256 * 1024 * 1024); } catch (error) { if (object(error) && error.code === "ENOENT") return []; throw error; }
+    return this.parse(text, id);
+  }
+  private parse(text: string, id: string): ConversationEvent[] {
     const result: ConversationEvent[] = [];
     for (const line of text.split("\n")) {
       if (!line) continue;
@@ -76,11 +129,16 @@ export class ConversationStore {
     return result;
   }
   append(id: string, turnId: string, body: EventPayload): ConversationEvent {
-    const next: ConversationEvent = { ...body, v: 1, conversationId: id, turnId, seq: this.read(id).length + 1, at: new Date().toISOString() };
-    if (!event(next, id, next.seq)) throw new Error("Invalid conversation event");
-    const fd = openRegular(join(this.directory, `${id}.jsonl`), constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT);
-    try { this.write(fd, JSON.stringify(next) + "\n"); } finally { closeSync(fd); }
-    return next;
+    if (!this.accepting) this.recoverStart();
+    if (!validId(id)) throw new Error("Invalid conversation ID");
+    const fd = openRegular(join(this.directory, `${id}.jsonl`), constants.O_RDWR | constants.O_APPEND | constants.O_CREAT);
+    try {
+      const history = this.parse(readDescriptor(fd, 256 * 1024 * 1024), id);
+      const next: ConversationEvent = { ...body, v: 1, conversationId: id, turnId, seq: history.length + 1, at: new Date().toISOString() };
+      if (!event(next, id, next.seq)) throw new Error("Invalid conversation event");
+      this.write(fd, JSON.stringify(next) + "\n");
+      return next;
+    } finally { closeSync(fd); }
   }
   private write(fd: number, text: string): void {
     const bytes = Buffer.from(text); if (writeSync(fd, bytes) !== bytes.length) throw new Error("Incomplete conversation write");

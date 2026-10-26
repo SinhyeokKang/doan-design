@@ -25,13 +25,17 @@ export function openRegular(path: string, flags = constants.O_RDONLY): number {
 export function readRegular(path: string, limit = 16 * 1024 * 1024): string {
   const fd = openRegular(path);
   try {
-    const size = fstatSync(fd).size;
-    if (size > limit) throw new Error("File exceeds limit");
-    const bytes = Buffer.alloc(size); let offset = 0;
-    while (offset < size) { const count = readSync(fd, bytes, offset, size - offset, offset); if (!count) break; offset += count; }
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, offset));
+    return readDescriptor(fd, limit);
   } finally { closeSync(fd); }
 }
+export function readDescriptor(fd: number, limit: number): string {
+  const size = fstatSync(fd).size;
+  if (size > limit) throw new Error("File exceeds limit");
+  const bytes = Buffer.alloc(size); let offset = 0;
+  while (offset < size) { const count = readSync(fd, bytes, offset, size - offset, offset); if (!count) throw new Error("Incomplete conversation read"); offset += count; }
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+}
+
 export function readSessionTail(userData: string) {
   const root = canonicalDirectory(userData);
   let fd: number;
@@ -73,4 +77,32 @@ export async function claudeOccupancy(config: string, sessionId: string, inspect
     }
     return occupied ? "occupied" : "free";
   } catch { return "unknown"; }
+}
+
+// Verified against the 0.163.0 PoC rollout headers; no auth/config file is opened.
+export function codexSessionExists(config: string, id: string, cwd: string): boolean {
+  if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(id)) return false;
+  try {
+    const matches: string[] = []; let remaining = 65536;
+    const visit = (directory: string, depth: number): void => {
+      if (canonicalDirectory(directory) !== directory) throw new Error("Linked session directory");
+      const names = readdirSync(directory);
+      remaining -= names.length; if (remaining < 0) throw new Error("Session scan limit");
+      for (const name of names) {
+        if (depth < 3) {
+          if ((depth === 0 ? /^\d{4}$/ : /^\d{2}$/).test(name)) visit(join(directory, name), depth + 1);
+        } else if (name.startsWith("rollout-") && name.endsWith(`-${id}.jsonl`)) matches.push(join(directory, name));
+      }
+    };
+    visit(join(config, "sessions"), 0);
+    const path = matches.length === 1 ? matches[0] : undefined; if (!path) return false;
+    const fd = openRegular(path);
+    try {
+      const bytes = Buffer.alloc(65536); const count = readSync(fd, bytes, 0, bytes.length, 0);
+      const end = bytes.subarray(0, count).indexOf(10); if (end < 0) return false;
+      const raw: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, end)));
+      return object(raw) && raw.type === "session_meta" && object(raw.payload) && raw.payload.id === id &&
+        typeof raw.payload.cwd === "string" && canonicalDirectory(raw.payload.cwd) === cwd && raw.payload.cli_version === "0.163.0";
+    } finally { closeSync(fd); }
+  } catch { return false; }
 }

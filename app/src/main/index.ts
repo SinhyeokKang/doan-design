@@ -1,4 +1,4 @@
-import { ConversationService } from "./conversation/service";
+import { ConversationService, resolveListedCanvas } from "./conversation/service";
 import { ConversationStore } from "./conversation/store";
 import { createPrepare } from "./conversation/prepare";
 import { openRunner } from "./conversation/runners";
@@ -588,7 +588,10 @@ async function start(): Promise<void> {
   const conversationService = new ConversationService(new ConversationStore(userData), prepareConversation, openRunner, event => send("conversation:event", event), (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
     if (!project) throw new Error("project_not_open");
-    if (canvas && (project.kind !== "list" || !project.canvases.some(row => row.path === canvas.path && row.id === canvas.id))) throw new Error("canvas_not_found");
+    if (canvas) {
+      if (project.kind !== "list") throw new Error("canvas_not_found");
+      return resolveListedCanvas(canvas, project.canvases);
+    }
   });
   conversations = conversationService;
   const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries());

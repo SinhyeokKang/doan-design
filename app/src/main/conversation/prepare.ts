@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { probeShell, runProcess } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
 import { agentEnv } from "./environment";
-import { canonicalDirectory, claudeOccupancy, readRegular, readSessionTail } from "./io";
+import { canonicalDirectory, claudeOccupancy, codexSessionExists, readRegular, readSessionTail } from "./io";
 import { insideRoot, pickSession, supportedRuntime } from "./sessions";
 import type { Prepare, Prepared, StartRequest } from "./service";
 import type { ConversationMetadata } from "./store";
@@ -31,6 +31,7 @@ export function createPrepare(userData: string, appRuntime: string, inherited: N
       if (occupancy !== "free") throw new Error(occupancy === "occupied" ? "session_in_use" : "session_unavailable");
       if (!claudeSessionExists(configDir, session.sessionId)) throw new Error("session_unavailable");
     }
+    if (session && runtime === "codex" && !codexSessionExists(configDir, session.sessionId, cwd)) throw new Error("session_unavailable");
     const env = agentEnv({ env: inherited, path: probe.path, configDir }, runtime, appRuntime, { root, cwd, configDir });
     if (!env) throw new Error("session_unavailable");
     return { runtime, command, configDir, cwd, env: env.env, ...(session ? { sessionId: session.sessionId } : {}), ...(picked?.available ? { lastCheckAt: picked.record.at } : {}) };

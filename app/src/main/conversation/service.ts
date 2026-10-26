@@ -16,7 +16,7 @@ export class ConversationService {
   private reservations: Reservation[] = [];
   private live = new Map<string, Live>();
   private quitting = false;
-  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => void = () => {}) {}
+  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}) {}
   private reserve(id: string, input?: Prepared, reuse = false): void {
     const key = input?.sessionId ? { runtime: input.runtime, configDir: input.configDir, sessionId: input.sessionId } : null;
     const result = reserveSession(this.reservations, id, key, reuse);
@@ -34,7 +34,8 @@ export class ConversationService {
   }
   async start(request: StartRequest): Promise<{ conversationId: string }> {
     if (this.quitting) throw new Error("busy");
-    this.admit(request.root, request.canvas);
+    const admitted = this.admit(request.root, request.canvas);
+    if (admitted) request = { ...request, canvas: admitted };
     const id = randomUUID(); this.reserve(id);
     const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false }; this.live.set(id, live);
     let opening = false;
@@ -43,23 +44,33 @@ export class ConversationService {
       if (this.quitting) throw new Error("busy");
       if (input.sessionId) this.promote(id, input, input.sessionId);
       opening = true;
-      const runner = await this.open(input, event => this.receive(id, event), () => this.exited(id), stop => { live.cleanup = stop; if (this.quitting) void stop(); }); live.runner = runner;
+      const runner = await this.open(input, event => { if (this.live.get(id) === live) this.receive(id, event); }, () => { if (this.live.get(id) === live) this.exited(id); }, stop => { live.cleanup = stop; if (this.quitting) void stop(); }); live.runner = runner;
       if (live.exited) throw new Error("process_exited");
       if (!input.sessionId) this.promote(id, input, runner.sessionId);
       if (input.sessionId && input.sessionId !== runner.sessionId) throw new Error("session_unavailable");
       if (this.quitting) throw new Error("busy");
-      this.admit(request.root, request.canvas);
+      const currentCanvas = this.admit(request.root, request.canvas);
+      if (currentCanvas) request = { ...request, canvas: currentCanvas };
       const metadata: ConversationMetadata = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: (request.subject ?? request.text).slice(0, 512), state: "current", session: { runtime: input.runtime, origin: request.mode === "resume" ? "resumed" : request.mode, sessionId: runner.sessionId, configDir: input.configDir, cwd: input.cwd } };
       const entries = this.store.list();
       const replaced = entries.filter(m => m.state === "current" && m.root === request.root && m.canvas && request.canvas && sameCanvas(m.canvas, request.canvas));
-      this.store.save([...entries.map(m => replaced.includes(m) ? { ...m, state: "archived" as const } : m), metadata]);
-      live.accepted = true;
-      for (const old of replaced) this.archive(old.conversationId);
-      this.append(id, live.turnId, { type: "user.message", text: request.text, anchors: request.anchors });
-      this.append(id, live.turnId, { type: "turn.started" });
-      for (const event of live.events.splice(0)) this.receive(id, event);
       const prompt = turnPrompt(request.anchors, request.text, metadata); if (prompt === null) throw new Error("bad_request");
-      void runner.send(prompt, live.turnId).catch(error => this.transportFailed(id, error));
+      const writes: { id: string; turn: string; body: EventPayload }[] = [];
+      for (const old of replaced) {
+        const running = this.live.get(old.conversationId); const turn = running?.turnId || randomUUID();
+        if (running?.accepted && running.busy && !running.terminal) writes.push({ id: old.conversationId, turn, body: { type: "interrupted", reason: "user" } });
+        writes.push({ id: old.conversationId, turn, body: { type: "conversation.archived" } });
+      }
+      writes.push({ id, turn: live.turnId, body: { type: "user.message", text: request.text, anchors: request.anchors } }, { id, turn: live.turnId, body: { type: "turn.started" } });
+      const saved = this.store.acceptStart([...entries.map(m => replaced.includes(m) ? { ...m, state: "archived" as const } : m), metadata], id, writes);
+      live.accepted = true;
+      for (const old of replaced) {
+        const running = this.live.get(old.conversationId);
+        if (running) { running.terminal = true; running.busy = false; void running.runner?.close(); }
+      }
+      for (const event of saved) this.deliver(event);
+      for (const event of live.events.splice(0)) this.receive(id, event);
+      this.sendTurn(id, live, runner, prompt);
       return { conversationId: id };
     } catch (error) {
       if (!opening) { this.reservations = releaseReservation(this.reservations, id, "not_spawned"); this.live.delete(id); }
@@ -68,24 +79,25 @@ export class ConversationService {
     }
   }
   async send(id: string, text: string, anchors: Anchor[]): Promise<void> {
-    const metadata = this.metadata(id); this.admit(metadata.root, metadata.canvas); if (metadata.state !== "current" || this.quitting) throw new Error("busy");
+    let metadata = this.refreshCanvas(this.metadata(id)); if (metadata.state !== "current" || this.quitting) throw new Error("busy");
     const existing = this.live.get(id); if (existing?.busy || existing?.failedPersistence) throw new Error("busy");
-    const live: Live = existing ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false };
+    const live: Live = (existing?.runner ? existing : undefined) ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false };
     live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; live.turnId = randomUUID(); this.live.set(id, live);
     let reserved = false, opening = false;
     try {
       this.reserve(id, { ...metadata.session, command: "", env: {} }, metadata.session.runtime === "codex" && !!live.runner); reserved = true;
       const input = await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata.session);
-      if (this.quitting) throw new Error("busy");
+      this.checkSend(id, live);
       if (live.exited) throw new Error("process_exited");
-      if (!live.runner) { opening = true; live.runner = await this.open(input, event => this.receive(id, event), () => this.exited(id), stop => { live.cleanup = stop; if (this.quitting) void stop(); }); }
+      if (!live.runner) { opening = true; live.runner = await this.open(input, event => { if (this.live.get(id) === live) this.receive(id, event); }, () => { if (this.live.get(id) === live) this.exited(id); }, stop => { live.cleanup = stop; if (this.quitting) void stop(); }); }
       if (live.exited) throw new Error("process_exited");
       if (live.runner.sessionId !== metadata.session.sessionId) throw new Error("session_unavailable");
-      this.admit(metadata.root, metadata.canvas);
+      this.checkSend(id, live);
+      metadata = this.refreshCanvas(this.metadata(id));
       const prompt = turnPrompt(anchors, text, metadata); if (prompt === null) throw new Error("bad_request");
       this.append(id, live.turnId, { type: "user.message", text, anchors }); this.append(id, live.turnId, { type: "turn.started" }); live.accepted = true;
       for (const event of live.events.splice(0)) this.receive(id, event);
-      void live.runner.send(prompt, live.turnId).catch(error => this.transportFailed(id, error));
+      this.sendTurn(id, live, live.runner, prompt);
     } catch (error) {
       live.busy = false;
       if (reserved && !opening && !live.runner) this.reservations = releaseReservation(this.reservations, id, "not_spawned");
@@ -93,7 +105,7 @@ export class ConversationService {
     }
   }
   receive(id: string, event: EventPayload): void {
-    const live = this.live.get(id); if (!live || live.failedPersistence) return;
+    const live = this.live.get(id); if (!live || live.failedPersistence || live.terminal) return;
     if (!live.accepted) { live.events.push(event); return; }
     if (live.terminal) return;
     try {
@@ -107,6 +119,7 @@ export class ConversationService {
     return { events, lastSeq: state.lastSeq, turn: state.turn, ...(pendingPermission ? { pendingPermission } : {}) };
   }
   forCanvas(root: string, canvas: Canvas) {
+    for (const m of this.store.list()) if (m.root === root && m.canvas && sameCanvas(m.canvas, canvas)) this.refreshCanvas(m);
     const summaries = this.store.list().filter(m => m.root === root && m.canvas && sameCanvas(m.canvas, canvas)).map(m => {
       const read = this.read(m.conversationId); return { conversationId: m.conversationId, canvas: m.canvas, title: m.title, state: m.state,
         turn: read.turn === "waitingPermission" ? "waitingPermission" : ["starting", "streaming"].includes(read.turn) ? "running" : read.turn === "failed" ? "failed" : "idle",
@@ -133,14 +146,24 @@ export class ConversationService {
     const entries = this.store.list(); const first = entries.find(m => m.root === root && !m.canvas && m.state === "current" && m.session.origin === "newDesign");
     if (first && !entries.some(m => m.root === root && m.state === "current" && m.canvas && sameCanvas(m.canvas, canvas))) this.store.save(entries.map(m => m === first ? { ...m, canvas } : m));
   }
+  private refreshCanvas(metadata: ConversationMetadata): ConversationMetadata {
+    const canvas = this.admit(metadata.root, metadata.canvas);
+    if (!canvas || !metadata.canvas || canvas.path === metadata.canvas.path) return metadata;
+    if (!metadata.canvas.id || canvas.id !== metadata.canvas.id) throw new Error("canvas_not_found");
+    const refreshed = { ...metadata, canvas };
+    this.store.save(this.store.list().map(m => m.conversationId === metadata.conversationId ? refreshed : m));
+    return refreshed;
+  }
+  private checkSend(id: string, live: Live): void {
+    if (this.quitting || this.live.get(id) !== live || live.terminal || this.metadata(id).state !== "current") throw new Error("busy");
+  }
   private metadata(id: string): ConversationMetadata { const m = this.store.list().find(m => m.conversationId === id); if (!m) throw new Error("not_found"); return m; }
   private append(id: string, turn: string, event: EventPayload): void {
     const saved = this.store.append(id, turn, event);
-    try { this.publish(saved); } catch (error) { console.error("doan: persisted conversation event could not be delivered", error); }
+    this.deliver(saved);
   }
-  private archive(id: string): void {
-    const live = this.live.get(id); void live?.runner?.close(); if (live?.busy) this.receive(id, { type: "interrupted", reason: "user" });
-    this.append(id, live?.turnId ?? randomUUID(), { type: "conversation.archived" }); if (live) live.terminal = true;
+  private deliver(saved: ConversationEvent): void {
+    try { this.publish(saved); } catch (error) { console.error("doan: persisted conversation event could not be delivered", error); }
   }
   private exited(id: string): void {
     this.reservations = releaseReservation(this.reservations, id, "process_exited");
@@ -148,5 +171,18 @@ export class ConversationService {
     if (!live.accepted) this.live.delete(id);
     if (live.accepted && live.busy) this.receive(id, { type: "turn.failed", code: "process_exited" });
   }
+  private sendTurn(id: string, live: Live, runner: Runner, prompt: string): void {
+    const turn = live.turnId;
+    void runner.send(prompt, turn).catch(error => {
+      if (this.live.get(id) === live && live.turnId === turn) this.transportFailed(id, error);
+    });
+  }
   private transportFailed(id: string, error: unknown): void { this.receive(id, { type: "turn.failed", code: transportError(error instanceof Error ? error.message : ""), detail: error instanceof Error ? error.message.slice(0, 4096) : "Transport failed" }); }
+}
+
+export function resolveListedCanvas(canvas: Canvas, listed: readonly Canvas[]): Canvas {
+  const matches = listed.filter(row => canvas.id ? row.id === canvas.id : row.path === canvas.path);
+  const match = matches.length === 1 ? matches[0] : undefined;
+  if (!match) throw new Error("canvas_not_found");
+  return canvas.id ? { id: canvas.id, path: match.path } : { path: canvas.path };
 }
