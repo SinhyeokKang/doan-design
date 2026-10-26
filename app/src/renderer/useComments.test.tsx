@@ -816,10 +816,9 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
   describe("a card that leaves the list", () => {
     const open = (comment: string): Comment => ({ ...note, comment, target: {} });
     const listed = (comments: Comment[]) => { (window.doan as unknown as Record<string, unknown>).commentsList = async (r: CommentRequest) => ({ ok: true, identity: r, value: { project: 1, comments, warnings: [], canvasHash: "hash" } }); };
-    // The person's pointer press, as the window's capture listener sees it.
+    // The person's pointer press, as the window's capture listeners see it.
     const press = (target: unknown) => {
-      const listener = (window.addEventListener as Mock).mock.calls.filter(([type]) => type === "pointerdown").at(-1)?.[1] as ((event: { target: unknown }) => void) | undefined;
-      listener?.({ target });
+      for (const [type, listener] of (window.addEventListener as Mock).mock.calls) if (type === "pointerdown") (listener as (event: { target: unknown }) => void)({ target });
     };
     // Focus on the card's Resolve button, then the person resolves it: the
     // button disables (focus drops to <body>) and the reread list leaves it out.
@@ -1551,6 +1550,49 @@ describe("Review on the open canvas", () => {
       f.render(); f.session.answer("discard"); f.render(); f.render();
       expect(f.locate).not.toHaveBeenCalled();
       expect(f.card.focus).not.toHaveBeenCalled();
+    });
+
+    // A press on a blank area leaves focus on <body>, where the request left
+    // it, so only the press tells the person moved on (POSTMORTEM R-C/R-E).
+    const press = (target: unknown) => {
+      for (const [type, listener] of (window.addEventListener as Mock).mock.calls) if (type === "pointerdown") (listener as (event: { target: unknown }) => void)({ target });
+    };
+
+    test("a press on a blank area, though focus stays on <body>", async () => {
+      const f = await waiting();
+      press(element("blank workspace"));
+      answer(f, 5);
+      f.render(); f.render();
+      expect(f.locate).not.toHaveBeenCalled();
+      expect(f.card.focus).not.toHaveBeenCalled();
+      expect(f.heading.focus).not.toHaveBeenCalled();
+    });
+
+    test("a press on a blank area ends it before its time", async () => {
+      const f = await waiting();
+      vi.useFakeTimers();
+      try {
+        f.render().openAt({ root: "/repo", path: row.path, comment: "c2", status: "resolved" });
+        f.render();
+        press(element("blank workspace"));
+        vi.advanceTimersByTime(ARRIVAL_MS + 1);
+        f.render();
+        expect(f.heading.focus).not.toHaveBeenCalled();
+      } finally { vi.useRealTimers(); }
+    });
+
+    // The row click's own press lands before the canvas opens and asks.
+    test("the press that opened the row does not end it", async () => {
+      const f = await reviewing([one, two]);
+      const card = Object.assign(element("card"), { dataset: { comment: "c2" } });
+      harness.refs[4] = { current: { querySelectorAll: () => [card], querySelector: () => null } };
+      press(element("Feedback row"));
+      f.render().openAt({ root: "/repo", path: row.path, comment: "c2", status: "resolved" });
+      f.render(); settle(FILTER); f.render();
+      answer(f, 5);
+      f.render();
+      expect(f.locate).toHaveBeenCalledExactlyOnceWith("n2", 5, two);
+      expect(card.focus).toHaveBeenCalledOnce();
     });
 
     // R-V1 ⚪1: with no newer intent and focus on <body>, it ends on the title,

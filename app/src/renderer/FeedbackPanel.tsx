@@ -60,8 +60,8 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
   // The card focus was in when it last left for nowhere: a card's own button
   // drops focus to <body> as it disables while saving, before the card leaves.
   const held = useRef<string | null>(null);
-  // The read a card change started under; its card leaves only with a later one.
-  const writing = useRef<{ read: ProjectRead | undefined } | null>(null);
+  // The card a change was written from, kept through <body> until it leaves.
+  const writing = useRef<string | null>(null);
   const previous = useRef<string[]>([]);
   const reveal = useRef<string | null>(null);
   // Show's request: the first read it saw (possibly one kept from an earlier
@@ -148,6 +148,9 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
     revealWait.current = null;
     props.onRevealed?.();
   }, [props.reveal?.seq, read, status]);
+  // For the press listener below, registered once: this render's onRevealed.
+  const endLatest = useRef(endReveal);
+  endLatest.current = endReveal;
   useEffect(() => {
     const seq = props.reveal?.seq;
     if (seq === undefined) return;
@@ -157,11 +160,13 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
 
   // An outside press is the person moving focus away, though it may leave
   // focus on <body> with no render before an agent's change removes the card
-  // (useComments, R-E E-3). A press on the card's own button is not.
+  // (useComments, R-E E-3). A press on the card's own button is not. Any press
+  // ends Show's wait the same way; Show's own press came before it began.
   useEffect(() => {
     const press = (event: Event) => {
       const key = held.current;
       if (key !== null && !elements.current.get(key)?.contains(event.target as Node | null)) held.current = null;
+      if (revealWait.current) endLatest.current(false);
     };
     window.addEventListener("pointerdown", press, true);
     return () => window.removeEventListener("pointerdown", press, true);
@@ -188,17 +193,20 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
       if (next) (next.kind === "row" ? elements.current.get(next.key) : title.current)?.focus();
     }
     // Kept through <body> only while a card change is under way: its write,
-    // then, if it was saved, the read after it that takes the card away.
-    // Otherwise focus left on purpose and the card is forgotten (useComments'
-    // card rule, POSTMORTEM 2026-10-23 recurrence R-C).
+    // then, if it was saved, until a read takes the card away. Not just the
+    // next read: Electron may deliver the write's reply before main's earlier
+    // comments:invalidated, so a read sent before the write can land after it
+    // still showing the card. Otherwise focus left on purpose and the card is
+    // forgotten (useComments' card rule, POSTMORTEM 2026-10-23 recurrence R-C).
     const kept = held.current?.startsWith("card:") ? held.current.slice("card:".length) : null;
     const change = kept === null ? undefined : props.orphans.mutations.get(kept)?.status;
     const saved = (change === undefined || change === "idle" || change === "saved") && !props.orphans.gitMissing(root);
-    if (props.orphans.busy) writing.current = { read };
-    else if (writing.current && (writing.current.read !== read || !saved)) writing.current = null;
+    if (props.orphans.busy) writing.current = held.current;
+    else if (!saved) writing.current = null;
     const holder = document.activeElement, lostFocus = !holder || holder === document.body || !holder.isConnected;
     const card = order.find(key => key.startsWith("card:") && elements.current.get(key)?.contains(holder));
-    held.current = card ?? (held.current !== null && order.includes(held.current) && lostFocus && writing.current ? held.current : null);
+    held.current = card ?? (held.current !== null && order.includes(held.current) && lostFocus && writing.current === held.current ? held.current : null);
+    if (writing.current !== held.current) writing.current = null;
   });
 
   // Open counts in the accent; a zero (a head shown for its review entry) is not news.

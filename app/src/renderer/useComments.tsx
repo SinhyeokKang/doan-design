@@ -369,6 +369,13 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   // selection, a filter the person picks or focus moved elsewhere. After
   // ARRIVAL_MS it ends too, on the title if focus is still on <body>.
   const arrival = useRef<(CommentArrival & Deferred & { until: number }) | null>(null);
+  // Any press ends it too: one on a blank area leaves focus on <body>, as the
+  // request left it (POSTMORTEM R-C/R-E). The row's own press came before it.
+  useEffect(() => {
+    const press = () => { arrival.current = null; };
+    window.addEventListener("pointerdown", press, true);
+    return () => window.removeEventListener("pointerdown", press, true);
+  }, []);
   const expire = (request: Deferred) => {
     if (arrival.current !== request) return;
     arrival.current = null;

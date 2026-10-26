@@ -142,6 +142,20 @@ describe("an orphan card that leaves while it held focus (R-V1 🟡3)", () => {
     expect(moved(f)).toEqual([card("invoice", "c2")]);
   });
 
+  // R-V1b ⚪1: Electron may deliver the write's reply before main's earlier
+  // comments:invalidated, so a read sent before the write can still land
+  // after busy ends, showing the card.
+  test("a read from before its saved write keeps it until the read without the card", () => {
+    const f = focusedOnFirst();
+    f.press(f.node(card("invoice", "c1")).button);
+    f.doc.activeElement = f.body;
+    f.render({ orphans: { ...f.props().orphans, busy: true } });
+    f.render({ orphans: { ...f.props().orphans, busy: false } });
+    f.render({ read: read([{ id: "invoice", comments: [note("c1"), note("c2")] }], 2) });
+    f.render({ read: read([{ id: "invoice", comments: [note("c2")] }], 3) });
+    expect(moved(f)).toEqual([card("invoice", "c2")]);
+  });
+
   test("a write that failed ends it; a later read without the card moves nothing", () => {
     const f = focusedOnFirst();
     f.press(f.node(card("invoice", "c1")).button);
@@ -203,6 +217,42 @@ describe("Show from the id-change notice (R-V1 🟡4)", () => {
     expect(f.node("title").focus).toHaveBeenCalledOnce();
     f.render({ read: after });
     expect(f.node(head).focus).not.toHaveBeenCalled();
+  });
+
+  // R-V1b 🟡1: a press on a blank area leaves focus on <body>, the same as
+  // Show left it, so only the press itself tells the person moved on.
+  test("a blank press ends it; a later read moves nothing", () => {
+    const f = waiting();
+    // The listener is registered once; it calls the latest render's onRevealed.
+    const latest = vi.fn();
+    f.render({ onRevealed: latest });
+    f.press(f.node("blank Overview"));
+    expect(latest).toHaveBeenCalledOnce();
+    f.render({ reveal: null });
+    f.render({ read: after });
+    expect(f.node(head).focus).not.toHaveBeenCalled();
+    expect(f.node("title").focus).not.toHaveBeenCalled();
+  });
+
+  test("a blank press ends it; its time moves nothing", () => {
+    vi.useFakeTimers();
+    const f = waiting();
+    f.press(f.node("blank Overview"));
+    vi.advanceTimersByTime(REVEAL_MS + 1); f.revealed();
+    expect(f.node("title").focus).not.toHaveBeenCalled();
+  });
+
+  // The Show click's own press lands before the request exists.
+  test("the press that asked for Show does not end it", () => {
+    const onRevealed = vi.fn();
+    const f = panel({ read: before, onRevealed });
+    f.render();
+    f.press(f.node("Show"));
+    f.render({ reveal: { id: "checkout-v1", seq: 1 } });
+    f.render({ read: after });
+    expect(onRevealed).toHaveBeenCalledOnce();
+    f.render({ reveal: null });
+    expect(f.node(head).focus).toHaveBeenCalledOnce();
   });
 
   test.each([["on <body>", false], ["moved elsewhere", true]])("its time ends it, on the title only with focus %s", (_label, elsewhere) => {
