@@ -1177,3 +1177,151 @@ describe("the Resolved list order (revision-recheck task 6)", () => {
     expect(read.status === "ready" && read.comments.map(c => c.comment)).toEqual(["c3", "c1", "c2"]);
   });
 });
+
+// feature revision-recheck task 8 (design review-notice, review-bar, review-done).
+describe("Review on the open canvas", () => {
+  const codex = { kind: "agent" as const, name: "codex" };
+  const resolved = (comment: string, at: string): Comment => ({ comment, body: `Body ${comment}`, status: "resolved", target: { frame: "payment" }, canvasHash: "hash", createdBy: { kind: "human", name: "Kim Doe" }, createdAt: "2026-10-24T00:00:00.000Z", updatedAt: at, resolvedBy: codex, resolvedAt: at });
+  const one = resolved("c1", "2026-10-25T01:00:00.000Z"), two = resolved("c2", "2026-10-25T02:00:00.000Z");
+  const since = "2026-10-25T00:00:00.000Z";
+  type Element = { name: string; focus: Mock; isConnected: boolean; hasAttribute: () => boolean; contains: (node: unknown) => boolean; tagName?: string };
+  const element = (name: string, over: Partial<Element> = {}): Element => { const e: Element = { name, focus: vi.fn(), isConnected: true, hasAttribute: () => false, contains: node => node === e, ...over }; return e; };
+  async function reviewing(comments: Comment[] = [one, two], marker: { since: string; lastReviewedAt?: string } = { since }) {
+    const body = element("body"), doc = { body, activeElement: body as unknown, querySelector: () => null };
+    vi.stubGlobal("document", doc);
+    const heading = element("title"), next = element("next"), start = element("review"), close = element("close");
+    harness.refs[1] = { current: heading };
+    const selectors: Record<string, Element | null> = { ".review-next": next, ".review-start": start, ".review-done-close": close };
+    harness.refs[4] = { current: { querySelectorAll: () => [], querySelector: (selector: string) => selectors[selector] ?? null } };
+    const f = setup(comments);
+    let visible: ((value: boolean) => void) | undefined;
+    const raise = vi.fn(async (_root: string, _canvas: string, at: string) => ({ since, lastReviewedAt: at }));
+    const readMarker = vi.fn(async () => marker);
+    Object.assign(window.doan, { reviewMarker: readMarker, raiseReviewMarker: raise, onWindowVisible: (callback: typeof visible) => { visible = callback; return () => {}; } });
+    const jumpToNode = vi.fn((_node: string, _generation: number) => true), locate = vi.fn(), setEscapeHandler = vi.fn();
+    Object.assign(f.controller, { jumpToNode, locate, setEscapeHandler });
+    const reviewed = vi.fn();
+    const render = (over: Partial<CanvasState> = {}) => {
+      harness.index = 0; harness.refIndex = 0; harness.effects = [];
+      const result = useComments({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, hasFrame: true, layout: layout("one"), selection: null, ...over }, { current: f.controller as unknown as CanvasController }, vi.fn(), [], reviewed);
+      for (const effect of harness.effects) effect();
+      return result;
+    };
+    const { session } = render();
+    settle(FILTER);
+    await vi.waitFor(() => { expect(session.author.status).toBe("ready"); expect(session.list).not.toBeNull(); expect(session.marker).not.toBeNull(); });
+    render();
+    (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation: 4, nodes: new Map(comments.map((c, i) => [c.comment, `n${i + 1}`])) }, rects: new Map(), selected: null, status: "answered" });
+    settle(ANCHORS);
+    const props = (over: Partial<CanvasState> = {}) => (render(over).panel as unknown as { props: CommentsPanelProps }).props;
+    const escape = () => (setEscapeHandler.mock.lastCall![0] as () => boolean)();
+    return { ...f, session, render, props, doc, heading, next, start, close, raise, readMarker, jumpToNode, locate, reviewed, escape, visible: (value: boolean) => visible?.(value) };
+  }
+
+  test("the notice counts resolves since the last review; a first-seen canvas and a seen one read differently", async () => {
+    const first = await reviewing();
+    expect(first.props().reviewNotice).toMatchObject({ count: 2, firstSeen: true, blocked: false });
+    vi.unstubAllGlobals(); harness.effects = []; harness.deps = []; harness.states = []; harness.updates = []; harness.index = 0; harness.refs = []; harness.refIndex = 0;
+    const seen = await reviewing([one, two], { since, lastReviewedAt: one.resolvedAt! });
+    expect(seen.props().reviewNotice).toMatchObject({ count: 1, firstSeen: false });
+  });
+
+  test("a draft disables Review", async () => {
+    const f = await reviewing();
+    await f.session.create("canvas");
+    expect(f.props().reviewNotice).toMatchObject({ blocked: true });
+    f.props().reviewNotice!.onStart();
+    expect(f.session.review).toBeNull();
+  });
+
+  test("Review collapses the filter rows, moves the canvas to the step without selecting, and puts focus on Next", async () => {
+    const f = await reviewing();
+    f.props().reviewNotice!.onStart();
+    expect(f.jumpToNode).toHaveBeenLastCalledWith("n1", 4);
+    expect(f.locate).not.toHaveBeenCalled();
+    const props = f.props();
+    expect(props.reviewNotice).toBeNull();
+    expect(props.reviewBar).toMatchObject({ step: 1, total: 2, target: "Frame · payment", body: "Body c1", mark: "resolved", notFound: false, resolution: { at: one.resolvedAt } });
+    expect(props.reviewBar?.resolution?.text).toMatch(/^Resolved by codex · /);
+    expect(f.next.focus).toHaveBeenCalledOnce();
+    expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "open" });
+    props.reviewBar!.onNext();
+    expect(f.jumpToNode).toHaveBeenLastCalledWith("n2", 4);
+    expect(f.raise).toHaveBeenLastCalledWith("/repo", "a", one.resolvedAt);
+    expect(f.props().reviewBar).toMatchObject({ step: 2 });
+    expect(f.next.focus).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(f.reviewed).toHaveBeenCalledWith("/repo"));
+  });
+
+  test("a target the canvas cannot find does not move and says so", async () => {
+    const f = await reviewing();
+    f.jumpToNode.mockReturnValueOnce(false);
+    f.props().reviewNotice!.onStart();
+    expect(f.props().reviewBar?.notFound).toBe(true);
+    f.props().reviewBar!.onNext();
+    expect(f.props().reviewBar?.notFound).toBe(false);
+  });
+
+  test("Esc closes Review and returns focus to the notice's Review button, else the title; without Review it declines", async () => {
+    const f = await reviewing([one, two]);
+    expect(f.escape()).toBe(false);
+    f.props().reviewNotice!.onStart();
+    expect(f.escape()).toBe(true);
+    expect(f.session.review).toBeNull();
+    f.props();
+    expect(f.start.focus).toHaveBeenCalledOnce();
+    f.props().reviewNotice!.onStart(); f.props().reviewBar!.onNext(); f.props().reviewBar!.onDone();
+    expect(f.props().reviewDone).toMatchObject({ text: "Reviewed 2" });
+    expect(f.props().reviewDone?.onHandOff).toBeUndefined();
+    expect(f.close.focus).toHaveBeenCalledOnce();
+    f.props().reviewDone!.onClose();
+    f.props();
+    expect(f.heading.focus).toHaveBeenCalledOnce();
+  });
+
+  test("Edit and reopen… opens the resolved comment's Save and reopen editor", async () => {
+    const f = await reviewing();
+    f.props().reviewNotice!.onStart();
+    f.props().reviewBar!.onEditReopen();
+    const editor = f.props().editor!;
+    expect(editor.mode).toBe("edit");
+    expect(editor.saveOnly).toBeTypeOf("function");
+    expect(f.props().reviewBar?.writesDisabled).toBe(true);
+  });
+
+  test("Next and Previous from the menu move only during Review and not from a text field; reviewing tells the menu", async () => {
+    const f = await reviewing();
+    expect(f.render().reviewing).toBe(false);
+    f.render().reviewStep("next");
+    expect(f.session.review).toBeNull();
+    f.props().reviewNotice!.onStart();
+    expect(f.render().reviewing).toBe(true);
+    f.doc.activeElement = element("field", { tagName: "TEXTAREA" });
+    f.render().reviewStep("next");
+    expect(f.session.review?.state.cursor).toBe(0);
+    f.doc.activeElement = f.doc.body;
+    f.render().reviewStep("next");
+    expect(f.session.review?.state.cursor).toBe(1);
+    f.render().reviewStep("previous");
+    expect(f.session.review?.state.cursor).toBe(0);
+    f.render().closeReview();
+    expect(f.render().reviewing).toBe(false);
+  });
+
+  test("a shown window reads the review marker and the comments again", async () => {
+    const f = await reviewing();
+    f.readMarker.mockClear();
+    f.visible(false);
+    expect(f.readMarker).not.toHaveBeenCalled();
+    f.visible(true);
+    expect(f.readMarker).toHaveBeenCalledOnce();
+  });
+
+  test("Show on the Save and reopen line lists Open and locates that comment", async () => {
+    const f = await reviewing([one, two]);
+    f.props().onShowStatus!("c1");
+    settle(FILTER);
+    expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "open" });
+    expect(f.locate).toHaveBeenCalledExactlyOnceWith("n1", 4, one);
+  });
+});

@@ -1,11 +1,11 @@
 import type { FolderEntry } from "../main/view";
 import { commentContext } from "./projectDisplay";
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { CommentsSession } from "./CommentsSession";
-import { CommentsPanel, UnsavedCommentDialog, UncertainCommentDialog, DeleteCommentDialog, revealComposer, type CommentIntent } from "./CommentsPanel";
+import { CommentsSession, type ReviewMove } from "./CommentsSession";
+import { CommentsPanel, UnsavedCommentDialog, UncertainCommentDialog, DeleteCommentDialog, relativeTime, revealComposer, type CommentIntent } from "./CommentsPanel";
 import { MEASURE_ANSWER_MS, type CanvasController, type CanvasState } from "./CanvasController";
 import { shownAnchors, type AnchorSnapshot } from "./commentAnchors";
-import { mainSelection, selectionIdentity } from "./selection";
+import { editableTarget, mainSelection, selectionIdentity } from "./selection";
 import { outdated, projectList, type ListFilter } from "../comments/projection";
 import { continueEnabled, draftScope, guardsSelectionChange } from "../comments/draft";
 import { nextFocus, sortResolved } from "../comments/resolution";
@@ -16,7 +16,8 @@ import type { Target } from "../formats/types";
 // belongs to; `holder` held focus after the last render that kept it.
 type Deferred = { since: AnchorSnapshot | null; context?: string; holder?: Element | null };
 
-export function useComments(state: CanvasState, controller: RefObject<CanvasController | null>, showWorkspace: () => void, entries: FolderEntry[]) {
+// `reviewed`: main raised a canvas's review marker (Home and Overview counts follow).
+export function useComments(state: CanvasState, controller: RefObject<CanvasController | null>, showWorkspace: () => void, entries: FolderEntry[], reviewed?: (root: string) => void) {
   const [, render] = useState(0);
   const [session] = useState(() => new CommentsSession(window.doan, () => render(n => n + 1)));
   const [anchors, setAnchors] = useState<AnchorSnapshot | null>(null);
@@ -264,12 +265,84 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     held.current = card ? { comment: card.dataset.comment ?? "", order: ids, context: listContext }
       : last && lost && session.busy && ids.includes(last.comment) ? { ...last, order: ids } : null;
   });
+  // feature revision-recheck Review. Its texts come from the session as its
+  // methods leave it, not an earlier render (POSTMORTEM 2026-10-25).
+  session.onReviewed = reviewed ?? null;
+  useEffect(() => window.doan.onWindowVisible?.(visible => {
+    // Resolves while the window was hidden show in the notice once it is back.
+    if (visible && session.identity) { void session.readMarker(); void session.read(); }
+  }), [session]);
+  // Where focus goes after the render a Review action leads to (design review-bar, review-done).
+  const reviewFocus = useRef<"step" | "closed" | "done" | null>(null);
+  const run = current ? session.review : null;
+  const pending = current && list && !readError ? session.pendingReview() : [];
+  const noticeShown = !run && pending.length > 0;
+  // The step's target on the canvas: moved to and highlighted, never selected (RR3).
+  const jump = () => {
+    const review = session.review, step = review?.state.steps[review.state.cursor];
+    if (!review || !step) return;
+    const latest = latestAnchors.current;
+    const lookup = latest && latest.lookup.root === review.root && latest.lookup.canvas === review.canvas ? latest.lookup : null;
+    const node = step.mark === "deleted" ? undefined : lookup?.nodes.get(step.comment);
+    const found = node !== undefined && !!lookup && controller.current?.jumpToNode(node, lookup.generation) === true;
+    session.markNotFound(found || step.mark === "deleted" ? null : step.comment);
+    reviewFocus.current = "step";
+  };
+  const moveReview = (move: ReviewMove) => {
+    const before = session.review?.state.cursor;
+    session.moveReview(move);
+    if (move === "close") reviewFocus.current = "closed";
+    else if (session.reviewDone && !session.review) reviewFocus.current = "done";
+    else if (session.review && session.review.state.cursor !== before) jump();
+  };
+  const startReview = () => { if (session.startReview()) jump(); };
+  const closeSummary = () => { session.closeDone(); reviewFocus.current = "closed"; };
+  useEffect(() => {
+    controller.current?.setEscapeHandler?.(() => {
+      if (!session.review) return false;
+      moveReview("close");
+      return true;
+    });
+    return () => controller.current?.setEscapeHandler?.(null);
+  });
+  useEffect(() => {
+    const target = reviewFocus.current;
+    if (target === null) return;
+    reviewFocus.current = null;
+    const find = (selector: string) => panelElement.current?.querySelector?.<HTMLElement>(selector) ?? null;
+    if (target === "step") find(".review-next")?.focus();
+    else if (target === "done") (find(".review-handoff") ?? find(".review-done-close") ?? heading.current)?.focus();
+    else ((noticeShown ? find(".review-start") : null) ?? heading.current)?.focus();
+  });
+  const step = run?.state.steps[run.state.cursor];
+  const stepComment = step && (comments.find(c => c.comment === step.comment) ?? session.reviewComment(step.comment));
+  // A step the person reopened keeps showing the resolve it reviewed.
+  const resolvedBy = stepComment?.resolvedBy ?? stepComment?.lastResolution?.by, resolvedAt = stepComment?.resolvedAt ?? stepComment?.lastResolution?.at;
+  const stepTarget = stepComment && targetLabel(stepComment.target, frames);
+  const reviewBar = run && step && stepComment && stepTarget ? {
+    step: run.state.cursor + 1, total: run.state.steps.length, target: stepTarget.text, targetTitle: stepTarget.title, body: stepComment.body,
+    resolution: resolvedBy && resolvedAt ? { text: `Resolved by ${resolvedBy.name} · ${relativeTime(resolvedAt)}`, at: resolvedAt } : null,
+    mark: step.mark, ...(step.reopenedBy ? { reopenedBy: step.reopenedBy.name } : {}), notFound: run.notFound === step.comment,
+    writesDisabled: session.busy || session.beginning || !!draft || !!writeBlocked || session.author.status !== "ready",
+    onPrevious: () => moveReview("previous"), onNext: () => moveReview("next"), onDone: () => moveReview("done"), onClose: () => moveReview("close"),
+    onReopen: () => { remember(step.comment); reviewFocus.current = "step"; void session.reopenStep(); },
+    onEditReopen: () => intent("edit", step.comment),
+  } : null;
   const resolvedEdit = draft?.origin.kind === "edit" && draft.origin.expected.status === "resolved" ? draft.origin.comment : null;
   const replacedOn = session.deleteConfirmation?.replacedOn;
   return {
     session,
     // Opens a comment's editor; a resolved one's offers Save and reopen (for the Review bar's Edit and reopen…).
     editComment: (id: string) => intent("edit", id),
+    // For the Go menu: enabled while this is true; ignored from a text field.
+    reviewing: !!run,
+    reviewStep: (move: "next" | "previous") => {
+      const review = session.review;
+      if (!review || editableTarget(document.activeElement)) return;
+      // At the last step Next is Done, and the menu item follows the button.
+      moveReview(move === "next" && review.state.cursor === review.state.steps.length - 1 ? "done" : move);
+    },
+    closeReview: () => session.closeReview(),
     panel: (open || draft) && <CommentsPanel filter={currentFilter} selectionAvailable={state.selection !== null && !state.unlisted} selectionNode={snapshot?.selected ?? null}
       counts={{ open: scoped("open").length, resolved: scoped("resolved").length }} canvasOpenCount={comments.filter(c => c.status === "open").length}
       read={readError ? { status: "failed", message: readError } : list ? { status: "ready", comments: shown, warnings: list.warnings } : { status: "loading" }}
@@ -278,7 +351,9 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       author={session.author} identityCause={identityCause} canvasId={canvas ?? ""} frames={frames} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || (session.beginning && !draft)}
       copies={session.copies} allCopy={session.copies.get("all") ?? { status: "idle" }} mutations={session.mutations} headingRef={heading} panelRef={panelElement}
       statusLine={current && session.statusLine ? { ...session.statusLine, before: places.current.get(session.statusLine.comment) ?? null } : null}
-      onShowStatus={comment => { focusAfter.current.pin = null; focusAfter.current.saved = null; showing.current = comment; setFilter(current => ({ ...current, status: "open" })); }}
+      onShowStatus={comment => { focusAfter.current.pin = null; focusAfter.current.saved = null; showing.current = comment; setFilter(current => ({ ...current, status: "open" })); intent("locate", comment); }}
+      reviewNotice={noticeShown ? { count: pending.length, firstSeen: session.marker?.lastReviewedAt === undefined, blocked: !!draft || session.beginning, onStart: startReview } : null}
+      reviewBar={reviewBar} reviewDone={current && session.reviewDone ? { text: session.reviewDone.text, onClose: closeSummary } : null}
       onFilter={next => { focusAfter.current.pin = null; focusAfter.current.saved = null; setFilter(next); }} onCreate={scope => { opened(); void session.create(scope); }} onComment={intent} onCopy={scope => { void session.copy(scope); }} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
       editor={draft ? { mode: draft.origin.kind, target: session.target, frames: draftFrames, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
         onBody: body => session.body(body),

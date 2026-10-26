@@ -3,6 +3,7 @@ import type { Comment, Target, Warning } from "../formats/types";
 import type { CopyScope, ListFilter } from "../comments/projection";
 import { targetLabel } from "../comments/targetLabel";
 import { reopenText, resolutionText, type NamedLine } from "../comments/resolution";
+import { ReviewBar, ReviewDone, ReviewNotice, type ReviewBarView, type ReviewDoneView, type ReviewNoticeView } from "./ReviewBar";
 import { READ_FAILED_EDITOR, WARNINGS_TITLE, commentsPanelState, emptyListText, identityText, warningFileText, warningGroups, warningText, type IdentityCause } from "../comments/panelText";
 
 // Frame ids with their titles, from the ls row or the rendered canvas, to name comment targets.
@@ -77,6 +78,11 @@ export interface CommentsPanelProps {
   statusLine?: { comment: string; text: string; before: string | null; show?: boolean } | null;
   // Show on the line after Save and reopen: list Open and focus that card.
   onShowStatus?: (comment: string) => void;
+  // feature revision-recheck Review: the notice, the bar while it runs (the
+  // filter rows collapse), and the summary Done leaves.
+  reviewNotice?: ReviewNoticeView | null;
+  reviewBar?: ReviewBarView | null;
+  reviewDone?: ReviewDoneView | null;
   editor: CommentEditorProps | null;
   headingRef?: Ref<HTMLHeadingElement>;
   panelRef?: Ref<HTMLElement>;
@@ -88,7 +94,7 @@ export interface CommentsPanelProps {
   onRetryAuthor: () => void;
 }
 
-function relativeTime(at: string): string {
+export function relativeTime(at: string): string {
   const parsed = Date.parse(at);
   if (!Number.isFinite(parsed)) return at;
   const seconds = Math.round((parsed - Date.now()) / 1000);
@@ -133,6 +139,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
   return <section ref={props.panelRef} className="comments-panel native-scroll" aria-label="Comments">
     <h3 ref={props.headingRef} className="comments-title" tabIndex={-1}>Comments</h3>
     <div className="comments-head">
+      {!props.reviewBar && <>
       <div className="comments-segment" role="group" aria-label="Comment scope">
         <button type="button" aria-pressed={filter.scope === "selection"} disabled={!props.selectionAvailable || props.widthInvalid} title={props.selectionAvailable ? undefined : "Select an element or frame in the canvas"} onClick={() => props.onFilter({ scope: "selection", node: props.selectionNode ?? null, status: filter.status })}>Selection</button>
         <button type="button" aria-pressed={filter.scope === "canvas"} onClick={() => props.onFilter({ scope: "canvas", status: filter.status })}>Canvas</button>
@@ -141,6 +148,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
         <button type="button" aria-pressed={filter.status === "open"} onClick={() => props.onFilter({ ...filter, status: "open" })}>Open {props.counts.open}</button>
         <button type="button" aria-pressed={filter.status === "resolved"} onClick={() => props.onFilter({ ...filter, status: "resolved" })}>Resolved {props.counts.resolved}</button>
       </div>
+      </>}
       <div className="comments-tools">
         <button type="button" className="comments-btn" disabled={read.status !== "ready" || props.canvasOpenCount === 0 || props.allCopy.status === "copying"} title="All open comments on this canvas, regardless of the visible filter" onClick={() => props.onCopy({ kind: "all" })}>{copyLabel(props.allCopy, true)}</button>
         <button type="button" className="comments-btn" disabled={createDisabled} onClick={() => props.onCreate(filter.scope)}>{filter.scope === "canvas" ? "Comment on canvas" : "Comment on selection"}</button>
@@ -159,6 +167,9 @@ export function CommentsPanel(props: CommentsPanelProps) {
       <p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Copy remains available.</p>
       <div className="comments-tools"><button type="button" className="comments-btn" disabled={author.status === "loading"} onClick={props.onRetryAuthor}>Retry</button></div>
     </div>}
+    {/* Under the error and canvas-ID blocks (design review-notice, banner order); the bar is a panel child so it sticks under the title. */}
+    {props.reviewDone && <ReviewDone {...props.reviewDone} />}
+    {props.reviewBar ? <ReviewBar {...props.reviewBar} /> : props.reviewNotice && <ReviewNotice {...props.reviewNotice} />}
     {read.status === "loading" ? <div className="comments-message" role="status"><b>Loading comments…</b></div>
       : read.status === "failed" ? <div className="comments-message error" role="alert"><b>Couldn’t read comments</b>{read.message}<div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRead}>Retry</button></div></div>
         : <>

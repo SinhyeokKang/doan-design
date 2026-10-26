@@ -199,6 +199,25 @@ code, kbd { font-family: var(--font-sans); }
 .comments-dialog h3 { font-size: 15px; margin-bottom: 10px; font-weight: 700; }
 .comments-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-2); margin-bottom: 12px; }
 .comments-dialog .comments-tools { justify-content: flex-end; }
+/* Values from design/revision-recheck.html (review-notice, review-bar, review-done). */
+.review-banner { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 12px; border-bottom: 1px solid var(--line-2); background: var(--panel-2); font-size: 11.5px; color: var(--text-2); }
+/* The text ellipsizes before the buttons shrink. */
+.review-banner .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-banner .text b { font-weight: 600; color: var(--text); }
+.review-help { padding: 0 12px 6px; margin: 0; background: var(--panel-2); border-bottom: 1px solid var(--line-2); }
+/* Stuck right under the sticky Comments title (37 px tall) while the list scrolls under it. */
+.review-bar { position: sticky; top: 37px; z-index: 1; padding: 10px 12px 12px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
+.review-step { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.review-step output { flex: 1; font-size: 11.5px; font-weight: 600; color: var(--text); }
+.review-close { flex: none; width: 22px; height: 22px; border-radius: 6px; color: var(--text-3); border: 0; background: transparent; font-size: 13px; }
+.review-bar .comments-target { margin-bottom: 2px; }
+.review-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; margin: 4px 0 6px; }
+.review-meta { font-size: 10.5px; line-height: 1.5; color: var(--text-3); overflow-wrap: anywhere; }
+.review-flag { font-size: 11px; line-height: 1.5; color: var(--text-2); margin: 6px 0 0; }
+.review-flag.warn { color: var(--warn); }
+.review-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.review-nav { display: flex; gap: 6px; margin-top: 8px; }
+.review-nav .review-next { margin-left: auto; }
 
 .right-stack { min-height: 0; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--line); }
 .right-stack > .right { min-height: 100px; flex: 0 1 278px; border-left: 0; border-bottom: 1px solid var(--line); }
