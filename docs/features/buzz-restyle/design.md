@@ -78,6 +78,7 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 3. **구현과 대조**: 구현 뒤 `/design-sync`로 새 초안과 맞춘다. 지금 하네스는 "초안은 그 화면의 첫 구현까지만 정본"이라서, 리디자인 초안을 그 자식이 머지될 때까지 정본으로 인정하도록 AGENTS.md와 `/design-sync`를 넓혀야 한다(부모 tasks의 하네스 task).
 4. **값 동기화**: 자식은 자기 변경이 움직이는 모든 e2e 고정값과 DESIGN.md 값을 다른 화면 것까지 함께 갱신한다(`buzz-shell`은 특히 모든 화면에 영향). 자기 담당 DESIGN.md 절의 "buzz-ds 이전" 표시를 지우고 다시 측정한다.
 5. **끝**: `node .agents/skills/verify/scripts/verify.mjs --runtime` 통과, 결론 승격, 자식 디렉터리 삭제, PR. 부모 디렉터리는 건드리지 않는다.
+   - 예외(2026-10-26 user): comments-ui `08-hidden-quit-close`(`app/e2e/comments-ui.ts:566`, `window.isFocused()` 대기)의 시간 초과는 main에서도 재현되는 기존 실패다. 모든 자식이 끝날 때까지 미뤄 두고 Z0에서 고친다. 자식은 이 지점에서만 멈춘 `--runtime` 결과를 미충족으로 PR에 적고, comments-ui 뒤 suite를 하나씩 돌린 결과를 함께 남긴다.
 
 ## DESIGN.md 절과 담당
 
