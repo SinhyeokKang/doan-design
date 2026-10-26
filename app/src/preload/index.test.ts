@@ -300,3 +300,24 @@ test("settings, install pages, the wizard's project and forwarded row actions us
   emitter.emit("projects:action", {}, { path: "/repo", action: "remove" });
   expect(listener).toHaveBeenCalledExactlyOnceWith({ path: "/repo", action: "remove" });
 });
+
+test("conversation listener precedes read and drains the final buffered event without resubscribing", async () => {
+  const { mergeEvents } = await import("../main/conversation/state");
+  type Event = import("../main/conversation/types").ConversationEvent;
+  const first: Event = { v: 1, conversationId: "c", seq: 1, turnId: "t", at: "2026-10-27T00:00:00.000Z", type: "turn.started" };
+  const final: Event = { ...first, seq: 2, type: "turn.done" };
+  const buffer: Event[] = []; let reading = true; let events: Event[] = [];
+  const stop = api.onConversationEvent(event => { if (reading) buffer.push(event); else events = mergeEvents(events, [event], "c"); });
+  mocks.invoke.mockImplementation(async () => {
+    expect(emitter.listenerCount("conversation:event")).toBe(1);
+    emitter.emit("conversation:event", {}, first); emitter.emit("conversation:event", {}, final);
+    return { events: [first], lastSeq: 1, turn: "streaming" };
+  });
+  const snapshot = await api.readConversation({ conversationId: "c" });
+  if ("error" in snapshot) throw new Error(snapshot.error);
+  events = mergeEvents(snapshot.events, buffer.splice(0), "c");
+  while (buffer.length) events = mergeEvents(events, buffer.splice(0), "c");
+  reading = false;
+  expect(events).toEqual([first, final]); expect(emitter.listenerCount("conversation:event")).toBe(1);
+  stop(); expect(emitter.listenerCount("conversation:event")).toBe(0);
+});
