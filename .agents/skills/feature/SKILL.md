@@ -29,7 +29,7 @@ Three files under `docs/features/<slug>/`. The slug is kebab-case.
 - **Non-goals**: what this round does not do (including what is deferred).
 
 ### `design.md` — how
-- **Affected components**: app (Electron + TS) / CLI (Go) / `doan mcp` / skills / formats (comment events, `.doan/config.json`, CLI responses).
+- **Affected components**: app (Electron + TS) / CLI (Go) / `doan mcp` / skills / formats (comment events, `.doan/config.json`, CLI responses, `runtime.json`, app socket messages).
 - **Parts to split out as pure functions**: these become `/tdd` targets. If this is empty, revisit the design.
 - **Format changes**: does it change the JSON Schema source (ARCHITECTURE §11 'Shared formats')? If so, whether the format version `v` goes up, and which fixtures TS and Go will both read.
 - **Conventions impact**: does it change ARCHITECTURE §1 'Conventions' (canvas conventions, agent rules) or add a `doan check` rule?
@@ -49,7 +49,7 @@ Three files under `docs/features/<slug>/`. The slug is kebab-case.
 3. If `docs/POSTMORTEM.md` exists, grep it for the areas this feature touches and quote the matching pitfalls in design.md.
 4. Write the three files.
 5. Ask about points open to interpretation **one at a time** with the runtime's question tool (AskUserQuestion in Claude Code). Give each set of options one recommendation with a reason, and include a visible 'Other (type your own)' option. Apply each answer to the documents.
-6. **Commit** once the documents are written and the questions are settled — only `docs/features/<slug>/`. `docs(feature): <slug> spec, design, tasks`. Since only documents change, commit to main and push (AGENTS.md branch rule). Stage paths one by one; trailers follow `/ship`'s commit rules.
+6. **Commit** once the documents are written and the questions are settled — only `docs/features/<slug>/`. `docs(feature): <slug> spec, design, tasks`. Since only documents change, commit on the checked-out branch without switching, and on main push straight to main (AGENTS.md 'Commit conventions'). Stage paths one by one; trailers follow `/ship`'s commit rules.
 
 ## 3. Report
 
@@ -65,7 +65,7 @@ Format changes: none / <schema · whether v changes>
 Conventions/decision impact: none / <what and how>
 PoC dependency: none / <PRODUCT §6 item>
 Commit: <hash>
-Next: /feature-review or /tdd interface
+Next: /feature-review, then /design-draft if the feature has UI, then /tdd interface
 ```
 
 ## Prohibited
