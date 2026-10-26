@@ -21,6 +21,14 @@ import { HandOffDialog, handoffContext } from "./HandOffDialog";
 // belongs to; `holder` held focus after the last render that kept it.
 type Deferred = { since: AnchorSnapshot | null; context?: string; holder?: Element | null };
 
+// A newer intent since the render that kept `request`: another canvas or
+// selection, or focus the person moved elsewhere (not to <body> or a removed node).
+function superseded(request: Deferred, context: string): boolean {
+  const active = document.activeElement;
+  return (request.context !== undefined && request.context !== context) ||
+    (request.holder !== undefined && active !== request.holder && !!active && active !== document.body && active.isConnected);
+}
+
 // How long a Feedback row's request may wait for its canvas, the read, the
 // marker and the anchors (the controller ends an anchors wait well before).
 export const ARRIVAL_MS = 5000;
@@ -70,9 +78,10 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   }, [session, controller]);
   useEffect(() => {
     const identity = session.identity;
-    if (!identity || !session.list) return;
-    controller.current?.setComments({ root: identity.root, canvas: identity.canvas, comments: session.list.comments }, {
-      changed: snapshot => { latestAnchors.current = snapshot; setAnchors(previous => shownAnchors(previous, snapshot)); },
+    const bound = session.list;
+    if (!identity || !bound) return;
+    controller.current?.setComments({ root: identity.root, canvas: identity.canvas, comments: bound.comments }, {
+      changed: snapshot => { latestAnchors.current = snapshot; anchorsList.current = bound; setAnchors(previous => shownAnchors(previous, snapshot)); },
       guard: () => session.guardSelection(),
       open: destination => {
         focusAfter.current.pin = { node: destination.node, since: latestAnchors.current };
@@ -92,6 +101,9 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   }, [session]);
   const previousDocument = useRef<string | undefined>(undefined);
   const panelElement = useRef<HTMLElement>(null);
+  // The comments read `latestAnchors` was measured for: a reopened document can
+  // answer the binding a previous visit left before the new read is bound.
+  const anchorsList = useRef<CommentsSession["list"]>(null);
   // Where focus goes when the composer closes or a pin opens its comments.
   const focusAfter = useRef<{ editing: boolean; opener: HTMLElement | null; cancelled: boolean; saving: boolean;
     saved: (Deferred & { comment: string }) | null; pin: (Deferred & { node: string }) | null }>({ editing: false, opener: null, cancelled: false, saving: false, saved: null, pin: null });
@@ -218,8 +230,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     const context = JSON.stringify([root, canvas, selected]);
     const owned = editing || session.beginning || !!session.deleteConfirmation || !!session.handoff;
     const active = document.activeElement;
-    const stale = (request: Deferred) => owned || (request.context !== undefined && request.context !== context) ||
-      (request.holder !== undefined && active !== request.holder && !!active && active !== document.body && active.isConnected);
+    const stale = (request: Deferred) => owned || superseded(request, context);
     if (after.saved && stale(after.saved)) after.saved = null;
     if (after.pin && stale(after.pin)) after.pin = null;
     const place = () => {
@@ -311,8 +322,12 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     if (!review || !step) return;
     const latest = latestAnchors.current;
     const lookup = latest && latest.lookup.root === review.root && latest.lookup.canvas === review.canvas ? latest.lookup : null;
-    const node = step.mark === "deleted" ? undefined : lookup?.nodes.get(step.comment);
-    const found = node !== undefined && !!lookup && controller.current?.jumpToNode(node, lookup.generation) === true;
+    // A comment on the whole canvas has no anchor node: its target is the
+    // canvas itself, so it is always found and nothing moves.
+    const target = (session.list?.comments.find(c => c.comment === step.comment) ?? session.reviewComment(step.comment))?.target;
+    const whole = !!target && !target.frame && !target.element;
+    const node = step.mark === "deleted" || whole ? undefined : lookup?.nodes.get(step.comment);
+    const found = whole || (node !== undefined && !!lookup && controller.current?.jumpToNode(node, lookup.generation) === true);
     session.markNotFound(found || step.mark === "deleted" ? null : step.comment);
     reviewFocus.current = "step";
   };
@@ -345,40 +360,55 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   });
   // project-feedback: a Feedback row opened this canvas. Runs once the session
   // reads this canvas: lists the row's status in Canvas scope, then, with the
-  // anchors measured after the open (none without a document), goes to the
-  // target and focuses its card. Review asks for the marker and the Git name
-  // first. Never raises the marker itself (spec PF3).
-  // It ends, without acting, when another canvas or none is open, when a
-  // draft, editor or dialog takes over, or after ARRIVAL_MS (POSTMORTEM
-  // 2026-10-23 "Pin completion outlived the guarded intent").
-  const arrival = useRef<(CommentArrival & { since: AnchorSnapshot | null; until: number }) | null>(null);
+  // anchors measured for this read after the open (none without a document),
+  // goes to the target and focuses its card. Review asks for the marker and
+  // the Git name first. Never raises the marker itself (spec PF3).
+  // Like the deferred focus moves above (POSTMORTEM 2026-10-23 "Pin completion
+  // outlived the guarded intent"), it ends without acting on a newer intent:
+  // another canvas or none, a draft, editor or dialog taking over, another
+  // selection, a filter the person picks or focus moved elsewhere. After
+  // ARRIVAL_MS it ends too, on the title if focus is still on <body>.
+  const arrival = useRef<(CommentArrival & Deferred & { until: number }) | null>(null);
+  const expire = (request: Deferred) => {
+    if (arrival.current !== request) return;
+    arrival.current = null;
+    const active = document.activeElement;
+    if (!active || active === document.body || !active.isConnected) heading.current?.focus();
+  };
   useEffect(() => {
     const request = arrival.current;
     if (!request) return;
     const owned = !!draft || session.beginning || !!session.deleteConfirmation || !!session.handoff || !!session.review;
-    if (!open || open.folder !== request.root || open.canvas !== request.path || owned || Date.now() > request.until) { arrival.current = null; return; }
-    if (!current || !identity) return;
-    const done = (focus: HTMLElement | null | undefined) => { arrival.current = null; (focus ?? heading.current)?.focus(); };
-    if (readError) { done(null); return; }
-    if (!list) return;
-    const comment = "review" in request ? undefined : list.comments.find(c => c.comment === request.comment);
-    if (!("review" in request)) {
-      if (!comment) { done(null); return; }
-      if (filter.scope !== "canvas" || filter.status !== request.status) { setFilter({ scope: "canvas", status: request.status }); return; }
-    } else if (!session.marker || session.author.status === "loading") return;
-    // The anchors measured after the open (none without a document): a
-    // comment's locate and Review's first step both move to a target.
-    const latest = latestAnchors.current;
-    const fresh = !!latest && latest !== request.since && latest.lookup.root === identity.root && latest.lookup.canvas === identity.canvas;
-    if (fresh ? latest.status === "pending" : state.status !== "noWidth" && state.status !== "failed") return;
-    if (!comment) {
-      arrival.current = null;
-      if (session.startReview()) jump(); else heading.current?.focus();
-      return;
-    }
-    const node = fresh && latest.status === "answered" ? latest.lookup.nodes.get(comment.comment) : undefined;
-    if (node !== undefined && latest) controller.current?.locate(node, latest.lookup.generation, comment);
-    done(Array.from(panelElement.current?.querySelectorAll<HTMLElement>("article.comments-card") ?? []).find(card => card.dataset.comment === comment.comment));
+    const context = JSON.stringify([root, canvas, selected]);
+    if (!open || open.folder !== request.root || open.canvas !== request.path || owned || superseded(request, context)) { arrival.current = null; return; }
+    if (Date.now() > request.until) { expire(request); return; }
+    const arrive = () => {
+      if (!current || !identity) return;
+      const done = (focus: HTMLElement | null | undefined) => { arrival.current = null; (focus ?? heading.current)?.focus(); };
+      if (readError) { done(null); return; }
+      if (!list) return;
+      const comment = "review" in request ? undefined : list.comments.find(c => c.comment === request.comment);
+      if (!("review" in request)) {
+        if (!comment) { done(null); return; }
+        if (filter.scope !== "canvas" || filter.status !== request.status) { setFilter({ scope: "canvas", status: request.status }); return; }
+      } else if (!session.marker || session.author.status === "loading") return;
+      // The anchors measured for this read after the open: a comment's locate
+      // and Review's first step both move to a target.
+      const latest = latestAnchors.current;
+      const fresh = !!latest && latest !== request.since && anchorsList.current === list && latest.lookup.root === identity.root && latest.lookup.canvas === identity.canvas;
+      if (fresh ? latest.status === "pending" : state.status !== "noWidth" && state.status !== "failed") return;
+      if (!comment) {
+        arrival.current = null;
+        if (session.startReview()) jump(); else heading.current?.focus();
+        return;
+      }
+      const node = fresh && latest.status === "answered" ? latest.lookup.nodes.get(comment.comment) : undefined;
+      if (node !== undefined && latest) controller.current?.locate(node, latest.lookup.generation, comment);
+      done(Array.from(panelElement.current?.querySelectorAll<HTMLElement>("article.comments-card") ?? []).find(card => card.dataset.comment === comment.comment));
+    };
+    arrive();
+    // The canvas, selection and focus the request was kept under, for the next run.
+    if (arrival.current === request) { request.context = context; request.holder = document.activeElement; }
   });
   // The button an orphan Delete came from, for focus when its dialog closes.
   const deleteOpener = useRef<HTMLElement | null>(null);
@@ -438,7 +468,11 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     },
     closeReview: () => session.closeReview(),
     // A Feedback row opened its canvas (project-feedback design §3).
-    openAt: (request: CommentArrival) => { arrival.current = { ...request, since: latestAnchors.current, until: Date.now() + ARRIVAL_MS }; },
+    openAt: (request: CommentArrival) => {
+      const next = arrival.current = { ...request, since: latestAnchors.current, until: Date.now() + ARRIVAL_MS };
+      // No render may follow a wait that stalls (a read or marker that never lands).
+      setTimeout(() => expire(next), ARRIVAL_MS);
+    },
     orphans,
     orphanIntent: (intent: OrphanIntent, at: OrphanTarget, comment: Comment) => {
       const key = orphanKey(at.root, at.canvas, comment.comment);
@@ -456,12 +490,12 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       author={session.author} identityCause={identityCause} canvasId={canvas ?? ""} frames={frames} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || (session.beginning && !draft)}
       handedOff={handedOff && handoffSummary(handedOff.ids.length, handedOff.at)} mutations={session.mutations} headingRef={heading} panelRef={panelElement}
       statusLine={current && session.statusLine ? { ...session.statusLine, before: places.current.get(session.statusLine.comment) ?? null } : null}
-      onShowStatus={comment => { focusAfter.current.pin = null; focusAfter.current.saved = null; showing.current = comment; setFilter(current => ({ ...current, status: "open" })); intent("locate", comment); }}
+      onShowStatus={comment => { focusAfter.current.pin = null; focusAfter.current.saved = null; arrival.current = null; showing.current = comment; setFilter(current => ({ ...current, status: "open" })); intent("locate", comment); }}
       reviewNotice={noticeShown ? { count: pending.length, firstSeen: session.marker?.lastReviewedAt === undefined, blocked: !!draft || session.beginning, onStart: startReview } : null}
       idNotice={lostId && showOrphans && open ? { text: lostId.text, onShow: () => showOrphans(open.folder, lostId.id) } : null}
       reviewBar={reviewBar} reviewDone={current && session.reviewDone ? { text: session.reviewDone.text, onClose: closeSummary,
         ...(session.reviewDone.reopened.length ? { onHandOff: () => handOff(session.reviewDone?.reopened ?? []) } : {}) } : null}
-      onFilter={next => { focusAfter.current.pin = null; focusAfter.current.saved = null; setFilter(next); }} onCreate={scope => { opened(); void session.create(scope); }} onComment={intent} onHandOff={comment => handOff(comment === null ? "all" : [comment])} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
+      onFilter={next => { focusAfter.current.pin = null; focusAfter.current.saved = null; arrival.current = null; setFilter(next); }} onCreate={scope => { opened(); void session.create(scope); }} onComment={intent} onHandOff={comment => handOff(comment === null ? "all" : [comment])} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
       editor={draft ? { mode: draft.origin.kind, target: session.target, frames: draftFrames, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
         onBody: body => session.body(body),
         onSave: () => { focusAfter.current.saving = true; if (resolvedEdit !== null) remember(resolvedEdit); void session.save(resolvedEdit !== null); },

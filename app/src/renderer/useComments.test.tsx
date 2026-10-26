@@ -1496,6 +1496,144 @@ describe("Review on the open canvas", () => {
       expect(f.locate).toHaveBeenCalledExactlyOnceWith("n2", 10, two);
     } finally { vi.useRealTimers(); }
   });
+
+  // R-V1b 🟡1: a newer intent during the wait ends the request; nothing is
+  // reapplied afterwards (POSTMORTEM 2026-10-23 recurrence rule).
+  describe("a newer intent ends a Feedback request", () => {
+    const answer = (f: Awaited<ReturnType<typeof reviewing>>, generation: number, selected: string | null = null) => {
+      (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation, nodes: new Map([["c1", "n1"], ["c2", "n2"]]) }, rects: new Map(), selected, status: "answered" });
+      settle(ANCHORS);
+    };
+    async function waiting() {
+      const f = await reviewing([one, two]);
+      const card = Object.assign(element("card"), { dataset: { comment: "c2" } });
+      harness.refs[4] = { current: { querySelectorAll: () => [card], querySelector: () => null } };
+      f.render().openAt({ root: "/repo", path: row.path, comment: "c2", status: "resolved" });
+      f.render(); settle(FILTER); f.render();
+      expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "resolved" });
+      return { ...f, card };
+    }
+
+    test("a new selection", async () => {
+      const f = await waiting();
+      f.render({ selection: label }); settle(FILTER);
+      answer(f, 5, "manual");
+      f.render({ selection: label }); settle(FILTER); f.render({ selection: label });
+      expect(f.locate).not.toHaveBeenCalled();
+      expect(f.card.focus).not.toHaveBeenCalled();
+      expect(harness.states[FILTER]).toEqual({ scope: "selection", status: "resolved", node: null });
+    });
+
+    test("a filter the person picks", async () => {
+      const f = await waiting();
+      f.props().onFilter({ scope: "canvas", status: "open" }); settle(FILTER);
+      answer(f, 5);
+      f.render(); settle(FILTER); f.render();
+      expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "open" });
+      expect(f.locate).not.toHaveBeenCalled();
+      expect(f.card.focus).not.toHaveBeenCalled();
+    });
+
+    test("focus the person moved elsewhere", async () => {
+      const f = await waiting();
+      f.doc.activeElement = element("sidebar row");
+      answer(f, 5);
+      f.render(); f.render();
+      expect(f.locate).not.toHaveBeenCalled();
+      expect(f.card.focus).not.toHaveBeenCalled();
+      expect(f.heading.focus).not.toHaveBeenCalled();
+    });
+
+    test("a composer", async () => {
+      const f = await waiting();
+      await f.session.create("canvas");
+      answer(f, 5);
+      f.render(); f.session.answer("discard"); f.render(); f.render();
+      expect(f.locate).not.toHaveBeenCalled();
+      expect(f.card.focus).not.toHaveBeenCalled();
+    });
+
+    // R-V1 ⚪1: with no newer intent and focus on <body>, it ends on the title,
+    // with or without a render after its time.
+    test("its time ends it on the title only while focus is on <body>", async () => {
+      const f = await waiting();
+      vi.useFakeTimers();
+      try {
+        f.render().openAt({ root: "/repo", path: row.path, comment: "c2", status: "resolved" });
+        f.render();
+        vi.advanceTimersByTime(ARRIVAL_MS + 1);
+        expect(f.heading.focus).toHaveBeenCalledOnce();
+        answer(f, 5); f.render();
+        expect(f.locate).not.toHaveBeenCalled();
+
+        f.render().openAt({ root: "/repo", path: row.path, comment: "c2", status: "resolved" });
+        f.render();
+        f.doc.activeElement = element("sidebar row");
+        vi.advanceTimersByTime(ARRIVAL_MS + 1);
+        f.render();
+        expect(f.heading.focus).toHaveBeenCalledOnce();
+      } finally { vi.useRealTimers(); }
+    });
+  });
+
+  // R-V1b 🟡2: a reentry whose new document answers the retained binding first,
+  // then gets the new list, waits for the anchors of that new list.
+  test("N resolved to review waits for the anchors of the current list", async () => {
+    const f = await reviewing([one]);
+    f.render().openAt({ root: "/repo", path: row.path, review: true });
+    answer(f, 5);
+    f.session.list = { ...f.session.list!, comments: [one, two] };
+    f.render();
+    expect(f.session.review).toBeNull();
+    expect(f.jumpToNode).not.toHaveBeenCalled();
+    answer(f, 5, [["c1", "n1"], ["c2", "n2"]]);
+    f.render();
+    expect(f.session.review?.state.steps.map(step => step.comment)).toEqual(["c1", "c2"]);
+    expect(f.jumpToNode).toHaveBeenCalledWith("n1", 5);
+    expect(f.session.review?.notFound).toBeNull();
+
+    function answer(f: Awaited<ReturnType<typeof reviewing>>, generation: number, nodes: [string, string][] = [["c1", "n1"]]) {
+      (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation, nodes: new Map(nodes) }, rects: new Map(), selected: null, status: "answered" });
+      settle(ANCHORS);
+    }
+  });
+
+  test("a comment row waits for the anchors of the current list", async () => {
+    const f = await reviewing([one]);
+    const card = Object.assign(element("card"), { dataset: { comment: "c2" } });
+    harness.refs[4] = { current: { querySelectorAll: () => [card], querySelector: () => null } };
+    f.render().openAt({ root: "/repo", path: row.path, comment: "c2", status: "resolved" });
+    // The retained binding (without c2) answers first, then the new read lands.
+    (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation: 5, nodes: new Map([["c1", "n1"]]) }, rects: new Map(), selected: null, status: "answered" });
+    settle(ANCHORS);
+    f.session.list = { ...f.session.list!, comments: [one, two] };
+    f.render(); settle(FILTER); f.render();
+    expect(f.locate).not.toHaveBeenCalled();
+    expect(card.focus).not.toHaveBeenCalled();
+    (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation: 5, nodes: new Map([["c1", "n1"], ["c2", "n2"]]) }, rects: new Map(), selected: null, status: "answered" });
+    settle(ANCHORS);
+    f.render();
+    expect(f.locate).toHaveBeenCalledExactlyOnceWith("n2", 5, two);
+    expect(card.focus).toHaveBeenCalledOnce();
+  });
+
+  // revision-recheck follow-up: a comment on the whole canvas has no anchor
+  // node, and the canvas it targets is the one on screen.
+  test("a Review step on the whole canvas is found and moves nothing", async () => {
+    const whole: Comment = { ...one, comment: "c3", target: {} };
+    const f = await reviewing([whole, two]);
+    // The canvas answers no node for a target with neither frame nor element.
+    (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation: 4, nodes: new Map([["c2", "n2"]]) }, rects: new Map(), selected: null, status: "answered" });
+    settle(ANCHORS);
+    f.props().reviewNotice!.onStart();
+    expect(f.props().reviewBar).toMatchObject({ target: "Canvas", notFound: false });
+    expect(f.jumpToNode).not.toHaveBeenCalled();
+    f.props().reviewBar!.onNext();
+    expect(f.jumpToNode).toHaveBeenLastCalledWith("n2", 4);
+    f.props().reviewBar!.onPrevious();
+    expect(f.props().reviewBar).toMatchObject({ step: 1, notFound: false });
+    expect(f.jumpToNode).toHaveBeenCalledOnce();
+  });
 });
 
 // project-feedback design §5, draft `id-change-notice`.
