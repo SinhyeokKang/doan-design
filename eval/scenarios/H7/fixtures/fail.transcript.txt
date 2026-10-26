@@ -1,0 +1,1 @@
+Applied both comments in the instruction's root and resolved them: the button reads "Choose plan" and the heading reads "Compare plans". doan check reports no errors.

@@ -54,6 +54,7 @@ export function Inspector({ selection, inspector, selectPath }: { selection: Sel
         </Fragment>)}
       </nav>}
       {selection.interactive && <p className="use-hint">{selection.interactive === "link" ? "⌥-click to follow this link" : "⌥-click to use it"}</p>}
+      <p className="use-hint">Your agent can read this selection — say “fix this”.</p>
     </div>
     {inspector?.status === "loading" && <p className="canvas-notice" role="status">Reading styles…</p>}
     {inspector?.status === "failed" && <p className="inspect-failed">{inspector.reason}</p>}

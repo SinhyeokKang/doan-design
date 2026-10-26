@@ -80,6 +80,15 @@ try {
   page.on("pageerror", error => console.error("pageerror", error));
   const panel = page.getByRole("region", { name: "Comments", exact: true });
   const cards = panel.getByRole("article");
+  // Hand off… opens a dialog; Copy N is its default button and Done follows a copy.
+  const handOffDialog = page.getByRole("dialog", { name: "Hand off to your agent", exact: true });
+  const handOffCopy = handOffDialog.locator(".handoff-actions .comments-btn.primary");
+  const handOff = async (opener: typeof cards, count: number) => {
+    await opener.getByRole("button", { name: "Hand off…", exact: true }).click(); await handOffDialog.waitFor();
+    await handOffCopy.filter({ hasText: `Copy ${count}` }).click();
+    await handOffDialog.getByText(`Copied an instruction for ${count} ${count === 1 ? "comment" : "comments"}. Paste it into your Claude Code or Codex session.`, { exact: true }).waitFor();
+    await handOffCopy.filter({ hasText: "Done" }).click(); await handOffDialog.waitFor({ state: "detached" });
+  };
   const presentationFailures: string[] = [];
   function presentation(name: string, actual: unknown, expected: unknown) {
     try { assert.deepEqual(actual, expected); }
@@ -163,7 +172,7 @@ try {
   const afterMissing = await logBytes(destinationLog); assert.ok(afterMissing.startsWith(targetBytes));
   const missingRead = JSON.parse((await exec(cli, ["comments", "--canvas", "shared", "--repo", destinationRepo, "--json"])).stdout).result.comments[0];
   assert.deepEqual(missingRead.target, targetEvent.target); assert.equal(missingRead.canvasHash, targetEvent.canvasHash);
-  await cards.getByRole("button", { name: "Copy", exact: true }).click(); await cards.getByRole("button", { name: "Copied", exact: true }).waitFor();
+  await handOff(cards, 1);
   await shot("00d-missing-dom-management");
   // Invalid or duplicated canvas IDs block writes without changing saved bytes.
   // doan ls drops a malformed id, so the app cannot tell an invalid id from a missing one.
@@ -302,7 +311,7 @@ try {
   await cards.getByRole("button", { name: "Resolve", exact: true }).click();
   await panel.getByRole("button", { name: /^Resolved 1$/ }).click();
   await cards.getByRole("button", { name: "Reopen", exact: true }).waitFor();
-  assert.equal(await cards.getByRole("button", { name: "Copy", exact: true }).isDisabled(), true);
+  assert.equal(await cards.getByRole("button", { name: "Hand off…", exact: true }).count(), 0, "a resolved card has no Hand off…");
   await cards.getByRole("button", { name: "Reopen", exact: true }).click();
   await panel.getByRole("button", { name: /^Open 1$/ }).click();
   await cards.getByRole("button", { name: "Edit", exact: true }).waitFor();
@@ -337,7 +346,7 @@ try {
     await panel.getByRole("button", { name: "Comment on selection", exact: true }).click();
     await panel.getByText("Couldn’t start comment: Injected begin failure", { exact: true }).waitFor();
     assert.equal(await cards.count(), 1);
-    for (const name of ["Edit", "Resolve", "Delete", "Copy"]) assert.equal(await cards.getByRole("button", { name, exact: true }).isEnabled(), true);
+    for (const name of ["Edit", "Resolve", "Delete", "Hand off…"]) assert.equal(await cards.getByRole("button", { name, exact: true }).isEnabled(), true);
     assert.equal(await panel.getByText("Comments are read-only", { exact: true }).count(), 0);
     await shot("C-begin-failed-list-retained");
   } finally {
@@ -432,12 +441,11 @@ try {
     await app.evaluate(({ ipcMain }) => { const gate = Reflect.get(globalThis, "inspectGateC"); gate.release(); ipcMain.removeHandler("inspect:get"); ipcMain.handle("inspect:get", gate.original); });
   }
 
-  await cards.getByRole("button", { name: "Copy", exact: true }).click();
-  await cards.getByRole("button", { name: "Copied", exact: true }).waitFor();
+  await handOff(cards, 1);
   let copied = await app.evaluate(({ clipboard }) => clipboard.readText());
   const one = JSON.parse(copied.split("\n").at(-1) ?? "{}"); assert.equal(one.comments.length, 1);
-  await panel.getByRole("button", { name: "Copy all open", exact: true }).click();
-  await panel.getByText("Copied all open comments on this canvas.", { exact: true }).waitFor();
+  // The head's Hand off… checks every open comment on the canvas, not only the listed selection.
+  await handOff(panel.locator(".comments-head"), 2);
   copied = await app.evaluate(({ clipboard }) => clipboard.readText());
   const all = JSON.parse(copied.split("\n").at(-1) ?? "{}"); assert.equal(all.comments.length, 2); assert.equal(all.root, repo);
   await shot("03-original-target-and-copy-scopes");
@@ -484,9 +492,8 @@ try {
   await cards.filter({ hasText: "Managed without width" }).waitFor();
   assert.equal(await page.getByRole("button", { name: /^\d+ open comments?$/ }).count(), 0, "invalid width hides pins");
   const widthCard = cards.filter({ hasText: "Managed without width" });
-  await widthCard.getByRole("button", { name: "Copy", exact: true }).click(); await widthCard.getByRole("button", { name: "Copied", exact: true }).waitFor();
-  await panel.getByTitle("All open comments on this canvas, regardless of the visible filter", { exact: true }).click();
-  await panel.getByText("Copied all open comments on this canvas.", { exact: true }).waitFor();
+  await handOff(widthCard, 1);
+  await handOff(panel.locator(".comments-head"), 3);
   await widthCard.getByRole("button", { name: "Resolve", exact: true }).click();
   await panel.getByRole("button", { name: /^Resolved 1$/ }).click();
   await widthCard.getByRole("button", { name: "Reopen", exact: true }).click();
@@ -618,11 +625,13 @@ try {
   await shot("09-save-failure-and-confirmation");
   // Clipboard rejection goes through the awaited main service dependency.
   await app.evaluate(({ clipboard }) => { Reflect.set(globalThis, "clipboardWriteOriginal", clipboard.writeText); clipboard.writeText = async () => { throw new Error("Injected clipboard rejection"); }; });
-  await cards.filter({ hasText: "Unknown save body" }).getByRole("button", { name: "Copy", exact: true }).click();
-  await panel.getByText("Injected clipboard rejection", { exact: true }).waitFor();
+  await cards.filter({ hasText: "Unknown save body" }).getByRole("button", { name: "Hand off…", exact: true }).click(); await handOffDialog.waitFor();
+  await handOffCopy.filter({ hasText: "Copy 1" }).click();
+  await handOffDialog.getByRole("alert").filter({ hasText: "Couldn’t copy. Your clipboard could not be updated. Try again." }).waitFor();
   await app.evaluate(({ clipboard }) => { clipboard.writeText = Reflect.get(globalThis, "clipboardWriteOriginal"); });
-  await cards.filter({ hasText: "Unknown save body" }).getByRole("button", { name: "Retry copy", exact: true }).click();
-  await cards.filter({ hasText: "Unknown save body" }).getByRole("button", { name: "Copied", exact: true }).waitFor();
+  await handOffCopy.filter({ hasText: "Retry copy" }).click();
+  await handOffDialog.getByText("Copied an instruction for 1 comment. Paste it into your Claude Code or Codex session.", { exact: true }).waitFor();
+  await handOffCopy.filter({ hasText: "Done" }).click(); await handOffDialog.waitFor({ state: "detached" });
   await shot("10-clipboard-failure-retry");
   // Same DOM frame/element grouping and external no-reload invalidation.
   const beforeExternal = await page.locator("iframe").elementHandle(); assert.ok(beforeExternal);

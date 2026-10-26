@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="signup">
+  <meta name="doan:width" content="1200">
+  <title>Sign up</title>
+  <link rel="stylesheet" href="../styles/tokens.css">
+  <style>
+    body { background: var(--color-surface); color: var(--color-text); }
+    [data-doan-frame] { width: 480px; padding: var(--space-4); }
+  </style>
+</head>
+<body>
+  <section data-doan-frame="signup" data-doan-title="Sign up">
+    <h1 data-doan-id="heading">Create your account</h1>
+    <label data-doan-id="email-label">Email <input data-doan-id="email" type="email"></label>
+    <button data-doan-id="back" style="background: var(--color-muted); color: var(--color-text); padding: var(--space-4)">Back</button>
+    <button data-doan-id="submit" style="background: var(--color-muted); color: var(--color-text); padding: var(--space-4)">Submit</button>
+    <a data-doan-id="terms" href="#terms">Terms</a>
+  </section>
+  <p data-doan-id="draft-note">Design draft; this screen is not implemented in code.</p>
+</body>
+</html>

@@ -144,9 +144,15 @@ export function commandWords(command: string): string[][] {
     else groups.at(-1)!.push(value.replace(/"((?:\\.|[^"\\])*)"|'([^']*)'/g, (_, double, single) => single ?? double.replace(/\\([\$`"\\\n])/g, "$1")));
   }
   return groups.filter(g => g.length).flatMap(words => {
-    if (/^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[0]) && /^-[a-z]*c$/.test(words[1] ?? "") && words[2]) return commandWords(words[2]);
     while (/^[A-Za-z_][A-Za-z_0-9]*=/.test(words[0] ?? "")) words.shift();
-    return [words];
+    // The `command` builtin runs its operand, except -v/-V, which only look the name up.
+    if (words[0] === "command") {
+      let i = 1;
+      while (/^-[pvV]+$/.test(words[i] ?? "")) i++;
+      if (!/[vV]/.test(words.slice(1, i).join(""))) words = words.slice(words[i] === "--" ? i + 1 : i);
+    }
+    if (/^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[0] ?? "") && /^-[a-z]*c$/.test(words[1] ?? "") && words[2]) return commandWords(words[2]);
+    return words.length ? [words] : [];
   });
 }
 

@@ -13,7 +13,7 @@ vi.mock("react", async original => ({ ...await original<typeof import("react")>(
 const comment: Comment = { comment: "c1", status: "open", body: '<script>alert("x")</script>\n  Keep spaces ', target: { element: { doanId: "submit", selector: "button", html: "<button/>" } }, canvasHash: "h", createdBy: { kind: "human", name: "Alex Morgan", email: "alex@example.com" }, createdAt: "2026-10-23T01:42:00Z", updatedAt: "2026-10-23T01:42:00Z" };
 const noop = () => {};
 function panel(overrides: Partial<CommentsPanelProps> = {}): CommentsPanelProps {
-  return { filter: { scope: "canvas", status: "open" }, selectionAvailable: true, counts: { open: 1, resolved: 0 }, canvasOpenCount: 1, read: { status: "ready", comments: [comment], warnings: [] }, freshness: new Map(), missingLocations: new Set(), author: { status: "ready" }, identityCause: null, canvasId: "checkout", frames: [], writeBlocked: null, createBlocked: null, widthInvalid: false, busy: false, copies: new Map(), allCopy: { status: "idle" }, editor: null, onFilter: noop, onCreate: noop, onComment: noop, onCopy: noop, onRead: noop, onRetryAuthor: noop, ...overrides };
+  return { filter: { scope: "canvas", status: "open" }, selectionAvailable: true, counts: { open: 1, resolved: 0 }, canvasOpenCount: 1, read: { status: "ready", comments: [comment], warnings: [] }, freshness: new Map(), missingLocations: new Set(), author: { status: "ready" }, identityCause: null, canvasId: "checkout", frames: [], writeBlocked: null, createBlocked: null, widthInvalid: false, busy: false, editor: null, onFilter: noop, onCreate: noop, onComment: noop, onHandOff: noop, onRead: noop, onRetryAuthor: noop, ...overrides };
 }
 function editor(overrides: Partial<CommentEditorProps> = {}): CommentEditorProps {
   return { mode: "create", target: comment.target, frames: [], body: "Original body", state: { status: "idle" }, blocked: null, onBody: noop, onSave: noop, onCancel: noop, onKeepDraft: noop, onCheck: noop, onRetryOriginal: noop, onReadLatest: noop, ...overrides };
@@ -44,7 +44,7 @@ describe("Comments presentation", () => {
     const unknown = html(panel({ missingLocations: null }));
     expect(unknown).toContain(`<span class="comments-target" title="button">Element · button submit</span>`);
     expect(unknown).not.toMatch(/<button[^>]*comments-target/);
-    const frame = renderToStaticMarkup(<CommentCard comment={{ ...comment, target: { frame: "hero" } }} frames={[]} freshness="same" locationMissing={null} disabled={false} busy={false} copy={{ status: "idle" }} onComment={noop} onCopy={noop} />);
+    const frame = renderToStaticMarkup(<CommentCard comment={{ ...comment, target: { frame: "hero" } }} frames={[]} freshness="same" locationMissing={null} disabled={false} busy={false} onComment={noop} onHandOff={noop} />);
     expect(frame).toContain(`<span class="comments-target" title="[data-doan-frame=&quot;hero&quot;]">Frame · hero</span>`);
   });
   test("an unlocatable target is a full-opacity span with the reason beside its badge, never a disabled button", () => {
@@ -95,8 +95,8 @@ describe("Comments presentation", () => {
   });
   test.each([
     ["selection", "open", 0, "No open comments on this selection", "Comment on selection to add one."],
-    ["selection", "open", 1, "No open comments on this selection", "There is 1 open comment elsewhere on this canvas; Copy all open includes it."],
-    ["selection", "open", 4, "No open comments on this selection", "There are 4 open comments elsewhere on this canvas; Copy all open includes them."],
+    ["selection", "open", 1, "No open comments on this selection", "There is 1 open comment elsewhere on this canvas; Hand off… includes it."],
+    ["selection", "open", 4, "No open comments on this selection", "There are 4 open comments elsewhere on this canvas; Hand off… includes them."],
     ["canvas", "open", 0, "No open comments", "Choose Comment on canvas, or select an element or frame."],
     ["selection", "resolved", 0, "No resolved comments on this selection", "Resolved comments appear here."],
     ["canvas", "resolved", 0, "No resolved comments", "Comments you or your agent resolve appear here."],
@@ -105,44 +105,52 @@ describe("Comments presentation", () => {
     const out = html(panel({ filter, counts: { open: 0, resolved: 0 }, canvasOpenCount: elsewhere, read: { status: "ready", comments: [], warnings: [] } }));
     expect(out).toContain(`<div class="comments-message"><b>${title}</b>${body}</div>`);
   });
-  test("width invalidity blocks only creation, retaining editing and copying", () => {
+  test("width invalidity blocks only creation, retaining editing and Hand off", () => {
     const out = html(panel({ widthInvalid: true }));
     expect(out).toContain("Could not read a valid board width.");
     expect(out).toContain("Run doan check in a terminal");
     expect(find(CommentsPanel(panel({ widthInvalid: true })), "Comment on canvas").disabled).toBe(true);
-    expect(find(CommentCard({ comment, frames: [], freshness: "same", locationMissing: true, disabled: false, busy: false, copy: { status: "idle" }, onComment: noop, onCopy: noop }), "Edit").disabled).toBe(false);
-    expect(find(CommentsPanel(panel({ widthInvalid: true })), "Copy all open").disabled).toBe(false);
+    expect(find(CommentCard({ comment, frames: [], freshness: "same", locationMissing: true, disabled: false, busy: false, onComment: noop, onHandOff: noop }), "Edit").disabled).toBe(false);
+    expect(find(CommentsPanel(panel({ widthInvalid: true })), "Hand off…").disabled).toBe(false);
   });
-  test("all-open copy stays available on an empty resolved selection and sends the all intent", () => {
-    const onCopy = vi.fn();
-    const props = panel({ filter: { scope: "selection", node: "n1", status: "resolved" }, counts: { open: 0, resolved: 0 }, read: { status: "ready", comments: [], warnings: [] }, onCopy });
-    const button = find(CommentsPanel(props), "Copy all open");
+  test("the head's Hand off… stays available on an empty resolved selection and opens with every open comment", () => {
+    const onHandOff = vi.fn();
+    const props = panel({ filter: { scope: "selection", node: "n1", status: "resolved" }, counts: { open: 0, resolved: 0 }, read: { status: "ready", comments: [], warnings: [] }, onHandOff });
+    const button = find(CommentsPanel(props), "Hand off…");
     expect(button.disabled).toBe(false);
     button.onClick?.();
-    expect(onCopy).toHaveBeenCalledWith({ kind: "all" });
+    expect(onHandOff).toHaveBeenCalledWith(null);
+    expect(find(CommentsPanel(panel({ canvasOpenCount: 0 })), "Hand off…").disabled).toBe(true);
+    expect(find(CommentsPanel(panel({ read: { status: "loading" } })), "Hand off…").disabled).toBe(true);
   });
-  test("resolved card disables single copy without the reopen hint", () => {
+  test("Handed off sits beside the head's Hand off…; no per-card or all-open Copied", () => {
+    const out = html(panel({ handedOff: "Handed off 3 · 14:02:10" }));
+    expect(out).toContain(`<div class="comments-tools"><button type="button" class="comments-btn">Hand off…</button><span class="handoff-summary">Handed off 3 · 14:02:10</span><button type="button" class="comments-btn">Comment on canvas</button></div>`);
+    expect(html(panel())).not.toContain("handoff-summary");
+    for (const text of ["Copied", "Copy all open", ">Copy<"]) expect(out).not.toContain(text);
+  });
+  test("a resolved card has no Hand off… and no reopen hint", () => {
     const out = html(panel({ read: { status: "ready", comments: [{ ...comment, status: "resolved" }], warnings: [] } }));
-    expect(out).toMatch(/<button[^>]*disabled=""[^>]*>Copy<\/button>/);
+    expect(out.match(/Hand off…/g)).toHaveLength(1);
     expect(out).not.toContain("Reopen this comment before copying.");
     expect(out).toContain("Reopen</button>");
   });
-  test("missing author blocks all mutations but keeps copy and retry available", () => {
+  test("missing author blocks all mutations but keeps Hand off and retry available", () => {
     const out = html(panel({ author: { status: "missing" } }));
     expect(out).toContain("Set your Git name");
     expect(out).toContain("git user.name");
-    expect(out).toContain("<p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Copy remains available.</p>");
+    expect(out).toContain("<p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Hand off remains available.</p>");
     for (const label of ["Edit", "Resolve", "Delete"]) expect(out).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*>${label}</button>`));
-    expect(out).toMatch(/<button[^>]*>Copy<\/button>/);
+    expect(out.match(/<button type="button" class="comments-btn">Hand off…<\/button>/g)).toHaveLength(2);
   });
-  test("card intents include the original id; copy feedback is visible", () => {
-    const onComment = vi.fn(), onCopy = vi.fn();
-    const card = CommentCard({ comment, frames: [], freshness: "same", locationMissing: true, disabled: false, busy: false, copy: { status: "copied" }, onComment, onCopy });
-    find(card, "Edit").onClick?.();
-    find(card, "Copied").onClick?.();
+  test("card intents include the original id; the card's Hand off… opens with that comment", () => {
+    const onComment = vi.fn(), onHandOff = vi.fn();
+    const card = CommentCard({ comment, frames: [], freshness: "same", locationMissing: true, disabled: true, busy: true, onComment, onHandOff });
+    expect(find(card, "Hand off…").disabled).toBeFalsy();
+    find(card, "Hand off…").onClick?.();
+    expect(onHandOff).toHaveBeenCalledWith("c1");
+    find(CommentCard({ comment, frames: [], freshness: "same", locationMissing: true, disabled: false, busy: false, onComment, onHandOff }), "Edit").onClick?.();
     expect(onComment).toHaveBeenCalledWith("edit", "c1");
-    expect(onCopy).toHaveBeenCalledWith({ kind: "one", comment: "c1" });
-    expect(html(panel({ allCopy: { status: "failed", message: "Clipboard unavailable" } }))).toContain("Clipboard unavailable");
   });
 });
 
@@ -214,7 +222,7 @@ test("calendar-invalid v1 timestamps remain readable after folding", () => {
   const event = { v: 1, type: "create", id: "evt_00000000-0000-4000-8000-000000000001", comment: "cmt_00000000-0000-4000-8000-000000000001", at: "2026-10-23T00:00:60.000Z", by: { kind: "human", name: "A" }, body: "Visible note", target: {}, canvasHash: "sha256:" + "a".repeat(64) };
   const folded = foldText(JSON.stringify(event)); expect(folded.comments).toHaveLength(1);
   const accepted = folded.comments[0]; if (!accepted) throw new Error("Missing folded comment");
-  const out = renderToStaticMarkup(<CommentCard comment={accepted} frames={[]} freshness="unknown" locationMissing={false} disabled={false} busy={false} copy={{ status: "idle" }} onComment={noop} onCopy={noop} />);
+  const out = renderToStaticMarkup(<CommentCard comment={accepted} frames={[]} freshness="unknown" locationMissing={false} disabled={false} busy={false} onComment={noop} onHandOff={noop} />);
   expect(out).toContain("Visible note"); expect(out).toContain(event.at);
 });
 
@@ -253,7 +261,7 @@ test("begin error stays beside creation without disabling existing actions", () 
   expect(out).not.toContain("Comments are read-only");
   expect(out).not.toContain("Couldn’t read comments");
   expect(find(CommentsPanel(props), "Comment on canvas").disabled).toBe(false);
-  expect(find(CommentsPanel(props), "Copy all open").disabled).toBe(false);
+  expect(find(CommentsPanel(props), "Hand off…").disabled).toBe(false);
 });
 test("delete Escape is consumed without cancelling during IME", () => {
   const onCancel = vi.fn(), onConfirm = vi.fn();
@@ -384,7 +392,7 @@ describe("identity, read failure and head controls", () => {
   ] as const)("the %s canvas ID cause shows only its block: no loading, Git name, filters or tools", (cause, title, body) => {
     const out = html(panel({ identityCause: cause, read: { status: "loading" }, author: { status: "missing" }, writeBlocked: "A valid, unique canvas ID is required." }));
     expect(out).toContain(`<div class="comments-message error" role="alert"><b>${title.replace("'", "&#x27;")}</b>${body}</div>`);
-    for (const text of ["Loading comments…", "Set your Git name", "Comment scope", "Comment status", "Copy all open", "Comment on canvas", "Comments are read-only"]) expect(out).not.toContain(text);
+    for (const text of ["Loading comments…", "Set your Git name", "Comment scope", "Comment status", "Hand off…", "Comment on canvas", "Comments are read-only"]) expect(out).not.toContain(text);
     expect(out.match(/comments-message/g)).toHaveLength(1);
   });
   test("an identity block keeps an open editor blocked", () => {
@@ -457,7 +465,7 @@ describe("revealComposer", () => {
 
 test("a resolved card's target line locates like an open card's (revision-recheck task 5)", () => {
   const onComment = vi.fn();
-  const card = CommentCard({ comment: { ...comment, status: "resolved" }, frames: [], freshness: "same", locationMissing: false, disabled: false, busy: false, copy: { status: "idle" }, onComment, onCopy: noop });
+  const card = CommentCard({ comment: { ...comment, status: "resolved" }, frames: [], freshness: "same", locationMissing: false, disabled: false, busy: false, onComment, onHandOff: noop });
   find(card, "Element · button submit").onClick?.();
   expect(onComment).toHaveBeenCalledExactlyOnceWith("locate", "c1");
 });
@@ -466,7 +474,7 @@ describe("resolution meta, Canvas changed and status lines (revision-recheck tas
   const codex = { kind: "agent" as const, name: "codex" }, kim = { kind: "human" as const, name: "Kim Doe" };
   const resolved: Comment = { ...comment, status: "resolved", resolvedBy: codex, resolvedAt: "2026-10-25T14:02:10.000Z" };
   const reopened: Comment = { ...comment, lastResolution: { by: codex, at: "2026-10-25T14:02:10.000Z", reopenedBy: kim, reopenedAt: "2026-10-25T14:04:30.000Z" } };
-  const card = (c: Comment, freshness: CommentCardProps["freshness"] = "same") => renderToStaticMarkup(<CommentCard comment={c} frames={[]} freshness={freshness} locationMissing={false} disabled={false} busy={false} copy={{ status: "idle" }} onComment={noop} onCopy={noop} />);
+  const card = (c: Comment, freshness: CommentCardProps["freshness"] = "same") => renderToStaticMarkup(<CommentCard comment={c} frames={[]} freshness={freshness} locationMissing={false} disabled={false} busy={false} onComment={noop} onHandOff={noop} />);
   test("a resolved card names its resolver under the badges, with the absolute time in title", () => {
     vi.useFakeTimers({ now: Date.parse("2026-10-25T14:05:10.000Z") });
     try {
@@ -557,7 +565,7 @@ describe("editing a resolved comment and replacing a missing target (revision-re
   test("an open comment whose location is unavailable offers Comment on selection instead", () => {
     const onComment = vi.fn(), props = panel({ missingLocations: new Set(["c1"]), onComment });
     expect(html(props)).toContain(`<button type="button" class="comments-btn">Comment on selection instead</button>`);
-    const card = CommentCard({ comment, frames: [], freshness: "same", locationMissing: true, disabled: false, busy: false, copy: { status: "idle" }, instead: "ready", onComment, onCopy: noop });
+    const card = CommentCard({ comment, frames: [], freshness: "same", locationMissing: true, disabled: false, busy: false, instead: "ready", onComment, onHandOff: noop });
     find(card, "Comment on selection instead").onClick?.();
     expect(onComment).toHaveBeenCalledExactlyOnceWith("comment-instead", "c1");
   });

@@ -292,7 +292,8 @@ try {
     await reviewBar().getByRole("button", { name: "Done", exact: true }).click();
     await wait(async () => await summary().count() === 1 && await summary().textContent() === "Reviewed 3 · Reopened 1", "Done summary");
     assert.equal(await reviewBar().count(), 0, "the bar leaves on Done");
-    await focusOn(focus => typeof focus.className === "string" && focus.className.includes("review-done-close"), "focus on Close summary");
+    // A reopen renders Hand off… in the summary, and Done focuses it before ×.
+    await focusOn(focus => typeof focus.className === "string" && focus.className.includes("review-handoff"), "focus on the summary's Hand off…");
     assert.equal(await notice().count(), 0, "nothing left to review");
     await shot("2d-done");
     const listed = (await doan("comments")).result.comments ?? [];
@@ -336,6 +337,8 @@ try {
     await stepIs("Review 2 of 2");
     await reviewBar().getByRole("button", { name: "Done", exact: true }).click();
     await wait(async () => await summary().textContent() === "Reviewed 2", "Done summary without reopens");
+    assert.equal(await panel().locator(".review-handoff").count(), 0, "no Hand off… without reopens");
+    await focusOn(focus => typeof focus.className === "string" && focus.className.includes("review-done-close"), "focus on Close summary");
     await wait(async () => await menuEnabled("Next Resolved Comment") === false, "menu disabled after Done");
     await panel().getByRole("button", { name: "Close summary", exact: true }).click();
     assert.equal(await notice().count(), 0);

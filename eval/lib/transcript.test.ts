@@ -11,6 +11,14 @@ test("shell wrappers and separators preserve actual command positions", () => {
   assert.deepEqual(commandWords("/bin/zsh -lc 'cd /tmp && doan active --json'"), [["cd", "/tmp"], ["doan", "active", "--json"]]);
   assert.deepEqual(commandWords("echo 'doan active --json'"), [["echo", "doan active --json"]]);
 });
+test("the command builtin runs its command; lookups and quoted text do not", () => {
+  assert.deepEqual(commandWords("command doan active --json"), [["doan", "active", "--json"]]);
+  assert.deepEqual(commandWords("/bin/sh -c 'command -p doan active'"), [["doan", "active"]]);
+  assert.deepEqual(commandWords("cd /tmp && command -- doan active"), [["cd", "/tmp"], ["doan", "active"]]);
+  for (const lookup of ["command -v doan", "command -V doan", "command -pv doan"])
+    assert.ok(!commandWords(lookup).some(words => words[0] === "doan"), lookup);
+  assert.deepEqual(commandWords("echo 'command doan active'"), [["echo", "command doan active"]]);
+});
 test("Codex exec headers preserve in inside quoted commands", () => {
   for (const command of ["echo look in app; doan active --json", "for f in 1; do doan active --json; done", "echo look in /tmp/app; doan active --json"]) {
     for (const quote of ["'", '"']) {

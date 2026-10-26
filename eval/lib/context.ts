@@ -60,6 +60,8 @@ const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 export interface ContextOptions {
   repo: string;
+  // Defaults to `repo`.
+  cwd?: string;
   agent: CheckContext["agent"];
   transcript: string;
   calls?: ToolCalls;
@@ -86,16 +88,36 @@ function checkedGit(repo: string, args: string[], env: NodeJS.ProcessEnv) {
   return sh("git", ["-C", repo, ...overrides, ...args], repo, env);
 }
 
-export function judgeMaterial(ws: { repo: string; env: NodeJS.ProcessEnv; seedCommit: string }, ctx: CheckContext) {
-  const added = checkedGit(ws.repo, ["add", "-A", "-N", "-f"], ws.env);
+function diffSinceSeed(dir: string, env: NodeJS.ProcessEnv, seedCommit: string): string {
+  const added = checkedGit(dir, ["add", "-A", "-N", "-f"], env);
   if (added.code !== 0) throw new Error(`git add failed: ${added.stderr}`);
-  const diff = checkedGit(ws.repo, ["diff", "--no-color", "--no-ext-diff", "--no-textconv", ws.seedCommit], ws.env);
+  const diff = checkedGit(dir, ["diff", "--no-color", "--no-ext-diff", "--no-textconv", seedCommit], env);
   if (diff.code !== 0) throw new Error(`git diff failed: ${diff.stderr}`);
-  return { changed: ctx.changedFiles(), diff: diff.stdout };
+  return diff.stdout;
+}
+
+// The agent's own worktree is labelled so the judge can tell it from the root.
+export function judgeMaterial(ws: { repo: string; cwd?: string; env: NodeJS.ProcessEnv; seedCommit: string }, ctx: CheckContext) {
+  const diff = diffSinceSeed(ws.repo, ws.env, ws.seedCommit);
+  if (!ws.cwd || ws.cwd === ws.repo) return { changed: ctx.changedFiles(), diff };
+  const cwdDiff = diffSinceSeed(ws.cwd, ws.env, ws.seedCommit);
+  return {
+    changed: [...ctx.changedFiles(), ...ctx.cwdChangedFiles().map(path => `(working directory) ${path}`)],
+    diff: `${diff}\n# Working directory ${ws.cwd}\n${cwdDiff}`,
+  };
 }
 
 export function createContext(o: ContextOptions): CheckContext {
-  const git = (args: string[]) => checkedGit(o.repo, args, o.env);
+  const cwd = o.cwd ?? o.repo;
+  const git = (args: string[], dir = o.repo) => checkedGit(dir, args, o.env);
+  const changedFiles = (dir: string): string[] => {
+    // Against the seed commit, not HEAD, so an agent that commits its work is still seen.
+    const tracked = git(["diff", "--name-only", "-z", "--no-renames", "--no-ext-diff", "--no-textconv", o.seedCommit], dir);
+    const untracked = git(["ls-files", "-z", "--others"], dir);
+    // git's last stderr line names the cause; the rest is a usage dump.
+    if (tracked.code !== 0 || untracked.code !== 0) throw new Error(`git failed: ${(tracked.stderr || untracked.stderr).trim().split("\n").pop()}`);
+    return [...new Set([...tracked.stdout.split("\0"), ...untracked.stdout.split("\0")].filter(Boolean))].sort();
+  };
   const seed = (path: string): string | null => {
     const result = git(["show", `${o.seedCommit}:${repoPath(o.repo, path)}`]);
     return result.code === 0 ? result.stdout : null;
@@ -106,6 +128,7 @@ export function createContext(o: ContextOptions): CheckContext {
   };
   return {
     repo: o.repo,
+    cwd,
     agent: o.agent,
     transcript: o.transcript,
     calls: o.calls ?? toolCalls(o.transcript),
@@ -118,14 +141,8 @@ export function createContext(o: ContextOptions): CheckContext {
     read,
     exists: path => existsSync(resolveOnDisk(o.repo, path)),
     seed,
-    changedFiles() {
-      // Against the seed commit, not HEAD, so an agent that commits its work is still seen.
-      const tracked = git(["diff", "--name-only", "-z", "--no-renames", "--no-ext-diff", "--no-textconv", o.seedCommit]);
-      const untracked = git(["ls-files", "-z", "--others"]);
-      // git's last stderr line names the cause; the rest is a usage dump.
-      if (tracked.code !== 0 || untracked.code !== 0) throw new Error(`git failed: ${(tracked.stderr || untracked.stderr).trim().split("\n").pop()}`);
-      return [...new Set([...tracked.stdout.split("\0"), ...untracked.stdout.split("\0")].filter(Boolean))].sort();
-    },
+    changedFiles: () => changedFiles(o.repo),
+    cwdChangedFiles: () => changedFiles(cwd),
     commentEvents(canvasId) {
       if (!CANVAS_ID.test(canvasId)) throw new Error(`not a canvas id: ${canvasId}`);
       const path = `.doan/comments/${canvasId}.jsonl`;

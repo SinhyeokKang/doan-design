@@ -1,0 +1,3 @@
+The instruction's root is the main worktree, but I am running in a different worktree of the same repository (branch feat-plan-copy), and Doan has only the main worktree open. I have not changed anything.
+
+The two listed comments ask to rename the Choose button to "Choose plan" and the heading to "Compare plans". Which worktree should I work in: the main worktree from the instruction, or this one?

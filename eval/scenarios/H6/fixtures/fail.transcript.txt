@@ -1,0 +1,5 @@
+Applied the listed comments on the Billing canvas; doan check reports no errors.
+
+- cmt_3f6b1c2e-8a4d-4c71-9e2f-0b5d7a9c1e01 (Upgrade button): resolved.
+- cmt_7a2d9e40-1c5b-4f83-a6d2-4e8b0c3f5a02 (renewal text): resolved.
+- cmt_b8e41f73-2d6c-4a95-8b17-9c3e5f0d2b03 (Cancel plan button): resolved; "Cancel plan" is fine as it is.

@@ -1,9 +1,14 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { Home } from "./Home";
 import type { FolderEntry } from "../main/view";
 import type { ProjectCanvasComments } from "../main/projectComments";
 import { TooltipProvider } from "./components/ui/tooltip";
+
+vi.mock("./components/ui/tooltip", async importOriginal => {
+  const actual = await importOriginal<typeof import("./components/ui/tooltip")>();
+  return { ...actual, TooltipContent: ({ children }: { children: React.ReactNode }) => <span role="tooltip">{children}</span> };
+});
 
 const render = (entries: FolderEntry[], loaded: string | null = null, comments: ReadonlyMap<string, readonly ProjectCanvasComments[]> = new Map()) => renderToStaticMarkup(<TooltipProvider><Home homeDirectory={null} entries={entries} loaded={loaded} selection={null} highlight={[]} comments={comments} enter={() => {}} action={() => {}} remove={() => {}} /></TooltipProvider>);
 test("empty home explains how to add a project", () => {
@@ -37,4 +42,12 @@ test("a zero count, a missing read and a failed canvas show no resolved to revie
     expect(html).not.toContain("resolved to review");
     expect(html).toContain('aria-label="Project main · 1 canvas · 1 open comment · /code/main"');
   }
+});
+
+
+test("names the current selection for the agent in the row and tooltip", () => {
+  const selection = { tag: "button", element: { doanId: "pay-button", selector: "button", html: "<button></button>" }, path: [] };
+  const html = renderToStaticMarkup(<TooltipProvider><Home homeDirectory={null} entries={[counted(0)]} loaded="/code/main" selection={selection} highlight={[]} enter={() => {}} action={() => {}} remove={() => {}} /></TooltipProvider>);
+  expect(html).toContain('Selected for your agent: <b>button · pay-button</b>');
+  expect(html).toContain('<span role="tooltip">Selected for your agent: button · pay-button</span>');
 });

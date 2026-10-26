@@ -164,3 +164,28 @@ test("Inspector loading announces reading styles without computed rows", () => {
   expect(out).not.toContain('class="prop" title="Width"');
   expect(render(element, ROWS_FIXTURE)).not.toContain("Reading styles…");
 });
+
+
+describe("agent selection hint", () => {
+  const hint = '<p class="use-hint">Your agent can read this selection — say “fix this”.</p></div>';
+
+  test.each(["control", "link"] as const)("follows the %s use hint as the last head line without a tooltip", interactive => {
+    const use = interactive === "link" ? "⌥-click to follow this link" : "⌥-click to use it";
+    expect(render({ ...element, interactive })).toContain(`<p class="use-hint">${use}</p>${hint}`);
+  });
+
+  test("ends the head for a frame without a use hint", () => {
+    const { element: _element, interactive: _interactive, ...frameOnly } = element;
+    expect(render(frameOnly)).toContain(`</nav>${hint}`);
+  });
+
+  test("ends the head for a noninteractive element", () => {
+    const { interactive: _interactive, ...plainElement } = element;
+    expect(render(plainElement)).toContain(`</nav>${hint}`);
+  });
+
+  test("is absent without a selection", () => {
+    const html = renderToStaticMarkup(<RightPanel state={initialCanvasState()} selectPath={() => {}} />);
+    expect(html).not.toContain("Your agent can read this selection");
+  });
+});

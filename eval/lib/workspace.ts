@@ -7,9 +7,13 @@ import type { LoadedScenario } from "./scenario.ts";
 import { startFakeApp, type FakeApp } from "./socket.ts";
 
 export interface Workspace {
-  // `/tmp/doan-eval-<id>-<agent>-XXXXXX/`: repo/, bin/doan, rt/ (runtime file and socket).
+  // `/tmp/doan-eval-<id>-<agent>-XXXXXX/`: repo/, bin/doan, rt/ (runtime file and socket),
+  // and worktree/ when the scenario sets `worktree`.
   base: string;
+  // The instruction's root and the root the fake app has open.
   repo: string;
+  // Where the agent runs: `repo`, or the second worktree.
+  cwd: string;
   env: NodeJS.ProcessEnv;
   seedCommit: string;
   app: FakeApp | null;
@@ -67,11 +71,19 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     git(["add", "-A", "-f"]);
     git(["commit", "-q", "--no-verify", "-m", "seed"]);
     const seedCommit = git(["rev-parse", "HEAD"]).trim();
-    const app = o.scenario.selectionValue
-      ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: { root: repo, ...o.scenario.selectionValue } })
+    let cwd = repo;
+    if (o.scenario.worktree) {
+      cwd = join(base, "worktree");
+      git(["worktree", "add", "-q", "-b", o.scenario.worktree.branch, cwd]);
+    }
+    // A worktree scenario stands for an instruction copied from the running app,
+    // so the app is up even without a selection; `doan active` from the second
+    // worktree then gets project_not_open.
+    const app = o.scenario.selectionValue || o.scenario.worktree
+      ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null })
       : null;
     return {
-      base, repo, env, seedCommit, app,
+      base, repo, cwd, env, seedCommit, app,
       async dispose() {
         await app?.close();
         rmSync(base, { recursive: true, force: true });

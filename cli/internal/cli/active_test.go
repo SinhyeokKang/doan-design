@@ -244,7 +244,7 @@ func TestActiveAppErrors(t *testing.T) {
 		step    string
 	}{
 		{"bad_token", reply(`{"v":1,"ok":false,"error":{"code":"bad_token","message":"m"}}`), "app_not_running", "open Doan"},
-		{"project_not_open", reply(`{"v":1,"ok":false,"error":{"code":"project_not_open","message":"m"}}`), "project_not_open", "open this project in Doan"},
+		{"project_not_open", reply(`{"v":1,"ok":false,"error":{"code":"project_not_open","message":"m"}}`), "project_not_open", "Ask the user to add this project in Doan (Add Project…), or work in the worktree that is open in Doan"},
 		{"bad_request", reply(`{"v":1,"ok":false,"error":{"code":"bad_request","message":"m"}}`), "internal_error", ""},
 		{"response v 2", reply(`{"v":2}`), "app_protocol_mismatch", ""},
 		{"not json", reply(`<html>`), "internal_error", ""},
@@ -260,6 +260,9 @@ func TestActiveAppErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			app := &fakeApp{requests: make(chan map[string]any, 1), respond: tt.respond}
 			failure := activeCode(t, activeContext(t, root, app.dial(t)), root, tt.code)
+			if tt.code == "project_not_open" && !reflect.DeepEqual(failure.NextSteps, []string{tt.step}) {
+				t.Fatalf("nextSteps: %v, want %q", failure.NextSteps, tt.step)
+			}
 			if tt.step != "" && !strings.Contains(strings.Join(failure.NextSteps, "\n"), tt.step) {
 				t.Fatal(failure.NextSteps)
 			}

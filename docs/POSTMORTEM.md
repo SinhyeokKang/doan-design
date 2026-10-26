@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-26 — Sparse copy scopes bypassed main validation
+
+- **Area**: `app/src/main/comments/service.ts` (`parseCopyScope`), `service.test.ts`.
+- **Symptom**: a structured-cloned comments array containing a hole passed scope validation, reached authorization and disk reads, and returned `not_open` instead of `Invalid copy scope.`. No clipboard write occurred.
+- **Root cause**: `Array.every` skips holes, while iteration by `Set` counts a single hole as `undefined`; the duplicate check therefore also accepted a single hole alongside distinct valid ids.
+- **Net**: independent R-P review reproduced the parser bypass. Existing invalid-scope cases used dense arrays only. Four red regression cases cover a cloned hole and a cloned valid id plus a hole at the parser and service boundary; service cases also require no authorization, read, or clipboard call.
+- **Prevention**: materialize untrusted arrays with spread before validating every element, and keep sparse-array cases after `structuredClone` for IPC inputs. Search run: `rg -n '\.every\(' app/src/main/comments` finds the copy parser, fixed-key validation, and the open-id check on the already validated dense scope; no other untrusted-array `every` validation was found in that directory.
+
 ### 2026-10-26 — The invalidation read overtook the reply to the person's own Reopen
 
 - **Area**: `app/src/comments/review.ts` (`changed`), Review in `CommentsSession.ts`; producer `app/src/main/comments/service.ts` and `comments:invalidated` in `main/index.ts`.
@@ -283,6 +291,8 @@
 - **Recurrence (2026-10-25, audit)**: CLI flag placement/quoting, CSS imports and multiline module imports were rejected, while split background precedence and missing apply_patch deletion evidence could pass incorrect output. Paired syntax cases fixed these boundaries without changing tasks/seeds. Independent review then found false positives from unexecuted code-mode patch literals and bare/style-attribute imports. Direct records or a single literal call are invocation evidence; all other literals remain separate unresolved candidates. The judge receives a separately bounded candidate block, and CSS traversal starts from actual stylesheet sources. Search run: `rg -n 'document.hidden|onWindowVisibility|activeTemps|waitFor|suiteGuard|checkedGit|patchCandidates' app/src/renderer/Toast.tsx app/src/main/thumbnails.ts app/e2e/harness.ts eval/lib/context.ts eval/lib/transcript.ts`; `patchCandidates` remains separate from automatic `patches`. Full integration runner tests (128) and fake self-tests (15 scenarios) passed at `8755c92`; these do not establish improved real-agent outcomes.
 
 - **Recurrence (2026-10-26, revision-recheck R6)**: the reopened-comment seed recorded its current canvas hash alongside a create-time target labeled Save, and the immutable create body named a later incorrect agent change. The seed test pinned `outdated: false`, so CLI validation alone preserved the inconsistent history. R-K review caught it; the regression now reconstructs the create-time bytes, checks their SHA-256 and original body, and verifies `outdated: true` through the real CLI. Both pass/fail fixture prefixes were updated; 133 eval tests and the R6 fake-agent self-test passed, without a real-agent round. The Prevention grep above was rerun; H1/H4 stale-state assertions remain separate scenario boundaries.
+
+- **Recurrence (2026-10-26, agent-handoff R-W)**: H7 required a question mark or a fixed vocabulary in the final answer, so a valid clarification ("Please specify whether I should work in …") failed and the judge could not override it (ARCH §14). Separately, the shared `commandWords` did not treat the `command` builtin as a wrapper, so a successful `command doan active --json` was not R7 active-call evidence. Review probes reproduced both. H7 now checks only that a final answer exists and both worktrees are unchanged; whether it asks about the worktree, including rejecting a no-change completion report, is judge-only in its rubric. `command`/`command -p` now unwrap, while `command -v`/`-V` and quoted text remain non-invocations. Both regressions failed before the fix; 153 eval tests and the 19-scenario fake self-test passed, without a real-agent round.
 
 ### 2026-10-24 — Agent shells bypassed the evaluation runner's packaged CLI
 

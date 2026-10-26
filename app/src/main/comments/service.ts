@@ -15,7 +15,7 @@ export interface BeginRequest extends CommentRequest { scope: "canvas" | "select
 export interface MutationRequest extends CommentRequest { project: number; intent: MutationIntent; origin?: string }
 export interface CopyRequest extends CommentRequest { scope: CopyScope }
 export interface DocumentOrigin { generation: string; hash: string; target: Target }
-export type CommentReply<T> = { ok: true; identity: CommentRequest; value: T } | { ok: false; identity: CommentRequest | null; error: string; cause?: CanvasIdentityCause };
+export type CommentReply<T> = { ok: true; identity: CommentRequest; value: T } | { ok: false; identity: CommentRequest | null; error: string; cause?: CanvasIdentityCause; code?: "not_open" };
 export interface CommentList { project: number; canvasHash: string | null; comments: Comment[]; warnings: Warning[] }
 export interface SavedStatus { state: "saved" | "absent" | "unknown"; recovery?: "child-exit-required"; event?: string; comment?: string; error?: string }
 export interface BeginResult extends DocumentOrigin { origin: string; project: number }
@@ -94,6 +94,17 @@ export function inspectAttempt(bytes: Buffer, attempt: AttemptEvidence): SavedSt
   } catch (error) { return { state: "unknown", error: message(error) }; }
 }
 
+// The renderer counts the stale ids itself after rereading, so the reply carries only the code.
+class NotOpenError extends Error { constructor() { super("Some chosen comments are no longer open."); } }
+
+export function parseCopyScope(value: unknown): CopyScope {
+  if (!object(value) || Object.keys(value).length !== 1 || !Array.isArray(value.comments)) throw new Error("Invalid copy scope.");
+  const ids: unknown[] = [...value.comments];
+  if (ids.length < 1 || ids.length > 1000 || new Set(ids).size !== ids.length ||
+    !ids.every(id => typeof id === "string" && id.length > 0 && id.length <= 4096 && !id.includes("\0"))) throw new Error("Invalid copy scope.");
+  return { comments: ids as string[] };
+}
+
 function validIntent(value: unknown): value is MutationIntent {
   if (!object(value)) return false;
   const exact = (keys: string[]) => Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
@@ -137,7 +148,7 @@ export function createCommentsService(deps: ServiceDependencies) {
   const reply = async <T>(value: unknown, extras: string[], run: (r: CommentRequest) => Promise<T>): Promise<CommentReply<T>> => {
     let r: CommentRequest | null = null;
     try { r = request(value, extras); return { ok: true, identity: r, value: await run(r) }; }
-    catch (error) { return { ok: false, identity: r, error: message(error), ...(error instanceof CanvasIdentityError ? { cause: error.cause } : {}) }; }
+    catch (error) { return { ok: false, identity: r, error: message(error), ...(error instanceof CanvasIdentityError ? { cause: error.cause } : {}), ...(error instanceof NotOpenError ? { code: "not_open" as const } : {}) }; }
   };
   const check = async (r: CommentRequest, attempt: Attempt): Promise<SavedStatus> => {
     try { return inspectAttempt(await deps.read(r.root, r.canvas), attempt); }
@@ -231,16 +242,16 @@ export function createCommentsService(deps: ServiceDependencies) {
     },
     copy(_who: string, value: unknown): Promise<CommentReply<{ copied: true }>> {
       return reply(value, ["scope"], async r => {
-        if (!object(value) || !object(value.scope)) throw new Error("Invalid copy scope.");
-        const scope = value.scope;
-        let parsed: CopyScope;
-        if (scope.kind === "all" && Object.keys(scope).length === 1) parsed = { kind: "all" };
-        else if (scope.kind === "one" && typeof scope.comment === "string" && Object.keys(scope).length === 2) parsed = { kind: "one", comment: scope.comment };
-        else throw new Error("Invalid copy scope.");
+        const scope = parseCopyScope(object(value) ? value.scope : undefined);
         const epoch = deps.epoch(r.root); await authorized(r, epoch);
+        // The renderer's list may be stale: an agent can resolve through the CLI at any time.
         const result = readList(await deps.read(r.root, r.canvas));
         await authorized(r, epoch);
-        await deps.clipboard(copyText(r.root, r.canvas, result.comments, parsed));
+        const open = new Set(result.comments.filter(c => c.status === "open").map(c => c.comment));
+        if (!scope.comments.every(id => open.has(id))) throw new NotOpenError();
+        // A resolve landing after this read is not undone: the clipboard holds what was read,
+        // and the renderer evaluates Handed off against its next list.
+        await deps.clipboard(copyText(r.root, r.canvas, result.comments, scope.comments));
         return { copied: true };
       });
     },

@@ -1,12 +1,12 @@
 import { beginDraft, guardsSelectionChange, transitionDraft, type DraftState } from "../comments/draft";
 import type { ExpectedComment, MutationIntent } from "../comments/events";
-import type { CopyScope } from "../comments/projection";
+import { handoffAfterRead, handoffRows, quickSelect, staleIds, type HandoffEntry, type HandoffRow, type HandoffSelection, type QuickKind } from "../comments/handoff";
 import { reviewState, reviewSummary, startReview, toReview, type ReviewMarker, type ReviewState } from "../comments/review";
 import type { Comment, Target } from "../formats/types";
 import type { CanvasIdentityCause } from "../main/comments/identity";
 import type { BeginResult, CommentIdentity, CommentList, CommentReply, CommentRequest, MutationRequest, SavedStatus } from "../main/comments/service";
 import type { DoanApi } from "../preload";
-import type { AuthorView, CopyView, SaveView } from "./CommentsPanel";
+import type { AuthorView, SaveView, TargetFrames } from "./CommentsPanel";
 
 // The review marker calls are optional so sessions built without them (tests) read none.
 type Api = Pick<DoanApi, "commentsList" | "commentsAuthor" | "commentsBegin" | "commentsMutate" | "commentsStatus" | "commentsCopy" | "setCommentDraftGuard"> &
@@ -34,11 +34,22 @@ export interface ReviewRun { root: string; canvas: string; state: ReviewState; c
 class RefusedIdentity extends Error {
   constructor(message: string, readonly identityCause: CanvasIdentityCause) { super(message); }
 }
+// Main refused a copy because a chosen comment is no longer open on disk.
+class NotOpen extends Error {}
 function value<T>(reply: CommentReply<T>, request: CommentRequest): T {
   if (!reply.identity || !same(reply.identity, request) || reply.identity.requestID !== request.requestID) throw new Error("Stale comments response.");
-  if (!reply.ok) throw reply.cause ? new RefusedIdentity(reply.error, reply.cause) : new Error(reply.error);
+  if (!reply.ok) throw reply.cause ? new RefusedIdentity(reply.error, reply.cause) : reply.code === "not_open" ? new NotOpen(reply.error) : new Error(reply.error);
   return reply.value;
 }
+export type HandoffCopy = { status: "idle" | "copying" | "failed" } | { status: "copied" | "stale"; count: number };
+// The Hand off dialog. `rows` are fixed when it opens so none leaves under the
+// pointer; `checked` follows row order; `selection` is the one it opened with.
+export interface HandoffDialog {
+  id: string; root: string; canvas: string;
+  rows: readonly HandoffRow[]; checked: readonly string[];
+  frames: TargetFrames; selection: HandoffSelection | null; copy: HandoffCopy;
+}
+const handoffKey = (at: Pick<CommentIdentity, "root" | "canvas">) => JSON.stringify([at.root, at.canvas]);
 
 // Main owns write authority. This session owns only displayed state, immutable
 // pending payloads, and the promise which holds a controllable UI transition.
@@ -55,7 +66,7 @@ export class CommentsSession {
   draft = emptyDraft();
   target: Target = {};
   saveView: SaveView = { status: "idle" };
-  copies = new Map<string, CopyView>();
+  handoff: HandoffDialog | null = null;
   mutations = new Map<string, SaveView>();
   busy = false;
   beginning = false;
@@ -84,6 +95,8 @@ export class CommentsSession {
   reviewDone: { text: string; reopened: string[]; seen: ReadonlyMap<string, string> } | null = null;
   // Told after main raised a canvas's marker, so Home and Overview counts follow.
   onReviewed: ((root: string) => void) | null = null;
+  // Handed off per (root, canvas id) for this app session (feature agent-handoff).
+  private handoffs = new Map<string, HandoffEntry>();
   private markerRevision = 0;
   private statusTimer: ReturnType<typeof setTimeout> | undefined;
   private revision = 0;
@@ -102,7 +115,12 @@ export class CommentsSession {
   private replacing: { draft: string; comment: Comment } | null = null;
   private destination: ((allowed: boolean) => void) | null = null;
   constructor(private api: Api, private changed: () => void) {}
-  private emit() { this.changed(); }
+  // Uncertain > Delete > Unsaved > Hand off: a higher dialog takes Hand off's
+  // place rather than queueing behind it, wherever the higher one came from.
+  private emit() {
+    if (this.handoff && (this.uncertainTransition || this.deleteConfirmation || this.draft.transition)) this.handoff = null;
+    this.changed();
+  }
   private cancelDestination() {
     this.uncertainTransition = null;
     this.draft = { ...this.draft, transition: null };
@@ -131,7 +149,8 @@ export class CommentsSession {
     this.revision++;
     this.cancelBegin();
     this.identity = identity;
-    this.list = null; this.readError = null; this.identityCause = null; this.createError = null; this.continueError = null; this.copies = new Map(); this.mutations = new Map(); this.deleteConfirmation = null;
+    this.list = null; this.readError = null; this.identityCause = null; this.createError = null; this.continueError = null; this.mutations = new Map(); this.deleteConfirmation = null;
+    if (!sameCanvas(identity, this.handoff)) this.handoff = null;
     this.clearStatus();
     // Another canvas ends Review; the progress passed is already raised.
     if (!sameCanvas(identity, this.review)) this.review = null;
@@ -149,7 +168,7 @@ export class CommentsSession {
     this.cancelBegin();
     this.identity = { ...this.identity, path };
     if (this.draft.draft?.origin.kind === "edit" && !this.draft.request && this.draftIdentity) this.draftIdentity = { ...this.draftIdentity, path };
-    this.createError = null; this.continueError = null; this.copies = new Map();
+    this.createError = null; this.continueError = null;
     this.emit();
     await Promise.all([this.read(), this.author.status === "loading" ? this.retryAuthor() : undefined]);
   }
@@ -162,14 +181,17 @@ export class CommentsSession {
     return !this.pending && !this.draft.request && !this.busy && !this.deleteConfirmation &&
       [...this.mutations.values()].every(state => finished.includes(state.status));
   }
-  async read(review = false, card?: string) {
-    if (!this.identity) return;
+  // Returns what main answered, also when a newer read overtook this one and it was not applied.
+  async read(review = false, card?: string): Promise<CommentList | null> {
+    if (!this.identity) return null;
     const rev = this.revision, read = ++this.readRevision, request = this.request();
+    let fetched: CommentList | null = null;
     try {
-      const list = value(await this.api.commentsList(request), request);
-      if (rev !== this.revision || read !== this.readRevision) return;
+      const list = fetched = value(await this.api.commentsList(request), request);
+      if (rev !== this.revision || read !== this.readRevision) return list;
       this.list = list; this.readError = null; this.identityCause = null;
       this.reviewRead(list.comments);
+      if (this.identity) this.handedOffRead(this.identity, list.comments);
       if (review) for (const [id, state] of this.mutations) {
         if (state.status !== "conflict" || (card !== undefined && card !== id)) continue;
         const current = list.comments.find(c => c.comment === id), pending = this.cardPending.get(id);
@@ -196,6 +218,7 @@ export class CommentsSession {
       }
     }
     this.emit();
+    return fetched;
   }
   async retryAuthor() {
     if (!this.identity) return;
@@ -397,12 +420,68 @@ export class CommentsSession {
     catch (error) { this.saveView = { status: "check-failed", message: errorText(error) }; this.emit(); }
   }
   async retry() { if (this.pending && this.saveView.status === "retry-original") { this.cancelDestination(); await this.submit(this.pending); } }
-  async copy(scope: CopyScope) {
-    if (!this.identity || !this.list || this.readError) return;
-    const rev = this.revision, request = this.request(), key = scope.kind === "all" ? "all" : scope.comment;
-    this.copies.set(key, { status: "copying" }); this.emit();
-    try { value(await this.api.commentsCopy({ ...request, scope }), request); if (rev === this.revision) this.copies.set(key, { status: "copied" }); }
-    catch (error) { if (rev === this.revision) this.copies.set(key, { status: "failed", message: errorText(error) }); }
+  // `checked`: "all" open comments (the Comments head), or the ids a card or
+  // the Review summary asks for; ids no longer open are left out.
+  openHandoff(checked: "all" | readonly string[], frames: TargetFrames, selection: HandoffSelection | null): boolean {
+    if (!this.identity || !this.list || this.readError || this.handoff) return false;
+    const rows = handoffRows(this.list.comments, frames);
+    const ids = checked === "all" ? null : new Set(checked);
+    this.handoff = { id: crypto.randomUUID(), root: this.identity.root, canvas: this.identity.canvas, rows, frames, selection, copy: { status: "idle" },
+      checked: rows.map(row => row.comment.comment).filter(id => !ids || ids.has(id)) };
+    this.emit(); return true;
+  }
+  closeHandoff() { if (this.handoff) { this.handoff = null; this.emit(); } }
+  // Checks are fixed while main copies and, after a copy, as its record.
+  private handoffEditable(): HandoffDialog | null {
+    const dialog = this.handoff;
+    return dialog && dialog.copy.status !== "copying" && dialog.copy.status !== "copied" ? dialog : null;
+  }
+  private setChecked(dialog: HandoffDialog, ids: ReadonlySet<string>) {
+    this.handoff = { ...dialog, checked: dialog.rows.map(row => row.comment.comment).filter(id => ids.has(id)) }; this.emit();
+  }
+  toggleHandoff(id: string) {
+    const dialog = this.handoffEditable();
+    if (!dialog) return;
+    const ids = new Set(dialog.checked);
+    if (!ids.delete(id)) ids.add(id);
+    this.setChecked(dialog, ids);
+  }
+  quickHandoff(kind: QuickKind) {
+    const dialog = this.handoffEditable(), result = dialog && quickSelect(dialog.rows, kind, dialog.selection);
+    if (dialog && result && "ids" in result) this.setChecked(dialog, new Set(result.ids));
+  }
+  handedOff(): HandoffEntry | null { return this.identity ? this.handoffs.get(handoffKey(this.identity)) ?? null : null; }
+  private handedOffRead(at: Pick<CommentIdentity, "root" | "canvas">, comments: readonly Comment[]) {
+    const key = handoffKey(at), entry = handoffAfterRead(this.handoffs.get(key) ?? null, comments);
+    if (entry) this.handoffs.set(key, entry); else this.handoffs.delete(key);
+  }
+  private updateHandoff(id: string, copy: HandoffCopy, rows?: readonly HandoffRow[]) {
+    const dialog = this.handoff;
+    if (dialog?.id !== id) return;
+    this.handoff = rows ? { ...dialog, rows, copy, checked: dialog.checked.filter(id => rows.some(row => row.comment.comment === id)) } : { ...dialog, copy };
+  }
+  // The result belongs to the request (root, canvas id, request id), not to the
+  // session revision: a rename keeps it, and a dialog closed meanwhile still
+  // leaves Handed off for that canvas.
+  async copyHandoff() {
+    const dialog = this.handoffEditable();
+    if (!dialog || !this.identity || !sameCanvas(dialog, this.identity) || dialog.checked.length === 0) return;
+    const request = this.request(), ids = [...dialog.checked];
+    this.updateHandoff(dialog.id, { status: "copying" }); this.emit();
+    try { value(await this.api.commentsCopy({ ...request, scope: { comments: ids } }), request); }
+    catch (error) {
+      if (!(error instanceof NotOpen)) { this.updateHandoff(dialog.id, { status: "failed" }); this.emit(); return; }
+      // Judged by this reread itself: a newer read may overtake it before `this.list` follows.
+      const reread = await this.read();
+      const list = this.handoff?.id === dialog.id && reread ? reread.comments : null;
+      const stale = list ? staleIds(ids, list) : [];
+      if (list && stale.length) this.updateHandoff(dialog.id, { status: "stale", count: stale.length }, handoffRows(list, dialog.frames));
+      else this.updateHandoff(dialog.id, { status: "failed" });
+      this.emit(); return;
+    }
+    this.handoffs.set(handoffKey(request), { ids, at: new Date() });
+    if (this.list && sameCanvas(request, this.identity)) this.handedOffRead(request, this.list.comments);
+    this.updateHandoff(dialog.id, { status: "copied", count: ids.length });
     this.emit();
   }
   async mutate(type: "delete" | "resolve" | "reopen", id: string) {

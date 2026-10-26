@@ -199,6 +199,35 @@ code, kbd { font-family: var(--font-sans); }
 .comments-dialog h3 { font-size: 15px; margin-bottom: 10px; font-weight: 700; }
 .comments-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-2); margin-bottom: 12px; }
 .comments-dialog .comments-tools { justify-content: flex-end; }
+/* Values from design/agent-handoff.html (dialog, dialog-states, copy-states). Only
+   the list scrolls and the preview has its own cap, so the title and the buttons
+   stay in view at any window height. `[open]`: a closed <dialog> must keep the UA's display: none. */
+.handoff-dialog { width: 480px; overflow: hidden; }
+.handoff-dialog[open] { display: flex; flex-direction: column; }
+/* Copy moves focus here while its button is disabled; the dialog itself is not a control. */
+.handoff-dialog:focus { outline: none; }
+.handoff-dialog .handoff-context { font-size: 11.5px; color: var(--text-3); margin-bottom: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.handoff-quick { display: flex; gap: 6px; margin-bottom: 8px; }
+.handoff-list { position: relative; flex: 0 1 auto; min-height: 44px; max-height: 352px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); }
+.handoff-row { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 10px; border-bottom: 1px solid var(--line-2); cursor: pointer; }
+.handoff-row:last-child { border-bottom: 0; }
+.handoff-row input { flex: none; width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
+.handoff-row input:disabled + .handoff-text { opacity: .6; }
+.handoff-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.handoff-target { color: var(--text-2); font-size: 10.5px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.handoff-body { color: var(--text); font-size: 12px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.handoff-instruction { margin-top: 10px; font-size: 11.5px; color: var(--text-2); }
+.handoff-instruction summary { cursor: pointer; width: max-content; }
+.handoff-instruction summary:focus-visible { outline: 1px solid var(--accent-line); }
+.handoff-preview { margin-top: 8px; max-height: 160px; overflow: auto; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text-2); font: 11.5px/1.6 var(--font-sans); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.handoff-dialog .handoff-notice { margin: 10px 0 0; padding: 8px 10px; border-left: 2px solid var(--warn); background: var(--panel-2); border-radius: 0 6px 6px 0; font-size: 11.5px; line-height: 1.6; }
+.handoff-dialog .handoff-status { margin: 12px 0 0; padding: 8px 10px; border-left: 2px solid var(--line); background: var(--panel-2); border-radius: 0 6px 6px 0; font-size: 11.5px; line-height: 1.6; color: var(--text); }
+.handoff-status.error { border-left-color: var(--err); }
+.handoff-status.warning { border-left-color: var(--warn); }
+.handoff-status.ok { border-left-color: var(--ok); }
+.handoff-actions { display: flex; align-items: center; gap: 6px; margin-top: 16px; flex: none; }
+.handoff-actions .comments-helper { flex: 1; margin: 0; }
+.handoff-summary { font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
 /* Values from design/revision-recheck.html (review-notice, review-bar, review-done). */
 .review-banner { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 12px; border-bottom: 1px solid var(--line-2); background: var(--panel-2); font-size: 11.5px; color: var(--text-2); }
 /* The text ellipsizes before the buttons shrink. */

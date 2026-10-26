@@ -7,8 +7,11 @@ import type { ToolCalls } from "./transcript.ts";
 export type Check = { id: string; pass: boolean; detail: string };
 
 export interface CheckContext {
-  // Absolute path of the final repo.
+  // Absolute path of the final repo (the pasted instruction's root).
   repo: string;
+  // Absolute path the agent ran in: `repo`, or the second worktree when the
+  // scenario sets `worktree`.
+  cwd: string;
   agent: "claude" | "codex" | "fixture";
   // stdout + stderr of the agent run.
   transcript: string;
@@ -24,6 +27,8 @@ export interface CheckContext {
   seed(path: string): string | null;
   // Paths changed, added or deleted since the seed commit, sorted.
   changedFiles(): string[];
+  // changedFiles() for `cwd`.
+  cwdChangedFiles(): string[];
   // Parsed lines of `.doan/comments/<canvasId>.jsonl` added since the seed commit.
   // A line that is not JSON comes back as `{ invalid: "<line>" }`.
   commentEvents(canvasId: string): any[];

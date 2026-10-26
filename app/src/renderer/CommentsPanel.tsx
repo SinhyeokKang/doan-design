@@ -1,6 +1,6 @@
 import { useId, type KeyboardEvent, type Ref } from "react";
 import type { Comment, Target, Warning } from "../formats/types";
-import type { CopyScope, ListFilter } from "../comments/projection";
+import type { ListFilter } from "../comments/projection";
 import { targetLabel } from "../comments/targetLabel";
 import { reopenText, resolutionText, type NamedLine } from "../comments/resolution";
 import { ReviewBar, ReviewDone, ReviewNotice, type ReviewBarView, type ReviewDoneView, type ReviewNoticeView } from "./ReviewBar";
@@ -9,7 +9,6 @@ import { READ_FAILED_EDITOR, WARNINGS_TITLE, commentsPanelState, emptyListText, 
 // Frame ids with their titles, from the ls row or the rendered canvas, to name comment targets.
 export type TargetFrames = ReadonlyArray<{ id: string; title?: string }>;
 
-export type CopyView = { status: "idle" | "copying" | "copied" } | { status: "failed"; message: string };
 export type AuthorView = { status: "ready" | "loading" | "missing" } | { status: "failed"; message: string };
 export type CommentIntent = "locate" | "edit" | "resolve" | "reopen" | "delete" | "retry" | "check" | "read-latest" | "confirm-reviewed" | "comment-instead";
 export type SaveView =
@@ -70,8 +69,8 @@ export interface CommentsPanelProps {
   createError?: string | null;
   widthInvalid: boolean;
   busy: boolean;
-  copies: ReadonlyMap<string, CopyView>;
-  allCopy: CopyView;
+  // "Handed off 3 · 14:02:10" beside the head's Hand off… (feature agent-handoff).
+  handedOff?: string | null;
   mutations?: ReadonlyMap<string, SaveView>;
   // Left in a card's place after the person's Resolve or Reopen moved it to
   // the other list; `before` is the card that followed it, null when it was last.
@@ -89,7 +88,8 @@ export interface CommentsPanelProps {
   onFilter: (filter: ListFilter) => void;
   onCreate: (scope: ListFilter["scope"]) => void;
   onComment: (intent: CommentIntent, comment: string) => void;
-  onCopy: (scope: CopyScope) => void;
+  // Opens the Hand off dialog: null checks every open comment, an id only that one.
+  onHandOff: (comment: string | null) => void;
   onRead: () => void;
   onRetryAuthor: () => void;
 }
@@ -107,9 +107,6 @@ export function relativeTime(at: string): string {
 
 function pending(state: SaveView): boolean {
   return ["saving", "unknown", "checking", "check-failed", "retry-original", "recovery-blocked"].includes(state.status);
-}
-function copyLabel(copy: CopyView, all = false): string {
-  return copy.status === "copying" ? "Copying…" : copy.status === "copied" ? "Copied" : copy.status === "failed" ? "Retry copy" : all ? "Copy all open" : "Copy";
 }
 
 export function CommentsPanel(props: CommentsPanelProps) {
@@ -150,12 +147,11 @@ export function CommentsPanel(props: CommentsPanelProps) {
       </div>
       </>}
       <div className="comments-tools">
-        <button type="button" className="comments-btn" disabled={read.status !== "ready" || props.canvasOpenCount === 0 || props.allCopy.status === "copying"} title="All open comments on this canvas, regardless of the visible filter" onClick={() => props.onCopy({ kind: "all" })}>{copyLabel(props.allCopy, true)}</button>
+        <button type="button" className="comments-btn" disabled={read.status !== "ready" || props.canvasOpenCount === 0} onClick={() => props.onHandOff(null)}>Hand off…</button>
+        {props.handedOff && <span className="handoff-summary">{props.handedOff}</span>}
         <button type="button" className="comments-btn" disabled={createDisabled} onClick={() => props.onCreate(filter.scope)}>{filter.scope === "canvas" ? "Comment on canvas" : "Comment on selection"}</button>
       </div>
       {props.createError && <p className="comments-helper" role="alert">Couldn’t start comment: {props.createError}</p>}
-      {props.allCopy.status === "copied" && <p className="comments-helper" role="status">Copied all open comments on this canvas.</p>}
-      {props.allCopy.status === "failed" && <p className="comments-helper" role="alert">{props.allCopy.message}</p>}
     </div>
     {editorView}
     {props.widthInvalid && <div className="comments-message warning"><b>Could not read a valid board width.</b>Existing comments are still available. Run doan check in a terminal to diagnose the canvas. A readable width is required to add comments and show pins.</div>}
@@ -164,7 +160,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
     {state.authorBlock && <div className="comments-message warning" role="status">
       <b>{author.status === "loading" ? "Checking Git name…" : author.status === "missing" ? "Set your Git name" : "Couldn’t read Git identity"}</b>
       {author.status === "failed" ? author.message : "Set git user.name for this repository in your terminal, then choose Retry. Your email is optional."}
-      <p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Copy remains available.</p>
+      <p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Hand off remains available.</p>
       <div className="comments-tools"><button type="button" className="comments-btn" disabled={author.status === "loading"} onClick={props.onRetryAuthor}>Retry</button></div>
     </div>}
     {/* Under the error and canvas-ID blocks (design review-notice, banner order); the bar is a panel child so it sticks under the title. */}
@@ -179,7 +175,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
           </div>}
           {read.comments.length === 0 && statusLine}
           {read.comments.length === 0 && <div className="comments-message"><b>{empty.title}</b>{empty.body}</div>}
-          {read.comments.flatMap((comment, index) => [index === lineAt && statusLine, <CommentCard key={comment.comment} comment={comment} frames={props.frames} freshness={props.freshness.get(comment.comment) ?? "unknown"} locationMissing={props.missingLocations?.has(comment.comment) ?? null} disabled={writesDisabled || editor !== null} busy={props.busy} copy={props.copies.get(comment.comment) ?? { status: "idle" }} mutation={props.mutations?.get(comment.comment)} instead={instead} onComment={props.onComment} onCopy={props.onCopy} />])}
+          {read.comments.flatMap((comment, index) => [index === lineAt && statusLine, <CommentCard key={comment.comment} comment={comment} frames={props.frames} freshness={props.freshness.get(comment.comment) ?? "unknown"} locationMissing={props.missingLocations?.has(comment.comment) ?? null} disabled={writesDisabled || editor !== null} busy={props.busy} mutation={props.mutations?.get(comment.comment)} instead={instead} onComment={props.onComment} onHandOff={props.onHandOff} />])}
           {read.comments.length > 0 && lineAt === -1 && statusLine}
         </>}
   </section>;
@@ -193,14 +189,13 @@ export interface CommentCardProps {
   locationMissing: boolean | null;
   disabled: boolean;
   busy: boolean;
-  copy: CopyView;
   mutation?: SaveView | undefined;
   // Whether "Comment on selection instead" can start a new comment now.
   instead?: "ready" | "no-selection" | "blocked";
   onComment: (intent: CommentIntent, comment: string) => void;
-  onCopy: (scope: CopyScope) => void;
+  onHandOff: (comment: string) => void;
 }
-export function CommentCard({ comment, frames, freshness, locationMissing, disabled, busy, copy, mutation, instead = "blocked", onComment, onCopy }: CommentCardProps) {
+export function CommentCard({ comment, frames, freshness, locationMissing, disabled, busy, mutation, instead = "blocked", onComment, onHandOff }: CommentCardProps) {
   const { createdBy } = comment;
   const initials = createdBy.name.trim().split(/\s+/).slice(0, 2).map(word => Array.from(word)[0] ?? "").join("").toUpperCase();
   const locked = disabled || busy || (mutation !== undefined && mutation.status !== "idle" && mutation.status !== "saved");
@@ -221,7 +216,8 @@ export function CommentCard({ comment, frames, freshness, locationMissing, disab
     <div className="comments-tools">
       <button type="button" className="comments-btn" disabled={locked} onClick={() => onComment("edit", comment.comment)}>Edit</button>
       <button type="button" className="comments-btn" disabled={locked} onClick={() => onComment(comment.status === "open" ? "resolve" : "reopen", comment.comment)}>{comment.status === "open" ? "Resolve" : "Reopen"}</button>
-      <button type="button" className="comments-btn" disabled={comment.status === "resolved" || copy.status === "copying"} onClick={() => onCopy({ kind: "one", comment: comment.comment })}>{copyLabel(copy)}</button>
+      {/* Agents read open comments only; a resolved card has nothing to hand off. */}
+      {comment.status === "open" && <button type="button" className="comments-btn" onClick={() => onHandOff(comment.comment)}>Hand off…</button>}
       <button type="button" className="comments-btn" disabled={locked} onClick={() => onComment("delete", comment.comment)}>Delete</button>
     </div>
     {/* An explicit human action on a target that is gone; comments are never re-attached (feature revision-recheck Q6). */}
@@ -229,8 +225,6 @@ export function CommentCard({ comment, frames, freshness, locationMissing, disab
       <div className="comments-tools instead"><button type="button" className="comments-btn" disabled={locked || instead !== "ready"} aria-describedby={instead === "no-selection" ? reasonId : undefined} onClick={() => onComment("comment-instead", comment.comment)}>Comment on selection instead</button></div>
       {instead === "no-selection" && <p className="comments-helper" id={reasonId}>Select an element or frame first.</p>}
     </>}
-    {copy.status === "copied" && <p className="comments-helper" role="status">Copied</p>}
-    {copy.status === "failed" && <p className="comments-helper" role="alert">{copy.message}</p>}
     {mutation && mutation.status !== "idle" && <div className={`comments-message ${mutation.status === "failed" || mutation.status === "check-failed" || mutation.status === "deleted" ? "error" : mutation.status === "unknown" || mutation.status === "conflict" || mutation.status === "recovery-blocked" ? "warning" : ""}`} role="status">
       <SaveMessage state={mutation} />
       <div className="comments-tools">
