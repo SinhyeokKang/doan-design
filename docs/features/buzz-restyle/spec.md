@@ -21,10 +21,11 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 
 1. **테마**는 라이트 단일이다. 다크 전용 결정을 대체한다.
 2. **색**: 주요 버튼은 무채색이다. 액센트는 **doan 고유 violet 램프**를 쓰고(9단계 `#973be1`, 흰 글자. 12단계와 contrast·ink·pressed·link 쌍은 레퍼런스 iris 램프의 단계별 밝기 구조에 violet 색상을 얹어 doan이 만든다. 2026-10-26 user, 처음 결정한 Buzz citrus와 중간에 고른 오렌지를 대체), **Buzz가 액센트를 쓰는 용례에 대응하는 자리에만** 쓴다.
-   - 메시지 버블 → 코멘트 카드(연한 액센트 채움, Buzz의 Chillin' 수준)
-   - Send 버튼 → 코멘트 제출 버튼(진한 액센트 채움)
+   - 메시지 버블 → 대화의 내 메시지(연한 액센트 채움, Buzz의 Chillin' 수준)
+   - Send 버튼 → 대화 전송 버튼(진한 액센트 채움)
    - 사이드바 hover·선택 → 사이드바 트리의 현재 위치 행(`aria-current="location"`, 진한 선택 채움 + 짝 글자)과 트리 행 hover(더 옅은 채움)
-   - 코멘트 핀
+   - 대화 입력창과 메시지의 인라인 앵커 칩(연한 액센트 채움 + 진한 글자, 메신저 멘션처럼). Buzz는 일반 멘션을 무채색으로 두지만 doan의 앵커 칩은 메시지의 핵심 대상이라 액센트를 쓴다(doan 조정, 2026-10-26 user)
+   - `buzz-conversation`이 코멘트를 걷어내기 전까지는 `buzz-ds`가 구현한 코멘트 카드, 코멘트 제출 버튼, 코멘트 핀이 액센트 자리로 남는다(2026-10-26, 대화로 바꾸기 전의 자리)
    - 그 밖(캔버스 선택·hover 표시, 치수, 프레임 하이라이트, 탭, 메뉴, 링크, 카운트, Open 태그, 스피너, 온보딩 단계 등)은 Buzz 무채색 역할이다. 오렌지는 남지 않는다.
 3. **폰트**는 시스템 스택(`-apple-system`/`system-ui`, macOS에서 SF Pro로 그려짐, `Apple SD Gothic Neo` 대체 유지) 하나다. Inter와 고정폭 폰트는 쓰지 않는다. Buzz 타입 역할의 크기·행간·자간·굵기 조합은 그대로 가져오되, 자간은 Inter 기준이라 측정으로 확인한다.
 4. **UI 스택**은 Radix(shadcn) 그대로다. Base UI와 Buzz의 JS 훅은 들이지 않는다. 새로 쓰는 CSS는 처음부터 Radix `data-state`, 네이티브 `<dialog>[open]`, `:focus-visible`에 건다.
@@ -46,22 +47,22 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 | # | slug | 화면 | 범위 (지금 코드) | 선행 |
 |---|---|---|---|---|
 | 0 | `buzz-ds` | 디자인 시스템 | 라이트 토큰·역할(기존 이름은 별칭), 액센트 violet 램프, `themeSource` light, 타입·모서리·재질·모션, shadcn 테마 연결, 공용 컴포넌트 스타일(버튼, `IconButton`, `Panel`, 툴팁, 메뉴·팝오버, 다이얼로그 틀, 토스트, 스피너, 포커스, disabled, 스크롤바), 공통 결정 10의 공유 요소, 모달 scrim 값, 대비·변수 검사, DESIGN.md 디자인 시스템 절. 문서: [`../buzz-ds/`](../buzz-ds/spec.md) | 없음 |
-| 1 | `buzz-shell` | 앱 셸 | Buzz `AppShell` 골격 이식: 점 격자 셸, 메인 창의 모든 헤더 띠(작업 공간과 Home의 헤더, 신호등·드래그 영역·아이콘 버튼·항목 자리), 사이드바 `Panel`, 메인 `Panel joined` 안에 도킹한 오른쪽 열의 틀, 창 옵션(`App.tsx` 셸 마크업, main `BrowserWindow`) | buzz-ds |
+| 1 | `buzz-shell` | 앱 셸 | Buzz `AppShell` 골격 이식: 점 격자 셸, 메인 창의 모든 헤더 띠(작업 공간과 Home의 헤더, 신호등·드래그 영역·아이콘 버튼·항목 자리), 사이드바 `Panel`, 메인 `Panel joined` 안에 도킹하고 평소에는 숨기는 오른쪽 패널 자리(안의 탭과 내용은 `buzz-conversation`·`buzz-inspector`), 창 옵션(`App.tsx` 셸 마크업, main `BrowserWindow`) | buzz-ds |
 | 2 | `buzz-onboarding` | 온보딩 | Buzz 첫 실행 표면을 온보딩 위저드에(`Onboarding.tsx`). 위저드는 Close·Escape가 있는 모달 `<dialog>`로 유지한다. doan 워드마크와 배경 결정 | buzz-ds |
 | 3 | `buzz-home` | 프로젝트 홈 | 프로젝트 카드 목록, 워크트리 행, 행 메뉴, 빈 상태, 드롭 오버레이, 연결 칩, 설정 배너, "Finish setting up doan" 카드(`Home.tsx`, `DropOverlay.tsx`) | buzz-shell |
 | 4 | `buzz-search` | 검색 | Quick Open(Cmd+K) 다이얼로그 내용, 입력, 결과 행(`QuickOpenDialog.tsx`) | buzz-shell |
 | 5 | `buzz-project` | 캔버스 목록 | 사이드바 캔버스 트리(`SidebarNavigation` 수치, 색은 buzz-ds 대응표대로), Overview 카드·썸네일·빈 상태(`Sidebar.tsx`, `ProjectOverview.tsx`) | buzz-shell |
-| 6 | `buzz-canvas` | 캔버스 | 캔버스 영역과 보드, 줌·프레임 컨트롤, 오버레이 표시(선택·hover·치수), 프레임 하이라이트, 캔버스 로딩·문제 메시지, `.canvas-notice`. 보드를 `Panel` 안에 둘지 결정 | buzz-shell |
-| 7 | `buzz-inspector` | 인스펙터 | 오른쪽 열의 Inspector(스타일·토큰 목록, 섹션, 값 행), 오른쪽 열 탭(`RightPanel.tsx`) | buzz-shell |
-| 8 | `buzz-comment` | 코멘트 | Comments 패널(액센트 카드, 작성·편집, 액센트 제출 버튼, 범위·상태 행), 코멘트 핀, Review bar·배너·도움말, Feedback 패널, Hand Off 다이얼로그(`CommentsPanel.tsx`, `ReviewBar.tsx`, `FeedbackPanel.tsx`, `HandOffDialog.tsx`) | buzz-canvas, buzz-inspector |
+| 6 | `buzz-canvas` | 캔버스 | 캔버스 영역과 보드, 줌·프레임 컨트롤, 오버레이 표시(선택·hover·치수, 요소 피커가 쓰는 선택 모드), 프레임 하이라이트, 캔버스 로딩·문제 메시지, `.canvas-notice`. 보드를 `Panel` 안에 둘지 결정 | buzz-shell |
+| 7 | `buzz-inspector` | 인스펙터 | 오른쪽 패널 Inspector 탭의 내용(스타일·토큰 목록, 섹션, 값 행). 패널의 표시·숨김과 탭 틀은 `buzz-conversation` | buzz-shell |
+| 8 | `buzz-conversation` | 대화 | 에이전트와의 실시간 대화 UI(기존 `buzz-comment` 자리, 2026-10-26 user): 오른쪽 패널의 표시·숨김(요소를 고르거나 대화를 시작하면 열림)과 대화·인스펙터 탭 틀(`RightPanel.tsx`), 캔버스당 대화 하나인 대화 탭(메시지, 입력창, 입력창 옆 요소 피커, 인라인 앵커 칩, 권한 요청, 진행·실패 상태, 새 대화 시작), 보관한 대화를 여는 캔버스 구석 버튼, FirstPrompt의 Send(위저드 4단계와 캔버스 없는 작업 공간). 앱의 코멘트 화면 제거(Comments 패널, 코멘트 핀, Review bar·배너, Feedback 패널, Hand Off 다이얼로그). CLI·MCP·스킬·포맷·eval의 코멘트 제거는 별도 feature(2026-10-26 user). 기반은 [`agent-conversation`](../agent-conversation/spec.md) | agent-conversation, buzz-canvas, buzz-inspector |
 | 9 | `buzz-settings` | 설정 창 | 별도 Settings 창(`settings.html`, `settingsWindow.tsx`, `settingsProjects.tsx`, `SettingsDialog.tsx`, `settings.css`)을 Buzz Settings 구성(48rem 열, `SettingsGroup`, `PreferenceRow`)으로. 창은 별도 창으로 유지한다 | buzz-ds |
 
 나눈 기준:
 - 사용자가 예로 든 `buzz-onboarding`, `buzz-home`, `buzz-search`처럼 화면 하나를 단위로 했다.
 - 디자인 시스템과 공유 요소는 모든 화면이 기대므로 맨 처음이다.
 - 셸은 다른 화면이 모두 그 안에 들어가므로 화면 자식보다 먼저다. 신호등 위치는 창마다 하나라서, Home 헤더 띠까지 셸이 맡는다. 온보딩과 설정 창은 셸 밖이라 `buzz-ds`만 있으면 된다.
-- 코멘트는 캔버스 위 핀과 오른쪽 열을 함께 쓰므로 캔버스와 인스펙터 다음이다.
-- 다이얼로그와 토스트의 공용 틀은 `buzz-ds`가 만들고, 화면 하나만 여는 다이얼로그의 내용(Quick Open, Hand Off)은 그 화면의 자식이 맡는다.
+- 대화는 오른쪽 패널과 캔버스 선택 모드를 함께 쓰므로 캔버스와 인스펙터 다음이다. 기반 feature `agent-conversation`(UI 없음)이 먼저 main에 들어가야 한다.
+- 다이얼로그와 토스트의 공용 틀은 `buzz-ds`가 만들고, 화면 하나만 여는 다이얼로그의 내용(Quick Open)은 그 화면의 자식이 맡는다. Hand Off는 `buzz-conversation`이 코멘트와 함께 걷어낸다.
 - 모든 자식은 자기 화면의 빈 상태, 로딩, 오류, 비활성 상태를 목록으로 만들고 각 상태를 바꾼다.
 
 ## 완료 조건
