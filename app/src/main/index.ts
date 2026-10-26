@@ -709,7 +709,7 @@ async function start(): Promise<void> {
     if (!fromWindow(event) || request === null || !storedRoot(request.root)) return null;
     return readProjectComments({
       list: root => readFolder(cli, root), read: readCommentBytes, author: readAuthor,
-      marker: (root, canvas) => reviews.marker(root, canvas),
+      marker: (root, canvas) => reviews.marker(root, canvas), epoch: root => ready.epoch(root),
     }, request);
   });
   // A saved root and a listed canvas only; main reads the bytes from its cache.

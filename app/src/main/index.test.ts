@@ -1848,6 +1848,12 @@ describe("review state and project comments", () => {
     expect(mocks.readFolder).toHaveBeenCalledExactlyOnceWith("/bundled/doan", APP);
     expect(deps.marker(APP, "home")).toEqual(MARKER);
     expect(mocks.reviewStore.marker).toHaveBeenCalledWith(APP, "home");
+    // The same epoch the orphan write checks, so a reply's project matches it.
+    mocks.shell.epoch.mockReturnValue(5);
+    expect(deps.epoch(APP)).toBe(5);
+    expect(mocks.shell.epoch).toHaveBeenLastCalledWith(APP);
+    mocks.shell.epoch.mockReturnValue(null);
+    expect(deps.epoch(APP)).toBeNull();
   });
 
   test("comments:project refuses other senders, bad requests and roots that are not saved", async () => {
