@@ -24,6 +24,7 @@
 | 2026-10-26 | ds CSS의 버튼·툴팁·floating·다이얼로그·입력 블록은 B3(A7)에서 값은 유지하고 묶음·순서·주석을 doan 구조로 다시 쓴다. R3 리뷰가 블록 단위로 레퍼런스와 다시 대조한다 | 사용자 |
 | 2026-10-26 | `.ob-msg` 오류·경고는 왼쪽 선 없이 body-sm `text-danger`/`text-warning` 글자만 쓴다(레퍼런스 필드 오류). `.ob-chip` 상태 알약은 doan 조정으로 유지하고 DESIGN.md에 적는다 | 사용자 |
 | 2026-10-26 | 어두운 캔버스 위 프레임 점프 표시는 대응표대로 둔다. 다시 정하는 일은 `buzz-canvas`에 넘긴다 | 사용자 |
+| 2026-10-26 | `shared-error-details`의 Comments 타일 `.comments-message` 왼쪽 빨간 선은 코멘트 패널 규칙이라 buzz-ds에서 바꾸지 않는다. `buzz-comment`가 정한다 | 지휘자 판단 — 셀렉터 대응표와 화면 소유 범위 밖 |
 | 2026-10-26 | A10(결론 승격과 `docs/features/buzz-ds/` 삭제)은 지휘자가 통합 뒤 직접 한다 | orchestrate 스킬 §5 |
 
 ## batch 표
@@ -32,7 +33,7 @@
 |---|---|---|---|---|---|---|
 | B1 | S1 = A1~A4 | `app/src/renderer/ds/`(새로), `app/src/renderer/tokens.css`, `styles.css`·`settings.css`의 `color-scheme`·`@import`·`@theme`, `app/src/main/index.ts`의 `themeSource`·`backgroundColor`와 그 테스트, 움직인 e2e 고정값 | 없음 | Opus high — APCA 식 구현, 토큰 역할 설계, 캔버스 iframe 색 선호 확인처럼 판단이 많고 틀리면 이후 모든 자식이 흔들린다 | tasks.md A1~A4 검증 전부(`npm --prefix app test`, typecheck, build, e2e 최종 PASS, `doan check --repo .` 정의되지 않은 변수 0, `dev-css.mjs`) | 통합(3572410·c8bef11·5198670·7032c32). e2e 최종 PASS 미검증(아래) |
 | R1 | B1 리뷰 | 읽기 전용, `.scratch/review-B1.md` | B1 | Opus high — 토큰 구조와 대비 계산 검토 | `/code-review` 보고, 🔴 0 | 완료 — 🔴 0 🟡 3 |
-| B2 | S2 = A5 | `design/buzz-ds.html`만 | B1 통합 | Opus medium — 프레임 22개 초안, 컨벤션은 정해져 있고 값은 S1 토큰에서 온다 | `doan check --repo .`에서 `design/buzz-ds.html` 오류 0, `doan ls --json`의 프레임 id가 '초안 요청'과 같음. 지휘자 초안 검토 → 사용자 확인 | 커밋 1c1a6b0(worktree `buzz-ds-b2`), 지휘자 검토 통과, 사용자 확인 대기 |
+| B2 | S2 = A5 | `design/buzz-ds.html`만 | B1 통합 | Opus medium — 프레임 22개 초안, 컨벤션은 정해져 있고 값은 S1 토큰에서 온다 | `doan check --repo .`에서 `design/buzz-ds.html` 오류 0, `doan ls --json`의 프레임 id가 '초안 요청'과 같음. 지휘자 초안 검토 → 사용자 확인 | 커밋 1c1a6b0·a49e3a9(worktree `buzz-ds-b2`), 지휘자 검토 통과, 사용자 확인 대기 |
 | B3 | S3 = A6~A8 | `app/src/renderer/**`(styles·settings·connectionRows CSS, `ds/`, 공용·공유 컴포넌트 TSX, `CommentPins.ts`), `app/e2e/*`, `/design-sync` 산출물. `design/` 초안은 고치지 않는다 | B2 사용자 확인 | Opus high — 셀렉터 60여 줄 대응, 공용 컴포넌트, 모션·포커스, design-sync 실측 | tasks.md A6~A8 검증 전부, `/design-sync` 두 번 | 대기 |
 | R3 | B3 리뷰 | 읽기 전용, `.scratch/review-B3.md` | B3 | Opus high — 넓은 CSS 변경과 cascade 함정 | `/code-review` 보고, 🔴 0 | 대기 |
 | B4 | S4 = A9 | `docs/DESIGN.md`만 | B3 통합 | Opus medium — 실측값 정리와 'UX audit recovery update' 재측정 | `grep -c 'buzz-ds 이전' docs/DESIGN.md` > 0, 절 위치, `verify.mjs --runtime` 통과 | 대기 |
@@ -51,3 +52,4 @@
 - 2026-10-26: B2(Opus medium) 완료 — `design/buzz-ds.html` 22개 프레임과 `design/mock.css` 예시 색 6개, 커밋 1c1a6b0. 작업 중 범위 지시가 10개 → 17개 → 22개로 바뀌었고 최종본은 22개다. B2 터미널 release.
 - 2026-10-26: 지휘자 초안 검토 — 지휘자가 다시 실행한 `doan check`: 캔버스 13, 오류 0, 경고 12(새 경고 6은 모두 `mock.css` hardcoded_color). `doan ls`: `buzz-ds` 1200px, 프레임 22개가 순서까지 같다. 초안 안에 hex·rgb·oklch 0건, 옛 별칭 사용 0건, `buzz`는 canvas id와 feature 이름에만 있다. 격리 dev 앱 스크린샷 23장(`buzz-ds-b2/.scratch/buzz-ds/draft/`)으로 buttons, menu·tooltip, dialog-anatomy, canvas-marks, accent-places, shared-project-setup을 확인했다. 발견: (1) 어두운 캔버스에서 프레임 점프 표시(2px `border-focus` + 반투명 검정 링)가 거의 보이지 않는다 — 사용자 결정 필요. (2) `shared-project-setup` Running 타일에서 Token CSS 경로가 `tokens.cs`/`s`로 글자 중간에서 줄바꿈된다 — 초안 수정. (3) 문서에 없던 시각 선택(행 안 액션 sm 32px, `.ob-card` → 설정 그룹, `.ob-chip` → 상태 pill, `.ob-msg` → 왼쪽 2px 선, 토스트 메시지 위·액션 아래, 다이얼로그 Close 버튼 없음)은 사용자 확인 대상으로 올린다.
 - 2026-10-26: 지휘자가 레퍼런스 clone(`c40dfdf4`)과 직접 대조했다(사용자 요청). 같음: 토큰 공통 이름 119개의 라이트 값(rem↔px, 간접 참조 차이만), 타입 역할 8개, 버튼·아이콘 버튼 크기와 채움, 입력 필드, 툴팁, floating·메뉴 행, 다이얼로그 크기·패딩·모서리·모션, 토스트 폭·inset, 설정 그룹(`.ob-card`). 다름: 다이얼로그 위치(ds CSS는 가운데, R1 🟡1, 초안은 레퍼런스대로), instant 툴팁 모션, 강조된 메뉴 행의 보조 텍스트, 토스트 종류별 제목 색과 닫기 버튼(종류 없음 결정), 포커스 링 색(`border-focus` neutral-12 대 `text-standard`). 레퍼런스 근거 없음: 초안의 `.ob-chip` 상태 pill, `.ob-msg` 왼쪽 2px 선(레퍼런스의 필드 오류는 body-sm `text-danger` 글자만). 코드 구조: ds CSS의 버튼·툴팁·floating·다이얼로그·입력 블록이 레퍼런스 블록과 선언 집합·순서가 거의 같고 접두어만 다르다(R1 ⚪6 확장).
+- 2026-10-26: B2r1(Sonnet medium) 초안 수정 a49e3a9 — `.ob-msg` 선 제거, `.ob-chip`에 doan 조정 표시, 긴 경로 한 줄 말줄임과 `title`, 점프 표시 제안 문구 삭제. 지휘자 확인: `doan check` 오류 0·경고 12(새 경고 없음), 스크린샷 `draft-r1/18`·`21` 확인. render-draft의 overflow 검사가 `shared-connection-rows`의 의도한 말줄임을 FAIL로 잡는다(의도된 결과로 판정). B2r1 터미널 release.
