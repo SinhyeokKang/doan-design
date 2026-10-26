@@ -249,6 +249,19 @@ describe("edgeStripes", () => {
     ]);
   });
 
+  test("reports a thin pseudo-element bar at the start edge and start borders set through shorthands", () => {
+    const files: SourceFile[] = [{ path: "a.css", text: [
+      '.row[aria-current="true"]::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; background: var(--border-prominent); }',
+      ".note { border-width: 0 0 0 3px; border-style: solid; }",
+      ".card { border-left: medium solid var(--border-standard); }",
+    ].join("\n") }];
+    expect(edgeStripes(files)).toEqual([
+      { path: "a.css", line: 1, selector: '.row[aria-current="true"]::before', declaration: "width: 2px" },
+      { path: "a.css", line: 2, selector: ".note", declaration: "border-width: 0 0 0 3px" },
+      { path: "a.css", line: 3, selector: ".card", declaration: "border-left: medium solid var(--border-standard)" },
+    ]);
+  });
+
   test("allows a 1px neutral divider, a cleared border and other sides", () => {
     const files: SourceFile[] = [{ path: "a.css", text: [
       ".dock { border-inline-start: 1px solid var(--border-standard); }",
@@ -256,6 +269,9 @@ describe("edgeStripes", () => {
       ".flat { border-left: 0; border-inline-start: none; }",
       ".box { border: 2px solid var(--border-danger); border-top: 3px solid red; box-shadow: inset 0 0 0 1px var(--border-standard), inset 0 -1px 0 red; }",
       ".scroll::-webkit-scrollbar { width: 8px; }",
+      ".tick::before { content: \"\"; width: 5px; height: 10px; border: solid currentColor; }",
+      ".chip::after { content: \"\"; position: absolute; inset: 0; background: var(--surface-inset); }",
+      ".frame { border-width: 1px; }",
     ].join("\n") }, { path: "a.ts", text: "el.style.borderLeft = '4px solid red';" }];
     expect(edgeStripes(files)).toEqual([]);
   });

@@ -56,6 +56,9 @@ code { font-family: var(--type-family); }
 .pj-group .r { color: var(--text-disabled); }
 .pj-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; width: 100%; padding: 6px 10px 6px 14px; text-align: left; position: relative; }
 .pj-row[aria-selected="true"] { background: var(--surface-navigation-selected); }
+/* The list clips an outer ring, so a row draws its ring inward. */
+.pj-row:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.pj-row:disabled :is(.wt-label, .name, .wt-path, .glyph) { color: var(--text-disabled); }
 .pj-row .wt-label { font-size: 12px; }
 .pj-row[aria-selected="true"] .glyph { color: var(--text-standard); }
 .pj-row .wt-path { padding-left: 18px; }

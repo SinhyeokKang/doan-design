@@ -34,7 +34,7 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) 
     },
     action,
     setModal(on: boolean) { timerAt.current = performance.now(); dispatch({ type: "modal", on }); },
-    element: state.toast && <div key={state.toast.id} className={`toast doan-floating doan-toast${state.toast.action ? "" : " solo"}`} role="status"
+    element: state.toast && <div key={state.toast.id} className="toast doan-floating doan-toast" role="status"
       ref={node => {
         if (!node) return;
         return () => {

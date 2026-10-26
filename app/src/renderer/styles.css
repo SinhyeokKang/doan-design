@@ -147,7 +147,8 @@ code, kbd { font-family: var(--type-family); }
 .comments-segment { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--border-standard); border-radius: 7px; margin-bottom: 8px; }
 .comments-segment button { flex: 1; min-width: 0; padding: 5px 7px; font-size: 11.5px; border-radius: 4px; color: var(--text-metadata); }
 .comments-segment button[aria-pressed=true] { color: var(--text-standard); background: var(--surface-navigation-selected); }
-.comments-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+/* A dialog action row takes its spacing from the dialog frame instead. */
+.comments-tools:not(.doan-dialog-actions) { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 /* A label longer than the narrow panel stays inside it. */
 .comments-btn { max-width: 100%; }
 /* Saving a comment is the one button that carries the accent. */
@@ -208,10 +209,10 @@ code, kbd { font-family: var(--type-family); }
 .comments-helper { font-size: 10.5px; line-height: 1.5; color: var(--text-metadata); margin: 8px 0; overflow-wrap: anywhere; }
 /* Dialog paragraphs read as the dialog description; the frame spaces them. */
 .comments-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-/* Values from design/agent-handoff.html (dialog, dialog-states, copy-states). Only
-   the list scrolls and the preview has its own cap, so the title and the buttons
-   stay in view at any window height. `[open]`: a closed <dialog> must keep the UA's display: none. */
-.handoff-dialog { overflow: hidden; }
+/* Values from design/agent-handoff.html (dialog, dialog-states, copy-states). The list
+   shrinks first and the preview has its own cap; in a window too short for both, the
+   dialog itself scrolls so Cancel and Copy stay reachable. */
+.handoff-dialog { overflow: auto; }
 /* Copy moves focus here while its button is disabled; the dialog itself is not a control. */
 .handoff-dialog:focus { outline: none; }
 .handoff-dialog .handoff-context { font-size: 11.5px; color: var(--text-metadata); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -405,6 +406,8 @@ code, kbd { font-family: var(--type-family); }
 .branch { position: relative; flex: 0 1 auto; min-width: 72px; display: inline-flex; align-items: center; gap: 5px; max-width: 240px; font: 12px var(--type-family); color: var(--text-subtle); background: transparent; border: 1px solid var(--border-standard); border-radius: 6px; padding: 2px 6px 2px 7px; }
 .branch .bn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .branch .caret { color: var(--text-metadata); font-size: 10px; }
+/* Disabled reads through the ink, so parts with their own colour follow it. */
+.branch:disabled :is(.caret, .glyph) { color: var(--text-disabled); }
 .branch[aria-expanded="true"] { background: var(--affordance-subtle-hover); border-color: var(--border-prominent); }
 .ws-status { display: flex; align-items: center; gap: 10px; padding: 7px 12px; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); font: 12px var(--type-family); color: var(--text-subtle); min-width: 0; }
 .ws-status .text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
@@ -576,7 +579,9 @@ code, kbd { font-family: var(--type-family); }
 .fb-canvas:hover, .fb-item:hover { background: var(--surface-inset); }
 /* Messages inside a group keep the Comments message look, indented to the group's children.
    A card's own save message stays the card's (orphan-cards "Save failed"). */
-.fb-tree .comments-message:not(.comments-card *) { border-bottom: 0; margin: 2px 12px 6px 26px; padding: 8px 10px; }
+/* Group messages keep the tree indent; a failure keeps its status-block padding. */
+.fb-tree .comments-message:not(.comments-card *) { border-bottom: 0; margin: 2px 12px 6px 26px; }
+.fb-tree .comments-message:not(.comments-card *, .error, .warning) { padding: 8px 10px; }
 .fb-tree .comments-message.inset { margin-left: 12px; }
 .fb-note { margin: 2px 12px 8px 12px; }
 /* Orphan comment cards: the Comments card, full width under its file group. */

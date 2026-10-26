@@ -146,8 +146,10 @@
 .doan-dialog-heading { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; overflow-wrap: anywhere; }
 .doan-dialog-title { font-size: var(--type-label-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
 .doan-dialog-description { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
-/* Actions end the dialog, Cancel before the completing one. When they wrap they start
-   where the hand reaches them, and the 4px padding keeps their focus rings unclipped. */
+/* Actions close the dialog, Cancel first and the completing action last, at the end of
+   the row. A dialog can scroll, which would clip a 2px focus ring at its edge: the 4px
+   padding, cancelled out by the negative margin, leaves that ring room. `safe` lets an
+   action wider than the row fall back to the start instead of off the dialog. */
 .doan-dialog-actions {
   display: flex;
   flex-wrap: wrap;

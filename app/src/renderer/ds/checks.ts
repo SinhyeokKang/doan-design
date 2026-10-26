@@ -172,7 +172,8 @@ export interface EdgeStripe { path: string; line: number; selector: string; decl
 // thicker or coloured marks a message, notice, card or row, which the design forbids.
 const neutralDividers = ["--border-standard", "--border-prominent"];
 const startSide = /^border-(left|inline-start)(-width|-color)?$/;
-const lengthPx = (token: string) => /^-?\d*\.?\d+px$/.test(token) ? Math.abs(parseFloat(token)) : token === "0" ? 0 : undefined;
+const keywordWidths: Record<string, number> = { thin: 1, medium: 3, thick: 5 };
+const lengthPx = (token: string) => /^-?\d*\.?\d+px$/.test(token) ? Math.abs(parseFloat(token)) : token === "0" ? 0 : keywordWidths[token];
 
 function stripeAllowed(width: number, colour: string | undefined) {
   if (width === 0) return true;
@@ -189,7 +190,7 @@ function startBorderAllowed(prop: string, value: string) {
   if (part === "-color") return stripeAllowed(1, value);
   const words = splitWords(value);
   const width = words.map(lengthPx).find(px => px !== undefined);
-  const colour = words.find(word => lengthPx(word) === undefined && !/^(solid|dashed|dotted|double|groove|ridge|inset|outset|thin|medium|thick)$/.test(word));
+  const colour = words.find(word => lengthPx(word) === undefined && !/^(solid|dashed|dotted|double|groove|ridge|inset|outset)$/.test(word));
   return stripeAllowed(width ?? 1, colour);
 }
 
@@ -219,15 +220,37 @@ function insetStripeAllowed(value: string) {
   });
 }
 
-/** Lists start-side border and inset-shadow stripes in renderer CSS that are thicker than 1px or not neutral. */
+// border-width with two to four values: a start side wider than the end side is a stripe.
+function borderWidthsAllowed(value: string) {
+  const widths = splitWords(value).map(lengthPx);
+  if (widths.length < 2 || widths.some(px => px === undefined)) return true;
+  const right = widths[1]!, left = widths.length === 4 ? widths[3]! : right;
+  return left < 2 || left <= right;
+}
+
+// A ::before or ::after pinned to the start edge, a few pixels wide and filled, draws the
+// same bar a border would; this is how earlier rows marked their current state.
+function pseudoBar(block: Block) {
+  if (!/::?(before|after)\b/.test(block.prelude)) return undefined;
+  const value = (prop: string) => block.declarations.find(d => d.prop === prop)?.value;
+  const atStart = value("left") === "0" || value("inset-inline-start") === "0";
+  const width = block.declarations.find(d => d.prop === "width");
+  const px = width && lengthPx(width.value);
+  const filled = value("background") !== undefined || value("background-color") !== undefined;
+  return atStart && filled && px !== undefined && px > 0 && px <= 4 ? width : undefined;
+}
+
+/** Lists start-side border, inset-shadow and pseudo-element stripes in renderer CSS that are thicker than 1px or not neutral. */
 export function edgeStripes(files: SourceFile[]): EdgeStripe[] {
   const found: EdgeStripe[] = [];
   for (const file of files) {
     if (!file.path.endsWith(".css")) continue;
     for (const block of blocks(file.text)) {
+      const bar = pseudoBar(block);
       for (const d of block.declarations) {
-        const allowed = startSide.test(d.prop) ? startBorderAllowed(d.prop, d.value)
-          : d.prop === "box-shadow" ? insetStripeAllowed(d.value) : true;
+        const allowed = d !== bar && (startSide.test(d.prop) ? startBorderAllowed(d.prop, d.value)
+          : d.prop === "border-width" ? borderWidthsAllowed(d.value)
+          : d.prop === "box-shadow" ? insetStripeAllowed(d.value) : true);
         if (!allowed) found.push({ path: file.path, line: lineAt(file.text, d.valueStart), selector: block.prelude, declaration: `${d.prop}: ${d.value}` });
       }
     }

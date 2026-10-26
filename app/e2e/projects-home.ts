@@ -147,7 +147,7 @@ process.exit(result.status ?? 1);
   await page.emulateMedia({ reducedMotion: "reduce" });
   const dialogFrame = (dialog: Element) => { const s = getComputedStyle(dialog), r = dialog.getBoundingClientRect(); return { transform: s.transform, travels: s.transitionProperty.split(", ").includes("transform"), top: Math.round(r.top), centred: Math.abs(r.top - (innerHeight - r.bottom)) <= 1 }; };
   await add([empty]); const confirm = page.getByRole("dialog", { name: "Set up notes as a doan project?", exact: true }); await confirm.waitFor();
-  assert.deepEqual(await confirm.evaluate(dialogFrame), { transform: "none", travels: false, top: await confirm.evaluate(node => Math.round(node.getBoundingClientRect().top)), centred: true }, "compact confirmation: centred, no travel under reduced motion");
+  assert.deepEqual({ ...await confirm.evaluate(dialogFrame), top: undefined }, { transform: "none", travels: false, top: undefined, centred: true }, "compact confirmation: centred, no travel under reduced motion");
   await shot("03-confirm");
   assert.match(await confirm.innerText(), /doan will add it as a project that is not set up yet, then open the setup form/);
   await confirm.getByRole("button", { name: "Set Up…", exact: true }).click(); const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true }); await setup.waitFor();
