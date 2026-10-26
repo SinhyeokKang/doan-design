@@ -1402,6 +1402,95 @@ describe("Review on the open canvas", () => {
     expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "open" });
     expect(f.locate).toHaveBeenCalledExactlyOnceWith("n1", 4, one);
   });
+
+  // project-feedback: a Feedback row opens its canvas, then lists the row's
+  // status in Canvas scope, goes to the target and focuses its card. The
+  // last review time does not change.
+  test("a Feedback row's comment: Canvas scope, the row's status, locate and its card focused", async () => {
+    const f = await reviewing([one, two]);
+    const card = Object.assign(element("card"), { dataset: { comment: "c2" } });
+    harness.refs[4] = { current: { querySelectorAll: () => [card], querySelector: () => null } };
+    f.render().openAt({ root: "/repo", path: row.path, comment: "c2", status: "resolved" });
+    f.render();
+    settle(FILTER);
+    expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "resolved" });
+    f.render();
+    // Waits for the anchors measured after the open, not the earlier answer.
+    expect(f.locate).not.toHaveBeenCalled();
+    (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation: 5, nodes: new Map([["c1", "n1"], ["c2", "n2"]]) }, rects: new Map(), selected: null, status: "answered" });
+    settle(ANCHORS);
+    f.render();
+    expect(f.locate).toHaveBeenCalledExactlyOnceWith("n2", 5, two);
+    expect(card.focus).toHaveBeenCalledOnce();
+    expect(f.raise).not.toHaveBeenCalled();
+    f.render();
+    expect(f.locate).toHaveBeenCalledOnce();
+  });
+
+  test("a comment no longer in the list focuses the Comments title", async () => {
+    const f = await reviewing([one]);
+    f.render().openAt({ root: "/repo", path: row.path, comment: "gone", status: "open" });
+    f.render();
+    expect(f.heading.focus).toHaveBeenCalled();
+    expect(f.locate).not.toHaveBeenCalled();
+  });
+
+  test("a request for another canvas than the open one is dropped", async () => {
+    const f = await reviewing([one, two]);
+    f.render().openAt({ root: "/repo", path: "design/other.html", comment: "c2", status: "resolved" });
+    f.render();
+    settle(FILTER);
+    expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "open" });
+  });
+
+  test("N resolved to review: the canvas opens on Review", async () => {
+    const f = await reviewing([one, two]);
+    f.render().openAt({ root: "/repo", path: row.path, review: true });
+    f.render();
+    expect(f.session.review?.state.steps.map(step => step.comment)).toEqual(["c1", "c2"]);
+    expect(f.jumpToNode).toHaveBeenCalledWith("n1", 4);
+    expect(f.raise).not.toHaveBeenCalled();
+  });
+});
+
+// project-feedback design §5, draft `id-change-notice`.
+describe("the id change notice", () => {
+  test("shows while the old id's file has comments, and Show goes to them", () => {
+    const f = setup();
+    const showOrphans = vi.fn();
+    const entries: FolderEntry[] = [{ path: "/repo", kind: "list", servedRev: 0, canvases: [row], orphans: [{ id: "checkout-v1", file: ".doan/comments/checkout-v1.jsonl", comments: { open: 2, resolved: 1 }, uncertain: false }] }];
+    const props = (idChangedFrom: string | null, list = entries) => {
+      harness.index = 0; harness.refIndex = 0; harness.effects = [];
+      const result = useComments({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, hasFrame: true, layout: layout("one"), idChangedFrom }, { current: f.controller as unknown as CanvasController }, vi.fn(), list, undefined, null, showOrphans);
+      return (result.panel as unknown as { props: CommentsPanelProps }).props;
+    };
+    const notice = props("checkout-v1").idNotice;
+    expect(notice?.text).toBe("3 comments still use the old ID checkout-v1 and no longer show here.");
+    notice?.onShow();
+    expect(showOrphans).toHaveBeenCalledWith("/repo", "checkout-v1");
+    expect(props(null).idNotice).toBeNull();
+    expect(props("other").idNotice).toBeNull();
+  });
+});
+
+// project-feedback design §4: an orphan Delete asks the shipped confirmation.
+describe("comments without a canvas", () => {
+  test("Delete asks the existing confirmation; confirming writes the orphan delete", async () => {
+    const f = setup();
+    const mutate = vi.fn(async (r: { root: string; canvas: string; requestID: string }) => ({ ok: true, identity: { root: r.root, canvas: r.canvas, requestID: r.requestID }, value: { state: "saved" } }));
+    Object.assign(window.doan, { orphanCommentsMutate: mutate, orphanCommentsStatus: vi.fn() });
+    const c: Comment = { comment: "c9", body: "Add the paid stamp state.", status: "open", target: {}, canvasHash: "h", createdBy: { kind: "human", name: "Kim" }, createdAt: "t", updatedAt: "t" };
+    const first = f.render();
+    first.orphanIntent("delete", { root: "/repo", canvas: "invoice", project: 3 }, c);
+    await vi.waitFor(() => expect(first.orphans.deleteConfirmation).not.toBeNull());
+    const dialog = f.render().dialog as ReactElement<{ comment: Comment; onConfirm: () => void }>;
+    expect(dialog.type).toBe(DeleteCommentDialog);
+    expect(dialog.props.comment).toEqual(c);
+    expect(mutate).not.toHaveBeenCalled();
+    dialog.props.onConfirm();
+    await vi.waitFor(() => expect(mutate).toHaveBeenCalledOnce());
+    expect(mutate.mock.calls[0]![0]).toMatchObject({ root: "/repo", canvas: "invoice", project: 3, intent: { type: "delete", comment: "c9" } });
+  });
 });
 
 describe("the Hand off dialog (agent-handoff task 4)", () => {

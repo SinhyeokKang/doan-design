@@ -54,6 +54,9 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
   const title = useRef<HTMLHeadingElement>(null);
   const elements = useRef(new Map<string, HTMLElement>());
   const lost = useRef<string | null>(null);
+  // The card focus was in when it last left for nowhere: a card's own button
+  // drops focus to <body> as it disables while saving, before the card leaves.
+  const held = useRef<string | null>(null);
   const previous = useRef<string[]>([]);
   const reveal = useRef<string | null>(null);
   // A card's place when the person resolved or reopened it: the card after it.
@@ -122,8 +125,9 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
       if (target) { target.focus(); if (wanted) setFocused(wanted); }
       return;
     }
-    const gone = lost.current;
+    const gone = lost.current ?? (held.current !== null && !order.includes(held.current) ? held.current : null);
     lost.current = null;
+    if (held.current !== null && !order.includes(held.current)) held.current = null;
     const now = document.activeElement;
     if (gone === null || (now && now !== document.body && now.isConnected)) return;
     const next = feedbackFocusAfterRemoval(before, order, gone);
@@ -156,7 +160,8 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
       {group.comments.flatMap((comment, index) => {
         const key = orphanKey(root, group.id, comment.comment);
         order.push(cardKey(key));
-        return [index === lineAt && statusLine, <OrphanCard key={comment.comment} cardRef={track(cardKey(key))} comment={comment} readOnly={readOnly} mutation={props.orphans.mutations.get(key)}
+        return [index === lineAt && statusLine, <OrphanCard key={comment.comment} cardRef={track(cardKey(key))} comment={comment}
+          focusIn={() => { held.current = cardKey(key); }} focusOut={() => { if (held.current === cardKey(key)) held.current = null; }} readOnly={readOnly} mutation={props.orphans.mutations.get(key)}
           disabled={at === null || gitMissing || props.orphans.busy}
           onIntent={intent => {
             if (!at) return;
@@ -215,14 +220,15 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
 
 // The shared Comments card without what needs the canvas: no Edit, locate,
 // Hand off or new comment (draft `orphan-cards`). Read-only shows no buttons.
-function OrphanCard({ comment, readOnly, mutation, disabled, cardRef, onIntent }: { comment: Comment; readOnly: boolean; mutation: ReturnType<OrphanSession["mutations"]["get"]>; disabled: boolean; cardRef: (element: HTMLElement | null) => void; onIntent: (intent: OrphanIntent) => void }) {
+function OrphanCard({ comment, readOnly, mutation, disabled, cardRef, focusIn, focusOut, onIntent }: { comment: Comment; readOnly: boolean; mutation: ReturnType<OrphanSession["mutations"]["get"]>; disabled: boolean; cardRef: (element: HTMLElement | null) => void; focusIn: () => void; focusOut: () => void; onIntent: (intent: OrphanIntent) => void }) {
   const { createdBy } = comment;
   const initials = createdBy.name.trim().split(/\s+/).slice(0, 2).map(word => Array.from(word)[0] ?? "").join("").toUpperCase();
   const locked = disabled || (mutation !== undefined && mutation.status !== "idle" && mutation.status !== "saved");
   const target = targetLabel(comment.target, []);
   const resolution = resolutionText(comment, relativeTime), reopen = reopenText(comment, relativeTime);
   const saving = mutation?.status === "saving";
-  return <article ref={cardRef} className="comments-card" tabIndex={-1} data-comment={comment.comment} aria-label={`Comment by ${createdBy.name}`} aria-busy={saving || undefined}>
+  return <article ref={cardRef} className="comments-card" tabIndex={-1} data-comment={comment.comment} aria-label={`Comment by ${createdBy.name}`} aria-busy={saving || undefined}
+    onFocus={focusIn} onBlur={event => { if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) focusOut(); }}>
     <div className="comments-author"><span className="comments-avatar" aria-hidden="true">{initials}</span><div className="comments-by"><b>{createdBy.name}</b>{createdBy.kind === "human" && createdBy.email && <span className="comments-email">{createdBy.email}</span>}<time dateTime={comment.createdAt} title={comment.createdAt}>{relativeTime(comment.createdAt)}</time></div></div>
     <span className="comments-target static" title={target.title}>{target.text}</span>
     <div className="comments-badges"><span className={`comments-badge ${comment.status}`}>{comment.status === "open" ? "Open" : "Resolved"}</span></div>
