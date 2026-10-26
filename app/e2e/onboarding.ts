@@ -656,6 +656,14 @@ else if (args[1] === 'add') {
   assert.equal(await focusIs(notRepo.getByRole("button", { name: "Cancel", exact: true })), true);
   await page.keyboard.press("Escape"); await notRepo.waitFor({ state: "hidden" }); assert.equal(await wizard().isVisible(), true); assert.ok(!(await stored()).includes(notes));
   await wait(() => focusIs(button("Open Project…")), "focus returns to Open Project… after not-a-repository");
+  // Dialogs over the wizard fade out while still in the top layer. Closed by a button this
+  // time, the dialog must hand focus back and leave the wizard taking clicks once it is gone.
+  await button("Open Project…").click(); await notRepo.waitFor();
+  await notRepo.getByRole("button", { name: "Cancel", exact: true }).click(); await notRepo.waitFor({ state: "hidden" });
+  await wait(() => focusIs(button("Open Project…")), "focus returns to Open Project… after Cancel");
+  const onTop = () => button("Open Project…").evaluate(node => { const r = node.getBoundingClientRect(); return node.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)); });
+  await wait(onTop, "nothing covers the wizard after the dialog fades", 2_000);
+  await stepButton("Project").click({ timeout: 2_000 }); assert.equal(await wizard().isVisible(), true); assert.equal(await focusIs(stepButton("Project")), true);
   await button("Open Project…").click(); await notRepo.waitFor(); await notRepo.getByRole("button", { name: "Set Up…", exact: true }).click(); await notRepo.waitFor({ state: "hidden" });
   await button("Set Up Project").waitFor(); await wizard().locator(".ob-field .value").first().getByText(notes, { exact: true }).waitFor(); assert.ok((await stored()).includes(notes));
   await page.keyboard.press("Escape"); await closed();
