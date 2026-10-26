@@ -4,7 +4,7 @@
 
 자식 하나를 시작하고 끝내는 절차는 [design.md](./design.md)의 '자식 진행 규칙'을 따른다.
 
-## H. 하네스 준비 (첫 화면 자식 `buzz-shell` 전에)
+## H. 하네스 준비 (`buzz-ds` 구현 전에. `buzz-ds`도 새 초안과 `/design-sync`를 쓴다)
 
 - [ ] H1. AGENTS.md Workflow 'Terms'에 부모 feature를 정의한다: 자식 feature를 정의하고 공통 결정을 보관하는 허브, `/ship`·`/orchestrate` 대상이 아님, 마지막 자식 뒤 삭제.
   - 검증: `grep -n 'parent feature' AGENTS.md`에 정의 줄이 있다.
