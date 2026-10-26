@@ -33,11 +33,23 @@ describe("idChangeNotice", () => {
   });
 
   // The old file is an orphan whatever the new id is: the orphan rule matches
-  // the first doan:canvas string, valid or not, duplicate or not.
+  // the first doan:canvas string, valid or not, duplicate or not. ls then
+  // sends the row without an id, which still differs from the open one.
   test("still shows when the new id is a duplicate or invalid", () => {
-    const uncertain = orphan("checkout-v1", 2, 0, { uncertain: true });
-    expect(idChangeNotice("checkout-v1", [uncertain])?.count).toBe(2);
-    expect(idChangeNotice("checkout-v1", [orphan("checkout-v1", 2, 0)])?.count).toBe(2);
+    const row = (path: string, id?: string): CanvasRow => ({ path, ...(id ? { id } : {}), open: 0, resolved: 0, url: path });
+    const list = (canvases: CanvasRow[]): FolderEntry => ({ path: "/repo", kind: "list", canvases, servedRev: 0 });
+    const open = { folder: "/repo", canvas: "design/checkout.html", row: { id: "checkout-v1" } };
+    const before = [list([row("design/checkout.html", "checkout-v1"), row("design/cart.html", "cart")])];
+    for (const after of [[row("design/checkout.html"), row("design/cart.html")], [row("design/checkout.html")]]) {
+      const update = canvasViewUpdate(before, [list(after)], open);
+      expect(update).toMatchObject({ kind: "reload", idChanged: true });
+      expect(idChangeNotice(update.kind === "reload" && update.idChanged ? open.row.id : null, [orphan("checkout-v1", 2, 0)])?.count).toBe(2);
+    }
+  });
+
+  // An orphan ls is not sure about (a canvas could not be parsed) still counts.
+  test("still shows when the orphan is uncertain", () => {
+    expect(idChangeNotice("checkout-v1", [orphan("checkout-v1", 2, 0, { uncertain: true })])?.count).toBe(2);
   });
 
   test("clears when the id is restored: the old file is no longer an orphan", () => {
