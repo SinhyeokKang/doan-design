@@ -177,22 +177,25 @@ try {
   // Invalid or duplicated canvas IDs block writes without changing saved bytes.
   // doan ls drops a malformed id, so the app cannot tell an invalid id from a missing one.
   const blocked = panel.getByRole("alert").filter({ hasText: "This canvas has no ID" });
-  const panelOnly = async () => {
+  const panelOnly = async (lostId: boolean) => {
     assert.equal(await panel.getByRole("button", { name: /^Comment on (canvas|selection)$/ }).count(), 0);
     assert.equal(await panel.getByRole("group", { name: "Comment scope" }).count(), 0);
     assert.equal(await panel.getByText("Comments are read-only", { exact: true }).count(), 0);
-    assert.equal(await panel.locator(".comments-message").count(), 1, "one identity block");
+    assert.equal(await panel.locator(".comments-message:not(.notice)").count(), 1, "one identity block");
+    // project-feedback: ls lists no id for an invalid or missing one, so shared.jsonl has
+    // no canvas and the id-change notice joins the block; a duplicate keeps the id.
+    assert.deepEqual(await panel.locator(".comments-message.notice").allTextContents(), lostId ? ["1 comment still uses the old ID shared and no longer shows here.Show"] : []);
   };
   for (const invalid of [html("BAD_ID"), html("shared").replace('<meta name="doan:canvas" content="shared">', "")]) {
     await writeFile(join(destinationRepo, "design/shared.html"), invalid); await blocked.waitFor();
-    await panelOnly();
+    await panelOnly(true);
     assert.equal(await logBytes(destinationLog), afterMissing);
   }
   await writeFile(join(destinationRepo, "design/shared.html"), html("shared"));
   await blocked.waitFor({ state: "hidden" });
   await writeFile(join(destinationRepo, "design/duplicate.html"), html("shared"));
   await panel.getByRole("alert").filter({ hasText: "Another canvas uses the ID shared" }).waitFor();
-  await panelOnly();
+  await panelOnly(false);
   assert.equal(await logBytes(destinationLog), afterMissing);
   await shot("00e-invalid-duplicate-id");
   await rm(join(destinationRepo, "design/duplicate.html"));
