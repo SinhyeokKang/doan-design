@@ -6,7 +6,7 @@ A doan (도안, 圖案) is a drawing made in advance of the shape of something t
 
 Naming: product `Doan Design` · domain `doan.design` · CLI and identifiers `doan`
 
-> **Status: planning.** The source of truth for planning decisions is [docs/PRODUCT.md](./docs/PRODUCT.md). This README keeps only the background and the references consulted (2026-10-21). The earlier draft, which covered principles, the loop, repo conventions, the CLI, and the MVP, remains in the git history of `README.md`.
+> **Status: in development, not released.** The source of truth for planning decisions is [docs/PRODUCT.md](./docs/PRODUCT.md). This README keeps only the background and the references consulted (2026-10-21). The earlier draft, which covered principles, the loop, repo conventions, the CLI, and the MVP, remains in the git history of `README.md`.
 
 ---
 
