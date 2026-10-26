@@ -1684,8 +1684,11 @@ async function emptyControls(page: Page, overview = true): Promise<void> {
   // design-nav: the Overview covers the canvas area of a listed project, whose controls stay disabled beneath it.
   if (overview) await page.getByRole("region", { name: "Overview", exact: true }).waitFor();
   assert.equal(await page.getByRole("status", { name: "Zoom", exact: true }).textContent(), "—");
-  const panel = page.getByRole("region", { name: "Canvas info", exact: true });
-  await panel.getByText("No canvas open", { exact: true }).waitFor();
+  // project-feedback: the Overview's right panel is Feedback; "No canvas open" stays for the rest.
+  if (overview) {
+    await page.getByRole("region", { name: "Feedback", exact: true }).getByRole("heading", { name: "Feedback", exact: true }).waitFor();
+    assert.equal(await page.getByRole("region", { name: "Canvas info", exact: true }).count(), 0, "Feedback takes the place of Canvas info on the Overview");
+  } else await page.getByRole("region", { name: "Canvas info", exact: true }).getByText("No canvas open", { exact: true }).waitFor();
   for (const name of ["Reload canvas", "Zoom out", "Zoom in", "Fit"]) assert.equal(await page.getByRole("button", { name, exact: true }).isDisabled(), true);
 }
 
