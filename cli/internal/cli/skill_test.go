@@ -134,3 +134,19 @@ func TestSkillReportsUnservedCSSInFinalAnswer(t *testing.T) {
 		}
 	}
 }
+
+func TestSkillGuideListErrorsAndOrphans(t *testing.T) {
+	for _, required := range []string{
+		"`error` for an unreadable canvas",
+		"`commentsError` for unreadable comments",
+		"`comments` is omitted on these read-error rows",
+		"top-level `orphans`",
+		"`id`, `file`, optional `comments` or `error`, and `uncertain`",
+		"`uncertain` is true when any canvas cannot be read or parsed",
+		"Do not delete or rewrite comment files listed in `orphans`; ask the user",
+	} {
+		if !strings.Contains(skillBody, required) {
+			t.Errorf("missing ls guidance: %s", required)
+		}
+	}
+}
