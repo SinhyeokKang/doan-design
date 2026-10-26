@@ -10,7 +10,7 @@ Read [AGENTS.md](../../../AGENTS.md), [PRODUCT.md](../../../docs/PRODUCT.md), an
 ## Scope and evidence
 
 - `/audit` covers the current codebase, not just changes since main. A named area narrows scope only when the user requests it.
-- Record the checkout, HEAD, worktree status, requested scope, and a coverage inventory before reviewing. Use `rg --files` to inventory CLI, app main/preload/renderer, shared schemas/fixtures, runtime tests, packaging, and eval tooling. Exclude generated output, dependencies, and `.scratch/` from the source inventory.
+- Record the checkout, HEAD, worktree status, requested scope, and a coverage inventory before reviewing. Use `rg --files` to inventory CLI, app main/preload/renderer and shared modules (`app/src/{comments,formats,setup,firstPrompt,restore}`), shared schemas/fixtures, runtime tests, packaging, and eval tooling. Exclude generated output, dependencies, and `.scratch/` from the source inventory.
 - Read all entries in `docs/POSTMORTEM.md` when present. Map each applicable prevention rule to current call sites and regression coverage; searching for the old function name alone is insufficient.
 - For each finding, trace a concrete trigger through callers and consumers. Cite file:line evidence and the violated decision or contract. Distinguish a confirmed defect, a suspected risk requiring execution, and an undecided product question.
 
