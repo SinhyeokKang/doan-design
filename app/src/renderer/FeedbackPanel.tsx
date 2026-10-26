@@ -34,6 +34,9 @@ const NOTICE = (id: string) => `No canvas uses the ID ${id}. Give a canvas this 
 const READ_ONLY = "Some canvases couldn’t be read; these comments may belong to one of them.";
 const NOT_AN_ID = "Not a canvas ID — doan can't show or change these comments.";
 const cardKey = (key: string) => `card:${key}`;
+// How long Show may wait for a read that has the old id's file, like a
+// Feedback row's request (useComments ARRIVAL_MS).
+export const REVEAL_MS = 5000;
 
 function feedbackFiles(read: Extract<ProjectRead, { kind: "list" }>): FeedbackFile[] {
   return [
@@ -57,9 +60,13 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
   // The card focus was in when it last left for nowhere: a card's own button
   // drops focus to <body> as it disables while saving, before the card leaves.
   const held = useRef<string | null>(null);
+  // The read a card change started under; its card leaves only with a later one.
+  const writing = useRef<{ read: ProjectRead | undefined } | null>(null);
   const previous = useRef<string[]>([]);
   const reveal = useRef<string | null>(null);
-  const revealRead = useRef<{ seq: number; read: ProjectRead } | null>(null);
+  // Show's request: the first read it saw (possibly one kept from an earlier
+  // visit) and the element holding focus then.
+  const revealWait = useRef<{ seq: number; read: ProjectRead | null; holder: Element | null } | null>(null);
   // A card's place when the person resolved or reopened it: the card after it.
   const places = useRef(new Map<string, string | null>());
   const list = read?.kind === "list" ? read : null;
@@ -99,20 +106,38 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
   };
 
   // Show from the id-change notice: the file group may be in the other status.
+  // Like useComments' deferred focus moves (POSTMORTEM 2026-10-23 "Pin
+  // completion outlived the guarded intent"), focus the person moved meanwhile
+  // ends it without a move; a failed read or REVEAL_MS ends it on the title
+  // only while focus is still where Show left it.
+  const waitingFocus = (wait: { holder: Element | null }) => {
+    const active = document.activeElement;
+    return !active || active === wait.holder || active === document.body || !active.isConnected;
+  };
+  const endReveal = (fallback: boolean) => {
+    const wait = revealWait.current;
+    revealWait.current = null;
+    if (fallback && wait && waitingFocus(wait)) title.current?.focus();
+    props.onRevealed?.();
+  };
   useEffect(() => {
     const request = props.reveal;
-    if (!request || !list) return;
+    if (!request) return;
+    if (revealWait.current?.seq !== request.seq) revealWait.current = { seq: request.seq, read: null, holder: document.activeElement };
+    const wait = revealWait.current;
+    if (!waitingFocus(wait)) { endReveal(false); return; }
+    if (!read) return;
+    if (wait.read === null) wait.read = read;
+    // The Overview shows its last read until the one it asks for on return
+    // lands, and that one may predate the id change: wait for one more read.
+    // So a failure ends the request only when it is not that first read.
+    if (read.kind === "failed") { if (read !== wait.read) endReveal(true); return; }
+    if (!list) return;
     const find = (at: Comment["status"]) => feedbackGroups(files, props.rows, orphanFiles, at).orphans?.files.find(group => group.id === request.id);
     const here = find(status);
     const other = status === "open" ? "resolved" : "open";
     if (!here && find(other)) { setStatus(other); return; }
-    // The Overview shows its last read until the one it asks for on return
-    // lands, and that one may predate the id change: wait for one more read.
-    if (!here) {
-      const first = revealRead.current?.seq === request.seq ? revealRead.current.read : null;
-      if (first === null) revealRead.current = { seq: request.seq, read: list };
-      if (first === null || first === list) return;
-    }
+    if (!here && wait.read === list) return;
     setCollapsed(current => {
       const next = new Set(current);
       next.delete(ORPHANS_KEY);
@@ -120,8 +145,27 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
       return next;
     });
     reveal.current = here?.key ?? (view?.orphans ? ORPHANS_KEY : "");
+    revealWait.current = null;
     props.onRevealed?.();
-  }, [props.reveal?.seq, list, status]);
+  }, [props.reveal?.seq, read, status]);
+  useEffect(() => {
+    const seq = props.reveal?.seq;
+    if (seq === undefined) return;
+    const timer = setTimeout(() => { if (revealWait.current?.seq === seq) endReveal(true); }, REVEAL_MS);
+    return () => clearTimeout(timer);
+  }, [props.reveal?.seq]);
+
+  // An outside press is the person moving focus away, though it may leave
+  // focus on <body> with no render before an agent's change removes the card
+  // (useComments, R-E E-3). A press on the card's own button is not.
+  useEffect(() => {
+    const press = (event: Event) => {
+      const key = held.current;
+      if (key !== null && !elements.current.get(key)?.contains(event.target as Node | null)) held.current = null;
+    };
+    window.addEventListener("pointerdown", press, true);
+    return () => window.removeEventListener("pointerdown", press, true);
+  }, []);
 
   // Every focusable in DOM order: tree rows and orphan cards.
   const order: string[] = [];
@@ -137,11 +181,24 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
     }
     const gone = lost.current ?? (held.current !== null && !order.includes(held.current) ? held.current : null);
     lost.current = null;
-    if (held.current !== null && !order.includes(held.current)) held.current = null;
     const now = document.activeElement;
-    if (gone === null || (now && now !== document.body && now.isConnected)) return;
-    const next = feedbackFocusAfterRemoval(before, order, gone);
-    if (next) (next.kind === "row" ? elements.current.get(next.key) : title.current)?.focus();
+    const away = !!now && now !== document.body && now.isConnected;
+    if (gone !== null && !away) {
+      const next = feedbackFocusAfterRemoval(before, order, gone);
+      if (next) (next.kind === "row" ? elements.current.get(next.key) : title.current)?.focus();
+    }
+    // Kept through <body> only while a card change is under way: its write,
+    // then, if it was saved, the read after it that takes the card away.
+    // Otherwise focus left on purpose and the card is forgotten (useComments'
+    // card rule, POSTMORTEM 2026-10-23 recurrence R-C).
+    const kept = held.current?.startsWith("card:") ? held.current.slice("card:".length) : null;
+    const change = kept === null ? undefined : props.orphans.mutations.get(kept)?.status;
+    const saved = (change === undefined || change === "idle" || change === "saved") && !props.orphans.gitMissing(root);
+    if (props.orphans.busy) writing.current = { read };
+    else if (writing.current && (writing.current.read !== read || !saved)) writing.current = null;
+    const holder = document.activeElement, lostFocus = !holder || holder === document.body || !holder.isConnected;
+    const card = order.find(key => key.startsWith("card:") && elements.current.get(key)?.contains(holder));
+    held.current = card ?? (held.current !== null && order.includes(held.current) && lostFocus && writing.current ? held.current : null);
   });
 
   // Open counts in the accent; a zero (a head shown for its review entry) is not news.
