@@ -10,7 +10,7 @@ Read [AGENTS.md](../../../AGENTS.md), [PRODUCT.md](../../../docs/PRODUCT.md), [A
 ## Establish coverage
 
 - `/ux-audit` covers all implemented surfaces unless the user narrows it. Record HEAD, worktree status, and a screen/state inventory before comparing.
-- Include Home, project overview, workspace/sidebar, comments, inspector, Quick Open, Settings, onboarding, shared dialogs, alerts, menus, and toasts where implemented. Follow current entry points rather than assuming this list is exhaustive.
+- Include Home, project overview and Feedback, workspace/sidebar, comments and Review, inspector, Hand off, Quick Open, Settings, onboarding and First prompt, shared dialogs, alerts, menus, and toasts where implemented. Follow current entry points rather than assuming this list is exhaustive.
 - Map shared concepts across surfaces: project identity and availability, agent connection/setup state, selection, loading/waiting, errors and recovery. Record which source determines each state and which component presents it.
 - Separate source inspection from live observation. Existing screenshots and measured tables retain their original date and scope; they do not prove the current app matches.
 
