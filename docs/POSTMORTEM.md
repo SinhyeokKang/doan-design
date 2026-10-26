@@ -292,6 +292,8 @@
 
 - **Recurrence (2026-10-26, revision-recheck R6)**: the reopened-comment seed recorded its current canvas hash alongside a create-time target labeled Save, and the immutable create body named a later incorrect agent change. The seed test pinned `outdated: false`, so CLI validation alone preserved the inconsistent history. R-K review caught it; the regression now reconstructs the create-time bytes, checks their SHA-256 and original body, and verifies `outdated: true` through the real CLI. Both pass/fail fixture prefixes were updated; 133 eval tests and the R6 fake-agent self-test passed, without a real-agent round. The Prevention grep above was rerun; H1/H4 stale-state assertions remain separate scenario boundaries.
 
+- **Recurrence (2026-10-26, agent-handoff R-W)**: H7 required a question mark or a fixed vocabulary in the final answer, so a valid clarification ("Please specify whether I should work in …") failed and the judge could not override it (ARCH §14). Separately, the shared `commandWords` did not treat the `command` builtin as a wrapper, so a successful `command doan active --json` was not R7 active-call evidence. Review probes reproduced both. H7 now checks only that a final answer exists and both worktrees are unchanged; whether it asks about the worktree, including rejecting a no-change completion report, is judge-only in its rubric. `command`/`command -p` now unwrap, while `command -v`/`-V` and quoted text remain non-invocations. Both regressions failed before the fix; 153 eval tests and the 19-scenario fake self-test passed, without a real-agent round.
+
 ### 2026-10-24 — Agent shells bypassed the evaluation runner's packaged CLI
 
 - **Area**: `eval/lib/agent.ts`, `eval/run.ts`
