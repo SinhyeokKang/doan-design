@@ -56,7 +56,7 @@ code { font-family: var(--type-family); }
 .pj { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 0; }
 .pj-list { background: var(--surface-panel); border-right: 1px solid var(--border-standard); overflow: hidden; padding: 2px 0 8px; }
 .pj-group { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 4px; font: 11.5px var(--type-family); color: var(--text-subtle); }
-.pj-group .r { color: var(--text-disabled); }
+.pj-group .r { color: var(--text-metadata); }
 .pj-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; width: 100%; padding: 6px 10px 6px 14px; text-align: left; position: relative; }
 .pj-row[aria-selected="true"] { background: var(--surface-navigation-selected); }
 /* The list clips an outer ring, so a row draws its ring inward. */
@@ -98,6 +98,6 @@ button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2
 .wt-label { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
 .wt-label .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .wt-label .name.path { color: var(--text-subtle); }
-.wt-path { grid-column: 1 / 2; font-size: 11px; color: var(--text-disabled); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-path { grid-column: 1 / 2; font-size: 11px; color: var(--text-metadata); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .settings-shell .cn-card { width: auto; }
