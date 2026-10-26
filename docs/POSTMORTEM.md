@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-27 — Session history and append followed replaceable filesystem paths
+
+- **Area**: `cli/internal/cli/sessions.go`, `sessions_test.go` (R-C-1).
+- **Symptom**: a `sessions.jsonl` symlink let shell check read and append to an outside temporary sentinel; a dangling link created its outside target while check still returned success.
+- **Root cause**: `Stat` followed the final link, and history and append opened the pathname separately. This repeats the dangling-write lesson in the 2026-10-21 “Filesystem APIs did not match missing and same file” entry, with an additional check-to-open race: adding `Lstat` alone would still permit final-file or parent replacement.
+- **Net**: independent R-C review caught both existing and dangling escapes. F-C reproduced both as failing sentinel assertions before the fix; ordinary output/hash/concurrency tests had missed the boundary. Deterministic tests now replace a final name before and after opening, replace the parent or ancestor before pinning, and replace the parent after pinning; they also reject directories and FIFOs.
+- **Prevention**: canonicalize profile/default paths as before, capture the userData directory identity, walk its canonical components with descriptor-relative `O_DIRECTORY|O_NOFOLLOW`, compare the opened directory identity, and open the final name relative to that pinned descriptor with `O_NOFOLLOW`. Require a regular-file descriptor before any read/write; use the same `O_APPEND` descriptor for history and each single-write line. Exclusive creation plus a no-follow reopen handles competing creation; `O_NONBLOCK` keeps FIFO rejection from hanging check. Run `rg -n 'os\.(Stat|Open|OpenFile)|unix\.Openat' cli/internal/cli/sessions.go cli/internal/cli/active.go cli/internal/comments` (performed 2026-10-27): session log opens now use `Openat`; `active.go` and `comments/append.go` remain separate review candidates, not findings fixed here. Retain temporary-sentinel tests for existing/dangling links and deterministic replacement tests. This pins object identity, not its pathname: relocation of an already-open object, hard links, concurrent in-place writes and transactional hash deduplication are not prevented.
+
 ### 2026-10-27 — Runtime clipboard capture constructed an item with no MIME types
 
 - **Area**: `app/e2e/clipboard.ts`, `clipboard.test.ts`, and the comments-ui, onboarding, agent-handoff and settings adapters.
