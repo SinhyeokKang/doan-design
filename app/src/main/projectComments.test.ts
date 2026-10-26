@@ -46,10 +46,11 @@ describe("readProjectComments", () => {
     expect(await readProjectComments(d, { root: ROOT, revision: 7 })).toEqual({
       root: ROOT, revision: 7, kind: "list",
       canvases: [
-        { id: "settings", open: 0, resolved: 1, toReview: 0 },
+        { id: "settings", open: 0, resolved: 1, toReview: 0, comments: [expect.objectContaining({ comment: `cmt_${uuid(4)}`, status: "resolved" })] },
         // cmt 3 was resolved by the human with the current Git name.
-        { id: "home", open: 1, resolved: 2, toReview: 1 },
+        { id: "home", open: 1, resolved: 2, toReview: 1, comments: [1, 2, 3].map(n => expect.objectContaining({ comment: `cmt_${uuid(n)}`, status: n === 1 ? "open" : "resolved", body: `Body ${n}` })) },
       ],
+      orphanComments: [],
     });
     expect(d.list).toHaveBeenCalledExactlyOnceWith(ROOT);
     expect(d.author).toHaveBeenCalledExactlyOnceWith(ROOT);
@@ -68,7 +69,8 @@ describe("readProjectComments", () => {
     const d = deps({ list: vi.fn(async () => listing([{ path: "design/a.html", id: "dup" }, { path: "design/b.html", id: "ok" }, { path: "design/c.html", id: "dup" }])) });
     expect(await readProjectComments(d, { root: ROOT, revision: 1 })).toEqual({
       root: ROOT, revision: 1, kind: "list",
-      canvases: [{ id: "dup", error: "This canvas ID is used by more than one canvas." }, { id: "ok", open: 0, resolved: 0, toReview: 0 }],
+      canvases: [{ id: "dup", error: "This canvas ID is used by more than one canvas." }, { id: "ok", open: 0, resolved: 0, toReview: 0, comments: [] }],
+      orphanComments: [],
     });
     expect(vi.mocked(d.read).mock.calls).toEqual([[ROOT, "ok"]]);
   });
@@ -96,6 +98,34 @@ describe("readProjectComments", () => {
       author: vi.fn(async () => { throw new Error("Configure a Git user name before saving comments."); }),
     });
     expect(await readProjectComments(d, { root: ROOT, revision: 4 })).toMatchObject({ canvases: [{ id: "a", toReview: 1 }] });
+  });
+
+  test("reads the files of kebab orphans from the same ls and returns its orphans as listed", async () => {
+    const orphans = [
+      { id: "gone", file: ".doan/comments/gone.jsonl", comments: { open: 1, resolved: 1 }, uncertain: false },
+      { id: "Foo", file: ".doan/comments/Foo.jsonl", comments: { open: 2, resolved: 0 }, uncertain: false },
+      { id: "locked", file: ".doan/comments/locked.jsonl", error: { code: "unreadable_comments", message: "Cannot read .doan/comments/locked.jsonl: permission denied" }, uncertain: false },
+      { id: "broken", file: ".doan/comments/broken.jsonl", comments: { open: 0, resolved: 0 }, uncertain: false },
+    ];
+    const d = deps({
+      list: vi.fn(async (): Promise<FolderView> => ({ ...listing([{ path: "design/a.html", id: "a" }]), orphans } as FolderView)),
+      read: vi.fn(async (_root: string, id: string) => {
+        if (id === "broken") throw new Error("Comment path case conflict");
+        return id === "gone" ? file(create(1), create(2), resolve(2, 3)) : file();
+      }),
+    });
+    expect(await readProjectComments(d, { root: ROOT, revision: 6 })).toEqual({
+      root: ROOT, revision: 6, kind: "list",
+      canvases: [{ id: "a", open: 0, resolved: 0, toReview: 0, comments: [] }],
+      orphans,
+      // Only the kebab, readable entries are read; one failing file is only its own error.
+      orphanComments: [
+        { id: "gone", comments: [expect.objectContaining({ comment: `cmt_${uuid(1)}`, status: "open" }), expect.objectContaining({ comment: `cmt_${uuid(2)}`, status: "resolved" })] },
+        { id: "broken", error: "Comment path case conflict" },
+      ],
+    });
+    expect(d.list).toHaveBeenCalledExactlyOnceWith(ROOT);
+    expect(vi.mocked(d.read).mock.calls.map(([, id]) => id)).toEqual(["a", "gone", "broken"]);
   });
 
   test.each<[string, FolderView]>([
