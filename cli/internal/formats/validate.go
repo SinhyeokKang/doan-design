@@ -21,7 +21,7 @@ func (refusingLoader) Load(url string) (any, error) {
 var validators = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 	compiler := jsonschema.NewCompiler()
 	compiler.UseLoader(refusingLoader{})
-	files := []string{"comment-event", "config", "cli-envelope", "runtime", "app-socket"}
+	files := []string{"comment-event", "config", "cli-envelope", "runtime", "app-socket", "sessions"}
 	// Register every file before compiling any: app-socket $refs comment-event by its absolute $id.
 	for _, name := range files {
 		filename := name + ".v1.schema.json"
@@ -42,6 +42,7 @@ var validators = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 		"config":          schemaBase + "config.v1.schema.json",
 		"cli-envelope":    schemaBase + "cli-envelope.v1.schema.json",
 		"runtime":         schemaBase + "runtime.v1.schema.json",
+		"sessions":        schemaBase + "sessions.v1.schema.json",
 		"socket-request":  schemaBase + "app-socket.v1.schema.json#/$defs/request",
 		"socket-response": schemaBase + "app-socket.v1.schema.json#/$defs/response",
 		"selection":       schemaBase + "app-socket.v1.schema.json#/$defs/selection",
@@ -72,3 +73,5 @@ func ValidateRuntimeFile(value any) error    { return validate("runtime", value)
 func ValidateSocketRequest(value any) error  { return validate("socket-request", value) }
 func ValidateSocketResponse(value any) error { return validate("socket-response", value) }
 func ValidateSelection(value any) error      { return validate("selection", value) }
+
+func ValidateSessionRecord(value any) error { return validate("sessions", value) }
