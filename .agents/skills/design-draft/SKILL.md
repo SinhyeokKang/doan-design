@@ -47,7 +47,7 @@ Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 
 - **Conventions** (ARCHITECTURE §1): `<meta name="doan:canvas">` with the requested id and `<meta name="doan:width">` in `<head>`; every requested frame as `data-doan-frame` with a `data-doan-title`; `data-doan-id` on elements the implementation will be paired with or commented on.
 - **`data-doan-implements` points only to files that exist now.** A path to a file the feature will create is an `implements_not_found` error.
 - **Tokens**: link `../app/src/renderer/tokens.css` by a relative path and take every app color from its variables. Colors of example screens the human reviews inside the draft (the mock canvas on the board) come from `design/mock.css`. No hex, `rgb(` or `oklch(` anywhere else. Dark theme only, one system sans, no monospace (PRODUCT §7, app-ui).
-- **Shipped screens are copied, not redesigned.** Where the draft shows a screen already on main (top bar, sidebar, Canvas panel), draw it as the code and `docs/DESIGN.md` have it. Put any change you would make into the report as a change request instead of drawing it.
+- **Shipped screens are copied, not redesigned.** Where the draft shows a screen already on main (top bar, sidebar, Canvas info panel), draw it as the code and `docs/DESIGN.md` have it. Put any change you would make into the report as a change request instead of drawing it.
 - **Every requested state gets a frame or a labelled tile**, with the real English copy from the design document (no placeholder text). Long values, empty values and error states are drawn, not described.
 - **Mark what is not in code** (agent rule G) the way existing drafts do, and say in the header which frames are new.
 - **Header**: one intro block — scope, which frames `/design-sync` will compare, what is copied from shipped screens, and references with their source and whether they were checked or recalled from memory (AGENTS.md 'Leave evidence for references').
@@ -60,14 +60,14 @@ Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 
 
 ### 4. Hand over for review
 
-The user reviews the draft in the doan app. Tell them how to open it when it is not already open:
+The user reviews the draft in the doan app. Tell them how to open it when it is not already open, with the dev-run isolation in AGENTS 'Commands' (a temporary `HOME`, a fake `SHELL`, and `CLAUDE_CONFIG_DIR` / `CODEX_HOME` unset or overridden, besides the temporary userData):
 
 ```
 go build -o <tmp>/doan ./cli/cmd/doan
 DOAN_CLI=<tmp>/doan npm --prefix app run dev -- -- --user-data-dir=<tmp>/userdata
 ```
 
-then open this repo's folder and the canvas. Stop here and report. Feedback comes back as `/design-draft <slug> --revise` (until comments ship in #7, through the conversation or the conductor). Loop until the user confirms; record the confirmation in the feature documents (`orch.md` decision log under `/orchestrate`, otherwise `design.md`).
+then add this repo with Add Project… on Home and open the canvas. Stop here and report. Feedback comes back as comments on the canvas (read them with `go run ./cli/cmd/doan comments --json --repo .`) or through the conversation or the conductor, then `/design-draft <slug> --revise`. Loop until the user confirms; record the confirmation in the feature documents (`orch.md` decision log under `/orchestrate`, otherwise `design.md`).
 
 ### 5. Commit
 
