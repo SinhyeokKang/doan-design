@@ -88,3 +88,27 @@ it("reports write permission failure without changing readable bytes", async () 
     expect(await fs.readFile(file(), "utf8")).toBe("old");
   } finally { await fs.chmod(file(), 0o600); }
 });
+describe("non-creating append (project-feedback design §4)", () => {
+  it("appends to an existing file", async () => {
+    await seed("old\n");
+    await withCommentAppend(root, "canvas", async () => Buffer.from("new\n"), { create: false });
+    expect(await fs.readFile(file(), "utf8")).toBe("old\nnew\n");
+  });
+  it.each([".doan", "comments"])("rejects a missing %s directory without running the mkdir child", async missing => {
+    if (missing === "comments") await fs.mkdir(join(root, ".doan"));
+    vi.mocked(createCommentDirectory).mockClear();
+    const prepare = vi.fn(async () => Buffer.from("x\n"));
+    await expect(withCommentAppend(root, "canvas", prepare, { create: false })).rejects.toThrow("The comment file no longer exists.");
+    expect(createCommentDirectory).not.toHaveBeenCalled();
+    expect(prepare).not.toHaveBeenCalled();
+    expect(await fs.readdir(root)).toEqual(missing === "comments" ? [".doan"] : []);
+    if (missing === "comments") expect(await fs.readdir(join(root, ".doan"))).toEqual([]);
+  });
+  it("rejects a missing file without creating it", async () => {
+    await fs.mkdir(join(root, ".doan/comments"), { recursive: true });
+    const prepare = vi.fn(async () => Buffer.from("x\n"));
+    await expect(withCommentAppend(root, "canvas", prepare, { create: false })).rejects.toThrow("The comment file no longer exists.");
+    expect(prepare).not.toHaveBeenCalled();
+    expect(await fs.readdir(join(root, ".doan/comments"))).toEqual([]);
+  });
+});

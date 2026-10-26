@@ -26,7 +26,7 @@ test("app events round trip through the real Go reader and agent resolve, preser
     author: root => readAuthor(root, { ...process.env, GIT_CONFIG_GLOBAL: config, GIT_CONFIG_NOSYSTEM: "1" }),
     read: readCommentBytes, append: withCommentAppend,
     document: async () => ({ generation: "loader", hash: "sha256:" + "a".repeat(64), target: {} }),
-    validateDocument: async () => true, clipboard: () => {}, invalidated: () => {},
+    validateDocument: async () => true, clipboard: () => {}, invalidated: () => {}, listing: root => readFolder(cli, root),
   });
   const origin = await service.begin("window", { ...identity, requestID: "begin", scope: "canvas" });
   if (!origin.ok) throw new Error(origin.error);
@@ -50,4 +50,37 @@ test("app events round trip through the real Go reader and agent resolve, preser
   expect(await service.copy("window", { ...identity, requestID: "copy", scope: { comments: [id] } })).toMatchObject({ ok: true });
   expect(JSON.parse(execFileSync(cli, ["comments", "--json", "--repo", root], { encoding: "utf8" })).result.comments).toHaveLength(1);
   expect((await readFile(file, "utf8")).split("\n").filter(Boolean)).toHaveLength(3);
+});
+
+test("an orphan comment resolves through the real ls and Go reader, and is refused once its canvas returns", async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "doan-roundtrip-"))); roots.push(root);
+  await mkdir(join(root, ".doan/comments"), { recursive: true }); await mkdir(join(root, "design"));
+  await writeFile(join(root, ".doan/config.json"), '{"v":1}');
+  const html = '<meta name="doan:canvas" content="gone"><meta name="doan:width" content="100"><main>Test</main>';
+  const create = { v: 1, id: "evt_00000000-0000-4000-8000-000000000001", at: "2026-10-26T10:00:00.000Z", type: "create", comment: "cmt_00000000-0000-4000-8000-000000000001", by: { kind: "human", name: "Kim" }, body: "Old", target: {}, canvasHash: "sha256:" + "a".repeat(64) };
+  const file = join(root, ".doan/comments/gone.jsonl");
+  await writeFile(file, JSON.stringify(create) + "\n");
+  const config = join(root, "git-config"); await writeFile(config, '[user]\n name = Human\n');
+  const service = createCommentsService({
+    authorize: async () => { throw new Error("Orphan writes do not authorize a canvas"); }, epoch: () => 1,
+    currentHash: async () => "sha256:" + "a".repeat(64),
+    author: root => readAuthor(root, { ...process.env, GIT_CONFIG_GLOBAL: config, GIT_CONFIG_NOSYSTEM: "1" }),
+    read: readCommentBytes, append: withCommentAppend,
+    document: async () => ({ generation: "loader", hash: "sha256:" + "a".repeat(64), target: {} }),
+    validateDocument: async () => true, clipboard: () => {}, invalidated: () => {}, listing: root => readFolder(cli, root),
+  });
+  const expected = { body: "Old", status: "open", updatedAt: create.at };
+  expect(await service.orphanMutate("window", { root, canvas: "gone", requestID: "resolve", project: 1, intent: { type: "resolve", comment: create.comment, expected } })).toMatchObject({ ok: true, value: { state: "saved" } });
+  const ls = () => JSON.parse(execFileSync(cli, ["ls", "--json", "--repo", root], { encoding: "utf8" })).result;
+  expect(ls().orphans).toEqual([{ id: "gone", file: ".doan/comments/gone.jsonl", comments: { open: 0, resolved: 1 }, uncertain: false }]);
+  // An id with no file is refused by the ls judgement, and no file appears.
+  expect(await service.orphanMutate("window", { root, canvas: "never", requestID: "never", project: 1, intent: { type: "delete", comment: create.comment, expected } })).toMatchObject({ ok: false });
+  await writeFile(join(root, "design/gone.html"), html);
+  const before = await readFile(file, "utf8");
+  expect(await service.orphanMutate("window", { root, canvas: "gone", requestID: "delete", project: 1, intent: { type: "delete", comment: create.comment, expected: { ...expected, status: "resolved" } } })).toMatchObject({ ok: false });
+  expect(await readFile(file, "utf8")).toBe(before);
+  expect(ls()).toMatchObject({ orphans: [], canvases: [{ id: "gone", comments: { open: 0, resolved: 1 } }] });
+  expect(JSON.parse((await readFile(file, "utf8")).split("\n")[1] ?? "{}")).toMatchObject({ type: "resolve", comment: create.comment, by: { kind: "human", name: "Human" } });
+  expect((await readFile(file, "utf8")).split("\n").filter(Boolean)).toHaveLength(2);
+  await expect(readFile(join(root, ".doan/comments/never.jsonl"))).rejects.toThrow();
 });

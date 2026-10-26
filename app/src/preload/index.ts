@@ -1,7 +1,7 @@
 import type { OnboardingOpen, OnboardingRead } from "../main/index";
 import type { StepRequest, StepResult } from "../main/onboarding/machine";
 import type { Author } from "../formats/types";
-import type { BeginRequest, BeginResult, CommentList, CommentReply, CommentRequest, CopyRequest, MutationRequest, SavedStatus } from "../main/comments/service";
+import type { BeginRequest, BeginResult, CommentList, CommentReply, CommentRequest, CopyRequest, MutationRequest, OrphanMutationRequest, OrphanRequest, SavedStatus } from "../main/comments/service";
 import type { TransitionRequest } from "../main/comments/transitions";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { AddOutcome, ScanSnapshot, StoreResult } from "../main/addProjects";
@@ -74,6 +74,9 @@ const api = {
   commentsStatus: (request: CommentRequest): Promise<CommentReply<SavedStatus>> => ipcRenderer.invoke("comments:status", request),
   commentsAuthor: (request: CommentRequest): Promise<CommentReply<Author>> => ipcRenderer.invoke("comments:author", request),
   commentsCopy: (request: CopyRequest): Promise<CommentReply<{ copied: true }>> => ipcRenderer.invoke("comments:copy", request),
+  // project-feedback: resolve, reopen and delete on a comment file no canvas uses.
+  orphanCommentsMutate: (request: OrphanMutationRequest): Promise<CommentReply<SavedStatus, OrphanRequest>> => ipcRenderer.invoke("comments:orphan-mutate", request),
+  orphanCommentsStatus: (request: OrphanRequest): Promise<CommentReply<SavedStatus, OrphanRequest>> => ipcRenderer.invoke("comments:orphan-status", request),
   setCommentDraftGuard: (active: boolean): Promise<void> => ipcRenderer.invoke("comments:guard", active),
   answerCommentTransition: (answer: { id: string; allow: boolean }): Promise<void> => ipcRenderer.invoke("comments:transition-answer", answer),
   onCommentTransition(listener: (request: TransitionRequest) => void): () => void {
