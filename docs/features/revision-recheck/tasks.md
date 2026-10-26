@@ -8,6 +8,7 @@
    - 기준: Home 수 표시가 첫 렌더 뒤 500ms 안에 나와야 한다. 넘으면 design "측정 의존"의 대안을 사용자와 정하고, 그 전에는 8을 멈춘다.
    - 검증: 측정 결과를 이 항목 아래에 적는다. command undecided — needs user confirmation.
    - 결과(2026-10-26, 배치 X, Apple M1, `238480e`, `node .scratch/revision-recheck/measure.mjs`, 캔버스 20개·댓글 1,000개·이벤트 1,946개): `comments:project` 경로(`ls` 한 번 + 행 id 파일 읽기 + 앱 `fold`, Node에서 실행) 합계 87.8/113.1/96.1ms(앞선 실행 최대 149ms). `ls`가 약 90%이고 읽기+fold는 약 6ms다. Home 행은 load 뒤 45–54ms에 보였다. 500ms 기준 안이라 8을 진행한다. 실제 IPC 경로는 T가 다시 잰다. 실제 상태 13경로 unchanged, exit 0.
+   - 실제 IPC 재측정(2026-10-26, 배치 T, 부하 평균 15–19, `.scratch/orch/revision-recheck/evidence-T/measure-ipc.mjs`): Home의 'resolved to review'는 행이 보인 뒤 캔버스 20개·댓글 1,000개 182–397ms, 캔버스 200개 371–385ms, 프로젝트 5개 270–289ms에 나왔다. 모두 500ms 안이다. 외부 해결 한 번에 Home과 Overview에서 `comments:project`가 2회 불린다(R-H H-1 확인).
 2. **fold `lastResolution`**: 먼저 공유 fixture를 고치고 추가한다.
    - 기존 `expected.json` 5개(basic-lifecycle, shuffled-lines, delete-followups, human-unicode-tied-lifecycle, reopen-idempotent)를 갱신한다.
    - 새 fixture `fold/reopen-cycles`와 `fold/lastresolution-tie`를 만든다.
