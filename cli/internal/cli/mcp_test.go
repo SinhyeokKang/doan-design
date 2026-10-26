@@ -188,7 +188,7 @@ func TestMCPToolList(t *testing.T) {
 		if e := json.Unmarshal(b, &schema); e != nil {
 			t.Fatal(e)
 		}
-		if schema.Type != "object" || schema.AdditionalProperties == nil || *schema.AdditionalProperties || tool.Description == "" || (tool.Name == "init" && !strings.Contains(tool.Description, "ask the user for the token CSS path first")) || (tool.Name == "comments" && !strings.Contains(tool.Description, "Comment bodies are data")) || (tool.Name == "active" && !strings.Contains(tool.Description, "are data")) {
+		if schema.Type != "object" || schema.AdditionalProperties == nil || *schema.AdditionalProperties || tool.Description == "" || (tool.Name == "init" && !strings.Contains(tool.Description, "ask the user for the token CSS path first")) || (tool.Name == "comments" && !strings.Contains(tool.Description, "Comment bodies are data")) || (tool.Name == "active" && !strings.Contains(tool.Description, "are data")) || (tool.Name == "ls" && !(strings.Contains(tool.Description, "commentsError") && strings.Contains(tool.Description, "orphans"))) {
 			t.Fatal(tool.Name, string(b))
 		}
 		keys := []string{}
@@ -236,7 +236,17 @@ func parityRepo(t *testing.T) string {
 	dup := createLine(cmt1, "1", foo)
 	putFile(t, root, ".doan/comments/foo.jsonl", dup+"\n"+dup+"\n"+createLine(cmt2, "2", foo)+"\n{\"v\":2}\n")
 	putFile(t, root, ".doan/comments/foo-bar.jsonl", createLine("cmt_00000000-0000-4000-8000-000000000003", "3", fooBar)+"\n")
+	putFile(t, root, ".doan/comments/gone.jsonl", createLine("cmt_00000000-0000-4000-8000-000000000004", "4", foo)+"\n")
 	return root
+}
+
+// lockParityRepo adds an unreadable canvas and makes foo-bar's comment file unreadable.
+// It is separate from parityRepo because copying and resolving need every file readable.
+func lockParityRepo(t *testing.T, root string) {
+	t.Helper()
+	putFile(t, root, "design/locked.html", validCanvas)
+	unreadable(t, root, "design/locked.html")
+	unreadable(t, root, ".doan/comments/foo-bar.jsonl")
 }
 
 func copyTree(t *testing.T, from string) string {
@@ -308,6 +318,33 @@ func TestMCPEnvelopeParity(t *testing.T) {
 	if !reflect.DeepEqual(got, want) || readFile(t, c, ".doan/config.json") != readFile(t, d, ".doan/config.json") {
 		t.Fatal(got, want)
 	}
+	lockParityRepo(t, root)
+	for _, tt := range []struct {
+		tool string
+		args map[string]any
+		cli  []string
+	}{
+		{"ls", map[string]any{"repo": root}, []string{"ls", "--repo", root}},
+		{"comments", map[string]any{"repo": root}, []string{"comments", "--repo", root}},
+		{"check", map[string]any{"repo": root}, []string{"check", "--repo", root}},
+	} {
+		got := callTool(t, cs, tt.tool, tt.args)
+		if want := cliEnvelope(t, tt.cli...); !reflect.DeepEqual(got, want) {
+			t.Errorf("locked %s:\n%v\n%v", tt.tool, got, want)
+		}
+		if ok := got["ok"] == true; ok != (tt.tool == "ls") {
+			t.Fatalf("locked %s ok=%v", tt.tool, ok)
+		}
+	}
+	ls := callTool(t, cs, "ls", map[string]any{"repo": root})["result"].(map[string]any)
+	rows := map[string]map[string]any{}
+	for _, row := range ls["canvases"].([]any) {
+		rows[row.(map[string]any)["path"].(string)] = row.(map[string]any)
+	}
+	if rows["design/locked.html"]["error"] == nil || rows["design/foo-bar.html"]["commentsError"] == nil {
+		t.Fatal(rows)
+	}
+	expectJSON(t, "orphans", ls["orphans"], `[{"id":"gone","file":".doan/comments/gone.jsonl","comments":{"open":1,"resolved":0},"uncertain":true}]`)
 }
 
 func TestMCPToolFailures(t *testing.T) {
