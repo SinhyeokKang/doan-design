@@ -5,8 +5,10 @@ export function homeRow(page: Page, root: string): Locator {
 }
 export async function goHome(page: Page): Promise<void> {
   const home = page.getByRole("region", { name: "Home", exact: true });
+  const button = page.getByRole("button", { name: "Go Home", exact: true }).first();
+  await home.or(button).first().waitFor();
   if (await home.isVisible()) return;
-  await page.getByRole("button", { name: "Go Home", exact: true }).first().click();
+  await button.click();
   await home.waitFor();
 }
 export async function requestProject(page: Page, root: string): Promise<void> {
