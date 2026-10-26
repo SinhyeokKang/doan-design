@@ -118,3 +118,5 @@
 - F-A4 (`task_2866a6ed2250`, `ctx_d274817aa20d`)는 `48821b8`, `a844706`으로 Codex transport 종료 시 dispatcher terminal/정리를 즉시 시작하고 그룹 소멸 시에만 소유권을 해제하도록 수정했다. focused 81개·typecheck 통과 보고와 diff를 지휘자가 E 재현에 대조해 통합했다. release 완료. E에 두 커밋 적용·재빌드·종료/중단/권한/cleanup의 실제 Electron 재검증을 요청했다.
 
 - E (`task_1c62e9b1672e`, `ctx_34515353797e`)는 자체 3커밋 `4bc4878`, `ad675e0`, `d5ea88a`를 제출했다. 최종 실제 Electron fake 대화 suite PASS, 하네스 30개·typecheck·build 통과와 소유 그룹/자식 각각 36개 부재를 보고했다. 실제 Claude/Codex 동일 세션 이어받기 관측, 최초 Codex 정책 실험 실패, 별도 새 세션 승인 관측을 구분해 인계했다. 전체 통합·실제 agent-eval은 남는다. E 터미널 release 완료. R-E는 Astra medium으로 하네스의 거짓 양성·상태 보존·종료 및 실제 관측 근거를 독립 검토한다. 판단이 필요한 검증 경계이므로 이 모델을 선택하며 high는 쓰지 않는다. R-E에 단독 runtime/test 슬롯을 배정한다.
+
+- R-E (`task_6c1231b8cdbb`, `ctx_11a51b5dd557`, effective Astra medium)는 실제 문서/코드 검토를 시작했다. 독립 typecheck에서 최종 E HEAD `d5ea88a`의 `conversation.ts:174` TS2339·TS18048을 재현했다(`.scratch/R-E-typecheck.log`). 지휘자도 로그와 소스를 대조했다. E의 이전 typecheck PASS는 최종 변경을 검증한 증거로 사용할 수 없다. E 통합은 보류하며 독립 리뷰 완료 후 원소유 수정과 최종 HEAD 재검증을 진행한다.
