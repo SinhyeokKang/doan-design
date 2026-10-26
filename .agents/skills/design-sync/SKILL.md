@@ -55,7 +55,7 @@ Properties to cover: size, padding, gap, border and radius, colors (text, backgr
 
 Both sides are read with `getComputedStyle` in the same Electron/Chromium build (2026-10-22 user), so units, fonts and token variables resolve the same way.
 
-- Write the script at `.scratch/design-sync/<screen>/measure.mjs`, modeled on `app/e2e/runtime.ts`: `npm --prefix app run build`, `go build -o <temp>/doan ./cli/cmd/doan`, Playwright `_electron.launch` with a temporary `--user-data-dir` and `DOAN_CLI`, the folder dialog replaced through `electronApp.evaluate`, then open this repo's folder and the canvas.
+- Write the script at `.scratch/design-sync/<screen>/measure.mjs`, modeled on `app/e2e/runtime.ts`: `npm --prefix app run build`, `go build -o <temp>/doan ./cli/cmd/doan`, Playwright `_electron.launch` with a temporary `--user-data-dir`, `DOAN_CLI` and the same environment isolation as `isolatedEnv` in `runtime.ts` (temp `HOME`, `TMPDIR`, fake `SHELL`, `CLAUDE_CONFIG_DIR`/`CODEX_HOME` under that HOME, pre-written `onboarding.json`), the folder dialog replaced through `electronApp.evaluate`, then add this repo with Add Project… and open the canvas.
 - **Draft side**: the canvas iframe is a Playwright `Frame`; read styles and `getBoundingClientRect()` inside it. Do not use `boundingBox()` for elements inside the iframe — it ignores the board scale (PRODUCT §6, PoC 3). Computed styles do not depend on the zoom.
 - **Implementation side**: the app window's renderer page, brought to the state of each row.
 - Create the states for real (hover, focus, scroll, selection) before reading. Read values that load asynchronously at the same moment as the rest, after they settle.
