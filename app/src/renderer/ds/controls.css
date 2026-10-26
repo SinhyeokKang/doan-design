@@ -74,11 +74,12 @@
   .doan-icon-button[data-ui-placement="chrome"]:hover:not(:disabled) { background: var(--affordance-backdrop-hover); }
 }
 
-/* Pressed, and a trigger whose menu is open: the fill deepens and nothing moves, so a
-   pressed control never shifts the row it sits in. */
-:is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"]:is(:active, [aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-prominent-pressed); }
-:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-placement="chrome"]):is(:active, [aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-subtle-pressed); }
-.doan-icon-button[data-ui-placement="chrome"]:is(:active, [aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-backdrop-pressed); }
+/* Pressed, and a trigger whose popup is open: the fill deepens and nothing moves, so a
+   pressed control never shifts the row it sits in. An open disclosure (aria-expanded
+   without a popup) is not pressed: it shows its state in its label. */
+:is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-prominent-pressed); }
+:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-placement="chrome"]):is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-subtle-pressed); }
+.doan-icon-button[data-ui-placement="chrome"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-backdrop-pressed); }
 
 /* Disabled is a state of its own rather than a faded emphasis: a filled control turns to
    the disabled fill, a ghost one keeps no fill, and both take the disabled ink. */
@@ -184,7 +185,8 @@
   vertical-align: baseline;
 }
 button.doan-chip { cursor: pointer; }
-button.doan-chip:is(:hover, :focus-visible, [data-state="open"]) { background: var(--affordance-subtle-hover); }
+/* Keyboard focus shows the ring alone, as on every other control. */
+button.doan-chip:is(:hover, [data-state="open"]) { background: var(--affordance-subtle-hover); }
 
 /* ── Spinner ─────────────────────────────────────────────────────────────────
    A ring whose one dark quarter turns once a second. */

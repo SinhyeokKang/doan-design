@@ -63,6 +63,9 @@ try {
   const cliRow = settings.locator(".cn-row").filter({ has: settings.getByRole("button", { name: "doan command", exact: true }) });
   await cliRow.getByRole("button", { name: "doan command", expanded: true }).waitFor();
   await cliRow.getByText("Link is broken", { exact: true }).waitFor();
+  // The link and its target stay on one line; the full path is in title.
+  const linkPath = await cliRow.locator(".ob-detail.path").evaluate(node => ({ wrap: getComputedStyle(node).whiteSpace, title: node.getAttribute("title") ?? "" }));
+  assert.equal(linkPath.wrap, "nowrap", "CLI link path stays on one line"); assert.match(linkPath.title, /doan/, "CLI link path keeps its full text in title");
   await wait(() => cliRow.getByRole("button", { name: "Fix…" }).evaluate(node => node === document.activeElement), "banner target action focus");
   await settings.screenshot({ path: join(shots, "02-connections.png") });
   // MCP waits for the doan command: its reason sits right under the dimmed item.

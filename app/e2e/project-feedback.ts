@@ -359,6 +359,9 @@ try {
     assert.equal(await details.getAttribute("aria-expanded"), "false");
     await details.click();
     await wait(async () => await details.getAttribute("aria-expanded") === "true", "Details opened");
+    // An open disclosure shows its state in its label, not with a pressed fill.
+    await page.mouse.move(0, 400); await page.waitForTimeout(250);
+    assert.equal(await details.evaluate(node => getComputedStyle(node).backgroundColor), "rgba(0, 0, 0, 0)", "open Details is not drawn pressed");
     assert.equal(await page.locator("p.tree-detail").textContent(), "unreadable_comments: Cannot read .doan/comments/beta.jsonl: permission denied");
     // The tree and the other canvases stay.
     assert.equal(await canvasRow(page, "alpha.html").locator(".warn-mark").count(), 0);

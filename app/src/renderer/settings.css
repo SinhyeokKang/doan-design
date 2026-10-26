@@ -17,7 +17,7 @@ ol, ul { list-style: none; }
 .ob-card { width: 640px; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
 .ob-card > :first-child { border-top: 0; }
 .ob-item { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-3) 0; border-top: 1px solid var(--border-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.ob-label { font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); color: var(--text-standard); }
+.ob-label { font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); color: var(--text-standard); }
 /* A dimmed item is waiting on another step, not disabled. */
 .ob-item.dimmed :is(.ob-label, .ob-detail) { color: var(--text-metadata); }
 .ob-detail { color: var(--text-subtle); min-width: 0; overflow-wrap: anywhere; }

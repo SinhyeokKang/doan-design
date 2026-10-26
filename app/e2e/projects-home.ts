@@ -250,8 +250,9 @@ process.exit(result.status ?? 1);
   // The menu over the canvas is the floating material: blurred, with rows concentric to it.
   const floating = await page.locator('.menu[aria-label="Worktrees"]').evaluate(menu => {
     const root = getComputedStyle(document.documentElement), px = (name: string) => parseFloat(root.getPropertyValue(name));
-    return { blur: getComputedStyle(menu).backdropFilter, outer: px("--radius-container"), inset: px("--space-1"), row: parseFloat(getComputedStyle(menu.querySelector(".doan-menu-item")!).borderTopLeftRadius) };
+    return { blur: getComputedStyle(menu).backdropFilter, outer: px("--radius-container"), inset: px("--space-1"), row: parseFloat(getComputedStyle(menu.querySelector(".doan-menu-item")!).borderTopLeftRadius), width: menu.getBoundingClientRect().width };
   });
+  assert.ok(floating.width <= 320, `the worktree menu keeps the 320px menu cap (${floating.width}px)`);
   assert.notEqual(floating.blur, "none", "the worktree menu over the canvas blurs what is under it");
   assert.equal(floating.row, nestedRadius(floating.outer, floating.inset, 1), "menu rows take the nested corner of the menu");
   await page.getByRole("menuitemradio", { name: /^main / }).click();

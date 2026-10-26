@@ -54,9 +54,14 @@ export function ConnectionRows({ machine, ui, rows, busy = false, target, justCo
     </div>;
   })}</div>;
 }
+// A link and its target can run longer than the row; they stay on one line, the full
+// path in title.
+const LINK_PATHS = new Set(["cli", "claude-link"]);
 function DetailItem({ item, reason }: { item: ItemView; reason?: ReactNode }) {
   return <><div className={`ob-item${item.dimmed ? " dimmed" : ""}`}>
-    <span className="ob-label">{item.label}</span><span className="ob-detail"><ConnectionParts parts={item.detail} /></span>
+    <span className="ob-label">{item.label}</span>{LINK_PATHS.has(item.key)
+      ? <span className="ob-detail path" title={item.detail.map(part => typeof part === "string" ? part : part.code).join("")}><ConnectionParts parts={item.detail} /></span>
+      : <span className="ob-detail"><ConnectionParts parts={item.detail} /></span>}
     <span className="ob-status">{item.chip && <span className={`ob-chip${item.chip.tone ? ` ${item.chip.tone}` : ""}`}>{item.chip.text}</span>}</span>
     {item.msg && <span className={`ob-msg ${item.msg.tone}`}>{item.msg.tone !== "ok" && <AlertIcon />}<span><ConnectionParts parts={item.msg.parts} /></span></span>}
     {(reason || item.reason) && !item.dimmed && <span className="ob-reason">{reason ?? item.reason}</span>}

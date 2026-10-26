@@ -287,7 +287,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-card > :first-child { border-top: 0; }
 .ob-card + .ob-card { margin-top: 14px; }
 .ob-item { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-3) 0; border-top: 1px solid var(--border-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.ob-label { font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); color: var(--text-standard); }
+.ob-label { font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); color: var(--text-standard); }
 /* A dimmed item is waiting on another step, not disabled. */
 .ob-item.dimmed :is(.ob-label, .ob-detail) { color: var(--text-metadata); }
 .ob-item.ob-notice { padding-top: 0; }
@@ -313,7 +313,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-4) 0; border-top: 1px solid var(--border-standard); }
 /* Project names and paths share inline flow; Inspector values use flex. */
 /* A value stays on one line; its full text is in title. */
-.ob-field .value { display: block; min-width: 0; overflow: hidden; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); text-overflow: ellipsis; white-space: nowrap; }
+.ob-field .value { display: block; gap: normal; align-items: normal; min-width: 0; overflow: hidden; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); text-overflow: ellipsis; white-space: nowrap; }
 .ob-field .value .meta { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 .ob-project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-field .value.none { color: var(--text-metadata); }
@@ -373,7 +373,6 @@ code, kbd { font-family: var(--type-family); }
 .wt-detail code { color: var(--text-subtle); background: var(--surface-inset); border-radius: 4px; padding: 0 4px; }
 
 .doan-menu-item .label { flex: none; }
-.menu[aria-label="Worktrees"] { max-width: calc(100vw - 16px); }
 .menu[aria-label="Worktrees"] .label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* The checklist is a hairline container with a thin native scrollbar; rows take the nested corner. */
@@ -506,6 +505,8 @@ code, kbd { font-family: var(--type-family); }
 .qo-foot { padding: 7px 14px; border-top: 1px solid var(--border-standard); font: 10.5px var(--type-family); color: var(--text-metadata); }
 
 /* app-setup: first prompt and wizard (confirmed design/app-setup.html, frames wizard and first-prompt). */
+/* The subject field fills its row; an inline-block input would leave a descender gap below. */
+.fp-field .doan-input { display: block; }
 .fp-labelrow { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
 .fp-label { color: var(--text-standard); font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); }
 .fp-count { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
