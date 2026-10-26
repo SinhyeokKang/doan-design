@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-26 — Sparse copy scopes bypassed main validation
+
+- **Area**: `app/src/main/comments/service.ts` (`parseCopyScope`), `service.test.ts`.
+- **Symptom**: a structured-cloned comments array containing a hole passed scope validation, reached authorization and disk reads, and returned `not_open` instead of `Invalid copy scope.`. No clipboard write occurred.
+- **Root cause**: `Array.every` skips holes, while iteration by `Set` counts a single hole as `undefined`; the duplicate check therefore also accepted a single hole alongside distinct valid ids.
+- **Net**: independent R-P review reproduced the parser bypass. Existing invalid-scope cases used dense arrays only. Four red regression cases cover a cloned hole and a cloned valid id plus a hole at the parser and service boundary; service cases also require no authorization, read, or clipboard call.
+- **Prevention**: materialize untrusted arrays with spread before validating every element, and keep sparse-array cases after `structuredClone` for IPC inputs. Search run: `rg -n '\.every\(' app/src/main/comments` finds the copy parser, fixed-key validation, and the open-id check on the already validated dense scope; no other untrusted-array `every` validation was found in that directory.
+
 ### 2026-10-26 — The invalidation read overtook the reply to the person's own Reopen
 
 - **Area**: `app/src/comments/review.ts` (`changed`), Review in `CommentsSession.ts`; producer `app/src/main/comments/service.ts` and `comments:invalidated` in `main/index.ts`.
