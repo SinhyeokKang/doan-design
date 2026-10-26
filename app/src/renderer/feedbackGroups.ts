@@ -178,3 +178,60 @@ export function feedbackFocusAfterRemoval(previous: readonly string[], current: 
   const key = focusAfterRemoval(previous, current, focused);
   return key === null ? { kind: "title" } : { kind: "row", key };
 }
+
+// One row of the Feedback tree (`role="tree"`): a group head or a comment.
+// `expanded` is absent on rows that hold nothing to show (comment rows and
+// count-only groups). Notes, cards and messages render under their head and
+// are not rows, so the keyboard skips them; their buttons are Tab stops.
+export type FeedbackTreeRow = { key: string; level: 1 | 2 | 3; parent?: string; expanded?: boolean } & (
+  | { kind: "orphans"; section: OrphanSection }
+  | { kind: "orphanFile"; group: OrphanGroup }
+  | { kind: "canvas"; group: CanvasGroup }
+  | { kind: "frame"; group: FrameGroup; canvas: CanvasGroup & { kind: "comments" } }
+  | { kind: "item"; row: FeedbackRow; canvas: CanvasGroup & { kind: "comments" } }
+);
+
+export const ORPHANS_KEY = "orphans";
+
+export function feedbackTree(view: FeedbackView, collapsed: ReadonlySet<string>): FeedbackTreeRow[] {
+  const rows: FeedbackTreeRow[] = [];
+  const open = (key: string) => !collapsed.has(key);
+  if (view.orphans) {
+    rows.push({ key: ORPHANS_KEY, level: 1, expanded: open(ORPHANS_KEY), kind: "orphans", section: view.orphans });
+    if (open(ORPHANS_KEY)) for (const group of view.orphans.files) {
+      rows.push({ key: group.key, level: 2, parent: ORPHANS_KEY, ...(group.kind === "countOnly" ? {} : { expanded: open(group.key) }), kind: "orphanFile", group });
+    }
+  }
+  for (const group of view.canvases) {
+    rows.push({ key: group.key, level: 1, ...(group.kind === "countOnly" ? {} : { expanded: open(group.key) }), kind: "canvas", group });
+    if (group.kind !== "comments" || !open(group.key)) continue;
+    for (const frame of group.frames) {
+      rows.push({ key: frame.key, level: 2, parent: group.key, expanded: open(frame.key), kind: "frame", group: frame, canvas: group });
+      if (open(frame.key)) for (const item of frame.rows) rows.push({ key: `item:${group.row.path}:${item.comment}`, level: 3, parent: frame.key, kind: "item", row: item, canvas: group });
+    }
+  }
+  return rows;
+}
+
+// The Sidebar tree's keys on these rows. `undefined`: not a tree key, so the
+// event goes on; `null`: a tree key with nothing to do here.
+export function feedbackKey(rows: ReadonlyArray<{ key: string; parent?: string; expanded?: boolean }>, index: number, key: string): { focus: number } | { toggle: string } | { act: true } | null | undefined {
+  const row = rows[index];
+  if (!row) return undefined;
+  switch (key) {
+    case "ArrowDown": return { focus: Math.min(index + 1, rows.length - 1) };
+    case "ArrowUp": return { focus: Math.max(index - 1, 0) };
+    case "Home": return { focus: 0 };
+    case "End": return { focus: rows.length - 1 };
+    case "ArrowRight":
+      if (row.expanded === false) return { toggle: row.key };
+      return row.expanded && rows[index + 1]?.parent === row.key ? { focus: index + 1 } : null;
+    case "ArrowLeft": {
+      if (row.expanded) return { toggle: row.key };
+      const parent = row.parent === undefined ? -1 : rows.findIndex(item => item.key === row.parent);
+      return parent === -1 ? null : { focus: parent };
+    }
+    case "Enter": return { act: true };
+    default: return undefined;
+  }
+}

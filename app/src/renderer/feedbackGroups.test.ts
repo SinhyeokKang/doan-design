@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { Comment, Target } from "../formats/types";
 import { foldText } from "../formats/foldText";
 import type { CanvasRow, OrphanFile } from "../main/view";
-import { feedbackFocusAfterRemoval, feedbackGroups, type FeedbackFile } from "./feedbackGroups";
+import { feedbackFocusAfterRemoval, feedbackGroups, feedbackKey, feedbackTree, type FeedbackFile } from "./feedbackGroups";
 
 const kim = { kind: "human", name: "Kim Doe" } as const;
 let seq = 0;
@@ -303,5 +303,59 @@ describe("feedbackFocusAfterRemoval", () => {
 
   test("leaves focus alone while the focused row is still shown", () => {
     expect(feedbackFocusAfterRemoval(["a", "b"], ["b"], "b")).toBeNull();
+  });
+});
+
+// The rows of the Feedback tree as the keyboard walks them (draft
+// `feedback-panel` behavior): heads and comment rows, collapsed groups hiding
+// their children; notes, cards and messages are not tree rows.
+describe("feedbackTree", () => {
+  const frames = [{ id: "shipping", title: "Shipping" }];
+  const rows = [row("design/c.html", "c", { title: "Checkout", frames }), row("design/bad.html", undefined, { title: "Bad", open: 2, resolved: 1 })];
+  const shipping = comment({ frame: "shipping" });
+  const wide = comment({});
+  const files = [file("c", [wide, shipping]), file("old", [comment({})])];
+  const view = () => feedbackGroups(files, rows, [orphan("old", 1, 0), orphan("Foo", 3, 1)], "open");
+
+  test("lists orphans, their files, canvases, frame groups and comment rows with levels and parents", () => {
+    expect(feedbackTree(view(), new Set()).map(item => [item.key, item.level, item.parent ?? null, item.expanded ?? null])).toEqual([
+      ["orphans", 1, null, true],
+      ["orphan:.doan/comments/old.jsonl", 2, "orphans", true],
+      ["orphan:.doan/comments/Foo.jsonl", 2, "orphans", null],
+      // Overview card order: by title.
+      ["canvas:design/bad.html", 1, null, null],
+      ["canvas:design/c.html", 1, null, true],
+      ["design/c.html#whole", 2, "canvas:design/c.html", true],
+      [`item:design/c.html:${wide.comment}`, 3, "design/c.html#whole", null],
+      ["design/c.html#frame:shipping:0", 2, "canvas:design/c.html", true],
+      [`item:design/c.html:${shipping.comment}`, 3, "design/c.html#frame:shipping:0", null],
+    ]);
+  });
+
+  test("a collapsed group hides what is under it", () => {
+    const keys = feedbackTree(view(), new Set(["orphans", "design/c.html#whole"])).map(item => item.key);
+    expect(keys).toEqual(["orphans", "canvas:design/bad.html", "canvas:design/c.html", "design/c.html#whole", "design/c.html#frame:shipping:0", `item:design/c.html:${shipping.comment}`]);
+    expect(feedbackTree(view(), new Set(["canvas:design/c.html"])).map(item => item.key)).not.toContain("design/c.html#whole");
+  });
+});
+
+// Sidebar tree keys: ↑↓, Home/End, → expands or enters, ← collapses or goes to the parent, Enter opens.
+describe("feedbackKey", () => {
+  const tree = [
+    { key: "g", level: 1, expanded: true },
+    { key: "f", level: 2, parent: "g", expanded: false },
+    { key: "h", level: 2, parent: "g", expanded: true },
+    { key: "i", level: 3, parent: "h" },
+    { key: "n", level: 1 },
+  ];
+  test.each([
+    ["ArrowDown", 0, { focus: 1 }], ["ArrowDown", 4, { focus: 4 }],
+    ["ArrowUp", 2, { focus: 1 }], ["ArrowUp", 0, { focus: 0 }],
+    ["Home", 3, { focus: 0 }], ["End", 1, { focus: 4 }],
+    ["ArrowRight", 1, { toggle: "f" }], ["ArrowRight", 2, { focus: 3 }], ["ArrowRight", 3, null], ["ArrowRight", 4, null],
+    ["ArrowLeft", 2, { toggle: "h" }], ["ArrowLeft", 3, { focus: 2 }], ["ArrowLeft", 1, { focus: 0 }], ["ArrowLeft", 4, null],
+    ["Enter", 3, { act: true }], ["a", 0, undefined],
+  ] as const)("%s on row %i", (key, index, result) => {
+    expect(feedbackKey(tree, index, key)).toEqual(result);
   });
 });
