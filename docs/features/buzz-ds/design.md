@@ -96,8 +96,8 @@ A6에서 아래 줄을 모두 옮긴다. 줄 번호는 2026-10-26 기준이며 A
 ## 초안 요청 (`/design-draft`)
 
 - 캔버스: `design/buzz-ds.html`, canvas id `buzz-ds`, `doan:width` 1200. `tokens.css`만 링크하고 역할 변수로 그린다.
-- 프레임(`data-doan-frame`): 디자인 시스템 결정을 확인하는 대표 프레임만 그린다(2026-10-26 user). `tokens-color`, `tokens-type`, `buttons`, `menu`, `tooltip`, `dialog-anatomy`(틀, scrim, 헤더·액션, 상단 8rem), `forms`, `focus-disabled`, `canvas-marks`(선택, hover, 점프, 치수를 어두운·밝은·citrus가 많은 바탕 위에), `accent-places`(사이드바 행 기본·hover·현재 위치, 핀 기본·포커스, 제출 버튼, 코멘트 카드 역할).
-- 그리지 않는 것: 반경·그림자 표, `IconButton`, `Panel`, 팝오버, 다이얼로그 크기 단계, 토스트, 스피너, 공유 요소(`shared-*`). 구체적인 모습은 그것을 쓰는 화면 자식 feature가 자기 초안에서 정한다. buzz-ds는 이들의 공용 스타일만 구현하고 e2e와 실측으로 확인한다.
+- 프레임(`data-doan-frame`): 디자인 기본 언어(파운데이션)와 재사용하는 컴포넌트 프리미티브를 그린다. 화면 단위인 공유 요소는 그리지 않는다(2026-10-26 user). `tokens-color`, `tokens-type`, `radius-elevation`, `buttons`, `icon-button`, `panel`, `tooltip`, `menu`, `popover`, `dialog-sizes`(compact/standard/wide/expanded), `dialog-anatomy`(틀, scrim, 헤더·액션, 상단 8rem), `toast`(성공, 오류, 실행 취소 있음. 종류 없이 문구로만 구분), `spinner`, `forms`, `focus-disabled`, `canvas-marks`(선택, hover, 점프, 치수를 어두운·밝은·citrus가 많은 바탕 위에), `accent-places`(사이드바 행 기본·hover·현재 위치, 핀 기본·포커스, 제출 버튼, 코멘트 카드 역할).
+- 그리지 않는 것: 공유 요소(`ProjectSetupDialog`, `AddProjectsDialog`, `FirstPrompt`, `ConnectionRows`, `ErrorDetails`). 구체적인 모습은 그것을 쓰는 화면 자식 feature가 자기 초안에서 정한다. buzz-ds는 공용 스타일만 입히고 e2e와 실측으로 확인한다.
 
 ## 순수 함수로 분리할 부분 (`/tdd` 대상)
 
