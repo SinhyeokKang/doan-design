@@ -159,4 +159,16 @@ describe("FeedbackPanel orphan cards (draft orphan-cards)", () => {
     const read: ProjectRead = { root: "/code/acme", revision: 1, kind: "list", canvases: [], orphans: [orphan("checkout-v1", 1, 0)], orphanComments: [{ id: "checkout-v1", comments: [open] }] };
     expect(render({ read })).toContain('<button type="button" class="comments-btn" disabled="">Resolve</button>');
   });
+
+  // R-V1 🟡3: the line stays when its file group leaves the chosen status.
+  test("the status line stays when the resolved comment was its file's last open one", async () => {
+    const orphans = new OrphanSession({ orphanCommentsMutate: vi.fn(async r => ({ ok: true as const, identity: { root: r.root, canvas: r.canvas, requestID: r.requestID }, value: { state: "saved" as const } })), orphanCommentsStatus: vi.fn() }, () => {});
+    await orphans.mutate("resolve", { root: "/code/acme", canvas: "promo-banner", project: 4 }, open);
+    const resolvedNow = { ...open, status: "resolved" as const, resolvedAt: "2026-10-26T00:00:00.000Z", resolvedBy: kim };
+    const other = comment({});
+    const html = render({ orphans, read: list([], [orphan("promo-banner", 0, 1), orphan("checkout-v1", 1, 0)], [{ id: "promo-banner", comments: [resolvedNow] }, { id: "checkout-v1", comments: [other] }]) });
+    expect(html).toContain('<span class="g">Comments without a canvas</span><span class="cnt hot">1</span></div><p class="comments-status" role="status">Resolved — moved to Resolved.</p>');
+    const none = render({ orphans, read: list([], [orphan("promo-banner", 0, 1)], [{ id: "promo-banner", comments: [resolvedNow] }]) });
+    expect(none).toContain('</div></div><p class="comments-status" role="status">Resolved — moved to Resolved.</p><div class="comments-message"><b>No open comments in this project</b>');
+  });
 });

@@ -21,6 +21,10 @@ import { HandOffDialog, handoffContext } from "./HandOffDialog";
 // belongs to; `holder` held focus after the last render that kept it.
 type Deferred = { since: AnchorSnapshot | null; context?: string; holder?: Element | null };
 
+// How long a Feedback row's request may wait for its canvas, the read, the
+// marker and the anchors (the controller ends an anchors wait well before).
+export const ARRIVAL_MS = 5000;
+
 // What a Feedback row asked for once its canvas opened: its comment in the
 // row's status, or Review. `since`: the anchors seen before the open.
 export type CommentArrival = { root: string; path: string } & ({ comment: string; status: Comment["status"] } | { review: true });
@@ -344,27 +348,34 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   // anchors measured after the open (none without a document), goes to the
   // target and focuses its card. Review asks for the marker and the Git name
   // first. Never raises the marker itself (spec PF3).
-  const arrival = useRef<(CommentArrival & { since: AnchorSnapshot | null }) | null>(null);
+  // It ends, without acting, when another canvas or none is open, when a
+  // draft, editor or dialog takes over, or after ARRIVAL_MS (POSTMORTEM
+  // 2026-10-23 "Pin completion outlived the guarded intent").
+  const arrival = useRef<(CommentArrival & { since: AnchorSnapshot | null; until: number }) | null>(null);
   useEffect(() => {
     const request = arrival.current;
     if (!request) return;
-    if (!open || open.folder !== request.root || open.canvas !== request.path) { if (open) arrival.current = null; return; }
+    const owned = !!draft || session.beginning || !!session.deleteConfirmation || !!session.handoff || !!session.review;
+    if (!open || open.folder !== request.root || open.canvas !== request.path || owned || Date.now() > request.until) { arrival.current = null; return; }
     if (!current || !identity) return;
     const done = (focus: HTMLElement | null | undefined) => { arrival.current = null; (focus ?? heading.current)?.focus(); };
     if (readError) { done(null); return; }
     if (!list) return;
-    if ("review" in request) {
-      if (!session.marker || session.author.status === "loading") return;
+    const comment = "review" in request ? undefined : list.comments.find(c => c.comment === request.comment);
+    if (!("review" in request)) {
+      if (!comment) { done(null); return; }
+      if (filter.scope !== "canvas" || filter.status !== request.status) { setFilter({ scope: "canvas", status: request.status }); return; }
+    } else if (!session.marker || session.author.status === "loading") return;
+    // The anchors measured after the open (none without a document): a
+    // comment's locate and Review's first step both move to a target.
+    const latest = latestAnchors.current;
+    const fresh = !!latest && latest !== request.since && latest.lookup.root === identity.root && latest.lookup.canvas === identity.canvas;
+    if (fresh ? latest.status === "pending" : state.status !== "noWidth" && state.status !== "failed") return;
+    if (!comment) {
       arrival.current = null;
       if (session.startReview()) jump(); else heading.current?.focus();
       return;
     }
-    const comment = list.comments.find(c => c.comment === request.comment);
-    if (!comment) { done(null); return; }
-    if (filter.scope !== "canvas" || filter.status !== request.status) { setFilter({ scope: "canvas", status: request.status }); return; }
-    const latest = latestAnchors.current;
-    const fresh = !!latest && latest !== request.since && latest.lookup.root === identity.root && latest.lookup.canvas === identity.canvas;
-    if (fresh ? latest.status === "pending" : state.status !== "noWidth" && state.status !== "failed") return;
     const node = fresh && latest.status === "answered" ? latest.lookup.nodes.get(comment.comment) : undefined;
     if (node !== undefined && latest) controller.current?.locate(node, latest.lookup.generation, comment);
     done(Array.from(panelElement.current?.querySelectorAll<HTMLElement>("article.comments-card") ?? []).find(card => card.dataset.comment === comment.comment));
@@ -427,7 +438,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     },
     closeReview: () => session.closeReview(),
     // A Feedback row opened its canvas (project-feedback design §3).
-    openAt: (request: CommentArrival) => { arrival.current = { ...request, since: latestAnchors.current }; },
+    openAt: (request: CommentArrival) => { arrival.current = { ...request, since: latestAnchors.current, until: Date.now() + ARRIVAL_MS }; },
     orphans,
     orphanIntent: (intent: OrphanIntent, at: OrphanTarget, comment: Comment) => {
       const key = orphanKey(at.root, at.canvas, comment.comment);

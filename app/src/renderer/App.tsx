@@ -385,7 +385,7 @@ export function App() {
     reveal={reveal?.root === overview.path ? reveal : null} onRevealed={() => setReveal(null)} />;
   const previousOverview = useRef(shownOverview);
   useEffect(() => {
-    if (previousOverview.current !== null && previousOverview.current !== shownOverview) setOverviewNotice(null);
+    if (previousOverview.current !== null && previousOverview.current !== shownOverview) { setOverviewNotice(null); setReveal(null); }
     previousOverview.current = shownOverview;
   }, [shownOverview]);
   const rendered = useMemo(() => state.open && state.layout ? { root: state.open.folder, path: state.open.canvas, frames: state.layout.frames } : undefined, [state.open?.folder, state.open?.canvas, state.layout]);

@@ -150,6 +150,12 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
   const readFailed = (detail: string) => <div className="comments-message error" role="alert"><b>Couldn’t read comments</b><ErrorDetails className="comments-btn" detail={detail}>{(button, shown) => <><div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRetry}>Retry</button>{button}</div>{shown && <p className="detail">{shown}</p>}</>}</ErrorDetails></div>;
   const reading = <div className="comments-message" role="status"><b>Reading comments…</b></div>;
   const gitMissing = props.orphans.gitMissing(root);
+  // A resolve or reopen that took its file's last card of this status takes
+  // the whole file group away; its line then stands under the section head,
+  // or above everything when no orphan group is left.
+  const line = props.orphans.statusLine;
+  const lineGroup = line && line.root === root ? view?.orphans?.files.find(group => group.id === line.canvas) : undefined;
+  const homeless = line && line.root === root && view && (!lineGroup || lineGroup.kind !== "cards") ? <p className="comments-status" role="status">{line.text}</p> : null;
 
   const item = (row: FeedbackTreeRow, index: number, className: string, content: ReactNode, label?: string) => {
     order.push(row.key);
@@ -189,6 +195,7 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
       case "orphans":
         return <>
           {item(row, index, "row fb-orphans", <>{twisty(row)}<span className="g">Comments without a canvas</span>{counter(row.section.count)}</>)}
+          {row.expanded && homeless}
           {row.expanded && gitMissing && !row.section.readOnly && <div className="comments-message warning inset" role="status"><b>Set your Git name</b>Set git user.name for this repository in your terminal, then choose Retry. Your email is optional.<p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Hand off remains available.</p><div className="comments-tools"><button type="button" className="comments-btn" disabled={props.orphans.busy} onClick={props.onRetryGit}>Retry</button></div></div>}
         </>;
       case "orphanFile": {
@@ -222,6 +229,7 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
   return <section className="feedback native-scroll" role="region" aria-label="Feedback">
     <h2 ref={title} className="phead" tabIndex={-1}>Feedback</h2>
     <div className="fb-filter"><div className="comments-segment" role="group" aria-label="Comment status">{segment("Open", "open", view?.counts.open)}{segment("Resolved", "resolved", view?.counts.resolved)}</div></div>
+    {!view?.orphans && homeless}
     {!read ? reading
       : read.kind === "failed" ? <div className="comments-message error" role="alert"><b>Couldn’t read comments</b><div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRetry}>Retry</button></div></div>
       : empty ? <div className="comments-message"><b>{status === "open" ? "No open comments in this project" : "No resolved comments in this project"}</b></div>

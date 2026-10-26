@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi, type Mock } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { useComments } from "./useComments";
+import { ARRIVAL_MS, useComments } from "./useComments";
 import { initialCanvasState, MEASURE_ANSWER_MS, type CanvasController, type CanvasState } from "./CanvasController";
 import { createTransitionGuard, type TransitionRequest } from "../main/comments/transitions";
 import type { CommentRequest } from "../main/comments/service";
@@ -1443,13 +1443,58 @@ describe("Review on the open canvas", () => {
     expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "open" });
   });
 
-  test("N resolved to review: the canvas opens on Review", async () => {
+  // R-V1 🟡1: Review's first step moves to its target, so it waits for the
+  // anchors measured after the open like a comment row does.
+  test("N resolved to review: the canvas opens on Review once its anchors answer", async () => {
     const f = await reviewing([one, two]);
     f.render().openAt({ root: "/repo", path: row.path, review: true });
     f.render();
+    expect(f.session.review).toBeNull();
+    expect(f.jumpToNode).not.toHaveBeenCalled();
+    (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation: 6, nodes: new Map([["c1", "n1"], ["c2", "n2"]]) }, rects: new Map(), selected: null, status: "answered" });
+    settle(ANCHORS);
+    f.render();
     expect(f.session.review?.state.steps.map(step => step.comment)).toEqual(["c1", "c2"]);
-    expect(f.jumpToNode).toHaveBeenCalledWith("n1", 4);
+    expect(f.jumpToNode).toHaveBeenCalledWith("n1", 6);
+    expect(f.session.review?.notFound).toBeNull();
     expect(f.raise).not.toHaveBeenCalled();
+  });
+
+  // R-V1 🟡2: the request belongs to the open it asked for.
+  test("a request ends when the canvas closes, when a draft takes over, or after its time", async () => {
+    const answer = (f: Awaited<ReturnType<typeof reviewing>>, generation: number) => {
+      (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation, nodes: new Map([["c1", "n1"], ["c2", "n2"]]) }, rects: new Map(), selected: null, status: "answered" });
+      settle(ANCHORS);
+    };
+    // Each case would otherwise list Resolved, then locate on the next answer.
+    const proceed = (generation: number) => { f.render(); settle(FILTER); f.render(); answer(f, generation); f.render(); };
+    const f = await reviewing([one, two]);
+    f.render().openAt({ root: "/repo", path: row.path, comment: "c2", status: "resolved" });
+    f.render({ open: null, shown: null });
+    proceed(7);
+    expect(f.locate).not.toHaveBeenCalled();
+    // The canvas comes back; its session reads again.
+    f.render();
+    await vi.waitFor(() => expect(f.session.list).not.toBeNull());
+
+    f.render().openAt({ root: "/repo", path: row.path, comment: "c2", status: "resolved" });
+    f.session.edit("c1");
+    expect(f.session.draft.draft).not.toBeNull();
+    proceed(8);
+    expect(f.locate).not.toHaveBeenCalled();
+    f.session.answer("discard");
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      f.render().openAt({ root: "/repo", path: row.path, comment: "c2", status: "resolved" });
+      vi.setSystemTime(Date.now() + ARRIVAL_MS + 1);
+      proceed(9);
+      expect(f.locate).not.toHaveBeenCalled();
+      // A fresh request still works.
+      f.render().openAt({ root: "/repo", path: row.path, comment: "c2", status: "resolved" });
+      proceed(10);
+      expect(f.locate).toHaveBeenCalledExactlyOnceWith("n2", 10, two);
+    } finally { vi.useRealTimers(); }
   });
 });
 
