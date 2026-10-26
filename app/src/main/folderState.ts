@@ -1,5 +1,5 @@
 import { validateEnvelope } from "../formats/validate";
-import type { GitInfo } from "./view";
+import { isRowError, type GitInfo, type OrphanFile } from "./view";
 
 export interface CliRun {
   exitCode: number | null;
@@ -12,7 +12,7 @@ export interface CliRun {
 }
 
 export type FolderState =
-  | { kind: "list"; root: string; scope: string[]; canvases: unknown[]; git?: GitInfo }
+  | { kind: "list"; root: string; scope: string[]; canvases: unknown[]; git?: GitInfo; orphans?: OrphanFile[] }
   | { kind: "uninitialized" }
   | { kind: "error"; message: string }
   | { kind: "cliError"; reason: string };
@@ -48,7 +48,35 @@ export function folderState(run: CliRun): FolderState {
   if (run.exitCode !== 0 || !isListResult(value.result)) return cliError;
   const { root, scope, canvases } = value.result;
   const git: unknown = Reflect.get(value.result, "git");
-  return { kind: "list", root, scope, canvases, ...(isGitInfo(git) ? { git } : {}) };
+  const orphans: unknown = Reflect.get(value.result, "orphans");
+  return { kind: "list", root, scope, canvases, ...(isGitInfo(git) ? { git } : {}), ...(Array.isArray(orphans) ? { orphans: orphans.flatMap(orphanFile) } : {}) };
+}
+
+// Orphans are shown and gate the app's writes (`orphanWriteAllowed`), so an
+// entry is kept only whole and only with the fields the app reads; a malformed
+// one is dropped rather than failing a listing that is otherwise good, like `git`.
+function orphanFile(value: unknown): OrphanFile[] {
+  if (typeof value !== "object" || value === null) return [];
+  const id: unknown = Reflect.get(value, "id");
+  const file: unknown = Reflect.get(value, "file");
+  const uncertain: unknown = Reflect.get(value, "uncertain");
+  const comments: unknown = Reflect.get(value, "comments");
+  const error: unknown = Reflect.get(value, "error");
+  if (typeof id !== "string" || id === "" || typeof file !== "string" || typeof uncertain !== "boolean") return [];
+  if (error !== undefined && !isRowError(error)) return [];
+  let counts: OrphanFile["comments"];
+  if (comments !== undefined) {
+    const open = count(comments, "open");
+    const resolved = count(comments, "resolved");
+    if (open === null || resolved === null) return [];
+    counts = { open, resolved };
+  }
+  return [{ id, file, ...(counts ? { comments: counts } : {}), ...(error === undefined ? {} : { error: { code: error.code, message: error.message } }), uncertain }];
+}
+
+function count(comments: unknown, key: string): number | null {
+  const n: unknown = typeof comments === "object" && comments !== null ? Reflect.get(comments, key) : undefined;
+  return typeof n === "number" && Number.isSafeInteger(n) && n >= 0 ? n : null;
 }
 
 // `git` is optional and only shown, so a malformed one is dropped rather than

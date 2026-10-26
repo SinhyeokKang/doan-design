@@ -111,6 +111,29 @@ describe("canvasRows", () => {
     const rows = canvasRows([{ path: "design/a.html", title: 5 }], base);
     expect(rows[0]).not.toHaveProperty("title");
   });
+
+  // project-feedback design §1: a row ls could not read stays in the tree
+  // with its error; its counts are 0 only because ls sent none.
+  test("keeps unreadable rows with their error and comments error", () => {
+    const rows = canvasRows([
+      { path: "design/a.html", id: "a", frames: [], commentsError: { code: "unreadable_comments", message: ".doan/comments/a.jsonl: permission denied" } },
+      { path: "design/b.html", frames: [], error: { code: "unreadable_canvas", message: "design/b.html: permission denied" } },
+    ], base);
+    expect(rows).toEqual([
+      { path: "design/a.html", id: "a", frames: [], commentsError: { code: "unreadable_comments", message: ".doan/comments/a.jsonl: permission denied" }, open: 0, resolved: 0, url: `${base}design/a.html` },
+      { path: "design/b.html", frames: [], error: { code: "unreadable_canvas", message: "design/b.html: permission denied" }, open: 0, resolved: 0, url: `${base}design/b.html` },
+    ]);
+  });
+
+  test("drops a malformed row error", () => {
+    const bad = [null, "boom", { code: 1, message: "m" }, { code: "c" }, { message: "m" }];
+    const rows = canvasRows(bad.flatMap((value) => [{ path: "design/a.html", error: value }, { path: "design/a.html", commentsError: value }]), base);
+    expect(rows).toHaveLength(bad.length * 2);
+    for (const row of rows) {
+      expect(row).not.toHaveProperty("error");
+      expect(row).not.toHaveProperty("commentsError");
+    }
+  });
 });
 
 describe("servingUrl", () => {
@@ -154,6 +177,13 @@ describe("folderEntry", () => {
     expect(empty).not.toHaveProperty("git");
     const unread = folderEntry("/repo", { kind: "list", root: "/repo", scope: [], canvases: [{ path: "design/a.html" }] }, base, 0);
     expect(unread).not.toHaveProperty("changedAt");
+  });
+
+  test("passes orphans through, and leaves them out when ls sent none", () => {
+    const orphans = [{ id: "old", file: ".doan/comments/old.jsonl", comments: { open: 1, resolved: 0 }, uncertain: false }];
+    const entry = folderEntry("/repo", { kind: "list", root: "/repo", scope: [], canvases: [], orphans }, base, 0);
+    expect(entry).toEqual({ path: "/repo", kind: "list", servedRev: 0, canvases: [], orphans });
+    expect(folderEntry("/repo", { kind: "list", root: "/repo", scope: [], canvases: [] }, base, 0)).not.toHaveProperty("orphans");
   });
 
   // Only a list is served, so only a list has a revision to reload on.

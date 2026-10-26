@@ -19,9 +19,28 @@ export interface CanvasRow {
   // Bumped by the shell when this file changed without a served bump, so the
   // open canvas and its thumbnail reload for their own file only.
   rev?: number;
+  // `doan ls` could not read the canvas file (`error`) or its comment file
+  // (`commentsError`). ls then sends no counts, so `open`/`resolved` are 0
+  // without meaning none: check these first (project-feedback design §1).
+  error?: RowError;
+  commentsError?: RowError;
   open: number;
   resolved: number;
   url: string;
+}
+
+// The message holds a repo-relative path and the cause, never an absolute path.
+export interface RowError { code: string; message: string }
+
+// A comment file no canvas uses, from `doan ls` `orphans` as is. `comments` is
+// absent when ls could not read the file (`error`); `uncertain` is true when
+// some canvas could not be read, so the file may still be that canvas's.
+export interface OrphanFile {
+  id: string;
+  file: string;
+  comments?: { open: number; resolved: number };
+  error?: RowError;
+  uncertain: boolean;
 }
 
 // `git` is the CLI's optional `result.git`, passed through unchanged.
@@ -40,7 +59,8 @@ export type FolderEntry = { path: string; lastCommon?: string } & (
   // Bumped by the shell whenever a served file of the folder changed; the
   // renderer reloads an open canvas on a new value. Only a list is served.
   // `changedAt` is the newest canvas mtime; absent with no canvases.
-  | { kind: "list"; canvases: CanvasRow[]; servedRev: number; git?: GitInfo; changedAt?: number }
+  // `orphans` is absent only when the CLI sent none (an older doan).
+  | { kind: "list"; canvases: CanvasRow[]; servedRev: number; git?: GitInfo; changedAt?: number; orphans?: OrphanFile[] }
   | { kind: "uninitialized" }
   | { kind: "error"; message: string }
   | { kind: "cliError"; reason: string }
@@ -63,6 +83,10 @@ export function canvasRows(canvases: readonly unknown[], baseUrl: string): Canva
     if (typeof id === "string") row.id = id;
     if (typeof title === "string") row.title = title;
     if (typeof width === "number" && Number.isSafeInteger(width) && width > 0) row.width = width;
+    const error: unknown = Reflect.get(canvas, "error");
+    const commentsError: unknown = Reflect.get(canvas, "commentsError");
+    if (isRowError(error)) row.error = { code: error.code, message: error.message };
+    if (isRowError(commentsError)) row.commentsError = { code: commentsError.code, message: commentsError.message };
     const frames = staticFrames(Reflect.get(canvas, "frames"));
     if (frames !== undefined) {
       const capped = capFrames(frames);
@@ -89,6 +113,11 @@ function staticFrames(frames: unknown): StaticFrame[] | undefined {
   return kept;
 }
 
+export function isRowError(value: unknown): value is RowError {
+  return typeof value === "object" && value !== null &&
+    typeof Reflect.get(value, "code") === "string" && typeof Reflect.get(value, "message") === "string";
+}
+
 function commentCount(comments: unknown, key: "open" | "resolved"): number {
   if (typeof comments !== "object" || comments === null) return 0;
   const count: unknown = Reflect.get(comments, key);
@@ -111,7 +140,7 @@ export function folderEntry(path: string, view: FolderView, baseUrl: string, ser
         if (mtime !== undefined) row.mtimeMs = mtime;
       }
       const changedAt = latestChange(canvases.map((row) => row.mtimeMs));
-      return { path, kind: "list", canvases, servedRev, ...(view.git ? { git: view.git } : {}), ...(changedAt === undefined ? {} : { changedAt }) };
+      return { path, kind: "list", canvases, servedRev, ...(view.git ? { git: view.git } : {}), ...(changedAt === undefined ? {} : { changedAt }), ...(view.orphans ? { orphans: view.orphans } : {}) };
     }
     case "error":
       return { path, kind: "error", message: view.message };
