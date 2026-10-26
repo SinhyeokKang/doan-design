@@ -28,8 +28,8 @@
 | P | P1, P2, P3 | `.scratch/agent-conversation/`, PRODUCT §6 결과 | 없음 | Astra medium — 전송·권한·동시 세션 실증 판단 | 버전·명령·원시 증거·격리 검증, 9a~9e 결과 | 실험 종료, 설정 전체 동일성 실패·독립 검토 대기 |
 | D | D1, D2 | PRODUCT 결정, feature 계약의 PoC 확정 내용 | P | Astra medium — 제품 범위와 실험 결과 대조 | §3·§7 및 스킬 변경 판단 | 리뷰 보완·통합 완료 |
 | S | S1 | `schema/`, Go·TS formats 등록과 테스트 | D | Sol medium — 공유 포맷과 픽스처 구현 | Go·TS 포맷 테스트 | 통합 완료, 런타임 기존 예외 유지 |
-| C | T1·T2의 Go 부분, C1 | `cli/internal/cli/` 세션 기록과 테스트, 필요 시 MCP 배선 | S | Astra medium — 출력 보존·경로·동시 append | red→green, Go test/vet, 필요 시 agent-eval | 재검토 통과, 통합 대기 |
-| T | T1·T2의 TS 부분 | `app/src/main/conversation/` 순수 함수·계약·테스트 | S | Astra medium — 이벤트·복구·권한 상태 계약 | red→green, app test/typecheck | 리뷰 2건 수정 중 |
+| C | T1·T2의 Go 부분, C1 | `cli/internal/cli/` 세션 기록과 테스트, 필요 시 MCP 배선 | S | Astra medium — 출력 보존·경로·동시 append | red→green, Go test/vet, 필요 시 agent-eval | 통합 완료, 후속 runtime 검증 중 |
+| T | T1·T2의 TS 부분 | `app/src/main/conversation/` 순수 함수·계약·테스트 | S | Astra medium — 이벤트·복구·권한 상태 계약 | red→green, app test/typecheck | 통합 완료, 후속 runtime 검증 중 |
 | A | A2, A3, A4 | conversation 실행기·저장·IPC, main 수명, preload와 타입 | C, T | Astra medium — 프로세스·저장·IPC 경계 | app test/typecheck/build 및 E 종료 검증 | 대기 |
 | E | A1, E1, E2 | `app/e2e/`, `.scratch/` 실험, PRODUCT 관찰 | A | Astra medium — 실제 앱·종료·상태 불변 실증 | 하네스 red→green, 가짜 에이전트 12단계, 실제 에이전트 관찰 | 대기 |
 | V | E3 | 통합 검증 증거 | E, 리뷰 | Sol high — 순차 게이트와 증거 확인 | verify --runtime, 필요 시 --eval 및 agent-eval | 대기 |
@@ -86,3 +86,6 @@
 - R-T (`task_f243c8eece7b`, `ctx_4ac3632654e2`)는 focused 72개·typecheck 통과와 🟡 2건을 확인했다. 턴 귀속 없는 서버 요청이 무응답으로 남고, notification의 추가 error 필드가 턴 격리를 우회한다. 리뷰 터미널 release 완료. F-T는 Astra medium으로 ingress 구분·명시적 미지원 처리·회귀를 수정한다. 프로토콜 enum 픽스처도 원본 스키마에 맞추며 실제 dispatcher 검증은 A/E에 남긴다.
 
 - F-T (`task_5595928f5763`, `ctx_e24645d565f6`)는 `75ed1d4`, `dc9cd2f`를 제출했다. 요청 disposition과 pending RPC 소유권을 받는 별도 reply 경로로 두 ingress 문제를 수정했고 픽스처 enum을 복원했다. 회귀 10개 red→green, focused 92개·전체 앱 3215개·typecheck 통과 보고. 터미널 release 완료. R-F-T는 Astra medium으로 수정과 A 인계 경계를 독립 재검토한다.
+
+- R-F-T (`task_de49a910ce42`, `ctx_296ca1b692fb`)는 순수 함수 범위 지적 2건을 닫았고 focused 92개·typecheck 통과를 확인했다. 터미널 release 완료. C/T 12커밋을 통합했고 POSTMORTEM 상단 충돌은 두 항목을 모두 보존했다. CLI 증거 25개·rules 증거 23개를 지휘자 scratch에 복사해 byte 일치를 검증했다. CLI child는 clean·미통합 없음 확인 뒤 제거하고 목록 부재를 확인했다.
+- 통합 `c3f4a9b`의 verify --runtime은 runner·Go test/vet·typecheck·앱 3215개 테스트·build를 통과했으나 comments-ui 기존 `08-hidden-quit-close`(:567)에서 실패했다. 로그 `.scratch/verify/2026-10-26T17-37-00-615Z-740/`, main/anchors/comments 실제 상태 불변 확인. 이후 POSTMORTEM 충돌 해결 중 생긴 빈 줄 하나만 제거해 통합 문서 커밋을 amend했다(실행 코드 동일). V-CT는 Sol medium으로 동일 checkout의 후속 10개 어댑터를 순차 실행하고 증거를 남긴다. 전체 runtime은 미충족이며 A는 후속 검증 뒤 시작한다.
