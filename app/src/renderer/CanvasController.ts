@@ -133,6 +133,11 @@ export class CanvasController {
   // Whether the comments session can follow the open canvas to a new path.
   private followGuard: (() => boolean) | null = null;
   setFollowGuard(guard: (() => boolean) | null): void { this.followGuard = guard; }
+  // Asked first for an Esc that reaches the canvas (the app's or one forwarded
+  // from the iframe); true means the panel took it, so the selection stays
+  // (feature revision-recheck: an open Review closes before selection clears).
+  private escapeHandler: (() => boolean) | null = null;
+  setEscapeHandler(handler: (() => boolean) | null): void { this.escapeHandler = handler; }
   private transitionIntent = 0;
   private inputGuard = false;
   private selectionGuard = false;
@@ -792,6 +797,11 @@ export class CanvasController {
   // Without a selection to clear, Esc and a blank click skip the draft guard;
   // the bumped intent still cancels a pending Open (feature revision-continuity L-17).
   private escape(): void {
+    if (this.escapeHandler?.()) return;
+    this.clearOnEscape();
+  }
+
+  private clearOnEscape(): void {
     if (!shouldGuardEscape(this.state.selection, this.reanchor)) { this.transitionIntent++; return; }
     this.transition(() => this.escapeNow(), undefined, "selection");
   }
@@ -820,8 +830,9 @@ export class CanvasController {
       return;
     }
     if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || event.defaultPrevented || editableTarget(event.target)) return;
+    if (this.escapeHandler?.()) { event.preventDefault(); return; }
     if (this.selectionGuard && shouldGuardEscape(this.state.selection, this.reanchor)) event.preventDefault();
-    this.escape();
+    this.clearOnEscape();
   };
 
   private keyup = (event: KeyboardEvent): void => {

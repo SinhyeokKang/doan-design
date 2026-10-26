@@ -2118,3 +2118,47 @@ describe("locate and jump to a comment's node", () => {
     } finally { h.controller.dispose(); }
   });
 });
+
+describe("an Escape handler set by the panel (revision-recheck Review)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const escapeKey = () => Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" });
+
+  it("takes the app's Escape and the canvas's forwarded Escape before the selection, and lets both through when it declines", () => {
+    const h = selectionHarness();
+    try {
+      let reviewing = true;
+      const handler = vi.fn(() => reviewing);
+      h.controller.setEscapeHandler(handler);
+      h.select(1);
+      const event = escapeKey();
+      h.host.dispatchEvent(event);
+      expect(handler).toHaveBeenCalledOnce();
+      expect(event.defaultPrevented).toBe(true);
+      expect(h.state().selection).not.toBeNull();
+      h.receive({ type: "key", seq: 1, key: "Escape" });
+      expect(handler).toHaveBeenCalledTimes(2);
+      expect(h.state().selection).not.toBeNull();
+      reviewing = false;
+      h.host.dispatchEvent(escapeKey());
+      expect(handler).toHaveBeenCalledTimes(3);
+      expect(h.state().selection).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("is not asked for an Escape typed into a text field, and is removed with null", () => {
+    const h = selectionHarness();
+    try {
+      const handler = vi.fn(() => true);
+      h.controller.setEscapeHandler(handler);
+      const typed = escapeKey();
+      Object.defineProperty(typed, "target", { value: { tagName: "TEXTAREA", isContentEditable: false } });
+      h.host.dispatchEvent(typed);
+      expect(handler).not.toHaveBeenCalled();
+      h.controller.setEscapeHandler(null);
+      h.select(1);
+      h.host.dispatchEvent(escapeKey());
+      expect(handler).not.toHaveBeenCalled();
+      expect(h.state().selection).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+});
