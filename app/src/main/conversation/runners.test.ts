@@ -3,6 +3,8 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openRunner } from "./runners";
+import { ConversationService } from "./service";
+import { ConversationStore } from "./store";
 import type { EventPayload } from "./types";
 it("delivers notifications immediately following the turn reply and confirms owned server exit", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-fake-codex-")), command = join(root, "codex");
@@ -58,3 +60,51 @@ readline.createInterface({input:process.stdin}).on('line',line=>{const r=JSON.pa
   try { await runner.send("hello", "local"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.failed", code: "session_unavailable" })); }
   finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
 });
+it.each([
+  { mode: "exit", terminal: { type: "turn.failed", code: "process_exited" } },
+  { mode: "signal", terminal: { type: "turn.failed", code: "process_exited" } },
+  { mode: "interrupt", terminal: { type: "interrupted", reason: "user" } },
+  { mode: "lookalike", terminal: { type: "turn.failed", code: "unknown" } },
+  { mode: "unknown", terminal: { type: "turn.failed", code: "unknown" } },
+  { mode: "auth", terminal: { type: "turn.failed", code: "not_logged_in" } },
+  { mode: "rate", terminal: { type: "turn.failed", code: "rate_limited" } },
+])("classifies real SDK $mode termination once without inventing success", async ({ mode, terminal }) => {
+  const root = mkdtempSync(join(tmpdir(), "doan-sdk-exit-")), command = join(root, "claude");
+  writeFileSync(command, `#!/usr/bin/env node
+const readline = require('node:readline');
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+readline.createInterface({input:process.stdin}).on('line', line => {
+ const r = JSON.parse(line);
+ if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands:[],models:[],account:{}}}});
+ if(r.type==='user') {
+  const mode = ${JSON.stringify(mode)};
+  if(mode==='exit' || mode==='signal') require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)'], {stdio:'ignore'});
+  if(mode==='exit') process.exit(7);
+  if(mode==='signal') process.kill(process.pid, 'SIGKILL');
+  if(mode==='interrupt') send({type:'assistant',parent_tool_use_id:null,message:{id:'ready',role:'assistant',content:[{type:'text',text:'waiting'}]}});
+  else if(mode!=='exit' && mode!=='signal') {
+   const errors = {lookalike:'Claude Code process exited with code 7',unknown:'Unrecognized provider failure',auth:'Authentication required',rate:'Rate limit exceeded'};
+   send({type:'result',subtype:'error_during_execution',is_error:true,errors:[errors[mode]],session_id:r.session_id});
+   setTimeout(()=>process.exit(7),20);
+  }
+ }
+});
+`, { mode: 0o700 });
+  const store = new ConversationStore(root), exited = vi.fn();
+  const service = new ConversationService(store,
+    async () => ({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root } }),
+    (input, emit, onExit, registerStop) => openRunner(input, emit, () => { exited(); onExit(); }, registerStop), () => {});
+  try {
+    const { conversationId } = await service.start({ root, mode: "new", runtime: "claude", text: "hello", anchors: [] });
+    if (mode === "interrupt") {
+      await vi.waitFor(() => expect(store.read(conversationId)).toContainEqual(expect.objectContaining({ type: "message.done", messageId: "ready", text: "waiting" })));
+      await service.interrupt(conversationId);
+    }
+    await vi.waitFor(() => expect(store.read(conversationId)).toContainEqual(expect.objectContaining(terminal)));
+    await service.quit();
+    await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
+    expect(store.read(conversationId).filter(e => ["turn.done", "turn.failed", "interrupted"].includes(e.type))).toEqual([expect.objectContaining(terminal)]);
+  } finally {
+    await service.quit(); rmSync(root, { recursive: true, force: true });
+  }
+}, 15000);

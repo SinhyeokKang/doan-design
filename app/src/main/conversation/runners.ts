@@ -5,7 +5,7 @@ import { query, type PermissionResult, type PermissionUpdate, type SDKUserMessag
 import { CodexDispatcher } from "./dispatcher";
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
-import { initialTransport, normalizeClaude, transportError } from "./transport";
+import { endTransport, initialTransport, normalizeClaude, transportError } from "./transport";
 import type { OpenRunner, Prepared, Runner } from "./service";
 import type { EventPayload } from "./types";
 export const openRunner: OpenRunner = (input, emit, exited, registerStop) => input.runtime === "claude" ? openClaude(input, emit, exited, registerStop) : openCodex(input, emit, exited, registerStop);
@@ -70,7 +70,7 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
   const sessionId = input.sessionId ?? randomUUID(); const controller = new AbortController();
   let group: OwnedGroup | undefined, state = initialTransport(), deliver: ((message: SDKUserMessage | null) => void) | undefined;
   const pending = new Map<string, { input: Record<string, unknown>; suggestions: PermissionUpdate[]; resolve(value: PermissionResult): void }>();
-  let finished = false;
+  let finished = false, childExited = false;
   async function* messages(): AsyncGenerator<SDKUserMessage> {
     const message = await new Promise<SDKUserMessage | null>(resolve => { deliver = resolve; });
     if (message) yield message;
@@ -84,7 +84,7 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
         const owned = new OwnedGroup(child.pid, undefined, undefined, exited); group = owned;
         registerStop(() => { controller.abort(); deliver?.(null); return owned.stop(); });
       }
-      child.stderr.resume(); child.once("exit", () => group?.childExited()); child.once("error", () => { if (!child.pid) exited(); else group?.childExited(); });
+      child.stderr.resume(); child.once("exit", () => { childExited = true; group?.childExited(); }); child.once("error", () => { if (!child.pid) exited(); else group?.childExited(); });
       return child;
     },
     canUseTool(tool, toolInput, options) {
@@ -107,6 +107,11 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
         try {
           for await (const raw of q) { const result = normalizeClaude(state, raw, input.cwd); state = result.state; for (const event of result.events) emit(event); }
           if (!state.terminal) emit({ type: "turn.failed", code: "process_exited" });
+        } catch (error) {
+          // SDK exit errors can precede group disappearance; neither cleanup nor provider errors prove process death.
+          if (!childExited || !object(error) || (error.errorClass !== "process_exited_nonzero" && error.errorClass !== "process_killed_by_signal")) throw error;
+          const result = endTransport(state); state = result.state;
+          for (const event of result.events) emit(event);
         } finally { finished = true; expire(); void group?.stop(); }
       })();
       // The SDK starts consuming input as part of its initialization handshake.
