@@ -25,7 +25,7 @@
 
 | 배치 | task 소유 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| P | P1, P2, P3 | `.scratch/agent-conversation/`, PRODUCT §6 결과 | 없음 | Astra medium — 전송·권한·동시 세션 실증 판단 | 버전·명령·원시 증거·격리 검증, 9a~9e 결과 | 실행 중 |
+| P | P1, P2, P3 | `.scratch/agent-conversation/`, PRODUCT §6 결과 | 없음 | Astra medium — 전송·권한·동시 세션 실증 판단 | 버전·명령·원시 증거·격리 검증, 9a~9e 결과 | 실험 종료, 설정 전체 동일성 실패·독립 검토 대기 |
 | D | D1, D2 | PRODUCT 결정, feature 계약의 PoC 확정 내용 | P | Astra medium — 제품 범위와 실험 결과 대조 | §3·§7 및 스킬 변경 판단 | 대기 |
 | S | S1 | `schema/`, Go·TS formats 등록과 테스트 | D | Sol medium — 공유 포맷과 픽스처 구현 | Go·TS 포맷 테스트 | 대기 |
 | C | T1·T2의 Go 부분, C1 | `cli/internal/cli/` 세션 기록과 테스트, 필요 시 skill | S | Astra medium — 출력 보존·경로·동시 append | red→green, Go test/vet, 필요 시 agent-eval | 대기 |
@@ -56,4 +56,6 @@
 - Run: `run_e204188d17ab`, P task: `task_3201cbb25352`.
 - P 첫 시도 `ctx_6b536ea000cf`는 Codex 업데이트 안내에서 시작 전 실패했다. 업데이트를 건너뛰고 worker-release로 터미널을 정리했다.
 - P 재시도 `ctx_31b901d4da2c`: `launch.effective`는 Codex / gpt-6-astra / medium이다. Orca 시작 응답은 `turn_start_unobserved`였으나 worker-read transcript에서 지시서와 기능 문서를 읽는 실제 도구 호출을 확인했다. 중복 실행하지 않는다.
-- P child: `/Users/sinhyeokkang/orca/workspaces/doan-design/agent-conversation-poc` (통합 전·실행 중이므로 유지).
+- P child: `/Users/sinhyeokkang/orca/workspaces/doan-design/agent-conversation-poc` (미통합 커밋과 독립 리뷰 증거 때문에 유지).
+- P는 `cc0529041e703170d356dece3584264787f6c287`에 PRODUCT §6 결과를 기록하고 `outcome=failed`로 종료했다. 실제 프로필 전체 파일 동일성 검사는 실패했다. 기준 해시와 같은 백업 비교에서 변경은 feature-cache 두 키뿐이고 MCP와 나머지 설정은 같았다. 변경 원인은 미확인이다. 기능 관찰과 상태 보존 요건의 충족 여부는 독립 리뷰에서 구분해 판정한다.
+- P 터미널은 worker-release의 `released`와 `closed_agent_terminal`을 확인했다. R-P는 별도 Astra medium 세션으로 같은 checkout의 고정 커밋과 원시 증거를 읽고 보고서만 작성한다.
