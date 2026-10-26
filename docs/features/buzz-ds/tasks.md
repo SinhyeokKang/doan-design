@@ -49,7 +49,7 @@ design.md '셀렉터 대응표'의 모든 줄을 옮긴다(citrus, 무채색, op
 
 ### A7. 공용 컴포넌트
 버튼 변형, `IconButton`(기존 아이콘 버튼에 적용: 상단 바, 줌·프레임 컨트롤 등), `Panel`(정의만), `.kbd`·`.chip`, 툴팁, 메뉴·팝오버, 다이얼로그 틀, 토스트, 스피너, 폼 컨트롤. 기존 `<dialog>`·Radix·`<button>`에 클래스만 입히고 동작은 바꾸지 않는다. 남은 툴팁 패딩 규칙을 지운다. 바뀐 e2e 고정값(`.kbd` opacity `app/e2e/projects-home.ts:86` 등)을 갱신한다. reduced-motion e2e 단계와 모달 위 모달 단계(Add Projects → Project Setup)를 추가한다.
-- 검증: `npm --prefix app run e2e` 최종 PASS. 그 안에서 `page.emulateMedia({ reducedMotion: "reduce" })` 아래 다이얼로그 열고 닫을 때 transform이 없고(기존 패턴 `app/e2e/runtime.ts:1747`), 모달 위 모달에서 포커스가 돌아오며, 캔버스 위 메뉴의 computed `backdrop-filter`가 `none`이 아니다. `nestedRadius` 기대값과 메뉴 행 실측 일치. 그다음 `/design-sync`로 `design/buzz-ds.html`의 컴포넌트 프레임(`buttons`부터 `focus-disabled`까지)과 맞춘다(구현 커밋 뒤 깨끗한 트리에서, design-sync가 만드는 커밋은 이 task에 속한다).
+- 검증: `npm --prefix app run e2e` 최종 PASS. 그 안에서 `page.emulateMedia({ reducedMotion: "reduce" })` 아래 다이얼로그 열고 닫을 때 transform이 없고(기존 패턴 `app/e2e/runtime.ts:1747`), 모달 위 모달에서 포커스가 돌아오며, 캔버스 위 메뉴의 computed `backdrop-filter`가 `none`이 아니다. `nestedRadius` 기대값과 메뉴 행 실측 일치. 그다음 `/design-sync`로 `design/buzz-ds.html`의 대표 프레임(`buttons`, `menu`, `tooltip`, `dialog-anatomy`, `forms`, `focus-disabled`)과 맞춘다(구현 커밋 뒤 깨끗한 트리에서, design-sync가 만드는 커밋은 이 task에 속한다).
 
 ── commit: `feat(app): restyle shared components` (+ `/design-sync` 커밋) ──
 
