@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { accentPlaces, contrastPairs, cssVarUsage, legacyAliases, nestedRadius, type ContrastPair, type SourceFile } from "./checks";
+import { accentPlaces, contrastPairs, cssVarUsage, edgeStripes, legacyAliases, nestedRadius, type ContrastPair, type SourceFile } from "./checks";
 
 const renderer = new URL("../", import.meta.url);
 
@@ -24,19 +24,29 @@ function only<T>(list: T[]): T {
 
 const tokensCss = () => readFileSync(new URL("tokens.css", renderer), "utf8");
 
-// Each allowed place is a selector prefix (or a TS file) from the design's violet rows;
-// every place found must start with one, and every one must be used.
-const violetAllowed = ['.side .row[aria-current="location"]', ".side .row:hover", ".comments-btn.primary.submit", "CommentPins.ts"];
+// The design's violet rows, as exact selectors (or a TS file): a descendant of an
+// allowed row is a new place and has to be listed here on purpose.
+const violetAllowed = [
+  ".side .row:hover",
+  '.side .row[aria-current="location"]',
+  '.side .row[aria-current="location"] :is(.glyph, .num, .d, .tw, .no-id)',
+  ".comments-btn.primary.submit",
+  "CommentPins.ts",
+];
 
 function compareAllowed(found: string[], allowed: string[]) {
   return {
-    unexpected: found.filter(place => !allowed.some(prefix => place.startsWith(prefix))),
-    missing: allowed.filter(prefix => !found.some(place => place.startsWith(prefix))),
+    unexpected: found.filter(place => !allowed.includes(place)),
+    missing: allowed.filter(place => !found.includes(place)),
   };
 }
 
 // Role pairs the light system must keep readable. Translucent backgrounds are
 // composited over both white and black by contrastPairs itself.
+// Non-text 3:1 covers what identifies a component: border-prominent, focus rings and pins.
+// Decorative hairlines (border-standard, about 1.2:1 on white) and text fields edged by their
+// inset fill (about 1.1:1) are left out on purpose: they follow the reference values and
+// the field shows its border-prominent edge once focused (decided 2026-10-26).
 const rolePairs: ContrastPair[] = [
   ...["--surface-panel", "--surface-popover", "--surface-inset", "--bg-app", "--surface-elevated-glass", "--surface-navigation-selected", "--affordance-floating-hover", "--affordance-subtle-hover", "--affordance-sidebar-hover"]
     .flatMap(bg => [{ fg: "--text-standard", bg, kind: "body" as const }, { fg: "--text-subtle", bg, kind: "body" as const }, { fg: "--text-metadata", bg, kind: "meta" as const }]),
@@ -50,8 +60,8 @@ const rolePairs: ContrastPair[] = [
   { fg: "--text-danger", bg: "--surface-panel", kind: "body" },
   { fg: "--text-warning", bg: "--surface-panel", kind: "body" },
   { fg: "--text-success", bg: "--surface-panel", kind: "body" },
-  // Tooltip and canvas dimension capsules share the prominent fill.
-  { fg: "--text-on-prominent", bg: "--affordance-prominent", kind: "body" },
+  // Tooltip and canvas dimension capsules share the prominent fill; pressed is the lightest step.
+  { fg: "--text-on-prominent", bg: "--affordance-prominent-pressed", kind: "body" },
   { fg: "--affordance-prominent", bg: "--surface-panel", kind: "nontext" },
   { fg: "--border-focus", bg: "--surface-panel", kind: "nontext" },
   { fg: "--border-focus", bg: "--surface-inset", kind: "nontext" },
@@ -162,7 +172,8 @@ describe("cssVarUsage", () => {
 
 describe("legacyAliases", () => {
   const all = ["bg", "panel", "panel-2", "raised", "line", "line-2", "text", "text-2", "text-3", "text-4", "accent", "accent-ink", "accent-soft", "accent-line", "board-bg", "board-dot", "ok", "warn", "err", "shadow-1", "shadow-2", "tl-red", "tl-yellow", "tl-green", "font-sans"];
-  const roles = ":root { --role: #fff; }";
+  // The first :root block is the palette; roles come after it.
+  const roles = ":root { --grey-1: #fff; }\n:root { --role: var(--grey-1); }";
   const aliases = (except: string[] = []) => `:root { ${all.filter(name => !except.includes(name)).map(name => `--${name}: var(--role);`).join(" ")} }`;
 
   test("accepts every legacy name as a var() alias of a role in the same file", () => {
@@ -178,16 +189,25 @@ describe("legacyAliases", () => {
       "--ok points to legacy name --panel",
     ]);
   });
+
+  test("reports an alias that skips the roles and points at a palette step", () => {
+    const css = `${roles}\n${aliases(["accent-ink"])}\n:root { --accent-ink: var(--grey-1); }`;
+    expect(legacyAliases(css)).toEqual(["--accent-ink points to palette step --grey-1"]);
+  });
 });
 
 describe("accentPlaces", () => {
-  test("lists every selector or TS file that reads a violet role or palette step", () => {
+  const tokens = `:root { --violet-9: #973be1; --grey-1: #fff; }
+    :root { --fill-accent: var(--violet-9); --fill-accent-hover: color-mix(in srgb, var(--fill-accent) 90%, black); --plain: var(--grey-1); }
+    :root { --legacy: var(--fill-accent); }`;
+
+  test("lists every selector or TS file whose var() chain reaches the violet palette", () => {
     const files: SourceFile[] = [
-      { path: "styles.css", text: '.side .row[aria-current="location"], .side .row[aria-current="location"]::before { background: var(--surface-sidebar-selected); }\n.side .row:hover { background: var(--affordance-sidebar-hover); }\n.plain { color: var(--text-standard); }\n@media (hover: hover) { .x:hover { color: var(--violet-9); } }' },
-      { path: "CommentPins.ts", text: "pin.style.background = 'var(--affordance-accent)';" },
-      { path: "Other.ts", text: "const x = 'var(--text-subtle)';" },
+      { path: "styles.css", text: '.side .row[aria-current="location"], .side .row[aria-current="location"]::before { background: var(--fill-accent); }\n.side .row:hover { background: var(--fill-accent-hover); }\n.plain { color: var(--plain); }\n@media (hover: hover) { .x:hover { color: var(--violet-9); } }' },
+      { path: "CommentPins.ts", text: "pin.style.background = 'var(--legacy)';" },
+      { path: "Other.ts", text: "const x = 'var(--plain)';" },
     ];
-    expect(accentPlaces(files)).toEqual([
+    expect(accentPlaces(files, tokens)).toEqual([
       '.side .row[aria-current="location"]',
       '.side .row[aria-current="location"]::before',
       ".side .row:hover",
@@ -197,11 +217,41 @@ describe("accentPlaces", () => {
   });
 
   test("treats @theme mappings as a place so violet never reaches shadcn names", () => {
-    expect(accentPlaces([{ path: "styles.css", text: "@theme inline { --color-primary: var(--affordance-accent); }" }])).toEqual(["@theme"]);
+    expect(accentPlaces([{ path: "styles.css", text: "@theme inline { --color-primary: var(--fill-accent); }" }], tokens)).toEqual(["@theme"]);
   });
 
   test("returns nothing when no violet role is read", () => {
-    expect(accentPlaces([{ path: "a.css", text: ".a { color: var(--accent); }" }])).toEqual([]);
+    expect(accentPlaces([{ path: "a.css", text: ".a { color: var(--plain); }" }], tokens)).toEqual([]);
+  });
+});
+
+describe("edgeStripes", () => {
+  test("reports thick or coloured start-side borders and inset stripes, with their line", () => {
+    const files: SourceFile[] = [{ path: "a.css", text: [
+      ".msg.error { border-left: 2px solid var(--border-danger); padding-left: 8px; }",
+      ".note { border-inline-start: 1px solid var(--text-warning); }",
+      ".card { box-shadow: inset 3px 0 0 var(--border-prominent), var(--shadow-xs); }",
+      ".pane { border-left-width: 2px; }",
+      ".tip { border-left-color: var(--border-focus); }",
+    ].join("\n") }];
+    expect(edgeStripes(files)).toEqual([
+      { path: "a.css", line: 1, selector: ".msg.error", declaration: "border-left: 2px solid var(--border-danger)" },
+      { path: "a.css", line: 2, selector: ".note", declaration: "border-inline-start: 1px solid var(--text-warning)" },
+      { path: "a.css", line: 3, selector: ".card", declaration: "box-shadow: inset 3px 0 0 var(--border-prominent), var(--shadow-xs)" },
+      { path: "a.css", line: 4, selector: ".pane", declaration: "border-left-width: 2px" },
+      { path: "a.css", line: 5, selector: ".tip", declaration: "border-left-color: var(--border-focus)" },
+    ]);
+  });
+
+  test("allows a 1px neutral divider, a cleared border and other sides", () => {
+    const files: SourceFile[] = [{ path: "a.css", text: [
+      ".dock { border-inline-start: 1px solid var(--border-standard); }",
+      ".split { border-left: 1px solid var(--border-prominent); }",
+      ".flat { border-left: 0; border-inline-start: none; }",
+      ".box { border: 2px solid var(--border-danger); border-top: 3px solid red; box-shadow: inset 0 0 0 1px var(--border-standard), inset 0 -1px 0 red; }",
+      ".scroll::-webkit-scrollbar { width: 8px; }",
+    ].join("\n") }, { path: "a.ts", text: "el.style.borderLeft = '4px solid red';" }];
+    expect(edgeStripes(files)).toEqual([]);
   });
 });
 
@@ -234,8 +284,12 @@ describe("renderer sources", () => {
   });
 
   test("accentPlaces: violet is read only by the allowed places", () => {
-    const found = accentPlaces(rendererSources().filter(file => file.path !== "tokens.css"));
+    const found = accentPlaces(rendererSources().filter(file => file.path !== "tokens.css"), tokensCss());
     expect(compareAllowed(found, violetAllowed)).toEqual({ unexpected: [], missing: [] });
+  });
+
+  test("edgeStripes: no message, notice, card or row is marked by a start-side stripe", () => {
+    expect(edgeStripes(rendererSources())).toEqual([]);
   });
 
   test("nestedRadius: floating menu rows derive their corner from the tokens", () => {
