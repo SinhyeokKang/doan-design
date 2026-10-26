@@ -286,16 +286,16 @@ code { font-family: inherit; }
 .mock { position: relative; height: 300px; border-radius: var(--radius-row); overflow: hidden; padding: 24px; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .mock.light { background: var(--mock-bg); color: var(--mock-ink); box-shadow: inset 0 0 0 1px var(--border-standard); }
 .mock.dark { background: var(--mock-dark-bg); color: var(--mock-dark-ink); }
-.mock.citrus { background: var(--mock-citrus-bg); color: var(--mock-citrus-ink); }
+.mock.orange { background: var(--mock-orange-bg); color: var(--mock-orange-ink); }
 .mock h5 { font-size: var(--type-label-size); line-height: var(--type-label-line-height); font-weight: var(--type-weight-medium); margin-bottom: 12px; }
 .mock .blk { border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
 .mock.light .blk { background: var(--mock-fill); }
 .mock.dark .blk { background: var(--mock-dark-fill); }
-.mock.citrus .blk { background: var(--mock-citrus-fill); }
+.mock.orange .blk { background: var(--mock-orange-fill); }
 .mock .cta { display: inline-block; border-radius: 8px; padding: 8px 14px; font-weight: var(--type-weight-medium); }
 .mock.light .cta { background: var(--mock-brand); color: var(--mock-brand-ink); }
 .mock.dark .cta { background: var(--mock-dark-ink); color: var(--mock-dark-bg); }
-.mock.citrus .cta { background: var(--mock-citrus-ink); color: var(--mock-citrus-bg); }
+.mock.orange .cta { background: var(--mock-orange-ink); color: var(--mock-orange-bg); }
 .mark { position: absolute; border: 1px solid var(--border-focus); box-shadow: 0 0 0 1px var(--surface-panel); pointer-events: none; }
 .mark.hover { border-style: dashed; }
 .mark.jump-highlight { border: 2px solid var(--border-focus); border-radius: 1px; box-shadow: 0 0 0 3px var(--affordance-backdrop-pressed); }
@@ -311,11 +311,11 @@ code { font-family: inherit; }
 
 <header class="intro">
 <h1>Design system — draft</h1>
-<p><b>Scope.</b> Feature <code>buzz-ds</code> (its design.md draft request, under the parent restyle feature). The light design system that replaces the dark, orange look: palette and roles from <code>tokens.css</code>, type, radius and elevation, the shared components (buttons, icon buttons, panel, tooltip, menu, popover, dialogs, toast, spinner, form controls, focus and disabled), the canvas overlay marks, the few places that carry the citrus accent, and the shared elements that several screens use. Screen layout (shell, header, sidebar metrics, onboarding surface, panel interiors) is not drawn here; the screen children of the parent restyle feature draw it.</p>
+<p><b>Scope.</b> Feature <code>buzz-ds</code> (its design.md draft request, under the parent restyle feature). The light design system that replaces the dark, orange look: palette and roles from <code>tokens.css</code>, type, radius and elevation, the shared components (buttons, icon buttons, panel, tooltip, menu, popover, dialogs, toast, spinner, form controls, focus and disabled), the canvas overlay marks, the few places that carry the orange accent, and the shared elements that several screens use. Screen layout (shell, header, sidebar metrics, onboarding surface, panel interiors) is not drawn here; the screen children of the parent restyle feature draw it.</p>
 <p><b>Target, not current.</b> Every frame shows what S3 (tasks A6–A8) will implement, not the app on main. The component rules repeat the classes of <code>app/src/renderer/ds/</code> (<code>doan-button</code>, <code>doan-icon-button</code>, <code>doan-floating</code>, <code>doan-menu-item</code>, <code>doan-tooltip</code>, <code>doan-dialog</code>, <code>doan-toast</code>, <code>doan-input</code>, <code>doan-checkbox</code>, <code>doan-kbd</code>, <code>doan-chip</code>, <code>doan-spinner</code>, <code>doan-panel</code>) with <code>data-ui-*</code> variants, so <code>/design-sync</code> can pair them by selector. Static states are drawn with draft-only helper classes (<code>is-hover</code>, <code>is-pressed</code>, <code>is-focus</code>, <code>is-highlighted</code>); the app reaches them through <code>:hover</code>, <code>:active</code>, <code>:focus-visible</code> and Radix <code>data-highlighted</code>.</p>
 <p><b>/design-sync compares.</b> A7 (shared components): <code>buttons</code>, <code>icon-button</code>, <code>panel</code>, <code>tooltip</code>, <code>menu</code>, <code>popover</code>, <code>dialog-sizes</code>, <code>dialog-anatomy</code>, <code>toast</code>, <code>spinner</code>, <code>forms</code>, <code>focus-disabled</code>. A8 (shared elements): <code>shared-project-setup</code>, <code>shared-add-projects</code>, <code>shared-first-prompt</code>, <code>shared-connection-rows</code>, <code>shared-error-details</code>. Each of these frames carries a black “design-sync” tag. <code>tokens-color</code>, <code>tokens-type</code> and <code>radius-elevation</code> are a reference read from <code>tokens.css</code>; <code>canvas-marks</code> and <code>accent-places</code> are checked by A6 (selector map, <code>accentPlaces</code>, <code>contrastPairs</code>) and the screen children, not by design-sync.</p>
 <p><b>New.</b> All 22 frames are new; nothing here is copied from a shipped screen's look. The shared elements keep their content, copy, structure and behaviour (copy taken from <code>ProjectSetupDialog.tsx</code>, <code>AddProjectsDialog.tsx</code>, <code>FirstPrompt.tsx</code> + <code>firstPromptView.ts</code>, <code>ConnectionRows.tsx</code> + <code>connectionRowView.ts</code> + <code>onboardingView.ts</code>, <code>ErrorDetails.tsx</code> and its hosts, <code>Toast.tsx</code> and its callers); only the look changes. Dashed yellow tags mark what the ds CSS does not have yet (A7 adds it).</p>
-<p><b>Decisions this draft follows.</b> Non-text 3:1 applies to <code>border-prominent</code>, focus rings and pins only; hairlines (<code>border-standard</code>) and fill-edged inputs are a documented exception (orch.md, 2026-10-26 user). Citrus appears only in the places of design.md's citrus table (frame <code>accent-places</code>). Dialog sizes compact / standard / wide / expanded: compact centred, the other three 8rem from the top (orch.md, R1). Tooltip and the canvas dimension label are the same prominent capsule, and the sidebar hover (citrus 2) is faint on white, both on purpose (design.md). <b>Conductor's call, for the user to confirm:</b> the size step of each shared dialog — Set up folder confirmation compact, Project Setup standard, Add Projects standard. Toasts stay one neutral floating toast with no type (Toast.tsx has none); an error reads by its sentence (conductor, 2026-10-26).</p>
+<p><b>Decisions this draft follows.</b> Non-text 3:1 applies to <code>border-prominent</code>, focus rings and pins only; hairlines (<code>border-standard</code>) and fill-edged inputs are a documented exception (orch.md, 2026-10-26 user). The accent is doan's own orange ramp: step 9 is <code>#ff915e</code>, derived from doan's former orange <code>#f0773a</code> at the same hue and lifted to the least lightness where black text on it clears the body contrast targets; the other steps follow the reference ramps' step structure (design.md, orch.md, 2026-10-26 user). The user confirms the ramp with this draft. Orange appears only in the places of design.md's orange table (frame <code>accent-places</code>). Dialog sizes compact / standard / wide / expanded: compact centred, the other three 8rem from the top (orch.md, R1). Tooltip and the canvas dimension label are the same prominent capsule, and the sidebar hover (orange 2) is faint on white, both on purpose (design.md). <b>Conductor's call, for the user to confirm:</b> the size step of each shared dialog — Set up folder confirmation compact, Project Setup standard, Add Projects standard. Toasts stay one neutral floating toast with no type (Toast.tsx has none); an error reads by its sentence (conductor, 2026-10-26).</p>
 <p><b>References.</b> Values and rules follow the reference design system recorded in docs/DESIGN.md (read from its local clone at the base commit for this draft, checked: tokens, overlays, materials, chips, forms, settings-group, sidebar navigation and focus rules). Values themselves are the variables of <code>app/src/renderer/tokens.css</code> (S1). Palette steps appear only as swatches in <code>tokens-color</code>; everything else reads roles, never the legacy aliases. Example canvas colours come from <code>design/mock.css</code>.</p>
 </header>
 
@@ -344,22 +344,22 @@ code { font-family: inherit; }
 <div class="sw"><i style="background: var(--neutral-scrim)"></i><b>neutral-scrim</b></div>
 </div>
 
-<h3 class="sub-head">Palette — citrus accent and status hues</h3>
+<h3 class="sub-head">Palette — orange accent and status hues</h3>
 <div class="swatches">
-<div class="sw"><i style="background: var(--citrus-1)"></i><b>citrus-1</b></div>
-<div class="sw"><i style="background: var(--citrus-2)"></i><b>citrus-2</b><span>sidebar hover</span></div>
-<div class="sw"><i style="background: var(--citrus-3)"></i><b>citrus-3</b></div>
-<div class="sw"><i style="background: var(--citrus-4)"></i><b>citrus-4</b><span>comment card</span></div>
-<div class="sw"><i style="background: var(--citrus-5)"></i><b>citrus-5</b></div>
-<div class="sw"><i style="background: var(--citrus-6)"></i><b>citrus-6</b></div>
-<div class="sw"><i style="background: var(--citrus-7)"></i><b>citrus-7</b></div>
-<div class="sw"><i style="background: var(--citrus-8)"></i><b>citrus-8</b></div>
-<div class="sw"><i style="background: var(--citrus-9)"></i><b>citrus-9</b><span>sidebar current, pin, submit</span></div>
-<div class="sw"><i style="background: var(--citrus-10)"></i><b>citrus-10</b><span>accent hover</span></div>
-<div class="sw"><i style="background: var(--citrus-11)"></i><b>citrus-11</b><span>pin rim</span></div>
-<div class="sw"><i style="background: var(--citrus-12)"></i><b>citrus-12</b><span>comment text</span></div>
-<div class="sw"><i style="background: var(--citrus-pressed)"></i><b>citrus-pressed</b></div>
-<div class="sw"><i style="background: var(--citrus-link)"></i><b>citrus-link</b></div>
+<div class="sw"><i style="background: var(--orange-1)"></i><b>orange-1</b></div>
+<div class="sw"><i style="background: var(--orange-2)"></i><b>orange-2</b><span>sidebar hover</span></div>
+<div class="sw"><i style="background: var(--orange-3)"></i><b>orange-3</b></div>
+<div class="sw"><i style="background: var(--orange-4)"></i><b>orange-4</b><span>comment card</span></div>
+<div class="sw"><i style="background: var(--orange-5)"></i><b>orange-5</b></div>
+<div class="sw"><i style="background: var(--orange-6)"></i><b>orange-6</b></div>
+<div class="sw"><i style="background: var(--orange-7)"></i><b>orange-7</b></div>
+<div class="sw"><i style="background: var(--orange-8)"></i><b>orange-8</b></div>
+<div class="sw"><i style="background: var(--orange-9)"></i><b>orange-9</b><span>sidebar current, pin, submit</span></div>
+<div class="sw"><i style="background: var(--orange-10)"></i><b>orange-10</b><span>accent hover and pressed</span></div>
+<div class="sw"><i style="background: var(--orange-11)"></i><b>orange-11</b><span>pin rim</span></div>
+<div class="sw"><i style="background: var(--orange-12)"></i><b>orange-12</b><span>comment text</span></div>
+<div class="sw"><i style="background: var(--orange-pressed)"></i><b>orange-pressed</b><span>same as 10</span></div>
+<div class="sw"><i style="background: var(--orange-link)"></i><b>orange-link</b><span>same as 11</span></div>
 <div class="sw"><i style="background: var(--red-9)"></i><b>red-9</b></div>
 <div class="sw"><i style="background: var(--amber-11)"></i><b>amber-11</b></div>
 </div>
@@ -793,8 +793,8 @@ code { font-family: inherit; }
 <span class="cta" style="position: relative">Continue<span class="mark" style="inset: -1px"><span class="dims">96 × 36</span></span></span>
 <div class="mark jump-highlight" style="left: 12px; right: 12px; top: 12px; bottom: 12px"></div>
 </div></div>
-<div><p class="tile-label"><b>Citrus-heavy design</b></p>
-<div class="mock citrus" data-doan-id="marks-citrus">
+<div><p class="tile-label"><b>Orange-heavy design</b></p>
+<div class="mock orange" data-doan-id="marks-orange">
 <h5>Sign in</h5>
 <div class="blk" style="position: relative">Email<span class="mark hover" style="inset: -1px"></span></div>
 <div class="blk">Password</div>
@@ -807,9 +807,9 @@ code { font-family: inherit; }
 <!-- ======================= accent-places ======================= -->
 <section class="frame" data-doan-frame="accent-places" data-doan-title="Accent places">
 <div class="flabel"><h2>Accent places</h2><span class="tag">checked in A6 (accentPlaces, contrastPairs)</span></div>
-<p class="fnote">Citrus appears only here: the sidebar's current-location row and tree-row hover, comment pins, the comment submit button and the comment card role. Everything else is neutral. Row metrics follow the reference sidebar (28px, 16px corner, 2/6/2/8px padding, 6px gap); the project-list child applies them.</p>
+<p class="fnote">Orange appears only here: the sidebar's current-location row and tree-row hover, comment pins, the comment submit button and the comment card role. Everything else is neutral. Row metrics follow the reference sidebar (28px, 16px corner, 2/6/2/8px padding, 6px gap); the project-list child applies them.</p>
 <div class="tiles c3">
-<div><p class="tile-label"><b>Sidebar rows</b> — default · hover (citrus 2, faint on white on purpose) · current location (citrus 9)</p>
+<div><p class="tile-label"><b>Sidebar rows</b> — default · hover (orange 2, faint on white on purpose) · current location (orange 9)</p>
 <div class="stage on-panel" style="padding: 8px">
 <div class="nav" data-doan-id="accent-sidebar">
 <div class="side-row"><span class="glyph">▾</span><span class="g">checkout</span><span class="num">4</span></div>
@@ -825,11 +825,11 @@ code { font-family: inherit; }
 <div><p class="tile-label"><b>Comment card role</b> — defined here, applied by the comments child</p>
 <div class="stage on-panel"><div class="comment-card" data-doan-id="accent-comment"><b>Me</b>Make the primary button full width on mobile.</div></div></div>
 </div>
-<p class="tile-label" style="margin-top: 24px"><b>Comment pins</b> — default and keyboard focus on dark, light and citrus-heavy designs. Citrus fill, 1px <code>border-pin</code> rim for light designs, 2px white halo for dark ones; focus adds a 2px <code>border-focus</code> ring over a 4px white halo.</p>
+<p class="tile-label" style="margin-top: 24px"><b>Comment pins</b> — default and keyboard focus on dark, light and orange-heavy designs. Orange fill, 1px <code>border-pin</code> rim for light designs, 2px white halo for dark ones; focus adds a 2px <code>border-focus</code> ring over a 4px white halo.</p>
 <div class="tiles c3">
 <div class="mock dark" style="height: 120px" data-doan-id="pins-dark"><span class="pin" style="left: 35%; top: 50%">2</span><span class="pin is-focus" style="left: 65%; top: 50%">12</span></div>
 <div class="mock light" style="height: 120px" data-doan-id="pins-light"><span class="pin" style="left: 35%; top: 50%">2</span><span class="pin is-focus" style="left: 65%; top: 50%">12</span></div>
-<div class="mock citrus" style="height: 120px" data-doan-id="pins-citrus"><span class="pin" style="left: 35%; top: 50%">2</span><span class="pin is-focus" style="left: 65%; top: 50%">12</span></div>
+<div class="mock orange" style="height: 120px" data-doan-id="pins-orange"><span class="pin" style="left: 35%; top: 50%">2</span><span class="pin is-focus" style="left: 65%; top: 50%">12</span></div>
 </div>
 </section>
 
