@@ -816,9 +816,11 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
       page.doc.activeElement = button; f.panel();
       f.mutate.mockImplementationOnce(async (r: CommentRequest) => ({ ok: true, identity: r, value: { state: "saved" } }));
       listed(ids.filter(id => id !== leaving).map(open));
-      // The press on the card's own button is not focus leaving the card.
+      // The press on the card's own button is not focus leaving the card; no
+      // render comes between it and the click.
+      const props = f.panel().props;
       press(button);
-      f.panel().props.onComment("resolve", leaving);
+      props.onComment("resolve", leaving);
       page.doc.activeElement = page.body; f.panel();
       await vi.waitFor(() => expect(f.session.statusLine).not.toBeNull());
       page.cards.splice(page.cards.indexOf(card), 1);

@@ -810,11 +810,12 @@ describe("editing a resolved comment and replacing a missing target (revision-re
   });
   // R-E E-2: the confirmation belongs to the replacement; a newer intent during
   // the post-save read ends it (POSTMORTEM 2026-10-23 "Pin completion outlived the guarded intent").
-  async function lateRead() {
-    const f = await opened([missing]);
+  async function lateRead(others: Comment[] = [], before?: (f: Awaited<ReturnType<typeof opened>>) => Promise<void>) {
+    const f = await opened([missing, ...others]);
+    await before?.(f);
     await f.session.commentInstead("c1");
     let release = () => {}, asked = false;
-    f.api.commentsList.mockImplementationOnce(r => { asked = true; return new Promise(resolve => { release = () => resolve(reply<CommentList>(r, { project: 7, canvasHash: "h", comments: [missing, created], warnings: [] })); }); });
+    f.api.commentsList.mockImplementationOnce(r => { asked = true; return new Promise(resolve => { release = () => resolve(reply<CommentList>(r, { project: 7, canvasHash: "h", comments: [missing, ...others, created], warnings: [] })); }); });
     const saving = f.session.save();
     await vi.waitFor(() => expect(asked).toBe(true));
     return { ...f, saving, release: () => { release(); return saving; } };
@@ -825,11 +826,38 @@ describe("editing a resolved comment and replacing a missing target (revision-re
     await release();
     expect(s.draft.draft?.body).toBe("New intent"); expect(s.deleteConfirmation).toBeNull();
   });
+  test("a new draft still beginning when the late read answers gets no delete confirmation", async () => {
+    const { session: s, api, release } = await lateRead();
+    let begun = () => {};
+    api.commentsBegin.mockImplementationOnce(r => new Promise(resolve => { begun = () => resolve(reply<BeginResult>(r, { origin: "opaque", project: 7, generation: "loader1", hash: "h", target: {} })); }));
+    const starting = s.create("canvas");
+    await release();
+    expect(s.deleteConfirmation).toBeNull();
+    begun(); await starting;
+    expect(s.draft.draft?.origin.kind).toBe("create"); expect(s.deleteConfirmation).toBeNull();
+  });
   test("another delete confirmation opened while the post-save read is late stays", async () => {
     const { session: s, release } = await lateRead();
     await s.mutate("delete", "c1");
     await release();
     expect(s.deleteConfirmation?.replacedOn).toBeUndefined(); expect(s.deleteConfirmation?.comment.comment).toBe("c1");
+  });
+  test("a card editor opened while the post-save read is late gets no delete confirmation over it", async () => {
+    const { session: s, release } = await lateRead();
+    s.edit("c1");
+    await release();
+    expect(s.draft.draft?.origin.kind).toBe("edit"); expect(s.deleteConfirmation).toBeNull();
+  });
+  test("a reviewed card change confirmed while the post-save read is late gets no delete confirmation after it", async () => {
+    const other: Comment = { ...c, comment: "c3", body: "Other" };
+    const { session: s, release } = await lateRead([other], async ({ session, api }) => {
+      api.commentsMutate.mockImplementationOnce(async r => changed(r));
+      await session.mutate("resolve", "c3"); await session.read(true, "c3");
+    });
+    expect(s.mutations.get("c3")?.status).toBe("reviewed");
+    await s.confirmCard("c3");
+    await release();
+    expect(s.deleteConfirmation).toBeNull();
   });
   test("a late post-save read with nothing newer still asks", async () => {
     const { session: s, release } = await lateRead();

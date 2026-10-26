@@ -95,8 +95,11 @@ export class CommentsSession {
   private project = 0;
   private pending: MutationRequest | null = null;
   private cardPending = new Map<string, MutationRequest>();
-  // The create draft written to replace a comment whose target is gone.
-  private replacing: { draft: string; comment: string } | null = null;
+  // The create draft written to replace a comment whose target is gone, with
+  // that comment as the person saw it: Delete original expects that state, so
+  // a change made since goes through conflict review (R-E E-1). It lasts until
+  // the post-save read; a newer draft or card action ends it (R-E E-2).
+  private replacing: { draft: string; comment: Comment } | null = null;
   private destination: ((allowed: boolean) => void) | null = null;
   constructor(private api: Api, private changed: () => void) {}
   private emit() { this.changed(); }
@@ -211,8 +214,9 @@ export class CommentsSession {
     }
     this.emit();
   }
-  async create(scope: "canvas" | "selection", body = "", replaces?: string) {
+  async create(scope: "canvas" | "selection", body = "", replaces?: Comment) {
     if (!this.identity || !this.list || this.draft.draft || this.busy || this.beginning || this.author.status !== "ready") return;
+    this.replacing = null;
     const begin = ++this.beginRevision, request = this.request();
     this.beginning = true; this.createError = null; this.emit();
     try {
@@ -256,12 +260,13 @@ export class CommentsSession {
   // body anew on the selection and then decides about the original.
   async commentInstead(id: string) {
     const comment = this.list?.comments.find(c => c.comment === id);
-    if (comment?.status === "open") await this.create("selection", comment.body, id);
+    if (comment?.status === "open") await this.create("selection", comment.body, structuredClone(comment));
   }
   edit(id: string) {
     if (!this.identity || !this.list || this.draft.draft || this.busy || this.author.status !== "ready") return;
     const comment = this.list.comments.find(c => c.comment === id);
     if (!comment) return;
+    this.replacing = null;
     this.project = this.list.project; this.draftIdentity = { ...this.identity }; this.origin = null;
     this.target = structuredClone(comment.target);
     this.draft = beginDraft(crypto.randomUUID(), { kind: "edit", root: this.identity.root, canvas: this.identity.canvas, comment: id, expected: expectedComment(comment) }, comment.body);
@@ -365,8 +370,7 @@ export class CommentsSession {
     if (this.uncertainTransition) this.cancelDestination();
     if (status.state === "saved") {
       const origin = this.draft.draft.origin, rev = this.revision, target = structuredClone(this.target);
-      const replacing = this.replacing?.draft === this.draft.draft.id ? this.replacing.comment : null;
-      if (replacing !== null) this.replacing = null;
+      const replacing = this.replacing?.draft === this.draft.draft.id ? this.replacing : null;
       this.draft = transitionDraft(this.draft, { type: "saved", request: request.requestID, draft: this.draft.draft.id, outcome: "saved" }).state;
       this.pending = null; this.saveView = { status: "idle" };
       await this.api.setCommentDraftGuard(false);
@@ -375,8 +379,11 @@ export class CommentsSession {
       await this.read();
       this.savedComment = status.comment ?? (origin.kind === "edit" ? origin.comment : null);
       if (rev === this.revision && origin.kind === "edit" && request.intent.type === "edit-reopen") this.showStatus(origin.comment, "reopen", true);
-      const original = rev === this.revision && replacing !== null ? this.list?.comments.find(c => c.comment === replacing) : undefined;
-      if (original && this.list) this.deleteConfirmation = { request: { ...this.request(), project: this.list.project, intent: { type: "delete", comment: original.comment, expected: expectedComment(original) } }, comment: structuredClone(original), replacedOn: target };
+      const asking = replacing !== null && this.replacing === replacing;
+      if (asking) this.replacing = null;
+      if (asking && rev === this.revision && this.list?.comments.some(c => c.comment === replacing.comment.comment)) {
+        this.deleteConfirmation = { request: { ...this.request(), project: this.list.project, intent: { type: "delete", comment: replacing.comment.comment, expected: expectedComment(replacing.comment) } }, comment: replacing.comment, replacedOn: target };
+      }
     } else if (status.recovery === "child-exit-required") this.saveView = { status: "recovery-blocked", message: status.error ?? "Confirm externally that the directory child exited, then restart the app." };
     else this.saveView = { status: status.state === "absent" ? "retry-original" : "unknown" };
     if (status.state !== "saved") this.cancelDestination();
@@ -401,6 +408,7 @@ export class CommentsSession {
   async mutate(type: "delete" | "resolve" | "reopen", id: string) {
     if (!this.identity || !this.list || this.busy || this.draft.draft || this.author.status !== "ready") return;
     const c = this.list.comments.find(c => c.comment === id); if (!c) return;
+    this.replacing = null;
     const request: MutationRequest = { ...this.request(), project: this.list.project, intent: { type, comment: id, expected: expectedComment(c) } };
     if (type === "delete") { this.deleteConfirmation = { request, comment: structuredClone(c) }; this.emit(); return; }
     this.cardPending.set(id, request); await this.cardSubmit(id, request, false);
@@ -415,6 +423,7 @@ export class CommentsSession {
   async confirmCard(id: string) {
     const state = this.mutations.get(id), previous = this.cardPending.get(id);
     if (state?.status !== "reviewed" || !previous || !this.list || !same(previous, this.identity) || previous.intent.type === "create" || previous.intent.type === "edit" || previous.intent.type === "edit-reopen") return;
+    this.replacing = null;
     const request: MutationRequest = { ...this.request(), project: this.list.project, intent: { type: previous.intent.type, comment: id, expected: expectedComment(state.latest) } };
     if (request.intent.type === "delete") { this.deleteConfirmation = { request, comment: structuredClone(state.latest) }; this.emit(); return; }
     this.cardPending.set(id, request); await this.cardSubmit(id, request, false);

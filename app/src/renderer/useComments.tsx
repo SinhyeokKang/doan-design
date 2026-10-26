@@ -246,6 +246,18 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   // (canvas, selection, filter) or focus they moved elsewhere is left alone.
   const held = useRef<{ comment: string; order: string[]; context: string } | null>(null);
   const listContext = JSON.stringify([root, canvas, selected, filter.scope, filter.status]);
+  // A press outside the card is the person moving focus away, though it may
+  // leave focus on <body> and no render follows before an agent's change
+  // removes the card (R-E E-3). A press on the card's own button is not.
+  useEffect(() => {
+    const press = (event: Event) => {
+      const last = held.current, target = event.target as Node | null;
+      const cards = Array.from(panelElement.current?.querySelectorAll<HTMLElement>("article.comments-card") ?? []);
+      if (last && !cards.some(card => card.dataset.comment === last.comment && card.contains(target))) held.current = null;
+    };
+    window.addEventListener("pointerdown", press, true);
+    return () => window.removeEventListener("pointerdown", press, true);
+  }, []);
   useEffect(() => {
     const cards = Array.from(panelElement.current?.querySelectorAll<HTMLElement>("article.comments-card") ?? []);
     const ids = cards.map(card => card.dataset.comment ?? "");
