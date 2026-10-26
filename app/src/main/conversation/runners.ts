@@ -20,18 +20,23 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
   let startingTurn = false; const queued: unknown[] = [];
   let group: OwnedGroup | undefined, sessionId = input.sessionId ?? "", activeTurn = "", buffer = "", dead = false;
   const write = (value: unknown) => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(JSON.stringify(value) + "\n"); };
-  const dispatcher = new CodexDispatcher(write, emit, () => { emit({ type: "turn.failed", code: "session_unavailable" }); void group?.stop(); });
+  let protocolFailed = false;
+  const dispatcher = new CodexDispatcher(write, emit, () => failProtocol());
+  const failProtocol = () => {
+    if (protocolFailed) return; protocolFailed = true;
+    emit({ type: "turn.failed", code: "session_unavailable" }); dispatcher.close(); void group?.stop();
+  };
   const decoder = new StringDecoder("utf8");
   child.stdout.on("data", (bytes: Buffer) => {
     buffer += decoder.write(bytes);
-    if (buffer.length > 4 * 1024 * 1024) { dispatcher.close(); void group?.stop(); return; }
+    if (buffer.length > 4 * 1024 * 1024) { failProtocol(); return; }
     let end: number;
     while ((end = buffer.indexOf("\n")) >= 0) {
       const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
-      try { const raw: unknown = JSON.parse(line); if (startingTurn && object(raw) && typeof raw.method === "string") { if (queued.length >= 4096) throw new Error("Protocol queue limit"); queued.push(raw); } else dispatcher.receive(raw); } catch { dispatcher.close(); void group?.stop(); }
+      try { const raw: unknown = JSON.parse(line); if (startingTurn && object(raw) && typeof raw.method === "string") { if (queued.length >= 4096) throw new Error("Protocol queue limit"); queued.push(raw); } else dispatcher.receive(raw); } catch { failProtocol(); }
     }
   });
-  child.stderr.resume(); child.stdin.on("error", () => { dispatcher.close(); void group?.stop(); });
+  child.stderr.resume(); child.stdin.on("error", () => failProtocol());
   child.once("exit", () => { dead = true; dispatcher.close(); group?.childExited(); });
   child.once("error", () => { dead = true; dispatcher.close(); if (!child.pid) exited(); else group?.childExited(); });
   if (child.pid) {
@@ -52,7 +57,7 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
       activeTurn = turnId; startingTurn = true;
       let result: unknown;
       try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }] }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
-      if (!object(result) || !object(result.turn) || typeof result.turn.id !== "string") throw new Error("session_unavailable");
+      if (!object(result) || !object(result.turn) || typeof result.turn.id !== "string") { failProtocol(); throw new Error("session_unavailable"); }
       activeTurn = result.turn.id; dispatcher.begin({ root: input.cwd, sessionId, turnId: activeTurn });
       startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw);
     },
