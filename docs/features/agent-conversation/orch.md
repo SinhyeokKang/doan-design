@@ -116,3 +116,5 @@
 - E는 fake Claude가 비JSON stdout 한 줄 뒤 살아 있으면 15초 내 실패가 없는 관찰을 보고했다. 지휘자가 설치된 SDK 0.3.310의 ProcessTransport.readMessages에서 parse 실패 시 Non-JSON stdout 로그 후 continue하는 코드를 확인했다. design에는 15초 턴 제한·SDK raw parser 중복 구현 계약이 없으므로 지휘자의 E brief 기대를 정정했다. 원래 실패 관찰은 보존하고 Claude는 잡음 뒤 정상 응답·잡음만 있을 때 중단/Quit 정리를 검증한다. 직접 파싱하는 Codex malformed protocol 실패와 실제 프로세스 종료 실패 요구는 유지한다.
 
 - F-A4 (`task_2866a6ed2250`, `ctx_d274817aa20d`)는 `48821b8`, `a844706`으로 Codex transport 종료 시 dispatcher terminal/정리를 즉시 시작하고 그룹 소멸 시에만 소유권을 해제하도록 수정했다. focused 81개·typecheck 통과 보고와 diff를 지휘자가 E 재현에 대조해 통합했다. release 완료. E에 두 커밋 적용·재빌드·종료/중단/권한/cleanup의 실제 Electron 재검증을 요청했다.
+
+- E (`task_1c62e9b1672e`, `ctx_34515353797e`)는 자체 3커밋 `4bc4878`, `ad675e0`, `d5ea88a`를 제출했다. 최종 실제 Electron fake 대화 suite PASS, 하네스 30개·typecheck·build 통과와 소유 그룹/자식 각각 36개 부재를 보고했다. 실제 Claude/Codex 동일 세션 이어받기 관측, 최초 Codex 정책 실험 실패, 별도 새 세션 승인 관측을 구분해 인계했다. 전체 통합·실제 agent-eval은 남는다. E 터미널 release 완료. R-E는 Astra medium으로 하네스의 거짓 양성·상태 보존·종료 및 실제 관측 근거를 독립 검토한다. 판단이 필요한 검증 경계이므로 이 모델을 선택하며 high는 쓰지 않는다. R-E에 단독 runtime/test 슬롯을 배정한다.
