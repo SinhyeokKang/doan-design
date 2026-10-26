@@ -18,6 +18,7 @@
 | 2026-10-26 | R1의 🟡1(다이얼로그 상단 8rem), 🟡2(`--raised` 등 남은 별칭의 역할 대응), 🟡3 반영, ⚪1(팔레트를 가리키는 별칭), ⚪6(Buzz 주석을 바꿔 쓴 주석)은 B3 brief에 넣는다. S1 파일이지만 A6·A7이 같은 파일을 다시 고치므로 수정 라운드를 따로 두지 않는다 | 지휘자 판단 — 중간 상태는 부모 공통 결정 12로 허용, 배포 없음 |
 | 2026-10-26 | 공유 다이얼로그 크기: SetUpFolderConfirm(`.ob-dialog` 확인) compact 가운데, ProjectSetupDialog·AddProjectsDialog standard 상단 8rem. 초안 확인에서 사용자가 바꿀 수 있다 | 지휘자 판단 — B2 질문, compact는 짧은 확인, standard는 폼·목록 |
 | 2026-10-26 | 토스트는 종류(type)를 새로 만들지 않는다. 성공·오류·실행 취소를 같은 무채색 floating 토스트로 그리고 문구로만 구분한다 | 지휘자 판단 — spec '내용과 동작은 그대로' |
+| 2026-10-26 | 초안은 디자인 시스템 결정을 확인하는 대표 프레임 10개만 그린다(design.md '초안 요청'). 나머지 프레임과 공유 요소 초안은 각 화면 자식 feature가 구체화한다. A8은 `/design-sync` 없이 e2e로 확인한다 | 사용자 |
 | 2026-10-26 | A10(결론 승격과 `docs/features/buzz-ds/` 삭제)은 지휘자가 통합 뒤 직접 한다 | orchestrate 스킬 §5 |
 
 ## batch 표
@@ -26,7 +27,7 @@
 |---|---|---|---|---|---|---|
 | B1 | S1 = A1~A4 | `app/src/renderer/ds/`(새로), `app/src/renderer/tokens.css`, `styles.css`·`settings.css`의 `color-scheme`·`@import`·`@theme`, `app/src/main/index.ts`의 `themeSource`·`backgroundColor`와 그 테스트, 움직인 e2e 고정값 | 없음 | Opus high — APCA 식 구현, 토큰 역할 설계, 캔버스 iframe 색 선호 확인처럼 판단이 많고 틀리면 이후 모든 자식이 흔들린다 | tasks.md A1~A4 검증 전부(`npm --prefix app test`, typecheck, build, e2e 최종 PASS, `doan check --repo .` 정의되지 않은 변수 0, `dev-css.mjs`) | 통합(3572410·c8bef11·5198670·7032c32). e2e 최종 PASS 미검증(아래) |
 | R1 | B1 리뷰 | 읽기 전용, `.scratch/review-B1.md` | B1 | Opus high — 토큰 구조와 대비 계산 검토 | `/code-review` 보고, 🔴 0 | 완료 — 🔴 0 🟡 3 |
-| B2 | S2 = A5 | `design/buzz-ds.html`만 | B1 통합 | Opus medium — 프레임 22개 초안, 컨벤션은 정해져 있고 값은 S1 토큰에서 온다 | `doan check --repo .`에서 `design/buzz-ds.html` 오류 0, `doan ls --json`의 프레임 id가 '초안 요청'과 같음. 지휘자 초안 검토 → 사용자 확인 | 대기 |
+| B2 | S2 = A5 | `design/buzz-ds.html`만 | B1 통합 | Opus medium — 대표 프레임 10개 초안(처음 22개에서 사용자가 줄임), 컨벤션은 정해져 있고 값은 S1 토큰에서 온다 | `doan check --repo .`에서 `design/buzz-ds.html` 오류 0, `doan ls --json`의 프레임 id가 '초안 요청'과 같음. 지휘자 초안 검토 → 사용자 확인 | 대기 |
 | B3 | S3 = A6~A8 | `app/src/renderer/**`(styles·settings·connectionRows CSS, `ds/`, 공용·공유 컴포넌트 TSX, `CommentPins.ts`), `app/e2e/*`, `/design-sync` 산출물. `design/` 초안은 고치지 않는다 | B2 사용자 확인 | Opus high — 셀렉터 60여 줄 대응, 공용 컴포넌트, 모션·포커스, design-sync 실측 | tasks.md A6~A8 검증 전부, `/design-sync` 두 번 | 대기 |
 | R3 | B3 리뷰 | 읽기 전용, `.scratch/review-B3.md` | B3 | Opus high — 넓은 CSS 변경과 cascade 함정 | `/code-review` 보고, 🔴 0 | 대기 |
 | B4 | S4 = A9 | `docs/DESIGN.md`만 | B3 통합 | Opus medium — 실측값 정리와 'UX audit recovery update' 재측정 | `grep -c 'buzz-ds 이전' docs/DESIGN.md` > 0, 절 위치, `verify.mjs --runtime` 통과 | 대기 |
