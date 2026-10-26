@@ -773,9 +773,24 @@ it.each(["new guard", "binding change"])("Y3 cancels old pin panel effects after
       h.reply(1, "a");
       answer(true); await pending;
       expect(h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "select-comment").at(-1)).toMatchObject({ node: "b", seq: 2 });
-      h.select(2);
+      h.select(2, { answer: "select-comment" });
       expect(h.open).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ node: "b", originalTarget: { frame: "b" } }));
     }
+  } finally { h.controller.dispose(); }
+});
+
+// R-F F-1, shared with locate: only the canvas's answer to select-comment opens the pin's comments.
+it("does not open a pin's comments for a manual pick that took its seq before the command arrived", async () => {
+  const h = pinHarness();
+  try {
+    await h.controller.activatePin("a");
+    expect(h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "select-comment").at(-1)).toMatchObject({ node: "a", seq: 1 });
+    h.select(1);
+    expect(h.state().selection.element.doanId).toBe("cta");
+    expect(h.open).not.toHaveBeenCalled();
+    await h.controller.activatePin("a");
+    h.select(2, { answer: "select-comment" });
+    expect(h.open).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ node: "a" }));
   } finally { h.controller.dispose(); }
 });
 
@@ -1854,7 +1869,7 @@ describe("locate and jump to a comment's node", () => {
       expect(h.controller.currentView().scale).toBe(before.scale);
       expect(h.markOf("jump-highlight")?.hidden).toBe(false);
       expect(h.posted()).toEqual([{ type: "select-anchor", seq: 1, doanId: "cta", selector: '[data-doan-id="cta"]' }]);
-      h.select(1);
+      h.select(1, { answer: "select-anchor" });
       expect(h.state().selection.element.doanId).toBe("cta");
       expect(h.state().located).toBe(true);
       expect(h.open).not.toHaveBeenCalled();
@@ -1993,10 +2008,31 @@ describe("locate and jump to a comment's node", () => {
       expect(h.state().located).toBe(false);
       h.controller.locate("n1", h.snapshot().lookup.generation, open);
       // The answer may name the target differently from the stored one.
-      h.select(1, { target: { ...h.target, element: { selector: "section > div > span", html: "<span>x</span>" } } });
+      h.select(1, { answer: "select-anchor", target: { ...h.target, element: { selector: "section > div > span", html: "<span>x</span>" } } });
       expect(h.state().located).toBe(true);
       // The person's next pick raises seq in the canvas.
       h.select(2);
+      expect(h.state().located).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  // R-F F-1: a click that reaches the canvas before the command takes its seq,
+  // and the canvas then drops the command as stale.
+  it("does not mark a manual pick that took the locate's seq before the command arrived", () => {
+    const h = locateHarness();
+    try {
+      h.controller.locate("n1", h.snapshot().lookup.generation, open);
+      h.select(1, { target: { ...h.target, element: { selector: "#other", html: "<div id=other></div>" } } });
+      expect(h.state().selection.element.selector).toBe("#other");
+      expect(h.state().located).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("marks only an answer to select-anchor, not one to another command at that seq", () => {
+    const h = locateHarness();
+    try {
+      h.controller.locate("n1", h.snapshot().lookup.generation, open);
+      h.select(1, { answer: "select-comment" });
       expect(h.state().located).toBe(false);
     } finally { h.controller.dispose(); }
   });
@@ -2005,7 +2041,7 @@ describe("locate and jump to a comment's node", () => {
     const h = locateHarness();
     try {
       h.controller.locate("n1", h.snapshot().lookup.generation, open);
-      h.receive({ type: "select", seq: 1, target: null });
+      h.receive({ type: "select", seq: 1, target: null, answer: "select-anchor" });
       expect(h.state().located).toBe(false);
       h.select(2);
       expect(h.state().located).toBe(false);
@@ -2034,7 +2070,7 @@ describe("locate and jump to a comment's node", () => {
       expect(h.state().located).toBe(false);
       h.reply("doc2");
       h.controller.locate("n1", h.snapshot().lookup.generation, open);
-      h.select(2);
+      h.select(2, { answer: "select-anchor" });
       expect(h.state().located).toBe(true);
       h.controller.command("reload");
       expect(h.state().located).toBe(false);
@@ -2056,7 +2092,7 @@ describe("locate and jump to a comment's node", () => {
     const h = locateHarness();
     try {
       h.controller.locate("n1", h.snapshot().lookup.generation, open);
-      h.select(1);
+      h.select(1, { answer: "select-anchor" });
       expect(h.state().located).toBe(true);
       h.receive({ type: "clear", seq: 2 });
       expect(h.state().located).toBe(false);

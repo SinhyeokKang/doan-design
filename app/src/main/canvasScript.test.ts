@@ -1051,7 +1051,7 @@ describe("canvasScript messages from the renderer", () => {
     expect(ofType(canvas, "select")[0]).toMatchObject({ seq: 1, target: { element: { doanId: "dup", selector: "body > p:nth-of-type(2)" } } });
     canvas.advance(1000);
     canvas.fromParent({ type: "select-anchor", seq: 2, selector: "!bad" });
-    expect(ofType(canvas, "select")[1]).toEqual({ type: "select", href: HREF, seq: 2, viewport: 150, target: null });
+    expect(ofType(canvas, "select")[1]).toEqual({ type: "select", href: HREF, seq: 2, viewport: 150, target: null, answer: "select-anchor" });
   });
 
   test("select-anchor with only a frame id selects that frame", () => {
@@ -1069,6 +1069,29 @@ describe("canvasScript messages from the renderer", () => {
     canvas.fromParent({ type: "clear", seq: 1 });
     canvas.fromParent({ type: "select-anchor", seq: 2, frame: "intro", extra: "ignored" });
     expect(ofType(canvas, "select").map((m) => [m.seq, (m.target as { tag: string }).tag])).toEqual([[1, "span"], [2, "section"]]);
+  });
+
+  test("marks only the answer to a select-anchor, never a click that took its seq first", () => {
+    const now = node("p", { "data-doan-id": "now" });
+    const later = node("p", { "data-doan-id": "late" });
+    const body = node("body", {}, [now]);
+    const canvas = fakeCanvas({ readyState: "loading", body });
+    canvas.ready();
+    click(canvas, now);
+    canvas.fromParent({ type: "select-anchor", seq: 1, doanId: "now" });
+    canvas.fromParent({ type: "select-anchor", seq: 2, doanId: "now" });
+    canvas.fromParent({ type: "select-anchor", seq: 3, doanId: "late" });
+    body.children.push(later);
+    later.parentElement = body;
+    canvas.trigger("MutationObserver");
+    canvas.runFrame();
+    canvas.fromParent({ type: "select-anchor", seq: 4, doanId: "never" });
+    canvas.advance(1000);
+    canvas.document.readyState = "complete";
+    canvas.trigger("load");
+    click(canvas, now);
+    expect(ofType(canvas, "select").map((m) => [m.seq, m.answer])).toEqual([[1, undefined], [2, "select-anchor"], [3, "select-anchor"], [4, "select-anchor"], [5, undefined]]);
+    expect(ofType(canvas, "select")[3]).toMatchObject({ target: null });
   });
 
   test("ignores messages from anything but the parent and malformed commands", () => {
@@ -1100,7 +1123,7 @@ describe("canvasScript messages from the renderer", () => {
     expect(ofType(canvas, "select")).toHaveLength(1);
     canvas.document.readyState = "complete";
     canvas.trigger("load");
-    expect(ofType(canvas, "select")[1]).toEqual({ type: "select", href: HREF, seq: 2, viewport: 150, target: null });
+    expect(ofType(canvas, "select")[1]).toEqual({ type: "select", href: HREF, seq: 2, viewport: 150, target: null, answer: "select-anchor" });
   });
 
   test("pick-frame selects the frame at that index only when its id matches", () => {
@@ -1155,9 +1178,11 @@ describe("comment anchors", () => {
     canvas.runFrame();
     expect(messages().filter(p => p.type === "anchors")).toHaveLength(before + 1);
     canvas.fromParent({ type: "select-anchor", seq: 1, selector: ".child" });
-    expect(messages().filter(p => p.type === "select").at(-1)?.seq).toBe(1);
+    expect(messages().filter(p => p.type === "select").at(-1)).toMatchObject({ seq: 1, answer: "select-anchor" });
     canvas.fromParent({ type: "select-comment", document, generation: 1, request: 1, seq: 2, node: reply?.results[3]?.candidates.selector?.[0] });
-    expect(messages().filter(p => p.type === "select").at(-1)).toMatchObject({ seq: 2, target: { tag: "body", element: { selector: "body" } } });
+    expect(messages().filter(p => p.type === "select").at(-1)).toMatchObject({ seq: 2, answer: "select-comment", target: { tag: "body", element: { selector: "body" } } });
+    canvas.fromParent({ type: "select-comment", document, generation: 1, request: 1, seq: 3, node: "missing" });
+    expect(messages().filter(p => p.type === "select").at(-1)).toEqual({ type: "select", href: expect.any(String), seq: 3, viewport: expect.any(Number), target: null, answer: "select-comment" });
   });
 });
 
