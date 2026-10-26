@@ -20,7 +20,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 모든 자식 feature가 따른다. `buzz-ds`가 main에 들어간 뒤로는 PRODUCT §7이 정본이고, 이 목록은 요약이다.
 
 1. **테마**는 라이트 단일이다. 다크 전용 결정을 대체한다.
-2. **색**: 주요 버튼은 무채색이다. 액센트는 doan의 기존 오렌지(`#f0773a`)를 9단계로 둔 **doan 고유 액센트 램프**(오렌지)를 쓰고(12단계와 contrast·ink·pressed·link 쌍. 레퍼런스 램프의 단계별 구조를 따라 doan이 만든다. 2026-10-26 user, 처음 결정한 Buzz citrus를 대체), **Buzz가 액센트를 쓰는 용례에 대응하는 자리에만** 쓴다.
+2. **색**: 주요 버튼은 무채색이다. 액센트는 doan의 기존 오렌지 `#f0773a`의 색상에서 9단계를 `#ff915e`로 둔(검정 글자가 APCA Lc 60을 넘는 최소 밝기, 2026-10-26 user) **doan 고유 액센트 램프**(오렌지)를 쓰고(12단계와 contrast·ink·pressed·link 쌍. 레퍼런스 램프의 단계별 구조를 따라 doan이 만든다. 2026-10-26 user, 처음 결정한 Buzz citrus를 대체), **Buzz가 액센트를 쓰는 용례에 대응하는 자리에만** 쓴다.
    - 메시지 버블 → 코멘트 카드(연한 액센트 채움, Buzz의 Chillin' 수준)
    - Send 버튼 → 코멘트 제출 버튼(진한 액센트 채움)
    - 사이드바 hover·선택 → 사이드바 트리의 현재 위치 행(`aria-current="location"`, 진한 선택 채움 + 짝 글자)과 트리 행 hover(더 옅은 채움)
@@ -72,7 +72,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
   - 2026-10-25 공유 툴팁 패딩 12/6px: `buzz-ds`가 기록
   - 2026-10-22 Window 결정(상단 40px, 신호등 (12, 14), top bar 전체가 드래그 영역)과 Layout V1의 오른쪽 패널 서술: `buzz-shell`이 기록
 - `docs/DESIGN.md`에 "buzz-ds 이전" 표시가 남아 있지 않다. 확인: `grep -n 'buzz-ds 이전' docs/DESIGN.md` 결과 없음.
-- 렌더러 CSS에 다크 시절 값이 남아 있지 않다. 확인: `grep -nE 'color-scheme: *dark|#121212|#171717|#1d1d1d|#ecebe4|#3a2117|#1a0b03' app/src/renderer/*.css` 결과 없음(오렌지 `#f0773a`는 `tokens.css` 팔레트에만 있다).
+- 렌더러 CSS에 다크 시절 값이 남아 있지 않다. 확인: `grep -nE 'color-scheme: *dark|#121212|#171717|#1d1d1d|#ecebe4|#f0773a|#3a2117|#1a0b03' app/src/renderer/*.css` 결과 없음.
 - 이 디렉터리(`docs/features/buzz-restyle/`)를 지웠다.
 
 ## 비목표

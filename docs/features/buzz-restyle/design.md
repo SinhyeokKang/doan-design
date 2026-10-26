@@ -39,7 +39,7 @@
 
 | 영역 | Buzz 규칙 (출처) | 조정 | 담당 |
 |---|---|---|---|
-| 색 | `color / purpose / emphasis / state` 역할 이름. 텍스트는 기본·보조·메타 3단계. 주요 버튼은 무채색 prominent. 액센트는 메시지 버블·Send·사이드바 행 상태에만(DESIGN.md "Accent color") | 액센트는 doan 고유 액센트 램프(오렌지)(9단계 `#f0773a`, 2026-10-26 user). 레퍼런스 family 값이 아니므로 doan 조정이다. 자리는 spec 공통 결정 2의 대응표대로. 상태색(ok/warn/err)은 Buzz 상태 역할 | buzz-ds (역할), 각 화면 자식 (적용) |
+| 색 | `color / purpose / emphasis / state` 역할 이름. 텍스트는 기본·보조·메타 3단계. 주요 버튼은 무채색 prominent. 액센트는 메시지 버블·Send·사이드바 행 상태에만(DESIGN.md "Accent color") | 액센트는 doan 고유 액센트 램프(오렌지)(9단계 `#ff915e`, 기존 `#f0773a`의 색상, 2026-10-26 user). 레퍼런스 family 값이 아니므로 doan 조정이다. 자리는 spec 공통 결정 2의 대응표대로. 상태색(ok/warn/err)은 Buzz 상태 역할 | buzz-ds (역할), 각 화면 자식 (적용) |
 | 타입 | 역할 단위(크기+행간+자간+굵기). Regular 400은 읽기·폼 라벨, Medium 500은 동작·구조. caption 12/16, body 14/20, label 16/24(500), body-lg 20/28, 제목류 행간 1.1 | 글꼴은 시스템 스택 하나. 고정폭 역할은 가져오지 않는다. 지금의 13px 기본과 10.5~12.5px 소형 텍스트는 Buzz 역할로 옮긴다 | buzz-ds |
 | 모서리 | 12/16/20/24/28px(`chip/row/control/container/panel`), 원·캡슐·알약은 별도. 중첩 모서리는 `max(0, 바깥 radius − inset)`, inset에 패딩과 바깥 테두리 포함, 단계로 반올림하지 않는다 | 없음 | buzz-ds |
 | 포커스 | Buzz 포커스 링 레시피 (DESIGN.md "Focus appearance") | Buzz는 JS 훅(`useKeyboardFocusVisibility.ts`)이 붙이는 `html[data-keyboard-navigation]` 아래에서만 링을 그린다. doan은 `:focus-visible`로 쓰고 훅은 만들지 않는다. 핀 링 등 doan 기존 링은 밝은 배경에 맞춰 다시 정한다 | buzz-ds |
