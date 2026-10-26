@@ -71,6 +71,17 @@ describe("the review notice's count", () => {
     expect(s.pendingReview().map(c => c.comment)).toEqual(["c1"]);
   });
 
+  test("holds the count while the Git name read failed, so the person's own resolves never show (R-B ⚪1)", async () => {
+    const { session: s, api } = fixture([one, resolved("mine", "2026-10-25T04:00:00.000Z", { kind: "human", name: "A" })]);
+    api.commentsAuthor.mockImplementationOnce(async () => { throw new Error("spawn git ENOENT"); });
+    await s.open(identity);
+    expect(s.author.status).toBe("failed");
+    expect(s.pendingReview()).toEqual([]);
+    expect(s.startReview()).toBe(false);
+    await s.retryAuthor();
+    expect(s.pendingReview().map(c => c.comment)).toEqual(["c1"]);
+  });
+
   test("reads the marker again on demand (a hidden window shown, or a restart reading the store)", async () => {
     const { session: s, api } = fixture();
     await s.open(identity);
@@ -166,6 +177,21 @@ describe("a Review", () => {
     expect(s.startReview()).toBe(true); s.moveReview("done");
     expect(s.reviewDone).not.toBeNull();
     await s.open({ ...identity, canvas: "b", path: "design/b.html" });
+    expect(s.reviewDone).toBeNull();
+  });
+
+  test("Done's summary clears when a comment it saw is resolved again after Done (R-B B-1)", async () => {
+    const f = fixture([one, two]);
+    const { session: s } = f;
+    await s.open(identity);
+    s.startReview();
+    await s.reopenStep();
+    f.set([reopened(one), two]); await s.read();
+    s.moveReview("next"); await settled();
+    s.moveReview("done"); await settled();
+    expect(s.reviewDone?.text).toBe("Reviewed 2 · Reopened 1");
+    f.set([resolved("c1", "2026-10-25T05:00:00.000Z"), two]); await s.read();
+    expect(s.pendingReview().map(c => c.comment)).toEqual(["c1"]);
     expect(s.reviewDone).toBeNull();
   });
 

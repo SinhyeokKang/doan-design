@@ -81,7 +81,7 @@ export class CommentsSession {
   marker: ReviewMarker | null = null;
   review: ReviewRun | null = null;
   // Left after Done until closed, another canvas, or a resolve this Review did not see.
-  reviewDone: { text: string; reopened: string[]; seen: ReadonlySet<string> } | null = null;
+  reviewDone: { text: string; reopened: string[]; seen: ReadonlyMap<string, string> } | null = null;
   // Told after main raised a canvas's marker, so Home and Overview counts follow.
   onReviewed: ((root: string) => void) | null = null;
   private markerRevision = 0;
@@ -471,9 +471,10 @@ export class CommentsSession {
     this.marker = marker; this.emit();
   }
   // Empty until the list, the marker and the Git name are known: counting
-  // before the name would list the person's own resolves for a moment.
+  // before the name would list the person's own resolves for a moment, and a
+  // failed read holds the count the same way until Retry (R-B ⚪1).
   pendingReview(): Comment[] {
-    if (!this.list || this.readError || !this.marker || this.author.status === "loading") return [];
+    if (!this.list || this.readError || !this.marker || this.author.status === "loading" || this.author.status === "failed") return [];
     return toReview(this.list.comments, this.marker, this.self);
   }
   startReview(): boolean {
@@ -494,7 +495,7 @@ export class CommentsSession {
     if (state.phase === "reviewing") this.review = { ...run, state, notFound: null };
     else {
       this.review = null;
-      if (state.phase === "done") { const summary = reviewSummary(state); this.reviewDone = { ...summary, seen: new Set(state.steps.map(step => step.comment)) }; }
+      if (state.phase === "done") { const summary = reviewSummary(state); this.reviewDone = { ...summary, seen: new Map(state.steps.map(step => [step.comment, step.resolvedAt])) }; }
     }
     this.emit();
   }
@@ -525,8 +526,10 @@ export class CommentsSession {
       for (const comment of comments) if (state.steps.some(step => step.comment === comment.comment)) known.set(comment.comment, structuredClone(comment));
       this.review = { ...run, state, comments: known };
     }
+    // Seen by (id, resolvedAt): a comment reopened here and resolved again
+    // after Done is a resolve this Review did not see (R-B B-1).
     const done = this.reviewDone;
-    if (done && this.pendingReview().some(c => !done.seen.has(c.comment))) this.reviewDone = null;
+    if (done && this.pendingReview().some(c => done.seen.get(c.comment) !== c.resolvedAt)) this.reviewDone = null;
   }
   // The local marker moves at once, as main only raises; main's answer then
   // replaces it unless a newer read or raise started since.
