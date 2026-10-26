@@ -25,6 +25,7 @@
 | 2026-10-26 | `.ob-msg` 오류·경고는 왼쪽 선 없이 body-sm `text-danger`/`text-warning` 글자만 쓴다(레퍼런스 필드 오류). `.ob-chip` 상태 알약은 doan 조정으로 유지하고 DESIGN.md에 적는다 | 사용자 |
 | 2026-10-26 | 어두운 캔버스 위 프레임 점프 표시는 대응표대로 둔다. 다시 정하는 일은 `buzz-canvas`에 넘긴다 | 사용자 |
 | 2026-10-26 | `shared-error-details`의 Comments 타일 `.comments-message` 왼쪽 빨간 선은 코멘트 패널 규칙이라 buzz-ds에서 바꾸지 않는다. `buzz-comment`가 정한다 | 지휘자 판단 — 셀렉터 대응표와 화면 소유 범위 밖 |
+| 2026-10-26 | 액센트를 citrus에서 doan 고유 액센트 램프(오렌지)로 바꾼다. 9단계는 기존 `#f0773a`, 12단계와 짝 값은 레퍼런스 램프 구조를 따라 doan이 만들고, 9단계 위 글자는 검정이다. 부모 공통 결정 2와 buzz-ds spec·design·tasks를 고쳤다. B1 토큰·대비 테스트와 B2 초안을 다시 만든다 | 사용자 — Buzz flame 대신 기존 오렌지 기반을 골랐다 |
 | 2026-10-26 | A10(결론 승격과 `docs/features/buzz-ds/` 삭제)은 지휘자가 통합 뒤 직접 한다 | orchestrate 스킬 §5 |
 
 ## batch 표

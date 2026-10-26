@@ -20,28 +20,28 @@
 
 `tokens.css`는 캔버스에 그대로 서빙되고 `doan check`가 읽는 파일이라 평범한 `:root` 선언만 둔다(Tailwind 지시어와 `@import` 금지, 파일 머리 주석). 그 안에서 `var()`와 `color-mix()`는 쓸 수 있다.
 
-1. **팔레트**: Buzz 라이트 값을 기준으로 한 무채색 램프, citrus 12단계와 짝 값(contrast, ink, pressed, link), 상태색. 다크 값은 두지 않는다.
+1. **팔레트**: Buzz 라이트 값을 기준으로 한 무채색 램프와 상태색, doan 고유 액센트(오렌지) 12단계와 짝 값(contrast, ink, pressed, link). 오렌지 램프는 9단계를 기존 `#f0773a`로 두고 레퍼런스 램프의 단계별 밝기 구조를 따라 doan이 만든다. 9단계 위 글자는 검정이다(흰색 2.8:1, 검정 7.4:1). 다크 값은 두지 않는다.
 2. **의미 역할**: `surface-*`, `text-*`(기본·보조·메타·disabled·on-prominent·on-accent), `border-*`(standard, prominent, focus), `affordance-*`, `bg-scrim`, 반경(12/16/20/24/28px), 간격, 그림자(`shadow-panel` 등), 블러, 시간·easing, 타입 크기·행간·자간·굵기, `font-sans`(시스템 스택, `Apple SD Gothic Neo` 대체).
-3. **액센트 역할**: `surface-sidebar-selected`(citrus 9)·`text-sidebar-selected`, `affordance-sidebar-hover`(citrus 2), `surface-comment`(citrus 4)·`text-comment`(citrus 12, Buzz의 Chillin' 수준을 기본으로 고정), `affordance-accent`(citrus 9)·`text-on-accent`, 핀 역할.
+3. **액센트 역할**: `surface-sidebar-selected`(orange 9)·`text-sidebar-selected`, `affordance-sidebar-hover`(orange 2), `surface-comment`(orange 4)·`text-comment`(orange 12, Buzz의 Chillin' 수준을 기본으로 고정), `affordance-accent`(orange 9)·`text-on-accent`, 핀 역할.
 4. **기존 이름 25개**: 위 역할을 가리키는 `var()` 별칭으로 남긴다(예: `--panel: var(--surface-panel)`, `--line: var(--border-standard)`). 기존 초안 12개 전용이고 렌더러는 읽지 않는다. Buzz 역할 이름과 겹치는 이름(`--accent-ink`, `--font-sans`)은 역할 값과 같게 둔다. `--accent*` 별칭은 무채색 역할을 가리킨다(초안은 이력이므로 색이 바뀌어도 된다).
 5. 파일 머리 주석을 새 구조(팔레트 → 역할 → 별칭, 라이트 단일)로 바꾼다. Sorcerer 언급을 지운다.
 
 ## 디자인 시스템 CSS (`app/src/renderer/ds/`)
 
 - doan이 새로 쓴 평범한 CSS다. `@apply`·`@utility`를 쓰지 않으므로 Tailwind 루트가 필요 없다. `styles.css`와 `settings.css`가 각각 CSS `@import`로 싣는다. `connectionRows.css`는 `tokens.css` 변수만 읽는다.
-- `styles.css`의 `@theme inline`은 shadcn 이름을 새 역할에 연결한다. `primary` → 무채색 prominent, `accent`(shadcn에서 hover 강조) → `affordance-floating-hover`/`text-standard`, `ring` → `border-focus`. citrus는 shadcn 이름에 연결하지 않는다.
+- `styles.css`의 `@theme inline`은 shadcn 이름을 새 역할에 연결한다. `primary` → 무채색 prominent, `accent`(shadcn에서 hover 강조) → `affordance-floating-hover`/`text-standard`, `ring` → `border-focus`. orange는 shadcn 이름에 연결하지 않는다.
 - 대체하는 기존 규칙은 지운다. 새 규칙과 같은 대상을 겨누는 옛 규칙이 남으면 안 된다(부모 design 공통 함정의 cascade 항목).
 - 범위(Buzz에서 참고할 계열): 버튼(prominent/subtle/ghost), `IconButton`, `Panel`, 툴팁, 메뉴·팝오버(floating 재질), 다이얼로그 틀, 토스트, 스피너, 폼 컨트롤(input, textarea, checkbox), `.kbd`·`.chip`, 포커스, disabled, 스크롤바. 탭, 아코디언, 캘린더, 테마 선택, 설정 페이지, 아바타, glass 버튼은 참고하지 않는다.
 - 상태 선택자는 처음부터 Radix와 네이티브에 맞춰 쓴다: 열림 `[data-state=open]`·`dialog[open]`, 선택 `[data-state=checked]`·`[aria-selected=true]`, 비활성 `:disabled`·`[data-disabled]`, 강조 `[data-highlighted]`, 키보드 포커스 `:focus-visible`. 위치 변수는 Radix의 `--radix-*-content-transform-origin`, `--radix-popper-available-*`를 쓴다. 등장 모션은 `@starting-style`, 네이티브 `<dialog>` 퇴장은 `transition-behavior: allow-discrete`와 `overlay`, Radix 퇴장은 keyframes(`animationend`). `prefers-reduced-motion`이면 이동을 없앤다.
 - 포커스: 기본은 바깥 2px 링(오프셋 2px). `.native-scroll` 안의 행(트리 행, `.wt`, `.fb-item`, `.qo-item`)은 잘리지 않게 안쪽 링(-1px)을 쓴다. `.btn.primary`·`.comments-btn.primary`의 -3px 링 규칙(`styles.css:34`, `settings.css:95`)은 지운다.
 - 툴팁: prominent 캡슐, `text-caption`, 패딩 4/8px, 최대 너비 24rem. 기존 `[data-slot="tooltip-content"] { padding: 6px 12px }`(`styles.css:35`)와 `.project-tooltip`(`styles.css:450`)을 지운다. 긴 경로 툴팁이 줄바꿈되는지 확인한다.
-- 캔버스 표시의 치수 라벨과 툴팁이 같은 검정 캡슐이 되는 것은 의도한 결과로 DESIGN.md에 적는다. 사이드바 hover(citrus 2)가 흰 패널 위에서 거의 보이지 않는 것도 Buzz와 같은 의도로 적어 둔다.
+- 캔버스 표시의 치수 라벨과 툴팁이 같은 검정 캡슐이 되는 것은 의도한 결과로 DESIGN.md에 적는다. 사이드바 hover(orange 2)가 흰 패널 위에서 거의 보이지 않는 것도 Buzz와 같은 의도로 적어 둔다.
 
 ## 셀렉터 대응표 (오렌지 → 역할)
 
 A6에서 아래 줄을 모두 옮긴다. 줄 번호는 2026-10-26 기준이며 A6에서 `grep -rnE 'var\(--accent' app/src/renderer`로 다시 확인한다. 화면 자식은 이 대응을 바꾸지 않는다(바꾸려면 부모 공통 결정 13).
 
-**citrus (부모 공통 결정 2의 자리)**
+**orange (부모 공통 결정 2의 자리)**
 
 | 셀렉터 | 역할 |
 |---|---|
@@ -96,16 +96,16 @@ A6에서 아래 줄을 모두 옮긴다. 줄 번호는 2026-10-26 기준이며 A
 ## 초안 요청 (`/design-draft`)
 
 - 캔버스: `design/buzz-ds.html`, canvas id `buzz-ds`, `doan:width` 1200. `tokens.css`만 링크하고 역할 변수로 그린다.
-- 프레임(`data-doan-frame`): `tokens-color`, `tokens-type`, `radius-elevation`, `buttons`, `icon-button`, `panel`, `tooltip`, `menu`, `popover`, `dialog-sizes`(compact/standard/wide/expanded), `dialog-anatomy`, `toast`(성공, 오류, 실행 취소 있음), `spinner`, `forms`, `focus-disabled`, `canvas-marks`(선택, hover, 점프, 치수를 어두운·밝은·citrus가 많은 바탕 위에), `accent-places`(사이드바 행 기본·hover·현재 위치, 핀 기본·포커스, 제출 버튼, 코멘트 카드 역할), `shared-project-setup`, `shared-add-projects`, `shared-first-prompt`, `shared-connection-rows`, `shared-error-details`.
+- 프레임(`data-doan-frame`): `tokens-color`, `tokens-type`, `radius-elevation`, `buttons`, `icon-button`, `panel`, `tooltip`, `menu`, `popover`, `dialog-sizes`(compact/standard/wide/expanded), `dialog-anatomy`, `toast`(성공, 오류, 실행 취소 있음), `spinner`, `forms`, `focus-disabled`, `canvas-marks`(선택, hover, 점프, 치수를 어두운·밝은·오렌지가 많은 바탕 위에), `accent-places`(사이드바 행 기본·hover·현재 위치, 핀 기본·포커스, 제출 버튼, 코멘트 카드 역할), `shared-project-setup`, `shared-add-projects`, `shared-first-prompt`, `shared-connection-rows`, `shared-error-details`.
 
 ## 순수 함수로 분리할 부분 (`/tdd` 대상)
 
 `app/src/renderer/ds/checks.ts`(가칭)에 두고 vitest로 확인한다. 입력은 리포 파일만 쓰고 Buzz clone을 읽지 않는다.
 
-1. `contrastPairs(tokens, pairs)`: WCAG 대비와 APCA Lc를 계산해 기준(본문 4.5:1·Lc 60, 메타 Lc 45, 비텍스트 3:1, disabled 예외)을 넘는지. 반투명 표면은 흰색과 검정 뒤 배경 둘 다로 합성한다. 쌍 목록에 citrus 쌍, 핀과 halo, 포커스 링, 툴팁·치수 캡슐을 넣는다. APCA 식은 공개된 APCA-W3 0.0.98G 식을 doan이 직접 구현한다.
+1. `contrastPairs(tokens, pairs)`: WCAG 대비와 APCA Lc를 계산해 기준(본문 4.5:1·Lc 60, 메타 Lc 45, 비텍스트 3:1, disabled 예외)을 넘는지. 반투명 표면은 흰색과 검정 뒤 배경 둘 다로 합성한다. 쌍 목록에 orange 쌍, 핀과 halo, 포커스 링, 툴팁·치수 캡슐을 넣는다. APCA 식은 공개된 APCA-W3 0.0.98G 식을 doan이 직접 구현한다.
 2. `cssVarUsage(files)` → 정의되지 않은 사용 목록: 렌더러 `*.css`와 `*.ts`/`*.tsx` 문자열 안의 `var(--*)`. `:root` 선언과 `@theme` 선언을 정의로 센다. `--tw-*`, `--radix-*`는 런타임 변수로 허용한다. 대체값이 있는 `var(--x, y)`도 정의되지 않았으면 실패로 본다.
 3. `legacyAliases(tokensCss)`: 기존 이름 25개가 모두 있고, 각각이 같은 파일에 정의된 역할을 가리키는 `var()`인지.
-4. `accentPlaces(files)`: citrus 역할(`surface-sidebar-selected`, `text-sidebar-selected`, `affordance-sidebar-hover`, `affordance-accent`, `text-on-accent`, `surface-comment`, `text-comment`)을 읽는 셀렉터가 허용 목록(위 대응표의 citrus 행)과 같은지.
+4. `accentPlaces(files)`: orange 역할(`surface-sidebar-selected`, `text-sidebar-selected`, `affordance-sidebar-hover`, `affordance-accent`, `text-on-accent`, `surface-comment`, `text-comment`)을 읽는 셀렉터가 허용 목록(위 대응표의 orange 행)과 같은지.
 5. `nestedRadius(outer, inset, border)` = `max(0, outer − inset − border)`: e2e 실측과 대조할 기대값.
 
 ## 포맷 변경
@@ -120,7 +120,7 @@ ARCHITECTURE §1 컨벤션과 `doan check` 규칙은 바뀌지 않는다. `.doan
 
 - PRODUCT §7 2026-10-22 "Theme: dark only, one orange accent, one system sans font (no monospace)"와 Sorcerer 레퍼런스를 대체한다.
 - PRODUCT §7 2026-10-25 공유 툴팁 패딩 12/6px 결정과 §8의 같은 항목(PRODUCT.md:711)을 Buzz식 툴팁으로 대체한다.
-- 새 결정: 토큰은 역할 + 기존 이름 별칭(2026-10-26 user), `nativeTheme.themeSource = "light"`(2026-10-26 user), 사이드바 citrus는 현재 위치 행(2026-10-26 user), Buzz는 코드가 아닌 레퍼런스(2026-10-26 user).
+- 새 결정: 토큰은 역할 + 기존 이름 별칭(2026-10-26 user), `nativeTheme.themeSource = "light"`(2026-10-26 user), 사이드바 orange는 현재 위치 행(2026-10-26 user), Buzz는 코드가 아닌 레퍼런스(2026-10-26 user).
 - 유지하는 결정: Radix(shadcn) + Tailwind 스택, Radix ScrollArea 금지와 두 CSP 불변(2026-10-22). CSS `@import`, `backdrop-filter`, `@starting-style`, 시스템 폰트는 CSP와 무관하다. `url()`·`data:` 자원은 쓰지 않는다.
 - 캔버스 iframe: sandbox, 주입 스크립트, 서빙 범위, 오버레이 좌표 계산은 그대로다. `themeSource` light 때문에 iframe의 `prefers-color-scheme`이 macOS 외형과 상관없이 light가 된다. 다크 모드 macOS에서 캔버스 렌더링이 달라지는지 A4에서 확인하고 DESIGN.md에 적는다.
 - DESIGN.md의 기존 색 실측값은 무효가 된다. 맨 앞에 디자인 시스템 절을 새로 두고, 화면별 절의 색 값에는 "buzz-ds 이전" 표시를 단다.
