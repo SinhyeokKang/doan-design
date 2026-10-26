@@ -17,6 +17,11 @@ function rendererSources(): SourceFile[] {
   return files;
 }
 
+function only<T>(list: T[]): T {
+  expect(list).toHaveLength(1);
+  return list[0]!;
+}
+
 const tokensCss = () => readFileSync(new URL("tokens.css", renderer), "utf8");
 
 // Each allowed place is a selector prefix (or a TS file) from the design's citrus rows;
@@ -68,28 +73,28 @@ describe("contrastPairs", () => {
   }`;
 
   test("computes WCAG ratios and APCA-W3 Lc values for opaque pairs", () => {
-    const [r] = contrastPairs(css, [{ fg: "--gray", bg: "--white", kind: "body" }]);
+    const r = only(contrastPairs(css, [{ fg: "--gray", bg: "--white", kind: "body" }]));
     expect(r.wcag).toBeCloseTo(3.545, 2);
     expect(r.apca).toBeCloseTo(63.056, 2);
-    const [reverse] = contrastPairs(css, [{ fg: "--white", bg: "--gray", kind: "body" }]);
+    const reverse = only(contrastPairs(css, [{ fg: "--white", bg: "--gray", kind: "body" }]));
     expect(reverse.apca).toBeCloseTo(-68.541, 2);
     const dark = contrastPairs(":root { --a: #aaa; --b: #000; }", [{ fg: "--b", bg: "--a", kind: "body" }, { fg: "--a", bg: "--b", kind: "body" }]);
-    expect(dark[0].apca).toBeCloseTo(58.146, 2);
-    expect(dark[1].apca).toBeCloseTo(-56.241, 2);
+    expect(dark[0]!.apca).toBeCloseTo(58.146, 2);
+    expect(dark[1]!.apca).toBeCloseTo(-56.241, 2);
   });
 
   test("returns zero Lc for near-identical colours and 21:1 for black on white", () => {
-    const [same] = contrastPairs(css, [{ fg: "--gray", bg: "--gray-2", kind: "body" }]);
+    const same = only(contrastPairs(css, [{ fg: "--gray", bg: "--gray-2", kind: "body" }]));
     expect(same.apca).toBe(0);
     expect(same.wcag).toBeCloseTo(1, 5);
-    const [max] = contrastPairs(css, [{ fg: "--black", bg: "--white", kind: "body" }]);
+    const max = only(contrastPairs(css, [{ fg: "--black", bg: "--white", kind: "body" }]));
     expect(max.wcag).toBeCloseTo(21, 5);
   });
 
   test("resolves var() chains and color-mix in srgb", () => {
-    const [chain] = contrastPairs(css, [{ fg: "--role-fg", bg: "--role-bg", kind: "body" }]);
+    const chain = only(contrastPairs(css, [{ fg: "--role-fg", bg: "--role-bg", kind: "body" }]));
     expect(chain.apca).toBeCloseTo(63.056, 2);
-    const [mix] = contrastPairs(css, [{ fg: "--mixed", bg: "--white", kind: "nontext" }]);
+    const mix = only(contrastPairs(css, [{ fg: "--mixed", bg: "--white", kind: "nontext" }]));
     expect(mix.fgHex).toBe("#808080");
   });
 
@@ -109,14 +114,14 @@ describe("contrastPairs", () => {
     const results = contrastPairs(css, [{ fg: "--black", bg: "--glass", kind: "nontext" }]);
     expect(results.map(r => r.backdrop)).toEqual(["white", "black"]);
     expect(results.map(r => r.bgHex)).toEqual(["#ffffff", "#808080"]);
-    expect(results[1].ok).toBe(true);
+    expect(results[1]!.ok).toBe(true);
     const veil = contrastPairs(css, [{ fg: "--white", bg: "--veil", kind: "body" }]);
     expect(veil.map(r => r.bgHex)).toEqual(["#7f7f7f", "#000000"]);
-    expect(veil[0].ok).toBe(false);
+    expect(veil[0]!.ok).toBe(false);
   });
 
   test("composites a translucent foreground over its resolved background", () => {
-    const [r] = contrastPairs(css, [{ fg: "--veil", bg: "--white", kind: "nontext" }]);
+    const r = only(contrastPairs(css, [{ fg: "--veil", bg: "--white", kind: "nontext" }]));
     expect(r.fgHex).toBe("#7f7f7f");
   });
 
