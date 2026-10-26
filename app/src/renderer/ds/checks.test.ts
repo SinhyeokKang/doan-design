@@ -24,9 +24,9 @@ function only<T>(list: T[]): T {
 
 const tokensCss = () => readFileSync(new URL("tokens.css", renderer), "utf8");
 
-// Each allowed place is a selector prefix (or a TS file) from the design's citrus rows;
+// Each allowed place is a selector prefix (or a TS file) from the design's orange rows;
 // every place found must start with one, and every one must be used.
-const citrusAllowed = ['.side .row[aria-current="location"]', ".side .row:hover", ".comments-btn.primary.submit", "CommentPins.ts"];
+const orangeAllowed = ['.side .row[aria-current="location"]', ".side .row:hover", ".comments-btn.primary.submit", "CommentPins.ts"];
 
 function compareAllowed(found: string[], allowed: string[]) {
   return {
@@ -181,9 +181,9 @@ describe("legacyAliases", () => {
 });
 
 describe("accentPlaces", () => {
-  test("lists every selector or TS file that reads a citrus role or palette step", () => {
+  test("lists every selector or TS file that reads an orange role or palette step", () => {
     const files: SourceFile[] = [
-      { path: "styles.css", text: '.side .row[aria-current="location"], .side .row[aria-current="location"]::before { background: var(--surface-sidebar-selected); }\n.side .row:hover { background: var(--affordance-sidebar-hover); }\n.plain { color: var(--text-standard); }\n@media (hover: hover) { .x:hover { color: var(--citrus-9); } }' },
+      { path: "styles.css", text: '.side .row[aria-current="location"], .side .row[aria-current="location"]::before { background: var(--surface-sidebar-selected); }\n.side .row:hover { background: var(--affordance-sidebar-hover); }\n.plain { color: var(--text-standard); }\n@media (hover: hover) { .x:hover { color: var(--orange-9); } }' },
       { path: "CommentPins.ts", text: "pin.style.background = 'var(--affordance-accent)';" },
       { path: "Other.ts", text: "const x = 'var(--text-subtle)';" },
     ];
@@ -196,11 +196,11 @@ describe("accentPlaces", () => {
     ]);
   });
 
-  test("treats @theme mappings as a place so citrus never reaches shadcn names", () => {
+  test("treats @theme mappings as a place so orange never reaches shadcn names", () => {
     expect(accentPlaces([{ path: "styles.css", text: "@theme inline { --color-primary: var(--affordance-accent); }" }])).toEqual(["@theme"]);
   });
 
-  test("returns nothing when no citrus role is read", () => {
+  test("returns nothing when no orange role is read", () => {
     expect(accentPlaces([{ path: "a.css", text: ".a { color: var(--accent); }" }])).toEqual([]);
   });
 });
@@ -233,9 +233,9 @@ describe("renderer sources", () => {
     expect(failing).toEqual([]);
   });
 
-  test("accentPlaces: citrus is read only by the allowed places", () => {
+  test("accentPlaces: orange is read only by the allowed places", () => {
     const found = accentPlaces(rendererSources().filter(file => file.path !== "tokens.css"));
-    expect(compareAllowed(found, citrusAllowed)).toEqual({ unexpected: [], missing: [] });
+    expect(compareAllowed(found, orangeAllowed)).toEqual({ unexpected: [], missing: [] });
   });
 
   test("nestedRadius: floating menu rows derive their corner from the tokens", () => {

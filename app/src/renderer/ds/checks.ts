@@ -121,20 +121,20 @@ export function legacyAliases(tokensCss: string): string[] {
   return problems;
 }
 
-export const citrusRoles = ["--surface-sidebar-selected", "--text-sidebar-selected", "--affordance-sidebar-hover", "--affordance-accent", "--affordance-accent-hover", "--affordance-accent-pressed", "--text-on-accent", "--surface-comment", "--text-comment", "--border-pin"];
-const readsCitrus = (text: string) => [...text.matchAll(varPattern)].some(match => citrusRoles.includes(match[1]!) || match[1]!.startsWith("--citrus-"));
+export const orangeRoles = ["--surface-sidebar-selected", "--text-sidebar-selected", "--affordance-sidebar-hover", "--affordance-accent", "--affordance-accent-hover", "--affordance-accent-pressed", "--text-on-accent", "--surface-comment", "--text-comment", "--border-pin"];
+const readsOrange = (text: string) => [...text.matchAll(varPattern)].some(match => orangeRoles.includes(match[1]!) || match[1]!.startsWith("--orange-"));
 
-/** Lists, in source order, each selector (or TS file, or `@theme`) that reads a citrus role. */
+/** Lists, in source order, each selector (or TS file, or `@theme`) that reads an orange role. */
 export function accentPlaces(files: SourceFile[]): string[] {
   const places: string[] = [];
   const add = (place: string) => { if (!places.includes(place)) places.push(place); };
   for (const file of files) {
     if (!file.path.endsWith(".css")) {
-      if (readsCitrus(file.text)) add(file.path.split("/").pop()!);
+      if (readsOrange(file.text)) add(file.path.split("/").pop()!);
       continue;
     }
     for (const block of blocks(file.text)) {
-      if (!block.declarations.some(d => readsCitrus(d.value))) continue;
+      if (!block.declarations.some(d => readsOrange(d.value))) continue;
       if (isTheme(block.prelude)) add("@theme");
       else for (const selector of splitTopLevel(block.prelude)) add(selector);
     }

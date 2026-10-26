@@ -1,7 +1,7 @@
 /* Design tokens shared by the app renderer and the draft canvases in design/
    (drafts link this file; .doan/config.json points tokenCss here). One light theme.
    Three layers, top to bottom:
-   1. Palette: the only literal colours (neutral ramp, citrus accent family, status hues).
+   1. Palette: the only literal colours (neutral ramp, orange accent ramp, status hues).
    2. Roles: what a value is for. Renderer code reads roles only, never palette steps.
    3. Legacy names: var() aliases of roles that keep drafts drawn before this system
       resolving. The renderer does not read them.
@@ -31,22 +31,28 @@
   --neutral-backdrop-pressed: rgb(0 0 0 / 10%);
   --neutral-scrim: #00000060;
 
-  --citrus-1: #fcfdf7;
-  --citrus-2: #f8fbef;
-  --citrus-3: #f1f6de;
-  --citrus-4: #e8f0cd;
-  --citrus-5: #e0e9bc;
-  --citrus-6: #d5e1aa;
-  --citrus-7: #c8d495;
-  --citrus-8: #b6c378;
-  --citrus-9: #beda36;
-  --citrus-10: #bdd836;
-  --citrus-11: #485311;
-  --citrus-12: #2b3110;
-  --citrus-contrast: #000000;
-  --citrus-ink: #000000;
-  --citrus-pressed: #bcd83a;
-  --citrus-link: #485400;
+  /* doan's accent ramp. Step 9 is doan's former orange #f0773a lifted at the same hue
+     to the least lightness where black text clears the body contrast targets (black is
+     the text on 9: white cannot reach 4.5:1). The other steps keep the reference ramps'
+     per-step OKLCH lightness and chroma share at that hue. Hover and pressed sit a hair
+     off 9 as on black-text ramps, but lighter rather than darker, because darker would
+     drop black text below the target. */
+  --orange-1: #fffcfa;
+  --orange-2: #fff8f5;
+  --orange-3: #ffefe8;
+  --orange-4: #fee5db;
+  --orange-5: #fbdcce;
+  --orange-6: #f9d0be;
+  --orange-7: #f2bfaa;
+  --orange-8: #e9a98d;
+  --orange-9: #ff915e;
+  --orange-10: #ff9463;
+  --orange-11: #804428;
+  --orange-12: #432517;
+  --orange-contrast: #000000;
+  --orange-ink: #000000;
+  --orange-pressed: var(--orange-10);
+  --orange-link: var(--orange-11);
 
   --red-3: #feebec;
   --red-9: #e5484d;
@@ -106,19 +112,19 @@
   --affordance-warning: var(--amber-3);
   --affordance-success: var(--green-3);
 
-  /* Citrus belongs to a fixed set of places only: the current sidebar row and its
+  /* Orange belongs to a fixed set of places only: the current sidebar row and its
      hover, comment pins, the comment submit button and comment cards. */
-  --surface-sidebar-selected: var(--citrus-9);
-  --text-sidebar-selected: var(--citrus-contrast);
-  --affordance-sidebar-hover: var(--citrus-2);
-  --surface-comment: var(--citrus-4);
-  --text-comment: var(--citrus-12);
-  --affordance-accent: var(--citrus-9);
-  --affordance-accent-hover: var(--citrus-10);
-  --affordance-accent-pressed: var(--citrus-pressed);
-  --text-on-accent: var(--citrus-contrast);
+  --surface-sidebar-selected: var(--orange-9);
+  --text-sidebar-selected: var(--orange-contrast);
+  --affordance-sidebar-hover: var(--orange-2);
+  --surface-comment: var(--orange-4);
+  --text-comment: var(--orange-12);
+  --affordance-accent: var(--orange-9);
+  --affordance-accent-hover: var(--orange-10);
+  --affordance-accent-pressed: var(--orange-pressed);
+  --text-on-accent: var(--orange-contrast);
   /* Pins sit on any canvas: the dark rim holds on light ones, the white halo on dark ones. */
-  --border-pin: var(--citrus-11);
+  --border-pin: var(--orange-11);
   --halo-pin: var(--neutral-1);
 
   /* macOS window control artwork, drawn by drafts; fixed by the OS, not by this system. */
@@ -216,10 +222,10 @@
   --text-2: var(--text-subtle);
   --text-3: var(--text-metadata);
   --text-4: var(--text-disabled);
-  /* A mid grey rather than the prominent black, so the citrus ink below stays
+  /* A mid grey rather than the prominent black, so the orange ink below stays
      readable on old primary buttons that pair the two. */
   --accent: var(--border-prominent);
-  --accent-ink: var(--citrus-ink);
+  --accent-ink: var(--orange-ink);
   --accent-soft: var(--surface-navigation-selected);
   --accent-line: var(--border-focus);
   --board-bg: var(--surface-inset);
