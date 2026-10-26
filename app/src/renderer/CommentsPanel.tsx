@@ -1,4 +1,4 @@
-import { useId, type Ref } from "react";
+import { useId, type KeyboardEvent, type Ref } from "react";
 import type { Comment, Target, Warning } from "../formats/types";
 import type { CopyScope, ListFilter } from "../comments/projection";
 import { targetLabel } from "../comments/targetLabel";
@@ -282,7 +282,14 @@ export function CommentEditor(props: CommentEditorProps) {
   const locked = pending(state) || state.status === "saved";
   const cannotSave = locked || !!props.blocked || !props.body.trim() || state.status === "conflict" || state.status === "deleted";
   const label = props.mode === "create" ? "New comment" : "Your unsaved edit";
-  return <><div className="comments-composer" aria-busy={state.status === "saving" || state.status === "checking"}>
+  // Esc closes an edit editor before Review and the selection, so it is consumed
+  // even when Cancel is unavailable. A new comment's composer keeps its text on Esc.
+  const escape = props.mode === "edit" ? (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault(); event.stopPropagation();
+    if (!locked && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) props.onCancel();
+  } : undefined;
+  return <><div className="comments-composer" aria-busy={state.status === "saving" || state.status === "checking"} onKeyDown={escape}>
     <label>{label}<span className="comments-target" title={target.title}>To: {target.text}</span><textarea ref={props.inputRef} aria-label={`${label} body`} value={props.body} readOnly={locked} onChange={event => { if (!locked) props.onBody(event.currentTarget.value); }} /></label>
     <div className="comments-tools">
       <button type="button" className="comments-btn" disabled={state.status === "saving" || state.status === "saved"} onClick={locked ? props.onKeepDraft : props.onCancel}>{locked ? "Keep draft" : "Cancel"}</button>

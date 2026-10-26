@@ -7,11 +7,13 @@ import type { CommentRequest } from "../main/comments/service";
 import type { Comment } from "../formats/types";
 import type { AnchorSnapshot, CommentHooks } from "./commentAnchors";
 import { READ_FAILED_EDITOR } from "../comments/panelText";
-import type { CommentsPanelProps } from "./CommentsPanel";
+import { CommentEditor, type CommentsPanelProps } from "./CommentsPanel";
 
 const harness = vi.hoisted(() => ({ effects: [] as (() => void | (() => void))[], deps: [] as (readonly unknown[] | undefined)[], states: [] as unknown[], setters: [] as ReturnType<typeof vi.fn>[], updates: [] as [number, unknown][], index: 0, refs: [] as { current: unknown }[], refIndex: 0 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
+  // CommentEditor is called as a plain function outside a React render.
+  useId: () => "r1",
   // Like React, an effect whose dependencies did not change since the last render is skipped.
   useEffect: (effect: () => void | (() => void), deps?: readonly unknown[]) => {
     const i = harness.effects.length, previous = harness.deps[i];
@@ -1323,6 +1325,22 @@ describe("Review on the open canvas", () => {
     f.props().reviewBar!.onReopen();
     f.props(); f.props();
     expect(f.next.focus).not.toHaveBeenCalled();
+  });
+
+  // Review R-G G-1: dialog → editor → Review → selection.
+  test("Esc in the Edit and reopen… editor closes only the editor; the next Esc closes Review", async () => {
+    const f = await reviewing();
+    f.props().reviewNotice!.onStart();
+    f.props().reviewBar!.onEditReopen();
+    const composer = (CommentEditor(f.props().editor!).props.children as { props: { onKeyDown: (event: unknown) => void } }[])[0]!;
+    const key = { key: "Escape", nativeEvent: { isComposing: false, keyCode: 27 }, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    composer.props.onKeyDown(key);
+    expect(key.stopPropagation).toHaveBeenCalledOnce();
+    expect(f.session.draft.draft).toBeNull();
+    expect(f.props().editor).toBeNull();
+    expect(f.session.review).not.toBeNull();
+    expect(f.escape()).toBe(true);
+    expect(f.session.review).toBeNull();
   });
 
   test("Edit and reopen… opens the resolved comment's Save and reopen editor", async () => {

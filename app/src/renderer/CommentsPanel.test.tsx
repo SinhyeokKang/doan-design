@@ -267,6 +267,42 @@ test("delete Escape is consumed without cancelling during IME", () => {
   expect(onConfirm).not.toHaveBeenCalled();
 });
 
+// Review R-G G-1: Esc closes an edit editor before Review and the selection.
+describe("Esc in the card editor", () => {
+  const press = (props: CommentEditorProps, nativeEvent = { isComposing: false, keyCode: 27 }) => {
+    const composer = (CommentEditor(props).props.children as ReactNode[])[0] as { props: ElementProps };
+    const event = { key: "Escape", nativeEvent, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    composer.props.onKeyDown?.(event);
+    return event;
+  };
+  test("closes an edit editor like Cancel and consumes the key", () => {
+    const onCancel = vi.fn(), onKeepDraft = vi.fn();
+    const event = press(editor({ mode: "edit", onCancel, onKeepDraft }));
+    expect(onCancel).toHaveBeenCalledOnce(); expect(onKeepDraft).not.toHaveBeenCalled();
+    expect(event.preventDefault).toHaveBeenCalledOnce(); expect(event.stopPropagation).toHaveBeenCalledOnce();
+  });
+  test("is consumed without closing during IME composition", () => {
+    for (const nativeEvent of [{ isComposing: true, keyCode: 27 }, { isComposing: false, keyCode: 229 }]) {
+      const onCancel = vi.fn();
+      const event = press(editor({ mode: "edit", onCancel }), nativeEvent);
+      expect(onCancel).not.toHaveBeenCalled();
+      expect(event.preventDefault).toHaveBeenCalledOnce(); expect(event.stopPropagation).toHaveBeenCalledOnce();
+    }
+  });
+  test.each(["saving", "saved", "unknown", "checking"] as const)("does nothing while Cancel is unavailable (%s)", status => {
+    const onCancel = vi.fn(), onKeepDraft = vi.fn();
+    const event = press(editor({ mode: "edit", state: { status }, onCancel, onKeepDraft }));
+    expect(onCancel).not.toHaveBeenCalled(); expect(onKeepDraft).not.toHaveBeenCalled();
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+  });
+  test("the new-comment composer keeps no Esc handling", () => {
+    const onCancel = vi.fn();
+    const event = press(editor({ mode: "create", onCancel }));
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(event.preventDefault).not.toHaveBeenCalled(); expect(event.stopPropagation).not.toHaveBeenCalled();
+  });
+});
+
 describe("continue a blocked new comment", () => {
   const notice = "The canvas reloaded while you were writing. Your text is kept — continue on the current version to save it.";
   const pay = { element: { doanId: "pay", selector: "button", html: "<button/>" } };
