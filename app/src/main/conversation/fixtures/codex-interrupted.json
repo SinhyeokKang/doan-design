@@ -16,7 +16,7 @@
         "type": "agentMessage",
         "id": "id-1",
         "text": "Sample text",
-        "phase": "Sample text",
+        "phase": "commentary",
         "memoryCitation": null,
         "delivery": null,
         "questions": null
@@ -47,7 +47,7 @@
         "id": "turn-1",
         "rootTurnId": "turn-1",
         "items": [],
-        "itemsView": "Sample text",
+        "itemsView": "notLoaded",
         "status": "interrupted",
         "error": null,
         "startedAt": 1793028366,

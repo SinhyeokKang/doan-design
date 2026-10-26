@@ -21,3 +21,11 @@ Synthetic command-policy and additional-permission cases use the PoC-generated
 `codex-schema/CommandExecutionRequestApprovalParams.json` and
 `codex-schema/PermissionsRequestApproval{Params,Response}.json` from 0.163.0.
 These exercise schema mappings, not observed live permission-policy combinations.
+
+On 2026-10-27, F-T restored `phase` and `itemsView` enum values by inspecting
+only those protocol fields in the original source records: decline commentary /
+final_answer and summary; interruption commentary and notLoaded. Synthetic private
+fields were left intact. `codexIngress.test.ts` also constructs form elicitation
+with omitted/null turnId and global attestation from the generated 0.163.0
+`McpServerElicitationRequestParams.json` and `ServerRequest.json`, plus the R-T
+reviewer's extra-error notification probes. These are synthetic boundary tests.

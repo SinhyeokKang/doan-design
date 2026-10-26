@@ -16,7 +16,7 @@
         "type": "agentMessage",
         "id": "id-1",
         "text": "Sample text",
-        "phase": "Sample text",
+        "phase": "commentary",
         "memoryCitation": null,
         "delivery": null,
         "questions": null
@@ -79,7 +79,7 @@
         "type": "agentMessage",
         "id": "id-3",
         "text": "Sample text",
-        "phase": "Sample text",
+        "phase": "final_answer",
         "memoryCitation": null,
         "delivery": null,
         "questions": null
@@ -102,13 +102,13 @@
             "type": "agentMessage",
             "id": "id-3",
             "text": "Sample text",
-            "phase": "Sample text",
+            "phase": "final_answer",
             "memoryCitation": null,
             "delivery": null,
             "questions": null
           }
         ],
-        "itemsView": "Sample text",
+        "itemsView": "summary",
         "status": "completed",
         "error": null,
         "startedAt": 1793030524,

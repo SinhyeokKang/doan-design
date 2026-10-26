@@ -68,9 +68,31 @@ export function normalizeClaude(state: TransportState, raw: unknown, root: strin
   return unchanged(state);
 }
 export interface CodexContext { root: string; sessionId: string; turnId: string }
-export function normalizeCodex(state: TransportState, raw: unknown, context: CodexContext): TransportResult {
-  if (state.terminal || !object(raw)) return unchanged(state);
-  if (object(raw.error)) return failed(state, text(raw.error.message));
+export interface CodexTransportResult extends TransportResult {
+  request?: { id: string | number; method: string; disposition: "permission" | "unsupported" | "route" };
+}
+export interface CodexReplyOwner { requestId: string | number; sessionId: string; turnId: string }
+// The dispatcher supplies ownership from its pending RPC table, never from the active turn.
+export function normalizeCodexReply(state: TransportState, raw: unknown, context: CodexContext, owner: CodexReplyOwner): TransportResult {
+  if (!object(raw) || "method" in raw || raw.id !== owner.requestId || owner.sessionId !== context.sessionId || owner.turnId !== context.turnId) return unchanged(state);
+  if (object(raw.error) && !("result" in raw)) return failed(state, text(raw.error.message));
+  return unchanged(state);
+}
+export function normalizeCodex(state: TransportState, raw: unknown, context: CodexContext): CodexTransportResult {
+  if (!object(raw) || typeof raw.method !== "string") return unchanged(state);
+  if (typeof raw.id === "string" || typeof raw.id === "number") {
+    const params = object(raw.params) ? raw.params : {};
+    const turnId = object(params.turn) ? params.turn.id : params.turnId;
+    const otherOwner = (typeof params.threadId === "string" && params.threadId !== context.sessionId)
+      || (typeof turnId === "string" && turnId !== context.turnId);
+    const matched = params.threadId === context.sessionId && turnId === context.turnId;
+    const permission = matched && !state.terminal ? codexPermission(raw) : null;
+    const disposition = otherOwner ? "route" : permission ? "permission" : "unsupported";
+    const result = permission ? { state, events: [permission.event] }
+      : matched && !otherOwner ? finish(state, { type: "turn.failed", code: "session_unavailable" }) : unchanged(state);
+    return { ...result, request: { id: raw.id, method: raw.method, disposition } };
+  }
+  if (state.terminal || "id" in raw) return unchanged(state);
   if (!object(raw.params)) return unchanged(state);
   const params = raw.params;
   if (params.threadId !== context.sessionId) return unchanged(state);
@@ -96,9 +118,6 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     return failed(state, object(params.turn.error) ? text(params.turn.error.message) : "");
   }
   if (raw.method === "error" && params.willRetry !== true) return failed(state, object(params.error) ? text(params.error.message) : "");
-  const permission = codexPermission(raw);
-  if (permission) return { state, events: [permission.event] };
-  if (raw.id !== undefined && typeof raw.method === "string") return finish(state, { type: "turn.failed", code: "session_unavailable" });
   return unchanged(state);
 }
 function choice(id: string, label: string, kind: "allow" | "allowAlways" | "deny", response: unknown): PermissionChoice {
