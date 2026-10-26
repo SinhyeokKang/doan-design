@@ -120,3 +120,5 @@
 - E (`task_1c62e9b1672e`, `ctx_34515353797e`)는 자체 3커밋 `4bc4878`, `ad675e0`, `d5ea88a`를 제출했다. 최종 실제 Electron fake 대화 suite PASS, 하네스 30개·typecheck·build 통과와 소유 그룹/자식 각각 36개 부재를 보고했다. 실제 Claude/Codex 동일 세션 이어받기 관측, 최초 Codex 정책 실험 실패, 별도 새 세션 승인 관측을 구분해 인계했다. 전체 통합·실제 agent-eval은 남는다. E 터미널 release 완료. R-E는 Astra medium으로 하네스의 거짓 양성·상태 보존·종료 및 실제 관측 근거를 독립 검토한다. 판단이 필요한 검증 경계이므로 이 모델을 선택하며 high는 쓰지 않는다. R-E에 단독 runtime/test 슬롯을 배정한다.
 
 - R-E (`task_6c1231b8cdbb`, `ctx_11a51b5dd557`, effective Astra medium)는 실제 문서/코드 검토를 시작했다. 독립 typecheck에서 최종 E HEAD `d5ea88a`의 `conversation.ts:174` TS2339·TS18048을 재현했다(`.scratch/R-E-typecheck.log`). 지휘자도 로그와 소스를 대조했다. E의 이전 typecheck PASS는 최종 변경을 검증한 증거로 사용할 수 없다. E 통합은 보류하며 독립 리뷰 완료 후 원소유 수정과 최종 HEAD 재검증을 진행한다.
+
+- R-E는 🔴 0·🟡 3건으로 완료했다. RE-1 타입 오류는 E가 통과 근거로 제시한 원본 로그에도 있었다. 단순한 이전 HEAD 증거 재사용이 아니라 잘못된 통과 보고로 정정한다. RE-2 증거 복사 실패 시 실제 상태 검사 누락, RE-3 오류만 세어 중복 성공 응답·잘못된 오류 payload를 놓치는 검증을 격리 재현했다. 실제 standalone·하네스 30건은 독립 통과했고 E2 원시 관측은 한계를 포함해 확인했다. 리뷰 터미널 release 완료. F-E는 Astra medium으로 E 소유 범위의 세 지적과 일반 crash 단일 종료 단언을 보완하고 최종 HEAD 검증을 수행한다. 실패 전파·응답 귀속 판단이 필요해 선택했으며 단독 검증 슬롯을 배정한다.
