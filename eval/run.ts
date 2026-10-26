@@ -64,11 +64,11 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     const runtime = ws.env.DOAN_RUNTIME;
     if (!runtime) throw new Error("Workspace has no DOAN_RUNTIME");
     const { cmd, args } = agentCommand(agent, prompt, scenario.mcp ? { cli: setup.cli, runtime, configPath: join(ws.base, "mcp.json") } : undefined);
-    console.log(`start ${name} (${ws.repo})`);
+    console.log(`start ${name} (${ws.cwd})`);
     const startedAt = new Date().toISOString();
-    const proc = await runProcess({ cmd, args, cwd: ws.repo, env: ws.env, timeoutSec: scenario.timeoutSec, stdoutPath: join(dir, "stdout.log"), stderrPath: join(dir, "stderr.log") });
+    const proc = await runProcess({ cmd, args, cwd: ws.cwd, env: ws.env, timeoutSec: scenario.timeoutSec, stdoutPath: join(dir, "stdout.log"), stderrPath: join(dir, "stderr.log") });
     const evidence = readAgentTranscript(agent, dir, ws.env);
-    const ctx = createContext({ repo: ws.repo, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
+    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
     const checks = await runChecks(scenario, ctx);
     checks.push(cliProvenance(resolutionPath, scenario.shellCli ? setup.cli : null));
     if (existsSync(resolutionPath)) cpSync(resolutionPath, join(dir, "resolved-doan.txt"));
@@ -86,13 +86,16 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
         writeFileSync(join(dir, "judge.json"), JSON.stringify({ judge_error: true, error: (error as Error).stack }, null, 2) + "\n");
       }
     }
-    try { copyRepo(ws.repo, join(dir, "repo")); } catch (error) { writeFileSync(join(dir, "repo-copy-error.txt"), `${(error as Error).stack}\n`); }
+    try {
+      copyRepo(ws.repo, join(dir, "repo"));
+      if (ws.cwd !== ws.repo) copyRepo(ws.cwd, join(dir, "worktree"));
+    } catch (error) { writeFileSync(join(dir, "repo-copy-error.txt"), `${(error as Error).stack}\n`); }
     const record: RunRecord = { scenario: scenario.id, agent, n, dir: join(".scratch/agent-eval", setup.options.round, name), result: finalResult(checks, judgement), checks, judge: judgement, durationSec: proc.durationSec, exitCode: proc.code, timedOut: proc.timedOut };
     writeFileSync(join(dir, "meta.json"), JSON.stringify({
       scenario: scenario.id, shellCli: scenario.shellCli, agent, n, agentVersion: setup.meta.versions[agent], judge: setup.options.judge ? judgeFor(agent) : null, argv: [cmd, ...args],
       // Where the agent reads the rest of its config from; everything else in the environment is inherited as is.
       inheritedConfig: { HOME: process.env.HOME ?? null, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null, CODEX_HOME: process.env.CODEX_HOME ?? null },
-      guideSha256: setup.meta.guideSha256, cliVersion: setup.meta.cliVersion, cli: setup.cli, tempRepo: ws.repo, startedAt,
+      guideSha256: setup.meta.guideSha256, cliVersion: setup.meta.cliVersion, cli: setup.cli, tempRepo: ws.repo, cwd: ws.cwd, startedAt,
       durationSec: proc.durationSec, exitCode: proc.code, signal: proc.signal, timedOut: proc.timedOut, result: record.result,
     }, null, 2) + "\n");
     console.log(`done  ${name}: ${record.result} (${proc.durationSec}s${proc.timedOut ? ", timed out" : ""})`);
@@ -115,7 +118,7 @@ async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pa
     cpSync(join(scenario.dir, "fixtures", kind), ws.repo, { recursive: true, force: true });
     const transcriptFile = join(scenario.dir, "fixtures", `${kind}.transcript.txt`);
     const transcript = existsSync(transcriptFile) ? readFileSync(transcriptFile, "utf8") : "";
-    const ctx = createContext({ repo: ws.repo, agent: "fixture", transcript, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
+    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
     const checks = await runChecks(scenario, ctx);
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     // A fixed fake judge still goes through prompt building and parsing.

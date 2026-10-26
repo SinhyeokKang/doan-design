@@ -10,6 +10,9 @@ export interface Scenario {
   timeoutSec: number;
   mcp: boolean;
   shellCli: boolean;
+  // Runs the agent in a second worktree on this branch while the instruction's
+  // root and the fake app stay on the first (design.md §7, agent-handoff).
+  worktree: { branch: string } | null;
 }
 
 export interface LoadedScenario extends Scenario {
@@ -21,7 +24,9 @@ export interface LoadedScenario extends Scenario {
 }
 
 const FOCUS = ["write", "comments", "active", "injection", "implement", "understand"];
-const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "mcp", "shellCli"];
+const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "mcp", "shellCli", "worktree"];
+// The first worktree is on main (init.defaultBranch in workspace.ts).
+const BRANCH = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 function fail(id: string, message: string): never {
   throw new Error(`scenario ${id}: ${message}`);
@@ -50,9 +55,15 @@ export function parseScenarioJson(value: unknown, dirName: string): Scenario {
   const mcp = v.mcp === true;
   if (v.shellCli !== undefined && typeof v.shellCli !== "boolean") fail(dirName, "shellCli must be boolean");
   const shellCli = v.shellCli !== false;
+  const worktree = v.worktree ?? null;
+  if (worktree !== null) {
+    const keys = typeof worktree === "object" && !Array.isArray(worktree) ? Object.keys(worktree) : [];
+    const branch = (worktree as { branch?: unknown }).branch;
+    if (keys.length !== 1 || keys[0] !== "branch" || typeof branch !== "string" || !BRANCH.test(branch) || branch === "main") fail(dirName, "worktree must be null or { branch: <lowercase-hyphenated name other than main> }");
+  }
   const timeoutSec = v.timeoutSec ?? 900;
   if (!Number.isInteger(timeoutSec) || (timeoutSec as number) < 1) fail(dirName, "timeoutSec must be a positive whole number");
-  return { mcp, shellCli, id: dirName, title: v.title, focus: v.focus as Scenario["focus"], init: init as Scenario["init"], selection: selection as Scenario["selection"], timeoutSec: timeoutSec as number };
+  return { mcp, shellCli, worktree: worktree as Scenario["worktree"], id: dirName, title: v.title, focus: v.focus as Scenario["focus"], init: init as Scenario["init"], selection: selection as Scenario["selection"], timeoutSec: timeoutSec as number };
 }
 
 export function renderPrompt(template: string, repo: string): string {
