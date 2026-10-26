@@ -28,7 +28,7 @@ Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several wo
 ## 1. Launching workers
 
 - In an Orca environment, read the `orchestration` skill and manage Run, Task, and Dispatch with its procedure.
-- Batches with non-overlapping file ownership each run in their own worktree.
+- Batches with non-overlapping file ownership each run in their own worktree. In Orca, start each with `--worktree new-child --base-branch feat-<slug>`; without `--base-branch` the child branches from main, not from the conductor's checkout (AGENTS.md 'Workflow').
 - **Write the brief to a file and send it as one line.** Include: the plan source and assigned items, files not to touch, allowed model, the `/ship` override (**stop before the push step** — no `git push` or `gh pr create`), gate commands (only from AGENTS.md 'Commands'; if none, the worker stops and reports), handoff protocol (write commits, verification results, and incomplete items to `.scratch/handoff-<batch>.md` and send the completion signal once).
 - Respect the sessions' permission settings. Do not add permission-bypass flags or click another session's approval prompts on its behalf.
 
