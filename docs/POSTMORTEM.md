@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-27 — SDK process death reached failure classification before group release
+
+- **Area**: `app/src/main/conversation/runners.ts` (F-A3).
+- **Symptom**: Claude SDK 0.3.310 rejected an accepted turn with `Claude Code process exited with code 7`; the service persisted `unknown` before owned-group disappearance could report `process_exited`. Signal termination followed the same path.
+- **Root cause**: the iterator rejection and the group-exit callback were independent terminal producers. Generic text classification won the race, while the runner discarded the child's earlier exit evidence. A child's exit is not proof that all descendants have exited.
+- **Net**: E's real Electron/main/preload run exposed the nonzero-exit case; pure transport tests and a successful SDK fixture missed it. Actual SDK plus credential-free fake executables reproduced both exit(7) and SIGKILL as red service-history assertions. A remaining descendant makes the group-release ordering explicit. The regressions also preserve user interruption, authentication/rate-limit errors, ordinary unknown failures and an error-result message imitating the SDK exit text, with exactly one terminal event.
+- **Prevention**: record the spawned child's exit before handing its handle back to the SDK; classify only observed exits paired with the supported SDK's `process_exited_nonzero` or `process_killed_by_signal` error class, using the terminal normalizer before cleanup. Keep reservation release tied to `OwnedGroup` disappearance, not the classification flag or a kill request. Run `rg -n 'childExited|errorClass|transportFailed' app/src/main/conversation --glob '!*.test.ts'` (performed 2026-10-27): matches are confined to runners, group ownership and the generic service rejection path. Retain real-SDK fake-process coverage when changing the supported SDK version; rerun E's Electron crash/interrupt cases after integration.
+
 ### 2026-10-27 — Successful appends crossed the history reader's byte limit
 
 - **Area**: `app/src/main/conversation/store.ts`, `io.ts` (R-F-A-1).
