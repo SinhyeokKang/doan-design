@@ -29,7 +29,7 @@
 - [ ] C5. `buzz-project`
 - [ ] C6. `buzz-canvas`
 - [ ] C7. `buzz-inspector`
-- [ ] C8. `buzz-comment` — 보류(2026-10-26 user): 에이전트와 실시간 대화하는 기능을 별도 feature로 검토하고, 도입하면 코멘트를 걷어낸다. 그 feature의 PoC와 PRODUCT §3 결정이 날 때까지 시작하지 않는다
+- [ ] C8. `buzz-conversation` — 기존 `buzz-comment` 자리(2026-10-26 user). 기반 feature [`agent-conversation`](../agent-conversation/spec.md)이 main에 들어간 뒤 시작한다. 범위는 spec 자식 표 8번
 - [ ] C9. `buzz-settings`
 
 ## Z. 부모 정리

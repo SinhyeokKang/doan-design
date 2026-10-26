@@ -49,7 +49,7 @@
 | 툴팁 | 거의 검정인 prominent 캡슐: `text-caption`, 패딩 4/8px, `--affordance-prominent` 채움, 블러 등장 모션 (overlays.css:393-410, DESIGN.md:1269-1272) | 2026-10-25 공유 툴팁 패딩 12/6px 결정을 대체한다(PRODUCT §7 기록) | buzz-ds |
 | 플로팅 표면 | `floating-surface`: Menu·Select·Popover·PreviewCard 전용. 90% 불투명 배경, 블러, 24px 모서리, 투명 1px 테두리, 라이트는 윤곽+접촉+주변 그림자. 목록 inset 4px, 행 패딩 8/12px, 안쪽 모서리는 파생값. 짧은 액션 메뉴는 compact(16px 모서리, inset 2px) (materials.css:67, DESIGN.md:558) | Radix DropdownMenu·Popover와 doan 메뉴들에 적용 | buzz-ds |
 | 다이얼로그 | compact 25rem / standard 40 / wide 55 / expanded 72rem, 안쪽 패딩 2rem(뷰포트 30rem 이하 1rem), 상단 8rem, 불투명 `surface-popover`, 28px 모서리. 제목+설명이 헤더, Close는 옆, 액션은 Cancel → 완료 순서. 등장 0.75rem 상승·220ms·`easing-enter`, 퇴장 0.25rem·120ms (overlays.css) | 공용 틀은 buzz-ds, 화면 하나만 여는 다이얼로그 내용은 그 화면 자식. 포커스·닫기 동작은 그대로. 모달 scrim은 지금 `--board-bg`를 재사용하므로 buzz-ds가 scrim 값을 따로 정한다 | buzz-ds, 각 화면 자식 |
-| 패널 | 사이드바 `Panel`과 메인 `Panel joined`가 `space-panel-gap`(8px)으로 떨어져 떠 있다. 불투명 `surface-panel`, 모서리 `radius-container`(24px), `shadow-panel`(1px 윤곽 6% + 작은 그림자 두 겹). companion 패널은 메인 `Panel joined` 안에 도킹한 열이고 `border-inline-start: 1px solid var(--border-standard)`로만 나뉜다(AppShell.tsx:477-478, `features/panels/Panels.module.css` `.dock`) | `Panel` 컴포넌트는 buzz-ds, 배치는 buzz-shell. 오른쪽 열(Comments/Inspector)도 Buzz대로 도킹 | buzz-ds, buzz-shell |
+| 패널 | 사이드바 `Panel`과 메인 `Panel joined`가 `space-panel-gap`(8px)으로 떨어져 떠 있다. 불투명 `surface-panel`, 모서리 `radius-container`(24px), `shadow-panel`(1px 윤곽 6% + 작은 그림자 두 겹). companion 패널은 메인 `Panel joined` 안에 도킹한 열이고 `border-inline-start: 1px solid var(--border-standard)`로만 나뉜다(AppShell.tsx:477-478, `features/panels/Panels.module.css` `.dock`) | `Panel` 컴포넌트는 buzz-ds, 배치는 buzz-shell. 오른쪽 패널(대화·인스펙터 탭, 평소 숨김)도 Buzz대로 도킹 | buzz-ds, buzz-shell |
 | 셸 배경 | `bg-app` 단색 + 24px 간격 `texture-dots` 점 격자. 점 색은 `bg-app`에서 파생(라이트는 94% + 검정). 셸 패널과 내비게이션에는 glass를 쓰지 않는다 (DESIGN.md "Surface and depth") | 없음 | buzz-ds (토큰), buzz-shell |
 | 앱 헤더 | 헤더 높이 `--size-topbar` 3.5rem = 56px(globals.css:195), macOS 신호등 (24, 30)(src-tauri/tauri.conf.json:21-24), 빈 헤더 배경만 드래그. 아이콘 버튼은 32px 상자·16px 아이콘·10px 모서리의 고스트, hover는 반투명 채움, pressed는 조금 더 진하게 (shell-design.md "Desktop chrome") | Electron `titleBarStyle: "hiddenInset"` + `trafficLightPosition`으로 같은 위치를 만들고 실측한다. 2026-10-22 Window 결정을 대체한다(PRODUCT §7 기록) | buzz-ds (`IconButton`), buzz-shell |
 | 사이드바 | `SidebarNavigation`: `text-navigation` 라벨, body-sm Regular, 28px 행, 블록 패딩 2px, 앞 8px/뒤 6px, 아이콘 간격 6px, 행 간격 2px, 그룹 간격 16px, 섹션 제목·접기 화살표는 `text-subtle`, 선택은 `surface-sidebar-selected` + `text-sidebar-selected`, hover는 `affordance-sidebar-hover` | 선택 채움은 현재 위치 행(`aria-current="location"`)에, hover는 트리 행에 citrus. 트리 들여쓰기·twisty·카운트는 doan 정보 구조 유지 | buzz-ds (토큰), buzz-project |
@@ -88,16 +88,16 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 |---|---|
 | App shell — initial app-ui implementation (2026-10-22) | buzz-shell |
 | Select and inspect (2026-10-23) | 캔버스 부분 buzz-canvas, 인스펙터 부분 buzz-inspector, 표시 삭제 buzz-inspector |
-| Comments (2026-10-23) + comments-readability update | buzz-comment |
+| Comments (2026-10-23) + comments-readability update | buzz-conversation (코멘트 UI를 걷어낼 때 절을 정리한다) |
 | Onboarding (2026-10-24) + app-setup update | buzz-onboarding |
 | Projects home (2026-10-25) + Cfix review round | buzz-home |
 | Design navigation (2026-10-25) + Final review follow-up | 트리·Overview buzz-project, Quick Open buzz-search, 표시 삭제 buzz-project |
 | Settings and Home setup (2026-10-25) | Settings buzz-settings, Home 설정 부분 buzz-home, 표시 삭제 buzz-settings |
 | UX audit recovery update (2026-10-25) | buzz-ds (툴팁·포커스 등 공용 수정) |
 | Revision continuity (2026-10-26) | buzz-canvas |
-| Comments Review (2026-10-26) | buzz-comment |
-| Hand off dialog (2026-10-26) | buzz-comment |
-| Feedback panel (2026-10-26) | buzz-comment |
+| Comments Review (2026-10-26) | buzz-conversation (같음) |
+| Hand off dialog (2026-10-26) | buzz-conversation (같음) |
+| Feedback panel (2026-10-26) | buzz-conversation (같음) |
 
 ## 자식 feature 조사 메모
 
@@ -129,7 +129,7 @@ Buzz의 첫 실행 화면은 `src/features/identity/OnboardingScreen.tsx` + `Ide
 ### 조사 메모: 캔버스 영역 (`buzz-canvas`용)
 
 - Buzz는 점 격자를 셸 바닥에만 두고, 읽기 패널은 불투명하게 둔다. doan의 캔버스 보드(`.area`, 지금 `--board-bg` + 16px 점)를 메인 `Panel` 안 불투명 보드로 둘지, 셸 점 격자가 비치는 영역으로 둘지는 `buzz-canvas`에서 묻는다.
-- 선택·hover 표시는 무채색이 된다. 에이전트가 그린 캔버스는 어떤 색이든 될 수 있으므로, 선택 표시와 (buzz-comment의) 핀은 무채색·액센트와 별개로 바깥 halo나 외곽선을 갖추고, 어두운·밝은·violet이 많은 픽스처 캔버스 위에서 확인한다.
+- 선택·hover 표시는 무채색이 된다. 에이전트가 그린 캔버스는 어떤 색이든 될 수 있으므로, 선택 표시와 요소 피커의 선택 모드 표시는 무채색·액센트와 별개로 바깥 halo나 외곽선을 갖추고, 어두운·밝은·violet이 많은 픽스처 캔버스 위에서 확인한다.
 - `color-scheme`을 dark에서 light로 바꾸면 다른 `color-scheme`을 가진 캔버스 iframe의 바탕 처리가 달라질 수 있다(POSTMORTEM 2026-10-25 예방 항목). iframe 미디어 선호와 computed `color-scheme`을 따로 확인한다.
 
 ## 금지 표현 (모든 자식 공통, 2026-10-26 user)
