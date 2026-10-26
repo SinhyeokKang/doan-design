@@ -15,14 +15,18 @@ import { validateSelection } from "../formats/validate";
 import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } from "./canvasFrame";
 import { canvasScriptSource } from "./canvasScript";
 import { createAddFlow, droppedPaths, type AddFlow } from "./addProjects";
-import { cliCommand, runConfig, runLs } from "./cli";
+import { cliCommand, readFolder, runConfig, runLs } from "./cli";
 import { createConfigBridge, type ConfigBridge } from "./configBridge";
 import { folderState } from "./folderState";
 import type { InspectResult } from "./inspect";
 import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
 import { menuState, type Screen } from "./menuState";
+import { parseProjectCommentsRequest, readProjectComments, type ProjectComments } from "./projectComments";
 import { removalLabel } from "./removal";
+import { createReviewStore, parseReviewRaise, parseReviewRead } from "./reviewState";
+import { readFoldersFileForPruning } from "./folderStore";
+import type { ReviewMarker } from "../comments/review";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
 import { INSTALL_URLS, parseExternalTarget, parseForwardedAction, parseSettingsTab, parseSettingsTarget, projectRows, SETTINGS_TITLES, SETTINGS_WINDOW, type SettingsTab, type SettingsTarget } from "./settings";
 import { createSetupBroker, type SetupBroker } from "./setupBroker";
@@ -43,9 +47,10 @@ export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string 
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
-export type MenuCommand = "home" | "undoRemove" | "quickOpen";
+export type MenuCommand = "home" | "undoRemove" | "quickOpen" | "nextResolved" | "previousResolved";
 // What the renderer reports so main can enable menu items (design 'Menus').
-export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean }
+// `reviewing`: a Review runs on the open canvas (revision-recheck); absent is false.
+export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; reviewing?: boolean }
 export type RemoveResult = { kind: "removed"; removalId: string; label: string } | { kind: "cancelled" } | { kind: "unavailable" };
 export type RestoreResult = { kind: "restored"; paths: string[] } | { kind: "unavailable" };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
@@ -210,7 +215,7 @@ function injectCanvasScript(window: BrowserWindow): void {
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: wizardSession !== null, focusedWindow });
+  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: wizardSession !== null, focusedWindow, reviewing: menuInputs.reviewing === true });
   const undo: MenuItemConstructorOptions = enabled.undoRemove
     ? { label: "Undo Remove", accelerator: "CmdOrCtrl+Z", click: command("undoRemove") }
     : { role: "undo" };
@@ -267,6 +272,11 @@ function setMenu(): void {
       { label: "Go", submenu: [
         { label: "Home", accelerator: "Shift+CmdOrCtrl+H", enabled: enabled.home, click: command("home") },
         { label: "Quick Open…", accelerator: "CmdOrCtrl+K", enabled: enabled.quickOpen, click: command("quickOpen") },
+        { type: "separator" },
+        // ⌘] and ⌘[ are not text-editing keys, so they can stay bound while a
+        // field has focus; they are enabled only during a Review.
+        { label: "Next Resolved Comment", accelerator: "CmdOrCtrl+]", enabled: enabled.resolvedNav, click: command("nextResolved") },
+        { label: "Previous Resolved Comment", accelerator: "CmdOrCtrl+[", enabled: enabled.resolvedNav, click: command("previousResolved") },
       ] },
       { role: "windowMenu" },
     ]),
@@ -277,17 +287,18 @@ function setMenu(): void {
 const homeDirectory = (): string => process.env.HOME ?? app.getPath("home");
 
 function setMenuInputs(next: MenuInputs): void {
-  if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast) return;
+  if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast && next.reviewing === menuInputs.reviewing) return;
   menuInputs = next;
   setMenu();
 }
 
 function parseMenuInputs(value: unknown): MenuInputs | null {
-  if (typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
-    !("screen" in value) || !("modal" in value) || !("toast" in value)) return null;
+  if (typeof value !== "object" || value === null || !("screen" in value) || !("modal" in value) || !("toast" in value)) return null;
+  const reviewing: unknown = Reflect.get(value, "reviewing");
+  if (Object.keys(value).length !== ("reviewing" in value ? 4 : 3) || (reviewing !== undefined && typeof reviewing !== "boolean")) return null;
   const { screen, modal, toast } = value;
   if ((screen !== "home" && screen !== "workspace" && screen !== "canvas") || typeof modal !== "boolean" || typeof toast !== "boolean") return null;
-  return { screen, modal, toast };
+  return reviewing === true ? { screen, modal, toast, reviewing } : { screen, modal, toast };
 }
 
 // Without handlers Electron grants permissions to the app's own main frame.
@@ -483,6 +494,7 @@ async function start(): Promise<void> {
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("comments:invalidated", { root });
   };
   const choices = new Map<string, { id: string; path: string; epoch: number }>();
+  const savedRoots = await readFoldersFileForPruning(join(userData, "folders.json"));
   const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
     for (const root of choices.keys()) {
       if (!entries.some(entry => entry.path === root && entry.kind === "uninitialized")) choices.delete(root);
@@ -579,6 +591,8 @@ async function start(): Promise<void> {
   handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
   handle("folders:get", [], (event) => (fromWindow(event) ? ready.entries() : []));
   const cli = cliCommand(process.env, app.isPackaged, process.resourcesPath);
+  const storedRoot = (root: string) => ready.entries().some(entry => entry.path === root);
+  const reviews = createReviewStore(join(userData, "review-state.json"), () => savedRoots);
   const flow = createAddFlow({
     ls: async (target, signal) => folderState(await runLs(cli, target, undefined, signal)),
     saved: () => ready.entries().map((entry) => entry.path),
@@ -604,6 +618,12 @@ async function start(): Promise<void> {
   });
   handle("folders:add-candidates", { kind: "unavailable" }, (event, value: unknown) => (fromWindow(event) ? flow.addCandidates(value) : { kind: "unavailable" }));
   handle("folders:confirm-folder", { kind: "unavailable" }, (event, value: unknown) => (fromWindow(event) ? flow.confirm(value) : { kind: "unavailable" }));
+  // Review markers outlive a removal while Undo can bring the project back;
+  // a root stored again meanwhile keeps them.
+  const removedForGood = (paths: readonly string[]) => {
+    const gone = paths.filter(path => !ready.entries().some(entry => entry.path === path));
+    if (gone.length > 0) reviews.forget(gone);
+  };
   // A row or a whole card. The draft guard asks once when a draft is open; the
   // renderer knows whether the draft belongs to one of these roots.
   handle("folders:remove", { kind: "unavailable" }, (event, value: unknown): Promise<RemoveResult> | RemoveResult => {
@@ -622,12 +642,14 @@ async function start(): Promise<void> {
         // The list changes before folders.json is written: the old Undo goes
         // now, not when the write ends.
         const generation = ++removals;
+        if (removal !== null) removedForGood(removal.paths);
         removal = null;
         void ready.remove(roots).then((removed) => {
           if (removed.paths.length === 0) { resolve({ kind: "unavailable" }); return; }
           void thumbs.removed(removed.paths, before);
           const id = randomUUID();
           if (generation === removals) removal = { id, ...removed };
+          else removedForGood(removed.paths);
           resolve({ kind: "removed", removalId: id, label });
         });
       }, () => resolve({ kind: "cancelled" }));
@@ -644,7 +666,7 @@ async function start(): Promise<void> {
   });
   // The toast expired: Undo is gone, so is what it needed.
   handle("folders:forget-removal", undefined, (event, value: unknown) => {
-    if (fromWindow(event) && removal !== null && removalId(value) === removal.id) removal = null;
+    if (fromWindow(event) && removal !== null && removalId(value) === removal.id) { removedForGood(removal.paths); removal = null; }
   });
   handle("folders:locate", { kind: "unavailable" }, async (event, value: unknown): Promise<LocateResult> => {
     const from = storedPath(value);
@@ -672,6 +694,23 @@ async function start(): Promise<void> {
   uiState = store;
   handle("ui-state:get", null, (event) => (fromWindow(event) ? store.read() : null));
   handle("ui-state:save", false, (event, value: unknown) => fromWindow(event) && store.save(value));
+  // revision-recheck: the renderer reads markers and may only ask for raises.
+  handle("review-state:get", null, (event, value: unknown): ReviewMarker | null => {
+    const request = parseReviewRead(value);
+    return fromWindow(event) && request !== null && storedRoot(request.root) ? reviews.marker(request.root, request.canvas) : null;
+  });
+  handle("review-state:raise", null, (event, value: unknown): ReviewMarker | null => {
+    const request = parseReviewRaise(value);
+    return fromWindow(event) && request !== null && storedRoot(request.root) ? reviews.raise(request.root, request.canvas, request.at) : null;
+  });
+  handle("comments:project", null, (event, value: unknown): Promise<ProjectComments> | null => {
+    const request = parseProjectCommentsRequest(value);
+    if (!fromWindow(event) || request === null || !storedRoot(request.root)) return null;
+    return readProjectComments({
+      list: root => readFolder(cli, root), read: readCommentBytes, author: readAuthor,
+      marker: (root, canvas) => reviews.marker(root, canvas),
+    }, request);
+  });
   // A saved root and a listed canvas only; main reads the bytes from its cache.
   handle("thumbnails:get", { kind: "unavailable" }, (event, value: unknown): Promise<ThumbnailReply> | ThumbnailReply => {
     if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
@@ -790,7 +829,6 @@ async function start(): Promise<void> {
     return { kind: "success", ...(warning === undefined ? {} : { warning }) };
   });
 
-  const storedRoot = (root: string) => ready.entries().some(entry => entry.path === root);
   handle("settings:open", false, (_event, value: unknown) => {
     const target = parseSettingsTarget(value, storedRoot);
     return target !== null && openSettings(target);

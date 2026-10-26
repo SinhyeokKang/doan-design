@@ -141,9 +141,14 @@ func Fold(events []LocatedEvent) FoldResult {
 				comment.Status = "resolved"
 				comment.ResolvedBy = &event.By
 				comment.ResolvedAt = &event.At
+				comment.LastResolution = nil
 			}
 		case "reopen":
 			if comment.Status == "resolved" {
+				comment.LastResolution = &LastResolution{
+					By: *comment.ResolvedBy, At: *comment.ResolvedAt,
+					ReopenedBy: event.By, ReopenedAt: event.At,
+				}
 				comment.Status = "open"
 				comment.ResolvedBy = nil
 				comment.ResolvedAt = nil

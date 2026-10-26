@@ -85,6 +85,9 @@ export interface SelectMessage extends SelectionMessageBase {
   type: "select";
   // null: the script could not find the anchor it was asked for.
   target: SelectTarget | null;
+  // The command this selection answers; absent for a click, which can share
+  // the seq of a command the script then drops.
+  answer?: "select-anchor" | "select-comment";
 }
 
 export interface ClearMessage extends SelectionMessageBase {
@@ -205,9 +208,12 @@ function parseSelectionMessage(data: Record<string, unknown>): SelectionMessage 
       return rect === null ? null : { type, ...base, rect };
     }
     case "select": {
-      if (data.target === null) return { type, ...base, target: null };
+      const answer: SelectMessage["answer"] = data.answer === "select-anchor" || data.answer === "select-comment" ? data.answer : undefined;
+      if (answer === undefined && data.answer !== undefined) return null;
+      const marked = answer === undefined ? base : { ...base, answer };
+      if (data.target === null) return { type, ...marked, target: null };
       const target = parseTarget(data.target);
-      return target === null ? null : { type, ...base, target };
+      return target === null ? null : { type, ...marked, target };
     }
     default: return null;
   }

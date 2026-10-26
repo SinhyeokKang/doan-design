@@ -11,6 +11,8 @@ import type { LocateResult, MenuCommand, MenuInputs, OpenProjectResult, ProjectI
 import type { ExternalTarget, ForwardedAction, SettingsTarget } from "../main/settings";
 import type { SetupStatus } from "../main/setupBroker";
 import type { InspectResult } from "../main/inspect";
+import type { ProjectComments } from "../main/projectComments";
+import type { ReviewMarker } from "../comments/review";
 import type { FolderEntry } from "../main/view";
 import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { UiState } from "../restore/uiState";
@@ -79,6 +81,12 @@ const api = {
     ipcRenderer.on("comments:transition", receive);
     return () => ipcRenderer.removeListener("comments:transition", receive);
   },
+  // Per canvas id from one fresh `doan ls`; null when main refused. `revision`
+  // comes back unchanged so a reply older than the last invalidation can be dropped.
+  projectComments: (root: string, revision: number): Promise<ProjectComments | null> => ipcRenderer.invoke("comments:project", { root, revision }),
+  // The device-local last review time of one canvas; main only ever raises it.
+  reviewMarker: (root: string, canvas: string): Promise<ReviewMarker | null> => ipcRenderer.invoke("review-state:get", { root, canvas }),
+  raiseReviewMarker: (root: string, canvas: string, at: string): Promise<ReviewMarker | null> => ipcRenderer.invoke("review-state:raise", { root, canvas, at }),
   onCommentsInvalidated(listener: (change: { root: string }) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, change: { root: string }) => listener(change);
     ipcRenderer.on("comments:invalidated", receive);

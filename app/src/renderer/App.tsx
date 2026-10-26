@@ -2,12 +2,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject }
 import { canvasLabel } from "./canvasTree";
 import type { Selection } from "../formats/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import type { ViewCommand } from "../main/index";
+import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
 import { projectNames } from "./projectRow";
 import { DropdownMenu } from "radix-ui";
 import { displayPath } from "./projectDisplay";
-import { Home, ProblemActions, PathTip } from "./Home";
+import { Home, ProblemActions, PathTip, useProjectComments } from "./Home";
 import { AddProjectsDialog, SetUpFolderConfirm } from "./AddProjectsDialog";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { useToast } from "./Toast";
@@ -18,7 +18,7 @@ import { groupProjects, cardRow } from "./homeCards";
 import { moveExpanded, Sidebar, type CanvasMove } from "./Sidebar";
 import { useComments } from "./useComments";
 import { RightPanel } from "./RightPanel";
-import { duplicateIdText, updatedText } from "./canvasView";
+import { duplicateIdText } from "./canvasView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
 import { Wizard, type Reroot } from "./Onboarding";
 import { FirstPromptContext, useFirstPromptWait } from "./FirstPrompt";
@@ -27,6 +27,16 @@ import { QuickOpen } from "./QuickOpenDialog";
 import { unavailableCanvasMessage, pickTarget, type SearchResult } from "./quickOpen";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import type { UiState } from "../restore/uiState";
+
+// Each command names its handler; one App does not know does nothing, so a
+// new menu item can never run the Undo toast's action (R-M ⚪5).
+export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; undo: () => void; review: (move: "next" | "previous") => void }): void {
+  if (name === "home") to.home();
+  else if (name === "quickOpen") to.quickOpen();
+  else if (name === "undoRemove") to.undo();
+  else if (name === "nextResolved") to.review("next");
+  else if (name === "previousResolved") to.review("previous");
+}
 
 export function App() {
   const [homeDirectory, setHomeDirectory] = useState<string | null>(null);
@@ -127,7 +137,9 @@ export function App() {
     beforeWizard.current = null;
     focusCurrent(previous);
   }, [wizard]);
-  const comments = useComments(state, controller, () => setScreen("workspace"), entries);
+  // Set once the project counts below exist; a raised review marker refreshes them.
+  const reviewedRoot = useRef<(root: string) => void>(() => {});
+  const comments = useComments(state, controller, () => setScreen("workspace"), entries, root => reviewedRoot.current(root));
   const home = () => {
     cancelRestore();
     controller.current?.cancelWorkspaceOpen();
@@ -225,8 +237,8 @@ export function App() {
 
   const modal = wizard !== null || !!comments.dialog || setup !== null || scan !== null || confirms.length > 0 || quickOpen;
   useLayoutEffect(() => { toast.setModal(modal); }, [modal]);
-  const live = useRef({ home, enter, toast, modal, save });
-  live.current = { home, enter, toast, modal, save };
+  const live = useRef({ home, enter, toast, modal, save, comments });
+  live.current = { home, enter, toast, modal, save, comments };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement.closest<HTMLElement>(".home-body [data-path]") ?? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -311,11 +323,16 @@ export function App() {
   }), [entries, loadedRoot]);
   useEffect(() => window.doan.onMenuCommand(name => {
     if (live.current.modal) return;
-    if (name === "home") live.current.home();
-    else if (name === "quickOpen") { cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); }
-    else if (live.current.toast.toast?.action === "Undo") live.current.toast.action();
+    menuCommand(name, {
+      home: () => live.current.home(),
+      quickOpen: () => { cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); },
+      undo: () => { if (live.current.toast.toast?.action === "Undo") live.current.toast.action(); },
+      review: move => live.current.comments.reviewStep(move),
+    });
   }), []);
-  useEffect(() => { void window.doan.setMenuState({ screen: screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo" }); }, [screen, state.open, modal, toast.toast?.action]);
+  useEffect(() => { void window.doan.setMenuState({ screen: screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo", reviewing: comments.reviewing }); }, [screen, state.open, modal, toast.toast?.action, comments.reviewing]);
+  // Home ends a Review like another canvas; the progress passed stays raised.
+  useEffect(() => { if (screen === "home") comments.closeReview(); }, [screen]);
   const command = (name: ViewCommand) => controller.current?.command(name);
   function pick(result: SearchResult) {
     cancelRestore();
@@ -333,6 +350,12 @@ export function App() {
   const thumbs = useThumbnails(entry?.kind === "list" ? entry.path : null, entry?.kind === "list" ? entry.canvases : []);
   const overview = screen === "workspace" && entry?.kind === "list" && !state.open ? entry : null;
   const shownOverview = overview?.path ?? null;
+  // Only roots on screen are read: an open canvas being edited would otherwise
+  // cost a second ls per change. A root is read again when it comes back on
+  // screen, so `projectComments.refresh` matters only for one already shown.
+  const countedRoots = useMemo(() => screen === "home" ? entries.map(entry => entry.path) : shownOverview ? [shownOverview] : [], [screen, entries, shownOverview]);
+  const projectComments = useProjectComments(entries, countedRoots);
+  reviewedRoot.current = projectComments.refresh;
   const previousOverview = useRef(shownOverview);
   useEffect(() => {
     if (previousOverview.current !== null && previousOverview.current !== shownOverview) setOverviewNotice(null);
@@ -354,13 +377,13 @@ export function App() {
     },
   });
   return <TooltipProvider><FirstPromptContext.Provider value={firstPrompt}>
-  {screen === "home" && <Home homeDirectory={homeDirectory} entries={entries} loaded={loadedRoot} selection={state.selection} highlight={highlight} rerootHint={rerootHint} enter={enter} action={action} remove={paths => void remove(paths)} />}
+  {screen === "home" && <Home homeDirectory={homeDirectory} entries={entries} loaded={loadedRoot} selection={state.selection} highlight={highlight} rerootHint={rerootHint} comments={projectComments.comments} enter={enter} action={action} remove={paths => void remove(paths)} />}
   <main className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}`} style={{ visibility: screen === "home" ? "hidden" : "visible" }} inert={screen === "home"} aria-hidden={screen === "home"}>
     <TopBar homeDirectory={homeDirectory} state={state} name={card?.name ?? name} reload={() => command("reload")} overview={() => { cancelRestore(); controller.current?.showOverview(); }} home={home} entry={entry} rows={card?.rows ?? []} enter={root => enter(root, true)} />
     {entry && entry.kind !== "list" && <ProblemActions entry={entry} action={action} workspace={{ name: card?.name ?? name, homeDirectory, home }} />}
     <Sidebar entries={entries.filter(entry => entry.path === loadedRoot)} state={state} expanded={expanded} moved={moved} onExpandedChange={(root, paths) => { cancelRestore(); setExpanded(previous => ({ ...previous, [root]: paths })); }} open={(folder, row, frameId, index) => { cancelRestore(); controller.current?.openCanvas(folder, row, frameId, index === undefined ? undefined : { index }); }} jump={index => controller.current?.jump(index)} select={index => controller.current?.selectFrame(index)} overview={() => { cancelRestore(); controller.current?.showOverview(); }} />
     <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null} />
-    {overview && <ProjectOverview key={overview.path} root={overview.path} rows={overview.canvases} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null} open={row => { cancelRestore(); controller.current?.openCanvas(overview.path, row); }} />}
+    {overview && <ProjectOverview key={overview.path} root={overview.path} rows={overview.canvases} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null} comments={projectComments.comments.get(overview.path)} open={row => { cancelRestore(); controller.current?.openCanvas(overview.path, row); }} />}
     <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />{comments.panel}</div>
   </main>
   {comments.dialog}
@@ -414,7 +437,7 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
         : state.status === "noWidth" ? <p><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
         : <p>{state.message}</p>}
     </div>}
-    {state.updated && state.open && <output className="updated meta" aria-label={updatedText(state.updated)}><span className="dot" /> {updatedText(state.updated)}</output>}
+    {state.label && state.open && <output className="updated meta" aria-label={state.label}><span className="dot" /> {state.label}</output>}
     <div className={`zctl${state.hasFrame ? "" : " disabled"}`}>
       <div className="zoom">
         <button aria-label="Zoom out" disabled={!state.hasFrame} onClick={() => command("zoomOut")}>−</button>

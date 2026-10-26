@@ -1,5 +1,6 @@
 import { expect, test, vi } from "vitest";
-import { createCommentsService } from "./service";
+import { attemptBaseline, createCommentsService, inspectAttempt } from "./service";
+import type { CommentEvent } from "../../formats/types";
 import { authorizeCanvas } from "./identity";
 import type { CommentIdentity, ServiceDependencies } from "./service";
 import { AppendUncertainError } from "./files";
@@ -353,4 +354,103 @@ test("non-identity failures omit cause even with the same error message", async 
   expect(await s.service.list("window", request)).toEqual({
     ok: false, identity: request, error: "Canvas identity is missing, changed or duplicated.",
   });
+});
+
+async function resolved(s: ReturnType<typeof setup>) {
+  await create(s);
+  const event = JSON.parse(s.bytes().toString());
+  const open = { body: event.body, status: "open", updatedAt: event.at };
+  expect(await s.service.mutate("window", { ...identity, project: 1, requestID: "resolve", intent: { type: "resolve", comment: event.comment, expected: open } })).toMatchObject({ ok: true, value: { state: "saved" } });
+  const resolve = JSON.parse(s.bytes().toString().trim().split("\n")[1] ?? "{}");
+  const expected = { ...open, resolvedAt: resolve.at, status: "resolved" };
+  return { comment: event.comment as string, expected, payload: { ...identity, project: 1, requestID: "edit-reopen", intent: { type: "edit-reopen", comment: event.comment, body: "Revised", expected } } };
+}
+const lines = (bytes: Buffer) => bytes.toString().trim().split("\n").map(line => JSON.parse(line));
+
+test("edit-reopen writes the edit and reopen lines in one append and replies with the edit id", async () => {
+  const s = setup(); const { payload, comment } = await resolved(s);
+  const before = s.bytes(); const calls = vi.mocked(s.deps.append).mock.calls.length;
+  const reply = await s.service.mutate("window", payload);
+  expect(s.deps.append).toHaveBeenCalledTimes(calls + 1);
+  const [edit, reopen] = lines(s.bytes().subarray(before.length));
+  expect(edit).toMatchObject({ type: "edit", comment, body: "Revised", by: { kind: "human", name: "Human" } });
+  expect(reopen).toMatchObject({ type: "reopen", comment, at: new Date(Date.parse(edit.at) + 1).toISOString() });
+  expect(reply).toEqual({ ok: true, identity: expect.anything(), value: { state: "saved", event: edit.id, comment } });
+  expect(await s.service.list("window", { ...identity, requestID: "read" })).toMatchObject({ ok: true, value: { comments: [{ status: "open", body: "Revised" }] } });
+});
+
+test("edit-reopen retry after an uncertain write replays the same two events", async () => {
+  const s = setup(); const { payload } = await resolved(s);
+  const before = s.bytes();
+  let prepared: Buffer | null = null;
+  vi.mocked(s.deps.append).mockImplementationOnce(async (_r, _c, prepare) => { prepared = await prepare(before); throw new AppendUncertainError("write failed"); });
+  expect(await s.service.mutate("window", payload)).toMatchObject({ ok: true, value: { state: "unknown", event: lines(prepared ?? Buffer.alloc(0))[0].id } });
+  expect(await s.service.status("window", { ...identity, requestID: payload.requestID })).toMatchObject({ ok: true, value: { state: "absent" } });
+  vi.mocked(s.deps.author).mockResolvedValue({ kind: "human", name: "Changed" });
+  expect(await s.service.mutate("window", payload)).toMatchObject({ ok: true, value: { state: "saved" } });
+  expect(s.bytes()).toEqual(Buffer.concat([before, prepared ?? Buffer.alloc(0)]));
+  const saved = s.bytes();
+  expect(await s.service.mutate("window", payload)).toMatchObject({ ok: true, value: { state: "saved" } });
+  expect(s.bytes()).toEqual(saved);
+});
+
+test.each([0, 1])("edit-reopen with only event %i on disk is unknown and never appends", async kept => {
+  const s = setup(); const { payload } = await resolved(s);
+  const before = s.bytes();
+  await s.service.mutate("window", payload);
+  const added = s.bytes().subarray(before.length).toString().trim().split("\n");
+  s.set(Buffer.concat([before, Buffer.from(`${added[kept]}\n`)]));
+  const calls = vi.mocked(s.deps.append).mock.calls.length;
+  expect(await s.service.status("window", { ...identity, requestID: payload.requestID })).toMatchObject({ ok: true, value: { state: "unknown" } });
+  expect(await s.service.mutate("window", payload)).toMatchObject({ ok: true, value: { state: "unknown" } });
+  expect(s.deps.append).toHaveBeenCalledTimes(calls);
+});
+
+test.each(["edit", "reopen"])("a human %s written in between rejects edit-reopen like a stale edit", async type => {
+  const s = setup(); const { payload, comment } = await resolved(s);
+  const external = { v: 1, id: "evt_00000000-0000-4000-8000-000000000099", comment, at: "2099-01-01T00:00:00.000Z", by: { kind: "human", name: "Other" }, type, ...(type === "edit" ? { body: "external" } : {}) };
+  s.set(Buffer.concat([s.bytes(), Buffer.from(JSON.stringify(external) + "\n")]));
+  const before = s.bytes();
+  expect(await s.service.mutate("window", payload)).toMatchObject({ ok: false, error: expect.stringContaining("Comment changed") });
+  expect(s.bytes()).toEqual(before);
+});
+
+test.each(["edit", "reopen"])("an agent %s ignored by folding does not reject edit-reopen", async type => {
+  const s = setup(); const { payload, comment } = await resolved(s);
+  const agent = { v: 1, id: "evt_00000000-0000-4000-8000-000000000099", comment, at: "2099-01-01T00:00:00.000Z", by: { kind: "agent", name: "codex" }, type, ...(type === "edit" ? { body: "agent" } : {}) };
+  s.set(Buffer.concat([s.bytes(), Buffer.from(JSON.stringify(agent) + "\n")]));
+  expect(await s.service.mutate("window", payload)).toMatchObject({ ok: true, value: { state: "saved" } });
+  expect(lines(s.bytes()).slice(-2).map(event => event.at)).toEqual(["2099-01-01T00:00:00.001Z", "2099-01-01T00:00:00.002Z"]);
+});
+
+test("Save only stays a single edit that keeps the comment resolved", async () => {
+  const s = setup(); const { comment, expected } = await resolved(s);
+  const before = s.bytes();
+  expect(await s.service.mutate("window", { ...identity, project: 1, requestID: "save-only", intent: { type: "edit", comment, body: "Revised", expected } })).toMatchObject({ ok: true, value: { state: "saved" } });
+  expect(lines(s.bytes().subarray(before.length))).toEqual([expect.objectContaining({ type: "edit" })]);
+  expect(await s.service.list("window", { ...identity, requestID: "read" })).toMatchObject({ ok: true, value: { comments: [{ status: "resolved", body: "Revised" }] } });
+});
+
+test.each([
+  ["missing body", ({ body: _body, ...rest }: Record<string, unknown>) => rest],
+  ["blank body", (intent: Record<string, unknown>) => ({ ...intent, body: " " })],
+  ["extra key", (intent: Record<string, unknown>) => ({ ...intent, origin: "x" })],
+] as const)("edit-reopen rejects %s before append", async (_name, change) => {
+  const s = setup(); const { payload } = await resolved(s);
+  const before = s.bytes();
+  expect(await s.service.mutate("window", { ...payload, intent: change(payload.intent) })).toMatchObject({ ok: false, error: "Invalid mutation." });
+  expect(s.bytes()).toEqual(before);
+});
+
+test("inspectAttempt is saved only when every event is present and absent only when none is", () => {
+  const base = Buffer.from(JSON.stringify({ v: 1, id: "evt_00000000-0000-4000-8000-000000000001", comment: "cmt_00000000-0000-4000-8000-000000000001", at: "2026-01-01T00:00:00.000Z", type: "create", by: { kind: "human", name: "Kim" }, body: "b", target: {}, canvasHash: "sha256:" + "a".repeat(64) }) + "\n");
+  const event = (n: number, type: "edit" | "reopen") => ({ v: 1, id: `evt_00000000-0000-4000-8000-00000000000${n}`, comment: "cmt_00000000-0000-4000-8000-000000000001", at: `2026-01-01T00:00:00.00${n}Z`, by: { kind: "human", name: "Kim" }, type, ...(type === "edit" ? { body: "e" } : {}) }) as CommentEvent;
+  const events: [CommentEvent, CommentEvent] = [event(2, "edit"), event(3, "reopen")];
+  const evidence = { events, before: attemptBaseline(base) };
+  const withLines = (...added: CommentEvent[]) => Buffer.concat([base, ...added.map(e => Buffer.from(JSON.stringify(e) + "\n"))]);
+  expect(inspectAttempt(withLines(...events), evidence)).toEqual({ state: "saved", event: events[0].id, comment: events[0].comment });
+  expect(inspectAttempt(base, evidence)).toEqual({ state: "absent", event: events[0].id, comment: events[0].comment });
+  for (const one of events) expect(inspectAttempt(withLines(one), evidence)).toMatchObject({ state: "unknown" });
+  expect(inspectAttempt(withLines(events[0], { ...events[1], at: "2026-01-01T00:00:00.009Z" }), evidence)).toMatchObject({ state: "unknown" });
+  expect(inspectAttempt(withLines(events[0]), { events: [events[0]], before: attemptBaseline(base) })).toMatchObject({ state: "saved" });
 });

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import type { ProjectCanvasComments } from "../main/projectComments";
 import type { CanvasRow } from "../main/view";
 import type { ThumbnailReply } from "../main/thumbnails";
 import { buildCanvasTree, type CanvasNode, type TreeNode } from "./canvasTree";
@@ -27,11 +28,15 @@ export function overviewSections(rows: readonly CanvasRow[]): OverviewSection[] 
   return sections;
 }
 
-// An absent canvas ID says nothing about the supplied frame metadata.
-export function cardFacts(row: CanvasRow): { frames?: string; open?: string } {
+// An absent canvas ID says nothing about the supplied frame metadata. The
+// review count is the `comments:project` one for the row's ID; a canvas whose
+// comment file failed shows none rather than a wrong one.
+export function cardFacts(row: CanvasRow, comments?: readonly ProjectCanvasComments[]): { frames?: string; open?: string; review?: string } {
   const count = row.frames?.length ?? 0;
   const frames = row.frames === undefined ? undefined : row.framesTruncated ? "1,000+ frames" : `${count.toLocaleString("en-US")} ${count === 1 ? "frame" : "frames"}`;
-  return { ...(frames === undefined ? {} : { frames }), ...(row.open > 0 ? { open: `${row.open} open` } : {}) };
+  const counts = row.id === undefined ? undefined : comments?.find(canvas => canvas.id === row.id);
+  const toReview = counts && !("error" in counts) ? counts.toReview : 0;
+  return { ...(frames === undefined ? {} : { frames }), ...(row.open > 0 ? { open: `${row.open} open` } : {}), ...(toReview > 0 ? { review: `${toReview} resolved to review` } : {}) };
 }
 
 export function thumbnailView(row: CanvasRow, state: ThumbnailState | undefined): ThumbnailView {
@@ -150,9 +155,11 @@ interface ProjectOverviewProps {
   open: (row: CanvasRow) => void;
   // A band at the top, such as why the open canvas was closed.
   notice?: string | null;
+  // `comments:project` counts for this root, absent until the first read lands.
+  comments?: readonly ProjectCanvasComments[] | undefined;
 }
 
-export function ProjectOverview({ root, rows, thumbnails, onVisible, open, notice }: ProjectOverviewProps) {
+export function ProjectOverview({ root, rows, thumbnails, onVisible, open, notice, comments }: ProjectOverviewProps) {
   const region = useRef<HTMLElement>(null);
   const sections = overviewSections(rows);
   const order = sections.flatMap(section => section.canvases.map(canvas => canvas.key));
@@ -187,14 +194,14 @@ export function ProjectOverview({ root, rows, thumbnails, onVisible, open, notic
     {notice && <div className="canvas-notice" role="status">{notice}</div>}
     {sections.map(section => <section key={section.key} aria-label={section.key}>
       <div className="sec">{section.key} <span className="r">{section.canvases.length}</span></div>
-      <div className="ocards">{section.canvases.map(canvas => <CanvasCard key={canvas.key} canvas={canvas} thumbnail={thumbnailView(canvas.row, thumbnails.get(canvas.key))} open={open}
+      <div className="ocards">{section.canvases.map(canvas => <CanvasCard key={canvas.key} canvas={canvas} comments={comments} thumbnail={thumbnailView(canvas.row, thumbnails.get(canvas.key))} open={open}
         focus={path => { focused.current = path; }} blur={(path, to) => { if (to !== null && focused.current === path) focused.current = null; }} />)}</div>
     </section>)}
   </section>;
 }
 
-function CanvasCard({ canvas, thumbnail, open, focus, blur }: { canvas: CanvasNode; thumbnail: ThumbnailView; open: (row: CanvasRow) => void; focus: (path: string) => void; blur: (path: string, to: EventTarget | null) => void }) {
-  const facts = cardFacts(canvas.row);
+function CanvasCard({ canvas, comments, thumbnail, open, focus, blur }: { canvas: CanvasNode; comments: readonly ProjectCanvasComments[] | undefined; thumbnail: ThumbnailView; open: (row: CanvasRow) => void; focus: (path: string) => void; blur: (path: string, to: EventTarget | null) => void }) {
+  const facts = cardFacts(canvas.row, comments);
   const id = useId();
   return <button className="ocard" aria-labelledby={`${id}-title ${id}-file`} aria-describedby={`${id}-thumb ${id}-meta`} data-path={canvas.key} onClick={() => open(canvas.row)} onFocus={() => focus(canvas.key)} onBlur={event => blur(canvas.key, event.relatedTarget)}>
     <div id={`${id}-thumb`} className={`thumb${thumbnail.kind === "pending" ? " pending" : ""}`}>
@@ -206,7 +213,7 @@ function CanvasCard({ canvas, thumbnail, open, focus, blur }: { canvas: CanvasNo
     <div className="ocard-body">
       <span id={`${id}-title`} className="ocard-title" title={canvas.name}>{canvas.name}</span>
       <PathTip text={canvas.key.replace(/^design\//, "")}><span id={`${id}-file`} className="ocard-file">{canvas.fileName}</span></PathTip>
-      <span id={`${id}-meta`} className="ocard-meta">{facts.frames && <>{facts.frames} · </>}{facts.open && <><span className="hot">{facts.open}</span> · </>}<ChangedTime at={canvas.row.mtimeMs} /></span>
+      <span id={`${id}-meta`} className="ocard-meta">{facts.frames && <><span>{facts.frames}</span> · </>}{facts.open && <><span className="hot">{facts.open}</span> · </>}{facts.review && <><span className="review">{facts.review}</span> · </>}<span><ChangedTime at={canvas.row.mtimeMs} /></span></span>
     </div>
   </button>;
 }

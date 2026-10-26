@@ -60,6 +60,11 @@ const mocks = await vi.hoisted(async () => {
     createUiStateStore: vi.fn(),
     thumbnails: { get: vi.fn(), visible: vi.fn(), entriesChanged: vi.fn(), removed: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() },
     createThumbnails: vi.fn(),
+    reviewStore: { marker: vi.fn(), raise: vi.fn(), forget: vi.fn() },
+    createReviewStore: vi.fn(),
+    readProjectComments: vi.fn(),
+    readFolder: vi.fn(),
+    readFoldersFileForPruning: vi.fn(),
   };
 });
 
@@ -74,13 +79,16 @@ vi.mock("electron", () => ({
 }));
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
 vi.mock("./onboarding/machine", () => ({ createMachine: mocks.createMachine, needsOnboarding: mocks.needsOnboarding, markClosed: mocks.markClosed, PATH_LINE: 'export PATH="$HOME/.local/bin:$PATH"' }));
-vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand, runConfig: mocks.runConfig }));
+vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
+vi.mock("./folderStore", () => ({ readFoldersFileForPruning: mocks.readFoldersFileForPruning }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
 vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
 vi.mock("./thumbnails", () => ({ createThumbnails: mocks.createThumbnails }));
+vi.mock("./reviewState", async (importOriginal) => ({ ...await importOriginal<typeof import("./reviewState")>(), createReviewStore: mocks.createReviewStore }));
+vi.mock("./projectComments", async (importOriginal) => ({ ...await importOriginal<typeof import("./projectComments")>(), readProjectComments: mocks.readProjectComments }));
 
 // A machine read where everything is connected.
 const MACHINE = {
@@ -102,6 +110,7 @@ beforeEach(async () => {
   mocks.machine.isBusy.mockReturnValue(false);
   mocks.app.whenReady.mockResolvedValue();
   mocks.startShell.mockResolvedValue(mocks.shell);
+  mocks.readFoldersFileForPruning.mockResolvedValue(entries.map((entry) => entry.path));
   mocks.startRuntime.mockResolvedValue(mocks.runtime);
   mocks.createInspector.mockReturnValue(mocks.inspector);
   mocks.inspector.inspect.mockResolvedValue({ ok: true, rows: [] });
@@ -119,6 +128,7 @@ beforeEach(async () => {
   mocks.electronShell.openExternal.mockResolvedValue(undefined);
   mocks.createThumbnails.mockReturnValue(mocks.thumbnails);
   mocks.thumbnails.removed.mockResolvedValue(undefined);
+  mocks.createReviewStore.mockReturnValue(mocks.reviewStore);
   await import("./index");
   await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
 });
@@ -678,7 +688,8 @@ describe("menus", () => {
     expect(submenu("File").map((entry) => entry.label ?? entry.type)).toEqual(["Add Project…", "separator", "Close Window"]);
     expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
     expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
-    expect(submenu("Go").map((entry) => [entry.label, entry.accelerator])).toEqual([["Home", "Shift+CmdOrCtrl+H"], ["Quick Open…", "CmdOrCtrl+K"]]);
+    expect(submenu("Go").map((entry) => [entry.label ?? entry.type, entry.accelerator])).toEqual([["Home", "Shift+CmdOrCtrl+H"], ["Quick Open…", "CmdOrCtrl+K"], ["separator", undefined],
+      ["Next Resolved Comment", "CmdOrCtrl+]"], ["Previous Resolved Comment", "CmdOrCtrl+["]]);
     // Without a removal toast the system Undo keeps working in text fields.
     expect(submenu("Edit")[0]?.role).toBe("undo");
     expect(submenu("Edit").map((entry) => entry.role).filter(Boolean)).toEqual(expect.arrayContaining(["redo", "cut", "copy", "paste", "selectAll"]));
@@ -718,7 +729,8 @@ describe("menus", () => {
   test("refuses bad menu states and other senders", async () => {
     const contents = window().webContents;
     const builds = mocks.menu.mock.calls.length;
-    for (const bad of [null, "canvas", { screen: "canvas" }, state("settings"), { ...state("canvas"), more: 1 }, { screen: "canvas", modal: 1, toast: false }]) {
+    for (const bad of [null, "canvas", { screen: "canvas" }, state("settings"), { ...state("canvas"), more: 1 }, { screen: "canvas", modal: 1, toast: false },
+      { ...state("canvas"), reviewing: 1 }, { ...state("canvas"), reviewing: true, more: 1 }]) {
       await invoke("menu:state", contents, null, bad);
     }
     await invoke("menu:state", contents, {}, state("canvas"));
@@ -746,6 +758,25 @@ describe("menus", () => {
     expect(contents.send).toHaveBeenCalledWith("menu-command", "quickOpen");
     await invoke("menu:state", contents, null, state("workspace", true));
     expect(menuEnabled("Quick Open…")).toBe(false);
+  });
+
+  // e2e clicks these items from main: Playwright cannot press native accelerators.
+  test("Next/Previous Resolved Comment are enabled only while the renderer reports a Review, and tell the renderer", async () => {
+    const contents = window().webContents;
+    const labels = ["Next Resolved Comment", "Previous Resolved Comment"];
+    await invoke("menu:state", contents, null, state("canvas"));
+    for (const label of labels) expect(menuEnabled(label), label).toBe(false);
+    await invoke("menu:state", contents, null, { ...state("canvas"), reviewing: true });
+    for (const label of labels) expect(menuEnabled(label), label).toBe(true);
+    click("Next Resolved Comment");
+    click("Previous Resolved Comment");
+    expect(contents.send).toHaveBeenCalledWith("menu-command", "nextResolved");
+    expect(contents.send).toHaveBeenCalledWith("menu-command", "previousResolved");
+    await invoke("menu:state", contents, null, { ...state("canvas", true), reviewing: true });
+    for (const label of labels) expect(menuEnabled(label), label).toBe(false);
+    await invoke("menu:state", contents, null, { ...state("canvas"), reviewing: true });
+    window().webContents.emit("did-navigate");
+    for (const label of labels) expect(menuEnabled(label), label).toBe(false);
   });
 
   test("Go > Home tells the renderer", async () => {
@@ -1737,4 +1768,127 @@ test("guarded quit cancels a pending fullscreen hide before presenting the guard
   main.emit("leave-full-screen");
   expect(main.show).toHaveBeenCalledOnce();
   expect(main.hide).not.toHaveBeenCalled();
+});
+
+describe("review state and project comments", () => {
+  const MARKER = { since: "2026-10-26T09:00:00.000Z" };
+  const RAISED = { since: "2026-10-26T09:00:00.000Z", lastReviewedAt: "2026-10-26T10:00:00.000Z" };
+  beforeEach(() => {
+    mocks.shell.entries.mockReturnValue(entries);
+    mocks.shell.remove.mockImplementation(async (paths: string[]) => ({ paths, indexes: paths.map((path) => entries.findIndex((entry) => entry.path === path)) }));
+    mocks.shell.restore.mockImplementation(async (paths: string[]) => paths);
+    mocks.reviewStore.marker.mockReturnValue(MARKER);
+    mocks.reviewStore.raise.mockReturnValue(RAISED);
+  });
+
+  test("the store lives beside folders.json and prunes against the saved roots", () => {
+    const [file, saved] = mocks.createReviewStore.mock.calls[0] ?? [];
+    expect(file).toBe("/tmp/doan-index-test/review-state.json");
+    expect(typeof saved === "function" ? saved() : null).toEqual(entries.map((entry) => entry.path));
+    mocks.shell.entries.mockReturnValue([]);
+    expect(typeof saved === "function" ? saved() : null).toEqual(entries.map((entry) => entry.path));
+  });
+
+  test("startup leaves pruning unauthorized when folders.json could not be read", async () => {
+    mocks.readFoldersFileForPruning.mockResolvedValue(null);
+    vi.resetModules();
+    mocks.createReviewStore.mockClear();
+    await import("./index");
+    await vi.waitFor(() => expect(mocks.createReviewStore).toHaveBeenCalledOnce());
+    const [, saved] = mocks.createReviewStore.mock.calls[0] ?? [];
+    expect(mocks.readFoldersFileForPruning).toHaveBeenCalledWith("/tmp/doan-index-test/folders.json");
+    expect(typeof saved === "function" ? saved() : "missing callback").toBeNull();
+  });
+
+  test("read and raise answer only the window's main frame, for a saved root and a valid request", async () => {
+    const contents = window().webContents;
+    expect(await invoke("review-state:get", contents, null, { root: APP, canvas: "home" })).toEqual(MARKER);
+    expect(mocks.reviewStore.marker).toHaveBeenCalledExactlyOnceWith(APP, "home");
+    expect(await invoke("review-state:raise", contents, null, { root: APP, canvas: "home", at: RAISED.lastReviewedAt })).toEqual(RAISED);
+    expect(mocks.reviewStore.raise).toHaveBeenCalledExactlyOnceWith(APP, "home", RAISED.lastReviewedAt);
+    mocks.reviewStore.marker.mockClear();
+    mocks.reviewStore.raise.mockClear();
+    for (const [sender, parent] of [[contents, {}], [{}, null]]) {
+      expect(await invoke("review-state:get", sender, parent, { root: APP, canvas: "home" })).toBeNull();
+      expect(await invoke("review-state:raise", sender, parent, { root: APP, canvas: "home", at: RAISED.lastReviewedAt })).toBeNull();
+    }
+    for (const bad of [null, { root: "/nope", canvas: "home" }, { root: APP, canvas: "Bad" }, { root: APP }]) {
+      expect(await invoke("review-state:get", contents, null, bad), JSON.stringify(bad)).toBeNull();
+    }
+    for (const bad of [{ root: "/nope", canvas: "home", at: RAISED.lastReviewedAt }, { root: APP, canvas: "home", at: "yesterday" }, { root: APP, canvas: "home" }]) {
+      expect(await invoke("review-state:raise", contents, null, bad), JSON.stringify(bad)).toBeNull();
+    }
+    expect(mocks.reviewStore.marker).not.toHaveBeenCalled();
+    expect(mocks.reviewStore.raise).not.toHaveBeenCalled();
+  });
+
+  test("comments:project reads a saved root with one fresh ls, the comment files, the Git name and the markers", async () => {
+    const contents = window().webContents;
+    const reply = { root: APP, revision: 3, kind: "list", canvases: [] };
+    mocks.readProjectComments.mockResolvedValue(reply);
+    expect(await invoke("comments:project", contents, null, { root: APP, revision: 3 })).toEqual(reply);
+    const [deps, request] = mocks.readProjectComments.mock.calls[0] ?? [];
+    expect(request).toEqual({ root: APP, revision: 3 });
+    mocks.readFolder.mockResolvedValue({ kind: "uninitialized" });
+    expect(await deps.list(APP)).toEqual({ kind: "uninitialized" });
+    expect(mocks.readFolder).toHaveBeenCalledExactlyOnceWith("/bundled/doan", APP);
+    expect(deps.marker(APP, "home")).toEqual(MARKER);
+    expect(mocks.reviewStore.marker).toHaveBeenCalledWith(APP, "home");
+  });
+
+  test("comments:project refuses other senders, bad requests and roots that are not saved", async () => {
+    const contents = window().webContents;
+    for (const [sender, parent] of [[contents, {}], [{}, null]]) {
+      expect(await invoke("comments:project", sender, parent, { root: APP, revision: 1 })).toBeNull();
+    }
+    for (const bad of [null, { root: APP }, { root: "/nope", revision: 1 }, { root: APP, revision: -1 }]) {
+      expect(await invoke("comments:project", contents, null, bad), JSON.stringify(bad)).toBeNull();
+    }
+    expect(mocks.readProjectComments).not.toHaveBeenCalled();
+  });
+
+  test("a removal keeps the markers while Undo is possible and forgets them when the toast expires", async () => {
+    const contents = window().webContents;
+    const removed = await invoke("folders:remove", contents, null, { paths: [APP] }) as { removalId: string };
+    expect(mocks.reviewStore.forget).not.toHaveBeenCalled();
+    mocks.shell.entries.mockReturnValue(entries.filter((entry) => entry.path !== APP));
+    await invoke("folders:forget-removal", contents, null, { removalId: removed.removalId });
+    expect(mocks.reviewStore.forget).toHaveBeenCalledExactlyOnceWith([APP]);
+  });
+
+  test("Undo keeps the markers", async () => {
+    const contents = window().webContents;
+    const removed = await invoke("folders:remove", contents, null, { paths: [APP, WT] }) as { removalId: string };
+    expect(await invoke("folders:restore", contents, null, { removalId: removed.removalId })).toMatchObject({ kind: "restored" });
+    expect(mocks.reviewStore.forget).not.toHaveBeenCalled();
+  });
+
+  test("a newer removal makes the previous one permanent and forgets its markers", async () => {
+    const contents = window().webContents;
+    await invoke("folders:remove", contents, null, { paths: [APP] });
+    mocks.shell.entries.mockReturnValue(entries.filter((entry) => entry.path !== APP));
+    await invoke("folders:remove", contents, null, { paths: [WT] });
+    expect(mocks.reviewStore.forget).toHaveBeenCalledExactlyOnceWith([APP]);
+  });
+
+  test("an older removal saved after a newer one started is permanent at once", async () => {
+    const contents = window().webContents;
+    let save!: () => void;
+    mocks.shell.remove.mockImplementationOnce((paths: string[]) => new Promise((resolve) => { save = () => resolve({ paths, indexes: [0] }); }));
+    const first = invoke("folders:remove", contents, null, { paths: [APP] }) as Promise<unknown>;
+    await invoke("folders:remove", contents, null, { paths: [WT] });
+    expect(mocks.reviewStore.forget).not.toHaveBeenCalled();
+    mocks.shell.entries.mockReturnValue(entries.filter((entry) => entry.path !== APP && entry.path !== WT));
+    save();
+    await first;
+    expect(mocks.reviewStore.forget).toHaveBeenCalledExactlyOnceWith([APP]);
+  });
+
+  test("a root added again before the removal became permanent keeps its markers", async () => {
+    const contents = window().webContents;
+    const removed = await invoke("folders:remove", contents, null, { paths: [APP, WT] }) as { removalId: string };
+    mocks.shell.entries.mockReturnValue(entries.filter((entry) => entry.path !== WT));
+    await invoke("folders:forget-removal", contents, null, { removalId: removed.removalId });
+    expect(mocks.reviewStore.forget).toHaveBeenCalledExactlyOnceWith([WT]);
+  });
 });

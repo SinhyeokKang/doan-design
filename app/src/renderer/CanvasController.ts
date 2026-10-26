@@ -2,17 +2,17 @@ import { projectPins, type CommentPin } from "../comments/projection";
 import { anchorSnapshot, type AnchorSnapshot, type CommentBinding, type CommentHooks, type PinDestination } from "./commentAnchors";
 import { CommentPins } from "./CommentPins";
 import type { AnchorsMessage } from "./canvasMessage";
-import type { Selection } from "../formats/types";
+import type { Comment, Selection } from "../formats/types";
 import type { ViewCommand } from "../main/index";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem, type SelectionMessage } from "./canvasMessage";
-import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGHT, sameDocument, type OpenCanvas } from "./canvasView";
+import { bottomLabel, canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGHT, sameDocument, type OpenCanvas } from "./canvasView";
 import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
-import { activityFor, activityKey, pushActivity, type ActivityEvent } from "./activity";
+import { activityKey, activityKind, pushActivity, resolvedActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
-import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
+import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, locateView, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { currentFrame } from "./currentFrame";
 
 export const MEASURE_ANSWER_MS = 1000;
@@ -27,6 +27,10 @@ export interface CanvasState {
   shown: string | null;
   layout: LayoutMessage | null;
   selection: SelectionView | null;
+  // The selection answers a card's locate, so the panel keeps its scope for
+  // it (feature revision-recheck). Any other answer, a cleared selection or a
+  // load ends it.
+  located: boolean;
   currentFrame: number | null;
   // The selection-lost line, until the next selection or canvas change.
   notice: string;
@@ -43,14 +47,26 @@ export interface CanvasState {
   error: string;
   unlisted: boolean;
   zoom: number;
-  updated: Date | null;
+  // The bottom label, from the open canvas's latest document event at the last publish.
+  label: string | null;
   activity: ActivityEvent[];
 }
 
 export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, updated: null, activity: [] };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, located: false, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, label: null, activity: [] };
+}
+
+// ARCH §13: a row has no `rev` until main sees its file change after the folder
+// was added, so a missing one is 0, not unknown.
+function reloadKind(before: CanvasRow, after: CanvasRow): ActivityEvent["kind"] {
+  return activityKind(before.rev ?? 0, after.rev ?? 0);
+}
+
+// The identity Activity groups a canvas's events by (activity.ts sameCanvas).
+function documentKey(key: Pick<ActivityEvent, "folder" | "canvas" | "id">): string {
+  return JSON.stringify([key.folder, key.id ?? null, key.id === undefined ? key.canvas : null]);
 }
 
 // React owns the surrounding shell; only this controller owns the board's children.
@@ -94,6 +110,12 @@ export class CanvasController {
   private anchorRequest = 0;
   private anchorRevision = 0;
   private comments: CommentBinding | null = null;
+  // The last comments read for the open canvas, which the next read is compared
+  // with for Resolved activity. Cleared when another canvas opens or is shown.
+  private commentBaseline: CommentBinding | null = null;
+  // The latest document event per canvas, for the bottom label: Resolved events
+  // share the Activity cap and could otherwise push it out of the log.
+  private lastDocument = new Map<string, ActivityEvent>();
   private commentHooks: CommentHooks | null = null;
   private anchors: AnchorSnapshot | null = null;
   private pinLayer: CommentPins | null = null;
@@ -103,11 +125,19 @@ export class CanvasController {
   // Selection acknowledgements refresh queries without replacing the binding.
   private commentRevision = 0;
   private pendingPin: { seq: number; intent: number; generation: number; revision: number; destination: PinDestination } | null = null;
+  // The seq of a card's locate select-anchor until any answer or a new document;
+  // a newer command's answer carries a higher seq.
+  private pendingLocate: number | null = null;
 
   private transitionGuard: ((destination: TransitionDestination) => boolean | Promise<boolean>) | null = null;
   // Whether the comments session can follow the open canvas to a new path.
   private followGuard: (() => boolean) | null = null;
   setFollowGuard(guard: (() => boolean) | null): void { this.followGuard = guard; }
+  // Asked first for an Esc that reaches the canvas (the app's or one forwarded
+  // from the iframe); true means the panel took it, so the selection stays
+  // (feature revision-recheck: an open Review closes before selection clears).
+  private escapeHandler: (() => boolean) | null = null;
+  setEscapeHandler(handler: (() => boolean) | null): void { this.escapeHandler = handler; }
   private transitionIntent = 0;
   private inputGuard = false;
   private selectionGuard = false;
@@ -134,11 +164,37 @@ export class CanvasController {
     this.commentRevision++;
     this.comments = { ...binding, comments: structuredClone([...binding.comments]) };
     this.commentHooks = hooks;
+    this.recordResolved(this.comments);
     if (!this.pinResize && typeof ResizeObserver !== "undefined" && "nodeType" in this.viewport) {
       this.pinResize = new ResizeObserver(() => this.drawPins());
       this.pinResize.observe(this.viewport as Element);
     }
     this.requestAnchors();
+  }
+
+  // A switch to another (root, canvas id) ends the comparison even when the
+  // other canvas's read never arrived; a followed move or reload keeps it.
+  private endBaselineUnless(before: NonNullable<CanvasState["open"]>): void {
+    const open = this.state.open;
+    if (!open || documentKey(activityKey(open.folder, open.row)) !== documentKey(activityKey(before.folder, before.row))) this.commentBaseline = null;
+  }
+
+  // Bindings arrive with every comments read, including after the person's own
+  // Resolve. The first read of an opened canvas is only the baseline.
+  private recordResolved(binding: CommentBinding): void {
+    const open = this.state.open;
+    if (!open || binding.root !== open.folder || binding.canvas !== open.row.id) return;
+    const base = this.commentBaseline;
+    this.commentBaseline = binding;
+    const resolved = resolvedActivity(base?.root === binding.root && base.canvas === binding.canvas ? base.comments : null, binding.comments);
+    if (resolved === null) return;
+    this.state.activity = pushActivity(this.state.activity, { ...activityKey(open.folder, open.row), at: new Date(), kind: "resolved", ...resolved }, 50);
+    this.publish();
+  }
+
+  private recordDocument(event: ActivityEvent): void {
+    this.state.activity = pushActivity(this.state.activity, event, 50);
+    this.lastDocument.set(documentKey(event), event);
   }
 
   private resetAnchors(): void {
@@ -222,6 +278,32 @@ export class CanvasController {
     this.sendCommand({ type: "select-comment", node, document: this.anchorDocument, generation, request: this.anchorRequest });
   }
 
+  // Moves the view to a node of the current anchors at the same zoom and
+  // highlights it, without selecting (Review steps, RR3; like a frame jump).
+  // `generation` is the anchors' lookup the node came from: node tokens
+  // restart in every new document, so an older one may name another element.
+  jumpToNode(node: string, generation: number): boolean {
+    const rect = generation === this.anchorGeneration ? this.anchors?.rects.get(node) : undefined;
+    if (!rect || this.frame === null) return false;
+    this.view = locateView(rect, this.viewportSize(), this.view);
+    this.showJump(rect);
+    this.applyView();
+    return true;
+  }
+
+  // A card's target line: unlike a pin, it works for a target no pin shows
+  // (off screen, resolved) and selects through select-anchor, so the panel's
+  // filters stay (feature revision-recheck). Only the answer to this command
+  // is `located`: the canvas may name the target differently from the stored
+  // one, and a failed answer must not mark a later selection (R-L L-1, L-2).
+  locate(node: string, generation: number, comment: Comment): void {
+    const current = () => generation === this.anchorGeneration && this.anchors?.lookup.nodes.get(comment.comment) === node;
+    if (!current() || !this.jumpToNode(node, generation)) return;
+    const { frame, element } = comment.target;
+    const anchor = element ? { ...(element.doanId === undefined ? {} : { doanId: element.doanId }), selector: element.selector } : { frame };
+    this.transition(() => { this.sendCommand({ type: "select-anchor", ...anchor }); this.pendingLocate = this.seq; }, current, "selection");
+  }
+
   constructor(
     private viewport: Pick<HTMLElement, "clientWidth" | "clientHeight" | "addEventListener" | "removeEventListener" | "getBoundingClientRect">,
     private board: Pick<HTMLElement, "hidden" | "prepend"> & { style: Pick<CSSStyleDeclaration, "transform" | "visibility"> },
@@ -258,7 +340,8 @@ export class CanvasController {
 
   private publish(): void {
     const open = this.state.open;
-    this.state.updated = open ? activityFor(this.state.activity, open.folder, open.canvas, open.row.id)[0]?.at ?? null : null;
+    const latest = open ? this.lastDocument.get(documentKey(activityKey(open.folder, open.row))) : undefined;
+    this.state.label = latest ? bottomLabel([latest], new Date()) : null;
     this.state.hasFrame = this.frame !== null;
     this.state.reanchoring = this.reanchor !== null;
     this.state.reloading = this.loading && this.state.status === null;
@@ -315,7 +398,7 @@ export class CanvasController {
       case "reload":
         this.state.error = "";
         this.state.open = { ...open, row: update.canvas };
-        this.load(update.canvas, false);
+        this.load(update.canvas, false, reloadKind(open.row, update.canvas));
         break;
       case "moved": {
         const to = update.canvas.path, at = new Date();
@@ -324,7 +407,7 @@ export class CanvasController {
         this.state.shown = to;
         const remembered = this.workspaceMemory.get(open.folder);
         if (remembered?.path === open.canvas) remembered.path = to;
-        this.state.activity = pushActivity(this.state.activity, { ...activityKey(open.folder, update.canvas), at, kind: "moved", from: open.canvas }, 50);
+        this.recordDocument({ ...activityKey(open.folder, update.canvas), at, kind: "moved", from: open.canvas });
         // The same canvas reloaded at its new path: the view stays and the selection is asked for again.
         this.load(update.canvas, false, "moved");
         this.canvasMoved?.({ folder: open.folder, from: open.canvas, row: update.canvas });
@@ -333,7 +416,7 @@ export class CanvasController {
       case "resize":
         this.state.error = "";
         this.state.open = { ...open, row: update.canvas };
-        if (update.canvas.width === undefined || this.frame === null) this.load(update.canvas, this.frame === null, "reloaded");
+        if (update.canvas.width === undefined || this.frame === null) this.load(update.canvas, this.frame === null, reloadKind(open.row, update.canvas));
         else this.setFrameWidth(update.canvas.width);
         break;
       case "clear": {
@@ -360,6 +443,7 @@ export class CanvasController {
         break;
       }
     }
+    this.endBaselineUnless(open);
     if (this.comments && !this.matchingComments()) this.clearAnchors();
     this.publish();
   }
@@ -470,7 +554,9 @@ export class CanvasController {
     // A reload of the same row before its first layout still owes the picked frame.
     if (fresh) this.pendingFrame = null;
     this.resetAnchors();
-    this.loadKind = kind;
+    if (fresh) this.commentBaseline = null;
+    // A plain reload that replaces a changed one before its layout keeps Changed.
+    this.loadKind = !fresh && this.loading && this.loadKind === "changed" && kind === "reloaded" ? "changed" : kind;
     this.applySelectionEffect({ kind: fresh ? "otherCanvas" : "reload" });
     if (row.width === undefined) {
       this.pendingFrame?.found?.(false);
@@ -504,6 +590,9 @@ export class CanvasController {
     this.setFrameHeight(INITIAL_HEIGHT);
     this.lastHref = null;
     this.jumpTo = null;
+    // Seq restarts, so a pending locate's seq could match the next document's answers.
+    this.pendingLocate = null;
+    this.state.located = false;
     this.seq = 0;
     this.acceptedSelectionSeq = 0;
     this.hoverSeq = 0;
@@ -613,10 +702,15 @@ export class CanvasController {
       return;
     }
     if (message.type === "hover") { this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks(); return; }
-    const pin = this.pendingPin;
+    // A click can take a sent command's seq before the canvas drops it, so an
+    // answer is the message the canvas marks as one, at that command's seq.
+    const answer = message.type === "select" ? message.answer : undefined;
+    const pin = this.pendingPin?.seq === message.seq && answer === "select-comment" ? this.pendingPin : null;
     // A sent pin's acknowledgement is document state, not a newer user intent.
-    if (pin?.seq !== message.seq) this.pinIntent++;
+    if (pin === null) this.pinIntent++;
     this.pendingPin = null;
+    const located = this.pendingLocate === message.seq && answer === "select-anchor";
+    this.pendingLocate = null;
     this.seq = message.seq;
     this.acceptedSelectionSeq = message.seq;
     if (message.type === "clear") { this.clearSelection(false); this.publish(); return; }
@@ -626,11 +720,12 @@ export class CanvasController {
     this.markHidden = false;
     this.selectedRect = verdict === "apply" ? rect : null;
     this.state.selection = view;
+    this.state.located = located;
     this.state.notice = "";
     this.drawMarks();
     this.requestRows(view);
     this.publish();
-    if (pin?.seq === message.seq && pin.intent === this.pinIntent && pin.generation === this.anchorGeneration &&
+    if (pin !== null && pin.intent === this.pinIntent && pin.generation === this.anchorGeneration &&
       pin.revision === this.commentRevision) this.commentHooks?.open(pin.destination);
     if (this.comments) this.requestAnchors();
   }
@@ -671,6 +766,7 @@ export class CanvasController {
   // Does not publish: callers publish once with their other changes.
   private clearSelection(notice: boolean): void {
     this.pendingPin = null;
+    this.state.located = false;
     this.pinIntent++;
     this.state.selection = null;
     this.state.inspector = null;
@@ -701,6 +797,11 @@ export class CanvasController {
   // Without a selection to clear, Esc and a blank click skip the draft guard;
   // the bumped intent still cancels a pending Open (feature revision-continuity L-17).
   private escape(): void {
+    if (this.escapeHandler?.()) return;
+    this.clearOnEscape();
+  }
+
+  private clearOnEscape(): void {
     if (!shouldGuardEscape(this.state.selection, this.reanchor)) { this.transitionIntent++; return; }
     this.transition(() => this.escapeNow(), undefined, "selection");
   }
@@ -729,8 +830,9 @@ export class CanvasController {
       return;
     }
     if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || event.defaultPrevented || editableTarget(event.target)) return;
+    if (this.escapeHandler?.()) { event.preventDefault(); return; }
     if (this.selectionGuard && shouldGuardEscape(this.state.selection, this.reanchor)) event.preventDefault();
-    this.escape();
+    this.clearOnEscape();
   };
 
   private keyup = (event: KeyboardEvent): void => {
@@ -753,7 +855,7 @@ export class CanvasController {
   private clickOnMargin = (event: MouseEvent): void => {
     if (!Object.is(event.target, this.viewport) && !Object.is(event.target, this.board)) return;
     if (event.button !== 0 || event.ctrlKey || event.altKey) return;
-    this.escape();
+    this.clearOnEscape();
   };
 
   private onLayout(message: LayoutMessage): void {
@@ -782,6 +884,7 @@ export class CanvasController {
     if (newDocument) {
       this.clearJump();
       this.jumpTo = null;
+      this.pendingLocate = null;
       this.seq = 0;
       this.acceptedSelectionSeq = 0;
       this.hoverSeq = 0;
@@ -801,7 +904,7 @@ export class CanvasController {
     if (this.state.unlisted) this.clearAnchors();
     if ((first || linked) && this.state.open && !this.state.unlisted && (linked || this.loadKind !== "moved")) {
       const at = new Date();
-      this.state.activity = pushActivity(this.state.activity, { ...activityKey(this.state.open.folder, this.state.open.row), at, kind: linked ? "opened" : this.loadKind }, 50);
+      this.recordDocument({ ...activityKey(this.state.open.folder, this.state.open.row), at, kind: linked ? "opened" : this.loadKind });
     }
     if (first && this.pendingFrame !== null) {
       const target = this.pendingFrame;
@@ -850,6 +953,7 @@ export class CanvasController {
     if (linked) {
       this.state.open = { folder: open.folder, canvas: row.path, row };
       if (row.width !== undefined) this.setFrameWidth(row.width);
+      this.endBaselineUnless(open);
     }
     this.state.shown = row?.path ?? null;
     this.state.unlisted = row === undefined;

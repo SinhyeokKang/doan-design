@@ -15,6 +15,7 @@ import {
   boardToScreen,
   fitFrame,
   fitWidth,
+  locateView,
   panBy,
   screenToBoard,
   wheelAction,
@@ -264,5 +265,48 @@ describe("boardRectToScreen", () => {
   test("scales the size and moves the origin like boardToScreen", () => {
     expect(boardRectToScreen({ x: 10, y: 20, scale: 0.25 }, { x: 100, y: -40, width: 252, height: 32 })).toEqual({ x: 35, y: 10, width: 63, height: 8 });
     expect(boardRectToScreen({ x: 0, y: 0, scale: 4 }, { x: 1, y: 2, width: 3, height: 0 })).toEqual({ x: 4, y: 8, width: 12, height: 0 });
+  });
+});
+
+describe("locateView", () => {
+  const current: View = { x: -200, y: -3000, scale: 0.5 };
+
+  test("keeps the scale and centers a rect smaller than the viewport", () => {
+    const rect = { x: 400, y: 9000, width: 200, height: 100 };
+    const moved = locateView(rect, viewport, current);
+    expect(moved.scale).toBe(0.5);
+    const center = boardToScreen(moved, { x: 500, y: 9050 });
+    expect(center.x).toBeCloseTo(500);
+    expect(center.y).toBeCloseTo(400);
+  });
+
+  test("aligns a rect taller than the viewport to the top, still centered across", () => {
+    const rect = { x: 0, y: 2000, width: 1200, height: 4000 };
+    const moved = locateView(rect, viewport, current);
+    expect(moved.scale).toBe(0.5);
+    expect(boardToScreen(moved, { x: 0, y: 2000 }).y).toBeCloseTo(FIT_MARGIN);
+    expect(boardToScreen(moved, { x: 600, y: 2000 }).x).toBeCloseTo(500);
+  });
+
+  test("centers a rect wider than the viewport whose height fits", () => {
+    const moved = locateView({ x: 0, y: 100, width: 5000, height: 200 }, viewport, current);
+    const center = boardToScreen(moved, { x: 2500, y: 200 });
+    expect(center.x).toBeCloseTo(500);
+    expect(center.y).toBeCloseTo(400);
+  });
+
+  test("centers the point of a zero-size rect", () => {
+    for (const rect of [{ x: 700, y: 300, width: 0, height: 0 }, { x: 700, y: 300, width: 0, height: 50 }]) {
+      const moved = locateView(rect, viewport, current);
+      expect(moved.scale).toBe(0.5);
+      const center = boardToScreen(moved, { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
+      expect(center.x).toBeCloseTo(500);
+      expect(center.y).toBeCloseTo(400);
+    }
+  });
+
+  test("keeps the view for a rect that is not finite", () => {
+    expect(locateView({ x: Number.NaN, y: 0, width: 10, height: 10 }, viewport, current)).toEqual(current);
+    expect(locateView({ x: 0, y: 0, width: Number.POSITIVE_INFINITY, height: 10 }, viewport, current)).toEqual(current);
   });
 });

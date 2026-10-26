@@ -320,11 +320,15 @@ export function canvasScript(lib: CanvasLib): void {
     post({ type: "hover", href: location.href, seq: hoverSeq, viewport: innerHeight, rect });
   };
 
-  const apply = (described: NonNullable<ReturnType<typeof describe>>) => {
+  // `answer` names the renderer command this selection answers. A click can
+  // take a queued command's seq before it arrives, so seq alone cannot tell
+  // that click from the answer; clicks never carry it.
+  type Answer = "select-anchor" | "select-comment";
+  const apply = (described: NonNullable<ReturnType<typeof describe>>, answer?: Answer) => {
     selected = described.el;
     anchor = described.anchor;
     pending = null;
-    postSelection("select", { target: described.target });
+    postSelection("select", answer === undefined ? { target: described.target } : { target: described.target, answer });
     postHover();
     anchors.schedule();
   };
@@ -360,14 +364,14 @@ export function canvasScript(lib: CanvasLib): void {
     const found = resolve(pending);
     const described = found === null ? null : describe(found);
     if (described !== null) {
-      apply(described);
+      apply(described, "select-anchor");
       return;
     }
     const deadline = (firstLayoutAt ?? performance.now()) + ANCHOR_RETRY_MS;
     if (performance.now() >= deadline) {
       if (document.readyState !== "complete") return;
       drop();
-      postSelection("select", { target: null });
+      postSelection("select", { target: null, answer: "select-anchor" });
       postHover();
       return;
     }
@@ -456,8 +460,8 @@ export function canvasScript(lib: CanvasLib): void {
     if (type === "select-comment") {
       const found = anchors.find(String(data.node));
       const described = found === null ? null : describe(found, true);
-      if (described !== null && described.el === found) apply(described);
-      else postSelection("select", { target: null });
+      if (described !== null && described.el === found) apply(described, "select-comment");
+      else postSelection("select", { target: null, answer: "select-comment" });
     } else if (type === "hover-alt") {
       alt = data.alt === true;
       postHover();

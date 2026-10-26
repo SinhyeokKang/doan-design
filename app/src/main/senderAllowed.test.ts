@@ -9,6 +9,8 @@ const mainOnly = [
   "onboarding:read", "onboarding:run", "onboarding:answer", "onboarding:open-project", "folders:get", "settings:open",
   // The first prompt's arrival rule needs to know whether the window is hidden.
   "window:visible",
+  // revision-recheck: the project comment read and the device-local review markers.
+  "comments:project", "review-state:get", "review-state:raise",
 ];
 const shared = ["setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get"];
 const settingsOnly = [

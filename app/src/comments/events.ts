@@ -11,7 +11,7 @@ export interface ExpectedComment {
 
 export type MutationIntent =
   | { type: "create"; body: string }
-  | { type: "edit"; comment: string; body: string; expected: ExpectedComment }
+  | { type: "edit" | "edit-reopen"; comment: string; body: string; expected: ExpectedComment }
   | { type: "delete" | "resolve" | "reopen"; comment: string; expected: ExpectedComment };
 
 // Main supplies these only after project/canvas, document, hash and sender checks.
@@ -92,4 +92,17 @@ export function prepareEvent(text: string, intent: unknown, authority: EventAuth
   }
   if (!validateCommentEvent(candidate)) throw new Error("Prepared comment event violates v1.");
   return candidate;
+}
+
+// Save and reopen: both events go into one append (ARCH §2), and the reopen is
+// prepared against the text that already holds the edit so it validates the
+// edited state and lands exactly 1 ms later.
+export function prepareEditReopen(text: string, intent: unknown, authority: EventAuthority, reopenId: string): [CommentEvent, CommentEvent] {
+  if (!record(intent) || intent.type !== "edit-reopen" || !exactKeys(intent, ["type", "comment", "body", "expected"]) ||
+    typeof intent.comment !== "string" || typeof intent.body !== "string" || !validExpected(intent.expected)) throw new Error("Invalid comment mutation.");
+  if (intent.expected.status !== "resolved") throw new Error("Comment status changed.");
+  const edit = prepareEvent(text, { type: "edit", comment: intent.comment, body: intent.body, expected: intent.expected }, authority);
+  const expected: ExpectedComment = { body: intent.body, status: "resolved", updatedAt: edit.at, ...(intent.expected.resolvedAt === undefined ? {} : { resolvedAt: intent.expected.resolvedAt }) };
+  const reopen = prepareEvent(`${text}\n${JSON.stringify(edit)}`, { type: "reopen", comment: intent.comment, expected }, { ...authority, id: reopenId, now: Date.parse(edit.at) + 1 });
+  return [edit, reopen];
 }

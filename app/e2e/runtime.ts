@@ -80,6 +80,7 @@ async function main(): Promise<void> {
     await import(new URL("./thumbnails.ts", import.meta.url).href);
     await import(new URL("./design-nav.ts", import.meta.url).href);
     await import(new URL("./revision-continuity.ts", import.meta.url).href);
+    await import(new URL("./revision-recheck.ts", import.meta.url).href);
     await import(new URL("./quit-capture.ts", import.meta.url).href);
     await import(new URL("./settings.ts", import.meta.url).href);
   } finally { await bounded(assertRealState(actualState), 10_000, "final real-state verification"); }
@@ -490,7 +491,7 @@ interface ViewState {
   status: string;
   statusText: string;
   zoom: string;
-  updated: string;
+  label: string;
   error: string | null;
   unlisted: boolean;
 }
@@ -700,9 +701,9 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   assert.equal(await replacedIframe.evaluate(node => node.isConnected), false, "live reload detaches the previous iframe");
   assert.equal(await page.getByRole("region", { name: "Canvas", exact: true }).locator("iframe").evaluate((node, previous) => node !== previous, replacedIframe), true, "live reload creates a different iframe node");
   await replacedIframe.dispose();
-  assert.notEqual(reloaded.updated, kept.updated);
-  assert.match(reloaded.updated, /^Updated \d\d:\d\d:\d\d$/);
-  assert.equal((await activityKinds(page))[0], "Reloaded");
+  assert.notEqual(reloaded.label, kept.label);
+  assert.match(reloaded.label, /^Changed \d\d:\d\d$/);
+  assert.equal((await activityKinds(page))[0], "Changed");
   assert.ok((await activityKinds(page)).includes("Opened"));
 
   await markCanvas(page);
@@ -712,7 +713,9 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await rename(join(repos.canvas, "tokens.css.tmp"), join(repos.canvas, "tokens.css"));
   await waitFor(async () => !(await marked(page)), "canvas reloaded after a token CSS save");
   const afterTokens = await waitLoaded(page, "canvas after a token CSS save");
-  assert.notEqual(afterTokens.updated, reloaded.updated);
+  // Token CSS leaves the canvas row rev as it is (spec: accepted risk).
+  assert.match(afterTokens.label, /^Reloaded \d\d:\d\d$/);
+  assert.equal((await activityKinds(page))[0], "Reloaded");
 
   await markCanvas(page);
   await writeFile(join(repos.canvas, ".doan", "comments", "main.jsonl"), `${JSON.stringify(COMMENT_MAIN)}\n`);
@@ -721,7 +724,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   await waitFolders(page, all => byPath(all, repos.ok).canvases.length === 8, "other folder re-read count on Home");
   await sleep(QUIET_MS);
   assert.ok(await marked(page), "no reload for a comment or another folder");
-  assert.equal((await readView(page)).updated, afterTokens.updated);
+  assert.equal((await readView(page)).label, afterTokens.label);
 
   // A 100vh canvas whose content shrinks: the replaced document, which sees the
   // reset to 150 too, must not hand its old height to the new one.
@@ -733,7 +736,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   // C8. Screen states.
   await canvasButton(page, repos.canvas, "design/nowidth.html").click();
   state = await waitView(page, (v) => v.status === "noWidth", "no-width notice");
-  assert.equal(state.updated, "");
+  assert.equal(state.label, "");
   const noWidthHeading = page.getByRole("region", { name: "Canvas", exact: true }).getByRole("status").locator("b");
   assert.equal(await noWidthHeading.count(), 1, "no-width heading has exactly one emphasized element");
   assert.equal(await noWidthHeading.textContent(), "Could not read a valid board width.", "no-width heading remains emphasized");
@@ -772,19 +775,23 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
   // No layout within 5 s: the failure state, then Reload. The canvas
   // swallows its own layouts until `quietUntil`, so the first load fails and
   // the retry, at least 5 s later, loads. The deadline is written again just
-  // before the click, so a slow folder list cannot use it up.
+  // before the click, so a slow folder list cannot use it up. The click waits
+  // for that write's row rev: a rev bump arriving after the open reloads as
+  // Changed, which the Reload below would then keep.
   const quietPath = join(repos.canvas, "design", "quiet.html");
   const quietCanvas = (until: number) => canvasHtml("quiet", 800, "", `<script>if (Date.now() < ${until}) window.parent = { postMessage() {} };</script><div style="height:400px">quiet</div>`);
   await writeFile(quietPath, quietCanvas(0));
   await waitFolders(page, (all) => hasCanvas(all, repos.canvas, "design/quiet.html"), "quiet canvas listed");
+  const quietRev = await canvasRev(page, repos.canvas, "design/quiet.html");
   const quietUntil = Date.now() + 4500;
   await writeFile(quietPath, quietCanvas(quietUntil));
+  await waitFor(async () => await canvasRev(page, repos.canvas, "design/quiet.html") !== quietRev, "quiet canvas row rev after its rewrite");
   await canvasButton(page, repos.canvas, "design/quiet.html").click();
   assert.ok(Date.now() < quietUntil - 1000, "quiet canvas opened well before its quiet time ends");
   state = await waitView(page, (v) => v.status === "failed", "failure state after 5 s without a layout");
   assert.equal(await page.getByRole("region", { name: "Canvas", exact: true }).getByRole("status").filter({ hasText: "Couldn’t load the canvas" }).textContent(), "Couldn’t load the canvasRun doan check in a terminalReload");
   assert.equal(state.boardShown, false);
-  assert.equal(state.updated, "");
+  assert.equal(state.label, "");
   assert.deepEqual(await activityKinds(page), []);
   assert.ok(Date.now() > quietUntil);
   await page.getByRole("button", { name: "Reload", exact: true }).click();
@@ -1867,7 +1874,7 @@ async function readView(page: Page): Promise<ViewState> {
   const notices = await viewport.getByRole("status").allTextContents();
   const statusText = notices.find(text => /^(Loading…|Couldn’t load|Could not read a valid|Pick a canvas|No projects yet|The project |design\/)/.test(text)) ?? "";
   const zoom = await viewport.getByRole("status", { name: /^Zoom(?: \d+%)?$/ }).textContent() ?? "";
-  const updated = (await viewport.getByRole("status", { name: /^Updated / }).allTextContents())[0]?.trim() ?? "";
+  const label = (await viewport.getByRole("status", { name: /^(Opened|Changed|Reloaded|Moved) / }).allTextContents())[0]?.trim() ?? "";
   const geometry = await viewport.evaluate(viewport => {
     const iframe = viewport.querySelector("iframe");
     const board = iframe?.parentElement;
@@ -1883,9 +1890,9 @@ async function readView(page: Page): Promise<ViewState> {
   });
   const status = !statusText ? "" : statusText === "Loading…" ? "loading" : statusText.startsWith("Couldn’t load") ? "failed" : statusText.startsWith("Could not read a valid") ? "noWidth" : statusText === "Pick a canvas from the list" || statusText.startsWith("No projects yet") ? "empty" : "missing";
   return {
-    ...geometry, status, statusText, zoom, updated,
+    ...geometry, status, statusText, zoom, label,
     boardShown: await viewport.locator("iframe").isVisible(),
-    error: notices.find(text => text !== statusText && text !== zoom && text.trim() !== updated && text !== "This page is not a listed canvas. Choose a canvas from the Sidebar.") ?? null,
+    error: notices.find(text => text !== statusText && text !== zoom && text.trim() !== label && text !== "This page is not a listed canvas. Choose a canvas from the Sidebar.") ?? null,
     unlisted: notices.includes("This page is not a listed canvas. Choose a canvas from the Sidebar."),
   };
 }
@@ -2206,6 +2213,10 @@ async function readFolders(page: Page): Promise<FolderView[]> {
 
 async function servingUrl(page: Page, root: string, path: string): Promise<string> {
   return page.evaluate(({ root, path }) => new Promise<string>(resolve => { const stop = window.doan.onFolders(entries => { stop(); const entry = entries.find(entry => entry.path === root); resolve(entry?.kind === "list" ? entry.canvases.find(row => row.path === path)?.url ?? "" : ""); }); }), { root, path });
+}
+
+async function canvasRev(page: Page, root: string, path: string): Promise<number | null> {
+  return page.evaluate(({ root, path }) => new Promise<number | null>(resolve => { const stop = window.doan.onFolders(entries => { stop(); const entry = entries.find(entry => entry.path === root); resolve(entry?.kind === "list" ? entry.canvases.find(row => row.path === path)?.rev ?? null : null); }); }), { root, path });
 }
 
 async function waitFolders(page: Page, done: (folders: FolderView[]) => boolean, what: string): Promise<FolderView[]> {

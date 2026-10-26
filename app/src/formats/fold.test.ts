@@ -43,3 +43,23 @@ test("identical duplicates retain the smallest source line even when input is re
     },
   ]);
 });
+
+test("a tied human resolution is retained on reopen before the next resolve clears it", () => {
+  const input = readFileSync(new URL("human-unicode-tied-lifecycle/events.jsonl", directory), "utf8");
+  const parsed = parseLines(input);
+  const reopened = fold(parsed.events.filter(({ event }) =>
+    event.id !== "evt_00000000-0000-4000-8000-00000000000e"));
+  expect(reopened.warnings).toEqual([]);
+  expect(reopened.comments[0]).toMatchObject({
+    status: "open",
+    lastResolution: {
+      by: { kind: "human", name: "Renée" },
+      at: "2026-10-23T10:00:00.123Z",
+      reopenedBy: { kind: "human", name: "김하나 👩🏽‍💻 é" },
+      reopenedAt: "2026-10-23T10:00:00.123Z",
+    },
+  });
+  expect(reopened.comments[0]).not.toHaveProperty("resolvedBy");
+  expect(reopened.comments[0]).not.toHaveProperty("resolvedAt");
+  expect(foldText(input).comments[0]).not.toHaveProperty("lastResolution");
+});

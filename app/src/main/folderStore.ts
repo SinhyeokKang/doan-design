@@ -12,10 +12,19 @@ export interface FolderStore {
 }
 
 export async function readFoldersFile(file: string): Promise<string[]> {
+  return await readFoldersFileForPruning(file) ?? [];
+}
+
+// An empty fallback can start the app, but cannot authorize deleting local
+// review markers. Only a valid list (or first-use ENOENT) is safe to prune by.
+export async function readFoldersFileForPruning(file: string): Promise<string[] | null> {
   try {
-    return load(await readFile(file, "utf8"));
-  } catch {
-    return [];
+    const text = await readFile(file, "utf8");
+    const value: unknown = JSON.parse(text);
+    if (!Array.isArray(value) || !value.every(entry => typeof entry === "string")) return null;
+    return load(text);
+  } catch (error) {
+    return error instanceof Error && "code" in error && error.code === "ENOENT" ? [] : null;
   }
 }
 

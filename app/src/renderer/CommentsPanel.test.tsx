@@ -4,7 +4,7 @@ import { describe, expect, test, vi } from "vitest";
 import type { Comment } from "../formats/types";
 import { foldText } from "../formats/foldText";
 import { READ_FAILED_EDITOR } from "../comments/panelText";
-import { CommentsPanel, DeleteCommentDialog, CommentCard, CommentEditor, UnsavedCommentDialog, UncertainCommentDialog, revealComposer, type CommentsPanelProps, type CommentEditorProps } from "./CommentsPanel";
+import { CommentsPanel, DeleteCommentDialog, CommentCard, CommentEditor, UnsavedCommentDialog, UncertainCommentDialog, revealComposer, type CommentsPanelProps, type CommentEditorProps, type CommentCardProps } from "./CommentsPanel";
 
 // Tests call the editor as a plain function to read its element tree, outside
 // a React render; its reason id still comes from useId in the app.
@@ -32,7 +32,7 @@ const html = (props: CommentsPanelProps) => renderToStaticMarkup(<CommentsPanel 
 describe("Comments presentation", () => {
   test("renders plain text, author identity, targets and independent location/freshness badges", () => {
     const out = html(panel({ freshness: new Map([["c1", "outdated"]]), missingLocations: new Set(["c1"]) }));
-    for (const text of ["Alex Morgan", "alex@example.com", ">AM<", "Element · button submit", "Outdated", "Location unavailable", "&lt;script&gt;", "\n  Keep spaces "]) expect(out).toContain(text);
+    for (const text of ["Alex Morgan", "alex@example.com", ">AM<", "Element · button submit", "Canvas changed", "Location unavailable", "&lt;script&gt;", "\n  Keep spaces "]) expect(out).toContain(text);
     const unknown = html(panel({ missingLocations: null }));
     expect(unknown).not.toContain("Location unavailable");
     expect(html(panel())).toContain(`<button type="button" class="comments-target locatable" title="Show on canvas\nbutton">Element · button submit</button>`);
@@ -267,6 +267,42 @@ test("delete Escape is consumed without cancelling during IME", () => {
   expect(onConfirm).not.toHaveBeenCalled();
 });
 
+// Review R-G G-1: Esc closes an edit editor before Review and the selection.
+describe("Esc in the card editor", () => {
+  const press = (props: CommentEditorProps, nativeEvent = { isComposing: false, keyCode: 27 }) => {
+    const composer = (CommentEditor(props).props.children as ReactNode[])[0] as { props: ElementProps };
+    const event = { key: "Escape", nativeEvent, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    composer.props.onKeyDown?.(event);
+    return event;
+  };
+  test("closes an edit editor like Cancel and consumes the key", () => {
+    const onCancel = vi.fn(), onKeepDraft = vi.fn();
+    const event = press(editor({ mode: "edit", onCancel, onKeepDraft }));
+    expect(onCancel).toHaveBeenCalledOnce(); expect(onKeepDraft).not.toHaveBeenCalled();
+    expect(event.preventDefault).toHaveBeenCalledOnce(); expect(event.stopPropagation).toHaveBeenCalledOnce();
+  });
+  test("is consumed without closing during IME composition", () => {
+    for (const nativeEvent of [{ isComposing: true, keyCode: 27 }, { isComposing: false, keyCode: 229 }]) {
+      const onCancel = vi.fn();
+      const event = press(editor({ mode: "edit", onCancel }), nativeEvent);
+      expect(onCancel).not.toHaveBeenCalled();
+      expect(event.preventDefault).toHaveBeenCalledOnce(); expect(event.stopPropagation).toHaveBeenCalledOnce();
+    }
+  });
+  test.each(["saving", "saved", "unknown", "checking"] as const)("does nothing while Cancel is unavailable (%s)", status => {
+    const onCancel = vi.fn(), onKeepDraft = vi.fn();
+    const event = press(editor({ mode: "edit", state: { status }, onCancel, onKeepDraft }));
+    expect(onCancel).not.toHaveBeenCalled(); expect(onKeepDraft).not.toHaveBeenCalled();
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+  });
+  test("the new-comment composer keeps no Esc handling", () => {
+    const onCancel = vi.fn();
+    const event = press(editor({ mode: "create", onCancel }));
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(event.preventDefault).not.toHaveBeenCalled(); expect(event.stopPropagation).not.toHaveBeenCalled();
+  });
+});
+
 describe("continue a blocked new comment", () => {
   const notice = "The canvas reloaded while you were writing. Your text is kept — continue on the current version to save it.";
   const pay = { element: { doanId: "pay", selector: "button", html: "<button/>" } };
@@ -416,5 +452,138 @@ describe("revealComposer", () => {
     const above = layout({ composerTop: 152, composerHeight: 168, clientHeight: 462, scrollTop: 400 });
     revealComposer(above.field);
     expect(above.panel.scrollTop).toBe(152 - 37);
+  });
+});
+
+test("a resolved card's target line locates like an open card's (revision-recheck task 5)", () => {
+  const onComment = vi.fn();
+  const card = CommentCard({ comment: { ...comment, status: "resolved" }, frames: [], freshness: "same", locationMissing: false, disabled: false, busy: false, copy: { status: "idle" }, onComment, onCopy: noop });
+  find(card, "Element · button submit").onClick?.();
+  expect(onComment).toHaveBeenCalledExactlyOnceWith("locate", "c1");
+});
+
+describe("resolution meta, Canvas changed and status lines (revision-recheck task 6)", () => {
+  const codex = { kind: "agent" as const, name: "codex" }, kim = { kind: "human" as const, name: "Kim Doe" };
+  const resolved: Comment = { ...comment, status: "resolved", resolvedBy: codex, resolvedAt: "2026-10-25T14:02:10.000Z" };
+  const reopened: Comment = { ...comment, lastResolution: { by: codex, at: "2026-10-25T14:02:10.000Z", reopenedBy: kim, reopenedAt: "2026-10-25T14:04:30.000Z" } };
+  const card = (c: Comment, freshness: CommentCardProps["freshness"] = "same") => renderToStaticMarkup(<CommentCard comment={c} frames={[]} freshness={freshness} locationMissing={false} disabled={false} busy={false} copy={{ status: "idle" }} onComment={noop} onCopy={noop} />);
+  test("a resolved card names its resolver under the badges, with the absolute time in title", () => {
+    vi.useFakeTimers({ now: Date.parse("2026-10-25T14:05:10.000Z") });
+    try {
+      const out = card(resolved);
+      expect(out).toContain(`<p class="comments-resolution"><time dateTime="2026-10-25T14:02:10.000Z" title="2026-10-25T14:02:10.000Z">Resolved by <b>codex</b> · 3 minutes ago</time></p>`);
+      expect(out.indexOf('class="comments-badges"')).toBeLessThan(out.indexOf('class="comments-resolution"'));
+      expect(out.indexOf('class="comments-resolution"')).toBeLessThan(out.indexOf('class="comments-body"'));
+    } finally { vi.useRealTimers(); }
+  });
+  test("a reopened open card says who reopened it and who had resolved it", () => {
+    vi.useFakeTimers({ now: Date.parse("2026-10-25T14:05:30.000Z") });
+    try {
+      const out = card(reopened);
+      expect(out).toContain(`<p class="comments-resolution"><time dateTime="2026-10-25T14:04:30.000Z" title="2026-10-25T14:04:30.000Z">Reopened by <b>Kim Doe</b> · 1 minute ago</time></p><p class="comments-resolution">Previously resolved by <b>codex</b></p>`);
+      expect(card(comment)).not.toContain("comments-resolution");
+    } finally { vi.useRealTimers(); }
+  });
+  test("an open card shows Canvas changed and Freshness unknown as neutral badges", () => {
+    expect(card(comment, "outdated")).toContain(`<span class="comments-badge" title="The canvas changed after this comment was written.">Canvas changed</span>`);
+    expect(card(comment, "unknown")).toContain(`<span class="comments-badge">Freshness unknown</span>`);
+    for (const freshness of ["outdated", "unknown"] as const) expect(card(comment, freshness)).not.toContain("comments-badge warning");
+    expect(card(comment, "same")).not.toMatch(/Canvas changed|Freshness unknown/);
+  });
+  test("a resolved card shows neither Canvas changed nor Freshness unknown", () => {
+    for (const freshness of ["outdated", "unknown"] as const) expect(card(resolved, freshness)).not.toMatch(/Canvas changed|Freshness unknown|Outdated/);
+  });
+  describe("the status line in a card's place", () => {
+    const list = (...ids: string[]) => ({ status: "ready" as const, comments: ids.map(id => ({ ...comment, comment: id })), warnings: [] });
+    const line = `<p class="comments-status" role="status">Resolved — moved to Resolved.</p>`;
+    const at = (out: string, part: string) => out.indexOf(part);
+    test("stands before the card that followed the one that left", () => {
+      const out = html(panel({ read: list("c2", "c3"), statusLine: { comment: "c1", text: "Resolved — moved to Resolved.", before: "c3" } }));
+      expect(out).toContain(line);
+      expect(at(out, 'data-comment="c2"')).toBeLessThan(at(out, line));
+      expect(at(out, line)).toBeLessThan(at(out, 'data-comment="c3"'));
+    });
+    test("ends the list when the card was last or its follower is gone too", () => {
+      for (const before of [null, "c9"]) {
+        const out = html(panel({ read: list("c2"), statusLine: { comment: "c1", text: "Resolved — moved to Resolved.", before } }));
+        expect(at(out, 'data-comment="c2"')).toBeLessThan(at(out, line));
+      }
+    });
+    test("stands in an emptied list above its empty message", () => {
+      const out = html(panel({ read: list(), statusLine: { comment: "c1", text: "Resolved — moved to Resolved.", before: null } }));
+      expect(at(out, line)).toBeGreaterThan(-1);
+      expect(at(out, line)).toBeLessThan(at(out, "No open comments"));
+    });
+    test("is not shown in a list that shows the card itself", () => {
+      expect(html(panel({ read: list("c1"), statusLine: { comment: "c1", text: "Resolved — moved to Resolved.", before: null } }))).not.toContain("comments-status");
+    });
+  });
+});
+
+describe("editing a resolved comment and replacing a missing target (revision-recheck task 9)", () => {
+  const buttons = (out: string) => [...out.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map(match => match[1]);
+  test("a resolved comment's editor puts Save and reopen last as primary, Save only before it, and says why", () => {
+    const out = renderToStaticMarkup(<CommentEditor {...editor({ mode: "edit", saveOnly: noop })} />);
+    expect(buttons(out)).toEqual(["Cancel", "Save only", "Save and reopen"]);
+    expect(out).toContain(`<button type="button" class="comments-btn primary">Save and reopen</button>`);
+    expect(out).toContain(`<p class="comments-helper">Agents read open comments only.</p>`);
+    const onSave = vi.fn(), saveOnly = vi.fn(), tree = CommentEditor(editor({ mode: "edit", onSave, saveOnly }));
+    find(tree, "Save and reopen").onClick?.(); find(tree, "Save only").onClick?.();
+    expect(onSave).toHaveBeenCalledOnce(); expect(saveOnly).toHaveBeenCalledOnce();
+  });
+  test("an open comment's editor keeps the single Save changes", () => {
+    const out = renderToStaticMarkup(<CommentEditor {...editor({ mode: "edit" })} />);
+    expect(buttons(out)).toEqual(["Cancel", "Save changes"]);
+    expect(out).not.toContain("Agents read open comments only.");
+  });
+  test("both saves lock while saving", () => {
+    const tree = CommentEditor(editor({ mode: "edit", saveOnly: noop, state: { status: "saving" } }));
+    expect(find(tree, "Save only").disabled).toBe(true); expect(find(tree, "Saving…").disabled).toBe(true);
+  });
+  test("a retry of the original save offers only that retry", () => {
+    const out = renderToStaticMarkup(<CommentEditor {...editor({ mode: "edit", saveOnly: noop, state: { status: "retry-original" } })} />);
+    expect(buttons(out)).toEqual(["Keep draft", "Retry original save"]);
+  });
+  test("the line after Save and reopen offers Show", () => {
+    const onShowStatus = vi.fn();
+    const props = panel({ filter: { scope: "canvas", status: "resolved" }, read: { status: "ready", comments: [], warnings: [] }, statusLine: { comment: "c1", text: "Reopened — moved to Open.", before: null, show: true }, onShowStatus });
+    expect(html(props)).toContain(`<p class="comments-status" role="status">Reopened — moved to Open.<button type="button">Show</button></p>`);
+    find(CommentsPanel(props), "Show").onClick?.();
+    expect(onShowStatus).toHaveBeenCalledExactlyOnceWith("c1");
+    expect(html({ ...props, statusLine: { comment: "c1", text: "Reopened — moved to Open.", before: null } })).not.toContain("Show</button>");
+  });
+
+  const missing = (over: Partial<CommentsPanelProps> = {}) => html(panel({ missingLocations: new Set(["c1"]), ...over }));
+  test("an open comment whose location is unavailable offers Comment on selection instead", () => {
+    const onComment = vi.fn(), props = panel({ missingLocations: new Set(["c1"]), onComment });
+    expect(html(props)).toContain(`<button type="button" class="comments-btn">Comment on selection instead</button>`);
+    const card = CommentCard({ comment, frames: [], freshness: "same", locationMissing: true, disabled: false, busy: false, copy: { status: "idle" }, instead: "ready", onComment, onCopy: noop });
+    find(card, "Comment on selection instead").onClick?.();
+    expect(onComment).toHaveBeenCalledExactlyOnceWith("comment-instead", "c1");
+  });
+  test("without a selection it is disabled, with the reason linked to it", () => {
+    const out = missing({ selectionAvailable: false });
+    expect(out).toContain(`<button type="button" class="comments-btn" disabled="" aria-describedby="«r1»">Comment on selection instead</button>`);
+    expect(out).toContain(`<p class="comments-helper" id="«r1»">Select an element or frame first.</p>`);
+    expect(missing()).not.toContain("Select an element or frame first.");
+  });
+  test("it locks with the card's other writes", () => {
+    expect(missing({ busy: true })).toContain(`disabled="">Comment on selection instead`);
+    expect(missing({ widthInvalid: true })).toContain(`disabled="">Comment on selection instead`);
+  });
+  test("a resolved comment, a found location or no rendered document has no such button", () => {
+    expect(missing({ read: { status: "ready", comments: [{ ...comment, status: "resolved" }], warnings: [] } })).not.toContain("Comment on selection instead");
+    expect(html(panel())).not.toContain("Comment on selection instead");
+    expect(html(panel({ missingLocations: null }))).not.toContain("Comment on selection instead");
+  });
+  test("after the new comment saves, the Delete dialog asks about the original, Keep both first", () => {
+    const onCancel = vi.fn(), onConfirm = vi.fn();
+    const dialog = DeleteCommentDialog({ comment, replacedOn: "Element · p promo-text · in Home", onCancel, onConfirm });
+    const out = renderToStaticMarkup(dialog);
+    expect(out).toContain(`aria-label="Delete the original comment?"`);
+    expect(out).toContain("<h3>Delete the original comment?</h3><p>Your text was saved as a new comment on Element · p promo-text · in Home.</p>");
+    expect(out).toContain(`<button type="button" class="comments-btn" autofocus="">Keep both</button><button type="button" class="comments-btn danger">Delete original</button>`);
+    find(dialog, "Keep both").onClick?.(); expect(onCancel).toHaveBeenCalledOnce(); expect(onConfirm).not.toHaveBeenCalled();
+    find(dialog, "Delete original").onClick?.(); expect(onConfirm).toHaveBeenCalledOnce();
   });
 });

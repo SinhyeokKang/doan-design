@@ -29,6 +29,7 @@
    - 키보드 경우: 초기 포커스, Return, Escape, Space, Tab 순서, IME 중 Return/Escape 무시, 포커스 복원.
    - 상태 경우: 복사 중, 복사 실패와 재시도, 연 사이 바뀜 거부, 성공, 복사 중에 닫음.
    - 그 밖의 경우: 대화상자 우선순위 체인, (root, canvas id) 변경 시 닫힘, 초안·폭 무효·author 없음에서도 열림.
+   - Review Done 요약의 진입점(2026-10-26 `revision-recheck` 지휘자): 요약은 다시 연 id 목록을 갖고 있고, 대화상자를 여는 콜백이 주어질 때만 "Hand off…"를 렌더한다. 이 작업에서 그 콜백을 연결해 다시 연 id가 체크된 대화상자를 연다.
    - 검증: `npm --prefix app test`, `npm --prefix app run typecheck` green. `[커밋]`
 5. **"fix this" 안내, Home 문구, "Copy all open"을 가리키던 문구, worktree 안내**.
    - 검증: `npm --prefix app test` green. `[커밋]`

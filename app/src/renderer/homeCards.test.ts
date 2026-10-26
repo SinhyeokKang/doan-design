@@ -1,6 +1,7 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry, GitInfo } from "../main/view";
-import { cardRow, groupProjects } from "./homeCards";
+import type { ProjectCanvasComments, ProjectComments } from "../main/projectComments";
+import { cardRow, groupProjects, measureNarrow, ProjectCommentReads, reviewTotal } from "./homeCards";
 import type { SelectionView } from "./selection";
 
 const canvas = (open: number): CanvasRow => ({ path: "design/a.html", url: "u", open, resolved: 0 });
@@ -110,5 +111,136 @@ describe("cardRow", () => {
 
   test("a loaded workspace in a problem state is still current", () => {
     expect(cardRow({ path: "/p", kind: "notFound" }, "/p", null)).toMatchObject({ current: true, chip: "Missing" });
+  });
+});
+
+describe("review counts", () => {
+  const counts = (toReview: number): ProjectCanvasComments => ({ id: `c${toReview}`, open: 0, resolved: toReview, toReview });
+
+  test("a row sums the canvases' counts to review; zero stays a number for the view to hide", () => {
+    expect(reviewTotal([counts(2), counts(1)])).toBe(3);
+    expect(reviewTotal([counts(0)])).toBe(0);
+    expect(reviewTotal(undefined)).toBeUndefined();
+  });
+
+  test("a canvas whose comment file failed hides the row's count instead of a partial sum", () => {
+    expect(reviewTotal([counts(2), { id: "broken", error: "EACCES" }])).toBeUndefined();
+  });
+
+  test("the row summary carries the count from the project read", () => {
+    const entry = listRow("/code/acme", acme("", "main"), { canvases: [canvas(2)], changedAt: 1 });
+    expect(cardRow(entry, null, null, [counts(1)]).summary).toEqual({ branch: "main", canvases: 1, openComments: 2, toReview: 1, changedAt: 1 });
+    expect(cardRow(entry, null, null, [{ id: "x", error: "bad" }]).summary).not.toHaveProperty("toReview");
+    expect(cardRow(entry, null, null).summary).not.toHaveProperty("toReview");
+  });
+});
+
+describe("ProjectCommentReads", () => {
+  function reads() {
+    const asks: { root: string; revision: number; reply: (value: ProjectComments | null) => Promise<void> }[] = [];
+    let shown: ReadonlyMap<string, readonly ProjectCanvasComments[]> = new Map();
+    const publish = vi.fn((items: ReadonlyMap<string, readonly ProjectCanvasComments[]>) => { shown = items; });
+    const project = new ProjectCommentReads((root, revision) => new Promise(resolve => {
+      asks.push({ root, revision, reply: async value => { resolve(value); await Promise.resolve(); } });
+    }), publish);
+    const list = (root: string, revision: number, canvases: ProjectCanvasComments[]): ProjectComments => ({ root, revision, kind: "list", canvases });
+    return { project, asks, publish, list, shown: () => shown };
+  }
+  const a: ProjectCanvasComments = { id: "a", open: 1, resolved: 2, toReview: 2 };
+
+  test("reads each tracked root once and again only when its ls row changes", async () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"], ["/r2", "s1"]]));
+    h.project.track(new Map([["/r1", "s1"], ["/r2", "s2"]]));
+    expect(h.asks.map(ask => ask.root)).toEqual(["/r1", "/r2", "/r2"]);
+    await h.asks[0]!.reply(h.list("/r1", h.asks[0]!.revision, [a]));
+    expect(h.shown().get("/r1")).toEqual([a]);
+  });
+
+  test("a root that comes back on screen is read again, with its last counts kept meanwhile", async () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"]]));
+    await h.asks[0]!.reply(h.list("/r1", h.asks[0]!.revision, [a]));
+    h.project.track(new Map());
+    h.project.track(new Map([["/r1", "s1"]]));
+    expect(h.asks).toHaveLength(2);
+    expect(h.shown().get("/r1")).toEqual([a]);
+  });
+
+  test("an invalidation reads a tracked root again; an untracked root is ignored", () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"]]));
+    h.project.refresh("/r1");
+    h.project.refresh("/other");
+    expect(h.asks.map(ask => ask.root)).toEqual(["/r1", "/r1"]);
+  });
+
+  test("a late answer overtaken by a newer request is dropped", async () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"]]));
+    h.project.refresh("/r1");
+    const [old, fresh] = h.asks;
+    await fresh!.reply(h.list("/r1", fresh!.revision, [a]));
+    await old!.reply(h.list("/r1", old!.revision, [{ ...a, toReview: 9 }]));
+    expect(h.shown().get("/r1")).toEqual([a]);
+    expect(h.publish).toHaveBeenCalledTimes(1);
+  });
+
+  test("a reply for a root no longer tracked, or after dispose, is dropped", async () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"], ["/r2", "s1"]]));
+    h.project.track(new Map([["/r2", "s1"]]));
+    await h.asks[0]!.reply(h.list("/r1", h.asks[0]!.revision, [a]));
+    h.project.dispose();
+    await h.asks[1]!.reply(h.list("/r2", h.asks[1]!.revision, [a]));
+    expect(h.publish).not.toHaveBeenCalled();
+  });
+
+  test("a refused or unavailable read clears the root's counts", async () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"]]));
+    await h.asks[0]!.reply(h.list("/r1", h.asks[0]!.revision, [a]));
+    h.project.refresh("/r1");
+    await h.asks[1]!.reply({ root: "/r1", revision: h.asks[1]!.revision, kind: "unavailable" });
+    expect(h.shown().has("/r1")).toBe(false);
+    h.project.refresh("/r1");
+    await h.asks[2]!.reply(h.list("/r1", h.asks[2]!.revision, [a]));
+    h.project.refresh("/r1");
+    await h.asks[3]!.reply(null);
+    expect(h.shown().has("/r1")).toBe(false);
+  });
+});
+
+describe("measureNarrow", () => {
+  // Just enough of a row element: the class list, the branch name's widths and whether a summary is shown.
+  function row(path: string, name: { wide: [number, number]; narrow?: [number, number] } | null, summary = true, narrow = false) {
+    const classes = new Set(narrow ? ["wt", "narrow"] : ["wt"]);
+    const widths = () => (classes.has("narrow") ? name?.narrow ?? name?.wide : name?.wide) ?? [0, 0];
+    const element = {
+      dataset: { path },
+      classList: { contains: (name: string) => classes.has(name), remove: (name: string) => classes.delete(name), toggle: (name: string, on: boolean) => { if (on) classes.add(name); else classes.delete(name); } },
+      querySelector: (selector: string) => selector === ".wt-sum" ? (summary ? {} : null) : name && { get scrollWidth() { return widths()[0]; }, get clientWidth() { return widths()[1]; } },
+    };
+    return { element, classes };
+  }
+  const card = (rows: ReturnType<typeof row>[]) => ({ querySelectorAll: () => rows.map(item => item.element) }) as unknown as HTMLElement;
+
+  test("a row whose branch is cut off beside its summary is narrow", () => {
+    const fits = row("/a", { wide: [80, 80] });
+    const cut = row("/b", { wide: [300, 120] });
+    expect([...measureNarrow(card([fits, cut]))]).toEqual(["/b"]);
+  });
+
+  test("measures in the wide layout and leaves each row's class as it was", () => {
+    // Already narrow and the branch fits on its own line, but would be cut off beside the summary.
+    const stays = row("/a", { wide: [300, 120], narrow: [300, 300] }, true, true);
+    const widened = row("/b", { wide: [80, 80], narrow: [80, 80] }, true, true);
+    expect([...measureNarrow(card([stays, widened]))]).toEqual(["/a"]);
+    expect(stays.classes.has("narrow")).toBe(true);
+    expect(widened.classes.has("narrow")).toBe(true);
+  });
+
+  test("a row without a summary (a problem row) is never narrow", () => {
+    expect(measureNarrow(card([row("/a", { wide: [300, 120] }, false)])).size).toBe(0);
   });
 });

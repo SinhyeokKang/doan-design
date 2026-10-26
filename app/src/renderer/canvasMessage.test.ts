@@ -351,6 +351,14 @@ describe("parseCanvasMessage: select", () => {
     expect(parseCanvasMessage(select({ target: null }))).toEqual({ type: "select", href: HREF, seq: 3, viewport: 150, target: null });
   });
 
+  test("keeps the command a selection answers, and drops a message naming any other", () => {
+    expect(parseCanvasMessage(select())).not.toHaveProperty("answer");
+    expect(parseCanvasMessage(select({ answer: "select-anchor" }))).toHaveProperty("answer", "select-anchor");
+    expect(parseCanvasMessage(select({ answer: "select-comment", target: null }))).toEqual({ type: "select", href: HREF, seq: 3, viewport: 150, target: null, answer: "select-comment" });
+    for (const answer of ["pick-frame", "clear", "", 1, null, true]) expect(parseCanvasMessage(select({ answer }))).toBeNull();
+    expect(parseCanvasMessage({ type: "clear", href: HREF, seq: 3, viewport: 150, answer: "select-anchor" })).toEqual({ type: "clear", href: HREF, seq: 3, viewport: 150 });
+  });
+
   test("keeps an element without doanId, truncated or text", () => {
     const element = { selector: "body > p:nth-of-type(1)", html: "<p></p>" };
     expect(parseCanvasMessage(select({}, { element }))).toHaveProperty("target.element", element);

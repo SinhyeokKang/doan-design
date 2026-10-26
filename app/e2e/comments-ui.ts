@@ -156,7 +156,7 @@ try {
   assert.equal(await page.frameLocator("iframe").getByRole("button", { name: "Child target" }).count(), 0);
   await panel.getByRole("group", { name: "Comment scope" }).getByRole("button", { name: "Canvas", exact: true }).click();
   await cards.getByText("Location unavailable", { exact: true }).waitFor();
-  await cards.getByText("Outdated", { exact: true }).waitFor();
+  await cards.getByText("Canvas changed", { exact: true }).waitFor();
   await cards.getByRole("button", { name: "Edit", exact: true }).click();
   await panel.getByRole("textbox", { name: "Your unsaved edit body" }).fill("Edited missing target"); await panel.getByRole("button", { name: "Save changes", exact: true }).click();
   await cards.filter({ hasText: "Edited missing target" }).waitFor();
