@@ -28,8 +28,8 @@
 | P | P1, P2, P3 | `.scratch/agent-conversation/`, PRODUCT §6 결과 | 없음 | Astra medium — 전송·권한·동시 세션 실증 판단 | 버전·명령·원시 증거·격리 검증, 9a~9e 결과 | 실험 종료, 설정 전체 동일성 실패·독립 검토 대기 |
 | D | D1, D2 | PRODUCT 결정, feature 계약의 PoC 확정 내용 | P | Astra medium — 제품 범위와 실험 결과 대조 | §3·§7 및 스킬 변경 판단 | 리뷰 보완·통합 완료 |
 | S | S1 | `schema/`, Go·TS formats 등록과 테스트 | D | Sol medium — 공유 포맷과 픽스처 구현 | Go·TS 포맷 테스트 | 통합 완료, 런타임 기존 예외 유지 |
-| C | T1·T2의 Go 부분, C1 | `cli/internal/cli/` 세션 기록과 테스트, 필요 시 MCP 배선 | S | Astra medium — 출력 보존·경로·동시 append | red→green, Go test/vet, 필요 시 agent-eval | 구현 완료, 독립 리뷰 중 |
-| T | T1·T2의 TS 부분 | `app/src/main/conversation/` 순수 함수·계약·테스트 | S | Astra medium — 이벤트·복구·권한 상태 계약 | red→green, app test/typecheck | 구현 완료, 독립 리뷰 중 |
+| C | T1·T2의 Go 부분, C1 | `cli/internal/cli/` 세션 기록과 테스트, 필요 시 MCP 배선 | S | Astra medium — 출력 보존·경로·동시 append | red→green, Go test/vet, 필요 시 agent-eval | 재검토 통과, 통합 대기 |
+| T | T1·T2의 TS 부분 | `app/src/main/conversation/` 순수 함수·계약·테스트 | S | Astra medium — 이벤트·복구·권한 상태 계약 | red→green, app test/typecheck | 리뷰 2건 수정 중 |
 | A | A2, A3, A4 | conversation 실행기·저장·IPC, main 수명, preload와 타입 | C, T | Astra medium — 프로세스·저장·IPC 경계 | app test/typecheck/build 및 E 종료 검증 | 대기 |
 | E | A1, E1, E2 | `app/e2e/`, `.scratch/` 실험, PRODUCT 관찰 | A | Astra medium — 실제 앱·종료·상태 불변 실증 | 하네스 red→green, 가짜 에이전트 12단계, 실제 에이전트 관찰 | 대기 |
 | V | E3 | 통합 검증 증거 | E, 리뷰 | Sol high — 순차 게이트와 증거 확인 | verify --runtime, 필요 시 --eval 및 agent-eval | 대기 |
@@ -81,3 +81,6 @@
 - R-C (`task_c4aa26509b68`, `ctx_a1af76981c7d`)는 🔴 1건을 격리 재현했다. sessions.jsonl 링크를 따라 외부 기존 파일을 수정하거나 새 파일을 생성한다. 리뷰 터미널 release 완료. F-C는 Astra medium으로 no-follow/descriptor 경계와 교체 경쟁 회귀를 수정하고 postmortem을 남긴다. C 통합은 독립 재검토 전까지 보류한다.
 - T는 `e6a20b7`, `fd31422`, `e9947d6`으로 순수 규칙 7개 모듈·타입·정제 픽스처와 신규 테스트 72개를 제출했다. red 및 최종 앱 3195개 테스트/typecheck exit 0을 보고했다. T 터미널 release 완료. R-T는 Astra medium으로 모든 모듈·경계·인계 주장을 검토한다. 실제 I/O·IPC·프로세스·저장은 A, 런타임 증거는 A/E 소유로 남는다.
 - F-C (`task_b853a40745a9`, `ctx_5cabd0d1f98d`)는 `8eff52a`, `847fa73`로 descriptor-relative no-follow 열기와 파일 정체/일반 파일 검사를 추가했다. 기존·끊어진 링크 red, 최종·부모 경로 교체 회귀 및 전체 Go test/vet green 보고. pin한 원래 객체의 이동·hard link·내용 동시 변경은 보호한다고 주장하지 않는다. 터미널 release 후 R-F-C를 Astra medium으로 시작해 R-C-1 해소 여부를 독립 재검토한다.
+
+- R-F-C (`task_81817b246d2e`, `ctx_6167ad909c8c`)는 링크·경로 교체와 출력 불변을 재검토해 잔여 🔴 0, 🟡 0을 확인했다. 리뷰 터미널 release 완료. C는 T 수정 후 함께 통합한다.
+- R-T (`task_f243c8eece7b`, `ctx_4ac3632654e2`)는 focused 72개·typecheck 통과와 🟡 2건을 확인했다. 턴 귀속 없는 서버 요청이 무응답으로 남고, notification의 추가 error 필드가 턴 격리를 우회한다. 리뷰 터미널 release 완료. F-T는 Astra medium으로 ingress 구분·명시적 미지원 처리·회귀를 수정한다. 프로토콜 enum 픽스처도 원본 스키마에 맞추며 실제 dispatcher 검증은 A/E에 남긴다.
