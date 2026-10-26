@@ -114,3 +114,5 @@
 - F-A3 (`task_34040a8a1048`, `ctx_0158c7c99d5b`)는 `f100324`, `3873f11`로 Claude 실제 child exit와 SDK 구조화 오류 태그를 함께 확인해 종료를 분류했다. 집중 47개·typecheck 통과 보고와 diff를 지휘자가 E 재현에 대조하고 통합했다. release 완료, E에 원본 두 커밋 적용·재빌드·실제 Electron 재검증을 요청했다. Codex 추가 사례는 F-A3 마무리 후 도착해 미처리이므로 F-A4(Astra medium)가 별도 수행한다. E의 full/runtime 슬롯은 유지한다.
 
 - E는 fake Claude가 비JSON stdout 한 줄 뒤 살아 있으면 15초 내 실패가 없는 관찰을 보고했다. 지휘자가 설치된 SDK 0.3.310의 ProcessTransport.readMessages에서 parse 실패 시 Non-JSON stdout 로그 후 continue하는 코드를 확인했다. design에는 15초 턴 제한·SDK raw parser 중복 구현 계약이 없으므로 지휘자의 E brief 기대를 정정했다. 원래 실패 관찰은 보존하고 Claude는 잡음 뒤 정상 응답·잡음만 있을 때 중단/Quit 정리를 검증한다. 직접 파싱하는 Codex malformed protocol 실패와 실제 프로세스 종료 실패 요구는 유지한다.
+
+- F-A4 (`task_2866a6ed2250`, `ctx_d274817aa20d`)는 `48821b8`, `a844706`으로 Codex transport 종료 시 dispatcher terminal/정리를 즉시 시작하고 그룹 소멸 시에만 소유권을 해제하도록 수정했다. focused 81개·typecheck 통과 보고와 diff를 지휘자가 E 재현에 대조해 통합했다. release 완료. E에 두 커밋 적용·재빌드·종료/중단/권한/cleanup의 실제 Electron 재검증을 요청했다.
