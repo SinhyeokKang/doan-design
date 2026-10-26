@@ -5,6 +5,9 @@ import { join } from "node:path";
 const mocks = vi.hoisted(() => ({ probe: vi.fn(), run: vi.fn() }));
 vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: mocks.run }));
 import { createPrepare } from "./prepare";
+import { conversationHandler } from "./ipc";
+import { ConversationService } from "./service";
+import { ConversationStore } from "./store";
 const paths: string[] = []; afterEach(() => { vi.clearAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 function temp() { const root = realpathSync(mkdtempSync(join(tmpdir(), "doan-prepare-"))); paths.push(root); return root; }
 it("fails closed with a missing installed CLI despite the SDK platform dependency", async () => {
@@ -27,7 +30,11 @@ it("refuses a Codex resume preview with a record but no verifiable stored sessio
   mocks.probe.mockResolvedValue({ ok: true, path: root, codexHome: root }); mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.163.0" });
   const canvas = { id: "a", path: "design/a.html" };
   writeFileSync(join(root, "sessions.jsonl"), JSON.stringify({ v: 1, at: "2026-10-27T00:00:00.000Z", root, canvas, hash: "sha256:" + "a".repeat(64), runtime: "codex", sessionId: "01a178ba-f9dc-7161-9544-f20f656064a1", configDir: root, cwd: root }) + "\n");
-  await expect(createPrepare(root, join(root, "runtime.json"), { HOME: root })({ root, mode: "resume", canvas, text: "", anchors: [] })).rejects.toThrow("session_unavailable");
+  const prepare = createPrepare(root, join(root, "runtime.json"), { HOME: root });
+  await expect(prepare({ root, mode: "resume", canvas, text: "", anchors: [] })).rejects.toThrow("session_unavailable");
+  const service = new ConversationService(new ConversationStore(root), prepare, vi.fn(), () => {});
+  const handler = conversationHandler(service, prepare, () => [{ path: root, kind: "list", canvases: [canvas] }]);
+  expect(await handler(true, "resumeTarget", { root, canvas })).toEqual({ available: false, reason: "session_unavailable" });
 });
 
 it.each(["valid", "wrong-id", "wrong-cwd", "wrong-version", "malformed", "linked", "linked-directory", "oversized-header", "duplicate"])("checks Codex stored session evidence: %s", async kind => {
