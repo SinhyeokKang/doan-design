@@ -28,7 +28,7 @@
 | P | P1, P2, P3 | `.scratch/agent-conversation/`, PRODUCT §6 결과 | 없음 | Astra medium — 전송·권한·동시 세션 실증 판단 | 버전·명령·원시 증거·격리 검증, 9a~9e 결과 | 실험 종료, 설정 전체 동일성 실패·독립 검토 대기 |
 | D | D1, D2 | PRODUCT 결정, feature 계약의 PoC 확정 내용 | P | Astra medium — 제품 범위와 실험 결과 대조 | §3·§7 및 스킬 변경 판단 | 리뷰 보완·통합 완료 |
 | S | S1 | `schema/`, Go·TS formats 등록과 테스트 | D | Sol medium — 공유 포맷과 픽스처 구현 | Go·TS 포맷 테스트 | 통합 완료, 런타임 기존 예외 유지 |
-| C | T1·T2의 Go 부분, C1 | `cli/internal/cli/` 세션 기록과 테스트, 필요 시 MCP 배선 | S | Astra medium — 출력 보존·경로·동시 append | red→green, Go test/vet, 필요 시 agent-eval | 구현 시작 |
+| C | T1·T2의 Go 부분, C1 | `cli/internal/cli/` 세션 기록과 테스트, 필요 시 MCP 배선 | S | Astra medium — 출력 보존·경로·동시 append | red→green, Go test/vet, 필요 시 agent-eval | 구현 완료, 독립 리뷰 중 |
 | T | T1·T2의 TS 부분 | `app/src/main/conversation/` 순수 함수·계약·테스트 | S | Astra medium — 이벤트·복구·권한 상태 계약 | red→green, app test/typecheck | 구현 시작 |
 | A | A2, A3, A4 | conversation 실행기·저장·IPC, main 수명, preload와 타입 | C, T | Astra medium — 프로세스·저장·IPC 경계 | app test/typecheck/build 및 E 종료 검증 | 대기 |
 | E | A1, E1, E2 | `app/e2e/`, `.scratch/` 실험, PRODUCT 관찰 | A | Astra medium — 실제 앱·종료·상태 불변 실증 | 하네스 red→green, 가짜 에이전트 12단계, 실제 에이전트 관찰 | 대기 |
@@ -77,3 +77,4 @@
 - 통합 HEAD `207aea0`의 `verify --runtime`은 runner tests·Go test/vet·TS typecheck·앱 3123개 테스트를 통과했지만 runtime exit 1이다. 증거: `.scratch/verify/2026-10-26T16-41-29-273Z-64049/`. comments-ui:77의 빈 MIME 목록 ClipboardItem 생성 실패이며 알려진 :566 예외가 아니다. F-H(Sol medium)는 하네스 클립보드 보존 경계만 회귀 테스트와 함께 수정한다. 실제 클립보드 내용은 출력하지 않으며 현재 runtime/full-test 슬롯을 F-H에 배정한다. C/T 착수는 이 검증 장애 정리 후 진행한다.
 - F-H (`task_79809518c0f0`, `ctx_f77fb8ce1005`)는 `00151c8`, `da656df`를 제출했다. 가짜 데이터로 원래 오류 red, 하네스 18개 테스트·typecheck·build green. 실제 comments-ui는 기존 `08-hidden-quit-close`(:567로 이동)에서만 실패했고 이후 어댑터 10개는 각 PASS/exit 0·상태 불변을 보고했다. 전체 runtime PASS는 아니다. F-H 터미널 release 완료. R-F-H가 Astra medium으로 보존/복원 및 실행 증거를 독립 리뷰한다.
 - R-F-H (`task_e4ada6f5bd0a`, `ctx_f942e9b644a0`)는 🔴 0, 🟡 0 및 후속 어댑터 증거를 확인했다. release 후 F-H를 `13f34b8`, `06c5056`으로 통합했다. HEAD `06c5056`의 기본 verify는 exit 0 / PASS (`.scratch/verify/2026-10-26T16-58-37-059Z-19847/`), 별도 하네스 18개 테스트도 exit 0이다. 동일 runtime 구현을 다시 실행하지 않고 F-H의 comments-ui 기존 실패와 후속 10개 PASS를 재사용한다(런타임 전체는 미충족). 하네스 child는 227개 증거 복사 검증·clean·미통합 없음 확인 후 제거했고 목록 부재 확인. C/T는 별도 checkout에서 병렬 구현한다. T에 full app unit-test 슬롯, C에 Go test/vet를 배정하며 runtime/stress는 실행하지 않는다.
+- C (`task_d628266c94a1`, `ctx_1eb6def1be30`)는 `8f7efe5`, `f52463d`, `f4141fb`, `dc1d683`, `65c766f`를 제출했다. 출력 불변·MCP 제외·손상 기록·8개 프로세스 append 및 부분 읽기 실패에 대한 red→green, 전체 Go test/vet 통과를 보고했다. C 터미널 release 완료. R-C는 Astra medium으로 독립 검토한다. T (`task_c28a5192de0b`, `ctx_4720f8d45d4a`)는 계속 구현 중이다.
