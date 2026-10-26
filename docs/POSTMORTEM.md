@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-27 — Protocol readiness lagged behind process and turn ownership
+
+- **Area**: `app/src/main/conversation/runners.ts`, `service.ts`, and their boundary tests.
+- **Symptom**: a Codex turn reply and its next notifications in one stdout chunk lost the final turn event; a process that exited during opening could still be accepted; a losing generated-session collision could become available after the winner exited; Quit could miss a process whose initialization handshake was still pending.
+- **Root cause**: promise continuation was mistaken for wire ordering, and process ownership was published only after protocol readiness. A temporary collision reservation did not retain the discovered identity of the losing process.
+- **Net**: pure normalization and successful opening tests passed. A fake Codex subprocess emitting the reply and notifications in a single write reproduced the lost terminal event, and service-boundary tests reproduced early-exit acceptance, collision release and missing startup cleanup before fixes. The official Claude SDK was also exercised against a synthetic executable, without a model or authentication call. These checks do not replace Electron quit/runtime evidence.
+- **Prevention**: queue bounded method-bearing frames while the turn reply establishes its native ID, then drain after installing the context; register owned cleanup immediately after spawn; refuse acceptance after confirmed startup exit; quarantine a colliding generated ID until that losing process exits too. Run `rg -n 'turn/start|startingTurn|promoteReservation|registerStop' app/src/main --glob '!*.test.ts'` (performed 2026-10-27): matches are confined to conversation ownership, service and runners. Keep actual dispatcher writes, combined-chunk subprocess output and a held opening handshake in regression coverage.
+
 ### 2026-10-27 — Codex ingress confused unowned requests and notification errors
 
 - **Area**: `app/src/main/conversation/transport.ts`, `codexIngress.test.ts`.
