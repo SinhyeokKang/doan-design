@@ -181,12 +181,14 @@ export class CommentsSession {
     return !this.pending && !this.draft.request && !this.busy && !this.deleteConfirmation &&
       [...this.mutations.values()].every(state => finished.includes(state.status));
   }
-  async read(review = false, card?: string) {
-    if (!this.identity) return;
+  // Returns what main answered, also when a newer read overtook this one and it was not applied.
+  async read(review = false, card?: string): Promise<CommentList | null> {
+    if (!this.identity) return null;
     const rev = this.revision, read = ++this.readRevision, request = this.request();
+    let fetched: CommentList | null = null;
     try {
-      const list = value(await this.api.commentsList(request), request);
-      if (rev !== this.revision || read !== this.readRevision) return;
+      const list = fetched = value(await this.api.commentsList(request), request);
+      if (rev !== this.revision || read !== this.readRevision) return list;
       this.list = list; this.readError = null; this.identityCause = null;
       this.reviewRead(list.comments);
       if (this.identity) this.handedOffRead(this.identity, list.comments);
@@ -216,6 +218,7 @@ export class CommentsSession {
       }
     }
     this.emit();
+    return fetched;
   }
   async retryAuthor() {
     if (!this.identity) return;
@@ -468,8 +471,9 @@ export class CommentsSession {
     try { value(await this.api.commentsCopy({ ...request, scope: { comments: ids } }), request); }
     catch (error) {
       if (!(error instanceof NotOpen)) { this.updateHandoff(dialog.id, { status: "failed" }); this.emit(); return; }
-      await this.read();
-      const list = this.handoff?.id === dialog.id && !this.readError && this.list ? this.list.comments : null;
+      // Judged by this reread itself: a newer read may overtake it before `this.list` follows.
+      const reread = await this.read();
+      const list = this.handoff?.id === dialog.id && reread ? reread.comments : null;
       const stale = list ? staleIds(ids, list) : [];
       if (list && stale.length) this.updateHandoff(dialog.id, { status: "stale", count: stale.length }, handoffRows(list, dialog.frames));
       else this.updateHandoff(dialog.id, { status: "failed" });

@@ -121,6 +121,20 @@ describe("copying from the Hand off dialog", () => {
     expect(api.commentsCopy.mock.calls[1]?.[0]).toMatchObject({ scope: { comments: ["c4"] } });
     expect(s.handoff?.copy).toEqual({ status: "copied", count: 1 });
   });
+  test("a refusal is judged by its own reread even when a newer read overtakes it", async () => {
+    const { session: s, api, state } = fixture(); await s.open(identity);
+    s.openHandoff("all", [], null);
+    state.comments = [done(c1), c2, c3];
+    api.commentsCopy.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Some chosen comments are no longer open.", code: "not_open" }));
+    const reread = held<CommentReply<CommentList>>(), newer = held<CommentReply<CommentList>>();
+    api.commentsList.mockImplementationOnce(() => reread.promise).mockImplementationOnce(() => newer.promise);
+    const copying = s.copyHandoff();
+    await vi.waitFor(() => expect(api.commentsList).toHaveBeenCalledTimes(2));
+    const reading = s.read();
+    reread.release(reply(api.commentsList.mock.calls[1]![0], { project: 7, canvasHash: "h", comments: state.comments, warnings: [] })); await copying;
+    expect(s.handoff?.copy).toEqual({ status: "stale", count: 1 }); expect(ids(s)).toEqual(["c2", "c3"]);
+    newer.release(reply(api.commentsList.mock.calls[2]![0], { project: 7, canvasHash: "h", comments: state.comments, warnings: [] })); await reading;
+  });
   test("a refusal whose reread finds every checked comment open again is a plain failure", async () => {
     const { session: s, api } = fixture(); await s.open(identity);
     s.openHandoff("all", [], null);
