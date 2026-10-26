@@ -99,10 +99,10 @@ class NotOpenError extends Error { constructor() { super("Some chosen comments a
 
 export function parseCopyScope(value: unknown): CopyScope {
   if (!object(value) || Object.keys(value).length !== 1 || !Array.isArray(value.comments)) throw new Error("Invalid copy scope.");
-  const ids: unknown[] = value.comments;
+  const ids: unknown[] = [...value.comments];
   if (ids.length < 1 || ids.length > 1000 || new Set(ids).size !== ids.length ||
     !ids.every(id => typeof id === "string" && id.length > 0 && id.length <= 4096 && !id.includes("\0"))) throw new Error("Invalid copy scope.");
-  return { comments: [...ids as string[]] };
+  return { comments: ids as string[] };
 }
 
 function validIntent(value: unknown): value is MutationIntent {

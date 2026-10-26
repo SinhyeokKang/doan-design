@@ -211,6 +211,8 @@ test.each([
   ["extra key", { comments: ["a"], kind: "all" }],
   ["not an array", { comments: "a" }],
   ["empty set", { comments: [] }],
+  ["cloned hole", structuredClone({ comments: new Array(1) })],
+  ["cloned valid id and hole", structuredClone({ comments: Object.assign(new Array(2), { 0: "a" }) })],
   ["1,001 ids", { comments: Array.from({ length: 1001 }, (_, i) => `c${i}`) }],
   ["empty id", { comments: [""] }],
   ["non-string id", { comments: [1] }],
@@ -235,6 +237,31 @@ test("copy rejects an invalid scope before reading the disk", async () => {
   expect(s.deps.read).not.toHaveBeenCalled();
   expect(s.deps.clipboard).not.toHaveBeenCalled();
 });
+test.each([false, true])("copy rejects a cloned sparse scope before disk access with valid id=%s", async withId => {
+  const s = setup(); await create(s);
+  const comments = new Array(withId ? 2 : 1);
+  if (withId) comments[0] = createdId(s);
+  const scope = structuredClone({ comments });
+  vi.mocked(s.deps.read).mockClear();
+  vi.mocked(s.deps.authorize).mockClear();
+  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope })).toMatchObject({ ok: false, error: "Invalid copy scope." });
+  expect(s.deps.authorize).not.toHaveBeenCalled();
+  expect(s.deps.read).not.toHaveBeenCalled();
+  expect(s.deps.clipboard).not.toHaveBeenCalled();
+});
+test("copy rejects an id that is open only on another canvas", async () => {
+  const s = setup(); await create(s, "r1"); const first = createdId(s);
+  const canvasA = s.bytes();
+  s.set(Buffer.alloc(0));
+  await create(s, "r2"); const other = createdId(s);
+  const canvasB = s.bytes();
+  s.deps.read = vi.fn(async (_root, canvas) => canvas === "a" ? canvasA : canvas === "b" ? canvasB : Buffer.alloc(0));
+  expect(await s.service.list("window", { ...identity, path: "design/b.html", canvas: "b", requestID: "read-b" })).toMatchObject({ ok: true, value: { comments: [{ comment: other, status: "open" }] } });
+  vi.mocked(s.deps.read).mockClear();
+  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: [first, other] } })).toMatchObject({ ok: false, code: "not_open", identity: { requestID: "copy" } });
+  expect(s.deps.read).toHaveBeenCalledExactlyOnceWith(identity.root, identity.canvas);
+  expect(s.deps.clipboard).not.toHaveBeenCalled();
+});
 test("copy rereads the disk and rejects not_open when any id is not an open comment on that canvas", async () => {
   const s = setup(); await create(s, "r1"); const first = createdId(s);
   await create(s, "r2"); const second = JSON.parse(s.bytes().toString().trim().split("\n")[1] ?? "{}").comment;
@@ -242,9 +269,7 @@ test("copy rereads the disk and rejects not_open when any id is not an open comm
   expect(ok).toMatchObject({ ok: true, value: { copied: true } });
   expect(JSON.parse(vi.mocked(s.deps.clipboard).mock.calls[0]?.[0].split("\n").at(-1) ?? "").comments).toEqual([first, second]);
   vi.mocked(s.deps.clipboard).mockClear();
-  for (const ids of [[first, "cmt_unknown"], [first, "cmt_from_another_canvas"]]) {
-    expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: ids } })).toMatchObject({ ok: false, code: "not_open", identity: { requestID: "copy" } });
-  }
+  expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: [first, "cmt_unknown"] } })).toMatchObject({ ok: false, code: "not_open", identity: { requestID: "copy" } });
   const before = s.bytes();
   expect(await s.service.mutate("window", { ...identity, project: 1, requestID: "resolve", intent: { type: "resolve", comment: second, expected: { body: "Hello 한글", status: "open", updatedAt: JSON.parse(before.toString().trim().split("\n")[1] ?? "{}").at } } })).toMatchObject({ ok: true, value: { state: "saved" } });
   expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: [first, second] } })).toMatchObject({ ok: false, code: "not_open" });
