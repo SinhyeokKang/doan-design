@@ -291,6 +291,8 @@ try {
     assert.ok(text[0]!.startsWith(INSTRUCTION_START), text[0]);
     assert.deepEqual(JSON.parse(text[1]!), { root: repo, canvas: "hand", comments: [h.h1, h.h2, h.h3, h.h4, h.h5] });
     await shot("1a-dialog");
+    // The tick is 5×10 inside its 2px strokes (7×12 drawn); the global border-box reset must not shrink it.
+    assert.deepEqual(await rowBox(h.h1).evaluate(box => { const tick = getComputedStyle(box, "::before"); return [tick.boxSizing, tick.width, tick.height]; }), ["content-box", "5px", "10px"], "checkbox tick keeps its drawn size");
 
     await rowBox(h.h3).click();
     await copyIs("Copy 4");

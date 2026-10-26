@@ -138,9 +138,11 @@
   cursor: pointer;
 }
 .doan-checkbox:is(:checked, :indeterminate, [data-state="checked"]) { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
-/* The tick is the corner of a rotated box. */
+/* The tick is the corner of a rotated box; its 5×10 size excludes the 2px strokes, so the
+   global border-box reset must not shrink it. */
 .doan-checkbox:is(:checked, [data-state="checked"])::before {
   content: "";
+  box-sizing: content-box;
   width: 5px;
   height: 10px;
   border: solid currentColor;
