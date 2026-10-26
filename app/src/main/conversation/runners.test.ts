@@ -1,0 +1,25 @@
+import { expect, it, vi } from "vitest";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { openRunner } from "./runners";
+import type { EventPayload } from "./types";
+it("delivers notifications immediately following the turn reply and confirms owned server exit", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-fake-codex-")), command = join(root, "codex");
+  writeFileSync(command, `#!/usr/bin/env node
+const readline = require('node:readline');
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+readline.createInterface({input:process.stdin}).on('line', line => {
+ const r = JSON.parse(line);
+ if(r.method==='initialize') send({id:r.id,result:{}});
+ if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'}}});
+ if(r.method==='turn/start') {
+   process.stdout.write(JSON.stringify({id:r.id,result:{turn:{id:'native-turn'}}})+'\\n'+JSON.stringify({method:'item/agentMessage/delta',params:{threadId:'session',turnId:'native-turn',itemId:'m',delta:'hello'}})+'\\n'+JSON.stringify({method:'turn/completed',params:{threadId:'session',turn:{id:'native-turn',status:'completed'}}})+'\\n');
+ }
+});
+`, { mode: 0o700 });
+  const events: EventPayload[] = []; const exited = vi.fn();
+  const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: process.env }, e => events.push(e), exited);
+  try { await runner.send("hello", "local-turn"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" })); }
+  finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
+});
