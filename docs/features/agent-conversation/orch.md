@@ -30,7 +30,7 @@
 | S | S1 | `schema/`, Go·TS formats 등록과 테스트 | D | Sol medium — 공유 포맷과 픽스처 구현 | Go·TS 포맷 테스트 | 통합 완료, 런타임 기존 예외 유지 |
 | C | T1·T2의 Go 부분, C1 | `cli/internal/cli/` 세션 기록과 테스트, 필요 시 MCP 배선 | S | Astra medium — 출력 보존·경로·동시 append | red→green, Go test/vet, 필요 시 agent-eval | 통합 완료, 기존 runtime 예외 유지 |
 | T | T1·T2의 TS 부분 | `app/src/main/conversation/` 순수 함수·계약·테스트 | S | Astra medium — 이벤트·복구·권한 상태 계약 | red→green, app test/typecheck | 통합 완료, 기존 runtime 예외 유지 |
-| A | A2, A3, A4 | conversation 실행기·저장·IPC, main 수명, preload와 타입 | C, T | Astra medium — 프로세스·저장·IPC 경계 | app test/typecheck/build 및 E 종료 검증 | 구현 완료, 독립 리뷰 중 |
+| A | A2, A3, A4 | conversation 실행기·저장·IPC, main 수명, preload와 타입 | C, T | Astra medium — 프로세스·저장·IPC 경계 | app test/typecheck/build 및 E 종료 검증 | 리뷰 5건 수정 중 |
 | E | A1, E1, E2 | `app/e2e/`, `.scratch/` 실험, PRODUCT 관찰 | A | Astra medium — 실제 앱·종료·상태 불변 실증 | 하네스 red→green, 가짜 에이전트 12단계, 실제 에이전트 관찰 | 대기 |
 | V | E3 | 통합 검증 증거 | E, 리뷰 | Sol high — 순차 게이트와 증거 확인 | verify --runtime, 필요 시 --eval 및 agent-eval | 대기 |
 | Z | Z1 | PRODUCT, ARCHITECTURE, DIRECTORY, AGENTS, feature 삭제 | V | Astra medium — 구현과 문서 계약 대조 | 승격 내용·IPC·포맷·삭제 확인 | 대기 |
@@ -96,3 +96,5 @@
 - A (`task_7af14281b624`, `ctx_229ea2f4f2bc`)는 SDK 0.3.310 설치가 optional 플랫폼 CLI 패키지도 내려받았다고 보고했다. 지휘자가 설치된 SDK package.json의 optionalDependencies를 확인했다. 승인된 SDK 통합의 로컬 설치 부수 효과로 기록하되, 제품은 설치된 CLI만 사용한다. A에 배포 산출물의 플랫폼 CLI 제외 실물 검사와 CLI 부재 시 자동 대체 실행 없이 거절하는 회귀를 요구했다. 전체 optional dependency 제외·전역 CLI/인증 변경은 하지 않는다.
 
 - A는 `c1fc766`~`63edc11`의 13커밋으로 실행기·저장·IPC·수명을 제출했다. HEAD 앱 3242개 테스트·typecheck·build·package 통과 및 실제 배포물에서 SDK 플랫폼 CLI 제외를 보고했다. 실제 runtime/모델 검증은 E에 남는다. Codex preview의 advisory 경계와 256MiB history 재읽기·파일 경계 한계도 인계했다. A 터미널 release 완료. R-A는 Astra medium으로 전체 변경과 수락/소유권·권한·저장·종료·패키징을 독립 리뷰한다.
+
+- R-A (`task_ac33ed9fd8bd`, `ctx_53ba74e78c02`)는 22개 변경 파일을 검토하고 🔴 1·🟡 4건을 격리 재현했다. 준비 중 보관된 대화 send, 실패한 start의 index 잔존, ID 유지 이동 뒤 send 거절, 사라진 Codex 세션의 available 미리보기, read/append 사이 파일 교체로 seq 손상이 대상이다. 기존 focused 49개·패키지 제외 확인은 통과했지만 결함 재현 테스트의 PASS는 정상 동작 통과가 아니다. 리뷰 터미널 release 완료. F-A는 Astra medium으로 5건을 red→green 수정하며 계약을 약화하지 않는다.
