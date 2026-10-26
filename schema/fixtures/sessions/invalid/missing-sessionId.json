@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "at": "2026-10-27T01:02:03.004Z",
+  "root": "/work/project",
+  "canvas": {
+    "path": "design/home.html",
+    "id": "home"
+  },
+  "hash": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+  "runtime": "claude",
+  "cwd": "/work/project/design",
+  "configDir": "/profiles/.claude"
+}
