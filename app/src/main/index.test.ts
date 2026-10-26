@@ -80,6 +80,7 @@ vi.mock("electron", () => ({
   nativeTheme: mocks.nativeTheme,
   systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; } },
 }));
+vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOriginal<typeof import("./conversation/store")>(), ConversationStore: class { list() { return []; } } }));
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
 vi.mock("./onboarding/machine", () => ({ createMachine: mocks.createMachine, needsOnboarding: mocks.needsOnboarding, markClosed: mocks.markClosed, PATH_LINE: 'export PATH="$HOME/.local/bin:$PATH"' }));
 vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder }));
@@ -1929,4 +1930,11 @@ describe("review state and project comments", () => {
     await invoke("folders:forget-removal", contents, null, { removalId: removed.removalId });
     expect(mocks.reviewStore.forget).toHaveBeenCalledExactlyOnceWith([WT]);
   });
+});
+
+test("conversation IPC rejects foreign windows and canvas frames", async () => {
+  for (const method of ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read"]) {
+    expect(await invoke(`conversation:${method}`, {}, null, {})).toEqual({ error: "bad_request" });
+    expect(await invoke(`conversation:${method}`, window().webContents, {}, {})).toEqual({ error: "bad_request" });
+  }
 });
