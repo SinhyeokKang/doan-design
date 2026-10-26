@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-27 — Session schema rejected literal backslashes in POSIX canvas names
+
+- **Area**: `schema/sessions.v1.schema.json`, shared `schema/fixtures/sessions/`.
+- **Symptom**: `design/a\..\b.html`, a filename accepted by existing macOS canvas discovery and containment, failed session-record validation in both Go and TS.
+- **Root cause**: the parent-segment regex treated both slash and backslash as separators, importing Windows path semantics into a POSIX canvas path.
+- **Net**: independent R-S review reproduced the mismatch against discovery and containment; the original shared fixtures missed literal backslashes. The added positive fixture failed both validators before the fix, then passed with the slash-only parent-segment pattern. New first, last and bare parent-segment negatives complement the existing middle-segment, absolute-path and NUL negatives.
+- **Prevention**: pair path-rejection fixtures with legal platform-specific filename fixtures; validate traversal using the actual platform separator. Search run: `rg -n -F '[/\\\\]' schema` finds the unchanged session absolute-path guard and six patterns in `schema/config.v1.schema.json`; the config patterns are review candidates under their own contract, not verified defects, and remain outside this fix.
+
 ### 2026-10-26 — A Review step on a whole-canvas comment said “Not found in the current canvas”
 
 - **Area**: `app/src/renderer/useComments.tsx` (`jump`, the Review step move), shipped by revision-recheck in `a09318b`.
