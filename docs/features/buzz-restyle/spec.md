@@ -20,12 +20,12 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 모든 자식 feature가 따른다. `buzz-ds`가 main에 들어간 뒤로는 PRODUCT §7이 정본이고, 이 목록은 요약이다.
 
 1. **테마**는 라이트 단일이다. 다크 전용 결정을 대체한다.
-2. **색**: 주요 버튼은 무채색이다. 액센트는 doan의 기존 오렌지 `#f0773a`의 색상에서 9단계를 `#ff915e`로 둔(검정 글자가 APCA Lc 60을 넘는 최소 밝기, 2026-10-26 user) **doan 고유 액센트 램프**(오렌지)를 쓰고(12단계와 contrast·ink·pressed·link 쌍. 레퍼런스 램프의 단계별 구조를 따라 doan이 만든다. 2026-10-26 user, 처음 결정한 Buzz citrus를 대체), **Buzz가 액센트를 쓰는 용례에 대응하는 자리에만** 쓴다.
+2. **색**: 주요 버튼은 무채색이다. 액센트는 **doan 고유 violet 램프**를 쓰고(9단계 `#973be1`, 흰 글자. 12단계와 contrast·ink·pressed·link 쌍은 레퍼런스 iris 램프의 단계별 밝기 구조에 violet 색상을 얹어 doan이 만든다. 2026-10-26 user, 처음 결정한 Buzz citrus와 중간에 고른 오렌지를 대체), **Buzz가 액센트를 쓰는 용례에 대응하는 자리에만** 쓴다.
    - 메시지 버블 → 코멘트 카드(연한 액센트 채움, Buzz의 Chillin' 수준)
    - Send 버튼 → 코멘트 제출 버튼(진한 액센트 채움)
    - 사이드바 hover·선택 → 사이드바 트리의 현재 위치 행(`aria-current="location"`, 진한 선택 채움 + 짝 글자)과 트리 행 hover(더 옅은 채움)
    - 코멘트 핀
-   - 그 밖(캔버스 선택·hover 표시, 치수, 프레임 하이라이트, 탭, 메뉴, 링크, 카운트, Open 태그, 스피너, 온보딩 단계 등)은 Buzz 무채색 역할이다. 오렌지는 위 자리에만 남는다.
+   - 그 밖(캔버스 선택·hover 표시, 치수, 프레임 하이라이트, 탭, 메뉴, 링크, 카운트, Open 태그, 스피너, 온보딩 단계 등)은 Buzz 무채색 역할이다. 오렌지는 남지 않는다.
 3. **폰트**는 시스템 스택(`-apple-system`/`system-ui`, macOS에서 SF Pro로 그려짐, `Apple SD Gothic Neo` 대체 유지) 하나다. Inter와 고정폭 폰트는 쓰지 않는다. Buzz 타입 역할의 크기·행간·자간·굵기 조합은 그대로 가져오되, 자간은 Inter 기준이라 측정으로 확인한다.
 4. **UI 스택**은 Radix(shadcn) 그대로다. Base UI와 Buzz의 JS 훅은 들이지 않는다. 새로 쓰는 CSS는 처음부터 Radix `data-state`, 네이티브 `<dialog>[open]`, `:focus-visible`에 건다.
 5. Buzz는 **레퍼런스**다(2026-10-26 user). 화면이 Buzz와 같은 값과 규칙으로 보이는 것을 목표로 하되, 코드는 clone에서 값과 규칙을 읽고 doan이 새로 쓴다. Buzz 파일을 옮기지 않고, 코드에 Buzz 출처 주석이나 라이선스 사본을 두지 않는다. Buzz를 참고했다는 사실은 AGENTS.md 레퍼런스 규칙에 따라 PRODUCT §7과 DESIGN.md에만 적는다. Buzz와 다르게 가는 곳은 [design.md](./design.md) 표의 '조정' 열과 '가져오지 않는 Buzz 동작'에 적힌 것뿐이다.
@@ -45,7 +45,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 
 | # | slug | 화면 | 범위 (지금 코드) | 선행 |
 |---|---|---|---|---|
-| 0 | `buzz-ds` | 디자인 시스템 | 라이트 토큰·역할(기존 이름은 별칭), 액센트 오렌지 램프, `themeSource` light, 타입·모서리·재질·모션, shadcn 테마 연결, 공용 컴포넌트 스타일(버튼, `IconButton`, `Panel`, 툴팁, 메뉴·팝오버, 다이얼로그 틀, 토스트, 스피너, 포커스, disabled, 스크롤바), 공통 결정 10의 공유 요소, 모달 scrim 값, 대비·변수 검사, DESIGN.md 디자인 시스템 절. 문서: [`../buzz-ds/`](../buzz-ds/spec.md) | 없음 |
+| 0 | `buzz-ds` | 디자인 시스템 | 라이트 토큰·역할(기존 이름은 별칭), 액센트 violet 램프, `themeSource` light, 타입·모서리·재질·모션, shadcn 테마 연결, 공용 컴포넌트 스타일(버튼, `IconButton`, `Panel`, 툴팁, 메뉴·팝오버, 다이얼로그 틀, 토스트, 스피너, 포커스, disabled, 스크롤바), 공통 결정 10의 공유 요소, 모달 scrim 값, 대비·변수 검사, DESIGN.md 디자인 시스템 절. 문서: [`../buzz-ds/`](../buzz-ds/spec.md) | 없음 |
 | 1 | `buzz-shell` | 앱 셸 | Buzz `AppShell` 골격 이식: 점 격자 셸, 메인 창의 모든 헤더 띠(작업 공간과 Home의 헤더, 신호등·드래그 영역·아이콘 버튼·항목 자리), 사이드바 `Panel`, 메인 `Panel joined` 안에 도킹한 오른쪽 열의 틀, 창 옵션(`App.tsx` 셸 마크업, main `BrowserWindow`) | buzz-ds |
 | 2 | `buzz-onboarding` | 온보딩 | Buzz 첫 실행 표면을 온보딩 위저드에(`Onboarding.tsx`). 위저드는 Close·Escape가 있는 모달 `<dialog>`로 유지한다. doan 워드마크와 배경 결정 | buzz-ds |
 | 3 | `buzz-home` | 프로젝트 홈 | 프로젝트 카드 목록, 워크트리 행, 행 메뉴, 빈 상태, 드롭 오버레이, 연결 칩, 설정 배너, "Finish setting up doan" 카드(`Home.tsx`, `DropOverlay.tsx`) | buzz-shell |
