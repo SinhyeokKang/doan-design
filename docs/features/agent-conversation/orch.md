@@ -70,3 +70,4 @@
 - 2026-10-27 사용자 확인: 독립 인증은 나중에 필요하면 다룬다. 이번 범위는 설치·로그인된 CLI 인증 사용으로 유지하며 OAuth·토큰·계정 관리나 CLI 번들 배포를 추가하지 않는다.
 - F-D (`task_13b4cd712a54`, `ctx_d434500e7909`)의 `f7f5149`, `3b95e4d`를 지휘자가 R-D 두 지적과 직접 대조했다. 예약·검증된 종료에 따른 해제, listener 선등록·마지막 이벤트 병합 및 T/A/E 테스트 소유가 모두 반영됐다. 잔여 지적 없음. D/F-D 6커밋을 `b82d7a1`부터 `de67bb6`까지 통합했고 diff 검사 통과(문서만 변경해 full verify 생략). F-D 터미널 release 완료. S는 Sol medium으로 schema/등록/픽스처를 구현하며 현재 전체 테스트 실행 슬롯을 가진다.
 - D child는 clean·미통합 커밋 없음과 인계/검증 스크립트 복사 일치를 확인한 뒤 Orca로 제거했고 목록에서 부재를 확인했다. P child는 이후 전송 구현이 원시 실험을 참조하므로 유지한다. S (`task_14cb9a0c1a9b`, `ctx_ad76eb003e85`)의 effective 모델은 gpt-6.1-sol medium이다.
+- S 경계 확인: 기존 schema fixture는 파싱된 JSON을 검증한다. 깨진 JSON·잘린 마지막 줄의 복구는 T 세션 기록 reader가, 이전 기록을 읽는 해시 비교 경로는 C가 검증한다. S는 이를 통과로 보고하지 않는다. timestamp/hash는 기존 포맷 규칙을 따르고 sessionId에 임의 UUID 제한을 추가하지 않는다.
