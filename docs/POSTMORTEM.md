@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-27 — Codex ingress confused unowned requests and notification errors
+
+- **Area**: `app/src/main/conversation/transport.ts`, `codexIngress.test.ts`.
+- **Symptom**: nullable-turn elicitation and global attestation requests returned no disposition, while an unrelated notification with an extra top-level error failed the current turn.
+- **Root cause**: the normalizer interpreted any top-level error before envelope/identity checks, then applied notification identity filtering to server requests that require a response even without a turn. RPC reply ownership was only a caller convention.
+- **Net**: R-T's synthetic probes and generated 0.163.0 request schema exposed both gaps; the original 72 pure tests covered ordinary scoped messages only. Ten new boundary regressions failed before the fix, then passed; ten additional cases pin explicit reply ownership and real permission behavior.
+- **Prevention**: classify method-bearing requests and notifications before reply errors; return an explicit permission/unsupported/route disposition for every valid server request, including terminal-state and nullable/global cases. Require the dispatcher to resolve pending-RPC ownership before calling `normalizeCodexReply`, and test wrong request ID, session and turn. Run `rg -n 'raw\.error|normalizeCodex|params\.threadId' app/src/main --glob '!*.test.*'`; current matches are confined to this transport module (including Claude's separate result errors). A must still test wire rejection/routing and server cleanup; pure normalization cannot prove that every request was answered.
+
 ### 2026-10-27 — Session history and append followed replaceable filesystem paths
 
 - **Area**: `cli/internal/cli/sessions.go`, `sessions_test.go` (R-C-1).
