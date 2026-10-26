@@ -518,6 +518,111 @@ try {
     await shot("6-canvas-back");
   });
 
+  // V1c: a press on a blank area ends a Feedback row's wait, Show's wait and a
+  // remembered orphan card, though focus stays on <body> (POSTMORTEM R-C/R-E).
+  await scenario("8-blank-press-ends-waits", async () => {
+    // Clicks a point in `region` whose element is not focusable, and reports
+    // what the press found: its target and whether `theta`'s group was listed.
+    async function blankPress(region: ReturnType<Page["getByRole"]>, name: string): Promise<{ theta: boolean; selected: boolean }> {
+      const point = await region.evaluate(node => {
+        const box = node.getBoundingClientRect();
+        for (let y = box.bottom - 6; y > box.top; y -= 12) for (let x = box.left + 6; x < box.right; x += 12) {
+          const hit = document.elementFromPoint(x, y);
+          if (hit && node.contains(hit) && !hit.closest("button, a, input, textarea, select, iframe, article, [tabindex], [contenteditable]")) return { x, y };
+        }
+        return null;
+      });
+      assert.ok(point, `${name}: a blank point`);
+      await page.evaluate(() => window.addEventListener("pointerdown", event => {
+        const target = event.target as HTMLElement;
+        const theta = [...document.querySelectorAll(".fb-tree [role=treeitem]")].some(item => item.querySelector(".g, .b")?.textContent === "theta");
+        Reflect.set(window, "blankPress", { blank: !target.closest("button, a, input, textarea, select, iframe, article, [tabindex], [contenteditable]"), theta, selected: !!document.querySelector(".inspect-head .selector") });
+      }, { capture: true, once: true }));
+      await page.mouse.click(point.x, point.y);
+      const seen = await page.evaluate(() => Reflect.get(window, "blankPress") as { blank: boolean; theta: boolean; selected: boolean } | undefined);
+      assert.ok(seen?.blank, `${name}: the press landed on a blank element`);
+      return seen;
+    }
+    const atBody = (name: string) => focusOn(focus => focus.tag === "BODY", name);
+
+    // A canvas that takes each anchors query 0.4 s late (the canvas script
+    // checks event.source, so the query is redispatched, not window.parent
+    // replaced), so a Feedback row's request is still waiting meanwhile.
+    const late = '<script>{const mine=new WeakSet();addEventListener("message",e=>{if(mine.has(e)||!e.data||e.data.type!=="anchors-query")return;e.stopImmediatePropagation();setTimeout(()=>{const r=new MessageEvent("message",{data:e.data,origin:e.origin,source:e.source});mine.add(r);dispatchEvent(r);},400);},true);}</script>';
+    const z = ids("one"), s = ids("one", "two");
+    await writeFile(design("zeta.html"), canvas("zeta", "Zeta canvas", '<section data-doan-frame="main" data-doan-title="Main"><button data-doan-id="z1">Zeta target</button></section>' + late));
+    await writeFile(commentsFile("zeta"), create(z.one, 1, "Zeta note", element("main", "z1", "Zeta target")) + "\n");
+    await overview();
+    await fbStatus("Open");
+    await wait(async () => await treeItem("Zeta note").count() === 1, "Zeta's comment listed", 15_000);
+    const laidOut = () => wait(() => page.locator(".board").evaluate(node => (node as HTMLElement).style.visibility !== "hidden"), "Zeta laid out", 10_000);
+    // Control: with no press the late anchors still locate the target.
+    await treeItem("Zeta note").click();
+    await wait(async () => (await selected())?.includes("z1") ?? false, "control: the late anchors locate the target", 10_000);
+    await focusOn(focus => focus.tag === "ARTICLE" && focus.comment === z.one, "control: focus on its card");
+    // The row click, then a blank press on the Canvas before the anchors answer.
+    await overview();
+    await treeItem("Zeta note").click();
+    await wait(async () => await page.locator("header .canvas").textContent() === "Zeta canvas", "row click opens Zeta");
+    assert.equal((await blankPress(page.getByRole("region", { name: "Canvas", exact: true }), "Canvas")).selected, false, "the press landed before the anchors located the target");
+    await laidOut();
+    await page.waitForTimeout(1_500);
+    assert.equal((await selected())?.includes("z1") ?? false, false, "a blank press: the late anchors locate nothing");
+    await atBody("a blank press: no card focus");
+    await shot("8a-row-blank-press");
+
+    // Show, then a blank press on the Overview before the read with the old id lands.
+    await writeFile(design("theta.html"), plain("theta", "Theta canvas", "th"));
+    await writeFile(commentsFile("theta"), create(ids("one").one, 1, "Theta note", element("main", "th", "Theta canvas target")) + "\n");
+    await openCanvas("theta.html", "Theta canvas", "Theta canvas target");
+    await wait(async () => await cards().count() === 1, "Theta comment listed", 15_000);
+    await writeFile(design("theta.html"), plain("theta-new", "Theta canvas", "th"));
+    const notice = () => panel().locator(".comments-message.notice");
+    await wait(async () => (await notice().textContent())?.startsWith("1 comment still uses the old ID theta") === true, "Theta notice", 15_000);
+    let raced = false;
+    for (let attempt = 1; attempt <= 3 && !raced; attempt++) {
+      if (attempt > 1) {
+        await openCanvas("theta.html", "Theta canvas", "Theta canvas target");
+        await wait(async () => await notice().count() === 1, "Theta notice again", 15_000);
+      }
+      await notice().getByRole("button", { name: "Show", exact: true }).click();
+      const shown = Date.now();
+      const overviewRegion = page.getByRole("region", { name: "Overview", exact: true });
+      await overviewRegion.waitFor();
+      const press = await blankPress(overviewRegion, "Overview");
+      if (press.theta) { console.log(`project-feedback: attempt ${attempt} lost the race to the read; showing again`); continue; }
+      raced = true;
+      await wait(async () => await treeItem("theta").count() === 1, "the read with theta lands", 15_000);
+      await page.waitForTimeout(300);
+      await atBody("Show after a blank press: no head focus");
+      await page.waitForTimeout(Math.max(0, shown + 5_500 - Date.now()));
+      await atBody("Show after a blank press: its time moves nothing");
+    }
+    assert.ok(raced, "the blank press landed before the read");
+    await shot("8b-show-blank-press");
+
+    // An orphan card's button held focus, a blank press, then an agent resolves it.
+    await writeFile(commentsFile("stray"), [create(s.one, 1, "Stray one note"), create(s.two, 2, "Stray two note")].join("\n") + "\n");
+    await overview();
+    await fbStatus("Open");
+    const strayResolve = (id: string) => orphanCard(id).getByRole("button", { name: "Resolve", exact: true });
+    await wait(async () => await strayResolve(s.one).isEnabled() && await strayResolve(s.two).isEnabled(), "stray cards", 15_000);
+    const agentResolve = (id: string) => appendFile(commentsFile("stray"), event("resolve", id, new Date().toISOString(), { kind: "agent", name: "codex" }) + "\n");
+    await strayResolve(s.one).focus();
+    await blankPress(feedback(), "Feedback");
+    await atBody("the press leaves focus on <body>");
+    await agentResolve(s.one);
+    await wait(async () => await orphanCard(s.one).count() === 0, "the agent's resolve takes the card away", 15_000);
+    await page.waitForTimeout(300);
+    await atBody("a blank press: the card's leaving moves nothing");
+    // Control: still on its button, the card's leaving hands focus on.
+    await strayResolve(s.two).focus();
+    await agentResolve(s.two);
+    await wait(async () => await orphanCard(s.two).count() === 0, "the agent's second resolve", 15_000);
+    await focusOn(focus => focus.tag !== "BODY", "control: focus moves on when the card holding it leaves");
+    await shot("8c-orphan-blank-press");
+  });
+
   if (app) await quit();
 } catch (error) {
   console.error(error);
