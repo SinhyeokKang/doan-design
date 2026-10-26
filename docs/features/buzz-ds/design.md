@@ -22,7 +22,7 @@
 
 1. **팔레트**: Buzz 라이트 값을 기준으로 한 무채색 램프와 상태색, doan 고유 violet 12단계와 짝 값(contrast, ink, pressed, link). violet 램프는 레퍼런스 iris 램프의 단계별 OKLCH 밝기·채도 비율에 violet 색상(H 305)을 얹어 doan이 만들고, 9단계는 `#973be1`이다(흰 글자 5.2:1). 9단계 위 글자는 흰색이고, hover·pressed는 9단계보다 어둡다. 다크 값은 두지 않는다.
 2. **의미 역할**: `surface-*`, `text-*`(기본·보조·메타·disabled·on-prominent·on-accent), `border-*`(standard, prominent, focus), `affordance-*`, `bg-scrim`, 반경(12/16/20/24/28px), 간격, 그림자(`shadow-panel` 등), 블러, 시간·easing, 타입 크기·행간·자간·굵기, `font-sans`(시스템 스택, `Apple SD Gothic Neo` 대체).
-3. **액센트 역할**: `surface-sidebar-selected`(violet 9)·`text-sidebar-selected`, `affordance-sidebar-hover`(violet 2), `surface-comment`(violet 4)·`text-comment`(violet 12, Buzz의 Chillin' 수준을 기본으로 고정), `affordance-accent`(violet 9)·`text-on-accent`, 핀 역할.
+3. **액센트 역할**: `surface-sidebar-selected`(violet 9)·`text-sidebar-selected`, `affordance-sidebar-hover`(violet 2), `surface-comment`(violet 4)·`text-comment`(violet 12, Buzz의 Chillin' 수준을 기본으로 고정), `affordance-accent`(violet 9)·`text-on-accent`(흰색), 핀 역할(`border-pin`은 `neutral-12` 검정, `halo-pin`은 흰색. violet 11은 9단계 대비 3:1에 못 미친다, 2026-10-26 지휘자 판단).
 4. **기존 이름 25개**: 위 역할을 가리키는 `var()` 별칭으로 남긴다(예: `--panel: var(--surface-panel)`, `--line: var(--border-standard)`). 기존 초안 12개 전용이고 렌더러는 읽지 않는다. Buzz 역할 이름과 겹치는 이름(`--accent-ink`, `--font-sans`)은 역할 값과 같게 둔다. `--accent*` 별칭은 무채색 역할을 가리킨다(초안은 이력이므로 색이 바뀌어도 된다).
 5. 파일 머리 주석을 새 구조(팔레트 → 역할 → 별칭, 라이트 단일)로 바꾼다. Sorcerer 언급을 지운다.
 
