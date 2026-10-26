@@ -50,12 +50,15 @@ export interface CanvasState {
   // The bottom label, from the open canvas's latest document event at the last publish.
   label: string | null;
   activity: ActivityEvent[];
+  // The id the open path held before a reload gave it another one (or none),
+  // until that id comes back (project-feedback design §5).
+  idChangedFrom: string | null;
 }
 
 export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, located: false, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, label: null, activity: [] };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, located: false, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, label: null, activity: [], idChangedFrom: null };
 }
 
 // ARCH §13: a row has no `rev` until main sees its file change after the folder
@@ -65,6 +68,7 @@ function reloadKind(before: CanvasRow, after: CanvasRow): ActivityEvent["kind"] 
 }
 
 // The identity Activity groups a canvas's events by (activity.ts sameCanvas).
+function pathKey(folder: string, path: string): string { return JSON.stringify([folder, path]); }
 function documentKey(key: Pick<ActivityEvent, "folder" | "canvas" | "id">): string {
   return JSON.stringify([key.folder, key.id ?? null, key.id === undefined ? key.canvas : null]);
 }
@@ -341,6 +345,9 @@ export class CanvasController {
   private publish(): void {
     const open = this.state.open;
     const latest = open ? this.lastDocument.get(documentKey(activityKey(open.folder, open.row))) : undefined;
+    const lost = open ? this.idChanges.get(pathKey(open.folder, open.canvas)) : undefined;
+    if (open && lost !== undefined && open.row.id === lost) this.idChanges.delete(pathKey(open.folder, open.canvas));
+    this.state.idChangedFrom = open && lost !== undefined && open.row.id !== lost ? lost : null;
     this.state.label = latest ? bottomLabel([latest], new Date()) : null;
     this.state.hasFrame = this.frame !== null;
     this.state.reanchoring = this.reanchor !== null;
@@ -396,6 +403,9 @@ export class CanvasController {
     this.applySelectionEffect(update);
     switch (update.kind) {
       case "reload":
+        // The first id the path lost, kept through further changes: its
+        // comments are the ones that no longer show.
+        if (update.idChanged && open.row.id !== undefined && !this.idChanges.has(pathKey(open.folder, open.canvas))) this.idChanges.set(pathKey(open.folder, open.canvas), open.row.id);
         this.state.error = "";
         this.state.open = { ...open, row: update.canvas };
         this.load(update.canvas, false, reloadKind(open.row, update.canvas));
@@ -407,6 +417,8 @@ export class CanvasController {
         this.state.shown = to;
         const remembered = this.workspaceMemory.get(open.folder);
         if (remembered?.path === open.canvas) remembered.path = to;
+        const lost = this.idChanges.get(pathKey(open.folder, open.canvas));
+        if (lost !== undefined) { this.idChanges.delete(pathKey(open.folder, open.canvas)); this.idChanges.set(pathKey(open.folder, to), lost); }
         this.recordDocument({ ...activityKey(open.folder, update.canvas), at, kind: "moved", from: open.canvas });
         // The same canvas reloaded at its new path: the view stays and the selection is asked for again.
         this.load(update.canvas, false, "moved");
@@ -449,6 +461,8 @@ export class CanvasController {
   }
 
   private workspaceMemory = new Map<string, { path: string; view: View }>();
+  // (root, path) → the id that path lost, for this app run only.
+  private idChanges = new Map<string, string>();
   // The open canvas left the folder's list (deleted or moved). `duplicates`:
   // how many rows now use its id, when that is why it was not followed.
   canvasRemoved: ((removed: { folder: string; row: CanvasRow; duplicates: number | null }) => void) | null = null;
@@ -506,17 +520,21 @@ export class CanvasController {
     entered(folder);
   }
 
-  showOverview(): void {
-    if (!this.state.open) return;
+  // `shown`: told once the Overview is on screen, which a draft guard may refuse.
+  showOverview(shown?: () => void): void {
+    if (!this.state.open) { shown?.(); return; }
     this.transition(() => {
       this.dropFrame();
       this.state = { ...initialCanvasState(), activity: this.state.activity };
       this.publish();
+      shown?.();
     });
   }
 
-  openCanvas(folder: string, row: CanvasRow, frameId?: string, target?: { index?: number; found?: (found: boolean) => void; unavailable?: (entry: FolderEntry | undefined) => void }): void {
+  // `opened`: told once the canvas is the open one, which a draft guard may refuse.
+  openCanvas(folder: string, row: CanvasRow, frameId?: string, target?: { index?: number; found?: (found: boolean) => void; unavailable?: (entry: FolderEntry | undefined) => void; opened?: () => void }): void {
     if (this.state.open?.folder === folder && this.state.shown === row.path) {
+      target?.opened?.();
       if (frameId !== undefined) {
         const frames = this.state.layout?.frames ?? [];
         const index = target?.index !== undefined && frames[target.index]?.id === frameId ? target.index : frames.findIndex(frame => frame.id === frameId);
@@ -534,6 +552,7 @@ export class CanvasController {
       this.openCanvasNow(folder, current() ?? row);
       this.pendingFrame = frameId === undefined ? null : { id: frameId, ...target };
       if (this.pendingFrame && this.state.status === "noWidth") { this.pendingFrame.found?.(false); this.pendingFrame = null; }
+      target?.opened?.();
     }, () => {
       if (current() !== undefined) return true;
       target?.unavailable?.(this.entries.find(entry => entry.path === folder));
