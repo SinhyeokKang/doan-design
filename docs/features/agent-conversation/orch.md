@@ -61,3 +61,4 @@
 - P 터미널은 worker-release의 `released`와 `closed_agent_terminal`을 확인했다. R-P는 별도 Astra medium 세션으로 같은 checkout의 고정 커밋과 원시 증거를 읽고 보고서만 작성한다.
 - R-P (`task_88a750c840ec`, `ctx_adea44ae101e`, Astra medium)는 독립 리뷰를 완료했다. 제품 경계 결함 🔴 0, 검증 보완 🟡 2: 기존 PTY 버퍼의 마커를 새 응답으로 세는 거짓 양성과 Codex app-server의 명시적 거절 왕복 누락이다. 보고서는 P checkout의 `.scratch/handoff-R-P.md`이며 리뷰 터미널은 release 완료했다.
 - F-P는 같은 P 소유 범위에서 고유 마커·출력 구간 대조와 실제 Codex decline을 보완한다. 모델은 Astra medium — 새로운 설계보다 검증 오류 수정과 권한 결과 확인이 필요하다. 원래 설정 전체 동일성 실패는 보존하고 후속 실행의 상태 검증은 별도로 기록한다. D는 감지 불가를 안전한 상태로 간주할 수 없으며 제품 구현은 아직 열지 않는다.
+- F-P (`task_d5e104efd74d`, `ctx_999eaa0923b0`)는 `765c6765f7ca25da64479c96954b3b6e47ae8307`로 보완 결과를 기록했다. Claude 고유 마커는 SDK에서 반환됐고 완료 후 10초 동안 터미널 추가 출력은 없었다. Codex 실제 file approval에 decline을 반환한 뒤 파일 없이 completed로 끝났다. 후속 상태 지문 비교·인증 삭제·프로세스 정리는 통과했고 기존 실패는 보존했다. F-P 터미널 release를 확인했다. R-F-P는 Astra medium으로 두 지적의 해소 여부만 독립 재검토한다.
