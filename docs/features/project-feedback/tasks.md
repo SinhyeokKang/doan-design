@@ -10,6 +10,13 @@
    - `design/` 저장이 연달아 일어날 때의 무효화 빈도
    - 기준: Feedback 첫 렌더는 1초 이내, 연속 저장 중에는 다시 읽기를 합쳐 초당 1회 이하. 넘으면 설계를 사용자와 다시 정하고, 그 전에는 5를 멈춘다.
    - 검증: 결과를 이 항목 아래에 적는다. command undecided — needs user confirmation.
+   - 측정 결과 (2026-10-26, 1단계): `node .scratch/project-feedback/measure.mjs`, 현재 코드(제품 변경 없음). 시드는 캔버스 50개(프레임 3개씩), 댓글 5,000개(open 3,750, resolved 1,250, edit·reopen 포함)다. main 시간은 `-r` 훅이 `comments:project` 핸들러를 감싸 잰다. 스크립트 exit 0, real-state 무변경.
+     - 읽기·fold, cold(새 앱 프로세스에서 Home의 첫 읽기, 10회): 중앙값 279.3 ms, 최대 348.3 ms.
+     - 읽기·fold, warm(preload `projectComments` 12회): renderer 왕복 중앙값 257.3 ms·최대 286.2 ms, main 중앙값 257.0 ms·최대 285.9 ms. 같은 `doan ls --json`을 앱 밖에서 따로 돌리면 중앙값 207.0 ms라서, 댓글 읽기와 fold는 약 50 ms다.
+     - 연속 저장(한 캔버스 파일 20회 덮어쓰기, Home과 Overview 결과가 같다): 50 ms·100 ms 간격이면 저장 중 읽기 0회, 끝난 뒤 2회(약 250 ms 간격)다. 250 ms 간격이면 약 4.8초 동안 22회 읽고, 1초 창 최대 5회, 저장 중 평균 초당 약 3회다. 저장이 debounce(200 ms)보다 뜸하면 거의 저장마다 읽는다.
+     - 판정: 연속 저장 중 초당 1회 이하 — **실패**(최악 1초에 5회. 50·100 ms 간격도 한 번의 갱신이 1초 안에 2회 읽어 엄격히는 초과). 첫 렌더 1초 여유 — **통과**(읽기 최대 348.3 ms. 첫 렌더 자체는 2단계에서 잰다).
+     - 관찰(원인은 확인하지 않은 추정): 읽기가 약 250 ms 간격으로 두 번씩 온다. watcher 갱신의 `comments:invalidated`(ls 전)와 ls 뒤 행 서명 변경이 각각 읽기를 부르는 것과 맞는다.
+     - 원본: `.scratch/project-feedback/stage1.log`, `stage1.json`.
 2. **Go 테스트 먼저**: `repo.OrphanFiles`, `List` 부분 실패, `orphans` 출력, check message.
    - 기존 `TestInvalidCanvasIDsStillOwnComments`와 `ls` 개수 테스트를 유지한다.
    - 넣을 경우:
