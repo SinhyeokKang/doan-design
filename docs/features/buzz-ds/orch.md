@@ -33,6 +33,8 @@
 | 2026-10-26 | 메시지와 안내의 왼쪽 강조 선을 모두 없앤다(Comments 오류 포함, 앞서 `buzz-comment`로 넘긴 결정을 바꾼다). design.md 대응표에 '왼쪽 강조 선' 행을 더했다. B3가 A6에서 적용하고 초안 `shared-error-details`의 Comments 타일도 고친다 | 사용자 |
 | 2026-10-26 | 오류 표현 형태: 패널 수준 실패는 레퍼런스 `EmptyState`식 상태 블록(아이콘, 제목, 설명, 가운데 액션), 인라인 오류는 `CircleAlert` 아이콘 + `text-danger` 한 줄, 중립 안내는 `surface-inset` 채움. 왼쪽 선 대신 쓸 형태를 사용자가 요청했고, 색만으로 알리지 않도록 아이콘을 붙였다 | 지휘자 판단 — 사용자 요청('다른 형태로 에러를 표현') |
 | 2026-10-26 | buzz-ds PR은 `/verify --runtime` 통과 뒤 지휘자가 main에 병합한다(사용자 명시 지시로 orchestrate의 병합 금지를 이번 run에 한해 해제). 병합 뒤 지휘자가 실시간 대화 feature 문서(`/feature`, spec·design·tasks)와 그에 맞춘 `buzz-restyle` 재구성 문서를 미리 만들어 로드맵을 세운다. 구현은 나중에 기능과 리디자인을 함께 진행한다 | 사용자 |
+| 2026-10-26 | A7 버튼 적용 범위: `.btn`·`.comments-btn` 전부 `doan-button`(클래스에서 변형을 정함), 다이얼로그 액션 행만 40px이고 나머지는 sm, 옛 규칙 삭제. 사이드바 26px 행의 hover 액션(`.side .row .ra`)만 `buzz-project`까지 좁은 예외. 아이콘 버튼은 `doan-icon-button`과 lucide 글리프 | 지휘자 판단 — B3 질문, tasks A7 '클래스만 입힌다' |
+| 2026-10-26 | e2e의 comments-ui가 실제 클립보드가 빈 항목(타입 0개)이라 시작부터 막혀, B3가 `pbcopy`로 placeholder를 한 번 넣는 것을 허락했다 | 지휘자 판단 — 잃는 데이터 없음 |
 | 2026-10-26 | A10(결론 승격과 `docs/features/buzz-ds/` 삭제)은 지휘자가 통합 뒤 직접 한다 | orchestrate 스킬 §5 |
 
 ## batch 표
