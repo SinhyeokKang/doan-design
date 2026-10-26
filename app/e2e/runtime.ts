@@ -579,7 +579,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
     const rect = spinner?.getBoundingClientRect();
     return { text: status?.textContent, spinner: rect ? { width: rect.width, height: rect.height } : null };
   });
-  assert.deepEqual(loadingText, { text: "Loading…", spinner: { width: 18, height: 18 } }, "loading status keeps its hidden 18px spinner and text");
+  assert.deepEqual(loadingText, { text: "Loading…", spinner: { width: 16, height: 16 } }, "loading status keeps its hidden 16px spinner and text");
   let state = await waitLoaded(page, "main canvas shown");
   assert.deepEqual(await currentCanvases(page), [`${repos.canvas}\ndesign/main.html`]);
   assert.equal(await page.getAttribute('[role="region"][aria-label="Canvas"] iframe', "sandbox"), "allow-scripts");

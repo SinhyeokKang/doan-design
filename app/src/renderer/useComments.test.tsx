@@ -164,7 +164,7 @@ describe("a new comment blocked by a reload", () => {
     const { session, begin, render } = await blocked();
     const gone = render({ layout: layout("two"), selection: null }).markup;
     expect(gone).toContain("Your selection is no longer in the canvas. Select an element or frame, or continue on the whole canvas.");
-    expect(gone).toMatch(/<button type="button" class="comments-btn">Continue on canvas<\/button>/);
+    expect(gone).toMatch(/<button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Continue on canvas<\/button>/);
     const picked = render({ layout: layout("two"), selection: pay }).markup;
     expect(picked).toContain("Continue on canvas");
     expect(picked).toContain("Continues on Element · button pay · in payment.");

@@ -53,12 +53,12 @@ const key = (k: string, over: { isComposing?: boolean; keyCode?: number; tagName
 describe("the Hand off dialog", () => {
   test("shows the context, the fixed rows, quick select, the instruction and Copy N", () => {
     const out = html(props());
-    expect(out).toContain(`<h3>Hand off to your agent</h3><p class="handoff-context">acme-web › ⎇ main › Checkout</p>`);
-    expect(out).toContain(`<div class="handoff-quick" role="group" aria-label="Quick select"><button type="button" class="comments-btn">All</button><button type="button" class="comments-btn">None</button><button type="button" class="comments-btn" disabled="" title="Select an element or frame on the canvas first.">Selection</button></div>`);
+    expect(out).toContain(`<h3 class="doan-dialog-title">Hand off to your agent</h3><p class="handoff-context">acme-web › ⎇ main › Checkout</p>`);
+    expect(out).toContain(`<div class="handoff-quick" role="group" aria-label="Quick select"><button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm">All</button><button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm">None</button><button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled="" title="Select an element or frame on the canvas first.">Selection</button></div>`);
     // The first non-blank line, whole: the line cut is CSS; the full body is the title.
     expect(out).toContain(`<span class="handoff-target" title="[data-doan-frame=&quot;payment&quot;]">Frame · Payment</span><span class="handoff-body" title="\n  Move the order summary above the card form.\nAlso check the tax line.">Move the order summary above the card form.</span>`);
     expect(out).toContain(`<details class="handoff-instruction"><summary>Show instruction</summary><div class="handoff-preview">${renderToStaticMarkup(<>{copyText("/repo", "checkout", comments, ["c1", "c2", "c3"])}</>)}</div></details>`);
-    expect(out).toMatch(/<div class="handoff-actions"><span class="spacer"><\/span><button type="button" class="comments-btn">Cancel<\/button><button type="button" class="comments-btn primary">Copy 3<\/button><\/div><\/dialog>$/);
+    expect(out).toMatch(/<div class="handoff-actions doan-dialog-actions"><span class="spacer"><\/span><button type="button" class="comments-btn doan-button" data-ui-variant="subtle">Cancel<\/button><button type="button" class="comments-btn primary doan-button" data-ui-variant="prominent">Copy 3<\/button><\/div><\/dialog>$/);
     expect(out).not.toContain("handoff-notice");
     expect(out).not.toContain("handoff-status");
   });
@@ -66,14 +66,14 @@ describe("the Hand off dialog", () => {
     const out = html(props({ notice: "Comments are per worktree. Your agent should work in feat-checkout (~/code/acme-web-checkout)." }));
     const stops = [...out.matchAll(/<(button|input|summary)[^>]*>([^<]*)/g)].map(([, tag, text]) => tag === "input" ? "row" : text);
     expect(stops).toEqual(["All", "None", "Selection", "row", "row", "row", "Show instruction", "Cancel", "Copy 3"]);
-    expect(out).toContain(`</details><p class="handoff-notice doan-notice warning">${icon}<span>Comments are per worktree. Your agent should work in feat-checkout (~/code/acme-web-checkout).</span></p><div class="handoff-actions">`);
+    expect(out).toContain(`</details><p class="handoff-notice doan-notice warning">${icon}<span>Comments are per worktree. Your agent should work in feat-checkout (~/code/acme-web-checkout).</span></p><div class="handoff-actions doan-dialog-actions">`);
     expect(out).not.toMatch(/tabindex="0"/);
   });
   test("the preview is the checked ids' instruction; nothing checked disables Copy 0 and draws no preview", () => {
     expect(html(props({}, { checked: ["c3"] }))).toContain(renderToStaticMarkup(<>{copyText("/repo", "checkout", comments, ["c3"])}</>));
     const out = html(props({}, { checked: [] }));
     expect(out).not.toContain("Show instruction");
-    expect(out).toContain(`<div class="handoff-actions"><span class="comments-helper">Choose at least one comment.</span><button type="button" class="comments-btn">Cancel</button><button type="button" class="comments-btn primary" disabled="">Copy 0</button></div>`);
+    expect(out).toContain(`<div class="handoff-actions doan-dialog-actions"><span class="comments-helper">Choose at least one comment.</span><button type="button" class="comments-btn doan-button" data-ui-variant="subtle">Cancel</button><button type="button" class="comments-btn primary doan-button" data-ui-variant="prominent" disabled="">Copy 0</button></div>`);
   });
   test("Selection is offered with the reason it is unavailable", () => {
     const selection = (node: string | null) => ({ node, label: "Element · button pay-button · in Payment", context: lookup, lookup });
@@ -102,7 +102,7 @@ describe("copy states", () => {
   });
   test("a failure shows the copy failure in an alert and offers Retry copy with the checks kept", () => {
     const onCopy = vi.fn(), tree = HandOffDialog(props({ onCopy }, { copy: { status: "failed" } }));
-    expect(html(at({ status: "failed" }))).toContain(`<p class="handoff-status doan-notice error" role="alert">${icon}<span>${COPY_FAILED.replace("’", "’")}</span></p><div class="handoff-actions">`);
+    expect(html(at({ status: "failed" }))).toContain(`<p class="handoff-status doan-notice error" role="alert">${icon}<span>${COPY_FAILED.replace("’", "’")}</span></p><div class="handoff-actions doan-dialog-actions">`);
     expect(boxes(tree).every(box => !box.disabled && box.checked)).toBe(true);
     expect(button(tree, "Cancel").disabled).toBe(false);
     button(tree, "Retry copy").onClick?.(); expect(onCopy).toHaveBeenCalledOnce();
@@ -110,7 +110,7 @@ describe("copy states", () => {
   test("success leaves only Done, with the list and quick select shown but disabled", () => {
     const onClose = vi.fn(), tree = HandOffDialog(props({ onClose }, { copy: { status: "copied", count: 3 } }));
     const out = html(at({ status: "copied", count: 3 }));
-    expect(out).toContain(`<p class="handoff-status doan-notice ok" role="status">Copied an instruction for 3 comments. Paste it into your Claude Code or Codex session.</p><div class="handoff-actions"><span class="spacer"></span><button type="button" class="comments-btn primary" autofocus="">Done</button></div>`);
+    expect(out).toContain(`<p class="handoff-status doan-notice ok" role="status">Copied an instruction for 3 comments. Paste it into your Claude Code or Codex session.</p><div class="handoff-actions doan-dialog-actions"><span class="spacer"></span><button type="button" class="comments-btn primary doan-button" data-ui-variant="prominent" autofocus="">Done</button></div>`);
     expect(html(at({ status: "copied", count: 1 }))).toContain("Copied an instruction for 1 comment. Paste it");
     expect(out).not.toContain("Cancel");
     expect(boxes(tree).every(box => box.disabled)).toBe(true);

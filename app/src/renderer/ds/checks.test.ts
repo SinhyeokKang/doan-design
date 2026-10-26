@@ -33,6 +33,8 @@ const violetAllowed = [
   '.side .row[aria-current="location"] :is(.g, .glyph, .num, .d, .tw, .no-id, .warn-mark)',
   '.side .row[aria-current="location"] .sel-mark',
   ".comments-btn.primary.submit",
+  ".comments-btn.primary.submit:hover:not(:disabled)",
+  ".comments-btn.primary.submit:active:not(:disabled)",
   ".comment-pin",
 ];
 

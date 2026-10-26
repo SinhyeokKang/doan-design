@@ -34,7 +34,7 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) 
     },
     action,
     setModal(on: boolean) { timerAt.current = performance.now(); dispatch({ type: "modal", on }); },
-    element: state.toast && <div key={state.toast.id} className={`toast${state.toast.action ? "" : " solo"}`} role="status"
+    element: state.toast && <div key={state.toast.id} className={`toast doan-floating doan-toast${state.toast.action ? "" : " solo"}`} role="status"
       ref={node => {
         if (!node) return;
         return () => {
@@ -46,7 +46,7 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) 
       }}
       onMouseEnter={() => dispatch({ type: "hover", on: true })} onMouseLeave={() => { timerAt.current = performance.now(); dispatch({ type: "hover", on: false }); }}
       onFocus={event => { if (!event.currentTarget.contains(event.relatedTarget)) previousFocus.current = event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null; dispatch({ type: "focus", on: true }); }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) { timerAt.current = performance.now(); dispatch({ type: "focus", on: false }); } }}>
-      <span className="msg">{state.toast.message}</span>{state.toast.action && <button className="btn" onClick={action}>{state.toast.action}</button>}
+      <span className="msg">{state.toast.message}</span>{state.toast.action && <button className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={action}>{state.toast.action}</button>}
     </div>,
   };
 }

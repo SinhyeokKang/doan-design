@@ -5,6 +5,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
 import { projectNames } from "./projectRow";
+import { ChevronLeft, Minus, Plus } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import { displayPath } from "./projectDisplay";
 import { Home, ProblemActions, PathTip, useProjectComments } from "./Home";
@@ -428,14 +429,14 @@ function TopBar({ state, name, reload, overview, home, entry, rows, enter, homeD
   const branch = entry?.kind === "list" ? cardRow(entry, null, null).summary?.branch : undefined;
   return <header className="top">
     <span className="traffic-space" aria-hidden="true" />
-    <button className="back" aria-label="Go Home" onClick={home}>←</button><span className="divider" />
+    <button className="back doan-icon-button" data-ui-placement="chrome" aria-label="Go Home" onClick={home}><ChevronLeft aria-hidden="true" /></button><span className="divider" />
     <div className="crumbs"><PathTip text="Overview"><button className="repo" aria-label={`${name} overview`} onClick={overview}>{name}</button></PathTip>{branch && <><span className="sep">›</span>
       <DropdownMenu.Root><DropdownMenu.Trigger asChild><button className="branch" aria-label="Switch worktree" disabled={rows.length < 2}><span className="glyph" aria-hidden="true">⎇</span><span className="bn">{branch}</span><span className="caret">▾</span></button></DropdownMenu.Trigger>
-        <DropdownMenu.Portal><DropdownMenu.Content className="menu" aria-label="Worktrees" sideOffset={5} align="start"><div className="menu-head">Worktrees</div><DropdownMenu.RadioGroup value={entry?.path} onValueChange={enter}>{rows.map(row => <DropdownMenu.RadioItem value={row.path} className="mi" key={row.path} disabled={row.kind !== "list"}><span className="check" aria-hidden="true">{row.path === entry?.path ? "✓" : ""}</span><span className="label">{cardRow(row, null, null).summary?.branch ?? row.path.split("/").at(-1)}</span><span className="sub">{displayPath(row.path, homeDirectory)}</span>{cardRow(row, null, null).chip && <span className={`ob-chip${row.kind === "error" ? " err" : row.kind === "cliError" || row.kind === "notFound" ? " warn" : ""}`}>{cardRow(row, null, null).chip}</span>}</DropdownMenu.RadioItem>)}</DropdownMenu.RadioGroup></DropdownMenu.Content></DropdownMenu.Portal>
+        <DropdownMenu.Portal><DropdownMenu.Content className="menu doan-floating doan-menu" aria-label="Worktrees" sideOffset={5} align="start"><div className="menu-head doan-menu-head">Worktrees</div><DropdownMenu.RadioGroup value={entry?.path} onValueChange={enter}>{rows.map(row => <DropdownMenu.RadioItem value={row.path} className="mi doan-menu-item" key={row.path} disabled={row.kind !== "list"}><span className="check" aria-hidden="true">{row.path === entry?.path ? "✓" : ""}</span><span className="label">{cardRow(row, null, null).summary?.branch ?? row.path.split("/").at(-1)}</span><span className="sub">{displayPath(row.path, homeDirectory)}</span>{cardRow(row, null, null).chip && <span className={`ob-chip${row.kind === "error" ? " err" : row.kind === "cliError" || row.kind === "notFound" ? " warn" : ""}`}>{cardRow(row, null, null).chip}</span>}</DropdownMenu.RadioItem>)}</DropdownMenu.RadioGroup></DropdownMenu.Content></DropdownMenu.Portal>
       </DropdownMenu.Root></>}{state.open && <><span className="sep">›</span><PathTip text={state.open.canvas.replace(/^design\//, "")}><span className="canvas">{canvasLabel(state.open.row)}</span></PathTip></>}</div>
-    <span className="chip">{state.open?.row.width === undefined ? "—" : `${state.open.row.width} px`}</span>
+    <span className="chip doan-chip">{state.open?.row.width === undefined ? "—" : `${state.open.row.width} px`}</span>
     <span className="spacer" />
-    <button className="btn ghost" aria-label="Reload canvas" disabled={!state.open} onClick={reload}>Reload <span className="kbd">⌘R</span></button>
+    <button className="btn ghost doan-button" data-ui-size="sm" aria-label="Reload canvas" disabled={!state.open} onClick={reload}>Reload <span className="kbd doan-kbd">⌘R</span></button>
   </header>;
 }
 
@@ -459,19 +460,19 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
       {state.notice && <div className="canvas-notice" role="status">{state.notice}</div>}
     </div>
     {(state.status || problemMessage) && <div className="canvas-status" role="status">
-      {problemMessage ? <p>{problemMessage}</p> : state.status === "loading" ? <p><span className="spinner" aria-hidden="true" />Loading…</p>
-        : state.status === "failed" ? <div><b>Couldn’t load the canvas</b><br />Run doan check in a terminal<br /><br /><button className="btn" onClick={() => command("reload")}>Reload</button></div>
+      {problemMessage ? <p>{problemMessage}</p> : state.status === "loading" ? <p><span className="spinner doan-spinner" aria-hidden="true" />Loading…</p>
+        : state.status === "failed" ? <div><b>Couldn’t load the canvas</b><br />Run doan check in a terminal<br /><br /><button className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => command("reload")}>Reload</button></div>
         : state.status === "noWidth" ? <p><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
         : <p>{state.message}</p>}
     </div>}
     {state.label && state.open && <output className="updated meta" aria-label={state.label}><span className="dot" /> {state.label}</output>}
     <div className={`zctl${state.hasFrame ? "" : " disabled"}`}>
       <div className="zoom">
-        <button aria-label="Zoom out" disabled={!state.hasFrame} onClick={() => command("zoomOut")}>−</button>
+        <button className="doan-icon-button" data-ui-variant="subtle" aria-label="Zoom out" disabled={!state.hasFrame} onClick={() => command("zoomOut")}><Minus aria-hidden="true" /></button>
         <output aria-label={state.hasFrame ? `Zoom ${state.zoom}%` : "Zoom"}>{state.hasFrame ? `${state.zoom}%` : "—"}</output>
-        <button aria-label="Zoom in" disabled={!state.hasFrame} onClick={() => command("zoomIn")}>+</button>
+        <button className="doan-icon-button" data-ui-variant="subtle" aria-label="Zoom in" disabled={!state.hasFrame} onClick={() => command("zoomIn")}><Plus aria-hidden="true" /></button>
       </div>
-      <Tooltip><TooltipTrigger asChild><button className="btn" aria-label="Fit" disabled={!state.hasFrame} onClick={() => command("fit")}>Fit <span className="kbd">⌘1</span></button></TooltipTrigger><TooltipContent>Fit to width</TooltipContent></Tooltip>
+      <Tooltip><TooltipTrigger asChild><button className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label="Fit" disabled={!state.hasFrame} onClick={() => command("fit")}>Fit <span className="kbd doan-kbd">⌘1</span></button></TooltipTrigger><TooltipContent>Fit to width</TooltipContent></Tooltip>
     </div>
   </section>;
 }

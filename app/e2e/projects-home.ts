@@ -12,6 +12,7 @@ const { homeRow, goHome, enterProject, requestProject, removeHomeProject }: type
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { hoverTooltip }: typeof import("./tooltip") = await import(new URL("./tooltip.ts", import.meta.url).href);
 const { appWindow, hideMain, showMain }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
+const { nestedRadius }: typeof import("../src/renderer/ds/checks") = await import(new URL("../src/renderer/ds/checks.ts", import.meta.url).href);
 const beforeRealState = await realState();
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL("../..", import.meta.url));
@@ -121,7 +122,7 @@ process.exit(result.status ?? 1);
   presentation.textDrop = await page.evaluate(() => { const data = new DataTransfer(); data.setData("text/plain", "text"); const event = new DragEvent("drop", { dataTransfer: data, cancelable: true }); window.dispatchEvent(event); return !event.defaultPrevented; });
   await shot("02-home");
   const pathTooltip = await hoverTooltip(page, homeRow(page, repo).getByText("~/acme", { exact: true }));
-  presentation.tooltipPadding = await pathTooltip.evaluate(node => { const css = getComputedStyle(node.closest('[data-slot="tooltip-content"]')!); return css.padding === "6px 12px"; });
+  presentation.tooltipPadding = await pathTooltip.evaluate(node => { const css = getComputedStyle(node.closest('[data-slot="tooltip-content"]')!); return css.padding === "4px 8px"; });
   assert.equal(await pathTooltip.textContent(), repo);
   await page.mouse.move(500, 20);
   await add([candidate]); await homeRow(page, candidate).waitFor();
@@ -141,9 +142,19 @@ process.exit(result.status ?? 1);
   const afterCandidates: string[] = JSON.parse(await readFile(join(userData, "folders.json"), "utf8"));
   assert.deepEqual(afterCandidates.filter(path => !beforeCandidates.includes(path)).sort(), [notSetup, readyRepo].sort(), "only checked candidate paths are saved");
   await homeRow(page, readyRepo).waitFor(); assert.equal(await homeRow(page, uncheckedRepo).count(), 0); assert.equal(await homeRow(page, readyTree).count(), 0);
-  await add([empty]); const confirm = page.getByRole("dialog", { name: "Set up notes as a doan project?", exact: true }); await confirm.waitFor(); await shot("03-confirm");
+  // Reduced motion keeps the dialogs' fade but drops their travel; the confirmation hands
+  // over to Project Setup, and closing that returns focus to the row.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const dialogFrame = (dialog: Element) => { const s = getComputedStyle(dialog), r = dialog.getBoundingClientRect(); return { transform: s.transform, travels: s.transitionProperty.split(", ").includes("transform"), top: Math.round(r.top), centred: Math.abs(r.top - (innerHeight - r.bottom)) <= 1 }; };
+  await add([empty]); const confirm = page.getByRole("dialog", { name: "Set up notes as a doan project?", exact: true }); await confirm.waitFor();
+  assert.deepEqual(await confirm.evaluate(dialogFrame), { transform: "none", travels: false, top: await confirm.evaluate(node => Math.round(node.getBoundingClientRect().top)), centred: true }, "compact confirmation: centred, no travel under reduced motion");
+  await shot("03-confirm");
   assert.match(await confirm.innerText(), /doan will add it as a project that is not set up yet, then open the setup form/);
   await confirm.getByRole("button", { name: "Set Up…", exact: true }).click(); const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true }); await setup.waitFor();
+  assert.deepEqual({ ...await setup.evaluate(dialogFrame), centred: undefined }, { transform: "none", travels: false, top: 128, centred: undefined }, "standard dialog hangs 128px from the top with no travel");
+  assert.equal(await confirm.count(), 0, "Project Setup replaces the confirmation");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  assert.equal(await setup.evaluate(dialogFrame).then(m => m.travels), true, "the same dialog travels when motion is allowed");
   await page.evaluate(() => window.dispatchEvent(new DragEvent("dragenter", { dataTransfer: (() => { const data = new DataTransfer(); data.items.add(new File([""], "fixture")); return data; })() })));
   assert.equal(await page.getByRole("region", { name: "Drop folders to add", exact: true }).count(), 0);
   await setup.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -235,7 +246,15 @@ process.exit(result.status ?? 1);
   await guard.getByRole("button", { name: "Discard", exact: true }).click(); await canvasRow(page, "shared.html").and(page.locator(".is-open")).waitFor();
   await wait(async () => !await panel.getByRole("button", { name: "Comment on canvas", exact: true }).isDisabled(), "worktree canvas and author ready");
   await shot("05-workspace");
-  await page.getByRole("button", { name: "Switch worktree", exact: true }).click(); await page.getByRole("menuitemradio", { name: /^main / }).click();
+  await page.getByRole("button", { name: "Switch worktree", exact: true }).click();
+  // The menu over the canvas is the floating material: blurred, with rows concentric to it.
+  const floating = await page.locator('.menu[aria-label="Worktrees"]').evaluate(menu => {
+    const root = getComputedStyle(document.documentElement), px = (name: string) => parseFloat(root.getPropertyValue(name));
+    return { blur: getComputedStyle(menu).backdropFilter, outer: px("--radius-container"), inset: px("--space-1"), row: parseFloat(getComputedStyle(menu.querySelector(".doan-menu-item")!).borderTopLeftRadius) };
+  });
+  assert.notEqual(floating.blur, "none", "the worktree menu over the canvas blurs what is under it");
+  assert.equal(floating.row, nestedRadius(floating.outer, floating.inset, 1), "menu rows take the nested corner of the menu");
+  await page.getByRole("menuitemradio", { name: /^main / }).click();
   await canvasRow(page, "shared.html").and(page.locator(".is-open")).waitFor();
   assert.equal(await page.locator(".board").evaluate(node => getComputedStyle(node).transform), transform);
   assert.equal((await active()).result.selection, undefined);

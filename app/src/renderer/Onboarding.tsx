@@ -40,10 +40,10 @@ export function StepIndicator({ steps, go }: { steps: IndicatorStep[]; go: (step
 export function WizardFooter({ view, checkAgain, skip, next }: { view: FooterView; checkAgain: () => void; skip: () => void; next: () => void }) {
   return <div className="ob-foot">
     <span className="meta">{view.stepNo}</span>
-    {view.checkAgain && <button type="button" className="btn" disabled={view.checkAgain.disabled} onClick={checkAgain}>Check Again</button>}
+    {view.checkAgain && <button type="button" className="btn doan-button" data-ui-variant="subtle" disabled={view.checkAgain.disabled} onClick={checkAgain}>Check Again</button>}
     <span className="spacer" />
-    {view.skip && <button type="button" className="btn ghost" disabled={view.skip.disabled} onClick={skip}>Skip</button>}
-    <button type="button" className={view.next.primary ? "btn primary" : "btn"} disabled={view.next.disabled} onClick={next}>{view.next.label}</button>
+    {view.skip && <button type="button" className="btn ghost doan-button" disabled={view.skip.disabled} onClick={skip}>Skip</button>}
+    <button type="button" className={view.next.primary ? "btn primary doan-button" : "btn doan-button"} data-ui-variant={view.next.primary ? "prominent" : "subtle"} disabled={view.next.disabled} onClick={next}>{view.next.label}</button>
   </div>;
 }
 
@@ -51,7 +51,7 @@ export function ConfirmDialog({ view, answer }: { view: ConfirmView; answer: (al
   const cancel = useRef<HTMLButtonElement | null>(null);
   const dialog = useRef<HTMLDialogElement | null>(null);
   const reply = (allow: boolean) => { dialog.current?.close(); answer(allow); };
-  return <dialog className="ob-dialog" role="alertdialog" aria-label={view.title}
+  return <dialog className="ob-dialog doan-dialog" data-ui-size="compact" role="alertdialog" aria-label={view.title}
     ref={node => { dialog.current = node; if (node && !node.open) { node.showModal(); cancel.current?.focus(); } }}
     onCancel={event => { event.preventDefault(); reply(false); }}
     onKeyDown={event => {
@@ -60,10 +60,10 @@ export function ConfirmDialog({ view, answer }: { view: ConfirmView; answer: (al
       event.preventDefault(); event.stopPropagation();
       if (!event.nativeEvent.isComposing) reply(false);
     }}>
-    <h3>{view.title}</h3>
+    <h3 className="doan-dialog-title">{view.title}</h3>
     <p><Parts parts={view.body} /></p>
     <dl className="ob-compare"><dt>Current</dt><dd>{view.current}</dd><dt>New</dt><dd>{view.next}</dd></dl>
-    <div className="ob-buttons"><button type="button" className="btn" ref={cancel} onClick={() => reply(false)}>Cancel</button><button type="button" className="btn primary" onClick={() => reply(true)}>{view.verb}</button></div>
+    <div className="ob-buttons doan-dialog-actions"><button type="button" className="btn doan-button" data-ui-variant="subtle" ref={cancel} onClick={() => reply(false)}>Cancel</button><button type="button" className="btn primary doan-button" data-ui-variant="prominent" onClick={() => reply(true)}>{view.verb}</button></div>
   </dialog>;
 }
 
@@ -288,7 +288,7 @@ export function Wizard({ session, entries, reroot, homeDirectory, addOutcome, on
       <span className="traffic-space" aria-hidden="true" />
       <span className="logo"><i /><span className="ob-title" tabIndex={-1} ref={title}>Set Up doan</span></span>
       <span className="spacer" />
-      <button type="button" className="btn ghost" disabled={busy} onClick={() => void close()}>Close <span className="kbd">Esc</span></button>
+      <button type="button" className="btn ghost doan-button" data-ui-size="sm" disabled={busy} onClick={() => void close()}>Close <span className="kbd doan-kbd">Esc</span></button>
     </div>
     <StepIndicator steps={indicatorView(step, done, busy)} go={go} />
     <div className="ob-body native-scroll"><div className="ob-form">
@@ -355,9 +355,9 @@ function PickOneDialog({ scanId, homeDirectory, close, chosen }: { scanId: strin
     } catch (failure) { setError(errorText(failure)); }
     setBusy(false);
   }
-  return <dialog className="add-dialog" aria-label={view?.title ?? "Choose a repository"} aria-busy={busy} ref={node => { dialog.current = node; if (node && !node.open) node.showModal(); }}
+  return <dialog className="add-dialog doan-dialog" aria-label={view?.title ?? "Choose a repository"} aria-busy={busy} ref={node => { dialog.current = node; if (node && !node.open) node.showModal(); }}
     onCancel={event => { event.preventDefault(); cancel(); }} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); } }}>
-    <h3>{view?.title ?? "Choose a repository"}</h3>
+    <h3 className="doan-dialog-title">{view?.title ?? "Choose a repository"}</h3>
     <p className="lead"><Parts parts={view?.lead ?? []} /></p>
     <div className="cl native-scroll" role="radiogroup" aria-label="Repositories">
       {view?.rows.map(row => <div className={`cl-item${row.sub ? " sub" : ""}${row.disabled ? " off" : ""}`} key={row.id}>
@@ -368,9 +368,9 @@ function PickOneDialog({ scanId, homeDirectory, close, chosen }: { scanId: strin
       </div>)}
     </div>
     {error && <p role="alert" className="ob-msg error"><AlertIcon /><span>{error}</span></p>}
-    <div className="add-foot">{snapshot && !snapshot.done && <span className="scan" role="status"><span className="spinner" />{snapshot.finished} of {snapshot.total} checked</span>}<span className="spacer" />
-      <button type="button" className="btn" autoFocus disabled={busy} onClick={cancel}>Cancel</button>
-      <button type="button" className="btn primary" disabled={picked === null || busy} onClick={() => void submit()}>Choose</button></div>
+    <div className="add-foot doan-dialog-actions">{snapshot && !snapshot.done && <span className="scan" role="status"><span className="spinner doan-spinner" />{snapshot.finished} of {snapshot.total} checked</span>}<span className="spacer" />
+      <button type="button" className="btn doan-button" data-ui-variant="subtle" autoFocus disabled={busy} onClick={cancel}>Cancel</button>
+      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" disabled={picked === null || busy} onClick={() => void submit()}>Choose</button></div>
   </dialog>;
 }
 
@@ -390,13 +390,13 @@ function ProjectStep({ project, entry, rerooted, refused, setBusy, open, setUpDo
         <span className="ob-label">Project</span>
         {view.value ? <span className="value">{view.value.name} <span className="meta" title={view.value.path}>{view.value.path}</span></span> : <span className="value none">No project open</span>}
         {view.chip ? <span className="ob-chip ok">{view.chip}</span>
-          : <button type="button" className={view.open.primary ? "btn primary" : "btn"} disabled={view.open.disabled} onClick={() => void openProject()}>Open Project…</button>}
+          : <button type="button" className={view.open.primary ? "btn primary doan-button" : "btn doan-button"} data-ui-variant={view.open.primary ? "prominent" : "subtle"} data-ui-size="sm" disabled={view.open.disabled} onClick={() => void openProject()}>Open Project…</button>}
         {view.message && <span className="ob-msg">{view.message}</span>}
         {view.error && <span className="ob-msg error" role="alert"><AlertIcon /><span>{view.error}</span></span>}
       </div>
       {view.form && <>
         <ProjectFields form={{ ...setup.form, running }} choose={() => void setup.choose()} />
-        <div className="ob-actions"><span className="spacer" /><button type="button" className="btn primary" disabled={view.form.setUp.disabled}
+        <div className="ob-actions"><span className="spacer" /><button type="button" className="btn primary doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={view.form.setUp.disabled}
           onClick={() => void setup.setUp().then(result => { if (result) setUpDone(result); })}>{view.form.setUp.label}</button></div>
       </>}
     </div>
@@ -413,14 +413,14 @@ function PromptStep({ entry, busy, setBusy, copied, addProject, reviewProject, o
   const view = promptStepView(entry, entry?.kind === "list" ? entry.canvases.find(row => row.path === arrived) ?? null : null, busy);
   if (view.project) return <div className="ob-card"><div className="ob-prompt"><div className="fp-none">
     <p><code>{view.project.path}</code> · <span className="ob-chip">{view.project.status}</span></p>
-    <button type="button" className="btn primary" disabled={view.project.disabled} onClick={reviewProject}>{view.project.label}</button>
+    <button type="button" className="btn primary doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={view.project.disabled} onClick={reviewProject}>{view.project.label}</button>
   </div></div></div>;
   if (view.addProject) {
     const add = view.addProject;
     return <div className="ob-card"><div className="ob-prompt"><div className="fp-none"><p><Parts parts={add.text} /></p>
-      <button type="button" className="btn primary" disabled={add.disabled} onClick={addProject}>{add.label}</button></div></div></div>;
+      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={add.disabled} onClick={addProject}>{add.label}</button></div></div></div>;
   }
   const ready = view.ready && <div className="fp-ready" role="status"><span className="dot" aria-hidden="true" /><span className="msg">{view.ready.text}</span>
-    <button type="button" className="btn primary" disabled={view.ready.open.disabled} onClick={() => void openReady()}>{view.ready.open.label}</button></div>;
+    <button type="button" className="btn primary doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={view.ready.open.disabled} onClick={() => void openReady()}>{view.ready.open.label}</button></div>;
   return <div className="ob-card"><FirstPrompt key={entry?.path} root={entry?.path ?? ""} ready={ready || undefined} onBusy={setBusy} onCopied={copied} /></div>;
 }

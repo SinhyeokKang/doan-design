@@ -9,9 +9,6 @@ button:disabled { color: var(--text-disabled); cursor: default; }
 button { outline: none; }
 ol, ul { list-style: none; }
 .meta { font: 11.5px var(--type-family); color: var(--text-metadata); white-space: nowrap; }
-.btn { font: 500 12px var(--type-family); color: var(--text-standard); background: var(--surface-inset); border: 1px solid var(--border-standard); border-radius: 7px; padding: 5px 10px; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
-.btn.primary { background: var(--affordance-prominent); color: var(--text-on-prominent); border-color: var(--affordance-prominent); font-weight: 600; }
-.btn.ghost { background: transparent; border-color: transparent; color: var(--text-subtle); }
 .glyph { color: var(--text-disabled); width: 12px; flex: none; text-align: center; }
 .ihead { font: 10.5px var(--type-family); letter-spacing: .1em; text-transform: uppercase; color: var(--text-metadata); margin-bottom: 8px; }
 
@@ -39,13 +36,10 @@ code { font-family: var(--type-family); }
 .ob-chip.err { color: var(--text-danger); }
 .ob-copyline { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; }
 .ob-copyline output { flex: 1; min-width: 0; font-size: 12px; color: var(--text-standard); background: var(--bg-app); border: 1px solid var(--border-standard); border-radius: 6px; padding: 6px 9px; overflow-wrap: anywhere; }
-.ob-dialog { width: 440px; background: var(--surface-popover); color: var(--text-standard); border: 1px solid var(--border-standard); box-shadow: var(--shadow-panel); border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
-.ob-dialog h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
-.ob-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-subtle); margin-bottom: 12px; }
+.ob-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-subtle); }
 .ob-compare { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px 10px; font-size: 11.5px; line-height: 1.5; margin-bottom: 16px; padding: 10px 12px; background: var(--surface-panel); border: 1px solid var(--border-standard); border-radius: 8px; }
 .ob-compare dt { color: var(--text-metadata); }
 .ob-compare dd { color: var(--text-standard); overflow-wrap: anywhere; }
-.ob-buttons { display: flex; justify-content: flex-end; gap: 6px; }
 
 .st-tabbar { display: flex; justify-content: center; padding: 4px 20px 10px; background: var(--surface-panel); border-bottom: 1px solid var(--border-standard); }
 .st-tabs { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--border-standard); border-radius: 7px; width: 240px; }
@@ -74,7 +68,6 @@ code { font-family: var(--type-family); }
 .pj-val { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; color: var(--text-standard); }
 .pj-val .v { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .pj-val .v.none { color: var(--text-metadata); }
-.pj-val .btn, .pj-serve .btn { padding: 3px 9px; font-size: 11.5px; }
 .pj-helper { margin-top: 6px; font-size: 11px; line-height: 1.5; color: var(--text-metadata); }
 /* Reading… stands alone under the project name, a little further from it than a helper from its value. */
 .pj-name + .pj-helper { margin-top: 10px; }
@@ -89,20 +82,11 @@ code { font-family: var(--type-family); }
 
 html, body, #root { width: 100%; height: 100%; overflow: hidden; }
 button { border: 0; background: transparent; }
-button.btn { border: 1px solid var(--border-standard); background: var(--surface-inset); }
-button.btn.primary { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
-button.btn.ghost { border-color: transparent; background: transparent; }
-/* Disabled is its own state, not a fainter emphasis. */
-button.btn:disabled { color: var(--text-disabled); border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
-button.btn.ghost:disabled { border-color: transparent; background: transparent; }
 button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .settings-shell { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
 .st-body, .pj-list, .pj-detail { overflow: auto; }
 .st-body.pj { padding: 0; }
-.ob-dialog { margin: auto; }
-.ob-dialog::backdrop { background: var(--bg-scrim); }
 .pj-detail .wt-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
-.pj-detail .wt-actions .btn { padding: 2px 8px; font-size: 11px; }
 .pj-detail .ihead .ob-chip { letter-spacing: 0; text-transform: none; }
 .saved.pending { color: var(--text-metadata); }
 .wt-label { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }

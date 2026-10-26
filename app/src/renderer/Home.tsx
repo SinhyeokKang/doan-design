@@ -5,6 +5,7 @@ import type { FolderEntry } from "../main/view";
 import { displayPath } from "./projectDisplay";
 import { cardRow, groupProjects, homeSummary, measureNarrow, ProjectCommentReads, type HomeCard, type ProjectRead, type RowAction } from "./homeCards";
 import type { SelectionView } from "./selection";
+import { Ellipsis } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
 import type { SetupStatus } from "../main/setupBroker";
@@ -39,12 +40,12 @@ export function Home(props: HomeProps) {
     <header className="top"><span className="traffic-space" aria-hidden="true" /><span className="logo"><i />doan</span><span className="spacer" /><div className="conns" role="group" aria-label="Connections">{(["cli", "claude", "codex"] as const).map(row => {
       const state = setup?.summary?.[row]; const label = state ? CONNECTION_LABELS[state] : "Checking…";
       return <button className="conn" key={row} aria-label={`${CONNECTION_NAMES[row]}: ${label}`} onClick={() => void window.doan.openSettings({ tab: "connections" })}><span className={`conn-dot${state === "connected" ? "" : state === "needs-attention" ? " warn" : state === "couldnt-check" ? " unknown" : " off"}`} aria-hidden="true" />{CONNECTION_NAMES[row]} <span className="st">{label}</span></button>;
-    })}</div><button className="btn" aria-label="Add Project…" onClick={() => void window.doan.addProjects()}>+ Add Project… <span className="kbd">⌘O</span></button></header>
-    {alerts.banner && <div className="ws-status banner" role="status" aria-label="Connection problem"><span className="ob-chip warn">Needs attention</span><span className="text">{bannerLines.map(parts => <span className="line" key={JSON.stringify(parts)}><ConnectionParts parts={parts} /></span>)}</span><button className="btn" onClick={() => void window.doan.openSettings({ tab: "connections", connection: alerts.banner![0]! })}>Fix…</button><button className="btn ghost" disabled={setup?.checking || setup?.busy} onClick={() => void window.doan.checkSetupAgain()}>{setup?.checking ? "Checking…" : "Check Again"}</button>{setup?.busy && <span role="status">Another window is running a setup step. These buttons work again when it finishes.</span>}</div>}
+    })}</div><button className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label="Add Project…" onClick={() => void window.doan.addProjects()}>+ Add Project… <span className="kbd doan-kbd">⌘O</span></button></header>
+    {alerts.banner && <div className="ws-status banner" role="status" aria-label="Connection problem"><span className="ob-chip warn">Needs attention</span><span className="text">{bannerLines.map(parts => <span className="line" key={JSON.stringify(parts)}><ConnectionParts parts={parts} /></span>)}</span><button className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => void window.doan.openSettings({ tab: "connections", connection: alerts.banner![0]! })}>Fix…</button><button className="btn ghost doan-button" data-ui-size="sm" disabled={setup?.checking || setup?.busy} onClick={() => void window.doan.checkSetupAgain()}>{setup?.checking ? "Checking…" : "Check Again"}</button>{setup?.busy && <span role="status">Another window is running a setup step. These buttons work again when it finishes.</span>}</div>}
     <section className={`home-body${alerts.finishCard ? " with-finish" : ""}`} aria-label="Home" style={cards.length || alerts.finishCard ? undefined : { padding: 0 }}>
-      {alerts.finishCard && <section className={`finish${cards.length ? "" : " empty-home"}`} aria-labelledby="finish-heading"><div className="finish-head"><h2 id="finish-heading">Finish setting up doan</h2><span className="meta">{alerts.finishCard.length} left</span></div>{alerts.finishCard.map(item => <div className="finish-item" key={item}><span className="glyph" aria-hidden="true">○</span><b>{item === "cli" ? "Connect the doan command" : item === "agents" ? "Connect Claude Code or Codex" : "Add a project"}</b><p>{item === "cli" ? "Agents run doan through it." : item === "agents" ? "Your agent makes the canvases you review here." : "Canvases live in a repository’s design/ folder."}</p><button className="btn" onClick={() => item === "project" ? void window.doan.addProjects() : void window.doan.openSettings({ tab: "connections" })}>{item === "project" ? "Add Project…" : "Settings › Connections"}</button></div>)}</section>}
+      {alerts.finishCard && <section className={`finish${cards.length ? "" : " empty-home"}`} aria-labelledby="finish-heading"><div className="finish-head"><h2 id="finish-heading">Finish setting up doan</h2><span className="meta">{alerts.finishCard.length} left</span></div>{alerts.finishCard.map(item => <div className="finish-item" key={item}><span className="glyph" aria-hidden="true">○</span><b>{item === "cli" ? "Connect the doan command" : item === "agents" ? "Connect Claude Code or Codex" : "Add a project"}</b><p>{item === "cli" ? "Agents run doan through it." : item === "agents" ? "Your agent makes the canvases you review here." : "Canvases live in a repository’s design/ folder."}</p><button className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => item === "project" ? void window.doan.addProjects() : void window.doan.openSettings({ tab: "connections" })}>{item === "project" ? "Add Project…" : "Settings › Connections"}</button></div>)}</section>}
       {cards.length ? <><div className="sec">Projects <span className="r">{cards.length}</span></div><div className="cards">{cards.map(card => <ProjectCard key={card.key} card={card} {...props} />)}</div></>
-        : <div className="empty"><b>No projects yet</b><p>Add a project to see its design canvases.</p><button className="btn primary" onClick={() => void window.doan.addProjects()}>Add Project… <span className="kbd">⌘O</span></button><p className="meta">Or drop folders anywhere in this window.</p></div>}
+        : <div className="empty"><b>No projects yet</b><p>Add a project to see its design canvases.</p><button className="btn primary doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={() => void window.doan.addProjects()}>Add Project… <span className="kbd doan-kbd">⌘O</span></button><p className="meta">Or drop folders anywhere in this window.</p></div>}
     </section>
   </main>;
 }
@@ -73,25 +74,25 @@ export function useProjectComments(entries: readonly FolderEntry[], roots: reado
 }
 
 export function PathTip({ text, children }: { text: string; children: ReactNode }) {
-  return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent className="project-tooltip">{text}</TooltipContent></Tooltip>;
+  return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{text}</TooltipContent></Tooltip>;
 }
 const labels: Record<RowAction, string> = { setUp: "Set Up…", locate: "Locate…", remove: "Remove", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
 export function ProblemActions({ entry, action, workspace }: { entry: FolderEntry; action: HomeProps["action"]; workspace?: { name: string; homeDirectory: string | null; home: () => void } }) {
   const [details, setDetails] = useState(false);
   const row = cardRow(entry, null, null);
-  const actions = <div className="wt-actions">{row.actions.map(name => <button className={`btn${name === "remove" || name === "details" ? " ghost" : ""}`} key={name} aria-label={labels[name]} aria-expanded={name === "details" ? details : undefined} onClick={() => name === "details" ? setDetails(!details) : action(name, entry.path)}>{labels[name]}{name === "details" && (details ? " ▾" : " ▸")}</button>)}</div>;
+  const actions = <div className="wt-actions">{row.actions.map(name => <button className={`btn doan-button${name === "remove" || name === "details" ? " ghost" : ""}`} data-ui-variant={name === "remove" || name === "details" ? undefined : "subtle"} data-ui-size="sm" key={name} aria-label={labels[name]} aria-expanded={name === "details" ? details : undefined} onClick={() => name === "details" ? setDetails(!details) : action(name, entry.path)}>{labels[name]}{name === "details" && (details ? " ▾" : " ▸")}</button>)}</div>;
   const message = details && row.detail && (workspace ? <span className="ob-msg error"><AlertIcon /><span>{row.detail}</span></span> : <p className="wt-detail ob-msg error"><AlertIcon /><span>{row.detail}</span></p>);
   if (!workspace) return <>{actions}{message}</>;
   return <div className="ws-recovery" role="region" aria-label="Project status"><div className="ws-status" role="status">
     <span className={`ob-chip${entry.kind === "error" ? " err" : entry.kind === "cliError" || entry.kind === "notFound" ? " warn" : ""}`}>{row.chip}</span>
     {entry.kind === "notFound" ? <span className="text" title={`${displayPath(entry.path, workspace.homeDirectory)} is gone or moved.`}><code>{displayPath(entry.path, workspace.homeDirectory)}</code> is gone or moved.</span> : entry.kind === "uninitialized" ? <span className="text" title={`${workspace.name} is not set up.`}>{workspace.name} is not set up.</span> : <span className="spacer" />}
-    {actions}<button className="btn ghost" onClick={workspace.home}>Go Home</button>
+    {actions}<button className="btn ghost doan-button" data-ui-size="sm" onClick={workspace.home}>Go Home</button>
   </div>{message && <div className="ws-detail">{message}</div>}</div>;
 }
 
 interface MenuAction { label: string; run: () => void }
 function More({ label, actions, row = false }: { label: string; actions: MenuAction[]; row?: boolean }) {
-  return <DropdownMenu.Root><DropdownMenu.Trigger asChild><button className="more" tabIndex={row ? -1 : undefined} aria-label={label} onClick={event => event.stopPropagation()}>···</button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="menu" sideOffset={4} align="end" onClick={event => event.stopPropagation()}>{actions.map((action, index) => <Fragment key={action.label}>{index > 0 && <DropdownMenu.Separator className="menu-sep" />}<DropdownMenu.Item className="mi" key={action.label} onSelect={action.run}>{action.label}</DropdownMenu.Item></Fragment>)}</DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>;
+  return <DropdownMenu.Root><DropdownMenu.Trigger asChild><button className="more doan-icon-button" tabIndex={row ? -1 : undefined} aria-label={label} onClick={event => event.stopPropagation()}><Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="menu doan-floating doan-menu" sideOffset={4} align="end" onClick={event => event.stopPropagation()}>{actions.map((action, index) => <Fragment key={action.label}>{index > 0 && <DropdownMenu.Separator className="menu-sep doan-menu-sep" />}<DropdownMenu.Item className="mi doan-menu-item" key={action.label} onSelect={action.run}>{action.label}</DropdownMenu.Item></Fragment>)}</DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>;
 }
 function Context({ actions, children }: { actions: MenuAction[]; children: ReactNode }) {
   const trigger = useRef<HTMLSpanElement>(null);
@@ -100,9 +101,9 @@ function Context({ actions, children }: { actions: MenuAction[]; children: React
     event.preventDefault(); event.stopPropagation();
     const rect = event.currentTarget.getBoundingClientRect();
     event.currentTarget.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: rect.left + 10, clientY: rect.top + 10 }));
-  }}>{children}</ContextMenu.Trigger><ContextMenu.Portal><ContextMenu.Content className="menu" onCloseAutoFocus={event => {
+  }}>{children}</ContextMenu.Trigger><ContextMenu.Portal><ContextMenu.Content className="menu doan-floating doan-menu" onCloseAutoFocus={event => {
     if (trigger.current?.matches("[tabindex]") && !document.querySelector("dialog[open]")) { event.preventDefault(); trigger.current.focus(); }
-  }} onClick={event => event.stopPropagation()}>{actions.map((action, index) => <Fragment key={action.label}>{index > 0 && <ContextMenu.Separator className="menu-sep" />}<ContextMenu.Item key={action.label} className="mi" onSelect={action.run}>{action.label}</ContextMenu.Item></Fragment>)}</ContextMenu.Content></ContextMenu.Portal></ContextMenu.Root>;
+  }} onClick={event => event.stopPropagation()}>{actions.map((action, index) => <Fragment key={action.label}>{index > 0 && <ContextMenu.Separator className="menu-sep doan-menu-sep" />}<ContextMenu.Item key={action.label} className="mi doan-menu-item" onSelect={action.run}>{action.label}</ContextMenu.Item></Fragment>)}</ContextMenu.Content></ContextMenu.Portal></ContextMenu.Root>;
 }
 function ProjectCard({ card, ...props }: HomeProps & { card: HomeCard }) {
   const element = useRef<HTMLElement>(null);

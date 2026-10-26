@@ -40,7 +40,7 @@ export function ProjectFields({ form, choose, chooseRef }: { form: ProjectForm; 
     <div className="ob-field">
       <span className="ob-label">Token CSS</span>
       <span className={view.token === null ? "value none" : "value"}>{view.token ?? "None"}</span>
-      <button type="button" className="btn" disabled={view.choose.disabled} ref={chooseRef} onClick={choose}>Choose…</button>
+      <button type="button" className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={view.choose.disabled} ref={chooseRef} onClick={choose}>Choose…</button>
       {view.helper && <span className="ob-helper">{view.helper}</span>}
     </div>
     <div className="ob-field">
@@ -62,7 +62,7 @@ export function ProjectSetupDialog({ root, name, onClose, onRerooted }: { root: 
     if (result?.kind === "success") { dialog.current?.close(); onClose(); }
     else if (result?.kind === "rerooted") { dialog.current?.close(); onRerooted(result.root, result.message); }
   }
-  return <dialog className="ob-dialog setup-dialog" aria-label="Set Up Project" aria-busy={form.running}
+  return <dialog className="ob-dialog setup-dialog doan-dialog" aria-label="Set Up Project" aria-busy={form.running}
     ref={node => { dialog.current = node; if (node && !node.open) { node.showModal(); chooseButton.current?.focus(); } }}
     onCancel={event => { event.preventDefault(); close(); }}
     onKeyDown={event => {
@@ -71,14 +71,14 @@ export function ProjectSetupDialog({ root, name, onClose, onRerooted }: { root: 
       event.preventDefault(); event.stopPropagation();
       if (!event.nativeEvent.isComposing) close();
     }}>
-    <h3>Set up {name}</h3>
+    <h3 className="doan-dialog-title">Set up {name}</h3>
     <p className="ob-project-path" title={root}>{root}</p>
     <div className="ob-card">
       <ProjectFields form={form} choose={() => void choose()} chooseRef={node => { chooseButton.current = node; }} />
     </div>
-    <div className="ob-buttons">
-      <button type="button" className="btn" disabled={form.running} onClick={close}>Cancel</button>
-      <button type="button" className="btn primary" disabled={form.running} onClick={() => void submit()}>{form.running ? "Setting Up…" : "Set Up Project"}</button>
+    <div className="ob-buttons doan-dialog-actions">
+      <button type="button" className="btn doan-button" data-ui-variant="subtle" disabled={form.running} onClick={close}>Cancel</button>
+      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" disabled={form.running} onClick={() => void submit()}>{form.running ? "Setting Up…" : "Set Up Project"}</button>
     </div>
   </dialog>;
 }

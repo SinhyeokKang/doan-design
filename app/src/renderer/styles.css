@@ -35,7 +35,6 @@ button, [role="treeitem"] { outline: none; }
 button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 /* Rows sit inside scrolling lists, which would clip an outer ring, so theirs is drawn inward. */
 [role="treeitem"].row:focus-visible, .wt:focus-visible, .fb-canvas:focus-visible, .fb-item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
-[data-slot="tooltip-content"] { padding: 6px 12px; }
 ol { list-style: none; }
 code, kbd { font-family: var(--type-family); }
 .app-shell { display: grid; grid-template-columns: 240px minmax(0, 1fr) 280px; grid-template-rows: 40px minmax(0, 1fr); height: 100%; background: var(--bg-app); }
@@ -48,11 +47,6 @@ code, kbd { font-family: var(--type-family); }
 .meta { font: 11.5px var(--type-family); color: var(--text-metadata); white-space: nowrap; }
 .breadcrumb { overflow: hidden; text-overflow: ellipsis; }
 .breadcrumb span { color: var(--text-standard); }
-.chip { font: 11.5px var(--type-family); color: var(--text-subtle); border: 1px solid var(--border-standard); border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
-.btn { font: 500 12px var(--type-family); color: var(--text-standard); background: var(--surface-inset); border: 1px solid var(--border-standard); border-radius: 7px; padding: 5px 10px; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
-.btn.primary { background: var(--affordance-prominent); color: var(--text-on-prominent); border-color: var(--affordance-prominent); font-weight: 600; }
-.btn.ghost { background: transparent; border-color: transparent; color: var(--text-subtle); }
-.kbd { font: 10.5px var(--type-family); color: var(--text-metadata); border: 1px solid var(--border-standard); border-radius: 5px; padding: 1px 5px; }
 .side { background: var(--surface-panel); border-right: 1px solid var(--border-standard); }
 .right { background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
 .native-scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
@@ -71,7 +65,7 @@ code, kbd { font-family: var(--type-family); }
 .err { color: var(--text-danger); font: 10.5px var(--type-family); }
 .hint { padding: 2px 12px 6px 34px; font: 11.5px/1.5 var(--type-family); color: var(--text-metadata); overflow-wrap: anywhere; }
 .hint code { color: var(--text-subtle); background: var(--surface-inset); border-radius: 4px; padding: 0 4px; }
-.recovery .btn { padding: 2px 8px; font-size: 11px; margin: 4px 4px 0 0; }
+.recovery .doan-button { margin: 4px 4px 0 0; }
 .area { position: relative; overflow: hidden; background-color: var(--surface-inset); background-image: radial-gradient(var(--texture-dots-color) 1px, transparent 1px); background-size: 16px 16px; }
 .board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .board iframe { display: block; border: 0; }
@@ -87,7 +81,7 @@ code, kbd { font-family: var(--type-family); }
 .canvas-status button { pointer-events: auto; }
 .canvas-status b { color: var(--text-standard); font-weight: 500; }
 .canvas-status > :not(.empty) { max-width: 260px; overflow-wrap: anywhere; }
-.spinner { display: block; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border-standard); border-top-color: var(--text-standard); margin: 0 auto 10px; }
+.canvas-status .doan-spinner { display: block; margin: 0 auto 10px; }
 .empty { font-size: 13px; color: var(--text-standard); position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; line-height: normal; }
 .empty b { font-size: 15px; font-weight: 600; }
 .empty p { color: var(--text-metadata); max-width: 320px; font-size: 12.5px; line-height: 1.6; }
@@ -97,10 +91,10 @@ code, kbd { font-family: var(--type-family); }
 .updated { position: absolute; left: 12px; bottom: 12px; pointer-events: none; background: var(--surface-panel); padding: 3px 8px; border-radius: 6px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-success); display: inline-block; }
 .zctl { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 6px; align-items: center; }
-.zctl.disabled, .zctl.disabled :is(output, .zoom button, .kbd) { color: var(--text-disabled); }
-.zoom { display: flex; align-items: center; background: var(--surface-panel); border: 1px solid var(--border-standard); border-radius: 8px; overflow: hidden; font: 12px var(--type-family); }
-.zoom button { padding: 4px 9px; color: var(--text-subtle); }
-.zoom output { padding: 4px 8px; border-left: 1px solid var(--border-standard); border-right: 1px solid var(--border-standard); min-width: 48px; text-align: center; }
+.zctl.disabled, .zctl.disabled :is(output, .kbd) { color: var(--text-disabled); }
+/* The zoom group floats over the canvas, so it keeps a panel fill behind its value. */
+.zoom { display: flex; align-items: center; gap: var(--space-half); padding: var(--space-half); background: var(--surface-panel); border-radius: var(--radius-row); box-shadow: var(--shadow-panel); font: 12px var(--type-family); }
+.zoom output { padding: 0 var(--space-2); min-width: 48px; text-align: center; }
 .phead { font: 600 12px var(--type-family); padding: 11px 14px 10px; border-bottom: 1px solid var(--border-standard); }
 .pempty { padding: 14px; font: 12.5px var(--type-family); color: var(--text-metadata); }
 .isec { padding: 10px 12px 12px; border-bottom: 1px solid var(--border-standard); }
@@ -154,13 +148,15 @@ code, kbd { font-family: var(--type-family); }
 .comments-segment button { flex: 1; min-width: 0; padding: 5px 7px; font-size: 11.5px; border-radius: 4px; color: var(--text-metadata); }
 .comments-segment button[aria-pressed=true] { color: var(--text-standard); background: var(--surface-navigation-selected); }
 .comments-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.comments-btn { line-height: normal; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; max-width: 100%; border: 1px solid var(--border-standard); border-radius: 7px; background: var(--surface-inset); color: var(--text-standard); font-size: 11px; font-weight: 500; padding: 4px 7px; }
-.comments-btn.primary { font-weight: 600; background: var(--affordance-prominent); color: var(--text-on-prominent); border-color: var(--affordance-prominent); }
+/* A label longer than the narrow panel stays inside it. */
+.comments-btn { max-width: 100%; }
 /* Saving a comment is the one button that carries the accent. */
-.comments-btn.primary.submit { background: var(--affordance-accent); color: var(--text-on-accent); border-color: var(--affordance-accent); }
-/* Disabled is its own state, not a fainter emphasis. */
-.btn:disabled, .comments-btn:disabled, .comments-btn.primary.submit:disabled { color: var(--text-disabled); background: var(--affordance-disabled); border-color: var(--affordance-disabled); }
-.btn.ghost:disabled { background: transparent; border-color: transparent; }
+.comments-btn.primary.submit { background: var(--affordance-accent); color: var(--text-on-accent); }
+@media (hover: hover) and (pointer: fine) {
+  .comments-btn.primary.submit:hover:not(:disabled) { background: var(--affordance-accent-hover); }
+}
+.comments-btn.primary.submit:active:not(:disabled) { background: var(--affordance-accent-pressed); }
+.comments-btn.primary.submit:disabled { background: var(--affordance-disabled); color: var(--text-disabled); }
 .comments-card { padding: 12px; border-bottom: 1px solid var(--border-standard); }
 .comments-author { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 9px; }
 .comments-avatar { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--surface-inset); color: var(--text-subtle); display: grid; place-items: center; font-size: 10px; font-weight: 600; }
@@ -207,41 +203,32 @@ code, kbd { font-family: var(--type-family); }
 .comments-composer { padding: 12px; border-bottom: 1px solid var(--border-standard); }
 .comments-composer label { display: block; font-size: 11.5px; margin: 0 0 8px; }
 .comments-composer label > .comments-target { margin-top: 8px; }
-.comments-composer textarea { display: block; width: 100%; min-width: 0; min-height: 104px; resize: none; font: 12px/1.6 var(--type-family); background: var(--bg-app); color: var(--text-standard); border: 1px solid var(--border-standard); border-radius: 6px; padding: 9px; margin: 8px 0; }
-.comments-composer textarea:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.comments-composer textarea { display: block; min-height: 104px; resize: none; margin: 8px 0; }
 @container (max-height: 359px) { .comments-composer textarea { min-height: 64px; } }
 .comments-helper { font-size: 10.5px; line-height: 1.5; color: var(--text-metadata); margin: 8px 0; overflow-wrap: anywhere; }
-.comments-dialog { width: 410px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; margin: auto; background: var(--surface-popover); color: var(--text-standard); border: 1px solid var(--border-standard); box-shadow: var(--shadow-panel); border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
-.comments-dialog::backdrop { background: var(--bg-scrim); }
-.comments-dialog h3 { font-size: 15px; margin-bottom: 10px; font-weight: 700; }
-.comments-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-subtle); margin-bottom: 12px; }
-.comments-dialog .comments-tools { justify-content: flex-end; }
+/* Dialog paragraphs read as the dialog description; the frame spaces them. */
+.comments-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 /* Values from design/agent-handoff.html (dialog, dialog-states, copy-states). Only
    the list scrolls and the preview has its own cap, so the title and the buttons
    stay in view at any window height. `[open]`: a closed <dialog> must keep the UA's display: none. */
-.handoff-dialog { width: 480px; overflow: hidden; }
-.handoff-dialog[open] { display: flex; flex-direction: column; }
+.handoff-dialog { overflow: hidden; }
 /* Copy moves focus here while its button is disabled; the dialog itself is not a control. */
 .handoff-dialog:focus { outline: none; }
-.handoff-dialog .handoff-context { font-size: 11.5px; color: var(--text-metadata); margin-bottom: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.handoff-quick { display: flex; gap: 6px; margin-bottom: 8px; }
+.handoff-dialog .handoff-context { font-size: 11.5px; color: var(--text-metadata); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.handoff-quick { display: flex; gap: 6px; }
 .handoff-list { position: relative; flex: 0 1 auto; min-height: 44px; max-height: 352px; border: 1px solid var(--border-standard); border-radius: 7px; background: var(--surface-panel); }
 .handoff-row { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 10px; border-bottom: 1px solid var(--border-standard); cursor: pointer; }
 .handoff-row:last-child { border-bottom: 0; }
-.handoff-row input { flex: none; width: 14px; height: 14px; margin: 0; accent-color: var(--text-standard); }
+.handoff-row input { flex: none; }
 .handoff-row input:disabled + .handoff-text > * { color: var(--text-metadata); }
 .handoff-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .handoff-target { color: var(--text-subtle); font-size: 10.5px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .handoff-body { color: var(--text-standard); font-size: 12px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.handoff-instruction { margin-top: 10px; font-size: 11.5px; color: var(--text-subtle); }
+.handoff-instruction { font-size: 11.5px; color: var(--text-subtle); }
 .handoff-instruction summary { cursor: pointer; width: max-content; }
 .handoff-instruction summary:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .handoff-preview { margin-top: 8px; max-height: 160px; overflow: auto; padding: 10px; border: 1px solid var(--border-standard); border-radius: 6px; background: var(--surface-panel); color: var(--text-subtle); font: 11.5px/1.6 var(--type-family); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
-/* .comments-dialog p would otherwise shrink the notice text below the notice role. */
-.handoff-dialog :is(.handoff-notice, .handoff-status) { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.handoff-dialog .handoff-notice { margin: 10px 0 0; }
-.handoff-dialog .handoff-status { margin: 12px 0 0; }
-.handoff-actions { display: flex; align-items: center; gap: 6px; margin-top: 16px; flex: none; }
+.handoff-actions { flex: none; }
 .handoff-actions .comments-helper { flex: 1; margin: 0; }
 .handoff-summary { font-size: 10.5px; color: var(--text-metadata); white-space: nowrap; }
 /* Values from design/revision-recheck.html (review-notice, review-bar, review-done). */
@@ -255,7 +242,7 @@ code, kbd { font-family: var(--type-family); }
 .review-step { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .review-step output { flex: 1; font-size: 11.5px; font-weight: 600; color: var(--text-standard); }
 /* Not shrunk by a long summary beside it: the text is the part that ellipsizes. */
-.review-close { flex: none; width: 22px; height: 22px; border-radius: 6px; color: var(--text-metadata); border: 0; background: transparent; font-size: 13px; }
+.review-close { flex: none; }
 .review-bar .comments-target { margin-bottom: 2px; }
 .review-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; margin: 4px 0 6px; }
 .review-meta { font-size: 10.5px; line-height: 1.5; color: var(--text-metadata); overflow-wrap: anywhere; }
@@ -335,17 +322,11 @@ code, kbd { font-family: var(--type-family); }
 .ob-prompt { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .ob-prompt .ob-actions { padding: 0; }
 /* The replace confirmation and the project setup dialog share the comments dialog surface. */
-.ob-dialog { width: 440px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; margin: auto; background: var(--surface-popover); color: var(--text-standard); border: 1px solid var(--border-standard); box-shadow: var(--shadow-panel); border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
-.ob-dialog::backdrop { background: var(--bg-scrim); }
-.ob-dialog h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
-.ob-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-subtle); margin-bottom: 12px; }
+.ob-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-subtle); }
 .ob-dialog .ob-card { width: auto; }
 .ob-compare { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px 10px; font-size: 11.5px; line-height: 1.5; margin-bottom: 16px; padding: 10px 12px; background: var(--surface-panel); border: 1px solid var(--border-standard); border-radius: 8px; }
 .ob-compare dt { color: var(--text-metadata); }
 .ob-compare dd { color: var(--text-standard); overflow-wrap: anywhere; }
-.ob-buttons { display: flex; justify-content: flex-end; gap: 6px; }
-.setup-dialog { width: 520px; }
-.setup-dialog .ob-buttons { margin-top: 16px; }
 .reroot-hint { padding-left: 12px; }
 
 .home-body { min-height: 0; overflow: auto; padding: 8px 32px 32px; position: relative; }
@@ -356,8 +337,7 @@ code, kbd { font-family: var(--type-family); }
 .card-head { display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 14px; min-width: 0; }
 .card-name { font: 600 13px var(--type-family); color: var(--text-standard); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-head .meta { flex: none; }
-.more { flex: none; width: 24px; height: 22px; border-radius: 6px; color: var(--text-metadata); display: grid; place-items: center; font-size: 13px; letter-spacing: 1px; }
-.more[aria-expanded="true"] { background: var(--affordance-subtle-pressed); color: var(--text-standard); }
+.more { flex: none; }
 .wt { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; padding: 8px 8px 8px 14px; border-top: 1px solid var(--border-standard); position: relative; cursor: pointer; min-width: 0; }
 .wt:hover { background: var(--surface-inset); }
 .wt[aria-current="true"] { background: var(--surface-navigation-selected); }
@@ -383,24 +363,14 @@ code, kbd { font-family: var(--type-family); }
 .wt-sel b { color: var(--text-standard); font-weight: 500; }
 .open-tag { flex: none; font: 600 10px var(--type-family); color: var(--text-standard); background: var(--surface-navigation-selected); border-radius: 4px; padding: 1px 6px; }
 .wt-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; padding-left: 18px; margin-top: 3px; }
-.wt-actions .btn { padding: 2px 8px; font-size: 11px; }
 .wt-detail { grid-column: 1 / -1; margin: 4px 0 0 18px; }
 .wt-detail code { color: var(--text-subtle); background: var(--surface-inset); border-radius: 4px; padding: 0 4px; }
 
-.menu { position: absolute; z-index: 5; min-width: 200px; background: var(--surface-popover); border: 1px solid var(--border-standard); border-radius: 8px; box-shadow: var(--shadow-panel); padding: 4px; }
-.mi { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px; border-radius: 5px; font: 12px var(--type-family); color: var(--text-standard); text-align: left; white-space: nowrap; }
-.mi .r { margin-left: auto; color: var(--text-metadata); font-size: 11px; }
-.mi .check { width: 12px; flex: none; color: var(--text-standard); }
-.mi .sub { color: var(--text-disabled); font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.mi .label { flex: none; }
+.doan-menu-item .label { flex: none; }
 .menu[aria-label="Worktrees"] { max-width: calc(100vw - 16px); }
 .menu[aria-label="Worktrees"] .label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.menu-sep { height: 1px; background: var(--border-standard); margin: 4px 2px; }
-.menu-head { font: 10.5px var(--type-family); letter-spacing: .1em; text-transform: uppercase; color: var(--text-metadata); padding: 6px 10px 4px; }
 
-.add-dialog { width: 560px; background: var(--surface-popover); color: var(--text-standard); border: 1px solid var(--border-standard); box-shadow: var(--shadow-panel); border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
-.add-dialog h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
-.add-dialog .lead { font-size: 12px; line-height: 1.6; color: var(--text-subtle); margin-bottom: 12px; }
+.add-dialog .lead { font-size: 12px; line-height: 1.6; color: var(--text-subtle); }
 .add-dialog .lead code { color: var(--text-subtle); background: var(--surface-inset); border-radius: 4px; padding: 0 4px; }
 .cl { background: var(--surface-panel); border: 1px solid var(--border-standard); border-radius: 8px; overflow: hidden; color-scheme: light; }
 .cl-item { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--border-standard); }
@@ -411,15 +381,12 @@ code, kbd { font-family: var(--type-family); }
 .cl-name .kind { color: var(--text-metadata); font-size: 11px; margin-left: 6px; }
 .cl-path { grid-column: 2 / 3; font: 11px var(--type-family); color: var(--text-disabled); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-item.off .cl-name { color: var(--text-metadata); }
-.add-foot { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
 .scan { display: flex; align-items: center; gap: 8px; font: 11.5px var(--type-family); color: var(--text-metadata); }
-.scan .spinner { width: 12px; height: 12px; border-width: 2px; margin: 0; }
 
-.toast { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 12px; max-width: 560px; background: var(--surface-popover); border: 1px solid var(--border-standard); border-radius: 10px; box-shadow: var(--shadow-panel); padding: 8px 8px 8px 14px; font: 12.5px/1.5 var(--type-family); color: var(--text-standard); }
-/* The visible canvas toolbar reaches 40.5px above the window bottom. */
-.workspace[aria-hidden="false"]:has(.area:not([inert])) ~ .toast { bottom: 46px; }
+.toast { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 6; }
+/* The visible canvas toolbar reaches 48px above the window bottom (12px inset, 36px zoom group). */
+.workspace[aria-hidden="false"]:has(.area:not([inert])) ~ .toast { bottom: 54px; }
 .toast .msg { min-width: 0; overflow-wrap: anywhere; }
-.toast.solo { padding-right: 14px; }
 
 .drop { position: absolute; inset: 0; z-index: 8; }
 /* Darker than a modal scrim: the whole window is the drop target, so its content recedes further. */
@@ -429,7 +396,7 @@ code, kbd { font-family: var(--type-family); }
 .drop-zone p { font: 12.5px/1.6 var(--type-family); color: var(--text-on-prominent); max-width: 360px; }
 .drop-glyph { width: 44px; height: 44px; border-radius: 10px; background: var(--surface-inset); color: var(--text-standard); display: grid; place-items: center; font-size: 22px; margin-bottom: 4px; }
 
-.back { flex: none; width: 26px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--text-subtle); font-size: 14px; }
+.back { flex: none; }
 .top .divider { width: 1px; height: 18px; background: var(--border-standard); flex: none; margin: 0 -4px; }
 .crumbs { flex: 0 1 auto; display: flex; align-items: center; gap: 6px; min-width: 0; font: 12px var(--type-family); color: var(--text-metadata); white-space: nowrap; }
 .crumbs .repo { color: var(--text-subtle); min-width: 48px; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
@@ -442,16 +409,12 @@ code, kbd { font-family: var(--type-family); }
 .ws-status { display: flex; align-items: center; gap: 10px; padding: 7px 12px; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); font: 12px var(--type-family); color: var(--text-subtle); min-width: 0; }
 .ws-status .text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .ws-status .text code { color: var(--text-subtle); background: var(--surface-panel); border-radius: 4px; padding: 0 4px; }
-.ws-status .btn { padding: 3px 9px; font-size: 11.5px; }
 
 .home-shell { background: var(--bg-app); overflow: hidden; position: absolute; inset: 0; display: grid; grid-template-rows: 40px minmax(0, 1fr); }
 .workspace { position: absolute; inset: 0; }
 .wt { width: 100%; text-align: left; }
 
 .menu[role="menu"] { position: relative; outline: none; z-index: 20; }
-.mi[data-highlighted] { outline: none; background: var(--affordance-floating-hover); color: var(--text-standard); }
-.add-dialog { margin: auto; }
-.add-dialog::backdrop { background: var(--bg-scrim); }
 .add-dialog .cl { max-height: 50vh; overflow-y: auto; }
 .cl > div + div > .cl-item:first-child { border-top: 1px solid var(--border-standard); }
 .scrim { position: absolute; inset: 0; background: var(--bg-scrim); }
@@ -460,11 +423,8 @@ code, kbd { font-family: var(--type-family); }
 .ws-status { flex-wrap: wrap; }
 .ws-status .wt-actions { padding: 0; margin: 0; gap: 10px; align-items: center; }
 .ws-detail { padding: 8px 12px 10px; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); }
-.mi[data-disabled], .mi[data-disabled] :is(.r, .sub) { color: var(--text-disabled); }
 
-.home-shell .btn.primary .kbd { color: var(--text-on-prominent); border-color: var(--text-on-prominent); }
 
-.project-tooltip { padding: 6px 12px; max-width: 420px; }
 
 /* Design navigation: confirmed design/design-nav.html tree-rows and frame-highlight. */
 .side .row.cv { height: 44px; }
@@ -486,11 +446,13 @@ code, kbd { font-family: var(--type-family); }
 /* Keyboard focus only: a clicked row keeps focus, and its Select must not stay up beside the hovered row's. */
 .row:hover .ra, .row:focus-visible .ra { display: flex; }
 .side .row .no-id { color: var(--text-metadata); }
-.ra .btn { padding: 1px 7px; font-size: 11px; border-radius: 6px; }
+/* Row actions sit inside the fixed 26px tree row, so they keep a compact size until
+   the project-list child re-lays the row. */
+.side .row .ra .doan-button { min-height: 0; padding: 1px 7px; font-size: 11px; line-height: normal; }
 .tree-hint { padding: 2px 12px 6px 46px; font: 11.5px/1.5 var(--type-family); color: var(--text-metadata); }
 .row .warn-mark { flex: none; color: var(--text-warning); font-size: 11px; }
 .tree-hint.warn { color: var(--text-warning); }
-.tree-hint .btn { padding: 1px 7px; font-size: 11px; margin: 4px 0 0; color: var(--text-subtle); }
+.tree-hint .doan-button { margin: 4px 0 0; }
 .tree-detail { margin: 2px 12px 6px 46px; padding: var(--space-2) var(--space-3); border-radius: var(--radius-row); background: var(--surface-inset); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); overflow-wrap: anywhere; }
 .crumbs button.repo { border-radius: 5px; padding: 1px 4px; margin: 0 -4px; }
 .crumbs button.repo:hover { background: var(--surface-inset); color: var(--text-standard); }
@@ -550,7 +512,6 @@ code, kbd { font-family: var(--type-family); }
 .fp-input.invalid:focus-visible { outline-color: var(--border-danger); }
 .ob-sentence mark.slot { background: var(--surface-inset); color: var(--text-disabled); }
 .fp-wait { display: flex; align-items: center; gap: 8px; font-size: 11.5px; line-height: 1.5; color: var(--text-subtle); }
-.fp-wait .spinner { width: 12px; height: 12px; border-width: 2px; margin: 0; flex: none; }
 .fp-ready { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border: 1px solid var(--border-standard); border-radius: 6px; background: var(--bg-app); font-size: 12px; color: var(--text-standard); }
 .fp-ready .msg { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .fp-card { width: 520px; max-width: 100%; background: var(--surface-panel); border: 1px solid var(--border-standard); border-radius: 10px; text-align: left; }
@@ -578,7 +539,7 @@ code, kbd { font-family: var(--type-family); }
 .finish-item .glyph { grid-row: 1 / 3; align-self: start; padding-top: 1px; font-size: 11px; }
 .finish-item b { font-size: 12px; font-weight: 500; color: var(--text-standard); }
 .finish-item p { grid-column: 2; font-size: 11.5px; line-height: 1.5; color: var(--text-metadata); }
-.finish-item .btn { grid-column: 3; grid-row: 1 / 3; padding: 3px 9px; font-size: 11.5px; }
+.finish-item .doan-button { grid-column: 3; grid-row: 1 / 3; }
 
 
 .home-shell.with-setup-banner { grid-template-rows: 40px auto minmax(0, 1fr); }
@@ -608,7 +569,6 @@ code, kbd { font-family: var(--type-family); }
 .fb-canvas .g { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fb-canvas .d { grid-column: 3 / -1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--text-disabled); }
 .fb-canvas .fb-review { grid-column: 3 / -1; justify-self: start; margin-top: 2px; }
-.fb-review { font: 11px var(--type-family); color: var(--text-standard); background: var(--affordance-subtle); border: 1px solid var(--affordance-subtle); border-radius: 6px; padding: 1px 7px; white-space: nowrap; }
 /* Comment rows: target label, then the first line of the body; both one line. Indent = a level-3 row's text start. */
 .fb-item { display: grid; gap: 1px; padding: 5px 12px 6px 60px; min-width: 0; position: relative; }
 .fb-item .t { font-size: 10.5px; line-height: 1.5; color: var(--text-subtle); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -625,4 +585,4 @@ code, kbd { font-family: var(--type-family); }
 .fb-count { padding: 0 12px 8px 46px; font-size: 11px; line-height: 1.5; color: var(--text-metadata); }
 .fb-count b { color: var(--text-subtle); font-weight: 400; }
 /* The id-change notice in the Comments head. */
-.comments-message.notice .comments-btn { margin-left: 6px; vertical-align: baseline; padding: 1px 7px; }
+.comments-message.notice .doan-button { margin-left: 6px; vertical-align: middle; }

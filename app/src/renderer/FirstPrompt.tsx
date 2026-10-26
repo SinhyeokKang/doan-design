@@ -113,9 +113,9 @@ export function FirstPromptView({ id, root, subject, sentence, copy, copiedSubje
       : <p className="ob-sentence">{parts.before}{parts.mark && <mark className={parts.slot ? "slot" : undefined}>{parts.mark}</mark>}{parts.after}</p>}
     {copy === "failed" && <p className="ob-msg error" role="alert"><AlertIcon /><span>{COPY_FAILED}</span></p>}
     {ready ?? <div className="ob-actions">
-      {waiting ? <><span className="fp-wait" role="status"><span className="spinner" aria-hidden="true" />{WAITING_TEXT}</span><span className="spacer" /></>
+      {waiting ? <><span className="fp-wait" role="status"><span className="spinner doan-spinner" aria-hidden="true" />{WAITING_TEXT}</span><span className="spacer" /></>
         : <span className="ob-helper">{HELPER_LINES[0]}<br />{HELPER_LINES[1]}</span>}
-      <button type="button" className="btn primary" disabled={!view.copyable || copy === "copying"} onClick={copyIt}>{promptCopyLabel(copy, edited)}</button>
+      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={!view.copyable || copy === "copying"} onClick={copyIt}>{promptCopyLabel(copy, edited)}</button>
     </div>}
   </div>;
 }

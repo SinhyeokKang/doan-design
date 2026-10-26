@@ -190,7 +190,7 @@ try {
     for (const [label, trigger] of [["Sidebar", canvasRow(page, "canvas.html").locator(".g")], ["Fit", page.getByRole("button", { name: "Fit", exact: true })], ["PathTip", page.locator(".repo")]] as const) {
       await hoverTooltip(page, trigger);
       const content = page.locator('[data-slot="tooltip-content"]'); const m = await styles(content);
-      check(JSON.stringify(m.padding) === JSON.stringify(["6px", "12px", "6px", "12px"]), `${label} four-sided tooltip padding`, m);
+      check(JSON.stringify(m.padding) === JSON.stringify(["4px", "8px", "4px", "8px"]), `${label} four-sided tooltip padding`, m);
       await shot(page, `tooltip-${label}`); await page.keyboard.press("Escape");
     }
     await focus(page, page.getByRole("button", { name: "Fit", exact: true }), "ordinary focus");
