@@ -31,7 +31,7 @@
   --neutral-backdrop-pressed: rgb(0 0 0 / 10%);
   --neutral-scrim: #00000060;
 
-  /* doan's accent ramp. Step 9 is doan's former orange #f0773a lifted at the same hue
+  /* doan's accent ramp. Step 9 is the hue of doan's earlier orange, lifted
      to the least lightness where black text clears the body contrast targets (black is
      the text on 9: white cannot reach 4.5:1). The other steps keep the reference ramps'
      per-step OKLCH lightness and chroma share at that hue. Hover and pressed sit a hair
