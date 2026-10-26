@@ -1,3 +1,8 @@
+import { ConversationService, resolveListedCanvas } from "./conversation/service";
+import { ConversationStore } from "./conversation/store";
+import { createPrepare } from "./conversation/prepare";
+import { openRunner } from "./conversation/runners";
+import { conversationHandler, conversationMethods } from "./conversation/ipc";
 import { createMachine, needsOnboarding, markClosed, PATH_LINE, type MachineState } from "./onboarding/machine";
 import { isTranslocated } from "./onboarding/states";
 import { createCommentsService } from "./comments/service";
@@ -86,6 +91,8 @@ let broker: SetupBroker | undefined;
 let configBridge: ConfigBridge | undefined;
 let shell: Shell | undefined;
 let runtime: Runtime | undefined;
+let conversations: ConversationService | undefined;
+let conversationCanvases = new Set<string>();
 let inspector: Inspector | undefined;
 // One selection app-wide (select-inspect R1); the socket answers it only for
 // its own project. Memory only, never written to disk.
@@ -503,6 +510,14 @@ async function start(): Promise<void> {
   const choices = new Map<string, { id: string; path: string; epoch: number }>();
   const savedRoots = await readFoldersFileForPruning(join(userData, "folders.json"));
   const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
+    const nextCanvases = new Set<string>();
+    for (const entry of entries) if (entry.kind === "list") for (const canvas of entry.canvases) {
+      const key = JSON.stringify([entry.path, canvas.id ?? canvas.path]); nextCanvases.add(key);
+      if (!conversationCanvases.has(key)) {
+        try { conversations?.bind(entry.path, canvas); } catch (error) { console.error("doan: cannot persist first conversation canvas", error); }
+      }
+    }
+    conversationCanvases = nextCanvases;
     for (const root of choices.keys()) {
       if (!entries.some(entry => entry.path === root && entry.kind === "uninitialized")) choices.delete(root);
     }
@@ -568,6 +583,21 @@ async function start(): Promise<void> {
     console.error("doan: cannot start the runtime socket", error);
     return undefined;
   });
+
+  const prepareConversation = createPrepare(userData, join(userData, "runtime.json"), process.env);
+  const conversationService = new ConversationService(new ConversationStore(userData), prepareConversation, openRunner, event => send("conversation:event", event), (root, canvas) => {
+    const project = ready.entries().find(entry => entry.path === root);
+    if (!project) throw new Error("project_not_open");
+    if (canvas) {
+      if (project.kind !== "list") throw new Error("canvas_not_found");
+      return resolveListedCanvas(canvas, project.canvases);
+    }
+  });
+  conversations = conversationService;
+  const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries());
+  for (const method of conversationMethods) {
+    ipcMain.handle(`conversation:${method}`, (event, value: unknown) => conversationRequest(fromWindow(event), method, value));
+  }
 
   const unavailable = { kind: "unavailable" as const, message: "The project setup request is no longer valid." };
   const canSetUp = (root: string) => ready.entries().some(entry => entry.path === root && entry.kind === "uninitialized");
@@ -912,9 +942,14 @@ app.on("before-quit", (event) => {
     // JS wrapper exists. Electron then crashes trying to emit its close event.
     // Let the native stack unwind before either disposal or app.quit().
     quitScheduled = true;
-    setImmediate(() => {
+    setImmediate(async () => {
       // Stop the queue before Electron closes windows so it cannot reopen
       // the capture window and block will-quit. Persist state before teardown.
+      try { await conversations?.quit(); } catch (error) {
+        quitScheduled = false;
+        console.error("doan: conversation persistence failed during quit", error);
+        return;
+      }
       quitting = true; cancelPendingHide(); uiState?.flushSync(); thumbnails?.dispose();
       app.quit();
     });

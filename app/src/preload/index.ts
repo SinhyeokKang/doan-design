@@ -1,3 +1,6 @@
+import type { ConversationService, StartRequest } from "../main/conversation/service";
+import type { ConversationError } from "../main/conversation/ipc";
+import type { Anchor, Canvas, ConversationEvent, Runtime, UnavailableReason } from "../main/conversation/types";
 import type { OnboardingOpen, OnboardingRead } from "../main/index";
 import type { StepRequest, StepResult } from "../main/onboarding/machine";
 import type { Author } from "../formats/types";
@@ -32,6 +35,18 @@ function subscribe<T>(event: string, initial: string, listener: (value: T) => vo
 // The renderer gets these calls and nothing else: no ipcRenderer, no
 // channel names, no paths it did not receive from main.
 const api = {
+  conversationResumeTarget: (request: { root: string; canvas: Canvas }): Promise<{ available: true; runtime: Runtime; lastCheckAt: string } | { available: false; reason: "no_record" | UnavailableReason } | ConversationError> => ipcRenderer.invoke("conversation:resumeTarget", request),
+  conversationForCanvas: (request: { root: string; canvas: Canvas }): Promise<ReturnType<ConversationService["forCanvas"]> | ConversationError> => ipcRenderer.invoke("conversation:forCanvas", request),
+  startConversation: (request: Omit<StartRequest, "anchors"> & { anchors?: Anchor[] }): Promise<{ conversationId: string } | ConversationError> => ipcRenderer.invoke("conversation:start", request),
+  sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[] }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:send", request),
+  interruptConversation: (request: { conversationId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:interrupt", request),
+  answerConversationPermission: (request: { conversationId: string; requestId: string; optionId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:answerPermission", request),
+  readConversation: (request: { conversationId: string }): Promise<ReturnType<ConversationService["read"]> | ConversationError> => ipcRenderer.invoke("conversation:read", request),
+  onConversationEvent(listener: (event: ConversationEvent) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, event: ConversationEvent) => listener(event);
+    ipcRenderer.on("conversation:event", receive);
+    return () => ipcRenderer.removeListener("conversation:event", receive);
+  },
   homeDirectory: (): Promise<string | null> => ipcRenderer.invoke("app:home"),
   readOnboarding: (request: { session: string; requestId: string }): Promise<OnboardingRead> => ipcRenderer.invoke("onboarding:read", request),
   runOnboardingStep: (request: StepRequest): Promise<StepResult> => ipcRenderer.invoke("onboarding:run", request),

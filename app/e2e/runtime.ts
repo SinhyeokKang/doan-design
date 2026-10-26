@@ -85,6 +85,7 @@ async function main(): Promise<void> {
     await import(new URL("./project-feedback.ts", import.meta.url).href);
     await import(new URL("./quit-capture.ts", import.meta.url).href);
     await import(new URL("./settings.ts", import.meta.url).href);
+    await import(new URL("./conversation.ts", import.meta.url).href);
   } finally { await bounded(assertRealState(actualState), 10_000, "final real-state verification"); }
 }
 

@@ -16,6 +16,7 @@ func TestValidationFixtures(t *testing.T) {
 		{"config", ValidateConfig},
 		{"cli-envelope", ValidateEnvelope},
 		{"runtime", ValidateRuntimeFile},
+		{"sessions", ValidateSessionRecord},
 		{"app-socket/request", ValidateSocketRequest},
 		{"app-socket/response", ValidateSocketResponse},
 		{"app-socket/selection", ValidateSelection},

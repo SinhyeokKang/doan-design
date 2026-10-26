@@ -51,7 +51,7 @@ func newMCPServer() *mcp.Server {
 				emit(Outcome{}, failure, true, &out, io.Discard)
 			} else {
 				// An empty non-file stdin keeps Terminal false, so init never prompts.
-				Run(args, strings.NewReader(""), &out, io.Discard)
+				run(args, strings.NewReader(""), &out, io.Discard, false)
 			}
 			var envelope map[string]any
 			if e := json.Unmarshal(out.Bytes(), &envelope); e != nil {

@@ -11,6 +11,7 @@ const { rememberApp, waitFor, closeApp, suiteGuard }: typeof import("./harness")
 const { canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 
+const { saveClipboard, restoreClipboard }: typeof import("./clipboard") = await import(new URL("./clipboard.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { appWindow, appWindowCount, menu: appMenu }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 
@@ -59,13 +60,11 @@ const menu = (name: string) => appMenu(app, page, name);
 async function launch() {
   app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${data}`], env }); rememberApp(app); running = app;
   page = await app.firstWindow(); page.setDefaultTimeout(15_000);
-  await app.evaluate(async ({ clipboard, ClipboardItem }) => {
-    Reflect.set(globalThis, "obSavedClipboard", await Promise.all((await clipboard.read()).map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)])))))));
-  });
+  await app.evaluate(saveClipboard);
   assert.equal(await app.evaluate(({ app }) => app.getPath("userData")), data);
 }
 const visible = async () => (await appWindow(app, page)).evaluate(window => window.isVisible());
-async function quit() { await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "obSavedClipboard")); }); await closeApp(app); running = undefined; }
+async function quit() { await app.evaluate(restoreClipboard); await closeApp(app); running = undefined; }
 async function wizardSession() {
   return page.evaluate(() => new Promise((resolve, reject) => {
     const timer = setTimeout(() => { stop(); reject(new Error("onboarding session not received within 15 s")); }, 15_000);
@@ -697,7 +696,7 @@ else if (args[1] === 'add') {
   if (running) { try { console.error("onboarding active element:", await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 500))); await shot("failure"); } catch (shotError) { console.error("onboarding screenshot failed", shotError); } }
   throw error;
 } finally {
-  try { if (running) { await page.evaluate(() => window.doan.setCommentDraftGuard(false)); await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "obSavedClipboard")); }); } } finally { await guard.finish(); }
+  try { if (running) { await page.evaluate(() => window.doan.setCommentDraftGuard(false)); await app.evaluate(restoreClipboard); } } finally { await guard.finish(); }
 }
 
 for (const args of [[], ["--dev"]]) {

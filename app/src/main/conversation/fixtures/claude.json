@@ -1,0 +1,197 @@
+[
+  {
+    "type": "stream_event",
+    "event": {
+      "type": "message_start",
+      "message": {
+        "id": "id-1"
+      }
+    },
+    "session_id": "session-1",
+    "parent_tool_use_id": null
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "id-1",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "id-2",
+          "name": "Read",
+          "input": {
+            "file_path": "/repo/design/home.html"
+          },
+          "caller": {
+            "type": "direct"
+          }
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "session-1"
+  },
+  {
+    "type": "stream_event",
+    "event": {
+      "type": "message_start",
+      "message": {
+        "id": "id-3"
+      }
+    },
+    "session_id": "session-1",
+    "parent_tool_use_id": null
+  },
+  {
+    "type": "stream_event",
+    "event": {
+      "type": "content_block_start",
+      "index": 0,
+      "content_block": {
+        "type": "text",
+        "text": "Sample text"
+      }
+    },
+    "session_id": "session-1",
+    "parent_tool_use_id": null
+  },
+  {
+    "type": "stream_event",
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": "Sample text"
+      }
+    },
+    "session_id": "session-1",
+    "parent_tool_use_id": null
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "id-3",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Sample text"
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "session-1"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "id-3",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "id-4",
+          "name": "Bash",
+          "input": {
+            "command": "Sample text",
+            "description": "Sample text"
+          },
+          "caller": {
+            "type": "direct"
+          }
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "session-1"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "id-3",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "id-5",
+          "name": "Read",
+          "input": {
+            "file_path": "/repo/design/home.html"
+          },
+          "caller": {
+            "type": "direct"
+          }
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "session-1"
+  },
+  {
+    "type": "stream_event",
+    "event": {
+      "type": "message_start",
+      "message": {
+        "id": "id-6"
+      }
+    },
+    "session_id": "session-1",
+    "parent_tool_use_id": null
+  },
+  {
+    "type": "stream_event",
+    "event": {
+      "type": "content_block_start",
+      "index": 0,
+      "content_block": {
+        "type": "text",
+        "text": "Sample text"
+      }
+    },
+    "session_id": "session-1",
+    "parent_tool_use_id": null
+  },
+  {
+    "type": "stream_event",
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": "Sample text"
+      }
+    },
+    "session_id": "session-1",
+    "parent_tool_use_id": null
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "id-6",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Sample text"
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "session-1"
+  },
+  {
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "terminal_reason": "completed",
+    "result": "Sample text",
+    "session_id": "session-1"
+  }
+]

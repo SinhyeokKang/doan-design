@@ -1,0 +1,121 @@
+[
+  {
+    "method": "item/agentMessage/delta",
+    "params": {
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "itemId": "id-1",
+      "delta": "Sample text"
+    },
+    "emittedAtMs": 1793030528428
+  },
+  {
+    "method": "item/completed",
+    "params": {
+      "item": {
+        "type": "agentMessage",
+        "id": "id-1",
+        "text": "Sample text",
+        "phase": "commentary",
+        "memoryCitation": null,
+        "delivery": null,
+        "questions": null
+      },
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "completedAtMs": 1793030529406
+    },
+    "emittedAtMs": 1793030529410
+  },
+  {
+    "method": "item/fileChange/requestApproval",
+    "id": 0,
+    "params": {
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "itemId": "id-2",
+      "startedAtMs": 1793030530096,
+      "reason": null,
+      "grantRoot": null
+    }
+  },
+  {
+    "method": "item/completed",
+    "params": {
+      "item": {
+        "type": "fileChange",
+        "id": "id-2",
+        "changes": [
+          {
+            "path": "/repo/design/home.html",
+            "kind": {
+              "type": "add"
+            },
+            "diff": "Sample text"
+          }
+        ],
+        "status": "declined"
+      },
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "completedAtMs": 1793030530096
+    },
+    "emittedAtMs": 1793030530097
+  },
+  {
+    "method": "item/agentMessage/delta",
+    "params": {
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "itemId": "id-3",
+      "delta": "Sample text"
+    },
+    "emittedAtMs": 1793030533675
+  },
+  {
+    "method": "item/completed",
+    "params": {
+      "item": {
+        "type": "agentMessage",
+        "id": "id-3",
+        "text": "Sample text",
+        "phase": "final_answer",
+        "memoryCitation": null,
+        "delivery": null,
+        "questions": null
+      },
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "completedAtMs": 1793030534248
+    },
+    "emittedAtMs": 1793030534251
+  },
+  {
+    "method": "turn/completed",
+    "params": {
+      "threadId": "session-1",
+      "turn": {
+        "id": "turn-1",
+        "rootTurnId": "turn-1",
+        "items": [
+          {
+            "type": "agentMessage",
+            "id": "id-3",
+            "text": "Sample text",
+            "phase": "final_answer",
+            "memoryCitation": null,
+            "delivery": null,
+            "questions": null
+          }
+        ],
+        "itemsView": "summary",
+        "status": "completed",
+        "error": null,
+        "startedAt": 1793030524,
+        "completedAt": 1793030534,
+        "durationMs": 10159
+      }
+    },
+    "emittedAtMs": 1793030534271
+  }
+]

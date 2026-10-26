@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doan.design/schema/sessions.v1.schema.json",
+  "$comment": "One record per line in device-local sessions.jsonl. Directory existence, canonical filesystem identity, current config profile equality and cwd containment belong to readers/writers, not this schema.",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "at": {
+      "$ref": "https://doan.design/schema/comment-event.v1.schema.json#/$defs/at"
+    },
+    "root": {
+      "$ref": "#/$defs/absolutePath"
+    },
+    "canvas": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "allOf": [
+            {
+              "not": {
+                "pattern": "^[/\\\\]|^[A-Za-z]:[/\\\\]"
+              }
+            },
+            {
+              "not": {
+                "pattern": "(^|/)\\.\\.(/|$)"
+              }
+            },
+            {
+              "not": {
+                "pattern": "\u0000"
+              }
+            }
+          ]
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "runtime": {
+      "enum": [
+        "claude",
+        "codex"
+      ]
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 1,
+      "allOf": [
+        {
+          "not": {
+            "pattern": "^-"
+          }
+        },
+        {
+          "not": {
+            "pattern": "\u0000"
+          }
+        }
+      ]
+    },
+    "cwd": {
+      "$ref": "#/$defs/absolutePath"
+    },
+    "configDir": {
+      "$ref": "#/$defs/absolutePath",
+      "$comment": "Required canonical configuration directory of the recorded runtime; filesystem canonicality and equality with the selected profile must be checked separately."
+    }
+  },
+  "required": [
+    "v",
+    "at",
+    "root",
+    "canvas",
+    "hash",
+    "runtime",
+    "sessionId",
+    "cwd",
+    "configDir"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "absolutePath": {
+      "type": "string",
+      "pattern": "^/",
+      "not": {
+        "pattern": "\u0000"
+      },
+      "$comment": "Absolute POSIX path, matching the macOS-only runtime format; lexical validity does not establish canonical filesystem identity."
+    }
+  }
+}

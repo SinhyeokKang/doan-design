@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication } from "playwright";
 const { installCommentReadProbe }: typeof import("./renderer-probe") = await import(new URL("./renderer-probe.ts", import.meta.url).href);
+const { saveClipboard, restoreClipboard }: typeof import("./clipboard") = await import(new URL("./clipboard.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { rememberApp, closeApp, suiteGuard, bounded }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { canvasRow, frameRows }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
@@ -74,7 +75,7 @@ try {
     HOME: home, TMPDIR: work, SHELL: fakeShell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"),
     DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } };
   app = await _electron.launch(launchOptions); rememberApp(app);
-  await app.evaluate(async ({ clipboard, ClipboardItem }) => { const items = await clipboard.read(); Reflect.set(globalThis, "savedClipboardU2", await Promise.all(items.map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)]))))))); });
+  await app.evaluate(saveClipboard);
   clipboardSaved = true;
   const page = await app.firstWindow(); page.setDefaultTimeout(10_000);
   page.on("pageerror", error => console.error("pageerror", error));
@@ -779,7 +780,7 @@ try {
   assert.equal(await panel.getByRole("button", { name: "Check saved status", exact: true }).count(), 0);
   await shot("16-unrecoverable-unknown");
   assert.deepEqual(presentationFailures, [], "Measured comment presentation regressions");
-  await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "savedClipboardU2")); });
+  await app.evaluate(restoreClipboard);
   clipboardSaved = false;
   await canvasRow(page, "b.html").click();
   await dialog.getByText("Save status could not be confirmed", { exact: true }).waitFor();
@@ -851,7 +852,7 @@ try {
   throw error;
 } finally {
   try { if (app) {
-    if (clipboardSaved) await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "savedClipboardU2")); });
+    if (clipboardSaved) await app.evaluate(restoreClipboard);
     await (await app.firstWindow()).evaluate(() => window.doan.setCommentDraftGuard(false)).catch(() => {});
   } } finally { await guard.finish(); }
 }
