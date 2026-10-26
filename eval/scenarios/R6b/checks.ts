@@ -1,8 +1,9 @@
 import type { Checks } from "../../lib/types.ts";
 import { clean, element, inspect, reviewState, text } from "../R1/inspect.ts";
 
-// "Save" is the create-time label and "Save changes" the reopened agent change; both
-// satisfy the body on their face, so only a different label shows the reopen was read.
+// "Save" is the create-time label and "Save changes" the rejected agent change.
+// Replacing them catches unchanged re-resolution, not understanding of lastResolution:
+// an agent reading only the body could also judge "Save changes" too vague.
 const REJECTED = ["save", "save changes"];
 
 const checks: Checks = ctx => {
