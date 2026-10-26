@@ -16,8 +16,9 @@ Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in
 
 - After `/feature-review`, before `/tdd`: the review settles the list of visible states, and `/design-sync` compares only the states the draft draws. Drawn earlier, the draft is redrawn.
 - For screens whose first implementation is not on main yet.
+- For a redesign child of a parent feature (AGENTS.md 'Terms', e.g. buzz-restyle) whose `design.md` requests a new draft file for a screen already on main.
 
-**Not for**: restyling a screen already on main. Once a screen ships, the code and `docs/DESIGN.md` are the reference (PRODUCT §7, design-sync); a new look for it is a change request through `/feature`.
+**Not for**: restyling a screen already on main outside a redesign child. Once a screen ships, the code and `docs/DESIGN.md` are the reference (PRODUCT §7, design-sync); a new look for it is a change request through `/feature`, which may make it a redesign child.
 
 ## Prerequisites (stop if any fails)
 
@@ -46,8 +47,8 @@ Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 
 
 - **Conventions** (ARCHITECTURE §1): `<meta name="doan:canvas">` with the requested id and `<meta name="doan:width">` in `<head>`; every requested frame as `data-doan-frame` with a `data-doan-title`; `data-doan-id` on elements the implementation will be paired with or commented on.
 - **`data-doan-implements` points only to files that exist now.** A path to a file the feature will create is an `implements_not_found` error.
-- **Tokens**: link `../app/src/renderer/tokens.css` by a relative path and take every app color from its variables. Colors of example screens the human reviews inside the draft (the mock canvas on the board) come from `design/mock.css`. No hex, `rgb(` or `oklch(` anywhere else. Dark theme only, one system sans, no monospace (PRODUCT §7, app-ui).
-- **Shipped screens are copied, not redesigned.** Where the draft shows a screen already on main (top bar, sidebar, Canvas info panel), draw it as the code and `docs/DESIGN.md` have it. Put any change you would make into the report as a change request instead of drawing it.
+- **Tokens**: link `../app/src/renderer/tokens.css` by a relative path and take every app color from its variables. Colors of example screens the human reviews inside the draft (the mock canvas on the board) come from `design/mock.css`. No hex, `rgb(` or `oklch(` anywhere else. Follow the theme decision in PRODUCT §7 and the feature documents: dark only, one system sans, no monospace until buzz-ds lands (app-ui); a buzz-restyle redesign draft is light only and uses the role variables in `tokens.css`, never the legacy aliases kept for old drafts.
+- **Shipped screens are copied, not redesigned** — except the screen a redesign child is redesigning, which is drawn as its feature documents ask. Any other screen already on main (top bar, sidebar, Canvas info panel) is drawn as the code and `docs/DESIGN.md` have it; put any change you would make into the report as a change request instead of drawing it.
 - **Every requested state gets a frame or a labelled tile**, with the real English copy from the design document (no placeholder text). Long values, empty values and error states are drawn, not described.
 - **Mark what is not in code** (agent rule G) the way existing drafts do, and say in the header which frames are new.
 - **Header**: one intro block — scope, which frames `/design-sync` will compare, what is copied from shipped screens, and references with their source and whether they were checked or recalled from memory (AGENTS.md 'Leave evidence for references').
@@ -92,7 +93,7 @@ Next: user review in the app → --revise or confirmed
 ## Prohibited
 
 - Do not edit app code, tests or other features' documents.
-- Do not edit the draft of a screen already on main (e.g. `design/app-shell.html`); that is a change request.
+- Do not edit the draft of a screen already on main (e.g. `design/app-shell.html`); that is a change request. A redesign child writes a new file instead.
 - Do not add canvas conventions or test-only attributes.
 - Do not draw a decision that is not in the feature documents, PRODUCT or ARCHITECTURE; ask instead.
 - Do not push or merge.
