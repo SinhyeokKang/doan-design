@@ -9,7 +9,7 @@ Reviewer agents for four perspectives each look separately at `spec.md`, `design
 
 - `/feature-review <slug>` — all four perspectives.
 - `/feature-review <slug> <role...>` — only the named perspectives. Keywords: `product`, `tech`, `qa`, `uxui`.
-- `/feature-review` — the most recently edited slug under `docs/features/`, all four perspectives.
+- `/feature-review` — the most recently edited feature slug under `docs/features/` (not an `audit-*` or `ux-audit-*` report directory), all four perspectives.
 
 ## Perspectives
 
@@ -17,8 +17,8 @@ Reviewer agents for four perspectives each look separately at `spec.md`, `design
 |---|---|---|
 | `product` | `spec.md` | Does it match PRODUCT §1 Problem, §2 Users, §3 Scope? Is the user (human/agent) clear? Are the done-when conditions verifiable sentences? Has something out of scope (§3 'Out of scope') slipped in silently? Is there any pre-built extensibility? |
 | `tech` | `design.md` | Does it respect ARCHITECTURE §1 'Conventions' and the structural decisions (serving scope, sandbox iframe, append-only events, agents only resolve, no token handling, no git operations, comment bodies are data)? If it changes a format, does the design include the JSON Schema source, `v`, and fixtures shared by TS and Go? Are pure functions actually split out? Does it lean on assumptions that have not passed the PRODUCT §6 PoC? Is there a simpler way? |
-| `qa` | `tasks.md` | Does every task have a "Verify:" line that can be judged? Is that command in AGENTS.md 'Commands' (if not, is it written as "command undecided")? Is the order schema and fixtures → pure functions → shell → UI? Are edge cases missing (empty canvas, duplicate or missing ids, missing `doan:width`, unknown `v`, same `id` after a union merge, app not running)? Are there final tasks for promoting to PRODUCT and deleting the directory? |
-| `uxui` | `spec.md` · `design.md` (what the human sees and does) | Is every visible state defined (empty, loading, error, missing data, the target vanishing while open) and what the human sees in each? Do interactions follow macOS conventions for the kind of view (trackpad, mouse, shortcuts, menus), with one recommended convention per item? Is there feedback for what happens (current state shown, changes noticed)? Focus and keyboard reachability. Is the UI copy clear and actionable? What will later features (PRODUCT §5 split) need from this interaction model that is costly to change later? Until real UI design starts (PRODUCT §5 'Dogfooding'), judge interaction and states, not visual polish. If the feature has no human-facing surface, say so and stop |
+| `qa` | `tasks.md` | Does every task have a "Verify:" line that can be judged? Is that command in AGENTS.md 'Commands' (if not, is it written as "command undecided")? Is the order schema and fixtures → pure functions → shell → UI? Are edge cases missing (empty canvas, duplicate or missing ids, missing `doan:width`, unknown `v`, same `id` after a union merge, app not running)? Are there final tasks for promoting to PRODUCT and ARCHITECTURE and deleting the directory? |
+| `uxui` | `spec.md` · `design.md` (what the human sees and does) | Is every visible state defined (empty, loading, error, missing data, the target vanishing while open) and what the human sees in each? Do interactions follow macOS conventions for the kind of view (trackpad, mouse, shortcuts, menus), with one recommended convention per item? Is there feedback for what happens (current state shown, changes noticed)? Focus and keyboard reachability. Is the UI copy clear and actionable? What will later features (PRODUCT §5 split) need from this interaction model that is costly to change later? Visual design is drawn afterwards by `/design-draft` (PRODUCT §5 'Dogfooding'), so judge interaction and states, not visual polish. If the feature has no human-facing surface, say so and stop |
 
 ## Procedure
 
@@ -33,7 +33,7 @@ Reviewer agents for four perspectives each look separately at `spec.md`, `design
    - Get permission for obvious correctness errors (nonexistent paths, missing "Verify:" lines) in one batch.
    - Ask separately about items that need promoting something out of scope or changing a PRODUCT decision. If approved, leave the PRODUCT update as a task in `tasks.md`.
 5. **Apply** — apply only the agreed fixes to `docs/features/<slug>/` and summarize the changes per file. These documents stay in Korean, following AGENTS.md 'Korean writing rules'.
-6. **Commit** — only the edited documents. `docs(feature): <slug> apply review feedback`. Since only documents change, commit to main (AGENTS.md branch rule). Trailers follow `/ship`'s commit rules.
+6. **Commit** — only the edited documents. `docs(feature): <slug> apply review feedback`. Since only documents change, commit on the checked-out branch without switching (AGENTS.md 'Commit conventions'). Trailers follow `/ship`'s commit rules.
 
 ## Report
 
