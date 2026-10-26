@@ -47,3 +47,4 @@ tasks.md의 1~11은 모두 위 배치 중 하나에 속한다(1은 각 배치의
 ## 진행 기록
 
 - 2026-10-26: 시작. 화면 잠금 상태 `CGSSessionScreenIsLocked = Yes`.
+- 2026-10-26: Run `run_388720a5a031`. 1파 시작 — P(`ctx_f0d29dc66587`, Opus high, `ah-p`), K(`ctx_d096423ea7e1`, Codex `gpt-6.1-sol` medium, `ah-k`), F(`ctx_59c5c30a0e0d`, Codex `gpt-6.1-sol` medium, `ah-f`). `launch.effective`가 요청과 같다.
