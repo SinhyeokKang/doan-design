@@ -1,4 +1,5 @@
 @import "./tokens.css";
+@import "./ds/index.css";
 /* Primitives and pane rules from the accepted design/app-setup.html draft that this window renders. */
 :root { color-scheme: light; }
 * { box-sizing: border-box; margin: 0; padding: 0; }

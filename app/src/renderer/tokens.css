@@ -141,6 +141,10 @@
   --space-control-inset: var(--space-4);
   --space-row-gap: var(--space-2);
   --space-section-gap: var(--space-8);
+  --space-chip-inset: 3px;
+  --size-control-sm: 32px;
+  --size-control: 40px;
+  --size-icon: 16px;
 
   /* Containers stop at 28px; capsules and pills are separate shapes. A nested
      corner is max(0, outer − inset − border), not the next step down. */
@@ -150,6 +154,7 @@
   --radius-container: 24px;
   --radius-panel: 28px;
   --radius-icon-button: 18px;
+  --radius-toolbar-icon: 10px;
   --radius-capsule: 34px;
   --radius-pill: 9999px;
 

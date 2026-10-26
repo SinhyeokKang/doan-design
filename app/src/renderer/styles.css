@@ -1,25 +1,27 @@
 @import "tailwindcss";
 @import "./tokens.css";
+@import "./ds/index.css";
 
+/* shadcn names map onto neutral roles; citrus never reaches them. */
 @theme inline {
-  --color-background: var(--bg);
-  --color-foreground: var(--text);
-  --color-card: var(--panel);
-  --color-card-foreground: var(--text);
-  --color-popover: var(--raised);
-  --color-popover-foreground: var(--text);
-  --color-primary: var(--accent);
-  --color-primary-foreground: var(--accent-ink);
-  --color-secondary: var(--panel-2);
-  --color-secondary-foreground: var(--text-2);
-  --color-muted: var(--panel-2);
-  --color-muted-foreground: var(--text-3);
-  --color-accent: var(--accent-soft);
-  --color-accent-foreground: var(--accent);
-  --color-destructive: var(--err);
-  --color-border: var(--line);
-  --color-input: var(--line);
-  --color-ring: var(--accent-line);
+  --color-background: var(--bg-app);
+  --color-foreground: var(--text-standard);
+  --color-card: var(--surface-panel);
+  --color-card-foreground: var(--text-standard);
+  --color-popover: var(--surface-popover);
+  --color-popover-foreground: var(--text-standard);
+  --color-primary: var(--affordance-prominent);
+  --color-primary-foreground: var(--text-on-prominent);
+  --color-secondary: var(--affordance-subtle);
+  --color-secondary-foreground: var(--text-subtle);
+  --color-muted: var(--surface-inset);
+  --color-muted-foreground: var(--text-metadata);
+  --color-accent: var(--affordance-floating-hover);
+  --color-accent-foreground: var(--text-standard);
+  --color-destructive: var(--text-danger);
+  --color-border: var(--border-standard);
+  --color-input: var(--border-standard);
+  --color-ring: var(--border-focus);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

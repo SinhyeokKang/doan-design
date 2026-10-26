@@ -1,0 +1,177 @@
+/* Controls: buttons, icon buttons, form fields, checkboxes, keyboard hints, chips
+   and the spinner. Every rule is opt-in through a doan- class; variants and sizes
+   are data-ui-* attributes. States hang on native and Radix state selectors. */
+
+/* Capsule actions in three emphases. Pressed changes the fill, never the position. */
+.doan-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-row-gap);
+  min-width: 0;
+  min-height: var(--size-control);
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--radius-capsule);
+  padding: var(--space-2) var(--space-6);
+  background: transparent;
+  color: var(--text-standard);
+  font-family: inherit;
+  font-size: var(--type-label-sm-size);
+  line-height: var(--type-label-sm-line-height);
+  letter-spacing: var(--type-label-sm-letter-spacing);
+  font-weight: var(--type-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--time-state) var(--ease-state), color var(--time-state) var(--ease-state);
+}
+.doan-button[data-ui-size="sm"] { min-height: var(--size-control-sm); padding: var(--space-1h) var(--space-4); }
+.doan-button[data-ui-variant="prominent"] { background: var(--affordance-prominent); color: var(--text-on-prominent); }
+.doan-button[data-ui-variant="subtle"] { background: var(--affordance-subtle); }
+.doan-button > svg { width: var(--size-icon); height: var(--size-icon); flex-shrink: 0; }
+
+/* Icon-only actions share the button's emphases with square geometry. Chrome
+   placement (the window header) is ghost on the shell, so its fills stay translucent. */
+.doan-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  border: 0;
+  border-radius: var(--radius-icon-button);
+  padding: 0;
+  background: transparent;
+  color: var(--text-standard);
+  cursor: pointer;
+  transition: background-color var(--time-state) var(--ease-state), color var(--time-state) var(--ease-state);
+}
+.doan-icon-button > svg { width: var(--size-icon); height: var(--size-icon); }
+.doan-icon-button[data-ui-size="md"] { width: var(--size-control); height: var(--size-control); }
+.doan-icon-button[data-ui-variant="prominent"] { background: var(--affordance-prominent); color: var(--text-on-prominent); }
+.doan-icon-button[data-ui-variant="subtle"] { background: var(--affordance-subtle); }
+.doan-icon-button[data-ui-placement="chrome"] { border-radius: var(--radius-toolbar-icon); }
+
+@media (hover: hover) and (pointer: fine) {
+  :is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"]:hover:not(:disabled) { background: var(--affordance-prominent-hover); }
+  :is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-placement="chrome"]):hover:not(:disabled) { background: var(--affordance-subtle-hover); }
+  .doan-icon-button[data-ui-placement="chrome"]:hover:not(:disabled) { background: var(--affordance-backdrop-hover); }
+}
+:is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"]:is(:active, [aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-prominent-pressed); }
+:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-placement="chrome"]):is(:active, [aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-subtle-pressed); }
+.doan-icon-button[data-ui-placement="chrome"]:is(:active, [aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-backdrop-pressed); }
+
+/* Disabled is a state of its own, not a fainter emphasis, so it drops the fill. */
+:is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) { color: var(--text-disabled); background: var(--affordance-disabled); cursor: not-allowed; }
+:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="subtle"]):is(:disabled, [data-disabled]) { background: transparent; }
+
+:is(.doan-button, .doan-icon-button, .doan-checkbox, .doan-chip):focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+/* Text fields: an inset fill with a reserved 1px border, so focus and errors never shift layout.
+   The border is the focus cue, which replaces the outline ring. */
+.doan-input,
+.doan-textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--size-control);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  padding: calc((var(--size-control) - var(--type-body-line-height) - 2px) / 2) var(--space-control-inset);
+  background: var(--surface-inset);
+  color: var(--text-standard);
+  font-family: inherit;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
+  letter-spacing: var(--type-body-letter-spacing);
+  transition: border-color var(--time-state) var(--ease-state);
+}
+.doan-input[data-ui-size="sm"] {
+  min-height: var(--size-control-sm);
+  padding-block: calc((var(--size-control-sm) - var(--type-body-sm-line-height) - 2px) / 2);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line-height);
+  letter-spacing: var(--type-body-sm-letter-spacing);
+}
+.doan-textarea { min-height: 96px; padding: var(--space-control-inset); resize: vertical; }
+:is(.doan-input, .doan-textarea):focus { outline: none; border-color: var(--border-prominent); }
+:is(.doan-input, .doan-textarea)::placeholder { color: var(--text-metadata); }
+:is(.doan-input, .doan-textarea)[aria-invalid="true"] { border-color: var(--border-danger); }
+:is(.doan-input, .doan-textarea):disabled { color: var(--text-disabled); background: var(--affordance-disabled); cursor: not-allowed; }
+
+/* A native checkbox drawn without images: the check is two borders of a rotated box. */
+.doan-checkbox {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin: 0;
+  border: 1px solid var(--border-prominent);
+  border-radius: var(--space-1);
+  background: var(--surface-panel);
+  color: var(--text-on-prominent);
+  cursor: pointer;
+}
+.doan-checkbox:is(:checked, :indeterminate, [data-state="checked"]) { background: var(--affordance-prominent); border-color: var(--affordance-prominent); }
+.doan-checkbox:is(:checked, [data-state="checked"])::before {
+  content: "";
+  width: 5px;
+  height: 10px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: translateY(-1px) rotate(45deg);
+}
+.doan-checkbox:indeterminate::before { content: ""; width: 10px; height: 2px; background: currentColor; }
+.doan-checkbox:is(:disabled, [data-disabled]) { background: var(--affordance-disabled); border-color: var(--affordance-disabled); color: var(--text-disabled); cursor: not-allowed; }
+
+.doan-kbd {
+  display: inline-flex;
+  align-items: center;
+  max-inline-size: 100%;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-inset);
+  color: var(--text-subtle);
+  font-family: inherit;
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line-height);
+  letter-spacing: var(--type-body-sm-letter-spacing);
+  overflow-wrap: anywhere;
+}
+
+/* A chip hugs the line of text it sits in, so its inset is tighter than a control's. */
+.doan-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 256px;
+  border: 0;
+  border-radius: var(--radius-chip);
+  padding-inline: var(--space-chip-inset);
+  background: var(--affordance-subtle);
+  color: var(--text-standard);
+  font: inherit;
+  line-height: 1.35;
+  vertical-align: baseline;
+}
+button.doan-chip { cursor: pointer; }
+button.doan-chip:is(:hover, :focus-visible, [data-state="open"]) { background: var(--affordance-subtle-hover); }
+
+.doan-spinner {
+  display: inline-block;
+  width: var(--size-icon);
+  height: var(--size-icon);
+  flex-shrink: 0;
+  border: 2px solid var(--border-standard);
+  border-top-color: var(--text-standard);
+  border-radius: var(--radius-pill);
+  animation: doan-spin 1s linear infinite;
+}
+@keyframes doan-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .doan-button, .doan-icon-button, .doan-input, .doan-textarea { transition: none; }
+  .doan-spinner { animation: none; }
+}
