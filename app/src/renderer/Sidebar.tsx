@@ -4,6 +4,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { CanvasState } from "./CanvasController";
 import { buildCanvasTree, frameLabel, rowAction, typeaheadKey, typeaheadNext, type RowNode, type TreeNode } from "./canvasTree";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { ErrorDetails } from "./ErrorDetails";
 
 interface SidebarProps {
   entries: FolderEntry[];
@@ -33,6 +34,15 @@ export function moveExpanded(paths: readonly string[], from: string, to: string)
   if (paths.includes(from)) next.add(to);
   return [...next];
 }
+// A row ls could not fully read: the fixed sentence under it, and the raw
+// error for Details (project-feedback draft `tree-errors`). A canvas file
+// error wins, as its row has no comment counts at all.
+export function rowProblem(row: CanvasRow): { sentence: string; detail: string } | null {
+  const error = row.error ?? row.commentsError;
+  if (!error) return null;
+  return { sentence: row.error ? "Can't read this canvas — run doan check" : "Couldn’t read this canvas’s comments — run doan check", detail: `${error.code}: ${error.message}` };
+}
+
 interface VisibleRow { key: string; node: RowNode; level: number; parent?: string | undefined; expanded?: boolean; }
 
 function RowActions({ actions }: { actions: { name: string; label: string; disabled?: boolean; run: () => void }[] }) {
@@ -181,7 +191,8 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
         const label = isFrame ? `${node.index + 1} ${frameName}` : typeaheadKey(node);
         const lastFrameCanvas = isFrame && visible[index + 1]?.parent !== row.parent ? canvases.find(canvas => canvas.path === node.canvas) : undefined;
         const truncated = lastFrameCanvas && (lastFrameCanvas.path === opened && state.layout ? state.layout.frames.length === 1000 && (lastFrameCanvas.frames === undefined ? state.layout.truncated : lastFrameCanvas.framesTruncated) : lastFrameCanvas.framesTruncated);
-        const comments = node.kind === "canvas" && node.row.open > 0;
+        const problem = node.kind === "canvas" ? rowProblem(node.row) : null;
+        const comments = node.kind === "canvas" && !problem && node.row.open > 0;
         const commentId = `${commentPrefix}-${index}`;
         const content = <div ref={element => {
           if (element) rowElements.current.set(row.key, element);
@@ -190,15 +201,19 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
             if (rowElements.current.get(row.key)?.contains(document.activeElement)) removedFocus.current = row.key;
             rowElements.current.delete(row.key);
           }
-        }} role="treeitem" aria-label={`${label}${selected ? ", selected in canvas" : ""}`} aria-current={current ? "location" : undefined} aria-expanded={row.expanded} aria-level={row.level} aria-posinset={positions.get(row.key)} aria-setsize={siblings.get(row.parent)?.length} aria-describedby={comments ? commentId : undefined} tabIndex={active === row.key ? 0 : -1} className={`row${node.kind === "canvas" ? " cv" : ""}${node.kind === "canvas" && node.key === opened ? " is-open" : ""}`} style={{ paddingLeft: 12 + (row.level - 1) * 14 }} onFocus={event => { if (event.target === event.currentTarget) setFocused(row.key); }} onClick={event => { event.currentTarget.focus(); act(row); }} onDoubleClick={() => act(row, true)} onKeyDown={event => keys(event, row, index)}>
+        }} role="treeitem" aria-label={`${label}${selected ? ", selected in canvas" : ""}`} aria-current={current ? "location" : undefined} aria-expanded={row.expanded} aria-level={row.level} aria-posinset={positions.get(row.key)} aria-setsize={siblings.get(row.parent)?.length} aria-describedby={comments || problem ? commentId : undefined} tabIndex={active === row.key ? 0 : -1} className={`row${node.kind === "canvas" ? " cv" : ""}${node.kind === "canvas" && node.key === opened ? " is-open" : ""}`} style={{ paddingLeft: 12 + (row.level - 1) * 14 }} onFocus={event => { if (event.target === event.currentTarget) setFocused(row.key); }} onClick={event => { event.currentTarget.focus(); act(row); }} onDoubleClick={() => act(row, true)} onKeyDown={event => keys(event, row, index)}>
           {row.expanded !== undefined ? <button type="button" className="tw" tabIndex={-1} aria-label={`${row.expanded ? "Collapse" : "Expand"} ${label}`} onClick={event => { event.stopPropagation(); event.currentTarget.closest<HTMLElement>('[role="treeitem"]')?.focus(); toggle(row.key); }} onDoubleClick={event => event.stopPropagation()}><span aria-hidden="true">{row.expanded ? "▾" : "▸"}</span></button> : <span className="tw" aria-hidden="true" />}
-          {node.kind === "canvas" ? <><span className="glyph" aria-hidden="true">◧</span><span className="two"><span className="g">{node.name}</span><span className="d">{node.fileName}</span></span>{comments && <span id={commentId} role="img" className="cnt hot" aria-label={pluralComments(node.row.open)}>{node.row.open}</span>}</>
+          {node.kind === "canvas" ? <><span className="glyph" aria-hidden="true">◧</span><span className="two"><span className="g">{node.name}</span><span className="d">{node.fileName}</span></span>{comments && <span id={commentId} role="img" className="cnt hot" aria-label={pluralComments(node.row.open)}>{node.row.open}</span>}{problem && <span className="warn-mark" aria-hidden="true">⚠</span>}</>
             : isFrame ? <><span className="num" aria-hidden="true">{node.index + 1}</span><span className={node.frame.title?.trim() || node.frame.id ? "g" : "g no-id"}>{frameName}</span><RowActions actions={[{ name: "Select", label: `Select ${frameName}`, disabled: node.canvas !== opened || !state.layout, run: () => select(node.index) }]} />{selected && <span className="sel-mark" aria-hidden="true" />}</>
             : <>{node.kind === "overview" && <span className="glyph" aria-hidden="true">▦</span>}<span className="g">{label}</span></>}
         </div>;
-        const empty = node.kind === "canvas" && row.expanded && !(opened === node.key && state.layout ? state.layout.frames.length : node.row.frames?.length);
+        const empty = node.kind === "canvas" && !node.row.error && row.expanded && !(opened === node.key && state.layout ? state.layout.frames.length : node.row.frames?.length);
         return <div key={row.key} role="none">
           {node.kind === "canvas" ? <Tooltip><TooltipTrigger asChild>{content}</TooltipTrigger><TooltipContent>{node.row.path.replace(/^design\//, "")}</TooltipContent></Tooltip> : content}
+          {problem && <ErrorDetails className="btn" detail={problem.detail}>{(button, detail) => <>
+            <p className="tree-hint warn" id={commentId} style={{ paddingLeft: 18 + row.level * 14 }}>{problem.sentence}<br />{button}</p>
+            {detail && <p className="tree-detail" style={{ marginLeft: 18 + row.level * 14 }}>{detail}</p>}
+          </>}</ErrorDetails>}
           {selected && state.selection?.element && <div className="row element-row" style={{ paddingLeft: 32 + row.level * 14 }}><span className="glyph" aria-hidden="true">↳</span><span className="g">{state.selection.element.doanId === undefined ? state.selection.tag : `${state.selection.tag} · ${state.selection.element.doanId}`}</span></div>}
           {empty && <p className="tree-hint">This canvas has no data-doan-frame</p>}
           {truncated && <p className="tree-hint">Showing the first 1,000</p>}

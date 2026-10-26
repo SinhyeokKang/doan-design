@@ -77,6 +77,9 @@ describe("Comments presentation", () => {
     expect(html(panel({ read: { status: "loading" } }))).toContain("Loading comments…");
     const failed = html(panel({ read: { status: "failed", message: "Permission denied" } }));
     expect(failed).toContain("Couldn’t read comments");
+    // project-feedback draft `tree-errors`: the raw message waits behind Details.
+    expect(failed).toContain('<div class="comments-tools"><button type="button" class="comments-btn">Retry</button><button type="button" class="comments-btn" aria-label="Details" aria-expanded="false">Details ▸</button></div>');
+    expect(failed).not.toContain("Permission denied");
     expect(failed).not.toContain("No open comments");
     expect(failed).not.toContain("Comments are read-only");
     expect(html(panel({ read: { status: "ready", comments: [], warnings: [{ code: "unknown_version", line: 3 }] } }))).toContain("<li>This record was written by a newer version of Doan.<span class=\"lines\">Line 3</span></li>");
@@ -593,5 +596,43 @@ describe("editing a resolved comment and replacing a missing target (revision-re
     expect(out).toContain(`<button type="button" class="comments-btn" autofocus="">Keep both</button><button type="button" class="comments-btn danger">Delete original</button>`);
     find(dialog, "Keep both").onClick?.(); expect(onCancel).toHaveBeenCalledOnce(); expect(onConfirm).not.toHaveBeenCalled();
     find(dialog, "Delete original").onClick?.(); expect(onConfirm).toHaveBeenCalledOnce();
+  });
+});
+
+// project-feedback design §5, draft `id-change-notice`: the first banner under
+// the head, above the review notice, and above the canvas-ID block.
+describe("id change notice", () => {
+  const notice = { text: "3 comments still use the old ID checkout-v1 and no longer show here.", onShow: noop };
+  const banner = '<div class="comments-message warning notice" role="status">3 comments still use the old ID checkout-v1 and no longer show here.<button type="button" class="comments-btn">Show</button></div>';
+
+  test("sits right under the head, before the review notice", () => {
+    const html = renderToStaticMarkup(<CommentsPanel {...panel({ idNotice: notice, reviewNotice: { count: 3, firstSeen: false, blocked: false, onStart: noop } })} />);
+    expect(html).toContain(`Comment on canvas</button></div></div>${banner}`);
+    expect(html.indexOf(banner)).toBeLessThan(html.indexOf("since your last review"));
+  });
+
+  test("stays first above the canvas-ID block", () => {
+    const html = renderToStaticMarkup(<CommentsPanel {...panel({ idNotice: notice, identityCause: "duplicate" })} />);
+    expect(html).toContain(`<h3 class="comments-title alone" tabindex="-1">Comments</h3>${banner}<div class="comments-message error" role="alert">`);
+  });
+
+  test("Show calls back", () => {
+    const onShow = vi.fn();
+    const element = CommentsPanel(panel({ idNotice: { ...notice, onShow } })) as { props: { children: ReactNode } };
+    const find = (node: ReactNode): (() => void) | undefined => {
+      for (const child of Children.toArray(node)) {
+        if (!isValidElement<{ children?: ReactNode; onClick?: () => void }>(child)) continue;
+        if (child.props.children === "Show" && child.props.onClick) return child.props.onClick;
+        const found = find(child.props.children);
+        if (found) return found;
+      }
+      return undefined;
+    };
+    find(element.props.children)?.();
+    expect(onShow).toHaveBeenCalledTimes(1);
+  });
+
+  test("absent without a notice", () => {
+    expect(renderToStaticMarkup(<CommentsPanel {...panel()} />)).not.toContain("old ID");
   });
 });

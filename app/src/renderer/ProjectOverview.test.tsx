@@ -4,7 +4,8 @@ import type { ThumbnailReply } from "../main/thumbnails";
 import type { CanvasRow } from "../main/view";
 import type { ProjectCanvasComments } from "../main/projectComments";
 import { TooltipProvider } from "./components/ui/tooltip";
-import { applyVisibility, cardFacts, focusAfterRemoval, overviewSections, ProjectOverview, ThumbnailRequests, thumbnailView, type ThumbnailState } from "./ProjectOverview";
+import { applyVisibility, cardFacts, ProjectOverview, ThumbnailRequests, thumbnailView, type ThumbnailState } from "./ProjectOverview";
+import { focusAfterRemoval, overviewSections } from "./overviewOrder";
 
 const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, width: 1440, frames: [], open: 0, resolved: 0, url: `http://127.0.0.1/${path}`, ...extra });
 const rows = [
@@ -196,4 +197,23 @@ test("a card shows resolved to review from the project read, matched by canvas I
   expect(cardFacts(withoutId, counts)).toEqual({ frames: "0 frames" });
   const html = render([row("design/a.html", { open: 3 })], new Map(), counts);
   expect(html).toContain('class="ocard-meta"><span>0 frames</span> · <span class="hot">3 open</span> · <span class="review">2 resolved to review</span> · <span>—</span></span>');
+});
+
+// project-feedback draft `tree-errors`: the card of a canvas ls could not read
+// shows the tree row's sentence, and no frame count it does not know.
+test("the card of an unreadable canvas shows the tree row's sentence and no frame count", () => {
+  const unreadable: CanvasRow = { path: "design/legacy-checkout.html", url: "u", open: 0, resolved: 0, frames: [], error: { code: "unreadable_canvas", message: "Cannot read design/legacy-checkout.html: permission denied" } };
+  expect(thumbnailView(unreadable, undefined)).toEqual({ kind: "unreadable" });
+  expect(cardFacts(unreadable)).toEqual({});
+  const html = render([unreadable]);
+  expect(html).toContain('<p class="thumb-msg warn">Can&#x27;t read this canvas — run doan check</p>');
+  expect(html).not.toContain("doan:width");
+  expect(html).not.toContain("0 frames");
+  expect(html).not.toContain("permission denied");
+});
+
+test("a card never shows a count of comments without a canvas", () => {
+  const html = renderToStaticMarkup(<TooltipProvider><ProjectOverview root="/r" rows={[row("design/a.html", { open: 1 })]} thumbnails={new Map()} onVisible={() => {}} open={() => {}} comments={[{ id: "design/a.html", open: 1, resolved: 0, toReview: 1 }]} /></TooltipProvider>);
+  expect(html).toContain("1 resolved to review");
+  expect(html).not.toContain("without a canvas");
 });

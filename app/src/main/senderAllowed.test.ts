@@ -11,6 +11,8 @@ const mainOnly = [
   "window:visible",
   // revision-recheck: the project comment read and the device-local review markers.
   "comments:project", "review-state:get", "review-state:raise",
+  // project-feedback: resolve, reopen and delete on comments without a canvas.
+  "comments:orphan-mutate", "comments:orphan-status",
 ];
 const shared = ["setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get"];
 const settingsOnly = [

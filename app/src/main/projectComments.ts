@@ -1,23 +1,38 @@
 import { toReview, type ReviewMarker } from "../comments/review";
-import type { Author } from "../formats/types";
+import type { Author, Comment } from "../formats/types";
 import type { FolderView } from "./cli";
 import { readList } from "./comments/service";
+import type { OrphanFile } from "./view";
 
-// `comments:project`: Home and Overview counts for one project. The canvas
-// ids come from one fresh `doan ls`, and only their comment files are read;
-// the app never enumerates `.doan/comments/` itself (ARCHITECTURE §13).
+// `comments:project`: Home and Overview counts and the Feedback panel's
+// comments for one project. The canvas ids and the orphan files come from one
+// fresh `doan ls`, and only their comment files are read; the app never
+// enumerates `.doan/comments/` itself (ARCHITECTURE §13).
 
 export interface ProjectCommentsRequest { root: string; revision: number }
-export type ProjectCanvasComments = { id: string; open: number; resolved: number; toReview: number } | { id: string; error: string };
+// Main always sets `comments` and `orphanComments`; they are optional only so
+// count-only callers and their fixtures keep their shape.
+export type ProjectCanvasComments = { id: string; open: number; resolved: number; toReview: number; comments?: Comment[] } | { id: string; error: string };
+export type ProjectOrphanComments = { id: string; comments: Comment[] } | { id: string; error: string };
 // `revision` is the renderer's own, echoed so it can drop a reply that an
-// invalidation has already overtaken.
-export type ProjectComments = { root: string; revision: number } & ({ kind: "list"; canvases: ProjectCanvasComments[] } | { kind: "unavailable" });
+// invalidation has already overtaken. `project` is main's folder epoch the
+// whole read ran under, the value an orphan write must carry: a project with
+// no canvas has no other read that gives it. `orphans` is that same ls's list,
+// absent when ls gave none; `orphanComments` holds the files main read from it.
+// Main always sets `project`; it is optional for the same fixture reason.
+export type ProjectComments = { root: string; revision: number } & (
+  | { kind: "list"; project?: number; canvases: ProjectCanvasComments[]; orphans?: OrphanFile[]; orphanComments?: ProjectOrphanComments[] }
+  | { kind: "unavailable" }
+);
+
+const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 export interface ProjectCommentsDependencies {
   list(root: string): Promise<FolderView>;
   read(root: string, canvas: string): Promise<Buffer>;
   author(root: string): Promise<Author>;
   marker(root: string, canvas: string): ReviewMarker;
+  epoch(root: string): number | null;
 }
 
 export function parseProjectCommentsRequest(value: unknown): ProjectCommentsRequest | null {
@@ -29,6 +44,11 @@ export function parseProjectCommentsRequest(value: unknown): ProjectCommentsRequ
 
 export async function readProjectComments(deps: ProjectCommentsDependencies, request: ProjectCommentsRequest): Promise<ProjectComments> {
   const { root, revision } = request;
+  // A close or reopen during the read leaves results that belong to neither
+  // epoch, so they get no project at all; a later read gets the new epoch.
+  // Epochs come from one increasing counter, so equal values mean no reopen.
+  const project = deps.epoch(root);
+  if (project === null) return { root, revision, kind: "unavailable" };
   const listing = await deps.list(root);
   if (listing.kind !== "list" || listing.root !== root) return { root, revision, kind: "unavailable" };
   // Rows in ls order; a row without an id has no comment file.
@@ -51,10 +71,22 @@ export async function readProjectComments(deps: ProjectCommentsDependencies, req
         open: comments.filter(comment => comment.status === "open").length,
         resolved: comments.filter(comment => comment.status === "resolved").length,
         toReview: toReview(comments, deps.marker(root, id), self).length,
+        comments,
       };
     } catch (error) {
-      return { id, error: error instanceof Error ? error.message : "The comments could not be read." };
+      return { id, error: readError(error) };
     }
   }));
-  return { root, revision, kind: "list", canvases };
+  // A name that is not a canvas id has no app path (only ls counts show), and
+  // an orphan ls could not read keeps ls's error; neither is read here.
+  const readable = (listing.orphans ?? []).filter(orphan => CANVAS_ID.test(orphan.id) && orphan.error === undefined);
+  const orphanComments = await Promise.all(readable.map(async ({ id }): Promise<ProjectOrphanComments> => {
+    try { return { id, comments: readList(await deps.read(root, id)).comments }; } catch (error) { return { id, error: readError(error) }; }
+  }));
+  if (deps.epoch(root) !== project) return { root, revision, kind: "unavailable" };
+  return { root, revision, kind: "list", project, canvases, ...(listing.orphans ? { orphans: listing.orphans } : {}), orphanComments };
+}
+
+function readError(error: unknown): string {
+  return error instanceof Error ? error.message : "The comments could not be read.";
 }

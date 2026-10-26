@@ -20,17 +20,14 @@ func checkState(s repo.State) check.State {
 	}
 }
 func CheckInput(r repo.Repository) (check.Input, error) {
-	in := check.Input{Canvases: []canvas.Canvas{}, Unparsable: map[string]string{}, Reach: map[string][]check.CSSRef{}, CSS: map[string]canvas.Scan{}, Implements: map[string]check.State{}, CommentFileIDs: []string{}}
+	in := check.Input{Canvases: []canvas.Canvas{}, Unparsable: map[string]string{}, Reach: map[string][]check.CSSRef{}, CSS: map[string]canvas.Scan{}, Implements: map[string]check.State{}, CommentFiles: []repo.CommentFile{}}
 	files, e := readCanvases(r.Root)
 	if e != nil {
 		return in, e
 	}
-	comments, e := repo.CommentFiles(r.Root)
+	in.CommentFiles, e = repo.CommentFiles(r.Root)
 	if e != nil {
 		return in, e
-	}
-	for _, f := range comments {
-		in.CommentFileIDs = append(in.CommentFileIDs, f.ID)
 	}
 	if r.Config.TokenCSS != "" {
 		state, p, e := repo.Resolve(r.Root, r.Root, r.Config.TokenCSS)

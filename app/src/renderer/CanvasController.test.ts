@@ -2193,3 +2193,95 @@ describe("an Escape handler set by the panel (revision-recheck Review)", () => {
     } finally { h.controller.dispose(); }
   });
 });
+
+// project-feedback design §5: the id the open path lost, for the Comments
+// panel's notice. Memory only, per (root, path), for this app run.
+describe("id change", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const list = (canvases: FolderEntry extends infer E ? E extends { kind: "list"; canvases: infer C } ? C : never : never): FolderEntry[] => [{ path: "/repo", kind: "list", servedRev: 0, canvases }];
+
+  it("remembers the first id the open path lost until that id comes back", () => {
+    const h = selectionHarness();
+    try {
+      expect(h.state().idChangedFrom).toBeNull();
+      h.controller.updateEntries(list([{ ...h.row, id: "checkout" }, h.other]));
+      expect(h.state().idChangedFrom).toBe("a");
+      h.controller.updateEntries(list([{ ...h.row, id: "checkout-2" }, h.other]));
+      expect(h.state().idChangedFrom).toBe("a");
+      h.controller.updateEntries(list([h.row, h.other]));
+      expect(h.state().idChangedFrom).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("an invalid or duplicate new id (no id in ls) is a change too", () => {
+    const h = selectionHarness();
+    try {
+      const { id: _id, ...withoutId } = h.row;
+      h.controller.updateEntries(list([withoutId, h.other]));
+      expect(h.state().idChangedFrom).toBe("a");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a path that had no id remembers nothing", () => {
+    const h = selectionHarness();
+    try {
+      const { id: _id, ...idless } = h.other;
+      h.controller.updateEntries(list([h.row, idless]));
+      h.controller.openCanvas("/repo", idless);
+      h.controller.updateEntries(list([h.row, { ...idless, id: "fresh" }]));
+      expect(h.state().idChangedFrom).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("belongs to its path: another canvas shows none, coming back shows it again", () => {
+    const h = selectionHarness();
+    try {
+      const renamed = { ...h.row, id: "checkout" };
+      h.controller.updateEntries(list([renamed, h.other]));
+      h.controller.openCanvas("/repo", h.other);
+      expect(h.state().idChangedFrom).toBeNull();
+      h.controller.openCanvas("/repo", renamed);
+      expect(h.state().idChangedFrom).toBe("a");
+    } finally { h.controller.dispose(); }
+  });
+});
+
+describe("feedback navigation callbacks", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("tells `opened` once the guarded open ran, and not when the guard refuses", async () => {
+    const h = selectionHarness();
+    try {
+      const opened = vi.fn();
+      h.controller.setTransitionGuard(() => false);
+      h.controller.openCanvas("/repo", h.other, undefined, { opened });
+      expect(opened).not.toHaveBeenCalled();
+      let allow: (value: boolean) => void = () => {};
+      h.controller.setTransitionGuard(() => new Promise(resolve => { allow = resolve; }));
+      h.controller.openCanvas("/repo", h.other, undefined, { opened });
+      expect(opened).not.toHaveBeenCalled();
+      allow(true); await Promise.resolve(); await Promise.resolve();
+      expect(opened).toHaveBeenCalledTimes(1);
+      expect(h.state().open?.canvas).toBe("design/b.html");
+      // Already shown: no transition, told at once.
+      h.controller.openCanvas("/repo", h.other, undefined, { opened });
+      expect(opened).toHaveBeenCalledTimes(2);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("tells `shown` once the Overview is shown, at once when it already is", () => {
+    const h = selectionHarness();
+    try {
+      const shown = vi.fn();
+      h.controller.setTransitionGuard(() => false);
+      h.controller.showOverview(shown);
+      expect(shown).not.toHaveBeenCalled();
+      h.controller.setTransitionGuard(null);
+      h.controller.showOverview(shown);
+      expect(shown).toHaveBeenCalledTimes(1);
+      expect(h.state().open).toBeNull();
+      h.controller.showOverview(shown);
+      expect(shown).toHaveBeenCalledTimes(2);
+    } finally { h.controller.dispose(); }
+  });
+});

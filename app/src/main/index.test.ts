@@ -479,6 +479,20 @@ test.each(["list", "begin", "mutate", "status", "author", "copy"])("comments %s 
   expect(await invoke(`comments:${method}`, window().webContents, null, { forged: true })).toMatchObject({ ok: false });
 });
 
+test.each(["orphan-mutate", "orphan-status"])("comments %s refuses iframe and other-window callers", async method => {
+  for (const [sender, parent] of [[window().webContents, {}], [{}, null]]) {
+    expect(await invoke(`comments:${method}`, sender, parent, {})).toEqual({ ok: false, identity: null, error: "The request was refused." });
+  }
+  expect(await invoke(`comments:${method}`, window().webContents, null, { forged: true })).toMatchObject({ ok: false });
+});
+
+test("an orphan write is judged on a fresh ls of its root", async () => {
+  mocks.readFolder.mockResolvedValue({ kind: "list", root: APP, scope: ["design"], canvases: [], orphans: [] });
+  const intent = { type: "resolve", comment: "cmt_00000000-0000-4000-8000-000000000001", expected: { body: "b", status: "open", updatedAt: "2026-10-26T10:00:00.000Z" } };
+  expect(await invoke("comments:orphan-mutate", window().webContents, null, { root: APP, canvas: "gone", requestID: "r", project: 1, intent })).toMatchObject({ ok: false, error: "These comments are no longer without a canvas, or the project could not be read fully." });
+  expect(mocks.readFolder).toHaveBeenCalledWith("/bundled/doan", APP);
+});
+
 test("a guarded quit waits for a matching main-frame acknowledgement", async () => {
   await invoke("comments:guard", window().webContents, null, true);
   const event = { preventDefault: vi.fn() };
@@ -1834,6 +1848,12 @@ describe("review state and project comments", () => {
     expect(mocks.readFolder).toHaveBeenCalledExactlyOnceWith("/bundled/doan", APP);
     expect(deps.marker(APP, "home")).toEqual(MARKER);
     expect(mocks.reviewStore.marker).toHaveBeenCalledWith(APP, "home");
+    // The same epoch the orphan write checks, so a reply's project matches it.
+    mocks.shell.epoch.mockReturnValue(5);
+    expect(deps.epoch(APP)).toBe(5);
+    expect(mocks.shell.epoch).toHaveBeenLastCalledWith(APP);
+    mocks.shell.epoch.mockReturnValue(null);
+    expect(deps.epoch(APP)).toBeNull();
   });
 
   test("comments:project refuses other senders, bad requests and roots that are not saved", async () => {

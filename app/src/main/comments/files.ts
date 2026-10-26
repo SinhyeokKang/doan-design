@@ -37,16 +37,16 @@ async function directories(root: string, create: boolean): Promise<boolean> {
   }
   return true;
 }
-async function commentFile(root: string, canvasId: string, write: boolean): Promise<FileHandle | null> {
+async function commentFile(root: string, canvasId: string, write: boolean, create = write): Promise<FileHandle | null> {
   validate(root, canvasId);
-  if (!await directories(root, write)) return null;
+  if (!await directories(root, create)) return null;
   const parent = join(root, ".doan", "comments"), name = `${canvasId}.jsonl`;
   await exactName(parent, name);
   const flags = O_NOFOLLOW_ANY | constants.O_NONBLOCK | (write ? constants.O_RDWR | constants.O_APPEND : constants.O_RDONLY);
   let fd: FileHandle;
   try { fd = await open(join(parent, name), flags); } catch (error) {
     if (!missing(error)) throw error;
-    if (!write) return null;
+    if (!create) return null;
     // An exclusive collision is an error, never permission to reopen unchecked.
     fd = await open(join(parent, name), flags | constants.O_CREAT | constants.O_EXCL, 0o600);
   }
@@ -64,9 +64,11 @@ export async function readCommentBytes(root: string, canvasId: string): Promise<
 
 // The trusted caller serializes this entire operation per file and validates events.
 // Returning null skips append. Non-null bytes must be a nonempty LF-terminated batch.
-export async function withCommentAppend(root: string, canvasId: string, prepare: (latest: Buffer) => Promise<Buffer | null>): Promise<void> {
-  const fd = await commentFile(root, canvasId, true);
-  if (!fd) throw new Error("Missing append descriptor");
+// `create: false` (comments without a canvas) only appends to a file that
+// exists: a missing directory or file is refused before the mkdir child runs.
+export async function withCommentAppend(root: string, canvasId: string, prepare: (latest: Buffer) => Promise<Buffer | null>, options: { create: false } | undefined = undefined): Promise<void> {
+  const fd = await commentFile(root, canvasId, true, options?.create ?? true);
+  if (!fd) throw new Error(options ? "The comment file no longer exists." : "Missing append descriptor");
   let attempted = false;
   let failure: unknown;
   let failed = false;

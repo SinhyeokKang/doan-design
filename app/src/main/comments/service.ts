@@ -5,17 +5,22 @@ import { copyText, type CopyScope } from "../../comments/projection";
 import { parseLines } from "../../formats/fold";
 import { foldText } from "../../formats/foldText";
 import type { Author, Comment, CommentEvent, Target, Warning } from "../../formats/types";
+import type { FolderView } from "../cli";
 import { AppendUncertainError } from "./files";
 import { CanvasIdentityError, object, type CanvasIdentityCause } from "./identity";
 import { MkdirTerminationUnconfirmedError } from "./mkdir";
+import { orphanWriteAllowed } from "./orphanWrite";
 
 export interface CommentIdentity { root: string; path: string; canvas: string }
 export interface CommentRequest extends CommentIdentity { requestID: string }
+// A comment file no canvas uses has no canvas path (project-feedback design §4).
+export interface OrphanRequest { root: string; canvas: string; requestID: string }
+export interface OrphanMutationRequest extends OrphanRequest { project: number; intent: MutationIntent }
 export interface BeginRequest extends CommentRequest { scope: "canvas" | "selection" }
 export interface MutationRequest extends CommentRequest { project: number; intent: MutationIntent; origin?: string }
 export interface CopyRequest extends CommentRequest { scope: CopyScope }
 export interface DocumentOrigin { generation: string; hash: string; target: Target }
-export type CommentReply<T> = { ok: true; identity: CommentRequest; value: T } | { ok: false; identity: CommentRequest | null; error: string; cause?: CanvasIdentityCause; code?: "not_open" };
+export type CommentReply<T, I = CommentRequest> = { ok: true; identity: I; value: T } | { ok: false; identity: I | null; error: string; cause?: CanvasIdentityCause; code?: "not_open" };
 export interface CommentList { project: number; canvasHash: string | null; comments: Comment[]; warnings: Warning[] }
 export interface SavedStatus { state: "saved" | "absent" | "unknown"; recovery?: "child-exit-required"; event?: string; comment?: string; error?: string }
 export interface BeginResult extends DocumentOrigin { origin: string; project: number }
@@ -25,11 +30,13 @@ export interface ServiceDependencies {
   currentHash(identity: CommentIdentity): Promise<string>;
   author(root: string): Promise<Author>;
   read(root: string, canvas: string): Promise<Buffer>;
-  append(root: string, canvas: string, prepare: (latest: Buffer) => Promise<Buffer | null>): Promise<void>;
+  append(root: string, canvas: string, prepare: (latest: Buffer) => Promise<Buffer | null>, options?: { create: false }): Promise<void>;
   document(identity: CommentIdentity, scope: "canvas" | "selection", url: string): Promise<DocumentOrigin>;
   validateDocument(identity: CommentIdentity, origin: DocumentOrigin, url: string): Promise<boolean>;
   clipboard(text: string): void | Promise<void>;
   invalidated(root: string): void;
+  // A fresh `doan ls`, read for every orphan write judgement.
+  listing(root: string): Promise<FolderView>;
 }
 interface Origin { requester: string; identity: CommentIdentity; epoch: number; document: DocumentOrigin }
 export interface Baseline { length: number; digest: string; warnings: number }
@@ -37,12 +44,21 @@ export interface Baseline { length: number; digest: string; warnings: number }
 export interface AttemptEvidence { events: readonly [CommentEvent, ...CommentEvent[]]; before: Baseline }
 interface Attempt extends AttemptEvidence { payload: unknown }
 const baseKeys = ["root", "path", "canvas", "requestID"];
-function request(value: unknown, extras: string[] = []): CommentRequest {
-  if (!object(value) || !baseKeys.every(key => typeof value[key] === "string" && value[key].length > 0 && value[key].length <= 4096 && !value[key].includes("\0")) || Object.keys(value).some(key => ![...baseKeys, ...extras].includes(key))) throw new Error("Invalid comments request.");
-  if (typeof value.root !== "string" || typeof value.path !== "string" || typeof value.canvas !== "string" || typeof value.requestID !== "string") throw new Error("Invalid comments request.");
-  return { root: value.root, path: value.path, canvas: value.canvas, requestID: value.requestID };
+function fields(value: unknown, keys: string[], extras: string[]): Record<string, string> {
+  if (!object(value) || !keys.every(key => typeof value[key] === "string" && value[key].length > 0 && value[key].length <= 4096 && !value[key].includes("\0")) || Object.keys(value).some(key => ![...keys, ...extras].includes(key))) throw new Error("Invalid comments request.");
+  return Object.fromEntries(keys.map(key => [key, String(value[key])]));
 }
-function identityEqual(a: CommentIdentity, b: CommentIdentity) { return a.root === b.root && a.path === b.path && a.canvas === b.canvas; }
+function request(value: unknown, extras: string[] = []): CommentRequest {
+  const { root, path, canvas, requestID } = fields(value, baseKeys, extras);
+  if (root === undefined || path === undefined || canvas === undefined || requestID === undefined) throw new Error("Invalid comments request.");
+  return { root, path, canvas, requestID };
+}
+function orphanRequest(value: unknown, extras: string[] = []): OrphanRequest {
+  const { root, canvas, requestID } = fields(value, ["root", "canvas", "requestID"], extras);
+  if (root === undefined || canvas === undefined || requestID === undefined) throw new Error("Invalid comments request.");
+  return { root, canvas, requestID };
+}
+function identityEqual(a: CommentIdentity, b: { root: string; path?: string; canvas: string }) { return a.root === b.root && a.path === b.path && a.canvas === b.canvas; }
 function message(error: unknown): string { return error instanceof Error ? error.message : "Comments operation failed."; }
 function text(bytes: Buffer): string {
   // Go's JSON reader advances one byte per invalid rune; TextDecoder consumes
@@ -132,8 +148,9 @@ export function createCommentsService(deps: ServiceDependencies) {
   const queues = new Map<string, Promise<unknown>>();
   const origins = new Map<string, Origin>();
   const attempts = new Map<string, Attempt>();
-  const key = (who: string, r: CommentRequest) => JSON.stringify([who, r.root, r.canvas, r.requestID]);
-  const serialized = async <T>(r: CommentIdentity, run: () => Promise<T>): Promise<T> => {
+  // Canvas and orphan requests share one table, so a request id reused across them is refused.
+  const key = (who: string, r: OrphanRequest) => JSON.stringify([who, r.root, r.canvas, r.requestID]);
+  const serialized = async <T>(r: { root: string }, run: () => Promise<T>): Promise<T> => {
     const file = r.root;
     const next = (queues.get(file) ?? Promise.resolve()).catch(() => undefined).then(run);
     queues.set(file, next);
@@ -145,14 +162,81 @@ export function createCommentsService(deps: ServiceDependencies) {
     if (deps.epoch(r.root) !== epoch) throw new Error("Project was closed or reopened.");
     return result;
   };
-  const reply = async <T>(value: unknown, extras: string[], run: (r: CommentRequest) => Promise<T>): Promise<CommentReply<T>> => {
-    let r: CommentRequest | null = null;
-    try { r = request(value, extras); return { ok: true, identity: r, value: await run(r) }; }
+  // project-feedback design §4: judged on a fresh ls each time; the canvas rows are not consulted.
+  const orphanAuthorized = async (r: OrphanRequest, intent: MutationIntent, epoch: number): Promise<null> => {
+    if (deps.epoch(r.root) !== epoch) throw new Error("Project was closed or reopened.");
+    const listing = await deps.listing(r.root);
+    if (deps.epoch(r.root) !== epoch) throw new Error("Project was closed or reopened.");
+    if (!orphanWriteAllowed(listing, { root: r.root, canvas: r.canvas, intent })) throw new Error("These comments are no longer without a canvas, or the project could not be read fully.");
+    return null;
+  };
+  const answer = async <I, T>(parse: (value: unknown, extras: string[]) => I, value: unknown, extras: string[], run: (r: I) => Promise<T>): Promise<CommentReply<T, I>> => {
+    let r: I | null = null;
+    try { r = parse(value, extras); return { ok: true, identity: r, value: await run(r) }; }
     catch (error) { return { ok: false, identity: r, error: message(error), ...(error instanceof CanvasIdentityError ? { cause: error.cause } : {}), ...(error instanceof NotOpenError ? { code: "not_open" as const } : {}) }; }
   };
-  const check = async (r: CommentRequest, attempt: Attempt): Promise<SavedStatus> => {
+  const reply = <T>(value: unknown, extras: string[], run: (r: CommentRequest) => Promise<T>) => answer(request, value, extras, run);
+  const check = async (r: OrphanRequest, attempt: Attempt): Promise<SavedStatus> => {
     try { return inspectAttempt(await deps.read(r.root, r.canvas), attempt); }
     catch (error) { return { state: "unknown", error: message(error) }; }
+  };
+  const noMatch: SavedStatus = { state: "unknown", error: "This process has no matching save request." };
+  // One save for a listed canvas or an orphan file. `authorize` re-judges the
+  // target for this epoch and returns the canvas, or null for an orphan file.
+  const save = async (who: string, r: OrphanRequest & { path?: string }, value: Record<string, unknown>, intent: MutationIntent, authorize: (epoch: number) => Promise<{ width: number | null; url: string } | null>, options?: { create: false }): Promise<SavedStatus> => {
+    const epoch = deps.epoch(r.root);
+    if (value.project !== epoch || epoch === null) throw new Error("Project was closed or reopened; read the current list.");
+    if (blockedRoots.has(r.root)) return blocked();
+    let canvas = await authorize(epoch);
+    const attemptKey = key(who, r);
+    let attempt = attempts.get(attemptKey);
+    if (attempt && !isDeepStrictEqual(attempt.payload, value)) throw new Error("Request id was reused with different content.");
+    if (attempt) {
+      const state = await check(r, attempt);
+      if (state.state !== "absent") return state;
+    }
+    const by = await deps.author(r.root);
+    if (by.kind !== "human" || !by.name.trim()) throw new Error("Configure a Git user name before saving comments.");
+    canvas = await authorize(epoch);
+    let origin: Origin | undefined;
+    if (intent.type === "create") {
+      origin = typeof value.origin === "string" ? origins.get(value.origin) : undefined;
+      if (!origin || origin.requester !== who || !identityEqual(origin.identity, r) || origin.epoch !== epoch || canvas === null || canvas.width === null) throw new Error("Original create context is no longer valid.");
+    } else if (Object.hasOwn(value, "origin")) throw new Error("Existing comments do not accept a create origin.");
+    const write = async (latest: Buffer) => {
+      const current = await authorize(epoch);
+      if (attempt) {
+        const state = inspectAttempt(latest, attempt);
+        if (state.state === "saved") return null;
+        if (state.state === "unknown") throw new AppendUncertainError(new Error(state.error));
+      }
+      if (origin && (current === null || current.width === null || !await deps.validateDocument(origin.identity, origin.document, current.url))) throw new Error("Original document or target changed; the draft was not saved.");
+      if (deps.epoch(r.root) !== epoch) throw new Error("Project was closed or reopened.");
+      const create = origin ? { create: { target: origin.document.target, canvasHash: origin.document.hash, documentValid: true } } : {};
+      if (attempt) {
+        // Revalidate against the latest file, but write the stored events unchanged.
+        const [first] = attempt.events;
+        prepare(latest, intent, { id: first.id, comment: first.comment, by: first.by, now: Date.parse(first.at), ...create }, attempt.events.map(event => event.id));
+      }
+      if (!attempt) {
+        const events = prepare(latest, intent, { id: `evt_${randomUUID()}`, comment: `cmt_${randomUUID()}`, by, now: Date.now(), ...create }, [`evt_${randomUUID()}`, `evt_${randomUUID()}`]);
+        attempt = { payload: structuredClone(value), events, before: attemptBaseline(latest) };
+        attempts.set(attemptKey, attempt);
+      }
+      return Buffer.from(attempt.events.map(event => JSON.stringify(event) + "\n").join(""));
+    };
+    try {
+      if (options) await deps.append(r.root, r.canvas, write, options);
+      else await deps.append(r.root, r.canvas, write);
+    } catch (error) {
+      if (error instanceof MkdirTerminationUnconfirmedError) { blockedRoots.add(r.root); return blocked(); }
+      if (error instanceof AppendUncertainError) return { state: "unknown", error: message(error), ...(attempt ? { event: attempt.events[0].id, comment: attempt.events[0].comment } : {}) };
+      throw error;
+    }
+    deps.invalidated(r.root);
+    if (!attempt) return { state: "unknown", error: "No prepared event." };
+    const confirmed = await check(r, attempt);
+    return confirmed.state === "absent" ? { state: "unknown", event: attempt.events[0].id, comment: attempt.events[0].comment, error: "The append completed, but the current file no longer contains it. Check saved status." } : confirmed;
   };
   return {
     list(_who: string, value: unknown): Promise<CommentReply<CommentList>> {
@@ -180,64 +264,33 @@ export function createCommentsService(deps: ServiceDependencies) {
         await authorized(r, deps.epoch(r.root));
         if (blockedRoots.has(r.root)) return blocked();
         const attempt = attempts.get(key(who, r));
-        if (!attempt || !object(attempt.payload) || attempt.payload.path !== r.path) return { state: "unknown", error: "This process has no matching save request." };
+        if (!attempt || !object(attempt.payload) || attempt.payload.path !== r.path) return noMatch;
         return check(r, attempt);
       }));
     },
     mutate(who: string, value: unknown): Promise<CommentReply<SavedStatus>> {
       return reply(value, ["intent", "origin", "project"], r => serialized(r, async () => {
         if (!object(value) || !validIntent(value.intent)) throw new Error("Invalid mutation.");
-        const epoch = deps.epoch(r.root);
-        if (value.project !== epoch || epoch === null) throw new Error("Project was closed or reopened; read the current list.");
+        return save(who, r, value, value.intent, epoch => authorized(r, epoch));
+      }));
+    },
+    // project-feedback design §4: no path, no create or edit, and a file that is never created.
+    orphanMutate(who: string, value: unknown): Promise<CommentReply<SavedStatus, OrphanRequest>> {
+      return answer(orphanRequest, value, ["intent", "project"], r => serialized(r, async () => {
+        if (!object(value) || !validIntent(value.intent)) throw new Error("Invalid mutation.");
+        const intent = value.intent;
+        if (intent.type !== "resolve" && intent.type !== "reopen" && intent.type !== "delete") throw new Error("Comments without a canvas can only be resolved, reopened or deleted.");
+        return save(who, r, value, intent, epoch => orphanAuthorized(r, intent, epoch), { create: false });
+      }));
+    },
+    // No orphan judgement here, so an uncertain save stays checkable after its canvas returns.
+    orphanStatus(who: string, value: unknown): Promise<CommentReply<SavedStatus, OrphanRequest>> {
+      return answer(orphanRequest, value, [], r => serialized(r, async () => {
+        if (deps.epoch(r.root) === null) throw new Error("Project was closed or reopened.");
         if (blockedRoots.has(r.root)) return blocked();
-        let canvas = await authorized(r, epoch);
-        const attemptKey = key(who, r);
-        let attempt = attempts.get(attemptKey);
-        if (attempt && !isDeepStrictEqual(attempt.payload, value)) throw new Error("Request id was reused with different content.");
-        if (attempt) {
-          const state = await check(r, attempt);
-          if (state.state !== "absent") return state;
-        }
-        const by = await deps.author(r.root);
-        if (by.kind !== "human" || !by.name.trim()) throw new Error("Configure a Git user name before saving comments.");
-        canvas = await authorized(r, epoch);
-        let origin: Origin | undefined;
-        if (value.intent.type === "create") {
-          origin = typeof value.origin === "string" ? origins.get(value.origin) : undefined;
-          if (!origin || origin.requester !== who || !identityEqual(origin.identity, r) || origin.epoch !== epoch || canvas.width === null) throw new Error("Original create context is no longer valid.");
-        } else if (Object.hasOwn(value, "origin")) throw new Error("Existing comments do not accept a create origin.");
-        try {
-          await deps.append(r.root, r.canvas, async latest => {
-            const current = await authorized(r, epoch);
-            if (attempt) {
-              const state = inspectAttempt(latest, attempt);
-              if (state.state === "saved") return null;
-              if (state.state === "unknown") throw new AppendUncertainError(new Error(state.error));
-            }
-            if (origin && (current.width === null || !await deps.validateDocument(r, origin.document, current.url))) throw new Error("Original document or target changed; the draft was not saved.");
-            if (deps.epoch(r.root) !== epoch) throw new Error("Project was closed or reopened.");
-            const create = origin ? { create: { target: origin.document.target, canvasHash: origin.document.hash, documentValid: true } } : {};
-            if (attempt) {
-              // Revalidate against the latest file, but write the stored events unchanged.
-              const [first] = attempt.events;
-              prepare(latest, value.intent, { id: first.id, comment: first.comment, by: first.by, now: Date.parse(first.at), ...create }, attempt.events.map(event => event.id));
-            }
-            if (!attempt) {
-              const events = prepare(latest, value.intent, { id: `evt_${randomUUID()}`, comment: `cmt_${randomUUID()}`, by, now: Date.now(), ...create }, [`evt_${randomUUID()}`, `evt_${randomUUID()}`]);
-              attempt = { payload: structuredClone(value), events, before: attemptBaseline(latest) };
-              attempts.set(attemptKey, attempt);
-            }
-            return Buffer.from(attempt.events.map(event => JSON.stringify(event) + "\n").join(""));
-          });
-        } catch (error) {
-          if (error instanceof MkdirTerminationUnconfirmedError) { blockedRoots.add(r.root); return blocked(); }
-          if (error instanceof AppendUncertainError) return { state: "unknown", error: message(error), ...(attempt ? { event: attempt.events[0].id, comment: attempt.events[0].comment } : {}) };
-          throw error;
-        }
-        deps.invalidated(r.root);
-        if (!attempt) return { state: "unknown", error: "No prepared event." };
-        const confirmed = await check(r, attempt);
-        return confirmed.state === "absent" ? { state: "unknown", event: attempt.events[0].id, comment: attempt.events[0].comment, error: "The append completed, but the current file no longer contains it. Check saved status." } : confirmed;
+        const attempt = attempts.get(key(who, r));
+        if (!attempt || !object(attempt.payload) || Object.hasOwn(attempt.payload, "path")) return noMatch;
+        return check(r, attempt);
       }));
     },
     copy(_who: string, value: unknown): Promise<CommentReply<{ copied: true }>> {

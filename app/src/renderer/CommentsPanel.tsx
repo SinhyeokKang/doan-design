@@ -3,6 +3,7 @@ import type { Comment, Target, Warning } from "../formats/types";
 import type { ListFilter } from "../comments/projection";
 import { targetLabel } from "../comments/targetLabel";
 import { reopenText, resolutionText, type NamedLine } from "../comments/resolution";
+import { ErrorDetails } from "./ErrorDetails";
 import { ReviewBar, ReviewDone, ReviewNotice, type ReviewBarView, type ReviewDoneView, type ReviewNoticeView } from "./ReviewBar";
 import { READ_FAILED_EDITOR, WARNINGS_TITLE, commentsPanelState, emptyListText, identityText, warningFileText, warningGroups, warningText, type IdentityCause } from "../comments/panelText";
 
@@ -82,6 +83,9 @@ export interface CommentsPanelProps {
   reviewNotice?: ReviewNoticeView | null;
   reviewBar?: ReviewBarView | null;
   reviewDone?: ReviewDoneView | null;
+  // project-feedback: this canvas's comments left with an id it lost; Show
+  // goes to them in Feedback. The first banner under the head.
+  idNotice?: { text: string; onShow: () => void } | null;
   editor: CommentEditorProps | null;
   headingRef?: Ref<HTMLHeadingElement>;
   panelRef?: Ref<HTMLElement>;
@@ -116,10 +120,12 @@ export function CommentsPanel(props: CommentsPanelProps) {
   const editorBlocked = editor && (props.writeBlocked ?? (read.status === "failed" ? READ_FAILED_EDITOR : null) ?? (props.busy ? "A comment change is in progress." : null) ?? (author.status !== "ready" ? "A Git name is required before saving." : null) ?? (editor.mode === "create" && props.widthInvalid ? "Run doan check in a terminal to diagnose the canvas. A readable width is required to add comments and show pins." : null) ?? editor.blocked);
   const state = commentsPanelState(props.identityCause, read, author);
   const editorView = editor && <CommentEditor {...editor} blocked={editor.continue ? editor.blocked : editorBlocked || null} />;
+  const idNotice = props.idNotice && <div className="comments-message warning notice" role="status">{props.idNotice.text}<button type="button" className="comments-btn" onClick={props.idNotice.onShow}>Show</button></div>;
   if (state.kind === "identity") {
     const text = identityText(state.cause, props.canvasId);
     return <section ref={props.panelRef} className="comments-panel native-scroll" aria-label="Comments">
       <h3 ref={props.headingRef} className="comments-title alone" tabIndex={-1}>Comments</h3>
+      {idNotice}
       {editorView}
       <div className="comments-message error" role="alert"><b>{text.title}</b>{text.body}</div>
     </section>;
@@ -153,6 +159,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
       </div>
       {props.createError && <p className="comments-helper" role="alert">Couldn’t start comment: {props.createError}</p>}
     </div>
+    {idNotice}
     {editorView}
     {props.widthInvalid && <div className="comments-message warning"><b>Could not read a valid board width.</b>Existing comments are still available. Run doan check in a terminal to diagnose the canvas. A readable width is required to add comments and show pins.</div>}
     {props.writeBlocked && <div className="comments-message error" role="alert"><b>Comments are read-only</b>{props.writeBlocked}</div>}
@@ -167,7 +174,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
     {props.reviewDone && <ReviewDone {...props.reviewDone} />}
     {props.reviewBar ? <ReviewBar {...props.reviewBar} /> : props.reviewNotice && <ReviewNotice {...props.reviewNotice} />}
     {read.status === "loading" ? <div className="comments-message" role="status"><b>Loading comments…</b></div>
-      : read.status === "failed" ? <div className="comments-message error" role="alert"><b>Couldn’t read comments</b>{read.message}<div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRead}>Retry</button></div></div>
+      : read.status === "failed" ? <div className="comments-message error" role="alert"><b>Couldn’t read comments</b><ErrorDetails className="comments-btn" detail={read.message}>{(button, detail) => <><div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRead}>Retry</button>{button}</div>{detail && <p className="detail">{detail}</p>}</>}</ErrorDetails></div>
         : <>
           {read.warnings.length > 0 && <div className="comments-message warning comments-warnings"><b>{WARNINGS_TITLE}</b>
             <ul>{warningGroups(read.warnings).map(group => <li key={group.code}>{warningText(group.code)}<span className="lines">{group.label}</span></li>)}</ul>
@@ -237,12 +244,12 @@ export function CommentCard({ comment, frames, freshness, locationMissing, disab
   </article>;
 }
 
-function ResolutionLine({ line }: { line: NamedLine }) {
+export function ResolutionLine({ line }: { line: NamedLine }) {
   const text = <>{line.lead}<b>{line.name}</b>{line.tail}</>;
   return <p className="comments-resolution">{line.at === undefined ? text : <time dateTime={line.at} title={line.at}>{text}</time>}</p>;
 }
 
-function SaveMessage({ state }: { state: SaveView }) {
+export function SaveMessage({ state }: { state: SaveView }) {
   switch (state.status) {
     case "idle": return null;
     case "saving": return <><b>Saving…</b>Your input is kept until saving finishes.</>;

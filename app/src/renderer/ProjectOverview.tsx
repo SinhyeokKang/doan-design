@@ -2,55 +2,31 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import type { ProjectCanvasComments } from "../main/projectComments";
 import type { CanvasRow } from "../main/view";
 import type { ThumbnailReply } from "../main/thumbnails";
-import { buildCanvasTree, type CanvasNode, type TreeNode } from "./canvasTree";
+import type { CanvasNode } from "./canvasTree";
+import { focusAfterRemoval, overviewSections } from "./overviewOrder";
 import { ChangedTime, PathTip } from "./Home";
 import { FirstPrompt } from "./FirstPrompt";
 
 // Keyed by canvas path. A path with no entry has not been captured yet.
 export type ThumbnailState = { kind: "pending" } | { kind: "ready"; url: string } | { kind: "failed" };
-export type ThumbnailView = ThumbnailState | { kind: "noWidth" };
+export type ThumbnailView = ThumbnailState | { kind: "noWidth" } | { kind: "unreadable" };
 
-export interface OverviewSection {
-  key: string;
-  canvases: CanvasNode[];
-}
-
-// Root first, then folders in tree order; a folder's section holds only its
-// own canvases, so a folder of folders has none.
-export function overviewSections(rows: readonly CanvasRow[]): OverviewSection[] {
-  const sections: OverviewSection[] = [];
-  const walk = (nodes: readonly TreeNode[], key: string) => {
-    const canvases = nodes.filter((node): node is CanvasNode => node.kind === "canvas");
-    if (canvases.length) sections.push({ key, canvases });
-    for (const node of nodes) if (node.kind === "folder") walk(node.children, node.key);
-  };
-  walk(buildCanvasTree(rows), "");
-  return sections;
-}
-
-// An absent canvas ID says nothing about the supplied frame metadata. The
+// An absent canvas ID says nothing about the supplied frame metadata, but a
+// canvas ls could not read has none to show. The
 // review count is the `comments:project` one for the row's ID; a canvas whose
 // comment file failed shows none rather than a wrong one.
 export function cardFacts(row: CanvasRow, comments?: readonly ProjectCanvasComments[]): { frames?: string; open?: string; review?: string } {
   const count = row.frames?.length ?? 0;
-  const frames = row.frames === undefined ? undefined : row.framesTruncated ? "1,000+ frames" : `${count.toLocaleString("en-US")} ${count === 1 ? "frame" : "frames"}`;
+  const frames = row.frames === undefined || row.error ? undefined : row.framesTruncated ? "1,000+ frames" : `${count.toLocaleString("en-US")} ${count === 1 ? "frame" : "frames"}`;
   const counts = row.id === undefined ? undefined : comments?.find(canvas => canvas.id === row.id);
   const toReview = counts && !("error" in counts) ? counts.toReview : 0;
   return { ...(frames === undefined ? {} : { frames }), ...(row.open > 0 ? { open: `${row.open} open` } : {}), ...(toReview > 0 ? { review: `${toReview} resolved to review` } : {}) };
 }
 
 export function thumbnailView(row: CanvasRow, state: ThumbnailState | undefined): ThumbnailView {
+  if (row.error) return { kind: "unreadable" };
   if (row.width === undefined) return { kind: "noWidth" };
   return state ?? { kind: "pending" };
-}
-
-// The card after the removed one in the previous order that is still listed,
-// else the nearest one before it.
-export function focusAfterRemoval(previous: readonly string[], current: readonly string[], focused: string): string | null {
-  const at = previous.indexOf(focused);
-  if (at === -1 || current.includes(focused)) return null;
-  const listed = new Set(current);
-  return previous.slice(at + 1).find(key => listed.has(key)) ?? previous.slice(0, at).reverse().find(key => listed.has(key)) ?? null;
 }
 
 export function applyVisibility(current: ReadonlySet<string>, changes: readonly { path: string; visible: boolean }[]): Set<string> | null {
@@ -207,6 +183,7 @@ function CanvasCard({ canvas, comments, thumbnail, open, focus, blur }: { canvas
     <div id={`${id}-thumb`} className={`thumb${thumbnail.kind === "pending" ? " pending" : ""}`}>
       {thumbnail.kind === "ready" ? <img src={thumbnail.url} alt="" />
         : thumbnail.kind === "failed" ? <p className="thumb-msg">Preview unavailable</p>
+        : thumbnail.kind === "unreadable" ? <p className="thumb-msg warn">Can't read this canvas — run doan check</p>
         : thumbnail.kind === "noWidth" ? <p className="thumb-msg">Preview needs a valid <code>doan:width</code> — run doan check</p>
         : null}
     </div>

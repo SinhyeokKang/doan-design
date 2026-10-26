@@ -1,0 +1,3 @@
+Listed the Billing canvas (billing-v2) and ran the checks: no errors, one warning. The listing includes:
+{"id":"billing","file":".doan/comments/billing.jsonl","comments":{"open":1,"resolved":0},"uncertain":false}
+A comment remains in .doan/comments/billing.jsonl, but no canvas uses the old billing ID, so it is no longer attached to a canvas. I left the file unchanged. Would you like the canvas ID restored, or how would you like to handle this comment?

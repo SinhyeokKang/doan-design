@@ -18,6 +18,7 @@ import { groupProjects, cardRow } from "./homeCards";
 import { moveExpanded, Sidebar, type CanvasMove } from "./Sidebar";
 import { useComments } from "./useComments";
 import { RightPanel } from "./RightPanel";
+import { FeedbackPanel } from "./FeedbackPanel";
 import { duplicateIdText } from "./canvasView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
 import { Wizard, type Reroot } from "./Onboarding";
@@ -139,7 +140,14 @@ export function App() {
   }, [wizard]);
   // Set once the project counts below exist; a raised review marker refreshes them.
   const reviewedRoot = useRef<(root: string) => void>(() => {});
-  const comments = useComments(state, controller, () => setScreen("workspace"), entries, root => reviewedRoot.current(root), homeDirectory);
+  // The id-change notice's Show: the Overview's Feedback expands that id's
+  // orphan group and focuses its head (project-feedback design §5).
+  const [reveal, setReveal] = useState<{ root: string; id: string; seq: number } | null>(null);
+  const showOrphans = (root: string, id: string) => {
+    cancelRestore();
+    controller.current?.showOverview(() => setReveal(previous => ({ root, id, seq: (previous?.seq ?? 0) + 1 })));
+  };
+  const comments = useComments(state, controller, () => setScreen("workspace"), entries, root => reviewedRoot.current(root), homeDirectory, showOrphans);
   const home = () => {
     cancelRestore();
     controller.current?.cancelWorkspaceOpen();
@@ -356,9 +364,28 @@ export function App() {
   const countedRoots = useMemo(() => screen === "home" ? entries.map(entry => entry.path) : shownOverview ? [shownOverview] : [], [screen, entries, shownOverview]);
   const projectComments = useProjectComments(entries, countedRoots);
   reviewedRoot.current = projectComments.refresh;
+  // A Feedback row or its "N resolved to review": the canvas opens (draft guard
+  // applies), then the Comments panel goes to the comment or starts Review.
+  // `unavailable` gets the entry the controller judged by, not this render's
+  // (POSTMORTEM 2026-10-25 "Navigation feedback read the previous React snapshot").
+  const openFeedback = (root: string, row: CanvasRow, target: { comment: string; status: "open" | "resolved" } | "review") => {
+    cancelRestore();
+    controller.current?.openCanvas(root, row, undefined, {
+      unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path)),
+      opened: () => live.current.comments.openAt(target === "review" ? { root, path: row.path, review: true } : { root, path: row.path, ...target }),
+    });
+  };
+  const feedback = overview && <FeedbackPanel key={overview.path} root={overview.path} rows={overview.canvases} read={projectComments.reads.get(overview.path)} orphans={comments.orphans}
+    onRetry={() => projectComments.refresh(overview.path)}
+    onOrphan={(intent, at, comment) => { comments.orphanIntent(intent, at, comment); if (intent === "read-latest") projectComments.refresh(at.root); }}
+    onRetryGit={() => { void comments.orphans.retryGit(overview.path); }}
+    onOpenComment={(row, comment, status) => openFeedback(overview.path, row, { comment, status })}
+    onOpenCanvas={row => { cancelRestore(); controller.current?.openCanvas(overview.path, row, undefined, { unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path)) }); }}
+    onReview={row => openFeedback(overview.path, row, "review")}
+    reveal={reveal?.root === overview.path ? reveal : null} onRevealed={() => setReveal(null)} />;
   const previousOverview = useRef(shownOverview);
   useEffect(() => {
-    if (previousOverview.current !== null && previousOverview.current !== shownOverview) setOverviewNotice(null);
+    if (previousOverview.current !== null && previousOverview.current !== shownOverview) { setOverviewNotice(null); setReveal(null); }
     previousOverview.current = shownOverview;
   }, [shownOverview]);
   const rendered = useMemo(() => state.open && state.layout ? { root: state.open.folder, path: state.open.canvas, frames: state.layout.frames } : undefined, [state.open?.folder, state.open?.canvas, state.layout]);
@@ -384,7 +411,7 @@ export function App() {
     <Sidebar entries={entries.filter(entry => entry.path === loadedRoot)} state={state} expanded={expanded} moved={moved} onExpandedChange={(root, paths) => { cancelRestore(); setExpanded(previous => ({ ...previous, [root]: paths })); }} open={(folder, row, frameId, index) => { cancelRestore(); controller.current?.openCanvas(folder, row, frameId, index === undefined ? undefined : { index }); }} jump={index => controller.current?.jump(index)} select={index => controller.current?.selectFrame(index)} overview={() => { cancelRestore(); controller.current?.showOverview(); }} />
     <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null} />
     {overview && <ProjectOverview key={overview.path} root={overview.path} rows={overview.canvases} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null} comments={projectComments.comments.get(overview.path)} open={row => { cancelRestore(); controller.current?.openCanvas(overview.path, row); }} />}
-    <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />{comments.panel}</div>
+    <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} feedback={feedback} />{comments.panel}</div>
   </main>
   {comments.dialog}
   {scan && <AddProjectsDialog homeDirectory={homeDirectory} key={scan} scanId={scan} close={() => { setScan(null); modalClosed(); }} added={added} />}

@@ -518,6 +518,7 @@ async function start(): Promise<void> {
   systemPreferences.subscribeLocalNotification("NSApplicationDidUnhideNotification", () => { appHidden = false; visibilityChanged(); });
   // Starts the once-per-launch cache cleanup even when no folder update follows.
   thumbs.entriesChanged(ready.entries());
+  const cli = cliCommand(process.env, app.isPackaged, process.resourcesPath);
   const comments = createCommentsService({
     authorize: identity => ready.authorizeComments(identity),
     epoch: root => ready.epoch(root),
@@ -539,10 +540,11 @@ async function start(): Promise<void> {
       return inspector.documentCurrent(identity, url, origin);
     },
     clipboard: value => clipboard.writeText(value), invalidated: invalidate,
+    listing: root => readFolder(cli, root),
   });
-  const commentMethods: (keyof typeof comments)[] = ["list", "begin", "mutate", "status", "author", "copy"];
-  for (const method of commentMethods) {
-    handle(`comments:${method}`, { ok: false, identity: null, error: "The request was refused." }, (event, value: unknown) => {
+  const commentMethods = { list: "list", begin: "begin", mutate: "mutate", status: "status", author: "author", copy: "copy", orphanMutate: "orphan-mutate", orphanStatus: "orphan-status" } as const;
+  for (const [method, channel] of Object.entries(commentMethods) as [keyof typeof commentMethods, string][]) {
+    handle(`comments:${channel}`, { ok: false, identity: null, error: "The request was refused." }, (event, value: unknown) => {
       if (!fromWindow(event)) return { ok: false, identity: null, error: "The request was refused." };
       return comments[method](String(event.sender.id), value);
     });
@@ -590,7 +592,6 @@ async function start(): Promise<void> {
   handle("app:home", null, event => fromWindow(event) ? homeDirectory() : null);
   handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
   handle("folders:get", [], (event) => (fromWindow(event) ? ready.entries() : []));
-  const cli = cliCommand(process.env, app.isPackaged, process.resourcesPath);
   const storedRoot = (root: string) => ready.entries().some(entry => entry.path === root);
   const reviews = createReviewStore(join(userData, "review-state.json"), () => savedRoots);
   const flow = createAddFlow({
@@ -708,7 +709,7 @@ async function start(): Promise<void> {
     if (!fromWindow(event) || request === null || !storedRoot(request.root)) return null;
     return readProjectComments({
       list: root => readFolder(cli, root), read: readCommentBytes, author: readAuthor,
-      marker: (root, canvas) => reviews.marker(root, canvas),
+      marker: (root, canvas) => reviews.marker(root, canvas), epoch: root => ready.epoch(root),
     }, request);
   });
   // A saved root and a listed canvas only; main reads the bytes from its cache.

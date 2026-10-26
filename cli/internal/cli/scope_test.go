@@ -117,7 +117,7 @@ func TestListRootAndScope(t *testing.T) {
 	if e := json.Unmarshal([]byte(`[{"path":"design/a.html","id":"foo","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}],"comments":{"open":1,"resolved":0}}]`), &want); e != nil {
 		t.Fatal(e)
 	}
-	if !reflect.DeepEqual(got["canvases"], want) || len(got) != 3 {
+	if !reflect.DeepEqual(got["canvases"], want) || !reflect.DeepEqual(got["orphans"], []any{}) || len(got) != 4 {
 		t.Fatal(got)
 	}
 	bare := t.TempDir()

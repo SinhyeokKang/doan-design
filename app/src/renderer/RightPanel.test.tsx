@@ -189,3 +189,16 @@ describe("agent selection hint", () => {
     expect(html).not.toContain("Your agent can read this selection");
   });
 });
+
+// project-feedback spec 'Feedback 패널': with no canvas open on the Overview
+// the right panel is Feedback; elsewhere it stays Canvas info.
+describe("RightPanel without an open canvas", () => {
+  test("is the Feedback panel it is given", () => {
+    const html = renderToStaticMarkup(<RightPanel state={initialCanvasState()} selectPath={() => {}} feedback={<section aria-label="Feedback">F</section>} />);
+    expect(html).toBe('<section aria-label="Feedback">F</section>');
+  });
+
+  test("stays Canvas info · No canvas open without one", () => {
+    expect(renderToStaticMarkup(<RightPanel state={initialCanvasState()} selectPath={() => {}} />)).toContain('<p class="pempty">No canvas open</p>');
+  });
+});

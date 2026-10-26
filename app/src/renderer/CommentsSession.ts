@@ -4,7 +4,7 @@ import { handoffAfterRead, handoffRows, quickSelect, staleIds, type HandoffEntry
 import { reviewState, reviewSummary, startReview, toReview, type ReviewMarker, type ReviewState } from "../comments/review";
 import type { Comment, Target } from "../formats/types";
 import type { CanvasIdentityCause } from "../main/comments/identity";
-import type { BeginResult, CommentIdentity, CommentList, CommentReply, CommentRequest, MutationRequest, SavedStatus } from "../main/comments/service";
+import type { BeginResult, CommentIdentity, CommentList, CommentReply, CommentRequest, MutationRequest, OrphanMutationRequest, OrphanRequest, SavedStatus } from "../main/comments/service";
 import type { DoanApi } from "../preload";
 import type { AuthorView, SaveView, TargetFrames } from "./CommentsPanel";
 
@@ -626,5 +626,93 @@ export class CommentsSession {
       console.error(error);
       void this.readMarker();
     });
+  }
+}
+
+// project-feedback design §4: Resolve, Reopen and Delete of a comment whose
+// file no canvas uses. Main judges every write on a fresh `doan ls`; this
+// keeps only what the cards show and the immutable request each one retries.
+// `project` is the epoch the `comments:project` read that showed the card ran
+// under (handoff N2), never a guess.
+export interface OrphanTarget { root: string; canvas: string; project: number }
+export const orphanKey = (root: string, canvas: string, comment: string) => JSON.stringify([root, canvas, comment]);
+const GIT_NAME = /Git user name/;
+export class OrphanSession {
+  mutations = new Map<string, SaveView>();
+  busy = false;
+  deleteConfirmation: { key: string; request: OrphanMutationRequest; comment: Comment } | null = null;
+  statusLine: { root: string; canvas: string; comment: string; text: string } | null = null;
+  private pending = new Map<string, OrphanMutationRequest>();
+  // root → the card whose write main refused for a missing Git name; that
+  // request is resubmitted by Retry (no attempt was stored before the check).
+  private noName = new Map<string, string>();
+  private statusTimer: ReturnType<typeof setTimeout> | undefined;
+  constructor(private api: Pick<DoanApi, "orphanCommentsMutate" | "orphanCommentsStatus">, private changed: () => void) {}
+  gitMissing(root: string): boolean { return this.noName.has(root); }
+  private request(type: "resolve" | "reopen" | "delete", at: OrphanTarget, comment: Comment): OrphanMutationRequest {
+    return { root: at.root, canvas: at.canvas, requestID: crypto.randomUUID(), project: at.project, intent: { type, comment: comment.comment, expected: expectedComment(comment) } };
+  }
+  async mutate(type: "resolve" | "reopen" | "delete", at: OrphanTarget, comment: Comment) {
+    if (this.busy || this.noName.has(at.root)) return;
+    const key = orphanKey(at.root, at.canvas, comment.comment), request = this.request(type, at, comment);
+    if (type === "delete") { this.deleteConfirmation = { key, request, comment: structuredClone(comment) }; this.changed(); return; }
+    await this.submit(key, request, false);
+  }
+  cancelDelete() { this.deleteConfirmation = null; this.changed(); }
+  async confirmDelete() {
+    const pending = this.deleteConfirmation;
+    this.deleteConfirmation = null; this.changed();
+    if (pending) await this.submit(pending.key, pending.request, false);
+  }
+  // `retry-original` resubmits the stored request. A refusal wrote nothing, so
+  // its Retry is a new request from the latest read the card shows.
+  async retry(key: string, at?: OrphanTarget, latest?: Comment) {
+    const request = this.pending.get(key), status = this.mutations.get(key)?.status;
+    if (!request || this.busy) return;
+    if (status === "retry-original") await this.submit(key, request, false);
+    else if (status === "failed" && at && latest && request.intent.type !== "create" && request.intent.type !== "edit" && request.intent.type !== "edit-reopen") await this.submit(key, this.request(request.intent.type, at, latest), false);
+  }
+  async check(key: string) {
+    const request = this.pending.get(key), status = this.mutations.get(key)?.status;
+    if (!request || this.busy || status === "recovery-blocked") return;
+    await this.submit(key, request, true);
+  }
+  async retryGit(root: string) {
+    const key = this.noName.get(root), request = key === undefined ? undefined : this.pending.get(key);
+    if (key === undefined || !request || this.busy) return;
+    this.noName.delete(root);
+    await this.submit(key, request, false);
+  }
+  // The card shows the latest read again; the caller reads the project again.
+  readLatest(key: string) { this.mutations.delete(key); this.pending.delete(key); this.changed(); }
+  private async submit(key: string, request: OrphanMutationRequest, check: boolean) {
+    this.busy = true; this.pending.set(key, request);
+    this.mutations.set(key, { status: check ? "checking" : "saving" }); this.changed();
+    try {
+      const { root, canvas, requestID } = request;
+      const response = check ? await this.api.orphanCommentsStatus({ root, canvas, requestID }) : await this.api.orphanCommentsMutate(request);
+      if (!response.identity || response.identity.root !== root || response.identity.canvas !== canvas || response.identity.requestID !== requestID) throw new Error("Stale comments response.");
+      if (!response.ok) {
+        if (GIT_NAME.test(response.error)) { this.noName.set(root, key); this.mutations.set(key, { status: "idle" }); return; }
+        this.mutations.set(key, /^Comment no longer exists/.test(response.error) ? { status: "deleted" } : /Comment changed|Comment status changed/.test(response.error) ? { status: "conflict" } : { status: "failed", message: response.error });
+        return;
+      }
+      const status = response.value, type = request.intent.type;
+      if (status.recovery) this.mutations.set(key, { status: "recovery-blocked", message: status.error ?? "Confirm child exit externally, then restart the app." });
+      else if (status.state === "saved") {
+        this.pending.delete(key);
+        if (type === "delete") this.mutations.delete(key);
+        else this.mutations.set(key, { status: check ? "saved" : "idle" });
+        if (type === "resolve" || type === "reopen") this.showStatus(request, type);
+      } else this.mutations.set(key, { status: status.state === "absent" ? "retry-original" : "unknown" });
+    } catch (error) {
+      this.mutations.set(key, check ? { status: "check-failed", message: errorText(error) } : { status: "unknown" });
+    } finally { this.busy = false; this.changed(); }
+  }
+  private showStatus(request: OrphanMutationRequest, type: keyof typeof statusText) {
+    if (request.intent.type === "create") return;
+    clearTimeout(this.statusTimer);
+    this.statusLine = { root: request.root, canvas: request.canvas, comment: request.intent.comment, text: statusText[type] };
+    this.statusTimer = setTimeout(() => { this.statusTimer = undefined; this.statusLine = null; this.changed(); }, STATUS_LINE_MS);
   }
 }
