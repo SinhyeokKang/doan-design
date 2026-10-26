@@ -21,7 +21,7 @@
 - 지금 `var(--accent*)`를 쓰는 모든 줄이 design.md의 셀렉터 대응표대로 옮겨져 있다. citrus는 사이드바 현재 위치 행과 그 hover, 코멘트 핀, 코멘트 제출 버튼(modifier), 코멘트 카드 역할 정의에만 있다. 확인: 순수 함수 테스트 `accentPlaces` green(citrus 역할을 읽는 셀렉터가 허용 목록과 같다).
 - 공용 컴포넌트가 Buzz와 같은 값과 규칙을 따른다: 버튼(prominent/subtle/ghost), `IconButton`(기존 아이콘 버튼에 적용), `Panel`(정의만, 실측은 buzz-shell), 툴팁(prominent 캡슐), 메뉴·팝오버(floating 재질과 파생 모서리), 다이얼로그 틀(크기 단계, 안쪽 패딩, 헤더·액션 배치, 등장·퇴장 모션, reduced-motion), 모달 scrim, 토스트, 스피너, 폼 컨트롤, `.kbd`·`.chip`, 포커스 링, disabled, 네이티브 얇은 스크롤바.
 - 공유 요소(`ProjectSetupDialog`, `AddProjectsDialog`, `FirstPrompt`, `ConnectionRows`, `.ob-dialog`, `ErrorDetails`, `Toast`, 스피너)가 새 공용 스타일로 바뀌어 있고, `design/buzz-ds.html`과 `/design-sync`로 맞춰져 있다.
-- 텍스트 대비가 기준을 넘는다: 본문 WCAG 4.5:1과 APCA Lc 60, 메타 텍스트 APCA Lc 45, 비텍스트(테두리, 포커스 링, 핀) 3:1. disabled는 예외. citrus 쌍과 반투명 표면(흰색·검정 뒤 배경 둘 다로 합성)을 포함한다. 확인: 순수 함수 테스트 `contrastPairs` green.
+- 텍스트 대비가 기준을 넘는다: 본문 WCAG 4.5:1과 APCA Lc 60, 메타 텍스트 APCA Lc 45, 비텍스트 3:1은 컴포넌트를 알아보게 하는 테두리(`border-prominent`), 포커스 링, 핀에 적용한다. 장식용 hairline(`border-standard`)과 채움으로 경계를 만드는 입력 필드는 Buzz 값을 따르는 예외로 두고 DESIGN.md에 적는다(2026-10-26 user). disabled는 예외. citrus 쌍과 반투명 표면(흰색·검정 뒤 배경 둘 다로 합성)을 포함한다. 확인: 순수 함수 테스트 `contrastPairs` green.
 - 렌더러 CSS와 TS 문자열에서 쓰는 `var(--*)`가 모두 정의되어 있다(런타임 변수 `--tw-*`, `--radix-*` 제외). 확인: 순수 함수 테스트 `cssVarUsage` green.
 - 이 리포의 `design/` 초안 전체에 대해 `doan check`가 정의되지 않은 변수 오류를 내지 않는다.
 - 앱이 macOS 외형 설정과 상관없이 라이트로 그려진다(`nativeTheme.themeSource = "light"`). 두 창의 `backgroundColor`가 셸 색으로 지정되어 있다.
