@@ -16,6 +16,8 @@
 | 2026-10-26 | A1·A2의 순수 함수 파일은 design.md의 가칭대로 `app/src/renderer/ds/checks.ts`(테스트는 같은 폴더 관례를 따름)로 둔다 | 지휘자 판단 — design.md '순수 함수로 분리할 부분' |
 | 2026-10-26 | 비텍스트 3:1은 `border-prominent`, 포커스 링, 핀에만 적용한다. hairline과 입력 필드 채움 경계는 예외다(R1 🟡3) | 사용자 |
 | 2026-10-26 | R1의 🟡1(다이얼로그 상단 8rem), 🟡2(`--raised` 등 남은 별칭의 역할 대응), 🟡3 반영, ⚪1(팔레트를 가리키는 별칭), ⚪6(Buzz 주석을 바꿔 쓴 주석)은 B3 brief에 넣는다. S1 파일이지만 A6·A7이 같은 파일을 다시 고치므로 수정 라운드를 따로 두지 않는다 | 지휘자 판단 — 중간 상태는 부모 공통 결정 12로 허용, 배포 없음 |
+| 2026-10-26 | 공유 다이얼로그 크기: SetUpFolderConfirm(`.ob-dialog` 확인) compact 가운데, ProjectSetupDialog·AddProjectsDialog standard 상단 8rem. 초안 확인에서 사용자가 바꿀 수 있다 | 지휘자 판단 — B2 질문, compact는 짧은 확인, standard는 폼·목록 |
+| 2026-10-26 | 토스트는 종류(type)를 새로 만들지 않는다. 성공·오류·실행 취소를 같은 무채색 floating 토스트로 그리고 문구로만 구분한다 | 지휘자 판단 — spec '내용과 동작은 그대로' |
 | 2026-10-26 | A10(결론 승격과 `docs/features/buzz-ds/` 삭제)은 지휘자가 통합 뒤 직접 한다 | orchestrate 스킬 §5 |
 
 ## batch 표
