@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
-import type { CanvasRow, FolderEntry, GitInfo } from "../main/view";
+import type { CanvasRow, FolderEntry, GitInfo, OrphanFile } from "../main/view";
 import type { ProjectCanvasComments, ProjectComments } from "../main/projectComments";
-import { cardRow, groupProjects, measureNarrow, ProjectCommentReads, reviewTotal } from "./homeCards";
+import { cardRow, groupProjects, homeSummary, measureNarrow, ProjectCommentReads, reviewTotal } from "./homeCards";
 import type { SelectionView } from "./selection";
 
 const canvas = (open: number): CanvasRow => ({ path: "design/a.html", url: "u", open, resolved: 0 });
@@ -242,5 +242,55 @@ describe("measureNarrow", () => {
 
   test("a row without a summary (a problem row) is never narrow", () => {
     expect(measureNarrow(card([row("/a", { wide: [300, 120] }, false)])).size).toBe(0);
+  });
+});
+
+// project-feedback spec 'doan ls와 수', draft `home-summary`: items in this
+// order, each only above 0 except the canvas count; a narrow row wraps between
+// the same items. The changed time stays last and is the view's.
+describe("homeSummary", () => {
+  const orphan = (id: string, open: number, resolved = 0, extra: Partial<OrphanFile> = {}): OrphanFile => ({ id, file: `.doan/comments/${id}.jsonl`, comments: { open, resolved }, uncertain: false, ...extra });
+  const entry = (canvases: CanvasRow[], orphans?: OrphanFile[]): Extract<FolderEntry, { kind: "list" }> => ({ path: "/code/acme", kind: "list", servedRev: 0, canvases, ...(orphans ? { orphans } : {}) });
+  const four = [canvas(2), canvas(0), canvas(0), canvas(0)];
+
+  test("puts open, resolved to review and without a canvas after the canvas count", () => {
+    expect(homeSummary(entry(four, [orphan("checkout-v1", 2, 1), orphan("promo-banner", 1)]), 1)).toEqual({
+      items: [
+        { kind: "canvases", text: "4 canvases" },
+        { kind: "open", text: "2 open" },
+        { kind: "review", text: "1 resolved to review" },
+        { kind: "orphans", text: "3 without a canvas" },
+      ],
+      label: "4 canvases · 2 open comments · 1 resolved to review · 3 without a canvas",
+    });
+  });
+
+  test("keeps the shipped summary when nothing is without a canvas", () => {
+    expect(homeSummary(entry([canvas(1)], []), undefined)).toEqual({
+      items: [{ kind: "canvases", text: "1 canvas" }, { kind: "open", text: "1 open" }],
+      label: "1 canvas · 1 open comment",
+    });
+    expect(homeSummary(entry([]), 0)).toEqual({ items: [{ kind: "canvases", text: "0 canvases" }], label: "0 canvases · 0 open comments" });
+  });
+
+  test("starts after the canvas count with the orphan item when no canvas has an open comment", () => {
+    expect(homeSummary(entry([], [orphan("old", 2)]), undefined).items).toEqual([{ kind: "canvases", text: "0 canvases" }, { kind: "orphans", text: "2 without a canvas" }]);
+  });
+
+  // Conductor decision 2026-10-26: open orphan comments, like "2 open" on the
+  // same line and the Feedback Open view; a file ls could not read has no count.
+  test("counts open orphan comments only, non-kebab files included, unreadable files left out", () => {
+    const unreadable = orphan("gone", 0, 0, { error: { code: "unreadable_comments", message: "m" } });
+    delete unreadable.comments;
+    const summary = homeSummary(entry([], [orphan("old", 1, 4), orphan("Foo", 2), unreadable, orphan("done", 0, 3)]), undefined);
+    expect(summary.items.at(-1)).toEqual({ kind: "orphans", text: "3 without a canvas" });
+    expect(homeSummary(entry([], [orphan("done", 0, 3)]), undefined).items).toEqual([{ kind: "canvases", text: "0 canvases" }]);
+  });
+
+  // A canvas whose comment file failed hides the open count, as `reviewTotal`
+  // hides the review count: a sum without it would be wrong, not partial.
+  test("hides the open count when a canvas's comments could not be read", () => {
+    const failed: CanvasRow = { ...canvas(0), path: "design/b.html", commentsError: { code: "unreadable_comments", message: "m" } };
+    expect(homeSummary(entry([canvas(2), failed]), undefined)).toEqual({ items: [{ kind: "canvases", text: "2 canvases" }], label: "2 canvases" });
   });
 });

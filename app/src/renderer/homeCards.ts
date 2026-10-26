@@ -1,3 +1,4 @@
+import { pluralComments } from "../comments/panelText";
 import type { ProjectCanvasComments, ProjectComments } from "../main/projectComments";
 import type { FolderEntry } from "../main/view";
 import { frameLabel } from "./canvasTree";
@@ -89,6 +90,31 @@ export function reviewTotal(comments: readonly ProjectCanvasComments[] | undefin
     total += canvas.toReview;
   }
   return comments === undefined ? undefined : total;
+}
+
+export interface HomeSummaryItem { kind: "canvases" | "open" | "review" | "orphans"; text: string }
+
+// The summary of a list row (draft `home-summary`): the canvas count, then
+// open, resolved to review and without a canvas, each only above 0. The view
+// puts the changed time last; a narrow row wraps between these same items.
+// `review` is `reviewTotal`. "Without a canvas" counts open orphan comments,
+// like "open" beside it (conductor decision 2026-10-26); a file ls could not
+// read has no count. A canvas whose comment file failed hides the open count,
+// as `reviewTotal` hides the review count: the sum would be wrong, not partial.
+export function homeSummary(entry: Extract<FolderEntry, { kind: "list" }>, review: number | undefined): { items: HomeSummaryItem[]; label: string } {
+  const canvases = entry.canvases.length;
+  const open = entry.canvases.some((canvas) => canvas.commentsError) ? undefined : entry.canvases.reduce((sum, canvas) => sum + canvas.open, 0);
+  const orphans = (entry.orphans ?? []).reduce((sum, orphan) => sum + (orphan.comments?.open ?? 0), 0);
+  const items: HomeSummaryItem[] = [{ kind: "canvases", text: `${canvases} ${canvases === 1 ? "canvas" : "canvases"}` }];
+  const label = [items[0]!.text];
+  if (open !== undefined) {
+    if (open > 0) items.push({ kind: "open", text: `${open} open` });
+    label.push(pluralComments(open));
+  }
+  if (review) items.push({ kind: "review", text: `${review} resolved to review` });
+  if (orphans > 0) items.push({ kind: "orphans", text: `${orphans} without a canvas` });
+  label.push(...items.filter((item) => item.kind === "review" || item.kind === "orphans").map((item) => item.text));
+  return { items, label: label.join(" · ") };
 }
 
 // `comments:project` reads for the roots on screen. A root is read again when
