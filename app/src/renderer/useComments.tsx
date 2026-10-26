@@ -98,9 +98,10 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   // A reload or a move finds the same selection again; only a new one
   // overrides the scope a person picked (feature revision-continuity L-13).
   const selected = open && state.selection ? selectionIdentity(mainSelection(open, state.selection)) : null;
-  // The card a card action came from and the card that followed it then, so
-  // a status line can take the place of a card that left (design status-lines).
-  const place = useRef<{ comment: string; before: string | null } | null>(null);
+  // Each card an action came from, with the card that followed it then, so a
+  // status line takes the place of its own card that left (design status-lines),
+  // also while a second action is under way (R-C ⚪2).
+  const places = useRef(new Map<string, string | null>());
   useEffect(() => {
     // The answer to a card's locate keeps the list the person was reading
     // (feature revision-recheck); the controller ends that with the answer.
@@ -134,12 +135,14 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   const editorBlocked = draft?.blocked ?? (draft?.origin.kind === "create" ? createBlocked : null);
   const focus = () => input.current?.focus();
   const opened = () => { focusAfter.current.opener = document.activeElement as HTMLElement | null; };
+  function remember(id: string) {
+    const ids = shown.map(c => c.comment), at = ids.indexOf(id), kept = session.statusLine?.comment;
+    for (const key of places.current.keys()) if (key !== kept) places.current.delete(key);
+    places.current.set(id, at === -1 ? null : ids[at + 1] ?? null);
+  }
   function intent(action: CommentIntent, id: string) {
     // Only actions that can end in a Resolve or Reopen; a locate meanwhile keeps it.
-    if (["resolve", "reopen", "check", "retry", "confirm-reviewed"].includes(action)) {
-      const ids = shown.map(c => c.comment), at = ids.indexOf(id);
-      place.current = { comment: id, before: at === -1 ? null : ids[at + 1] ?? null };
-    }
+    if (["resolve", "reopen", "check", "retry", "confirm-reviewed"].includes(action)) remember(id);
     if (action === "edit") { opened(); session.edit(id); }
     else if (action === "resolve" || action === "reopen" || action === "delete") void session.mutate(action, id);
     else if (action === "check") void session.cardRetry(id, true);
@@ -243,8 +246,11 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       (next.kind === "card" ? cards.find(card => card.dataset.comment === next.comment) : heading.current)?.focus();
     }
     const holder = document.activeElement, card = holder ? cards.find(card => card.contains(holder)) : undefined;
+    // Kept through <body> only while a card change is under way, the one that
+    // disabled the button; otherwise focus left on purpose and the card is
+    // forgotten (POSTMORTEM 2026-10-23 recurrence rule, R-C ⚪1).
     held.current = card ? { comment: card.dataset.comment ?? "", order: ids, context: listContext }
-      : last && lost && ids.includes(last.comment) ? { ...last, order: ids } : null;
+      : last && lost && session.busy && ids.includes(last.comment) ? { ...last, order: ids } : null;
   });
   return {
     session,
@@ -255,7 +261,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       missingLocations={snapshot?.status === "answered" ? new Set(comments.filter(c => (c.target.frame || c.target.element) && !snapshot.lookup.nodes.has(c.comment)).map(c => c.comment)) : null}
       author={session.author} identityCause={identityCause} canvasId={canvas ?? ""} frames={frames} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || (session.beginning && !draft)}
       copies={session.copies} allCopy={session.copies.get("all") ?? { status: "idle" }} mutations={session.mutations} headingRef={heading} panelRef={panelElement}
-      statusLine={current && session.statusLine ? { ...session.statusLine, before: place.current?.comment === session.statusLine.comment ? place.current.before : null } : null}
+      statusLine={current && session.statusLine ? { ...session.statusLine, before: places.current.get(session.statusLine.comment) ?? null } : null}
       onFilter={next => { focusAfter.current.pin = null; focusAfter.current.saved = null; setFilter(next); }} onCreate={scope => { opened(); void session.create(scope); }} onComment={intent} onCopy={scope => { void session.copy(scope); }} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
       editor={draft ? { mode: draft.origin.kind, target: session.target, frames: draftFrames, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
         onBody: body => session.body(body), onSave: () => { focusAfter.current.saving = true; void session.save(); },

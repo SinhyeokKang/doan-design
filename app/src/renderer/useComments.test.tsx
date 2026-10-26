@@ -887,6 +887,29 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
       f.panel();
       expect(focused(page.heading)).toEqual([]);
     });
+    test("a card whose focus fell to <body> with no change of its own in flight is forgotten (R-C ⚪1)", async () => {
+      const page = dom(["c1", "c2"]);
+      const f = await ready([open("c1"), open("c2")]);
+      page.doc.activeElement = page.cards[0]; f.panel();
+      // The person clicks blank space; nothing of that card is saving.
+      page.doc.activeElement = page.body; f.panel(); f.panel();
+      listed([open("c2")]); await f.session.read(); page.cards.shift();
+      f.panel();
+      expect(focused(page.heading, ...page.cards)).toEqual([]);
+    });
+    test("a second card action within the 4 seconds leaves the first line in its own place (R-C ⚪2)", async () => {
+      const page = dom(["c1", "c2", "c3"]);
+      const f = await ready(["c1", "c2", "c3"].map(open));
+      f.mutate.mockImplementationOnce(async (r: CommentRequest) => ({ ok: true, identity: r, value: { state: "saved" } }));
+      listed(["c2", "c3"].map(open));
+      f.panel().props.onComment("resolve", "c1");
+      await vi.waitFor(() => expect(f.session.statusLine).not.toBeNull());
+      page.cards.shift();
+      f.mutate.mockImplementationOnce((async (r: CommentRequest) => ({ ok: false, identity: r, error: "Comment changed; read the latest state before saving." })) as unknown as typeof f.mutate);
+      f.panel().props.onComment("resolve", "c3");
+      await vi.waitFor(() => expect(f.session.mutations.get("c3")?.status).toBe("conflict"));
+      expect(f.panel().props.statusLine).toEqual({ comment: "c1", text: "Resolved — moved to Resolved.", before: "c2" });
+    });
   });
 
   describe("pins", () => {
