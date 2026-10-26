@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-27 — Successful appends crossed the history reader's byte limit
+
+- **Area**: `app/src/main/conversation/store.ts`, `io.ts` (R-F-A-1).
+- **Symptom**: an append or replacement could succeed but leave an archived history too large to read, preventing the canvas lookup from returning its new current conversation too.
+- **Root cause**: the reader checked only the existing descriptor size; the writer never compared the serialized UTF-8 bytes plus that size with the same bound before writing.
+- **Net**: ordinary event tests and pre-write size checks missed the crossing. Tiny injected limits with real temporary descriptors reproduced direct append, archival replacement and later initial-event crossings before the fix; non-ASCII exact-boundary coverage pins byte counting.
+- **Prevention**: share the history byte limit across read and append, check the final byte length before writing, and retain multi-write rollback and readable-forCanvas regressions. Ran `rg -n 'ftruncateSync|CONVERSATION_HISTORY_BYTES|Buffer.byteLength' app/src/main/conversation --glob '!*.test.ts'`; history writes and truncation are confined to the store and the shared limit lives in io; sessions.ts separately caps a read tail, not a persisted history append. This does not add rotation or support already-oversized histories.
+
 ### 2026-10-27 — Awaited conversation work outlived its current turn
 
 - **Area**: `app/src/main/conversation/service.ts` (R-A-1).
@@ -17,6 +25,8 @@
 - **Root cause**: index publication preceded history validation and event persistence, with no rollback or restart recovery.
 - **Net**: successful replacements missed the problem. Corrupt-history, archive, partial new-log, index and invalid-prompt tests reproduced the rejection boundary; an interrupted rollback fixture verifies restart recovery.
 - **Prevention**: validate prompt and old histories first, publish a store-local undo record before appending, and use the final index rename as the commit point. Roll back only the same inode to its prior size; refuse exposure if recovery cannot finish. Test failures before commit and restart on either side of the index rename. Ran `rg -n 'acceptStart|recoverStart' app/src/main/conversation/{service,store}.ts`. This is application recovery, not multi-file atomicity, concurrent-writer coordination or fsync/power-loss durability.
+
+- **Recurrence (2026-10-27, R-F-A-2)**: the new undo reader validated and immediately truncated each old target, so a malformed later entry or identity mismatch could reject recovery after destroying earlier bytes. Validate the entire journal's IDs, numeric bounds, uniqueness and index relationships first, then pin and verify every old descriptor and its complete v1 JSONL prefix plus the optional new deletion target before truncating any file. Reject links/aliases and close opened descriptors on failed preflight; a committed journal gets validation and cleanup only. Temporary-file regressions reproduced the destructive ordering and malformed prefix before the fix, and retain interrupted rollback and committed cleanup coverage. The same prevention grep above (`ftruncateSync|CONVERSATION_HISTORY_BYTES|Buffer.byteLength`) finds the one conversation truncation loop. Valid-prefix forgery, concurrent in-place changes, multi-file atomicity and power-loss durability remain outside this guarantee.
 
 ### 2026-10-27 — Stable canvas lookup retained a stale execution path
 
