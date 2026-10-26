@@ -18,6 +18,7 @@
 | 2026-10-26 | `/design-sync`는 새 표면 `dialog`, `dialog-states`, `copy-states`에만 돌린다(배치 D 안에서). `handed-off`, `fix-this`는 이미 main에 있는 화면에 더하는 부분이라 tasks의 테스트와 e2e를 따른다 | design.md '초안 요청', 체인 규칙 |
 | 2026-10-26 | `/agent-eval` 실제 회차를 돌리지 않는다. 7의 self-test까지만 한다 | tasks 8, 체인 규칙(유일한 실제 회차는 링크 5) |
 | 2026-10-26 | worktree 안내의 데이터: 열린 항목의 `GitInfo.worktrees`(git 자신의 worktree 목록, `app/src/main/view.ts`)가 2개 이상일 때 안내를 보인다. 안내의 브랜치·경로는 열린 항목(지시문 root)의 것이다. 새 IPC를 만들지 않는다. 맥락 줄 `project › ⎇ branch › canvas title`은 앱의 프로젝트 행과 `cardRow(...).summary.branch`로 만든다 | 지휘자 판단(P 질문, 처음의 '앱 프로젝트 행 수' 결정을 바꿈) — spec은 '같은 저장소에 worktree가 둘 이상'이다. Doan에 더하지 않은 worktree(H7 상황)도 git 목록에는 잡힌다 |
+| 2026-10-26 | tasks 9의 새 런타임 시나리오는 `app/e2e/comments-ui.ts`에 덧붙이지 않고 새 모듈 `app/e2e/agent-handoff.ts`에 둔다(`runtime.ts` 가져오기 목록에 추가). `comments-ui.ts`에서는 옛 Copy 단계만 Hand off 대화상자로 바꾼다 | 지휘자 판단 — 화면이 잠겨 있으면 comments-ui가 08단계(네이티브 포커스)에서 멈춘다(링크 1~3). 뒤에 덧붙인 단계는 이 링크 게이트에서 돌지 않으므로, 단독으로 돌릴 수 있는 모듈로 둔다(링크 3의 revision-recheck.ts와 같은 방식) |
 | 2026-10-26 | "Copy remains available."은 D가 `CommentsPanel.tsx`에서 "Hand off remains available."로, "Copy all open includes them."은 F가 `panelText.ts`에서 "Hand off… includes them."으로 바꾼다 | design.md §1, 파일 소유 |
 
 ## 배치
@@ -29,7 +30,7 @@
 | F | 1·5 (문구) | `app/src/renderer/RightPanel.tsx`, `Home.tsx`, `homeCards.ts` 주석, `app/src/comments/panelText.ts`, 각 테스트, `app/e2e/projects-home.ts`의 `/^Selected:/` 단언 | — | Codex `gpt-6.1-sol` medium (확정 초안 `fix-this` 프레임의 문구 세 곳) | test, typecheck | 대기 |
 | D | 1·4·5(worktree 안내), `/design-sync` | `CommentsPanel.tsx`, `CommentsSession.ts`, `useComments.tsx`, 새 Hand off 대화상자 컴포넌트, `ReviewBar.tsx` 연결, `App.tsx`(worktree 행 전달), `styles.css`, 각 테스트, `docs/DESIGN.md`(이 표면), `.scratch/design-sync/agent-handoff/` | P 통합 | Opus high (대화상자 우선순위 체인, 포커스·IME, 복사 결과를 요청 정체성으로 판정, Handed off 수명) | test, typecheck, `/design-sync` 측정 일치 | 대기 |
 | W | 7 | `eval/lib/scenario.ts`·`workspace.ts`(와 필요한 러너 파일), eval 단위 테스트, 새 `eval/scenarios/{H6,R7,H7}/` | P·K 통합 | Opus high (두 번째 worktree 구성, cwd와 root 분리, fail fixture 판정) | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` PASS | 대기 |
-| T | 9 | `app/e2e/comments-ui.ts`, 낡은 단언이 생긴 다른 e2e 모듈 | D·F 통합 | Opus high (실제 창, 클립보드 저장·복원, CLI resolve 경합) | 모듈 단독 실행 PASS(전체 e2e는 지휘자) | 대기 |
+| T | 9 | 새 `app/e2e/agent-handoff.ts`, `runtime.ts` 가져오기, `comments-ui.ts`의 Copy 단계, 낡은 단언이 생긴 다른 e2e 모듈 | D·F 통합 | Opus high (실제 창, 클립보드 저장·복원, CLI resolve 경합) | 모듈 단독 실행 PASS(전체 e2e는 지휘자) | 대기 |
 | R-* | 배치별 리뷰 | 보고서만 | 각 구현 배치 | Codex `gpt-6-astra` medium과 Opus를 번갈아 쓴다(배치별로 진행 기록에 적는다) | `/code-review`, 🔴 0 | — |
 | 지휘자 | 10 | — | 전부 통합 | — | `node .agents/skills/verify/scripts/verify.mjs --runtime --eval` 최종 PASS, exit 0 | 대기 |
 | G | 11 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/USABILITY-EVAL.md`, `docs/DIRECTORY.md`, 이 디렉터리 삭제 | 10 | Opus medium (승격 위치가 tasks 11에 다 나와 있다) | 문서 diff 검토, 위 git grep 결과 판정 | 대기 |
