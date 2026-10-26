@@ -15,6 +15,7 @@
 | 2026-10-26 | 이 링크의 PR은 통합과 `/verify` 통과 뒤 main에 병합한다(`/orchestrate`의 병합 금지를 이 체인에서만 대체). 병합 뒤 main에서 `/doc-check`를 한 번 돌리고 문서별로 커밋해 main에 push한다 | 사용자(체인 규칙, "링크마다 메인에 병합하면서 간다"), 체인 문서 '링크 5' |
 | 2026-10-26 | tasks 2와 4의 `/tdd`는 따로 배치를 두지 않는다. 각 구현 배치가 자기 범위의 테스트를 먼저 쓰고 red를 확인한 뒤 구현한다(`/ship`의 tdd 단계) | 지휘자 판단 — 링크 1~4와 같은 방식 |
 | 2026-10-26 | tasks 1 측정 명령: `node .scratch/project-feedback/measure.mjs`(Playwright `_electron`, `app/e2e/runtime.ts`와 같은 격리). 1단계(배치 M, 지금): 기존 `comments:project` 읽기·fold 시간과 연속 저장 중 무효화·다시 읽기 빈도. 2단계(배치 V1 끝): 같은 스크립트로 Feedback 첫 렌더 시간. 1단계가 기준을 넘으면 배치 N을 멈추고 지휘자가 설계를 정한다 | 지휘자 판단 — tasks 1의 'command undecided'. Feedback 패널은 V1 전에는 없으므로 첫 렌더는 그 뒤에만 잴 수 있다. `/design-sync`의 `measure.mjs` 형식을 따른다 |
+| 2026-10-26 | tasks 1 1단계에서 연속 저장 중 다시 읽기가 기준(초당 1회 이하)을 넘었다(최대 5회/초, 한 번의 갱신이 약 250 ms 간격으로 두 번 읽음). 설계 대응: renderer의 프로젝트 댓글 읽기 스케줄러(`homeCards.ts` `ProjectCommentReads`)가 root별로 (1) `comments:invalidated`와 ls 행 서명 변경이 함께 부른 읽기를 하나로 합치고 (2) 무효화가 이어지는 동안 1초에 한 번 이하로 읽되 마지막 변경 뒤 읽기 한 번은 반드시 한다(trailing). Feedback 패널도 같은 스케줄러로 읽는다. V2가 구현하고 measure.mjs 1단계를 다시 돌려 기준 통과를 확인한다. main(배치 N)은 바꾸지 않으므로 N은 멈추지 않는다 | 지휘자 판단(사용자에게 묻지 않는 체인 규칙) — design §3 '무효화가 연달아 오면 합친다'를 구체화한 것이고 제품 동작은 바꾸지 않는다. 읽기 한 번(최대 348 ms)은 기준 안이라 원인은 빈도뿐이다 |
 | 2026-10-26 | tasks 8 실제 `/agent-eval` 회차는 배치 A(Opus medium)가 자기 worktree에서 S 통합 뒤 돌린다. 실제 에이전트 두 종과 다른 계열 judge를 쓰는 것은 상설 예외다 | 체인 규칙(유일한 실제 회차), AGENTS.md 'Runtime differences' 상설 예외 |
 | 2026-10-26 | tasks 9의 런타임 시나리오는 새 모듈 `app/e2e/project-feedback.ts`에 둔다(tasks 9 그대로) | tasks 9 |
 | 2026-10-26 | tasks 11 남은 참조 검사: `git grep -n -e 'No canvas open' -e 'docs/features/project-feedback' -- . ':!docs/features/*' ':!design/*'`. 결과 중 제품 문구가 아닌 것은 내용을 보고 판정한다 | 지휘자 판단 — 링크 1~4와 같은 git grep 형식. design-nav의 "No canvas open"이 Overview에서 Feedback으로 바뀐다(캔버스 화면의 다른 쓰임은 남을 수 있다) |
@@ -51,3 +52,6 @@ tasks.md의 1~11은 모두 위 배치 중 하나에 속한다(2·4의 tdd는 각
 ## 진행 기록
 
 - 2026-10-26: 시작. 이전 지휘 터미널을 닫았다. 화면 잠금 상태 `CGSSessionScreenIsLocked = Yes`.
+- 2026-10-26: Run `run_a1a443f1303f`. 1파 시작 — M(`ctx_cefc09b494f6`, Opus medium, `pf-m`), C(`ctx_61791f090826`, Opus high, `pf-c`), T4(`ctx_2f15567ae722`, Opus high, `pf-t4`). `launch.effective`가 요청과 같다.
+- 2026-10-26: T4 질문 — Home "N without a canvas"의 수. 고아 파일의 열린 댓글 수(`orphans[].comments.open` 합, kebab이 아닌 파일 포함, `error` 파일 제외)로 정했다. 근거: 같은 줄의 "2 open"이 열린 수이고 Feedback 기본 보기(Open)의 머리 수와 같아진다. id 변경 안내는 spec대로 보이는 댓글 전체를 센다(지휘자 판단).
+- 2026-10-26: M 완료(Opus medium, `079f198` → 통합 `d60d54e`) — 읽기·fold cold 최대 348 ms(첫 렌더 여유 통과), 연속 저장 중 다시 읽기는 1초 최대 5회로 기준(초당 1회 이하) 실패. 결과는 tasks 1 아래에 있다. M 해제, `pf-m` 제거.
