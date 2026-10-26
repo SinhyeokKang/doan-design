@@ -65,7 +65,7 @@ async function firstPrompt(page: Page, label: string) {
   await page.waitForTimeout(250);
   const invalid = await styles(input);
   // The field shows focus and errors with its own border, never an outline ring.
-  check(await input.getAttribute("aria-invalid") === "true" && invalid.outline[1] === "0px" && invalid.border === await token(page, "--border-danger") && await page.locator(".fp-error").isVisible(), `${label} invalid focus`, invalid);
+  check(await input.getAttribute("aria-invalid") === "true" && await input.evaluate(el => getComputedStyle(el).outlineStyle) === "none" && invalid.border === await token(page, "--border-danger") && await page.locator(".fp-error").isVisible(), `${label} invalid focus`, invalid);
   const disabled = page.locator(".ob-prompt .btn.primary");
   const disabledStyles = await styles(disabled);
   check(await disabled.isDisabled() && disabledStyles.opacity === "1" && disabledStyles.color === await token(page, "--text-disabled") && disabledStyles.background === await token(page, "--affordance-disabled"), `${label} disabled primary preserved`, disabledStyles);
