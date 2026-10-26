@@ -77,6 +77,9 @@ describe("Comments presentation", () => {
     expect(html(panel({ read: { status: "loading" } }))).toContain("Loading comments…");
     const failed = html(panel({ read: { status: "failed", message: "Permission denied" } }));
     expect(failed).toContain("Couldn’t read comments");
+    // project-feedback draft `tree-errors`: the raw message waits behind Details.
+    expect(failed).toContain('<div class="comments-tools"><button type="button" class="comments-btn">Retry</button><button type="button" class="comments-btn" aria-label="Details" aria-expanded="false">Details ▸</button></div>');
+    expect(failed).not.toContain("Permission denied");
     expect(failed).not.toContain("No open comments");
     expect(failed).not.toContain("Comments are read-only");
     expect(html(panel({ read: { status: "ready", comments: [], warnings: [{ code: "unknown_version", line: 3 }] } }))).toContain("<li>This record was written by a newer version of Doan.<span class=\"lines\">Line 3</span></li>");

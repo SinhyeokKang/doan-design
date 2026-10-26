@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry, GitInfo, OrphanFile } from "../main/view";
 import type { ProjectCanvasComments, ProjectComments } from "../main/projectComments";
 import { cardRow, groupProjects, homeSummary, measureNarrow, ProjectCommentReads, reviewTotal } from "./homeCards";
@@ -78,17 +78,17 @@ describe("cardRow", () => {
     expect(row({ path: "/p", kind: "loading" })).toMatchObject({ chip: "Reading…", actions: [] });
   });
 
-  test("a list row has no chip and summarizes branch, canvases, open comments and change", () => {
+  test("a list row has no chip and summarizes branch and change; the counts are homeSummary's", () => {
     const entry = listRow("/code/acme", acme("", "main"), { canvases: [canvas(2), canvas(0), canvas(1)], changedAt: 1234 });
     const row = cardRow(entry, null, null);
     expect(row.chip).toBeUndefined();
-    expect(row.summary).toEqual({ branch: "main", canvases: 3, openComments: 3, changedAt: 1234 });
+    expect(row.summary).toEqual({ branch: "main", changedAt: 1234 });
   });
 
   test("a detached head shows the first 7 digits; no git shows no branch", () => {
     const sha = "0123456789abcdef0123456789abcdef01234567";
     expect(cardRow(listRow("/p", { common: "/c", detached: sha, worktrees: [] }), null, null).summary?.branch).toBe("detached 0123456");
-    expect(cardRow(listRow("/p"), null, null).summary).toEqual({ canvases: 0, openComments: 0 });
+    expect(cardRow(listRow("/p"), null, null).summary).toEqual({});
   });
 
   test("marks the loaded workspace as current, with its selection", () => {
@@ -100,7 +100,7 @@ describe("cardRow", () => {
     expect(cardRow(entry, "/p", { ...frame, frame: { id: "", title: "  " } }).selected).toBe("(no id)");
     expect(cardRow(entry, "/p", { ...frame, frame: { id: "home", title: "  Home  " } }).selected).toBe("Home");
     expect(cardRow(entry, "/p", element).selected).toBe("button · save");
-    expect(cardRow(entry, "/p", null)).toEqual({ current: true, actions: [], summary: { canvases: 0, openComments: 0 } });
+    expect(cardRow(entry, "/p", null)).toEqual({ current: true, actions: [], summary: {} });
   });
 
   test("a row that is not loaded shows neither Open nor Selected", () => {
@@ -129,19 +129,21 @@ describe("review counts", () => {
 
   test("the row summary carries the count from the project read", () => {
     const entry = listRow("/code/acme", acme("", "main"), { canvases: [canvas(2)], changedAt: 1 });
-    expect(cardRow(entry, null, null, [counts(1)]).summary).toEqual({ branch: "main", canvases: 1, openComments: 2, toReview: 1, changedAt: 1 });
+    expect(cardRow(entry, null, null, [counts(1)]).summary).toEqual({ branch: "main", toReview: 1, changedAt: 1 });
     expect(cardRow(entry, null, null, [{ id: "x", error: "bad" }]).summary).not.toHaveProperty("toReview");
     expect(cardRow(entry, null, null).summary).not.toHaveProperty("toReview");
   });
 });
 
 describe("ProjectCommentReads", () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(10_000); });
+  afterEach(() => { vi.useRealTimers(); });
   function reads() {
-    const asks: { root: string; revision: number; reply: (value: ProjectComments | null) => Promise<void> }[] = [];
+    const asks: { root: string; revision: number; at: number; reply: (value: ProjectComments | null) => Promise<void> }[] = [];
     let shown: ReadonlyMap<string, readonly ProjectCanvasComments[]> = new Map();
     const publish = vi.fn((items: ReadonlyMap<string, readonly ProjectCanvasComments[]>) => { shown = items; });
     const project = new ProjectCommentReads((root, revision) => new Promise(resolve => {
-      asks.push({ root, revision, reply: async value => { resolve(value); await Promise.resolve(); } });
+      asks.push({ root, revision, at: Date.now(), reply: async value => { resolve(value); await Promise.resolve(); } });
     }), publish);
     const list = (root: string, revision: number, canvases: ProjectCanvasComments[]): ProjectComments => ({ root, revision, kind: "list", canvases });
     return { project, asks, publish, list, shown: () => shown };
@@ -152,6 +154,7 @@ describe("ProjectCommentReads", () => {
     const h = reads();
     h.project.track(new Map([["/r1", "s1"], ["/r2", "s1"]]));
     h.project.track(new Map([["/r1", "s1"], ["/r2", "s2"]]));
+    vi.advanceTimersByTime(1000);
     expect(h.asks.map(ask => ask.root)).toEqual(["/r1", "/r2", "/r2"]);
     await h.asks[0]!.reply(h.list("/r1", h.asks[0]!.revision, [a]));
     expect(h.shown().get("/r1")).toEqual([a]);
@@ -167,18 +170,80 @@ describe("ProjectCommentReads", () => {
     expect(h.shown().get("/r1")).toEqual([a]);
   });
 
-  test("an invalidation reads a tracked root again; an untracked root is ignored", () => {
+  test("an invalidation or a refresh reads a tracked root again; an untracked root is ignored", () => {
     const h = reads();
     h.project.track(new Map([["/r1", "s1"]]));
+    vi.advanceTimersByTime(1000);
+    h.project.invalidated("/r1");
+    vi.advanceTimersByTime(1000);
     h.project.refresh("/r1");
+    h.project.invalidated("/other");
     h.project.refresh("/other");
-    expect(h.asks.map(ask => ask.root)).toEqual(["/r1", "/r1"]);
+    vi.advanceTimersByTime(5000);
+    expect(h.asks.map(ask => ask.root)).toEqual(["/r1", "/r1", "/r1"]);
+  });
+
+  // tasks 1 stage 1: main sends `comments:invalidated` before its `doan ls`,
+  // and the ls row it then sends changes too. One refresh, one read.
+  test("the ls row change that follows an invalidation does not read again", () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"]]));
+    vi.advanceTimersByTime(5000);
+    h.project.invalidated("/r1");
+    vi.advanceTimersByTime(250);
+    h.project.track(new Map([["/r1", "s2"]]));
+    vi.advanceTimersByTime(5000);
+    expect(h.asks).toHaveLength(2);
+    // A later row change on its own reads again.
+    h.project.track(new Map([["/r1", "s3"]]));
+    expect(h.asks).toHaveLength(3);
+  });
+
+  test("while invalidations keep coming, a root is read at most once a second and once after the last", () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s0"]]));
+    let last = 0;
+    // Saves 250 ms apart; each ls row lands 200 ms after its invalidation.
+    for (let save = 1; save <= 20; save++) {
+      vi.advanceTimersByTime(50);
+      h.project.invalidated("/r1");
+      last = Date.now();
+      vi.advanceTimersByTime(200);
+      h.project.track(new Map([["/r1", `s${save}`]]));
+    }
+    vi.advanceTimersByTime(5000);
+    const times = h.asks.map(ask => ask.at);
+    for (let i = 1; i < times.length; i++) expect(times[i]! - times[i - 1]!).toBeGreaterThanOrEqual(1000);
+    expect(times.at(-1)!).toBeGreaterThanOrEqual(last);
+    expect(h.asks.length).toBeGreaterThan(2);
+  });
+
+  test("other roots are not held back by one root's reads", () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"], ["/r2", "s1"]]));
+    h.project.invalidated("/r1");
+    h.project.invalidated("/r2");
+    expect(h.asks.map(ask => ask.root)).toEqual(["/r1", "/r2"]);
+    vi.advanceTimersByTime(1000);
+    expect(h.asks.map(ask => ask.root)).toEqual(["/r1", "/r2", "/r1", "/r2"]);
+  });
+
+  test("a pending read is dropped when its root leaves the screen or on dispose", () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"], ["/r2", "s1"]]));
+    h.project.invalidated("/r1");
+    h.project.invalidated("/r2");
+    h.project.track(new Map([["/r2", "s1"]]));
+    h.project.dispose();
+    vi.advanceTimersByTime(5000);
+    expect(h.asks).toHaveLength(2);
   });
 
   test("a late answer overtaken by a newer request is dropped", async () => {
     const h = reads();
     h.project.track(new Map([["/r1", "s1"]]));
     h.project.refresh("/r1");
+    vi.advanceTimersByTime(1000);
     const [old, fresh] = h.asks;
     await fresh!.reply(h.list("/r1", fresh!.revision, [a]));
     await old!.reply(h.list("/r1", old!.revision, [{ ...a, toReview: 9 }]));
@@ -201,11 +266,14 @@ describe("ProjectCommentReads", () => {
     h.project.track(new Map([["/r1", "s1"]]));
     await h.asks[0]!.reply(h.list("/r1", h.asks[0]!.revision, [a]));
     h.project.refresh("/r1");
+    vi.advanceTimersByTime(1000);
     await h.asks[1]!.reply({ root: "/r1", revision: h.asks[1]!.revision, kind: "unavailable" });
     expect(h.shown().has("/r1")).toBe(false);
     h.project.refresh("/r1");
+    vi.advanceTimersByTime(1000);
     await h.asks[2]!.reply(h.list("/r1", h.asks[2]!.revision, [a]));
     h.project.refresh("/r1");
+    vi.advanceTimersByTime(1000);
     await h.asks[3]!.reply(null);
     expect(h.shown().has("/r1")).toBe(false);
   });

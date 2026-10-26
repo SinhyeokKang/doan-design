@@ -3,6 +3,7 @@ import type { Comment, Target, Warning } from "../formats/types";
 import type { ListFilter } from "../comments/projection";
 import { targetLabel } from "../comments/targetLabel";
 import { reopenText, resolutionText, type NamedLine } from "../comments/resolution";
+import { ErrorDetails } from "./ErrorDetails";
 import { ReviewBar, ReviewDone, ReviewNotice, type ReviewBarView, type ReviewDoneView, type ReviewNoticeView } from "./ReviewBar";
 import { READ_FAILED_EDITOR, WARNINGS_TITLE, commentsPanelState, emptyListText, identityText, warningFileText, warningGroups, warningText, type IdentityCause } from "../comments/panelText";
 
@@ -167,7 +168,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
     {props.reviewDone && <ReviewDone {...props.reviewDone} />}
     {props.reviewBar ? <ReviewBar {...props.reviewBar} /> : props.reviewNotice && <ReviewNotice {...props.reviewNotice} />}
     {read.status === "loading" ? <div className="comments-message" role="status"><b>Loading comments…</b></div>
-      : read.status === "failed" ? <div className="comments-message error" role="alert"><b>Couldn’t read comments</b>{read.message}<div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRead}>Retry</button></div></div>
+      : read.status === "failed" ? <div className="comments-message error" role="alert"><b>Couldn’t read comments</b><ErrorDetails className="comments-btn" detail={read.message}>{(button, detail) => <><div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRead}>Retry</button>{button}</div>{detail && <p className="detail">{detail}</p>}</>}</ErrorDetails></div>
         : <>
           {read.warnings.length > 0 && <div className="comments-message warning comments-warnings"><b>{WARNINGS_TITLE}</b>
             <ul>{warningGroups(read.warnings).map(group => <li key={group.code}>{warningText(group.code)}<span className="lines">{group.label}</span></li>)}</ul>

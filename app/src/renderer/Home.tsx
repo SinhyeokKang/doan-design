@@ -2,9 +2,8 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { ContextMenu, DropdownMenu } from "radix-ui";
 import type { ProjectCanvasComments } from "../main/projectComments";
 import type { FolderEntry } from "../main/view";
-import { pluralComments } from "../comments/panelText";
 import { displayPath } from "./projectDisplay";
-import { cardRow, groupProjects, measureNarrow, ProjectCommentReads, type HomeCard, type RowAction } from "./homeCards";
+import { cardRow, groupProjects, homeSummary, measureNarrow, ProjectCommentReads, type HomeCard, type RowAction } from "./homeCards";
 import type { SelectionView } from "./selection";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
@@ -58,7 +57,7 @@ export function useProjectComments(entries: readonly FolderEntry[], roots: reado
   useEffect(() => {
     const current = new ProjectCommentReads((root, revision) => window.doan.projectComments(root, revision), setComments);
     reads.current = current;
-    const stop = window.doan.onCommentsInvalidated(change => current.refresh(change.root));
+    const stop = window.doan.onCommentsInvalidated(change => current.invalidated(change.root));
     return () => { stop(); current.dispose(); reads.current = null; };
   }, []);
   const rootsKey = roots.join("\0");
@@ -113,10 +112,10 @@ function ProjectCard({ card, ...props }: HomeProps & { card: HomeCard }) {
     <div className="card-head"><PathTip text={card.name}><span className="card-name">{card.name}</span></PathTip>{card.rows.length > 1 && <span className="meta">{card.rows.length} worktrees</span>}<span className="spacer" /><More label={`Project menu ${card.name}`} actions={actions} /></div>
     {card.rows.map((entry, index) => {
       const row = cardRow(entry, props.loaded, props.selection, props.comments?.get(entry.path));
-      const review = row.summary?.toReview ? `${row.summary.toReview} resolved to review` : undefined;
+      const summary = entry.kind === "list" ? homeSummary(entry, row.summary?.toReview) : undefined;
       const actions = [{ label: "Show in Finder", run: () => props.action("showInFinder", entry.path) }, { label: "Project Settings…", run: () => { void window.doan.openSettings({ tab: "projects", project: entry.path }); } }, { label: "Remove from doan", run: () => props.remove([entry.path]) }];
       const activate = (node: HTMLElement) => entry.kind === "list" ? props.enter(entry.path) : node.querySelector<HTMLButtonElement>(".wt-actions button")?.focus();
-      return <Context key={entry.path} actions={actions}><div className={`wt${row.chip ? " problem" : ""}${narrow.has(entry.path) ? " narrow" : ""}`} data-path={entry.path} role={row.chip ? "group" : "button"} aria-label={`Project ${row.summary?.branch ?? displayPath(entry.path, props.homeDirectory)} · ${row.chip ?? `${row.summary?.canvases ?? 0} ${row.summary?.canvases === 1 ? "canvas" : "canvases"} · ${pluralComments(row.summary?.openComments ?? 0)}${review ? ` · ${review}` : ""}`} · ${entry.path}`} aria-current={row.current ? "true" : undefined} tabIndex={active === entry.path ? 0 : -1}
+      return <Context key={entry.path} actions={actions}><div className={`wt${row.chip ? " problem" : ""}${narrow.has(entry.path) ? " narrow" : ""}`} data-path={entry.path} role={row.chip ? "group" : "button"} aria-label={`Project ${row.summary?.branch ?? displayPath(entry.path, props.homeDirectory)} · ${row.chip ?? summary?.label ?? ""} · ${entry.path}`} aria-current={row.current ? "true" : undefined} tabIndex={active === entry.path ? 0 : -1}
         onFocus={event => { if (event.target === event.currentTarget) setFocused(entry.path); }} onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) activate(event.currentTarget); }}
         onKeyDown={event => {
           if (event.target !== event.currentTarget) return;
@@ -124,7 +123,7 @@ function ProjectCard({ card, ...props }: HomeProps & { card: HomeCard }) {
           if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); const next = element.current?.querySelectorAll<HTMLElement>(".wt")[index + (event.key === "ArrowUp" ? -1 : 1)]; next?.focus(); }
         }}>
         <span className="wt-label"><span className="glyph" aria-hidden="true">{row.summary?.branch ? "⎇" : "◌"}</span><PathTip text={row.summary?.branch ?? entry.path}><span className={`name${row.summary?.branch ? "" : " path"}`}>{row.summary?.branch ?? displayPath(entry.path, props.homeDirectory)}</span></PathTip>{row.current && <span className="open-tag">Open</span>}</span>
-        <span className="wt-end">{row.chip ? <span className={`ob-chip${row.chip === "Config error" ? " err" : row.chip === "Missing" || row.chip === "CLI error" ? " warn" : ""}`}>{row.chip}</span> : row.summary && <span className="wt-sum"><span>{row.summary.canvases} {row.summary.canvases === 1 ? "canvas" : "canvases"}</span>{row.summary.openComments > 0 && <> · <span className="hot">{row.summary.openComments} open</span></>}{review && <> · <span className="review">{review}</span></>} · <span><ChangedTime at={row.summary.changedAt} /></span></span>}<More row label={`Row menu ${entry.path}`} actions={actions} /></span>
+        <span className="wt-end">{row.chip ? <span className={`ob-chip${row.chip === "Config error" ? " err" : row.chip === "Missing" || row.chip === "CLI error" ? " warn" : ""}`}>{row.chip}</span> : row.summary && summary && <span className="wt-sum">{summary.items.map((item, at) => <Fragment key={item.kind}>{at > 0 && " · "}<span className={item.kind === "open" ? "hot" : item.kind === "review" ? "review" : undefined}>{item.text}</span></Fragment>)} · <span><ChangedTime at={row.summary.changedAt} /></span></span>}<More row label={`Row menu ${entry.path}`} actions={actions} /></span>
         {row.summary?.branch && <PathTip text={entry.path}><span className="wt-path">{displayPath(entry.path, props.homeDirectory)}</span></PathTip>}
         {row.selected && <PathTip text={`Selected for your agent: ${row.selected}`}><span className="wt-sel">Selected for your agent: <b>{row.selected}</b></span></PathTip>}
         {row.chip && <ProblemActions entry={entry} action={props.action} />}

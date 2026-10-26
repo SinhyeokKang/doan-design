@@ -38,8 +38,9 @@ export interface CardRow {
   chip?: "Not set up" | "Missing" | "Config error" | "CLI error" | "Reading…";
   // The first action takes focus when a problem row is clicked.
   actions: RowAction[];
-  // Only for a list row; the view formats `changedAt`.
-  summary?: { branch?: string; canvases: number; openComments: number; toReview?: number; changedAt?: number };
+  // Only for a list row; the view formats `changedAt` and puts `homeSummary`
+  // beside it.
+  summary?: { branch?: string; toReview?: number; changedAt?: number };
   // This row is the loaded workspace ("Open").
   current: boolean;
   // "Selected for your agent: <selected>" while `current`.
@@ -71,8 +72,6 @@ export function cardRow(entry: FolderEntry, loaded: string | null, selection: Se
       const toReview = reviewTotal(comments);
       const summary = {
         ...(branch === undefined ? {} : { branch }),
-        canvases: entry.canvases.length,
-        openComments: entry.canvases.reduce((sum, canvas) => sum + canvas.open, 0),
         ...(toReview === undefined ? {} : { toReview }),
         ...(entry.changedAt === undefined ? {} : { changedAt: entry.changedAt }),
       };
@@ -117,16 +116,28 @@ export function homeSummary(entry: Extract<FolderEntry, { kind: "list" }>, revie
   return { items, label: label.join(" · ") };
 }
 
+// One root is read at most this often while changes keep coming (tasks 1:
+// consecutive saves read up to 5 times a second without it).
+export const PROJECT_READ_INTERVAL_MS = 1000;
+
 // `comments:project` reads for the roots on screen. A root is read again when
 // its ls row changes (an agent's resolve reaches the app only through the
-// watcher's ls) and when the app's own write invalidates it; a review-state
-// raise notifies nothing, so its owner calls `refresh`. Only the newest
-// request per root may land.
+// watcher's ls), when main invalidates it, and when its owner calls `refresh`
+// for a change main does not announce (a review-state raise). Per root, reads
+// start at most once per interval; a trigger inside it waits for one trailing
+// read, so the last change is always read. Only the newest request per root
+// may land.
 export class ProjectCommentReads {
   private items = new Map<string, readonly ProjectCanvasComments[]>();
   // root → the ls row it was last read for.
   private tracked = new Map<string, string>();
   private latest = new Map<string, number>();
+  private started = new Map<string, number>();
+  private waiting = new Map<string, ReturnType<typeof setTimeout>>();
+  // Roots invalidated since their last ls row change. Main invalidates before
+  // the `doan ls` whose row then changes, and every read runs its own ls, so
+  // that row change is already covered (tasks 1 stage 1 measured the pair).
+  private invalidatedRoots = new Set<string>();
   private seq = 0;
   private disposed = false;
 
@@ -136,26 +147,46 @@ export class ProjectCommentReads {
   // until the new read lands.
   track(roots: ReadonlyMap<string, string>): void {
     for (const root of [...this.tracked.keys()]) {
-      if (!roots.has(root)) { this.tracked.delete(root); this.latest.delete(root); }
+      if (roots.has(root)) continue;
+      this.tracked.delete(root); this.latest.delete(root); this.started.delete(root); this.invalidatedRoots.delete(root);
+      clearTimeout(this.waiting.get(root)); this.waiting.delete(root);
     }
     for (const [root, signature] of roots) {
-      if (this.tracked.get(root) === signature) continue;
+      const previous = this.tracked.get(root);
+      if (previous === signature) continue;
       this.tracked.set(root, signature);
-      this.read(root);
+      if (previous !== undefined && this.invalidatedRoots.delete(root)) continue;
+      this.request(root);
     }
   }
 
+  invalidated(root: string): void {
+    if (!this.tracked.has(root)) return;
+    this.invalidatedRoots.add(root);
+    this.request(root);
+  }
+
   refresh(root: string): void {
-    if (this.tracked.has(root)) this.read(root);
+    if (this.tracked.has(root)) this.request(root);
   }
 
   dispose(): void {
     this.disposed = true;
+    for (const timer of this.waiting.values()) clearTimeout(timer);
+    this.waiting.clear();
+  }
+
+  private request(root: string): void {
+    if (this.disposed || this.waiting.has(root)) return;
+    const wait = (this.started.get(root) ?? -Infinity) + PROJECT_READ_INTERVAL_MS - Date.now();
+    if (wait <= 0) { this.read(root); return; }
+    this.waiting.set(root, setTimeout(() => { this.waiting.delete(root); this.read(root); }, wait));
   }
 
   private read(root: string): void {
     const revision = ++this.seq;
     this.latest.set(root, revision);
+    this.started.set(root, Date.now());
     void this.get(root, revision).then(reply => {
       if (this.disposed || this.latest.get(root) !== revision) return;
       if (reply?.kind === "list" && reply.root === root && reply.revision === revision) this.items.set(root, reply.canvases);

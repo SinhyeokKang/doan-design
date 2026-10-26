@@ -184,6 +184,7 @@ code, kbd { font-family: var(--font-sans); }
 .comments-message.error { border-left: 2px solid var(--err); }
 .comments-message.warning { border-left: 2px solid var(--warn); }
 .comments-message .comments-tools { margin-top: 10px; }
+.comments-message .detail { margin-top: 8px; border-left: 2px solid var(--err); padding-left: 8px; }
 .comments-warnings li { margin-top: 6px; }
 .comments-warnings .lines { display: block; color: var(--text-3); font-size: 10.5px; }
 .comments-warnings .file { margin-top: 8px; color: var(--text-3); }
@@ -468,6 +469,10 @@ code, kbd { font-family: var(--font-sans); }
 .side .row .no-id { color: var(--text-3); }
 .ra .btn { padding: 1px 7px; font-size: 11px; border-radius: 6px; }
 .tree-hint { padding: 2px 12px 6px 46px; font: 11.5px/1.5 var(--font-sans); color: var(--text-3); }
+.row .warn-mark { flex: none; color: var(--warn); font-size: 11px; }
+.tree-hint.warn { color: var(--warn); }
+.tree-hint .btn { padding: 1px 7px; font-size: 11px; margin: 4px 0 0; color: var(--text-2); }
+.tree-detail { margin: 2px 12px 6px 46px; font-size: 11.5px; line-height: 1.5; color: var(--text-2); border-left: 2px solid var(--err); padding-left: 8px; overflow-wrap: anywhere; }
 .crumbs button.repo { border-radius: 5px; padding: 1px 4px; margin: 0 -4px; }
 .crumbs button.repo:hover { background: var(--panel-2); color: var(--text); }
 .mark.jump-highlight { border: 2px solid var(--accent-line); border-radius: 1px; box-shadow: 0 0 0 3px var(--accent-soft); animation: frame-jump-fade 1.2s linear forwards; }

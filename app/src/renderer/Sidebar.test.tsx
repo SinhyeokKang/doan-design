@@ -93,3 +93,33 @@ test("a move into another folder expands the new ancestors and moves the canvas 
   expect(html).toMatch(/aria-label="sub"[^>]*aria-expanded="true"/);
   expect(html).toMatch(/aria-label="Moved"[^>]*aria-expanded="true"/);
 });
+
+// project-feedback draft `tree-errors`: a row ls could not fully read keeps its
+// place in the tree; a warning mark replaces the badge and a fixed sentence
+// under the row describes it. The raw message waits behind Details.
+test("a row whose comment file could not be read shows the warning and the comments sentence", () => {
+  const html = sidebar(initialCanvasState(), { ...row, open: 0, commentsError: { code: "unreadable_comments", message: "Cannot read .doan/comments/plans.jsonl: permission denied" } });
+  expect(html).toMatch(/aria-label="Billing &amp; plans"[^>]*aria-describedby="([^"]+)"/);
+  const id = /aria-label="Billing &amp; plans"[^>]*aria-describedby="([^"]+)"/.exec(html)![1]!;
+  expect(html).toContain(`<p class="tree-hint warn" id="${id}" style="padding-left:46px">Couldn’t read this canvas’s comments — run doan check<br/><button type="button" class="btn" aria-label="Details" aria-expanded="false">Details ▸</button></p>`);
+  expect(html).toContain('<span class="warn-mark" aria-hidden="true">⚠</span>');
+  expect(html).not.toContain("permission denied");
+  expect(html).not.toContain('class="cnt');
+});
+
+test("a row whose canvas file could not be read shows the canvas sentence and no frame hint", () => {
+  const unreadable: CanvasRow = { path: "design/legacy.html", url: "u", open: 0, resolved: 0, frames: [], error: { code: "unreadable_canvas", message: "Cannot read design/legacy.html: permission denied" } };
+  const state = { ...initialCanvasState() };
+  const html = renderToStaticMarkup(<TooltipProvider><Sidebar entries={[{ path: "/repo", kind: "list", servedRev: 0, canvases: [unreadable] }]} state={state} expanded={{ "/repo": ["design/legacy.html"] }} open={() => {}} jump={() => {}} select={() => {}} overview={() => {}} /></TooltipProvider>);
+  // A root-level row: the sentence is indented one level less.
+  expect(html).toContain('style="padding-left:32px">Can&#x27;t read this canvas — run doan check<br/>');
+  expect(html).toMatch(/aria-label="legacy"[^>]*aria-describedby=/);
+  expect(html).not.toContain("This canvas has no data-doan-frame");
+  expect(html).not.toContain("permission denied");
+});
+
+test("an error row with open comments still shows the warning, not the badge", () => {
+  const html = sidebar(initialCanvasState(), { ...row, open: 3, commentsError: { code: "unreadable_comments", message: "m" } });
+  expect(html).not.toContain('aria-label="3 open comments"');
+  expect(html).toContain("warn-mark");
+});

@@ -44,6 +44,24 @@ test("a zero count, a missing read and a failed canvas show no resolved to revie
   }
 });
 
+// project-feedback draft `home-summary`: "· N without a canvas" right after
+// the review count, plain, and in the row's accessible name.
+test("a row adds comments without a canvas after resolved to review", () => {
+  const entry = { ...counted(2), orphans: [{ id: "old", file: ".doan/comments/old.jsonl", comments: { open: 3, resolved: 1 }, uncertain: false }] } as FolderEntry;
+  const html = render([entry], null, new Map([["/code/main", [{ id: "a", open: 2, resolved: 1, toReview: 1 }]]]));
+  expect(html).toMatch(/<span class="wt-sum"><span>1 canvas<\/span> · <span class="hot">2 open<\/span> · <span class="review">1 resolved to review<\/span> · <span>3 without a canvas<\/span> · <span>/);
+  expect(html).toContain('aria-label="Project main · 1 canvas · 2 open comments · 1 resolved to review · 3 without a canvas · /code/main"');
+});
+test("a row with only comments without a canvas starts after the canvas count", () => {
+  const entry: FolderEntry = { kind: "list", path: "/code/main", servedRev: 0, canvases: [], orphans: [{ id: "old", file: ".doan/comments/old.jsonl", comments: { open: 2, resolved: 0 }, uncertain: false }], git: { common: "/code/main/.git", main: "/code/main", branch: "main", worktrees: [] } };
+  expect(render([entry])).toMatch(/<span class="wt-sum"><span>0 canvases<\/span> · <span>2 without a canvas<\/span> · <span>/);
+});
+test("a row whose canvas comments could not be read shows no open count", () => {
+  const entry: FolderEntry = { ...counted(0), kind: "list", canvases: [{ path: "design/a.html", id: "a", url: "u", open: 0, resolved: 0, commentsError: { code: "unreadable_comments", message: "m" } }] } as FolderEntry;
+  const html = render([entry]);
+  expect(html).not.toContain("open");
+  expect(html).toContain('aria-label="Project main · 1 canvas · /code/main"');
+});
 
 test("names the current selection for the agent in the row and tooltip", () => {
   const selection = { tag: "button", element: { doanId: "pay-button", selector: "button", html: "<button></button>" }, path: [] };

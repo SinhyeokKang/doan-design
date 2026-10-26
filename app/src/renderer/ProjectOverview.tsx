@@ -8,7 +8,7 @@ import { FirstPrompt } from "./FirstPrompt";
 
 // Keyed by canvas path. A path with no entry has not been captured yet.
 export type ThumbnailState = { kind: "pending" } | { kind: "ready"; url: string } | { kind: "failed" };
-export type ThumbnailView = ThumbnailState | { kind: "noWidth" };
+export type ThumbnailView = ThumbnailState | { kind: "noWidth" } | { kind: "unreadable" };
 
 export interface OverviewSection {
   key: string;
@@ -28,18 +28,20 @@ export function overviewSections(rows: readonly CanvasRow[]): OverviewSection[] 
   return sections;
 }
 
-// An absent canvas ID says nothing about the supplied frame metadata. The
+// An absent canvas ID says nothing about the supplied frame metadata, but a
+// canvas ls could not read has none to show. The
 // review count is the `comments:project` one for the row's ID; a canvas whose
 // comment file failed shows none rather than a wrong one.
 export function cardFacts(row: CanvasRow, comments?: readonly ProjectCanvasComments[]): { frames?: string; open?: string; review?: string } {
   const count = row.frames?.length ?? 0;
-  const frames = row.frames === undefined ? undefined : row.framesTruncated ? "1,000+ frames" : `${count.toLocaleString("en-US")} ${count === 1 ? "frame" : "frames"}`;
+  const frames = row.frames === undefined || row.error ? undefined : row.framesTruncated ? "1,000+ frames" : `${count.toLocaleString("en-US")} ${count === 1 ? "frame" : "frames"}`;
   const counts = row.id === undefined ? undefined : comments?.find(canvas => canvas.id === row.id);
   const toReview = counts && !("error" in counts) ? counts.toReview : 0;
   return { ...(frames === undefined ? {} : { frames }), ...(row.open > 0 ? { open: `${row.open} open` } : {}), ...(toReview > 0 ? { review: `${toReview} resolved to review` } : {}) };
 }
 
 export function thumbnailView(row: CanvasRow, state: ThumbnailState | undefined): ThumbnailView {
+  if (row.error) return { kind: "unreadable" };
   if (row.width === undefined) return { kind: "noWidth" };
   return state ?? { kind: "pending" };
 }
@@ -207,6 +209,7 @@ function CanvasCard({ canvas, comments, thumbnail, open, focus, blur }: { canvas
     <div id={`${id}-thumb`} className={`thumb${thumbnail.kind === "pending" ? " pending" : ""}`}>
       {thumbnail.kind === "ready" ? <img src={thumbnail.url} alt="" />
         : thumbnail.kind === "failed" ? <p className="thumb-msg">Preview unavailable</p>
+        : thumbnail.kind === "unreadable" ? <p className="thumb-msg warn">Can't read this canvas — run doan check</p>
         : thumbnail.kind === "noWidth" ? <p className="thumb-msg">Preview needs a valid <code>doan:width</code> — run doan check</p>
         : null}
     </div>
