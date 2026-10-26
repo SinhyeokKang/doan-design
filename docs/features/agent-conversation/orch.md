@@ -27,7 +27,7 @@
 |---|---|---|---|---|---|---|
 | P | P1, P2, P3 | `.scratch/agent-conversation/`, PRODUCT §6 결과 | 없음 | Astra medium — 전송·권한·동시 세션 실증 판단 | 버전·명령·원시 증거·격리 검증, 9a~9e 결과 | 실험 종료, 설정 전체 동일성 실패·독립 검토 대기 |
 | D | D1, D2 | PRODUCT 결정, feature 계약의 PoC 확정 내용 | P | Astra medium — 제품 범위와 실험 결과 대조 | §3·§7 및 스킬 변경 판단 | 리뷰 보완·통합 완료 |
-| S | S1 | `schema/`, Go·TS formats 등록과 테스트 | D | Sol medium — 공유 포맷과 픽스처 구현 | Go·TS 포맷 테스트 | 구현 시작 |
+| S | S1 | `schema/`, Go·TS formats 등록과 테스트 | D | Sol medium — 공유 포맷과 픽스처 구현 | Go·TS 포맷 테스트 | 구현 완료, 독립 리뷰 중 |
 | C | T1·T2의 Go 부분, C1 | `cli/internal/cli/` 세션 기록과 테스트, 필요 시 skill | S | Astra medium — 출력 보존·경로·동시 append | red→green, Go test/vet, 필요 시 agent-eval | 대기 |
 | T | T1·T2의 TS 부분 | `app/src/main/conversation/` 순수 함수·계약·테스트 | S | Astra medium — 이벤트·복구·권한 상태 계약 | red→green, app test/typecheck | 대기 |
 | A | A2, A3, A4 | conversation 실행기·저장·IPC, main 수명, preload와 타입 | C, T | Astra medium — 프로세스·저장·IPC 경계 | app test/typecheck/build 및 E 종료 검증 | 대기 |
@@ -71,3 +71,4 @@
 - F-D (`task_13b4cd712a54`, `ctx_d434500e7909`)의 `f7f5149`, `3b95e4d`를 지휘자가 R-D 두 지적과 직접 대조했다. 예약·검증된 종료에 따른 해제, listener 선등록·마지막 이벤트 병합 및 T/A/E 테스트 소유가 모두 반영됐다. 잔여 지적 없음. D/F-D 6커밋을 `b82d7a1`부터 `de67bb6`까지 통합했고 diff 검사 통과(문서만 변경해 full verify 생략). F-D 터미널 release 완료. S는 Sol medium으로 schema/등록/픽스처를 구현하며 현재 전체 테스트 실행 슬롯을 가진다.
 - D child는 clean·미통합 커밋 없음과 인계/검증 스크립트 복사 일치를 확인한 뒤 Orca로 제거했고 목록에서 부재를 확인했다. P child는 이후 전송 구현이 원시 실험을 참조하므로 유지한다. S (`task_14cb9a0c1a9b`, `ctx_ad76eb003e85`)의 effective 모델은 gpt-6.1-sol medium이다.
 - S 경계 확인: 기존 schema fixture는 파싱된 JSON을 검증한다. 깨진 JSON·잘린 마지막 줄의 복구는 T 세션 기록 reader가, 이전 기록을 읽는 해시 비교 경로는 C가 검증한다. S는 이를 통과로 보고하지 않는다. timestamp/hash는 기존 포맷 규칙을 따르고 sessionId에 임의 UUID 제한을 추가하지 않는다.
+- S는 `0ef74f9`(red 테스트), `73000a4`(구현)로 sessions.v1와 공유 픽스처 47개 및 Go/TS 등록을 제출했다. Go 전체·앱 3119개 테스트·typecheck 통과 보고와 로그를 인계했다. 터미널 release 완료. R-S는 Astra medium으로 형식 계약·양 런타임 일치·테스트 증거를 독립 검토한다. 통합 테스트와 실제 앱 검증은 별도이며 아직 미실행이다.
