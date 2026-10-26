@@ -17,6 +17,7 @@
 6. conductor's call — 실제 사용자 doan 상태와 세션은 변경하지 않는다. 격리 HOME·설정·userData와 임시 repo에서 실험한다. 인증을 위해 이 범위를 벗어나야 하면 구체적인 접근을 준비한 뒤 보고한다.
 7. conductor's call — comments-ui 기존 실패는 tasks에 명시한 부모 예외만 적용한다. 다른 실패에는 확대 적용하지 않는다.
 8. 2026-10-27 conductor's call — 빈 격리 설정에서 Claude 인증 실패와 Codex HTTP 401을 확인했다. 사용자의 PoC 호출 승인에 필요한 준비로, 현재 선택된 인증 파일만 읽어 임시 설정에 0600으로 복사하도록 승인했다. 원본 변경·인증값 출력·커밋을 금지하고 실험 뒤 복사본 삭제를 검증한다. 파일이 없거나 실패하면 추가 인증 탐색 없이 보고한다.
+9. 2026-10-27 user: 머신에서 떨어져 있으므로 Orca 인증토큰 재사용을 요청했다. 기본 Claude 파일은 401 토큰 만료였다. 설치된 Orca 1.4.240의 `app.asar.unpacked/out/main/chunks/keychain-ChDW08Rk.js`에서 현재 프로필의 macOS 키체인 조회 규칙을 확인했다. 해당 항목 하나의 유효 access token만 격리 실험에 전달하고, refresh token 공유·회전과 원본 키체인 변경을 피한다. 실제 호출 성공 여부는 별도로 검증한다.
 
 ## 배치와 검증
 
