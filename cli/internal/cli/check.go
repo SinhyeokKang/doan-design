@@ -20,10 +20,17 @@ func checkState(s repo.State) check.State {
 	}
 }
 func CheckInput(r repo.Repository) (check.Input, error) {
+	return checkInput(r, nil)
+}
+
+func checkInput(r repo.Repository, inspected func([]canvasFile)) (check.Input, error) {
 	in := check.Input{Canvases: []canvas.Canvas{}, Unparsable: map[string]string{}, Reach: map[string][]check.CSSRef{}, CSS: map[string]canvas.Scan{}, Implements: map[string]check.State{}, CommentFiles: []repo.CommentFile{}}
 	files, e := readCanvases(r.Root)
 	if e != nil {
 		return in, e
+	}
+	if inspected != nil {
+		inspected(files)
 	}
 	in.CommentFiles, e = repo.CommentFiles(r.Root)
 	if e != nil {
@@ -139,7 +146,9 @@ func Check(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if failure != nil {
 		return Outcome{}, failure
 	}
-	in, e := CheckInput(r)
+	var inspected []canvasFile
+	defer func() { recordSessions(ctx, r.Root, inspected) }()
+	in, e := checkInput(r, func(files []canvasFile) { inspected = files })
 	if e != nil {
 		return Outcome{}, internal(e)
 	}

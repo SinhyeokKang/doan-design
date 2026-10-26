@@ -21,6 +21,7 @@ import (
 )
 
 type Context struct {
+	Session  *sessionRecording
 	Start    string
 	Home     string
 	Terminal bool
@@ -92,6 +93,10 @@ func runtimePath() (string, *Error) {
 	return filepath.Join(home, "Library", "Application Support", "doan", "runtime.json"), nil
 }
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run(args, stdin, stdout, stderr, true)
+}
+
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer, recordSessions bool) int {
 	fs := flag.NewFlagSet("doan", flag.ContinueOnError)
 	var f Flags
 	fs.BoolVar(&f.JSON, "json", false, "")
@@ -195,6 +200,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 					case "skill":
 						o, failure = Skill(pos[1:])
 					case "check":
+						if recordSessions {
+							ctx.Session = sessionFromEnvironment(ctx.Home)
+						}
 						o, failure = Check(ctx, f, pos[1:])
 					case "active":
 						if ctx.RuntimePath, failure = runtimePath(); failure == nil {
