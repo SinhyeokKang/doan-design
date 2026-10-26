@@ -2,7 +2,7 @@
 @import "./tokens.css";
 @import "./ds/index.css";
 
-/* shadcn names map onto neutral roles; orange never reaches them. */
+/* shadcn names map onto neutral roles; violet never reaches them. */
 @theme inline {
   --color-background: var(--bg-app);
   --color-foreground: var(--text-standard);
