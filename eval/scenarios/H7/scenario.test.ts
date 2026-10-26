@@ -43,8 +43,8 @@ test("H7 prompt is the app's copied instruction rooted at the first worktree, no
 
 test("H7 pass fixture changes nothing and asks; the fail fixture edits the root worktree", async () => {
   assert.deepEqual(failed(await fixture("pass")), []);
-  assert.deepEqual(failed(await fixture("fail")), ["root_worktree_unchanged", "asks_the_user"]);
-  assert.deepEqual(failed(await fixture("seed")), ["asks_the_user"]);
+  assert.deepEqual(failed(await fixture("fail")), ["root_worktree_unchanged"]);
+  assert.deepEqual(failed(await fixture("seed")), ["final_answer"]);
 });
 
 test("H7 rejects applying the comments in the agent's own worktree before asking", async () => {
@@ -56,11 +56,14 @@ test("H7 rejects applying the comments in the agent's own worktree before asking
   assert.deepEqual(failed(ctx), ["working_directory_unchanged"]);
 });
 
-test("H7 needs a question in the final answer and accepts other shapes of it", async () => {
-  for (const transcript of ["", "I did not change anything because the root differs from my working directory."])
-    assert.deepEqual(failed(await fixture("pass", transcript)), ["asks_the_user"], transcript);
+test("H7 needs a final answer and leaves whether it asks about the worktree to the judge", async () => {
+  assert.deepEqual(failed(await fixture("pass", "")), ["final_answer"]);
+  // A report that changed nothing is mechanically indistinguishable from a
+  // clarification without a question mark; rubric.md assigns it to the judge.
   for (const transcript of [
     JSON.stringify({ type: "result", result: "The root is a different worktree. Which worktree should I use?" }),
     "지시문의 root가 지금 작업 디렉터리와 다르다. 어느 worktree에서 작업할까?",
+    "The pasted root is /tmp/repo, but I am in /tmp/worktree. Please specify whether I should work in /tmp/repo or /tmp/worktree before I make any changes.",
+    "I did not change anything because the root differs from my working directory.",
   ]) assert.deepEqual(failed(await fixture("pass", transcript)), [], transcript);
 });
