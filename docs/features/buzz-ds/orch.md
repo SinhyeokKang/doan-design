@@ -35,6 +35,7 @@
 | 2026-10-26 | buzz-ds PR은 `/verify --runtime` 통과 뒤 지휘자가 main에 병합한다(사용자 명시 지시로 orchestrate의 병합 금지를 이번 run에 한해 해제). 병합 뒤 지휘자가 실시간 대화 feature 문서(`/feature`, spec·design·tasks)와 그에 맞춘 `buzz-restyle` 재구성 문서를 미리 만들어 로드맵을 세운다. 구현은 나중에 기능과 리디자인을 함께 진행한다 | 사용자 |
 | 2026-10-26 | A7 버튼 적용 범위: `.btn`·`.comments-btn` 전부 `doan-button`(클래스에서 변형을 정함), 다이얼로그 액션 행만 40px이고 나머지는 sm, 옛 규칙 삭제. 사이드바 26px 행의 hover 액션(`.side .row .ra`)만 `buzz-project`까지 좁은 예외. 아이콘 버튼은 `doan-icon-button`과 lucide 글리프 | 지휘자 판단 — B3 질문, tasks A7 '클래스만 입힌다' |
 | 2026-10-26 | e2e의 comments-ui가 실제 클립보드가 빈 항목(타입 0개)이라 시작부터 막혀, B3가 `pbcopy`로 placeholder를 한 번 넣는 것을 허락했다 | 지휘자 판단 — 잃는 데이터 없음 |
+| 2026-10-26 | R3 판정: 드롭 오버레이 글자는 `text-on-prominent`, 점선도 `text-on-prominent`로 바꿔 3:1을 넘긴다. 행 막대 제거는 금지 규칙에 따라 승인하고 A10에서 대응표 문구를 고친다. inset 띠 위 subtle 버튼은 DESIGN.md에 중간 상태로 적고 화면 자식에 넘긴다. 정보 글자의 `text-disabled`는 `text-metadata`로 지금 고친다. floating·메뉴 블록은 doan 구조로 다시 쓴다. 모달 위 모달은 위저드 위 다이얼로그 단계를 onboarding suite에 더한다 | 지휘자 판단 — R3 권고 |
 | 2026-10-26 | A10(결론 승격과 `docs/features/buzz-ds/` 삭제)은 지휘자가 통합 뒤 직접 한다 | orchestrate 스킬 §5 |
 
 ## batch 표
@@ -45,7 +46,7 @@
 | R1 | B1 리뷰 | 읽기 전용, `.scratch/review-B1.md` | B1 | Opus high — 토큰 구조와 대비 계산 검토 | `/code-review` 보고, 🔴 0 | 완료 — 🔴 0 🟡 3 |
 | B2 | S2 = A5 | `design/buzz-ds.html`만 | B1 통합 | Opus medium — 프레임 22개 초안, 컨벤션은 정해져 있고 값은 S1 토큰에서 온다 | `doan check --repo .`에서 `design/buzz-ds.html` 오류 0, `doan ls --json`의 프레임 id가 '초안 요청'과 같음. 지휘자 초안 검토 → 사용자 확인 | 커밋 1c1a6b0·a49e3a9(worktree `buzz-ds-b2`), 지휘자 검토 통과, 사용자 확인 대기 |
 | B3 | S3 = A6~A8 | `app/src/renderer/**`(styles·settings·connectionRows CSS, `ds/`, 공용·공유 컴포넌트 TSX, `CommentPins.ts`), `app/e2e/*`, `/design-sync` 산출물. `design/` 초안은 고치지 않는다 | B2 사용자 확인 | Opus high — 셀렉터 60여 줄 대응, 공용 컴포넌트, 모션·포커스, design-sync 실측 | tasks.md A6~A8 검증 전부, `/design-sync` 두 번 | 대기 |
-| R3 | B3 리뷰 | 읽기 전용, `.scratch/review-B3.md` | B3 | Opus high — 넓은 CSS 변경과 cascade 함정 | `/code-review` 보고, 🔴 0 | 대기 |
+| R3 | B3 리뷰 | 읽기 전용, `.scratch/review-B3.md` | B3 | Opus high — 넓은 CSS 변경과 cascade 함정 | `/code-review` 보고, 🔴 0 | 완료 — 🔴 0 🟡 6 ⚪ 10 |
 | B4 | S4 = A9 | `docs/DESIGN.md`만 | B3 통합 | Opus medium — 실측값 정리와 'UX audit recovery update' 재측정 | `grep -c 'buzz-ds 이전' docs/DESIGN.md` > 0, 절 위치, `verify.mjs --runtime` 통과 | 대기 |
 | C | S4 = A10 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DIRECTORY.md`, `docs/features/buzz-ds/` 삭제 | B4 통합 | 지휘자 | tasks.md A10 검증 | 대기 |
 
@@ -66,3 +67,5 @@
 - 2026-10-26: B1r1(Opus high, worktree `buzz-ds-b1r1`) — citrus를 `--orange-1..12`와 짝 값으로 바꾸고 액센트 역할을 다시 연결했다. 9단계 `#ff915e`, 10단계·pressed `#ff9463`(검정 글자 Lc 60을 지키려고 9보다 밝다), 11 `#804428`(핀 테두리), 12 `#432517`(코멘트 글자). 대비 쌍은 기준을 바꾸지 않고 모두 통과했다. 초안 색과 `mock.css`의 오렌지 예시도 바꿨다. 이어 Sonnet low 워커가 토큰 주석의 옛 hex를 지웠다. 통합 8c3943c·466f7da·61bc9a2(draft 커밋 99e5fd7·db329a1도 앞서 통합). 지휘자 확인: typecheck 통과, 단위 테스트는 계획된 `accentPlaces` red 하나, `doan check` 오류 0·경고 12, citrus·`#f0773a` grep 0건. e2e는 돌리지 않았다. 검토용 Artifact를 갱신했다. 두 워커 터미널 release.
 - 2026-10-26: 남은 관찰 — 액센트 hover·pressed가 9단계와 밝기 차이 0.005라 눈으로 거의 구분되지 않는다(레퍼런스 검정 글자 램프와 같은 구조). 초안 확인 때 사용자에게 묻는다.
 - 2026-10-26: B1r2(Opus medium, worktree `buzz-ds-b1r2`) — `--violet-1..12`와 짝 값으로 바꿨다. 9 `#973be1`(흰 글자 5.21:1, Lc −80), hover `#9033d9`, pressed `#8a2dd2`, 12 `#432517`→`#342743`. 핀 테두리는 `neutral-12`. 대비 쌍 모두 통과. 통합 ca62bf9·ad27aa9. 지휘자 확인: typecheck 통과, 단위 테스트는 계획된 `accentPlaces` red 하나(3064 통과), `doan check` 오류 0·경고 12, orange·citrus·옛 hex grep 0건, 초안 diff 확인. 검토용 Artifact 3판으로 갱신. B1r2 터미널 release. 여기까지가 S2(A5 확정)다.
+- 2026-10-26: B3(Opus high, worktree `buzz-ds-b3`) 완료 보고 — 커밋 14개(5b272b4~eda9d3d). 단위 3070 통과, typecheck·build·`doan check` 오류 0, spec grep 0건, comments-ui 뒤 suite 10개와 presentation 두 모드 PASS. 전체 e2e는 comments-ui `:566`에서 멈춰 최종 PASS 없음. B3 터미널 release.
+- 2026-10-26: R3(Opus high) 리뷰 — 🔴 0, 🟡 6, ⚪ 10(지휘자 `.scratch/review-B3.md`). handoff 주장 모두 참. 수정 라운드 B3r1로 🟡1·2·4·5·6과 ⚪3·5·7을 보낸다. R3 터미널 release.
