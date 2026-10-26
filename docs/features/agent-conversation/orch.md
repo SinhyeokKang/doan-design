@@ -92,3 +92,5 @@
 
 - V-CT (`task_0cedd0080e2c`, `ctx_5493925942bb`, Sol medium)는 HEAD `78ddcf8`에서 후속 어댑터 10개 모두 exit 0·자체 PASS·실제 상태 불변과 정리를 확인했다. 지휘자가 results.json과 각 로그의 PASS/상태 확인을 대조했고 터미널 release 완료. `.scratch/handoff-V-CT.md`와 `.scratch/agent-conversation/ct-runtime/`에 증거가 있다. 기존 comments-ui 전체 게이트 미충족은 유지한다.
 - A는 Astra medium으로 A2/A3/A4를 구현한다. C/T 결합 검증과 부모 예외에 따라 착수하며 순수 테스트 통과를 실제 RPC·프로세스 통과로 간주하지 않는다. A는 전체 앱 단위 테스트 슬롯을 갖고, runtime/stress는 E/지휘자가 배정한다. P child는 전송 원시 증거 때문에 유지한다. T child는 POSTMORTEM 동시 추가의 충돌 해결로 cherry 동등성 표시에 +가 남아 정리 보류하며 추적 파일을 강제로 제거하지 않는다.
+
+- A (`task_7af14281b624`, `ctx_229ea2f4f2bc`)는 SDK 0.3.310 설치가 optional 플랫폼 CLI 패키지도 내려받았다고 보고했다. 지휘자가 설치된 SDK package.json의 optionalDependencies를 확인했다. 승인된 SDK 통합의 로컬 설치 부수 효과로 기록하되, 제품은 설치된 CLI만 사용한다. A에 배포 산출물의 플랫폼 CLI 제외 실물 검사와 CLI 부재 시 자동 대체 실행 없이 거절하는 회귀를 요구했다. 전체 optional dependency 제외·전역 CLI/인증 변경은 하지 않는다.
