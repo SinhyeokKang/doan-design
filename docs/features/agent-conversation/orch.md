@@ -72,3 +72,4 @@
 - D child는 clean·미통합 커밋 없음과 인계/검증 스크립트 복사 일치를 확인한 뒤 Orca로 제거했고 목록에서 부재를 확인했다. P child는 이후 전송 구현이 원시 실험을 참조하므로 유지한다. S (`task_14cb9a0c1a9b`, `ctx_ad76eb003e85`)의 effective 모델은 gpt-6.1-sol medium이다.
 - S 경계 확인: 기존 schema fixture는 파싱된 JSON을 검증한다. 깨진 JSON·잘린 마지막 줄의 복구는 T 세션 기록 reader가, 이전 기록을 읽는 해시 비교 경로는 C가 검증한다. S는 이를 통과로 보고하지 않는다. timestamp/hash는 기존 포맷 규칙을 따르고 sessionId에 임의 UUID 제한을 추가하지 않는다.
 - S는 `0ef74f9`(red 테스트), `73000a4`(구현)로 sessions.v1와 공유 픽스처 47개 및 Go/TS 등록을 제출했다. Go 전체·앱 3119개 테스트·typecheck 통과 보고와 로그를 인계했다. 터미널 release 완료. R-S는 Astra medium으로 형식 계약·양 런타임 일치·테스트 증거를 독립 검토한다. 통합 테스트와 실제 앱 검증은 별도이며 아직 미실행이다.
+- R-S (`task_6e8436275153`, `ctx_1d9c2ef5d30b`)는 focused Go/TS 테스트 통과와 POSIX 역슬래시 파일명 거절 문제 🟡 1건을 확인했다. 기존 탐색·containment와 새 schema의 호환성 문제이며 R-S-1로 기록했다. 리뷰 터미널 release 완료. F-S는 Sol medium으로 공유 회귀 red→green, slash parent-segment 검사 수정, 별도 postmortem 기록만 수행한다.
