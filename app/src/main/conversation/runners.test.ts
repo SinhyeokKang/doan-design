@@ -43,3 +43,18 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   try { await runner.send("hello", "local-turn"); expect(events).toContainEqual({ type: "turn.done" }); expect(events).toContainEqual({ type: "message.done", messageId: "m", text: "hello" }); }
   finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
 }, 15000);
+it("reports malformed accepted transport immediately instead of waiting for process exit", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-malformed-codex-")), command = join(root, "codex");
+  writeFileSync(command, `#!/usr/bin/env node
+const readline=require('node:readline'); const send=v=>process.stdout.write(JSON.stringify(v)+'\\n');
+readline.createInterface({input:process.stdin}).on('line',line=>{const r=JSON.parse(line);
+ if(r.method==='initialize')send({id:r.id,result:{}});
+ if(r.method==='thread/start')send({id:r.id,result:{thread:{id:'s'}}});
+ if(r.method==='turn/start'){send({id:r.id,result:{turn:{id:'t'}}});setTimeout(()=>process.stdout.write('not-json\\n'),10);}
+});
+`, { mode: 0o700 });
+  const events: EventPayload[] = [], exited = vi.fn();
+  const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root } }, e => events.push(e), exited, () => {});
+  try { await runner.send("hello", "local"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.failed", code: "session_unavailable" })); }
+  finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
+});
