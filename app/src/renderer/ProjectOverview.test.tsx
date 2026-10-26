@@ -4,7 +4,8 @@ import type { ThumbnailReply } from "../main/thumbnails";
 import type { CanvasRow } from "../main/view";
 import type { ProjectCanvasComments } from "../main/projectComments";
 import { TooltipProvider } from "./components/ui/tooltip";
-import { applyVisibility, cardFacts, focusAfterRemoval, overviewSections, ProjectOverview, ThumbnailRequests, thumbnailView, type ThumbnailState } from "./ProjectOverview";
+import { applyVisibility, cardFacts, ProjectOverview, ThumbnailRequests, thumbnailView, type ThumbnailState } from "./ProjectOverview";
+import { focusAfterRemoval, overviewSections } from "./overviewOrder";
 
 const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, width: 1440, frames: [], open: 0, resolved: 0, url: `http://127.0.0.1/${path}`, ...extra });
 const rows = [

@@ -70,13 +70,27 @@ describe("feedbackGroups", () => {
     expect(group.frames.map(frame => [frame.kind, frame.label])).toEqual([["frame", "One"], ["frame", "f1500"]]);
   });
 
-  test("keys frame groups by document position, so repeated frame ids stay apart from stored ones", () => {
+  test("keys frame groups by frame id and occurrence, so repeated frame ids stay apart from stored ones", () => {
     const frames = [{ id: "a", title: "A" }, { id: "b", title: "B" }];
     const view = feedbackGroups([file("c", [comment({ frame: "b" }), comment({}), comment({ frame: "x" })])], [row("design/c.html", "c", { frames })], [], "open");
     const group = view.canvases[0];
     if (group?.kind !== "comments") throw new Error("no comments group");
     expect(group.key).toBe("canvas:design/c.html");
-    expect(group.frames.map(frame => frame.key)).toEqual(["design/c.html#whole", "design/c.html#frame:1", "design/c.html#saved:x"]);
+    expect(group.frames.map(frame => frame.key)).toEqual(["design/c.html#whole", "design/c.html#frame:b:0", "design/c.html#saved:x"]);
+  });
+
+  // R-T4 ⚪5: collapse and focus state is kept by key, so a frame inserted
+  // before a group must not hand its key to the neighbour.
+  test("a frame inserted before a group keeps that group's key", () => {
+    const comments = [comment({ frame: "b" })];
+    const key = (frames: { id: string }[]) => {
+      const group = feedbackGroups([file("c", comments)], [row("design/c.html", "c", { frames })], [], "open").canvases[0];
+      if (group?.kind !== "comments") throw new Error("no comments group");
+      return group.frames.map(frame => frame.key);
+    };
+    expect(key([{ id: "b" }])).toEqual(key([{ id: "new" }, { id: "b" }]));
+    // A repeated id counts its occurrences; comments go to the first one.
+    expect(key([{ id: "b" }, { id: "b" }])).toEqual(["design/c.html#frame:b:0"]);
   });
 
   test("runs Resolved rows by resolution time, newest first, and keeps Open rows in file order", () => {

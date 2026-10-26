@@ -3,7 +3,7 @@ import { targetLabel } from "../comments/targetLabel";
 import type { Comment } from "../formats/types";
 import type { CanvasRow, OrphanFile } from "../main/view";
 import { canvasLabel, frameLabel } from "./canvasTree";
-import { focusAfterRemoval, overviewSections } from "./ProjectOverview";
+import { focusAfterRemoval, overviewSections } from "./overviewOrder";
 
 // One comment file as `comments:project` read it: a canvas row's id or an
 // orphan's. `toReview` is the canvas's resolutions to review (none for orphans).
@@ -145,9 +145,14 @@ function frameGroups(row: CanvasRow, comments: readonly Comment[]): FrameGroup[]
   }
   const groups: FrameGroup[] = [];
   if (whole.length > 0) groups.push({ key: `${row.path}#whole`, kind: "whole", label: "Whole canvas", rows: whole });
+  // Keyed by id and occurrence, not position: collapse and focus state follow
+  // the key, and a frame inserted before must not hand it to a neighbour.
+  const seen = new Map<string, number>();
   frames.forEach((frame, index) => {
+    const occurrence = seen.get(frame.id) ?? 0;
+    seen.set(frame.id, occurrence + 1);
     const list = listed.get(index);
-    if (list) groups.push({ key: `${row.path}#frame:${index}`, kind: "frame", label: frameLabel(frame, index).name, rows: list });
+    if (list) groups.push({ key: `${row.path}#frame:${frame.id}:${occurrence}`, kind: "frame", label: frameLabel(frame, index).name, rows: list });
   });
   for (const [id, list] of saved) {
     groups.push(row.framesTruncated
