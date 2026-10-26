@@ -17,6 +17,13 @@
      - 판정: 연속 저장 중 초당 1회 이하 — **실패**(최악 1초에 5회. 50·100 ms 간격도 한 번의 갱신이 1초 안에 2회 읽어 엄격히는 초과). 첫 렌더 1초 여유 — **통과**(읽기 최대 348.3 ms. 첫 렌더 자체는 2단계에서 잰다).
      - 관찰(원인은 확인하지 않은 추정): 읽기가 약 250 ms 간격으로 두 번씩 온다. watcher 갱신의 `comments:invalidated`(ls 전)와 ls 뒤 행 서명 변경이 각각 읽기를 부르는 것과 맞는다.
      - 원본: `.scratch/project-feedback/stage1.log`, `stage1.json`.
+   - 측정 결과 (2026-10-26, 2단계, 배치 V1): 같은 스크립트에 `feedbackFirstRender()`를 채우고 `--stage 2`로 돌렸다(1단계 측정도 같은 실행에 들어 있다). 시드는 1단계와 같다. 시간은 renderer의 `MutationObserver`가 Feedback 트리의 첫 행을 본 시각에서 클릭 직전 시각을 뺀 값이다. 스크립트 exit 0, real-state 무변경.
+     - 콜드(새 앱 프로세스, ui-state 없이 Home에서 시작해 프로젝트 행이 보이자마자 들어감, 10회): 중앙값 389.5 ms, 최대 393.3 ms. 10회 모두 "Reading comments…"를 먼저 보였다(Home의 첫 읽기가 아직 진행 중). 첫 렌더의 트리 행은 3,950개다.
+     - 웜(캔버스에서 Overview로 돌아옴, 12회): 중앙값 152.0 ms, 최대 326.2 ms. 직전 읽기를 바로 보이므로 "Reading comments…"는 0회였다.
+     - 상태 전환(Open↔Resolved, 렌더만, 12회): 중앙값 34.8 ms, 최대 59.5 ms(행 3,950개와 1,450개).
+     - 판정: Feedback 첫 렌더 1초 이내 — **통과**(최악 393.3 ms).
+     - 연속 저장 중 다시 읽기(Feedback이 열린 Overview 포함): 이 실행에서는 Home 250 ms 구간이 1초 창 최대 2회로 **실패**였다. 읽기 7회의 시작 간격이 998 ms인 쌍이 하나 있었다(main 훅 기준 시각 218, 1216 ms). 나머지 구간은 모두 1회였다. 스케줄러의 간격 규칙(시작 사이 1,000 ms)은 이 배치에서 바꾸지 않았다. `--stage 1 --cold 3 --warm 3`으로 다시 돌린 실행에서는 모든 구간이 1초 창 최대 1회로 **통과**였다(구간별 읽기 2/2/7회, Home과 Overview가 같다). 998 ms는 renderer가 정한 시작 시각과 main이 받은 시각의 차이로 추정하지만 확인하지 않았다.
+     - 원본: `.scratch/project-feedback/stage2.log`, `stage2.json`, `stage1-v1.log`, `stage1-v1.json`.
 2. **Go 테스트 먼저**: `repo.OrphanFiles`, `List` 부분 실패, `orphans` 출력, check message.
    - 기존 `TestInvalidCanvasIDsStillOwnComments`와 `ls` 개수 테스트를 유지한다.
    - 넣을 경우:
