@@ -680,7 +680,7 @@ try {
   await panel.getByText("This comment changed elsewhere", { exact: true }).waitFor();
   presentation("Card conflict warning rule", await panel.getByText("This comment changed elsewhere", { exact: true }).evaluate(el => {
     const s = getComputedStyle(el.parentElement!); return [s.borderLeftWidth, s.borderLeftColor];
-  }), ["2px", "rgb(232, 176, 75)"]);
+  }), ["2px", "rgb(79, 52, 34)"]);
   await cards.filter({ hasText: "Changed before resolve" }).getByRole("button", { name: "Read latest state", exact: true }).click();
   const beforeReviewedResolve = await readFile(file, "utf8");
   await cards.filter({ hasText: "Changed before resolve" }).getByRole("button", { name: "Confirm reviewed change", exact: true }).click();

@@ -55,7 +55,7 @@ async function reason(page: Page, label: string) {
   check(m.color === await token(page, "--text-2") && m.background === await token(page, "--raised") && m.radius === "4px" && JSON.stringify(m.padding) === JSON.stringify(["0px", "4px", "0px", "4px"]), `${label} actual reason code`, m);
   const shared = await styles(row);
   check(shared.display === "grid" && shared.gap === "4px 12px" && shared.padding[0] === "12px", `${label} shared connection CSS`, shared);
-  check(await page.locator("html").evaluate(el => getComputedStyle(el).colorScheme) === "dark", `${label} renderer dark`, await styles(page.locator("html")));
+  check(await page.locator("html").evaluate(el => getComputedStyle(el).colorScheme) === "light", `${label} renderer light`, await styles(page.locator("html")));
 }
 async function firstPrompt(page: Page, label: string) {
   const input = page.locator(".fp-input"); await input.waitFor();
@@ -147,32 +147,41 @@ try {
     await canvasRow(page, "canvas.html").click();
     const frame = page.locator("iframe").contentFrame(); await frame.locator("section").waitFor();
     await page.locator(".zctl:not(.disabled)").waitFor();
-    // An iframe's preferred scheme comes from its embedding element. Compare
-    // with the pre-change renderer default without changing OS preferences.
-    const canvasScheme = async () => frame.locator("section").evaluate(el => ({
-      dark: matchMedia("(prefers-color-scheme: dark)").matches,
-      light: matchMedia("(prefers-color-scheme: light)").matches,
-      color: getComputedStyle(el).color,
-    }));
-    const initialScheme = await canvasScheme();
+    // A dark macOS appearance reaches pages through nativeTheme, which main pins
+    // light. Force that path to dark: the canvas must still prefer light, because the
+    // renderer's light color-scheme on the iframe element decides an iframe's preference
+    // (measured 2026-10-26). page.emulateMedia cannot stand in for the OS: it overrides
+    // every frame's media, the canvas included.
+    const canvasScheme = async () => {
+      await frame.locator("section").evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      return frame.locator("section").evaluate(el => ({
+        dark: matchMedia("(prefers-color-scheme: dark)").matches,
+        light: matchMedia("(prefers-color-scheme: light)").matches,
+        color: getComputedStyle(el).color,
+      }));
+    };
     const reloadCanvas = async () => {
       const previous = await page.locator("iframe").elementHandle(); assert.ok(previous);
       await page.getByRole("button", { name: "Reload canvas", exact: true }).click();
       await waitFor(async () => !await previous.evaluate(el => el.isConnected), "recreated canvas iframe");
       await frame.locator("section").waitFor(); await page.locator(".zctl:not(.disabled)").waitFor();
     };
-    await page.locator("html").evaluate(el => { el.style.colorScheme = "normal"; });
+    // Playwright emulates a light preference by default, which would hide nativeTheme;
+    // drop it so the probe sees what a real launch sees.
+    await page.emulateMedia({ colorScheme: null });
+    const light = JSON.stringify({ dark: false, light: true, color: "rgb(1, 2, 3)" });
+    const themeSource = await app.evaluate(({ nativeTheme }) => nativeTheme.themeSource);
+    const initialScheme = await canvasScheme();
+    check(themeSource === "light" && JSON.stringify(initialScheme) === light, "canvas media preference light", { themeSource, initialScheme });
+    await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = "dark"; });
+    await waitFor(() => page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches), "app follows a dark nativeTheme");
+    const darkScheme = await canvasScheme();
     await reloadCanvas();
-    await frame.locator("section").evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-    const baselineScheme = await canvasScheme();
-    await page.locator("html").evaluate(el => { el.style.removeProperty("color-scheme"); });
-    await frame.locator("section").evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-    const actualScheme = await canvasScheme();
-    await reloadCanvas();
-    const recreatedScheme = await canvasScheme();
-    const embeddingScheme = await page.locator("iframe").evaluate(el => ({ scheme: getComputedStyle(el).colorScheme, sandbox: el.getAttribute("sandbox") }));
-    check([initialScheme, actualScheme, recreatedScheme].every(value => JSON.stringify(value) === JSON.stringify(baselineScheme)), "canvas media preference survives renderer dark scheme", { initialScheme, baselineScheme, actualScheme, recreatedScheme, embeddingScheme });
-    check(await page.locator("html").evaluate(el => getComputedStyle(el).colorScheme) === "dark", "actual renderer source remains dark after media probe", actualScheme);
+    const darkRecreated = await canvasScheme();
+    await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = "light"; });
+    check([darkScheme, darkRecreated].every(value => JSON.stringify(value) === light), "canvas stays light under a dark appearance", { darkScheme, darkRecreated });
+    const embedding = await page.locator("iframe").evaluate(el => ({ scheme: getComputedStyle(el).colorScheme, sandbox: el.getAttribute("sandbox") }));
+    check(embedding.scheme === "light" && await page.locator("html").evaluate(el => getComputedStyle(el).colorScheme) === "light", "renderer and canvas element light", embedding);
     console.log("media probe engine", await app.evaluate(() => ({ electron: process.versions.electron, chrome: process.versions.chrome })));
     await shot(page, "canvas-media-preference");
   if (!dev) {

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { BrowserWindowConstructorOptions, MenuItemConstructorOptions } from "electron";
 import { displayPath } from "../renderer/projectDisplay";
@@ -65,6 +66,7 @@ const mocks = await vi.hoisted(async () => {
     readProjectComments: vi.fn(),
     readFolder: vi.fn(),
     readFoldersFileForPruning: vi.fn(),
+    nativeTheme: { themeSource: "system" },
   };
 });
 
@@ -75,6 +77,7 @@ vi.mock("electron", () => ({
   Menu: { buildFromTemplate: mocks.menu, setApplicationMenu: vi.fn() },
   session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDevicePermissionHandler: vi.fn(), on: mocks.sessionOn } },
   webFrameMain: { fromId: vi.fn() },
+  nativeTheme: mocks.nativeTheme,
   systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; } },
 }));
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
@@ -186,8 +189,23 @@ test.each(["window", "contents"])("does not send to destroyed %s", (target) => {
   expect(window().webContents.send).not.toHaveBeenCalled();
 });
 
+// The renderer's shell colour, resolved from tokens.css so the window paint cannot drift from it.
+function shellColour() {
+  const tokens = readFileSync(new URL("../renderer/tokens.css", import.meta.url), "utf8");
+  let value = "var(--bg-app)";
+  for (let reference = /^var\((--[\w-]+)\)$/.exec(value); reference; reference = /^var\((--[\w-]+)\)$/.exec(value)) {
+    value = new RegExp(`${reference[1]}:\\s*([^;]+);`).exec(tokens)?.[1]?.trim() ?? "";
+  }
+  return value;
+}
+
+test("draws light whatever the macOS appearance", () => {
+  expect(mocks.nativeTheme.themeSource).toBe("light");
+});
+
 test("defines the requested window geometry and File menu", () => {
-  expect(window().options).toMatchObject({ width: 1238, height: 780, minWidth: 960, minHeight: 600, titleBarStyle: "hiddenInset", trafficLightPosition: { x: 12, y: 14 } });
+  expect(shellColour()).toMatch(/^#[0-9a-f]{6}$/);
+  expect(window().options).toMatchObject({ width: 1238, height: 780, minWidth: 960, minHeight: 600, titleBarStyle: "hiddenInset", trafficLightPosition: { x: 12, y: 14 }, backgroundColor: shellColour() });
   expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
   expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
 });
@@ -1300,7 +1318,7 @@ describe("settings window", () => {
     click("Settings…");
     expect(mocks.Window.instances).toHaveLength(2);
     const created = settings();
-    expect(created.options).toMatchObject({ width: 640, height: 560, resizable: false, minimizable: false, maximizable: false, fullscreenable: false, title: "Connections",
+    expect(created.options).toMatchObject({ width: 640, height: 560, resizable: false, minimizable: false, maximizable: false, fullscreenable: false, title: "Connections", backgroundColor: shellColour(),
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: expect.stringMatching(/\/preload\/settings\.cjs$/) } });
     expect(created.loadFile).toHaveBeenCalledWith(expect.stringMatching(/\/renderer\/settings\.html$/));
     expect(created.focus).toHaveBeenCalledOnce();
