@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject }
 import { canvasLabel } from "./canvasTree";
 import type { Selection } from "../formats/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import type { ViewCommand } from "../main/index";
+import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
 import { projectNames } from "./projectRow";
 import { DropdownMenu } from "radix-ui";
@@ -27,6 +27,16 @@ import { QuickOpen } from "./QuickOpenDialog";
 import { unavailableCanvasMessage, pickTarget, type SearchResult } from "./quickOpen";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import type { UiState } from "../restore/uiState";
+
+// Each command names its handler; one App does not know does nothing, so a
+// new menu item can never run the Undo toast's action (R-M ⚪5).
+export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; undo: () => void; review: (move: "next" | "previous") => void }): void {
+  if (name === "home") to.home();
+  else if (name === "quickOpen") to.quickOpen();
+  else if (name === "undoRemove") to.undo();
+  else if (name === "nextResolved") to.review("next");
+  else if (name === "previousResolved") to.review("previous");
+}
 
 export function App() {
   const [homeDirectory, setHomeDirectory] = useState<string | null>(null);
@@ -127,7 +137,9 @@ export function App() {
     beforeWizard.current = null;
     focusCurrent(previous);
   }, [wizard]);
-  const comments = useComments(state, controller, () => setScreen("workspace"), entries);
+  // Set once the project counts below exist; a raised review marker refreshes them.
+  const reviewedRoot = useRef<(root: string) => void>(() => {});
+  const comments = useComments(state, controller, () => setScreen("workspace"), entries, root => reviewedRoot.current(root));
   const home = () => {
     cancelRestore();
     controller.current?.cancelWorkspaceOpen();
@@ -225,8 +237,8 @@ export function App() {
 
   const modal = wizard !== null || !!comments.dialog || setup !== null || scan !== null || confirms.length > 0 || quickOpen;
   useLayoutEffect(() => { toast.setModal(modal); }, [modal]);
-  const live = useRef({ home, enter, toast, modal, save });
-  live.current = { home, enter, toast, modal, save };
+  const live = useRef({ home, enter, toast, modal, save, comments });
+  live.current = { home, enter, toast, modal, save, comments };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement.closest<HTMLElement>(".home-body [data-path]") ?? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -311,11 +323,16 @@ export function App() {
   }), [entries, loadedRoot]);
   useEffect(() => window.doan.onMenuCommand(name => {
     if (live.current.modal) return;
-    if (name === "home") live.current.home();
-    else if (name === "quickOpen") { cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); }
-    else if (live.current.toast.toast?.action === "Undo") live.current.toast.action();
+    menuCommand(name, {
+      home: () => live.current.home(),
+      quickOpen: () => { cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); },
+      undo: () => { if (live.current.toast.toast?.action === "Undo") live.current.toast.action(); },
+      review: move => live.current.comments.reviewStep(move),
+    });
   }), []);
-  useEffect(() => { void window.doan.setMenuState({ screen: screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo" }); }, [screen, state.open, modal, toast.toast?.action]);
+  useEffect(() => { void window.doan.setMenuState({ screen: screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo", reviewing: comments.reviewing }); }, [screen, state.open, modal, toast.toast?.action, comments.reviewing]);
+  // Home ends a Review like another canvas; the progress passed stays raised.
+  useEffect(() => { if (screen === "home") comments.closeReview(); }, [screen]);
   const command = (name: ViewCommand) => controller.current?.command(name);
   function pick(result: SearchResult) {
     cancelRestore();
@@ -338,6 +355,7 @@ export function App() {
   // screen, so `projectComments.refresh` matters only for one already shown.
   const countedRoots = useMemo(() => screen === "home" ? entries.map(entry => entry.path) : shownOverview ? [shownOverview] : [], [screen, entries, shownOverview]);
   const projectComments = useProjectComments(entries, countedRoots);
+  reviewedRoot.current = projectComments.refresh;
   const previousOverview = useRef(shownOverview);
   useEffect(() => {
     if (previousOverview.current !== null && previousOverview.current !== shownOverview) setOverviewNotice(null);

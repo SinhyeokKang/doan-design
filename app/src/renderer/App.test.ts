@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { App } from "./App";
+import { App, menuCommand } from "./App";
 
 const harness = vi.hoisted(() => ({ effects: [] as (() => (() => void) | undefined)[], dispose: vi.fn(), command: vi.fn(), updateEntries: vi.fn() }));
 vi.mock("react", async importOriginal => ({
@@ -50,4 +50,19 @@ it("unsubscribes both preload bridges across StrictMode effect setup, cleanup an
     expect(folders.size).toBe(0);
     expect(commands.size).toBe(0);
   } finally { vi.unstubAllGlobals(); }
+});
+
+// R-M ⚪5: a command App does not name must not run the Undo toast's action.
+it("routes each menu command to its own handler, and Next/Previous Resolved Comment never reach Undo", () => {
+  const to = { home: vi.fn(), quickOpen: vi.fn(), undo: vi.fn(), review: vi.fn() };
+  menuCommand("nextResolved", to);
+  menuCommand("previousResolved", to);
+  expect(to.review.mock.calls).toEqual([["next"], ["previous"]]);
+  menuCommand("undoRemove", to);
+  expect(to.undo).toHaveBeenCalledOnce();
+  menuCommand("future" as never, to);
+  menuCommand("home", to); menuCommand("quickOpen", to);
+  expect(to.undo).toHaveBeenCalledOnce();
+  expect(to.home).toHaveBeenCalledOnce();
+  expect(to.quickOpen).toHaveBeenCalledOnce();
 });
