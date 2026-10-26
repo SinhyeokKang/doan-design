@@ -13,6 +13,7 @@ const { rememberApp, closeApp, suiteGuard, waitFor }: typeof import("./harness")
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { enterProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 const { canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
+const { verifyConversation, assertCodexResponse }: typeof import("./conversation-checks") = await import(new URL("./conversation-checks.ts", import.meta.url).href);
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const before = await realState();
@@ -31,6 +32,29 @@ async function config(runtime: Runtime, value: Record<string, unknown>) {
   await writeFile(temporary, JSON.stringify(value)); await rename(temporary, join(work, `${runtime}.json`));
 }
 const wire = async (): Promise<{ runtime: Runtime; pid: number; child?: number; kind: string; value?: Record<string, unknown> }[]> => (await readFile(join(work, "wire.jsonl"), "utf8")).trim().split("\n").filter(Boolean).map(line => JSON.parse(line));
+const nativeRejection = { error: { code: -32601, message: "Unsupported request or unavailable owner." } };
+async function permissionWire(runtime: Runtime, request: Extract<ConversationEvent, { type: "permission.request" }>) {
+  const rows = await wire();
+  const pid = rows.filter(r => r.runtime === runtime && r.kind === "spawn").at(-1)!.pid;
+  const requests = rows.filter(r => r.runtime === runtime && r.pid === pid && r.kind === "out" && (runtime === "codex"
+    ? r.value?.method === "item/fileChange/requestApproval" && `string:${r.value.id}` === request.requestId
+    : r.value?.type === "control_request"));
+  assert.equal(requests.length, 1, "one native permission for this process/turn");
+  const value = requests[0]?.value; assert.ok(value);
+  return { pid, id: String(runtime === "codex" ? value.id : value.request_id) };
+}
+async function permissionResponse(runtime: Runtime, request: { pid: number; id: string }, decision: "allow" | "deny") {
+  const rows = await wire();
+  if (runtime === "codex") assertCodexResponse(rows, request.pid, request.id, { result: { decision: decision === "allow" ? "accept" : "decline" } });
+  else {
+    const replies = rows.filter(r => r.runtime === runtime && r.pid === request.pid && r.kind === "in" && r.value?.type === "control_response")
+      .map(r => r.value?.response as { request_id: string; response: unknown }).filter(r => r.request_id === request.id);
+    assert.equal(replies.length, 1, `${request.pid}/${request.id} settles exactly once`);
+    assert.deepEqual(replies[0], { subtype: "success", request_id: request.id, response: {
+      behavior: decision, ...(decision === "allow" ? { updatedInput: { file_path: join(repo, canvas.path), content: "fixture" } } : { message: "Denied by the user." }), toolUseID: request.id,
+    } });
+  }
+}
 const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch (e) { if ((e as NodeJS.ErrnoException).code === "ESRCH") return false; throw e; } };
 async function noPeers() {
   await waitFor(async () => (await wire()).filter(r => r.kind === "spawn" || r.kind === "descendant").every(r => !alive(r.child ?? r.pid)), "owned peers and descendants absent", 10_000);
@@ -38,7 +62,7 @@ async function noPeers() {
   await new Promise(resolve => setTimeout(resolve, 150));
 }
 const guard = suiteGuard({ name: "conversation", app: () => app, timeoutMs: 480_000,
-  verify: async () => { await copyFile(join(work, "wire.jsonl"), join(shots, "wire.jsonl")); await assertRealState(before); await noPeers(); },
+  verify: () => verifyConversation(() => copyFile(join(work, "wire.jsonl"), join(shots, "wire.jsonl")), () => assertRealState(before), noPeers),
   cleanup: async () => { await noPeers(); await rm(work, { recursive: true, force: true }); },
 });
 async function launch() {
@@ -112,9 +136,11 @@ try {
     const prior = await readFile(join(data, `conversations/${id}.jsonl`), "utf8");
     assert.deepEqual(await start(runtime, other), { error: "session_in_use" });
     assert.equal(await readFile(join(data, `conversations/${id}.jsonl`), "utf8"), prior);
+    const allowWire = await permissionWire(runtime, permission);
     const allow = permission.options.find(o => o.kind === "allow"); assert.ok(allow);
     assert.equal(await page.evaluate(input => window.doan.answerConversationPermission(input), { conversationId: id, requestId: permission.requestId, optionId: allow.id }), undefined);
     await terminal(id);
+    await permissionResponse(runtime, allowWire, "allow");
     const firstTurn = (await read(id)).events;
     assert.deepEqual(firstTurn.slice(0, 2).map(e => e.type), ["user.message", "turn.started"]);
     assert.ok(firstTurn.some(e => e.type === "message.delta"));
@@ -127,13 +153,13 @@ try {
     assert.equal(await page.evaluate(id => window.doan.sendConversation({ conversationId: id, text: "deny" }), id), undefined);
     await waitFor(async () => !!(await read(id)).pendingPermission, "second permission");
     const denyRequest = (await read(id)).pendingPermission!;
-    const deny = denyRequest.type === "permission.request" && denyRequest.options.find(o => o.kind === "deny"); assert.ok(deny);
+    assert.ok(denyRequest.type === "permission.request");
+    const denyWire = await permissionWire(runtime, denyRequest);
+    const deny = denyRequest.options.find(o => o.kind === "deny"); assert.ok(deny);
     assert.equal(await page.evaluate(input => window.doan.answerConversationPermission(input), { conversationId: id, requestId: denyRequest.requestId, optionId: deny.id }), undefined);
     await waitFor(async () => (await read(id)).events.filter(e => e.type === "turn.done").length === 2, "denial continues to completion");
     if (runtime === "codex") assert.equal((await wire()).filter(r => r.runtime === "codex" && r.kind === "spawn").length, 1, "own sends reuse the same server");
-    const replies = (await wire()).filter(r => r.runtime === runtime && r.kind === "in").map(r => JSON.stringify(r.value));
-    assert.ok(replies.some(r => r.includes(runtime === "claude" ? '"behavior":"deny"' : '"decision":"decline"')));
-    assert.ok(!replies.some(r => r.includes('"decision":"cancel"')));
+    await permissionResponse(runtime, denyWire, "deny");
     if (runtime === "claude") { await noPeers(); await new Promise(resolve => setTimeout(resolve, 150)); }
     console.log(`conversation: ${runtime} E1.5 listener-first final-only merge`);
     await config(runtime, { doneGate: `${runtime}-done`, finalOnly: true });
@@ -168,12 +194,18 @@ try {
     assert.equal(await page.evaluate(id => window.doan.sendConversation({ conversationId: id, text: "interrupt" }), id), undefined);
     await waitFor(async () => !!(await read(id)).pendingPermission, "interrupt permission");
     const expiring = (await read(id)).pendingPermission!;
+    assert.ok(expiring.type === "permission.request");
+    const expiringWire = await permissionWire(runtime, expiring);
     assert.equal(await page.evaluate(id => window.doan.interruptConversation({ conversationId: id }), id), undefined);
     await event(id, "interrupted");
-    assert.ok((await read(id)).events.some(e => e.type === "permission.resolved" && e.optionId === "expired"));
-    if (runtime === "codex") assert.ok((await wire()).some(r => r.kind === "in" && `string:${r.value?.id}` === expiring.requestId && r.value.error), "expired native request explicitly settled");
+    assert.ok((await read(id)).events.some(e => e.type === "permission.resolved" && e.requestId === expiring.requestId && e.optionId === "expired"));
+    if (runtime === "codex") assertCodexResponse(await wire(), expiringWire.pid, expiringWire.id, nativeRejection);
+    assert.deepEqual(await page.evaluate(input => window.doan.answerConversationPermission(input), { conversationId: id, requestId: expiring.requestId, optionId: "allow" }), { error: "stale" });
     assert.ok(!(await read(id)).events.some(e => e.type === "user.message" && e.text === "must not queue"));
     await quit();
+    await permissionResponse(runtime, allowWire, "allow");
+    await permissionResponse(runtime, denyWire, "deny");
+    if (runtime === "codex") assertCodexResponse(await wire(), expiringWire.pid, expiringWire.id, nativeRejection);
     console.log(`conversation: ${runtime} E1.11 persisted restart`);
     await launch(); assert.ok((await read(id)).events.some(e => e.type === "interrupted"));
     console.log(`conversation: ${runtime} E1.8 crash`);
@@ -182,6 +214,9 @@ try {
     try {
       const failure = await event(crashed, "turn.failed");
       assert.ok(failure.type === "turn.failed" && failure.code === "process_exited", JSON.stringify(failure));
+      await noPeers();
+      const terminals = (await read(crashed)).events.filter(e => ["turn.done", "turn.failed", "interrupted"].includes(e.type));
+      assert.deepEqual(terminals, [failure], "ordinary crash has exactly one process_exited terminal after cleanup");
     } catch (error) {
       failures.push(`${runtime} E1.8: ${String(error)}`); console.error(failures.at(-1));
       await writeFile(join(shots, `${runtime}-crash.json`), JSON.stringify(await read(crashed)));
@@ -282,11 +317,18 @@ try {
     assert.ok((await read(crashed)).events.some(e => e.type === "conversation.archived"));
     assert.ok((await read(replacement.conversationId)).events.some(e => e.type === "user.message" && e.anchors.length === 2));
     if (runtime === "codex") {
+      const serverPid = (await wire()).filter(r => r.runtime === "codex" && r.kind === "spawn").at(-1)!.pid;
       await config(runtime, { foreign: true });
       assert.equal(await page.evaluate(id => window.doan.sendConversation({ conversationId: id, text: "wire settlement" }), replacement.conversationId), undefined);
-      await waitFor(async () => (await wire()).filter(r => r.runtime === "codex" && r.kind === "in" && ["foreign-thread", "global", "nullable", "post-terminal"].includes(String(r.value?.id)) && r.value?.error).length === 4, "every foreign/global/post-terminal request rejected on wire");
-      for (const requestId of ["foreign-thread", "global", "nullable", "post-terminal"]) assert.equal((await wire()).filter(r => r.runtime === "codex" && r.kind === "in" && r.value?.id === requestId && r.value.error).length, 1, `${requestId} settles exactly once`);
       await waitFor(async () => (await read(replacement.conversationId)).events.filter(e => e.type === "turn.done").length === 2, "wire test completion");
+      await waitFor(async () => {
+        const rows = await wire();
+        return ["foreign-thread", "global", "nullable", "post-terminal"].every(requestId => rows.some(r => r.pid === serverPid && r.kind === "in" && r.value?.id === requestId));
+      }, "all native replies observed");
+      // Close the owning server before counting, so later duplicate replies cannot escape the assertion.
+      await quit();
+      for (const requestId of ["foreign-thread", "global", "nullable", "post-terminal"]) assertCodexResponse(await wire(), serverPid, requestId, nativeRejection);
+      await launch();
     }
     await config(runtime, { mode: "malformed" });
     const malformed = await accepted(runtime, canvas, "new");
