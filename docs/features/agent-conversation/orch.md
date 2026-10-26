@@ -23,7 +23,7 @@
 
 | 배치 | task 소유 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| P | P1, P2, P3 | `.scratch/agent-conversation/`, PRODUCT §6 결과 | 없음 | Astra medium — 전송·권한·동시 세션 실증 판단 | 버전·명령·원시 증거·격리 검증, 9a~9e 결과 | 준비 |
+| P | P1, P2, P3 | `.scratch/agent-conversation/`, PRODUCT §6 결과 | 없음 | Astra medium — 전송·권한·동시 세션 실증 판단 | 버전·명령·원시 증거·격리 검증, 9a~9e 결과 | 실행 중 |
 | D | D1, D2 | PRODUCT 결정, feature 계약의 PoC 확정 내용 | P | Astra medium — 제품 범위와 실험 결과 대조 | §3·§7 및 스킬 변경 판단 | 대기 |
 | S | S1 | `schema/`, Go·TS formats 등록과 테스트 | D | Sol medium — 공유 포맷과 픽스처 구현 | Go·TS 포맷 테스트 | 대기 |
 | C | T1·T2의 Go 부분, C1 | `cli/internal/cli/` 세션 기록과 테스트, 필요 시 skill | S | Astra medium — 출력 보존·경로·동시 append | red→green, Go test/vet, 필요 시 agent-eval | 대기 |
@@ -51,4 +51,7 @@
 - 작업자 인계: `.scratch/handoff-<batch>.md`. 통합 전에 실제 커밋·검증 로그와 대조한다.
 - PoC 미정 명령은 먼저 구체화한다. 사용자 PoC 호출 승인 범위에서 수행하고 명령을 기록한다.
 - 각 child worktree는 `feat-agent-conversation` 커밋에서 시작한다. 종료 후 증거 복사, 미통합 커밋 없음, clean 상태를 확인하고 Orca로 제거한다.
-- 현재 worker·Run: 아직 없음.
+- Run: `run_e204188d17ab`, P task: `task_3201cbb25352`.
+- P 첫 시도 `ctx_6b536ea000cf`는 Codex 업데이트 안내에서 시작 전 실패했다. 업데이트를 건너뛰고 worker-release로 터미널을 정리했다.
+- P 재시도 `ctx_31b901d4da2c`: `launch.effective`는 Codex / gpt-6-astra / medium이다. Orca 시작 응답은 `turn_start_unobserved`였으나 worker-read transcript에서 지시서와 기능 문서를 읽는 실제 도구 호출을 확인했다. 중복 실행하지 않는다.
+- P child: `/Users/sinhyeokkang/orca/workspaces/doan-design/agent-conversation-poc` (통합 전·실행 중이므로 유지).
