@@ -17,7 +17,7 @@
 
 - `tokens.css`에 Buzz 라이트 값을 기준으로 한 팔레트·의미 역할·orange 램프가 평범한 `:root` 변수로 있고, 기존 doan 이름 25개는 그 역할을 가리키는 `var()` 별칭으로 남아 있다. 렌더러는 별칭을 읽지 않는다. 확인: 순수 함수 테스트 `legacyAliases` green, `grep -rnE 'var\(--(bg|panel|panel-2|raised|line|line-2|text|text-[234]|accent|accent-(ink|soft|line)|board-(bg|dot)|ok|warn|err|shadow-[12]|tl-(red|yellow|green))\)' app/src/renderer --include='*.css' --include='*.ts' --include='*.tsx' | grep -v 'renderer/tokens.css'` 결과 없음.
 - 공용 디자인 시스템 CSS가 `app/src/renderer/ds/`에 doan이 새로 쓴 코드로 있다. 클래스는 `doan-` 접두어, 데이터 속성은 `data-ui-*`이고, 상태 선택자는 Radix `data-state`와 네이티브 `[open]`, `:disabled`, `aria-*`, `:focus-visible`에 직접 건다. 코드에는 Buzz 파일 사본, 라이선스 사본, Buzz 출처 주석이 없다.
-- 다크 시절 오렌지 파생값이 남지 않고, 오렌지 원값은 `tokens.css` 팔레트에만 있다. 확인: `grep -rniE '#3a2117|#1a0b03' app/src` 결과 없음, `grep -rni '#f0773a' app/src` 결과가 `tokens.css` 한 줄.
+- 예전 오렌지 값이 남지 않는다. 확인: `grep -rniE '#f0773a|#3a2117|#1a0b03' app/src` 결과 없음.
 - 지금 `var(--accent*)`를 쓰는 모든 줄이 design.md의 셀렉터 대응표대로 옮겨져 있다. orange는 사이드바 현재 위치 행과 그 hover, 코멘트 핀, 코멘트 제출 버튼(modifier), 코멘트 카드 역할 정의에만 있다. 확인: 순수 함수 테스트 `accentPlaces` green(orange 역할을 읽는 셀렉터가 허용 목록과 같다).
 - 공용 컴포넌트가 Buzz와 같은 값과 규칙을 따른다: 버튼(prominent/subtle/ghost), `IconButton`(기존 아이콘 버튼에 적용), `Panel`(정의만, 실측은 buzz-shell), 툴팁(prominent 캡슐), 메뉴·팝오버(floating 재질과 파생 모서리), 다이얼로그 틀(크기 단계, 안쪽 패딩, 헤더·액션 배치, 등장·퇴장 모션, reduced-motion), 모달 scrim, 토스트, 스피너, 폼 컨트롤, `.kbd`·`.chip`, 포커스 링, disabled, 네이티브 얇은 스크롤바.
 - 공유 요소(`ProjectSetupDialog`, `AddProjectsDialog`, `FirstPrompt`, `ConnectionRows`, `.ob-dialog`, `ErrorDetails`, `Toast`, 스피너)가 새 공용 스타일로 바뀌어 있고, `design/buzz-ds.html`과 `/design-sync`로 맞춰져 있다.

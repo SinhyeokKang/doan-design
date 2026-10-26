@@ -20,7 +20,7 @@
 
 `tokens.css`는 캔버스에 그대로 서빙되고 `doan check`가 읽는 파일이라 평범한 `:root` 선언만 둔다(Tailwind 지시어와 `@import` 금지, 파일 머리 주석). 그 안에서 `var()`와 `color-mix()`는 쓸 수 있다.
 
-1. **팔레트**: Buzz 라이트 값을 기준으로 한 무채색 램프와 상태색, doan 고유 액센트(오렌지) 12단계와 짝 값(contrast, ink, pressed, link). 오렌지 램프는 9단계를 기존 `#f0773a`로 두고 레퍼런스 램프의 단계별 밝기 구조를 따라 doan이 만든다. 9단계 위 글자는 검정이다(흰색 2.8:1, 검정 7.4:1). 다크 값은 두지 않는다.
+1. **팔레트**: Buzz 라이트 값을 기준으로 한 무채색 램프와 상태색, doan 고유 액센트(오렌지) 12단계와 짝 값(contrast, ink, pressed, link). 오렌지 램프는 9단계를 `#ff915e`(기존 `#f0773a`와 같은 색상, 검정 글자 Lc 60.6)로 두고 레퍼런스 램프의 단계별 밝기 구조를 따라 doan이 만든다. 9단계 위 글자는 검정이다. `#f0773a` 그대로는 검정 글자가 WCAG 7.4:1이지만 APCA Lc 50이라 본문 기준을 넘지 못했다. 다크 값은 두지 않는다.
 2. **의미 역할**: `surface-*`, `text-*`(기본·보조·메타·disabled·on-prominent·on-accent), `border-*`(standard, prominent, focus), `affordance-*`, `bg-scrim`, 반경(12/16/20/24/28px), 간격, 그림자(`shadow-panel` 등), 블러, 시간·easing, 타입 크기·행간·자간·굵기, `font-sans`(시스템 스택, `Apple SD Gothic Neo` 대체).
 3. **액센트 역할**: `surface-sidebar-selected`(orange 9)·`text-sidebar-selected`, `affordance-sidebar-hover`(orange 2), `surface-comment`(orange 4)·`text-comment`(orange 12, Buzz의 Chillin' 수준을 기본으로 고정), `affordance-accent`(orange 9)·`text-on-accent`, 핀 역할.
 4. **기존 이름 25개**: 위 역할을 가리키는 `var()` 별칭으로 남긴다(예: `--panel: var(--surface-panel)`, `--line: var(--border-standard)`). 기존 초안 12개 전용이고 렌더러는 읽지 않는다. Buzz 역할 이름과 겹치는 이름(`--accent-ink`, `--font-sans`)은 역할 값과 같게 둔다. `--accent*` 별칭은 무채색 역할을 가리킨다(초안은 이력이므로 색이 바뀌어도 된다).
