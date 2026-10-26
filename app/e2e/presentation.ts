@@ -58,11 +58,16 @@ async function reason(page: Page, label: string) {
   check(shared.display === "grid" && shared.gap === "4px 12px" && shared.padding[0] === "12px", `${label} shared connection CSS`, shared);
   check(await page.locator("html").evaluate(el => getComputedStyle(el).colorScheme) === "light", `${label} renderer light`, await styles(page.locator("html")));
 }
+// Field borders change colour over 150ms; poll until no transition is running (getAnimations
+// flushes style first) so each check reads the settled value, including one that must stay
+// put after blur.
+async function settled(node: Locator) {
+  await waitFor(() => node.evaluate(el => el.getAnimations().length === 0), "field border transition");
+}
 async function firstPrompt(page: Page, label: string) {
   const input = page.locator(".fp-input"); await input.waitFor();
   await input.fill("a".repeat(501));
-  // Field borders change colour over 150ms; read the settled value.
-  await page.waitForTimeout(250);
+  await settled(input);
   const invalid = await styles(input);
   // The field shows focus and errors with its own border, never an outline ring.
   check(await input.getAttribute("aria-invalid") === "true" && await input.evaluate(el => getComputedStyle(el).outlineStyle) === "none" && invalid.border === await token(page, "--border-danger") && await page.locator(".fp-error").isVisible(), `${label} invalid focus`, invalid);
@@ -71,10 +76,10 @@ async function firstPrompt(page: Page, label: string) {
   check(await disabled.isDisabled() && disabledStyles.opacity === "1" && disabledStyles.color === await token(page, "--text-disabled") && disabledStyles.background === await token(page, "--affordance-disabled"), `${label} disabled primary preserved`, disabledStyles);
   await shot(page, `${label}-invalid-focus`);
   await input.press("Tab");
-  await page.waitForTimeout(250);
+  await settled(input);
   check((await styles(input)).border === await token(page, "--border-danger"), `${label} invalid blur border`, await styles(input));
   await input.fill("a sign-in screen");
-  await page.waitForTimeout(250);
+  await settled(input);
   check(await input.getAttribute("aria-invalid") === null && (await styles(input)).border === await token(page, "--border-prominent"), `${label} valid focus`, await styles(input));
   await focus(page, page.locator(".ob-prompt .btn.primary"), `${label} primary focus`);
   await shot(page, `${label}-focus`);
