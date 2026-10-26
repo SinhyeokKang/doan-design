@@ -49,20 +49,20 @@ design.md '셀렉터 대응표'의 모든 줄을 옮긴다(citrus, 무채색, op
 
 ### A7. 공용 컴포넌트
 버튼 변형, `IconButton`(기존 아이콘 버튼에 적용: 상단 바, 줌·프레임 컨트롤 등), `Panel`(정의만), `.kbd`·`.chip`, 툴팁, 메뉴·팝오버, 다이얼로그 틀, 토스트, 스피너, 폼 컨트롤. 기존 `<dialog>`·Radix·`<button>`에 클래스만 입히고 동작은 바꾸지 않는다. 남은 툴팁 패딩 규칙을 지운다. 바뀐 e2e 고정값(`.kbd` opacity `app/e2e/projects-home.ts:86` 등)을 갱신한다. reduced-motion e2e 단계와 모달 위 모달 단계(Add Projects → Project Setup)를 추가한다.
-- 검증: `npm --prefix app run e2e` 최종 PASS. 그 안에서 `page.emulateMedia({ reducedMotion: "reduce" })` 아래 다이얼로그 열고 닫을 때 transform이 없고(기존 패턴 `app/e2e/runtime.ts:1747`), 모달 위 모달에서 포커스가 돌아오며, 캔버스 위 메뉴의 computed `backdrop-filter`가 `none`이 아니다. `nestedRadius` 기대값과 메뉴 행 실측 일치. 그다음 `/design-sync`로 `design/buzz-ds.html`의 공용 컴포넌트 프레임과 맞춘다(구현 커밋 뒤 깨끗한 트리에서, design-sync가 만드는 커밋은 이 task에 속한다).
+- 검증: `npm --prefix app run e2e` 최종 PASS. 그 안에서 `page.emulateMedia({ reducedMotion: "reduce" })` 아래 다이얼로그 열고 닫을 때 transform이 없고(기존 패턴 `app/e2e/runtime.ts:1747`), 모달 위 모달에서 포커스가 돌아오며, 캔버스 위 메뉴의 computed `backdrop-filter`가 `none`이 아니다. `nestedRadius` 기대값과 메뉴 행 실측 일치. 그다음 `/design-sync`로 `design/buzz-ds.html`의 대표 프레임(`buttons`, `menu`, `tooltip`, `dialog-anatomy`, `forms`, `focus-disabled`)과 맞춘다(구현 커밋 뒤 깨끗한 트리에서, design-sync가 만드는 커밋은 이 task에 속한다).
 
 ── commit: `feat(app): restyle shared components` (+ `/design-sync` 커밋) ──
 
 ### A8. 공유 요소
 `ProjectSetupDialog`, `AddProjectsDialog`, `FirstPrompt`, `ConnectionRows`, `.ob-dialog`, `ErrorDetails`, 스피너를 새 공용 스타일로 바꾼다(토스트는 A7). 내용과 동작은 그대로다.
-- 검증: `npm --prefix app run e2e` 최종 PASS(넘치는 목록의 네이티브 스크롤 도달 포함, POSTMORTEM projects-home). 그다음 `/design-sync`로 `design/buzz-ds.html`의 `shared-*` 프레임과 맞춘다.
+- 검증: `npm --prefix app run e2e` 최종 PASS(넘치는 목록의 네이티브 스크롤 도달 포함, POSTMORTEM projects-home). 공유 요소는 초안이 없으므로 `/design-sync`를 돌리지 않는다(2026-10-26 user). A6의 `canvas-marks`·`accent-places`는 A8 뒤에 `/design-sync`로 맞춘다.
 
-── commit: `feat(app): restyle shared surfaces` (+ `/design-sync` 커밋) ──
+── commit: `feat(app): restyle shared surfaces` (+ `canvas-marks`·`accent-places` `/design-sync` 커밋) ──
 
 ## S4
 
 ### A9. DESIGN.md
-`/design-sync`가 A7·A8에서 쓴 측정값을 바탕으로 `docs/DESIGN.md` 맨 앞 디자인 시스템 절을 정리한다(레퍼런스 사실과 기준 커밋, 채택 규칙, doan 조정, 의도한 예외: 치수 라벨과 툴팁이 같은 캡슐, 사이드바 hover가 옅음, `.drop .scrim` 값). 화면별 절의 다크 색 값에 "buzz-ds 이전" 표시를 단다. 'UX audit recovery update' 절은 다시 측정해서 표시 없이 갱신한다.
+`/design-sync`가 A7·A8에서 쓴 측정값과 A8의 공유 요소 e2e 실측을 바탕으로 `docs/DESIGN.md` 맨 앞 디자인 시스템 절을 정리한다(레퍼런스 사실과 기준 커밋, 채택 규칙, doan 조정, 의도한 예외: 치수 라벨과 툴팁이 같은 캡슐, 사이드바 hover가 옅음, `.drop .scrim` 값). 화면별 절의 다크 색 값에 "buzz-ds 이전" 표시를 단다. 'UX audit recovery update' 절은 다시 측정해서 표시 없이 갱신한다.
 - 검증: `grep -c 'buzz-ds 이전' docs/DESIGN.md`가 0보다 크고, 디자인 시스템 절이 문서 맨 앞에 있다. `node .agents/skills/verify/scripts/verify.mjs --runtime` 통과.
 
 ── commit: `docs(design): add design system section` ──
