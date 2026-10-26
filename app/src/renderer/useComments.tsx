@@ -10,14 +10,18 @@ import { outdated, projectList, type ListFilter } from "../comments/projection";
 import { continueEnabled, draftScope, guardsSelectionChange } from "../comments/draft";
 import { nextFocus, sortResolved } from "../comments/resolution";
 import { targetLabel } from "../comments/targetLabel";
+import { handoffSummary, worktreeNotice } from "../comments/handoff";
 import type { Target } from "../formats/types";
+import { canvasLabel } from "./canvasTree";
+import { HandOffDialog, handoffContext } from "./HandOffDialog";
 
 // A focus move that waits for anchors. `context` is the canvas and selection it
 // belongs to; `holder` held focus after the last render that kept it.
 type Deferred = { since: AnchorSnapshot | null; context?: string; holder?: Element | null };
 
 // `reviewed`: main raised a canvas's review marker (Home and Overview counts follow).
-export function useComments(state: CanvasState, controller: RefObject<CanvasController | null>, showWorkspace: () => void, entries: FolderEntry[], reviewed?: (root: string) => void) {
+// `home`: the home directory, for the paths the Hand off worktree notice names.
+export function useComments(state: CanvasState, controller: RefObject<CanvasController | null>, showWorkspace: () => void, entries: FolderEntry[], reviewed?: (root: string) => void, home: string | null = null) {
   const [, render] = useState(0);
   const [session] = useState(() => new CommentsSession(window.doan, () => render(n => n + 1)));
   const [anchors, setAnchors] = useState<AnchorSnapshot | null>(null);
@@ -200,7 +204,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
     // completion (POSTMORTEM 2026-10-23): a composer, editor or dialog owning
     // focus, another canvas or selection, or focus moved elsewhere ends it.
     const context = JSON.stringify([root, canvas, selected]);
-    const owned = editing || session.beginning || !!session.deleteConfirmation;
+    const owned = editing || session.beginning || !!session.deleteConfirmation || !!session.handoff;
     const active = document.activeElement;
     const stale = (request: Deferred) => owned || (request.context !== undefined && request.context !== context) ||
       (request.holder !== undefined && active !== request.holder && !!active && active !== document.body && active.isConnected);
@@ -345,6 +349,24 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   } : null;
   const resolvedEdit = draft?.origin.kind === "edit" && draft.origin.expected.status === "resolved" ? draft.origin.comment : null;
   const replacedOn = session.deleteConfirmation?.replacedOn;
+  // feature agent-handoff. The selection is the one the dialog opens with (Selection quick select).
+  const handoffOpener = useRef<HTMLElement | null>(null);
+  const handOff = (checked: "all" | readonly string[]) => {
+    const selection = state.selection && !state.unlisted ? state.selection : null;
+    const selectionTarget: Target = selection ? { ...(selection.frame ? { frame: selection.frame.id } : {}), ...(selection.element ? { element: selection.element } : {}) } : {};
+    const opener = document.activeElement as HTMLElement | null;
+    if (session.openHandoff(checked, frames, selection ? { node: snapshot?.selected ?? null, label: targetLabel(selectionTarget, frames).text, context: lookup, lookup } : null)) handoffOpener.current = opener;
+  };
+  const closeHandOff = () => {
+    session.closeHandoff();
+    const opener = handoffOpener.current;
+    handoffOpener.current = null;
+    (opener && opener !== document.body && opener.isConnected && !opener.hasAttribute("disabled") ? opener : heading.current)?.focus();
+  };
+  // Gated like the list: the render before session.open() for another canvas still holds this one's dialog.
+  const handoff = session.handoff && session.handoff.root === root && session.handoff.canvas === canvas ? session.handoff : null;
+  const handedOff = current ? session.handedOff() : null;
+  const openEntry = entries.find(entry => entry.path === root);
   return {
     session,
     // Opens a comment's editor; a resolved one's offers Save and reopen (for the Review bar's Edit and reopen…).
@@ -364,12 +386,13 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       freshness={new Map(comments.map(c => [c.comment, outdated(c.canvasHash, list?.canvasHash ?? null)]))}
       missingLocations={snapshot?.status === "answered" ? new Set(comments.filter(c => (c.target.frame || c.target.element) && !snapshot.lookup.nodes.has(c.comment)).map(c => c.comment)) : null}
       author={session.author} identityCause={identityCause} canvasId={canvas ?? ""} frames={frames} writeBlocked={writeBlocked} createBlocked={createBlocked} createError={session.createError} widthInvalid={widthInvalid} busy={session.busy || (session.beginning && !draft)}
-      copies={session.copies} allCopy={session.copies.get("all") ?? { status: "idle" }} mutations={session.mutations} headingRef={heading} panelRef={panelElement}
+      handedOff={handedOff && handoffSummary(handedOff.ids.length, handedOff.at)} mutations={session.mutations} headingRef={heading} panelRef={panelElement}
       statusLine={current && session.statusLine ? { ...session.statusLine, before: places.current.get(session.statusLine.comment) ?? null } : null}
       onShowStatus={comment => { focusAfter.current.pin = null; focusAfter.current.saved = null; showing.current = comment; setFilter(current => ({ ...current, status: "open" })); intent("locate", comment); }}
       reviewNotice={noticeShown ? { count: pending.length, firstSeen: session.marker?.lastReviewedAt === undefined, blocked: !!draft || session.beginning, onStart: startReview } : null}
-      reviewBar={reviewBar} reviewDone={current && session.reviewDone ? { text: session.reviewDone.text, onClose: closeSummary } : null}
-      onFilter={next => { focusAfter.current.pin = null; focusAfter.current.saved = null; setFilter(next); }} onCreate={scope => { opened(); void session.create(scope); }} onComment={intent} onCopy={key => { void session.copy(key); }} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
+      reviewBar={reviewBar} reviewDone={current && session.reviewDone ? { text: session.reviewDone.text, onClose: closeSummary,
+        ...(session.reviewDone.reopened.length ? { onHandOff: () => handOff(session.reviewDone?.reopened ?? []) } : {}) } : null}
+      onFilter={next => { focusAfter.current.pin = null; focusAfter.current.saved = null; setFilter(next); }} onCreate={scope => { opened(); void session.create(scope); }} onComment={intent} onHandOff={comment => handOff(comment === null ? "all" : [comment])} onRead={() => { void session.read(); }} onRetryAuthor={() => { void session.retryAuthor(); }}
       editor={draft ? { mode: draft.origin.kind, target: session.target, frames: draftFrames, body: draft.body, state: session.saveView, blocked: editorBlocked, inputRef: input,
         onBody: body => session.body(body),
         onSave: () => { focusAfter.current.saving = true; if (resolvedEdit !== null) remember(resolvedEdit); void session.save(resolvedEdit !== null); },
@@ -381,6 +404,8 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       onStay={() => { showWorkspace(); session.answerUncertain(uncertain.id, false); }}
       onQuit={() => session.answerUncertain(uncertain.id, true)} restoreEditorFocus={focus} /> : session.deleteConfirmation ? <DeleteCommentDialog comment={session.deleteConfirmation.comment} {...(replacedOn ? { replacedOn: targetLabel(replacedOn, frames).text } : {})} onCancel={() => { session.cancelDelete(); heading.current?.focus(); }} onConfirm={() => { void session.confirmDelete(); heading.current?.focus(); }} /> : draft && session.draft.transition && <UnsavedCommentDialog target={session.target} frames={draftFrames} context={commentContext(entries, draft.origin.root, session.identity?.path ?? draft.origin.canvas)} canSave={canSave}
       busy={session.saveView.status === "saving" || session.saveView.status === "checking"} discardBlocked={session.draft.request !== null}
-      {...(editorBlocked ? { reason: editorBlocked } : {})} onContinue={() => { showWorkspace?.(); session.answer("continue"); }} onDiscard={() => session.answer("discard")} onSave={() => { focusAfter.current.saving = false; void session.save(); }} restoreEditorFocus={focus} />,
+      {...(editorBlocked ? { reason: editorBlocked } : {})} onContinue={() => { showWorkspace?.(); session.answer("continue"); }} onDiscard={() => session.answer("discard")} onSave={() => { focusAfter.current.saving = false; void session.save(); }} restoreEditorFocus={focus} />
+      || handoff && open && <HandOffDialog key={handoff.id} dialog={handoff} context={handoffContext(entries, handoff.root, canvasLabel(open.row))} notice={openEntry ? worktreeNotice(openEntry, home) : null}
+        onToggle={id => session.toggleHandoff(id)} onQuick={kind => session.quickHandoff(kind)} onCopy={() => { void session.copyHandoff(); }} onClose={closeHandOff} />,
   };
 }

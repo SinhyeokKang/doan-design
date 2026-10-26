@@ -139,7 +139,7 @@ export function App() {
   }, [wizard]);
   // Set once the project counts below exist; a raised review marker refreshes them.
   const reviewedRoot = useRef<(root: string) => void>(() => {});
-  const comments = useComments(state, controller, () => setScreen("workspace"), entries, root => reviewedRoot.current(root));
+  const comments = useComments(state, controller, () => setScreen("workspace"), entries, root => reviewedRoot.current(root), homeDirectory);
   const home = () => {
     cancelRestore();
     controller.current?.cancelWorkspaceOpen();

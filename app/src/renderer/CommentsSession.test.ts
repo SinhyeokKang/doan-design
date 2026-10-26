@@ -217,7 +217,8 @@ test("begin failure preserves reads and copy, clears on retry and document loss"
   await s.create("canvas");
   expect(s.readError).toBeNull(); expect(s.list?.comments).toEqual([c]);
   expect(s.createError).toBe("Cannot start comment");
-  await s.copy("all"); expect(api.commentsCopy).toHaveBeenCalledOnce();
+  expect(s.openHandoff("all", [], null)).toBe(true); await s.copyHandoff(); s.closeHandoff();
+  expect(api.commentsCopy).toHaveBeenCalledOnce();
   const retry = s.create("canvas"); expect(s.createError).toBeNull(); await retry;
   expect(s.draft.draft?.origin.kind).toBe("create"); s.answer("discard");
   api.commentsBegin.mockRejectedValueOnce(new Error("Old document")); await s.create("canvas");
@@ -484,14 +485,15 @@ describe("a canvas moved with the same id", () => {
     failing.release({ ok: false, identity: { ...identity, path: moved, requestID: "x" }, error: "Path changed" } as CommentReply<CommentList>); await second;
     expect(s.readError).toBeNull();
   });
-  test("an in-flight copy for the old path cannot report afterwards", async () => {
+  test("an in-flight copy refused for the old path fails in the dialog and leaves the read alone", async () => {
     const { session: s, api } = fixture(); await s.open(identity);
     const late = held<CommentReply<{ copied: true }>>();
     api.commentsCopy.mockImplementationOnce(() => late.promise);
-    const copying = s.copy("all");
+    s.openHandoff("all", [], null);
+    const copying = s.copyHandoff();
     await s.rename(moved);
     late.release({ ok: false, identity: { ...identity, requestID: "x" }, error: "Canvas not found" } as CommentReply<{ copied: true }>); await copying;
-    expect(s.copies.get("all")).toBeUndefined(); expect(s.readError).toBeNull();
+    expect(s.handoff?.copy).toEqual({ status: "failed" }); expect(s.handedOff()).toBeNull(); expect(s.readError).toBeNull();
   });
   test("an author read still pending is asked again for the renamed canvas", async () => {
     const { session: s, api } = fixture();

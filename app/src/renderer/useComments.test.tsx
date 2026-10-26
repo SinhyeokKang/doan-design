@@ -7,7 +7,11 @@ import type { CommentRequest } from "../main/comments/service";
 import type { Comment } from "../formats/types";
 import type { AnchorSnapshot, CommentHooks } from "./commentAnchors";
 import { READ_FAILED_EDITOR } from "../comments/panelText";
-import { CommentEditor, type CommentsPanelProps } from "./CommentsPanel";
+import { CommentEditor, DeleteCommentDialog, UnsavedCommentDialog, type CommentsPanelProps } from "./CommentsPanel";
+import { HandOffDialog, type HandOffDialogProps } from "./HandOffDialog";
+import { handoffSummary } from "../comments/handoff";
+import type { FolderEntry } from "../main/view";
+import type { ReactElement } from "react";
 
 const harness = vi.hoisted(() => ({ effects: [] as (() => void | (() => void))[], deps: [] as (readonly unknown[] | undefined)[], states: [] as unknown[], setters: [] as ReturnType<typeof vi.fn>[], updates: [] as [number, unknown][], index: 0, refs: [] as { current: unknown }[], refIndex: 0 }));
 vi.mock("react", async original => ({
@@ -492,7 +496,7 @@ describe("the panel while comments change underneath (comments-readability task 
     await vi.waitFor(() => expect(session.identityCause).toBe(cause));
     const { markup } = f.render({ selection: null });
     expect(markup).toContain(`<b>${title}</b>`);
-    for (const text of ["Loading comments…", "Couldn’t read comments", "Comments are read-only", "Comment on canvas", "Copy all open", "Comment scope"]) expect(markup).not.toContain(text);
+    for (const text of ["Loading comments…", "Couldn’t read comments", "Comments are read-only", "Comment on canvas", "Hand off…", "Comment scope"]) expect(markup).not.toContain(text);
   });
 
   test("a row without a canvas id is the missing block", () => {
@@ -733,6 +737,16 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
       page.doc.activeElement = page.body;
       panel().props.editor!.onCancel(); panel();
       expect(focused(opener, page.heading, ...page.cards)).toEqual(["opener"]);
+    });
+
+    test("a late answer does not pull focus out of the Hand off dialog (agent-handoff)", async () => {
+      const { page, session, render, panel, arrive } = await savedWaiting();
+      render({ selection: label });
+      panel().props.onHandOff(null);
+      expect(session.handoff).not.toBeNull();
+      page.heading.focus.mockClear();
+      arrive();
+      expect(focused(page.heading, ...page.cards)).toEqual([]);
     });
 
     test("a filter change ends the wait", async () => {
@@ -1387,5 +1401,158 @@ describe("Review on the open canvas", () => {
     settle(FILTER);
     expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "open" });
     expect(f.locate).toHaveBeenCalledExactlyOnceWith("n1", 4, one);
+  });
+});
+
+describe("the Hand off dialog (agent-handoff task 4)", () => {
+  const open = (comment: string, at: string, target: Comment["target"] = {}): Comment => ({ comment, body: `Body ${comment}`, status: "open", target, canvasHash: "hash", createdBy: { kind: "human", name: "Kim Doe" }, createdAt: at, updatedAt: at });
+  const c1 = open("c1", "2026-10-25T01:00:00.000Z"), c2 = open("c2", "2026-10-25T02:00:00.000Z", { frame: "payment", element: pay.element });
+  const r1: Comment = { ...open("r1", "2026-10-24T00:00:00.000Z"), status: "resolved", resolvedBy: { kind: "agent", name: "codex" }, resolvedAt: "2026-10-25T03:00:00.000Z" };
+  type Element = { name: string; focus: Mock; isConnected: boolean; hasAttribute: (name: string) => boolean; contains: (node: unknown) => boolean };
+  const element = (name: string, over: Partial<Element> = {}): Element => { const e: Element = { name, focus: vi.fn(), isConnected: true, hasAttribute: () => false, contains: node => node === e, ...over }; return e; };
+  const entry = (worktrees: string[]): FolderEntry => ({ kind: "list", path: "/repo", canvases: [], servedRev: 0, git: { common: "/repo/.git", main: "/code/acme-web", branch: "feat-checkout", worktrees } });
+  async function handing(comments: Comment[] = [c1, c2, r1], options: { entries?: FolderEntry[]; home?: string | null; author?: string } = {}) {
+    // A fresh hook per call: one test may mount two.
+    harness.states = []; harness.deps = []; harness.refs = []; harness.updates = [];
+    const body = element("body"), doc = { body, activeElement: body as unknown };
+    vi.stubGlobal("document", doc);
+    const heading = element("title");
+    harness.refs[1] = { current: heading };
+    const f = setup(comments);
+    const copy = vi.fn(async (r: CommentRequest) => ({ ok: true, identity: r, value: { copied: true } }));
+    Object.assign(window.doan, { commentsCopy: copy });
+    if (options.author !== undefined) Object.assign(window.doan, { commentsAuthor: async (r: CommentRequest) => ({ ok: true, identity: r, value: { kind: "human", name: options.author } }) });
+    const base = { ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, hasFrame: true, layout: layout("one"), selection: null };
+    const render = (over: Partial<CanvasState> = {}) => {
+      harness.index = 0; harness.refIndex = 0; harness.effects = [];
+      const result = useComments({ ...base, ...over }, { current: f.controller as unknown as CanvasController }, vi.fn(), options.entries ?? [], undefined, options.home ?? null);
+      for (const effect of harness.effects) effect();
+      return result;
+    };
+    const { session } = render();
+    await vi.waitFor(() => { expect(session.author.status).not.toBe("loading"); expect(session.list).not.toBeNull(); });
+    render();
+    const props = (over: Partial<CanvasState> = {}) => (render(over).panel as unknown as { props: CommentsPanelProps }).props;
+    const dialog = (over: Partial<CanvasState> = {}) => render(over).dialog as ReactElement<HandOffDialogProps> | false | null | undefined;
+    const handoff = (over: Partial<CanvasState> = {}) => {
+      const shown = dialog(over);
+      if (!shown || shown.type !== HandOffDialog) throw new Error("No Hand off dialog");
+      return shown.props;
+    };
+    return { ...f, session, render, props, dialog, handoff, doc, heading, copy };
+  }
+  afterEach(() => { vi.useRealTimers(); });
+
+  test("the head's Hand off… checks every open comment; a card's only its own", async () => {
+    const f = await handing();
+    f.props().onHandOff(null);
+    expect(f.handoff().dialog.rows.map(row => row.comment.comment)).toEqual(["c1", "c2"]);
+    expect(f.handoff().dialog.checked).toEqual(["c1", "c2"]);
+    f.handoff().onClose(); expect(f.session.handoff).toBeNull();
+    f.props().onHandOff("c2");
+    expect(f.handoff().dialog.checked).toEqual(["c2"]);
+  });
+
+  test("names project › ⎇ branch › canvas, and the worktree to work in when the repository has another", async () => {
+    const one = await handing(undefined, { entries: [entry(["/repo"])], home: "/Users/me" });
+    one.props().onHandOff(null);
+    expect(one.handoff().context).toBe("acme-web › ⎇ feat-checkout › a");
+    expect(one.handoff().notice).toBeNull();
+    const two = await handing(undefined, { entries: [entry(["/repo", "/repo-b"])], home: "/Users/me" });
+    two.props().onHandOff(null);
+    expect(two.handoff().notice).toBe("Comments are per worktree. Your agent should work in feat-checkout (/repo).");
+  });
+
+  test("Selection quick select uses the selection the dialog opened with", async () => {
+    const f = await handing();
+    f.render({ selection: pay });
+    (f.controller.setComments.mock.lastCall![1] as CommentHooks).changed({ lookup: { root: "/repo", canvas: "a", generation: 2, nodes: new Map([["c2", "n-pay"]]) }, rects: new Map(), selected: "n-pay", status: "answered" });
+    settle(ANCHORS);
+    f.props({ selection: pay }).onHandOff(null);
+    f.handoff({ selection: pay }).onQuick("none"); f.handoff({ selection: pay }).onQuick("selection");
+    expect(f.session.handoff?.checked).toEqual(["c2"]);
+    expect(f.session.handoff?.selection?.label).toBe("Element · button pay · in payment");
+  });
+
+  test("closing returns focus to the button that opened it, or the Comments title once that button is gone", async () => {
+    const f = await handing();
+    const opener = element("Hand off…");
+    f.doc.activeElement = opener;
+    f.props().onHandOff(null);
+    f.doc.activeElement = f.doc.body;
+    f.handoff().onClose();
+    expect(opener.focus).toHaveBeenCalledOnce(); expect(f.heading.focus).not.toHaveBeenCalled();
+    const card = element("card Hand off…");
+    f.doc.activeElement = card;
+    f.props().onHandOff("c1");
+    card.isConnected = false;
+    f.handoff().onClose();
+    expect(card.focus).not.toHaveBeenCalled(); expect(f.heading.focus).toHaveBeenCalledOnce();
+  });
+
+  test("the Review Done summary's Hand off… opens with the reopened comments checked", async () => {
+    const f = await handing();
+    f.session.reviewDone = { text: "Reviewed 2 · Reopened 1", reopened: ["c2"], seen: new Map() };
+    f.props().reviewDone!.onHandOff!();
+    expect(f.handoff().dialog.checked).toEqual(["c2"]);
+  });
+
+  test("another (root, canvas id) closes it, already in the render before the session follows; a move keeps it", async () => {
+    const f = await handing();
+    f.props().onHandOff(null);
+    const moved = { ...row, path: "design/moved/a.html" };
+    expect(f.dialog({ open: { folder: "/repo", canvas: moved.path, row: moved }, shown: moved.path }) && true).toBe(true);
+    expect(f.session.handoff).not.toBeNull();
+    const other = { ...row, path: "design/b.html", id: "b" };
+    expect(f.dialog({ open: { folder: "/repo", canvas: other.path, row: other }, shown: other.path })).toBeFalsy();
+    await vi.waitFor(() => expect(f.session.identity?.canvas).toBe("b"));
+    expect(f.session.handoff).toBeNull();
+  });
+
+  test("Delete and Unsaved replace it (Uncertain > Delete > Unsaved > Hand off)", async () => {
+    const f = await handing();
+    f.props().onHandOff(null);
+    await f.session.mutate("delete", "c1");
+    expect((f.dialog() as ReactElement).type).toBe(DeleteCommentDialog); expect(f.session.handoff).toBeNull();
+    f.session.cancelDelete();
+    await f.session.create("canvas"); f.session.body("Draft");
+    f.props().onHandOff(null); expect(f.handoff().dialog.checked).toEqual(["c1", "c2"]);
+    void f.session.guard();
+    expect((f.dialog() as ReactElement).type).toBe(UnsavedCommentDialog); expect(f.session.handoff).toBeNull();
+  });
+
+  test("opens with a draft editor open, an invalid width and no Git name", async () => {
+    const f = await handing(undefined, { author: "" });
+    expect(f.session.author.status).toBe("missing");
+    await f.session.read();
+    const { width: _width, ...unreadable } = row;
+    const props = f.props({ open: { folder: "/repo", canvas: row.path, row: unreadable } });
+    expect(props.widthInvalid).toBe(true);
+    props.onHandOff(null);
+    expect(f.handoff({ open: { folder: "/repo", canvas: row.path, row: unreadable } }).dialog.checked).toEqual(["c1", "c2"]);
+    f.handoff().onClose();
+    const g = await handing();
+    await g.session.create("canvas"); g.session.body("Draft");
+    g.props().onHandOff("c1");
+    expect(g.handoff().dialog.checked).toEqual(["c1"]); expect(g.props().editor).not.toBeNull();
+  });
+
+  test("Handed off appears beside Hand off… after a copy, with the copy's time, and stays across canvases", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const at = new Date("2026-10-26T05:02:10.000Z"); vi.setSystemTime(at);
+    const f = await handing();
+    expect(f.props().handedOff).toBeNull();
+    f.props().onHandOff(null);
+    f.handoff().onCopy();
+    await vi.waitFor(() => expect(f.session.handoff?.copy.status).toBe("copied"));
+    expect(f.copy).toHaveBeenCalledWith(expect.objectContaining({ scope: { comments: ["c1", "c2"] } }));
+    expect(f.props().handedOff).toBe(handoffSummary(2, at));
+    f.handoff().onClose();
+    const other = { ...row, path: "design/b.html", id: "b" };
+    expect(f.props({ open: { folder: "/repo", canvas: other.path, row: other }, shown: other.path }).handedOff).toBeNull();
+    await vi.waitFor(() => expect(f.session.identity?.canvas).toBe("b"));
+    f.render();
+    await vi.waitFor(() => expect(f.session.identity?.canvas).toBe("a"));
+    expect(f.props().handedOff).toBe(handoffSummary(2, at));
   });
 });
