@@ -14,6 +14,8 @@
 | 2026-10-26 | 워커와 리뷰어는 Claude 모델만 쓴다 | AGENTS.md 'Runtime differences' 모델 경계 |
 | 2026-10-26 | 단계마다 batch 하나, 모두 직렬이다. S1·S3·S4가 모두 `styles.css`·e2e 고정값을 건드리고, S2는 S1의 `tokens.css`를 링크하며, S3은 S2 초안에 맞춘다 | 지휘자 판단 — 파일 겹침과 선행 관계 |
 | 2026-10-26 | A1·A2의 순수 함수 파일은 design.md의 가칭대로 `app/src/renderer/ds/checks.ts`(테스트는 같은 폴더 관례를 따름)로 둔다 | 지휘자 판단 — design.md '순수 함수로 분리할 부분' |
+| 2026-10-26 | 비텍스트 3:1은 `border-prominent`, 포커스 링, 핀에만 적용한다. hairline과 입력 필드 채움 경계는 예외다(R1 🟡3) | 사용자 |
+| 2026-10-26 | R1의 🟡1(다이얼로그 상단 8rem), 🟡2(`--raised` 등 남은 별칭의 역할 대응), 🟡3 반영, ⚪1(팔레트를 가리키는 별칭), ⚪6(Buzz 주석을 바꿔 쓴 주석)은 B3 brief에 넣는다. S1 파일이지만 A6·A7이 같은 파일을 다시 고치므로 수정 라운드를 따로 두지 않는다 | 지휘자 판단 — 중간 상태는 부모 공통 결정 12로 허용, 배포 없음 |
 | 2026-10-26 | A10(결론 승격과 `docs/features/buzz-ds/` 삭제)은 지휘자가 통합 뒤 직접 한다 | orchestrate 스킬 §5 |
 
 ## batch 표
@@ -33,3 +35,6 @@
 ## 진행 기록
 
 - 2026-10-26: orch.md 작성, `feat-buzz-ds` 생성.
+- 2026-10-26: B1(Opus high, worktree `buzz-ds-b1`) 완료 보고 outcome failed — 커밋 902cda6·20458a9·f07ab36·646b446, e2e 최종 PASS 없음(comments-ui `08-hidden-quit-close` 포커스 대기 시간 초과 두 번). 실제 `/Applications/doan.app`이 실제 userData의 `ui-state.json`을 바꿔 첫 e2e가 멈췄고, 사용자 승인으로 지휘자가 정상 종료했다. B1 터미널 release.
+- 2026-10-26: 지휘자 e2e 재현(646b446, R1 동시 실행 중) 실패 — comments-ui `:191` notice 개수 비교(기다림 없는 단언). 부하 없는 재실행 진행.
+- 2026-10-26: R1(Opus high) 리뷰 — 🔴 0, 🟡 3, ⚪ 7. 보고서는 지휘자 `.scratch/review-B1.md`. R1 터미널 release.
