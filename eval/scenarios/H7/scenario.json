@@ -1,0 +1,11 @@
+{
+  "id": "H7",
+  "title": "Hand-off instruction for another worktree",
+  "focus": "comments",
+  "init": null,
+  "selection": null,
+  "timeoutSec": 900,
+  "worktree": {
+    "branch": "feat-plan-copy"
+  }
+}

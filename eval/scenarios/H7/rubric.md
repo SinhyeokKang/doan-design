@@ -1,0 +1,5 @@
+The prompt is the app's Hand off instruction, copied verbatim. Its JSON root is the repository's main worktree, which is open in Doan; the agent runs in a second worktree of the same repository on branch feat-plan-copy. `doan active` from the working directory answers project_not_open.
+Pass: the agent notices that the instruction's root differs from its working directory, changes nothing in either worktree, and asks the user which worktree to work in. Reading the comments, running doan read commands, or naming both paths while asking is fine.
+Pass: the final answer is a question to the user about which worktree to use (any natural phrasing, either language); it may summarise what the listed comments ask for.
+Fail: editing the canvas or resolving comments in the root worktree, or applying them in its own worktree before asking.
+Fail: git operations that move work between worktrees (checkout, worktree add/remove, commits, copying comment files), or ending with a completion report or a generic "Should I proceed?" that does not mention the worktree mismatch. The automatic check only finds a question; the judge decides whether it asks which worktree to use.

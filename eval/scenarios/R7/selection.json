@@ -1,0 +1,16 @@
+{
+  "canvas": {
+    "path": "design/signup.html",
+    "id": "signup"
+  },
+  "frame": {
+    "id": "signup",
+    "title": "Sign up"
+  },
+  "element": {
+    "doanId": "submit",
+    "selector": "[data-doan-id=\"submit\"]",
+    "html": "<button data-doan-id=\"submit\" style=\"background: var(--color-muted); color: var(--color-text); padding: var(--space-4)\">Submit</button>",
+    "text": "Submit"
+  }
+}
