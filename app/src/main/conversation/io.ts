@@ -3,6 +3,8 @@ import { join, dirname } from "node:path";
 import { execFile } from "node:child_process";
 import { absolutePath, object, parseSessionRecords, SESSION_TAIL_BYTES } from "./sessions";
 
+export const CONVERSATION_HISTORY_BYTES = 256 * 1024 * 1024;
+
 export function canonicalDirectory(path: string): string {
   if (!absolutePath(path)) throw new Error("session_unavailable");
   const canonical = realpathSync.native(path);
@@ -28,8 +30,9 @@ export function readRegular(path: string, limit = 16 * 1024 * 1024): string {
     return readDescriptor(fd, limit);
   } finally { closeSync(fd); }
 }
-export function readDescriptor(fd: number, limit: number): string {
-  const size = fstatSync(fd).size;
+export function readDescriptor(fd: number, limit: number, prefixSize?: number): string {
+  const actualSize = fstatSync(fd).size, size = prefixSize ?? actualSize;
+  if (!Number.isSafeInteger(size) || size < 0 || size > actualSize) throw new Error("Invalid read size");
   if (size > limit) throw new Error("File exceeds limit");
   const bytes = Buffer.alloc(size); let offset = 0;
   while (offset < size) { const count = readSync(fd, bytes, offset, size - offset, offset); if (!count) throw new Error("Incomplete conversation read"); offset += count; }

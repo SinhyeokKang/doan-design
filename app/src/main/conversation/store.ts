@@ -1,7 +1,7 @@
 import { closeSync, constants, fstatSync, ftruncateSync, mkdirSync, renameSync, unlinkSync, writeSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { canonicalDirectory, openRegular, readRegular, readDescriptor } from "./io";
+import { canonicalDirectory, openRegular, readRegular, readDescriptor, CONVERSATION_HISTORY_BYTES } from "./io";
 import { absolutePath, object } from "./sessions";
 import { anchorTokens, validAnchor } from "./prompt";
 import type { Canvas, ConversationEvent, EventPayload, Runtime } from "./types";
@@ -72,9 +72,12 @@ export class ConversationStore {
   // The index rename is the commit point. An undo record survives interrupted log writes.
   acceptStart(entries: ConversationMetadata[], id: string, writes: { id: string; turn: string; body: EventPayload }[]): ConversationEvent[] {
     this.recoverStart();
+    const currentIndex = this.readIndex();
+    if (!validId(id) || currentIndex.some(m => m.conversationId.toLowerCase() === id.toLowerCase()) ||
+        writes.some(w => !validId(w.id) || (w.id !== id && !currentIndex.some(m => m.conversationId === w.id && m.state === "current")))) throw new Error("Invalid start targets");
     const previous = [...new Set(writes.map(w => w.id).filter(old => old !== id))].map(old => {
       const fd = openRegular(join(this.directory, `${old}.jsonl`));
-      try { this.parse(readDescriptor(fd, 256 * 1024 * 1024), old); const stat = fstatSync(fd); return { id: old, size: stat.size, ino: stat.ino, dev: stat.dev }; } finally { closeSync(fd); }
+      try { this.parse(readDescriptor(fd, CONVERSATION_HISTORY_BYTES), old); const stat = fstatSync(fd); return { id: old, size: stat.size, ino: stat.ino, dev: stat.dev }; } finally { closeSync(fd); }
     });
     const journal = join(this.directory, "start-undo.json");
     const temp = join(this.directory, `undo-${randomUUID()}.tmp`);
@@ -97,17 +100,42 @@ export class ConversationStore {
     try { text = readRegular(journal); } catch (error) { if (object(error) && error.code === "ENOENT") return; throw error; }
     const raw: unknown = JSON.parse(text);
     if (!object(raw) || !validId(raw.id) || !Array.isArray(raw.previous)) throw new Error("Invalid start recovery record");
-    if (!this.readIndex().some(m => m.conversationId === raw.id)) {
-      for (const old of raw.previous) {
-        if (!object(old) || !validId(old.id) || typeof old.size !== "number" || !Number.isSafeInteger(old.size) || old.size < 0 || typeof old.ino !== "number" || typeof old.dev !== "number") throw new Error("Invalid start recovery record");
-        const fd = openRegular(join(this.directory, `${old.id}.jsonl`), constants.O_RDWR);
-        try {
+    const newId = raw.id;
+    const previous: { id: string; size: number; ino: number; dev: number }[] = [];
+    const ids = new Set([raw.id.toLowerCase()]), identities = new Set<string>();
+    for (const old of raw.previous) {
+      if (!object(old) || !validId(old.id) || typeof old.size !== "number" || !Number.isSafeInteger(old.size) || old.size < 0 || old.size > CONVERSATION_HISTORY_BYTES ||
+          typeof old.ino !== "number" || !Number.isSafeInteger(old.ino) || old.ino < 0 || typeof old.dev !== "number" || !Number.isSafeInteger(old.dev) || old.dev < 0 ||
+          ids.has(old.id.toLowerCase()) || identities.has(`${old.dev}:${old.ino}`)) throw new Error("Invalid start recovery record");
+      ids.add(old.id.toLowerCase()); identities.add(`${old.dev}:${old.ino}`);
+      previous.push({ id: old.id, size: old.size, ino: old.ino, dev: old.dev });
+    }
+    const index = this.readIndex(), current = index.find(m => m.conversationId === raw.id);
+    if ((current && current.state !== "current") || index.some(m => m.conversationId !== raw.id && m.conversationId.toLowerCase() === newId.toLowerCase()) ||
+        previous.some(old => !index.some(m => m.conversationId === old.id && m.state === (current ? "archived" : "current")))) throw new Error("Invalid start recovery record");
+    if (!current) {
+      const targets: { fd: number; size: number }[] = [];
+      let newFd: number | undefined;
+      try {
+        // Validate every pinned target and rollback prefix before the first destructive write.
+        for (const old of previous) {
+          const fd = openRegular(join(this.directory, `${old.id}.jsonl`), constants.O_RDWR);
+          targets.push({ fd, size: old.size });
           const stat = fstatSync(fd);
           if (stat.ino !== old.ino || stat.dev !== old.dev || stat.size < old.size) throw new Error("Recovery file identity changed");
-          ftruncateSync(fd, old.size);
-        } finally { closeSync(fd); }
-      }
-      try { unlinkSync(join(this.directory, `${raw.id}.jsonl`)); } catch (error) { if (!object(error) || error.code !== "ENOENT") throw error; }
+          const prefix = readDescriptor(fd, CONVERSATION_HISTORY_BYTES, old.size);
+          if (prefix && !prefix.endsWith("\n")) throw new Error("Invalid recovery boundary");
+          this.parse(prefix, old.id);
+        }
+        try { newFd = openRegular(join(this.directory, `${newId}.jsonl`)); }
+        catch (error) { if (!object(error) || error.code !== "ENOENT") throw error; }
+        if (newFd !== undefined) {
+          const stat = fstatSync(newFd);
+          if (identities.has(`${stat.dev}:${stat.ino}`)) throw new Error("Invalid start recovery target");
+        }
+        for (const target of targets) ftruncateSync(target.fd, target.size);
+        if (newFd !== undefined) unlinkSync(join(this.directory, `${newId}.jsonl`));
+      } finally { if (newFd !== undefined) closeSync(newFd); for (const target of targets) closeSync(target.fd); }
     }
     unlinkSync(journal);
   }
@@ -115,7 +143,7 @@ export class ConversationStore {
     if (!this.accepting) this.recoverStart();
     if (!validId(id)) throw new Error("Invalid conversation ID");
     let text: string;
-    try { text = readRegular(join(this.directory, `${id}.jsonl`), 256 * 1024 * 1024); } catch (error) { if (object(error) && error.code === "ENOENT") return []; throw error; }
+    try { text = readRegular(join(this.directory, `${id}.jsonl`), CONVERSATION_HISTORY_BYTES); } catch (error) { if (object(error) && error.code === "ENOENT") return []; throw error; }
     return this.parse(text, id);
   }
   private parse(text: string, id: string): ConversationEvent[] {
@@ -133,10 +161,12 @@ export class ConversationStore {
     if (!validId(id)) throw new Error("Invalid conversation ID");
     const fd = openRegular(join(this.directory, `${id}.jsonl`), constants.O_RDWR | constants.O_APPEND | constants.O_CREAT);
     try {
-      const history = this.parse(readDescriptor(fd, 256 * 1024 * 1024), id);
+      const history = this.parse(readDescriptor(fd, CONVERSATION_HISTORY_BYTES), id);
       const next: ConversationEvent = { ...body, v: 1, conversationId: id, turnId, seq: history.length + 1, at: new Date().toISOString() };
       if (!event(next, id, next.seq)) throw new Error("Invalid conversation event");
-      this.write(fd, JSON.stringify(next) + "\n");
+      const serialized = JSON.stringify(next) + "\n";
+      if (fstatSync(fd).size + Buffer.byteLength(serialized, "utf8") > CONVERSATION_HISTORY_BYTES) throw new Error("File exceeds limit");
+      this.write(fd, serialized);
       return next;
     } finally { closeSync(fd); }
   }
