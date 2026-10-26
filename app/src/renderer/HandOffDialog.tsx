@@ -2,7 +2,7 @@ import type { KeyboardEvent } from "react";
 import type { FolderEntry } from "../main/view";
 import { copyText } from "../comments/projection";
 import { handoffCopied, quickSelect, type QuickKind } from "../comments/handoff";
-import { cardRow, groupProjects } from "./homeCards";
+import { groupProjects } from "./homeCards";
 import { COPY_FAILED } from "./onboardingView";
 import type { HandoffDialog } from "./CommentsSession";
 
@@ -13,11 +13,12 @@ export function staleText(n: number): string {
     : `${n} comments are no longer open and were removed from the list. Review and copy again.`;
 }
 
-// The top bar's crumbs: project › ⎇ branch › canvas, or the folder name without a branch.
+// The top bar's crumbs: project › ⎇ branch › canvas. Without a branch (a
+// detached HEAD, no git) the folder name, as the worktree notice names the path.
 export function handoffContext(entries: readonly FolderEntry[], root: string, title: string): string {
   const card = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : []))).find(card => card.rows.some(row => row.path === root));
   const entry = entries.find(entry => entry.path === root), folder = root.split("/").at(-1) ?? root;
-  const branch = entry?.kind === "list" ? cardRow(entry, null, null).summary?.branch : undefined;
+  const branch = entry?.kind === "list" ? entry.git?.branch : undefined;
   return `${card?.name ?? folder} › ${branch ? `⎇ ${branch}` : folder} › ${title}`;
 }
 

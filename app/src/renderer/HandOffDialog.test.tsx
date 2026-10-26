@@ -173,5 +173,8 @@ describe("the context line", () => {
   test("project › ⎇ branch › canvas, or the folder name without a branch", () => {
     expect(handoffContext([list("/code/acme-web", { branch: "main" })], "/code/acme-web", "Checkout")).toBe("acme-web › ⎇ main › Checkout");
     expect(handoffContext([list("/code/acme-web-review", undefined)], "/code/acme-web-review", "Checkout")).toBe("acme-web-review › acme-web-review › Checkout");
+    // Detached: no branch to name, unlike the top bar's "⎇ detached abc1234" (conductor decision, draft dialog-states).
+    const detached = [list("/code/acme-web", { main: "/code/acme-web", branch: "main" }), list("/code/acme-web-review", { main: "/code/acme-web", detached: "abc1234def" })];
+    expect(handoffContext(detached, "/code/acme-web-review", "Checkout")).toBe("acme-web › acme-web-review › Checkout");
   });
 });
