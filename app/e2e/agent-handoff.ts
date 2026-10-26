@@ -161,6 +161,19 @@ try {
   const status = () => dialog().locator(".handoff-status");
   const focused = () => page.evaluate(() => { const node = document.activeElement as HTMLElement | null; return { tag: node?.tagName ?? null, text: node?.textContent?.trim() ?? null, className: node?.className ?? null }; });
   const isFocused = (locator: ReturnType<typeof headHandOff>) => locator.evaluate(node => node === document.activeElement);
+  // The Tab stops from the focused control on, pressing the real Tab key between them.
+  async function tabStops(count: number): Promise<string[]> {
+    const stops: string[] = [];
+    for (let index = 0; index < count; index++) {
+      if (index > 0) await page.keyboard.press("Tab");
+      stops.push(await page.evaluate(() => {
+        const node = document.activeElement as HTMLElement | null;
+        if (node instanceof HTMLInputElement && node.type === "checkbox") return `checkbox ${node.closest(".handoff-row")?.querySelector(".handoff-body")?.textContent ?? ""}`;
+        return node?.textContent?.trim() ?? "";
+      }));
+    }
+    return stops;
+  }
   async function focusOn(check: () => Promise<boolean>, name: string): Promise<void> {
     await wait(check, name, 3_000).catch(async error => { throw new Error(`${name}: focus is ${JSON.stringify(await focused())} (${error instanceof Error ? error.message : String(error)})`); });
   }
@@ -334,11 +347,28 @@ try {
 
   await scenario("3-keyboard-and-clipboard", async () => {
     await openCanvas("hand.html", "Hand canvas", "Alpha");
-    await clearSelection();
+    // A selection with comments, so Selection is enabled and a Tab stop.
+    await select("Alpha", "alpha");
+    // The dialog keeps the selection's anchor as it was at open; the anchor reply
+    // lands ~30 ms after the Inspector shows the selection, when the panel lists it.
+    await wait(async () => await pressed("Comment scope", /^Selection$/) === "true" && await cards().count() === 2, "the panel lists Alpha's comments");
     await headHandOff().focus();
     await page.keyboard.press("Enter");
     await dialog().waitFor();
     await focusOn(() => isFocused(copyButton()), "focus on Copy 5");
+    await quick("All").focus();
+    assert.deepEqual(await tabStops(11), ["All", "None", "Selection", ...[h.h1, h.h2, h.h3, h.h4, h.h5].map(id => `checkbox ${first(id)}`), "Show instruction", "Cancel", "Copy 5"], "Tab order");
+    // Return on a focused button or summary is that control's, not Copy's.
+    await quick("None").focus();
+    await page.keyboard.press("Enter");
+    await copyIs("Copy 0");
+    await quick("All").focus();
+    await page.keyboard.press("Enter");
+    await copyIs("Copy 5");
+    await dialog().locator(".handoff-instruction summary").focus();
+    await page.keyboard.press("Enter");
+    await wait(() => dialog().locator(".handoff-preview").isVisible(), "Return on the summary shows the instruction");
+    await holds(async () => await dialog().count() === 1 && await status().count() === 0 && await copyButton().textContent() === "Copy 5", "Return on a button or the summary does not copy", 500);
     await rowBox(h.h1).focus();
     await page.keyboard.press("Space");
     await copyIs("Copy 4");
@@ -360,6 +390,8 @@ try {
     await closed();
     await focusOn(() => isFocused(headHandOff()), "Escape restores focus to the head's Hand off…");
 
+    await clearSelection();
+    await filterTo("Comment scope", /^Canvas$/);
     const handed = await handedOff().textContent();
     const opener = card(h.h3).getByRole("button", { name: "Hand off…", exact: true });
     await opener.click();
@@ -501,6 +533,9 @@ try {
     await openHandOff();
     assert.equal(await dialog().locator(".handoff-context").textContent(), "wt › ⎇ main › Wt canvas");
     assert.equal(await dialog().locator(".handoff-notice").textContent(), `Comments are per worktree. Your agent should work in main (${wtRepo}).`);
+    // The notice is static text, not a Tab stop; Selection is disabled without a selection.
+    await quick("All").focus();
+    assert.deepEqual(await tabStops(6), ["All", "None", "checkbox Worktree note", "Show instruction", "Cancel", "Copy 1"], "Tab order with the notice");
     await shot("8a-worktree-notice");
     await dialog().getByRole("button", { name: "Cancel", exact: true }).click();
     await closed();
