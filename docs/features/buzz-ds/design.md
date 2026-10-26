@@ -91,6 +91,16 @@ A6에서 아래 줄을 모두 옮긴다. 줄 번호는 2026-10-26 기준이며 A
 | `button:disabled` (`styles.css:31`, `settings.css:7`), `.mi[data-disabled]` (`:446`), `.zctl.disabled` (`:95`), `.cl-item.off input` (`:396`) | `text-disabled`(disabled 역할) |
 | `.ob-item.dimmed` (`:286`, `settings.css:22`), `.handoff-row input:disabled + .handoff-text` (`:216`) | `text-metadata` |
 
+**왼쪽 강조 선** — 메시지와 안내에 왼쪽 선(`border-left: 2px`)을 쓰지 않는다(2026-10-26 user). 오류·경고는 body-sm `text-danger`/`text-warning` 글자만, 중립 안내는 선 없는 `text-subtle` 글자나 `surface-inset` 채움으로 둔다.
+
+| 셀렉터 | 역할 |
+|---|---|
+| `.comments-message.error`, `.comments-message.warning`, `.comments-message .detail` (`styles.css:186-189`) | 선 삭제. 제목은 `text-danger`/`text-warning`, 상세는 `text-subtle` |
+| `.ob-msg.warn`, `.ob-msg.error` (`styles.css:294-295`, `settings.css:29-30`) | 선 삭제, `text-warning`/`text-danger` |
+| `.tree-detail` (`:477`), `.fp-error` (`:534`), `.pj-msg` (`settings.css:85`) | 선 삭제. 오류 글자는 `text-danger`, 원문 상세는 `text-subtle` |
+| `.st-notice` (`settings.css:54`), `.cn-note` (`connectionRows.css:25`) | 선 삭제, `text-warning` 글자 |
+| `.handoff-dialog .handoff-notice`, `.handoff-status` (`:226-227`), `.fb-note` (`:605`) | 선 삭제. `surface-inset` 채움 + `radius-row`(경고는 `text-warning` 글자) |
+
 **scrim** — `bg-scrim` 하나로 통일한다: `.comments-dialog::backdrop` (`:199`), `.ob-dialog::backdrop` (`:320`, `settings.css:100`), `.add-dialog::backdrop` (`:437`), `.scrim` (`:440`), `.qo::backdrop` (`:505`). 예외: `.drop .scrim` (`:408`)은 드롭 표시용으로 `bg-scrim`보다 진하게 두고 값을 DESIGN.md에 적는다. `.thumb` (`:493`)과 `.area` (`:72`)의 `--board-bg`는 캔버스 보드라서 `buzz-canvas`까지 `surface-inset`으로 둔다.
 
 ## 초안 요청 (`/design-draft`)

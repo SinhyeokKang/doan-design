@@ -30,6 +30,7 @@
 | 2026-10-26 | 액센트를 오렌지에서 doan 고유 violet 램프로 바꾼다. 9단계 `#973be1`(흰 글자 5.2:1), iris 구조에 색상 H 305를 얹어 만든다. 비교 Artifact(오렌지·magenta·iris·jade·violet·teal·cobalt·mono)에서 골랐다 | 사용자 |
 | 2026-10-26 | A5 초안을 확정한다. 액센트는 violet으로 바꾼 뒤 지휘자가 확인하고, 나머지 프레임은 지금 그대로 둔다. 액센트 hover·pressed 구분 문제는 violet에서 9단계보다 어두운 단계로 풀린다 | 사용자 |
 | 2026-10-26 | 핀 테두리(`--border-pin`)는 violet 11 대신 `--neutral-12`(검정)를 쓴다. violet 11은 9단계 대비 1.85:1이라 3:1에 못 미치고, 11만 어둡게 하면 12보다 어두워져 램프 순서가 뒤집힌다. 검정 테두리는 9단계 대비 4.03:1이고 흰 halo는 그대로다 | 지휘자 판단 — B1r2 질문 |
+| 2026-10-26 | 메시지와 안내의 왼쪽 강조 선을 모두 없앤다(Comments 오류 포함, 앞서 `buzz-comment`로 넘긴 결정을 바꾼다). design.md 대응표에 '왼쪽 강조 선' 행을 더했다. B3가 A6에서 적용하고 초안 `shared-error-details`의 Comments 타일도 고친다 | 사용자 |
 | 2026-10-26 | A10(결론 승격과 `docs/features/buzz-ds/` 삭제)은 지휘자가 통합 뒤 직접 한다 | orchestrate 스킬 §5 |
 
 ## batch 표
