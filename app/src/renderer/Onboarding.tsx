@@ -60,8 +60,7 @@ export function ConfirmDialog({ view, answer }: { view: ConfirmView; answer: (al
       event.preventDefault(); event.stopPropagation();
       if (!event.nativeEvent.isComposing) reply(false);
     }}>
-    <h3 className="doan-dialog-title">{view.title}</h3>
-    <p><Parts parts={view.body} /></p>
+    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">{view.title}</h3><p className="doan-dialog-description"><Parts parts={view.body} /></p></div></div>
     <dl className="ob-compare"><dt>Current</dt><dd>{view.current}</dd><dt>New</dt><dd>{view.next}</dd></dl>
     <div className="ob-buttons doan-dialog-actions"><button type="button" className="btn doan-button" data-ui-variant="subtle" ref={cancel} onClick={() => reply(false)}>Cancel</button><button type="button" className="btn primary doan-button" data-ui-variant="prominent" onClick={() => reply(true)}>{view.verb}</button></div>
   </dialog>;
@@ -357,8 +356,7 @@ function PickOneDialog({ scanId, homeDirectory, close, chosen }: { scanId: strin
   }
   return <dialog className="add-dialog doan-dialog" aria-label={view?.title ?? "Choose a repository"} aria-busy={busy} ref={node => { dialog.current = node; if (node && !node.open) node.showModal(); }}
     onCancel={event => { event.preventDefault(); cancel(); }} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); } }}>
-    <h3 className="doan-dialog-title">{view?.title ?? "Choose a repository"}</h3>
-    <p className="lead"><Parts parts={view?.lead ?? []} /></p>
+    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">{view?.title ?? "Choose a repository"}</h3><p className="lead doan-dialog-description"><Parts parts={view?.lead ?? []} /></p></div></div>
     <div className="cl native-scroll" role="radiogroup" aria-label="Repositories">
       {view?.rows.map(row => <div className={`cl-item${row.sub ? " sub" : ""}${row.disabled ? " off" : ""}`} key={row.id}>
         <input type="radio" name={`pick-${scanId}`} aria-label={row.label} disabled={row.disabled || busy} checked={picked === row.id} onChange={() => setChoice(row.id)} />

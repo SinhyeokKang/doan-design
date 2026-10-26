@@ -282,48 +282,53 @@ code, kbd { font-family: var(--type-family); }
 .ob-lead { font-size: 12.5px; line-height: 1.6; color: var(--text-subtle); margin-bottom: 18px; }
 .ob-foot { display: flex; align-items: center; gap: 10px; padding: 0 24px; background: var(--surface-panel); border-top: 1px solid var(--border-standard); }
 .ob-foot .meta { margin-right: 6px; }
-.ob-card { width: 640px; background: var(--surface-panel); border: 1px solid var(--border-standard); border-radius: 10px; }
+/* Shared settings-style group: a hairline container whose rows are split by hairlines. */
+.ob-card { width: 640px; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
+.ob-card > :first-child { border-top: 0; }
 .ob-card + .ob-card { margin-top: 14px; }
-.ob-item { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border-standard); }
-.ob-card > :last-child { border-bottom: 0; }
-.ob-label { font-size: 12px; font-weight: 600; color: var(--text-standard); }
+.ob-item { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-3) 0; border-top: 1px solid var(--border-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.ob-label { font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); color: var(--text-standard); }
 /* A dimmed item is waiting on another step, not disabled. */
 .ob-item.dimmed :is(.ob-label, .ob-detail) { color: var(--text-metadata); }
 .ob-item.ob-notice { padding-top: 0; }
-.ob-detail { font-size: 11.5px; line-height: 1.5; color: var(--text-metadata); min-width: 0; overflow-wrap: anywhere; }
-.ob-detail code, .ob-msg code, .ob-lead code, .ob-dialog code, .ob-field code, .ob-reason code { color: var(--text-subtle); background: var(--surface-inset); border-radius: 4px; padding: 0 4px; }
+.ob-detail { color: var(--text-subtle); min-width: 0; overflow-wrap: anywhere; }
+/* Inline code reads as a chip on the surface it sits on. */
+.ob-detail code, .ob-msg code, .ob-lead code, .ob-dialog code, .ob-field code, .ob-reason code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
 .ob-status { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
-.ob-msg { grid-column: 2 / -1; font-size: 11.5px; line-height: 1.5; color: var(--text-subtle); overflow-wrap: anywhere; }
+.ob-msg { grid-column: 2 / -1; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); overflow-wrap: anywhere; }
 /* An inline error or warning is one line led by an icon, so colour is not the only signal. */
 .ob-msg:is(.warn, .error), .fp-error, .pj-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .ob-msg.warn { color: var(--text-warning); }
 .ob-msg.error, .fp-error, .pj-msg { color: var(--text-danger); }
 .ob-msg.ok { color: var(--text-success); }
 .ob-msg.ob-wide { grid-column: 1 / -1; }
-.ob-reason { grid-column: 2 / -1; font-size: 11.5px; line-height: 1.5; color: var(--text-metadata); }
-.ob-chip { font-size: 10.5px; line-height: 1.5; padding: 1px 6px; border: 1px solid var(--border-standard); border-radius: 4px; color: var(--text-metadata); white-space: nowrap; }
-.ob-chip.ok { color: var(--text-success); }
-.ob-chip.warn { color: var(--text-warning); }
-.ob-chip.err { color: var(--text-danger); }
+.ob-reason { grid-column: 2 / -1; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
+/* Status pill: a doan adjustment that keeps a row's state readable at a glance. */
+.ob-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 var(--space-2); border-radius: var(--radius-pill); background: var(--affordance-subtle); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); white-space: nowrap; }
+.ob-chip.ok { background: var(--affordance-success); color: var(--text-success); }
+.ob-chip.warn { background: var(--affordance-warning); color: var(--text-warning); }
+.ob-chip.err { background: var(--affordance-danger); color: var(--text-danger); }
 .ob-copyline { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; }
-.ob-copyline output { flex: 1; min-width: 0; font-size: 12px; color: var(--text-standard); background: var(--bg-app); border: 1px solid var(--border-standard); border-radius: 6px; padding: 6px 9px; overflow-wrap: anywhere; }
-.ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border-standard); }
+.ob-copyline output { flex: 1; min-width: 0; padding: var(--space-1h) var(--space-3); border-radius: var(--radius-chip); background: var(--surface-panel); color: var(--text-standard); overflow-wrap: anywhere; }
+.ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-4) 0; border-top: 1px solid var(--border-standard); }
 /* Project names and paths share inline flow; Inspector values use flex. */
-.ob-field .value { display: block; gap: normal; font-size: 12px; color: var(--text-standard); min-width: 0; overflow-wrap: anywhere; }
+/* A value stays on one line; its full text is in title. */
+.ob-field .value { display: block; min-width: 0; overflow: hidden; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); text-overflow: ellipsis; white-space: nowrap; }
 .ob-field .value .meta { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 .ob-project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-field .value.none { color: var(--text-metadata); }
 .ob-field .ob-helper { grid-column: 2 / -1; }
-.ob-helper { font-size: 11px; line-height: 1.5; color: var(--text-metadata); overflow-wrap: anywhere; }
-.ob-changes { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--text-subtle); }
-.ob-actions { display: flex; align-items: center; gap: 8px; padding: 12px 14px; }
+.ob-helper { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); overflow-wrap: anywhere; }
+.ob-changes { display: grid; gap: var(--space-1); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
+.ob-actions { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; }
 .ob-actions .ob-helper { flex: 1; }
-.ob-sentence { font-size: 12.5px; line-height: 1.7; color: var(--text-standard); background: var(--bg-app); border: 1px solid var(--border-standard); border-radius: 6px; padding: 10px 12px; overflow-wrap: anywhere; }
-.ob-sentence mark { background: var(--surface-inset); color: var(--text-standard); border-radius: 3px; padding: 0 2px; }
-.ob-prompt { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.ob-sentence { padding: var(--space-3) var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-row); color: var(--text-standard); font-size: var(--type-body-size); line-height: 24px; overflow-wrap: anywhere; }
+/* The subject is an inset chip; an empty subject is a metadata slot. */
+.ob-sentence mark { padding: 1px var(--space-1); border-radius: var(--space-1h); background: var(--surface-inset); color: var(--text-standard); font-weight: var(--type-weight-medium); }
+.ob-prompt { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4) 0; }
 .ob-prompt .ob-actions { padding: 0; }
 /* The replace confirmation and the project setup dialog share the comments dialog surface. */
-.ob-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-subtle); }
+.ob-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .ob-dialog .ob-card { width: auto; }
 .ob-compare { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px 10px; font-size: 11.5px; line-height: 1.5; margin-bottom: 16px; padding: 10px 12px; background: var(--surface-panel); border: 1px solid var(--border-standard); border-radius: 8px; }
 .ob-compare dt { color: var(--text-metadata); }
@@ -371,18 +376,17 @@ code, kbd { font-family: var(--type-family); }
 .menu[aria-label="Worktrees"] { max-width: calc(100vw - 16px); }
 .menu[aria-label="Worktrees"] .label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
-.add-dialog .lead { font-size: 12px; line-height: 1.6; color: var(--text-subtle); }
-.add-dialog .lead code { color: var(--text-subtle); background: var(--surface-inset); border-radius: 4px; padding: 0 4px; }
-.cl { background: var(--surface-panel); border: 1px solid var(--border-standard); border-radius: 8px; overflow: hidden; color-scheme: light; }
-.cl-item { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--border-standard); }
-.cl-item:first-child { border-top: 0; }
-.cl-item input { width: 14px; height: 14px; margin: 0; accent-color: var(--text-standard); }
-.cl-item.sub { padding-left: 38px; background: var(--surface-inset); }
-.cl-name { font: 12.5px var(--type-family); color: var(--text-standard); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cl-name .kind { color: var(--text-metadata); font-size: 11px; margin-left: 6px; }
-.cl-path { grid-column: 2 / 3; font: 11px var(--type-family); color: var(--text-disabled); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cl-item.off .cl-name { color: var(--text-metadata); }
-.scan { display: flex; align-items: center; gap: 8px; font: 11.5px var(--type-family); color: var(--text-metadata); }
+/* The checklist is a hairline container with a thin native scrollbar; rows take the nested corner. */
+.cl { padding: var(--space-1); border: 1px solid var(--border-standard); border-radius: var(--radius-container); scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+.cl-item { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 0 var(--space-3); align-items: center; padding: var(--space-2) var(--space-3); border-radius: max(0px, calc(var(--radius-container) - var(--space-1) - 1px)); }
+/* A worktree row indents past the checkbox column. */
+.cl-item.sub { padding-left: calc(var(--space-3) + 20px + var(--space-3)); }
+.cl-name { min-width: 0; overflow: hidden; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); text-overflow: ellipsis; white-space: nowrap; }
+.cl-name .kind { margin-left: var(--space-1h); color: var(--text-metadata); }
+.cl-path { grid-column: 2 / 3; min-width: 0; overflow: hidden; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); text-overflow: ellipsis; white-space: nowrap; }
+.cl-item.off :is(.cl-name, .cl-path) { color: var(--text-disabled); }
+.scan { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.doan-dialog-actions .meta { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 
 .toast { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 6; }
 /* The visible canvas toolbar reaches 48px above the window bottom (12px inset, 36px zoom group). */
@@ -419,7 +423,6 @@ code, kbd { font-family: var(--type-family); }
 
 .menu[role="menu"] { position: relative; outline: none; z-index: 20; }
 .add-dialog .cl { max-height: 50vh; overflow-y: auto; }
-.cl > div + div > .cl-item:first-child { border-top: 1px solid var(--border-standard); }
 .scrim { position: absolute; inset: 0; background: var(--bg-scrim); }
 .workspace.with-status { grid-template-rows: 40px auto minmax(0, 1fr); }
 .ws-recovery { grid-column: 1 / -1; }
@@ -503,24 +506,19 @@ code, kbd { font-family: var(--type-family); }
 .qo-foot { padding: 7px 14px; border-top: 1px solid var(--border-standard); font: 10.5px var(--type-family); color: var(--text-metadata); }
 
 /* app-setup: first prompt and wizard (confirmed design/app-setup.html, frames wizard and first-prompt). */
-.fp-field { display: grid; gap: 6px; }
-.fp-labelrow { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.fp-label { font-size: 12px; font-weight: 600; color: var(--text-standard); }
-.fp-count { font-size: 10.5px; color: var(--text-metadata); }
+.fp-labelrow { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
+.fp-label { color: var(--text-standard); font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); }
+.fp-count { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .fp-count.err { color: var(--text-danger); }
-.fp-input { display: block; width: 100%; font: 12.5px var(--type-family); color: var(--text-standard); background: var(--bg-app); border: 1px solid var(--border-standard); border-radius: 6px; padding: 7px 10px; outline: none; }
-.fp-input::placeholder { color: var(--text-disabled); }
-.fp-input.invalid { border-color: var(--border-danger); }
-.fp-input:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
-.fp-input.invalid:focus-visible { outline-color: var(--border-danger); }
-.ob-sentence mark.slot { background: var(--surface-inset); color: var(--text-disabled); }
-.fp-wait { display: flex; align-items: center; gap: 8px; font-size: 11.5px; line-height: 1.5; color: var(--text-subtle); }
+.ob-sentence mark.slot { color: var(--text-metadata); font-weight: var(--type-weight-regular); }
+.fp-wait { display: inline-flex; flex: 1; align-items: center; gap: var(--space-2); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .fp-ready { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border: 1px solid var(--border-standard); border-radius: 6px; background: var(--bg-app); font-size: 12px; color: var(--text-standard); }
 .fp-ready .msg { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.fp-card { width: 520px; max-width: 100%; background: var(--surface-panel); border: 1px solid var(--border-standard); border-radius: 10px; text-align: left; }
+/* The workspace host gives the prompt the same group container as the wizard card. */
+.fp-card { width: 520px; max-width: 100%; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); text-align: left; }
 /* The shipped .empty p rule would narrow and dim the composer's paragraphs inside the empty Overview. */
-.empty .fp-card .ob-sentence { max-width: none; font-size: 12.5px; line-height: 1.7; color: var(--text-standard); }
-.empty .fp-card .ob-msg { max-width: none; font-size: 11.5px; line-height: 1.5; color: var(--text-subtle); }
+.empty .fp-card .ob-sentence { max-width: none; color: var(--text-standard); font-size: var(--type-body-size); line-height: 24px; }
+.empty .fp-card .ob-msg { max-width: none; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .empty .fp-card :is(.fp-error, .ob-msg.error) { max-width: none; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-danger); }
 .fp-none { display: flex; align-items: center; gap: 12px; }
 .fp-none p { flex: 1; font-size: 11.5px; line-height: 1.5; color: var(--text-metadata); }

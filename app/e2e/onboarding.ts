@@ -585,7 +585,7 @@ else if (args[1] === 'add') {
   console.log("onboarding: 5 sidebar setup, re-root and modal/draft preservation");
   const plain = await newRepo("company-monorepo/packages/applications/marketing-web-frontend/experiments/2026-campaign-landing-pages/plain"); await open(plain); let plainRow = homeRow(page, plain); await plainRow.getByRole("button", { name: "Set Up…", exact: true }).click();
   const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true }); await setup.waitFor();
-  await assertProjectPath(setup.locator(":scope > p"), setup, plain, "setup dialog");
+  await assertProjectPath(setup.locator(".ob-project-path"), setup, plain, "setup dialog");
   assert.equal(await focusIs(setup.getByRole("button", { name: "Choose…", exact: true })), true);
   await setup.getByRole("button", { name: "Set Up Project", exact: true }).click(); await setup.waitFor({ state: "hidden" }); await enterProject(page, plain); plainRow = overview(); await subject(plainRow).waitFor();
   const noToken = JSON.parse(await readFile(join(plain, ".doan/config.json"), "utf8")); assert.equal(noToken.tokenCss, undefined);

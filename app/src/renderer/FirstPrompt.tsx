@@ -107,7 +107,7 @@ export function FirstPromptView({ id, root, subject, sentence, copy, copiedSubje
   return <div className="ob-prompt">
     <div className="fp-field">
       <div className="fp-labelrow"><label className="fp-label" htmlFor={id}>{SUBJECT_LABEL}</label>{view.count && <span className="fp-count err">{view.count}</span>}</div>
-      <input className={view.error ? "fp-input invalid" : "fp-input"} id={id} type="text" placeholder={SUBJECT_PLACEHOLDER} aria-invalid={view.error ? true : undefined} value={subject} onChange={event => change(event.target.value)} />
+      <input className={view.error ? "fp-input doan-input invalid" : "fp-input doan-input"} id={id} type="text" placeholder={SUBJECT_PLACEHOLDER} aria-invalid={view.error ? true : undefined} value={subject} onChange={event => change(event.target.value)} />
     </div>
     {view.error ? <p className="fp-error" role="alert"><AlertIcon /><span>{view.error}</span></p>
       : <p className="ob-sentence">{parts.before}{parts.mark && <mark className={parts.slot ? "slot" : undefined}>{parts.mark}</mark>}{parts.after}</p>}
@@ -115,7 +115,7 @@ export function FirstPromptView({ id, root, subject, sentence, copy, copiedSubje
     {ready ?? <div className="ob-actions">
       {waiting ? <><span className="fp-wait" role="status"><span className="spinner doan-spinner" aria-hidden="true" />{WAITING_TEXT}</span><span className="spacer" /></>
         : <span className="ob-helper">{HELPER_LINES[0]}<br />{HELPER_LINES[1]}</span>}
-      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={!view.copyable || copy === "copying"} onClick={copyIt}>{promptCopyLabel(copy, edited)}</button>
+      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" disabled={!view.copyable || copy === "copying"} onClick={copyIt}>{promptCopyLabel(copy, edited)}</button>
     </div>}
   </div>;
 }
