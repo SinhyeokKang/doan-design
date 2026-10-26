@@ -193,16 +193,16 @@ code { font-family: inherit; }
 .ob-chip.ok { background: var(--affordance-success); color: var(--text-success); }
 .ob-chip.warn { background: var(--affordance-warning); color: var(--text-warning); }
 .ob-chip.err { background: var(--affordance-danger); color: var(--text-danger); }
-.ob-msg { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); border-left: 2px solid var(--border-standard); padding-left: var(--space-2); overflow-wrap: anywhere; }
-.ob-msg.error { border-left-color: var(--border-danger); color: var(--text-danger); }
-.ob-msg.warn { border-left-color: var(--border-warning); color: var(--text-warning); }
+.ob-msg { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); overflow-wrap: anywhere; }
+.ob-msg.error { color: var(--text-danger); }
+.ob-msg.warn { color: var(--text-warning); }
 
 /* Settings-style group: a hairline container whose rows are split by hairlines. */
 .ob-card, .cn-card { border: 1px solid var(--border-standard); border-radius: var(--radius-container); padding: 0 var(--space-4); background: var(--surface-panel); }
 .ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-4) 0; border-top: 1px solid var(--border-standard); }
 .ob-card > :first-child, .cn-card > :first-child { border-top: 0; }
 .ob-label { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
-.ob-field .value { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); min-width: 0; overflow-wrap: anywhere; }
+.ob-field .value { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-field .value.none { color: var(--text-metadata); }
 .ob-helper { grid-column: 2 / -1; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
 .ob-changes { display: grid; gap: var(--space-1); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
@@ -246,6 +246,7 @@ code { font-family: inherit; }
 .cn-details > .ob-item:first-child { border-top: 0; }
 .ob-item .ob-label { font-size: var(--type-body-sm-size); color: var(--text-subtle); font-weight: var(--type-weight-medium); }
 .ob-item .ob-detail { color: var(--text-subtle); min-width: 0; overflow-wrap: anywhere; }
+.ob-item .ob-detail.path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-item.dimmed .ob-label, .ob-item.dimmed .ob-detail { color: var(--text-metadata); }
 .ob-item .ob-reason { grid-column: 2 / -1; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .cn-opt { display: grid; gap: var(--space-2); padding: var(--space-3) 0; border-top: 1px solid var(--border-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
@@ -396,7 +397,7 @@ code { font-family: inherit; }
 <div class="pair" style="background: var(--affordance-success); color: var(--text-success)"><b>Connected</b><span>affordance-success + text-success</span></div>
 <div class="pair" style="background: var(--affordance-warning); color: var(--text-warning)"><b>Needs attention</b><span>affordance-warning + text-warning</span></div>
 <div class="pair" style="background: var(--affordance-danger); color: var(--text-danger)"><b>Couldn't read</b><span>affordance-danger + text-danger</span></div>
-<div class="pair" style="background: var(--surface-panel); box-shadow: inset 2px 0 0 var(--border-danger), inset 0 0 0 1px var(--border-standard)"><b style="color: var(--text-danger)">border-danger</b><span class="c-meta">error rule · invalid field</span></div>
+<div class="pair" style="background: var(--surface-panel); box-shadow: inset 0 0 0 1px var(--border-danger)"><b style="color: var(--text-danger)">border-danger</b><span class="c-meta">invalid field border</span></div>
 <div class="pair" style="background: var(--surface-sidebar-selected); color: var(--text-sidebar-selected)"><b>surface-sidebar-selected</b><span>+ text-sidebar-selected</span></div>
 <div class="pair" style="background: var(--affordance-sidebar-hover)"><b>affordance-sidebar-hover</b><span class="c-meta">faint on white, on purpose</span></div>
 <div class="pair" style="background: var(--affordance-accent); color: var(--text-on-accent)"><b>affordance-accent</b><span>+ text-on-accent · pin, submit</span></div>
@@ -723,7 +724,7 @@ code { font-family: inherit; }
 <div class="tiles c2" style="margin-top: 24px">
 <div><p class="tile-label"><b>Keyboard hint</b> (<code>.kbd</code>) and <b>chip</b> (<code>.chip</code>, inline in text)</p>
 <div class="stage on-panel"><span class="doan-kbd" data-doan-id="kbd">⌘K</span><span class="doan-kbd">⌘O</span><span class="t-body">Open <span class="doan-chip" data-doan-id="chip">checkout.html</span> in <span class="doan-chip is-hover">feat-sign-in</span></span></div></div>
-<div><p class="tile-label"><b>Status chips</b> (<code>.ob-chip</code>) — neutral · ok · warn · err</p>
+<div><p class="tile-label"><b>Status chips</b> (<code>.ob-chip</code>) — neutral · ok · warn · err. A doan adjustment: the reference has no status pill, so there is no counterpart to compare with.</p>
 <div class="stage on-panel"><span class="ob-chip" data-doan-id="chip-status">Not set up</span><span class="ob-chip ok">3 canvases</span><span class="ob-chip warn">Couldn’t read</span><span class="ob-chip err">Unavailable</span><span class="ob-chip">Optional</span></div></div>
 </div>
 </section>
@@ -835,7 +836,7 @@ code { font-family: inherit; }
 <!-- ======================= shared-project-setup ======================= -->
 <section class="frame" data-doan-frame="shared-project-setup" data-doan-title="Shared — Project Setup" data-doan-implements="app/src/renderer/ProjectSetupDialog.tsx">
 <div class="flabel"><h2>Shared — Project Setup</h2><span class="tag sync">design-sync A8</span><span class="tag">standard dialog — conductor's call</span></div>
-<p class="fnote"><code>ProjectSetupDialog</code> (the sidebar's Set Up… and Home) on the standard dialog; its fields (<code>ProjectFields</code>) also sit in the wizard's Project step. The <code>.ob-card</code> becomes a settings-style group: hairline container, 24px corner, rows split by hairlines. Path in the description, ellipsised, full path in its title. Labels are label-sm; helpers caption; errors keep the left rule in <code>border-danger</code> with <code>text-danger</code>.</p>
+<p class="fnote"><code>ProjectSetupDialog</code> (the sidebar's Set Up… and Home) on the standard dialog; its fields (<code>ProjectFields</code>) also sit in the wizard's Project step. The <code>.ob-card</code> becomes a settings-style group: hairline container, 24px corner, rows split by hairlines. Path in the description, ellipsised, full path in its title. Labels are label-sm; helpers caption; errors are plain body-sm <code>text-danger</code> text with no rule or fill, as the reference field error is. Values and long paths stay on one line and ellipsise, the full value in <code>title</code>.</p>
 <div class="tiles c2">
 <div><p class="tile-label"><b>No token CSS</b> — first open</p>
 <div class="stage dots" style="padding: 24px">
@@ -852,7 +853,7 @@ code { font-family: inherit; }
 <div class="doan-dialog" role="dialog" aria-label="Set Up Project" style="width: 100%">
 <div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up checkout-redesign-experiments</h3><p class="doan-dialog-description ob-project-path" title="/Users/me/code/clients/acme/checkout-redesign-experiments">/Users/me/code/clients/acme/checkout-redesign-experiments</p></div></div>
 <div class="ob-card">
-<div class="ob-field"><span class="ob-label">Token CSS</span><span class="value">src/styles/tokens/brand-colors-and-typography.css</span><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Choose…</button></div>
+<div class="ob-field"><span class="ob-label">Token CSS</span><span class="value" title="src/styles/tokens/brand-colors-and-typography.css">src/styles/tokens/brand-colors-and-typography.css</span><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Choose…</button></div>
 <div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
 <div class="ob-field"><span class="ob-msg error ob-wide" role="alert">doan CLI error: spawn doan ENOENT</span></div>
 </div>
@@ -865,7 +866,7 @@ code { font-family: inherit; }
 <div class="doan-dialog" role="dialog" aria-label="Set Up Project" aria-busy="true" style="width: 100%">
 <div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up doan-design</h3><p class="doan-dialog-description ob-project-path">/Users/me/code/doan-design</p></div></div>
 <div class="ob-card">
-<div class="ob-field"><span class="ob-label">Token CSS</span><span class="value">app/src/renderer/tokens.css</span><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" disabled>Choose…</button></div>
+<div class="ob-field"><span class="ob-label">Token CSS</span><span class="value" title="app/src/renderer/tokens.css">app/src/renderer/tokens.css</span><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" disabled>Choose…</button></div>
 <div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
 </div>
 <div class="doan-dialog-actions"><button class="doan-button" data-ui-variant="subtle" disabled>Cancel</button><button class="doan-button" data-ui-variant="prominent" disabled>Setting Up…</button></div>
@@ -994,7 +995,7 @@ code { font-family: inherit; }
 <div class="cn-card" style="width: 100%">
 <div class="cn-row"><button class="cn-name is-focus" aria-expanded="true"><span class="tw">▾</span>doan command</button><span class="cn-end"><span class="ob-chip ok">Connected</span></span><p class="cn-say">Your agents and your terminal can run doan.</p>
 <div class="cn-details" data-doan-id="connection-details">
-<div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail"><code>~/.local/bin/doan</code> → <code>/Applications/doan.app/Contents/Resources/bin/doan</code></span><span class="ob-chip ok">Installed</span></div>
+<div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail path" title="~/.local/bin/doan → /Applications/doan.app/Contents/Resources/bin/doan"><code>~/.local/bin/doan</code> → <code>/Applications/doan.app/Contents/Resources/bin/doan</code></span><span class="ob-chip ok">Installed</span></div>
 <div class="cn-opt"><span class="cn-opt-head">Use doan in your terminal <span class="ob-chip">Optional</span></span>
 <p>Add this line to <code>~/.zshrc</code>, then open a new terminal. Agents don’t need it.</p>
 <span class="ob-copyline"><output>export PATH="$HOME/.local/bin:$PATH"</output><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Copy</button></span></div>
@@ -1013,7 +1014,7 @@ code { font-family: inherit; }
 <!-- ======================= shared-error-details ======================= -->
 <section class="frame" data-doan-frame="shared-error-details" data-doan-title="Shared — Error details" data-doan-implements="app/src/renderer/ErrorDetails.tsx">
 <div class="flabel"><h2>Shared — Error details</h2><span class="tag sync">design-sync A8</span></div>
-<p class="fnote"><code>ErrorDetails</code> is a “Details ▸/▾” disclosure; its hosts place the button and the raw message. The button becomes a ghost <code>sm</code> button in the sidebar tree and a subtle <code>sm</code> button beside Retry in Comments and Feedback; the opened detail keeps the left rule in <code>border-danger</code> with <code>text-subtle</code> text. The host surfaces themselves (tree, Comments) are restyled by the project-list and comments children.</p>
+<p class="fnote"><code>ErrorDetails</code> is a “Details ▸/▾” disclosure; its hosts place the button and the raw message. The button becomes a ghost <code>sm</code> button in the sidebar tree and a subtle <code>sm</code> button beside Retry in Comments and Feedback; the opened detail is plain body-sm <code>text-subtle</code> text with no rule. The host surfaces themselves (tree, Comments) are restyled by the project-list and comments children.</p>
 <div class="tiles c3">
 <div><p class="tile-label"><b>Sidebar tree</b> — closed</p>
 <div class="host" data-doan-id="error-details-tree">
