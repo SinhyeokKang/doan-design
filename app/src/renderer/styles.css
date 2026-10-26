@@ -147,6 +147,8 @@ code, kbd { font-family: var(--type-family); }
 .comments-segment { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--border-standard); border-radius: 7px; margin-bottom: 8px; }
 .comments-segment button { flex: 1; min-width: 0; padding: 5px 7px; font-size: 11.5px; border-radius: 4px; color: var(--text-metadata); }
 .comments-segment button[aria-pressed=true] { color: var(--text-standard); background: var(--surface-navigation-selected); }
+/* These buttons set a colour at the same specificity as button:disabled and come later, so they restate disabled. */
+:is(.ancestors, .comments-segment, .comments-status) button:disabled { color: var(--text-disabled); }
 /* A dialog action row takes its spacing from the dialog frame instead. */
 .comments-tools:not(.doan-dialog-actions) { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 /* A label longer than the narrow panel stays inside it. */
