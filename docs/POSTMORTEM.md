@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-26 — The invalidation read overtook the reply to the person's own Reopen
+
+- **Area**: `app/src/comments/review.ts` (`changed`), Review in `CommentsSession.ts`; producer `app/src/main/comments/service.ts` and `comments:invalidated` in `main/index.ts`.
+- **Symptom**: after Reopen in the Review bar, the step could flip to "Reopened by <me>" (someone else's reopen) instead of the person's own "Reopened", and the summary's reopened ids could miss it.
+- **Root cause**: main announces a comment append (`comments:invalidated`) before it answers the write, so the renderer's reread can arrive before the write reply that would have marked the step as the person's own.
+- **Net**: caught by batch B's own independent review with a repro; unit tests that resolved the reply first passed. Fixed in `501a123`: `changed` reads a reopen whose `by` is the current Git name as the person's own (the RR2 identity rule).
+- **Prevention**: renderer state keyed to a write's reply must not assume the reply precedes the invalidation read of the same append; key it to the data (author, event) or fence reads by request revision. Search: `rg -n 'comments:invalidated' app/src/main` and the renderer consumers of write replies in `CommentsSession.ts`.
+
 ### 2026-10-26 — A failed saved-folder read erased review markers
 
 - **Area**: `app/src/main/folderStore.ts`, `reviewState.ts`, and startup wiring in `index.ts`.
