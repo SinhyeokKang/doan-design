@@ -40,3 +40,22 @@ describe("Codex wire dispatcher", () => {
     h.rpc.receive({ id: null, method: "bad", params: {} }); expect(h.cleanup).toHaveBeenCalledOnce();
   });
 });
+
+it("expires permissions and rejects pending RPCs before one transport failure", async () => {
+  const events: EventPayload[] = [];
+  let dead = false;
+  const rpc = new CodexDispatcher(() => { if (dead) throw new Error("closed pipe"); }, e => events.push(e), () => { throw new Error("must not classify dead-pipe expiry as protocol failure"); });
+  rpc.begin({ root: "/repo", sessionId: "s", turnId: "t" });
+  rpc.receive({ id: 7, method: "item/fileChange/requestApproval", params: { threadId: "s", turnId: "t" } });
+  const pending = expect(rpc.request("test", {})).rejects.toThrow("process_exited");
+  dead = true; rpc.end(); rpc.end(); await pending;
+  expect(events.slice(1)).toEqual([{ type: "permission.resolved", requestId: "number:7", optionId: "expired" }, { type: "turn.failed", code: "process_exited" }]);
+  expect(rpc.answer("number:7", "accept")).toBe(false);
+});
+it("keeps a stop requested before the native turn reply when transport ends", () => {
+  const events: EventPayload[] = [];
+  const rpc = new CodexDispatcher(() => {}, e => events.push(e), () => {});
+  rpc.begin({ root: "/repo", sessionId: "s", turnId: "local" });
+  rpc.stop("user"); rpc.started("native"); rpc.end();
+  expect(events).toEqual([{ type: "interrupted", reason: "user" }]);
+});

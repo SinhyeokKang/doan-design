@@ -36,9 +36,14 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
       try { const raw: unknown = JSON.parse(line); if (startingTurn && object(raw) && typeof raw.method === "string") { if (queued.length >= 4096) throw new Error("Protocol queue limit"); queued.push(raw); } else dispatcher.receive(raw); } catch { failProtocol(); }
     }
   });
-  child.stderr.resume(); child.stdin.on("error", () => failProtocol());
-  child.once("exit", () => { dead = true; dispatcher.close(); group?.childExited(); });
-  child.once("error", () => { dead = true; dispatcher.close(); if (!child.pid) exited(); else group?.childExited(); });
+  const transportDied = () => {
+    if (dead) return; dead = true;
+    // Transport loss ends the turn now; only group disappearance releases ownership.
+    dispatcher.end(); void group?.stop();
+  };
+  child.stderr.resume(); child.stdin.on("error", transportDied); child.stdout.once("end", transportDied);
+  child.once("exit", () => { transportDied(); group?.childExited(); });
+  child.once("error", () => { transportDied(); if (!child.pid) exited(); else group?.childExited(); });
   if (child.pid) {
     const owned = new OwnedGroup(child.pid, undefined, undefined, exited); group = owned;
     registerStop(() => { dispatcher.close(); return owned.stop(); });
@@ -50,15 +55,19 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
     if (!object(result) || !object(result.thread) || typeof result.thread.id !== "string" || !result.thread.id) throw new Error("session_unavailable");
     sessionId = result.thread.id;
     if (input.sessionId && sessionId !== input.sessionId) throw new Error("session_unavailable");
-  } catch (error) { dispatcher.close(); void group?.stop(); throw new Error(transportError(error instanceof Error ? error.message : "")); }
+    if (dead) throw new Error("process_exited");
+  } catch (error) { dispatcher.close(); void group?.stop(); throw new Error(dead ? "process_exited" : transportError(error instanceof Error ? error.message : "")); }
   return {
     sessionId,
     async send(prompt, turnId) {
+      if (dead) { emit({ type: "turn.failed", code: "process_exited" }); return; }
       activeTurn = turnId; startingTurn = true;
+      dispatcher.begin({ root: input.cwd, sessionId, turnId });
       let result: unknown;
       try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }] }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
+      if (dead) throw new Error("process_exited");
       if (!object(result) || !object(result.turn) || typeof result.turn.id !== "string") { failProtocol(); throw new Error("session_unavailable"); }
-      activeTurn = result.turn.id; dispatcher.begin({ root: input.cwd, sessionId, turnId: activeTurn });
+      activeTurn = result.turn.id; dispatcher.started(activeTurn);
       startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw);
     },
     answer: (id, option) => dispatcher.answer(id, option),

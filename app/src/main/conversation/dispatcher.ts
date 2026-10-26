@@ -1,5 +1,5 @@
 import { object } from "./sessions";
-import { codexPermission, initialTransport, normalizeCodex, normalizeCodexReply, permissionAnswer, type CodexContext, type CodexReplyOwner } from "./transport";
+import { codexPermission, endTransport, initialTransport, normalizeCodex, normalizeCodexReply, permissionAnswer, type CodexContext, type CodexReplyOwner } from "./transport";
 import type { EventPayload, PendingPermission, TransportResult } from "./types";
 interface Pending { owner?: CodexReplyOwner; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }
 export class CodexDispatcher {
@@ -11,6 +11,12 @@ export class CodexDispatcher {
   private closed = false;
   constructor(private write: (value: unknown) => void, private emit: (value: EventPayload) => void, private cleanup: () => void) {}
   begin(context: CodexContext): void { this.expire(); this.context = context; this.state = initialTransport(); }
+  started(turnId: string): void { this.context = { ...this.context, turnId }; }
+  end(): void {
+    if (this.closed) return;
+    this.close();
+    if (this.context.turnId) this.apply(endTransport(this.state));
+  }
   request(method: string, params: unknown, owner?: CodexReplyOwner): Promise<unknown> {
     if (this.closed) return Promise.reject(new Error("process_exited"));
     const id = owner?.requestId ?? `doan-${this.next++}`;
