@@ -116,6 +116,12 @@ export function homeSummary(entry: Extract<FolderEntry, { kind: "list" }>, revie
   return { items, label: label.join(" · ") };
 }
 
+// One root's last `comments:project` read: the whole list reply, which the
+// Feedback panel uses, or `failed` (unavailable, no reply, or the call threw),
+// which it shows with Retry. Home and the Overview cards read the counts of a
+// list only, so a failed root has no counts there.
+export type ProjectRead = Extract<ProjectComments, { kind: "list" }> | { kind: "failed" };
+
 // One root is read at most this often while changes keep coming (tasks 1:
 // consecutive saves read up to 5 times a second without it).
 export const PROJECT_READ_INTERVAL_MS = 1000;
@@ -130,7 +136,7 @@ export const PROJECT_READ_INTERVAL_MS = 1000;
 // may predate the change. A row change does not, because main invalidates
 // before the ls that changes the row. Otherwise only the newest read may land.
 export class ProjectCommentReads {
-  private items = new Map<string, readonly ProjectCanvasComments[]>();
+  private items = new Map<string, ProjectRead>();
   // root → the ls row it was last read for.
   private tracked = new Map<string, string>();
   // root → the revision whose reply may still land.
@@ -140,7 +146,7 @@ export class ProjectCommentReads {
   private seq = 0;
   private disposed = false;
 
-  constructor(private readonly get: (root: string, revision: number) => Promise<ProjectComments | null>, private readonly publish: (items: ReadonlyMap<string, readonly ProjectCanvasComments[]>) => void) {}
+  constructor(private readonly get: (root: string, revision: number) => Promise<ProjectComments | null>, private readonly publish: (items: ReadonlyMap<string, ProjectRead>) => void) {}
 
   // A root left untracked keeps its last counts, so coming back shows them
   // until the new read lands.
@@ -185,12 +191,14 @@ export class ProjectCommentReads {
     const revision = ++this.seq;
     this.latest.set(root, revision);
     this.started.set(root, Date.now());
-    void this.get(root, revision).then(reply => {
+    const land = (read: ProjectRead) => {
       if (this.disposed || this.latest.get(root) !== revision) return;
-      if (reply?.kind === "list" && reply.root === root && reply.revision === revision) this.items.set(root, reply.canvases);
-      else this.items.delete(root);
+      this.items.set(root, read);
       this.publish(new Map(this.items));
-    }, (error: unknown) => console.error("comments:project failed", error));
+    };
+    void this.get(root, revision).then(reply => {
+      land(reply?.kind === "list" && reply.root === root && reply.revision === revision ? reply : { kind: "failed" });
+    }, (error: unknown) => { console.error("comments:project failed", error); land({ kind: "failed" }); });
   }
 }
 

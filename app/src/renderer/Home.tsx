@@ -3,7 +3,7 @@ import { ContextMenu, DropdownMenu } from "radix-ui";
 import type { ProjectCanvasComments } from "../main/projectComments";
 import type { FolderEntry } from "../main/view";
 import { displayPath } from "./projectDisplay";
-import { cardRow, groupProjects, homeSummary, measureNarrow, ProjectCommentReads, type HomeCard, type RowAction } from "./homeCards";
+import { cardRow, groupProjects, homeSummary, measureNarrow, ProjectCommentReads, type HomeCard, type ProjectRead, type RowAction } from "./homeCards";
 import type { SelectionView } from "./selection";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
@@ -51,11 +51,14 @@ export function Home(props: HomeProps) {
 // Counts for `roots` (list rows only), read again when a root's ls row
 // changes or main invalidates its comments. `refresh` is for a change main
 // does not announce, such as a review-state raise.
-export function useProjectComments(entries: readonly FolderEntry[], roots: readonly string[]): { comments: ReadonlyMap<string, readonly ProjectCanvasComments[]>; refresh: (root: string) => void } {
-  const [comments, setComments] = useState<ReadonlyMap<string, readonly ProjectCanvasComments[]>>(new Map());
+// `reads`: each root's whole last read, for the Feedback panel; `comments`:
+// the counts of the list ones, for Home and the Overview cards.
+export function useProjectComments(entries: readonly FolderEntry[], roots: readonly string[]): { comments: ReadonlyMap<string, readonly ProjectCanvasComments[]>; reads: ReadonlyMap<string, ProjectRead>; refresh: (root: string) => void } {
+  const [items, setItems] = useState<ReadonlyMap<string, ProjectRead>>(new Map());
+  const comments = useMemo(() => new Map([...items].flatMap(([root, read]) => read.kind === "list" ? [[root, read.canvases] as const] : [])), [items]);
   const reads = useRef<ProjectCommentReads | null>(null);
   useEffect(() => {
-    const current = new ProjectCommentReads((root, revision) => window.doan.projectComments(root, revision), setComments);
+    const current = new ProjectCommentReads((root, revision) => window.doan.projectComments(root, revision), setItems);
     reads.current = current;
     const stop = window.doan.onCommentsInvalidated(change => current.invalidated(change.root));
     return () => { stop(); current.dispose(); reads.current = null; };
@@ -65,7 +68,7 @@ export function useProjectComments(entries: readonly FolderEntry[], roots: reado
   // After the effect above, so the first roots reach a live reader.
   useEffect(() => { reads.current?.track(tracked); }, [tracked]);
   const refresh = useCallback((root: string) => reads.current?.refresh(root), []);
-  return { comments, refresh };
+  return { comments, reads: items, refresh };
 }
 
 export function PathTip({ text, children }: { text: string; children: ReactNode }) {

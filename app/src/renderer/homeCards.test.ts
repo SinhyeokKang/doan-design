@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry, GitInfo, OrphanFile } from "../main/view";
 import type { ProjectCanvasComments, ProjectComments } from "../main/projectComments";
-import { cardRow, groupProjects, homeSummary, measureNarrow, ProjectCommentReads, reviewTotal } from "./homeCards";
+import { cardRow, groupProjects, homeSummary, measureNarrow, ProjectCommentReads, reviewTotal, type ProjectRead } from "./homeCards";
 import type { SelectionView } from "./selection";
 
 const canvas = (open: number): CanvasRow => ({ path: "design/a.html", url: "u", open, resolved: 0 });
@@ -139,14 +139,16 @@ describe("ProjectCommentReads", () => {
   beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(10_000); });
   afterEach(() => { vi.useRealTimers(); });
   function reads() {
-    const asks: { root: string; revision: number; at: number; reply: (value: ProjectComments | null) => Promise<void> }[] = [];
-    let shown: ReadonlyMap<string, readonly ProjectCanvasComments[]> = new Map();
-    const publish = vi.fn((items: ReadonlyMap<string, readonly ProjectCanvasComments[]>) => { shown = items; });
-    const project = new ProjectCommentReads((root, revision) => new Promise(resolve => {
-      asks.push({ root, revision, at: Date.now(), reply: async value => { resolve(value); await Promise.resolve(); } });
+    const asks: { root: string; revision: number; at: number; reply: (value: ProjectComments | null) => Promise<void>; fail: (error: Error) => Promise<void> }[] = [];
+    let items: ReadonlyMap<string, ProjectRead> = new Map();
+    const publish = vi.fn((next: ReadonlyMap<string, ProjectRead>) => { items = next; });
+    const project = new ProjectCommentReads((root, revision) => new Promise((resolve, reject) => {
+      asks.push({ root, revision, at: Date.now(), reply: async value => { resolve(value); await Promise.resolve(); }, fail: async error => { reject(error); await Promise.resolve(); await Promise.resolve(); } });
     }), publish);
     const list = (root: string, revision: number, canvases: ProjectCanvasComments[]): ProjectComments => ({ root, revision, kind: "list", canvases });
-    return { project, asks, publish, list, shown: () => shown };
+    // The counts Home and the Overview cards read: a list reply's canvases.
+    const shown = () => new Map([...items].flatMap(([root, read]) => read.kind === "list" ? [[root, read.canvases] as const] : []));
+    return { project, asks, publish, list, shown, items: () => items };
   }
   const a: ProjectCanvasComments = { id: "a", open: 1, resolved: 2, toReview: 2 };
 
@@ -336,6 +338,46 @@ describe("ProjectCommentReads", () => {
     vi.advanceTimersByTime(1000);
     await h.asks[3]!.reply(null);
     expect(h.shown().has("/r1")).toBe(false);
+  });
+
+  // project-feedback: the Feedback panel reads through this same scheduler
+  // and needs the whole reply, and to tell a failed read from one not done yet.
+  test("keeps the whole list reply: orphans, their comments and the project epoch", async () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"]]));
+    expect(h.items().has("/r1")).toBe(false);
+    const orphans = [{ id: "old", file: ".doan/comments/old.jsonl", comments: { open: 1, resolved: 0 }, uncertain: false }];
+    const reply: ProjectComments = { root: "/r1", revision: h.asks[0]!.revision, kind: "list", project: 7, canvases: [a], orphans, orphanComments: [{ id: "old", comments: [] }] };
+    await h.asks[0]!.reply(reply);
+    expect(h.items().get("/r1")).toEqual(reply);
+  });
+
+  test("an unavailable reply, no reply and a failed call mark the root failed", async () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"]]));
+    await h.asks[0]!.reply({ root: "/r1", revision: h.asks[0]!.revision, kind: "unavailable" });
+    expect(h.items().get("/r1")).toEqual({ kind: "failed" });
+    h.project.refresh("/r1");
+    vi.advanceTimersByTime(1000);
+    await h.asks[1]!.reply(h.list("/r1", h.asks[1]!.revision, [a]));
+    expect(h.items().get("/r1")?.kind).toBe("list");
+    h.project.refresh("/r1");
+    vi.advanceTimersByTime(1000);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await h.asks[2]!.fail(new Error("ipc"));
+    expect(h.items().get("/r1")).toEqual({ kind: "failed" });
+    error.mockRestore();
+  });
+
+  test("a failed call overtaken by a newer read is dropped", async () => {
+    const h = reads();
+    h.project.track(new Map([["/r1", "s1"]]));
+    h.project.refresh("/r1");
+    vi.advanceTimersByTime(1000);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await h.asks[0]!.fail(new Error("old"));
+    expect(h.publish).not.toHaveBeenCalled();
+    error.mockRestore();
   });
 });
 
