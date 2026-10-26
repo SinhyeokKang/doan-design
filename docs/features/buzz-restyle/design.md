@@ -131,6 +131,10 @@ Buzz의 첫 실행 화면은 `src/features/identity/OnboardingScreen.tsx` + `Ide
 - 선택·hover 표시는 무채색이 된다. 에이전트가 그린 캔버스는 어떤 색이든 될 수 있으므로, 선택 표시와 (buzz-comment의) 핀은 무채색·액센트와 별개로 바깥 halo나 외곽선을 갖추고, 어두운·밝은·violet이 많은 픽스처 캔버스 위에서 확인한다.
 - `color-scheme`을 dark에서 light로 바꾸면 다른 `color-scheme`을 가진 캔버스 iframe의 바탕 처리가 달라질 수 있다(POSTMORTEM 2026-10-25 예방 항목). iframe 미디어 선호와 computed `color-scheme`을 따로 확인한다.
 
+## 금지 표현 (모든 자식 공통, 2026-10-26 user)
+
+- 왼쪽(시작 쪽) 테두리에 색을 칠하거나 두껍게 그어 메시지·안내·카드·행을 강조하지 않는다. 오류는 아이콘과 `text-danger` 글자 또는 상태 블록으로, 안내는 `surface-inset` 채움으로 나타낸다(buzz-ds design '오류와 안내 표현'). 패널 사이 1px 무채색 구분선은 해당하지 않는다.
+
 ## 공통 함정 (POSTMORTEM)
 
 - **2026-10-25 — Production CSS extraction concealed missing development styles**: JS CSS import는 개발 렌더러에서 CSP에 막히고 프로덕션 번들에서는 가려졌다. 개발과 프로덕션 모두에서 대표 자식 요소의 computed style을 확인한다. 같은 항목의 예방 문장: 렌더러 외형을 바꿀 때는 iframe 미디어 선호를 computed `color-scheme`과 따로 확인한다.
