@@ -48,3 +48,5 @@ tasks.md의 1~11은 모두 위 배치 중 하나에 속한다(1은 각 배치의
 
 - 2026-10-26: 시작. 화면 잠금 상태 `CGSSessionScreenIsLocked = Yes`.
 - 2026-10-26: Run `run_388720a5a031`. 1파 시작 — P(`ctx_f0d29dc66587`, Opus high, `ah-p`), K(`ctx_d096423ea7e1`, Codex `gpt-6.1-sol` medium, `ah-k`), F(`ctx_59c5c30a0e0d`, Codex `gpt-6.1-sol` medium, `ah-f`). `launch.effective`가 요청과 같다.
+- 2026-10-26: K 완료(Codex Sol medium, `59a6448`, `89e5082`) — red 3건 뒤 green, go test·vet 통과, 소유 범위 밖 옛 문구 단언 없음. 통합(`ee93851`, `290d2bf`), 통합 HEAD `cli` go test·vet 통과(지휘자 실행). K 해제, `ah-k` 제거. R-K(Opus medium, 다른 계열 리뷰) 시작.
+- 2026-10-26: F 완료(Codex Sol medium, `2b21563`) — Inspector "fix this" 안내(`use-hint` 재사용, CSS 변경 없음), Home "Selected for your agent:", panelText "Hand off… includes", projects-home e2e 정규식. red 8 뒤 green, test 2735·typecheck 통과. 통합(`18f8276`), 해당 테스트 130·typecheck 통과(지휘자 실행). F 해제, `ah-f` 제거. R-F(Opus medium, 다른 계열 리뷰) 시작.
