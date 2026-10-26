@@ -52,8 +52,8 @@ describe("emptyListText", () => {
   });
 
   it("points to open comments elsewhere only for Open on a selection", () => {
-    expect(emptyListText("selection", "open", 4)).toEqual({ title: "No open comments on this selection", body: "There are 4 open comments elsewhere on this canvas; Copy all open includes them." });
-    expect(emptyListText("selection", "open", 1).body).toBe("There is 1 open comment elsewhere on this canvas; Copy all open includes it.");
+    expect(emptyListText("selection", "open", 4)).toEqual({ title: "No open comments on this selection", body: "There are 4 open comments elsewhere on this canvas; Hand off… includes them." });
+    expect(emptyListText("selection", "open", 1).body).toBe("There is 1 open comment elsewhere on this canvas; Hand off… includes it.");
     expect(emptyListText("selection", "resolved", 4).body).toBe("Resolved comments appear here.");
     expect(emptyListText("canvas", "open", 4).body).toBe("Choose Comment on canvas, or select an element or frame.");
   });

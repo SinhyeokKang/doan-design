@@ -126,7 +126,7 @@ function ProjectCard({ card, ...props }: HomeProps & { card: HomeCard }) {
         <span className="wt-label"><span className="glyph" aria-hidden="true">{row.summary?.branch ? "⎇" : "◌"}</span><PathTip text={row.summary?.branch ?? entry.path}><span className={`name${row.summary?.branch ? "" : " path"}`}>{row.summary?.branch ?? displayPath(entry.path, props.homeDirectory)}</span></PathTip>{row.current && <span className="open-tag">Open</span>}</span>
         <span className="wt-end">{row.chip ? <span className={`ob-chip${row.chip === "Config error" ? " err" : row.chip === "Missing" || row.chip === "CLI error" ? " warn" : ""}`}>{row.chip}</span> : row.summary && <span className="wt-sum"><span>{row.summary.canvases} {row.summary.canvases === 1 ? "canvas" : "canvases"}</span>{row.summary.openComments > 0 && <> · <span className="hot">{row.summary.openComments} open</span></>}{review && <> · <span className="review">{review}</span></>} · <span><ChangedTime at={row.summary.changedAt} /></span></span>}<More row label={`Row menu ${entry.path}`} actions={actions} /></span>
         {row.summary?.branch && <PathTip text={entry.path}><span className="wt-path">{displayPath(entry.path, props.homeDirectory)}</span></PathTip>}
-        {row.selected && <PathTip text={`Selected: ${row.selected}`}><span className="wt-sel">Selected: <b>{row.selected}</b></span></PathTip>}
+        {row.selected && <PathTip text={`Selected for your agent: ${row.selected}`}><span className="wt-sel">Selected for your agent: <b>{row.selected}</b></span></PathTip>}
         {row.chip && <ProblemActions entry={entry} action={props.action} />}
         {props.rerootHint?.root === entry.path && <p className="wt-sel" role="status">{props.rerootHint.message}</p>}
       </div></Context>;

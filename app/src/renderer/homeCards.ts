@@ -41,7 +41,7 @@ export interface CardRow {
   summary?: { branch?: string; canvases: number; openComments: number; toReview?: number; changedAt?: number };
   // This row is the loaded workspace ("Open").
   current: boolean;
-  // "Selected: <selected>" while `current`.
+  // "Selected for your agent: <selected>" while `current`.
   selected?: string;
   // Config error text behind Details.
   detail?: string;

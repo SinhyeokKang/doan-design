@@ -50,7 +50,7 @@ export function emptyListText(scope: "selection" | "canvas", status: "open" | "r
   return {
     title: "No open comments on this selection",
     body: elsewhere > 0
-      ? `There ${elsewhere === 1 ? "is" : "are"} ${pluralComments(elsewhere)} elsewhere on this canvas; Copy all open includes ${elsewhere === 1 ? "it" : "them"}.`
+      ? `There ${elsewhere === 1 ? "is" : "are"} ${pluralComments(elsewhere)} elsewhere on this canvas; Hand off… includes ${elsewhere === 1 ? "it" : "them"}.`
       : "Comment on selection to add one.",
   };
 }

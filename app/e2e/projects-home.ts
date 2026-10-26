@@ -214,7 +214,7 @@ process.exit(result.status ?? 1);
   const before = await active(); assert.equal(before.result.selection.element.doanId, "target"); const frame = await page.locator("iframe").elementHandle(); assert.ok(frame);
   await menu("Actual Size");
   const transform = await page.locator(".board").evaluate(node => getComputedStyle(node).transform);
-  await menu("Home"); await homeRow(page, repo).getByText(/^Selected:/).waitFor(); assert.deepEqual(await active(), before);
+  await menu("Home"); await homeRow(page, repo).getByText(/^Selected for your agent:/).waitFor(); assert.deepEqual(await active(), before);
   assert.equal(await frame.evaluate(node => node.isConnected), true);
   assert.equal(await page.locator(".workspace").evaluate(node => getComputedStyle(node).visibility), "hidden");
   assert.equal(await page.locator(".workspace").getAttribute("inert"), "");

@@ -95,8 +95,8 @@ describe("Comments presentation", () => {
   });
   test.each([
     ["selection", "open", 0, "No open comments on this selection", "Comment on selection to add one."],
-    ["selection", "open", 1, "No open comments on this selection", "There is 1 open comment elsewhere on this canvas; Copy all open includes it."],
-    ["selection", "open", 4, "No open comments on this selection", "There are 4 open comments elsewhere on this canvas; Copy all open includes them."],
+    ["selection", "open", 1, "No open comments on this selection", "There is 1 open comment elsewhere on this canvas; Hand off… includes it."],
+    ["selection", "open", 4, "No open comments on this selection", "There are 4 open comments elsewhere on this canvas; Hand off… includes them."],
     ["canvas", "open", 0, "No open comments", "Choose Comment on canvas, or select an element or frame."],
     ["selection", "resolved", 0, "No resolved comments on this selection", "Resolved comments appear here."],
     ["canvas", "resolved", 0, "No resolved comments", "Comments you or your agent resolve appear here."],
