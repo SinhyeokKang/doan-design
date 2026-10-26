@@ -26,7 +26,7 @@
 | 배치 | task 소유 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | P | P1, P2, P3 | `.scratch/agent-conversation/`, PRODUCT §6 결과 | 없음 | Astra medium — 전송·권한·동시 세션 실증 판단 | 버전·명령·원시 증거·격리 검증, 9a~9e 결과 | 실험 종료, 설정 전체 동일성 실패·독립 검토 대기 |
-| D | D1, D2 | PRODUCT 결정, feature 계약의 PoC 확정 내용 | P | Astra medium — 제품 범위와 실험 결과 대조 | §3·§7 및 스킬 변경 판단 | 대기 |
+| D | D1, D2 | PRODUCT 결정, feature 계약의 PoC 확정 내용 | P | Astra medium — 제품 범위와 실험 결과 대조 | §3·§7 및 스킬 변경 판단 | 문서 작업 시작, 동시 실행 정책 결정 게이트 유지 |
 | S | S1 | `schema/`, Go·TS formats 등록과 테스트 | D | Sol medium — 공유 포맷과 픽스처 구현 | Go·TS 포맷 테스트 | 대기 |
 | C | T1·T2의 Go 부분, C1 | `cli/internal/cli/` 세션 기록과 테스트, 필요 시 skill | S | Astra medium — 출력 보존·경로·동시 append | red→green, Go test/vet, 필요 시 agent-eval | 대기 |
 | T | T1·T2의 TS 부분 | `app/src/main/conversation/` 순수 함수·계약·테스트 | S | Astra medium — 이벤트·복구·권한 상태 계약 | red→green, app test/typecheck | 대기 |
@@ -62,3 +62,5 @@
 - R-P (`task_88a750c840ec`, `ctx_adea44ae101e`, Astra medium)는 독립 리뷰를 완료했다. 제품 경계 결함 🔴 0, 검증 보완 🟡 2: 기존 PTY 버퍼의 마커를 새 응답으로 세는 거짓 양성과 Codex app-server의 명시적 거절 왕복 누락이다. 보고서는 P checkout의 `.scratch/handoff-R-P.md`이며 리뷰 터미널은 release 완료했다.
 - F-P는 같은 P 소유 범위에서 고유 마커·출력 구간 대조와 실제 Codex decline을 보완한다. 모델은 Astra medium — 새로운 설계보다 검증 오류 수정과 권한 결과 확인이 필요하다. 원래 설정 전체 동일성 실패는 보존하고 후속 실행의 상태 검증은 별도로 기록한다. D는 감지 불가를 안전한 상태로 간주할 수 없으며 제품 구현은 아직 열지 않는다.
 - F-P (`task_d5e104efd74d`, `ctx_999eaa0923b0`)는 `765c6765f7ca25da64479c96954b3b6e47ae8307`로 보완 결과를 기록했다. Claude 고유 마커는 SDK에서 반환됐고 완료 후 10초 동안 터미널 추가 출력은 없었다. Codex 실제 file approval에 decline을 반환한 뒤 파일 없이 completed로 끝났다. 후속 상태 지문 비교·인증 삭제·프로세스 정리는 통과했고 기존 실패는 보존했다. F-P 터미널 release를 확인했다. R-F-P는 Astra medium으로 두 지적의 해소 여부만 독립 재검토한다.
+- R-F-P (`task_abf6154a3718`, `ctx_bfb606c15234`)는 원시 증거를 독립 대조해 두 지적을 닫았다(잔여 🔴 0, 🟡 0). 터미널 release 완료. P/F-P 문서 커밋을 `02196bc`, `734508f`로 통합했고 통합 diff의 whitespace 검사 통과. 추적 변경은 문서뿐이므로 무거운 verify는 생략했다. 최초 설정 동일성 실패는 그대로 남는다.
+- D는 새 child에서 Astra medium으로 계약을 정리한다. P child는 D가 인계·원시 증거를 참조하므로 유지한다. 감지 불가를 안전으로 취급하지 않고, Claude 사전 검사 뒤의 경쟁 등 실제 사용자 선택이 필요한 부분은 구체적인 동작을 마련해 질문한다.
