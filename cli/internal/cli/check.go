@@ -25,12 +25,23 @@ func CheckInput(r repo.Repository) (check.Input, error) {
 
 func checkInput(r repo.Repository, inspected func([]canvasFile)) (check.Input, error) {
 	in := check.Input{Canvases: []canvas.Canvas{}, Unparsable: map[string]string{}, Reach: map[string][]check.CSSRef{}, CSS: map[string]canvas.Scan{}, Implements: map[string]check.State{}, CommentFiles: []repo.CommentFile{}}
-	files, e := readCanvases(r.Root)
+	files, e := scanCanvases(r.Root)
 	if e != nil {
 		return in, e
 	}
 	if inspected != nil {
-		inspected(files)
+		readable := make([]canvasFile, 0, len(files))
+		for _, file := range files {
+			if file.ReadError == nil {
+				readable = append(readable, file)
+			}
+		}
+		inspected(readable)
+	}
+	for _, file := range files {
+		if file.ReadError != nil {
+			return in, file.ReadError
+		}
 	}
 	in.CommentFiles, e = repo.CommentFiles(r.Root)
 	if e != nil {
