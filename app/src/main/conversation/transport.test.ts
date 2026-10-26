@@ -78,3 +78,37 @@ describe("permission choices", () => {
     expect(permissionAnswer(request, "execpolicy")?.response).toEqual({ id: 9, result: { decision: { acceptWithExecpolicyAmendment: { execpolicy_amendment: ["ls"] } } } });
   });
 });
+
+it("keeps multiple Claude text blocks distinct while connecting each delta to its done", () => {
+  const messages = [
+    { type: "stream_event", event: { type: "message_start", message: { id: "m" } } },
+    { type: "stream_event", event: { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } } },
+    { type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "First" } } },
+    { type: "assistant", message: { id: "m", content: [{ type: "text", text: "First" }] } },
+    { type: "stream_event", event: { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } } },
+    { type: "stream_event", event: { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Second" } } },
+    { type: "assistant", message: { id: "m", content: [{ type: "text", text: "Second" }] } },
+  ];
+  const events = collect("claude", messages).events;
+  const deltas = events.filter(e => e.type === "message.delta");
+  const done = events.filter(e => e.type === "message.done");
+  expect(done).toHaveLength(2);
+  expect(deltas.map(e => e.messageId)).toEqual(done.map(e => e.messageId));
+  expect(new Set(done.map(e => e.messageId)).size).toBe(2);
+});
+it("shows Codex tool activity when it starts, before completion", () => {
+  const message = { method: "item/started", params: { threadId: "session-1", turnId: "turn-1", item: { type: "commandExecution", id: "cmd", command: "ls" } } };
+  expect(collect("codex", [message]).events).toContainEqual({ type: "activity", kind: "command", summary: "commandExecution" });
+});
+it("fails closed for an unsupported request rather than silently waiting forever", () => {
+  expect(collect("codex", [{ id: 9, method: "item/future/requestApproval", params: { threadId: "session-1", turnId: "turn-1" } }]).events).toContainEqual({ type: "turn.failed", code: "session_unavailable" });
+});
+it("forwards Codex additional-permission profiles without adding auto-review policy", () => {
+  const permissions = { network: { enabled: true }, fileSystem: { read: ["/repo/data"] } };
+  const request = codexPermission({ id: 7, method: "item/permissions/requestApproval", params: { threadId: "session-1", turnId: "turn-1", itemId: "p", cwd: "/repo", permissions } });
+  expect(request).not.toBeNull();
+  if (!request) throw new Error("missing profile approval");
+  expect(permissionAnswer(request, "allow")?.response).toEqual({ id: 7, result: { permissions, scope: "turn" } });
+  expect(permissionAnswer(request, "deny")?.response).toEqual({ id: 7, result: { permissions: {}, scope: "turn" } });
+  expect(permissionAnswer(request, "always")?.response).toEqual({ id: 7, result: { permissions, scope: "session" } });
+});

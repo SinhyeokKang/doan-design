@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { parseSessionRecords, pickSession, sessionAvailability, SESSION_TAIL_BYTES } from "./sessions";
 import { agentEnv } from "./environment";
-import type { SessionRecord, AvailabilityFacts } from "./types";
+import type { SessionRecord, AvailabilityFacts, UnavailableReason } from "./types";
 
 const record: SessionRecord = { v: 1, at: "2026-10-27T00:00:00.000Z", root: "/repo", canvas: { id: "home", path: "design/home.html" }, hash: `sha256:${"a".repeat(64)}`, runtime: "claude", sessionId: "session-1", cwd: "/repo", configDir: "/profile/.claude" };
 const facts: AvailabilityFacts = { cli: true, version: "2.1.310", sdkVersion: "0.3.310", root: "/repo", cwd: "/repo", configDir: "/profile/.claude", selectedConfigDir: "/profile/.claude", occupancy: "free", sessionExists: true };
@@ -10,8 +10,8 @@ describe("session records", () => {
   it("uses the shared schema and skips malformed, unknown and truncated records", () => {
     const text = [JSON.stringify(record), "broken", JSON.stringify({ ...record, v: 2 }), JSON.stringify({ ...record, configDir: undefined }), '{"v":1'].join("\n");
     expect(parseSessionRecords(text)).toEqual([record]);
-    const literal = readFileSync(new URL("../../../../../schema/fixtures/sessions/valid/canvas-literal-backslashes.json", import.meta.url), "utf8");
-    expect(parseSessionRecords(literal)).toHaveLength(1);
+    const literal = readFileSync(new URL("../../../../schema/fixtures/sessions/valid/canvas-literal-backslashes.json", import.meta.url), "utf8");
+    expect(parseSessionRecords(JSON.stringify(JSON.parse(literal)))).toHaveLength(1);
   });
   it("drops the first partial tail line and bounds bytes", () => {
     expect(SESSION_TAIL_BYTES).toBeGreaterThan(0);
@@ -40,19 +40,20 @@ describe("session records", () => {
     expect(pickSession([record, newest], "/repo", record.canvas, r => { checked.push(r.sessionId); return "session_unavailable"; })).toEqual({ available: false, reason: "session_unavailable" });
     expect(checked).toEqual(["missing"]);
   });
-  it.each([
+  const unavailableCases: [Partial<AvailabilityFacts>, UnavailableReason][] = [
     [{ cli: false }, "cli_missing"], [{ version: "9" }, "session_unavailable"],
     [{ sdkVersion: "9" }, "session_unavailable"], [{ occupancy: "occupied" }, "session_in_use"],
     [{ occupancy: "unknown" }, "session_unavailable"], [{ sessionExists: false }, "session_unavailable"],
     [{ cwd: "/repo2" }, "outside_root"], [{ cwd: "/outside/symlink-target" }, "outside_root"],
     [{ cwd: null }, "session_unavailable"], [{ root: null }, "session_unavailable"],
     [{ configDir: null }, "session_unavailable"], [{ selectedConfigDir: "/other-profile" }, "session_unavailable"],
-  ])("refuses unavailable facts %j", (patch, reason) => {
-    expect(sessionAvailability(record, { ...facts, ...patch } as AvailabilityFacts)).toBe(reason);
+  ];
+  it.each(unavailableCases)("refuses unavailable facts %j", (patch, reason) => {
+    expect(sessionAvailability(record, { ...facts, ...patch })).toBe(reason);
   });
   it("accepts verified in-root cwd and external config without relaxing version", () => {
     expect(sessionAvailability(record, { ...facts, cwd: "/repo/sub" })).toBeNull();
-    const codex = { ...record, runtime: "codex" as const };
+    const codex: SessionRecord = { ...record, runtime: "codex" };
     expect(sessionAvailability(codex, { ...facts, version: "0.163.0" })).toBeNull();
     expect(sessionAvailability(codex, { ...facts, version: "0.164.0" })).toBe("session_unavailable");
   });

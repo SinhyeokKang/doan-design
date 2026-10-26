@@ -10,8 +10,14 @@ Derived on 2026-10-27 from the reviewed conversation PoC worktree's
 
 Only representative message, activity, approval and terminal records are retained;
 SDK bookkeeping/usage fields are omitted. Wire field names and nesting are preserved.
-All paths, IDs and transcript content are synthetic. Numeric RPC ID 0 is preserved
+All paths, IDs and transcript content are synthetic. Equal wire IDs retain equal
+synthetic IDs across stream and completion records. Numeric RPC ID 0 is preserved
 because treating it as falsy would lose a real approval request. Tests separately
 construct callback arguments and failure cases; those are synthetic, not additional
 real-runtime observations. These fixtures do not establish packaging, authentication,
 all permission policies, process ownership or real app integration.
+
+Synthetic command-policy and additional-permission cases use the PoC-generated
+`codex-schema/CommandExecutionRequestApprovalParams.json` and
+`codex-schema/PermissionsRequestApproval{Params,Response}.json` from 0.163.0.
+These exercise schema mappings, not observed live permission-policy combinations.

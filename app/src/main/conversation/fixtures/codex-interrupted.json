@@ -4,7 +4,7 @@
     "params": {
       "threadId": "session-1",
       "turnId": "turn-1",
-      "itemId": "Sample text",
+      "itemId": "id-1",
       "delta": "Sample text"
     },
     "emittedAtMs": 1793028370732
@@ -14,7 +14,7 @@
     "params": {
       "item": {
         "type": "agentMessage",
-        "id": "item-1",
+        "id": "id-1",
         "text": "Sample text",
         "phase": "Sample text",
         "memoryCitation": null,
@@ -33,7 +33,7 @@
     "params": {
       "threadId": "session-1",
       "turnId": "turn-1",
-      "itemId": "Sample text",
+      "itemId": "id-2",
       "startedAtMs": 1793028372503,
       "reason": null,
       "grantRoot": null
@@ -44,7 +44,7 @@
     "params": {
       "threadId": "session-1",
       "turn": {
-        "id": "item-1",
+        "id": "turn-1",
         "rootTurnId": "turn-1",
         "items": [],
         "itemsView": "Sample text",

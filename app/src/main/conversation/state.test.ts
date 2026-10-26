@@ -69,7 +69,7 @@ describe("app-owned reservations", () => {
   const owned: Reservation = { owner: "a", key };
   it("blocks same session across canvases even before launch and while Codex is idle", () => {
     expect(reserveSession([owned], "b", key)).toEqual({ ok: false, code: "session_in_use" });
-    expect(reserveSession([owned], "a", key)).toEqual({ ok: true, reservations: [owned] });
+    expect(reserveSession([owned], "a", key, true)).toEqual({ ok: true, reservations: [owned] });
     expect(reserveSession([owned], "b", { ...key, sessionId: "s2" }).ok).toBe(true);
     expect(reserveSession([owned], "b", { ...key, configDir: "/another" }).ok).toBe(true);
   });
@@ -89,4 +89,14 @@ describe("app-owned reservations", () => {
     expect(releaseReservation([owned], "a", evidence)).toEqual([]);
     expect(releaseReservation([owned], "b", evidence)).toEqual([owned]);
   });
+});
+it("does not reuse an unconfirmed Claude process or a Codex server without explicit reuse facts", () => {
+  const key: SessionKey = { runtime: "claude", configDir: "/profile", sessionId: "s" };
+  expect(reserveSession([{ owner: "a", key }], "a", key)).toEqual({ ok: false, code: "busy" });
+  const codex: SessionKey = { ...key, runtime: "codex" };
+  expect(reserveSession([{ owner: "a", key: codex }], "a", codex)).toEqual({ ok: false, code: "busy" });
+  expect(reserveSession([{ owner: "a", key: codex }], "a", codex, true).ok).toBe(true);
+});
+it("does not revive an archived conversation from later buffered events", () => {
+  expect(foldConversation([event(1, { type: "turn.started" }), event(2, { type: "conversation.archived" }), event(3, { type: "message.delta", messageId: "m", text: "late" })], "a", false).messages).toEqual([]);
 });
