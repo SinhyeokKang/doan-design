@@ -29,7 +29,7 @@ function TooltipTrigger({
 
 function TooltipContent({
   className,
-  sideOffset = 0,
+  sideOffset = 4,
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
@@ -39,7 +39,7 @@ function TooltipContent({
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         // The capsule, its motion and the instant-open rule live in ds/surfaces.css; the
-        // capsule has no arrow.
+        // capsule has no arrow, so the default offset keeps it off the trigger's edge.
         className={cn("doan-tooltip z-50", className)}
         {...props}
       >
