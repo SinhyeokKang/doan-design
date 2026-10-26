@@ -1,0 +1,93 @@
+[
+  {
+    "method": "item/agentMessage/delta",
+    "params": {
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "itemId": "Sample text",
+      "delta": "Sample text"
+    },
+    "emittedAtMs": 1793030528428
+  },
+  {
+    "method": "item/completed",
+    "params": {
+      "item": {
+        "type": "agentMessage",
+        "id": "item-1",
+        "text": "Sample text",
+        "phase": "Sample text",
+        "memoryCitation": null,
+        "delivery": null,
+        "questions": null
+      },
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "completedAtMs": 1793030529406
+    },
+    "emittedAtMs": 1793030529410
+  },
+  {
+    "method": "item/fileChange/requestApproval",
+    "id": 0,
+    "params": {
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "itemId": "Sample text",
+      "startedAtMs": 1793030530096,
+      "reason": null,
+      "grantRoot": null
+    }
+  },
+  {
+    "method": "item/completed",
+    "params": {
+      "item": {
+        "type": "fileChange",
+        "id": "item-1",
+        "changes": [
+          {
+            "path": "/repo/design/home.html",
+            "kind": {
+              "type": "add"
+            },
+            "diff": "Sample text"
+          }
+        ],
+        "status": "declined"
+      },
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "completedAtMs": 1793030530096
+    },
+    "emittedAtMs": 1793030530097
+  },
+  {
+    "method": "turn/completed",
+    "params": {
+      "threadId": "session-1",
+      "turn": {
+        "id": "item-1",
+        "rootTurnId": "turn-1",
+        "items": [
+          {
+            "type": "agentMessage",
+            "id": "item-1",
+            "text": "Sample text",
+            "phase": "Sample text",
+            "memoryCitation": null,
+            "delivery": null,
+            "questions": null
+          }
+        ],
+        "itemsView": "Sample text",
+        "status": "completed",
+        "error": null,
+        "startedAt": 1793030524,
+        "completedAt": 1793030534,
+        "durationMs": 10159
+      }
+    },
+    "emittedAtMs": 1793030534271
+  }
+]

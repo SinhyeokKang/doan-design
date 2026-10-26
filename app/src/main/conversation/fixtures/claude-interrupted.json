@@ -1,0 +1,37 @@
+[
+  {
+    "type": "assistant",
+    "message": {
+      "id": "item-1",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "item-1",
+          "name": "Write",
+          "input": {
+            "file_path": "/repo/design/home.html",
+            "content": "Sample text"
+          },
+          "caller": {
+            "type": "direct"
+          }
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "session-1",
+    "uuid": "Sample text"
+  },
+  {
+    "type": "result",
+    "subtype": "error_during_execution",
+    "is_error": true,
+    "terminal_reason": "aborted_tools",
+    "errors": [
+      "Sample text"
+    ],
+    "session_id": "session-1"
+  }
+]

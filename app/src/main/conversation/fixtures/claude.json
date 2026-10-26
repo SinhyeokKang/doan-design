@@ -1,0 +1,65 @@
+[
+  {
+    "type": "assistant",
+    "message": {
+      "id": "item-1",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "item-1",
+          "name": "Read",
+          "input": {
+            "file_path": "/repo/design/home.html"
+          },
+          "caller": {
+            "type": "direct"
+          }
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "session-1",
+    "uuid": "Sample text"
+  },
+  {
+    "type": "stream_event",
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": "Sample text"
+      }
+    },
+    "session_id": "session-1",
+    "parent_tool_use_id": null,
+    "uuid": "Sample text"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "item-1",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Sample text"
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "session-1",
+    "uuid": "Sample text"
+  },
+  {
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "terminal_reason": "completed",
+    "result": "Sample text",
+    "session_id": "session-1"
+  }
+]
