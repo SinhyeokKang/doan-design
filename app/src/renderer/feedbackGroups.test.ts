@@ -332,6 +332,15 @@ describe("feedbackTree", () => {
     ]);
   });
 
+  // Draft `feedback-panel` "Zero counts": a head shown in Open only for its
+  // review entry has nothing under it and reads as collapsed.
+  test("a canvas head with no row of the chosen status is collapsed", () => {
+    const done = comment({}, { status: "resolved", resolvedAt: "2026-10-25T00:00:00.000Z", resolvedBy: { kind: "agent", name: "codex" } });
+    const zero = feedbackGroups([file("p", [done], 2)], [row("design/p.html", "p", { title: "Profile" })], [], "open");
+    expect(feedbackTree(zero, new Set()).map(item => [item.key, item.expanded])).toEqual([["canvas:design/p.html", false]]);
+    expect(feedbackTree(zero, new Set(["canvas:design/p.html"])).map(item => item.expanded)).toEqual([false]);
+  });
+
   test("a collapsed group hides what is under it", () => {
     const keys = feedbackTree(view(), new Set(["orphans", "design/c.html#whole"])).map(item => item.key);
     expect(keys).toEqual(["orphans", "canvas:design/bad.html", "canvas:design/c.html", "design/c.html#whole", "design/c.html#frame:shipping:0", `item:design/c.html:${shipping.comment}`]);

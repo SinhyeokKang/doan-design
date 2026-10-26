@@ -203,7 +203,9 @@ export function feedbackTree(view: FeedbackView, collapsed: ReadonlySet<string>)
     }
   }
   for (const group of view.canvases) {
-    rows.push({ key: group.key, level: 1, ...(group.kind === "countOnly" ? {} : { expanded: open(group.key) }), kind: "canvas", group });
+    // A head shown only for its review entry has nothing under it: collapsed.
+    const empty = group.kind === "comments" && group.frames.length === 0;
+    rows.push({ key: group.key, level: 1, ...(group.kind === "countOnly" ? {} : { expanded: !empty && open(group.key) }), kind: "canvas", group });
     if (group.kind !== "comments" || !open(group.key)) continue;
     for (const frame of group.frames) {
       rows.push({ key: frame.key, level: 2, parent: group.key, expanded: open(frame.key), kind: "frame", group: frame, canvas: group });

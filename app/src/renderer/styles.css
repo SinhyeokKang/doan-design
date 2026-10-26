@@ -596,8 +596,9 @@ code, kbd { font-family: var(--font-sans); }
 .fb-item .b { font-size: 12px; line-height: 1.5; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fb-canvas:hover, .fb-item:hover { background: var(--panel-2); }
 .fb-canvas:focus-visible, .fb-item:focus-visible { outline: 1px solid var(--accent-line); outline-offset: -1px; }
-/* Messages inside a group keep the Comments message look, indented to the group's children. */
-.fb-tree .comments-message { border-bottom: 0; margin: 2px 12px 6px 26px; padding: 8px 10px; }
+/* Messages inside a group keep the Comments message look, indented to the group's children.
+   A card's own save message stays the card's (orphan-cards "Save failed"). */
+.fb-tree .comments-message:not(.comments-card *) { border-bottom: 0; margin: 2px 12px 6px 26px; padding: 8px 10px; }
 .fb-tree .comments-message.inset { margin-left: 12px; }
 .fb-note { margin: 2px 12px 8px 12px; padding: 8px 10px; font-size: 11.5px; line-height: 1.6; color: var(--text-2); border-left: 2px solid var(--line); }
 .fb-note.warning { border-left-color: var(--warn); }

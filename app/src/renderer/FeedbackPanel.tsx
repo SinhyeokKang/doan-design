@@ -59,6 +59,7 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
   const held = useRef<string | null>(null);
   const previous = useRef<string[]>([]);
   const reveal = useRef<string | null>(null);
+  const revealRead = useRef<{ seq: number; read: ProjectRead } | null>(null);
   // A card's place when the person resolved or reopened it: the card after it.
   const places = useRef(new Map<string, string | null>());
   const list = read?.kind === "list" ? read : null;
@@ -72,6 +73,8 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
     if (!next.delete(key)) next.add(key);
     return next;
   });
+  // Nothing to fold: a canvas head shown only for its review entry.
+  const foldable = (row: FeedbackTreeRow) => row.expanded !== undefined && !(row.kind === "canvas" && row.group.kind === "comments" && row.group.frames.length === 0);
   const act = (row: FeedbackTreeRow) => {
     if (row.kind === "item") props.onOpenComment(row.canvas.row, row.row.comment, row.row.status);
     else if (row.kind === "canvas") props.onOpenCanvas(row.group.row);
@@ -85,7 +88,7 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
     event.stopPropagation();
     if (result === null) return;
     if ("focus" in result) elements.current.get(rows[result.focus]?.key ?? "")?.focus();
-    else if ("toggle" in result) toggle(result.toggle);
+    else if ("toggle" in result) { const row = rows[index]; if (row && foldable(row)) toggle(result.toggle); }
     else { const row = rows[index]; if (row) act(row); }
   };
   const track = (key: string) => (element: HTMLElement | null) => {
@@ -103,6 +106,13 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
     const here = find(status);
     const other = status === "open" ? "resolved" : "open";
     if (!here && find(other)) { setStatus(other); return; }
+    // The Overview shows its last read until the one it asks for on return
+    // lands, and that one may predate the id change: wait for one more read.
+    if (!here) {
+      const first = revealRead.current?.seq === request.seq ? revealRead.current.read : null;
+      if (first === null) revealRead.current = { seq: request.seq, read: list };
+      if (first === null || first === list) return;
+    }
     setCollapsed(current => {
       const next = new Set(current);
       next.delete(ORPHANS_KEY);
@@ -146,7 +156,8 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
     return <div ref={track(row.key)} className={className} role="treeitem" aria-level={row.level} aria-expanded={row.expanded} aria-label={label} tabIndex={active === row.key ? 0 : -1}
       onFocus={event => { if (event.target === event.currentTarget) setFocused(row.key); }} onClick={event => { event.currentTarget.focus(); act(row); }} onKeyDown={event => keys(event, index)}>{content}</div>;
   };
-  const twisty = (row: FeedbackTreeRow) => <span className="tw" aria-hidden="true">{row.expanded === undefined ? "" : row.expanded ? "▾" : "▸"}</span>;
+  // A pointer's way to fold a group whose head opens a canvas; keys use ←/→.
+  const twisty = (row: FeedbackTreeRow) => <span className="tw" aria-hidden="true" onClick={!foldable(row) ? undefined : event => { event.stopPropagation(); event.currentTarget.closest<HTMLElement>('[role="treeitem"]')?.focus(); toggle(row.key); }}>{row.expanded === undefined ? "" : row.expanded ? "▾" : "▸"}</span>;
 
   const orphanCards = (group: Extract<OrphanGroup, { kind: "cards" }>, readOnly: boolean) => {
     const at: OrphanTarget | null = list?.project === undefined ? null : { root, canvas: group.id, project: list.project };
