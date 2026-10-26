@@ -8,7 +8,7 @@ How we find and fix places where coding agents struggle to write and read doan d
 2. **Record** — one issue row below: how it was found, the layer, evidence.
 3. **Improve** — guide or output wording through `/ship`; product changes through `/feature`.
 4. **Re-measure** — run the same scenario again with `/agent-eval <id>`.
-5. **Pin** — a fixed issue gets a scenario so a later round catches a regression. Existing scenarios are not edited; a changed scenario gets a new id.
+5. **Pin** — a fixed issue gets a scenario so a later round catches a regression. Scenarios are fixed after their first recorded round: a change to the task, seed or intent gets a new id; a checker fix that only corrects false results, or a rubric clarification that only makes existing intent explicit, may be applied in place with a note on the affected round (ARCHITECTURE §14).
 
 Layers: `guide` (the `doan skill` body or the stub), `output` (CLI/MCP results, error messages, `nextSteps`, tool descriptions), `check` (`doan check` rules), `product` (app or CLI behavior).
 
@@ -49,6 +49,10 @@ Layers: `guide` (the `doan skill` body or the stub), `output` (CLI/MCP results, 
 | 2026-10-26 | Claude Code 2.1.310 (claude-opus-5-5), Codex 0.164.0 (gpt-6-astra) | 3c171eec3ac8 | 0.1.0 | R6: claude pass/pass, codex pass/partial; R7: claude pass/pass, codex pass/pass; H6: claude pass/pass, codex pass/pass; H7: claude pass/pass, codex pass/pass; H8: claude pass/pass, codex pass/pass; R1: claude pass/pass, codex pass/pass; R2b: claude pass/pass, codex pass/pass | `261026-review-loop`, the combined round for revision-recheck, agent-handoff and project-feedback (project-feedback task 8), packaged at `076d28d`; `--scenarios R6,R7,H6,H7,H8,R1,R2b --repeat 2`, judges on, 28 runs, exit 0, real-state unchanged (13 keys), all 28 automatic check sets and `agent_cli_provenance` checks pass. First real round of R6, R7, H6, H7 and H8. The only non-pass is the judge-only partial R6-codex-2 (all automatic checks pass); see the R6 note below. R1 and R2b match `audit-20261025` (pass for both agents); R2b-codex keeps the known shell socket denial followed by MCP `active`. No new doan issue row. Evidence: `.scratch/agent-eval/261026-review-loop/`. |
 | 2026-10-26 | Codex 0.164.0 (gpt-6-astra) | 3c171eec3ac8 | 0.1.0 | R6: codex partial/partial | `261026-review-loop-repeat`, the skill's repeat of the R6-codex non-pass from the same package (`076d28d`); judges on, exit 0, real-state unchanged, every automatic check passes. Both runs are judge-only partials for the same reason as R6-codex-2: the final answer does not mention the reopen. Evidence: `.scratch/agent-eval/261026-review-loop-repeat/`. |
 | 2026-10-26 | Claude Code 2.1.310 (claude-opus-5-5), Codex 0.164.0 (gpt-6-astra) | 3c171eec3ac8 | 0.1.0 | R6b: claude pass/pass, codex pass/pass | `261026-r6b`, the first round of R6b (the successor checking replacement of the rejected label), packaged at `5946f0d`; `--scenarios R6b --repeat 2`, judges on, 4 runs, exit 0, real-state unchanged (13 keys), all automatic checks including `agent_cli_provenance` pass. Final labels: "Save profile" in three runs, "Save profile changes" in R6b-codex-2; every run appended one agent resolve. No new doan issue row; see the R6b note below. Evidence: `.scratch/agent-eval/261026-r6b/`. |
+
+### Commit references after rebase (2026-10-26)
+
+Some rows name commits that were rebased before merging and are not reachable from main: `ea43116` is `94c25cf` on main, `93bc876` is `5008ee4`, and `5946f0d` is `3cbebd9` (same patches). `2388563` (measured round `guide-fallbacks-claude-20261024`) corresponds to main's `f0f4415`, whose patch differs. The rows keep the commits that were measured or packaged.
 
 ### CLI provenance caveat for earlier rounds (2026-10-24)
 
