@@ -37,7 +37,7 @@
 - [ ] Z1. 남은 표시, 다크 잔재, PRODUCT §7 기록을 확인하고 이 디렉터리를 지운다.
   - 검증:
     - `grep -n 'buzz-ds 이전' docs/DESIGN.md` 결과 없음
-    - `grep -nE 'color-scheme: *dark|#121212|#171717|#1d1d1d|#ecebe4|#f0773a' app/src/renderer/*.css` 결과 없음
+    - `grep -nE 'color-scheme: *dark|#121212|#171717|#1d1d1d|#ecebe4|#3a2117|#1a0b03' app/src/renderer/*.css` 결과 없음
     - PRODUCT §7에 spec '완료 조건'의 대체 기록이 모두 있음
     - design.md '자식 feature 조사 메모'에 남은 메모가 없음
     - `docs/features/buzz-restyle/`가 없음
