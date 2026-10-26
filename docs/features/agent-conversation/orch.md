@@ -59,3 +59,5 @@
 - P child: `/Users/sinhyeokkang/orca/workspaces/doan-design/agent-conversation-poc` (미통합 커밋과 독립 리뷰 증거 때문에 유지).
 - P는 `cc0529041e703170d356dece3584264787f6c287`에 PRODUCT §6 결과를 기록하고 `outcome=failed`로 종료했다. 실제 프로필 전체 파일 동일성 검사는 실패했다. 기준 해시와 같은 백업 비교에서 변경은 feature-cache 두 키뿐이고 MCP와 나머지 설정은 같았다. 변경 원인은 미확인이다. 기능 관찰과 상태 보존 요건의 충족 여부는 독립 리뷰에서 구분해 판정한다.
 - P 터미널은 worker-release의 `released`와 `closed_agent_terminal`을 확인했다. R-P는 별도 Astra medium 세션으로 같은 checkout의 고정 커밋과 원시 증거를 읽고 보고서만 작성한다.
+- R-P (`task_88a750c840ec`, `ctx_adea44ae101e`, Astra medium)는 독립 리뷰를 완료했다. 제품 경계 결함 🔴 0, 검증 보완 🟡 2: 기존 PTY 버퍼의 마커를 새 응답으로 세는 거짓 양성과 Codex app-server의 명시적 거절 왕복 누락이다. 보고서는 P checkout의 `.scratch/handoff-R-P.md`이며 리뷰 터미널은 release 완료했다.
+- F-P는 같은 P 소유 범위에서 고유 마커·출력 구간 대조와 실제 Codex decline을 보완한다. 모델은 Astra medium — 새로운 설계보다 검증 오류 수정과 권한 결과 확인이 필요하다. 원래 설정 전체 동일성 실패는 보존하고 후속 실행의 상태 검증은 별도로 기록한다. D는 감지 불가를 안전한 상태로 간주할 수 없으며 제품 구현은 아직 열지 않는다.
