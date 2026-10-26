@@ -30,7 +30,7 @@
 | S | S1 | `schema/`, Go·TS formats 등록과 테스트 | D | Sol medium — 공유 포맷과 픽스처 구현 | Go·TS 포맷 테스트 | 통합 완료, 런타임 기존 예외 유지 |
 | C | T1·T2의 Go 부분, C1 | `cli/internal/cli/` 세션 기록과 테스트, 필요 시 MCP 배선 | S | Astra medium — 출력 보존·경로·동시 append | red→green, Go test/vet, 필요 시 agent-eval | 통합 완료, 기존 runtime 예외 유지 |
 | T | T1·T2의 TS 부분 | `app/src/main/conversation/` 순수 함수·계약·테스트 | S | Astra medium — 이벤트·복구·권한 상태 계약 | red→green, app test/typecheck | 통합 완료, 기존 runtime 예외 유지 |
-| A | A2, A3, A4 | conversation 실행기·저장·IPC, main 수명, preload와 타입 | C, T | Astra medium — 프로세스·저장·IPC 경계 | app test/typecheck/build 및 E 종료 검증 | 수정 완료, 독립 재리뷰 중 |
+| A | A2, A3, A4 | conversation 실행기·저장·IPC, main 수명, preload와 타입 | C, T | Astra medium — 프로세스·저장·IPC 경계 | app test/typecheck/build 및 E 종료 검증 | 후속 저장 결함 2건 수정 중 |
 | E | A1, E1, E2 | `app/e2e/`, `.scratch/` 실험, PRODUCT 관찰 | A | Astra medium — 실제 앱·종료·상태 불변 실증 | 하네스 red→green, 가짜 에이전트 12단계, 실제 에이전트 관찰 | 대기 |
 | V | E3 | 통합 검증 증거 | E, 리뷰 | Sol high — 순차 게이트와 증거 확인 | verify --runtime, 필요 시 --eval 및 agent-eval | 대기 |
 | Z | Z1 | PRODUCT, ARCHITECTURE, DIRECTORY, AGENTS, feature 삭제 | V | Astra medium — 구현과 문서 계약 대조 | 승격 내용·IPC·포맷·삭제 확인 | 대기 |
@@ -100,3 +100,5 @@
 - R-A (`task_ac33ed9fd8bd`, `ctx_53ba74e78c02`)는 22개 변경 파일을 검토하고 🔴 1·🟡 4건을 격리 재현했다. 준비 중 보관된 대화 send, 실패한 start의 index 잔존, ID 유지 이동 뒤 send 거절, 사라진 Codex 세션의 available 미리보기, read/append 사이 파일 교체로 seq 손상이 대상이다. 기존 focused 49개·패키지 제외 확인은 통과했지만 결함 재현 테스트의 PASS는 정상 동작 통과가 아니다. 리뷰 터미널 release 완료. F-A는 Astra medium으로 5건을 red→green 수정하며 계약을 약화하지 않는다.
 
 - F-A (`task_0f6f53bafe3b`, `ctx_b5676da2d074`)는 `cfa6002`, `af3068e`, `9df8867`, `2ab1a94`로 5건을 수정했다. 각 red→green, 전체 앱 3264개와 이후 추가 focused 경계·IPC 검사/typecheck/build 통과 보고. 저장 수락은 undo journal과 index commit point를 사용하며, 전체 history 재검사·256MiB 상한·복구 내구성 한계는 미검증 사항으로 남겼다. 터미널 release 완료. R-F-A는 Astra medium으로 원래 5건 및 새 복구 경계를 독립 재검토한다.
+
+- R-F-A (`task_484af9fc5392`, `ctx_f3ce849c9d92`)는 원래 R-A-1~5를 닫고 focused 201개·typecheck를 통과했다. 후속 🟡 2건: 읽기 상한을 넘는 append가 성공해 새 current 조회도 막힘, 잘못된 undo journal 뒤 항목을 거절하기 전에 앞 로그를 truncate함. 합성 작은 상한/임시 파일로 재현했고 stress 통과로 세지 않는다. 터미널 release 완료. F-A2는 Astra medium으로 쓰기 전 byte 상한과 전체 저널·대상 선검증을 수정한다.
