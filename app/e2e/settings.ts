@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Page } from "playwright";
 const { rememberApp, waitFor, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
+const { saveClipboard, restoreClipboard }: typeof import("./clipboard") = await import(new URL("./clipboard.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { settingsPage, menu, appWindow, appWindowCount }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 const { homeRow, enterProject, goHome }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
@@ -46,9 +47,7 @@ try {
   await writeFile(join(data, "folders.json"), JSON.stringify([repo, second, plain, missing, branched]));
   const env = { ...process.env, HOME: home, SHELL: shell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"), DOAN_CLI: cli, DOAN_RUNTIME: join(data, "runtime.json") };
   app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${data}`], env }); rememberApp(app);
-  await app.evaluate(async ({ clipboard, ClipboardItem }) => {
-    Reflect.set(globalThis, "settingsClipboard", await Promise.all((await clipboard.read()).map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)])))))));
-  });
+  await app.evaluate(saveClipboard);
   clipboardSaved = true;
   page = await app.firstWindow(); page.setDefaultTimeout(15_000); page.on("pageerror", error => errors.push(String(error)));
   await page.getByRole("button", { name: "doan command: Needs attention", exact: true }).waitFor();
@@ -411,7 +410,7 @@ try {
   await menu(app, page, "Settings…"); settings = await settingsPage(app); await settings.getByRole("tab", { name: "Projects", selected: true }).waitFor();
   assert.equal(await appWindowCount(app), 2);
   const quitLabel = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.flatMap(item => item.submenu?.items ?? []).find(item => item.role === "quit")!.label);
-  await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "settingsClipboard")); });
+  await app.evaluate(restoreClipboard);
   clipboardSaved = false;
   const closed = app.waitForEvent("close"); await menu(app, settings, quitLabel); await closed; await closeApp(app);
   assert.equal(page.isClosed(), true); assert.equal(settings.isClosed(), true); app = undefined;
@@ -423,7 +422,7 @@ try {
   if (settings && !settings.isClosed()) await settings.screenshot({ path: join(shots, "failure-settings.png") }).catch(console.error);
   throw error;
 } finally {
-  try { if (app && clipboardSaved) await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "settingsClipboard")); }); } finally { await guard.finish(); }
+  try { if (app && clipboardSaved) await app.evaluate(restoreClipboard); } finally { await guard.finish(); }
 }
 
 console.log("settings: PASS");

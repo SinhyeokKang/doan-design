@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Page } from "playwright";
 const { rememberApp, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
+const { saveClipboard, restoreClipboard }: typeof import("./clipboard") = await import(new URL("./clipboard.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { appWindow }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 const { canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
@@ -108,7 +109,7 @@ try {
   const env = { ...process.env, HOME: home, TMPDIR: work, SHELL: shell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"), DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") };
 
   app = await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${userData}`], env }); rememberApp(app);
-  await app.evaluate(async ({ clipboard, ClipboardItem }) => { const items = await clipboard.read(); Reflect.set(globalThis, "savedClipboardAH", await Promise.all(items.map(async item => new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)]))))))); });
+  await app.evaluate(saveClipboard);
   clipboardSaved = true;
   page = await app.firstWindow(); page.setDefaultTimeout(10_000);
   page.on("pageerror", error => console.error("agent-handoff pageerror", error));
@@ -545,7 +546,7 @@ try {
     assert.equal((await lines(wtRepo, "wt")).length, 1);
   });
 
-  await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "savedClipboardAH")); });
+  await app.evaluate(restoreClipboard);
   clipboardSaved = false;
   const child = app.process();
   const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => child.once("exit", (code, signal) => resolve({ code, signal })));
@@ -556,7 +557,7 @@ try {
   failures.push(`setup: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`);
   if (app) { await page?.screenshot({ path: join(shots, "failure.png") }).catch(console.error); }
 } finally {
-  try { if (app && clipboardSaved) await app.evaluate(async ({ clipboard }) => { await clipboard.write(Reflect.get(globalThis, "savedClipboardAH")); }); }
+  try { if (app && clipboardSaved) await app.evaluate(restoreClipboard); }
   finally {
     if (app) await app.evaluate(({ app }) => app.exit(0)).catch(() => {});
     await guard.finish();
