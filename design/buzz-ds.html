@@ -194,8 +194,11 @@ code { font-family: inherit; }
 .ob-chip.warn { background: var(--affordance-warning); color: var(--text-warning); }
 .ob-chip.err { background: var(--affordance-danger); color: var(--text-danger); }
 .ob-msg { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); overflow-wrap: anywhere; }
+/* Inline error: an icon leads one line of danger (or warning) text, so colour is not the only signal. */
+.ob-msg.error, .ob-msg.warn { display: flex; align-items: flex-start; gap: var(--space-1h); }
 .ob-msg.error { color: var(--text-danger); }
 .ob-msg.warn { color: var(--text-warning); }
+.doan-alert-icon { flex: none; width: var(--size-icon); height: var(--size-icon); margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
 
 /* Settings-style group: a hairline container whose rows are split by hairlines. */
 .ob-card, .cn-card { border: 1px solid var(--border-standard); border-radius: var(--radius-container); padding: 0 var(--space-4); background: var(--surface-panel); }
@@ -258,11 +261,14 @@ code { font-family: inherit; }
 .host { border-radius: var(--radius-row); box-shadow: inset 0 0 0 1px var(--border-standard); padding: var(--space-2) 0; overflow: hidden; }
 .tree-hint { padding: var(--space-1) var(--space-3) var(--space-2) 34px; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-warning); }
 .tree-hint .doan-button { margin-top: var(--space-1); }
+/* An opened raw detail is an inset fill, never a coloured rule. */
+.tree-detail, .comments-message .detail { padding: var(--space-2) var(--space-3); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); overflow-wrap: anywhere; text-align: start; }
 .tree-detail { margin: 0 var(--space-3) var(--space-2) 34px; }
-.comments-message { padding: var(--space-3) var(--space-4); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); border-left: 2px solid var(--border-danger); }
-.comments-message b { display: block; color: var(--text-standard); font-weight: var(--type-weight-medium); margin-bottom: var(--space-1); }
-.comments-tools { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
-.comments-message .detail { margin-top: var(--space-2); }
+/* A panel failure with a recovery is a status block: icon, title, sentence, actions centred. */
+.comments-message { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); margin: var(--space-3); padding: var(--space-6) var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); text-align: center; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
+.comments-message .doan-alert-icon { width: 20px; height: 20px; margin: 0; color: var(--text-danger); }
+.comments-message b { display: block; color: var(--text-standard); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
+.comments-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
 
 /* Sidebar rows (accent places); row metrics belong to the project-list child, colours to this sheet. */
 .nav { width: 280px; padding: var(--space-2); display: grid; gap: var(--space-half); }
@@ -836,7 +842,7 @@ code { font-family: inherit; }
 <!-- ======================= shared-project-setup ======================= -->
 <section class="frame" data-doan-frame="shared-project-setup" data-doan-title="Shared — Project Setup" data-doan-implements="app/src/renderer/ProjectSetupDialog.tsx">
 <div class="flabel"><h2>Shared — Project Setup</h2><span class="tag sync">design-sync A8</span><span class="tag">standard dialog — conductor's call</span></div>
-<p class="fnote"><code>ProjectSetupDialog</code> (the sidebar's Set Up… and Home) on the standard dialog; its fields (<code>ProjectFields</code>) also sit in the wizard's Project step. The <code>.ob-card</code> becomes a settings-style group: hairline container, 24px corner, rows split by hairlines. Path in the description, ellipsised, full path in its title. Labels are label-sm; helpers caption; errors are plain body-sm <code>text-danger</code> text with no rule or fill, as the reference field error is. Values and long paths stay on one line and ellipsise, the full value in <code>title</code>.</p>
+<p class="fnote"><code>ProjectSetupDialog</code> (the sidebar's Set Up… and Home) on the standard dialog; its fields (<code>ProjectFields</code>) also sit in the wizard's Project step. The <code>.ob-card</code> becomes a settings-style group: hairline container, 24px corner, rows split by hairlines. Path in the description, ellipsised, full path in its title. Labels are label-sm; helpers caption; an error is one body-sm <code>text-danger</code> line led by a 16px alert icon, with no rule or fill. Values and long paths stay on one line and ellipsise, the full value in <code>title</code>.</p>
 <div class="tiles c2">
 <div><p class="tile-label"><b>No token CSS</b> — first open</p>
 <div class="stage dots" style="padding: 24px">
@@ -855,7 +861,7 @@ code { font-family: inherit; }
 <div class="ob-card">
 <div class="ob-field"><span class="ob-label">Token CSS</span><span class="value" title="src/styles/tokens/brand-colors-and-typography.css">src/styles/tokens/brand-colors-and-typography.css</span><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Choose…</button></div>
 <div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
-<div class="ob-field"><span class="ob-msg error ob-wide" role="alert">doan CLI error: spawn doan ENOENT</span></div>
+<div class="ob-field"><span class="ob-msg error ob-wide" role="alert"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg><span>doan CLI error: spawn doan ENOENT</span></span></div>
 </div>
 <div class="doan-dialog-actions"><button class="doan-button" data-ui-variant="subtle">Cancel</button><button class="doan-button" data-ui-variant="prominent">Set Up Project</button></div>
 </div></div></div>
@@ -908,7 +914,7 @@ code { font-family: inherit; }
 <div class="cl-item"><input class="doan-checkbox" type="checkbox" checked aria-label="shop"><span class="cl-name">shop</span><span class="ob-chip">Not set up</span><span class="cl-path">~/code/shop</span></div>
 <div class="cl-item"><input class="doan-checkbox" type="checkbox" aria-label="website"><span class="cl-name">website</span><span class="ob-chip ok">1 canvas</span><span class="cl-path">~/Documents/website</span></div>
 </div>
-<p class="ob-msg error" role="alert">This checklist is no longer available. Add the folder again.</p>
+<p class="ob-msg error" role="alert"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg><span>This checklist is no longer available. Add the folder again.</span></p>
 <div class="doan-dialog-actions"><span class="meta lead-status">2 selected</span><button class="doan-button is-focus" data-ui-variant="subtle">Cancel</button><button class="doan-button" data-ui-variant="prominent">Add 2 Projects</button></div>
 </div></div></div>
 </div>
@@ -927,7 +933,7 @@ code { font-family: inherit; }
 <div class="stage dots" style="padding: 24px; justify-content: center">
 <div class="doan-dialog" data-ui-size="compact" role="dialog" aria-label="Set up notes as a doan project?" data-doan-id="confirm-dialog">
 <div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up notes as a doan project?</h3><p class="doan-dialog-description"><code>~/Documents/notes</code> isn't a repository. doan will add it as a project that is not set up yet, then open the setup form.</p></div></div>
-<p class="ob-msg error" role="alert">EACCES: permission denied, open '/Users/me/Documents/notes'</p>
+<p class="ob-msg error" role="alert"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg><span>EACCES: permission denied, open '/Users/me/Documents/notes'</span></p>
 <div class="doan-dialog-actions"><button class="doan-button" data-ui-variant="subtle">Cancel</button><button class="doan-button is-focus" data-ui-variant="prominent">Set Up…</button></div>
 </div></div></div>
 </div>
@@ -965,8 +971,8 @@ code { font-family: inherit; }
 <div class="stage on-panel" style="padding: 8px 24px">
 <div class="ob-prompt" style="width: 100%">
 <div><div class="fp-labelrow"><label class="fp-label" for="fp4">What do you want to design?</label><span class="fp-count">512 / 500</span></div><input class="doan-input" id="fp4" type="text" aria-invalid="true" value="a checkout flow for a grocery delivery app with substitutions, delivery windows, tipping, saved cards, gift cards, promo codes, and an order tracking map that updates live while the driver is on the way…"></div>
-<p class="ob-msg error" role="alert">Use one line of plain text, up to 500 characters.</p>
-<p class="ob-msg error" role="alert">Couldn’t copy. Your clipboard could not be updated. Try again.</p>
+<p class="ob-msg error" role="alert"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg><span>Use one line of plain text, up to 500 characters.</span></p>
+<p class="ob-msg error" role="alert"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg><span>Couldn’t copy. Your clipboard could not be updated. Try again.</span></p>
 <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.<br>Your input stays in doan until you copy it.</span><button class="doan-button" data-ui-variant="prominent" disabled>Retry copy</button></div>
 </div></div></div>
 </div>
@@ -1014,7 +1020,7 @@ code { font-family: inherit; }
 <!-- ======================= shared-error-details ======================= -->
 <section class="frame" data-doan-frame="shared-error-details" data-doan-title="Shared — Error details" data-doan-implements="app/src/renderer/ErrorDetails.tsx">
 <div class="flabel"><h2>Shared — Error details</h2><span class="tag sync">design-sync A8</span></div>
-<p class="fnote"><code>ErrorDetails</code> is a “Details ▸/▾” disclosure; its hosts place the button and the raw message. The button becomes a ghost <code>sm</code> button in the sidebar tree and a subtle <code>sm</code> button beside Retry in Comments and Feedback; the opened detail is plain body-sm <code>text-subtle</code> text with no rule. The host surfaces themselves (tree, Comments) are restyled by the project-list and comments children.</p>
+<p class="fnote"><code>ErrorDetails</code> is a “Details ▸/▾” disclosure; its hosts place the button and the raw message. The button becomes a ghost <code>sm</code> button in the sidebar tree and a subtle <code>sm</code> button beside Retry in Comments and Feedback; the opened detail is body-sm <code>text-subtle</code> text on an inset fill, never a coloured rule. In Comments and Feedback the failure itself is a status block: a 20px alert icon, the title and the actions centred inside a hairline container. The host surfaces themselves (tree, Comments) are restyled by the project-list and comments children.</p>
 <div class="tiles c3">
 <div><p class="tile-label"><b>Sidebar tree</b> — closed</p>
 <div class="host" data-doan-id="error-details-tree">
@@ -1025,13 +1031,13 @@ code { font-family: inherit; }
 <div class="host">
 <div class="side-row"><span class="glyph">▸</span><span class="g">checkout</span></div>
 <p class="tree-hint">Couldn’t read this canvas’s comments — run doan check<br><button class="doan-button" data-ui-size="sm" aria-expanded="true">Details ▾</button></p>
-<p class="tree-detail ob-msg error" style="color: var(--text-subtle)">unreadable_comments: .doan/comments/checkout.jsonl: line 14: invalid character '}' looking for beginning of object key string</p>
+<p class="tree-detail">unreadable_comments: .doan/comments/checkout.jsonl: line 14: invalid character '}' looking for beginning of object key string</p>
 </div></div>
 <div><p class="tile-label"><b>Comments and Feedback</b> — open, beside Retry</p>
 <div class="host" style="padding: 0">
-<div class="comments-message" role="alert" data-doan-id="error-details-comments"><b>Couldn’t read comments</b>
+<div class="comments-message" role="alert" data-doan-id="error-details-comments"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg><b>Couldn’t read comments</b>
 <div class="comments-tools"><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Retry</button><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-expanded="true">Details ▾</button></div>
-<p class="detail ob-msg error" style="color: var(--text-subtle)">unreadable_comments: .doan/comments/checkout.jsonl: line 14: invalid character '}' looking for beginning of object key string</p>
+<p class="detail">unreadable_comments: .doan/comments/checkout.jsonl: line 14: invalid character '}' looking for beginning of object key string</p>
 </div></div></div>
 </div>
 </section>
