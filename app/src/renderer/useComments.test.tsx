@@ -800,6 +800,11 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
   describe("a card that leaves the list", () => {
     const open = (comment: string): Comment => ({ ...note, comment, target: {} });
     const listed = (comments: Comment[]) => { (window.doan as unknown as Record<string, unknown>).commentsList = async (r: CommentRequest) => ({ ok: true, identity: r, value: { project: 1, comments, warnings: [], canvasHash: "hash" } }); };
+    // The person's pointer press, as the window's capture listener sees it.
+    const press = (target: unknown) => {
+      const listener = (window.addEventListener as Mock).mock.calls.filter(([type]) => type === "pointerdown").at(-1)?.[1] as ((event: { target: unknown }) => void) | undefined;
+      listener?.({ target });
+    };
     // Focus on the card's Resolve button, then the person resolves it: the
     // button disables (focus drops to <body>) and the reread list leaves it out.
     async function resolveFocused(ids: string[], leaving: string) {
@@ -811,6 +816,8 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
       page.doc.activeElement = button; f.panel();
       f.mutate.mockImplementationOnce(async (r: CommentRequest) => ({ ok: true, identity: r, value: { state: "saved" } }));
       listed(ids.filter(id => id !== leaving).map(open));
+      // The press on the card's own button is not focus leaving the card.
+      press(button);
       f.panel().props.onComment("resolve", leaving);
       page.doc.activeElement = page.body; f.panel();
       await vi.waitFor(() => expect(f.session.statusLine).not.toBeNull());
@@ -893,6 +900,16 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
       page.doc.activeElement = page.cards[0]; f.panel();
       // The person clicks blank space; nothing of that card is saving.
       page.doc.activeElement = page.body; f.panel(); f.panel();
+      listed([open("c2")]); await f.session.read(); page.cards.shift();
+      f.panel();
+      expect(focused(page.heading, ...page.cards)).toEqual([]);
+    });
+    test("a press outside the card forgets it though no render follows before an agent's resolve (R-E E-3)", async () => {
+      const page = dom(["c1", "c2"]);
+      const f = await ready([open("c1"), open("c2")]);
+      page.doc.activeElement = page.cards[0]; f.panel();
+      // The person clicks blank space, which changes no state, so nothing renders.
+      press(page.body); page.doc.activeElement = page.body;
       listed([open("c2")]); await f.session.read(); page.cards.shift();
       f.panel();
       expect(focused(page.heading, ...page.cards)).toEqual([]);

@@ -794,6 +794,22 @@ it("does not open a pin's comments for a manual pick that took its seq before th
   } finally { h.controller.dispose(); }
 });
 
+// R-L3 ⚪ L3-2: the click that took a sent pin's seq is the person's newer
+// intent, so a pin still waiting on its guard must not select over it.
+it("a click that takes a sent pin's seq cancels a newer pin still in its guard", async () => {
+  const h = pinHarness();
+  try {
+    await h.controller.activatePin("a");
+    let answer: (allowed: boolean) => void = () => {};
+    h.hooks.guard.mockImplementation(() => new Promise(resolve => { answer = resolve; }));
+    const pending = h.controller.activatePin("b");
+    h.select(1);
+    answer(true); await pending;
+    expect(h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "select-comment")).toHaveLength(1);
+    expect(h.open).not.toHaveBeenCalled();
+  } finally { h.controller.dispose(); }
+});
+
 it("holds manual reload before replacing a document and rejects superseded approval", async () => {
   const h = selectionHarness();
   try {
@@ -2053,8 +2069,10 @@ describe("locate and jump to a comment's node", () => {
     try {
       h.controller.locate("n1", h.snapshot().lookup.generation, open);
       h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
-      h.select(1);
-      h.select(2);
+      // Both answers carry the canvas's mark, as the real canvas sends them:
+      // only the seq tells the selectPath answer from the locate's (R-L3 ⚪ L3-1).
+      h.select(1, { answer: "select-anchor" });
+      h.select(2, { answer: "select-anchor" });
       expect(h.state().located).toBe(false);
     } finally { h.controller.dispose(); }
   });

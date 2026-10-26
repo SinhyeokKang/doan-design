@@ -788,6 +788,54 @@ describe("editing a resolved comment and replacing a missing target (revision-re
     await s.save();
     expect(s.deleteConfirmation).toBeNull();
   });
+  // R-E E-1: the delete is the person's decision about the original they replaced,
+  // so it carries the state they saw; a change made since goes through review.
+  test("an original changed while the new draft was open is deleted only after its conflict is reviewed", async () => {
+    const { session: s, api } = await opened([missing]);
+    await s.commentInstead("c1");
+    const newer: Comment = { ...missing, body: "New unrelated feedback", updatedAt: "2026-10-23T02:00:00.000Z" };
+    api.commentsList.mockImplementation(async r => reply<CommentList>(r, { project: 7, canvasHash: "h", comments: [newer, created], warnings: [] }));
+    api.commentsMutate.mockImplementationOnce(async r => reply<SavedStatus>(r, { state: "saved", comment: "c2" }));
+    await s.save();
+    expect(s.deleteConfirmation?.request.intent).toEqual({ type: "delete", comment: "c1", expected: expectedComment(missing) });
+    api.commentsMutate.mockImplementationOnce(async r => changed(r));
+    await s.confirmDelete();
+    expect(api.commentsMutate.mock.calls[1]?.[0].intent).toEqual({ type: "delete", comment: "c1", expected: expectedComment(missing) });
+    expect(s.mutations.get("c1")?.status).toBe("conflict");
+    await s.read(true, "c1");
+    expect(s.mutations.get("c1")).toEqual({ status: "reviewed", latest: newer });
+    await s.confirmCard("c1");
+    expect(s.deleteConfirmation?.comment.body).toBe("New unrelated feedback"); expect(s.deleteConfirmation?.replacedOn).toBeUndefined();
+    expect(s.deleteConfirmation?.request.intent).toEqual({ type: "delete", comment: "c1", expected: expectedComment(newer) });
+  });
+  // R-E E-2: the confirmation belongs to the replacement; a newer intent during
+  // the post-save read ends it (POSTMORTEM 2026-10-23 "Pin completion outlived the guarded intent").
+  async function lateRead() {
+    const f = await opened([missing]);
+    await f.session.commentInstead("c1");
+    let release = () => {}, asked = false;
+    f.api.commentsList.mockImplementationOnce(r => { asked = true; return new Promise(resolve => { release = () => resolve(reply<CommentList>(r, { project: 7, canvasHash: "h", comments: [missing, created], warnings: [] })); }); });
+    const saving = f.session.save();
+    await vi.waitFor(() => expect(asked).toBe(true));
+    return { ...f, saving, release: () => { release(); return saving; } };
+  }
+  test("a new draft started while the post-save read is late gets no delete confirmation over it", async () => {
+    const { session: s, release } = await lateRead();
+    await s.create("canvas"); s.body("New intent"); s.composing = true;
+    await release();
+    expect(s.draft.draft?.body).toBe("New intent"); expect(s.deleteConfirmation).toBeNull();
+  });
+  test("another delete confirmation opened while the post-save read is late stays", async () => {
+    const { session: s, release } = await lateRead();
+    await s.mutate("delete", "c1");
+    await release();
+    expect(s.deleteConfirmation?.replacedOn).toBeUndefined(); expect(s.deleteConfirmation?.comment.comment).toBe("c1");
+  });
+  test("a late post-save read with nothing newer still asks", async () => {
+    const { session: s, release } = await lateRead();
+    await release();
+    expect(s.deleteConfirmation?.replacedOn).toEqual({ frame: "hero" });
+  });
   test("a resolved comment has no replacement", async () => {
     const { session: s, api } = await opened([{ ...missing, status: "resolved", resolvedAt: "2026-10-23T01:00:00.000Z" }]);
     await s.commentInstead("c1");
