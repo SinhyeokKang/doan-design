@@ -2,7 +2,7 @@
 
 - `go.mod` and `go.sum`: root Go module and pinned dependencies.
 - `cli/cmd/doan/`: the `doan` binary; `main` only calls `cli.Run`.
-- `cli/internal/cli/`: `Run`, argument splitting, envelopes and exit codes, command bodies, human output, the embedded `doan skill` body (`skill.md`), the assembly of `check` input (Reach), and the `doan mcp` stdio server (`mcp.go`), plus `active.go` (runtime read, bounded unix-socket client and app-error mapping), `config.go` (config reads, path validation and writes) and `config_ops.go` (pure config operations); `session.go` records best-effort shell check associations in device-local sessions.jsonl, with MCP explicitly excluded.
+- `cli/internal/cli/`: `Run`, argument splitting, envelopes and exit codes, command bodies, human output, the embedded `doan skill` body (`skill.md`), the assembly of `check` input (Reach), and the `doan mcp` stdio server (`mcp.go`), plus `active.go` (runtime read, bounded unix-socket client and app-error mapping), `config.go` (config reads, path validation and writes) and `config_ops.go` (pure config operations); `sessions.go` records best-effort shell check associations in device-local sessions.jsonl, with MCP explicitly excluded.
 - `cli/internal/repo/`: repo discovery, config parsing, in-repo path resolution, canvas and comment file listing, the serving scope (`scope.go`, shared by `ls` and `check`) and the orphan comment file rule (`orphans.go`, shared by `ls` and `check`); read-only Git metadata discovery (`git.go`) and pure parsing (`git_parse.go`).
 - `cli/internal/canvas/`: pure HTML canvas model and CSS scanner.
 - `cli/internal/check/`: pure `doan check` rules.
