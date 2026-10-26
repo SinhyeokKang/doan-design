@@ -13,9 +13,13 @@ import (
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/formats"
 	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
+	"golang.org/x/sys/unix"
 )
 
-type sessionRecording struct{ Path, Runtime, ID, ConfigDir string }
+type sessionRecording struct {
+	Path, Runtime, ID, ConfigDir string
+	directory                    os.FileInfo
+}
 
 // Only the shell entrypoint reads identity from its environment; MCP opts out.
 func sessionFromEnvironment(home string) *sessionRecording {
@@ -59,7 +63,11 @@ func sessionSettings(home, runtimePath, claude, thread, legacy, claudeConfig, co
 	if !ok {
 		return nil
 	}
-	return &sessionRecording{Path: filepath.Join(dir, "sessions.jsonl"), Runtime: runtime, ID: id, ConfigDir: config}
+	info, e := os.Lstat(dir)
+	if e != nil || !info.IsDir() {
+		return nil
+	}
+	return &sessionRecording{Path: filepath.Join(dir, "sessions.jsonl"), Runtime: runtime, ID: id, ConfigDir: config, directory: info}
 }
 
 func sessionDirectory(path string) (string, bool) {
@@ -137,32 +145,20 @@ func recordSessions(ctx Context, root string, files []canvasFile) {
 	if e != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return
 	}
-	path := ctx.Session.Path
-	prior := map[string]priorSession{}
-	torn := false
-	if st, e := os.Stat(path); e == nil {
-		if !st.Mode().IsRegular() {
-			return
-		}
-		input, e := os.Open(path)
-		if e != nil {
-			return
-		}
-		var readErr error
-		prior, torn, readErr = priorSessions(input, canonicalRoot)
-		closeErr := input.Close()
-		if readErr != nil || closeErr != nil {
-			return
-		}
-	} else if !os.IsNotExist(e) {
+	directory, e := openSessionDirectory(filepath.Dir(ctx.Session.Path), ctx.Session.directory)
+	if e != nil {
 		return
 	}
-	var output *os.File
-	defer func() {
-		if output != nil {
-			output.Close()
-		}
-	}()
+	defer directory.Close()
+	output, e := openSessionLog(directory)
+	if e != nil {
+		return
+	}
+	defer output.Close()
+	prior, torn, e := priorSessions(output, canonicalRoot)
+	if e != nil {
+		return
+	}
 	for _, file := range files {
 		c := map[string]any{"path": file.Model.Path}
 		if !file.Model.IDDup && kebabID.MatchString(file.Model.ID) {
@@ -186,15 +182,62 @@ func recordSessions(ctx Context, root string, files []canvasFile) {
 			data = append([]byte{'\n'}, data...)
 			torn = false
 		}
-		if output == nil {
-			output, e = os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
-			if e != nil {
-				return
-			}
-		}
 		n, e := output.Write(data)
 		if e != nil || n != len(data) {
 			return
 		}
 	}
+}
+
+// Walk the canonical spelling without following replacement ancestors. The final
+// identity must still be the directory validated when settings were captured.
+func openSessionDirectory(path string, expected os.FileInfo) (*os.File, error) {
+	if expected == nil || !filepath.IsAbs(path) {
+		return nil, os.ErrInvalid
+	}
+	fd, e := unix.Open("/", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if e != nil {
+		return nil, e
+	}
+	for _, part := range strings.Split(strings.TrimPrefix(filepath.Clean(path), "/"), "/") {
+		if part == "" {
+			continue
+		}
+		next, err := unix.Openat(fd, part, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+		unix.Close(fd)
+		if err != nil {
+			return nil, err
+		}
+		fd = next
+	}
+	dir := os.NewFile(uintptr(fd), path)
+	info, e := dir.Stat()
+	if e != nil || !info.IsDir() || !os.SameFile(expected, info) {
+		dir.Close()
+		return nil, os.ErrInvalid
+	}
+	return dir, nil
+}
+
+// One descriptor serves both history and append, so replacing the final name
+// cannot redirect either operation. NONBLOCK prevents a FIFO from hanging check.
+func openSessionLog(directory *os.File) (*os.File, error) {
+	flags := unix.O_RDWR | unix.O_APPEND | unix.O_NOFOLLOW | unix.O_NONBLOCK | unix.O_CLOEXEC
+	fd, e := unix.Openat(int(directory.Fd()), "sessions.jsonl", flags, 0)
+	if e == unix.ENOENT {
+		fd, e = unix.Openat(int(directory.Fd()), "sessions.jsonl", flags|unix.O_CREAT|unix.O_EXCL, 0600)
+		if e == unix.EEXIST {
+			fd, e = unix.Openat(int(directory.Fd()), "sessions.jsonl", flags, 0)
+		}
+	}
+	if e != nil {
+		return nil, e
+	}
+	file := os.NewFile(uintptr(fd), "sessions.jsonl")
+	info, e := file.Stat()
+	if e != nil || !info.Mode().IsRegular() {
+		file.Close()
+		return nil, os.ErrInvalid
+	}
+	return file, nil
 }

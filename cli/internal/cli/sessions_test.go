@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/formats"
+	"golang.org/x/sys/unix"
 )
 
 func sessionFixture(t *testing.T) (string, string) {
@@ -420,5 +422,196 @@ func TestSessionRecordsReadableCanvasesWhenAnotherReadFails(t *testing.T) {
 	rows := sessionRows(t, log)
 	if len(rows) != 1 || rows[0]["canvas"].(map[string]any)["path"] != "design/a.html" {
 		t.Fatal("readable canvas missing or unreadable canvas recorded", rows)
+	}
+}
+
+func TestSessionSymlinkBoundary(t *testing.T) {
+	for _, existing := range []bool{true, false} {
+		t.Run(fmt.Sprint(existing), func(t *testing.T) {
+			root, log := sessionFixture(t)
+			target := filepath.Join(t.TempDir(), "outside.json")
+			if existing {
+				if e := os.WriteFile(target, []byte("private fixture\n"), 0600); e != nil {
+					t.Fatal(e)
+				}
+			}
+			if e := os.Symlink(target, log); e != nil {
+				t.Fatal(e)
+			}
+			code, out, err := checkOutput(root, true)
+			t.Setenv("CLAUDE_CODE_SESSION_ID", "c")
+			c, o, stderr := checkOutput(root, true)
+			if c != code || o != out || stderr != err {
+				t.Fatal("output changed")
+			}
+			b, e := os.ReadFile(target)
+			if existing && (e != nil || string(b) != "private fixture\n") {
+				t.Fatalf("existing outside target modified: bytes=%d err=%v", len(b), e)
+			}
+			if !existing && !os.IsNotExist(e) {
+				t.Fatalf("dangling symlink created outside target: bytes=%d err=%v", len(b), e)
+			}
+		})
+	}
+}
+
+func TestSessionDirectoryReplacement(t *testing.T) {
+	for _, kind := range []string{"symlink before pin", "directory before pin", "ancestor before pin", "symlink after pin"} {
+		t.Run(kind, func(t *testing.T) {
+			sessionFixture(t)
+			settings := sessionFromEnvironmentForTest(t)
+			parent := filepath.Dir(settings.Path)
+			outside := t.TempDir()
+			putFile(t, outside, "sessions.jsonl", "external sentinel\n")
+			var pinned *os.File
+			if kind == "symlink after pin" {
+				var e error
+				pinned, e = openSessionDirectory(parent, settings.directory)
+				if e != nil {
+					t.Fatal(e)
+				}
+				defer pinned.Close()
+			}
+			replaced := parent
+			if kind == "ancestor before pin" {
+				replaced = filepath.Dir(parent)
+			}
+			if e := os.Rename(replaced, replaced+"-moved"); e != nil {
+				t.Fatal(e)
+			}
+			t.Cleanup(func() { os.Remove(replaced); os.Rename(replaced+"-moved", replaced) })
+			if kind == "directory before pin" {
+				if e := os.Mkdir(replaced, 0700); e != nil {
+					t.Fatal(e)
+				}
+			} else if e := os.Symlink(outside, replaced); e != nil {
+				t.Fatal(e)
+			}
+			if pinned == nil {
+				f, e := openSessionDirectory(parent, settings.directory)
+				if e == nil {
+					f.Close()
+					t.Fatal("replacement directory accepted")
+				}
+			} else {
+				f, e := openSessionLog(pinned)
+				if e != nil {
+					t.Fatal(e)
+				}
+				if _, e := f.Write([]byte("inside\n")); e != nil {
+					t.Fatal(e)
+				}
+				f.Close()
+				b, e := os.ReadFile(filepath.Join(parent+"-moved", "sessions.jsonl"))
+				if e != nil || string(b) != "inside\n" {
+					t.Fatal("pinned directory not used", e)
+				}
+			}
+			b, e := os.ReadFile(filepath.Join(outside, "sessions.jsonl"))
+			if e != nil || string(b) != "external sentinel\n" {
+				t.Fatal("external target changed", e)
+			}
+		})
+	}
+}
+
+func sessionFromEnvironmentForTest(t *testing.T) *sessionRecording {
+	t.Helper()
+	t.Setenv("CLAUDE_CODE_SESSION_ID", "c")
+	s := sessionFromEnvironment(os.Getenv("HOME"))
+	if s == nil {
+		t.Fatal("missing settings")
+	}
+	return s
+}
+
+func TestSessionFinalReplacement(t *testing.T) {
+	for _, afterOpen := range []bool{false, true} {
+		t.Run(fmt.Sprint(afterOpen), func(t *testing.T) {
+			_, log := sessionFixture(t)
+			s := sessionFromEnvironmentForTest(t)
+			dir, e := openSessionDirectory(filepath.Dir(s.Path), s.directory)
+			if e != nil {
+				t.Fatal(e)
+			}
+			defer dir.Close()
+			putFile(t, filepath.Dir(log), "sessions.jsonl", "inside\n")
+			outside := filepath.Join(t.TempDir(), "sentinel")
+			if e := os.WriteFile(outside, []byte("external\n"), 0600); e != nil {
+				t.Fatal(e)
+			}
+			var f *os.File
+			if afterOpen {
+				f, e = openSessionLog(dir)
+				if e != nil {
+					t.Fatal(e)
+				}
+				defer f.Close()
+			}
+			// Replace after validation (or after opening) without a scheduling race.
+			if _, e := os.Lstat(log); e != nil {
+				t.Fatal(e)
+			}
+			if e := os.Rename(log, log+"-moved"); e != nil {
+				t.Fatal(e)
+			}
+			if e := os.Symlink(outside, log); e != nil {
+				t.Fatal(e)
+			}
+			if !afterOpen {
+				f, e = openSessionLog(dir)
+				if e == nil {
+					f.Close()
+					t.Fatal("replacement symlink opened")
+				}
+			} else {
+				b, e := io.ReadAll(f)
+				if e != nil || string(b) != "inside\n" {
+					t.Fatal("read redirected", string(b), e)
+				}
+				if _, e := f.Write([]byte("append\n")); e != nil {
+					t.Fatal(e)
+				}
+				b, e = os.ReadFile(log + "-moved")
+				if e != nil || string(b) != "inside\nappend\n" {
+					t.Fatal("append redirected", e)
+				}
+			}
+			b, e := os.ReadFile(outside)
+			if e != nil || string(b) != "external\n" {
+				t.Fatal("external target changed", e)
+			}
+		})
+	}
+}
+
+func TestSessionRejectsNonregularLog(t *testing.T) {
+	for _, kind := range []string{"directory", "fifo"} {
+		t.Run(kind, func(t *testing.T) {
+			root, log := sessionFixture(t)
+			code, out, stderr := checkOutput(root, true)
+			if kind == "directory" {
+				if e := os.Mkdir(log, 0700); e != nil {
+					t.Fatal(e)
+				}
+			} else if e := unix.Mkfifo(log, 0600); e != nil {
+				t.Fatal(e)
+			}
+			s := sessionFromEnvironmentForTest(t)
+			dir, e := openSessionDirectory(filepath.Dir(s.Path), s.directory)
+			if e != nil {
+				t.Fatal(e)
+			}
+			defer dir.Close()
+			f, e := openSessionLog(dir)
+			if e == nil {
+				f.Close()
+				t.Fatal("nonregular log opened")
+			}
+			c, o, err := checkOutput(root, true)
+			if c != code || o != out || err != stderr {
+				t.Fatal("output changed")
+			}
+		})
 	}
 }
