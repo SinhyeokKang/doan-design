@@ -263,10 +263,12 @@ func TestSessionConcurrentProcessHelper(t *testing.T) {
 	}
 }
 func TestSessionConcurrentProcesses(t *testing.T) {
-	root, log := sessionFixture(t)
+	_, log := sessionFixture(t)
 	t.Setenv("CLAUDE_CODE_SESSION_ID", "c")
 	commands := []*exec.Cmd{}
 	for i := 0; i < 8; i++ {
+		root := initialized(t)
+		putFile(t, root, "design/a.html", validCanvas)
 		cmd := exec.Command(os.Args[0], "-test.run=^TestSessionConcurrentProcessHelper$")
 		cmd.Dir = root
 		cmd.Env = append(os.Environ(), "DOAN_SESSION_TEST_CHILD=1", "DOAN_SESSION_TEST_ROOT="+root)
@@ -281,7 +283,112 @@ func TestSessionConcurrentProcesses(t *testing.T) {
 		}
 	}
 	rows := sessionRows(t, log)
-	if len(rows) < 1 || len(rows) > 8 {
+	if len(rows) != 8 {
 		t.Fatal(len(rows))
+	}
+}
+
+func TestSessionSettingsRejectNULAndInvalidHome(t *testing.T) {
+	_, log := sessionFixture(t)
+	home := os.Getenv("HOME")
+	runtimePath := filepath.Join(filepath.Dir(log), "runtime.json")
+	for _, tt := range []struct{ home, path, id, config string }{
+		{home, runtimePath, "c", "bad\x00config"},
+		{home, runtimePath + "\x00", "c", ""},
+		{home, runtimePath, "c\x00", ""},
+		{"relative", runtimePath, "c", ""},
+		{"", runtimePath, "c", ""},
+	} {
+		if got := sessionSettings(tt.home, tt.path, tt.id, "", "", tt.config, ""); got != nil {
+			t.Fatal(got)
+		}
+	}
+}
+func TestSessionDefaultDirectoryAndCWDContainment(t *testing.T) {
+	root, _ := sessionFixture(t)
+	home := os.Getenv("HOME")
+	log := filepath.Join(home, "Library", "Application Support", "doan", "sessions.jsonl")
+	if e := os.MkdirAll(filepath.Dir(log), 0700); e != nil {
+		t.Fatal(e)
+	}
+	t.Setenv("DOAN_RUNTIME", "")
+	t.Setenv("CODEX_THREAD_ID", "thread")
+	checkOutput(root, true)
+	if len(sessionRows(t, log)) != 1 {
+		t.Fatal("default directory not used")
+	}
+	putFile(t, root, "design/a.html", validCanvas+"<!--change-->")
+	t.Chdir(home)
+	checkOutput(root, true)
+	if len(sessionRows(t, log)) != 1 {
+		t.Fatal("outside cwd recorded")
+	}
+	link := filepath.Join(root, "outside")
+	if e := os.Symlink(home, link); e != nil {
+		t.Fatal(e)
+	}
+	t.Chdir(link)
+	checkOutput(root, true)
+	if len(sessionRows(t, log)) != 1 {
+		t.Fatal("symlink outside cwd recorded")
+	}
+}
+func TestSessionPriorTimestampAndLargeValidRecord(t *testing.T) {
+	root, log := sessionFixture(t)
+	t.Setenv("CLAUDE_CODE_SESSION_ID", "c")
+	checkOutput(root, true)
+	row := sessionRows(t, log)[0]
+	row["sessionId"] = strings.Repeat("a", 2<<20)
+	row["at"] = "2090-01-01T00:00:00.000Z"
+	latest, e := json.Marshal(row)
+	if e != nil {
+		t.Fatal(e)
+	}
+	row["at"] = "2000-01-01T00:00:00.000Z"
+	row["hash"] = "sha256:" + strings.Repeat("0", 64)
+	older, e := json.Marshal(row)
+	if e != nil {
+		t.Fatal(e)
+	}
+	body := string(latest) + "\n" + string(older) + "\n"
+	putFile(t, filepath.Dir(log), filepath.Base(log), body)
+	checkOutput(root, true)
+	if readFile(t, filepath.Dir(log), filepath.Base(log)) != body {
+		t.Fatal("latest valid record hidden by older line")
+	}
+	row["at"] = "2090-01-01T00:00:00.000Z"
+	tied, e := json.Marshal(row)
+	if e != nil {
+		t.Fatal(e)
+	}
+	putFile(t, filepath.Dir(log), filepath.Base(log), string(latest)+"\n"+string(tied)+"\n")
+	checkOutput(root, true)
+	if len(sessionRows(t, log)) != 3 {
+		t.Fatal("equal timestamps must use last line")
+	}
+}
+func TestSessionInternalCheckFailureAndNoInspectedCanvases(t *testing.T) {
+	for _, jsonMode := range []bool{false, true} {
+		t.Run(fmt.Sprint(jsonMode), func(t *testing.T) {
+			root, log := sessionFixture(t)
+			putFile(t, root, ".doan/comments", "not a directory")
+			code, out, err := checkOutput(root, jsonMode)
+			if code != 1 {
+				t.Fatal(code, out, err)
+			}
+			t.Setenv("CLAUDE_CODE_SESSION_ID", "c")
+			var output bytes.Buffer
+			Run([]string{"check", "unexpected", "--repo", root}, strings.NewReader(""), &output, &output)
+			if len(sessionRows(t, log)) != 0 {
+				t.Fatal("uninspected canvas recorded")
+			}
+			c, o, e := checkOutput(root, jsonMode)
+			if c != code || o != out || e != err {
+				t.Fatal("internal failure output changed")
+			}
+			if len(sessionRows(t, log)) != 1 {
+				t.Fatal("inspected canvas missing after internal failure")
+			}
+		})
 	}
 }
