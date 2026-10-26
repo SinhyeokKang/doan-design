@@ -84,3 +84,5 @@
 
 - R-F-C (`task_81817b246d2e`, `ctx_6167ad909c8c`)는 링크·경로 교체와 출력 불변을 재검토해 잔여 🔴 0, 🟡 0을 확인했다. 리뷰 터미널 release 완료. C는 T 수정 후 함께 통합한다.
 - R-T (`task_f243c8eece7b`, `ctx_4ac3632654e2`)는 focused 72개·typecheck 통과와 🟡 2건을 확인했다. 턴 귀속 없는 서버 요청이 무응답으로 남고, notification의 추가 error 필드가 턴 격리를 우회한다. 리뷰 터미널 release 완료. F-T는 Astra medium으로 ingress 구분·명시적 미지원 처리·회귀를 수정한다. 프로토콜 enum 픽스처도 원본 스키마에 맞추며 실제 dispatcher 검증은 A/E에 남긴다.
+
+- F-T (`task_5595928f5763`, `ctx_e24645d565f6`)는 `75ed1d4`, `dc9cd2f`를 제출했다. 요청 disposition과 pending RPC 소유권을 받는 별도 reply 경로로 두 ingress 문제를 수정했고 픽스처 enum을 복원했다. 회귀 10개 red→green, focused 92개·전체 앱 3215개·typecheck 통과 보고. 터미널 release 완료. R-F-T는 Astra medium으로 수정과 A 인계 경계를 독립 재검토한다.
