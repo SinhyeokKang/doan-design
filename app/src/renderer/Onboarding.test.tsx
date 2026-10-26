@@ -13,12 +13,12 @@ test("the step indicator is a row of buttons; a done step shows a check", () => 
 
 test("the bottom bar keeps Step N of 4 and Check Again on the left", () => {
   const html = renderToStaticMarkup(<WizardFooter view={{ stepNo: "Step 1 of 4", checkAgain: { disabled: false }, skip: { disabled: false }, next: { label: "Continue", primary: false, disabled: false } }} checkAgain={() => {}} skip={() => {}} next={() => {}} />);
-  expect(html).toBe('<div class="ob-foot"><span class="meta">Step 1 of 4</span><button type="button" class="btn">Check Again</button><span class="spacer"></span><button type="button" class="btn ghost">Skip</button><button type="button" class="btn">Continue</button></div>');
+  expect(html).toBe('<div class="ob-foot"><span class="meta">Step 1 of 4</span><button type="button" class="btn doan-button" data-ui-variant="subtle">Check Again</button><span class="spacer"></span><button type="button" class="btn ghost doan-button">Skip</button><button type="button" class="btn doan-button" data-ui-variant="subtle">Continue</button></div>');
 });
 
 test("the replace confirmation shows both targets, Cancel first and a specific verb", () => {
   const html = renderToStaticMarkup(<ConfirmDialog view={{ title: "Replace the doan link?", body: [{ code: "~/.local/bin/doan" }, " points to another copy of doan."], current: "/old", next: "/new", verb: "Replace Link" }} answer={() => {}} />);
-  expect(html).toMatch(/^<dialog class="ob-dialog" role="alertdialog" aria-label="Replace the doan link\?"/);
+  expect(html).toMatch(/^<dialog class="ob-dialog doan-dialog" data-ui-size="compact" role="alertdialog" aria-label="Replace the doan link\?"/);
   expect(html).toContain('<dl class="ob-compare"><dt>Current</dt><dd>/old</dd><dt>New</dt><dd>/new</dd></dl>');
-  expect(html).toContain('<div class="ob-buttons"><button type="button" class="btn">Cancel</button><button type="button" class="btn primary">Replace Link</button></div>');
+  expect(html).toContain('<div class="ob-buttons doan-dialog-actions"><button type="button" class="btn doan-button" data-ui-variant="subtle">Cancel</button><button type="button" class="btn primary doan-button" data-ui-variant="prominent">Replace Link</button></div>');
 });

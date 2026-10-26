@@ -4,7 +4,11 @@ import { describe, expect, test, vi } from "vitest";
 import type { Comment } from "../formats/types";
 import { foldText } from "../formats/foldText";
 import { READ_FAILED_EDITOR } from "../comments/panelText";
+import { AlertIcon } from "./AlertIcon";
 import { CommentsPanel, DeleteCommentDialog, CommentCard, CommentEditor, UnsavedCommentDialog, UncertainCommentDialog, revealComposer, type CommentsPanelProps, type CommentEditorProps, type CommentCardProps } from "./CommentsPanel";
+
+// The icon that leads every error and warning, as the components render it.
+const icon = renderToStaticMarkup(<AlertIcon />), icon20 = renderToStaticMarkup(<AlertIcon size={20} />);
 
 // Tests call the editor as a plain function to read its element tree, outside
 // a React render; its reason id still comes from useId in the app.
@@ -78,7 +82,7 @@ describe("Comments presentation", () => {
     const failed = html(panel({ read: { status: "failed", message: "Permission denied" } }));
     expect(failed).toContain("Couldn’t read comments");
     // project-feedback draft `tree-errors`: the raw message waits behind Details.
-    expect(failed).toContain('<div class="comments-tools"><button type="button" class="comments-btn">Retry</button><button type="button" class="comments-btn" aria-label="Details" aria-expanded="false">Details ▸</button></div>');
+    expect(failed).toContain('<div class="comments-tools"><button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Retry</button><button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label="Details" aria-expanded="false">Details ▸</button></div>');
     expect(failed).not.toContain("Permission denied");
     expect(failed).not.toContain("No open comments");
     expect(failed).not.toContain("Comments are read-only");
@@ -89,7 +93,7 @@ describe("Comments presentation", () => {
     const warnings = [{ code: "invalid_event", line: 9 }, { code: "agent_not_allowed", line: 12 }, { code: "invalid_event", line: 5 }] as const;
     const out = html(panel({ read: { status: "ready", comments: [comment], warnings } }));
     const block = /<div class="comments-message warning comments-warnings">.*?<\/div>/s.exec(out)?.[0] ?? "";
-    expect(block).toBe(`<div class="comments-message warning comments-warnings"><b>Some comment changes were ignored</b><ul>`
+    expect(block).toBe(`<div class="comments-message warning comments-warnings">${icon20}<b>Some comment changes were ignored</b><ul>`
       + `<li>A line could not be read and was skipped.<span class="lines">Lines 5, 9</span></li>`
       + `<li>An agent tried to add or edit a comment. Agents can only resolve, so it was ignored.<span class="lines">Line 12</span></li></ul>`
       + `<p class="file">In .doan/comments/checkout.jsonl. Ask your agent to run doan comments and fix the file.</p></div>`);
@@ -128,7 +132,7 @@ describe("Comments presentation", () => {
   });
   test("Handed off sits beside the head's Hand off…; no per-card or all-open Copied", () => {
     const out = html(panel({ handedOff: "Handed off 3 · 14:02:10" }));
-    expect(out).toContain(`<div class="comments-tools"><button type="button" class="comments-btn">Hand off…</button><span class="handoff-summary">Handed off 3 · 14:02:10</span><button type="button" class="comments-btn">Comment on canvas</button></div>`);
+    expect(out).toContain(`<div class="comments-tools"><button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Hand off…</button><span class="handoff-summary">Handed off 3 · 14:02:10</span><button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Comment on canvas</button></div>`);
     expect(html(panel())).not.toContain("handoff-summary");
     for (const text of ["Copied", "Copy all open", ">Copy<"]) expect(out).not.toContain(text);
   });
@@ -144,7 +148,7 @@ describe("Comments presentation", () => {
     expect(out).toContain("git user.name");
     expect(out).toContain("<p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Hand off remains available.</p>");
     for (const label of ["Edit", "Resolve", "Delete"]) expect(out).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*>${label}</button>`));
-    expect(out.match(/<button type="button" class="comments-btn">Hand off…<\/button>/g)).toHaveLength(2);
+    expect(out.match(/<button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Hand off…<\/button>/g)).toHaveLength(2);
   });
   test("card intents include the original id; the card's Hand off… opens with that comment", () => {
     const onComment = vi.fn(), onHandOff = vi.fn();
@@ -335,7 +339,7 @@ describe("continue a blocked new comment", () => {
     const props = blocked({ onContinue });
     const out = renderToStaticMarkup(<CommentEditor {...props} />);
     expect(out).not.toContain("Save comment");
-    expect(out).toMatch(/Cancel<\/button><button[^>]*class="comments-btn primary"[^>]*>Continue on current version<\/button><\/div><p class="comments-helper" role="status">The canvas reloaded/);
+    expect(out).toMatch(/Cancel<\/button><button[^>]*class="comments-btn primary doan-button" data-ui-variant="prominent" data-ui-size="sm"[^>]*>Continue on current version<\/button><\/div><p class="comments-helper" role="status">The canvas reloaded/);
     expect(out).toContain(`<p class="comments-helper">Continues on Element · button pay.</p>`);
     expect(out).not.toContain("aria-describedby");
     find(CommentEditor(props), "Continue on current version").onClick?.();
@@ -371,7 +375,7 @@ describe("continue a blocked new comment", () => {
     const gone = "Your selection is no longer in the canvas. Select an element or frame, or continue on the whole canvas.";
     const props = blocked({ enabled: false, reason: gone, canvas: { enabled: true }, onCanvas });
     const out = renderToStaticMarkup(<CommentEditor {...props} />);
-    expect(out).toMatch(/>Cancel<\/button><button type="button" class="comments-btn">Continue on canvas<\/button><button[^>]*primary[^>]*>Continue on current version</);
+    expect(out).toMatch(/>Cancel<\/button><button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Continue on canvas<\/button><button[^>]*primary[^>]*>Continue on current version</);
     find(CommentEditor(props), "Continue on canvas").onClick?.();
     expect(onCanvas).toHaveBeenCalledOnce();
     expect(find(CommentEditor(blocked({ enabled: false, canvas: { enabled: false }, starting: "canvas" })), "Starting…").disabled).toBe(true);
@@ -394,7 +398,7 @@ describe("identity, read failure and head controls", () => {
     ["duplicate", "Another canvas uses the ID checkout", "Ask your agent to give one of them a different ID. Run doan check in a terminal to see details."],
   ] as const)("the %s canvas ID cause shows only its block: no loading, Git name, filters or tools", (cause, title, body) => {
     const out = html(panel({ identityCause: cause, read: { status: "loading" }, author: { status: "missing" }, writeBlocked: "A valid, unique canvas ID is required." }));
-    expect(out).toContain(`<div class="comments-message error" role="alert"><b>${title.replace("'", "&#x27;")}</b>${body}</div>`);
+    expect(out).toContain(`<div class="comments-message error" role="alert">${icon20}<b>${title.replace("'", "&#x27;")}</b>${body}</div>`);
     for (const text of ["Loading comments…", "Set your Git name", "Comment scope", "Comment status", "Hand off…", "Comment on canvas", "Comments are read-only"]) expect(out).not.toContain(text);
     expect(out.match(/comments-message/g)).toHaveLength(1);
   });
@@ -536,7 +540,7 @@ describe("editing a resolved comment and replacing a missing target (revision-re
   test("a resolved comment's editor puts Save and reopen last as primary, Save only before it, and says why", () => {
     const out = renderToStaticMarkup(<CommentEditor {...editor({ mode: "edit", saveOnly: noop })} />);
     expect(buttons(out)).toEqual(["Cancel", "Save only", "Save and reopen"]);
-    expect(out).toContain(`<button type="button" class="comments-btn primary">Save and reopen</button>`);
+    expect(out).toContain(`<button type="button" class="comments-btn primary submit doan-button" data-ui-variant="prominent" data-ui-size="sm">Save and reopen</button>`);
     expect(out).toContain(`<p class="comments-helper">Agents read open comments only.</p>`);
     const onSave = vi.fn(), saveOnly = vi.fn(), tree = CommentEditor(editor({ mode: "edit", onSave, saveOnly }));
     find(tree, "Save and reopen").onClick?.(); find(tree, "Save only").onClick?.();
@@ -567,14 +571,14 @@ describe("editing a resolved comment and replacing a missing target (revision-re
   const missing = (over: Partial<CommentsPanelProps> = {}) => html(panel({ missingLocations: new Set(["c1"]), ...over }));
   test("an open comment whose location is unavailable offers Comment on selection instead", () => {
     const onComment = vi.fn(), props = panel({ missingLocations: new Set(["c1"]), onComment });
-    expect(html(props)).toContain(`<button type="button" class="comments-btn">Comment on selection instead</button>`);
+    expect(html(props)).toContain(`<button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Comment on selection instead</button>`);
     const card = CommentCard({ comment, frames: [], freshness: "same", locationMissing: true, disabled: false, busy: false, instead: "ready", onComment, onHandOff: noop });
     find(card, "Comment on selection instead").onClick?.();
     expect(onComment).toHaveBeenCalledExactlyOnceWith("comment-instead", "c1");
   });
   test("without a selection it is disabled, with the reason linked to it", () => {
     const out = missing({ selectionAvailable: false });
-    expect(out).toContain(`<button type="button" class="comments-btn" disabled="" aria-describedby="«r1»">Comment on selection instead</button>`);
+    expect(out).toContain(`<button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled="" aria-describedby="«r1»">Comment on selection instead</button>`);
     expect(out).toContain(`<p class="comments-helper" id="«r1»">Select an element or frame first.</p>`);
     expect(missing()).not.toContain("Select an element or frame first.");
   });
@@ -592,8 +596,8 @@ describe("editing a resolved comment and replacing a missing target (revision-re
     const dialog = DeleteCommentDialog({ comment, replacedOn: "Element · p promo-text · in Home", onCancel, onConfirm });
     const out = renderToStaticMarkup(dialog);
     expect(out).toContain(`aria-label="Delete the original comment?"`);
-    expect(out).toContain("<h3>Delete the original comment?</h3><p>Your text was saved as a new comment on Element · p promo-text · in Home.</p>");
-    expect(out).toContain(`<button type="button" class="comments-btn" autofocus="">Keep both</button><button type="button" class="comments-btn danger">Delete original</button>`);
+    expect(out).toContain("<h3 class=\"doan-dialog-title\">Delete the original comment?</h3><p>Your text was saved as a new comment on Element · p promo-text · in Home.</p>");
+    expect(out).toContain(`<button type="button" class="comments-btn doan-button" data-ui-variant="subtle" autofocus="">Keep both</button><button type="button" class="comments-btn danger doan-button" data-ui-variant="subtle">Delete original</button>`);
     find(dialog, "Keep both").onClick?.(); expect(onCancel).toHaveBeenCalledOnce(); expect(onConfirm).not.toHaveBeenCalled();
     find(dialog, "Delete original").onClick?.(); expect(onConfirm).toHaveBeenCalledOnce();
   });
@@ -603,7 +607,7 @@ describe("editing a resolved comment and replacing a missing target (revision-re
 // the head, above the review notice, and above the canvas-ID block.
 describe("id change notice", () => {
   const notice = { text: "3 comments still use the old ID checkout-v1 and no longer show here.", onShow: noop };
-  const banner = '<div class="comments-message warning notice" role="status">3 comments still use the old ID checkout-v1 and no longer show here.<button type="button" class="comments-btn">Show</button></div>';
+  const banner = `<div class="comments-message warning notice" role="status">${icon}3 comments still use the old ID checkout-v1 and no longer show here.<button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Show</button></div>`;
 
   test("sits right under the head, before the review notice", () => {
     const html = renderToStaticMarkup(<CommentsPanel {...panel({ idNotice: notice, reviewNotice: { count: 3, firstSeen: false, blocked: false, onStart: noop } })} />);

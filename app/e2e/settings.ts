@@ -63,6 +63,9 @@ try {
   const cliRow = settings.locator(".cn-row").filter({ has: settings.getByRole("button", { name: "doan command", exact: true }) });
   await cliRow.getByRole("button", { name: "doan command", expanded: true }).waitFor();
   await cliRow.getByText("Link is broken", { exact: true }).waitFor();
+  // The link and its target stay on one line; the full path is in title.
+  const linkPath = await cliRow.locator(".ob-detail.path").evaluate(node => ({ wrap: getComputedStyle(node).whiteSpace, title: node.getAttribute("title") ?? "" }));
+  assert.equal(linkPath.wrap, "nowrap", "CLI link path stays on one line"); assert.match(linkPath.title, /doan/, "CLI link path keeps its full text in title");
   await wait(() => cliRow.getByRole("button", { name: "Fix…" }).evaluate(node => node === document.activeElement), "banner target action focus");
   await settings.screenshot({ path: join(shots, "02-connections.png") });
   // MCP waits for the doan command: its reason sits right under the dimmed item.
@@ -73,7 +76,7 @@ try {
   await app.evaluate(({ shell }) => { shell.openExternal = async () => { throw new Error("Injected install-page failure"); }; });
   await settings.getByRole("button", { name: "Install Codex ↗", exact: true }).click();
   await settings.getByRole("alert").getByText("Couldn’t open the install page.", { exact: true }).waitFor();
-  check(await settings.getByRole("alert").evaluate(node => (() => { const probe = document.createElement("span"); probe.style.color = "var(--err)"; document.body.append(probe); const expected = getComputedStyle(probe).color; probe.remove(); return getComputedStyle(node).borderLeftColor === expected; })()), "install failure uses the error border");
+  check(await settings.getByRole("alert").evaluate((node, role) => { const icon = node.querySelector(":scope > .doan-alert-icon"); const probe = document.body.appendChild(document.createElement("span")); probe.style.color = `var(${role})`; const expected = getComputedStyle(probe).color; probe.remove(); return getComputedStyle(node).borderLeftWidth === "0px" && icon !== null && getComputedStyle(icon).color === expected; }, "--text-danger"), "install failure leads with the error icon, no left rule");
   assert.equal(await cliRow.getByRole("button", { name: "Fix…" }).isEnabled(), true, "an install-page failure cannot disable connection actions");
   const installCodex = settings.getByRole("button", { name: "Install Codex ↗", exact: true });
   const installClick = async () => {
@@ -128,14 +131,14 @@ try {
   });
   await settings.getByRole("button", { name: "Check Again", exact: true }).first().click();
   const readFailure = settings.getByRole("alert").filter({ hasText: "Couldn’t read connections." }); await readFailure.waitFor();
-  check(await readFailure.evaluate(node => { const probe = document.createElement("span"); probe.style.color = "var(--err)"; document.body.append(probe); const expected = getComputedStyle(probe).color; probe.remove(); return getComputedStyle(node).borderLeftColor === expected; }), "connection read failure uses the error border");
+  check(await readFailure.evaluate((node, role) => { const icon = node.querySelector(":scope > .doan-alert-icon"); const probe = document.body.appendChild(document.createElement("span")); probe.style.color = `var(${role})`; const expected = getComputedStyle(probe).color; probe.remove(); return getComputedStyle(node).borderLeftWidth === "0px" && icon !== null && getComputedStyle(icon).color === expected; }, "--text-danger"), "connection read failure leads with the error icon, no left rule");
   await settings.screenshot({ path: join(shots, "05-connections-read-error.png") });
   await app.evaluate(() => Reflect.get(globalThis, "restoreSetupRead")());
   await settings.getByRole("button", { name: "Check Again", exact: true }).first().click(); await readFailure.waitFor({ state: "hidden" });
   await wait(async () => await settings!.getByRole("button", { name: "Check Again", exact: true }).first().isEnabled(), "connection read settled before busy status");
   await (await appWindow(app, settings)).evaluate(window => window.webContents.send("setup:status", { summary: null, causes: {}, checking: false, busy: true, onboardingClosed: true }));
   const busyNotice = settings.getByRole("status").filter({ hasText: "Another window" }); await busyNotice.waitFor();
-  check(await busyNotice.evaluate(node => { const probe = document.createElement("span"); probe.style.color = "var(--warn)"; document.body.append(probe); const expected = getComputedStyle(probe).color; probe.remove(); return getComputedStyle(node).borderLeftColor === expected; }), "setup busy remains a warning");
+  check(await busyNotice.evaluate((node, role) => { const icon = node.querySelector(":scope > .doan-alert-icon"); const probe = document.body.appendChild(document.createElement("span")); probe.style.color = `var(${role})`; const expected = getComputedStyle(probe).color; probe.remove(); return getComputedStyle(node).borderLeftWidth === "0px" && icon !== null && getComputedStyle(icon).color === expected; }, "--text-warning"), "setup busy remains a warning notice");
   await (await appWindow(app, settings)).evaluate(window => window.webContents.send("setup:status", { summary: null, causes: {}, checking: false, busy: false, onboardingClosed: true }));
   await cliRow.getByRole("button", { name: "Copy", exact: true }).click(); await cliRow.getByRole("button", { name: "Copied", exact: true }).waitFor();
   assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), 'export PATH="$HOME/.local/bin:$PATH"');

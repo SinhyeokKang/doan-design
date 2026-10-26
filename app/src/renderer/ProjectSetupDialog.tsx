@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ProjectInitResult } from "../main/shell";
 import { formView, initMessage, type ProjectForm } from "./onboardingView";
+import { AlertIcon } from "./AlertIcon";
 
 // One project setup form, used by the wizard's Project step and the sidebar's
 // Set Up… dialog. Main keeps the picked CSS file; the renderer holds only its ID.
@@ -38,8 +39,8 @@ export function ProjectFields({ form, choose, chooseRef }: { form: ProjectForm; 
   return <>
     <div className="ob-field">
       <span className="ob-label">Token CSS</span>
-      <span className={view.token === null ? "value none" : "value"}>{view.token ?? "None"}</span>
-      <button type="button" className="btn" disabled={view.choose.disabled} ref={chooseRef} onClick={choose}>Choose…</button>
+      <span className={view.token === null ? "value none" : "value token-path"} title={view.token ?? undefined}>{view.token ?? "None"}</span>
+      <button type="button" className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={view.choose.disabled} ref={chooseRef} onClick={choose}>Choose…</button>
       {view.helper && <span className="ob-helper">{view.helper}</span>}
     </div>
     <div className="ob-field">
@@ -47,7 +48,7 @@ export function ProjectFields({ form, choose, chooseRef }: { form: ProjectForm; 
       <span className="ob-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span>
       <span />
     </div>
-    {view.error && <div className="ob-field"><span className="ob-msg error ob-wide" role="alert">{view.error}</span></div>}
+    {view.error && <div className="ob-field"><span className="ob-msg error ob-wide" role="alert"><AlertIcon /><span>{view.error}</span></span></div>}
   </>;
 }
 
@@ -61,7 +62,7 @@ export function ProjectSetupDialog({ root, name, onClose, onRerooted }: { root: 
     if (result?.kind === "success") { dialog.current?.close(); onClose(); }
     else if (result?.kind === "rerooted") { dialog.current?.close(); onRerooted(result.root, result.message); }
   }
-  return <dialog className="ob-dialog setup-dialog" aria-label="Set Up Project" aria-busy={form.running}
+  return <dialog className="ob-dialog setup-dialog doan-dialog" aria-label="Set Up Project" aria-busy={form.running}
     ref={node => { dialog.current = node; if (node && !node.open) { node.showModal(); chooseButton.current?.focus(); } }}
     onCancel={event => { event.preventDefault(); close(); }}
     onKeyDown={event => {
@@ -70,14 +71,13 @@ export function ProjectSetupDialog({ root, name, onClose, onRerooted }: { root: 
       event.preventDefault(); event.stopPropagation();
       if (!event.nativeEvent.isComposing) close();
     }}>
-    <h3>Set up {name}</h3>
-    <p className="ob-project-path" title={root}>{root}</p>
+    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">Set up {name}</h3><p className="doan-dialog-description ob-project-path" title={root}>{root}</p></div></div>
     <div className="ob-card">
       <ProjectFields form={form} choose={() => void choose()} chooseRef={node => { chooseButton.current = node; }} />
     </div>
-    <div className="ob-buttons">
-      <button type="button" className="btn" disabled={form.running} onClick={close}>Cancel</button>
-      <button type="button" className="btn primary" disabled={form.running} onClick={() => void submit()}>{form.running ? "Setting Up…" : "Set Up Project"}</button>
+    <div className="ob-buttons doan-dialog-actions">
+      <button type="button" className="btn doan-button" data-ui-variant="subtle" disabled={form.running} onClick={close}>Cancel</button>
+      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" disabled={form.running} onClick={() => void submit()}>{form.running ? "Setting Up…" : "Set Up Project"}</button>
     </div>
   </dialog>;
 }

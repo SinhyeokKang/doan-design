@@ -5,7 +5,7 @@ import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
 import { DocumentBindings, stableDiskHash } from "./comments/document";
 import { createTransitionGuard } from "./comments/transitions";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -73,6 +73,8 @@ app.on("web-contents-created", (_event, contents) => {
   contents.setWindowOpenHandler(() => ({ action: "deny" }));
 });
 
+// --bg-app in renderer/tokens.css: windows paint it before the renderer's first frame.
+const SHELL_BACKGROUND = "#f1f1f2";
 let win: BrowserWindow | undefined;
 // Settings is its own window, made on demand and destroyed on close. Its
 // webContents is the only other one IPC accepts; the capture window never is.
@@ -322,6 +324,7 @@ function createWindow(): BrowserWindow {
     // Align with the 40px top bar, 12px horizontal padding, and 52px traffic space before the logo.
     trafficLightPosition: { x: 12, y: 14 },
     title: "Doan Design",
+    backgroundColor: SHELL_BACKGROUND,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -381,6 +384,7 @@ function createSettingsWindow(tab: SettingsTab): BrowserWindow {
   const window = new BrowserWindow({
     ...SETTINGS_WINDOW,
     title: SETTINGS_TITLES[tab],
+    backgroundColor: SHELL_BACKGROUND,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -485,6 +489,9 @@ function storedPath(value: unknown): string | null {
 }
 
 async function start(): Promise<void> {
+  // The UI has one light theme. Native controls, scrollbars and the canvas iframe's
+  // prefers-color-scheme follow this instead of the macOS appearance.
+  nativeTheme.themeSource = "light";
   denyPermissions();
   setMenu();
   const userData = app.getPath("userData");

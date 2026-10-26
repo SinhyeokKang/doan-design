@@ -10,4 +10,11 @@
   --mock-fill: #f3f4f6;
   --mock-brand: #4f46e5;
   --mock-brand-ink: #ffffff;
+  /* Dark and accent-heavy example canvases, for marks and pins that must hold on any design. */
+  --mock-dark-bg: #12141a;
+  --mock-dark-fill: #232733;
+  --mock-dark-ink: #e7e9ef;
+  --mock-violet-bg: #7c3aed;
+  --mock-violet-fill: #6a2bd4;
+  --mock-violet-ink: #f6f0ff;
 }

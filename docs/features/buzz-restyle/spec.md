@@ -20,7 +20,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 모든 자식 feature가 따른다. `buzz-ds`가 main에 들어간 뒤로는 PRODUCT §7이 정본이고, 이 목록은 요약이다.
 
 1. **테마**는 라이트 단일이다. 다크 전용 결정을 대체한다.
-2. **색**: 주요 버튼은 무채색이다. 액센트는 Buzz 기본 family인 **citrus**의 값을 쓰고(12단계 램프와 contrast·ink·pressed·link 쌍), **Buzz가 액센트를 쓰는 용례에 대응하는 자리에만** 쓴다.
+2. **색**: 주요 버튼은 무채색이다. 액센트는 **doan 고유 violet 램프**를 쓰고(9단계 `#973be1`, 흰 글자. 12단계와 contrast·ink·pressed·link 쌍은 레퍼런스 iris 램프의 단계별 밝기 구조에 violet 색상을 얹어 doan이 만든다. 2026-10-26 user, 처음 결정한 Buzz citrus와 중간에 고른 오렌지를 대체), **Buzz가 액센트를 쓰는 용례에 대응하는 자리에만** 쓴다.
    - 메시지 버블 → 코멘트 카드(연한 액센트 채움, Buzz의 Chillin' 수준)
    - Send 버튼 → 코멘트 제출 버튼(진한 액센트 채움)
    - 사이드바 hover·선택 → 사이드바 트리의 현재 위치 행(`aria-current="location"`, 진한 선택 채움 + 짝 글자)과 트리 행 hover(더 옅은 채움)
@@ -45,7 +45,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 
 | # | slug | 화면 | 범위 (지금 코드) | 선행 |
 |---|---|---|---|---|
-| 0 | `buzz-ds` | 디자인 시스템 | 라이트 토큰·역할(기존 이름은 별칭), 액센트 citrus, `themeSource` light, 타입·모서리·재질·모션, shadcn 테마 연결, 공용 컴포넌트 스타일(버튼, `IconButton`, `Panel`, 툴팁, 메뉴·팝오버, 다이얼로그 틀, 토스트, 스피너, 포커스, disabled, 스크롤바), 공통 결정 10의 공유 요소, 모달 scrim 값, 대비·변수 검사, DESIGN.md 디자인 시스템 절. 문서: [`../buzz-ds/`](../buzz-ds/spec.md) | 없음 |
+| 0 | `buzz-ds` | 디자인 시스템 | 라이트 토큰·역할(기존 이름은 별칭), 액센트 violet 램프, `themeSource` light, 타입·모서리·재질·모션, shadcn 테마 연결, 공용 컴포넌트 스타일(버튼, `IconButton`, `Panel`, 툴팁, 메뉴·팝오버, 다이얼로그 틀, 토스트, 스피너, 포커스, disabled, 스크롤바), 공통 결정 10의 공유 요소, 모달 scrim 값, 대비·변수 검사, DESIGN.md 디자인 시스템 절. 문서: [`../buzz-ds/`](../buzz-ds/spec.md) | 없음 |
 | 1 | `buzz-shell` | 앱 셸 | Buzz `AppShell` 골격 이식: 점 격자 셸, 메인 창의 모든 헤더 띠(작업 공간과 Home의 헤더, 신호등·드래그 영역·아이콘 버튼·항목 자리), 사이드바 `Panel`, 메인 `Panel joined` 안에 도킹한 오른쪽 열의 틀, 창 옵션(`App.tsx` 셸 마크업, main `BrowserWindow`) | buzz-ds |
 | 2 | `buzz-onboarding` | 온보딩 | Buzz 첫 실행 표면을 온보딩 위저드에(`Onboarding.tsx`). 위저드는 Close·Escape가 있는 모달 `<dialog>`로 유지한다. doan 워드마크와 배경 결정 | buzz-ds |
 | 3 | `buzz-home` | 프로젝트 홈 | 프로젝트 카드 목록, 워크트리 행, 행 메뉴, 빈 상태, 드롭 오버레이, 연결 칩, 설정 배너, "Finish setting up doan" 카드(`Home.tsx`, `DropOverlay.tsx`) | buzz-shell |
@@ -72,7 +72,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
   - 2026-10-25 공유 툴팁 패딩 12/6px: `buzz-ds`가 기록
   - 2026-10-22 Window 결정(상단 40px, 신호등 (12, 14), top bar 전체가 드래그 영역)과 Layout V1의 오른쪽 패널 서술: `buzz-shell`이 기록
 - `docs/DESIGN.md`에 "buzz-ds 이전" 표시가 남아 있지 않다. 확인: `grep -n 'buzz-ds 이전' docs/DESIGN.md` 결과 없음.
-- 렌더러 CSS에 다크 시절 값이 남아 있지 않다. 확인: `grep -nE 'color-scheme: *dark|#121212|#171717|#1d1d1d|#ecebe4|#f0773a' app/src/renderer/*.css` 결과 없음.
+- 렌더러 CSS에 다크 시절 값이 남아 있지 않다. 확인: `grep -nE 'color-scheme: *dark|#121212|#171717|#1d1d1d|#ecebe4|#f0773a|#3a2117|#1a0b03' app/src/renderer/*.css` 결과 없음.
 - 이 디렉터리(`docs/features/buzz-restyle/`)를 지웠다.
 
 ## 비목표

@@ -1,35 +1,245 @@
-/* Design tokens shared by the app renderer and the app-ui draft canvas
-   (design/app-shell.html links this file; .doan/config.json points tokenCss here).
-   MVP is a single dark theme (2026-10-22 user), set in the system sans only (no monospace).
+/* Design tokens shared by the app renderer and the draft canvases in design/
+   (drafts link this file; .doan/config.json points tokenCss here). One light theme.
+   Three layers, top to bottom:
+   1. Palette: the only literal colours (neutral ramp, violet accent ramp, status hues).
+   2. Roles: what a value is for. Renderer code reads roles only, never palette steps.
+   3. Legacy names: var() aliases of roles that keep drafts drawn before this system
+      resolving. The renderer does not read them.
    Keep plain :root variables only: the file is served to canvases as-is and scanned by
    `doan check`, so Tailwind directives or CSS imports would break both (an imported file is
-   outside the serving scope). Orange, #ecebe4 and #8f8e87 follow Sorcerer's README badges. */
+   outside the serving scope). */
 
+/* 1. Palette */
 :root {
-  --bg: #121212;
-  --panel: #171717;
-  --panel-2: #1d1d1d;
-  --raised: #242424;
-  --line: #2a2a2a;
-  --line-2: #212121;
-  --text: #ecebe4;
-  --text-2: #b5b3ab;
-  --text-3: #8f8e87;
-  --text-4: #5f5e59;
-  --accent: #f0773a;
-  --accent-ink: #1a0b03;
-  --accent-soft: #3a2117;
-  --accent-line: #f0773a;
-  --board-bg: #0c0c0c;
-  --board-dot: #1e1e1e;
-  --ok: #6cc07a;
-  --warn: #e8b04b;
-  --err: #ef5b4c;
-  --shadow-1: 0 1px 2px #00000066, 0 0 0 1px #ffffff0d;
-  --shadow-2: 0 10px 30px #00000099, 0 0 0 1px #ffffff12;
-  --tl-red: #ff5f57;
-  --tl-yellow: #febc2e;
-  --tl-green: #28c840;
+  --neutral-1: #ffffff;
+  --neutral-quiet-hover: #f1f1f2;
+  --neutral-2: #f5f5f6;
+  --neutral-3: #e8e8e8;
+  --neutral-4: #dadada;
+  --neutral-5: #cccccc;
+  --neutral-6: #b3b3b3;
+  --neutral-7: #959595;
+  --neutral-8: #808080;
+  --neutral-9: #5f5f5f;
+  --neutral-10: #525252;
+  --neutral-11: #191919;
+  --neutral-12: #000000;
+  --neutral-standard-text: #0f0f0f;
+  --neutral-action-pressed: #525252;
+  --neutral-glass: rgb(255 255 255 / 90%);
+  --neutral-backdrop-hover: rgb(0 0 0 / 6%);
+  --neutral-backdrop-pressed: rgb(0 0 0 / 10%);
+  --neutral-scrim: #00000060;
 
-  --font-sans: ui-sans-serif, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  /* doan's accent ramp, violet. Each step takes the per-step OKLCH lightness and chroma
+     share (relative to step 9) of a reference twelve-step light ramp whose 9 carries white
+     text, at hue 305, gamut-clamped by reducing chroma. White is the text on 9: it clears
+     4.5:1 and APCA Lc 60 there. Hover (10) and pressed are darker than 9, so white text
+     only gains contrast. */
+  --violet-1: #fdfbfe;
+  --violet-2: #fbf8fe;
+  --violet-3: #f5f0fd;
+  --violet-4: #efe7fa;
+  --violet-5: #e9ddf9;
+  --violet-6: #e2d2f7;
+  --violet-7: #d6c1f0;
+  --violet-8: #c7aee6;
+  --violet-9: #973be1;
+  --violet-10: #9033d9;
+  --violet-11: #543871;
+  --violet-12: #342743;
+  --violet-contrast: #ffffff;
+  --violet-ink: #ffffff;
+  --violet-pressed: #8a2dd2;
+  --violet-link: #63019d;
+
+  --red-3: #feebec;
+  --red-9: #e5484d;
+  --red-12: #641723;
+  --amber-3: #fff7c2;
+  --amber-11: #ab6400;
+  --amber-12: #4f3422;
+  --green-3: #e6f6eb;
+  --green-12: #193b2d;
+
+  --font-system-sans: ui-sans-serif, -apple-system, "Apple SD Gothic Neo", sans-serif;
+}
+
+/* 2. Roles */
+:root {
+  --bg-app: var(--neutral-quiet-hover);
+  --bg-scrim: var(--neutral-scrim);
+  /* The drop target is the whole window, so its scrim recedes the content further than a modal's. */
+  --bg-scrim-drop: color-mix(in srgb, var(--bg-scrim) 50%, black);
+  --surface-panel: var(--neutral-1);
+  --surface-popover: var(--neutral-1);
+  --surface-elevated-glass: var(--neutral-glass);
+  --surface-inset: var(--neutral-2);
+  --surface-navigation-selected: var(--neutral-3);
+  /* Dots are a shade of the shell, never an independent grey. */
+  --texture-dots-color: color-mix(in srgb, var(--bg-app) 94%, black);
+  --texture-dots-size: 24px;
+
+  --text-standard: var(--neutral-standard-text);
+  --text-subtle: var(--neutral-10);
+  --text-metadata: var(--neutral-9);
+  /* Below the contrast targets on purpose: low contrast is how an unavailable control reads. */
+  --text-disabled: var(--neutral-7);
+  --text-on-prominent: var(--neutral-1);
+  --text-link: var(--text-standard);
+  --text-danger: var(--red-12);
+  --text-warning: var(--amber-12);
+  --text-success: var(--green-12);
+
+  --border-standard: var(--neutral-3);
+  --border-prominent: var(--neutral-8);
+  --border-focus: var(--neutral-12);
+  --border-danger: var(--red-9);
+  --border-warning: var(--amber-11);
+  --scrollbar-thumb-quiet: color-mix(in srgb, var(--border-standard) 90%, transparent);
+
+  --affordance-prominent: var(--neutral-12);
+  --affordance-prominent-hover: var(--neutral-11);
+  --affordance-prominent-pressed: var(--neutral-action-pressed);
+  --affordance-subtle: var(--neutral-2);
+  --affordance-subtle-hover: var(--neutral-quiet-hover);
+  --affordance-subtle-pressed: var(--neutral-4);
+  --affordance-backdrop-hover: var(--neutral-backdrop-hover);
+  --affordance-backdrop-pressed: var(--neutral-backdrop-pressed);
+  --affordance-floating-hover: var(--neutral-2);
+  --affordance-selected: var(--neutral-3);
+  --affordance-disabled: var(--neutral-3);
+  --affordance-danger: var(--red-3);
+  --affordance-warning: var(--amber-3);
+  --affordance-success: var(--green-3);
+
+  /* Violet belongs to a fixed set of places only: the current sidebar row and its
+     hover, comment pins, the comment submit button and comment cards. */
+  --surface-sidebar-selected: var(--violet-9);
+  --text-sidebar-selected: var(--violet-contrast);
+  --affordance-sidebar-hover: var(--violet-2);
+  --surface-comment: var(--violet-4);
+  --text-comment: var(--violet-12);
+  --affordance-accent: var(--violet-9);
+  --affordance-accent-hover: var(--violet-10);
+  --affordance-accent-pressed: var(--violet-pressed);
+  --text-on-accent: var(--violet-contrast);
+  /* Pins sit on any canvas: the dark rim holds on light ones, the white halo on dark ones.
+     The rim is black, not a violet step: it must reach 3:1 against the violet 9 fill, and
+     a violet that dark would fall below step 12. */
+  --border-pin: var(--neutral-12);
+  --halo-pin: var(--neutral-1);
+
+  /* macOS window control artwork, drawn by drafts; fixed by the OS, not by this system. */
+  --window-close: #ff5f57;
+  --window-minimize: #febc2e;
+  --window-zoom: #28c840;
+
+  --space-half: 2px;
+  --space-1: 4px;
+  --space-1h: 6px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-16: 64px;
+  --space-panel-gap: var(--space-2);
+  --space-panel-inset: var(--space-6);
+  --space-control-inset: var(--space-4);
+  --space-row-gap: var(--space-2);
+  --space-section-gap: var(--space-8);
+  --space-chip-inset: 3px;
+  --size-control-sm: 32px;
+  --size-control: 40px;
+  --size-icon: 16px;
+
+  /* Containers stop at 28px; capsules and pills are separate shapes. A nested
+     corner is max(0, outer − inset − border), not the next step down. */
+  --radius-chip: 12px;
+  --radius-row: 16px;
+  --radius-control: 20px;
+  --radius-container: 24px;
+  --radius-panel: 28px;
+  --radius-icon-button: 18px;
+  --radius-toolbar-icon: 10px;
+  --radius-capsule: 34px;
+  --radius-pill: 9999px;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 0 2px rgba(0, 0, 0, 0.1), 0 4px 8px -2px rgba(0, 0, 0, 0.06);
+  --shadow-panel: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --blur-sm: 8px;
+  --blur-md: 16px;
+  --blur-lg: 32px;
+
+  --time-fast: 120ms;
+  --time-state: 150ms;
+  --time-panel-enter: 180ms;
+  --time-settle: 220ms;
+  --ease-state: ease;
+  --ease-enter: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-settle: cubic-bezier(0.645, 0.045, 0.355, 1);
+
+  /* Type roles: size, line height, tracking and weight travel together. Regular
+     is for reading and form labels, medium for actions and structure. */
+  --type-family: var(--font-system-sans);
+  --type-weight-regular: 400;
+  --type-weight-medium: 500;
+  --type-caption-size: 12px;
+  --type-caption-line-height: 16px;
+  --type-caption-letter-spacing: 0.0133em;
+  --type-body-sm-size: 14px;
+  --type-body-sm-line-height: 20px;
+  --type-body-sm-letter-spacing: -0.0025em;
+  --type-body-size: 14px;
+  --type-body-line-height: 20px;
+  --type-body-letter-spacing: -0.005em;
+  --type-label-sm-size: 14px;
+  --type-label-sm-line-height: 20px;
+  --type-label-sm-letter-spacing: 0.0025em;
+  --type-label-size: 16px;
+  --type-label-line-height: 24px;
+  --type-label-letter-spacing: 0em;
+  --type-body-lg-size: 20px;
+  --type-body-lg-line-height: 28px;
+  --type-body-lg-letter-spacing: -0.01em;
+  --type-heading-size: 24px;
+  --type-heading-line-height: 1.1;
+  --type-heading-letter-spacing: -0.0075em;
+  --type-title-size: 32px;
+  --type-title-line-height: 1.1;
+  --type-title-letter-spacing: -0.015em;
+}
+
+/* 3. Legacy names, for drafts only */
+:root {
+  --bg: var(--bg-app);
+  --panel: var(--surface-panel);
+  --panel-2: var(--surface-inset);
+  --raised: var(--surface-popover);
+  --line: var(--border-standard);
+  --line-2: var(--border-standard);
+  --text: var(--text-standard);
+  --text-2: var(--text-subtle);
+  --text-3: var(--text-metadata);
+  --text-4: var(--text-disabled);
+  /* Old drafts pair this mid grey with the white accent ink on primary buttons: 3.95:1,
+     under the body target, accepted because those drafts are history, not screens. */
+  --accent: var(--border-prominent);
+  --accent-ink: var(--text-on-accent);
+  --accent-soft: var(--surface-navigation-selected);
+  --accent-line: var(--border-focus);
+  --board-bg: var(--surface-inset);
+  --board-dot: var(--texture-dots-color);
+  --ok: var(--text-success);
+  --warn: var(--text-warning);
+  --err: var(--text-danger);
+  --shadow-1: var(--shadow-xs);
+  --shadow-2: var(--shadow-panel);
+  --tl-red: var(--window-close);
+  --tl-yellow: var(--window-minimize);
+  --tl-green: var(--window-zoom);
+  --font-sans: var(--type-family);
 }

@@ -5,6 +5,7 @@ import { handoffCopied, quickSelect, type QuickKind } from "../comments/handoff"
 import { groupProjects } from "./homeCards";
 import { COPY_FAILED } from "./onboardingView";
 import type { HandoffDialog } from "./CommentsSession";
+import { AlertIcon } from "./AlertIcon";
 
 // design/agent-handoff.html, frames dialog, dialog-states and copy-states.
 
@@ -55,7 +56,7 @@ export function HandOffDialog({ dialog, context, notice, onToggle, onQuick, onCo
     if (event.key !== "Enter" || composing || tag === "BUTTON" || tag === "SUMMARY") return;
     event.preventDefault(); press();
   };
-  return <dialog className="comments-dialog handoff-dialog" aria-label="Hand off to your agent" aria-busy={copying} tabIndex={-1}
+  return <dialog className="comments-dialog handoff-dialog doan-dialog" aria-label="Hand off to your agent" aria-busy={copying} tabIndex={-1}
     ref={node => {
       element = node;
       if (!node || node.open) return;
@@ -67,29 +68,29 @@ export function HandOffDialog({ dialog, context, notice, onToggle, onQuick, onCo
     }}
     onCancel={event => { event.preventDefault(); close(); }}
     onKeyDown={keyDown}>
-    <h3>Hand off to your agent</h3>
+    <h3 className="doan-dialog-title">Hand off to your agent</h3>
     <p className="handoff-context">{context}</p>
     <div className="handoff-quick" role="group" aria-label="Quick select">
-      <button type="button" className="comments-btn" disabled={locked} onClick={() => onQuick("all")}>All</button>
-      <button type="button" className="comments-btn" disabled={locked} onClick={() => onQuick("none")}>None</button>
-      <button type="button" className="comments-btn" disabled={locked || "disabled" in selection} title={"disabled" in selection ? selection.disabled : undefined} onClick={() => onQuick("selection")}>Selection</button>
+      <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={locked} onClick={() => onQuick("all")}>All</button>
+      <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={locked} onClick={() => onQuick("none")}>None</button>
+      <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={locked || "disabled" in selection} title={"disabled" in selection ? selection.disabled : undefined} onClick={() => onQuick("selection")}>Selection</button>
     </div>
     {rows.length > 0 && <div className="handoff-list native-scroll">
       {rows.map(row => <label key={row.comment.comment} className="handoff-row">
-        <input type="checkbox" checked={checked.includes(row.comment.comment)} disabled={locked} onChange={() => onToggle(row.comment.comment)} />
+        <input type="checkbox" className="doan-checkbox" checked={checked.includes(row.comment.comment)} disabled={locked} onChange={() => onToggle(row.comment.comment)} />
         <span className="handoff-text"><span className="handoff-target" title={row.target.title}>{row.target.text}</span><span className="handoff-body" title={row.comment.body}>{row.first}</span></span>
       </label>)}
     </div>}
     {n > 0 && <details className="handoff-instruction"><summary>Show instruction</summary><div className="handoff-preview">{copyText(dialog.root, dialog.canvas, rows.map(row => row.comment), checked)}</div></details>}
-    {notice && <p className="handoff-notice">{notice}</p>}
-    {copy.status === "failed" && <p className="handoff-status error" role="alert">{COPY_FAILED}</p>}
-    {copy.status === "stale" && <p className="handoff-status warning" role="alert">{staleText(copy.count)}</p>}
-    {copy.status === "copied" && <p className="handoff-status ok" role="status">{handoffCopied(copy.count)}</p>}
-    <div className="handoff-actions">
+    {notice && <p className="handoff-notice doan-notice warning"><AlertIcon /><span>{notice}</span></p>}
+    {copy.status === "failed" && <p className="handoff-status doan-notice error" role="alert"><AlertIcon /><span>{COPY_FAILED}</span></p>}
+    {copy.status === "stale" && <p className="handoff-status doan-notice warning" role="alert"><AlertIcon /><span>{staleText(copy.count)}</span></p>}
+    {copy.status === "copied" && <p className="handoff-status doan-notice ok" role="status">{handoffCopied(copy.count)}</p>}
+    <div className="handoff-actions doan-dialog-actions">
       {n === 0 && !locked ? <span className="comments-helper">Choose at least one comment.</span> : <span className="spacer" />}
-      {!copied && <button type="button" className="comments-btn" disabled={copying} onClick={close}>Cancel</button>}
-      {copied ? <button key="done" type="button" className="comments-btn primary" autoFocus onClick={close}>Done</button>
-        : <button key="copy" type="button" className="comments-btn primary" disabled={copying || n === 0} onClick={press}>{copying ? "Copying…" : copy.status === "failed" ? "Retry copy" : `Copy ${n}`}</button>}
+      {!copied && <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" disabled={copying} onClick={close}>Cancel</button>}
+      {copied ? <button key="done" type="button" className="comments-btn primary doan-button" data-ui-variant="prominent" autoFocus onClick={close}>Done</button>
+        : <button key="copy" type="button" className="comments-btn primary doan-button" data-ui-variant="prominent" disabled={copying || n === 0} onClick={press}>{copying ? "Copying…" : copy.status === "failed" ? "Retry copy" : `Copy ${n}`}</button>}
     </div>
   </dialog>;
 }

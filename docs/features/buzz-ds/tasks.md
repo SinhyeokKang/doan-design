@@ -2,7 +2,7 @@
 
 **선행 조건**: 부모 [`buzz-restyle/tasks.md`](../buzz-restyle/tasks.md)의 H1~H3이 체크되어 있어야 시작한다(부모 feature 정의, `/design-draft`·`/design-sync` 확장, Buzz 참조 명령).
 
-**진행**: `/ship bypass`로 아래 네 단계를 하나씩 진행한다(`/ship`은 bypass일 때 한 번에 한 단계만 돈다). `feat-buzz-ds` 브랜치에서 시작해 S4 뒤 push와 PR로 끝난다.
+**진행**: `/orchestrate`로 아래 네 단계를 하나씩 진행한다(2026-10-26 user, 처음 계획은 `/ship bypass`였다). 단계마다 워커 하나가 `/ship bypass` 방식으로 맡고, batch 표와 결정은 [orch.md](./orch.md)에 있다. `feat-buzz-ds` 브랜치에서 시작해 S4 뒤 push와 PR로 끝난다.
 - S1 = A1~A4 (테스트, 토큰, 디자인 시스템 CSS)
 - S2 = A5 (초안. 사용자가 초안을 확인할 때까지 멈춘다)
 - S3 = A6~A8 (대응표, 공용 컴포넌트, 공유 요소)
@@ -42,7 +42,7 @@ design.md '초안 요청'대로 `design/buzz-ds.html`을 그린다. 그린 뒤 �
 ## S3
 
 ### A6. 셀렉터 대응표 적용
-design.md '셀렉터 대응표'의 모든 줄을 옮긴다(citrus, 무채색, opacity, scrim). 코멘트 저장 버튼 두 곳에 `submit` modifier를 붙인다. 바뀐 e2e 고정값(disabled `opacity 0.4`: `app/e2e/presentation.ts:66`, `app/e2e/runtime.ts:331-332`; 충돌 규칙 색 `app/e2e/comments-ui.ts:683` 등)을 갱신한다.
+design.md '셀렉터 대응표'의 모든 줄을 옮긴다(violet, 무채색, opacity, scrim). 코멘트 저장 버튼 두 곳에 `submit` modifier를 붙인다. 바뀐 e2e 고정값(disabled `opacity 0.4`: `app/e2e/presentation.ts:66`, `app/e2e/runtime.ts:331-332`; 충돌 규칙 색 `app/e2e/comments-ui.ts:683` 등)을 갱신한다.
 - 검증: `grep -rniE '#f0773a|#3a2117|#1a0b03' app/src` 결과 없음. 기존 이름 별칭 grep(spec 완료 조건) 결과 없음. `accentPlaces`, `contrastPairs` 실제 파일 테스트 green. `npm --prefix app run e2e` 최종 PASS.
 
 ── commit: `feat(app): map accents to light roles` ──

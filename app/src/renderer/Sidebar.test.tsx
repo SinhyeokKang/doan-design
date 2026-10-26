@@ -101,7 +101,7 @@ test("a row whose comment file could not be read shows the warning and the comme
   const html = sidebar(initialCanvasState(), { ...row, open: 0, commentsError: { code: "unreadable_comments", message: "Cannot read .doan/comments/plans.jsonl: permission denied" } });
   expect(html).toMatch(/aria-label="Billing &amp; plans"[^>]*aria-describedby="([^"]+)"/);
   const id = /aria-label="Billing &amp; plans"[^>]*aria-describedby="([^"]+)"/.exec(html)![1]!;
-  expect(html).toContain(`<p class="tree-hint warn" id="${id}" style="padding-left:46px">Couldn’t read this canvas’s comments — run doan check<br/><button type="button" class="btn" aria-label="Details" aria-expanded="false">Details ▸</button></p>`);
+  expect(html).toContain(`<p class="tree-hint warn" id="${id}" style="padding-left:46px">Couldn’t read this canvas’s comments — run doan check<br/><button type="button" class="btn doan-button" data-ui-size="sm" aria-label="Details" aria-expanded="false">Details ▸</button></p>`);
   expect(html).toContain('<span class="warn-mark" aria-hidden="true">⚠</span>');
   expect(html).not.toContain("permission denied");
   expect(html).not.toContain('class="cnt');

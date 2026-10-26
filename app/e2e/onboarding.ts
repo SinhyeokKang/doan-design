@@ -583,9 +583,9 @@ else if (args[1] === 'add') {
   await writeFile(join(project, "design/first.html"), canvasHtml("First")); await wait(async () => await openCanvas().textContent() === "First", "arrival opened in its workspace");
 
   console.log("onboarding: 5 sidebar setup, re-root and modal/draft preservation");
-  const plain = await newRepo("company-monorepo/packages/applications/marketing-web-frontend/plain"); await open(plain); let plainRow = homeRow(page, plain); await plainRow.getByRole("button", { name: "Set Up…", exact: true }).click();
+  const plain = await newRepo("company-monorepo/packages/applications/marketing-web-frontend/experiments/2026-campaign-landing-pages/plain"); await open(plain); let plainRow = homeRow(page, plain); await plainRow.getByRole("button", { name: "Set Up…", exact: true }).click();
   const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true }); await setup.waitFor();
-  await assertProjectPath(setup.locator(":scope > p"), setup, plain, "setup dialog");
+  await assertProjectPath(setup.locator(".ob-project-path"), setup, plain, "setup dialog");
   assert.equal(await focusIs(setup.getByRole("button", { name: "Choose…", exact: true })), true);
   await setup.getByRole("button", { name: "Set Up Project", exact: true }).click(); await setup.waitFor({ state: "hidden" }); await enterProject(page, plain); plainRow = overview(); await subject(plainRow).waitFor();
   const noToken = JSON.parse(await readFile(join(plain, ".doan/config.json"), "utf8")); assert.equal(noToken.tokenCss, undefined);
@@ -656,6 +656,14 @@ else if (args[1] === 'add') {
   assert.equal(await focusIs(notRepo.getByRole("button", { name: "Cancel", exact: true })), true);
   await page.keyboard.press("Escape"); await notRepo.waitFor({ state: "hidden" }); assert.equal(await wizard().isVisible(), true); assert.ok(!(await stored()).includes(notes));
   await wait(() => focusIs(button("Open Project…")), "focus returns to Open Project… after not-a-repository");
+  // Dialogs over the wizard fade out while still in the top layer. Closed by a button this
+  // time, the dialog must hand focus back and leave the wizard taking clicks once it is gone.
+  await button("Open Project…").click(); await notRepo.waitFor();
+  await notRepo.getByRole("button", { name: "Cancel", exact: true }).click(); await notRepo.waitFor({ state: "hidden" });
+  await wait(() => focusIs(button("Open Project…")), "focus returns to Open Project… after Cancel");
+  const onTop = () => button("Open Project…").evaluate(node => { const r = node.getBoundingClientRect(); return node.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)); });
+  await wait(onTop, "nothing covers the wizard after the dialog fades", 2_000);
+  await stepButton("Project").click({ timeout: 2_000 }); assert.equal(await wizard().isVisible(), true); assert.equal(await focusIs(stepButton("Project")), true);
   await button("Open Project…").click(); await notRepo.waitFor(); await notRepo.getByRole("button", { name: "Set Up…", exact: true }).click(); await notRepo.waitFor({ state: "hidden" });
   await button("Set Up Project").waitFor(); await wizard().locator(".ob-field .value").first().getByText(notes, { exact: true }).waitFor(); assert.ok((await stored()).includes(notes));
   await page.keyboard.press("Escape"); await closed();

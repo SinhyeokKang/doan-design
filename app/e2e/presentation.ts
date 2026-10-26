@@ -41,10 +41,11 @@ async function token(page: Page, name: string) {
   return page.evaluate(name => { const el = document.createElement("span"); el.style.color = `var(${name})`; document.body.append(el); const color = getComputedStyle(el).color; el.remove(); return color; }, name);
 }
 async function shot(page: Page, name: string) { const path = join(shots, `${name}.png`); await page.screenshot({ path }); console.log(`screenshot: ${path}`); }
-async function focus(page: Page, node: Locator, label: string, primary = true) {
+async function focus(page: Page, node: Locator, label: string) {
   const unfocused = await styles(node); await page.keyboard.press("Tab"); await node.focus();
-  const measured = await styles(node), expected = await token(page, primary ? "--accent-ink" : "--accent-line");
-  check(await node.evaluate(el => el.matches(":focus-visible")) && measured.outline[0] === expected && measured.outline[1] === "1px" && measured.outline[2] === (primary ? "-3px" : "-1px"), label, measured);
+  // One outer ring for every button, primary or not.
+  const measured = await styles(node), expected = await token(page, "--border-focus");
+  check(await node.evaluate(el => el.matches(":focus-visible")) && measured.outline[0] === expected && measured.outline[1] === "2px" && measured.outline[2] === "2px", label, measured);
   check(unfocused.width === measured.width && unfocused.height === measured.height, `${label} geometry unchanged`, measured);
 }
 async function reason(page: Page, label: string) {
@@ -52,23 +53,34 @@ async function reason(page: Page, label: string) {
   if (await row.locator(".cn-name").getAttribute("aria-expanded") !== "true") await row.locator(".cn-name").click();
   const child = row.locator(".ob-reason code"); await child.waitFor();
   const m = await styles(child);
-  check(m.color === await token(page, "--text-2") && m.background === await token(page, "--raised") && m.radius === "4px" && JSON.stringify(m.padding) === JSON.stringify(["0px", "4px", "0px", "4px"]), `${label} actual reason code`, m);
+  check(m.color === await token(page, "--text-standard") && m.background === await token(page, "--surface-panel") && m.radius === "4px" && JSON.stringify(m.padding) === JSON.stringify(["0px", "4px", "0px", "4px"]), `${label} actual reason code`, m);
   const shared = await styles(row);
   check(shared.display === "grid" && shared.gap === "4px 12px" && shared.padding[0] === "12px", `${label} shared connection CSS`, shared);
-  check(await page.locator("html").evaluate(el => getComputedStyle(el).colorScheme) === "dark", `${label} renderer dark`, await styles(page.locator("html")));
+  check(await page.locator("html").evaluate(el => getComputedStyle(el).colorScheme) === "light", `${label} renderer light`, await styles(page.locator("html")));
+}
+// Field borders change colour over 150ms; poll until no transition is running (getAnimations
+// flushes style first) so each check reads the settled value, including one that must stay
+// put after blur.
+async function settled(node: Locator) {
+  await waitFor(() => node.evaluate(el => el.getAnimations().length === 0), "field border transition");
 }
 async function firstPrompt(page: Page, label: string) {
   const input = page.locator(".fp-input"); await input.waitFor();
   await input.fill("a".repeat(501));
+  await settled(input);
   const invalid = await styles(input);
-  check(await input.getAttribute("aria-invalid") === "true" && invalid.outline[0] === await token(page, "--err") && invalid.border === await token(page, "--err") && await page.locator(".fp-error").isVisible(), `${label} invalid focus`, invalid);
+  // The field shows focus and errors with its own border, never an outline ring.
+  check(await input.getAttribute("aria-invalid") === "true" && await input.evaluate(el => getComputedStyle(el).outlineStyle) === "none" && invalid.border === await token(page, "--border-danger") && await page.locator(".fp-error").isVisible(), `${label} invalid focus`, invalid);
   const disabled = page.locator(".ob-prompt .btn.primary");
-  check(await disabled.isDisabled() && (await styles(disabled)).opacity === "0.4", `${label} disabled primary preserved`, await styles(disabled));
+  const disabledStyles = await styles(disabled);
+  check(await disabled.isDisabled() && disabledStyles.opacity === "1" && disabledStyles.color === await token(page, "--text-disabled") && disabledStyles.background === await token(page, "--affordance-disabled"), `${label} disabled primary preserved`, disabledStyles);
   await shot(page, `${label}-invalid-focus`);
   await input.press("Tab");
-  check((await styles(input)).border === await token(page, "--err"), `${label} invalid blur border`, await styles(input));
+  await settled(input);
+  check((await styles(input)).border === await token(page, "--border-danger"), `${label} invalid blur border`, await styles(input));
   await input.fill("a sign-in screen");
-  check(await input.getAttribute("aria-invalid") === null && (await styles(input)).outline[0] === await token(page, "--accent-line"), `${label} valid focus`, await styles(input));
+  await settled(input);
+  check(await input.getAttribute("aria-invalid") === null && (await styles(input)).border === await token(page, "--border-prominent"), `${label} valid focus`, await styles(input));
   await focus(page, page.locator(".ob-prompt .btn.primary"), `${label} primary focus`);
   await shot(page, `${label}-focus`);
 }
@@ -147,43 +159,52 @@ try {
     await canvasRow(page, "canvas.html").click();
     const frame = page.locator("iframe").contentFrame(); await frame.locator("section").waitFor();
     await page.locator(".zctl:not(.disabled)").waitFor();
-    // An iframe's preferred scheme comes from its embedding element. Compare
-    // with the pre-change renderer default without changing OS preferences.
-    const canvasScheme = async () => frame.locator("section").evaluate(el => ({
-      dark: matchMedia("(prefers-color-scheme: dark)").matches,
-      light: matchMedia("(prefers-color-scheme: light)").matches,
-      color: getComputedStyle(el).color,
-    }));
-    const initialScheme = await canvasScheme();
+    // A dark macOS appearance reaches pages through nativeTheme, which main pins
+    // light. Force that path to dark: the canvas must still prefer light, because the
+    // renderer's light color-scheme on the iframe element decides an iframe's preference
+    // (measured 2026-10-26). page.emulateMedia cannot stand in for the OS: it overrides
+    // every frame's media, the canvas included.
+    const canvasScheme = async () => {
+      await frame.locator("section").evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      return frame.locator("section").evaluate(el => ({
+        dark: matchMedia("(prefers-color-scheme: dark)").matches,
+        light: matchMedia("(prefers-color-scheme: light)").matches,
+        color: getComputedStyle(el).color,
+      }));
+    };
     const reloadCanvas = async () => {
       const previous = await page.locator("iframe").elementHandle(); assert.ok(previous);
       await page.getByRole("button", { name: "Reload canvas", exact: true }).click();
       await waitFor(async () => !await previous.evaluate(el => el.isConnected), "recreated canvas iframe");
       await frame.locator("section").waitFor(); await page.locator(".zctl:not(.disabled)").waitFor();
     };
-    await page.locator("html").evaluate(el => { el.style.colorScheme = "normal"; });
+    // Playwright emulates a light preference by default, which would hide nativeTheme;
+    // drop it so the probe sees what a real launch sees.
+    await page.emulateMedia({ colorScheme: null });
+    const light = JSON.stringify({ dark: false, light: true, color: "rgb(1, 2, 3)" });
+    const themeSource = await app.evaluate(({ nativeTheme }) => nativeTheme.themeSource);
+    const initialScheme = await canvasScheme();
+    check(themeSource === "light" && JSON.stringify(initialScheme) === light, "canvas media preference light", { themeSource, initialScheme });
+    await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = "dark"; });
+    await waitFor(() => page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches), "app follows a dark nativeTheme");
+    const darkScheme = await canvasScheme();
     await reloadCanvas();
-    await frame.locator("section").evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-    const baselineScheme = await canvasScheme();
-    await page.locator("html").evaluate(el => { el.style.removeProperty("color-scheme"); });
-    await frame.locator("section").evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-    const actualScheme = await canvasScheme();
-    await reloadCanvas();
-    const recreatedScheme = await canvasScheme();
-    const embeddingScheme = await page.locator("iframe").evaluate(el => ({ scheme: getComputedStyle(el).colorScheme, sandbox: el.getAttribute("sandbox") }));
-    check([initialScheme, actualScheme, recreatedScheme].every(value => JSON.stringify(value) === JSON.stringify(baselineScheme)), "canvas media preference survives renderer dark scheme", { initialScheme, baselineScheme, actualScheme, recreatedScheme, embeddingScheme });
-    check(await page.locator("html").evaluate(el => getComputedStyle(el).colorScheme) === "dark", "actual renderer source remains dark after media probe", actualScheme);
+    const darkRecreated = await canvasScheme();
+    await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = "light"; });
+    check([darkScheme, darkRecreated].every(value => JSON.stringify(value) === light), "canvas stays light under a dark appearance", { darkScheme, darkRecreated });
+    const embedding = await page.locator("iframe").evaluate(el => ({ scheme: getComputedStyle(el).colorScheme, sandbox: el.getAttribute("sandbox") }));
+    check(embedding.scheme === "light" && await page.locator("html").evaluate(el => getComputedStyle(el).colorScheme) === "light", "renderer and canvas element light", embedding);
     console.log("media probe engine", await app.evaluate(() => ({ electron: process.versions.electron, chrome: process.versions.chrome })));
     await shot(page, "canvas-media-preference");
   if (!dev) {
     for (const [label, trigger] of [["Sidebar", canvasRow(page, "canvas.html").locator(".g")], ["Fit", page.getByRole("button", { name: "Fit", exact: true })], ["PathTip", page.locator(".repo")]] as const) {
       await hoverTooltip(page, trigger);
       const content = page.locator('[data-slot="tooltip-content"]'); const m = await styles(content);
-      check(JSON.stringify(m.padding) === JSON.stringify(["6px", "12px", "6px", "12px"]), `${label} four-sided tooltip padding`, m);
+      check(JSON.stringify(m.padding) === JSON.stringify(["4px", "8px", "4px", "8px"]), `${label} four-sided tooltip padding`, m);
       await shot(page, `tooltip-${label}`); await page.keyboard.press("Escape");
     }
-    await focus(page, page.getByRole("button", { name: "Fit", exact: true }), "ordinary focus", false);
-    await focus(page, page.getByRole("button", { name: "Reload canvas", exact: true }), "ghost focus", false);
+    await focus(page, page.getByRole("button", { name: "Fit", exact: true }), "ordinary focus");
+    await focus(page, page.getByRole("button", { name: "Reload canvas", exact: true }), "ghost focus");
     for (const width of [960, 1238]) {
     await (await appWindow(app, page)).evaluate((window, width) => window.setContentSize(width, 780), width);
     await page.getByRole("button", { name: "Switch worktree" }).click();
@@ -193,8 +214,12 @@ try {
     check(m.x >= 0 && m.right <= viewport && m.scroll <= m.client, "worktree menu bounded", m);
     await shot(page, `worktree-menu-${width}`); await page.keyboard.press("Escape");
     }
-    await frame.locator("section").click();
     const panel = page.getByRole("region", { name: "Comments", exact: true });
+    // Nothing is selected yet, so the Selection segment is disabled and must read as disabled.
+    const selectionSegment = panel.getByRole("group", { name: "Comment scope" }).getByRole("button", { name: "Selection", exact: true });
+    const segment = await styles(selectionSegment);
+    check(await selectionSegment.isDisabled() && segment.color === await token(page, "--text-disabled"), "disabled Selection segment colour", segment);
+    await frame.locator("section").click();
     await panel.getByRole("button", { name: "Comment on selection", exact: true }).click();
     await panel.getByRole("textbox", { name: "New comment body" }).fill("Presentation pin");
     await focus(page, panel.getByRole("button", { name: "Save comment", exact: true }), "comments primary focus");

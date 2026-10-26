@@ -46,7 +46,7 @@ export function rowProblem(row: CanvasRow): { sentence: string; detail: string }
 interface VisibleRow { key: string; node: RowNode; level: number; parent?: string | undefined; expanded?: boolean; }
 
 function RowActions({ actions }: { actions: { name: string; label: string; disabled?: boolean; run: () => void }[] }) {
-  return <span className="ra">{actions.map(action => <button key={action.name} type="button" className="btn" tabIndex={-1} aria-label={action.label} disabled={action.disabled} onClick={event => { event.stopPropagation(); action.run(); }} onDoubleClick={event => event.stopPropagation()}>{action.name}</button>)}</span>;
+  return <span className="ra">{actions.map(action => <button key={action.name} type="button" className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" tabIndex={-1} aria-label={action.label} disabled={action.disabled} onClick={event => { event.stopPropagation(); action.run(); }} onDoubleClick={event => event.stopPropagation()}>{action.name}</button>)}</span>;
 }
 
 export function Sidebar({ entries, state, open, jump, select, overview, expanded: saved, onExpandedChange, moved = null }: SidebarProps) {

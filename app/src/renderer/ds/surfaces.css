@@ -1,0 +1,237 @@
+/* Surfaces: what sits on the shell (panels), over the canvas (floating menus, popovers,
+   toasts and tooltips) and over the whole window (modal dialogs). Opt-in through doan-
+   classes; opening and closing follow Radix data-state and the native dialog [open]. */
+
+/* ── Panel ───────────────────────────────────────────────────────────────────
+   The rounded, opaque sheet a screen is laid on. It draws no content of its own; the
+   screen decides what goes inside and how it scrolls. */
+.doan-panel {
+  overflow: hidden;
+  border-radius: var(--radius-container);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-panel);
+}
+
+/* ── Floating material ───────────────────────────────────────────────────────
+   Menus, popovers and toasts open over the canvas, which can be any colour an agent
+   chose. The base is the opaque popover fill, so text stays readable wherever glass is
+   unavailable or unwanted. The border is transparent so its 1px still counts in the
+   nested-corner arithmetic while the panel shadow draws the visible edge. */
+.doan-floating {
+  color: var(--text-standard);
+  background: var(--surface-popover);
+  border: 1px solid transparent;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-panel);
+  padding: var(--space-1);
+}
+/* A short action list takes the compact corner and inset so it does not look heavier
+   than the one or two rows it holds. */
+.doan-floating[data-ui-size="compact"] { border-radius: var(--radius-row); padding: var(--space-half); }
+/* Glass is opt-in: only when the person has not asked for less transparency, forced
+   colours are off, and the engine can blur what is behind. */
+@media (prefers-reduced-transparency: no-preference) and (not (forced-colors: active)) {
+  @supports (backdrop-filter: blur(1px)) {
+    .doan-floating { background: var(--surface-elevated-glass); backdrop-filter: blur(var(--blur-sm)); }
+  }
+}
+/* Forced colours drop shadows, so the surface needs a real edge. */
+@media (forced-colors: active) {
+  .doan-floating { border-color: CanvasText; }
+}
+
+/* ── Menu ────────────────────────────────────────────────────────────────────
+   Size: the list scrolls inside the room Radix reports, never past the window, and is
+   wide enough for a label with its detail. */
+.doan-menu {
+  overflow-y: auto;
+  max-height: min(384px, var(--radix-popper-available-height, 384px));
+  min-width: 184px;
+  max-width: min(320px, calc(100vw - var(--space-4)));
+}
+
+/* Rows. A row's corner is derived, not picked: max(0, surface corner − inset − border)
+   keeps it concentric with the surface (19px here, 13px in a compact menu). */
+.doan-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-row-gap);
+  min-height: var(--size-control-sm);
+  padding: var(--space-2) var(--space-3);
+  border-radius: max(0px, calc(var(--radius-container) - var(--space-1) - 1px));
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line-height);
+  letter-spacing: var(--type-body-sm-letter-spacing);
+  color: var(--text-standard);
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+  outline: none;
+}
+.doan-floating[data-ui-size="compact"] .doan-menu-item { padding: var(--space-1) var(--space-2); border-radius: max(0px, calc(var(--radius-row) - var(--space-half) - 1px)); }
+.doan-menu-item .check { flex: none; width: 12px; color: var(--text-standard); }
+.doan-menu-item .sub { min-width: 0; overflow: hidden; color: var(--text-metadata); text-overflow: ellipsis; }
+.doan-menu-head { padding: var(--space-2) var(--space-3) var(--space-1); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.doan-menu-sep { height: 1px; margin: var(--space-1) var(--space-3); background: var(--border-standard); }
+
+/* Row states. The highlighted row (pointer or arrow keys) and the row whose submenu is
+   open share one fill; a disabled row keeps its place but takes the disabled ink. Inside
+   the scrolling list an outer ring would be clipped, so the keyboard ring is drawn inward. */
+.doan-menu-item:is([data-highlighted], [data-state="open"]) { background: var(--affordance-floating-hover); }
+.doan-menu-item[data-disabled], .doan-menu-item[data-disabled] .sub { color: var(--text-disabled); }
+.doan-menu-item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+
+/* Popovers hold a few lines of content rather than a list. */
+.doan-popover { width: 320px; padding: var(--space-3); }
+.doan-popover[data-ui-size="compact"] { width: 224px; }
+
+/* Toasts: one message and at most one action under it, on the same material. */
+.doan-toast {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  width: min(384px, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-3);
+  overflow-wrap: anywhere;
+}
+.doan-toast .msg { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+
+/* ── Tooltip ─────────────────────────────────────────────────────────────────
+   A near-black capsule. Its corner is half of its one-line height, so a short label stays
+   a capsule; a long path wraps inside the width cap instead of running off the window. */
+.doan-tooltip {
+  width: fit-content;
+  max-width: min(384px, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-1) var(--space-2);
+  border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2);
+  background: var(--affordance-prominent);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-on-prominent);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-weight-regular);
+  line-height: var(--type-caption-line-height);
+  letter-spacing: var(--type-caption-letter-spacing);
+  overflow-wrap: anywhere;
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+}
+
+/* ── Modal dialog ────────────────────────────────────────────────────────────
+   Native <dialog> opened with showModal(). Width comes in four steps. A compact
+   confirmation is centred; every larger dialog hangs 128px from the top, so its title
+   stays put while its content grows, and may grow down to 16px above the window edge. */
+.doan-dialog {
+  inset: 128px 0 auto;
+  width: min(640px, calc(100% - 2 * var(--space-4)));
+  max-width: none;
+  max-height: calc(100dvh - 128px - var(--space-4));
+  margin: 0 auto;
+  padding: var(--space-8);
+  overflow: auto;
+  overscroll-behavior: none;
+  border: 1px solid var(--border-standard);
+  border-radius: var(--radius-panel);
+  background: var(--surface-popover);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-standard);
+  overflow-wrap: anywhere;
+}
+.doan-dialog[open] { display: flex; flex-direction: column; gap: var(--space-4); }
+.doan-dialog[data-ui-size="compact"] { inset: 0; width: min(400px, calc(100% - 2 * var(--space-4))); max-height: calc(100dvh - 2 * var(--space-4)); margin: auto; }
+.doan-dialog[data-ui-size="wide"] { width: min(880px, calc(100% - 2 * var(--space-4))); }
+.doan-dialog[data-ui-size="expanded"] { width: min(1152px, calc(100% - 2 * var(--space-4))); height: calc(100dvh - 128px - var(--space-4)); }
+/* In a narrow window the 32px inset would leave too little room for the content. */
+@media (max-width: 480px) {
+  .doan-dialog { padding: var(--space-4); }
+}
+.doan-dialog::backdrop { background: var(--bg-scrim); }
+/* Header: the title over an optional description. There is no Close button; Cancel and
+   Escape close every doan dialog. */
+.doan-dialog-header { display: flex; align-items: start; justify-content: space-between; gap: var(--space-4); }
+.doan-dialog-heading { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; overflow-wrap: anywhere; }
+.doan-dialog-title { font-size: var(--type-label-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
+.doan-dialog-description { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+/* Actions close the dialog, Cancel first and the completing action last, at the end of
+   the row. A dialog can scroll, which would clip a 2px focus ring at its edge: the 4px
+   padding, cancelled out by the negative margin, leaves that ring room. `safe` lets an
+   action wider than the row fall back to the start instead of off the dialog. */
+.doan-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: safe end;
+  gap: var(--space-3);
+  margin: calc(-1 * var(--space-1));
+  padding: var(--space-1);
+}
+
+/* ── Notices ─────────────────────────────────────────────────────────────────
+   An inset fill, never a coloured edge. A warning or an error leads with an icon so that
+   colour is not the only signal; the icon sits on the first line of text. */
+.doan-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1h);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-row);
+  background: var(--surface-inset);
+  color: var(--text-subtle);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line-height);
+  overflow-wrap: anywhere;
+}
+.doan-notice.warning > .doan-alert-icon { color: var(--text-warning); }
+.doan-notice.error > .doan-alert-icon { color: var(--text-danger); }
+.doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
+
+/* A thin native scrollbar: Radix ScrollArea is not used, so lists keep native scrolling. */
+.doan-scroll { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+
+/* ── Motion ──────────────────────────────────────────────────────────────────
+   Surfaces arrive with a short rise and fade and leave faster than they came. */
+
+/* A tooltip that waited for its delay settles in; one that opens instantly, because
+   another tooltip was just showing, appears at once so moving along a toolbar never
+   replays the animation. Radix keeps a closing tooltip mounted until its animation ends. */
+.doan-tooltip[data-state="delayed-open"] { animation: doan-tooltip-in var(--time-state) var(--ease-settle); }
+.doan-tooltip[data-state="closed"] { animation: doan-tooltip-out var(--time-fast) var(--ease-state) forwards; }
+@keyframes doan-tooltip-in { from { opacity: 0; transform: translateY(2px) scale(0.97); filter: blur(2px); } }
+@keyframes doan-tooltip-out { to { opacity: 0; transform: translateY(2px) scale(0.97); filter: blur(2px); } }
+
+/* A dialog rises 12px as it opens and drops 4px as it closes. The discrete display and
+   overlay transitions keep a closing modal painted, in the top layer, until it has faded. */
+.doan-dialog,
+.doan-dialog::backdrop {
+  transition:
+    opacity var(--time-fast) var(--ease-enter),
+    transform var(--time-fast) var(--ease-enter),
+    display var(--time-fast) allow-discrete,
+    overlay var(--time-fast) allow-discrete;
+}
+.doan-dialog[open],
+.doan-dialog[open]::backdrop { transition-duration: var(--time-settle); }
+.doan-dialog:not([open]) { opacity: 0; transform: translateY(var(--space-1)); }
+.doan-dialog:not([open])::backdrop { opacity: 0; }
+@starting-style {
+  .doan-dialog[open] { opacity: 0; transform: translateY(var(--space-3)); }
+  .doan-dialog[open]::backdrop { opacity: 0; }
+}
+
+/* Reduced motion keeps the fades, which carry the open and closed state, and drops every
+   movement, scale and blur. */
+@media (prefers-reduced-motion: reduce) {
+  .doan-dialog,
+  .doan-dialog::backdrop {
+    transition:
+      opacity var(--time-fast) var(--ease-enter),
+      display var(--time-fast) allow-discrete,
+      overlay var(--time-fast) allow-discrete;
+  }
+  .doan-dialog:not([open]) { transform: none; }
+  @starting-style {
+    .doan-dialog[open] { transform: none; }
+  }
+  .doan-tooltip[data-state="delayed-open"] { animation-name: doan-fade-in; }
+  .doan-tooltip[data-state="closed"] { animation-name: doan-fade-out; }
+}
+@keyframes doan-fade-in { from { opacity: 0; } }
+@keyframes doan-fade-out { to { opacity: 0; } }

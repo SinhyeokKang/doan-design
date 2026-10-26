@@ -3,6 +3,7 @@ import type { MachineState } from "../main/onboarding/machine";
 import type { Agent } from "../main/onboarding/states";
 import { agentsView, cliItems, copyLabel, PATH_LINE_TEXT, COPY_FAILED, type ItemView, type MachineUi, type Part, type Row } from "./onboardingView";
 import { CONNECTION_NAMES, connectionRow } from "./connectionRowView";
+import { AlertIcon } from "./AlertIcon";
 
 const MCP_WAITS = "Connect the doan command first; MCP needs it.";
 // main's MCP refusal names the wizard's step 1, which Settings does not have; the
@@ -45,7 +46,7 @@ export function ConnectionRows({ machine, ui, rows, busy = false, target, justCo
     const outcome = ui.outcome[row];
     return <div className="cn-row" key={row} data-connection={row}>
       <button className="cn-name" aria-expanded={!!expanded[row]} onClick={() => setExpanded(current => ({ ...current, [row]: !current[row] }))}><span className="tw" aria-hidden="true">{expanded[row] ? "▾" : "▸"}</span>{CONNECTION_NAMES[row]}</button>
-      <span className="cn-end"><span className={`ob-chip${view.tone ? ` ${view.tone}` : ""}`}>{view.status}</span>{view.action && <button className={`btn${view.action.primary ? " primary" : ""}`} disabled={view.action.disabled} onClick={() => view.action?.kind === "check" ? checkAgain() : view.action?.kind === "install" && row !== "cli" ? install(row) : run(row)}>{view.action.label}</button>}</span>
+      <span className="cn-end"><span className={`ob-chip${view.tone ? ` ${view.tone}` : ""}`}>{view.status}</span>{view.action && <button className={`btn doan-button${view.action.primary ? " primary" : ""}`} data-ui-variant={view.action.primary ? "prominent" : "subtle"} data-ui-size="sm" disabled={view.action.disabled} onClick={() => view.action?.kind === "check" ? checkAgain() : view.action?.kind === "install" && row !== "cli" ? install(row) : run(row)}>{view.action.label}</button>}</span>
       {(view.parts.length > 0 || view.cause) && <p className={`cn-say${justConnected === row && row !== "cli" && view.status === "Connected" ? " ok" : ""}`}>{justConnected === row && row !== "cli" && view.status === "Connected" ? `Connected. Start a new ${CONNECTION_NAMES[row]} session to use doan.` : <>{view.cause && <><b>{view.cause}</b>{" "}</>}<ConnectionParts parts={view.parts} /></>}</p>}
       {machine && !machine.available && machine.reason && view.cause !== "Running outside Applications." && !view.parts.includes(machine.reason) && <p className="cn-say">{machine.reason}</p>}
       {outcome && <p className="cn-say" role="alert">{outcome.kind === "changed" ? "It changed after you looked, so nothing was replaced." : outcomeText(outcome.message)}</p>}
@@ -53,11 +54,16 @@ export function ConnectionRows({ machine, ui, rows, busy = false, target, justCo
     </div>;
   })}</div>;
 }
+// A link and its target can run longer than the row; they stay on one line, the full
+// path in title.
+const LINK_PATHS = new Set(["cli", "claude-link"]);
 function DetailItem({ item, reason }: { item: ItemView; reason?: ReactNode }) {
   return <><div className={`ob-item${item.dimmed ? " dimmed" : ""}`}>
-    <span className="ob-label">{item.label}</span><span className="ob-detail"><ConnectionParts parts={item.detail} /></span>
+    <span className="ob-label">{item.label}</span>{LINK_PATHS.has(item.key)
+      ? <span className="ob-detail path" title={item.detail.map(part => typeof part === "string" ? part : part.code).join("")}><ConnectionParts parts={item.detail} /></span>
+      : <span className="ob-detail"><ConnectionParts parts={item.detail} /></span>}
     <span className="ob-status">{item.chip && <span className={`ob-chip${item.chip.tone ? ` ${item.chip.tone}` : ""}`}>{item.chip.text}</span>}</span>
-    {item.msg && <span className={`ob-msg ${item.msg.tone}`}><ConnectionParts parts={item.msg.parts} /></span>}
+    {item.msg && <span className={`ob-msg ${item.msg.tone}`}>{item.msg.tone !== "ok" && <AlertIcon />}<span><ConnectionParts parts={item.msg.parts} /></span></span>}
     {(reason || item.reason) && !item.dimmed && <span className="ob-reason">{reason ?? item.reason}</span>}
   </div>{item.reason && item.dimmed && <div className="ob-item ob-notice"><span /><span className="ob-reason">{item.reason}</span></div>}</>;
 }
@@ -73,8 +79,8 @@ function Details({ machine, ui, row, copyPath }: Pick<ConnectionRowsProps, "mach
     return <>{link && <DetailItem item={link} reason={machine?.cli.state === "dangling" ? <>Fix points it to <code>{machine.display.cliTarget}</code>.</> : undefined} />}
       {machine?.probe.ok && !machine.pathPresent ? <div className="cn-opt"><span className="cn-opt-head">Use doan in your terminal <span className="ob-chip">Optional</span></span>
         <p>{machine.rcFile ? <>Add this line to <code>{machine.rcFile}</code>, then open a new terminal. Agents don’t need it.</> : "Add ~/.local/bin to PATH in your shell configuration, then choose Check Again."}</p>
-        {machine.rcFile && <span className="ob-copyline"><output>{PATH_LINE_TEXT}</output><button className="btn" disabled={ui.pathCopy === "copying"} onClick={copyPath}>{copyLabel(ui.pathCopy)}</button></span>}
-        {ui.pathCopy === "failed" && <p role="alert" className="ob-msg error">{COPY_FAILED}</p>}</div> : items.slice(1).map(item => <DetailItem key={item.key} item={item} />)}</>;
+        {machine.rcFile && <span className="ob-copyline"><output>{PATH_LINE_TEXT}</output><button className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={ui.pathCopy === "copying"} onClick={copyPath}>{copyLabel(ui.pathCopy)}</button></span>}
+        {ui.pathCopy === "failed" && <p role="alert" className="ob-msg error"><AlertIcon /><span>{COPY_FAILED}</span></p>}</div> : items.slice(1).map(item => <DetailItem key={item.key} item={item} />)}</>;
   }
   const agents = agentsView(machine, detailUi);
   const agent = agents.agents.find(card => card.agent === row);

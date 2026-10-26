@@ -1,0 +1,210 @@
+/* Controls. Every class here is opt-in, so a screen adopts the system one element at a
+   time without touching its neighbours. Variants and sizes are data-ui-* attributes and
+   states come from native and Radix state selectors, so markup never toggles extra
+   classes to show a state. */
+
+/* ── Actions ─────────────────────────────────────────────────────────────────
+   Buttons and icon buttons share one set of fills per emphasis, so a row can mix the two
+   and still read as one group. Rules are grouped by state rather than by component. */
+
+/* Shape and type. A capsule keeps a short or long label balanced; the icon button keeps
+   a square so a row of them lines up on a grid. */
+.doan-button {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-row-gap);
+  min-width: 0;
+  min-height: var(--size-control);
+  padding: var(--space-2) var(--space-6);
+  border: 0;
+  border-radius: var(--radius-capsule);
+  font-family: inherit;
+  font-size: var(--type-label-sm-size);
+  font-weight: var(--type-weight-medium);
+  line-height: var(--type-label-sm-line-height);
+  letter-spacing: var(--type-label-sm-letter-spacing);
+  white-space: nowrap;
+}
+/* Rows and cards are dense, so their actions step down to the small control. */
+.doan-button[data-ui-size="sm"] { min-height: var(--size-control-sm); padding: var(--space-1h) var(--space-4); }
+.doan-icon-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-icon-button);
+}
+.doan-icon-button[data-ui-size="md"] { width: var(--size-control); height: var(--size-control); }
+/* The window header sits on the shell, not on a panel, so it takes the tighter toolbar corner. */
+.doan-icon-button[data-ui-placement="chrome"] { border-radius: var(--radius-toolbar-icon); }
+:is(.doan-button, .doan-icon-button) > svg { flex-shrink: 0; width: var(--size-icon); height: var(--size-icon); }
+/* A shortcut hint inside a button takes the button's own ink, outlined, so it never
+   competes with the label or disappears on a dark fill. */
+.doan-button .doan-kbd {
+  padding: 0 var(--space-1h);
+  background: transparent;
+  color: inherit;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line-height);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+/* Resting state. Ghost has no fill, so it belongs to whatever surface is under it. */
+:is(.doan-button, .doan-icon-button) {
+  background: transparent;
+  color: var(--text-standard);
+  cursor: pointer;
+  transition: background-color var(--time-state) var(--ease-state), color var(--time-state) var(--ease-state);
+}
+:is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"] { background: var(--affordance-prominent); color: var(--text-on-prominent); }
+:is(.doan-button, .doan-icon-button)[data-ui-variant="subtle"] { background: var(--affordance-subtle); }
+
+/* Hover, only for a fine pointer: after a tap on a touch screen it would stay lit. On the
+   shell (chrome) the fills are translucent so the shell colour shows through. */
+@media (hover: hover) and (pointer: fine) {
+  :is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"]:hover:not(:disabled) { background: var(--affordance-prominent-hover); }
+  :is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-placement="chrome"]):hover:not(:disabled) { background: var(--affordance-subtle-hover); }
+  .doan-icon-button[data-ui-placement="chrome"]:hover:not(:disabled) { background: var(--affordance-backdrop-hover); }
+}
+
+/* Pressed, and a trigger whose popup is open: the fill deepens and nothing moves, so a
+   pressed control never shifts the row it sits in. An open disclosure (aria-expanded
+   without a popup) is not pressed: it shows its state in its label. */
+:is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-prominent-pressed); }
+:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-placement="chrome"]):is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-subtle-pressed); }
+.doan-icon-button[data-ui-placement="chrome"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-backdrop-pressed); }
+
+/* Disabled is a state of its own rather than a faded emphasis: a filled control turns to
+   the disabled fill, a ghost one keeps no fill, and both take the disabled ink. */
+:is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) { background: var(--affordance-disabled); color: var(--text-disabled); cursor: not-allowed; }
+:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="subtle"]):is(:disabled, [data-disabled]) { background: transparent; }
+
+/* Keyboard focus is one ring outside the control, the same on every emphasis. */
+:is(.doan-button, .doan-icon-button, .doan-checkbox, .doan-chip):focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+/* ── Text fields ─────────────────────────────────────────────────────────────
+   An inset fill whose 1px border is always reserved, so focus and errors recolour the
+   edge without moving the text. The edge, not an outline, shows focus. */
+:is(.doan-input, .doan-textarea) {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--size-control);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: var(--surface-inset);
+  color: var(--text-standard);
+  font-family: inherit;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
+  letter-spacing: var(--type-body-letter-spacing);
+  transition: border-color var(--time-state) var(--ease-state);
+}
+/* The block padding centres one line of body text inside the control height. */
+.doan-input { padding: calc((var(--size-control) - var(--type-body-line-height) - 2px) / 2) var(--space-control-inset); }
+.doan-input[data-ui-size="sm"] {
+  min-height: var(--size-control-sm);
+  padding-block: calc((var(--size-control-sm) - var(--type-body-sm-line-height) - 2px) / 2);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line-height);
+  letter-spacing: var(--type-body-sm-letter-spacing);
+}
+.doan-textarea { min-height: 96px; padding: var(--space-control-inset); resize: vertical; }
+:is(.doan-input, .doan-textarea)::placeholder { color: var(--text-metadata); }
+:is(.doan-input, .doan-textarea):focus { border-color: var(--border-prominent); outline: none; }
+:is(.doan-input, .doan-textarea)[aria-invalid="true"] { border-color: var(--border-danger); }
+:is(.doan-input, .doan-textarea):disabled { background: var(--affordance-disabled); color: var(--text-disabled); cursor: not-allowed; }
+
+/* ── Checkbox ────────────────────────────────────────────────────────────────
+   A native checkbox drawn with borders only: images and data: URLs are blocked by the
+   renderer's content security policy. */
+.doan-checkbox {
+  appearance: none;
+  display: inline-grid;
+  flex-shrink: 0;
+  place-content: center;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  border: 1px solid var(--border-prominent);
+  border-radius: var(--space-1);
+  background: var(--surface-panel);
+  color: var(--text-on-prominent);
+  cursor: pointer;
+}
+.doan-checkbox:is(:checked, :indeterminate, [data-state="checked"]) { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+/* The tick is the corner of a rotated box; its 5×10 size excludes the 2px strokes, so the
+   global border-box reset must not shrink it. */
+.doan-checkbox:is(:checked, [data-state="checked"])::before {
+  content: "";
+  box-sizing: content-box;
+  width: 5px;
+  height: 10px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: translateY(-1px) rotate(45deg);
+}
+.doan-checkbox:indeterminate::before { content: ""; width: 10px; height: 2px; background: currentColor; }
+.doan-checkbox:is(:disabled, [data-disabled]) { border-color: var(--affordance-disabled); background: var(--affordance-disabled); color: var(--text-disabled); cursor: not-allowed; }
+
+/* ── Inline marks ────────────────────────────────────────────────────────────
+   A keyboard hint and a chip sit inside a line of text, so they wrap with it instead of
+   forcing the line wider. */
+.doan-kbd {
+  display: inline-flex;
+  align-items: center;
+  max-inline-size: 100%;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-inset);
+  color: var(--text-subtle);
+  font-family: inherit;
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line-height);
+  letter-spacing: var(--type-body-sm-letter-spacing);
+  overflow-wrap: anywhere;
+}
+/* A chip hugs its line, so its inset is tighter than a control's. */
+.doan-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 256px;
+  padding-inline: var(--space-chip-inset);
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: var(--affordance-subtle);
+  color: var(--text-standard);
+  font: inherit;
+  line-height: 1.35;
+  vertical-align: baseline;
+}
+button.doan-chip { cursor: pointer; }
+/* Keyboard focus shows the ring alone, as on every other control. */
+button.doan-chip:is(:hover, [data-state="open"]) { background: var(--affordance-subtle-hover); }
+
+/* ── Spinner ─────────────────────────────────────────────────────────────────
+   A ring whose one dark quarter turns once a second. */
+.doan-spinner {
+  display: inline-block;
+  flex-shrink: 0;
+  width: var(--size-icon);
+  height: var(--size-icon);
+  border: 2px solid var(--border-standard);
+  border-top-color: var(--text-standard);
+  border-radius: var(--radius-pill);
+  animation: doan-spin 1s linear infinite;
+}
+@keyframes doan-spin { to { transform: rotate(360deg); } }
+
+/* Reduced motion keeps every state change but drops the movement: the spinner stops and
+   stays as a still mark beside its sentence. */
+@media (prefers-reduced-motion: reduce) {
+  :is(.doan-button, .doan-icon-button, .doan-input, .doan-textarea) { transition: none; }
+  .doan-spinner { animation: none; }
+}

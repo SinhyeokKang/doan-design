@@ -1,0 +1,73 @@
+# buzz-ds 지휘 — 2026-10-26
+
+- 원본: [spec.md](./spec.md), [design.md](./design.md), [tasks.md](./tasks.md). 부모는 [buzz-restyle](../buzz-restyle/design.md)이다.
+- 시작: `2c4b049`(main)에서 `feat-buzz-ds`를 만들었다. 이 브랜치가 통합 대상이다.
+- Buzz 기준 커밋: `~/code/buzz-app` HEAD `c40dfdf4c81aabe759f3a4329c3e77f854746a59`(2026-10-26 지휘자 확인). 기준 커밋과 같으므로 워커는 작업 트리 파일을 읽어도 된다. clone은 읽기 전용이다.
+- 지휘자는 batch 코드를 고치지 않는다. 지휘자가 쓰는 것은 이 문서, 통합 커밋, 문서 최신화 커밋, A10 결론 승격이다.
+
+## 결정 기록
+
+| 날짜 | 결정 | 근거 |
+|---|---|---|
+| 2026-10-26 | `/ship bypass` 대신 `/orchestrate`로 진행한다. S1~S4 구분과 task 순서는 그대로 둔다 | 사용자 |
+| 2026-10-26 | A5 초안을 그린 뒤 지휘자 검토를 거쳐 사용자 확인을 받을 때까지 S3를 시작하지 않는다 | 사용자 |
+| 2026-10-26 | 워커와 리뷰어는 Claude 모델만 쓴다 | AGENTS.md 'Runtime differences' 모델 경계 |
+| 2026-10-26 | 단계마다 batch 하나, 모두 직렬이다. S1·S3·S4가 모두 `styles.css`·e2e 고정값을 건드리고, S2는 S1의 `tokens.css`를 링크하며, S3은 S2 초안에 맞춘다 | 지휘자 판단 — 파일 겹침과 선행 관계 |
+| 2026-10-26 | A1·A2의 순수 함수 파일은 design.md의 가칭대로 `app/src/renderer/ds/checks.ts`(테스트는 같은 폴더 관례를 따름)로 둔다 | 지휘자 판단 — design.md '순수 함수로 분리할 부분' |
+| 2026-10-26 | 비텍스트 3:1은 `border-prominent`, 포커스 링, 핀에만 적용한다. hairline과 입력 필드 채움 경계는 예외다(R1 🟡3) | 사용자 |
+| 2026-10-26 | R1의 🟡1(다이얼로그 상단 8rem), 🟡2(`--raised` 등 남은 별칭의 역할 대응), 🟡3 반영, ⚪1(팔레트를 가리키는 별칭), ⚪6(Buzz 주석을 바꿔 쓴 주석)은 B3 brief에 넣는다. S1 파일이지만 A6·A7이 같은 파일을 다시 고치므로 수정 라운드를 따로 두지 않는다 | 지휘자 판단 — 중간 상태는 부모 공통 결정 12로 허용, 배포 없음 |
+| 2026-10-26 | 공유 다이얼로그 크기: SetUpFolderConfirm(`.ob-dialog` 확인) compact 가운데, ProjectSetupDialog·AddProjectsDialog standard 상단 8rem. 초안 확인에서 사용자가 바꿀 수 있다 | 지휘자 판단 — B2 질문, compact는 짧은 확인, standard는 폼·목록 |
+| 2026-10-26 | 토스트는 종류(type)를 새로 만들지 않는다. 성공·오류·실행 취소를 같은 무채색 floating 토스트로 그리고 문구로만 구분한다 | 지휘자 판단 — spec '내용과 동작은 그대로' |
+| 2026-10-26 | 초안은 디자인 시스템 결정을 확인하는 대표 프레임 10개만 그린다(design.md '초안 요청'). 나머지 프레임과 공유 요소 초안은 각 화면 자식 feature가 구체화한다. A8은 `/design-sync` 없이 e2e로 확인한다 | 사용자 |
+| 2026-10-26 | 위 결정을 고친다: 초안은 파운데이션과 컴포넌트 프리미티브 17개 프레임을 그리고, 화면 단위인 `shared-*` 5개만 뺀다. 사용자는 앞의 축소를 페이지 단위 축소로 생각했다. 토스트 판단(종류 없음)은 다시 유효하고, 공유 다이얼로그 크기 배정은 화면 자식으로 넘어간다 | 사용자 |
+| 2026-10-26 | 위 두 축소를 모두 되돌린다. 초안은 처음 '초안 요청'의 22개 프레임(`shared-*` 포함)을 그린다. 앞서 정한 공유 다이얼로그 크기 배정과 토스트 판단이 다시 유효하다 | 사용자 |
+| 2026-10-26 | ds CSS의 버튼·툴팁·floating·다이얼로그·입력 블록은 B3(A7)에서 값은 유지하고 묶음·순서·주석을 doan 구조로 다시 쓴다. R3 리뷰가 블록 단위로 레퍼런스와 다시 대조한다 | 사용자 |
+| 2026-10-26 | `.ob-msg` 오류·경고는 왼쪽 선 없이 body-sm `text-danger`/`text-warning` 글자만 쓴다(레퍼런스 필드 오류). `.ob-chip` 상태 알약은 doan 조정으로 유지하고 DESIGN.md에 적는다 | 사용자 |
+| 2026-10-26 | 어두운 캔버스 위 프레임 점프 표시는 대응표대로 둔다. 다시 정하는 일은 `buzz-canvas`에 넘긴다 | 사용자 |
+| 2026-10-26 | `shared-error-details`의 Comments 타일 `.comments-message` 왼쪽 빨간 선은 코멘트 패널 규칙이라 buzz-ds에서 바꾸지 않는다. `buzz-comment`가 정한다 | 지휘자 판단 — 셀렉터 대응표와 화면 소유 범위 밖 |
+| 2026-10-26 | 액센트를 citrus에서 doan 고유 액센트 램프(오렌지)로 바꾼다. 9단계는 기존 `#f0773a`, 12단계와 짝 값은 레퍼런스 램프 구조를 따라 doan이 만들고, 9단계 위 글자는 검정이다. 부모 공통 결정 2와 buzz-ds spec·design·tasks를 고쳤다. B1 토큰·대비 테스트와 B2 초안을 다시 만든다 | 사용자 — Buzz flame 대신 기존 오렌지 기반을 골랐다 |
+| 2026-10-26 | 액센트 9단계를 `#ff915e`로 올린다. `#f0773a` 위 검정 글자가 APCA Lc 50으로 본문 기준(Lc 60)에 못 미쳐서, 같은 색상에서 Lc 60을 넘는 최소 밝기를 골랐다. 기준과 역할 대응은 그대로다 | 사용자 — B1r1 질문 |
+| 2026-10-26 | 액센트를 오렌지에서 doan 고유 violet 램프로 바꾼다. 9단계 `#973be1`(흰 글자 5.2:1), iris 구조에 색상 H 305를 얹어 만든다. 비교 Artifact(오렌지·magenta·iris·jade·violet·teal·cobalt·mono)에서 골랐다 | 사용자 |
+| 2026-10-26 | A5 초안을 확정한다. 액센트는 violet으로 바꾼 뒤 지휘자가 확인하고, 나머지 프레임은 지금 그대로 둔다. 액센트 hover·pressed 구분 문제는 violet에서 9단계보다 어두운 단계로 풀린다 | 사용자 |
+| 2026-10-26 | 핀 테두리(`--border-pin`)는 violet 11 대신 `--neutral-12`(검정)를 쓴다. violet 11은 9단계 대비 1.85:1이라 3:1에 못 미치고, 11만 어둡게 하면 12보다 어두워져 램프 순서가 뒤집힌다. 검정 테두리는 9단계 대비 4.03:1이고 흰 halo는 그대로다 | 지휘자 판단 — B1r2 질문 |
+| 2026-10-26 | 메시지와 안내의 왼쪽 강조 선을 모두 없앤다(Comments 오류 포함, 앞서 `buzz-comment`로 넘긴 결정을 바꾼다). design.md 대응표에 '왼쪽 강조 선' 행을 더했다. B3가 A6에서 적용하고 초안 `shared-error-details`의 Comments 타일도 고친다 | 사용자 |
+| 2026-10-26 | 오류 표현 형태: 패널 수준 실패는 레퍼런스 `EmptyState`식 상태 블록(아이콘, 제목, 설명, 가운데 액션), 인라인 오류는 `CircleAlert` 아이콘 + `text-danger` 한 줄, 중립 안내는 `surface-inset` 채움. 왼쪽 선 대신 쓸 형태를 사용자가 요청했고, 색만으로 알리지 않도록 아이콘을 붙였다 | 지휘자 판단 — 사용자 요청('다른 형태로 에러를 표현') |
+| 2026-10-26 | buzz-ds PR은 `/verify --runtime` 통과 뒤 지휘자가 main에 병합한다(사용자 명시 지시로 orchestrate의 병합 금지를 이번 run에 한해 해제). 병합 뒤 지휘자가 실시간 대화 feature 문서(`/feature`, spec·design·tasks)와 그에 맞춘 `buzz-restyle` 재구성 문서를 미리 만들어 로드맵을 세운다. 구현은 나중에 기능과 리디자인을 함께 진행한다 | 사용자 |
+| 2026-10-26 | A7 버튼 적용 범위: `.btn`·`.comments-btn` 전부 `doan-button`(클래스에서 변형을 정함), 다이얼로그 액션 행만 40px이고 나머지는 sm, 옛 규칙 삭제. 사이드바 26px 행의 hover 액션(`.side .row .ra`)만 `buzz-project`까지 좁은 예외. 아이콘 버튼은 `doan-icon-button`과 lucide 글리프 | 지휘자 판단 — B3 질문, tasks A7 '클래스만 입힌다' |
+| 2026-10-26 | e2e의 comments-ui가 실제 클립보드가 빈 항목(타입 0개)이라 시작부터 막혀, B3가 `pbcopy`로 placeholder를 한 번 넣는 것을 허락했다 | 지휘자 판단 — 잃는 데이터 없음 |
+| 2026-10-26 | R3 판정: 드롭 오버레이 글자는 `text-on-prominent`, 점선도 `text-on-prominent`로 바꿔 3:1을 넘긴다. 행 막대 제거는 금지 규칙에 따라 승인하고 A10에서 대응표 문구를 고친다. inset 띠 위 subtle 버튼은 DESIGN.md에 중간 상태로 적고 화면 자식에 넘긴다. 정보 글자의 `text-disabled`는 `text-metadata`로 지금 고친다. floating·메뉴 블록은 doan 구조로 다시 쓴다. 모달 위 모달은 위저드 위 다이얼로그 단계를 onboarding suite에 더한다 | 지휘자 판단 — R3 권고 |
+| 2026-10-26 | S3까지 통합한 상태로 지금 main에 병합한다. `/verify --runtime` 실패(comments-ui `:566`, main에서도 재현되는 기존 실패)는 미충족으로 PR에 적고 넘어간다. S4(A9 DESIGN.md, A10 결론 승격과 이 디렉터리 삭제)는 병합 뒤 남은 일로 진행한다 | 사용자 |
+| 2026-10-26 | A10(결론 승격과 `docs/features/buzz-ds/` 삭제)은 지휘자가 통합 뒤 직접 한다 | orchestrate 스킬 §5 |
+
+## batch 표
+
+| batch | 항목 | 파일 소유권 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
+|---|---|---|---|---|---|---|
+| B1 | S1 = A1~A4 | `app/src/renderer/ds/`(새로), `app/src/renderer/tokens.css`, `styles.css`·`settings.css`의 `color-scheme`·`@import`·`@theme`, `app/src/main/index.ts`의 `themeSource`·`backgroundColor`와 그 테스트, 움직인 e2e 고정값 | 없음 | Opus high — APCA 식 구현, 토큰 역할 설계, 캔버스 iframe 색 선호 확인처럼 판단이 많고 틀리면 이후 모든 자식이 흔들린다 | tasks.md A1~A4 검증 전부(`npm --prefix app test`, typecheck, build, e2e 최종 PASS, `doan check --repo .` 정의되지 않은 변수 0, `dev-css.mjs`) | 통합(3572410·c8bef11·5198670·7032c32). e2e 최종 PASS 미검증(아래) |
+| R1 | B1 리뷰 | 읽기 전용, `.scratch/review-B1.md` | B1 | Opus high — 토큰 구조와 대비 계산 검토 | `/code-review` 보고, 🔴 0 | 완료 — 🔴 0 🟡 3 |
+| B2 | S2 = A5 | `design/buzz-ds.html`만 | B1 통합 | Opus medium — 프레임 22개 초안, 컨벤션은 정해져 있고 값은 S1 토큰에서 온다 | `doan check --repo .`에서 `design/buzz-ds.html` 오류 0, `doan ls --json`의 프레임 id가 '초안 요청'과 같음. 지휘자 초안 검토 → 사용자 확인 | 커밋 1c1a6b0·a49e3a9(worktree `buzz-ds-b2`), 지휘자 검토 통과, 사용자 확인 대기 |
+| B3 | S3 = A6~A8 | `app/src/renderer/**`(styles·settings·connectionRows CSS, `ds/`, 공용·공유 컴포넌트 TSX, `CommentPins.ts`), `app/e2e/*`, `/design-sync` 산출물. `design/` 초안은 고치지 않는다 | B2 사용자 확인 | Opus high — 셀렉터 60여 줄 대응, 공용 컴포넌트, 모션·포커스, design-sync 실측 | tasks.md A6~A8 검증 전부, `/design-sync` 두 번 | 대기 |
+| R3 | B3 리뷰 | 읽기 전용, `.scratch/review-B3.md` | B3 | Opus high — 넓은 CSS 변경과 cascade 함정 | `/code-review` 보고, 🔴 0 | 완료 — 🔴 0 🟡 6 ⚪ 10 |
+| B4 | S4 = A9 | `docs/DESIGN.md`만 | B3 통합 | Opus medium — 실측값 정리와 'UX audit recovery update' 재측정 | `grep -c 'buzz-ds 이전' docs/DESIGN.md` > 0, 절 위치, `verify.mjs --runtime` 통과 | 대기 |
+| C | S4 = A10 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DIRECTORY.md`, `docs/features/buzz-ds/` 삭제 | B4 통합 | 지휘자 | tasks.md A10 검증 | 대기 |
+
+모든 tasks 항목(A1~A10)이 위 행 하나에 속한다. 겹치는 파일이 있어 병렬 batch는 없다. 각 batch는 `feat-buzz-ds`에서 갈라진 child worktree에서 돌고, 지휘자가 cherry-pick으로 통합한다.
+
+## 진행 기록
+
+- 2026-10-26: orch.md 작성, `feat-buzz-ds` 생성.
+- 2026-10-26: B1(Opus high, worktree `buzz-ds-b1`) 완료 보고 outcome failed — 커밋 902cda6·20458a9·f07ab36·646b446, e2e 최종 PASS 없음(comments-ui `08-hidden-quit-close` 포커스 대기 시간 초과 두 번). 실제 `/Applications/doan.app`이 실제 userData의 `ui-state.json`을 바꿔 첫 e2e가 멈췄고, 사용자 승인으로 지휘자가 정상 종료했다. B1 터미널 release.
+- 2026-10-26: 지휘자 e2e 재현(646b446, R1 동시 실행 중) 실패 — comments-ui `:191` notice 개수 비교(기다림 없는 단언). 부하 없는 재실행 진행.
+- 2026-10-26: R1(Opus high) 리뷰 — 🔴 0, 🟡 3, ⚪ 7. 보고서는 지휘자 `.scratch/review-B1.md`. R1 터미널 release.
+- 2026-10-26: e2e 판정 — 부하 없는 재실행(646b446)도 comments-ui `08-hidden-quit-close`(`comments-ui.ts:566`, `window.isFocused()` 대기)에서 실패했다. main과 같은 앱 코드(지휘자 체크아웃)로 돌린 전체 e2e는 comments-ui `:191`(기다림 없는 notice 단언)에서, comments-ui 단독 실행 두 번은 각각 `:566`과 `:191`에서 실패했다. 두 실패는 B1 이전부터 있다. B1 코드에서 comments-ui 뒤 suite 10개(onboarding~settings)를 하나씩 따로 돌려 모두 PASS했다(참고 근거, 공식 게이트 아님. 로그: `buzz-ds-b1/.scratch/conductor/`). 사용자가 자리를 비운 동안 화면 잠금으로 창 포커스를 받지 못했을 가능성이 있다(추론). 전체 e2e 최종 PASS는 사용자가 돌아온 뒤 다시 확인한다.
+- 2026-10-26: B1 통합. 통합 HEAD에서 `verify.mjs`는 계획된 `accentPlaces` red(A6에서 green)로 app-test에서 멈췄다(1 failed / 3064 passed). typecheck·build·`go test ./...` 통과, `doan check --repo .` 12개 캔버스 오류 0 경고 6(기존 `design/mock.css`).
+- 2026-10-26: B2(Opus medium) 완료 — `design/buzz-ds.html` 22개 프레임과 `design/mock.css` 예시 색 6개, 커밋 1c1a6b0. 작업 중 범위 지시가 10개 → 17개 → 22개로 바뀌었고 최종본은 22개다. B2 터미널 release.
+- 2026-10-26: 지휘자 초안 검토 — 지휘자가 다시 실행한 `doan check`: 캔버스 13, 오류 0, 경고 12(새 경고 6은 모두 `mock.css` hardcoded_color). `doan ls`: `buzz-ds` 1200px, 프레임 22개가 순서까지 같다. 초안 안에 hex·rgb·oklch 0건, 옛 별칭 사용 0건, `buzz`는 canvas id와 feature 이름에만 있다. 격리 dev 앱 스크린샷 23장(`buzz-ds-b2/.scratch/buzz-ds/draft/`)으로 buttons, menu·tooltip, dialog-anatomy, canvas-marks, accent-places, shared-project-setup을 확인했다. 발견: (1) 어두운 캔버스에서 프레임 점프 표시(2px `border-focus` + 반투명 검정 링)가 거의 보이지 않는다 — 사용자 결정 필요. (2) `shared-project-setup` Running 타일에서 Token CSS 경로가 `tokens.cs`/`s`로 글자 중간에서 줄바꿈된다 — 초안 수정. (3) 문서에 없던 시각 선택(행 안 액션 sm 32px, `.ob-card` → 설정 그룹, `.ob-chip` → 상태 pill, `.ob-msg` → 왼쪽 2px 선, 토스트 메시지 위·액션 아래, 다이얼로그 Close 버튼 없음)은 사용자 확인 대상으로 올린다.
+- 2026-10-26: 지휘자가 레퍼런스 clone(`c40dfdf4`)과 직접 대조했다(사용자 요청). 같음: 토큰 공통 이름 119개의 라이트 값(rem↔px, 간접 참조 차이만), 타입 역할 8개, 버튼·아이콘 버튼 크기와 채움, 입력 필드, 툴팁, floating·메뉴 행, 다이얼로그 크기·패딩·모서리·모션, 토스트 폭·inset, 설정 그룹(`.ob-card`). 다름: 다이얼로그 위치(ds CSS는 가운데, R1 🟡1, 초안은 레퍼런스대로), instant 툴팁 모션, 강조된 메뉴 행의 보조 텍스트, 토스트 종류별 제목 색과 닫기 버튼(종류 없음 결정), 포커스 링 색(`border-focus` neutral-12 대 `text-standard`). 레퍼런스 근거 없음: 초안의 `.ob-chip` 상태 pill, `.ob-msg` 왼쪽 2px 선(레퍼런스의 필드 오류는 body-sm `text-danger` 글자만). 코드 구조: ds CSS의 버튼·툴팁·floating·다이얼로그·입력 블록이 레퍼런스 블록과 선언 집합·순서가 거의 같고 접두어만 다르다(R1 ⚪6 확장).
+- 2026-10-26: B2r1(Sonnet medium) 초안 수정 a49e3a9 — `.ob-msg` 선 제거, `.ob-chip`에 doan 조정 표시, 긴 경로 한 줄 말줄임과 `title`, 점프 표시 제안 문구 삭제. 지휘자 확인: `doan check` 오류 0·경고 12(새 경고 없음), 스크린샷 `draft-r1/18`·`21` 확인. render-draft의 overflow 검사가 `shared-connection-rows`의 의도한 말줄임을 FAIL로 잡는다(의도된 결과로 판정). B2r1 터미널 release.
+- 2026-10-26: B1r1(Opus high, worktree `buzz-ds-b1r1`) — citrus를 `--orange-1..12`와 짝 값으로 바꾸고 액센트 역할을 다시 연결했다. 9단계 `#ff915e`, 10단계·pressed `#ff9463`(검정 글자 Lc 60을 지키려고 9보다 밝다), 11 `#804428`(핀 테두리), 12 `#432517`(코멘트 글자). 대비 쌍은 기준을 바꾸지 않고 모두 통과했다. 초안 색과 `mock.css`의 오렌지 예시도 바꿨다. 이어 Sonnet low 워커가 토큰 주석의 옛 hex를 지웠다. 통합 8c3943c·466f7da·61bc9a2(draft 커밋 99e5fd7·db329a1도 앞서 통합). 지휘자 확인: typecheck 통과, 단위 테스트는 계획된 `accentPlaces` red 하나, `doan check` 오류 0·경고 12, citrus·`#f0773a` grep 0건. e2e는 돌리지 않았다. 검토용 Artifact를 갱신했다. 두 워커 터미널 release.
+- 2026-10-26: 남은 관찰 — 액센트 hover·pressed가 9단계와 밝기 차이 0.005라 눈으로 거의 구분되지 않는다(레퍼런스 검정 글자 램프와 같은 구조). 초안 확인 때 사용자에게 묻는다.
+- 2026-10-26: B1r2(Opus medium, worktree `buzz-ds-b1r2`) — `--violet-1..12`와 짝 값으로 바꿨다. 9 `#973be1`(흰 글자 5.21:1, Lc −80), hover `#9033d9`, pressed `#8a2dd2`, 12 `#432517`→`#342743`. 핀 테두리는 `neutral-12`. 대비 쌍 모두 통과. 통합 ca62bf9·ad27aa9. 지휘자 확인: typecheck 통과, 단위 테스트는 계획된 `accentPlaces` red 하나(3064 통과), `doan check` 오류 0·경고 12, orange·citrus·옛 hex grep 0건, 초안 diff 확인. 검토용 Artifact 3판으로 갱신. B1r2 터미널 release. 여기까지가 S2(A5 확정)다.
+- 2026-10-26: B3(Opus high, worktree `buzz-ds-b3`) 완료 보고 — 커밋 14개(5b272b4~eda9d3d). 단위 3070 통과, typecheck·build·`doan check` 오류 0, spec grep 0건, comments-ui 뒤 suite 10개와 presentation 두 모드 PASS. 전체 e2e는 comments-ui `:566`에서 멈춰 최종 PASS 없음. B3 터미널 release.
+- 2026-10-26: R3(Opus high) 리뷰 — 🔴 0, 🟡 6, ⚪ 10(지휘자 `.scratch/review-B3.md`). handoff 주장 모두 참. 수정 라운드 B3r1로 🟡1·2·4·5·6과 ⚪3·5·7을 보낸다. R3 터미널 release.
+- 2026-10-26: B3·B3r1 통합(23커밋, 1e8b5d2까지). 통합 HEAD에서 `verify.mjs --runtime` — 앞 단계 통과, runtime에서 comments-ui `:566` 시간 초과로 FAILED(로그 `.scratch/conductor/verify-runtime.log`). 사용자가 맥을 쓰지 않는 상태에서도 같다. B3r1 터미널 release.

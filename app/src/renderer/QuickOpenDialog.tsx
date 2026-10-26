@@ -94,7 +94,7 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
           else if (step.kind === "pick") choose(results[current]);
           else dismiss();
         }} />
-      <span className="kbd">esc</span>
+      <span className="kbd doan-kbd">esc</span>
     </div>
     <QuickOpenList emptyText={emptyText} id={id} results={results} active={current} where={where} pick={choose} activate={setActive} />
     <div className="qo-foot">↑↓ to move · ↩ to open · esc to close</div>

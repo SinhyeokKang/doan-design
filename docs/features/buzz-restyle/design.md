@@ -39,7 +39,7 @@
 
 | 영역 | Buzz 규칙 (출처) | 조정 | 담당 |
 |---|---|---|---|
-| 색 | `color / purpose / emphasis / state` 역할 이름. 텍스트는 기본·보조·메타 3단계. 주요 버튼은 무채색 prominent. 액센트는 메시지 버블·Send·사이드바 행 상태에만(DESIGN.md "Accent color") | 액센트 family는 citrus 고정. 자리는 spec 공통 결정 2의 대응표대로. 상태색(ok/warn/err)은 Buzz 상태 역할 | buzz-ds (역할), 각 화면 자식 (적용) |
+| 색 | `color / purpose / emphasis / state` 역할 이름. 텍스트는 기본·보조·메타 3단계. 주요 버튼은 무채색 prominent. 액센트는 메시지 버블·Send·사이드바 행 상태에만(DESIGN.md "Accent color") | 액센트는 doan 고유 violet 램프(9단계 `#973be1`, 2026-10-26 user). 레퍼런스 family 값이 아니므로 doan 조정이다. 자리는 spec 공통 결정 2의 대응표대로. 상태색(ok/warn/err)은 Buzz 상태 역할 | buzz-ds (역할), 각 화면 자식 (적용) |
 | 타입 | 역할 단위(크기+행간+자간+굵기). Regular 400은 읽기·폼 라벨, Medium 500은 동작·구조. caption 12/16, body 14/20, label 16/24(500), body-lg 20/28, 제목류 행간 1.1 | 글꼴은 시스템 스택 하나. 고정폭 역할은 가져오지 않는다. 지금의 13px 기본과 10.5~12.5px 소형 텍스트는 Buzz 역할로 옮긴다 | buzz-ds |
 | 모서리 | 12/16/20/24/28px(`chip/row/control/container/panel`), 원·캡슐·알약은 별도. 중첩 모서리는 `max(0, 바깥 radius − inset)`, inset에 패딩과 바깥 테두리 포함, 단계로 반올림하지 않는다 | 없음 | buzz-ds |
 | 포커스 | Buzz 포커스 링 레시피 (DESIGN.md "Focus appearance") | Buzz는 JS 훅(`useKeyboardFocusVisibility.ts`)이 붙이는 `html[data-keyboard-navigation]` 아래에서만 링을 그린다. doan은 `:focus-visible`로 쓰고 훅은 만들지 않는다. 핀 링 등 doan 기존 링은 밝은 배경에 맞춰 다시 정한다 | buzz-ds |
@@ -128,8 +128,12 @@ Buzz의 첫 실행 화면은 `src/features/identity/OnboardingScreen.tsx` + `Ide
 ### 조사 메모: 캔버스 영역 (`buzz-canvas`용)
 
 - Buzz는 점 격자를 셸 바닥에만 두고, 읽기 패널은 불투명하게 둔다. doan의 캔버스 보드(`.area`, 지금 `--board-bg` + 16px 점)를 메인 `Panel` 안 불투명 보드로 둘지, 셸 점 격자가 비치는 영역으로 둘지는 `buzz-canvas`에서 묻는다.
-- 선택·hover 표시는 무채색이 된다. 에이전트가 그린 캔버스는 어떤 색이든 될 수 있으므로, 선택 표시와 (buzz-comment의) 핀은 무채색·액센트와 별개로 바깥 halo나 외곽선을 갖추고, 어두운·밝은·citrus가 많은 픽스처 캔버스 위에서 확인한다.
+- 선택·hover 표시는 무채색이 된다. 에이전트가 그린 캔버스는 어떤 색이든 될 수 있으므로, 선택 표시와 (buzz-comment의) 핀은 무채색·액센트와 별개로 바깥 halo나 외곽선을 갖추고, 어두운·밝은·violet이 많은 픽스처 캔버스 위에서 확인한다.
 - `color-scheme`을 dark에서 light로 바꾸면 다른 `color-scheme`을 가진 캔버스 iframe의 바탕 처리가 달라질 수 있다(POSTMORTEM 2026-10-25 예방 항목). iframe 미디어 선호와 computed `color-scheme`을 따로 확인한다.
+
+## 금지 표현 (모든 자식 공통, 2026-10-26 user)
+
+- 왼쪽(시작 쪽) 테두리에 색을 칠하거나 두껍게 그어 메시지·안내·카드·행을 강조하지 않는다. 오류는 아이콘과 `text-danger` 글자 또는 상태 블록으로, 안내는 `surface-inset` 채움으로 나타낸다(buzz-ds design '오류와 안내 표현'). 패널 사이 1px 무채색 구분선은 해당하지 않는다.
 
 ## 공통 함정 (POSTMORTEM)
 

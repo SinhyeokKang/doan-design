@@ -4,6 +4,7 @@ import type { ListFilter } from "../comments/projection";
 import { targetLabel } from "../comments/targetLabel";
 import { reopenText, resolutionText, type NamedLine } from "../comments/resolution";
 import { ErrorDetails } from "./ErrorDetails";
+import { AlertIcon } from "./AlertIcon";
 import { ReviewBar, ReviewDone, ReviewNotice, type ReviewBarView, type ReviewDoneView, type ReviewNoticeView } from "./ReviewBar";
 import { READ_FAILED_EDITOR, WARNINGS_TITLE, commentsPanelState, emptyListText, identityText, warningFileText, warningGroups, warningText, type IdentityCause } from "../comments/panelText";
 
@@ -120,14 +121,14 @@ export function CommentsPanel(props: CommentsPanelProps) {
   const editorBlocked = editor && (props.writeBlocked ?? (read.status === "failed" ? READ_FAILED_EDITOR : null) ?? (props.busy ? "A comment change is in progress." : null) ?? (author.status !== "ready" ? "A Git name is required before saving." : null) ?? (editor.mode === "create" && props.widthInvalid ? "Run doan check in a terminal to diagnose the canvas. A readable width is required to add comments and show pins." : null) ?? editor.blocked);
   const state = commentsPanelState(props.identityCause, read, author);
   const editorView = editor && <CommentEditor {...editor} blocked={editor.continue ? editor.blocked : editorBlocked || null} />;
-  const idNotice = props.idNotice && <div className="comments-message warning notice" role="status">{props.idNotice.text}<button type="button" className="comments-btn" onClick={props.idNotice.onShow}>Show</button></div>;
+  const idNotice = props.idNotice && <div className="comments-message warning notice" role="status"><AlertIcon />{props.idNotice.text}<button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={props.idNotice.onShow}>Show</button></div>;
   if (state.kind === "identity") {
     const text = identityText(state.cause, props.canvasId);
     return <section ref={props.panelRef} className="comments-panel native-scroll" aria-label="Comments">
       <h3 ref={props.headingRef} className="comments-title alone" tabIndex={-1}>Comments</h3>
       {idNotice}
       {editorView}
-      <div className="comments-message error" role="alert"><b>{text.title}</b>{text.body}</div>
+      <div className="comments-message error" role="alert"><AlertIcon size={20} /><b>{text.title}</b>{text.body}</div>
     </section>;
   }
   const elsewhere = filter.scope === "selection" ? Math.max(0, props.canvasOpenCount - props.counts.open) : 0;
@@ -153,30 +154,30 @@ export function CommentsPanel(props: CommentsPanelProps) {
       </div>
       </>}
       <div className="comments-tools">
-        <button type="button" className="comments-btn" disabled={read.status !== "ready" || props.canvasOpenCount === 0} onClick={() => props.onHandOff(null)}>Hand off…</button>
+        <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={read.status !== "ready" || props.canvasOpenCount === 0} onClick={() => props.onHandOff(null)}>Hand off…</button>
         {props.handedOff && <span className="handoff-summary">{props.handedOff}</span>}
-        <button type="button" className="comments-btn" disabled={createDisabled} onClick={() => props.onCreate(filter.scope)}>{filter.scope === "canvas" ? "Comment on canvas" : "Comment on selection"}</button>
+        <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={createDisabled} onClick={() => props.onCreate(filter.scope)}>{filter.scope === "canvas" ? "Comment on canvas" : "Comment on selection"}</button>
       </div>
       {props.createError && <p className="comments-helper" role="alert">Couldn’t start comment: {props.createError}</p>}
     </div>
     {idNotice}
     {editorView}
-    {props.widthInvalid && <div className="comments-message warning"><b>Could not read a valid board width.</b>Existing comments are still available. Run doan check in a terminal to diagnose the canvas. A readable width is required to add comments and show pins.</div>}
-    {props.writeBlocked && <div className="comments-message error" role="alert"><b>Comments are read-only</b>{props.writeBlocked}</div>}
-    {props.createBlocked && <div className="comments-message warning">{props.createBlocked}</div>}
-    {state.authorBlock && <div className="comments-message warning" role="status">
+    {props.widthInvalid && <div className="comments-message warning"><AlertIcon size={20} /><b>Could not read a valid board width.</b>Existing comments are still available. Run doan check in a terminal to diagnose the canvas. A readable width is required to add comments and show pins.</div>}
+    {props.writeBlocked && <div className="comments-message error" role="alert"><AlertIcon size={20} /><b>Comments are read-only</b>{props.writeBlocked}</div>}
+    {props.createBlocked && <div className="comments-message warning"><AlertIcon size={20} />{props.createBlocked}</div>}
+    {state.authorBlock && <div className="comments-message warning" role="status"><AlertIcon size={20} />
       <b>{author.status === "loading" ? "Checking Git name…" : author.status === "missing" ? "Set your Git name" : "Couldn’t read Git identity"}</b>
       {author.status === "failed" ? author.message : "Set git user.name for this repository in your terminal, then choose Retry. Your email is optional."}
       <p>Adding, editing, resolving, reopening and deleting stay unavailable until a name is configured. Hand off remains available.</p>
-      <div className="comments-tools"><button type="button" className="comments-btn" disabled={author.status === "loading"} onClick={props.onRetryAuthor}>Retry</button></div>
+      <div className="comments-tools"><button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={author.status === "loading"} onClick={props.onRetryAuthor}>Retry</button></div>
     </div>}
     {/* Under the error and canvas-ID blocks (design review-notice, banner order); the bar is a panel child so it sticks under the title. */}
     {props.reviewDone && <ReviewDone {...props.reviewDone} />}
     {props.reviewBar ? <ReviewBar {...props.reviewBar} /> : props.reviewNotice && <ReviewNotice {...props.reviewNotice} />}
     {read.status === "loading" ? <div className="comments-message" role="status"><b>Loading comments…</b></div>
-      : read.status === "failed" ? <div className="comments-message error" role="alert"><b>Couldn’t read comments</b><ErrorDetails className="comments-btn" detail={read.message}>{(button, detail) => <><div className="comments-tools"><button type="button" className="comments-btn" onClick={props.onRead}>Retry</button>{button}</div>{detail && <p className="detail">{detail}</p>}</>}</ErrorDetails></div>
+      : read.status === "failed" ? <div className="comments-message error" role="alert"><AlertIcon size={20} /><b>Couldn’t read comments</b><ErrorDetails className="comments-btn" variant="subtle" detail={read.message}>{(button, detail) => <><div className="comments-tools"><button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={props.onRead}>Retry</button>{button}</div>{detail && <p className="detail">{detail}</p>}</>}</ErrorDetails></div>
         : <>
-          {read.warnings.length > 0 && <div className="comments-message warning comments-warnings"><b>{WARNINGS_TITLE}</b>
+          {read.warnings.length > 0 && <div className="comments-message warning comments-warnings"><AlertIcon size={20} /><b>{WARNINGS_TITLE}</b>
             <ul>{warningGroups(read.warnings).map(group => <li key={group.code}>{warningText(group.code)}<span className="lines">{group.label}</span></li>)}</ul>
             <p className="file">{warningFileText(props.canvasId)}</p>
           </div>}
@@ -221,24 +222,24 @@ export function CommentCard({ comment, frames, freshness, locationMissing, disab
     {reopen && <><ResolutionLine line={reopen.reopened} /><ResolutionLine line={reopen.previously} /></>}
     <p className="comments-body">{comment.body}</p>
     <div className="comments-tools">
-      <button type="button" className="comments-btn" disabled={locked} onClick={() => onComment("edit", comment.comment)}>Edit</button>
-      <button type="button" className="comments-btn" disabled={locked} onClick={() => onComment(comment.status === "open" ? "resolve" : "reopen", comment.comment)}>{comment.status === "open" ? "Resolve" : "Reopen"}</button>
+      <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={locked} onClick={() => onComment("edit", comment.comment)}>Edit</button>
+      <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={locked} onClick={() => onComment(comment.status === "open" ? "resolve" : "reopen", comment.comment)}>{comment.status === "open" ? "Resolve" : "Reopen"}</button>
       {/* Agents read open comments only; a resolved card has nothing to hand off. */}
-      {comment.status === "open" && <button type="button" className="comments-btn" onClick={() => onHandOff(comment.comment)}>Hand off…</button>}
-      <button type="button" className="comments-btn" disabled={locked} onClick={() => onComment("delete", comment.comment)}>Delete</button>
+      {comment.status === "open" && <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => onHandOff(comment.comment)}>Hand off…</button>}
+      <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={locked} onClick={() => onComment("delete", comment.comment)}>Delete</button>
     </div>
     {/* An explicit human action on a target that is gone; comments are never re-attached (feature revision-recheck Q6). */}
     {comment.status === "open" && locationMissing && <>
-      <div className="comments-tools instead"><button type="button" className="comments-btn" disabled={locked || instead !== "ready"} aria-describedby={instead === "no-selection" ? reasonId : undefined} onClick={() => onComment("comment-instead", comment.comment)}>Comment on selection instead</button></div>
+      <div className="comments-tools instead"><button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={locked || instead !== "ready"} aria-describedby={instead === "no-selection" ? reasonId : undefined} onClick={() => onComment("comment-instead", comment.comment)}>Comment on selection instead</button></div>
       {instead === "no-selection" && <p className="comments-helper" id={reasonId}>Select an element or frame first.</p>}
     </>}
-    {mutation && mutation.status !== "idle" && <div className={`comments-message ${mutation.status === "failed" || mutation.status === "check-failed" || mutation.status === "deleted" ? "error" : mutation.status === "unknown" || mutation.status === "conflict" || mutation.status === "recovery-blocked" ? "warning" : ""}`} role="status">
+    {mutation && mutation.status !== "idle" && <div className={`comments-message ${saveTone(mutation.status)}`} role="status">{saveTone(mutation.status) && <AlertIcon size={20} />}
       <SaveMessage state={mutation} />
       <div className="comments-tools">
-        {(mutation.status === "unknown" || mutation.status === "check-failed" || mutation.status === "checking") && <button type="button" className="comments-btn" disabled={mutation.status === "checking"} onClick={() => onComment("check", comment.comment)}>Check saved status</button>}
-        {(mutation.status === "failed" || mutation.status === "retry-original") && <button type="button" className="comments-btn" disabled={disabled || busy} onClick={() => onComment("retry", comment.comment)}>{mutation.status === "retry-original" ? "Retry original save" : "Retry"}</button>}
-        {mutation.status === "reviewed" && <button type="button" className="comments-btn" disabled={disabled || busy} onClick={() => onComment("confirm-reviewed", comment.comment)}>Confirm reviewed change</button>}
-        {mutation.status === "conflict" && <button type="button" className="comments-btn" onClick={() => onComment("read-latest", comment.comment)}>Read latest state</button>}
+        {(mutation.status === "unknown" || mutation.status === "check-failed" || mutation.status === "checking") && <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={mutation.status === "checking"} onClick={() => onComment("check", comment.comment)}>Check saved status</button>}
+        {(mutation.status === "failed" || mutation.status === "retry-original") && <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={disabled || busy} onClick={() => onComment("retry", comment.comment)}>{mutation.status === "retry-original" ? "Retry original save" : "Retry"}</button>}
+        {mutation.status === "reviewed" && <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={disabled || busy} onClick={() => onComment("confirm-reviewed", comment.comment)}>Confirm reviewed change</button>}
+        {mutation.status === "conflict" && <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => onComment("read-latest", comment.comment)}>Read latest state</button>}
       </div>
     </div>}
   </article>;
@@ -247,6 +248,12 @@ export function CommentCard({ comment, frames, freshness, locationMissing, disab
 export function ResolutionLine({ line }: { line: NamedLine }) {
   const text = <>{line.lead}<b>{line.name}</b>{line.tail}</>;
   return <p className="comments-resolution">{line.at === undefined ? text : <time dateTime={line.at} title={line.at}>{text}</time>}</p>;
+}
+
+// Failures read as errors and outcomes that need a check as warnings; progress stays neutral.
+export function saveTone(status: SaveView["status"]): "error" | "warning" | "" {
+  return status === "failed" || status === "check-failed" || status === "deleted" ? "error"
+    : status === "unknown" || status === "conflict" || status === "recovery-blocked" ? "warning" : "";
 }
 
 export function SaveMessage({ state }: { state: SaveView }) {
@@ -291,26 +298,26 @@ export function CommentEditor(props: CommentEditorProps) {
     if (!locked && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) props.onCancel();
   } : undefined;
   return <><div className="comments-composer" aria-busy={state.status === "saving" || state.status === "checking"} onKeyDown={escape}>
-    <label>{label}<span className="comments-target" title={target.title}>To: {target.text}</span><textarea ref={props.inputRef} aria-label={`${label} body`} value={props.body} readOnly={locked} onChange={event => { if (!locked) props.onBody(event.currentTarget.value); }} /></label>
+    <label>{label}<span className="comments-target" title={target.title}>To: {target.text}</span><textarea className="doan-textarea" ref={props.inputRef} aria-label={`${label} body`} value={props.body} readOnly={locked} onChange={event => { if (!locked) props.onBody(event.currentTarget.value); }} /></label>
     <div className="comments-tools">
-      <button type="button" className="comments-btn" disabled={state.status === "saving" || state.status === "saved"} onClick={locked ? props.onKeepDraft : props.onCancel}>{locked ? "Keep draft" : "Cancel"}</button>
-      {next?.canvas && <button key="continue-canvas" type="button" className="comments-btn" disabled={!next.canvas.enabled || next.starting !== null} onClick={next.onCanvas}>{next.starting === "canvas" ? "Starting…" : "Continue on canvas"}</button>}
-      {next ? <button key="continue" type="button" className="comments-btn primary" disabled={!next.enabled || next.starting !== null} aria-describedby={next.reason === null ? undefined : reasonId} onClick={next.onContinue}>{next.starting === "current" ? "Starting…" : "Continue on current version"}</button>
-        : state.status === "retry-original" ? <button key="retry-original" type="button" className="comments-btn primary" disabled={!!props.blocked} onClick={props.onRetryOriginal}>Retry original save</button> : <>
-          {props.saveOnly && <button key="save-only" type="button" className="comments-btn" disabled={cannotSave} onClick={props.saveOnly}>Save only</button>}
-          <button key="save" type="button" className="comments-btn primary" disabled={cannotSave} onClick={props.onSave}>{state.status === "saving" ? "Saving…" : props.saveOnly ? "Save and reopen" : state.status === "reviewed" ? "Save reviewed changes" : props.mode === "edit" ? "Save changes" : "Save comment"}</button>
+      <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={state.status === "saving" || state.status === "saved"} onClick={locked ? props.onKeepDraft : props.onCancel}>{locked ? "Keep draft" : "Cancel"}</button>
+      {next?.canvas && <button key="continue-canvas" type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={!next.canvas.enabled || next.starting !== null} onClick={next.onCanvas}>{next.starting === "canvas" ? "Starting…" : "Continue on canvas"}</button>}
+      {next ? <button key="continue" type="button" className="comments-btn primary doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={!next.enabled || next.starting !== null} aria-describedby={next.reason === null ? undefined : reasonId} onClick={next.onContinue}>{next.starting === "current" ? "Starting…" : "Continue on current version"}</button>
+        : state.status === "retry-original" ? <button key="retry-original" type="button" className="comments-btn primary doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={!!props.blocked} onClick={props.onRetryOriginal}>Retry original save</button> : <>
+          {props.saveOnly && <button key="save-only" type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={cannotSave} onClick={props.saveOnly}>Save only</button>}
+          <button key="save" type="button" className="comments-btn primary submit doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={cannotSave} onClick={props.onSave}>{state.status === "saving" ? "Saving…" : props.saveOnly ? "Save and reopen" : state.status === "reviewed" ? "Save reviewed changes" : props.mode === "edit" ? "Save changes" : "Save comment"}</button>
         </>}
     </div>
     {props.saveOnly && <p className="comments-helper">Agents read open comments only.</p>}
     {props.blocked && <p className="comments-helper" role="status">{props.blocked}</p>}
     {next && (next.reason === null ? <p className="comments-helper">Continues on {targetLabel(next.preview, props.frames).text}.</p> : <p className="comments-helper" id={reasonId}>{next.reason}</p>)}
     {next?.error && <p className="comments-helper" role="alert">Couldn’t continue on the current version: {next.error.replace(/\.$/, "")}. Your text is kept.</p>}
-    {props.blocked && props.mode === "edit" && !locked && <button type="button" className="comments-btn" onClick={props.onReadLatest}>Read latest state</button>}
+    {props.blocked && props.mode === "edit" && !locked && <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={props.onReadLatest}>Read latest state</button>}
     </div>
-    {state.status !== "idle" && <div className={`comments-message ${state.status === "failed" || state.status === "check-failed" || state.status === "deleted" ? "error" : state.status === "unknown" || state.status === "conflict" || state.status === "recovery-blocked" ? "warning" : ""}`} role="status"><SaveMessage state={state} />
+    {state.status !== "idle" && <div className={`comments-message ${saveTone(state.status)}`} role="status">{saveTone(state.status) && <AlertIcon size={20} />}<SaveMessage state={state} />
       {(state.status === "unknown" || state.status === "check-failed" || state.status === "checking" || state.status === "conflict") && <div className="comments-tools">
-        {(state.status === "unknown" || state.status === "check-failed" || state.status === "checking") && <button type="button" className="comments-btn" disabled={state.status === "checking"} onClick={props.onCheck}>{state.status === "check-failed" ? "Retry status check" : "Check saved status"}</button>}
-        {state.status === "conflict" && <button type="button" className="comments-btn" onClick={props.onReadLatest}>Read latest state</button>}
+        {(state.status === "unknown" || state.status === "check-failed" || state.status === "checking") && <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={state.status === "checking"} onClick={props.onCheck}>{state.status === "check-failed" ? "Retry status check" : "Check saved status"}</button>}
+        {state.status === "conflict" && <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={props.onReadLatest}>Read latest state</button>}
       </div>}
     </div>}
   </>;
@@ -337,7 +344,7 @@ export function UnsavedCommentDialog(props: UnsavedCommentDialogProps) {
     props.onContinue();
     props.restoreEditorFocus();
   };
-  return <dialog className="comments-dialog" aria-label={props.canSave ? "Save your comment first?" : "Keep this draft?"} aria-busy={props.busy}
+  return <dialog className="comments-dialog doan-dialog" data-ui-size="compact" aria-label={props.canSave ? "Save your comment first?" : "Keep this draft?"} aria-busy={props.busy}
     ref={node => { dialog = node; if (node && !node.open) node.showModal(); }}
     onCancel={event => { event.preventDefault(); keepWriting(); }}
     onKeyDown={event => {
@@ -346,14 +353,14 @@ export function UnsavedCommentDialog(props: UnsavedCommentDialogProps) {
       event.stopPropagation();
       if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) keepWriting();
     }}>
-    <h3>{props.canSave ? "Save your comment first?" : "Keep this draft?"}</h3>
+    <h3 className="doan-dialog-title">{props.canSave ? "Save your comment first?" : "Keep this draft?"}</h3>
     <p>Your unsaved comment belongs to {props.context}. {props.canSave ? "Save it before moving, discard it, or keep writing here." : "Saving is unavailable. Discard the draft to continue or keep writing on the original draft."}</p>
     <p className="comments-target">To: {targetLabel(props.target, props.frames).text}</p>
     {props.reason && <p role="status">{props.reason}</p>}
-    <div className="comments-tools">
-      <button type="button" className="comments-btn" autoFocus disabled={props.busy} onClick={keepWriting}>Keep writing</button>
-      <button type="button" className="comments-btn" disabled={props.busy || props.discardBlocked} onClick={props.onDiscard}>Discard</button>
-      <button type="button" className="comments-btn primary" disabled={!props.canSave || props.busy} onClick={props.onSave}>{props.busy ? "Saving…" : "Save and continue"}</button>
+    <div className="comments-tools doan-dialog-actions">
+      <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" autoFocus disabled={props.busy} onClick={keepWriting}>Keep writing</button>
+      <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" disabled={props.busy || props.discardBlocked} onClick={props.onDiscard}>Discard</button>
+      <button type="button" className="comments-btn primary submit doan-button" data-ui-variant="prominent" disabled={!props.canSave || props.busy} onClick={props.onSave}>{props.busy ? "Saving…" : "Save and continue"}</button>
     </div>
   </dialog>;
 }
@@ -365,18 +372,18 @@ export function DeleteCommentDialog({ comment, replacedOn, onCancel, onConfirm }
   let dialog: HTMLDialogElement | null = null;
   const cancel = () => { dialog?.close(); onCancel(); };
   const title = replacedOn === undefined ? "Delete this comment?" : "Delete the original comment?";
-  return <dialog className="comments-dialog" aria-label={title} ref={node => { dialog = node; if (node && !node.open) node.showModal(); }}
+  return <dialog className="comments-dialog doan-dialog" data-ui-size="compact" aria-label={title} ref={node => { dialog = node; if (node && !node.open) node.showModal(); }}
     onCancel={event => { event.preventDefault(); cancel(); }}
     onKeyDown={event => {
       if (event.key !== "Escape") return;
       event.preventDefault(); event.stopPropagation();
       if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) cancel();
     }}>
-    <h3>{title}</h3>
+    <h3 className="doan-dialog-title">{title}</h3>
     {replacedOn === undefined ? <><p className="comments-body">{comment.body}</p><p>This comment will be removed and cannot be restored.</p></>
       : <p>Your text was saved as a new comment on {replacedOn}.</p>}
-    <div className="comments-tools"><button type="button" className="comments-btn" autoFocus onClick={cancel}>{replacedOn === undefined ? "Cancel" : "Keep both"}</button>
-      <button type="button" className={replacedOn === undefined ? "comments-btn" : "comments-btn danger"} onClick={() => { dialog?.close(); onConfirm(); }}>{replacedOn === undefined ? "Delete comment" : "Delete original"}</button></div>
+    <div className="comments-tools doan-dialog-actions"><button type="button" className="comments-btn doan-button" data-ui-variant="subtle" autoFocus onClick={cancel}>{replacedOn === undefined ? "Cancel" : "Keep both"}</button>
+      <button type="button" className={replacedOn === undefined ? "comments-btn doan-button" : "comments-btn danger doan-button"} data-ui-variant="subtle" onClick={() => { dialog?.close(); onConfirm(); }}>{replacedOn === undefined ? "Delete comment" : "Delete original"}</button></div>
   </dialog>;
 }
 
@@ -390,7 +397,7 @@ export function UncertainCommentDialog(props: {
 }) {
   let dialog: HTMLDialogElement | null = null;
   const stay = () => { dialog?.close(); props.onStay(); props.restoreEditorFocus(); };
-  return <dialog className="comments-dialog" aria-label="Save status could not be confirmed"
+  return <dialog className="comments-dialog doan-dialog" data-ui-size="compact" aria-label="Save status could not be confirmed"
     ref={node => { dialog = node; if (node && !node.open) node.showModal(); }}
     onCancel={event => { event.preventDefault(); stay(); }}
     onKeyDown={event => {
@@ -398,12 +405,12 @@ export function UncertainCommentDialog(props: {
       event.preventDefault(); event.stopPropagation();
       if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) stay();
     }}>
-    <h3>Save status could not be confirmed</h3>
+    <h3 className="doan-dialog-title">Save status could not be confirmed</h3>
     {props.kind === "quit" ? <p>If you quit, this draft is lost. Quitting does not tell Doan whether the save finished, and restarting does not confirm it either. Check the comment after you reopen Doan.</p>
       : <p>You cannot leave this draft in {props.context} because its save status could not be confirmed. Your original input is kept.</p>}
-    <div className="comments-tools">
-      <button type="button" className="comments-btn" autoFocus onClick={stay}>{props.kind === "quit" ? "Stay" : "Keep draft"}</button>
-      {props.kind === "quit" && <button type="button" className="comments-btn" onClick={props.onQuit}>Quit anyway</button>}
+    <div className="comments-tools doan-dialog-actions">
+      <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" autoFocus onClick={stay}>{props.kind === "quit" ? "Stay" : "Keep draft"}</button>
+      {props.kind === "quit" && <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" onClick={props.onQuit}>Quit anyway</button>}
     </div>
   </dialog>;
 }

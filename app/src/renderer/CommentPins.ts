@@ -22,11 +22,9 @@ export class CommentPins {
         button = document.createElement("button");
         button.type = "button";
         button.className = "comment-pin";
-        // Values follow design/comments-ui.html's approved .pin rule.
+        // Geometry only; .comment-pin in styles.css paints it, so its focus state can replace the halo.
         Object.assign(button.style, { position: "absolute", minWidth: "24px", height: "24px", padding: "0 6px",
-          borderRadius: "12px", border: "1px solid var(--accent-ink)", background: "var(--accent)",
-          color: "var(--accent-ink)", font: "600 11px var(--font-sans)", boxShadow: "var(--shadow-1)",
-          pointerEvents: "auto", transform: "translate(-50%, -50%)" });
+          borderRadius: "12px", pointerEvents: "auto", transform: "translate(-50%, -50%)" });
         button.addEventListener("pointerdown", event => event.stopPropagation());
         button.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") event.stopPropagation(); });
         button.addEventListener("click", event => { event.stopPropagation(); this.activate(pin.node); });

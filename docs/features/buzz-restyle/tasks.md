@@ -29,7 +29,7 @@
 - [ ] C5. `buzz-project`
 - [ ] C6. `buzz-canvas`
 - [ ] C7. `buzz-inspector`
-- [ ] C8. `buzz-comment`
+- [ ] C8. `buzz-comment` — 보류(2026-10-26 user): 에이전트와 실시간 대화하는 기능을 별도 feature로 검토하고, 도입하면 코멘트를 걷어낸다. 그 feature의 PoC와 PRODUCT §3 결정이 날 때까지 시작하지 않는다
 - [ ] C9. `buzz-settings`
 
 ## Z. 부모 정리
@@ -37,7 +37,7 @@
 - [ ] Z1. 남은 표시, 다크 잔재, PRODUCT §7 기록을 확인하고 이 디렉터리를 지운다.
   - 검증:
     - `grep -n 'buzz-ds 이전' docs/DESIGN.md` 결과 없음
-    - `grep -nE 'color-scheme: *dark|#121212|#171717|#1d1d1d|#ecebe4|#f0773a' app/src/renderer/*.css` 결과 없음
+    - `grep -nE 'color-scheme: *dark|#121212|#171717|#1d1d1d|#ecebe4|#f0773a|#3a2117|#1a0b03' app/src/renderer/*.css` 결과 없음
     - PRODUCT §7에 spec '완료 조건'의 대체 기록이 모두 있음
     - design.md '자식 feature 조사 메모'에 남은 메모가 없음
     - `docs/features/buzz-restyle/`가 없음

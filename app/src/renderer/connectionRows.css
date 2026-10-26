@@ -1,25 +1,27 @@
 /* Shared rows from the accepted design/app-setup.html draft. */
 .cn-card { width: auto; overflow: hidden; }
+.cn-card > :first-child { border-top: 0; }
 .cn-card.w640 { width: 640px; }
-.cn-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line-2); }
-.cn-name { display: flex; align-items: center; gap: 6px; justify-self: start; font: 600 12.5px var(--font-sans); color: var(--text); text-align: left; border-radius: 5px; padding: 1px 4px; margin-left: -4px; }
-.cn-name .tw { width: 10px; flex: none; color: var(--text-4); font-size: 10px; font-weight: 400; text-align: center; }
+.cn-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-3) 0; border-top: 1px solid var(--border-standard); }
+/* The disclosure name keeps its hit area inside the row edge: the negative margin cancels its padding. */
+.cn-name { display: inline-flex; align-items: center; gap: var(--space-1h); justify-self: start; margin-left: calc(-1 * var(--space-1h)); padding: var(--space-1) var(--space-1h); border-radius: var(--space-2); color: var(--text-standard); font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); text-align: left; }
+.cn-name .tw { flex: none; width: 12px; color: var(--text-subtle); font-size: var(--type-caption-size); font-weight: var(--type-weight-regular); text-align: center; }
 .cn-end { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
-.cn-say { grid-column: 1 / -1; padding-left: 16px; font-size: 11.5px; line-height: 1.5; color: var(--text-3); overflow-wrap: anywhere; }
-.cn-say b { font-weight: 600; color: var(--warn); }
-.cn-say.ok { color: var(--ok); }
-.cn-say code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
-.cn-details { grid-column: 1 / -1; margin: 8px -14px -12px; background: var(--panel-2); border-top: 1px solid var(--line-2); }
-.cn-details .ob-item { grid-template-columns: 96px minmax(0, 1fr) auto; padding: 10px 14px 10px 30px; }
-.cn-details .ob-item .ob-label { font-weight: 500; color: var(--text-2); }
-.cn-details > :last-child { border-bottom: 0; }
+.cn-say { grid-column: 1 / -1; padding-left: 18px; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); overflow-wrap: anywhere; }
+.cn-say b { color: var(--text-warning); font-weight: var(--type-weight-medium); }
+.cn-say.ok { color: var(--text-success); }
+.cn-say code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+/* Details open on an inset fill inside the row, under the name. */
+.cn-details { grid-column: 1 / -1; margin: var(--space-2) 0 0 18px; padding: 0 var(--space-3); border-radius: var(--radius-row); background: var(--surface-inset); }
+.cn-details > :first-child { border-top: 0; }
+.cn-details .ob-item .ob-label { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 /* The MCP wait reason belongs to the dimmed item above it, in Settings and the wizard;
    Settings loads no other .ob-notice rule. */
 .cn-details .ob-item.ob-notice { padding-top: 0; }
-.cn-details .ob-detail code, .cn-details .ob-msg code, .cn-details .ob-reason code { background: var(--raised); }
-.cn-opt { display: grid; gap: 6px; padding: 10px 14px 12px 30px; }
-.cn-opt-head { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: var(--text); }
-.cn-opt p { font-size: 11.5px; line-height: 1.5; color: var(--text-3); }
-.cn-opt p code { color: var(--text-2); background: var(--raised); border-radius: 4px; padding: 0 4px; }
+/* Beats the shared code-chip rule wherever the bundler orders this file. */
+.cn-card .cn-details code { background: var(--surface-panel); }
+.ob-detail.path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cn-opt { display: grid; gap: var(--space-2); padding: var(--space-3) 0; border-top: 1px solid var(--border-standard); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.cn-opt-head { display: flex; align-items: center; gap: var(--space-2); color: var(--text-standard); font-weight: var(--type-weight-medium); }
 .cn-opt .ob-copyline { grid-column: auto; }
-.cn-note { padding: 10px 14px; font-size: 11.5px; line-height: 1.5; color: var(--text-2); border-left: 2px solid var(--warn); margin-top: 14px; }
+.cn-note { margin-top: 14px; }

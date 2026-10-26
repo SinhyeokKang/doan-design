@@ -359,6 +359,9 @@ try {
     assert.equal(await details.getAttribute("aria-expanded"), "false");
     await details.click();
     await wait(async () => await details.getAttribute("aria-expanded") === "true", "Details opened");
+    // An open disclosure shows its state in its label, not with a pressed fill.
+    await page.mouse.move(0, 400); await page.waitForTimeout(250);
+    assert.equal(await details.evaluate(node => getComputedStyle(node).backgroundColor), "rgba(0, 0, 0, 0)", "open Details is not drawn pressed");
     assert.equal(await page.locator("p.tree-detail").textContent(), "unreadable_comments: Cannot read .doan/comments/beta.jsonl: permission denied");
     // The tree and the other canvases stay.
     assert.equal(await canvasRow(page, "alpha.html").locator(".warn-mark").count(), 0);
@@ -510,8 +513,8 @@ try {
     }
     assert.ok(seen, "the Resolve reached main after the canvas came back");
     assert.ok(seen.text.startsWith(`Couldn’t save comment${REFUSED}`), `refusal text: ${seen.text}`);
-    // A card's own message keeps the Comments card look, not the tree's group indent.
-    assert.deepEqual({ marginLeft: seen.marginLeft, paddingTop: seen.paddingTop }, { marginLeft: "0px", paddingTop: "12px" }, "card message style inside the tree");
+    // A card's own message keeps the Comments card's status block, not the tree's group indent.
+    assert.deepEqual({ marginLeft: seen.marginLeft, paddingTop: seen.paddingTop }, { marginLeft: "12px", paddingTop: "24px" }, "card message style inside the tree");
     await wait(async () => await treeItem("delta").count() === 0 && await treeItem("Delta canvas").count() === 1, "the comments move to Delta's canvas group", 15_000);
     assert.equal(await treeItem("Delta open note").count(), 1);
     assert.equal(await readFile(commentsFile("delta"), "utf8"), before, "the refused Resolve wrote nothing");

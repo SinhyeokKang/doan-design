@@ -324,12 +324,15 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     await page.getByRole("button", { name: "Add Project…", exact: true }).first().click();
     await enterProject(page, repos.ok);
     await emptyControls(page);
+    // Disabled reads through the disabled text role, never through opacity.
+    const disabledInk = (button: Element) => { const probe = document.body.appendChild(document.createElement("span")); probe.style.color = "var(--text-disabled)"; const ink = getComputedStyle(probe).color; probe.remove(); return { opacity: getComputedStyle(button).opacity, disabledInk: getComputedStyle(button).color === ink }; };
     const disabledStyles = await page.getByRole("button", { name: "Zoom out", exact: true }).evaluate(button => ({
       group: getComputedStyle(button.parentElement!.parentElement!).opacity,
       button: getComputedStyle(button).opacity,
     }));
-    assert.deepEqual(disabledStyles, { group: "0.4", button: "1" }, "disabled zoom is dimmed once");
-    assert.equal(await page.getByRole("button", { name: "Reload canvas", exact: true }).evaluate(button => getComputedStyle(button).opacity), "0.4", "disabled Reload opacity");
+    assert.deepEqual(disabledStyles, { group: "1", button: "1" }, "disabled zoom is not dimmed by opacity");
+    assert.deepEqual(await page.getByRole("button", { name: "Zoom out", exact: true }).evaluate(disabledInk), { opacity: "1", disabledInk: true }, "disabled zoom uses the disabled ink");
+    assert.deepEqual(await page.getByRole("button", { name: "Reload canvas", exact: true }).evaluate(disabledInk), { opacity: "1", disabledInk: true }, "disabled Reload uses the disabled ink");
     assert.equal(await page.getByRole("button", { name: "Reload canvas", exact: true }).evaluate(button => getComputedStyle(button.closest("header")!).lineHeight), "normal", "top bar does not inherit preflight line height");
     await replaceDialog(app, repos.ok);
     await page.evaluate(() => window.doan.openFolder());
@@ -576,7 +579,7 @@ async function canvasView(app: ElectronApplication, page: Page, repos: Repos): P
     const rect = spinner?.getBoundingClientRect();
     return { text: status?.textContent, spinner: rect ? { width: rect.width, height: rect.height } : null };
   });
-  assert.deepEqual(loadingText, { text: "Loading…", spinner: { width: 18, height: 18 } }, "loading status keeps its hidden 18px spinner and text");
+  assert.deepEqual(loadingText, { text: "Loading…", spinner: { width: 16, height: 16 } }, "loading status keeps its hidden 16px spinner and text");
   let state = await waitLoaded(page, "main canvas shown");
   assert.deepEqual(await currentCanvases(page), [`${repos.canvas}\ndesign/main.html`]);
   assert.equal(await page.getAttribute('[role="region"][aria-label="Canvas"] iframe', "sandbox"), "allow-scripts");
