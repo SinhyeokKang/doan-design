@@ -110,3 +110,5 @@
 - E (`task_1c62e9b1672e`, `ctx_34515353797e`)는 실제 Electron/main/preload→SDK→fake Claude에서 exit(7)이 `process_exited` 대신 `unknown`으로 기록됨을 재현했다(`.scratch/E-runtime-sixth.log`). 상태·소유 PID 정리는 통과했고 제품 파일은 수정하지 않았다. F-A3는 Astra medium으로 이 종료 분류만 회귀 수정한다. E는 runtime/full-test 슬롯과 e2e 파일을 유지하고 나머지 검증을 진행하며 F-A3는 focused fake-runner/typecheck만 실행한다.
 
 - E는 Codex app-server가 같은 그룹 자식을 남기고 exit(7)하면 `turn.failed` 없이 running이 유지되는 추가 결함을 재현했다(`.scratch/E-runtime-ninth.log`, 15초 관찰). 지휘자가 runner exit 경로를 확인하고 F-A3의 진행 중 종료 처리 범위에 전달했다. transport 사망 시 즉시 실패·소유 그룹 정리를 시작하되, 예약 해제는 실제 그룹 종료 확인 뒤여야 한다. E의 기대값과 런타임 슬롯은 유지한다.
+
+- F-A3 (`task_34040a8a1048`, `ctx_0158c7c99d5b`)는 `f100324`, `3873f11`로 Claude 실제 child exit와 SDK 구조화 오류 태그를 함께 확인해 종료를 분류했다. 집중 47개·typecheck 통과 보고와 diff를 지휘자가 E 재현에 대조하고 통합했다. release 완료, E에 원본 두 커밋 적용·재빌드·실제 Electron 재검증을 요청했다. Codex 추가 사례는 F-A3 마무리 후 도착해 미처리이므로 F-A4(Astra medium)가 별도 수행한다. E의 full/runtime 슬롯은 유지한다.
