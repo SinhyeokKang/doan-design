@@ -26,8 +26,8 @@
 | 배치 | task 소유 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | P | P1, P2, P3 | `.scratch/agent-conversation/`, PRODUCT §6 결과 | 없음 | Astra medium — 전송·권한·동시 세션 실증 판단 | 버전·명령·원시 증거·격리 검증, 9a~9e 결과 | 실험 종료, 설정 전체 동일성 실패·독립 검토 대기 |
-| D | D1, D2 | PRODUCT 결정, feature 계약의 PoC 확정 내용 | P | Astra medium — 제품 범위와 실험 결과 대조 | §3·§7 및 스킬 변경 판단 | 문서 작업 시작, 동시 실행 정책 결정 게이트 유지 |
-| S | S1 | `schema/`, Go·TS formats 등록과 테스트 | D | Sol medium — 공유 포맷과 픽스처 구현 | Go·TS 포맷 테스트 | 대기 |
+| D | D1, D2 | PRODUCT 결정, feature 계약의 PoC 확정 내용 | P | Astra medium — 제품 범위와 실험 결과 대조 | §3·§7 및 스킬 변경 판단 | 리뷰 보완·통합 완료 |
+| S | S1 | `schema/`, Go·TS formats 등록과 테스트 | D | Sol medium — 공유 포맷과 픽스처 구현 | Go·TS 포맷 테스트 | 구현 시작 |
 | C | T1·T2의 Go 부분, C1 | `cli/internal/cli/` 세션 기록과 테스트, 필요 시 skill | S | Astra medium — 출력 보존·경로·동시 append | red→green, Go test/vet, 필요 시 agent-eval | 대기 |
 | T | T1·T2의 TS 부분 | `app/src/main/conversation/` 순수 함수·계약·테스트 | S | Astra medium — 이벤트·복구·권한 상태 계약 | red→green, app test/typecheck | 대기 |
 | A | A2, A3, A4 | conversation 실행기·저장·IPC, main 수명, preload와 타입 | C, T | Astra medium — 프로세스·저장·IPC 경계 | app test/typecheck/build 및 E 종료 검증 | 대기 |
@@ -68,3 +68,4 @@
 - D가 사용자 결정을 반영하고 문서별 `7f47871`, `b26f10c`, `1520575`, `57975ef`를 제출했다. targeted 계약 검사와 diff 검사 통과, guide 변경 없음. D 터미널 release 완료. 독립 R-D (`task_b44de7327278`, `ctx_42d99c962caf`)가 Astra medium으로 4개 문서의 누락·충돌과 인계 주장을 검토한다. D child는 리뷰·통합 전이므로 유지한다.
 - R-D 결과는 🔴 0, 🟡 2이다. 앱 내부에서 서로 다른 대화가 같은 런타임 세션을 실행하는 소유권 규칙과 read 후 구독 시 마지막 이벤트가 빠지는 공백을 확인했다. 리뷰 터미널 release 완료. F-D는 Astra medium으로 design/tasks만 보완한다. 기존 승인된 외부 Claude 경쟁의 한계를 다시 결정하는 작업이 아니다.
 - 2026-10-27 사용자 확인: 독립 인증은 나중에 필요하면 다룬다. 이번 범위는 설치·로그인된 CLI 인증 사용으로 유지하며 OAuth·토큰·계정 관리나 CLI 번들 배포를 추가하지 않는다.
+- F-D (`task_13b4cd712a54`, `ctx_d434500e7909`)의 `f7f5149`, `3b95e4d`를 지휘자가 R-D 두 지적과 직접 대조했다. 예약·검증된 종료에 따른 해제, listener 선등록·마지막 이벤트 병합 및 T/A/E 테스트 소유가 모두 반영됐다. 잔여 지적 없음. D/F-D 6커밋을 `b82d7a1`부터 `de67bb6`까지 통합했고 diff 검사 통과(문서만 변경해 full verify 생략). F-D 터미널 release 완료. S는 Sol medium으로 schema/등록/픽스처를 구현하며 현재 전체 테스트 실행 슬롯을 가진다.
