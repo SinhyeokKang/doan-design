@@ -8,10 +8,14 @@
 
 - [ ] H1. AGENTS.md Workflow 'Terms'에 부모 feature를 정의한다: 자식 feature를 정의하고 공통 결정을 보관하는 허브, `/ship`·`/orchestrate` 대상이 아님, 마지막 자식 뒤 삭제.
   - 검증: `grep -n 'parent feature' AGENTS.md`에 정의 줄이 있다.
-- [ ] H2. AGENTS.md의 `/design-sync` 규칙과 `.agents/skills/design-sync/SKILL.md`를 넓힌다: 리디자인 자식의 새 초안은 그 자식이 머지될 때까지 정본이다(공통 결정 11).
-  - 검증: 두 파일에 리디자인 초안 문장이 있다(`grep -n 'redesign' AGENTS.md .agents/skills/design-sync/SKILL.md`).
+- [ ] H2. 리디자인 초안을 허용하도록 하네스를 넓힌다(공통 결정 11).
+  - AGENTS.md의 `/design-sync` 규칙과 `.agents/skills/design-sync/SKILL.md`: 리디자인 자식의 새 초안은 그 자식이 머지될 때까지 정본이다.
+  - `.agents/skills/design-draft/SKILL.md`: 리디자인 자식은 main에 이미 있는 화면의 새 초안을 그릴 수 있다. "다크 전용" 규칙을 라이트 단일과 역할 토큰으로 바꾼다.
+  - 검증: `grep -n 'redesign' AGENTS.md .agents/skills/design-sync/SKILL.md .agents/skills/design-draft/SKILL.md`에 세 파일 모두 줄이 있다.
+- [ ] H3. AGENTS.md Commands에 읽기 전용 Buzz 참조 명령 `git -C ~/code/buzz-app rev-parse HEAD`와 `git -C ~/code/buzz-app show <sha>:<path>`를 추가한다.
+  - 검증: `grep -n 'buzz-app' AGENTS.md`에 두 명령이 있다.
 
-── commit: `docs(agents): define parent features` / `docs(skills): let design-sync follow redesign drafts` ──
+── commit: `docs(agents): define parent features` / `docs(skills): let design skills follow redesign drafts` / `docs(agents): add Buzz reference commands` ──
 
 ## C. 자식 feature
 
