@@ -392,3 +392,33 @@ func TestSessionInternalCheckFailureAndNoInspectedCanvases(t *testing.T) {
 		})
 	}
 }
+
+func TestSessionRecordsReadableCanvasesWhenAnotherReadFails(t *testing.T) {
+	root, log := sessionFixture(t)
+	putFile(t, root, "design/b.html", strings.Replace(validCanvas, `content="foo"`, `content="bar"`, 1))
+	blocked := filepath.Join(root, "design/b.html")
+	if e := os.Chmod(blocked, 0); e != nil {
+		t.Fatal(e)
+	}
+	t.Cleanup(func() {
+		if e := os.Chmod(blocked, 0600); e != nil {
+			t.Error(e)
+		}
+	})
+	if _, e := os.ReadFile(blocked); e == nil {
+		t.Skip("process can read mode-000 files")
+	}
+	code, out, err := checkOutput(root, true)
+	if code != 1 {
+		t.Fatal(code)
+	}
+	t.Setenv("CLAUDE_CODE_SESSION_ID", "c")
+	c, o, e := checkOutput(root, true)
+	if c != code || o != out || e != err {
+		t.Fatal("read failure changed output")
+	}
+	rows := sessionRows(t, log)
+	if len(rows) != 1 || rows[0]["canvas"].(map[string]any)["path"] != "design/a.html" {
+		t.Fatal("readable canvas missing or unreadable canvas recorded", rows)
+	}
+}
