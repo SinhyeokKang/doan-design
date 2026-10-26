@@ -1,13 +1,16 @@
 import { beginDraft, guardsSelectionChange, transitionDraft, type DraftState } from "../comments/draft";
 import type { ExpectedComment, MutationIntent } from "../comments/events";
 import type { CopyScope } from "../comments/projection";
+import { reviewState, reviewSummary, startReview, toReview, type ReviewMarker, type ReviewState } from "../comments/review";
 import type { Comment, Target } from "../formats/types";
 import type { CanvasIdentityCause } from "../main/comments/identity";
 import type { BeginResult, CommentIdentity, CommentList, CommentReply, CommentRequest, MutationRequest, SavedStatus } from "../main/comments/service";
 import type { DoanApi } from "../preload";
 import type { AuthorView, CopyView, SaveView } from "./CommentsPanel";
 
-type Api = Pick<DoanApi, "commentsList" | "commentsAuthor" | "commentsBegin" | "commentsMutate" | "commentsStatus" | "commentsCopy" | "setCommentDraftGuard">;
+// The review marker calls are optional so sessions built without them (tests) read none.
+type Api = Pick<DoanApi, "commentsList" | "commentsAuthor" | "commentsBegin" | "commentsMutate" | "commentsStatus" | "commentsCopy" | "setCommentDraftGuard"> &
+  Partial<Pick<DoanApi, "reviewMarker" | "raiseReviewMarker">>;
 const emptyDraft = (): DraftState => ({ draft: null, transition: null, request: null, error: null });
 const errorText = (error: unknown) => error instanceof Error ? error.message : "Comments operation failed.";
 // How long the line left in a resolved or reopened card's place stays (feature revision-recheck).
@@ -19,6 +22,15 @@ export function expectedComment(c: Comment): ExpectedComment {
 function same(a: CommentIdentity | null, b: CommentIdentity | null): boolean {
   return a?.root === b?.root && a?.canvas === b?.canvas && a?.path === b?.path;
 }
+// A Review and its marker belong to the canvas, which keeps its id across a move.
+function sameCanvas(a: Pick<CommentIdentity, "root" | "canvas"> | null, b: Pick<CommentIdentity, "root" | "canvas"> | null): boolean {
+  return !!a && !!b && a.root === b.root && a.canvas === b.canvas;
+}
+export type ReviewMove = "next" | "previous" | "done" | "close";
+// `comments`: the last copy of each step's comment, so a step deleted
+// meanwhile still shows its target and text. `notFound`: the step whose
+// target the canvas could not find when Review moved there.
+export interface ReviewRun { root: string; canvas: string; state: ReviewState; comments: Map<string, Comment>; notFound: string | null }
 class RefusedIdentity extends Error {
   constructor(message: string, readonly identityCause: CanvasIdentityCause) { super(message); }
 }
@@ -63,6 +75,16 @@ export class CommentsSession {
   // Left where a card was after the person's own Resolve or Reopen moved it to
   // the other list; `show` after Save and reopen, which leaves from the editor.
   statusLine: { comment: string; text: string; show?: true } | null = null;
+  // The Git name the author read returned; the person's own resolves are not theirs to review.
+  self: string | null = null;
+  // This canvas's device-local last review time (main's review-state.json).
+  marker: ReviewMarker | null = null;
+  review: ReviewRun | null = null;
+  // Left after Done until closed, another canvas, or a resolve this Review did not see.
+  reviewDone: { text: string; reopened: string[]; seen: ReadonlySet<string> } | null = null;
+  // Told after main raised a canvas's marker, so Home and Overview counts follow.
+  onReviewed: ((root: string) => void) | null = null;
+  private markerRevision = 0;
   private statusTimer: ReturnType<typeof setTimeout> | undefined;
   private revision = 0;
   private beginRevision = 0;
@@ -108,9 +130,12 @@ export class CommentsSession {
     this.identity = identity;
     this.list = null; this.readError = null; this.identityCause = null; this.createError = null; this.continueError = null; this.copies = new Map(); this.mutations = new Map(); this.deleteConfirmation = null;
     this.clearStatus();
+    // Another canvas ends Review; the progress passed is already raised.
+    if (!sameCanvas(identity, this.review)) this.review = null;
+    this.reviewDone = null; this.marker = null; this.markerRevision++;
     if (this.draft.draft && !same(identity, this.draftIdentity)) this.invalidate("The original project or canvas is no longer open.");
     this.emit();
-    if (identity) await Promise.all([this.read(), this.retryAuthor()]);
+    if (identity) await Promise.all([this.read(), this.retryAuthor(), this.readMarker()]);
   }
   // The open canvas moved to `path` with the same id: the same comments, so
   // the list, filters and anchors stay. The bumped revision drops replies for
@@ -141,6 +166,7 @@ export class CommentsSession {
       const list = value(await this.api.commentsList(request), request);
       if (rev !== this.revision || read !== this.readRevision) return;
       this.list = list; this.readError = null; this.identityCause = null;
+      this.reviewRead(list.comments);
       if (review) for (const [id, state] of this.mutations) {
         if (state.status !== "conflict" || (card !== undefined && card !== id)) continue;
         const current = list.comments.find(c => c.comment === id), pending = this.cardPending.get(id);
@@ -176,10 +202,12 @@ export class CommentsSession {
       const author = value(await this.api.commentsAuthor(request), request);
       if (rev !== this.revision || tag !== this.authorRevision) return;
       this.author = { status: author.kind === "human" && author.name.trim() ? "ready" : "missing" };
+      this.self = author.kind === "human" && author.name.trim() ? author.name : null;
     } catch (error) {
       if (rev !== this.revision || tag !== this.authorRevision) return;
       const message = errorText(error);
       this.author = /user.name|Git user name|Git name/i.test(message) ? { status: "missing" } : { status: "failed", message };
+      this.self = null;
     }
     this.emit();
   }
@@ -343,6 +371,7 @@ export class CommentsSession {
       this.pending = null; this.saveView = { status: "idle" };
       await this.api.setCommentDraftGuard(false);
       this.destination?.(true); this.destination = null;
+      if (origin.kind === "edit" && request.intent.type === "edit-reopen") this.reviewReopened(origin.comment);
       await this.read();
       this.savedComment = status.comment ?? (origin.kind === "edit" ? origin.comment : null);
       if (rev === this.revision && origin.kind === "edit" && request.intent.type === "edit-reopen") this.showStatus(origin.comment, "reopen", true);
@@ -411,11 +440,95 @@ export class CommentsSession {
         // change that simply succeeded has nothing to say on the card.
         this.mutations.set(id, status.recovery ? { status: "recovery-blocked", message: status.error ?? "Confirm child exit externally, then restart the app." } : { status: status.state === "saved" ? (check || type === "delete" ? "saved" : "idle") : status.state === "absent" ? "retry-original" : "unknown" });
         if (status.state === "saved") {
-          this.cardPending.delete(id); await this.read();
+          this.cardPending.delete(id);
+          if (type === "reopen") this.reviewReopened(id);
+          await this.read();
           if (rev === this.revision && (type === "resolve" || type === "reopen")) this.showStatus(id, type);
         }
       }
     } catch (error) { if (rev === this.revision) this.mutations.set(id, check ? { status: "check-failed", message: errorText(error) } : { status: "unknown" }); }
     finally { this.busy = false; this.emit(); }
+  }
+  // feature revision-recheck Review. The notice and the bar read these fields
+  // as each method leaves them, never an earlier render's copy (POSTMORTEM
+  // 2026-10-25 "Navigation feedback read the previous React snapshot").
+  async readMarker() {
+    const identity = this.identity;
+    if (!identity) return;
+    const tag = ++this.markerRevision;
+    let marker: ReviewMarker | null = null;
+    try { marker = await this.api.reviewMarker?.(identity.root, identity.canvas) ?? null; } catch (error) { console.error(error); }
+    if (tag !== this.markerRevision || !sameCanvas(identity, this.identity)) return;
+    this.marker = marker; this.emit();
+  }
+  // Empty until the list, the marker and the Git name are known: counting
+  // before the name would list the person's own resolves for a moment.
+  pendingReview(): Comment[] {
+    if (!this.list || this.readError || !this.marker || this.author.status === "loading") return [];
+    return toReview(this.list.comments, this.marker, this.self);
+  }
+  startReview(): boolean {
+    const identity = this.identity;
+    if (!identity || this.review || this.draft.draft || this.beginning) return false;
+    const comments = this.pendingReview(), state = startReview(comments);
+    if (!state) return false;
+    this.review = { root: identity.root, canvas: identity.canvas, state, comments: new Map(comments.map(c => [c.comment, structuredClone(c)])), notFound: null };
+    this.reviewDone = null;
+    this.emit(); return true;
+  }
+  moveReview(move: ReviewMove) {
+    const run = this.review;
+    if (!run) return;
+    const state = reviewState(run.state, { type: move });
+    if (state === run.state) return;
+    this.raiseMarker(run, state.reviewedTo);
+    if (state.phase === "reviewing") this.review = { ...run, state, notFound: null };
+    else {
+      this.review = null;
+      if (state.phase === "done") { const summary = reviewSummary(state); this.reviewDone = { ...summary, seen: new Set(state.steps.map(step => step.comment)) }; }
+    }
+    this.emit();
+  }
+  // Going Home ends Review like another canvas; the progress passed stays.
+  closeReview() { if (this.review) { this.review = null; this.emit(); } }
+  closeDone() { if (this.reviewDone) { this.reviewDone = null; this.emit(); } }
+  markNotFound(comment: string | null) { if (this.review && this.review.notFound !== comment) { this.review = { ...this.review, notFound: comment }; this.emit(); } }
+  reviewComment(id: string): Comment | undefined { return this.review?.comments.get(id); }
+  async reopenStep() {
+    const run = this.review, step = run?.state.steps[run.state.cursor];
+    if (step?.mark === "resolved") await this.mutate("reopen", step.comment);
+  }
+  // Called once main confirmed the person's own Reopen, right before the
+  // reread: that read bumps the read revision in the same turn, so no read
+  // issued before the write can reach the Review afterwards (R-F F-2).
+  private reviewReopened(id: string) {
+    const run = this.review;
+    if (!run || !sameCanvas(run, this.identity) || run.state.steps[run.state.cursor]?.comment !== id) return;
+    this.review = { ...run, state: reviewState(run.state, { type: "reopen" }) };
+  }
+  private reviewRead(comments: readonly Comment[]) {
+    const run = this.review;
+    if (run && sameCanvas(run, this.identity)) {
+      let state = reviewState(run.state, { type: "changed", comments });
+      state = reviewState(state, { type: "arrived", comments: this.pendingReview() });
+      const known = new Map(run.comments);
+      for (const comment of comments) if (state.steps.some(step => step.comment === comment.comment)) known.set(comment.comment, structuredClone(comment));
+      this.review = { ...run, state, comments: known };
+    }
+    const done = this.reviewDone;
+    if (done && this.pendingReview().some(c => !done.seen.has(c.comment))) this.reviewDone = null;
+  }
+  // The local marker moves at once, as main only raises; main's answer then
+  // replaces it unless a newer read or raise started since.
+  private raiseMarker(run: ReviewRun, to: string | undefined) {
+    if (to === undefined || (run.state.reviewedTo !== undefined && run.state.reviewedTo >= to)) return;
+    const marker = this.marker;
+    if (marker && sameCanvas(run, this.identity) && to > (marker.lastReviewedAt ?? marker.since)) this.marker = { ...marker, lastReviewedAt: to };
+    const tag = ++this.markerRevision;
+    const raised = this.api.raiseReviewMarker?.(run.root, run.canvas, to);
+    void raised?.then(next => {
+      if (next && tag === this.markerRevision && sameCanvas(run, this.identity)) { this.marker = next; this.emit(); }
+      this.onReviewed?.(run.root);
+    }).catch(console.error);
   }
 }
