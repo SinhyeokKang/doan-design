@@ -72,3 +72,7 @@ B에 배정했던 전체 runtime은 사용자 지시에 따라 중단했다. 실
 - EL에서 typeahead 회귀를 재현했다: Beta에서 a→a는 Alpha→Alpine이어야 하나 Alpha에 머물고, Beta에서 a→l은 Alpha를 유지해야 하나 Alpine으로 옮겨간다. FK는 기존 Astra medium 작업자의 새 Task로 ShellSidebar와 상호작용 테스트·별도 회고만 소유한다. 기존 helper 재사용과 실패→통과·잠금 상태 renderer 재확인을 수행하며 전체 native gate는 남긴다.
 - FK는 `9216b86`, 회고 `8cd5419`로 완료했다. 단위 3,349개·타입·빌드와 잠긴 실제 renderer의 수정 후 trace가 통과했다. RK는 Astra medium의 독립 정적 수정 리뷰로 검증 주장과 연결 테스트를 확인한다.
 - ER은 Astra medium으로 잠금 상태에서 가능한 시안 대조·렌더러 상호작용·폰트 검증을 계속한다. 실측과 상태 대응 판단이 필요해 강한 모델을 선택했다. RK는 고정 diff를 읽기만 하며 ER은 별도 scratch와 검증된 DESIGN만 소유한다. 네이티브/full runtime gate는 변경하지 않고 미검증으로 남긴다.
+
+- RK는 🔴0·🟡0이며 FK를 `7e79578`, `8d5ab46`로 통합했다. ER은 잠금 상태의 실제 renderer에서 시안과 구현의 자식 요소까지 대조했고 헤더 아이콘·목록 제목 누락 및 위치·색·패딩 차이를 확인했다. 전체 네이티브 gate는 여전히 미완료다.
+- 기존 규칙으로 판정할 수 있는 차이는 새 결정을 만들지 않는다. design-sync의 공유 primitive 우선 규칙과 DESIGN의 floating material 계약을 유지하고, feature design의 현재 작업 공간 상태 띠 보존 지시에 따라 복구 액션을 유지한다. fixture 문자열·행 수·시각적으로 같은 pill radius는 그대로 결함으로 세지 않는다.
+- FV는 ER이 종료한 뒤 같은 Astra medium 작업자의 새 Task로 시안 불일치를 수정한다. 실측값·공유 primitive·기존 보호 동작을 구분해야 하므로 같은 모델을 선택했다. shell call-site 코드·의미 있는 회귀 검증·별도 POSTMORTEM·검증된 DESIGN을 소유하며, 수정 후 전체 실측표를 독립 리뷰에 넘긴다. 기존 잠금 검사와 전체 runtime gate는 수정하지 않는다.
