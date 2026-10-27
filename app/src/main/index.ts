@@ -1,3 +1,4 @@
+import { parseActivityRoots, readShellActivity } from "./shellActivity";
 import { ConversationService, resolveListedCanvas } from "./conversation/service";
 import { ConversationStore } from "./conversation/store";
 import { createPrepare } from "./conversation/prepare";
@@ -328,10 +329,12 @@ function createWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 600,
     titleBarStyle: "hiddenInset",
-    // Align with the 40px top bar, 12px horizontal padding, and 52px traffic space before the logo.
-    trafficLightPosition: { x: 12, y: 14 },
+    // Center the native controls on the 56px shell header.
+    trafficLightPosition: { x: 16, y: 21 },
+    vibrancy: "sidebar",
+    visualEffectState: "followWindow",
     title: "Doan Design",
-    backgroundColor: SHELL_BACKGROUND,
+    backgroundColor: "#00000000",
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -585,7 +588,8 @@ async function start(): Promise<void> {
   });
 
   const prepareConversation = createPrepare(userData, join(userData, "runtime.json"), process.env);
-  const conversationService = new ConversationService(new ConversationStore(userData), prepareConversation, openRunner, event => send("conversation:event", event), (root, canvas) => {
+  const conversationStore = new ConversationStore(userData);
+  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => send("conversation:event", event), (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
     if (!project) throw new Error("project_not_open");
     if (canvas) {
@@ -730,6 +734,11 @@ async function start(): Promise<void> {
   // Validated against the saved roots in main; the renderer's copy is not trusted.
   const store = createUiStateStore(join(userData, "ui-state.json"), () => ready.entries().map((entry) => entry.path));
   uiState = store;
+  handle("shell:activity", null, (event, value: unknown) => {
+    if (!fromWindow(event)) return null;
+    const roots = parseActivityRoots(value, ready.entries().map(entry => entry.path));
+    return roots === null ? null : readShellActivity(userData, conversationStore, roots);
+  });
   handle("ui-state:get", null, (event) => (fromWindow(event) ? store.read() : null));
   handle("ui-state:save", false, (event, value: unknown) => fromWindow(event) && store.save(value));
   // revision-recheck: the renderer reads markers and may only ask for raises.

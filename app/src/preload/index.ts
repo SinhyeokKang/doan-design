@@ -1,3 +1,4 @@
+import type { ShellActivity } from "../main/shellActivity";
 import type { ConversationService, StartRequest } from "../main/conversation/service";
 import type { ConversationError } from "../main/conversation/ipc";
 import type { Anchor, Canvas, ConversationEvent, Runtime, UnavailableReason } from "../main/conversation/types";
@@ -190,6 +191,7 @@ const api = {
     return () => ipcRenderer.removeListener("thumbnails:changed", receive);
   },
   // `ui-state.json` as main validated it against the saved roots; null starts at home.
+  readShellActivity: (request: { roots: string[] }): Promise<ShellActivity[] | null> => ipcRenderer.invoke("shell:activity", request),
   readUiState: (): Promise<UiState | null> => ipcRenderer.invoke("ui-state:get"),
   // Main validates again and writes the last value after 500 ms; false when refused.
   saveUiState: (state: UiState): Promise<boolean> => ipcRenderer.invoke("ui-state:save", state),
