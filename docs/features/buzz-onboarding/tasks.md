@@ -8,7 +8,7 @@
   - 검증: spec의 미결정 항목이 해소되고 PRODUCT §3과 충돌하는 승인 사항마다 마지막 승격 작업이 있다. 문서 대조이며 코드 명령은 없다.
 - [x] F2. 로컬 Buzz clone의 기준 커밋·온보딩 원본을 확인하고 `/feature-review`로 product·tech·QA·UX 계약을 검토한다.
   - 검증: AGENTS의 `git -C ~/code/buzz-app rev-parse HEAD`와 `git -C ~/code/buzz-app show <sha>:<path>`로 원본을 확인한다. 리뷰 질문과 반영 결과를 문서에 남긴다.
-- [x] F3. 사용자 지시에 따라 현재 트리의 루트 `design/`에 초안을 그리고 feature-review 전에 확인받았다(2026-10-28). 10개 프레임·33개 상태와 최신 시각 기준은 design에 정리했다.
+- [x] F3. 사용자 지시에 따라 현재 트리의 루트 `doan/`에 초안을 그리고 feature-review 전에 확인받았다(2026-10-28). 10개 프레임·33개 상태와 최신 시각 기준은 design에 정리했다.
   - 검증: 격리된 `DOAN_RUNTIME`으로 `go run ./cli/cmd/doan check --json --repo .`의 새 오류/경고가 없고 `go run ./cli/cmd/doan ls --json --repo .`의 frame 목록이 요청과 일치한다. 사용자 확인과 HTML 렌더링 검증을 마쳤다. 실제 기능 동작 검증은 V1 대상이다.
 
 ── commit: `docs(feature): define buzz-onboarding flow and approved draft contract` ──
