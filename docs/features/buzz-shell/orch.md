@@ -24,6 +24,7 @@
 | A 기술 계약 | 1b | design.md의 기술 연결, tasks.md의 1b | 없음 | Astra medium / 상태 호환성과 관측 한계 판단 | 기존 코드·IPC 대조, 공급원·복원 표 | 대기 |
 | B 리소스 | 4 | 폰트 리소스·라이선스, tokens.css, ds/controls.css, 폰트용 공통 CSS와 entry 링크 | 없음 | Sol medium / 승인 값과 로컬 리소스 연결 | typecheck, test, build, package; 실제 로드는 E | 대기 |
 | C 상태·창·UI | 3, 5a, 5b, 6 | app의 나머지 상태·main/preload·renderer 및 관련 테스트; B 파일은 통합 이후 필요 시 이관 | A, B | Astra medium / 보호·비동기·복원·포커스 수명 | TDD red→green, typecheck, 5a 실제 창 선행 검증, runtime | 대기 |
+| H 검증 입력 경로 | 7, 8의 기존 harness 적응 | app/e2e/**만 | C의 UI 입력 계약 | Astra medium / 기존 행동 검증을 유지하며 제거된 탐색 UI 대체 | 정적 경로 대조·harness unit, 실제 실행은 최종 통합 | 진행 |
 | R 독립 리뷰 | 8의 배치 리뷰 | 보고서만 .scratch/ | 각 배치 완료 | Astra medium / 계획 대비 동작과 누락 검토 | /code-review 및 handoff 근거 대조 | 대기 |
 | F 수정 라운드 | 8의 수정·postmortem | 해당 배치 소유 파일, 필요 시 POSTMORTEM.md | R | Astra medium / 원인과 회귀 판단 | 실패 재현→수정→관련 runtime, 재리뷰 | 필요 시 |
 | E 실측·회귀 | 7, 7b, 8의 통합 검증 | app/e2e의 관련 검증, .scratch/design-sync/buzz-shell/, DESIGN.md 실측 | C 통합 | Astra medium / 실제 창과 보호·포커스 검증 | /design-sync, /runtime-test, presentation dev/prod, 패키지 오프라인 로드 | 대기 |
@@ -56,3 +57,4 @@ B에 배정했던 전체 runtime은 사용자 지시에 따라 중단했다. 실
 - R-A: 🔴0·🟡2. 참조된 history 누락 상태와 selectedAt의 유효 Date 범위를 보완한다. F-A는 Astra medium으로 문서만 수정한다(기존 경계의 정확성 판단). 구현과 native 검증은 실행하지 않는다.
 - F-A `80e27b9`의 두 경계 보완을 지휘자가 diff와 handoff로 확인했다. A/F-A를 `33e158f`, `f166e01`, `f482cbe`로 통합했다. 원 작업자와 리뷰·수정 작업자는 모두 release 완료했고 증거를 복사한 뒤 `buzz-shell-contract`를 Orca로 제거했다.
 - C: `ctx_f8a26166a0a5`, task `task_9dba28cd37a0`, child `buzz-shell-ui`. 통합 `f482cbe`에서 시작했고 `turnStart: observed`, effective Astra medium을 확인했다. brief 맨 위에 사용자 native/e2e 유예를 명시했다. task 3·5a의 옵션 구현·5b·6을 맡고 실제 5a 검증은 E로 이관한다.
+- C가 app/e2e의 변경 없음과 소유권 해제를 확인했다. H에 해당 디렉터리만 맡겨 병렬로 기존 입력 경로를 갱신한다. C는 app/src만 수정하며 H를 기다리지 않는다. H도 GUI/e2e를 실행하지 않는다.
