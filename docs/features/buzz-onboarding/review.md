@@ -55,7 +55,7 @@
 
 위 발견 사항은 검토 당시 문서의 문제를 기록한 것이다. 최신 design에는 ready 진행, 재실행 Welcome, 완료 표식과 저장/인계 순서, Escape·창 숨김·종료·Back/Cancel, 포커스·외부 복귀, URL 문법·비대화식 Git 인증·clone 소유권/취소/경합, 기존 프로젝트 선택/초기화의 계약을 추가했다. tasks에는 대응 fixture와 판정 가능한 기대 결과를 연결했다.
 
-2026-10-28 사용자 추가 승인: CLI/MCP 온보딩을 포함한다. 앱만 설치한 뒤 자기 에이전트에게 setup을 맡기는 사용자를 지원한다. product·tech·QA 관점에서 bootstrap 순환·프로젝트 없는 시작·동일 main 상태·긴 작업 polling·비밀/권한·기존 active 호환을 재검토했고 design/tasks에 반영했다. 범용 앱 조작이나 별도 headless 인증 백엔드는 추가하지 않는다.
+2026-10-28 사용자 추가 승인: CLI/MCP 온보딩을 포함한다. 앱만 설치한 뒤 자기 에이전트에게 setup을 맡기는 사용자를 지원한다. product·tech·QA 관점에서 bootstrap 순환·프로젝트 없는 시작·동일 main 상태·긴 작업 polling·비밀/권한·기존 active 호환을 재검토했고 doan/tasks에 반영했다. 범용 앱 조작이나 별도 headless 인증 백엔드는 추가하지 않는다.
 
 번들 CLI start는 소속 앱만 visible launch하며 기존 active에는 자동 실행을 붙이지 않는다. 명시적 DOAN_RUNTIME 실패는 기본 앱 실행으로 우회하지 않는다. 소켓 v2의 장기 작업은 operationId를 반환하고 짧은 status로 읽는다. session/request 중복 제거와 같은 세션 작업의 명시적 취소 권한을 정의했다. 공개 가이드·MCP 변경으로 최종 agent-eval은 필수다.
 
