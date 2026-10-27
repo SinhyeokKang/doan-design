@@ -1,5 +1,7 @@
 # Postmortem
 
+> Canvas paths in historical entries retain `design/`; the current canvas directory is `doan/` as of 2026-10-28. File moves preserve canvas/frame/element IDs.
+
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 
