@@ -126,7 +126,9 @@ Overview는 기존 LNB Overview 행과 브레드크럼을 대체하는 진입점
 
 기존 `conversation:resumeTarget`은 특정 캔버스의 재개 가능성, `forCanvas`는 해당 캔버스에 연결된 대화만 조회한다. `read`와 `conversation:event`에는 root가 없고, 미연결 newDesign은 `forCanvas`로 열거할 수 없다. 따라서 이 API들을 전체 워크트리 활동 API처럼 사용하지 않는다.
 
-배치 C에서 main의 기존 `readSessionTail`과 `ConversationStore.list/read`를 재사용하는 `shell:activity` / preload `readShellActivity({roots})`를 연결한다. 이는 앱 내부 조회만 추가하며 CLI/MCP 도구·출력·기록 규칙을 확장하지 않는다. 요청은 main window의 main frame만 허용하고 현재 등록 root의 중복 없는 부분집합인지 검증한다. 임의 파일/설정 경로를 받지 않는다. 응답은 요청 root별 `{root, at?: number, incomplete: boolean}`이며 at은 성공적으로 읽은 위 두 공급원의 최대값이다. 각 공급원의 기존 레코드 검증과 안전한 파일 읽기를 유지하고, root는 현재 등록된 canonical 경로와 정확히 일치해야 한다. 세션 레코드의 cwd/configDir 필드를 생략하거나 임의 프로필 선택에 이용하지 않는다. 이 읽기는 과거 활동 조회이며 현재 프로필에서의 재개 가능성을 판정하지 않는다. 정상적으로 관측 기록이 없으면 at을 생략하고 incomplete=false, 일부 공급원 읽기에 실패하면 알려진 at은 유지하고 incomplete=true다. 실패를 0이나 현재 시각으로 바꾸지 않는다. 활동 텍스트·세션 ID·configDir은 셸에 전달하지 않는다.
+배치 C에서 main의 기존 `readSessionTail`과 `ConversationStore.list` 및 history 읽기·검증을 재사용하는 `shell:activity` / preload `readShellActivity({roots})`를 연결한다. 이는 앱 내부 조회만 추가하며 CLI/MCP 도구·출력·기록 규칙을 확장하지 않는다. 요청은 main window의 main frame만 허용하고 현재 등록 root의 중복 없는 부분집합인지 검증한다. 임의 파일/설정 경로를 받지 않는다. 응답은 요청 root별 `{root, at?: number, incomplete: boolean}`이며 at은 성공적으로 읽은 위 두 공급원의 최대값이다. 각 공급원의 기존 레코드 검증과 안전한 파일 읽기를 유지하고, root는 현재 등록된 canonical 경로와 정확히 일치해야 한다. 세션 레코드의 cwd/configDir 필드를 생략하거나 임의 프로필 선택에 이용하지 않는다. 이 읽기는 과거 활동 조회이며 현재 프로필에서의 재개 가능성을 판정하지 않는다. 정상적으로 관측 기록이 없으면 at을 생략하고 incomplete=false, 일부 공급원 읽기에 실패하면 알려진 at은 유지하고 incomplete=true다. 실패를 0이나 현재 시각으로 바꾸지 않는다. 활동 텍스트·세션 ID·configDir은 셸에 전달하지 않는다.
+
+현재 `ConversationStore.read`는 history 파일의 `ENOENT`를 `[]`로 반환하므로 이 메서드의 결과만으로는 누락과 정상 빈 이력을 구별할 수 없다(`store.ts:142–147`). 배치 C는 기존 안전한 파일 읽기·이벤트 검증·256 MiB 제한을 유지하면서 누락 상태를 집계 호출자에게 전달하는 내부 reader 경로를 추가한다. 공개 conversation IPC의 입력·출력과 기존 `read` 동작은 바꾸지 않는다. 유효한 index가 참조하는 history 파일이 없으면 해당 metadata의 root를 `incomplete=true`로 반환하고, 다른 성공 공급원이나 이력에서 얻은 `at`은 보존한다. 반면 아직 생성되지 않은 sessions/index가 없는 정상 초기 상태, 정상적으로 읽은 빈 index/history는 활동이 없을 때 `at` 없음·`incomplete=false`다. index나 history의 손상·읽기 실패를 이 정상 초기 상태로 취급하지 않는다. 이 구분은 새 구현과 검증이 필요한 계약이며 현재 reader가 이미 제공하는 동작이 아니다.
 
 프로젝트 재진입에서 한 번 조회해 해당 이동의 후보를 정한다. 실시간 전체 로그 polling, 별도 활동 저장소, provider transcript 스캔은 만들지 않는다. 조회 중 사용자 이동·root 등록 목록·프로젝트 멤버십이 바뀌면 응답을 버리고, 기다리는 동안 현재 화면을 유지한다. 조회가 거부되거나 실패하면 기존 사용자 선택/결정적 폴백으로 진행한다. 늦은 활동 결과나 대화 이벤트로 현재 화면을 자동 전환하지 않는다.
 
@@ -149,7 +151,7 @@ shellProjects?: Record<string, {
 }>;
 ```
 
-키는 위 프로젝트 키이고 roots는 그 그룹에서 마지막으로 확인한 등록 root 목록이다. main은 read/save 양쪽에서 실제 savedRoots와 교집합을 취하고 빈 항목을 버린다. selectedRoot는 남은 roots의 멤버여야 하며 selectedAt은 selectedRoot가 있을 때만 유한·음이 아닌 epoch milliseconds로 받는다. 잘못된 선택 시각만 지우고 나머지 유효한 기억은 보존한다. 그룹 키와 roots의 실제 관계는 목록 조회가 끝난 뒤 위 재결합 규칙으로 검증하며 저장된 문자열만으로 그룹을 만들지 않는다. expanded가 잘못된 항목은 버리고 새 그룹의 기본값은 접힘이다. 현재 조회 그룹은 기본값과 무관하게 펼친다.
+키는 위 프로젝트 키이고 roots는 그 그룹에서 마지막으로 확인한 등록 root 목록이다. main은 read/save 양쪽에서 실제 savedRoots와 교집합을 취하고 빈 항목을 버린다. selectedRoot는 남은 roots의 멤버여야 하며 selectedAt은 selectedRoot가 있을 때만 유한한 number이며 `0 <= selectedAt <= 8.64e15`인 유효한 Date epoch milliseconds로 받는다. `0`과 상한 `8.64e15`는 허용하고, 음수·비유한 값·상한 초과 값(예: `1e300`)은 selectedAt만 지우며 유효한 selectedRoot·roots·expanded는 보존한다. 정상 `Date.now()` 값은 허용하며, 유효 범위 안의 미래 시각은 현재 시각보다 크다는 이유만으로 거부하지 않는다. 장치 시계 변경에 관한 위 한계를 유지한다. 그룹 키와 roots의 실제 관계는 목록 조회가 끝난 뒤 위 재결합 규칙으로 검증하며 저장된 문자열만으로 그룹을 만들지 않는다. expanded가 잘못된 항목은 버리고 새 그룹의 기본값은 접힘이다. 현재 조회 그룹은 기본값과 무관하게 펼친다.
 
 `parseUiState`, main store, renderer의 읽기/저장 경로를 함께 바꿔야 새 필드가 유지된다. 현재 parser는 알 수 없는 필드를 버린다. 새 앱은 필드 없는 옛 파일을 읽을 수 있고, 옛 앱으로 돌아가 저장하면 새 기억은 사라지지만 기존 workspace/canvas 복원 형식은 계속 읽힌다. 공용 schema/v/fixture 마이그레이션은 없다. 기존 64 KiB 제한·500ms debounce·임시 파일+rename·quit flush·Settings 탭 병합을 유지한다. 제한 초과 save=false는 저장 성공이 아니며 현재 세션 상태만 유지한다. 활동 집계값은 로그에서 다시 읽으므로 ui-state에 복제하지 않는다. 방문 history/커서와 LNB scroll은 메모리에만 두고 재시작 때 비운다.
 
