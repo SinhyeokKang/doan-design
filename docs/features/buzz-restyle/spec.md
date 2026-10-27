@@ -66,6 +66,10 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 - 다이얼로그와 토스트의 공용 틀은 `buzz-ds`가 만들고, 화면 하나만 여는 다이얼로그의 내용(Quick Open)은 그 화면의 자식이 맡는다. Hand Off는 `buzz-conversation`이 코멘트와 함께 걷어낸다.
 - 모든 자식은 자기 화면의 빈 상태, 로딩, 오류, 비활성 상태를 목록으로 만들고 각 상태를 바꾼다.
 
+## 프로젝트 홈 아이디어 메모 (2026-10-28)
+
+`buzz-project`의 프로젝트 홈을 선택 프로젝트에 연결된 대화 입력창과 추천 프롬프트로 구성하는 방향을 검토한다. 예: “{SelectedProject} 디자인 시스템을 만들어줘” → 에이전트가 레포의 토큰·컴포넌트·스타일을 읽고 실제 자산을 재사용한 HTML을 `design/`에 만들어 Canvas로 보여준다. 추천은 입력창에 문구를 채우고 사용자가 전송하는 방향이다. 사용자가 더 구체화할 예정이며, 확정 스펙·구현 task로 확대하지 않는다. 전역 홈(`buzz-home`)과의 역할 구분도 그때 정한다.
+
 ## 별도 기반 기능과 인계
 
 - `agent-conversation`: main 병합 완료(`d6590a6`, PR #28). 대화 backend/preload 기반이며 완료된 대화 UI가 아니다. [PRODUCT 계약](../../PRODUCT.md#agent-conversation-foundation-contract-2026-10-27)의 검증 한계를 유지한다.
