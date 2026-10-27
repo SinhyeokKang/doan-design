@@ -58,3 +58,6 @@ B에 배정했던 전체 runtime은 사용자 지시에 따라 중단했다. 실
 - F-A `80e27b9`의 두 경계 보완을 지휘자가 diff와 handoff로 확인했다. A/F-A를 `33e158f`, `f166e01`, `f482cbe`로 통합했다. 원 작업자와 리뷰·수정 작업자는 모두 release 완료했고 증거를 복사한 뒤 `buzz-shell-contract`를 Orca로 제거했다.
 - C: `ctx_f8a26166a0a5`, task `task_9dba28cd37a0`, child `buzz-shell-ui`. 통합 `f482cbe`에서 시작했고 `turnStart: observed`, effective Astra medium을 확인했다. brief 맨 위에 사용자 native/e2e 유예를 명시했다. task 3·5a의 옵션 구현·5b·6을 맡고 실제 5a 검증은 E로 이관한다.
 - C가 app/e2e의 변경 없음과 소유권 해제를 확인했다. H에 해당 디렉터리만 맡겨 병렬로 기존 입력 경로를 갱신한다. C는 app/src만 수정하며 H를 기다리지 않는다. H도 GUI/e2e를 실행하지 않는다.
+- C는 `fe9095b`에서 완료 보고했다. 타입·3,339개 단위 테스트·빌드가 통과했고 GUI는 실행하지 않았다. R-C(`ctx_5f5b202ca9cd`, Astra medium)는 🔴0·🟡3을 보고했다: 디스크에서 삭제된 root의 history 건너뛰기, 같은-root Overview 전에 source view 기억, 비선택 오류 root의 복구 진입. C handoff와 로그를 evidence-C에 보존했다.
+- F-C는 같은 C 작업자를 새 Task로 재사용해 세 문제의 red→green과 POSTMORTEM 기록을 맡긴다. 모델은 기존 Astra medium을 유지한다. R-C는 release 완료이며 worktree는 수정에 필요해 보존한다.
+- H(`ctx_d61be53ff58d`, Astra medium)는 `127d441`로 18개 e2e 파일을 변경했다. 비GUI harness 54개·TS 36개 구문 검사가 통과했고, 의존성이 없어 typecheck는 실행하지 못했다. GUI 미실행이다. H를 release하고 R-H(`ctx_a7272a231d5b`, Astra medium)가 고정 diff와 C의 실제 UI를 대조한다.
