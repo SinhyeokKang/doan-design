@@ -4,9 +4,9 @@ import { ShellSidebar } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
 const row = { path: "design/folder/canvas.html", url: "u", open: 2, resolved: 0, frames: [{ id: "hidden-frame" }] };
 const entry: Extract<FolderEntry, { kind: "list" }> = { path: "/repo", kind: "list", servedRev: 0, canvases: [row], git: { common: "/repo/.git", branch: "main", worktrees: [] } };
-function render(loaded: string | null, selected = "/repo", expanded = false, problem = false) {
+function render(loaded: string | null, selected = "/repo", expanded = false, problem = false, unlisted = false) {
   const first: FolderEntry = problem ? { ...entry, canvases: [{ ...row, commentsError: { code: "bad", message: "Unreadable" } }] } : entry;
-  return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [first, { ...entry, path: "/other", canvases: [] }] }]} projects={{ common: { roots: ["/repo", "/other"], selectedRoot: selected, expanded } }} loaded={loaded} canvas={loaded ? row.path : undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} />);
+  return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [first, { ...entry, path: "/other", canvases: [] }] }]} projects={{ common: { roots: ["/repo", "/other"], selectedRoot: selected, expanded } }} loaded={loaded} unlisted={unlisted} canvas={loaded ? row.path : undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} />);
 }
 it("renders project to canvas IA, locks current expansion, and keeps the branch passive", () => {
   const html = render("/repo");
@@ -34,4 +34,8 @@ it("describes a positive open-comment count without fabricating counts on read f
   expect(render("/repo")).toContain("2 open comments");
   expect(render("/repo", "/repo", true, true)).not.toContain("2 open comments");
   expect(render("/repo", "/repo", true, true)).not.toContain("0 open comments");
+});
+
+it("does not mark a canvas or Overview current for an unlisted iframe destination", () => {
+  expect(render("/repo", "/repo", true, false, true)).not.toContain('aria-current="location"');
 });
