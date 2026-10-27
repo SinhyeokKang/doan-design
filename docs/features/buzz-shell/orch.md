@@ -47,4 +47,8 @@ Run: `run_91e67e2980b4`.
 | A | `ctx_a898a29214ae` | `buzz-shell-contract` | `turnStart: observed`, effective Astra medium, 문서 읽기 확인 |
 | B | `ctx_d33951f7e060` | `buzz-shell-resources` | `turnStart: observed`, effective Sol medium, 리소스 조사 확인 |
 
-B에 전체 runtime 실행권을 배정했다. 작업자가 실행권 메시지를 읽고 ack한 것을 transcript에서 확인했다. A는 문서만 수정한다. 독립 리뷰·통합 gate는 아직 실행 전이다.
+B에 배정했던 전체 runtime은 사용자 지시에 따라 중단했다. 실제 상태 보존과 소유 프로세스 종료를 B handoff에서 확인했으며 전체 PASS로 간주하지 않는다. 추가 native 실행권은 없다.
+
+- A: `2a16192`, `a949aa5`. 기술 계약과 task 1b 완료, 소스 대조 30개와 diff 검사 통과. 독립 R-A(`ctx_de3e5cf68388`, Astra medium)가 검토 중이다. A 작업자는 release 완료, worktree는 리뷰가 사용하므로 보존한다.
+- B: `88cba80`. 테스트 3,307개·typecheck·build·package 및 원본/빌드/ASAR 자산 바이트 대조 통과. 실제 폰트 로드·네이티브·전체 e2e는 최종 단계로 이관했다. 독립 R-B(`ctx_c9910a62d7b7`, Astra medium)가 검토 중이다. worktree는 리뷰가 사용하므로 보존한다.
+- handoff와 검증 로그는 지휘자 `.scratch/buzz-shell-orch/evidence-A/`, `evidence-B/`에 복사했다. 아직 통합 gate를 실행하지 않았다.
