@@ -1,6 +1,6 @@
 # agent-auth — design
 
-작성: 2026-10-27. 이 문서는 구현 설계이며 현재 앱의 동작을 설명하는 정본은 [ARCHITECTURE](../../ARCHITECTURE.md)이다. PoC로 정할 항목은 확정된 것처럼 구현하지 않는다.
+작성: 2026-10-27. 이 문서는 구현 설계이며 현재 앱의 동작을 설명하는 정본은 [ARCHITECTURE](../../ARCHITECTURE.md)이다. 다섯 플랫폼의 최소 인증 PoC는 완료됐으며 저장 암호화와 실행 통합은 구현에서 검증한다.
 
 ## 경계와 담당
 
@@ -15,25 +15,25 @@
 | CLI·MCP·skills | 공개 명령과 규칙 유지. 도안 전용 실행 환경에 필요한 도구를 연결하되 전역 등록을 암묵적으로 복사하지 않는다 |
 | 문서 | 완료 때 PRODUCT·ARCHITECTURE 및 디렉터리 변경 시 DIRECTORY 갱신 |
 
-## PoC와 공급자 선택
+## PoC와 공급자별 구현
 
 기존 [PoC 10](../../PRODUCT.md#6-pre-implementation-poc-2026-10-21)의 탐색 결과를 출발점으로 쓴다. 새 공급자 패키지나 버전은 공식 문서와 실제 프로토콜을 함께 확인한 뒤 고정한다. 현재 Claude SDK 0.3.310/CLI 2.1.310, Codex 0.163.0의 실행 근거를 최신 문서만 보고 대체하지 않는다.
 
-| 순서 | 경로 후보 | 반드시 해결할 조건 |
+| 플랫폼 | 인증 근거와 실행 경로 | 반드시 해결할 조건 |
 |---|---|---|
-| 필수: Claude Code | 공식 `claude auth` + 전용 `CLAUDE_CONFIG_DIR` + 기존 Agent SDK | 브라우저 왕복·Keychain/파일 저장·갱신·도안만 로그아웃. Keychain 실패 시 평문 파일 대체를 성공으로 숨기지 않는다 |
-| 필수: Codex | 공식 app-server 계정 로그인 또는 검증한 Sign in with ChatGPT 경로 | 정확한 버전과 저장소 분리. PoC에서 발견한 0.164.0의 내부 전용 `chatgptAuthTokens`를 채택하지 않는다. 0.163.0→새 버전은 별도 실행 회귀 검증 필요 |
-| 추가 1: Cursor | 공식 ACP `cursor_login`과 session/new/load/prompt/cancel | `CURSOR_CONFIG_DIR`이 인증·키체인·세션을 실제로 분리하는지, 차단성 요청에 답할 수 있는지 확인 |
-| 추가 2: Antigravity | 공식 인증·SDK/CLI 중 검증한 경로 | 로컬 앱 공용 인증을 도안과 분리할 수 있어야 한다. CLI headless의 확인 불가 권한 거절을 앱 권한 대화상자로 대체했다고 주장하지 않는다 |
-| 추가 3: Copilot | 공식 SDK와 앱이 받은 사용자 토큰 또는 검증한 CLI 인증 | 앱 등록·필요 권한·구독 사용 가능 여부 확인. `useLoggedInUser: false`와 환경 정리로 `gh`/기존 CLI 인증 대체를 막는다 |
+| Claude Code | 공식 `claude auth` + 전용 `CLAUDE_CONFIG_DIR` + 기존 Agent SDK | 브라우저 왕복·Keychain/파일 저장·갱신·도안만 로그아웃. Keychain 실패 시 평문 파일 대체를 성공으로 숨기지 않는다 |
+| Codex | 검증한 공식 `codex login` + 전용 `CODEX_HOME`·keyring, 기존 app-server 실행 | 정확한 버전과 저장소 분리. PoC에서 발견한 0.164.0의 내부 전용 `chatgptAuthTokens`를 채택하지 않는다. 0.163.0→새 버전은 별도 실행 회귀 검증 필요 |
+| Cursor | 검증한 `agent login`·공식 file 모드, 실행은 공식 ACP session/new/load/prompt/cancel | 기본 Keychain은 고정 항목이므로 사용하지 않는다. 전용 HOME 파일의 암호화 수명과 ACP 권한 응답·세션 저장 격리를 구현·검증 |
+| Antigravity | CLI 1.4.8의 공식 Google 로그인·file 저장·새 요청 검증. 제품 실행 API는 B3에서 공식 SDK/CLI 계약 확인 후 연결 | 원격 환경을 모사한 PoC는 macOS Keychain namespace 검증이 아니다. 제품용 전용 저장 경로와 권한·중단·재개를 구현한다. headless의 자동 거절을 권한 응답 지원으로 표시하지 않는다 |
+| GitHub Copilot | CLI 1.0.104의 공식 device login·file fallback·무료 계정 요청 검증. 공식 SDK의 명시적 인증 경로 연결 | Keychain 경고를 유발한 실험 sandbox는 제품 경로가 아니다. 공식 로그인 결과를 도안 소유 저장소로 전달하고 암호화한다. SDK 명시적 토큰 사용 시 `useLoggedInUser: false`와 환경 정리로 `gh`/기존 CLI 인증 대체를 차단한다 |
 
 공식 출처: [Claude 인증](https://code.claude.com/docs/en/iam), [Claude CLI](https://code.claude.com/docs/en/cli-reference), [Codex app-server](https://learn.chatgpt.com/docs/app-server), [Codex SIWC](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server), [Cursor ACP](https://prod.cursor.com/docs/cli/acp), [Cursor 설정](https://prod.cursor.com/docs/cli/reference/configuration), [Antigravity 인증](https://antigravity.google/docs/install), [Antigravity headless](https://www.antigravity.google/docs/cli/headless/), [Copilot 인증](https://docs.github.com/en/copilot/how-tos/copilot-sdk/auth/authenticate), [Copilot SDK 계약](https://docs.github.com/en/copilot/how-tos/copilot-sdk/troubleshooting/compatibility). 확인일과 버전 차이는 PoC 10에 남아 있다. 구현 시 다시 확인한다.
 
 2026-10-27 사용자 승인으로 구현 전 PoC는 로그인·보관·새 프로세스 인증 유지·요청 1회·로그아웃 격리를 최소 게이트로 삼는다. 아래 전체 검증표의 나머지는 구현 통합 검증으로 넘긴다. 최소 PoC 통과는 플랫폼 구현 완료를 의미하지 않는다.
 
-각 후보마다 검증표를 남긴다: 공식 경로·버전 / 로그인·취소 / 저장·재시작 / 갱신·만료·폐기 / 로그아웃 격리 / 계정 교체 / 실제 요청 / 권한 허용·거절 / 중단·종료 / 같은 세션 재개. 판정은 `미실행`, `통과`, `실패`, `공식 경로 미확인`을 구분한다. 임의 TTL이나 만료 흉내만으로 실제 갱신 통과를 기록하지 않는다.
+각 플랫폼마다 검증표를 남긴다: 공식 경로·버전 / 로그인·취소 / 저장·재시작 / 갱신·만료·폐기 / 로그아웃 격리 / 계정 교체 / 실제 요청 / 권한 허용·거절 / 중단·종료 / 같은 세션 재개. 판정은 `미실행`, `통과`, `실패`, `공식 경로 미확인`을 구분한다. 임의 TTL이나 만료 흉내만으로 실제 갱신 통과를 기록하지 않는다.
 
-Cursor가 통과하면 우선 최소 3개를 구성한다. Antigravity와 Copilot도 조사하고, 공식 경로와 동일한 검증 기준을 충족하며 과도한 우회가 없으면 포함한다. 후보 미달을 감추거나 지원 수를 맞추기 위해 승인 우회를 켜지 않는다. 지원 집합·제외 근거를 문서에 확정한 뒤 구현 범위를 잠근다.
+2026-10-27 사용자는 최소 인증 PoC를 마친 다섯 플랫폼 모두 제공하기로 확정했다. [PoC 기록](./poc.md)의 실험 버전·저장·로그아웃 제한을 구현에 인계한다. 지원 집합을 다시 선택하는 선행 게이트는 없다. 각 플랫폼의 제품 통합은 별도로 통과해야 한다.
 
 구현 전 PoC는 `.scratch/`의 독립된 공식 CLI/SDK harness로 수행한다. 아직 없는 앱 인증 IPC나 추가 공급자 실행기를 선행 조건으로 삼지 않는다. 구현 후에는 실제 Electron main/preload 경로를 별도로 검증한다.
 
@@ -53,17 +53,21 @@ Cursor가 통과하면 우선 최소 3개를 구성한다. Antigravity와 Copilo
 
 ## 저장과 실행 환경
 
-공급자별 도안 전용 프로필 하나를 userData 아래에 둔다. 폴더명·credential locator·키체인 이름은 공급자 PoC 후 고정한다. 파일 접근만 분리되고 OS Keychain 항목을 공유하면 격리 통과가 아니다. 기존 프로필의 토큰을 가져와 초기화하지 않는다.
+공급자별 도안 전용 프로필 하나를 userData 아래에 둔다. 폴더명·credential locator·키체인 이름은 PoC의 격리 근거에 맞춰 B1에서 고정한다. 파일 접근만 분리되고 OS Keychain 항목을 공유하면 격리 통과가 아니다. 기존 프로필의 토큰을 가져와 초기화하지 않는다.
 
 도안 소유 토큰은 main에서만 취급하며 검증한 OS 보안 저장소를 사용한다. 공급자 런타임이 저장을 소유하면 실제 저장·갱신·삭제 방식을 기록한다. 평문 파일 fallback이 발생하는 경로는 별도 확인 없이 암호화 보관으로 간주하지 않는다. 보안 저장 실패와 로그인 실패를 구분한다. 완성되지 않은 저장을 재시작 후 연결됨으로 읽지 않는다.
 
-비밀이 아닌 계정 메타데이터에는 플랫폼, 공급자 계정/워크스페이스 식별자, 표시 이름, 도안 연결 식별자, 프로필 참조를 둔다. 이메일만으로 계정 동일성을 판정하지 않는다. 공급자가 안정된 계정 식별자를 제공하지 않으면 같은 계정의 재개를 추정하지 않고 PoC 미달로 남긴다. 연결 식별자는 다중 계정 기능이 아니라 교체·지연 응답·기록 소유권 판별에 필요하다.
+2026-10-27 사용자 결정에 따라 암호화는 B1의 구현 항목이다. Cursor·Antigravity·Copilot의 file 저장 PoC를 암호화 보관 검증으로 기록하지 않는다. main은 영구 보관할 인증을 OS 보안 저장소 또는 OS 키로 암호화한 저장소에 저장한다. 공급자 파일이 필요한 경우 전용 프로필 안에서 소유자 권한으로만 만들고, 런타임의 갱신 결과를 암호화 저장소에 반영한 뒤 불필요한 평문을 제거한다. 재시작·비정상 종료 후 잔존 파일 복구, 암호화·삭제 실패, 동시 실행과 갱신 충돌을 검증한다. 키를 읽지 못하면 평문 영구 저장으로 대체하지 않는다.
+
+Copilot의 실험에서는 기본 `/logout` 뒤 인증이 남았다. 제품은 도안 소유 실행 종료를 확인한 뒤 전용 저장소와 작업 파일의 인증을 삭제하고 새 프로세스의 미인증 상태를 확인한다. 인증 없는 설정 파일이 다시 생성되는 것은 로그아웃 실패가 아니다. 외부 `gh`·Copilot 저장소는 건드리지 않으며 로컬 연결 해제를 원격 토큰 폐기로 표시하지 않는다.
+
+비밀이 아닌 계정 메타데이터에는 플랫폼, 공급자 계정/워크스페이스 식별자, 표시 이름, 도안 연결 식별자, 프로필 참조를 둔다. 이메일만으로 계정 동일성을 판정하지 않는다. 공급자가 안정된 계정 식별자를 제공하지 않으면 같은 계정의 재개를 추정하지 않고 해당 재개 계약의 구현 미완료로 남긴다. 연결 식별자는 다중 계정 기능이 아니라 교체·지연 응답·기록 소유권 판별에 필요하다.
 
 도안 실행 자식에는 검증된 executable/PATH·프로필·DOAN_RUNTIME과 필요한 환경만 구성한다. 다른 공급자 토큰, 상속된 API 키, 외부 세션 ID가 선택한 인증을 덮어쓰지 않게 한다. 비밀은 명령행 인자나 로그에 넣지 않는다. 도구가 인증 환경변수를 요구하면 그 자식에만 전달하고 진단 출력에서 제거한다.
 
 기존 doan CLI 링크와 사용자 스킬을 무조건 덮지 않는다. 앱 내부 실행은 번들 CLI의 절대 경로와 전용 프로필의 도구 설정으로 가능한지 검증한다. 추가 플랫폼도 도안 규칙을 읽고 `doan check`까지 실행해야 한다. 지원 스킬 형식이 다르면 공식 지시문·MCP 구성 중 최소 경로를 선택하고, 가이드 자체 변경이 필요할 경우 agent-eval을 작업 범위에 포함한다.
 
-동일 플랫폼의 여러 대화가 같은 프로필을 사용할 때 토큰 갱신을 누가 쓰는지 PoC에서 확인한다. 구현 통합 단계에서 두 실행의 동시 갱신·로그아웃 경쟁을 검증하고 공급자의 안전한 갱신 계약 또는 main 직렬화로 보호한다. 로그인 잠금만으로 공급자 소유 갱신까지 보호된다고 가정하지 않는다.
+동일 플랫폼의 여러 대화가 같은 프로필을 사용할 때 토큰 갱신을 누가 쓰는지 B1에서 확인한다. 구현 통합 단계에서 두 실행의 동시 갱신·로그아웃 경쟁을 검증하고 공급자의 안전한 갱신 계약 또는 main 직렬화로 보호한다. 로그인 잠금만으로 공급자 소유 갱신까지 보호된다고 가정하지 않는다.
 
 ## 계정과 대화의 연결
 
@@ -98,7 +102,7 @@ Cursor가 통과하면 우선 최소 3개를 구성한다. Antigravity와 Copilo
 | 상태 DTO | 내부 오류·상태 → 비밀 없는 계정·readiness·복구 가능 동작 |
 | 버전 해석 | v1/v2 index·기존 journal → 보존된 legacy 출처 또는 유효한 계정 연결, 손상·미지 버전 거부 |
 
-지원 집합은 PoC 후 문서에서 결정한다. 앱에는 확정된 공급자 목록과 실행 준비 판정만 두며 최소 수·우선순위를 판정하는 정책 엔진을 만들지 않는다.
+지원 집합은 다섯 플랫폼으로 확정됐다. 앱에는 고정된 공급자 목록과 실행 준비 판정만 두며 지원 수·우선순위를 판정하는 정책 엔진을 만들지 않는다.
 
 ## UI 경계와 기존 결정 영향
 
@@ -106,7 +110,7 @@ Cursor가 통과하면 우선 최소 3개를 구성한다. Antigravity와 Copilo
 
 도구 설치와 계정 인증 상태를 구분한다. 전용 프로필 준비에 사용자가 요청하지 않은 전역 MCP·PATH·스킬 수정을 포함하지 않는다. UI가 없는 backend는 격리한 preload 소비자로 확인하며 디자인 초안·화면 측정은 소비 feature에서 수행한다.
 
-PRODUCT에는 백엔드 구현 완료와 후속 온보딩·홈 방향을 구분해 승격한다. ARCHITECTURE에는 인증 관리·프로필 선택·대화 연결 계약을 반영한다. Copilot을 포함하면 GitHub 토큰 미취급 규칙에 **Copilot 에이전트 인증만** 예외를 기록한다. 원격 서비스·서버·동기화는 추가하지 않는다.
+PRODUCT에는 백엔드 구현 완료와 후속 온보딩·홈 방향을 구분해 승격한다. ARCHITECTURE에는 인증 관리·프로필 선택·대화 연결 계약을 반영한다. GitHub 토큰 미취급 규칙에 **Copilot 에이전트 인증만** 예외를 기록한다. 원격 서비스·서버·동기화는 추가하지 않는다.
 
 캔버스 관례, iframe sandbox, serving 범위, append-only 이벤트 규칙, CLI/MCP 출력과 `doan check` 검사는 바꾸지 않는다. 외부 세션 기록과 새 인증의 연관성을 추정하지 않는다.
 
