@@ -1,6 +1,6 @@
 # Postmortem
 
-> Canvas paths in historical entries retain `design/`; the current canvas directory is `doan/` as of 2026-10-28. File moves preserve canvas/frame/element IDs.
+> Canvas paths in historical entries retain `design/`; the current canvas directory is `.doan/canvases/` as of 2026-10-28. File moves preserve canvas/frame/element IDs.
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
@@ -675,6 +675,8 @@
 - **Net**: the first case was caught by batch B4's self-review, the `.doan/`-only case by the B4 independent review reproducing it with the CLI. The e2e plan had no "subfolder of a failing repo" case.
 - **Prevention**: when the CLI does not answer a question about the repo, ask it again in a narrower form (`doan ls --repo <path>`) instead of inferring in TS. Grep for TS code that inspects repo markers: `grep -rnE '"\.doan"|config\.json' app/src | grep -v test` — only the watcher should match.
 
+- **Recurrence (2026-10-28, unified project layout)**: `eval/lib/workspace.ts` skipped init when any `.doan/` existed. Moving a canvas-only seed into `.doan/canvases/` silently made it appear initialized; the full fake-agent self-test caught `_example` returning `repo_not_found`, while existing unit fixtures already had config. Check `.doan/config.json`, not the directory, before init. The new canvas-only seed regression failed before the fix. Searched `rg -n 'existsSync.*\.doan' eval app/src`; the production evaluation initializer now checks the config file.
+
 ### 2026-10-22 — A served directory wiped and rebuilt silently stopped live reload
 
 - **Area**: `app/src/main/watch.ts` (`rearm`, `servedTargets`), `shell.ts` (`servedRev`)
@@ -761,6 +763,8 @@
 - **Prevention**: for every path that comes from canvas or config content, test `ENOTDIR`, a NUL byte, an over-long name, a symlink loop, a different letter case, and a dangling symlink at each write target. Grep: `grep -rnE 'IsNotExist|EvalSymlinks|os\.WriteFile' cli app/src`.
 - **Recurrence (2026-10-21, app-shell)**: `doan ls` `result.root` kept the caller's letter case from `--repo` or `$PWD` (`repo.Find` used `EvalSymlinks` alone), so one repo could be stored twice by the app and every served path would miss `relInside`. Caught by the batch B1 independent review; fixed by passing the root through `diskSpelling`. `doan init`'s `result.repo` (`init.go`) still keeps the caller's spelling.
 - **Recurrence (2026-10-24, onboard)**: in app main, JS `realpathSync` kept the caller's letter case on this macOS volume while `realpathSync.native` returns the on-disk spelling, so a same-file link written with another case was not recognized as ours. Caught by the G review; fixed by using native realpath for setup identities, with a case-alias regression (an `ELOOP` link stays foreign). Grep: `rg -n 'realpathSync\(' app/src/main --glob '!*.test.ts'` should find no caller (2026-10-24: only `realpathSync.native` is used).
+
+- **Recurrence (2026-10-28, unified project layout)**: moving canvases below `.doan/` introduced a new symlink ancestor. Checking only `canvases/` with lstat let discovery traverse a linked `.doan/` into another directory. A red regression now covers that ancestor; discovery and fixed watchers reject it. Scope filtering also resolves the metadata directory before excluding it and its ancestors, so an internal metadata alias cannot serve settings or comments. A relocated-metadata scope test failed before that filter. Searched `rg -n 'Lstat|lstatSync' cli/internal/repo/files.go app/src/main/watch.ts`; both new traversal paths check the metadata ancestor.
 
 ### 2026-10-21 — An HTML parser fed from memory can still fail, and dropping the error looks like a missing meta
 
