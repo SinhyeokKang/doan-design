@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { assertRealState, realState } from "../app/e2e/real-state.ts";
+import { assertRealState, realState } from "../app/runtime/real-state.ts";
 import { agentCommand, cliProvenance, killRunning, runProcess, readAgentTranscript } from "./lib/agent.ts";
 import { parseArgs, type Agent, type Options } from "./lib/args.ts";
 import { createContext, judgeMaterial, sh } from "./lib/context.ts";

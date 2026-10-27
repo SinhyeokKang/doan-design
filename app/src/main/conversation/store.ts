@@ -146,6 +146,12 @@ export class ConversationStore {
     try { text = readRegular(join(this.directory, `${id}.jsonl`), CONVERSATION_HISTORY_BYTES); } catch (error) { if (object(error) && error.code === "ENOENT") return []; throw error; }
     return this.parse(text, id);
   }
+  // Aggregation must distinguish a missing indexed history from a valid empty one.
+  readRequired(id: string): ConversationEvent[] {
+    if (!this.accepting) this.recoverStart();
+    if (!validId(id)) throw new Error("Invalid conversation ID");
+    return this.parse(readRegular(join(this.directory, `${id}.jsonl`), CONVERSATION_HISTORY_BYTES), id);
+  }
   private parse(text: string, id: string): ConversationEvent[] {
     const result: ConversationEvent[] = [];
     for (const line of text.split("\n")) {

@@ -23,18 +23,18 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 2. **색**: 주요 버튼은 무채색이다. 액센트는 **doan 고유 violet 램프**를 쓰고(9단계 `#973be1`, 흰 글자. 12단계와 contrast·ink·pressed·link 쌍은 레퍼런스 iris 램프의 단계별 밝기 구조에 violet 색상을 얹어 doan이 만든다. 2026-10-26 user, 처음 결정한 Buzz citrus와 중간에 고른 오렌지를 대체), **Buzz가 액센트를 쓰는 용례에 대응하는 자리에만** 쓴다.
    - 메시지 버블 → 대화의 내 메시지(연한 액센트 채움, Buzz의 Chillin' 수준)
    - Send 버튼 → 대화 전송 버튼(진한 액센트 채움)
-   - 사이드바 hover·선택 → 사이드바 트리의 현재 위치 행(`aria-current="location"`, 진한 선택 채움 + 짝 글자)과 트리 행 hover(더 옅은 채움)
+   - LNB hover·선택은 무채색 음영으로 변경한다(2026-10-27 user, buzz-shell). Accent는 캔버스 우측 미확인 Dot의 시각 표시에 사용하되 상태 판별·저장은 후속이다.
    - 대화 입력창과 메시지의 인라인 앵커 칩(연한 액센트 채움 + 진한 글자, 메신저 멘션처럼). Buzz는 일반 멘션을 무채색으로 두지만 doan의 앵커 칩은 메시지의 핵심 대상이라 액센트를 쓴다(doan 조정, 2026-10-26 user)
    - `buzz-conversation`이 코멘트를 걷어내기 전까지는 `buzz-ds`가 구현한 코멘트 카드, 코멘트 제출 버튼, 코멘트 핀이 액센트 자리로 남는다(2026-10-26, 대화로 바꾸기 전의 자리)
    - 그 밖(캔버스 선택·hover 표시, 치수, 프레임 하이라이트, 탭, 메뉴, 링크, 카운트, Open 태그, 스피너, 온보딩 단계 등)은 Buzz 무채색 역할이다. 오렌지는 남지 않는다.
-3. **폰트**는 시스템 스택(`-apple-system`/`system-ui`, macOS에서 SF Pro로 그려짐, `Apple SD Gothic Neo` 대체 유지) 하나다. Inter와 고정폭 폰트는 쓰지 않는다. Buzz 타입 역할의 크기·행간·자간·굵기 조합은 그대로 가져오되, 자간은 Inter 기준이라 측정으로 확인한다.
+3. **폰트**는 Geist를 로컬 번들로 제공하고 앱 공통 `--type-family`에 적용한다(2026-10-27 user, buzz-shell). 기존 시스템 스택은 대체 글꼴로 유지한다. 이는 Settings 등 모든 공통 폰트 사용처에 적용되는 결정이며 iframe 자체 스타일은 바꾸지 않는다. LNB·헤더는 14/20 400, 프로젝트 이름은 500이다. 다른 역할의 굵기는 승인 없이 일괄 변경하지 않는다.
 4. **UI 스택**은 Radix(shadcn) 그대로다. Base UI와 Buzz의 JS 훅은 들이지 않는다. 새로 쓰는 CSS는 처음부터 Radix `data-state`, 네이티브 `<dialog>[open]`, `:focus-visible`에 건다.
 5. Buzz는 **레퍼런스**다(2026-10-26 user). 화면이 Buzz와 같은 값과 규칙으로 보이는 것을 목표로 하되, 코드는 clone에서 값과 규칙을 읽고 doan이 새로 쓴다. Buzz 파일을 옮기지 않고, 코드에 Buzz 출처 주석이나 라이선스 사본을 두지 않는다. Buzz를 참고했다는 사실은 AGENTS.md 레퍼런스 규칙에 따라 PRODUCT §7과 DESIGN.md에만 적는다. Buzz와 다르게 가는 곳은 [design.md](./design.md) 표의 '조정' 열과 '가져오지 않는 Buzz 동작'에 적힌 것뿐이다.
-6. **기능과 정보 구조는 바꾸지 않는다.** 무엇을 누르면 어떻게 되는지는 그대로다. 항목을 Buzz 골격의 자리(예: 헤더 세 자리)로 옮기는 것은 각 항목이 같은 동작을 유지할 때만 마크업 변경으로 보고, 배치는 해당 자식에서 사용자에게 확인한다.
+6. **기존 기능은 보존한다.** 승인된 예외(2026-10-27 user, buzz-shell)는 프로젝트→캔버스 LNB, 프레임 트리 제거, 실행 중 이전·다음 기록, 프로젝트 메뉴의 Overview·워크트리 선택·관리 액션이다. 프로젝트 제거는 등록된 워크트리 전체를 앱 목록에서 제거한다. 홈 본문과 인증 관리는 후속 과업에서 정하며 현재 scope를 자동 확대하지 않는다.
 7. **Buzz 브랜드 자산**(워드마크, 로고, 셰이더 아트워크, `public/shell-gradient.png`)은 쓰지 않는다. Apache-2.0 §6은 상표 사용권을 주지 않고, 그라디언트 이미지는 NOTICE에 따로 제공된 자산으로 적혀 있다.
 8. 구현할 때는 **로컬 Buzz clone을 항상 참조**한다. 위치, 기준 커밋, 읽기 전용 규칙은 [design.md](./design.md)의 'Buzz clone 참조 규칙'을 따른다.
 9. **이름**: 새로 쓰는 디자인 시스템 클래스는 `doan-` 접두어를 쓴다(예: `doan-dialog`, `doan-shell-header`). 데이터 속성은 `data-doan-*`가 캔버스 컨벤션(ARCHITECTURE §1의 `data-doan-id` 등) 몫이라 `data-ui-*`를 쓴다.
-10. **여러 화면이 함께 쓰는 요소는 `buzz-ds`가 맡는다**: `ProjectSetupDialog`, `AddProjectsDialog`, `FirstPrompt`, `ConnectionRows`(`connectionRows.css`), `.ob-dialog`, `ErrorDetails`, `Toast`, 스피너. 화면 자식은 쓰기만 하고, 바꿔야 하면 사용자에게 확인한다.
+10. **여러 화면이 함께 쓰는 요소는 `buzz-ds`가 맡는다**: `ProjectSetupDialog`, `AddProjectsDialog`, `FirstPrompt`, `ConnectionRows`(`connectionRows.css`), `.ob-dialog`, `ErrorDetails`, `Toast`, 스피너. 화면 자식은 쓰기만 하고, 바꿔야 하면 사용자에게 확인한다. 승인된 공통 변경(2026-10-27 user, buzz-shell): 칩 기본 글자 12px·상하 2px·좌우 6px, 읽기 전용 워크트리 칩의 translucent 변형, 프로젝트 이름 해시 8색 폴백.
 11. **대조 방법**: 화면 자식은 `/design-draft`로 그 화면의 Buzz 스타일 초안을 **새 파일**로 먼저 그리고, 구현 뒤 `/design-sync`로 맞춘다. 기존 초안 12개는 이력으로 남기고 고치지 않는다. 단 `doan check`가 정의되지 않은 변수 오류를 내면 안 된다.
 12. **중간 상태**: 자식마다 main에 머지하고, 그동안 main은 반쯤 바뀐 화면(라이트 토큰 + 이전 배치)을 허용한다. 마지막 자식이 머지될 때까지 main에서 만든 빌드는 배포하지 않는다.
 13. **테마 소스**: main은 `nativeTheme.themeSource = "light"`로 고정한다. 네이티브 스크롤바·폼 컨트롤·메뉴와 캔버스 iframe의 `prefers-color-scheme`이 macOS 외형과 상관없이 light가 된다(2026-10-26 user, `buzz-ds`가 실현).
@@ -47,11 +47,11 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 | # | slug | 화면 | 범위 (지금 코드) | 선행 |
 |---|---|---|---|---|
 | 0 | `buzz-ds` | 디자인 시스템 | 라이트 토큰·역할(기존 이름은 별칭), 액센트 violet 램프, `themeSource` light, 타입·모서리·재질·모션, shadcn 테마 연결, 공용 컴포넌트 스타일(버튼, `IconButton`, `Panel`, 툴팁, 메뉴·팝오버, 다이얼로그 틀, 토스트, 스피너, 포커스, disabled, 스크롤바), 공통 결정 10의 공유 요소, 모달 scrim 값, 대비·변수 검사, DESIGN.md 디자인 시스템 절. 문서: [`../buzz-ds/`](../buzz-ds/spec.md) | 없음 |
-| 1 | `buzz-shell` | 앱 셸 | Buzz `AppShell` 골격 이식: 점 격자 셸, 메인 창의 모든 헤더 띠(작업 공간과 Home의 헤더, 신호등·드래그 영역·아이콘 버튼·항목 자리), 사이드바 `Panel`, 메인 `Panel joined` 안에 도킹하고 평소에는 숨기는 오른쪽 패널 자리(안의 탭과 내용은 `buzz-conversation`·`buzz-inspector`), 창 옵션(`App.tsx` 셸 마크업, main `BrowserWindow`) | buzz-ds |
+| 1 | `buzz-shell` | 앱 셸·LNB | 투명·블러 Shell/LNB와 흰 본문, 56px 헤더·이전/다음·Add Projects/Projects/Settings, 검색 진입점, 프로젝트→캔버스 LNB·프로젝트 메뉴·워크트리 선택·Overview 진입, Geist 로컬 제공·공통 칩·썸네일 폴백, 창 옵션. 오른쪽 내용과 최종 표시 정책은 후속 자식 | buzz-ds |
 | 2 | `buzz-onboarding` | 온보딩 | Buzz 첫 실행 표면을 온보딩 위저드에(`Onboarding.tsx`). 위저드는 Close·Escape가 있는 모달 `<dialog>`로 유지한다. doan 워드마크와 배경 결정 | buzz-ds |
-| 3 | `buzz-home` | 프로젝트 홈 | 프로젝트 카드 목록, 워크트리 행, 행 메뉴, 빈 상태, 드롭 오버레이, 연결 칩, 설정 배너, "Finish setting up doan" 카드(`Home.tsx`, `DropOverlay.tsx`) | buzz-shell |
+| 3 | `buzz-home` | 프로젝트 선택 전 홈 | 선택 전 본문과 홈 진입 경험을 후속 설계한다. 대화 입력창 제안은 아직 미확정이며 OAuth/토큰 관리는 별도 범위 확인이 필요하다. LNB의 프로젝트/워크트리 메뉴는 buzz-shell이 맡는다 | buzz-shell |
 | 4 | `buzz-search` | 검색 | Quick Open(Cmd+K) 다이얼로그 내용, 입력, 결과 행(`QuickOpenDialog.tsx`) | buzz-shell |
-| 5 | `buzz-project` | 캔버스 목록 | 사이드바 캔버스 트리(`SidebarNavigation` 수치, 색은 buzz-ds 대응표대로), Overview 카드·썸네일·빈 상태(`Sidebar.tsx`, `ProjectOverview.tsx`) | buzz-shell |
+| 5 | `buzz-project` | 프로젝트 Overview | Overview 카드·썸네일·빈 상태 본문. 프로젝트→캔버스 LNB와 Overview 진입점은 buzz-shell이 맡는다 | buzz-shell |
 | 6 | `buzz-canvas` | 캔버스 | 캔버스 영역과 보드, 줌·프레임 컨트롤, 오버레이 표시(선택·hover·치수, 요소 피커가 쓰는 선택 모드), 프레임 하이라이트, 캔버스 로딩·문제 메시지, `.canvas-notice`. 보드를 `Panel` 안에 둘지 결정 | buzz-shell |
 | 7 | `buzz-inspector` | 인스펙터 | 오른쪽 패널 Inspector 탭의 내용(스타일·토큰 목록, 섹션, 값 행). 패널의 표시·숨김과 탭 틀은 `buzz-conversation` | buzz-shell |
 | 8 | `buzz-conversation` | 대화 | 에이전트와의 실시간 대화 UI(기존 `buzz-comment` 자리, 2026-10-26 user): 오른쪽 패널의 표시·숨김(요소를 고르거나 대화를 시작하면 열림)과 대화·인스펙터 탭 틀(`RightPanel.tsx`), 캔버스당 대화 하나인 대화 탭(메시지, 입력창, 입력창 옆 요소 피커, 인라인 앵커 칩, 권한 요청, 진행·실패 상태, 새 대화 시작), 보관한 대화를 여는 캔버스 구석 버튼, FirstPrompt의 Send(위저드 4단계와 캔버스 없는 작업 공간). 앱의 코멘트 화면 제거(Comments 패널, 코멘트 핀, Review bar·배너, Feedback 패널, Hand Off 다이얼로그). CLI·MCP·스킬·포맷·eval의 코멘트 제거는 별도 feature(2026-10-26 user). 기반은 [`agent-conversation`](../../PRODUCT.md#agent-conversation-foundation-contract-2026-10-27) | agent-conversation, buzz-canvas, buzz-inspector |

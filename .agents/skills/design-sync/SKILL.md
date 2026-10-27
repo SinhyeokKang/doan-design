@@ -32,7 +32,7 @@ Why the loop exists: in malmoi (2026-09-13) a modal fixed to the pixel in its dr
 2. You are on a `feat-<slug>` branch (from `/ship` or `/orchestrate`), not main. This skill commits but never pushes.
 3. This repo has `.doan/config.json`, the canvas is listed by `go run ./cli/cmd/doan ls --json --repo .`, and `go run ./cli/cmd/doan check --json --repo .` reports no error for it (a missing `doan:width` makes the app refuse to draw it).
 4. Every frame the screen needs is in the canvas — default, loading, empty, error and other states. A state with no frame is not compared; say so in the report.
-5. You can reach every state in the implementation with temp repos and fixtures (as `app/e2e/runtime.ts` does). **A state you could not reach is not "verified".**
+5. You can reach every state in the implementation with temp repos and fixtures (using `app/runtime/` isolation and cleanup support). **A state you could not reach is not "verified".**
 
 ## Steps
 
@@ -58,7 +58,7 @@ Properties to cover: size, padding, gap, border and radius, colors (text, backgr
 
 Both sides are read with `getComputedStyle` in the same Electron/Chromium build (2026-10-22 user), so units, fonts and token variables resolve the same way.
 
-- Write the script at `.scratch/design-sync/<screen>/measure.mjs`, modeled on `app/e2e/runtime.ts`: `npm --prefix app run build`, `go build -o <temp>/doan ./cli/cmd/doan`, Playwright `_electron.launch` with a temporary `--user-data-dir`, `DOAN_CLI` and the same environment isolation as `isolatedEnv` in `runtime.ts` (temp `HOME`, `TMPDIR`, fake `SHELL`, `CLAUDE_CONFIG_DIR`/`CODEX_HOME` under that HOME, pre-written `onboarding.json`), the folder dialog replaced through `electronApp.evaluate`, then add this repo with Add Project… and open the canvas.
+- Write the script at `.scratch/design-sync/<screen>/measure.mjs`, using `app/runtime/environment.ts` and `harness.ts`: `npm --prefix app run build`, `go build -o <temp>/doan ./cli/cmd/doan`, Playwright `_electron.launch` with a temporary `--user-data-dir`, `DOAN_CLI` and `isolatedEnv` from `app/runtime/environment.ts` (temp `HOME`, `TMPDIR`, fake `SHELL`, `CLAUDE_CONFIG_DIR`/`CODEX_HOME` under that HOME, pre-written `onboarding.json`), the folder dialog replaced through `electronApp.evaluate`, then add this repo with Add Project… and open the canvas.
 - **Draft side**: the canvas iframe is a Playwright `Frame`; read styles and `getBoundingClientRect()` inside it. Do not use `boundingBox()` for elements inside the iframe — it ignores the board scale (PRODUCT §6, PoC 3). Computed styles do not depend on the zoom.
 - **Implementation side**: the app window's renderer page, brought to the state of each row.
 - Create the states for real (hover, focus, scroll, selection) before reading. Read values that load asynchronously at the same moment as the rest, after they settle.
@@ -82,7 +82,7 @@ Run this repo's `/code-review` as an independent reviewer (same runtime as this 
 
 ### 7. Pin it
 
-A measurement runs once; tests run every time. Pin each regression the loop caught as a unit test or an `app/e2e/runtime.ts` step (`/tdd`), asserting structure or values the screen depends on rather than class strings. Break the code once to see each new test go red. Do not add test-only paths or attributes to product code (`/runtime-test` 'Prohibited').
+Pin logic regressions with focused unit tests where practical. Keep geometry, input and native checks as short affected-state probes under `.scratch/`; do not add screen-specific e2e scripts or a full-flow gate (2026-10-27 user). Record the failing observation and corrected measurement. Do not add test-only paths or attributes to product code.
 
 ### 8. Record and commit
 

@@ -2285,3 +2285,99 @@ describe("feedback navigation callbacks", () => {
     } finally { h.controller.dispose(); }
   });
 });
+
+it("opens an explicit Overview in one guarded workspace transition", async () => {
+  const { controller, row, changed } = loadedController();
+  try {
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/other", kind: "list", servedRev: 0, canvases: [row] }]);
+    controller.remember("/other", { canvas: row.path, view: { x: 1, y: 2, scale: 1 } });
+    const entered = vi.fn();
+    controller.setTransitionGuard(() => false);
+    controller.openWorkspace("/other", entered, false, undefined, true);
+    expect(entered).not.toHaveBeenCalled();
+    controller.setTransitionGuard(() => true);
+    controller.openWorkspace("/other", entered, false, undefined, true);
+    expect(entered).toHaveBeenCalledOnce();
+    expect(changed.mock.calls.at(-1)?.[0].open).toBeNull();
+  } finally { controller.dispose(); }
+});
+
+it("remembers the source view when an explicit canvas opens in another workspace", () => {
+  const { controller, row } = loadedController();
+  try {
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/other", kind: "list", servedRev: 0, canvases: [row] }]);
+    const view = controller.currentView();
+    controller.setTransitionGuard(() => false);
+    controller.openCanvas("/other", row);
+    expect(controller.memory()["/repo"]).toBeUndefined();
+    controller.setTransitionGuard(() => true);
+    controller.openCanvas("/other", row);
+    expect(controller.memory()["/repo"]).toEqual({ canvas: row.path, view });
+  } finally { controller.dispose(); }
+});
+
+it("repicking the current canvas cancels an older waiting worktree selection", () => {
+  const { controller, row } = loadedController();
+  try {
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/waiting", kind: "loading" }]);
+    const entered = vi.fn();
+    controller.openWorkspace("/waiting", entered);
+    controller.openCanvas("/repo", row);
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/waiting", kind: "list", servedRev: 0, canvases: [] }]);
+    expect(entered).not.toHaveBeenCalled();
+    expect(controller.destination("/repo")).toEqual({ root: "/repo", canvas: row.path });
+  } finally { controller.dispose(); }
+});
+
+it("repicking the current Overview cancels an older waiting worktree selection", () => {
+  const { controller, row } = loadedController();
+  try {
+    controller.showOverview();
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/waiting", kind: "loading" }]);
+    const entered = vi.fn();
+    controller.openWorkspace("/waiting", entered);
+    controller.showOverview();
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/waiting", kind: "list", servedRev: 0, canvases: [] }]);
+    expect(entered).not.toHaveBeenCalled();
+  } finally { controller.dispose(); }
+});
+
+it("remembers the approved same-workspace Overview source and restores it after another workspace", () => {
+  const { controller, row } = loadedController();
+  try {
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/other", kind: "list", servedRev: 0, canvases: [] }]);
+    const previous = { canvas: "design/old.html", view: { x: 9, y: 8, scale: 2 } };
+    controller.remember("/repo", previous);
+    controller.wheel({ dx: 25, dy: 40, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
+    controller.wheel({ dx: 0, dy: -20, ctrl: true, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
+    const view = controller.currentView();
+    controller.setTransitionGuard(() => false);
+    controller.showOverview();
+    expect(controller.memory()["/repo"]).toEqual(previous);
+    expect(controller.destination("/repo")).toEqual({ root: "/repo", canvas: row.path });
+    controller.setTransitionGuard(() => true);
+    controller.showOverview();
+    expect(controller.memory()["/repo"]).toEqual({ canvas: row.path, view });
+    controller.openWorkspace("/other", () => {});
+    controller.openWorkspace("/repo", () => {});
+    expect(controller.destination("/repo")).toEqual({ root: "/repo", canvas: row.path });
+    expect(controller.currentView()).toEqual(view);
+  } finally { controller.dispose(); }
+});
+
+it("reports a completed listed iframe link once, excluding reloads and unlisted destinations", () => {
+  const h = selectionHarness();
+  const visited = vi.fn(() => h.controller.destination("/repo"));
+  h.controller.linkedCanvas = visited;
+  try {
+    h.layout();
+    expect(visited).not.toHaveBeenCalled();
+    h.layout({ href: h.other.url });
+    expect(visited).toHaveBeenCalledExactlyOnceWith("/repo");
+    expect(visited.mock.results[0]?.value).toEqual({ root: "/repo", canvas: h.other.path });
+    h.layout({ href: h.other.url });
+    expect(visited).toHaveBeenCalledTimes(1);
+    h.layout({ href: h.other.url.replace("b.html", "unlisted.html") });
+    expect(visited).toHaveBeenCalledTimes(1);
+  } finally { h.controller.dispose(); }
+});

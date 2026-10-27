@@ -176,17 +176,24 @@
   align-items: center;
   max-width: 256px;
   padding-inline: var(--space-chip-inset);
+  padding-block: 2px;
   border: 0;
   border-radius: var(--radius-chip);
   background: var(--affordance-subtle);
   color: var(--text-standard);
   font: inherit;
+  font-size: var(--type-caption-size);
   line-height: 1.35;
   vertical-align: baseline;
 }
 button.doan-chip { cursor: pointer; }
 /* Keyboard focus shows the ring alone, as on every other control. */
 button.doan-chip:is(:hover, [data-state="open"]) { background: var(--affordance-subtle-hover); }
+/* Read-only branch badges use a span, so they inherit no button hover or tab stop. */
+.doan-chip[data-ui-variant="translucent"] {
+  background: var(--affordance-backdrop-hover);
+  color: var(--text-subtle);
+}
 
 /* ── Spinner ─────────────────────────────────────────────────────────────────
    A ring whose one dark quarter turns once a second. */

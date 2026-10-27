@@ -1,22 +1,22 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { ShellSidebar } from "./ShellSidebar";
+import { commitVisit, emptyHistory, historyTarget, reconcileProjects, selectProjectRoot, type Visit } from "./shellNavigation";
 import { canvasLabel } from "./canvasTree";
 import type { Selection } from "../formats/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
 import { projectNames } from "./projectRow";
-import { ChevronLeft, Minus, Plus } from "lucide-react";
-import { DropdownMenu } from "radix-ui";
-import { displayPath } from "./projectDisplay";
-import { Home, ProblemActions, PathTip, useProjectComments } from "./Home";
+import { ArrowLeft, ArrowRight, Minus, Plus, Settings, LayoutGrid } from "lucide-react";
+import { Home, ProblemActions, useProjectComments } from "./Home";
 import { AddProjectsDialog, SetUpFolderConfirm } from "./AddProjectsDialog";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { useToast } from "./Toast";
 import { DropOverlay } from "./DropOverlay";
 import type { AddOutcome } from "../main/addProjects";
 import type { RowAction } from "./homeCards";
-import { groupProjects, cardRow } from "./homeCards";
-import { moveExpanded, Sidebar, type CanvasMove } from "./Sidebar";
+import { groupProjects } from "./homeCards";
+import { moveExpanded } from "./Sidebar";
 import { useComments } from "./useComments";
 import { RightPanel } from "./RightPanel";
 import { FeedbackPanel } from "./FeedbackPanel";
@@ -26,9 +26,9 @@ import { Wizard, type Reroot } from "./Onboarding";
 import { FirstPromptContext, useFirstPromptWait } from "./FirstPrompt";
 import { ProjectOverview, useThumbnails } from "./ProjectOverview";
 import { QuickOpen } from "./QuickOpenDialog";
-import { unavailableCanvasMessage, pickTarget, type SearchResult } from "./quickOpen";
+import { unavailableCanvasMessage, type SearchResult } from "./quickOpen";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
-import type { UiState } from "../restore/uiState";
+import type { UiState, ShellProject } from "../restore/uiState";
 
 // Each command names its handler; one App does not know does nothing, so a
 // new menu item can never run the Undo toast's action (R-M ⚪5).
@@ -38,6 +38,11 @@ export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen
   else if (name === "undoRemove") to.undo();
   else if (name === "nextResolved") to.review("next");
   else if (name === "previousResolved") to.review("previous");
+}
+
+export function validHistoryVisit(entries: readonly FolderEntry[], visit: Visit): boolean {
+  const entry = entries.find(entry => entry.path === visit.root);
+  return !!entry && entry.kind !== "notFound" && (entry.kind !== "list" || !visit.canvas || entry.canvases.some(row => row.path === visit.canvas));
 }
 
 export function App() {
@@ -74,14 +79,19 @@ export function App() {
   const restoreFocus = useRef(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, string[]>>({});
-  const [moved, setMoved] = useState<CanvasMove | null>(null);
+  const [shellProjects, setShellProjects] = useState<Record<string, ShellProject>>({});
+  const [history, setHistory] = useState(emptyHistory);
+  const historyRef = useRef(history); historyRef.current = history;
+  const navigationIntent = useRef(0);
+  const entriesRef = useRef(entries); entriesRef.current = entries;
+  const shellRef = useRef(shellProjects); shellRef.current = shellProjects;
   // Why the open canvas was closed, shown on its project's Overview until another
   // canvas opens or the Overview is left (design/revision-continuity.html, duplicate-id).
   const [overviewNotice, setOverviewNotice] = useState<{ root: string; text: string } | null>(null);
   // The saved ui state until the restore is applied, then "done"; null while it is read.
   const [restore, setRestore] = useState<{ state: UiState | null; started: number } | "done" | null>(null);
   const restoreCancelled = useRef(false);
-  const cancelRestore = () => { restoreCancelled.current = true; setRestore("done"); };
+  const cancelRestore = () => { navigationIntent.current++; restoreCancelled.current = true; setRestore("done"); };
   const recoveryFocus = useRef<{ element: HTMLElement; root: string } | null>(null);
   function focusCurrent(previous: HTMLElement | null = null) {
     if (document.querySelector("dialog[open]")) return;
@@ -90,7 +100,7 @@ export function App() {
       && !node.closest('[inert], [hidden], [aria-hidden="true"]') && !node.matches(":disabled")
       && node.getClientRects().length > 0 && getComputedStyle(node).visibility === "visible";
     const selectors = currentScreen.current === "home" ? ['.home-body [data-path][tabindex="0"]', '.home-shell button']
-      : ['.side [role="treeitem"][tabindex="0"]', '.workspace .top button'];
+      : ['.side [role="treeitem"][tabindex="0"]', '.shell-search', '.workspace .top button'];
     const fallback = selectors.flatMap(selector => Array.from(document.querySelectorAll<HTMLElement>(selector)));
     (usable(previous) ? previous : fallback.find(usable))?.focus();
   }
@@ -108,6 +118,18 @@ export function App() {
         setLoadedRoot(root => root === focus.from ? focus.root : root);
         setReroot(previous => ({ ...focus, seq: (previous?.seq ?? 0) + 1 }));
       }
+      const removed = entriesRef.current.filter(entry => !next.some(row => row.path === entry.path)).map(entry => entry.path);
+      if (removed.length) {
+        setExpanded(previous => Object.fromEntries(Object.entries(previous).filter(([root]) => !removed.includes(root))));
+        setShellProjects(previous => Object.fromEntries(Object.entries(previous).flatMap(([key, project]) => {
+          const roots = project.roots.filter(root => !removed.includes(root));
+          return roots.length ? [[key, { roots, expanded: project.expanded, ...(project.selectedRoot && roots.includes(project.selectedRoot) ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) } : {}) }]] : [];
+        })));
+        const previous = historyRef.current;
+        const nextHistory = { visits: previous.visits.filter(visit => !removed.includes(visit.root)), cursor: previous.visits.slice(0, previous.cursor + 1).filter(visit => !removed.includes(visit.root)).length - 1 };
+        historyRef.current = nextHistory; setHistory(nextHistory);
+      }
+      entriesRef.current = next;
       setEntries(next); instance.updateEntries(next); setFoldersSeen(true);
     });
     instance.canvasRemoved = ({ folder, row, duplicates }) => {
@@ -118,11 +140,11 @@ export function App() {
     };
     instance.canvasMoved = ({ folder, from, row }) => {
       setExpanded(previous => previous[folder] ? { ...previous, [folder]: moveExpanded(previous[folder], from, row.path) } : previous);
-      setMoved({ root: folder, from, to: row.path });
     };
     instance.viewChanged = () => live.current.save();
+    instance.linkedCanvas = root => live.current.completeNavigation(root);
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace") instance.command(name); });
-    return () => { stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
+    return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
   }, []);
   useEffect(() => { void window.doan.homeDirectory().then(setHomeDirectory).catch(console.error); }, []);
   useEffect(() => window.doan.onOnboardingOpen(opened => {
@@ -146,7 +168,7 @@ export function App() {
   const [reveal, setReveal] = useState<{ root: string; id: string; seq: number } | null>(null);
   const showOrphans = (root: string, id: string) => {
     cancelRestore();
-    controller.current?.showOverview(() => setReveal(previous => ({ root, id, seq: (previous?.seq ?? 0) + 1 })));
+    controller.current?.showOverview(() => { completeNavigation(root); setReveal(previous => ({ root, id, seq: (previous?.seq ?? 0) + 1 })); });
   };
   const comments = useComments(state, controller, () => setScreen("workspace"), entries, root => reviewedRoot.current(root), homeDirectory, showOrphans);
   const home = () => {
@@ -167,7 +189,7 @@ export function App() {
     }
   }, [screen, loadedRoot]);
   useEffect(() => {
-    if (loadedRoot && loadedRoot !== locating?.from && !entries.some(entry => entry.path === loadedRoot)) { setLoadedRoot(null); setScreen("home"); }
+    if (loadedRoot && loadedRoot !== locating?.from && !entries.some(entry => entry.path === loadedRoot)) { setLoadedRoot(null); }
   }, [entries, loadedRoot, locating]);
   useEffect(() => {
     const root = locating?.root;
@@ -195,6 +217,7 @@ export function App() {
     setRestore("done");
     if (!restore.state) return;
     setExpanded(restore.state.expanded);
+    setShellProjects(restore.state.shellProjects ?? {});
     for (const [root, item] of Object.entries(restore.state.lastByRoot)) controller.current?.remember(root, item);
     if (plan.kind === "home") return;
     // The workspace opens its remembered canvas and view, as a worktree switch does.
@@ -220,7 +243,7 @@ export function App() {
   // quit, while a value still waiting here would be lost to a quick ⌘Q.
   const save = () => {
     if (restore !== "done") return;
-    const { screen, loadedRoot, open, expanded } = persisted.current;
+    const { screen, loadedRoot, open, expanded, shellProjects } = persisted.current;
     const instance = controller.current;
     if (!instance) return;
     const canvas = open && open.folder === loadedRoot ? open.canvas : undefined;
@@ -228,26 +251,92 @@ export function App() {
     const view = instance.currentView();
     // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
     const lastByRoot = { ...instance.memory(), ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
-    const state: UiState = { screen, expanded, lastByRoot, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}) };
-    void window.doan.saveUiState(state).catch(console.error);
+    const state: UiState = { screen, expanded, shellProjects, lastByRoot, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}) };
+    void window.doan.saveUiState(state).then(saved => { if (!saved) console.error("doan: UI state was not saved"); }).catch(console.error);
   };
-  const persisted = useRef({ screen, loadedRoot, open: state.open, expanded });
-  persisted.current = { screen, loadedRoot, open: state.open, expanded };
+  const persisted = useRef({ screen, loadedRoot, open: state.open, expanded, shellProjects });
+  persisted.current = { screen, loadedRoot, open: state.open, expanded, shellProjects };
   // At commit, so a change already on screen has been sent.
-  useLayoutEffect(save, [restore, screen, loadedRoot, state.open, expanded]);
-  const enter = (root: string, sameCanvas = false) => {
+  useLayoutEffect(save, [restore, screen, loadedRoot, state.open, expanded, shellProjects]);
+  const completeNavigation = (root: string, cursor?: number) => {
+    const visit = controller.current?.destination(root);
+    if (!visit || !entriesRef.current.some(entry => entry.path === root)) return;
+    workspaceFocus.current = null; setLoadedRoot(root); setScreen("workspace");
+    const stored = historyRef.current;
+    const before = stored.visits.length === 0 && loadedRoot && entriesRef.current.some(entry => entry.path === loadedRoot) && screen === "workspace" ? commitVisit(stored, { root: loadedRoot, ...(state.open ? { canvas: state.open.canvas } : {}) }) : stored;
+    const next = cursor === undefined ? commitVisit(before, visit) : { ...before, cursor };
+    if (next === before) return;
+    historyRef.current = next; setHistory(next);
+    const groups = groupProjects(entriesRef.current, new Map(entriesRef.current.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
+    const group = groups.find(group => group.rows.some(row => row.path === root));
+    if (group) setShellProjects(previous => ({ ...previous, [group.key]: { roots: group.rows.map(row => row.path), expanded: previous[group.key]?.expanded ?? false, selectedRoot: root, selectedAt: Date.now() } }));
+  };
+  const enter = (root: string) => {
     cancelRestore();
-    if (root === loadedRoot) { controller.current?.cancelWorkspaceOpen(); setScreen("workspace"); return; }
-    controller.current?.openWorkspace(root, next => { workspaceFocus.current = null; setLoadedRoot(next); setScreen("workspace"); }, sameCanvas);
+    if (root === loadedRoot) { controller.current?.cancelWorkspaceOpen(); setScreen("workspace"); }
+    else controller.current?.openWorkspace(root, next => completeNavigation(next), false);
+  };
+  const openShellCanvas = (root: string, row: CanvasRow, cursor?: number) => {
+    cancelRestore();
+    controller.current?.openCanvas(root, row, undefined, { opened: () => completeNavigation(root, cursor), unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path)) });
+  };
+  const showShellOverview = (root: string, cursor?: number) => {
+    cancelRestore();
+    if (root === loadedRoot) controller.current?.showOverview(() => completeNavigation(root, cursor));
+    else controller.current?.openWorkspace(root, next => completeNavigation(next, cursor), false, undefined, true);
   };
   const cards = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
   const card = cards.find(card => card.rows.some(row => row.path === loadedRoot));
   const entry = entries.find(entry => entry.path === loadedRoot);
+  const groupSignature = JSON.stringify(cards.map(card => ({ key: card.key, roots: card.rows.map(row => row.path) })));
+  useEffect(() => {
+    if (!foldersSeen || restore !== "done") return;
+    // Loading may not yet expose git.common; preserve membership until classification settles.
+    if (entries.some(entry => entry.kind === "loading")) return;
+    setShellProjects(previous => {
+      const next = reconcileProjects(previous, cards.map(card => ({ key: card.key, roots: card.rows.map(row => row.path) })));
+      if (loadedRoot && card && next[card.key]?.selectedRoot !== loadedRoot) {
+        const project = next[card.key]!;
+        next[card.key] = { roots: project.roots, expanded: project.expanded, selectedRoot: loadedRoot };
+      }
+      return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
+    });
+  }, [groupSignature, entries, loadedRoot, restore, foldersSeen]);
+  const validVisit = (visit: Visit) => validHistoryVisit(entries, visit);
+  const back = historyTarget(history, -1, validVisit), forward = historyTarget(history, 1, validVisit);
+  const travel = (cursor: number | null) => {
+    if (cursor === null) return;
+    const visit = history.visits[cursor]; if (!visit) return;
+    const entry = entries.find(entry => entry.path === visit.root);
+    if (entry?.kind !== "list") { toast.show("This project is unavailable. Use its recovery actions."); return; }
+    const row = entry.canvases.find(row => row.path === visit.canvas);
+    if (visit.canvas && row) openShellCanvas(visit.root, row, cursor);
+    else showShellOverview(visit.root, cursor);
+  };
+  const toggleProject = async (key: string) => {
+    const group = cards.find(card => card.key === key); if (!group || group.rows.some(row => row.path === loadedRoot)) return;
+    cancelRestore(); controller.current?.cancelWorkspaceOpen();
+    const memory = { ...(shellRef.current[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) };
+    if (memory.expanded) { setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: false } })); return; }
+    const intent = navigationIntent.current, signature = groupSignature;
+    const activity = await window.doan.readShellActivity({ roots: memory.roots }).catch(() => null);
+    const groups = groupProjects(entriesRef.current, new Map(entriesRef.current.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
+    if (intent !== navigationIntent.current || signature !== JSON.stringify(groups.map(card => ({ key: card.key, roots: card.rows.map(row => row.path) })))) return;
+    const root = selectProjectRoot(memory, activity ?? [], loadedRoot); if (!root) return;
+    const selected = entriesRef.current.find(entry => entry.path === root);
+    if (selected?.kind !== "list" && selected?.kind !== "loading") { setShellProjects(previous => ({ ...previous, [key]: { ...memory, selectedRoot: root, expanded: true } })); return; }
+    controller.current?.openWorkspace(root, next => {
+      setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: true } }));
+      completeNavigation(next);
+    });
+  };
+  const search = () => { cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); };
+
 
   const modal = wizard !== null || !!comments.dialog || setup !== null || scan !== null || confirms.length > 0 || quickOpen;
   useLayoutEffect(() => { toast.setModal(modal); }, [modal]);
-  const live = useRef({ home, enter, toast, modal, save, comments });
-  live.current = { home, enter, toast, modal, save, comments };
+  const live = useRef({ home, enter, toast, modal, save, comments, completeNavigation });
+  live.current = { home, enter, toast, modal, save, comments, completeNavigation };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement.closest<HTMLElement>(".home-body [data-path]") ?? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -289,7 +378,7 @@ export function App() {
     if (currentScreen.current === "home") setHighlight(paths);
     else live.current.toast.show(paths.length === 1 ? `Added ${root.split("/").at(-1)}` : `Added ${paths.length} projects`, "Open", () => {
       cancelRestore();
-      controller.current?.openWorkspace(root, next => { workspaceFocus.current = null; setLoadedRoot(next); setScreen("workspace"); }, false,
+      controller.current?.openWorkspace(root, next => { workspaceFocus.current = null; completeNavigation(next); }, false,
         () => { live.current.home(); setHighlight([root]); });
     });
   };
@@ -304,12 +393,25 @@ export function App() {
   async function remove(paths: string[]) {
     cancelRestore();
     const result = await window.doan.removeProjects(paths);
-    if (result.kind === "removed") toast.show(`${result.label} removed. Files stay on disk.`, "Undo", () => { void window.doan.restoreProjects(result.removalId).catch(console.error); }, () => { void window.doan.forgetRemoval(result.removalId).catch(console.error); });
+    if (result.kind === "removed") {
+      setShellProjects(previous => Object.fromEntries(Object.entries(previous).flatMap(([key, project]) => {
+        const roots = project.roots.filter(root => !paths.includes(root));
+        return roots.length ? [[key, { roots, expanded: project.expanded, ...(project.selectedRoot && roots.includes(project.selectedRoot) ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) } : {}) }]] : [];
+      })));
+      setExpanded(previous => Object.fromEntries(Object.entries(previous).filter(([root]) => !paths.includes(root))));
+      for (const root of paths) controller.current?.remember(root, null);
+      const previous = historyRef.current;
+      const before = previous.visits.slice(0, previous.cursor + 1).filter(visit => !paths.includes(visit.root));
+      const nextHistory = { visits: previous.visits.filter(visit => !paths.includes(visit.root)), cursor: before.length - 1 };
+      historyRef.current = nextHistory; setHistory(nextHistory);
+      toast.show(`${result.label} removed. Files stay on disk.`, "Undo", () => { void window.doan.restoreProjects(result.removalId).catch(console.error); }, () => { void window.doan.forgetRemoval(result.removalId).catch(console.error); });
+    }
   }
   function action(name: RowAction, root: string) {
     cancelRestore();
     if ((name === "retry" || name === "locate") && document.activeElement instanceof HTMLElement) recoveryFocus.current = { element: document.activeElement, root };
-    if (name === "setUp") { rememberFocus(); setSetup(root); }
+    if (name === "details") { const entry = entriesRef.current.find(entry => entry.path === root); if (entry?.kind === "error") toast.show(entry.message); }
+    else if (name === "setUp") { rememberFocus(); setSetup(root); }
     else if (name === "remove") void remove([root]);
     else if (name === "showInFinder") void window.doan.revealProject(root).catch(console.error);
     else if (name === "retry") void window.doan.reopenFolder(root).catch(console.error);
@@ -352,9 +454,7 @@ export function App() {
     if (!row) { unavailable(target); return; }
     const frameId = result.kind === "frame" ? result.frameId : undefined;
     const found = (ok: boolean) => { if (!ok) live.current.toast.show("This frame is not in the rendered canvas"); };
-    const openIt = (root: string) => controller.current?.openCanvas(root, row, frameId, { unavailable, ...(frameId === undefined ? {} : { found }) });
-    if (pickTarget(result, loadedRoot, state.open?.canvas ?? null) === "switch") controller.current?.openWorkspace(result.root, next => { workspaceFocus.current = null; setLoadedRoot(next); setScreen("workspace"); openIt(next); }, false, unavailable);
-    else { setScreen("workspace"); openIt(result.root); }
+    controller.current?.openCanvas(result.root, row, frameId, { unavailable, ...(result.kind === "frame" ? { found, index: result.frameIndex } : {}), opened: () => completeNavigation(result.root) });
   }
   const thumbs = useThumbnails(entry?.kind === "list" ? entry.path : null, entry?.kind === "list" ? entry.canvases : []);
   const overview = screen === "workspace" && entry?.kind === "list" && !state.open ? entry : null;
@@ -373,7 +473,7 @@ export function App() {
     cancelRestore();
     controller.current?.openCanvas(root, row, undefined, {
       unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path)),
-      opened: () => live.current.comments.openAt(target === "review" ? { root, path: row.path, review: true } : { root, path: row.path, ...target }),
+      opened: () => { completeNavigation(root); live.current.comments.openAt(target === "review" ? { root, path: row.path, review: true } : { root, path: row.path, ...target }); },
     });
   };
   const feedback = overview && <FeedbackPanel key={overview.path} root={overview.path} rows={overview.canvases} read={projectComments.reads.get(overview.path)} orphans={comments.orphans}
@@ -381,7 +481,7 @@ export function App() {
     onOrphan={(intent, at, comment) => { comments.orphanIntent(intent, at, comment); if (intent === "read-latest") projectComments.refresh(at.root); }}
     onRetryGit={() => { void comments.orphans.retryGit(overview.path); }}
     onOpenComment={(row, comment, status) => openFeedback(overview.path, row, { comment, status })}
-    onOpenCanvas={row => { cancelRestore(); controller.current?.openCanvas(overview.path, row, undefined, { unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path)) }); }}
+    onOpenCanvas={row => openShellCanvas(overview.path, row)}
     onReview={row => openFeedback(overview.path, row, "review")}
     reveal={reveal?.root === overview.path ? reveal : null} onRevealed={() => setReveal(null)} />;
   const previousOverview = useRef(shownOverview);
@@ -399,19 +499,17 @@ export function App() {
     openCanvas: (root: string, row: CanvasRow, explicit: boolean) => {
       cancelRestore();
       const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, row.path));
-      const open = (next: string) => controller.current?.openCanvas(next, row, undefined, explicit ? { unavailable } : undefined);
-      if (root === loadedRoot) { setScreen("workspace"); open(root); }
-      else controller.current?.openWorkspace(root, next => { workspaceFocus.current = null; setLoadedRoot(next); setScreen("workspace"); open(next); }, false, explicit ? unavailable : undefined);
+      controller.current?.openCanvas(root, row, undefined, { ...(explicit ? { unavailable } : {}), opened: () => completeNavigation(root) });
     },
   });
   return <TooltipProvider><FirstPromptContext.Provider value={firstPrompt}>
-  {screen === "home" && <Home homeDirectory={homeDirectory} entries={entries} loaded={loadedRoot} selection={state.selection} highlight={highlight} rerootHint={rerootHint} comments={projectComments.comments} enter={enter} action={action} remove={paths => void remove(paths)} />}
+  {screen === "home" && <Home header={<TopBar back={back !== null} forward={forward !== null} previous={() => travel(back)} next={() => travel(forward)} />} homeDirectory={homeDirectory} entries={entries} loaded={loadedRoot} selection={state.selection} highlight={highlight} rerootHint={rerootHint} comments={projectComments.comments} enter={enter} action={action} remove={paths => void remove(paths)} />}
   <main className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}`} style={{ visibility: screen === "home" ? "hidden" : "visible" }} inert={screen === "home"} aria-hidden={screen === "home"}>
-    <TopBar homeDirectory={homeDirectory} state={state} name={card?.name ?? name} reload={() => command("reload")} overview={() => { cancelRestore(); controller.current?.showOverview(); }} home={home} entry={entry} rows={card?.rows ?? []} enter={root => enter(root, true)} />
+    <TopBar back={back !== null} forward={forward !== null} previous={() => travel(back)} next={() => travel(forward)} />
     {entry && entry.kind !== "list" && <ProblemActions entry={entry} action={action} workspace={{ name: card?.name ?? name, homeDirectory, home }} />}
-    <Sidebar entries={entries.filter(entry => entry.path === loadedRoot)} state={state} expanded={expanded} moved={moved} onExpandedChange={(root, paths) => { cancelRestore(); setExpanded(previous => ({ ...previous, [root]: paths })); }} open={(folder, row, frameId, index) => { cancelRestore(); controller.current?.openCanvas(folder, row, frameId, index === undefined ? undefined : { index }); }} jump={index => controller.current?.jump(index)} select={index => controller.current?.selectFrame(index)} overview={() => { cancelRestore(); controller.current?.showOverview(); }} />
+    <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} worktree={enter} open={openShellCanvas} overview={showShellOverview} action={action} remove={remove} />
     <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null} />
-    {overview && <ProjectOverview key={overview.path} root={overview.path} rows={overview.canvases} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null} comments={projectComments.comments.get(overview.path)} open={row => { cancelRestore(); controller.current?.openCanvas(overview.path, row); }} />}
+    {overview && <ProjectOverview key={overview.path} root={overview.path} rows={overview.canvases} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null} comments={projectComments.comments.get(overview.path)} open={row => openShellCanvas(overview.path, row)} />}
     <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} feedback={feedback} />{comments.panel}</div>
   </main>
   {comments.dialog}
@@ -425,18 +523,10 @@ export function App() {
   </FirstPromptContext.Provider></TooltipProvider>;
 }
 
-function TopBar({ state, name, reload, overview, home, entry, rows, enter, homeDirectory }: { homeDirectory: string | null; state: CanvasState; name: string; reload: () => void; overview: () => void; home: () => void; entry: FolderEntry | undefined; rows: FolderEntry[]; enter: (root: string) => void }) {
-  const branch = entry?.kind === "list" ? cardRow(entry, null, null).summary?.branch : undefined;
-  return <header className="top">
-    <span className="traffic-space" aria-hidden="true" />
-    <button className="back doan-icon-button" data-ui-placement="chrome" aria-label="Go Home" onClick={home}><ChevronLeft aria-hidden="true" /></button><span className="divider" />
-    <div className="crumbs"><PathTip text="Overview"><button className="repo" aria-label={`${name} overview`} onClick={overview}>{name}</button></PathTip>{branch && <><span className="sep">›</span>
-      <DropdownMenu.Root><DropdownMenu.Trigger asChild><button className="branch" aria-label="Switch worktree" disabled={rows.length < 2}><span className="glyph" aria-hidden="true">⎇</span><span className="bn">{branch}</span><span className="caret">▾</span></button></DropdownMenu.Trigger>
-        <DropdownMenu.Portal><DropdownMenu.Content className="menu doan-floating doan-menu" aria-label="Worktrees" sideOffset={5} align="start"><div className="menu-head doan-menu-head">Worktrees</div><DropdownMenu.RadioGroup value={entry?.path} onValueChange={enter}>{rows.map(row => <DropdownMenu.RadioItem value={row.path} className="mi doan-menu-item" key={row.path} disabled={row.kind !== "list"}><span className="check" aria-hidden="true">{row.path === entry?.path ? "✓" : ""}</span><span className="label">{cardRow(row, null, null).summary?.branch ?? row.path.split("/").at(-1)}</span><span className="sub">{displayPath(row.path, homeDirectory)}</span>{cardRow(row, null, null).chip && <span className={`ob-chip${row.kind === "error" ? " err" : row.kind === "cliError" || row.kind === "notFound" ? " warn" : ""}`}>{cardRow(row, null, null).chip}</span>}</DropdownMenu.RadioItem>)}</DropdownMenu.RadioGroup></DropdownMenu.Content></DropdownMenu.Portal>
-      </DropdownMenu.Root></>}{state.open && <><span className="sep">›</span><PathTip text={state.open.canvas.replace(/^design\//, "")}><span className="canvas">{canvasLabel(state.open.row)}</span></PathTip></>}</div>
-    <span className="chip doan-chip">{state.open?.row.width === undefined ? "—" : `${state.open.row.width} px`}</span>
-    <span className="spacer" />
-    <button className="btn ghost doan-button" data-ui-size="sm" aria-label="Reload canvas" disabled={!state.open} onClick={reload}>Reload <span className="kbd doan-kbd">⌘R</span></button>
+function TopBar({ back, forward, previous, next }: { back: boolean; forward: boolean; previous(): void; next(): void }) {
+  return <header className="top shell-top"><span className="traffic-space" aria-hidden="true" />
+    <div className="shell-history"><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!back} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
+    <div className="shell-modes"><button onClick={() => void window.doan.addProjects()}><Plus />Add Projects</button><button className="current" aria-current="page"><LayoutGrid />Projects</button><button onClick={() => void window.doan.openSettings({ tab: "connections" })}><Settings />Settings</button></div>
   </header>;
 }
 
@@ -467,6 +557,7 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
     </div>}
     {state.label && state.open && <output className="updated meta" aria-label={state.label}><span className="dot" /> {state.label}</output>}
     <div className={`zctl${state.hasFrame ? "" : " disabled"}`}>
+      <button className="doan-button" data-ui-size="sm" aria-label="Reload canvas" disabled={!state.open} onClick={() => command("reload")}>Reload</button>
       <div className="zoom">
         <button className="doan-icon-button" data-ui-variant="subtle" aria-label="Zoom out" disabled={!state.hasFrame} onClick={() => command("zoomOut")}><Minus aria-hidden="true" /></button>
         <output aria-label={state.hasFrame ? `Zoom ${state.zoom}%` : "Zoom"}>{state.hasFrame ? `${state.zoom}%` : "—"}</output>

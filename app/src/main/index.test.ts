@@ -206,7 +206,7 @@ test("draws light whatever the macOS appearance", () => {
 
 test("defines the requested window geometry and File menu", () => {
   expect(shellColour()).toMatch(/^#[0-9a-f]{6}$/);
-  expect(window().options).toMatchObject({ width: 1238, height: 780, minWidth: 960, minHeight: 600, titleBarStyle: "hiddenInset", trafficLightPosition: { x: 12, y: 14 }, backgroundColor: shellColour() });
+  expect(window().options).toMatchObject({ width: 1238, height: 780, minWidth: 960, minHeight: 600, titleBarStyle: "hiddenInset", trafficLightPosition: { x: 16, y: 21 }, backgroundColor: "#00000000", vibrancy: "sidebar", visualEffectState: "followWindow" });
   expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
   expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
 });
@@ -1937,4 +1937,13 @@ test("conversation IPC rejects foreign windows and canvas frames", async () => {
     expect(await invoke(`conversation:${method}`, {}, null, {})).toEqual({ error: "bad_request" });
     expect(await invoke(`conversation:${method}`, window().webContents, {}, {})).toEqual({ error: "bad_request" });
   }
+});
+
+test("shell activity refuses foreign windows, subframes, unknown roots, and sparse requests", async () => {
+  const contents = window().webContents;
+  expect(await invoke("shell:activity", {}, null, { roots: [] })).toBeNull();
+  expect(await invoke("shell:activity", contents, {}, { roots: [] })).toBeNull();
+  expect(await invoke("shell:activity", contents, null, { roots: ["/not-registered"] })).toBeNull();
+  expect(await invoke("shell:activity", contents, null, { roots: Array(1) })).toBeNull();
+  expect(await invoke("shell:activity", contents, null, { roots: [] })).toEqual([]);
 });

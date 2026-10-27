@@ -1,0 +1,13 @@
+/* Keep font loading in an HTML-linked sheet so development needs no inline styles. */
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/geist/Geist.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

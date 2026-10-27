@@ -22,7 +22,7 @@
   },
   "include": [
     "src",
-    "e2e",
+    "runtime",
     "vitest.config.ts",
     "vitest.globalSetup.ts",
     "electron.vite.config.ts"
