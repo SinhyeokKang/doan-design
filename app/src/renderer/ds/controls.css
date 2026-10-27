@@ -176,11 +176,13 @@
   align-items: center;
   max-width: 256px;
   padding-inline: var(--space-chip-inset);
+  padding-block: 2px;
   border: 0;
   border-radius: var(--radius-chip);
   background: var(--affordance-subtle);
   color: var(--text-standard);
   font: inherit;
+  font-size: var(--type-caption-size);
   line-height: 1.35;
   vertical-align: baseline;
 }
