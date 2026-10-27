@@ -529,7 +529,9 @@ try {
     async function blankPress(region: ReturnType<Page["getByRole"]>, name: string): Promise<{ theta: boolean; selected: boolean }> {
       const point = await region.evaluate(node => {
         const box = node.getBoundingClientRect();
-        for (let y = box.bottom - 6; y > box.top; y -= 12) for (let x = box.left + 6; x < box.right; x += 12) {
+        // Native scrollbar hits report the scroll container too, but do not blur its focused button.
+        const left = box.left + node.clientLeft, top = box.top + node.clientTop;
+        for (let y = top + node.clientHeight - 6; y > top; y -= 12) for (let x = left + 6; x < left + node.clientWidth; x += 12) {
           const hit = document.elementFromPoint(x, y);
           if (hit && node.contains(hit) && !hit.closest("button, a, input, textarea, select, iframe, article, [tabindex], [contenteditable]")) return { x, y };
         }

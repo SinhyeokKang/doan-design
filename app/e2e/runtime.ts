@@ -17,6 +17,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { _electron, type ElectronApplication, type Frame, type Locator, type Page } from "playwright";
 
+const { assertDesktopUnlocked }: typeof import("./desktop") = await import(new URL("./desktop.ts", import.meta.url).href);
+await assertDesktopUnlocked();
 const { rememberApp, closeApp, suiteGuard, bounded }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { appWindow, appWindowCount, menu: appMenu }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 const { canvasRow, frameRows }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
@@ -401,7 +403,10 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     await writeFile(join(repos.ok, "design", "added.html"), "<!doctype html><title>Added</title>\n");
     await waitFolders(page, (all) => hasCanvas(all, repos.ok, "design/added.html"), "added canvas listed");
     await rm(repos.worktree, { recursive: true, force: true });
-    folders = await waitFolders(page, (all) => all.some((f) => f.path === repos.worktree && f.state === "notFound"), "deleted folder not found");
+    // Until the watcher publishes Missing, readFolders would try to enter the deleted project.
+    await goHome(page);
+    await homeRow(page, repos.worktree).getByText("Missing", { exact: true }).waitFor({ timeout: WAIT_MS });
+    folders = await readFolders(page);
     assert.equal(byPath(folders, repos.worktree).status, "Missing");
     assert.equal(byPath(folders, repos.ok).state, "list");
     await replaceDialog(app, repos.worktree);

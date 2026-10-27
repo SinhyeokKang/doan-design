@@ -2,6 +2,22 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-27 — Native focus waits hid a locked desktop
+
+- **Area**: `app/e2e/desktop.ts`, `comments-ui.ts`, `runtime.ts`.
+- **Symptom**: the ordinary draft quit guard was visible after native hide/close, but the generic wait timed out with the window unfocused.
+- **Root cause**: the desktop was locked; visibility alone did not imply that macOS could focus the window. The wait reported neither native state nor desktop lock state.
+- **Net**: locked/unlocked runs separated the environment failure from product behavior. Node regressions check all three original native conditions and lock/probe failures; the full unlocked runtime passed. A lock now fails with unlock guidance rather than skipping the assertion.
+- **Prevention**: preflight native suites and repeat the lock check before hide/quit; retain hidden/visible/focused values and the last observation error on timeout. Ran `rg -n 'waitForNativeFocus|assertDesktopUnlocked' app/e2e/runtime.ts app/e2e/comments-ui.ts`; both entry points and the comments native loop are covered. An unlocked result does not exclude later user interaction.
+
+### 2026-10-27 — Observing a deleted folder navigated into it
+
+- **Area**: `app/e2e/runtime.ts`, `readFolders` after folder deletion.
+- **Symptom**: the full runtime timed out entering a project immediately after deleting its directory.
+- **Root cause**: `readFolders` enters rows still classified as listed projects; the filesystem watcher had not yet published Missing. Polling the desired missing state therefore triggered navigation into the deleted root.
+- **Net**: an instrumented run observed failed entry followed by Missing. Waiting for the Home row's Missing chip before reading folders passed the focused probe and full runtime without changing product behavior or final assertions.
+- **Prevention**: wait for the observable transition before using a reader that navigates. Ran `rg -n 'waitFolders.*notFound' app/e2e/runtime.ts`; the remaining Reopen check occurs after Missing is already established. Keep the deletion check's existing deadline and folder-state assertions.
+
 ### 2026-10-27 — Filtering error replies hid duplicate native settlement
 
 - **Area**: `app/e2e/conversation.ts`, `conversation-checks.ts` (F-E).
@@ -502,6 +518,8 @@
 - **Root cause**: exact equality compared the child's rendered width to the scroll container's outer width, including its 11px native scrollbar. Earlier runs without that geometry passed; the selected heading and message parent were correct.
 - **Net**: the final gate caught the invalid assumption; an instrumented Electron reproduction captured rect/client/scroll metrics. A corrected assertion compares both edges against the panel header's content span and requires the recovery to be a direct panel child. It passes at the reproducing geometry; restoring the original nested composer layout fails with a false direct-child check and 12px insets on both sides. No product layout change was needed.
 - **Prevention**: compare matching box domains for scroll containers and retain a negative control for the layout defect. Run `rg -n 'getBoundingClientRect\(\).*width|clientWidth' app/e2e/comments-ui.ts app/e2e/runtime.ts`; remaining matches include intentional dialog outer width and iframe viewport/scale calculations, not another parent-child width-equality assertion. Never replace a geometric failure with an arbitrary tolerance before measuring scrollbar, border and content edges.
+
+- **Recurrence (2026-10-27, project-feedback blank press)**: scanning the border box chose x=1391 in an 11px native scrollbar gutter (content ended at x=1389). `elementFromPoint` returned the section, so the blank-target check accepted it, but the press did not blur Resolve. Restricted scanning to clientLeft/clientTop plus clientWidth/clientHeight; retained actual-target and body-focus assertions. The instrumented original failed, corrected probe and full runtime passed. Ran `rg -n 'blankPress|clientWidth' app/e2e/project-feedback.ts`; one helper serves Canvas, Overview and Feedback. The comments recovery measurement now expects the approved buzz-ds 12px status inset while retaining direct-child and matching-content-edge checks.
 
 ### 2026-10-23 — Accepted comment timestamps crashed relative-time rendering
 
