@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-27 — Rewritten shell typeahead skipped repeated letters and the current prefix match
+
+- **Area**: `app/src/renderer/ShellSidebar.tsx`, `canvasTree.ts`, and `ShellSidebar.interaction.test.tsx`.
+- **Symptom**: from Beta, typing `a` then `a` left focus on Alpha instead of cycling to Alpine; after resetting the buffer, typing `a` then `l` moved from Alpha to Alpine instead of retaining the current matching prefix. These were synthetic Chromium keyboard observations in the actual isolated Electron renderer while macOS remained locked, not native keyboard acceptance.
+- **Root cause**: the replacement project/canvas sidebar kept its own prefix search instead of reusing `typeaheadNext`. It treated repeated letters as a literal multi-letter prefix and always began after the current row. The existing shared helper already distinguished repeated-letter cycling from multi-letter prefix retention.
+- **Net**: the bounded locked-desktop EL renderer probe caught both failures; the existing helper tests and sidebar activation tests missed that the replacement sidebar bypassed the helper. New tests invoke the actual ShellSidebar keyboard handlers with focus-target observations: repeated cycling and current-prefix retention failed before the fix, then passed with the shared helper. They also cover the 500ms reset, modifier shortcuts and ordinary navigation/activation. The rebuilt renderer reproduced the expected Alpha/Alpine sequences with unchanged real user state and clean process exit; native input remains unverified.
+- **Prevention**: when replacing a navigation surface, reuse the established keyboard matcher and test its actual event-handler wiring rather than relying only on helper tests. Run `rg -n 'typeaheadNext|buffer.current|startsWith\(buffer' app/src/renderer/{ShellSidebar,Sidebar,canvasTree}.ts*` to find duplicated prefix-search paths. The check after this fix finds both sidebars calling the same helper and no independent buffered-prefix search in those files. Preserve separate native-focus/input verification rather than treating renderer DOM focus as OS focus.
+
 ### 2026-10-27 — Shell navigation shortcuts lost destination ownership and recovery access
 
 - **Area**: `app/src/renderer/App.tsx`, `CanvasController.ts`, `ShellSidebar.tsx` (buzz-shell C and F-C).
