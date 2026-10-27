@@ -29,6 +29,8 @@
 
 공식 출처: [Claude 인증](https://code.claude.com/docs/en/iam), [Claude CLI](https://code.claude.com/docs/en/cli-reference), [Codex app-server](https://learn.chatgpt.com/docs/app-server), [Codex SIWC](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server), [Cursor ACP](https://prod.cursor.com/docs/cli/acp), [Cursor 설정](https://prod.cursor.com/docs/cli/reference/configuration), [Antigravity 인증](https://antigravity.google/docs/install), [Antigravity headless](https://www.antigravity.google/docs/cli/headless/), [Copilot 인증](https://docs.github.com/en/copilot/how-tos/copilot-sdk/auth/authenticate), [Copilot SDK 계약](https://docs.github.com/en/copilot/how-tos/copilot-sdk/troubleshooting/compatibility). 확인일과 버전 차이는 PoC 10에 남아 있다. 구현 시 다시 확인한다.
 
+2026-10-27 사용자 승인으로 구현 전 PoC는 로그인·보관·새 프로세스 인증 유지·요청 1회·로그아웃 격리를 최소 게이트로 삼는다. 아래 전체 검증표의 나머지는 구현 통합 검증으로 넘긴다. 최소 PoC 통과는 플랫폼 구현 완료를 의미하지 않는다.
+
 각 후보마다 검증표를 남긴다: 공식 경로·버전 / 로그인·취소 / 저장·재시작 / 갱신·만료·폐기 / 로그아웃 격리 / 계정 교체 / 실제 요청 / 권한 허용·거절 / 중단·종료 / 같은 세션 재개. 판정은 `미실행`, `통과`, `실패`, `공식 경로 미확인`을 구분한다. 임의 TTL이나 만료 흉내만으로 실제 갱신 통과를 기록하지 않는다.
 
 Cursor가 통과하면 우선 최소 3개를 구성한다. Antigravity와 Copilot도 조사하고, 공식 경로와 동일한 검증 기준을 충족하며 과도한 우회가 없으면 포함한다. 후보 미달을 감추거나 지원 수를 맞추기 위해 승인 우회를 켜지 않는다. 지원 집합·제외 근거를 문서에 확정한 뒤 구현 범위를 잠근다.
@@ -61,7 +63,7 @@ Cursor가 통과하면 우선 최소 3개를 구성한다. Antigravity와 Copilo
 
 기존 doan CLI 링크와 사용자 스킬을 무조건 덮지 않는다. 앱 내부 실행은 번들 CLI의 절대 경로와 전용 프로필의 도구 설정으로 가능한지 검증한다. 추가 플랫폼도 도안 규칙을 읽고 `doan check`까지 실행해야 한다. 지원 스킬 형식이 다르면 공식 지시문·MCP 구성 중 최소 경로를 선택하고, 가이드 자체 변경이 필요할 경우 agent-eval을 작업 범위에 포함한다.
 
-동일 플랫폼의 여러 대화가 같은 프로필을 사용할 때 토큰 갱신을 누가 쓰는지 PoC에서 확인한다. 두 실행의 동시 갱신·로그아웃 경쟁을 검증하고 공급자의 안전한 갱신 계약 또는 main 직렬화로 보호한다. 로그인 잠금만으로 공급자 소유 갱신까지 보호된다고 가정하지 않는다.
+동일 플랫폼의 여러 대화가 같은 프로필을 사용할 때 토큰 갱신을 누가 쓰는지 PoC에서 확인한다. 구현 통합 단계에서 두 실행의 동시 갱신·로그아웃 경쟁을 검증하고 공급자의 안전한 갱신 계약 또는 main 직렬화로 보호한다. 로그인 잠금만으로 공급자 소유 갱신까지 보호된다고 가정하지 않는다.
 
 ## 계정과 대화의 연결
 
