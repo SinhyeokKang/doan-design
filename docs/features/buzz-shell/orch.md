@@ -52,3 +52,5 @@ B에 배정했던 전체 runtime은 사용자 지시에 따라 중단했다. 실
 - A: `2a16192`, `a949aa5`. 기술 계약과 task 1b 완료, 소스 대조 30개와 diff 검사 통과. 독립 R-A(`ctx_de3e5cf68388`, Astra medium)가 검토 중이다. A 작업자는 release 완료, worktree는 리뷰가 사용하므로 보존한다.
 - B: `88cba80`. 테스트 3,307개·typecheck·build·package 및 원본/빌드/ASAR 자산 바이트 대조 통과. 실제 폰트 로드·네이티브·전체 e2e는 최종 단계로 이관했다. 독립 R-B(`ctx_c9910a62d7b7`, Astra medium)가 검토 중이다. worktree는 리뷰가 사용하므로 보존한다.
 - handoff와 검증 로그는 지휘자 `.scratch/buzz-shell-orch/evidence-A/`, `evidence-B/`에 복사했다. 아직 통합 gate를 실행하지 않았다.
+- R-B: 🔴0·🟡0. B를 `f6ae879`로 통합했다. B/R-B 작업자 release와 증거 복사·대조를 완료했고 Orca에서 `buzz-shell-resources`를 제거했다. 목록에서 child id가 사라진 것을 확인했다.
+- R-A: 🔴0·🟡2. 참조된 history 누락 상태와 selectedAt의 유효 Date 범위를 보완한다. F-A는 Astra medium으로 문서만 수정한다(기존 경계의 정확성 판단). 구현과 native 검증은 실행하지 않는다.
