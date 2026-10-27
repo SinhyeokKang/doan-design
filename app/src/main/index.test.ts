@@ -1938,3 +1938,12 @@ test("conversation IPC rejects foreign windows and canvas frames", async () => {
     expect(await invoke(`conversation:${method}`, window().webContents, {}, {})).toEqual({ error: "bad_request" });
   }
 });
+
+test("shell activity refuses foreign windows, subframes, unknown roots, and sparse requests", async () => {
+  const contents = window().webContents;
+  expect(await invoke("shell:activity", {}, null, { roots: [] })).toBeNull();
+  expect(await invoke("shell:activity", contents, {}, { roots: [] })).toBeNull();
+  expect(await invoke("shell:activity", contents, null, { roots: ["/not-registered"] })).toBeNull();
+  expect(await invoke("shell:activity", contents, null, { roots: Array(1) })).toBeNull();
+  expect(await invoke("shell:activity", contents, null, { roots: [] })).toEqual([]);
+});
