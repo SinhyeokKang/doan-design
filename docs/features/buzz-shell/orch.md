@@ -76,3 +76,6 @@ B에 배정했던 전체 runtime은 사용자 지시에 따라 중단했다. 실
 - RK는 🔴0·🟡0이며 FK를 `7e79578`, `8d5ab46`로 통합했다. ER은 잠금 상태의 실제 renderer에서 시안과 구현의 자식 요소까지 대조했고 헤더 아이콘·목록 제목 누락 및 위치·색·패딩 차이를 확인했다. 전체 네이티브 gate는 여전히 미완료다.
 - 기존 규칙으로 판정할 수 있는 차이는 새 결정을 만들지 않는다. design-sync의 공유 primitive 우선 규칙과 DESIGN의 floating material 계약을 유지하고, feature design의 현재 작업 공간 상태 띠 보존 지시에 따라 복구 액션을 유지한다. fixture 문자열·행 수·시각적으로 같은 pill radius는 그대로 결함으로 세지 않는다.
 - FV는 ER이 종료한 뒤 같은 Astra medium 작업자의 새 Task로 시안 불일치를 수정한다. 실측값·공유 primitive·기존 보호 동작을 구분해야 하므로 같은 모델을 선택했다. shell call-site 코드·의미 있는 회귀 검증·별도 POSTMORTEM·검증된 DESIGN을 소유하며, 수정 후 전체 실측표를 독립 리뷰에 넘긴다. 기존 잠금 검사와 전체 runtime gate는 수정하지 않는다.
+
+- ER은 `b2adf13`의 DESIGN 실측 중간 기록만 변경했고 `d9f6671`로 통합했다. handoff와 ER 증거 146개를 지휘자 evidence-E로 복사하고 SHA-256 일치를 확인했다. 같은 터미널을 FV 새 Task `task_df71ee14e726`/Dispatch `ctx_09dc0622a233`로 재사용했으며 시작 관측 timeout 뒤 실제 brief 읽기와 수정 실행을 확인했다.
+- RV는 FV 종료 뒤 Astra medium의 독립 design-sync/code-review 작업자로 실행한다. 전체 전후 속성표·미도달 상태·공유 primitive 우선순위 및 회귀 검사의 의미를 판단해야 하므로 같은 강도의 모델을 선택했다. tracked 파일은 수정하지 않으며 후속 라운드도 같은 리뷰어가 이어간다.
