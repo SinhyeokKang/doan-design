@@ -206,7 +206,7 @@ test("draws light whatever the macOS appearance", () => {
 
 test("defines the requested window geometry and File menu", () => {
   expect(shellColour()).toMatch(/^#[0-9a-f]{6}$/);
-  expect(window().options).toMatchObject({ width: 1238, height: 780, minWidth: 960, minHeight: 600, titleBarStyle: "hiddenInset", trafficLightPosition: { x: 12, y: 14 }, backgroundColor: shellColour() });
+  expect(window().options).toMatchObject({ width: 1238, height: 780, minWidth: 960, minHeight: 600, titleBarStyle: "hiddenInset", trafficLightPosition: { x: 16, y: 21 }, backgroundColor: "#00000000", vibrancy: "sidebar", visualEffectState: "followWindow" });
   expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
   expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
 });
