@@ -84,9 +84,9 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 
 ## 승인된 디자인 기준 — 2026-10-28
 
-이 절과 `doan/buzz-onboarding.html`이 현재 시각 기준이다. 시도했다가 철회한 translucent 버튼/입력창, 본문 전체 panel 래핑, 이전 문구·타원·패딩 값은 구현하지 않는다. 사용자는 디자인 확인 → HTML 검증 → feature-review 순서를 지정했고, 2026-10-28 현재 디자인을 승인했다.
+이 절과 `.doan/canvases/buzz-onboarding.html`이 현재 시각 기준이다. 시도했다가 철회한 translucent 버튼/입력창, 본문 전체 panel 래핑, 이전 문구·타원·패딩 값은 구현하지 않는다. 사용자는 디자인 확인 → HTML 검증 → feature-review 순서를 지정했고, 2026-10-28 현재 디자인을 승인했다.
 
-- 캔버스는 저장소 루트 `doan/buzz-onboarding.html`, id `buzz-onboarding`, 너비 2560px이다. 기존 `doan/onboard.html`은 수정하지 않는다.
+- 캔버스는 저장소 루트 `.doan/canvases/buzz-onboarding.html`, id `buzz-onboarding`, 너비 2560px이다. 기존 `.doan/canvases/onboard.html`은 수정하지 않는다.
 - 프레임: `welcome`, `agents`, `agents-connected`, `project`, `project-local`, `repository-found`, `repository-clone`, `repository-error`, `auth-states`, `project-states`. 기본 창은 1238×780, 상태 표는 1238×900이다. 상태 표에는 33개 labelled tile이 있다. 홈은 그리지 않는다.
 - `tokens.css`, `ds/index.css`, 기존 `app/src/renderer/public/fonts/geist/Geist.woff2` 원본을 직접 사용한다. 사용자 승인 serving 범위로 원본 DS와 폰트를 참조하며 사본을 만들지 않는다.
 - 기존 `doan-button`, `doan-input`, `doan-panel`, `doan-notice`, `doan-alert-icon`, `doan-spinner`, `doan-scroll`을 재사용한다. 새 시각 옵션은 기존 프리미티브에 반영한다.
@@ -97,7 +97,7 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 - 크롬은 56px이다. AppShell 형태의 캡슐을 Agent·Project 스테퍼로 재사용한다. 현재 단계는 흰 pill·aria-current, 완료 단계는 체크·돌아가기, 진행 불가는 disabled이다. Welcome에는 스테퍼가 없다.
 - 모든 화면 타이틀과 캡션은 가운데 정렬한다. 행·폼은 왼쪽 정렬이다. 버튼·입력창은 기존 불투명 subtle/surface-inset을 유지한다. Back은 arrow-left, 다음 이동은 arrow-right를 쓴다. 제출 액션은 오른쪽에 배치한다.
 - Sign in은 prominent이다. 연결되면 같은 버튼을 disabled로 유지하고 이름 아래 `Connected · 계정 식별자`를 전체 표시한다. 긴 계정은 줄바꿈하며 별도 Connected 배지는 없다. 초안 계정은 예시다.
-- 공급자 로고는 로컬 자산이며 출처는 `doan/assets/provider-logos/README.md`에 있다. Codex는 OpenAI 공식 조직 마크를 쓴다.
+- 공급자 로고는 로컬 자산이며 출처는 `.doan/assets/provider-logos/README.md`에 있다. Codex는 OpenAI 공식 조직 마크를 쓴다.
 - 프로젝트·공급자 카드: 제목 14px/20px·500, 설명 12px/20px·text-metadata, 제목/설명 간격 2px, 콘텐츠 gap 12px, 패딩 16px, 최소 높이 72px이다. 썸네일은 32px 슬롯 안 28px이다.
 - 프로젝트 썸네일은 ShellSidebar의 projectHue 이름 해시·8색·첫 Unicode 글자 대문자 규칙을 쓴다. 배경은 identity 색 14%와 surface-panel, 글자는 identity 색 65%와 text-standard를 혼합한다. 글자 17px·600, 모서리 7px이다. 이 색 규칙은 구현 시 사이드 네비에도 공통 적용한다.
 - 오류·설치 필요·재인증 안내는 동일한 `doan-notice error doan-panel`이다. 흰 surface-panel·shadow-panel·text-standard, 아이콘은 텍스트 색 상속, 패딩 상하 12px·좌우 16px이다. 제목/본문 간격은 4px이다.
@@ -118,7 +118,7 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 
 같은 도안 서버 URL을 별도 검증 창에서도 열어 Welcome·연결됨·리포 접근 오류·두 상태 표의 스크린샷을 확인했다. 기본 캔버스의 확대/축소 변환 때문에 잘못 잘린 첫 캡처는 근거로 쓰지 않았다. 검증 창·임시 HOME·userData를 정리하고 실제 사용자 설정의 보존을 확인했다.
 
-근거: `.scratch/buzz-onboarding/verify-render.mjs`, `render-report.json`, `scroll-report.json`, `render.log`, PNG 파일. 임시 근거는 커밋하지 않는다. `doan check`의 이 캔버스 finding은 0개이며 저장소의 기존 `doan/assets/mock.css` 색상 경고 12개는 별개다. 열린 캔버스 코멘트는 없다.
+근거: `.scratch/buzz-onboarding/verify-render.mjs`, `render-report.json`, `scroll-report.json`, `render.log`, PNG 파일. 임시 근거는 커밋하지 않는다. `doan check`의 이 캔버스 finding은 0개이며 저장소의 기존 `.doan/assets/mock.css` 색상 경고 12개는 별개다. 열린 캔버스 코멘트는 없다.
 
 이 결과는 HTML 표시 검증이다. 실제 OAuth·clone·취소·완료 저장·키보드 수명과 native vibrancy는 구현 후 V1에서 확인한다.
 
@@ -166,7 +166,7 @@ start는 먼저 지정 runtime을 확인한다. 앱이 실행 중이면 숨겨�
 
 작업이 필요한 응답은 accepted와 operationId를 반환한다. 상태는 pending/running/awaiting_user/succeeded/failed/cancelled로 구분하고, 사용자 브라우저 승인이 필요하다는 사실만 알린다. callback 인증 코드·OAuth 원문·소켓 토큰·credential 경로·stderr 원문은 반환하지 않는다. 브라우저 다시 열기는 앱의 승인된 인증 UI를 사용한다. 계정 표시 이름과 프로젝트 경로는 기능에 필요한 비밀 없는 DTO로만 반환한다.
 
-CLI가 native folder picker를 기다리지는 않는다. inspect에서 미설정 폴더의 `.doan/config.json`·`doan/`·`.gitattributes` 변경 계획을 반환하고 select --initialize 또는 clone 요청으로 사용자의 setup 의도를 명시한다. 검사 후 root/URL/목적지가 바뀌면 stale로 거부해 재검사한다. clone 후 초기화도 같은 main 경로로 처리하며 임의 tokenCss·serve·실행 파일·config 경로를 인수로 받지 않는다.
+CLI가 native folder picker를 기다리지는 않는다. inspect에서 미설정 폴더의 `.doan/config.json`·`.doan/canvases/`·`.gitattributes` 변경 계획을 반환하고 select --initialize 또는 clone 요청으로 사용자의 setup 의도를 명시한다. 검사 후 root/URL/목적지가 바뀌면 stale로 거부해 재검사한다. clone 후 초기화도 같은 main 경로로 처리하며 임의 tokenCss·serve·실행 파일·config 경로를 인수로 받지 않는다.
 
 ### 동일 상태·소유권·재시도
 
