@@ -1,5 +1,22 @@
 import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { Page } from "playwright";
+
+// Keep this fixture separate from the runtime's persisted folder/restart cases.
+export async function shellEmptyFixture(base: string): Promise<string> {
+  const repo = join(base, "empty-project");
+  const userData = join(base, "userData");
+  await mkdir(join(repo, ".doan"), { recursive: true });
+  await mkdir(join(repo, "design"));
+  await mkdir(userData);
+  await writeFile(join(repo, ".doan", "config.json"), '{"v":1}\n');
+  await writeFile(join(userData, "folders.json"), JSON.stringify([repo]));
+  await writeFile(join(userData, "ui-state.json"), JSON.stringify({
+    screen: "workspace", root: repo, expanded: {}, lastByRoot: {},
+  }));
+  return userData;
+}
 
 // Read the rendered shell: jsdom cannot catch inherited CSS or border-box drift.
 export async function shellPresentation(page: Page) {
@@ -68,6 +85,8 @@ export async function shellMenuPresentation(page: Page) {
 }
 
 export async function shellEmptyPresentation(page: Page) {
+  await page.locator(".shell-empty").filter({ hasText: "No canvases yet" }).waitFor();
+  await page.evaluate(() => document.fonts.ready);
   const actual = await page.locator(".shell-empty").filter({ hasText: "No canvases yet" }).evaluate(el => {
     const style = getComputedStyle(el);
     return { padding: style.padding, lineHeight: style.lineHeight };

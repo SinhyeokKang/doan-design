@@ -119,6 +119,15 @@ process.exit(result.status ?? 1);
 `);
     await chmod(gatedCli, 0o755);
     await run(gatedCli, join(work, "userData"), repos, cli);
+    const { shellEmptyFixture, shellEmptyPresentation } = await import(new URL("./shell-presentation.ts", import.meta.url).href);
+    const emptyData = await shellEmptyFixture(join(work, "shell-empty"));
+    const empty = await launch(cli, emptyData);
+    try {
+      await shellEmptyPresentation(empty.page);
+      console.log("shell-empty presentation: PASS");
+    } finally {
+      await close(empty.app);
+    }
   } finally {
     const after = await fingerprint(realFoldersJson);
     assert.equal(after, before, `the real ${realFoldersJson} changed`);
