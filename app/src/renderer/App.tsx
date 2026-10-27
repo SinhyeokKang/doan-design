@@ -120,10 +120,9 @@ export function App() {
           const roots = project.roots.filter(root => !removed.includes(root));
           return roots.length ? [[key, { roots, expanded: project.expanded, ...(project.selectedRoot && roots.includes(project.selectedRoot) ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) } : {}) }]] : [];
         })));
-        setHistory(previous => {
-          const next = { visits: previous.visits.filter(visit => !removed.includes(visit.root)), cursor: previous.visits.slice(0, previous.cursor + 1).filter(visit => !removed.includes(visit.root)).length - 1 };
-          historyRef.current = next; return next;
-        });
+        const previous = historyRef.current;
+        const nextHistory = { visits: previous.visits.filter(visit => !removed.includes(visit.root)), cursor: previous.visits.slice(0, previous.cursor + 1).filter(visit => !removed.includes(visit.root)).length - 1 };
+        historyRef.current = nextHistory; setHistory(nextHistory);
       }
       entriesRef.current = next;
       setEntries(next); instance.updateEntries(next); setFoldersSeen(true);
@@ -398,11 +397,10 @@ export function App() {
       })));
       setExpanded(previous => Object.fromEntries(Object.entries(previous).filter(([root]) => !paths.includes(root))));
       for (const root of paths) controller.current?.remember(root, null);
-      setHistory(previous => {
-        const before = previous.visits.slice(0, previous.cursor + 1).filter(visit => !paths.includes(visit.root));
-        const next = { visits: previous.visits.filter(visit => !paths.includes(visit.root)), cursor: before.length - 1 };
-        historyRef.current = next; return next;
-      });
+      const previous = historyRef.current;
+      const before = previous.visits.slice(0, previous.cursor + 1).filter(visit => !paths.includes(visit.root));
+      const nextHistory = { visits: previous.visits.filter(visit => !paths.includes(visit.root)), cursor: before.length - 1 };
+      historyRef.current = nextHistory; setHistory(nextHistory);
       toast.show(`${result.label} removed. Files stay on disk.`, "Undo", () => { void window.doan.restoreProjects(result.removalId).catch(console.error); }, () => { void window.doan.forgetRemoval(result.removalId).catch(console.error); });
     }
   }
@@ -506,7 +504,7 @@ export function App() {
   <main className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}`} style={{ visibility: screen === "home" ? "hidden" : "visible" }} inert={screen === "home"} aria-hidden={screen === "home"}>
     <TopBar back={back !== null} forward={forward !== null} previous={() => travel(back)} next={() => travel(forward)} />
     {entry && entry.kind !== "list" && <ProblemActions entry={entry} action={action} workspace={{ name: card?.name ?? name, homeDirectory, home }} />}
-    <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.open?.canvas} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} worktree={enter} open={openShellCanvas} overview={showShellOverview} action={action} remove={remove} />
+    <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} worktree={enter} open={openShellCanvas} overview={showShellOverview} action={action} remove={remove} />
     <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null} />
     {overview && <ProjectOverview key={overview.path} root={overview.path} rows={overview.canvases} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null} comments={projectComments.comments.get(overview.path)} open={row => openShellCanvas(overview.path, row)} />}
     <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} feedback={feedback} />{comments.panel}</div>

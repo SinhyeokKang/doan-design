@@ -14,6 +14,7 @@ interface Props {
   projects: Record<string, ShellProject>;
   loaded: string | null;
   canvas: string | undefined;
+  unlisted?: boolean;
   homeDirectory: string | null;
   search(): void;
   toggle(key: string): void;
@@ -72,7 +73,7 @@ export function ShellSidebar(props: Props) {
     }
   };
   for (const card of cards) {
-    const project = { ...(projects[card.key] ?? { expanded: false }), roots: card.rows.map(row => row.path) };
+    const project: ShellProject = { ...(projects[card.key] ?? { expanded: false }), roots: card.rows.map(row => row.path) };
     const root = (card.rows.some(row => row.path === loaded) ? loaded : card.rows.some(row => row.path === project.selectedRoot) ? project.selectedRoot : undefined) ?? card.rows[0]?.path;
     const entry = card.rows.find(row => row.path === root);
     const expanded = projectExpanded(project, loaded);
@@ -102,7 +103,7 @@ export function ShellSidebar(props: Props) {
     <button ref={search} className="shell-search" onClick={props.search}><Search aria-hidden="true" />Search</button>
     <div className="shell-projects" role="tree" aria-label="Projects and canvases">
       {cards.map((card, index) => {
-        const project = { ...(projects[card.key] ?? { expanded: false }), roots: card.rows.map(row => row.path) };
+        const project: ShellProject = { ...(projects[card.key] ?? { expanded: false }), roots: card.rows.map(row => row.path) };
         const selected = (card.rows.some(row => row.path === loaded) ? loaded : card.rows.some(row => row.path === project.selectedRoot) ? project.selectedRoot : undefined) ?? card.rows[0]?.path;
         const entry = card.rows.find(row => row.path === selected) ?? card.rows[0]!;
         const expanded = projectExpanded(project, loaded), current = card.rows.some(row => row.path === loaded);
@@ -110,7 +111,7 @@ export function ShellSidebar(props: Props) {
         const target = () => live.current.cards.find(item => item.key === card.key)?.rows.find(row => row.path === entry.path);
         const run = (action: () => void) => { if (target()) action(); };
         return <div className="shell-project" key={card.key}>
-          <div ref={rowRef(card.key)} className="shell-project-row row" role="treeitem" data-key={card.key} aria-label={card.name} aria-level={1} aria-expanded={expanded} aria-current={current && !canvas ? "location" : undefined} tabIndex={active === card.key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(card.key); }} onKeyDown={event => keyboard(event, card.key)} onClick={() => props.toggle(card.key)}>
+          <div ref={rowRef(card.key)} className="shell-project-row row" role="treeitem" data-key={card.key} aria-label={card.name} aria-level={1} aria-expanded={expanded} aria-current={current && !canvas && !props.unlisted ? "location" : undefined} tabIndex={active === card.key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(card.key); }} onKeyDown={event => keyboard(event, card.key)} onClick={() => props.toggle(card.key)}>
             <span className={`shell-thumbnail hue-${projectHue(card.name)}`} aria-hidden="true">{Array.from(card.name.trim())[0]?.toUpperCase() ?? "?"}</span>
             <span className="shell-project-name">{card.name}</span>
             {info.summary?.branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{info.summary.branch}</span></span>}
@@ -140,7 +141,7 @@ export function ShellSidebar(props: Props) {
             {entry.kind === "list" ? entry.canvases.length ? entry.canvases.map((row, canvasIndex) => {
               const descriptionId = `${descriptionPrefix}-${index}-${canvasIndex}`;
               const key = `${entry.path}\n${row.path}`, problem = rowProblem(row);
-              return <div key={key}><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem || row.open > 0 ? descriptionId : undefined} aria-label={row.path.split("/").at(-1)?.replace(/\.html$/, "")} data-key={key} role="treeitem" aria-level={2} aria-current={entry.path === loaded && row.path === canvas ? "location" : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => props.open(entry.path, row)}><Palette aria-hidden="true" /><span>{row.path.split("/").at(-1)?.replace(/\.html$/, "")}</span>{!problem && row.open > 0 && <span id={descriptionId} className="sr-only">{row.open} open {row.open === 1 ? "comment" : "comments"}</span>}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre>{detail}</pre>}</>}</ErrorDetails></div>}</div>;
+              return <div key={key}><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem || row.open > 0 ? descriptionId : undefined} aria-label={row.path.split("/").at(-1)?.replace(/\.html$/, "")} data-key={key} role="treeitem" aria-level={2} aria-current={entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => props.open(entry.path, row)}><Palette aria-hidden="true" /><span>{row.path.split("/").at(-1)?.replace(/\.html$/, "")}</span>{!problem && row.open > 0 && <span id={descriptionId} className="sr-only">{row.open} open {row.open === 1 ? "comment" : "comments"}</span>}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre>{detail}</pre>}</>}</ErrorDetails></div>}</div>;
             }) : <p className="shell-empty">No canvases yet</p> : <p className="shell-empty">{info.chip}</p>}
           </div>}
         </div>;
