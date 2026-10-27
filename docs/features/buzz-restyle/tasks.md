@@ -22,7 +22,7 @@
 각 줄의 검증: main에서 `test ! -d docs/features/<slug>`가 통과하고, '자식 진행 규칙' 5의 `verify.mjs --runtime` PASS가 그 자식의 PR에 기록되어 있으며, 'DESIGN.md 절과 담당' 표에서 그 자식이 지울 표시가 남아 있지 않다(`grep -n 'buzz-ds 이전' docs/DESIGN.md`로 해당 절 확인). 체크는 다음 자식을 시작하는 세션이 머지를 확인한 뒤 한다.
 
 - [ ] C0. `buzz-ds` — 문서 있음: [`../buzz-ds/`](../buzz-ds/spec.md)
-- [ ] C1. `buzz-shell`
+- [ ] C1. `buzz-shell` — 디자인 승인 및 feature-review 반영(2026-10-27). 구현/네이티브 검증은 미완료. 최신 범위는 [자식 spec](../buzz-shell/spec.md)과 부모 design의 AppShell 계약 갱신 절을 따른다.
 - [ ] C2. `buzz-onboarding`
 - [ ] C3. `buzz-home`
 - [ ] C4. `buzz-search`
