@@ -61,3 +61,5 @@ B에 배정했던 전체 runtime은 사용자 지시에 따라 중단했다. 실
 - C는 `fe9095b`에서 완료 보고했다. 타입·3,339개 단위 테스트·빌드가 통과했고 GUI는 실행하지 않았다. R-C(`ctx_5f5b202ca9cd`, Astra medium)는 🔴0·🟡3을 보고했다: 디스크에서 삭제된 root의 history 건너뛰기, 같은-root Overview 전에 source view 기억, 비선택 오류 root의 복구 진입. C handoff와 로그를 evidence-C에 보존했다.
 - F-C는 같은 C 작업자를 새 Task로 재사용해 세 문제의 red→green과 POSTMORTEM 기록을 맡긴다. 모델은 기존 Astra medium을 유지한다. R-C는 release 완료이며 worktree는 수정에 필요해 보존한다.
 - H(`ctx_d61be53ff58d`, Astra medium)는 `127d441`로 18개 e2e 파일을 변경했다. 비GUI harness 54개·TS 36개 구문 검사가 통과했고, 의존성이 없어 typecheck는 실행하지 못했다. GUI 미실행이다. H를 release하고 R-H(`ctx_a7272a231d5b`, Astra medium)가 고정 diff와 C의 실제 UI를 대조한다.
+- F-C는 `4a96b81`과 회고 `9320ebf`로 세 문제를 수정했다. 단위 테스트 3,346개·타입·빌드 통과, GUI 미실행이다. F-H는 R-H의 최종 두 지적을 `040e322`로 수정했고 harness 61개·구문 검사 통과, 타입·runtime은 통합 뒤 확인한다. 두 수정 작업자는 release했다.
+- RF는 Astra medium의 독립 정적 재리뷰다. 목적지 소유권과 공개 UI 검색 식별을 판단해야 하므로 같은 모델을 선택했다. C/H 고정 커밋과 최종 handoff를 대조하며 tracked 파일과 GUI를 건드리지 않는다. 지휘자는 두 배치를 통합하고 최종 검증을 준비한다.
