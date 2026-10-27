@@ -346,6 +346,7 @@ Results:
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-10-27 | Planned buzz-shell navigation: Projects indicates the current screen without navigation; persist per-project worktree and expansion, keeping scroll session-local. On project re-entry, restore the most recent identifiable user selection or agent activity without automatically switching the open screen. Back/forward skips deleted targets and disables when no valid target remains. | User decisions — agent work also follows user intent; activity-source coverage and local-state compatibility remain implementation prerequisites in docs/features/buzz-shell/ |
 | 2026-10-21 | Primary users are external users in general | User decision |
 | 2026-10-21 | The human's screen starts as a Mac app | User decision |
 | 2026-10-21 | MVP is view + comment; approval later | User decision — first see whether the loop (draw → note → apply) works |
