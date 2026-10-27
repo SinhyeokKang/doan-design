@@ -19,7 +19,7 @@ const resolve = (comment: number, minute: number, by: Author = codex) => event("
 const file = (...lines: string[]) => Buffer.from(lines.map(line => `${line}\n`).join(""));
 
 function listing(canvases: unknown[], root = ROOT): FolderView {
-  return { kind: "list", root, scope: ["design"], canvases };
+  return { kind: "list", root, scope: ["doan"], canvases };
 }
 
 function deps(over: Partial<ProjectCommentsDependencies> = {}): ProjectCommentsDependencies {
@@ -40,7 +40,7 @@ describe("readProjectComments", () => {
       settings: file(create(4), resolve(4, 7)),
     };
     const d = deps({
-      list: vi.fn(async () => listing([{ path: "design/settings.html", id: "settings" }, { path: "design/home.html", id: "home" }])),
+      list: vi.fn(async () => listing([{ path: "doan/settings.html", id: "settings" }, { path: "doan/home.html", id: "home" }])),
       read: vi.fn(async (_root: string, id: string) => files[id] ?? Buffer.alloc(0)),
       marker: vi.fn((_root: string, id: string) => id === "settings" ? { since: SINCE, lastReviewedAt: at(7) } : { since: SINCE }),
     });
@@ -59,7 +59,7 @@ describe("readProjectComments", () => {
 
   test("reads only the comment files of the listed ids, once each, and leaves out rows without an id", async () => {
     const d = deps({ list: vi.fn(async () => listing([
-      { path: "design/a.html", id: "a" }, { path: "design/no-id.html" }, { path: "design/empty.html", id: "" }, { path: "design/b.html", id: "b" }, "junk", { id: "c" },
+      { path: "doan/a.html", id: "a" }, { path: "doan/no-id.html" }, { path: "doan/empty.html", id: "" }, { path: "doan/b.html", id: "b" }, "junk", { id: "c" },
     ])) });
     const reply = await readProjectComments(d, { root: ROOT, revision: 0 });
     expect(reply.kind === "list" && reply.canvases.map(canvas => canvas.id)).toEqual(["a", "b"]);
@@ -67,7 +67,7 @@ describe("readProjectComments", () => {
   });
 
   test("an id on several rows is one error entry, and its file is not read", async () => {
-    const d = deps({ list: vi.fn(async () => listing([{ path: "design/a.html", id: "dup" }, { path: "design/b.html", id: "ok" }, { path: "design/c.html", id: "dup" }])) });
+    const d = deps({ list: vi.fn(async () => listing([{ path: "doan/a.html", id: "dup" }, { path: "doan/b.html", id: "ok" }, { path: "doan/c.html", id: "dup" }])) });
     expect(await readProjectComments(d, { root: ROOT, revision: 1 })).toEqual({
       root: ROOT, revision: 1, kind: "list", project: 4,
       canvases: [{ id: "dup", error: "This canvas ID is used by more than one canvas." }, { id: "ok", open: 0, resolved: 0, toReview: 0, comments: [] }],
@@ -78,7 +78,7 @@ describe("readProjectComments", () => {
 
   test("a file that cannot be read marks only its canvas as an error", async () => {
     const d = deps({
-      list: vi.fn(async () => listing([{ path: "design/a.html", id: "a" }, { path: "design/b.html", id: "b" }])),
+      list: vi.fn(async () => listing([{ path: "doan/a.html", id: "a" }, { path: "doan/b.html", id: "b" }])),
       read: vi.fn(async (_root: string, id: string) => { if (id === "a") throw new Error("Comment path case conflict"); return file(create(1)); }),
     });
     expect(await readProjectComments(d, { root: ROOT, revision: 2 })).toMatchObject({
@@ -88,13 +88,13 @@ describe("readProjectComments", () => {
 
   test("invalid lines are skipped and the valid ones still count", async () => {
     const bytes = Buffer.concat([file(create(1), "{not json", create(2)), Buffer.from([0xff, 0x0a]), file(resolve(2, 4), "{\"v\":1}")]);
-    const d = deps({ list: vi.fn(async () => listing([{ path: "design/a.html", id: "a" }])), read: vi.fn(async () => bytes) });
+    const d = deps({ list: vi.fn(async () => listing([{ path: "doan/a.html", id: "a" }])), read: vi.fn(async () => bytes) });
     expect(await readProjectComments(d, { root: ROOT, revision: 3 })).toMatchObject({ kind: "list", canvases: [{ id: "a", open: 1, resolved: 1, toReview: 1 }] });
   });
 
   test("without a Git name nothing is left out by name", async () => {
     const d = deps({
-      list: vi.fn(async () => listing([{ path: "design/a.html", id: "a" }])),
+      list: vi.fn(async () => listing([{ path: "doan/a.html", id: "a" }])),
       read: vi.fn(async () => file(create(1), resolve(1, 3, kim))),
       author: vi.fn(async () => { throw new Error("Configure a Git user name before saving comments."); }),
     });
@@ -109,7 +109,7 @@ describe("readProjectComments", () => {
       { id: "broken", file: ".doan/comments/broken.jsonl", comments: { open: 0, resolved: 0 }, uncertain: false },
     ];
     const d = deps({
-      list: vi.fn(async (): Promise<FolderView> => ({ ...listing([{ path: "design/a.html", id: "a" }]), orphans } as FolderView)),
+      list: vi.fn(async (): Promise<FolderView> => ({ ...listing([{ path: "doan/a.html", id: "a" }]), orphans } as FolderView)),
       read: vi.fn(async (_root: string, id: string) => {
         if (id === "broken") throw new Error("Comment path case conflict");
         return id === "gone" ? file(create(1), create(2), resolve(2, 3)) : file();
@@ -134,7 +134,7 @@ describe("readProjectComments", () => {
     ["a config error", { kind: "error", message: "bad config" }],
     ["a CLI error", { kind: "cliError", reason: "timed out after 10 s" }],
     ["a missing folder", { kind: "notFound" }],
-    ["another root", listing([{ path: "design/a.html", id: "a" }], "/elsewhere")],
+    ["another root", listing([{ path: "doan/a.html", id: "a" }], "/elsewhere")],
   ])("a project that does not list (%s) is unavailable and reads no file", async (_name, view) => {
     const d = deps({ list: vi.fn(async () => view) });
     expect(await readProjectComments(d, { root: ROOT, revision: 5 })).toEqual({ root: ROOT, revision: 5, kind: "unavailable" });
@@ -160,7 +160,7 @@ describe("readProjectComments", () => {
     const reopen = () => { epoch = epoch === null ? null : epoch + 1; };
     const d = deps({
       epoch: vi.fn(() => epoch),
-      list: vi.fn(async () => { if (step === "list") reopen(); return listing([{ path: "design/a.html", id: "a" }]); }),
+      list: vi.fn(async () => { if (step === "list") reopen(); return listing([{ path: "doan/a.html", id: "a" }]); }),
       read: vi.fn(async () => { if (step === "read") reopen(); return file(create(1)); }),
       author: vi.fn(async () => { if (step === "author") reopen(); return kim; }),
     });

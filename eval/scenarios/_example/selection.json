@@ -1,5 +1,5 @@
 {
-  "canvas": { "path": "design/hello.html", "id": "hello" },
+  "canvas": { "path": "doan/hello.html", "id": "hello" },
   "element": {
     "doanId": "title",
     "selector": "[data-doan-id=\"title\"]",

@@ -13,6 +13,6 @@ test("draft context identifies the card and branch without the design prefix", (
     { kind: "list", path: "/code/acme", canvases: [], servedRev: 0, git: { common: "/code/acme/.git", main: "/code/acme", branch: "main", worktrees: [] } },
     { kind: "list", path: "/worktrees/billing/acme", canvases: [], servedRev: 0, git: { common: "/code/acme/.git", main: "/code/acme", branch: "feat-billing", worktrees: [] } },
   ];
-  expect(commentContext(entries, "/worktrees/billing/acme", "design/checkout.html")).toBe("acme (feat-billing) › checkout.html");
-  expect(commentContext([], "/code/brand-kit", "design/tokens.html")).toBe("brand-kit › tokens.html");
+  expect(commentContext(entries, "/worktrees/billing/acme", "doan/checkout.html")).toBe("acme (feat-billing) › checkout.html");
+  expect(commentContext([], "/code/brand-kit", "doan/tokens.html")).toBe("brand-kit › tokens.html");
 });

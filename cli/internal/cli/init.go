@@ -127,7 +127,7 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 		result["tokenCss"] = config.TokenCSS
 	}
 	// Initialization must not follow output paths into a different repository.
-	for _, p := range []string{"design", ".doan", ".doan/config.json", ".gitattributes"} {
+	for _, p := range []string{"doan", ".doan", ".doan/config.json", ".gitattributes"} {
 		state, _, e := repo.Resolve(root, root, p)
 		if e != nil {
 			return Outcome{}, internal(e)
@@ -159,12 +159,12 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 		}
 	}
 	created := []string{}
-	if _, e := os.Stat(filepath.Join(root, "design")); os.IsNotExist(e) {
-		created = append(created, "design/")
+	if _, e := os.Stat(filepath.Join(root, "doan")); os.IsNotExist(e) {
+		created = append(created, "doan/")
 	} else if e != nil {
 		return Outcome{}, internal(e)
 	}
-	if e := os.MkdirAll(filepath.Join(root, "design"), 0755); e != nil {
+	if e := os.MkdirAll(filepath.Join(root, "doan"), 0755); e != nil {
 		return Outcome{}, internal(e)
 	}
 	if e := os.MkdirAll(filepath.Join(root, ".doan"), 0755); e != nil {

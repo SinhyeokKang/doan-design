@@ -3,7 +3,7 @@ import { CommentsSession, STATUS_LINE_MS, expectedComment } from "./CommentsSess
 import type { DoanApi } from "../preload";
 import type { Comment, Author, Target } from "../formats/types";
 import type { BeginResult, CommentList, CommentRequest, CommentReply, SavedStatus } from "../main/comments/service";
-const identity = { root: "/repo", canvas: "a", path: "design/a.html" };
+const identity = { root: "/repo", canvas: "a", path: "doan/a.html" };
 const c: Comment = { comment: "c1", body: "Before", status: "open", target: {}, canvasHash: "h", createdBy: { kind: "human", name: "A" }, createdAt: "2026-10-23T00:00:00.000Z", updatedAt: "2026-10-23T00:00:00.000Z" };
 function reply<T>(r: CommentRequest, value: T): CommentReply<T> { return { ok: true, identity: r, value }; }
 function fixture() {
@@ -49,11 +49,11 @@ describe("application comment session", () => {
     const { session: s, api } = fixture(); let release: (() => void) | undefined;
     api.commentsList.mockImplementationOnce(r => new Promise(resolve => { release = () => resolve(reply(r, { project: 7, canvasHash: "h", comments: [c], warnings: [] })); }));
     api.commentsList.mockImplementationOnce(async r => reply(r, { project: 7, canvasHash: "b", comments: [], warnings: [] }));
-    const old = s.open(identity); await s.open({ ...identity, canvas: "b", path: "design/b.html" }); release?.(); await old;
+    const old = s.open(identity); await s.open({ ...identity, canvas: "b", path: "doan/b.html" }); release?.(); await old;
     expect(s.identity?.canvas).toBe("b"); expect(s.list?.comments).toEqual([]);
   });
   test.each([
-    { root: "/other-repo" }, { canvas: "b" }, { path: "design/other.html" }, { requestID: "old-request" },
+    { root: "/other-repo" }, { canvas: "b" }, { path: "doan/other.html" }, { requestID: "old-request" },
   ])("rejects a reply with mismatched identity %j", async mismatch => {
     const { session: s, api } = fixture();
     api.commentsList.mockImplementationOnce(async request => ({ ...reply(request, { project: 7, canvasHash: "h", comments: [c], warnings: [] }), identity: { ...request, ...mismatch } }));
@@ -324,7 +324,7 @@ describe("continue a blocked new comment on the current version", () => {
   });
   test("a document loss while another canvas is open stays unavailable", async () => {
     const { session: s } = fixture(); await s.open(identity); await s.create("canvas");
-    await s.open({ ...identity, canvas: "b", path: "design/b.html" }); s.documentLost(true);
+    await s.open({ ...identity, canvas: "b", path: "doan/b.html" }); s.documentLost(true);
     expect(s.draft.draft?.lost).toBe("unavailable");
     expect(s.draft.draft?.blocked).toBe("Original document or target is unavailable.");
   });
@@ -365,7 +365,7 @@ describe("continue a blocked new comment on the current version", () => {
   test.each(["documentLost", "moved", "renamed"])("late success after %s cannot replace the draft or touch the guard", async kind => {
     const { session: s, api } = await blocked();
     const begin = hold(api), started = s.continueDraft("selection");
-    if (kind === "documentLost") s.documentLost(); else if (kind === "moved") await s.open({ ...identity, path: "design/moved/a.html" }); else await s.rename("design/moved/a.html");
+    if (kind === "documentLost") s.documentLost(); else if (kind === "moved") await s.open({ ...identity, path: "doan/moved/a.html" }); else await s.rename("doan/moved/a.html");
     expect(s.beginning).toBe(false);
     const before = structuredClone(s.draft);
     begin.release(); await started;
@@ -423,7 +423,7 @@ describe("continue a blocked new comment on the current version", () => {
     await s.continueDraft("canvas");
     expect(api.commentsBegin).toHaveBeenCalledTimes(1);
     const other = fixture(); await other.session.open(identity); await other.session.create("canvas");
-    await other.session.open({ ...identity, canvas: "b", path: "design/b.html" }); other.session.documentLost();
+    await other.session.open({ ...identity, canvas: "b", path: "doan/b.html" }); other.session.documentLost();
     await other.session.continueDraft("canvas");
     expect(other.api.commentsBegin).toHaveBeenCalledTimes(1);
   });
@@ -453,7 +453,7 @@ describe("continue a blocked new comment on the current version", () => {
 });
 
 describe("a canvas moved with the same id", () => {
-  const moved = "design/flows/a.html";
+  const moved = "doan/flows/a.html";
   function held<T>() {
     let release!: (value: T) => void;
     return { promise: new Promise<T>(resolve => { release = resolve; }), release: (value: T) => release(value) };
@@ -481,7 +481,7 @@ describe("a canvas moved with the same id", () => {
     const failing = held<CommentReply<CommentList>>();
     api.commentsList.mockImplementationOnce(() => failing.promise);
     const second = s.read();
-    await s.rename("design/again/a.html");
+    await s.rename("doan/again/a.html");
     failing.release({ ok: false, identity: { ...identity, path: moved, requestID: "x" }, error: "Path changed" } as CommentReply<CommentList>); await second;
     expect(s.readError).toBeNull();
   });
@@ -582,7 +582,7 @@ describe("a canvas moved with the same id", () => {
     const reopened = fixture(); await reopened.session.open(identity);
     reopened.api.commentsMutate.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Disk full" }));
     await reopened.session.mutate("resolve", "c1");
-    await reopened.session.open({ ...identity, canvas: "b", path: "design/b.html" }); await reopened.session.open(identity);
+    await reopened.session.open({ ...identity, canvas: "b", path: "doan/b.html" }); await reopened.session.open(identity);
     expect(reopened.session.canFollow()).toBe(true);
   });
 });
@@ -596,7 +596,7 @@ test("a refused canvas identity keeps main's cause beside the read error until a
   expect(s.identityCause).toBeNull(); expect(s.list?.comments).toEqual([c]);
   api.commentsList.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Canvas id is invalid.", cause: "invalid" }));
   await s.read(); expect(s.identityCause).toBe("invalid");
-  await s.open({ ...identity, canvas: "b", path: "design/b.html" }); expect(s.identityCause).toBeNull();
+  await s.open({ ...identity, canvas: "b", path: "doan/b.html" }); expect(s.identityCause).toBeNull();
   // An ordinary failure has no cause.
   api.commentsList.mockImplementationOnce(async r => ({ ok: false, identity: r, error: "Permission denied" }));
   await s.read(); expect(s.readError).toBe("Permission denied"); expect(s.identityCause).toBeNull();
@@ -666,7 +666,7 @@ describe("a person's Resolve and Reopen", () => {
       } finally { vi.useRealTimers(); }
     });
     test.each([
-      ["another canvas opens", (s: CommentsSession) => s.open({ ...identity, canvas: "b", path: "design/b.html" })],
+      ["another canvas opens", (s: CommentsSession) => s.open({ ...identity, canvas: "b", path: "doan/b.html" })],
       ["the canvas document is replaced", (s: CommentsSession) => { s.documentLost(); }],
       ["the canvas starts reloading", (s: CommentsSession) => { s.documentLost(true); }],
     ])("ends with its timer when %s", async (_name, end) => {
@@ -684,14 +684,14 @@ describe("a person's Resolve and Reopen", () => {
       let finish: (() => void) | undefined;
       api.commentsMutate.mockImplementationOnce(r => new Promise(resolve => { finish = () => resolve(reply<SavedStatus>(r, { state: "saved" })); }));
       const resolving = s.mutate("resolve", "c1");
-      await s.open({ ...identity, canvas: "b", path: "design/b.html" });
+      await s.open({ ...identity, canvas: "b", path: "doan/b.html" });
       finish?.(); await resolving;
       expect(s.statusLine).toBeNull();
     });
     test("a followed move of the same canvas keeps it", async () => {
       const { session: s } = await opened();
       await s.mutate("resolve", "c1");
-      await s.rename("design/moved.html");
+      await s.rename("doan/moved.html");
       expect(s.statusLine?.comment).toBe("c1");
     });
   });

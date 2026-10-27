@@ -6,13 +6,13 @@ Doan connects an HTML design canvas in a repository with human review in the loc
 
 ## Canvas conventions
 
-1. One HTML file under `design/` is one canvas.
+1. One HTML file under `doan/` is one canvas. Put new canvas-only assets (images, icons, shared CSS or scripts) in `doan/assets/` and link them relatively, for example `assets/logo.svg`. Reuse existing repository token CSS, fonts and components at their original served paths rather than copying them into assets. Create the assets directory only when needed; it is not a new config field or a separate serving root.
 2. Put `<meta name="doan:canvas" content="id">` in `<head>`. Use a unique lowercase kebab id matching `^[a-z0-9]+(-[a-z0-9]+)*$`.
 3. Put `<meta name="doan:width" content="2400">` in `<head>`, declaring a positive integer board width in pixels. There is no default.
 4. Mark frames with `data-doan-frame="id"`. An optional `data-doan-title` provides the visible name.
 5. Mark meaningful elements with `data-doan-id="id"` (recommended).
 6. Connect a frame to its implementation with `data-doan-implements="repo/relative/path"` (recommended).
-7. Tokens are defined by local CSS the canvas links, including relative imports inside the repo, and its own style blocks and attributes. Link token CSS relative to the canvas. Unlinked config `tokenCss` and external CDN definitions do not supply tokens to `doan check`. Reached CSS must be within `design/`, the configured `tokenCss`, or a configured `serve` path. If CSS the user names or the canvas needs is outside that scope, do not change configuration. In your final answer, say the original file could not be linked as-is and serving its path needs the user's approval (Settings › Projects or `doan config --add-serve <path>`). If you use a workaround such as copying CSS into `design/`, disclose it in the final answer.
+7. Tokens are defined by local CSS the canvas links, including relative imports inside the repo, and its own style blocks and attributes. Link token CSS relative to the canvas. Unlinked config `tokenCss` and external CDN definitions do not supply tokens to `doan check`. Reached CSS must be within `doan/`, the configured `tokenCss`, or a configured `serve` path. If CSS the user names or the canvas needs is outside that scope, do not change configuration. In your final answer, say the original file could not be linked as-is and serving its path needs the user's approval (Settings › Projects or `doan config --add-serve <path>`). If you use a workaround such as copying CSS into `doan/`, disclose it in the final answer.
 8. Keep ids stable and unique: canvas ids across the repo, frame ids within a canvas, and element ids within a canvas. Frame and element ids are separate namespaces and must be non-empty.
 9. External resources are allowed; `doan check` reports them as warnings. The CLI makes no network requests.
 10. When token CSS is configured, direct hex and rgb colors produce warnings, including custom property declarations and `var()` fallbacks. Use the linked tokens.

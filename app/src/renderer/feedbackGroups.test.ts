@@ -22,11 +22,11 @@ describe("feedbackGroups", () => {
   test("orphans first, then canvases in Overview card order, not ls order", () => {
     // ls order is path byte order; the Overview puts a folder's own canvases
     // before its subfolders (overviewSections).
-    const rows = [row("design/b.html", "b"), row("design/sub/a.html", "a"), row("design/z.html", "z")];
+    const rows = [row("doan/b.html", "b"), row("doan/sub/a.html", "a"), row("doan/z.html", "z")];
     const files = rows.map(r => file(r.id!, [comment({})]));
     const view = feedbackGroups([...files, file("old", [comment({})])], rows, [orphan("old", 1, 0)], "open");
     expect(view.orphans?.files.map(group => group.id)).toEqual(["old"]);
-    expect(view.canvases.map(group => group.row.path)).toEqual(["design/b.html", "design/z.html", "design/sub/a.html"]);
+    expect(view.canvases.map(group => group.row.path)).toEqual(["doan/b.html", "doan/z.html", "doan/sub/a.html"]);
   });
 
   test("puts canvas targets in Whole canvas first, frames in document order, then stored frames not in the canvas", () => {
@@ -38,7 +38,7 @@ describe("feedbackGroups", () => {
     const hero = comment(element("hero-cta", "hero"));
     const gone = comment({ frame: "summary-v1" });
     const goneElement = comment(element("old-total", "summary-v1"));
-    const view = feedbackGroups([file("checkout", [gone, label, canvasWide, hero, frameTarget, loose, goneElement])], [row("design/checkout.html", "checkout", { title: "Checkout", frames })], [], "open");
+    const view = feedbackGroups([file("checkout", [gone, label, canvasWide, hero, frameTarget, loose, goneElement])], [row("doan/checkout.html", "checkout", { title: "Checkout", frames })], [], "open");
     const group = view.canvases[0];
     if (group?.kind !== "comments") throw new Error("no comments group");
     expect(group.frames.map(frame => [frame.kind, frame.label, frame.rows.map(r => r.comment)])).toEqual([
@@ -64,7 +64,7 @@ describe("feedbackGroups", () => {
     const frames = [{ id: "f1", title: "One" }];
     const late = comment({ frame: "f1500" });
     const first = comment({ frame: "f1" });
-    const view = feedbackGroups([file("big", [late, first])], [row("design/big.html", "big", { frames, framesTruncated: true })], [], "open");
+    const view = feedbackGroups([file("big", [late, first])], [row("doan/big.html", "big", { frames, framesTruncated: true })], [], "open");
     const group = view.canvases[0];
     if (group?.kind !== "comments") throw new Error("no comments group");
     expect(group.frames.map(frame => [frame.kind, frame.label])).toEqual([["frame", "One"], ["frame", "f1500"]]);
@@ -72,11 +72,11 @@ describe("feedbackGroups", () => {
 
   test("keys frame groups by frame id and occurrence, so repeated frame ids stay apart from stored ones", () => {
     const frames = [{ id: "a", title: "A" }, { id: "b", title: "B" }];
-    const view = feedbackGroups([file("c", [comment({ frame: "b" }), comment({}), comment({ frame: "x" })])], [row("design/c.html", "c", { frames })], [], "open");
+    const view = feedbackGroups([file("c", [comment({ frame: "b" }), comment({}), comment({ frame: "x" })])], [row("doan/c.html", "c", { frames })], [], "open");
     const group = view.canvases[0];
     if (group?.kind !== "comments") throw new Error("no comments group");
-    expect(group.key).toBe("canvas:design/c.html");
-    expect(group.frames.map(frame => frame.key)).toEqual(["design/c.html#whole", "design/c.html#frame:b:0", "design/c.html#saved:x"]);
+    expect(group.key).toBe("canvas:doan/c.html");
+    expect(group.frames.map(frame => frame.key)).toEqual(["doan/c.html#whole", "doan/c.html#frame:b:0", "doan/c.html#saved:x"]);
   });
 
   // R-T4 ⚪5: collapse and focus state is kept by key, so a frame inserted
@@ -84,13 +84,13 @@ describe("feedbackGroups", () => {
   test("a frame inserted before a group keeps that group's key", () => {
     const comments = [comment({ frame: "b" })];
     const key = (frames: { id: string }[]) => {
-      const group = feedbackGroups([file("c", comments)], [row("design/c.html", "c", { frames })], [], "open").canvases[0];
+      const group = feedbackGroups([file("c", comments)], [row("doan/c.html", "c", { frames })], [], "open").canvases[0];
       if (group?.kind !== "comments") throw new Error("no comments group");
       return group.frames.map(frame => frame.key);
     };
     expect(key([{ id: "b" }])).toEqual(key([{ id: "new" }, { id: "b" }]));
     // A repeated id counts its occurrences; comments go to the first one.
-    expect(key([{ id: "b" }, { id: "b" }])).toEqual(["design/c.html#frame:b:0"]);
+    expect(key([{ id: "b" }, { id: "b" }])).toEqual(["doan/c.html#frame:b:0"]);
   });
 
   test("runs Resolved rows by resolution time, newest first, and keeps Open rows in file order", () => {
@@ -100,7 +100,7 @@ describe("feedbackGroups", () => {
     const openA = comment({ frame: "shipping" });
     const openB = comment(element("x", "shipping"));
     const files = [file("c", [older, openB, newer, openA])];
-    const rows = [row("design/c.html", "c", { frames })];
+    const rows = [row("doan/c.html", "c", { frames })];
     const resolvedView = feedbackGroups(files, rows, [], "resolved").canvases[0];
     const openView = feedbackGroups(files, rows, [], "open").canvases[0];
     if (resolvedView?.kind !== "comments" || openView?.kind !== "comments") throw new Error("no comments group");
@@ -109,7 +109,7 @@ describe("feedbackGroups", () => {
   });
 
   test("gives same-title canvases their file name and no one else", () => {
-    const rows = [row("design/2026-10-checkout-revamp.html", "revamp", { title: "Checkout" }), row("design/checkout/checkout.html", "checkout", { title: "Checkout" }), row("design/settings/billing.html", "billing", { title: "Billing & plans" })];
+    const rows = [row("doan/2026-10-checkout-revamp.html", "revamp", { title: "Checkout" }), row("doan/checkout/checkout.html", "checkout", { title: "Checkout" }), row("doan/settings/billing.html", "billing", { title: "Billing & plans" })];
     const view = feedbackGroups(rows.map(r => file(r.id!, [comment({})])), rows, [], "open");
     expect(view.canvases.map(group => [group.name, group.fileName])).toEqual([
       ["Checkout", "2026-10-checkout-revamp.html"],
@@ -121,7 +121,7 @@ describe("feedbackGroups", () => {
   // Draft confirmation (2026-10-25): Open still shows a canvas head that has
   // resolutions to review; other groups without the chosen status are hidden.
   test("Open shows a canvas with only resolutions to review as a head, and hides other empty canvases", () => {
-    const rows = [row("design/a.html", "a"), row("design/b.html", "b"), row("design/c.html", "c")];
+    const rows = [row("doan/a.html", "a"), row("doan/b.html", "b"), row("doan/c.html", "c")];
     const files = [file("a", [resolved({}, "2026-10-25T12:00:00.000Z")], 1), file("b", [resolved({}, "2026-10-25T12:00:00.000Z")]), file("c", [comment({})])];
     const open = feedbackGroups(files, rows, [], "open");
     expect(open.canvases.map(group => group.kind === "comments" ? [group.row.id, group.count, group.toReview, group.frames.length] : null)).toEqual([["a", 0, 1, 0], ["c", 1, 0, 1]]);
@@ -130,7 +130,7 @@ describe("feedbackGroups", () => {
   });
 
   test("leaves out rows ls could not read and rows without an id or comments", () => {
-    const rows = [row("design/none.html", undefined), row("design/broken.html", undefined, { error: { code: "unreadable_canvas", message: "m" } })];
+    const rows = [row("doan/none.html", undefined), row("doan/broken.html", undefined, { error: { code: "unreadable_canvas", message: "m" } })];
     expect(feedbackGroups([], rows, [], "open").canvases).toEqual([]);
   });
 
@@ -138,19 +138,19 @@ describe("feedbackGroups", () => {
   // doan:canvas but still counts its comments, which comments:project never
   // reads. The canvas keeps its Overview place with the ls counts only.
   test("a canvas without a usable id but with ls comments is a count-only group in Overview order", () => {
-    const rows = [row("design/a.html", "a"), row("design/bad.html", undefined, { title: "Bad", open: 2, resolved: 1 }), row("design/c.html", "c")];
+    const rows = [row("doan/a.html", "a"), row("doan/bad.html", undefined, { title: "Bad", open: 2, resolved: 1 }), row("doan/c.html", "c")];
     const files = [file("a", [comment({})]), file("c", [comment({})])];
     const open = feedbackGroups(files, rows, [], "open");
-    expect(open.canvases.map(group => [group.row.path, group.kind])).toEqual([["design/a.html", "comments"], ["design/bad.html", "countOnly"], ["design/c.html", "comments"]]);
-    expect(open.canvases[1]).toEqual({ key: "canvas:design/bad.html", row: rows[1], name: "Bad", kind: "countOnly", count: 2, open: 2, resolved: 1, note: "This canvas needs a unique, valid ID — run doan check" });
+    expect(open.canvases.map(group => [group.row.path, group.kind])).toEqual([["doan/a.html", "comments"], ["doan/bad.html", "countOnly"], ["doan/c.html", "comments"]]);
+    expect(open.canvases[1]).toEqual({ key: "canvas:doan/bad.html", row: rows[1], name: "Bad", kind: "countOnly", count: 2, open: 2, resolved: 1, note: "This canvas needs a unique, valid ID — run doan check" });
     expect(open.counts).toEqual({ open: 4, resolved: 1 });
-    expect(feedbackGroups(files, rows, [], "resolved").canvases.map(group => [group.row.path, group.kind === "countOnly" ? group.count : null])).toEqual([["design/bad.html", 1]]);
-    const noResolved = [row("design/bad.html", undefined, { open: 2 })];
+    expect(feedbackGroups(files, rows, [], "resolved").canvases.map(group => [group.row.path, group.kind === "countOnly" ? group.count : null])).toEqual([["doan/bad.html", 1]]);
+    const noResolved = [row("doan/bad.html", undefined, { open: 2 })];
     expect(feedbackGroups([], noResolved, [], "resolved").canvases).toEqual([]);
   });
 
   test("a count-only canvas follows the same-title file name rule", () => {
-    const rows = [row("design/checkout.html", "checkout", { title: "Checkout" }), row("design/old/checkout.html", undefined, { title: "Checkout", open: 1 })];
+    const rows = [row("doan/checkout.html", "checkout", { title: "Checkout" }), row("doan/old/checkout.html", undefined, { title: "Checkout", open: 1 })];
     const view = feedbackGroups([file("checkout", [comment({})])], rows, [], "open");
     expect(view.canvases.map(group => [group.kind, group.name, group.fileName])).toEqual([["comments", "Checkout", "checkout.html"], ["countOnly", "Checkout", "checkout.html"]]);
   });
@@ -159,19 +159,19 @@ describe("feedbackGroups", () => {
   // (cli read.go); ls does not say which rows share it, so each card's group
   // shows the counts its Overview card shows, and both add to the segments.
   test("two rows sharing one id are two count-only groups, as the Overview shows two cards", () => {
-    const rows = [row("design/a.html", undefined, { open: 1 }), row("design/b.html", undefined, { open: 1 })];
+    const rows = [row("doan/a.html", undefined, { open: 1 }), row("doan/b.html", undefined, { open: 1 })];
     const view = feedbackGroups([], rows, [], "open");
-    expect(view.canvases.map(group => [group.key, group.kind === "countOnly" ? group.count : null])).toEqual([["canvas:design/a.html", 1], ["canvas:design/b.html", 1]]);
+    expect(view.canvases.map(group => [group.key, group.kind === "countOnly" ? group.count : null])).toEqual([["canvas:doan/a.html", 1], ["canvas:doan/b.html", 1]]);
     expect(view.counts).toEqual({ open: 2, resolved: 0 });
   });
 
   test("a canvas without a usable id whose comments ls could not read is an error group", () => {
-    const rows = [row("design/bad.html", undefined, { commentsError: { code: "unreadable_comments", message: ".doan/comments/Bad.jsonl: permission denied" } })];
+    const rows = [row("doan/bad.html", undefined, { commentsError: { code: "unreadable_comments", message: ".doan/comments/Bad.jsonl: permission denied" } })];
     expect(feedbackGroups([], rows, [], "resolved").canvases.map(group => group.kind === "error" ? group.error : group.kind)).toEqual([".doan/comments/Bad.jsonl: permission denied"]);
   });
 
   test("a canvas whose comments could not be read is a group-level error in both views, outside the counts", () => {
-    const rows = [row("design/a.html", "a"), row("design/b.html", "b", { commentsError: { code: "unreadable_comments", message: ".doan/comments/b.jsonl: permission denied" } }), row("design/c.html", "c")];
+    const rows = [row("doan/a.html", "a"), row("doan/b.html", "b", { commentsError: { code: "unreadable_comments", message: ".doan/comments/b.jsonl: permission denied" } }), row("doan/c.html", "c")];
     const files: FeedbackFile[] = [{ id: "a", error: "EACCES" }, file("c", [comment({})])];
     for (const status of ["open", "resolved"] as const) {
       const view = feedbackGroups(files, rows, [], status);
@@ -184,9 +184,9 @@ describe("feedbackGroups", () => {
   // R-T4 ⚪3: the renderer's ls and comments:project's reply can be from
   // different moments, so a missing entry is "not read yet", not zero comments.
   test("a canvas id with no file entry is pending with its ls counts, hidden when ls has none of the status", () => {
-    const rows = [row("design/a.html", "a", { open: 2, resolved: 0 }), row("design/b.html", "b")];
+    const rows = [row("doan/a.html", "a", { open: 2, resolved: 0 }), row("doan/b.html", "b")];
     const open = feedbackGroups([], rows, [], "open");
-    expect(open.canvases).toEqual([{ key: "canvas:design/a.html", row: rows[0], name: "a", kind: "pending", count: 2 }]);
+    expect(open.canvases).toEqual([{ key: "canvas:doan/a.html", row: rows[0], name: "a", kind: "pending", count: 2 }]);
     expect(open.counts).toEqual({ open: 2, resolved: 0 });
     expect(feedbackGroups([], rows, [], "resolved").canvases).toEqual([]);
   });
@@ -198,14 +198,14 @@ describe("feedbackGroups", () => {
     const create = (id: number, cmt: number) => line(id, "create", cmt, `,"body":"b${cmt}","canvasHash":"${hash}","target":{}`);
     const text = [create(1, 1), create(2, 2), create(1, 1), create(3, 3), line(4, "resolve", 3), create(2, 2), line(4, "resolve", 3)].join("\n") + "\n";
     const { comments } = foldText(text);
-    const ls = row("design/a.html", "a", { open: 2, resolved: 1 });
+    const ls = row("doan/a.html", "a", { open: 2, resolved: 1 });
     const open = feedbackGroups([file("a", comments)], [ls], [], "open");
     expect(open.counts).toEqual({ open: ls.open, resolved: ls.resolved });
     expect(open.canvases[0]?.kind === "comments" && open.canvases[0].count).toBe(2);
   });
 
   test("segment counts add up canvases and orphans, whichever status is chosen", () => {
-    const rows = [row("design/a.html", "a")];
+    const rows = [row("doan/a.html", "a")];
     const files = [file("a", [comment({}), resolved({}, "2026-10-25T12:00:00.000Z")]), file("old", [comment({}), comment({})])];
     const orphans = [orphan("old", 2, 0), orphan("Foo", 3, 1)];
     expect(feedbackGroups(files, rows, orphans, "open").counts).toEqual({ open: 6, resolved: 2 });
@@ -311,7 +311,7 @@ describe("feedbackFocusAfterRemoval", () => {
 // their children; notes, cards and messages are not tree rows.
 describe("feedbackTree", () => {
   const frames = [{ id: "shipping", title: "Shipping" }];
-  const rows = [row("design/c.html", "c", { title: "Checkout", frames }), row("design/bad.html", undefined, { title: "Bad", open: 2, resolved: 1 })];
+  const rows = [row("doan/c.html", "c", { title: "Checkout", frames }), row("doan/bad.html", undefined, { title: "Bad", open: 2, resolved: 1 })];
   const shipping = comment({ frame: "shipping" });
   const wide = comment({});
   const files = [file("c", [wide, shipping]), file("old", [comment({})])];
@@ -323,12 +323,12 @@ describe("feedbackTree", () => {
       ["orphan:.doan/comments/old.jsonl", 2, "orphans", true],
       ["orphan:.doan/comments/Foo.jsonl", 2, "orphans", null],
       // Overview card order: by title.
-      ["canvas:design/bad.html", 1, null, null],
-      ["canvas:design/c.html", 1, null, true],
-      ["design/c.html#whole", 2, "canvas:design/c.html", true],
-      [`item:design/c.html:${wide.comment}`, 3, "design/c.html#whole", null],
-      ["design/c.html#frame:shipping:0", 2, "canvas:design/c.html", true],
-      [`item:design/c.html:${shipping.comment}`, 3, "design/c.html#frame:shipping:0", null],
+      ["canvas:doan/bad.html", 1, null, null],
+      ["canvas:doan/c.html", 1, null, true],
+      ["doan/c.html#whole", 2, "canvas:doan/c.html", true],
+      [`item:doan/c.html:${wide.comment}`, 3, "doan/c.html#whole", null],
+      ["doan/c.html#frame:shipping:0", 2, "canvas:doan/c.html", true],
+      [`item:doan/c.html:${shipping.comment}`, 3, "doan/c.html#frame:shipping:0", null],
     ]);
   });
 
@@ -336,15 +336,15 @@ describe("feedbackTree", () => {
   // review entry has nothing under it and reads as collapsed.
   test("a canvas head with no row of the chosen status is collapsed", () => {
     const done = comment({}, { status: "resolved", resolvedAt: "2026-10-25T00:00:00.000Z", resolvedBy: { kind: "agent", name: "codex" } });
-    const zero = feedbackGroups([file("p", [done], 2)], [row("design/p.html", "p", { title: "Profile" })], [], "open");
-    expect(feedbackTree(zero, new Set()).map(item => [item.key, item.expanded])).toEqual([["canvas:design/p.html", false]]);
-    expect(feedbackTree(zero, new Set(["canvas:design/p.html"])).map(item => item.expanded)).toEqual([false]);
+    const zero = feedbackGroups([file("p", [done], 2)], [row("doan/p.html", "p", { title: "Profile" })], [], "open");
+    expect(feedbackTree(zero, new Set()).map(item => [item.key, item.expanded])).toEqual([["canvas:doan/p.html", false]]);
+    expect(feedbackTree(zero, new Set(["canvas:doan/p.html"])).map(item => item.expanded)).toEqual([false]);
   });
 
   test("a collapsed group hides what is under it", () => {
-    const keys = feedbackTree(view(), new Set(["orphans", "design/c.html#whole"])).map(item => item.key);
-    expect(keys).toEqual(["orphans", "canvas:design/bad.html", "canvas:design/c.html", "design/c.html#whole", "design/c.html#frame:shipping:0", `item:design/c.html:${shipping.comment}`]);
-    expect(feedbackTree(view(), new Set(["canvas:design/c.html"])).map(item => item.key)).not.toContain("design/c.html#whole");
+    const keys = feedbackTree(view(), new Set(["orphans", "doan/c.html#whole"])).map(item => item.key);
+    expect(keys).toEqual(["orphans", "canvas:doan/bad.html", "canvas:doan/c.html", "doan/c.html#whole", "doan/c.html#frame:shipping:0", `item:doan/c.html:${shipping.comment}`]);
+    expect(feedbackTree(view(), new Set(["canvas:doan/c.html"])).map(item => item.key)).not.toContain("doan/c.html#whole");
   });
 });
 

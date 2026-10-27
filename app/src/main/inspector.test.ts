@@ -5,7 +5,7 @@ import fixture from "./inspect.fixture.json";
 import { createInspector, parseInspectRequest, type DebuggerLike } from "./inspector";
 
 const BASE = "http://127.0.0.1:4000/t/tok/";
-const CANVAS = `${BASE}k1/design/a.html`;
+const CANVAS = `${BASE}k1/doan/a.html`;
 const c3 = (fixture as unknown as Record<string, InspectInput>)["#c3"];
 if (!c3) throw new Error("no fixture");
 
@@ -125,7 +125,7 @@ test("picks the window's canvas child, not other iframes or targets", async () =
   const dbg = new FakeDebugger();
   const inspector = createInspector(dbg, () => BASE);
   dbg.target("W", "worker");
-  dbg.target("NESTED", "iframe", { id: "F2", parentId: "F1", url: `${BASE}k1/design/inner.html` });
+  dbg.target("NESTED", "iframe", { id: "F2", parentId: "F1", url: `${BASE}k1/doan/inner.html` });
   dbg.target("OTHER", "iframe", { id: "F3", parentId: "MAIN", url: "http://127.0.0.1:4000/t/other/k1/a.html" });
   expect(await inspector.inspect("#c3")).toMatchObject({ ok: false });
   dbg.target("S1", "iframe", { id: "F1", parentId: "MAIN", url: CANVAS });
@@ -253,7 +253,7 @@ test("comment observer enables parent and child domains, joins cross-session eve
   expect(dbg.sent("Page.enable")[0]?.[2]).toBeUndefined();
   dbg.target("S1", "iframe", { id: "FRAME", parentId: "MAIN", url: CANVAS });
   await vi.waitFor(() => expect(dbg.sent("Runtime.runIfWaitingForDebugger")).toHaveLength(1));
-  docs.response({ marker: "response", root: "/repo", path: "design/a.html", hash: "sha256:" + "a".repeat(64), complete: true, stable: true });
+  docs.response({ marker: "response", root: "/repo", path: "doan/a.html", hash: "sha256:" + "a".repeat(64), complete: true, stable: true });
   dbg.emit("message", {}, "Network.responseReceived", { type: "Document", requestId: "request", frameId: "FRAME", loaderId: "loader", response: { headers: { "X-Doan-Response": "response" } } });
   dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: "loader", url: CANVAS } }, "S1");
   dbg.emit("message", {}, "Network.loadingFinished", { requestId: "request" });
@@ -273,7 +273,7 @@ test("OOPIF process swap preserves the committed document, but actual removal re
   const dbg = new FakeDebugger();
   createInspector(dbg, () => BASE, docs);
   dbg.target("S1", "iframe");
-  docs.response({ marker: "response", root: "/repo", path: "design/a.html", hash: "sha256:" + "a".repeat(64), complete: true, stable: true });
+  docs.response({ marker: "response", root: "/repo", path: "doan/a.html", hash: "sha256:" + "a".repeat(64), complete: true, stable: true });
   dbg.emit("message", {}, "Network.responseReceived", { type: "Document", requestId: "request", frameId: "FRAME", loaderId: "loader", response: { headers: { "X-Doan-Response": "response" } } });
   dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: "loader", url: CANVAS } }, "S1");
   dbg.emit("message", {}, "Page.frameDetached", { frameId: "FRAME", reason: "swap" });
@@ -292,7 +292,7 @@ for (const replacementLoader of ["loader", "replacement"]) {
     const emit = (method: string, params: object, session?: string) => dbg.emit("message", {}, method, params, session);
     const commit = (session: string, loader: string) => emit("Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: loader, url: CANVAS } }, session);
     const response = (loader: string) => {
-      docs.response({ marker: loader, root: "/repo", path: "design/a.html", hash: loader, complete: true, stable: true });
+      docs.response({ marker: loader, root: "/repo", path: "doan/a.html", hash: loader, complete: true, stable: true });
       emit("Network.responseReceived", { type: "Document", requestId: loader, frameId: "FRAME", loaderId: loader, response: { headers: { "X-Doan-Response": loader } } });
     };
     dbg.target("OLD", "iframe");
@@ -324,7 +324,7 @@ for (const detached of [false, true]) {
       const emit = (method: string, params: object, session?: string) => dbg.emit("message", {}, method, params, session);
       const frame = { id: "FRAME", parentId: "MAIN", loaderId: "loader", url: CANVAS };
       dbg.target("OLD", "iframe");
-      docs.response({ marker: "m", root: "/repo", path: "design/a.html", hash: "hash", complete: true, stable: true });
+      docs.response({ marker: "m", root: "/repo", path: "doan/a.html", hash: "hash", complete: true, stable: true });
       emit("Network.responseReceived", { type: "Document", requestId: "request", frameId: "FRAME", loaderId: "loader", response: { headers: { "X-Doan-Response": "m" } } });
       emit("Page.frameNavigated", { frame }, "OLD");
       dbg.target("NEW", "iframe");
@@ -355,7 +355,7 @@ for (const invalidation of ["remove", "unspecified detach", "debugger loss", "ne
     createInspector(dbg, () => BASE, docs);
     dbg.target("CURRENT", "iframe");
     const emit = (method: string, params: object) => dbg.emit("message", {}, method, params, "CURRENT");
-    docs.response({ marker: "m", root: "/repo", path: "design/a.html", hash: "hash", complete: true, stable: true });
+    docs.response({ marker: "m", root: "/repo", path: "doan/a.html", hash: "hash", complete: true, stable: true });
     emit("Network.responseReceived", { type: "Document", requestId: "request", frameId: "FRAME", loaderId: "loader", response: { headers: { "X-Doan-Response": "m" } } });
     emit("Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: "loader", url: CANVAS } });
     emit("Network.loadingFinished", { requestId: "request" });
@@ -376,7 +376,7 @@ test.each([
   const { runInNewContext } = await import("node:vm");
   const { DocumentBindings } = await import("./comments/document");
   const docs = new DocumentBindings();
-  vi.spyOn(docs, "current").mockReturnValue({ root: "/repo", path: "design/a.html", hash: "sha256:" + "a".repeat(64), generation: "loader", frame: "FRAME", marker: "response", complete: true, stable: true });
+  vi.spyOn(docs, "current").mockReturnValue({ root: "/repo", path: "doan/a.html", hash: "sha256:" + "a".repeat(64), generation: "loader", frame: "FRAME", marker: "response", complete: true, stable: true });
   const dbg = new FakeDebugger();
   const original = dbg.sendCommand.bind(dbg);
   vi.spyOn(dbg, "sendCommand").mockImplementation(async (method, params, session) => {
@@ -388,7 +388,7 @@ test.each([
   });
   const inspector = createInspector(dbg, () => BASE, docs);
   dbg.target("S1", "iframe", { id: "FRAME", parentId: "MAIN", url: CANVAS });
-  const result = await inspector.commentDocument({ root: "/repo", path: "design/a.html", canvas: "a" }, CANVAS, { element: { selector: "p", html: "<p>text</p>" } });
+  const result = await inspector.commentDocument({ root: "/repo", path: "doan/a.html", canvas: "a" }, CANVAS, { element: { selector: "p", html: "<p>text</p>" } });
   expect(result.target.element?.text).toBe(expected);
   if (expected === undefined) expect(result.target.element).not.toHaveProperty("text");
 });

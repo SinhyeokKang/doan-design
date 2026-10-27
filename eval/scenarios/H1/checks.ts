@@ -7,7 +7,7 @@ const labels: Record<string, string> = {
   language: "Choose language", password: "Change password", sessions: "Manage sessions", contact: "Contact support",
 };
 const checks: Checks = ctx => {
-  const path = "design/h1.html", log = ".doan/comments/review-board.jsonl";
+  const path = "doan/h1.html", log = ".doan/comments/review-board.jsonl";
   const doc = inspect(ctx, ctx.read(path) ?? ""), seed = inspect(ctx, ctx.seed(path) ?? "");
   const events = ctx.commentEvents("review-board");
   const read = ctx.doan(["comments", "--canvas", "review-board"]);

@@ -47,7 +47,7 @@
         "id": "id-2",
         "changes": [
           {
-            "path": "/repo/design/home.html",
+            "path": "/repo/doan/home.html",
             "kind": {
               "type": "add"
             },

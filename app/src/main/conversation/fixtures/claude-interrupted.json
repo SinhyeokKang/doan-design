@@ -22,7 +22,7 @@
           "id": "id-2",
           "name": "Write",
           "input": {
-            "file_path": "/repo/design/home.html",
+            "file_path": "/repo/doan/home.html",
             "content": "Sample text"
           },
           "caller": {

@@ -6,7 +6,7 @@
 <meta name="doan:width" content="1200">
 <title>Design system — draft</title>
 <link rel="stylesheet" href="../app/src/renderer/tokens.css">
-<link rel="stylesheet" href="mock.css">
+<link rel="stylesheet" href="assets/mock.css">
 <style>
 /* Draft-only board. Every app colour is a role variable from tokens.css; palette steps
    appear only as swatches in tokens-color; the example canvases in canvas-marks and
@@ -322,7 +322,7 @@ code { font-family: inherit; }
 <p><b>/design-sync compares.</b> A7 (shared components): <code>buttons</code>, <code>icon-button</code>, <code>panel</code>, <code>tooltip</code>, <code>menu</code>, <code>popover</code>, <code>dialog-sizes</code>, <code>dialog-anatomy</code>, <code>toast</code>, <code>spinner</code>, <code>forms</code>, <code>focus-disabled</code>. A8 (shared elements): <code>shared-project-setup</code>, <code>shared-add-projects</code>, <code>shared-first-prompt</code>, <code>shared-connection-rows</code>, <code>shared-error-details</code>. Each of these frames carries a black “design-sync” tag. <code>tokens-color</code>, <code>tokens-type</code> and <code>radius-elevation</code> are a reference read from <code>tokens.css</code>; <code>canvas-marks</code> and <code>accent-places</code> are checked by A6 (selector map, <code>accentPlaces</code>, <code>contrastPairs</code>) and the screen children, not by design-sync.</p>
 <p><b>New.</b> All 22 frames are new; nothing here is copied from a shipped screen's look. The shared elements keep their content, copy, structure and behaviour (copy taken from <code>ProjectSetupDialog.tsx</code>, <code>AddProjectsDialog.tsx</code>, <code>FirstPrompt.tsx</code> + <code>firstPromptView.ts</code>, <code>ConnectionRows.tsx</code> + <code>connectionRowView.ts</code> + <code>onboardingView.ts</code>, <code>ErrorDetails.tsx</code> and its hosts, <code>Toast.tsx</code> and its callers); only the look changes. Dashed yellow tags mark what the ds CSS does not have yet (A7 adds it).</p>
 <p><b>Decisions this draft follows.</b> Non-text 3:1 applies to <code>border-prominent</code>, focus rings and pins only; hairlines (<code>border-standard</code>) and fill-edged inputs are a documented exception (orch.md, 2026-10-26 user). The accent is doan's own violet ramp: step 9 is <code>#973be1</code> with white text on it (5.2:1, APCA Lc −80); every step takes the reference ramp's per-step lightness and chroma share at hue 305, and hover and pressed are darker than 9 (design.md, orch.md, 2026-10-26 user). The pin rim is black, not a violet step, so it holds 3:1 against the violet fill (conductor, 2026-10-26). The user confirms the ramp with this draft. Violet appears only in the places of design.md's violet table (frame <code>accent-places</code>). Dialog sizes compact / standard / wide / expanded: compact centred, the other three 8rem from the top (orch.md, R1). Tooltip and the canvas dimension label are the same prominent capsule, and the sidebar hover (violet 2) is faint on white, both on purpose (design.md). <b>Conductor's call, for the user to confirm:</b> the size step of each shared dialog — Set up folder confirmation compact, Project Setup standard, Add Projects standard. Toasts stay one neutral floating toast with no type (Toast.tsx has none); an error reads by its sentence (conductor, 2026-10-26).</p>
-<p><b>References.</b> Values and rules follow the reference design system recorded in docs/DESIGN.md (read from its local clone at the base commit for this draft, checked: tokens, overlays, materials, chips, forms, settings-group, sidebar navigation and focus rules). Values themselves are the variables of <code>app/src/renderer/tokens.css</code> (S1). Palette steps appear only as swatches in <code>tokens-color</code>; everything else reads roles, never the legacy aliases. Example canvas colours come from <code>design/mock.css</code>.</p>
+<p><b>References.</b> Values and rules follow the reference design system recorded in docs/DESIGN.md (read from its local clone at the base commit for this draft, checked: tokens, overlays, materials, chips, forms, settings-group, sidebar navigation and focus rules). Values themselves are the variables of <code>app/src/renderer/tokens.css</code> (S1). Palette steps appear only as swatches in <code>tokens-color</code>; everything else reads roles, never the legacy aliases. Example canvas colours come from <code>doan/assets/mock.css</code>.</p>
 </header>
 
 <!-- ======================= tokens-color ======================= -->
@@ -695,7 +695,7 @@ code { font-family: inherit; }
 <p class="fnote">A 16px ring: <code>border-standard</code> track, <code>text-standard</code> arc, one turn a second. Next to a status sentence it sits 8px before the text. With reduced motion it stops (the arc stays as a static mark beside the sentence).</p>
 <div class="tiles c3">
 <div><p class="tile-label"><b>Alone</b> — canvas loading</p><div class="stage on-panel" style="justify-content: center; height: 96px"><span class="doan-spinner" data-doan-id="spinner"></span></div></div>
-<div><p class="tile-label"><b>In a status line</b> — Add projects scan, FirstPrompt wait</p><div class="stage on-panel col" style="align-items: start"><span class="scan" role="status"><span class="doan-spinner"></span>4 of 7 checked</span><span class="fp-wait" role="status"><span class="doan-spinner"></span>Waiting for a canvas in design/…</span></div></div>
+<div><p class="tile-label"><b>In a status line</b> — Add projects scan, FirstPrompt wait</p><div class="stage on-panel col" style="align-items: start"><span class="scan" role="status"><span class="doan-spinner"></span>4 of 7 checked</span><span class="fp-wait" role="status"><span class="doan-spinner"></span>Waiting for a canvas in doan/…</span></div></div>
 <div><p class="tile-label"><b>Reduced motion</b> — still</p><div class="stage on-panel" style="justify-content: center; height: 96px"><span class="doan-spinner still"></span></div></div>
 </div>
 </section>
@@ -850,7 +850,7 @@ code { font-family: inherit; }
 <div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up doan-design</h3><p class="doan-dialog-description ob-project-path" title="/Users/me/code/doan-design">/Users/me/code/doan-design</p></div></div>
 <div class="ob-card" data-doan-id="setup-card">
 <div class="ob-field"><span class="ob-label">Token CSS</span><span class="value none">None</span><button class="doan-button is-focus" data-ui-size="sm" data-ui-variant="subtle">Choose…</button><span class="ob-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
-<div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+<div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
 </div>
 <div class="doan-dialog-actions"><button class="doan-button" data-ui-variant="subtle">Cancel</button><button class="doan-button" data-ui-variant="prominent" data-doan-id="setup-submit">Set Up Project</button></div>
 </div></div></div>
@@ -860,7 +860,7 @@ code { font-family: inherit; }
 <div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up checkout-redesign-experiments</h3><p class="doan-dialog-description ob-project-path" title="/Users/me/code/clients/acme/checkout-redesign-experiments">/Users/me/code/clients/acme/checkout-redesign-experiments</p></div></div>
 <div class="ob-card">
 <div class="ob-field"><span class="ob-label">Token CSS</span><span class="value" title="src/styles/tokens/brand-colors-and-typography.css">src/styles/tokens/brand-colors-and-typography.css</span><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Choose…</button></div>
-<div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+<div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
 <div class="ob-field"><span class="ob-msg error ob-wide" role="alert"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg><span>doan CLI error: spawn doan ENOENT</span></span></div>
 </div>
 <div class="doan-dialog-actions"><button class="doan-button" data-ui-variant="subtle">Cancel</button><button class="doan-button" data-ui-variant="prominent">Set Up Project</button></div>
@@ -873,7 +873,7 @@ code { font-family: inherit; }
 <div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up doan-design</h3><p class="doan-dialog-description ob-project-path">/Users/me/code/doan-design</p></div></div>
 <div class="ob-card">
 <div class="ob-field"><span class="ob-label">Token CSS</span><span class="value" title="app/src/renderer/tokens.css">app/src/renderer/tokens.css</span><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" disabled>Choose…</button></div>
-<div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+<div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
 </div>
 <div class="doan-dialog-actions"><button class="doan-button" data-ui-variant="subtle" disabled>Cancel</button><button class="doan-button" data-ui-variant="prominent" disabled>Setting Up…</button></div>
 </div></div></div>
@@ -881,7 +881,7 @@ code { font-family: inherit; }
 <div class="stage on-panel" style="padding: 24px">
 <div class="ob-card" style="width: 100%">
 <div class="ob-field"><span class="ob-label">Token CSS</span><span class="value none">None</span><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Choose…</button><span class="ob-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
-<div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+<div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
 </div></div></div>
 </div>
 </section>
@@ -965,7 +965,7 @@ code { font-family: inherit; }
 <div class="ob-prompt" style="width: 100%">
 <div><div class="fp-labelrow"><label class="fp-label" for="fp3">What do you want to design?</label></div><input class="doan-input" id="fp3" type="text" value="a sign-in screen with SSO and passkeys"></div>
 <p class="ob-sentence">Use the doan skill to make a design canvas in /Users/me/code/shop for <mark>a sign-in screen with SSO and passkeys</mark>.</p>
-<div class="ob-actions"><span class="fp-wait" role="status"><span class="doan-spinner"></span>Waiting for a canvas in design/…</span><button class="doan-button" data-ui-variant="prominent">Copy again</button></div>
+<div class="ob-actions"><span class="fp-wait" role="status"><span class="doan-spinner"></span>Waiting for a canvas in doan/…</span><button class="doan-button" data-ui-variant="prominent">Copy again</button></div>
 </div></div></div>
 <div><p class="tile-label"><b>Invalid</b> (too long, with the count) and <b>copy failed</b></p>
 <div class="stage on-panel" style="padding: 8px 24px">

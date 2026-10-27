@@ -8,7 +8,7 @@ export const COLOR = "cmt_8e1b5d93-2a7c-4f06-b9d4-6c3a1e8f2d12";
 export const TERMS = "cmt_a2f7c4e8-9b1d-4e63-a5c0-7e4d2b6a9f13";
 
 const checks: Checks = ctx => {
-  const path = "design/signup.html";
+  const path = "doan/signup.html";
   const doc = inspect(ctx, ctx.read(path) ?? "");
   const seed = inspect(ctx, ctx.seed(path) ?? "");
   const submit = element(doc, "submit");

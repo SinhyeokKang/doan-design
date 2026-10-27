@@ -14,7 +14,7 @@ const commonOf = (root: string) => root === "/other" ? "/other/.git" : "/repo/.g
 
 describe("quick open index", () => {
   it("indexes canvas names, filenames, paths and ids and frame titles and ids", () => {
-    const index = searchIndex([folder("/repo", [canvas("design/settings/billing.html", {
+    const index = searchIndex([folder("/repo", [canvas("doan/settings/billing.html", {
       title: "  Billing & plans  ", id: "payments", frames: [{ id: "card-declined", title: "Payment failed" }],
     })])]);
     expect(index.map((entry) => entry.label)).toEqual(["Billing & plans", "Payment failed"]);
@@ -27,14 +27,14 @@ describe("quick open index", () => {
   });
 
   it("falls back from absent or blank titles to filenames without html", () => {
-    const index = searchIndex([folder("/repo", [canvas("design/foo.html"), canvas("design/foo-bar.html", { title: " \t " })])]);
+    const index = searchIndex([folder("/repo", [canvas("doan/foo.html"), canvas("doan/foo-bar.html", { title: " \t " })])]);
     expect(index.map((entry) => entry.label)).toEqual(["foo", "foo-bar"]);
   });
 
   it("replaces static frames only for the exact open root and canvas, including an empty rendered list", () => {
-    const rows = [canvas("design/a.html", { frames: [{ id: "static" }] }), canvas("design/b.html", { frames: [{ id: "closed" }] })];
+    const rows = [canvas("doan/a.html", { frames: [{ id: "static" }] }), canvas("doan/b.html", { frames: [{ id: "closed" }] })];
     const entries = [folder("/repo", rows), folder("/other", rows)];
-    const rendered = { root: "/repo", path: "design/a.html", frames: [{ id: "live", title: "Live frame" }] };
+    const rendered = { root: "/repo", path: "doan/a.html", frames: [{ id: "live", title: "Live frame" }] };
     const index = searchIndex(entries, rendered);
     expect(index.filter((entry) => entry.kind === "frame").map((entry) => entry.label)).toEqual(["Live frame", "closed", "static", "closed"]);
     expect(searchIndex(entries, { ...rendered, frames: [] }).filter((entry) => entry.kind === "frame").map((entry) => entry.label)).toEqual(["closed", "static", "closed"]);
@@ -44,15 +44,15 @@ describe("quick open index", () => {
     const entries: SearchFolder[] = [
       { path: "/loading", kind: "loading" }, { path: "/missing", kind: "notFound" },
       { path: "/empty", kind: "uninitialized" }, { path: "/error", kind: "error", message: "bad" },
-      { path: "/cli", kind: "cliError", reason: "bad" }, folder("/repo", [canvas("design/a.html")]),
+      { path: "/cli", kind: "cliError", reason: "bad" }, folder("/repo", [canvas("doan/a.html")]),
     ];
     expect(searchIndex(entries).map((entry) => entry.root)).toEqual(["/repo"]);
   });
 
   it("caps frame lists at 1000 while preserving document indexes and duplicate or empty ids", () => {
     const frames = Array.from({ length: 1001 }, (_, index) => ({ id: index < 2 ? "" : "duplicate" }));
-    const entries = [folder("/repo", [canvas("design/a.html", { frames })])];
-    for (const index of [searchIndex(entries), searchIndex(entries, { root: "/repo", path: "design/a.html", frames })]) {
+    const entries = [folder("/repo", [canvas("doan/a.html", { frames })])];
+    for (const index of [searchIndex(entries), searchIndex(entries, { root: "/repo", path: "doan/a.html", frames })]) {
       expect(index).toHaveLength(1001);
       expect(index[1]).toMatchObject({ frameId: "", frameIndex: 0 });
       expect(index[1000]).toMatchObject({ frameId: "duplicate", frameIndex: 999 });
@@ -63,18 +63,18 @@ describe("quick open index", () => {
 describe("quick open matching", () => {
   it("keeps title and frame prefix matches within the cap without matching the design scope", () => {
     const index = searchIndex([folder("/repo", [
-      ...Array.from({ length: 60 }, (_, i) => canvas(`design/screen-${i}.html`, { title: `Screen ${i}` })),
-      canvas("design/settings/billing.html", { title: "Declined", frames: [{ id: "declined" }] }),
+      ...Array.from({ length: 60 }, (_, i) => canvas(`doan/screen-${i}.html`, { title: `Screen ${i}` })),
+      canvas("doan/settings/billing.html", { title: "Declined", frames: [{ id: "declined" }] }),
     ])]);
     const matches = searchMatch(index, "de", "/repo", commonOf);
     expect(matches.map((result) => result.kind)).toEqual(["canvas", "frame"]);
     expect(matches.map((result) => result.label)).toEqual(["Declined", "declined"]);
-    expect(searchMatch(index, "design", "/repo", commonOf)).toEqual([]);
-    expect(searchMatch(index, "settings/billing", "/repo", commonOf)[0]?.path).toBe("design/settings/billing.html");
+    expect(searchMatch(index, "doan", "/repo", commonOf)).toEqual([]);
+    expect(searchMatch(index, "settings/billing", "/repo", commonOf)[0]?.path).toBe("doan/settings/billing.html");
   });
 
   it("matches NFC and NFD queries against normalized canvas and frame fields without changing targets", () => {
-    const path = `design/${"설정/결제".normalize("NFD")}.html`;
+    const path = `doan/${"설정/결제".normalize("NFD")}.html`;
     const frameId = "실패".normalize("NFD");
     const index = searchIndex([folder("/repo", [canvas(path, {
       title: "청구".normalize("NFD"), id: "구독".normalize("NFD"),
@@ -88,12 +88,12 @@ describe("quick open matching", () => {
         if (results[0]?.kind === "frame") expect(results[0].frameId).toBe(frameId);
       }
     }
-    const composed = searchIndex([folder("/repo", [canvas("design/결제.html")])]);
+    const composed = searchIndex([folder("/repo", [canvas("doan/결제.html")])]);
     expect(searchMatch(composed, "결제".normalize("NFD"), null, commonOf)).toHaveLength(1);
   });
 
   it("omits internal fields from results for both empty and nonempty queries", () => {
-    const index = searchIndex([folder("/repo", [canvas("design/card.html", { frames: [{ id: "card" }] })])]);
+    const index = searchIndex([folder("/repo", [canvas("doan/card.html", { frames: [{ id: "card" }] })])]);
     for (const query of ["", "card"]) {
       const results = searchMatch(index, query, null, commonOf);
       expect(results.length).toBeGreaterThan(0);
@@ -103,51 +103,51 @@ describe("quick open matching", () => {
   });
 
   it("matches case-insensitive whitespace tokens with AND across fields", () => {
-    const index = searchIndex([folder("/repo", [canvas("design/settings/card.html", { title: "Billing plans", id: "billing-v2" })])]);
+    const index = searchIndex([folder("/repo", [canvas("doan/settings/card.html", { title: "Billing plans", id: "billing-v2" })])]);
     expect(searchMatch(index, "  BILLING\tsettings\nV2 ", null, commonOf)).toHaveLength(1);
     expect(searchMatch(index, "billing missing", null, commonOf)).toEqual([]);
   });
 
   it("ranks prefix above word-start above substring before root proximity", () => {
     const index = searchIndex([
-      folder("/repo", [canvas("design/a.html", { title: "Discard" })]),
-      folder("/sibling", [canvas("design/b.html", { title: "Payment card" })]),
-      folder("/other", [canvas("design/c.html", { title: "Card payment" })]),
+      folder("/repo", [canvas("doan/a.html", { title: "Discard" })]),
+      folder("/sibling", [canvas("doan/b.html", { title: "Payment card" })]),
+      folder("/other", [canvas("doan/c.html", { title: "Card payment" })]),
     ]);
     expect(searchMatch(index, "card", "/repo", commonOf).map((entry) => entry.root)).toEqual(["/other", "/sibling", "/repo"]);
   });
 
   it("recognizes punctuation and Unicode word boundaries and later stronger matches", () => {
     const index = searchIndex([folder("/repo", [
-      canvas("design/a.html", { title: "Discard/card" }), canvas("design/b.html", { title: "Discard" }),
-      canvas("design/c.html", { title: "결제실패" }), canvas("design/d.html", { title: "결제 실패" }),
+      canvas("doan/a.html", { title: "Discard/card" }), canvas("doan/b.html", { title: "Discard" }),
+      canvas("doan/c.html", { title: "결제실패" }), canvas("doan/d.html", { title: "결제 실패" }),
     ])]);
-    expect(searchMatch(index, "card", null, commonOf).map((entry) => entry.path)).toEqual(["design/a.html", "design/b.html"]);
-    expect(searchMatch(index, "실패", null, commonOf).map((entry) => entry.path)).toEqual(["design/d.html", "design/c.html"]);
+    expect(searchMatch(index, "card", null, commonOf).map((entry) => entry.path)).toEqual(["doan/a.html", "doan/b.html"]);
+    expect(searchMatch(index, "실패", null, commonOf).map((entry) => entry.path)).toEqual(["doan/d.html", "doan/c.html"]);
   });
 
   it("breaks ties by current root, common repo, then other roots with stable saved order", () => {
-    const index = searchIndex([folder("/other", [canvas("design/card.html")]), folder("/sibling", [canvas("design/card.html")]), folder("/repo", [canvas("design/card.html")])]);
+    const index = searchIndex([folder("/other", [canvas("doan/card.html")]), folder("/sibling", [canvas("doan/card.html")]), folder("/repo", [canvas("doan/card.html")])]);
     expect(searchMatch(index, "card", "/repo", commonOf).map((entry) => entry.root)).toEqual(["/repo", "/sibling", "/other"]);
     expect(searchMatch(index, "card", null, commonOf).map((entry) => entry.root)).toEqual(["/other", "/sibling", "/repo"]);
     expect(searchMatch(index, "card", "/repo", () => undefined).map((entry) => entry.root)).toEqual(["/repo", "/other", "/sibling"]);
   });
 
   it("shows only canvases in saved order for empty home or workspace queries and limits to 50", () => {
-    const index = searchIndex([folder("/other", [canvas("design/z.html")]), folder("/repo", Array.from({ length: 60 }, (_, i) => canvas(`design/card-${i}.html`, { frames: [{ id: "card" }] })))]);
+    const index = searchIndex([folder("/other", [canvas("doan/z.html")]), folder("/repo", Array.from({ length: 60 }, (_, i) => canvas(`doan/card-${i}.html`, { frames: [{ id: "card" }] })))]);
     expect(searchMatch(index, " \n ", null, commonOf)).toHaveLength(50);
-    expect(searchMatch(index, "", null, commonOf)[0]?.path).toBe("design/z.html");
+    expect(searchMatch(index, "", null, commonOf)[0]?.path).toBe("doan/z.html");
     const workspace = searchMatch(index, "", "/repo", commonOf);
     expect(workspace).toHaveLength(50);
     expect(workspace.every((entry) => entry.kind === "canvas" && entry.root === "/repo")).toBe(true);
-    expect(workspace[0]?.path).toBe("design/card-0.html");
+    expect(workspace[0]?.path).toBe("doan/card-0.html");
     expect(searchMatch(index, "card", null, commonOf)).toHaveLength(50);
     expect(searchMatch(index, "", "/missing", commonOf)).toEqual([]);
     expect(searchMatch([], "", null, commonOf)).toEqual([]);
   });
 
   it("searches 1000 canvases with 50 frames each within 50ms", () => {
-    const index = searchIndex([folder("/repo", Array.from({ length: 1000 }, (_, i) => canvas(`design/card-${i}.html`, {
+    const index = searchIndex([folder("/repo", Array.from({ length: 1000 }, (_, i) => canvas(`doan/card-${i}.html`, {
       frames: Array.from({ length: 50 }, (_, j) => ({ id: `card-${j}`, title: `Card payment ${j}` })),
     })))]);
     expect(index).toHaveLength(51000);
@@ -163,46 +163,46 @@ describe("quick open matching", () => {
 
   it("retains late higher scores and root priorities at the result cap with stable ties", () => {
     const index = searchIndex([
-      folder("/other", Array.from({ length: 60 }, (_, i) => canvas(`design/screen-${i}.html`, { title: "Discard" }))),
-      folder("/sibling", Array.from({ length: 60 }, (_, i) => canvas(`design/screen-${i}.html`, { title: "Discard" }))),
-      folder("/repo", [canvas("design/current.html", { title: "Discard" })]),
-      folder("/last", [canvas("design/best.html", { title: "Card" })]),
+      folder("/other", Array.from({ length: 60 }, (_, i) => canvas(`doan/screen-${i}.html`, { title: "Discard" }))),
+      folder("/sibling", Array.from({ length: 60 }, (_, i) => canvas(`doan/screen-${i}.html`, { title: "Discard" }))),
+      folder("/repo", [canvas("doan/current.html", { title: "Discard" })]),
+      folder("/last", [canvas("doan/best.html", { title: "Card" })]),
     ]);
     const results = searchMatch(index, "card", "/repo", commonOf);
     expect(results).toHaveLength(50);
-    expect(results.slice(0, 2).map((result) => result.path)).toEqual(["design/best.html", "design/current.html"]);
+    expect(results.slice(0, 2).map((result) => result.path)).toEqual(["doan/best.html", "doan/current.html"]);
     expect(results.slice(2).map((result) => [result.root, result.path])).toEqual(
-      Array.from({ length: 48 }, (_, i) => ["/sibling", `design/screen-${i}.html`]),
+      Array.from({ length: 48 }, (_, i) => ["/sibling", `doan/screen-${i}.html`]),
     );
   });
 });
 
 describe("quick open target", () => {
   it("switches roots before opening, opens different canvases, and jumps within the open canvas", () => {
-    const index = searchIndex([folder("/repo", [canvas("design/a.html", { frames: [{ id: "target" }] })])]);
+    const index = searchIndex([folder("/repo", [canvas("doan/a.html", { frames: [{ id: "target" }] })])]);
     for (const result of index) {
-      expect(pickTarget(result, "/other", "design/a.html")).toBe("switch");
+      expect(pickTarget(result, "/other", "doan/a.html")).toBe("switch");
       expect(pickTarget(result, null, null)).toBe("switch");
-      expect(pickTarget(result, "/repo", "design/b.html")).toBe("open");
+      expect(pickTarget(result, "/repo", "doan/b.html")).toBe("open");
       expect(pickTarget(result, "/repo", null)).toBe("open");
-      expect(pickTarget(result, "/repo", "design/a.html")).toBe("jump");
+      expect(pickTarget(result, "/repo", "doan/a.html")).toBe("jump");
     }
   });
 });
 
 it("uses the tree fallback for blank frame labels", () => {
-  const index = searchIndex([{ kind: "list", path: "/repo", servedRev: 0, canvases: [{ path: "design/a.html", url: "u", open: 0, resolved: 0, frames: [{ id: "", title: "  " }] }] }]);
+  const index = searchIndex([{ kind: "list", path: "/repo", servedRev: 0, canvases: [{ path: "doan/a.html", url: "u", open: 0, resolved: 0, frames: [{ id: "", title: "  " }] }] }]);
   expect(index.find(row => row.kind === "frame")?.label).toBe("(no id)");
 });
 
 it("only calls a canvas missing when its project was successfully listed", () => {
-  expect(unavailableCanvasMessage({ kind: "list", path: "/p", servedRev: 0, canvases: [] }, "design/moved.html")).toBe("moved is no longer in design/");
-  expect(unavailableCanvasMessage({ kind: "loading", path: "/p" }, "design/moved.html")).toBe("Project is still being read. Try Open again shortly.");
-  expect(unavailableCanvasMessage({ kind: "cliError", path: "/p", reason: "failed" }, "design/moved.html")).toBe("Project is unavailable. Check its status on Home and try again.");
-  expect(unavailableCanvasMessage(undefined, "design/moved.html")).toBe("Project is unavailable. Check its status on Home and try again.");
+  expect(unavailableCanvasMessage({ kind: "list", path: "/p", servedRev: 0, canvases: [] }, "doan/moved.html")).toBe("moved is no longer in doan/");
+  expect(unavailableCanvasMessage({ kind: "loading", path: "/p" }, "doan/moved.html")).toBe("Project is still being read. Try Open again shortly.");
+  expect(unavailableCanvasMessage({ kind: "cliError", path: "/p", reason: "failed" }, "doan/moved.html")).toBe("Project is unavailable. Check its status on Home and try again.");
+  expect(unavailableCanvasMessage(undefined, "doan/moved.html")).toBe("Project is unavailable. Check its status on Home and try again.");
 });
 
 it("does not call a still-listed canvas deleted when its captured identity became stale", () => {
-  expect(unavailableCanvasMessage({ kind: "list", path: "/repo", servedRev: 0, canvases: [canvas("design/a.html")] }, "design/a.html"))
+  expect(unavailableCanvasMessage({ kind: "list", path: "/repo", servedRev: 0, canvases: [canvas("doan/a.html")] }, "doan/a.html"))
     .toBe("Canvas changed while opening. Choose it again from the Sidebar or Quick Open.");
 });

@@ -314,11 +314,11 @@ button { border: 0; background: transparent; }
  <ol class="ob-steps" aria-label="Steps"><li><button class="ob-step done" aria-label="CLI, completed" data-doan-id="project-step-done"><span class="num" aria-hidden="true">✓</span>CLI</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step" data-doan-id="project-step-skipped"><span class="num">2</span>Agents</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step" aria-current="step" data-doan-id="project-step-current"><span class="num">3</span>Project</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step"><span class="num">4</span>First prompt</button></li></ol>
  <div class="ob-body"><div class="ob-form">
   <h2 data-doan-id="project-heading">Set up a project</h2>
-  <p class="ob-lead" data-doan-id="project-lead">Choose a repository. doan adds <code>design/</code> for canvases and <code>.doan/</code> for its settings.</p>
+  <p class="ob-lead" data-doan-id="project-lead">Choose a repository. doan adds <code>doan/</code> for canvases and <code>.doan/</code> for its settings.</p>
   <div class="ob-card" data-doan-id="project-form">
    <div class="ob-field" data-doan-id="project-folder"><span class="ob-label">Project</span><span class="value">acme-web <span class="meta">/Users/alex/code/acme-web</span></span><button class="btn" data-doan-id="project-open-again">Open Project…</button></div>
    <div class="ob-field" data-doan-id="project-token"><span class="ob-label">Token CSS</span><span class="value none" data-doan-id="project-token-value">None</span><button class="btn" data-doan-id="project-choose">Choose…</button><span class="ob-helper" data-doan-id="project-token-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
-   <div class="ob-field" data-doan-id="project-changes"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+   <div class="ob-field" data-doan-id="project-changes"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
    <div class="ob-actions"><span class="spacer"></span><button class="btn primary" data-doan-id="project-setup">Set Up Project</button></div>
   </div>
  </div></div>
@@ -333,7 +333,7 @@ button { border: 0; background: transparent; }
   <div class="ob-card"><div class="ob-field"><span class="ob-label">Project</span><span class="value">acme-web <span class="meta">/Users/alex/code/acme-web</span></span><span class="ob-chip ok" data-doan-id="project-t-already">Already set up</span></div></div></div>
  <div><p class="tile-label"><b>CSS file chosen</b> — the absolute path from the sheet. The None helper disappears.</p>
   <div class="ob-card"><div class="ob-field"><span class="ob-label">Token CSS</span><span class="value" data-doan-id="project-t-token">/Users/alex/code/acme-web/packages/design-system/src/styles/tokens/semantic-color-tokens.css</span><button class="btn">Choose…</button></div>
-  <div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+  <div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
   <div class="ob-actions"><span class="spacer"></span><button class="btn primary">Set Up Project</button></div></div></div>
  <div><p class="tile-label"><b>Running</b> — init is running. Choose…, Open Project…, Skip and Close are disabled.</p>
   <div class="ob-card"><div class="ob-field"><span class="ob-label">Token CSS</span><span class="value none">None</span><button class="btn" disabled>Choose…</button><span class="ob-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
@@ -461,17 +461,17 @@ button { border: 0; background: transparent; }
    <div class="row"><span class="glyph">▾</span><span class="g">acme-web</span><span class="close-project">×</span></div>
    <div class="row ind"><span class="glyph">◧</span><span class="g">login.html</span><span class="d">Login</span><span class="cnt">0</span></div>
    <div class="row" data-doan-id="setup-row"><span class="glyph">▾</span><span class="g">new-app</span><span class="cnt">Not initialized</span><span class="close-project">×</span></div>
-   <div class="hint" data-doan-id="setup-hint"><p data-doan-id="setup-hint-text">Set up this project to add design/ and .doan/.</p><div class="recovery"><button class="btn" data-doan-id="setup-button">Set Up…</button></div></div>
+   <div class="hint" data-doan-id="setup-hint"><p data-doan-id="setup-hint-text">Set up this project to add doan/ and .doan/.</p><div class="recovery"><button class="btn" data-doan-id="setup-button">Set Up…</button></div></div>
   </div></div>
  <div><p class="tile-label"><b>Keyboard focus</b> on Set Up… (Tab from the tree reaches the recovery area).</p>
   <div class="side side-spec">
    <div class="row"><span class="glyph">▾</span><span class="g">new-app</span><span class="cnt">Not initialized</span><span class="close-project">×</span></div>
-   <div class="hint"><p>Set up this project to add design/ and .doan/.</p><div class="recovery"><button class="btn focus" data-doan-id="setup-button-focus">Set Up…</button></div></div>
+   <div class="hint"><p>Set up this project to add doan/ and .doan/.</p><div class="recovery"><button class="btn focus" data-doan-id="setup-button-focus">Set Up…</button></div></div>
   </div></div>
  <div><p class="tile-label"><b>Long project name</b> — the name truncates; the hint wraps.</p>
   <div class="side side-spec">
    <div class="row"><span class="glyph">▾</span><span class="g">acme-account-settings-redesign-2026</span><span class="cnt">Not initialized</span><span class="close-project">×</span></div>
-   <div class="hint"><p>Set up this project to add design/ and .doan/.</p><div class="recovery"><button class="btn">Set Up…</button></div></div>
+   <div class="hint"><p>Set up this project to add doan/ and .doan/.</p><div class="recovery"><button class="btn">Set Up…</button></div></div>
   </div></div>
  <div><p class="tile-label"><b>After the dialog closed because of rerooting</b> — the subfolder row was replaced by its set-up root, which takes focus.</p>
   <div class="side side-spec">
@@ -496,7 +496,7 @@ button { border: 0; background: transparent; }
    <p data-doan-id="dialog-path">/Users/alex/code/new-app</p>
    <div class="ob-card" style="width:auto">
     <div class="ob-field"><span class="ob-label">Token CSS</span><span class="value none" data-doan-id="dialog-token">None</span><button class="btn focus" data-doan-id="dialog-choose">Choose…</button><span class="ob-helper" data-doan-id="dialog-token-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
-    <div class="ob-field" style="border-bottom:0"><span class="ob-label">Will add</span><span class="ob-changes" data-doan-id="dialog-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+    <div class="ob-field" style="border-bottom:0"><span class="ob-label">Will add</span><span class="ob-changes" data-doan-id="dialog-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
    </div>
    <div class="ob-buttons" style="margin-top:16px"><button class="btn" data-doan-id="dialog-cancel">Cancel</button><button class="btn primary" data-doan-id="dialog-setup">Set Up Project</button></div>
   </div></div>
@@ -506,7 +506,7 @@ button { border: 0; background: transparent; }
    <p>/Users/alex/code/new-app</p>
    <div class="ob-card" style="width:auto">
     <div class="ob-field"><span class="ob-label">Token CSS</span><span class="value" data-doan-id="dialog-t-token">/Users/alex/code/new-app/src/styles/tokens.css</span><button class="btn">Choose…</button></div>
-    <div class="ob-field" style="border-bottom:0"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+    <div class="ob-field" style="border-bottom:0"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
    </div>
    <div class="ob-buttons" style="margin-top:16px"><button class="btn">Cancel</button><button class="btn primary">Set Up Project</button></div>
   </div></div>
@@ -516,7 +516,7 @@ button { border: 0; background: transparent; }
    <p>/Users/alex/code/new-app</p>
    <div class="ob-card" style="width:auto">
     <div class="ob-field"><span class="ob-label">Token CSS</span><span class="value">/Users/alex/code/new-app/src/styles/tokens.css</span><button class="btn" disabled>Choose…</button></div>
-    <div class="ob-field" style="border-bottom:0"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+    <div class="ob-field" style="border-bottom:0"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
    </div>
    <div class="ob-buttons" style="margin-top:16px"><button class="btn" disabled>Cancel</button><button class="btn primary" disabled data-doan-id="dialog-t-running">Setting Up…</button></div>
   </div></div>

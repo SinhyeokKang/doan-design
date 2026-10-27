@@ -48,7 +48,7 @@ describe("FeedbackPanel states (draft feedback-states)", () => {
   });
 
   test("one canvas whose file failed shows the block inside its group, with no count", () => {
-    const rows = [row("design/a.html", "a", { title: "Cart" }), row("design/b.html", "b", { title: "Checkout" })];
+    const rows = [row("doan/a.html", "a", { title: "Cart" }), row("doan/b.html", "b", { title: "Checkout" })];
     const html = render({ rows, read: list([{ id: "a", open: 1, resolved: 0, toReview: 0, comments: [comment({})] }, { id: "b", error: "Cannot read .doan/comments/b.jsonl: permission denied" }]) });
     expect(html).toContain("Open 1</button>");
     const head = html.indexOf('aria-label="Checkout"');
@@ -70,7 +70,7 @@ describe("FeedbackPanel tree (draft feedback-panel)", () => {
   const frames = [{ id: "hero", title: "Hero" }, { id: "shipping", title: "Shipping" }];
   const wide = comment({}, { body: "Tighten the rhythm.\nSecond line." });
   const cta = comment({ element: { doanId: "hero-cta", selector: '[data-doan-id="hero-cta"]', html: "<button>" }, frame: "hero" });
-  const rows = [row("design/2026-10-checkout-revamp.html", "revamp", { title: "Checkout", frames }), row("design/checkout/checkout.html", "checkout", { title: "Checkout" }), row("design/settings/billing.html", "billing", { title: "Billing & plans" })];
+  const rows = [row("doan/2026-10-checkout-revamp.html", "revamp", { title: "Checkout", frames }), row("doan/checkout/checkout.html", "checkout", { title: "Checkout" }), row("doan/settings/billing.html", "billing", { title: "Billing & plans" })];
   const read = list([
     { id: "revamp", open: 2, resolved: 0, toReview: 1, comments: [wide, cta] },
     { id: "checkout", open: 1, resolved: 0, toReview: 0, comments: [comment({})] },
@@ -97,7 +97,7 @@ describe("FeedbackPanel tree (draft feedback-panel)", () => {
   });
 
   test("a canvas without a valid unique id: counts only", () => {
-    const html = render({ rows: [row("design/bad.html", undefined, { title: "Bad", open: 3, resolved: 1 })], read: list([]) });
+    const html = render({ rows: [row("doan/bad.html", undefined, { title: "Bad", open: 3, resolved: 1 })], read: list([]) });
     expect(html).toContain('<div class="fb-canvas" role="treeitem" aria-level="1" aria-label="Bad" tabindex="0"');
     expect(html).toContain('<p class="fb-count"><b>3 open · 1 resolved.</b> This canvas needs a unique, valid ID — run doan check</p>');
   });

@@ -13,7 +13,7 @@ describe("classifyPick", () => {
   });
 
   test("stores the root the CLI found for a subfolder", () => {
-    expect(classifyPick(facts({ path: "/repo/design", ls: list("/repo") }))).toEqual({ kind: "store", path: "/repo" });
+    expect(classifyPick(facts({ path: "/repo/doan", ls: list("/repo") }))).toEqual({ kind: "store", path: "/repo" });
   });
 
   test("reports a root that is already stored", () => {

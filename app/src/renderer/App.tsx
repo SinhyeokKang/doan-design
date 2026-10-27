@@ -86,7 +86,7 @@ export function App() {
   const entriesRef = useRef(entries); entriesRef.current = entries;
   const shellRef = useRef(shellProjects); shellRef.current = shellProjects;
   // Why the open canvas was closed, shown on its project's Overview until another
-  // canvas opens or the Overview is left (design/revision-continuity.html, duplicate-id).
+  // canvas opens or the Overview is left (doan/revision-continuity.html, duplicate-id).
   const [overviewNotice, setOverviewNotice] = useState<{ root: string; text: string } | null>(null);
   // The saved ui state until the restore is applied, then "done"; null while it is read.
   const [restore, setRestore] = useState<{ state: UiState | null; started: number } | "done" | null>(null);
@@ -133,7 +133,7 @@ export function App() {
       setEntries(next); instance.updateEntries(next); setFoldersSeen(true);
     });
     instance.canvasRemoved = ({ folder, row, duplicates }) => {
-      if (duplicates === null) { live.current.toast.show(`${canvasLabel(row)} was removed from design/`); return; }
+      if (duplicates === null) { live.current.toast.show(`${canvasLabel(row)} was removed from doan/`); return; }
       const text = duplicateIdText(row, duplicates);
       live.current.toast.show(text);
       setOverviewNotice({ root: folder, text });
@@ -228,7 +228,7 @@ export function App() {
       setLoadedRoot(next); setScreen("workspace");
       if (row) controller.current?.openCanvas(next, row);
     });
-    if (plan.missingCanvas) toast.show(`${canvasLabel({ path: plan.missingCanvas, open: 0, resolved: 0, url: "" })} is no longer in design/`);
+    if (plan.missingCanvas) toast.show(`${canvasLabel({ path: plan.missingCanvas, open: 0, resolved: 0, url: "" })} is no longer in doan/`);
     if (plan.duplicateId && listed?.kind === "list") {
       const { id, count } = plan.duplicateId, saved = restore.state.canvas;
       const named = listed.canvases.find(row => row.path === saved && row.id === id) ?? listed.canvases.find(row => row.id === id);

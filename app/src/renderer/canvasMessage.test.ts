@@ -4,7 +4,7 @@ import { MAX_FRAMES, MAX_HREF, MAX_STRING, acceptCanvasMessage, parseCanvasMessa
 const frame = { id: "login", title: "Login", x: 0, y: 10, width: 375, height: 800 };
 const layout = (over: Record<string, unknown> = {}) => ({
   type: "layout",
-  href: "http://127.0.0.1:4000/t/tok/key/design/a.html",
+  href: "http://127.0.0.1:4000/t/tok/key/doan/a.html",
   height: 2400,
   viewport: 150,
   frames: [frame],
@@ -34,7 +34,7 @@ describe("parseCanvasMessage: layout", () => {
   test("accepts a well-formed layout", () => {
     expect(parseCanvasMessage(layout())).toEqual({
       type: "layout",
-      href: "http://127.0.0.1:4000/t/tok/key/design/a.html",
+      href: "http://127.0.0.1:4000/t/tok/key/doan/a.html",
       height: 2400,
       viewport: 150,
       frames: [frame],
@@ -292,7 +292,7 @@ describe("acceptCanvasMessage", () => {
   });
 });
 
-const HREF = "http://127.0.0.1:4000/t/tok/key/design/a.html";
+const HREF = "http://127.0.0.1:4000/t/tok/key/doan/a.html";
 const rect = { x: 10, y: -20, width: 60.5, height: 0 };
 const target = (over: Record<string, unknown> = {}) => ({
   rect,

@@ -41,7 +41,7 @@ func expectJSON(t *testing.T, name string, got any, want string) {
 	}
 }
 
-const fooRow = `{"path":"design/a.html","id":"foo","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}]`
+const fooRow = `{"path":"doan/a.html","id":"foo","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}]`
 
 // Commands that read the unreadable file keep failing as a whole (spec: out of scope).
 func expectWholeFailures(t *testing.T, root string, commands ...[]string) {
@@ -59,7 +59,7 @@ var (
 
 func TestListUnreadableCommentFile(t *testing.T) {
 	root := initialized(t)
-	putFile(t, root, "design/a.html", validCanvas)
+	putFile(t, root, "doan/a.html", validCanvas)
 	putFile(t, root, ".doan/comments/foo.jsonl", createLine(cmt1, "1", validCanvas)+"\n")
 	unreadable(t, root, ".doan/comments/foo.jsonl")
 	got := result(t, root, 0, "ls")
@@ -69,33 +69,33 @@ func TestListUnreadableCommentFile(t *testing.T) {
 }
 func TestListUnreadableCanvas(t *testing.T) {
 	root := initialized(t)
-	putFile(t, root, "design/a.html", validCanvas)
+	putFile(t, root, "doan/a.html", validCanvas)
 	bee := strings.Replace(validCanvas, `content="foo"`, `content="bee"`, 1)
-	putFile(t, root, "design/b.html", bee)
+	putFile(t, root, "doan/b.html", bee)
 	putFile(t, root, ".doan/comments/bee.jsonl", createLine(cmt2, "2", bee)+"\n")
 	putFile(t, root, ".doan/comments/foo.jsonl", createLine(cmt1, "1", validCanvas)+"\n")
-	unreadable(t, root, "design/a.html")
+	unreadable(t, root, "doan/a.html")
 	got := result(t, root, 0, "ls")
 	expectJSON(t, "canvases", got["canvases"], `[
-		{"path":"design/a.html","frames":[],"error":{"code":"unreadable_canvas","message":"Cannot read design/a.html: permission denied"}},
-		{"path":"design/b.html","id":"bee","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}],"comments":{"open":1,"resolved":0}}]`)
+		{"path":"doan/a.html","frames":[],"error":{"code":"unreadable_canvas","message":"Cannot read doan/a.html: permission denied"}},
+		{"path":"doan/b.html","id":"bee","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}],"comments":{"open":1,"resolved":0}}]`)
 	// The unreadable canvas may own foo.jsonl, so the orphan is uncertain.
 	expectJSON(t, "orphans", got["orphans"], `[{"id":"foo","file":".doan/comments/foo.jsonl","comments":{"open":1,"resolved":0},"uncertain":true}]`)
 	expectWholeFailures(t, root, commentsCommand, checkCommand)
 }
 func TestListUnreadableCanvasAndCommentFile(t *testing.T) {
 	root := initialized(t)
-	putFile(t, root, "design/a.html", validCanvas)
+	putFile(t, root, "doan/a.html", validCanvas)
 	putFile(t, root, ".doan/comments/foo.jsonl", createLine(cmt1, "1", validCanvas)+"\n")
-	unreadable(t, root, "design/a.html")
+	unreadable(t, root, "doan/a.html")
 	unreadable(t, root, ".doan/comments/foo.jsonl")
 	got := result(t, root, 0, "ls")
-	expectJSON(t, "canvases", got["canvases"], `[{"path":"design/a.html","frames":[],"error":{"code":"unreadable_canvas","message":"Cannot read design/a.html: permission denied"}}]`)
+	expectJSON(t, "canvases", got["canvases"], `[{"path":"doan/a.html","frames":[],"error":{"code":"unreadable_canvas","message":"Cannot read doan/a.html: permission denied"}}]`)
 	expectJSON(t, "orphans", got["orphans"], `[{"id":"foo","file":".doan/comments/foo.jsonl","error":{"code":"unreadable_comments","message":"Cannot read .doan/comments/foo.jsonl: permission denied"},"uncertain":true}]`)
 }
 func TestListUnreadableOrphan(t *testing.T) {
 	root := initialized(t)
-	putFile(t, root, "design/a.html", validCanvas)
+	putFile(t, root, "doan/a.html", validCanvas)
 	putFile(t, root, ".doan/comments/foo.jsonl", createLine(cmt1, "1", validCanvas)+"\n")
 	putFile(t, root, ".doan/comments/gone.jsonl", createLine(cmt2, "2", validCanvas)+"\n")
 	unreadable(t, root, ".doan/comments/gone.jsonl")
@@ -108,9 +108,9 @@ func TestListOrphans(t *testing.T) {
 	upper := strings.Replace(validCanvas, `content="foo"`, `content="Upper"`, 1)
 	dup := strings.Replace(validCanvas, "</head>", `<meta name="doan:canvas" content="other"></head>`, 1)
 	dup = strings.Replace(dup, `content="foo"`, `content="dup"`, 1)
-	putFile(t, root, "design/a.html", validCanvas)
-	putFile(t, root, "design/dup.html", dup)
-	putFile(t, root, "design/upper.html", upper)
+	putFile(t, root, "doan/a.html", validCanvas)
+	putFile(t, root, "doan/dup.html", dup)
+	putFile(t, root, "doan/upper.html", upper)
 	putFile(t, root, ".doan/comments/foo.jsonl", createLine(cmt1, "1", validCanvas)+"\n")
 	putFile(t, root, ".doan/comments/Upper.jsonl", createLine(cmt1, "1", upper)+"\n")
 	putFile(t, root, ".doan/comments/dup.jsonl", createLine(cmt1, "1", dup)+"\n")
@@ -130,14 +130,14 @@ func TestListOrphans(t *testing.T) {
 		{"id":"junk","file":".doan/comments/junk.jsonl","comments":{"open":0,"resolved":0},"uncertain":%s}]`
 	expectJSON(t, "orphans", got["orphans"], strings.ReplaceAll(orphans, "%s", "false"))
 	// A canvas that does not parse has an unknown id, so every orphan becomes uncertain.
-	putFile(t, root, "design/z.html", validCanvas+strings.Repeat("<div>", 600))
+	putFile(t, root, "doan/z.html", validCanvas+strings.Repeat("<div>", 600))
 	got = result(t, root, 0, "ls")
-	expectJSON(t, "unparsable row", got["canvases"].([]any)[3], `{"path":"design/z.html","frames":[],"comments":{"open":0,"resolved":0}}`)
+	expectJSON(t, "unparsable row", got["canvases"].([]any)[3], `{"path":"doan/z.html","frames":[],"comments":{"open":0,"resolved":0}}`)
 	expectJSON(t, "orphans", got["orphans"], strings.ReplaceAll(orphans, "%s", "true"))
 }
 func TestListOrphansWithoutCommentDirectory(t *testing.T) {
 	root := initialized(t)
-	putFile(t, root, "design/a.html", validCanvas)
+	putFile(t, root, "doan/a.html", validCanvas)
 	expectJSON(t, "orphans", result(t, root, 0, "ls")["orphans"], `[]`)
 	outside := t.TempDir()
 	putFile(t, outside, "gone.jsonl", createLine(cmt1, "1", validCanvas)+"\n")
@@ -147,10 +147,10 @@ func TestListOrphansWithoutCommentDirectory(t *testing.T) {
 	expectJSON(t, "linked directory", result(t, root, 0, "ls")["orphans"], `[]`)
 }
 func TestListEnumerationFailuresStayWhole(t *testing.T) {
-	for _, dir := range []string{".doan/comments", "design/sub"} {
+	for _, dir := range []string{".doan/comments", "doan/sub"} {
 		t.Run(dir, func(t *testing.T) {
 			root := initialized(t)
-			putFile(t, root, "design/a.html", validCanvas)
+			putFile(t, root, "doan/a.html", validCanvas)
 			putFile(t, root, dir+"/x.html", validCanvas)
 			unreadable(t, root, dir)
 			failure(t, root, "internal_error", "ls")

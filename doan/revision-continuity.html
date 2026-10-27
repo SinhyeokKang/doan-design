@@ -6,7 +6,7 @@
 <meta name="doan:width" content="1440">
 <title>Revision continuity — draft</title>
 <link rel="stylesheet" href="../app/src/renderer/tokens.css">
-<link rel="stylesheet" href="mock.css">
+<link rel="stylesheet" href="assets/mock.css">
 <style>
 /* Shipped rules copied from app/src/renderer/styles.css (shell, top bar, tree rows, canvas area, Canvas info, Activity, Comments panel, toast, Overview). */
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -130,7 +130,7 @@ code, kbd { font-family: var(--font-sans); }
 /* The shipped focus ring (button:focus-visible, treeitem:focus-visible), drawn statically. */
 .focus { outline: 1px solid var(--accent-line); outline-offset: -1px; }
 
-/* Board layout (draft only), as in design/design-nav.html. */
+/* Board layout (draft only), as in doan/design-nav.html. */
 body { width: 1440px; padding: 48px; background: var(--board-bg); }
 /* The app gets these from Tailwind preflight, which the draft does not load. */
 button { border: 0; background: transparent; }
@@ -169,7 +169,7 @@ button { border: 0; background: transparent; }
 .nspec .comments-panel { border-left: 1px solid var(--line); }
 .strip { width: 640px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); position: relative; }
 
-/* Mock canvas (design/mock.css colors), as in design/design-nav.html. */
+/* Mock canvas (doan/assets/mock.css colors), as in doan/design-nav.html. */
 .mframe { position: absolute; background: var(--mock-bg); color: var(--mock-ink); box-shadow: var(--shadow-1); overflow: hidden; }
 .ftag { position: absolute; font: 10.5px var(--font-sans); color: var(--text-3); white-space: nowrap; }
 .mframe.z { width: 634px; height: 396px; }
@@ -203,7 +203,7 @@ button { border: 0; background: transparent; }
 <p><b>/design-sync</b> compares the new elements in <code>continue-draft</code>, <code>selection-gone</code> and <code>duplicate-id</code> (feature design 'Draft request'). <code>moved</code> and <code>no-document</code> show shipped screens with one new row or one removed badge; their checks are the feature's tests. Copy that the feature documents do not give is labelled “draft copy” in the frame label and listed in the handoff; the implementation matches it.</p>
 <p><b>Confirmed with the conductor</b> (2026-10-25): a duplicate ID returns to the Overview as today; the sentence appears both in a toast and in a <code>.canvas-notice</code> band (<code>role="status"</code>) at the top of the Overview; at restart the same sentence takes the place of the shipped restore toast, with the same band. When the band goes away is not in the feature documents; this draft proposes “when another canvas opens or the Overview is left”.</p>
 <p><b>References.</b> Sorcerer, Orca, Claude Design, ego-browser and Storybook were not checked for this draft: every element is either a shipped doan pattern (toast, canvas notice, composer helper, Activity row) or copy fixed in spec.md. Nothing is recalled from another tool.</p>
-<p><b>Example data.</b> Repository acme-web on main. Canvas “Checkout”, ID <code>checkout</code>, 1440 px, frames Shipping, Payment, Review. The draft comment by alex reads “The address label reads as optional. Mark the required fields and keep the hint under the input.” The agent moves <code>design/checkout.html</code> to <code>design/flows/checkout.html</code>.</p>
+<p><b>Example data.</b> Repository acme-web on main. Canvas “Checkout”, ID <code>checkout</code>, 1440 px, frames Shipping, Payment, Review. The draft comment by alex reads “The address label reads as optional. Mark the required fields and keep the hint under the input.” The agent moves <code>doan/checkout.html</code> to <code>doan/flows/checkout.html</code>.</p>
 </header>
 
 <!-- ===================================================== continue-draft -->
@@ -402,7 +402,7 @@ Could the estimate move under the postal code field, and the long note shrink to
 <!-- ===================================================== moved -->
 <section class="frame" data-doan-frame="moved" data-doan-title="Follow a moved canvas" data-doan-implements="app/src/renderer/RightPanel.tsx">
 <div class="flabel"><h2>Follow a moved canvas</h2><span class="nic">new: Activity “Moved · from …”</span><span class="nic">draft copy: Moved row layout</span></div>
-<p class="note">The agent moved <code>design/checkout.html</code> to <code>design/flows/checkout.html</code>; exactly one canvas has the ID <code>checkout</code>, and no comment request, card change or delete confirmation is open. The app keeps Checkout open: no toast, no Overview. Zoom and position, tree expansion, the focused tree row and the Comments scope and status filters stay. The new ancestor folder <code>flows</code> expands. Path in Canvas info is the new path, and <code>doan active</code> returns it. With a selection, the selection is found again and the Inspector stays in place of Canvas info (shipped reanchor). If a request, card change or delete confirmation were open, the shipped “Checkout was removed from design/” toast and Overview would follow instead.</p>
+<p class="note">The agent moved <code>doan/checkout.html</code> to <code>doan/flows/checkout.html</code>; exactly one canvas has the ID <code>checkout</code>, and no comment request, card change or delete confirmation is open. The app keeps Checkout open: no toast, no Overview. Zoom and position, tree expansion, the focused tree row and the Comments scope and status filters stay. The new ancestor folder <code>flows</code> expands. Path in Canvas info is the new path, and <code>doan active</code> returns it. With a selection, the selection is found again and the Inspector stays in place of Canvas info (shipped reanchor). If a request, card change or delete confirmation were open, the shipped “Checkout was removed from doan/” toast and Overview would follow instead.</p>
 
 <div class="states-head">Before — tree specimen</div>
 <div class="pair">
@@ -462,7 +462,7 @@ Could the estimate move under the postal code field, and the long note shrink to
  <div class="right-stack">
   <aside class="right native-scroll" role="region" aria-label="Canvas info">
    <h2 class="phead">Canvas</h2>
-   <div class="isec"><dl class="kv" data-doan-id="mv-info"><dt>Path</dt><dd>design/flows/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440</dd><dt>Frames</dt><dd>3</dd></dl></div>
+   <div class="isec"><dl class="kv" data-doan-id="mv-info"><dt>Path</dt><dd>doan/flows/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440</dd><dt>Frames</dt><dd>3</dd></dl></div>
    <div class="isec"><h3 class="ihead">Comments</h3><dl class="kv"><dt>Open</dt><dd class="accent">2</dd><dt>Resolved</dt><dd>0</dd></dl></div>
    <section class="isec activity" aria-label="Activity"><h3 class="ihead">Activity</h3><ol>
     <li class="tl-row" data-doan-id="mv-activity"><time>14:12:40</time><b>Moved</b><span class="from">· from checkout.html</span></li>
@@ -504,7 +504,7 @@ Could the estimate move under the postal code field, and the long note shrink to
   <div class="ocards">
    <div class="ocard"><div class="thumb"><div class="mini"><i></i><u></u></div></div><div class="ocard-body"><span class="ocard-title">Design tokens</span><span class="ocard-file">tokens.html</span><span class="ocard-meta">1440 · 6 frames</span></div></div>
   </div>
-  <div class="sec">design/flows <span class="r">3</span></div>
+  <div class="sec">doan/flows <span class="r">3</span></div>
   <div class="ocards">
    <div class="ocard"><div class="thumb"><div class="mini"><i></i><u></u></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">checkout.html</span><span class="ocard-meta">1440 · 3 frames · <span class="hot">2 open</span></span></div></div>
    <div class="ocard"><div class="thumb"><div class="mini"><i></i><u></u></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">checkout-copy.html</span><span class="ocard-meta">1440 · 3 frames · <span class="hot">2 open</span></span></div></div>
@@ -520,11 +520,11 @@ Could the estimate move under the postal code field, and the long note shrink to
 <div class="states-head">Restart and long values</div>
 <div class="pair">
  <div>
-  <p class="tile-label"><b>Restart.</b> The saved <code>canvasId</code> matches two canvases: the Overview opens with the same band, and the same sentence takes the place of the shipped restore toast (“… is no longer in design/”).</p>
+  <p class="tile-label"><b>Restart.</b> The saved <code>canvasId</code> matches two canvases: the Overview opens with the same band, and the same sentence takes the place of the shipped restore toast (“… is no longer in doan/”).</p>
   <div class="strip" style="height:340px" data-doan-id="dup-restart">
    <div class="ov" style="position:absolute;inset:0">
     <div class="canvas-notice" role="status">Checkout moved, but 2 canvases now use the ID checkout. Run doan check in a terminal.</div>
-    <div class="sec">design/flows <span class="r">3</span></div>
+    <div class="sec">doan/flows <span class="r">3</span></div>
     <div class="ocards">
      <div class="ocard"><div class="thumb"><div class="mini"><i></i><u></u></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">checkout.html</span><span class="ocard-meta">1440 · 3 frames · <span class="hot">2 open</span></span></div></div>
      <div class="ocard"><div class="thumb"><div class="mini"><i></i><u></u></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">checkout-copy.html</span><span class="ocard-meta">1440 · 3 frames · <span class="hot">2 open</span></span></div></div>

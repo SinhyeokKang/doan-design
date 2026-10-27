@@ -6,9 +6,9 @@
 <meta name="doan:width" content="1440">
 <title>Project feedback — draft</title>
 <link rel="stylesheet" href="../app/src/renderer/tokens.css">
-<link rel="stylesheet" href="mock.css">
+<link rel="stylesheet" href="assets/mock.css">
 <style>
-/* Copied from design/design-nav.html, whose rules match the shipped app/src/renderer/styles.css (shell, top bar, sidebar rows, canvas area, right panel, tree, Overview). */
+/* Copied from doan/design-nav.html, whose rules match the shipped app/src/renderer/styles.css (shell, top bar, sidebar rows, canvas area, right panel, tree, Overview). */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; }
 button { cursor: pointer; font: inherit; color: inherit; }
@@ -152,7 +152,7 @@ code, kbd { font-family: var(--font-sans); }
 .tooltip { position: relative; width: fit-content; max-width: 420px; background: var(--text); color: var(--bg); border-radius: 6px; padding: 6px 12px; font-size: 12px; line-height: 1.5; }
 .tooltip::after { content: ""; position: absolute; left: 24px; top: -4px; width: 10px; height: 10px; background: var(--text); transform: rotate(45deg); border-radius: 2px; }
 
-/* Board layout (draft only), as in design/projects-home.html. */
+/* Board layout (draft only), as in doan/projects-home.html. */
 body { width: 1440px; padding: 48px; background: var(--board-bg); }
 /* The app gets these from Tailwind preflight, which the draft does not load. */
 button { border: 0; background: transparent; }
@@ -247,7 +247,7 @@ button { border: 0; background: transparent; }
 .shot.grid .c { left: 6%; right: 54%; }
 .shot.grid .c + .c { left: 54%; right: 6%; }
 
-/* Mock canvas inside the workspace specimens (the design a human reviews; colors from design/mock.css). */
+/* Mock canvas inside the workspace specimens (the design a human reviews; colors from doan/assets/mock.css). */
 .mframe { position: absolute; background: var(--mock-bg); color: var(--mock-ink); box-shadow: var(--shadow-1); overflow: hidden; }
 .ftag { position: absolute; font: 10.5px var(--font-sans); color: var(--text-3); white-space: nowrap; }
 .mnav { height: 34px; border-bottom: 1px solid var(--mock-line); display: flex; align-items: center; gap: 14px; padding: 0 16px; font-size: 10.5px; color: var(--mock-ink-2); }
@@ -269,7 +269,7 @@ button { border: 0; background: transparent; }
 .mpage .mbtn { height: 56px; border-radius: 12px; font-size: 20px; }
 
 /* Shipped Comments panel and right stack, copied from app/src/renderer/styles.css. */
-/* Presentation values from design/comments-ui.html; integration owns the panel split. */
+/* Presentation values from doan/comments-ui.html; integration owns the panel split. */
 .comments-panel { width: 100%; min-width: 0; min-height: 0; overflow: auto; background: var(--panel); overflow-wrap: anywhere; }
 .comments-head { padding: 12px; border-bottom: 1px solid var(--line-2); }
 .comments-head h3 { font-size: 12px; font-weight: 700; margin-bottom: 10px; }
@@ -454,11 +454,11 @@ button { border: 0; background: transparent; }
 <h1>Project feedback — draft</h1>
 <p><b>Scope.</b> Feature <code>project-feedback</code> (docs/features/project-feedback/spec.md and design.md, draft request of 2026-10-25). With the Overview shown, the right column becomes the <b>Feedback</b> panel: every comment of the project grouped by canvas and frame, with “Comments without a canvas” first. Comment files whose canvas id no longer exists (orphans) get cards there that can be resolved, reopened and deleted. A canvas whose id just changed tells its Comments panel where its comments went. A file <code>doan ls</code> cannot read turns into a warning on that tree row instead of a project-wide “Config error”. The Home row summary adds “· 3 without a canvas”.</p>
 <p><b>New.</b> <code>feedback-panel</code>, <code>feedback-states</code> and <code>orphan-cards</code> are new surfaces (FeedbackPanel.tsx does not exist yet, so they carry no data-doan-implements); <code>/design-sync</code> compares the main specimen and every labelled tile of these three. <code>id-change-notice</code>, <code>tree-errors</code> and <code>home-summary</code> add to shipped screens: only the elements marked “new” there are new; the rest is copied for context and is already measured in docs/DESIGN.md.</p>
-<p><b>Copied from shipped screens.</b> Window 1238 × 780, top bar 40, columns 240 / rest / 280, the tree rows and hints, the Overview and its cards, the empty Overview with the first prompt, the right column and Canvas info, the Comments head, segments, cards, messages, Git name block and delete dialog, the Home card and row, and the focus ring come from app/src/renderer/styles.css, App.tsx, Sidebar.tsx, ProjectOverview.tsx, FirstPrompt.tsx, RightPanel.tsx, CommentsPanel.tsx and Home.tsx, with the measured values in docs/DESIGN.md (App shell, Comments, Projects home, Design navigation, app-setup). The CSS below is copied from design/design-nav.html (shell and Overview) and styles.css (Comments, first prompt), then the confirmed link 1–4 drafts; the new rules are under “New”.</p>
-<p><b>After links 1–4.</b> project-feedback is implemented last, so the shipped screens here show the result of the four confirmed drafts (design/revision-continuity.html, comments-readability.html, revision-recheck.html, agent-handoff.html), not today's main: the sticky Comments title outside the head, the head tools “Hand off…” and “Comment on canvas” / “Comment on selection”, the empty texts and the Git name sentence, Canvas info without COMMENTS and with the hint above Activity, and the one-line card target in targetLabel form (<code>comments-readability</code>); “Handed off 3 · 14:02:10” inline next to Hand off… (<code>agent-handoff</code>); the review notice, the bottom label “Opened 14:02” / “Changed 14:20” on the panel colour and “N resolved to review” on Home rows and Overview cards, and the “Resolved by …” line on resolved orphan cards (<code>revision-recheck</code>). Those looks are owned by those drafts; the CSS is copied under “Links 1–4”.</p>
+<p><b>Copied from shipped screens.</b> Window 1238 × 780, top bar 40, columns 240 / rest / 280, the tree rows and hints, the Overview and its cards, the empty Overview with the first prompt, the right column and Canvas info, the Comments head, segments, cards, messages, Git name block and delete dialog, the Home card and row, and the focus ring come from app/src/renderer/styles.css, App.tsx, Sidebar.tsx, ProjectOverview.tsx, FirstPrompt.tsx, RightPanel.tsx, CommentsPanel.tsx and Home.tsx, with the measured values in docs/DESIGN.md (App shell, Comments, Projects home, Design navigation, app-setup). The CSS below is copied from doan/design-nav.html (shell and Overview) and styles.css (Comments, first prompt), then the confirmed link 1–4 drafts; the new rules are under “New”.</p>
+<p><b>After links 1–4.</b> project-feedback is implemented last, so the shipped screens here show the result of the four confirmed drafts (doan/revision-continuity.html, comments-readability.html, revision-recheck.html, agent-handoff.html), not today's main: the sticky Comments title outside the head, the head tools “Hand off…” and “Comment on canvas” / “Comment on selection”, the empty texts and the Git name sentence, Canvas info without COMMENTS and with the hint above Activity, and the one-line card target in targetLabel form (<code>comments-readability</code>); “Handed off 3 · 14:02:10” inline next to Hand off… (<code>agent-handoff</code>); the review notice, the bottom label “Opened 14:02” / “Changed 14:20” on the panel colour and “N resolved to review” on Home rows and Overview cards, and the “Resolved by …” line on resolved orphan cards (<code>revision-recheck</code>). Those looks are owned by those drafts; the CSS is copied under “Links 1–4”.</p>
 <p><b>Draft copy</b> (not given by the feature documents; the implementation matches it, listed in the handoff): the panel title “Feedback”; counts on the Open/Resolved segments as in Comments; group counts; the non-kebab row “Not a canvas ID — doan can't show or change these comments.”; “Details ▸ / ▾” on tree errors and in the Comments read failure.</p>
 <p><b>References.</b> Grouped, collapsible comment lists by file with a count per group follow the VS Code Comments panel and Problems panel — <b>recalled from memory, not checked</b>. Everything else is doan's own shipped tree (Sidebar.tsx role="tree") and Comments card. Sorcerer, Orca, Claude Design, ego-browser and Storybook were not checked for this draft.</p>
-<p><b>Example data.</b> User Kim Doe (git user.name). Repository acme-web, main checkout at ~/code/acme-web, linked worktree feat-billing. <code>design/</code> holds 2026-10-checkout-revamp.html (title “Checkout”, id <code>checkout-revamp</code>), tokens.html, checkout/{cart, checkout, legacy-checkout}.html and settings/{billing, profile}.html. Two canvases are titled “Checkout”, so both show their file name in Feedback. The agent changed checkout.html's id from <code>checkout-v1</code> to <code>checkout</code>, leaving <code>.doan/comments/checkout-v1.jsonl</code> without a canvas; a deleted canvas left <code>promo-banner.jsonl</code>.</p>
+<p><b>Example data.</b> User Kim Doe (git user.name). Repository acme-web, main checkout at ~/code/acme-web, linked worktree feat-billing. <code>doan/</code> holds 2026-10-checkout-revamp.html (title “Checkout”, id <code>checkout-revamp</code>), tokens.html, checkout/{cart, checkout, legacy-checkout}.html and settings/{billing, profile}.html. Two canvases are titled “Checkout”, so both show their file name in Feedback. The agent changed checkout.html's id from <code>checkout-v1</code> to <code>checkout</code>, leaving <code>.doan/comments/checkout-v1.jsonl</code> without a canvas; a deleted canvas left <code>promo-banner.jsonl</code>.</p>
 </header>
 
 <!-- ===================================================== feedback-panel -->
@@ -486,23 +486,23 @@ button { border: 0; background: transparent; }
   </div>
  </aside>
  <main class="ov" aria-label="Overview">
-  <section aria-label="design">
+  <section aria-label="doan">
    <div class="sec">design <span class="r">2</span></div>
    <div class="ocards">
     <button class="ocard"><div class="thumb"><div class="shot grid" role="img" aria-label="Preview"><span class="n"></span><span class="c"></span><span class="c"></span></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">2026-10-checkout-revamp.html</span><span class="ocard-meta rr-wrap" data-doan-id="fp-card-review"><span>4 frames</span> · <span class="hot">2 open</span> · <span class="rr-review">1 resolved to review</span> · <span>1h ago</span></span></div></button>
     <button class="ocard"><div class="thumb"><p class="thumb-msg">Preview needs a valid <code>doan:width</code> — run doan check</p></div><div class="ocard-body"><span class="ocard-title">Design tokens</span><span class="ocard-file">tokens.html</span><span class="ocard-meta">3 frames · Oct 12</span></div></button>
    </div>
   </section>
-  <section aria-label="design/checkout">
-   <div class="sec">design/checkout <span class="r">3</span></div>
+  <section aria-label="doan/checkout">
+   <div class="sec">doan/checkout <span class="r">3</span></div>
    <div class="ocards">
     <button class="ocard"><div class="thumb pending"></div><div class="ocard-body"><span class="ocard-title">Cart</span><span class="ocard-file">cart.html</span><span class="ocard-meta">2 frames · 3h ago</span></div></button>
     <button class="ocard"><div class="thumb"><div class="shot" role="img" aria-label="Preview"><span class="n"></span><span class="c"></span><span class="l" style="top:34%"></span><span class="l" style="top:46%"></span><span class="b" style="top:62%"></span></div></div><div class="ocard-body"><span class="ocard-title">Checkout</span><span class="ocard-file">checkout.html</span><span class="ocard-meta">6 frames · <span class="hot">4 open</span> · 2h ago</span></div></button>
     <button class="ocard"><div class="thumb"><div class="shot" role="img" aria-label="Preview"><span class="n"></span><span class="c"></span><span class="l" style="top:40%"></span></div></div><div class="ocard-body"><span class="ocard-title">legacy-checkout</span><span class="ocard-file">legacy-checkout.html</span><span class="ocard-meta">2 frames · Yesterday</span></div></button>
    </div>
   </section>
-  <section aria-label="design/settings">
-   <div class="sec">design/settings <span class="r">2</span></div>
+  <section aria-label="doan/settings">
+   <div class="sec">doan/settings <span class="r">2</span></div>
    <div class="ocards">
     <button class="ocard"><div class="thumb"><div class="shot" role="img" aria-label="Preview"><span class="n"></span><span class="c"></span><span class="l" style="top:32%"></span><span class="b" style="top:70%"></span></div></div><div class="ocard-body"><span class="ocard-title">Billing &amp; plans</span><span class="ocard-file">billing.html</span><span class="ocard-meta rr-wrap"><span>5 frames</span> · <span class="hot">2 open</span> · <span class="rr-review">1 resolved to review</span> · <span>5m ago</span></span></div></button>
     <button class="ocard"><div class="thumb"><p class="thumb-msg">Preview unavailable</p></div><div class="ocard-body"><span class="ocard-title">Profile</span><span class="ocard-file">profile.html</span><span class="ocard-meta">2 frames · 6d ago</span></div></button>
@@ -621,7 +621,7 @@ button { border: 0; background: transparent; }
 </div>
 
 <h3 class="states-head">Only comments without a canvas</h3>
-<p class="note">billing-api has no canvas left in <code>design/</code>, but <code>.doan/comments/invoice.jsonl</code> still has comments. The center is the shipped empty Overview (“No canvases in design/ yet” with the first prompt); Feedback shows only the “Comments without a canvas” group, expanded, with its file group and cards (cards as in <code>orphan-cards</code>).</p>
+<p class="note">billing-api has no canvas left in <code>doan/</code>, but <code>.doan/comments/invoice.jsonl</code> still has comments. The center is the shipped empty Overview (“No canvases in doan/ yet” with the first prompt); Feedback shows only the “Comments without a canvas” group, expanded, with its file group and cards (cards as in <code>orphan-cards</code>).</p>
 <div class="win ws" data-doan-id="fs-orphan-window">
  <div class="top"><div class="lights"><i></i><i></i><i></i></div><button class="back" aria-label="Go Home">←</button><span class="divider" aria-hidden="true"></span>
   <nav class="crumbs" aria-label="Location"><button class="repo" aria-label="billing-api overview">billing-api</button><span class="sep" aria-hidden="true">›</span><button class="branch" aria-label="Switch worktree" disabled><span class="glyph" aria-hidden="true">⎇</span><span class="bn">main</span><span class="caret" aria-hidden="true">▾</span></button></nav>
@@ -632,7 +632,7 @@ button { border: 0; background: transparent; }
  </aside>
  <main class="ov" aria-label="Overview">
   <div class="empty">
-   <b>No canvases in design/ yet</b>
+   <b>No canvases in doan/ yet</b>
    <div class="fp-card"><div class="ob-prompt">
     <div class="fp-field"><div class="fp-labelrow"><label class="fp-label">What do you want to design?</label></div><input class="fp-input" type="text" placeholder="a sign-in screen with SSO"></div>
     <p class="ob-sentence">Use the doan skill to make a design canvas in /Users/kim/code/billing-api for <mark class="slot">&lt;what you want to design&gt;</mark>.</p>
@@ -847,7 +847,7 @@ Say so in the placeholder.</p>
  <div class="right-stack">
   <aside class="right native-scroll" role="region" aria-label="Canvas info">
    <h2 class="phead">Canvas</h2>
-   <div class="isec"><dl class="kv"><dt>Path</dt><dd>design/checkout/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>2</dd></dl></div>
+   <div class="isec"><dl class="kv"><dt>Path</dt><dd>doan/checkout/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>2</dd></dl></div>
    <p class="pempty">Click an element or frame to inspect or comment on it.</p>
    <section class="isec activity" aria-label="Activity"><h3 class="ihead">Activity</h3><ol><li class="tl-row"><time>14:20:41</time><b>Changed</b></li><li class="tl-row"><time>14:02:10</time><b>Opened</b></li></ol></section>
   </aside>
@@ -899,7 +899,7 @@ Say so in the placeholder.</p>
 <!-- ===================================================== tree-errors -->
 <section class="frame" data-doan-frame="tree-errors" data-doan-title="Tree rows with read errors" data-doan-implements="app/src/renderer/Sidebar.tsx">
 <div class="flabel"><h2>Tree — read errors</h2><span class="nic">new: warning mark, sentence, Details; Comments Details; Overview card sentence</span><span class="nic">draft copy: “Details”</span></div>
-<p class="note">Main specimen: <code>doan ls</code> succeeded, but it could not read <code>.doan/comments/checkout.jsonl</code> (the row has <code>commentsError</code>) nor <code>design/checkout/legacy-checkout.html</code> (the row has <code>error</code>). The tree stays. Each of those rows shows a <code>--warn</code> “⚠” in place of the comment count and, under the row, the fixed sentence with Details; the row's <code>aria-describedby</code> points at the sentence. Details (<code>aria-expanded</code>, a Tab stop under the row) shows the raw <code>message</code> — a repo-relative path and the kind of failure, never an absolute path. Checkout is open: Canvas info and the canvas still work, and only its Comments panel shows “Couldn’t read comments”, with Retry and Details.</p>
+<p class="note">Main specimen: <code>doan ls</code> succeeded, but it could not read <code>.doan/comments/checkout.jsonl</code> (the row has <code>commentsError</code>) nor <code>doan/checkout/legacy-checkout.html</code> (the row has <code>error</code>). The tree stays. Each of those rows shows a <code>--warn</code> “⚠” in place of the comment count and, under the row, the fixed sentence with Details; the row's <code>aria-describedby</code> points at the sentence. Details (<code>aria-expanded</code>, a Tab stop under the row) shows the raw <code>message</code> — a repo-relative path and the kind of failure, never an absolute path. Checkout is open: Canvas info and the canvas still work, and only its Comments panel shows “Couldn’t read comments”, with Retry and Details.</p>
 <div class="win ws" data-doan-id="te-window">
  <div class="top"><div class="lights"><i></i><i></i><i></i></div><button class="back" aria-label="Go Home">←</button><span class="divider" aria-hidden="true"></span>
   <nav class="crumbs" aria-label="Location"><button class="repo" aria-label="acme-web overview">acme-web</button><span class="sep" aria-hidden="true">›</span><button class="branch" aria-label="Switch worktree"><span class="glyph" aria-hidden="true">⎇</span><span class="bn">main</span><span class="caret" aria-hidden="true">▾</span></button><span class="sep" aria-hidden="true">›</span><span class="canvas">Checkout</span></nav>
@@ -919,7 +919,7 @@ Say so in the placeholder.</p>
    <div role="none">
     <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" aria-describedby="te-canvas-hint" tabindex="-1" data-doan-id="te-row-canvas"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">legacy-checkout</span><span class="d">legacy-checkout.html</span></span><span class="warn-mark" aria-hidden="true">⚠</span></div>
     <p class="tree-hint warn" id="te-canvas-hint" data-doan-id="te-canvas-hint">Can't read this canvas — run doan check<br><button class="btn" aria-expanded="true">Details ▾</button></p>
-    <p class="tree-detail" data-doan-id="te-canvas-detail">unreadable_canvas: design/checkout/legacy-checkout.html: permission denied</p>
+    <p class="tree-detail" data-doan-id="te-canvas-detail">unreadable_canvas: doan/checkout/legacy-checkout.html: permission denied</p>
    </div>
    <div class="row folder" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="g">settings</span></div>
    <div class="row cv" role="treeitem" aria-level="1" aria-expanded="false" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">Checkout</span><span class="d">2026-10-checkout-revamp.html</span></span><span class="cnt hot">2</span></div>
@@ -937,7 +937,7 @@ Say so in the placeholder.</p>
  <div class="right-stack">
   <aside class="right native-scroll" role="region" aria-label="Canvas info">
    <h2 class="phead">Canvas</h2>
-   <div class="isec"><dl class="kv"><dt>Path</dt><dd>design/checkout/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>2</dd></dl></div>
+   <div class="isec"><dl class="kv"><dt>Path</dt><dd>doan/checkout/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>2</dd></dl></div>
    <p class="pempty">Click an element or frame to inspect or comment on it.</p>
    <section class="isec activity" aria-label="Activity"><h3 class="ihead">Activity</h3><ol><li class="tl-row"><time>14:02:10</time><b>Opened</b></li></ol></section>
   </aside>
@@ -960,7 +960,7 @@ Say so in the placeholder.</p>
   <div class="side spec" data-doan-id="te-spec-canvas">
    <div class="row cv l2" role="treeitem" aria-level="2" aria-expanded="false" aria-describedby="te-s2" tabindex="-1"><span class="tw" aria-hidden="true">▸</span><span class="glyph" aria-hidden="true">◧</span><span class="two"><span class="g">legacy-checkout</span><span class="d">legacy-checkout.html</span></span><span class="warn-mark" aria-hidden="true">⚠</span></div>
    <p class="tree-hint warn" id="te-s2">Can't read this canvas — run doan check<br><button class="btn" aria-expanded="true">Details ▾</button></p>
-   <p class="tree-detail">unreadable_canvas: design/checkout/legacy-checkout.html: permission denied</p>
+   <p class="tree-detail">unreadable_canvas: doan/checkout/legacy-checkout.html: permission denied</p>
   </div></div>
  <div><p class="tile-label"><b>Root-level canvas</b> — the sentence is indented one level less, as the shipped hint follows its row's level.</p>
   <div class="side spec" data-doan-id="te-spec-root">

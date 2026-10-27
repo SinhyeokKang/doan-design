@@ -35,8 +35,8 @@ function dir(): string {
 function writeRepo(root: string, config = '{"v":1}'): string {
   mkdirSync(join(root, ".doan"), { recursive: true });
   writeFileSync(join(root, ".doan", "config.json"), config);
-  mkdirSync(join(root, "design"), { recursive: true });
-  writeFileSync(join(root, "design", "a.html"), "<!doctype html><title>A</title>");
+  mkdirSync(join(root, "doan"), { recursive: true });
+  writeFileSync(join(root, "doan", "a.html"), "<!doctype html><title>A</title>");
   return root;
 }
 
@@ -69,7 +69,7 @@ describe("opening a picked folder", () => {
   test("a subfolder of a broken repo is refused with the CLI's message", async () => {
     const root = writeRepo(dir(), "{");
     const { shell, foldersFile } = await start();
-    const opened = await shell.open(join(root, "design"));
+    const opened = await shell.open(join(root, "doan"));
     expect(opened).toEqual({ refused: expect.stringContaining("Cannot read config") });
     expect(shell.entries()).toEqual([]);
     expect(saved(foldersFile)).toEqual([]);
@@ -146,7 +146,7 @@ describe("shell races", () => {
   test("the same root opened twice at once is one folder", async () => {
     const root = writeRepo(dir());
     const { shell, foldersFile } = await start();
-    expect(await Promise.all([shell.open(root), shell.open(join(root, "design"))])).toEqual([{ root }, { root }]);
+    expect(await Promise.all([shell.open(root), shell.open(join(root, "doan"))])).toEqual([{ root }, { root }]);
     expect(shell.entries().map((entry) => entry.path)).toEqual([root]);
     expect(saved(foldersFile)).toEqual([root]);
   });
@@ -183,10 +183,10 @@ describe("shell races", () => {
     // An already stored folder still resolves to its root, so a caller can show it.
     expect(await shell.open(root)).toEqual({ root });
     await vi.waitFor(() => expect(latest(changes)).toEqual([expect.objectContaining({ path: root, kind: "list" })]), until);
-    writeFileSync(join(root, "design", "b.html"), "<!doctype html><title>B</title>");
+    writeFileSync(join(root, "doan", "b.html"), "<!doctype html><title>B</title>");
     await vi.waitFor(() => {
       const [entry] = latest(changes);
-      expect(entry?.kind === "list" && entry.canvases.map((canvas) => canvas.path)).toEqual(["design/a.html", "design/b.html"]);
+      expect(entry?.kind === "list" && entry.canvases.map((canvas) => canvas.path)).toEqual(["doan/a.html", "doan/b.html"]);
     }, until);
   });
 });
@@ -275,13 +275,13 @@ async function opened(root: string, cliPath = cli, onEntries?: (entries: FolderE
 }
 
 describe("served revision", () => {
-  test("a non-canvas design/ change publishes the new list together with the bump", async () => {
+  test("a non-canvas doan/ change publishes the new list together with the bump", async () => {
     const root = servedRepo({});
     const { changes, rev0 } = await opened(root);
-    writeFileSync(join(root, "design", "b.html"), "<!doctype html><title>B</title>");
-    writeFileSync(join(root, "design", "b.css"), "b{}");
-    await vi.waitFor(() => expect(has(listed(latest(changes), root), "design/b.html")).toBe(true), until);
-    const first = changes.map((entries) => listed(entries, root)).find((entry) => has(entry, "design/b.html"));
+    writeFileSync(join(root, "doan", "b.html"), "<!doctype html><title>B</title>");
+    writeFileSync(join(root, "doan", "b.css"), "b{}");
+    await vi.waitFor(() => expect(has(listed(latest(changes), root), "doan/b.html")).toBe(true), until);
+    const first = changes.map((entries) => listed(entries, root)).find((entry) => has(entry, "doan/b.html"));
     expect(first?.servedRev).toBe(rev0 + 1);
     await sleep(500);
     expect(rev(changes, root)).toBe(rev0 + 1);
@@ -290,7 +290,7 @@ describe("served revision", () => {
   test("scope is the listed serving scope, and empty for a root that is not open", async () => {
     const root = servedRepo({ tokenCss: "styles/tokens.css", serve: ["assets"] });
     const { shell } = await opened(root);
-    expect(shell.scope(root)).toEqual(["assets", "design", "styles/tokens.css"]);
+    expect(shell.scope(root)).toEqual(["assets", "doan", "styles/tokens.css"]);
     expect(shell.scope(join(root, "nope"))).toEqual([]);
   });
 
@@ -354,7 +354,7 @@ describe("served revision", () => {
       const entry = listed(entries, root);
       if (entry === undefined || entry.servedRev === last) return;
       last = entry.servedRev;
-      const url = entry.canvases[0]?.url.replace(/design\/a\.html$/, "assets/x.css");
+      const url = entry.canvases[0]?.url.replace(/doan\/a\.html$/, "assets/x.css");
       if (url) fetched.push(fetch(url).then((response) => response.status));
     });
     fetched.length = 0;
@@ -367,43 +367,43 @@ describe("served revision", () => {
     const root = servedRepo({ serve: ["assets"] });
     const { changes, rev0 } = await opened(root);
     for (let i = 0; i < 4; i++) {
-      writeFileSync(join(root, "design", `b${i}.html`), "<!doctype html>");
-      writeFileSync(join(root, "design", `b${i}.css`), "b{}");
+      writeFileSync(join(root, "doan", `b${i}.html`), "<!doctype html>");
+      writeFileSync(join(root, "doan", `b${i}.css`), "b{}");
       await sleep(40);
     }
-    await vi.waitFor(() => expect(has(listed(latest(changes), root), "design/b3.html")).toBe(true), until);
+    await vi.waitFor(() => expect(has(listed(latest(changes), root), "doan/b3.html")).toBe(true), until);
     await sleep(500);
     expect(rev(changes, root)).toBe(rev0 + 1);
   });
 
-  test("design/ and a serve file changing together end in one read and one bump", async () => {
+  test("doan/ and a serve file changing together end in one read and one bump", async () => {
     const counting = countingCli();
     const root = servedRepo({ serve: ["assets"] });
     const { changes, rev0 } = await opened(root, counting.path);
     const reads = counting.reads();
-    writeFileSync(join(root, "design", "b.html"), "<!doctype html>");
+    writeFileSync(join(root, "doan", "b.html"), "<!doctype html>");
     writeFileSync(join(root, "assets", "x.css"), "y{}");
-    await vi.waitFor(() => expect(has(listed(latest(changes), root), "design/b.html")).toBe(true), until);
+    await vi.waitFor(() => expect(has(listed(latest(changes), root), "doan/b.html")).toBe(true), until);
     await sleep(500);
     expect(rev(changes, root)).toBe(rev0 + 1);
     expect(counting.reads()).toBe(reads + 1);
   });
 
-  test("a serve change while a design/ read is running keeps its bump", async () => {
+  test("a serve change while a doan/ read is running keeps its bump", async () => {
     const counting = countingCli();
     const root = servedRepo({ serve: ["assets"] });
     const { changes, rev0 } = await opened(root, counting.path);
     const reads = counting.reads();
     writeFileSync(counting.hold, "");
-    writeFileSync(join(root, "design", "b.html"), "<!doctype html>");
-    writeFileSync(join(root, "design", "b.css"), "b{}");
+    writeFileSync(join(root, "doan", "b.html"), "<!doctype html>");
+    writeFileSync(join(root, "doan", "b.css"), "b{}");
     await vi.waitFor(() => expect(counting.reads()).toBe(reads + 1), until);
     writeFileSync(join(root, "assets", "x.css"), "y{}");
     // Past the debounce, so the serve change is queued behind the running read.
     await sleep(400);
     unlinkSync(counting.hold);
     await vi.waitFor(() => expect(rev(changes, root)).toBe(rev0 + 2), until);
-    const first = changes.map((entries) => listed(entries, root)).find((entry) => has(entry, "design/b.html"));
+    const first = changes.map((entries) => listed(entries, root)).find((entry) => has(entry, "doan/b.html"));
     expect(first?.servedRev).toBe(rev0 + 1);
   });
 
@@ -413,47 +413,47 @@ describe("served revision", () => {
     const { shell, changes, rev0 } = await opened(root, counting.path);
     const reads = counting.reads();
     writeFileSync(counting.hold, "");
-    writeFileSync(join(root, "design", "b.html"), "<!doctype html>");
-    writeFileSync(join(root, "design", "b.css"), "b{}");
+    writeFileSync(join(root, "doan", "b.html"), "<!doctype html>");
+    writeFileSync(join(root, "doan", "b.css"), "b{}");
     await vi.waitFor(() => expect(counting.reads()).toBe(reads + 1), until);
     // Re-opening starts a newer read, so the watcher's read is discarded.
     await shell.open(root);
     await vi.waitFor(() => expect(counting.reads()).toBe(reads + 2), until);
     unlinkSync(counting.hold);
-    await vi.waitFor(() => expect(has(listed(latest(changes), root), "design/b.html")).toBe(true), until);
+    await vi.waitFor(() => expect(has(listed(latest(changes), root), "doan/b.html")).toBe(true), until);
     await sleep(500);
     expect(rev(changes, root)).toBe(rev0 + 1);
     // Only the discarded watcher read saw the name; the re-open read had none.
-    expect(rowRev(changes, root, "design/b.html")).toBeGreaterThanOrEqual(1);
+    expect(rowRev(changes, root, "doan/b.html")).toBeGreaterThanOrEqual(1);
   });
 
   // Another canvas's save must not reload the open one (revision-continuity Q1).
   test.each<[string, (root: string) => void]>([
-    ["a plain write", (root) => writeFileSync(join(root, "design", "b.html"), "<!doctype html><title>B2</title>")],
+    ["a plain write", (root) => writeFileSync(join(root, "doan", "b.html"), "<!doctype html><title>B2</title>")],
     ["a save through a temporary sibling", (root) => {
-      writeFileSync(join(root, "design", "b.html.tmp.4242.0123456789ab"), "<!doctype html><title>B2</title>");
-      renameSync(join(root, "design", "b.html.tmp.4242.0123456789ab"), join(root, "design", "b.html"));
+      writeFileSync(join(root, "doan", "b.html.tmp.4242.0123456789ab"), "<!doctype html><title>B2</title>");
+      renameSync(join(root, "doan", "b.html.tmp.4242.0123456789ab"), join(root, "doan", "b.html"));
     }],
   ])("a canvas change by %s moves only that row's revision", async (_label, change) => {
     const root = servedRepo({});
-    writeFileSync(join(root, "design", "b.html"), "<!doctype html><title>B</title>");
+    writeFileSync(join(root, "doan", "b.html"), "<!doctype html><title>B</title>");
     const { changes, rev0 } = await opened(root);
-    const a = rowRev(changes, root, "design/a.html");
-    const b = rowRev(changes, root, "design/b.html") ?? 0;
+    const a = rowRev(changes, root, "doan/a.html");
+    const b = rowRev(changes, root, "doan/b.html") ?? 0;
     change(root);
-    await vi.waitFor(() => expect(rowRev(changes, root, "design/b.html")).toBeGreaterThan(b), until);
+    await vi.waitFor(() => expect(rowRev(changes, root, "doan/b.html")).toBeGreaterThan(b), until);
     await sleep(500);
     expect(rev(changes, root)).toBe(rev0);
-    expect(rowRev(changes, root, "design/a.html")).toBe(a);
+    expect(rowRev(changes, root, "doan/a.html")).toBe(a);
   });
 
-  test("a non-canvas file under design/ bumps", async () => {
+  test("a non-canvas file under doan/ bumps", async () => {
     const root = servedRepo({});
     const { changes, rev0 } = await opened(root);
-    const a = rowRev(changes, root, "design/a.html");
-    writeFileSync(join(root, "design", "style.css"), "a{}");
+    const a = rowRev(changes, root, "doan/a.html");
+    writeFileSync(join(root, "doan", "style.css"), "a{}");
     await vi.waitFor(() => expect(rev(changes, root)).toBe(rev0 + 1), until);
-    expect(rowRev(changes, root, "design/a.html")).toBe(a);
+    expect(rowRev(changes, root, "doan/a.html")).toBe(a);
   });
 
   // The served path's own watcher dies with it; the re-arm reports the change.
@@ -482,8 +482,8 @@ describe("reopening stored folders", () => {
     const kind = state === "restored" ? "list" : state === "missing" ? "notFound" : "uninitialized";
     await vi.waitFor(() => expect(shell.entries()[0]?.kind).toBe(kind), until);
     if (state === "restored") {
-      writeFileSync(join(root, "design", "b.html"), "<!doctype html>");
-      await vi.waitFor(() => expect(has(listed(latest(changes), root), "design/b.html")).toBe(true), until);
+      writeFileSync(join(root, "doan", "b.html"), "<!doctype html>");
+      await vi.waitFor(() => expect(has(listed(latest(changes), root), "doan/b.html")).toBe(true), until);
     }
   });
 
@@ -521,8 +521,8 @@ describe("reopening stored folders", () => {
     await vi.waitFor(() => expect(shell.entries()[0]?.kind).toBe("list"), until);
     await sleep(500);
     const reads = counting.reads();
-    writeFileSync(join(root, "design", "b.html"), "<!doctype html>");
-    await vi.waitFor(() => expect(has(listed(latest(changes), root), "design/b.html")).toBe(true), until);
+    writeFileSync(join(root, "doan", "b.html"), "<!doctype html>");
+    await vi.waitFor(() => expect(has(listed(latest(changes), root), "doan/b.html")).toBe(true), until);
     await sleep(500);
     expect(counting.reads()).toBe(reads + 1);
   });
@@ -578,8 +578,8 @@ describe("project setup and upward refresh", () => {
     await vi.waitFor(() => expect(listed(shell.entries(), root)).toBeDefined(), until);
     const entry = listed(shell.entries(), root);
     expect(await fetch(entry?.canvases[0]?.url ?? "").then(r => r.status)).toBe(200);
-    writeFileSync(join(root, "design", "b.html"), "<!doctype html><title>B</title>");
-    await vi.waitFor(() => expect(has(listed(shell.entries(), root), "design/b.html")).toBe(true), until);
+    writeFileSync(join(root, "doan", "b.html"), "<!doctype html><title>B</title>");
+    await vi.waitFor(() => expect(has(listed(shell.entries(), root), "doan/b.html")).toBe(true), until);
     expect(shell.epoch(sub)).toBeNull();
   });
 
@@ -653,14 +653,14 @@ describe("project setup and upward refresh", () => {
 describe("canvas mtimes", () => {
   test("a canvas deleted between doan ls and the stat has no value", async () => {
     const root = writeRepo(dir());
-    const mtimes = await canvasMtimes(root, ["design/a.html", "design/gone.html"]);
-    expect(mtimes.get("design/a.html")).toBeTypeOf("number");
-    expect(mtimes.has("design/gone.html")).toBe(false);
+    const mtimes = await canvasMtimes(root, ["doan/a.html", "doan/gone.html"]);
+    expect(mtimes.get("doan/a.html")).toBeTypeOf("number");
+    expect(mtimes.has("doan/gone.html")).toBe(false);
   });
 
   test("list entries carry each canvas mtime and the newest as changedAt", async () => {
     const root = writeRepo(dir());
-    writeFileSync(join(root, "design", "b.html"), "<!doctype html><title>B</title>");
+    writeFileSync(join(root, "doan", "b.html"), "<!doctype html><title>B</title>");
     const { shell } = await opened(root);
     const entry = listed(shell.entries(), root);
     const times = entry?.canvases.map((canvas) => canvas.mtimeMs) ?? [];
@@ -679,7 +679,7 @@ function gitCli(): { path: string; mode: (value: string) => void } {
   writeFileSync(modeFile, "git");
   writeFileSync(path, `#!/bin/sh
 if [ "$(cat '${modeFile}')" = git ]; then
-  printf '{"v":1,"ok":true,"result":{"root":"%s","scope":["design"],"canvases":[],"git":{"common":"/c/.git","branch":"main","worktrees":["%s"]}}}\\n' "$4" "$4"
+  printf '{"v":1,"ok":true,"result":{"root":"%s","scope":["doan"],"canvases":[],"git":{"common":"/c/.git","branch":"main","worktrees":["%s"]}}}\\n' "$4" "$4"
   exit 0
 fi
 echo '{"v":1,"ok":false,"error":{"code":"invalid_config","message":"bad config","nextSteps":[]}}'

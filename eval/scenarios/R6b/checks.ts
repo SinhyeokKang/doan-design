@@ -7,7 +7,7 @@ import { clean, element, inspect, reviewState, text } from "../R1/inspect.ts";
 const REJECTED = ["save", "save changes"];
 
 const checks: Checks = ctx => {
-  const doc = inspect(ctx, ctx.read("design/profile.html") ?? "");
+  const doc = inspect(ctx, ctx.read("doan/profile.html") ?? "");
   const label = text(element(doc, "save"));
   const changed = ctx.changedFiles();
   return [
@@ -15,7 +15,7 @@ const checks: Checks = ctx => {
     { id: "rejected_label_replaced", pass: !REJECTED.includes(label.toLowerCase()) && label.split(" ").length >= 2, detail: `save label: ${label}` },
     { id: "other_labels_unchanged", pass: text(element(doc, "heading")) === "Your profile" && text(element(doc, "cancel")) === "Cancel", detail: "heading and Cancel retain their original labels" },
     ...reviewState(ctx, "profile", ["cmt_00000000-0000-4000-8000-000000000001"]),
-    { id: "scope_preserved", pass: changed.every(p => p === "design/profile.html" || p === ".doan/comments/profile.jsonl"), detail: `changed: ${changed.join(", ")}` },
+    { id: "scope_preserved", pass: changed.every(p => p === "doan/profile.html" || p === ".doan/comments/profile.jsonl"), detail: `changed: ${changed.join(", ")}` },
   ];
 };
 export default checks;

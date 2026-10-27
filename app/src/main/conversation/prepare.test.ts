@@ -13,7 +13,7 @@ function temp() { const root = realpathSync(mkdtempSync(join(tmpdir(), "doan-pre
 it("fails closed with a missing installed CLI despite the SDK platform dependency", async () => {
   const root = temp(); mocks.probe.mockResolvedValue({ ok: true, path: root });
   const prepare = createPrepare(root, join(root, "runtime.json"), { HOME: root });
-  await expect(prepare({ root, mode: "new", runtime: "claude", canvas: { path: "design/a.html" }, text: "hello", anchors: [] })).rejects.toThrow("cli_missing");
+  await expect(prepare({ root, mode: "new", runtime: "claude", canvas: { path: "doan/a.html" }, text: "hello", anchors: [] })).rejects.toThrow("cli_missing");
   expect(mocks.run).not.toHaveBeenCalled();
 });
 it("uses selected canonical profile and fails unknown versions before opening", async () => {
@@ -28,7 +28,7 @@ it("uses selected canonical profile and fails unknown versions before opening", 
 it("refuses a Codex resume preview with a record but no verifiable stored session", async () => {
   const root = temp(); writeFileSync(join(root, "codex"), "fake", { mode: 0o700 });
   mocks.probe.mockResolvedValue({ ok: true, path: root, codexHome: root }); mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.163.0" });
-  const canvas = { id: "a", path: "design/a.html" };
+  const canvas = { id: "a", path: "doan/a.html" };
   writeFileSync(join(root, "sessions.jsonl"), JSON.stringify({ v: 1, at: "2026-10-27T00:00:00.000Z", root, canvas, hash: "sha256:" + "a".repeat(64), runtime: "codex", sessionId: "01a178ba-f9dc-7161-9544-f20f656064a1", configDir: root, cwd: root }) + "\n");
   const prepare = createPrepare(root, join(root, "runtime.json"), { HOME: root });
   await expect(prepare({ root, mode: "resume", canvas, text: "", anchors: [] })).rejects.toThrow("session_unavailable");

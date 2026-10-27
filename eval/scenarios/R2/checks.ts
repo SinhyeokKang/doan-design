@@ -3,7 +3,7 @@ import type { Checks } from "../../lib/types.ts";
 import { clean, element, hasToken, inspect, styles } from "./inspect.ts";
 
 const checks: Checks = ctx => {
-  const path = "design/checkout.html";
+  const path = "doan/checkout.html";
   const doc = inspect(ctx, ctx.read(path) ?? "");
   const seed = inspect(ctx, ctx.seed(path) ?? "");
   const cta = element(doc, "secondary");

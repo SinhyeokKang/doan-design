@@ -3,12 +3,12 @@
   "at": "2026-10-27T01:02:03.004",
   "root": "/work/project",
   "canvas": {
-    "path": "design/home.html",
+    "path": "doan/home.html",
     "id": "home"
   },
   "hash": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
   "runtime": "claude",
   "sessionId": "session_123-abc",
-  "cwd": "/work/project/design",
+  "cwd": "/work/project/doan",
   "configDir": "/profiles/.claude"
 }

@@ -88,7 +88,7 @@ func TestInitRejectsInvalidAbsoluteTokenWithoutWrites(t *testing.T) {
 				token = root
 			}
 			failure(t, root, "usage_error", "init", "--token-css", token)
-			for _, p := range []string{".doan", "design", ".gitattributes"} {
+			for _, p := range []string{".doan", "doan", ".gitattributes"} {
 				if _, err := os.Lstat(filepath.Join(root, p)); !os.IsNotExist(err) {
 					t.Fatalf("unexpected write %s: %v", p, err)
 				}

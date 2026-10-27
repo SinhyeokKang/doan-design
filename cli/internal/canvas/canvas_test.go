@@ -50,9 +50,9 @@ func TestScanCSS(t *testing.T) {
 }
 
 func TestParseMetadata(t *testing.T) {
-	c := mustParse(t, "design/a.html", []byte(`<head><meta Name="DOAN:CANVAS" content=" foo"><meta name="doan:canvas" content="bar"><meta name="doan:width" content="2400"><meta name="doan:width" content="5"><title> \t A
+	c := mustParse(t, "doan/a.html", []byte(`<head><meta Name="DOAN:CANVAS" content=" foo"><meta name="doan:canvas" content="bar"><meta name="doan:width" content="2400"><meta name="doan:width" content="5"><title> \t A
  B `+"\uFEFF"+` </title><title>ignored</title></head>`))
-	if c.Path != "design/a.html" || c.ID != " foo" || !c.HasID || !c.IDDup || c.Width != 2400 || !c.WidthDup || c.Title != "\\t A B \uFEFF" {
+	if c.Path != "doan/a.html" || c.ID != " foo" || !c.HasID || !c.IDDup || c.Width != 2400 || !c.WidthDup || c.Title != "\\t A B \uFEFF" {
 		t.Fatalf("%+v", c)
 	}
 	for _, raw := range []string{"0", "012", "1.5", " 375", "375px", "+1", "99999999999999999999", ""} {
@@ -126,8 +126,8 @@ func mustParse(t *testing.T, path string, data []byte) Canvas {
 	return c
 }
 func TestParseReportsDepthLimit(t *testing.T) {
-	_, err := Parse("design/deep.html", []byte(strings.Repeat("<div>", 600)))
-	if err == nil || !strings.Contains(err.Error(), "design/deep.html") {
+	_, err := Parse("doan/deep.html", []byte(strings.Repeat("<div>", 600)))
+	if err == nil || !strings.Contains(err.Error(), "doan/deep.html") {
 		t.Fatalf("expected parser error with path, got %v", err)
 	}
 }

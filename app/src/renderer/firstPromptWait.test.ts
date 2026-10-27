@@ -68,7 +68,7 @@ test('explicit arrival Open distinguishes a missing canvas from an unavailable r
     open();
     expect(h.openCanvas).not.toHaveBeenCalled();
     expect(h.toast.mock.lastCall?.[0]).toBe(entry?.kind === 'list'
-      ? 'new is no longer in design/'
+      ? 'new is no longer in doan/'
       : entry?.kind === 'loading' ? 'Project is still being read. Try Open again shortly.'
       : 'Project is unavailable. Check its status on Home and try again.');
   }

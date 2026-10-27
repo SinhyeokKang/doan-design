@@ -348,7 +348,7 @@ function fakeCanvas(options: { readyState?: string; height?: number; scrollHeigh
   };
   const context: Record<string, unknown> = {
     parent,
-    location: { href: "http://127.0.0.1:4000/t/tok/key/design/a.html", assign: (url: string) => assigned.push(url) },
+    location: { href: "http://127.0.0.1:4000/t/tok/key/doan/a.html", assign: (url: string) => assigned.push(url) },
     innerHeight: 150,
     scrollX: 0,
     scrollY: 40,
@@ -432,7 +432,7 @@ describe("canvasScriptSource", () => {
     canvas.ready();
     expect(canvas.posted).toEqual([
       {
-        message: { type: "layout", document: expect.any(String), href: "http://127.0.0.1:4000/t/tok/key/design/a.html", height: 900, viewport: 150, frames: [], truncated: false },
+        message: { type: "layout", document: expect.any(String), href: "http://127.0.0.1:4000/t/tok/key/doan/a.html", height: 900, viewport: 150, frames: [], truncated: false },
         origin: "*",
       },
     ]);
@@ -631,7 +631,7 @@ function input(fields: Partial<Omit<FakeEvent, "prevented" | "stopped" | "preven
 
 const messages = (canvas: { posted: unknown[] }) => canvas.posted.map((post) => (post as { message: Record<string, unknown> }).message);
 const ofType = (canvas: { posted: unknown[] }, type: string) => messages(canvas).filter((message) => message.type === type);
-const HREF = "http://127.0.0.1:4000/t/tok/key/design/a.html";
+const HREF = "http://127.0.0.1:4000/t/tok/key/doan/a.html";
 
 // body > main > section[data-doan-frame=hero] > form > button[data-doan-id=cta] > span
 function heroCanvas() {

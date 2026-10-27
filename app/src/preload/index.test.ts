@@ -80,7 +80,7 @@ test("unsubscribes view commands", () => {
 });
 
 test("sends the selection to main on its dedicated IPC channel", async () => {
-  const selection = { root: "/repo", canvas: { path: "design/a.html" } };
+  const selection = { root: "/repo", canvas: { path: "doan/a.html" } };
   await api.setSelection(selection);
   await api.setSelection(null);
   expect(mocks.invoke).toHaveBeenNthCalledWith(1, "selection:set", selection);
@@ -94,7 +94,7 @@ test("asks main for inspector rows on its dedicated IPC channel", async () => {
 });
 
 test("exposes narrow comment methods and removes only its subscriptions", async () => {
-  const request = { root: "/repo", path: "design/a.html", canvas: "a", requestID: "read" };
+  const request = { root: "/repo", path: "doan/a.html", canvas: "a", requestID: "read" };
   await api.commentsList(request);
   await api.commentsStatus(request);
   await api.commentsAuthor(request);
@@ -187,14 +187,14 @@ test("ui state is read and saved on fixed channels", async () => {
 
 test("thumbnails are asked for on a fixed channel and their changes are a subscription", async () => {
   mocks.invoke.mockResolvedValueOnce({ kind: "pending" });
-  expect(await api.getThumbnail("/repo", "design/a.html", true)).toEqual({ kind: "pending" });
-  expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith("thumbnails:get", { root: "/repo", path: "design/a.html", visible: true });
+  expect(await api.getThumbnail("/repo", "doan/a.html", true)).toEqual({ kind: "pending" });
+  expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith("thumbnails:get", { root: "/repo", path: "doan/a.html", visible: true });
   const listener = vi.fn();
   const stop = api.onThumbnailChanged(listener);
-  emitter.emit("thumbnails:changed", {}, { root: "/repo", path: "design/a.html" });
+  emitter.emit("thumbnails:changed", {}, { root: "/repo", path: "doan/a.html" });
   stop();
-  emitter.emit("thumbnails:changed", {}, { root: "/repo", path: "design/b.html" });
-  expect(listener.mock.calls).toEqual([[{ root: "/repo", path: "design/a.html" }]]);
+  emitter.emit("thumbnails:changed", {}, { root: "/repo", path: "doan/b.html" });
+  expect(listener.mock.calls).toEqual([[{ root: "/repo", path: "doan/a.html" }]]);
   expect(emitter.listenerCount("thumbnails:changed")).toBe(0);
 });
 
@@ -245,11 +245,11 @@ test("a scan watch takes the reply when it is newer than any event, and nothing 
 
 
 test("thumbnail visibility uses its fixed channel in both directions", async () => {
-  await api.setThumbnailVisibility("/repo", "design/a.html", false);
-  await api.setThumbnailVisibility("/repo", "design/b.html", true);
+  await api.setThumbnailVisibility("/repo", "doan/a.html", false);
+  await api.setThumbnailVisibility("/repo", "doan/b.html", true);
   expect(mocks.invoke.mock.calls).toEqual([
-    ["thumbnails:visible", { root: "/repo", path: "design/a.html", visible: false }],
-    ["thumbnails:visible", { root: "/repo", path: "design/b.html", visible: true }],
+    ["thumbnails:visible", { root: "/repo", path: "doan/a.html", visible: false }],
+    ["thumbnails:visible", { root: "/repo", path: "doan/b.html", visible: true }],
   ]);
 });
 

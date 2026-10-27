@@ -67,7 +67,7 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
     setFollowed(moved);
     if (moved?.root === root) setFocused(key => movedKey(key, moved.from, moved.to));
   }
-  const nodes = buildCanvasTree(canvases).flatMap(node => node.kind === "folder" && node.key === "design" ? node.children : [node]);
+  const nodes = buildCanvasTree(canvases).flatMap(node => node.kind === "folder" && node.key === "doan" ? node.children : [node]);
   const defaults: string[] = [];
   const folders = (nodes: TreeNode[]) => { for (const node of nodes) if (node.kind === "folder") { defaults.push(node.key); folders(node.children); } };
   folders(nodes);
@@ -209,7 +209,7 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
         </div>;
         const empty = node.kind === "canvas" && !node.row.error && row.expanded && !(opened === node.key && state.layout ? state.layout.frames.length : node.row.frames?.length);
         return <div key={row.key} role="none">
-          {node.kind === "canvas" ? <Tooltip><TooltipTrigger asChild>{content}</TooltipTrigger><TooltipContent>{node.row.path.replace(/^design\//, "")}</TooltipContent></Tooltip> : content}
+          {node.kind === "canvas" ? <Tooltip><TooltipTrigger asChild>{content}</TooltipTrigger><TooltipContent>{node.row.path.replace(/^doan\//, "")}</TooltipContent></Tooltip> : content}
           {problem && <ErrorDetails className="btn" detail={problem.detail}>{(button, detail) => <>
             <p className="tree-hint warn" id={commentId} style={{ paddingLeft: 18 + row.level * 14 }}>{problem.sentence}<br />{button}</p>
             {detail && <p className="tree-detail" style={{ marginLeft: 18 + row.level * 14 }}>{detail}</p>}

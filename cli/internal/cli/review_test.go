@@ -11,7 +11,7 @@ import (
 func TestCommentsSortByCanvasPreservingFoldOrder(t *testing.T) {
 	root := initialized(t)
 	for _, id := range []string{"foo", "foo-bar"} {
-		putFile(t, root, "design/"+id+".html", strings.Replace(validCanvas, `content="foo"`, `content="`+id+`"`, 1))
+		putFile(t, root, "doan/"+id+".html", strings.Replace(validCanvas, `content="foo"`, `content="`+id+`"`, 1))
 		putFile(t, root, ".doan/comments/"+id+".jsonl", createLine(cmt2, "2", validCanvas)+"\n"+createLine(cmt1, "1", validCanvas)+"\nbroken")
 	}
 	got := result(t, root, 0, "comments")
@@ -97,7 +97,7 @@ func TestInvalidUTF8ReachesOutputFields(t *testing.T) {
 	html := strings.ReplaceAll(validCanvas, "foo", "foo\xff")
 	html = strings.Replace(html, "Example", "Example\xff", 1)
 	html = strings.Replace(html, `data-doan-frame="main"`, `data-doan-frame="main`+"\xff"+`"`, 1)
-	putFile(t, root, "design/a.html", html)
+	putFile(t, root, "doan/a.html", html)
 	ls := result(t, root, 0, "ls")["canvases"].([]any)[0].(map[string]any)
 	if ls["title"] != "Example\ufffd" || ls["frames"].([]any)[0].(map[string]any)["id"] != "main\ufffd" {
 		t.Fatal(ls)

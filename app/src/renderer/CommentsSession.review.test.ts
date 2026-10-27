@@ -4,7 +4,7 @@ import type { Comment, Author } from "../formats/types";
 import type { ReviewMarker } from "../comments/review";
 import type { BeginResult, CommentList, CommentRequest, CommentReply, SavedStatus } from "../main/comments/service";
 
-const identity = { root: "/repo", canvas: "a", path: "design/a.html" };
+const identity = { root: "/repo", canvas: "a", path: "doan/a.html" };
 const codex: Author = { kind: "agent", name: "codex" };
 const since = "2026-10-25T00:00:00.000Z";
 const resolved = (id: string, at: string, by: Author = codex): Comment => ({
@@ -176,7 +176,7 @@ describe("a Review", () => {
     f.set([one, four, resolved("c5", "2026-10-25T06:00:00.000Z"), resolved("c6", "2026-10-25T07:00:00.000Z")]); await s.read();
     expect(s.startReview()).toBe(true); s.moveReview("done");
     expect(s.reviewDone).not.toBeNull();
-    await s.open({ ...identity, canvas: "b", path: "design/b.html" });
+    await s.open({ ...identity, canvas: "b", path: "doan/b.html" });
     expect(s.reviewDone).toBeNull();
   });
 
@@ -202,9 +202,9 @@ describe("a Review", () => {
     s.startReview(); s.moveReview("next");
     f.set([three, one, two]); await s.read();
     expect(step(s)).toMatchObject({ at: 2, comment: "c2" });
-    await s.rename("design/moved/a.html");
+    await s.rename("doan/moved/a.html");
     expect(step(s)).toMatchObject({ at: 2, comment: "c2" });
-    await s.open({ ...identity, canvas: "b", path: "design/b.html" });
+    await s.open({ ...identity, canvas: "b", path: "doan/b.html" });
     expect(s.review).toBeNull();
     await s.open(identity);
     expect(api.raiseReviewMarker).toHaveBeenCalledTimes(1);

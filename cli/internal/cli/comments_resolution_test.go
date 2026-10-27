@@ -13,7 +13,7 @@ func TestCommentsExposeLastResolution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	putFile(t, root, "design/foo.html", validCanvas)
+	putFile(t, root, "doan/foo.html", validCanvas)
 	putFile(t, root, ".doan/comments/foo.jsonl", string(input)+createLine(cmt2, "5", validCanvas)+"\n")
 	want := map[string]any{
 		"by":         map[string]any{"kind": "agent", "name": "codex"},

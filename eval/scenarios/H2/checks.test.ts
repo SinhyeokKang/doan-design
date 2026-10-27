@@ -27,7 +27,7 @@ test("H2 accepts clarification without edits but rejects silence and guide tool 
 test("H2 rejects renamed anchors and unresolved-feedback bulk resolution", () => {
   const ctx = setup(true);
   assert.deepEqual(failures(ctx), []);
-  const path = "design/dashboard.html";
+  const path = "doan/dashboard.html";
   writeFileSync(join(ctx.repo, path), ctx.read(path)!.replace('data-doan-id="export"', 'data-doan-id="export-new"'));
   assert.ok(failures(ctx).includes("identities_preserved"));
   writeFileSync(join(ctx.repo, path), ctx.seed(path)!);

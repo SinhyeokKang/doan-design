@@ -25,12 +25,12 @@ function tempSibling(name: string, canvases: readonly string[]): boolean {
   return canvases.some((canvas) => posix.dirname(canvas) === dir && base.startsWith(`${posix.basename(canvas).toLowerCase()}.tmp`));
 }
 
-// `names` are relative to `design/` as the recursive watcher reports them;
+// `names` are relative to `doan/` as the recursive watcher reports them;
 // `null` is an event without a name, which could be anything.
 export function classifyDesignChange(names: readonly string[] | null): DesignChange {
   if (names === null) return { bumpServed: true, revPaths: [] };
   const unique = [...new Set(names)];
   const canvases = unique.filter(canvasName);
   const bumpServed = unique.some((name) => !canvasName(name) && !tempSibling(name, canvases));
-  return { bumpServed, revPaths: canvases.map((name) => `design/${name}`) };
+  return { bumpServed, revPaths: canvases.map((name) => `doan/${name}`) };
 }

@@ -1,6 +1,6 @@
 @import "./tokens.css";
 @import "./ds/index.css";
-/* Primitives and pane rules from the accepted design/app-setup.html draft that this window renders. */
+/* Primitives and pane rules from the accepted doan/app-setup.html draft that this window renders. */
 :root { color-scheme: light; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg-app); color: var(--text-standard); font-family: var(--type-family); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; }

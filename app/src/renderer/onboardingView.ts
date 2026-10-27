@@ -52,17 +52,17 @@ const TRANSLOCATED = "Move doan to Applications, then open it again.";
 const IN_USE = " is in use by something else. Move or delete it, then Check Again.";
 const AGENT_NAMES: Record<Agent, string> = { claude: "Claude Code", codex: "Codex" };
 
-// Copy from the confirmed draft (design/app-setup.html, frame wizard).
+// Copy from the confirmed draft (doan/app-setup.html, frame wizard).
 export const STEP_COPY: readonly { heading: string; lead: Part[] }[] = [
   { heading: "Let your agents run doan", lead: ["Claude Code and Codex use the doan command to make and check your canvases. Connect it so they can find it."] },
   { heading: "Connect Claude Code or Codex", lead: ["Your agent draws canvases with the doan skill and tools. Connect the agents you use; nothing changes until you choose Connect."] },
-  { heading: "Choose where canvases live", lead: ["Pick a repository. doan keeps its canvases in ", { code: "design/" }, ", next to the code they describe."] },
+  { heading: "Choose where canvases live", lead: ["Pick a repository. doan keeps its canvases in ", { code: "doan/" }, ", next to the code they describe."] },
   { heading: "Ask for your first canvas", lead: ["Describe a screen, copy the sentence and paste it into Claude Code or Codex. The canvas opens here when it arrives."] },
 ];
 export const NO_AGENT_NOTICE = "doan works through Claude Code or Codex. Install one, then choose Check Again.";
 const installLabel = (agent: Agent) => `Install ${AGENT_NAMES[agent]} ↗`;
 const ADD_PROJECT_LABEL = "Add Project…";
-const NO_PROJECT_TEXT: Part[] = ["Add a project first. Your first canvas goes in its ", { code: "design/" }, " folder."];
+const NO_PROJECT_TEXT: Part[] = ["Add a project first. Your first canvas goes in its ", { code: "doan/" }, " folder."];
 const OPEN_LABEL = "Open";
 const canvasReadyText = (name: string) => `Canvas ready: ${name}`;
 
