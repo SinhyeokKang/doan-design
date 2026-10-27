@@ -344,6 +344,15 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
       await openFolder(app, page, picked);
     }
     await enterProject(page, repos.ok, running!);
+    const { shellPresentation, shellMenuPresentation } = await import(new URL("./shell-presentation.ts", import.meta.url).href);
+    await shellPresentation(page);
+    const projectMenu = page.getByRole("button", { name: "ok menu", exact: true });
+    await projectMenu.click();
+    await page.getByRole("menu").waitFor();
+    await page.getByRole("menuitem", { name: "Overview", exact: true }).focus();
+    await shellMenuPresentation(page);
+    await page.keyboard.press("Escape");
+    await page.getByRole("menu").waitFor({ state: "hidden" });
     const project = canvasRow(page, "login.html");
     const projectTypography = await project.evaluate(item => ({ lineHeight: getComputedStyle(item).lineHeight, glyphHeight: Math.round(item.querySelector("svg")!.getBoundingClientRect().height) }));
     assert.deepEqual(projectTypography, { lineHeight: "20px", glyphHeight: 16 }, "canvas text and icon follow the shell contract");

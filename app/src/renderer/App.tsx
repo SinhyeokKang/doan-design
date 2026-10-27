@@ -7,7 +7,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
 import { projectNames } from "./projectRow";
-import { ArrowLeft, ArrowRight, Minus, Plus, Settings, FolderPlus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Minus, Plus, Settings, LayoutGrid } from "lucide-react";
 import { Home, ProblemActions, useProjectComments } from "./Home";
 import { AddProjectsDialog, SetUpFolderConfirm } from "./AddProjectsDialog";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
@@ -525,7 +525,7 @@ export function App() {
 function TopBar({ back, forward, previous, next }: { back: boolean; forward: boolean; previous(): void; next(): void }) {
   return <header className="top shell-top"><span className="traffic-space" aria-hidden="true" />
     <div className="shell-history"><button className="doan-icon-button" aria-label="Back" disabled={!back} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
-    <div className="shell-modes"><button onClick={() => void window.doan.addProjects()}><FolderPlus />Add Projects</button><button className="current" aria-current="page">Projects</button><button onClick={() => void window.doan.openSettings({ tab: "connections" })}><Settings />Settings</button></div>
+    <div className="shell-modes"><button onClick={() => void window.doan.addProjects()}><Plus />Add Projects</button><button className="current" aria-current="page"><LayoutGrid />Projects</button><button onClick={() => void window.doan.openSettings({ tab: "connections" })}><Settings />Settings</button></div>
   </header>;
 }
 

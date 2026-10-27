@@ -102,7 +102,9 @@ export function ShellSidebar(props: Props) {
   const active = rows.some(row => row.key === focused) ? focused : rows[0]?.key;
   return <aside className="side shell-side" ref={host} aria-label="Projects">
     <button ref={search} className="shell-search" onClick={props.search}><Search aria-hidden="true" />Search</button>
-    <div className="shell-projects" role="tree" aria-label="Projects and canvases">
+    <div className="shell-projects">
+      <h2 className="shell-projects-heading">Projects</h2>
+      <div role="tree" aria-label="Projects and canvases">
       {cards.map((card, index) => {
         const project: ShellProject = { ...(projects[card.key] ?? { expanded: false }), roots: card.rows.map(row => row.path) };
         const selected = (card.rows.some(row => row.path === loaded) ? loaded : card.rows.some(row => row.path === project.selectedRoot) ? project.selectedRoot : undefined) ?? card.rows[0]?.path;
@@ -127,7 +129,7 @@ export function ShellSidebar(props: Props) {
                 else if (!live.current.cards.some(item => item.key === card.key)) { event.preventDefault(); if (document.activeElement === document.body || document.activeElement?.closest(".shell-project-menu")) fallback(); }
               }}>
                 <DropdownMenu.Label className="doan-menu-head">Worktrees</DropdownMenu.Label>
-                {card.rows.map(row => <DropdownMenu.Item className="doan-menu-item shell-worktree" key={row.path} onSelect={event => {
+                {card.rows.map(row => <DropdownMenu.Item className="doan-menu-item shell-worktree" aria-current={row.path === menuEntry.path ? "true" : undefined} key={row.path} onSelect={event => {
                   const current = live.current.cards.find(item => item.key === card.key)?.rows.find(item => item.path === row.path);
                   if (!current) return;
                   if (current.kind === "list" || current.kind === "loading") props.worktree(current.path);
@@ -154,6 +156,7 @@ export function ShellSidebar(props: Props) {
           </div>}
         </div>;
       })}
+      </div>
     </div>
   </aside>;
 }
