@@ -62,6 +62,16 @@
   --green-3: #e6f6eb;
   --green-12: #193b2d;
 
+  /* Malmoi's project fallback palette, Tailwind 600; kept apart from status hues. */
+  --rose-600: oklch(58.6% 0.253 17.585);
+  --orange-600: oklch(64.6% 0.222 41.116);
+  --amber-600: oklch(66.6% 0.179 58.318);
+  --emerald-600: oklch(59.6% 0.145 163.225);
+  --teal-600: oklch(60% 0.118 184.704);
+  --sky-600: oklch(58.8% 0.158 241.966);
+  --indigo-600: oklch(51.1% 0.262 276.966);
+  --fuchsia-600: oklch(59.1% 0.293 322.896);
+
   --font-system-sans: ui-sans-serif, -apple-system, "Apple SD Gothic Neo", sans-serif;
 }
 
@@ -90,6 +100,16 @@
   --text-danger: var(--red-12);
   --text-warning: var(--amber-12);
   --text-success: var(--green-12);
+
+  --identity-project-rose: var(--rose-600);
+  --identity-project-orange: var(--orange-600);
+  --identity-project-amber: var(--amber-600);
+  --identity-project-emerald: var(--emerald-600);
+  --identity-project-teal: var(--teal-600);
+  --identity-project-sky: var(--sky-600);
+  --identity-project-indigo: var(--indigo-600);
+  --identity-project-fuchsia: var(--fuchsia-600);
+  --text-on-project: var(--neutral-1);
 
   --border-standard: var(--neutral-3);
   --border-prominent: var(--neutral-8);
@@ -184,7 +204,7 @@
 
   /* Type roles: size, line height, tracking and weight travel together. Regular
      is for reading and form labels, medium for actions and structure. */
-  --type-family: var(--font-system-sans);
+  --type-family: "Geist", var(--font-system-sans);
   --type-weight-regular: 400;
   --type-weight-medium: 500;
   --type-caption-size: 12px;
