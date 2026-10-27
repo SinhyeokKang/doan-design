@@ -63,3 +63,4 @@ B에 배정했던 전체 runtime은 사용자 지시에 따라 중단했다. 실
 - H(`ctx_d61be53ff58d`, Astra medium)는 `127d441`로 18개 e2e 파일을 변경했다. 비GUI harness 54개·TS 36개 구문 검사가 통과했고, 의존성이 없어 typecheck는 실행하지 못했다. GUI 미실행이다. H를 release하고 R-H(`ctx_a7272a231d5b`, Astra medium)가 고정 diff와 C의 실제 UI를 대조한다.
 - F-C는 `4a96b81`과 회고 `9320ebf`로 세 문제를 수정했다. 단위 테스트 3,346개·타입·빌드 통과, GUI 미실행이다. F-H는 R-H의 최종 두 지적을 `040e322`로 수정했고 harness 61개·구문 검사 통과, 타입·runtime은 통합 뒤 확인한다. 두 수정 작업자는 release했다.
 - RF는 Astra medium의 독립 정적 재리뷰다. 목적지 소유권과 공개 UI 검색 식별을 판단해야 하므로 같은 모델을 선택했다. C/H 고정 커밋과 최종 handoff를 대조하며 tracked 파일과 GUI를 건드리지 않는다. 지휘자는 두 배치를 통합하고 최종 검증을 준비한다.
+- C/F-C와 H/F-H를 `405cf5b`까지 충돌 없이 통합했다. 통합 typecheck와 harness 61개가 통과했다. EP는 Astra medium으로 실측 스크립트와 요구사항별 확인 경로만 준비한다. 실제 창 실행 시점은 사용자가 작업 중임을 알려 확인 중이며, 답변 전에는 모든 GUI 실행을 보류한다.
