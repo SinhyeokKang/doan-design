@@ -70,3 +70,5 @@ B에 배정했던 전체 runtime은 사용자 지시에 따라 중단했다. 실
 - 사용자가 잠금 상태의 대안을 질문해 EL을 기존 Astra medium 작업자의 새 Task로 배정했다. 기존 잠금/네이티브 gate는 수정하지 않는다. 별도 격리 probe에서 실제 Electron의 DOM·계산 스타일·FontFace/CDP 글꼴 확인이 가능한지 제한적으로 실험한다. 네이티브 입력·창 포커스·드래그·재질·전체 e2e의 대체 근거로 사용하지 않는다. 반복 글자 typeahead의 기존 규칙 보존 여부도 아직 검증할 가설이다.
 - EL(`ctx_c3c88f0ea00e`)은 production·dev·arm64 package에서 잠금 유지 상태의 renderer 검증에 성공했다. DOM·계산 스타일·타이머/rAF·스크린샷·CDP 접근성·Geist glyph를 확인했고 정상 종료·실제 상태 불변이다. 패키지의 외부 요청 차단 재로드는 성공했으나 초기 요청부터의 완전 오프라인 재실행 근거는 아니다.
 - EL에서 typeahead 회귀를 재현했다: Beta에서 a→a는 Alpha→Alpine이어야 하나 Alpha에 머물고, Beta에서 a→l은 Alpha를 유지해야 하나 Alpine으로 옮겨간다. FK는 기존 Astra medium 작업자의 새 Task로 ShellSidebar와 상호작용 테스트·별도 회고만 소유한다. 기존 helper 재사용과 실패→통과·잠금 상태 renderer 재확인을 수행하며 전체 native gate는 남긴다.
+- FK는 `9216b86`, 회고 `8cd5419`로 완료했다. 단위 3,349개·타입·빌드와 잠긴 실제 renderer의 수정 후 trace가 통과했다. RK는 Astra medium의 독립 정적 수정 리뷰로 검증 주장과 연결 테스트를 확인한다.
+- ER은 Astra medium으로 잠금 상태에서 가능한 시안 대조·렌더러 상호작용·폰트 검증을 계속한다. 실측과 상태 대응 판단이 필요해 강한 모델을 선택했다. RK는 고정 diff를 읽기만 하며 ER은 별도 scratch와 검증된 DESIGN만 소유한다. 네이티브/full runtime gate는 변경하지 않고 미검증으로 남긴다.
