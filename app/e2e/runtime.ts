@@ -403,7 +403,10 @@ async function run(cli: string, userData: string, repos: Repos, doan: string): P
     await writeFile(join(repos.ok, "design", "added.html"), "<!doctype html><title>Added</title>\n");
     await waitFolders(page, (all) => hasCanvas(all, repos.ok, "design/added.html"), "added canvas listed");
     await rm(repos.worktree, { recursive: true, force: true });
-    folders = await waitFolders(page, (all) => all.some((f) => f.path === repos.worktree && f.state === "notFound"), "deleted folder not found");
+    // Until the watcher publishes Missing, readFolders would try to enter the deleted project.
+    await goHome(page);
+    await homeRow(page, repos.worktree).getByText("Missing", { exact: true }).waitFor({ timeout: WAIT_MS });
+    folders = await readFolders(page);
     assert.equal(byPath(folders, repos.worktree).status, "Missing");
     assert.equal(byPath(folders, repos.ok).state, "list");
     await replaceDialog(app, repos.worktree);
