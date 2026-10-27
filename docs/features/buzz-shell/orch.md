@@ -37,4 +37,11 @@ A와 B는 파일이 겹치지 않아 별도 Orca child worktree에서 병렬 진
 
 ## 검증과 정리 근거
 
-아직 실행 전이다. 배치별 커밋·독립 리뷰·통합 gate·작업자 release 및 worktree 제거 결과를 여기에 기록한다.
+Run: `run_91e67e2980b4`.
+
+| 배치 | Dispatch | child worktree | 시작 증거 |
+|---|---|---|---|
+| A | `ctx_a898a29214ae` | `buzz-shell-contract` | `turnStart: observed`, effective Astra medium, 문서 읽기 확인 |
+| B | `ctx_d33951f7e060` | `buzz-shell-resources` | `turnStart: observed`, effective Sol medium, 리소스 조사 확인 |
+
+B에 전체 runtime 실행권을 배정했다. 작업자가 실행권 메시지를 읽고 ack한 것을 transcript에서 확인했다. A는 문서만 수정한다. 독립 리뷰·통합 gate는 아직 실행 전이다.
