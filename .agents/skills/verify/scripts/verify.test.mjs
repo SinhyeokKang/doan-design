@@ -12,12 +12,13 @@ async function workspace(t) {
   return dir;
 }
 
-test("runtime builds through e2e once; eval adds no model calls; unknown flags fail", () => {
-  assert.ok(plan([]).some(s => s.name === "build"));
-  const steps = plan(["--runtime", "--eval"]);
-  assert.equal(steps.filter(s => s.name === "runtime").length, 1);
-  assert.ok(!steps.some(s => s.name === "build"));
+test("static gates include runtime support without launching Electron; retired runtime flag fails", () => {
+  const steps = plan(["--eval"]);
+  assert.equal(steps.filter(s => s.name === "build").length, 1);
+  assert.ok(!steps.some(s => s.name === "runtime" || s.args.includes("e2e")));
+  assert.deepEqual(steps.find(s => s.name === "runtime-support").args, ["--test", "app/runtime/*.test.ts"]);
   assert.deepEqual(steps.find(s => s.name === "eval-self-test").args, ["eval/run.ts", "--self-test"]);
+  assert.throws(() => plan(["--runtime"]), /Unknown/);
   assert.throws(() => plan(["--skip-tests"]), /Unknown/);
 });
 

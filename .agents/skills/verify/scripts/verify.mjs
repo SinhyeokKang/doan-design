@@ -4,11 +4,12 @@ import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 export function plan(flags) {
-  for (const flag of flags) if (!["--runtime", "--eval"].includes(flag)) throw new Error(`Unknown option: ${flag}`);
+  for (const flag of flags) if (!["--eval"].includes(flag)) throw new Error(`Unknown option: ${flag}`);
   const node = (name, args, pass) => ({ name, command: process.execPath, args, pass });
   const npm = (name, args, pass) => ({ name, command: "npm", args: ["--prefix", "app", ...args], pass });
   return [
     node("verify-tests", ["--test", ".agents/skills/verify/scripts/verify.test.mjs"]),
+    node("runtime-support", ["--test", "app/runtime/*.test.ts"]),
     { name: "go-test", command: "go", args: ["test", "./..."] },
     { name: "go-vet", command: "go", args: ["vet", "./..."] },
     npm("typecheck", ["run", "typecheck"]),
@@ -17,9 +18,7 @@ export function plan(flags) {
       node("eval-tests", ["--test", "eval/**/*.test.ts"]),
       node("eval-self-test", ["eval/run.ts", "--self-test"], /^self-test PASS \(/m),
     ] : []),
-    flags.includes("--runtime")
-      ? npm("runtime", ["run", "e2e"], /^runtime-test: PASS$/m)
-      : npm("build", ["run", "build"]),
+    npm("build", ["run", "build"]),
   ];
 }
 

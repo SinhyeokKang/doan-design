@@ -8,7 +8,7 @@ export const THUMBNAIL_WIDTH = 480;
 export const SETTLE_MS = 500;
 export const LOAD_LIMIT_MS = 8000;
 export const JOB_LIMIT_MS = 20_000;
-// Tells the capture window apart from app windows (e2e/windows.ts) from the
+// Tells the capture window apart from app windows (runtime/windows.ts) from the
 // moment it exists, before its host page has loaded.
 export const CAPTURE_WINDOW_TITLE = "doan thumbnails";
 
