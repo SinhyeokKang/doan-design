@@ -2315,3 +2315,29 @@ it("remembers the source view when an explicit canvas opens in another workspace
     expect(controller.memory()["/repo"]).toEqual({ canvas: row.path, view });
   } finally { controller.dispose(); }
 });
+
+it("repicking the current canvas cancels an older waiting worktree selection", () => {
+  const { controller, row } = loadedController();
+  try {
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/waiting", kind: "loading" }]);
+    const entered = vi.fn();
+    controller.openWorkspace("/waiting", entered);
+    controller.openCanvas("/repo", row);
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/waiting", kind: "list", servedRev: 0, canvases: [] }]);
+    expect(entered).not.toHaveBeenCalled();
+    expect(controller.destination("/repo")).toEqual({ root: "/repo", canvas: row.path });
+  } finally { controller.dispose(); }
+});
+
+it("repicking the current Overview cancels an older waiting worktree selection", () => {
+  const { controller, row } = loadedController();
+  try {
+    controller.showOverview();
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/waiting", kind: "loading" }]);
+    const entered = vi.fn();
+    controller.openWorkspace("/waiting", entered);
+    controller.showOverview();
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/waiting", kind: "list", servedRev: 0, canvases: [] }]);
+    expect(entered).not.toHaveBeenCalled();
+  } finally { controller.dispose(); }
+});
