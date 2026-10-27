@@ -68,3 +68,5 @@ B에 배정했던 전체 runtime은 사용자 지시에 따라 중단했다. 실
 - RF는 🔴0·🟡0으로 다섯 지적의 해소와 handoff 근거를 확인했다. 보고서를 보존하고 reviewer를 release했다. C/H child는 clean·미통합 커밋 없음·증거 복사 검증 뒤 Orca로 제거했으며 목록에서 사라진 것을 확인했다. E 실행은 기존 Astra medium 작업자의 새 Task로 이어간다.
 - E(`ctx_26afc3eecdb0`)는 `IOConsoleLocked=true`로 Electron 실행 전에 실패했다. 단위 3,346개·타입·빌드·arm64 패키지·폰트와 라이선스 바이트 대조는 통과했다. 사용자는 잠금 해제가 불가능하다고 답했다. 실제 화면·네이티브·전체 e2e·문서 완료 승격·PR은 아직 미완료다.
 - 사용자가 잠금 상태의 대안을 질문해 EL을 기존 Astra medium 작업자의 새 Task로 배정했다. 기존 잠금/네이티브 gate는 수정하지 않는다. 별도 격리 probe에서 실제 Electron의 DOM·계산 스타일·FontFace/CDP 글꼴 확인이 가능한지 제한적으로 실험한다. 네이티브 입력·창 포커스·드래그·재질·전체 e2e의 대체 근거로 사용하지 않는다. 반복 글자 typeahead의 기존 규칙 보존 여부도 아직 검증할 가설이다.
+- EL(`ctx_c3c88f0ea00e`)은 production·dev·arm64 package에서 잠금 유지 상태의 renderer 검증에 성공했다. DOM·계산 스타일·타이머/rAF·스크린샷·CDP 접근성·Geist glyph를 확인했고 정상 종료·실제 상태 불변이다. 패키지의 외부 요청 차단 재로드는 성공했으나 초기 요청부터의 완전 오프라인 재실행 근거는 아니다.
+- EL에서 typeahead 회귀를 재현했다: Beta에서 a→a는 Alpha→Alpine이어야 하나 Alpha에 머물고, Beta에서 a→l은 Alpha를 유지해야 하나 Alpine으로 옮겨간다. FK는 기존 Astra medium 작업자의 새 Task로 ShellSidebar와 상호작용 테스트·별도 회고만 소유한다. 기존 helper 재사용과 실패→통과·잠금 상태 renderer 재확인을 수행하며 전체 native gate는 남긴다.
