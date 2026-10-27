@@ -470,6 +470,7 @@ export class CanvasController {
   canvasMoved: ((move: { folder: string; from: string; row: CanvasRow }) => void) | null = null;
   // Pans do not publish state, so persistence listens here.
   viewChanged: (() => void) | null = null;
+  linkedCanvas: ((root: string) => void) | null = null;
   currentView(): View { return { ...this.view }; }
   // Per-root memory as saved to and restored from `ui-state.json` (`lastByRoot`).
   memory(): Record<string, { canvas: string; view: View }> {
@@ -929,6 +930,7 @@ export class CanvasController {
     }
     this.state.layout = message;
     const linked = this.markShown(message.href);
+    if (linked && this.state.open) this.linkedCanvas?.(this.state.open.folder);
     if (this.state.unlisted) this.clearAnchors();
     if ((first || linked) && this.state.open && !this.state.unlisted && (linked || this.loadKind !== "moved")) {
       const at = new Date();

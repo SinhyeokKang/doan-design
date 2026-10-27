@@ -2364,3 +2364,20 @@ it("remembers the approved same-workspace Overview source and restores it after 
     expect(controller.currentView()).toEqual(view);
   } finally { controller.dispose(); }
 });
+
+it("reports a completed listed iframe link once, excluding reloads and unlisted destinations", () => {
+  const h = selectionHarness();
+  const visited = vi.fn(() => h.controller.destination("/repo"));
+  h.controller.linkedCanvas = visited;
+  try {
+    h.layout();
+    expect(visited).not.toHaveBeenCalled();
+    h.layout({ href: h.other.url });
+    expect(visited).toHaveBeenCalledExactlyOnceWith("/repo");
+    expect(visited.mock.results[0]?.value).toEqual({ root: "/repo", canvas: h.other.path });
+    h.layout({ href: h.other.url });
+    expect(visited).toHaveBeenCalledTimes(1);
+    h.layout({ href: h.other.url.replace("b.html", "unlisted.html") });
+    expect(visited).toHaveBeenCalledTimes(1);
+  } finally { h.controller.dispose(); }
+});

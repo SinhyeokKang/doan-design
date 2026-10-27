@@ -142,6 +142,7 @@ export function App() {
       setExpanded(previous => previous[folder] ? { ...previous, [folder]: moveExpanded(previous[folder], from, row.path) } : previous);
     };
     instance.viewChanged = () => live.current.save();
+    instance.linkedCanvas = root => live.current.completeNavigation(root);
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace") instance.command(name); });
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
   }, []);
@@ -272,7 +273,7 @@ export function App() {
   };
   const enter = (root: string) => {
     cancelRestore();
-    if (root === loadedRoot) { controller.current?.cancelWorkspaceOpen(); completeNavigation(root); }
+    if (root === loadedRoot) { controller.current?.cancelWorkspaceOpen(); setScreen("workspace"); }
     else controller.current?.openWorkspace(root, next => completeNavigation(next), false);
   };
   const openShellCanvas = (root: string, row: CanvasRow, cursor?: number) => {
@@ -334,8 +335,8 @@ export function App() {
 
   const modal = wizard !== null || !!comments.dialog || setup !== null || scan !== null || confirms.length > 0 || quickOpen;
   useLayoutEffect(() => { toast.setModal(modal); }, [modal]);
-  const live = useRef({ home, enter, toast, modal, save, comments });
-  live.current = { home, enter, toast, modal, save, comments };
+  const live = useRef({ home, enter, toast, modal, save, comments, completeNavigation });
+  live.current = { home, enter, toast, modal, save, comments, completeNavigation };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement.closest<HTMLElement>(".home-body [data-path]") ?? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -524,7 +525,7 @@ export function App() {
 
 function TopBar({ back, forward, previous, next }: { back: boolean; forward: boolean; previous(): void; next(): void }) {
   return <header className="top shell-top"><span className="traffic-space" aria-hidden="true" />
-    <div className="shell-history"><button className="doan-icon-button" aria-label="Back" disabled={!back} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
+    <div className="shell-history"><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!back} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
     <div className="shell-modes"><button onClick={() => void window.doan.addProjects()}><Plus />Add Projects</button><button className="current" aria-current="page"><LayoutGrid />Projects</button><button onClick={() => void window.doan.openSettings({ tab: "connections" })}><Settings />Settings</button></div>
   </header>;
 }

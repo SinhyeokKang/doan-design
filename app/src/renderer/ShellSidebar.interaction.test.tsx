@@ -160,3 +160,19 @@ it("preserves modifier shortcuts and ordinary navigation around typeahead", () =
   expect(tree.props.toggle).not.toHaveBeenCalled();
   tree.press("Enter"); expect(tree.props.toggle).toHaveBeenCalledWith("Alpine");
 });
+
+it("uses natural filename order for both visible rows and keyboard navigation", () => {
+  const { props } = fixture();
+  const names = ["Zeta", "foo-bar", "foo", "page10", "page2"];
+  props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: names.map(name => ({ path: `design/${name}.html`, url: name, open: 0, resolved: 0 })) };
+  hooks.cursor = 0; hooks.refs = [];
+  const rendered = elements(ShellSidebar(props));
+  const rows = rendered.filter(item => item["aria-level"] === 2);
+  expect(rows.map(item => item["aria-label"])).toEqual(["foo", "foo-bar", "page2", "page10", "Zeta"]);
+  const targets = rows.map(item => ({ dataset: { key: item["data-key"] }, focus: vi.fn() }));
+  const host = hooks.refs.find(ref => ref.current === null)!;
+  host.current = { querySelectorAll: () => targets };
+  key(rows[0]!, "ArrowDown");
+  expect(targets[1]!.focus).toHaveBeenCalledOnce();
+  expect((props.cards[0]!.rows[0] as Extract<FolderEntry, { kind: "list" }>).canvases.map(row => row.url)).toEqual(names);
+});

@@ -394,8 +394,8 @@ code, kbd { font-family: var(--type-family); }
 .doan-dialog-actions .meta { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 
 .toast { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 6; }
-/* The visible canvas toolbar reaches 48px above the window bottom (12px inset, 36px zoom group). */
-.workspace[aria-hidden="false"]:has(.area:not([inert])) ~ .toast { bottom: 54px; }
+/* Clear the canvas toolbar, including the shell bottom inset. */
+.workspace[aria-hidden="false"]:has(.area:not([inert])) ~ .toast { bottom: 64px; }
 .toast .msg { min-width: 0; overflow-wrap: anywhere; }
 
 .drop { position: absolute; inset: 0; z-index: 8; }
@@ -612,6 +612,7 @@ body:has(.shell-top) { background: transparent; }
 .shell-modes button.current:hover { background: var(--surface-panel); cursor: default; }
 .shell-side.side { min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 8px 8px 4px; border: 0; background: transparent; overflow: hidden; }
 .shell-search { display: flex; align-items: center; gap: 8px; width: 100%; height: 36px; flex: none; padding: 0 10px; border: 0; border-radius: var(--radius-control); background: var(--affordance-backdrop-hover); color: var(--text-subtle); font: 400 14px/20px var(--type-family); -webkit-app-region: no-drag; }
+.shell-search:hover { background: var(--affordance-backdrop-pressed); }
 .shell-search svg { width: 16px; height: 16px; }
 .shell-projects { overflow: auto; min-height: 0; padding-bottom: 8px; }
 .shell-projects-heading { margin: 0 0 4px; padding: 4px 10px; color: var(--text-metadata); font: 400 10px/16px var(--type-family); letter-spacing: .08em; }

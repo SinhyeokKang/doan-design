@@ -25,6 +25,11 @@ interface Props {
   action(action: RowAction, root: string): void;
   remove(roots: string[]): Promise<void>;
 }
+const canvasOrder = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+const sortedCanvases = (rows: CanvasRow[]) => [...rows].sort((a, b) => {
+  const name = (row: CanvasRow) => row.path.split("/").at(-1)!.replace(/\.html$/, "");
+  return canvasOrder.compare(name(a), name(b)) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+});
 const labels: Record<RowAction, string> = { setUp: "Set Up…", locate: "Locate…", remove: "Remove from doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
 export function ShellSidebar(props: Props) {
   const { cards, projects, loaded, canvas } = props;
@@ -78,7 +83,7 @@ export function ShellSidebar(props: Props) {
     const root = (card.rows.some(row => row.path === loaded) ? loaded : card.rows.some(row => row.path === project.selectedRoot) ? project.selectedRoot : undefined) ?? card.rows[0]?.path;
     const entry = card.rows.find(row => row.path === root);
     const expanded = projectExpanded(project, loaded);
-    const canvases = expanded && entry?.kind === "list" ? entry.canvases : [];
+    const canvases = expanded && entry?.kind === "list" ? sortedCanvases(entry.canvases) : [];
     rows.push({ key: card.key, name: card.name, activate: () => props.toggle(card.key), right: () => expanded ? focus(canvases[0] ? `${root}\n${canvases[0].path}` : card.key) : props.toggle(card.key), left: () => { if (expanded && !card.rows.some(row => row.path === loaded)) props.toggle(card.key); } });
     for (const row of canvases) rows.push({ key: `${root}\n${row.path}`, parent: card.key, name: row.path.split("/").at(-1)!.replace(/\.html$/, ""), activate: () => props.open(entry!.path, row), right: () => {}, left: () => focus(card.key) });
   }
@@ -148,7 +153,7 @@ export function ShellSidebar(props: Props) {
             </DropdownMenu.Root>
           </div>
           {expanded && <div role="group">
-            {entry.kind === "list" ? entry.canvases.length ? entry.canvases.map((row, canvasIndex) => {
+            {entry.kind === "list" ? entry.canvases.length ? sortedCanvases(entry.canvases).map((row, canvasIndex) => {
               const descriptionId = `${descriptionPrefix}-${index}-${canvasIndex}`;
               const key = `${entry.path}\n${row.path}`, problem = rowProblem(row);
               return <div key={key}><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem || row.open > 0 ? descriptionId : undefined} aria-label={row.path.split("/").at(-1)?.replace(/\.html$/, "")} data-key={key} role="treeitem" aria-level={2} aria-current={entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => props.open(entry.path, row)}><Palette aria-hidden="true" /><span>{row.path.split("/").at(-1)?.replace(/\.html$/, "")}</span>{!problem && row.open > 0 && <span id={descriptionId} className="sr-only">{row.open} open {row.open === 1 ? "comment" : "comments"}</span>}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre>{detail}</pre>}</>}</ErrorDetails></div>}</div>;
