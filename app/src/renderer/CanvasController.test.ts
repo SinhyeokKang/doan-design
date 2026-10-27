@@ -2285,3 +2285,19 @@ describe("feedback navigation callbacks", () => {
     } finally { h.controller.dispose(); }
   });
 });
+
+it("opens an explicit Overview in one guarded workspace transition", async () => {
+  const { controller, row, changed } = loadedController();
+  try {
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/other", kind: "list", servedRev: 0, canvases: [row] }]);
+    controller.remember("/other", { canvas: row.path, view: { x: 1, y: 2, scale: 1 } });
+    const entered = vi.fn();
+    controller.setTransitionGuard(() => false);
+    controller.openWorkspace("/other", entered, false, undefined, true);
+    expect(entered).not.toHaveBeenCalled();
+    controller.setTransitionGuard(() => true);
+    controller.openWorkspace("/other", entered, false, undefined, true);
+    expect(entered).toHaveBeenCalledOnce();
+    expect(changed.mock.calls.at(-1)?.[0].open).toBeNull();
+  } finally { controller.dispose(); }
+});
