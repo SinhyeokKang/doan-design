@@ -26,7 +26,7 @@ func TestGitInfoLayouts(t *testing.T) {
 			put(t, main, ".git/worktrees/pruned/gitdir", filepath.Join(base, "missing/.git"))
 			rel := ""
 			if monorepo {
-				rel = "apps/design"
+				rel = "apps/doan"
 				put(t, main, rel+"/keep", "")
 				put(t, linked, rel+"/keep", "")
 			}

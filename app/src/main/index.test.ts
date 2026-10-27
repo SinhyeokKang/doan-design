@@ -235,10 +235,10 @@ test("shows the window before the Open Project dialog", async () => {
 test("Open Project resolves the stored root, or null when cancelled, refused or untrusted", async () => {
   const contents = window().webContents;
   expect(await invoke("folders:open", contents, null)).toBeNull();
-  mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/repo/design"] });
+  mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/repo/doan"] });
   mocks.shell.open.mockResolvedValueOnce({ root: "/repo" });
   expect(await invoke("folders:open", contents, null)).toBe("/repo");
-  expect(mocks.shell.open).toHaveBeenLastCalledWith("/repo/design");
+  expect(mocks.shell.open).toHaveBeenLastCalledWith("/repo/doan");
   mocks.shell.open.mockResolvedValueOnce({ refused: "Cannot read config" });
   expect(await invoke("folders:open", contents, null)).toBeNull();
   expect(mocks.dialog.showMessageBox).toHaveBeenCalledWith(window(), expect.objectContaining({ type: "error", detail: "Cannot read config" }));

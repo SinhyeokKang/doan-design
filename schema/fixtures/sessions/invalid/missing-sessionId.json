@@ -8,6 +8,6 @@
   },
   "hash": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
   "runtime": "claude",
-  "cwd": "/work/project/design",
+  "cwd": "/work/project/doan",
   "configDir": "/profiles/.claude"
 }

@@ -2,7 +2,7 @@ import type { CanvasRow } from "../main/view";
 
 export interface FolderNode {
   kind: "folder";
-  // Folder path as listed, e.g. `design/billing`.
+  // Folder path as listed, e.g. `doan/billing`.
   key: string;
   name: string;
   children: TreeNode[];

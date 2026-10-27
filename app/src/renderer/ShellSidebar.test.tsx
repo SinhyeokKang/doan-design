@@ -12,7 +12,7 @@ it("renders project to canvas IA, locks current expansion, and keeps the branch 
   const html = render("/repo");
   expect(html).toContain('aria-expanded="true"');
   expect(html).toContain('aria-label="canvas"');
-  expect(html).toContain('data-key="/repo\ndesign/folder/canvas.html"');
+  expect(html).toContain('data-key="/repo\ndoan/folder/canvas.html"');
   expect(html).not.toContain("hidden-frame");
   expect(html).not.toContain('aria-label="Overview"');
   expect(html).toContain('data-ui-variant="translucent"');

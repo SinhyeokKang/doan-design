@@ -50,7 +50,7 @@ code, kbd { font-family: var(--font-sans); }
 /* The shipped focus ring (button:focus-visible), drawn statically. */
 .focus { outline: 1px solid var(--accent-line); outline-offset: -1px; }
 
-/* Onboarding items, chips and dialogs (design/onboard.html, shipped). */
+/* Onboarding items, chips and dialogs (doan/onboard.html, shipped). */
 .ob-steps { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 22px 0 0; }
 .ob-steps li { display: flex; align-items: center; }
 .ob-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); border-radius: 6px; padding: 2px 4px; }
@@ -109,7 +109,7 @@ code, kbd { font-family: var(--font-sans); }
 .ob-compare dd { color: var(--text); overflow-wrap: anywhere; }
 .ob-buttons { display: flex; justify-content: flex-end; gap: 6px; }
 
-/* Home (design/projects-home.html, shipped). */
+/* Home (doan/projects-home.html, shipped). */
 .traffic-space { width: 52px; flex: none; }
 .home-body { min-height: 0; overflow: hidden; padding: 8px 32px 32px; position: relative; }
 .home-body .sec { padding: 16px 0 10px; }
@@ -173,7 +173,7 @@ code, kbd { font-family: var(--font-sans); }
 .ws-status .btn { padding: 3px 9px; font-size: 11.5px; }
 .ov { min-height: 0; overflow: hidden; padding: 4px 24px 24px; position: relative; background: var(--bg); }
 
-/* Board layout (draft only), as in design/onboard.html. */
+/* Board layout (draft only), as in doan/onboard.html. */
 body { width: 1440px; padding: 48px; background: var(--board-bg); }
 /* The app gets these from Tailwind preflight, which the draft does not load. */
 button { border: 0; background: transparent; }
@@ -576,7 +576,7 @@ input { font: inherit; color: inherit; outline: none; }
    <div class="pj-sec" data-doan-id="sp-serve"><p class="ihead">Serve</p>
     <ul class="pj-serve" data-doan-id="sp-serve-list"><li data-doan-id="sp-serve-item"><span class="v">packages/brand/assets</span><button class="btn ghost" data-doan-id="sp-serve-remove">Remove</button></li><li><span class="v">public/fonts</span><button class="btn ghost">Remove</button></li></ul>
     <p class="pj-val"><button class="btn" data-doan-id="sp-serve-add">Add…</button></p>
-    <p class="pj-helper" data-doan-id="sp-serve-helper">Canvases can read files in design/, the token CSS and these paths.</p></div>
+    <p class="pj-helper" data-doan-id="sp-serve-helper">Canvases can read files in doan/, the token CSS and these paths.</p></div>
   </div>
  </div>
 </div>
@@ -732,7 +732,7 @@ input { font: inherit; color: inherit; outline: none; }
      <div class="finish-head"><h2 id="hs-t-finish-h">Finish setting up doan</h2><span class="meta">3 left</span></div>
      <div class="finish-item" data-doan-id="hs-t-finish-cli"><span class="glyph" aria-hidden="true">○</span><b>Connect the doan command</b><p>Agents run doan through it.</p><button class="btn">Settings › Connections</button></div>
      <div class="finish-item"><span class="glyph" aria-hidden="true">○</span><b>Connect Claude Code or Codex</b><p>Your agent makes the canvases you review here.</p><button class="btn">Settings › Connections</button></div>
-     <div class="finish-item" data-doan-id="hs-t-finish-project"><span class="glyph" aria-hidden="true">○</span><b>Add a project</b><p>Canvases live in a repository’s design/ folder.</p><button class="btn" data-doan-id="hs-t-finish-add">Add Project…</button></div>
+     <div class="finish-item" data-doan-id="hs-t-finish-project"><span class="glyph" aria-hidden="true">○</span><b>Add a project</b><p>Canvases live in a repository’s doan/ folder.</p><button class="btn" data-doan-id="hs-t-finish-add">Add Project…</button></div>
     </section>
     <div style="position:relative"><div class="empty"><b>No projects yet</b><p>Add a project to see its design canvases.</p><button class="btn primary">Add Project… <span class="kbd">⌘O</span></button><p class="meta">Or drop folders anywhere in this window.</p></div></div>
    </main>
@@ -816,7 +816,7 @@ input { font: inherit; color: inherit; outline: none; }
    <ol class="ob-steps" aria-label="Steps"><li><button class="ob-step done" aria-label="CLI, completed"><span class="num" aria-hidden="true">✓</span>CLI</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step done" aria-label="Agents, completed"><span class="num" aria-hidden="true">✓</span>Agents</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step" aria-current="step"><span class="num">3</span>Project</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step"><span class="num">4</span>First prompt</button></li></ol>
    <div class="ob-form" style="padding:20px 0 0">
     <h2 data-doan-id="wz-3-heading">Choose where canvases live</h2>
-    <p class="ob-lead" data-doan-id="wz-3-lead">Pick a repository. doan keeps its canvases in <code>design/</code>, next to the code they describe.</p>
+    <p class="ob-lead" data-doan-id="wz-3-lead">Pick a repository. doan keeps its canvases in <code>doan/</code>, next to the code they describe.</p>
     <div class="ob-card"><div class="ob-field" style="border-bottom:0"><span class="ob-label">Project</span><span class="value none">No project open</span><button class="btn primary" data-doan-id="wz-3-open">Open Project…</button></div></div>
    </div>
    <div class="ob-foot foot-strip"><span class="meta">Step 3 of 4</span><span class="spacer"></span><button class="btn ghost">Skip</button><button class="btn">Continue</button></div>
@@ -842,7 +842,7 @@ input { font: inherit; color: inherit; outline: none; }
   <div class="ob-card" data-doan-id="wz-3-t-form">
    <div class="ob-field"><span class="ob-label">Project</span><span class="value">billing-api <span class="meta">/Users/alex/code/billing-api</span></span><button class="btn">Open Project…</button></div>
    <div class="ob-field"><span class="ob-label">Token CSS</span><span class="value none">None</span><button class="btn">Choose…</button><span class="ob-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
-   <div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>design/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+   <div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
    <div class="ob-actions"><span class="spacer"></span><button class="btn primary">Set Up Project</button></div>
   </div></div>
 </div>
@@ -864,12 +864,12 @@ input { font: inherit; color: inherit; outline: none; }
    <div class="ob-foot foot-strip"><span class="meta">Step 4 of 4</span><span class="spacer"></span><button class="btn primary">Done</button></div>
   </div></div>
  <div><p class="tile-label"><b>No project</b> — step 3 was skipped. Add Project… runs Home’s add flow; once a project is listed, the composer appears.</p>
-  <div class="ob-card" data-doan-id="wz-4-t-none"><div class="ob-prompt"><div class="fp-none"><p data-doan-id="wz-4-t-none-text">Add a project first. Your first canvas goes in its <code>design/</code> folder.</p><button class="btn primary" data-doan-id="wz-4-t-none-add">Add Project…</button></div></div></div></div>
+  <div class="ob-card" data-doan-id="wz-4-t-none"><div class="ob-prompt"><div class="fp-none"><p data-doan-id="wz-4-t-none-text">Add a project first. Your first canvas goes in its <code>doan/</code> folder.</p><button class="btn primary" data-doan-id="wz-4-t-none-add">Add Project…</button></div></div></div></div>
  <div><p class="tile-label"><b>Waiting</b> — after the clipboard write finished. Done stays enabled; closing the wizard keeps waiting and the arrival becomes a toast.</p>
   <div class="ob-card" data-doan-id="wz-4-t-wait"><div class="ob-prompt">
    <div class="fp-field"><div class="fp-labelrow"><label class="fp-label">What do you want to design?</label></div><input class="fp-input" type="text" placeholder="a sign-in screen with SSO" value="a sign-in screen with SSO and a magic link"></div>
    <p class="ob-sentence">Use the doan skill to make a design canvas in /Users/alex/code/acme-web for <mark>a sign-in screen with SSO and a magic link</mark>.</p>
-   <div class="ob-actions"><span class="fp-wait" role="status"><span class="spinner" aria-hidden="true"></span>Waiting for a canvas in design/…</span><span class="spacer"></span><button class="btn primary">Copied</button></div>
+   <div class="ob-actions"><span class="fp-wait" role="status"><span class="spinner" aria-hidden="true"></span>Waiting for a canvas in doan/…</span><span class="spacer"></span><button class="btn primary">Copied</button></div>
   </div></div></div>
  <div><p class="tile-label"><b>Canvas ready</b> — a new canvas path appeared while the wizard is open. Open closes the wizard (writes <code>onboarding.json</code>) and opens that canvas.</p>
   <div class="ob-card" data-doan-id="wz-4-t-ready"><div class="ob-prompt">
@@ -891,7 +891,7 @@ input { font: inherit; color: inherit; outline: none; }
  <aside class="side"><div class="sec">Canvases <span class="r">0</span></div><div role="tree" aria-label="Canvases"><div class="row" role="treeitem" aria-level="1" aria-current="location" tabindex="0"><span class="tw" aria-hidden="true"></span><span class="glyph" aria-hidden="true">▦</span><span class="g">Overview</span></div></div></aside>
  <main class="ov" aria-label="Overview">
   <div class="empty" data-doan-id="fp-empty">
-   <b data-doan-id="fp-empty-title">No canvases in design/ yet</b>
+   <b data-doan-id="fp-empty-title">No canvases in doan/ yet</b>
    <div class="fp-card" data-doan-id="fp-card"><div class="ob-prompt" data-doan-id="fp-prompt">
     <div class="fp-field"><div class="fp-labelrow"><label class="fp-label" for="fp-input" data-doan-id="fp-label">What do you want to design?</label></div><input class="fp-input focus" id="fp-input" type="text" placeholder="a sign-in screen with SSO" data-doan-id="fp-input"></div>
     <p class="ob-sentence" data-doan-id="fp-sentence">Use the doan skill to make a design canvas in /Users/alex/code/billing-api for <mark class="slot" data-doan-id="fp-slot">…</mark>.</p>
@@ -932,13 +932,13 @@ input { font: inherit; color: inherit; outline: none; }
   <div class="ob-card" data-doan-id="fp-t-wait"><div class="ob-prompt">
    <div class="fp-field"><div class="fp-labelrow"><label class="fp-label">What do you want to design?</label></div><input class="fp-input" type="text" value="a sign-in screen with SSO"></div>
    <p class="ob-sentence">Use the doan skill to make a design canvas in /Users/alex/code/billing-api for <mark>a sign-in screen with SSO</mark>.</p>
-   <div class="ob-actions"><span class="fp-wait" role="status" data-doan-id="fp-t-wait-status"><span class="spinner" aria-hidden="true"></span>Waiting for a canvas in design/…</span><span class="spacer"></span><button class="btn primary" data-doan-id="fp-t-wait-btn">Copied</button></div>
+   <div class="ob-actions"><span class="fp-wait" role="status" data-doan-id="fp-t-wait-status"><span class="spinner" aria-hidden="true"></span>Waiting for a canvas in doan/…</span><span class="spacer"></span><button class="btn primary" data-doan-id="fp-t-wait-btn">Copied</button></div>
   </div></div></div>
  <div><p class="tile-label"><b>Edited while waiting</b> — the sentence changed, so the button reads Copy again; the wait goes on.</p>
   <div class="ob-card" data-doan-id="fp-t-edited"><div class="ob-prompt">
    <div class="fp-field"><div class="fp-labelrow"><label class="fp-label">What do you want to design?</label></div><input class="fp-input focus" type="text" value="a sign-in screen with SSO and passkeys"></div>
    <p class="ob-sentence">Use the doan skill to make a design canvas in /Users/alex/code/billing-api for <mark>a sign-in screen with SSO and passkeys</mark>.</p>
-   <div class="ob-actions"><span class="fp-wait" role="status"><span class="spinner" aria-hidden="true"></span>Waiting for a canvas in design/…</span><span class="spacer"></span><button class="btn primary" data-doan-id="fp-t-edited-btn">Copy again</button></div>
+   <div class="ob-actions"><span class="fp-wait" role="status"><span class="spinner" aria-hidden="true"></span>Waiting for a canvas in doan/…</span><span class="spacer"></span><button class="btn primary" data-doan-id="fp-t-edited-btn">Copy again</button></div>
   </div></div></div>
  <div><p class="tile-label"><b>Copy failed</b> — the shipped failure sentence and Retry copy; no waiting.</p>
   <div class="ob-card" data-doan-id="fp-t-failed"><div class="ob-prompt">

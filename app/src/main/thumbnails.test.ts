@@ -295,7 +295,7 @@ test("a row revision without a served bump re-checks only that canvas", async ()
   expect(f.changed).toEqual(["doan/b.html"]);
   expect(await thumbnails.get(f.root, "doan/b.html", true)).toEqual({ kind: "pending" });
   await vi.waitFor(() => expect(f.captures).toHaveLength(3));
-  expect(f.captures.at(-1)).toMatch(/design\/b\.html$/);
+  expect(f.captures.at(-1)).toMatch(/doan\/b\.html$/);
 });
 
 test("a row revision on a canvas whose file did not change keeps its thumbnail", async () => {
@@ -336,7 +336,7 @@ test("a change inside a served directory or to a non-canvas file under doan/ mak
   thumbnails.entriesChanged(f.entries);
   for (const path of ["doan/a.html", "doan/b.html"]) await thumbnails.get(f.root, path, true);
   await vi.waitFor(() => expect(f.changed).toHaveLength(2));
-  for (const [file, content] of [["styles/img/logo.svg", "<svg>2</svg>"], ["doan/mock.css", "b{color:red}"]] as const) {
+  for (const [file, content] of [["styles/img/logo.svg", "<svg>2</svg>"], ["doan/assets/mock.css", "b{color:red}"]] as const) {
     for (const path of ["doan/a.html", "doan/b.html"]) await thumbnails.get(f.root, path, true);
     await vi.waitFor(async () => expect((await thumbnails.get(f.root, "doan/b.html", true)).kind).toBe("ready"));
     f.changed.length = 0;

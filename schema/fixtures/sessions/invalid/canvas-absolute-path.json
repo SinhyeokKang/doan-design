@@ -8,6 +8,6 @@
   "hash": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
   "runtime": "claude",
   "sessionId": "session_123-abc",
-  "cwd": "/work/project/design",
+  "cwd": "/work/project/doan",
   "configDir": "/profiles/.claude"
 }

@@ -221,13 +221,13 @@ describe("openDecision", () => {
   // Without a root the picked folder may be a subfolder; stored as is, it would
   // read as "not initialized" and invite a nested `doan init`.
   test("a failing pick that is not a repo root is refused with the first run's reason", () => {
-    expect(openDecision(broken, "/broken/design", noRepo)).toEqual({ refuse: "bad config" });
-    expect(openDecision(noCli, "/repo/design", noRepo)).toEqual({ refuse: "doan CLI error: spawn doan ENOENT" });
-    expect(openDecision({ kind: "cliError", reason: "" }, "/repo/design", noRepo)).toEqual({ refuse: "doan CLI error" });
+    expect(openDecision(broken, "/broken/doan", noRepo)).toEqual({ refuse: "bad config" });
+    expect(openDecision(noCli, "/repo/doan", noRepo)).toEqual({ refuse: "doan CLI error: spawn doan ENOENT" });
+    expect(openDecision({ kind: "cliError", reason: "" }, "/repo/doan", noRepo)).toEqual({ refuse: "doan CLI error" });
   });
 
   test("a failing pick is refused when the CLI cannot say whether it is a root", () => {
-    expect(openDecision(broken, "/broken/design", noCli)).toEqual({ refuse: "bad config" });
+    expect(openDecision(broken, "/broken/doan", noCli)).toEqual({ refuse: "bad config" });
     expect(openDecision(noCli, "/repo", noCli)).toEqual({ refuse: "doan CLI error: spawn doan ENOENT" });
   });
 

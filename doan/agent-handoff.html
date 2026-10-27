@@ -115,7 +115,7 @@ ol { list-style: none; }
 .handoff-summary { font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
 .agent-hint { color: var(--text-3); font-size: 11.5px; line-height: 1.5; }
 
-/* Draft-only board layout (same pattern as design/comments-ui.html). */
+/* Draft-only board layout (same pattern as doan/comments-ui.html). */
 body { width: 1440px; height: auto; padding: 48px; background: var(--board-bg); }
 .intro { max-width: 1238px; margin-bottom: 36px; }
 .intro h1 { font-size: 30px; margin-bottom: 12px; }
@@ -141,7 +141,7 @@ body { width: 1440px; height: auto; padding: 48px; background: var(--board-bg); 
 <h1>Agent handoff</h1>
 <p>Feature agent-handoff · draft for review, not implemented. New surface: the Hand off dialog (frames 01–03, the /design-sync targets). Frames 04 and 05 add to screens already on main (Comments panel, Inspector, Home); only the added parts are new, marked with a dashed outline and a “not in code” tag. All copy is English and final unless listed as proposed in the frame notes.</p>
 <p>Copied from shipped code (local files, checked 2026-10-25): the comments dialog surface, buttons, cards and panel head from app/src/renderer/CommentsPanel.tsx and styles.css; the Inspector head from RightPanel.tsx; the Home card row from Home.tsx; the context line from the top bar crumbs in App.tsx (project › ⎇ worktree › canvas title); the time format from activity.ts timeText; the copy-failure sentence from COPY_FAILED in onboardingView.ts. Target labels and the “Comment on canvas” button name follow docs/features/comments-readability/design.md §1, §2 and §5, a prerequisite feature not yet in code.</p>
-<p>Sources: docs/features/agent-handoff/{spec,design}.md (copy and states), docs/PRODUCT.md §5 Dogfooding and §7 app-ui rows, docs/ARCHITECTURE.md §1, docs/DESIGN.md comments-ui section, design/comments-ui.html (delete-confirm dialog tile pattern), design/projects-home.html (Home row). No external product was consulted for this draft; nothing here is recalled from memory. The proposed 480px dialog width, the 44px row height, the 8-row (352px) list cap, the 160px preview cap and the success-state layout are this draft’s proposals.</p>
+<p>Sources: docs/features/agent-handoff/{spec,design}.md (copy and states), docs/PRODUCT.md §5 Dogfooding and §7 app-ui rows, docs/ARCHITECTURE.md §1, docs/DESIGN.md comments-ui section, doan/comments-ui.html (delete-confirm dialog tile pattern), doan/projects-home.html (Home row). No external product was consulted for this draft; nothing here is recalled from memory. The proposed 480px dialog width, the 44px row height, the 8-row (352px) list cap, the 160px preview cap and the success-state layout are this draft’s proposals.</p>
 <p>Dark theme, system sans, renderer tokens only. Specimens are static; the one inline script only scrolls the list in 02 so the card-opened state shows the scrolled row.</p>
 </header>
 <main>

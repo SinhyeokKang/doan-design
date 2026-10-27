@@ -115,7 +115,7 @@ func TestMapWorktrees(t *testing.T) {
 		name, rel string
 		want      []string
 	}{
-		{"monorepo", "apps/design", []string{"/trees/a/apps/design", "/trees/z/apps/design"}},
+		{"monorepo", "apps/doan", []string{"/trees/a/apps/doan", "/trees/z/apps/doan"}},
 		{"root", ".", []string{"/trees/a", "/trees/z"}},
 		{"empty rel", "", []string{"/trees/a", "/trees/z"}},
 		{"escape", "../outside", []string{}},

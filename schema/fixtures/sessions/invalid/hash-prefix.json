@@ -9,6 +9,6 @@
   "hash": "sha512:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "runtime": "claude",
   "sessionId": "session_123-abc",
-  "cwd": "/work/project/design",
+  "cwd": "/work/project/doan",
   "configDir": "/profiles/.claude"
 }

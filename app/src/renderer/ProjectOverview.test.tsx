@@ -78,8 +78,8 @@ test("the overview shows thumbnail states without inferring parse failure from m
     ["doan/settings/billing.html", { kind: "failed" }],
   ]));
   expect(html).toContain('aria-label="Overview"');
-  expect(html).toMatch(/<div class="sec">design <span class="r">2<\/span><\/div>/);
-  expect(html).toMatch(/<div class="sec">design\/checkout <span class="r">2<\/span><\/div>/);
+  expect(html).toMatch(/<div class="sec">doan <span class="r">2<\/span><\/div>/);
+  expect(html).toMatch(/<div class="sec">doan\/checkout <span class="r">2<\/span><\/div>/);
   expect(html).toContain("Preview needs a valid <code>doan:width</code> — run doan check");
   expect(html).toContain('<img src="blob:thumb" alt=""');
   expect(html).toContain('class="thumb pending"');
@@ -95,7 +95,7 @@ test("the overview shows thumbnail states without inferring parse failure from m
 
 test("a workspace without canvases keeps the heading and shows the first prompt composer in a card", () => {
   const html = render([]);
-  expect(html).toMatch(/^<section class="ov" role="region" aria-label="Overview"><div class="empty"><b>No canvases in design\/ yet<\/b><div class="fp-card"><div class="ob-prompt">/);
+  expect(html).toMatch(/^<section class="ov" role="region" aria-label="Overview"><div class="empty"><b>No canvases in doan\/ yet<\/b><div class="fp-card"><div class="ob-prompt">/);
   expect(html).toContain('<p class="ob-sentence">Use the doan skill to make a design canvas in /code/acme-web for <mark class="slot">…</mark>.</p>');
   expect(html).not.toContain("Copy first prompt");
   expect(html).not.toContain("ocard");

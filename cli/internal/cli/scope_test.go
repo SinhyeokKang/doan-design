@@ -110,7 +110,7 @@ func TestListRootAndScope(t *testing.T) {
 	if got["root"] != realPath(t, root) || !filepath.IsAbs(got["root"].(string)) {
 		t.Fatal(got)
 	}
-	if !reflect.DeepEqual(got["scope"], []any{"doan", "design-x", "tokens.css"}) {
+	if !reflect.DeepEqual(got["scope"], []any{"design-x", "doan", "tokens.css"}) {
 		t.Fatal(got["scope"])
 	}
 	var want any
@@ -163,7 +163,7 @@ func TestListRootInDiskSpelling(t *testing.T) {
 		t.Fatalf("--repo: %v", got)
 	}
 	// os.Getwd trusts $PWD, so a shell that cd'ed with another spelling reaches Find with it.
-	t.Chdir(filepath.Join(upper, "DESIGN"))
+	t.Chdir(filepath.Join(upper, "DOAN"))
 	var out, errout bytes.Buffer
 	if code := Run([]string{"ls", "--json"}, strings.NewReader(""), &out, &errout); code != 0 || errout.Len() != 0 {
 		t.Fatal(code, out.String(), errout.String())

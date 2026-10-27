@@ -6,7 +6,7 @@
 <meta name="doan:width" content="1440">
 <title>Projects home — draft</title>
 <link rel="stylesheet" href="../app/src/renderer/tokens.css">
-<link rel="stylesheet" href="mock.css">
+<link rel="stylesheet" href="assets/mock.css">
 <style>
 /* Shipped rules copied from app/src/renderer/styles.css (shell, top bar, sidebar, canvas status, dialogs, chips). */
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -114,7 +114,7 @@ code, kbd { font-family: var(--font-sans); }
 .comments-badge { display: inline-block; font-size: 10px; line-height: 1.5; padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--text-3); }
 .comments-badge.open { color: var(--accent); }
 
-/* Board layout (draft only), as in design/onboard.html. */
+/* Board layout (draft only), as in doan/onboard.html. */
 body { width: 1440px; padding: 48px; background: var(--board-bg); }
 /* The app gets these from Tailwind preflight, which the draft does not load. */
 button { border: 0; background: transparent; }
@@ -247,7 +247,7 @@ button { border: 0; background: transparent; }
 .ws-status .btn { padding: 3px 9px; font-size: 11.5px; }
 .ws-detail { padding: 8px 12px 10px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
 
-/* Mock canvas inside the workspace specimen (the design a human reviews; colors from design/mock.css). */
+/* Mock canvas inside the workspace specimen (the design a human reviews; colors from doan/assets/mock.css). */
 .mboard { position: absolute; left: 40px; top: 48px; width: 560px; height: 420px; background: var(--mock-bg); color: var(--mock-ink); box-shadow: var(--shadow-1); }
 .mboard .ftag { position: absolute; top: -18px; left: 0; font: 10.5px var(--font-sans); color: var(--text-3); white-space: nowrap; }
 .mnav { height: 40px; border-bottom: 1px solid var(--mock-line); display: flex; align-items: center; gap: 16px; padding: 0 18px; font-size: 11px; color: var(--mock-ink-2); }
@@ -670,7 +670,7 @@ button { border: 0; background: transparent; }
  <div class="right-stack" data-doan-id="ws-right">
   <aside class="right native-scroll" role="region" aria-label="Canvas info">
    <h2 class="phead">Canvas</h2>
-   <div class="isec"><dl class="kv"><dt>Path</dt><dd>design/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>3</dd></dl></div>
+   <div class="isec"><dl class="kv"><dt>Path</dt><dd>doan/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>3</dd></dl></div>
    <div class="isec"><h3 class="ihead">Comments</h3><dl class="kv"><dt>Open</dt><dd class="accent">3</dd><dt>Resolved</dt><dd>1</dd></dl></div>
    <section class="isec activity" aria-label="Activity"><h3 class="ihead">Activity</h3><ol><li class="tl-row"><time>14:12:08</time><b>Opened</b></li></ol></section>
    <p class="pempty">Click an element or frame to inspect it. Frames are also listed in the sidebar.</p>

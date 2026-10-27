@@ -6,7 +6,7 @@
 <meta name="doan:width" content="1440">
 <title>Comments readability — draft</title>
 <link rel="stylesheet" href="../app/src/renderer/tokens.css">
-<link rel="stylesheet" href="mock.css">
+<link rel="stylesheet" href="assets/mock.css">
 <style>
 /* Shipped rules copied from app/src/renderer/styles.css (shell, top bar, tree rows, canvas area, right column, Inspector, Comments panel, dialog). */
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -158,7 +158,7 @@ code, kbd { font-family: var(--font-sans); }
 .comments-warnings .file { margin-top: 8px; color: var(--text-3); }
 /* §5: the Updated label sits on the canvas content, so it gets the panel color behind it. */
 .updated { background: var(--panel); padding: 3px 8px; border-radius: 6px; }
-/* project-feedback's old-ID line; its look follows design/project-feedback.html. */
+/* project-feedback's old-ID line; its look follows doan/project-feedback.html. */
 .comments-idnote { padding: 8px 12px; font-size: 11px; line-height: 1.5; color: var(--text-2); background: var(--accent-soft); border-bottom: 1px solid var(--line-2); }
 .comments-idnote button { color: var(--accent); text-decoration: underline; margin-left: 4px; }
 
@@ -199,7 +199,7 @@ button { border: 0; background: transparent; }
 .tlines td:first-child > * { width: 256px; margin: 0; }
 .tlines tr:last-child td { border-bottom: 0; }
 .tlines th { text-align: left; padding: 7px 12px; font-weight: 600; font-size: 10.5px; color: var(--text-3); border-bottom: 1px solid var(--line-2); }
-/* Mock canvas (the design a human reviews; colors from design/mock.css). */
+/* Mock canvas (the design a human reviews; colors from doan/assets/mock.css). */
 .mframe { position: absolute; background: var(--mock-bg); color: var(--mock-ink); box-shadow: var(--shadow-1); overflow: hidden; }
 .ftag { position: absolute; font: 10.5px var(--font-sans); color: var(--text-3); white-space: nowrap; }
 .mnav { height: 30px; border-bottom: 1px solid var(--mock-line); display: flex; align-items: center; gap: 12px; padding: 0 14px; font-size: 10px; color: var(--mock-ink-2); }
@@ -218,10 +218,10 @@ button { border: 0; background: transparent; }
 <h1>Comments readability — draft</h1>
 <p><b>Scope.</b> Feature <code>comments-readability</code> (docs/features/comments-readability/spec.md and design.md, draft request at the end of design.md). The Comments panel shipped with comments-ui; this canvas is the reference for the parts this feature changes only. It is <b>not</b> a /design-sync target: implementation is checked by the measurements in tasks.md. Every frame mixes shipped parts (drawn for context) and changed parts; changed parts are named in each frame's dashed “Not in code” tag.</p>
 <p><b>What changes.</b> One-line, readable target lines (Element · tag “text” · in Frame; doan-id replaces text; Frame · title; Canvas) as an accent button when locatable and plain <code>--text-2</code> text when not; “Not found in the current canvas.” beside Location unavailable; the composer and card editor open right under the Comments head with a sticky title and a 64 px input in a short panel; grouped warnings with sentences, line numbers and one file line; a single read-failure block; one identity block by cause with nothing else rendered; four empty-list texts; the “To: …” line in the unsaved-draft dialog; the uncertain-quit text; no COMMENTS section in Canvas info and the hint above Activity; a background behind Updated; the Selection scope tooltip; “Comment on selection” / “Comment on canvas”; the Git name sentence; no “Reopen this comment before copying.”</p>
-<p><b>Copied from shipped screens.</b> Window sizes (1238 × 780 and the 960 × 600 minimum), top bar, tree rows, canvas area and zoom, Inspector head and Box rows, right column split (Inspector 278 px, Comments the rest), Comments head, segments, buttons, cards, badges, messages, composer and dialog come from app/src/renderer/{styles.css, App.tsx, RightPanel.tsx, CommentsPanel.tsx, Sidebar.tsx} and docs/DESIGN.md (App shell, Select and inspect, Comments, Design navigation). The design tree and workspace top bar follow the shipped design-nav screens (design/design-nav.html). Copy not changed by this feature is the shipped copy.</p>
+<p><b>Copied from shipped screens.</b> Window sizes (1238 × 780 and the 960 × 600 minimum), top bar, tree rows, canvas area and zoom, Inspector head and Box rows, right column split (Inspector 278 px, Comments the rest), Comments head, segments, buttons, cards, badges, messages, composer and dialog come from app/src/renderer/{styles.css, App.tsx, RightPanel.tsx, CommentsPanel.tsx, Sidebar.tsx} and docs/DESIGN.md (App shell, Select and inspect, Comments, Design navigation). The design tree and workspace top bar follow the shipped design-nav screens (doan/design-nav.html). Copy not changed by this feature is the shipped copy.</p>
 <p><b>Scripts.</b> One small script at the end scrolls the two window specimens' Comments panels to where focusing the new composer leaves them, so the sticky title is drawn in its real scrolled state. Everything else is static.</p>
-<p><b>References.</b> None. No external tool was checked or recalled for this draft; layout and copy come from the feature documents and the shipped code listed above (local files, read 2026-10-25). The old-ID line in <code>identity-blocks</code> takes its copy from docs/features/project-feedback/design.md (draft request, <code>id-change-notice</code>); its look belongs to design/project-feedback.html.</p>
-<p><b>Example data.</b> Repository acme-web on main. <code>design/checkout/checkout.html</code> (“Checkout”, canvas id <code>checkout</code>) has frames <code>shipping</code> (“Shipping”), <code>payment</code> (“Payment”) and <code>review</code> (no title). The selected element is the “Address” label in Shipping, which has no doan-id; the Continue button has doan-id <code>ship-next</code>.</p>
+<p><b>References.</b> None. No external tool was checked or recalled for this draft; layout and copy come from the feature documents and the shipped code listed above (local files, read 2026-10-25). The old-ID line in <code>identity-blocks</code> takes its copy from docs/features/project-feedback/design.md (draft request, <code>id-change-notice</code>); its look belongs to doan/project-feedback.html.</p>
+<p><b>Example data.</b> Repository acme-web on main. <code>doan/checkout/checkout.html</code> (“Checkout”, canvas id <code>checkout</code>) has frames <code>shipping</code> (“Shipping”), <code>payment</code> (“Payment”) and <code>review</code> (no title). The selected element is the “Address” label in Shipping, which has no doan-id; the Continue button has doan-id <code>ship-next</code>.</p>
 </header>
 
 <!-- ===================================================== target-labels -->
@@ -582,7 +582,7 @@ button { border: 0; background: transparent; }
 <p class="tile-label"><b>Canvas info</b> · nothing selected</p>
 <aside class="right" style="width:280px" aria-label="Canvas info" data-doan-id="canvas-info">
  <h2 class="phead">Canvas</h2>
- <div class="isec"><dl class="kv"><dt>Path</dt><dd>design/checkout/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>3</dd></dl></div>
+ <div class="isec"><dl class="kv"><dt>Path</dt><dd>doan/checkout/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>3</dd></dl></div>
  <p class="pempty" data-doan-id="canvas-info-hint">Click an element or frame to inspect or comment on it.</p>
  <section class="isec activity" aria-label="Activity"><h3 class="ihead">Activity</h3><ol><li class="tl-row"><time>10:42</time><b>Reloaded</b></li><li class="tl-row"><time>10:31</time><b>Opened</b></li></ol></section>
 </aside>

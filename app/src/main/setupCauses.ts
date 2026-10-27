@@ -2,7 +2,7 @@ import { connectionSummary, type ConnectionMachineState } from "../setup/connect
 import type { Agent } from "./onboarding/states";
 
 // Why a Needs-attention row needs attention, one cause per row for the Home
-// banner (design/app-setup.html home-setup). The agent a sentence names is the
+// banner (doan/app-setup.html home-setup). The agent a sentence names is the
 // row key itself; Claude Code's skill link exists only on the "claude" row.
 export type CauseKind =
   | "cli-dangling" | "cli-other" | "cli-blocked" | "translocated"

@@ -6,7 +6,7 @@
 <meta name="doan:width" content="1440">
 <title>Revision recheck — draft</title>
 <link rel="stylesheet" href="../app/src/renderer/tokens.css">
-<link rel="stylesheet" href="mock.css">
+<link rel="stylesheet" href="assets/mock.css">
 <style>
 /* Shipped rules, copied from app/src/renderer/styles.css (base, Canvas panel, Comments panel, Home, Overview). */
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -101,14 +101,14 @@ ol { list-style: none; }
 .ocard-meta .hot { color: var(--accent); }
 
 /* comments-readability result (link 2 of the chain, shipped before this feature): copied from its confirmed draft,
-   design/comments-readability.html (docs/features/comments-readability/design.md §2, §3, §5). */
+   doan/comments-readability.html (docs/features/comments-readability/design.md §2, §3, §5). */
 .comments-target { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
 .comments-target.locatable { color: var(--accent); width: 100%; }
 .comments-badge-note { font-size: 10px; line-height: 1.5; color: var(--text-3); padding: 2px 0; }
 .comments-title { position: sticky; top: 0; z-index: 1; background: var(--panel); font-size: 12px; font-weight: 700; padding: 12px 12px 10px; }
 .comments-title + .comments-head { padding-top: 0; }
 .updated { background: var(--panel); padding: 3px 8px; border-radius: 6px; }
-/* project-feedback's old-ID notice, copied from design/project-feedback.html (position only in this draft). */
+/* project-feedback's old-ID notice, copied from doan/project-feedback.html (position only in this draft). */
 .comments-message.warning { border-left: 2px solid var(--warn); }
 .comments-message.notice .comments-btn { margin-left: 6px; vertical-align: baseline; padding: 1px 7px; }
 
@@ -187,8 +187,8 @@ button { border: 0; background: transparent; }
 <p><b>Scope.</b> What a human sees when they come back after handing comments to an agent: who resolved what and when, a notice when resolved comments are waiting, a fixed Review bar that steps through them, the Done summary, success status lines after Resolve and Reopen, editing a resolved comment, a missing target, Activity kinds and the bottom label, and the Home and Overview counts. Source: <code>docs/features/revision-recheck/spec.md</code> and <code>design.md</code> (draft request at the end of design.md).</p>
 <p><b>New frames (all new surfaces, not in code):</b> <code>review-notice</code>, <code>review-bar</code>, <code>review-done</code>. <code>/design-sync</code> compares these three. The other frames show shipped screens with the feature’s changes drawn on them; every changed or added part is marked with a dashed “new” tag.</p>
 <p><b>Copied from shipped screens.</b> Comment cards, editor, messages and dialog: <code>app/src/renderer/CommentsPanel.tsx</code> and the comments rules of <code>styles.css</code> (DESIGN.md “Comments — initial comments-ui implementation”). Canvas panel and Activity: <code>RightPanel.tsx</code>, <code>activity.ts</code>. Bottom label: <code>App.tsx</code> <code>.updated</code>. Home rows: <code>Home.tsx</code>, <code>homeCards.ts</code> (DESIGN.md “Projects home”). Overview cards: <code>ProjectOverview.tsx</code> (DESIGN.md “Design navigation”). Go menu items: <code>app/src/main/index.ts</code>. Jump highlight: <code>.mark.jump-highlight</code> (design-nav).</p>
-<p><b>Drawn on top of comments-readability.</b> The chain ships <code>comments-readability</code> (link 2) before this feature (link 3), so every shipped panel here shows its result, copied from its confirmed draft <code>design/comments-readability.html</code> (commit 8989ac4 on <code>feat-review-loop-drafts</code>) and <code>docs/features/comments-readability/design.md</code> §1–§5: one-line <code>targetLabel</code> target lines (accent button when locatable, <code>--text-2</code> text when not), “Not found in the current canvas.” beside Location unavailable, the sticky “Comments” title above the head, head buttons “Comment on canvas” / “Comment on selection”, no “Reopen this comment before copying.” on resolved cards, Canvas info without COMMENTS and with the hint above Activity, and the panel-coloured background behind the bottom label. “Copy all open” and the card “Copy” stay; <code>agent-handoff</code> comes after this feature. Activity “Moved · from …” follows <code>revision-continuity</code>. The conductor aligns the shared visuals (banner order, Home summary line) across drafts.</p>
-<p><b>References.</b> No outside product was consulted; every pattern here comes from the shipped app, the existing drafts in <code>design/</code>, and the sibling chain drafts <code>design/comments-readability.html</code> and <code>design/project-feedback.html</code> (all checked, not recalled). Proposed copy where the documents give none is listed in the frames and in the handoff.</p>
+<p><b>Drawn on top of comments-readability.</b> The chain ships <code>comments-readability</code> (link 2) before this feature (link 3), so every shipped panel here shows its result, copied from its confirmed draft <code>doan/comments-readability.html</code> (commit 8989ac4 on <code>feat-review-loop-drafts</code>) and <code>docs/features/comments-readability/design.md</code> §1–§5: one-line <code>targetLabel</code> target lines (accent button when locatable, <code>--text-2</code> text when not), “Not found in the current canvas.” beside Location unavailable, the sticky “Comments” title above the head, head buttons “Comment on canvas” / “Comment on selection”, no “Reopen this comment before copying.” on resolved cards, Canvas info without COMMENTS and with the hint above Activity, and the panel-coloured background behind the bottom label. “Copy all open” and the card “Copy” stay; <code>agent-handoff</code> comes after this feature. Activity “Moved · from …” follows <code>revision-continuity</code>. The conductor aligns the shared visuals (banner order, Home summary line) across drafts.</p>
+<p><b>References.</b> No outside product was consulted; every pattern here comes from the shipped app, the existing drafts in <code>doan/</code>, and the sibling chain drafts <code>doan/comments-readability.html</code> and <code>doan/project-feedback.html</code> (all checked, not recalled). Proposed copy where the documents give none is listed in the frames and in the handoff.</p>
 </header>
 
 <!-- ============================================================ -->
@@ -325,7 +325,7 @@ button { border: 0; background: transparent; }
    <div class="comments-message warning notice" role="status" data-doan-id="banner-order-first">3 comments still use the old ID checkout-v1 and no longer show here.<button type="button" class="comments-btn">Show</button></div>
    <div class="rr-banner" data-doan-id="banner-order-review"><span class="text"><b>3 resolved</b> since your last review</span><button type="button" class="comments-btn">Review</button></div>
   </section>
-  <p class="note">Order under the head: <b>1</b> the error / canvas-ID block, or <code>project-feedback</code>’s old-ID notice (drawn here with its copy and look from <code>design/project-feedback.html</code>; position only, owned by those features) → <b>2</b> the review notice. Nothing else sits between the head and the list: <code>agent-handoff</code> later draws “Handed off 3 · 14:02:10” inline in the head tools next to Hand off…, not as a banner, and <code>revision-continuity</code>’s duplicate-id notice lives on the Overview.</p>
+  <p class="note">Order under the head: <b>1</b> the error / canvas-ID block, or <code>project-feedback</code>’s old-ID notice (drawn here with its copy and look from <code>doan/project-feedback.html</code>; position only, owned by those features) → <b>2</b> the review notice. Nothing else sits between the head and the list: <code>agent-handoff</code> later draws “Handed off 3 · 14:02:10” inline in the head tools next to Hand off…, not as a banner, and <code>revision-continuity</code>’s duplicate-id notice lives on the Overview.</p>
  </div>
 </div>
 </section>
@@ -672,7 +672,7 @@ button { border: 0; background: transparent; }
   <p class="tile-label"><b>Canvas panel</b> — Activity</p>
   <aside class="right specimen" role="region" aria-label="Canvas info">
    <h2 class="phead">Canvas</h2>
-   <div class="isec"><dl class="kv"><dt>Path</dt><dd>design/pricing.html</dd><dt>ID</dt><dd>pricing</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>4</dd></dl></div>
+   <div class="isec"><dl class="kv"><dt>Path</dt><dd>doan/pricing.html</dd><dt>ID</dt><dd>pricing</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>4</dd></dl></div>
    <p class="pempty" data-doan-id="canvas-info-hint">Click an element or frame to inspect or comment on it.</p>
    <section class="isec activity" aria-label="Activity" data-doan-id="activity"><h3 class="ihead">Activity</h3><ol>
     <li class="tl-row" data-doan-id="activity-resolved"><time>14:09:30</time><b>Resolved 2 · codex, Kim Doe</b></li>

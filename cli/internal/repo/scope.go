@@ -14,14 +14,14 @@ func Scope(root string, config Config) ([]string, error) {
 	scope := []string{}
 	add := func(p string) {
 		// The config schema rejects only a literal ".", so a symlink such as
-		// `design -> .` would otherwise put the whole repo (`.env`, sources) in scope.
+		// `doan -> .` would otherwise put the whole repo (`.env`, sources) in scope.
 		if p == "." || seen[p] {
 			return
 		}
 		seen[p] = true
 		scope = append(scope, p)
 	}
-	for _, p := range append([]string{"design"}, config.Serve...) {
+	for _, p := range append([]string{"doan"}, config.Serve...) {
 		state, real, err := Resolve(root, root, p)
 		if err != nil {
 			return nil, err

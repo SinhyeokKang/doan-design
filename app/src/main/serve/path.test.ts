@@ -151,7 +151,7 @@ describe("inScope", () => {
   });
 
   test("compares spelling exactly", () => {
-    expect(inScope("DESIGN/a.html", ["doan"])).toBe(false);
+    expect(inScope("DOAN/a.html", ["doan"])).toBe(false);
   });
 
   test("an empty scope serves nothing", () => {

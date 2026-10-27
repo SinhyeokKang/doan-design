@@ -112,7 +112,7 @@ beforeAll(async () => {
 
   server = await startServer();
   key = server.addFolder({ root: repo, scope: ["doan", "tokens.css"] });
-  // Worst case on purpose: even if `design -> .` reached the scope, realpath
+  // Worst case on purpose: even if `doan -> .` reached the scope, realpath
   // must turn `doan/.env` back into `.env`.
   dotKey = server.addFolder({ root: dotRepo, scope: ["doan"] });
   base = `/t/${server.token}/${key}`;
@@ -245,7 +245,7 @@ describe("everything else is the same bodiless 404", () => {
     }
   });
 
-  test("a `design -> .` repo does not expose the repo root", async () => {
+  test("a `doan -> .` repo does not expose the repo root", async () => {
     expectNotFound(await send(server.port, `/t/${server.token}/${dotKey}/doan/.env`));
     expectNotFound(await send(server.port, `/t/${server.token}/${dotKey}/doan/a.html`));
   });

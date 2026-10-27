@@ -354,7 +354,7 @@ describe("served revision", () => {
       const entry = listed(entries, root);
       if (entry === undefined || entry.servedRev === last) return;
       last = entry.servedRev;
-      const url = entry.canvases[0]?.url.replace(/design\/a\.html$/, "assets/x.css");
+      const url = entry.canvases[0]?.url.replace(/doan\/a\.html$/, "assets/x.css");
       if (url) fetched.push(fetch(url).then((response) => response.status));
     });
     fetched.length = 0;

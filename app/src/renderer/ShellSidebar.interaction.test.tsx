@@ -39,7 +39,7 @@ it("collapses another project and opens a canvas only on activation, not arrow m
   const { props, project, rendered } = fixture(null);
   key(project, "ArrowLeft");
   expect(props.toggle).toHaveBeenCalledWith("common");
-  const canvas = rendered.find(item => item["data-key"] === "/a\ndesign/a.html")!;
+  const canvas = rendered.find(item => item["data-key"] === "/a\ndoan/a.html")!;
   key(canvas, "ArrowDown");
   expect(props.open).not.toHaveBeenCalled();
   key(canvas, "Enter");
@@ -84,7 +84,7 @@ it.each([
   (item.onSelect as (event: unknown) => void)(event);
   expect(event.preventDefault).toHaveBeenCalledOnce();
   rendered = render();
-  expect(rendered.find(item => item["data-key"] === "/a\ndesign/a.html")?.["aria-current"]).toBe("location");
+  expect(rendered.find(item => item["data-key"] === "/a\ndoan/a.html")?.["aria-current"]).toBe("location");
   expect(props.worktree).not.toHaveBeenCalled();
   expect(props.overview).not.toHaveBeenCalled();
   expect(props.open).not.toHaveBeenCalled();

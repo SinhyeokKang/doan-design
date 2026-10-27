@@ -10,7 +10,7 @@ const tokens = tokenSignature(tokenFiles);
 const meta = { mtimeMs: 1_000, size: 200, appVersion: "0.1.0", tokens };
 
 test("the key is sha256 of root, a newline and the canvas path", () => {
-  const expected = createHash("sha256").update("/repo/a\ndesign/x.html").digest("hex");
+  const expected = createHash("sha256").update("/repo/a\ndoan/x.html").digest("hex");
   expect(thumbnailKey("/repo/a", "doan/x.html")).toBe(expected);
   expect(thumbnailKey("/repo/a", "doan/x.html")).toMatch(/^[0-9a-f]{64}$/);
 });

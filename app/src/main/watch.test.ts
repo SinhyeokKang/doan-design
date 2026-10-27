@@ -415,7 +415,7 @@ describe("watchFolder classifies changes", () => {
     mkdirSync(join(root, "docs", "doan", "sub"), { recursive: true });
     symlinkSync(join("docs", "doan"), join(root, "doan"));
     vi.mocked(fsWatch).mockClear();
-    const w = await watchScope(root, ["docs/design"]);
+    const w = await watchScope(root, ["docs/doan"]);
     expect(watchedPaths()).not.toContain(join(root, "doan"));
     await expectChange(w, () => writeFileSync(join(root, "docs", "doan", "sub", "a.html"), ""), SERVED);
   });

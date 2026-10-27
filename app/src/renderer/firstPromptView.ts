@@ -3,12 +3,12 @@ import { MAX_SUBJECT_LENGTH, promptSentence } from "../firstPrompt/promptSentenc
 import type { FolderEntry } from "../main/view";
 import type { CopyState } from "./onboardingView";
 
-// Copy from the confirmed draft (design/app-setup.html, frame first-prompt).
+// Copy from the confirmed draft (doan/app-setup.html, frame first-prompt).
 export const SUBJECT_LABEL = "What do you want to design?";
 export const SUBJECT_PLACEHOLDER = "a sign-in screen with SSO";
 export const INVALID_SUBJECT = `Use one line of plain text, up to ${MAX_SUBJECT_LENGTH} characters.`;
 export const HELPER_LINES = ["Paste it into a new Claude Code or Codex session.", "Your input stays in doan until you copy it."] as const;
-export const WAITING_TEXT = "Waiting for a canvas in design/…";
+export const WAITING_TEXT = "Waiting for a canvas in doan/…";
 export const newCanvasText = (project: string) => `New canvas in ${project}`;
 
 export interface SubjectView { copyable: boolean; error?: string; count?: string }
