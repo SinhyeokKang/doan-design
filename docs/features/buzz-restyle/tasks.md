@@ -19,10 +19,10 @@
 
 ## C. 자식 feature
 
-각 줄의 검증: main에서 `test ! -d docs/features/<slug>`가 통과하고, '자식 진행 규칙' 5의 `verify.mjs --runtime` PASS가 그 자식의 PR에 기록되어 있으며, 'DESIGN.md 절과 담당' 표에서 그 자식이 지울 표시가 남아 있지 않다(`grep -n 'buzz-ds 이전' docs/DESIGN.md`로 해당 절 확인). 체크는 다음 자식을 시작하는 세션이 머지를 확인한 뒤 한다.
+각 줄의 검증: main에서 `test ! -d docs/features/<slug>`가 통과하고, '자식 진행 규칙' 5의 `verify.mjs` PASS와 변경 범위 런타임 근거가 그 자식의 PR에 기록되어 있으며, 'DESIGN.md 절과 담당' 표에서 그 자식이 지울 표시가 남아 있지 않다(`grep -n 'buzz-ds 이전' docs/DESIGN.md`로 해당 절 확인). 체크는 다음 자식을 시작하는 세션이 머지를 확인한 뒤 한다.
 
 - [ ] C0. `buzz-ds` — 문서 있음: [`../buzz-ds/`](../buzz-ds/spec.md)
-- [ ] C1. `buzz-shell` — 디자인 승인 및 feature-review 반영(2026-10-27). 구현/네이티브 검증은 미완료. 최신 범위는 [자식 spec](../buzz-shell/spec.md)과 부모 design의 AppShell 계약 갱신 절을 따른다.
+- [ ] C1. `buzz-shell` — 구현·네이티브·패키지·변경 범위 런타임 검증을 완료했다(2026-10-27). 결론은 [PRODUCT](../../PRODUCT.md)·[ARCHITECTURE](../../ARCHITECTURE.md)·[DESIGN](../../DESIGN.md)로 승격했다. 위 규칙에 따라 다음 자식 시작 세션이 main 병합을 확인한 뒤 체크한다.
 - [ ] C2. `buzz-onboarding`
 - [ ] C3. `buzz-home`
 - [ ] C4. `buzz-search`
@@ -35,7 +35,7 @@
 ## Z. 부모 정리
 
 - [ ] Z0. comments-ui `08-hidden-quit-close`(`comments-ui.ts:566`) 시간 초과를 조사하고 고친다(`/ship` 버그 경로와 `/postmortem`). macOS 26에서 숨겼던 창이 다시 떠도 포커스를 받지 못하는 실제 제품 버그일 수 있다(추론). 모든 자식이 끝날 때까지 미룬다(2026-10-26 user).
-  - 검증: `node .agents/skills/verify/scripts/verify.mjs --runtime` 최종 PASS.
+  - 검증: `node .agents/skills/verify/scripts/verify.mjs` 최종 PASS와 변경 범위의 실제 앱 확인.
 
 - [ ] Z1. 남은 표시, 다크 잔재, PRODUCT §7 기록을 확인하고 이 디렉터리를 지운다.
   - 검증:
