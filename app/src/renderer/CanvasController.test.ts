@@ -2301,3 +2301,17 @@ it("opens an explicit Overview in one guarded workspace transition", async () =>
     expect(changed.mock.calls.at(-1)?.[0].open).toBeNull();
   } finally { controller.dispose(); }
 });
+
+it("remembers the source view when an explicit canvas opens in another workspace", () => {
+  const { controller, row } = loadedController();
+  try {
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/other", kind: "list", servedRev: 0, canvases: [row] }]);
+    const view = controller.currentView();
+    controller.setTransitionGuard(() => false);
+    controller.openCanvas("/other", row);
+    expect(controller.memory()["/repo"]).toBeUndefined();
+    controller.setTransitionGuard(() => true);
+    controller.openCanvas("/other", row);
+    expect(controller.memory()["/repo"]).toEqual({ canvas: row.path, view });
+  } finally { controller.dispose(); }
+});
