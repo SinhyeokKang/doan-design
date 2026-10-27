@@ -4,14 +4,14 @@
 
 ## AppShell 승인에 따른 공통 계약 갱신 (2026-10-27)
 
-사용자 승인과 feature-review 일괄 반영에 따라 아래의 이전 조사 수치 중 충돌하는 부분은 이 절과 [buzz-shell 설계](../buzz-shell/design.md)가 우선한다. 구현 완료를 뜻하지 않는다.
+사용자 승인과 feature-review 일괄 반영에 따라 아래의 이전 조사 수치 중 충돌하는 부분은 이 절과 [승격된 구조 계약](../../ARCHITECTURE.md#7-app-stack-electron--typescript-2026-10-21)가 우선한다. Shell 구현·검증 결과는 [DESIGN.md](../../DESIGN.md)의 2026-10-27 완료 기록을 따른다.
 
 - Shell/LNB는 투명·블러, 본문만 흰 Panel이다. LNB의 별도 Panel·점 격자·violet 선택은 사용하지 않는다.
 - LNB 프로젝트→캔버스 IA와 프로젝트 메뉴·워크트리 선택은 buzz-shell이 맡는다. buzz-project는 Overview 본문, buzz-home은 프로젝트 선택 전 본문, buzz-conversation은 오른쪽 패널 표시 정책과 대화 UI를 맡는다.
 - Geist는 앱 전역 공통 폰트로 로컬 제공하며 시스템 스택은 대체 글꼴이다. 공통 칩 기본값은 12px·상하 2px·좌우 6px, 워크트리는 translucent 변형이다.
 - 현재 프로젝트는 접을 수 없다. 브랜치 뱃지는 읽기 전용이다. 우측 … 메뉴는 워크트리·Overview·Finder·설정·프로젝트 전체 등록 제거를 제공한다.
 - 이전/다음은 실행 중의 캔버스·워크트리·Overview 방문 기록이다. 전환 보호를 통과한 이동만 기록한다.
-- 홈 본문·에이전트 인증·Dot 상태 데이터는 이 승인에 포함되지 않는다. PRODUCT·ARCHITECTURE 승격은 buzz-shell 완료 과업에서 추적한다.
+- 홈 본문·에이전트 인증·Dot 상태 데이터는 이 승인에 포함되지 않는다. Shell의 구현 결론은 PRODUCT·ARCHITECTURE로 승격했다.
 
 ## 레퍼런스
 
@@ -87,9 +87,9 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 1. **시작**: clone 확인(규칙 2·3) → 이전 자식이 main에 머지됐으면 부모 [tasks.md](./tasks.md)의 그 줄을 체크하고 `docs(feature): buzz-restyle check <slug>`로 따로 커밋 → `/feature <slug>` → 아래 조사 메모 중 해당 메모를 자식 `design.md`로 **옮기고**(부모에서는 지운다), 그 이동도 같은 체크 커밋에 넣는다.
 2. **초안**: 화면 자식은 `/design-draft`로 그 화면의 Buzz 스타일 초안을 새 파일(`design/buzz-<화면>.html`)로 그린다. 기존 초안은 고치지 않는다.
 3. **구현과 대조**: 구현 뒤 `/design-sync`로 새 초안과 맞춘다. 지금 하네스는 "초안은 그 화면의 첫 구현까지만 정본"이라서, 리디자인 초안을 그 자식이 머지될 때까지 정본으로 인정하도록 AGENTS.md와 `/design-sync`를 넓혀야 한다(부모 tasks의 하네스 task).
-4. **값 동기화**: 자식은 자기 변경이 움직이는 모든 e2e 고정값과 DESIGN.md 값을 다른 화면 것까지 함께 갱신한다(`buzz-shell`은 특히 모든 화면에 영향). 자기 담당 DESIGN.md 절의 "buzz-ds 이전" 표시를 지우고 다시 측정한다.
-5. **끝**: `node .agents/skills/verify/scripts/verify.mjs --runtime` 통과, 결론 승격, 자식 디렉터리 삭제, PR. 부모 디렉터리는 건드리지 않는다.
-   - 예외(2026-10-26 user): comments-ui `08-hidden-quit-close`(`app/e2e/comments-ui.ts:566`, `window.isFocused()` 대기)의 시간 초과는 main에서도 재현되는 기존 실패다. 모든 자식이 끝날 때까지 미뤄 두고 Z0에서 고친다. 자식은 이 지점에서만 멈춘 `--runtime` 결과를 미충족으로 PR에 적고, comments-ui 뒤 suite를 하나씩 돌린 결과를 함께 남긴다.
+4. **값 동기화**: 자식은 자기 변경이 영향을 주는 DESIGN.md 값을 갱신하고 해당 상태만 실제 앱에서 측정한다(`buzz-shell`은 특히 모든 화면에 영향). 자기 담당 DESIGN.md 절의 "buzz-ds 이전" 표시를 지우고 다시 측정한다.
+5. **끝**: `node .agents/skills/verify/scripts/verify.mjs`와 변경 범위의 짧은 실제 앱 검증 통과, 결론 승격, 자식 디렉터리 삭제, PR. 부모 디렉터리는 건드리지 않는다.
+   - 검증 정책 갱신(2026-10-27 user): 기존 화면별 e2e와 전체 실행 게이트를 제거했다. 격리 실행 기반만 유지하며, 새 e2e 시나리오는 앱 완성 후 당시 구조에 맞춰 작성한다. 이전 comments-ui 전체 실행 예외는 폐기됐다.
 
 ## DESIGN.md 절과 담당
 
