@@ -40,9 +40,9 @@ Record non-applicability with a reason. If subagents are unavailable, disclose t
 
 ## Runtime evidence
 
-Default to source inspection. If the request requires live behavior or visual verification, the lead runs [/runtime-test](../runtime-test/SKILL.md) with its isolation rules and shares the evidence with reviewers; use `/verify --runtime` when also running the shared gates. Coordinate with existing tests so runtime workloads do not overlap. Do not use the real user's setup targets for convenience.
+Default to source inspection. If the request requires live behavior or visual verification, the lead runs [/runtime-test](../runtime-test/SKILL.md) with its isolation rules and shares the evidence with reviewers; use `/verify` for the separate static/unit/build gates. Coordinate with existing tests so runtime workloads do not overlap. Do not use the real user's setup targets for convenience.
 
-Inspect rendered output before claiming visual consistency. A passing existing runtime suite only covers its assertions, not every screen/state in this audit. For a first implementation against a draft, use [/design-sync](../design-sync/SKILL.md); this audit does not reestablish old drafts as the source of truth for shipped screens.
+Inspect rendered output before claiming visual consistency. A passing runtime probe only covers its assertions, not every screen/state in this audit. For a first implementation against a draft, use [/design-sync](../design-sync/SKILL.md); this audit does not reestablish old drafts as the source of truth for shipped screens.
 
 ## Report and limits
 
