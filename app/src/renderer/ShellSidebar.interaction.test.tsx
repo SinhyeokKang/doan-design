@@ -5,6 +5,7 @@ import type { FolderEntry } from "../main/view";
 const hooks = vi.hoisted(() => ({ refs: [] as { current: unknown }[] }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
+  useId: () => "description",
   useLayoutEffect: () => {},
   useRef: (value: unknown) => { const ref = { current: value }; hooks.refs.push(ref); return ref; },
   useState: (value: unknown) => [value, vi.fn()],
