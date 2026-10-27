@@ -18,3 +18,16 @@
   --mock-violet-fill: #6a2bd4;
   --mock-violet-ink: #f6f0ff;
 }
+
+/* Project fallback palette preview, copied from Malmoi hue roles (Tailwind 600).
+   Promote to app identity roles when implementing buzz-shell. */
+:root {
+  --mock-project-rose: oklch(58.6% 0.253 17.585);
+  --mock-project-orange: oklch(64.6% 0.222 41.116);
+  --mock-project-amber: oklch(66.6% 0.179 58.318);
+  --mock-project-emerald: oklch(59.6% 0.145 163.225);
+  --mock-project-teal: oklch(60% 0.118 184.704);
+  --mock-project-sky: oklch(58.8% 0.158 241.966);
+  --mock-project-indigo: oklch(51.1% 0.262 276.966);
+  --mock-project-fuchsia: oklch(59.1% 0.293 322.896);
+}
