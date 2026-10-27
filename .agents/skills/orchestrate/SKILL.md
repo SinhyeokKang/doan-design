@@ -66,7 +66,7 @@ When the run includes `/design-draft`, the conductor owns and performs the draft
 ## 4. Integration
 
 - Integration target: this run's single `feat-<slug>` branch (branched from main and recorded in `orch.md`).
-- Check that `git status --porcelain` is empty, then cherry-pick the batch commits. Run [/verify](../verify/SKILL.md) at the integration HEAD, selecting `--runtime` and `--eval` from the union of integrated changes. Coordinate with workers so full gates and runtime/stress suites do not overlap. Worker passes do not verify the combined result; the separate AGENTS `/agent-eval` requirement still applies.
+- Check that `git status --porcelain` is empty, then cherry-pick the batch commits. Run [/verify](../verify/SKILL.md) at the integration HEAD, selecting `--eval` when applicable and checking affected app behavior with a short `/runtime-test` probe. Coordinate with workers so static gates and GUI probes do not overlap. Worker passes do not verify the combined result; the separate AGENTS `/agent-eval` requirement still applies.
 - Like `/ship` step 9, check docs freshness and add PRODUCT and `orch.md` updates as per-document commits.
 - Tell workers with deferred items that the prerequisite has landed, and confirm they started.
 
