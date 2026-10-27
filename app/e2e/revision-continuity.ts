@@ -18,7 +18,7 @@ import { _electron, type ElectronApplication, type Page } from "playwright";
 const { rememberApp, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { appWindow, menu }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
-const { canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
+const { canvasTitle: renderedCanvasTitle, canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { enterProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 
 const beforeRealState = await realState();
@@ -128,7 +128,7 @@ try {
   const selected = async () => { const head = page.locator(".inspect-head .selector"); return await head.count() ? head.textContent() : null; };
   const board = () => page.locator(".board").evaluate(node => (node as HTMLElement).style.transform);
   const scopePressed = (name: "Canvas" | "Selection") => panel().getByRole("group", { name: "Comment scope" }).getByRole("button", { name, exact: true }).getAttribute("aria-pressed");
-  const folderExpanded = (name: string) => page.getByRole("treeitem", { name, exact: true }).getAttribute("aria-expanded");
+  const projectExpanded = (name: string) => page.getByRole("treeitem", { name, exact: true }).getAttribute("aria-expanded");
   const row = (path: string) => page.evaluate(([repo, path]) => {
     const entry = (Reflect.get(window, "rcEntries") as import("../src/main/view").FolderEntry[] | undefined)?.find(item => item.path === repo);
     return entry?.kind === "list" ? entry.canvases.find(canvas => canvas.path === path) ?? null : null;
@@ -137,14 +137,14 @@ try {
   const savedBodies = async (id: string) => (await log(id)).split("\n").filter(Boolean).map(line => JSON.parse(line) as { body?: string; target?: { element?: { doanId?: string } } });
 
   async function openCanvas(file: string, title: string): Promise<void> {
-    if (!await page.getByRole("tree", { name: "Canvases", exact: true }).isVisible()) await enterProject(page, repo);
+    if (!await page.getByRole("tree", { name: "Projects and canvases", exact: true }).isVisible()) await enterProject(page, repo, app!);
     // A row's tooltip left open under the pointer (the list changed beneath it) covers the next row.
     // Radix keeps it until Escape (tooltip.ts); no draft is open at a scenario's start.
     await page.mouse.move(700, 20);
     if (await page.getByRole("tooltip").isVisible()) await page.keyboard.press("Escape");
     await page.getByRole("tooltip").waitFor({ state: "hidden", timeout: 2_000 });
     await canvasRow(page, file).click();
-    await wait(async () => await page.locator("header .canvas").textContent() === title && await frame().getByRole("button", { name: "Child target", exact: true }).count() === 1, `${title} shown`);
+    await wait(async () => await renderedCanvasTitle(page) === title && await frame().getByRole("button", { name: "Child target", exact: true }).count() === 1, `${title} shown`);
   }
   async function select(name: string, doanId: string): Promise<void> {
     await retry(() => frame().getByRole("button", { name, exact: true }).click({ timeout: 2_000 }), `click ${name}`);
@@ -244,7 +244,7 @@ try {
   }
 
   await launch();
-  await enterProject(page, repo);
+  await enterProject(page, repo, app!);
 
   let aRev = 0;
   const touchA = (options: { other?: boolean; extra?: string } = {}) => writeFile(design("a.html"), canvas("a", "A canvas", { ...options, rev: String(++aRev) }));
@@ -445,12 +445,10 @@ try {
 
   await scenario("3-move-follows-the-canvas", async () => {
     await openCanvas("m.html", "Moving canvas");
-    await page.getByRole("treeitem", { name: "misc", exact: true }).click();
-    await page.getByRole("treeitem", { name: "moved", exact: true }).click();
-    await wait(async () => await folderExpanded("misc") === "false" && await folderExpanded("moved") === "false", "folders collapsed");
-    // The open canvas's own row, collapsed by hand, stays collapsed too (R-B7 🟡2).
-    await page.getByRole("button", { name: "Collapse Moving canvas", exact: true }).click();
-    await wait(async () => await canvasRow(page, "m.html").getAttribute("aria-expanded") === "false", "open canvas row collapsed");
+    const otherProject = page.getByRole("treeitem", { name: "other", exact: true });
+    await otherProject.focus(); await otherProject.press("ArrowLeft");
+    assert.equal(await projectExpanded("other"), "false", "unviewed project collapsed");
+    assert.equal(await projectExpanded("proj"), "true", "viewed project expanded");
     await select("Child target", "child");
     await button("Comment on selection").click();
     await createBody().fill("Before the move");
@@ -472,13 +470,13 @@ try {
     await check("no Overview, no removal toast", async () => {
       assert.equal(await overview().isVisible(), false);
       assert.equal(await page.locator(".toast .msg", { hasText: "was removed from design/" }).count(), 0);
-      assert.equal(await page.locator("header .canvas").textContent(), "Moving canvas");
+      assert.equal(await renderedCanvasTitle(page), "Moving canvas");
     });
     await check("view kept", async () => assert.equal(await board(), view));
-    await check("open row moved", () => wait(async () => await canvasRow(page, "m2.html").evaluate(node => node.classList.contains("is-open")), "m2.html is the open row"));
-    await check("new ancestor expanded", () => wait(async () => await folderExpanded("moved") === "true", "moved expanded"));
-    await check("collapsed folder kept", async () => assert.equal(await folderExpanded("misc"), "false"));
-    await check("collapsed canvas row kept", () => holds(async () => await canvasRow(page, "m2.html").getAttribute("aria-expanded") === "false", "m2.html row stays collapsed", 300));
+    await check("open row moved", () => wait(async () => await canvasRow(page, "m2.html").evaluate(node => node.getAttribute("aria-current") === "location"), "m2.html is the open row"));
+    await check("viewed project stays expanded", async () => assert.equal(await projectExpanded("proj"), "true"));
+    await check("unviewed project stays collapsed", async () => assert.equal(await projectExpanded("other"), "false"));
+    await check("moved canvas stays a leaf", async () => assert.equal(await canvasRow(page, "m2.html").getAttribute("aria-expanded"), null));
     await check("doan active has the new path", () => wait(async () => {
       const active = JSON.parse((await exec(cli, ["active", "--json", "--repo", repo], { env })).stdout) as { result?: { selection?: { canvas: { path: string } } } };
       return active.result?.selection?.canvas.path === "design/moved/m2.html";
@@ -502,17 +500,16 @@ try {
 
   await scenario("3b-root-switch-after-move", async () => {
     await openCanvas("s.html", "Switch canvas");
-    await page.getByRole("button", { name: "Collapse Switch canvas", exact: true }).click();
-    await wait(async () => await canvasRow(page, "s.html").getAttribute("aria-expanded") === "false", "open canvas row collapsed");
+    assert.equal(await projectExpanded("proj"), "true");
     await rename(design("sub/s.html"), design("sub/s2.html"));
     await wait(async () => await iframePath() === "design/sub/s2.html", "the renamed canvas is followed");
-    await holds(async () => await canvasRow(page, "s2.html").getAttribute("aria-expanded") === "false", "the moved row stays collapsed", 300);
-    await enterProject(page, other);
+    await holds(async () => await projectExpanded("proj") === "true", "the viewed project stays expanded", 300);
+    await enterProject(page, other, app!);
     await canvasRow(page, "s.html").click();
-    await wait(async () => await page.locator("header .canvas").textContent() === "Other switch canvas", "the other root's canvas at the move source shown");
-    await enterProject(page, repo);
-    await wait(async () => await page.locator("header .canvas").textContent() === "Switch canvas" && await iframePath() === "design/sub/s2.html", "the remembered canvas restored");
-    await wait(async () => await canvasRow(page, "s2.html").getAttribute("aria-expanded") === "true", "a normal Open after the root switch expands the row");
+    await wait(async () => await renderedCanvasTitle(page) === "Other switch canvas", "the other root's canvas at the move source shown");
+    await enterProject(page, repo, app!);
+    await wait(async () => await renderedCanvasTitle(page) === "Switch canvas" && await iframePath() === "design/sub/s2.html", "the remembered canvas restored");
+    await wait(async () => await projectExpanded("proj") === "true", "a normal Open after the root switch expands the project");
     await shot("3b-root-switch");
   });
 
@@ -558,7 +555,7 @@ try {
     await quit();
     await rename(design("r.html"), design("misc/r-new.html"));
     await launch();
-    await wait(async () => await page.locator("header .canvas").textContent() === "Restored canvas" && await iframePath() === "design/misc/r-new.html", "restored at the new path");
+    await wait(async () => await renderedCanvasTitle(page) === "Restored canvas" && await iframePath() === "design/misc/r-new.html", "restored at the new path");
     await wait(async () => await board() === view, `restored view ${view}`);
     assert.equal(await page.locator(".toast .msg", { hasText: "is no longer in design/" }).count(), 0);
     await shot("8-restored");

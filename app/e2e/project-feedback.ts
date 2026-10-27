@@ -19,7 +19,7 @@ import { _electron, type ElectronApplication, type Page } from "playwright";
 const { rememberApp, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { appWindow }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
-const { canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
+const { openOverview, canvasTitle: renderedCanvasTitle, canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, enterProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 
 const beforeRealState = await realState();
@@ -161,18 +161,18 @@ try {
     return x >= area.x && x <= area.x + area.width && y >= area.y && y <= area.y + area.height;
   }
   async function overview(): Promise<void> {
-    if (!await page.getByRole("tree", { name: "Canvases", exact: true }).isVisible()) await enterProject(page, repo);
-    if (!await page.getByRole("region", { name: "Overview", exact: true }).isVisible()) await page.getByRole("button", { name: "proj overview", exact: true }).click();
+    if (!await page.getByRole("tree", { name: "Projects and canvases", exact: true }).isVisible()) await enterProject(page, repo, app!);
+    if (!await page.getByRole("region", { name: "Overview", exact: true }).isVisible()) await openOverview(page, "proj");
     await page.getByRole("region", { name: "Overview", exact: true }).waitFor();
     await feedback().waitFor();
   }
   async function openCanvas(file: string, title: string, ready: string): Promise<void> {
-    if (!await page.getByRole("tree", { name: "Canvases", exact: true }).isVisible()) await enterProject(page, repo);
+    if (!await page.getByRole("tree", { name: "Projects and canvases", exact: true }).isVisible()) await enterProject(page, repo, app!);
     await page.mouse.move(700, 20);
     if (await page.getByRole("tooltip").isVisible()) await page.keyboard.press("Escape");
     await page.getByRole("tooltip").waitFor({ state: "hidden", timeout: 2_000 });
     await canvasRow(page, file).click();
-    await wait(async () => await page.locator("header .canvas").textContent() === title && await frame().getByRole("button", { name: ready, exact: true }).count() === 1, `${title} shown`);
+    await wait(async () => await renderedCanvasTitle(page) === title && await frame().getByRole("button", { name: ready, exact: true }).count() === 1, `${title} shown`);
   }
   async function filterTo(group: "Comment scope" | "Comment status", name: RegExp): Promise<void> {
     if (await pressed(group, name) !== "true") await panel().getByRole("group", { name: group }).getByRole("button", { name }).click();
@@ -211,10 +211,10 @@ try {
   }
 
   await launch();
-  await enterProject(page, repo);
+  await enterProject(page, repo, app!);
 
   await scenario("7-home-summary", async () => {
-    await goHome(page);
+    await goHome(page, app!);
     const row = homeRow(page, repo);
     const sum = row.locator(".wt-sum");
     await wait(async () => (await row.getAttribute("aria-label"))?.includes(" · 6 canvases · 12 open comments · 2 without a canvas · ") ?? false, "Home row label counts 2 without a canvas");
@@ -310,7 +310,7 @@ try {
     await page.keyboard.press("ArrowDown"); await page.keyboard.press("ArrowDown");
     await focusOn(focus => focus.text === "Alpha whole note", "↓↓ to Alpha's whole-canvas comment");
     await page.keyboard.press("Enter");
-    await wait(async () => await page.locator("header .canvas").textContent() === "Alpha canvas", "Enter opens Alpha");
+    await wait(async () => await renderedCanvasTitle(page) === "Alpha canvas", "Enter opens Alpha");
     await focusOn(focus => focus.tag === "ARTICLE" && focus.comment === a.whole, "Enter: focus on the whole-canvas card");
     assert.equal(await pressed("Comment status", /^Open \d+$/), "true");
     assert.equal(await pressed("Comment scope", /^Canvas$/), "true");
@@ -320,7 +320,7 @@ try {
     await filterTo("Comment status", /^Resolved \d+$/);
     await overview();
     await treeItem("Alpha side note").click();
-    await wait(async () => await page.locator("header .canvas").textContent() === "Alpha canvas", "row click opens Alpha");
+    await wait(async () => await renderedCanvasTitle(page) === "Alpha canvas", "row click opens Alpha");
     await wait(async () => (await selected())?.includes("b1") ?? false, "the row's target is selected", 15_000);
     await wait(() => onScreen("Side far"), "the far target is on screen");
     await focusOn(focus => focus.tag === "ARTICLE" && focus.comment === a.side, "row click: focus on its card");
@@ -350,8 +350,8 @@ try {
     await overview();
     await lock(commentsFile("beta"));
     const beta = canvasRow(page, "beta.html");
-    const hint = page.getByRole("tree", { name: "Canvases", exact: true }).locator("p.tree-hint.warn").filter({ hasText: "Couldn’t read this canvas’s comments — run doan check" });
-    await wait(async () => await beta.locator(".warn-mark").count() === 1 && await hint.count() === 1, "Beta row shows the warning", 15_000);
+    const hint = beta.locator("..").locator(".shell-canvas-error").filter({ hasText: "Couldn’t read this canvas’s comments — run doan check" });
+    await wait(async () => await hint.count() === 1, "Beta row shows the warning", 15_000);
     const describedBy = await beta.getAttribute("aria-describedby");
     assert.ok(describedBy, "the row is described");
     assert.equal(await hint.getAttribute("id"), describedBy, "aria-describedby points at the sentence");
@@ -362,10 +362,10 @@ try {
     // An open disclosure shows its state in its label, not with a pressed fill.
     await page.mouse.move(0, 400); await page.waitForTimeout(250);
     assert.equal(await details.evaluate(node => getComputedStyle(node).backgroundColor), "rgba(0, 0, 0, 0)", "open Details is not drawn pressed");
-    assert.equal(await page.locator("p.tree-detail").textContent(), "unreadable_comments: Cannot read .doan/comments/beta.jsonl: permission denied");
+    assert.equal(await hint.locator("pre").textContent(), "unreadable_comments: Cannot read .doan/comments/beta.jsonl: permission denied");
     // The tree and the other canvases stay.
-    assert.equal(await canvasRow(page, "alpha.html").locator(".warn-mark").count(), 0);
-    assert.equal(await canvasRow(page, "alpha.html").getByRole("img", { name: /open comments?$/ }).count(), 1, "Alpha keeps its count");
+    assert.equal(await canvasRow(page, "alpha.html").locator("..").locator(".shell-canvas-error").count(), 0);
+    assert.equal(await canvasRow(page, "alpha.html").getByText(/^\d+ open comments?$/, { exact: true }).count(), 1, "Alpha keeps its count");
     // Feedback: only Beta's group is a read failure, with its message indented to the group.
     const failed = treeGroup("Beta canvas").locator(".comments-message.error");
     await wait(async () => await failed.count() === 1, "Beta group read failure");
@@ -375,22 +375,22 @@ try {
     await shot("1a-unreadable-comments");
     await openCanvas("beta.html", "Beta canvas", "Beta canvas target");
     await panel().getByRole("alert").filter({ hasText: "Couldn’t read comments" }).waitFor();
-    await goHome(page);
+    await goHome(page, app!);
     assert.equal(await homeRow(page, repo).locator(".ob-chip").count(), 0, "the project is not a Config error");
-    await enterProject(page, repo);
+    await enterProject(page, repo, app!);
     await unlock(commentsFile("beta"));
-    await wait(async () => await beta.locator(".warn-mark").count() === 0, "Beta row recovers", 15_000);
+    await wait(async () => await hint.count() === 0, "Beta row recovers", 15_000);
   });
 
   await scenario("2-unreadable-canvas-file", async () => {
     await overview();
     await lock(design("gamma.html"));
     const gamma = canvasRow(page, "gamma.html");
-    const hint = page.getByRole("tree", { name: "Canvases", exact: true }).locator("p.tree-hint.warn").filter({ hasText: "Can't read this canvas — run doan check" });
-    await wait(async () => await gamma.locator(".warn-mark").count() === 1 && await hint.count() === 1, "Gamma row shows the warning", 15_000);
+    const hint = gamma.locator("..").locator(".shell-canvas-error").filter({ hasText: "Can't read this canvas — run doan check" });
+    await wait(async () => await hint.count() === 1, "Gamma row shows the warning", 15_000);
     assert.equal(await hint.getAttribute("id"), await gamma.getAttribute("aria-describedby"));
     await hint.getByRole("button", { name: "Details", exact: true }).click();
-    await wait(async () => await page.locator("p.tree-detail").textContent() === "unreadable_canvas: Cannot read design/gamma.html: permission denied", "canvas Details");
+    await wait(async () => await hint.locator("pre").textContent() === "unreadable_canvas: Cannot read design/gamma.html: permission denied", "canvas Details");
     const ocard = page.getByRole("region", { name: "Overview", exact: true }).locator('.ocard[data-path="design/gamma.html"]');
     await wait(async () => await ocard.locator(".thumb-msg.warn").textContent() === "Can't read this canvas — run doan check", "Overview card sentence");
     // Comments without a canvas may belong to the unreadable canvas: read-only.
@@ -400,7 +400,7 @@ try {
     assert.equal(await treeItem("Gamma canvas").count(), 0, "an unreadable canvas has no group");
     await shot("2a-unreadable-canvas");
     await unlock(design("gamma.html"));
-    await wait(async () => await gamma.locator(".warn-mark").count() === 0 && await orphanCard(o.open).getByRole("button", { name: "Resolve", exact: true }).count() === 1, "Gamma recovers and orphans are writable", 15_000);
+    await wait(async () => await hint.count() === 0 && await orphanCard(o.open).getByRole("button", { name: "Resolve", exact: true }).count() === 1, "Gamma recovers and orphans are writable", 15_000);
   });
 
   await scenario("3-id-change", async () => {
@@ -421,7 +421,7 @@ try {
     await dialog.waitFor();
     await dialog.getByRole("button", { name: "Keep writing", exact: true }).click();
     assert.equal(await panel().getByRole("textbox", { name: "New comment body" }).inputValue(), "Draft before Show");
-    assert.equal(await page.locator("header .canvas").textContent(), "Epsilon canvas", "Keep writing stays");
+    assert.equal(await renderedCanvasTitle(page), "Epsilon canvas", "Keep writing stays");
     await notice().getByRole("button", { name: "Show", exact: true }).click();
     await dialog.getByRole("button", { name: "Discard", exact: true }).click();
     await page.getByRole("region", { name: "Overview", exact: true }).waitFor();
@@ -574,7 +574,7 @@ try {
     // The row click, then a blank press on the Canvas before the anchors answer.
     await overview();
     await treeItem("Zeta note").click();
-    await wait(async () => await page.locator("header .canvas").textContent() === "Zeta canvas", "row click opens Zeta");
+    await wait(async () => await renderedCanvasTitle(page) === "Zeta canvas", "row click opens Zeta");
     assert.equal((await blankPress(page.getByRole("region", { name: "Canvas", exact: true }), "Canvas")).selected, false, "the press landed before the anchors located the target");
     await laidOut();
     await page.waitForTimeout(1_500);

@@ -152,8 +152,8 @@ try {
   await shot(settings, "settings-unbroken-branch");
   check(messages.length === 0, `${dev ? "DEV" : "production"} entry stylesheet CSP`, messages);
   await (await appWindow(app, settings)).evaluate(window => window.close());
-    await enterProject(page, empty); await firstPrompt(page, "overview");
-    await enterProject(page, repo);
+    await enterProject(page, empty, app!); await firstPrompt(page, "overview");
+    await enterProject(page, repo, app!);
     const cardTitle = page.locator(".ocard-title").filter({ hasText: title }); await cardTitle.waitFor();
     check(await cardTitle.getAttribute("title") === title && (await styles(cardTitle)).scroll > (await styles(cardTitle)).client, "Overview truncated title retains full value", await styles(cardTitle));
     await canvasRow(page, "canvas.html").click();
@@ -197,7 +197,7 @@ try {
     console.log("media probe engine", await app.evaluate(() => ({ electron: process.versions.electron, chrome: process.versions.chrome })));
     await shot(page, "canvas-media-preference");
   if (!dev) {
-    for (const [label, trigger] of [["Sidebar", canvasRow(page, "canvas.html").locator(".g")], ["Fit", page.getByRole("button", { name: "Fit", exact: true })], ["PathTip", page.locator(".repo")]] as const) {
+    for (const [label, trigger] of [["Fit", page.getByRole("button", { name: "Fit", exact: true })]] as const) {
       await hoverTooltip(page, trigger);
       const content = page.locator('[data-slot="tooltip-content"]'); const m = await styles(content);
       check(JSON.stringify(m.padding) === JSON.stringify(["4px", "8px", "4px", "8px"]), `${label} four-sided tooltip padding`, m);
@@ -207,8 +207,8 @@ try {
     await focus(page, page.getByRole("button", { name: "Reload canvas", exact: true }), "ghost focus");
     for (const width of [960, 1238]) {
     await (await appWindow(app, page)).evaluate((window, width) => window.setContentSize(width, 780), width);
-    await page.getByRole("button", { name: "Switch worktree" }).click();
-    const menu = page.locator('.menu[aria-label="Worktrees"]'); await menu.waitFor();
+    await page.getByRole("tree", { name: "Projects and canvases", exact: true }).locator(".shell-project").filter({ has: page.locator('[aria-current="location"]') }).getByRole("button", { name: / menu$/ }).click();
+    const menu = page.locator('.shell-project-menu'); await menu.waitFor();
     console.log("menu injected styles", JSON.stringify((await page.locator("style").allTextContents()).map(text => ({ text, sha256: createHash("sha256").update(text).digest("base64") }))));
     const m = await styles(menu); const viewport = await page.evaluate(() => innerWidth);
     check(m.x >= 0 && m.right <= viewport && m.scroll <= m.client, "worktree menu bounded", m);
@@ -246,7 +246,7 @@ try {
       }, chrome);
       check(stacking.above && stacking.z === "3", `focused pin below ${chrome}`, stacking); await shot(page, `pin-${chrome.slice(1)}`);
     }
-    await removeHomeProject(page, removed); await enterProject(page, repo); await canvasRow(page, "canvas.html").click();
+    await removeHomeProject(page, removed, app!); await enterProject(page, repo, app!); await canvasRow(page, "canvas.html").click();
     const toast = page.locator(".toast"); await toast.waitFor(); await toast.hover(); await toast.locator("button").focus();
     for (const width of [960, 1238]) {
       await (await appWindow(app, page)).evaluate((window, width) => window.setContentSize(width, 780), width);
@@ -264,7 +264,7 @@ try {
     await status.evaluate(el => { el.textContent = "UnbrokenError".repeat(45); });
     const s = await styles(status); check(s.scroll <= s.client && s.height > 40, "unbroken canvas status wraps", s);
     await shot(page, "canvas-status-long");
-    await goHome(page);
+    await goHome(page, app!);
     if (await toast.isVisible()) check(await toast.evaluate(el => getComputedStyle(el).bottom) === "20px", "Home toast keeps window-bottom placement", await styles(toast));
   }
   // Baseline Radix menu scroll locking injects this exact blocked style; retain

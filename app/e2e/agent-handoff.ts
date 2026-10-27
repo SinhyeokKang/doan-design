@@ -22,7 +22,7 @@ const { rememberApp, closeApp, suiteGuard }: typeof import("./harness") = await 
 const { saveClipboard, restoreClipboard }: typeof import("./clipboard") = await import(new URL("./clipboard.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { appWindow }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
-const { canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
+const { canvasTitle: renderedCanvasTitle, canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, enterProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 
 const beforeRealState = await realState();
@@ -183,12 +183,12 @@ try {
   const lines = async (project: string, canvasId: string) => (await readFile(commentsFile(project, canvasId), "utf8")).split("\n").filter(Boolean).map(line => JSON.parse(line) as { type: string; comment: string; by: { name: string } });
 
   async function openCanvas(file: string, title: string, ready: string, where = repo): Promise<void> {
-    if (await page.locator("header .repo").getAttribute("aria-label").catch(() => null) !== `${basename(where)} overview`) await enterProject(page, where);
+    await enterProject(page, where, app!);
     await page.mouse.move(700, 20);
     if (await page.getByRole("tooltip").isVisible()) await page.keyboard.press("Escape");
     await page.getByRole("tooltip").waitFor({ state: "hidden", timeout: 2_000 });
-    await canvasRow(page, file).click();
-    await wait(async () => await page.locator("header .canvas").textContent() === title && await frame().getByRole("button", { name: ready, exact: true }).count() === 1, `${title} shown`);
+    await canvasRow(page, file, where).click();
+    await wait(async () => await renderedCanvasTitle(page) === title && await frame().getByRole("button", { name: ready, exact: true }).count() === 1, `${title} shown`);
     await wait(async () => await cards().count() > 0 || await panel().locator(".comments-message").count() > 0, `${title} comments read`);
   }
   async function select(name: string, doanId: string): Promise<void> {
@@ -260,7 +260,7 @@ try {
     }
   }
 
-  await enterProject(page, repo);
+  await enterProject(page, repo, app!);
 
   await scenario("1-dialog-preview-rows", async () => {
     await openCanvas("hand.html", "Hand canvas", "Alpha");
@@ -339,10 +339,10 @@ try {
     await dialog().getByRole("button", { name: "Cancel", exact: true }).click();
     await closed();
 
-    await goHome(page);
+    await goHome(page, app!);
     await homeRow(page, repo).getByText(/^Selected for your agent: /).waitFor();
     await shot("2c-home-selected");
-    await enterProject(page, repo);
+    await enterProject(page, repo, app!);
     await openCanvas("hand.html", "Hand canvas", "Alpha");
     await clearSelection();
     await wait(async () => await hint.count() === 0, "hint gone with the selection");

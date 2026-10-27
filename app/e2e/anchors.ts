@@ -45,7 +45,7 @@ body{margin:0;height:1000px} section{position:absolute;left:80px;top:80px;width:
     HOME: home, TMPDIR: work, SHELL: fakeShell, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"),
     DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json") } }); rememberApp(app);
   const page = await app.firstWindow(); page.setDefaultTimeout(10_000);
-  await enterProject(page, repo);
+  await enterProject(page, repo, app!);
   await canvasRow(page, "anchors.html").click();
   await page.waitForFunction(() => document.querySelector("iframe")?.getAttribute("src"));
   const url = await page.locator("iframe").getAttribute("src"); assert.ok(url);

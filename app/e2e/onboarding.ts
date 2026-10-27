@@ -78,7 +78,7 @@ async function check() { await footerCheck().click(); await wait(async () => !aw
 async function go(name: string) { await stepButton(name).click(); }
 async function closed() { await wizard().waitFor({ state: "hidden" }); }
 async function pick(path: string) { await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }); }, path); }
-async function open(path: string) { await pick(path); await page.evaluate(() => window.doan.openFolder()); await goHome(page); }
+async function open(path: string) { await pick(path); await page.evaluate(() => window.doan.openFolder()); await goHome(page, app!); }
 async function init(path: string) { await exec(cli, ["init", "--json", "--repo", path], { env }); }
 async function newRepo(name: string) { const path = join(work, name); await mkdir(path, { recursive: true }); await exec("git", ["init", path], { env }); await exec("git", ["-C", path, "config", "user.name", "Onboarding Test"], { env }); await exec("git", ["-C", path, "config", "user.email", "onboarding@example.test"], { env }); return path; }
 async function records(): Promise<{ agent: string; args: string[] }[]> { return (await readFile(calls, "utf8")).trim().split("\n").filter(Boolean).map(line => JSON.parse(line)); }
@@ -115,7 +115,7 @@ async function focusIs(locator: Locator) { return locator.evaluate(node => node 
 const subject = (scope: Locator) => scope.getByRole("textbox", { name: "What do you want to design?", exact: true });
 const waiting = (scope: Locator) => scope.getByRole("status").filter({ hasText: "Waiting for a canvas in design/…" });
 const overview = () => page.getByRole("region", { name: "Overview", exact: true });
-const openCanvas = () => page.locator(".crumbs .canvas");
+const openCanvas = () => page.frameLocator('[role="region"][aria-label="Canvas"] iframe').locator("head title");
 const canvasHtml = (title: string) => `<!doctype html><title>${title}</title><meta name="doan:canvas" content="${title.toLowerCase()}"><meta name="doan:width" content="800"><style>button{margin:50px;padding:30px}</style><button data-doan-id="target">Target</button>`;
 // The renderer saw `root` listed with `path` (main publishes after its own read).
 async function listed(root: string, path: string) {
@@ -573,7 +573,7 @@ else if (args[1] === 'add') {
   await subject(wizard()).fill(`${typed} and passkeys`); await button("Copy again").waitFor(); assert.equal(await waiting(wizard()).count(), 1);
   await shot("03-first-prompt"); await button("Done").click(); await closed();
   // The wait goes on after Done; in that workspace the new canvas opens by itself.
-  await enterProject(page, project);
+  await enterProject(page, project, app!);
   let row = overview();
   await waiting(row).waitFor(); assert.equal(await row.locator(".ob-sentence").textContent(), sentenceFor("…"));
   await clipboardGate(); await subject(row).fill("a pricing page"); await row.getByRole("button", { name: "Copy", exact: true }).click(); await row.getByRole("button", { name: "Copying…", exact: true }).waitFor();
@@ -586,7 +586,7 @@ else if (args[1] === 'add') {
   const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true }); await setup.waitFor();
   await assertProjectPath(setup.locator(".ob-project-path"), setup, plain, "setup dialog");
   assert.equal(await focusIs(setup.getByRole("button", { name: "Choose…", exact: true })), true);
-  await setup.getByRole("button", { name: "Set Up Project", exact: true }).click(); await setup.waitFor({ state: "hidden" }); await enterProject(page, plain); plainRow = overview(); await subject(plainRow).waitFor();
+  await setup.getByRole("button", { name: "Set Up Project", exact: true }).click(); await setup.waitFor({ state: "hidden" }); await enterProject(page, plain, app!); plainRow = overview(); await subject(plainRow).waitFor();
   const noToken = JSON.parse(await readFile(join(plain, ".doan/config.json"), "utf8")); assert.equal(noToken.tokenCss, undefined);
   const terminal = await newRepo("terminal"); await open(terminal); const terminalRow = homeRow(page, terminal); await terminalRow.getByRole("button", { name: "Set Up…", exact: true }).click(); await init(terminal); await setup.waitFor({ state: "hidden" });
   const parent = await newRepo("parent"), child = join(parent, "child"); await mkdir(child); await open(child); const childRow = homeRow(page, child); await childRow.getByRole("button", { name: "Set Up…", exact: true }).click(); await init(parent);
@@ -594,26 +594,26 @@ else if (args[1] === 'add') {
   let parentRow = homeRow(page, parent); await parentRow.waitFor(); await wait(() => focusIs(parentRow), "reroot focus"); assert.equal(await exists(join(child, ".doan/config.json")), false);
   await parentRow.getByRole("status").getByText(`This folder is inside ${parent}, which is already set up.`, { exact: true }).waitFor();
   await writeFile(join(parent, "design/next.html"), "<!doctype html><title>Next</title>"); await parentRow.getByText(/This folder is inside/).waitFor({ state: "hidden" });
-  await enterProject(page, parent); parentRow = page.getByRole("region", { name: "Overview", exact: true }); await canvasRow(page, "next.html").waitFor();
+  await enterProject(page, parent, app!); parentRow = page.getByRole("region", { name: "Overview", exact: true }); await canvasRow(page, "next.html").waitFor();
   const changed = await newRepo("changed"); await open(changed); const changedRow = homeRow(page, changed); await changedRow.getByRole("button", { name: "Set Up…", exact: true }).click(); await rename(changed, `${changed}-away`); await setup.waitFor({ state: "hidden" });
   const restartParent = await newRepo("restart-parent"), restartChild = join(restartParent, "child"); await mkdir(restartChild); await open(restartChild); await homeRow(page, restartChild).getByRole("button", { name: "Set Up…", exact: true }).waitFor(); await quit(); await init(restartParent); await launch();
   row = page.getByRole("region", { name: "Overview", exact: true }); parentRow = page.getByRole("region", { name: "Overview", exact: true }); plainRow = page.getByRole("region", { name: "Overview", exact: true });
-  await enterProject(page, restartParent);
+  await enterProject(page, restartParent, app!);
   await subject(overview()).waitFor(); assert.equal(await exists(join(restartChild, ".doan/config.json")), false);
   // Reopen re-asks upward after the previously stored child disappears.
   const reopenParent = await newRepo("reopen-parent"), reopenChild = join(reopenParent, "reopen-child"); await mkdir(reopenChild); await open(reopenChild);
   const reopenRow = homeRow(page, reopenChild); await reopenRow.getByRole("button", { name: "Set Up…", exact: true }).waitFor();
   await rename(reopenChild, `${reopenChild}-away`); await reopenRow.getByRole("button", { name: "Locate…", exact: true }).waitFor(); await init(reopenParent); await rename(`${reopenChild}-away`, reopenChild);
-  await pick(reopenChild); await reopenRow.getByRole("button", { name: "Locate…", exact: true }).click(); await enterProject(page, reopenParent);
+  await pick(reopenChild); await reopenRow.getByRole("button", { name: "Locate…", exact: true }).click(); await enterProject(page, reopenParent, app!);
   await subject(overview()).waitFor(); assert.equal(await exists(join(reopenChild, ".doan/config.json")), false);
-  await enterProject(page, project);
+  await enterProject(page, project, app!);
   // A relaunch forgets the wait. The wizard detects a new canvas in a project that already has one: Canvas ready, then Open closes it.
   await reopen(); await go("Project"); await pick(project); await button("Open Project…").click(); await wizard().getByRole("heading", { name: "Ask for your first canvas" }).waitFor();
   await copyWaiting(wizard(), "a second screen"); await writeFile(join(project, "design/second.html"), canvasHtml("Second"));
   const canvasReady = wizard().getByRole("status").filter({ hasText: "Canvas ready: Second" }); await canvasReady.waitFor(); await shot("03b-canvas-ready");
   await canvasReady.getByRole("button", { name: "Open", exact: true }).click(); await closed(); await wait(async () => await openCanvas().textContent() === "Second", "Canvas ready Open opened it");
   assert.deepEqual(JSON.parse(await readFile(join(data, "onboarding.json"), "utf8")), {});
-  await enterProject(page, project); row = overview();
+  await enterProject(page, project, app!); row = overview();
   await canvasRow(page, "first.html").click(); assert.equal(await subject(page.locator("body")).count(), 0);
   await page.frameLocator("iframe").getByRole("button", { name: "Target", exact: true }).click();
   const panel = page.getByRole("region", { name: "Comments", exact: true }); await panel.getByRole("button", { name: "Comment on selection", exact: true }).click();
@@ -622,7 +622,7 @@ else if (args[1] === 'add') {
   assert.equal((await active()).result?.selection?.element?.doanId, "target");
   const unsaved = page.getByRole("dialog").filter({ hasText: "Keep writing" });
   // Trigger the real draft guard by opening another canvas.
-  await requestProject(page, parent); await unsaved.waitFor(); const keep = unsaved.getByRole("button", { name: "Keep writing", exact: true }); await keep.focus();
+  await requestProject(page, parent, app!); await unsaved.waitFor(); const keep = unsaved.getByRole("button", { name: "Keep writing", exact: true }); await keep.focus();
   await keep.click(); assert.equal(await draft.inputValue(), "Keep this draft");
   await shot("04-draft-preserved");
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -668,26 +668,26 @@ else if (args[1] === 'add') {
   await page.keyboard.press("Escape"); await closed();
 
   console.log("onboarding: 7 arrival toasts, hidden window and removal");
-  const toastProject = await setUpRepo("toast-a"); await open(toastProject); await enterProject(page, toastProject);
-  await copyWaiting(overview(), "a toast screen"); await goHome(page);
+  const toastProject = await setUpRepo("toast-a"); await open(toastProject); await enterProject(page, toastProject, app!);
+  await copyWaiting(overview(), "a toast screen"); await goHome(page, app!);
   await writeFile(join(toastProject, "design/toasted.html"), canvasHtml("Toasted"));
   const toast = page.locator(".toast").filter({ hasText: "New canvas in toast-a" }); await toast.waitFor(); await shot("06-arrival-toast");
   await toast.getByRole("button", { name: "Open", exact: true }).click(); await wait(async () => await openCanvas().textContent() === "Toasted", "toast Open opened it");
-  const hiddenProject = await setUpRepo("hidden-b"); await open(hiddenProject); await enterProject(page, hiddenProject);
+  const hiddenProject = await setUpRepo("hidden-b"); await open(hiddenProject); await enterProject(page, hiddenProject, app!);
   await copyWaiting(overview(), "a hidden screen"); await menu("Close Window"); await wait(async () => !await visible(), "hidden");
   await writeFile(join(hiddenProject, "design/later.html"), canvasHtml("Later")); await listed(hiddenProject, "design/later.html");
   await app.evaluate(({ app }) => app.emit("activate")); await wait(visible, "shown");
   await page.locator(".toast").filter({ hasText: "New canvas in hidden-b" }).waitFor(); assert.equal(await openCanvas().count(), 0, "a hidden arrival does not open by itself");
   // ⌘H hides the whole app (the native hide: selector), not only the window.
-  const appHidden = await setUpRepo("hidden-d"); await open(appHidden); await enterProject(page, appHidden);
+  const appHidden = await setUpRepo("hidden-d"); await open(appHidden); await enterProject(page, appHidden, app!);
   await copyWaiting(overview(), "an app hidden screen");
   await app.evaluate(({ Menu }) => Menu.sendActionToFirstResponder("hide:")); await wait(async () => !await visible(), "app hidden");
   await writeFile(join(appHidden, "design/away.html"), canvasHtml("Away")); await listed(appHidden, "design/away.html");
   assert.equal(await page.locator(".toast").filter({ hasText: "New canvas in hidden-d" }).count(), 0, "no toast while the app is hidden");
   await app.evaluate(({ app }) => app.show()); await wait(visible, "app shown");
   await page.locator(".toast").filter({ hasText: "New canvas in hidden-d" }).waitFor(); assert.equal(await openCanvas().count(), 0, "an arrival during ⌘H does not open by itself");
-  const goneProject = await setUpRepo("gone-c"); await open(goneProject); await enterProject(page, goneProject);
-  await copyWaiting(overview(), "a removed screen"); await removeHomeProject(page, goneProject);
+  const goneProject = await setUpRepo("gone-c"); await open(goneProject); await enterProject(page, goneProject, app!);
+  await copyWaiting(overview(), "a removed screen"); await removeHomeProject(page, goneProject, app!);
   await writeFile(join(goneProject, "design/orphan.html"), canvasHtml("Orphan")); await open(goneProject); await listed(goneProject, "design/orphan.html");
   await pause(1_000); assert.equal(await page.locator(".toast").filter({ hasText: "New canvas in gone-c" }).count(), 0, "removing the project cancelled the wait");
   assert.equal(await page.getByRole("region", { name: "Home", exact: true }).isVisible(), true);

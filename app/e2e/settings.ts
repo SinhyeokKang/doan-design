@@ -192,10 +192,10 @@ try {
   await settings.getByRole("tab", { name: "Projects", selected: true }).waitFor();
   await menu(app, settings, "Close Window"); await wait(async () => settings!.isClosed(), "last tab Settings closed");
 
-  await enterProject(page, repo); await canvasRow(page, "canvas.html").click();
+  await enterProject(page, repo, app!); await canvasRow(page, "canvas.html").click();
   await page.locator("iframe").waitFor(); await wait(async () => (await page!.locator("iframe").contentFrame().locator("body").innerText()).includes("Settings canvas"), "canvas loaded");
   await page.locator("iframe").evaluate(node => node.setAttribute("data-settings-before", "yes"));
-  await goHome(page);
+  await goHome(page, app!);
   await homeRow(page, repo).getByRole("button", { name: `Row menu ${repo}` }).click(); await page.getByRole("menuitem", { name: "Project Settings…" }).click(); settings = await settingsPage(app); settings.setDefaultTimeout(15_000);
   const detail = settings.getByRole("region", { name: "acme settings", exact: true });
   await detail.getByRole("button", { name: "Change…" }).waitFor();

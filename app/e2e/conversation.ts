@@ -69,7 +69,7 @@ async function launch() {
   app = rememberApp(await _electron.launch({ args: [join(root, "app"), `--user-data-dir=${data}`], env }));
   page = await app.firstWindow();
   await page.waitForFunction(() => !!window.doan);
-  await enterProject(page, repo);
+  await enterProject(page, repo, app!);
   await canvasRow(page, canvas.path).click();
 }
 async function read(id: string) {

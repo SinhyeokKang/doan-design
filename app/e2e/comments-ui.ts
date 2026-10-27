@@ -13,7 +13,7 @@ const { realState, assertRealState }: typeof import("./real-state") = await impo
 const { assertDesktopUnlocked, waitForNativeFocus }: typeof import("./desktop") = await import(new URL("./desktop.ts", import.meta.url).href);
 await assertDesktopUnlocked();
 const { rememberApp, closeApp, suiteGuard, bounded }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
-const { canvasRow, frameRows }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
+const { canvasRow, jumpFrame, selectFrame }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 const { appWindow, hideMain }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
 
@@ -99,16 +99,16 @@ try {
   }
   const shot = async (name: string) => { await page.screenshot({ path: join(shots, `${name}.png`) }); console.log(`comments-ui: ${name} PASS`); };
   // Equal canvas IDs and paths must never collapse identity across project roots.
-  // Both rows read the same; the top bar's project button says which root they belong to.
-  const originRow = canvasRow(page, "shared.html");
-  const destinationRow = canvasRow(page, "shared.html");
-  const inProject = (name: string) => waitGate(async () => await page.locator("header .repo").getAttribute("aria-label") === `${name} overview`);
+  // Functional tree keys preserve identity while both project groups are expanded.
+  const originRow = canvasRow(page, "design/shared.html", originRepo);
+  const destinationRow = canvasRow(page, "design/shared.html", destinationRepo);
+  const inProject = (name: string) => waitGate(async () => await page.getByRole("treeitem", { name, exact: true }).locator("..").locator('[aria-current="location"]').count() === 1);
   const boundaryBody = panel.getByRole("textbox", { name: "New comment body" });
   const boundaryDialog = page.getByRole("dialog");
   const originLog = join(originRepo, ".doan/comments/shared.jsonl");
   const destinationLog = join(destinationRepo, ".doan/comments/shared.jsonl");
   const logBytes = (path: string) => readFile(path, "utf8").catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return ""; throw error; });
-  await enterProject(page, originRepo);
+  await enterProject(page, originRepo, app!);
   await inProject("origin"); await originRow.click();
   await panel.getByRole("button", { name: "Comment on canvas", exact: true }).click();
   const unicodeBody = '원래 대상 🧪 e\u0301 <img src=x onerror="window.HOSTILE=true">';
@@ -123,25 +123,25 @@ try {
     return Math.round(el.querySelector(".comments-target")!.getBoundingClientRect().top - range.getBoundingClientRect().bottom);
   }), 8);
   const originFrame = await page.locator("iframe").elementHandle(); assert.ok(originFrame);
-  await requestProject(page, destinationRepo); await boundaryDialog.waitFor();
+  await requestProject(page, destinationRepo, app!); await boundaryDialog.waitFor();
   presentation("Unsaved dialog width", await boundaryDialog.evaluate(el => el.getBoundingClientRect().width), 400);
   presentation("Unsaved dialog heading weight", await boundaryDialog.getByRole("heading").evaluate(el => getComputedStyle(el).fontWeight), "500");
   assert.equal(await originFrame.evaluate(el => el.isConnected), true);
   await boundaryDialog.getByRole("button", { name: "Keep writing", exact: true }).click();
   assert.equal(await boundaryBody.inputValue(), unicodeBody);
-  await inProject("origin"); assert.equal(await originRow.evaluate(row => row.classList.contains("is-open")), true);
+  await inProject("origin"); assert.equal(await originRow.evaluate(row => row.getAttribute("aria-current") === "location"), true);
   assert.equal(await logBytes(originLog), ""); assert.equal(await logBytes(destinationLog), "");
   await shot("00a-cross-root-continue");
-  await requestProject(page, destinationRepo); await boundaryDialog.getByRole("button", { name: "Save and continue", exact: true }).click();
+  await requestProject(page, destinationRepo, app!); await boundaryDialog.getByRole("button", { name: "Save and continue", exact: true }).click();
   await inProject("destination"); await destinationRow.click();
-  await waitGate(async () => await destinationRow.evaluate(row => row.classList.contains("is-open")));
+  await waitGate(async () => await destinationRow.evaluate(row => row.getAttribute("aria-current") === "location"));
   await panel.getByText("No open comments", { exact: true }).waitFor();
   const savedBytes = await logBytes(originLog), saved = JSON.parse(savedBytes.trim());
   assert.equal(saved.body, unicodeBody); assert.deepEqual(saved.target, {}); assert.equal(saved.by.kind, "human");
   assert.equal(await logBytes(destinationLog), "");
   const cliRead = JSON.parse((await exec(cli, ["comments", "--canvas", "shared", "--repo", originRepo, "--json"])).stdout);
   assert.equal(cliRead.result.comments[0].body, unicodeBody);
-  await enterProject(page, originRepo);
+  await enterProject(page, originRepo, app!);
   await inProject("origin"); await originRow.click(); await cards.filter({ hasText: unicodeBody }).waitFor();
   assert.equal(await cards.locator("img").count(), 0); assert.equal(await page.evaluate(() => Reflect.get(window, "HOSTILE")), undefined);
   const roundTripFrame = await page.locator("iframe").elementHandle(); assert.ok(roundTripFrame);
@@ -154,9 +154,9 @@ try {
   await panel.getByRole("button", { name: /^Open 0$/ }).click();
   await panel.getByRole("button", { name: "Comment on canvas", exact: true }).click(); await boundaryBody.fill("Discard across roots");
   const beforeDiscard = await logBytes(originLog);
-  await requestProject(page, destinationRepo); await boundaryDialog.getByRole("button", { name: "Discard", exact: true }).click();
+  await requestProject(page, destinationRepo, app!); await boundaryDialog.getByRole("button", { name: "Discard", exact: true }).click();
   await inProject("destination"); await destinationRow.click();
-  await waitGate(async () => await destinationRow.evaluate(row => row.classList.contains("is-open")));
+  await waitGate(async () => await destinationRow.evaluate(row => row.getAttribute("aria-current") === "location"));
   assert.equal(await boundaryBody.count(), 0); assert.equal(await logBytes(originLog), beforeDiscard); assert.equal(await logBytes(destinationLog), "");
   await shot("00c-cross-root-discard");
   // Existing management is independent of whether its saved DOM target survives.
@@ -212,7 +212,7 @@ try {
     await readWindow.evaluate((window, size) => window.setSize(size.width, size.height), { width, height });
     await page.waitForFunction(width => innerWidth === width, width);
   };
-  await enterProject(page, readRepo); await canvasRow(page, "r.html").click();
+  await enterProject(page, readRepo, app!); await canvasRow(page, "r.html").click();
   // Playwright's own point misses the text inside the scaled board; map it through the iframe scale.
   const textPoint = await page.frameLocator("iframe").getByText("Delivery takes", { exact: false }).evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
   const readBoard = await page.locator("iframe").evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, scale: r.width / el.clientWidth }; });
@@ -296,7 +296,7 @@ try {
   await cards.filter({ hasText: "Ships too slowly" }).waitFor();
   assert.equal(await panel.locator(".comments-message").count(), 0);
 
-  await enterProject(page, repo);
+  await enterProject(page, repo, app!);
   await canvasRow(page, "a.html").click();
   await page.waitForFunction(() => !!document.querySelector("iframe")?.contentWindow);
   await panel.getByRole("button", { name: "Comment on canvas", exact: true }).waitFor();
@@ -533,15 +533,11 @@ try {
   await panel.getByRole("button", { name: "Comment on selection", exact: true }).click(); await createBody.fill("All transitions protected");
   const keep = async () => { await dialog.waitFor(); await dialog.getByRole("button", { name: "Keep writing", exact: true }).click(); assert.equal(await createBody.inputValue(), "All transitions protected"); await page.waitForFunction(() => document.activeElement?.tagName === "TEXTAREA"); };
   const selectionBeforeJump = JSON.parse((await exec(cli, ["active", "--json", "--repo", repo], { env: { ...process.env, DOAN_RUNTIME: join(userData, "runtime.json") } })).stdout);
-  await frameRows(page).first().click();
+  await jumpFrame(page, 0);
   assert.equal(await dialog.count(), 0, "frame jump does not guard a draft");
   assert.equal(await createBody.inputValue(), "All transitions protected");
   assert.deepEqual(JSON.parse((await exec(cli, ["active", "--json", "--repo", repo], { env: { ...process.env, DOAN_RUNTIME: join(userData, "runtime.json") } })).stdout), selectionBeforeJump, "jump keeps doan active unchanged");
-  await frameRows(page).first().press("Space"); await keep();
-  await frameRows(page).first().dblclick(); await keep();
-  // The slot shows on hover (or keyboard focus), as a pointer user reaches it.
-  await frameRows(page).first().hover();
-  await frameRows(page).first().getByRole("button", { name: /^Select / }).click(); await keep();
+  await selectFrame(page, 0); await keep();
   await canvasRow(page, "a.html").click();
   assert.equal(await dialog.count(), 0, "same canvas keeps the draft and selection");
   assert.deepEqual(JSON.parse((await exec(cli, ["active", "--json", "--repo", repo], { env: { ...process.env, DOAN_RUNTIME: join(userData, "runtime.json") } })).stdout), selectionBeforeJump);
@@ -559,7 +555,7 @@ try {
   const boardBox = await page.locator("iframe").evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, scale: r.width / el.clientWidth }; });
   await page.keyboard.down("Alt"); await page.mouse.click(boardBox.x + (linkBox.x + 8) * boardBox.scale, boardBox.y + (linkBox.y + 8) * boardBox.scale); await page.keyboard.up("Alt"); await keep();
   assert.equal(await page.locator("iframe").getAttribute("title"), "design/a.html");
-  await removeHomeProject(page, repo); await keep();
+  await removeHomeProject(page, repo, app!); await keep();
   await app.evaluate(({ app }) => app.quit()); await keep();
   // Native hiding must not conceal the existing ordinary-draft quit guard.
   const appWin = await appWindow(app, page);
@@ -615,7 +611,7 @@ try {
   assert.equal(await dialog.getByRole("button", { name: "Quit anyway", exact: true }).count(), 0);
   assert.equal(await page.locator("iframe").getAttribute("title"), "design/a.html");
   await dialog.getByRole("button", { name: "Keep draft", exact: true }).click();
-  await removeHomeProject(page, repo);
+  await removeHomeProject(page, repo, app!);
   await dialog.getByText("Save status could not be confirmed", { exact: true }).waitFor();
   await page.keyboard.press("Escape");
   assert.equal(await createBody.inputValue(), "Unknown save body");
@@ -648,7 +644,7 @@ try {
   const equivalent = { ...frameCreate, id: `evt_${randomUUID()}`, comment: `cmt_${randomUUID()}`, body: "Equivalent frame element", target: { element: { doanId: "hero", selector: '[data-doan-id="hero"]', html: "<section/>" } }, at: new Date(Math.max(Date.now(), ...currentEvents.map(event => Date.parse(event.at))) + 1).toISOString() };
   await writeFile(file, await readFile(file, "utf8") + JSON.stringify(equivalent) + "\n");
   await page.waitForFunction(() => document.querySelectorAll('button.comment-pin[aria-label="2 open comments"]').length === 2);
-  await frameRows(page).first().press("Space");
+  await selectFrame(page, 0);
   await cards.filter({ hasText: "Equivalent frame element" }).waitFor();
   assert.equal(await cards.count(), 2, "same DOM frame and element group excludes child");
   assert.equal(await beforeExternal.evaluate(el => el.isConnected), true, "external comment event retained iframe");
@@ -789,7 +785,7 @@ try {
   await canvasRow(page, "b.html").click();
   await dialog.getByText("Save status could not be confirmed", { exact: true }).waitFor();
   await dialog.getByRole("button", { name: "Keep draft", exact: true }).click();
-  await removeHomeProject(page, repo);
+  await removeHomeProject(page, repo, app!);
   await dialog.getByText("Save status could not be confirmed", { exact: true }).waitFor();
   await page.keyboard.press("Escape");
   assert.equal(await createBody.inputValue(), "Quarantined draft");

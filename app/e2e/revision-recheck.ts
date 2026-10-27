@@ -21,7 +21,7 @@ import { _electron, type ElectronApplication, type Page } from "playwright";
 const { rememberApp, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { appWindow, menu, hideMain, showMain }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
-const { canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
+const { openOverview, canvasTitle: renderedCanvasTitle, canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, enterProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 
 const beforeRealState = await realState();
@@ -153,12 +153,12 @@ try {
   }, label);
 
   async function openCanvas(file: string, title: string, ready: string): Promise<void> {
-    if (!await page.getByRole("tree", { name: "Canvases", exact: true }).isVisible()) await enterProject(page, repo);
+    if (!await page.getByRole("tree", { name: "Projects and canvases", exact: true }).isVisible()) await enterProject(page, repo, app!);
     await page.mouse.move(700, 20);
     if (await page.getByRole("tooltip").isVisible()) await page.keyboard.press("Escape");
     await page.getByRole("tooltip").waitFor({ state: "hidden", timeout: 2_000 });
     await canvasRow(page, file).click();
-    await wait(async () => await page.locator("header .canvas").textContent() === title && await frame().getByRole("button", { name: ready, exact: true }).count() === 1, `${title} shown`);
+    await wait(async () => await renderedCanvasTitle(page) === title && await frame().getByRole("button", { name: ready, exact: true }).count() === 1, `${title} shown`);
     await wait(async () => await cards().count() > 0 || await panel().locator(".comments-message").count() > 0, `${title} comments read`);
   }
   async function select(name: string, doanId: string): Promise<void> {
@@ -224,7 +224,7 @@ try {
   }
 
   await launch();
-  await enterProject(page, repo);
+  await enterProject(page, repo, app!);
 
   await scenario("1-locate-off-screen", async () => {
     await openCanvas("long.html", "Long canvas", "Near target");
@@ -369,13 +369,13 @@ try {
   });
 
   await scenario("5-home-and-overview-counts", async () => {
-    await goHome(page);
+    await goHome(page, app!);
     const row = homeRow(page, repo);
     await wait(async () => (await row.getAttribute("aria-label"))?.includes(" · 2 resolved to review · ") ?? false, "Home row counts 2 to review");
     assert.equal(await row.locator(".wt-sum .review").textContent(), "2 resolved to review");
     await shot("5a-home");
-    await enterProject(page, repo);
-    await page.getByRole("button", { name: "proj overview", exact: true }).click();
+    await enterProject(page, repo, app!);
+    await openOverview(page, "proj");
     const overview = page.getByRole("region", { name: "Overview", exact: true });
     const reviewCard = overview.locator(".ocard").filter({ hasText: "Review canvas" });
     await wait(async () => await reviewCard.locator(".ocard-meta .review").textContent() === "2 resolved to review", "Overview card counts 2 to review");
@@ -387,7 +387,7 @@ try {
     await reviewBar().getByRole("button", { name: "Next", exact: true }).click();
     await reviewBar().getByRole("button", { name: "Done", exact: true }).click();
     await wait(async () => await summary().count() === 1, "Done");
-    await goHome(page);
+    await goHome(page, app!);
     await wait(async () => !((await row.getAttribute("aria-label"))?.includes("resolved to review") ?? true), "Home count gone after the Review");
   });
 

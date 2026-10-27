@@ -13,7 +13,7 @@ import { _electron, type ElectronApplication, type Page } from "playwright";
 const { rememberApp, closeApp, suiteGuard }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 const { appWindow }: typeof import("./windows") = await import(new URL("./windows.ts", import.meta.url).href);
-const { canvasRow }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
+const { openOverview, canvasTitle: renderedCanvasTitle, canvasRow, jumpFrame, selectFrame }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { enterProject, goHome }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
 
 const beforeRealState = await realState();
@@ -133,10 +133,14 @@ process.exit(result.status ?? 1);
   const dialog = () => page.getByRole("dialog", { name: "Quick Open", exact: true });
   const options = () => dialog().getByRole("option").allTextContents();
   const toast = (text: string) => page.locator(".toast .msg", { hasText: text }).waitFor();
-  const canvasTitle = () => page.locator("header .canvas").textContent();
+  const canvasTitle = () => renderedCanvasTitle(page);
   const iframe = () => page.getByRole("region", { name: "Canvas", exact: true }).locator("iframe");
   const loaded = async (title: string) => { await wait(async () => await canvasTitle() === title && await iframe().isVisible(), `${title} shown`); };
-  const current = () => page.getByRole("tree", { name: "Canvases", exact: true }).locator('[aria-current="location"]').getAttribute("aria-label");
+  const frameVisible = async (index: number) => {
+    const frame = await page.frameLocator(".board iframe").locator("[data-doan-frame]").nth(index).boundingBox();
+    const area = await page.getByRole("region", { name: "Canvas", exact: true }).boundingBox();
+    return !!frame && !!area && frame.y >= area.y && frame.y + frame.height <= area.y + area.height;
+  };
   async function quickOpen(query: string): Promise<void> {
     await menu("Quick Open…");
     await dialog().waitFor();
@@ -194,9 +198,9 @@ process.exit(result.status ?? 1);
       }, [listedEntries, acme, brand, held] as const);
       await page.reload();
       await page.getByRole("region", { name: "Home", exact: true }).waitFor();
-      await enterProject(page, brand); await overview().waitFor();
+      await enterProject(page, brand, app!); await overview().waitFor();
       await card("Card decline patterns").click(); await loaded("Card decline patterns");
-      await goHome(page); await page.getByRole("region", { name: "Home", exact: true }).waitFor();
+      await goHome(page, app!); await page.getByRole("region", { name: "Home", exact: true }).waitFor();
       if (held === "folders") await page.evaluate(root => {
         const element = document.querySelector(".home-shell");
         if (!element) throw new Error("Home must be committed before arming the folder consumer probe");
@@ -231,9 +235,9 @@ process.exit(result.status ?? 1);
       console.log("startup consumer completed", held, await page.evaluate(held => Reflect.get(window, held === "ui" ? "restoreReadProbe" : "restoreFolderProbe").consumed, held));
       await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
       assert.equal(await page.getByRole("region", { name: "Home", exact: true }).isVisible(), true, "late startup restore cannot replace newer Home intent");
-      await enterProject(page, brand); await loaded("Card decline patterns");
+      await enterProject(page, brand, app!); await loaded("Card decline patterns");
       assert.equal(await canvasTitle(), "Card decline patterns", "new navigation memory survives restore");
-      assert.equal(await page.getByRole("treeitem", { name: "research", exact: true }).getAttribute("aria-expanded"), "true", "new expansion survives restore");
+      assert.equal(await page.getByRole("treeitem", { name: "brand-kit", exact: true }).getAttribute("aria-expanded"), "true", "viewed project expansion survives restore");
     });
     await app!.evaluate(({ ipcMain }) => {
       const probe = Reflect.get(globalThis, "navigationProbe");
@@ -246,7 +250,7 @@ process.exit(result.status ?? 1);
   await restoreCdp.detach();
   await page.reload();
   await navigationCheck("unhealthy-overview", async () => {
-    await goHome(page); await enterProject(page, empty); await overview().waitFor();
+    await goHome(page, app!); await enterProject(page, empty, app!); await overview().waitFor();
     const problems: import("../src/main/view").FolderEntry[] = [
       { path: empty, kind: "loading" }, { path: empty, kind: "error", message: "fixture config failure" },
       { path: empty, kind: "notFound" }, { path: empty, kind: "uninitialized" }, { path: empty, kind: "cliError", reason: "fixture CLI failure" },
@@ -272,7 +276,7 @@ process.exit(result.status ?? 1);
     return { tag: node?.tagName, text: node?.textContent?.slice(0, 120), label: node?.getAttribute("aria-label"), hidden: !!node?.closest('[inert], [aria-hidden="true"]'), rect: node?.getBoundingClientRect().toJSON() };
   });
   for (const loading of [false, true]) await navigationCheck(`added-problem-${loading ? "delayed" : "immediate"}`, async () => {
-    await publishEntries(listedEntries); await goHome(page); await enterProject(page, brand);
+    await publishEntries(listedEntries); await goHome(page, app!); await enterProject(page, brand, app!);
     const path = join(work, "added-problem");
     await publishEntries([...listedEntries, { kind: loading ? "loading" : "uninitialized", path }]);
     await publishAdded([path]);
@@ -286,22 +290,22 @@ process.exit(result.status ?? 1);
   });
   await publishEntries(listedEntries);
   await navigationCheck("multiple-added-count", async () => {
-    await goHome(page); await enterProject(page, brand);
+    await goHome(page, app!); await enterProject(page, brand, app!);
     await publishAdded([acme, empty]);
     await page.locator(".toast .msg").getByText("Added 2 projects", { exact: true }).waitFor();
     await page.locator(".toast").getByRole("button", { name: "Open", exact: true }).click();
     await overview().waitFor();
-    assert.equal(await page.getByRole("button", { name: "empty overview", exact: true }).count(), 1);
+    assert.equal(await page.getByRole("button", { name: "empty menu", exact: true }).count(), 1);
   });
   await navigationCheck("quick-open-native-focus", async () => {
-    await goHome(page); await enterProject(page, brand);
-    const origin = page.getByRole("button", { name: "brand-kit overview", exact: true });
+    await goHome(page, app!); await enterProject(page, brand, app!);
+    const origin = page.getByRole("button", { name: "brand-kit menu", exact: true });
     await origin.focus(); await quickOpen(""); await page.keyboard.press("Escape");
     assert.equal(await origin.evaluate(node => node === document.activeElement), true, "native close keeps a valid origin");
     console.log("Quick Open native close focus", await activeFocus());
   });
   await navigationCheck("workspace-setup-close-focus", async () => {
-    await goHome(page); await enterProject(page, empty);
+    await goHome(page, app!); await enterProject(page, empty, app!);
     await rm(join(empty, ".doan/config.json"));
     const status = page.getByRole("region", { name: "Project status", exact: true });
     await status.getByRole("button", { name: "Set Up…", exact: true }).click();
@@ -319,8 +323,8 @@ process.exit(result.status ?? 1);
   await writeFile(join(empty, ".doan/config.json"), '{"v":1}');
   await publishEntries(listedEntries);
   await navigationCheck("focused-toast-replacement", async () => {
-    await goHome(page); await enterProject(page, brand);
-    const origin = page.getByRole("button", { name: "brand-kit overview", exact: true });
+    await goHome(page, app!); await enterProject(page, brand, app!);
+    const origin = page.getByRole("button", { name: "brand-kit menu", exact: true });
     await origin.focus(); await publishAdded([acme]);
     await page.locator(".toast button").focus();
     await publishAdded([empty]);
@@ -331,8 +335,8 @@ process.exit(result.status ?? 1);
     assert.equal(await origin.evaluate(node => node === document.activeElement), true, "an unfocused toast does not move focus");
   });
   await navigationCheck("modal-toast-replacement-focus", async () => {
-    await goHome(page); await enterProject(page, brand);
-    await page.getByRole("button", { name: "brand-kit overview", exact: true }).focus();
+    await goHome(page, app!); await enterProject(page, brand, app!);
+    await page.getByRole("button", { name: "brand-kit menu", exact: true }).focus();
     await publishAdded([acme]); await page.locator(".toast button").focus();
     await quickOpen("");
     await publishAdded([empty]);
@@ -343,9 +347,9 @@ process.exit(result.status ?? 1);
     assert.equal(await page.evaluate(() => !!document.activeElement?.closest(".workspace") && !document.activeElement?.closest("[inert]")), true, "a removed origin falls back to the current visible screen");
   });
   await navigationCheck("modal-toast-remaining-time", async () => {
-    await goHome(page); await enterProject(page, brand);
+    await goHome(page, app!); await enterProject(page, brand, app!);
     await page.mouse.move(5, 5);
-    await page.getByRole("button", { name: "brand-kit overview", exact: true }).focus();
+    await page.getByRole("button", { name: "brand-kit menu", exact: true }).focus();
     await publishAdded([acme]); await page.locator(".toast").waitFor();
     const born = performance.now();
     await page.waitForTimeout(2500);
@@ -363,7 +367,7 @@ process.exit(result.status ?? 1);
   });
   if (await dialog().isVisible()) await page.keyboard.press("Escape");
   await navigationCheck("workspace-retry-focus", async () => {
-    await publishEntries(listedEntries); await goHome(page); await enterProject(page, empty); await overview().waitFor();
+    await publishEntries(listedEntries); await goHome(page, app!); await enterProject(page, empty, app!); await overview().waitFor();
     await app!.evaluate(({ ipcMain }) => {
       Reflect.set(globalThis, "retryOriginal", Reflect.get(ipcMain, "_invokeHandlers").get("folders:reopen"));
       ipcMain.removeHandler("folders:reopen"); ipcMain.handle("folders:reopen", () => {});
@@ -377,7 +381,7 @@ process.exit(result.status ?? 1);
       assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.workspace') && document.activeElement !== document.body), true);
       await publishEntries(listedEntries.map(entry => entry.path === empty ? { path: empty, kind: "cliError", reason: "fixture" } : entry));
       await retry.focus(); await page.keyboard.press("Enter");
-      const destination = page.getByRole("button", { name: "empty overview", exact: true });
+      const destination = page.getByRole("button", { name: "empty menu", exact: true });
       await destination.focus(); await publishEntries(listedEntries); await overview().waitFor();
       assert.equal(await destination.evaluate(node => node === document.activeElement), true, "Retry completion preserves deliberately moved focus");
     } finally {
@@ -385,8 +389,8 @@ process.exit(result.status ?? 1);
     }
   });
   await navigationCheck("stale-quick-open", async () => {
-    await publishEntries(listedEntries); await goHome(page); await enterProject(page, acme);
-    await page.getByRole("button", { name: "acme-web overview", exact: true }).click(); await overview().waitFor();
+    await publishEntries(listedEntries); await goHome(page, app!); await enterProject(page, acme, app!);
+    await openOverview(page, "acme-web"); await overview().waitFor();
     await card("Billing & plans").click(); await loaded("Billing & plans");
     const panel = page.getByRole("region", { name: "Comments", exact: true });
     await wait(() => panel.getByRole("button", { name: "Comment on canvas", exact: true }).isEnabled(), "stale Open draft ready");
@@ -403,8 +407,8 @@ process.exit(result.status ?? 1);
   });
   for (const outcome of ["id", "url", "cliError", "missing-path", "removed"] as const) {
     await navigationCheck(`waiting-open-${outcome}`, async () => {
-      await publishEntries(listedEntries); await goHome(page); await enterProject(page, acme);
-      await page.getByRole("button", { name: "acme-web overview", exact: true }).click(); await overview().waitFor();
+      await publishEntries(listedEntries); await goHome(page, app!); await enterProject(page, acme, app!);
+      await openOverview(page, "acme-web"); await overview().waitFor();
       await card("Billing & plans").click(); await loaded("Billing & plans");
       const panel = page.getByRole("region", { name: "Comments", exact: true });
       await wait(() => panel.getByRole("button", { name: "Comment on canvas", exact: true }).isEnabled(), "draft ready");
@@ -469,7 +473,7 @@ process.exit(result.status ?? 1);
     await page.evaluate(() => Reflect.get(window, "openConsumption")?.restore());
   }
   await navigationCheck("workspace-setup-success-focus", async () => {
-    await goHome(page); await enterProject(page, empty);
+    await goHome(page, app!); await enterProject(page, empty, app!);
     await rm(join(empty, ".doan/config.json"));
     const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true });
     await page.getByRole("region", { name: "Project status", exact: true }).getByRole("button", { name: "Set Up…", exact: true }).click();
@@ -479,7 +483,7 @@ process.exit(result.status ?? 1);
     assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.workspace') && !document.activeElement?.closest('[inert]')), true);
   });
   await navigationCheck("workspace-setup-reroot-focus", async () => {
-    await goHome(page); await enterProject(page, empty);
+    await goHome(page, app!); await enterProject(page, empty, app!);
     await rm(join(empty, ".doan/config.json"));
     const setup = page.getByRole("dialog", { name: "Set Up Project", exact: true });
     await page.getByRole("region", { name: "Project status", exact: true }).getByRole("button", { name: "Set Up…", exact: true }).click();
@@ -491,8 +495,8 @@ process.exit(result.status ?? 1);
     await writeFile(join(empty, ".doan/config.json"), '{"v":1}'); await publishEntries(listedEntries);
   });
   await navigationCheck("width-copy-and-quick-open-presentation", async () => {
-    await publishEntries(listedEntries); await goHome(page); await enterProject(page, acme);
-    await page.getByRole("button", { name: "acme-web overview", exact: true }).click(); await overview().waitFor();
+    await publishEntries(listedEntries); await goHome(page, app!); await enterProject(page, acme, app!);
+    await openOverview(page, "acme-web"); await overview().waitFor();
     await card("Design tokens").click();
     const status = page.locator(".canvas-status");
     await status.getByText("Could not read a valid board width.", { exact: true }).waitFor();
@@ -522,12 +526,12 @@ process.exit(result.status ?? 1);
   if (process.env.DOAN_NAV_REGRESSION_ONLY === "1") {
     await quit();
   } else {
-  await goHome(page);
+  await goHome(page, app!);
   await page.evaluate(() => { const seen: string[] = []; Reflect.set(window, "thumbChanges", seen); window.doan.onThumbnailChanged(({ path }) => seen.push(path)); });
   await page.getByRole("region", { name: "Home", exact: true }).waitFor();
 
   // Task 8 — visible cards are captured first; a card leaving moves focus on.
-  await enterProject(page, gallery);
+  await enterProject(page, gallery, app!);
   await overview().waitFor();
   const onScreen = await overview().evaluate(region => {
     const box = region.getBoundingClientRect();
@@ -545,13 +549,13 @@ process.exit(result.status ?? 1);
   await shot("1-gallery-overview");
 
   // Task 8 — a workspace without canvases.
-  await enterProject(page, empty);
+  await enterProject(page, empty, app!);
   await overview().getByText("No canvases in design/ yet", { exact: true }).waitFor();
   await overview().getByRole("textbox", { name: "What do you want to design?", exact: true }).waitFor();
   await shot("2-empty-overview");
 
   // Task 8 — cards by folder, the doan:width hint, a card opens its canvas.
-  await enterProject(page, acme);
+  await enterProject(page, acme, app!);
   await overview().waitFor();
   assert.deepEqual(await overview().locator(".sec").allTextContents(), ["design 1", "design/misc 1", "design/settings 3"]);
   assert.equal(await card("Design tokens").locator(".thumb-msg").textContent(), "Preview needs a valid doan:width — run doan check");
@@ -599,20 +603,18 @@ process.exit(result.status ?? 1);
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await page.getByRole("button", { name: "Discard", exact: true }).click();
-  await wait(async () => await page.locator("header .branch .bn").textContent() === "feat-billing", "entered the feat-billing worktree");
+  await wait(async () => await page.getByRole("treeitem", { name: "acme-web", exact: true }).locator(".shell-branch").textContent() === "feat-billing", "entered the feat-billing worktree");
   await loaded("Billing & plans");
-  await wait(async () => await current() === "4 Card declined", "moved to the Card declined frame");
-  // A clicked row keeps focus; its Select slot shows only for keyboard focus, so the hovered row's is the only one up.
-  await page.getByRole("treeitem", { name: "4 Card declined", exact: true }).click();
-  await page.getByRole("treeitem", { name: "1 Plans", exact: true }).hover();
-  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".side .ra")].filter(slot => getComputedStyle(slot).display !== "none").map(slot => slot.closest('[role="treeitem"]')?.getAttribute("aria-label"))), ["1 Plans"]);
+  await wait(() => frameVisible(3), "moved to the Card declined frame");
+  await jumpFrame(page, 0);
+  await wait(() => frameVisible(0), "Quick Open jumps to Plans without a frame tree");
 
-  // Task 9 — a duplicate id goes to its first frame; a frame the canvas removed gets the toast.
+  // Task 9 — duplicate IDs retain the requested index; a removed frame gets the toast.
   await quickOpen("second dup");
   await wait(async () => (await options())[0]?.startsWith("#Second dup") ?? false, "second dup result");
   await page.keyboard.press("Enter");
   await loaded("Duplicates");
-  await wait(async () => await current() === "1 First dup", "a duplicate id opens its first frame");
+  await wait(() => frameVisible(1), "a duplicate id opens the requested frame index");
   await quickOpen("ghost frame");
   await wait(async () => (await options())[0]?.startsWith("#Ghost frame") ?? false, "ghost frame result");
   await page.keyboard.press("Enter");
@@ -621,7 +623,7 @@ process.exit(result.status ?? 1);
   await shot("6-frame-not-rendered");
 
   // Task 9 — on Home: every project's canvases, picking enters the workspace.
-  await goHome(page);
+  await goHome(page, app!);
   await quickOpen("");
   await wait(async () => (await options()).length > 10, "Home lists every project's canvases");
   assert.ok((await options()).some(text => text.endsWith("· brand-kit")) && (await options()).some(text => text.endsWith("· acme-web · feat-billing")));
@@ -638,31 +640,28 @@ process.exit(result.status ?? 1);
   await shot("8-removed-toast");
   console.log("design-nav: overview and quick open PASS");
 
-  // A frame without id or title: its "(no id)" label resolves to --text-3, unlike a named frame's.
-  await enterProject(page, acme);
+  // Anonymous frames remain rendered even though the shell no longer lists frames.
+  await enterProject(page, acme, app!);
   await canvasRow(page, "notes.html").click();
   await loaded("Notes");
-  const labelColor = (name: string) => page.getByRole("treeitem", { name, exact: true }).locator(".g").evaluate(node => getComputedStyle(node).color);
-  const text3 = await page.locator(".side").evaluate(side => { const probe = side.appendChild(document.createElement("span")); probe.style.color = "var(--text-3)"; const color = getComputedStyle(probe).color; probe.remove(); return color; });
-  assert.equal(await labelColor("2 (no id)"), text3, "an id-less frame's label is --text-3");
-  assert.notEqual(await labelColor("1 one"), text3, "a named frame's label is brighter than --text-3");
+  assert.deepEqual(await page.frameLocator(".board iframe").locator("[data-doan-frame]").evaluateAll(rows => rows.map(row => row.getAttribute("data-doan-frame"))), ["one", ""]);
 
   // Task 10 — relaunch restores the canvas, its view and the tree, not the selection.
   const active = async () => JSON.parse((await exec(cli, ["active", "--json", "--repo", acme], { env })).stdout);
   const inspector = () => page.getByRole("region", { name: "Inspector", exact: true });
-  await enterProject(page, acme);
+  await enterProject(page, acme, app!);
   await canvasRow(page, "billing.html").click();
   await loaded("Billing & plans");
-  await page.getByRole("treeitem", { name: "misc", exact: true }).click();
-  await wait(async () => await page.getByRole("treeitem", { name: "misc", exact: true }).getAttribute("aria-expanded") === "false", "misc collapsed");
+  const otherProject = page.getByRole("treeitem", { name: "brand-kit", exact: true });
+  await otherProject.focus(); await otherProject.press("ArrowLeft");
+  assert.equal(await otherProject.getAttribute("aria-expanded"), "false", "unviewed project collapsed");
   await menu("Zoom In");
   const area = await page.getByRole("region", { name: "Canvas", exact: true }).boundingBox();
   await page.mouse.move(area!.x + area!.width / 2, area!.y + area!.height / 2);
   await page.mouse.wheel(0, 160);
   const board = () => page.locator(".board").evaluate(node => (node as HTMLElement).style.transform);
   await wait(async () => (await board()).startsWith("translate") && !(await board()).includes("translate(0px, 0px)"), "panned");
-  await page.getByRole("treeitem", { name: "1 Plans", exact: true }).hover();
-  await page.getByRole("button", { name: "Select Plans", exact: true }).click();
+  await selectFrame(page, 0);
   await inspector().waitFor();
   assert.equal((await active()).result?.selection?.frame?.id, "plans", "doan active has the selection before quit");
   // The last pan, then a renderer kept busy through the quit: a value it had
@@ -682,7 +681,7 @@ process.exit(result.status ?? 1);
   traceRestore = false;
   await loaded("Billing & plans");
   await wait(async () => await board() === view, `restored view ${view}`);
-  assert.equal(await page.getByRole("treeitem", { name: "misc", exact: true }).getAttribute("aria-expanded"), "false", "tree expansion restored");
+  assert.equal(await page.getByRole("treeitem", { name: "brand-kit", exact: true }).getAttribute("aria-expanded"), "false", "project expansion restored");
   assert.equal(await inspector().count(), 0, "no selection after restore");
   assert.equal((await active()).result?.selection, undefined, "doan active is empty after restore");
   console.log("normal restore completed", await page.evaluate(() => ({ iframe: document.querySelector<HTMLIFrameElement>(".board iframe")?.src, status: document.querySelector(".canvas-status")?.textContent, frames: document.querySelectorAll('.side [role="treeitem"]').length })));
@@ -692,14 +691,14 @@ process.exit(result.status ?? 1);
   // positive renderer commit checkpoint, unlike the initial Home paint.
   const restoreCommitted = () => wait(async () => await stateVersion() !== stateBeforeLaunch, "renderer restore committed ui-state");
   // Home at quit starts on Home, without loading the workspace.
-  await goHome(page);
+  await goHome(page, app!);
   await relaunch(true);
   await page.getByRole("region", { name: "Home", exact: true }).waitFor();
   await restoreCommitted();
   assert.equal(await page.locator("iframe").count(), 0, "the hidden workspace is not loaded");
 
   // The last canvas is gone: its project's Overview with a toast.
-  await enterProject(page, acme);
+  await enterProject(page, acme, app!);
   await loaded("Billing & plans");
   await quit();
   await rm(join(acme, "design/settings/billing.html"));
@@ -709,7 +708,7 @@ process.exit(result.status ?? 1);
   await shot("10-canvas-gone");
 
   // The project folder is gone: Home.
-  await enterProject(page, brand);
+  await enterProject(page, brand, app!);
   await overview().waitFor();
   await quit();
   await rm(brand, { recursive: true, force: true });
@@ -719,7 +718,7 @@ process.exit(result.status ?? 1);
   assert.equal(await page.getByRole("region", { name: "Home", exact: true }).isVisible(), true, "a gone project restores to Home");
 
   // A broken ui-state.json starts on Home.
-  await enterProject(page, gallery);
+  await enterProject(page, gallery, app!);
   await quit();
   assert.equal(JSON.parse(await readFile(join(userData, "ui-state.json"), "utf8")).root, gallery);
   await writeFile(join(userData, "ui-state.json"), "{broken");
@@ -739,7 +738,7 @@ process.exit(result.status ?? 1);
     await writeFile(join(empty, "design/no-id.html"), canvas("unused", "Missing ID", 800, [["hero", "Known hero"]]).replace('<meta name="doan:canvas" content="unused">', ""));
     await writeFile(join(empty, "design/bad-id.html"), canvas("invalid id!", "Invalid ID", 800, [["hero", "Known hero"], ["footer", "Known footer"]]));
     await writeFile(join(empty, "design/no-width.html"), canvas("no-width", "Missing width", null, [["hero"]]));
-    await enterProject(page, empty); await overview().waitFor();
+    await enterProject(page, empty, app!); await overview().waitFor();
     for (const [title, path, facts] of [["Missing ID", "design/no-id.html", "1 frame"], ["Invalid ID", "design/bad-id.html", "2 frames"]]) {
       await wait(async () => card(title!).locator("img").evaluate(img => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0), `${title} displays decoded thumbnail`);
       assert.ok((await app!.evaluate(() => Reflect.get(globalThis, "metadataThumbnailProbe").requested)).includes(path));
@@ -756,7 +755,7 @@ process.exit(result.status ?? 1);
       assert.equal(await comments.getByRole("button", { name: /^Comment on (canvas|selection)$/ }).count(), 0, `${title} cannot create comments`);
       assert.equal(await comments.getByRole("textbox", { name: "New comment body" }).count(), 0);
       await shot(`12-${title.replaceAll(" ", "-").toLowerCase()}-comments`);
-      await page.getByRole("button", { name: "empty overview", exact: true }).click(); await overview().waitFor();
+      await openOverview(page, "empty"); await overview().waitFor();
     }
     assert.equal((await app!.evaluate(() => Reflect.get(globalThis, "metadataThumbnailProbe").requested)).includes("design/no-width.html"), false, "missing width never requests capture after overview and canvas processing");
   } finally {

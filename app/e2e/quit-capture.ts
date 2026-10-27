@@ -64,7 +64,7 @@ try {
     }, phase);
     // Quit can close the page before Playwright acknowledges the click. The
     // phase marker, will-quit and exit status below establish what happened.
-    await requestProject(page, repo).catch(() => {});
+    await requestProject(page, repo, app!).catch(() => {});
     const result = await exited;
     running = undefined;
     assert.ok(trace.includes(`quit-capture: ${phase}`), `the ${phase} hook ran`);
