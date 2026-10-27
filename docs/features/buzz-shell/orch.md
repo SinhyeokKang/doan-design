@@ -84,3 +84,13 @@ B에 배정했던 전체 runtime은 사용자 지시에 따라 중단했다. 실
 - FVR은 Astra medium으로 RV-1의 실제 정규 fixture 연결과 실패→통과·증거 분류 보완만 맡는다. 제품 스타일은 바꾸지 않는다. RV2는 같은 리뷰어의 새 Task로 기존 runtime 연결과 fixture 경계를 독립 검토한다. 수정 작업자를 기다리지 않고 먼저 가능한 검토를 마치며, 그 사이 수정 커밋이 준비되면 같은 리뷰어가 검토한다. 양쪽 tracked 편집 소유권은 겹치지 않는다.
 
 - RV2는 기존 runtime 통합 경로에서 추가 결함을 찾지 않았다. FVR의 정규 빈 프로젝트 fixture 연결 코드 `2f214a1`이 생성돼, 같은 리뷰어의 RV3 Task로 고정 커밋과 이미 생성된 red/green 증거를 즉시 검토한다. 모델은 기존 Astra medium을 유지한다. 문서 후속 커밋은 생성된 hash로 추가 확인하며 변경 중인 diff를 확정 근거로 사용하지 않는다.
+
+## 2026-10-27 잠금 상태 검증 중간 결론
+
+- 통합 구현 HEAD `bc5d94a`에서 tracked tree가 깨끗한 상태로 `node .agents/skills/verify/scripts/verify.mjs`를 실행했다. runner 7개·Go tests/vet·app typecheck·136개 파일의 단위 테스트 3,349개·build가 모두 통과했고 최종 `verify: PASS`, exit 0을 확인했다. 로그: `.scratch/verify/2026-10-27T11-32-24-518Z-66321/`. 앱 변경에 필요한 `--runtime`은 잠금 때문에 실행하지 않았으므로 이는 비GUI 부분 검증이며 최종 task 8 gate 통과가 아니다.
+- 같은 구현에서 `node --test 'app/e2e/*.test.ts'`가 61개 통과·exit 0이다. 로그: `.scratch/buzz-shell-orch/integration-harness.log`. 빌드의 기존 의존성 use-client 경고는 남지만 exit 0이다.
+- FV는 `f6f2a06`·`f8c3fac`·`0fa6d41`, FVR은 `255bdda`·`156a9f7`·`bc5d94a`로 통합했다. 동일 RV의 3차 검토에서 RV-1 해소·추가 🔴0/🟡0을 확인했다. 리뷰와 수정 evidence를 지휘자 evidence-E에 보존했다. 코드·테스트·실측 기록만 통합했고 네이티브/전체 runtime 완료로 승격하지 않았다.
+- 잠긴 실제 Electron의 production/dev/실제 arm64 package에서 DOM·계산 스타일·스크린샷·합성 키 입력·DOM 포커스·로컬 Geist glyph 검증이 가능했다. 이 경로로 typeahead와 시안 불일치를 고쳤다. 각 실행의 시작·끝 잠금 true, 실제 사용자 상태 불변, 소유 앱 종료·임시 파일 정리를 확인했다. 잠금의 연속 관측 또는 OS 입력·재질 검증이라는 주장은 하지 않는다.
+- 남은 항목: 네이티브 신호등/재질/비활성/fullscreen/투명도 감소·물리 입력/drag/no-drag, 전체 `verify --runtime`, 패키지 프로세스 시작부터 최초 요청까지 오프라인 관측, paired draft hover와 Back 안정 상태 배경, ER/RV3에 명시한 선택 anchor 보호·성공 Locate/Set Up·별도 지연 canvas 응답 및 일부 재시작/스크롤 상태. 뒤 항목들은 잠금만이 원인이라고 단정하지 않는다. 자세한 상태별 한계는 `.scratch/buzz-shell-orch/evidence-E/handoff-ER.md`, `handoff-FVR.md`, `review-RV3.md`에 남겼다.
+- PR·push·feature 완료 문서 승격/삭제는 하지 않았다. 필요한 최종 gate가 남아 task 7·7b·8·9를 완료 처리하지 않는다. 모델 계열 전환은 없었다.
+- 모든 실제 작업자 터미널을 release했고 reclaimable 목록은 비었다. 재사용된 과거 Dispatch의 retained/absent 표시는 마지막 소유 Dispatch의 release 기록으로 대응된다. `buzz-shell-measure` child는 clean이고 `git cherry feat-buzz-shell HEAD`에 +가 없지만, 미완료 design-sync의 실제 측정 경로와 증거를 재사용하기 위해 보존한다. 다른 child들은 앞서 제거 완료했다.
