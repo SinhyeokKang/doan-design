@@ -330,7 +330,8 @@ test("a change inside a served directory or to a non-canvas file under doan/ mak
   const f = fixture();
   mkdirSync(join(f.root, "styles", "img"));
   writeFileSync(join(f.root, "styles", "img", "logo.svg"), "<svg/>");
-  writeFileSync(join(f.root, "doan", "mock.css"), "b{}");
+  mkdirSync(join(f.root, "doan", "assets"));
+  writeFileSync(join(f.root, "doan", "assets", "mock.css"), "b{}");
   f.deps.scope = () => ["doan", "styles"];
   const thumbnails = make(f.deps);
   thumbnails.entriesChanged(f.entries);
