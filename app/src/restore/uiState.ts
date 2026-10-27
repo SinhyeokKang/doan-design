@@ -7,7 +7,15 @@ export interface UiView {
   y: number;
 }
 
+export interface ShellProject {
+  roots: string[];
+  selectedRoot?: string;
+  selectedAt?: number;
+  expanded: boolean;
+}
+
 export interface UiState {
+  shellProjects?: Record<string, ShellProject>;
   screen: "home" | "workspace";
   root?: string;
   canvas?: string;
@@ -53,6 +61,21 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
       return itemView === undefined ? undefined : { canvas: item["canvas"], view: itemView };
     }),
   };
+  if (isRecord(value["shellProjects"])) {
+    const projects: [string, ShellProject][] = [];
+    for (const [key, item] of Object.entries(value["shellProjects"])) {
+      if (!isRecord(item) || !Array.isArray(item.roots) || typeof item.expanded !== "boolean") continue;
+      const roots = [...new Set(item.roots.filter((root): root is string => typeof root === "string" && saved.has(root)))];
+      if (!roots.length) continue;
+      const project: ShellProject = { roots, expanded: item.expanded };
+      if (typeof item.selectedRoot === "string" && roots.includes(item.selectedRoot)) {
+        project.selectedRoot = item.selectedRoot;
+        if (typeof item.selectedAt === "number" && Number.isFinite(item.selectedAt) && item.selectedAt >= 0 && item.selectedAt <= 8.64e15) project.selectedAt = item.selectedAt;
+      }
+      projects.push([key, project]);
+    }
+    state.shellProjects = Object.fromEntries(projects);
+  }
   if (root !== undefined) state.root = root;
   if (canvas !== undefined) state.canvas = canvas;
   if (canvasId !== undefined) state.canvasId = canvasId;
