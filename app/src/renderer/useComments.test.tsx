@@ -56,7 +56,7 @@ test("public main transition wiring separates blocked removal from exceptional q
   const render = () => { harness.index = 0; harness.refIndex = 0; return useComments(initialCanvasState(), { current: null }, showWorkspace, []); };
   const { session } = render();
   for (const effect of harness.effects) effect();
-  await session.open({ root: "/repo", path: "design/a.html", canvas: "a" });
+  await session.open({ root: "/repo", path: "doan/a.html", canvas: "a" });
   await session.create("canvas"); session.body("immutable"); await session.save();
   const before = structuredClone(session.draft);
   const remove = vi.fn(), cancel = vi.fn(), quit = vi.fn();
@@ -79,7 +79,7 @@ test("public main transition wiring separates blocked removal from exceptional q
   expect(remove).not.toHaveBeenCalled();
 });
 
-const row = { path: "design/a.html", id: "a", url: "http://localhost/a.html", width: 600, open: 0, resolved: 0 };
+const row = { path: "doan/a.html", id: "a", url: "http://localhost/a.html", width: 600, open: 0, resolved: 0 };
 const label = { tag: "label", frame: { id: "shipping" }, frameIndex: 0, element: { doanId: "address", selector: "label", html: "<label/>" }, path: [] };
 const pay = { tag: "button", frame: { id: "payment" }, frameIndex: 1, element: { doanId: "pay", selector: "button", html: "<button/>" }, path: [] };
 const layout = (document: string) => ({ type: "layout" as const, href: row.url, height: 150, viewport: 150, frames: [], truncated: false, document });
@@ -189,7 +189,7 @@ describe("a new comment blocked by a reload", () => {
     const { session } = render();
     await vi.waitFor(() => expect(session.list).not.toBeNull());
     const list = session.list;
-    const movedRow = { ...row, path: "design/flows/a.html", url: "http://localhost/flows/a.html" };
+    const movedRow = { ...row, path: "doan/flows/a.html", url: "http://localhost/flows/a.html" };
     render({ open: { folder: "/repo", canvas: movedRow.path, row: movedRow }, shown: movedRow.path, status: "loading", layout: null });
     // Only the selection effect's own functional update may touch the filter; no reset, no cleared anchors.
     const replaced = harness.setters.slice(2, 4).flatMap(setter => setter.mock.calls.filter(([value]) => typeof value !== "function"));
@@ -197,7 +197,7 @@ describe("a new comment blocked by a reload", () => {
     expect(session.identity).toEqual({ root: "/repo", canvas: "a", path: movedRow.path });
     expect(session.list).toBe(list);
     await vi.waitFor(() => expect(controller.setComments).toHaveBeenCalled());
-    const other = { ...row, id: "b", path: "design/b.html" };
+    const other = { ...row, id: "b", path: "doan/b.html" };
     render({ open: { folder: "/repo", canvas: other.path, row: other } });
     expect(harness.setters[3]).toHaveBeenCalledWith({ scope: "canvas", status: "open" });
     expect(harness.setters[2]).toHaveBeenCalledWith(null);
@@ -208,7 +208,7 @@ describe("a new comment blocked by a reload", () => {
     const { session } = render();
     await vi.waitFor(() => expect(session.author.status).toBe("ready"));
     await session.create("canvas"); session.body("keep"); render();
-    const movedRow = { ...row, path: "design/flows/a.html", url: "http://localhost/flows/a.html" };
+    const movedRow = { ...row, path: "doan/flows/a.html", url: "http://localhost/flows/a.html" };
     render({ open: { folder: "/repo", canvas: movedRow.path, row: movedRow }, shown: movedRow.path, status: "loading", layout: null, selection: null });
     expect(session.draft.draft).toMatchObject({ body: "keep", lost: "reloaded" });
     session.answer("discard");
@@ -216,7 +216,7 @@ describe("a new comment blocked by a reload", () => {
     (window.doan as unknown as { commentsList: unknown }).commentsList = async (r: CommentRequest) => ({ ok: true, identity: r, value: { project: 1, comments: [c1], warnings: [], canvasHash: "hash" } });
     await session.read();
     session.edit("c1"); session.body("after");
-    const back = { ...row, path: "design/a.html" };
+    const back = { ...row, path: "doan/a.html" };
     render({ open: { folder: "/repo", canvas: back.path, row: back }, shown: back.path, status: "loading", layout: null, selection: null });
     await session.read();
     expect(session.identity?.path).toBe(back.path);
@@ -258,7 +258,7 @@ describe("the Comments scope across a reload or a move (L-13)", () => {
     await vi.waitFor(() => expect(session.identity).not.toBeNull());
     // The reload finds the same doanId under a rewritten selector, then the canvas moves.
     render({ selection: { ...label, element: { ...label.element, selector: "form > label" } } });
-    const moved = { ...row, path: "design/flows/a.html", url: "http://localhost/flows/a.html" };
+    const moved = { ...row, path: "doan/flows/a.html", url: "http://localhost/flows/a.html" };
     const at = { open: { folder: "/repo", canvas: moved.path, row: moved }, shown: moved.path };
     render({ ...at, selection: { ...label } });
     settle(FILTER);
@@ -516,7 +516,7 @@ describe("the panel while comments change underneath (comments-readability task 
     expect(render({ selection: null, layout: null, open: { folder: "/repo", canvas: row.path, row: { ...row, frames: [{ id: "shipping", title: "Ship" }] } } }).markup).toContain("Frame · Ship");
   });
 
-  const b = { ...row, path: "design/b.html", id: "b", url: "http://localhost/b.html", frames: [{ id: "shipping", title: "Ship B" }, { id: "payment", title: "Pay B" }] };
+  const b = { ...row, path: "doan/b.html", id: "b", url: "http://localhost/b.html", frames: [{ id: "shipping", title: "Ship B" }, { id: "payment", title: "Pay B" }] };
   const onB = { selection: null, layout: null, open: { folder: "/repo", canvas: b.path, row: b } };
 
   // R-W 🟡1: session.open(B) runs in an effect, so the first render with B's
@@ -770,7 +770,7 @@ describe("focus after the composer and pins (comments-readability task 5)", () =
     test("another canvas ends the wait", async () => {
       const { page, render, arrive } = await savedWaiting();
       render({ selection: label });
-      const other = { ...row, path: "design/b.html", id: "b", url: "http://localhost/b.html" };
+      const other = { ...row, path: "doan/b.html", id: "b", url: "http://localhost/b.html" };
       const open = { open: { folder: "/repo", canvas: other.path, row: other }, shown: other.path, selection: null };
       render(open);
       page.heading.focus.mockClear();
@@ -1437,7 +1437,7 @@ describe("Review on the open canvas", () => {
 
   test("a request for another canvas than the open one is dropped", async () => {
     const f = await reviewing([one, two]);
-    f.render().openAt({ root: "/repo", path: "design/other.html", comment: "c2", status: "resolved" });
+    f.render().openAt({ root: "/repo", path: "doan/other.html", comment: "c2", status: "resolved" });
     f.render();
     settle(FILTER);
     expect(harness.states[FILTER]).toEqual({ scope: "canvas", status: "open" });
@@ -1826,10 +1826,10 @@ describe("the Hand off dialog (agent-handoff task 4)", () => {
   test("another (root, canvas id) closes it, already in the render before the session follows; a move keeps it", async () => {
     const f = await handing();
     f.props().onHandOff(null);
-    const moved = { ...row, path: "design/moved/a.html" };
+    const moved = { ...row, path: "doan/moved/a.html" };
     expect(f.dialog({ open: { folder: "/repo", canvas: moved.path, row: moved }, shown: moved.path }) && true).toBe(true);
     expect(f.session.handoff).not.toBeNull();
-    const other = { ...row, path: "design/b.html", id: "b" };
+    const other = { ...row, path: "doan/b.html", id: "b" };
     expect(f.dialog({ open: { folder: "/repo", canvas: other.path, row: other }, shown: other.path })).toBeFalsy();
     await vi.waitFor(() => expect(f.session.identity?.canvas).toBe("b"));
     expect(f.session.handoff).toBeNull();
@@ -1874,7 +1874,7 @@ describe("the Hand off dialog (agent-handoff task 4)", () => {
     expect(f.copy).toHaveBeenCalledWith(expect.objectContaining({ scope: { comments: ["c1", "c2"] } }));
     expect(f.props().handedOff).toBe(handoffSummary(2, at));
     f.handoff().onClose();
-    const other = { ...row, path: "design/b.html", id: "b" };
+    const other = { ...row, path: "doan/b.html", id: "b" };
     expect(f.props({ open: { folder: "/repo", canvas: other.path, row: other }, shown: other.path }).handedOff).toBeNull();
     await vi.waitFor(() => expect(f.session.identity?.canvas).toBe("b"));
     f.render();

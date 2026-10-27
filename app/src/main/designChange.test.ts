@@ -13,22 +13,22 @@ describe("classifyDesignChange", () => {
     expect(classifyDesignChange([])).toEqual(quiet());
   });
 
-  test("canvas names only bump their rows, prefixed with design/", () => {
-    expect(classifyDesignChange(["a.html"])).toEqual(quiet("design/a.html"));
-    expect(classifyDesignChange(["account/profile.html", "deep/er/x.html"])).toEqual(quiet("design/account/profile.html", "design/deep/er/x.html"));
+  test("canvas names only bump their rows, prefixed with doan/", () => {
+    expect(classifyDesignChange(["a.html"])).toEqual(quiet("doan/a.html"));
+    expect(classifyDesignChange(["account/profile.html", "deep/er/x.html"])).toEqual(quiet("doan/account/profile.html", "doan/deep/er/x.html"));
   });
 
   test("the extension is matched without case", () => {
-    expect(classifyDesignChange(["A.HTML", "b.Html"])).toEqual(quiet("design/A.HTML", "design/b.Html"));
+    expect(classifyDesignChange(["A.HTML", "b.Html"])).toEqual(quiet("doan/A.HTML", "doan/b.Html"));
   });
 
   test("a name listed twice counts once", () => {
-    expect(classifyDesignChange(["a.html", "a.html"])).toEqual(quiet("design/a.html"));
+    expect(classifyDesignChange(["a.html", "a.html"])).toEqual(quiet("doan/a.html"));
   });
 
   // A rename arrives as both names; creation and deletion as one each.
   test("create, delete and rename pairs stay row-only", () => {
-    expect(classifyDesignChange(["old.html", "sub/new.html"])).toEqual(quiet("design/old.html", "design/sub/new.html"));
+    expect(classifyDesignChange(["old.html", "sub/new.html"])).toEqual(quiet("doan/old.html", "doan/sub/new.html"));
   });
 
   test.each([
@@ -46,8 +46,8 @@ describe("classifyDesignChange", () => {
   });
 
   test("canvas names still get row revisions when another name bumps", () => {
-    expect(classifyDesignChange(["a.html", "theme.css"])).toEqual(bump("design/a.html"));
-    expect(classifyDesignChange([".cache/x.html", "b.html"])).toEqual(bump("design/b.html"));
+    expect(classifyDesignChange(["a.html", "theme.css"])).toEqual(bump("doan/a.html"));
+    expect(classifyDesignChange([".cache/x.html", "b.html"])).toEqual(bump("doan/b.html"));
   });
 
   describe("temporary siblings of a saved canvas", () => {
@@ -56,22 +56,22 @@ describe("classifyDesignChange", () => {
       ["a Node atomic write with a leading dot", ".a.html.tmp-48213"],
       ["a plain .tmp", "a.html.tmp"],
     ])("%s is left out when the canvas is in the same set", (_name, temp) => {
-      expect(classifyDesignChange([temp, "a.html"])).toEqual(quiet("design/a.html"));
+      expect(classifyDesignChange([temp, "a.html"])).toEqual(quiet("doan/a.html"));
     });
 
     test("works in a subfolder", () => {
-      expect(classifyDesignChange(["sub/b.html.tmp.1.ab", "sub/b.html"])).toEqual(quiet("design/sub/b.html"));
-      expect(classifyDesignChange(["sub/.b.html.tmp-1", "sub/b.html"])).toEqual(quiet("design/sub/b.html"));
+      expect(classifyDesignChange(["sub/b.html.tmp.1.ab", "sub/b.html"])).toEqual(quiet("doan/sub/b.html"));
+      expect(classifyDesignChange(["sub/.b.html.tmp-1", "sub/b.html"])).toEqual(quiet("doan/sub/b.html"));
     });
 
     test("matches an upper-case canvas name without case", () => {
-      expect(classifyDesignChange(["a.HTML.tmp.1.ab", "a.HTML"])).toEqual(quiet("design/a.HTML"));
-      expect(classifyDesignChange(["A.HTML.TMP", "a.html"])).toEqual(quiet("design/a.html"));
+      expect(classifyDesignChange(["a.HTML.tmp.1.ab", "a.HTML"])).toEqual(quiet("doan/a.HTML"));
+      expect(classifyDesignChange(["A.HTML.TMP", "a.html"])).toEqual(quiet("doan/a.html"));
     });
 
     test("needs the canvas in the same folder", () => {
-      expect(classifyDesignChange(["other/a.html.tmp.1.ab", "a.html"])).toEqual(bump("design/a.html"));
-      expect(classifyDesignChange(["a.html.tmp.1.ab", "other/a.html"])).toEqual(bump("design/other/a.html"));
+      expect(classifyDesignChange(["other/a.html.tmp.1.ab", "a.html"])).toEqual(bump("doan/a.html"));
+      expect(classifyDesignChange(["a.html.tmp.1.ab", "other/a.html"])).toEqual(bump("doan/other/a.html"));
     });
 
     test("bumps when the temporary name comes alone", () => {
@@ -91,7 +91,7 @@ describe("classifyDesignChange", () => {
     });
 
     test("another non-canvas name in the set still bumps", () => {
-      expect(classifyDesignChange(["a.html.tmp.1.ab", "a.html", "theme.css"])).toEqual(bump("design/a.html"));
+      expect(classifyDesignChange(["a.html.tmp.1.ab", "a.html", "theme.css"])).toEqual(bump("doan/a.html"));
     });
   });
 });

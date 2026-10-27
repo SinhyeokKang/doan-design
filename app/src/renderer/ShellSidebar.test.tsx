@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 import { ShellSidebar } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
-const row = { path: "design/folder/canvas.html", url: "u", open: 2, resolved: 0, frames: [{ id: "hidden-frame" }] };
+const row = { path: "doan/folder/canvas.html", url: "u", open: 2, resolved: 0, frames: [{ id: "hidden-frame" }] };
 const entry: Extract<FolderEntry, { kind: "list" }> = { path: "/repo", kind: "list", servedRev: 0, canvases: [row], git: { common: "/repo/.git", branch: "main", worktrees: [] } };
 function render(loaded: string | null, selected = "/repo", expanded = false, problem = false, unlisted = false) {
   const first: FolderEntry = problem ? { ...entry, canvases: [{ ...row, commentsError: { code: "bad", message: "Unreadable" } }] } : entry;

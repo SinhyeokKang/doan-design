@@ -10,9 +10,9 @@ import type { FolderView } from "../cli";
 import type { OrphanFile } from "../view";
 vi.mock("electron", () => ({ utilityProcess: {} }));
 vi.mock("./files", () => ({ AppendUncertainError: class extends Error {} }));
-const identity: CommentIdentity = { root: "/repo", path: "design/a.html", canvas: "a" };
+const identity: CommentIdentity = { root: "/repo", path: "doan/a.html", canvas: "a" };
 function orphanListing(orphan: Partial<OrphanFile> = {}): FolderView {
-  return { kind: "list", root: "/repo", scope: ["design"], canvases: [], orphans: [{ id: "gone", file: ".doan/comments/gone.jsonl", comments: { open: 1, resolved: 0 }, uncertain: false, ...orphan }] };
+  return { kind: "list", root: "/repo", scope: ["doan"], canvases: [], orphans: [{ id: "gone", file: ".doan/comments/gone.jsonl", comments: { open: 1, resolved: 0 }, uncertain: false, ...orphan }] };
 }
 function setup() {
   let bytes: Buffer = Buffer.alloc(0);
@@ -158,7 +158,7 @@ test("unconfirmed mkdir blocks same, new and concurrent cross-canvas saves until
   const begin = await s.service.begin("window", { ...identity, requestID: "begin", scope: "canvas" });
   if (!begin.ok) throw new Error(begin.error);
   const payload = { ...identity, project: 1, requestID: "uncertain", origin: begin.value.origin, intent: { type: "create", body: "body" } };
-  const other = { ...identity, canvas: "b", path: "design/b.html" };
+  const other = { ...identity, canvas: "b", path: "doan/b.html" };
   const otherBegin = await s.service.begin("window", { ...other, requestID: "begin", scope: "canvas" });
   if (!otherBegin.ok) throw new Error(otherBegin.error);
   let release!: () => void;
@@ -262,7 +262,7 @@ test("copy rejects an id that is open only on another canvas", async () => {
   await create(s, "r2"); const other = createdId(s);
   const canvasB = s.bytes();
   s.deps.read = vi.fn(async (_root, canvas) => canvas === "a" ? canvasA : canvas === "b" ? canvasB : Buffer.alloc(0));
-  expect(await s.service.list("window", { ...identity, path: "design/b.html", canvas: "b", requestID: "read-b" })).toMatchObject({ ok: true, value: { comments: [{ comment: other, status: "open" }] } });
+  expect(await s.service.list("window", { ...identity, path: "doan/b.html", canvas: "b", requestID: "read-b" })).toMatchObject({ ok: true, value: { comments: [{ comment: other, status: "open" }] } });
   vi.mocked(s.deps.read).mockClear();
   expect(await s.service.copy("window", { ...identity, requestID: "copy", scope: { comments: [first, other] } })).toMatchObject({ ok: false, code: "not_open", identity: { requestID: "copy" } });
   expect(s.deps.read).toHaveBeenCalledExactlyOnceWith(identity.root, identity.canvas);
@@ -435,9 +435,9 @@ test("one leading BOM preserves a valid multibyte body", async () => {
 
 test.each([
   { cause: "invalid", canvas: "Invalid", canvases: [{ path: identity.path, id: "Invalid" }] },
-  { cause: "duplicate", canvas: "a", canvases: [{ path: identity.path, id: "a" }, { path: "design/b.html", id: "a" }] },
+  { cause: "duplicate", canvas: "a", canvases: [{ path: identity.path, id: "a" }, { path: "doan/b.html", id: "a" }] },
   { cause: "missing", canvas: "a", canvases: [] },
-  { cause: "missing", canvas: "a", canvases: [{ path: "design/b.html", id: "a" }] },
+  { cause: "missing", canvas: "a", canvases: [{ path: "doan/b.html", id: "a" }] },
 ])("returns the $cause identity cause from authorization", async ({ cause, canvas, canvases }) => {
   const s = setup();
   vi.mocked(s.deps.authorize).mockImplementation(async requested => ({
@@ -594,7 +594,7 @@ describe("comments without a canvas (project-feedback design §4)", () => {
 
   test("refuses a path, an origin or any other field", async () => {
     const s = seed();
-    for (const extra of [{ path: "design/gone.html" }, { origin: "x" }, { by: { name: "Forged" } }]) {
+    for (const extra of [{ path: "doan/gone.html" }, { origin: "x" }, { by: { name: "Forged" } }]) {
       expect(await s.service.orphanMutate("window", { ...payload(), ...extra })).toMatchObject({ ok: false });
     }
     expect(s.deps.append).not.toHaveBeenCalled();
@@ -612,7 +612,7 @@ describe("comments without a canvas (project-feedback design §4)", () => {
   test.each<[string, FolderView]>([
     ["uncertain", orphanListing({ uncertain: true })],
     ["unreadable", orphanListing({ error: { code: "unreadable_comments", message: "Cannot read" } })],
-    ["no longer an orphan", { kind: "list", root: "/repo", scope: ["design"], canvases: [{ path: "design/gone.html", id: "gone" }], orphans: [] }],
+    ["no longer an orphan", { kind: "list", root: "/repo", scope: ["doan"], canvases: [{ path: "doan/gone.html", id: "gone" }], orphans: [] }],
     ["another root", { ...orphanListing(), root: "/other" } as FolderView],
     ["not listed", { kind: "cliError", reason: "timed out" }],
   ])("refuses an orphan that is %s", async (_name, view) => {
@@ -631,7 +631,7 @@ describe("comments without a canvas (project-feedback design §4)", () => {
 
   test("a canvas restored between the judgement and the write is refused inside the append", async () => {
     const s = seed();
-    vi.mocked(s.deps.listing).mockResolvedValueOnce(orphanListing()).mockResolvedValueOnce(orphanListing()).mockResolvedValue({ kind: "list", root: "/repo", scope: ["design"], canvases: [{ path: "design/gone.html", id: "gone" }], orphans: [] });
+    vi.mocked(s.deps.listing).mockResolvedValueOnce(orphanListing()).mockResolvedValueOnce(orphanListing()).mockResolvedValue({ kind: "list", root: "/repo", scope: ["doan"], canvases: [{ path: "doan/gone.html", id: "gone" }], orphans: [] });
     expect(await s.service.orphanMutate("window", payload())).toMatchObject({ ok: false, error: "These comments are no longer without a canvas, or the project could not be read fully." });
     expect(s.deps.append).toHaveBeenCalledTimes(1);
     expect(s.bytes().toString()).toBe(seeded);
@@ -653,11 +653,11 @@ describe("comments without a canvas (project-feedback design §4)", () => {
     const s = seed();
     vi.mocked(s.deps.append).mockImplementationOnce(async (_r, _c, prepare) => { await prepare(Buffer.from(seeded)); throw new AppendUncertainError("write failed"); });
     expect(await s.service.orphanMutate("window", payload())).toMatchObject({ ok: true, value: { state: "unknown" } });
-    vi.mocked(s.deps.listing).mockClear().mockResolvedValue({ kind: "list", root: "/repo", scope: ["design"], canvases: [{ path: "design/gone.html", id: "gone" }], orphans: [] });
+    vi.mocked(s.deps.listing).mockClear().mockResolvedValue({ kind: "list", root: "/repo", scope: ["doan"], canvases: [{ path: "doan/gone.html", id: "gone" }], orphans: [] });
     expect(await s.service.orphanStatus("window", { ...orphan, requestID: "o1" })).toMatchObject({ ok: true, identity: { ...orphan, requestID: "o1" }, value: { state: "absent" } });
     expect(s.deps.listing).not.toHaveBeenCalled();
     expect(await s.service.orphanStatus("window", { ...orphan, requestID: "other" })).toMatchObject({ ok: true, value: { state: "unknown" } });
-    expect(await s.service.orphanStatus("window", { ...orphan, requestID: "o1", path: "design/gone.html" })).toMatchObject({ ok: false });
+    expect(await s.service.orphanStatus("window", { ...orphan, requestID: "o1", path: "doan/gone.html" })).toMatchObject({ ok: false });
     s.deps.epoch = () => null;
     expect(await s.service.orphanStatus("window", { ...orphan, requestID: "o1" })).toMatchObject({ ok: false });
   });
@@ -682,14 +682,14 @@ describe("comments without a canvas (project-feedback design §4)", () => {
 
   test("a request id is not shared between a canvas request and an orphan request", async () => {
     const s = seed();
-    const canvas = { root: "/repo", path: "design/gone.html", canvas: "gone", requestID: "o1", project: 1, intent: intent("resolve") };
+    const canvas = { root: "/repo", path: "doan/gone.html", canvas: "gone", requestID: "o1", project: 1, intent: intent("resolve") };
     vi.mocked(s.deps.authorize).mockResolvedValue({ width: 100, url: "http://canvas" });
     expect(await s.service.mutate("window", canvas)).toMatchObject({ ok: true, value: { state: "saved" } });
     expect(await s.service.orphanMutate("window", payload())).toMatchObject({ ok: false, error: "Request id was reused with different content." });
     expect(await s.service.orphanStatus("window", { ...orphan, requestID: "o1" })).toMatchObject({ ok: true, value: { state: "unknown" } });
     const t = seed();
     expect(await t.service.orphanMutate("window", payload())).toMatchObject({ ok: true, value: { state: "saved" } });
-    expect(await t.service.status("window", { ...orphan, path: "design/gone.html", requestID: "o1" })).toMatchObject({ ok: true, value: { state: "unknown" } });
+    expect(await t.service.status("window", { ...orphan, path: "doan/gone.html", requestID: "o1" })).toMatchObject({ ok: true, value: { state: "unknown" } });
     expect(await t.service.mutate("window", canvas)).toMatchObject({ ok: false, error: "Request id was reused with different content." });
   });
 

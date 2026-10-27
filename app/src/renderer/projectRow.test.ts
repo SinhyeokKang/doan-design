@@ -6,11 +6,11 @@ describe("projectRow", () => {
   test("separates reading and empty hints from status chips", () => {
     expect(projectRow({ path: "/repo", kind: "loading" })).toEqual({ hint: "Reading…", actions: ["close"] });
     expect(projectRow({ path: "/repo", kind: "list", servedRev: 0, canvases: [] })).toEqual({ hint: "No canvases", actions: ["copyPrompt", "close"] });
-    expect(projectRow({ path: "/repo", kind: "list", servedRev: 0, canvases: [{ path: "design/a.html", url: "url", open: 0, resolved: 0 }] })).toEqual({ actions: ["close"] });
+    expect(projectRow({ path: "/repo", kind: "list", servedRev: 0, canvases: [{ path: "doan/a.html", url: "url", open: 0, resolved: 0 }] })).toEqual({ actions: ["close"] });
   });
 
   test("matches the draft's initialization and error copy", () => {
-    expect(projectRow({ path: "/repo", kind: "uninitialized" })).toEqual({ status: "Not initialized", detail: ["Set up this project to add design/ and .doan/."], actions: ["setup", "close"] });
+    expect(projectRow({ path: "/repo", kind: "uninitialized" })).toEqual({ status: "Not initialized", detail: ["Set up this project to add doan/ and .doan/."], actions: ["setup", "close"] });
     expect(projectRow({ path: "/repo", kind: "error", message: "Cannot read config" })).toEqual({ status: "Error", detail: ["Cannot read config"], actions: ["close"] });
   });
 

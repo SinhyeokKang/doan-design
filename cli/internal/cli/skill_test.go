@@ -127,7 +127,7 @@ func TestSkillReportsUnservedCSSInFinalAnswer(t *testing.T) {
 		"serving its path needs the user's approval",
 		"Settings › Projects",
 		"doan config --add-serve",
-		"If you use a workaround such as copying CSS into `design/`, disclose it in the final answer",
+		"If you use a workaround such as copying CSS into `doan/`, disclose it in the final answer",
 	} {
 		if !strings.Contains(skillBody, required) {
 			t.Errorf("missing CSS boundary guidance: %s", required)

@@ -229,10 +229,10 @@ func parityRepo(t *testing.T) string {
 	root := initialized(t)
 	foo := validCanvas
 	fooBar := strings.Replace(validCanvas, `content="foo"`, `content="foo-bar"`, 1)
-	putFile(t, root, "design/foo.html", foo)
-	putFile(t, root, "design/foo-bar.html", fooBar)
-	putFile(t, root, "design/no-width.html", `<head><meta name="doan:canvas" content="no-width"></head>`)
-	putFile(t, root, "design/empty.html", "")
+	putFile(t, root, "doan/foo.html", foo)
+	putFile(t, root, "doan/foo-bar.html", fooBar)
+	putFile(t, root, "doan/no-width.html", `<head><meta name="doan:canvas" content="no-width"></head>`)
+	putFile(t, root, "doan/empty.html", "")
 	dup := createLine(cmt1, "1", foo)
 	putFile(t, root, ".doan/comments/foo.jsonl", dup+"\n"+dup+"\n"+createLine(cmt2, "2", foo)+"\n{\"v\":2}\n")
 	putFile(t, root, ".doan/comments/foo-bar.jsonl", createLine("cmt_00000000-0000-4000-8000-000000000003", "3", fooBar)+"\n")
@@ -244,8 +244,8 @@ func parityRepo(t *testing.T) string {
 // It is separate from parityRepo because copying and resolving need every file readable.
 func lockParityRepo(t *testing.T, root string) {
 	t.Helper()
-	putFile(t, root, "design/locked.html", validCanvas)
-	unreadable(t, root, "design/locked.html")
+	putFile(t, root, "doan/locked.html", validCanvas)
+	unreadable(t, root, "doan/locked.html")
 	unreadable(t, root, ".doan/comments/foo-bar.jsonl")
 }
 
@@ -341,7 +341,7 @@ func TestMCPEnvelopeParity(t *testing.T) {
 	for _, row := range ls["canvases"].([]any) {
 		rows[row.(map[string]any)["path"].(string)] = row.(map[string]any)
 	}
-	if rows["design/locked.html"]["error"] == nil || rows["design/foo-bar.html"]["commentsError"] == nil {
+	if rows["doan/locked.html"]["error"] == nil || rows["doan/foo-bar.html"]["commentsError"] == nil {
 		t.Fatal(rows)
 	}
 	expectJSON(t, "orphans", ls["orphans"], `[{"id":"gone","file":".doan/comments/gone.jsonl","comments":{"open":1,"resolved":0},"uncertain":true}]`)
@@ -410,7 +410,7 @@ func TestMCPInitWithoutPrompt(t *testing.T) {
 func TestMCPConcurrentResolveSameFile(t *testing.T) {
 	cs := mcpClient(t)
 	root := initialized(t)
-	putFile(t, root, "design/foo.html", validCanvas)
+	putFile(t, root, "doan/foo.html", validCanvas)
 	putFile(t, root, ".doan/comments/foo.jsonl", createLine(cmt1, "1", validCanvas)+"\n"+createLine(cmt2, "2", validCanvas)+"\n")
 	var wg sync.WaitGroup
 	for _, id := range []string{cmt1, cmt2} {

@@ -4,7 +4,7 @@ import type { ProjectCanvasComments, ProjectComments } from "../main/projectComm
 import { cardRow, groupProjects, homeSummary, measureNarrow, ProjectCommentReads, reviewTotal, type ProjectRead } from "./homeCards";
 import type { SelectionView } from "./selection";
 
-const canvas = (open: number): CanvasRow => ({ path: "design/a.html", url: "u", open, resolved: 0 });
+const canvas = (open: number): CanvasRow => ({ path: "doan/a.html", url: "u", open, resolved: 0 });
 const listRow = (path: string, git?: GitInfo, extra: { canvases?: CanvasRow[]; changedAt?: number } = {}): FolderEntry => ({
   path, kind: "list", servedRev: 0, canvases: extra.canvases ?? [], ...(git ? { git } : {}), ...(extra.changedAt === undefined ? {} : { changedAt: extra.changedAt }),
 });
@@ -460,7 +460,7 @@ describe("homeSummary", () => {
   // A canvas whose comment file failed hides the open count, as `reviewTotal`
   // hides the review count: a sum without it would be wrong, not partial.
   test("hides the open count when a canvas's comments could not be read", () => {
-    const failed: CanvasRow = { ...canvas(0), path: "design/b.html", commentsError: { code: "unreadable_comments", message: "m" } };
+    const failed: CanvasRow = { ...canvas(0), path: "doan/b.html", commentsError: { code: "unreadable_comments", message: "m" } };
     expect(homeSummary(entry([canvas(2), failed]), undefined)).toEqual({ items: [{ kind: "canvases", text: "2 canvases" }], label: "2 canvases" });
   });
 });

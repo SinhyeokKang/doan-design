@@ -97,9 +97,9 @@ func TestInitAndEmptyCommands(t *testing.T) {
 		}
 	}
 	failure(t, root, "comment_not_found", "comment", "resolve", cmt1, "--agent", "codex")
-	for _, p := range []string{"missing", "design", "/abs", "../x"} {
+	for _, p := range []string{"missing", "doan", "/abs", "../x"} {
 		r := t.TempDir()
-		putFile(t, r, "design/file", "")
+		putFile(t, r, "doan/file", "")
 		failure(t, r, "usage_error", "init", "--token-css", p)
 		if _, e := os.Stat(filepath.Join(r, ".doan")); !os.IsNotExist(e) {
 			t.Fatal(e)
@@ -167,7 +167,7 @@ func TestInitPromptAndToken(t *testing.T) {
 }
 func TestCommentsAndResolve(t *testing.T) {
 	root := initialized(t)
-	putFile(t, root, "design/a.html", validCanvas)
+	putFile(t, root, "doan/a.html", validCanvas)
 	log := createLine(cmt1, "1", validCanvas) + "\n" + createLine(cmt2, "2", validCanvas)
 	putFile(t, root, ".doan/comments/foo.jsonl", log)
 	got := result(t, root, 0, "comments")
@@ -179,11 +179,11 @@ func TestCommentsAndResolve(t *testing.T) {
 	if ls["id"] != "foo" || ls["comments"].(map[string]any)["open"] != float64(2) {
 		t.Fatal(ls)
 	}
-	putFile(t, root, "design/a.html", validCanvas+"changed")
+	putFile(t, root, "doan/a.html", validCanvas+"changed")
 	if result(t, root, 0, "comments")["comments"].([]any)[0].(map[string]any)["outdated"] != true {
 		t.Fatal("not outdated")
 	}
-	putFile(t, root, "design/b.html", validCanvas)
+	putFile(t, root, "doan/b.html", validCanvas)
 	for _, c := range result(t, root, 0, "comments")["comments"].([]any) {
 		if _, ok := c.(map[string]any)["canvasPath"]; ok {
 			t.Fatal(c)
@@ -227,7 +227,7 @@ func TestCommentsAndResolve(t *testing.T) {
 }
 func TestCommentMatchingAndWarnings(t *testing.T) {
 	root := initialized(t)
-	putFile(t, root, "design/a.html", validCanvas)
+	putFile(t, root, "doan/a.html", validCanvas)
 	if got := result(t, root, 0, "comments", "--canvas", "foo"); len(got["comments"].([]any)) != 0 {
 		t.Fatal(got)
 	}
@@ -262,20 +262,20 @@ func TestCommentMatchingAndWarnings(t *testing.T) {
 }
 func TestCheckReachAndMetadata(t *testing.T) {
 	root := initialized(t)
-	putFile(t, root, "design/a.html", `<head><meta name="doan:canvas" content="foo"><meta name="doan:width" content="800"><link rel="stylesheet" href="a.css"><style>@import "a.css"; p{color:var(--x)}</style></head>`)
-	putFile(t, root, "design/a.css", `@import "../assets/b.css"; @import "missing.css";`)
-	putFile(t, root, "assets/b.css", `@import "../design/a.css"; :root{--x:red}`)
+	putFile(t, root, "doan/a.html", `<head><meta name="doan:canvas" content="foo"><meta name="doan:width" content="800"><link rel="stylesheet" href="a.css"><style>@import "a.css"; p{color:var(--x)}</style></head>`)
+	putFile(t, root, "doan/a.css", `@import "../assets/b.css"; @import "missing.css";`)
+	putFile(t, root, "assets/b.css", `@import "../doan/a.css"; :root{--x:red}`)
 	got := result(t, root, 4, "check")
 	if got["summary"].(map[string]any)["errors"] != float64(1) {
 		t.Fatal(got)
 	}
 	f := got["findings"].([]any)[0].(map[string]any)
-	if f["code"] != "css_not_served" || f["path"] != "design/a.css" {
+	if f["code"] != "css_not_served" || f["path"] != "doan/a.css" {
 		t.Fatal(f)
 	}
 	putFile(t, root, ".doan/config.json", `{"v":1,"serve":["assets"]}`)
 	result(t, root, 0, "check")
-	putFile(t, root, "design/z.html", "\xff<div>none</div>")
+	putFile(t, root, "doan/z.html", "\xff<div>none</div>")
 	got = result(t, root, 4, "check")
 	ls := result(t, root, 0, "ls")["canvases"].([]any)[1].(map[string]any)
 	if _, ok := ls["id"]; ok {
@@ -440,7 +440,7 @@ func TestCheckCanvasCount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			root := initialized(t)
 			if tt.body != "" {
-				putFile(t, root, "design/a.html", tt.body)
+				putFile(t, root, "doan/a.html", tt.body)
 			}
 			got := result(t, root, tt.exit, "check")
 			summary := got["summary"].(map[string]any)

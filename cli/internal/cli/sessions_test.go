@@ -31,7 +31,7 @@ func sessionFixture(t *testing.T) (string, string) {
 	t.Setenv("DOAN_RUNTIME", filepath.Join(home, "userData", "runtime.json"))
 	root := initialized(t)
 	t.Chdir(root)
-	putFile(t, root, "design/a.html", validCanvas)
+	putFile(t, root, "doan/a.html", validCanvas)
 	return root, log
 }
 func sessionRows(t *testing.T, path string) []map[string]any {
@@ -74,7 +74,7 @@ func TestSessionRecordingOutputAndChangedHashes(t *testing.T) {
 			t.Run(fmt.Sprint(bad, jsonMode), func(t *testing.T) {
 				root, log := sessionFixture(t)
 				if bad {
-					putFile(t, root, "design/a.html", "<html>no metadata</html>")
+					putFile(t, root, "doan/a.html", "<html>no metadata</html>")
 				}
 				code, out, err := checkOutput(root, jsonMode)
 				t.Setenv("CLAUDE_CODE_SESSION_ID", "session literal $(no-shell)\nsecond-line")
@@ -94,7 +94,7 @@ func TestSessionRecordingOutputAndChangedHashes(t *testing.T) {
 				if len(sessionRows(t, log)) != 1 {
 					t.Fatal("unchanged canvas reassigned")
 				}
-				putFile(t, root, "design/a.html", validCanvas+"<!-- changed -->")
+				putFile(t, root, "doan/a.html", validCanvas+"<!-- changed -->")
 				checkOutput(root, jsonMode)
 				if len(sessionRows(t, log)) != 2 {
 					t.Fatal("changed hash missing")
@@ -212,7 +212,7 @@ func TestSessionPriorMalformedAndLargeLines(t *testing.T) {
 		}
 	}
 	// A torn last line must not absorb the next complete record.
-	putFile(t, root, "design/a.html", validCanvas+"<!--new-->")
+	putFile(t, root, "doan/a.html", validCanvas+"<!--new-->")
 	checkOutput(root, true)
 	b := readFile(t, filepath.Dir(log), filepath.Base(log))
 	lines := strings.Split(strings.TrimSuffix(b, "\n"), "\n")
@@ -241,17 +241,17 @@ func TestSessionCanonicalPathsAndMovedCanvas(t *testing.T) {
 	if rows[0]["root"] != real || rows[0]["cwd"] != real || rows[0]["configDir"] == alias {
 		t.Fatal(rows)
 	}
-	if e := os.Rename(filepath.Join(root, "design/a.html"), filepath.Join(root, "design/a\\..\\b.html")); e != nil {
+	if e := os.Rename(filepath.Join(root, "doan/a.html"), filepath.Join(root, "doan/a\\..\\b.html")); e != nil {
 		t.Fatal(e)
 	}
 	checkOutput(root, true)
 	if len(sessionRows(t, log)) != 1 {
 		t.Fatal("move reassigned unchanged ID")
 	}
-	putFile(t, root, "design/a\\..\\b.html", validCanvas+"<!--changed-->")
+	putFile(t, root, "doan/a\\..\\b.html", validCanvas+"<!--changed-->")
 	checkOutput(root, true)
 	rows = sessionRows(t, log)
-	if len(rows) != 2 || rows[1]["canvas"].(map[string]any)["path"] != "design/a\\..\\b.html" {
+	if len(rows) != 2 || rows[1]["canvas"].(map[string]any)["path"] != "doan/a\\..\\b.html" {
 		t.Fatal(rows)
 	}
 }
@@ -270,7 +270,7 @@ func TestSessionConcurrentProcesses(t *testing.T) {
 	commands := []*exec.Cmd{}
 	for i := 0; i < 8; i++ {
 		root := initialized(t)
-		putFile(t, root, "design/a.html", validCanvas)
+		putFile(t, root, "doan/a.html", validCanvas)
 		cmd := exec.Command(os.Args[0], "-test.run=^TestSessionConcurrentProcessHelper$")
 		cmd.Dir = root
 		cmd.Env = append(os.Environ(), "DOAN_SESSION_TEST_CHILD=1", "DOAN_SESSION_TEST_ROOT="+root)
@@ -319,7 +319,7 @@ func TestSessionDefaultDirectoryAndCWDContainment(t *testing.T) {
 	if len(sessionRows(t, log)) != 1 {
 		t.Fatal("default directory not used")
 	}
-	putFile(t, root, "design/a.html", validCanvas+"<!--change-->")
+	putFile(t, root, "doan/a.html", validCanvas+"<!--change-->")
 	t.Chdir(home)
 	checkOutput(root, true)
 	if len(sessionRows(t, log)) != 1 {
@@ -397,8 +397,8 @@ func TestSessionInternalCheckFailureAndNoInspectedCanvases(t *testing.T) {
 
 func TestSessionRecordsReadableCanvasesWhenAnotherReadFails(t *testing.T) {
 	root, log := sessionFixture(t)
-	putFile(t, root, "design/b.html", strings.Replace(validCanvas, `content="foo"`, `content="bar"`, 1))
-	blocked := filepath.Join(root, "design/b.html")
+	putFile(t, root, "doan/b.html", strings.Replace(validCanvas, `content="foo"`, `content="bar"`, 1))
+	blocked := filepath.Join(root, "doan/b.html")
 	if e := os.Chmod(blocked, 0); e != nil {
 		t.Fatal(e)
 	}
@@ -420,7 +420,7 @@ func TestSessionRecordsReadableCanvasesWhenAnotherReadFails(t *testing.T) {
 		t.Fatal("read failure changed output")
 	}
 	rows := sessionRows(t, log)
-	if len(rows) != 1 || rows[0]["canvas"].(map[string]any)["path"] != "design/a.html" {
+	if len(rows) != 1 || rows[0]["canvas"].(map[string]any)["path"] != "doan/a.html" {
 		t.Fatal("readable canvas missing or unreadable canvas recorded", rows)
 	}
 }

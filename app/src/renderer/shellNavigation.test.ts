@@ -14,7 +14,7 @@ describe("shell navigation", () => {
     expect(projectExpanded({ roots: ["a"], expanded: false }, "b")).toBe(false);
   });
   it("commits only a final destination and truncates forward history", () => {
-    const a = { root: "a", canvas: "design/a.html" }, b = { root: "b" };
+    const a = { root: "a", canvas: "doan/a.html" }, b = { root: "b" };
     const first = commitVisit(emptyHistory(), a);
     expect(commitVisit(first, a)).toBe(first);
     const second = commitVisit(first, b);
@@ -44,11 +44,11 @@ describe("shell navigation", () => {
 });
 
 describe("shell project persistence", () => {
-  const parse = (shellProjects: unknown) => parseUiState(JSON.stringify({ screen: "home", expanded: { a: ["design"] }, lastByRoot: {}, shellProjects }), ["a", "b"]);
+  const parse = (shellProjects: unknown) => parseUiState(JSON.stringify({ screen: "home", expanded: { a: ["doan"] }, lastByRoot: {}, shellProjects }), ["a", "b"]);
   it("keeps legacy expansion and intersects roots while dropping invalid fields separately", () => {
     expect(parse({ common: { roots: ["a", "gone"], expanded: true, selectedRoot: "gone", selectedAt: 4 } })?.shellProjects).toEqual({ common: { roots: ["a"], expanded: true } });
     expect(parse({ bad: { roots: ["a"], expanded: "true" } })?.shellProjects).toEqual({});
-    expect(parse({})?.expanded).toEqual({ a: ["design"] });
+    expect(parse({})?.expanded).toEqual({ a: ["doan"] });
   });
   it.each([0, 8.64e15, Date.now() + 100000])("accepts valid epoch %s", selectedAt => {
     expect(parse({ a: { roots: ["a"], selectedRoot: "a", selectedAt, expanded: false } })?.shellProjects?.a?.selectedAt).toBe(selectedAt);

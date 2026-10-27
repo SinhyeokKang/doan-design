@@ -174,7 +174,7 @@ describe.skipIf(process.getuid?.() === 0)("adding a folder that cannot be read",
 describe("adding picked folders", () => {
   test("a doan repo or its subfolder is stored by the root the CLI reports", async () => {
     const root = dir();
-    const sub = dir(root, "design");
+    const sub = dir(root, "doan");
     const { deps, saved } = fake({ [root]: list(root), [sub]: list(root) });
     const flow = createAddFlow(deps);
     expect(await flow.add([sub])).toEqual({ added: [root], duplicate: null, messages: [], scanId: null, confirms: [] });
@@ -191,7 +191,7 @@ describe("adding picked folders", () => {
 
   test("the same repo picked twice in one request is stored once", async () => {
     const root = dir();
-    const sub = dir(root, "design");
+    const sub = dir(root, "doan");
     const { deps, saved } = fake({ [root]: list(root), [sub]: list(root) });
     expect(await createAddFlow(deps).add([root, sub])).toMatchObject({ added: [root], duplicate: root });
     expect(saved).toEqual([root]);
@@ -234,7 +234,7 @@ describe("adding picked folders", () => {
   });
 
   test("a folder the CLI refuses keeps the existing message", async () => {
-    const broken = dir(dir(), "design");
+    const broken = dir(dir(), "doan");
     const { deps, saved } = fake({});
     // Run inside a broken repo's subfolder: `ls` fails, and `--repo` says it is no root.
     deps.ls = async (target) => ("cwd" in target ? { kind: "error", message: "bad config" } : notSetUp);
@@ -483,10 +483,10 @@ describe("judging a located folder", () => {
   test("stores a doan repo by its root or a git folder as picked", async () => {
     const root = dir();
     const repo = gitDir(dir(), "repo");
-    const { deps } = fake({ [join(root, "design")]: list(root) });
-    mkdirSync(join(root, "design"));
+    const { deps } = fake({ [join(root, "doan")]: list(root) });
+    mkdirSync(join(root, "doan"));
     const flow = createAddFlow(deps);
-    expect(await flow.judge(join(root, "design"))).toEqual({ root });
+    expect(await flow.judge(join(root, "doan"))).toEqual({ root });
     expect(await flow.judge(repo)).toEqual({ root: repo });
   });
 

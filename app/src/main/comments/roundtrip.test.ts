@@ -16,12 +16,12 @@ const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 test("app events round trip through the real Go reader and agent resolve, preserving LF and width-only CRUD", async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), "doan-roundtrip-"))); roots.push(root);
-  await mkdir(join(root, ".doan/comments"), { recursive: true }); await mkdir(join(root, "design"));
+  await mkdir(join(root, ".doan/comments"), { recursive: true }); await mkdir(join(root, "doan"));
   await writeFile(join(root, ".doan/config.json"), '{"v":1}');
   const html = '<meta name="doan:canvas" content="a"><meta name="doan:width" content="100"><main>Test</main>';
-  await writeFile(join(root, "design/a.html"), html);
+  await writeFile(join(root, "doan/a.html"), html);
   const config = join(root, "git-config"); await writeFile(config, '[user]\n name = Human\n');
-  const identity: CommentIdentity = { root, path: "design/a.html", canvas: "a" };
+  const identity: CommentIdentity = { root, path: "doan/a.html", canvas: "a" };
   const service = createCommentsService({
     authorize: async identity => ({ ...authorizeCanvas(identity, await readFolder(cli, root)), url: "url" }), epoch: () => 1,
     currentHash: async () => "sha256:" + "a".repeat(64),
@@ -44,7 +44,7 @@ test("app events round trip through the real Go reader and agent resolve, preser
   if (!list.ok) throw new Error(list.error);
   expect(list.value.comments[0]).toMatchObject({ comment: id, status: "resolved", resolvedBy: { kind: "agent", name: "test-agent" } });
   const comment = list.value.comments[0]; if (!comment) throw new Error("missing comment");
-  await writeFile(join(root, "design/a.html"), html.replace('content="100"', 'content="invalid"'));
+  await writeFile(join(root, "doan/a.html"), html.replace('content="100"', 'content="invalid"'));
   await writeFile(file, (await readFile(file, "utf8")).trimEnd());
   const expected = { body: comment.body, status: comment.status, updatedAt: comment.updatedAt, resolvedAt: comment.resolvedAt };
   expect(await service.mutate("window", { ...identity, project: 1, requestID: "reopen", intent: { type: "reopen", comment: id, expected } })).toMatchObject({ ok: true, value: { state: "saved" } });
@@ -56,7 +56,7 @@ test("app events round trip through the real Go reader and agent resolve, preser
 
 test("an orphan comment resolves through the real ls and Go reader, and is refused once its canvas returns", async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), "doan-roundtrip-"))); roots.push(root);
-  await mkdir(join(root, ".doan/comments"), { recursive: true }); await mkdir(join(root, "design"));
+  await mkdir(join(root, ".doan/comments"), { recursive: true }); await mkdir(join(root, "doan"));
   await writeFile(join(root, ".doan/config.json"), '{"v":1}');
   const html = '<meta name="doan:canvas" content="gone"><meta name="doan:width" content="100"><main>Test</main>';
   const create = { v: 1, id: "evt_00000000-0000-4000-8000-000000000001", at: "2026-10-26T10:00:00.000Z", type: "create", comment: "cmt_00000000-0000-4000-8000-000000000001", by: { kind: "human", name: "Kim" }, body: "Old", target: {}, canvasHash: "sha256:" + "a".repeat(64) };
@@ -77,7 +77,7 @@ test("an orphan comment resolves through the real ls and Go reader, and is refus
   expect(ls().orphans).toEqual([{ id: "gone", file: ".doan/comments/gone.jsonl", comments: { open: 0, resolved: 1 }, uncertain: false }]);
   // An id with no file is refused by the ls judgement, and no file appears.
   expect(await service.orphanMutate("window", { root, canvas: "never", requestID: "never", project: 1, intent: { type: "delete", comment: create.comment, expected } })).toMatchObject({ ok: false });
-  await writeFile(join(root, "design/gone.html"), html);
+  await writeFile(join(root, "doan/gone.html"), html);
   const before = await readFile(file, "utf8");
   expect(await service.orphanMutate("window", { root, canvas: "gone", requestID: "delete", project: 1, intent: { type: "delete", comment: create.comment, expected: { ...expected, status: "resolved" } } })).toMatchObject({ ok: false });
   expect(await readFile(file, "utf8")).toBe(before);
@@ -91,7 +91,7 @@ test("an orphan comment resolves through the real ls and Go reader, and is refus
 // so the comments:project reply is the only read that gives an orphan write its project.
 test("a project with only orphan comments resolves, reopens and deletes from its comments:project replies, and a reopen during a read or before a write is refused", async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), "doan-roundtrip-"))); roots.push(root);
-  await mkdir(join(root, ".doan/comments"), { recursive: true }); await mkdir(join(root, "design"));
+  await mkdir(join(root, ".doan/comments"), { recursive: true }); await mkdir(join(root, "doan"));
   await writeFile(join(root, ".doan/config.json"), '{"v":1}');
   const create = { v: 1, id: "evt_00000000-0000-4000-8000-000000000001", at: "2026-10-26T10:00:00.000Z", type: "create", comment: "cmt_00000000-0000-4000-8000-000000000001", by: { kind: "human", name: "Kim" }, body: "Old", target: {}, canvasHash: "sha256:" + "a".repeat(64) };
   const file = join(root, ".doan/comments/gone.jsonl");

@@ -20,7 +20,7 @@ const checks: Checks = ctx => {
   const target = "web/login.html";
   const page = ctx.read(target) ?? "";
   const changed = ctx.changedFiles();
-  const protectedChanges = changed.filter(p => p.startsWith("design/") || p.startsWith(".doan/"));
+  const protectedChanges = changed.filter(p => p.startsWith("doan/") || p.startsWith(".doan/"));
   const parsed = ctx.run("python3.12", ["-I", "-c", `
 import json, sys
 from html.parser import HTMLParser
@@ -81,7 +81,7 @@ p=Page(); p.feed(sys.argv[1]); print(json.dumps({'text':' '.join(' '.join(p.text
     { id: "canvas_copy", pass: parsed.code === 0 && missing.length === 0, detail: parsed.code !== 0 ? parsed.stderr : `missing visible copy: ${missing.join(", ") || "none"}` },
     { id: "uses_shared_tokens", pass: seen.has("web/tokens.css") && /var\(\s*--color-/.test(reachable), detail: `reachable stylesheets: ${[...seen].join(", ") || "none"}; shared color token use required` },
     { id: "no_new_direct_colors", pass: directColors.length === 0, detail: `new hex/rgb color values: ${directColors.join(", ") || "none"}` },
-    { id: "design_and_review_unchanged", pass: protectedChanges.length === 0, detail: `changed design/.doan paths: ${protectedChanges.join(", ") || "none"}` },
+    { id: "design_and_review_unchanged", pass: protectedChanges.length === 0, detail: `changed doan/.doan paths: ${protectedChanges.join(", ") || "none"}` },
     { id: "doan_check_clean", pass: check.code === 0 && check.json?.result?.summary?.errors === 0, detail: `exit ${check.code}, ${JSON.stringify(check.json?.result?.summary)}` },
   ];
 };

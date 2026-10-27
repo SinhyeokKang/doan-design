@@ -22,7 +22,7 @@ function setup(kind: "seed" | "pass" | "fail" = "pass", transcript = "") {
 const failures = (ctx: ReturnType<typeof setup>) => checks(ctx).filter(c => !c.pass).map(c => c.id);
 const codex = (command: string) => `exec\n/bin/zsh -lc '${command}' in /tmp/repo succeeded in 20ms:\n`;
 const claude = (command: string) => JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Bash", input: { command } }] } });
-const answer = "Created design/orders.html. brand/status.css is outside the served paths, so I copied its badge rules into the canvas; adding it to serve is a configuration change for you to approve.";
+const answer = "Created doan/orders.html. brand/status.css is outside the served paths, so I copied its badge rules into the canvas; adding it to serve is a configuration change for you to approve.";
 
 test("H5 seed has a clean check and the pass fixture passes", () => {
   const seed = setup("seed").doan(["check"]);

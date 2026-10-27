@@ -92,7 +92,7 @@ func TestConfigInvalidInputsDoNotWrite(t *testing.T) {
 	for _, args := range [][]string{
 		{"--token-css", filepath.Join(other, "outside.css")},
 		{"--token-css", filepath.Join(root, "missing.css")},
-		{"--token-css", filepath.Join(root, "design")},
+		{"--token-css", filepath.Join(root, "doan")},
 		{"--token-css", filepath.Join(root, "escape/outside.css")},
 		{"--token-css", ""},
 		{"--token-css", filepath.Join(root, "tokens.css"), "--clear-token-css"},

@@ -70,7 +70,7 @@ func TestReadRuntimeFixtures(t *testing.T) {
 }
 
 func TestReadResponse(t *testing.T) {
-	selection := `{"root":"/r","canvas":{"path":"design/a.html","id":"a"},"frame":{"id":"main"},"element":{"selector":"div","html":"<div></div>"}}`
+	selection := `{"root":"/r","canvas":{"path":"doan/a.html","id":"a"},"frame":{"id":"main"},"element":{"selector":"div","html":"<div></div>"}}`
 	for _, tt := range []struct{ name, line, code string }{
 		{"no selection", `{"v":1,"ok":true,"result":{}}`, ""},
 		{"selection", `{"v":1,"ok":true,"result":{"selection":` + selection + `}}`, ""},
@@ -102,7 +102,7 @@ func TestReadResponse(t *testing.T) {
 			t.Errorf("%s: %v", tt.name, got)
 		}
 		if tt.name == "selection" {
-			want := map[string]any{"canvas": map[string]any{"path": "design/a.html", "id": "a"}, "frame": map[string]any{"id": "main"}, "element": map[string]any{"selector": "div", "html": "<div></div>"}}
+			want := map[string]any{"canvas": map[string]any{"path": "doan/a.html", "id": "a"}, "frame": map[string]any{"id": "main"}, "element": map[string]any{"selector": "div", "html": "<div></div>"}}
 			if !reflect.DeepEqual(got, want) {
 				t.Errorf("selection: %v", got)
 			}
@@ -212,7 +212,7 @@ func activeCode(t *testing.T, ctx Context, root, code string) *Error {
 
 func TestActiveSendsRootAndReturnsSelection(t *testing.T) {
 	root := realPath(t, initialized(t))
-	app := &fakeApp{requests: make(chan map[string]any, 1), respond: reply(`{"v":1,"ok":true,"result":{"selection":{"root":"` + root + `","canvas":{"path":"design/a.html"},"element":{"doanId":"cta","selector":"[data-doan-id=\"cta\"]","html":"<a>Go</a>","text":"Go"}}}}`)}
+	app := &fakeApp{requests: make(chan map[string]any, 1), respond: reply(`{"v":1,"ok":true,"result":{"selection":{"root":"` + root + `","canvas":{"path":"doan/a.html"},"element":{"doanId":"cta","selector":"[data-doan-id=\"cta\"]","html":"<a>Go</a>","text":"Go"}}}}`)}
 	o, failure := Active(activeContext(t, root, app.dial(t)), Flags{Repo: root}, nil)
 	if failure != nil {
 		t.Fatal(failure)
@@ -220,7 +220,7 @@ func TestActiveSendsRootAndReturnsSelection(t *testing.T) {
 	if req := <-app.requests; !reflect.DeepEqual(req, map[string]any{"v": float64(1), "token": testToken, "root": root}) {
 		t.Fatal(req)
 	}
-	want := map[string]any{"repo": root, "selection": map[string]any{"canvas": map[string]any{"path": "design/a.html"}, "element": map[string]any{"doanId": "cta", "selector": `[data-doan-id="cta"]`, "html": "<a>Go</a>", "text": "Go"}}}
+	want := map[string]any{"repo": root, "selection": map[string]any{"canvas": map[string]any{"path": "doan/a.html"}, "element": map[string]any{"doanId": "cta", "selector": `[data-doan-id="cta"]`, "html": "<a>Go</a>", "text": "Go"}}}
 	if !reflect.DeepEqual(o.Result, want) || o.Exit != 0 {
 		t.Fatal(o)
 	}
@@ -421,12 +421,12 @@ func TestRunActiveOverRealSocket(t *testing.T) {
 			c.Write([]byte(`{"v":1,"ok":false,"error":{"code":"bad_request","message":"m"}}` + "\n"))
 			return
 		}
-		c.Write([]byte(`{"v":1,"ok":true,"result":{"selection":{"root":"` + root + `","canvas":{"path":"design/a.html"},"frame":{"id":"main","title":"Main"}}}}` + "\n"))
+		c.Write([]byte(`{"v":1,"ok":true,"result":{"selection":{"root":"` + root + `","canvas":{"path":"doan/a.html"},"frame":{"id":"main","title":"Main"}}}}` + "\n"))
 	}()
 	putFile(t, dir, "runtime.json", runtimeJSON(socket))
 	t.Setenv("DOAN_RUNTIME", filepath.Join(dir, "runtime.json"))
 	got := result(t, root, 0, "active")
-	want := map[string]any{"repo": root, "selection": map[string]any{"canvas": map[string]any{"path": "design/a.html"}, "frame": map[string]any{"id": "main", "title": "Main"}}}
+	want := map[string]any{"repo": root, "selection": map[string]any{"canvas": map[string]any{"path": "doan/a.html"}, "frame": map[string]any{"id": "main", "title": "Main"}}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal(got)
 	}

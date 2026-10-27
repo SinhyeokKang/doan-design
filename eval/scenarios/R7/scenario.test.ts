@@ -30,7 +30,7 @@ type Ctx = Awaited<ReturnType<typeof fixture>>;
 const failed = (ctx: Ctx) => r7(ctx).filter(c => !c.pass).map(c => c.id);
 const shell = (command: string) => JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Bash", input: { command } }] } });
 const edit = (ctx: Ctx, from: string, to: string) => {
-  const path = join(ctx.repo, "design/signup.html"), html = readFileSync(path, "utf8");
+  const path = join(ctx.repo, "doan/signup.html"), html = readFileSync(path, "utf8");
   assert.ok(html.includes(from), from);
   writeFileSync(path, html.replace(from, to));
 };
@@ -45,7 +45,7 @@ test("R7 seed attaches two open comments to the selection and one to another ele
   assert.deepEqual(attached.map((c: any) => c.comment), [LABEL, COLOR]);
   assert.deepEqual(result.comments.map((c: any) => [c.comment, c.status, c.outdated]), [LABEL, COLOR, TERMS].map(id => [id, "open", false]));
   // The selected button is not the first candidate, and the prompt names no target.
-  const seed = ctx.seed("design/signup.html")!;
+  const seed = ctx.seed("doan/signup.html")!;
   assert.ok(seed.includes(selection.element.html));
   assert.notEqual([...seed.matchAll(/<button data-doan-id="([^"]+)"/g)][0][1], "submit");
   assert.equal(scenario().promptTemplate, "Fix this.\n");

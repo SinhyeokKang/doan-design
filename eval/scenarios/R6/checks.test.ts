@@ -36,7 +36,7 @@ test("R6 seed exposes an open human-reopened comment with its previous agent res
   });
   const events = ctx.read(".doan/comments/profile.jsonl")!.trim().split("\n").map(line => JSON.parse(line));
   assert.deepEqual(events.map(e => [e.type, e.by.kind]), [["create", "human"], ["resolve", "agent"], ["reopen", "human"]]);
-  const original = ctx.read("design/profile.html")!.replace(">Save changes</button>", ">Save</button>");
+  const original = ctx.read("doan/profile.html")!.replace(">Save changes</button>", ">Save</button>");
   assert.equal(events[0].canvasHash, `sha256:${createHash("sha256").update(original).digest("hex")}`);
   assert.equal(events[0].body, 'Change the Save button label to exactly "Save profile".');
 });
@@ -47,7 +47,7 @@ test("R6 pass accepts another agent name and nested button markup", () => {
   const lines = readFileSync(log, "utf8").trim().split("\n");
   lines[3] = lines[3].replace('"name": "codex"', '"name": "claude-code"');
   writeFileSync(log, lines.join("\n") + "\n");
-  writeFileSync(join(ctx.repo, "design/profile.html"), ctx.read("design/profile.html")!.replace(">Save profile</button>", "><span>Save profile</span></button>"));
+  writeFileSync(join(ctx.repo, "doan/profile.html"), ctx.read("doan/profile.html")!.replace(">Save profile</button>", "><span>Save profile</span></button>"));
   assert.deepEqual(checks(ctx).filter(c => !c.pass), []);
 });
 

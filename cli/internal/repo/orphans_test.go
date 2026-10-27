@@ -16,13 +16,13 @@ func TestOrphanFiles(t *testing.T) {
 		return c
 	}
 	canvases := []canvas.Canvas{
-		parse("design/a.html", `<meta name="doan:canvas" content="a">`),
+		parse("doan/a.html", `<meta name="doan:canvas" content="a">`),
 		// Invalid and duplicated ids still own their comment file: check reports the id, and the orphan rule must not nudge an agent to delete comments.
-		parse("design/upper.html", `<meta name="doan:canvas" content="Upper">`),
-		parse("design/dup.html", `<meta name="doan:canvas" content="dup"><meta name="doan:canvas" content="other">`),
-		parse("design/twin.html", `<meta name="doan:canvas" content="a">`),
-		parse("design/none.html", ``),
-		parse("design/body.html", `</head><body><meta name="doan:canvas" content="body">`),
+		parse("doan/upper.html", `<meta name="doan:canvas" content="Upper">`),
+		parse("doan/dup.html", `<meta name="doan:canvas" content="dup"><meta name="doan:canvas" content="other">`),
+		parse("doan/twin.html", `<meta name="doan:canvas" content="a">`),
+		parse("doan/none.html", ``),
+		parse("doan/body.html", `</head><body><meta name="doan:canvas" content="body">`),
 	}
 	files := []CommentFile{
 		{ID: "a", Path: ".doan/comments/a.jsonl"},

@@ -34,7 +34,7 @@ test("worktree runs the agent in a second worktree of the seed commit while the 
     assert.equal(git(ws.cwd, ["rev-parse", "--abbrev-ref", "HEAD"]), "feat-plan-copy");
     assert.equal(git(ws.cwd, ["rev-parse", "HEAD"]), ws.seedCommit);
     assert.equal(git(ws.cwd, ["status", "--porcelain"]), "");
-    assert.ok(existsSync(join(ws.cwd, "design/profile.html")));
+    assert.ok(existsSync(join(ws.cwd, "doan/profile.html")));
     assert.ok(existsSync(join(ws.cwd, ".claude/skills/doan/SKILL.md")));
     // The fake app compares root literally, so only the first worktree is open in it.
     const active = (repo: string) => sh(cli, ["active", "--json", "--repo", repo], repo, ws.env);
@@ -55,14 +55,14 @@ test("checks and the judge see changes in each worktree separately", async () =>
   try {
     const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript: "", cli, env: ws.env, seedCommit: ws.seedCommit });
     assert.equal(ctx.cwd, ws.cwd);
-    writeFileSync(join(ws.cwd, "design/profile.html"), "changed in the agent's worktree\n");
+    writeFileSync(join(ws.cwd, "doan/profile.html"), "changed in the agent's worktree\n");
     assert.deepEqual(ctx.changedFiles(), []);
-    assert.deepEqual(ctx.cwdChangedFiles(), ["design/profile.html"]);
+    assert.deepEqual(ctx.cwdChangedFiles(), ["doan/profile.html"]);
     writeFileSync(join(ws.repo, "notes.md"), "changed in the root\n");
     assert.deepEqual(ctx.changedFiles(), ["notes.md"]);
-    assert.deepEqual(ctx.cwdChangedFiles(), ["design/profile.html"]);
+    assert.deepEqual(ctx.cwdChangedFiles(), ["doan/profile.html"]);
     const { changed, diff } = judgeMaterial(ws, ctx);
-    assert.deepEqual(changed, ["notes.md", "(working directory) design/profile.html"]);
+    assert.deepEqual(changed, ["notes.md", "(working directory) doan/profile.html"]);
     assert.match(diff, /changed in the root/);
     assert.match(diff, /changed in the agent's worktree/);
     // Without a second worktree both views are the repo.
