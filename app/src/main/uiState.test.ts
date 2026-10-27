@@ -236,3 +236,20 @@ describe("Settings tab", () => {
     expect(onDisk(path).settingsTab).toBe("general");
   });
 });
+
+test("round-trips shell memory beside Settings and prunes removed roots on read and save", async () => {
+  const path = file();
+  let roots = ["/repo", "/other"];
+  const store = createUiStateStore(path, () => roots);
+  const shellProjects = { common: { roots, selectedRoot: "/other", selectedAt: 8.64e15, expanded: true } };
+  expect(store.save({ ...workspace("design/a.html"), shellProjects })).toBe(true);
+  expect(store.saveSettingsTab("projects")).toBe(true);
+  store.flushSync();
+  expect((await store.read())?.shellProjects).toEqual(shellProjects);
+  expect(createUiStateStore(path, () => roots).readSettingsTab()).toBe("projects");
+  roots = ["/repo"];
+  expect((await store.read())?.shellProjects).toEqual({ common: { roots, expanded: true } });
+  expect(store.save({ ...workspace("design/a.html"), shellProjects })).toBe(true);
+  store.flushSync();
+  expect(onDisk(path).shellProjects).toEqual({ common: { roots, expanded: true } });
+});
