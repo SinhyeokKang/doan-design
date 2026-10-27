@@ -2,6 +2,14 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 
+### 2026-10-27 — Shell restyle lost navigation landmarks and inherited the wrong control sizing
+
+- **Area**: `app/src/renderer/App.tsx`, `ShellSidebar.tsx`, `styles.css`, `app/e2e/shell-presentation.ts`.
+- **Symptom**: the Projects glyph and sidebar heading were absent, history started 20px too far left, Search started 8px too high, and project-menu actions rendered at 36px despite the documented 32px row size. Local text colors, tracking and two-line worktree spacing also differed.
+- **Root cause**: the shell reconstruction copied container sizes without preserving all semantic children and local insets. A minimum height did not constrain a shared 20px text line plus 16px block padding, and inherited text styles hid differences in individual children.
+- **Net**: existing structure/behavior unit tests passed; same-Electron draft/implementation property pairs exposed the differences. Rendered assertions failed before corrections and passed afterward, including geometry, child glyphs, typography, selected worktree fill, action height and the empty paragraph. Shell/header and menu assertions are called by the main runtime suite; the empty-paragraph helper was exercised by the isolated renderer probe.
+- **Prevention**: run `rg -n 'shell-modes|shell-projects-heading|shell-project-menu .*doan-menu-item|shell-worktree small' app/src/renderer/styles.css app/src/renderer/ShellSidebar.tsx app/src/renderer/App.tsx` and compare visible children as well as containers. Verify actual border-box height, not only min-height, and retain shared primitive precedence when a single draft differs. The search found the measured shell call sites; shared global menu styles were intentionally unchanged.
+
 ### 2026-10-27 — Rewritten shell typeahead skipped repeated letters and the current prefix match
 
 - **Area**: `app/src/renderer/ShellSidebar.tsx`, `canvasTree.ts`, and `ShellSidebar.interaction.test.tsx`.
