@@ -32,6 +32,7 @@ export function ShellSidebar(props: Props) {
   const search = useRef<HTMLButtonElement>(null);
   const [focused, setFocused] = useState("");
   const [menu, setMenu] = useState<string | null>(null);
+  const [repairRoot, setRepairRoot] = useState<string | null>(null);
   const menuIndex = useRef(0);
   const menuRoot = useRef<string | null>(null);
   const ownedFocus = useRef<string | null>(null);
@@ -108,7 +109,9 @@ export function ShellSidebar(props: Props) {
         const entry = card.rows.find(row => row.path === selected) ?? card.rows[0]!;
         const expanded = projectExpanded(project, loaded), current = card.rows.some(row => row.path === loaded);
         const info = cardRow(entry, loaded, null);
-        const target = () => live.current.cards.find(item => item.key === card.key)?.rows.find(row => row.path === entry.path);
+        const menuEntry = (menu === card.key && card.rows.find(row => row.path === repairRoot)) || entry;
+        const menuInfo = cardRow(menuEntry, loaded, null);
+        const target = () => live.current.cards.find(item => item.key === card.key)?.rows.find(row => row.path === menuEntry.path);
         const run = (action: () => void) => { if (target()) action(); };
         return <div className="shell-project" key={card.key}>
           <div ref={rowRef(card.key)} className="shell-project-row row" role="treeitem" data-key={card.key} aria-label={card.name} aria-level={1} aria-expanded={expanded} aria-current={current && !canvas && !props.unlisted ? "location" : undefined} tabIndex={active === card.key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(card.key); }} onKeyDown={event => keyboard(event, card.key)} onClick={() => props.toggle(card.key)}>
@@ -116,7 +119,7 @@ export function ShellSidebar(props: Props) {
             <span className="shell-project-name">{card.name}</span>
             {info.summary?.branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{info.summary.branch}</span></span>}
             {info.chip && <span className="shell-problem">{info.chip}</span>}
-            <DropdownMenu.Root open={menu === card.key} onOpenChange={open => { setMenu(open ? card.key : null); if (open) { menuIndex.current = index; menuRoot.current = entry.path; } }}>
+            <DropdownMenu.Root open={menu === card.key} onOpenChange={open => { setMenu(open ? card.key : null); if (open) { setRepairRoot(null); menuIndex.current = index; menuRoot.current = entry.path; } }}>
               <DropdownMenu.Trigger asChild><button className="doan-icon-button shell-more" aria-label={`${card.name} menu`} tabIndex={active === card.key ? 0 : -1} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger>
               <DropdownMenu.Portal><DropdownMenu.Content className="menu doan-floating doan-menu shell-project-menu" sideOffset={4} collisionPadding={8} align="end" onClick={event => event.stopPropagation()} onCloseAutoFocus={event => {
                 const active = document.activeElement;
@@ -124,12 +127,17 @@ export function ShellSidebar(props: Props) {
                 else if (!live.current.cards.some(item => item.key === card.key)) { event.preventDefault(); if (document.activeElement === document.body || document.activeElement?.closest(".shell-project-menu")) fallback(); }
               }}>
                 <DropdownMenu.Label className="doan-menu-head">Worktrees</DropdownMenu.Label>
-                {card.rows.map(row => <DropdownMenu.Item className="doan-menu-item shell-worktree" key={row.path} disabled={row.kind !== "list" && row.kind !== "loading"} onSelect={() => { if (live.current.cards.find(item => item.key === card.key)?.rows.some(item => item.path === row.path)) props.worktree(row.path); }}><GitBranch aria-hidden="true" /><span><span>{cardRow(row, null, null).summary?.branch ?? row.path.split("/").at(-1)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>{row.path === entry.path && <Check aria-hidden="true" />}</DropdownMenu.Item>)}
+                {card.rows.map(row => <DropdownMenu.Item className="doan-menu-item shell-worktree" key={row.path} onSelect={event => {
+                  const current = live.current.cards.find(item => item.key === card.key)?.rows.find(item => item.path === row.path);
+                  if (!current) return;
+                  if (current.kind === "list" || current.kind === "loading") props.worktree(current.path);
+                  else { event.preventDefault(); setRepairRoot(current.path); menuRoot.current = current.path; }
+                }}><GitBranch aria-hidden="true" /><span><span>{cardRow(row, null, null).summary?.branch ?? row.path.split("/").at(-1)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>{row.path === menuEntry.path && <Check aria-hidden="true" />}</DropdownMenu.Item>)}
                 <DropdownMenu.Separator className="doan-menu-sep" />
-                <DropdownMenu.Item className="doan-menu-item" disabled={entry.kind !== "list"} onSelect={() => run(() => props.overview(entry.path))}><LayoutGrid />Overview</DropdownMenu.Item>
-                <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => props.action("showInFinder", entry.path))}><FolderOpen />Show in Finder</DropdownMenu.Item>
-                <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => { void window.doan.openSettings({ tab: "projects", project: entry.path }); })}><Settings />Project Settings</DropdownMenu.Item>
-                {info.actions.filter(action => action !== "remove" && action !== "showInFinder").map(action => <DropdownMenu.Item className="doan-menu-item" key={action} onSelect={() => run(() => props.action(action, entry.path))}>{labels[action]}</DropdownMenu.Item>)}
+                <DropdownMenu.Item className="doan-menu-item" disabled={menuEntry.kind !== "list"} onSelect={() => run(() => props.overview(menuEntry.path))}><LayoutGrid />Overview</DropdownMenu.Item>
+                <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => props.action("showInFinder", menuEntry.path))}><FolderOpen />Show in Finder</DropdownMenu.Item>
+                <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => { void window.doan.openSettings({ tab: "projects", project: menuEntry.path }); })}><Settings />Project Settings</DropdownMenu.Item>
+                {menuInfo.actions.filter(action => action !== "remove" && action !== "showInFinder").map(action => <DropdownMenu.Item className="doan-menu-item" key={action} onSelect={() => run(() => props.action(action, menuEntry.path))}>{labels[action]}</DropdownMenu.Item>)}
                 <DropdownMenu.Item className="doan-menu-item" onSelect={() => {
                   const current = live.current.cards.find(item => item.key === card.key);
                   if (current) void props.remove(current.rows.map(row => row.path));

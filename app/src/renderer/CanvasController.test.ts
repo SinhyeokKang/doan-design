@@ -2341,3 +2341,26 @@ it("repicking the current Overview cancels an older waiting worktree selection",
     expect(entered).not.toHaveBeenCalled();
   } finally { controller.dispose(); }
 });
+
+it("remembers the approved same-workspace Overview source and restores it after another workspace", () => {
+  const { controller, row } = loadedController();
+  try {
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/other", kind: "list", servedRev: 0, canvases: [] }]);
+    const previous = { canvas: "design/old.html", view: { x: 9, y: 8, scale: 2 } };
+    controller.remember("/repo", previous);
+    controller.wheel({ dx: 25, dy: 40, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
+    controller.wheel({ dx: 0, dy: -20, ctrl: true, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
+    const view = controller.currentView();
+    controller.setTransitionGuard(() => false);
+    controller.showOverview();
+    expect(controller.memory()["/repo"]).toEqual(previous);
+    expect(controller.destination("/repo")).toEqual({ root: "/repo", canvas: row.path });
+    controller.setTransitionGuard(() => true);
+    controller.showOverview();
+    expect(controller.memory()["/repo"]).toEqual({ canvas: row.path, view });
+    controller.openWorkspace("/other", () => {});
+    controller.openWorkspace("/repo", () => {});
+    expect(controller.destination("/repo")).toEqual({ root: "/repo", canvas: row.path });
+    expect(controller.currentView()).toEqual(view);
+  } finally { controller.dispose(); }
+});

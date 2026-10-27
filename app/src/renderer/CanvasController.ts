@@ -528,6 +528,8 @@ export class CanvasController {
   showOverview(shown?: () => void): void {
     if (!this.state.open) { this.cancelWorkspaceOpen(); shown?.(); return; }
     this.transition(() => {
+      const open = this.state.open;
+      if (open) this.workspaceMemory.set(open.folder, { path: open.canvas, view: { ...this.view } });
       this.dropFrame();
       this.state = { ...initialCanvasState(), activity: this.state.activity };
       this.publish();

@@ -2,15 +2,15 @@ import { Children, isValidElement, type ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { ShellSidebar } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
-const hooks = vi.hoisted(() => ({ refs: [] as { current: unknown }[] }));
+const hooks = vi.hoisted(() => ({ refs: [] as { current: unknown }[], states: [] as unknown[], cursor: 0 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
   useId: () => "description",
   useLayoutEffect: () => {},
   useRef: (value: unknown) => { const ref = { current: value }; hooks.refs.push(ref); return ref; },
-  useState: (value: unknown) => [value, vi.fn()],
+  useState: (value: unknown) => { const index = hooks.cursor++; if (!(index in hooks.states)) hooks.states[index] = value; return [hooks.states[index], (next: unknown) => { hooks.states[index] = next; }]; },
 }));
-beforeEach(() => { hooks.refs = []; });
+beforeEach(() => { hooks.refs = []; hooks.states = []; hooks.cursor = 0; });
 function elements(node: ReactNode): Record<string, unknown>[] {
   return Children.toArray(node).flatMap(child => isValidElement<{ children?: ReactNode; [key: string]: unknown }>(child) ? [child.props, ...elements(child.props.children)] : []);
 }
@@ -62,5 +62,41 @@ it("rejects menu actions after the project disappears", () => {
   expect(props.worktree).not.toHaveBeenCalled();
   expect(props.remove).not.toHaveBeenCalled();
   expect(props.overview).not.toHaveBeenCalled();
+  expect(props.action).not.toHaveBeenCalled();
+});
+
+it.each([
+  [{ path: "/b", kind: "notFound" }, ["Locate…", "locate"]],
+  [{ path: "/b", kind: "error", message: "bad config" }, ["Retry", "retry"], ["Details", "details"]],
+  [{ path: "/b", kind: "uninitialized" }, ["Set Up…", "setUp"]],
+  [{ path: "/b", kind: "cliError", reason: "offline" }, ["Retry", "retry"]],
+] as [FolderEntry, ...[string, string][]][]) ("targets repair actions without navigating from the current canvas: %j", (problem, ...actions) => {
+  const { props } = fixture();
+  props.cards[0]!.rows[1] = problem;
+  const render = () => { hooks.cursor = 0; return elements(ShellSidebar(props)); };
+  let rendered = render();
+  const root = rendered.find(item => typeof item.onOpenChange === "function")!;
+  (root.onOpenChange as (open: boolean) => void)(true);
+  rendered = render();
+  const item = rendered.filter(item => item.className === "doan-menu-item shell-worktree")[1]!;
+  expect(item.disabled).not.toBe(true);
+  const event = { preventDefault: vi.fn() };
+  (item.onSelect as (event: unknown) => void)(event);
+  expect(event.preventDefault).toHaveBeenCalledOnce();
+  rendered = render();
+  expect(rendered.find(item => item["data-key"] === "/a\ndesign/a.html")?.["aria-current"]).toBe("location");
+  expect(props.worktree).not.toHaveBeenCalled();
+  expect(props.overview).not.toHaveBeenCalled();
+  expect(props.open).not.toHaveBeenCalled();
+  for (const [label, action] of actions) {
+    const repair = rendered.find(item => item.children === label)!;
+    expect(repair).toBeDefined();
+    (repair.onSelect as () => void)();
+    expect(props.action).toHaveBeenLastCalledWith(action, "/b");
+  }
+  const live = [...hooks.refs].reverse().find(ref => ref.current === props)!;
+  live.current = { ...props, cards: [] };
+  props.action.mockClear();
+  for (const [label] of actions) (rendered.find(item => item.children === label)!.onSelect as () => void)();
   expect(props.action).not.toHaveBeenCalled();
 });

@@ -40,6 +40,11 @@ export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen
   else if (name === "previousResolved") to.review("previous");
 }
 
+export function validHistoryVisit(entries: readonly FolderEntry[], visit: Visit): boolean {
+  const entry = entries.find(entry => entry.path === visit.root);
+  return !!entry && entry.kind !== "notFound" && (entry.kind !== "list" || !visit.canvas || entry.canvases.some(row => row.path === visit.canvas));
+}
+
 export function App() {
   const [homeDirectory, setHomeDirectory] = useState<string | null>(null);
   const [screen, setScreen] = useState<"home" | "workspace">("home");
@@ -296,10 +301,7 @@ export function App() {
       return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
     });
   }, [groupSignature, entries, loadedRoot, restore, foldersSeen]);
-  const validVisit = (visit: Visit) => {
-    const entry = entries.find(entry => entry.path === visit.root);
-    return !!entry && (entry.kind !== "list" || !visit.canvas || entry.canvases.some(row => row.path === visit.canvas));
-  };
+  const validVisit = (visit: Visit) => validHistoryVisit(entries, visit);
   const back = historyTarget(history, -1, validVisit), forward = historyTarget(history, 1, validVisit);
   const travel = (cursor: number | null) => {
     if (cursor === null) return;
