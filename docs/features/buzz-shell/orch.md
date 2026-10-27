@@ -79,3 +79,6 @@ B에 배정했던 전체 runtime은 사용자 지시에 따라 중단했다. 실
 
 - ER은 `b2adf13`의 DESIGN 실측 중간 기록만 변경했고 `d9f6671`로 통합했다. handoff와 ER 증거 146개를 지휘자 evidence-E로 복사하고 SHA-256 일치를 확인했다. 같은 터미널을 FV 새 Task `task_df71ee14e726`/Dispatch `ctx_09dc0622a233`로 재사용했으며 시작 관측 timeout 뒤 실제 brief 읽기와 수정 실행을 확인했다.
 - RV는 FV 종료 뒤 Astra medium의 독립 design-sync/code-review 작업자로 실행한다. 전체 전후 속성표·미도달 상태·공유 primitive 우선순위 및 회귀 검사의 의미를 판단해야 하므로 같은 강도의 모델을 선택했다. tracked 파일은 수정하지 않으며 후속 라운드도 같은 리뷰어가 이어간다.
+
+- FV는 `6d20f9d`·`b0eed3e`·`a6c71c2`로 수정·회고·실측을 분리했다. 단위 3,349개·타입·빌드와 잠긴 renderer 회귀 검사 통과, 증거 58개 복사·해시 대조 후 작업자를 release했다. RV(`ctx_791fc3e1e25e`)는 🔴0·🟡1: 빈 프로젝트 검사의 정규 runtime 연결 누락을 확인했다. 속성 null과 요소 부재의 구분, 전환 중 Back 배경 캡처에는 증거 주의 2건을 남겼다.
+- FVR은 Astra medium으로 RV-1의 실제 정규 fixture 연결과 실패→통과·증거 분류 보완만 맡는다. 제품 스타일은 바꾸지 않는다. RV2는 같은 리뷰어의 새 Task로 기존 runtime 연결과 fixture 경계를 독립 검토한다. 수정 작업자를 기다리지 않고 먼저 가능한 검토를 마치며, 그 사이 수정 커밋이 준비되면 같은 리뷰어가 검토한다. 양쪽 tracked 편집 소유권은 겹치지 않는다.
