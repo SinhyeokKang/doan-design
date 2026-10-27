@@ -7,7 +7,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 ## 사용자
 
 - **사람(앱 사용자)**: 모든 화면을 Buzz의 시각 언어로 본다.
-- **에이전트**: 승인된 buzz-onboarding CLI/MCP로 사용자의 setup을 수행할 수 있다(구현 전). 시각 변경과 관련해서는 `design/` 초안들이 `app/src/renderer/tokens.css`를 링크하고 `.doan/config.json`의 `tokenCss`도 이 파일을 가리키므로, 초안의 겉모습과 `doan check` 결과가 영향을 받는다. 현재 기존 이력 12개와 buzz-ds·buzz-shell·buzz-onboarding 초안이 있으며 새 온보딩은 아직 앱 구현이 아니다.
+- **에이전트**: 승인된 buzz-onboarding CLI/MCP로 사용자의 setup을 수행할 수 있다(구현 전). 시각 변경과 관련해서는 `doan/` 초안들이 `app/src/renderer/tokens.css`를 링크하고 `.doan/config.json`의 `tokenCss`도 이 파일을 가리키므로, 초안의 겉모습과 `doan check` 결과가 영향을 받는다. 현재 기존 이력 12개와 buzz-ds·buzz-shell·buzz-onboarding 초안이 있으며 새 온보딩은 아직 앱 구현이 아니다.
 
 ## 출발점과 현재 상태
 
@@ -68,7 +68,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 
 ## 프로젝트 홈 아이디어 메모 (2026-10-28)
 
-`buzz-project`의 프로젝트 홈을 선택 프로젝트에 연결된 대화 입력창과 추천 프롬프트로 구성하는 방향을 검토한다. 예: “{SelectedProject} 디자인 시스템을 만들어줘” → 에이전트가 레포의 토큰·컴포넌트·스타일을 읽고 실제 자산을 재사용한 HTML을 `design/`에 만들어 Canvas로 보여준다. 추천은 입력창에 문구를 채우고 사용자가 전송하는 방향이다. 사용자가 더 구체화할 예정이며, 확정 스펙·구현 task로 확대하지 않는다. 전역 홈(`buzz-home`)과의 역할 구분도 그때 정한다.
+`buzz-project`의 프로젝트 홈을 선택 프로젝트에 연결된 대화 입력창과 추천 프롬프트로 구성하는 방향을 검토한다. 예: “{SelectedProject} 디자인 시스템을 만들어줘” → 에이전트가 레포의 토큰·컴포넌트·스타일을 읽고 실제 자산을 재사용한 HTML을 `doan/`에 만들어 Canvas로 보여준다. 추천은 입력창에 문구를 채우고 사용자가 전송하는 방향이다. 사용자가 더 구체화할 예정이며, 확정 스펙·구현 task로 확대하지 않는다. 전역 홈(`buzz-home`)과의 역할 구분도 그때 정한다.
 
 ## 별도 기반 기능과 인계
 
@@ -93,6 +93,6 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 - Base UI 도입, Buzz 코드(CSS·TSX)의 복사, Buzz JS 훅.
 - Inter·JetBrains Mono 번들, 고정폭 역할.
 - Buzz에만 있고 doan에 대응하는 화면이 없는 요소(glass 버튼, 아바타 모양, 커뮤니티 선택, 프로필, 페이지 탭, 생성 메뉴).
-- 기존 `design/` 초안 12개의 갱신.
+- 기존 `doan/` 초안 12개의 갱신.
 - 캔버스 iframe 안의 렌더링.
 - 앱 아이콘.
