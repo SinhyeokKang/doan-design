@@ -6,6 +6,7 @@ import type { ShellProject } from "../restore/uiState";
 import { cardRow, type HomeCard, type RowAction } from "./homeCards";
 import { projectExpanded, projectHue } from "./shellNavigation";
 import { rowProblem } from "./Sidebar";
+import { typeaheadNext } from "./canvasTree";
 import { ErrorDetails } from "./ErrorDetails";
 import { displayPath } from "./projectDisplay";
 
@@ -68,9 +69,8 @@ export function ShellSidebar(props: Props) {
     else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); row.activate(); }
     else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
       const now = Date.now(); buffer.current = { text: (now - buffer.current.at < 500 ? buffer.current.text : "") + event.key.toLowerCase(), at: now };
-      const ordered = [...rows.slice(index + 1), ...rows.slice(0, index + 1)];
-      const match = ordered.find(row => row.name.toLowerCase().startsWith(buffer.current.text));
-      if (match) { event.preventDefault(); focus(match.key); }
+      const match = typeaheadNext(rows.map(row => row.name), index, buffer.current.text);
+      if (match !== null) { event.preventDefault(); focus(rows[match]?.key); }
     }
   };
   for (const card of cards) {

@@ -100,3 +100,63 @@ it.each([
   for (const [label] of actions) (rendered.find(item => item.children === label)!.onSelect as () => void)();
   expect(props.action).not.toHaveBeenCalled();
 });
+
+function keyboardFixture() {
+  const { props } = fixture();
+  const cards = ["Alpha", "Alpine", "Beta"].map(name => ({ key: name, name, rows: [{ path: `/${name}`, kind: "list" as const, servedRev: 0, canvases: [] }] }));
+  const rendered = elements(ShellSidebar({ ...props, cards, projects: {}, loaded: null }));
+  const rows = rendered.filter(item => item.role === "treeitem");
+  let active = "Beta";
+  const nodes = rows.map(row => ({ dataset: { key: row["data-key"] }, focus: () => { active = row["aria-label"] as string; } }));
+  const host = rendered.find(item => item["aria-label"] === "Projects")!.ref as { current: unknown };
+  host.current = { querySelectorAll: () => nodes };
+  return {
+    props,
+    active: () => active,
+    press(value: string, modifiers: { metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean } = {}) {
+      const row = rows.find(item => item["aria-label"] === active)!;
+      const target = {}, event = { key: value, target, currentTarget: target, preventDefault: vi.fn(), metaKey: false, ctrlKey: false, altKey: false, ...modifiers };
+      (row.onKeyDown as (event: unknown) => void)(event);
+      return event;
+    },
+  };
+}
+
+it("cycles repeated letters through project rows using the connected keyboard handler", () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+  try {
+    const tree = keyboardFixture();
+    for (const expected of ["Alpha", "Alpine", "Alpha"]) {
+      expect(tree.press("a").preventDefault).toHaveBeenCalledOnce();
+      expect(tree.active()).toBe(expected);
+    }
+    expect(tree.props.toggle).not.toHaveBeenCalled();
+    expect(tree.props.open).not.toHaveBeenCalled();
+  } finally { now.mockRestore(); }
+});
+
+it("retains the current prefix match and resets the typeahead buffer after 500ms", () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+  try {
+    const tree = keyboardFixture();
+    tree.press("a"); tree.press("l");
+    expect(tree.active()).toBe("Alpha");
+    now.mockReturnValue(1500);
+    tree.press("b");
+    expect(tree.active()).toBe("Beta");
+  } finally { now.mockRestore(); }
+});
+
+it("preserves modifier shortcuts and ordinary navigation around typeahead", () => {
+  const tree = keyboardFixture();
+  for (const modifier of ["metaKey", "ctrlKey", "altKey"]) {
+    expect(tree.press("a", { [modifier]: true }).preventDefault).not.toHaveBeenCalled();
+    expect(tree.active()).toBe("Beta");
+  }
+  tree.press("Home"); expect(tree.active()).toBe("Alpha");
+  tree.press("ArrowDown"); expect(tree.active()).toBe("Alpine");
+  tree.press("End"); expect(tree.active()).toBe("Beta");
+  tree.press("ArrowUp"); expect(tree.active()).toBe("Alpine");
+  expect(tree.props.toggle).not.toHaveBeenCalled();
+  tree.press("Enter"); expect(tree.props.toggle).toHaveBeenCalledWith("Alpine");
+});
