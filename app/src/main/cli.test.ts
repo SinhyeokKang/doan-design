@@ -1,7 +1,13 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, describe, expect, inject, test } from "vitest";
+import { afterAll, describe, expect, inject, test, vi } from "vitest";
+import { spawn } from "node:child_process";
+
+vi.mock("node:child_process", async importOriginal => {
+  const real = await importOriginal<typeof import("node:child_process")>();
+  return { ...real, spawn: vi.fn(real.spawn) };
+});
 import { cliCommand, readFolder, runConfig, runLs, runInit } from "./cli";
 import { configReply } from "./configBridge";
 import { folderState, initOutcome } from "./folderState";
@@ -83,12 +89,22 @@ describe("runLs", () => {
 
   test("passes --json and --repo, and the CLI cannot read stdin", async () => {
     const out = join(dir(), "args");
-    // `cat` would block until the timeout if stdin were an open pipe.
-    const fake = fakeCli(`cat >/dev/null; printf '%s\\n' "$@" > '${out}'; echo '{"v":1,"ok":true,"result":{"root":"/r","scope":[],"canvases":[]}}'`);
-    const run = await runLs(fake, { repo: "/some/repo" }, 2_000);
-    expect(run.timedOut).toBe(false);
-    expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["ls", "--json", "--repo", "/some/repo"]);
-    expect(folderState(run).kind).toBe("list");
+    // A shell builtin checks EOF without a PATH lookup or an extra cat process.
+    const fake = fakeCli(`if IFS= read -r line; then exit 97; fi; printf '%s\\n' "$@" > '${out}'; echo '{"v":1,"ok":true,"result":{"root":"/r","scope":[],"canvases":[]}}'`);
+    const controller = new AbortController();
+    // This is an argument/stdin contract check, not a two-second performance bound.
+    const pending = runLs(fake, { repo: "/some/repo" }, undefined, controller.signal);
+    try {
+      expect(spawn).toHaveBeenLastCalledWith(fake, ["ls", "--json", "--repo", "/some/repo"], { cwd: undefined, stdio: ["ignore", "pipe", "pipe"] });
+      const run = await pending;
+      expect(run.timedOut).toBe(false);
+      expect(run.exitCode).toBe(0);
+      expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["ls", "--json", "--repo", "/some/repo"]);
+      expect(folderState(run).kind).toBe("list");
+    } finally {
+      controller.abort();
+      await pending;
+    }
   });
 
   test("a missing CLI is a CLI error with a reason", async () => {
