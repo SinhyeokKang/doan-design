@@ -1,4 +1,8 @@
 {
   "v": 1,
-  "tokenCss": "app/src/renderer/tokens.css"
+  "tokenCss": "app/src/renderer/tokens.css",
+  "serve": [
+    "app/src/renderer/ds",
+    "app/src/renderer/public/fonts/geist/Geist.woff2"
+  ]
 }
