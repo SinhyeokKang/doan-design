@@ -10,6 +10,8 @@ import { _electron, type ElectronApplication } from "playwright";
 const { installCommentReadProbe }: typeof import("./renderer-probe") = await import(new URL("./renderer-probe.ts", import.meta.url).href);
 const { saveClipboard, restoreClipboard }: typeof import("./clipboard") = await import(new URL("./clipboard.ts", import.meta.url).href);
 const { realState, assertRealState }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
+const { assertDesktopUnlocked, waitForNativeFocus }: typeof import("./desktop") = await import(new URL("./desktop.ts", import.meta.url).href);
+await assertDesktopUnlocked();
 const { rememberApp, closeApp, suiteGuard, bounded }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 const { canvasRow, frameRows }: typeof import("./design-tree") = await import(new URL("./design-tree.ts", import.meta.url).href);
 const { homeRow, goHome, requestProject, enterProject, removeHomeProject }: typeof import("./home") = await import(new URL("./home.ts", import.meta.url).href);
@@ -112,17 +114,18 @@ try {
   const unicodeBody = '원래 대상 🧪 e\u0301 <img src=x onerror="window.HOSTILE=true">';
   await boundaryBody.fill(unicodeBody);
   presentation("Comments heading weight", await panel.getByRole("heading", { name: "Comments", exact: true }).evaluate(el => getComputedStyle(el).fontWeight), "700");
+  // Shared buzz-ds rules supersede the original comments draft (docs/DESIGN.md).
   presentation("Comment action layout", await panel.getByRole("button", { name: "Save comment", exact: true }).evaluate(el => {
     const s = getComputedStyle(el); return [s.display, s.gap, s.whiteSpace, s.alignItems];
-  }), ["flex", "6px", "nowrap", "center"]);
+  }), ["flex", "8px", "nowrap", "center"]);
   presentation("Editor target spacing", await panel.locator("label").evaluate(el => {
     const range = document.createRange(); range.selectNode(el.firstChild!);
     return Math.round(el.querySelector(".comments-target")!.getBoundingClientRect().top - range.getBoundingClientRect().bottom);
   }), 8);
   const originFrame = await page.locator("iframe").elementHandle(); assert.ok(originFrame);
   await requestProject(page, destinationRepo); await boundaryDialog.waitFor();
-  presentation("Unsaved dialog width", await boundaryDialog.evaluate(el => el.getBoundingClientRect().width), 410);
-  presentation("Unsaved dialog heading weight", await boundaryDialog.getByRole("heading").evaluate(el => getComputedStyle(el).fontWeight), "700");
+  presentation("Unsaved dialog width", await boundaryDialog.evaluate(el => el.getBoundingClientRect().width), 400);
+  presentation("Unsaved dialog heading weight", await boundaryDialog.getByRole("heading").evaluate(el => getComputedStyle(el).fontWeight), "500");
   assert.equal(await originFrame.evaluate(el => el.isConnected), true);
   await boundaryDialog.getByRole("button", { name: "Keep writing", exact: true }).click();
   assert.equal(await boundaryBody.inputValue(), unicodeBody);
@@ -520,7 +523,7 @@ try {
   await exec("git", ["-C", repo, "config", "user.name", ""]);
   await canvasRow(page, "b.html").click();
   await panel.getByText("Set your Git name", { exact: true }).waitFor();
-  presentation("Recovery button line height", await panel.getByRole("button", { name: "Retry", exact: true }).evaluate(el => getComputedStyle(el).lineHeight), "normal");
+  presentation("Recovery button line height", await panel.getByRole("button", { name: "Retry", exact: true }).evaluate(el => getComputedStyle(el).lineHeight), "20px");
   assert.equal(await panel.getByRole("button", { name: "Comment on canvas", exact: true }).isDisabled(), true);
   await exec("git", ["-C", repo, "config", "user.name", "UI Author"]);
   await panel.getByRole("button", { name: "Retry", exact: true }).click();
@@ -561,10 +564,11 @@ try {
   // Native hiding must not conceal the existing ordinary-draft quit guard.
   const appWin = await appWindow(app, page);
   for (const kind of ["close", "hide"] as const) {
+    await assertDesktopUnlocked();
     await hideMain(app, page, kind);
     await app.evaluate(({ app }) => app.quit());
     await dialog.waitFor();
-    await waitGate(() => app!.evaluate(({ app }, window) => !app.isHidden() && window.isVisible() && window.isFocused(), appWin));
+    await waitForNativeFocus(() => app!.evaluate(({ app }, window) => ({ hidden: app.isHidden(), visible: window.isVisible(), focused: window.isFocused() }), appWin), `08-hidden-quit-${kind}`);
     await page.waitForFunction(() => Reflect.get(window, "nativeVisible") === true);
     await shot(`08-hidden-quit-${kind}`);
     await keep();
@@ -596,13 +600,13 @@ try {
   const beforeUnknown = (await readFile(file, "utf8")).trim().split("\n").length;
   await panel.getByRole("button", { name: "Save comment", exact: true }).click();
   await panel.getByText("Save status is unknown", { exact: true }).waitFor();
-  presentation("Recovery message spans panel content", await panel.getByText("Save status is unknown", { exact: true }).evaluate(el => {
+  presentation("Recovery status block inset", await panel.getByText("Save status is unknown", { exact: true }).evaluate(el => {
     const message = el.parentElement!, panel = el.closest(".comments-panel")!;
     // The header shares the panel's content edges, excluding its native scrollbar.
     const content = panel.querySelector(".comments-head")!.getBoundingClientRect();
     const rect = message.getBoundingClientRect();
     return { directChild: message.parentElement === panel, leftInset: rect.left - content.left, rightInset: content.right - rect.right };
-  }), { directChild: true, leftInset: 0, rightInset: 0 });
+  }), { directChild: true, leftInset: 12, rightInset: 12 });
   assert.equal(await createBody.getAttribute("readonly"), "");
   // Controlled uncertainty enters the real App/preload/main transition path.
   // This response injection does not reproduce a native directory-child hang.
