@@ -1,0 +1,11 @@
+# Provider marks for the onboarding draft
+
+Retrieved 2026-10-28 from official provider sites or repositories. These local assets are draft references; inclusion is not a claim of trademark ownership or endorsement. App packaging and brand-use requirements remain implementation work.
+
+- `claude.png`: https://assets.claude.com/95a868946ac8a31e5ff832e2899f294aa368b836.png?w=64&h=64 — icon linked by claude.com.
+- `codex.png`: https://github.com/openai.png?size=64 — official OpenAI organization avatar, used as the OpenAI provider mark for Codex, not a distinct Codex product icon.
+- `cursor.svg`: https://cursor.com/marketing-static/favicon-light.svg
+- `antigravity.svg`: https://antigravity.google/favicon.svg
+- `copilot.svg`: https://raw.githubusercontent.com/primer/octicons/main/icons/copilot-24.svg — GitHub Primer Octicons, MIT: https://github.com/primer/octicons/blob/main/LICENSE
+
+SVG assets are stored without scripts or external resource references. Provider names remain visible beside decorative marks.
