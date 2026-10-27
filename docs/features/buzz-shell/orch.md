@@ -54,3 +54,5 @@ B에 배정했던 전체 runtime은 사용자 지시에 따라 중단했다. 실
 - handoff와 검증 로그는 지휘자 `.scratch/buzz-shell-orch/evidence-A/`, `evidence-B/`에 복사했다. 아직 통합 gate를 실행하지 않았다.
 - R-B: 🔴0·🟡0. B를 `f6ae879`로 통합했다. B/R-B 작업자 release와 증거 복사·대조를 완료했고 Orca에서 `buzz-shell-resources`를 제거했다. 목록에서 child id가 사라진 것을 확인했다.
 - R-A: 🔴0·🟡2. 참조된 history 누락 상태와 selectedAt의 유효 Date 범위를 보완한다. F-A는 Astra medium으로 문서만 수정한다(기존 경계의 정확성 판단). 구현과 native 검증은 실행하지 않는다.
+- F-A `80e27b9`의 두 경계 보완을 지휘자가 diff와 handoff로 확인했다. A/F-A를 `33e158f`, `f166e01`, `f482cbe`로 통합했다. 원 작업자와 리뷰·수정 작업자는 모두 release 완료했고 증거를 복사한 뒤 `buzz-shell-contract`를 Orca로 제거했다.
+- C: `ctx_f8a26166a0a5`, task `task_9dba28cd37a0`, child `buzz-shell-ui`. 통합 `f482cbe`에서 시작했고 `turnStart: observed`, effective Astra medium을 확인했다. brief 맨 위에 사용자 native/e2e 유예를 명시했다. task 3·5a의 옵션 구현·5b·6을 맡고 실제 5a 검증은 E로 이관한다.
