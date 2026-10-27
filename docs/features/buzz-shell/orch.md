@@ -12,6 +12,8 @@
 - conductor's call — Codex 계열만 사용한다. 모델 선택은 이 저장소 orchestrate 스킬의 배치별 지정 규칙을 따른다.
 - conductor's call — 전체 runtime·패키지 실행·네이티브 관찰은 한 작업자만 실행한다. 병렬 배치의 테스트는 각 checkout에서 실행한다.
 - conductor's call — 지휘자는 배치 코드를 수정하지 않는다. 독립 리뷰의 수정은 소유 작업자에게 돌린다. push와 PR 생성은 통합 완료 후 수행하며 merge하지 않는다.
+- conductor's call — 1b의 활동 후보는 검증된 shell check 연관 시각과 식별 가능한 대화 activity 이벤트(read/edit/command/other)다. 관측된 작업이며 성공한 파일 수정의 증거는 아니다. 메시지·사용자 입력·turn/permission/archive 시각은 제외한다. 등록된 정규화 root만 대상으로 하고 기존 기록 검증을 유지한다. 원문은 renderer에 노출하지 않는다.
+- conductor's call — 제거는 탐색 메모리를 비운다. 명시적 재등록/Undo 시 기존 활동을 다시 조회할 수 있으며 별도 제거 cutoff 저장소는 만들지 않는다. 승인된 최근 활동 복원과 기존 제거 계약에 맞춘 최소 구현이다. 정확한 공급원·누락 범위·호환성은 A의 기술 계약에서 검증한다.
 
 ## 배치와 소유권
 
