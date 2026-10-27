@@ -60,42 +60,42 @@ function app(canvases: CanvasRow[]) {
 }
 
 test("a normal Open expands the canvas row and its folders", () => {
-  const h = app([row("doan/a.html", "a")]);
-  h.openCanvas(row("doan/a.html", "a"));
-  expect(h.expanded()).toEqual(expect.arrayContaining(["doan", "doan/a.html"]));
+  const h = app([row(".doan/canvases/a.html", "a")]);
+  h.openCanvas(row(".doan/canvases/a.html", "a"));
+  expect(h.expanded()).toEqual(expect.arrayContaining([".doan/canvases", ".doan/canvases/a.html"]));
 });
 
 test("the moved open canvas keeps its collapsed row; only the folders it moved into open (R-B7 2)", () => {
-  const h = app([row("doan/a.html", "a")]);
-  h.openCanvas(row("doan/a.html", "a"));
-  h.collapse("doan/a.html");
-  h.move("doan/a.html", row("doan/nested/a.html", "a"));
-  expect(h.expanded()).toContain("doan/nested");
-  expect(h.expanded()).not.toContain("doan/nested/a.html");
+  const h = app([row(".doan/canvases/a.html", "a")]);
+  h.openCanvas(row(".doan/canvases/a.html", "a"));
+  h.collapse(".doan/canvases/a.html");
+  h.move(".doan/canvases/a.html", row(".doan/canvases/nested/a.html", "a"));
+  expect(h.expanded()).toContain(".doan/canvases/nested");
+  expect(h.expanded()).not.toContain(".doan/canvases/nested/a.html");
   // A rename inside the same folder keeps it collapsed too.
-  h.move("doan/nested/a.html", row("doan/nested/b.html", "a"));
-  expect(h.expanded()).not.toContain("doan/nested/b.html");
+  h.move(".doan/canvases/nested/a.html", row(".doan/canvases/nested/b.html", "a"));
+  expect(h.expanded()).not.toContain(".doan/canvases/nested/b.html");
 });
 
 test("the moved open canvas keeps its expanded row", () => {
-  const h = app([row("doan/a.html", "a")]);
-  h.openCanvas(row("doan/a.html", "a"));
-  h.move("doan/a.html", row("doan/nested/a.html", "a"));
-  expect(h.expanded()).toEqual(expect.arrayContaining(["doan/nested", "doan/nested/a.html"]));
+  const h = app([row(".doan/canvases/a.html", "a")]);
+  h.openCanvas(row(".doan/canvases/a.html", "a"));
+  h.move(".doan/canvases/a.html", row(".doan/canvases/nested/a.html", "a"));
+  expect(h.expanded()).toEqual(expect.arrayContaining([".doan/canvases/nested", ".doan/canvases/nested/a.html"]));
 });
 
 test("opening the moved canvas again later is a normal Open", () => {
-  const h = app([row("doan/a.html", "a"), row("doan/c.html", "c")]);
-  h.openCanvas(row("doan/a.html", "a"));
-  h.collapse("doan/a.html");
-  h.move("doan/a.html", row("doan/b.html", "a"));
-  h.openCanvas(row("doan/c.html", "c"));
-  h.openCanvas(row("doan/b.html", "a"));
-  expect(h.expanded()).toContain("doan/b.html");
+  const h = app([row(".doan/canvases/a.html", "a"), row(".doan/canvases/c.html", "c")]);
+  h.openCanvas(row(".doan/canvases/a.html", "a"));
+  h.collapse(".doan/canvases/a.html");
+  h.move(".doan/canvases/a.html", row(".doan/canvases/b.html", "a"));
+  h.openCanvas(row(".doan/canvases/c.html", "c"));
+  h.openCanvas(row(".doan/canvases/b.html", "a"));
+  expect(h.expanded()).toContain(".doan/canvases/b.html");
 });
 
 test("root switch is a normal Open even when the previous root path equals the stale move source", () => {
-  const a = row("doan/a.html", "a"), b = row("doan/b.html", "a");
+  const a = row(".doan/canvases/a.html", "a"), b = row(".doan/canvases/b.html", "a");
   const h = app([a]);
   h.openCanvas(a); h.collapse(a.path); h.move(a.path, b);
   h.switchRoot("/other", a);
@@ -104,20 +104,20 @@ test("root switch is a normal Open even when the previous root path equals the s
 });
 
 test("Overview and back expands normally after a move", () => {
-  const a = row("doan/a.html", "a"), b = row("doan/b.html", "a");
+  const a = row(".doan/canvases/a.html", "a"), b = row(".doan/canvases/b.html", "a");
   const h = app([a]); h.openCanvas(a); h.collapse(a.path); h.move(a.path, b);
   h.overview(); h.openCanvas(b); expect(h.expanded()).toContain(b.path);
 });
 
 test("two moves before a commit keep a collapsed row", () => {
-  const a = row("doan/a.html", "a"), b = row("doan/b.html", "a"), c = row("doan/c.html", "a");
+  const a = row(".doan/canvases/a.html", "a"), b = row(".doan/canvases/b.html", "a"), c = row(".doan/canvases/c.html", "a");
   const h = app([a]); h.openCanvas(a); h.collapse(a.path);
   h.move(a.path, b, false); h.move(b.path, c);
   expect(h.expanded()).not.toContain(c.path);
 });
 
 test("a move followed by a different normal Open in one commit expands that row, and the move is spent", () => {
-  const a = row("doan/a.html", "a"), b = row("doan/b.html", "a"), c = row("doan/c.html", "c");
+  const a = row(".doan/canvases/a.html", "a"), b = row(".doan/canvases/b.html", "a"), c = row(".doan/canvases/c.html", "c");
   const h = app([a, c]); h.openCanvas(a); h.collapse(a.path);
   h.move(a.path, b, false); h.openCanvas(c);
   expect(h.expanded()).toContain(c.path);
@@ -126,7 +126,7 @@ test("a move followed by a different normal Open in one commit expands that row,
 });
 
 test("Home and back keeps the loaded collapsed row because Sidebar stays mounted", () => {
-  const a = row("doan/a.html", "a"), b = row("doan/b.html", "a");
+  const a = row(".doan/canvases/a.html", "a"), b = row(".doan/canvases/b.html", "a");
   const h = app([a]); h.openCanvas(a); h.collapse(a.path); h.move(a.path, b);
   h.flush(); h.flush();
   expect(h.expanded()).not.toContain(b.path);

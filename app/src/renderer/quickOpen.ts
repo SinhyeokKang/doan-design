@@ -51,7 +51,7 @@ export function searchIndex(entries: readonly SearchFolder[], rendered?: Rendere
       const target = { root: entry.path, path: row.path, canvasLabel: label };
       index.push({ ...target, kind: "canvas", label,
         // The shared scope prefix must not outrank actual title or frame matches.
-        fields: [label, row.path.split("/").at(-1) ?? row.path, row.path.replace(/^doan\//, ""), row.id ?? ""].map(searchText) });
+        fields: [label, row.path.split("/").at(-1) ?? row.path, row.path.replace(/^\.doan\/canvases\//, ""), row.id ?? ""].map(searchText) });
       const frames = rendered?.root === entry.path && rendered.path === row.path ? rendered.frames : row.frames ?? [];
       for (const [frameIndex, frame] of frames.slice(0, 1000).entries()) {
         index.push({ ...target, kind: "frame", label: frameLabel(frame, frameIndex).name,
@@ -126,7 +126,7 @@ export function pickTarget(result: SearchResult, loadedRoot: string | null, open
 
 export function unavailableCanvasMessage(entry: FolderEntry | undefined, path: string): string {
   if (entry?.kind === "list" && entry.canvases.some(row => row.path === path)) return "Canvas changed while opening. Choose it again from the Sidebar or Quick Open.";
-  if (entry?.kind === "list") return `${canvasLabel({ path, url: "", open: 0, resolved: 0 })} is no longer in doan/`;
+  if (entry?.kind === "list") return `${canvasLabel({ path, url: "", open: 0, resolved: 0 })} is no longer in .doan/canvases/`;
   if (entry?.kind === "loading") return "Project is still being read. Try Open again shortly.";
   return "Project is unavailable. Check its status on Home and try again.";
 }

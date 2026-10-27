@@ -46,7 +46,7 @@ export const SERVED_WALK_LIMIT = 2000;
 
 // Canvases are tracked by their own mtime and size; every other served file
 // can restyle all of them.
-const isCanvas = (path: string) => path.startsWith("doan/") && path.toLowerCase().endsWith(".html");
+const isCanvas = (path: string) => path.startsWith(".doan/canvases/") && path.toLowerCase().endsWith(".html");
 
 // Every non-canvas file the folder serves, or null once the walk has visited
 // SERVED_WALK_LIMIT entries, canvases and empty directories included.

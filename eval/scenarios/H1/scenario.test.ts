@@ -46,7 +46,7 @@ test("H1 no-op fails and both representative fixtures score correctly", () => {
   }
 });
 test("H1 preserves existing identities while allowing new annotated elements", () => {
-  const ctx = fixture("H1"), path = "doan/h1.html", original = ctx.read(path)!;
+  const ctx = fixture("H1"), path = ".doan/canvases/h1.html", original = ctx.read(path)!;
   write(ctx, path, original.replace('</body>', '<p data-doan-id="pending-decision">Pending heading decision.</p></body>'));
   all(h1, ctx);
   write(ctx, path, original.replace('data-doan-id="save"', 'data-doan-id="renamed-save"'));
@@ -58,7 +58,7 @@ test("H1 preserves existing identities while allowing new annotated elements", (
 });
 test("H1 accepts either one-sided conflict decision and a nested label", () => {
   for (const n of [9, 10]) {
-    const ctx = fixture("H1"), log = ".doan/comments/review-board.jsonl", page = "doan/h1.html";
+    const ctx = fixture("H1"), log = ".doan/comments/review-board.jsonl", page = ".doan/canvases/h1.html";
     write(ctx, log, ctx.read(log)! + resolve(n));
     write(ctx, page, ctx.read(page)!.replace(">Summary<", n === 9 ? ">Monthly summary<" : ">Weekly summary<").replace("Save workspace</button>", "<span>Save workspace</span></button>"));
     all(h1, ctx);
@@ -70,7 +70,7 @@ test("H1 rejects a resolved conflict without its outcome and resolving both", ()
   write(ctx, log, ctx.read(log)! + resolve(10)); fails(h1, ctx, "conflict_handled");
 });
 test("H1 detects missing application, missing duplicate resolution and forged history", () => {
-  const ctx = fixture("H1"), page = "doan/h1.html", log = ".doan/comments/review-board.jsonl";
+  const ctx = fixture("H1"), page = ".doan/canvases/h1.html", log = ".doan/comments/review-board.jsonl";
   const passed = ctx.read(page)!, history = ctx.read(log)!;
   write(ctx, page, passed.replace("Manage sessions", "Sessions")); fails(h1, ctx, "applied_sessions");
   write(ctx, page, passed);
@@ -88,13 +88,13 @@ test("H1 rejects recreated stale targets, question resolutions, edits and delete
     const ctx = fixture("H1"), log = ".doan/comments/review-board.jsonl";
     write(ctx, log, ctx.read(log)! + resolve(12, type, "human")); fails(h1, ctx, "only_applied_agent_resolves");
   }
-  const ctx = fixture("H1"), page = "doan/h1.html";
+  const ctx = fixture("H1"), page = ".doan/canvases/h1.html";
   write(ctx, page, ctx.read(page)!.replace("</body>", '<button data-doan-id="old-export">Export archive</button></body>'));
   fails(h1, ctx, "stale_and_question_open");
 });
 
 test("H1 stale target records the earlier canvas that contained it", () => {
-  const ctx = fixture("H1", "seed"), page = ctx.read("doan/h1.html")!;
+  const ctx = fixture("H1", "seed"), page = ctx.read(".doan/canvases/h1.html")!;
   const events = ctx.read(".doan/comments/review-board.jsonl")!.trim().split("\n").map(line => JSON.parse(line));
   const stale = events.find(e => e.comment === commentId(11));
   const earlier = page.replace('  <h2 data-doan-id="digest-heading">', '  <button data-doan-id="old-export">Export</button>\n  <h2 data-doan-id="digest-heading">');

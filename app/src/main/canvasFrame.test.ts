@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { allowFrameNavigation, childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame, navigationGate, startedByApp, type FrameLike } from "./canvasFrame";
 
 const base = "http://127.0.0.1:4000/t/tok/";
-const current = `${base}key/doan/a.html`;
+const current = `${base}key/.doan/canvases/a.html`;
 
 describe("isCanvasFrame", () => {
   test("accepts a child of the main frame under the token path", () => {
@@ -53,18 +53,18 @@ describe("isCanvasFrame", () => {
 
 describe("allowFrameNavigation", () => {
   test("allows a canvas link inside the same folder key", () => {
-    expect(allowFrameNavigation(current, `${base}key/doan/b.html`, base, false)).toBe(true);
-    expect(allowFrameNavigation(current, `${base}key/doan/b.html#top`, base, false)).toBe(true);
+    expect(allowFrameNavigation(current, `${base}key/.doan/canvases/b.html`, base, false)).toBe(true);
+    expect(allowFrameNavigation(current, `${base}key/.doan/canvases/b.html#top`, base, false)).toBe(true);
     expect(allowFrameNavigation(current, `${current}?x=1`, base, false)).toBe(true);
   });
 
   test("allows the app's first src of a new iframe", () => {
-    expect(allowFrameNavigation("about:blank", `${base}key/doan/a.html`, base, true)).toBe(true);
-    expect(allowFrameNavigation("", `${base}key/doan/a.html`, base, true)).toBe(true);
+    expect(allowFrameNavigation("about:blank", `${base}key/.doan/canvases/a.html`, base, true)).toBe(true);
+    expect(allowFrameNavigation("", `${base}key/.doan/canvases/a.html`, base, true)).toBe(true);
   });
 
   test("allows the app to point the same iframe at another folder key", () => {
-    expect(allowFrameNavigation(current, `${base}other/doan/a.html`, base, true)).toBe(true);
+    expect(allowFrameNavigation(current, `${base}other/.doan/canvases/a.html`, base, true)).toBe(true);
   });
 
   test("allows the app to reload from about:blank, an error page or a CSP-blocked URL", () => {
@@ -92,21 +92,21 @@ describe("allowFrameNavigation", () => {
   });
 
   test("denies a canvas-started navigation to another folder key", () => {
-    expect(allowFrameNavigation(current, `${base}other/doan/a.html`, base, false)).toBe(false);
+    expect(allowFrameNavigation(current, `${base}other/.doan/canvases/a.html`, base, false)).toBe(false);
   });
 
   test("denies a canvas-started navigation from about:blank, an error page or an empty URL", () => {
     for (const from of ["about:blank", "", "chrome-error://chromewebdata/"]) {
-      expect(allowFrameNavigation(from, `${base}key/doan/a.html`, base, false)).toBe(false);
+      expect(allowFrameNavigation(from, `${base}key/.doan/canvases/a.html`, base, false)).toBe(false);
     }
   });
 
   test("denies a token path prefix that only matches as a string", () => {
-    expect(allowFrameNavigation(current, "http://127.0.0.1:4000/t/tokx/key/doan/a.html", base, false)).toBe(false);
+    expect(allowFrameNavigation(current, "http://127.0.0.1:4000/t/tokx/key/.doan/canvases/a.html", base, false)).toBe(false);
   });
 
   test("denies a folder key that only matches as a string prefix", () => {
-    expect(allowFrameNavigation(current, `${base}keyx/doan/a.html`, base, false)).toBe(false);
+    expect(allowFrameNavigation(current, `${base}keyx/.doan/canvases/a.html`, base, false)).toBe(false);
     expect(allowFrameNavigation(current, `${base}key`, base, false)).toBe(false);
   });
 
@@ -121,7 +121,7 @@ describe("allowFrameNavigation", () => {
     expect(allowFrameNavigation(current, `${base}key/%2e%2e/other/a.html`, base, false)).toBe(false);
     expect(allowFrameNavigation(current, `${base}key/%2E%2E/%2e%2e/x`, base, false)).toBe(false);
     expect(allowFrameNavigation(current, `${base}key/..`, base, false)).toBe(false);
-    expect(allowFrameNavigation(current, `${base}key/doan/..\\..\\x`, base, false)).toBe(false);
+    expect(allowFrameNavigation(current, `${base}key/.doan/canvases/..\\..\\..\\x`, base, false)).toBe(false);
   });
 
   test("denies userinfo that disguises the host", () => {

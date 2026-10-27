@@ -4,7 +4,7 @@ import { parseSessionRecords, pickSession, sessionAvailability, SESSION_TAIL_BYT
 import { agentEnv } from "./environment";
 import type { SessionRecord, AvailabilityFacts, UnavailableReason } from "./types";
 
-const record: SessionRecord = { v: 1, at: "2026-10-27T00:00:00.000Z", root: "/repo", canvas: { id: "home", path: "doan/home.html" }, hash: `sha256:${"a".repeat(64)}`, runtime: "claude", sessionId: "session-1", cwd: "/repo", configDir: "/profile/.claude" };
+const record: SessionRecord = { v: 1, at: "2026-10-27T00:00:00.000Z", root: "/repo", canvas: { id: "home", path: ".doan/canvases/home.html" }, hash: `sha256:${"a".repeat(64)}`, runtime: "claude", sessionId: "session-1", cwd: "/repo", configDir: "/profile/.claude" };
 const facts: AvailabilityFacts = { cli: true, version: "2.1.310", sdkVersion: "0.3.310", root: "/repo", cwd: "/repo", configDir: "/profile/.claude", selectedConfigDir: "/profile/.claude", occupancy: "free", sessionExists: true };
 describe("session records", () => {
   it("uses the shared schema and skips malformed, unknown and truncated records", () => {
@@ -24,15 +24,15 @@ describe("session records", () => {
     expect(pickSession([newer, record, tie], "/repo", record.canvas, () => null)).toEqual({ available: true, record: tie });
   });
   it("follows canvas id across a move, isolates worktrees and never matches a replacement id", () => {
-    expect(pickSession([record], "/repo", { id: "home", path: "doan/moved.html" }, () => null).available).toBe(true);
+    expect(pickSession([record], "/repo", { id: "home", path: ".doan/canvases/moved.html" }, () => null).available).toBe(true);
     expect(pickSession([record], "/other", record.canvas, () => null)).toEqual({ available: false, reason: "no_record" });
     expect(pickSession([record], "/repo", { ...record.canvas, id: "replacement" }, () => null).available).toBe(false);
     expect(pickSession([record], "/repo", null, () => null).available).toBe(false);
   });
   it("uses path only for canvases without identity", () => {
-    const plain = { ...record, canvas: { path: "doan/home.html" } };
+    const plain = { ...record, canvas: { path: ".doan/canvases/home.html" } };
     expect(pickSession([plain], "/repo", plain.canvas, () => null).available).toBe(true);
-    expect(pickSession([plain], "/repo", { path: "doan/moved.html" }, () => null).available).toBe(false);
+    expect(pickSession([plain], "/repo", { path: ".doan/canvases/moved.html" }, () => null).available).toBe(false);
   });
   it("does not fall back from the latest valid but unavailable session", () => {
     const newest = { ...record, sessionId: "missing" };

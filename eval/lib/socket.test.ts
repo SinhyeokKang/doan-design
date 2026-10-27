@@ -23,7 +23,7 @@ test("validators agree with every schema fixture", () => {
 
 test("answers follow the app: request shape, then token, then project", () => {
   const token = "a".repeat(64);
-  const selection = { root: "/r", canvas: { path: "doan/a.html", id: "a" } };
+  const selection = { root: "/r", canvas: { path: ".doan/canvases/a.html", id: "a" } };
   assert.deepEqual(answer("nope", token, "/r", selection), { v: 1, ok: false, error: { code: "bad_request", message: "The request is not an app-socket v1 request." } });
   assert.equal((answer(JSON.stringify({ v: 1, token: "b", root: "/x" }), token, "/r", selection) as any).error.code, "bad_token");
   assert.equal((answer(JSON.stringify({ v: 1, token, root: "/x" }), token, "/r", selection) as any).error.code, "project_not_open");
@@ -34,7 +34,7 @@ test("answers follow the app: request shape, then token, then project", () => {
 test("the fake app writes a runtime file and answers one line per connection", async () => {
   const dir = mkdtempSync("/tmp/doan-eval-test-");
   try {
-    const selection = { root: "/r", canvas: { path: "doan/a.html" } };
+    const selection = { root: "/r", canvas: { path: ".doan/canvases/a.html" } };
     const app = await startFakeApp({ dir, root: "/r", selection });
     const runtime = JSON.parse(readFileSync(app.runtimePath, "utf8"));
     assert.ok(validRuntimeFile(runtime));

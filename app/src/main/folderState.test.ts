@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { folderState, initOutcome, reconcileFolders, type CliRun } from "./folderState";
 
-const canvases = [{ path: "doan/a.html", id: "a", frames: [], comments: { open: 1, resolved: 0 } }];
-const listResult = { root: "/repo", scope: ["doan", "tokens.css"], canvases };
+const canvases = [{ path: ".doan/canvases/a.html", id: "a", frames: [], comments: { open: 1, resolved: 0 } }];
+const listResult = { root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases };
 
 function run(overrides: Partial<CliRun>): CliRun {
   return { exitCode: 0, stdout: "", stderr: "", timedOut: false, ...overrides };
@@ -19,11 +19,11 @@ function failure(code: string, message: string): string {
 describe("folderState", () => {
   test("lists canvases from a success envelope", () => {
     const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: listResult }) }));
-    expect(state).toEqual({ kind: "list", root: "/repo", scope: ["doan", "tokens.css"], canvases });
+    expect(state).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases });
   });
 
   test("keeps canvases in CLI order", () => {
-    const ordered = [{ path: "doan/foo.html" }, { path: "doan/foo-bar.html" }];
+    const ordered = [{ path: ".doan/canvases/foo.html" }, { path: ".doan/canvases/foo-bar.html" }];
     const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { root: "/repo", scope: [], canvases: ordered } }) }));
     expect(state).toEqual({ kind: "list", root: "/repo", scope: [], canvases: ordered });
   });
@@ -76,8 +76,8 @@ describe("folderState", () => {
       [],
       "text",
       { root: 1, scope: [], canvases },
-      { root: "/repo", scope: "doan", canvases },
-      { root: "/repo", scope: ["doan", 1], canvases },
+      { root: "/repo", scope: ".doan/canvases", canvases },
+      { root: "/repo", scope: [".doan/canvases", 1], canvases },
       { root: "/repo", scope: [] },
       { root: "/repo", scope: [], canvases: {} },
     ];
@@ -122,7 +122,7 @@ describe("folderState", () => {
     const detached = { common: "/repo/.git", detached: "a".repeat(40), worktrees: ["/wt"] };
     for (const git of [branch, detached]) {
       const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, git } }) }));
-      expect(state).toEqual({ kind: "list", root: "/repo", scope: ["doan", "tokens.css"], canvases, git });
+      expect(state).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases, git });
     }
   });
 
@@ -141,7 +141,7 @@ describe("folderState", () => {
     ];
     for (const git of bad) {
       const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, git } }) }));
-      expect(state, JSON.stringify(git)).toEqual({ kind: "list", root: "/repo", scope: ["doan", "tokens.css"], canvases });
+      expect(state, JSON.stringify(git)).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases });
     }
   });
 
@@ -200,20 +200,20 @@ describe("folderState partial failure and orphans", () => {
 
   test("a listing with unreadable rows stays a list and keeps the rows as sent", () => {
     const rows = [
-      { path: "doan/a.html", id: "a", frames: [], commentsError: { code: "unreadable_comments", message: "doan/a.html: .doan/comments/a.jsonl: permission denied" } },
-      { path: "doan/b.html", frames: [], error: { code: "unreadable_canvas", message: "doan/b.html: permission denied" } },
+      { path: ".doan/canvases/a.html", id: "a", frames: [], commentsError: { code: "unreadable_comments", message: ".doan/canvases/a.html: .doan/comments/a.jsonl: permission denied" } },
+      { path: ".doan/canvases/b.html", frames: [], error: { code: "unreadable_canvas", message: ".doan/canvases/b.html: permission denied" } },
     ];
     const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, canvases: rows, orphans: [] } }) }));
-    expect(state).toEqual({ kind: "list", root: "/repo", scope: ["doan", "tokens.css"], canvases: rows, orphans: [] });
+    expect(state).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases: rows, orphans: [] });
   });
 
   test("passes well-formed orphans through in CLI order", () => {
     const unreadable = { id: "promo", file: ".doan/comments/promo.jsonl", error: { code: "unreadable_comments", message: ".doan/comments/promo.jsonl: permission denied" }, uncertain: true };
     const foreign = { id: "Foo", file: ".doan/comments/Foo.jsonl", comments: { open: 0, resolved: 0 }, uncertain: false };
     const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, orphans: [orphan, unreadable, foreign] } }) }));
-    expect(state).toEqual({ kind: "list", root: "/repo", scope: ["doan", "tokens.css"], canvases, orphans: [orphan, unreadable, foreign] });
+    expect(state).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases, orphans: [orphan, unreadable, foreign] });
     const extra = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, orphans: [{ ...orphan, size: 3, comments: { ...orphan.comments, deleted: 1 } }] } }) }));
-    expect(extra).toEqual({ kind: "list", root: "/repo", scope: ["doan", "tokens.css"], canvases, orphans: [orphan] });
+    expect(extra).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases, orphans: [orphan] });
   });
 
   // A file named `.jsonl` has the empty stem as its id; doan check warns about
@@ -221,7 +221,7 @@ describe("folderState partial failure and orphans", () => {
   test("keeps an orphan whose id is empty", () => {
     const empty = { id: "", file: ".doan/comments/.jsonl", comments: { open: 1, resolved: 0 }, uncertain: false };
     const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, orphans: [empty] } }) }));
-    expect(state).toEqual({ kind: "list", root: "/repo", scope: ["doan", "tokens.css"], canvases, orphans: [empty] });
+    expect(state).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases, orphans: [empty] });
   });
 
   // Orphans are shown and gate writes; a malformed entry is dropped rather
@@ -241,8 +241,8 @@ describe("folderState partial failure and orphans", () => {
       { ...orphan, error: "boom" },
     ];
     const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, orphans: [...bad, orphan] } }) }));
-    expect(state).toEqual({ kind: "list", root: "/repo", scope: ["doan", "tokens.css"], canvases, orphans: [orphan] });
+    expect(state).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases, orphans: [orphan] });
     const notList = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, orphans: { id: "x" } } }) }));
-    expect(notList).toEqual({ kind: "list", root: "/repo", scope: ["doan", "tokens.css"], canvases });
+    expect(notList).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases });
   });
 });

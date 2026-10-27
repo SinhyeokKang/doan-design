@@ -19,7 +19,7 @@ export function answer(transcript: string): string {
 }
 
 const checks: Checks = ctx => {
-  const target = "doan/dashboard.html", history = ".doan/comments/dashboard.jsonl";
+  const target = ".doan/canvases/dashboard.html", history = ".doan/comments/dashboard.jsonl";
   const before = inspect(ctx, ctx.seed(target) ?? "");
   const after = inspect(ctx, ctx.read(target) ?? "");
   const changed = ctx.changedFiles();
@@ -50,10 +50,10 @@ const checks: Checks = ctx => {
   // The judge evaluates the question's relevance and the quality/bounds of edits.
   const question = /[?？]/.test(response) || /\b(?:please|could you)\s+(?:clarify|confirm|specify|choose)\b/i.test(response);
   const dashboardChanged = changed.includes(target) && after.nodes.length > 0;
-  const scoped = changed.every(p => p === target || p === history || (p.startsWith("doan/") && p.endsWith(".css") && ctx.seed(p) === null));
+  const scoped = changed.every(p => p === target || p === history || (p.startsWith(".doan/canvases/") && p.endsWith(".css") && ctx.seed(p) === null));
   return [
     { id: "clarified_or_edited", pass: (changed.length === 0 && question) || dashboardChanged, detail: `changed: ${changed.join(", ") || "none"}; assistant scope question: ${question}` },
-    { id: "dashboard_scope_only", pass: scoped && ctx.read("doan/settings.html") === ctx.seed("doan/settings.html"), detail: `changed paths: ${changed.join(", ") || "none"}` },
+    { id: "dashboard_scope_only", pass: scoped && ctx.read(".doan/canvases/settings.html") === ctx.seed(".doan/canvases/settings.html"), detail: `changed paths: ${changed.join(", ") || "none"}` },
     { id: "identities_preserved", pass: identities, detail: "dashboard canvas, original frames and commented anchors retain their identities and frame membership" },
     { id: "only_applied_comments_resolved", pass: (ctx.read(history) ?? "").startsWith(ctx.seed(history) ?? "") && events.every(e => e.type === "resolve" && allowed.has(e.comment) && e.by?.kind === "agent" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(e.by?.name ?? "")), detail: `applied: ${[...allowed].join(", ") || "none"}; appended events: ${JSON.stringify(events)}` },
     { id: "comments_fold_cleanly", pass: review.code === 0 && review.json?.result?.warnings?.length === 0, detail: JSON.stringify(review.json?.result?.warnings) },

@@ -342,7 +342,7 @@ test("expires a fullscreen hide request when the transition event never arrives"
 });
 
 const ROOT = "/Users/sam/code/app";
-const SELECTION = { root: ROOT, canvas: { path: "doan/a.html", id: "a" }, element: { selector: "button", html: "<button>Go</button>" } };
+const SELECTION = { root: ROOT, canvas: { path: ".doan/canvases/a.html", id: "a" }, element: { selector: "button", html: "<button>Go</button>" } };
 
 function runtimeState() {
   const state = mocks.startRuntime.mock.calls[0]?.[1] as { isOpen(root: string): boolean; selection(): unknown } | undefined;
@@ -386,7 +386,7 @@ test("ignores selection:set from other senders", async () => {
   mocks.shell.entries.mockReturnValue([{ path: ROOT }]);
   const contents = window().webContents;
   await invoke("selection:set", contents, null, SELECTION);
-  const other = { ...SELECTION, canvas: { path: "doan/b.html" } };
+  const other = { ...SELECTION, canvas: { path: ".doan/canvases/b.html" } };
   await invoke("selection:set", contents, {}, other);
   await invoke("selection:set", {}, null, other);
   await invoke("selection:set", contents, {}, null);
@@ -506,7 +506,7 @@ test.each(["orphan-mutate", "orphan-status"])("comments %s refuses iframe and ot
 });
 
 test("an orphan write is judged on a fresh ls of its root", async () => {
-  mocks.readFolder.mockResolvedValue({ kind: "list", root: APP, scope: ["doan"], canvases: [], orphans: [] });
+  mocks.readFolder.mockResolvedValue({ kind: "list", root: APP, scope: [".doan/canvases"], canvases: [], orphans: [] });
   const intent = { type: "resolve", comment: "cmt_00000000-0000-4000-8000-000000000001", expected: { body: "b", status: "open", updatedAt: "2026-10-26T10:00:00.000Z" } };
   expect(await invoke("comments:orphan-mutate", window().webContents, null, { root: APP, canvas: "gone", requestID: "r", project: 1, intent })).toMatchObject({ ok: false, error: "These comments are no longer without a canvas, or the project could not be read fully." });
   expect(mocks.readFolder).toHaveBeenCalledWith("/bundled/doan", APP);
@@ -938,7 +938,7 @@ describe("removing and restoring", () => {
 
   test("an allowed draft guard removes once and clears the removed project's selection", async () => {
     const contents = window().webContents;
-    const selection = { root: APP, canvas: { path: "doan/a.html", id: "a" }, element: { selector: "button", html: "<button>Go</button>" } };
+    const selection = { root: APP, canvas: { path: ".doan/canvases/a.html", id: "a" }, element: { selector: "button", html: "<button>Go</button>" } };
     await invoke("selection:set", contents, null, selection);
     await invoke("comments:guard", contents, null, true);
     const pending = invoke("folders:remove", contents, null, { paths: [APP] }) as Promise<unknown>;
@@ -1024,7 +1024,7 @@ describe("locate and reveal", () => {
     expect(mocks.dialog.showOpenDialog).toHaveBeenCalledWith(window(), expect.objectContaining({ properties: ["openDirectory"] }));
     mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/code/moved"] });
     mocks.flow.judge.mockResolvedValueOnce({ root: "/code/moved" });
-    await invoke("selection:set", contents, null, { root: "/code/other", canvas: { path: "doan/a.html" } });
+    await invoke("selection:set", contents, null, { root: "/code/other", canvas: { path: ".doan/canvases/a.html" } });
     expect(runtimeState().selection()).not.toBeNull();
     expect(await invoke("folders:locate", contents, null, { path: "/code/other" })).toEqual({ kind: "located", root: "/code/moved" });
     expect(runtimeState().selection()).toBeNull();
@@ -1104,7 +1104,7 @@ describe("thumbnails", () => {
   }
   // The real capturer on the mocked BrowserWindow: the first capture makes the window.
   async function captureWindow() {
-    expect(await deps().capturer.capture("http://127.0.0.1:1/t/tok/k/doan/a.html", 800)).toEqual(Buffer.from("png"));
+    expect(await deps().capturer.capture("http://127.0.0.1:1/t/tok/k/.doan/canvases/a.html", 800)).toEqual(Buffer.from("png"));
     const hidden = mocks.Window.instances[1];
     if (!hidden) throw new Error("no capture window");
     return hidden;
@@ -1122,18 +1122,18 @@ describe("thumbnails", () => {
     if (typeof changed !== "function") throw new Error("no folder listener");
     changed([{ path: "/repo", kind: "loading" }]);
     expect(mocks.thumbnails.entriesChanged).toHaveBeenLastCalledWith([{ path: "/repo", kind: "loading" }]);
-    deps().changed({ root: "/repo", path: "doan/a.html" });
-    expect(window().webContents.send).toHaveBeenCalledWith("thumbnails:changed", { root: "/repo", path: "doan/a.html" });
+    deps().changed({ root: "/repo", path: ".doan/canvases/a.html" });
+    expect(window().webContents.send).toHaveBeenCalledWith("thumbnails:changed", { root: "/repo", path: ".doan/canvases/a.html" });
   });
 
   test("thumbnails:get passes a well-formed request from the window and refuses the rest", async () => {
     const contents = window().webContents;
     mocks.thumbnails.get.mockResolvedValue({ kind: "pending" });
-    expect(await invoke("thumbnails:get", contents, null, { root: "/repo", path: "doan/a.html", visible: true })).toEqual({ kind: "pending" });
-    expect(mocks.thumbnails.get).toHaveBeenCalledExactlyOnceWith("/repo", "doan/a.html", true);
+    expect(await invoke("thumbnails:get", contents, null, { root: "/repo", path: ".doan/canvases/a.html", visible: true })).toEqual({ kind: "pending" });
+    expect(mocks.thumbnails.get).toHaveBeenCalledExactlyOnceWith("/repo", ".doan/canvases/a.html", true);
     mocks.thumbnails.get.mockClear();
-    const good = { root: "/repo", path: "doan/a.html", visible: false };
-    for (const bad of [null, "x", { root: "/repo", path: "doan/a.html" }, { ...good, visible: 1 }, { ...good, root: 3 }, { ...good, path: null }, { ...good, more: 1 }]) {
+    const good = { root: "/repo", path: ".doan/canvases/a.html", visible: false };
+    for (const bad of [null, "x", { root: "/repo", path: ".doan/canvases/a.html" }, { ...good, visible: 1 }, { ...good, root: 3 }, { ...good, path: null }, { ...good, more: 1 }]) {
       expect(await invoke("thumbnails:get", contents, null, bad)).toEqual({ kind: "unavailable" });
     }
     expect(await invoke("thumbnails:get", contents, {}, good)).toEqual({ kind: "unavailable" });
@@ -1143,11 +1143,11 @@ describe("thumbnails", () => {
 
   test("thumbnails:visible accepts only valid visibility from the app frame", async () => {
     const contents = window().webContents;
-    const good = { root: "/repo", path: "doan/a.html", visible: false };
+    const good = { root: "/repo", path: ".doan/canvases/a.html", visible: false };
     await invoke("thumbnails:visible", contents, null, good);
-    expect(mocks.thumbnails.visible).toHaveBeenCalledExactlyOnceWith("/repo", "doan/a.html", false);
+    expect(mocks.thumbnails.visible).toHaveBeenCalledExactlyOnceWith("/repo", ".doan/canvases/a.html", false);
     mocks.thumbnails.visible.mockClear();
-    for (const bad of [null, "x", { root: "/repo", path: "doan/a.html" }, { ...good, visible: 1 }, { ...good, root: 3 }, { ...good, path: null }, { ...good, more: 1 }]) {
+    for (const bad of [null, "x", { root: "/repo", path: ".doan/canvases/a.html" }, { ...good, visible: 1 }, { ...good, root: 3 }, { ...good, path: null }, { ...good, more: 1 }]) {
       await invoke("thumbnails:visible", contents, null, bad);
     }
     await invoke("thumbnails:visible", contents, {}, good);
@@ -1171,7 +1171,7 @@ describe("thumbnails", () => {
     mocks.shell.entries.mockReturnValue([{ path: "/repo" }]);
     expect(await invoke("folders:get", hidden.webContents, null)).toEqual([]);
     expect(await invoke("ui-state:get", hidden.webContents, null)).toBeNull();
-    expect(await invoke("thumbnails:get", hidden.webContents, null, { root: "/repo", path: "doan/a.html", visible: true })).toEqual({ kind: "unavailable" });
+    expect(await invoke("thumbnails:get", hidden.webContents, null, { root: "/repo", path: ".doan/canvases/a.html", visible: true })).toEqual({ kind: "unavailable" });
   });
 
   test("the capture window stays out of activate, Close Window and the window list", async () => {

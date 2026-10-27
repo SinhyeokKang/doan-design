@@ -4,15 +4,15 @@ import { basename, dirname, join } from "node:path";
 const DEBOUNCE_MS = 200;
 
 export interface Change {
-  // `doan/` or `.doan/` changed, so `doan ls` has to run again.
+  // `.doan/canvases/` or `.doan/` changed, so `doan ls` has to run again.
   reread: boolean;
-  // A served file outside `doan/` changed (`tokenCss`, `serve`), or `doan/`
-  // itself came or went, so an open canvas reloads. A change inside `doan/`
+  // A served file outside `.doan/canvases/` changed (`tokenCss`, `serve`), or `.doan/canvases/`
+  // itself came or went, so an open canvas reloads. A change inside `.doan/canvases/`
   // leaves this false and carries `names`; the shell decides from them.
   served: boolean;
-  // Names under `doan/`, relative to it, for the shell to decide whether only
+  // Names under `.doan/canvases/`, relative to it, for the shell to decide whether only
   // canvas rows changed; `null` when an event had no name. Absent when no
-  // `doan/` event is in the change.
+  // `.doan/canvases/` event is in the change.
   names?: readonly string[] | null;
 }
 
@@ -36,7 +36,7 @@ export interface FolderWatch {
 // the last change is never missed. Flags pile up until a run takes them, so a
 // change that lands during a run reaches the run queued after it. Names are a
 // union, and one unknown name makes the whole set unknown until a run takes it;
-// a trigger without names (not a `doan/` event) leaves them as they are.
+// a trigger without names (not a `.doan/canvases/` event) leaves them as they are.
 export function createRefresher(run: (change: Change) => Promise<void>, delayMs = DEBOUNCE_MS): Refresher {
   let timer: NodeJS.Timeout | undefined;
   let running = false;
@@ -100,17 +100,18 @@ interface Target {
   names?: Set<string>;
 }
 
-// Watches what `doan ls` reads: the root (non-recursive, to see `doan` and
-// `.doan` come and go), `doan/` (recursive), `.doan/` (config.json and the
+// Watches what `doan ls` reads: the root (non-recursive, to see
+// `.doan` come and go), `.doan/canvases/` (recursive), `.doan/` (config.json and the
 // `comments` directory) and `.doan/comments/`; plus the served paths outside
-// `doan/` from the latest scope. A watcher on a deleted directory stays on
+// `.doan/canvases/` from the latest scope. A watcher on a deleted directory stays on
 // the old inode, so the sub-watchers are re-armed whenever their parent changes.
 export function watchFolder(root: string, refresh: (change: Change) => Promise<void>): FolderWatch {
   const refresher = createRefresher(refresh);
   const armed = new Map<string, Armed>();
-  const design: Target = { path: join(root, "doan"), recursive: true, change: REREAD };
+  const design: Target = { path: join(root, ".doan/canvases"), recursive: true, change: REREAD };
   const fixed: Target[] = [
     design,
+    { path: join(root, ".doan/assets"), recursive: true, change: SERVED },
     { path: join(root, ".doan"), recursive: false, change: REREAD },
     { path: join(root, ".doan", "comments"), recursive: false, change: REREAD },
   ];
@@ -123,11 +124,12 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
 
   const classify = (path: string, filename: string | null): Change | undefined => {
     if (path === root) {
-      if (filename === null || filename === "doan") return BOTH;
+      if (filename === null || filename === ".doan") return BOTH;
       // Any other root event still re-reads: deleting the root itself arrives
       // only as an event named after the root.
       return rootNames.has(filename) ? SERVED : REREAD;
     }
+    if (path === join(root, ".doan") && (filename === null || filename === "canvases" || filename === "assets")) return BOTH;
     const target = targets().find((candidate) => candidate.path === path);
     if (target === undefined) return undefined;
     if (target.names && filename !== null && !target.names.has(filename)) return undefined;
@@ -169,12 +171,12 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
     for (const target of wanted) {
       const { path, recursive } = target;
       let ino: number | undefined;
-      // lstat: `doan ls` does not follow a symlinked `doan/` or comments
+      // lstat: `doan ls` does not follow a symlinked `.doan/canvases/` or comments
       // directory, and a recursive watch through `doan -> .` would cover the
       // whole repo.
       try {
-        const stat = lstatSync(path);
-        if (stat.isDirectory()) ino = stat.ino;
+        const stat = path.startsWith(join(root, ".doan") + "/") && !lstatSync(join(root, ".doan")).isDirectory() ? undefined : lstatSync(path);
+        if (stat?.isDirectory()) ino = stat.ino;
       } catch {
         ino = undefined;
       }
@@ -219,16 +221,15 @@ function inside(path: string, dir: string): boolean {
   return path === dir || path.startsWith(dir + "/");
 }
 
-// Scope entries are real repo-relative paths, so a symlinked `doan` shows up
-// by its real path and is watched here. `.doan/` never counts as served, or
-// every comment written would reload the canvas; `doan/` already has its own
-// recursive watcher. A served file is watched through its directory because an
+// Scope entries are real repo-relative paths, so aliased assets are watched
+// at their resolved location. The fixed watchers already cover .doan;
+// only canvas and asset events may reload, never settings or comments. A served file is watched through its directory because an
 // atomic save replaces the file and ends a watcher on the file itself.
 function servedTargets(root: string, scope: readonly string[]): { targets: Target[]; rootNames: Set<string> } {
   const dirs: string[] = [];
   const files: string[] = [];
   for (const rel of scope) {
-    if (inside(rel, "doan") || inside(rel, ".doan")) continue;
+    if (inside(rel, ".doan")) continue;
     try {
       const stat = lstatSync(join(root, rel));
       if (stat.isDirectory()) dirs.push(rel);

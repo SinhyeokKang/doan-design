@@ -7,7 +7,7 @@ import { COPY_FAILED } from "./onboardingView";
 import type { HandoffDialog } from "./CommentsSession";
 import { AlertIcon } from "./AlertIcon";
 
-// doan/agent-handoff.html, frames dialog, dialog-states and copy-states.
+// .doan/canvases/agent-handoff.html, frames dialog, dialog-states and copy-states.
 
 export function staleText(n: number): string {
   return n === 1 ? "1 comment is no longer open and was removed from the list. Review and copy again."

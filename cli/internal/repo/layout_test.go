@@ -35,3 +35,25 @@ func TestUnifiedLayoutDoesNotServeMetadataThroughAliases(t *testing.T) {
 		t.Fatalf("metadata leaked into scope: %v", scope)
 	}
 }
+
+func TestUnifiedLayoutDoesNotDiscoverThroughMetadataSymlink(t *testing.T) {
+	root := real(t, t.TempDir())
+	outside := real(t, t.TempDir())
+	put(t, outside, "canvases/private.html", "")
+	link(t, outside, root+"/.doan")
+	got, err := Canvases(root)
+	if err != nil || len(got) != 0 {
+		t.Fatalf("followed linked metadata: %v, %v", got, err)
+	}
+}
+
+func TestUnifiedLayoutScopeExcludesRelocatedMetadata(t *testing.T) {
+	root := real(t, t.TempDir())
+	put(t, root, "metadata/config.json", `{"v":1}`)
+	put(t, root, "metadata/canvases/home.html", "")
+	link(t, "metadata", root+"/.doan")
+	got := scopeOf(t, root, Config{Serve: []string{"metadata", "metadata/config.json"}})
+	if !reflect.DeepEqual(got, []string{"metadata/canvases"}) {
+		t.Fatalf("metadata leaked: %v", got)
+	}
+}

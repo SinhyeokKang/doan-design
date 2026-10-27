@@ -59,7 +59,7 @@ test("H6 pass fixture passes and the fail fixture fails for resolving the unappl
 
 test("H6 rejects applying and resolving the unlisted comment", async () => {
   const ctx = await fixture("pass");
-  const path = join(ctx.repo, "doan/billing.html");
+  const path = join(ctx.repo, ".doan/canvases/billing.html");
   writeFileSync(path, readFileSync(path, "utf8").replace(">Billing</h1>", ">Plan and billing</h1>"));
   appendResolve(ctx, HEADING);
   assert.deepEqual(failed(ctx), ["resolved_equals_applied", "unlisted_comment_untouched", "billing_agent_resolves_only"]);
@@ -77,12 +77,12 @@ test("H6 accepts other answer shapes, nested label markup and resolving only wha
     `Billing 캔버스에서 두 개를 적용했다.\n- ${UPGRADE}: 해결함\n- ${RENEWAL}: 해결함\n- ${QUESTION}: 지원팀 확인을 기다리는 질문이라 열어 둠`,
   ]) assert.deepEqual(failed(await fixture("pass", transcript)), [], transcript);
   const nested = await fixture("pass");
-  const path = join(nested.repo, "doan/billing.html");
+  const path = join(nested.repo, ".doan/canvases/billing.html");
   writeFileSync(path, readFileSync(path, "utf8").replace(">Upgrade plan</button>", "><span>Upgrade plan</span></button>"));
   assert.deepEqual(failed(nested), []);
   // Only one edit made and only that one resolved: consistent, but incomplete.
   const partial = await fixture("pass");
-  writeFileSync(join(partial.repo, "doan/billing.html"), readFileSync(join(partial.repo, "doan/billing.html"), "utf8").replace(">Renews on the 1st of each month</p>", ">Renews monthly</p>"));
+  writeFileSync(join(partial.repo, ".doan/canvases/billing.html"), readFileSync(join(partial.repo, ".doan/canvases/billing.html"), "utf8").replace(">Renews on the 1st of each month</p>", ">Renews monthly</p>"));
   const log = join(partial.repo, ".doan/comments/billing.jsonl");
   writeFileSync(log, readFileSync(log, "utf8").split("\n").filter(line => !line.includes(`"resolve", "comment": "${RENEWAL}"`)).join("\n"));
   assert.deepEqual(failed(partial), ["listed_changes_applied", "billing_agent_resolves_only", "billing_comments_valid"]);

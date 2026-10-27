@@ -22,15 +22,15 @@ func TestScopeCanvasDirectory(t *testing.T) {
 	if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{}) {
 		t.Fatalf("no design: %#v", got)
 	}
-	put(t, root, "doan", "")
-	if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{"doan"}) {
+	put(t, root, ".doan/canvases", "")
+	if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{".doan/canvases"}) {
 		t.Fatalf("design file: %#v", got)
 	}
-	if err := os.Remove(filepath.Join(root, "doan")); err != nil {
+	if err := os.Remove(filepath.Join(root, ".doan/canvases")); err != nil {
 		t.Fatal(err)
 	}
-	put(t, root, "doan/a.html", "")
-	if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{"doan"}) {
+	put(t, root, ".doan/canvases/a.html", "")
+	if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{".doan/canvases"}) {
 		t.Fatalf("design dir: %#v", got)
 	}
 }
@@ -74,7 +74,7 @@ func TestScopeServe(t *testing.T) {
 
 func TestScopeDropsRepoRoot(t *testing.T) {
 	root := real(t, t.TempDir())
-	link(t, ".", filepath.Join(root, "doan"))
+	link(t, "../..", filepath.Join(root, ".doan/canvases"))
 	link(t, root, filepath.Join(root, "assets"))
 	put(t, root, "tokens.css", "")
 	got := scopeOf(t, root, Config{TokenCSS: "tokens.css", Serve: []string{"assets", "assets/."}})
@@ -85,37 +85,37 @@ func TestScopeDropsRepoRoot(t *testing.T) {
 
 func TestScopeDedupesByRealPath(t *testing.T) {
 	root := real(t, t.TempDir())
-	put(t, root, "doan/a.html", "")
+	put(t, root, ".doan/canvases/a.html", "")
 	put(t, root, "tokens.css", "")
-	link(t, "doan", filepath.Join(root, "alias"))
-	got := scopeOf(t, root, Config{TokenCSS: "tokens.css", Serve: []string{"doan", "./doan/", "alias", "tokens.css"}})
-	if !reflect.DeepEqual(got, []string{"doan", "tokens.css"}) {
+	link(t, ".doan/canvases", filepath.Join(root, "alias"))
+	got := scopeOf(t, root, Config{TokenCSS: "tokens.css", Serve: []string{".doan/canvases", "./.doan/canvases/", "alias", "tokens.css"}})
+	if !reflect.DeepEqual(got, []string{".doan/canvases", "tokens.css"}) {
 		t.Fatalf("%#v", got)
 	}
 }
 
 func TestScopeDedupesLetterCase(t *testing.T) {
 	root := real(t, t.TempDir())
-	put(t, root, "doan/a.html", "")
+	put(t, root, ".doan/canvases/a.html", "")
 	put(t, root, "tokens.css", "")
-	if _, err := os.Stat(filepath.Join(root, "DOAN")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, "..DOAN/CANVASES/CANVASES")); os.IsNotExist(err) {
 		t.Skip("temporary filesystem is case-sensitive")
 	} else if err != nil {
 		t.Fatal(err)
 	}
-	got := scopeOf(t, root, Config{TokenCSS: "TOKENS.CSS", Serve: []string{"DOAN", "Tokens.css"}})
-	if !reflect.DeepEqual(got, []string{"doan", "tokens.css"}) {
+	got := scopeOf(t, root, Config{TokenCSS: "TOKENS.CSS", Serve: []string{"..DOAN/CANVASES/CANVASES", "Tokens.css"}})
+	if !reflect.DeepEqual(got, []string{".doan/canvases", "tokens.css"}) {
 		t.Fatalf("%#v", got)
 	}
 }
 
 func TestScopeSortsByBytes(t *testing.T) {
 	root := real(t, t.TempDir())
-	put(t, root, "doan/a.css", "")
+	put(t, root, ".doan/canvases/a.css", "")
 	put(t, root, "design-x/b.css", "")
 	put(t, root, "B.css", "")
-	got := scopeOf(t, root, Config{Serve: []string{"doan/a.css", "design-x", "B.css"}})
-	if !reflect.DeepEqual(got, []string{"B.css", "design-x", "doan", "doan/a.css"}) {
+	got := scopeOf(t, root, Config{Serve: []string{".doan/canvases/a.css", "design-x", "B.css"}})
+	if !reflect.DeepEqual(got, []string{".doan/canvases", ".doan/canvases/a.css", "B.css", "design-x"}) {
 		t.Fatalf("%#v", got)
 	}
 }
@@ -123,8 +123,8 @@ func TestScopeSortsByBytes(t *testing.T) {
 func TestLegacyDesignIsNotInDefaultScope(t *testing.T) {
 	root := real(t, t.TempDir())
 	put(t, root, "design/private.html", "")
-	put(t, root, "doan/canvas.html", "")
-	if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{"doan"}) {
+	put(t, root, ".doan/canvases/canvas.html", "")
+	if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{".doan/canvases"}) {
 		t.Fatalf("default scope must only include doan: %#v", got)
 	}
 }

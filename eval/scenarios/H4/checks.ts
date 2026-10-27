@@ -3,7 +3,7 @@ import { clean, inspect, text } from "./inspect.ts";
 import { finalAnswer } from "./answer.ts";
 
 const checks: Checks = ctx => {
-  const path = "doan/h4.html", log = ".doan/comments/settings-board.jsonl";
+  const path = ".doan/canvases/h4.html", log = ".doan/comments/settings-board.jsonl";
   const doc = inspect(ctx, ctx.read(path) ?? ""), seed = inspect(ctx, ctx.seed(path) ?? "");
   const answer = finalAnswer(ctx.transcript);
   const frame = doc.nodes.find(n => n.attrs["data-doan-frame"] === "legacy-alerts");

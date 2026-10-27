@@ -39,7 +39,7 @@ test("H8 is discovered and seeds comments for the canvas's previous id", async (
   assert.equal(check.code, 0);
   assert.equal(check.json.result.summary.errors, 0);
   assert.equal(check.json.result.findings.filter((f: { code: string }) => f.code === "orphan_comment_file").length, 1);
-  const original = ctx.seed("doan/billing.html")!.replace('content="billing-v2"', 'content="billing"');
+  const original = ctx.seed(".doan/canvases/billing.html")!.replace('content="billing-v2"', 'content="billing"');
   const event = JSON.parse(ctx.seed(orphan)!);
   assert.equal(event.canvasHash, `sha256:${createHash("sha256").update(original).digest("hex")}`);
   const comments = ctx.doan(["comments", "--canvas", "billing"]);
@@ -67,7 +67,7 @@ test("H8 rejects deletion, appended events and formatting-only rewrites", async 
 
 test("H8 rejects restoring the canvas id and reports every changed path", async () => {
   const ctx = await fixture();
-  const canvas = "doan/billing.html";
+  const canvas = ".doan/canvases/billing.html";
   writeFileSync(join(ctx.repo, canvas), ctx.seed(canvas)!.replace('content="billing-v2"', 'content="billing"'));
   assert.deepEqual(failed(ctx), ["repo_unchanged"]);
   assert.ok(h8(ctx).find(c => c.id === "repo_unchanged")!.detail.includes(canvas));

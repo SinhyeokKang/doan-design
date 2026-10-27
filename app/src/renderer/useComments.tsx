@@ -190,7 +190,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   const continueView = continueEnabled(session.draft, { canvas: { status: state.status, unlisted: state.unlisted, hasFrame: state.hasFrame, reloading: state.reloading },
     reanchoring: state.reanchoring, author: session.author.status, selection: state.selection !== null && !state.unlisted });
   // After a missing selection offered "Continue on canvas", picking a new element
-  // keeps it for that draft (doan/revision-continuity.html, selection-gone 2b).
+  // keeps it for that draft (.doan/canvases/revision-continuity.html, selection-gone 2b).
   const offering = !!draft && continueView.kind === "disabled" && continueView.canvas;
   useEffect(() => { if (offering && draft) session.canvasOffered = draft.id; }, [session, offering, draft?.id]);
   const continueEditor = draft?.origin.kind === "create" && continueView.kind !== "hidden" ? (() => {
@@ -204,7 +204,7 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
       onContinue: () => { void session.continueDraft(scope); }, onCanvas: () => { void session.continueDraft("canvas"); } };
   })() : null;
   const canSave = !!draft && !session.draft.request && !!draft.body.trim() && !editorBlocked && !writeBlocked && !session.readError && session.author.status === "ready" && !["conflict", "deleted"].includes(session.saveView.status);
-  // doan/comments-readability.html (composer-small, panel-details): Save →
+  // .doan/canvases/comments-readability.html (composer-small, panel-details): Save →
   // the saved card, Cancel → the opening button, a pin → its first card once
   // the list for it renders; otherwise the title. Focus never stays on <body>.
   const editing = !!draft;

@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="onboard">
+<meta name="doan:width" content="1440">
+<title>Onboarding — draft</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<style>
+/* Shipped rules copied from app/src/renderer/styles.css (shell, sidebar, canvas status). */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; }
+button { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { opacity: .4; cursor: default; }
+button { outline: none; }
+ol, ul { list-style: none; }
+code, kbd { font-family: var(--font-sans); }
+.top { display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.logo { font: 600 13px var(--font-sans); display: flex; align-items: center; gap: 8px; }
+.logo i { width: 18px; height: 18px; border-radius: 5px; background: var(--accent); }
+.spacer { flex: 1; }
+.meta { font: 11.5px var(--font-sans); color: var(--text-3); white-space: nowrap; }
+.btn { font: 500 12px var(--font-sans); color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+.kbd { font: 10.5px var(--font-sans); color: var(--text-3); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+.side { background: var(--panel); border-right: 1px solid var(--line); }
+.sec { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 6px; }
+.sec .r, .section-action { letter-spacing: 0; text-transform: none; color: var(--text-4); }
+.section-action { font-size: 10.5px; }
+.row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 12px; font: 12.5px var(--font-sans); color: var(--text-2); position: relative; white-space: nowrap; cursor: pointer; }
+.row .g { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.row .d { color: var(--text-4); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+.row.ind { padding-left: 26px; }
+.glyph { color: var(--text-4); width: 12px; flex: none; text-align: center; }
+.cnt { font: 10.5px var(--font-sans); color: var(--text-3); }
+.err { color: var(--err); font: 10.5px var(--font-sans); }
+.close-project { color: var(--text-4); margin-left: 4px; }
+.hint { padding: 2px 12px 6px 34px; font: 11.5px/1.5 var(--font-sans); color: var(--text-3); overflow-wrap: anywhere; }
+.hint code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
+.recovery .btn { padding: 2px 8px; font-size: 11px; margin: 4px 4px 0 0; }
+.area { position: relative; overflow: hidden; background-color: var(--board-bg); background-image: radial-gradient(var(--board-dot) 1px, transparent 1px); background-size: 16px 16px; }
+.canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 18px; text-align: center; color: var(--text-2); font: 12.5px/1.6 var(--font-sans); pointer-events: none; }
+.canvas-status > * { max-width: 260px; }
+/* The shipped focus ring (button:focus-visible), drawn statically. */
+.focus { outline: 1px solid var(--accent-line); outline-offset: -1px; }
+
+/* Board layout (draft only). */
+body { width: 1440px; padding: 48px; background: var(--board-bg); }
+/* The app gets these from Tailwind preflight, which the draft does not load. */
+button { border: 0; background: transparent; }
+.intro { max-width: 1238px; margin-bottom: 36px; }
+.intro h1 { font-size: 30px; margin-bottom: 12px; }
+.intro p, .note { font-size: 12px; line-height: 1.65; color: var(--text-3); margin: 10px 0; }
+.intro b, .note b { color: var(--text-2); font-weight: 600; }
+.frame { padding: 24px; margin-bottom: 32px; background: var(--bg); border: 1px solid var(--line); border-radius: 16px; }
+.flabel { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.flabel h2 { font-size: 18px; }
+.nic { border: 1px dashed var(--warn); color: var(--warn); font-size: 10px; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.states-head { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); margin: 28px 0 12px; }
+.tiles { display: grid; grid-template-columns: 640px 640px; gap: 24px 14px; align-items: start; }
+.tile-label { font-size: 12px; color: var(--text-2); margin: 0 0 8px; line-height: 1.5; }
+.tile-label b { color: var(--text); font-weight: 600; }
+.lights { display: flex; gap: 8px; width: 52px; flex: none; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; background: var(--tl-red); }
+.lights i:nth-child(2) { background: var(--tl-yellow); }
+.lights i:nth-child(3) { background: var(--tl-green); }
+
+/* Onboarding wizard (new). Full-window role="dialog" named "Set Up doan". */
+.ob-win { width: 1238px; height: 780px; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-2); background: var(--bg); display: grid; grid-template-rows: 40px auto minmax(0, 1fr) 56px; position: relative; }
+.ob-title { font: 600 13px var(--font-sans); }
+.ob-steps { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 22px 0 0; }
+.ob-steps li { display: flex; align-items: center; }
+/* Each step is a button: the indicator moves between steps. A completed step shows a check; a skipped step keeps its number. */
+.ob-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); border-radius: 6px; padding: 2px 4px; }
+.ob-steps .num { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; font-size: 11px; font-weight: 600; }
+.ob-step.done { color: var(--text-2); }
+.ob-step.done .num { border-color: var(--ok); color: var(--ok); }
+.ob-step[aria-current="step"] { color: var(--text); }
+.ob-step[aria-current="step"] .num { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.ob-steps .sep { width: 32px; height: 1px; background: var(--line); }
+.ob-body { min-height: 0; overflow: hidden; }
+.ob-form { max-width: 640px; margin: 0 auto; padding: 28px 0; }
+.ob-form h2 { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+.ob-lead { font-size: 12.5px; line-height: 1.6; color: var(--text-2); margin-bottom: 18px; }
+.ob-foot { display: flex; align-items: center; gap: 10px; padding: 0 24px; background: var(--panel); border-top: 1px solid var(--line); }
+.ob-foot .meta { margin-right: 6px; }
+
+.ob-card { width: 640px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.ob-card + .ob-card { margin-top: 14px; }
+.ob-item, .ob-agent { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line-2); }
+.ob-card > :last-child { border-bottom: 0; }
+.ob-agent { padding-top: 14px; }
+.ob-label { font-size: 12px; font-weight: 600; color: var(--text); }
+.ob-agent .ob-label { font-size: 12.5px; }
+.ob-item.sub .ob-label { font-weight: 500; color: var(--text-2); padding-left: 12px; }
+.ob-detail { font-size: 11.5px; line-height: 1.5; color: var(--text-3); min-width: 0; overflow-wrap: anywhere; }
+.ob-detail code, .ob-msg code, .ob-lead code, .ob-dialog code, .ob-field code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
+.ob-status { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.ob-msg { grid-column: 2 / -1; font-size: 11.5px; line-height: 1.5; color: var(--text-2); overflow-wrap: anywhere; }
+.ob-msg.warn { border-left: 2px solid var(--warn); padding-left: 8px; }
+.ob-msg.error { border-left: 2px solid var(--err); padding-left: 8px; }
+.ob-msg.ok { color: var(--ok); }
+.ob-reason { grid-column: 2 / -1; font-size: 11.5px; line-height: 1.5; color: var(--text-3); }
+.ob-chip { font-size: 10.5px; line-height: 1.5; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; color: var(--text-3); white-space: nowrap; }
+.ob-chip.ok { color: var(--ok); }
+.ob-chip.warn { color: var(--warn); }
+.ob-chip.err { color: var(--err); }
+.ob-copyline { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; }
+.ob-copyline output { flex: 1; min-width: 0; font-size: 12px; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; overflow-wrap: anywhere; }
+
+/* Project form (wizard step 3 and the sidebar Set Up… dialog). */
+.ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line-2); }
+.ob-field .value { font-size: 12px; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+.ob-field .value.none { color: var(--text-3); }
+.ob-field .ob-helper { grid-column: 2 / -1; }
+.ob-helper { font-size: 11px; line-height: 1.5; color: var(--text-3); overflow-wrap: anywhere; }
+.ob-changes { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--text-2); }
+.ob-actions { display: flex; align-items: center; gap: 8px; padding: 12px 14px; }
+.ob-actions .ob-helper { flex: 1; }
+
+/* First prompt (wizard step 4). */
+.ob-sentence { font-size: 12.5px; line-height: 1.7; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-wrap: anywhere; }
+.ob-sentence mark { background: var(--accent-soft); color: var(--accent); border-radius: 3px; padding: 0 2px; }
+.ob-prompt { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.ob-prompt .ob-actions { padding: 0; }
+
+/* Replace confirmation (new). Copies the comments-dialog surface. */
+.ob-scrim { position: absolute; inset: 0; background: var(--board-bg); opacity: .6; }
+.ob-dialog { width: 440px; background: var(--raised); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-2); border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
+.ob-win .ob-dialog { position: absolute; left: 399px; top: 230px; }
+.ob-dialog h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+.ob-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-2); margin-bottom: 12px; }
+.ob-compare { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px 10px; font-size: 11.5px; line-height: 1.5; margin-bottom: 16px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.ob-compare dt { color: var(--text-3); }
+.ob-compare dd { color: var(--text); overflow-wrap: anywhere; }
+.ob-dialog .ob-buttons { display: flex; justify-content: flex-end; gap: 6px; }
+
+/* Sidebar specimens (shipped sidebar + new recovery content). */
+.side-spec { width: 240px; padding-bottom: 6px; }
+.tooltip { position: relative; width: fit-content; max-width: 420px; background: var(--text); color: var(--bg); border-radius: 6px; padding: 6px 12px; font-size: 12px; line-height: 1.5; }
+.tooltip::after { content: ""; position: absolute; left: 24px; bottom: -4px; width: 10px; height: 10px; background: var(--text); transform: rotate(45deg); border-radius: 2px; }
+.area-spec { width: 640px; height: 260px; border: 1px solid var(--line); }
+</style>
+</head>
+<body>
+
+<header class="intro">
+<h1>Onboarding — draft</h1>
+<p><b>Scope.</b> Feature #8 <code>onboard</code> (docs/features/onboard/spec.md completion conditions 3–10, design.md flows 3–11 and “초안 요청”). The four-step first-run wizard (CLI · Agents · Project · First prompt), the replace confirmation, the project setup dialog opened from the sidebar, and the new sidebar rows for Not initialized and No canvases.</p>
+<p><b>New.</b> All eight frames are new. The wizard (<code>wizard-*</code>), <code>confirm-replace</code> and <code>project-setup-dialog</code> are not in code yet (design.md names the future files Onboarding.tsx and ProjectSetupDialog.tsx; they do not exist, so these frames carry no data-doan-implements). In <code>sidebar-setup</code> and <code>sidebar-first-prompt</code> only the parts marked with a dashed yellow label are new. Headings, lead sentences, dialog titles and a few status words that the feature documents do not give were drawn by this draft and accepted with it (design.md “초안 요청”, 2026-10-24 user); they carry a “draft decision” mark in their frame label so reviewers can find them.</p>
+<p><b>Copied from shipped screens.</b> Window size 1238 × 780, top bar 40 px, traffic lights, buttons, keys, sidebar rows, hints, recovery buttons, canvas status text, the focus ring and the dialog surface come from app/src/renderer/styles.css and docs/DESIGN.md (App shell, Comments). The tooltip copies the shadcn tooltip in app/src/renderer/components/ui/tooltip.tsx (foreground on background, 12 px, 6 × 12 padding). Copy button states copy the comments-ui copy labels (CommentsPanel.tsx <code>copyLabel</code>).</p>
+<p><b>/design-sync</b> compares all eight frames: the main specimen of each wizard step, every labelled tile below it, the dialogs, and the new sidebar parts. The shipped sidebar rows inside the sidebar specimens are already measured (DESIGN.md) and are drawn only for context.</p>
+<p><b>Decisions applied (2026-10-24).</b> Full-window wizard with top title and Close, a four-step indicator whose steps are buttons that move to that step (a completed step shows a check instead of its number, a skipped step keeps its number; design.md flow 4, user), a centered form up to 640 px wide, and a bottom bar with “Step N of 4” and Check Again on the left (steps 1 and 2) and Skip / Continue on the right on steps 1–3, Done alone on step 4 (user). With MCP unknown, an agent row’s Connect still runs the stub and (Claude Code) link and stops at MCP (design.md flow 6, user). Confirm buttons Replace Link / Replace Skill / Replace MCP Registration. State words: Not installed / Not registered, Installed / Registered, Needs replacement, Unavailable, Couldn’t check. App name is lowercase doan (“Set Up doan…”).</p>
+<p><b>References.</b> Orca’s relative skill link <code>~/.claude/skills/orca-cli</code> and its bundled CLI layout are cited from design.md (checked on this machine on 2026-10-24 by the feature author, not rechecked for this draft). Step indicator and bottom bar follow the decisions above; the general macOS setup-assistant shape is from memory and was not rechecked against screens.</p>
+<p><b>Revision (2026-10-24).</b> The base is the Opus draft (commit adc9c03). The shell-specific PATH tiles and the PATH line copy feedback come from the Astra draft (commit b0f4ce3) in this draft’s tile style with the Astra copy.</p>
+<p><b>Example data.</b> User alex, app at /Applications/doan.app, project acme-web at /Users/alex/code/acme-web. Paths in the tiles include long values on purpose.</p>
+</header>
+
+<!-- ===================================================== wizard-cli -->
+<section class="frame" data-doan-frame="wizard-cli" data-doan-title="Wizard — 1 CLI">
+<div class="flabel"><h2>Wizard — Step 1 · CLI</h2><span class="nic">new · not in code</span><span class="nic">draft decision: heading and lead</span></div>
+<p class="note">Main specimen: first run, nothing at <code>~/.local/bin/doan</code>, PATH already contains ~/.local/bin. Install creates ~/.local/bin, makes a temporary link and renames it. The link target is the CLI the app uses (DOAN_CLI or the bundled one). Install is the primary action until the link is ours; then Continue becomes primary. Opening the wizard focuses its title; Tab stays inside the wizard; Escape and Close close it (inactive while an action runs).</p>
+<div class="ob-win" role="dialog" aria-label="Set Up doan" data-doan-id="cli-window">
+ <div class="top" data-doan-id="cli-top"><div class="lights"><i></i><i></i><i></i></div><span class="logo"><i></i><span class="ob-title" data-doan-id="cli-title">Set Up doan</span></span><span class="spacer"></span><button class="btn ghost" data-doan-id="cli-close">Close <span class="kbd">Esc</span></button></div>
+ <ol class="ob-steps" aria-label="Steps" data-doan-id="cli-steps"><li><button class="ob-step" aria-current="step" data-doan-id="cli-step-current"><span class="num">1</span>CLI</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step"><span class="num">2</span>Agents</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step"><span class="num">3</span>Project</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step"><span class="num">4</span>First prompt</button></li></ol>
+ <div class="ob-body"><div class="ob-form">
+  <h2 data-doan-id="cli-heading">Install the doan command</h2>
+  <p class="ob-lead" data-doan-id="cli-lead">Your terminal and your agents run doan through a link in <code>~/.local/bin</code>. The link points to the copy inside this app.</p>
+  <div class="ob-card" data-doan-id="cli-card">
+   <div class="ob-item" data-doan-id="cli-link-item"><span class="ob-label">CLI link</span><span class="ob-detail" data-doan-id="cli-link-detail"><code>~/.local/bin/doan</code> → <code>/Applications/doan.app/Contents/Resources/bin/doan</code></span><span class="ob-status"><span class="ob-chip" data-doan-id="cli-link-chip">Not installed</span><button class="btn primary" data-doan-id="cli-install">Install</button></span></div>
+  </div>
+ </div></div>
+ <div class="ob-foot" data-doan-id="cli-foot"><span class="meta" data-doan-id="cli-stepno">Step 1 of 4</span><button class="btn" data-doan-id="cli-check-again">Check Again</button><span class="spacer"></span><button class="btn ghost" data-doan-id="cli-skip">Skip</button><button class="btn" data-doan-id="cli-continue">Continue</button></div>
+</div>
+
+<h3 class="states-head">Other states of the CLI card</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>ours</b> — the link points to this app’s CLI. Continue becomes primary.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail"><code>~/.local/bin/doan</code> → <code>/Applications/doan.app/Contents/Resources/bin/doan</code></span><span class="ob-status"><span class="ob-chip ok" data-doan-id="cli-t-ours-chip">Installed</span></span></div></div>
+  <div class="ob-foot" style="height:56px;margin-top:10px;border:1px solid var(--line);border-radius:10px"><span class="meta">Step 1 of 4</span><button class="btn">Check Again</button><span class="spacer"></span><button class="btn ghost">Skip</button><button class="btn primary" data-doan-id="cli-t-ours-continue">Continue</button></div></div>
+ <div><p class="tile-label"><b>link-other</b> — a symbolic link to another copy. Replace… opens the Replace Link confirmation (confirm-replace).</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail"><code>~/.local/bin/doan</code></span><span class="ob-status"><span class="ob-chip warn" data-doan-id="cli-t-other-chip">Needs replacement</span><button class="btn primary" data-doan-id="cli-t-other-replace">Replace…</button></span><span class="ob-msg warn" data-doan-id="cli-t-other-msg">Points to another copy: <code>/Users/alex/Downloads/doan 0.1.0 (from the team drive, do not delete)/doan.app/Contents/Resources/bin/doan</code></span></div></div></div>
+ <div><p class="tile-label"><b>link-other — broken link</b> — the old target no longer exists. Same state and action.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail"><code>~/.local/bin/doan</code></span><span class="ob-status"><span class="ob-chip warn">Needs replacement</span><button class="btn primary">Replace…</button></span><span class="ob-msg warn" data-doan-id="cli-t-broken-msg">Points to another copy: <code>/Volumes/doan/doan.app/Contents/Resources/bin/doan</code></span></div></div></div>
+ <div><p class="tile-label"><b>blocked</b> — a regular file or folder is in the way. doan never touches it.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail"><code>~/.local/bin/doan</code></span><span class="ob-status"><span class="ob-chip err" data-doan-id="cli-t-blocked-chip">Unavailable</span><button class="btn primary" disabled>Install</button></span><span class="ob-msg error" data-doan-id="cli-t-blocked-msg"><code>~/.local/bin/doan</code> is in use by something else. Move or delete it, then Check Again.</span></div></div></div>
+ <div><p class="tile-label"><b>blocked — parent</b> — <code>~/.local/bin</code> itself is a file or a link.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail"><code>~/.local/bin/doan</code></span><span class="ob-status"><span class="ob-chip err">Unavailable</span><button class="btn primary" disabled>Install</button></span><span class="ob-msg error" data-doan-id="cli-t-parent-msg"><code>~/.local/bin</code> is in use by something else. Move or delete it, then Check Again.</span></div></div></div>
+ <div><p class="tile-label"><b>App Translocation</b> — the app runs from a translocated path, so no link is made.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail"><code>~/.local/bin/doan</code></span><span class="ob-status"><span class="ob-chip">Not installed</span><button class="btn primary" disabled data-doan-id="cli-t-transl-install">Install</button></span><span class="ob-msg warn" data-doan-id="cli-t-transl-msg">Move doan to Applications, then open it again.</span></div></div></div>
+ <div><p class="tile-label"><b>Development build without DOAN_CLI</b> — only <code>doan</code> on PATH, so step 1 is disabled with an inline reason.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail"><code>~/.local/bin/doan</code></span><span class="ob-status"><span class="ob-chip">Not installed</span><button class="btn primary" disabled>Install</button></span><span class="ob-reason" data-doan-id="cli-t-dev-msg">This build has no bundled CLI. Set DOAN_CLI.</span></div></div></div>
+ <div><p class="tile-label"><b>Checking…</b> — while the state is read (on open, Check Again, after each action). Install and Check Again are disabled.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail"><code>~/.local/bin/doan</code> → <code>/Applications/doan.app/Contents/Resources/bin/doan</code></span><span class="ob-status"><span class="ob-chip" data-doan-id="cli-t-checking-chip">Checking…</span><button class="btn primary" disabled>Install</button></span></div></div>
+  <div class="ob-foot" style="height:56px;margin-top:10px;border:1px solid var(--line);border-radius:10px"><span class="meta">Step 1 of 4</span><button class="btn" disabled data-doan-id="cli-t-checking-again">Check Again</button><span class="spacer"></span><button class="btn ghost">Skip</button><button class="btn">Continue</button></div></div>
+ <div><p class="tile-label"><b>Couldn’t check</b> — the link could not be read. The reason is shown; Check Again is in the bottom bar.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail"><code>~/.local/bin/doan</code></span><span class="ob-status"><span class="ob-chip warn" data-doan-id="cli-t-unknown-chip">Couldn’t check</span><button class="btn primary" disabled>Install</button></span><span class="ob-msg warn" data-doan-id="cli-t-unknown-msg">Permission denied reading <code>~/.local/bin</code>. Choose Check Again.</span></div></div></div>
+ <div><p class="tile-label"><b>PATH missing — zsh</b> — the link is ours but the login shell’s PATH lacks ~/.local/bin. The app never edits the file.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail"><code>~/.local/bin/doan</code> → <code>/Applications/doan.app/Contents/Resources/bin/doan</code></span><span class="ob-status"><span class="ob-chip ok">Installed</span></span></div>
+  <div class="ob-item" data-doan-id="cli-t-path-item"><span class="ob-label">PATH</span><span class="ob-detail" data-doan-id="cli-t-path-msg">Add this line to <code>~/.zshrc</code>, open a new terminal, then choose Check Again.</span><span class="ob-status"><span class="ob-chip warn">Not on PATH</span></span><span class="ob-copyline"><output data-doan-id="cli-t-path-line">export PATH="$HOME/.local/bin:$PATH"</output><button class="btn" data-doan-id="cli-t-path-copy">Copy</button></span></div></div></div>
+ <div><p class="tile-label"><b>PATH missing — bash</b> — the login shell is bash, so the line goes to <code>~/.bash_profile</code>.</p>
+  <div class="ob-card"><div class="ob-item" data-doan-id="cli-t-path-bash-item"><span class="ob-label">PATH</span><span class="ob-detail" data-doan-id="cli-t-path-bash-msg">Add this line to <code>~/.bash_profile</code>, open a new terminal, then choose Check Again.</span><span class="ob-status"><span class="ob-chip warn">Not on PATH</span></span><span class="ob-copyline"><output data-doan-id="cli-t-path-bash-line">export PATH="$HOME/.local/bin:$PATH"</output><button class="btn" data-doan-id="cli-t-path-bash-copy">Copy</button></span></div></div></div>
+ <div><p class="tile-label"><b>PATH missing — other shell</b> — neither zsh nor bash (fish and others were not tested, so no command line is offered).</p>
+  <div class="ob-card"><div class="ob-item" data-doan-id="cli-t-path-other-item"><span class="ob-label">PATH</span><span class="ob-detail" data-doan-id="cli-t-path-other">Add ~/.local/bin to PATH in your shell configuration, then choose Check Again.</span><span class="ob-status"><span class="ob-chip warn">Not on PATH</span></span></div></div></div>
+ <div><p class="tile-label"><b>PATH line — copy feedback</b> — the Copy button after it is pressed (labels as in comments-ui: Copy → Copying… → Copied / Retry copy). main builds the line; Copied appears only after the clipboard write finished. Top to bottom: Copying…, Copied, Retry copy with the comments-ui failure message.</p>
+  <div class="ob-card" data-doan-id="cli-t-path-copy-states">
+   <div class="ob-item"><span class="ob-label">PATH</span><span class="ob-copyline"><output>export PATH="$HOME/.local/bin:$PATH"</output><button class="btn" disabled data-doan-id="cli-t-path-copying">Copying…</button></span></div>
+   <div class="ob-item"><span class="ob-label">PATH</span><span class="ob-copyline"><output>export PATH="$HOME/.local/bin:$PATH"</output><button class="btn" data-doan-id="cli-t-path-copied">Copied</button></span></div>
+   <div class="ob-item"><span class="ob-label">PATH</span><span class="ob-copyline"><output>export PATH="$HOME/.local/bin:$PATH"</output><button class="btn" data-doan-id="cli-t-path-retry">Retry copy</button></span><span class="ob-msg error" data-doan-id="cli-t-path-failed">Couldn’t copy. Your clipboard could not be updated. Try again.</span></div>
+  </div></div>
+ <div><p class="tile-label"><b>PATH — Couldn’t check</b> — the login shell probe failed (timeout, no shell, spawn error). Reason shown.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">PATH</span><span class="ob-detail"><code>~/.local/bin</code></span><span class="ob-status"><span class="ob-chip warn">Couldn’t check</span></span><span class="ob-msg warn" data-doan-id="cli-t-probe-msg">Your login shell (/bin/zsh) didn’t answer in time. Choose Check Again.</span></div></div></div>
+</div>
+<p class="note">Draft decision (not in the feature documents; accepted with this draft on 2026-10-24): the PATH row appears only when it needs action or could not be checked; the “Not on PATH” chip word and the Replace… row button. The confirmation dialog itself is in confirm-replace.</p>
+</section>
+
+<!-- ===================================================== wizard-agents -->
+<section class="frame" data-doan-frame="wizard-agents" data-doan-title="Wizard — 2 Agents">
+<div class="flabel"><h2>Wizard — Step 2 · Agents</h2><span class="nic">new · not in code</span><span class="nic">draft decision: heading, lead, “Failed” chip</span></div>
+<p class="note">Main specimen: step 1 is done, both agents are found, nothing is installed yet. The shared Skill row serves both agents. Connect appears only on found agents and runs, in order, only what is missing: shared stub → (Claude Code) skill link → MCP registration. It stops at the first failure and shows each item’s state. Each MCP row shows where it will register. Opening this step only runs read commands; writes happen only on a button press.</p>
+<div class="ob-win" role="dialog" aria-label="Set Up doan" data-doan-id="agents-window">
+ <div class="top"><div class="lights"><i></i><i></i><i></i></div><span class="logo"><i></i><span class="ob-title" data-doan-id="agents-title">Set Up doan</span></span><span class="spacer"></span><button class="btn ghost" data-doan-id="agents-close">Close <span class="kbd">Esc</span></button></div>
+ <ol class="ob-steps" aria-label="Steps"><li><button class="ob-step done" aria-label="CLI, completed" data-doan-id="agents-step-done"><span class="num" aria-hidden="true">✓</span>CLI</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step" aria-current="step" data-doan-id="agents-step-current"><span class="num">2</span>Agents</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step"><span class="num">3</span>Project</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step"><span class="num">4</span>First prompt</button></li></ol>
+ <div class="ob-body"><div class="ob-form">
+  <h2 data-doan-id="agents-heading">Connect your agents</h2>
+  <p class="ob-lead" data-doan-id="agents-lead">Connect installs the doan skill and registers the doan MCP server for that agent. Nothing changes until you choose Connect.</p>
+  <div class="ob-card" data-doan-id="agents-skill-card">
+   <div class="ob-item" data-doan-id="agents-skill-item"><span class="ob-label">Skill</span><span class="ob-detail"><code>~/.agents/skills/doan/SKILL.md</code> · shared by Claude Code and Codex</span><span class="ob-status"><span class="ob-chip" data-doan-id="agents-skill-chip">Not installed</span></span></div>
+  </div>
+  <div class="ob-card" data-doan-id="agents-claude-card">
+   <div class="ob-agent" data-doan-id="agents-claude-head"><span class="ob-label">Claude Code</span><span class="ob-detail" data-doan-id="agents-claude-found">Found at <code>/opt/homebrew/bin/claude</code></span><span class="ob-status"><button class="btn primary" data-doan-id="agents-claude-connect">Connect</button></span></div>
+   <div class="ob-item sub" data-doan-id="agents-claude-link"><span class="ob-label">Skill link</span><span class="ob-detail"><code>~/.claude/skills/doan</code> → <code>../../.agents/skills/doan</code></span><span class="ob-status"><span class="ob-chip" data-doan-id="agents-claude-link-chip">Not installed</span></span></div>
+   <div class="ob-item sub" data-doan-id="agents-claude-mcp"><span class="ob-label">MCP</span><span class="ob-detail" data-doan-id="agents-claude-where">Registers in <code>~/.claude.json</code> (user scope)</span><span class="ob-status"><span class="ob-chip" data-doan-id="agents-claude-mcp-chip">Not registered</span></span></div>
+  </div>
+  <div class="ob-card" data-doan-id="agents-codex-card">
+   <div class="ob-agent" data-doan-id="agents-codex-head"><span class="ob-label">Codex</span><span class="ob-detail">Found at <code>/opt/homebrew/bin/codex</code></span><span class="ob-status"><button class="btn primary" data-doan-id="agents-codex-connect">Connect</button></span></div>
+   <div class="ob-item sub" data-doan-id="agents-codex-mcp"><span class="ob-label">MCP</span><span class="ob-detail">Registers in <code>~/.codex/config.toml</code></span><span class="ob-status"><span class="ob-chip">Not registered</span></span></div>
+  </div>
+ </div></div>
+ <div class="ob-foot"><span class="meta">Step 2 of 4</span><button class="btn" data-doan-id="agents-check-again">Check Again</button><span class="spacer"></span><button class="btn ghost" data-doan-id="agents-skip">Skip</button><button class="btn" data-doan-id="agents-continue">Continue</button></div>
+</div>
+
+<h3 class="states-head">Shared Skill row</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>ours</b> — SKILL.md is a regular file with the bundled stub’s content.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">Skill</span><span class="ob-detail"><code>~/.agents/skills/doan/SKILL.md</code> · shared by Claude Code and Codex</span><span class="ob-status"><span class="ob-chip ok" data-doan-id="agents-t-skill-ours">Installed</span></span></div></div></div>
+ <div><p class="tile-label"><b>differs</b> — a regular file with other content. Connect asks with Replace Skill before writing.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">Skill</span><span class="ob-detail"><code>~/.agents/skills/doan/SKILL.md</code> · shared by Claude Code and Codex</span><span class="ob-status"><span class="ob-chip warn" data-doan-id="agents-t-skill-differs">Needs replacement</span></span><span class="ob-msg warn" data-doan-id="agents-t-skill-differs-msg">Modified or from another version</span></div></div></div>
+ <div><p class="tile-label"><b>blocked</b> — the folder or SKILL.md is a link or another kind of file. Never touched.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">Skill</span><span class="ob-detail"><code>~/.agents/skills/doan/SKILL.md</code> · shared by Claude Code and Codex</span><span class="ob-status"><span class="ob-chip err" data-doan-id="agents-t-skill-blocked">Unavailable</span></span><span class="ob-msg error" data-doan-id="agents-t-skill-blocked-msg"><code>~/.agents/skills/doan</code> is in use by something else. Move or delete it, then Check Again.</span></div></div></div>
+ <div><p class="tile-label"><b>missing</b> — the main specimen. Shown again with Checking… for comparison.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">Skill</span><span class="ob-detail"><code>~/.agents/skills/doan/SKILL.md</code> · shared by Claude Code and Codex</span><span class="ob-status"><span class="ob-chip">Checking…</span></span></div></div></div>
+</div>
+
+<h3 class="states-head">Agent rows — detection</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>Not installed</b> — not on the login shell’s PATH. No Connect.</p>
+  <div class="ob-card"><div class="ob-agent"><span class="ob-label">Codex</span><span class="ob-detail" data-doan-id="agents-t-notinst">Not installed</span><span class="ob-status"></span></div></div></div>
+ <div><p class="tile-label"><b>Couldn’t check</b> — the login shell probe failed. Reason shown, no Connect.</p>
+  <div class="ob-card"><div class="ob-agent"><span class="ob-label">Claude Code</span><span class="ob-detail"><span class="ob-chip warn" data-doan-id="agents-t-detect-unknown">Couldn’t check</span></span><span class="ob-status"></span><span class="ob-msg warn" data-doan-id="agents-t-detect-reason">Your login shell (/bin/zsh) didn’t answer in time. Choose Check Again.</span></div></div></div>
+ <div><p class="tile-label"><b>Couldn’t run</b> — found on PATH, but running it returned ENOENT.</p>
+  <div class="ob-card"><div class="ob-agent"><span class="ob-label">Codex</span><span class="ob-detail">Found at <code>/opt/homebrew/bin/codex</code></span><span class="ob-status"><button class="btn primary">Connect</button></span></div>
+  <div class="ob-item sub"><span class="ob-label">MCP</span><span class="ob-detail">Registers in <code>~/.codex/config.toml</code></span><span class="ob-status"><span class="ob-chip warn">Couldn’t check</span></span><span class="ob-msg warn" data-doan-id="agents-t-enoent">Couldn’t run Codex at <code>/opt/homebrew/bin/codex</code>. Check Again.</span></div></div></div>
+ <div><p class="tile-label"><b>Config location from the login shell</b> — CLAUDE_CONFIG_DIR / CODEX_HOME are set, so the row says where it will register.</p>
+  <div class="ob-card"><div class="ob-agent"><span class="ob-label">Claude Code</span><span class="ob-detail">Found at <code>/Users/alex/.local/share/claude/versions/2.1.310/bin/claude</code></span><span class="ob-status"><button class="btn primary">Connect</button></span></div>
+  <div class="ob-item sub"><span class="ob-label">Skill link</span><span class="ob-detail"><code>/Users/alex/work/claude-config/skills/doan</code> → <code>../../../.agents/skills/doan</code></span><span class="ob-status"><span class="ob-chip">Not installed</span></span></div>
+  <div class="ob-item sub"><span class="ob-label">MCP</span><span class="ob-detail" data-doan-id="agents-t-env-where">Registers in <code>/Users/alex/work/claude-config/.claude.json</code> (CLAUDE_CONFIG_DIR, user scope)</span><span class="ob-status"><span class="ob-chip">Not registered</span></span></div></div>
+  <div class="ob-card"><div class="ob-agent"><span class="ob-label">Codex</span><span class="ob-detail">Found at <code>/opt/homebrew/bin/codex</code></span><span class="ob-status"><button class="btn primary">Connect</button></span></div>
+  <div class="ob-item sub"><span class="ob-label">MCP</span><span class="ob-detail">Registers in <code>/Users/alex/work/codex-home/config.toml</code> (CODEX_HOME)</span><span class="ob-status"><span class="ob-chip">Not registered</span></span></div></div></div>
+</div>
+
+<h3 class="states-head">Agent rows — MCP and Connect</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>MCP ours · Connected</b> — every item done after Connect. The new-session notice replaces the button.</p>
+  <div class="ob-card"><div class="ob-agent"><span class="ob-label">Claude Code</span><span class="ob-detail">Found at <code>/opt/homebrew/bin/claude</code></span><span class="ob-status"></span><span class="ob-msg ok" data-doan-id="agents-t-connected">Connected. Start a new Claude Code session to use doan.</span></div>
+  <div class="ob-item sub"><span class="ob-label">Skill link</span><span class="ob-detail"><code>~/.claude/skills/doan</code> → <code>../../.agents/skills/doan</code></span><span class="ob-status"><span class="ob-chip ok">Installed</span></span></div>
+  <div class="ob-item sub"><span class="ob-label">MCP</span><span class="ob-detail">Registers in <code>~/.claude.json</code> (user scope)</span><span class="ob-status"><span class="ob-chip ok" data-doan-id="agents-t-mcp-ours">Registered</span></span></div></div></div>
+ <div><p class="tile-label"><b>MCP other</b> — same name, another command. Connect asks with Replace MCP Registration.</p>
+  <div class="ob-card"><div class="ob-agent"><span class="ob-label">Codex</span><span class="ob-detail">Found at <code>/opt/homebrew/bin/codex</code></span><span class="ob-status"><button class="btn primary">Connect</button></span></div>
+  <div class="ob-item sub"><span class="ob-label">MCP</span><span class="ob-detail">Registers in <code>~/.codex/config.toml</code></span><span class="ob-status"><span class="ob-chip warn" data-doan-id="agents-t-mcp-other">Needs replacement</span></span><span class="ob-msg warn" data-doan-id="agents-t-mcp-other-cmd">Current command: <code>/Users/alex/src/doan-design/.scratch/bin/doan mcp --log-level debug</code></span></div></div></div>
+ <div><p class="tile-label"><b>MCP unknown — before Connect</b> — the registration could not be read. MCP add and remove are disabled, but Connect stays enabled for the stub and (Claude Code) link.</p>
+  <div class="ob-card"><div class="ob-agent"><span class="ob-label">Claude Code</span><span class="ob-detail">Found at <code>/opt/homebrew/bin/claude</code></span><span class="ob-status"><button class="btn primary" data-doan-id="agents-t-unknown-connect">Connect</button></span></div>
+  <div class="ob-item sub"><span class="ob-label">Skill link</span><span class="ob-detail"><code>~/.claude/skills/doan</code> → <code>../../.agents/skills/doan</code></span><span class="ob-status"><span class="ob-chip">Not installed</span></span></div>
+  <div class="ob-item sub"><span class="ob-label">MCP</span><span class="ob-detail">Registers in <code>~/.claude.json</code> (user scope)</span><span class="ob-status"><span class="ob-chip warn" data-doan-id="agents-t-mcp-unknown">Couldn’t check</span></span><span class="ob-msg warn" data-doan-id="agents-t-mcp-unknown-msg"><code>~/.claude.json</code> is not valid JSON. Choose Check Again.</span></div></div></div>
+ <div><p class="tile-label"><b>MCP unknown — after Connect</b> — Connect ran the stub and link, then stopped at MCP. MCP shows Couldn’t check with the reason; only Check Again (bottom bar) can move it on. For Codex, Connect runs the stub only.</p>
+  <div class="ob-card"><div class="ob-agent"><span class="ob-label">Claude Code</span><span class="ob-detail">Found at <code>/opt/homebrew/bin/claude</code></span><span class="ob-status"><button class="btn primary" data-doan-id="agents-t-unknown-after-connect">Connect</button></span></div>
+  <div class="ob-item sub"><span class="ob-label">Skill link</span><span class="ob-detail"><code>~/.claude/skills/doan</code> → <code>../../.agents/skills/doan</code></span><span class="ob-status"><span class="ob-chip ok" data-doan-id="agents-t-unknown-link">Installed</span></span></div>
+  <div class="ob-item sub"><span class="ob-label">MCP</span><span class="ob-detail">Registers in <code>~/.claude.json</code> (user scope)</span><span class="ob-status"><span class="ob-chip warn" data-doan-id="agents-t-unknown-after-chip">Couldn’t check</span></span><span class="ob-msg warn" data-doan-id="agents-t-unknown-after-msg"><code>~/.claude.json</code> is not valid JSON. Choose Check Again.</span></div></div>
+  <div class="ob-foot" style="height:56px;margin-top:10px;border:1px solid var(--line);border-radius:10px"><span class="meta">Step 2 of 4</span><button class="btn" data-doan-id="agents-t-unknown-check-again">Check Again</button><span class="spacer"></span><button class="btn ghost">Skip</button><button class="btn">Continue</button></div></div>
+ <div><p class="tile-label"><b>Step 1 not done</b> — MCP needs the step 1 link, so the MCP item is disabled with this notice. Connect still installs the skill and link.</p>
+  <div class="ob-card"><div class="ob-agent"><span class="ob-label">Claude Code</span><span class="ob-detail">Found at <code>/opt/homebrew/bin/claude</code></span><span class="ob-status"><button class="btn primary">Connect</button></span></div>
+  <div class="ob-item sub"><span class="ob-label">Skill link</span><span class="ob-detail"><code>~/.claude/skills/doan</code> → <code>../../.agents/skills/doan</code></span><span class="ob-status"><span class="ob-chip">Not installed</span></span></div>
+  <div class="ob-item sub" style="opacity:.4"><span class="ob-label">MCP</span><span class="ob-detail">Registers in <code>~/.claude.json</code> (user scope)</span><span class="ob-status"><span class="ob-chip">Not registered</span></span></div>
+  <div class="ob-item sub" style="padding-top:0"><span></span><span class="ob-reason" data-doan-id="agents-t-step1-notice" style="grid-column:2 / -1">Install the CLI link in step 1 before connecting MCP.</span></div></div></div>
+ <div><p class="tile-label"><b>Running</b> — this row’s Connect is disabled while items run one at a time. Check Again, Close and Escape are inactive.</p>
+  <div class="ob-card"><div class="ob-agent"><span class="ob-label">Claude Code</span><span class="ob-detail">Found at <code>/opt/homebrew/bin/claude</code></span><span class="ob-status"><button class="btn primary" disabled data-doan-id="agents-t-running">Connecting…</button></span></div>
+  <div class="ob-item sub"><span class="ob-label">Skill link</span><span class="ob-detail"><code>~/.claude/skills/doan</code> → <code>../../.agents/skills/doan</code></span><span class="ob-status"><span class="ob-chip ok">Installed</span></span></div>
+  <div class="ob-item sub"><span class="ob-label">MCP</span><span class="ob-detail">Registers in <code>~/.claude.json</code> (user scope)</span><span class="ob-status"><span class="ob-chip" data-doan-id="agents-t-running-item">Registering…</span></span></div></div></div>
+ <div><p class="tile-label"><b>Partial failure</b> — the stub and link were written, MCP registration failed. Connect stays to retry what is left.</p>
+  <div class="ob-card"><div class="ob-agent"><span class="ob-label">Claude Code</span><span class="ob-detail">Found at <code>/opt/homebrew/bin/claude</code></span><span class="ob-status"><button class="btn primary">Connect</button></span></div>
+  <div class="ob-item sub"><span class="ob-label">Skill link</span><span class="ob-detail"><code>~/.claude/skills/doan</code> → <code>../../.agents/skills/doan</code></span><span class="ob-status"><span class="ob-chip ok">Installed</span></span></div>
+  <div class="ob-item sub"><span class="ob-label">MCP</span><span class="ob-detail">Registers in <code>~/.claude.json</code> (user scope)</span><span class="ob-status"><span class="ob-chip err" data-doan-id="agents-t-failed-chip">Failed</span></span><span class="ob-msg error" data-doan-id="agents-t-failed-msg">claude mcp add exited with code 1: Invalid configuration in /Users/alex/.claude.json: unexpected token at line 214, column 3</span></div></div></div>
+</div>
+<p class="note">Draft decision (not in the feature documents; accepted with this draft on 2026-10-24): the “Failed” chip for a write that failed, the “Registering…” item word while running, and the step-1 notice placement under the MCP item.</p>
+</section>
+
+<!-- ===================================================== wizard-project -->
+<section class="frame" data-doan-frame="wizard-project" data-doan-title="Wizard — 3 Project">
+<div class="flabel"><h2>Wizard — Step 3 · Project</h2><span class="nic">new · not in code</span><span class="nic">draft decision: heading, lead, “Setting Up…”</span></div>
+<p class="note">Main specimen: a folder that is not set up was opened with Open Project…, so the setup form appears inside the step. The default is no token CSS. Set Up Project runs <code>doan init --json --repo &lt;folder&gt; [--token-css &lt;absolute path&gt;]</code> after asking the CLI whether an enclosing repository already exists. The CLI decides whether the CSS is inside the project; the app does not check the path.</p>
+<div class="ob-win" role="dialog" aria-label="Set Up doan" data-doan-id="project-window">
+ <div class="top"><div class="lights"><i></i><i></i><i></i></div><span class="logo"><i></i><span class="ob-title" data-doan-id="project-title">Set Up doan</span></span><span class="spacer"></span><button class="btn ghost" data-doan-id="project-close">Close <span class="kbd">Esc</span></button></div>
+ <ol class="ob-steps" aria-label="Steps"><li><button class="ob-step done" aria-label="CLI, completed" data-doan-id="project-step-done"><span class="num" aria-hidden="true">✓</span>CLI</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step" data-doan-id="project-step-skipped"><span class="num">2</span>Agents</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step" aria-current="step" data-doan-id="project-step-current"><span class="num">3</span>Project</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step"><span class="num">4</span>First prompt</button></li></ol>
+ <div class="ob-body"><div class="ob-form">
+  <h2 data-doan-id="project-heading">Set up a project</h2>
+  <p class="ob-lead" data-doan-id="project-lead">Choose a repository. doan adds <code>doan/</code> for canvases and <code>.doan/</code> for its settings.</p>
+  <div class="ob-card" data-doan-id="project-form">
+   <div class="ob-field" data-doan-id="project-folder"><span class="ob-label">Project</span><span class="value">acme-web <span class="meta">/Users/alex/code/acme-web</span></span><button class="btn" data-doan-id="project-open-again">Open Project…</button></div>
+   <div class="ob-field" data-doan-id="project-token"><span class="ob-label">Token CSS</span><span class="value none" data-doan-id="project-token-value">None</span><button class="btn" data-doan-id="project-choose">Choose…</button><span class="ob-helper" data-doan-id="project-token-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
+   <div class="ob-field" data-doan-id="project-changes"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+   <div class="ob-actions"><span class="spacer"></span><button class="btn primary" data-doan-id="project-setup">Set Up Project</button></div>
+  </div>
+ </div></div>
+ <div class="ob-foot"><span class="meta">Step 3 of 4</span><span class="spacer"></span><button class="btn ghost" data-doan-id="project-skip">Skip</button><button class="btn" data-doan-id="project-continue">Continue</button></div>
+</div>
+
+<h3 class="states-head">Other states of the Project step</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>Before Open Project…</b> — the step’s starting state. The sheet is the same as the File menu’s.</p>
+  <div class="ob-card"><div class="ob-field"><span class="ob-label">Project</span><span class="value none" data-doan-id="project-t-before">No project open</span><button class="btn primary" data-doan-id="project-t-open">Open Project…</button></div></div></div>
+ <div><p class="tile-label"><b>Already set up</b> — the chosen folder has <code>.doan/config.json</code>. Shown, then the wizard moves to step 4.</p>
+  <div class="ob-card"><div class="ob-field"><span class="ob-label">Project</span><span class="value">acme-web <span class="meta">/Users/alex/code/acme-web</span></span><span class="ob-chip ok" data-doan-id="project-t-already">Already set up</span></div></div></div>
+ <div><p class="tile-label"><b>CSS file chosen</b> — the absolute path from the sheet. The None helper disappears.</p>
+  <div class="ob-card"><div class="ob-field"><span class="ob-label">Token CSS</span><span class="value" data-doan-id="project-t-token">/Users/alex/code/acme-web/packages/design-system/src/styles/tokens/semantic-color-tokens.css</span><button class="btn">Choose…</button></div>
+  <div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+  <div class="ob-actions"><span class="spacer"></span><button class="btn primary">Set Up Project</button></div></div></div>
+ <div><p class="tile-label"><b>Running</b> — init is running. Choose…, Open Project…, Skip and Close are disabled.</p>
+  <div class="ob-card"><div class="ob-field"><span class="ob-label">Token CSS</span><span class="value none">None</span><button class="btn" disabled>Choose…</button><span class="ob-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
+  <div class="ob-actions"><span class="spacer"></span><button class="btn primary" disabled data-doan-id="project-t-running">Setting Up…</button></div></div></div>
+ <div><p class="tile-label"><b>CLI error</b> — the CLI’s <code>error.message</code> plus the app’s guidance. CLI nextSteps are not shown (they name CLI flags).</p>
+  <div class="ob-card"><div class="ob-field"><span class="ob-label">Token CSS</span><span class="value">/Users/alex/Desktop/tokens.css</span><button class="btn">Choose…</button></div>
+  <div class="ob-field" style="border-bottom:0"><span class="ob-msg error" data-doan-id="project-t-error" style="grid-column:1 / -1">Token CSS must be a file inside the repository. Choose a CSS file inside acme-web.</span></div>
+  <div class="ob-actions"><span class="spacer"></span><button class="btn primary">Set Up Project</button></div></div></div>
+ <div><p class="tile-label"><b>CLI timeout or spawn failure</b> — told apart from a CLI error through <code>cliError</code>.</p>
+  <div class="ob-card"><div class="ob-field" style="border-bottom:0"><span class="ob-msg error" data-doan-id="project-t-timeout" style="grid-column:1 / -1">doan CLI error: timed out after 10 s</span></div>
+  <div class="ob-actions"><span class="spacer"></span><button class="btn primary">Set Up Project</button></div></div></div>
+ <div><p class="tile-label"><b>Rerooted to an enclosing repository</b> — the upward check found a set-up parent. Nothing is created; the stored project becomes that root.</p>
+  <div class="ob-card"><div class="ob-field"><span class="ob-label">Project</span><span class="value">acme <span class="meta">/Users/alex/code/acme</span></span><span class="ob-chip ok">Already set up</span><span class="ob-msg" data-doan-id="project-t-reroot">This folder is inside /Users/alex/code/acme, which is already set up.</span></div></div></div>
+</div>
+
+<h3 class="states-head">Step indicator</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>Completed, skipped, current, upcoming</b> — as in the main specimen: CLI completed (check), Agents skipped (number kept), Project current, First prompt not reached. Every step is a button that moves to that step.</p>
+  <div class="ob-card"><ol class="ob-steps" aria-label="Steps" style="padding:14px 0" data-doan-id="project-t-steps"><li><button class="ob-step done" aria-label="CLI, completed" data-doan-id="project-t-step-done"><span class="num" aria-hidden="true">✓</span>CLI</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step" data-doan-id="project-t-step-skipped"><span class="num">2</span>Agents</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step" aria-current="step"><span class="num">3</span>Project</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step" data-doan-id="project-t-step-upcoming"><span class="num">4</span>First prompt</button></li></ol></div></div>
+ <div><p class="tile-label"><b>Keyboard focus</b> on a completed step (shipped focus ring). Enter or Space moves to it.</p>
+  <div class="ob-card"><ol class="ob-steps" aria-label="Steps" style="padding:14px 0"><li><button class="ob-step done focus" aria-label="CLI, completed" data-doan-id="project-t-step-focus"><span class="num" aria-hidden="true">✓</span>CLI</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step"><span class="num">2</span>Agents</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step" aria-current="step"><span class="num">3</span>Project</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step"><span class="num">4</span>First prompt</button></li></ol></div></div>
+</div>
+</section>
+
+<!-- ===================================================== wizard-prompt -->
+<section class="frame" data-doan-frame="wizard-prompt" data-doan-title="Wizard — 4 First prompt">
+<div class="flabel"><h2>Wizard — Step 4 · First prompt</h2><span class="nic">new · not in code</span><span class="nic">draft decision: heading, lead</span><span class="nic">sentence wording to confirm</span></div>
+<p class="note">Main specimen: the project from step 3 is acme-web. main builds the sentence with the project’s absolute path; the button reports success only after the clipboard write finishes. Done closes the wizard the same way as Close and Escape (main writes <code>onboarding.json</code>); Cmd+Q does not.</p>
+<div class="ob-win" role="dialog" aria-label="Set Up doan" data-doan-id="prompt-window">
+ <div class="top"><div class="lights"><i></i><i></i><i></i></div><span class="logo"><i></i><span class="ob-title" data-doan-id="prompt-title">Set Up doan</span></span><span class="spacer"></span><button class="btn ghost" data-doan-id="prompt-close">Close <span class="kbd">Esc</span></button></div>
+ <ol class="ob-steps" aria-label="Steps"><li><button class="ob-step done" aria-label="CLI, completed" data-doan-id="prompt-step-done-1"><span class="num" aria-hidden="true">✓</span>CLI</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step" data-doan-id="prompt-step-skipped"><span class="num">2</span>Agents</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step done" aria-label="Project, completed" data-doan-id="prompt-step-done-3"><span class="num" aria-hidden="true">✓</span>Project</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step" aria-current="step" data-doan-id="prompt-step-current"><span class="num">4</span>First prompt</button></li></ol>
+ <div class="ob-body"><div class="ob-form">
+  <h2 data-doan-id="prompt-heading">Send your first prompt</h2>
+  <p class="ob-lead" data-doan-id="prompt-lead">Paste this into a new Claude Code or Codex session to make the first canvas in acme-web.</p>
+  <div class="ob-card"><div class="ob-prompt">
+   <p class="ob-sentence" data-doan-id="prompt-sentence">Use the doan skill to make a design canvas in /Users/alex/code/acme-web for <mark>&lt;what you want to design&gt;</mark>.</p>
+   <div class="ob-actions"><span class="ob-helper" data-doan-id="prompt-replace-hint">Replace &lt;what you want to design&gt; before sending.</span><button class="btn primary" data-doan-id="prompt-copy">Copy</button></div>
+  </div></div>
+ </div></div>
+ <div class="ob-foot"><span class="meta">Step 4 of 4</span><span class="spacer"></span><button class="btn primary" data-doan-id="prompt-done">Done</button></div>
+</div>
+
+<h3 class="states-head">Other states of the First prompt step</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>No project</b> — step 3 was skipped or no project was opened.</p>
+  <div class="ob-card"><div class="ob-prompt"><p class="ob-reason" data-doan-id="prompt-t-none">Open a project first.</p></div></div></div>
+ <div><p class="tile-label"><b>Copying…</b> — waiting for the clipboard. The button is disabled.</p>
+  <div class="ob-card"><div class="ob-prompt"><p class="ob-sentence">Use the doan skill to make a design canvas in /Users/alex/code/acme-web for <mark>&lt;what you want to design&gt;</mark>.</p><div class="ob-actions"><span class="ob-helper">Replace &lt;what you want to design&gt; before sending.</span><button class="btn primary" disabled data-doan-id="prompt-t-copying">Copying…</button></div></div></div></div>
+ <div><p class="tile-label"><b>Copied</b> — after the clipboard write finished.</p>
+  <div class="ob-card"><div class="ob-prompt"><p class="ob-sentence">Use the doan skill to make a design canvas in /Users/alex/code/acme-web for <mark>&lt;what you want to design&gt;</mark>.</p><div class="ob-actions"><span class="ob-helper">Replace &lt;what you want to design&gt; before sending.</span><button class="btn primary" data-doan-id="prompt-t-copied">Copied</button></div></div></div></div>
+ <div><p class="tile-label"><b>Retry copy</b> — the clipboard write failed (message from comments-ui).</p>
+  <div class="ob-card"><div class="ob-prompt"><p class="ob-sentence">Use the doan skill to make a design canvas in /Users/alex/code/acme-web for <mark>&lt;what you want to design&gt;</mark>.</p><p class="ob-msg error" data-doan-id="prompt-t-failed">Couldn’t copy. Your clipboard could not be updated. Try again.</p><div class="ob-actions"><span class="ob-helper">Replace &lt;what you want to design&gt; before sending.</span><button class="btn primary" data-doan-id="prompt-t-retry">Retry copy</button></div></div></div></div>
+ <div><p class="tile-label"><b>Long path</b> — the sentence wraps; nothing is shortened.</p>
+  <div class="ob-card"><div class="ob-prompt"><p class="ob-sentence" data-doan-id="prompt-t-long">Use the doan skill to make a design canvas in /Users/alex/Library/Mobile Documents/com~apple~CloudDocs/Clients/Acme Corporation/2026 Q4 account settings redesign/web-app for <mark>&lt;what you want to design&gt;</mark>.</p><div class="ob-actions"><span class="ob-helper">Replace &lt;what you want to design&gt; before sending.</span><button class="btn primary">Copy</button></div></div></div></div>
+</div>
+</section>
+
+<!-- ===================================================== confirm-replace -->
+<section class="frame" data-doan-frame="confirm-replace" data-doan-title="Replace confirmation">
+<div class="flabel"><h2>Replace confirmation</h2><span class="nic">new · not in code</span><span class="nic">draft decision: dialog titles and body text</span></div>
+<p class="note">Only three things are ever replaced: a symbolic link, a SKILL.md whose content differs, and a same-name MCP registration. Each dialog shows the current and the new target. Default focus is Cancel; the confirm button names the action. main judges the state again right before writing; if it changed, nothing is written and the new state is shown.</p>
+<div class="ob-win" data-doan-id="confirm-window">
+ <div class="top"><div class="lights"><i></i><i></i><i></i></div><span class="logo"><i></i><span class="ob-title">Set Up doan</span></span><span class="spacer"></span><button class="btn ghost">Close <span class="kbd">Esc</span></button></div>
+ <ol class="ob-steps" aria-label="Steps"><li><button class="ob-step" aria-current="step"><span class="num">1</span>CLI</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step"><span class="num">2</span>Agents</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step"><span class="num">3</span>Project</button></li><li class="sep" aria-hidden="true"></li><li><button class="ob-step"><span class="num">4</span>First prompt</button></li></ol>
+ <div class="ob-body"><div class="ob-form">
+  <h2>Install the doan command</h2>
+  <p class="ob-lead">Your terminal and your agents run doan through a link in <code>~/.local/bin</code>. The link points to the copy inside this app.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail"><code>~/.local/bin/doan</code></span><span class="ob-status"><span class="ob-chip warn">Needs replacement</span><button class="btn primary">Replace…</button></span><span class="ob-msg warn">Points to another copy: <code>/Users/alex/Downloads/doan.app/Contents/Resources/bin/doan</code></span></div></div>
+ </div></div>
+ <div class="ob-foot"><span class="meta">Step 1 of 4</span><button class="btn">Check Again</button><span class="spacer"></span><button class="btn ghost">Skip</button><button class="btn">Continue</button></div>
+ <div class="ob-scrim"></div>
+ <div class="ob-dialog" role="alertdialog" aria-label="Replace the doan link?" data-doan-id="confirm-link">
+  <h3 data-doan-id="confirm-link-title">Replace the doan link?</h3>
+  <p data-doan-id="confirm-link-body"><code>~/.local/bin/doan</code> points to another copy of doan. Your terminal and agents will run this app’s copy instead.</p>
+  <dl class="ob-compare" data-doan-id="confirm-link-compare"><dt>Current</dt><dd>/Users/alex/Downloads/doan.app/Contents/Resources/bin/doan</dd><dt>New</dt><dd>/Applications/doan.app/Contents/Resources/bin/doan</dd></dl>
+  <div class="ob-buttons"><button class="btn focus" data-doan-id="confirm-link-cancel">Cancel</button><button class="btn primary" data-doan-id="confirm-link-replace">Replace Link</button></div>
+ </div>
+</div>
+
+<h3 class="states-head">The other confirmations</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>Claude Code skill link</b> — <code>~/.claude/skills/doan</code> points elsewhere. Same verb as the CLI link.</p>
+  <div class="ob-dialog" role="alertdialog" aria-label="Replace the Claude Code skill link?" data-doan-id="confirm-claude-link">
+   <h3>Replace the Claude Code skill link?</h3>
+   <p><code>~/.claude/skills/doan</code> points to another folder. Claude Code will read the shared doan skill instead.</p>
+   <dl class="ob-compare"><dt>Current</dt><dd>../../my-skills/doan-experimental</dd><dt>New</dt><dd>../../.agents/skills/doan</dd></dl>
+   <div class="ob-buttons"><button class="btn focus">Cancel</button><button class="btn primary" data-doan-id="confirm-claude-link-replace">Replace Link</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>SKILL.md differs</b> — only this one file is replaced; other files in the folder stay.</p>
+  <div class="ob-dialog" role="alertdialog" aria-label="Replace SKILL.md?" data-doan-id="confirm-skill">
+   <h3>Replace SKILL.md?</h3>
+   <p data-doan-id="confirm-skill-body">Your edits to SKILL.md will be replaced. Other files in <code>~/.agents/skills/doan</code> are kept.</p>
+   <dl class="ob-compare"><dt>Current</dt><dd>~/.agents/skills/doan/SKILL.md — Modified or from another version</dd><dt>New</dt><dd>The skill stub from this app (doan 0.1.0)</dd></dl>
+   <div class="ob-buttons"><button class="btn focus">Cancel</button><button class="btn primary" data-doan-id="confirm-skill-replace">Replace Skill</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>MCP registration — Claude Code</b> — remove then add, in the shown config. The original is kept in memory for a failure.</p>
+  <div class="ob-dialog" role="alertdialog" aria-label="Replace the doan MCP registration?" data-doan-id="confirm-mcp">
+   <h3>Replace the doan MCP registration?</h3>
+   <p>Claude Code already has an MCP server named doan in <code>~/.claude.json</code> (user scope).</p>
+   <dl class="ob-compare" data-doan-id="confirm-mcp-compare"><dt>Current</dt><dd>/Users/alex/src/doan-design/.scratch/bin/doan mcp --log-level debug</dd><dt>New</dt><dd>/Users/alex/.local/bin/doan mcp</dd></dl>
+   <div class="ob-buttons"><button class="btn focus">Cancel</button><button class="btn primary" data-doan-id="confirm-mcp-replace">Replace MCP Registration</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>MCP registration — Codex</b> — Codex overwrites the same name, so it only adds.</p>
+  <div class="ob-dialog" role="alertdialog" aria-label="Replace the doan MCP registration?">
+   <h3>Replace the doan MCP registration?</h3>
+   <p>Codex already has an MCP server named doan in <code>~/.codex/config.toml</code>.</p>
+   <dl class="ob-compare"><dt>Current</dt><dd>/usr/local/bin/doan mcp</dd><dt>New</dt><dd>/Users/alex/.local/bin/doan mcp</dd></dl>
+   <div class="ob-buttons"><button class="btn focus">Cancel</button><button class="btn primary">Replace MCP Registration</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>Changed before writing</b> — after confirming, main found a different state. Nothing was written; the row shows the new state.</p>
+  <div class="ob-card"><div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail"><code>~/.local/bin/doan</code></span><span class="ob-status"><span class="ob-chip err">Unavailable</span><button class="btn primary" disabled>Install</button></span><span class="ob-msg error"><code>~/.local/bin/doan</code> is in use by something else. Move or delete it, then Check Again.</span><span class="ob-reason" data-doan-id="confirm-t-changed">It changed after you looked, so nothing was replaced.</span></div></div></div>
+ <div><p class="tile-label"><b>MCP replace failed</b> — the original registration is shown so it can be restored.</p>
+  <div class="ob-card"><div class="ob-item sub"><span class="ob-label">MCP</span><span class="ob-detail">Registers in <code>~/.claude.json</code> (user scope)</span><span class="ob-status"><span class="ob-chip err">Failed</span></span><span class="ob-msg error" data-doan-id="confirm-t-mcp-failed">Couldn’t replace the registration: claude mcp add exited with code 1. The original command was <code>/Users/alex/src/doan-design/.scratch/bin/doan mcp --log-level debug</code>.</span></div></div></div>
+</div>
+</section>
+
+<!-- ===================================================== sidebar-setup -->
+<section class="frame" data-doan-frame="sidebar-setup" data-doan-title="Sidebar — Set Up…" data-doan-implements="app/src/renderer/Sidebar.tsx">
+<div class="flabel"><h2>Sidebar — Not initialized</h2><span class="nic">new copy and Set Up… · not in code</span></div>
+<p class="note">Replaces “Run in a terminal: doan init”. Set Up… sits in the same recovery area as Reopen, so Tab reaches it; the row keeps its ×. It opens project-setup-dialog. The canvas message changes for an open canvas whose project became uninitialized. Shipped parts: rows, hint, recovery button and canvas status (styles.css; DESIGN.md App shell).</p>
+<div class="tiles">
+ <div><p class="tile-label"><b>Not initialized row</b> — with a set-up project above it for context.</p>
+  <div class="side side-spec" data-doan-id="setup-side">
+   <div class="sec">Projects <button class="section-action">Open Project…</button></div>
+   <div class="row"><span class="glyph">▾</span><span class="g">acme-web</span><span class="close-project">×</span></div>
+   <div class="row ind"><span class="glyph">◧</span><span class="g">login.html</span><span class="d">Login</span><span class="cnt">0</span></div>
+   <div class="row" data-doan-id="setup-row"><span class="glyph">▾</span><span class="g">new-app</span><span class="cnt">Not initialized</span><span class="close-project">×</span></div>
+   <div class="hint" data-doan-id="setup-hint"><p data-doan-id="setup-hint-text">Set up this project to add doan/ and .doan/.</p><div class="recovery"><button class="btn" data-doan-id="setup-button">Set Up…</button></div></div>
+  </div></div>
+ <div><p class="tile-label"><b>Keyboard focus</b> on Set Up… (Tab from the tree reaches the recovery area).</p>
+  <div class="side side-spec">
+   <div class="row"><span class="glyph">▾</span><span class="g">new-app</span><span class="cnt">Not initialized</span><span class="close-project">×</span></div>
+   <div class="hint"><p>Set up this project to add doan/ and .doan/.</p><div class="recovery"><button class="btn focus" data-doan-id="setup-button-focus">Set Up…</button></div></div>
+  </div></div>
+ <div><p class="tile-label"><b>Long project name</b> — the name truncates; the hint wraps.</p>
+  <div class="side side-spec">
+   <div class="row"><span class="glyph">▾</span><span class="g">acme-account-settings-redesign-2026</span><span class="cnt">Not initialized</span><span class="close-project">×</span></div>
+   <div class="hint"><p>Set up this project to add doan/ and .doan/.</p><div class="recovery"><button class="btn">Set Up…</button></div></div>
+  </div></div>
+ <div><p class="tile-label"><b>After the dialog closed because of rerooting</b> — the subfolder row was replaced by its set-up root, which takes focus.</p>
+  <div class="side side-spec">
+   <div class="row focus"><span class="glyph">▾</span><span class="g">acme</span><span class="close-project">×</span></div>
+   <div class="row ind"><span class="glyph">◧</span><span class="g">checkout.html</span><span class="d">Checkout</span><span class="cnt">2</span></div>
+   <div class="hint" data-doan-id="setup-reroot-hint" style="padding-left:12px">This folder is inside /Users/alex/code/acme, which is already set up.</div>
+  </div></div>
+ <div style="grid-column:1 / -1"><p class="tile-label"><b>Open canvas, project became uninitialized</b> — new message in the canvas area.</p>
+  <div class="area area-spec" data-doan-id="setup-canvas-area"><div class="canvas-status"><div data-doan-id="setup-canvas-message">The project new-app is not initialized. Choose Set Up… in the sidebar.</div></div></div></div>
+</div>
+<p class="note">Draft decision (accepted 2026-10-24): where the reroot sentence appears after the sidebar dialog closes is not fixed by design.md (“대화상자를 닫고 … 을 보인다”). The draft puts it as a frame-style hint under the root row until the next read.</p>
+</section>
+
+<!-- ===================================================== project-setup-dialog -->
+<section class="frame" data-doan-frame="project-setup-dialog" data-doan-title="Project setup dialog">
+<div class="flabel"><h2>Project setup dialog</h2><span class="nic">new · not in code</span><span class="nic">draft decision: dialog title and body</span></div>
+<p class="note">Opened by Set Up… on a Not initialized row. The same form as the wizard’s Project step, inside the comments dialog surface. Default focus is Choose…; Escape and Cancel close it (inactive while init runs). If the row stops being Not initialized while it is open (reroot, terminal init, folder gone), the dialog closes and focus goes to that row.</p>
+<div class="tiles">
+ <div><p class="tile-label"><b>Default — no token CSS</b></p>
+  <div class="ob-dialog" role="dialog" aria-label="Set Up Project" data-doan-id="dialog-default" style="width:520px">
+   <h3 data-doan-id="dialog-title">Set up new-app</h3>
+   <p data-doan-id="dialog-path">/Users/alex/code/new-app</p>
+   <div class="ob-card" style="width:auto">
+    <div class="ob-field"><span class="ob-label">Token CSS</span><span class="value none" data-doan-id="dialog-token">None</span><button class="btn focus" data-doan-id="dialog-choose">Choose…</button><span class="ob-helper" data-doan-id="dialog-token-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
+    <div class="ob-field" style="border-bottom:0"><span class="ob-label">Will add</span><span class="ob-changes" data-doan-id="dialog-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+   </div>
+   <div class="ob-buttons" style="margin-top:16px"><button class="btn" data-doan-id="dialog-cancel">Cancel</button><button class="btn primary" data-doan-id="dialog-setup">Set Up Project</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>CSS file chosen</b></p>
+  <div class="ob-dialog" role="dialog" aria-label="Set Up Project" style="width:520px">
+   <h3>Set up new-app</h3>
+   <p>/Users/alex/code/new-app</p>
+   <div class="ob-card" style="width:auto">
+    <div class="ob-field"><span class="ob-label">Token CSS</span><span class="value" data-doan-id="dialog-t-token">/Users/alex/code/new-app/src/styles/tokens.css</span><button class="btn">Choose…</button></div>
+    <div class="ob-field" style="border-bottom:0"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+   </div>
+   <div class="ob-buttons" style="margin-top:16px"><button class="btn">Cancel</button><button class="btn primary">Set Up Project</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>Running</b></p>
+  <div class="ob-dialog" role="dialog" aria-label="Set Up Project" style="width:520px">
+   <h3>Set up new-app</h3>
+   <p>/Users/alex/code/new-app</p>
+   <div class="ob-card" style="width:auto">
+    <div class="ob-field"><span class="ob-label">Token CSS</span><span class="value">/Users/alex/code/new-app/src/styles/tokens.css</span><button class="btn" disabled>Choose…</button></div>
+    <div class="ob-field" style="border-bottom:0"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>doan/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div>
+   </div>
+   <div class="ob-buttons" style="margin-top:16px"><button class="btn" disabled>Cancel</button><button class="btn primary" disabled data-doan-id="dialog-t-running">Setting Up…</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>CLI error</b> — <code>error.message</code> plus the app’s guidance.</p>
+  <div class="ob-dialog" role="dialog" aria-label="Set Up Project" style="width:520px">
+   <h3>Set up new-app</h3>
+   <p>/Users/alex/code/new-app</p>
+   <div class="ob-card" style="width:auto">
+    <div class="ob-field"><span class="ob-label">Token CSS</span><span class="value">/Users/alex/Desktop/tokens.css</span><button class="btn">Choose…</button></div>
+    <div class="ob-field" style="border-bottom:0"><span class="ob-msg error" data-doan-id="dialog-t-error" style="grid-column:1 / -1">Token CSS must be a file inside the repository. Choose a CSS file inside new-app.</span></div>
+   </div>
+   <div class="ob-buttons" style="margin-top:16px"><button class="btn">Cancel</button><button class="btn primary">Set Up Project</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>CLI timeout</b></p>
+  <div class="ob-dialog" role="dialog" aria-label="Set Up Project" style="width:520px">
+   <h3>Set up new-app</h3>
+   <p>/Users/alex/code/new-app</p>
+   <div class="ob-card" style="width:auto">
+    <div class="ob-field"><span class="ob-label">Token CSS</span><span class="value none">None</span><button class="btn">Choose…</button><span class="ob-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
+    <div class="ob-field" style="border-bottom:0"><span class="ob-msg error" data-doan-id="dialog-t-timeout" style="grid-column:1 / -1">doan CLI error: timed out after 10 s</span></div>
+   </div>
+   <div class="ob-buttons" style="margin-top:16px"><button class="btn">Cancel</button><button class="btn primary">Set Up Project</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>Rerooted</b> — the dialog closes; the sentence appears under the root row (see sidebar-setup).</p>
+  <div class="side side-spec">
+   <div class="row focus"><span class="glyph">▾</span><span class="g">acme</span><span class="close-project">×</span></div>
+   <div class="hint" data-doan-id="dialog-t-reroot" style="padding-left:12px">This folder is inside /Users/alex/code/acme, which is already set up.</div>
+  </div></div>
+</div>
+</section>
+
+<!-- ===================================================== sidebar-first-prompt -->
+<section class="frame" data-doan-frame="sidebar-first-prompt" data-doan-title="Sidebar — Copy first prompt" data-doan-implements="app/src/renderer/Sidebar.tsx">
+<div class="flabel"><h2>Sidebar — No canvases</h2><span class="nic">new Copy first prompt · not in code</span></div>
+<p class="note">A set-up project without canvases keeps “No canvases” and gains Copy first prompt in the recovery area. The full sentence is in the button’s tooltip (shipped tooltip component). When the first canvas appears, the watcher replaces the row and the button goes away. Labels follow comments-ui copy.</p>
+<div class="tiles">
+ <div><p class="tile-label"><b>Idle</b></p>
+  <div class="side side-spec" data-doan-id="fp-side">
+   <div class="sec">Projects <button class="section-action">Open Project…</button></div>
+   <div class="row"><span class="glyph">▾</span><span class="g">acme-web</span><span class="close-project">×</span></div>
+   <div class="hint" data-doan-id="fp-hint"><p>No canvases</p><div class="recovery"><button class="btn" data-doan-id="fp-copy">Copy first prompt</button></div><p data-doan-id="fp-replace-hint">Replace &lt;what you want to design&gt; before sending.</p></div>
+  </div></div>
+ <div><p class="tile-label"><b>Tooltip</b> — hover or focus on the button shows the whole sentence.</p>
+  <div style="position:relative;padding-top:92px">
+   <div class="tooltip" data-doan-id="fp-tooltip" style="position:absolute;left:30px;top:0">Use the doan skill to make a design canvas in /Users/alex/code/acme-web for &lt;what you want to design&gt;.</div>
+   <div class="side side-spec">
+    <div class="row"><span class="glyph">▾</span><span class="g">acme-web</span><span class="close-project">×</span></div>
+    <div class="hint"><p>No canvases</p><div class="recovery"><button class="btn focus">Copy first prompt</button></div><p>Replace &lt;what you want to design&gt; before sending.</p></div>
+   </div></div></div>
+ <div><p class="tile-label"><b>Copying…</b></p>
+  <div class="side side-spec">
+   <div class="row"><span class="glyph">▾</span><span class="g">acme-web</span><span class="close-project">×</span></div>
+   <div class="hint"><p>No canvases</p><div class="recovery"><button class="btn" disabled data-doan-id="fp-copying">Copying…</button></div><p>Replace &lt;what you want to design&gt; before sending.</p></div>
+  </div></div>
+ <div><p class="tile-label"><b>Copied</b></p>
+  <div class="side side-spec">
+   <div class="row"><span class="glyph">▾</span><span class="g">acme-web</span><span class="close-project">×</span></div>
+   <div class="hint"><p>No canvases</p><div class="recovery"><button class="btn" data-doan-id="fp-copied">Copied</button></div><p>Replace &lt;what you want to design&gt; before sending.</p></div>
+  </div></div>
+ <div><p class="tile-label"><b>Retry copy</b> — the clipboard write failed.</p>
+  <div class="side side-spec">
+   <div class="row"><span class="glyph">▾</span><span class="g">acme-web</span><span class="close-project">×</span></div>
+   <div class="hint"><p>No canvases</p><div class="recovery"><button class="btn" data-doan-id="fp-retry">Retry copy</button></div><p data-doan-id="fp-failed">Couldn’t copy. Your clipboard could not be updated. Try again.</p></div>
+  </div></div>
+ <div><p class="tile-label"><b>Long path in the tooltip</b> — the tooltip wraps at 420 px.</p>
+  <div class="tooltip" data-doan-id="fp-tooltip-long">Use the doan skill to make a design canvas in /Users/alex/Library/Mobile Documents/com~apple~CloudDocs/Clients/Acme Corporation/2026 Q4 account settings redesign/web-app for &lt;what you want to design&gt;.</div></div>
+</div>
+<p class="note">Draft decision (accepted 2026-10-24): the 420 px tooltip maximum width (the shipped tooltip has no maximum, and a full sentence with a long path would otherwise run past the window).</p>
+</section>
+
+</body>
+</html>

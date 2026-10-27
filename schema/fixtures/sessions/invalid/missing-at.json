@@ -2,7 +2,7 @@
   "v": 1,
   "root": "/work/project",
   "canvas": {
-    "path": "doan/home.html",
+    "path": ".doan/canvases/home.html",
     "id": "home"
   },
   "hash": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",

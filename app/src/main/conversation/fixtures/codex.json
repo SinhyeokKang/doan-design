@@ -47,7 +47,7 @@
         "id": "id-2",
         "changes": [
           {
-            "path": "/repo/doan/home.html",
+            "path": "/repo/.doan/canvases/home.html",
             "kind": {
               "type": "add"
             },

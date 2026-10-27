@@ -20,7 +20,7 @@ function fixture(kind?: "pass" | "fail") {
   return createContext({ repo, agent: "fixture", transcript: "", cli, env: process.env, seedCommit: "HEAD" });
 }
 function label(ctx: ReturnType<typeof fixture>, html: string) {
-  writeFileSync(join(ctx.repo, "doan/profile.html"), ctx.read("doan/profile.html")!.replace(/<button data-doan-id="save">[^<]*<\/button>/, `<button data-doan-id="save">${html}</button>`));
+  writeFileSync(join(ctx.repo, ".doan/canvases/profile.html"), ctx.read(".doan/canvases/profile.html")!.replace(/<button data-doan-id="save">[^<]*<\/button>/, `<button data-doan-id="save">${html}</button>`));
 }
 
 test("R6b seed: the reopened agent change already satisfies the body on its face", () => {
@@ -42,7 +42,7 @@ test("R6b seed: the reopened agent change already satisfies the body on its face
   // The reopen carries no body and no edit precedes it, so the body is the create-time request.
   assert.equal(events[0].body, "The Save button label is too vague. Make it more descriptive.");
   assert.equal(comment.body, events[0].body);
-  const current = ctx.read("doan/profile.html")!;
+  const current = ctx.read(".doan/canvases/profile.html")!;
   assert.match(current, />Save changes<\/button>/);
   const original = current.replace(">Save changes</button>", ">Save</button>");
   assert.equal(events[0].canvasHash, `sha256:${createHash("sha256").update(original).digest("hex")}`);

@@ -17,7 +17,7 @@ afterEach(() => { hooks.open = undefined; hooks.truncate = false; hooks.beforeWr
 describe("conversation disk boundaries", () => {
   it("reads only complete bounded session tail rows and rejects final links", () => {
     const root = temp(); const path = join(root, "sessions.jsonl");
-    const row = { v: 1, at: "2026-10-27T00:00:00.000Z", root: "/repo", canvas: { path: "doan/a.html" }, hash: `sha256:${"a".repeat(64)}`, runtime: "claude", sessionId: "s", cwd: "/repo", configDir: "/profile" };
+    const row = { v: 1, at: "2026-10-27T00:00:00.000Z", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, hash: `sha256:${"a".repeat(64)}`, runtime: "claude", sessionId: "s", cwd: "/repo", configDir: "/profile" };
     writeFileSync(path, `${"x".repeat(1024 * 1024)}\n${JSON.stringify(row)}\n${JSON.stringify({ ...row, sessionId: "partial" })}`);
     expect(readSessionTail(root).map(r => r.sessionId)).toEqual(["s"]);
     rmSync(path); const outside = join(temp(), "outside"); writeFileSync(outside, JSON.stringify(row) + "\n"); symlinkSync(outside, path);
@@ -25,7 +25,7 @@ describe("conversation disk boundaries", () => {
   });
   it("persists ordered validated events and rejects traversal, links and corrupt event shapes", () => {
     const root = temp(); const store = new ConversationStore(root);
-    const metadata = { conversationId: "conversation-1", root: "/repo", canvas: { path: "doan/a.html" }, title: "Title", state: "current" as const, session: { runtime: "claude" as const, origin: "new" as const, sessionId: "session-1", cwd: "/repo", configDir: "/profile" } };
+    const metadata = { conversationId: "conversation-1", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "Title", state: "current" as const, session: { runtime: "claude" as const, origin: "new" as const, sessionId: "session-1", cwd: "/repo", configDir: "/profile" } };
     store.save([metadata]);
     expect(store.append(metadata.conversationId, "turn-1", { type: "turn.started" }).seq).toBe(1);
     expect(store.append(metadata.conversationId, "turn-1", { type: "message.delta", messageId: "m", text: "hello" }).seq).toBe(2);

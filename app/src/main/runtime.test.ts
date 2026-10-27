@@ -12,7 +12,7 @@ const TOKEN = "a".repeat(64);
 const ROOT = "/Users/sam/code/app";
 const SELECTION: Selection = {
   root: ROOT,
-  canvas: { path: "doan/settings.html", id: "settings" },
+  canvas: { path: ".doan/canvases/settings.html", id: "settings" },
   frame: { id: "hero" },
   element: { selector: "[data-doan-frame=\"hero\"] > button:nth-of-type(1)", html: "<button>Save</button>", text: "Save" },
 };

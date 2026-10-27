@@ -1,7 +1,7 @@
 import type { Comment } from "../formats/types";
 
 // A line's words around the name, so the card can set the name apart
-// (doan/revision-recheck.html, resolution-meta). `at` goes in `title`.
+// (.doan/canvases/revision-recheck.html, resolution-meta). `at` goes in `title`.
 export interface NamedLine { lead: string; name: string; tail: string; at?: string }
 
 // Code-unit order, not locale order: timestamps share one fixed pattern, so

@@ -30,7 +30,7 @@ export function movedKey(key: string, from: string, to: string): string {
 export function moveExpanded(paths: readonly string[], from: string, to: string): string[] {
   const next = new Set(paths.filter(path => path !== from));
   const parts = to.split("/");
-  for (let i = 1; i < parts.length; i++) next.add(parts.slice(0, i).join("/"));
+  for (let i = 2; i < parts.length; i++) next.add(parts.slice(0, i).join("/"));
   if (paths.includes(from)) next.add(to);
   return [...next];
 }
@@ -67,7 +67,7 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
     setFollowed(moved);
     if (moved?.root === root) setFocused(key => movedKey(key, moved.from, moved.to));
   }
-  const nodes = buildCanvasTree(canvases).flatMap(node => node.kind === "folder" && node.key === "doan" ? node.children : [node]);
+  const nodes = buildCanvasTree(canvases).flatMap(node => node.kind === "folder" && node.key === ".doan/canvases" ? node.children : [node]);
   const defaults: string[] = [];
   const folders = (nodes: TreeNode[]) => { for (const node of nodes) if (node.kind === "folder") { defaults.push(node.key); folders(node.children); } };
   folders(nodes);
@@ -92,7 +92,7 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
     const same = move?.root === root && move.to === opened;
     const next = new Set(saved?.[root] ?? memory[root] ?? defaults);
     const parts = opened.split("/");
-    for (let i = 1; i <= parts.length - (same ? 1 : 0); i++) next.add(parts.slice(0, i).join("/"));
+    for (let i = 2; i <= parts.length - (same ? 1 : 0); i++) next.add(parts.slice(0, i).join("/"));
     change(next);
   }, [root, opened]);
 
@@ -209,7 +209,7 @@ export function Sidebar({ entries, state, open, jump, select, overview, expanded
         </div>;
         const empty = node.kind === "canvas" && !node.row.error && row.expanded && !(opened === node.key && state.layout ? state.layout.frames.length : node.row.frames?.length);
         return <div key={row.key} role="none">
-          {node.kind === "canvas" ? <Tooltip><TooltipTrigger asChild>{content}</TooltipTrigger><TooltipContent>{node.row.path.replace(/^doan\//, "")}</TooltipContent></Tooltip> : content}
+          {node.kind === "canvas" ? <Tooltip><TooltipTrigger asChild>{content}</TooltipTrigger><TooltipContent>{node.row.path.replace(/^\.doan\/canvases\//, "")}</TooltipContent></Tooltip> : content}
           {problem && <ErrorDetails className="btn" detail={problem.detail}>{(button, detail) => <>
             <p className="tree-hint warn" id={commentId} style={{ paddingLeft: 18 + row.level * 14 }}>{problem.sentence}<br />{button}</p>
             {detail && <p className="tree-detail" style={{ marginLeft: 18 + row.level * 14 }}>{detail}</p>}

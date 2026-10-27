@@ -3,7 +3,7 @@ import { collapseBox, colorHex, inspectRows, longhandSource, type CdpProperty, t
 import fixture from "./inspect.fixture.json";
 
 // inspect.fixture.json is real CDP output (Electron 45, Chrome 156) for the
-// PoC 2 cases page (`.scratch/poc2-inspect/repo/doan/cases.html` and
+// PoC 2 cases page (`.scratch/poc2-inspect/repo/.doan/canvases/cases.html` and
 // `cases.css`), trimmed to the inspected properties. The expected states below
 // are PoC 2's hand-written ground truth (`cases.mjs` EXPECT); "#c9:hover" and
 // "#c9c:hover" were captured with the pointer over the element.

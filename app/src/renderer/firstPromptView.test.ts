@@ -75,16 +75,16 @@ describe("waitEvent", () => {
     expect(waitEvent({ kind: "idle" }, [])).toBeNull();
   });
   test("a waiting root that is listed reports its canvas rows", () => {
-    const entries = [list("/other", ["doan/x.html"]), list("/code/acme", ["doan/a.html", "doan/b.html"])];
+    const entries = [list("/other", [".doan/canvases/x.html"]), list("/code/acme", [".doan/canvases/a.html", ".doan/canvases/b.html"])];
     expect(waitEvent({ kind: "waiting", root: "/code/acme", knownPaths: [] }, entries)).toEqual({ type: "listed", root: "/code/acme", rows: (entries[1] as { canvases: unknown }).canvases });
   });
   test("a waiting root that is no longer stored is removed, also after arrival", () => {
     expect(waitEvent({ kind: "waiting", root: "/code/acme", knownPaths: [] }, [list("/other", [])])).toEqual({ type: "removed", root: "/code/acme" });
-    expect(waitEvent({ kind: "arrived", root: "/code/acme", path: "doan/a.html" }, [])).toEqual({ type: "removed", root: "/code/acme" });
+    expect(waitEvent({ kind: "arrived", root: "/code/acme", path: ".doan/canvases/a.html" }, [])).toEqual({ type: "removed", root: "/code/acme" });
   });
   test("a stored root that is reading or failed keeps waiting; an arrival is not re-listed", () => {
     expect(waitEvent({ kind: "waiting", root: "/code/acme", knownPaths: [] }, [{ path: "/code/acme", kind: "loading" }])).toBeNull();
     expect(waitEvent({ kind: "waiting", root: "/code/acme", knownPaths: [] }, [{ path: "/code/acme", kind: "error", message: "x" }])).toBeNull();
-    expect(waitEvent({ kind: "arrived", root: "/code/acme", path: "doan/a.html" }, [list("/code/acme", ["doan/a.html"])])).toBeNull();
+    expect(waitEvent({ kind: "arrived", root: "/code/acme", path: ".doan/canvases/a.html" }, [list("/code/acme", [".doan/canvases/a.html"])])).toBeNull();
   });
 });

@@ -46,7 +46,7 @@ describe("FirstPromptView", () => {
   });
 
   test("waiting replaces the helper with the status; editing the subject reads Copy again", () => {
-    const wait = '<span class="fp-wait" role="status"><span class="spinner doan-spinner" aria-hidden="true"></span>Waiting for a canvas in doan/…</span><span class="spacer"></span>';
+    const wait = '<span class="fp-wait" role="status"><span class="spinner doan-spinner" aria-hidden="true"></span>Waiting for a canvas in .doan/canvases/…</span><span class="spacer"></span>';
     const waiting = render({ subject: "x", sentence: sentence("x"), copy: "copied", copiedSubject: "x", waiting: true });
     expect(waiting).toContain(`<div class="ob-actions">${wait}<button type="button" class="btn primary doan-button" data-ui-variant="prominent">Copied</button></div>`);
     expect(waiting).not.toContain("ob-helper");

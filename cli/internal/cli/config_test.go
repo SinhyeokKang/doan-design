@@ -48,7 +48,7 @@ func TestConfigReadAndWrites(t *testing.T) {
 		t.Fatal(got, st, err)
 	}
 	entries, err := os.ReadDir(filepath.Dir(path))
-	if err != nil || len(entries) != 1 {
+	if err != nil || len(entries) != 2 {
 		t.Fatal(entries, err)
 	}
 }
@@ -92,7 +92,7 @@ func TestConfigInvalidInputsDoNotWrite(t *testing.T) {
 	for _, args := range [][]string{
 		{"--token-css", filepath.Join(other, "outside.css")},
 		{"--token-css", filepath.Join(root, "missing.css")},
-		{"--token-css", filepath.Join(root, "doan")},
+		{"--token-css", filepath.Join(root, ".doan/canvases")},
 		{"--token-css", filepath.Join(root, "escape/outside.css")},
 		{"--token-css", ""},
 		{"--token-css", filepath.Join(root, "tokens.css"), "--clear-token-css"},

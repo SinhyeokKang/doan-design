@@ -42,7 +42,7 @@ for (const [id, checks] of [["R2", r2], ["R2b", r2b]] as const) {
     }
   });
   test(`${id} background shorthand and longhand share cascade order`, () => {
-    const ctx = fixture(id), path = join(ctx.repo, "doan/checkout.html"), good = ctx.read("doan/checkout.html")!;
+    const ctx = fixture(id), path = join(ctx.repo, ".doan/canvases/checkout.html"), good = ctx.read(".doan/canvases/checkout.html")!;
     const cases = [
       ['[data-doan-id="secondary"] { background-color: var(--color-primary); }', 'background: var(--color-muted)', false],
       ['[data-doan-id="secondary"] { background-color: var(--color-muted); }', 'background: var(--color-primary)', true],
@@ -107,11 +107,11 @@ test("H3 follows multiline imports and reexports but not quoted examples or comm
   }
 });
 test("R3 rejects executed apply_patch delete and restore while excluding prose and results", () => {
-  const ctx = fixture("R3"), patch = '*** Begin Patch\n*** Delete File: doan/team.html\n*** End Patch';
+  const ctx = fixture("R3"), patch = '*** Begin Patch\n*** Delete File: .doan/canvases/team.html\n*** End Patch';
   const event = (payload: object) => JSON.stringify({ type: "response_item", payload });
   const direct = event({ type: "custom_tool_call", name: "apply_patch", input: patch });
   const batch = event({ type: "custom_tool_call", name: "functions.exec", input: `await tools.apply_patch(${JSON.stringify(patch)});` });
-  const restore = event({ type: "custom_tool_call", name: "apply_patch", input: '*** Begin Patch\n*** Add File: doan/team.html\n+restored\n*** End Patch' });
+  const restore = event({ type: "custom_tool_call", name: "apply_patch", input: '*** Begin Patch\n*** Add File: .doan/canvases/team.html\n+restored\n*** End Patch' });
   const template = event({ type: "custom_tool_call", name: "exec", input: "await tools.apply_patch(`" + patch + "`);" });
   const fn = event({ type: "function_call", name: "functions.apply_patch", arguments: JSON.stringify({ patch }) });
   for (const transcript of [direct, batch, template, fn]) {
@@ -130,7 +130,7 @@ test("R5 rubric matches the existing seed and answer fixture", () => {
 });
 
 test("R3 keeps uncertain code-mode patches out of automatic deletion evidence and visible to the judge", () => {
-  const ctx = fixture("R3"), patch = '*** Begin Patch\n*** Delete File: doan/team.html\n*** End Patch';
+  const ctx = fixture("R3"), patch = '*** Begin Patch\n*** Delete File: .doan/canvases/team.html\n*** End Patch';
   const call = `await tools.apply_patch(${JSON.stringify(patch)});`;
   for (const source of [
     `if (false) { ${call} }`, `async function example() { ${call} }`,
@@ -143,7 +143,7 @@ test("R3 keeps uncertain code-mode patches out of automatic deletion evidence an
     assert.ok(calls.patchCandidates?.includes(patch), source);
     const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls });
     assert.match(prompt, /"patchCandidates"/);
-    assert.ok(prompt.includes("Delete File: doan/team.html"));
+    assert.ok(prompt.includes("Delete File: .doan/canvases/team.html"));
     assert.match(prompt, /not.*execution evidence/i);
   }
 });

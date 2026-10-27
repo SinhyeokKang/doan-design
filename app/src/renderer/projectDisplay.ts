@@ -11,5 +11,5 @@ export function commentContext(entries: FolderEntry[], root: string, path: strin
   const card = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : []))).find(card => card.rows.some(row => row.path === root));
   const entry = entries.find(entry => entry.path === root);
   const branch = entry && cardRow(entry, null, null).summary?.branch;
-  return `${card?.name ?? root.split("/").at(-1)}${branch ? ` (${branch})` : ""} › ${path.replace(/^doan\//, "")}`;
+  return `${card?.name ?? root.split("/").at(-1)}${branch ? ` (${branch})` : ""} › ${path.replace(/^\.doan\/canvases\//, "")}`;
 }

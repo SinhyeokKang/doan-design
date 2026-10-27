@@ -28,7 +28,7 @@ function activity(tool: string, input: Record<string, unknown>, root: string): E
   const kind = /^(Write|Edit|MultiEdit|fileChange)$/.test(tool) ? "edit" : /^(Read|Glob|Grep)$/.test(tool) ? "read" : /^(Bash|commandExecution)$/.test(tool) ? "command" : "other";
   if (!path) return { type: "activity", kind, summary: tool };
   const resolved = posix.resolve(root, path);
-  return { type: "activity", kind, path, insideDesign: insideRoot(posix.join(root, "doan"), resolved), summary: tool };
+  return { type: "activity", kind, path, insideDesign: insideRoot(posix.join(root, ".doan/canvases"), resolved), summary: tool };
 }
 export function normalizeClaude(state: TransportState, raw: unknown, root: string): TransportResult {
   if (state.terminal || !object(raw) || raw.parent_tool_use_id) return unchanged(state);

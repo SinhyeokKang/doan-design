@@ -18,10 +18,10 @@ function fixture() {
   const service = new ConversationService(store, prepare, open, () => {});
   return { service, store, runners, exits, prepare, open, hold: () => { hold = () => {}; }, release: () => hold?.() };
 }
-const request = { root: "/repo", mode: "resume" as const, canvas: { path: "doan/a.html" }, text: "hello", anchors: [] };
+const request = { root: "/repo", mode: "resume" as const, canvas: { path: ".doan/canvases/a.html" }, text: "hello", anchors: [] };
 it("reserves pending sessions across canvases before opening and leaves rejected starts untouched", async () => {
   const h = fixture(); h.hold(); const first = h.service.start(request); await vi.waitFor(() => expect(h.open).toHaveBeenCalledOnce());
-  await expect(h.service.start({ ...request, canvas: { path: "doan/b.html" } })).rejects.toThrow("session_in_use");
+  await expect(h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } })).rejects.toThrow("session_in_use");
   expect(h.store.list()).toEqual([]); h.release(); const id = (await first).conversationId;
   expect(h.store.read(id).map(e => e.type)).toEqual(["user.message", "turn.started"]);
   await expect(h.service.send(id, "second", [])).rejects.toThrow("busy");
@@ -30,8 +30,8 @@ it("retains idle Codex ownership until confirmed exit and reuses only the owning
   const h = fixture(); const id = (await h.service.start(request)).conversationId;
   h.service.receive(id, { type: "turn.done" }); await h.service.send(id, "again", []);
   expect(h.open).toHaveBeenCalledOnce(); expect(h.runners[0]?.send).toHaveBeenCalledTimes(2);
-  await h.service.interrupt(id); await expect(h.service.start({ ...request, canvas: { path: "doan/b.html" } })).rejects.toThrow("session_in_use");
-  h.exits[0]?.(); await h.service.start({ ...request, canvas: { path: "doan/b.html" } });
+  await h.service.interrupt(id); await expect(h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } })).rejects.toThrow("session_in_use");
+  h.exits[0]?.(); await h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } });
 });
 it("keeps archived history read-only and persists quit interruption synchronously", async () => {
   const h = fixture(); const id = (await h.service.start(request)).conversationId;
@@ -48,7 +48,7 @@ it("refuses acceptance when the owned process exits during opening", async () =>
 it("keeps different sessions independent", async () => {
   const h = fixture(); const first = await h.service.start(request); h.service.receive(first.conversationId, { type: "turn.done" });
   h.prepare.mockResolvedValueOnce({ runtime: "codex", configDir: "/profile", cwd: "/repo", sessionId: "other-session", command: "/fake", env: {} });
-  await h.service.start({ ...request, canvas: { path: "doan/b.html" } });
+  await h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } });
   expect(h.store.list()).toHaveLength(2);
 });
 it("does not archive or log a start whose new session ID collides with another owner", async () => {
@@ -127,26 +127,26 @@ it.each(["corrupt", "archive", "new-log", "index", "prompt"])("preserves prior c
 });
 
 it("refreshes a moved stable canvas before preparation and send acceptance", async () => {
-  const h = fixture(); let listed = { id: "a", path: "doan/a.html" };
+  const h = fixture(); let listed = { id: "a", path: ".doan/canvases/a.html" };
   const service = new ConversationService(h.store, h.prepare, h.open, () => {}, (_root, canvas) => {
     if (!canvas || canvas.id !== listed.id) throw new Error("canvas_not_found");
     return listed;
   });
   const id = (await service.start({ ...request, canvas: listed })).conversationId;
-  service.receive(id, { type: "turn.done" }); listed = { ...listed, path: "doan/moved.html" };
+  service.receive(id, { type: "turn.done" }); listed = { ...listed, path: ".doan/canvases/moved.html" };
   expect(service.forCanvas(request.root, listed).current?.canvas).toEqual(listed);
   await service.send(id, "continue", []);
   expect(h.prepare.mock.calls.at(-1)?.[0].canvas).toEqual(listed);
   expect(h.store.list()[0]?.canvas).toEqual(listed);
-  expect(h.runners[0]?.send).toHaveBeenLastCalledWith(expect.stringContaining("doan/moved.html"), expect.any(String));
+  expect(h.runners[0]?.send).toHaveBeenLastCalledWith(expect.stringContaining(".doan/canvases/moved.html"), expect.any(String));
 });
 
 it("resolves unique stable IDs and refuses missing, changed or ambiguous bindings", () => {
-  const original = { id: "a", path: "doan/a.html" };
-  expect(resolveListedCanvas(original, [{ id: "a", path: "doan/moved.html" }])).toEqual({ id: "a", path: "doan/moved.html" });
-  for (const rows of [[], [{ id: "b", path: original.path }], [original, { ...original, path: "doan/other.html" }]]) expect(() => resolveListedCanvas(original, rows)).toThrow("canvas_not_found");
+  const original = { id: "a", path: ".doan/canvases/a.html" };
+  expect(resolveListedCanvas(original, [{ id: "a", path: ".doan/canvases/moved.html" }])).toEqual({ id: "a", path: ".doan/canvases/moved.html" });
+  for (const rows of [[], [{ id: "b", path: original.path }], [original, { ...original, path: ".doan/canvases/other.html" }]]) expect(() => resolveListedCanvas(original, rows)).toThrow("canvas_not_found");
   expect(resolveListedCanvas({ path: original.path }, [original])).toEqual({ path: original.path });
-  expect(() => resolveListedCanvas({ path: original.path }, [{ id: "a", path: "doan/moved.html" }])).toThrow("canvas_not_found");
+  expect(() => resolveListedCanvas({ path: original.path }, [{ id: "a", path: ".doan/canvases/moved.html" }])).toThrow("canvas_not_found");
 });
 
 it("ignores a previous turn send rejection after the owning Codex runner starts another turn", async () => {

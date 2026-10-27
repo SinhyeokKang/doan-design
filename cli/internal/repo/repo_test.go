@@ -29,6 +29,9 @@ func real(t *testing.T, p string) string {
 }
 func link(t *testing.T, target, path string) {
 	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Symlink(target, path); err != nil {
 		t.Fatal(err)
 	}
@@ -36,12 +39,12 @@ func link(t *testing.T, target, path string) {
 func TestFind(t *testing.T) {
 	root := t.TempDir()
 	put(t, root, ".doan/config.json", `{"v":1,"tokenCss":"tokens.css"}`)
-	put(t, root, "doan/sub/file", "")
-	r, err := Find(filepath.Join(root, "doan/sub"), "")
+	put(t, root, ".doan/canvases/sub/file", "")
+	r, err := Find(filepath.Join(root, ".doan/canvases/sub"), "")
 	if err != nil || r.Root != real(t, root) || r.Config.TokenCSS != "tokens.css" {
 		t.Fatalf("%+v %v", r, err)
 	}
-	inner := filepath.Join(root, "doan")
+	inner := filepath.Join(root, ".doan/canvases")
 	if err := os.MkdirAll(filepath.Join(inner, ".doan"), 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +71,7 @@ func TestFind(t *testing.T) {
 	}
 	_, err = Find(inner, "")
 	expectCode(t, err, "invalid_config")
-	for _, p := range []string{"absent", "doan/sub/file", "doan/sub"} {
+	for _, p := range []string{"absent", ".doan/canvases/sub/file", ".doan/canvases/sub"} {
 		_, err = Find(root, p)
 		expectCode(t, err, "repo_not_found")
 	}
@@ -78,7 +81,7 @@ func TestFind(t *testing.T) {
 	}
 	alias := filepath.Join(t.TempDir(), "alias")
 	link(t, root, alias)
-	r, err = Find(filepath.Join(alias, "doan/sub"), alias)
+	r, err = Find(filepath.Join(alias, ".doan/canvases/sub"), alias)
 	if err != nil || r.Root != real(t, root) {
 		t.Fatalf("alias: %+v %v", r, err)
 	}
@@ -93,18 +96,18 @@ func expectCode(t *testing.T, err error, code string) {
 func TestResolve(t *testing.T) {
 	parent := real(t, t.TempDir())
 	root := filepath.Join(parent, "repo")
-	put(t, root, "doan/a.css", "")
+	put(t, root, ".doan/canvases/a.css", "")
 	put(t, parent, "repo2/out.css", "")
 	link(t, filepath.Join(parent, "repo2"), filepath.Join(root, "outside"))
 	link(t, "absent", filepath.Join(root, "broken"))
-	link(t, "doan/a.css", filepath.Join(root, "alias.css"))
+	link(t, ".doan/canvases/a.css", filepath.Join(root, "alias.css"))
 	for _, tt := range []struct {
 		base, p string
 		state   State
 		rel     string
 	}{
-		{root, "doan/a.css", Inside, "doan/a.css"}, {filepath.Join(root, "doan"), "../alias.css", Inside, "doan/a.css"},
-		{root, "../x", Outside, ""}, {root, filepath.Join(root, "doan/a.css"), Outside, ""}, {root, "outside/out.css", Outside, ""}, {root, "broken", Missing, ""}, {root, "absent", Missing, ""}, {root, "../repo2/out.css", Outside, ""}, {root, "doan", Inside, "doan"},
+		{root, ".doan/canvases/a.css", Inside, ".doan/canvases/a.css"}, {filepath.Join(root, ".doan/canvases"), "../../alias.css", Inside, ".doan/canvases/a.css"},
+		{root, "../x", Outside, ""}, {root, filepath.Join(root, ".doan/canvases/a.css"), Outside, ""}, {root, "outside/out.css", Outside, ""}, {root, "broken", Missing, ""}, {root, "absent", Missing, ""}, {root, "../repo2/out.css", Outside, ""}, {root, ".doan/canvases", Inside, ".doan/canvases"},
 	} {
 		state, rel, err := Resolve(root, tt.base, tt.p)
 		if err != nil || state != tt.state || rel != tt.rel {
@@ -113,8 +116,8 @@ func TestResolve(t *testing.T) {
 	}
 	alias := filepath.Join(parent, "alias")
 	link(t, root, alias)
-	state, rel, err := Resolve(alias, alias, "doan/a.css")
-	if err != nil || state != Inside || rel != "doan/a.css" {
+	state, rel, err := Resolve(alias, alias, ".doan/canvases/a.css")
+	if err != nil || state != Inside || rel != ".doan/canvases/a.css" {
 		t.Fatalf("aliased root: %s %s %v", state, rel, err)
 	}
 	link(t, "loop", filepath.Join(root, "loop"))
@@ -129,13 +132,13 @@ func TestCanvases(t *testing.T) {
 		t.Fatalf("empty: %v %v", got, err)
 	}
 	put(t, root, "design/old.html", "")
-	for _, p := range []string{"doan/z.HTML", "doan/a/x.html", "doan/.hidden.html", "doan/.hide/x.html", "doan/x.htm", "doan/x.css", "outside.html"} {
+	for _, p := range []string{".doan/canvases/z.HTML", ".doan/canvases/a/x.html", ".doan/canvases/.hidden.html", ".doan/canvases/.hide/x.html", ".doan/canvases/x.htm", ".doan/canvases/x.css", "outside.html"} {
 		put(t, root, p, "")
 	}
-	link(t, filepath.Join(root, "outside.html"), filepath.Join(root, "doan/link.html"))
-	link(t, filepath.Join(root, "doan/a"), filepath.Join(root, "doan/linked"))
+	link(t, filepath.Join(root, "outside.html"), filepath.Join(root, ".doan/canvases/link.html"))
+	link(t, filepath.Join(root, ".doan/canvases/a"), filepath.Join(root, ".doan/canvases/linked"))
 	got, err = Canvases(root)
-	want := []string{"doan/a/x.html", "doan/z.HTML"}
+	want := []string{".doan/canvases/a/x.html", ".doan/canvases/z.HTML"}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("%v %v", got, err)
 	}
@@ -157,7 +160,7 @@ func TestCommentFiles(t *testing.T) {
 	}
 }
 func TestEnumerationSkipsSymlinkRoots(t *testing.T) {
-	for _, path := range []string{"doan", ".doan/comments"} {
+	for _, path := range []string{".doan/canvases", ".doan/comments"} {
 		t.Run(path, func(t *testing.T) {
 			root := t.TempDir()
 			outside := t.TempDir()
@@ -167,7 +170,7 @@ func TestEnumerationSkipsSymlinkRoots(t *testing.T) {
 				t.Fatal(err)
 			}
 			link(t, outside, filepath.Join(root, path))
-			if path == "doan" {
+			if path == ".doan/canvases" {
 				got, err := Canvases(root)
 				if err != nil || len(got) != 0 {
 					t.Fatalf("%v %v", got, err)
@@ -208,15 +211,15 @@ func TestFindSkipsDoanRegularFile(t *testing.T) {
 
 func TestResolveUsesDiskSpelling(t *testing.T) {
 	root := real(t, t.TempDir())
-	put(t, root, "doan/a.css", "")
-	if _, err := os.Stat(filepath.Join(root, "DOAN/A.CSS")); os.IsNotExist(err) {
+	put(t, root, ".doan/canvases/a.css", "")
+	if _, err := os.Stat(filepath.Join(root, ".DOAN/CANVASES/A.CSS")); os.IsNotExist(err) {
 		t.Skip("temporary filesystem is case-sensitive")
 	} else if err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{"DOAN/A.CSS", "doan/A.css", "doan/a.css"} {
+	for _, p := range []string{".DOAN/CANVASES/A.CSS", ".doan/canvases/A.css", ".doan/canvases/a.css"} {
 		state, rel, err := Resolve(root, root, p)
-		if err != nil || state != Inside || rel != "doan/a.css" {
+		if err != nil || state != Inside || rel != ".doan/canvases/a.css" {
 			t.Errorf("%s: %s %q %v", p, state, rel, err)
 		}
 	}
@@ -236,14 +239,14 @@ func TestCommentFilesSkipsSymlinkedDoan(t *testing.T) {
 func TestFindReportsDiskSpelling(t *testing.T) {
 	root := filepath.Join(real(t, t.TempDir()), "Repo")
 	put(t, root, ".doan/config.json", `{"v":1}`)
-	put(t, root, "doan/sub/file", "")
+	put(t, root, ".doan/canvases/sub/file", "")
 	upper := strings.ToUpper(root)
 	if _, err := os.Stat(upper); os.IsNotExist(err) {
 		t.Skip("temporary filesystem is case-sensitive")
 	} else if err != nil {
 		t.Fatal(err)
 	}
-	for _, tt := range []struct{ start, flag string }{{upper, ""}, {filepath.Join(upper, "DOAN/SUB"), ""}, {"/", upper}, {upper, "DOAN/.."}} {
+	for _, tt := range []struct{ start, flag string }{{upper, ""}, {filepath.Join(upper, ".DOAN/CANVASES/SUB"), ""}, {"/", upper}, {upper, ".DOAN/CANVASES/../.."}} {
 		r, err := Find(tt.start, tt.flag)
 		if err != nil || r.Root != root {
 			t.Errorf("%+v: %q %v", tt, r.Root, err)

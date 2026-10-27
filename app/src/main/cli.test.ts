@@ -26,10 +26,10 @@ function dir(): string {
 
 function repo(canvases: Record<string, string> = { "a.html": "<!doctype html><title>A</title>" }): string {
   const root = dir();
-  mkdirSync(join(root, ".doan"));
+  mkdirSync(join(root, ".doan"), { recursive: true });
   writeFileSync(join(root, ".doan", "config.json"), '{"v":1}');
-  mkdirSync(join(root, "doan"));
-  for (const [name, html] of Object.entries(canvases)) writeFileSync(join(root, "doan", name), html);
+  mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+  for (const [name, html] of Object.entries(canvases)) writeFileSync(join(root, ".doan/canvases", name), html);
   return root;
 }
 
@@ -52,8 +52,8 @@ describe("readFolder with the real CLI", () => {
   test("lists a repo's canvases", async () => {
     const root = repo();
     const view = await readFolder(cli, root);
-    expect(view).toMatchObject({ kind: "list", root, scope: ["doan"] });
-    expect(view.kind === "list" && view.canvases).toEqual([expect.objectContaining({ path: "doan/a.html", title: "A" })]);
+    expect(view).toMatchObject({ kind: "list", root, scope: [".doan/canvases"] });
+    expect(view.kind === "list" && view.canvases).toEqual([expect.objectContaining({ path: ".doan/canvases/a.html", title: "A" })]);
   });
 
   test("reports a folder without config as uninitialized", async () => {
@@ -81,7 +81,7 @@ describe("readFolder with the real CLI", () => {
 describe("runLs", () => {
   test("from a subfolder without --repo reports the repo root", async () => {
     const root = repo();
-    const sub = join(root, "doan", "deep");
+    const sub = join(root, ".doan/canvases", "deep");
     mkdirSync(sub);
     const state = folderState(await runLs(cli, { cwd: sub }));
     expect(state).toMatchObject({ kind: "list", root });

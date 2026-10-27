@@ -8,9 +8,9 @@ test("a path inside a checkout or a doan project is refused", () => {
   const base = realpathSync(mkdtempSync("/tmp/doan-eval-test-"));
   try {
     mkdirSync(join(base, "outer/.git"), { recursive: true });
-    mkdirSync(join(base, "doan/.doan/x"), { recursive: true });
+    mkdirSync(join(base, "project/.doan/x"), { recursive: true });
     assert.equal(findCheckout(join(base, "outer/a/b")), join(base, "outer"));
-    assert.equal(findCheckout(join(base, "doan/.doan/x")), join(base, "doan"));
+    assert.equal(findCheckout(join(base, "project/.doan/x")), join(base, "project"));
     assert.throws(() => assertOutsideCheckout(join(base, "outer/a")));
     assert.throws(() => assertOutsideCheckout(import.meta.dirname));
     assert.equal(findCheckout(join(base, "free")), null);

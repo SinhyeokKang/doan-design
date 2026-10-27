@@ -3,16 +3,16 @@ import { expect, test } from "vitest";
 import { thumbnailGarbage, thumbnailKey, thumbnailStale, tokenSignature } from "./thumbnailCache";
 
 const tokenFiles = [
-  { path: "doan/tokens.css", mtimeMs: 10, size: 5 },
-  { path: "doan/theme.css", mtimeMs: 20, size: 7 },
+  { path: ".doan/canvases/tokens.css", mtimeMs: 10, size: 5 },
+  { path: ".doan/canvases/theme.css", mtimeMs: 20, size: 7 },
 ];
 const tokens = tokenSignature(tokenFiles);
 const meta = { mtimeMs: 1_000, size: 200, appVersion: "0.1.0", tokens };
 
 test("the key is sha256 of root, a newline and the canvas path", () => {
-  const expected = createHash("sha256").update("/repo/a\ndoan/x.html").digest("hex");
-  expect(thumbnailKey("/repo/a", "doan/x.html")).toBe(expected);
-  expect(thumbnailKey("/repo/a", "doan/x.html")).toMatch(/^[0-9a-f]{64}$/);
+  const expected = createHash("sha256").update("/repo/a\n.doan/canvases/x.html").digest("hex");
+  expect(thumbnailKey("/repo/a", ".doan/canvases/x.html")).toBe(expected);
+  expect(thumbnailKey("/repo/a", ".doan/canvases/x.html")).toMatch(/^[0-9a-f]{64}$/);
 });
 
 test("the newline keeps a root/path split from colliding with another", () => {
@@ -48,11 +48,11 @@ test("the token signature ignores file order and tracks path, mtime and size", (
   expect(tokenSignature([...tokenFiles].reverse())).toBe(tokens);
   expect(tokenSignature(tokenFiles)).toMatch(/^[0-9a-f]{64}$/);
   const [a, b] = tokenFiles as [typeof tokenFiles[0], typeof tokenFiles[0]];
-  for (const changed of [{ ...a, path: "doan/other.css" }, { ...a, mtimeMs: 11 }, { ...a, size: 6 }]) {
+  for (const changed of [{ ...a, path: ".doan/canvases/other.css" }, { ...a, mtimeMs: 11 }, { ...a, size: 6 }]) {
     expect(tokenSignature([changed, b])).not.toBe(tokens);
   }
   expect(tokenSignature([a])).not.toBe(tokens);
-  expect(tokenSignature([...tokenFiles, { path: "doan/extra.css", mtimeMs: 1, size: 1 }])).not.toBe(tokens);
+  expect(tokenSignature([...tokenFiles, { path: ".doan/canvases/extra.css", mtimeMs: 1, size: 1 }])).not.toBe(tokens);
 });
 
 test("a folder without token files has a stable signature of its own", () => {

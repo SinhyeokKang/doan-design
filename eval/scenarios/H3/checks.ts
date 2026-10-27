@@ -72,7 +72,7 @@ const checks: Checks = ctx => {
     { id: "canvas_copy_in_component", pass: missing.length === 0, detail: `missing static copy: ${missing.join(", ") || "none"}` },
     { id: "uses_shared_tokens", pass: /var\(\s*--color-[\w-]+\s*[,)]/.test(reachable) && (ctx.read("web/src/App.tsx") ?? "").includes("./tokens.css"), detail: `component imports inspected: ${[...seen].join(", ")}` },
     { id: "no_new_direct_colors", pass: direct.length === 0, detail: `new hex/rgb literals: ${direct.join(", ") || "none"}` },
-    { id: "design_and_review_unchanged", pass: !changed.some(p => p.startsWith("doan/") || p.startsWith(".doan/")), detail: `changed protected paths: ${changed.filter(p => p.startsWith("doan/") || p.startsWith(".doan/")).join(", ") || "none"}` },
+    { id: "design_and_review_unchanged", pass: !changed.some(p => p.startsWith(".doan/canvases/") || p.startsWith(".doan/")), detail: `changed protected paths: ${changed.filter(p => p.startsWith(".doan/canvases/") || p.startsWith(".doan/")).join(", ") || "none"}` },
     { id: "doan_check_clean", pass: check.code === 0 && check.json?.result?.summary?.errors === 0, detail: JSON.stringify(check.json?.result?.summary) },
   ];
 };

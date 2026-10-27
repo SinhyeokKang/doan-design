@@ -5,7 +5,7 @@ import { movedKey, moveExpanded, Sidebar } from "./Sidebar";
 import type { CanvasRow } from "../main/view";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-const row: CanvasRow = { path: "doan/billing/plans.html", title: "Billing & plans", url: "u", open: 0, resolved: 0, frames: [{ id: "static" }] };
+const row: CanvasRow = { path: ".doan/canvases/billing/plans.html", title: "Billing & plans", url: "u", open: 0, resolved: 0, frames: [{ id: "static" }] };
 const layout = { type: "layout" as const, href: "u", height: 100, viewport: 100, truncated: false, frames: [{ id: "intro", title: "Introduction", x: 0, y: 0, width: 1, height: 1 }, { id: "hero", x: 0, y: 0, width: 1, height: 1 }] };
 const opened = (): CanvasState => ({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, layout, currentFrame: 0, selection: { tag: "button", frame: { id: "hero" }, frameIndex: 1, path: [] } });
 const sidebar = (state = initialCanvasState(), canvas = row) => renderToStaticMarkup(<TooltipProvider><Sidebar entries={[{ path: "/repo", kind: "list", servedRev: 0, canvases: [canvas] }]} state={state} open={() => {}} jump={() => {}} select={() => {}} overview={() => {}} /></TooltipProvider>);
@@ -71,23 +71,23 @@ test("the selected element's row sits at the draft's 74px under a level-3 frame"
 
 test("a frame without id or title is dimmed as the shipped (no id) label", () => {
   const canvas = { ...row, frames: [{ id: "" }, { id: "named" }] };
-  const html = renderToStaticMarkup(<TooltipProvider><Sidebar entries={[{ path: "/repo", kind: "list", servedRev: 0, canvases: [canvas] }]} state={initialCanvasState()} expanded={{ "/repo": ["doan/billing", canvas.path] }} open={() => {}} jump={() => {}} select={() => {}} overview={() => {}} /></TooltipProvider>);
+  const html = renderToStaticMarkup(<TooltipProvider><Sidebar entries={[{ path: "/repo", kind: "list", servedRev: 0, canvases: [canvas] }]} state={initialCanvasState()} expanded={{ "/repo": [".doan/canvases/billing", canvas.path] }} open={() => {}} jump={() => {}} select={() => {}} overview={() => {}} /></TooltipProvider>);
   expect(html).toContain('<span class="g no-id">(no id)</span>');
   expect(html).toContain('<span class="g">named</span>');
 });
 
 test("a move carries the canvas row and its frame rows to the new path", () => {
-  expect(movedKey("doan/a.html", "doan/a.html", "doan/flows/a.html")).toBe("doan/flows/a.html");
-  expect(movedKey("doan/a.html\n1", "doan/a.html", "doan/flows/a.html")).toBe("doan/flows/a.html\n1");
-  expect(movedKey("doan/a.html.bak", "doan/a.html", "doan/flows/a.html")).toBe("doan/a.html.bak");
-  expect(movedKey("overview", "doan/a.html", "doan/flows/a.html")).toBe("overview");
+  expect(movedKey(".doan/canvases/a.html", ".doan/canvases/a.html", ".doan/canvases/flows/a.html")).toBe(".doan/canvases/flows/a.html");
+  expect(movedKey(".doan/canvases/a.html\n1", ".doan/canvases/a.html", ".doan/canvases/flows/a.html")).toBe(".doan/canvases/flows/a.html\n1");
+  expect(movedKey(".doan/canvases/a.html.bak", ".doan/canvases/a.html", ".doan/canvases/flows/a.html")).toBe(".doan/canvases/a.html.bak");
+  expect(movedKey("overview", ".doan/canvases/a.html", ".doan/canvases/flows/a.html")).toBe("overview");
 });
 
 test("a move into another folder expands the new ancestors and moves the canvas row's expansion", () => {
-  expect(moveExpanded(["doan/old", "doan/old/a.html"], "doan/old/a.html", "doan/flows/sub/a.html"))
-    .toEqual(["doan/old", "doan", "doan/flows", "doan/flows/sub", "doan/flows/sub/a.html"]);
-  expect(moveExpanded(["doan/old"], "doan/old/a.html", "doan/flows/a.html")).toEqual(["doan/old", "doan", "doan/flows"]);
-  const canvas = { ...row, path: "doan/flows/sub/a.html", title: "Moved" };
+  expect(moveExpanded([".doan/canvases/old", ".doan/canvases/old/a.html"], ".doan/canvases/old/a.html", ".doan/canvases/flows/sub/a.html"))
+    .toEqual([".doan/canvases/old", ".doan/canvases", ".doan/canvases/flows", ".doan/canvases/flows/sub", ".doan/canvases/flows/sub/a.html"]);
+  expect(moveExpanded([".doan/canvases/old"], ".doan/canvases/old/a.html", ".doan/canvases/flows/a.html")).toEqual([".doan/canvases/old", ".doan/canvases", ".doan/canvases/flows"]);
+  const canvas = { ...row, path: ".doan/canvases/flows/sub/a.html", title: "Moved" };
   const html = renderToStaticMarkup(<TooltipProvider><Sidebar entries={[{ path: "/repo", kind: "list", servedRev: 0, canvases: [canvas] }]} state={initialCanvasState()} expanded={{ "/repo": moveExpanded([row.path], row.path, canvas.path) }} open={() => {}} jump={() => {}} select={() => {}} overview={() => {}} /></TooltipProvider>);
   expect(html).toMatch(/aria-label="flows"[^>]*aria-expanded="true"/);
   expect(html).toMatch(/aria-label="sub"[^>]*aria-expanded="true"/);
@@ -108,9 +108,9 @@ test("a row whose comment file could not be read shows the warning and the comme
 });
 
 test("a row whose canvas file could not be read shows the canvas sentence and no frame hint", () => {
-  const unreadable: CanvasRow = { path: "doan/legacy.html", url: "u", open: 0, resolved: 0, frames: [], error: { code: "unreadable_canvas", message: "Cannot read doan/legacy.html: permission denied" } };
+  const unreadable: CanvasRow = { path: ".doan/canvases/legacy.html", url: "u", open: 0, resolved: 0, frames: [], error: { code: "unreadable_canvas", message: "Cannot read .doan/canvases/legacy.html: permission denied" } };
   const state = { ...initialCanvasState() };
-  const html = renderToStaticMarkup(<TooltipProvider><Sidebar entries={[{ path: "/repo", kind: "list", servedRev: 0, canvases: [unreadable] }]} state={state} expanded={{ "/repo": ["doan/legacy.html"] }} open={() => {}} jump={() => {}} select={() => {}} overview={() => {}} /></TooltipProvider>);
+  const html = renderToStaticMarkup(<TooltipProvider><Sidebar entries={[{ path: "/repo", kind: "list", servedRev: 0, canvases: [unreadable] }]} state={state} expanded={{ "/repo": [".doan/canvases/legacy.html"] }} open={() => {}} jump={() => {}} select={() => {}} overview={() => {}} /></TooltipProvider>);
   // A root-level row: the sentence is indented one level less.
   expect(html).toContain('style="padding-left:32px">Can&#x27;t read this canvas — run doan check<br/>');
   expect(html).toMatch(/aria-label="legacy"[^>]*aria-describedby=/);
