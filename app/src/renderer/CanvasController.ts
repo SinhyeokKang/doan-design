@@ -485,6 +485,10 @@ export class CanvasController {
     if (!active) this.cancelWorkspaceOpen();
   }
 
+  destination(root: string): { root: string; canvas?: string } {
+    return this.state.open?.folder === root ? { root, canvas: this.state.open.canvas } : { root };
+  }
+
   cancelWorkspaceOpen(): void { this.waitingWorkspace = null; this.transitionIntent++; }
 
   // A project added a moment ago is still being read when its "Added" toast
@@ -492,23 +496,23 @@ export class CanvasController {
   // Any later transition bumps `transitionIntent` and so supersedes the wait.
   private waitingWorkspace: { folder: string; intent: number; open: () => void; unavailable: boolean } | null = null;
 
-  openWorkspace(folder: string, entered: (folder: string) => void, sameCanvas = false, unavailable?: (entry: FolderEntry | undefined) => void): void {
+  openWorkspace(folder: string, entered: (folder: string) => void, sameCanvas = false, unavailable?: (entry: FolderEntry | undefined) => void, overview = false): void {
     const kind = () => this.entries.find(entry => entry.path === folder)?.kind;
     this.transition(() => {
       this.waitingWorkspace = null;
-      const open = () => { if (kind() === "list") this.enterWorkspace(folder, entered, sameCanvas); else unavailable?.(this.entries.find(entry => entry.path === folder)); };
+      const open = () => { if (kind() === "list") this.enterWorkspace(folder, entered, sameCanvas, overview); else unavailable?.(this.entries.find(entry => entry.path === folder)); };
       if (kind() === "loading") this.waitingWorkspace = { folder, intent: this.transitionIntent, open, unavailable: !!unavailable };
       else open();
     }, () => kind() === "list" || kind() === "loading" || !!unavailable);
   }
 
-  private enterWorkspace(folder: string, entered: (folder: string) => void, sameCanvas: boolean): void {
+  private enterWorkspace(folder: string, entered: (folder: string) => void, sameCanvas: boolean, overview: boolean): void {
     const entry = this.entries.find(entry => entry.path === folder);
     if (entry?.kind !== "list") return;
     const open = this.state.open;
     if (open) this.workspaceMemory.set(open.folder, { path: open.canvas, view: { ...this.view } });
     const remembered = this.workspaceMemory.get(folder);
-    const row = switchTarget(sameCanvas ? open?.row.id : undefined, entry.canvases, remembered?.path);
+    const row = overview ? undefined : switchTarget(sameCanvas ? open?.row.id : undefined, entry.canvases, remembered?.path);
     if (row) {
       this.openCanvasNow(folder, row);
       if (remembered?.path === row.path) { this.view = { ...remembered.view }; this.applyView(); }
@@ -522,7 +526,7 @@ export class CanvasController {
 
   // `shown`: told once the Overview is on screen, which a draft guard may refuse.
   showOverview(shown?: () => void): void {
-    if (!this.state.open) { shown?.(); return; }
+    if (!this.state.open) { this.cancelWorkspaceOpen(); shown?.(); return; }
     this.transition(() => {
       this.dropFrame();
       this.state = { ...initialCanvasState(), activity: this.state.activity };
@@ -534,6 +538,7 @@ export class CanvasController {
   // `opened`: told once the canvas is the open one, which a draft guard may refuse.
   openCanvas(folder: string, row: CanvasRow, frameId?: string, target?: { index?: number; found?: (found: boolean) => void; unavailable?: (entry: FolderEntry | undefined) => void; opened?: () => void }): void {
     if (this.state.open?.folder === folder && this.state.shown === row.path) {
+      this.cancelWorkspaceOpen();
       target?.opened?.();
       if (frameId !== undefined) {
         const frames = this.state.layout?.frames ?? [];
@@ -561,6 +566,8 @@ export class CanvasController {
   }
 
   private openCanvasNow(folder: string, row: CanvasRow): void {
+    const previous = this.state.open;
+    if (previous && previous.folder !== folder) this.workspaceMemory.set(previous.folder, { path: previous.canvas, view: { ...this.view } });
     this.state.open = { folder, canvas: row.path, row };
     this.state.shown = row.path;
     this.state.error = "";
