@@ -50,7 +50,7 @@ const checks: Checks = ctx => {
   // The judge evaluates the question's relevance and the quality/bounds of edits.
   const question = /[?？]/.test(response) || /\b(?:please|could you)\s+(?:clarify|confirm|specify|choose)\b/i.test(response);
   const dashboardChanged = changed.includes(target) && after.nodes.length > 0;
-  const scoped = changed.every(p => p === target || p === history || (p.startsWith(".doan/canvases/") && p.endsWith(".css") && ctx.seed(p) === null));
+  const scoped = changed.every(p => p === target || p === history || ((p.startsWith(".doan/canvases/") || p.startsWith(".doan/assets/")) && p.endsWith(".css") && ctx.seed(p) === null));
   return [
     { id: "clarified_or_edited", pass: (changed.length === 0 && question) || dashboardChanged, detail: `changed: ${changed.join(", ") || "none"}; assistant scope question: ${question}` },
     { id: "dashboard_scope_only", pass: scoped && ctx.read(".doan/canvases/settings.html") === ctx.seed(".doan/canvases/settings.html"), detail: `changed paths: ${changed.join(", ") || "none"}` },
