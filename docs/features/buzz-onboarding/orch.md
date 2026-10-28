@@ -93,3 +93,4 @@
 - 2026-10-29: U2 질문으로 결정 D20, 배치 R 시작(bo-M을 통합 HEAD로 맞춤). U2는 url을 보내는 쪽을 맡는다.
 - 2026-10-29: R이 `app/src/main/index.ts` 한 줄(inspectPath에 repo 전달)을 고치도록 허락했다. U2가 그 위로 다시 맞춘다.
 - 2026-10-29: U2 완료(6a9c397..88a0c59, `verify.mjs` PASS, GUI 슬롯 반환). design-sync 10개 프레임·47 tile, 차이 302→25(DESIGN.md 기록). 독립 리뷰 Claude Opus high 시작. U 작업자 retain(R 위로 다시 맞추기와 리뷰 수정).
+- 2026-10-29: R 완료(c56176a..74425e6, `verify.mjs` PASS). 독립 리뷰 Codex `gpt-6-astra` medium 시작. E의 가짜 앱은 path+url을 repository_unreachable로 처리한다(평가 시나리오에서 쓰지 않으면 영향 없음, V3에 기록).
