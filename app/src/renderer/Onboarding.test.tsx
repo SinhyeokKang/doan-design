@@ -5,7 +5,8 @@ import { pasteDialog, stopDialog, type Notice, type ProviderView } from "./agent
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthAttempt, AuthState, Provider } from "../main/agentAuth/types";
 import { providerView } from "./agentAuthView";
-import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProviderRow, sceneMover, SetupSteps, StopDialog, Welcome } from "./Onboarding";
+import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectScreen, projectNotice, ProviderRow, sceneMover, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
+import type { ProjectStepState } from "./projectStep";
 
 const noop = () => {};
 const base: ProviderView = { provider: "claude", name: "Claude Code", detail: "Anthropic", detailRole: null, button: null, helper: null, notice: null, paste: null };
@@ -176,4 +177,124 @@ test("fix 2: focus is recovered only when it was lost, never taken from where th
   expect(focusLost(disabled, disabled)).toBe("recover");
   expect(focusLost(null, watched)).toBe("recover");
   expect(focusLost(node(true, false), node(false, false))).toBe("release");
+});
+
+// U2: the Project step.
+const on: ProjectScreenProps["on"] = new Proxy({} as ProjectScreenProps["on"], { get: () => noop });
+const base2: ProjectStepState = { phase: { kind: "choose" }, url: "", inspectedUrl: null, error: null, listChoice: null };
+const screen = (state: Partial<ProjectStepState>, props: Partial<ProjectScreenProps> = {}) => renderToStaticMarkup(<ProjectScreen state={{ ...base2, ...state }} busy={false} agentReady projects={[]} home="/Users/ada" urlValid={false} heading={noop} on={on} {...props} />);
+
+test("U2 Choose your project: local folder card, divider, URL field and a disabled Open doan", () => {
+  const html = screen({});
+  expect(html).toContain('<h2 tabindex="-1">Choose your project</h2><p>Start with a folder on your Mac, or a GitHub repository.</p>');
+  expect(html).toMatch(/<div class="doan-panel ob-local-option"><span class="ob-folder-icon"><svg[^>]*lucide-folder[^>]*>.*?<\/svg><\/span><div><strong>Open a local folder<\/strong><p>Use a project that’s already on your Mac.<\/p><\/div><button type="button" class="doan-button" data-ui-variant="subtle">Choose folder<\/button><\/div>/);
+  expect(html).toContain('<div class="ob-divider"><span>or use GitHub</span></div><label class="ob-field-label" for="ob-project-url">Repository URL</label>');
+  expect(html).toMatch(/<div class="ob-url-action"><button type="button" class="doan-button" data-ui-variant="prominent" disabled="">Find repository<svg/);
+  expect(html).toMatch(/data-ui-variant="prominent" disabled="">Open doan<svg/);
+  expect(html).not.toContain("Your projects");
+  expect(html).not.toMatch(/…/);
+});
+
+test("U2 Your projects lists registered projects with the sidebar thumbnail rule", () => {
+  const html = screen({ listChoice: "/Users/ada/code/doan-design" }, { projects: ["/Users/ada/code/doan-design"] });
+  expect(html).toContain('<div class="ob-field-label">Your projects</div>');
+  expect(html).toMatch(/<label class="ob-choice"><input type="radio" name="Your projects" checked=""\/><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">D<\/span><span><strong>doan-design<\/strong><small>~\/code\/doan-design<\/small><\/span><\/label>/);
+  expect(html).toContain('data-ui-size="sm">Use this folder</button>');
+});
+
+test("U2 an invalid URL marks the field and keeps Find repository disabled; an access failure offers Retry", () => {
+  const invalid = screen({ url: "github.com/acme", error: { code: "invalid_url" } });
+  expect(invalid).toContain('aria-invalid="true" aria-describedby="ob-project-error"');
+  expect(invalid).toContain('role="alert" tabindex="-1" id="ob-project-error"');
+  expect(invalid).toContain("Enter a GitHub repository URL, such as https://github.com/owner/repository.");
+  expect(invalid).toContain('<div class="ob-recovery"><button type="button" class="doan-button" data-ui-variant="subtle">Choose local folder</button><button type="button" class="doan-button" data-ui-variant="prominent" disabled="">Find repository</button></div>');
+  const access = screen({ url: "https://github.com/acme/private-studio", error: { code: "access_failed" } });
+  expect(access).toContain('<strong class="ob-notice-title">Couldn’t access this repository</strong><span class="ob-notice-body">Check your account and repository access with gh auth login, then try again.</span>');
+  expect(access).toContain('data-ui-variant="prominent">Retry</button></div>');
+});
+
+test("U2 looking for a repository shows a status with Cancel", () => {
+  const html = screen({ url: "https://github.com/acme/studio", phase: { kind: "inspecting", url: "https://github.com/acme/studio" } });
+  expect(html).toContain('<div class="doan-notice doan-panel ob-project-notice" role="status"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span><strong class="ob-notice-title">Checking repository</strong><span class="ob-notice-body">https://github.com/acme/studio</span></span></div>');
+  expect(html).toContain('readOnly=""');
+  expect(html).toContain('data-ui-size="sm">Cancel</button>');
+});
+
+test("U2 an edited URL asks to be checked again", () => {
+  expect(screen({ url: "https://github.com/acme/another", inspectedUrl: "https://github.com/acme/studio" })).toContain("Check this URL before choosing a local folder or cloning.");
+});
+
+test("U2 an existing checkout: Already on your Mac, the chosen card and Use this folder", () => {
+  const html = screen({ url: "https://github.com/acme/doan-design", phase: { kind: "candidates", inspectionId: "i", url: "https://github.com/acme/doan-design", candidates: [{ path: "/Users/ada/code/doan-design", changes: [] }], choice: "/Users/ada/code/doan-design" } });
+  expect(html).toContain('<h2 tabindex="-1">Already on your Mac</h2><p>This GitHub repository matches a local project.</p>');
+  expect(html).toMatch(/<div class="doan-panel ob-chosen"><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">D<\/span><div><strong>doan-design<\/strong><p class="ob-path">~\/code\/doan-design<\/p><\/div><svg/);
+  expect(html).toContain('<p class="ob-fine">Use your existing files and current branch.</p>');
+  expect(html).toContain('>Choose another folder</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Edit repository URL</button>');
+  expect(html).toMatch(/data-ui-variant="prominent">Use this folder<svg/);
+});
+
+test("U2 several checkouts are radios under the repository's line", () => {
+  const html = screen({ phase: { kind: "candidates", inspectionId: "i", url: "https://github.com/acme/s", candidates: [{ path: "/a/s", changes: [] }, { path: "/b/s", changes: [] }], choice: "/b/s" } });
+  expect(html).toContain('<p class="ob-provider-help">Choose a local folder for this repository.</p>');
+  expect(html.match(/type="radio"/g)).toHaveLength(2);
+});
+
+test("U2 a folder that needs setup asks before writing", () => {
+  const html = screen({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/Users/ada/plain", changes: [".doan/config.json"] } });
+  expect(html).toContain('<section class="doan-panel ob-setup"><strong>Set up this folder for doan</strong><p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>');
+  expect(html).toContain('data-ui-size="sm">Set up and continue</button>');
+});
+
+test("U2 clone: Save to with Change, progress with Cancel, cleanup with everything held, cancelled with Retry", () => {
+  const clone = { url: "https://github.com/acme/studio", destination: "/Users/ada/code/studio" };
+  const plan = screen({ url: clone.url, phase: { kind: "clone", ...clone, inspectionId: "i" } });
+  expect(plan).toContain('<h2 tabindex="-1">Clone repository</h2><p>Bring this project onto your Mac.</p>');
+  expect(plan).toContain('<div class="ob-field-label ob-spaced">Save to</div><div class="doan-panel ob-destination"><span class="shell-thumbnail onboarding-thumbnail hue-');
+  expect(plan).toContain('<div class="ob-destination-name"><strong>studio</strong><p class="ob-path">~/code/studio</p></div><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Change</button>');
+  expect(plan).toMatch(/data-ui-variant="prominent">Clone and continue<svg/);
+  const cloning = screen({ phase: { kind: "cloning", ...clone, operationId: "o", cancelling: false } }, { busy: true });
+  expect(cloning).toContain('<strong class="ob-notice-title">Cloning studio</strong><span class="ob-notice-body">~/code/studio</span>');
+  expect(cloning).toContain('data-ui-size="sm">Cancel</button>');
+  const cleaning = screen({ phase: { kind: "cloning", ...clone, operationId: "o", cancelling: true } }, { busy: true });
+  expect(cleaning).toContain("Stopping clone and cleaning up");
+  expect(cleaning).toContain('data-ui-size="sm" disabled="">Choose local folder</button>');
+  const cancelled = screen({ phase: { kind: "cloneCancelled", ...clone } });
+  expect(cancelled).toContain("Cloning was cancelled. Choose a folder or try again.");
+});
+
+test("U2 ready: Your project is ready with Open doan; no ready agent blocks it with Back to agents", () => {
+  const ready = screen({ phase: { kind: "ready", root: "/Users/ada/code/doan-design" } });
+  expect(ready).toContain('<h2 tabindex="-1">Your project is ready</h2><p>Start creating with the tools and code you already have.</p>');
+  expect(ready).toContain('<p class="ob-fine">Your selected project will be ready on Home.</p>');
+  expect(ready).toMatch(/data-ui-variant="prominent">Open doan<svg/);
+  const blocked = screen({ phase: { kind: "ready", root: "/Users/ada/code/doan-design" } }, { agentReady: false });
+  expect(blocked).toContain("No agent is ready. Go back and connect an agent to finish setup.");
+  expect(blocked).toContain('<p class="ob-provider-help">Your project selection stays here.</p>');
+  expect(blocked).toContain('data-ui-size="sm">Back to agents</button>');
+  expect(blocked).toMatch(/disabled="">Open doan<svg/);
+});
+
+test("U2 completion: saving holds the footer, a failed save offers Retry, a newer marker version offers none", () => {
+  const ready = { kind: "ready" as const, root: "/r" };
+  expect(screen({ phase: { kind: "completing", root: "/r" } }, { busy: true })).toContain("<strong class=\"ob-notice-title\">Saving your setup</strong><span class=\"ob-notice-body\">Your project is ready. Finishing setup before opening Home.</span>");
+  const failed = screen({ phase: ready, error: { code: "completion_save_failed" } });
+  expect(failed).toContain("Your project is ready, but setup completion couldn’t be saved. Retry to finish.");
+  expect(failed).toMatch(/data-ui-variant="prominent">Retry<svg/);
+  const newer = screen({ phase: ready, error: { code: "completion_unsupported_version" } });
+  expect(newer).toContain('<strong class="ob-notice-title">Setup was saved by a newer version of Doan</strong><span class="ob-notice-body">Open this project with that version, or update Doan.</span>');
+  expect(newer).not.toContain(">Retry");
+  expect(newer).toMatch(/disabled="">Open doan<svg/);
+});
+
+test("U2 every project error has the draft's copy and actions", () => {
+  const view = (code: Parameters<typeof projectNotice>[0]) => { const n = projectNotice(code, "main message", "~/code/studio"); return [n.body, n.actions.map(a => `${a.variant}:${a.label}`)]; };
+  expect(view("remote_mismatch")).toEqual(["This folder belongs to a different repository.", ["prominent:Choose another folder"]]);
+  expect(view("project_unavailable")).toEqual(["This folder is no longer available. Choose it again or select another folder.", ["prominent:Choose folder"]]);
+  expect(view("destination_exists")).toEqual(["A folder already exists at this destination. Choose another location or use the existing folder.", ["subtle:Change location", "prominent:Use existing folder"]]);
+  expect(view("init_failed")).toEqual(["Couldn’t set up this folder. Check folder access and try again.", ["subtle:Choose another folder", "prominent:Retry"]]);
+  expect(view("config_invalid")).toEqual(["This folder’s doan configuration couldn’t be read. Fix it and retry, or choose another folder.", ["subtle:Choose another folder", "prominent:Retry"]]);
+  expect(view("clone_failed")).toEqual(["Couldn’t clone this repository. Check your connection and folder access, then retry.", ["subtle:Change location", "prominent:Retry"]]);
+  expect(projectNotice("clone_failed", undefined, "~/code/studio").detail).toBe("~/code/studio");
+  expect(view("git_missing")).toEqual(["Install Git to clone a repository, or choose a local folder.", ["subtle:Choose local folder", "prominent:Check again"]]);
+  expect(view("cleanup_failed")).toEqual(["main message", ["prominent:Retry"]]);
 });

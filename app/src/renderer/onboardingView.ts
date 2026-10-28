@@ -1,10 +1,7 @@
-import type { ScanSnapshot } from "../main/addProjects";
 import type { MachineState } from "../main/onboarding/machine";
 import type { Agent } from "../main/onboarding/states";
 import type { ProjectInitResult } from "../main/shell";
-import type { FolderEntry } from "../main/view";
-import { displayPath } from "./projectDisplay";
-import { projectRow, type DetailPart } from "./projectRow";
+import type { DetailPart } from "./projectRow";
 
 // Internal state names (ours, link-other, …) stop here; components only see copy.
 
@@ -238,37 +235,9 @@ export function nextFocusIndex(count: number, index: number, shift: boolean): nu
 
 // `refused`: main's message when Open Project… could not use the picked folder.
 export interface ProjectForm { running: boolean; token: string | null; error: string | null; rerooted: string | null; refused?: string | null }
-export interface ProjectStepView {
-  value: { name: string; path: string } | null;
-  open: { primary: boolean; disabled: boolean };
-  chip?: "Already set up";
-  message?: string;
-  error?: string;
-  form?: { token: string | null; helper?: string; choose: { disabled: boolean }; setUp: { label: string; disabled: boolean }; error?: string };
-}
+export interface FormView { token: string | null; helper?: string; choose: { disabled: boolean }; setUp: { label: string; disabled: boolean }; error?: string }
 export const NO_TOKEN_HELPER = "Without token CSS, doan check won’t flag hardcoded colors.";
-export function projectStepView(entry: FolderEntry | null, form: ProjectForm): ProjectStepView {
-  const open = { primary: entry === null, disabled: form.running };
-  const refused = form.refused ? { error: form.refused } : {};
-  if (entry === null) return { value: null, open, ...refused };
-  const view: ProjectStepView = { value: { name: entry.path.split("/").filter(Boolean).at(-1) ?? entry.path, path: entry.path }, open };
-  if (form.rerooted) view.message = form.rerooted;
-  switch (entry.kind) {
-    case "list": view.chip = "Already set up"; break;
-    case "loading": view.message ??= "Reading…"; break;
-    case "notFound": view.error = `${entry.path} is gone or moved. Choose Open Project… to select its current location or another project.`; break;
-    case "uninitialized":
-      view.form = { ...formView(form) };
-      break;
-    default: {
-      const row = projectRow(entry);
-      view.error = row.detail?.map(part => typeof part === "string" ? part : part.code).join("") || row.status || "";
-    }
-  }
-  if (form.refused) view.error = form.refused;
-  return view;
-}
-export function formView(form: ProjectForm): NonNullable<ProjectStepView["form"]> {
+export function formView(form: ProjectForm): FormView {
   return {
     token: form.token, ...(form.token === null ? { helper: NO_TOKEN_HELPER } : {}),
     choose: { disabled: form.running }, setUp: { label: form.running ? "Setting Up…" : "Set Up Project", disabled: form.running },
@@ -282,31 +251,5 @@ export function initMessage(result: ProjectInitResult): string | null {
     case "error": return [result.message, result.guidance].filter(Boolean).join(" ");
     case "cliError": return `doan CLI error: ${result.reason}`;
     case "rerooted": case "unavailable": return result.message;
-  }
-}
-
-export interface PickRow { id: string; name: string; label: string; path: string; sub: boolean; disabled: boolean; chip?: Chip }
-export interface PickView { title: string; lead: Part[]; rows: PickRow[]; initial: string | null }
-// Wizard step 3 when the picked folder holds repositories: one root only, so
-// the add checklist becomes radios (draft wizard, "A folder of repositories").
-export function pickView(snapshot: ScanSnapshot, home: string | null): PickView {
-  const source = snapshot.sources.length === 1 ? snapshot.sources[0] : undefined;
-  const rows = snapshot.items.flatMap((item): PickRow[] => [
-    { id: item.id, name: item.name, label: item.name, path: displayPath(item.path, home), sub: false, disabled: item.disabled, chip: scanChip(item) },
-    ...item.worktrees.map(tree => ({ id: tree.id, name: tree.name, label: `${item.name}, ${tree.name} worktree`, path: displayPath(tree.path, home), sub: true, disabled: false })),
-  ]);
-  return {
-    title: source ? `Choose a repository in ${source.name}` : "Choose a repository",
-    lead: source ? [{ code: displayPath(source.path, home) }, " isn’t a repository. Choose one repository inside it."] : ["Choose one repository."],
-    rows, initial: rows.find(row => !row.disabled)?.id ?? null,
-  };
-}
-function scanChip(item: ScanSnapshot["items"][number]): Chip {
-  switch (item.status) {
-    case "ready": return { text: `${item.canvasCount ?? 0} ${item.canvasCount === 1 ? "canvas" : "canvases"}`, tone: "ok" };
-    case "notSetUp": return { text: "Not set up" };
-    case "added": return { text: "Already added" };
-    case "unreadable": return { text: "Couldn't read", tone: "warn" };
-    case "checking": return { text: "Checking…" };
   }
 }

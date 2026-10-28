@@ -14,6 +14,7 @@ import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { useToast } from "./Toast";
 import { DropOverlay } from "./DropOverlay";
 import type { AddOutcome } from "../main/addProjects";
+import type { FolderFocus } from "../main/shell";
 import type { RowAction } from "./homeCards";
 import { groupProjects } from "./homeCards";
 import { moveExpanded } from "./Sidebar";
@@ -22,7 +23,7 @@ import { RightPanel } from "./RightPanel";
 import { FeedbackPanel } from "./FeedbackPanel";
 import { duplicateIdText } from "./canvasView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
-import { Wizard, type Reroot } from "./Onboarding";
+import { Wizard } from "./Onboarding";
 import { FirstPromptContext, useFirstPromptWait } from "./FirstPrompt";
 import { ProjectOverview, useThumbnails } from "./ProjectOverview";
 import { QuickOpen } from "./QuickOpenDialog";
@@ -70,9 +71,8 @@ export function App() {
   const board = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLDivElement>(null);
   const controller = useRef<CanvasController | null>(null);
-  const [reroot, setReroot] = useState<Reroot | null>(null);
+  const [reroot, setReroot] = useState<(FolderFocus & { seq: number }) | null>(null);
   const [wizard, setWizard] = useState<string | null>(null);
-  const [wizardAddOutcome, setWizardAddOutcome] = useState<AddOutcome | null>(null);
   const wizardOpen = useRef(false);
   wizardOpen.current = wizard !== null;
   const beforeWizard = useRef<HTMLElement | null>(null);
@@ -147,13 +147,18 @@ export function App() {
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
   }, []);
   useEffect(() => { void window.doan.homeDirectory().then(setHomeDirectory).catch(console.error); }, []);
-  useEffect(() => window.doan.onOnboardingOpen(opened => {
-    const active = document.activeElement;
-    // A reopen while the wizard is up keeps the focus it came from.
-    if (!(active instanceof HTMLElement && active.closest(".ob-overlay"))) beforeWizard.current = active instanceof HTMLElement && active !== document.body ? active : null;
-    setWizardAddOutcome(null);
-    setWizard(opened.session);
-  }), []);
+  // First run shows when main's session has no completion record (P's v1 marker); the session is the one the CLI
+  // and MCP share, so a hidden and shown window keeps it.
+  useEffect(() => {
+    let current = true;
+    window.doan.startOnboardingSession().then(reply => {
+      if (!current || !reply.ok || !("sessionId" in reply.result) || reply.result.completed) return;
+      const active = document.activeElement;
+      beforeWizard.current = active instanceof HTMLElement && active !== document.body ? active : null;
+      setWizard(reply.result.sessionId);
+    }).catch(console.error);
+    return () => { current = false; };
+  }, []);
   useEffect(() => {
     if (wizard !== null || !restoreFocus.current) return;
     restoreFocus.current = false;
@@ -383,7 +388,8 @@ export function App() {
     });
   };
   useEffect(() => window.doan.onAddOutcome(outcome => {
-    if (wizardOpen.current) { setWizardAddOutcome(outcome); return; }
+    // Add Project… and drops are off while first run is open (modal); a late outcome is not shown behind it.
+    if (wizardOpen.current) return;
     added(outcome.added);
     if (outcome.duplicate) { live.current.home(); setHighlight([...outcome.added, outcome.duplicate]); }
     if (outcome.messages.length) live.current.toast.show(outcome.messages.join("\n"));
@@ -519,7 +525,8 @@ export function App() {
   {quickOpen && <QuickOpen entries={entries} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
   {toast.element}
   <DropOverlay blocked={modal} />
-  {wizard !== null && <Wizard key={wizard} session={wizard} addOutcome={wizardAddOutcome} entries={entries} reroot={reroot} homeDirectory={homeDirectory} onClose={() => { restoreFocus.current = true; setWizard(null); }} />}
+  {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
+    onClose={root => { restoreFocus.current = true; setWizard(null); if (root) { live.current.home(); setHighlight([root]); } }} />}
   </FirstPromptContext.Provider></TooltipProvider>;
 }
 

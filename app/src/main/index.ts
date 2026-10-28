@@ -11,7 +11,7 @@ import { antigravityServer } from "./agentAuth/antigravity";
 import { PROVIDER_AUTH } from "./agentAuth/providers";
 import { AUTH_CHANNELS, AuthIpc } from "./agentAuth/ipc";
 import { sharedShell, toolFacts } from "./agentAuth/facts";
-import { createMachine, needsOnboarding, markClosed, PATH_LINE, probeShell, runProcess, type MachineState } from "./onboarding/machine";
+import { createMachine, PATH_LINE, probeShell, runProcess } from "./onboarding/machine";
 import { isTranslocated } from "./onboarding/states";
 import { ONBOARDING_CHANNELS, OnboardingService, rendererRequest } from "./onboarding/service";
 import { onboardingComplete, readCompletion, writeCompletion } from "./onboarding/completion";
@@ -73,11 +73,9 @@ export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; re
 export type RemoveResult = { kind: "removed"; removalId: string; label: string } | { kind: "cancelled" } | { kind: "unavailable" };
 export type RestoreResult = { kind: "restored"; paths: string[] } | { kind: "unavailable" };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
-// The wizard's Open Project…: one folder, judged as Add Project… judges it. A
-// checklist or a confirmation finishes through `folders:add-candidates` (one
-// id) or `folders:confirm-folder`, whose `added` holds the one root.
-export type OpenProjectResult = { kind: "stored"; root: string } | { kind: "choose"; scanId: string } |
-  { kind: "confirm"; confirmId: string; path: string; name: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
+// The onboarding Project step's folder picker: a path only. Inspection, registration and setup go through the
+// onboarding session, so picking a folder changes nothing.
+export type FolderPurpose = "project" | "destination";
 
 // The window only ever shows the bundled UI; canvases live in a sandboxed
 // iframe whose navigation stays on the local server. Anything else a page tries
@@ -128,10 +126,10 @@ const transitionGuard = createTransitionGuard(request => {
     win.webContents.send("comments:transition", request);
   }
 });
-let wizardSession: string | null = null;
+// First run is open from a launch without a completion record (P's v1 marker; the legacy `{}` is not one) until the
+// session reports completion. Settings and the menu wait for it, as they waited for the old wizard.
+let onboardingOpen = false;
 let machine: ReturnType<typeof createMachine> | undefined;
-export type OnboardingOpen = { session: string };
-export type OnboardingRead = { kind: "state"; session: string; state: MachineState } | { kind: "stale" };
 let quitting = false;
 let quitScheduled = false;
 let cancelPendingHide = () => {};
@@ -244,7 +242,7 @@ function injectCanvasScript(window: BrowserWindow): void {
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: wizardSession !== null, focusedWindow, reviewing: menuInputs.reviewing === true });
+  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, focusedWindow, reviewing: menuInputs.reviewing === true });
   const undo: MenuItemConstructorOptions = enabled.undoRemove
     ? { label: "Undo Remove", accelerator: "CmdOrCtrl+Z", click: command("undoRemove") }
     : { role: "undo" };
@@ -448,7 +446,7 @@ function createSettingsWindow(tab: SettingsTab): BrowserWindow {
 // Not while the wizard is open (the menu item is disabled then too), and not
 // before setup can answer it.
 function openSettings(target: SettingsTarget | null): boolean {
-  if (wizardSession !== null || broker === undefined || uiState === undefined) return false;
+  if (onboardingOpen || broker === undefined || uiState === undefined) return false;
   settingsTarget = target;
   if (settingsWin && !settingsWin.isDestroyed()) {
     if (target) {
@@ -480,25 +478,16 @@ async function openProject(): Promise<string | null> {
   return null;
 }
 
-async function openOneProject(): Promise<OpenProjectResult> {
+async function chooseFolder(purpose: unknown): Promise<string | null> {
   const window = win;
-  const flow = addFlow;
-  if (!window || window.isDestroyed() || !flow) return { kind: "unavailable" };
+  if (!window || window.isDestroyed() || (purpose !== "project" && purpose !== "destination")) return null;
   showWindow(window);
-  const picked = await dialog.showOpenDialog(window, { title: "Open Project…", properties: ["openDirectory"] });
+  const picked = await dialog.showOpenDialog(window, {
+    title: purpose === "project" ? "Choose Project Folder" : "Choose Where to Clone",
+    properties: purpose === "project" ? ["openDirectory"] : ["openDirectory", "createDirectory"],
+  });
   const path = picked.filePaths[0];
-  if (picked.canceled || path === undefined) return { kind: "cancelled" };
-  const outcome = await flow.add([path]);
-  const stored = outcome.added[0] ?? outcome.duplicate;
-  if (stored !== undefined && stored !== null) {
-    // The wizard takes the one project; the worktree checklist Add Project… offers is not shown.
-    if (outcome.scanId !== null) flow.cancel(outcome.scanId);
-    return { kind: "stored", root: stored };
-  }
-  if (outcome.scanId !== null) return { kind: "choose", scanId: outcome.scanId };
-  const confirm = outcome.confirms[0];
-  if (confirm) return { kind: "confirm", ...confirm };
-  return { kind: "refused", message: outcome.messages.join(" ") };
+  return picked.canceled || path === undefined ? null : path;
 }
 
 // Add Project…: several folders at once. A hidden window is shown first, as
@@ -664,7 +653,11 @@ async function start(): Promise<void> {
     auth: authIpc ?? null,
     mainOwner: () => win && !win.isDestroyed() ? win.webContents.id : null,
     completed: () => onboardingComplete(readCompletion(userData)),
-    publish: state => send(ONBOARDING_CHANNELS.changed, state),
+    publish: state => {
+      send(ONBOARDING_CHANNELS.changed, state);
+      // Completion saved (from the window, the CLI or MCP): first run is over for this launch too.
+      if (state.completed && onboardingOpen) { onboardingOpen = false; broker?.setOnboardingClosed(true); setMenu(); }
+    },
     projects: {
       folder: canonicalFolder, destination: path => cloneDestination(path, projectDeps),
       inspectPath: (real, repo) => inspectPath(real, projectDeps, repo), inspectUrl: repo => inspectUrl(repo, projectDeps),
@@ -906,29 +899,13 @@ async function start(): Promise<void> {
   const setup = machine;
   const setupBroker = createSetupBroker({
     machine: setup, translocated: isTranslocated(command),
-    onboardingClosed: async () => !await needsOnboarding(userData),
+    // The home alerts wait for a completed first run (v1 marker), not for the old wizard's `{}`.
+    onboardingClosed: async () => onboardingComplete(readCompletion(userData)),
     publish: (status) => { send("setup:status", status); sendSettings("setup:status", status); },
   });
   broker = setupBroker;
-  const validSession = (value: unknown): value is { session: string } => typeof value === "object" && value !== null &&
-    "session" in value && typeof value.session === "string" && value.session === wizardSession;
   const requestId = (value: unknown, keys: number): string | null => typeof value === "object" && value !== null && Object.keys(value).length === keys &&
     "requestId" in value && typeof value.requestId === "string" && value.requestId !== "" && value.requestId.length <= 128 ? value.requestId : null;
-  // A renderer that mounts again has lost the confirmation it showed.
-  handle("onboarding:get-open", null, event => {
-    if (!wizardSession) return null;
-    setupBroker.cancelConfirmation(event.sender.id);
-    return { session: wizardSession };
-  });
-  handle("onboarding:read", { kind: "stale" }, async (event, value: unknown): Promise<OnboardingRead> => {
-    const id = requestId(value, 2);
-    if (!validSession(value) || id === null) return { kind: "stale" };
-    const session = value.session;
-    const read = await setupBroker.read(event.sender.id, id);
-    return read.kind === "state" && fromWindow(event) && wizardSession === session ? { kind: "state", session, state: read.state } : { kind: "stale" };
-  });
-  handle("onboarding:run", { kind: "stale" }, (event, value: unknown) => wizardSession ? setupBroker.run(event.sender.id, value) : { kind: "stale" });
-  handle("onboarding:answer", { kind: "stale" }, (event, value: unknown) => wizardSession ? setupBroker.answer(event.sender.id, value) : { kind: "stale" });
   // Settings and the home use these; the read token and the lock owner are the sending window.
   handle("setup:status", null, () => setupBroker.status());
   handle("setup:read", { kind: "stale" }, async (event, value: unknown, kind) => {
@@ -969,21 +946,7 @@ async function start(): Promise<void> {
     else if (value.kind === "firstPrompt" && "root" in value) text = promptText(value as Record<string, unknown>, 1);
     return text === null ? { kind: "stale" } : copy(text);
   });
-  handle("onboarding:open-project", { kind: "unavailable" }, () => openOneProject());
-  handle("onboarding:close", { kind: "stale" }, async (event, value: unknown) => {
-    if (!validSession(value) || Object.keys(value).length !== 1) return { kind: "stale" };
-    if (setupBroker.isBusy()) return { kind: "busy" };
-    let warning: string | undefined;
-    try { await markClosed(userData); }
-    catch (error) {
-      warning = error instanceof Error ? error.message : String(error);
-      console.warn("Could not save onboarding dismissal:", warning);
-    }
-    setupBroker.cancelConfirmation(event.sender.id); wizardSession = null;
-    setupBroker.setOnboardingClosed(warning === undefined);
-    setMenu();
-    return { kind: "success", ...(warning === undefined ? {} : { warning }) };
-  });
+  handle("onboarding:choose-folder", null, (event, value: unknown) => fromWindow(event) ? chooseFolder(value) : null);
 
   handle("settings:open", false, (_event, value: unknown) => {
     const target = parseSettingsTarget(value, storedRoot);
@@ -1031,7 +994,7 @@ async function start(): Promise<void> {
   });
   handle("config:write", { kind: "unavailable" }, (_event, value: unknown) => bridge.write(value));
 
-  if (await needsOnboarding(userData)) wizardSession = randomUUID();
+  onboardingOpen = !onboardingComplete(readCompletion(userData));
   setMenu();
   void setupBroker.refresh();
   win = createWindow();

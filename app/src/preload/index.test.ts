@@ -125,15 +125,9 @@ test("project setup exposes choice IDs and forwards focus with folder state", as
 const ROOT = "/repo";
 
 
-test("onboarding uses fixed channels and ignores an initial open response after a newer event", async () => {
-  let finish!: (value: unknown) => void;
-  mocks.invoke.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
-  const listener = vi.fn(); const stop = api.onOnboardingOpen(listener);
-  emitter.emit("onboarding:open", {}, { session: "new" }); finish({ session: "old" });
-  await Promise.resolve(); expect(listener).toHaveBeenCalledExactlyOnceWith({ session: "new" }); stop();
-  emitter.emit("onboarding:open", {}, { session: "later" }); expect(listener).toHaveBeenCalledTimes(1);
-  await api.readOnboarding({ session: "new", requestId: "r" }); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:read", { session: "new", requestId: "r" });
-  await api.closeOnboarding({ session: "new" }); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:close", { session: "new" });
+test("the old wizard calls are gone; the PATH line copy and the folder picker use fixed channels", async () => {
+  for (const name of ["onOnboardingOpen", "readOnboarding", "runOnboardingStep", "answerOnboardingReplace", "closeOnboarding", "openProject"]) expect(name in api).toBe(false);
+  await api.chooseOnboardingFolder("destination"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:choose-folder", "destination");
   await api.copyPathLine(); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:copy", { kind: "pathLine" });
 });
 
@@ -286,13 +280,11 @@ test("setup status: the current value is asked for, and an event that came first
   expect(emitter.listenerCount("setup:status")).toBe(0);
 });
 
-test("settings, install pages, the wizard's project and forwarded row actions use their channels", async () => {
+test("settings, install pages and forwarded row actions use their channels", async () => {
   await api.openSettings({ tab: "projects", project: "/repo" });
   expect(mocks.invoke).toHaveBeenLastCalledWith("settings:open", { tab: "projects", project: "/repo" });
   await api.openInstallPage("claude");
   expect(mocks.invoke).toHaveBeenLastCalledWith("setup:open-external", { target: "claude" });
-  await api.openProject();
-  expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:open-project");
   const listener = vi.fn();
   const stop = api.onProjectAction(listener);
   emitter.emit("projects:action", {}, { path: "/repo", action: "remove" });

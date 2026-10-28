@@ -1,37 +1,30 @@
-import { Fragment, useEffect, useReducer, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
-import type { OpenProjectResult } from "../main/index";
-import type { AddOutcome, ScanSnapshot } from "../main/addProjects";
+import { useEffect, useReducer, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Check, Folder } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
-import type { StepResult } from "../main/onboarding/machine";
-import type { FolderFocus, ProjectInitResult } from "../main/shell";
-import type { FolderEntry } from "../main/view";
-import { nextFocusIndex, pickView, projectStepView, type Part } from "./onboardingView";
-import type { AuthCommand, Button, Notice, ProviderView, pasteDialog, stopDialog } from "./agentAuthView";
+import type { OnboardingState } from "../formats/types";
+import { nextFocusIndex } from "./onboardingView";
+import { noAgentReadyNotice, type AuthCommand, type Button, type Notice, type ProviderView, type pasteDialog, type stopDialog } from "./agentAuthView";
 import { AgentStepSession } from "./agentStep";
-import { canAdvance, canComplete, initialScene, nextScene, type Scene, type SceneEvent } from "./onboardingScene";
-import { AddProjectsDialog, SetUpFolderConfirm } from "./AddProjectsDialog";
-import { PathTip } from "./Home";
-import { ProjectFields, useProjectSetup } from "./ProjectSetupDialog";
+import { ProjectStepSession, type ProjectError, type ProjectStepState } from "./projectStep";
+import { canAdvance, initialScene, nextScene, type Scene, type SceneEvent } from "./onboardingScene";
+import { projectHue, projectInitial } from "./shellNavigation";
+import { tilde } from "./onboardingView";
 import { AlertIcon } from "./AlertIcon";
-
-export type Reroot = FolderFocus & { seq: number };
 
 const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])';
 // Local copies of the draft's marks; sources are in public/provider-logos/README.md. Relative, so the packaged
 // file:// renderer resolves them next to index.html.
 const LOGOS: Record<Provider, string> = { claude: "claude.png", codex: "codex.png", cursor: "cursor.svg", antigravity: "antigravity.svg", copilot: "copilot.svg" };
 
-function Parts({ parts }: { parts: readonly Part[] }) {
-  return <>{parts.map((part, index) => typeof part === "string" ? <Fragment key={index}>{part}</Fragment> : <code key={index}>{part.code}</code>)}</>;
-}
-
-const chipClass = (tone: "ok" | "warn" | "err" | undefined) => tone ? `ob-chip ${tone}` : "ob-chip";
-const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
-
-// setup:open-external knows only Claude Code and Codex; main adds Cursor and Copilot later (buzz-onboarding U2).
+// Antigravity has no install page: Doan downloads its sign-in server itself (design 'Install·Update 안내 URL').
 function openInstallPage(provider: Provider): Promise<boolean> {
-  return provider === "claude" || provider === "codex" ? window.doan.openInstallPage(provider) : Promise.resolve(false);
+  return provider === "antigravity" ? Promise.resolve(false) : window.doan.openInstallPage(provider);
+}
+// Kept in the window's sessionStorage, which a renderer reload keeps; failures only cost the reload case.
+const OWNED_KEY = "doan.onboarding.ownedSignIns";
+function rememberOwned(ids: readonly string[]): void { try { sessionStorage.setItem(OWNED_KEY, JSON.stringify(ids)); } catch { /* reload case only */ } }
+function recallOwned(): string[] {
+  try { const value: unknown = JSON.parse(sessionStorage.getItem(OWNED_KEY) ?? "[]"); return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : []; } catch { return []; }
 }
 
 export function Welcome({ start }: { start: () => void }) {
@@ -220,104 +213,251 @@ export function sceneMover(agents: Pick<AgentStepSession, "continue" | "back">, 
   };
 }
 
-// A modal stacked over the onboarding window by the Project step's Open Project….
-type Layer = { kind: "choose"; scanId: string } | { kind: "confirm"; confirmId: string; path: string; name: string };
+const nameOf = (path: string) => path.replace(/\/+$/, "").split("/").at(-1) || path;
+const shown = (path: string, home: string | null) => home ? tilde(path, home) : path;
 
-// The full-window first run: Welcome → Agent → Project, mounted once per main onboarding session. The Project step
-// is still the earlier folder flow and closes with onboarding:close until batch U2 replaces both.
-export function Wizard({ session, entries, reroot, homeDirectory, addOutcome, onClose }: { session: string; addOutcome: AddOutcome | null; entries: FolderEntry[]; reroot: Reroot | null; homeDirectory: string | null; onClose: () => void }) {
+// The sidebar's thumbnail rule (projectHue, first code point) at the onboarding card size.
+export function ProjectThumbnail({ path }: { path: string }) {
+  const name = nameOf(path);
+  return <span className={`shell-thumbnail onboarding-thumbnail hue-${projectHue(name)}`} aria-hidden="true">{projectInitial(name)}</span>;
+}
+export function ChosenProject({ path, home }: { path: string; home: string | null }) {
+  return <div className="doan-panel ob-chosen"><ProjectThumbnail path={path} /><div><strong>{nameOf(path)}</strong><p className="ob-path">{shown(path, home)}</p></div><Check aria-hidden="true" /></div>;
+}
+function ProjectChoice({ paths, choice, home, pick, name }: { paths: readonly string[]; choice: string | null; home: string | null; pick: (path: string) => void; name: string }) {
+  return <div role="radiogroup" aria-label={name}>{paths.map(path => <label className="ob-choice" key={path}>
+    <input type="radio" name={name} checked={choice === path} onChange={() => pick(path)} /><ProjectThumbnail path={path} />
+    <span><strong>{nameOf(path)}</strong><small>{shown(path, home)}</small></span>
+  </label>)}</div>;
+}
+
+type ProjectAction = "chooseFolder" | "retry" | "changeLocation" | "useExisting" | "backToAgents";
+interface ProjectNotice { title?: string; body: string; detail?: string; note?: string; actions: Button<ProjectAction>[] }
+const action = (command: ProjectAction, label: string, variant: Button["variant"] = "prominent"): Button<ProjectAction> => ({ command, label, variant, disabled: false });
+// Copy from the approved draft's Project states tiles; D13 for the newer marker version.
+export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null): ProjectNotice {
+  switch (error) {
+    case "invalid_url": return { body: "Enter a GitHub repository URL, such as https://github.com/owner/repository.", actions: [] };
+    case "access_failed": return { title: "Couldn’t access this repository", body: "Check your account and repository access with gh auth login, then try again.", actions: [] };
+    case "remote_mismatch": return { body: "This folder belongs to a different repository.", actions: [action("chooseFolder", "Choose another folder")] };
+    case "project_unavailable": case "path_unavailable":
+      return { body: "This folder is no longer available. Choose it again or select another folder.", actions: [action("chooseFolder", "Choose folder")] };
+    case "destination_exists": return { body: "A folder already exists at this destination. Choose another location or use the existing folder.", actions: [action("changeLocation", "Change location", "subtle"), action("useExisting", "Use existing folder")] };
+    case "init_failed": return { body: "Couldn’t set up this folder. Check folder access and try again.", actions: [action("chooseFolder", "Choose another folder", "subtle"), action("retry", "Retry")] };
+    case "config_invalid": return { body: "This folder’s doan configuration couldn’t be read. Fix it and retry, or choose another folder.", actions: [action("chooseFolder", "Choose another folder", "subtle"), action("retry", "Retry")] };
+    case "clone_failed": return { body: "Couldn’t clone this repository. Check your connection and folder access, then retry.", ...(destination ? { detail: destination } : {}), actions: [action("changeLocation", "Change location", "subtle"), action("retry", "Retry")] };
+    case "git_missing": return { body: "Install Git to clone a repository, or choose a local folder.", actions: [action("chooseFolder", "Choose local folder", "subtle"), action("retry", "Check again")] };
+    case "completion_save_failed": return { body: "Your project is ready, but setup completion couldn’t be saved. Retry to finish.", actions: [] };
+    case "completion_unsupported_version": return { title: "Setup was saved by a newer version of Doan", body: "Open this project with that version, or update Doan.", actions: [] };
+    case "no_ready_agent": { const notice = noAgentReadyNotice(null)!; return { body: notice.body!, ...(notice.note ? { note: notice.note } : {}), actions: [action("chooseFolder", "Choose another folder", "subtle"), action("backToAgents", "Back to agents")] }; }
+    // Main's fixed message (a kept clone folder names the path to remove); never tool output.
+    default: return { body: message ?? "Something changed while doan was checking. Try again.", actions: [action("retry", "Retry")] };
+  }
+}
+
+function ProjectNoticeView({ notice, run, id }: { notice: ProjectNotice; run: (command: ProjectAction) => void; id?: string }) {
+  return <>
+    <div className="doan-notice error doan-panel ob-project-notice" role="alert" tabIndex={-1} id={id}><AlertIcon />
+      <span>{notice.title ? <><strong className="ob-notice-title">{notice.title}</strong><span className="ob-notice-body">{notice.body}</span></> : notice.body}</span></div>
+    {notice.detail && <p className="ob-path ob-notice-detail">{notice.detail}</p>}
+    {notice.note && <p className="ob-provider-help">{notice.note}</p>}
+    {notice.actions.length > 0 && <div className={notice.actions.length === 1 ? "ob-state-actions submit-only" : "ob-state-actions"}>
+      {notice.actions.map(button => <button key={button.command} type="button" className="doan-button" data-ui-variant={button.variant} data-ui-size="sm" onClick={() => run(button.command)}>{button.label}</button>)}
+    </div>}
+  </>;
+}
+function Progress({ title, body }: { title: string; body?: string }) {
+  return <div className="doan-notice doan-panel ob-project-notice" role="status"><span className="doan-spinner doan-alert-icon" aria-hidden="true" /><span><strong className="ob-notice-title">{title}</strong>{body && <span className="ob-notice-body">{body}</span>}</span></div>;
+}
+function Footer({ back, next, label, enabled, busy }: { back: () => void; next: () => void; label: string; enabled: boolean; busy: boolean }) {
+  return <div className="ob-footer">
+    <button type="button" className="doan-button" data-ui-variant="subtle" disabled={busy} onClick={back}><ArrowLeft aria-hidden="true" />Back</button>
+    <button type="button" className="doan-button" data-ui-variant="prominent" disabled={!enabled || busy} onClick={next}>{label}<ArrowRight aria-hidden="true" /></button>
+  </div>;
+}
+
+const HEADINGS = {
+  choose: ["Choose your project", "Start with a folder on your Mac, or a GitHub repository."],
+  found: ["Already on your Mac", "This GitHub repository matches a local project."],
+  clone: ["Clone repository", "Bring this project onto your Mac."],
+  ready: ["Your project is ready", "Start creating with the tools and code you already have."],
+} as const;
+
+export interface ProjectScreenProps {
+  state: ProjectStepState; busy: boolean; agentReady: boolean; projects: readonly string[]; home: string | null; urlValid: boolean;
+  heading: (node: HTMLHeadingElement | null) => void;
+  on: {
+    back(): void; backToAgents(): void; chooseFolder(): void; setUrl(url: string): void; find(): void; cancelInspect(): void; edit(): void;
+    pickListed(path: string): void; useListed(): void; pickCandidate(path: string): void; select(initialize?: boolean): void;
+    changeDestination(): void; useExisting(): void; clone(): void; cancelClone(): void; complete(): void; retry(): void;
+  };
+}
+// One screen per phase (draft frames project, project-local, repository-found, repository-clone, repository-error and
+// the Project states tiles). Errors sit above the footer; the footer's Back always returns to the Agent step.
+export function ProjectScreen({ state, busy, agentReady, projects, home, urlValid, heading, on }: ProjectScreenProps) {
+  const p = state.phase, error = state.error;
+  const destination = p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" ? p.destination : null;
+  const run = (command: ProjectAction) => {
+    if (command === "chooseFolder") on.chooseFolder(); else if (command === "retry") on.retry(); else if (command === "changeLocation") on.changeDestination();
+    else if (command === "useExisting") on.useExisting(); else on.backToAgents();
+  };
+  // The Project states 'No agent is ready' tile: shown as soon as no provider is ready, not only after a refused save.
+  const notice = error ? projectNotice(error.code, error.message, destination) : !agentReady && (p.kind === "ready") ? projectNotice("no_ready_agent", undefined, null) : null;
+  const [title, lead] = p.kind === "ready" || p.kind === "completing" ? HEADINGS.ready
+    : p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" ? HEADINGS.clone
+    : p.kind === "candidates" && p.url !== null ? HEADINGS.found : HEADINGS.choose;
+  const urlField = (readOnly: boolean) => <>
+    <label className="ob-field-label" htmlFor="ob-project-url">Repository URL</label>
+    <input className="doan-input" id="ob-project-url" aria-label="GitHub repository URL" placeholder="https://github.com/owner/repository" value={state.url} readOnly={readOnly}
+      aria-invalid={error?.code === "invalid_url" || undefined} aria-describedby={error && (error.code === "invalid_url" || error.code === "access_failed") ? "ob-project-error" : undefined}
+      onChange={event => on.setUrl(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !readOnly && !event.nativeEvent.isComposing) on.find(); }} />
+  </>;
+  const smallActions = (...buttons: [string, () => void][]) => <div className="ob-small-action">{buttons.map(([label, click]) =>
+    <button key={label} type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={click}>{label}</button>)}</div>;
+  let body: React.ReactNode, footer: { label: string; next: () => void; enabled: boolean } = { label: "Open doan", next: on.complete, enabled: false };
+
+  if (p.kind === "choose" || p.kind === "inspecting") {
+    const urlNotice = error && (error.code === "invalid_url" || error.code === "access_failed");
+    const changed = state.inspectedUrl !== null && state.url.trim() !== state.inspectedUrl && !error;
+    body = <>
+      {projects.length > 0 && <div className="ob-projects">
+        <div className="ob-field-label">Your projects</div>
+        <ProjectChoice paths={projects} choice={state.listChoice} home={home} pick={on.pickListed} name="Your projects" />
+        <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy || state.listChoice === null} onClick={on.useListed}>Use this folder</button></div>
+      </div>}
+      <div className="doan-panel ob-local-option">
+        <span className="ob-folder-icon"><Folder aria-hidden="true" /></span>
+        <div><strong>Open a local folder</strong><p>Use a project that’s already on your Mac.</p></div>
+        <button type="button" className="doan-button" data-ui-variant="subtle" disabled={busy} onClick={on.chooseFolder}>Choose folder</button>
+      </div>
+      <div className="ob-divider"><span>or use GitHub</span></div>
+      {urlField(p.kind === "inspecting")}
+      {p.kind === "inspecting" ? <>
+        <Progress title="Checking repository" body={p.url} />
+        <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.cancelInspect}>Cancel</button>
+          <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled>Find repository</button></div>
+      </> : urlNotice ? <>
+        <ProjectNoticeView notice={notice!} run={run} id="ob-project-error" />
+        <div className="ob-recovery">
+          <button type="button" className="doan-button" data-ui-variant="subtle" onClick={on.chooseFolder}>Choose local folder</button>
+          {error.code === "access_failed"
+            ? <button type="button" className="doan-button" data-ui-variant="prominent" onClick={on.retry}>Retry</button>
+            : <button type="button" className="doan-button" data-ui-variant="prominent" disabled={!urlValid} onClick={on.find}>Find repository</button>}
+        </div>
+      </> : <>
+        {changed && <p className="ob-provider-help">Check this URL before choosing a local folder or cloning.</p>}
+        {notice && <ProjectNoticeView notice={notice} run={run} />}
+        <div className="ob-url-action"><button type="button" className="doan-button" data-ui-variant="prominent" disabled={busy || state.url.trim() === ""} onClick={on.find}>Find repository<ArrowRight aria-hidden="true" /></button></div>
+      </>}
+    </>;
+  } else if (p.kind === "candidates") {
+    const one = p.candidates.length === 1 ? p.candidates[0]! : null;
+    body = <>
+      {p.url !== null && urlField(true)}
+      {one ? <ChosenProject path={one.path} home={home} /> : <>
+        {p.url !== null && <p className="ob-provider-help">Choose a local folder for this repository.</p>}
+        <ProjectChoice paths={p.candidates.map(c => c.path)} choice={p.choice} home={home} pick={on.pickCandidate} name="Local checkouts" />
+      </>}
+      {notice && <ProjectNoticeView notice={notice} run={run} />}
+      {p.url !== null && <p className="ob-fine">Use your existing files and current branch.</p>}
+      {p.url !== null ? smallActions(["Choose another folder", on.chooseFolder], ["Edit repository URL", on.edit]) : smallActions(["Choose another folder", on.chooseFolder])}
+    </>;
+    footer = { label: "Use this folder", next: () => on.select(), enabled: true };
+  } else if (p.kind === "setup" || p.kind === "selecting") {
+    body = <>
+      {p.kind === "setup" && <section className="doan-panel ob-setup">
+        <strong>Set up this folder for doan</strong>
+        <p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>
+        <ChosenProject path={p.path} home={home} />
+        {notice ? <ProjectNoticeView notice={notice} run={run} />
+          : <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} onClick={() => on.select(true)}>Set up and continue</button></div>}
+      </section>}
+      {p.kind === "selecting" && <Progress title="Setting up your project" body={shown(p.path, home)} />}
+    </>;
+  } else if (p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled") {
+    body = <>
+      {urlField(true)}
+      <div className="ob-field-label ob-spaced">Save to</div>
+      <div className="doan-panel ob-destination"><ProjectThumbnail path={p.destination} />
+        <div className="ob-destination-name"><strong>{nameOf(p.destination)}</strong><p className="ob-path">{shown(p.destination, home)}</p></div>
+        <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={on.changeDestination}>Change</button></div>
+      {p.kind === "cloning" ? <>
+        {p.cancelling ? <Progress title="Stopping clone and cleaning up" body="Wait before starting another clone." /> : <Progress title={`Cloning ${nameOf(p.destination)}`} body={shown(p.destination, home)} />}
+        <div className={p.cancelling ? "ob-state-actions" : "ob-state-actions"}>
+          {p.cancelling ? <><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled>Choose local folder</button>
+            <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled>Retry</button></>
+            : <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.cancelClone}>Cancel</button>}
+        </div>
+      </> : p.kind === "cloneCancelled" ? <>
+        <p className="ob-provider-help">Cloning was cancelled. Choose a folder or try again.</p>
+        <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.chooseFolder}>Choose local folder</button>
+          <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={on.retry}>Retry</button></div>
+      </> : <>
+        {notice && <ProjectNoticeView notice={notice} run={run} />}
+        <p className="ob-fine">Already have this repository?</p>
+        {smallActions(["Choose existing folder", on.chooseFolder], ["Edit repository URL", on.edit])}
+      </>}
+    </>;
+    footer = { label: "Clone and continue", next: on.clone, enabled: p.kind === "clone" && p.inspectionId !== null && !error };
+  } else {
+    const root = p.root;
+    const saveFailed = error?.code === "completion_save_failed";
+    body = <>
+      <ChosenProject path={root} home={home} />
+      {p.kind === "completing" ? <Progress title="Saving your setup" body="Your project is ready. Finishing setup before opening Home." /> : notice && <ProjectNoticeView notice={notice} run={run} />}
+      {smallActions(["Choose another folder", on.chooseFolder])}
+      <p className="ob-fine">Your selected project will be ready on Home.</p>
+    </>;
+    footer = saveFailed ? { label: "Retry", next: on.retry, enabled: true }
+      : { label: "Open doan", next: on.complete, enabled: agentReady && error?.code !== "completion_unsupported_version" };
+  }
+  return <>
+    <div className="ob-heading"><h2 tabIndex={-1} ref={heading}>{title}</h2><p>{lead}</p></div>
+    {body}
+    <Footer back={on.back} next={footer.next} label={footer.label} enabled={footer.enabled} busy={busy} />
+  </>;
+}
+
+// The full-window first run: Welcome → Agent → Project → Home, mounted once per main onboarding session. A CLI or MCP
+// client may drive the same session; its completion closes this window too.
+export function Wizard({ session, projects, homeDirectory, onClose }: { session: string; projects: readonly string[]; homeDirectory: string | null; onClose: (root: string | null) => void }) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
-  const [agents] = useState(() => new AgentStepSession({ api: window.doan, openInstall: openInstallPage, hasFocus: () => document.hasFocus(), changed: redraw }));
+  const [agents] = useState(() => new AgentStepSession({ api: window.doan, openInstall: openInstallPage, hasFocus: () => document.hasFocus(), changed: redraw, remember: rememberOwned, recall: recallOwned }));
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
+  const homeRef = useRef(homeDirectory);
+  homeRef.current = homeDirectory;
+  const closed = useRef(false);
+  const finish = (root: string | null) => { if (closed.current) return; closed.current = true; onClose(root); };
+  const [project] = useState(() => new ProjectStepSession({
+    api: window.doan, sessionId: session, projects: () => projectsRef.current, homeDirectory: () => homeRef.current,
+    requestId: () => crypto.randomUUID(), changed: redraw, completed: root => finish(root),
+  }));
   const [scene, setScene] = useState(() => initialScene(false));
-  const [project, setProject] = useState<string | null>(null);
-  const [rerooted, setRerooted] = useState<string | null>(null);
-  const [closing, setClosing] = useState(false);
-  const [projectBusy, setProjectBusy] = useState(false);
-  const [layer, setLayer] = useState<Layer | null>(null);
-  const [refused, setRefused] = useState<string | null>(null);
-  const [addScan, setAddScan] = useState<string | null>(null);
-  const [addConfirms, setAddConfirms] = useState<AddOutcome["confirms"]>([]);
-  const [addMessage, setAddMessage] = useState<string | null>(null);
-  const adoptedAdd = useRef(false);
   const heading = useRef<HTMLElement | null>(null);
-  const live = useRef(true);
-  const entry = project === null ? undefined : entries.find(candidate => candidate.path === project);
   const auth = agents.state.auth ?? null;
-  const busy = projectBusy || closing;
+  const busy = project.busy();
 
   useEffect(() => {
-    live.current = true;
     agents.start();
+    project.start();
     const focused = () => agents.windowFocused();
     window.addEventListener("focus", focused);
-    return () => { live.current = false; window.removeEventListener("focus", focused); agents.dispose(); };
+    // Completion saved by a CLI or MCP client of this session: Home takes over here too.
+    const stop = window.doan.onOnboardingSession((state: OnboardingState) => { if (state.sessionId === session && state.completed) finish(state.project?.root ?? null); });
+    return () => { window.removeEventListener("focus", focused); stop(); agents.dispose(); project.dispose(); };
   }, []);
   // A scene change moves focus to its heading; Tab then enters the controls (design '이동·취소·포커스 계약').
   useEffect(() => { requestAnimationFrame(() => heading.current?.focus()); }, [scene.generation]);
   // Guarded with the session's auth at the time of the move, not of the click: a cancel wait can outlive a ready provider.
-  const move = (event: SceneEvent) => setScene(current => nextScene(current, event, { auth: agents.state.auth ?? null, busy }));
+  const move = (event: SceneEvent) => setScene(current => nextScene(current, event, { auth: agents.state.auth ?? null, busy: project.busy() }));
   const generation = useRef(0);
   generation.current = scene.generation;
   const leave = sceneMover(agents, move, () => generation.current);
 
-  useEffect(() => {
-    if (!addOutcome) return;
-    const root = addOutcome.added[0] ?? addOutcome.duplicate;
-    if (root) adoptAdded(root);
-    setRefused(addOutcome.messages.join("\n") || null);
-    setAddMessage(addOutcome.duplicate ? `Already added: ${addOutcome.duplicate}` : null);
-    setAddScan(addOutcome.scanId);
-    setAddConfirms(addOutcome.confirms);
-  }, [addOutcome]);
-  useEffect(() => {
-    if (reroot && project === reroot.from) { setProject(reroot.root); setRerooted(`This folder is inside ${reroot.root}, which is already set up.`); }
-  }, [reroot?.seq]);
-
-  async function close(): Promise<void> {
-    if (busy) return;
-    setClosing(true);
-    let result: StepResult;
-    try { result = await window.doan.closeOnboarding({ session }); } catch (error) { result = { kind: "error", message: errorText(error) }; }
-    if (!live.current) return;
-    setClosing(false);
-    if (result.kind === "success" || result.kind === "stale") onClose();
-  }
-  function adopt(root: string, cause: "open" | "add") { setRerooted(null); if (cause === "open") setRefused(null); setProject(root); }
-  function adoptAdded(root: string) {
-    // A multi-add can finish through a direct result, a scan and several confirmations.
-    if (adoptedAdd.current) return;
-    adoptedAdd.current = true;
-    adopt(root, "add");
-  }
-  // Open Project… is disabled while main answers, so a stacked modal opened
-  // from it would hand focus back to <body> when cancelled.
-  const openFocus = useRef<HTMLElement | null>(null);
-  function cancelLayer() {
-    setLayer(null);
-    requestAnimationFrame(() => { const node = openFocus.current; if (node?.isConnected && !node.matches(":disabled")) node.focus(); });
-  }
-  async function openProject() {
-    openFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    let result: OpenProjectResult;
-    try { result = await window.doan.openProject(); } catch { return; }
-    if (!live.current) return;
-    setRefused(null);
-    if (result.kind === "stored") adopt(result.root, "open");
-    else if (result.kind === "choose") setLayer({ kind: "choose", scanId: result.scanId });
-    else if (result.kind === "confirm") setLayer({ kind: "confirm", confirmId: result.confirmId, path: result.path, name: result.name });
-    else if (result.kind === "refused") setRefused(result.message);
-  }
-  function restoreAddFocus() {
-    requestAnimationFrame(() => {
-      const previous = openFocus.current;
-      if (previous?.isConnected && !previous.matches(":disabled")) previous.focus();
-      else heading.current?.focus();
-    });
-  }
-
-  // A stacked modal (the pick-one list, a confirmation, the stop or paste dialog) answers its own keys.
+  // A stacked modal (the stop or paste dialog) answers its own keys.
   const stacked = useRef(false);
-  stacked.current = layer !== null || addScan !== null || addConfirms.length > 0 || agents.state.dialog !== null;
+  stacked.current = agents.state.dialog !== null;
   const overlay = useRef<HTMLDialogElement | null>(null);
   // On the window, in capture: a button that turns disabled while it runs drops
   // focus to <body>, and keys from there must still reach the onboarding window. Capture
@@ -340,6 +480,7 @@ export function Wizard({ session, entries, reroot, homeDirectory, addOutcome, on
 
   const welcome = scene.scene === "welcome";
   const setHeading = (node: HTMLElement | null) => { heading.current = node; };
+  const p = project;
   // A modal <dialog> sits above any app dialog already open (setup, comments),
   // which would otherwise stay on top and leave both unclickable.
   return <dialog className={welcome ? "ob-overlay ob-welcome" : "ob-overlay"} aria-label="Set up doan"
@@ -352,106 +493,13 @@ export function Wizard({ session, entries, reroot, homeDirectory, addOutcome, on
       {welcome && <div className="ob-welcome-scene" ref={node => setHeading(node?.querySelector("h1") ?? null)}><Welcome start={() => move({ type: "start" })} /></div>}
       {scene.scene === "agent" && <AgentStep session={agents} heading={setHeading}
         back={leave.back} next={leave.forward} />}
-      {scene.scene === "project" && <>
-        <div className="ob-heading"><h2 tabIndex={-1} ref={setHeading}>Choose a project</h2></div>
-        {addMessage && <p role="status">{addMessage}</p>}
-        <div className="ob-card"><ProjectStep key={project ?? ""} project={project} entry={entry ?? null} rerooted={rerooted} refused={refused} setBusy={setProjectBusy} open={openProject}
-          setUpDone={(result) => { if (result.kind === "rerooted") { setProject(result.root); setRerooted(result.message); } }} /></div>
-        <div className="ob-footer">
-          <button type="button" className="doan-button" data-ui-variant="subtle" disabled={busy} onClick={() => move({ type: "back" })}><ArrowLeft aria-hidden="true" />Back</button>
-          <button type="button" className="doan-button" data-ui-variant="prominent" disabled={busy || !canComplete(auth, entry?.kind === "list" ? entry.path : null)} onClick={() => void close()}>Finish<ArrowRight aria-hidden="true" /></button>
-        </div>
-      </>}
+      {scene.scene === "project" && <ProjectScreen state={p.state} busy={busy} agentReady={canAdvance(auth)} projects={projects} home={homeDirectory} urlValid={p.urlValid()} heading={setHeading} on={{
+        back: () => move({ type: "back" }), backToAgents: () => move({ type: "step", to: "agent" }),
+        chooseFolder: () => void p.chooseFolder(), setUrl: url => p.setUrl(url), find: () => void p.findRepository(), cancelInspect: () => p.cancelInspect(), edit: () => p.restart(),
+        pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), select: initialize => void p.select(initialize),
+        changeDestination: () => void p.changeDestination(), useExisting: () => void p.useExisting(), clone: () => void p.clone(), cancelClone: () => void p.cancelClone(),
+        complete: () => void p.complete(), retry: () => void p.retry(),
+      }} />}
     </div>
-    {addScan && <AddProjectsDialog key={addScan} scanId={addScan} homeDirectory={homeDirectory}
-      close={() => { setAddScan(null); restoreAddFocus(); }} added={roots => { if (roots[0]) adoptAdded(roots[0]); }} />}
-    {!addScan && addConfirms[0] && <SetUpFolderConfirm key={addConfirms[0].confirmId} name={addConfirms[0].name} path={addConfirms[0].path}
-      cancel={() => { setAddConfirms(current => current.slice(1)); restoreAddFocus(); }}
-      confirm={async () => {
-        const pending = addConfirms[0];
-        if (!pending) return;
-        const result = await window.doan.confirmFolder(pending.confirmId);
-        const root = result.kind === "added" ? result.added[0] : undefined;
-        if (!root) throw new Error("This confirmation is no longer available. Add the folder again.");
-        setAddConfirms(current => current.slice(1)); adoptedAdd.current = true; adopt(root, "add"); restoreAddFocus();
-      }} />}
-    {layer?.kind === "choose" && <PickOneDialog key={layer.scanId} scanId={layer.scanId} homeDirectory={homeDirectory} close={cancelLayer} chosen={root => { setLayer(null); adopt(root, "open"); }} />}
-    {layer?.kind === "confirm" && <SetUpFolderConfirm key={layer.confirmId} name={layer.name} path={layer.path} cancel={cancelLayer}
-      confirm={async () => {
-        const result = await window.doan.confirmFolder(layer.confirmId);
-        const root = result.kind === "added" ? result.added[0] : undefined;
-        if (root === undefined) throw new Error("This confirmation is no longer available. Open the folder again.");
-        setLayer(null); adopt(root, "open");
-      }} />}
   </dialog>;
 }
-
-// Step 3 picked a folder of repositories: choose exactly one, worktrees included.
-function PickOneDialog({ scanId, homeDirectory, close, chosen }: { scanId: string; homeDirectory: string | null; close: () => void; chosen: (root: string) => void }) {
-  const [snapshot, setSnapshot] = useState<ScanSnapshot | null>(null);
-  const [choice, setChoice] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => window.doan.watchScan(scanId, setSnapshot), [scanId]);
-  const view = snapshot ? pickView(snapshot, homeDirectory) : null;
-  const picked = choice ?? view?.initial ?? null;
-  const cancel = () => { if (busy) return; void window.doan.cancelScan(scanId).catch(console.error); dialog.current?.close(); close(); };
-  async function submit() {
-    if (picked === null) return;
-    setBusy(true); setError("");
-    try {
-      const result = await window.doan.addCandidates(scanId, [picked]);
-      const root = result.kind === "added" ? result.added[0] : undefined;
-      if (root !== undefined) { dialog.current?.close(); chosen(root); return; }
-      setError("This list is no longer available. Open the folder again.");
-    } catch (failure) { setError(errorText(failure)); }
-    setBusy(false);
-  }
-  return <dialog className="add-dialog doan-dialog" aria-label={view?.title ?? "Choose a repository"} aria-busy={busy} ref={node => { dialog.current = node; if (node && !node.open) node.showModal(); }}
-    onCancel={event => { event.preventDefault(); cancel(); }} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); } }}>
-    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">{view?.title ?? "Choose a repository"}</h3><p className="lead doan-dialog-description"><Parts parts={view?.lead ?? []} /></p></div></div>
-    <div className="cl native-scroll" role="radiogroup" aria-label="Repositories">
-      {view?.rows.map(row => <div className={`cl-item${row.sub ? " sub" : ""}${row.disabled ? " off" : ""}`} key={row.id}>
-        <input type="radio" name={`pick-${scanId}`} aria-label={row.label} disabled={row.disabled || busy} checked={picked === row.id} onChange={() => setChoice(row.id)} />
-        <PathTip text={row.name}><span className="cl-name">{row.name}{row.sub && <span className="kind">worktree</span>}</span></PathTip>
-        {row.chip ? <span className={chipClass(row.chip.tone)}>{row.chip.text}</span> : <span />}
-        <PathTip text={row.path}><span className="cl-path">{row.path}</span></PathTip>
-      </div>)}
-    </div>
-    {error && <p role="alert" className="ob-msg error"><AlertIcon /><span>{error}</span></p>}
-    <div className="add-foot doan-dialog-actions">{snapshot && !snapshot.done && <span className="scan" role="status"><span className="spinner doan-spinner" />{snapshot.finished} of {snapshot.total} checked</span>}<span className="spacer" />
-      <button type="button" className="btn doan-button" data-ui-variant="subtle" autoFocus disabled={busy} onClick={cancel}>Cancel</button>
-      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" disabled={picked === null || busy} onClick={() => void submit()}>Choose</button></div>
-  </dialog>;
-}
-
-function ProjectStep({ project, entry, rerooted, refused, setBusy, open, setUpDone }: {
-  project: string | null; entry: FolderEntry | null; rerooted: string | null; refused: string | null; setBusy: (busy: boolean) => void;
-  open: () => Promise<void>; setUpDone: (result: ProjectInitResult) => void;
-}) {
-  const setup = useProjectSetup(project ?? "");
-  const [opening, setOpening] = useState(false);
-  const running = setup.form.running || opening;
-  useEffect(() => { setBusy(running); return () => setBusy(false); }, [running]);
-  const view = projectStepView(entry ?? (project ? { path: project, kind: "loading" } : null), { ...setup.form, running, rerooted, refused });
-  const openProject = async () => { setOpening(true); try { await open(); } finally { setOpening(false); } };
-  return <>
-    <div className="ob-card">
-      <div className="ob-field">
-        <span className="ob-label">Project</span>
-        {view.value ? <span className="value">{view.value.name} <span className="meta" title={view.value.path}>{view.value.path}</span></span> : <span className="value none">No project open</span>}
-        {view.chip ? <span className="ob-chip ok">{view.chip}</span>
-          : <button type="button" className={view.open.primary ? "btn primary doan-button" : "btn doan-button"} data-ui-variant={view.open.primary ? "prominent" : "subtle"} data-ui-size="sm" disabled={view.open.disabled} onClick={() => void openProject()}>Open Project…</button>}
-        {view.message && <span className="ob-msg">{view.message}</span>}
-        {view.error && <span className="ob-msg error" role="alert"><AlertIcon /><span>{view.error}</span></span>}
-      </div>
-      {view.form && <>
-        <ProjectFields form={{ ...setup.form, running }} choose={() => void setup.choose()} />
-        <div className="ob-actions"><span className="spacer" /><button type="button" className="btn primary doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={view.form.setUp.disabled}
-          onClick={() => void setup.setUp().then(result => { if (result) setUpDone(result); })}>{view.form.setUp.label}</button></div>
-      </>}
-    </div>
-  </>;
-}
-

@@ -4,8 +4,7 @@ import type { ShellActivity } from "../main/shellActivity";
 import type { ConversationService, StartRequest } from "../main/conversation/service";
 import type { ConversationError } from "../main/conversation/ipc";
 import type { Anchor, Canvas, ConversationEvent, Runtime, UnavailableReason } from "../main/conversation/types";
-import type { OnboardingOpen, OnboardingRead } from "../main/index";
-import type { StepRequest, StepResult } from "../main/onboarding/machine";
+import type { StepResult } from "../main/onboarding/machine";
 import type {
   Author, OnboardingCancelRequest, OnboardingCheckRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
   OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingState, OnboardingStatusRequest,
@@ -16,7 +15,7 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { AddOutcome, ScanSnapshot, StoreResult } from "../main/addProjects";
 import type { Selection } from "../formats/types";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
-import type { LocateResult, MenuCommand, MenuInputs, OpenProjectResult, ProjectInitRequest, RemoveResult, RestoreResult, TokenCssChoice, ViewCommand } from "../main/index";
+import type { FolderPurpose, LocateResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, RestoreResult, TokenCssChoice, ViewCommand } from "../main/index";
 import type { ExternalTarget, ForwardedAction, SettingsTarget } from "../main/settings";
 import type { SetupStatus } from "../main/setupBroker";
 import type { InspectResult } from "../main/inspect";
@@ -109,10 +108,6 @@ const api = {
     return () => ipcRenderer.removeListener("onboarding:changed", receive);
   },
   homeDirectory: (): Promise<string | null> => ipcRenderer.invoke("app:home"),
-  readOnboarding: (request: { session: string; requestId: string }): Promise<OnboardingRead> => ipcRenderer.invoke("onboarding:read", request),
-  runOnboardingStep: (request: StepRequest): Promise<StepResult> => ipcRenderer.invoke("onboarding:run", request),
-  answerOnboardingReplace: (answer: { id: string; allow: boolean }): Promise<StepResult> => ipcRenderer.invoke("onboarding:answer", answer),
-  closeOnboarding: (request: OnboardingOpen): Promise<StepResult> => ipcRenderer.invoke("onboarding:close", request),
   copyPathLine: (): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "pathLine" }),
   // Hidden: closed with the app running, or the whole app hidden (⌘H).
   onWindowVisible: (listener: (visible: boolean) => void): (() => void) =>
@@ -122,8 +117,8 @@ const api = {
   firstPrompt: (root: string, subject: string): Promise<string | null> => ipcRenderer.invoke("onboarding:first-prompt", { root, subject }),
   // Resolves after the clipboard write settled.
   copyFirstPrompt: (root: string, subject: string): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "firstPrompt", root, subject }),
-  // The wizard's Open Project…: one folder, judged as Add Project… judges it.
-  openProject: (): Promise<OpenProjectResult> => ipcRenderer.invoke("onboarding:open-project"),
+  // The Project step's folder picker: a path only, null when cancelled. The session inspects and registers it.
+  chooseOnboardingFolder: (purpose: FolderPurpose): Promise<string | null> => ipcRenderer.invoke("onboarding:choose-folder", purpose),
   // Home chips, banner and Finish card; null only if main refused.
   setupStatus: (): Promise<SetupStatus | null> => ipcRenderer.invoke("setup:status"),
   checkSetupAgain: (): Promise<SetupStatus | null> => ipcRenderer.invoke("setup:check-again"),
@@ -136,13 +131,6 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, request: { path: string; action: ForwardedAction }) => listener(request);
     ipcRenderer.on("projects:action", receive);
     return () => ipcRenderer.removeListener("projects:action", receive);
-  },
-  onOnboardingOpen(listener: (opened: OnboardingOpen) => void): () => void {
-    let active = true, received = false;
-    const receive = (_event: Electron.IpcRendererEvent, opened: OnboardingOpen) => { received = true; listener(opened); };
-    ipcRenderer.on("onboarding:open", receive);
-    void ipcRenderer.invoke("onboarding:get-open").then((opened: OnboardingOpen | null) => { if (active && !received && opened) listener(opened); });
-    return () => { active = false; ipcRenderer.removeListener("onboarding:open", receive); };
   },
   commentsList: (request: CommentRequest): Promise<CommentReply<CommentList>> => ipcRenderer.invoke("comments:list", request),
   commentsBegin: (request: BeginRequest): Promise<CommentReply<BeginResult>> => ipcRenderer.invoke("comments:begin", request),
