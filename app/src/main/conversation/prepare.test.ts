@@ -1,10 +1,11 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 const mocks = vi.hoisted(() => ({ probe: vi.fn(), run: vi.fn() }));
 vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: mocks.run }));
-import { createPrepare } from "./prepare";
+import { BUNDLED_CLAUDE_SDK, createPrepare, routePrepare } from "./prepare";
+import { SUPPORTED_VERSIONS } from "./sessions";
 import { conversationHandler } from "./ipc";
 import { ConversationService } from "./service";
 import { ConversationStore } from "./store";
@@ -32,8 +33,9 @@ it("refuses a Codex resume preview with a record but no verifiable stored sessio
   writeFileSync(join(root, "sessions.jsonl"), JSON.stringify({ v: 1, at: "2026-10-27T00:00:00.000Z", root, canvas, hash: "sha256:" + "a".repeat(64), runtime: "codex", sessionId: "01a178ba-f9dc-7161-9544-f20f656064a1", configDir: root, cwd: root }) + "\n");
   const prepare = createPrepare(root, join(root, "runtime.json"), { HOME: root });
   await expect(prepare({ root, mode: "resume", canvas, text: "", anchors: [] })).rejects.toThrow("session_unavailable");
-  const service = new ConversationService(new ConversationStore(root), prepare, vi.fn(), () => {});
-  const handler = conversationHandler(service, prepare, () => [{ path: root, kind: "list", canvases: [canvas] }]);
+  const routed = routePrepare(prepare, () => Promise.reject(new Error("not_logged_in")));
+  const service = new ConversationService(new ConversationStore(root), routed, vi.fn(), () => {});
+  const handler = conversationHandler(service, routed, () => [{ path: root, kind: "list", canvases: [canvas] }]);
   expect(await handler(true, "resumeTarget", { root, canvas })).toEqual({ available: false, reason: "session_unavailable" });
 });
 
@@ -52,4 +54,10 @@ it.each(["valid", "wrong-id", "wrong-cwd", "wrong-version", "malformed", "linked
   const ready = prepare({ root, mode: "resume", text: "", anchors: [] }, { runtime: "codex", origin: "new", sessionId, configDir: root, cwd: root });
   if (kind === "valid") expect((await ready).sessionId).toBe(sessionId); else await expect(ready).rejects.toThrow("session_unavailable");
   expect(mocks.run).toHaveBeenCalledTimes(1); expect(mocks.run.mock.calls[0]?.[1]).toEqual(["--version"]);
+});
+
+it("pins the installed Claude Agent SDK to the supported version", () => {
+  const manifest = JSON.parse(readFileSync(join(__dirname, "../../../package.json"), "utf8"));
+  expect(manifest.dependencies["@anthropic-ai/claude-agent-sdk"]).toBe(BUNDLED_CLAUDE_SDK);
+  expect(BUNDLED_CLAUDE_SDK).toBe(SUPPORTED_VERSIONS.claudeSdk);
 });

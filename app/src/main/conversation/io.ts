@@ -1,7 +1,7 @@
 import { constants, closeSync, fstatSync, lstatSync, openSync, readSync, realpathSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { execFile } from "node:child_process";
-import { absolutePath, object, parseSessionRecords, SESSION_TAIL_BYTES } from "./sessions";
+import { absolutePath, object, parseSessionRecords, SESSION_TAIL_BYTES, SUPPORTED_VERSIONS } from "./sessions";
 
 export const CONVERSATION_HISTORY_BYTES = 256 * 1024 * 1024;
 
@@ -67,11 +67,13 @@ export async function claudeOccupancy(config: string, sessionId: string, inspect
     const names = readdirSync(directory); if (names.length > 4096) return "unknown";
     let occupied = false;
     for (const name of names) {
+      // 2.1.312 keeps a per-process <pid>.<sha256>.key beside each record; it is not a registry record and is never read.
+      if (/^[1-9][0-9]*\.[0-9a-f]{64}\.key$/.test(name)) continue;
       if (!/^[1-9][0-9]*\.json$/.test(name)) return "unknown";
       const raw: unknown = JSON.parse(readRegular(join(directory, name), 65536));
       if (!object(raw) || raw.pid !== Number(name.slice(0, -5)) || !Number.isSafeInteger(raw.pid) || typeof raw.pid !== "number" ||
           typeof raw.sessionId !== "string" || !raw.sessionId || typeof raw.procStart !== "string" || !Number.isFinite(Date.parse(raw.procStart)) || typeof raw.cwd !== "string" || !absolutePath(raw.cwd) ||
-          raw.version !== "2.1.310" || typeof raw.kind !== "string") return "unknown";
+          raw.version !== SUPPORTED_VERSIONS.claude || typeof raw.kind !== "string") return "unknown";
       const actual = await inspect(raw.pid);
       if (actual !== null && actual.replace(/\s+/g, " ").trim() === raw.procStart.replace(/\s+/g, " ").trim()) {
         if (raw.kind !== "interactive") return "unknown";

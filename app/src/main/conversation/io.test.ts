@@ -43,10 +43,18 @@ describe("conversation disk boundaries", () => {
     const inspect = async (pid: number) => pid === 12 ? start : null;
     expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
     mkdirSync(join(config, "sessions")); expect(await claudeOccupancy(config, "s", inspect)).toBe("free");
-    writeFileSync(join(config, "sessions", "12.json"), JSON.stringify({ pid: 12, sessionId: "s", cwd: "/other", kind: "interactive", version: "2.1.310", procStart: start }));
+    writeFileSync(join(config, "sessions", "12.json"), JSON.stringify({ pid: 12, sessionId: "s", cwd: "/other", kind: "interactive", version: "2.1.312", procStart: start }));
     expect(await claudeOccupancy(config, "s", inspect)).toBe("occupied");
-    writeFileSync(join(config, "sessions", "12.json"), JSON.stringify({ pid: 12, sessionId: "s", cwd: "/other", kind: "interactive", version: "2.1.310", procStart: "Mon Oct 26 12:00:00 2026" }));
+    writeFileSync(join(config, "sessions", "12.json"), JSON.stringify({ pid: 12, sessionId: "s", cwd: "/other", kind: "interactive", version: "2.1.312", procStart: "Mon Oct 26 12:00:00 2026" }));
     expect(await claudeOccupancy(config, "s", inspect)).toBe("free");
+    // 2.1.312 writes a per-process key file beside each record; it is skipped, never parsed.
+    writeFileSync(join(config, "sessions", `12.${"a".repeat(64)}.key`), "not json", { mode: 0o600 });
+    expect(await claudeOccupancy(config, "s", inspect)).toBe("free");
+    writeFileSync(join(config, "sessions", "12.json"), JSON.stringify({ pid: 12, sessionId: "s", cwd: "/other", kind: "interactive", version: "2.1.310", procStart: start }));
+    expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
+    rmSync(join(config, "sessions", "12.json"));
+    writeFileSync(join(config, "sessions", "12.key"), "not json"); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
+    rmSync(join(config, "sessions", "12.key"));
     writeFileSync(join(config, "sessions", "bad.json"), "broken"); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
   });
 });

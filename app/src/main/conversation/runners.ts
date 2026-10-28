@@ -16,7 +16,8 @@ function timeout<T>(promise: Promise<T>): Promise<T> {
   });
 }
 async function openCodex(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<Runner> {
-  const child = spawn(input.command, ["app-server"], { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
+  // Doan-account args select the dedicated credential store; they must precede the subcommand.
+  const child = spawn(input.command, [...input.args ?? [], "app-server"], { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
   let startingTurn = false; const queued: unknown[] = [];
   let group: OwnedGroup | undefined, sessionId = input.sessionId ?? "", activeTurn = "", buffer = "", dead = false;
   const write = (value: unknown) => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(JSON.stringify(value) + "\n"); };

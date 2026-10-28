@@ -1,7 +1,7 @@
 import { parseActivityRoots, readShellActivity } from "./shellActivity";
 import { ConversationService, resolveListedCanvas } from "./conversation/service";
 import { ConversationStore } from "./conversation/store";
-import { createPrepare } from "./conversation/prepare";
+import { createAccountPrepare, createPrepare, routePrepare } from "./conversation/prepare";
 import { openRunner } from "./conversation/runners";
 import { conversationHandler, conversationMethods } from "./conversation/ipc";
 import { AuthManager, shellLocator, spawnAuthProcess } from "./agentAuth/manager";
@@ -591,7 +591,13 @@ async function start(): Promise<void> {
     return undefined;
   });
 
-  const prepareConversation = createPrepare(userData, join(userData, "runtime.json"), process.env);
+  const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), locate: shellLocator(process.env) });
+  // Unreadable metadata leaves sign-in unavailable rather than letting a later save erase other connections.
+  try { await auth.load(); agentAuth = auth; } catch (error) { console.error("doan: agent sign-in storage is unreadable", error); }
+  const accountPrepare = createAccountPrepare(auth, cli);
+  // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
+  const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
+    (request, stored) => agentAuth ? accountPrepare(request, stored) : Promise.reject(new Error("not_logged_in")));
   const conversationStore = new ConversationStore(userData);
   const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => send("conversation:event", event), (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
@@ -602,9 +608,6 @@ async function start(): Promise<void> {
     }
   });
   conversations = conversationService;
-  const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), locate: shellLocator(process.env) });
-  // Unreadable metadata leaves sign-in unavailable rather than letting a later save erase other connections.
-  try { await auth.load(); agentAuth = auth; } catch (error) { console.error("doan: agent sign-in storage is unreadable", error); }
   const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries());
   for (const method of conversationMethods) {
     ipcMain.handle(`conversation:${method}`, (event, value: unknown) => conversationRequest(fromWindow(event), method, value));

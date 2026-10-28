@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import stub from "../onboarding/SKILL.md?raw";
 import type { AccountIdentity, CheckResult, Provider } from "./types";
 
 export interface StatusRun { code: number | null; stdout: string; stderr: string; profileDir: string }
@@ -79,13 +80,16 @@ function codexStatus(run: StatusRun): CheckResult {
   return failed;
 }
 
+// The dedicated profile gets its own discovery stub instead of a copy of or link to the user's global skill;
+// Claude reads <CLAUDE_CONFIG_DIR>/skills and Codex <CODEX_HOME>/skills (skills/list, scope "user", 0.163.0).
+const SKILL_STUB = { "skills/doan/SKILL.md": stub };
 export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
   // PoC 10: a non-default CLAUDE_CONFIG_DIR gets its own Keychain item; .credentials.json would be the plaintext fallback.
   claude: { command: "claude", args: [], env: {}, login: ["auth", "login"], status: ["auth", "status", "--json"], logout: ["auth", "logout"],
-    vault: null, plaintext: [".credentials.json"], settings: {}, loginTerminal: false, parseStatus: claudeStatus },
+    vault: null, plaintext: [".credentials.json"], settings: SKILL_STUB, loginTerminal: false, parseStatus: claudeStatus },
   // The keyring entry is keyed by the canonical CODEX_HOME; "auto" could silently write auth.json instead.
   codex: { command: "codex", args: ["-c", 'cli_auth_credentials_store="keyring"'], env: {}, login: ["login"], status: ["login", "status"], logout: ["logout"],
-    vault: null, plaintext: ["auth.json"], settings: {}, loginTerminal: false, parseStatus: codexStatus },
+    vault: null, plaintext: ["auth.json"], settings: SKILL_STUB, loginTerminal: false, parseStatus: codexStatus },
   // AGENT_CLI_CREDENTIAL_STORE=file is Cursor's official switch; the default macOS Keychain item is shared by every profile.
   // On macOS the file store is ~/.cursor/auth.json (getAuthFilePath in the 2026.10.22 bundle).
   cursor: { command: "cursor-agent", args: [], env: { AGENT_CLI_CREDENTIAL_STORE: "file" }, login: ["login"], status: ["status", "--format", "json"], logout: null,

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -73,5 +73,9 @@ describe("provider auth adapters", () => {
     expect(PROVIDER_AUTH.codex.parseStatus(run(1, "", "Not logged in\n"))).toEqual({ status: "disconnected" });
     expect(PROVIDER_AUTH.codex.parseStatus(run(0, "", "Logged in using ChatGPT\n"))).toEqual({ status: "connected", account: { id: null, workspace: null } });
     expect(PROVIDER_AUTH.codex.parseStatus(run(1, "", "Error loading configuration"))).toEqual({ status: "failed", code: "check_failed" });
+  });
+  it("gives Claude and Codex dedicated profiles the doan discovery stub and no other provider files", () => {
+    const stub = readFileSync(join(__dirname, "../onboarding/SKILL.md"), "utf8");
+    for (const provider of ["claude", "codex"] as const) expect(PROVIDER_AUTH[provider].settings).toEqual({ "skills/doan/SKILL.md": stub });
   });
 });

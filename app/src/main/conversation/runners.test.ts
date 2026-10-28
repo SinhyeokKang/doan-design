@@ -171,3 +171,19 @@ descendant.once('message',()=>{
     rmSync(root, { recursive: true, force: true });
   }
 }, 10000);
+it("puts doan-account arguments ahead of the Codex app-server subcommand", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-fake-codex-")), command = join(root, "codex");
+  writeFileSync(command, `#!/usr/bin/env node
+require('node:fs').writeFileSync(${JSON.stringify(join(root, "argv.json"))}, JSON.stringify(process.argv.slice(2)));
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+require('node:readline').createInterface({input:process.stdin}).on('line', line => {
+ const r = JSON.parse(line);
+ if(r.method==='initialize') send({id:r.id,result:{}});
+ if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'}}});
+});
+`, { mode: 0o700 });
+  const exited = vi.fn();
+  const runner = await openRunner({ command, args: ["-c", 'cli_auth_credentials_store="keyring"'], runtime: "codex", cwd: root, configDir: root, env: process.env }, () => {}, exited, () => {});
+  try { expect(JSON.parse(readFileSync(join(root, "argv.json"), "utf8"))).toEqual(["-c", 'cli_auth_credentials_store="keyring"', "app-server"]); }
+  finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
+});
