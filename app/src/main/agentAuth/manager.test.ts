@@ -278,6 +278,84 @@ describe("attempt lifetime", () => {
   });
 });
 
+describe("stop before spawn", () => {
+  // The first locate call waits until the test resumes it, as probeShell does on a slow login shell.
+  function pausedLocate() {
+    let resume: (() => void) | null = null, calls = 0;
+    const locate = async () => {
+      if (++calls === 1) await new Promise<void>(resolve => { resume = resolve; });
+      return { command: "/bin/fake-cli", path: "/verified/bin" };
+    };
+    const paused = async () => { for (let i = 0; i < 50 && !resume; i++) await flush(); if (!resume) throw new Error("locate never ran"); return resume as () => void; };
+    return { locate, paused };
+  }
+  const stoppers: [string, (m: AuthManager, attemptId: string) => Promise<unknown>][] = [
+    ["cancel", (m, attemptId) => m.cancel("cursor", attemptId, 7)],
+    ["owner window close", m => m.ownerClosed(7)],
+    ["quit", m => m.quit()],
+  ];
+  it.each(stoppers)("leaves no login running when %s lands while the CLI is being located", async (_name, stopIt) => {
+    const { locate, paused } = pausedLocate();
+    const m = manager({ locate }); await m.load();
+    const run = started(await m.signIn("cursor", 7));
+    const resume = await paused();
+    const stopping = stopIt(m, run.attemptId);
+    resume(); await stopping;
+    expect(await run.done).toMatchObject({ phase: "disconnected", attempt: null, connection: null });
+    expect(processes.filter(p => !p.stopped)).toEqual([]);
+  });
+  it("releases the write lock for other providers after a cancel before spawn", async () => {
+    const { locate, paused } = pausedLocate();
+    const m = manager({ locate }); await m.load();
+    const run = started(await m.signIn("cursor", 7));
+    const resume = await paused();
+    await m.cancel("cursor", run.attemptId, 7);
+    resume(); await run.done;
+    expect((await m.signIn("codex", 7)).ok).toBe(true);
+  });
+  // A process that ignores the first stop request is still the attempt's and must be stopped again.
+  it("stops a lingering login again on a repeated cancel or window close of an already cancelled attempt", async () => {
+    const m = manager(); await m.load();
+    const run = started(await m.signIn("cursor", 7));
+    const login = await next("login");
+    stopReleases = false;
+    await m.cancel("cursor", run.attemptId, 7);
+    expect(login.stopped).toBe(true);
+    login.stopped = false;
+    expect(await m.cancel("cursor", run.attemptId, 7)).toMatchObject({ ok: true, outcome: "unchanged" });
+    expect(login.stopped).toBe(true);
+    login.stopped = false;
+    await m.ownerClosed(7);
+    expect(login.stopped).toBe(true);
+    login.release(); await run.done;
+  });
+  it("sends no login prompt once the attempt is cancelled", async () => {
+    const prompts: unknown[] = [];
+    const m = manager({ onPrompt: prompt => prompts.push(prompt) }); await m.load();
+    const run = started(await m.signIn("cursor", 7));
+    const login = await next("login");
+    stopReleases = false;
+    await m.cancel("cursor", run.attemptId, 7);
+    login.print("Open https://example.com/device?x=1\n");
+    expect(prompts).toEqual([]);
+    login.release(); await run.done;
+  });
+  it("stops a check that is still locating its CLI when a sign-in replaces it", async () => {
+    const { locate, paused } = pausedLocate();
+    const m = manager({ locate }); await m.load();
+    keychain = { status: "connected", account: { id: "acct", workspace: null } };
+    const check = started(await m.check("claude"));
+    const resume = await paused();
+    const run = started(await m.signIn("claude", 7));
+    resume();
+    await finish("login", 0);
+    await finish("status", 0);
+    expect(await run.done).toMatchObject({ phase: "connected", verified: true });
+    await check.done;
+    expect(processes.filter(p => p.step === "status")).toHaveLength(1);
+  });
+});
+
 describe("check", () => {
   it("materializes the vault for the status process and absorbs a runtime refresh", async () => {
     const m = manager(); await m.load();
@@ -393,6 +471,42 @@ describe("leases and recovery", () => {
     resume();
     await expect(lease).rejects.toThrow("busy");
   });
+  it("refuses sign-out until a released lease has written its refresh back, so the vault is never recreated", async () => {
+    const m = manager(); await m.load();
+    await signedInCursor(m, "u1");
+    const lease = await m.acquire("cursor");
+    writeFileSync(tokenFile("cursor"), JSON.stringify({ id: "u1", refreshed: true }));
+    let unblock: (() => void) | null = null;
+    vi.spyOn(cipher, "encrypt").mockImplementationOnce(async text => { await new Promise<void>(resolve => { unblock = resolve; }); return fakeCipher().encrypt(text); });
+    const released = lease.release();
+    for (let i = 0; i < 50 && !unblock; i++) await flush();
+    expect(await m.signOut("cursor")).toEqual(expect.objectContaining({ ok: false, reason: "stop_required" }));
+    expect(await m.signIn("cursor", 7)).toEqual(expect.objectContaining({ ok: false, reason: "stop_required" }));
+    unblock!(); await released;
+    const out = started(await m.signOut("cursor"));
+    await finish("status", 0);
+    expect(await out.done).toMatchObject({ phase: "disconnected" });
+    expect(await storage.loadVault("cursor")).toBeNull();
+  });
+  it("unverifies the connection with a storage error when a lease's refresh cannot be written back", async () => {
+    const m = manager(); await m.load();
+    await signedInCursor(m, "u1");
+    const lease = await m.acquire("cursor");
+    writeFileSync(tokenFile("cursor"), JSON.stringify({ id: "u1", refreshed: true }));
+    vi.spyOn(cipher, "encrypt").mockRejectedValueOnce(new Error("user denied keychain access"));
+    await lease.release();
+    expect(existsSync(tokenFile("cursor"))).toBe(false);
+    expect(m.state("cursor")).toMatchObject({ phase: "connected", verified: false, error: { code: "storage_failed" } });
+    await expect(m.acquire("cursor")).rejects.toThrow("unverified");
+  });
+  it("reports a check whose refresh cannot be written back as a storage error, not a verified connection", async () => {
+    const m = manager(); await m.load();
+    await signedInCursor(m, "u1");
+    const check = started(await m.check("cursor"));
+    vi.spyOn(cipher, "encrypt").mockRejectedValueOnce(new Error("user denied keychain access"));
+    await finish("status", 0, p => writeToken(p, { id: "u1", refreshed: true }));
+    expect(await check.done).toMatchObject({ phase: "connected", verified: false, error: { code: "storage_failed" } });
+  });
   it("refuses a lease without a verified connection", async () => {
     const m = manager(); await m.load();
     await expect(m.acquire("cursor")).rejects.toThrow("not_connected");
@@ -411,6 +525,15 @@ describe("leases and recovery", () => {
     expect(existsSync(tokenFile("copilot"))).toBe(false);
     expect(await storage.loadVault("copilot")).toBeNull();
     expect(restarted.state("cursor")).toMatchObject({ phase: "connected", verified: false });
+  });
+  it("keeps the stored credential when a crash left only an interrupted temporary write", async () => {
+    const m = manager(); await m.load();
+    await signedInCursor(m, "u1");
+    mkdirSync(dirname(tokenFile("cursor")), { recursive: true });
+    writeFileSync(`${tokenFile("cursor")}.abc.tmp`, "partial");
+    const restarted = manager(); await restarted.load();
+    expect(await storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1" })) });
+    expect(existsSync(`${tokenFile("cursor")}.abc.tmp`)).toBe(false);
   });
   it("deletes crash leftovers without encrypting them when the key is unavailable", async () => {
     const m = manager(); await m.load();

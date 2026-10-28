@@ -41,7 +41,10 @@ export class AuthStorage {
     catch (error) { if (absent(error)) return null; throw new StorageError("unreadable", message(error)); }
     try {
       if (!await this.cipher.available()) throw new Error("OS encryption is unavailable");
-      const doc = JSON.parse(await this.cipher.decrypt(sealed));
+      const text = await this.cipher.decrypt(sealed);
+      let doc;
+      // A parse error quotes its input, and decrypted bytes may be a credential.
+      try { doc = JSON.parse(text); } catch { throw new Error("vault is not a JSON document"); }
       if (doc?.v !== 1 || typeof doc.files !== "object" || doc.files === null) throw new Error("unknown vault format");
       return Object.fromEntries(Object.entries(doc.files).map(([rel, text]) => {
         if (typeof text !== "string") throw new Error("invalid vault entry");
@@ -88,7 +91,12 @@ export class AuthStorage {
     try { if (readFileSync(path, "utf8") === text) return; } catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }
     this.replace(path, Buffer.from(text));
   }
-    leftovers(provider: Provider, rels: readonly string[]): boolean { return this.workingPaths(provider, rels).length > 0; }
+  hasWorkingCopy(provider: Provider, rels: readonly string[]): boolean {
+    return rels.some(rel => {
+      try { lstatSync(this.working(provider, rel)); return true; }
+      catch (error) { if (error instanceof StorageError) throw error; if (absent(error)) return false; throw new StorageError("unreadable", message(error)); }
+    });
+  }
   scrub(provider: Provider, rels: readonly string[]): void { for (const path of this.workingPaths(provider, rels)) this.remove(path); }
   private vaultPath(provider: Provider): string { return join(this.root, "vault", `${provider}.bin`); }
   private working(provider: Provider, rel: string): string {

@@ -8,7 +8,7 @@ export interface ProviderAuth {
   // Prepended to every invocation, including B2/B3 runs, so no path can fall back to another store.
   args: string[]; env: Record<string, string>;
   login: string[]; status: string[];
-  // The login waits on a controlling terminal (Antigravity print mode); doan gives it one with /usr/bin/script.
+  // The login waits on a controlling terminal (Antigravity print mode); doan gives it one with /usr/bin/expect.
   loginTerminal: boolean;
   // Keychain providers only: vault providers sign out by deleting doan's copy, because a provider logout
   // cannot reach the vault and Copilot's /logout left its token behind in PoC 10.

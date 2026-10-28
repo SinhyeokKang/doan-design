@@ -51,6 +51,8 @@ export class AuthManager {
   // One sign-in or sign-out write across all providers at a time.
   private writer: string | null = null;
   private processes = new Map<string, Set<AuthProcess>>();
+  // Stop requests outlive process registration: exec honours one that arrived before its spawn.
+  private stopRequests = new Set<string>();
   private checks = new Map<Provider, { attemptId: string; done: Promise<unknown> }>();
   private holds = new Map<Provider, number>();
   private runs = new Map<Provider, number>();
@@ -84,10 +86,19 @@ export class AuthManager {
     const result = this.closed ? this.refuse(provider, "busy") : this.apply(provider, { type: "check", attemptId });
     if (!result.ok) return result;
     const done = this.track((async () => {
-      let checked: CheckResult;
-      try { checked = await this.working(provider, () => this.statusRun(provider, attemptId)); }
-      catch (error) { checked = { status: "failed", code: "check_failed", detail: message(error) }; }
-      this.apply(provider, { type: "checked", attemptId, result: checked });
+      let checked: CheckResult, lost: string | null = null;
+      try {
+        await this.hold(provider);
+        try { checked = await this.statusRun(provider, attemptId); } finally { lost = await this.drop(provider); }
+      } catch (error) { checked = { status: "failed", code: "check_failed", detail: message(error) }; }
+      try {
+        this.apply(provider, { type: "checked", attemptId, result: checked });
+        // After the result: the status ran on the refreshed copy that just failed to reach the vault.
+        if (lost !== null) this.apply(provider, { type: "writeBackFailed", detail: lost });
+      } finally {
+        this.stopRequests.delete(attemptId);
+        if (this.checks.get(provider)?.attemptId === attemptId) this.checks.delete(provider);
+      }
       return this.state(provider);
     })());
     this.checks.set(provider, { attemptId, done });
@@ -114,7 +125,7 @@ export class AuthManager {
             : { status: "failed", code: error instanceof Failure ? error.code : "sign_in_failed", detail: message(error) };
         }
         this.apply(provider, outcome ? { type: "signedIn", attemptId, result: outcome } : { type: "settled", attemptId });
-      } finally { if (this.writer === attemptId) this.writer = null; }
+      } finally { if (this.writer === attemptId) this.writer = null; this.stopRequests.delete(attemptId); }
       return this.state(provider);
     })());
     return { ok: true, attemptId, done };
@@ -139,8 +150,9 @@ export class AuthManager {
   async ownerClosed(owner: number): Promise<void> {
     for (const provider of PROVIDERS) {
       const attempt = this.state(provider).attempt;
-      const result = this.apply(provider, { type: "ownerClosed", owner });
-      if (attempt && result.ok && result.outcome === "applied") this.stop(attempt.id);
+      this.apply(provider, { type: "ownerClosed", owner });
+      // Also when already cancelled: a process spawned or lingering after the first request is still the attempt's.
+      if (attempt?.kind === "signIn" && attempt.owner === owner) this.stop(attempt.id);
     }
   }
 
@@ -174,7 +186,9 @@ export class AuthManager {
     let released = false;
     return { command, env, profileDir, release: async () => {
       if (released) return;
-      released = true; this.runs.set(provider, (this.runs.get(provider) ?? 1) - 1); await this.drop(provider);
+      released = true;
+      // The run counts until its write-back lands, so a sign-out cannot delete a vault the write-back recreates.
+      try { this.lost(provider, await this.drop(provider)); } finally { this.runs.set(provider, (this.runs.get(provider) ?? 1) - 1); }
     } };
   }
 
@@ -206,6 +220,7 @@ export class AuthManager {
     if (auth.vault) await this.storageStep(() => this.options.storage.scrub(provider, auth.vault!));
     const seen = new Set<string>();
     const login = await this.exec(provider, attemptId, auth.login, null, auth.loginTerminal, text => {
+      if (this.stopRequests.has(attemptId) || this.cancelled(provider, attemptId)) return;
       // Sentence punctuation after a printed URL is not part of it.
       for (const url of (text.match(/https?:\/\/[^\s"'<>]+/g) ?? []).map(found => found.replace(/[.,;:!?)\]]+$/, ""))) {
         if (seen.has(url)) continue;
@@ -239,7 +254,11 @@ export class AuthManager {
       if (auth.vault) { storage.scrub(provider, auth.vault); if (!hadConnection) storage.removeVault(provider); return; }
       const profileDir = storage.profileDir(provider);
       for (const rel of auth.plaintext) rmSync(join(profileDir, rel), { force: true });
-      if (!hadConnection && auth.logout) await this.exec(provider, attemptId, auth.logout, this.options.statusTimeoutMs ?? 20_000);
+      if (!hadConnection && auth.logout) {
+        // Cleanup is not the stopped work: a cancelled first login may already have written its keychain item.
+        this.stopRequests.delete(attemptId);
+        await this.exec(provider, attemptId, auth.logout, this.options.statusTimeoutMs ?? 20_000);
+      }
     } catch (error) { console.error(`doan: ${provider} sign-in cleanup failed`, message(error)); }
   }
 
@@ -277,11 +296,14 @@ export class AuthManager {
   // Resolves only after the process group is gone, so no result outruns its process.
   private async exec(provider: Provider, attemptId: string, args: string[], timeoutMs: number | null, terminal = false, onText?: (text: string) => void): Promise<Run> {
     const { command, env, profileDir } = await this.launch(provider);
+    // A cancel, window close or quit can arrive while the CLI is located, before there is a process to stop.
+    if (this.stopRequests.has(attemptId)) throw new Cancelled();
     const argv = [command, ...this.adapters[provider].args, ...args];
     const [program, ...rest] = terminal ? ["/usr/bin/expect", "-f", this.options.storage.ownedFile("terminal-relay.exp", TERMINAL_RELAY), ...argv] : argv;
     const child = this.options.spawn(program!, rest, { cwd: profileDir, env, input: terminal });
     const owned = this.processes.get(attemptId) ?? new Set();
     owned.add(child); this.processes.set(attemptId, owned);
+    if (this.stopRequests.has(attemptId)) child.stop();
     if (terminal) this.inputs.set(attemptId, child);
     let stdout = "", stderr = "", timer: ReturnType<typeof setTimeout> | undefined;
     child.onOutput((text, stream) => {
@@ -308,14 +330,10 @@ export class AuthManager {
     this.checks.delete(provider); this.stop(check.attemptId);
     return check.done.catch(() => {});
   }
-  private async working<T>(provider: Provider, body: () => Promise<T>): Promise<T> {
-    await this.hold(provider);
-    try { return await body(); } finally { await this.drop(provider); }
-  }
   // Holds and drops of one provider run in order, so a second holder never sees a half-written working copy.
-  private serial(provider: Provider, step: () => Promise<void>): Promise<void> {
+  private serial<T>(provider: Provider, step: () => Promise<T>): Promise<T> {
     const next = (this.queues.get(provider) ?? Promise.resolve()).then(step);
-    this.queues.set(provider, next.catch(() => {}));
+    this.queues.set(provider, next.then(() => {}, () => {}));
     return next;
   }
   private hold(provider: Provider): Promise<void> {
@@ -325,24 +343,30 @@ export class AuthManager {
       this.holds.set(provider, count + 1);
     });
   }
-  // The last holder writes the provider's refreshed copy back before the plaintext goes away.
-  private drop(provider: Provider): Promise<void> {
+  // The last holder writes the provider's refreshed copy back before the plaintext goes away. Resolves to the
+  // write-back failure, if any: the plaintext is still removed, so the refresh is lost and the vault may be stale.
+  private drop(provider: Provider): Promise<string | null> {
     return this.serial(provider, async () => {
       const count = (this.holds.get(provider) ?? 1) - 1, auth = this.adapters[provider];
       this.holds.set(provider, count);
-      if (count > 0 || !auth.vault) return;
+      if (count > 0 || !auth.vault) return null;
+      let lost: string | null = null;
       try { if (this.state(provider).connection) await this.options.storage.absorb(provider, auth.vault); }
-      catch (error) { console.error(`doan: ${provider} refresh could not be stored`, message(error)); }
+      catch (error) { lost = message(error); console.error(`doan: ${provider} refresh could not be stored`, lost); }
       try { this.options.storage.scrub(provider, auth.vault); }
       catch (error) { console.error(`doan: ${provider} working credential could not be removed`, message(error)); }
+      return lost;
     });
   }
+  private lost(provider: Provider, detail: string | null): void { if (detail !== null) this.apply(provider, { type: "writeBackFailed", detail }); }
   private async recover(provider: Provider, connected: boolean): Promise<void> {
     const auth = this.adapters[provider], storage = this.options.storage;
     try {
       if (!auth.vault) { const dir = storage.profileDir(provider); for (const rel of auth.plaintext) rmSync(join(dir, rel), { force: true }); return; }
       // A crash can leave a refreshed working copy; keep it only in encrypted form.
-      if (connected && storage.leftovers(provider, auth.vault)) {
+      // Only a working file is a copy to keep: a lone temporary sibling is an interrupted write, and absorbing
+      // it would read the missing file as a sign-out and empty the vault.
+      if (connected && storage.hasWorkingCopy(provider, auth.vault)) {
         try { await storage.absorb(provider, auth.vault); } catch (error) { console.error(`doan: ${provider} leftover credential could not be stored`, message(error)); }
       }
       storage.scrub(provider, auth.vault);
@@ -357,7 +381,10 @@ export class AuthManager {
     const attempt = this.state(provider).attempt;
     return !attempt || attempt.id !== attemptId || attempt.cancelled;
   }
-  private stop(attemptId: string): void { for (const child of this.processes.get(attemptId) ?? []) child.stop(); }
+  private stop(attemptId: string): void {
+    this.stopRequests.add(attemptId);
+    for (const child of this.processes.get(attemptId) ?? []) child.stop();
+  }
   private track<T>(work: Promise<T>): Promise<T> {
     this.pending.add(work);
     void work.finally(() => this.pending.delete(work)).catch(() => {});

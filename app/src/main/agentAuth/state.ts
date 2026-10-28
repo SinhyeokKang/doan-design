@@ -81,6 +81,10 @@ export function transition(state: AuthState, event: AuthEvent): AuthTransition {
       if (!attempt.cancelled) return reject("invalid");
       // Only sign-ins are cancellable, and one may have rewritten the profile before it stopped.
       return apply({ attempt: null, verified: false });
+    case "writeBackFailed":
+      if (!state.connection) return { ok: true, outcome: "unchanged", state };
+      // A provider refresh that never reached the vault may have revoked the credential the vault still holds.
+      return apply({ verified: false, error: kept ?? failure("storage_failed", event.detail) });
   }
   return reject("invalid");
 }

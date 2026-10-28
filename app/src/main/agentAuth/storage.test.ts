@@ -101,12 +101,19 @@ describe("provider file bridge", () => {
     fail = false;
     expect(await storage.loadVault("cursor")).toEqual({ token: Buffer.from("old") });
   });
+  it("keeps decrypted bytes that are not a vault document out of the error", async () => {
+    const storage = new AuthStorage(root, fakeCipher({ decrypt: async () => "refresh=rt-secret-1" }));
+    await storage.saveVault("cursor", { token: Buffer.from("x") });
+    const error = await storage.loadVault("cursor").catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ code: "unreadable" });
+    expect(String((error as Error).message)).not.toContain("rt-secret");
+  });
   it("lists and scrubs plaintext and temporary leftovers, refusing symlinked working paths", async () => {
     const storage = new AuthStorage(root, fakeCipher());
     plant(storage, "cursor", "config/auth.json", "left"); plant(storage, "cursor", "config/auth.json.123.tmp", "half");
-    expect(storage.leftovers("cursor", files)).toBe(true);
+    expect(storage.hasWorkingCopy("cursor", files)).toBe(true);
     storage.scrub("cursor", files);
-    expect(storage.leftovers("cursor", files)).toBe(false);
+    expect(storage.hasWorkingCopy("cursor", files)).toBe(false);
     expect(readdirSync(join(storage.profileDir("cursor"), "config"))).toEqual([]);
   });
   it("refuses to absorb a working credential replaced by a link", async () => {

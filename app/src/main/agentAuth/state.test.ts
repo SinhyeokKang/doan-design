@@ -124,6 +124,18 @@ describe("auth transitions", () => {
     const removed = step(step(failed, { type: "signOut", attemptId: "o2", running: false }), { type: "signedOut", attemptId: "o2", result: { status: "removed" } });
     expect(removed).toMatchObject({ phase: "disconnected", connection: null, error: null, verified: false, generation: 2 });
   });
+  it("unverifies a connection whose refreshed credential could not be written back, keeping a sign-out failure first", () => {
+    const lost = step(connected(), { type: "writeBackFailed", detail: "key_unavailable" });
+    expect(lost).toMatchObject({ phase: "connected", connection: connection(), verified: false, error: { code: "storage_failed", detail: "key_unavailable" } });
+    expect(readiness(lost, tools)).toEqual({ ready: false, cause: "unverified", action: "retry" });
+    const checking = step(connected(), { type: "check", attemptId: "c1" });
+    expect(step(checking, { type: "writeBackFailed" })).toMatchObject({ attempt: { id: "c1" }, verified: false, error: { code: "storage_failed" } });
+    const none = initialAuthState("claude", null);
+    expect(transition(none, { type: "writeBackFailed" })).toEqual({ ok: true, outcome: "unchanged", state: none });
+    const out = step(connected(), { type: "signOut", attemptId: "o1", running: false });
+    const failed = step(out, { type: "signedOut", attemptId: "o1", result: { status: "failed" } });
+    expect(step(failed, { type: "writeBackFailed" })).toMatchObject({ verified: false, error: { code: "sign_out_failed" } });
+  });
   it("unverifies the previous connection until a check when a replacement sign-in fails or is cancelled", () => {
     // The replacement logs in to the same dedicated profile, so the previous login may already be overwritten.
     const signing = step(connected(), { type: "signIn", attemptId: "a2", owner: 1 });
