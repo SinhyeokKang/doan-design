@@ -15,6 +15,8 @@ export interface AuthSnapshot { revision: number; providers: AuthStatusDto[] }
 export type AuthReason = AuthRejection | "open_failed";
 export type AuthStartReply = { ok: true; attemptId: string } | { ok: false; reason: AuthReason };
 export type AuthReply = { ok: true } | { ok: false; reason: AuthReason };
+// A check started an attempt, or, while readiness has a version cause, only re-read the tool facts and started none.
+export type AuthCheckReply = AuthStartReply | AuthReply;
 // Sent only to the window that started the sign-in.
 export interface AuthPromptEvent { provider: Provider; attemptId: string; url: string }
 export interface AuthBackend {
@@ -88,7 +90,7 @@ export class AuthIpc {
   }
 
   // owner is the sending window's webContents id; the caller has already checked it is a main frame of an app window.
-  async handle(channel: string, value: unknown, owner: number): Promise<AuthStartReply | AuthReply | AuthSnapshot> {
+  async handle(channel: string, value: unknown, owner: number): Promise<AuthCheckReply | AuthSnapshot> {
     const backend = this.options.backend;
     switch (channel) {
       case AUTH_CHANNELS.read: return value === undefined ? this.read() : invalid;

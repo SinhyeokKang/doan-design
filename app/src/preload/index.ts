@@ -1,4 +1,4 @@
-import type { AuthPromptEvent, AuthReply, AuthSnapshot, AuthStartReply } from "../main/agentAuth/ipc";
+import type { AuthCheckReply, AuthPromptEvent, AuthReply, AuthSnapshot, AuthStartReply } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { ShellActivity } from "../main/shellActivity";
 import type { ConversationService, StartRequest } from "../main/conversation/service";
@@ -68,7 +68,7 @@ const api = {
     ipcRenderer.invoke("agent-auth:read").then(deliver, () => {});
     return () => { active = false; ipcRenderer.removeListener("agent-auth:changed", receive); };
   },
-  checkAgentAuth: (provider: Provider): Promise<AuthStartReply> => ipcRenderer.invoke("agent-auth:check", { provider }),
+  checkAgentAuth: (provider: Provider): Promise<AuthCheckReply> => ipcRenderer.invoke("agent-auth:check", { provider }),
   // Without stop, a provider with running conversations answers stop_required; with it (the user chose to stop them)
   // main ends that provider's doan-account runs and waits for their processes before changing the account.
   signInAgent: (provider: Provider, options: { stop?: boolean } = {}): Promise<AuthStartReply> => ipcRenderer.invoke("agent-auth:sign-in", { provider, ...(options.stop ? { stop: true } : {}) }),

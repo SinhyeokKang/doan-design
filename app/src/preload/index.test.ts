@@ -338,6 +338,17 @@ test("sends agent account calls with only a provider, an attempt ID and an expli
   for (const [call, args] of calls) { mocks.invoke.mockClear(); await call(); expect(mocks.invoke).toHaveBeenCalledWith(...args); }
 });
 
+test("types a check reply that may start no attempt, unlike a sign-in reply", async () => {
+  mocks.invoke.mockResolvedValue({ ok: true });
+  const check = await api.checkAgentAuth("copilot"), signIn = await api.signInAgent("copilot");
+  if (check.ok) {
+    // @ts-expect-error A version-cause check succeeds without an attempt.
+    const attempt: string = check.attemptId;
+    expect(attempt).toBeUndefined();
+  }
+  if (signIn.ok) { const attempt: string = signIn.attemptId; expect(attempt).toBeUndefined(); }
+});
+
 test("keeps the newest agent account snapshot when the initial read and change events race, and unsubscribes", async () => {
   let resolve: (snapshot: unknown) => void = () => { throw new Error("initial read did not start"); };
   mocks.invoke.mockImplementation(() => new Promise(done => { resolve = done; }));
