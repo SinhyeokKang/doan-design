@@ -215,6 +215,7 @@ What the human does is **view + comment**; approval is deferred until after the 
 ### Skills
 
 13. Install skills for Claude Code and Codex.
+    - Planned design presets (2026-10-28 user): maintain a project design system as grounded documentation and a visually inspectable canvas. The current agent may read related skills as needed for the requested work, and later design tasks reuse that system. CLI `doan init` performs project setup; the design-start `init` skill establishes context. Setup guidance should let agents discover that skill without the CLI invoking a model. The 20-preset selection and implementation-time reconsideration are recorded in [doan-design-skills](features/doan-design-skills/spec.md); this is not implemented behavior.
 
 ### Feature split (2026-10-21)
 
@@ -364,6 +365,7 @@ Results:
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-10-28 | Record the 20 design presets for implementation-time review, including distinct design-start init and a design-system skill producing documentation and a visible canvas; allow related-skill references and discovery from CLI setup guidance | User decision — users need to inspect their project design system and agents need a shared basis for subsequent design work; Task 1 selection is complete, source reconciliation and implementation verification remain pending |
 | 2026-10-28 | Consolidate shared project files under `.doan/`: config, canvases, assets and comments. Serve only canvases/assets by default, excluding metadata; keep these files in Git. Directly migrate this sole existing repository without legacy support | User decision — one shared directory instead of two; explicitly override the /ship scope guard |
 | 2026-10-28 | Canvas files use `doan/` instead of `design/`, and new canvas-only assets are grouped in `doan/assets/`; reuse existing repository assets in place. `.doan/` remains project metadata. Rename this sole existing repository directly, without a legacy discovery or migration layer | User decision — avoid collisions with the common `design/` folder name |
 | 2026-10-27 | Plan Doan-specific agent OAuth and credential persistence with at most one connected account per platform; investigate Claude Code, GitHub Copilot, Codex, Cursor and Antigravity before selecting support paths | User requested the top-five PoC and then excluded multiple accounts per platform; GitHub repository OAuth/listing/cloning remain deferred |
