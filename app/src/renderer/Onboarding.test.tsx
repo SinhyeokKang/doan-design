@@ -327,3 +327,10 @@ test("review 2: Cancel waits until main names the clone", () => {
   expect(screen({ phase: { kind: "cloning", ...clone, operationId: null, cancelling: false } }, { busy: true })).toContain('data-ui-size="sm" disabled="">Cancel</button>');
   expect(screen({ phase: { kind: "cloning", ...clone, operationId: "o", cancelling: false } }, { busy: true })).toContain('data-ui-size="sm">Cancel</button>');
 });
+
+test("D20: a folder of another repository offers Edit repository URL and Choose another folder", () => {
+  const n = projectNotice("remote_mismatch", "x", null, true);
+  expect([n.body, n.actions.map(a => `${a.variant}:${a.label}:${a.command}`)]).toEqual(["This folder belongs to a different repository.", ["subtle:Edit repository URL:edit", "prominent:Choose another folder:chooseExisting"]]);
+  const plain = projectNotice("remote_mismatch", "x", null, false);
+  expect(plain.actions.map(a => a.command)).toEqual(["chooseFolder"]);
+});

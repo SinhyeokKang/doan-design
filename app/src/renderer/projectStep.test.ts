@@ -427,3 +427,46 @@ test("review 2: the session says when it waits on the folder picker", async () =
   expect(h.session.picking()).toBe(false);
   expect(phase(h)).toEqual({ kind: "choose" });
 });
+
+test("D20: an existing folder chosen from the URL path is inspected with that URL; a mismatch stays on the URL screen", async () => {
+  const h = harness();
+  await planned(h);
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/other");
+  h.queue.inspect!.push(ok(op("project_inspect", { state: "failed", error: { code: "remote_mismatch", message: "x" } })));
+  await h.session.chooseExisting();
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/other", url: "https://github.com/acme/studio" });
+  expect(h.session.state.error?.code).toBe("remote_mismatch");
+  expect(phase(h)).toMatchObject({ kind: "clone", destination: "/Users/ada/studio" });
+  h.queue.inspect!.push(refused("destination_exists"));
+  await h.session.retry();
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/other", url: "https://github.com/acme/studio" });
+});
+
+test("D20: Use existing folder sends the URL with the destination path", async () => {
+  const h = harness();
+  h.session.setUrl("https://github.com/acme/studio");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([]) })), refused("destination_exists"));
+  await h.session.findRepository();
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/Users/ada/studio"]]) })));
+  h.queue.select!.push(ok(op("project_select", { project: { root: "/Users/ada/studio" } })));
+  await h.session.useExisting();
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/Users/ada/studio", url: "https://github.com/acme/studio" });
+});
+
+test("D20: Choose another folder on a found checkout keeps the URL; a plain Choose folder does not send one", async () => {
+  const h = harness();
+  h.session.setUrl("https://github.com/acme/studio");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/a/studio"], ["/b/studio"]]) })));
+  await h.session.findRepository();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/c/studio");
+  h.queue.inspect!.push(ok(op("project_inspect", { state: "failed", error: { code: "remote_mismatch", message: "x" } })));
+  await h.session.chooseExisting();
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/c/studio", url: "https://github.com/acme/studio" });
+  expect(phase(h)).toMatchObject({ kind: "candidates" });
+  h.session.restart();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/d/app");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/d/app"]]) })));
+  h.queue.select!.push(ok(op("project_select", { project: { root: "/d/app" } })));
+  await h.session.chooseFolder();
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).not.toHaveProperty("url");
+});
