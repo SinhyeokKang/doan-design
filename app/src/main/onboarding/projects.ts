@@ -22,8 +22,8 @@ export interface ProjectDeps {
   remotes(root: string): RemoteRead;
 }
 export interface Candidate { path: string; changes: OnboardingChange[] }
-// leftover: a directory the clone made and could not remove (cleanup_failed only).
-export type ProjectOutcome = { ok: true; root: string } | { ok: false; code: OnboardingOperationErrorCode; leftover?: string };
+// leftovers: directories the clone made and could not remove (cleanup_failed only).
+export type ProjectOutcome = { ok: true; root: string } | { ok: false; code: OnboardingOperationErrorCode; leftovers?: string[] };
 
 const MERGE_LINE = ".doan/comments/*.jsonl merge=union";
 const failed = (code: OnboardingOperationErrorCode): ProjectOutcome => ({ ok: false, code });
@@ -138,6 +138,11 @@ export interface CloneDeps extends ProjectDeps {
   git(): Promise<{ git: string; env: Record<string, string> } | null>;
   run?: (request: CloneRequest) => Promise<CloneResult>;
 }
+// A recorded leftover counts as removed only when it is confirmed absent; an unreadable path may still be there.
+export async function leftoverPresent(path: string): Promise<boolean> {
+  try { await lstat(path); return true; } catch (error) { return !(typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT"); }
+}
+
 // After commit the clone is the user's project: registration and setup run without a cancel.
 export async function cloneProject(url: string, destination: string, signal: AbortSignal, deps: CloneDeps, commit?: () => boolean): Promise<ProjectOutcome | { ok: false; cancelled: true }> {
   const located = await deps.git();
@@ -145,7 +150,7 @@ export async function cloneProject(url: string, destination: string, signal: Abo
   if (signal.aborted) return { ok: false, cancelled: true };
   const result = await (deps.run ?? runClone)({ git: located.git, url, destination, env: located.env, signal, ...(commit ? { commit } : {}) });
   if (result.kind === "cancelled") return { ok: false, cancelled: true };
-  if (result.kind === "failed") return result.code === "cleanup_failed" ? { ok: false, code: result.code, leftover: result.leftover } : failed(result.code);
+  if (result.kind === "failed") return result.code === "cleanup_failed" ? { ok: false, code: result.code, leftovers: result.leftovers } : failed(result.code);
   return registerClone(result.destination, deps);
 }
 

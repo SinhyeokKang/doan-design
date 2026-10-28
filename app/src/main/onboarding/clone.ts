@@ -20,8 +20,8 @@ export type CloneResult =
   | { kind: "cloned"; destination: string }
   | { kind: "cancelled" }
   | { kind: "failed"; code: "repository_unreachable" | "clone_failed" | "destination_exists" }
-  // The directory this run made and could not remove, for the user to remove.
-  | { kind: "failed"; code: "cleanup_failed"; leftover: string };
+  // The directories this run made and could not remove, for the user to remove.
+  | { kind: "failed"; code: "cleanup_failed"; leftovers: string[] };
 
 const STDERR_LIMIT = 64 * 1024;
 const errno = (error: unknown) => typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
@@ -98,15 +98,19 @@ export interface CloneRequest {
 
 // Clones into a directory this run creates exclusively beside the destination, then claims the destination with an
 // exclusive mkdir and renames over that empty directory: a folder made there meanwhile is never replaced. Cleanup
-// removes only what this run created, and only after the whole process group is gone. A cancel is honoured at every
-// step until the commit; after the move that means removing the destination, which is this run's own directory.
+// removes only what this run created, and only after the whole process group is gone. Publication is the rename into
+// the destination (D19, 2026-10-29): a cancel accepted before it is honoured at every step, and one accepted while the
+// rename was in flight removes the moved destination, which is this run's own directory. The commit right after the
+// rename ends cancellation; from then on the clone is the user's folder in its final place and is never deleted.
 export async function runClone(request: CloneRequest): Promise<CloneResult> {
   const parent = dirname(request.destination);
   let temp: string;
   try { temp = await mkdtemp(join(parent, `.${basename(request.destination)}.doan-clone-`)); }
   catch { return { kind: "failed", code: "clone_failed" }; }
-  const cleanup = async (result: CloneResult, path = temp): Promise<CloneResult> => {
-    try { await rm(path, { recursive: true, force: true }); return result; } catch { return { kind: "failed", code: "cleanup_failed", leftover: path }; }
+  // Every path that could not be removed is reported, so the user learns all of them at once.
+  const cleanup = async (result: CloneResult, path = temp, also: string[] = []): Promise<CloneResult> => {
+    const leftovers = [...await rm(path, { recursive: true, force: true }).then(() => [], () => [path]), ...also];
+    return leftovers.length > 0 ? { kind: "failed", code: "cleanup_failed", leftovers } : result;
   };
   const cancelled: CloneResult = { kind: "cancelled" };
   if (request.signal.aborted) return cleanup(cancelled);
@@ -125,11 +129,20 @@ export async function runClone(request: CloneRequest): Promise<CloneResult> {
   if (request.signal.aborted) return cleanup(cancelled);
   try { await mkdir(request.destination); }
   catch (error) { return cleanup({ kind: "failed", code: errno(error) === "EEXIST" ? "destination_exists" : "clone_failed" }); }
-  // Only the empty directory this run made; a competitor's files stay.
-  const release = () => rmdir(request.destination).catch(() => undefined);
-  if (request.signal.aborted) { await release(); return cleanup(cancelled); }
+  // Only the empty directory this run made. A competitor's files in it make rmdir fail (ENOTEMPTY) and stay, and the
+  // destination is then taken; any other failure leaves this run's claim behind, which the user has to remove.
+  const release = async (): Promise<{ taken: boolean; left: string[] }> => {
+    try { await rmdir(request.destination); return { taken: false, left: [] }; }
+    catch (error) {
+      const code = errno(error);
+      if (code === "ENOENT") return { taken: false, left: [] };
+      return code === "ENOTEMPTY" || code === "EEXIST" ? { taken: true, left: [] } : { taken: false, left: [request.destination] };
+    }
+  };
+  if (request.signal.aborted) { const released = await release(); return cleanup(cancelled, temp, released.left); }
   try { await rename(temp, request.destination); }
-  catch { await release(); return cleanup({ kind: "failed", code: "destination_exists" }); }
+  catch { const released = await release(); return cleanup({ kind: "failed", code: "destination_exists" }, temp, released.left); }
+  // The cutoff (D19): only a cancel accepted before this point can still remove the destination.
   if (request.signal.aborted || (request.commit && !request.commit())) return cleanup(cancelled, request.destination);
   return { kind: "cloned", destination: request.destination };
 }

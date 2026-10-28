@@ -159,7 +159,9 @@ type Finished = { state: "succeeded"; inspection?: OnboardingInspection; project
 // Only the newest inspection started in this session can be acted on (design '동일 상태·소유권·재시도'). target is the
 // planned clone folder in canonical spelling; the inspection shows the destination as it was asked for.
 interface Inspection { generation: number; inspection: OnboardingInspection; repo: GitHubUrl | null; target?: string }
-const leftoverMessage = (path: string) => `Couldn't remove ${path}. Remove it, then try again.`;
+const leftoverMessage = (paths: readonly string[]) => paths.length === 1
+  ? `Couldn't remove ${paths[0]}. Remove it, then try again.`
+  : `Couldn't remove ${paths.slice(0, -1).join(", ")} and ${paths.at(-1)}. Remove them, then try again.`;
 
 export class OnboardingService {
   readonly sessionId: string;
@@ -172,7 +174,7 @@ export class OnboardingService {
   private inspection: Inspection | null = null;
   private closing = false;
   // Per destination parent: a clone directory this session could not remove. No other is made there until it is gone.
-  private leftovers = new Map<string, string>();
+  private leftovers = new Map<string, string[]>();
   // Every request of the session, refused ones too: a resend gets the original answer, never fresh work.
   private requests = new Map<string, { key: string; reply: Promise<OnboardingResponse>; operationId: string | null }>();
   private readonly newId: () => string;
@@ -320,17 +322,21 @@ export class OnboardingService {
     if (this.closing || this.busy(PROJECT_WORK)) return refuse("busy");
     const repo = current.repo, target = destination.path, abort = new AbortController(), projects = this.options.projects;
     return this.launch("project_clone", request.requestId, async tracked => {
-      const parent = dirname(target), left = this.leftovers.get(parent);
-      if (left !== undefined) {
-        if (await projects.present(left)) return { state: "failed", code: "cleanup_failed", message: leftoverMessage(left) };
+      const parent = dirname(target), recorded = this.leftovers.get(parent);
+      if (recorded !== undefined) {
+        const present = (await Promise.all(recorded.map(async path => await projects.present(path) ? [path] : []))).flat();
+        if (present.length > 0) { this.leftovers.set(parent, present); return { state: "failed", code: "cleanup_failed", message: leftoverMessage(present) }; }
         this.leftovers.delete(parent);
       }
+      // D19 (2026-10-29): the rename into the destination publishes the clone. After this commit a cancel returns the
+      // running operation unchanged and registration and setup continue: cancelling would delete a folder already in
+      // its final place.
       const commit = () => { if (abort.signal.aborted) return false; tracked.committed = true; return true; };
       const result = await projects.clone(repo.url, target, abort.signal, commit);
       if ("cancelled" in result) return { state: "cancelled" };
-      if (!result.ok && result.leftover !== undefined) {
-        this.leftovers.set(dirname(result.leftover), result.leftover);
-        return { state: "failed", code: "cleanup_failed", message: leftoverMessage(result.leftover) };
+      if (!result.ok && result.leftovers !== undefined) {
+        this.leftovers.set(parent, result.leftovers);
+        return { state: "failed", code: "cleanup_failed", message: leftoverMessage(result.leftovers) };
       }
       return this.selected(result);
     }, abort);

@@ -17,7 +17,7 @@ import { ONBOARDING_CHANNELS, OnboardingService, rendererRequest } from "./onboa
 import { onboardingComplete, readCompletion, writeCompletion } from "./onboarding/completion";
 import { cloneEnv, locateGit } from "./onboarding/clone";
 import { readGitRemotes } from "./onboarding/gitConfig";
-import { canonicalFolder, cloneDestination, cloneProject, confirmProject, inspectPath, inspectUrl, selectProject, type ProjectDeps } from "./onboarding/projects";
+import { canonicalFolder, cloneDestination, cloneProject, confirmProject, inspectPath, leftoverPresent, inspectUrl, selectProject, type ProjectDeps } from "./onboarding/projects";
 import { createCommentsService } from "./comments/service";
 import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
@@ -26,7 +26,7 @@ import { createTransitionGuard } from "./comments/transitions";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, readlinkSync, realpathSync, statSync } from "node:fs";
-import { lstat, mkdir } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Selection } from "../formats/types";
@@ -669,7 +669,7 @@ async function start(): Promise<void> {
       folder: canonicalFolder, destination: path => cloneDestination(path, projectDeps),
       inspectPath: real => inspectPath(real, projectDeps), inspectUrl: repo => inspectUrl(repo, projectDeps),
       select: (path, initialize, repo) => selectProject(path, initialize, repo, projectDeps),
-      present: async path => { try { await lstat(path); return true; } catch { return false; } },
+      present: leftoverPresent,
       clone: (url, destination, signal, commit) => cloneProject(url, destination, signal, {
         ...projectDeps,
         async git() {
