@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
-import { connectionsOf, parseAuthMetadata, serializeAuthMetadata, validOwner } from "./metadata";
+import { parseAuthMetadata, serializeAuthMetadata, validOwner } from "./metadata";
 import type { AuthMetadata } from "./types";
 
 const fixture = readFileSync(new URL("./fixtures/metadata-v1.json", import.meta.url), "utf8");
@@ -12,7 +12,7 @@ describe("device-local auth metadata v1", () => {
     const result = parseAuthMetadata(fixture);
     expect(result).toEqual({ ok: true, metadata: valid() });
     if (!result.ok) throw new Error(result.code);
-    expect(connectionsOf(result.metadata).map(c => [c.provider, c.connectionId, c.profile])).toEqual([["claude", "conn-claude-1", "claude"], ["cursor", "conn-cursor-1", "cursor"]]);
+    expect(result.metadata.accounts.map(c => [c.provider, c.connectionId, c.profile])).toEqual([["claude", "conn-claude-1", "claude"], ["cursor", "conn-cursor-1", "cursor"]]);
   });
   it("round-trips through serialization", () => {
     const text = serializeAuthMetadata(valid());

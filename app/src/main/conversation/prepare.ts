@@ -6,9 +6,9 @@ import { agentEnv } from "./environment";
 import { canonicalDirectory, claudeOccupancy, codexSessionExists, readRegular, readSessionTail } from "./io";
 import { insideRoot, pickSession, supportedRuntime } from "./sessions";
 import type { Prepare, Prepared, StartRequest } from "./service";
-import type { ConversationMetadata } from "./store";
+import type { ExternalSession } from "./store";
 export function createPrepare(userData: string, appRuntime: string, inherited: NodeJS.ProcessEnv): Prepare {
-  return async (request: StartRequest, stored?: ConversationMetadata["session"]): Promise<Prepared> => {
+  return async (request: StartRequest, stored?: ExternalSession): Promise<Prepared> => {
     const picked = request.mode === "resume" && !stored ? pickSession(readSessionTail(userData), request.root, request.canvas ?? null, () => null) : null;
     if (picked && !picked.available) throw new Error("no_session");
     const session = stored ?? (picked?.available ? picked.record : undefined);

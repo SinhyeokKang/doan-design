@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { ConversationStore, type ConversationMetadata } from "./store";
+import { ConversationStore, externalConversation, type ConversationMetadata, type ExternalSession } from "./store";
 import { foldConversation } from "./state";
 import { promoteReservation, releaseReservation, reserveSession } from "./ownership";
 import { transportError } from "./transport";
@@ -10,7 +10,7 @@ export interface StartRequest { root: string; mode: "resume" | "new" | "newDesig
 export interface Prepared { runtime: Runtime; configDir: string; cwd: string; sessionId?: string; command: string; env: NodeJS.ProcessEnv; lastCheckAt?: string }
 export interface Runner { sessionId: string; send(prompt: string, turnId: string): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void> }
 export type OpenRunner = (input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<Runner>;
-export type Prepare = (request: StartRequest, session?: ConversationMetadata["session"]) => Promise<Prepared>;
+export type Prepare = (request: StartRequest, session?: ExternalSession) => Promise<Prepared>;
 interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean }
 export class ConversationService {
   private reservations: Reservation[] = [];
@@ -51,7 +51,7 @@ export class ConversationService {
       if (this.quitting) throw new Error("busy");
       const currentCanvas = this.admit(request.root, request.canvas);
       if (currentCanvas) request = { ...request, canvas: currentCanvas };
-      const metadata: ConversationMetadata = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: (request.subject ?? request.text).slice(0, 512), state: "current", session: { runtime: input.runtime, origin: request.mode === "resume" ? "resumed" : request.mode, sessionId: runner.sessionId, configDir: input.configDir, cwd: input.cwd } };
+      const metadata: ConversationMetadata = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: (request.subject ?? request.text).slice(0, 512), state: "current", owner: { kind: "legacy-external" }, session: { runtime: input.runtime, origin: request.mode === "resume" ? "resumed" : request.mode, sessionId: runner.sessionId, configDir: input.configDir, cwd: input.cwd } };
       const entries = this.store.list();
       const replaced = entries.filter(m => m.state === "current" && m.root === request.root && m.canvas && request.canvas && sameCanvas(m.canvas, request.canvas));
       const prompt = turnPrompt(request.anchors, request.text, metadata); if (prompt === null) throw new Error("bad_request");
@@ -80,6 +80,8 @@ export class ConversationService {
   }
   async send(id: string, text: string, anchors: Anchor[]): Promise<void> {
     let metadata = this.refreshCanvas(this.metadata(id)); if (metadata.state !== "current" || this.quitting) throw new Error("busy");
+    // Only external-profile sessions have a preparation path; a doan-owned one must not fall back to it.
+    if (!externalConversation(metadata)) throw new Error("runtime_unsupported");
     const existing = this.live.get(id); if (existing?.busy || existing?.failedPersistence) throw new Error("busy");
     const live: Live = (existing?.runner ? existing : undefined) ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false };
     live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; live.turnId = randomUUID(); this.live.set(id, live);

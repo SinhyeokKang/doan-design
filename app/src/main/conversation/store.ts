@@ -4,11 +4,17 @@ import { join } from "node:path";
 import { canonicalDirectory, openRegular, readRegular, readDescriptor, CONVERSATION_HISTORY_BYTES } from "./io";
 import { absolutePath, object } from "./sessions";
 import { anchorTokens, validAnchor } from "./prompt";
+import { validOwner } from "../agentAuth/metadata";
+import type { ConversationOwner, Provider } from "../agentAuth/types";
 import type { Canvas, ConversationEvent, EventPayload, Runtime } from "./types";
-export interface ConversationMetadata {
-  conversationId: string; root: string; canvas?: Canvas; title: string; state: "current" | "archived";
-  session: { runtime: Runtime; origin: "resumed" | "new" | "newDesign"; sessionId: string; configDir: string; cwd: string };
-}
+interface SessionBinding<R> { runtime: R; origin: "resumed" | "new" | "newDesign"; sessionId: string; configDir: string; cwd: string }
+export type ExternalSession = SessionBinding<Runtime>;
+interface MetadataBase { conversationId: string; root: string; canvas?: Canvas; title: string; state: "current" | "archived" }
+// Legacy-external conversations keep the shared two-runtime session; doan-owned ones run on an app provider.
+export type ConversationMetadata = MetadataBase & (
+  | { owner: { kind: "legacy-external" }; session: ExternalSession }
+  | { owner: Extract<ConversationOwner, { kind: "doan" }>; session: SessionBinding<Provider> });
+export function externalConversation(m: ConversationMetadata): m is MetadataBase & { owner: { kind: "legacy-external" }; session: ExternalSession } { return m.owner.kind === "legacy-external"; }
 export function validId(value: unknown): value is string { return typeof value === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(value); }
 function str(value: unknown): value is string { return typeof value === "string" && value.length <= 1_048_576 && !value.includes("\0"); }
 export function validCanvas(value: unknown): value is Canvas {
@@ -16,13 +22,30 @@ export function validCanvas(value: unknown): value is Canvas {
     !value.path.includes("\0") && !value.path.split("/").some(p => p === ".." || p === "." || !p) &&
     (value.id === undefined || (typeof value.id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.id)));
 }
-function metadata(value: unknown): value is ConversationMetadata {
+function metadata(value: unknown, version: 1 | 2): value is ConversationMetadata {
   if (!object(value) || !validId(value.conversationId) || typeof value.root !== "string" || !absolutePath(value.root) || !str(value.title) ||
       (value.state !== "current" && value.state !== "archived") || (value.canvas !== undefined && !validCanvas(value.canvas)) || !object(value.session)) return false;
   const s = value.session;
-  return (s.runtime === "claude" || s.runtime === "codex") && ["resumed", "new", "newDesign"].includes(String(s.origin)) &&
-    typeof s.sessionId === "string" && s.sessionId.length > 0 && s.sessionId.length <= 512 && !s.sessionId.startsWith("-") && !s.sessionId.includes("\0") &&
-    typeof s.cwd === "string" && absolutePath(s.cwd) && typeof s.configDir === "string" && absolutePath(s.configDir);
+  if (!["resumed", "new", "newDesign"].includes(String(s.origin)) ||
+    typeof s.sessionId !== "string" || s.sessionId.length === 0 || s.sessionId.length > 512 || s.sessionId.startsWith("-") || s.sessionId.includes("\0") ||
+    typeof s.cwd !== "string" || !absolutePath(s.cwd) || typeof s.configDir !== "string" || !absolutePath(s.configDir)) return false;
+  const external = s.runtime === "claude" || s.runtime === "codex";
+  // v1 predates account ownership; any owner field there is ignored, never trusted.
+  if (version === 1) return external;
+  return validOwner(value.owner) && (value.owner.kind === "legacy-external" ? external : s.runtime === value.owner.provider);
+}
+function validEntries(entries: readonly unknown[], version: 1 | 2): entries is ConversationMetadata[] {
+  return entries.every(m => metadata(m, version)) && new Set(entries.map(m => (m as ConversationMetadata).conversationId)).size === entries.length;
+}
+export type IndexRead = { ok: true; entries: ConversationMetadata[] } | { ok: false; code: "corrupt" | "unknown_version" | "invalid" };
+export function parseIndex(text: string): IndexRead {
+  let raw: unknown;
+  try { raw = JSON.parse(text); } catch { return { ok: false, code: "corrupt" }; }
+  if (!object(raw)) return { ok: false, code: "corrupt" };
+  const version = raw.v;
+  if (version !== 1 && version !== 2) return { ok: false, code: "unknown_version" };
+  if (!Array.isArray(raw.conversations) || !validEntries(raw.conversations, version)) return { ok: false, code: "invalid" };
+  return { ok: true, entries: version === 1 ? raw.conversations.map(m => ({ ...m, owner: { kind: "legacy-external" } }) as ConversationMetadata) : raw.conversations };
 }
 function payload(value: Record<string, unknown>): value is Record<string, unknown> & EventPayload {
   switch (value.type) {
@@ -57,16 +80,18 @@ export class ConversationStore {
   private readIndex(): ConversationMetadata[] {
     let text: string;
     try { text = readRegular(join(this.directory, "index.json")); } catch (error) { if (object(error) && error.code === "ENOENT") return []; throw error; }
-    const raw: unknown = JSON.parse(text);
-    if (!object(raw) || raw.v !== 1 || !Array.isArray(raw.conversations) || !raw.conversations.every(metadata) || new Set(raw.conversations.map(m => m.conversationId)).size !== raw.conversations.length) throw new Error("Invalid conversation index");
-    return raw.conversations;
+    const read = parseIndex(text);
+    if (!read.ok) throw new Error(read.code === "unknown_version" ? "Unsupported conversation index version" : "Invalid conversation index");
+    return read.entries;
   }
   save(entries: readonly ConversationMetadata[]): void {
     if (!this.accepting) this.recoverStart();
-    if (!entries.every(metadata)) throw new Error("Invalid conversation index");
+    if (!validEntries(entries, 2)) throw new Error("Invalid conversation index");
+    // A future or damaged index is kept for diagnosis instead of being replaced.
+    this.readIndex();
     const path = join(this.directory, `index-${randomUUID()}.tmp`);
     const fd = openRegular(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL);
-    try { this.write(fd, JSON.stringify({ v: 1, conversations: entries })); } finally { closeSync(fd); }
+    try { this.write(fd, JSON.stringify({ v: 2, conversations: entries })); } finally { closeSync(fd); }
     try { renameSync(path, join(this.directory, "index.json")); } catch (error) { unlinkSync(path); throw error; }
   }
   // The index rename is the commit point. An undo record survives interrupted log writes.
