@@ -89,11 +89,18 @@ export class AgentStepSession {
   canContinue(): boolean { return canAdvance(this.state.auth ?? null) && !this.state.continuing; }
 
   retryRead(): void { void this.read(); }
-  // Returning from a browser or an install page: read everything; only install returns check, and never Copilot.
+  // Returning from a browser or an install page: read everything; only install returns check. Copilot is checked only
+  // while its cause is the CLI or its version, when a check re-reads tool facts and spends no request (D21).
   windowFocused(): void {
-    const installed = [...this.installs].filter(provider => provider !== "copilot");
+    const installed = [...this.installs];
     this.installs.clear();
-    void this.read().then(() => { if (this.live) for (const provider of installed) this.check(provider); });
+    void this.read().then(() => {
+      if (!this.live) return;
+      for (const provider of installed) {
+        const r = this.status(provider)?.readiness;
+        if (provider !== "copilot" || (r && !r.ready && (r.cause === "cli_missing" || r.cause.startsWith("version_")))) this.check(provider);
+      }
+    });
     this.flushAnnouncements();
   }
 

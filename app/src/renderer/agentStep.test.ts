@@ -91,7 +91,7 @@ test("a version-cause Retry checks without a cost; it still waits for the click"
   expect(checked(h)).toEqual(["copilot"]);
 });
 
-test("returning from an install page reads, then checks the installed provider unless it is Copilot", async () => {
+test("returning from an install page reads, then checks each installed provider once (D21: Copilot too while its CLI is missing)", async () => {
   const h = harness(snap(1, { cursor: { facts: { cli: "missing" } }, copilot: { facts: { cli: "missing" } } }));
   h.session.start(); h.session.enter();
   await flush();
@@ -102,11 +102,11 @@ test("returning from an install page reads, then checks the installed provider u
   expect(h.deps.openInstall).toHaveBeenCalledWith("copilot");
   h.session.windowFocused();
   await flush();
-  expect(checked(h)).toEqual(["cursor"]);
+  expect(checked(h)).toEqual(["cursor", "copilot"]);
   // The return is consumed: a later focus only reads.
   h.session.windowFocused();
   await flush();
-  expect(checked(h)).toEqual(["cursor"]);
+  expect(checked(h)).toEqual(["cursor", "copilot"]);
   expect(h.api.readAgentAuth).toHaveBeenCalledTimes(3);
 });
 

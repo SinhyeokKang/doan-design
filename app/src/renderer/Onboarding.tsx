@@ -239,18 +239,20 @@ const action = (command: ProjectAction, label: string, variant: Button["variant"
 // Copy from the approved draft's Project states tiles; D13 for the newer marker version.
 // fromUrl: the screen belongs to a GitHub URL, so a folder chosen there must be that repository's (D20).
 export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false): ProjectNotice {
+  // Every folder chosen from a URL screen is checked against that repository (D21).
+  const choose: ProjectAction = fromUrl ? "chooseExisting" : "chooseFolder";
   switch (error) {
     case "invalid_url": return { body: "Enter a GitHub repository URL, such as https://github.com/owner/repository.", actions: [] };
     case "access_failed": return { title: "Couldn’t access this repository", body: "Check your account and repository access with gh auth login, then try again.", actions: [] };
     case "remote_mismatch": return { body: "This folder belongs to a different repository.", actions: fromUrl
       ? [action("edit", "Edit repository URL", "subtle"), action("chooseExisting", "Choose another folder")] : [action("chooseFolder", "Choose another folder")] };
     case "project_unavailable": case "path_unavailable":
-      return { body: "This folder is no longer available. Choose it again or select another folder.", actions: [action("chooseFolder", "Choose folder")] };
+      return { body: "This folder is no longer available. Choose it again or select another folder.", actions: [action(choose, "Choose folder")] };
     case "destination_exists": return { body: "A folder already exists at this destination. Choose another location or use the existing folder.", actions: [action("changeLocation", "Change location", "subtle"), action("useExisting", "Use existing folder")] };
-    case "init_failed": return { body: "Couldn’t set up this folder. Check folder access and try again.", actions: [action("chooseFolder", "Choose another folder", "subtle"), action("retry", "Retry")] };
-    case "config_invalid": return { body: "This folder’s doan configuration couldn’t be read. Fix it and retry, or choose another folder.", actions: [action("chooseFolder", "Choose another folder", "subtle"), action("retry", "Retry")] };
+    case "init_failed": return { body: "Couldn’t set up this folder. Check folder access and try again.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
+    case "config_invalid": return { body: "This folder’s doan configuration couldn’t be read. Fix it and retry, or choose another folder.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "clone_failed": return { body: "Couldn’t clone this repository. Check your connection and folder access, then retry.", ...(destination ? { detail: destination } : {}), actions: [action("changeLocation", "Change location", "subtle"), action("retry", "Retry")] };
-    case "git_missing": return { body: "Install Git to clone a repository, or choose a local folder.", actions: [action("chooseFolder", "Choose local folder", "subtle"), action("retry", "Check again")] };
+    case "git_missing": return { body: "Install Git to clone a repository, or choose a local folder.", actions: [action(choose, "Choose local folder", "subtle"), action("retry", "Check again")] };
     case "completion_save_failed": return { body: "Your project is ready, but setup completion couldn’t be saved. Retry to finish.", actions: [] };
     case "completion_unsupported_version": return { title: "Setup was saved by a newer version of Doan", body: "Open this project with that version, or update Doan.", actions: [] };
     case "no_ready_agent": { const notice = noAgentReadyNotice(null)!; return { body: notice.body!, ...(notice.note ? { note: notice.note } : {}), actions: [action("chooseFolder", "Choose another folder", "subtle"), action("backToAgents", "Back to agents")] }; }
@@ -314,7 +316,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
     else if (command === "useExisting") on.useExisting(); else on.backToAgents();
   };
   // The Project states 'No agent is ready' tile: shown as soon as no provider is ready, not only after a refused save.
-  const fromUrl = p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" || (p.kind === "candidates" && p.url !== null);
+  const fromUrl = p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" || ((p.kind === "candidates" || p.kind === "setup") && p.url !== null);
   const notice = error ? projectNotice(error.code, error.message, destination, fromUrl) : !agentReady && (p.kind === "ready") ? projectNotice("no_ready_agent", undefined, null) : null;
   const [title, lead] = p.kind === "ready" || p.kind === "completing" ? HEADINGS.ready
     : p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" ? HEADINGS.clone
@@ -414,7 +416,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         </div>
       </> : p.kind === "cloneCancelled" ? <>
         <p className="ob-provider-help">Cloning was cancelled. Choose a folder or try again.</p>
-        <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.chooseFolder}>Choose local folder</button>
+        <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.chooseExisting}>Choose local folder</button>
           <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={on.retry}>Retry</button></div>
       </> : <>
         {notice && <ProjectNoticeView notice={notice} run={run} />}
@@ -461,6 +463,8 @@ export function Wizard({ session, projects, homeDirectory, onClose }: { session:
   const heading = useRef<HTMLElement | null>(null);
   const auth = agents.state.auth ?? null;
   const busy = project.busy();
+  const anyReady = canAdvance(auth);
+  useEffect(() => { project.agentsReady(anyReady); }, [anyReady]);
 
   useEffect(() => {
     agents.start();

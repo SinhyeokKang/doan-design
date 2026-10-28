@@ -81,6 +81,8 @@ export class ProjectStepSession {
   picking(): boolean { return this.choosing; }
   urlValid(): boolean { return parseGitHubUrl(this.state.url) !== null; }
 
+  // A completion refused because no agent was ready no longer applies once one is (POSTMORTEM 2026-10-25).
+  agentsReady(ready: boolean): void { if (ready && this.state.error?.code === "no_ready_agent") this.set({ error: null }); }
   setUrl(url: string): void { this.set({ url, error: this.state.error?.code === "invalid_url" ? null : this.state.error }); }
   pickListed(path: string): void { this.set({ listChoice: path }); }
   pickCandidate(path: string): void { const p = this.state.phase; if (p.kind === "candidates") this.set({ phase: { ...p, choice: path } }); }
@@ -110,7 +112,7 @@ export class ProjectStepSession {
   // Choose existing folder / Choose another folder on the URL screens: the folder must belong to that repository.
   chooseExisting(): Promise<void> {
     const p = this.state.phase;
-    const url = p.kind === "clone" || p.kind === "cloneCancelled" ? p.url : p.kind === "candidates" ? p.url : null;
+    const url = p.kind === "clone" || p.kind === "cloneCancelled" ? p.url : p.kind === "candidates" || p.kind === "setup" ? p.url : null;
     if (url === null) return this.chooseFolder();
     return this.act(async () => {
       const picked = await this.pick("project");
@@ -310,9 +312,10 @@ export class ProjectStepSession {
       if (p.kind === "cloning" && p.operationId === operation.operationId && operation.cancelling && !p.cancelling) this.set({ phase: { ...p, cancelling: true } });
       if (TERMINAL.has(operation.state)) this.resolve(operation);
     }
-    // The published list keeps the latest finished operations only; one retired from it is read by its id.
+    // The published list keeps the latest finished operations only; one retired from it is read by its id, once.
     for (const operationId of this.waiting.keys()) {
-      if (state.operations.some(o => o.operationId === operationId)) continue;
+      if (state.operations.some(o => o.operationId === operationId) || this.asked.has(operationId)) continue;
+      this.asked.add(operationId);
       void this.deps.api.readOnboardingSession({ sessionId: this.deps.sessionId, operationId }).then(reply => {
         if (!reply.ok || !("operations" in reply.result)) return;
         const found = reply.result.operations.find(o => o.operationId === operationId);
@@ -320,6 +323,7 @@ export class ProjectStepSession {
       }, () => {});
     }
   }
+  private asked = new Set<string>();
   private resolve(operation: OnboardingOperation): void {
     const resolve = this.waiting.get(operation.operationId);
     if (resolve) { this.waiting.delete(operation.operationId); resolve(operation); }
