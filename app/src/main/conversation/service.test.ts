@@ -218,7 +218,7 @@ it.each(["interrupt", "quit"] as const)("cancels a send waiting for the previous
   h.exits[0]!(); await new Promise(resolve => setTimeout(resolve, 0));
   expect(h.open).toHaveBeenCalledOnce(); expect(h.store.read(id)).toEqual(before);
 });
-it("refuses an archived conversation at once and keeps a timed-out wait from orphaning a failed opening's reservation", async () => {
+it("keeps a timed-out wait from orphaning a failed opening's reservation", async () => {
   const h = perTurn(30); const id = (await h.service.start(request)).conversationId;
   h.service.receive(id, { type: "turn.done" }); h.exits[0]!();
   // The next turn's process spawned, then its opening failed; it still holds the session until it exits.
@@ -227,10 +227,14 @@ it("refuses an archived conversation at once and keeps a timed-out wait from orp
   await expect(h.service.send(id, "times out", [])).rejects.toThrow("busy");
   h.exits[1]!(); await h.service.send(id, "after exit", []);
   expect(h.open).toHaveBeenCalledTimes(3);
+});
+it("refuses an archived conversation at once instead of waiting for the previous process", async () => {
+  // A wait far longer than the bound: a refusal that waited would exceed it by seconds, not by scheduler jitter.
+  const h = perTurn(2000); const id = (await h.service.start(request)).conversationId;
   h.service.receive(id, { type: "turn.done" });
   h.prepare.mockResolvedValueOnce({ ...claudeTurn, sessionId: "replacement" });
   await h.service.start(request);
   const started = Date.now();
   await expect(h.service.send(id, "archived", [])).rejects.toThrow("busy");
-  expect(Date.now() - started).toBeLessThan(25);
+  expect(Date.now() - started).toBeLessThan(500);
 });
