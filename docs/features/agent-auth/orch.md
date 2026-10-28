@@ -161,3 +161,29 @@ Run: `run_d94775f7dd27`.
 
 - 이 머신의 Keychain에 probe와 D1이 만든 doan 전용 항목이 남아 있다: `doan-auth-probe Safe Storage`, doan 전용 `Claude Code-credentials-*`, `Codex Auth`. D1 dev 앱 항목이 있으면 함께 남아 있다. 새 머신 작업에는 영향이 없다. 필요하면 이 머신에서 따로 지운다.
 - 이 머신의 worker는 모두 release했고, 남은 터미널은 닫았다. Orca child worktree 6개(contract, storage, runtime, providers, ipc, d1)는 모두 제거했다. D1에서는 Keychain 항목을 만들지 않았다. probe 상태는 `.scratch/agent-auth-probe/`(gitignore)에 남아 있다.
+
+## 새 머신 재개 (2026-10-28)
+
+재개 커밋: `ad50b97`. 통합 브랜치는 그대로 `feat-agent-auth`이다. 이전 run `run_d94775f7dd27`은 이전 머신에 있어서, 이 머신에서는 새 run을 만든다.
+
+### 환경
+
+- 설치 상태: Claude Code 2.1.312, codex-cli 0.164.0(PATH의 `codex`는 Orca 런타임 링크이고 npm 전역도 0.164.0이다). 사용자 승인을 받아 지휘자가 공식 설치로 Cursor `agent` 2026.10.22-27dcf5f(`cursor.com/install`)와 Copilot CLI 1.0.105(`npm i -g @github/copilot@1.0.105`)를 설치했다. 두 버전 모두 고정값과 같다.
+- 이 머신에는 이전 `.scratch` 근거가 없다. 이전 머신이 만든 probe 스크립트와 결과는 재사용하지 않는다.
+- 사용자에 따르면 이 머신의 ego-lite에는 Claude 구독 계정 세션이 이미 발급돼 있다(2026-10-28). Claude 로그인 승인에는 이 세션을 쓴다.
+
+### 결정 기록 (재개)
+
+- 사용자 결정(2026-10-28): Codex 지원 버전을 0.163.0에서 0.164.0으로 올린다. 새 배치 C가 맡는다. 로컬 CLI를 내리지 않아도 되고, PoC의 keyring 강제 경로도 0.164.0에서 확인했다. ARCHITECTURE의 버전 계약 갱신은 D3에서 Claude 2.1.312와 함께 한다.
+- 사용자 결정(2026-10-28): Cursor·Copilot CLI는 지휘자가 공식 경로로 설치한다(위 환경 참고).
+- 사용자 결정(2026-10-28): 이번 세션에서 이 기능을 main에 병합하는 것까지 진행한다. orchestrate의 '병합하지 않음' 기본값은 사용자의 명시 요청으로 대체한다. 병합은 D3 승격, 최종 gate 통과, PR 생성을 마친 뒤에 한다.
+- conductor's call — C(코드)와 D1(`.scratch` probe만)은 파일이 겹치지 않으므로 병렬로 진행한다. D1은 Codex를 제외한 네 공급자를 먼저 확인하고, Codex는 '보류 항목'으로 handoff에 남긴다. C를 통합한 뒤 Codex 확인을 새 Task로 보낸다. 로그인 승인은 지휘자가 ego-lite에서 하나씩 처리하므로, 실인증 단계가 겹쳐도 승인은 순서대로 진행된다.
+
+### 배치 (재개)
+
+| 배치 | task | 파일 소유권 | 선행 | 모델·effort / 이유 | 검증 gate | 상태 |
+|---|---|---|---|---|---|---|
+| C Codex 0.164.0 | (D1 선행 조건, B2 범위) | `conversation/{sessions,io}.ts`, `agentAuth/providers.ts`와 관련 테스트·fixture README | 없음 | Opus high / 0.163.0으로 만든 기존 세션의 재개 판정이 바뀌므로 회귀 판단이 필요하다 | 단위 테스트, typecheck, verify.mjs, 격리 프로필에서 Codex 0.164.0 실요청·권한·중단·재개 | 대기 |
+| D1 실제 앱 통합 확인 | D1 | `.scratch/` probe·근거 | B45 통합(완료) / Codex 부분은 C 통합 | Opus high / 다섯 플랫폼 preload 경로와 패키지 경계 | 위 'D1에서 꼭 확인할 항목' 전부, `npm --prefix app run package` 격리 실행 | 대기 |
+| R-C | C 리뷰 | 보고만 | C | Sonnet high / 범위가 작은 버전 상향 diff | `/code-review` | 대기 |
+| D2·D3 | D2, D3 | 위 표와 같다 | D1 | 지휘자 | 위 표와 같다 | 대기 |
