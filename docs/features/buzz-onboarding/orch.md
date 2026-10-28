@@ -91,3 +91,5 @@
 - 2026-10-29: M 수정 재리뷰: 🔴 0·🟡 3(목적지 claim 제거 실패를 cancelled로 숨김, 등록 전 취소 경계, leftover 조회 오류를 삭제로 간주). 🟡2는 D19로 수용했고 1·3은 수정 3회차로 보냈다.
 - 2026-10-29: M 수정 3회차(c88eaf8, eaea354, `verify.mjs` PASS)를 지휘자 확인 뒤 통합했다. M 작업자 release. bo-M worktree는 V 결과로 M 수정이 필요할 수 있어 마지막까지 남긴다.
 - 2026-10-29: U2 질문으로 결정 D20, 배치 R 시작(bo-M을 통합 HEAD로 맞춤). U2는 url을 보내는 쪽을 맡는다.
+- 2026-10-29: R이 `app/src/main/index.ts` 한 줄(inspectPath에 repo 전달)을 고치도록 허락했다. U2가 그 위로 다시 맞춘다.
+- 2026-10-29: U2 완료(6a9c397..88a0c59, `verify.mjs` PASS, GUI 슬롯 반환). design-sync 10개 프레임·47 tile, 차이 302→25(DESIGN.md 기록). 독립 리뷰 Claude Opus high 시작. U 작업자 retain(R 위로 다시 맞추기와 리뷰 수정).
