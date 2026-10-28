@@ -54,7 +54,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
       }
       throw new Error("bad_request");
     } catch (error) {
-      const known = ["bad_request", "project_not_open", "canvas_not_found", "no_agent", "cli_missing", "no_session", "session_unavailable", "runtime_unsupported", "session_in_use", "busy", "not_logged_in", "process_exited", "rate_limited", "unknown", "not_found", "stale"];
+      const known = ["bad_request", "project_not_open", "canvas_not_found", "no_agent", "cli_missing", "cli_install_failed", "no_session", "session_unavailable", "runtime_unsupported", "session_in_use", "busy", "not_logged_in", "process_exited", "rate_limited", "unknown", "not_found", "stale"];
       const code = error instanceof Error ? error.message : "unknown";
       return { error: code === "outside_root" ? "session_unavailable" : known.includes(code) ? code : "unknown" };
     }

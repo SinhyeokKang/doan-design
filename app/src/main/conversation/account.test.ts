@@ -116,6 +116,7 @@ it.each([
   ["reauth required", { expired: true }, "reauth_required", "not_logged_in"],
   ["account mismatch", { error: { code: "account_mismatch" as const } }, "account_mismatch", "not_logged_in"],
   ["sign-in in progress", { attempt: { id: "a", kind: "signIn" as const, owner: 1, cancelled: false } }, "busy", "busy"],
+  ["missing its server, which failed to install", {}, "cli_install_failed", "cli_install_failed"],
 ] as [string, Partial<AuthState>, string, string][])("refuses a new run when the account is %s without falling back to the external profile", async (_label, next, refusal, code) => {
   const h = harness("claude"); h.auth.set(next);
   (h.auth.runtime.acquire as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => { throw new Error(refusal); });

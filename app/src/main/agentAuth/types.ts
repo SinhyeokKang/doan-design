@@ -11,7 +11,8 @@ export type ConversationOwner =
   | { kind: "legacy-external" }
   | { kind: "doan"; provider: Provider; connectionId: string; accountId: string | null; workspaceId: string | null; profile: string };
 export type AuthPhase = "disconnected" | "checking" | "signingIn" | "connected" | "reauthRequired" | "signingOut" | "error";
-export type AuthErrorCode = "sign_in_failed" | "network" | "storage_failed" | "check_failed" | "account_mismatch" | "sign_out_failed";
+// cli_install_failed: doan could not download or verify a provider runtime it installs itself (Antigravity's server).
+export type AuthErrorCode = "sign_in_failed" | "network" | "storage_failed" | "check_failed" | "account_mismatch" | "sign_out_failed" | "cli_install_failed";
 // detail is main-only diagnostics and may quote provider output; DTOs never copy it.
 export interface AuthError { code: AuthErrorCode; detail?: string }
 export interface AuthAttempt { id: string; kind: "check" | "signIn" | "signOut"; owner: number | null; cancelled: boolean }
@@ -22,12 +23,12 @@ export interface AuthState {
 export type CheckResult =
   | { status: "connected"; account: AccountIdentity }
   | { status: "disconnected" } | { status: "expired" }
-  | { status: "failed"; code: "network" | "check_failed"; detail?: string };
+  | { status: "failed"; code: "network" | "check_failed" | "cli_install_failed"; detail?: string };
 // A failed or cancelled sign-in leaves no metadata. Without a stored connection its leftover provider
 // credentials are orphans to clean up; with one they are the live profile, judged by the next check.
 export type SignInResult =
   | { status: "stored"; connection: AccountConnection }
-  | { status: "failed"; code: "sign_in_failed" | "network" | "storage_failed"; detail?: string };
+  | { status: "failed"; code: "sign_in_failed" | "network" | "storage_failed" | "cli_install_failed"; detail?: string };
 // Report a result only after the attempt's processes and listeners are gone.
 export type AuthEvent =
   | { type: "check"; attemptId: string }

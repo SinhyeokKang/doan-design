@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { ACP_PROTOCOL_VERSION, AcpConnection } from "../conversation/acp";
 import { OwnedGroup } from "../conversation/process";
 import { object } from "../conversation/sessions";
-import { BROWSER_HOOK, callbackAddress, forwardCallback, signInLink, type SignInLink } from "./antigravity";
+import { BROWSER_HOOK, callbackAddress, INSTALL_FAILED, forwardCallback, signInLink, type SignInLink } from "./antigravity";
 import { probeShell } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
 import { providerEnv } from "./environment";
@@ -22,7 +22,8 @@ export interface Lease { command: string; env: Record<string, string>; profileDi
 export type Started = { ok: true; attemptId: string; done: Promise<AuthState> } | { ok: false; reason: AuthRejection; state: AuthState };
 export interface AuthManagerOptions {
   storage: AuthStorage; spawn: Spawn; inherited: Record<string, string | undefined>; appRuntime: string;
-  locate(provider: Provider): Promise<{ command: string; path: string } | null>;
+  // signal aborts when the attempt is stopped; Antigravity's locate may be a long server download.
+  locate(provider: Provider, signal?: AbortSignal): Promise<{ command: string; path: string } | null>;
   adapters?: Record<Provider, ProviderAuth>; newId?: () => string; statusTimeoutMs?: number;
   onChange?(state: AuthState, revision: number): void; onPrompt?(prompt: AuthPrompt): void;
 }
@@ -33,7 +34,7 @@ const ACP_OPEN_MS = 60_000;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const tail = (text: string) => text.trim().slice(-2000) || undefined;
 class Cancelled extends Error {}
-class Failure extends Error { constructor(readonly code: "sign_in_failed" | "storage_failed", detail?: string) { super(detail ?? code); } }
+class Failure extends Error { constructor(readonly code: "sign_in_failed" | "storage_failed" | "cli_install_failed", detail?: string) { super(detail ?? code); } }
 
 export class AuthManager {
   private states = new Map<Provider, AuthState>();
@@ -43,6 +44,7 @@ export class AuthManager {
   private processes = new Map<string, Set<AuthProcess>>();
   // Stop requests outlive process registration: exec honours one that arrived before its spawn.
   private stopRequests = new Set<string>();
+  private locating = new Map<string, AbortController>();
   private checks = new Map<Provider, { attemptId: string; done: Promise<unknown> }>();
   private holds = new Map<Provider, number>();
   private runs = new Map<Provider, number>();
@@ -79,7 +81,7 @@ export class AuthManager {
       try {
         await this.hold(provider);
         try { checked = await this.statusRun(provider, attemptId); } finally { lost = await this.drop(provider); }
-      } catch (error) { checked = { status: "failed", code: "check_failed", detail: message(error) }; }
+      } catch (error) { checked = { status: "failed", code: error instanceof Failure && error.code === "cli_install_failed" ? error.code : "check_failed", detail: message(error) }; }
       try {
         this.apply(provider, { type: "checked", attemptId, result: checked });
         // After the result: the status ran on the refreshed copy that just failed to reach the vault.
@@ -297,6 +299,7 @@ export class AuthManager {
       }, async acp => { await this.acpOpen(provider, acp); await acp.request("authenticate", { methodId: method }, null); });
     } catch (error) {
       if (error instanceof Cancelled || this.cancelled(provider, attemptId)) throw new Cancelled();
+      if (error instanceof Failure) throw error;
       throw new Failure("sign_in_failed", message(error));
     }
   }
@@ -309,7 +312,7 @@ export class AuthManager {
         async acp => { await this.acpOpen(provider, acp); await acp.request("authenticate", { methodId: this.adapters[provider].acpAuth!.method }, null); });
       return { code: 0, stdout: "", stderr: "" };
     } catch (error) {
-      if (error instanceof Cancelled) throw error;
+      if (error instanceof Cancelled || error instanceof Failure) throw error;
       return { code: asked ? 2 : 1, stdout: "", stderr: message(error) };
     }
   }
@@ -332,7 +335,7 @@ export class AuthManager {
   // One ACP exchange with the provider's server; resolves or rejects only after its process group is gone.
   // onLink sees each sign-in link the server asks the browser to open and returns true to stop the server.
   private async acpExec<T>(provider: Provider, attemptId: string, timeoutMs: number | null, onLink: (link: SignInLink) => boolean, script: (acp: AcpConnection) => Promise<T>): Promise<T> {
-    const { command, env, profileDir } = await this.launch(provider);
+    const { command, env, profileDir } = await this.launch(provider, attemptId);
     if (this.stopRequests.has(attemptId)) throw new Cancelled();
     const child = this.options.spawn(command, this.adapters[provider].args, { cwd: profileDir, env, input: true });
     const owned = this.processes.get(attemptId) ?? new Set();
@@ -363,8 +366,15 @@ export class AuthManager {
     return result;
   }
 
-  private async launch(provider: Provider): Promise<{ command: string; env: Record<string, string>; profileDir: string }> {
-    const located = await this.options.locate(provider);
+  private async launch(provider: Provider, attemptId?: string): Promise<{ command: string; env: Record<string, string>; profileDir: string }> {
+    const locating = new AbortController();
+    if (attemptId) { this.locating.set(attemptId, locating); if (this.stopRequests.has(attemptId)) locating.abort(); }
+    let located: Awaited<ReturnType<AuthManagerOptions["locate"]>>;
+    try { located = await this.options.locate(provider, locating.signal); }
+    catch (error) {
+      if (locating.signal.aborted) throw new Cancelled();
+      throw message(error) === INSTALL_FAILED ? new Failure("cli_install_failed") : error;
+    } finally { if (attemptId && this.locating.get(attemptId) === locating) this.locating.delete(attemptId); }
     if (!located) throw new Error("cli_missing");
     const profileDir = this.options.storage.profileDir(provider);
     for (const [rel, text] of Object.entries(this.adapters[provider].settings)) this.options.storage.writeSetting(provider, rel, text);
@@ -383,7 +393,7 @@ export class AuthManager {
 
   // Resolves only after the process group is gone, so no result outruns its process.
   private async exec(provider: Provider, attemptId: string, args: string[], timeoutMs: number | null, onText?: (text: string) => void): Promise<Run> {
-    const { command, env, profileDir } = await this.launch(provider);
+    const { command, env, profileDir } = await this.launch(provider, attemptId);
     // A cancel, window close or quit can arrive while the CLI is located, before there is a process to stop.
     if (this.stopRequests.has(attemptId)) throw new Cancelled();
     const child = this.options.spawn(command, [...this.adapters[provider].args, ...args], { cwd: profileDir, env });
@@ -465,6 +475,7 @@ export class AuthManager {
   }
   private stop(attemptId: string): void {
     this.stopRequests.add(attemptId);
+    this.locating.get(attemptId)?.abort();
     for (const child of this.processes.get(attemptId) ?? []) child.stop();
   }
   private track<T>(work: Promise<T>): Promise<T> {
@@ -510,12 +521,12 @@ export const spawnAuthProcess: Spawn = (command, args, { cwd, env, input }) => {
 
 // Same discovery as conversation preparation: the login shell's PATH, not the app's launch environment. A managed
 // provider (Antigravity's downloaded server) resolves its executable itself and still runs with that PATH.
-export function shellLocator(inherited: NodeJS.ProcessEnv, adapters: Record<Provider, ProviderAuth> = PROVIDER_AUTH, managed: Partial<Record<Provider, () => Promise<string>>> = {}): AuthManagerOptions["locate"] {
-  return async provider => {
+export function shellLocator(inherited: NodeJS.ProcessEnv, adapters: Record<Provider, ProviderAuth> = PROVIDER_AUTH, managed: Partial<Record<Provider, (signal?: AbortSignal) => Promise<string>>> = {}): AuthManagerOptions["locate"] {
+  return async (provider, signal) => {
     const probe = await probeShell(inherited);
     if (!probe.ok) return null;
     const install = managed[provider];
-    if (install) return { command: await install(), path: probe.path };
+    if (install) return { command: await install(signal), path: probe.path };
     const command = findOnPath(probe.path, adapters[provider].command, path => { try { accessSync(path, constants.X_OK); return statSync(path).isFile(); } catch { return false; } });
     return command ? { command, path: probe.path } : null;
   };

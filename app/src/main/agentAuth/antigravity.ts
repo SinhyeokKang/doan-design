@@ -81,41 +81,84 @@ async function verified(dir: string): Promise<boolean> {
 function unzip(archive: string, into: string): Promise<void> {
   return new Promise((resolve, reject) => execFile("/usr/bin/ditto", ["-x", "-k", archive, into], error => error ? reject(error) : resolve()));
 }
-export type Download = (url: string) => Promise<ReadableStream<Uint8Array>>;
-const fetchBody: Download = async url => {
-  const response = await fetch(url);
+export type Download = (url: string, signal: AbortSignal) => Promise<ReadableStream<Uint8Array>>;
+const fetchBody: Download = async (url, signal) => {
+  const response = await fetch(url, { signal });
   if (!response.ok || !response.body) throw new Error(`download failed: HTTP ${response.status}`);
   return response.body;
 };
-const installs = new Map<string, Promise<string>>();
+// Every install failure carries this code, so a conversation and the sign-in UI can tell it from a missing CLI.
+export const INSTALL_FAILED = "cli_install_failed";
+// The download may take minutes on a slow link, so only a stall ends it; a growing body cannot outlast the pinned size.
+const STALL_MS = 30_000;
+export interface InstallOptions { signal?: AbortSignal; download?: Download; stallMs?: number }
+interface Install { promise: Promise<string>; controller: AbortController; waiters: number }
+const installs = new Map<string, Install>();
 // Returns the server's path under root/<version>, downloading and checking it first when needed. The archive and both
 // members are verified by size and SHA-256 before the directory is renamed into place, and once per process after that.
-export function antigravityServer(root: string, download: Download = fetchBody): Promise<string> {
+// Callers share one install; a caller's signal ends only its wait, and the install stops when no caller is left.
+export function antigravityServer(root: string, options: InstallOptions = {}): Promise<string> {
   const target = join(root, ANTIGRAVITY_SERVER.version);
   let install = installs.get(target);
   if (!install) {
-    install = (async () => {
-      if (existsSync(target)) {
-        if (await verified(target)) return join(target, ANTIGRAVITY_COMMAND);
-        rmSync(target, { recursive: true, force: true });
-      }
-      mkdirSync(root, { recursive: true, mode: 0o700 });
-      const work = join(root, `.install-${randomUUID()}`);
-      mkdirSync(work, { mode: 0o700 });
-      try {
-        const archive = join(work, "server.zip");
-        await pipeline(Readable.fromWeb(await download(ANTIGRAVITY_SERVER.url) as never), createWriteStream(archive, { mode: 0o600 }));
-        if (statSync(archive).size !== ANTIGRAVITY_SERVER.archive.bytes || await sha256(archive) !== ANTIGRAVITY_SERVER.archive.sha256) throw new Error("The Antigravity server download does not match its pinned hash");
-        const unpacked = join(work, "server");
-        await unzip(archive, unpacked);
-        if (!await verified(unpacked)) throw new Error("The Antigravity server archive does not hold the pinned files");
-        renameSync(unpacked, target);
-        return join(target, ANTIGRAVITY_COMMAND);
-      } finally { rmSync(work, { recursive: true, force: true }); }
-    })();
-    installs.set(target, install);
+    const controller = new AbortController();
+    const created: Install = { controller, waiters: 0, promise: installServer(root, target, options.download ?? fetchBody, options.stallMs ?? STALL_MS, controller.signal) };
+    installs.set(target, install = created);
     // A failed install is retried on the next call instead of being cached.
-    install.catch(() => installs.delete(target));
+    created.promise.catch(() => { if (installs.get(target) === created) installs.delete(target); });
   }
-  return install;
+  return wait(install, options.signal);
+}
+function wait(install: Install, signal: AbortSignal | undefined): Promise<string> {
+  install.waiters += 1;
+  return new Promise((resolve, reject) => {
+    let waiting = true;
+    const leave = (settle: () => void) => {
+      if (!waiting) return;
+      waiting = false; install.waiters -= 1; signal?.removeEventListener("abort", stop); settle();
+    };
+    const stop = () => leave(() => { if (install.waiters === 0) install.controller.abort(); reject(new Error("cancelled")); });
+    if (signal?.aborted) { stop(); return; }
+    signal?.addEventListener("abort", stop, { once: true });
+    install.promise.then(path => leave(() => resolve(path)), error => leave(() => reject(error)));
+  });
+}
+async function installServer(root: string, target: string, download: Download, stallMs: number, cancel: AbortSignal): Promise<string> {
+  const stall = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const touch = () => { clearTimeout(timer); timer = setTimeout(() => stall.abort(new Error("the download stalled")), stallMs); };
+  let work: string | null = null;
+  try {
+    if (existsSync(target)) {
+      if (await verified(target)) return join(target, ANTIGRAVITY_COMMAND);
+      rmSync(target, { recursive: true, force: true });
+    }
+    mkdirSync(root, { recursive: true, mode: 0o700 });
+    work = join(root, `.install-${randomUUID()}`);
+    mkdirSync(work, { mode: 0o700 });
+    const archive = join(work, "server.zip"), signal = AbortSignal.any([cancel, stall.signal]);
+    let received = 0;
+    touch();
+    const body = await download(ANTIGRAVITY_SERVER.url, signal);
+    await pipeline(Readable.fromWeb(body as never), async function* (chunks: AsyncIterable<Buffer>) {
+      for await (const chunk of chunks) {
+        received += chunk.length;
+        if (received > ANTIGRAVITY_SERVER.archive.bytes) throw new Error("The Antigravity server download is larger than its pinned size");
+        touch(); yield chunk;
+      }
+    }, createWriteStream(archive, { mode: 0o600 }), { signal });
+    clearTimeout(timer);
+    if (statSync(archive).size !== ANTIGRAVITY_SERVER.archive.bytes || await sha256(archive) !== ANTIGRAVITY_SERVER.archive.sha256) throw new Error("The Antigravity server download does not match its pinned hash");
+    const unpacked = join(work, "server");
+    await unzip(archive, unpacked);
+    if (!await verified(unpacked)) throw new Error("The Antigravity server archive does not hold the pinned files");
+    renameSync(unpacked, target);
+    return join(target, ANTIGRAVITY_COMMAND);
+  } catch (error) {
+    console.error("doan: the Antigravity server could not be installed", error instanceof Error ? error.message : String(error));
+    throw new Error(INSTALL_FAILED);
+  } finally {
+    clearTimeout(timer);
+    if (work) rmSync(work, { recursive: true, force: true });
+  }
 }

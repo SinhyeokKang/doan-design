@@ -76,7 +76,7 @@ export interface AccountRuntime {
 // Account refusals that a sign-in or reauth resolves read as not_logged_in; the rest keep the conversation codes.
 function accountCode(cause: string): string {
   if (["not_connected", "reauth_required", "unverified", "account_mismatch", "sign_out_failed"].includes(cause)) return "not_logged_in";
-  return ["busy", "cli_missing", "session_in_use"].includes(cause) ? cause : "session_unavailable";
+  return ["busy", "cli_missing", "cli_install_failed", "session_in_use"].includes(cause) ? cause : "session_unavailable";
 }
 // A conversation owned by another account, workspace or profile cannot run here whatever the user signs into now.
 function judgmentCode(judgment: Exclude<ConnectionJudgment, { decision: "resume" }>): string {

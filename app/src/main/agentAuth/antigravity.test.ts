@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { antigravityServer, AUTH_LINK_MARKER, BROWSER_HOOK, callbackAddress, signInLink } from "./antigravity";
+import { ANTIGRAVITY_SERVER, antigravityServer, AUTH_LINK_MARKER, BROWSER_HOOK, callbackAddress, signInLink } from "./antigravity";
 import { AuthStorage } from "./storage";
 import { fakeCipher } from "./fixtures/cipher";
 
@@ -32,13 +32,38 @@ describe("Antigravity server install", () => {
     const root = mkdtempSync(join(tmpdir(), "doan-agy-"));
     try {
       const download = async () => new Blob(["not the archive"]).stream();
-      await expect(antigravityServer(root, download)).rejects.toThrow("pinned hash");
+      await expect(antigravityServer(root, { download })).rejects.toThrow("cli_install_failed");
       expect(readdirSync(root)).toEqual([]);
       expect(existsSync(join(root, "1.3.0"))).toBe(false);
       // A failed install is not cached: the next call downloads again.
       let calls = 0;
-      await expect(antigravityServer(root, async () => { calls += 1; throw new Error("offline"); })).rejects.toThrow("offline");
+      await expect(antigravityServer(root, { download: async () => { calls += 1; throw new Error("offline"); } })).rejects.toThrow("cli_install_failed");
       expect(calls).toBe(1);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+  it("stops reading a download once it passes the pinned size", async () => {
+    const root = mkdtempSync(join(tmpdir(), "doan-agy-"));
+    try {
+      const chunk = new Uint8Array(8 << 20); let pulled = 0;
+      // Finite, so a reader without the cap ends instead of filling the disk.
+      const download = async () => new ReadableStream<Uint8Array>({ pull: controller => { pulled += 1; if (pulled > 24) controller.close(); else controller.enqueue(chunk); } });
+      await expect(antigravityServer(root, { download })).rejects.toThrow("cli_install_failed");
+      expect(pulled * chunk.length).toBeLessThan(ANTIGRAVITY_SERVER.archive.bytes + 4 * chunk.length);
+      expect(readdirSync(root)).toEqual([]);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+  it("gives up on a download that stalls, and aborts it when its only caller stops waiting", async () => {
+    const root = mkdtempSync(join(tmpdir(), "doan-agy-"));
+    try {
+      const signals: AbortSignal[] = [];
+      const download = async (_url: string, signal: AbortSignal) => { signals.push(signal); return new ReadableStream<Uint8Array>({ pull: () => new Promise(() => {}) }); };
+      await expect(antigravityServer(root, { download, stallMs: 50 })).rejects.toThrow("cli_install_failed");
+      const caller = new AbortController();
+      const waiting = antigravityServer(root, { download, signal: caller.signal, stallMs: 60_000 });
+      for (let i = 0; i < 50 && signals.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 5));
+      caller.abort();
+      await expect(waiting).rejects.toThrow("cancelled");
+      expect(signals[1]?.aborted).toBe(true);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });

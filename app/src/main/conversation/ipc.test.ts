@@ -18,3 +18,11 @@ it("rejects wrong senders, unsaved roots, unlisted canvases and sparse anchors b
     expect(prepare).not.toHaveBeenCalled();
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+it("passes a provider runtime install failure through as its own code", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-")); const prepare = vi.fn(async () => { throw new Error("cli_install_failed"); });
+  try {
+    const service = new ConversationService(new ConversationStore(dir), prepare, vi.fn(), () => {});
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [{ path: ".doan/canvases/a.html" }] }]);
+    expect(await handle(true, "start", { root: "/repo", mode: "new", runtime: "antigravity", canvas: { path: ".doan/canvases/a.html" }, text: "hello" })).toEqual({ error: "cli_install_failed" });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

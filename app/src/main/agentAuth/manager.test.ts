@@ -292,6 +292,17 @@ describe("sign-in", () => {
     expect(await started(await m2.signIn("claude", 7)).done).toMatchObject({ phase: "error", error: { code: "sign_in_failed" } });
     expect((await m2.signIn("claude", 7)).ok).toBe(true);
   });
+  it("reports a failed server install with its own code for sign-in and check", async () => {
+    const m = manager({ adapters: withAcp(), locate: async provider => { if (provider === "antigravity") throw new Error("cli_install_failed"); return { command: "/bin/fake-cli", path: "/verified/bin" }; } });
+    await m.load();
+    expect(await started(await m.signIn("antigravity", 7)).done).toMatchObject({ phase: "error", error: { code: "cli_install_failed" } });
+    storage.writeMetadata({ v: 1, accounts: [{ provider: "antigravity", connectionId: "c-1", profile: "antigravity", account: { id: null, workspace: null } }] });
+    await m.load();
+    const checked = await started(await m.check("antigravity")).done;
+    expect(checked).toMatchObject({ error: { code: "cli_install_failed" } });
+    expect(m.status("antigravity", { cli: "found", version: "supported", tools: "ready" }).actions).toEqual(["retry", "signOut"]);
+    expect(spawn).not.toHaveBeenCalled();
+  });
   it("fails without plaintext persistence when the OS key is unavailable", async () => {
     storage = new AuthStorage(root, fakeCipher({ available: async () => false }));
     const m = manager(); await m.load();
@@ -427,6 +438,17 @@ describe("stop before spawn", () => {
     resume(); await stopping;
     expect(await run.done).toMatchObject({ phase: "disconnected", attempt: null, connection: null });
     expect(processes.filter(p => !p.stopped)).toEqual([]);
+  });
+  // Antigravity's locate can be a long server download; a stop must end it, not wait for it.
+  it.each(stoppers)("aborts the locate signal when %s lands while the CLI is being located", async (_name, stopIt) => {
+    let seen: AbortSignal | undefined;
+    const m = manager({ locate: (_provider, signal) => { seen = signal; return new Promise((_resolve, reject) => signal?.addEventListener("abort", () => reject(new Error("cancelled")))); } });
+    await m.load();
+    const run = started(await m.signIn("cursor", 7));
+    for (let i = 0; i < 50 && !seen; i++) await flush();
+    await stopIt(m, run.attemptId);
+    expect(seen?.aborted).toBe(true);
+    expect(await run.done).toMatchObject({ phase: "disconnected", attempt: null, error: null });
   });
   it("releases the write lock for other providers after a cancel before spawn", async () => {
     const { locate, paused } = pausedLocate();

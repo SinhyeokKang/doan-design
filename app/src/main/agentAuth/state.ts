@@ -111,7 +111,7 @@ function actions(state: AuthState): AuthAction[] {
   if (!state.connection) return ["signIn"];
   if (state.error?.code === "sign_out_failed") return ["signOut"];
   if (state.expired || state.error?.code === "account_mismatch") return ["reauth", "signOut"];
-  if (!state.verified || state.error?.code === "network" || state.error?.code === "check_failed") return ["retry", "signOut"];
+  if (!state.verified || state.error?.code === "network" || state.error?.code === "check_failed" || state.error?.code === "cli_install_failed") return ["retry", "signOut"];
   return ["signOut"];
 }
 // Built field by field so connection IDs, profiles, account IDs and diagnostics never reach a window.
