@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer, type Socket } from "node:net";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 // A stand-in for the app's side of `doan active`: runtime.v1 on disk and
 // app-socket.v1 on a unix socket, mirroring app/src/main/runtime.ts. The
@@ -168,11 +168,12 @@ export function onboardingApp(script: OnboardingScript, root: string) {
         return { operation: target };
       }
       case "project_inspect":
-        if (r.path !== undefined && r.path !== root) return v2error("path_unavailable", "The folder cannot be read.");
+        // The app reads the folder, so `/r/` and `/r/.` are the open root too.
+        if (r.path !== undefined && resolve(r.path as string) !== root) return v2error("path_unavailable", "The folder cannot be read.");
         return { operation: create(r, r.url !== undefined ? { url: r.url as string } : { path: r.path as string }) };
       case "project_select": {
         if (r.inspectionId !== latestInspection) return v2error("inspection_stale", "Inspect the project again.");
-        if (r.path !== root) return v2error("not_candidate", "The path is not a candidate of this inspection.");
+        if (resolve(r.path as string) !== root) return v2error("not_candidate", "The path is not a candidate of this inspection.");
         if (script.changes.length > 0 && r.initialize !== true) return v2error("initialize_required", "This folder needs setup; nothing was written.");
         return { operation: create(r, {}) };
       }

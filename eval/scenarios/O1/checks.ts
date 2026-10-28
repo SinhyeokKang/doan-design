@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import type { Checks } from "../../lib/types.ts";
 import { describeAll, errorCode, noBlindRetry, noCancel, noCopilotCheck, noRequestConflict, oneSession, repoUntouched, requests, started, type Exchange } from "./log.ts";
 
@@ -7,8 +8,8 @@ import { describeAll, errorCode, noBlindRetry, noCancel, noCopilotCheck, noReque
 const checks: Checks = ctx => {
   const log: Exchange[] = ctx.onboarding();
   const inspects = requests(log, "project_inspect");
-  const inspected = inspects.filter(e => e.request.path === ctx.repo && e.response.ok);
-  const selected = requests(log, "project_select").filter(e => e.response.ok && e.request.path === ctx.repo && e.request.initialize === true);
+  const inspected = inspects.filter(e => resolve(e.request.path ?? "") === ctx.repo && e.response.ok);
+  const selected = requests(log, "project_select").filter(e => e.response.ok && resolve(e.request.path) === ctx.repo && e.request.initialize === true);
   const signIns = requests(log, "sign_in");
   const completes = requests(log, "complete");
   const refusedCompletes = completes.filter(e => ["no_ready_agent", "no_project"].includes(errorCode(e) ?? ""));

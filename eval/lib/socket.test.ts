@@ -133,7 +133,7 @@ test("a project is inspected, selected with --initialize and completed through s
   const ask = session({ providers: [ready("claude")], changes: CHANGES, readyAfterCheck: [] });
   ask({ op: "start" });
   assert.equal(ask({ op: "project_inspect", ...S, requestId: "i1", path: "/elsewhere" }).error.code, "path_unavailable");
-  const inspect = ask({ op: "project_inspect", ...S, requestId: "i2", path: "/r" }).result.operation;
+  const inspect = ask({ op: "project_inspect", ...S, requestId: "i2", path: "/r/" }).result.operation;
   assert.equal(inspect.state, "running");
   assert.equal(ask({ op: "project_select", ...S, requestId: "s0", inspectionId: "insp_1", path: "/r", initialize: true }).error.code, "inspection_stale", "not inspected yet");
   const settled = ask({ op: "status", ...S, operationId: inspect.operationId }).result.operations;
