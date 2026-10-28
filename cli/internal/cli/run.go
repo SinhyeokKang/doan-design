@@ -31,6 +31,11 @@ type Context struct {
 	// RuntimePath and Dial reach the app (doan active); Run fills them so bodies never read the environment or open sockets.
 	RuntimePath string
 	Dial        func(socket string, deadline time.Time) (net.Conn, error)
+	// RuntimeExplicit, Executable, Launch and Sleep let only onboarding start open the app this CLI is bundled in.
+	RuntimeExplicit bool
+	Executable      func() (string, error)
+	Launch          func(bundle string) error
+	Sleep           func(time.Duration)
 }
 type Outcome struct {
 	Result any
@@ -42,6 +47,11 @@ type Flags struct {
 	TokenCSSSet, CanvasSet        bool
 	ClearTokenCSS                 bool
 	AddServe, RemoveServe         []string
+
+	Session, Operation, Provider, Request, Path, URL, Destination, Inspection string
+	SpendCopilotRequest, Initialize                                           bool
+	// Given tells an empty flag value from an absent flag.
+	Given map[string]bool
 }
 
 var Version = "dev"
@@ -56,6 +66,15 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   comment resolve <cmt_id>... --agent <name>
   check
   active
+  onboarding start
+  onboarding status --session <id> [--operation <id>]
+  onboarding check --session <id> --provider <id> --request <id> [--spend-copilot-request]
+  onboarding sign-in --session <id> --provider <id> --request <id>
+  onboarding cancel --session <id> --operation <id> --request <id>
+  onboarding project inspect --session <id> (--path <absolute> | --url <github-url> [--destination <absolute>]) --request <id>
+  onboarding project select --session <id> --inspection <id> --path <absolute> [--initialize] --request <id>
+  onboarding project clone --session <id> --inspection <id> --destination <absolute> --request <id>
+  onboarding complete --session <id> --request <id>
   skill
   mcp
   help
@@ -77,7 +96,7 @@ func repository(ctx Context, f Flags) (repo.Repository, *Error) {
 	return r, nil
 }
 
-// runtimePath is resolved only for active, so a bad DOAN_RUNTIME cannot break file-only commands.
+// runtimePath is resolved only for active and onboarding, so a bad DOAN_RUNTIME cannot break file-only commands.
 // An e2e or dev app started with --user-data-dir writes runtime.json there, and this variable points the CLI at it.
 func runtimePath() (string, *Error) {
 	if p := os.Getenv("DOAN_RUNTIME"); p != "" {
@@ -107,6 +126,12 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, recordSession
 	fs.Func("remove-serve", "", func(s string) error { f.RemoveServe = append(f.RemoveServe, s); return nil })
 	fs.StringVar(&f.Canvas, "canvas", "", "")
 	fs.StringVar(&f.Agent, "agent", "", "")
+	for name, target := range map[string]*string{"session": &f.Session, "operation": &f.Operation, "provider": &f.Provider, "request": &f.Request, "path": &f.Path, "url": &f.URL, "destination": &f.Destination, "inspection": &f.Inspection} {
+		fs.StringVar(target, name, "", "")
+	}
+	fs.BoolVar(&f.SpendCopilotRequest, "spend-copilot-request", false, "")
+	fs.BoolVar(&f.Initialize, "initialize", false, "")
+	f.Given = map[string]bool{}
 	pos, err := SplitArgs(args, fs)
 	o := Outcome{}
 	var failure *Error
@@ -133,11 +158,18 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, recordSession
 			allowed["canvas"] = true
 		case "comment":
 			allowed["agent"] = true
+		case "onboarding":
+			// Onboarding takes absolute paths and never searches for a repository.
+			allowed = map[string]bool{"json": true}
+			for name := range onboardingFlags {
+				allowed[name] = true
+			}
 		case "mcp":
 			// stdout carries only the protocol, so no flag (not even --json) applies.
 			allowed = map[string]bool{}
 		}
 		fs.Visit(func(v *flag.Flag) {
+			f.Given[v.Name] = true
 			if v.Name == "token-css" {
 				f.TokenCSSSet = true
 			}
@@ -170,7 +202,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, recordSession
 				} else {
 					ctx := Context{Start: start, Now: time.Now, Random: rand.Reader, Dial: func(socket string, deadline time.Time) (net.Conn, error) {
 						return (&net.Dialer{Deadline: deadline}).Dial("unix", socket)
-					}}
+					}, Executable: os.Executable, Launch: launchBundle, Sleep: time.Sleep}
 					if home, err := os.UserHomeDir(); err == nil {
 						ctx.Home = home
 					}
@@ -198,7 +230,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, recordSession
 					case "comments":
 						o, failure = Comments(ctx, f, pos[1:])
 					case "skill":
-						o, failure = Skill(pos[1:])
+						o, failure = Skill(ctx, pos[1:])
 					case "check":
 						if recordSessions {
 							ctx.Session = sessionFromEnvironment(ctx.Home)
@@ -207,6 +239,11 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, recordSession
 					case "active":
 						if ctx.RuntimePath, failure = runtimePath(); failure == nil {
 							o, failure = Active(ctx, f, pos[1:])
+						}
+					case "onboarding":
+						if ctx.RuntimePath, failure = runtimePath(); failure == nil {
+							ctx.RuntimeExplicit = os.Getenv("DOAN_RUNTIME") != ""
+							o, failure = Onboarding(ctx, f, pos[1:])
 						}
 					case "comment":
 						if len(pos) < 2 || pos[1] != "resolve" {

@@ -11,6 +11,14 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+const (
+	sessionProperty     = `"sessionId":{"type":"string","description":"sessionId from onboarding_start."}`
+	requestProperty     = `"requestId":{"type":"string","description":"Your id for this request: letters, digits, _ and -. Resend the same id with the same arguments after a lost response; use a new id for a new request."}`
+	providerProperty    = `"provider":{"type":"string","enum":["claude","codex","cursor","antigravity","copilot"]}`
+	inspectionProperty  = `"inspectionId":{"type":"string","description":"inspectionId from the latest onboarding_project_inspect."}`
+	destinationProperty = `"destination":{"type":"string","description":"Absolute final clone folder the user named. It must not exist; its parent must."}`
+)
+
 const repoProperty = `"repo":{"type":"string","description":"Absolute repository path. Defaults to the server's working directory, searching upward for .doan/config.json."}`
 
 var mcpTools = []struct {
@@ -33,6 +41,40 @@ var mcpTools = []struct {
 		`{"type":"object","properties":{` + repoProperty + `},"additionalProperties":false}`, &mcp.ToolAnnotations{ReadOnlyHint: true}},
 	{"skill", "Read the Doan guide (doan skill), including the tool-to-command mapping.",
 		`{"type":"object","properties":{},"additionalProperties":false}`, &mcp.ToolAnnotations{ReadOnlyHint: true}},
+	{"onboarding_start", "Start or resume Doan onboarding (doan onboarding start) and show the app. Returns sessionId and the current state. Without DOAN_RUNTIME, opens the Doan app this server is bundled in when it is not running.",
+		`{"type":"object","properties":{},"additionalProperties":false}`, nil},
+	{"onboarding_status", "Read onboarding state: agent connections and readiness, project, operations and completion (doan onboarding status). It does not wait for sign-in or clone; poll it.",
+		`{"type":"object","properties":{` + sessionProperty + `,"operationId":{"type":"string","description":"Narrow operations to this one."}},"required":["sessionId"],"additionalProperties":false}`, &mcp.ToolAnnotations{ReadOnlyHint: true}},
+	{"onboarding_check", "Check a saved agent connection again (doan onboarding check). A Copilot check spends one model request: set spendCopilotRequest only when the user agreed.",
+		`{"type":"object","properties":{` + sessionProperty + `,` + providerProperty + `,` + requestProperty + `,"spendCopilotRequest":{"type":"boolean"}},"required":["sessionId","provider","requestId"],"additionalProperties":false}`, nil},
+	{"onboarding_sign_in", "Start signing in to one agent provider in Doan (doan onboarding sign-in). The user approves in the browser; no codes or account details are returned. On stop_required, ask the user to stop the running conversation in Doan.",
+		`{"type":"object","properties":{` + sessionProperty + `,` + providerProperty + `,` + requestProperty + `},"required":["sessionId","provider","requestId"],"additionalProperties":false}`, nil},
+	{"onboarding_cancel", "Cancel one operation of this onboarding session (doan onboarding cancel). It does not sign out.",
+		`{"type":"object","properties":{` + sessionProperty + `,"operationId":{"type":"string"},` + requestProperty + `},"required":["sessionId","operationId","requestId"],"additionalProperties":false}`, nil},
+	{"onboarding_project_inspect", "Inspect a local folder (path) or a GitHub repository (url, optional destination) for the project (doan onboarding project inspect). The result lists candidates and the changes setup would make.",
+		`{"type":"object","properties":{` + sessionProperty + `,"path":{"type":"string","description":"Absolute folder path. Give path or url, not both."},"url":{"type":"string","description":"GitHub repository URL."},` + destinationProperty + `,` + requestProperty + `},"required":["sessionId","requestId"],"additionalProperties":false}`, nil},
+	{"onboarding_project_select", "Select a candidate from the latest inspection as the project (doan onboarding project select). Set initialize only after the user approved the planned changes.",
+		`{"type":"object","properties":{` + sessionProperty + `,` + inspectionProperty + `,"path":{"type":"string","description":"Absolute candidate path from the inspection."},"initialize":{"type":"boolean"},` + requestProperty + `},"required":["sessionId","inspectionId","path","requestId"],"additionalProperties":false}`, nil},
+	{"onboarding_project_clone", "Clone the inspected repository into the destination the user named (doan onboarding project clone).",
+		`{"type":"object","properties":{` + sessionProperty + `,` + inspectionProperty + `,` + destinationProperty + `,` + requestProperty + `},"required":["sessionId","inspectionId","destination","requestId"],"additionalProperties":false}`, nil},
+	{"onboarding_complete", "Finish onboarding once an agent is ready and a project is selected (doan onboarding complete); Doan then opens its home.",
+		`{"type":"object","properties":{` + sessionProperty + `,` + requestProperty + `},"required":["sessionId","requestId"],"additionalProperties":false}`, nil},
+}
+
+// onboardingTools maps each onboarding tool to its command and its arguments to flags.
+var onboardingTools = map[string]struct {
+	command []string
+	fields  [][2]string
+}{
+	"onboarding_start":           {[]string{"onboarding", "start"}, nil},
+	"onboarding_status":          {[]string{"onboarding", "status"}, [][2]string{{"sessionId", "session"}, {"operationId", "operation"}}},
+	"onboarding_check":           {[]string{"onboarding", "check"}, [][2]string{{"sessionId", "session"}, {"provider", "provider"}, {"requestId", "request"}, {"spendCopilotRequest", "spend-copilot-request"}}},
+	"onboarding_sign_in":         {[]string{"onboarding", "sign-in"}, [][2]string{{"sessionId", "session"}, {"provider", "provider"}, {"requestId", "request"}}},
+	"onboarding_cancel":          {[]string{"onboarding", "cancel"}, [][2]string{{"sessionId", "session"}, {"operationId", "operation"}, {"requestId", "request"}}},
+	"onboarding_project_inspect": {[]string{"onboarding", "project", "inspect"}, [][2]string{{"sessionId", "session"}, {"path", "path"}, {"url", "url"}, {"destination", "destination"}, {"requestId", "request"}}},
+	"onboarding_project_select":  {[]string{"onboarding", "project", "select"}, [][2]string{{"sessionId", "session"}, {"inspectionId", "inspection"}, {"path", "path"}, {"initialize", "initialize"}, {"requestId", "request"}}},
+	"onboarding_project_clone":   {[]string{"onboarding", "project", "clone"}, [][2]string{{"sessionId", "session"}, {"inspectionId", "inspection"}, {"destination", "destination"}, {"requestId", "request"}}},
+	"onboarding_complete":        {[]string{"onboarding", "complete"}, [][2]string{{"sessionId", "session"}, {"requestId", "request"}}},
 }
 
 func newMCPServer() *mcp.Server {
@@ -82,6 +124,9 @@ func argv(tool string, raw json.RawMessage) ([]string, *Error) {
 		if e := json.Unmarshal(raw, &fields); e != nil {
 			return nil, usageError("Tool " + tool + " arguments must be an object")
 		}
+	}
+	if spec, ok := onboardingTools[tool]; ok {
+		return onboardingArgv(tool, spec.command, spec.fields, fields)
 	}
 	allowed := map[string][]string{
 		"init":             {"repo", "tokenCss"},
@@ -183,4 +228,43 @@ func argv(tool string, raw json.RawMessage) ([]string, *Error) {
 		}
 	}
 	return out, nil
+}
+
+// onboardingArgv leaves path and id checks to the command body so a tool and the CLI refuse alike.
+func onboardingArgv(tool string, command []string, spec [][2]string, fields map[string]json.RawMessage) ([]string, *Error) {
+	for key := range fields {
+		known := false
+		for _, f := range spec {
+			known = known || f[0] == key
+		}
+		if !known {
+			return nil, usageError("Tool " + tool + " does not accept argument " + key)
+		}
+	}
+	out := append([]string{}, command...)
+	for _, f := range spec {
+		value, ok := fields[f[0]]
+		if !ok {
+			continue
+		}
+		if onboardingFlags[f[1]] != f[0] {
+			panic("onboarding tool argument " + f[0] + " does not match --" + f[1])
+		}
+		if f[1] == "spend-copilot-request" || f[1] == "initialize" {
+			var b *bool
+			if json.Unmarshal(value, &b) != nil || b == nil {
+				return nil, usageError("Argument " + f[0] + " must be a boolean")
+			}
+			if *b {
+				out = append(out, "--"+f[1])
+			}
+			continue
+		}
+		var s *string
+		if json.Unmarshal(value, &s) != nil || s == nil {
+			return nil, usageError("Argument " + f[0] + " must be a string")
+		}
+		out = append(out, "--"+f[1]+"="+*s)
+	}
+	return append(out, "--json"), nil
 }
