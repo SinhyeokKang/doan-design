@@ -62,3 +62,4 @@
 - 2026-10-29: P 완료(d7f7f7b, 1277829, c7bcfea, `verify.mjs` PASS). 결정 D12·D13.
 - 2026-10-29: G 완료(1f1e9fd..da67bb0, `verify.mjs` PASS). 독립 리뷰 Codex `gpt-6-astra` medium 진행 중. G 작업자 retain.
 - 2026-10-29: G 리뷰 🔴 2(status 응답의 토큰 누출, MacOS 상위 링크로 번들 경계 우회)·🟡 1(빈 `DOAN_RUNTIME`). 수정 1회차 `ctx_4ab6946bf036`. 결정 D14.
+- 2026-10-29: P 리뷰 🔴 0·🟡 3(끊긴 `.git` 링크를 불일치로 판정, 지원하지 않는 config를 완전한 정보로 취급, 다른 sessionId를 최신으로 수용)·⚪ 4. 수정 1회차를 보냈다. Copilot 비용 문구는 spec에 따라 비용이 드는 모든 check 옆에 보이게 한다(지휘자 판단).
