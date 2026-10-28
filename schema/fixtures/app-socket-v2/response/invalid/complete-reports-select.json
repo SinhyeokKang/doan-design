@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "ok": true,
+  "op": "complete",
+  "result": {
+    "operation": {
+      "operationId": "op_9",
+      "requestId": "req-1",
+      "kind": "project_select",
+      "state": "succeeded",
+      "project": {
+        "root": "/Users/sam/code/app"
+      }
+    }
+  }
+}
