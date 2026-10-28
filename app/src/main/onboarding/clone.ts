@@ -105,6 +105,8 @@ export async function runClone(request: CloneRequest): Promise<CloneResult> {
   const stop = () => run.stop();
   request.signal.addEventListener("abort", stop, { once: true });
   const code = await run.exit;
+  // Whatever the clone left in its group (a credential cache daemon) is this run's and must not hold it open.
+  run.stop();
   await run.gone;
   request.signal.removeEventListener("abort", stop);
   // A clone that finished after the cancel was accepted is still discarded: the user asked for nothing to remain.

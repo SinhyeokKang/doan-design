@@ -31,7 +31,8 @@ export interface OnboardingAuth {
 export interface OnboardingProjects {
   // The canonical existing directory, or null.
   folder(path: string): Promise<string | null>;
-  destination(path: string): Promise<"absent" | "exists" | "no_parent">;
+  // inside_project: a clone there would be read as part of that project, never as its own.
+  destination(path: string): Promise<"absent" | "exists" | "no_parent" | "inside_project">;
   inspectPath(real: string): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }>;
   inspectUrl(repo: GitHubUrl): Promise<Candidate[]>;
   select(path: string, initialize: boolean, repo: GitHubUrl | null): Promise<ProjectOutcome>;
@@ -69,6 +70,8 @@ const QUICK_REPLY_MS = 1000;
 const QUIT_WAIT_MS = 5000;
 // The most a clone can need: whether the repository brings its own setup is known only after the clone.
 const CLONE_CHANGES: OnboardingChange[] = [".doan/canvases/", ".doan/config.json", ".gitattributes"];
+// Selection, clone and completion change or save the one project, so only one of them runs at a time.
+const PROJECT_WORK = ["project_select", "project_clone", "complete"] as const;
 // What an operation reports when its work threw instead of answering.
 const THROWN: Record<"project_inspect" | "project_select" | "project_clone" | "complete", OnboardingOperationErrorCode> = {
   project_inspect: "project_unavailable", project_select: "project_unavailable", project_clone: "clone_failed", complete: "completion_save_failed",
@@ -236,7 +239,7 @@ export class OnboardingService {
   }
 
   // A running or cleaning clone holds every location change until its processes and directory are gone.
-  private busy(kinds: readonly string[]): boolean {
+  private busy(kinds: readonly OnboardingOperation["kind"][]): boolean {
     return [...this.operations.values()].some(t => kinds.includes(t.operation.kind) && !TERMINAL.has(t.operation.state));
   }
   private current(inspectionId: string): Inspection | null {
@@ -245,7 +248,9 @@ export class OnboardingService {
   }
 
   private async inspect(request: OnboardingProjectInspectRequest): Promise<OnboardingResponse> {
-    if (this.busy(["project_clone"])) return refuse("busy");
+    if (this.closing || this.busy(["project_clone"])) return refuse("busy");
+    // Counted at the start: a newer inspection, from the window or a client, makes this one stale even if it ends last.
+    const generation = ++this.inspected;
     const projects = this.options.projects;
     let source: { path: string } | { repo: GitHubUrl; destination?: string };
     if ("path" in request) {
@@ -261,8 +266,8 @@ export class OnboardingService {
       }
       source = { repo, ...(request.destination !== undefined ? { destination: request.destination } : {}) };
     }
-    // Counted at the start: a newer inspection, from the window or a client, makes this one stale even if it ends last.
-    const generation = ++this.inspected;
+    // Checked again after the awaits, with nothing awaited between this and the launch that records the operation.
+    if (this.closing || this.busy(["project_clone"])) return refuse("busy");
     return this.launch("project_inspect", request.requestId, async () => {
       const found = "path" in source ? await projects.inspectPath(source.path) : { ok: true as const, candidates: await projects.inspectUrl(source.repo) };
       if (!found.ok) return { state: "failed", code: found.code };
@@ -274,7 +279,7 @@ export class OnboardingService {
   }
 
   private async select(request: OnboardingProjectSelectRequest): Promise<OnboardingResponse> {
-    if (this.busy(["project_select", "project_clone"])) return refuse("busy");
+    if (this.closing || this.busy(PROJECT_WORK)) return refuse("busy");
     const current = this.current(request.inspectionId);
     if (!current) return refuse("inspection_stale");
     const candidate = current.inspection.candidates.find(c => c.path === request.path);
@@ -286,11 +291,12 @@ export class OnboardingService {
   }
 
   private async clone(request: OnboardingProjectCloneRequest): Promise<OnboardingResponse> {
-    if (this.busy(["project_select", "project_clone"])) return refuse("busy");
+    if (this.closing || this.busy(PROJECT_WORK)) return refuse("busy");
     const current = this.current(request.inspectionId);
     if (!current || !current.repo || current.inspection.clone?.destination !== request.destination) return refuse("inspection_stale");
     const destination = await this.options.projects.destination(request.destination);
     if (destination !== "absent") return refuse(destination === "exists" ? "destination_exists" : "path_unavailable");
+    if (this.closing || this.busy(PROJECT_WORK)) return refuse("busy");
     const repo = current.repo, abort = new AbortController();
     return this.launch("project_clone", request.requestId, async () => {
       const result = await this.options.projects.clone(repo.url, request.destination, abort.signal);
@@ -311,7 +317,8 @@ export class OnboardingService {
     if (!agents.providers.some(p => p.readiness.ready)) return refuse("no_ready_agent");
     const project = this.project;
     if (project === null) return refuse("no_project");
-    if (this.busy(["complete"])) return refuse("busy");
+    // The project must not change while it is being saved, nor be saved while a new one is being chosen.
+    if (this.busy(PROJECT_WORK)) return refuse("busy");
     return this.launch("complete", requestId, async () => {
       const confirmed = await this.options.projects.confirm(project.root);
       if (!confirmed.ok) return { state: "failed", code: confirmed.code };

@@ -36,6 +36,14 @@ export async function destinationState(path: string): Promise<"absent" | "exists
   return await canonicalFolder(dirname(path)) === null ? "no_parent" : "absent";
 }
 
+// A clone inside a set-up project would be read as that project (the CLI walks up from a folder), so it could never
+// be registered as its own.
+export async function cloneDestination(path: string, deps: ProjectDeps): Promise<"absent" | "exists" | "no_parent" | "inside_project"> {
+  const state = await destinationState(path);
+  if (state !== "absent") return state;
+  return (await deps.ls({ cwd: dirname(path) })).kind === "list" ? "inside_project" : "absent";
+}
+
 // What `doan init` would create here, read the way init reads it; a folder with any config gets nothing.
 export async function plannedChanges(root: string, state: FolderState): Promise<OnboardingChange[]> {
   if (state.kind !== "uninitialized") return [];
@@ -114,7 +122,11 @@ async function register(path: string, initialize: boolean, deps: ProjectDeps): P
 }
 
 // After a clone the user asked for: the new folder is registered and set up like a selected one.
-export function registerClone(destination: string, deps: ProjectDeps): Promise<ProjectOutcome> { return register(destination, true, deps); }
+export async function registerClone(destination: string, deps: ProjectDeps): Promise<ProjectOutcome> {
+  const outcome = await register(destination, true, deps);
+  // Anything else (an ancestor project made meanwhile) is not the repository that was cloned.
+  return outcome.ok && outcome.root !== destination ? failed("project_unavailable") : outcome;
+}
 
 export interface CloneDeps extends ProjectDeps {
   // The login shell's git and the environment to run it in, or null when there is no usable git.

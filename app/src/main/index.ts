@@ -17,7 +17,7 @@ import { ONBOARDING_CHANNELS, OnboardingService, rendererRequest } from "./onboa
 import { onboardingComplete, readCompletion, writeCompletion } from "./onboarding/completion";
 import { cloneEnv, locateGit } from "./onboarding/clone";
 import { readGitRemotes } from "./onboarding/gitConfig";
-import { canonicalFolder, cloneProject, confirmProject, destinationState, inspectPath, inspectUrl, selectProject, type ProjectDeps } from "./onboarding/projects";
+import { canonicalFolder, cloneDestination, cloneProject, confirmProject, inspectPath, inspectUrl, selectProject, type ProjectDeps } from "./onboarding/projects";
 import { createCommentsService } from "./comments/service";
 import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
@@ -666,7 +666,7 @@ async function start(): Promise<void> {
     completed: () => onboardingComplete(readCompletion(userData)),
     publish: state => send(ONBOARDING_CHANNELS.changed, state),
     projects: {
-      folder: canonicalFolder, destination: destinationState,
+      folder: canonicalFolder, destination: path => cloneDestination(path, projectDeps),
       inspectPath: real => inspectPath(real, projectDeps), inspectUrl: repo => inspectUrl(repo, projectDeps),
       select: (path, initialize, repo) => selectProject(path, initialize, repo, projectDeps),
       clone: (url, destination, signal) => cloneProject(url, destination, signal, {
