@@ -1,0 +1,10 @@
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_0", "name": "Bash", "input": {"command": "doan onboarding start --json"}}]}}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_1", "name": "Bash", "input": {"command": "doan onboarding check --session s_eval --provider copilot --request check-1 --spend-copilot-request --json"}}]}}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_2", "name": "Bash", "input": {"command": "doan onboarding sign-in --session s_eval --provider codex --request signin-1 --json"}}]}}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_3", "name": "Bash", "input": {"command": "doan onboarding complete --session s_eval --request complete-0 --json"}}]}}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_4", "name": "Bash", "input": {"command": "doan onboarding project inspect --session s_eval --path {{repo}} --request inspect-1 --json"}}]}}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_5", "name": "Bash", "input": {"command": "doan onboarding project inspect --session s_eval --path {{repo}} --request inspect-2 --json"}}]}}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_6", "name": "Bash", "input": {"command": "doan onboarding status --session s_eval --json"}}]}}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_7", "name": "Bash", "input": {"command": "doan onboarding project select --session s_eval --inspection insp_1 --path {{repo}} --initialize --request select-1 --json"}}]}}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_8", "name": "Bash", "input": {"command": "doan onboarding complete --session s_eval --request complete-1 --json"}}]}}
+{"type": "assistant", "message": {"content": [{"type": "text", "text": "Doan is set up."}]}}

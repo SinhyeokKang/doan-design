@@ -1,0 +1,76 @@
+{
+  "providers": [
+    {
+      "provider": "claude",
+      "phase": "connected",
+      "readiness": {
+        "ready": true
+      },
+      "error": null,
+      "actions": [
+        "signOut"
+      ]
+    },
+    {
+      "provider": "codex",
+      "phase": "disconnected",
+      "readiness": {
+        "ready": false,
+        "cause": "not_connected",
+        "action": "signIn"
+      },
+      "error": null,
+      "actions": [
+        "signIn"
+      ]
+    },
+    {
+      "provider": "cursor",
+      "phase": "disconnected",
+      "readiness": {
+        "ready": false,
+        "cause": "cli_missing",
+        "action": "install"
+      },
+      "error": null,
+      "actions": [
+        "signIn"
+      ]
+    },
+    {
+      "provider": "antigravity",
+      "phase": "disconnected",
+      "readiness": {
+        "ready": false,
+        "cause": "not_connected",
+        "action": "signIn"
+      },
+      "error": null,
+      "actions": [
+        "signIn"
+      ]
+    },
+    {
+      "provider": "copilot",
+      "phase": "connected",
+      "readiness": {
+        "ready": false,
+        "cause": "unverified",
+        "action": "retry"
+      },
+      "error": null,
+      "actions": [
+        "retry",
+        "signOut"
+      ]
+    }
+  ],
+  "changes": [
+    ".doan/config.json",
+    ".doan/canvases/",
+    ".gitattributes"
+  ],
+  "readyAfterCheck": [
+    "copilot"
+  ]
+}
