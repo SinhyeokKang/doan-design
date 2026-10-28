@@ -16,7 +16,7 @@ const mainOnly = [
   // project-feedback: resolve, reopen and delete on comments without a canvas.
   "comments:orphan-mutate", "comments:orphan-status",
   // buzz-onboarding: the session the CLI and MCP share; Settings never drives first-run.
-  "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:clone", "onboarding:complete",
+  "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
 ];
 const shared = ["setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out"];

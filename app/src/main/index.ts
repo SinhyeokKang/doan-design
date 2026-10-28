@@ -14,7 +14,10 @@ import { sharedShell, toolFacts } from "./agentAuth/facts";
 import { createMachine, needsOnboarding, markClosed, PATH_LINE, probeShell, runProcess, type MachineState } from "./onboarding/machine";
 import { isTranslocated } from "./onboarding/states";
 import { ONBOARDING_CHANNELS, OnboardingService, rendererRequest } from "./onboarding/service";
-import { onboardingComplete, readCompletion } from "./onboarding/completion";
+import { onboardingComplete, readCompletion, writeCompletion } from "./onboarding/completion";
+import { cloneEnv, locateGit } from "./onboarding/clone";
+import { readGitRemotes } from "./onboarding/gitConfig";
+import { canonicalFolder, cloneProject, confirmProject, destinationState, inspectPath, inspectUrl, selectProject, type ProjectDeps } from "./onboarding/projects";
 import { createCommentsService } from "./comments/service";
 import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
@@ -22,7 +25,7 @@ import { DocumentBindings, stableDiskHash } from "./comments/document";
 import { createTransitionGuard } from "./comments/transitions";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
-import { accessSync, constants as fsConstants, statSync } from "node:fs";
+import { accessSync, constants as fsConstants, readlinkSync, realpathSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -634,15 +637,54 @@ async function start(): Promise<void> {
     const refused = channel === AUTH_CHANNELS.read ? null : { ok: false, reason: "invalid" };
     handle(channel, refused, (event, value) => authIpc ? authIpc.handle(channel, value, event.sender.id) : refused);
   }
+  // Registration goes through Add Project's judgement; a folder that only a confirmation would store is confirmed
+  // here because the request already carried the user's explicit setup intent.
+  const projectDeps: ProjectDeps = {
+    ls: async target => folderState(await runLs(cli, target)),
+    registered: () => ready.entries().map(entry => entry.path),
+    async add(path) {
+      const flow = addFlow;
+      if (!flow) return null;
+      const outcome = await flow.add([path]);
+      if (outcome.scanId !== null) flow.cancel(outcome.scanId);
+      const stored = outcome.added[0] ?? outcome.duplicate;
+      if (stored) return stored;
+      const confirm = outcome.confirms[0];
+      if (!confirm) return null;
+      const confirmed = await flow.confirm({ confirmId: confirm.confirmId });
+      return confirmed.kind === "added" && ready.entries().some(entry => entry.path === confirm.path) ? confirm.path : null;
+    },
+    initialize: root => ready.initialize(root, null),
+    remotes: root => readGitRemotes(root, homeDirectory()),
+  };
+  const realOrNull = (path: string) => { try { return realpathSync(path); } catch { return null; } };
+  // The developer directory xcode-select would use, read without running it (see locateGit).
+  const developerDir = () => { if (process.env.DEVELOPER_DIR) return process.env.DEVELOPER_DIR; try { return readlinkSync("/var/db/xcode_select_link"); } catch { return null; } };
   const onboardingService = new OnboardingService({
     auth: authIpc ?? null,
     mainOwner: () => win && !win.isDestroyed() ? win.webContents.id : null,
     completed: () => onboardingComplete(readCompletion(userData)),
     publish: state => send(ONBOARDING_CHANNELS.changed, state),
+    projects: {
+      folder: canonicalFolder, destination: destinationState,
+      inspectPath: real => inspectPath(real, projectDeps), inspectUrl: repo => inspectUrl(repo, projectDeps),
+      select: (path, initialize, repo) => selectProject(path, initialize, repo, projectDeps),
+      clone: (url, destination, signal) => cloneProject(url, destination, signal, {
+        ...projectDeps,
+        async git() {
+          const probe = await shellForFacts();
+          const path = probe.ok ? probe.path : null;
+          const git = locateGit({ path, executable, realpath: realOrNull, developerDir });
+          return git !== null && path !== null ? { git, env: cloneEnv(process.env, path) } : null;
+        },
+      }),
+      confirm: root => confirmProject(root, projectDeps),
+      saveCompletion: root => writeCompletion(userData, root),
+    },
   });
   onboarding = onboardingService;
   const sessionRefused = { v: 2, ok: false, error: { code: "bad_request", message: "Doan could not handle this request." } };
-  const sessionOps = { start: "start", status: "status", check: "check", cancel: "cancel", inspect: "project_inspect", clone: "project_clone", complete: "complete" } as const;
+  const sessionOps = { start: "start", status: "status", check: "check", cancel: "cancel", inspect: "project_inspect", select: "project_select", clone: "project_clone", complete: "complete" } as const;
   for (const [name, op] of Object.entries(sessionOps) as [keyof typeof sessionOps, (typeof sessionOps)[keyof typeof sessionOps]][]) {
     handle(ONBOARDING_CHANNELS[name], sessionRefused, (event, value: unknown) => {
       const request = rendererRequest(op, value);
@@ -1028,6 +1070,8 @@ app.on("before-quit", (event) => {
       }
       // After conversations: their runs hold auth leases whose working credentials are written back here.
       await agentAuth?.quit();
+      // Onboarding owns only its clones; stopping them removes their temporary directories.
+      await onboarding?.quit();
       quitting = true; cancelPendingHide(); uiState?.flushSync(); thumbnails?.dispose();
       app.quit();
     });

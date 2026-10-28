@@ -1,11 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type {
-  OnboardingAgentStatus, OnboardingOp, OnboardingOperation, OnboardingOperationErrorCode, OnboardingRequest, OnboardingResponse,
-  OnboardingSocketErrorCode, OnboardingState,
+  OnboardingAgentStatus, OnboardingChange, OnboardingInspection, OnboardingOp, OnboardingOperation, OnboardingOperationErrorCode,
+  OnboardingProject, OnboardingProjectCloneRequest, OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingRequest,
+  OnboardingResponse, OnboardingSocketErrorCode, OnboardingState,
 } from "../../formats/types";
 import { validateOnboardingRequest } from "../../formats/validate";
 import { AUTH_CHANNELS, type AuthCheckReply, type AuthReason, type AuthSnapshot } from "../agentAuth/ipc";
 import type { AuthStatusDto, Provider } from "../agentAuth/types";
+import type { CompletionWrite } from "./completion";
+import type { Candidate, ProjectOutcome } from "./projects";
+import { parseGitHubUrl, type GitHubUrl } from "./repository";
 
 // The first-run session the window and a local CLI or MCP client share (buzz-onboarding design 'CLI·MCP 온보딩').
 // Electron-free: index.ts supplies the main window, the auth IPC and completion, and carries the socket and IPC.
@@ -13,7 +17,8 @@ import type { AuthStatusDto, Provider } from "../agentAuth/types";
 // The old wizard's onboarding:read|run|answer|close|get-open are different channels and go away with it.
 export const ONBOARDING_CHANNELS = {
   start: "onboarding:start", status: "onboarding:status", check: "onboarding:check", cancel: "onboarding:cancel",
-  inspect: "onboarding:inspect", clone: "onboarding:clone", complete: "onboarding:complete", changed: "onboarding:changed",
+  inspect: "onboarding:inspect", select: "onboarding:select", clone: "onboarding:clone", complete: "onboarding:complete",
+  changed: "onboarding:changed",
 } as const;
 
 // AuthIpc: every sign-in step goes through its owner and attempt checks, never around them.
@@ -22,6 +27,20 @@ export interface OnboardingAuth {
   latest(): AuthSnapshot;
   handle(channel: string, value: unknown, owner: number): Promise<AuthCheckReply | AuthSnapshot>;
 }
+// Folder work (projects.ts, clone.ts and the completion marker), wired by index.ts.
+export interface OnboardingProjects {
+  // The canonical existing directory, or null.
+  folder(path: string): Promise<string | null>;
+  destination(path: string): Promise<"absent" | "exists" | "no_parent">;
+  inspectPath(real: string): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }>;
+  inspectUrl(repo: GitHubUrl): Promise<Candidate[]>;
+  select(path: string, initialize: boolean, repo: GitHubUrl | null): Promise<ProjectOutcome>;
+  // Resolves only after the clone's processes are gone and its own temporary directory is removed.
+  clone(url: string, destination: string, signal: AbortSignal): Promise<ProjectOutcome | { ok: false; cancelled: true }>;
+  // Reads only: canonical, set up and registered.
+  confirm(root: string): Promise<ProjectOutcome>;
+  saveCompletion(root: string): CompletionWrite;
+}
 export interface OnboardingServiceOptions {
   // null: account storage is unreadable.
   auth: OnboardingAuth | null;
@@ -29,8 +48,10 @@ export interface OnboardingServiceOptions {
   mainOwner(): number | null;
   completed(): boolean;
   publish(state: OnboardingState): void;
+  projects: OnboardingProjects;
   newId?: () => string;
   snapshotWaitMs?: number;
+  quickReplyMs?: number;
 }
 
 // Cursor and Copilot open the browser themselves; opening again would show a second tab.
@@ -42,6 +63,16 @@ const KEPT_FINISHED = 20;
 // Finished operations dropped from the list still answer a resend of their requestId, up to this many.
 const KEPT_RETIRED = 1000;
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
+// Folder work that ends this fast answers its final state; anything slower answers running and is read with status.
+const QUICK_REPLY_MS = 1000;
+// Bounded like agent-auth's quit: a clone's group is stopped within about 2.5 s.
+const QUIT_WAIT_MS = 5000;
+// The most a clone can need: whether the repository brings its own setup is known only after the clone.
+const CLONE_CHANGES: OnboardingChange[] = [".doan/canvases/", ".doan/config.json", ".gitattributes"];
+// What an operation reports when its work threw instead of answering.
+const THROWN: Record<"project_inspect" | "project_select" | "project_clone" | "complete", OnboardingOperationErrorCode> = {
+  project_inspect: "project_unavailable", project_select: "project_unavailable", project_clone: "clone_failed", complete: "completion_save_failed",
+};
 
 // Fixed text only: provider output, OAuth text, paths and accounts never reach a message (review G ⚪1).
 const MESSAGES: Record<OnboardingSocketErrorCode, string> = {
@@ -108,8 +139,16 @@ export function rendererRequest(op: OnboardingOp, value: unknown): OnboardingReq
   return validateOnboardingRequest(request) ? request : null;
 }
 
-interface Tracked { operation: OnboardingOperation; attemptId: string | null; cancelling: boolean; prompted: boolean }
+interface Tracked {
+  operation: OnboardingOperation; attemptId: string | null; cancelling: boolean; prompted: boolean;
+  // Folder work: a clone's cancel, and the end of its work for quit.
+  abort?: AbortController; done?: Promise<void>;
+}
 type Write = Exclude<OnboardingRequest, { op: "start" | "status" }>;
+type FolderKind = keyof typeof THROWN;
+type Finished = { state: "succeeded"; inspection?: OnboardingInspection; project?: OnboardingProject } | { state: "failed"; code: OnboardingOperationErrorCode } | { state: "cancelled" };
+// Only the newest inspection started in this session can be acted on (design '동일 상태·소유권·재시도').
+interface Inspection { generation: number; inspection: OnboardingInspection; repo: GitHubUrl | null }
 
 export class OnboardingService {
   readonly sessionId: string;
@@ -117,6 +156,10 @@ export class OnboardingService {
   private operations = new Map<string, Tracked>();
   private attempts = new Map<string, string>();
   private retired = new Map<string, OnboardingOperation>();
+  private project: OnboardingProject | null = null;
+  private inspected = 0;
+  private inspection: Inspection | null = null;
+  private closing = false;
   // A refused request leaves no record, so its id is judged again on a resend.
   private requests = new Map<string, { key: string; reply: Promise<OnboardingResponse>; operationId: string | null }>();
   private readonly newId: () => string;
@@ -166,22 +209,144 @@ export class OnboardingService {
   }
   snapshot(): OnboardingState { return this.build(this.options.auth?.latest() ?? null); }
 
+  // Quit: no completion is saved after this, and running clones stop and clean up before the app goes.
+  async quit(): Promise<void> {
+    this.closing = true;
+    const work: Promise<void>[] = [];
+    for (const tracked of this.operations.values()) {
+      if (tracked.operation.kind !== "project_clone" || TERMINAL.has(tracked.operation.state)) continue;
+      tracked.abort?.abort();
+      if (tracked.done) work.push(tracked.done);
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([Promise.allSettled(work), new Promise(resolve => { timer = setTimeout(resolve, QUIT_WAIT_MS); timer.unref?.(); })]);
+    clearTimeout(timer);
+  }
+
   private async write(request: Write): Promise<OnboardingResponse> {
     switch (request.op) {
       case "check": return this.check(request.requestId, request.provider);
       case "sign_in": return this.signIn(request.requestId, request.provider);
       case "cancel": return this.cancel(request.operationId);
-      // Batch B1 builds inspection; until then it refuses rather than pretending (conductor, 2026-10-29).
-      case "project_inspect": return refuse("bad_request");
-      // Nothing was inspected in this session, so no inspection is current.
-      case "project_select": case "project_clone": return refuse("inspection_stale");
-      case "complete": {
-        const agents = await this.agents();
-        if (agents === null) return refuse("auth_unavailable");
-        if (!agents.providers.some(p => p.readiness.ready)) return refuse("no_ready_agent");
-        return refuse("no_project");
-      }
+      case "project_inspect": return this.inspect(request);
+      case "project_select": return this.select(request);
+      case "project_clone": return this.clone(request);
+      case "complete": return this.complete(request.requestId);
     }
+  }
+
+  // A running or cleaning clone holds every location change until its processes and directory are gone.
+  private busy(kinds: readonly string[]): boolean {
+    return [...this.operations.values()].some(t => kinds.includes(t.operation.kind) && !TERMINAL.has(t.operation.state));
+  }
+  private current(inspectionId: string): Inspection | null {
+    const latest = this.inspection;
+    return latest && latest.generation === this.inspected && latest.inspection.inspectionId === inspectionId ? latest : null;
+  }
+
+  private async inspect(request: OnboardingProjectInspectRequest): Promise<OnboardingResponse> {
+    if (this.busy(["project_clone"])) return refuse("busy");
+    const projects = this.options.projects;
+    let source: { path: string } | { repo: GitHubUrl; destination?: string };
+    if ("path" in request) {
+      const real = await projects.folder(request.path);
+      if (real === null) return refuse("path_unavailable");
+      source = { path: real };
+    } else {
+      const repo = parseGitHubUrl(request.url);
+      if (repo === null) return refuse("invalid_url");
+      if (request.destination !== undefined) {
+        const destination = await projects.destination(request.destination);
+        if (destination !== "absent") return refuse(destination === "exists" ? "destination_exists" : "path_unavailable");
+      }
+      source = { repo, ...(request.destination !== undefined ? { destination: request.destination } : {}) };
+    }
+    // Counted at the start: a newer inspection, from the window or a client, makes this one stale even if it ends last.
+    const generation = ++this.inspected;
+    return this.launch("project_inspect", request.requestId, async () => {
+      const found = "path" in source ? await projects.inspectPath(source.path) : { ok: true as const, candidates: await projects.inspectUrl(source.repo) };
+      if (!found.ok) return { state: "failed", code: found.code };
+      const inspection: OnboardingInspection = { inspectionId: this.newId(), candidates: found.candidates };
+      if ("repo" in source && source.destination !== undefined) inspection.clone = { destination: source.destination, changes: CLONE_CHANGES };
+      if (generation === this.inspected) this.inspection = { generation, inspection, repo: "repo" in source ? source.repo : null };
+      return { state: "succeeded", inspection };
+    });
+  }
+
+  private async select(request: OnboardingProjectSelectRequest): Promise<OnboardingResponse> {
+    if (this.busy(["project_select", "project_clone"])) return refuse("busy");
+    const current = this.current(request.inspectionId);
+    if (!current) return refuse("inspection_stale");
+    const candidate = current.inspection.candidates.find(c => c.path === request.path);
+    if (!candidate) return refuse("not_candidate");
+    // Setup writes files in the user's folder, so it happens only when asked for (design '고정 명령·도구').
+    const initialize = request.initialize === true;
+    if (candidate.changes.length > 0 && !initialize) return refuse("initialize_required");
+    return this.launch("project_select", request.requestId, async () => this.selected(await this.options.projects.select(candidate.path, initialize, current.repo)));
+  }
+
+  private async clone(request: OnboardingProjectCloneRequest): Promise<OnboardingResponse> {
+    if (this.busy(["project_select", "project_clone"])) return refuse("busy");
+    const current = this.current(request.inspectionId);
+    if (!current || !current.repo || current.inspection.clone?.destination !== request.destination) return refuse("inspection_stale");
+    const destination = await this.options.projects.destination(request.destination);
+    if (destination !== "absent") return refuse(destination === "exists" ? "destination_exists" : "path_unavailable");
+    const repo = current.repo, abort = new AbortController();
+    return this.launch("project_clone", request.requestId, async () => {
+      const result = await this.options.projects.clone(repo.url, request.destination, abort.signal);
+      return "cancelled" in result ? { state: "cancelled" } : this.selected(result);
+    }, abort);
+  }
+
+  private selected(outcome: ProjectOutcome): Finished {
+    if (!outcome.ok) return { state: "failed", code: outcome.code };
+    this.project = { root: outcome.root };
+    return { state: "succeeded", project: { root: outcome.root } };
+  }
+
+  // Re-reads readiness and the selected root; never selects, clones or sets up again, so a Retry only saves.
+  private async complete(requestId: string): Promise<OnboardingResponse> {
+    const agents = await this.agents();
+    if (agents === null) return refuse("auth_unavailable");
+    if (!agents.providers.some(p => p.readiness.ready)) return refuse("no_ready_agent");
+    const project = this.project;
+    if (project === null) return refuse("no_project");
+    if (this.busy(["complete"])) return refuse("busy");
+    return this.launch("complete", requestId, async () => {
+      const confirmed = await this.options.projects.confirm(project.root);
+      if (!confirmed.ok) return { state: "failed", code: confirmed.code };
+      // Checked right before the atomic write, which is the moment onboarding completes.
+      if (this.closing) return { state: "cancelled" };
+      if (!this.options.auth?.latest().providers.some(p => p.readiness.ready)) return { state: "failed", code: "no_ready_agent" };
+      const saved = this.options.projects.saveCompletion(confirmed.root);
+      if (!saved.ok) return { state: "failed", code: saved.reason === "unknown_version" ? "completion_unsupported_version" : "completion_save_failed" };
+      return { state: "succeeded", project: { root: confirmed.root } };
+    });
+  }
+
+  private async launch(kind: FolderKind, requestId: string, work: () => Promise<Finished>, abort?: AbortController): Promise<OnboardingResponse> {
+    const tracked = this.track({ kind, requestId, state: "running" }, null);
+    if (abort) tracked.abort = abort;
+    const done = work().catch((error: unknown): Finished => {
+      // The work's own error may name paths or tool output; the operation gets a code and a fixed message only.
+      console.error(`doan: onboarding ${kind} failed`, error);
+      return { state: "failed", code: THROWN[kind] };
+    }).then(finished => this.finish(tracked, finished));
+    tracked.done = done;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([done, new Promise(resolve => { timer = setTimeout(resolve, this.options.quickReplyMs ?? QUICK_REPLY_MS); })]);
+    clearTimeout(timer);
+    return this.operationReply(kind, tracked.operation.operationId);
+  }
+
+  private finish(tracked: Tracked, finished: Finished): void {
+    const { operationId, requestId, kind } = tracked.operation;
+    const operation: OnboardingOperation = { operationId, requestId, kind, state: finished.state };
+    if (finished.state === "failed") operation.error = { code: finished.code, message: OPERATION_MESSAGES[finished.code] };
+    if (finished.state === "succeeded" && finished.inspection) operation.inspection = finished.inspection;
+    if (finished.state === "succeeded" && finished.project) operation.project = finished.project;
+    tracked.operation = operation;
+    this.touch(this.options.auth?.latest() ?? null);
   }
 
   private async check(requestId: string, provider: Provider): Promise<OnboardingResponse> {
@@ -219,6 +384,13 @@ export class OnboardingService {
     if (auth && owner !== null && provider && tracked.operation.kind === "sign_in" && tracked.attemptId !== null &&
       !tracked.cancelling && !TERMINAL.has(tracked.operation.state)) {
       await auth.handle(AUTH_CHANNELS.cancel, { provider, attemptId: tracked.attemptId }, owner);
+    }
+    // Stays running until the clone's processes and temporary directory are gone (cancelling in the contract).
+    if (tracked.abort && !tracked.cancelling && !TERMINAL.has(tracked.operation.state)) {
+      tracked.cancelling = true;
+      tracked.operation = { ...tracked.operation, state: "running", cancelling: true };
+      tracked.abort.abort();
+      this.touch(this.options.auth?.latest() ?? null);
     }
     return this.operationReply("cancel", operationId);
   }
@@ -308,7 +480,7 @@ export class OnboardingService {
     return {
       sessionId: this.sessionId, revision: this.revision, completed: this.options.completed(),
       agents: snapshot && { revision: snapshot.revision, providers: snapshot.providers.map(agentStatus) },
-      project: null, operations,
+      project: this.project, operations,
     };
   }
 }

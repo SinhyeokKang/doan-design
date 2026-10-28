@@ -6,7 +6,7 @@ import type { LsTarget } from "../cli";
 import type { FolderState } from "../folderState";
 import type { ProjectInitResult } from "../shell";
 import { readGitRemotes } from "./gitConfig";
-import { canonicalFolder, confirmProject, destinationState, inspectPath, inspectUrl, plannedChanges, registerClone, selectProject, type ProjectDeps } from "./projects";
+import { canonicalFolder, cloneProject, confirmProject, destinationState, inspectPath, inspectUrl, plannedChanges, registerClone, selectProject, type ProjectDeps } from "./projects";
 
 // Remote checks read .git/config; a git process here would run the repository's fsmonitor, hooks and filters.
 vi.mock("node:child_process", () => ({ spawn: () => { throw new Error("git must not run"); }, execFile: () => { throw new Error("git must not run"); } }));
@@ -39,7 +39,7 @@ function deps(registered: string[] = [], init: (root: string) => ProjectInitResu
   const d = {
     ls: vi.fn(async (target: LsTarget) => cliLs(target)),
     registered: () => registered,
-    add: vi.fn(async (path: string) => { if (!registered.includes(path)) registered.push(path); return path; }),
+    add: vi.fn(async (path: string): Promise<string | null> => { if (!registered.includes(path)) registered.push(path); return path; }),
     initialize: vi.fn(async (r: string) => init(r)),
     remotes: vi.fn((r: string) => readGitRemotes(r, temp())),
   } satisfies ProjectDeps;
@@ -177,5 +177,23 @@ describe("paths", () => {
     expect(await destinationState(join(dir, "new"))).toBe("absent");
     expect(await destinationState(dir)).toBe("exists");
     expect(await destinationState(join(dir, "missing", "new"))).toBe("no_parent");
+  });
+});
+
+describe("cloneProject", () => {
+  const ok = { git: "/usr/bin/git", env: { PATH: "/usr/bin" } };
+  it("reports missing git without trying to clone", async () => {
+    const run = vi.fn();
+    expect(await cloneProject("https://github.com/acme/studio", "/tmp/x", new AbortController().signal, { ...deps().deps, git: async () => null, run })).toEqual({ ok: false, code: "git_missing" });
+    expect(run).not.toHaveBeenCalled();
+  });
+  it("registers and sets up a finished clone, and passes failures and cancels through", async () => {
+    const destination = repo(temp());
+    const d = deps();
+    expect(await cloneProject("u", destination, new AbortController().signal, { ...d.deps, git: async () => ok, run: async () => ({ kind: "cloned", destination }) })).toEqual({ ok: true, root: destination });
+    expect(d.registered).toEqual([destination]);
+    expect(d.deps.initialize).toHaveBeenCalledWith(destination);
+    expect(await cloneProject("u", "/tmp/y", new AbortController().signal, { ...deps().deps, git: async () => ok, run: async () => ({ kind: "failed", code: "repository_unreachable" }) })).toEqual({ ok: false, code: "repository_unreachable" });
+    expect(await cloneProject("u", "/tmp/y", new AbortController().signal, { ...deps().deps, git: async () => ok, run: async () => ({ kind: "cancelled" }) })).toEqual({ ok: false, cancelled: true });
   });
 });

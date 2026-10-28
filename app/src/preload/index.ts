@@ -8,7 +8,7 @@ import type { OnboardingOpen, OnboardingRead } from "../main/index";
 import type { StepRequest, StepResult } from "../main/onboarding/machine";
 import type {
   Author, OnboardingCancelRequest, OnboardingCheckRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
-  OnboardingProjectInspectRequest, OnboardingResponse, OnboardingState, OnboardingStatusRequest,
+  OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingState, OnboardingStatusRequest,
 } from "../formats/types";
 import type { BeginRequest, BeginResult, CommentList, CommentReply, CommentRequest, CopyRequest, MutationRequest, OrphanMutationRequest, OrphanRequest, SavedStatus } from "../main/comments/service";
 import type { TransitionRequest } from "../main/comments/transitions";
@@ -98,6 +98,8 @@ const api = {
   checkOnboardingAgent: (request: SessionRequest<OnboardingCheckRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:check", request),
   cancelOnboardingOperation: (request: SessionRequest<OnboardingCancelRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:cancel", request),
   inspectOnboardingProject: (request: SessionRequest<OnboardingProjectInspectRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:inspect", request),
+  // initialize: true is the user's consent to the inspection's planned changes.
+  selectOnboardingProject: (request: SessionRequest<OnboardingProjectSelectRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:select", request),
   cloneOnboardingProject: (request: SessionRequest<OnboardingProjectCloneRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:clone", request),
   completeOnboarding: (request: SessionRequest<OnboardingCompleteRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:complete", request),
   // Every session change, from this window or a CLI/MCP client. Drop states of another sessionId.

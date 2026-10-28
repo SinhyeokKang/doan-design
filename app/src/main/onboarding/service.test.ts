@@ -81,8 +81,8 @@ function setup(options: { completed?: boolean; auth?: boolean; owner?: number | 
     ipc.prompted(event); service!.prompted(event);
   };
   // A connected, checked Claude: the one ready agent onboarding needs.
-  const ready = () => { b.states.set("claude", { ...initialAuthState("claude", claude), verified: true }); ipc.changed(); };
-  return { b, ipc, service, ask, published, openExternal, prompt, projects, ready, complete(value: boolean) { completed = value; } };
+  const makeReady = () => { b.states.set("claude", { ...initialAuthState("claude", claude), verified: true }); ipc.changed(); };
+  return { b, ipc, service, ask, published, openExternal, prompt, projects, ready: makeReady, complete(value: boolean) { completed = value; } };
 }
 
 async function session(t: ReturnType<typeof setup>): Promise<string> {

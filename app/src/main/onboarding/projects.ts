@@ -6,6 +6,7 @@ import type { LsTarget } from "../cli";
 import type { FolderState } from "../folderState";
 import type { ProjectInitResult } from "../shell";
 import { openDecision } from "../view";
+import { runClone, type CloneRequest, type CloneResult } from "./clone";
 import type { RemoteRead } from "./gitConfig";
 import { findCandidates, folderMatch, type GitHubRepository } from "./repository";
 
@@ -114,6 +115,21 @@ async function register(path: string, initialize: boolean, deps: ProjectDeps): P
 
 // After a clone the user asked for: the new folder is registered and set up like a selected one.
 export function registerClone(destination: string, deps: ProjectDeps): Promise<ProjectOutcome> { return register(destination, true, deps); }
+
+export interface CloneDeps extends ProjectDeps {
+  // The login shell's git and the environment to run it in, or null when there is no usable git.
+  git(): Promise<{ git: string; env: Record<string, string> } | null>;
+  run?: (request: CloneRequest) => Promise<CloneResult>;
+}
+export async function cloneProject(url: string, destination: string, signal: AbortSignal, deps: CloneDeps): Promise<ProjectOutcome | { ok: false; cancelled: true }> {
+  const located = await deps.git();
+  if (located === null) return failed("git_missing");
+  if (signal.aborted) return { ok: false, cancelled: true };
+  const result = await (deps.run ?? runClone)({ git: located.git, url, destination, env: located.env, signal });
+  if (result.kind === "cancelled") return { ok: false, cancelled: true };
+  if (result.kind === "failed") return failed(result.code);
+  return registerClone(result.destination, deps);
+}
 
 // Read again and found registered; never registers or initializes anything itself.
 export async function confirmProject(root: string, deps: ProjectDeps): Promise<ProjectOutcome> {
