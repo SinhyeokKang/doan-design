@@ -23,6 +23,9 @@ export type Prepare = (request: StartRequest, stored?: ConversationMetadata) => 
 function freeLease(input: Prepared | undefined): void {
   void input?.release?.().catch(error => console.error("doan: account lease release failed", error));
 }
+// A Claude process ended about 0.75 s after turn.done, but its reservation held for 2.1-5.0 s after turn.done until the
+// group was gone (packaged app, D1 2026-10-28). The wait allows twice the slowest observed.
+const EXIT_WAIT_MS = 10_000;
 // provider: set for a run on a doan account, whose lease a sign-out or replacement waits for (stopRuns).
 // since: the stopRuns count when this start or send began; a later stop of its provider stops it once it spawns.
 interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number }
@@ -32,7 +35,9 @@ export class ConversationService {
   private quitting = false;
   private stops = 0;
   private lastStop = new Map<Provider, number>();
-  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}) {}
+  // Sends waiting for the previous turn's process to exit; cancelled ones are refused once woken.
+  private waits = new Map<string, { wake(): void; cancelled: boolean; provider?: Provider }>();
+  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS) {}
   private reserve(id: string, input?: Prepared, reuse = false): void {
     const key = input?.sessionId ? { runtime: input.runtime, configDir: input.configDir, sessionId: input.sessionId } : null;
     const result = reserveSession(this.reservations, id, key, reuse);
@@ -103,6 +108,8 @@ export class ConversationService {
     }
   }
   async send(id: string, text: string, anchors: Anchor[]): Promise<void> {
+    // Only a send that waits yields here; any other runs up to its reservation in the caller's tick, as before.
+    const exiting = this.previousExit(id); if (exiting) await exiting;
     let metadata = this.refreshCanvas(this.metadata(id)); if (metadata.state !== "current" || this.quitting) throw new Error("busy");
     const runtime = metadata.session.runtime;
     const existing = this.live.get(id); if (existing?.busy || existing?.failedPersistence) throw new Error("busy");
@@ -140,6 +147,26 @@ export class ConversationService {
       if (opening) void live.runner?.close(); throw error;
     }
   }
+  // A finished turn's process may still be exiting, and its reservation keeps a second process off the session until
+  // its group is gone. The send waits for that instead of refusing; every check in send runs again afterwards.
+  private previousExit(id: string): Promise<void> | undefined {
+    const live = this.live.get(id), metadata = this.store.list().find(m => m.conversationId === id);
+    if (!metadata || live?.busy || this.quitting || !this.reservations.some(r => r.owner === id)) return;
+    if (metadata.session.runtime === "codex" && live?.runner) return;
+    if (this.waits.has(id)) throw new Error("busy");
+    return this.exitOf(id, live);
+  }
+  private async exitOf(id: string, live: Live | undefined): Promise<void> {
+    let wake!: () => void;
+    const woken = new Promise<void>(resolve => { wake = resolve; });
+    const wait = { wake, cancelled: false, ...(live?.provider ? { provider: live.provider } : {}) };
+    this.waits.set(id, wait);
+    const timer = setTimeout(wake, this.exitWaitMs);
+    try { await woken; } finally { clearTimeout(timer); this.waits.delete(id); }
+    // A process that did not exit in time still holds the reservation, which send then reports as busy.
+    if (wait.cancelled) throw new Error("busy");
+  }
+  private cancelWait(id: string): void { const wait = this.waits.get(id); if (wait) { wait.cancelled = true; wait.wake(); } }
   // The lease belongs to this runner's process group: it is released when that group is gone, or at once when
   // opening failed before anything was spawned.
   private async openRunner(id: string, live: Live, input: Prepared): Promise<Runner> {
@@ -174,7 +201,7 @@ export class ConversationService {
   }
   answer(id: string, requestId: string, option: string): void { this.metadata(id); if (!this.live.get(id)?.runner?.answer(requestId, option)) throw new Error("stale"); }
   async interrupt(id: string): Promise<void> {
-    this.metadata(id); const live = this.live.get(id); if (!live || !live.busy) return;
+    this.metadata(id); this.cancelWait(id); const live = this.live.get(id); if (!live || !live.busy) return;
     const stop = live.runner?.stop(); if (live.busy) this.receive(id, { type: "interrupted", reason: "user" }); await stop;
   }
   // A sign-out or account replacement the user chose to stop runs for. The provider's doan-account runs end as a user
@@ -182,6 +209,7 @@ export class ConversationService {
   // still preparing or opening is stopped as soon as it spawns. External runs hold no lease and are left alone.
   async stopRuns(provider: Provider): Promise<void> {
     this.stops += 1; this.lastStop.set(provider, this.stops);
+    for (const [id, wait] of this.waits) if (wait.provider === provider) this.cancelWait(id);
     const closing: Promise<void>[] = [];
     for (const [id, live] of this.live) {
       if (live.provider !== provider) continue;
@@ -194,6 +222,7 @@ export class ConversationService {
   quit(): Promise<void> {
     const closing: Promise<void>[] = [];
     this.quitting = true;
+    for (const id of this.waits.keys()) this.cancelWait(id);
     for (const [id, live] of this.live) {
       if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
       if (live.accepted && live.busy && !live.terminal) this.append(id, live.turnId, { type: "interrupted", reason: "appQuit" });
@@ -227,6 +256,7 @@ export class ConversationService {
   }
   private exited(id: string): void {
     this.reservations = releaseReservation(this.reservations, id, "process_exited");
+    this.waits.get(id)?.wake();
     const live = this.live.get(id); if (!live) return; live.exited = true; delete live.runner;
     if (!live.accepted) this.live.delete(id);
     if (live.accepted && live.busy) this.receive(id, { type: "turn.failed", code: "process_exited" });

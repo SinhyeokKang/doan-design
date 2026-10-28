@@ -24,9 +24,11 @@ export const ANTIGRAVITY_COMMAND = "agy_acp_server.par";
 // some webbrowser paths (GenericBrowser(name) runs it as one executable name and fails), and a hook that fails makes
 // webbrowser fall through to the user's default browser. An executable path runs as [path, url] on every path, may
 // hold spaces (Application Support) but never ":" (the variable's separator), and the script always exits 0, so main
-// alone decides where the link goes (user decision 2026-10-28).
+// alone decides where the link goes (user decision 2026-10-28). Claude runs $BROWSER without its output, so a process
+// given AUTH_LINK_FILE also gets the link appended to that file (claude 2.1.312).
 export const AUTH_LINK_MARKER = "__DOAN_AUTH_URL__";
-export const BROWSER_HOOK = { name: "browser-hook", script: `#!/bin/sh\nprintf '%s%s\\n' '${AUTH_LINK_MARKER}' "$1" >&2\nexit 0\n` } as const;
+export const AUTH_LINK_FILE = "DOAN_AUTH_LINK";
+export const BROWSER_HOOK = { name: "browser-hook", script: `#!/bin/sh\nprintf '%s%s\\n' '${AUTH_LINK_MARKER}' "$1" >&2\n[ -z "$${AUTH_LINK_FILE}" ] || printf '%s\\n' "$1" >> "$${AUTH_LINK_FILE}"\nexit 0\n` } as const;
 // Without a usable $BROWSER the server prints this line itself (credential_manager.py, 1.3.0).
 const LINK_LINE = "Open the following link to authenticate the ACP server: ";
 

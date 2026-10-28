@@ -1,11 +1,12 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { accessSync, constants, existsSync, rmSync, statSync } from "node:fs";
+import { accessSync, constants, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ACP_PROTOCOL_VERSION, AcpConnection } from "../conversation/acp";
 import { OwnedGroup } from "../conversation/process";
 import { object } from "../conversation/sessions";
-import { BROWSER_HOOK, callbackAddress, INSTALL_FAILED, forwardCallback, signInLink, type SignInLink } from "./antigravity";
+import { AUTH_LINK_FILE, BROWSER_HOOK, callbackAddress, INSTALL_FAILED, forwardCallback, signInLink, type SignInLink } from "./antigravity";
 import { probeShell } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
 import { providerEnv } from "./environment";
@@ -34,6 +35,7 @@ interface Run { code: number | null; stdout: string; stderr: string }
 const OUTPUT_LIMIT = 1024 * 1024;
 const QUIT_WAIT_MS = 5000;
 const ACP_OPEN_MS = 60_000;
+const LINK_POLL_MS = 100;
 // An ACP run answers a cancel within 5 s before its group is stopped (acpRunner); SIGKILL follows 500 ms after SIGTERM.
 const DRAIN_MS = 15_000;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -245,14 +247,18 @@ export class AuthManager {
     if (auth.acpAuth) await this.acpSignIn(provider, attemptId, owner);
     else {
       const seen = new Set<string>();
-      const login = await this.exec(provider, attemptId, auth.login, null, text => {
-        if (this.stopRequests.has(attemptId) || this.cancelled(provider, attemptId)) return;
-        // Sentence punctuation after a printed URL is not part of it.
-        for (const url of (text.match(/https?:\/\/[^\s"'<>]+/g) ?? []).map(found => found.replace(/[.,;:!?)\]]+$/, ""))) {
-          if (seen.has(url)) continue;
-          seen.add(url); this.options.onPrompt?.({ provider, attemptId, owner, url });
-        }
-      });
+      const show = (url: string) => {
+        if (this.stopRequests.has(attemptId) || this.cancelled(provider, attemptId) || seen.has(url)) return;
+        seen.add(url); this.options.onPrompt?.({ provider, attemptId, owner, url });
+      };
+      const hooked = auth.hookLink ? hookLinks(raw => { const url = auth.hookLink!(raw); if (url) show(url); }) : null;
+      let login: Run;
+      try {
+        login = await this.exec(provider, attemptId, auth.login, null, hooked ? undefined : text => {
+          // Sentence punctuation after a printed URL is not part of it.
+          for (const url of (text.match(/https?:\/\/[^\s"'<>]+/g) ?? []).map(found => found.replace(/[.,;:!?)\]]+$/, ""))) show(url);
+        }, hooked?.env);
+      } finally { hooked?.close(); }
       if (this.cancelled(provider, attemptId)) throw new Cancelled();
       if (login.code !== 0) throw new Failure("sign_in_failed", tail(login.stderr) ?? tail(login.stdout));
     }
@@ -403,7 +409,7 @@ export class AuthManager {
     return result;
   }
 
-  private async launch(provider: Provider, attemptId?: string): Promise<{ command: string; env: Record<string, string>; profileDir: string }> {
+  private async launch(provider: Provider, attemptId?: string, added: Record<string, string> = {}): Promise<{ command: string; env: Record<string, string>; profileDir: string }> {
     const locating = new AbortController();
     if (attemptId) { this.locating.set(attemptId, locating); if (this.stopRequests.has(attemptId)) locating.abort(); }
     let located: Awaited<ReturnType<AuthManagerOptions["locate"]>>;
@@ -415,10 +421,10 @@ export class AuthManager {
     if (!located) throw new Error("cli_missing");
     const profileDir = this.options.storage.profileDir(provider);
     for (const [rel, text] of Object.entries(this.adapters[provider].settings)) this.options.storage.writeSetting(provider, rel, text);
-    let extra = this.adapters[provider].env;
-    if (this.adapters[provider].acpAuth) {
+    let extra = { ...this.adapters[provider].env, ...added };
+    if (this.adapters[provider].acpAuth || this.adapters[provider].hookLink) {
       // Every process of a browser sign-in server gets the hook, so neither a check nor an expired run can open a
-      // browser itself. Without a usable hook webbrowser would fall back to the default browser, so nothing starts.
+      // browser itself. Without a usable hook the CLI would open the default browser, so nothing starts.
       const hook = this.options.storage.ownedScript(BROWSER_HOOK.name, BROWSER_HOOK.script);
       if (hook.includes(":")) throw new Error("browser_hook_unusable");
       extra = { ...extra, BROWSER: hook };
@@ -429,8 +435,8 @@ export class AuthManager {
   }
 
   // Resolves only after the process group is gone, so no result outruns its process.
-  private async exec(provider: Provider, attemptId: string, args: string[], timeoutMs: number | null, onText?: (text: string) => void): Promise<Run> {
-    const { command, env, profileDir } = await this.launch(provider, attemptId);
+  private async exec(provider: Provider, attemptId: string, args: string[], timeoutMs: number | null, onText?: (text: string) => void, added?: Record<string, string>): Promise<Run> {
+    const { command, env, profileDir } = await this.launch(provider, attemptId, added);
     // A cancel, window close or quit can arrive while the CLI is located, before there is a process to stop.
     if (this.stopRequests.has(attemptId)) throw new Cancelled();
     const child = this.options.spawn(command, [...this.adapters[provider].args, ...args], { cwd: profileDir, env });
@@ -529,6 +535,22 @@ export class AuthManager {
     }
     return result;
   }
+}
+
+// The hook leaves each link on its own line in a file only this login is given; polling it needs nothing from the CLI.
+function hookLinks(onLink: (raw: string) => void): { env: Record<string, string>; close(): void } {
+  const dir = mkdtempSync(join(tmpdir(), "doan-auth-link-")), file = join(dir, "links");
+  let read = 0;
+  const timer = setInterval(() => {
+    let text: string;
+    try { text = readFileSync(file, "utf8"); } catch { return; }
+    const end = text.lastIndexOf("\n");
+    if (end < read) return;
+    for (const line of text.slice(read, end).split("\n")) if (line) onLink(line);
+    read = end + 1;
+  }, LINK_POLL_MS);
+  timer.unref?.();
+  return { env: { [AUTH_LINK_FILE]: file }, close: () => { clearInterval(timer); rmSync(dir, { recursive: true, force: true }); } };
 }
 
 // Other providers' connections and failed sign-outs are kept as they are.
