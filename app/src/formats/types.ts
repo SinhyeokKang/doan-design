@@ -110,7 +110,8 @@ export type OnboardingCheckRequest = OnboardingWriteBase & { op: "check" } & (
 export interface OnboardingSignInRequest extends OnboardingWriteBase { op: "sign_in"; provider: OnboardingProvider }
 export interface OnboardingCancelRequest extends OnboardingWriteBase { op: "cancel"; operationId: string }
 export type OnboardingProjectInspectRequest = OnboardingWriteBase & { op: "project_inspect" } & (
-  | { path: string }
+  // url with path: the repository the chosen folder must belong to.
+  | { path: string; url?: string }
   | { url: string; destination?: string }
 );
 export interface OnboardingProjectSelectRequest extends OnboardingWriteBase {

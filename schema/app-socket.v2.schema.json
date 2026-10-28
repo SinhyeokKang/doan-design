@@ -224,7 +224,7 @@
       "additionalProperties": false
     },
     "projectInspectRequest": {
-      "$comment": "Exactly one of path or url. destination, the final clone directory, goes only with url.",
+      "$comment": "path or url is the target. url with path names the repository the folder must belong to (its remotes are checked); destination, the final clone directory, goes only with url alone.",
       "type": "object",
       "properties": {
         "v": {
@@ -269,17 +269,8 @@
             "path"
           ],
           "not": {
-            "anyOf": [
-              {
-                "required": [
-                  "url"
-                ]
-              },
-              {
-                "required": [
-                  "destination"
-                ]
-              }
+            "required": [
+              "destination"
             ]
           }
         },
