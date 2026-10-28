@@ -249,10 +249,44 @@ func callOnboarding(ctx Context, request map[string]any, deadline time.Time) (ma
 	if failure != nil {
 		return nil, failure, false
 	}
-	return readOnboardingReply(answer, request["op"].(string), rt.Token)
+	return readOnboardingReply(answer, request["op"].(string), rt.Token, ctx.RuntimePath)
 }
 
-func readOnboardingReply(line []byte, op, token string) (map[string]any, *Error, bool) {
+// withoutSecrets replaces any message naming a secret and reports false when
+// a structured value does: only messages are free text the app composes.
+func withoutSecrets(value any, secrets []string) bool {
+	named := func(s string) bool {
+		for _, secret := range secrets {
+			if secret != "" && strings.Contains(s, secret) {
+				return true
+			}
+		}
+		return false
+	}
+	switch v := value.(type) {
+	case map[string]any:
+		for k, item := range v {
+			if s, ok := item.(string); ok && k == "message" && named(s) {
+				v[k] = "Doan sent a message that cannot be shown"
+			} else if !withoutSecrets(item, secrets) {
+				return false
+			}
+		}
+	case []any:
+		for _, item := range v {
+			if !withoutSecrets(item, secrets) {
+				return false
+			}
+		}
+	case string:
+		return !named(v)
+	}
+	return true
+}
+
+// readOnboardingReply keeps the token and runtime.json path (which holds it)
+// out of every result and error, failed operations reported as data included.
+func readOnboardingReply(line []byte, op, token, runtimePath string) (map[string]any, *Error, bool) {
 	decoder := json.NewDecoder(bytes.NewReader(line))
 	decoder.UseNumber()
 	var value any
@@ -274,13 +308,12 @@ func readOnboardingReply(line []byte, op, token string) (map[string]any, *Error,
 	if formats.ValidateOnboardingResponse(obj) != nil {
 		return nil, internal(errors.New("Doan sent a response that does not match app-socket v2")), false
 	}
-	// The app writes messages without secrets; the token this CLI holds is still never echoed.
+	// The app writes messages without secrets; what this CLI itself holds is still never echoed.
+	if !withoutSecrets(obj, []string{token, runtimePath}) {
+		return nil, internal(errors.New("Doan sent a response that names its runtime token or file")), false
+	}
 	failed := func(code string, e map[string]any) (map[string]any, *Error, bool) {
-		message := e["message"].(string)
-		if strings.Contains(message, token) {
-			message = "Doan refused the request"
-		}
-		return nil, onboardingFailure(code, message), false
+		return nil, onboardingFailure(code, e["message"].(string)), false
 	}
 	if obj["ok"] == false {
 		e := obj["error"].(map[string]any)
@@ -310,8 +343,11 @@ func readOnboardingReply(line []byte, op, token string) (map[string]any, *Error,
 	return obj, nil, false
 }
 
-// ownBundle returns the Doan app this CLI is bundled in, judged from the CLI's
-// real path only, so no argument or environment can point it at another program.
+// ownBundle returns the Doan app that contains this CLI's real path, judged by
+// layout, the Info.plist bundle id and an executable contained in that bundle.
+// It is membership, not authenticity: the app is unsigned, and whoever controls
+// the bundle already controls what the user runs. No argument or environment
+// can point it at another program.
 func ownBundle(executable func() (string, error)) (string, bool) {
 	if executable == nil {
 		return "", false
@@ -344,8 +380,13 @@ func ownBundle(executable func() (string, error)) (string, bool) {
 	if keys["CFBundleIdentifier"] != bundleID || name == "" || strings.Contains(name, "/") {
 		return "", false
 	}
-	// Lstat: a link would let LaunchServices start a program from outside the bundle.
-	info, e = os.Lstat(filepath.Join(contents, "MacOS", name))
+	// bundle is canonical, so any link on the way (MacOS directory or the
+	// executable) shows up as a different resolved path and is refused.
+	app := filepath.Join(contents, "MacOS", name)
+	if resolved, e := filepath.EvalSymlinks(app); e != nil || resolved != app {
+		return "", false
+	}
+	info, e = os.Lstat(app)
 	if e != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
 		return "", false
 	}

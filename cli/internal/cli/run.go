@@ -111,6 +111,14 @@ func runtimePath() (string, *Error) {
 	}
 	return filepath.Join(home, "Library", "Application Support", "doan", "runtime.json"), nil
 }
+
+// onboardingRuntime treats a set but empty DOAN_RUNTIME as explicit, so it
+// never opens the default app; active keeps reading empty as unset.
+func onboardingRuntime() (string, bool, *Error) {
+	_, explicit := os.LookupEnv("DOAN_RUNTIME")
+	path, failure := runtimePath()
+	return path, explicit, failure
+}
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run(args, stdin, stdout, stderr, true)
 }
@@ -241,8 +249,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, recordSession
 							o, failure = Active(ctx, f, pos[1:])
 						}
 					case "onboarding":
-						if ctx.RuntimePath, failure = runtimePath(); failure == nil {
-							ctx.RuntimeExplicit = os.Getenv("DOAN_RUNTIME") != ""
+						if ctx.RuntimePath, ctx.RuntimeExplicit, failure = onboardingRuntime(); failure == nil {
 							o, failure = Onboarding(ctx, f, pos[1:])
 						}
 					case "comment":
