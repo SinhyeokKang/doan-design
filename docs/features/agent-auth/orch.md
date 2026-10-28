@@ -178,6 +178,7 @@ Run: `run_d94775f7dd27`.
 - 사용자 결정(2026-10-28): Cursor·Copilot CLI는 지휘자가 공식 경로로 설치한다(위 환경 참고).
 - 사용자 결정(2026-10-28): 이번 세션에서 이 기능을 main에 병합하는 것까지 진행한다. orchestrate의 '병합하지 않음' 기본값은 사용자의 명시 요청으로 대체한다. 병합은 D3 승격, 최종 gate 통과, PR 생성을 마친 뒤에 한다.
 - conductor's call(2026-10-28, C 질문) — Codex rollout 헤더의 `cli_version`이 0.163.0이나 0.164.0이면 세션이 있다고 본다. 범위가 아니라 명시한 두 값만 허용한다. 설치 CLI의 지원 버전은 0.164.0 하나다. 근거: 0.164.0이 0.163.0 세션을 재개해도 첫 줄 헤더는 바뀌지 않는다(C의 probe 관찰). 사용자 결정은 CLI 버전을 올리는 것이지 기존 대화를 버리는 것이 아니다.
+- 사용자 결정(2026-10-28, R-C): Codex rollout 헤더 허용 목록은 누적한다. doan이 지원했던 Codex 버전은 모두 목록에 남기고, 어떤 버전으로 만든 대화를 포기하기로 따로 결정할 때만 그 버전을 뺀다. 목록에는 항상 현재 지원 버전이 들어 있어야 하며 테스트로 이를 고정한다. 'exact supported version' 계약의 예외이므로 D3에서 PRODUCT §7과 ARCHITECTURE §5에 기록한다.
 - conductor's call — C(코드)와 D1(`.scratch` probe만)은 파일이 겹치지 않으므로 병렬로 진행한다. D1은 Codex를 제외한 네 공급자를 먼저 확인하고, Codex는 '보류 항목'으로 handoff에 남긴다. C를 통합한 뒤 Codex 확인을 새 Task로 보낸다. 로그인 승인은 지휘자가 ego-lite에서 하나씩 처리하므로, 실인증 단계가 겹쳐도 승인은 순서대로 진행된다.
 
 ### 배치 (재개)
@@ -200,3 +201,6 @@ Run: `run_45baa7f44012`.
 - C 완료(`eefd814` test, `b579927` feat). 작업자 보고: verify.mjs PASS(3,622 tests). dev 앱에서 실검증을 모두 통과했다: doan 로그인과 keyring, 새 대화·Canvas 경로 생성, 권한 허용·거절, 중단, 재시작 후 재개, 0.163.0으로 만든 legacy 세션의 0.164.0 재개, 외부 인증 불변. 끝난 시점에 doan Codex는 로그아웃 상태다. 패키지 앱은 D1 범위로 넘겼다. 관찰한 것: doan 경로의 Codex 로그인이 prompt를 2번 보낸다. interrupt 뒤에도 실행 중인 명령이 남는데 0.163.0도 같다. 실제 HOME의 `~/.agents/skills/doan`도 user scope로 읽힌다. `~/.codex/auth.json`의 mtime이 기준선 전(20:44 KST)에 바뀌었고 원인은 특정하지 못했다. handoff는 `evidence-C/`에 있다. C 작업자는 release했다.
 - R-C: `ctx_825963277647` (task `task_265c2bc3c176`). `agent-auth-codex164`에서 보고만 한다. effective sonnet high, `turnStart: observed`.
 - Claude·Codex·Cursor·Antigravity·Copilot 로그인은 모두 지휘자가 ego-lite에서 승인했다. Claude는 sinhyeok.kang@day1company.co.kr이다. claude.ai 승인 버튼은 창 포커스가 없으면 비활성이라, CDP 포커스 에뮬레이션을 켜고 눌렀다. Codex·Cursor·Antigravity는 ox501501@gmail.com, Copilot은 SinhyeokKang이다. D1이 보고한 결함 후보는 다음과 같다: doan이 Claude에 내보내는 URL은 승인 뒤 코드를 붙여넣는 방식인데, Claude에는 코드를 제출하는 경로가 없다. Copilot이 요청하는 scope에는 `write:plugin_gateway_connections`가 더 있다(D3에 기록).
+- R-C `ctx_825963277647`: 🔴0·🟡2·⚪4. io.ts의 경계(no-follow, 단일 regular 파일, canonical cwd, 64KiB)는 바뀌지 않았고, 헤더 목록의 범위도 맞다. 🟡1: 헤더 근거가 휘발성 `/tmp`에만 있고 handoff가 인용한 파일에는 `cli_version`이 없다. 🟡2: `providers.test.ts:79`의 테스트 이름이 0.164.0의 로그인 상태 출력을 확인한 것처럼 읽힌다. 사용자 결정 1건은 위 결정 기록에 반영했다. 보고서는 `evidence-C/review-C.md`. R-C 작업자는 release했다.
+- 지휘자 판단: R-C의 사용자 결정 2(0.163.0 헤더 대화를 0.164.0에서 쓰는 것이 호환되는가)는 C의 실재개 1회로 충분하다고 본다. D1의 Codex 보류 Task에서 패키지 앱으로 다시 확인한다.
+- F-C: `ctx_428f4fff5864` (task `task_e77bef56f0fc`), `agent-auth-codex164`, sonnet medium(근거 파일 정리와 테스트 3개라 판단할 것이 적다), `turnStart: observed`. 🟡1·🟡2·⚪1·⚪2를 맡는다. ⚪3은 취향 수준이라 넘기고, ⚪4는 D3에서 처리한다.
