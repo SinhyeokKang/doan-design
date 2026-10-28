@@ -62,6 +62,8 @@ export class ProjectStepSession {
   private acting: object | null = null;
   // What Retry repeats: the action whose failure is on screen.
   private again: (() => Promise<void>) | null = null;
+  // The native folder sheet is open: the step is busy, but focus belongs to the button that opened it.
+  private choosing = false;
   constructor(private readonly deps: ProjectStepDeps) {}
 
   start(): void {
@@ -75,6 +77,7 @@ export class ProjectStepSession {
   }
   // Long work (clone, setup, saving) holds Back and the stepper (design '이동·취소·포커스 계약').
   busy(): boolean { return this.acting !== null || ["inspecting", "selecting", "cloning", "completing"].includes(this.state.phase.kind); }
+  picking(): boolean { return this.choosing; }
   urlValid(): boolean { return parseGitHubUrl(this.state.url) !== null; }
 
   setUrl(url: string): void { this.set({ url, error: this.state.error?.code === "invalid_url" ? null : this.state.error }); }
@@ -87,7 +90,7 @@ export class ProjectStepSession {
 
   chooseFolder(): Promise<void> {
     return this.act(async () => {
-      const picked = await this.deps.api.chooseOnboardingFolder("project").catch(() => null);
+      const picked = await this.pick("project");
       if (this.live && picked !== null) await this.inspectPath(picked);
     });
   }
@@ -97,7 +100,7 @@ export class ProjectStepSession {
     return this.act(async () => {
       const p = this.state.phase;
       if (p.kind !== "clone" && p.kind !== "cloneCancelled") return;
-      const picked = await this.deps.api.chooseOnboardingFolder("destination").catch(() => null);
+      const picked = await this.pick("destination");
       if (this.live && picked !== null) await this.planClone(p.url, `${picked.replace(/\/+$/, "")}/${basename(p.destination)}`, this.fence());
     });
   }
@@ -125,10 +128,16 @@ export class ProjectStepSession {
     if (now.kind === "cloning" && now.operationId === p.operationId && (!reply.ok || !reply.operation.cancelling) && !TERMINAL.has(reply.ok ? reply.operation.state : "running")) this.set({ phase: { ...now, cancelling: false } });
   }
 
+  private async pick(purpose: "project" | "destination"): Promise<string | null> {
+    this.choosing = true;
+    try { return await this.deps.api.chooseOnboardingFolder(purpose).catch(() => null); } finally { this.choosing = false; }
+  }
   private async act(work: () => Promise<void>): Promise<void> {
     if (this.busy() || !this.live) return;
     const token = {};
     this.acting = token;
+    // Retry belongs to the failure on screen; any new action replaces it.
+    this.again = null;
     this.deps.changed();
     try { await work(); } finally { if (this.acting === token) { this.acting = null; this.deps.changed(); } }
   }

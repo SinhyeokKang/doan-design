@@ -406,7 +406,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <div className="ob-state-actions">
           {p.cancelling ? <><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled>Choose local folder</button>
             <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled>Retry</button></>
-            : <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.cancelClone}>Cancel</button>}
+            : <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={p.operationId === null} onClick={on.cancelClone}>Cancel</button>}
         </div>
       </> : p.kind === "cloneCancelled" ? <>
         <p className="ob-provider-help">Cloning was cancelled. Choose a folder or try again.</p>
@@ -473,10 +473,22 @@ export function Wizard({ session, projects, homeDirectory, onClose }: { session:
   // A scene change moves focus to its heading; Tab then enters the controls (design '이동·취소·포커스 계약').
   useEffect(() => { requestAnimationFrame(() => heading.current?.focus()); }, [scene.generation]);
   // Within the Project step, a phase change that took the focused control away hands focus on, never to <body>.
-  const projectPhase = `${project.state.phase.kind}:${project.state.error?.code ?? ""}:${project.busy()}`;
+  const projectPhase = `${project.state.phase.kind}:${project.state.error?.code ?? ""}:${project.busy()}:${project.picking()}`;
+  // The button that opened a folder sheet gets focus back when the sheet closes and the screen did not change.
+  const picker = useRef<{ node: HTMLElement; phase: string } | null>(null);
+  const openPicker = (open: () => void) => {
+    const node = document.activeElement;
+    picker.current = node instanceof HTMLElement ? { node, phase: project.state.phase.kind } : null;
+    open();
+  };
   useEffect(() => {
-    if (scene.scene !== "project") return;
+    if (scene.scene !== "project" || project.picking()) return;
     requestAnimationFrame(() => {
+      const opened = picker.current;
+      if (opened && !project.busy()) {
+        picker.current = null;
+        if (opened.phase === project.state.phase.kind && opened.node.isConnected && !opened.node.matches(":disabled")) { opened.node.focus(); return; }
+      }
       const root = overlay.current, active = document.activeElement;
       if (!root || (active instanceof HTMLElement && active !== document.body && active.isConnected && !active.matches(":disabled"))) return;
       const target = projectFocusTarget(project.state, canAdvance(agents.state.auth ?? null));
@@ -531,9 +543,9 @@ export function Wizard({ session, projects, homeDirectory, onClose }: { session:
         back={leave.back} next={leave.forward} />}
       {scene.scene === "project" && <ProjectScreen state={p.state} busy={busy} agentReady={canAdvance(auth)} projects={projects} home={homeDirectory} urlValid={p.urlValid()} heading={setHeading} on={{
         back: () => move({ type: "back" }), backToAgents: () => move({ type: "step", to: "agent" }),
-        chooseFolder: () => void p.chooseFolder(), setUrl: url => p.setUrl(url), find: () => void p.findRepository(), cancelInspect: () => p.cancelInspect(), edit: () => p.restart(),
+        chooseFolder: () => openPicker(() => void p.chooseFolder()), setUrl: url => p.setUrl(url), find: () => void p.findRepository(), cancelInspect: () => p.cancelInspect(), edit: () => p.restart(),
         pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), select: initialize => void p.select(initialize),
-        changeDestination: () => void p.changeDestination(), useExisting: () => void p.useExisting(), clone: () => void p.clone(), cancelClone: () => void p.cancelClone(),
+        changeDestination: () => openPicker(() => void p.changeDestination()), useExisting: () => void p.useExisting(), clone: () => void p.clone(), cancelClone: () => void p.cancelClone(),
         complete: () => void p.complete(), retry: () => void p.retry(),
       }} />}
     </div>

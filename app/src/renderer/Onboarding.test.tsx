@@ -321,3 +321,9 @@ test("design-sync: onboarding text drops the shell's tabular figures and the ste
   expect(css).toContain(".ob-steps .doan-button.current { background: var(--surface-panel); color: var(--text-standard); box-shadow: var(--shadow-panel); cursor: default; }");
   expect(css).toMatch(/\.ob-page-help \{[^}]*color: var\(--text-subtle\);/);
 });
+
+test("review 2: Cancel waits until main names the clone", () => {
+  const clone = { url: "https://github.com/acme/studio", destination: "/Users/ada/code/studio" };
+  expect(screen({ phase: { kind: "cloning", ...clone, operationId: null, cancelling: false } }, { busy: true })).toContain('data-ui-size="sm" disabled="">Cancel</button>');
+  expect(screen({ phase: { kind: "cloning", ...clone, operationId: "o", cancelling: false } }, { busy: true })).toContain('data-ui-size="sm">Cancel</button>');
+});
