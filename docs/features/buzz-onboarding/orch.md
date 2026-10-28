@@ -44,7 +44,7 @@
 | G | B3 | `cli/**`(`cli/internal/formats/**` 제외), `cli/internal/cli/skill.md` | C | Claude Opus high — bundle 신뢰·자동 실행·비밀 비노출 판단 | `verify.mjs` | 통합 `036b4ae`..`41fb7f2`, 2회차 |
 | U | U1(B2 일부) → U2(B2 나머지 + design-sync) | U1: `app/src/renderer/**`(P의 새 모듈은 import만), `app/src/renderer/ds/controls.css`. U2: 위에 더해 고아 채널 제거를 위한 `app/src/main/index.ts`·`app/src/main/onboarding/machine.ts`·`app/src/preload/**`·`app/src/setup/**`, `docs/DESIGN.md` 측정값, `.scratch/design-sync/` | U1: T, P. U2: M | Claude Opus high — 포커스·중첩 모달·경합 표시와 승인 디자인 대조 | `verify.mjs`, U2는 `/design-sync` | 진행 중 |
 | E | D5 시나리오 | `eval/scenarios/**`의 새 시나리오와 fixture, eval 가짜 앱의 v2 응답(`eval/lib/socket.ts`와 테스트) | G | Claude Opus medium — 시나리오 판정 기준 설계 | `verify.mjs --eval`, `node eval/run.ts --self-test` | 통합(11 커밋, 끝 `300e3e3`), 2회차 |
-| R | D20 remote 확인 | `schema/**`(v2 path+url), `app/src/formats/**`, `cli/internal/formats/**`, `cli/internal/cli/onboarding*.go`·MCP·`skill.md`, `app/src/main/onboarding/{service,projects}.ts` | C·M·G 통합 | Claude Opus high — 공개 계약 변경과 remote 판정 | `verify.mjs` | 진행 중 |
+| R | D20 remote 확인 | `schema/**`(v2 path+url), `app/src/formats/**`, `cli/internal/formats/**`, `cli/internal/cli/onboarding*.go`·MCP·`skill.md`, `app/src/main/onboarding/{service,projects}.ts` | C·M·G 통합 | Claude Opus high — 공개 계약 변경과 remote 판정 | `verify.mjs` | 통합(4 커밋), 1회차 |
 | V | V1(design-sync 제외), V1b, V1c | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus high — 실제 인증·clone·패키지 앱 probe와 사용자 상태 보호 | `/runtime-test` | 대기 |
 | 지휘자 | V2, V3 | 통합 커밋, 정본 승격, feature 디렉터리 삭제 | 전부 | — | 통합 HEAD `verify.mjs --eval`, `/agent-eval` | 대기 |
 
@@ -96,3 +96,4 @@
 - 2026-10-29: U2 완료(6a9c397..88a0c59, `verify.mjs` PASS, GUI 슬롯 반환). design-sync 10개 프레임·47 tile, 차이 302→25(DESIGN.md 기록). 독립 리뷰 Claude Opus high 시작. U 작업자 retain(R 위로 다시 맞추기와 리뷰 수정).
 - 2026-10-29: R 완료(c56176a..74425e6, `verify.mjs` PASS). 독립 리뷰 Codex `gpt-6-astra` medium 시작. E의 가짜 앱은 path+url을 repository_unreachable로 처리한다(평가 시나리오에서 쓰지 않으면 영향 없음, V3에 기록).
 - 2026-10-29: U2 리뷰 Claude Opus high: 🔴 0·🟡 3(URL 화면 복구 버튼이 url 없이 폴더 선택, main의 no_ready_agent 거절이 ready 뒤에도 남음, R 전 path+url 거절)·⚪ 8. design-sync 차이 25개는 근거가 있고 마크업 측정은 표시돼 있다. 결정 D21.
+- 2026-10-29: R 리뷰 Codex `gpt-6-astra` medium: 🔴 0·🟡 0. R을 통합했다. R 작업자·리뷰어 release. U2 수정 Task를 보냈다(R 위로 rebase, cast 제거, 🟡 3, D21).
