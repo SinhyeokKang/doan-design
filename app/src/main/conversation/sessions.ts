@@ -3,7 +3,38 @@ import { validateSessionRecord } from "../../formats/validate";
 import type { AvailabilityFacts, Canvas, Runtime, SessionRecord, UnavailableReason } from "./types";
 
 export const SESSION_TAIL_BYTES = 1024 * 1024;
-export const SUPPORTED_VERSIONS = { claude: "2.1.312", codex: "0.164.0", claudeSdk: "0.3.312" };
+// The oldest provider CLI versions checked live in the real app. Newer ones run until a new-session handshake shows
+// a protocol shape doan cannot read; raising one is a decision backed by a live check of that version.
+export const MINIMUM_VERSIONS = { claude: "2.1.312", codex: "0.164.0", cursor: "2026.10.22", copilot: "1.0.105" } as const;
+export type VersionedProvider = keyof typeof MINIMUM_VERSIONS;
+// Stored sessions keep the version that wrote them, so these floors stay put when a minimum rises: the oldest Codex
+// doan supported, and the Claude version of every terminal sharing a registry. Raising one abandons those sessions.
+export const CODEX_ROLLOUT_FLOOR = "0.163.0";
+export const CLAUDE_REGISTRY_FLOOR = "2.1.312";
+const CLI_VERSION = /(\d+)\.(\d+)\.(\d+)((?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)/;
+const STORED_VERSION = /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+// Numeric per part, so 0.99.0 < 0.164.0; suffixes never take part.
+function atLeast(match: RegExpExecArray, minimum: string): boolean {
+  const floor = minimum.split(".").map(Number);
+  for (let i = 0; i < 3; i++) { const part = Number(match[i + 1]); if (part !== floor[i]) return part > floor[i]!; }
+  return true;
+}
+// The first x.y.z of --version output is the compared core; the installed version keeps any suffix (a Cursor build
+// hash), so another build of the same core is another install.
+export function parseCliVersion(output: string): { core: string; installed: string } | null {
+  const match = CLI_VERSION.exec(output); if (!match) return null;
+  const core = `${match[1]}.${match[2]}.${match[3]}`;
+  return { core, installed: core + match[4] };
+}
+export function versionStatus(provider: VersionedProvider, output: string): "supported" | "unsupported" | "unknown" {
+  const match = CLI_VERSION.exec(output);
+  return !match ? "unknown" : atLeast(match, MINIMUM_VERSIONS[provider]) ? "supported" : "unsupported";
+}
+// A stored field is a whole version string, not output to search.
+export function storedVersionAtLeast(value: unknown, floor: string): boolean {
+  const match = typeof value === "string" ? STORED_VERSION.exec(value) : null;
+  return !!match && atLeast(match, floor);
+}
 export function object(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -51,12 +82,12 @@ export function insideRoot(root: string, path: string): boolean {
   const rel = posix.relative(root, path);
   return rel === "" || (rel !== ".." && !rel.startsWith("../") && !posix.isAbsolute(rel));
 }
-export function supportedRuntime(runtime: Runtime, version: string | null, sdkVersion?: string): boolean {
-  return version === SUPPORTED_VERSIONS[runtime] && (runtime !== "claude" || sdkVersion === SUPPORTED_VERSIONS.claudeSdk);
+export function supportedRuntime(runtime: Runtime, version: string | null): boolean {
+  return version !== null && versionStatus(runtime, version) === "supported";
 }
 export function sessionAvailability(record: SessionRecord, facts: AvailabilityFacts): UnavailableReason | null {
   if (!facts.cli) return "cli_missing";
-  if (!supportedRuntime(record.runtime, facts.version, facts.sdkVersion)) return "session_unavailable";
+  if (!supportedRuntime(record.runtime, facts.version)) return "session_unavailable";
   if (!absolutePath(facts.root) || !absolutePath(facts.cwd) || !absolutePath(facts.configDir) ||
       facts.root !== record.root || facts.configDir !== record.configDir || facts.configDir !== facts.selectedConfigDir) return "session_unavailable";
   if (!insideRoot(facts.root, facts.cwd)) return "outside_root";

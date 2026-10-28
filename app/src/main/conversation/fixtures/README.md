@@ -42,3 +42,10 @@ turn/interrupt, agent message delta, error, the three approval requests,
 elicitation and `ServerRequest`) are identical. `ThreadItem` differs only in the
 `imageGeneration` variant, which doan does not read. The fixtures were not
 re-recorded; live 0.164.0 behaviour was checked separately in the real app.
+
+On 2026-10-28 (agent-cli-versions) doan moved from exact CLI versions to verified
+minimums (Claude Code 2.1.312, Codex 0.164.0) with a run-time handshake check.
+The fixtures above stay as recorded: Codex from 0.163.0 (schemas compared with
+0.164.0, the current minimum) and Claude from CLI 2.1.310 / SDK 0.3.310. No
+version newer than the minimums is represented or verified here; such versions
+are judged only by the new-session handshake shape at run time.

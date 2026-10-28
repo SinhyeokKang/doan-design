@@ -46,9 +46,11 @@ export type AuthEvent =
   | { type: "runConfirmed"; connectionId: string; account: AccountIdentity };
 export type AuthRejection = "busy" | "stale" | "not_owner" | "stop_required" | "not_connected" | "sign_out_failed" | "invalid";
 export type AuthTransition = { ok: true; outcome: "applied" | "unchanged"; state: AuthState } | { ok: false; reason: AuthRejection; state: AuthState };
-export interface ToolFacts { cli: "found" | "missing"; version: "supported" | "unsupported" | "unknown"; tools: "ready" | "missing" | "failed" }
+// unsupported: below the minimum. incompatible: a run's handshake recorded this installed version as one doan cannot
+// read. installed is the --version core plus suffix, main-only and never in a DTO.
+export interface ToolFacts { cli: "found" | "missing"; version: "supported" | "unsupported" | "unknown" | "incompatible"; installed?: string; tools: "ready" | "missing" | "failed" }
 export type ReadinessCause =
-  | "cli_missing" | "version_unsupported" | "version_unknown" | "busy" | "sign_out_failed" | "not_connected"
+  | "cli_missing" | "version_unsupported" | "version_unknown" | "version_incompatible" | "busy" | "sign_out_failed" | "not_connected"
   | "account_mismatch" | "reauth_required" | "unverified" | "tools_missing" | "tools_failed";
 export type RecoveryAction = "install" | "update" | "retry" | "wait" | "signOut" | "signIn" | "reauth" | "repair";
 export type Readiness = { ready: true } | { ready: false; cause: ReadinessCause; action: RecoveryAction };

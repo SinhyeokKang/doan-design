@@ -619,7 +619,8 @@ async function start(): Promise<void> {
     const refused = channel === AUTH_CHANNELS.read ? null : { ok: false, reason: "invalid" };
     handle(channel, refused, (event, value) => authIpc ? authIpc.handle(channel, value, event.sender.id) : refused);
   }
-  const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider));
+  // The legacy external prepare gets no records: its runs use the user's own profile and readiness does not cover them.
+  const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc);
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
     (request, stored) => agentAuth ? accountPrepare(request, stored) : Promise.reject(new Error("not_logged_in")));

@@ -3,14 +3,34 @@ import { randomUUID } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
 import { query, type PermissionResult, type PermissionUpdate, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { openAcp } from "./acpRunner";
-import { CodexDispatcher } from "./dispatcher";
+import { CodexDispatcher, RpcError } from "./dispatcher";
+import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeVerdict } from "./handshake";
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
 import { endTransport, initialTransport, normalizeClaude, transportError } from "./transport";
 import type { OpenRunner, Prepared, Runner } from "./service";
-import type { EventPayload } from "./types";
+import type { EventPayload, FailureCode } from "./types";
 export const openRunner: OpenRunner = (input, emit, exited, registerStop) =>
   input.runtime === "claude" ? openClaude(input, emit, exited, registerStop) : input.runtime === "codex" ? openCodex(input, emit, exited, registerStop) : openAcp(input, emit, exited, registerStop);
+// Account and ownership answers say nothing about the protocol shape, so they never record an installed version.
+const NOT_EVIDENCE: readonly FailureCode[] = ["not_logged_in", "rate_limited", "session_in_use"];
+function codexFailure(error: unknown): HandshakeReply {
+  return error instanceof RpcError && !NOT_EVIDENCE.includes(transportError(error.message)) ? { failed: "rpc" } : { failed: "lost" };
+}
+// One handshake step: judge the reply, then pass its result or rethrow its error unchanged.
+async function judgedStep(request: Promise<unknown>, judge: (reply: HandshakeReply) => void): Promise<unknown> {
+  let result: unknown;
+  try { result = await request; } catch (error) { judge(codexFailure(error)); throw error; }
+  judge({ result }); return result;
+}
+// Applies verdicts before the caller throws; an incompatible step is not cleared by a later one of the same handshake.
+function verdicts(input: Prepared): (verdict: HandshakeVerdict) => void {
+  let recorded = false;
+  return verdict => {
+    if (recorded || !verdict) return;
+    if (verdict === "incompatible") { recorded = true; input.incompatible?.(); } else input.compatible?.();
+  };
+}
 function timeout<T>(promise: Promise<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("process_exited")), 10000);
@@ -52,9 +72,12 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
     registerStop(() => { dispatcher.close(); return owned.stop(); });
   }
   try {
-    await dispatcher.request("initialize", { clientInfo: { name: "doan", version: "0.1.0" }, capabilities: { experimentalApi: true } });
+    const resume = !!input.sessionId, judge = verdicts(input);
+    const initialized = await judgedStep(dispatcher.request("initialize", { clientInfo: { name: "doan", version: "0.1.0" }, capabilities: { experimentalApi: true } }), reply => judge(codexInitialize(reply, resume)));
+    // A new session refuses the handshake it just recorded as incompatible; a resume keeps accepting it unjudged.
+    if (!resume && !object(initialized)) throw new Error("Malformed initialize result");
     write({ method: "initialized" });
-    const result = await dispatcher.request(input.sessionId ? "thread/resume" : "thread/start", input.sessionId ? { threadId: input.sessionId } : { cwd: input.cwd });
+    const result = await judgedStep(dispatcher.request(resume ? "thread/resume" : "thread/start", resume ? { threadId: input.sessionId } : { cwd: input.cwd }), reply => { if (!resume) judge(codexThreadStart(reply)); });
     if (!object(result) || !object(result.thread) || typeof result.thread.id !== "string" || !result.thread.id) throw new Error("session_unavailable");
     sessionId = result.thread.id;
     if (input.sessionId && sessionId !== input.sessionId) throw new Error("session_unavailable");

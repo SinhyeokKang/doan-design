@@ -1,6 +1,8 @@
 import { object } from "./sessions";
 import { codexPermission, endTransport, initialTransport, normalizeCodex, normalizeCodexReply, permissionAnswer, type CodexContext, type CodexReplyOwner } from "./transport";
 import type { EventPayload, PendingPermission, TransportResult } from "./types";
+// The server's own error answer to a pending request; timeouts, write failures and exit reject with a plain Error.
+export class RpcError extends Error {}
 interface Pending { owner?: CodexReplyOwner; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }
 export class CodexDispatcher {
   private state = initialTransport();
@@ -49,7 +51,7 @@ export class CodexDispatcher {
     this.pending.delete(raw.id); clearTimeout(pending.timer);
     if ("error" in raw) {
       if (pending.owner) this.apply(normalizeCodexReply(this.state, raw, this.context, pending.owner));
-      pending.reject(new Error(object(raw.error) && typeof raw.error.message === "string" ? raw.error.message : "RPC error"));
+      pending.reject(new RpcError(object(raw.error) && typeof raw.error.message === "string" ? raw.error.message : "RPC error"));
     } else pending.resolve(raw.result);
   }
   answer(requestId: string, option: string): boolean {

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
 import { signInLink } from "../agentAuth/antigravity";
 import { ACP_PROTOCOL_VERSION, AcpConnection, acpEnded, acpPermission, acpPromptDone, acpPromptFailed, initialAcp, normalizeAcp, type AcpChoice, type AcpTransport } from "./acp";
+import { acpInitialize, acpSessionNew, type HandshakeVerdict } from "./handshake";
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
 import type { Prepared, Runner } from "./service";
@@ -68,8 +69,11 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     const owned = new OwnedGroup(child.pid, undefined, undefined, exited); group = owned;
     registerStop(() => { expire(); acp.close(); return owned.stop(); });
   }
+  // A failed request answers nothing about the protocol shape here, so only replies are judged, before any refusal.
+  const judge = (verdict: HandshakeVerdict) => { if (verdict === "incompatible") input.incompatible?.(); else if (verdict === "compatible") input.compatible?.(); };
   const opened = (async () => {
     const init = await acp.request("initialize", { protocolVersion: ACP_PROTOCOL_VERSION, clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false }, clientInfo: { name: "doan", version: "0.1.0" } }, OPEN_TIMEOUT_MS);
+    judge(acpInitialize(input.runtime, { result: init }, input.authenticate, !!input.sessionId));
     if (!object(init) || init.protocolVersion !== ACP_PROTOCOL_VERSION) throw new Error("runtime_unsupported");
     const capabilities = object(init.agentCapabilities) ? init.agentCapabilities : {};
     if (input.sessionId && capabilities.loadSession !== true) throw new Error("session_unavailable");
@@ -81,6 +85,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     if (input.sessionId) await acp.request("session/load", { sessionId: input.sessionId, cwd: input.cwd, mcpServers: [] }, OPEN_TIMEOUT_MS);
     else {
       const created = await acp.request("session/new", { cwd: input.cwd, mcpServers: [] }, OPEN_TIMEOUT_MS);
+      judge(acpSessionNew(input.runtime, { result: created }));
       if (!object(created) || typeof created.sessionId !== "string" || !created.sessionId || created.sessionId.length > 512) throw new Error("session_unavailable");
       sessionId = created.sessionId;
     }

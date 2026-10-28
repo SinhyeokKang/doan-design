@@ -1,7 +1,7 @@
 import { constants, closeSync, fstatSync, lstatSync, openSync, readSync, realpathSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { execFile } from "node:child_process";
-import { absolutePath, object, parseSessionRecords, SESSION_TAIL_BYTES, SUPPORTED_VERSIONS } from "./sessions";
+import { absolutePath, CLAUDE_REGISTRY_FLOOR, CODEX_ROLLOUT_FLOOR, object, parseSessionRecords, SESSION_TAIL_BYTES, storedVersionAtLeast } from "./sessions";
 
 export const CONVERSATION_HISTORY_BYTES = 256 * 1024 * 1024;
 
@@ -73,7 +73,7 @@ export async function claudeOccupancy(config: string, sessionId: string, inspect
       const raw: unknown = JSON.parse(readRegular(join(directory, name), 65536));
       if (!object(raw) || raw.pid !== Number(name.slice(0, -5)) || !Number.isSafeInteger(raw.pid) || typeof raw.pid !== "number" ||
           typeof raw.sessionId !== "string" || !raw.sessionId || typeof raw.procStart !== "string" || !Number.isFinite(Date.parse(raw.procStart)) || typeof raw.cwd !== "string" || !absolutePath(raw.cwd) ||
-          raw.version !== SUPPORTED_VERSIONS.claude || typeof raw.kind !== "string") return "unknown";
+          !storedVersionAtLeast(raw.version, CLAUDE_REGISTRY_FLOOR) || typeof raw.kind !== "string") return "unknown";
       const actual = await inspect(raw.pid);
       if (actual !== null && actual.replace(/\s+/g, " ").trim() === raw.procStart.replace(/\s+/g, " ").trim()) {
         if (raw.kind !== "interactive") return "unknown";
@@ -86,9 +86,8 @@ export async function claudeOccupancy(config: string, sessionId: string, inspect
 
 // The rollout header records the Codex version that created the session and is never rewritten: a resume appends
 // without touching the first session_meta, so a conversation started on 0.163.0 keeps that cli_version under 0.164.0.
-// The list therefore accumulates every version doan has supported; drop one only by deciding to abandon its
-// conversations, and keep SUPPORTED_VERSIONS.codex in it.
-export const CODEX_ROLLOUT_VERSIONS = ["0.163.0", "0.164.0"];
+// Any version at or above the minimum may have created one, so the header is checked against a fixed floor, never
+// against the installed version.
 export function codexSessionExists(config: string, id: string, cwd: string): boolean {
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(id)) return false;
   try {
@@ -112,7 +111,7 @@ export function codexSessionExists(config: string, id: string, cwd: string): boo
       const raw: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, end)));
       return object(raw) && raw.type === "session_meta" && object(raw.payload) && raw.payload.id === id &&
         typeof raw.payload.cwd === "string" && canonicalDirectory(raw.payload.cwd) === cwd &&
-        typeof raw.payload.cli_version === "string" && CODEX_ROLLOUT_VERSIONS.includes(raw.payload.cli_version);
+        storedVersionAtLeast(raw.payload.cli_version, CODEX_ROLLOUT_FLOOR);
     } finally { closeSync(fd); }
   } catch { return false; }
 }

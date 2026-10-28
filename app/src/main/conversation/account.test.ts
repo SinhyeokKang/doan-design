@@ -4,12 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 const mocks = vi.hoisted(() => ({ run: vi.fn(), probe: vi.fn() }));
 vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: mocks.run }));
-import { createAccountPrepare, routePrepare, type AccountRuntime } from "./prepare";
+import { createAccountPrepare, routePrepare, type AccountRuntime, type VersionRecords } from "./prepare";
 import { ConversationService, type OpenRunner, type Runner } from "./service";
 import { ConversationStore, type ConversationMetadata } from "./store";
 import { initialAuthState } from "../agentAuth/state";
+import { AuthIpc, type AuthSnapshot } from "../agentAuth/ipc";
 import type { Lease } from "../agentAuth/manager";
-import type { AccountConnection, AuthState, Provider } from "../agentAuth/types";
+import type { AccountConnection, AuthState, Provider, ToolFacts } from "../agentAuth/types";
 
 const paths: string[] = [];
 afterEach(() => { vi.clearAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
@@ -40,12 +41,12 @@ function account(provider: Provider, profileDir: string, id: string | null = "ac
 }
 const VERSION_OUTPUT: Record<Provider, string> = { claude: "2.1.312 (Claude Code)", codex: "codex-cli 0.164.0", cursor: "2026.10.22-27dcf5f\n", copilot: "GitHub Copilot CLI 1.0.105.\nRun 'copilot update' to check for updates.\n", antigravity: "" };
 function version(provider: Provider) { mocks.run.mockResolvedValue({ exitCode: 0, timedOut: false, stdout: VERSION_OUTPUT[provider] }); }
-function harness(provider: Provider, id: string | null = "acct-1") {
+function harness(provider: Provider, id: string | null = "acct-1", versions?: VersionRecords) {
   const data = temp(), root = temp(), profile = join(temp(), "profile"); mkdirSync(profile);
   const auth = account(provider, profile, id); version(provider);
   const external = vi.fn(async () => ({ runtime: provider as "claude" | "codex", configDir: "/external", cwd: root, command: "/external/cli", env: {} }));
   const toolsFailed = vi.fn<(provider: Provider) => void>();
-  const prepare = routePrepare(external, createAccountPrepare(auth.runtime, "/Applications/doan.app/Contents/Resources/bin/doan", toolsFailed));
+  const prepare = routePrepare(external, createAccountPrepare(auth.runtime, "/Applications/doan.app/Contents/Resources/bin/doan", toolsFailed, versions));
   const exits: (() => void)[] = []; const runners: Runner[] = [];
   const open = vi.fn<OpenRunner>(async (input, _emit, exited, registerStop) => {
     registerStop(async () => {}); exits.push(exited);
@@ -137,22 +138,24 @@ it("waits for a check another caller started instead of refusing the run", async
   expect(h.auth.runtime.checked).toHaveBeenCalled(); expect(h.auth.runtime.check).not.toHaveBeenCalled(); expect(h.open).toHaveBeenCalledOnce();
 });
 
-it("refuses an unsupported executable version and a missing bundled doan CLI", async () => {
+it("refuses an executable below the minimum version, an unreadable version and a missing bundled doan CLI", async () => {
   const h = harness("claude"); mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2.1.310 (Claude Code)" });
+  await expect(start(h, "claude")).rejects.toThrow("runtime_unsupported"); expect(h.auth.leases.open).toBe(0);
+  mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "Claude Code" });
   await expect(start(h, "claude")).rejects.toThrow("runtime_unsupported"); expect(h.auth.leases.open).toBe(0);
   const devBuild = createAccountPrepare(h.auth.runtime, "doan");
   await expect(devBuild({ root: h.root, mode: "new", runtime: "claude", text: "x", anchors: [] })).rejects.toThrow("cli_missing");
 });
 
-it("asks for the provider's tool facts again when a run finds its CLI missing or its version changed, and not for other refusals", async () => {
+it("asks for the provider's tool facts again when a run finds its CLI missing or its version below the minimum, and not for other refusals", async () => {
   const h = harness("cursor");
-  mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2026.10.23-0aa1111\n" });
+  mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2026.10.21-0aa1111\n" });
   await expect(start(h, "cursor")).rejects.toThrow("runtime_unsupported");
   expect(h.toolsFailed).toHaveBeenCalledWith("cursor");
   const { conversationId } = await start(h, "cursor"); h.service.receive(conversationId, { type: "turn.done" }); h.exits[0]!();
   acpSession(h.profile, "cursor"); h.toolsFailed.mockClear();
-  // A resume reads the same version change as session_unavailable; the facts are still what changed.
-  mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2026.10.23-0aa1111\n" });
+  // A resume reads the same downgrade as session_unavailable; the facts are still what changed.
+  mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2026.10.21-0aa1111\n" });
   await expect(h.service.send(conversationId, "after an update", [])).rejects.toThrow("session_unavailable");
   expect(h.toolsFailed).toHaveBeenCalledWith("cursor"); h.toolsFailed.mockClear();
   (h.auth.runtime.acquire as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => { throw new Error("cli_missing"); });
@@ -252,10 +255,14 @@ it.each([
   expect(mocks.run).toHaveBeenCalledTimes(provider === "antigravity" ? 0 : 1);
 });
 
-it("refuses a Cursor or Copilot build other than the checked one", async () => {
-  for (const [provider, stdout] of [["cursor", "2026.10.23-0aa1111\n"], ["copilot", "GitHub Copilot CLI 1.0.106.\n"]] as const) {
+it("refuses a Cursor or Copilot build below the minimum and runs a newer one", async () => {
+  for (const [provider, stdout] of [["cursor", "2026.10.21-0aa1111\n"], ["copilot", "GitHub Copilot CLI 1.0.104.\n"]] as const) {
     const h = harness(provider); mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout });
     await expect(start(h, provider)).rejects.toThrow("runtime_unsupported"); expect(h.auth.leases.open).toBe(0);
+  }
+  for (const [provider, stdout] of [["cursor", "2026.10.23-0aa1111\n"], ["copilot", "GitHub Copilot CLI 1.0.106.\n"]] as const) {
+    const h = harness(provider); mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout });
+    await start(h, provider); expect(h.open).toHaveBeenCalledOnce();
   }
 });
 
@@ -372,4 +379,51 @@ it("checks the account again after waiting for the previous Claude process", asy
   h.exits[0]!();
   await expect(pending).rejects.toThrow("session_unavailable");
   expect(h.open).toHaveBeenCalledOnce();
+});
+
+it("hands each new run closures bound to the installed version it read, and none to Antigravity", async () => {
+  for (const [provider, installed] of [["codex", "0.164.0"], ["cursor", "2026.10.22-27dcf5f"], ["copilot", "1.0.105"]] as const) {
+    const versions = { versionRead: vi.fn(), incompatible: vi.fn(), compatible: vi.fn() };
+    const h = harness(provider, "acct-1", versions); await start(h, provider);
+    expect(versions.versionRead).toHaveBeenCalledWith(provider, installed);
+    const [input] = h.open.mock.calls[0]!;
+    input.incompatible!(); input.compatible!();
+    expect(versions.incompatible).toHaveBeenCalledWith(provider, installed); expect(versions.compatible).toHaveBeenCalledWith(provider, installed);
+  }
+  const versions = { versionRead: vi.fn(), incompatible: vi.fn(), compatible: vi.fn() };
+  const h = harness("antigravity", "acct-1", versions); await start(h, "antigravity");
+  const [input] = h.open.mock.calls[0]!;
+  expect(input.incompatible).toBeUndefined(); expect(input.compatible).toBeUndefined(); expect(versions.versionRead).not.toHaveBeenCalled();
+});
+
+it("shows a Cursor build a new session's handshake refused before the refusal returns, clears it on a passing run and on a self-update", async () => {
+  // The probe keeps naming the refused build throughout, so only the record decides the cause.
+  const facts: ToolFacts = { cli: "found", version: "supported", installed: "2026.10.22-27dcf5f", tools: "ready" };
+  const publish = vi.fn<(snapshot: AuthSnapshot) => void>();
+  let h!: ReturnType<typeof harness>;
+  const ipc = new AuthIpc({ backend: { state: p => p === "cursor" ? h.auth.get() : initialAuthState(p, null), check: vi.fn(), signIn: vi.fn(), cancel: vi.fn(), submitCode: vi.fn(), signOut: vi.fn() },
+    probe: async () => facts, openExternal: async () => {}, publish, prompt: () => {} });
+  h = harness("cursor", "acct-1", ipc);
+  await ipc.read(); publish.mockClear();
+  const cursor = () => publish.mock.calls.at(-1)![0].providers.find(p => p.provider === "cursor")!.readiness;
+  const refuse = () => h.open.mockImplementationOnce(async input => { input.incompatible?.(); throw new Error("runtime_unsupported"); });
+  let publishedAtRefusal = 0;
+  refuse();
+  await expect(start(h, "cursor").catch((error: unknown) => { publishedAtRefusal = publish.mock.calls.length; throw error; })).rejects.toThrow("runtime_unsupported");
+  expect(publishedAtRefusal).toBe(1); expect(cursor()).toMatchObject({ cause: "version_incompatible", action: "retry" });
+  // The record does not block the next run on the same build; its passing handshake clears it.
+  h.open.mockImplementationOnce(async (input, _emit, exited, registerStop) => {
+    registerStop(async () => {}); h.exits.push(exited); input.compatible?.();
+    return { sessionId: ACP_SESSION, send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) };
+  });
+  const { conversationId } = await start(h, "cursor"); h.service.receive(conversationId, { type: "turn.done" }); h.exits[0]!();
+  expect(cursor()).toEqual({ ready: true });
+  refuse();
+  await expect(start(h, "cursor")).rejects.toThrow("runtime_unsupported");
+  expect(cursor()).toMatchObject({ cause: "version_incompatible" });
+  // Cursor updated itself: the next run reads another build and the record goes.
+  publish.mockClear(); mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2026.10.23-0aa1111\n" });
+  await start(h, "cursor");
+  await vi.waitFor(() => expect(publish).toHaveBeenCalled());
+  expect(cursor()).toEqual({ ready: true });
 });

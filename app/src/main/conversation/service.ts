@@ -16,6 +16,8 @@ export interface Prepared {
   args?: string[]; owner?: Extract<ConversationOwner, { kind: "doan" }>; release?: () => Promise<void>; recheck?: () => void;
   // ACP runs only: the authenticate method to select, and the callback for a completed request (Copilot's verification).
   authenticate?: string; confirm?: () => void;
+  // Doan-account runs with a version run only: record or clear the installed version this run read, from a handshake.
+  incompatible?: () => void; compatible?: () => void;
 }
 export interface Runner { sessionId: string; send(prompt: string, turnId: string): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void> }
 export type OpenRunner = (input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<Runner>;

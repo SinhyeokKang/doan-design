@@ -5,13 +5,14 @@ import { findOnPath } from "../onboarding/states";
 import { agentEnv } from "./environment";
 import { canonicalDirectory, claudeOccupancy, codexSessionExists, readRegular, readSessionTail } from "./io";
 import { PROVIDER_AUTH } from "../agentAuth/providers";
-import { insideRoot, pickSession, supportedRuntime } from "./sessions";
+import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessions";
 import { judgeConnection } from "../agentAuth/connection";
 import type { Lease, Started } from "../agentAuth/manager";
 import type { AuthState, ConnectionJudgment, Provider } from "../agentAuth/types";
 import type { Prepare, Prepared, StartRequest } from "./service";
 import { externalConversation, type ConversationMetadata, type ExternalSession } from "./store";
-// The pinned @anthropic-ai/claude-agent-sdk in app/package.json.
+// The pinned @anthropic-ai/claude-agent-sdk in app/package.json. It ships with the app, so a test pins it rather
+// than a check at run time.
 export const BUNDLED_CLAUDE_SDK = "0.3.312";
 export type ExternalPrepare = (request: StartRequest, stored?: ExternalSession) => Promise<Prepared>;
 export type AccountPrepare = (request: StartRequest, stored?: ConversationMetadata & { owner: { kind: "doan" } }) => Promise<Prepared>;
@@ -37,8 +38,7 @@ export function createPrepare(userData: string, appRuntime: string, inherited: N
     const command = findOnPath(probe.path, runtime, path => { try { accessSync(path, constants.X_OK); return statSync(path).isFile(); } catch { return false; } });
     if (!command) throw new Error("cli_missing");
     const version = await runProcess(command, ["--version"], { ...inherited, PATH: probe.path }, 5000);
-    const match = version.exitCode === 0 && !version.timedOut ? version.stdout.match(/\b\d+\.\d+\.\d+\b/)?.[0] ?? null : null;
-    if (!supportedRuntime(runtime, match, BUNDLED_CLAUDE_SDK)) throw new Error(request.mode === "resume" ? "session_unavailable" : "runtime_unsupported");
+    if (version.exitCode !== 0 || version.timedOut || versionStatus(runtime, version.stdout) !== "supported") throw new Error(request.mode === "resume" ? "session_unavailable" : "runtime_unsupported");
     let root: string, cwd: string, configDir: string;
     try {
       root = canonicalDirectory(request.root); cwd = canonicalDirectory(session?.cwd ?? root);
@@ -87,14 +87,6 @@ function judgmentCode(judgment: Exclude<ConnectionJudgment, { decision: "resume"
 // Codex runs tool commands through a login shell by default, whose profile puts the user's own doan back first on
 // PATH (live 2026-10-28); allow_login_shell=false (official config key) keeps the PATH prepared below.
 const RUN_ARGS: Record<"claude" | "codex", string[]> = { claude: [], codex: ["-c", "allow_login_shell=false"] };
-// Exact versions whose ACP behaviour was checked live (B3, 2026-10-28). The Antigravity server has no version run:
-// it is the sha-pinned download (agentAuth/antigravity.ts) and its initialize reply names its version.
-export const ACP_VERSIONS: Partial<Record<Provider, string>> = { cursor: "2026.10.22-27dcf5f", copilot: "1.0.105" };
-// The provider CLI's --version output names a build doan checked; account status readiness reads the same rule.
-export function supportedVersion(provider: Provider, output: string): boolean {
-  const match = output.match(/\b\d+\.\d+\.\d+(?:-[0-9a-f]+)?\b/)?.[0] ?? null;
-  return provider === "claude" || provider === "codex" ? supportedRuntime(provider, match?.split("-")[0] ?? null, BUNDLED_CLAUDE_SDK) : match !== null && match === ACP_VERSIONS[provider];
-}
 // A stored ACP session is a directory or <id>.<ext> file in the provider's sessions directory; session/load is the
 // final admission. Cursor .cursor/acp-sessions/<id>/, Copilot .copilot/session-state/<id>/ (B3 live check).
 export function acpSessionExists(profileDir: string, sessions: string, id: string): boolean {
@@ -105,10 +97,17 @@ export function acpSessionExists(profileDir: string, sessions: string, id: strin
     return readdirSync(dir).some(name => name === id || name.startsWith(`${id}.`));
   } catch { return false; }
 }
+// The run-time incompatibility records readiness shows (AuthIpc). versionRead: the installed version a run read, which
+// drops a record of another build (a self-update); a handshake then records or clears the version it ran.
+export interface VersionRecords {
+  versionRead(provider: Provider, installed: string): void; incompatible(provider: Provider, installed: string): void; compatible(provider: Provider, installed: string): void;
+}
 // cli is the bundled doan executable; its directory goes first on PATH so the agent runs that doan, not whatever
-// another install put on the login shell's PATH. toolsFailed: the provider CLI was not found or its version is not one
-// doan checked, so the readiness facts read at launch may be stale (an install, removal or self-update since).
-export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}): AccountPrepare {
+// another install put on the login shell's PATH. toolsFailed: the provider CLI was not found or its version is below
+// the minimum or unreadable, so the readiness facts read at launch may be stale (an install, removal or downgrade since).
+// The Antigravity server has no version run: it is the sha-pinned download (agentAuth/antigravity.ts) and its
+// initialize reply names its version.
+export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}, versions?: VersionRecords): AccountPrepare {
   return async (request, stored) => {
     const provider = stored ? stored.session.runtime : request.runtime;
     if (!provider) throw new Error("no_agent");
@@ -137,12 +136,15 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
           now.error?.code === "account_mismatch" || now.error?.code === "sign_out_failed") throw new Error("not_logged_in");
       return now.connection!;
     };
+    let installed: string | undefined;
     try {
       recheck();
-      if (!adapter.acpAuth) {
+      if (provider !== "antigravity") {
         const version = await runProcess(lease.command, ["--version"], lease.env, 5000);
         recheck();
-        if (version.exitCode !== 0 || version.timedOut || !supportedVersion(provider, version.stdout)) { toolsFailed(provider); throw new Error(stored ? "session_unavailable" : "runtime_unsupported"); }
+        installed = version.exitCode === 0 && !version.timedOut ? parseCliVersion(version.stdout)?.installed : undefined;
+        if (installed) versions?.versionRead(provider, installed);
+        if (version.exitCode !== 0 || version.timedOut || versionStatus(provider, version.stdout) !== "supported") { toolsFailed(provider); throw new Error(stored ? "session_unavailable" : "runtime_unsupported"); }
       }
       let root: string, cwd: string, configDir: string;
       try { root = canonicalDirectory(request.root); cwd = canonicalDirectory(stored?.session.cwd ?? root); configDir = canonicalDirectory(lease.profileDir); }
@@ -161,7 +163,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         const judgment = judgeConnection(stored.owner, adapter.verifyByRun && !current.error ? { ...current, verified: true } : current, { exists, occupancy });
         if (judgment.decision !== "resume") throw new Error(judgmentCode(judgment));
       }
-      const connection = recheck();
+      const connection = recheck(), ran = installed;
       const runArgs = provider === "claude" || provider === "codex" ? RUN_ARGS[provider] : adapter.acp!.args;
       return {
         runtime: provider, command: lease.command, args: [...adapter.args, ...runArgs], configDir, cwd,
@@ -170,6 +172,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         release: lease.release, recheck: () => { recheck(); },
         ...(adapter.acp?.authenticate ? { authenticate: adapter.acp.authenticate } : {}),
         ...(adapter.verifyByRun ? { confirm: () => auth.confirm(provider, connection.connectionId) } : {}),
+        ...(versions && ran ? { incompatible: () => versions.incompatible(provider, ran), compatible: () => versions.compatible(provider, ran) } : {}),
       };
     } catch (error) { await lease.release(); throw error; }
   };

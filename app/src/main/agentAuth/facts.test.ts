@@ -9,12 +9,23 @@ function deps(over: Partial<FactsDeps> = {}): FactsDeps & { run: ReturnType<type
 }
 
 describe("tool facts", () => {
-  it.each(["claude", "codex", "cursor", "copilot"] as Provider[])("finds %s on the login shell's PATH and accepts only the checked version", async provider => {
+  it.each([
+    ["claude", "2.1.312", "2.1.311 (Claude Code)", "2.1.400 (Claude Code)", "2.1.400"],
+    ["codex", "0.164.0", "codex-cli 0.162.0", "codex-cli 0.170.0", "0.170.0"],
+    ["cursor", "2026.10.22-27dcf5f", "2026.10.21-0aa1111", "2026.10.23-0aa1111", "2026.10.23-0aa1111"],
+    ["copilot", "1.0.105", "GitHub Copilot CLI 1.0.104.", "GitHub Copilot CLI 1.0.106.", "1.0.106"],
+  ] as const)("finds %s on the login shell's PATH and accepts its minimum version or newer", async (provider, installed, older, newer, newerInstalled) => {
     const d = deps();
-    expect(await toolFacts(provider, d)).toEqual({ cli: "found", version: "supported", tools: "ready" });
+    expect(await toolFacts(provider, d)).toEqual({ cli: "found", version: "supported", installed, tools: "ready" });
     expect(d.run.mock.calls[0]!.slice(1, 3)).toEqual([["--version"], { HOME: "/Users/ada", PATH: "/bin" }]);
-    d.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "9.9.9", stderr: "" });
+    d.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: older, stderr: "" });
     expect(await toolFacts(provider, d)).toMatchObject({ version: "unsupported" });
+    d.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: newer, stderr: "" });
+    expect(await toolFacts(provider, d)).toEqual({ cli: "found", version: "supported", installed: newerInstalled, tools: "ready" });
+  });
+  it("reads a version answer without a version as unknown, not as a reason to update", async () => {
+    const d = deps(); d.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "Claude Code", stderr: "" });
+    expect(await toolFacts("claude", d)).toEqual({ cli: "found", version: "unknown", tools: "ready" });
   });
   it("separates a missing CLI, an unanswered version and an unreadable shell", async () => {
     expect(await toolFacts("cursor", deps({ executable: path => path === CLI }))).toEqual({ cli: "missing", version: "unknown", tools: "ready" });

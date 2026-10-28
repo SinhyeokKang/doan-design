@@ -141,3 +141,56 @@ describe("agent auth IPC", () => {
     expect(t.options.prompt).not.toHaveBeenCalled();
   });
 });
+
+describe("run-time version incompatibility records", () => {
+  const copilot: ToolFacts = { cli: "found", version: "supported", installed: "1.0.105", tools: "ready" };
+  const status = (snapshot: AuthSnapshot, provider: Provider) => snapshot.providers.find(p => p.provider === provider)!;
+  it("publishes a record at once, before a refusal returns, even when the tool facts are unchanged", async () => {
+    const t = ipc(async () => copilot);
+    await t.ipc.read(); t.options.publish.mockClear();
+    t.ipc.incompatible("copilot", "1.0.105");
+    expect(t.options.publish).toHaveBeenCalledOnce();
+    expect(status(t.options.publish.mock.calls[0]![0], "copilot")).toMatchObject({ readiness: { ready: false, cause: "version_incompatible", action: "retry" }, actions: ["signIn", "retry"] });
+    expect(t.options.probe).toHaveBeenCalledTimes(PROVIDERS.length);
+  });
+  it("keeps the record when a refresh that started before it finishes later", async () => {
+    let calls = 0, finish!: (facts: ToolFacts) => void;
+    const t = ipc(() => calls++ < PROVIDERS.length ? Promise.resolve(copilot) : new Promise<ToolFacts>(resolve => { finish = resolve; }));
+    await t.ipc.read();
+    const refreshing = t.ipc.refreshTools("copilot");
+    t.ipc.incompatible("copilot", "1.0.105");
+    finish(copilot); await refreshing;
+    expect(status(await t.ipc.read(), "copilot").readiness).toMatchObject({ cause: "version_incompatible" });
+  });
+  it("clears a record when a handshake of the same installed version passes, not another version's", async () => {
+    const t = ipc(async () => copilot);
+    await t.ipc.read(); t.ipc.incompatible("copilot", "1.0.105"); t.options.publish.mockClear();
+    t.ipc.compatible("copilot", "1.0.106");
+    expect(t.options.publish).not.toHaveBeenCalled();
+    t.ipc.compatible("copilot", "1.0.105");
+    expect(t.options.publish).toHaveBeenCalledOnce();
+    expect(status(t.options.publish.mock.calls[0]![0], "copilot").readiness).not.toMatchObject({ cause: "version_incompatible" });
+  });
+  it("drops a record once a run reads a different installed version, and reads that provider's facts again", async () => {
+    // The probe still names the recorded build: only dropping the record lets readiness change.
+    const t = ipc(async () => copilot);
+    await t.ipc.read(); t.ipc.incompatible("copilot", "1.0.105"); t.options.publish.mockClear();
+    t.ipc.versionRead("copilot", "1.0.105");
+    expect(t.options.probe).toHaveBeenCalledTimes(PROVIDERS.length);
+    t.ipc.versionRead("copilot", "1.0.106");
+    await vi.waitFor(() => expect(t.options.publish).toHaveBeenCalledOnce());
+    expect(t.options.probe).toHaveBeenLastCalledWith("copilot");
+    expect(status(t.options.publish.mock.calls[0]![0], "copilot").readiness).not.toMatchObject({ cause: "version_incompatible" });
+  });
+  it("only reads the tool facts again on a check while readiness has a version cause, so Copilot's paid check is not run", async () => {
+    const facts: Partial<Record<Provider, ToolFacts>> = { copilot, claude: { cli: "found", version: "unknown", tools: "ready" }, cursor: { cli: "found", version: "unsupported", installed: "2026.10.21", tools: "ready" } };
+    const t = ipc(async provider => facts[provider] ?? ready);
+    await t.ipc.read(); t.ipc.incompatible("copilot", "1.0.105");
+    for (const provider of ["copilot", "claude", "cursor"] as const) {
+      t.options.probe.mockClear();
+      expect(await t.ipc.handle(AUTH_CHANNELS.check, { provider }, 7)).toEqual({ ok: true });
+      expect(t.options.probe).toHaveBeenCalledWith(provider);
+    }
+    expect(t.api.check).not.toHaveBeenCalled();
+  });
+});

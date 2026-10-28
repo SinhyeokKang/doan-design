@@ -1,5 +1,5 @@
 import { validAuthId } from "./metadata";
-import { authStatus } from "./state";
+import { authStatus, readiness, recordedFacts } from "./state";
 import { PROVIDERS, validProvider, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type Provider, type ToolFacts } from "./types";
 import type { AuthPrompt, Started, WriteOptions } from "./manager";
 
@@ -15,6 +15,8 @@ export interface AuthSnapshot { revision: number; providers: AuthStatusDto[] }
 export type AuthReason = AuthRejection | "open_failed";
 export type AuthStartReply = { ok: true; attemptId: string } | { ok: false; reason: AuthReason };
 export type AuthReply = { ok: true } | { ok: false; reason: AuthReason };
+// A check started an attempt, or, while readiness has a version cause, only re-read the tool facts and started none.
+export type AuthCheckReply = AuthStartReply | AuthReply;
 // Sent only to the window that started the sign-in.
 export interface AuthPromptEvent { provider: Provider; attemptId: string; url: string }
 export interface AuthBackend {
@@ -49,6 +51,8 @@ export class AuthIpc {
   private probed: Promise<void> | null = null;
   // The latest sign-in link of each current attempt; open-link opens only this, never a URL from a window.
   private links = new Map<string, AuthPrompt>();
+  // The installed version a new session's handshake refused, per provider. Memory only: an app restart clears it.
+  private incompatibles = new Map<Provider, string>();
   constructor(private readonly options: AuthIpcOptions) {}
 
   async read(): Promise<AuthSnapshot> {
@@ -65,6 +69,20 @@ export class AuthIpc {
   }
   // A run found the CLI missing or its version not one doan checked: read that provider again instead of polling.
   refreshTools(provider: Provider): Promise<void> { return this.refresh(provider, true); }
+  // Published directly: the facts of the refused build are unchanged, so a refresh would not publish it.
+  incompatible(provider: Provider, installed: string): void { this.incompatibles.set(provider, installed); this.changed(); }
+  compatible(provider: Provider, installed: string): void {
+    if (this.incompatibles.get(provider) !== installed) return;
+    this.incompatibles.delete(provider); this.changed();
+  }
+  // A run read another build than the refused one (a self-update or reinstall). The facts may still name the refused
+  // build until the probe reads the new one, so the drop is published whether or not they change.
+  versionRead(provider: Provider, installed: string): void {
+    const recorded = this.incompatibles.get(provider);
+    if (recorded === undefined || recorded === installed) return;
+    this.incompatibles.delete(provider);
+    void this.refresh(provider, false).then(() => this.changed());
+  }
   prompted(prompt: AuthPrompt): void {
     if (!this.current(prompt.provider, prompt.attemptId)) return;
     this.links.set(prompt.attemptId, prompt);
@@ -72,13 +90,16 @@ export class AuthIpc {
   }
 
   // owner is the sending window's webContents id; the caller has already checked it is a main frame of an app window.
-  async handle(channel: string, value: unknown, owner: number): Promise<AuthStartReply | AuthReply | AuthSnapshot> {
+  async handle(channel: string, value: unknown, owner: number): Promise<AuthCheckReply | AuthSnapshot> {
     const backend = this.options.backend;
     switch (channel) {
       case AUTH_CHANNELS.read: return value === undefined ? this.read() : invalid;
       case AUTH_CHANNELS.check: {
         if (!fields(value, ["provider"]) || !validProvider(value.provider)) return invalid;
+        const ready = readiness(backend.state(value.provider), this.factsOf(value.provider));
         void this.refresh(value.provider, true);
+        // A version cause clears only with new tool facts; an account check (Copilot's costs a request) cannot clear it.
+        if (!ready.ready && ready.cause.startsWith("version_")) return { ok: true };
         return started(await backend.check(value.provider));
       }
       case AUTH_CHANNELS.signIn: case AUTH_CHANNELS.signOut: {
@@ -114,7 +135,9 @@ export class AuthIpc {
     const attempt = this.options.backend.state(provider).attempt;
     return !!attempt && attempt.id === attemptId && attempt.kind === "signIn" && !attempt.cancelled;
   }
+  // Applied at every read, so a refresh that started before a record cannot cover it with the build's unchanged facts.
+  private factsOf(provider: Provider): ToolFacts { return recordedFacts(this.facts.get(provider) ?? UNPROBED, this.incompatibles.get(provider)); }
   private snapshot(): AuthSnapshot {
-    return { revision: this.revision, providers: PROVIDERS.map(p => authStatus(this.options.backend.state(p), this.facts.get(p) ?? UNPROBED, this.revision)) };
+    return { revision: this.revision, providers: PROVIDERS.map(p => authStatus(this.options.backend.state(p), this.factsOf(p), this.revision)) };
   }
 }

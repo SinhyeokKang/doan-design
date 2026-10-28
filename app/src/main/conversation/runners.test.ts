@@ -227,3 +227,68 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
   try { expect(JSON.parse(readFileSync(join(root, "argv.json"), "utf8"))).toEqual(["-c", 'cli_auth_credentials_store="keyring"', "app-server"]); }
   finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
 });
+// A fake Codex app-server whose handshake answers come from FAKE_CODEX: "init-error:<message>", "init-null", "no-thread", "exit", "silent".
+function fakeCodex() {
+  const root = mkdtempSync(join(tmpdir(), "doan-fake-codex-")), command = join(root, "codex");
+  writeFileSync(command, `#!/usr/bin/env node
+const mode = process.env.FAKE_CODEX ?? "";
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+require('node:readline').createInterface({input:process.stdin}).on('line', line => {
+ const r = JSON.parse(line);
+ if(r.method==='initialize') { if(mode==='silent') return; if(mode==='exit') process.exit(7); if(mode.startsWith('init-error:')) send({id:r.id,error:{code:-32600,message:mode.slice(11)}}); else send({id:r.id,result:mode==='init-null'?null:{}}); }
+ if(r.method==='thread/start') send({id:r.id,result:mode==='no-thread'?{thread:{}}:{thread:{id:'session'}}});
+ if(r.method==='thread/resume') send({id:r.id,result:{thread:{id:r.params.threadId}}});
+});
+`, { mode: 0o700 });
+  return { root, command };
+}
+async function codexHandshake(mode: string, sessionId?: string) {
+  const { root, command } = fakeCodex(); const order: string[] = [];
+  const incompatible = vi.fn(() => { order.push("recorded"); }), compatible = vi.fn(() => { order.push("cleared"); }), exited = vi.fn();
+  const opened = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: { ...process.env, FAKE_CODEX: mode }, ...(sessionId ? { sessionId } : {}), incompatible, compatible }, () => {}, exited, () => {})
+    .then(runner => runner, (error: unknown) => { order.push("refused"); return error as Error; });
+  if (!(opened instanceof Error)) { await opened.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); }
+  rmSync(root, { recursive: true, force: true });
+  return { opened, order, incompatible, compatible };
+}
+it.each([
+  ["an initialize error reply", "init-error:Unsupported client capabilities", "unknown"],
+  ["a thread/start reply without a thread id", "no-thread", "session_unavailable"],
+])("records a new Codex session's installed version as incompatible on %s before refusing with the unchanged code", async (_label, mode, code) => {
+  const h = await codexHandshake(mode);
+  expect(h.opened).toBeInstanceOf(Error); expect((h.opened as Error).message).toBe(code);
+  expect(h.order).toEqual(["recorded", "refused"]);
+});
+it.each([
+  ["Authentication required", "not_logged_in"],
+  ["Too many requests", "rate_limited"],
+  ["Thread already has an active writer", "session_in_use"],
+])("does not record a new Codex initialize error reply that reads as an account or ownership answer (%s)", async (message, code) => {
+  const h = await codexHandshake(`init-error:${message}`);
+  expect((h.opened as Error).message).toBe(code); expect(h.order).toEqual(["refused"]);
+});
+it("does not record a Codex server that exits during initialize", async () => {
+  const h = await codexHandshake("exit");
+  expect((h.opened as Error).message).toBe("process_exited"); expect(h.order).toEqual(["refused"]);
+});
+it("clears a Codex record once a new session's thread/start passes", async () => {
+  expect((await codexHandshake("")).order).toEqual(["cleared"]);
+});
+it("records a new Codex session's non-object initialize result, then refuses it with the generic code", async () => {
+  const odd = await codexHandshake("init-null");
+  expect(odd.opened).toBeInstanceOf(Error); expect((odd.opened as Error).message).toBe("unknown");
+  expect(odd.order).toEqual(["recorded", "refused"]);
+});
+it("does not record a Codex initialize that times out", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const pending = codexHandshake("silent");
+    await vi.advanceTimersByTimeAsync(10_000);
+    const h = await pending; expect((h.opened as Error).message).toBe("unknown"); expect(h.order).toEqual(["refused"]);
+  } finally { vi.useRealTimers(); }
+});
+it("never records on a Codex resume and clears once its initialize passes", async () => {
+  const session = "01a178ba-f9dc-7161-9544-f20f656064a1";
+  expect((await codexHandshake("init-error:Unsupported client capabilities", session)).order).toEqual(["refused"]);
+  expect((await codexHandshake("", session)).order).toEqual(["cleared"]);
+});
