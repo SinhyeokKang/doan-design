@@ -193,4 +193,13 @@ describe("run-time version incompatibility records", () => {
     }
     expect(t.api.check).not.toHaveBeenCalled();
   });
+  it("answers the current snapshot without waiting for the first probe", async () => {
+    const t = ipc(() => new Promise<ToolFacts>(() => {}));
+    void t.ipc.read();
+    const current = t.ipc.latest();
+    expect(current.providers.map(p => p.provider)).toEqual([...PROVIDERS]);
+    expect(current.providers[0]!.readiness).toEqual({ ready: false, cause: "version_unknown", action: "retry" });
+    t.ipc.changed();
+    expect(t.ipc.latest().revision).toBeGreaterThan(current.revision);
+  });
 });
