@@ -21,6 +21,7 @@
 | D8 | T1에서 출하 화면의 같은 값(셸 56px, font-weight 600)을 새 토큰으로 바꾸는 것은 computed가 같은 곳만 한다 | tasks T1 그대로, 지휘자 판단 |
 | D9 | 실인증 로그인 승인은 지휘자가 ego-lite로 처리한다 | 체인 파일 운영 메모 |
 | D10 | C의 CLI 계약: 사용자나 앱이 해결해야 하는 온보딩 거절·작업 실패는 새 exit 5, 호출 입력 오류는 2, 앱 미실행·프로토콜 불일치(v2 요청에 대한 구 앱의 v1 `bad_request` 포함)·앱 실행 실패·`session_stale`은 3, 내부 오류는 1이다. transport op 이름은 MCP 도구 접미사와 같다. status는 작업의 failed·cancelled 상태를 실패 envelope으로 바꾸지 않는다. clone `--destination`은 최종 폴더(절대 경로, 없어야 함)이다. ARCHITECTURE §12 승격은 V3 | 지휘자 판단 — design이 숫자를 A0에 맡겼고, 새 분류가 있어야 internal_error·앱 미실행과 구분된다 |
+| D11 | v2 fixture는 tasks A0의 공유 디렉터리 대신 `schema/fixtures/app-socket-v2/{request,response}/{valid,invalid}/`에 둔다 | 지휘자 판단 — 공유 디렉터리면 v1 전용 리더(`active_test.go`, `eval/lib/socket.test.ts`)가 깨지고, 스키마별 디렉터리 이름 규칙에도 맞는다 |
 
 ## 배치
 
