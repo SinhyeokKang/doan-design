@@ -103,21 +103,32 @@ test("auth snapshots keep the newest revision whatever order replies and events 
   expect(newerAuth(r5, r5b)).toBe(r5);
 });
 
+type Status = { session: { id: string; revision: number }; auth: AuthSnapshot; root: string | null };
 test("onboarding session revision and auth revision are merged independently", () => {
-  type Status = { session: { id: string; revision: number }; auth: AuthSnapshot; root: string | null };
   const current: Status = { session: { id: "s1", revision: 3 }, auth: snapshot(8, provider("claude", READY)), root: "/a" };
   // A newer session state carrying an older auth snapshot keeps the auth snapshot already seen.
   const newerSession: Status = { session: { id: "s1", revision: 4 }, auth: snapshot(7, provider("claude", notConnected)), root: "/b" };
-  expect(mergeStatus(current, newerSession)).toEqual({ ...newerSession, auth: current.auth });
+  expect(mergeStatus(current, newerSession, "s1")).toEqual({ ...newerSession, auth: current.auth });
   // An older session state still contributes a newer auth snapshot.
   const olderSession: Status = { session: { id: "s1", revision: 2 }, auth: snapshot(9, provider("claude", notConnected)), root: "/c" };
-  expect(mergeStatus(current, olderSession)).toEqual({ ...current, auth: olderSession.auth });
+  expect(mergeStatus(current, olderSession, "s1")).toEqual({ ...current, auth: olderSession.auth });
   const same: Status = { session: { id: "s1", revision: 3 }, auth: snapshot(8, provider("claude", notConnected)), root: "/d" };
-  expect(mergeStatus(current, same)).toBe(current);
-  expect(mergeStatus(null, current)).toBe(current);
-  // A different session id is a new main session (app restart); nothing from the old one is kept.
-  const restarted: Status = { session: { id: "s2", revision: 1 }, auth: snapshot(1, provider("claude", notConnected)), root: null };
-  expect(mergeStatus(current, restarted)).toBe(restarted);
+  expect(mergeStatus(current, same, "s1")).toBe(current);
+  expect(mergeStatus(null, current, "s1")).toBe(current);
+});
+
+test("only the session named by the latest start or reconnect is accepted; a late reply from another is dropped", () => {
+  const a: Status = { session: { id: "sA", revision: 5 }, auth: snapshot(8, provider("claude", READY)), root: "/a" };
+  const b: Status = { session: { id: "sB", revision: 1 }, auth: snapshot(1, provider("claude", notConnected)), root: null };
+  const lateA: Status = { session: { id: "sA", revision: 6 }, auth: snapshot(9, provider("claude", READY)), root: "/late" };
+  // Start returned sB: the sA state is replaced wholesale, nothing of it is kept.
+  const afterB = mergeStatus(a, b, "sB");
+  expect(afterB).toBe(b);
+  // A late sA reply, even with higher revisions, never comes back.
+  expect(mergeStatus(afterB, lateA, "sB")).toBe(b);
+  expect(mergeStatus(null, lateA, "sB")).toBeNull();
+  // Before the sB reply lands, an sA reply cannot win either.
+  expect(mergeStatus(a, lateA, "sB")).toBe(a);
 });
 
 test("Continue cancels only the sign-ins this window owns", () => {

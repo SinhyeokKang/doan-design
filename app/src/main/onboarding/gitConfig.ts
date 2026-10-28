@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from "node:fs";
+import { lstatSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
@@ -6,7 +6,10 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 // fsmonitor, hooks and filters (POSTMORTEM 2026-10-25 'Eval inspection executed repository-configured helpers').
 // urls are raw config values and may carry a user or token: main-only, never copied into a DTO or message.
 export type RemoteRead = { ok: true; urls: readonly string[]; uncertain: boolean } | { ok: false; reason: "not_repository" | "unreadable" };
-type Item = { kind: "remote"; name: string; url: string } | { kind: "include"; path: string; conditional: boolean };
+// unsupported: a setting that can change or add remotes in ways this reader does not resolve (config.worktree,
+// URL rewrites). Its presence makes the read uncertain rather than complete (conductor decision, fix round 1).
+type Item = { kind: "remote"; name: string; url: string } | { kind: "include"; path: string; conditional: boolean } | { kind: "unsupported" };
+const GIT_FALSE = ["false", "no", "off", "0", ""];
 // git's own include depth limit.
 const MAX_INCLUDE_DEPTH = 10;
 const ESCAPES: Record<string, string> = { n: "\n", t: "\t", b: "\b", "\\": "\\", "\"": "\"" };
@@ -79,6 +82,8 @@ function parseItems(text: string): Item[] | null {
       }
     } else if (at() !== undefined && at() !== "\n" && at() !== "\r" && at() !== "#" && at() !== ";") return null;
     if (section === "remote" && subsection !== null && key === "url") items.push({ kind: "remote", name: subsection, url: value });
+    else if (section === "extensions" && subsection === null && key === "worktreeconfig" && !GIT_FALSE.includes(value.toLowerCase())) items.push({ kind: "unsupported" });
+    else if (section === "url" && subsection !== null && (key === "insteadof" || key === "pushinsteadof")) items.push({ kind: "unsupported" });
     else if ((section === "include" && subsection === null) || section === "includeif") {
       if (key === "path") items.push({ kind: "include", path: value, conditional: section === "includeif" });
     }
@@ -101,17 +106,20 @@ function errorCode(error: unknown): string { return typeof error === "object" &&
 function configPath(root: string): string | RemoteRead {
   const dotGit = join(root, ".git");
   let gitDir = dotGit;
+  // Only an absent entry means "not a repository"; a .git link that cannot be followed is unreadable metadata.
+  try { lstatSync(dotGit); }
+  catch (error) {
+    if (errorCode(error) !== "ENOENT") return { ok: false, reason: "unreadable" };
+    try { return statSync(root).isDirectory() ? { ok: false, reason: "not_repository" } : { ok: false, reason: "unreadable" }; }
+    catch { return { ok: false, reason: "unreadable" }; }
+  }
   try {
     if (!statSync(dotGit).isDirectory()) {
       const line = /^gitdir: (.+)$/.exec(readFileSync(dotGit, "utf8").split("\n", 1)[0]!.replace(/\r$/, ""));
       if (!line) return { ok: false, reason: "unreadable" };
       gitDir = resolve(root, line[1]!);
     }
-  } catch (error) {
-    if (errorCode(error) !== "ENOENT") return { ok: false, reason: "unreadable" };
-    try { return statSync(root).isDirectory() ? { ok: false, reason: "not_repository" } : { ok: false, reason: "unreadable" }; }
-    catch { return { ok: false, reason: "unreadable" }; }
-  }
+  } catch { return { ok: false, reason: "unreadable" }; }
   try { return join(resolve(gitDir, readFileSync(join(gitDir, "commondir"), "utf8").trim()), "config"); }
   catch (error) { return errorCode(error) === "ENOENT" ? join(gitDir, "config") : { ok: false, reason: "unreadable" }; }
 }
@@ -128,6 +136,7 @@ export function readGitRemotes(root: string, home: string = homedir()): RemoteRe
   const walk = (file: string, list: Item[], chain: string[]) => {
     for (const item of list) {
       if (item.kind === "remote") { urls.push(item.url); continue; }
+      if (item.kind === "unsupported") { uncertain = true; continue; }
       if (item.conditional || (item.path.startsWith("~") && !item.path.startsWith("~/"))) { uncertain = true; continue; }
       const path = item.path.startsWith("~/") ? join(home, item.path.slice(2)) : isAbsolute(item.path) ? item.path : resolve(dirname(file), item.path);
       if (chain.length >= MAX_INCLUDE_DEPTH || chain.includes(path)) { uncertain = true; continue; }

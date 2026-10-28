@@ -59,13 +59,13 @@ test("configured remotes also match through credentials, other users and git:// 
   for (const url of [
     "https://github.com/acme/studio.git", "https://x-access-token:secret@github.com/acme/studio.git", "https://alex@github.com/Acme/Studio",
     "git@github.com:acme/studio.git", "org-1@github.com:acme/studio.git", "ssh://git@github.com/acme/studio", "ssh://git@github.com:22/acme/studio.git",
-    "git://github.com/acme/studio.git", "http://github.com/acme/studio",
+    "git://github.com/acme/studio.git", "http://github.com/acme/studio", "https://github.com:443/acme/studio.git",
   ]) {
     const repo = remoteRepository(url);
     expect(repo, url).toEqual({ owner: expect.stringMatching(/^acme$/i), repository: expect.stringMatching(/^studio$/i) });
     expect(JSON.stringify(repo), url).not.toContain("secret");
   }
-  for (const url of ["https://gitlab.com/acme/studio.git", "github-work:acme/studio.git", "/Users/alex/mirror/studio.git", "../studio", "https://github.com/acme", "https://github.com:8443/acme/studio", ""]) expect(remoteRepository(url), url).toBeNull();
+  for (const url of ["https://gitlab.com/acme/studio.git", "github-work:acme/studio.git", "/Users/alex/mirror/studio.git", "../studio", "https://github.com/acme", "https://github.com:8443/acme/studio", "ssh://git@github.com:443/acme/studio", "https://github.com:22/acme/studio", ""]) expect(remoteRepository(url), url).toBeNull();
 });
 
 test("a folder matches when any remote URL names the repository; a read failure is unknown, not a mismatch", () => {

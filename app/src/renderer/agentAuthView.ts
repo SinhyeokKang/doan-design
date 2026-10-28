@@ -10,7 +10,8 @@ const OPENS_OWN_BROWSER: readonly Provider[] = ["cursor", "copilot"];
 export const MAX_PASTE = 16384;
 
 export type AuthCommand = "install" | "update" | "signIn" | "reauth" | "signOut" | "check" | "cancel" | "openLink" | "pasteAddress" | "submitCode" | "read" | "dismiss";
-export interface Button<C extends string = AuthCommand> { command: C; label: string; variant: "prominent" | "subtle" | "ghost"; disabled: boolean; ariaLabel?: string }
+// note: visible text shown next to the button (the Copilot request cost).
+export interface Button<C extends string = AuthCommand> { command: C; label: string; variant: "prominent" | "subtle" | "ghost"; disabled: boolean; ariaLabel?: string; note?: string }
 export type AuthButton = Button;
 // Errors are role=alert and progress is role=status with an aria-hidden spinner (design '이동·취소·포커스 계약').
 export interface Notice<C extends string = AuthCommand> { role: "status" | "alert"; spinner: boolean; title?: string; body?: string; note?: string; actions: Button<C>[] }
@@ -25,8 +26,9 @@ export interface ProviderView {
 }
 // What this window knows beyond the snapshot. prompt: the attemptId of the last sign-in link it received.
 // reply: its last refused call for this provider. failures: sign_in_failed results in a row.
-// busyWith: the provider whose sign-in or sign-out holds the lock.
-export interface ProviderContext { prompt?: string | null; reply?: AuthReason | null; failures?: number; busyWith?: Provider | null }
+// busyWith: the provider whose sign-in or sign-out holds the lock. autoCheck: the consumer checks unverified
+// connections itself when its screen opens (the onboarding Agent step), so the row may say so.
+export interface ProviderContext { prompt?: string | null; reply?: AuthReason | null; failures?: number; busyWith?: Provider | null; autoCheck?: boolean }
 
 function button<C extends string>(command: C, label: string, variant: Button["variant"] = "prominent", disabled = false, ariaLabel?: string): Button<C> {
   return { command, label, variant, disabled, ...(ariaLabel ? { ariaLabel } : {}) };
@@ -39,8 +41,10 @@ function disable(view: ProviderView): ProviderView {
 }
 
 // Copilot's check spends one model request; a version cause only re-reads tool facts and spends nothing.
+// The cost is shown, not only announced (spec); the unverified row carries it in its detail line instead.
 function check(provider: Provider, label: string, free: boolean): AuthButton {
-  return button("check", label, "prominent", false, provider === "copilot" && !free ? `Check ${PROVIDER_NAMES[provider]} again, uses one Copilot request` : undefined);
+  if (provider !== "copilot" || free) return button("check", label);
+  return { ...button("check", label, "prominent", false, `Check ${PROVIDER_NAMES[provider]} again, uses one Copilot request`), note: "Uses one Copilot request" };
 }
 function errorNotice(status: AuthStatusDto, ctx: ProviderContext): Notice | null {
   const name = PROVIDER_NAMES[status.provider], connected = status.account !== null;
@@ -86,7 +90,7 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
       return {
         ...view, detail: copilot ? "Connected · not checked · Retry uses one Copilot request" : "Connected · not checked",
         button: button("check", "Retry", "prominent", false, copilot ? `Check ${name} again, uses one Copilot request` : `Check ${name} again`),
-        helper: copilot ? null : "doan checks this automatically when you open this step.",
+        helper: !copilot && ctx.autoCheck ? "doan checks this automatically when you open this step." : null,
       };
     }
     // busy without a sign-in or sign-out attempt cannot come from agent-auth; keep the row inert until the next snapshot.
@@ -130,13 +134,14 @@ export function replyEffect(reason: AuthReason): "show" | "dialog" | "reread" {
 }
 
 // undefined: not read yet. null: readAgentAuth returned null, the account store is unreadable and every other call fails.
-export function authListView(auth: AuthSnapshot | null | undefined, contexts: Partial<Record<Provider, ProviderContext>> = {}): { notice: Notice | null; providers: ProviderView[]; anyReady: boolean } {
+// shared: context every row gets, before its own (onboarding passes autoCheck).
+export function authListView(auth: AuthSnapshot | null | undefined, contexts: Partial<Record<Provider, ProviderContext>> = {}, shared: ProviderContext = {}): { notice: Notice | null; providers: ProviderView[]; anyReady: boolean } {
   if (auth === null) return { notice: alert("doan couldn’t read its agent connections.", [button("read", "Retry")]), providers: [], anyReady: false };
   if (auth === undefined) return { notice: progress("Checking connections", []), providers: [], anyReady: false };
   const holder = auth.providers.find(p => p.attempt && p.attempt.kind !== "check")?.provider ?? null;
   return {
     notice: auth.providers.some(p => p.attempt?.kind === "check") ? progress("Checking connections", []) : null,
-    providers: auth.providers.map(p => providerView(p, { busyWith: holder, ...contexts[p.provider] })),
+    providers: auth.providers.map(p => providerView(p, { busyWith: holder, ...shared, ...contexts[p.provider] })),
     anyReady: auth.providers.some(p => p.readiness.ready),
   };
 }

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -140,6 +140,33 @@ test("a folder without .git is not a repository; broken metadata is unreadable",
   expect(readGitRemotes(noConfig, home)).toEqual({ ok: false, reason: "unreadable" });
   const malformed = repo("malformed", "[remote \"origin\"\n");
   expect(readGitRemotes(malformed, home)).toEqual({ ok: false, reason: "unreadable" });
+});
+
+test("a .git entry that exists but cannot be followed is unreadable, never a missing repository", () => {
+  const dangling = join(temp, "dangling-link"); mkdirSync(dangling);
+  symlinkSync(join(temp, "vanished", ".git"), join(dangling, ".git"));
+  expect(readGitRemotes(dangling, home)).toEqual({ ok: false, reason: "unreadable" });
+  const linked = join(temp, "linked"); mkdirSync(linked);
+  const target = repo("target", "[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
+  symlinkSync(join(target, ".git"), join(linked, ".git"));
+  expect(readGitRemotes(linked, home)).toEqual({ ok: true, urls: ["https://github.com/acme/studio"], uncertain: false });
+});
+
+test("config features doan does not resolve make the read uncertain instead of complete", () => {
+  // extensions.worktreeConfig lets config.worktree hold remotes that are not read.
+  const worktreeConfig = repo("wtconfig", "[extensions]\n\tworktreeConfig = true\n");
+  file(join(worktreeConfig, ".git", "config.worktree"), "[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
+  expect(readGitRemotes(worktreeConfig, home)).toEqual({ ok: true, urls: [], uncertain: true });
+  expect(readGitRemotes(repo("wtconfig-bare", "[extensions]\n\tworktreeConfig\n"), home)).toMatchObject({ uncertain: true });
+  expect(readGitRemotes(repo("wtconfig-off", "[extensions]\n\tworktreeConfig = false\n"), home)).toEqual({ ok: true, urls: [], uncertain: false });
+  // URL rewrites change what a remote points at.
+  for (const key of ["insteadOf", "pushInsteadOf"]) {
+    const rewrite = repo(`rewrite-${key}`, `[url "git@github.com:"]\n\t${key} = gh:\n[remote "origin"]\n\turl = gh:acme/studio\n`);
+    expect(readGitRemotes(rewrite, home), key).toEqual({ ok: true, urls: ["gh:acme/studio"], uncertain: true });
+  }
+  const included = repo("rewrite-included", "[include]\n\tpath = rewrite.inc\n");
+  file(join(included, ".git", "rewrite.inc"), "[url \"https://github.com/\"]\n\tinsteadOf = gh:\n");
+  expect(readGitRemotes(included, home)).toMatchObject({ uncertain: true });
 });
 
 test("a repository with no remotes reads as an empty list", () => {

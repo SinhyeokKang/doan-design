@@ -1,8 +1,18 @@
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, expect, test } from "vitest";
-import { classifyCompletion, onboardingComplete, readCompletion, writeCompletion, type CompletionRead } from "./completion";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+
+// Queued ids let a test pre-create the exact backup name, so only the backup step fails.
+const ids = vi.hoisted(() => [] as string[]);
+vi.mock("node:crypto", async original => {
+  const actual = await original<typeof import("node:crypto")>();
+  return { ...actual, randomUUID: () => ids.shift() ?? actual.randomUUID() };
+});
+const { classifyCompletion, onboardingComplete, readCompletion, writeCompletion } = await import("./completion");
+type CompletionRead = import("./completion").CompletionRead;
+// Permission tests cannot block root.
+const root = process.getuid?.() === 0;
 
 const FIXTURES = new URL("./fixtures/completion/", import.meta.url).pathname;
 const AUTH_FIXTURE = new URL("../agentAuth/fixtures/metadata-v1.json", import.meta.url).pathname;
@@ -117,14 +127,27 @@ test("a corrupt marker is backed up byte for byte before the new record is writt
   }
 });
 
-test("a backup that cannot be made keeps the corrupt original and reports a save failure", () => {
+test("a backup that cannot be made keeps the corrupt original and reports a save failure, before any replace", () => {
+  writeFileSync(marker(), "{\"v\":1,\"comp");
+  // The first id is taken by an existing file; the replace's own temporary file would still succeed.
+  const taken = join(userData, "onboarding.corrupt-taken.json");
+  writeFileSync(taken, "other");
+  ids.push("taken", "temp");
+  expect(writeCompletion(userData, ROOT)).toEqual({ ok: false, reason: "save_failed" });
+  ids.length = 0;
+  expect(readFileSync(marker(), "utf8")).toBe("{\"v\":1,\"comp");
+  expect(readFileSync(taken, "utf8")).toBe("other");
+  expect(entries()).toEqual(["agent-auth", "folders.json", "onboarding.corrupt-taken.json", "onboarding.json"]);
+  expect(onboardingComplete(readCompletion(userData))).toBe(false);
+});
+
+test.skipIf(root)("an unwritable userData keeps the corrupt original", () => {
   writeFileSync(marker(), "{\"v\":1,\"comp");
   chmodSync(userData, 0o500);
   expect(writeCompletion(userData, ROOT)).toEqual({ ok: false, reason: "save_failed" });
   chmodSync(userData, 0o700);
   expect(readFileSync(marker(), "utf8")).toBe("{\"v\":1,\"comp");
   expect(entries()).toEqual(["agent-auth", "folders.json", "onboarding.json"]);
-  expect(onboardingComplete(readCompletion(userData))).toBe(false);
 });
 
 test("a record from a newer app is never overwritten", () => {
@@ -136,7 +159,7 @@ test("a record from a newer app is never overwritten", () => {
   }
 });
 
-test("a failed write keeps the previous marker and leaves onboarding incomplete", () => {
+test.skipIf(root)("a failed write keeps the previous marker and leaves onboarding incomplete", () => {
   writeFileSync(marker(), "{}\n");
   chmodSync(userData, 0o500);
   expect(writeCompletion(userData, ROOT)).toEqual({ ok: false, reason: "save_failed" });

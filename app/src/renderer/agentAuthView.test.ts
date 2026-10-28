@@ -67,18 +67,26 @@ test("readiness action repair: missing or failed doan tools show Check again", (
     expect(status.readiness).toMatchObject({ action: "repair" });
     expect(only(providerView(status)).notice).toEqual({ role: "alert", spinner: false, title: undefined, body: "doan couldn’t find its command-line tool. Reinstall doan, then check again.", actions: ["prominent:Check again:check"] });
   }
-  // Copilot's check spends a model request, so the accessible name says so.
+  // Copilot's check spends a model request, so the cost is visible next to the button and in its accessible name.
   const copilot = providerView(dto("copilot", { account: ACCOUNT, verified: true, facts: { tools: "failed" } }));
-  expect(copilot.notice?.actions[0]?.ariaLabel).toBe("Check GitHub Copilot again, uses one Copilot request");
+  expect(copilot.notice?.actions[0]).toMatchObject({ ariaLabel: "Check GitHub Copilot again, uses one Copilot request", note: "Uses one Copilot request" });
+  expect(providerView(dto("claude", { account: ACCOUNT, verified: true, facts: { tools: "failed" } })).notice?.actions[0]?.note).toBeUndefined();
 });
 
 test("readiness action retry for unverified: Connected · not checked, with the Copilot request cost", () => {
   const codex = providerView(dto("codex", { account: { id: null, workspace: null } }));
-  expect(only(codex)).toEqual({ detail: "Connected · not checked", button: "prominent:Retry:check", notice: null, helper: "doan checks this automatically when you open this step." });
+  expect(only(codex)).toEqual({ detail: "Connected · not checked", button: "prominent:Retry:check", notice: null, helper: null });
+  // The automatic-check sentence is true only where the consumer checks on entry (the onboarding Agent step).
+  expect(providerView(dto("codex", { account: ACCOUNT }), { autoCheck: true }).helper).toBe("doan checks this automatically when you open this step.");
+  expect(providerView(dto("copilot", { account: ACCOUNT }), { autoCheck: true }).helper).toBeNull();
+  expect(authListView({ revision: 1, providers: [dto("codex", { account: ACCOUNT })] }, {}, { autoCheck: true }).providers[0]?.helper).toBe("doan checks this automatically when you open this step.");
+  expect(authListView({ revision: 1, providers: [dto("codex", { account: ACCOUNT })] }).providers[0]?.helper).toBeNull();
   expect(codex.button?.ariaLabel).toBe("Check Codex again");
   const copilot = providerView(dto("copilot", { account: ACCOUNT }));
   expect(only(copilot)).toEqual({ detail: "Connected · not checked · Retry uses one Copilot request", button: "prominent:Retry:check", notice: null, helper: null });
   expect(copilot.button?.ariaLabel).toBe("Check GitHub Copilot again, uses one Copilot request");
+  // The unverified row already shows the cost in its detail line, so the button carries no second copy.
+  expect(copilot.button?.note).toBeUndefined();
 });
 
 test("readiness action wait: a running check disables the row; a running sign-out shows progress", () => {
@@ -223,7 +231,11 @@ test("every agent-auth error code maps to its alert and next action", () => {
   expect(only(providerView(dto("antigravity", { account: ACCOUNT, error: "cli_install_failed" }))).notice).toMatchObject({ actions: ["prominent:Retry:check"] });
   expect(only(connected("check_failed")).notice).toMatchObject({ role: "alert", body: "Couldn’t check your connections.", actions: ["prominent:Retry:check"] });
   expect(only(providerView(dto("copilot", { account: ACCOUNT, error: "check_failed" }))).notice?.actions).toEqual(["prominent:Retry:check"]);
-  expect(providerView(dto("copilot", { account: ACCOUNT, error: "check_failed" })).notice?.actions[0]?.ariaLabel).toBe("Check GitHub Copilot again, uses one Copilot request");
+  for (const error of ["check_failed", "network"] as const) {
+    expect(providerView(dto("copilot", { account: ACCOUNT, error })).notice?.actions[0], error).toMatchObject({ ariaLabel: "Check GitHub Copilot again, uses one Copilot request", note: "Uses one Copilot request" });
+  }
+  // A version Retry only re-reads tool facts: no cost anywhere.
+  expect(providerView(dto("copilot", { account: ACCOUNT, verified: true, facts: { version: "unknown" } })).notice?.actions[0]?.note).toBeUndefined();
   // account_mismatch and sign_out_failed are covered by the reauth and signOut rows.
   const codes: AuthErrorCode[] = ["sign_in_failed", "network", "storage_failed", "check_failed", "account_mismatch", "sign_out_failed", "cli_install_failed"];
   for (const code of codes) expect(providerView(dto("codex", { account: ACCOUNT, error: code })).notice?.role, code).toBe("alert");

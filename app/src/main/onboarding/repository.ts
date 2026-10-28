@@ -42,13 +42,16 @@ export function parseGitHubUrl(input: string): GitHubUrl | null {
   return null;
 }
 
+// An explicit default port is the same server; github.com:443 over ssh is not.
+const DEFAULT_PORT: Record<string, RegExp> = { https: /:443$/, ssh: /:22$/ };
 // A configured remote may carry a user or token, an ssh port 22, or git://; it still names the same repository.
 // Only the owner and name come back, never the credential.
 export function remoteRepository(url: string): GitHubRepository | null {
-  const scheme = /^(?:https?|git|ssh):\/\/(?:[^@/]+@)?([^/]*)\/(.*)$/i.exec(url);
+  const scheme = /^(https?|git|ssh):\/\/(?:[^@/]+@)?([^/]*)\/(.*)$/i.exec(url);
   const scp = /^[^@/:]+@([^:/]*):(.*)$/.exec(url);
-  const [, host, rest] = (scheme ?? scp ?? []) as string[];
-  if (host === undefined || rest === undefined || host.toLowerCase().replace(/:22$/, "") !== GITHUB) return null;
+  const port = scheme && DEFAULT_PORT[scheme[1]!.toLowerCase()];
+  const [host, rest] = scheme ? [port ? scheme[2]!.toLowerCase().replace(port, "") : scheme[2]!.toLowerCase(), scheme[3]!] : scp ? [scp[1]!.toLowerCase(), scp[2]!] : [];
+  if (host !== GITHUB || rest === undefined) return null;
   return repositoryPath(rest)?.repo ?? null;
 }
 

@@ -48,9 +48,11 @@ export function newerAuth(current: AuthSnapshot | null, incoming: AuthSnapshot):
 }
 export interface SessionMark { id: string; revision: number }
 // The onboarding session revision and the auth revision advance independently, so each part keeps its own newest.
-// Another session id means main started a new session (an app restart); nothing of the old one applies.
-export function mergeStatus<T extends { session: SessionMark; auth: AuthSnapshot }>(current: T | null, incoming: T): T {
-  if (!current || current.session.id !== incoming.session.id) return incoming;
+// A session id proves identity, not recency: active is the id the latest start or reconnect returned, and a reply
+// from any other session is dropped. The first reply of the active session replaces an older session's state.
+export function mergeStatus<T extends { session: SessionMark; auth: AuthSnapshot }>(current: T | null, incoming: T, active: string): T | null {
+  if (incoming.session.id !== active) return current;
+  if (!current || current.session.id !== active) return incoming;
   const session = incoming.session.revision > current.session.revision ? incoming : current;
   const auth = newerAuth(current.auth, incoming.auth);
   return session === current && auth === current.auth ? current : { ...session, auth };
