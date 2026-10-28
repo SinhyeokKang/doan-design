@@ -160,4 +160,4 @@ Run: `run_d94775f7dd27`.
 ### 이 머신에 남은 것
 
 - 이 머신의 Keychain에 probe와 D1이 만든 doan 전용 항목이 남아 있다: `doan-auth-probe Safe Storage`, doan 전용 `Claude Code-credentials-*`, `Codex Auth`. D1 dev 앱 항목이 있으면 함께 남아 있다. 새 머신 작업에는 영향이 없다. 필요하면 이 머신에서 따로 지운다.
-- 이 머신의 worker는 모두 release했고, 남은 터미널은 닫았다. Orca child worktree 5개(contract, storage, runtime, providers, ipc, d1)는 모두 제거했다. D1에서는 Keychain 항목을 만들지 않았다. probe 상태는 `.scratch/agent-auth-probe/`(gitignore)에 남아 있다.
+- 이 머신의 worker는 모두 release했고, 남은 터미널은 닫았다. Orca child worktree 6개(contract, storage, runtime, providers, ipc, d1)는 모두 제거했다. D1에서는 Keychain 항목을 만들지 않았다. probe 상태는 `.scratch/agent-auth-probe/`(gitignore)에 남아 있다.
