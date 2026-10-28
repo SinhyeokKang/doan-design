@@ -47,7 +47,7 @@ function backend() {
 function fakeProjects(): OnboardingProjects & { [K in keyof OnboardingProjects]: ReturnType<typeof vi.fn> } {
   return {
     folder: vi.fn(async (path: string) => path.startsWith("/gone") ? null : path),
-    destination: vi.fn(async (path: string) => path.startsWith("/taken") ? "exists" as const : path.startsWith("/nowhere") ? "no_parent" as const : "absent" as const),
+    destination: vi.fn(async (path: string): Promise<"absent" | "exists" | "no_parent" | "inside_project"> => path.startsWith("/taken") ? "exists" : path.startsWith("/nowhere") ? "no_parent" : "absent"),
     inspectPath: vi.fn(async (path: string) => ({ ok: true as const, candidates: [{ path, changes: [] }] })),
     inspectUrl: vi.fn(async () => []),
     select: vi.fn(async (path: string) => ({ ok: true as const, root: path })),
@@ -504,6 +504,78 @@ describe("clone", () => {
     await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination });
     await t.service.quit();
     expect(finished).toBe(true);
+  });
+});
+
+describe("exclusive project work", () => {
+  async function planned(t: ReturnType<typeof setup>) {
+    const id = await session(t);
+    const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", url: "https://github.com/acme/studio", destination: "/Users/ada/studio" }));
+    return { id, inspectionId: op.inspection!.inspectionId };
+  }
+
+  it("starts one clone for two requests that arrive together", async () => {
+    const t = setup();
+    const { id, inspectionId } = await planned(t);
+    t.projects.clone.mockImplementation(() => new Promise(() => {}));
+    const [a, b] = await Promise.all([
+      t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination: "/Users/ada/studio" }),
+      t.ask({ op: "project_clone", sessionId: id, requestId: "c2", inspectionId, destination: "/Users/ada/studio" }),
+    ]);
+    expect([a.ok, b.ok].sort()).toEqual([false, true]);
+    expect(t.projects.clone).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps complete and a project change from running together", async () => {
+    const t = setup();
+    const { id, inspectionId } = await planned(t);
+    t.ready();
+    const path = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i2", path: "/Users/ada/p1" }));
+    await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId: path.inspection!.inspectionId, path: "/Users/ada/p1" });
+    void inspectionId;
+    const again = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i3", url: "https://github.com/acme/studio", destination: "/Users/ada/studio" }));
+    t.projects.clone.mockImplementationOnce(() => new Promise(() => {}));
+    await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId: again.inspection!.inspectionId, destination: "/Users/ada/studio" });
+    expect(await t.ask({ op: "complete", sessionId: id, requestId: "d1" })).toMatchObject({ ok: false, error: { code: "busy" } });
+    expect(t.projects.saveCompletion).not.toHaveBeenCalled();
+  });
+
+  it("holds a selection while complete runs", async () => {
+    const t = setup();
+    const id = await session(t);
+    t.ready();
+    const path = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", path: "/Users/ada/p1" }));
+    await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId: path.inspection!.inspectionId, path: "/Users/ada/p1" });
+    t.projects.confirm.mockReturnValueOnce(new Promise(() => {}));
+    await t.ask({ op: "complete", sessionId: id, requestId: "d1" });
+    expect(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId: path.inspection!.inspectionId, path: "/Users/ada/p1" })).toMatchObject({ ok: false, error: { code: "busy" } });
+  });
+
+  it("refuses a clone destination inside another project", async () => {
+    const t = setup();
+    const id = await session(t);
+    t.projects.destination.mockResolvedValueOnce("inside_project");
+    expect(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", url: "https://github.com/acme/studio", destination: "/Users/ada/app/studio" })).toMatchObject({ ok: false, error: { code: "path_unavailable" } });
+  });
+
+  it("takes no new project work once quit was accepted", async () => {
+    const t = setup();
+    const id = await session(t);
+    await t.service.quit();
+    expect(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", path: "/Users/ada/p1" })).toMatchObject({ ok: false, error: { code: "busy" } });
+  });
+
+  it("counts an inspection as started before its checks finish", async () => {
+    const t = setup();
+    const id = await session(t);
+    const slow = deferred<string | null>();
+    t.projects.folder.mockReturnValueOnce(slow.promise);
+    const first = t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", path: "/Users/ada/old" });
+    const second = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i2", path: "/Users/ada/new" }));
+    slow.resolve("/Users/ada/old");
+    const old = operation(await first);
+    expect(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId: old.inspection!.inspectionId, path: "/Users/ada/old" })).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
+    expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId: second.inspection!.inspectionId, path: "/Users/ada/new" }))).toMatchObject({ state: "succeeded" });
   });
 });
 

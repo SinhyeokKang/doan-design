@@ -106,6 +106,17 @@ describe("runClone", () => {
     expect(readdirSync(parent)).toEqual([]);
   });
 
+  it("does not wait on a helper the clone left running after it succeeded", async () => {
+    const parent = temp(), destination = join(parent, "studio"), bin = temp(), pidFile = join(bin, "pid");
+    const script = join(bin, "git");
+    // Like git credential-cache--daemon: started by the clone, still in its group after git exits 0.
+    writeFileSync(script, `#!/bin/sh\nfor last; do :; done\necho hi > "$last/README.md"\nsleep 60 > /dev/null 2>&1 &\necho $! > "${pidFile}"\nexit 0\n`, { mode: 0o755 });
+    const started = Date.now();
+    expect(await runClone({ git: script, url: "u", destination, env, signal: signal().signal })).toEqual({ kind: "cloned", destination });
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(() => process.kill(Number(readFileSync(pidFile, "utf8")), 0)).toThrow();
+  });
+
   it("discards a clone that finished after its cancel was accepted", async () => {
     const parent = temp(), destination = join(parent, "studio"), controller = signal();
     let finish!: (code: number) => void;

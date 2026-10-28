@@ -6,7 +6,7 @@ import type { LsTarget } from "../cli";
 import type { FolderState } from "../folderState";
 import type { ProjectInitResult } from "../shell";
 import { readGitRemotes } from "./gitConfig";
-import { canonicalFolder, cloneProject, confirmProject, destinationState, inspectPath, inspectUrl, plannedChanges, registerClone, selectProject, type ProjectDeps } from "./projects";
+import { canonicalFolder, cloneDestination, cloneProject, confirmProject, destinationState, inspectPath, inspectUrl, plannedChanges, registerClone, selectProject, type ProjectDeps } from "./projects";
 
 // Remote checks read .git/config; a git process here would run the repository's fsmonitor, hooks and filters.
 vi.mock("node:child_process", () => ({ spawn: () => { throw new Error("git must not run"); }, execFile: () => { throw new Error("git must not run"); } }));
@@ -195,5 +195,14 @@ describe("cloneProject", () => {
     expect(d.deps.initialize).toHaveBeenCalledWith(destination);
     expect(await cloneProject("u", "/tmp/y", new AbortController().signal, { ...deps().deps, git: async () => ok, run: async () => ({ kind: "failed", code: "repository_unreachable" }) })).toEqual({ ok: false, code: "repository_unreachable" });
     expect(await cloneProject("u", "/tmp/y", new AbortController().signal, { ...deps().deps, git: async () => ok, run: async () => ({ kind: "cancelled" }) })).toEqual({ ok: false, cancelled: true });
+  });
+});
+
+describe("cloneDestination", () => {
+  it("refuses a destination that would land inside a set-up project", async () => {
+    const ready = repo(temp(), { config: "{}" });
+    expect(await cloneDestination(join(ready, "vendor"), deps().deps)).toBe("inside_project");
+    expect(await cloneDestination(join(temp(), "studio"), deps().deps)).toBe("absent");
+    expect(await cloneDestination(ready, deps().deps)).toBe("exists");
   });
 });
