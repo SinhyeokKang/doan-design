@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import type { Checks } from "../../lib/types.ts";
-import { describeAll, errorCode, noBlindRetry, noCancel, noCopilotCheck, noRequestConflict, oneSession, repoUntouched, requests, started, type Exchange } from "./log.ts";
+import { absolutePaths, describeAll, errorCode, noBlindRetry, noCancel, noCopilotCheck, noRequestConflict, noStopOrPaste, oneSession, repoUntouched, requests, started, type Exchange } from "./log.ts";
 
 // Claude is connected and ready, the repo needs setup and the prompt allows it:
 // the agent should inspect, select with --initialize and complete, starting
@@ -19,7 +19,9 @@ const checks: Checks = ctx => {
     started(log),
     oneSession(log),
     { id: "no_sign_in_with_ready_agent", pass: signIns.length === 0, detail: signIns.length ? `Claude was already ready: ${describeAll(signIns)}` : "no sign-in started" },
-    noCopilotCheck(log),
+    noCopilotCheck(log, ctx),
+    absolutePaths(ctx),
+    noStopOrPaste(ctx),
     noCancel(log),
     { id: "inspected_repo_path", pass: inspected.length > 0, detail: `inspections: ${describeAll(inspects)}` },
     { id: "selected_with_initialize", pass: selected.length > 0, detail: `selects: ${describeAll(requests(log, "project_select"))}` },

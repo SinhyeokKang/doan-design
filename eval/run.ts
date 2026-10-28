@@ -120,7 +120,8 @@ async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pa
     renderPrompt(scenario.promptTemplate, ws.repo);
     cpSync(join(scenario.dir, "fixtures", kind), ws.repo, { recursive: true, force: true });
     const transcriptFile = join(scenario.dir, "fixtures", `${kind}.transcript.txt`);
-    const transcript = existsSync(transcriptFile) ? readFileSync(transcriptFile, "utf8") : "";
+    // `{{repo}}` as in the commands, so the transcript shows the paths that ran.
+    const transcript = existsSync(transcriptFile) ? readFileSync(transcriptFile, "utf8").replace(/\{\{\s*repo\s*\}\}/g, ws.repo) : "";
     const commandsFile = join(scenario.dir, "fixtures", `${kind}.commands.json`);
     if (existsSync(commandsFile))
       for (const args of JSON.parse(readFileSync(commandsFile, "utf8")) as string[][])

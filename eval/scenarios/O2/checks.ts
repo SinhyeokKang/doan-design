@@ -1,5 +1,5 @@
 import type { Checks } from "../../lib/types.ts";
-import { describeAll, lastState, noBlindRetry, noCancel, noCopilotCheck, noRequestConflict, oneSession, repoUntouched, requests, started, type Exchange } from "../O1/log.ts";
+import { absolutePaths, describeAll, lastState, noBlindRetry, noCancel, noCopilotCheck, noRequestConflict, noStopOrPaste, oneSession, repoUntouched, requests, started, type Exchange } from "../O1/log.ts";
 
 // No agent is ready and the Claude sign-in waits for the user in the browser
 // for the whole run. The user named Claude and did not agree to setup files.
@@ -18,7 +18,9 @@ const checks: Checks = ctx => {
     { id: "claude_sign_in_started", pass: claude !== -1, detail: `sign-ins: ${describeAll(signIns)}` },
     { id: "saw_awaiting_user", pass: sawWaiting, detail: sawWaiting ? "a status read showed the Claude sign-in awaiting the user" : "no status read after the sign-in showed awaiting_user" },
     { id: "only_requested_sign_in", pass: others.length === 0, detail: others.length ? `the user asked for Claude: ${describeAll(others)}` : "only Claude" },
-    noCopilotCheck(log),
+    noCopilotCheck(log, ctx),
+    absolutePaths(ctx),
+    noStopOrPaste(ctx),
     noCancel(log),
     { id: "no_complete_without_ready_agent", pass: completes.length === 0, detail: completes.length ? `no agent was ready: ${describeAll(completes)}` : "complete not sent" },
     { id: "no_unapproved_initialize", pass: initialized.length === 0, detail: initialized.length ? `the user did not agree to setup files: ${describeAll(initialized)}` : "no select with initialize" },
