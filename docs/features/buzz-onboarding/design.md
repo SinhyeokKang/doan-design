@@ -115,7 +115,7 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 - 모든 화면 타이틀과 캡션은 가운데 정렬한다. 행·폼은 왼쪽 정렬이다. 버튼·입력창은 기존 불투명 subtle/surface-inset을 유지한다. Back은 arrow-left, 다음 이동은 arrow-right를 쓴다. 제출 액션은 오른쪽에 배치한다.
 - 첫 버튼(Install·Update·Sign in)은 prominent이다. 연결되면 같은 버튼을 disabled로 두고 레이블을 `Connected`로 바꾼다(접근성 이름 'Connected to <공급자>'). 이름 아래에는 계정 식별자만 전체 표시한다. 계정 표시값이 없으면(Codex·Antigravity) 아래 줄을 두지 않는다(2026-10-28 사용자). 조직 UUID가 없는 Claude는 Connected 대신 재인증 notice를 보인다. 확인 전(unverified)에는 `Connected · not checked`와 Retry를 보이고, Copilot Retry 옆에는 'Uses one Copilot request'를 붙인다. 로그아웃 실패·재인증 상태에서만 Sign out·Sign in again 복구 버튼을 둔다. 긴 계정은 줄바꿈하며 별도 Connected 배지는 없다. 초안 계정은 예시다.
 - 공급자 로고는 로컬 자산이며 출처는 `.doan/assets/provider-logos/README.md`에 있다. Codex는 OpenAI 공식 조직 마크를 쓴다. 모든 마크는 배경·컨테이너 없는 글리프로 자르고, 32px 슬롯 안 24px 글리프 박스에 맞춘다(2026-10-28 사용자 피드백: Cursor 타일·Antigravity 원·OpenAI 흰 배경 때문에 크기감이 달랐다).
-- 프로젝트·공급자 카드: 제목 14px/20px·500, 설명 12px/20px·text-metadata, 제목/설명 간격 2px, 콘텐츠 gap 12px, 패딩 16px, 최소 높이 72px이다. 썸네일은 32px 슬롯 안 28px이다.
+- 프로젝트·공급자 카드: 제목 14px/20px·500, 설명은 caption 토큰(12px/16px)·text-metadata, 제목/설명 간격 2px, 콘텐츠 gap 12px, 패딩 16px, 최소 높이 72px이다. 썸네일은 32px 슬롯 안 28px이다. 설명을 12px/20px로 두면 위아래 여백 때문에 제목과의 간격이 2px보다 크게 보였다(2026-10-28 사용자 피드백). 구현에서는 두 카드의 제목·설명을 한 공용 스타일로 둔다.
 - 프로젝트 썸네일은 ShellSidebar의 projectHue 이름 해시·8색·첫 Unicode 글자 대문자 규칙을 쓴다. 배경은 identity 색 14%와 surface-panel, 글자는 identity 색 65%와 text-standard를 혼합한다. 글자 17px·600, 모서리 7px이다. 이 색 규칙은 구현 시 사이드 네비에도 공통 적용한다.
 - 오류·설치 필요·재인증 안내는 동일한 `doan-notice error doan-panel`이다. 흰 surface-panel·shadow-panel·text-standard, 아이콘은 텍스트 색 상속, 패딩 상하 12px·좌우 16px이다. 제목/본문 간격은 4px이다.
 - 로딩 9개 상태도 같은 notice/panel 재질·패딩을 쓰고 아이콘 자리에 기존 spinner를 배치한다. `role="status"`이며 오류는 `role="alert"`이다. 아이콘은 공용 alert-icon의 첫 줄 정렬을 따른다.
