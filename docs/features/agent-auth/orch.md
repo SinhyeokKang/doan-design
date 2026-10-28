@@ -20,6 +20,8 @@
 - 사용자 결정(2026-10-28, B2): 안정된 계정 ID가 없는 연결(현재 Codex)은 대화의 소유 연결(connectionId)이 현재 연결과 같고 대화를 묶은 뒤 재로그인이 없었으면 재개를 허용한다. 프로필·세션·점유 확인은 그대로 한다. 재로그인한 뒤에는 같은 계정이어도 재개를 거부한다. 문서화되지 않은 rateLimits accountId는 쓰지 않는다. A의 '계정 ID가 없으면 재개 거부' 규칙을 이렇게 완화하며, B2가 구현한다.
 - 사용자 결정(2026-10-28, B2): 레포의 `.claude/settings.json`에 있는 `env.ANTHROPIC_API_KEY`나 apiKeyHelper가 doan 로그인보다 우선하는 문제를 확인했다. B2가 공식 강제 옵션을 먼저 조사한다. 없으면 settingSources를 유지하고 알려진 한계로 기록한다. project/local 설정은 빼지 않는다.
 - 사용자 결정(2026-10-28, B2): legacy 외부 경로는 probe 전용 시뮬레이션 프로필(임시 CLAUDE_CONFIG_DIR·CODEX_HOME)에 별도로 로그인해 실요청까지 검증한다.
+- 사용자 결정(2026-10-28, R-B3): 조직 UUID가 없는 Claude doan 연결은 실행하지 않고 재로그인을 안내한다(조직 고정 없이 실행하지 않는다).
+- 사용자 결정(2026-10-28, R-B3): Antigravity 로그인 링크는 main만 다룬다. 서버가 사용자 브라우저를 직접 열지 못하게 한다.
 - conductor's call — Claude Code conductor이므로 Claude 작업자만 쓴다. 모델 계열 교차는 없다.
 - conductor's call — 공용 타입과 conversation 파일이 겹치므로 tasks의 기본 순서대로 직렬 진행한다. B3의 세 공급자도 사용자 구현 순서(Cursor → Antigravity → Copilot)대로 한 작업자가 직렬로 맡는다.
 - conductor's call — 지휘자는 배치 코드를 수정하지 않는다. 리뷰 수정은 소유 배치로 돌린다. push와 PR은 통합 뒤 수행하며 merge하지 않는다.
@@ -88,3 +90,5 @@ Run: `run_d94775f7dd27`.
 - B3 완료(`f32acf5`·`912c366`·`1efa8b8`). 작업자 보고 기준 테스트 3,534개·runtime 42개·typecheck·verify.mjs 통과. Cursor(`agent acp`), Antigravity(sha 고정 `agy_acp_server` 1.3.0, ACP 로그인·로그아웃, expect 릴레이 제거), Copilot(`copilot --acp` 1.0.105, 첫 실행으로 검증)을 공용 ACP 실행기로 연결했다. 세 플랫폼 모두 실검증을 통과했다. 홈·Canvas 캔버스 생성, 권한 허용·거절, 중단, 재시작 후 재개를 확인했다. Claude 레포 설정 덮어쓰기는 실행마다 `forceLoginOrgUUID`를 고정해 실패 처리로 막았다. 오류 코드는 현재 `unknown`이다. 남은 위험은 다음과 같다. Copilot ACP는 공개 프리뷰이다. Antigravity의 URL·sha·환경 변수는 문서화되지 않았다. Cursor 로그인 셸은 PATH 앞에 시스템 경로를 둔다. probe의 Antigravity 연결은 로그아웃 상태로 끝났다. handoff는 `evidence-B3/`에 있다.
 - 작업 중 probe가 Electron 오류 대화상자를 두 번 띄웠다. 첫 번째(EPIPE)는 지휘자가 해당 probe 프로세스를 종료했다. 이후 probe 출력은 파일로 남기고 EPIPE 보호와 timeout을 둔다.
 - R-B3: `ctx_babe0720d230` (task `task_05863718e6c8`). `agent-auth-providers`에서 보고만 한다. effective opus high, `turnStart: observed`.
+- R-B3 `ctx_babe0720d230`: 🔴1·🟡4·⚪9. 🔴1은 BROWSER 훅이 CPython에서 실행되지 않아 서버가 기본 브라우저를 여는 문제다. 🟡는 네 가지다: 다운로드에 timeout·취소·상한 없음, Copilot이 취소된 응답도 검증으로 인정함, runConfirmed가 계정을 재확인하지 않음, Claude 조직 고정 거부가 `unknown`으로 매핑됨. 보고서는 `evidence-B3/review-B3.md`. R-B3 작업자는 release했다.
+- F-B3: `ctx_0d49fe3f054a` (task `task_b276838865cb`), `agent-auth-providers`, opus high, `turnStart: observed`. 🔴1·🟡1–4·⚪1과 두 사용자 결정을 반영하고 Antigravity를 다시 로그인해 확인한다.
