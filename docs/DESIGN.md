@@ -323,10 +323,11 @@ Reference: `.doan/canvases/buzz-onboarding.html` (approved 2026-10-28, F4 comple
 ### Documented differences
 
 - **Agent frame in the real app.** The isolated app has no agent installed, so every row shows Install with its helper line. The rows are taller, and the footer's free margin is 0 instead of the draft's 68.8px. The markup run with Sign in rows matches the draft's positions.
-- **Tiles that draw the step footer.** Eight tiles draw the step footer's buttons as an sm row inside the tile: 'Checking connections', 'Connection storage failed', 'doan tools check failed', 'Multiple local checkouts', 'Setting up project', 'Finishing setup', 'Completion could not be saved' and 'No agent is ready'.
+- **Tiles that draw the step footer.** Seven tiles draw the step footer's buttons as an sm row inside the tile: 'Checking connections', 'Connection storage failed', 'doan tools check failed', 'Multiple local checkouts', 'Setting up project', 'Finishing setup' and 'Completion could not be saved'.
   - In the app these buttons are the step's own footer: Back, Continue / Open doan / Use this folder / Retry, 40 high, at the bottom.
   - A row's single recovery action is right-aligned alone.
   - This accounts for 24 of the 25 remaining differences.
+  - Buttons are paired by index, so in 'Connection storage failed' and 'doan tools check failed' the draft's Back is compared with the app's Sign in or Check again. Those rows show up as colour and alignment differences. The real buttons match exactly: Sign in is 77×32 and Check again is 114×32, with no property differences.
 - **Tile margins.** `.tile > *` margins place a tile in the specimen grid, so they are not compared.
 - **Not in the draft — 'Your projects'** (user decision 2026-10-29). When projects are registered, they are listed above 'Open a local folder' under the caption 'Your projects'. They use the draft's 'Multiple local checkouts' radio rows (`.ob-choice`, thumbnail, name, path), followed by an sm Use this folder. They were measured with the same rules as the checkout tile.
 - **Not in the draft — clone destination default** (user decision 2026-10-29). The default is `<parent of the most recently registered project>/<repository>`, else `~/<repository>`. Change picks a parent.
@@ -338,6 +339,8 @@ Reference: `.doan/canvases/buzz-onboarding.html` (approved 2026-10-28, F4 comple
 - **Existing folder from the URL path.** Choose existing folder and Use existing folder inspect the folder by path, so main checks no remote for it. The user chose that folder explicitly. Whether the remote check should apply there is the conductor's call (see the U2 handoff).
 
 ### Coverage, limits and regression evidence
+
+- **Markup runs prove the CSS against chosen props only.** They do not prove that `ProjectStepSession` reaches those states (its unit tests do), and they do not show live focus. Tiles compare only the parts the draft draws, and notice margins are not compared inside tiles. Notice spacing inside Project screens was therefore checked only on the repository-error frame.
 
 - **Not measured:**
   - The native vibrancy material itself, reduced transparency and forced colours. DOM screenshots show the transparent overlay as white.
