@@ -63,6 +63,8 @@
 .tile>.doan-notice,.tile>.doan-input{margin-top:var(--space-3)}
 /* Canvas-only: a dialog drawn inside a tile, without the modal position and scrim. */
 .tile .doan-dialog[open]{position:static;inset:auto;margin:0;width:100%;max-height:none}
+/* The tile's own paragraph and heading margins must not reach the buzz-ds dialog parts. */
+.tile .doan-dialog :is(h4,p){margin:0}
 .page-help{display:flex;align-items:center;justify-content:flex-end;gap:var(--space-1);font-size:var(--type-caption-size)}
 
 /* Proposed large primitive size for implementation after draft approval. */
