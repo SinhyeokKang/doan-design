@@ -27,7 +27,7 @@
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1 agent-cli-versions | Claude Code 세션 · Orca worktree `agent-cli-versions-orch`(브랜치 `feat-agent-cli-versions`) | 2026-10-28 | | 진행 중 |
+| 1 agent-cli-versions | Claude Code 세션 · Orca worktree `agent-cli-versions-orch`(브랜치 `feat-agent-cli-versions`) | 2026-10-28 | [PR #34](https://github.com/SinhyeokKang/doan-design/pull/34) · 병합 `e517c22`(2026-10-29) | 완료 |
 | 2 buzz-onboarding | | | | 대기(링크 1 병합 후) |
 
 ## 링크 2가 알아야 할 것 (링크 1, 2026-10-29)
@@ -43,3 +43,4 @@
 
 - 2026-10-28 체인 작성 세션 → 링크 1: 이 파일과 규칙을 main에 push한 뒤 링크 1 세션을 띄운다. 링크 1이 시작 확인을 남기면 체인 작성 세션은 물러난다.
 - 2026-10-28 링크 1 시작: `agent-cli-versions-orch` worktree에서 main `f884c73`으로부터 `feat-agent-cli-versions`를 만들고 `/orchestrate agent-cli-versions`를 시작했다. 체인 작성 세션은 물러나도 된다.
+- 2026-10-29 링크 1 완료: PR #34를 main에 병합했다(`e517c22`). 통합 HEAD `/verify` 통과, 실제 앱 확인(B2) 통과, `/agent-eval`은 사용자 결정으로 생략했다. 미검증: 실제 비호환 handshake의 기록·거절·예약 해제, 버전 원인일 때의 check, 최소보다 새 CLI, 패키지 앱. 모델 교차: 두 배치의 독립 리뷰에 Codex `gpt-6-astra` medium을 썼다. 링크 2가 알아야 할 것은 위 절에 있다. 링크 1 → 링크 2 인계를 시작한다.
