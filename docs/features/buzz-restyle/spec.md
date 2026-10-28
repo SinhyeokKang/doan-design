@@ -1,6 +1,6 @@
 # buzz-restyle — spec (부모)
 
-doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바꾸는 작업의 부모 feature다(2026-10-26 user). 공통 결정, 자식 feature 정의, 공용 조사 내용을 담고, 모든 화면 리디자인이 끝날 때까지 허브로 남는다. 구현 task는 각 자식 feature 문서에 있다. 2026-10-28 기준 `buzz-ds`와 `buzz-shell`은 main에 병합됐고, `buzz-onboarding`은 디자인 승인·HTML 검증·feature-review를 마쳤다. 구현은 별도 기반 기능 `agent-auth` 완료 후 시작한다.
+doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바꾸는 작업의 부모 feature다(2026-10-26 user). 공통 결정, 자식 feature 정의, 공용 조사 내용을 담고, 모든 화면 리디자인이 끝날 때까지 허브로 남는다. 구현 task는 각 자식 feature 문서에 있다. 2026-10-28 기준 `buzz-ds`와 `buzz-shell`은 main에 병합됐고, `buzz-onboarding`은 디자인 승인·HTML 검증·feature-review를 마쳤다. 별도 기반 기능 `agent-auth`는 2026-10-28 main에 병합됐다(PR #33). 온보딩 구현은 2026-10-28 재검토에서 추가된 선행 조건(초안 보완, PRODUCT 기록, CLI 최소 버전 정책)을 따른다.
 
 부모는 `/ship`이나 `/orchestrate`로 진행하지 않는다. 부모 디렉터리는 [tasks.md](./tasks.md)의 마지막 task만 지우고, 자식의 진행은 부모 디렉터리를 지우지 않는다.
 
@@ -62,7 +62,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 - 사용자가 예로 든 `buzz-onboarding`, `buzz-home`, `buzz-search`처럼 화면 하나를 단위로 했다.
 - 디자인 시스템과 공유 요소는 모든 화면이 기대므로 맨 처음이다.
 - 셸은 다른 화면이 모두 그 안에 들어가므로 화면 자식보다 먼저다. 신호등 위치는 창마다 하나라서, Home 헤더 띠까지 셸이 맡는다. 설정 창의 시각 기반은 buzz-ds다. 온보딩은 승인된 AppShell 톤과 agent-auth의 인증/readiness 계약도 선행한다.
-- 대화는 오른쪽 패널과 캔버스 선택 모드를 함께 쓰므로 캔버스와 인스펙터 다음이다. 기반 feature `agent-conversation`(UI 없음)은 이미 main에 들어갔다. 새 계정 기반 실행에는 아직 구현 전인 agent-auth도 필요하다.
+- 대화는 오른쪽 패널과 캔버스 선택 모드를 함께 쓰므로 캔버스와 인스펙터 다음이다. 기반 feature `agent-conversation`(UI 없음)은 이미 main에 들어갔다. 새 계정 기반 실행은 2026-10-28 main에 병합된 agent-auth를 사용한다.
 - 다이얼로그와 토스트의 공용 틀은 `buzz-ds`가 만들고, 화면 하나만 여는 다이얼로그의 내용(Quick Open)은 그 화면의 자식이 맡는다. Hand Off는 `buzz-conversation`이 코멘트와 함께 걷어낸다.
 - 모든 자식은 자기 화면의 빈 상태, 로딩, 오류, 비활성 상태를 목록으로 만들고 각 상태를 바꾼다.
 
