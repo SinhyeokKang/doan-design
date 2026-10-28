@@ -175,6 +175,27 @@ func TestMCPToolList(t *testing.T) {
 		"check":            {"repo"},
 		"skill":            {},
 		"active":           {"repo"},
+
+		"onboarding_start":           {},
+		"onboarding_status":          {"operationId", "sessionId"},
+		"onboarding_check":           {"provider", "requestId", "sessionId", "spendCopilotRequest"},
+		"onboarding_sign_in":         {"provider", "requestId", "sessionId"},
+		"onboarding_cancel":          {"operationId", "requestId", "sessionId"},
+		"onboarding_project_inspect": {"destination", "path", "requestId", "sessionId", "url"},
+		"onboarding_project_select":  {"initialize", "inspectionId", "path", "requestId", "sessionId"},
+		"onboarding_project_clone":   {"destination", "inspectionId", "requestId", "sessionId"},
+		"onboarding_complete":        {"requestId", "sessionId"},
+	}
+	wantRequired := map[string][]string{
+		"resolve_comments":           {"agent", "ids"},
+		"onboarding_status":          {"sessionId"},
+		"onboarding_check":           {"provider", "requestId", "sessionId"},
+		"onboarding_sign_in":         {"provider", "requestId", "sessionId"},
+		"onboarding_cancel":          {"operationId", "requestId", "sessionId"},
+		"onboarding_project_inspect": {"requestId", "sessionId"},
+		"onboarding_project_select":  {"inspectionId", "path", "requestId", "sessionId"},
+		"onboarding_project_clone":   {"destination", "inspectionId", "requestId", "sessionId"},
+		"onboarding_complete":        {"requestId", "sessionId"},
 	}
 	got := map[string][]string{}
 	for _, tool := range list.Tools {
@@ -198,7 +219,7 @@ func TestMCPToolList(t *testing.T) {
 			if k == "ids" || k == "addServe" || k == "removeServe" {
 				typ = "array"
 			}
-			if k == "clearTokenCss" {
+			if k == "clearTokenCss" || k == "spendCopilotRequest" || k == "initialize" {
 				typ = "boolean"
 			}
 			if p["type"] != typ {
@@ -207,10 +228,7 @@ func TestMCPToolList(t *testing.T) {
 		}
 		sort.Strings(keys)
 		sort.Strings(schema.Required)
-		required := []string{}
-		if tool.Name == "resolve_comments" {
-			required = []string{"agent", "ids"}
-		}
+		required := wantRequired[tool.Name]
 		if !reflect.DeepEqual(schema.Required, required) && !(len(required) == 0 && schema.Required == nil) {
 			t.Fatal(tool.Name, schema.Required)
 		}
