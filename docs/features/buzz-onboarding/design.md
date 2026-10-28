@@ -1,12 +1,13 @@
 # buzz-onboarding — design
 
-작성: 2026-10-27. 갱신: 2026-10-28. 시각 디자인은 사용자 승인과 HTML 렌더링 검증을 마쳤다. feature-review의 두 제품 결정을 반영하고 동작·복구 계약을 정리했다. agent-auth의 실제 구현 계약 인수 전에는 구현하지 않는다.
+작성: 2026-10-27. 갱신: 2026-10-28. 시각 디자인은 사용자 승인과 HTML 렌더링 검증을 마쳤다. agent-auth 병합(2026-10-28, PR #33) 뒤 feature-review를 다시 하고 [재검토 결정](#agent-auth-병합-뒤-재검토-2026-10-28)을 반영했다. 초안 보완(tasks F4)이 끝나야 구현한다.
 
 ## 구성과 의존성
 
 `agent-auth`의 상태 read/event revision, signIn/cancel/signOut, 소유 창·attemptId·종료 정리, 비밀 없는 readiness를 인수한다. agent-auth는 2026-10-28 main에 병합됐고 실제 계약은 [ARCHITECTURE §7 'Agent authentication'](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth)에 있다. 온보딩이 처리할 항목은 아래 [agent-auth 인계](#agent-auth-인계-2026-10-28)에 모았다. UI가 자체 OAuth listener·토큰 파일·Keychain을 만들지 않는다.
 
-- `app/src/renderer/Onboarding.tsx`, `onboardingView.ts`: Welcome과 두 설정 단계, 상태별 문구·버튼·포커스.
+- `app/src/renderer/Onboarding.tsx`, `onboardingView.ts`: Welcome과 두 설정 단계, 화면 전이·포커스.
+- 공용 renderer 모듈(위치는 구현 시 `app/src/renderer/` 아래로 정한다): agent-auth 공급자 상태를 문구·버튼·aria로 바꾸는 순수 view-model과 실행 중지(`stop_required`) 확인 대화상자. 온보딩이 첫 소비자이고 buzz-settings·buzz-home·buzz-conversation이 재사용한다(2026-10-28 사용자). CLI/MCP status도 같은 cause·action 어휘를 쓴다.
 - `app/src/main/index.ts`, `app/src/preload/index.ts`: 첫 실행 수명·완료·프로젝트 선택 인계. 인증은 선행 feature의 채널을 재사용한다.
 - `app/src/main/onboarding/machine.ts`: 기존 완료 표식과 외부 설치 기능을 구분한다. Settings의 machine 사용을 보존한다.
 - `app/src/main/addProjects.ts`, `shell.ts`, `view.ts`: 기존 프로젝트 등록·canonical root·초기화·목록 재읽기를 재사용한다. URL 조회·clone은 이번 feature의 main I/O 범위이다.
@@ -14,7 +15,7 @@
 
 ### agent-auth 인계 (2026-10-28)
 
-구현된 agent-auth 계약 중 온보딩이 처리해야 하는 사실만 모았다. 이 목록은 설계를 바꾸지 않는다. 이 문서의 기존 가정과 다른 점은 이어지는 `/feature-review`에서 대조한다. 정본은 [ARCHITECTURE §7 'Agent authentication'](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth)와 [PRODUCT §3 In scope 7](../../PRODUCT.md#3-scope)이다.
+구현된 agent-auth 계약 중 온보딩이 처리해야 하는 사실만 모았다. 이 문서의 기존 가정과 다른 점은 2026-10-28 feature-review에서 대조했고, 결과는 아래 재검토 절에 있다. 정본은 [ARCHITECTURE §7 'Agent authentication'](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth)와 [PRODUCT §3 In scope 7](../../PRODUCT.md#3-scope)이다.
 
 - API: 주 창 `window.doan`과 Settings `window.doanSettings`에 같은 계정 메서드가 있다. `readAgentAuth`, `onAgentAuth`(revision이 더 큰 snapshot만 전달), `checkAgentAuth`, `signInAgent(provider, {stop?})`, `signOutAgent(provider, {stop?})`, `cancelAgentSignIn`, `submitAgentSignInCode`, `openAgentSignInLink`, `onAgentSignInPrompt`이다. 채널은 `agent-auth:read|check|sign-in|cancel|submit-code|open-link|sign-out`, 이벤트는 `agent-auth:changed|prompt`이다. `readAgentAuth`가 `null`이면 인증 저장소를 읽지 못한 상태이고 다른 인증 호출은 모두 거부된다.
 - 복구 동작: 다음 행동은 공급자 상태의 `readiness.action`(install·update·retry·wait·signOut·signIn·reauth·repair)으로 정한다. 대화 오류 `not_logged_in`은 원인을 구분하지 않는다. 버튼 후보는 `actions`(signIn·cancel·retry·reauth·signOut)이다.
@@ -32,7 +33,7 @@
 
 Welcome → Agent → Project → Home이다. 에이전트와 프로젝트가 각각 최소 하나 필요하며 Skip·첫 프롬프트·완료 축하 단계를 추가하지 않는다. 다섯 공급자는 Claude Code, Codex, Cursor, Antigravity, GitHub Copilot 순서이다. 플랫폼별 계정은 하나다.
 
-브라우저 인증 중 상태는 agent-auth가 소유한다. 연결됨과 실행 준비됨을 구분한다. 2026-10-28 사용자 확정: 최소 한 공급자가 agent-auth의 ready일 때만 Agent 진행과 온보딩 완료를 허용한다. 로그인·보안 저장·계정 식별·지원 실행 버전·도구 준비가 필요하며 실제 모델 요청이나 유료 구독은 확인하지 않는다. renderer 읽기와 이벤트는 revision으로 합치며, 화면·프로젝트 선택이 바뀐 뒤 도착한 이전 검사 결과는 폐기한다. 취소는 해당 창이 시작한 인증 시도만 대상으로 한다.
+브라우저 인증 중 상태는 agent-auth가 소유한다. 연결됨과 실행 준비됨을 구분한다. 2026-10-28 사용자 확정: 최소 한 공급자가 agent-auth의 ready일 때만 Agent 진행과 온보딩 완료를 허용한다. 진행 조건은 `providers.some(p => p.readiness.ready)` 하나이며 온보딩이 readiness를 다시 판정하지 않는다. 계정 ID는 요구하지 않고 유료 구독도 확인하지 않는다. 인증 snapshot의 revision은 preload `onAgentAuth`가 이미 거른다. 온보딩은 자기 세션 revision만 따로 두고 status에서 둘을 구분해 반환한다. `onAgentAuth`는 `null`을 전달하지 않으므로 저장소를 읽지 못한 상태는 `readAgentAuth`로 판정한다. 화면·프로젝트 선택이 바뀐 뒤 도착한 이전 검사 결과는 폐기한다. 취소는 해당 창이 시작한 인증 시도만 대상으로 한다.
 
 프로젝트 초기화 성공 응답만으로 홈에 보내지 않고 main의 정상 프로젝트 재읽기와 등록 결과를 확인한다. canonical root를 홈의 선택 컨텍스트로 넘기며 대화·Canvas는 자동 생성하지 않는다. 홈 UI는 buzz-home 담당이다. 중간 종료는 완료로 기록하지 않는다.
 
@@ -52,31 +53,31 @@ URL 정규화와 실제 폴더 identity를 분리한다. GitHub HTTPS/SSH 표기
 
 기존 `{}`는 단순 닫힘 표식이므로 새 완료 증거로 사용하지 않는다. 새 앱 로컬 완료 기록은 `{v: 1, completed: true, projectRoot: <canonical root>}`로 한다. 중간 scene·URL·토큰은 저장하지 않는다. 기존 객체·손상·미지 버전은 완료로 인정하지 않으며, 알려진 기존 표식만 새 완료 성공 시 교체한다. 손상된 파일은 완료 요청에서 원본을 별도 백업으로 보존한 뒤 새 기록을 쓴다. 백업 실패 시 원본을 유지하고 저장 실패로 반환한다. 미지 버전은 덮어쓰지 않고 호환되는 앱으로 열라는 안내를 반환한다. 동일한 실패에 Retry만 반복시키지 않는다. 완료 저장용 임시 파일과 rename은 기존 machine의 방식을 재사용한다.
 
-완료 요청은 main에서 현재 ready와 선택 root를 재확인한다. 정상 프로젝트 재읽기 → 중복 없는 등록 → 완료 기록 저장 → 홈 선택 인계 순서이다. 기록 저장 실패는 Project에 남고 정상 등록된 프로젝트를 유지한다. Retry는 현재 상태를 재확인한 뒤 미완료 저장·인계만 이어간다. 이미 성공한 clone·초기화·등록을 다시 수행하지 않는다. 원자적 완료 기록 교체가 완료 시점이다. 그 직전에도 취소 여부와 ready/root를 재확인한다. 그 전에 종료가 접수되면 완료 기록을 쓰지 않으며, 그 뒤 홈 인계 전에 종료되면 이미 완료됐으므로 다음 실행은 홈이다. 성공한 새 완료 기록으로 다음 실행에서는 온보딩을 반복하지 않는다. 이후 인증 만료는 일반 연결 상태로 처리한다.
+완료 요청은 main에서 현재 ready와 선택 root를 재확인한다. 정상 프로젝트 재읽기 → 등록 확인 → 완료 기록 저장 → 홈 선택 인계 순서이다. 완료 재확인은 상태 읽기만 하고 `check`를 호출하지 않는다. 기록 저장 실패는 Project에 남고 정상 등록된 프로젝트를 유지한다. Retry는 현재 상태를 재확인한 뒤 미완료 저장·인계만 이어간다. 이미 성공한 clone·초기화·등록을 다시 수행하지 않는다. 원자적 완료 기록 교체가 완료 시점이다. 그 직전에도 취소 여부와 ready/root를 재확인한다. 그 전에 종료가 접수되면 완료 기록을 쓰지 않으며, 그 뒤 홈 인계 전에 종료되면 이미 완료됐으므로 다음 실행은 홈이다. 성공한 새 완료 기록으로 다음 실행에서는 온보딩을 반복하지 않는다. 이후 인증 만료는 일반 연결 상태로 처리한다.
 
 ## 이동·취소·포커스 계약
 
 | 동작 | 결과 |
 |---|---|
 | Back·완료 단계 스테퍼 | 이전 단계로 이동하며 저장된 연결과 프로젝트 선택을 유지한다. 소유 인증 시도가 있으면 agent-auth 취소 응답과 최신 상태를 반영한다. UI가 저장된 연결을 임의로 로그아웃하지 않는다. |
-| 인증 대기·저장 중 Cancel | 소유 attempt의 cancel만 호출한다. 이미 저장된 성공과 취소가 경합하면 backend의 최신 상태를 표시한다. 늦은 성공을 UI가 독자적으로 연결로 승격하지 않는다. |
-| 실행 준비 중 Back | 이전 단계로 이동하고 저장된 인증을 유지한다. 준비 작업의 수명과 정리는 agent-auth 소유 계약을 따른다. 복귀 때 상태를 다시 읽는다. |
+| 인증 대기 중 Cancel | 소유 attempt의 cancel만 호출한다. 이미 저장된 성공과 취소가 경합하면 backend의 최신 상태를 표시한다. 늦은 성공을 UI가 독자적으로 연결로 승격하지 않는다. |
+| 다른 공급자 ready 상태의 Continue | 주 창이 소유한 진행 중 로그인을 취소하고 Project로 이동한다(2026-10-28 사용자). |
 | clone 중 Cancel | 소유 프로세스 그룹 종료와 정리를 기다린다. 정리 중 새 clone·위치 변경을 막고, 정리 완료 뒤 재시도를 허용한다. |
 | 초기화·완료 저장 중 | 중복 제출·Back을 막는다. 결과 이후 포커스를 유효한 복구/이동 액션으로 옮긴다. |
 | 자식 폴더 대화상자 Escape | 자식만 닫고 호출 버튼으로 포커스를 돌린다. |
 | 최상위 Escape | 미완료 온보딩을 닫거나 홈으로 보내지 않는다. |
 | Cmd+W·신호등 닫기 | 기존 AppShell대로 창을 숨기고 같은 세션·입력을 유지한다. 완료 기록을 쓰지 않는다. 실제 창 파괴와 구분한다. |
-| Cmd+Q·실제 창 종료 | 소유 인증/clone 작업을 취소·정리한다. 중간 종료는 완료로 저장하지 않는다. 재실행은 Welcome이다. |
+| Cmd+Q·실제 창 종료 | 인증 시도는 agent-auth의 `AuthManager.quit`이 정리하고, 온보딩은 소유 clone 작업만 정리한다. 중간 종료는 완료로 저장하지 않는다. 재실행은 Welcome이다. |
 
 단계 전환은 제목으로 포커스를 옮긴 뒤 Tab으로 컨트롤에 진입하게 한다. 현재 포커스 버튼이 비활성화/제거되면 해당 상태의 안내 또는 첫 사용 가능한 복구 버튼으로 옮긴다. 오류는 role=alert, 로딩은 role=status로 한 번 알리고 스피너는 aria-hidden이다. 폴더 선택 취소와 자식 오류는 호출 위치로 복귀한다.
 
-외부 브라우저·설치 페이지·터미널에서 앱으로 복귀하면 연결과 readiness를 다시 읽는다. 입력·선택은 유지한다. 복귀 자체가 clone이나 GitHub 조회를 자동 실행하지는 않는다. 저장소 접근은 Retry, 인증은 최신 backend 이벤트/조회 결과로 갱신하며 모든 읽기에는 revision·선택 세대를 적용한다.
+외부 브라우저·설치 페이지에서 앱으로 복귀하면 연결과 readiness를 다시 읽는다. 설치·업데이트 페이지에서 돌아오거나 Agent 단계에 들어오면 Copilot을 뺀 connected·unverified·도구 확인 필요 공급자는 `checkAgentAuth`로 다시 확인한다. Copilot은 Retry 클릭 때만 확인한다. 로그인이 끝나도 창을 앞으로 가져오거나 Dock을 튀우지 않는다. 창이 다시 focus되면 'Claude Code connected'처럼 role=status로 한 번 알리고 포커스를 Continue로 옮긴다(2026-10-28 사용자). 입력·선택은 유지한다. 복귀 자체가 clone이나 GitHub 조회를 자동 실행하지는 않는다. 저장소 접근은 Retry, 인증은 최신 backend 이벤트/조회 결과로 갱신하며 모든 읽기에는 revision·선택 세대를 적용한다.
 
 ## GitHub 조회·clone 실행 계약
 
 GitHub.com의 owner/repository 루트 URL을 받는다: `https://github.com/owner/repository[.git]`, `git@github.com:owner/repository[.git]`, `ssh://git@github.com/owner/repository[.git]`. 마지막 slash는 허용한다. 임의 host·port·credential·query·fragment·추가 경로와 옵션처럼 해석될 문자열은 거부한다. 입력을 셸 문자열로 조합하지 않고 검증한 인수 배열로 실행한다.
 
-등록 프로젝트의 remote들을 읽어 같은 GitHub identity인지 확인하며, canonical root 기준으로 후보를 중복 제거한다. remote 일치가 여러 개여도 하나의 폴더 후보이다. 여러 checkout은 사용자 선택을 받는다. git remote 조회 실패를 불일치로 단정하지 않는다. 사용자가 직접 고른 폴더의 동일성·접근은 실행 직전 다시 확인한다.
+등록 프로젝트의 remote들은 git을 실행하지 않고 `.git/config`(worktree면 commondir의 config)를 직접 파싱해 읽는다(2026-10-28 사용자, POSTMORTEM 2026-10-25 'Eval inspection executed repository-configured helpers'). git 실행은 승인된 clone 하나뿐이며, clone은 hook을 끄고 비대화식으로 login shell PATH의 git으로 한다. 읽은 remote가 같은 GitHub identity인지 확인하며, canonical root 기준으로 후보를 중복 제거한다. remote 일치가 여러 개여도 하나의 폴더 후보이다. 여러 checkout은 사용자 선택을 받는다. config 읽기 실패를 불일치로 단정하지 않는다. 사용자가 직접 고른 폴더의 동일성·접근은 실행 직전 다시 확인한다.
 
 Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직접 읽거나 저장하지 않는다. gh가 구성한 Git credential helper도 기존 인증으로 사용한다. 신규 GitHub OAuth·gh 로그인 실행·Copilot 토큰 재사용은 하지 않는다. 실행 중 터미널/askpass 입력을 기다리지 않도록 비대화식으로 호출한다. SSH는 BatchMode이며 호스트 키 검사를 끄지 않는다. 인증·권한·네트워크 등의 stderr 원문에서 비밀을 노출하지 않고 접근 실패 안내로 반환한다.
 
@@ -86,7 +87,7 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 
 ## 로컬 선택·초기화 연결
 
-기존 `onboarding:open-project`의 stored/choose/confirm/refused/cancelled와 단일 선택 후보 흐름을 재사용한다. 상위 폴더에서 여러 Git 리포를 발견하면 하나를 고르게 하며 부모를 자동 등록하지 않는다. 비리포 폴더는 기존 확인·초기화 경로를 따른다. 취소는 이전 선택을 보존하고 새 선택을 확정하지 않는다.
+기존 `onboarding:open-project`의 stored/choose/confirm/refused/cancelled와 단일 선택 후보 흐름을 재사용한다. 등록은 기존 동작대로 선택 시점에 `flow.add`로 한다. complete는 정상 재읽기와 등록 확인만 하고 다시 등록하지 않는다. 상위 폴더에서 여러 Git 리포를 발견하면 하나를 고르게 하며 부모를 자동 등록하지 않는다. 비리포 폴더는 기존 확인·초기화 경로를 따른다. 폴더 선택 대화상자를 취소하면 이전 선택을 보존한다.
 
 기존 초기화의 canonical root·상위 프로젝트 재확인·설정 손상 거부를 유지한다. Token CSS 선택을 온보딩에 추가하지 않고 기존 프로젝트 설정에 남긴다. 성공 응답 후 정상 재읽기와 등록까지 확인한다. 실패 재시도는 이미 존재하는 정상 설정을 재사용하고 다른 파일을 덮어쓰지 않는다.
 
@@ -112,7 +113,7 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 - 나머지 화면은 `buzz-shell.html`과 같은 wallpaper fixture와 surface-panel 55%·blur(32px) saturate(.8) 재질로 표현한다. 외곽 여백은 없다. 앱 구현은 기존 native vibrancy="sidebar"를 재사용한다. HTML은 시각 근사이며 native 재질 측정값이 아니다. reduced-transparency에서는 불투명 배경이다.
 - 크롬은 56px이다. AppShell 형태의 캡슐을 Agent·Project 스테퍼로 재사용한다. 현재 단계는 흰 pill·aria-current, 완료 단계는 체크·돌아가기, 진행 불가는 disabled이다. Welcome에는 스테퍼가 없다.
 - 모든 화면 타이틀과 캡션은 가운데 정렬한다. 행·폼은 왼쪽 정렬이다. 버튼·입력창은 기존 불투명 subtle/surface-inset을 유지한다. Back은 arrow-left, 다음 이동은 arrow-right를 쓴다. 제출 액션은 오른쪽에 배치한다.
-- Sign in은 prominent이다. 연결되면 같은 버튼을 disabled로 유지하고 이름 아래 `Connected · 계정 식별자`를 전체 표시한다. 긴 계정은 줄바꿈하며 별도 Connected 배지는 없다. 초안 계정은 예시다.
+- 첫 버튼(Install·Update·Sign in)은 prominent이다. 연결되면 Sign in을 disabled로 유지하고 이름 아래 `Connected · 계정 식별자`를 전체 표시한다. 계정 표시값이 없으면(Codex·Antigravity) `Connected`만 쓴다. 조직 UUID가 없는 Claude는 Connected 대신 재인증 notice를 보인다. 확인 전(unverified)에는 `Connected · not checked`와 Retry를 보이고, Copilot Retry 옆에는 'Uses one Copilot request'를 붙인다. 로그아웃 실패·재인증 상태에서만 Sign out·Sign in again 복구 버튼을 둔다. 긴 계정은 줄바꿈하며 별도 Connected 배지는 없다. 초안 계정은 예시다.
 - 공급자 로고는 로컬 자산이며 출처는 `.doan/assets/provider-logos/README.md`에 있다. Codex는 OpenAI 공식 조직 마크를 쓴다.
 - 프로젝트·공급자 카드: 제목 14px/20px·500, 설명 12px/20px·text-metadata, 제목/설명 간격 2px, 콘텐츠 gap 12px, 패딩 16px, 최소 높이 72px이다. 썸네일은 32px 슬롯 안 28px이다.
 - 프로젝트 썸네일은 ShellSidebar의 projectHue 이름 해시·8색·첫 Unicode 글자 대문자 규칙을 쓴다. 배경은 identity 색 14%와 surface-panel, 글자는 identity 색 65%와 text-standard를 혼합한다. 글자 17px·600, 모서리 7px이다. 이 색 규칙은 구현 시 사이드 네비에도 공통 적용한다.
@@ -122,7 +123,7 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 
 ## 상태 인계
 
-인증 상태 표: 브라우저 대기, 중단, 미설치, 재인증, 긴 계정, 상태 읽기 실패, 상태 확인 중, 저장 중/실패, 미지원 버전, 다른 로그인 진행 중, 브라우저 열기 실패, 실행 준비 중/실패.
+인증 상태 표(현재 초안): 브라우저 대기, 중단, 미설치, 재인증, 긴 계정, 상태 읽기 실패, 상태 확인 중, 저장 중/실패, 미지원 버전, 다른 로그인 진행 중, 브라우저 열기 실패, 실행 준비 중/실패. agent-auth에는 '저장 중'과 '실행 준비 중' phase가 없으므로 F4에서 지운다. '실행 준비 실패'는 도구 확인 실패(`tools_missing`·`tools_failed` → repair, `check`)로 바꾼다. F4가 추가할 상태는 아래 재검토 절의 상태 대응 표에 있다.
 
 프로젝트 상태 표: 여러 checkout, clone 중, 초기 설정, remote 불일치, 폴더 사라짐, 목적지 충돌, URL 오류, 설정 실패, URL 조회 중/수정, clone 실패/취소/정리, 프로젝트 준비 중, 완료 저장 중/실패, 에이전트 만료, 설정 읽기 실패, Git 미설치.
 
@@ -153,6 +154,8 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 - **The onboarding wizard lost keys and clicks to focus and modal stacking** (2026-10-24): “do not assume focus stays inside after a control disables itself”. 중첩 폴더 선택·오류·비활성 버튼 뒤 키보드 복구를 실제 앱에서 확인한다.
 - **Init published success before merge setup could fail** (2026-10-25): “stage the complete config, finish attributes, then publish”. 설정 응답과 정상 목록 반영을 모두 확인한 뒤 완료로 표시한다.
 - **Setup writes to missing targets could overwrite a competitor** (2026-10-24): “create missing targets exclusively and keep rename only for confirmed replacements”. 신규 경로 생성의 경쟁과 외부 파일 보존을 검증한다.
+- **Eval inspection executed repository-configured helpers** (2026-10-25): 사용자 레포에서 git을 실행하면 fsmonitor·hook·filter가 실행된다. remote는 `.git/config`를 직접 읽는다.
+- **Claude sign-in surfaced a manual-code link** (2026-10-28, agent-auth): 공급자 CLI가 출력하는 링크와 브라우저로 여는 링크가 다를 수 있다. 공급자별로 열린 탭 수를 V1에서 기록한다.
 
 
 ## CLI·MCP 온보딩 — 2026-10-28 추가 승인
@@ -161,7 +164,7 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 
 ### 설치 직후 진입
 
-가이드에는 설치 위치에 맞는 `<Doan.app>/Contents/Resources/bin/doan onboarding start --json`과 같은 번들 CLI 진입을 안내한다. 예시는 경로에 공백이 있으면 전체 executable 경로를 따옴표로 감싼다. PATH 등록·MCP 등록·skill 설치·프로젝트 설정은 필요 없다. CLI help/skill도 프로젝트 없이 읽을 수 있다. MCP가 이미 등록돼 있다면 onboarding_start부터 동일하게 사용한다. 외부 에이전트 설정을 자동 변경하는 새 단계는 추가하지 않는다.
+가이드에는 설치 위치에 맞는 `<doan.app>/Contents/Resources/bin/doan onboarding start --json`과 같은 번들 CLI 진입을 안내한다. 예시는 경로에 공백이 있으면 전체 executable 경로를 따옴표로 감싼다. PATH 등록·MCP 등록·skill 설치·프로젝트 설정은 필요 없다. CLI help/skill도 프로젝트 없이 읽을 수 있다. MCP가 이미 등록돼 있다면 onboarding_start부터 동일하게 사용한다. 외부 에이전트 설정을 자동 변경하는 새 단계는 추가하지 않는다.
 
 start는 먼저 지정 runtime을 확인한다. 앱이 실행 중이면 숨겨진 기존 창도 표시하고 같은 온보딩 세션을 반환한다. 입력을 초기화하지 않는다. 명시적 DOAN_RUNTIME이 없고 앱이 꺼져 있을 때만 CLI 실제 경로에서 검증한 소속 .app을 한 번 visible launch하고 최대 15초 동안 runtime 준비를 확인한다. 이 15초는 bootstrap 제한이며 OAuth/clone 시간 제한이 아니다. 독립/개발 CLI는 다른 설치본을 검색하지 않고 앱 실행 안내를 반환한다. 명시적 DOAN_RUNTIME의 누락·손상·접속 실패, 권한 거부·프로토콜 불일치를 기본 앱 실행으로 우회하지 않는다. 기존 active는 자동 실행하지 않는다.
 
@@ -173,24 +176,25 @@ start는 먼저 지정 runtime을 확인한다. 앱이 실행 중이면 숨겨�
 |---|---|---|
 | `doan onboarding start` | `onboarding_start` | 앱/온보딩 세션 확보. 기존 세션을 재사용하고 sessionId·현재 revision·상태 반환 |
 | `doan onboarding status --session <id> [--operation <id>]` | `onboarding_status` | 연결/readiness·프로젝트·진행 작업·완료/실패 조회. OAuth·clone 완료를 기다리지 않음 |
-| `doan onboarding sign-in --session <id> --provider <id> --request <id>` | `onboarding_sign_in` | 지원 5개 공급자 중 하나의 로그인 요청. main이 시스템 브라우저를 열고 operationId 반환 |
+| `doan onboarding check --session <id> --provider <id> [--spend-copilot-request] --request <id>` | `onboarding_check` | 저장된 연결 다시 확인(재시작 뒤 unverified). Copilot은 모델 요청 1회를 쓰므로 명시 플래그 없이는 거부 |
+| `doan onboarding sign-in --session <id> --provider <id> --request <id>` | `onboarding_sign_in` | 지원 5개 공급자 중 하나의 로그인 요청. 링크 열기는 UI와 같은 공급자별 규칙을 따르고 operationId 반환. 실행 중 대화가 있으면 `stop_required`, 다른 로그인 중이면 `busy`를 반환하며 중단 확인은 앱 UI에서만 한다 |
 | `doan onboarding cancel --session <id> --operation <id> --request <id>` | `onboarding_cancel` | 지정된 현재 세션 작업만 취소. 계정 로그아웃이나 모든 프로세스 종료가 아님 |
 | `doan onboarding project inspect --session <id> (--path <absolute>|--url <github-url> [--destination <absolute>]) --request <id>` | `onboarding_project_inspect` | 경로·리포 검사, 후보·필요 초기화 변경 계획·검사 ID 반환. GitHub 조회는 operation으로 진행 |
 | `doan onboarding project select --session <id> --inspection <id> --path <absolute> [--initialize] --request <id>` | `onboarding_project_select` | 최신 검사 후보를 선택. 초기화가 필요한 경우 --initialize로 계획된 설정 생성을 명시하며 기본값으로 파일을 만들지 않음 |
 | `doan onboarding project clone --session <id> --inspection <id> --destination <absolute> --request <id>` | `onboarding_project_clone` | 목적지까지 검사한 inspection의 리포를 해당 위치에 clone. 목적지/초기화 계획을 확인하고 명시적으로 요청함 |
 | `doan onboarding complete --session <id> --request <id>` | `onboarding_complete` | 현재 ready·선택 root·정상 재읽기·등록·완료 저장 검증 후 홈 인계 |
 
-작업이 필요한 응답은 accepted와 operationId를 반환한다. 상태는 pending/running/awaiting_user/succeeded/failed/cancelled로 구분하고, 사용자 브라우저 승인이 필요하다는 사실만 알린다. callback 인증 코드·OAuth 원문·소켓 토큰·credential 경로·stderr 원문은 반환하지 않는다. 브라우저 다시 열기는 앱의 승인된 인증 UI를 사용한다. 계정 표시 이름과 프로젝트 경로는 기능에 필요한 비밀 없는 DTO로만 반환한다.
+작업이 필요한 응답은 accepted와 operationId를 반환한다. 상태는 pending/running/awaiting_user/succeeded/failed/cancelled로 구분하고, 사용자 브라우저 승인이 필요하다는 사실만 알린다. callback 인증 코드·OAuth 원문·소켓 토큰·credential 경로·stderr 원문은 반환하지 않는다. 브라우저 다시 열기와 Antigravity 주소 붙여넣기는 앱의 인증 UI를 사용한다. 계정 email·표시 이름은 반환하지 않고 공급자·phase·readiness cause·action·오류 코드만 반환한다(2026-10-28 사용자). 프로젝트 경로는 기능에 필요한 비밀 없는 DTO로만 반환한다.
 
 CLI가 native folder picker를 기다리지는 않는다. inspect에서 미설정 폴더의 `.doan/config.json`·`.doan/canvases/`·`.gitattributes` 변경 계획을 반환하고 select --initialize 또는 clone 요청으로 사용자의 setup 의도를 명시한다. 검사 후 root/URL/목적지가 바뀌면 stale로 거부해 재검사한다. clone 후 초기화도 같은 main 경로로 처리하며 임의 tokenCss·serve·실행 파일·config 경로를 인수로 받지 않는다.
 
 ### 동일 상태·소유권·재시도
 
-main 온보딩 세션이 작업을 소유한다. CLI 프로세스 종료·MCP 연결 해제·status 소켓 종료는 작업 취소가 아니다. UI와 인증된 로컬 CLI/MCP는 같은 사용자의 같은 온보딩 세션을 조작할 수 있고, 지정 operationId를 통해 해당 세션 작업을 취소할 수 있다. 서로 다른 세션의 취소는 거부한다. agent-auth의 기존 소유 창/attempt 검사를 우회하지 않고 main 세션 어댑터가 동일 소유 창의 인증 요청으로 위임한다. 이 인터페이스로 Settings나 다른 대화 소유 작업을 취소하지 않는다.
+main 온보딩 세션이 작업을 소유한다. CLI 프로세스 종료·MCP 연결 해제·status 소켓 종료는 작업 취소가 아니다. UI와 인증된 로컬 CLI/MCP는 같은 사용자의 같은 온보딩 세션을 조작할 수 있고, 지정 operationId를 통해 해당 세션 작업을 취소할 수 있다. 서로 다른 세션의 취소는 거부한다. agent-auth의 기존 소유 창/attempt 검사를 우회하지 않는다. CLI/MCP로 시작한 로그인의 소유자는 주 창 `webContents.id`이다. start가 주 창의 존재를 보장하고, 주 창 renderer가 사라지면 시도는 취소된다. 어댑터는 `authIpc.handle(..., mainOwner)`로 시작·취소·링크 열기를 위임하고, prompt는 main의 `onPrompt` 경로에 tap을 추가해 받는다(agent-auth `index.ts` 연결부 변경). 링크 자동 열기는 UI와 같다. 첫 prompt에서 Claude·Codex·Antigravity는 main이 열고, Cursor·Copilot은 CLI가 이미 열었으므로 열지 않는다(2026-10-28 사용자). 어댑터는 operationId→attemptId map을 보관해, CLI cancel이 같은 주 창 소유의 다른 로그인을 취소하지 못하게 한다. 이 인터페이스로 Settings나 다른 대화 소유 작업을 취소하지 않는다.
 
 로그인 쓰기와 프로젝트 변경은 기존 잠금·generation을 공유한다. UI 변경도 revision을 올려 오래된 CLI 검사 결과를 무효화한다. 요청별 requestId는 현재 session에서 중복 제거한다. 같은 ID·같은 인수 재전송은 원래 operation/결과를 반환하고, 같은 ID·다른 인수는 거부한다. 클라이언트는 응답 유실을 새 ID로 맹목 재실행하지 않고 같은 ID로 재조회한다. 앱 재시작은 새 sessionId이며 예전 operation은 stale/not-found이다. 영구 작업 큐나 clone 자동 재개는 만들지 않는다.
 
-앱 종료는 기존처럼 소유 인증·clone을 정리한다. 완료 이후 상태 조회는 완료를 반환하며 start가 완료된 사용자를 자동 재온보딩시키지 않는다. 미완료 재시작은 사용자 결정대로 Welcome이다. agent는 start/status로 상태를 읽고 준비된 단계를 명시적으로 진행할 수 있다.
+앱 종료는 기존처럼 소유 인증·clone을 정리한다. 완료 이후 상태 조회는 완료를 반환하며 start가 완료된 사용자를 자동 재온보딩시키지 않는다. 완료 뒤에도 sign-in·check·project·complete 쓰기 작업은 열어 둔다(2026-10-28 사용자). `DOAN_RUNTIME`이 도안 계정 실행의 child env에 들어가므로 앱 안에서 실행되는 에이전트도 이 작업을 호출할 수 있다. 이 위험은 수용했고, 로그인 승인과 clone 목적지는 여전히 사람이 브라우저와 명시 인수로 정한다. 미완료 재시작은 사용자 결정대로 Welcome이다. agent는 start/status로 상태를 읽고 준비된 단계를 명시적으로 진행할 수 있다.
 
 ### socket과 공유 schema
 
@@ -200,4 +204,56 @@ runtime.v1의 socket/token 구조·0600 파일·0700 socket 디렉터리·인증
 
 OAuth·clone·Git 조회는 main 작업으로 시작하고 빠르게 ID를 돌려준다. 소켓 응답 안에서 작업 종료를 기다리지 않고 기존 짧은 제한을 유지한다. 허용 operation만 서비스에 연결하며 임의 IPC·셸 명령은 허용하지 않는다.
 
-구현 경로: 기존 `cli/internal/cli/{run,mcp,active}.go`의 파싱/전송·가이드, `app/src/main/runtime.ts`, main 온보딩 서비스, preload 상태 구독, `app/src/formats/{types,validate}.ts`, `cli/internal/formats/`의 검증. 새 schema와 `schema/fixtures/app-socket-v2/{valid,invalid}/`는 계획된 신규 파일이다. TS/Go가 동일 fixture를 검증해야 한다. 오류는 인증 실패·busy·stale·cancelled·프로토콜 불일치·앱 실행 실패·프로젝트/완료 저장 실패를 구분하고 CLI 종료 코드와 MCP isError의 매핑을 명세/fixture로 고정한다.
+구현 경로: 기존 `cli/internal/cli/{run,mcp,active}.go`의 파싱/전송·가이드, `app/src/main/runtime.ts`, main 온보딩 서비스, preload 상태 구독, `app/src/formats/{types,validate}.ts`, `cli/internal/formats/`의 검증. 새 schema와 fixture는 기존 구조를 따라 `schema/fixtures/app-socket/{request,response}/{valid,invalid}/`에 v2 파일로 추가한다. ARCHITECTURE §11의 등록 파일 목록도 갱신한다. renderer용 새 IPC(complete·inspect·clone·cancel·check)는 socket v2 DTO와 같은 타입을 쓰고 `senderAllowed`의 mainOnly에 추가한다. TS/Go가 동일 fixture를 검증해야 한다. 오류는 인증 실패·busy·stale·cancelled·프로토콜 불일치·앱 실행 실패·프로젝트/완료 저장 실패를 구분하고 CLI 종료 코드와 MCP isError의 매핑을 명세/fixture로 고정한다.
+
+## agent-auth 병합 뒤 재검토 (2026-10-28)
+
+### 결정
+
+- 재시작 뒤 확인: Agent 진입과 설치·업데이트 복귀 때 Copilot 외 공급자는 자동 `check`, Copilot은 Retry 클릭 때만 확인하고 비용을 표시한다. CLI에는 `onboarding check`를 추가하고 Copilot은 명시 플래그를 요구한다(사용자).
+- 첫 버튼: CLI 없음 → Install, 설치 버전이 지원 최소 버전보다 낮음 → Update, 그 밖 → Sign in이다(사용자). 정확한 버전 고정을 '확인된 최소 버전 + 실행 시 호환 검사'로 바꾸는 별도 feature `agent-cli-versions`가 선행한다(사용자, PRODUCT 기록은 그 feature가 한다). 순서는 `agent-cli-versions` orchestrate → 병합 → 이 feature orchestrate → 병합이다(사용자). 다섯 공급자의 Install·Update 안내 URL은 F4 전에 정한다. Antigravity는 도안이 서버를 내려받으므로 Install이 없다.
+- 복구 버튼: 로그아웃 실패·재인증 상태에서만 Sign out·Sign in again을 둔다. 실행 중 대화가 있으면 `stop_required` 확인 대화상자 뒤 `stop: true`로 다시 보낸다(사용자).
+- 링크 열기: 첫 prompt에서 Claude·Codex·Antigravity는 main이 자동으로 연다. Cursor·Copilot은 자동으로 열지 않고 'Open again'과 'A browser tab may already be open'만 둔다. CLI/MCP로 시작한 로그인도 주 창이 소유한다(사용자).
+- Antigravity 주소 붙여넣기: 대기 화면의 "Page didn't load?" 보조 버튼이 입력창 하나와 Submit·Cancel이 있는 모달을 연다. 입력은 16,384자 이하이고, Escape는 모달만 닫고 포커스를 보조 버튼으로 돌린다(사용자).
+- 인증 저장소를 읽지 못함: 오류 안내와 Try again만 둔다. 저장소 초기화는 만들지 않는다(사용자).
+- Continue: 다른 공급자가 ready이면 진행 중인 소유 로그인을 취소하고 넘어간다(사용자).
+- CLI/MCP status는 계정 email·표시 이름을 반환하지 않는다(사용자).
+- socket v2 쓰기 작업은 완료 뒤에도 열어 둔다(사용자).
+- view-model과 stop 확인 대화상자는 처음부터 공용 renderer 모듈로 만든다(사용자).
+- remote 확인은 `.git/config` 직접 파싱이다(사용자).
+- 로그인 완료 알림은 창이 다시 focus될 때 role=status 한 번이다. 창 활성화나 Dock bounce는 없다(사용자).
+- 온보딩 창이 열려 있는 동안 Settings는 열리지 않는다(PRODUCT §5 기존 결정). 따라서 Settings 소유 로그인과의 경쟁은 온보딩 중에는 생기지 않는다. 다만 `busy`·`not_owner` 응답 처리는 공용 view-model에 둔다(지휘자 판단).
+
+### 상태 대응 표
+
+F4 초안 보완과 A2 fixture의 기준이다. 문구는 F4에서 영어로 확정한다.
+
+| agent-auth 입력 | 화면 상태 | 첫 버튼·액션 | 알림 |
+|---|---|---|---|
+| readiness cause `cli_missing` | 미설치 | Install(안내 URL), 복귀 시 check | 없음 |
+| `version_unsupported`(최소 버전 미만) | 업데이트 필요 | Update(안내 URL), 복귀 시 check | 없음 |
+| `version_unknown` | 버전 확인 실패 | Retry(check) | role=alert |
+| `tools_missing`·`tools_failed` | doan 도구 확인 실패 | Check again(check) | role=alert |
+| phase `signingIn`, prompt 전 | 링크 준비 중(Antigravity 첫 로그인은 내려받기 포함) | Open browser disabled, Cancel | role=status |
+| phase `signingIn`, prompt 후 | 브라우저 대기(Cursor·Copilot은 탭이 이미 열렸을 수 있음) | Open again, Cancel, Antigravity는 "Page didn't load?" | role=status |
+| 사용자 취소 | 오류 없이 Sign in으로 복귀 | Sign in | role=status 한 번 |
+| error `sign_in_failed` | 로그인 실패. 같은 공급자에서 연속되면 보조 안내 | Sign in | role=alert |
+| error `network` | 연결 실패 | Sign in | role=alert |
+| error `storage_failed` | 보안 저장 실패. Keychain 접근 허용 안내 | Sign in | role=alert |
+| error `cli_install_failed` | Antigravity 서버 내려받기 실패. 연결 확인 안내 | Sign in | role=alert |
+| error `account_mismatch` | 다른 계정으로 로그인됨(재시도 불가) | Sign in again(reauth) | role=alert |
+| connected, `unverified` | `Connected · not checked` | Retry(Copilot은 비용 표시) | 없음 |
+| connected, readiness reauth(만료, Claude 조직 없음) | 재인증 필요(원인별 문구) | Sign in again, Sign out | role=alert |
+| readiness `sign_out_failed` | 로그아웃 실패(다른 실패와 구분) | Sign out | role=alert |
+| ready | `Connected · 계정` 또는 `Connected` | Sign in disabled | 처음 ready가 되면 role=status |
+| reply `busy` | 다른 로그인 진행 중 | 버튼 disabled | role=status |
+| reply `not_owner` | 다른 창이 시작한 로그인 | 안내만 | role=status |
+| reply `stop_required` | 실행 중 대화 중지 확인 대화상자 | Stop and continue, Cancel | 대화상자 |
+| reply `open_failed` | 브라우저 열기 실패 | Open again | role=alert |
+| reply `stale`·`invalid` | 최신 상태를 다시 읽고 표시 | 없음 | 없음 |
+| `readAgentAuth` `null` | 인증 저장소를 읽지 못함 | Try again(read) | role=alert |
+| Project 단계에서 ready 공급자가 없어짐 | "No agent is ready" | Back to agents | role=alert |
+
+### 정리할 기존 채널
+
+새 흐름에서 쓰지 않는 `onboarding:read|run|answer|close`, `markClosed`, `wizardSession`은 B2에서 지운다. `onboarding:first-prompt|copy`는 FirstPrompt가 쓰므로 유지한다. setupBroker의 `onboardingClosed`는 home 알림(`app/src/setup/homeAlerts.ts`)의 게이트이므로 새 완료 v1을 뜻하도록 다시 정의한다.
