@@ -78,11 +78,18 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
     async close() { dispatcher.stop("appQuit"); dispatcher.close(); await group?.stop(); },
   };
 }
+// Claude Code refuses to start under the organization pin when the repo's settings supply their own credential
+// (2.1.312: "managed settings require a first-party login"). The SDK keeps no stderr for a custom spawn, so the runner reads it.
+const PIN_REFUSED = /managed settings require a first-party login/i;
 async function openClaude(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<Runner> {
+  // A doan Claude run is only ever pinned to its login's organization (user decision 2026-10-28): without one, a repo's
+  // API key could replace the login, so the connection must be signed in again instead of running unpinned.
+  const organization = input.owner ? input.owner.workspaceId : undefined;
+  if (organization === null || organization === "") throw new Error("not_logged_in");
   const sessionId = input.sessionId ?? randomUUID(); const controller = new AbortController();
   let group: OwnedGroup | undefined, state = initialTransport(), deliver: ((message: SDKUserMessage | null) => void) | undefined;
   const pending = new Map<string, { input: Record<string, unknown>; suggestions: PermissionUpdate[]; resolve(value: PermissionResult): void }>();
-  let finished = false, childExited = false;
+  let finished = false, childExited = false, stderr = "", stderrDone: Promise<unknown> = Promise.resolve();
   async function* messages(): AsyncGenerator<SDKUserMessage> {
     const message = await new Promise<SDKUserMessage | null>(resolve => { deliver = resolve; });
     if (message) yield message;
@@ -92,7 +99,7 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
     // A repo's .claude/settings*.json env API key or apiKeyHelper would otherwise replace the doan login. Pinning the
     // login's organization as a per-run parent policy (SDK managedSettings, honoured for forceLoginOrgUUID per
     // code.claude.com/docs/en/managed-settings) makes Claude Code refuse such a run instead (B3 live check, 2.1.312).
-    ...(input.owner?.workspaceId ? { managedSettings: { forceLoginOrgUUID: input.owner.workspaceId } } : {}),
+    ...(organization ? { managedSettings: { forceLoginOrgUUID: organization } } : {}),
     abortController: controller, ...(input.sessionId ? { resume: input.sessionId } : { sessionId }),
     spawnClaudeCodeProcess(options) {
       const child = spawn(options.command, options.args, { cwd: options.cwd, env: options.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
@@ -100,7 +107,9 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
         const owned = new OwnedGroup(child.pid, undefined, undefined, exited); group = owned;
         registerStop(() => { controller.abort(); deliver?.(null); return owned.stop(); });
       }
-      child.stderr.resume(); child.once("exit", () => { childExited = true; group?.childExited(); }); child.once("error", () => { if (!child.pid) exited(); else group?.childExited(); });
+      child.stderr.setEncoding("utf8"); child.stderr.on("data", (text: string) => { stderr = (stderr + text).slice(-8192); });
+      stderrDone = new Promise(resolve => child.stderr.once("close", resolve));
+      child.once("exit", () => { childExited = true; group?.childExited(); }); child.once("error", () => { if (!child.pid) exited(); else group?.childExited(); });
       return child;
     },
     canUseTool(tool, toolInput, options) {
@@ -114,7 +123,11 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
   const expire = () => {
     for (const [requestId, request] of pending) { pending.delete(requestId); request.resolve({ behavior: "deny", message: "Request expired." }); emit({ type: "permission.resolved", requestId, optionId: "expired" }); }
   };
-  try { await timeout(q.initializationResult()); } catch (error) { controller.abort(); void group?.stop(); throw error; }
+  try { await timeout(q.initializationResult()); } catch (error) {
+    controller.abort(); void group?.stop();
+    if (input.owner) { await Promise.race([stderrDone, new Promise(resolve => setTimeout(resolve, 1000).unref())]); if (PIN_REFUSED.test(stderr)) throw new Error("credential_override"); }
+    throw error;
+  }
   return {
     sessionId,
     async send(prompt) {

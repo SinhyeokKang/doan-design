@@ -69,6 +69,22 @@ readline.createInterface({input:process.stdin}).on('line', line => {
     expect(legacy).not.toContain("--managed-settings");
   } finally { rmSync(root, { recursive: true, force: true }); }
 }, 15000);
+it("refuses an unpinned doan Claude run and names the pin's refusal of a repo-supplied credential", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-pin-claude-")), command = join(root, "claude");
+  // Claude Code 2.1.312's refusal when a repo's settings supply an API key under forceLoginOrgUUID (B3 live check).
+  writeFileSync(command, `#!/bin/sh
+echo started >> ${JSON.stringify(join(root, "seen"))}
+echo "This machine's managed settings require a first-party login: they pin Anthropic sign-ins to your organization (forceLoginOrgUUID), and this session is configured with an API key from ANTHROPIC_API_KEY, set in the env block of /repo/.claude/settings.json, which cannot be checked against that policy." >&2
+exit 1
+`, { mode: 0o700 });
+  const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c1", accountId: "a1", workspaceId: "org-uuid-1", profile: "claude" };
+  const open = (workspaceId: string | null) => openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, owner: { ...owner, workspaceId } }, () => {}, () => {}, () => {});
+  try {
+    await expect(open(null)).rejects.toThrow("not_logged_in");
+    expect(() => readFileSync(join(root, "seen"))).toThrow();
+    await expect(open("org-uuid-1")).rejects.toThrow("credential_override");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+}, 15000);
 it("reports malformed accepted transport immediately instead of waiting for process exit", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-malformed-codex-")), command = join(root, "codex");
   writeFileSync(command, `#!/usr/bin/env node
