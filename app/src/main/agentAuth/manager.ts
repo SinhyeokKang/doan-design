@@ -305,12 +305,13 @@ export class AuthManager {
     storage.writeMetadata(replaceAccount(storage.readMetadata(), provider, null, false));
   }
 
-  // The runs were asked to stop; each lease goes only when its process group is gone and its write-back landed.
+  // The runs were asked to stop; each lease goes only when its process group is gone and its write-back landed. The
+  // lease count, not stopRuns settling, ends the wait, so a close that never settles still meets the deadline.
   private async drain(provider: Provider, attemptId: string): Promise<boolean> {
-    if (this.running(provider)) {
-      try { await this.options.stopRuns?.(provider); } catch (error) { console.error(`doan: ${provider} runs could not be stopped`, message(error)); }
-    }
     const deadline = Date.now() + (this.options.drainTimeoutMs ?? DRAIN_MS);
+    if (this.running(provider)) {
+      void (async () => { await this.options.stopRuns?.(provider); })().catch(error => console.error(`doan: ${provider} runs could not be stopped`, message(error)));
+    }
     while (this.running(provider)) {
       if (this.stopRequests.has(attemptId) || Date.now() >= deadline) return false;
       await new Promise(resolve => setTimeout(resolve, 50));

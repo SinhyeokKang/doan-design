@@ -284,6 +284,34 @@ it("stops only the provider's doan-account runs for a sign-out, as a user interr
   expect(h.store.list().map(m => m.state)).toEqual(["current"]);
 });
 
+it("stops a run spawned after its provider's runs were stopped, so the sign-out's drain completes", async () => {
+  // Before spawn the run has no runner or cleanup for stopRuns to close: once while preparing, once between prepare and spawn.
+  for (const when of ["preparing", "opening"] as const) {
+    const h = harness("claude");
+    let spawn!: () => void; const spawning = new Promise<void>(resolve => { spawn = resolve; });
+    let opened!: () => void; const opening = new Promise<void>(resolve => { opened = resolve; });
+    const stop = vi.fn<() => Promise<void>>();
+    h.open.mockImplementationOnce(async (_input, _emit, exited, registerStop) => {
+      opened(); await spawning;
+      let stopped = false;
+      stop.mockImplementation(async () => { stopped = true; exited(); });
+      registerStop(stop);
+      if (stopped) throw new Error("process_exited");
+      return { sessionId: CLAUDE_SESSION, send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) };
+    });
+    let stopping: Promise<void> | undefined;
+    if (when === "preparing") h.auth.onAcquire.push(() => { stopping = h.service.stopRuns("claude"); });
+    const run = start(h, "claude");
+    await opening;
+    if (when === "opening") stopping = h.service.stopRuns("claude");
+    await stopping;
+    spawn();
+    await expect(run).rejects.toThrow("process_exited");
+    expect(stop).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(h.auth.leases.open).toBe(0));
+  }
+});
+
 it("closes an idle run that still holds its lease without adding events", async () => {
   const h = harness("codex");
   const { conversationId } = await start(h, "codex"); h.service.receive(conversationId, { type: "turn.done" });

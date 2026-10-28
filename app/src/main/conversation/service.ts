@@ -24,11 +24,14 @@ function freeLease(input: Prepared | undefined): void {
   void input?.release?.().catch(error => console.error("doan: account lease release failed", error));
 }
 // provider: set for a run on a doan account, whose lease a sign-out or replacement waits for (stopRuns).
-interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider }
+// since: the stopRuns count when this start or send began; a later stop of its provider stops it once it spawns.
+interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number }
 export class ConversationService {
   private reservations: Reservation[] = [];
   private live = new Map<string, Live>();
   private quitting = false;
+  private stops = 0;
+  private lastStop = new Map<Provider, number>();
   constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}) {}
   private reserve(id: string, input?: Prepared, reuse = false): void {
     const key = input?.sessionId ? { runtime: input.runtime, configDir: input.configDir, sessionId: input.sessionId } : null;
@@ -50,7 +53,7 @@ export class ConversationService {
     const admitted = this.admit(request.root, request.canvas);
     if (admitted) request = { ...request, canvas: admitted };
     const id = randomUUID(); this.reserve(id);
-    const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false }; this.live.set(id, live);
+    const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops }; this.live.set(id, live);
     let opening = false, input: Prepared | undefined;
     try {
       input = await this.prepare(request);
@@ -103,8 +106,8 @@ export class ConversationService {
     let metadata = this.refreshCanvas(this.metadata(id)); if (metadata.state !== "current" || this.quitting) throw new Error("busy");
     const runtime = metadata.session.runtime;
     const existing = this.live.get(id); if (existing?.busy || existing?.failedPersistence) throw new Error("busy");
-    const live: Live = (existing?.runner ? existing : undefined) ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false };
-    live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; live.turnId = randomUUID(); this.live.set(id, live);
+    const live: Live = (existing?.runner ? existing : undefined) ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: 0 };
+    live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; live.turnId = randomUUID(); live.since = this.stops; this.live.set(id, live);
     let reserved = false, opening = false, input: Prepared | undefined, leased = false;
     try {
       this.reserve(id, { ...metadata.session, runtime, command: "", env: {} }, runtime === "codex" && !!live.runner); reserved = true;
@@ -143,7 +146,7 @@ export class ConversationService {
     let spawned = false;
     const release = () => freeLease(input);
     try {
-      return await this.open(input, event => { if (this.live.get(id) === live) this.receive(id, event); }, () => { release(); if (this.live.get(id) === live) this.exited(id); }, stop => { spawned = true; live.cleanup = stop; if (this.quitting) void stop(); });
+      return await this.open(input, event => { if (this.live.get(id) === live) this.receive(id, event); }, () => { release(); if (this.live.get(id) === live) this.exited(id); }, stop => { spawned = true; live.cleanup = stop; if (this.quitting || this.stopped(live)) void stop(); });
     } catch (error) { if (!spawned) release(); throw error; }
   }
   receive(id: string, event: EventPayload): void {
@@ -176,8 +179,9 @@ export class ConversationService {
   }
   // A sign-out or account replacement the user chose to stop runs for. The provider's doan-account runs end as a user
   // interruption; each lease is released once its group is gone (openRunner), which the auth attempt waits for. A run
-  // still preparing or opening is refused by its account recheck. External runs hold no lease and are left alone.
+  // still preparing or opening is stopped as soon as it spawns. External runs hold no lease and are left alone.
   async stopRuns(provider: Provider): Promise<void> {
+    this.stops += 1; this.lastStop.set(provider, this.stops);
     const closing: Promise<void>[] = [];
     for (const [id, live] of this.live) {
       if (live.provider !== provider) continue;
@@ -209,6 +213,7 @@ export class ConversationService {
     this.store.save(this.store.list().map(m => m.conversationId === metadata.conversationId ? refreshed : m));
     return refreshed;
   }
+  private stopped(live: Live): boolean { return !!live.provider && (this.lastStop.get(live.provider) ?? 0) > live.since; }
   private checkSend(id: string, live: Live): void {
     if (this.quitting || this.live.get(id) !== live || live.terminal || this.metadata(id).state !== "current") throw new Error("busy");
   }

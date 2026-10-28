@@ -638,6 +638,13 @@ describe("stopping runs for sign-out and replacement", () => {
     await r.leases[0]!.release();
     await expect(m.acquire("cursor")).rejects.toThrow("sign_out_failed");
   });
+  it("ends the drain at its deadline even when stopping the runs never settles", async () => {
+    const m = manager({ stopRuns: () => new Promise<void>(() => {}), drainTimeoutMs: 30 }); await m.load();
+    await signedInCursor(m, "u1");
+    await m.acquire("cursor");
+    const out = started(await m.signOut("cursor", { stop: true }));
+    expect(await out.done).toMatchObject({ phase: "error", error: { code: "sign_out_failed" }, connection: { account: { id: "u1" } } });
+  }, 2000);
   it("keeps a failed sign-out blocking runs and sign-ins after a restart until a sign-out succeeds", async () => {
     const m = manager(); await m.load();
     await signedInCursor(m, "u1");
