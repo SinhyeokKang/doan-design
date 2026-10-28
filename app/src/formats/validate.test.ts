@@ -19,28 +19,26 @@ type Validate = (value: unknown) => boolean;
 const fixtureDirectory = (name: string, validity: string) => new URL(`../../../schema/fixtures/${name}/${validity}/`, import.meta.url);
 const readJson = (url: URL): unknown => JSON.parse(readFileSync(url, "utf8"));
 
-// app-socket v1 (active) and v2 (onboarding) share fixture directories; the v2- prefix picks the protocol.
-const isV2 = (file: string) => file.startsWith("v2-");
-const fixtureFiles = (name: string, validity: string, select: (file: string) => boolean) =>
-  readdirSync(fixtureDirectory(name, validity)).filter((file) => file.endsWith(".json") && select(file)).sort();
+const fixtureFiles = (name: string, validity: string) =>
+  readdirSync(fixtureDirectory(name, validity)).filter((file) => file.endsWith(".json")).sort();
 
-const groups: { name: string; label?: string; validate: Validate; select?: (file: string) => boolean }[] = [
+const groups: { name: string; validate: Validate }[] = [
   { name: "comment-event", validate: validateCommentEvent },
   { name: "config", validate: validateConfig },
   { name: "cli-envelope", validate: validateEnvelope },
   { name: "runtime", validate: validateRuntimeFile },
   { name: "sessions", validate: validateSessionRecord },
-  { name: "app-socket/request", validate: validateSocketRequest, select: (file) => !isV2(file) },
-  { name: "app-socket/response", validate: validateSocketResponse, select: (file) => !isV2(file) },
+  { name: "app-socket/request", validate: validateSocketRequest },
+  { name: "app-socket/response", validate: validateSocketResponse },
   { name: "app-socket/selection", validate: validateSelection },
-  { name: "app-socket/request", label: "app-socket v2/request", validate: validateOnboardingRequest, select: isV2 },
-  { name: "app-socket/response", label: "app-socket v2/response", validate: validateOnboardingResponse, select: isV2 },
+  { name: "app-socket-v2/request", validate: validateOnboardingRequest },
+  { name: "app-socket-v2/response", validate: validateOnboardingResponse },
 ];
 
-for (const { name, label, validate, select = () => true } of groups) {
-  describe(label ?? name, () => {
+for (const { name, validate } of groups) {
+  describe(name, () => {
     for (const validity of ["valid", "invalid"]) {
-      const files = fixtureFiles(name, validity, select);
+      const files = fixtureFiles(name, validity);
       test(`${validity} fixtures exist`, () => expect(files.length).toBeGreaterThan(0));
       for (const file of files) {
         test(`${validity}/${file}`, () => {
@@ -57,12 +55,11 @@ describe("app-socket v1 and v2 stay apart", () => {
     { kind: "response", v1: validateSocketResponse, v2: validateOnboardingResponse },
   ];
   for (const { kind, v1, v2 } of pairs) {
-    const name = `app-socket/${kind}`;
-    for (const file of fixtureFiles(name, "valid", (file) => !isV2(file))) {
-      test(`v1 ${kind} ${file} is not v2`, () => expect(v2(readJson(new URL(file, fixtureDirectory(name, "valid"))))).toBe(false));
+    for (const file of fixtureFiles(`app-socket/${kind}`, "valid")) {
+      test(`v1 ${kind} ${file} is not v2`, () => expect(v2(readJson(new URL(file, fixtureDirectory(`app-socket/${kind}`, "valid"))))).toBe(false));
     }
-    for (const file of fixtureFiles(name, "valid", isV2)) {
-      test(`v2 ${kind} ${file} is not v1`, () => expect(v1(readJson(new URL(file, fixtureDirectory(name, "valid"))))).toBe(false));
+    for (const file of fixtureFiles(`app-socket-v2/${kind}`, "valid")) {
+      test(`v2 ${kind} ${file} is not v1`, () => expect(v1(readJson(new URL(file, fixtureDirectory(`app-socket-v2/${kind}`, "valid"))))).toBe(false));
     }
   }
 });

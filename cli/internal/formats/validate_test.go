@@ -6,30 +6,20 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
-	"strings"
 	"testing"
 )
 
-// app-socket v1 (active) and v2 (onboarding) share fixture directories; the v2- prefix picks the protocol.
-func isV2(file string) bool { return strings.HasPrefix(filepath.Base(file), "v2-") }
-
-func fixtureFiles(t *testing.T, name, validity string, keep func(string) bool) []string {
+func fixtureFiles(t *testing.T, name, validity string) []string {
 	t.Helper()
 	directory := filepath.Join("..", "..", "..", "schema", "fixtures", filepath.FromSlash(name), validity)
 	files, err := filepath.Glob(filepath.Join(directory, "*.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var kept []string
-	for _, file := range files {
-		if keep(file) {
-			kept = append(kept, file)
-		}
-	}
-	if len(kept) == 0 {
+	if len(files) == 0 {
 		t.Fatalf("no fixtures in %s", directory)
 	}
-	return kept
+	return files
 }
 
 func readJSON(t *testing.T, file string) any {
@@ -46,33 +36,25 @@ func readJSON(t *testing.T, file string) any {
 }
 
 func TestValidationFixtures(t *testing.T) {
-	all := func(string) bool { return true }
-	notV2 := func(file string) bool { return !isV2(file) }
 	groups := []struct {
 		name     string
-		label    string
 		validate func(any) error
-		keep     func(string) bool
 	}{
-		{"comment-event", "", ValidateCommentEvent, all},
-		{"config", "", ValidateConfig, all},
-		{"cli-envelope", "", ValidateEnvelope, all},
-		{"runtime", "", ValidateRuntimeFile, all},
-		{"sessions", "", ValidateSessionRecord, all},
-		{"app-socket/request", "", ValidateSocketRequest, notV2},
-		{"app-socket/response", "", ValidateSocketResponse, notV2},
-		{"app-socket/selection", "", ValidateSelection, all},
-		{"app-socket/request", "app-socket-v2/request", ValidateOnboardingRequest, isV2},
-		{"app-socket/response", "app-socket-v2/response", ValidateOnboardingResponse, isV2},
+		{"comment-event", ValidateCommentEvent},
+		{"config", ValidateConfig},
+		{"cli-envelope", ValidateEnvelope},
+		{"runtime", ValidateRuntimeFile},
+		{"sessions", ValidateSessionRecord},
+		{"app-socket/request", ValidateSocketRequest},
+		{"app-socket/response", ValidateSocketResponse},
+		{"app-socket/selection", ValidateSelection},
+		{"app-socket-v2/request", ValidateOnboardingRequest},
+		{"app-socket-v2/response", ValidateOnboardingResponse},
 	}
 	for _, group := range groups {
-		label := group.label
-		if label == "" {
-			label = group.name
-		}
 		for _, validity := range []string{"valid", "invalid"} {
-			for _, file := range fixtureFiles(t, group.name, validity, group.keep) {
-				t.Run(label+"/"+validity+"/"+filepath.Base(file), func(t *testing.T) {
+			for _, file := range fixtureFiles(t, group.name, validity) {
+				t.Run(group.name+"/"+validity+"/"+filepath.Base(file), func(t *testing.T) {
 					err := group.validate(readJSON(t, file))
 					if (err == nil) != (validity == "valid") {
 						t.Fatalf("validation error = %v; want %s", err, validity)
@@ -92,13 +74,12 @@ func TestSocketProtocolsStayApart(t *testing.T) {
 		{"response", ValidateSocketResponse, ValidateOnboardingResponse},
 	}
 	for _, pair := range pairs {
-		name := "app-socket/" + pair.kind
-		for _, file := range fixtureFiles(t, name, "valid", func(file string) bool { return !isV2(file) }) {
+		for _, file := range fixtureFiles(t, "app-socket/"+pair.kind, "valid") {
 			if pair.v2(readJSON(t, file)) == nil {
 				t.Errorf("v1 %s %s validates as v2", pair.kind, filepath.Base(file))
 			}
 		}
-		for _, file := range fixtureFiles(t, name, "valid", isV2) {
+		for _, file := range fixtureFiles(t, "app-socket-v2/"+pair.kind, "valid") {
 			if pair.v1(readJSON(t, file)) == nil {
 				t.Errorf("v2 %s %s validates as v1", pair.kind, filepath.Base(file))
 			}
