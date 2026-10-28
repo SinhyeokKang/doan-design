@@ -2,7 +2,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AuthManager, type AuthProcess, type Spawn } from "./manager";
+import { AuthManager, spawnAuthProcess, type AuthProcess, type Spawn } from "./manager";
 import type { ProviderAuth } from "./providers";
 import { AuthStorage, type Cipher } from "./storage";
 import { fakeCipher } from "./fixtures/cipher";
@@ -90,7 +90,7 @@ describe("sign-in", () => {
     expect(existsSync(tokenFile("cursor"))).toBe(false);
     expect(storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1" })) });
     expect(storage.readMetadata().accounts).toEqual([state.connection]);
-    const login = processes[0];
+    const login = processes[0]!;
     expect(login.cwd).toBe(storage.profileDir("cursor"));
     expect(login.env).toMatchObject({ HOME: storage.profileDir("cursor"), PATH: "/verified/bin", DOAN_RUNTIME: "/data/runtime.json", FAKE_STORE: "file" });
     for (const name of ["GH_TOKEN", "ANTHROPIC_API_KEY", "CODEX_HOME"]) expect(login.env).not.toHaveProperty(name);
@@ -265,7 +265,7 @@ describe("check", () => {
       const m = manager(); await m.load();
       const check = started(await m.check("claude"));
       await vi.advanceTimersByTimeAsync(1500);
-      expect(processes[0].stopped).toBe(true);
+      expect(processes[0]!.stopped).toBe(true);
       expect(await check.done).toMatchObject({ error: { code: "check_failed" } });
     } finally { vi.useRealTimers(); }
   });
@@ -274,7 +274,8 @@ describe("check", () => {
     await signedInCursor(m, "u1");
     vi.spyOn(cipher, "decrypt").mockImplementation(() => { throw new Error("key changed"); });
     const check = started(await m.check("cursor"));
-    expect(await check.done).toMatchObject({ phase: "error", error: { code: "check_failed" }, connection: { account: { id: "u1" } } });
+    // A failed check keeps the verified connection and shows the error beside it (batch A decision 2).
+    expect(await check.done).toMatchObject({ phase: "connected", error: { code: "check_failed" }, connection: { account: { id: "u1" } } });
     expect(existsSync(join(root, "vault", "cursor.bin"))).toBe(true);
   });
 });
@@ -375,5 +376,30 @@ describe("status", () => {
     await signedInCursor(m, "u1");
     expect(changes.map(([, revision]) => revision)).toEqual([...changes.keys()].map(i => i + 1));
     expect(JSON.stringify(m.status("cursor", { cli: "found", version: "supported", tools: "ready" }))).not.toMatch(/token|connectionId|id-\d/);
+  });
+});
+
+describe("owned auth process", () => {
+  const options = () => ({ cwd: tmpdir(), env: { PATH: "/usr/bin:/bin" } });
+  it("reports the leader's exit first and the group only after a lingering child ends", async () => {
+    const child = spawnAuthProcess("/bin/sh", ["-c", "sleep 0.5 & echo hi"], options());
+    const out: string[] = []; child.onOutput(text => out.push(text));
+    expect(await child.exit).toBe(0);
+    let gone = false; void child.gone.then(() => { gone = true; });
+    await new Promise(resolve => setTimeout(resolve, 150));
+    expect(gone).toBe(false);
+    await child.gone;
+    expect(out.join("")).toContain("hi");
+  });
+  it("stops the whole group on request", async () => {
+    const child = spawnAuthProcess("/bin/sh", ["-c", "sleep 30 & sleep 30"], options());
+    child.stop();
+    await child.gone;
+    expect(await child.exit).toBeNull();
+  });
+  it("settles a spawn failure without a process to wait for", async () => {
+    const child = spawnAuthProcess("/nonexistent/cli", [], options());
+    expect(await child.exit).toBeNull();
+    await child.gone;
   });
 });

@@ -4,6 +4,9 @@ import { ConversationStore } from "./conversation/store";
 import { createPrepare } from "./conversation/prepare";
 import { openRunner } from "./conversation/runners";
 import { conversationHandler, conversationMethods } from "./conversation/ipc";
+import { AuthManager, shellLocator, spawnAuthProcess } from "./agentAuth/manager";
+import { AuthStorage } from "./agentAuth/storage";
+import { electronCipher } from "./agentAuth/cipher";
 import { createMachine, needsOnboarding, markClosed, PATH_LINE, type MachineState } from "./onboarding/machine";
 import { isTranslocated } from "./onboarding/states";
 import { createCommentsService } from "./comments/service";
@@ -93,6 +96,7 @@ let configBridge: ConfigBridge | undefined;
 let shell: Shell | undefined;
 let runtime: Runtime | undefined;
 let conversations: ConversationService | undefined;
+let agentAuth: AuthManager | undefined;
 let conversationCanvases = new Set<string>();
 let inspector: Inspector | undefined;
 // One selection app-wide (select-inspect R1); the socket answers it only for
@@ -598,6 +602,9 @@ async function start(): Promise<void> {
     }
   });
   conversations = conversationService;
+  const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), locate: shellLocator(process.env) });
+  // Unreadable metadata leaves sign-in unavailable rather than letting a later save erase other connections.
+  try { await auth.load(); agentAuth = auth; } catch (error) { console.error("doan: agent sign-in storage is unreadable", error); }
   const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries());
   for (const method of conversationMethods) {
     ipcMain.handle(`conversation:${method}`, (event, value: unknown) => conversationRequest(fromWindow(event), method, value));
@@ -959,6 +966,8 @@ app.on("before-quit", (event) => {
         console.error("doan: conversation persistence failed during quit", error);
         return;
       }
+      // After conversations: their runs hold auth leases whose working credentials are written back here.
+      await agentAuth?.quit();
       quitting = true; cancelPendingHide(); uiState?.flushSync(); thumbnails?.dispose();
       app.quit();
     });
