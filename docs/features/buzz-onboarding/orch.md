@@ -25,6 +25,7 @@
 | D12 | Install·Update 안내 URL은 공급자 공식 설치 문서이고 Install과 Update가 같은 URL이다(design 'Install·Update 안내 URL') | 사용자 결정(2026-10-29) — tasks F4가 정한다고 했지만 기록이 없었다 |
 | D13 | P가 제안한 초안 밖 문구를 확정하고 미지 버전 완료 표식 문구를 더했다. design 표와 초안이 다른 문구는 초안을 따른다 | 사용자 결정(2026-10-29) |
 | D14 | `onboarding start`가 여는 번들의 신뢰는 'CLI의 실제 경로를 담은 .app(구조·Info.plist bundle id·그 안의 실행 파일)'이고 진본 확인이 아니다. 서명 검사는 하지 않는다. 온보딩에서는 빈 `DOAN_RUNTIME`도 명시로 보고 자동 실행하지 않는다(`active`는 그대로) | 지휘자 판단(G 리뷰) — 앱이 서명되지 않았고, 그 번들을 통제하는 사람은 이미 사용자가 실행하는 것을 통제한다 |
+| D15 | 온보딩 세션 revision은 세션·프로젝트·작업이 바뀔 때만 오른다. 인증 변화는 agent-auth의 revision과 `agent-auth:changed`로 읽는다(U2는 둘 다 구독). `cancel`은 `sign_in`·`project_clone`만 취소하고 다른 kind는 대상을 그대로 돌려준다. 가이드 문구는 V3에서 고친다 | 지휘자 판단(M B0 리뷰 ⚪) — agent-auth는 로그인만 취소할 수 있고, 두 revision은 design에서 이미 분리돼 있다 |
 
 ## 배치
 
