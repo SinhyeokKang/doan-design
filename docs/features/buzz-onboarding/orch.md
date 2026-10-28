@@ -31,6 +31,7 @@
 | D18 | clone 기본 위치는 가장 최근 등록 프로젝트의 부모 폴더/<repo>, 등록 프로젝트가 없으면 ~/<repo>이고 Change로 부모 폴더를 바꾼다. 등록 프로젝트가 있으면 'Open a local folder' 위에 'Your projects' 캡션과 'Multiple local checkouts' 형식의 radio 행을 보이고, 고르면 검사 뒤 선택한다. 둘 다 초안 밖이라 DESIGN.md에 차이로 기록한다 | 사용자 결정(2026-10-29) |
 | D19 | clone의 게시 경계는 목적지로의 rename이다. 그 뒤의 취소는 실행 중 작업을 그대로 돌려주고 등록·초기화는 계속한다 | 지휘자 판단(M 재리뷰 🟡2) — 그 뒤에 취소하려면 이미 최종 위치에 놓인 폴더를 지워야 한다 |
 | D20 | URL 화면에서 고른 기존 폴더('Choose existing folder', 'Use existing folder')도 그 URL의 remote와 일치하는지 확인한다. path 검사에 선택적 url을 더한다(socket v2 schema·CLI `--url`·main). 새 배치 R이 맡는다 | 사용자 결정(2026-10-29) — spec이 요구하고, 다른 리포 폴더를 잘못 연결하는 것을 막는다 |
+| D21 | URL 화면에서 닿는 폴더 행동(오류 notice의 복구 버튼 포함)은 모두 url을 함께 보낸다. 설치·업데이트 페이지에서 돌아오면 Copilot도 readiness 원인이 `cli_missing`이나 `version_*`일 때만 `checkAgentAuth`를 부른다(이때 check는 도구 사실만 다시 읽거나 연결이 없어 요청을 쓰지 않는다, `agentAuth/ipc.ts` `check`). U2는 R 통합 뒤에 그 위로 다시 맞춰 통합한다 | 지휘자 판단(U2 리뷰) — D20을 두 번 클릭으로 우회할 수 없게 하고, 설치 뒤 Copilot이 재시작 전까지 Install에 머무는 것을 막는다 |
 
 ## 배치
 
@@ -94,3 +95,4 @@
 - 2026-10-29: R이 `app/src/main/index.ts` 한 줄(inspectPath에 repo 전달)을 고치도록 허락했다. U2가 그 위로 다시 맞춘다.
 - 2026-10-29: U2 완료(6a9c397..88a0c59, `verify.mjs` PASS, GUI 슬롯 반환). design-sync 10개 프레임·47 tile, 차이 302→25(DESIGN.md 기록). 독립 리뷰 Claude Opus high 시작. U 작업자 retain(R 위로 다시 맞추기와 리뷰 수정).
 - 2026-10-29: R 완료(c56176a..74425e6, `verify.mjs` PASS). 독립 리뷰 Codex `gpt-6-astra` medium 시작. E의 가짜 앱은 path+url을 repository_unreachable로 처리한다(평가 시나리오에서 쓰지 않으면 영향 없음, V3에 기록).
+- 2026-10-29: U2 리뷰 Claude Opus high: 🔴 0·🟡 3(URL 화면 복구 버튼이 url 없이 폴더 선택, main의 no_ready_agent 거절이 ready 뒤에도 남음, R 전 path+url 거절)·⚪ 8. design-sync 차이 25개는 근거가 있고 마크업 측정은 표시돼 있다. 결정 D21.
