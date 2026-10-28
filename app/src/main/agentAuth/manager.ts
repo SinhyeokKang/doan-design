@@ -171,7 +171,7 @@ export class AuthManager {
     // A login starts from no working copy so a failed or cancelled replacement cannot leave the old one exposed.
     if (auth.vault) await this.storageStep(() => this.options.storage.scrub(provider, auth.vault!));
     const seen = new Set<string>();
-    const login = await this.exec(provider, attemptId, auth.login, null, text => {
+    const login = await this.exec(provider, attemptId, auth.login, null, auth.loginTerminal, text => {
       // Sentence punctuation after a printed URL is not part of it.
       for (const url of (text.match(/https?:\/\/[^\s"'<>]+/g) ?? []).map(found => found.replace(/[.,;:!?)\]]+$/, ""))) {
         if (seen.has(url)) continue;
@@ -238,9 +238,12 @@ export class AuthManager {
   }
 
   // Resolves only after the process group is gone, so no result outruns its process.
-  private async exec(provider: Provider, attemptId: string, args: string[], timeoutMs: number | null, onText?: (text: string) => void): Promise<Run> {
+  private async exec(provider: Provider, attemptId: string, args: string[], timeoutMs: number | null, terminal = false, onText?: (text: string) => void): Promise<Run> {
     const { command, env, profileDir } = await this.launch(provider);
-    const child = this.options.spawn(command, [...this.adapters[provider].args, ...args], { cwd: profileDir, env });
+    const argv = [command, ...this.adapters[provider].args, ...args];
+    // script(1) needs no input; it gives the CLI a terminal so print mode does not fail as headless.
+    const [program, ...rest] = terminal ? ["/usr/bin/script", "-q", "/dev/null", ...argv] : argv;
+    const child = this.options.spawn(program!, rest, { cwd: profileDir, env });
     const owned = this.processes.get(attemptId) ?? new Set();
     owned.add(child); this.processes.set(attemptId, owned);
     let stdout = "", stderr = "", timer: ReturnType<typeof setTimeout> | undefined;

@@ -52,6 +52,12 @@ describe("provider auth adapters", () => {
     expect(PROVIDER_AUTH.cursor.parseStatus(run(0, JSON.stringify({ ...cursorSignedOut, hasRefreshToken: true })))).toEqual({ status: "expired" });
     expect(PROVIDER_AUTH.cursor.parseStatus(run(1, "Error"))).toEqual({ status: "failed", code: "check_failed" });
   });
+  it("reads Antigravity's sign-in state from its models command", () => {
+    const out = "Fetching available models...\nError: Please sign in to view available models. Launch the CLI without arguments to sign in.\n";
+    expect(PROVIDER_AUTH.antigravity.parseStatus(run(1, "", out))).toEqual({ status: "disconnected" });
+    expect(PROVIDER_AUTH.antigravity.parseStatus(run(0, "gemini-3.5-flash\n"))).toEqual({ status: "connected", account: { id: null, workspace: null } });
+    expect(PROVIDER_AUTH.antigravity.parseStatus(run(1, "", "network down"))).toEqual({ status: "failed", code: "check_failed" });
+  });
   it("reads Codex status from stderr, where 0.163.0 prints it", () => {
     expect(PROVIDER_AUTH.codex.parseStatus(run(1, "", "Not logged in\n"))).toEqual({ status: "disconnected" });
     expect(PROVIDER_AUTH.codex.parseStatus(run(0, "", "Logged in using ChatGPT\n"))).toEqual({ status: "connected", account: { id: null, workspace: null } });

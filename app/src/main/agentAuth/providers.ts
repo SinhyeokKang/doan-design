@@ -8,6 +8,8 @@ export interface ProviderAuth {
   // Prepended to every invocation, including B2/B3 runs, so no path can fall back to another store.
   args: string[]; env: Record<string, string>;
   login: string[]; status: string[];
+  // The login waits on a controlling terminal (Antigravity print mode); doan gives it one with /usr/bin/script.
+  loginTerminal: boolean;
   // Keychain providers only: vault providers sign out by deleting doan's copy, because a provider logout
   // cannot reach the vault and Copilot's /logout left its token behind in PoC 10.
   logout: string[] | null;
@@ -50,6 +52,13 @@ function cursorStatus(run: StatusRun): CheckResult {
   const id = typeof user.userId === "number" && Number.isSafeInteger(user.userId) ? String(user.userId) : user.userId;
   return { status: "connected", account: account(id, null, name, user.email) };
 }
+function antigravityStatus(run: StatusRun): CheckResult {
+  const out = `${run.stdout}\n${run.stderr}`;
+  if (/Please sign in|not logged into Antigravity/i.test(out)) return { status: "disconnected" };
+  if (/Authentication expired/i.test(out)) return { status: "expired" };
+  // models prints no account; such a connection can run but not resume (account_unverifiable).
+  return run.code === 0 ? { status: "connected", account: { id: null, workspace: null } } : failed;
+}
 // codex login status reports on stderr.
 function codexStatus(run: StatusRun): CheckResult {
   const out = `${run.stdout}\n${run.stderr}`.trim();
@@ -61,16 +70,17 @@ function codexStatus(run: StatusRun): CheckResult {
 export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
   // PoC 10: a non-default CLAUDE_CONFIG_DIR gets its own Keychain item; .credentials.json would be the plaintext fallback.
   claude: { command: "claude", args: [], env: {}, login: ["auth", "login"], status: ["auth", "status", "--json"], logout: ["auth", "logout"],
-    vault: null, plaintext: [".credentials.json"], settings: {}, parseStatus: claudeStatus },
+    vault: null, plaintext: [".credentials.json"], settings: {}, loginTerminal: false, parseStatus: claudeStatus },
   // The keyring entry is keyed by the canonical CODEX_HOME; "auto" could silently write auth.json instead.
   codex: { command: "codex", args: ["-c", 'cli_auth_credentials_store="keyring"'], env: {}, login: ["login"], status: ["login", "status"], logout: ["logout"],
-    vault: null, plaintext: ["auth.json"], settings: {}, parseStatus: codexStatus },
+    vault: null, plaintext: ["auth.json"], settings: {}, loginTerminal: false, parseStatus: codexStatus },
   // AGENT_CLI_CREDENTIAL_STORE=file is Cursor's official switch; the default macOS Keychain item is shared by every profile.
   // On macOS the file store is ~/.cursor/auth.json (getAuthFilePath in the 2026.10.22 bundle).
   cursor: { command: "cursor-agent", args: [], env: { AGENT_CLI_CREDENTIAL_STORE: "file" }, login: ["login"], status: ["status", "--format", "json"], logout: null,
-    vault: [".cursor/auth.json"], plaintext: [], settings: {}, parseStatus: cursorStatus },
-  antigravity: { command: "agy", args: [], env: {}, login: ["login"], status: ["status"], logout: null,
-    vault: [".gemini/antigravity-cli/credentials.json"], plaintext: [], settings: {}, parseStatus: () => failed },
+    vault: [".cursor/auth.json"], plaintext: [], settings: {}, loginTerminal: false, parseStatus: cursorStatus },
+  // 1.4.8 has no login or status subcommand: print mode signs in (one tiny request) and "models" needs a login.
+  antigravity: { command: "agy", args: [], env: {}, login: ["-p", "Reply with exactly OK"], status: ["models"], logout: null,
+    vault: [".gemini/antigravity-cli/credentials.json"], plaintext: [], settings: {}, loginTerminal: true, parseStatus: antigravityStatus },
   copilot: { command: "copilot", args: [], env: {}, login: ["login"], status: ["status"], logout: null,
-    vault: [".copilot/config.json"], plaintext: [], settings: {}, parseStatus: () => failed },
+    vault: [".copilot/config.json"], plaintext: [], settings: {}, loginTerminal: false, parseStatus: () => failed },
 };

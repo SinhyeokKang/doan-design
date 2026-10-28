@@ -27,12 +27,12 @@ class FakeProcess implements AuthProcess {
 let stopReleases = true;
 const fileProvider = (status: (dir: string) => CheckResult): ProviderAuth => ({
   command: "fake-cli", args: [], env: { FAKE_STORE: "file" }, login: ["login"], status: ["status"], logout: null,
-  vault: ["creds/token.json"], plaintext: [], settings: { "conf/settings.json": '{"storeTokenPlaintext":true}' },
+  vault: ["creds/token.json"], plaintext: [], loginTerminal: false, settings: { "conf/settings.json": '{"storeTokenPlaintext":true}' },
   parseStatus: run => run.code === 0 ? status(run.profileDir) : { status: "failed", code: "check_failed" },
 });
 const keychainProvider = (status: () => CheckResult): ProviderAuth => ({
   command: "fake-cli", args: ["-c", "store=keyring"], env: {}, login: ["login"], status: ["status"], logout: ["logout"],
-  vault: null, plaintext: ["auth.json"], settings: {}, parseStatus: run => run.code === 0 ? status() : { status: "failed", code: "check_failed" },
+  vault: null, plaintext: ["auth.json"], settings: {}, loginTerminal: false, parseStatus: run => run.code === 0 ? status() : { status: "failed", code: "check_failed" },
 });
 const tokenAccount = (dir: string): CheckResult => {
   const path = join(dir, "creds/token.json");
@@ -105,6 +105,16 @@ describe("sign-in", () => {
     await finish("login", 0, p => writeToken(p, { id: "u1" })); await finish("status", 0);
     const replaced = await second.done;
     expect(replaced.connection?.connectionId).not.toBe(first.connection?.connectionId);
+  });
+  it("gives a terminal-bound login a terminal and runs status without one", async () => {
+    const terminal = { ...fileProvider(tokenAccount), loginTerminal: true };
+    const m = manager({ adapters: { claude: keychainProvider(() => keychain), codex: keychainProvider(() => keychain), cursor: fileProvider(tokenAccount), antigravity: terminal, copilot: fileProvider(tokenAccount) } });
+    await m.load();
+    started(await m.signIn("antigravity", 7));
+    await finish("login", 0, p => writeToken(p, { id: "g1" }));
+    await finish("status", 0);
+    expect(spawn.mock.calls.map(([command, args]) => [command, args])).toEqual([
+      ["/usr/bin/script", ["-q", "/dev/null", "/bin/fake-cli", "login"]], ["/bin/fake-cli", ["status"]]]);
   });
   it("routes the login URL and device code only through the attempt's prompt", async () => {
     const prompts: unknown[] = [];

@@ -21,3 +21,16 @@ test("runtime launches override every user-state location without changing the p
   assert.equal((await stat(env.SHELL!)).mode & 0o777, 0o755);
   assert.equal(await readFile(join(data, "onboarding.json"), "utf8"), "{}\n");
 });
+
+test("runtime launches inherit only an allowlist, never provider credentials or profile overrides", async t => {
+  const dir = await mkdtemp(join(tmpdir(), "doan-runtime-env-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const names = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "OPENAI_API_KEY", "CURSOR_API_KEY", "GEMINI_API_KEY", "GH_TOKEN", "GITHUB_TOKEN",
+    "COPILOT_GITHUB_TOKEN", "COPILOT_HOME", "XDG_CONFIG_HOME", "AGENT_CLI_CREDENTIAL_STORE", "AGY_ADC_AUTH"];
+  const saved = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  t.after(() => { for (const name of names) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name]; });
+  for (const name of names) process.env[name] = "external";
+  const env = await isolatedEnv(join(dir, "data"), join(dir, "doan"));
+  for (const name of names) assert.equal(env[name], undefined, name);
+  assert.equal(env.PATH, process.env.PATH);
+});
