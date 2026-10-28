@@ -28,6 +28,7 @@
 | D15 | 온보딩 세션 revision은 세션·프로젝트·작업이 바뀔 때만 오른다. 인증 변화는 agent-auth의 revision과 `agent-auth:changed`로 읽는다(U2는 둘 다 구독). `cancel`은 `sign_in`·`project_clone`만 취소하고 다른 kind는 대상을 그대로 돌려준다. 가이드 문구는 V3에서 고친다 | 지휘자 판단(M B0 리뷰 ⚪) — agent-auth는 로그인만 취소할 수 있고, 두 revision은 design에서 이미 분리돼 있다 |
 | D16 | 이 창이 시작한 로그인이 창에 포커스가 있을 때 ready가 되면 포커스를 옮기지 않고 role=status로 한 번 알린다(포커스가 없으면 기존대로 복귀 때 알리고 Continue로 옮긴다). Antigravity 주소가 16,384자를 넘으면 Submit을 막고 "This address is too long to submit."를 보인다 | 지휘자 판단(U1 리뷰) — 처음 ready를 알린다는 상태 대응 표 규칙을 지키되 포커스 이동은 복귀 때만 한다 |
 | D17 | clone은 사용자 SSH 설정(`core.sshCommand`, `~/.ssh/config`)을 덮어쓰지 않는다. `GIT_SSH_COMMAND` BatchMode 대신 제어 터미널 없는 프로세스 그룹, `GIT_TERMINAL_PROMPT=0`, `SSH_ASKPASS_REQUIRE=never`로 비대화식을 보장하고 호스트 키 검사는 유지한다(design의 'SSH BatchMode'를 바꾼다, V3 승격) | 사용자 결정(2026-10-29) — BatchMode 환경 변수가 회사용 키 같은 사용자 설정을 덮어써 접근이 실패했다 |
+| D18 | clone 기본 위치는 가장 최근 등록 프로젝트의 부모 폴더/<repo>, 등록 프로젝트가 없으면 ~/<repo>이고 Change로 부모 폴더를 바꾼다. 등록 프로젝트가 있으면 'Open a local folder' 위에 'Your projects' 캡션과 'Multiple local checkouts' 형식의 radio 행을 보이고, 고르면 검사 뒤 선택한다. 둘 다 초안 밖이라 DESIGN.md에 차이로 기록한다 | 사용자 결정(2026-10-29) |
 
 ## 배치
 
@@ -83,3 +84,4 @@
 - 2026-10-29: M B1 리뷰 Codex `gpt-6-astra` medium: 🔴 0·🟡 5(취소 뒤 clone 게시, symlink 목적지 오판, 오래된 검사로 clone 실행, quit 접수 뒤 완료 저장 가능, 정리 실패 경로 소실). 수정 brief는 B0 수정 Task 뒤에 보낸다. 정리 실패 경로는 schema를 바꾸지 않고 오류 메시지에 담는다(지휘자 판단).
 - 2026-10-29: M B0 수정(0deb748, fb1e8a5, f82a7e1, `verify.mjs` PASS): requestId 세션 전체 유지, status 순서, check 결과, Codex loopback 건너뜀, D17 반영. B1 리뷰 수정 Task를 보냈다. ARCHITECTURE §7에 AuthManager.check 결과 추가를 V3에서 적는다.
 - 2026-10-29: M B1 수정(f6606e2, 97b47fe, e30081f, `verify.mjs` PASS). M을 통합했다(19 커밋, 끝 `3609a0a`). 수정 범위 재리뷰 Codex `gpt-6-astra` medium을 병렬로 띄웠다. M 작업자는 재리뷰 수정을 위해 유지한다. U2 시작(같은 U 터미널, bo-U1을 통합 HEAD로 맞춤).
+- 2026-10-29: 통합 HEAD `3609a0a`(M 포함) `verify.mjs --eval` PASS. U2 질문에 결정 D18.
