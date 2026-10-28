@@ -5,7 +5,7 @@ import { findOnPath } from "../onboarding/states";
 import { agentEnv } from "./environment";
 import { canonicalDirectory, claudeOccupancy, codexSessionExists, readRegular, readSessionTail } from "./io";
 import { PROVIDER_AUTH } from "../agentAuth/providers";
-import { insideRoot, pickSession, versionStatus } from "./sessions";
+import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessions";
 import { judgeConnection } from "../agentAuth/connection";
 import type { Lease, Started } from "../agentAuth/manager";
 import type { AuthState, ConnectionJudgment, Provider } from "../agentAuth/types";
@@ -97,12 +97,17 @@ export function acpSessionExists(profileDir: string, sessions: string, id: strin
     return readdirSync(dir).some(name => name === id || name.startsWith(`${id}.`));
   } catch { return false; }
 }
+// The run-time incompatibility records readiness shows (AuthIpc). versionRead: the installed version a run read, which
+// drops a record of another build (a self-update); a handshake then records or clears the version it ran.
+export interface VersionRecords {
+  versionRead(provider: Provider, installed: string): void; incompatible(provider: Provider, installed: string): void; compatible(provider: Provider, installed: string): void;
+}
 // cli is the bundled doan executable; its directory goes first on PATH so the agent runs that doan, not whatever
 // another install put on the login shell's PATH. toolsFailed: the provider CLI was not found or its version is below
 // the minimum or unreadable, so the readiness facts read at launch may be stale (an install, removal or downgrade since).
 // The Antigravity server has no version run: it is the sha-pinned download (agentAuth/antigravity.ts) and its
 // initialize reply names its version.
-export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}): AccountPrepare {
+export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}, versions?: VersionRecords): AccountPrepare {
   return async (request, stored) => {
     const provider = stored ? stored.session.runtime : request.runtime;
     if (!provider) throw new Error("no_agent");
@@ -131,11 +136,14 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
           now.error?.code === "account_mismatch" || now.error?.code === "sign_out_failed") throw new Error("not_logged_in");
       return now.connection!;
     };
+    let installed: string | undefined;
     try {
       recheck();
       if (provider !== "antigravity") {
         const version = await runProcess(lease.command, ["--version"], lease.env, 5000);
         recheck();
+        installed = version.exitCode === 0 && !version.timedOut ? parseCliVersion(version.stdout)?.installed : undefined;
+        if (installed) versions?.versionRead(provider, installed);
         if (version.exitCode !== 0 || version.timedOut || versionStatus(provider, version.stdout) !== "supported") { toolsFailed(provider); throw new Error(stored ? "session_unavailable" : "runtime_unsupported"); }
       }
       let root: string, cwd: string, configDir: string;
@@ -155,7 +163,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         const judgment = judgeConnection(stored.owner, adapter.verifyByRun && !current.error ? { ...current, verified: true } : current, { exists, occupancy });
         if (judgment.decision !== "resume") throw new Error(judgmentCode(judgment));
       }
-      const connection = recheck();
+      const connection = recheck(), ran = installed;
       const runArgs = provider === "claude" || provider === "codex" ? RUN_ARGS[provider] : adapter.acp!.args;
       return {
         runtime: provider, command: lease.command, args: [...adapter.args, ...runArgs], configDir, cwd,
@@ -164,6 +172,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         release: lease.release, recheck: () => { recheck(); },
         ...(adapter.acp?.authenticate ? { authenticate: adapter.acp.authenticate } : {}),
         ...(adapter.verifyByRun ? { confirm: () => auth.confirm(provider, connection.connectionId) } : {}),
+        ...(versions && ran ? { incompatible: () => versions.incompatible(provider, ran), compatible: () => versions.compatible(provider, ran) } : {}),
       };
     } catch (error) { await lease.release(); throw error; }
   };
