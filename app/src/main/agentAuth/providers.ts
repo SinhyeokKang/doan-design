@@ -79,8 +79,10 @@ export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
   cursor: { command: "cursor-agent", args: [], env: { AGENT_CLI_CREDENTIAL_STORE: "file" }, login: ["login"], status: ["status", "--format", "json"], logout: null,
     vault: [".cursor/auth.json"], plaintext: [], settings: {}, loginTerminal: false, parseStatus: cursorStatus },
   // 1.4.8 has no login or status subcommand: print mode signs in (one tiny request) and "models" needs a login.
+  // Unverified as a product path: in a dedicated HOME its keyring save raised macOS's "Keychain Not Found" dialog
+  // (B1 live check 2026-10-28); after Cancel it fell back to this token file, which doan keeps in the vault.
   antigravity: { command: "agy", args: [], env: {}, login: ["-p", "Reply with exactly OK"], status: ["models"], logout: null,
-    vault: [".gemini/antigravity-cli/credentials.json"], plaintext: [], settings: {}, loginTerminal: true, parseStatus: antigravityStatus },
+    vault: [".gemini/antigravity-cli/antigravity-oauth-token"], plaintext: [], settings: {}, loginTerminal: true, parseStatus: antigravityStatus },
   copilot: { command: "copilot", args: [], env: {}, login: ["login"], status: ["status"], logout: null,
     vault: [".copilot/config.json"], plaintext: [], settings: {}, loginTerminal: false, parseStatus: () => failed },
 };
