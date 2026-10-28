@@ -80,3 +80,4 @@
 - 2026-10-29: U1 리뷰 Claude Opus high: 🔴 0·🟡 3(CLI가 시작한 로그인 링크를 renderer도 엶, 비활성·제거 뒤 포커스가 body로 감, 붙여넣기 모달 수명과 잘림)·⚪ 7. 수정 1회차를 보냈다. Codex loopback 링크 자동 열기 문제는 M 수정 brief에 더했다. 결정 D16.
 - 2026-10-29: U1 수정 1회차(2c7473e, f6dfdd9, `verify.mjs` PASS). 지휘자 확인 뒤 U1을 통합했다(5 커밋). 포커스 이동은 단위 테스트로만 확인했고 실제 앱 확인은 U2 design-sync에서 한다. ⚪4(reload 뒤 소유 attempt id 소실)·⚪5(설치 줄에 공급자 이름 없음)는 U2로 넘긴다. U 작업자는 M 통합을 기다린다.
 - 2026-10-29: M B1 완료(bb2f0f0..4d0736c, `verify.mjs` PASS, 실제 Go CLI→socket→shell probe). 결정 D17. M에 B0 리뷰 수정 + Codex loopback + D17을 한 Task로 보내고, B1 독립 리뷰(Codex)를 병렬로 띄운다.
+- 2026-10-29: M B1 리뷰 Codex `gpt-6-astra` medium: 🔴 0·🟡 5(취소 뒤 clone 게시, symlink 목적지 오판, 오래된 검사로 clone 실행, quit 접수 뒤 완료 저장 가능, 정리 실패 경로 소실). 수정 brief는 B0 수정 Task 뒤에 보낸다. 정리 실패 경로는 schema를 바꾸지 않고 오류 메시지에 담는다(지휘자 판단).
