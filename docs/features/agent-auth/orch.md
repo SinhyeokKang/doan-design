@@ -92,3 +92,4 @@ Run: `run_d94775f7dd27`.
 - R-B3: `ctx_babe0720d230` (task `task_05863718e6c8`). `agent-auth-providers`에서 보고만 한다. effective opus high, `turnStart: observed`.
 - R-B3 `ctx_babe0720d230`: 🔴1·🟡4·⚪9. 🔴1은 BROWSER 훅이 CPython에서 실행되지 않아 서버가 기본 브라우저를 여는 문제다. 🟡는 네 가지다: 다운로드에 timeout·취소·상한 없음, Copilot이 취소된 응답도 검증으로 인정함, runConfirmed가 계정을 재확인하지 않음, Claude 조직 고정 거부가 `unknown`으로 매핑됨. 보고서는 `evidence-B3/review-B3.md`. R-B3 작업자는 release했다.
 - F-B3: `ctx_0d49fe3f054a` (task `task_b276838865cb`), `agent-auth-providers`, opus high, `turnStart: observed`. 🔴1·🟡1–4·⚪1과 두 사용자 결정을 반영하고 Antigravity를 다시 로그인해 확인한다.
+- F-B3 진행 중 Antigravity를 두 번 로그인했다. 지휘자가 ego-lite에서 ox501501@gmail.com으로 승인했다. 첫 로그인 뒤 로그아웃·상태 확인은 훅 마커만 남기고 disconnected로 끝났다. 두 번째 로그인은 D1용으로 연결을 유지한다. 사용자 부재 중 로그인 승인은 지휘자가 ego-lite로 처리하고, GitHub 2FA는 사용자가 GitHub 앱에서 승인한다(2026-10-28 사용자). ego-lite에서 다섯 서비스 세션이 모두 살아 있음을 확인했다.
