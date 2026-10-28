@@ -83,3 +83,5 @@ Run: `run_d94775f7dd27`.
 - 지휘자가 ego-lite로 Codex legacy 시뮬레이션 로그인을 승인(ox501501@gmail.com, Personal)했으나 콜백 대기 프로세스가 이미 끝나 거부됐다. 이후 사용자가 로그인을 완료했다. 앞으로 로그인 승인은 지휘자가 ego-lite로 처리하고, 막힐 때만 사용자를 부른다(사용자 승인 2026-10-28).
 - R-B2: `ctx_1891f438d406` (task `task_7bce7ad92ba3`). `agent-auth-runtime`에서 보고만 한다. 설정은 opus high, `turnStart: observed`.
 - 지휘자가 B3 로그인을 앞당겨 했다(사용자 승인 2026-10-28). B2 probe(`agent-auth-runtime/.scratch/b2-probe`, 통합된 AuthManager 경로)로 Cursor와 Copilot에 로그인했고, 사용자가 Chrome에서 승인했다. 두 연결 모두 connected·verified 상태다(Cursor id `384452313`, Copilot `SinhyeokKang`). Antigravity는 B3에서 ACP 경로를 구현한 뒤 로그인한다.
+- R-B2 `ctx_1891f438d406`: 🔴0·🟡3·⚪6. 🟡1은 B5의 오류 코드 매핑 문제로 B5 브리프에 넣는다. 🟡2는 레포 설정이 Claude 로그인을 덮어쓰는 문제로, 공식 강제 옵션 조사를 B3에 포함했다. 🟡3은 doan 실행 기록이 다른 재개를 막을 위험으로 B4·D1에서 동시 실행 probe로 확인한다. B2를 `f67b2fe`까지 통합했고 통합 HEAD에서 verify.mjs가 PASS했다. R-B2 작업자는 release했다.
+- B3: `ctx_b5d25bc9d8dd` (task `task_5d7a770b5745`), child `agent-auth-providers` (base `f67b2fe`). 실행 모델은 opus high이고 `turnStart: observed`를 확인했다.
