@@ -1,5 +1,5 @@
 import { validAccount, validAuthId, validConnection } from "./metadata";
-import { validProvider, type AccountConnection, type AuthAction, type AuthError, type AuthEvent, type AuthPhase, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type Provider, type Readiness, type ToolFacts } from "./types";
+import { validProvider, type AccountConnection, type CheckResult, type AuthAction, type AuthError, type AuthEvent, type AuthPhase, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type Provider, type Readiness, type ToolFacts } from "./types";
 type Fields = Omit<AuthState, "phase">;
 function phaseOf(s: Fields): AuthPhase {
   if (s.attempt) return s.attempt.kind === "check" ? "checking" : s.attempt.kind === "signIn" ? "signingIn" : "signingOut";
@@ -97,6 +97,13 @@ export function transition(state: AuthState, event: AuthEvent): AuthTransition {
       return apply({ verified: false, error: kept ?? failure("storage_failed", event.detail) });
   }
   return reject("invalid");
+}
+// What one check found, apart from an error the state keeps: a failed sign-out stays the shown error either way.
+export function checkVerdict(state: AuthState, result: CheckResult): "ok" | "network" | "check_failed" | "cli_install_failed" | "account_mismatch" {
+  if (result.status === "failed") return result.code;
+  if (result.status !== "connected" || !state.connection) return "ok";
+  const stored = state.connection.account;
+  return stored.id !== result.account.id || stored.workspace !== result.account.workspace ? "account_mismatch" : "ok";
 }
 // A doan Claude run is pinned to its login's organization and refuses without one (user decision 2026-10-28, R-B3).
 function unpinned(state: AuthState): boolean { return state.provider === "claude" && !!state.connection && state.connection.account.workspace === null; }

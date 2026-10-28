@@ -1,7 +1,7 @@
 import { validAuthId } from "./metadata";
 import { authStatus, readiness, recordedFacts } from "./state";
 import { PROVIDERS, validProvider, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type Provider, type ToolFacts } from "./types";
-import type { AuthPrompt, Started, WriteOptions } from "./manager";
+import type { AuthPrompt, CheckOutcome, CheckStarted, Started, WriteOptions } from "./manager";
 
 // Kebab-case namespaces like ui-state and review-state. Main window and Settings both reach these (senderAllowed);
 // neither gets conversation-run rights from them.
@@ -21,7 +21,7 @@ export type AuthCheckReply = AuthStartReply | AuthReply;
 export interface AuthPromptEvent { provider: Provider; attemptId: string; url: string }
 export interface AuthBackend {
   state(provider: Provider): AuthState;
-  check(provider: Provider): Promise<Started>;
+  check(provider: Provider): Promise<CheckStarted>;
   signIn(provider: Provider, owner: number, options: WriteOptions): Promise<Started>;
   cancel(provider: Provider, attemptId: string, owner: number): Promise<AuthTransition>;
   submitCode(provider: Provider, attemptId: string, owner: number, code: string): { ok: true } | { ok: false; reason: AuthRejection };
@@ -98,11 +98,7 @@ export class AuthIpc {
       case AUTH_CHANNELS.read: return value === undefined ? this.read() : invalid;
       case AUTH_CHANNELS.check: {
         if (!fields(value, ["provider"]) || !validProvider(value.provider)) return invalid;
-        const ready = readiness(backend.state(value.provider), this.factsOf(value.provider));
-        void this.refresh(value.provider, true);
-        // A version cause clears only with new tool facts; an account check (Copilot's costs a request) cannot clear it.
-        if (!ready.ready && ready.cause.startsWith("version_")) return { ok: true };
-        return started(await backend.check(value.provider));
+        return (await this.check(value.provider)).reply;
       }
       case AUTH_CHANNELS.signIn: case AUTH_CHANNELS.signOut: {
         if (!fields(value, ["provider"], ["stop"]) || !validProvider(value.provider) || (value.stop !== undefined && typeof value.stop !== "boolean")) return invalid;
@@ -124,6 +120,16 @@ export class AuthIpc {
       }
     }
     return invalid;
+  }
+
+  // The window gets the reply only; main's onboarding session also follows the check's final outcome.
+  async check(provider: Provider): Promise<{ reply: AuthCheckReply; outcome?: Promise<CheckOutcome> }> {
+    const ready = readiness(this.options.backend.state(provider), this.factsOf(provider));
+    void this.refresh(provider, true);
+    // A version cause clears only with new tool facts; an account check (Copilot's costs a request) cannot clear it.
+    if (!ready.ready && ready.cause.startsWith("version_")) return { reply: { ok: true } };
+    const result = await this.options.backend.check(provider);
+    return result.ok ? { reply: { ok: true, attemptId: result.attemptId }, outcome: result.outcome } : { reply: { ok: false, reason: result.reason } };
   }
 
   private async refresh(provider: Provider, publish: boolean): Promise<void> {

@@ -6,6 +6,7 @@ import type {
 } from "../../formats/types";
 import { validateOnboardingRequest } from "../../formats/validate";
 import { AUTH_CHANNELS, type AuthCheckReply, type AuthReason, type AuthSnapshot } from "../agentAuth/ipc";
+import type { CheckOutcome } from "../agentAuth/manager";
 import type { AuthStatusDto, Provider } from "../agentAuth/types";
 import type { CompletionWrite } from "./completion";
 import type { Candidate, ProjectOutcome } from "./projects";
@@ -26,6 +27,8 @@ export interface OnboardingAuth {
   read(): Promise<AuthSnapshot>;
   latest(): AuthSnapshot;
   handle(channel: string, value: unknown, owner: number): Promise<AuthCheckReply | AuthSnapshot>;
+  // A check has no owner; its outcome comes after its result and any write-back.
+  check(provider: Provider): Promise<{ reply: AuthCheckReply; outcome?: Promise<CheckOutcome> }>;
 }
 // Folder work (projects.ts, clone.ts and the completion marker), wired by index.ts.
 export interface OnboardingProjects {
@@ -59,10 +62,11 @@ export interface OnboardingServiceOptions {
 const AUTO_OPEN: ReadonlySet<Provider> = new Set(["claude", "codex", "antigravity"]);
 // Below the socket's 2 s limit, so a slow first tool probe still leaves time to answer.
 const SNAPSHOT_WAIT_MS = 1500;
-// status lists every kept operation inside the CLI's 64 KiB reply limit.
+// status lists every kept operation inside the CLI's 64 KiB reply limit; older finished ones still answer their
+// requestId and `status --operation` for the whole session.
 const KEPT_FINISHED = 20;
-// Finished operations dropped from the list still answer a resend of their requestId, up to this many.
-const KEPT_RETIRED = 1000;
+// Codex prints its local listener before the auth URL (ARCHITECTURE §7); that line is not where the user signs in.
+const LOOPBACK = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/i;
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 // Folder work that ends this fast answers its final state; anything slower answers running and is read with status.
 const QUICK_REPLY_MS = 1000;
@@ -120,7 +124,6 @@ const OPERATION_MESSAGES: Record<OnboardingOperationErrorCode, string> = {
   completion_unsupported_version: "Setup was saved by a newer version of Doan. Open this project with that version, or update Doan.",
 };
 const SIGN_IN_FAILURES: ReadonlySet<string> = new Set(["sign_in_failed", "network", "storage_failed", "cli_install_failed"]);
-const CHECK_FAILURES: ReadonlySet<string> = new Set(["network", "check_failed", "cli_install_failed"]);
 const AUTH_REFUSALS: Partial<Record<AuthReason, OnboardingSocketErrorCode>> = {
   busy: "busy", stop_required: "stop_required", not_owner: "not_owner", not_connected: "not_connected", sign_out_failed: "sign_out_failed",
 };
@@ -163,7 +166,7 @@ export class OnboardingService {
   private inspected = 0;
   private inspection: Inspection | null = null;
   private closing = false;
-  // A refused request leaves no record, so its id is judged again on a resend.
+  // Every request of the session, refused ones too: a resend gets the original answer, never fresh work.
   private requests = new Map<string, { key: string; reply: Promise<OnboardingResponse>; operationId: string | null }>();
   private readonly newId: () => string;
   constructor(private readonly options: OnboardingServiceOptions) {
@@ -175,10 +178,12 @@ export class OnboardingService {
     if (request.op === "start") return { v: 2, ok: true, op: "start", result: this.build(await this.agents()) };
     if (request.sessionId !== this.sessionId) return refuse("session_stale");
     if (request.op === "status") {
-      if (request.operationId === undefined) return { v: 2, ok: true, op: "status", result: this.build(await this.agents()) };
+      // The operation and the revision are read after the auth read, from one moment of the session.
+      const agents = await this.agents();
+      if (request.operationId === undefined) return { v: 2, ok: true, op: "status", result: this.build(agents) };
       const operation = this.find(request.operationId);
       if (!operation) return refuse("operation_not_found");
-      return { v: 2, ok: true, op: "status", result: this.build(await this.agents(), [operation]) };
+      return { v: 2, ok: true, op: "status", result: this.build(agents, [operation]) };
     }
     const key = argumentsKey(request);
     const seen = this.requests.get(request.requestId);
@@ -191,8 +196,7 @@ export class OnboardingService {
     const record = { key, reply: this.write(request), operationId: null as string | null };
     this.requests.set(request.requestId, record);
     const reply = await record.reply;
-    if (!reply.ok) this.requests.delete(request.requestId);
-    else if ("operation" in reply.result) record.operationId = reply.result.operation.operationId;
+    if (reply.ok && "operation" in reply.result) record.operationId = reply.result.operation.operationId;
     return reply;
   }
 
@@ -201,7 +205,8 @@ export class OnboardingService {
     if (this.sync(snapshot)) this.touch(snapshot);
   }
   // Main's onPrompt tap, after AuthIpc stored the link: the window gets the same prompt and opens only its own attempts.
-  prompted(prompt: { provider: Provider; attemptId: string; owner: number }): void {
+  prompted(prompt: { provider: Provider; attemptId: string; owner: number; url: string }): void {
+    if (LOOPBACK.test(prompt.url)) return;
     const id = this.attempts.get(prompt.attemptId);
     const tracked = id === undefined ? undefined : this.operations.get(id);
     if (!tracked || tracked.prompted || tracked.cancelling || TERMINAL.has(tracked.operation.state)) return;
@@ -347,8 +352,9 @@ export class OnboardingService {
   }
 
   private finish(tracked: Tracked, finished: Finished): void {
-    const { operationId, requestId, kind } = tracked.operation;
+    const { operationId, requestId, kind, provider } = tracked.operation;
     const operation: OnboardingOperation = { operationId, requestId, kind, state: finished.state };
+    if (provider) operation.provider = provider;
     if (finished.state === "failed") operation.error = { code: finished.code, message: OPERATION_MESSAGES[finished.code] };
     if (finished.state === "succeeded" && finished.inspection) operation.inspection = finished.inspection;
     if (finished.state === "succeeded" && finished.project) operation.project = finished.project;
@@ -359,13 +365,12 @@ export class OnboardingService {
   private async check(requestId: string, provider: Provider): Promise<OnboardingResponse> {
     const auth = this.options.auth;
     if (!auth) return refuse("auth_unavailable");
-    // A check has no owner; AuthIpc takes one for every channel.
-    const reply = await auth.handle(AUTH_CHANNELS.check, { provider }, this.options.mainOwner() ?? -1);
-    if (!("ok" in reply)) return refuse("bad_request");
+    const { reply, outcome } = await auth.check(provider);
     if (!reply.ok) return refuse(AUTH_REFUSALS[reply.reason] ?? "bad_request");
     // A version cause only re-reads tool facts, with no attempt to follow.
-    const attemptId = "attemptId" in reply ? reply.attemptId : null;
-    const tracked = this.track({ kind: "check", provider, requestId, state: attemptId === null ? "succeeded" : "running" }, attemptId);
+    const tracked = this.track({ kind: "check", provider, requestId, state: outcome ? "running" : "succeeded" }, null);
+    // Not awaited: the reply goes now, and the outcome lands after the check's write-back.
+    void outcome?.then(found => this.finish(tracked, found === "ok" ? { state: "succeeded" } : found === "replaced" ? { state: "cancelled" } : { state: "failed", code: found }));
     return { v: 2, ok: true, op: "check", result: { operation: { ...tracked.operation, kind: "check" } } };
   }
 
@@ -441,22 +446,18 @@ export class OnboardingService {
     const attempt = dto.attempt;
     if (attempt?.id === tracked.attemptId) {
       if (attempt.cancelling) { tracked.cancelling = true; return { ...base, state: "running", cancelling: true }; }
-      if (base.kind === "check") return { ...base, state: "running" };
       return { ...base, state: tracked.prompted ? "awaiting_user" : "pending" };
     }
-    // A sign-in replaced the check before its result: the check did not finish.
-    if (tracked.cancelling || (base.kind === "check" && attempt !== null)) return { ...base, state: "cancelled" };
+    if (tracked.cancelling) return { ...base, state: "cancelled" };
     const code = dto.error?.code;
-    const failures = base.kind === "check" ? CHECK_FAILURES : SIGN_IN_FAILURES;
-    if (code !== undefined && failures.has(code)) {
+    if (code !== undefined && SIGN_IN_FAILURES.has(code)) {
       const failed = code as OnboardingOperationErrorCode;
       return { ...base, state: "failed", error: { code: failed, message: OPERATION_MESSAGES[failed] } };
     }
     return { ...base, state: "succeeded" };
   }
 
-  // Maps keep insertion order, so the oldest go first. A requestId whose operation is gone for good is forgotten
-  // with it and judged as a new request.
+  // Maps keep insertion order, so the oldest go first. Retired operations leave the status list, not the session.
   private prune(): void {
     const finished = [...this.operations.values()].filter(t => TERMINAL.has(t.operation.state));
     for (const tracked of finished.slice(0, Math.max(0, finished.length - KEPT_FINISHED))) {
@@ -464,9 +465,6 @@ export class OnboardingService {
       if (tracked.attemptId !== null) this.attempts.delete(tracked.attemptId);
       this.retired.set(tracked.operation.operationId, tracked.operation);
     }
-    const gone = new Set([...this.retired.keys()].slice(0, Math.max(0, this.retired.size - KEPT_RETIRED)));
-    for (const id of gone) this.retired.delete(id);
-    if (gone.size > 0) for (const [requestId, record] of this.requests) if (record.operationId !== null && gone.has(record.operationId)) this.requests.delete(requestId);
   }
 
   private touch(snapshot: AuthSnapshot | null): void {

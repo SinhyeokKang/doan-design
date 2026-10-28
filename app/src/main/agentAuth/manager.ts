@@ -11,7 +11,7 @@ import { probeShell } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
 import { providerEnv } from "./environment";
 import { PROVIDER_AUTH, type ProviderAuth } from "./providers";
-import { authStatus, initialAuthState, transition } from "./state";
+import { authStatus, checkVerdict, initialAuthState, transition } from "./state";
 import type { AuthStorage } from "./storage";
 import { PROVIDERS, type AccountConnection, type AuthEvent, type AuthMetadata, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type CheckResult, type Provider, type SignInResult, type ToolFacts } from "./types";
 
@@ -21,6 +21,9 @@ export interface AuthPrompt { provider: Provider; attemptId: string; owner: numb
 // A provider process using the dedicated profile; sign-in and sign-out wait until every lease is released.
 export interface Lease { command: string; env: Record<string, string>; profileDir: string; release(): Promise<void> }
 export type Started = { ok: true; attemptId: string; done: Promise<AuthState> } | { ok: false; reason: AuthRejection; state: AuthState };
+// A check's own result once its write-back is done; "replaced": a sign-in or sign-out took its place before the result.
+export type CheckOutcome = "ok" | "replaced" | "network" | "check_failed" | "cli_install_failed" | "account_mismatch" | "storage_failed";
+export type CheckStarted = (Extract<Started, { ok: true }> & { outcome: Promise<CheckOutcome> }) | Extract<Started, { ok: false }>;
 export interface AuthManagerOptions {
   storage: AuthStorage; spawn: Spawn; inherited: Record<string, string | undefined>; appRuntime: string;
   // signal aborts when the attempt is stopped; Antigravity's locate may be a long server download.
@@ -85,10 +88,11 @@ export class AuthManager {
   state(provider: Provider): AuthState { return this.states.get(provider)!; }
   status(provider: Provider, facts: ToolFacts): AuthStatusDto { return authStatus(this.state(provider), facts, this.revision); }
 
-  async check(provider: Provider): Promise<Started> {
+  async check(provider: Provider): Promise<CheckStarted> {
     const attemptId = this.newId();
     const result = this.closed ? this.refuse(provider, "busy") : this.apply(provider, { type: "check", attemptId });
     if (!result.ok) return result;
+    let outcome: CheckOutcome = "replaced";
     const done = this.track((async () => {
       let checked: CheckResult, lost: string | null = null;
       try {
@@ -96,9 +100,11 @@ export class AuthManager {
         try { checked = await this.statusRun(provider, attemptId); } finally { lost = await this.drop(provider); }
       } catch (error) { checked = { status: "failed", code: error instanceof Failure && error.code === "cli_install_failed" ? error.code : "check_failed", detail: message(error) }; }
       try {
-        this.apply(provider, { type: "checked", attemptId, result: checked });
+        // Judged before applying: a kept failed sign-out would hide this check's own failure in the new state.
+        const verdict = checkVerdict(this.state(provider), checked);
+        if (this.apply(provider, { type: "checked", attemptId, result: checked }).ok) outcome = verdict;
         // After the result: the status ran on the refreshed copy that just failed to reach the vault.
-        if (lost !== null) this.apply(provider, { type: "writeBackFailed", detail: lost });
+        if (lost !== null) { this.apply(provider, { type: "writeBackFailed", detail: lost }); if (outcome === "ok") outcome = "storage_failed"; }
       } finally {
         this.stopRequests.delete(attemptId);
         if (this.checks.get(provider)?.attemptId === attemptId) this.checks.delete(provider);
@@ -106,7 +112,7 @@ export class AuthManager {
       return this.state(provider);
     })());
     this.checks.set(provider, { attemptId, done });
-    return { ok: true, attemptId, done };
+    return { ok: true, attemptId, done, outcome: done.then(() => outcome, () => outcome) };
   }
 
   // Resolves when the provider's running check, if any, has applied its result.

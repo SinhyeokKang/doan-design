@@ -40,13 +40,15 @@ export function cloneArgs(url: string, target: string): string[] {
     "clone", "--no-recurse-submodules", "--", url, target];
 }
 
-// Login-shell PATH so the user's credential helpers (gh among them) are found. Nothing may wait for input:
-// no terminal prompt, no askpass window, and SSH in batch mode with host keys still checked.
+// Login-shell PATH so the user's credential helpers (gh among them) are found, and the user's own SSH setup
+// (core.sshCommand, GIT_SSH_COMMAND, ~/.ssh/config) applies unchanged (D17, 2026-10-29 user). Nothing can wait for
+// input: the clone runs in its own process group with no controlling terminal and stdin closed, git's terminal
+// prompt is off and no askpass helper is offered, so ssh cannot ask; host key checking stays as the user set it.
 export function cloneEnv(inherited: NodeJS.ProcessEnv, path: string): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(inherited)) if (value !== undefined) env[key] = value;
-  for (const key of ["GIT_ASKPASS", "SSH_ASKPASS", "GIT_SSH", "GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG_PARAMETERS"]) delete env[key];
-  return { ...env, PATH: path, GIT_TERMINAL_PROMPT: "0", SSH_ASKPASS_REQUIRE: "never", GCM_INTERACTIVE: "never", GIT_SSH_COMMAND: "ssh -o BatchMode=yes" };
+  for (const key of ["GIT_ASKPASS", "SSH_ASKPASS", "GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG_PARAMETERS"]) delete env[key];
+  return { ...env, PATH: path, GIT_TERMINAL_PROMPT: "0", SSH_ASKPASS_REQUIRE: "never", GCM_INTERACTIVE: "never" };
 }
 
 export interface GitLocation {
