@@ -73,7 +73,9 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
   }
   try {
     const resume = !!input.sessionId, judge = verdicts(input);
-    await judgedStep(dispatcher.request("initialize", { clientInfo: { name: "doan", version: "0.1.0" }, capabilities: { experimentalApi: true } }), reply => judge(codexInitialize(reply, resume)));
+    const initialized = await judgedStep(dispatcher.request("initialize", { clientInfo: { name: "doan", version: "0.1.0" }, capabilities: { experimentalApi: true } }), reply => judge(codexInitialize(reply, resume)));
+    // A new session refuses the handshake it just recorded as incompatible; a resume keeps accepting it unjudged.
+    if (!resume && !object(initialized)) throw new Error("Malformed initialize result");
     write({ method: "initialized" });
     const result = await judgedStep(dispatcher.request(resume ? "thread/resume" : "thread/start", resume ? { threadId: input.sessionId } : { cwd: input.cwd }), reply => { if (!resume) judge(codexThreadStart(reply)); });
     if (!object(result) || !object(result.thread) || typeof result.thread.id !== "string" || !result.thread.id) throw new Error("session_unavailable");

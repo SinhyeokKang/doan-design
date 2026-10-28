@@ -271,10 +271,13 @@ it("does not record a Codex server that exits during initialize", async () => {
   const h = await codexHandshake("exit");
   expect((h.opened as Error).message).toBe("process_exited"); expect(h.order).toEqual(["refused"]);
 });
-it("clears a Codex record once a new session's thread/start passes, and keeps a non-object initialize recorded", async () => {
+it("clears a Codex record once a new session's thread/start passes", async () => {
   expect((await codexHandshake("")).order).toEqual(["cleared"]);
+});
+it("records a new Codex session's non-object initialize result, then refuses it with the generic code", async () => {
   const odd = await codexHandshake("init-null");
-  expect(odd.opened).not.toBeInstanceOf(Error); expect(odd.order).toEqual(["recorded"]);
+  expect(odd.opened).toBeInstanceOf(Error); expect((odd.opened as Error).message).toBe("unknown");
+  expect(odd.order).toEqual(["recorded", "refused"]);
 });
 it("never records on a Codex resume and clears once its initialize passes", async () => {
   const session = "01a178ba-f9dc-7161-9544-f20f656064a1";
