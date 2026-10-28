@@ -214,7 +214,7 @@ OAuth·clone·Git 조회는 main 작업으로 시작하고 빠르게 ID를 돌�
 - 첫 버튼: CLI 없음 → Install, 설치 버전이 지원 최소 버전보다 낮음 → Update, 그 밖 → Sign in이다(사용자). 정확한 버전 고정을 '확인된 최소 버전 + 실행 시 호환 검사'로 바꾸는 별도 feature `agent-cli-versions`가 선행한다(사용자, PRODUCT 기록은 그 feature가 한다). 순서는 `agent-cli-versions` orchestrate → 병합 → 이 feature orchestrate → 병합이다(사용자). 다섯 공급자의 Install·Update 안내 URL은 F4 전에 정한다. Antigravity는 도안이 서버를 내려받으므로 Install이 없다.
 - 복구 버튼: 로그아웃 실패·재인증 상태에서만 Sign out·Sign in again을 둔다. 실행 중 대화가 있으면 `stop_required` 확인 대화상자 뒤 `stop: true`로 다시 보낸다(사용자).
 - 링크 열기: 첫 prompt에서 Claude·Codex·Antigravity는 main이 자동으로 연다. Cursor·Copilot은 자동으로 열지 않고 'Open again'과 'A browser tab may already be open'만 둔다. CLI/MCP로 시작한 로그인도 주 창이 소유한다(사용자).
-- Antigravity 주소 붙여넣기: 대기 화면의 "Page didn't load?" 보조 버튼이 입력창 하나와 Submit·Cancel이 있는 모달을 연다. 입력은 16,384자 이하이고, Escape는 모달만 닫고 포커스를 보조 버튼으로 돌린다(사용자).
+- Antigravity 주소 붙여넣기: 대기 화면의 Cancel·Open again 행 아래에 "Browser page didn't load? Paste its address" 보조 줄을 둔다. 보조 버튼을 행 안에 넣으면 다른 대기 상태와 버튼 정렬이 달라지기 때문이다(2026-10-28 사용자 피드백). 이 버튼은 입력창 하나와 Submit·Cancel이 있는 모달을 연다. 입력은 16,384자 이하이고, Escape는 모달만 닫고 포커스를 보조 버튼으로 돌린다(사용자).
 - 인증 저장소를 읽지 못함: 오류 안내와 Try again만 둔다. 저장소 초기화는 만들지 않는다(사용자).
 - Continue: 다른 공급자가 ready이면 진행 중인 소유 로그인을 취소하고 넘어간다(사용자).
 - CLI/MCP status는 계정 email·표시 이름을 반환하지 않는다(사용자).
@@ -235,7 +235,7 @@ F4 초안 보완과 A2 fixture의 기준이다. 문구는 F4에서 영어로 확
 | `version_unknown` | 버전 확인 실패 | Retry(check) | role=alert |
 | `tools_missing`·`tools_failed` | doan 도구 확인 실패 | Check again(check) | role=alert |
 | phase `signingIn`, prompt 전 | 링크 준비 중(Antigravity 첫 로그인은 내려받기 포함) | Open browser disabled, Cancel | role=status |
-| phase `signingIn`, prompt 후 | 브라우저 대기(Cursor·Copilot은 탭이 이미 열렸을 수 있음) | Open again, Cancel, Antigravity는 "Page didn't load?" | role=status |
+| phase `signingIn`, prompt 후 | 브라우저 대기(Cursor·Copilot은 탭이 이미 열렸을 수 있음) | Open again, Cancel, Antigravity는 행 아래 "Paste its address" | role=status |
 | 사용자 취소 | 오류 없이 Sign in으로 복귀 | Sign in | role=status 한 번 |
 | error `sign_in_failed` | 로그인 실패. 같은 공급자에서 연속되면 보조 안내 | Sign in | role=alert |
 | error `network` | 연결 실패 | Sign in | role=alert |
