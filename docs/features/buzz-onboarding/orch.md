@@ -26,6 +26,7 @@
 | D13 | P가 제안한 초안 밖 문구를 확정하고 미지 버전 완료 표식 문구를 더했다. design 표와 초안이 다른 문구는 초안을 따른다 | 사용자 결정(2026-10-29) |
 | D14 | `onboarding start`가 여는 번들의 신뢰는 'CLI의 실제 경로를 담은 .app(구조·Info.plist bundle id·그 안의 실행 파일)'이고 진본 확인이 아니다. 서명 검사는 하지 않는다. 온보딩에서는 빈 `DOAN_RUNTIME`도 명시로 보고 자동 실행하지 않는다(`active`는 그대로) | 지휘자 판단(G 리뷰) — 앱이 서명되지 않았고, 그 번들을 통제하는 사람은 이미 사용자가 실행하는 것을 통제한다 |
 | D15 | 온보딩 세션 revision은 세션·프로젝트·작업이 바뀔 때만 오른다. 인증 변화는 agent-auth의 revision과 `agent-auth:changed`로 읽는다(U2는 둘 다 구독). `cancel`은 `sign_in`·`project_clone`만 취소하고 다른 kind는 대상을 그대로 돌려준다. 가이드 문구는 V3에서 고친다 | 지휘자 판단(M B0 리뷰 ⚪) — agent-auth는 로그인만 취소할 수 있고, 두 revision은 design에서 이미 분리돼 있다 |
+| D16 | 이 창이 시작한 로그인이 창에 포커스가 있을 때 ready가 되면 포커스를 옮기지 않고 role=status로 한 번 알린다(포커스가 없으면 기존대로 복귀 때 알리고 Continue로 옮긴다). Antigravity 주소가 16,384자를 넘으면 Submit을 막고 "This address is too long to submit."를 보인다 | 지휘자 판단(U1 리뷰) — 처음 ready를 알린다는 상태 대응 표 규칙을 지키되 포커스 이동은 복귀 때만 한다 |
 
 ## 배치
 
@@ -75,3 +76,4 @@
 - 2026-10-29: E 수정 1회차(affe6f9..c8fa066). 지휘자 확인 뒤 통합했다(끝 `300e3e3`). 변경 안내 순서는 판정자만 본다(결정적 검사 없음). E 작업자 release, bo-E 제거, handoff `.scratch/orch/handoff-E.md`.
 - 2026-10-29: U1 완료(60e4943, 5429599, e6ab797, `verify.mjs` PASS, 격리 GUI probe 통과, 실제 상태 보존). GUI 슬롯 반환. 독립 리뷰 Claude Opus high 시작. U 작업자 retain(U2용). `src/main/onboarding/machine.test.ts`도 한 번 간헐 실패했다(watch.test.ts와 함께 마지막 보고에 적는다).
 - 2026-10-29: 통합 HEAD(T+C+G+P+E) `verify.mjs --eval` PASS(9단계).
+- 2026-10-29: U1 리뷰 Claude Opus high: 🔴 0·🟡 3(CLI가 시작한 로그인 링크를 renderer도 엶, 비활성·제거 뒤 포커스가 body로 감, 붙여넣기 모달 수명과 잘림)·⚪ 7. 수정 1회차를 보냈다. Codex loopback 링크 자동 열기 문제는 M 수정 brief에 더했다. 결정 D16.
