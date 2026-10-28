@@ -235,6 +235,10 @@ F6(2026-10-29, 링크 2 intake): agent-cli-versions 병합(PR #34)을 확인하�
 
 버전 두 행의 표시(2026-10-29 사용자): 초안에 tile을 추가하지 않고 'doan tools check failed' tile과 같은 형식(role=alert notice, 오른쪽 prominent Retry)을 쓴다. 문구는 `version_unknown` 제목 "Couldn’t read the <Provider> version", 본문 "Check that <Provider> is installed correctly, then retry.", `version_incompatible` 제목 "Doan can’t run this <Provider> version", 본문 "Update <Provider> or wait for a Doan update, then retry."이다.
 
+Install·Update 안내 URL(2026-10-29 사용자): 공급자의 공식 설치 문서를 시스템 브라우저로 연다. 업데이트도 같은 페이지에 설명돼 있어 Install과 Update가 같은 URL을 쓴다. Claude Code `https://code.claude.com/docs/en/setup`, Codex `https://developers.openai.com/codex/cli`, Cursor `https://cursor.com/docs/cli/installation`, GitHub Copilot `https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli`이다. 2026-10-29 웹 검색으로 각 공식 페이지를 확인했다. Antigravity는 Doan이 서버를 내려받으므로 Install·Update가 없다.
+
+초안에 없던 문구(2026-10-29 사용자, P 배치가 제안): 로그인 교체 중 `stop_required` 확인 버튼 "Stop and sign in"(초안의 "Stop and sign out"과 짝), 취소 알림 "<Provider> sign-in was cancelled.", 로그아웃 진행 "Signing out of <Provider>", 진행자를 모르는 `busy` "Finish or cancel the other sign-in first.", 처음 ready 알림 "<Provider> connected", `check_failed`는 초안 'Status unavailable'의 "Couldn’t check your connections."를 쓴다. 미지 버전 완료 표식은 Retry 없이 제목 "Setup was saved by a newer version of Doan", 본문 "Open this project with that version, or update Doan."이다. 이 표와 승인 초안의 문구가 다른 곳(`open_failed` 버튼, `stop_required` 버튼, 연결이 있을 때 `network`의 Retry)은 초안을 따른다.
+
 | agent-auth 입력 | 화면 상태 | 첫 버튼·액션 | 알림 |
 |---|---|---|---|
 | readiness cause `cli_missing` | 미설치 | Install(안내 URL), 복귀 시 check | 없음 |
