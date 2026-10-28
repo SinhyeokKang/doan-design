@@ -380,12 +380,14 @@ func TestMCPOverStdioPipes(t *testing.T) {
 			}
 		}
 	}
-	if *m.ID != 2 || json.Unmarshal(m.Result, &list) != nil || len(list.Tools) != 8 {
+	if *m.ID != 2 || json.Unmarshal(m.Result, &list) != nil || len(list.Tools) != 17 {
 		t.Fatal(string(m.Result))
 	}
 	wantReadOnly := map[string]bool{
 		"init": false, "config": false, "ls": true, "comments": true, "resolve_comments": false,
 		"check": true, "active": true, "skill": true,
+		"onboarding_start": false, "onboarding_status": true, "onboarding_check": false, "onboarding_sign_in": false, "onboarding_cancel": false,
+		"onboarding_project_inspect": false, "onboarding_project_select": false, "onboarding_project_clone": false, "onboarding_complete": false,
 	}
 	for _, tool := range list.Tools {
 		want, known := wantReadOnly[tool.Name]
