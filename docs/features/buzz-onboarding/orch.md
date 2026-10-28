@@ -33,7 +33,7 @@
 | M | B0 → B1 | `app/src/main/**`(P의 새 모듈은 import만), `app/src/preload/**`, `app/src/main/agentAuth/` 연결부 | C, P | Claude Opus high — 소켓 인증·소유권·프로세스 그룹·경합 파일 생성이라 보안·동시성이 무겁다. B1은 같은 터미널의 다음 Task | `verify.mjs` | 대기 |
 | G | B3 | `cli/**`(`cli/internal/formats/**` 제외), `cli/internal/cli/skill.md` | C | Claude Opus high — bundle 신뢰·자동 실행·비밀 비노출 판단 | `verify.mjs` | 대기 |
 | U | U1(B2 일부) → U2(B2 나머지 + design-sync) | U1: `app/src/renderer/**`(P의 새 모듈은 import만), `app/src/renderer/ds/controls.css`. U2: 위에 더해 고아 채널 제거를 위한 `app/src/main/index.ts`·`app/src/main/onboarding/machine.ts`·`app/src/preload/**`·`app/src/setup/**`, `docs/DESIGN.md` 측정값, `.scratch/design-sync/` | U1: T, P. U2: M | Claude Opus high — 포커스·중첩 모달·경합 표시와 승인 디자인 대조 | `verify.mjs`, U2는 `/design-sync` | 대기 |
-| E | D5 시나리오 | `eval/scenarios/**`의 새 시나리오와 fixture | G | Claude Opus medium — 시나리오 판정 기준 설계 | `verify.mjs --eval`, `node eval/run.ts --self-test` | 대기 |
+| E | D5 시나리오 | `eval/scenarios/**`의 새 시나리오와 fixture, eval 가짜 앱의 v2 응답(`eval/lib/socket.ts`와 테스트) | G | Claude Opus medium — 시나리오 판정 기준 설계 | `verify.mjs --eval`, `node eval/run.ts --self-test` | 대기 |
 | V | V1(design-sync 제외), V1b, V1c | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus high — 실제 인증·clone·패키지 앱 probe와 사용자 상태 보호 | `/runtime-test` | 대기 |
 | 지휘자 | V2, V3 | 통합 커밋, 정본 승격, feature 디렉터리 삭제 | 전부 | — | 통합 HEAD `verify.mjs --eval`, `/agent-eval` | 대기 |
 
@@ -54,3 +54,4 @@
 - 2026-10-29: intake. F5·F6 완료(6ece8b6, e4f104b). 결정 D1–D9.
 - 2026-10-29: Orca run `run_de7751ceafb2`. 1차 시작: C `ctx_e377b2cff060`(worktree bo-C), P `ctx_8678d52aca34`(bo-P), T `ctx_3f34e0858b03`(bo-T). launch.effective가 요청과 같다.
 - 2026-10-29: T 완료(3e853c0, ea585c0). 독립 리뷰 Claude Opus medium `ctx_587c9b006c9b`: 🔴 0·🟡 0·⚪ 3(조치 불필요). 통합 `eaa534d`·`ea53233`. 렌더링 비교 14개 상태·요소 2,674개 불일치 0. 작업자 release, worktree bo-T는 Orca로 제거했고 근거는 `.scratch/evidence/T/`에 복사했다.
+- 2026-10-29: C 완료(5d69875, f37b5a2, 8030b4d, `verify.mjs` PASS). 독립 리뷰 Codex `gpt-6-astra` medium `ctx_eebfb4a3eb21` 진행 중. C 작업자는 수정 라운드를 위해 retain했다. C handoff 지적에 따라 E 소유에 `eval/lib/socket.ts`를 더했다.
