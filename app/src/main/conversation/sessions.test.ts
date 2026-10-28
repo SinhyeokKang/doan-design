@@ -54,8 +54,8 @@ describe("session records", () => {
   it("accepts verified in-root cwd and external config without relaxing version", () => {
     expect(sessionAvailability(record, { ...facts, cwd: "/repo/sub" })).toBeNull();
     const codex: SessionRecord = { ...record, runtime: "codex" };
-    expect(sessionAvailability(codex, { ...facts, version: "0.163.0" })).toBeNull();
-    expect(sessionAvailability(codex, { ...facts, version: "0.164.0" })).toBe("session_unavailable");
+    expect(sessionAvailability(codex, { ...facts, version: "0.164.0" })).toBeNull();
+    expect(sessionAvailability(codex, { ...facts, version: "0.163.0" })).toBe("session_unavailable");
   });
   it("rejects empty session IDs via schema", () => {
     expect(parseSessionRecords(JSON.stringify({ ...record, runtime: "codex", sessionId: "" }))).toEqual([]);

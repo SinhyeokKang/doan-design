@@ -38,7 +38,7 @@ function account(provider: Provider, profileDir: string, id: string | null = "ac
   };
   return { runtime, leases, onAcquire, set: (next: Partial<AuthState>) => { state = { ...state, ...next }; }, get: () => state };
 }
-const VERSION_OUTPUT: Record<Provider, string> = { claude: "2.1.312 (Claude Code)", codex: "codex-cli 0.163.0", cursor: "2026.10.22-27dcf5f\n", copilot: "GitHub Copilot CLI 1.0.105.\nRun 'copilot update' to check for updates.\n", antigravity: "" };
+const VERSION_OUTPUT: Record<Provider, string> = { claude: "2.1.312 (Claude Code)", codex: "codex-cli 0.164.0", cursor: "2026.10.22-27dcf5f\n", copilot: "GitHub Copilot CLI 1.0.105.\nRun 'copilot update' to check for updates.\n", antigravity: "" };
 function version(provider: Provider) { mocks.run.mockResolvedValue({ exitCode: 0, timedOut: false, stdout: VERSION_OUTPUT[provider] }); }
 function harness(provider: Provider, id: string | null = "acct-1") {
   const data = temp(), root = temp(), profile = join(temp(), "profile"); mkdirSync(profile);
@@ -60,7 +60,7 @@ const start = (h: ReturnType<typeof harness>, provider: Provider) => h.service.s
 function claudeTranscript(profile: string) { mkdirSync(join(profile, "projects", "repo"), { recursive: true }); mkdirSync(join(profile, "sessions"), { recursive: true }); writeFileSync(join(profile, "projects", "repo", `${CLAUDE_SESSION}.jsonl`), "{}\n"); }
 function codexRollout(profile: string, cwd: string) {
   const dir = join(profile, "sessions", "2026", "10", "28"); mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `rollout-2026-10-28T00-00-00-${CODEX_SESSION}.jsonl`), JSON.stringify({ type: "session_meta", payload: { id: CODEX_SESSION, cwd, cli_version: "0.163.0" } }) + "\n");
+  writeFileSync(join(dir, `rollout-2026-10-28T00-00-00-${CODEX_SESSION}.jsonl`), JSON.stringify({ type: "session_meta", payload: { id: CODEX_SESSION, cwd, cli_version: "0.164.0" } }) + "\n");
 }
 
 it("starts a new conversation on the doan account and keeps the lease until the process group is gone", async () => {

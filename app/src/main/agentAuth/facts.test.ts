@@ -4,7 +4,7 @@ import type { Provider } from "./types";
 
 const CLI = "/Applications/doan.app/Contents/Resources/bin/doan";
 function deps(over: Partial<FactsDeps> = {}): FactsDeps & { run: ReturnType<typeof vi.fn> } {
-  const run = vi.fn(async (command: string) => ({ exitCode: 0, timedOut: false, stdout: ({ "/bin/claude": "2.1.312 (Claude Code)", "/bin/codex": "codex-cli 0.163.0", "/bin/cursor-agent": "2026.10.22-27dcf5f", "/bin/copilot": "GitHub Copilot CLI 1.0.105." } as Record<string, string>)[command] ?? "", stderr: "" }));
+  const run = vi.fn(async (command: string) => ({ exitCode: 0, timedOut: false, stdout: ({ "/bin/claude": "2.1.312 (Claude Code)", "/bin/codex": "codex-cli 0.164.0", "/bin/cursor-agent": "2026.10.22-27dcf5f", "/bin/copilot": "GitHub Copilot CLI 1.0.105." } as Record<string, string>)[command] ?? "", stderr: "" }));
   return { shell: async () => ({ ok: true, path: "/bin" }), run, executable: path => path === CLI || ["/bin/claude", "/bin/codex", "/bin/cursor-agent", "/bin/copilot"].includes(path), inherited: { HOME: "/Users/ada", PATH: "/usr/bin" }, cli: CLI, ...over } as FactsDeps & { run: ReturnType<typeof vi.fn> };
 }
 
