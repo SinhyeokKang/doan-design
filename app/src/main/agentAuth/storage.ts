@@ -71,6 +71,13 @@ export class AuthStorage {
     await this.saveVault(provider, current);
     return true;
   }
+  // A non-secret helper file doan owns at the auth root; returns its path.
+  ownedFile(name: string, text: string): string {
+    const path = join(this.root, name);
+    try { if (readFileSync(path, "utf8") === text) return path; } catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }
+    this.replace(path, Buffer.from(text));
+    return path;
+  }
   writeSetting(provider: Provider, rel: string, text: string): void {
     const path = this.working(provider, rel);
     try { if (readFileSync(path, "utf8") === text) return; } catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }

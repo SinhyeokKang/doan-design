@@ -11,8 +11,8 @@ import { authStatus, initialAuthState, transition } from "./state";
 import type { AuthStorage } from "./storage";
 import { PROVIDERS, type AccountConnection, type AuthEvent, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type CheckResult, type Provider, type SignInResult, type ToolFacts } from "./types";
 
-export interface AuthProcess { onOutput(listener: (text: string, stream?: "stderr") => void): void; exit: Promise<number | null>; gone: Promise<void>; stop(): void }
-export type Spawn = (command: string, args: string[], options: { cwd: string; env: Record<string, string> }) => AuthProcess;
+export interface AuthProcess { onOutput(listener: (text: string, stream?: "stderr") => void): void; exit: Promise<number | null>; gone: Promise<void>; stop(): void; write?(text: string): void }
+export type Spawn = (command: string, args: string[], options: { cwd: string; env: Record<string, string>; input?: boolean }) => AuthProcess;
 export interface AuthPrompt { provider: Provider; attemptId: string; owner: number; url: string }
 // A provider process using the dedicated profile; sign-in and sign-out wait until every lease is released.
 export interface Lease { command: string; env: Record<string, string>; profileDir: string; release(): Promise<void> }
@@ -26,6 +26,20 @@ export interface AuthManagerOptions {
 interface Run { code: number | null; stdout: string; stderr: string }
 const OUTPUT_LIMIT = 1024 * 1024;
 const QUIT_WAIT_MS = 5000;
+// expect(1) ships with macOS: it gives a login a terminal (print mode refuses to sign in headless) and relays
+// lines from a pipe into it, which script(1) cannot because it requires a terminal on its own stdin.
+export const TERMINAL_RELAY = `log_user 1
+set timeout -1
+spawn -noecho {*}$argv
+set child $spawn_id
+fconfigure stdin -blocking 0 -buffering line
+fileevent stdin readable {
+  if {[gets stdin line] >= 0} { send -i $child -- "$line\\r" } elseif {[eof stdin]} { fileevent stdin readable {} }
+}
+expect -i $child eof
+catch wait result
+exit [lindex $result 3]
+`;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const tail = (text: string) => text.trim().slice(-2000) || undefined;
 class Cancelled extends Error {}
@@ -41,6 +55,9 @@ export class AuthManager {
   private holds = new Map<Provider, number>();
   private runs = new Map<Provider, number>();
   private queues = new Map<Provider, Promise<void>>();
+  // Sign-in processes that accept a pasted authorization code, and the codes to keep out of diagnostics.
+  private inputs = new Map<string, AuthProcess>();
+  private secrets = new Map<string, string[]>();
   private pending = new Set<Promise<unknown>>();
   private closed = false;
   private readonly adapters: Record<Provider, ProviderAuth>;
@@ -107,6 +124,17 @@ export class AuthManager {
     const result = this.apply(provider, { type: "cancel", attemptId, owner });
     if (result.ok) this.stop(attemptId);
     return result;
+  }
+  // For logins whose official flow ends in "paste the authorization code" (Antigravity print mode).
+  submitCode(provider: Provider, attemptId: string, owner: number, code: string): { ok: true } | { ok: false; reason: AuthRejection } {
+    const attempt = this.state(provider).attempt;
+    if (!attempt || attempt.id !== attemptId || attempt.kind !== "signIn" || attempt.cancelled) return { ok: false, reason: "stale" };
+    if (attempt.owner !== owner) return { ok: false, reason: "not_owner" };
+    const child = this.inputs.get(attemptId);
+    if (!child?.write || !/^[\x21-\x7e]{1,2048}$/.test(code)) return { ok: false, reason: "invalid" };
+    this.secrets.set(attemptId, [...(this.secrets.get(attemptId) ?? []), code]);
+    child.write(`${code}\n`);
+    return { ok: true };
   }
   async ownerClosed(owner: number): Promise<void> {
     for (const provider of PROVIDERS) {
@@ -250,11 +278,11 @@ export class AuthManager {
   private async exec(provider: Provider, attemptId: string, args: string[], timeoutMs: number | null, terminal = false, onText?: (text: string) => void): Promise<Run> {
     const { command, env, profileDir } = await this.launch(provider);
     const argv = [command, ...this.adapters[provider].args, ...args];
-    // script(1) needs no input; it gives the CLI a terminal so print mode does not fail as headless.
-    const [program, ...rest] = terminal ? ["/usr/bin/script", "-q", "/dev/null", ...argv] : argv;
-    const child = this.options.spawn(program!, rest, { cwd: profileDir, env });
+    const [program, ...rest] = terminal ? ["/usr/bin/expect", "-f", this.options.storage.ownedFile("terminal-relay.exp", TERMINAL_RELAY), ...argv] : argv;
+    const child = this.options.spawn(program!, rest, { cwd: profileDir, env, input: terminal });
     const owned = this.processes.get(attemptId) ?? new Set();
     owned.add(child); this.processes.set(attemptId, owned);
+    if (terminal) this.inputs.set(attemptId, child);
     let stdout = "", stderr = "", timer: ReturnType<typeof setTimeout> | undefined;
     child.onOutput((text, stream) => {
       if (stream === "stderr") { if (stderr.length < OUTPUT_LIMIT) stderr += text; } else if (stdout.length < OUTPUT_LIMIT) stdout += text;
@@ -264,10 +292,13 @@ export class AuthManager {
     try {
       const code = await child.exit;
       await child.gone;
-      return { code, stdout, stderr };
+      // The terminal echoes a pasted code back; it must not reach error details.
+      const redact = (text: string) => (this.secrets.get(attemptId) ?? []).reduce((out, secret) => out.split(secret).join("<code>"), text);
+      return { code, stdout: redact(stdout), stderr: redact(stderr) };
     } finally {
       clearTimeout(timer); owned.delete(child);
-      if (!owned.size) this.processes.delete(attemptId);
+      if (this.inputs.get(attemptId) === child) this.inputs.delete(attemptId);
+      if (!owned.size) { this.processes.delete(attemptId); this.secrets.delete(attemptId); }
     }
   }
 
@@ -343,8 +374,10 @@ export class AuthManager {
   }
 }
 
-export const spawnAuthProcess: Spawn = (command, args, { cwd, env }) => {
-  const child = spawn(command, args, { cwd, env, detached: true, stdio: ["ignore", "pipe", "pipe"] });
+export const spawnAuthProcess: Spawn = (command, args, { cwd, env, input }) => {
+  const child = spawn(command, args, { cwd, env, detached: true, stdio: [input ? "pipe" : "ignore", "pipe", "pipe"] });
+  // A login that exits first closes the pipe; a late write must not crash main.
+  child.stdin?.on("error", () => {});
   let release!: () => void;
   const gone = new Promise<void>(resolve => { release = resolve; });
   const group = child.pid ? new OwnedGroup(child.pid, undefined, undefined, release) : null;
@@ -356,10 +389,13 @@ export const spawnAuthProcess: Spawn = (command, args, { cwd, env }) => {
       setTimeout(() => void group?.stop(), 2000).unref();
     });
   });
-  child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");
+  // Both are pipes in every stdio configuration above.
+  const stdout = child.stdout!, stderr = child.stderr!;
+  stdout.setEncoding("utf8"); stderr.setEncoding("utf8");
   return {
-    onOutput: listener => { child.stdout.on("data", (text: string) => listener(text)); child.stderr.on("data", (text: string) => listener(text, "stderr")); },
+    onOutput: listener => { stdout.on("data", (text: string) => listener(text)); stderr.on("data", (text: string) => listener(text, "stderr")); },
     exit, gone, stop: () => { void group?.stop(); },
+    ...(child.stdin ? { write: (text: string) => { if (child.stdin?.writable) child.stdin.write(text); } } : {}),
   };
 };
 

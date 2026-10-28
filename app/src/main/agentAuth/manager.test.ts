@@ -2,7 +2,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AuthManager, spawnAuthProcess, type AuthProcess, type Spawn } from "./manager";
+import { AuthManager, spawnAuthProcess, TERMINAL_RELAY as RELAY_PROBE, type AuthProcess, type Spawn } from "./manager";
 import type { ProviderAuth } from "./providers";
 import { AuthStorage, type Cipher } from "./storage";
 import { fakeCipher } from "./fixtures/cipher";
@@ -12,6 +12,7 @@ type Step = "login" | "status" | "logout";
 class FakeProcess implements AuthProcess {
   listeners: ((text: string) => void)[] = [];
   stopped = false;
+  written: string[] = [];
   private exitWith!: (code: number | null) => void;
   private goneWith!: () => void;
   readonly exit = new Promise<number | null>(resolve => { this.exitWith = resolve; });
@@ -23,6 +24,7 @@ class FakeProcess implements AuthProcess {
   finish(code: number | null, groupGone = true): void { this.exitWith(code); if (groupGone) this.goneWith(); }
   release(): void { this.goneWith(); }
   stop(): void { this.stopped = true; this.finish(null, stopReleases); }
+  write(text: string): void { this.written.push(text); }
 }
 let stopReleases = true;
 const fileProvider = (status: (dir: string) => CheckResult): ProviderAuth => ({
@@ -113,8 +115,34 @@ describe("sign-in", () => {
     started(await m.signIn("antigravity", 7));
     await finish("login", 0, p => writeToken(p, { id: "g1" }));
     await finish("status", 0);
-    expect(spawn.mock.calls.map(([command, args]) => [command, args])).toEqual([
-      ["/usr/bin/script", ["-q", "/dev/null", "/bin/fake-cli", "login"]], ["/bin/fake-cli", ["status"]]]);
+    const relay = join(root, "terminal-relay.exp");
+    expect(spawn.mock.calls.map(([command, args, options]) => [command, args, options.input])).toEqual([
+      ["/usr/bin/expect", ["-f", relay, "/bin/fake-cli", "login"], true], ["/bin/fake-cli", ["status"], false]]);
+    expect(readFileSync(relay, "utf8")).toContain("spawn -noecho {*}$argv");
+  });
+  it("passes a pasted authorization code only from the owner to the live terminal login, and keeps it out of diagnostics", async () => {
+    const terminal = { ...fileProvider(tokenAccount), loginTerminal: true };
+    const m = manager({ adapters: { claude: keychainProvider(() => keychain), codex: keychainProvider(() => keychain), cursor: fileProvider(tokenAccount), antigravity: terminal, copilot: fileProvider(tokenAccount) } });
+    await m.load();
+    const run = started(await m.signIn("antigravity", 7));
+    const login = await next("login");
+    expect(m.submitCode("antigravity", run.attemptId, 8, "4/abc")).toEqual({ ok: false, reason: "not_owner" });
+    expect(m.submitCode("antigravity", "other", 7, "4/abc")).toEqual({ ok: false, reason: "stale" });
+    expect(m.submitCode("antigravity", run.attemptId, 7, "two words")).toEqual({ ok: false, reason: "invalid" });
+    expect(m.submitCode("antigravity", run.attemptId, 7, "4/0Secret-code_1")).toEqual({ ok: true });
+    expect(login.written).toEqual(["4/0Secret-code_1\n"]);
+    login.print("4/0Secret-code_1\r\nError: authentication failed: invalid_grant\n");
+    settledSet.add(login); login.finish(1);
+    const state = await run.done;
+    expect(state.error?.code).toBe("sign_in_failed");
+    expect(state.error?.detail).not.toContain("4/0Secret-code_1");
+    expect(m.submitCode("antigravity", run.attemptId, 7, "4/late")).toEqual({ ok: false, reason: "stale" });
+  });
+  it("refuses a code for a login that reads no input", async () => {
+    const m = manager(); await m.load();
+    const run = started(await m.signIn("cursor", 7));
+    await next("login");
+    expect(m.submitCode("cursor", run.attemptId, 7, "4/abc")).toEqual({ ok: false, reason: "invalid" });
   });
   it("routes the login URL and device code only through the attempt's prompt", async () => {
     const prompts: unknown[] = [];
@@ -421,6 +449,17 @@ describe("owned auth process", () => {
     child.stop();
     await child.gone;
     expect(await child.exit).toBeNull();
+  });
+  it("relays input lines to a terminal login through expect", async () => {
+    const relay = join(mkdtempSync(join(tmpdir(), "doan-relay-")), "relay.exp");
+    const storage = new AuthStorage(dirname(relay), fakeCipher());
+    const child = spawnAuthProcess("/usr/bin/expect", ["-f", storage.ownedFile("relay.exp", RELAY_PROBE), "/bin/sh", "-c", "read line; test -t 0 && echo \"tty:$line\""], { ...options(), input: true });
+    const out: string[] = []; child.onOutput(text => out.push(text));
+    child.write?.("pasted\n");
+    expect(await child.exit).toBe(0);
+    await child.gone;
+    expect(out.join("")).toContain("tty:pasted");
+    rmSync(dirname(relay), { recursive: true, force: true });
   });
   it("settles a spawn failure without a process to wait for", async () => {
     const child = spawnAuthProcess("/nonexistent/cli", [], options());
