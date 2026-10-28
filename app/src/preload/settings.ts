@@ -66,7 +66,8 @@ const api = {
     };
     const receive = (_event: Electron.IpcRendererEvent, snapshot: AuthSnapshot) => deliver(snapshot);
     ipcRenderer.on("agent-auth:changed", receive);
-    void ipcRenderer.invoke("agent-auth:read").then(deliver);
+    // A refused read leaves the listener on change events; it never becomes an unhandled rejection in the page.
+    ipcRenderer.invoke("agent-auth:read").then(deliver, () => {});
     return () => { active = false; ipcRenderer.removeListener("agent-auth:changed", receive); };
   },
   checkAgentAuth: (provider: Provider): Promise<AuthStartReply> => ipcRenderer.invoke("agent-auth:check", { provider }),

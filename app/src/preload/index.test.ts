@@ -359,6 +359,16 @@ test("keeps the newest agent account snapshot when the initial read and change e
   expect(later).toEqual([]);
 });
 
+test("keeps delivering agent account changes when the initial read is refused", async () => {
+  mocks.invoke.mockRejectedValueOnce(new Error("No handler registered for 'agent-auth:read'"));
+  const seen: number[] = [];
+  const stop = api.onAgentAuth(snapshot => seen.push(snapshot.revision));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  emitter.emit("agent-auth:changed", {}, { revision: 1, providers: [] });
+  expect(seen).toEqual([1]);
+  stop();
+});
+
 test("delivers this window's sign-in links until unsubscribed", () => {
   const prompts: unknown[] = [];
   const stop = api.onAgentSignInPrompt(prompt => prompts.push(prompt));
