@@ -67,3 +67,5 @@
 - 2026-10-29: P 수정 1회차(89f19fb). 지휘자가 diff를 확인하고 통합했다(`9b04be1`..`7d808a2`). 통합 HEAD `7d808a2`(T+C+G+P) `verify.mjs` PASS. P 작업자 release, bo-P 제거. `src/main/watch.test.ts`가 간헐적으로 실패한다(리뷰어와 P 작업자가 각각 한 번 봤고 재실행에서 통과). 이번 범위 밖이며 마지막 보고에 적는다.
 - 2026-10-29: 2차 시작: M `ctx_5c516c33e38c`(bo-M, B0), U1 `ctx_53734ce9f3a3`(bo-U1).
 - 2026-10-29: D12 정정 — Codex URL은 `developers.openai.com/codex/cli`가 308로 이동하는 `learn.chatgpt.com/docs/codex/cli`이고 출하된 `INSTALL_URLS`와 같다. U1 질문에 따라 cursor·copilot 대상은 M이 B1에서 `ExternalTarget`·`INSTALL_URLS`에 더하고, U1의 cursor·copilot 호출은 U2로 미룬다. M의 B0 질문: B0만으로는 `project_inspect`를 임시로 거절하고 B1에서 없앤다(M은 B1 뒤에만 통합).
+- 2026-10-29: GUI 슬롯을 U1에 줬다(짧은 격리 probe).
+- 2026-10-29: E 완료(5d76493..bc87582). 리뷰 Codex `gpt-6-astra` medium: 🔴 0·🟡 4(CLI가 거절한 시도를 검사하지 않음, 변경 안내 순서를 강제하지 않음, 가짜 앱의 로그인 중 공급자 상태 모순, 요청 로그를 보존하지 않음). 수정 1회차를 보냈다.
