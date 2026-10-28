@@ -38,7 +38,8 @@ export interface OnboardingProjects {
   // inside_project: a clone there would be read as part of that project, never as its own.
   destination(path: string): Promise<CloneTarget>;
   present(path: string): Promise<boolean>;
-  inspectPath(real: string): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }>;
+  // repo: the GitHub repository a folder chosen from the URL path must belong to.
+  inspectPath(real: string, repo: GitHubUrl | null): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }>;
   inspectUrl(repo: GitHubUrl): Promise<Candidate[]>;
   select(path: string, initialize: boolean, repo: GitHubUrl | null): Promise<ProjectOutcome>;
   // Resolves only after the clone's processes are gone and its own temporary directory is removed. commit() is asked
@@ -270,11 +271,13 @@ export class OnboardingService {
     // Counted at the start: a newer inspection, from the window or a client, makes this one stale even if it ends last.
     const generation = ++this.inspected;
     const projects = this.options.projects;
-    let source: { path: string } | { repo: GitHubUrl; destination?: string; target?: string };
+    let source: { path: string; repo: GitHubUrl | null } | { repo: GitHubUrl; destination?: string; target?: string };
     if ("path" in request) {
+      const repo = request.url === undefined ? null : parseGitHubUrl(request.url);
+      if (request.url !== undefined && repo === null) return refuse("invalid_url");
       const real = await projects.folder(request.path);
       if (real === null) return refuse("path_unavailable");
-      source = { path: real };
+      source = { path: real, repo };
     } else {
       const repo = parseGitHubUrl(request.url);
       if (repo === null) return refuse("invalid_url");
@@ -289,11 +292,12 @@ export class OnboardingService {
     // Checked again after the awaits, with nothing awaited between this and the launch that records the operation.
     if (this.closing || this.busy(["project_clone"])) return refuse("busy");
     return this.launch("project_inspect", request.requestId, async () => {
-      const found = "path" in source ? await projects.inspectPath(source.path) : { ok: true as const, candidates: await projects.inspectUrl(source.repo) };
+      const found = "path" in source ? await projects.inspectPath(source.path, source.repo) : { ok: true as const, candidates: await projects.inspectUrl(source.repo) };
       if (!found.ok) return { state: "failed", code: found.code };
       const inspection: OnboardingInspection = { inspectionId: this.newId(), candidates: found.candidates };
-      if ("repo" in source && source.destination !== undefined) inspection.clone = { destination: source.destination, changes: CLONE_CHANGES };
-      if (generation === this.inspected) this.inspection = { generation, inspection, repo: "repo" in source ? source.repo : null, ...("target" in source && source.target ? { target: source.target } : {}) };
+      if ("destination" in source && source.destination !== undefined) inspection.clone = { destination: source.destination, changes: CLONE_CHANGES };
+      // The repository stays with the inspection so select checks the folder's remote again before registering it.
+      if (generation === this.inspected) this.inspection = { generation, inspection, repo: source.repo, ...("target" in source && source.target ? { target: source.target } : {}) };
       return { state: "succeeded", inspection };
     });
   }

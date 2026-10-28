@@ -69,7 +69,16 @@ async function candidate(path: string, deps: ProjectDeps): Promise<Candidate | n
 
 // A picked folder: its repo, the repos directly inside it (one is chosen, the parent is never registered), or the
 // folder itself to be set up with the user's explicit initialize.
-export async function inspectPath(real: string, deps: ProjectDeps): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }> {
+// Picked for a GitHub URL, only folders that may be that repository stay (spec: a folder found from a URL is
+// connected only after its remote is checked); a config that cannot be read is no mismatch.
+export async function inspectPath(real: string, deps: ProjectDeps, repo: GitHubRepository | null = null): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }> {
+  const found = await inspectFolder(real, deps);
+  if (!found.ok || repo === null) return found;
+  const candidates = found.candidates.filter(c => folderMatch(repo, deps.remotes(c.path)) !== "mismatch");
+  return candidates.length === 0 ? { ok: false, code: "remote_mismatch" } : { ok: true, candidates };
+}
+
+async function inspectFolder(real: string, deps: ProjectDeps): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }> {
   const state = await deps.ls({ cwd: real });
   if (state.kind === "list") return { ok: true, candidates: [{ path: state.root, changes: [] }] };
   if (state.kind !== "uninitialized") {

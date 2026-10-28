@@ -667,7 +667,7 @@ async function start(): Promise<void> {
     publish: state => send(ONBOARDING_CHANNELS.changed, state),
     projects: {
       folder: canonicalFolder, destination: path => cloneDestination(path, projectDeps),
-      inspectPath: real => inspectPath(real, projectDeps), inspectUrl: repo => inspectUrl(repo, projectDeps),
+      inspectPath: (real, repo) => inspectPath(real, projectDeps, repo), inspectUrl: repo => inspectUrl(repo, projectDeps),
       select: (path, initialize, repo) => selectProject(path, initialize, repo, projectDeps),
       present: leftoverPresent,
       clone: (url, destination, signal, commit) => cloneProject(url, destination, signal, {
