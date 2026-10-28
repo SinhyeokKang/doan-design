@@ -20,11 +20,13 @@ export const ANTIGRAVITY_SERVER = {
   ],
 } as const;
 export const ANTIGRAVITY_COMMAND = "agy_acp_server.par";
-// The server passes the sign-in link to $BROWSER (Python webbrowser: os.pathsep-separated commands, "%s" replaced by
-// the URL in every argument). This one writes the link to the server's stderr instead of opening a browser, so main
-// alone decides where it goes. The script holds neither ":" nor "%s".
+// The server passes the sign-in link to $BROWSER (Python webbrowser). A command line with arguments is split only by
+// some webbrowser paths (GenericBrowser(name) runs it as one executable name and fails), and a hook that fails makes
+// webbrowser fall through to the user's default browser. An executable path runs as [path, url] on every path, may
+// hold spaces (Application Support) but never ":" (the variable's separator), and the script always exits 0, so main
+// alone decides where the link goes (user decision 2026-10-28).
 export const AUTH_LINK_MARKER = "__DOAN_AUTH_URL__";
-export const BROWSER_HOOK = `/bin/sh -c 'echo "${AUTH_LINK_MARKER}$1" >&2' -- %s`;
+export const BROWSER_HOOK = { name: "browser-hook", script: `#!/bin/sh\nprintf '%s%s\\n' '${AUTH_LINK_MARKER}' "$1" >&2\nexit 0\n` } as const;
 // Without a usable $BROWSER the server prints this line itself (credential_manager.py, 1.3.0).
 const LINK_LINE = "Open the following link to authenticate the ACP server: ";
 

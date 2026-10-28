@@ -1,9 +1,9 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, chmodSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "node:http";
-import { AUTH_LINK_MARKER } from "./antigravity";
+import { AUTH_LINK_MARKER, BROWSER_HOOK } from "./antigravity";
 import { AuthManager, spawnAuthProcess, type AuthProcess, type Spawn } from "./manager";
 import type { ProviderAuth } from "./providers";
 import { AuthStorage, type Cipher } from "./storage";
@@ -195,6 +195,26 @@ describe("sign-in", () => {
     status.print(`${AUTH_LINK_MARKER}${googleLink(4321)}\n`, "stderr");
     expect(await check.done).toMatchObject({ phase: "reauthRequired", expired: true, verified: false });
     expect(status.stopped).toBe(true);
+  });
+  it("points every server process at doan's executable browser hook and starts none without it", async () => {
+    const m = manager({ adapters: withAcp() });
+    await m.load();
+    const run = started(await m.signIn("antigravity", 7));
+    const login = await acpRequest("initialize");
+    const hook = join(root, BROWSER_HOOK.name);
+    expect(login.env.BROWSER).toBe(hook);
+    expect(readFileSync(hook, "utf8")).toBe(BROWSER_HOOK.script);
+    expect(() => accessSync(hook, constants.X_OK)).not.toThrow();
+    await m.cancel("antigravity", run.attemptId, 7); await run.done;
+    // A hook that cannot be written would let webbrowser fall back to the default browser.
+    rmSync(hook); mkdirSync(hook);
+    const spawned = spawn.mock.calls.length;
+    const again = started(await m.signIn("antigravity", 7));
+    expect(await again.done).toMatchObject({ phase: "error", error: { code: "sign_in_failed" } });
+    storage.writeMetadata({ v: 1, accounts: [{ provider: "antigravity", connectionId: "c-1", profile: "antigravity", account: { id: null, workspace: null } }] });
+    await m.load();
+    expect(await started(await m.check("antigravity")).done).toMatchObject({ error: { code: "check_failed" } });
+    expect(spawn.mock.calls.length).toBe(spawned);
   });
   it("refuses an ACP server that is not the pinned agent and version", async () => {
     const m = manager({ adapters: withAcp() });

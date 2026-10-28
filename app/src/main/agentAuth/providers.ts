@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import stub from "../onboarding/SKILL.md?raw";
-import { ANTIGRAVITY_COMMAND, ANTIGRAVITY_SERVER, BROWSER_HOOK } from "./antigravity";
+import { ANTIGRAVITY_COMMAND, ANTIGRAVITY_SERVER } from "./antigravity";
 import type { AccountIdentity, CheckResult, Provider } from "./types";
 
 export interface StatusRun { code: number | null; stdout: string; stderr: string; profileDir: string }
@@ -11,6 +11,7 @@ export interface ProviderAuth {
   args: string[]; env: Record<string, string>;
   login: string[]; status: string[];
   // Sign-in, status and sign-out are calls on the provider's ACP server (Antigravity) instead of CLI subcommands.
+  // Its processes get $BROWSER pointed at doan's hook (antigravity.ts), set at launch because the path is the auth root's.
   acpAuth: { method: string; agent: string; version: string } | null;
   // Conversations: the ACP server arguments and the authenticate method to select, or null for Claude and Codex,
   // which have their own runners. sessions is the profile-relative directory holding each session's stored record.
@@ -109,7 +110,7 @@ export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
   // Google's ACP server (antigravity.ts) replaces the agy CLI, whose dedicated-HOME keyring save raised a macOS
   // Keychain dialog (B1). AGY_ACP_FORCE_FILE_STORAGE=1 selects its file backend, <GEMINI_HOME>/antigravity-acp/acp_token.json
   // (credential_store.py in 1.3.0; undocumented, user-approved 2026-10-28); GEMINI_HOME is set by providerEnv.
-  antigravity: { command: ANTIGRAVITY_COMMAND, args: [], env: { AGY_ACP_FORCE_FILE_STORAGE: "1", BROWSER: BROWSER_HOOK, PYTHONUNBUFFERED: "1" }, login: [], status: [], logout: null,
+  antigravity: { command: ANTIGRAVITY_COMMAND, args: [], env: { AGY_ACP_FORCE_FILE_STORAGE: "1", PYTHONUNBUFFERED: "1" }, login: [], status: [], logout: null,
     vault: [".gemini/antigravity-acp/acp_token.json"], plaintext: [], settings: HOME_STUB(".gemini"), acpAuth: { method: "oauth-personal", agent: "antigravity-acp", version: ANTIGRAVITY_SERVER.version },
     acp: { args: [], authenticate: "oauth-personal", sessions: ".gemini/antigravity-acp/conversations" }, verifyByRun: false, parseStatus: antigravityStatus },
   // storeTokenPlaintext (official setting, 1.0.x changelog and settings schema) keeps the token in config.json, which

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { ACP_PROTOCOL_VERSION, AcpConnection } from "../conversation/acp";
 import { OwnedGroup } from "../conversation/process";
 import { object } from "../conversation/sessions";
-import { callbackAddress, forwardCallback, signInLink, type SignInLink } from "./antigravity";
+import { BROWSER_HOOK, callbackAddress, forwardCallback, signInLink, type SignInLink } from "./antigravity";
 import { probeShell } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
 import { providerEnv } from "./environment";
@@ -368,7 +368,15 @@ export class AuthManager {
     if (!located) throw new Error("cli_missing");
     const profileDir = this.options.storage.profileDir(provider);
     for (const [rel, text] of Object.entries(this.adapters[provider].settings)) this.options.storage.writeSetting(provider, rel, text);
-    const env = providerEnv({ provider, inherited: this.options.inherited, path: located.path, profileDir, appRuntime: this.options.appRuntime, extra: this.adapters[provider].env });
+    let extra = this.adapters[provider].env;
+    if (this.adapters[provider].acpAuth) {
+      // Every process of a browser sign-in server gets the hook, so neither a check nor an expired run can open a
+      // browser itself. Without a usable hook webbrowser would fall back to the default browser, so nothing starts.
+      const hook = this.options.storage.ownedScript(BROWSER_HOOK.name, BROWSER_HOOK.script);
+      if (hook.includes(":")) throw new Error("browser_hook_unusable");
+      extra = { ...extra, BROWSER: hook };
+    }
+    const env = providerEnv({ provider, inherited: this.options.inherited, path: located.path, profileDir, appRuntime: this.options.appRuntime, extra });
     if (!env.ok) throw new Error(env.code);
     return { command: located.command, env: env.env, profileDir };
   }

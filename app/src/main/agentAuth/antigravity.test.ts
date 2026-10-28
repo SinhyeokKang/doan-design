@@ -1,8 +1,11 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { antigravityServer, AUTH_LINK_MARKER, callbackAddress, signInLink } from "./antigravity";
+import { antigravityServer, AUTH_LINK_MARKER, BROWSER_HOOK, callbackAddress, signInLink } from "./antigravity";
+import { AuthStorage } from "./storage";
+import { fakeCipher } from "./fixtures/cipher";
 
 const LINK = "https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=c&redirect_uri=http%3A%2F%2F127.0.0.1%3A64065%2F&scope=email&state=yhREG&code_challenge=x";
 describe("Antigravity sign-in link", () => {
@@ -36,6 +39,34 @@ describe("Antigravity server install", () => {
       let calls = 0;
       await expect(antigravityServer(root, async () => { calls += 1; throw new Error("offline"); })).rejects.toThrow("offline");
       expect(calls).toBe(1);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+});
+
+// The server hands the link to Python's webbrowser. Every other browser is stubbed, so a fallback is recorded
+// instead of opening the user's default browser.
+const WEBBROWSER = `
+import json, sys, webbrowser
+hook, mode, url = sys.argv[1:4]
+fallback, real_get = [], webbrowser.get
+class Fallback:
+    def __init__(self, name): self.name = name
+    def open(self, *args, **kwargs): fallback.append(self.name); return True
+webbrowser.get = lambda name=None: real_get(name) if name is not None and (name.lower() == hook.lower() or "%s" in name) else Fallback(name)
+if mode == "open": opened = webbrowser.open(url)
+else: webbrowser.register_standard_browsers(); opened = webbrowser.GenericBrowser(hook).open(url)
+print(json.dumps({"opened": opened, "first": webbrowser._tryorder[0] == hook, "fallback": fallback}))
+`;
+function python(): string | null { return spawnSync("python3", ["--version"]).status === 0 ? "python3" : null; }
+describe.skipIf(!python())("Antigravity BROWSER hook", () => {
+  it("prints the link marker through Python webbrowser, from a path with a space, without falling back", () => {
+    const root = mkdtempSync(join(tmpdir(), "doan agy hook "));
+    try {
+      const hook = new AuthStorage(root, fakeCipher()).ownedScript(BROWSER_HOOK.name, BROWSER_HOOK.script);
+      for (const mode of ["open", "generic"]) {
+        const run = spawnSync("python3", ["-I", "-c", WEBBROWSER, hook, mode, LINK], { env: { PATH: process.env.PATH ?? "", BROWSER: hook }, encoding: "utf8", timeout: 10_000 });
+        expect({ mode, result: JSON.parse(run.stdout || "null"), marker: run.stderr.includes(`${AUTH_LINK_MARKER}${LINK}`) }).toEqual({ mode, result: { opened: true, first: true, fallback: [] }, marker: true });
+      }
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });

@@ -2,7 +2,6 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { BROWSER_HOOK } from "./antigravity";
 import { PROVIDER_AUTH } from "./providers";
 import { PROVIDERS } from "./types";
 
@@ -61,10 +60,8 @@ describe("provider auth adapters", () => {
   });
   it("runs Antigravity on the pinned server with its file store and keeps the sign-in link away from a real browser", () => {
     expect(PROVIDER_AUTH.antigravity).toMatchObject({ command: "agy_acp_server.par", vault: [".gemini/antigravity-acp/acp_token.json"], acpAuth: { method: "oauth-personal", agent: "antigravity-acp", version: "1.3.0" } });
-    expect(PROVIDER_AUTH.antigravity.env).toEqual({ AGY_ACP_FORCE_FILE_STORAGE: "1", BROWSER: BROWSER_HOOK, PYTHONUNBUFFERED: "1" });
-    // Python's webbrowser splits $BROWSER on ":" and replaces "%s" in every argument.
-    expect(BROWSER_HOOK.split(":")).toHaveLength(1);
-    expect(BROWSER_HOOK.match(/%s/g)).toHaveLength(1);
+    // $BROWSER is set at launch to doan's hook script under the auth root (manager.test.ts, antigravity.test.ts).
+    expect(PROVIDER_AUTH.antigravity.env).toEqual({ AGY_ACP_FORCE_FILE_STORAGE: "1", PYTHONUNBUFFERED: "1" });
     expect(PROVIDER_AUTH.copilot.verifyByRun).toBe(true);
     for (const provider of ["claude", "codex", "cursor", "antigravity"] as const) expect(PROVIDER_AUTH[provider].verifyByRun).toBe(false);
   });

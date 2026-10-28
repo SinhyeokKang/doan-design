@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { closeSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeSync } from "node:fs";
+import { accessSync, chmodSync, closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { parseAuthMetadata, serializeAuthMetadata } from "./metadata";
 import type { AuthMetadata, Provider } from "./types";
@@ -78,6 +78,15 @@ export class AuthStorage {
     if (same) return false;
     await this.saveVault(provider, current);
     return true;
+  }
+  // A non-secret executable doan owns at the auth root, rewritten when its text or mode drifted; returns its path.
+  ownedScript(name: string, text: string): string {
+    const path = join(this.root, name);
+    let current: string | null = null;
+    try { current = readFileSync(path, "utf8"); } catch (error) { if (!absent(error)) throw new StorageError("write_failed", message(error)); }
+    if (current !== text) this.replace(path, Buffer.from(text));
+    try { chmodSync(path, 0o700); accessSync(path, constants.X_OK); } catch (error) { throw new StorageError("write_failed", message(error)); }
+    return path;
   }
   writeSetting(provider: Provider, rel: string, text: string): void {
     const path = this.working(provider, rel);
