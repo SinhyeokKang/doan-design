@@ -76,7 +76,7 @@ describe("provider auth adapters", () => {
         account: { id: "ada", workspace: "https://github.com", displayName: "ada" } });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
-  it("reads Codex status from stderr, where 0.163.0 prints it", () => {
+  it("reads Codex status from stderr, where 0.163.0 and 0.164.0 print it", () => {
     expect(PROVIDER_AUTH.codex.parseStatus(run(1, "", "Not logged in\n"))).toEqual({ status: "disconnected" });
     expect(PROVIDER_AUTH.codex.parseStatus(run(0, "", "Logged in using ChatGPT\n"))).toEqual({ status: "connected", account: { id: null, workspace: null } });
     expect(PROVIDER_AUTH.codex.parseStatus(run(1, "", "Error loading configuration"))).toEqual({ status: "failed", code: "check_failed" });

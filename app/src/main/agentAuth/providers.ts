@@ -88,7 +88,7 @@ function codexStatus(run: StatusRun): CheckResult {
 }
 
 // The dedicated profile gets its own discovery stub instead of a copy of or link to the user's global skill;
-// Claude reads <CLAUDE_CONFIG_DIR>/skills and Codex <CODEX_HOME>/skills (skills/list, scope "user", 0.163.0).
+// Claude reads <CLAUDE_CONFIG_DIR>/skills and Codex <CODEX_HOME>/skills (skills/list, scope "user", 0.163.0 and 0.164.0).
 const SKILL_STUB = { "skills/doan/SKILL.md": stub };
 // Personal skill directories under the dedicated HOME: Cursor ~/.cursor/skills, Copilot ~/.copilot/skills,
 // Antigravity <GEMINI_HOME>/skills (B3 live check 2026-10-28).

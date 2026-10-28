@@ -84,7 +84,9 @@ export async function claudeOccupancy(config: string, sessionId: string, inspect
   } catch { return "unknown"; }
 }
 
-// Verified against the 0.163.0 PoC rollout headers; no auth/config file is opened.
+// Header shapes verified against 0.163.0 and 0.164.0 rollouts; no auth/config file is opened. A resume appends
+// without rewriting the first session_meta, so a conversation started on 0.163.0 keeps that cli_version under 0.164.0.
+const CODEX_ROLLOUT_VERSIONS = ["0.163.0", "0.164.0"];
 export function codexSessionExists(config: string, id: string, cwd: string): boolean {
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(id)) return false;
   try {
@@ -107,7 +109,8 @@ export function codexSessionExists(config: string, id: string, cwd: string): boo
       const end = bytes.subarray(0, count).indexOf(10); if (end < 0) return false;
       const raw: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, end)));
       return object(raw) && raw.type === "session_meta" && object(raw.payload) && raw.payload.id === id &&
-        typeof raw.payload.cwd === "string" && canonicalDirectory(raw.payload.cwd) === cwd && raw.payload.cli_version === "0.163.0";
+        typeof raw.payload.cwd === "string" && canonicalDirectory(raw.payload.cwd) === cwd &&
+        typeof raw.payload.cli_version === "string" && CODEX_ROLLOUT_VERSIONS.includes(raw.payload.cli_version);
     } finally { closeSync(fd); }
   } catch { return false; }
 }
