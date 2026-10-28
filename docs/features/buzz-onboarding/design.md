@@ -104,7 +104,7 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 이 절과 `.doan/canvases/buzz-onboarding.html`이 현재 시각 기준이다. 시도했다가 철회한 translucent 버튼/입력창, 본문 전체 panel 래핑, 이전 문구·타원·패딩 값은 구현하지 않는다. 사용자는 디자인 확인 → HTML 검증 → feature-review 순서를 지정했고, 2026-10-28 현재 디자인을 승인했다.
 
 - 캔버스는 저장소 루트 `.doan/canvases/buzz-onboarding.html`, id `buzz-onboarding`, 너비 2560px이다. 기존 `.doan/canvases/onboard.html`은 수정하지 않는다.
-- 프레임: `welcome`, `agents`, `agents-connected`, `project`, `project-local`, `repository-found`, `repository-clone`, `repository-error`, `auth-states`, `project-states`. 기본 창은 1238×780, 상태 표는 1238×900이다. 상태 표에는 33개 labelled tile이 있다. 홈은 그리지 않는다.
+- 프레임: `welcome`, `agents`, `agents-connected`, `project`, `project-local`, `repository-found`, `repository-clone`, `repository-error`, `auth-states`, `project-states`. 기본 창은 1238×780, 상태 표는 1238×900이다. 2026-10-28 승인 때 상태 표에는 33개 labelled tile이 있었다. F4 보완(2026-10-28)으로 Authentication states가 14개에서 28개가 됐다: 재검토 상태 대응 표의 상태를 추가하고 '저장 중'·'실행 준비 중'을 지웠으며, '실행 준비 실패'는 doan 도구 확인 실패로 바꿨다. Project states는 19개 그대로이며 만료 tile을 'No agent is ready'로 바꿨다. 합계는 47개이다. 보완본은 사용자 확인 대기 중이다. 홈은 그리지 않는다.
 - `tokens.css`, `ds/index.css`, 기존 `app/src/renderer/public/fonts/geist/Geist.woff2` 원본을 직접 사용한다. 사용자 승인 serving 범위로 원본 DS와 폰트를 참조하며 사본을 만들지 않는다.
 - 기존 `doan-button`, `doan-input`, `doan-panel`, `doan-notice`, `doan-alert-icon`, `doan-spinner`, `doan-scroll`을 재사용한다. 새 시각 옵션은 기존 프리미티브에 반영한다.
 - Welcome: doan 워드마크 아래 “A place for your next idea.” / “Bring it to life on canvas.”를 한 블록 안에서 줄바꿈한다. 가운데 정렬, 24px·행간 1.1·400·자간 -0.3px이다. 워드마크와 문장 간격 24px, 문장과 버튼 간격 40px이다.
