@@ -19,7 +19,7 @@
   - 검증: `/tdd`, `go test ./...`, `npm --prefix app test`로 동일 valid/invalid fixture를 양쪽에서 확인한다. 미등록 프로젝트 없는 시작, 잘못된 토큰·버전·operation·session·request·경로, 기존 active 호환을 검증한다. 토큰 인증 실패 시 계정/경로/작업 상태가 출력되지 않아야 한다.
 
 
-- [ ] A1. 실제 agent-auth main/preload 계약을 인수하고, 완료 표식 v1/프로젝트 인계 계약의 TS fixture를 작성한다. 기존 {}·미완료 재실행 Welcome·정상 새 완료·손상·미지 버전·실패 저장을 구분한다. 저장된 연결과 등록 프로젝트가 유지되는지 확인한다.
+- [ ] A1. 실제 agent-auth main/preload 계약([ARCHITECTURE §7](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth), 처리 항목은 [design의 agent-auth 인계](./design.md#agent-auth-인계-2026-10-28))을 인수하고, 완료 표식 v1/프로젝트 인계 계약의 TS fixture를 작성한다. 기존 {}·미완료 재실행 Welcome·정상 새 완료·손상·미지 버전·실패 저장을 구분한다. 저장된 연결과 등록 프로젝트가 유지되는지 확인한다.
   - 검증: `/tdd`와 `npm --prefix app test`로 변경 계약의 실패를 먼저 확인한다. 인증 선행 기능이 없으면 구현을 시작하지 않는다. 기존 {}가 새 완료로 통과하지 않고, 정상 새 완료만 첫 실행을 종료하는지 판정한다.
 - [ ] A2. scene 전이·진행 판정·revision 합치기·선택 세대·문구와 승인된 URL/리포 identity 순수 함수를 구현한다.
   - 검증: `npm --prefix app test`와 `npm --prefix app run typecheck`로 역순 완료·빈 값·긴 값·중복 root·여러 checkout·잘못된 URL을 확인한다. connected지만 준비 중/실패이면 진행을 막고, 한 공급자가 ready이면 진행을 허용한다. 프로젝트 단계에서 유일한 ready 연결이 만료되면 완료를 막으며, 다른 ready 연결이 남으면 그 조건을 충족한 것으로 판정한다. 실제 요청·유료 구독 검증은 추가하지 않는다.
