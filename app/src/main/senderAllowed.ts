@@ -9,7 +9,11 @@ const mainOnly = new Set([
   "onboarding:read", "onboarding:run", "onboarding:answer", "onboarding:open-project", "folders:get", "settings:open",
   "window:visible", "comments:project", "review-state:get", "review-state:raise", "comments:orphan-mutate", "comments:orphan-status",
 ]);
-const shared = new Set(["setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get"]);
+const shared = new Set([
+  "setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get",
+  // Agent accounts: either window may sign in or out. Conversation runs stay main-only (`conversation:*`).
+  "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",
+]);
 const settingsOnly = new Set([
   "config:read", "config:write", "config:choose", "setup:copy-path-line", "settings:tab-get", "settings:tab-save", "settings:take-target",
   "projects:reveal", "projects:forward-action",

@@ -90,6 +90,11 @@ const RUN_ARGS: Record<"claude" | "codex", string[]> = { claude: [], codex: ["-c
 // Exact versions whose ACP behaviour was checked live (B3, 2026-10-28). The Antigravity server has no version run:
 // it is the sha-pinned download (agentAuth/antigravity.ts) and its initialize reply names its version.
 export const ACP_VERSIONS: Partial<Record<Provider, string>> = { cursor: "2026.10.22-27dcf5f", copilot: "1.0.105" };
+// The provider CLI's --version output names a build doan checked; account status readiness reads the same rule.
+export function supportedVersion(provider: Provider, output: string): boolean {
+  const match = output.match(/\b\d+\.\d+\.\d+(?:-[0-9a-f]+)?\b/)?.[0] ?? null;
+  return provider === "claude" || provider === "codex" ? supportedRuntime(provider, match?.split("-")[0] ?? null, BUNDLED_CLAUDE_SDK) : match !== null && match === ACP_VERSIONS[provider];
+}
 // A stored ACP session is a directory or <id>.<ext> file in the provider's sessions directory; session/load is the
 // final admission. Cursor .cursor/acp-sessions/<id>/, Copilot .copilot/session-state/<id>/ (B3 live check).
 export function acpSessionExists(profileDir: string, sessions: string, id: string): boolean {
@@ -132,9 +137,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string): Account
       if (!adapter.acpAuth) {
         const version = await runProcess(lease.command, ["--version"], lease.env, 5000);
         recheck();
-        const match = version.exitCode === 0 && !version.timedOut ? version.stdout.match(/\b\d+\.\d+\.\d+(?:-[0-9a-f]+)?\b/)?.[0] ?? null : null;
-        const supported = provider === "claude" || provider === "codex" ? supportedRuntime(provider, match?.split("-")[0] ?? null, BUNDLED_CLAUDE_SDK) : match === ACP_VERSIONS[provider];
-        if (!supported) throw new Error(stored ? "session_unavailable" : "runtime_unsupported");
+        if (version.exitCode !== 0 || version.timedOut || !supportedVersion(provider, version.stdout)) throw new Error(stored ? "session_unavailable" : "runtime_unsupported");
       }
       let root: string, cwd: string, configDir: string;
       try { root = canonicalDirectory(request.root); cwd = canonicalDirectory(stored?.session.cwd ?? root); configDir = canonicalDirectory(lease.profileDir); }

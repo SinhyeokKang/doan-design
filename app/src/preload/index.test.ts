@@ -321,3 +321,50 @@ test("conversation listener precedes read and drains the final buffered event wi
   expect(events).toEqual([first, final]); expect(emitter.listenerCount("conversation:event")).toBe(1);
   stop(); expect(emitter.listenerCount("conversation:event")).toBe(0);
 });
+
+test("sends agent account calls with only a provider, an attempt ID and an explicit stop", async () => {
+  mocks.invoke.mockResolvedValue({ ok: true });
+  const calls: [() => Promise<unknown>, unknown[]][] = [
+    [() => api.readAgentAuth(), ["agent-auth:read"]],
+    [() => api.checkAgentAuth("copilot"), ["agent-auth:check", { provider: "copilot" }]],
+    [() => api.signInAgent("cursor"), ["agent-auth:sign-in", { provider: "cursor" }]],
+    [() => api.signInAgent("cursor", { stop: true }), ["agent-auth:sign-in", { provider: "cursor", stop: true }]],
+    [() => api.signOutAgent("codex"), ["agent-auth:sign-out", { provider: "codex" }]],
+    [() => api.signOutAgent("codex", { stop: true }), ["agent-auth:sign-out", { provider: "codex", stop: true }]],
+    [() => api.cancelAgentSignIn("antigravity", "a1"), ["agent-auth:cancel", { provider: "antigravity", attemptId: "a1" }]],
+    [() => api.submitAgentSignInCode("antigravity", "a1", "http://127.0.0.1:5/?code=c"), ["agent-auth:submit-code", { provider: "antigravity", attemptId: "a1", code: "http://127.0.0.1:5/?code=c" }]],
+    [() => api.openAgentSignInLink("claude", "a1"), ["agent-auth:open-link", { provider: "claude", attemptId: "a1" }]],
+  ];
+  for (const [call, args] of calls) { mocks.invoke.mockClear(); await call(); expect(mocks.invoke).toHaveBeenCalledWith(...args); }
+});
+
+test("keeps the newest agent account snapshot when the initial read and change events race, and unsubscribes", async () => {
+  let resolve: (snapshot: unknown) => void = () => { throw new Error("initial read did not start"); };
+  mocks.invoke.mockImplementation(() => new Promise(done => { resolve = done; }));
+  const seen: number[] = [];
+  const stop = api.onAgentAuth(snapshot => seen.push(snapshot.revision));
+  expect(mocks.invoke).toHaveBeenCalledWith("agent-auth:read");
+  emitter.emit("agent-auth:changed", {}, { revision: 5, providers: [] });
+  resolve({ revision: 3, providers: [] }); await Promise.resolve(); await Promise.resolve();
+  emitter.emit("agent-auth:changed", {}, { revision: 4, providers: [] });
+  emitter.emit("agent-auth:changed", {}, { revision: 6, providers: [] });
+  expect(seen).toEqual([5, 6]);
+  stop();
+  emitter.emit("agent-auth:changed", {}, { revision: 7, providers: [] });
+  expect(seen).toEqual([5, 6]);
+  expect(emitter.listenerCount("agent-auth:changed")).toBe(0);
+  const later: number[] = [];
+  const stopLater = api.onAgentAuth(snapshot => later.push(snapshot.revision));
+  stopLater(); resolve({ revision: 9, providers: [] }); await Promise.resolve(); await Promise.resolve();
+  expect(later).toEqual([]);
+});
+
+test("delivers this window's sign-in links until unsubscribed", () => {
+  const prompts: unknown[] = [];
+  const stop = api.onAgentSignInPrompt(prompt => prompts.push(prompt));
+  emitter.emit("agent-auth:prompt", {}, { provider: "copilot", attemptId: "a1", url: "https://github.com/login" });
+  stop();
+  emitter.emit("agent-auth:prompt", {}, { provider: "copilot", attemptId: "a1", url: "https://github.com/login" });
+  expect(prompts).toEqual([{ provider: "copilot", attemptId: "a1", url: "https://github.com/login" }]);
+  expect(emitter.listenerCount("agent-auth:prompt")).toBe(0);
+});

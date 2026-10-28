@@ -14,7 +14,8 @@ const mainOnly = [
   // project-feedback: resolve, reopen and delete on comments without a canvas.
   "comments:orphan-mutate", "comments:orphan-status",
 ];
-const shared = ["setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get"];
+const shared = ["setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get",
+  "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out"];
 const settingsOnly = [
   "config:read", "config:write", "config:choose", "setup:copy-path-line", "settings:tab-get", "settings:tab-save", "settings:take-target",
   "projects:reveal", "projects:forward-action",
@@ -35,5 +36,5 @@ test("rejects unknown channels and every unregistered window", () => {
   for (const channel of [...mainOnly, ...shared, ...settingsOnly, "", "setup:delete", "comments:evil", "toString", "__proto__", "settings:", "projects:", "setup:"]) {
     for (const kind of [undefined, null, "thumbnail", "unknown", "", 1, {}]) expect(senderAllowed(channel, kind)).toBe(false);
   }
-  for (const kind of ["main", "settings"]) for (const channel of ["", "setup:delete", "comments:evil", "toString", "__proto__"]) expect(senderAllowed(channel, kind)).toBe(false);
+  for (const kind of ["main", "settings"]) for (const channel of ["", "setup:delete", "comments:evil", "toString", "__proto__", "agent-auth:changed", "agent-auth:prompt", "agent-auth:delete"]) expect(senderAllowed(channel, kind)).toBe(false);
 });

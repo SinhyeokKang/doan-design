@@ -1,3 +1,5 @@
+import type { AuthPromptEvent, AuthReply, AuthSnapshot, AuthStartReply } from "../main/agentAuth/ipc";
+import type { Provider } from "../main/agentAuth/types";
 import type { ShellActivity } from "../main/shellActivity";
 import type { ConversationService, StartRequest } from "../main/conversation/service";
 import type { ConversationError } from "../main/conversation/ipc";
@@ -47,6 +49,39 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, event: ConversationEvent) => listener(event);
     ipcRenderer.on("conversation:event", receive);
     return () => ipcRenderer.removeListener("conversation:event", receive);
+  },
+  // Agent accounts. Main checks provider and attempt IDs and binds sign-in, cancel, pasted addresses and link
+  // opening to this window. Snapshots carry one revision; onAgentAuth delivers only ones newer than the last it
+  // delivered, so an initial read that loses a race with a change never replaces the newer state. A conversation's
+  // not_logged_in is coarse: take recovery from the provider's readiness.action (a Codex re-sign-in mints a new
+  // connection that its earlier conversations cannot resume). readAgentAuth is null when account storage is unreadable.
+  readAgentAuth: (): Promise<AuthSnapshot | null> => ipcRenderer.invoke("agent-auth:read"),
+  onAgentAuth(listener: (snapshot: AuthSnapshot) => void): () => void {
+    let active = true, revision = -1;
+    const deliver = (snapshot: AuthSnapshot | null) => {
+      if (!active || !snapshot || snapshot.revision <= revision) return;
+      revision = snapshot.revision; listener(snapshot);
+    };
+    const receive = (_event: Electron.IpcRendererEvent, snapshot: AuthSnapshot) => deliver(snapshot);
+    ipcRenderer.on("agent-auth:changed", receive);
+    void ipcRenderer.invoke("agent-auth:read").then(deliver);
+    return () => { active = false; ipcRenderer.removeListener("agent-auth:changed", receive); };
+  },
+  checkAgentAuth: (provider: Provider): Promise<AuthStartReply> => ipcRenderer.invoke("agent-auth:check", { provider }),
+  // Without stop, a provider with running conversations answers stop_required; with it (the user chose to stop them)
+  // main ends that provider's doan-account runs and waits for their processes before changing the account.
+  signInAgent: (provider: Provider, options: { stop?: boolean } = {}): Promise<AuthStartReply> => ipcRenderer.invoke("agent-auth:sign-in", { provider, ...(options.stop ? { stop: true } : {}) }),
+  signOutAgent: (provider: Provider, options: { stop?: boolean } = {}): Promise<AuthStartReply> => ipcRenderer.invoke("agent-auth:sign-out", { provider, ...(options.stop ? { stop: true } : {}) }),
+  cancelAgentSignIn: (provider: Provider, attemptId: string): Promise<AuthReply> => ipcRenderer.invoke("agent-auth:cancel", { provider, attemptId }),
+  // The address the browser ended on when it could not reach the sign-in's local listener (Antigravity).
+  submitAgentSignInCode: (provider: Provider, attemptId: string, code: string): Promise<AuthReply> => ipcRenderer.invoke("agent-auth:submit-code", { provider, attemptId, code }),
+  // Opens this window's sign-in link in the system browser; the page cannot name a URL.
+  openAgentSignInLink: (provider: Provider, attemptId: string): Promise<AuthReply> => ipcRenderer.invoke("agent-auth:open-link", { provider, attemptId }),
+  // Links of this window's own sign-ins only.
+  onAgentSignInPrompt(listener: (prompt: AuthPromptEvent) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, prompt: AuthPromptEvent) => listener(prompt);
+    ipcRenderer.on("agent-auth:prompt", receive);
+    return () => ipcRenderer.removeListener("agent-auth:prompt", receive);
   },
   homeDirectory: (): Promise<string | null> => ipcRenderer.invoke("app:home"),
   readOnboarding: (request: { session: string; requestId: string }): Promise<OnboardingRead> => ipcRenderer.invoke("onboarding:read", request),
