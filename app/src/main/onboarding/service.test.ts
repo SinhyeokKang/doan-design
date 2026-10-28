@@ -577,7 +577,7 @@ describe("clone", () => {
   it("reports cleanup and access failures by code only", async () => {
     const t = setup();
     const { id, inspectionId, destination } = await planned(t);
-    t.projects.clone.mockResolvedValueOnce({ ok: false, code: "cleanup_failed", leftover: "/Users/ada/.studio.doan-clone-x1" });
+    t.projects.clone.mockResolvedValueOnce({ ok: false, code: "cleanup_failed", leftovers: ["/Users/ada/.studio.doan-clone-x1"] });
     expect(operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination }))).toMatchObject({ state: "failed", error: { code: "cleanup_failed", message: "Couldn't remove /Users/ada/.studio.doan-clone-x1. Remove it, then try again." } });
     // The user removed the leftover directory, so the next clone may run.
     t.projects.present.mockResolvedValueOnce(false);
@@ -729,7 +729,7 @@ describe("clone boundaries", () => {
   it("keeps a directory it could not remove in view and makes no other until it is gone", async () => {
     const t = setup();
     const { id, inspectionId, destination } = await planned(t);
-    t.projects.clone.mockResolvedValueOnce({ ok: false, code: "cleanup_failed", leftover: "/Users/ada/.studio.doan-clone-x1" });
+    t.projects.clone.mockResolvedValueOnce({ ok: false, code: "cleanup_failed", leftovers: ["/Users/ada/.studio.doan-clone-x1"] });
     await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination });
     const again = operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c2", inspectionId, destination }));
     expect(again).toMatchObject({ state: "failed", error: { code: "cleanup_failed", message: "Couldn't remove /Users/ada/.studio.doan-clone-x1. Remove it, then try again." } });
@@ -738,6 +738,21 @@ describe("clone boundaries", () => {
     t.projects.present.mockResolvedValueOnce(false);
     expect(operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c3", inspectionId, destination }))).toMatchObject({ state: "succeeded" });
     expect(t.projects.clone).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("clone leftovers", () => {
+  it("names every directory it could not remove and blocks the parent while any is there", async () => {
+    const t = setup();
+    const id = await session(t);
+    const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", url: "https://github.com/acme/studio", destination: "/Users/ada/studio" }));
+    const inspectionId = op.inspection!.inspectionId;
+    t.projects.clone.mockResolvedValueOnce({ ok: false, code: "cleanup_failed", leftovers: ["/Users/ada/.studio.doan-clone-x1", "/Users/ada/studio"] });
+    const failed = operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination: "/Users/ada/studio" }));
+    expect(failed.error).toEqual({ code: "cleanup_failed", message: "Couldn't remove /Users/ada/.studio.doan-clone-x1 and /Users/ada/studio. Remove them, then try again." });
+    t.projects.present.mockImplementation(async (path: string) => path === "/Users/ada/studio");
+    expect(operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c2", inspectionId, destination: "/Users/ada/studio" }))).toMatchObject({ state: "failed", error: { message: "Couldn't remove /Users/ada/studio. Remove it, then try again." } });
+    expect(t.projects.clone).toHaveBeenCalledTimes(1);
   });
 });
 

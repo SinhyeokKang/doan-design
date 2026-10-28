@@ -6,7 +6,7 @@ import type { LsTarget } from "../cli";
 import type { FolderState } from "../folderState";
 import type { ProjectInitResult } from "../shell";
 import { readGitRemotes } from "./gitConfig";
-import { canonicalFolder, cloneDestination, cloneProject, confirmProject, destinationState, inspectPath, inspectUrl, plannedChanges, registerClone, selectProject, type ProjectDeps } from "./projects";
+import { canonicalFolder, cloneDestination, leftoverPresent, cloneProject, confirmProject, destinationState, inspectPath, inspectUrl, plannedChanges, registerClone, selectProject, type ProjectDeps } from "./projects";
 
 // Remote checks read .git/config; a git process here would run the repository's fsmonitor, hooks and filters.
 vi.mock("node:child_process", () => ({ spawn: () => { throw new Error("git must not run"); }, execFile: () => { throw new Error("git must not run"); } }));
@@ -195,7 +195,7 @@ describe("cloneProject", () => {
     expect(d.deps.initialize).toHaveBeenCalledWith(destination);
     expect(await cloneProject("u", "/tmp/y", new AbortController().signal, { ...deps().deps, git: async () => ok, run: async () => ({ kind: "failed", code: "repository_unreachable" }) })).toEqual({ ok: false, code: "repository_unreachable" });
     expect(await cloneProject("u", "/tmp/y", new AbortController().signal, { ...deps().deps, git: async () => ok, run: async () => ({ kind: "cancelled" }) })).toEqual({ ok: false, cancelled: true });
-    expect(await cloneProject("u", "/tmp/y", new AbortController().signal, { ...deps().deps, git: async () => ok, run: async () => ({ kind: "failed", code: "cleanup_failed", leftover: "/tmp/.y.doan-clone-1" }) })).toEqual({ ok: false, code: "cleanup_failed", leftover: "/tmp/.y.doan-clone-1" });
+    expect(await cloneProject("u", "/tmp/y", new AbortController().signal, { ...deps().deps, git: async () => ok, run: async () => ({ kind: "failed", code: "cleanup_failed", leftovers: ["/tmp/.y.doan-clone-1"] }) })).toEqual({ ok: false, code: "cleanup_failed", leftovers: ["/tmp/.y.doan-clone-1"] });
   });
 
   it("hands the commit to the clone and registers only what it published", async () => {
@@ -231,5 +231,20 @@ describe("cloneDestination", () => {
     const d = deps();
     d.deps.add.mockResolvedValueOnce(parent);
     expect(await registerClone(cloned, d.deps)).toEqual({ ok: false, code: "project_unavailable" });
+  });
+});
+
+describe("leftoverPresent", () => {
+  it("counts a leftover gone only when it is confirmed absent", async () => {
+    const parent = temp(), left = join(parent, ".studio.doan-clone-x");
+    expect(await leftoverPresent(left)).toBe(false);
+    mkdirSync(left);
+    expect(await leftoverPresent(left)).toBe(true);
+  });
+  test.skipIf(root)("keeps a leftover it cannot look at", async () => {
+    const parent = temp(), left = join(parent, ".studio.doan-clone-x");
+    mkdirSync(left);
+    chmodSync(parent, 0o000);
+    expect(await leftoverPresent(left)).toBe(true);
   });
 });

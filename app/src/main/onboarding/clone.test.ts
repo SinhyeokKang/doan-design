@@ -5,20 +5,24 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, test, vi } from "vitest";
 // Finalization steps call back after they finish, so a test can accept a cancel exactly between two of them.
 const after: { chmod?: () => void; mkdir?: () => void; rename?: () => void } = {};
+// A filesystem step that fails with this errno instead of running.
+const failing: { rmdir?: string; rename?: string } = {};
+const denied = (code: string) => Object.assign(new Error(code), { code });
 vi.mock("node:fs/promises", async original => {
   const real = await original<typeof import("node:fs/promises")>();
   return {
     ...real,
     chmod: async (...args: Parameters<typeof real.chmod>) => { await real.chmod(...args); after.chmod?.(); },
     mkdir: async (...args: Parameters<typeof real.mkdir>) => { const made = await real.mkdir(...args); after.mkdir?.(); return made; },
-    rename: async (...args: Parameters<typeof real.rename>) => { await real.rename(...args); after.rename?.(); },
+    rename: async (...args: Parameters<typeof real.rename>) => { if (failing.rename) throw denied(failing.rename); await real.rename(...args); after.rename?.(); },
+    rmdir: async (...args: Parameters<typeof real.rmdir>) => { if (failing.rmdir) throw denied(failing.rmdir); return real.rmdir(...args); },
   };
 });
 import { cloneArgs, cloneEnv, cloneFailure, locateGit, runClone, type CloneProcess } from "./clone";
 
 const dirs: string[] = [];
 afterEach(() => {
-  delete after.chmod; delete after.mkdir; delete after.rename;
+  delete after.chmod; delete after.mkdir; delete after.rename; delete failing.rmdir; delete failing.rename;
   for (const dir of dirs.splice(0)) { try { execFileSync("chmod", ["-R", "u+rwx", dir]); } catch { /* gone */ } rmSync(dir, { recursive: true, force: true }); }
 });
 function temp(): string { const dir = mkdtempSync(join(tmpdir(), "doan-clone-test-")); dirs.push(dir); return dir; }
@@ -145,7 +149,7 @@ describe("runClone", () => {
     const run = fake(target => { mkdirSync(join(target, "locked")); writeFileSync(join(target, "locked", "f"), "x"); chmodSync(join(target, "locked"), 0o500); }, Promise.resolve(1));
     const result = await runClone({ git: "git", url: "u", destination, env, signal: signal().signal, spawn: run.spawn });
     // The exact directory this run made and could not remove, for the user to remove.
-    expect(result).toEqual({ kind: "failed", code: "cleanup_failed", leftover: run.target() });
+    expect(result).toEqual({ kind: "failed", code: "cleanup_failed", leftovers: [run.target()] });
     expect(existsSync(run.target())).toBe(true);
     expect(existsSync(destination)).toBe(false);
   });
@@ -157,6 +161,38 @@ describe("runClone", () => {
     const commit = vi.fn(() => !controller.signal.aborted);
     expect(await runClone({ git: "git", url: "u", destination, env, signal: controller.signal, spawn: run.spawn, commit })).toEqual({ kind: "cancelled" });
     expect(readdirSync(parent)).toEqual([]);
+  });
+
+  it("reports a claimed destination it could not remove after a cancel, and still removes its temporary directory", async () => {
+    const parent = temp(), destination = join(parent, "studio"), controller = signal();
+    after.mkdir = () => { controller.abort(); failing.rmdir = "EACCES"; };
+    const run = fake(target => writeFileSync(join(target, "README.md"), "x"), Promise.resolve(0));
+    expect(await runClone({ git: "git", url: "u", destination, env, signal: controller.signal, spawn: run.spawn })).toEqual({ kind: "failed", code: "cleanup_failed", leftovers: [destination] });
+    expect(readdirSync(parent)).toEqual(["studio"]);
+  });
+
+  test.skipIf(root)("reports both directories when neither the claim nor the temporary directory can be removed", async () => {
+    const parent = temp(), destination = join(parent, "studio"), controller = signal();
+    after.mkdir = () => { controller.abort(); failing.rmdir = "EIO"; };
+    const run = fake(target => { mkdirSync(join(target, "locked")); writeFileSync(join(target, "locked", "f"), "x"); chmodSync(join(target, "locked"), 0o500); }, Promise.resolve(0));
+    expect(await runClone({ git: "git", url: "u", destination, env, signal: controller.signal, spawn: run.spawn })).toEqual({ kind: "failed", code: "cleanup_failed", leftovers: [run.target(), destination] });
+  });
+
+  it("keeps a competitor's files put into the claimed destination and reports it as taken", async () => {
+    const parent = temp(), destination = join(parent, "studio");
+    after.mkdir = () => writeFileSync(join(destination, "theirs.txt"), "keep");
+    const run = fake(target => writeFileSync(join(target, "README.md"), "x"), Promise.resolve(0));
+    expect(await runClone({ git: "git", url: "u", destination, env, signal: signal().signal, spawn: run.spawn })).toEqual({ kind: "failed", code: "destination_exists" });
+    expect(readdirSync(destination)).toEqual(["theirs.txt"]);
+    expect(readdirSync(parent)).toEqual(["studio"]);
+  });
+
+  it("reports the claimed destination when a failed move cannot release it", async () => {
+    const parent = temp(), destination = join(parent, "studio");
+    failing.rename = "EIO"; failing.rmdir = "EACCES";
+    const run = fake(target => writeFileSync(join(target, "README.md"), "x"), Promise.resolve(0));
+    expect(await runClone({ git: "git", url: "u", destination, env, signal: signal().signal, spawn: run.spawn })).toEqual({ kind: "failed", code: "cleanup_failed", leftovers: [destination] });
+    expect(readdirSync(parent)).toEqual(["studio"]);
   });
 
   it("publishes only once the commit takes it, and then no cancel can apply", async () => {
