@@ -4,7 +4,7 @@ import { validateOnboardingResponse } from "../../formats/validate";
 import { AUTH_CHANNELS, AuthIpc, type AuthBackend, type AuthSnapshot } from "../agentAuth/ipc";
 import { initialAuthState, transition } from "../agentAuth/state";
 import { PROVIDERS, type AccountConnection, type AuthEvent, type AuthState, type Provider, type ToolFacts } from "../agentAuth/types";
-import { ONBOARDING_CHANNELS, OnboardingService, rendererRequest } from "./service";
+import { ONBOARDING_CHANNELS, OnboardingService, rendererRequest, type OnboardingProjects } from "./service";
 
 const MAIN = 7;
 // Shared across setups so a second service, like an app restart, never repeats a session id.
@@ -43,6 +43,20 @@ function backend() {
   return { api, apply, states, running, onChange(listener: () => void) { changed = listener; } };
 }
 
+// Folder work as the projects module answers it; paths under /gone, /taken and /nowhere stand for the disk's answers.
+function fakeProjects(): OnboardingProjects & { [K in keyof OnboardingProjects]: ReturnType<typeof vi.fn> } {
+  return {
+    folder: vi.fn(async (path: string) => path.startsWith("/gone") ? null : path),
+    destination: vi.fn(async (path: string) => path.startsWith("/taken") ? "exists" as const : path.startsWith("/nowhere") ? "no_parent" as const : "absent" as const),
+    inspectPath: vi.fn(async (path: string) => ({ ok: true as const, candidates: [{ path, changes: [] }] })),
+    inspectUrl: vi.fn(async () => []),
+    select: vi.fn(async (path: string) => ({ ok: true as const, root: path })),
+    clone: vi.fn(async (_url: string, destination: string) => ({ ok: true as const, root: destination })),
+    confirm: vi.fn(async (root: string) => ({ ok: true as const, root })),
+    saveCompletion: vi.fn(() => ({ ok: true as const })),
+  };
+}
+
 function setup(options: { completed?: boolean; auth?: boolean; owner?: number | null; read?: () => Promise<AuthSnapshot>; facts?: ToolFacts } = {}) {
   const b = backend();
   const openExternal = vi.fn(async (_url: string) => {});
@@ -52,9 +66,10 @@ function setup(options: { completed?: boolean; auth?: boolean; owner?: number | 
   b.onChange(() => ipc.changed());
   const auth = options.auth === false ? null : options.read ? { read: options.read, latest: () => ipc.latest(), handle: ipc.handle.bind(ipc) } : ipc;
   let completed = options.completed ?? false;
+  const projects = fakeProjects();
   service = new OnboardingService({
     auth, mainOwner: () => options.owner === undefined ? MAIN : options.owner, completed: () => completed,
-    publish: state => published.push(state), newId: () => `id-${++ids}`, snapshotWaitMs: 50,
+    publish: state => published.push(state), newId: () => `id-${++ids}`, snapshotWaitMs: 50, projects, quickReplyMs: 50,
   });
   const ask = async (request: Record<string, unknown>): Promise<OnboardingResponse> => {
     const response = await service!.answer({ v: 2, token: TOKEN, ...request } as OnboardingRequest);
@@ -65,7 +80,9 @@ function setup(options: { completed?: boolean; auth?: boolean; owner?: number | 
     const event = { provider, attemptId, owner: MAIN, url };
     ipc.prompted(event); service!.prompted(event);
   };
-  return { b, ipc, service, ask, published, openExternal, prompt, complete(value: boolean) { completed = value; } };
+  // A connected, checked Claude: the one ready agent onboarding needs.
+  const ready = () => { b.states.set("claude", { ...initialAuthState("claude", claude), verified: true }); ipc.changed(); };
+  return { b, ipc, service, ask, published, openExternal, prompt, projects, ready, complete(value: boolean) { completed = value; } };
 }
 
 async function session(t: ReturnType<typeof setup>): Promise<string> {
@@ -325,15 +342,233 @@ describe("kept operations", () => {
   });
 });
 
-describe("project operations before B1", () => {
-  it("has no inspection to select or clone from and no project to complete", async () => {
+const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
+const ALL = [".doan/canvases/", ".doan/config.json", ".gitattributes"];
+
+describe("project inspection", () => {
+  it("inspects a picked folder and no longer refuses it as unavailable", async () => {
     const t = setup();
     const id = await session(t);
-    expect(await t.ask({ op: "project_select", sessionId: id, requestId: "r1", inspectionId: "i1", path: "/tmp/x" })).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
-    expect(await t.ask({ op: "project_clone", sessionId: id, requestId: "r2", inspectionId: "i1", destination: "/tmp/y" })).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
-    expect(await t.ask({ op: "complete", sessionId: id, requestId: "r3" })).toMatchObject({ ok: false, error: { code: "no_ready_agent" } });
-    // Temporary until B1 implements inspection.
-    expect(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r4", path: "/tmp/x" })).toMatchObject({ ok: false, error: { code: "bad_request" } });
+    const reply = await t.ask({ op: "project_inspect", sessionId: id, requestId: "r1", path: "/Users/ada/studio" });
+    expect(reply.ok).toBe(true);
+    expect(operation(reply)).toMatchObject({ kind: "project_inspect", state: "succeeded", inspection: { candidates: [{ path: "/Users/ada/studio", changes: [] }] } });
+    expect(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r2", path: "/gone/x" })).toMatchObject({ ok: false, error: { code: "path_unavailable" } });
+  });
+
+  it("checks a GitHub URL and its destination before any work, and plans the clone", async () => {
+    const t = setup();
+    const id = await session(t);
+    expect(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r1", url: "https://gitlab.com/acme/studio" })).toMatchObject({ ok: false, error: { code: "invalid_url" } });
+    expect(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r2", url: "https://github.com/acme/studio", destination: "/taken/studio" })).toMatchObject({ ok: false, error: { code: "destination_exists" } });
+    expect(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r3", url: "https://github.com/acme/studio", destination: "/nowhere/studio" })).toMatchObject({ ok: false, error: { code: "path_unavailable" } });
+    t.projects.inspectUrl.mockResolvedValueOnce([{ path: "/Users/ada/studio", changes: [] }]);
+    const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r4", url: "git@github.com:acme/studio.git", destination: "/Users/ada/new" }));
+    expect(op.inspection).toEqual({ inspectionId: expect.any(String), candidates: [{ path: "/Users/ada/studio", changes: [] }], clone: { destination: "/Users/ada/new", changes: ALL } });
+    expect(t.projects.inspectUrl).toHaveBeenCalledWith({ owner: "acme", repository: "studio", transport: "ssh", url: "git@github.com:acme/studio.git" });
+  });
+
+  it("answers running past its reply limit and finishes on status", async () => {
+    const t = setup();
+    const id = await session(t);
+    const slow = deferred<{ ok: true; candidates: { path: string; changes: [] }[] }>();
+    t.projects.inspectPath.mockReturnValueOnce(slow.promise);
+    const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r1", path: "/Users/ada/studio" }));
+    expect(op.state).toBe("running");
+    slow.resolve({ ok: true, candidates: [{ path: "/Users/ada/studio", changes: [] }] });
+    await settle();
+    expect(state(await t.ask({ op: "status", sessionId: id, operationId: op.operationId })).operations[0]).toMatchObject({ state: "succeeded", inspection: { candidates: [{ path: "/Users/ada/studio" }] } });
+  });
+
+  it("discards an older inspection that finishes after a newer one started", async () => {
+    const t = setup();
+    const id = await session(t);
+    const old = deferred<{ ok: true; candidates: { path: string; changes: [] }[] }>();
+    t.projects.inspectPath.mockReturnValueOnce(old.promise);
+    const first = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r1", path: "/Users/ada/old" }));
+    const second = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r2", path: "/Users/ada/new" }));
+    old.resolve({ ok: true, candidates: [{ path: "/Users/ada/old", changes: [] }] });
+    await settle();
+    const late = state(await t.ask({ op: "status", sessionId: id, operationId: first.operationId })).operations[0]!;
+    expect(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId: late.inspection!.inspectionId, path: "/Users/ada/old" })).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
+    expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId: second.inspection!.inspectionId, path: "/Users/ada/new" }))).toMatchObject({ state: "succeeded" });
+  });
+});
+
+describe("project selection", () => {
+  async function inspected(t: ReturnType<typeof setup>, changes: string[] = []) {
+    const id = await session(t);
+    t.projects.inspectPath.mockResolvedValueOnce({ ok: true, candidates: [{ path: "/Users/ada/studio", changes }] });
+    const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", path: "/Users/ada/studio" }));
+    return { id, inspectionId: op.inspection!.inspectionId };
+  }
+
+  it("selects a candidate of the latest inspection and reports the project", async () => {
+    const t = setup();
+    const { id, inspectionId } = await inspected(t);
+    expect(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/other" })).toMatchObject({ ok: false, error: { code: "not_candidate" } });
+    expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId, path: "/Users/ada/studio" }))).toMatchObject({ kind: "project_select", state: "succeeded", project: { root: "/Users/ada/studio" } });
+    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", false, null);
+    expect(state(await t.ask({ op: "status", sessionId: id })).project).toEqual({ root: "/Users/ada/studio" });
+  });
+
+  it("needs an explicit initialize for a folder that would change", async () => {
+    const t = setup();
+    const { id, inspectionId } = await inspected(t, ALL);
+    expect(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio" })).toMatchObject({ ok: false, error: { code: "initialize_required" } });
+    expect(t.projects.select).not.toHaveBeenCalled();
+    expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId, path: "/Users/ada/studio", initialize: true }))).toMatchObject({ state: "succeeded" });
+    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", true, null);
+  });
+
+  it("goes stale as soon as a newer inspection starts, from the window or a client", async () => {
+    const t = setup();
+    const { id, inspectionId } = await inspected(t);
+    t.projects.inspectPath.mockReturnValueOnce(new Promise(() => {}));
+    await t.service.answer(rendererRequest("project_inspect", { sessionId: id, requestId: "w1", path: "/Users/ada/elsewhere" })!);
+    expect(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio" })).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
+  });
+
+  it("keeps the previous project when a selection fails, with a fixed message", async () => {
+    const t = setup();
+    const { id, inspectionId } = await inspected(t);
+    await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio" });
+    t.projects.select.mockResolvedValueOnce({ ok: false, code: "remote_mismatch" });
+    expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId, path: "/Users/ada/studio" }))).toMatchObject({ state: "failed", error: { code: "remote_mismatch", message: expect.any(String) } });
+    expect(state(await t.ask({ op: "status", sessionId: id })).project).toEqual({ root: "/Users/ada/studio" });
+  });
+});
+
+describe("clone", () => {
+  async function planned(t: ReturnType<typeof setup>, destination = "/Users/ada/studio") {
+    const id = await session(t);
+    const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", url: "https://github.com/acme/studio", destination }));
+    return { id, inspectionId: op.inspection!.inspectionId, destination };
+  }
+
+  it("needs the inspection that planned this destination", async () => {
+    const t = setup();
+    const { id, inspectionId } = await planned(t);
+    expect(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination: "/Users/ada/elsewhere" })).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
+    const path = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i2", path: "/Users/ada/x" }));
+    expect(await t.ask({ op: "project_clone", sessionId: id, requestId: "c2", inspectionId: path.inspection!.inspectionId, destination: "/Users/ada/studio" })).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
+  });
+
+  it("refuses a destination that appeared after the inspection", async () => {
+    const t = setup();
+    const { id, inspectionId } = await planned(t, "/taken/studio".replace("/taken", "/Users/ada"));
+    t.projects.destination.mockResolvedValueOnce("exists");
+    expect(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination: "/Users/ada/studio" })).toMatchObject({ ok: false, error: { code: "destination_exists" } });
+    expect(t.projects.clone).not.toHaveBeenCalled();
+  });
+
+  it("clones in the background, refuses new project work until cleanup ends, and reports a cancel", async () => {
+    const t = setup();
+    const { id, inspectionId, destination } = await planned(t);
+    const result = deferred<{ ok: false; cancelled: true }>();
+    let signal: AbortSignal | undefined;
+    t.projects.clone.mockImplementationOnce(async (_url: string, _destination: string, s: AbortSignal) => { signal = s; return result.promise; });
+    const op = operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination }));
+    expect(op).toMatchObject({ kind: "project_clone", state: "running" });
+    expect(t.projects.clone).toHaveBeenCalledWith("https://github.com/acme/studio", destination, expect.anything());
+    expect(await t.ask({ op: "project_clone", sessionId: id, requestId: "c2", inspectionId, destination })).toMatchObject({ ok: false, error: { code: "busy" } });
+    const cancelling = operation(await t.ask({ op: "cancel", sessionId: id, requestId: "x1", operationId: op.operationId }));
+    expect(cancelling).toMatchObject({ state: "running", cancelling: true });
+    expect(signal?.aborted).toBe(true);
+    // Processes may still be running: no retry, no other location.
+    expect(await t.ask({ op: "project_clone", sessionId: id, requestId: "c3", inspectionId, destination })).toMatchObject({ ok: false, error: { code: "busy" } });
+    expect(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i9", path: "/Users/ada/x" })).toMatchObject({ ok: false, error: { code: "busy" } });
+    result.resolve({ ok: false, cancelled: true });
+    await settle();
+    expect(state(await t.ask({ op: "status", sessionId: id, operationId: op.operationId })).operations[0]).toEqual({ ...op, state: "cancelled" });
+    expect(operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c4", inspectionId, destination }))).toMatchObject({ state: "succeeded", project: { root: destination } });
+    expect(state(await t.ask({ op: "status", sessionId: id })).project).toEqual({ root: destination });
+  });
+
+  it("reports cleanup and access failures by code only", async () => {
+    const t = setup();
+    const { id, inspectionId, destination } = await planned(t);
+    t.projects.clone.mockResolvedValueOnce({ ok: false, code: "cleanup_failed" });
+    expect(operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination }))).toMatchObject({ state: "failed", error: { code: "cleanup_failed" } });
+    t.projects.clone.mockRejectedValueOnce(new Error("fatal: Authentication failed for https://token@github.com"));
+    const thrown = operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c2", inspectionId, destination }));
+    expect(thrown).toMatchObject({ state: "failed", error: { code: "clone_failed" } });
+    expect(JSON.stringify(thrown)).not.toMatch(/token|Authentication/);
+  });
+
+  it("cancels a running clone on quit and waits for it", async () => {
+    const t = setup();
+    const { id, inspectionId, destination } = await planned(t);
+    let finished = false;
+    t.projects.clone.mockImplementationOnce((_u: string, _d: string, s: AbortSignal) => new Promise(resolve => s.addEventListener("abort", () => setTimeout(() => { finished = true; resolve({ ok: false, cancelled: true }); }, 20))));
+    await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination });
+    await t.service.quit();
+    expect(finished).toBe(true);
+  });
+});
+
+describe("complete", () => {
+  async function selected(t: ReturnType<typeof setup>) {
+    const id = await session(t);
+    const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", path: "/Users/ada/studio" }));
+    await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId: op.inspection!.inspectionId, path: "/Users/ada/studio" });
+    return id;
+  }
+
+  it("needs a ready agent and a selected project", async () => {
+    const t = setup();
+    const id = await session(t);
+    expect(await t.ask({ op: "complete", sessionId: id, requestId: "d1" })).toMatchObject({ ok: false, error: { code: "no_ready_agent" } });
+    t.ready();
+    expect(await t.ask({ op: "complete", sessionId: id, requestId: "d2" })).toMatchObject({ ok: false, error: { code: "no_project" } });
+  });
+
+  it("re-reads the project, saves completion once and keeps the project when saving fails", async () => {
+    const t = setup();
+    const id = await selected(t);
+    t.ready();
+    t.projects.saveCompletion.mockReturnValueOnce({ ok: false, reason: "save_failed" });
+    expect(operation(await t.ask({ op: "complete", sessionId: id, requestId: "d1" }))).toMatchObject({ kind: "complete", state: "failed", error: { code: "completion_save_failed" } });
+    expect(state(await t.ask({ op: "status", sessionId: id })).project).toEqual({ root: "/Users/ada/studio" });
+    // Retry repeats the checks and the save only; selection and setup are not run again.
+    expect(operation(await t.ask({ op: "complete", sessionId: id, requestId: "d2" }))).toMatchObject({ state: "succeeded", project: { root: "/Users/ada/studio" } });
+    expect(t.projects.select).toHaveBeenCalledTimes(1);
+    expect(t.projects.confirm).toHaveBeenCalledTimes(2);
+    expect(t.projects.saveCompletion).toHaveBeenCalledWith("/Users/ada/studio");
+  });
+
+  it("does not repeat a save a newer app refused, and stops if the agent stopped being ready", async () => {
+    const t = setup();
+    const id = await selected(t);
+    t.ready();
+    t.projects.saveCompletion.mockReturnValueOnce({ ok: false, reason: "unknown_version" });
+    expect(operation(await t.ask({ op: "complete", sessionId: id, requestId: "d1" }))).toMatchObject({ state: "failed", error: { code: "completion_unsupported_version" } });
+    t.projects.confirm.mockImplementationOnce(async (root: string) => { t.b.states.set("claude", initialAuthState("claude", null)); t.ipc.changed(); return { ok: true, root }; });
+    expect(operation(await t.ask({ op: "complete", sessionId: id, requestId: "d2" }))).toMatchObject({ state: "failed", error: { code: "no_ready_agent" } });
+    expect(t.projects.saveCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not save completion once quit was accepted", async () => {
+    const t = setup();
+    const id = await selected(t);
+    t.ready();
+    const confirm = deferred<{ ok: true; root: string }>();
+    t.projects.confirm.mockReturnValueOnce(confirm.promise);
+    const op = operation(await t.ask({ op: "complete", sessionId: id, requestId: "d1" }));
+    const quitting = t.service.quit();
+    confirm.resolve({ ok: true, root: "/Users/ada/studio" });
+    await quitting; await settle();
+    expect(t.projects.saveCompletion).not.toHaveBeenCalled();
+    expect(state(await t.ask({ op: "status", sessionId: id, operationId: op.operationId })).operations[0]).toMatchObject({ state: "cancelled" });
+  });
+
+  it("reports a project that is no longer readable or registered", async () => {
+    const t = setup();
+    const id = await selected(t);
+    t.ready();
+    t.projects.confirm.mockResolvedValueOnce({ ok: false, code: "project_unavailable" });
+    expect(operation(await t.ask({ op: "complete", sessionId: id, requestId: "d1" }))).toMatchObject({ state: "failed", error: { code: "project_unavailable" } });
+    expect(t.projects.saveCompletion).not.toHaveBeenCalled();
   });
 });
 
@@ -351,6 +586,6 @@ describe("renderer requests", () => {
   });
 
   it("name channels in the onboarding namespace without reusing the old wizard's", () => {
-    expect(Object.values(ONBOARDING_CHANNELS)).toEqual(["onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:clone", "onboarding:complete", "onboarding:changed"]);
+    expect(Object.values(ONBOARDING_CHANNELS)).toEqual(["onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete", "onboarding:changed"]);
   });
 });
