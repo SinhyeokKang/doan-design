@@ -133,6 +133,7 @@
 - **Net**: a synthetic empty profile reproduced false availability. Header identity, cwd/version, malformed metadata, duplicate rollout, linked file/directory and oversized-header tests now cover read-only existence evidence.
 - **Prevention**: for supported 0.163.0 storage, require one bounded, regular, no-follow rollout whose first `session_meta` identifies the requested session and canonical cwd. A filename or empty loaded-thread list is not evidence. Exhausted bounds and uncertain evidence mean unavailable; presence does not establish writer availability. Preserve authoritative resume ownership checks. Ran `rg -n 'session_meta' app/src/main/conversation/io.ts`; only the Codex presence reader matches.
 - **Follow-up (2026-10-28, agent-auth)**: Codex support moved to 0.164.0. "Supported 0.163.0 storage" now means a rollout whose first `session_meta` `cli_version` is in `CODEX_ROLLOUT_VERSIONS` (0.163.0 and 0.164.0, an accumulating list; ARCHITECTURE §7). The header keeps the creating version when a newer Codex resumes the rollout, so the list must not follow the installed version alone. The other conditions above are unchanged.
+- **Follow-up (2026-10-28, agent-cli-versions)**: the accumulating list became a fixed floor: the header `cli_version` must be a whole `x.y.z[-suffix]` at or above `CODEX_ROLLOUT_FLOOR` 0.163.0 (ARCHITECTURE §7). The floor does not follow the installed minimum for the same reason. The other conditions above are unchanged.
 
 ### 2026-10-27 — Protocol readiness lagged behind process and turn ownership
 
