@@ -137,12 +137,10 @@ export class AuthManager {
   }
 
   async acquire(provider: Provider): Promise<Lease> {
-    const state = this.state(provider);
-    const refusal = this.closed || (state.attempt && state.attempt.kind !== "check") ? "busy"
-      : state.error?.code === "sign_out_failed" ? "sign_out_failed" : !state.connection ? "not_connected"
-      : state.error?.code === "account_mismatch" ? "account_mismatch" : state.expired ? "reauth_required" : !state.verified ? "unverified" : null;
-    if (refusal) throw new Error(refusal);
+    this.admit(provider);
     const { command, env, profileDir } = await this.launch(provider);
+    // A sign-in or sign-out may have started while the CLI was being located.
+    this.admit(provider);
     this.runs.set(provider, (this.runs.get(provider) ?? 0) + 1);
     try { await this.hold(provider); } catch (error) { this.runs.set(provider, (this.runs.get(provider) ?? 1) - 1); throw error; }
     let released = false;
@@ -150,6 +148,14 @@ export class AuthManager {
       if (released) return;
       released = true; this.runs.set(provider, (this.runs.get(provider) ?? 1) - 1); await this.drop(provider);
     } };
+  }
+
+  private admit(provider: Provider): void {
+    const state = this.state(provider);
+    const refusal = this.closed || (state.attempt && state.attempt.kind !== "check") ? "busy"
+      : state.error?.code === "sign_out_failed" ? "sign_out_failed" : !state.connection ? "not_connected"
+      : state.error?.code === "account_mismatch" ? "account_mismatch" : state.expired ? "reauth_required" : !state.verified ? "unverified" : null;
+    if (refusal) throw new Error(refusal);
   }
 
   // Cancels sign-ins, stops checks and waits for owned processes; sign-outs finish because they are short local writes.
@@ -187,6 +193,9 @@ export class AuthManager {
     if (auth.vault) await this.storageStep(() => this.options.storage.absorb(provider, auth.vault!));
     else if (auth.plaintext.some(rel => existsSync(join(profileDir, rel)))) throw new Failure("storage_failed", "provider wrote a plaintext credential file");
     const connection: AccountConnection = { provider, connectionId: this.newId(), profile: provider, account: checked.account };
+    // Last cancellation point: from the metadata write to the signedIn transition only microtasks run, so no
+    // cancel or window-close event can land between a persisted connection and its state.
+    if (this.cancelled(provider, attemptId)) throw new Cancelled();
     await this.storageStep(() => {
       const metadata = this.options.storage.readMetadata();
       this.options.storage.writeMetadata({ v: 1, accounts: [...metadata.accounts.filter(a => a.provider !== provider), connection] });

@@ -352,6 +352,19 @@ describe("leases and recovery", () => {
     expect(existsSync(tokenFile("cursor"))).toBe(false);
     expect(await storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1", refreshed: 2 })) });
   });
+  it("refuses a lease when a sign-in starts while the CLI is being located", async () => {
+    let locating = false, resume!: () => void;
+    const m = manager({ locate: async () => { if (locating) await new Promise<void>(resolve => { resume = resolve; }); return { command: "/bin/fake-cli", path: "/verified/bin" }; } });
+    await m.load();
+    await signedInCursor(m, "u1");
+    locating = true;
+    const lease = m.acquire("cursor");
+    await flush();
+    locating = false;
+    expect((await m.signIn("cursor", 7)).ok).toBe(true);
+    resume();
+    await expect(lease).rejects.toThrow("busy");
+  });
   it("refuses a lease without a verified connection", async () => {
     const m = manager(); await m.load();
     await expect(m.acquire("cursor")).rejects.toThrow("not_connected");
