@@ -334,6 +334,17 @@ func TestOnboardingNeverPrintsTheToken(t *testing.T) {
 	}
 }
 
+func TestOnboardingFailedOperationNeverPrintsTheToken(t *testing.T) {
+	app := startOnboardingApp(t, shortTempDir(t), func(map[string]any) string {
+		return `{"v":2,"ok":true,"op":"sign_in","result":{"operation":{"operationId":"op_1","requestId":"r_1","kind":"sign_in","provider":"codex","state":"failed","error":{"code":"sign_in_failed","message":"exit ` + testToken + `"}}}}`
+	})
+	t.Setenv("DOAN_RUNTIME", app.runtime)
+	code, env, out := runOnboarding(t, onboardingCalls["sign_in"].args...)
+	if code != 5 || env["error"].(map[string]any)["code"] != "sign_in_failed" || strings.Contains(out, testToken) {
+		t.Fatal(out)
+	}
+}
+
 func TestOnboardingRejectsInvalidReplies(t *testing.T) {
 	for _, tt := range []struct{ name, reply, code string }{
 		{"v1 success", `{"v":1,"ok":true,"result":{}}`, "app_protocol_mismatch"},
@@ -557,6 +568,36 @@ func TestOnboardingStartRunningAppIsNotLaunched(t *testing.T) {
 	}
 }
 
+// A launched app that is listening but has not answered yet is still starting.
+func TestOnboardingStartKeepsPollingThroughAnUnansweredConnection(t *testing.T) {
+	h := newLaunchHarness(t)
+	h.onLaunch = func() {
+		socket := filepath.Join(h.dir, "app.sock")
+		l, e := net.Listen("unix", socket)
+		if e != nil {
+			t.Fatal(e)
+		}
+		t.Cleanup(func() { l.Close() })
+		go func() {
+			for n := 0; ; n++ {
+				c, e := l.Accept()
+				if e != nil {
+					return
+				}
+				bufio.NewReader(c).ReadBytes('\n')
+				if n > 0 {
+					c.Write([]byte(fixtureReply(t, "start-fresh") + "\n"))
+				}
+				c.Close()
+			}
+		}()
+		putFile(t, h.dir, "runtime.json", runtimeJSON(socket))
+	}
+	if _, failure := h.run("start"); failure != nil || len(h.launches) != 1 {
+		t.Fatal(failure, h.launches)
+	}
+}
+
 func TestOnboardingStartProtocolMismatchStopsPolling(t *testing.T) {
 	h := newLaunchHarness(t)
 	h.onLaunch = func() {
@@ -615,6 +656,10 @@ func TestOnboardingExplicitRuntimeNeverLaunches(t *testing.T) {
 		_, failure := h.run("start")
 		if failure == nil || failure.Code != tt.code || len(h.launches) != 0 || h.elapsed != 0 {
 			t.Errorf("%s: %v %v %v", tt.name, failure, h.launches, h.elapsed)
+		}
+		// runtime.json holds the socket token, so its path stays out of the output.
+		if failure != nil && strings.Contains(failure.Message, h.dir) {
+			t.Errorf("%s: %s", tt.name, failure.Message)
 		}
 	}
 }
