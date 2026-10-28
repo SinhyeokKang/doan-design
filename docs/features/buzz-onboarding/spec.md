@@ -4,7 +4,7 @@
 
 ## 전제와 범위
 
-`buzz-restyle`의 온보딩 자식이다. `buzz-ds`·`buzz-shell`의 구현된 디자인 시스템을 사용하며, **agent-auth가 완료된 상태를 전제**해 기획한다. 이것은 현재 agent-auth 구현 완료를 기록하는 문장이 아니다. 구현 착수 때 실제 인증 API·다섯 실행기·보안 저장·취소 계약을 인수한다.
+`buzz-restyle`의 온보딩 자식이다. `buzz-ds`·`buzz-shell`의 구현된 디자인 시스템을 사용하며, **agent-auth가 완료된 상태를 전제**해 기획한다. agent-auth는 2026-10-28 main에 병합됐다. 인수할 인증 API·다섯 실행기·보안 저장·취소 계약은 [ARCHITECTURE §7 'Agent authentication'](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth)에 있고, 온보딩이 처리할 항목은 [design의 agent-auth 인계](./design.md#agent-auth-인계-2026-10-28)에 있다.
 
 사람은 첫 실행 화면에서, 또는 자기 에이전트에게 CLI/MCP 온보딩을 요청해 도안 사용을 준비한다(2026-10-28 사용자 추가 승인). 고정 온보딩 명령·도구를 추가하되 기존 캔버스 작성 규칙과 명령 동작은 유지한다. OAuth·토큰 저장·갱신을 재구현하지 않고 agent-auth의 비밀 없는 main 서비스를 앱 preload와 인증된 로컬 CLI/MCP 어댑터에서 함께 소비한다.
 
@@ -34,7 +34,7 @@ URL을 근거로 찾은 폴더는 접근 가능 여부와 remote 일치를 다�
 - 에이전트 연결과 프로젝트 각각 하나 이상이 필수다. 건너뛰기를 제공하지 않는다. 중간 종료는 완료로 기록하지 않는다.
 - GitHub URL에서 로컬 리포를 재사용하고 없으면 기존 Git/gh 인증으로 clone한다. PRODUCT의 Git 작업 제외에 온보딩 clone 예외를 승격한다. 별도 GitHub OAuth·토큰 보관·레포 목록은 제외한다.
 - 접근 실패는 URL을 유지하고 다시 시도·로컬 폴더 선택을 제공한다. `gh auth login`으로 계정·권한을 확인하도록 안내하되 실패 원인을 단정하지 않는다.
-- Welcome에만 accent 그라디언트와 alpha grain을 적용하고 느린 애니메이션을 허용한다. reduced-motion에서는 정지한다.
+- Welcome에만 accent 그라디언트와 alpha grain을 적용한다. 그라디언트는 움직이지 않는다(2026-10-28 사용자).
 - 기존 프리미티브·AppShell 톤을 재사용한다. 사용자 지시로 디자인 초안 검토가 feature-review보다 먼저다.
 
 2026-10-28 사용자 확정: 미완료 상태로 앱을 종료했다 다시 켜면 Welcome부터 시작한다. 저장된 에이전트 연결·프로젝트는 유지하고 각 단계에서 상태를 다시 확인한다. 기존 `{}` 닫힘 표식은 새 온보딩 완료 증거가 아니다. 최소 한 공급자의 ready와 정상 프로젝트 등록·완료 저장을 확인한 뒤 홈으로 이동한다.

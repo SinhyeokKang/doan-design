@@ -4,13 +4,29 @@
 
 ## 구성과 의존성
 
-`agent-auth` 완료를 가정한다. [인증 설계](../agent-auth/design.md)의 상태 read/event revision, signIn/cancel/signOut, 소유 창·attemptId·종료 정리, 비밀 없는 readiness를 인수한다. 실제 구현 API 명칭은 착수 시 대조한다. UI가 자체 OAuth listener·토큰 파일·Keychain을 만들지 않는다.
+`agent-auth`의 상태 read/event revision, signIn/cancel/signOut, 소유 창·attemptId·종료 정리, 비밀 없는 readiness를 인수한다. agent-auth는 2026-10-28 main에 병합됐고 실제 계약은 [ARCHITECTURE §7 'Agent authentication'](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth)에 있다. 온보딩이 처리할 항목은 아래 [agent-auth 인계](#agent-auth-인계-2026-10-28)에 모았다. UI가 자체 OAuth listener·토큰 파일·Keychain을 만들지 않는다.
 
 - `app/src/renderer/Onboarding.tsx`, `onboardingView.ts`: Welcome과 두 설정 단계, 상태별 문구·버튼·포커스.
 - `app/src/main/index.ts`, `app/src/preload/index.ts`: 첫 실행 수명·완료·프로젝트 선택 인계. 인증은 선행 feature의 채널을 재사용한다.
 - `app/src/main/onboarding/machine.ts`: 기존 완료 표식과 외부 설치 기능을 구분한다. Settings의 machine 사용을 보존한다.
 - `app/src/main/addProjects.ts`, `shell.ts`, `view.ts`: 기존 프로젝트 등록·canonical root·초기화·목록 재읽기를 재사용한다. URL 조회·clone은 이번 feature의 main I/O 범위이다.
 - `ProjectSetupDialog.tsx`, `ConnectionRows.tsx`, `FirstPrompt.tsx`의 다른 화면 소비자는 보존한다. 온보딩 로그인에 외부 MCP 상태를 재사용하지 않는다.
+
+### agent-auth 인계 (2026-10-28)
+
+구현된 agent-auth 계약 중 온보딩이 처리해야 하는 사실만 모았다. 이 목록은 설계를 바꾸지 않는다. 이 문서의 기존 가정과 다른 점은 이어지는 `/feature-review`에서 대조한다. 정본은 [ARCHITECTURE §7 'Agent authentication'](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth)와 [PRODUCT §3 In scope 7](../../PRODUCT.md#3-scope)이다.
+
+- API: 주 창 `window.doan`과 Settings `window.doanSettings`에 같은 계정 메서드가 있다. `readAgentAuth`, `onAgentAuth`(revision이 더 큰 snapshot만 전달), `checkAgentAuth`, `signInAgent(provider, {stop?})`, `signOutAgent(provider, {stop?})`, `cancelAgentSignIn`, `submitAgentSignInCode`, `openAgentSignInLink`, `onAgentSignInPrompt`이다. 채널은 `agent-auth:read|check|sign-in|cancel|submit-code|open-link|sign-out`, 이벤트는 `agent-auth:changed|prompt`이다. `readAgentAuth`가 `null`이면 인증 저장소를 읽지 못한 상태이고 다른 인증 호출은 모두 거부된다.
+- 복구 동작: 다음 행동은 공급자 상태의 `readiness.action`(install·update·retry·wait·signOut·signIn·reauth·repair)으로 정한다. 대화 오류 `not_logged_in`은 원인을 구분하지 않는다. 버튼 후보는 `actions`(signIn·cancel·retry·reauth·signOut)이다.
+- ready 판정: `readiness.ready`는 저장된 연결의 확인(verified)·지원 버전·도구 준비를 요구하고, 계정 ID는 요구하지 않는다. Codex·Antigravity는 계정 ID가 없다. 앱을 다시 시작하면 저장된 연결은 첫 실행이나 `check` 전까지 `unverified`(action retry)이며 ready가 아니다.
+- Copilot: `check`와 재시작 뒤 Retry가 모델 요청 1회를 쓴다. 자동 확인은 없고, 요청을 끝낸 첫 실행이 연결을 검증한다. 문구에서 이 비용을 알려야 한다.
+- 로그아웃 실패: `signOutFailed`가 저장되면 재시작 뒤에도 그 공급자의 실행과 새 로그인이 막힌다(readiness `sign_out_failed` → signOut). 다른 실패와 구분되는 문구가 필요하다.
+- 실행 중 대화: 그 공급자의 대화가 실행 중이면 로그인 교체와 로그아웃이 `stop_required`를 돌려준다. 사용자가 중단을 확인하면 `stop: true`로 다시 보낸다. Codex는 턴이 끝난 뒤 대기 중인 app-server도 실행 중으로 센다.
+- 동시 진행: 로그인·로그아웃은 모든 공급자를 통틀어 하나만 진행한다. 다른 공급자의 로그인 중에 시작하면 `busy`이다.
+- 링크: 로그인 링크는 시도를 시작한 창에만 `prompt` 이벤트로 온다. 링크는 `openAgentSignInLink`로 열고, 실패는 `open_failed`이다. Codex는 링크 2개를 보내며 열기는 마지막 링크를 연다. Cursor·Copilot 로그인 CLI는 OS 기본 브라우저를 스스로도 연다(2026-10-28 사용자 결정으로 알려진 한계로 수용). UI는 브라우저가 이미 열렸을 수 있음을 전제해야 한다. Claude 로그인은 CLI가 URL을 출력한 뒤 10초 안에 훅 링크가 오지 않으면 `sign_in_failed`로 끝난다. Antigravity는 브라우저가 로컬 주소에 닿지 못하면 브라우저가 멈춘 주소를 `submitAgentSignInCode`로 붙여넣을 수 있다. Antigravity 첫 로그인은 서버를 내려받느라 링크가 약 20초 뒤에 오고, 내려받기 실패는 `cli_install_failed`이다.
+- 창 수명: 시도를 시작한 창이 닫히면 시도가 취소된다. 주 창 닫기는 hide라서 시도가 유지된다. reload 뒤에도 같은 창이 취소와 링크 열기를 할 수 있다.
+- Claude: 조직 UUID가 없는 연결은 phase가 connected여도 readiness가 reauth이다. 레포 설정의 API 키 때문에 실행이 거부되면 대화 오류는 `credential_override`이다.
+- 미검증: 실제 토큰 만료와 갱신은 관찰하지 못했다.
 
 ## 확정된 흐름과 상태 수명
 
@@ -92,7 +108,7 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 - 기존 `doan-button`, `doan-input`, `doan-panel`, `doan-notice`, `doan-alert-icon`, `doan-spinner`, `doan-scroll`을 재사용한다. 새 시각 옵션은 기존 프리미티브에 반영한다.
 - Welcome: doan 워드마크 아래 “A place for your next idea.” / “Bring it to life on canvas.”를 한 블록 안에서 줄바꿈한다. 가운데 정렬, 24px·행간 1.1·400·자간 -0.3px이다. 워드마크와 문장 간격 24px, 문장과 버튼 간격 40px이다.
 - Get started는 콘텐츠 너비의 prominent 버튼이다. 승인된 새 `lg` 옵션은 높이 48px, 폰트 16px/24px, 패딩 12px/32px이다. 기존 기본 40px·sm 32px은 유지한다. 현재 lg는 초안에만 있으며 구현 시 공용 controls에 추가한다.
-- 그라디언트는 Welcome에만 있다. accent 기반 radial-gradient는 ellipse 50% 125% at 50% 112%, 전체 opacity .85이다. `onboarding-grain.svg` alpha mask로 투명도를 분산하며 검정 입자를 색상으로 얹지 않는다. 느린 24초 애니메이션은 reduced-motion에서 정지한다.
+- 그라디언트는 Welcome에만 있다. accent 기반 radial-gradient는 ellipse 50% 125% at 50% 112%, 전체 opacity .85이다. `onboarding-grain.svg` alpha mask로 투명도를 분산하며 검정 입자를 색상으로 얹지 않는다. 애니메이션은 없다(2026-10-28 사용자: 마스크째 움직이는 모션 제거).
 - 나머지 화면은 `buzz-shell.html`과 같은 wallpaper fixture와 surface-panel 55%·blur(32px) saturate(.8) 재질로 표현한다. 외곽 여백은 없다. 앱 구현은 기존 native vibrancy="sidebar"를 재사용한다. HTML은 시각 근사이며 native 재질 측정값이 아니다. reduced-transparency에서는 불투명 배경이다.
 - 크롬은 56px이다. AppShell 형태의 캡슐을 Agent·Project 스테퍼로 재사용한다. 현재 단계는 흰 pill·aria-current, 완료 단계는 체크·돌아가기, 진행 불가는 disabled이다. Welcome에는 스테퍼가 없다.
 - 모든 화면 타이틀과 캡션은 가운데 정렬한다. 행·폼은 왼쪽 정렬이다. 버튼·입력창은 기존 불투명 subtle/surface-inset을 유지한다. Back은 arrow-left, 다음 이동은 arrow-right를 쓴다. 제출 액션은 오른쪽에 배치한다.

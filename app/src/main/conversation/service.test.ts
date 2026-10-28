@@ -181,3 +181,60 @@ it("retains accepted replacement and emits terminal failure for a transport erro
   expect(h.store.list().find(m => m.conversationId === next)?.state).toBe("current");
   expect(h.store.read(next).at(-1)?.type).toBe("turn.failed");
 });
+
+// Claude spawns one process per turn; its reservation outlives turn.done until that process group is gone.
+const claudeTurn = { runtime: "claude" as const, configDir: "/profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env: {} };
+function perTurn(exitWaitMs?: number) {
+  const h = fixture(); h.prepare.mockResolvedValue(claudeTurn);
+  const service = new ConversationService(h.store, h.prepare, h.open, () => {}, undefined, exitWaitMs);
+  return { ...h, service };
+}
+it("waits for a finished turn's process to exit, then sends on the same session", async () => {
+  const h = perTurn(); const id = (await h.service.start(request)).conversationId;
+  h.service.receive(id, { type: "turn.done" });
+  let sent = false; const pending = h.service.send(id, "right after", []).then(() => { sent = true; });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  // No second process while the first one still holds the session.
+  expect(sent).toBe(false); expect(h.open).toHaveBeenCalledOnce();
+  await expect(h.service.send(id, "twice", [])).rejects.toThrow("busy");
+  h.exits[0]!(); await pending;
+  expect(h.open).toHaveBeenCalledTimes(2); expect(h.runners[1]?.send).toHaveBeenCalledOnce();
+  expect(h.store.read(id).map(e => e.type)).toEqual(["user.message", "turn.started", "turn.done", "user.message", "turn.started"]);
+});
+it("refuses at once while a turn is running and after a process that never exits", async () => {
+  const h = perTurn(30); const id = (await h.service.start(request)).conversationId;
+  await expect(h.service.send(id, "while running", [])).rejects.toThrow("busy");
+  h.service.receive(id, { type: "turn.done" }); const before = h.store.read(id);
+  await expect(h.service.send(id, "never exits", [])).rejects.toThrow("busy");
+  expect(h.open).toHaveBeenCalledOnce(); expect(h.store.read(id)).toEqual(before);
+});
+it.each(["interrupt", "quit"] as const)("cancels a send waiting for the previous process on %s", async how => {
+  const h = perTurn(); const id = (await h.service.start(request)).conversationId;
+  h.service.receive(id, { type: "turn.done" }); const before = h.store.read(id);
+  const pending = h.service.send(id, "cancelled", []);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  if (how === "interrupt") await h.service.interrupt(id); else await h.service.quit();
+  await expect(pending).rejects.toThrow("busy");
+  h.exits[0]!(); await new Promise(resolve => setTimeout(resolve, 0));
+  expect(h.open).toHaveBeenCalledOnce(); expect(h.store.read(id)).toEqual(before);
+});
+it("keeps a timed-out wait from orphaning a failed opening's reservation", async () => {
+  const h = perTurn(30); const id = (await h.service.start(request)).conversationId;
+  h.service.receive(id, { type: "turn.done" }); h.exits[0]!();
+  // The next turn's process spawned, then its opening failed; it still holds the session until it exits.
+  h.open.mockImplementationOnce(async (_input, _emit, exited, registerStop) => { h.exits.push(exited); registerStop(async () => {}); throw new Error("startup failed"); });
+  await expect(h.service.send(id, "fails to open", [])).rejects.toThrow("startup failed");
+  await expect(h.service.send(id, "times out", [])).rejects.toThrow("busy");
+  h.exits[1]!(); await h.service.send(id, "after exit", []);
+  expect(h.open).toHaveBeenCalledTimes(3);
+});
+it("refuses an archived conversation at once instead of waiting for the previous process", async () => {
+  // A wait far longer than the bound: a refusal that waited would exceed it by seconds, not by scheduler jitter.
+  const h = perTurn(2000); const id = (await h.service.start(request)).conversationId;
+  h.service.receive(id, { type: "turn.done" });
+  h.prepare.mockResolvedValueOnce({ ...claudeTurn, sessionId: "replacement" });
+  await h.service.start(request);
+  const started = Date.now();
+  await expect(h.service.send(id, "archived", [])).rejects.toThrow("busy");
+  expect(Date.now() - started).toBeLessThan(500);
+});

@@ -25,7 +25,7 @@ describe("conversation disk boundaries", () => {
   });
   it("persists ordered validated events and rejects traversal, links and corrupt event shapes", () => {
     const root = temp(); const store = new ConversationStore(root);
-    const metadata = { conversationId: "conversation-1", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "Title", state: "current" as const, session: { runtime: "claude" as const, origin: "new" as const, sessionId: "session-1", cwd: "/repo", configDir: "/profile" } };
+    const metadata = { conversationId: "conversation-1", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "Title", state: "current" as const, owner: { kind: "legacy-external" as const }, session: { runtime: "claude" as const, origin: "new" as const, sessionId: "session-1", cwd: "/repo", configDir: "/profile" } };
     store.save([metadata]);
     expect(store.append(metadata.conversationId, "turn-1", { type: "turn.started" }).seq).toBe(1);
     expect(store.append(metadata.conversationId, "turn-1", { type: "message.delta", messageId: "m", text: "hello" }).seq).toBe(2);
@@ -43,11 +43,31 @@ describe("conversation disk boundaries", () => {
     const inspect = async (pid: number) => pid === 12 ? start : null;
     expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
     mkdirSync(join(config, "sessions")); expect(await claudeOccupancy(config, "s", inspect)).toBe("free");
-    writeFileSync(join(config, "sessions", "12.json"), JSON.stringify({ pid: 12, sessionId: "s", cwd: "/other", kind: "interactive", version: "2.1.310", procStart: start }));
+    writeFileSync(join(config, "sessions", "12.json"), JSON.stringify({ pid: 12, sessionId: "s", cwd: "/other", kind: "interactive", version: "2.1.312", procStart: start }));
     expect(await claudeOccupancy(config, "s", inspect)).toBe("occupied");
-    writeFileSync(join(config, "sessions", "12.json"), JSON.stringify({ pid: 12, sessionId: "s", cwd: "/other", kind: "interactive", version: "2.1.310", procStart: "Mon Oct 26 12:00:00 2026" }));
+    writeFileSync(join(config, "sessions", "12.json"), JSON.stringify({ pid: 12, sessionId: "s", cwd: "/other", kind: "interactive", version: "2.1.312", procStart: "Mon Oct 26 12:00:00 2026" }));
     expect(await claudeOccupancy(config, "s", inspect)).toBe("free");
+    // 2.1.312 writes a per-process key file beside each record; it is skipped, never parsed.
+    writeFileSync(join(config, "sessions", `12.${"a".repeat(64)}.key`), "not json", { mode: 0o600 });
+    expect(await claudeOccupancy(config, "s", inspect)).toBe("free");
+    writeFileSync(join(config, "sessions", "12.json"), JSON.stringify({ pid: 12, sessionId: "s", cwd: "/other", kind: "interactive", version: "2.1.310", procStart: start }));
+    expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
+    rmSync(join(config, "sessions", "12.json"));
+    writeFileSync(join(config, "sessions", "12.key"), "not json"); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
+    rmSync(join(config, "sessions", "12.key"));
     writeFileSync(join(config, "sessions", "bad.json"), "broken"); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
+  });
+  it("lets one doan Claude conversation resume while another runs in the same dedicated profile", async () => {
+    // The record shape a running doan SDK turn left in the dedicated profile (B45 live, CLI 2.1.312): interactive, sdk-ts.
+    const config = temp(); const start = "Wed Oct 28 10:40:00 2026"; mkdirSync(join(config, "sessions"));
+    const running = { pid: 55058, sessionId: "running-y", cwd: "/repo-y", kind: "interactive", entrypoint: "sdk-ts", version: "2.1.312", procStart: start };
+    writeFileSync(join(config, "sessions", "55058.json"), JSON.stringify(running));
+    writeFileSync(join(config, "sessions", `55058.${"1f".repeat(32)}.key`), "x", { mode: 0o600 });
+    const inspect = async (pid: number) => pid === 55058 ? start : null;
+    expect(await claudeOccupancy(config, "idle-x", inspect)).toBe("free");
+    expect(await claudeOccupancy(config, "running-y", inspect)).toBe("occupied");
+    // A record left by a killed run of the same version is dead and does not block.
+    expect(await claudeOccupancy(config, "running-y", async () => null)).toBe("free");
   });
 });
 
@@ -64,7 +84,7 @@ it("keeps seq consistent when a regular log is replaced before the append open",
 
 it("recovers an interrupted replacement rollback on restart before exposing history", () => {
   const root = temp(); const store = new ConversationStore(root);
-  const old = { conversationId: "old", root: "/repo", title: "old", state: "current" as const, session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/profile", cwd: "/repo" } };
+  const old = { conversationId: "old", root: "/repo", title: "old", state: "current" as const, owner: { kind: "legacy-external" as const }, session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/profile", cwd: "/repo" } };
   store.save([old]); store.append("old", "t", { type: "turn.done" }); const before = store.read("old");
   const append = store.append.bind(store);
   vi.spyOn(store, "append").mockImplementation((id, turn, body) => { if (id === "new" && body.type === "turn.started") throw new Error("disk full"); return append(id, turn, body); });
@@ -81,7 +101,7 @@ it("recovers an interrupted replacement rollback on restart before exposing hist
 });
 it("keeps a committed replacement when recovery finds the committed index", () => {
   const root = temp(); const store = new ConversationStore(root);
-  const entry = { conversationId: "new", root: "/repo", title: "new", state: "current" as const, session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/profile", cwd: "/repo" } };
+  const entry = { conversationId: "new", root: "/repo", title: "new", state: "current" as const, owner: { kind: "legacy-external" as const }, session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/profile", cwd: "/repo" } };
   store.append("new", "t", { type: "turn.started" }); store.save([entry]);
   writeFileSync(join(root, "conversations", "start-undo.json"), JSON.stringify({ id: "new", previous: [] }));
   const restarted = new ConversationStore(root); expect(restarted.list()).toEqual([entry]); expect(restarted.read("new")).toHaveLength(1);

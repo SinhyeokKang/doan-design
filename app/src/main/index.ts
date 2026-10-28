@@ -1,10 +1,17 @@
 import { parseActivityRoots, readShellActivity } from "./shellActivity";
 import { ConversationService, resolveListedCanvas } from "./conversation/service";
 import { ConversationStore } from "./conversation/store";
-import { createPrepare } from "./conversation/prepare";
+import { createAccountPrepare, createPrepare, routePrepare } from "./conversation/prepare";
 import { openRunner } from "./conversation/runners";
 import { conversationHandler, conversationMethods } from "./conversation/ipc";
-import { createMachine, needsOnboarding, markClosed, PATH_LINE, type MachineState } from "./onboarding/machine";
+import { AuthManager, removeStaleLinkDirs, shellLocator, spawnAuthProcess } from "./agentAuth/manager";
+import { AuthStorage } from "./agentAuth/storage";
+import { electronCipher } from "./agentAuth/cipher";
+import { antigravityServer } from "./agentAuth/antigravity";
+import { PROVIDER_AUTH } from "./agentAuth/providers";
+import { AUTH_CHANNELS, AuthIpc } from "./agentAuth/ipc";
+import { sharedShell, toolFacts } from "./agentAuth/facts";
+import { createMachine, needsOnboarding, markClosed, PATH_LINE, probeShell, runProcess, type MachineState } from "./onboarding/machine";
 import { isTranslocated } from "./onboarding/states";
 import { createCommentsService } from "./comments/service";
 import { readCommentBytes, withCommentAppend } from "./comments/files";
@@ -13,6 +20,7 @@ import { DocumentBindings, stableDiskHash } from "./comments/document";
 import { createTransitionGuard } from "./comments/transitions";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
+import { accessSync, constants as fsConstants, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -93,6 +101,8 @@ let configBridge: ConfigBridge | undefined;
 let shell: Shell | undefined;
 let runtime: Runtime | undefined;
 let conversations: ConversationService | undefined;
+let agentAuth: AuthManager | undefined;
+let authIpc: AuthIpc | undefined;
 let conversationCanvases = new Set<string>();
 let inspector: Inspector | undefined;
 // One selection app-wide (select-inspect R1); the socket answers it only for
@@ -356,7 +366,8 @@ function createWindow(): BrowserWindow {
   // A lost or closed renderer takes its setup confirmation with it; hiding the
   // window does not. Read after destroy, webContents throws, so the id is kept now.
   const owner = window.webContents.id;
-  window.webContents.on("render-process-gone", () => broker?.drop(owner));
+  // A sign-in belongs to the renderer that started it; a lost renderer cannot cancel it any more.
+  window.webContents.on("render-process-gone", () => { broker?.drop(owner); void agentAuth?.ownerClosed(owner); });
   // `.git/HEAD` is not watched, so a branch switched elsewhere shows when the
   // human comes back to the window.
   // The connection summary shares that throttle (app-setup design 'Connections').
@@ -384,6 +395,7 @@ function createWindow(): BrowserWindow {
   });
   window.on("closed", () => {
     broker?.drop(owner);
+    void agentAuth?.ownerClosed(owner);
     cancelPendingHide();
     if (win === window) win = undefined;
   });
@@ -413,7 +425,7 @@ function createSettingsWindow(tab: SettingsTab): BrowserWindow {
   // The wizard's Close refuses while busy; Settings holds its close the same
   // way, for the red button, ⌘W and Close Window alike. Quit closes it anyway.
   window.on("close", (event) => { if (!quitting && broker?.isWriting(owner)) event.preventDefault(); });
-  const forget = () => { broker?.drop(owner); configBridge?.clear(); };
+  const forget = () => { broker?.drop(owner); configBridge?.clear(); void agentAuth?.ownerClosed(owner); };
   window.webContents.on("render-process-gone", forget);
   window.on("closed", () => {
     forget();
@@ -587,7 +599,30 @@ async function start(): Promise<void> {
     return undefined;
   });
 
-  const prepareConversation = createPrepare(userData, join(userData, "runtime.json"), process.env);
+  removeStaleLinkDirs();
+  const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
+    onChange: () => authIpc?.changed(), onPrompt: prompt => authIpc?.prompted(prompt), stopRuns: provider => conversations?.stopRuns(provider) ?? Promise.resolve() });
+  // Unreadable metadata leaves sign-in unavailable rather than letting a later save erase other connections.
+  try { await auth.load(); agentAuth = auth; } catch (error) { console.error("doan: agent sign-in storage is unreadable", error); }
+  const executable = (path: string) => { try { accessSync(path, fsConstants.X_OK); return statSync(path).isFile(); } catch { return false; } };
+  const shellForFacts = sharedShell(() => probeShell(process.env));
+  if (agentAuth) {
+    authIpc = new AuthIpc({
+      backend: agentAuth, openExternal: url => electronShell.openExternal(url),
+      probe: provider => toolFacts(provider, { shell: shellForFacts, run: runProcess, executable, inherited: process.env, cli }),
+      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); sendSettings(AUTH_CHANNELS.changed, snapshot); },
+      prompt: (owner, event) => { for (const window of [win, settingsWin]) if (window && !window.isDestroyed() && window.webContents.id === owner) window.webContents.send(AUTH_CHANNELS.prompt, event); },
+    });
+  }
+  // Without readable account storage every auth call is refused like a forged one; reads answer null.
+  for (const channel of [AUTH_CHANNELS.read, AUTH_CHANNELS.check, AUTH_CHANNELS.signIn, AUTH_CHANNELS.cancel, AUTH_CHANNELS.submitCode, AUTH_CHANNELS.openLink, AUTH_CHANNELS.signOut]) {
+    const refused = channel === AUTH_CHANNELS.read ? null : { ok: false, reason: "invalid" };
+    handle(channel, refused, (event, value) => authIpc ? authIpc.handle(channel, value, event.sender.id) : refused);
+  }
+  const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider));
+  // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
+  const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
+    (request, stored) => agentAuth ? accountPrepare(request, stored) : Promise.reject(new Error("not_logged_in")));
   const conversationStore = new ConversationStore(userData);
   const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => send("conversation:event", event), (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
@@ -959,6 +994,8 @@ app.on("before-quit", (event) => {
         console.error("doan: conversation persistence failed during quit", error);
         return;
       }
+      // After conversations: their runs hold auth leases whose working credentials are written back here.
+      await agentAuth?.quit();
       quitting = true; cancelPendingHide(); uiState?.flushSync(); thumbnails?.dispose();
       app.quit();
     });

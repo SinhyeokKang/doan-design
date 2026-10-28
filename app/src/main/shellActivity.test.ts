@@ -9,7 +9,7 @@ afterEach(() => { for (const path of directories.splice(0)) rmSync(path, { recur
 function fixture() {
   const path = mkdtempSync(join(tmpdir(), "shell-activity-")); directories.push(path);
   const store = new ConversationStore(path);
-  store.save([{ conversationId: "one", root: "/a", title: "test", state: "archived", session: { runtime: "codex", origin: "newDesign", sessionId: "session", cwd: "/a", configDir: "/config" } }]);
+  store.save([{ conversationId: "one", root: "/a", title: "test", state: "archived", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "newDesign", sessionId: "session", cwd: "/a", configDir: "/config" } }]);
   return { path, store };
 }
 it("accepts only a dense unique subset of registered roots", () => {

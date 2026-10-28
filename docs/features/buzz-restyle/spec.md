@@ -73,7 +73,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 ## 별도 기반 기능과 인계
 
 - `agent-conversation`: main 병합 완료(`d6590a6`, PR #28). 대화 backend/preload 기반이며 완료된 대화 UI가 아니다. [PRODUCT 계약](../../PRODUCT.md#agent-conversation-foundation-contract-2026-10-27)의 검증 한계를 유지한다.
-- `agent-auth`: [문서](../agent-auth/spec.md)·다섯 공급자 최소 인증 PoC 완료, 구현 전이다. Claude Code·Codex·Cursor·Antigravity·GitHub Copilot을 모두 제공하며 플랫폼별 한 계정이다. 온보딩·홈·Canvas 대화는 같은 인증 기반을 소비한다.
+- `agent-auth`: 2026-10-28 main에 병합됐다. 결론은 [ARCHITECTURE §7](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth)에 있다. Claude Code·Codex·Cursor·Antigravity·GitHub Copilot을 모두 제공하며 플랫폼별 한 계정이다. 온보딩·홈·Canvas 대화는 같은 인증 기반을 소비한다.
 - 온보딩 CLI/MCP는 인증·Git 처리를 복제하지 않고 main 서비스를 호출한다. 설치 직후 번들 CLI bootstrap, 브라우저 사용자 승인, 작업 ID/status, 기존 active v1 호환과 신규 socket v2는 [온보딩 설계](../buzz-onboarding/design.md)가 소유한다. 코멘트 CLI/MCP 제거와는 별개다.
 
 ## 완료 조건

@@ -5,18 +5,39 @@ import { promoteReservation, releaseReservation, reserveSession } from "./owners
 import { transportError } from "./transport";
 import { sameCanvas } from "./sessions";
 import { turnPrompt } from "./prompt";
-import type { Anchor, Canvas, ConversationEvent, EventPayload, Reservation, Runtime } from "./types";
-export interface StartRequest { root: string; mode: "resume" | "new" | "newDesign"; runtime?: Runtime; canvas?: Canvas; subject?: string; text: string; anchors: Anchor[] }
-export interface Prepared { runtime: Runtime; configDir: string; cwd: string; sessionId?: string; command: string; env: NodeJS.ProcessEnv; lastCheckAt?: string }
+import type { ConversationOwner, Provider } from "../agentAuth/types";
+import type { Anchor, Canvas, ConversationEvent, EventPayload, Reservation } from "./types";
+// External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
+export interface StartRequest { root: string; mode: "resume" | "new" | "newDesign"; runtime?: Provider; canvas?: Canvas; subject?: string; text: string; anchors: Anchor[] }
+export interface Prepared {
+  runtime: Provider; configDir: string; cwd: string; sessionId?: string; command: string; env: NodeJS.ProcessEnv; lastCheckAt?: string;
+  // Doan-account runs only: arguments ahead of the runner's own, the account the run uses, the lease to release once the
+  // spawned group is gone, and a recheck that throws when the account changed during an await.
+  args?: string[]; owner?: Extract<ConversationOwner, { kind: "doan" }>; release?: () => Promise<void>; recheck?: () => void;
+  // ACP runs only: the authenticate method to select, and the callback for a completed request (Copilot's verification).
+  authenticate?: string; confirm?: () => void;
+}
 export interface Runner { sessionId: string; send(prompt: string, turnId: string): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void> }
 export type OpenRunner = (input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<Runner>;
-export type Prepare = (request: StartRequest, session?: ConversationMetadata["session"]) => Promise<Prepared>;
-interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean }
+export type Prepare = (request: StartRequest, stored?: ConversationMetadata) => Promise<Prepared>;
+function freeLease(input: Prepared | undefined): void {
+  void input?.release?.().catch(error => console.error("doan: account lease release failed", error));
+}
+// A Claude process ended about 0.75 s after turn.done, but its reservation held for 2.1-5.0 s after turn.done until the
+// group was gone (packaged app, D1 2026-10-28). The wait allows twice the slowest observed.
+const EXIT_WAIT_MS = 10_000;
+// provider: set for a run on a doan account, whose lease a sign-out or replacement waits for (stopRuns).
+// since: the stopRuns count when this start or send began; a later stop of its provider stops it once it spawns.
+interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number }
 export class ConversationService {
   private reservations: Reservation[] = [];
   private live = new Map<string, Live>();
   private quitting = false;
-  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}) {}
+  private stops = 0;
+  private lastStop = new Map<Provider, number>();
+  // Sends waiting for the previous turn's process to exit; cancelled ones are refused once woken.
+  private waits = new Map<string, { wake(): void; cancelled: boolean; provider?: Provider }>();
+  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS) {}
   private reserve(id: string, input?: Prepared, reuse = false): void {
     const key = input?.sessionId ? { runtime: input.runtime, configDir: input.configDir, sessionId: input.sessionId } : null;
     const result = reserveSession(this.reservations, id, key, reuse);
@@ -37,21 +58,29 @@ export class ConversationService {
     const admitted = this.admit(request.root, request.canvas);
     if (admitted) request = { ...request, canvas: admitted };
     const id = randomUUID(); this.reserve(id);
-    const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false }; this.live.set(id, live);
-    let opening = false;
+    const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops }; this.live.set(id, live);
+    let opening = false, input: Prepared | undefined;
     try {
-      const input = await this.prepare(request);
+      input = await this.prepare(request);
+      if (input.owner) live.provider = input.owner.provider;
       if (this.quitting) throw new Error("busy");
       if (input.sessionId) this.promote(id, input, input.sessionId);
       opening = true;
-      const runner = await this.open(input, event => { if (this.live.get(id) === live) this.receive(id, event); }, () => { if (this.live.get(id) === live) this.exited(id); }, stop => { live.cleanup = stop; if (this.quitting) void stop(); }); live.runner = runner;
+      const runner = await this.openRunner(id, live, input); live.runner = runner;
       if (live.exited) throw new Error("process_exited");
+      input.recheck?.();
       if (!input.sessionId) this.promote(id, input, runner.sessionId);
       if (input.sessionId && input.sessionId !== runner.sessionId) throw new Error("session_unavailable");
       if (this.quitting) throw new Error("busy");
       const currentCanvas = this.admit(request.root, request.canvas);
       if (currentCanvas) request = { ...request, canvas: currentCanvas };
-      const metadata: ConversationMetadata = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: (request.subject ?? request.text).slice(0, 512), state: "current", session: { runtime: input.runtime, origin: request.mode === "resume" ? "resumed" : request.mode, sessionId: runner.sessionId, configDir: input.configDir, cwd: input.cwd } };
+      const session = { runtime: input.runtime, origin: request.mode === "resume" ? "resumed" as const : request.mode, sessionId: runner.sessionId, configDir: input.configDir, cwd: input.cwd };
+      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: (request.subject ?? request.text).slice(0, 512), state: "current" as const };
+      const runtime = input.runtime;
+      // Without an owner the run used an external profile, which exists only for the shared sessions' two runtimes.
+      if (!input.owner && runtime !== "claude" && runtime !== "codex") throw new Error("session_unavailable");
+      const metadata: ConversationMetadata = input.owner ? { ...base, owner: input.owner, session }
+        : { ...base, owner: { kind: "legacy-external" }, session: { ...session, runtime: runtime === "claude" ? "claude" : "codex" } };
       const entries = this.store.list();
       const replaced = entries.filter(m => m.state === "current" && m.root === request.root && m.canvas && request.canvas && sameCanvas(m.canvas, request.canvas));
       const prompt = turnPrompt(request.anchors, request.text, metadata); if (prompt === null) throw new Error("bad_request");
@@ -73,36 +102,80 @@ export class ConversationService {
       this.sendTurn(id, live, runner, prompt);
       return { conversationId: id };
     } catch (error) {
-      if (!opening) { this.reservations = releaseReservation(this.reservations, id, "not_spawned"); this.live.delete(id); }
+      if (!opening) { this.reservations = releaseReservation(this.reservations, id, "not_spawned"); this.live.delete(id); freeLease(input); }
       else { void live.runner?.close(); }
       throw error instanceof Error && error.message === "outside_root" ? new Error("session_unavailable") : error;
     }
   }
   async send(id: string, text: string, anchors: Anchor[]): Promise<void> {
+    // Only a send that waits yields here; any other runs up to its reservation in the caller's tick, as before.
+    const exiting = this.previousExit(id); if (exiting) await exiting;
     let metadata = this.refreshCanvas(this.metadata(id)); if (metadata.state !== "current" || this.quitting) throw new Error("busy");
+    const runtime = metadata.session.runtime;
     const existing = this.live.get(id); if (existing?.busy || existing?.failedPersistence) throw new Error("busy");
-    const live: Live = (existing?.runner ? existing : undefined) ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false };
-    live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; live.turnId = randomUUID(); this.live.set(id, live);
-    let reserved = false, opening = false;
+    const live: Live = (existing?.runner ? existing : undefined) ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: 0 };
+    live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; live.turnId = randomUUID(); live.since = this.stops; this.live.set(id, live);
+    let reserved = false, opening = false, input: Prepared | undefined, leased = false;
     try {
-      this.reserve(id, { ...metadata.session, command: "", env: {} }, metadata.session.runtime === "codex" && !!live.runner); reserved = true;
-      const input = await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata.session);
+      this.reserve(id, { ...metadata.session, runtime, command: "", env: {} }, runtime === "codex" && !!live.runner); reserved = true;
+      input = await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata);
+      if (input.owner) live.provider = input.owner.provider;
       this.checkSend(id, live);
       if (live.exited) throw new Error("process_exited");
-      if (!live.runner) { opening = true; live.runner = await this.open(input, event => { if (this.live.get(id) === live) this.receive(id, event); }, () => { if (this.live.get(id) === live) this.exited(id); }, stop => { live.cleanup = stop; if (this.quitting) void stop(); }); }
+      if (!live.runner) { opening = true; leased = true; live.runner = await this.openRunner(id, live, input); }
       if (live.exited) throw new Error("process_exited");
       if (live.runner.sessionId !== metadata.session.sessionId) throw new Error("session_unavailable");
       this.checkSend(id, live);
+      input.recheck?.();
       metadata = this.refreshCanvas(this.metadata(id));
+      // The same account signed in again under a new connection; judgeConnection already proved account, profile and session.
+      const owner = input.owner;
+      if (owner && metadata.owner.kind === "doan" && metadata.owner.connectionId !== owner.connectionId) {
+        const rebound: ConversationMetadata = { ...metadata, owner, session: metadata.session };
+        this.store.save(this.store.list().map(m => m.conversationId === id ? rebound : m)); metadata = rebound;
+      }
       const prompt = turnPrompt(anchors, text, metadata); if (prompt === null) throw new Error("bad_request");
       this.append(id, live.turnId, { type: "user.message", text, anchors }); this.append(id, live.turnId, { type: "turn.started" }); live.accepted = true;
       for (const event of live.events.splice(0)) this.receive(id, event);
+      // A reused Codex server keeps the lease it opened with; this preparation's lease covered only the checks.
+      if (!leased) freeLease(input);
       this.sendTurn(id, live, live.runner, prompt);
     } catch (error) {
       live.busy = false;
       if (reserved && !opening && !live.runner) this.reservations = releaseReservation(this.reservations, id, "not_spawned");
+      if (!leased) freeLease(input);
       if (opening) void live.runner?.close(); throw error;
     }
+  }
+  // A finished turn's process may still be exiting, and its reservation keeps a second process off the session until
+  // its group is gone. The send waits for that instead of refusing; every check in send runs again afterwards.
+  private previousExit(id: string): Promise<void> | undefined {
+    const live = this.live.get(id), metadata = this.store.list().find(m => m.conversationId === id);
+    if (!metadata || metadata.state !== "current" || live?.busy || live?.failedPersistence || this.quitting || !this.reservations.some(r => r.owner === id)) return;
+    if (metadata.session.runtime === "codex" && live?.runner) return;
+    if (this.waits.has(id)) throw new Error("busy");
+    return this.exitOf(id, live);
+  }
+  private async exitOf(id: string, live: Live | undefined): Promise<void> {
+    let wake!: () => void;
+    const woken = new Promise<void>(resolve => { wake = resolve; });
+    const wait = { wake, cancelled: false, ...(live?.provider ? { provider: live.provider } : {}) };
+    this.waits.set(id, wait);
+    const timer = setTimeout(wake, this.exitWaitMs);
+    try { await woken; } finally { clearTimeout(timer); this.waits.delete(id); }
+    // Refused here, before send replaces the live entry: a replaced entry no longer matches the old process's exit
+    // callback, which would then never release the reservation.
+    if (wait.cancelled || this.reservations.some(r => r.owner === id)) throw new Error("busy");
+  }
+  private cancelWait(id: string): void { const wait = this.waits.get(id); if (wait) { wait.cancelled = true; wait.wake(); } }
+  // The lease belongs to this runner's process group: it is released when that group is gone, or at once when
+  // opening failed before anything was spawned.
+  private async openRunner(id: string, live: Live, input: Prepared): Promise<Runner> {
+    let spawned = false;
+    const release = () => freeLease(input);
+    try {
+      return await this.open(input, event => { if (this.live.get(id) === live) this.receive(id, event); }, () => { release(); if (this.live.get(id) === live) this.exited(id); }, stop => { spawned = true; live.cleanup = stop; if (this.quitting || this.stopped(live)) void stop(); });
+    } catch (error) { if (!spawned) release(); throw error; }
   }
   receive(id: string, event: EventPayload): void {
     const live = this.live.get(id); if (!live || live.failedPersistence || live.terminal) return;
@@ -129,12 +202,28 @@ export class ConversationService {
   }
   answer(id: string, requestId: string, option: string): void { this.metadata(id); if (!this.live.get(id)?.runner?.answer(requestId, option)) throw new Error("stale"); }
   async interrupt(id: string): Promise<void> {
-    this.metadata(id); const live = this.live.get(id); if (!live || !live.busy) return;
+    this.metadata(id); this.cancelWait(id); const live = this.live.get(id); if (!live || !live.busy) return;
     const stop = live.runner?.stop(); if (live.busy) this.receive(id, { type: "interrupted", reason: "user" }); await stop;
+  }
+  // A sign-out or account replacement the user chose to stop runs for. The provider's doan-account runs end as a user
+  // interruption; each lease is released once its group is gone (openRunner), which the auth attempt waits for. A run
+  // still preparing or opening is stopped as soon as it spawns. External runs hold no lease and are left alone.
+  async stopRuns(provider: Provider): Promise<void> {
+    this.stops += 1; this.lastStop.set(provider, this.stops);
+    for (const [id, wait] of this.waits) if (wait.provider === provider) this.cancelWait(id);
+    const closing: Promise<void>[] = [];
+    for (const [id, live] of this.live) {
+      if (live.provider !== provider) continue;
+      if (live.accepted && live.busy && !live.terminal) this.receive(id, { type: "interrupted", reason: "user" });
+      if (live.accepted) { live.terminal = true; live.busy = false; }
+      if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
+    }
+    await Promise.all(closing);
   }
   quit(): Promise<void> {
     const closing: Promise<void>[] = [];
     this.quitting = true;
+    for (const id of this.waits.keys()) this.cancelWait(id);
     for (const [id, live] of this.live) {
       if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
       if (live.accepted && live.busy && !live.terminal) this.append(id, live.turnId, { type: "interrupted", reason: "appQuit" });
@@ -154,6 +243,7 @@ export class ConversationService {
     this.store.save(this.store.list().map(m => m.conversationId === metadata.conversationId ? refreshed : m));
     return refreshed;
   }
+  private stopped(live: Live): boolean { return !!live.provider && (this.lastStop.get(live.provider) ?? 0) > live.since; }
   private checkSend(id: string, live: Live): void {
     if (this.quitting || this.live.get(id) !== live || live.terminal || this.metadata(id).state !== "current") throw new Error("busy");
   }
@@ -167,6 +257,7 @@ export class ConversationService {
   }
   private exited(id: string): void {
     this.reservations = releaseReservation(this.reservations, id, "process_exited");
+    this.waits.get(id)?.wake();
     const live = this.live.get(id); if (!live) return; live.exited = true; delete live.runner;
     if (!live.accepted) this.live.delete(id);
     if (live.accepted && live.busy) this.receive(id, { type: "turn.failed", code: "process_exited" });

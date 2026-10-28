@@ -5,7 +5,7 @@ import { agentEnv } from "./environment";
 import type { SessionRecord, AvailabilityFacts, UnavailableReason } from "./types";
 
 const record: SessionRecord = { v: 1, at: "2026-10-27T00:00:00.000Z", root: "/repo", canvas: { id: "home", path: ".doan/canvases/home.html" }, hash: `sha256:${"a".repeat(64)}`, runtime: "claude", sessionId: "session-1", cwd: "/repo", configDir: "/profile/.claude" };
-const facts: AvailabilityFacts = { cli: true, version: "2.1.310", sdkVersion: "0.3.310", root: "/repo", cwd: "/repo", configDir: "/profile/.claude", selectedConfigDir: "/profile/.claude", occupancy: "free", sessionExists: true };
+const facts: AvailabilityFacts = { cli: true, version: "2.1.312", sdkVersion: "0.3.312", root: "/repo", cwd: "/repo", configDir: "/profile/.claude", selectedConfigDir: "/profile/.claude", occupancy: "free", sessionExists: true };
 describe("session records", () => {
   it("uses the shared schema and skips malformed, unknown and truncated records", () => {
     const text = [JSON.stringify(record), "broken", JSON.stringify({ ...record, v: 2 }), JSON.stringify({ ...record, configDir: undefined }), '{"v":1'].join("\n");
@@ -54,8 +54,8 @@ describe("session records", () => {
   it("accepts verified in-root cwd and external config without relaxing version", () => {
     expect(sessionAvailability(record, { ...facts, cwd: "/repo/sub" })).toBeNull();
     const codex: SessionRecord = { ...record, runtime: "codex" };
-    expect(sessionAvailability(codex, { ...facts, version: "0.163.0" })).toBeNull();
-    expect(sessionAvailability(codex, { ...facts, version: "0.164.0" })).toBe("session_unavailable");
+    expect(sessionAvailability(codex, { ...facts, version: "0.164.0" })).toBeNull();
+    expect(sessionAvailability(codex, { ...facts, version: "0.163.0" })).toBe("session_unavailable");
   });
   it("rejects empty session IDs via schema", () => {
     expect(parseSessionRecords(JSON.stringify({ ...record, runtime: "codex", sessionId: "" }))).toEqual([]);

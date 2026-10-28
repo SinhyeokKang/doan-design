@@ -2,6 +2,7 @@ import { promptSentence } from "../../firstPrompt/promptSentence";
 import { anchorTokens, LIMITS, validAnchor } from "./prompt";
 import { object } from "./sessions";
 import { validCanvas, validId } from "./store";
+import { validProvider } from "../agentAuth/types";
 import type { ConversationService, Prepare, StartRequest } from "./service";
 import type { Anchor, Canvas } from "./types";
 export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read"] as const;
@@ -33,10 +34,10 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           catch (error) { const reason = error instanceof Error ? error.message : "session_unavailable"; return { available: false, reason: reason === "no_session" ? "no_record" : ["cli_missing", "outside_root", "session_unavailable", "session_in_use"].includes(reason) ? reason : "session_unavailable" }; }
         }
         if (!input || !["resume", "new", "newDesign"].includes(String(raw.mode))) throw new Error("bad_request");
-        if (raw.runtime !== undefined && raw.runtime !== "claude" && raw.runtime !== "codex") throw new Error("bad_request");
+        if (raw.runtime !== undefined && !validProvider(raw.runtime)) throw new Error("bad_request");
         if (raw.mode !== "resume" && !raw.runtime) throw new Error("no_agent");
         const mode = raw.mode; if (mode !== "resume" && mode !== "new" && mode !== "newDesign") throw new Error("bad_request");
-        const request: StartRequest = { root: raw.root, mode, ...input, ...(validCanvas(canvas) ? { canvas } : {}), ...(raw.runtime === "claude" || raw.runtime === "codex" ? { runtime: raw.runtime } : {}) };
+        const request: StartRequest = { root: raw.root, mode, ...input, ...(validCanvas(canvas) ? { canvas } : {}), ...(validProvider(raw.runtime) ? { runtime: raw.runtime } : {}) };
         if (mode === "newDesign") {
           if (typeof raw.subject !== "string") throw new Error("bad_request");
           const sentence = promptSentence(raw.root, raw.subject); if (typeof sentence !== "string") throw new Error("bad_request");
@@ -53,7 +54,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
       }
       throw new Error("bad_request");
     } catch (error) {
-      const known = ["bad_request", "project_not_open", "canvas_not_found", "no_agent", "cli_missing", "no_session", "session_unavailable", "runtime_unsupported", "session_in_use", "busy", "not_logged_in", "process_exited", "rate_limited", "unknown", "not_found", "stale"];
+      const known = ["bad_request", "project_not_open", "canvas_not_found", "no_agent", "cli_missing", "cli_install_failed", "credential_override", "no_session", "session_unavailable", "runtime_unsupported", "session_in_use", "busy", "not_logged_in", "process_exited", "rate_limited", "unknown", "not_found", "stale"];
       const code = error instanceof Error ? error.message : "unknown";
       return { error: code === "outside_root" ? "session_unavailable" : known.includes(code) ? code : "unknown" };
     }

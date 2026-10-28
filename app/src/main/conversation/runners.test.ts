@@ -45,6 +45,46 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   try { await runner.send("hello", "local-turn"); expect(events).toContainEqual({ type: "turn.done" }); expect(events).toContainEqual({ type: "message.done", messageId: "m", text: "hello" }); }
   finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
 }, 15000);
+it("pins a doan-account Claude run to its login's organization so a repo API key cannot replace the login", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-pinned-claude-")), command = join(root, "claude");
+  // The SDK hands the parent policy to the CLI as --managed-settings <json> (0.3.312); the fake records its argv.
+  writeFileSync(command, `#!/usr/bin/env node
+const fs = require('node:fs'); const readline = require('node:readline');
+fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, JSON.stringify(process.argv.slice(2)) + '\\n');
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+readline.createInterface({input:process.stdin}).on('line', line => {
+ fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, line + '\\n');
+ const r = JSON.parse(line);
+ if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands:[],models:[],account:{}}}});
+});
+`, { mode: 0o700 });
+  const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c1", accountId: "a1", workspaceId: "org-uuid-1", profile: "claude" };
+  try {
+    for (const input of [{ owner }, {}]) {
+      const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, ...input }, () => {}, () => {}, () => {});
+      await runner.close();
+    }
+    const [pinned, legacy] = readFileSync(join(root, "seen"), "utf8").split("\n").filter(line => line.startsWith("[")).map(line => JSON.parse(line) as string[]);
+    expect(pinned!.slice(pinned!.indexOf("--managed-settings"), pinned!.indexOf("--managed-settings") + 2)).toEqual(["--managed-settings", '{"forceLoginOrgUUID":"org-uuid-1"}']);
+    expect(legacy).not.toContain("--managed-settings");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+}, 15000);
+it("refuses an unpinned doan Claude run and names the pin's refusal of a repo-supplied credential", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-pin-claude-")), command = join(root, "claude");
+  // Claude Code 2.1.312's refusal when a repo's settings supply an API key under forceLoginOrgUUID (B3 live check).
+  writeFileSync(command, `#!/bin/sh
+echo started >> ${JSON.stringify(join(root, "seen"))}
+echo "This machine's managed settings require a first-party login: they pin Anthropic sign-ins to your organization (forceLoginOrgUUID), and this session is configured with an API key from ANTHROPIC_API_KEY, set in the env block of /repo/.claude/settings.json, which cannot be checked against that policy." >&2
+exit 1
+`, { mode: 0o700 });
+  const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c1", accountId: "a1", workspaceId: "org-uuid-1", profile: "claude" };
+  const open = (workspaceId: string | null) => openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, owner: { ...owner, workspaceId } }, () => {}, () => {}, () => {});
+  try {
+    await expect(open(null)).rejects.toThrow("not_logged_in");
+    expect(() => readFileSync(join(root, "seen"))).toThrow();
+    await expect(open("org-uuid-1")).rejects.toThrow("credential_override");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+}, 15000);
 it("reports malformed accepted transport immediately instead of waiting for process exit", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-malformed-codex-")), command = join(root, "codex");
   writeFileSync(command, `#!/usr/bin/env node
@@ -171,3 +211,19 @@ descendant.once('message',()=>{
     rmSync(root, { recursive: true, force: true });
   }
 }, 10000);
+it("puts doan-account arguments ahead of the Codex app-server subcommand", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-fake-codex-")), command = join(root, "codex");
+  writeFileSync(command, `#!/usr/bin/env node
+require('node:fs').writeFileSync(${JSON.stringify(join(root, "argv.json"))}, JSON.stringify(process.argv.slice(2)));
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+require('node:readline').createInterface({input:process.stdin}).on('line', line => {
+ const r = JSON.parse(line);
+ if(r.method==='initialize') send({id:r.id,result:{}});
+ if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'}}});
+});
+`, { mode: 0o700 });
+  const exited = vi.fn();
+  const runner = await openRunner({ command, args: ["-c", 'cli_auth_credentials_store="keyring"'], runtime: "codex", cwd: root, configDir: root, env: process.env }, () => {}, exited, () => {});
+  try { expect(JSON.parse(readFileSync(join(root, "argv.json"), "utf8"))).toEqual(["-c", 'cli_auth_credentials_store="keyring"', "app-server"]); }
+  finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
+});

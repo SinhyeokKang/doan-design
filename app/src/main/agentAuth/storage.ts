@@ -1,0 +1,139 @@
+import { randomUUID } from "node:crypto";
+import { accessSync, chmodSync, closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
+import { parseAuthMetadata, serializeAuthMetadata } from "./metadata";
+import type { AuthMetadata, Provider } from "./types";
+
+// Electron safeStorage in the app; an OS-keyed cipher is the only thing allowed to touch credential bytes at rest.
+export interface Cipher { available(): Promise<boolean>; encrypt(text: string): Promise<Buffer>; decrypt(data: Buffer): Promise<string> }
+export type StorageCode = "key_unavailable" | "unreadable" | "write_failed" | "delete_failed";
+export class StorageError extends Error {
+  constructor(readonly code: StorageCode, detail?: string) { super(detail ? `${code}: ${detail}` : code); }
+}
+export type VaultFiles = Record<string, Buffer>;
+const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+function absent(error: unknown): boolean { return typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "ENOENT"; }
+
+// Layout under <userData>/agent-auth: metadata.json, vault/<provider>.bin, profiles/<provider>/.
+export class AuthStorage {
+  constructor(readonly root: string, private readonly cipher: Cipher) {}
+  profileDir(provider: Provider): string { const dir = join(this.root, "profiles", provider); mkdirSync(dir, { recursive: true, mode: 0o700 }); return dir; }
+  readMetadata(): AuthMetadata {
+    let text: string;
+    try { text = readFileSync(join(this.root, "metadata.json"), "utf8"); }
+    catch (error) { if (absent(error)) return { v: 1, accounts: [] }; throw new StorageError("unreadable", message(error)); }
+    const read = parseAuthMetadata(text);
+    // Reading damage as "no accounts" would let the next save drop every other provider's connection.
+    if (!read.ok) throw new StorageError("unreadable", read.code);
+    return read.metadata;
+  }
+  writeMetadata(metadata: AuthMetadata): void { this.replace(join(this.root, "metadata.json"), Buffer.from(serializeAuthMetadata(metadata))); }
+  async saveVault(provider: Provider, files: VaultFiles): Promise<void> {
+    const plain = JSON.stringify({ v: 1, files: Object.fromEntries(Object.entries(files).map(([rel, bytes]) => [rel, bytes.toString("base64")])) });
+    let sealed: Buffer;
+    try { if (!await this.cipher.available()) throw new Error("OS encryption is unavailable"); sealed = await this.cipher.encrypt(plain); }
+    catch (error) { throw new StorageError("key_unavailable", message(error)); }
+    this.replace(this.vaultPath(provider), sealed);
+  }
+  async loadVault(provider: Provider): Promise<VaultFiles | null> {
+    let sealed: Buffer;
+    try { sealed = readFileSync(this.vaultPath(provider)); }
+    catch (error) { if (absent(error)) return null; throw new StorageError("unreadable", message(error)); }
+    try {
+      if (!await this.cipher.available()) throw new Error("OS encryption is unavailable");
+      const text = await this.cipher.decrypt(sealed);
+      let doc;
+      // A parse error quotes its input, and decrypted bytes may be a credential.
+      try { doc = JSON.parse(text); } catch { throw new Error("vault is not a JSON document"); }
+      if (doc?.v !== 1 || typeof doc.files !== "object" || doc.files === null) throw new Error("unknown vault format");
+      return Object.fromEntries(Object.entries(doc.files).map(([rel, text]) => {
+        if (typeof text !== "string") throw new Error("invalid vault entry");
+        return [rel, Buffer.from(text, "base64")];
+      }));
+    } catch (error) { throw new StorageError("unreadable", message(error)); }
+  }
+  removeVault(provider: Provider): void { this.remove(this.vaultPath(provider)); }
+  // Writes the vault's copy of each listed file into the profile for a provider process; absent entries stay absent.
+  async materialize(provider: Provider, rels: readonly string[]): Promise<void> {
+    const files = await this.loadVault(provider) ?? {};
+    for (const rel of rels) {
+      const path = this.working(provider, rel);
+      if (files[rel]) this.replace(path, files[rel]); else this.remove(path);
+    }
+  }
+  // Returns whether the provider's copy differed from the vault (a refresh, a new login or a logout).
+  async absorb(provider: Provider, rels: readonly string[]): Promise<boolean> {
+    const current: VaultFiles = {};
+    for (const rel of rels) {
+      try {
+        const path = this.working(provider, rel);
+        // A link would let a provider process pull an arbitrary file into the vault.
+        if (!lstatSync(path).isFile()) throw new StorageError("unreadable", `${rel} is not a regular file`);
+        current[rel] = readFileSync(path);
+      }
+      catch (error) { if (error instanceof StorageError) throw error; if (!absent(error)) throw new StorageError("unreadable", message(error)); }
+    }
+    const stored = await this.loadVault(provider);
+    const same = stored !== null && Object.keys(stored).length === Object.keys(current).length && Object.entries(current).every(([rel, bytes]) => stored[rel]?.equals(bytes));
+    if (same) return false;
+    await this.saveVault(provider, current);
+    return true;
+  }
+  // A non-secret executable doan owns at the auth root, rewritten when its text or mode drifted; returns its path.
+  ownedScript(name: string, text: string): string {
+    const path = join(this.root, name);
+    let current: string | null = null;
+    try { current = readFileSync(path, "utf8"); } catch (error) { if (!absent(error)) throw new StorageError("write_failed", message(error)); }
+    if (current !== text) this.replace(path, Buffer.from(text));
+    try { chmodSync(path, 0o700); accessSync(path, constants.X_OK); } catch (error) { throw new StorageError("write_failed", message(error)); }
+    return path;
+  }
+  writeSetting(provider: Provider, rel: string, text: string): void {
+    const path = this.working(provider, rel);
+    try { if (readFileSync(path, "utf8") === text) return; } catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }
+    this.replace(path, Buffer.from(text));
+  }
+  hasWorkingCopy(provider: Provider, rels: readonly string[]): boolean {
+    return rels.some(rel => {
+      try { lstatSync(this.working(provider, rel)); return true; }
+      catch (error) { if (error instanceof StorageError) throw error; if (absent(error)) return false; throw new StorageError("unreadable", message(error)); }
+    });
+  }
+  scrub(provider: Provider, rels: readonly string[]): void { for (const path of this.workingPaths(provider, rels)) this.remove(path); }
+  private vaultPath(provider: Provider): string { return join(this.root, "vault", `${provider}.bin`); }
+  private working(provider: Provider, rel: string): string {
+    const base = this.profileDir(provider), path = join(base, rel);
+    // Never follow a link out of the profile: the provider or a stale run may have replaced a parent.
+    for (let dir = dirname(path); dir.length > base.length; dir = dirname(dir)) {
+      try { if (lstatSync(dir).isSymbolicLink()) throw new StorageError("write_failed", `symlinked profile path ${rel}`); }
+      catch (error) { if (error instanceof StorageError) throw error; if (!absent(error)) throw new StorageError("write_failed", message(error)); }
+    }
+    return path;
+  }
+  // The files themselves plus temporary siblings an interrupted write may have left.
+  private workingPaths(provider: Provider, rels: readonly string[]): string[] {
+    const found: string[] = [];
+    for (const rel of rels) {
+      const path = this.working(provider, rel);
+      let names: string[];
+      try { names = readdirSync(dirname(path)); } catch (error) { if (absent(error)) continue; throw new StorageError("unreadable", message(error)); }
+      for (const name of names) if (name === basename(path) || (name.startsWith(`${basename(path)}.`) && name.endsWith(".tmp"))) found.push(join(dirname(path), name));
+    }
+    return found;
+  }
+  private replace(path: string, bytes: Buffer): void {
+    const temp = `${path}.${randomUUID()}.tmp`;
+    try {
+      mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+      const fd = openSync(temp, "wx", 0o600);
+      try { writeSync(fd, bytes); fsyncSync(fd); } finally { closeSync(fd); }
+      renameSync(temp, path);
+    } catch (error) {
+      try { rmSync(temp, { force: true }); } catch { /* The write already failed; a stray temp file is scrubbed with leftovers. */ }
+      throw new StorageError("write_failed", message(error));
+    }
+  }
+  private remove(path: string): void {
+    try { rmSync(path); } catch (error) { if (!absent(error)) throw new StorageError("delete_failed", message(error)); }
+  }
+}

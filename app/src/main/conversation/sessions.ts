@@ -3,7 +3,7 @@ import { validateSessionRecord } from "../../formats/validate";
 import type { AvailabilityFacts, Canvas, Runtime, SessionRecord, UnavailableReason } from "./types";
 
 export const SESSION_TAIL_BYTES = 1024 * 1024;
-export const SUPPORTED_VERSIONS = { claude: "2.1.310", codex: "0.163.0", claudeSdk: "0.3.310" };
+export const SUPPORTED_VERSIONS = { claude: "2.1.312", codex: "0.164.0", claudeSdk: "0.3.312" };
 export function object(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
