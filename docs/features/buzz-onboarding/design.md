@@ -23,7 +23,7 @@
 - 로그아웃 실패: `signOutFailed`가 저장되면 재시작 뒤에도 그 공급자의 실행과 새 로그인이 막힌다(readiness `sign_out_failed` → signOut). 다른 실패와 구분되는 문구가 필요하다.
 - 실행 중 대화: 그 공급자의 대화가 실행 중이면 로그인 교체와 로그아웃이 `stop_required`를 돌려준다. 사용자가 중단을 확인하면 `stop: true`로 다시 보낸다. Codex는 턴이 끝난 뒤 대기 중인 app-server도 실행 중으로 센다.
 - 동시 진행: 로그인·로그아웃은 모든 공급자를 통틀어 하나만 진행한다. 다른 공급자의 로그인 중에 시작하면 `busy`이다.
-- 링크: 로그인 링크는 시도를 시작한 창에만 `prompt` 이벤트로 온다. 링크는 `openAgentSignInLink`로 열고, 실패는 `open_failed`이다. Codex는 링크 2개를 보내며 열기는 마지막 링크를 연다. Cursor·Copilot 로그인 CLI는 OS 기본 브라우저를 스스로도 연다. Antigravity는 브라우저가 로컬 주소에 닿지 못하면 브라우저가 멈춘 주소를 `submitAgentSignInCode`로 붙여넣을 수 있다. Antigravity 첫 로그인은 서버를 내려받느라 링크가 약 20초 뒤에 오고, 내려받기 실패는 `cli_install_failed`이다.
+- 링크: 로그인 링크는 시도를 시작한 창에만 `prompt` 이벤트로 온다. 링크는 `openAgentSignInLink`로 열고, 실패는 `open_failed`이다. Codex는 링크 2개를 보내며 열기는 마지막 링크를 연다. Cursor·Copilot 로그인 CLI는 OS 기본 브라우저를 스스로도 연다(2026-10-28 사용자 결정으로 알려진 한계로 수용). UI는 브라우저가 이미 열렸을 수 있음을 전제해야 한다. Claude 로그인은 CLI가 URL을 출력한 뒤 10초 안에 훅 링크가 오지 않으면 `sign_in_failed`로 끝난다. Antigravity는 브라우저가 로컬 주소에 닿지 못하면 브라우저가 멈춘 주소를 `submitAgentSignInCode`로 붙여넣을 수 있다. Antigravity 첫 로그인은 서버를 내려받느라 링크가 약 20초 뒤에 오고, 내려받기 실패는 `cli_install_failed`이다.
 - 창 수명: 시도를 시작한 창이 닫히면 시도가 취소된다. 주 창 닫기는 hide라서 시도가 유지된다. reload 뒤에도 같은 창이 취소와 링크 열기를 할 수 있다.
 - Claude: 조직 UUID가 없는 연결은 phase가 connected여도 readiness가 reauth이다. 레포 설정의 API 키 때문에 실행이 거부되면 대화 오류는 `credential_override`이다.
 - 미검증: 실제 토큰 만료와 갱신은 관찰하지 못했다.
