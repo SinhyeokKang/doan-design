@@ -25,6 +25,7 @@ function account(provider: Provider, profileDir: string, id: string | null = "ac
   const runtime: AccountRuntime = {
     state: () => state,
     check: vi.fn(async () => { state = { ...state, verified: true }; return { ok: true as const, attemptId: "check", done: Promise.resolve(state) }; }),
+    checked: vi.fn(async () => { if (state.attempt?.kind === "check") state = { ...state, attempt: null, verified: true }; }),
     acquire: vi.fn(async (): Promise<Lease> => {
       if (!state.connection) throw new Error("not_connected");
       if (!state.verified) throw new Error("unverified");
@@ -124,6 +125,12 @@ it("checks a stored connection that has not been verified since launch before th
   const h = harness("codex"); h.auth.set({ verified: false });
   await start(h, "codex");
   expect(h.auth.runtime.check).toHaveBeenCalledOnce(); expect(h.open).toHaveBeenCalledOnce();
+});
+
+it("waits for a check another caller started instead of refusing the run", async () => {
+  const h = harness("claude"); h.auth.set({ verified: false, attempt: { id: "settings-check", kind: "check", owner: null, cancelled: false } });
+  await start(h, "claude");
+  expect(h.auth.runtime.checked).toHaveBeenCalled(); expect(h.auth.runtime.check).not.toHaveBeenCalled(); expect(h.open).toHaveBeenCalledOnce();
 });
 
 it("refuses an unsupported executable version and a missing bundled doan CLI", async () => {

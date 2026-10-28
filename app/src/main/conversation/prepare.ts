@@ -67,7 +67,9 @@ export function claudeSessionExists(config: string, id: string): boolean {
   return false;
 }
 
-export interface AccountRuntime { state(provider: Provider): AuthState; check(provider: Provider): Promise<Started>; acquire(provider: Provider): Promise<Lease> }
+export interface AccountRuntime {
+  state(provider: Provider): AuthState; check(provider: Provider): Promise<Started>; checked(provider: Provider): Promise<void>; acquire(provider: Provider): Promise<Lease>;
+}
 // Account refusals that a sign-in or reauth resolves read as not_logged_in; the rest keep the conversation codes.
 function accountCode(cause: string): string {
   if (["not_connected", "reauth_required", "unverified", "account_mismatch", "sign_out_failed"].includes(cause)) return "not_logged_in";
@@ -87,13 +89,13 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string): Account
     if (!provider) throw new Error("no_agent");
     if (provider !== "claude" && provider !== "codex") throw new Error(stored ? "session_unavailable" : "runtime_unsupported");
     if (!isAbsolute(cli) || basename(cli) !== "doan") throw new Error("cli_missing");
+    // Stored metadata loads unverified; the first run checks it, or waits for a check another caller started.
+    if (auth.state(provider).attempt?.kind === "check") await auth.checked(provider);
     let state = auth.state(provider);
-    // Stored metadata loads unverified; the first run checks it rather than refusing until someone else does.
     if (state.connection && !state.verified && !state.expired && !state.attempt) {
-      const started = await auth.check(provider); if (started.ok) await started.done;
+      const started = await auth.check(provider); if (started.ok) await started.done; else await auth.checked(provider);
       state = auth.state(provider);
     }
-    if (state.attempt?.kind === "check") throw new Error("busy");
     const pinned = { generation: state.generation, connectionId: state.connection?.connectionId };
     let lease: Lease;
     try { lease = await auth.acquire(provider); } catch (error) { throw new Error(accountCode(error instanceof Error ? error.message : "")); }

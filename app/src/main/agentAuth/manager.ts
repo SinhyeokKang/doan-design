@@ -105,6 +105,9 @@ export class AuthManager {
     return { ok: true, attemptId, done };
   }
 
+  // Resolves when the provider's running check, if any, has applied its result.
+  async checked(provider: Provider): Promise<void> { await this.checks.get(provider)?.done.catch(() => {}); }
+
   async signIn(provider: Provider, owner: number): Promise<Started> {
     if (this.closed || this.writer) return this.refuse(provider, "busy");
     if (this.running(provider)) return this.refuse(provider, "stop_required");
