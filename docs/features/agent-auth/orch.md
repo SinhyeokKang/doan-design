@@ -101,3 +101,6 @@ Run: `run_d94775f7dd27`.
 - R-B45: `ctx_c16f0d19730a` (task `task_55f0b6dd242b`). `agent-auth-ipc`에서 보고만 한다. opus high, `turnStart: observed`.
 - R-B45 `ctx_c16f0d19730a`: 🔴0·🟡2·⚪7. 🟡1: 도구 facts를 한 번만 읽어서, CLI가 자동 업데이트돼도 readiness가 ready로 남는다. 🟡2: `stopRuns` 이후에 spawn된 실행은 stop 요청을 받지 못해서, open이 느리면 `sign_out_failed`가 영속 기록될 수 있다. 사용자 결정 항목(멈추지 않는 실행이 있을 때 `sign_out_failed`를 영속 기록할지)은 지휘자 판단으로 현 동작을 유지한다. 근거는 design의 '로그아웃 실패 시 새 실행 차단'이다. UI에서는 이 상황을 다른 실패와 구분해서 보여 줘야 한다. 보고서는 `evidence-B45/review-B45.md`.
 - F-B45: `ctx_9878c9321164` (task `task_0a2d159b7831`), `agent-auth-ipc`, opus high, `turnStart: observed`. 🟡1·🟡2와 ⚪1·3·7b를 수정한다.
+- F-B45(`8ce09fd`·`f013aab`·`82afb0e`): 실행이 CLI 누락이나 버전 문제로 거부되면 그 공급자의 facts를 다시 읽는다. 공급자별 stop 세대를 두어 로그아웃 뒤에 spawn된 실행도 멈춘다. drain 마감은 `stopRuns`보다 먼저 건다. probe가 실패하면 UNPROBED로 처리한다. 채널과 sender 목록을 대조하는 테스트를 추가했다. B45와 F-B45를 `bdbc514`까지 통합했다(cherry-pick 6개). 통합 HEAD에서 verify.mjs가 PASS했다(3,621 tests, load 20). 앞서 부하로 실패했던 app-test 통과도 이 실행으로 확인했다.
+- 사용자 결정(2026-10-28, D1): D1은 실제 HOME에서 실행한다. userData·DOAN_RUNTIME은 격리하고 setup 쓰기 단계는 거치지 않는다. doan이 만드는 Keychain 항목('doan Safe Storage'·'Electron Safe Storage'·doan 전용 Claude·Codex 항목)은 허용하고, 만든 항목은 목록으로 보고한다. 외부 항목은 읽기만 한다.
+- D1: `ctx_3677aa70cdfe` (task `task_38c749038798`), child `agent-auth-d1` (base `bdbc514`), opus high, `turnStart: observed`.
