@@ -92,7 +92,7 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 - 기존 `doan-button`, `doan-input`, `doan-panel`, `doan-notice`, `doan-alert-icon`, `doan-spinner`, `doan-scroll`을 재사용한다. 새 시각 옵션은 기존 프리미티브에 반영한다.
 - Welcome: doan 워드마크 아래 “A place for your next idea.” / “Bring it to life on canvas.”를 한 블록 안에서 줄바꿈한다. 가운데 정렬, 24px·행간 1.1·400·자간 -0.3px이다. 워드마크와 문장 간격 24px, 문장과 버튼 간격 40px이다.
 - Get started는 콘텐츠 너비의 prominent 버튼이다. 승인된 새 `lg` 옵션은 높이 48px, 폰트 16px/24px, 패딩 12px/32px이다. 기존 기본 40px·sm 32px은 유지한다. 현재 lg는 초안에만 있으며 구현 시 공용 controls에 추가한다.
-- 그라디언트는 Welcome에만 있다. Welcome은 Buzz `shell-gradient.png`(c40dfdf4)의 구도를 이미지 없이 따른다. 왼쪽 위의 큰 violet 덩어리, 오른쪽 위 가장자리의 amber 빛, 아래로 갈수록 흰 바탕이다. 인라인 SVG 타원 세 개(`feGaussianBlur` 110, fill `--violet-8`·`--violet-7`·`--amber-3`)로 그리며 opacity 1이다(2026-10-28 사용자). `onboarding-grain.svg` alpha mask로 투명도를 분산하며 검정 입자를 색상으로 얹지 않는다. 애니메이션은 없다(2026-10-28 사용자: 마스크째 움직이는 모션 제거).
+- 그라디언트는 Welcome에만 있다. Welcome 배경은 `--violet-3` 바탕 위에서 아래 가운데로 짙어지는 그릇 모양 글로우다. 인라인 SVG 타원 세 개(`feGaussianBlur` 70, fill `--violet-6`·`--violet-8`·`--affordance-accent`)로 그리며 grain mask와 점 격자는 쓰지 않는다(2026-10-28 사용자). 애니메이션은 없다(2026-10-28 사용자: 마스크째 움직이는 모션 제거).
 - 나머지 화면은 `buzz-shell.html`과 같은 wallpaper fixture와 surface-panel 55%·blur(32px) saturate(.8) 재질로 표현한다. 외곽 여백은 없다. 앱 구현은 기존 native vibrancy="sidebar"를 재사용한다. HTML은 시각 근사이며 native 재질 측정값이 아니다. reduced-transparency에서는 불투명 배경이다.
 - 크롬은 56px이다. AppShell 형태의 캡슐을 Agent·Project 스테퍼로 재사용한다. 현재 단계는 흰 pill·aria-current, 완료 단계는 체크·돌아가기, 진행 불가는 disabled이다. Welcome에는 스테퍼가 없다.
 - 모든 화면 타이틀과 캡션은 가운데 정렬한다. 행·폼은 왼쪽 정렬이다. 버튼·입력창은 기존 불투명 subtle/surface-inset을 유지한다. Back은 arrow-left, 다음 이동은 arrow-right를 쓴다. 제출 액션은 오른쪽에 배치한다.
