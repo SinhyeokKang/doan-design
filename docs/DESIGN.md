@@ -336,7 +336,7 @@ Reference: `.doan/canvases/buzz-onboarding.html` (approved 2026-10-28, F4 comple
   - A paste over 16,384 characters shows "This address is too long to submit." (D16) in caption `--text-danger` under the field.
   - Main's fixed messages are shown for refusals without draft copy, for example a kept clone folder: "Couldn't remove <path>. Remove it, then try again."
 - **Folder inspection progress.** Inspecting a picked or listed folder uses the 'Setting up project' notice ("Setting up your project", path), even when nothing will be set up.
-- **Existing folder from the URL path.** Choose existing folder and Use existing folder inspect the folder by path, so main checks no remote for it. The user chose that folder explicitly. Whether the remote check should apply there is the conductor's call (see the U2 handoff).
+- **Existing folder from the URL path** (D20, 2026-10-29 user). Choose existing folder, Use existing folder and Choose another folder on the URL screens inspect the folder together with the repository URL, so main checks its remote. A mismatch stays on that screen with Edit repository URL (subtle) and Choose another folder. The draft's mismatch tile draws Choose another folder alone. The URL field on a path inspection arrives with batch R.
 
 ### Coverage, limits and regression evidence
 
