@@ -37,7 +37,7 @@
 | M | B0 → B1 | `app/src/main/**`(P의 새 모듈은 import만), `app/src/preload/**`, `app/src/main/agentAuth/` 연결부 | C, P | Claude Opus high — 소켓 인증·소유권·프로세스 그룹·경합 파일 생성이라 보안·동시성이 무겁다. B1은 같은 터미널의 다음 Task | `verify.mjs` | 진행 중 |
 | G | B3 | `cli/**`(`cli/internal/formats/**` 제외), `cli/internal/cli/skill.md` | C | Claude Opus high — bundle 신뢰·자동 실행·비밀 비노출 판단 | `verify.mjs` | 통합 `036b4ae`..`41fb7f2`, 2회차 |
 | U | U1(B2 일부) → U2(B2 나머지 + design-sync) | U1: `app/src/renderer/**`(P의 새 모듈은 import만), `app/src/renderer/ds/controls.css`. U2: 위에 더해 고아 채널 제거를 위한 `app/src/main/index.ts`·`app/src/main/onboarding/machine.ts`·`app/src/preload/**`·`app/src/setup/**`, `docs/DESIGN.md` 측정값, `.scratch/design-sync/` | U1: T, P. U2: M | Claude Opus high — 포커스·중첩 모달·경합 표시와 승인 디자인 대조 | `verify.mjs`, U2는 `/design-sync` | 진행 중 |
-| E | D5 시나리오 | `eval/scenarios/**`의 새 시나리오와 fixture, eval 가짜 앱의 v2 응답(`eval/lib/socket.ts`와 테스트) | G | Claude Opus medium — 시나리오 판정 기준 설계 | `verify.mjs --eval`, `node eval/run.ts --self-test` | 진행 중 |
+| E | D5 시나리오 | `eval/scenarios/**`의 새 시나리오와 fixture, eval 가짜 앱의 v2 응답(`eval/lib/socket.ts`와 테스트) | G | Claude Opus medium — 시나리오 판정 기준 설계 | `verify.mjs --eval`, `node eval/run.ts --self-test` | 통합(11 커밋, 끝 `300e3e3`), 2회차 |
 | V | V1(design-sync 제외), V1b, V1c | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus high — 실제 인증·clone·패키지 앱 probe와 사용자 상태 보호 | `/runtime-test` | 대기 |
 | 지휘자 | V2, V3 | 통합 커밋, 정본 승격, feature 디렉터리 삭제 | 전부 | — | 통합 HEAD `verify.mjs --eval`, `/agent-eval` | 대기 |
 
@@ -72,3 +72,4 @@
 - 2026-10-29: E 완료(5d76493..bc87582). 리뷰 Codex `gpt-6-astra` medium: 🔴 0·🟡 4(CLI가 거절한 시도를 검사하지 않음, 변경 안내 순서를 강제하지 않음, 가짜 앱의 로그인 중 공급자 상태 모순, 요청 로그를 보존하지 않음). 수정 1회차를 보냈다.
 - 2026-10-29: M B0 완료(d557d7f..686fe09, `verify.mjs` PASS). B0 리뷰 Codex `gpt-6-astra` medium `ctx_526b510a3e2f` 진행 중. 같은 터미널에 B1 Task를 보냈다. B0 리뷰 수정은 B1 뒤 별도 Task로 보낸다.
 - 2026-10-29: M B0 리뷰 🔴 0·🟡 3(requestId 중복 실행 가능성, status의 revision과 작업 상태 불일치, check 실패를 성공으로 판정)·⚪ 2. B1 뒤 수정 Task로 보낸다.
+- 2026-10-29: E 수정 1회차(affe6f9..c8fa066). 지휘자 확인 뒤 통합했다(끝 `300e3e3`). 변경 안내 순서는 판정자만 본다(결정적 검사 없음). E 작업자 release, bo-E 제거, handoff `.scratch/orch/handoff-E.md`.
