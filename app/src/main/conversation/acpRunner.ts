@@ -8,6 +8,8 @@ import { object } from "./sessions";
 import type { Prepared, Runner } from "./service";
 import type { EventPayload } from "./types";
 const OPEN_TIMEOUT_MS = 60_000;
+// ACP stop reasons that mean the agent ran the prompt (protocol schema StopReason, minus "cancelled").
+const RAN = new Set(["end_turn", "max_tokens", "max_turn_requests", "refusal"]);
 const CANCEL_WAIT_MS = 5000;
 // One server per turn: it is opened for a prompt, resumes the session with session/load and is stopped when the turn
 // ends, so the account lease (and the plaintext working credential) never outlives a running turn.
@@ -105,8 +107,9 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
       try {
         const result = await acp.request("session/prompt", { sessionId, prompt: [{ type: "text", text: prompt }] }, null);
         apply(acpPromptDone(state, result));
-        // A completed prompt is the provider accepting the dedicated login (Copilot's status costs a request).
-        input.confirm?.();
+        // A prompt the agent ran to a stop is the provider accepting the dedicated login (Copilot's status costs a
+        // request). A cancel or a malformed answer can come before any model request, so it proves nothing.
+        if (object(result) && typeof result.stopReason === "string" && RAN.has(result.stopReason)) input.confirm?.();
       } catch (error) {
         if (!state.terminal) apply(dead && !failure ? acpEnded(state) : acpPromptFailed(state, failure || (error instanceof Error ? error.message : "")));
       } finally { finished = true; expire(); void group?.stop(); }

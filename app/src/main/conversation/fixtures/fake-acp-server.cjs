@@ -1,6 +1,7 @@
 // Replays a recorded ACP turn (acp-<provider>.json) the way the real server sent it: updates in order, each permission
 // request held until the client answers, a rejected tool call reported as failed, and session/cancel ending the turn.
-// Test-only knobs come from FAKE_ACP: "auth-link" asks for a browser sign-in at session/new, "hang" never answers a prompt.
+// Test-only knobs come from FAKE_ACP: "auth-link" asks for a browser sign-in at session/new, "hang" never answers a prompt,
+// "stop:<reason>" answers a prompt at once with that stopReason ("stop:" with none).
 const readline = require("node:readline");
 const fixture = require(process.argv[2]);
 const mode = process.env.FAKE_ACP ?? "";
@@ -40,6 +41,7 @@ readline.createInterface({ input: process.stdin }).on("line", line => {
       send({ jsonrpc: "2.0", id: request.id, result: {} }); break;
     case "session/prompt":
       promptId = request.id;
+      if (mode.startsWith("stop:")) { send({ jsonrpc: "2.0", id: promptId, result: mode === "stop:" ? {} : { stopReason: mode.slice(5) } }); promptId = null; break; }
       if (mode !== "hang") play();
       break;
     case "session/cancel":

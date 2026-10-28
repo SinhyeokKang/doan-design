@@ -68,6 +68,23 @@ it("resumes with session/load without replaying stored history as new events, an
   expect(confirm).toHaveBeenCalledOnce();
 });
 
+// Only a prompt the provider actually ran proves the login; a cancel can answer before any model request.
+it.each([["end_turn", true], ["max_tokens", true], ["max_turn_requests", true], ["refusal", true], ["cancelled", false], ["", false]])(
+  "confirms the account only after a prompt that stopped with %j", async (reason, confirmed) => {
+    const confirm = vi.fn();
+    const { runner } = await open("copilot", null, { confirm }, `stop:${reason}`);
+    await runner.send("hi", "turn-1");
+    expect(confirm).toHaveBeenCalledTimes(confirmed ? 1 : 0);
+  });
+it("does not confirm the account after an interrupted prompt", async () => {
+  const confirm = vi.fn();
+  const { runner } = await open("copilot", null, { confirm }, "hang");
+  const sent = runner.send("hi", "turn-1");
+  await new Promise(resolve => setTimeout(resolve, 50));
+  await runner.stop(); await sent;
+  expect(confirm).not.toHaveBeenCalled();
+});
+
 it("interrupts with session/cancel and expires a pending permission so a late answer is refused", async () => {
   const { runner, events } = await open("cursor", null);
   const sent = runner.send("hi", "turn-1");
