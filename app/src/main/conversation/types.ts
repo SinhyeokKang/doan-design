@@ -10,7 +10,7 @@ export interface DirectoryFacts {
   root: string | null; cwd: string | null; configDir: string | null;
 }
 export interface AvailabilityFacts extends DirectoryFacts {
-  cli: boolean; version: string | null; sdkVersion?: string;
+  cli: boolean; version: string | null;
   selectedConfigDir: string | null;
   occupancy: "free" | "occupied" | "unknown";
   sessionExists: boolean;

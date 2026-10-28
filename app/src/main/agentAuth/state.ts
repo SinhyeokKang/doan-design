@@ -104,6 +104,7 @@ export function readiness(state: AuthState, facts: ToolFacts): Readiness {
   if (facts.cli === "missing") return { ready: false, cause: "cli_missing", action: "install" };
   if (facts.version === "unsupported") return { ready: false, cause: "version_unsupported", action: "update" };
   if (facts.version === "unknown") return { ready: false, cause: "version_unknown", action: "retry" };
+  if (facts.version === "incompatible") return { ready: false, cause: "version_incompatible", action: "retry" };
   if (state.attempt && state.attempt.kind !== "check") return { ready: false, cause: "busy", action: "wait" };
   if (state.error?.code === "sign_out_failed") return { ready: false, cause: "sign_out_failed", action: "signOut" };
   if (!state.connection) return { ready: false, cause: "not_connected", action: "signIn" };
@@ -113,6 +114,11 @@ export function readiness(state: AuthState, facts: ToolFacts): Readiness {
   if (facts.tools === "missing") return { ready: false, cause: "tools_missing", action: "repair" };
   if (facts.tools === "failed") return { ready: false, cause: "tools_failed", action: "repair" };
   return { ready: true };
+}
+// A recorded incompatibility applies only while the probed install is that same version; a self-update or a
+// reinstall reads as a new install. Below the minimum or unreadable keeps its own cause.
+export function recordedFacts(facts: ToolFacts, incompatible: string | undefined): ToolFacts {
+  return incompatible !== undefined && facts.version === "supported" && facts.installed === incompatible ? { ...facts, version: "incompatible" } : facts;
 }
 function actions(state: AuthState): AuthAction[] {
   if (state.attempt) return state.attempt.kind === "signIn" && !state.attempt.cancelled ? ["cancel"] : [];
@@ -126,12 +132,15 @@ function actions(state: AuthState): AuthAction[] {
 export function authStatus(state: AuthState, facts: ToolFacts, revision: number): AuthStatusDto {
   if (!Number.isSafeInteger(revision) || revision < 0) throw new Error("Invalid revision");
   const account = state.connection?.account;
+  const ready = readiness(state, facts), offered = actions(state);
+  // A version cause clears with a re-read of the tool facts, whatever the account allows.
+  if (!ready.ready && (ready.cause === "version_unknown" || ready.cause === "version_incompatible") && !offered.includes("retry")) offered.push("retry");
   return {
     provider: state.provider, revision, phase: state.phase,
     account: account ? { ...(account.displayName !== undefined ? { displayName: account.displayName } : {}), ...(account.email !== undefined ? { email: account.email } : {}) } : null,
     attempt: state.attempt ? { id: state.attempt.id, kind: state.attempt.kind, cancelling: state.attempt.cancelled } : null,
-    readiness: readiness(state, facts),
+    readiness: ready,
     error: state.error ? { code: state.error.code, retryable: state.error.code !== "account_mismatch" } : null,
-    actions: actions(state),
+    actions: offered,
   };
 }
