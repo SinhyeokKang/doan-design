@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { createServer, type Socket } from "node:net";
 import { join } from "node:path";
 
@@ -63,8 +64,172 @@ export function answer(line: string, token: string, root: string, selection: Obj
   return { v: 1, ok: true, result: selection !== null && selection.root === root ? { selection } : {} };
 }
 
-export interface FakeApp { runtimePath: string; close(): Promise<void> }
-interface FakeAppOptions { dir: string; root: string; selection: Obj | null }
+// app-socket v2 (onboarding). app/src/formats/validate.ts cannot be imported by
+// plain node (extensionless ajv path, JSON imports without attributes), so the
+// same ajv build compiles the same schema $defs those shared validators load.
+const ajvFromApp = createRequire(join(import.meta.dirname, "../../app/package.json"))("ajv/dist/2020");
+// Default options as in validate.ts; only ajv's strict-mode warnings are muted,
+// which do not change what validates.
+const ajv = new ajvFromApp.default({ logger: false });
+ajv.addSchema(JSON.parse(readFileSync(join(import.meta.dirname, "../../schema/app-socket.v2.schema.json"), "utf8")));
+const V2 = "https://doan.design/schema/app-socket.v2.schema.json";
+const requestSchema = ajv.getSchema(`${V2}#/$defs/request`);
+const responseSchema = ajv.getSchema(`${V2}#/$defs/response`);
+export const validOnboardingRequest = (v: unknown): boolean => requestSchema(v);
+export const validOnboardingResponse = (v: unknown): boolean => responseSchema(v);
+
+// A scenario's scripted app state. The fake is deterministic (session `s_eval`,
+// `op_<n>`, `insp_<n>`) so self-test fixtures can name ids ahead of time; real
+// agents still have to read them from replies.
+export interface OnboardingScript {
+  // agents.providers at start; only these providers can be signed in or checked.
+  providers: Obj[];
+  // What inspecting the open root reports it would set up; [] means already set up.
+  changes: string[];
+  // Providers a check makes ready. Nothing else ever becomes ready: no one
+  // approves a browser sign-in during an eval run.
+  readyAfterCheck: string[];
+}
+
+interface Operation {
+  operationId: string; requestId: string; kind: string; state: string;
+  provider?: string; error?: { code: string; message: string }; inspection?: Obj; project?: { root: string };
+  // Not sent: what inspect looked at.
+  path?: string; url?: string;
+}
+
+const v2error = (code: string, message: string) => ({ v: 2, ok: false, error: { code, message } });
+const ACTIVE = ["pending", "running", "awaiting_user"];
+
+// Operations move one step per status read, so an agent that never polls never sees a result.
+export function onboardingApp(script: OnboardingScript, root: string) {
+  const keys = ["providers", "changes", "readyAfterCheck"];
+  if (!isObj(script) || !only(script, keys, keys) || !Array.isArray(script.providers) || !Array.isArray(script.changes) || !Array.isArray(script.readyAfterCheck))
+    throw new Error("onboarding script must be { providers, changes, readyAfterCheck }");
+  const providers: Obj[] = structuredClone(script.providers);
+  const names = providers.map(p => p.provider as string);
+  if (script.readyAfterCheck.some(name => !names.includes(name))) throw new Error("readyAfterCheck names a provider the script does not list");
+  const sessionId = "s_eval";
+  let started = false, revision = 0, agentsRevision = 1, completed = false, inspections = 0;
+  let project: { root: string } | null = null;
+  let latestInspection: string | null = null;
+  const operations: Operation[] = [];
+  const requests = new Map<string, { key: string; operationId: string }>();
+
+  const view = (o: Operation): Obj => {
+    const { path: _path, url: _url, ...shown } = o;
+    return shown;
+  };
+  const state = (only?: Operation) => ({
+    sessionId, revision, completed, agents: { revision: agentsRevision, providers: structuredClone(providers) }, project,
+    operations: (only ? [only] : operations).map(view),
+  });
+  const ready = () => providers.some(p => (p.readiness as Obj).ready === true);
+  const settle = (o: Operation) => {
+    if (o.kind === "sign_in") { if (o.state === "pending") o.state = "awaiting_user"; return; }
+    if (o.state !== "running") return;
+    o.state = "succeeded";
+    if (o.kind === "check" && script.readyAfterCheck.includes(o.provider!)) {
+      Object.assign(providers.find(p => p.provider === o.provider)!, { phase: "connected", readiness: { ready: true }, error: null, actions: ["signOut"] });
+      agentsRevision++;
+    }
+    if (o.kind === "project_inspect" && o.url !== undefined) Object.assign(o, { state: "failed", error: { code: "repository_unreachable", message: "The eval fake app reaches no repository." } });
+    else if (o.kind === "project_inspect") {
+      latestInspection = `insp_${++inspections}`;
+      o.inspection = { inspectionId: latestInspection, candidates: [{ path: root, changes: [...script.changes] }] };
+    }
+    if (o.kind === "project_select") project = o.project = { root };
+    if (o.kind === "complete") { o.project = { root }; completed = true; }
+  };
+  const create = (r: Obj, fields: Partial<Operation>): Operation => {
+    const o: Operation = { operationId: `op_${operations.length + 1}`, requestId: r.requestId as string, kind: r.op as string, state: "running", ...fields };
+    operations.push(o);
+    revision++;
+    return o;
+  };
+
+  function write(r: Obj): Obj {
+    const provider = r.provider as string | undefined;
+    switch (r.op) {
+      case "check": {
+        const p = providers.find(x => x.provider === provider);
+        if (!p) return v2error("bad_request", "The eval fake app has no state for this provider.");
+        if (p.phase !== "connected") return v2error("not_connected", "This agent is not connected.");
+        return { operation: create(r, { provider }) };
+      }
+      case "sign_in":
+        if (!names.includes(provider!)) return v2error("bad_request", "The eval fake app has no state for this provider.");
+        if (operations.some(o => o.kind === "sign_in" && ACTIVE.includes(o.state))) return v2error("busy", "Another sign-in is in progress.");
+        return { operation: create(r, { provider, state: "pending" }) };
+      case "cancel": {
+        const target = operations.find(o => o.operationId === r.operationId);
+        if (!target) return v2error("operation_not_found", "No such operation in this session.");
+        if (ACTIVE.includes(target.state)) { target.state = "cancelled"; revision++; }
+        return { operation: target };
+      }
+      case "project_inspect":
+        if (r.path !== undefined && r.path !== root) return v2error("path_unavailable", "The folder cannot be read.");
+        return { operation: create(r, r.url !== undefined ? { url: r.url as string } : { path: r.path as string }) };
+      case "project_select": {
+        if (r.inspectionId !== latestInspection) return v2error("inspection_stale", "Inspect the project again.");
+        if (r.path !== root) return v2error("not_candidate", "The path is not a candidate of this inspection.");
+        if (script.changes.length > 0 && r.initialize !== true) return v2error("initialize_required", "This folder needs setup; nothing was written.");
+        return { operation: create(r, {}) };
+      }
+      case "project_clone":
+        return v2error("not_candidate", "This inspection has no repository to clone.");
+      case "complete":
+        if (!ready()) return v2error("no_ready_agent", "No agent is ready.");
+        if (!project) return v2error("no_project", "No project is selected.");
+        return { operation: create(r, {}) };
+    }
+    throw new Error(`unhandled op ${String(r.op)}`);
+  }
+
+  function respond(line: string, token: string): Obj {
+    let r: unknown;
+    try { r = JSON.parse(line); } catch { r = null; }
+    if (!validOnboardingRequest(r)) return v2error("bad_request", "The request is not an app-socket v2 request.");
+    const request = r as Obj;
+    if (request.token !== token) return v2error("bad_token", "The token does not match this app.");
+    if (request.op === "start") { started = true; return { v: 2, ok: true, op: "start", result: state() }; }
+    if (!started || request.sessionId !== sessionId) return v2error("session_stale", "Run start again.");
+    if (request.op === "status") {
+      for (const o of operations) settle(o);
+      revision++;
+      if (request.operationId === undefined) return { v: 2, ok: true, op: "status", result: state() };
+      const one = operations.find(o => o.operationId === request.operationId);
+      return one ? { v: 2, ok: true, op: "status", result: state(one) } : v2error("operation_not_found", "No such operation in this session.");
+    }
+    const { v: _v, token: _t, requestId, ...args } = request;
+    const key = JSON.stringify(Object.entries(args).sort());
+    const seen = requests.get(requestId as string);
+    if (seen && seen.key !== key) return v2error("request_conflict", "This requestId was used with other arguments.");
+    if (seen) return { v: 2, ok: true, op: request.op, result: { operation: view(operations.find(o => o.operationId === seen.operationId)!) } };
+    const result = write(request);
+    if ("v" in result) return result;
+    const operation = result.operation as Operation;
+    requests.set(requestId as string, { key, operationId: operation.operationId });
+    return { v: 2, ok: true, op: request.op, result: { operation: view(operation) } };
+  }
+
+  // Checked up front so a bad script fails the run setup, not a reply.
+  const sample = { v: 2, ok: true, op: "start", result: state() };
+  if (!validOnboardingResponse(sample)) throw new Error("onboarding script providers are not app-socket v2 agent statuses");
+  const inspected = { v: 2, ok: true, op: "project_inspect", result: { operation: { operationId: "op_1", requestId: "r", kind: "project_inspect", state: "succeeded", inspection: { inspectionId: "insp_1", candidates: [{ path: root, changes: script.changes }] } } } };
+  if (!validOnboardingResponse(inspected)) throw new Error("onboarding script changes are not app-socket v2 changes");
+
+  return {
+    answer(line: string, token: string): Obj {
+      const reply = respond(line, token);
+      if (!validOnboardingResponse(reply)) throw new Error(`the eval fake app built an invalid v2 reply: ${JSON.stringify(reply)}`);
+      return reply;
+    },
+  };
+}
+
+export interface FakeApp { runtimePath: string; onboardingLog: string; close(): Promise<void> }
+interface FakeAppOptions { dir: string; root: string; selection: Obj | null; onboarding?: OnboardingScript | null }
 
 // `dir` must be short: macOS sun_path is 104 bytes.
 export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
@@ -72,6 +237,19 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   const token = randomBytes(32).toString("hex");
   const socketPath = join(o.dir, "app.sock");
   const runtimePath = join(o.dir, "runtime.json");
+  const onboardingLog = join(o.dir, "onboarding.jsonl");
+  const onboarding = o.onboarding ? onboardingApp(o.onboarding, o.root) : null;
+  // Without a script the fake is an older app: a v2 line gets the v1 bad_request.
+  const reply = (line: string): Obj => {
+    let parsed: unknown;
+    try { parsed = JSON.parse(line); } catch { parsed = null; }
+    if (!onboarding || !isObj(parsed) || parsed.v !== 2) return answer(line, token, o.root, o.selection);
+    const response = onboarding.answer(line, token);
+    // Checks read this log; the token stays out of it.
+    const { token: _token, ...request } = parsed;
+    appendFileSync(onboardingLog, JSON.stringify({ request, response }) + "\n", { mode: 0o600 });
+    return response;
+  };
   const connections = new Set<Socket>();
   const server = createServer(connection => {
     connections.add(connection);
@@ -81,13 +259,14 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
     connection.on("data", chunk => {
       buffer += chunk;
       const newline = buffer.indexOf("\n");
-      if (newline !== -1) connection.end(JSON.stringify(answer(buffer.slice(0, newline), token, o.root, o.selection)) + "\n");
+      if (newline !== -1) connection.end(JSON.stringify(reply(buffer.slice(0, newline))) + "\n");
     });
   });
   await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(socketPath, resolve); });
   writeFileSync(runtimePath, JSON.stringify({ v: 1, socket: socketPath, token }), { mode: 0o600 });
   return {
     runtimePath,
+    onboardingLog,
     close: () => new Promise(resolve => {
       for (const connection of connections) connection.destroy();
       server.close(() => resolve());
@@ -111,6 +290,7 @@ export async function startFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   });
   return {
     runtimePath: join(o.dir, "runtime.json"),
+    onboardingLog: join(o.dir, "onboarding.jsonl"),
     // Bounded either way, so a stuck child cannot hold up the run's disposal.
     async close() {
       child.stdin.end();
