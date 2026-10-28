@@ -105,3 +105,46 @@ Run: `run_d94775f7dd27`.
 - 사용자 결정(2026-10-28, D1): D1은 실제 HOME에서 실행한다. userData·DOAN_RUNTIME은 격리하고 setup 쓰기 단계는 거치지 않는다. doan이 만드는 Keychain 항목('doan Safe Storage'·'Electron Safe Storage'·doan 전용 Claude·Codex 항목)은 허용하고, 만든 항목은 목록으로 보고한다. 외부 항목은 읽기만 한다.
 - D1: `ctx_3677aa70cdfe` (task `task_38c749038798`), child `agent-auth-d1` (base `bdbc514`), opus high, `turnStart: observed`.
 - D1 dev Claude 로그인: ego-lite의 claude.ai 세션이 Pro/Max가 없는 ox501501@gmail.com 계정이라 Claude Code 승인이 거부됐다. claude.ai 로그아웃을 시도했지만 세션이 유지됐다. 사용자가 sinhyeok.kang@day1company.co.kr Google 계정으로 진행하라고 했으나 계정 전환을 완료하지 못했다. 작업자에게는 Claude를 미실행으로 남기고 나머지 공급자를 진행하라고 지시했다.
+
+## 인계 (2026-10-28, 이 머신의 run은 종료)
+
+사용자 지시로 이 머신의 지휘를 끝내고, 남은 작업은 새 머신의 새 세션이 이어받는다. 코드는 모두 `feat-agent-auth`에 통합해 push했다. `.scratch/`의 handoff·리뷰·probe 근거는 gitignore 대상이라 새 머신으로 넘어가지 않는다. 그래서 새 머신에 필요한 내용은 아래에 모두 적는다.
+
+### 상태
+
+| 배치 | 상태 |
+|---|---|
+| A, B1, B2, B3, B45 (+ 수정 라운드) | 통합 완료(`bdbc514`까지). 통합 HEAD에서 verify.mjs PASS(3,621 tests). tasks.md의 A1–A3·B1–B5 체크 완료 |
+| D1 실제 앱 통합 확인 | 미완료. 이 머신에서 시작했지만 중단했다. dev 앱 Claude 로그인이 막혔다(아래). 다른 결과도 이 머신의 `.scratch`에만 남아 있어서, 새 머신에서는 처음부터 다시 한다 |
+| D2 최종 리뷰·gate | 미시작 |
+| D3 정본 승격·디렉터리 삭제·PR | 미시작. PR은 아직 만들지 않았다 |
+
+### 새 머신에서 D1을 하기 전에 필요한 것
+
+- 설치된 CLI가 정확히 이 버전이어야 한다(다르면 `runtime_unsupported`): Claude Code 2.1.312, codex-cli 0.163.0, Cursor `agent` 2026.10.22-27dcf5f, Copilot CLI 1.0.105. Antigravity는 앱이 `agy_acp_server` 1.3.0(darwin-arm64)을 sha 확인 뒤 내려받는다. 기존 `agy` CLI는 필요 없다.
+- Claude는 Pro/Max 구독 계정으로 승인해야 한다. 이 머신이 막힌 이유가 이것이다: 승인용 브라우저의 claude.ai 세션이 무료 계정이었다.
+- 사용자 결정에 따라 실제 HOME을 쓰고 userData·DOAN_RUNTIME은 격리한다. setup 쓰기 단계는 거치지 않는다. doan이 만드는 Keychain 항목은 허용하고, 만든 항목은 목록으로 보고한다.
+
+### D1에서 꼭 확인할 항목 (리뷰에서 넘어온 것)
+
+- 다섯 공급자 각각, dev 앱과 패키지 앱에서: 로그인, 암호화 보관, 재시작 후 인증 유지, 새 대화·Canvas 경로의 실제 캔버스 생성, 권한 허용·거절, 중단, 재시작 후 같은 세션 재개, 로그아웃 격리, 외부 인증 불변.
+- Antigravity: 로그인·상태 확인·만료 실행에서 기본 브라우저가 열리지 않는다(훅 마커만 찍힌다).
+- 앱 안에서 연속 턴(재시작 없이 다음 메시지)이 `busy` 없이 이어지는지.
+- 초기화 중인 Claude 실행이 있을 때 `stop:true` 로그아웃의 drain 시간과 결과.
+- Settings에서 로그인 중 Settings를 닫으면 시도가 취소된다. 주 창 hide는 시도를 유지한다. reload 뒤 cancel·open-link가 가능하다.
+- facts probe(`--version`) 전후로 `~/.cursor`, `~/.copilot`, `~/.local/share/cursor-agent`가 바뀌지 않는다.
+- 비ACP 로그인 CLI가 출력하는 URL 개수를 기록한다(open-link는 마지막 URL을 연다).
+- 실제 만료·갱신과 동시 갱신은 관찰한 경우에만 `통과`로 적는다. 관찰하지 못하면 `미실행`이다.
+
+### D3에서 정본으로 승격하거나 소비 feature에 넘길 사항
+
+- 채널: `agent-auth:read|check|sign-in|cancel|submit-code|open-link|sign-out`, 이벤트: `agent-auth:changed|prompt`. 주 창과 Settings의 main frame만 쓸 수 있고, Settings에는 대화 시작·전송 권한이 없다. 시도는 소유 창에 묶이고 revision으로 병합한다.
+- 복구 동작은 conversation 오류 코드가 아니라 `authStatus().readiness.action`에서 가져온다. 새 코드: `credential_override`(레포 설정의 API 키 때문에 거부), `cli_install_failed`(Antigravity 서버 설치 실패). 조직 UUID가 없는 Claude는 phase는 connected지만 readiness는 reauth_required이다.
+- 대화가 멈추지 않아 로그아웃이 실패하면 `signOutFailed`로 저장되고, 재시작 뒤에도 실행을 막는다. UI 문구는 다른 실패와 구분해야 한다.
+- 알려진 한계: Copilot ACP는 공개 프리뷰다. Cursor·Copilot이 자동 업데이트하면 해당 공급자 실행이 막힌다. Antigravity의 URL·sha·`GEMINI_HOME`·`AGY_ACP_FORCE_FILE_STORAGE`는 문서화되지 않았고, 지원 플랫폼은 darwin-arm64뿐이다. Cursor 로그인 셸은 시스템 PATH를 앞에 둔다. Cursor는 워크스페이스 안 편집 권한을 묻지 않는다. `GIT_CONFIG_GLOBAL`이 실제 `~/.gitconfig`를 가리킨다. Codex·Antigravity는 계정 ID가 없어서 같은 연결에서만 재개할 수 있다.
+- ARCHITECTURE·PRODUCT에 반영할 것: Claude 2.1.312/SDK 0.3.312(현재 정본은 2.1.310), index v2 단방향 이행, auth metadata v1(`signOutFailed` 포함), design.md의 'ID 없는 계정 재개 거부' 문구(사용자 결정으로 바뀜), Copilot GitHub 토큰 예외의 scope 목록. PRODUCT §7에는 오늘 결정 4건이 이미 들어가 있다.
+
+### 이 머신에 남은 것
+
+- 이 머신의 Keychain에 probe와 D1이 만든 doan 전용 항목이 남아 있다: `doan-auth-probe Safe Storage`, doan 전용 `Claude Code-credentials-*`, `Codex Auth`. D1 dev 앱 항목이 있으면 함께 남아 있다. 새 머신 작업에는 영향이 없다. 필요하면 이 머신에서 따로 지운다.
+- Orca child worktree와 `.scratch/agent-auth-probe/`는 이 머신의 run을 종료할 때 정리한다.
