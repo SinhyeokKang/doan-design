@@ -233,15 +233,17 @@ function ProjectChoice({ paths, choice, home, pick, name }: { paths: readonly st
   </label>)}</div>;
 }
 
-type ProjectAction = "chooseFolder" | "retry" | "changeLocation" | "useExisting" | "backToAgents";
+type ProjectAction = "chooseFolder" | "chooseExisting" | "edit" | "retry" | "changeLocation" | "useExisting" | "backToAgents";
 interface ProjectNotice { title?: string; body: string; detail?: string; note?: string; actions: Button<ProjectAction>[] }
 const action = (command: ProjectAction, label: string, variant: Button["variant"] = "prominent"): Button<ProjectAction> => ({ command, label, variant, disabled: false });
 // Copy from the approved draft's Project states tiles; D13 for the newer marker version.
-export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null): ProjectNotice {
+// fromUrl: the screen belongs to a GitHub URL, so a folder chosen there must be that repository's (D20).
+export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false): ProjectNotice {
   switch (error) {
     case "invalid_url": return { body: "Enter a GitHub repository URL, such as https://github.com/owner/repository.", actions: [] };
     case "access_failed": return { title: "Couldn’t access this repository", body: "Check your account and repository access with gh auth login, then try again.", actions: [] };
-    case "remote_mismatch": return { body: "This folder belongs to a different repository.", actions: [action("chooseFolder", "Choose another folder")] };
+    case "remote_mismatch": return { body: "This folder belongs to a different repository.", actions: fromUrl
+      ? [action("edit", "Edit repository URL", "subtle"), action("chooseExisting", "Choose another folder")] : [action("chooseFolder", "Choose another folder")] };
     case "project_unavailable": case "path_unavailable":
       return { body: "This folder is no longer available. Choose it again or select another folder.", actions: [action("chooseFolder", "Choose folder")] };
     case "destination_exists": return { body: "A folder already exists at this destination. Choose another location or use the existing folder.", actions: [action("changeLocation", "Change location", "subtle"), action("useExisting", "Use existing folder")] };
@@ -296,7 +298,7 @@ export interface ProjectScreenProps {
   state: ProjectStepState; busy: boolean; agentReady: boolean; projects: readonly string[]; home: string | null; urlValid: boolean;
   heading: (node: HTMLHeadingElement | null) => void;
   on: {
-    back(): void; backToAgents(): void; chooseFolder(): void; setUrl(url: string): void; find(): void; cancelInspect(): void; edit(): void;
+    back(): void; backToAgents(): void; chooseFolder(): void; chooseExisting(): void; setUrl(url: string): void; find(): void; cancelInspect(): void; edit(): void;
     pickListed(path: string): void; useListed(): void; pickCandidate(path: string): void; select(initialize?: boolean): void;
     changeDestination(): void; useExisting(): void; clone(): void; cancelClone(): void; complete(): void; retry(): void;
   };
@@ -307,11 +309,13 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
   const p = state.phase, error = state.error;
   const destination = p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" ? p.destination : null;
   const run = (command: ProjectAction) => {
-    if (command === "chooseFolder") on.chooseFolder(); else if (command === "retry") on.retry(); else if (command === "changeLocation") on.changeDestination();
+    if (command === "chooseFolder") on.chooseFolder(); else if (command === "chooseExisting") on.chooseExisting(); else if (command === "edit") on.edit();
+    else if (command === "retry") on.retry(); else if (command === "changeLocation") on.changeDestination();
     else if (command === "useExisting") on.useExisting(); else on.backToAgents();
   };
   // The Project states 'No agent is ready' tile: shown as soon as no provider is ready, not only after a refused save.
-  const notice = error ? projectNotice(error.code, error.message, destination) : !agentReady && (p.kind === "ready") ? projectNotice("no_ready_agent", undefined, null) : null;
+  const fromUrl = p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" || (p.kind === "candidates" && p.url !== null);
+  const notice = error ? projectNotice(error.code, error.message, destination, fromUrl) : !agentReady && (p.kind === "ready") ? projectNotice("no_ready_agent", undefined, null) : null;
   const [title, lead] = p.kind === "ready" || p.kind === "completing" ? HEADINGS.ready
     : p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" ? HEADINGS.clone
     : p.kind === "candidates" && p.url !== null ? HEADINGS.found : HEADINGS.choose;
@@ -380,7 +384,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
       </>}
       {notice && <ProjectNoticeView notice={notice} run={run} />}
       {p.url !== null && <p className="ob-fine">Use your existing files and current branch.</p>}
-      {p.url !== null ? smallActions(["Choose another folder", on.chooseFolder], ["Edit repository URL", on.edit]) : smallActions(["Choose another folder", on.chooseFolder])}
+      {p.url !== null ? smallActions(["Choose another folder", on.chooseExisting], ["Edit repository URL", on.edit]) : smallActions(["Choose another folder", on.chooseFolder])}
     </>;
     footer = { label: "Use this folder", next: () => on.select(), enabled: true };
   } else if (p.kind === "setup" || p.kind === "selecting") {
@@ -415,7 +419,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
       </> : <>
         {notice && <ProjectNoticeView notice={notice} run={run} />}
         <p className="ob-fine">Already have this repository?</p>
-        {smallActions(["Choose existing folder", on.chooseFolder], ["Edit repository URL", on.edit])}
+        {smallActions(["Choose existing folder", on.chooseExisting], ["Edit repository URL", on.edit])}
       </>}
     </>;
     footer = { label: "Clone and continue", next: on.clone, enabled: p.kind === "clone" && p.inspectionId !== null && !error };
@@ -543,7 +547,7 @@ export function Wizard({ session, projects, homeDirectory, onClose }: { session:
         back={leave.back} next={leave.forward} />}
       {scene.scene === "project" && <ProjectScreen state={p.state} busy={busy} agentReady={canAdvance(auth)} projects={projects} home={homeDirectory} urlValid={p.urlValid()} heading={setHeading} on={{
         back: () => move({ type: "back" }), backToAgents: () => move({ type: "step", to: "agent" }),
-        chooseFolder: () => openPicker(() => void p.chooseFolder()), setUrl: url => p.setUrl(url), find: () => void p.findRepository(), cancelInspect: () => p.cancelInspect(), edit: () => p.restart(),
+        chooseFolder: () => openPicker(() => void p.chooseFolder()), chooseExisting: () => openPicker(() => void p.chooseExisting()), setUrl: url => p.setUrl(url), find: () => void p.findRepository(), cancelInspect: () => p.cancelInspect(), edit: () => p.restart(),
         pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), select: initialize => void p.select(initialize),
         changeDestination: () => openPicker(() => void p.changeDestination()), useExisting: () => void p.useExisting(), clone: () => void p.clone(), cancelClone: () => void p.cancelClone(),
         complete: () => void p.complete(), retry: () => void p.retry(),

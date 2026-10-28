@@ -45,7 +45,8 @@ export interface ProjectStepState {
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 const basename = (path: string) => path.replace(/\/+$/, "").split("/").at(-1) ?? path;
 const parent = (path: string) => path.replace(/\/+$/, "").split("/").slice(0, -1).join("/") || "/";
-type Inspect = { path: string } | { url: string; destination?: string };
+// url on a path inspection: a folder chosen for that repository, so main checks its remote (D20, batch R).
+type Inspect = { path: string; url?: string } | { url: string; destination?: string };
 type Reply = { ok: true; operation: OnboardingOperation } | { ok: false; code: ProjectError; message?: string };
 
 // The onboarding Project step over the main session (app-socket v2 DTOs): folder or GitHub URL → inspect → select or
@@ -104,8 +105,18 @@ export class ProjectStepSession {
       if (this.live && picked !== null) await this.planClone(p.url, `${picked.replace(/\/+$/, "")}/${basename(p.destination)}`, this.fence());
     });
   }
-  // A destination that already exists may be this repository's checkout: inspect it as a folder.
-  useExisting(): Promise<void> { const p = this.state.phase; return p.kind === "clone" ? this.act(() => this.inspectPath(p.destination)) : Promise.resolve(); }
+  // A destination that already exists may be this repository's checkout: inspect it as a folder of that repository.
+  useExisting(): Promise<void> { const p = this.state.phase; return p.kind === "clone" ? this.act(() => this.inspectPath(p.destination, p.url)) : Promise.resolve(); }
+  // Choose existing folder / Choose another folder on the URL screens: the folder must belong to that repository.
+  chooseExisting(): Promise<void> {
+    const p = this.state.phase;
+    const url = p.kind === "clone" || p.kind === "cloneCancelled" ? p.url : p.kind === "candidates" ? p.url : null;
+    if (url === null) return this.chooseFolder();
+    return this.act(async () => {
+      const picked = await this.pick("project");
+      if (this.live && picked !== null) await this.inspectPath(picked, url);
+    });
+  }
   clone(): Promise<void> { return this.act(() => this.runClone()); }
   // Use this folder (one or several candidates) and Set up and continue.
   select(initialize = false): Promise<void> { return this.act(() => this.runSelect(initialize)); }
@@ -154,15 +165,18 @@ export class ProjectStepSession {
     if (inspection.candidates.length > 0) { this.offer(inspection.inspectionId, url, inspection.candidates, { url }); return; }
     await this.planClone(url, this.defaultDestination(url), at);
   }
-  private async inspectPath(path: string): Promise<void> {
+  private async inspectPath(path: string, url?: string): Promise<void> {
     const at = this.fence();
+    // From a URL screen a failure (a mismatch above all) stays on that screen, with the URL.
+    const back: ProjectPhase = url === undefined ? { kind: "choose" } : this.state.phase;
     this.set({ phase: { kind: "selecting", path }, error: null });
-    const reply = await this.inspect({ path });
+    const source: Inspect = url === undefined ? { path } : { path, url };
+    const reply = await this.inspect(source);
     if (!this.current(at)) return;
-    if (!reply.ok) { this.failed(reply, { kind: "choose" }, () => this.inspectPath(path)); return; }
+    if (!reply.ok) { this.failed(reply, back, () => { this.set({ phase: back }); return this.inspectPath(path, url); }); return; }
     const inspection = reply.operation.inspection!;
-    if (inspection.candidates.length === 0) { this.failed({ ok: false, code: "project_unavailable" }, { kind: "choose" }, () => this.inspectPath(path)); return; }
-    this.offer(inspection.inspectionId, null, inspection.candidates, { path });
+    if (inspection.candidates.length === 0) { this.failed({ ok: false, code: "project_unavailable" }, back, () => { this.set({ phase: back }); return this.inspectPath(path, url); }); return; }
+    this.offer(inspection.inspectionId, url ?? null, inspection.candidates, source);
     // One candidate with nothing to set up goes straight to selection, as Choose folder always did.
     const p = this.state.phase;
     if (p.kind === "candidates" && p.candidates.length === 1 && p.candidates[0]!.changes.length === 0) await this.runSelect(false);
@@ -266,7 +280,9 @@ export class ProjectStepSession {
     return `${last ? parent(last) : home.replace(/\/+$/, "")}/${repo}`;
   }
   private async inspect(target: Inspect): Promise<Reply> {
-    const reply = await this.call(this.deps.api.inspectOnboardingProject({ sessionId: this.deps.sessionId, requestId: this.deps.requestId(), ...target }));
+    // The optional url of a path inspection is added to the shared types with batch R (D20); until then it is cast.
+    const request = { sessionId: this.deps.sessionId, requestId: this.deps.requestId(), ...target } as Parameters<Api["inspectOnboardingProject"]>[0];
+    const reply = await this.call(this.deps.api.inspectOnboardingProject(request));
     if (!reply.ok) return reply;
     const done = await this.settled(reply.operation);
     if (done.state === "succeeded" && done.inspection) return { ok: true, operation: done };
