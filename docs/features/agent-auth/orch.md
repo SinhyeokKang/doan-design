@@ -11,6 +11,8 @@
 - conductor's call — 설치된 Codex는 0.163.0이고 PoC의 keyring 강제 경로는 0.164.0에서만 확인했다. B1·B2는 0.163.0에서 같은 저장 분리가 되는지 먼저 확인하고, 안 되면 버전 상향을 사용자 결정으로 올린다. 근거: design '0.163.0→새 버전은 별도 실행 회귀 검증 필요'.
 - conductor's call — cursor-agent·agy·copilot은 현재 PATH에 없다. CLI 자동 설치는 비목표(spec)이므로 해당 플랫폼 검증 전에 작업자가 필요한 공식 설치를 사용자에게 요청한다.
 - conductor's call — 실인증 probe는 하나의 격리 userData·HOME을 배치 사이에 유지해 플랫폼마다 로그인을 한 번만 요청한다. 외부 인증 저장소는 메타데이터 전후 대조만 한다(design '저장과 실행 환경').
+- 사용자 결정(2026-10-28, R-A): 안정된 계정 ID가 없는 연결도 새 실행은 허용한다. 재개는 `account_unverifiable`로 거부하고, 표시 계정은 확인 결과로 갱신한다.
+- 사용자 결정(2026-10-28, R-A): 대화 index v2 이행은 되돌릴 수 없으며 이를 수용한다. 검증은 격리한 userData로만 하고, 실제 userData로 실행하기 전에 사용자에게 다시 알린다.
 - conductor's call — Claude Code conductor이므로 Claude 작업자만 쓴다. 모델 계열 교차는 없다.
 - conductor's call — 공용 타입과 conversation 파일이 겹치므로 tasks의 기본 순서대로 직렬 진행한다. B3의 세 공급자도 사용자 구현 순서(Cursor → Antigravity → Copilot)대로 한 작업자가 직렬로 맡는다.
 - conductor's call — 지휘자는 배치 코드를 수정하지 않는다. 리뷰 수정은 소유 배치로 돌린다. push와 PR은 통합 뒤 수행하며 merge하지 않는다.
@@ -51,4 +53,13 @@ A → B1 → B2 → B3 → B45 → D1 → D2 → D3 직렬이다. 각 배치는 
 
 ## 진행 기록
 
-(배치 시작 후 기록한다.)
+Run: `run_d94775f7dd27`.
+
+| 배치 | Dispatch | child worktree | 시작 증거 |
+|---|---|---|---|
+| A | `ctx_fd1125832411` (task `task_4509db5b9f36`) | `agent-auth-contract` (base `433147b`) | `turnStart: observed`, effective Claude opus high, liveness live |
+| R-A | `ctx_b7521a360da0` (task `task_fa2ce58d23c0`) | `agent-auth-contract` 재사용(보고만) | `turnStart: observed`, effective Claude opus high |
+
+- A: `6da6cb3`(red 테스트), `ba52d9a`(구현), `b295597`(tasks 체크). 작업자 보고: 테스트 3,415개·typecheck·`go test`·verify.mjs 통과. red 근거와 handoff는 `.scratch/agent-auth-orch/evidence-A/`에 복사했다. runtime-test는 UI·IPC 변경이 없어 하지 않았다. ARCHITECTURE의 index 설명과 DIRECTORY 갱신은 D3로 넘긴다. 작업자는 release를 완료했고 worktree는 R-A가 사용하므로 보존한다. 작업자가 사용자 확인 없이 정한 8개 항목은 R-A가 판정한다.
+- R-A `ctx_b7521a360da0`: 🔴1(교체 sign-in 실패·취소 뒤 기존 연결이 verified로 남아 다른 계정으로 재개될 수 있음)·🟡1(ID 없는 계정의 표시값이 갱신되지 않음)·⚪6. index 이행·journal 순서·legacy 경로·환경 허용 목록은 문제가 없었다. 보고서는 `evidence-A/review-A.md`에 있다. R-A 작업자는 release했다.
+- F-A: `ctx_0e0e22b0a9d0` (task `task_7f7f52fbaef1`). 같은 worktree에서 🔴1·🟡1·결정 7 계약·⚪3·⚪4를 수정한다. 실행 설정은 opus high이고 `turnStart: observed`를 확인했다. ⚪1·2·5·6은 B1·B2·B5 브리프로 넘긴다.
