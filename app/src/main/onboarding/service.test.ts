@@ -71,7 +71,7 @@ function setup(options: { completed?: boolean; auth?: boolean; owner?: number | 
   let service: OnboardingService | undefined;
   const ipc = new AuthIpc({ backend: b.api, probe: async () => options.facts ?? ready, openExternal, publish: snapshot => service?.authChanged(snapshot), prompt: vi.fn() });
   b.onChange(() => ipc.changed());
-  const auth = options.auth === false ? null : options.read ? { read: options.read, latest: () => ipc.latest(), handle: ipc.handle.bind(ipc) } : ipc;
+  const auth = options.auth === false ? null : options.read ? { read: options.read, latest: () => ipc.latest(), handle: ipc.handle.bind(ipc), check: ipc.check.bind(ipc) } : ipc;
   let completed = options.completed ?? false;
   const projects = fakeProjects();
   service = new OnboardingService({
@@ -206,9 +206,10 @@ describe("sign-in through the session", () => {
     expect(await t.ask({ op: "sign_in", sessionId: id, requestId: "r3", provider: "cursor" })).toMatchObject({ ok: false, error: { code: "stop_required" } });
     const ops = state(await t.ask({ op: "status", sessionId: id })).operations;
     expect(ops.map(o => o.requestId)).toEqual(["r1"]);
-    // A refused request leaves no record: the same id is judged again.
+    // A refused request keeps its answer; trying again takes a new requestId.
     t.b.running.delete("cursor");
-    expect(operation(await t.ask({ op: "sign_in", sessionId: id, requestId: "r3", provider: "cursor" }))).toMatchObject({ provider: "cursor" });
+    expect(await t.ask({ op: "sign_in", sessionId: id, requestId: "r3", provider: "cursor" })).toMatchObject({ ok: false, error: { code: "stop_required" } });
+    expect(operation(await t.ask({ op: "sign_in", sessionId: id, requestId: "r4", provider: "cursor" }))).toMatchObject({ provider: "cursor" });
   });
 
   it("refuses a sign-in while there is no main window", async () => {
