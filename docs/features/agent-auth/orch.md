@@ -14,6 +14,9 @@
 - 사용자 결정(2026-10-28, R-A): 안정된 계정 ID가 없는 연결도 새 실행은 허용한다. 재개는 `account_unverifiable`로 거부하고, 표시 계정은 확인 결과로 갱신한다.
 - 사용자 결정(2026-10-28, R-A): 대화 index v2 이행은 되돌릴 수 없으며 이를 수용한다. 검증은 격리한 userData로만 하고, 실제 userData로 실행하기 전에 사용자에게 다시 알린다.
 - 사용자 결정(2026-10-28, B1 이후): Antigravity는 B3에서 Orca 방식으로 구현한다. Google이 호스팅하는 `agy_acp_server`를 sha로 고정해 다운로드하고, 전용 `GEMINI_HOME`과 `AGY_ACP_FORCE_FILE_STORAGE=1`로 실행한다. spec 비목표인 'CLI 자동 설치·번들링'의 예외와 문서화되지 않은 저장 스위치 사용을 사용자가 승인했다. 근거: `.scratch/agent-auth-orch/orca-antigravity.md`, B1 조사. Antigravity 로그인·보관도 이 ACP 경로로 B3가 맡는다. PRODUCT §7에 기록했다.
+- 사용자 결정(2026-10-28, R-B1): Copilot 상태 확인은 요청 1회를 소비하므로 자동 폴링하지 않는다. 사용자 동작이나 첫 실행 직전에만 확인하고, lease로 실행한 첫 요청이 성공하면 그것을 검증으로 인정한다. B3가 구현한다.
+- 사용자 결정(2026-10-28, R-B1): Copilot CLI 공식 OAuth 앱의 넓은 scope(`repo`, `gist`, `codespace` 등)를 수용한다. 'doan은 GitHub 토큰을 다루지 않는다' 원칙의 예외로, 이 토큰은 Copilot 에이전트 인증에만 쓴다. D3에서 ARCHITECTURE에 scope와 함께 기록한다. PRODUCT §7에 기록했다.
+- 사용자 결정(2026-10-28, R-B1): 전용 HOME에서 실행하는 Cursor·Antigravity·Copilot에는 `SSH_AUTH_SOCK`과 실제 `~/.gitconfig`를 가리키는 `GIT_CONFIG_GLOBAL`만 넘긴다. `gh` 토큰은 넘기지 않는다. B3가 구현한다.
 - conductor's call — Claude Code conductor이므로 Claude 작업자만 쓴다. 모델 계열 교차는 없다.
 - conductor's call — 공용 타입과 conversation 파일이 겹치므로 tasks의 기본 순서대로 직렬 진행한다. B3의 세 공급자도 사용자 구현 순서(Cursor → Antigravity → Copilot)대로 한 작업자가 직렬로 맡는다.
 - conductor's call — 지휘자는 배치 코드를 수정하지 않는다. 리뷰 수정은 소유 배치로 돌린다. push와 PR은 통합 뒤 수행하며 merge하지 않는다.
@@ -66,3 +69,7 @@ Run: `run_d94775f7dd27`.
 - F-A: `ctx_0e0e22b0a9d0` (task `task_7f7f52fbaef1`). 같은 worktree에서 🔴1·🟡1·결정 7 계약·⚪3·⚪4를 수정한다. 실행 설정은 opus high이고 `turnStart: observed`를 확인했다. ⚪1·2·5·6은 B1·B2·B5 브리프로 넘긴다.
 - F-A `9461d43`·`369e51f`: 지휘자가 state.ts diff를 확인했다. red 2건이 green으로 바뀌었고, 테스트 3,416개와 typecheck가 통과했다. A와 F-A를 `d41889b`·`e2d761b`·`386150e`·`34a9e08`·`fb6f244`로 통합했다. 통합 HEAD에서 verify.mjs가 PASS했다(verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, build). 작업자 3명은 모두 release했다. `git cherry`에 `+` 항목이 없는 것을 확인한 뒤 Orca로 `agent-auth-contract`를 제거했고, 목록에서 빠진 것도 확인했다.
 - B1: `ctx_2110a0120e31` (task `task_27f91699fedd`), child `agent-auth-storage` (base `fb6f244`). effective opus high, `turnStart: observed`. 실인증 probe 상태는 `.scratch/agent-auth-probe/` 하나를 쓴다. 로그인과 CLI 설치는 ask로 요청을 받아 사용자에게 전달한다.
+- B1 완료(`de632a7`..`da1e235`, 13커밋). 작업자 보고 기준으로 테스트 3,474개, runtime 테스트 42개, typecheck, verify.mjs가 통과했다. 실인증 결과는 Claude·Codex 0.163.0·Cursor·Copilot 1.0.105가 통과했고, Antigravity는 `공식 경로 미확인`이다. 격리 HOME에서 Keychain 저장을 시도하자 macOS 대화상자가 떴고, Cancel하자 파일 저장으로 넘어가 끝까지 동작했다. probe 상태는 다섯 플랫폼 모두 로그아웃으로 끝났다. tasks의 B1 체크박스는 Antigravity 때문에 비워 둔다. B1 작업자는 사용자가 터미널에서 직접 대화했기 때문에 `user_takeover`로 retained 상태다. handoff는 `evidence-B1/`에 복사했다.
+- R-B1: `ctx_72a7d748df68` (task `task_498b8884c79e`). `agent-auth-storage`에서 보고만 한다. 실행 설정은 opus high이고 `turnStart: observed`다.
+- R-B1 `ctx_72a7d748df68`: 🔴1·🟡4·⚪8. 🔴1은 프로세스 생성 전에 들어온 취소·창 종료·앱 종료가 그 뒤 생성된 로그인 프로세스를 멈추지 못하는 문제다. 쓰기 잠금이 앱 전체에서 풀리지 않고, 앱 종료 뒤에도 고아 프로세스가 남는다. 🟡는 네 가지다: lease 해제와 로그아웃 경쟁으로 vault가 다시 생김, expect pty 자손이 소유 그룹을 벗어남, write-back 실패 시 갱신 토큰이 조용히 사라짐, tmp만 남았을 때 시작 복구가 vault를 비움. 보고서는 `evidence-B1/review-B1.md`에 있다. R-B1 작업자는 release했다.
+- F-B1: `ctx_9f407d54dcef` (task `task_a59a1be71577`). 같은 worktree에서 🔴1, 🟡1·3·4, ⚪1·8, 간헐 실패 테스트를 맡는다. 🟡2는 B3에서 expect를 제거하면서 해소한다. ⚪6은 B4로 넘긴다. 실행 설정은 opus high이고 `turnStart: observed`다.
