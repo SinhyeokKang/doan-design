@@ -187,3 +187,12 @@ Run: `run_d94775f7dd27`.
 | D1 실제 앱 통합 확인 | D1 | `.scratch/` probe·근거 | B45 통합(완료) / Codex 부분은 C 통합 | Opus high / 다섯 플랫폼 preload 경로와 패키지 경계 | 위 'D1에서 꼭 확인할 항목' 전부, `npm --prefix app run package` 격리 실행 | 대기 |
 | R-C | C 리뷰 | 보고만 | C | Sonnet high / 범위가 작은 버전 상향 diff | `/code-review` | 대기 |
 | D2·D3 | D2, D3 | 위 표와 같다 | D1 | 지휘자 | 위 표와 같다 | 대기 |
+
+### 진행 기록 (재개)
+
+Run: `run_45baa7f44012`.
+
+| 배치 | Dispatch | child worktree | 시작 증거 |
+|---|---|---|---|
+| C | `ctx_d94e8a5f2af0` (task `task_5d462a0afbe8`) | `agent-auth-codex164` (base `463e287`) | effective Claude opus high, `turnStart: observed` |
+| D1 | `ctx_921c2dccef2e` (task `task_5543bdde8603`) | `agent-auth-d1` (base `463e287`) | effective Claude opus high, `turnStart: observed` |
