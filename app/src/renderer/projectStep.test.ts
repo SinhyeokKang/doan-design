@@ -316,3 +316,78 @@ test("a chosen checkout that needs setup asks before any select", async () => {
   expect(h.api.selectOnboardingProject).not.toHaveBeenCalled();
   expect(phase(h)).toMatchObject({ kind: "setup", path: "/wt/plain", url: "https://github.com/acme/studio" });
 });
+
+test("review: Clone and continue is busy before main answers, so a second click sends nothing and the reply is kept", async () => {
+  const h = harness();
+  await planned(h);
+  let release: (r: OnboardingResponse) => void = () => {};
+  h.queue.clone!.push(new Promise(resolve => { release = resolve; }));
+  const first = h.session.clone();
+  await flush();
+  expect(h.session.busy()).toBe(true);
+  expect(phase(h)).toMatchObject({ kind: "cloning", operationId: null });
+  await h.session.clone();
+  await h.session.retry();
+  await h.session.chooseFolder();
+  expect(h.api.cloneOnboardingProject).toHaveBeenCalledTimes(1);
+  const running = op("project_clone", { state: "running" });
+  release(ok(running));
+  await flush();
+  expect(phase(h)).toMatchObject({ kind: "cloning", operationId: running.operationId });
+  h.emit([{ ...running, state: "succeeded", project: { root: "/Users/ada/studio" } }]);
+  await first;
+  expect(phase(h)).toEqual({ kind: "ready", root: "/Users/ada/studio" });
+});
+
+test("review: Cancel that main refuses because the clone is already published returns to its progress", async () => {
+  const h = harness();
+  await planned(h);
+  const running = op("project_clone", { state: "running" });
+  h.queue.clone!.push(ok(running));
+  void h.session.clone();
+  await flush();
+  h.queue.cancel!.push(ok(running));
+  await h.session.cancelClone();
+  expect(phase(h)).toMatchObject({ kind: "cloning", cancelling: false });
+});
+
+test("review: a stale inspection is inspected again instead of retrying the same request", async () => {
+  const h = harness();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/plain");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/plain", [".doan/config.json"]]]) })));
+  await h.session.chooseFolder();
+  h.queue.select!.push(refused("inspection_stale"));
+  const fresh = inspection([["/code/plain", [".doan/config.json"]]]);
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: fresh })));
+  await h.session.select(true);
+  expect(h.api.inspectOnboardingProject).toHaveBeenCalledTimes(2);
+  expect(h.api.inspectOnboardingProject.mock.calls[1]![0]).toMatchObject({ path: "/code/plain" });
+  expect(phase(h)).toMatchObject({ kind: "setup", inspectionId: fresh.inspectionId });
+});
+
+test("review: Retry after a failed folder inspection inspects that folder again, not the URL field", async () => {
+  const h = harness();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/app");
+  h.queue.inspect!.push(refused("busy"));
+  await h.session.chooseFolder();
+  expect(h.session.state.error?.code).toBe("busy");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/app"]]) })));
+  h.queue.select!.push(ok(op("project_select", { project: { root: "/code/app" } })));
+  await h.session.retry();
+  expect(h.api.inspectOnboardingProject.mock.calls[1]![0]).toMatchObject({ path: "/code/app" });
+  expect(phase(h)).toEqual({ kind: "ready", root: "/code/app" });
+});
+
+test("review: an operation retired from the published list is read by its id", async () => {
+  const h = harness();
+  h.session.setUrl("https://github.com/acme/studio");
+  const running = op("project_inspect", { state: "running" });
+  h.queue.inspect!.push(ok(running));
+  h.api.readOnboardingSession.mockResolvedValueOnce({ v: 2, ok: true, op: "status", result: { sessionId: "s1", revision: 9, completed: false, agents: null, project: null, operations: [{ ...running, state: "succeeded", inspection: inspection([["/code/studio"]]) }] } });
+  const finding = h.session.findRepository();
+  await flush();
+  h.emit([]);
+  await finding;
+  expect(h.api.readOnboardingSession).toHaveBeenCalledWith({ sessionId: "s1", operationId: running.operationId });
+  expect(phase(h)).toMatchObject({ kind: "candidates" });
+});

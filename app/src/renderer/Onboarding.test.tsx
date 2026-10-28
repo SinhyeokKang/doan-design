@@ -5,7 +5,7 @@ import { pasteDialog, stopDialog, type Notice, type ProviderView } from "./agent
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthAttempt, AuthState, Provider } from "../main/agentAuth/types";
 import { providerView } from "./agentAuthView";
-import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectScreen, projectNotice, ProviderRow, sceneMover, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
+import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectScreen, projectFocusTarget, projectNotice, ProviderRow, sceneMover, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
 import type { ProjectStepState } from "./projectStep";
 
 const noop = () => {};
@@ -301,4 +301,14 @@ test("U2 every project error has the draft's copy and actions", () => {
   expect(projectNotice("clone_failed", undefined, "~/code/studio").detail).toBe("~/code/studio");
   expect(view("git_missing")).toEqual(["Install Git to clone a repository, or choose a local folder.", ["subtle:Choose local folder", "prominent:Check again"]]);
   expect(view("cleanup_failed")).toEqual(["main message", ["prominent:Retry"]]);
+});
+
+test("review: the Project step's lost focus goes to the error, else the progress notice, else the first usable action", () => {
+  const st = (over: Partial<ProjectStepState>): ProjectStepState => ({ ...base2, ...over });
+  expect(projectFocusTarget(st({ error: { code: "remote_mismatch" }, phase: { kind: "setup", inspectionId: "i", url: null, path: "/p", changes: [".doan/config.json"] } }), true)).toBe("alert");
+  expect(projectFocusTarget(st({ phase: { kind: "ready", root: "/p" } }), false)).toBe("alert");
+  expect(projectFocusTarget(st({ phase: { kind: "selecting", path: "/p" } }), true)).toBe("status");
+  expect(projectFocusTarget(st({ phase: { kind: "cloning", url: "u", destination: "/d", operationId: null, cancelling: false } }), true)).toBe("status");
+  expect(projectFocusTarget(st({}), true)).toBe("action");
+  expect(screen({ phase: { kind: "selecting", path: "/p" } }, { busy: true })).toContain('role="status" tabindex="-1"');
 });
