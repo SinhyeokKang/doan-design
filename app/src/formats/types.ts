@@ -171,6 +171,7 @@ export interface OnboardingOperation {
   requestId: string;
   kind: OnboardingOperationKind;
   state: OnboardingOperationState;
+  cancelling?: true;
   provider?: OnboardingProvider;
   error?: { code: OnboardingOperationErrorCode; message: string };
   inspection?: OnboardingInspection;
@@ -193,5 +194,6 @@ export type OnboardingSocketErrorCode =
 
 export type OnboardingResponse =
   | { v: 2; ok: true; op: "start" | "status"; result: OnboardingState }
-  | { v: 2; ok: true; op: Exclude<OnboardingOp, "start" | "status">; result: { operation: OnboardingOperation } }
+  | { [K in OnboardingOperationKind]: { v: 2; ok: true; op: K; result: { operation: OnboardingOperation & { kind: K } } } }[OnboardingOperationKind]
+  | { v: 2; ok: true; op: "cancel"; result: { operation: OnboardingOperation } }
   | { v: 2; ok: false; error: { code: OnboardingSocketErrorCode; message: string } };
