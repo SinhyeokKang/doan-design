@@ -18,7 +18,8 @@ import { AlertIcon } from "./AlertIcon";
 export type Reroot = FolderFocus & { seq: number };
 
 const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])';
-// Local copies of the draft's marks; sources are in public/provider-logos/README.md.
+// Local copies of the draft's marks; sources are in public/provider-logos/README.md. Relative, so the packaged
+// file:// renderer resolves them next to index.html.
 const LOGOS: Record<Provider, string> = { claude: "claude.png", codex: "codex.png", cursor: "cursor.svg", antigravity: "antigravity.svg", copilot: "copilot.svg" };
 
 function Parts({ parts }: { parts: readonly Part[] }) {
@@ -78,7 +79,7 @@ export function NoticeView({ notice, run }: { notice: Notice; run: (command: Aut
 export function ProviderRow({ view, run }: { view: ProviderView; run: (command: AuthCommand) => void }) {
   return <div className="ob-provider">
     <div className="ob-provider-row">
-      <span className="ob-provider-mark" aria-hidden="true"><img src={`/provider-logos/${LOGOS[view.provider]}`} alt="" /></span>
+      <span className="ob-provider-mark" aria-hidden="true"><img src={`provider-logos/${LOGOS[view.provider]}`} alt="" /></span>
       <div className="ob-provider-label"><strong>{view.name}</strong>{view.detail !== null && <span role={view.detailRole ?? undefined}>{view.detail}</span>}</div>
       {view.button && <ActionButton button={view.button} run={run} />}
     </div>
@@ -114,7 +115,7 @@ export function PasteDialog({ view, value, submittable, busy, change, submit, cl
       <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="ob-paste-title">{view.title}</h3><p className="doan-dialog-description">{view.body}</p></div></div>
       <input className="doan-input" aria-label={view.inputLabel} placeholder={view.placeholder} maxLength={view.maxLength} value={value} autoFocus disabled={busy} onChange={event => change(event.target.value)} />
       <div className="doan-dialog-actions">
-        <button type="button" className="doan-button" data-ui-variant={view.cancel.variant} data-ui-size="sm" onClick={close}>{view.cancel.label}</button>
+        <button type="button" className="doan-button" data-ui-variant={view.cancel.variant} data-ui-size="sm" disabled={busy} onClick={close}>{view.cancel.label}</button>
         <button type="submit" className="doan-button" data-ui-variant={view.submit.variant} data-ui-size="sm" disabled={!submittable}>{view.submit.label}</button>
       </div>
     </form>
@@ -149,14 +150,18 @@ function AgentStep({ session, heading, back, next }: { session: AgentStepSession
       (paste && !paste.matches(":disabled") ? paste : title.current)?.focus();
     });
   }, [state.focus?.seq]);
-  // The stop dialog has no single invoker in state, so focus returns to whatever opened it.
+  // The stop dialog opens from a reply, after the click; the clicked button is kept so focus can return to it.
   useEffect(() => {
-    if (state.dialog) { if (!invoker.current) invoker.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; return; }
+    if (state.dialog) return;
     const previous = invoker.current;
     invoker.current = null;
-    if (previous?.isConnected && !previous.matches(":disabled") && !previous.dataset.paste) requestAnimationFrame(() => previous.focus());
+    if (!previous || previous.dataset.paste) return;
+    requestAnimationFrame(() => (previous?.isConnected && !previous.matches(":disabled") ? previous : title.current)?.focus());
   }, [state.dialog?.kind]);
-  const run = (provider: Provider) => (command: AuthCommand) => session.command(provider, command);
+  const run = (provider: Provider) => (command: AuthCommand) => {
+    invoker.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    session.command(provider, command);
+  };
   const stop = session.stopView(), paste = session.pasteView();
   return <>
     <div className="ob-heading">
@@ -173,6 +178,15 @@ function AgentStep({ session, heading, back, next }: { session: AgentStepSession
     {paste && state.dialog?.kind === "paste" && <PasteDialog view={paste} value={state.dialog.value} submittable={session.pasteSubmittable()} busy={state.dialog.submitting}
       change={value => session.setPaste(value)} submit={() => void session.submitPaste()} close={() => session.closeDialog()} />}
   </>;
+}
+
+// Leaving the Agent step goes through the session first: forward cancels this window's own sign-ins (Continue and
+// the Project pill alike, 2026-10-28 user), and a move whose scene changed while it waited is dropped.
+export function sceneMover(agents: Pick<AgentStepSession, "continue" | "back">, move: (event: SceneEvent) => void, generation: () => number) {
+  return {
+    forward(): void { const at = generation(); void agents.continue().then(advanced => { if (advanced && generation() === at) move({ type: "continue" }); }); },
+    back(): void { const at = generation(); void agents.back().then(() => { if (generation() === at) move({ type: "back" }); }); },
+  };
 }
 
 // A modal stacked over the onboarding window by the Project step's Open Project….
@@ -210,6 +224,9 @@ export function Wizard({ session, entries, reroot, homeDirectory, addOutcome, on
   // A scene change moves focus to its heading; Tab then enters the controls (design '이동·취소·포커스 계약').
   useEffect(() => { requestAnimationFrame(() => heading.current?.focus()); }, [scene.generation]);
   const move = (event: SceneEvent) => setScene(current => nextScene(current, event, { auth, busy }));
+  const generation = useRef(0);
+  generation.current = scene.generation;
+  const leave = sceneMover(agents, move, () => generation.current);
 
   useEffect(() => {
     if (!addOutcome) return;
@@ -297,13 +314,12 @@ export function Wizard({ session, entries, reroot, homeDirectory, addOutcome, on
     ref={node => { overlay.current = node; if (node && !node.open) node.showModal(); }}
     onCancel={event => event.preventDefault()}>
     <div className="ob-chrome">
-      {!welcome && <SetupSteps scene={scene.scene} canProject={canAdvance(auth)} busy={busy} go={to => move({ type: "step", to })} />}
+      {!welcome && <SetupSteps scene={scene.scene} canProject={canAdvance(auth)} busy={busy} go={to => { if (to === "project") leave.forward(); else move({ type: "step", to }); }} />}
     </div>
     <div className="ob-scene native-scroll">
       {welcome && <div className="ob-welcome-scene" ref={node => setHeading(node?.querySelector("h1") ?? null)}><Welcome start={() => move({ type: "start" })} /></div>}
       {scene.scene === "agent" && <AgentStep session={agents} heading={setHeading}
-        back={() => void agents.back().then(() => move({ type: "back" }))}
-        next={() => void agents.continue().then(advanced => { if (advanced) move({ type: "continue" }); })} />}
+        back={leave.back} next={leave.forward} />}
       {scene.scene === "project" && <>
         <div className="ob-heading"><h2 tabIndex={-1} ref={setHeading}>Choose a project</h2></div>
         {addMessage && <p role="status">{addMessage}</p>}

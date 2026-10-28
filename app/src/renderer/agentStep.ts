@@ -135,7 +135,8 @@ export class AgentStepSession {
   // Escape or Cancel: a paste modal hands focus back to its Paste its address button.
   closeDialog(): void {
     const d = this.state.dialog;
-    if (!d) return;
+    // A submitted address is answered before the modal goes, so a late reply cannot close a newer one.
+    if (!d || (d.kind === "paste" && d.submitting)) return;
     this.set({ dialog: null });
     if (d.kind === "paste") this.focusOn("paste", d.provider);
   }
@@ -183,9 +184,10 @@ export class AgentStepSession {
       }
     }
     this.set({ auth: next, contexts });
-    // Announced once with role=status when the window has focus; never raises the window (2026-10-28 user).
-    this.pending.push(...readyAnnouncements(previous, next));
-    if (this.deps.hasFocus()) this.flushAnnouncements();
+    // A sign-in finishes in the browser: the change is announced once with role=status when the window regains focus,
+    // which never raises the window (2026-10-28 user). One seen while the window has focus (a check, a Retry) is on
+    // screen already and must not pull focus away from where the user is.
+    if (!this.deps.hasFocus()) this.pending.push(...readyAnnouncements(previous, next));
   }
   private flushAnnouncements(): void {
     if (!this.live || this.pending.length === 0) return;
@@ -218,12 +220,16 @@ export class AgentStepSession {
     if (result.ok && "attemptId" in result && intent === "signIn") this.owned.push(result.attemptId);
     if (!result.ok) this.refused(provider, result.reason, intent);
   }
+  // Only the latest Install or Update result is shown (POSTMORTEM 2026-10-25, an older install failure).
+  private installRequests = 0;
   private async install(provider: Provider): Promise<void> {
+    const request = ++this.installRequests;
     this.set({ installError: null });
     const opened = await this.deps.openInstall(provider).catch(() => false);
     if (!this.live) return;
+    // Every page that opened is checked on return; only the latest result decides the error line.
     if (opened) this.installs.add(provider);
-    else this.set({ installError: "Couldn’t open the install page." });
+    if (request === this.installRequests && !opened) this.set({ installError: "Couldn’t open the install page." });
   }
   private async reply(provider: Provider, call: Promise<{ ok: true } | { ok: false; reason: AuthReason }>, intent: "signIn" | "signOut"): Promise<void> {
     const result = await this.settle(call);

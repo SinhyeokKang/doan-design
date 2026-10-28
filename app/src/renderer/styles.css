@@ -284,6 +284,8 @@ code, kbd { font-family: var(--type-family); }
 .ob-steps button:disabled { color: var(--text-disabled); cursor: default; }
 .ob-steps button:disabled:hover { background: transparent; }
 .ob-scene { position: relative; flex: 1; min-height: 0; overflow: auto; width: 100%; max-width: 560px; margin: 0 auto; padding: var(--space-10) var(--space-6) var(--space-12); display: flex; flex-direction: column; }
+/* The scene scrolls as a whole; a panel with overflow hidden must not shrink and clip its last rows. */
+.ob-scene > * { flex-shrink: 0; }
 .ob-welcome .ob-scene { max-width: 640px; padding-top: 0; align-items: center; }
 .ob-welcome-scene { display: contents; }
 .ob-welcome-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: var(--space-6); }

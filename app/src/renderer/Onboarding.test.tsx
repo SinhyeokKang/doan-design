@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import { pasteDialog, stopDialog, type Notice, type ProviderView } from "./agentAuthView";
-import { AgentFooter, NoticeView, PasteDialog, ProviderRow, SetupSteps, StopDialog, Welcome } from "./Onboarding";
+import { AgentFooter, NoticeView, PasteDialog, ProviderRow, sceneMover, SetupSteps, StopDialog, Welcome } from "./Onboarding";
 
 const noop = () => {};
 const base: ProviderView = { provider: "claude", name: "Claude Code", detail: "Anthropic", detailRole: null, button: null, helper: null, notice: null, paste: null };
@@ -30,7 +30,7 @@ test("the setup steps reuse the shell capsule: current is aria-current, a done s
 
 test("a provider row: mark, name, account line and its sm button; Connected is disabled with its accessible name", () => {
   const html = renderToStaticMarkup(<ProviderRow view={{ ...base, detail: "ada@example.com", button: { command: "signIn", label: "Connected", variant: "prominent", disabled: true, ariaLabel: "Connected to Claude Code" } }} run={noop} />);
-  expect(html).toContain('<span class="ob-provider-mark" aria-hidden="true"><img src="/provider-logos/claude.png" alt=""/></span>');
+  expect(html).toContain('<span class="ob-provider-mark" aria-hidden="true"><img src="provider-logos/claude.png" alt=""/></span>');
   expect(html).toContain('<div class="ob-provider-label"><strong>Claude Code</strong><span>ada@example.com</span></div>');
   expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" aria-label="Connected to Claude Code" disabled="">Connected</button>');
   expect(renderToStaticMarkup(<ProviderRow view={{ ...base, provider: "codex", name: "Codex", detail: null }} run={noop} />)).toContain('<div class="ob-provider-label"><strong>Codex</strong></div>');
@@ -97,4 +97,24 @@ test("the stop dialog is an alertdialog with Cancel and the confirm verb on the 
   const element = StopDialog({ view: stopDialog("claude", "signIn"), busy: false, confirm: noop, close }) as ReactElement<DialogProps>;
   element.props.onKeyDown(keyEvent("Escape"));
   expect(close).toHaveBeenCalledTimes(1);
+});
+
+test("forward and back leave the Agent step only after its own sign-ins are cancelled, and only if the scene did not change meanwhile", async () => {
+  let generation = 0;
+  const moves: string[] = [];
+  let releaseBack: () => void = () => {};
+  const agents = { continue: vi.fn(async () => true), back: vi.fn(() => new Promise<void>(resolve => { releaseBack = resolve; })) };
+  const mover = sceneMover(agents, event => { moves.push(event.type); generation++; }, () => generation);
+  mover.back();
+  mover.forward();
+  await Promise.resolve(); await Promise.resolve();
+  expect(agents.continue).toHaveBeenCalledTimes(1);
+  expect(moves).toEqual(["continue"]);
+  releaseBack();
+  await Promise.resolve(); await Promise.resolve();
+  expect(moves).toEqual(["continue"]);
+  const refused = sceneMover({ continue: vi.fn(async () => false), back: vi.fn(async () => {}) }, event => moves.push(event.type), () => 0);
+  refused.forward();
+  await Promise.resolve(); await Promise.resolve();
+  expect(moves).toEqual(["continue"]);
 });

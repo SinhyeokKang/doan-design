@@ -398,3 +398,48 @@ test("entering again before a check's snapshot arrives does not send the check t
   await flush();
   expect(checked(h)).toEqual(["codex"]);
 });
+
+test("a ready change seen while the window has focus is not announced and does not move focus", async () => {
+  const h = harness(snap(1, { codex: unverified }));
+  h.session.start(); h.session.enter();
+  await flush();
+  h.emit(snap(2, { codex: connected }));
+  h.session.windowFocused();
+  await flush();
+  expect(h.session.state.announcement).toBeNull();
+  expect(h.session.state.focus).toBeNull();
+});
+
+test("an older install page result never replaces a newer one", async () => {
+  const h = harness(snap(1, { claude: { facts: { cli: "missing" } }, codex: { facts: { cli: "missing" } } }));
+  let first: (ok: boolean) => void = () => {};
+  vi.mocked(h.deps.openInstall).mockImplementationOnce(() => new Promise(resolve => { first = resolve; })).mockResolvedValueOnce(true);
+  h.session.start(); h.session.enter();
+  await flush();
+  h.session.command("claude", "install");
+  h.session.command("codex", "install");
+  await flush();
+  first(false);
+  await flush();
+  expect(h.session.state.installError).toBeNull();
+  h.session.windowFocused();
+  await flush();
+  expect(checked(h)).toEqual(["codex"]);
+});
+
+test("the paste modal cannot be dismissed while its address is being submitted", async () => {
+  const h = harness();
+  let done: (r: AuthReply) => void = () => {};
+  h.api.submitAgentSignInCode.mockImplementationOnce(() => new Promise(resolve => { done = resolve; }));
+  h.session.start(); h.session.enter();
+  await flush();
+  h.emit(snap(2, { antigravity: { attempt: { id: "ag-1", kind: "signIn" } } }));
+  h.session.command("antigravity", "pasteAddress");
+  h.session.setPaste("http://localhost:1/cb");
+  const submitting = h.session.submitPaste();
+  h.session.closeDialog();
+  expect(h.session.state.dialog).toMatchObject({ kind: "paste", submitting: true });
+  done({ ok: true });
+  await submitting;
+  expect(h.session.state.dialog).toBeNull();
+});
