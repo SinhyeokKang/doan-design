@@ -88,7 +88,7 @@ describe("sign-in", () => {
     const state = await signedInCursor(m);
     expect(state).toMatchObject({ phase: "connected", verified: true, connection: { provider: "cursor", profile: "cursor", account: { id: "u1" } } });
     expect(existsSync(tokenFile("cursor"))).toBe(false);
-    expect(storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1" })) });
+    expect(await storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1" })) });
     expect(storage.readMetadata().accounts).toEqual([state.connection]);
     const login = processes[0]!;
     expect(login.cwd).toBe(storage.profileDir("cursor"));
@@ -129,7 +129,7 @@ describe("sign-in", () => {
     expect((await m2.signIn("claude", 7)).ok).toBe(true);
   });
   it("fails without plaintext persistence when the OS key is unavailable", async () => {
-    storage = new AuthStorage(root, fakeCipher({ available: () => false }));
+    storage = new AuthStorage(root, fakeCipher({ available: async () => false }));
     const m = manager(); await m.load();
     const state = await signedInCursor(m);
     expect(state).toMatchObject({ connection: null, error: { code: "storage_failed" } });
@@ -142,7 +142,7 @@ describe("sign-in", () => {
     const state = await signedInCursor(m);
     write.mockRestore();
     expect(state).toMatchObject({ connection: null, error: { code: "storage_failed" } });
-    expect(storage.loadVault("cursor")).toBeNull();
+    expect(await storage.loadVault("cursor")).toBeNull();
     expect(existsSync(tokenFile("cursor"))).toBe(false);
   });
   it("cleans a keychain orphan with the official logout when a first sign-in fails", async () => {
@@ -169,7 +169,7 @@ describe("sign-in", () => {
     await finish("login", 1, p => writeToken(p, { id: "u2" }));
     const state = await run.done;
     expect(state).toMatchObject({ connection: first.connection, verified: false, error: { code: "sign_in_failed" } });
-    expect(storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1" })) });
+    expect(await storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1" })) });
     expect(existsSync(tokenFile("cursor"))).toBe(false);
   });
 });
@@ -249,12 +249,12 @@ describe("check", () => {
     });
     expect(await check.done).toMatchObject({ phase: "connected", verified: true });
     expect(existsSync(tokenFile("cursor"))).toBe(false);
-    expect(storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1", refreshed: true })) });
+    expect(await storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1", refreshed: true })) });
   });
   it("marks an expired login for reauthentication and keeps the connection", async () => {
     const m = manager(); await m.load();
     await signedInCursor(m, "u1");
-    storage.saveVault("cursor", { "creds/token.json": Buffer.from(JSON.stringify({ id: "u1", expired: true })) });
+    await storage.saveVault("cursor", { "creds/token.json": Buffer.from(JSON.stringify({ id: "u1", expired: true })) });
     const check = started(await m.check("cursor"));
     await finish("status", 0);
     expect(await check.done).toMatchObject({ phase: "reauthRequired", expired: true, connection: { account: { id: "u1" } } });
@@ -272,7 +272,7 @@ describe("check", () => {
   it("reports an unreadable vault as a check failure without deleting it", async () => {
     const m = manager(); await m.load();
     await signedInCursor(m, "u1");
-    vi.spyOn(cipher, "decrypt").mockImplementation(() => { throw new Error("key changed"); });
+    vi.spyOn(cipher, "decrypt").mockImplementation(async () => { throw new Error("key changed"); });
     const check = started(await m.check("cursor"));
     // A failed check keeps the verified connection and shows the error beside it (batch A decision 2).
     expect(await check.done).toMatchObject({ phase: "connected", error: { code: "check_failed" }, connection: { account: { id: "u1" } } });
@@ -298,7 +298,7 @@ describe("sign-out", () => {
     await finish("status", 0, p => expect(existsSync(join(p.cwd, "creds/token.json"))).toBe(false));
     expect(await run.done).toMatchObject({ phase: "disconnected", connection: null });
     expect(processes.filter(p => p.step === "logout")).toEqual([]);
-    expect(storage.loadVault("cursor")).toBeNull();
+    expect(await storage.loadVault("cursor")).toBeNull();
     expect(storage.readMetadata().accounts).toEqual([]);
   });
   it("runs the official logout for keychain providers and fails when the profile is still signed in", async () => {
@@ -338,7 +338,7 @@ describe("leases and recovery", () => {
     expect(existsSync(tokenFile("cursor"))).toBe(true);
     await b.release(); await b.release();
     expect(existsSync(tokenFile("cursor"))).toBe(false);
-    expect(storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1", refreshed: 2 })) });
+    expect(await storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1", refreshed: 2 })) });
   });
   it("refuses a lease without a verified connection", async () => {
     const m = manager(); await m.load();
@@ -351,19 +351,19 @@ describe("leases and recovery", () => {
     writeFileSync(tokenFile("cursor"), JSON.stringify({ id: "u1", refreshed: "crash" }));
     mkdirSync(dirname(tokenFile("copilot")), { recursive: true });
     writeFileSync(tokenFile("copilot"), JSON.stringify({ id: "orphan" }));
-    storage.saveVault("copilot", { "creds/token.json": Buffer.from("orphan") });
+    await storage.saveVault("copilot", { "creds/token.json": Buffer.from("orphan") });
     const restarted = manager(); await restarted.load();
     expect(existsSync(tokenFile("cursor"))).toBe(false);
-    expect(storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1", refreshed: "crash" })) });
+    expect(await storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1", refreshed: "crash" })) });
     expect(existsSync(tokenFile("copilot"))).toBe(false);
-    expect(storage.loadVault("copilot")).toBeNull();
+    expect(await storage.loadVault("copilot")).toBeNull();
     expect(restarted.state("cursor")).toMatchObject({ phase: "connected", verified: false });
   });
   it("deletes crash leftovers without encrypting them when the key is unavailable", async () => {
     const m = manager(); await m.load();
     await signedInCursor(m, "u1");
     mkdirSync(dirname(tokenFile("cursor")), { recursive: true }); writeFileSync(tokenFile("cursor"), "refreshed");
-    storage = new AuthStorage(root, fakeCipher({ available: () => false }));
+    storage = new AuthStorage(root, fakeCipher({ available: async () => false }));
     const restarted = manager(); await restarted.load();
     expect(existsSync(tokenFile("cursor"))).toBe(false);
   });

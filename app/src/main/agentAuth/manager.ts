@@ -40,6 +40,7 @@ export class AuthManager {
   private checks = new Map<Provider, { attemptId: string; done: Promise<unknown> }>();
   private holds = new Map<Provider, number>();
   private runs = new Map<Provider, number>();
+  private queues = new Map<Provider, Promise<void>>();
   private pending = new Set<Promise<unknown>>();
   private closed = false;
   private readonly adapters: Record<Provider, ProviderAuth>;
@@ -55,7 +56,7 @@ export class AuthManager {
     for (const provider of PROVIDERS) {
       const stored = accounts.find(a => a.provider === provider) ?? null;
       this.states.set(provider, initialAuthState(provider, stored));
-      this.recover(provider, stored !== null);
+      await this.recover(provider, stored !== null);
     }
   }
   state(provider: Provider): AuthState { return this.states.get(provider)!; }
@@ -142,12 +143,12 @@ export class AuthManager {
       : state.error?.code === "account_mismatch" ? "account_mismatch" : state.expired ? "reauth_required" : !state.verified ? "unverified" : null;
     if (refusal) throw new Error(refusal);
     const { command, env, profileDir } = await this.launch(provider);
-    this.hold(provider);
     this.runs.set(provider, (this.runs.get(provider) ?? 0) + 1);
+    try { await this.hold(provider); } catch (error) { this.runs.set(provider, (this.runs.get(provider) ?? 1) - 1); throw error; }
     let released = false;
     return { command, env, profileDir, release: async () => {
       if (released) return;
-      released = true; this.runs.set(provider, (this.runs.get(provider) ?? 1) - 1); this.drop(provider);
+      released = true; this.runs.set(provider, (this.runs.get(provider) ?? 1) - 1); await this.drop(provider);
     } };
   }
 
@@ -162,13 +163,13 @@ export class AuthManager {
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([Promise.allSettled([...this.pending]), new Promise(resolve => { timer = setTimeout(resolve, QUIT_WAIT_MS); timer.unref?.(); })]);
     clearTimeout(timer);
-    for (const provider of PROVIDERS) if ((this.holds.get(provider) ?? 0) > 0) { this.holds.set(provider, 1); this.drop(provider); }
+    for (const provider of PROVIDERS) if ((this.holds.get(provider) ?? 0) > 0) { this.holds.set(provider, 1); await this.drop(provider); }
   }
 
   private async signInFlow(provider: Provider, attemptId: string, owner: number): Promise<AccountConnection> {
     const auth = this.adapters[provider];
     // A login starts from no working copy so a failed or cancelled replacement cannot leave the old one exposed.
-    if (auth.vault) this.storageStep(() => this.options.storage.scrub(provider, auth.vault!));
+    if (auth.vault) await this.storageStep(() => this.options.storage.scrub(provider, auth.vault!));
     const seen = new Set<string>();
     const login = await this.exec(provider, attemptId, auth.login, null, text => {
       for (const url of text.match(/https?:\/\/[^\s"'<>]+/g) ?? []) {
@@ -182,14 +183,14 @@ export class AuthManager {
     if (this.cancelled(provider, attemptId)) throw new Cancelled();
     if (checked.status !== "connected") throw new Failure("sign_in_failed", `status after login: ${checked.status}`);
     const profileDir = this.options.storage.profileDir(provider);
-    if (auth.vault) this.storageStep(() => { this.options.storage.absorb(provider, auth.vault!); });
+    if (auth.vault) await this.storageStep(() => this.options.storage.absorb(provider, auth.vault!));
     else if (auth.plaintext.some(rel => existsSync(join(profileDir, rel)))) throw new Failure("storage_failed", "provider wrote a plaintext credential file");
     const connection: AccountConnection = { provider, connectionId: this.newId(), profile: provider, account: checked.account };
-    this.storageStep(() => {
+    await this.storageStep(() => {
       const metadata = this.options.storage.readMetadata();
       this.options.storage.writeMetadata({ v: 1, accounts: [...metadata.accounts.filter(a => a.provider !== provider), connection] });
     });
-    if (auth.vault) this.storageStep(() => this.options.storage.scrub(provider, auth.vault!));
+    if (auth.vault) await this.storageStep(() => this.options.storage.scrub(provider, auth.vault!));
     return connection;
   }
 
@@ -263,38 +264,48 @@ export class AuthManager {
     return check.done.catch(() => {});
   }
   private async working<T>(provider: Provider, body: () => Promise<T>): Promise<T> {
-    this.hold(provider);
-    try { return await body(); } finally { this.drop(provider); }
+    await this.hold(provider);
+    try { return await body(); } finally { await this.drop(provider); }
   }
-  private hold(provider: Provider): void {
-    const count = this.holds.get(provider) ?? 0, auth = this.adapters[provider];
-    if (count === 0 && auth.vault && this.state(provider).connection) this.options.storage.materialize(provider, auth.vault);
-    this.holds.set(provider, count + 1);
+  // Holds and drops of one provider run in order, so a second holder never sees a half-written working copy.
+  private serial(provider: Provider, step: () => Promise<void>): Promise<void> {
+    const next = (this.queues.get(provider) ?? Promise.resolve()).then(step);
+    this.queues.set(provider, next.catch(() => {}));
+    return next;
+  }
+  private hold(provider: Provider): Promise<void> {
+    return this.serial(provider, async () => {
+      const count = this.holds.get(provider) ?? 0, auth = this.adapters[provider];
+      if (count === 0 && auth.vault && this.state(provider).connection) await this.options.storage.materialize(provider, auth.vault);
+      this.holds.set(provider, count + 1);
+    });
   }
   // The last holder writes the provider's refreshed copy back before the plaintext goes away.
-  private drop(provider: Provider): void {
-    const count = (this.holds.get(provider) ?? 1) - 1, auth = this.adapters[provider];
-    this.holds.set(provider, count);
-    if (count > 0 || !auth.vault) return;
-    try { if (this.state(provider).connection) this.options.storage.absorb(provider, auth.vault); }
-    catch (error) { console.error(`doan: ${provider} refresh could not be stored`, message(error)); }
-    try { this.options.storage.scrub(provider, auth.vault); }
-    catch (error) { console.error(`doan: ${provider} working credential could not be removed`, message(error)); }
+  private drop(provider: Provider): Promise<void> {
+    return this.serial(provider, async () => {
+      const count = (this.holds.get(provider) ?? 1) - 1, auth = this.adapters[provider];
+      this.holds.set(provider, count);
+      if (count > 0 || !auth.vault) return;
+      try { if (this.state(provider).connection) await this.options.storage.absorb(provider, auth.vault); }
+      catch (error) { console.error(`doan: ${provider} refresh could not be stored`, message(error)); }
+      try { this.options.storage.scrub(provider, auth.vault); }
+      catch (error) { console.error(`doan: ${provider} working credential could not be removed`, message(error)); }
+    });
   }
-  private recover(provider: Provider, connected: boolean): void {
+  private async recover(provider: Provider, connected: boolean): Promise<void> {
     const auth = this.adapters[provider], storage = this.options.storage;
     try {
       if (!auth.vault) { const dir = storage.profileDir(provider); for (const rel of auth.plaintext) rmSync(join(dir, rel), { force: true }); return; }
       // A crash can leave a refreshed working copy; keep it only in encrypted form.
       if (connected && storage.leftovers(provider, auth.vault)) {
-        try { storage.absorb(provider, auth.vault); } catch (error) { console.error(`doan: ${provider} leftover credential could not be stored`, message(error)); }
+        try { await storage.absorb(provider, auth.vault); } catch (error) { console.error(`doan: ${provider} leftover credential could not be stored`, message(error)); }
       }
       storage.scrub(provider, auth.vault);
       if (!connected) storage.removeVault(provider);
     } catch (error) { console.error(`doan: ${provider} credential recovery failed`, message(error)); }
   }
-  private storageStep(step: () => void): void {
-    try { step(); } catch (error) { throw new Failure("storage_failed", message(error)); }
+  private async storageStep(step: () => unknown): Promise<void> {
+    try { await step(); } catch (error) { throw new Failure("storage_failed", message(error)); }
   }
   private running(provider: Provider): boolean { return (this.runs.get(provider) ?? 0) > 0; }
   private cancelled(provider: Provider, attemptId: string): boolean {

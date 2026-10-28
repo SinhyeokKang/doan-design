@@ -5,7 +5,7 @@ import { parseAuthMetadata, serializeAuthMetadata } from "./metadata";
 import type { AuthMetadata, Provider } from "./types";
 
 // Electron safeStorage in the app; an OS-keyed cipher is the only thing allowed to touch credential bytes at rest.
-export interface Cipher { available(): boolean; encrypt(text: string): Buffer; decrypt(data: Buffer): string }
+export interface Cipher { available(): Promise<boolean>; encrypt(text: string): Promise<Buffer>; decrypt(data: Buffer): Promise<string> }
 export type StorageCode = "key_unavailable" | "unreadable" | "write_failed" | "delete_failed";
 export class StorageError extends Error {
   constructor(readonly code: StorageCode, detail?: string) { super(detail ? `${code}: ${detail}` : code); }
@@ -28,20 +28,20 @@ export class AuthStorage {
     return read.metadata;
   }
   writeMetadata(metadata: AuthMetadata): void { this.replace(join(this.root, "metadata.json"), Buffer.from(serializeAuthMetadata(metadata))); }
-  saveVault(provider: Provider, files: VaultFiles): void {
+  async saveVault(provider: Provider, files: VaultFiles): Promise<void> {
     const plain = JSON.stringify({ v: 1, files: Object.fromEntries(Object.entries(files).map(([rel, bytes]) => [rel, bytes.toString("base64")])) });
     let sealed: Buffer;
-    try { if (!this.cipher.available()) throw new Error("OS encryption is unavailable"); sealed = this.cipher.encrypt(plain); }
+    try { if (!await this.cipher.available()) throw new Error("OS encryption is unavailable"); sealed = await this.cipher.encrypt(plain); }
     catch (error) { throw new StorageError("key_unavailable", message(error)); }
     this.replace(this.vaultPath(provider), sealed);
   }
-  loadVault(provider: Provider): VaultFiles | null {
+  async loadVault(provider: Provider): Promise<VaultFiles | null> {
     let sealed: Buffer;
     try { sealed = readFileSync(this.vaultPath(provider)); }
     catch (error) { if (absent(error)) return null; throw new StorageError("unreadable", message(error)); }
     try {
-      if (!this.cipher.available()) throw new Error("OS encryption is unavailable");
-      const doc = JSON.parse(this.cipher.decrypt(sealed));
+      if (!await this.cipher.available()) throw new Error("OS encryption is unavailable");
+      const doc = JSON.parse(await this.cipher.decrypt(sealed));
       if (doc?.v !== 1 || typeof doc.files !== "object" || doc.files === null) throw new Error("unknown vault format");
       return Object.fromEntries(Object.entries(doc.files).map(([rel, text]) => {
         if (typeof text !== "string") throw new Error("invalid vault entry");
@@ -51,24 +51,24 @@ export class AuthStorage {
   }
   removeVault(provider: Provider): void { this.remove(this.vaultPath(provider)); }
   // Writes the vault's copy of each listed file into the profile for a provider process; absent entries stay absent.
-  materialize(provider: Provider, rels: readonly string[]): void {
-    const files = this.loadVault(provider) ?? {};
+  async materialize(provider: Provider, rels: readonly string[]): Promise<void> {
+    const files = await this.loadVault(provider) ?? {};
     for (const rel of rels) {
       const path = this.working(provider, rel);
       if (files[rel]) this.replace(path, files[rel]); else this.remove(path);
     }
   }
   // Returns whether the provider's copy differed from the vault (a refresh, a new login or a logout).
-  absorb(provider: Provider, rels: readonly string[]): boolean {
+  async absorb(provider: Provider, rels: readonly string[]): Promise<boolean> {
     const current: VaultFiles = {};
     for (const rel of rels) {
       try { current[rel] = readFileSync(this.working(provider, rel)); }
       catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }
     }
-    const stored = this.loadVault(provider);
+    const stored = await this.loadVault(provider);
     const same = stored !== null && Object.keys(stored).length === Object.keys(current).length && Object.entries(current).every(([rel, bytes]) => stored[rel]?.equals(bytes));
     if (same) return false;
-    this.saveVault(provider, current);
+    await this.saveVault(provider, current);
     return true;
   }
   leftovers(provider: Provider, rels: readonly string[]): boolean { return this.workingPaths(provider, rels).length > 0; }
