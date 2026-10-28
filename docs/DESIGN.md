@@ -36,7 +36,7 @@ This section is the reference for every screen. It replaces the dark Sorcerer-ba
 
 - **Accent ramp.** doan has its own violet ramp, not a reference family. Each step takes the per-step OKLCH lightness and chroma share (relative to step 9) of the reference's twelve-step light ramp whose step 9 carries white text, at hue 305, gamut-clamped by reducing chroma. Steps 1–12: `#fdfbfe`, `#fbf8fe`, `#f5f0fd`, `#efe7fa`, `#e9ddf9`, `#e2d2f7`, `#d6c1f0`, `#c7aee6`, `#973be1`, `#9033d9`, `#543871`, `#342743`; pair values: contrast and ink `#ffffff`, pressed `#8a2dd2`, link `#63019d`.
 - **Why step 9 is `#973be1` with white text.** The user picked violet from a comparison of orange, magenta, iris, jade, violet, teal, cobalt and mono (2026-10-26). The earlier orange attempts failed on text: black on `#f0773a` reached only APCA Lc 50, under the body target of Lc 60, and the brighter `#ff915e` left hover and pressed almost indistinguishable from step 9. White on `#973be1` is 5.21:1 (APCA Lc −80), and hover (`#9033d9`) and pressed (`#8a2dd2`) are darker than 9, so white only gains contrast.
-- **Accent places.** Before buzz-shell, violet was read by the current sidebar row (`surface-sidebar-selected` violet 9 with `text-sidebar-selected` white, including its glyphs, count and selection mark), sidebar row hover (`affordance-sidebar-hover`, violet 2), comment pins (`.comment-pin`), the comment submit buttons (`.comments-btn.primary.submit`: Save, Save and reopen, Save and continue) and the comment card roles (`surface-comment` violet 4, `text-comment` violet 12; defined, applied by `buzz-comment`). buzz-shell (2026-10-27) replaces sidebar selection/hover with neutral backdrop roles; the retained accent checks cover the remaining surfaces. Every other former accent use is neutral.
+- **Accent places.** Before buzz-shell, violet was read by the current sidebar row (`surface-sidebar-selected` violet 9 with `text-sidebar-selected` white, including its glyphs, count and selection mark), sidebar row hover (`affordance-sidebar-hover`, violet 2), comment pins (`.comment-pin`), the comment submit buttons (`.comments-btn.primary.submit`: Save, Save and reopen, Save and continue) and the comment card roles (`surface-comment` violet 4, `text-comment` violet 12; defined, applied by `buzz-comment`). buzz-shell (2026-10-27) replaces sidebar selection/hover with neutral backdrop roles; the retained accent checks cover the remaining surfaces. Every other former accent use is neutral. buzz-onboarding (2026-10-29) adds one place: the Welcome glow `.ob-atmosphere` (accent radial gradient under a grain mask).
 - **Black pin rim.** `border-pin` is `neutral-12` (black), not violet 11: violet 11 is 1.85:1 against the violet 9 fill, under the 3:1 non-text target, and darkening 11 enough would put it below step 12. Black is 4.03:1 against violet 9; the white `halo-pin` keeps pins visible on dark canvases. A focused pin adds the 2px `border-focus` ring and a 4px white halo.
 - **No coloured edge stripes.** No message, notice, card or row uses a coloured or thick start-side border (`edgeStripes` checks it). Errors take one of three forms, each with the lucide `CircleAlert` icon so colour is not the only signal: a panel-level failure is a status block (1px `border-standard`, `radius-container`, centred 20px icon, label-sm title, body-sm `text-subtle` description, centred actions, opened detail on `surface-inset`); an inline error is a 16px icon with one body-sm `text-danger` line (`text-warning` for warnings), which adds the icon to the reference's text-only field error; a neutral notice is a `surface-inset` fill with `radius-row` and body-sm `text-subtle` (icon and `text-warning` when it warns).
 - **Status pill.** `.ob-chip` is a 20px pill in caption type on the status `affordance-*` fill with the matching `text-*`. The reference has no such pill; doan keeps it for connection and wizard status.
@@ -290,9 +290,69 @@ Not verified in a real window: the singular pin aria (“1 open comment”, unit
 
 Evidence: the conductor's `.scratch/orch/comments-readability/evidence-E/measure/` (`measure.mjs`, `measure-1.log`, `measure-2.log`, `run-*/measurements.json` and four screenshots per size per run).
 
+## Onboarding — buzz-onboarding first run (2026-10-29)
+
+Reference: `.doan/canvases/buzz-onboarding.html` (approved 2026-10-28, F4 completed): ten frames and 47 state tiles. This replaces the four-step wizard measured in the next section. That wizard (CLI, Agents, Project, First prompt) was removed, and the next section is kept as history only.
+
+### Measurement and contracts
+
+- **Probe:** `.scratch/design-sync/buzz-onboarding/measure.ts`, with the evidence alongside it in the same folder. It ran in one Electron build with `getComputedStyle` and element rectangles.
+- **Isolation:** temporary userData, HOME, SHELL, agent config directories and `DOAN_RUNTIME`, and a local CLI. `onboarding.json` was removed so first run shows. The real user state was fingerprinted before and after the probe and was unchanged.
+- **Draft:** opened as a file in a second window of the same app. Its token and DS links resolve to the repository's sources.
+- **App window:** content size set to 1238 × 780, the draft's window size.
+- **Reached in the real app:** Welcome, and Agent with no agent installed (rows show Install).
+- **Reached through markup:** the isolated app cannot reach a ready agent, so the Project step and every agent state tile were measured this way. `fixtures.gen.test.tsx` renders the real components (`Welcome`, `AgentStep`, `ProviderRow`, `NoticeView`, `PasteDialog`, `StopDialog`, `ProjectScreen`) with controlled props. Their markup is put into the running overlay, so the shipped CSS applies. Each tile is measured inside a 470px column, which is a draft tile's content width.
+- **Paired parts:** every frame part and tile part listed in the probe. Text, box, layout and size are compared, and positions are compared for whole frames only. Spinners are stopped before reading, and the pointer is kept off the controls.
+- **Result:** 25 differences remain after the fixes below. All 25 are documented under 'Documented differences'.
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Overlay | Full window; Welcome on an opaque `--surface-panel`; Agent and Project transparent over the window's native sidebar vibrancy, with the rest of `#root` hidden while it is open; `--bg-app` under reduced transparency; 14/20 text without tabular figures | Matches the draft's glass approximation with the shipped native material. The shell's `tabular-nums` widened the stepper's "1" by 3px. |
+| Welcome | Wordmark 104px / 1 / 500, letter-spacing −8px, at y 248; sentence heading token 24px / 1.1 / 400, letter-spacing −0.18px, two lines at y 376; Get started is the `lg` button: 173 × 48, 16/24, padding 12px 32px, at y 468 | Same positions as the draft, measured in the real app. |
+| Atmosphere | Accent radial gradient `ellipse 50% 125% at 50% 112%`, opacity .85, `onboarding-grain.svg` alpha mask 180px repeated, no animation; fixed and behind the content (`z-index: −1`) | User decisions of 2026-10-28: a grain mask instead of black specks, and no motion. |
+| `lg` button (shared) | min-height `--size-control-lg` 48; padding `--space-3` `--space-8`; label 16/24; default 40 and sm 32 unchanged | New shared size; only Welcome uses it. |
+| Chrome and stepper | Chrome 56 (`--size-chrome`); capsule 190 × 40 centered, padding 4, gap 4, radius 24, `--affordance-backdrop-hover` with blur 24; steps are sm doan-buttons 32 high, regular weight; current is a subtle button with a white pill (`--surface-panel`, `--shadow-panel`); a done step is ghost `✓ Agent` | The AppShell capsule drawn with the shared buttons (draft), so it does not inherit `.shell-modes button`. |
+| Scene | Max width 560, padding 40/24/48, centered; heading title token 32px / 1.1 / 500 with a 12px gap to its 14/20 subtle line and 32px to the content; footer Back (subtle) and Continue/next (prominent) 40 high with arrows, pushed to the bottom | Same positions as the draft for all eight frames. |
+| Provider list and rows | Panel padding 0 16; rows min-height 72 (`--size-row`), padding 16 0, 1px `--border-standard` dividers; mark slot 32 with a 24px image; name 14/20 / 500; detail caption 12/16 `--text-metadata`; row button sm 32 | A notice, helper line or Antigravity paste line sits under the row inside the same item. |
+| Notices | `doan-notice` on a panel: padding 12px 16px, `--surface-panel`, `--text-standard`, panel shadow, radius 16; error icon inherits the text colour; a spinner takes the icon slot; title 500 with a 4px gap to the body | Shared rule `.doan-notice.doan-panel` in `ds/surfaces.css`. |
+| Project choose | Local option panel padding 24, gap 16, folder icon 40 on `--surface-inset` radius 12; divider caption with 1px rules and 24px margins; URL field 40 high; Find repository right-aligned | Same positions as the draft frame. |
+| Chosen and destination cards | Panel padding 16, min-height 72, gap 12; thumbnail 28 × 28, radius 7, 17px / 600; name 14/20 / 500; path caption `--text-metadata` | The thumbnail follows the sidebar rule below. |
+| Project thumbnails (shared with the sidebar) | `projectHue` over 8 identity colours; background is the colour 14% into `--surface-panel`; letter is the colour 65% into `--text-standard`; first code point of the trimmed name, upper-cased (`projectInitial`) | Approved draft rule, now also in `ShellSidebar` (16 × 16 there, sizes unchanged). |
+| Repository access error | Heading, URL field, the error notice (title and body) and a full-width row: Choose local folder (subtle, left) and Retry (prominent, right), both 40 high; the local option and divider are hidden | Draft frame 'repository-error'. |
+
+### Documented differences
+
+- **Agent frame in the real app.** The isolated app has no agent installed, so every row shows Install with its helper line. The rows are taller, and the footer's free margin is 0 instead of the draft's 68.8px. The markup run with Sign in rows matches the draft's positions.
+- **Tiles that draw the step footer.** Eight tiles draw the step footer's buttons as an sm row inside the tile: 'Checking connections', 'Connection storage failed', 'doan tools check failed', 'Multiple local checkouts', 'Setting up project', 'Finishing setup', 'Completion could not be saved' and 'No agent is ready'.
+  - In the app these buttons are the step's own footer: Back, Continue / Open doan / Use this folder / Retry, 40 high, at the bottom.
+  - A row's single recovery action is right-aligned alone.
+  - This accounts for 24 of the 25 remaining differences.
+- **Tile margins.** `.tile > *` margins place a tile in the specimen grid, so they are not compared.
+- **Not in the draft — 'Your projects'** (user decision 2026-10-29). When projects are registered, they are listed above 'Open a local folder' under the caption 'Your projects'. They use the draft's 'Multiple local checkouts' radio rows (`.ob-choice`, thumbnail, name, path), followed by an sm Use this folder. They were measured with the same rules as the checkout tile.
+- **Not in the draft — clone destination default** (user decision 2026-10-29). The default is `<parent of the most recently registered project>/<repository>`, else `~/<repository>`. Change picks a parent.
+- **Not in the draft — copy.**
+  - Install failures read "Couldn’t open the <Provider> install page." Antigravity has no install page.
+  - A paste over 16,384 characters shows "This address is too long to submit." (D16) in caption `--text-danger` under the field.
+  - Main's fixed messages are shown for refusals without draft copy, for example a kept clone folder: "Couldn't remove <path>. Remove it, then try again."
+- **Folder inspection progress.** Inspecting a picked or listed folder uses the 'Setting up project' notice ("Setting up your project", path), even when nothing will be set up.
+- **Existing folder from the URL path.** Choose existing folder and Use existing folder inspect the folder by path, so main checks no remote for it. The user chose that folder explicitly. Whether the remote check should apply there is the conductor's call (see the U2 handoff).
+
+### Coverage, limits and regression evidence
+
+- **Not measured:**
+  - The native vibrancy material itself, reduced transparency and forced colours. DOM screenshots show the transparent overlay as white.
+  - Hover and focus rings of the new controls, and dark mode.
+  - The Project step in the real app with a ready agent, real sign-in, the real paste and stop dialogs as modals (they were measured as open dialogs in the tile column), and a real clone. Batch V covers real authentication and clone.
+- **Regression tests** (`app/src/renderer/Onboarding.test.tsx`, `ds/controls.test.ts`, `ShellSidebar.test.tsx`) pin:
+  - the stepper markup and capsule rule, the overlay's `font-variant-numeric: normal` and the paste help ink;
+  - the `lg`, notice-on-panel and thumbnail rules;
+  - the markup of every Project phase.
+  - The `font-variant-numeric` pin fails when the declaration is removed.
+- **Measurement fixes in this round** (`5e443f1`, `620194d`): the stepper uses shared sm buttons; the repository error frame drops the local option; invalid and edited URLs show their two-action state row; the paste help line is subtle; onboarding text drops the tabular figures.
+
 ## Onboarding — initial implementation (2026-10-24)
 
-> buzz-ds 이전: colour values and colour token names in this section (`--accent*`, `--panel*`, `--text-2`…`--text-4`, `--warn`, `--err`, rgb values, opacity-dimmed states) were measured on the dark theme before buzz-ds (2026-10-26) and no longer describe the app; read the design-system section for current values. Sizes, type and layout were not remeasured either where buzz-ds restyled a shared component. Owner (remeasures, then removes this mark): `buzz-onboarding`.
+> Superseded (2026-10-29): the four-step wizard measured here was removed by buzz-onboarding; see 'Onboarding — buzz-onboarding first run' above. Kept as history. Its colour values predate buzz-ds (2026-10-26) and do not describe any current screen.
 
 Reference: `.doan/canvases/onboard.html`, all eight frames. This is the initial `feat-onboard` implementation, before main. The selector map comes from batch H's handoff; its independent review accepted deviations 3 and 5–13 and required fixes for 1, 2 and 4. Those fixes were already present before this measurement. The draft is unchanged.
 
