@@ -443,3 +443,108 @@ test("the paste modal cannot be dismissed while its address is being submitted",
   await submitting;
   expect(h.session.state.dialog).toBeNull();
 });
+
+test("fix 1: a prompt for an attempt this window did not start (CLI or MCP) never opens a link here", async () => {
+  const h = harness();
+  h.session.start(); h.session.enter();
+  await flush();
+  h.prompt({ provider: "claude", attemptId: "cli-started", url: "https://claude.com/oauth" });
+  await flush();
+  expect(h.api.openAgentSignInLink).not.toHaveBeenCalled();
+  expect(h.session.state.contexts.claude?.prompt).toBe("cli-started");
+});
+
+test("fix 1: a prompt that arrives before this window's sign-in reply is opened once the reply names it", async () => {
+  const h = harness();
+  let reply: (r: AuthStartReply) => void = () => {};
+  h.api.signInAgent.mockImplementationOnce(() => new Promise(resolve => { reply = resolve; }));
+  h.session.start(); h.session.enter();
+  await flush();
+  h.session.command("antigravity", "signIn");
+  h.prompt({ provider: "antigravity", attemptId: "ag-early", url: "https://accounts.google.com/o" });
+  await flush();
+  expect(h.api.openAgentSignInLink).not.toHaveBeenCalled();
+  reply({ ok: true, attemptId: "ag-early" });
+  await flush();
+  expect(h.api.openAgentSignInLink.mock.calls).toEqual([["antigravity", "ag-early"]]);
+});
+
+test("fix 1: a held prompt for someone else's attempt is dropped when this window's reply names another", async () => {
+  const h = harness();
+  let reply: (r: AuthStartReply) => void = () => {};
+  h.api.signInAgent.mockImplementationOnce(() => new Promise(resolve => { reply = resolve; }));
+  h.session.start(); h.session.enter();
+  await flush();
+  h.session.command("codex", "signIn");
+  h.prompt({ provider: "claude", attemptId: "cli-claude", url: "https://claude.com/oauth" });
+  reply({ ok: false, reason: "busy" });
+  await flush();
+  expect(h.api.openAgentSignInLink).not.toHaveBeenCalled();
+});
+
+test("fix 3: the paste modal closes when its attempt ends, and focus goes to the heading fallback", async () => {
+  const h = harness();
+  h.session.start(); h.session.enter();
+  await flush();
+  h.emit(snap(2, { antigravity: { attempt: { id: "ag-1", kind: "signIn" } } }));
+  h.session.command("antigravity", "pasteAddress");
+  h.session.setPaste("http://localhost:1/cb");
+  h.emit(snap(3, { antigravity: connected }));
+  expect(h.session.state.dialog).toBeNull();
+  expect(h.session.state.focus).toMatchObject({ target: "paste", provider: "antigravity" });
+  await h.session.submitPaste();
+  expect(h.api.submitAgentSignInCode).not.toHaveBeenCalled();
+});
+
+test("fix 3: an over-long address stays whole in the field and cannot be submitted", async () => {
+  const h = harness();
+  h.session.start(); h.session.enter();
+  await flush();
+  h.emit(snap(2, { antigravity: { attempt: { id: "ag-1", kind: "signIn" } } }));
+  h.session.command("antigravity", "pasteAddress");
+  h.session.setPaste("x".repeat(16385));
+  expect(h.session.state.dialog).toMatchObject({ value: "x".repeat(16385) });
+  expect(h.session.pasteTooLong()).toBe(true);
+  expect(h.session.pasteSubmittable()).toBe(false);
+  h.session.setPaste("x".repeat(16384));
+  expect(h.session.pasteTooLong()).toBe(false);
+});
+
+test("conductor: this window's own sign-in turning ready while focused is announced once without moving focus", async () => {
+  const h = harness();
+  h.session.start(); h.session.enter();
+  await flush();
+  h.session.command("claude", "signIn");
+  await flush();
+  h.emit(snap(2, { claude: { attempt: { id: "sign-1", kind: "signIn" } } }));
+  h.emit(snap(3, { claude: connected }));
+  expect(h.session.state.announcement?.text).toBe("Claude Code connected");
+  expect(h.session.state.focus).toBeNull();
+  const seq = h.session.state.announcement?.seq;
+  h.emit(snap(4, { claude: connected, codex: connected }));
+  expect(h.session.state.announcement?.seq).toBe(seq);
+});
+
+test("a stop_required reply that lands after leaving the step opens no dialog", async () => {
+  const h = harness(snap(1, { claude: connected }));
+  let reply: (r: AuthStartReply) => void = () => {};
+  h.api.signInAgent.mockImplementationOnce(() => new Promise(resolve => { reply = resolve; }));
+  h.session.start(); h.session.enter();
+  await flush();
+  h.session.command("codex", "signIn");
+  await h.session.back();
+  reply({ ok: false, reason: "stop_required" });
+  await flush();
+  expect(h.session.state.dialog).toBeNull();
+});
+
+test("a rejected read keeps the list already shown", async () => {
+  const h = harness(snap(1, { claude: connected }));
+  h.session.start(); h.session.enter();
+  await flush();
+  h.api.readAgentAuth.mockRejectedValueOnce(new Error("ipc"));
+  h.session.windowFocused();
+  await flush();
+  expect(h.session.state.auth?.revision).toBe(1);
+  expect(h.session.view().notice).toBeNull();
+});
