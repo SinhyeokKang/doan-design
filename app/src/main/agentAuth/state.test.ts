@@ -181,6 +181,21 @@ describe("auth transitions", () => {
   });
 });
 
+describe("run confirmation", () => {
+  const same = { id: "acct-1", workspace: null };
+  it("verifies an unchecked connection only with the run's own connection and the same account", () => {
+    const stored = initialAuthState("claude", connection());
+    expect(step(stored, { type: "runConfirmed", connectionId: "conn-2", account: same })).toBe(stored);
+    expect(step(stored, { type: "runConfirmed", connectionId: "conn-1", account: same })).toMatchObject({ verified: true, error: null });
+  });
+  // A login inside the dedicated HOME can replace the account the run writes back.
+  it("marks a run that wrote back another account as an account mismatch, verified or not", () => {
+    const other = { id: "acct-2", workspace: null };
+    expect(step(initialAuthState("claude", connection()), { type: "runConfirmed", connectionId: "conn-1", account: other })).toMatchObject({ verified: false, phase: "error", error: { code: "account_mismatch" } });
+    expect(step(connected(), { type: "runConfirmed", connectionId: "conn-1", account: { id: "acct-1", workspace: "w" } })).toMatchObject({ phase: "error", error: { code: "account_mismatch" } });
+  });
+});
+
 describe("readiness", () => {
   it("separates missing CLI, unsupported versions and tool failures from authentication", () => {
     const state = connected();

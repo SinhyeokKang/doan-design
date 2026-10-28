@@ -41,7 +41,7 @@ export type AuthEvent =
   | { type: "ownerClosed"; owner: number }
   | { type: "settled"; attemptId: string }
   | { type: "writeBackFailed"; detail?: string }
-  | { type: "runConfirmed"; connectionId: string };
+  | { type: "runConfirmed"; connectionId: string; account: AccountIdentity };
 export type AuthRejection = "busy" | "stale" | "not_owner" | "stop_required" | "not_connected" | "sign_out_failed" | "invalid";
 export type AuthTransition = { ok: true; outcome: "applied" | "unchanged"; state: AuthState } | { ok: false; reason: AuthRejection; state: AuthState };
 export interface ToolFacts { cli: "found" | "missing"; version: "supported" | "unsupported" | "unknown"; tools: "ready" | "missing" | "failed" }

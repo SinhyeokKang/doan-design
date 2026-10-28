@@ -248,8 +248,9 @@ describe("sign-in", () => {
   it("admits an unchecked run-verified connection and verifies it only from its own connection's completed run", async () => {
     const copilot = { ...fileProvider(tokenAccount), verifyByRun: true };
     const m = manager({ adapters: { ...withAcp(), copilot } });
-    storage.writeMetadata({ v: 1, accounts: [{ provider: "copilot", connectionId: "c-1", profile: "copilot", account: { id: "octo", workspace: "https://github.com" } },
+    storage.writeMetadata({ v: 1, accounts: [{ provider: "copilot", connectionId: "c-1", profile: "copilot", account: { id: "octo", workspace: null } },
       { provider: "cursor", connectionId: "c-2", profile: "cursor", account: { id: "u1", workspace: null } }] });
+    await storage.saveVault("copilot", { "creds/token.json": Buffer.from(JSON.stringify({ id: "octo" })) });
     await m.load();
     expect(m.state("copilot").verified).toBe(false);
     const lease = await m.acquire("copilot");
@@ -261,6 +262,13 @@ describe("sign-in", () => {
     await lease.release();
     // Every other provider still needs a check before a run.
     await expect(m.acquire("cursor")).rejects.toThrow("unverified");
+    // A run that logged in as someone else writes that login back; its confirmation reads it without a request.
+    const next = await m.acquire("copilot");
+    writeFileSync(tokenFile("copilot"), JSON.stringify({ id: "someone-else" }));
+    m.confirm("copilot", "c-1");
+    expect(m.state("copilot")).toMatchObject({ phase: "error", error: { code: "account_mismatch" } });
+    expect(processes).toEqual([]);
+    await next.release();
   });
   it("refuses a code for a login that reads no input", async () => {
     const m = manager(); await m.load();

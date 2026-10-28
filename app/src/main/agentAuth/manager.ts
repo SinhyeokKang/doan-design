@@ -143,8 +143,12 @@ export class AuthManager {
     void forwardCallback(url).catch(error => console.error(`doan: ${provider} sign-in callback was not delivered`, message(error)));
     return { ok: true };
   }
-  // A run's completed request is the verification for providers whose status check costs a request (Copilot).
-  confirm(provider: Provider, connectionId: string): void { this.apply(provider, { type: "runConfirmed", connectionId }); }
+  // A run's completed request is the verification for providers whose status check costs a request (Copilot). The
+  // account comes from the run's working copy, which the lease writes back next; reading it sends no request.
+  confirm(provider: Provider, connectionId: string): void {
+    const read = this.adapters[provider].parseStatus({ code: 0, stdout: "", stderr: "", profileDir: this.options.storage.profileDir(provider) });
+    if (read.status === "connected") this.apply(provider, { type: "runConfirmed", connectionId, account: read.account });
+  }
   async ownerClosed(owner: number): Promise<void> {
     for (const provider of PROVIDERS) {
       const attempt = this.state(provider).attempt;
