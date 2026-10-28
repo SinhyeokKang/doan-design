@@ -31,11 +31,11 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | gate | 상태 |
 |---|---|---|---|---|---|---|
 | C | A0 | `schema/app-socket.v2.schema.json`(새), `schema/embed.go`, `schema/fixtures/app-socket/**`의 v2 파일, `schema/fixtures/cli-envelope`의 온보딩 fixture(필요하면), `app/src/formats/{types,validate}.ts`와 테스트, `cli/internal/formats/**` | 없음 | Claude Opus high — 두 언어가 같이 읽는 공개 계약이고 오류·종료 코드 매핑이 틀리면 M·G가 함께 틀린다 | `verify.mjs` | 통합 `b1c101e`..`4fce40b`, 2회차 |
-| P | A1, A2 | 새 순수 모듈: `app/src/main/onboarding/` 아래 완료 표식·remote 파싱 모듈과 fixture, `app/src/renderer/` 아래 scene 모듈과 공용 공급자 view-model 모듈, 각 테스트 | 없음 | Claude Opus high — 상태 대응 표 전체와 경합 규칙을 판정하는 순수 함수라 판단이 많다 | `verify.mjs` | 진행 중 |
+| P | A1, A2 | 새 순수 모듈: `app/src/main/onboarding/` 아래 완료 표식·remote 파싱 모듈과 fixture, `app/src/renderer/` 아래 scene 모듈과 공용 공급자 view-model 모듈, 각 테스트 | 없음 | Claude Opus high — 상태 대응 표 전체와 경합 규칙을 판정하는 순수 함수라 판단이 많다 | `verify.mjs` | 통합 `9b04be1`..`7d808a2`, 2회차 |
 | T | T1 | `app/src/renderer/tokens.css`, 값이 같은 출하 renderer CSS, `.doan/canvases/buzz-onboarding.html`, `docs/DESIGN.md` 토큰 절 | 없음 | Codex `gpt-6.1-sol` high — 기계적 치환이지만 렌더링 비교 단계가 많다 | `verify.mjs`, `doan check --repo .`, computed 비교 | 통합 `eaa534d`·`ea53233`, 1회차 |
-| M | B0 → B1 | `app/src/main/**`(P의 새 모듈은 import만), `app/src/preload/**`, `app/src/main/agentAuth/` 연결부 | C, P | Claude Opus high — 소켓 인증·소유권·프로세스 그룹·경합 파일 생성이라 보안·동시성이 무겁다. B1은 같은 터미널의 다음 Task | `verify.mjs` | 대기 |
+| M | B0 → B1 | `app/src/main/**`(P의 새 모듈은 import만), `app/src/preload/**`, `app/src/main/agentAuth/` 연결부 | C, P | Claude Opus high — 소켓 인증·소유권·프로세스 그룹·경합 파일 생성이라 보안·동시성이 무겁다. B1은 같은 터미널의 다음 Task | `verify.mjs` | 진행 중 |
 | G | B3 | `cli/**`(`cli/internal/formats/**` 제외), `cli/internal/cli/skill.md` | C | Claude Opus high — bundle 신뢰·자동 실행·비밀 비노출 판단 | `verify.mjs` | 통합 `036b4ae`..`41fb7f2`, 2회차 |
-| U | U1(B2 일부) → U2(B2 나머지 + design-sync) | U1: `app/src/renderer/**`(P의 새 모듈은 import만), `app/src/renderer/ds/controls.css`. U2: 위에 더해 고아 채널 제거를 위한 `app/src/main/index.ts`·`app/src/main/onboarding/machine.ts`·`app/src/preload/**`·`app/src/setup/**`, `docs/DESIGN.md` 측정값, `.scratch/design-sync/` | U1: T, P. U2: M | Claude Opus high — 포커스·중첩 모달·경합 표시와 승인 디자인 대조 | `verify.mjs`, U2는 `/design-sync` | 대기 |
+| U | U1(B2 일부) → U2(B2 나머지 + design-sync) | U1: `app/src/renderer/**`(P의 새 모듈은 import만), `app/src/renderer/ds/controls.css`. U2: 위에 더해 고아 채널 제거를 위한 `app/src/main/index.ts`·`app/src/main/onboarding/machine.ts`·`app/src/preload/**`·`app/src/setup/**`, `docs/DESIGN.md` 측정값, `.scratch/design-sync/` | U1: T, P. U2: M | Claude Opus high — 포커스·중첩 모달·경합 표시와 승인 디자인 대조 | `verify.mjs`, U2는 `/design-sync` | 진행 중 |
 | E | D5 시나리오 | `eval/scenarios/**`의 새 시나리오와 fixture, eval 가짜 앱의 v2 응답(`eval/lib/socket.ts`와 테스트) | G | Claude Opus medium — 시나리오 판정 기준 설계 | `verify.mjs --eval`, `node eval/run.ts --self-test` | 진행 중 |
 | V | V1(design-sync 제외), V1b, V1c | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus high — 실제 인증·clone·패키지 앱 probe와 사용자 상태 보호 | `/runtime-test` | 대기 |
 | 지휘자 | V2, V3 | 통합 커밋, 정본 승격, feature 디렉터리 삭제 | 전부 | — | 통합 HEAD `verify.mjs --eval`, `/agent-eval` | 대기 |
@@ -64,3 +64,5 @@
 - 2026-10-29: G 리뷰 🔴 2(status 응답의 토큰 누출, MacOS 상위 링크로 번들 경계 우회)·🟡 1(빈 `DOAN_RUNTIME`). 수정 1회차 `ctx_4ab6946bf036`. 결정 D14.
 - 2026-10-29: P 리뷰 🔴 0·🟡 3(끊긴 `.git` 링크를 불일치로 판정, 지원하지 않는 config를 완전한 정보로 취급, 다른 sessionId를 최신으로 수용)·⚪ 4. 수정 1회차를 보냈다. Copilot 비용 문구는 spec에 따라 비용이 드는 모든 check 옆에 보이게 한다(지휘자 판단).
 - 2026-10-29: G 수정 1회차(d26677b, da5f28c) 뒤 Codex `gpt-6-astra` medium 재리뷰 `ctx_1491a1dff70c`: 차단 항목 없음. 앱이 보내는 임의 메시지의 비밀 정리는 M의 책임으로 남는다(V1에서 확인). 통합 `036b4ae`..`41fb7f2`. G 작업자 release, bo-G 제거, handoff는 `.scratch/orch/handoff-G.md`.
+- 2026-10-29: P 수정 1회차(89f19fb). 지휘자가 diff를 확인하고 통합했다(`9b04be1`..`7d808a2`). 통합 HEAD `7d808a2`(T+C+G+P) `verify.mjs` PASS. P 작업자 release, bo-P 제거. `src/main/watch.test.ts`가 간헐적으로 실패한다(리뷰어와 P 작업자가 각각 한 번 봤고 재실행에서 통과). 이번 범위 밖이며 마지막 보고에 적는다.
+- 2026-10-29: 2차 시작: M `ctx_5c516c33e38c`(bo-M, B0), U1 `ctx_53734ce9f3a3`(bo-U1).
