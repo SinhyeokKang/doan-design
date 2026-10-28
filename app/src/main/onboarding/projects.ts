@@ -1,5 +1,5 @@
 import { lstat, readFile, realpath, stat } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { OnboardingChange, OnboardingOperationErrorCode } from "../../formats/types";
 import { gitChildren, hasGitEntry } from "../addProjects";
 import type { LsTarget } from "../cli";
@@ -22,7 +22,8 @@ export interface ProjectDeps {
   remotes(root: string): RemoteRead;
 }
 export interface Candidate { path: string; changes: OnboardingChange[] }
-export type ProjectOutcome = { ok: true; root: string } | { ok: false; code: OnboardingOperationErrorCode };
+// leftover: a directory the clone made and could not remove (cleanup_failed only).
+export type ProjectOutcome = { ok: true; root: string } | { ok: false; code: OnboardingOperationErrorCode; leftover?: string };
 
 const MERGE_LINE = ".doan/comments/*.jsonl merge=union";
 const failed = (code: OnboardingOperationErrorCode): ProjectOutcome => ({ ok: false, code });
@@ -38,10 +39,14 @@ export async function destinationState(path: string): Promise<"absent" | "exists
 
 // A clone inside a set-up project would be read as that project (the CLI walks up from a folder), so it could never
 // be registered as its own.
-export async function cloneDestination(path: string, deps: ProjectDeps): Promise<"absent" | "exists" | "no_parent" | "inside_project"> {
+// The plan keeps the canonical spelling (its parent resolved), which is how the new folder is registered.
+export type CloneTarget = { state: "absent"; path: string } | { state: "exists" | "no_parent" | "inside_project" };
+export async function cloneDestination(path: string, deps: ProjectDeps): Promise<CloneTarget> {
   const state = await destinationState(path);
-  if (state !== "absent") return state;
-  return (await deps.ls({ cwd: dirname(path) })).kind === "list" ? "inside_project" : "absent";
+  if (state !== "absent") return { state };
+  const parent = await canonicalFolder(dirname(path));
+  if (parent === null) return { state: "no_parent" };
+  return (await deps.ls({ cwd: parent })).kind === "list" ? { state: "inside_project" } : { state: "absent", path: join(parent, basename(path)) };
 }
 
 // What `doan init` would create here, read the way init reads it; a folder with any config gets nothing.
@@ -125,7 +130,7 @@ async function register(path: string, initialize: boolean, deps: ProjectDeps): P
 export async function registerClone(destination: string, deps: ProjectDeps): Promise<ProjectOutcome> {
   const outcome = await register(destination, true, deps);
   // Anything else (an ancestor project made meanwhile) is not the repository that was cloned.
-  return outcome.ok && outcome.root !== destination ? failed("project_unavailable") : outcome;
+  return outcome.ok && outcome.root !== await canonicalFolder(destination) ? failed("project_unavailable") : outcome;
 }
 
 export interface CloneDeps extends ProjectDeps {
@@ -133,13 +138,14 @@ export interface CloneDeps extends ProjectDeps {
   git(): Promise<{ git: string; env: Record<string, string> } | null>;
   run?: (request: CloneRequest) => Promise<CloneResult>;
 }
-export async function cloneProject(url: string, destination: string, signal: AbortSignal, deps: CloneDeps): Promise<ProjectOutcome | { ok: false; cancelled: true }> {
+// After commit the clone is the user's project: registration and setup run without a cancel.
+export async function cloneProject(url: string, destination: string, signal: AbortSignal, deps: CloneDeps, commit?: () => boolean): Promise<ProjectOutcome | { ok: false; cancelled: true }> {
   const located = await deps.git();
   if (located === null) return failed("git_missing");
   if (signal.aborted) return { ok: false, cancelled: true };
-  const result = await (deps.run ?? runClone)({ git: located.git, url, destination, env: located.env, signal });
+  const result = await (deps.run ?? runClone)({ git: located.git, url, destination, env: located.env, signal, ...(commit ? { commit } : {}) });
   if (result.kind === "cancelled") return { ok: false, cancelled: true };
-  if (result.kind === "failed") return failed(result.code);
+  if (result.kind === "failed") return result.code === "cleanup_failed" ? { ok: false, code: result.code, leftover: result.leftover } : failed(result.code);
   return registerClone(result.destination, deps);
 }
 

@@ -19,7 +19,9 @@ export type CloneSpawn = (command: string, args: string[], env: Record<string, s
 export type CloneResult =
   | { kind: "cloned"; destination: string }
   | { kind: "cancelled" }
-  | { kind: "failed"; code: "repository_unreachable" | "clone_failed" | "destination_exists" | "cleanup_failed" };
+  | { kind: "failed"; code: "repository_unreachable" | "clone_failed" | "destination_exists" }
+  // The directory this run made and could not remove, for the user to remove.
+  | { kind: "failed"; code: "cleanup_failed"; leftover: string };
 
 const STDERR_LIMIT = 64 * 1024;
 const errno = (error: unknown) => typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
@@ -89,20 +91,25 @@ export const spawnClone: CloneSpawn = (command, args, env) => {
 export interface CloneRequest {
   git: string; url: string; destination: string; env: Record<string, string>;
   signal: AbortSignal; spawn?: CloneSpawn;
+  // Called once the clone sits at its destination: true takes it (no cancel applies after this), false means a cancel
+  // came first.
+  commit?: () => boolean;
 }
 
 // Clones into a directory this run creates exclusively beside the destination, then claims the destination with an
 // exclusive mkdir and renames over that empty directory: a folder made there meanwhile is never replaced. Cleanup
-// removes only that temporary directory, and only after the whole process group is gone.
+// removes only what this run created, and only after the whole process group is gone. A cancel is honoured at every
+// step until the commit; after the move that means removing the destination, which is this run's own directory.
 export async function runClone(request: CloneRequest): Promise<CloneResult> {
   const parent = dirname(request.destination);
   let temp: string;
   try { temp = await mkdtemp(join(parent, `.${basename(request.destination)}.doan-clone-`)); }
   catch { return { kind: "failed", code: "clone_failed" }; }
-  const cleanup = async (result: CloneResult): Promise<CloneResult> => {
-    try { await rm(temp, { recursive: true, force: true }); return result; } catch { return { kind: "failed", code: "cleanup_failed" }; }
+  const cleanup = async (result: CloneResult, path = temp): Promise<CloneResult> => {
+    try { await rm(path, { recursive: true, force: true }); return result; } catch { return { kind: "failed", code: "cleanup_failed", leftover: path }; }
   };
-  if (request.signal.aborted) return cleanup({ kind: "cancelled" });
+  const cancelled: CloneResult = { kind: "cancelled" };
+  if (request.signal.aborted) return cleanup(cancelled);
   const run = (request.spawn ?? spawnClone)(request.git, cloneArgs(request.url, temp), request.env);
   const stop = () => run.stop();
   request.signal.addEventListener("abort", stop, { once: true });
@@ -112,15 +119,17 @@ export async function runClone(request: CloneRequest): Promise<CloneResult> {
   await run.gone;
   request.signal.removeEventListener("abort", stop);
   // A clone that finished after the cancel was accepted is still discarded: the user asked for nothing to remain.
-  if (request.signal.aborted) return cleanup({ kind: "cancelled" });
+  if (request.signal.aborted) return cleanup(cancelled);
   if (code !== 0) return cleanup({ kind: "failed", code: cloneFailure(run.stderr()) });
-  try { await chmod(temp, 0o755); await mkdir(request.destination); }
+  try { await chmod(temp, 0o755); } catch { return cleanup({ kind: "failed", code: "clone_failed" }); }
+  if (request.signal.aborted) return cleanup(cancelled);
+  try { await mkdir(request.destination); }
   catch (error) { return cleanup({ kind: "failed", code: errno(error) === "EEXIST" ? "destination_exists" : "clone_failed" }); }
+  // Only the empty directory this run made; a competitor's files stay.
+  const release = () => rmdir(request.destination).catch(() => undefined);
+  if (request.signal.aborted) { await release(); return cleanup(cancelled); }
   try { await rename(temp, request.destination); }
-  catch {
-    // Only the empty directory this run made; a competitor's files stay.
-    await rmdir(request.destination).catch(() => undefined);
-    return cleanup({ kind: "failed", code: "destination_exists" });
-  }
+  catch { await release(); return cleanup({ kind: "failed", code: "destination_exists" }); }
+  if (request.signal.aborted || (request.commit && !request.commit())) return cleanup(cancelled, request.destination);
   return { kind: "cloned", destination: request.destination };
 }

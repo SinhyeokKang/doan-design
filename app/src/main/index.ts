@@ -26,7 +26,7 @@ import { createTransitionGuard } from "./comments/transitions";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, readlinkSync, realpathSync, statSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { lstat, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Selection } from "../formats/types";
@@ -669,7 +669,8 @@ async function start(): Promise<void> {
       folder: canonicalFolder, destination: path => cloneDestination(path, projectDeps),
       inspectPath: real => inspectPath(real, projectDeps), inspectUrl: repo => inspectUrl(repo, projectDeps),
       select: (path, initialize, repo) => selectProject(path, initialize, repo, projectDeps),
-      clone: (url, destination, signal) => cloneProject(url, destination, signal, {
+      present: async path => { try { await lstat(path); return true; } catch { return false; } },
+      clone: (url, destination, signal, commit) => cloneProject(url, destination, signal, {
         ...projectDeps,
         async git() {
           const probe = await shellForFacts();
@@ -677,7 +678,7 @@ async function start(): Promise<void> {
           const git = locateGit({ path, executable, realpath: realOrNull, developerDir });
           return git !== null && path !== null ? { git, env: cloneEnv(process.env, path) } : null;
         },
-      }),
+      }, commit),
       confirm: root => confirmProject(root, projectDeps),
       saveCompletion: root => writeCompletion(userData, root),
     },
@@ -1060,11 +1061,14 @@ app.on("before-quit", (event) => {
     // JS wrapper exists. Electron then crashes trying to emit its close event.
     // Let the native stack unwind before either disposal or app.quit().
     quitScheduled = true;
+    // Accepted: onboarding saves no completion and starts no project work from here, before any teardown is awaited.
+    onboarding?.closeForQuit();
     setImmediate(async () => {
       // Stop the queue before Electron closes windows so it cannot reopen
       // the capture window and block will-quit. Persist state before teardown.
       try { await conversations?.quit(); } catch (error) {
         quitScheduled = false;
+        onboarding?.reopenAfterAbortedQuit();
         console.error("doan: conversation persistence failed during quit", error);
         return;
       }
