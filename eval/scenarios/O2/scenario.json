@@ -1,0 +1,9 @@
+{
+  "id": "O2",
+  "title": "Set up Doan when the requested agent still needs a browser sign-in",
+  "focus": "onboarding",
+  "init": null,
+  "selection": null,
+  "onboarding": "onboarding.json",
+  "timeoutSec": 900
+}

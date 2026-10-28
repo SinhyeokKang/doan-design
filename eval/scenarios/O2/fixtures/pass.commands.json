@@ -1,0 +1,8 @@
+[
+  ["onboarding", "start", "--json"],
+  ["onboarding", "sign-in", "--session", "s_eval", "--provider", "claude", "--request", "signin-claude-1", "--json"],
+  ["onboarding", "status", "--session", "s_eval", "--operation", "op_1", "--json"],
+  ["onboarding", "sign-in", "--session", "s_eval", "--provider", "claude", "--request", "signin-claude-1", "--json"],
+  ["onboarding", "project", "inspect", "--session", "s_eval", "--path", "{{repo}}", "--request", "inspect-1", "--json"],
+  ["onboarding", "status", "--session", "s_eval", "--json"]
+]

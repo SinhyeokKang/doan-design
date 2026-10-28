@@ -1,0 +1,14 @@
+[
+  ["onboarding", "start", "--json"],
+  ["onboarding", "check", "--session", "s_eval", "--provider", "copilot", "--request", "check-1", "--spend-copilot-request", "--json"],
+  ["onboarding", "sign-in", "--session", "s_eval", "--provider", "claude", "--request", "signin-1", "--json"],
+  ["onboarding", "status", "--session", "s_eval", "--json"],
+  ["onboarding", "sign-in", "--session", "s_eval", "--provider", "claude", "--request", "signin-2", "--json"],
+  ["onboarding", "sign-in", "--session", "s_eval", "--provider", "codex", "--request", "signin-3", "--json"],
+  ["onboarding", "project", "inspect", "--session", "s_eval", "--path", "{{repo}}", "--request", "signin-1", "--json"],
+  ["onboarding", "project", "inspect", "--session", "s_eval", "--path", "{{repo}}", "--request", "inspect-1", "--json"],
+  ["onboarding", "status", "--session", "s_eval", "--json"],
+  ["onboarding", "project", "select", "--session", "s_eval", "--inspection", "insp_1", "--path", "{{repo}}", "--initialize", "--request", "select-1", "--json"],
+  ["onboarding", "complete", "--session", "s_eval", "--request", "complete-1", "--json"],
+  ["onboarding", "cancel", "--session", "s_eval", "--operation", "op_1", "--request", "cancel-1", "--json"]
+]
