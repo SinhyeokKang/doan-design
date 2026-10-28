@@ -106,8 +106,9 @@ export function acpSessionExists(profileDir: string, sessions: string, id: strin
   } catch { return false; }
 }
 // cli is the bundled doan executable; its directory goes first on PATH so the agent runs that doan, not whatever
-// another install put on the login shell's PATH.
-export function createAccountPrepare(auth: AccountRuntime, cli: string): AccountPrepare {
+// another install put on the login shell's PATH. toolsFailed: the provider CLI was not found or its version is not one
+// doan checked, so the readiness facts read at launch may be stale (an install, removal or self-update since).
+export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}): AccountPrepare {
   return async (request, stored) => {
     const provider = stored ? stored.session.runtime : request.runtime;
     if (!provider) throw new Error("no_agent");
@@ -123,7 +124,11 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string): Account
     }
     const pinned = { generation: state.generation, connectionId: state.connection?.connectionId };
     let lease: Lease;
-    try { lease = await auth.acquire(provider); } catch (error) { throw new Error(accountCode(error instanceof Error ? error.message : "")); }
+    try { lease = await auth.acquire(provider); } catch (error) {
+      const code = accountCode(error instanceof Error ? error.message : "");
+      if (code === "cli_missing") toolsFailed(provider);
+      throw new Error(code);
+    }
     // A sign-in, sign-out or failed check during any await must not let this run continue on another account.
     const recheck = () => {
       const now = auth.state(provider);
@@ -137,7 +142,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string): Account
       if (!adapter.acpAuth) {
         const version = await runProcess(lease.command, ["--version"], lease.env, 5000);
         recheck();
-        if (version.exitCode !== 0 || version.timedOut || !supportedVersion(provider, version.stdout)) throw new Error(stored ? "session_unavailable" : "runtime_unsupported");
+        if (version.exitCode !== 0 || version.timedOut || !supportedVersion(provider, version.stdout)) { toolsFailed(provider); throw new Error(stored ? "session_unavailable" : "runtime_unsupported"); }
       }
       let root: string, cwd: string, configDir: string;
       try { root = canonicalDirectory(request.root); cwd = canonicalDirectory(stored?.session.cwd ?? root); configDir = canonicalDirectory(lease.profileDir); }

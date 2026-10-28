@@ -97,6 +97,28 @@ describe("agent auth IPC", () => {
     await vi.waitFor(() => expect(t.options.probe).toHaveBeenCalledTimes(PROVIDERS.length + 1));
     expect(t.options.probe).toHaveBeenLastCalledWith("claude");
   });
+  it("reads one provider's tool facts again after a run found them changed and publishes only a change", async () => {
+    let facts = ready;
+    const t = ipc(async () => facts);
+    await t.ipc.read(); t.options.publish.mockClear();
+    await t.ipc.refreshTools("cursor");
+    expect(t.options.probe).toHaveBeenLastCalledWith("cursor");
+    expect(t.options.publish).not.toHaveBeenCalled();
+    facts = { cli: "found", version: "unsupported", tools: "ready" };
+    await t.ipc.refreshTools("cursor");
+    expect(t.options.probe).toHaveBeenCalledTimes(PROVIDERS.length + 2);
+    expect(t.options.publish).toHaveBeenCalledOnce();
+    expect(t.options.publish.mock.calls[0]![0].providers.find(p => p.provider === "cursor")?.readiness).toMatchObject({ cause: "version_unsupported", action: "update" });
+  });
+  it("keeps answering reads when a facts probe breaks its never-throws contract", async () => {
+    let fail = true;
+    const t = ipc(async () => { if (fail) throw new Error("probe broke"); return ready; });
+    const snapshot = await t.ipc.read();
+    expect(snapshot.providers[0]!.readiness).toMatchObject({ cause: "version_unknown", action: "retry" });
+    fail = false;
+    await t.ipc.refreshTools("claude");
+    expect((await t.ipc.read()).providers[0]!.readiness).not.toMatchObject({ cause: "version_unknown" });
+  });
   it("sends a sign-in link only to its owner and opens only that attempt's link", async () => {
     const t = ipc();
     await t.ipc.handle(AUTH_CHANNELS.signIn, { provider: "copilot" }, 7);

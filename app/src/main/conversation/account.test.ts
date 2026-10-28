@@ -44,7 +44,8 @@ function harness(provider: Provider, id: string | null = "acct-1") {
   const data = temp(), root = temp(), profile = join(temp(), "profile"); mkdirSync(profile);
   const auth = account(provider, profile, id); version(provider);
   const external = vi.fn(async () => ({ runtime: provider as "claude" | "codex", configDir: "/external", cwd: root, command: "/external/cli", env: {} }));
-  const prepare = routePrepare(external, createAccountPrepare(auth.runtime, "/Applications/doan.app/Contents/Resources/bin/doan"));
+  const toolsFailed = vi.fn<(provider: Provider) => void>();
+  const prepare = routePrepare(external, createAccountPrepare(auth.runtime, "/Applications/doan.app/Contents/Resources/bin/doan", toolsFailed));
   const exits: (() => void)[] = []; const runners: Runner[] = [];
   const open = vi.fn<OpenRunner>(async (input, _emit, exited, registerStop) => {
     registerStop(async () => {}); exits.push(exited);
@@ -53,7 +54,7 @@ function harness(provider: Provider, id: string | null = "acct-1") {
   });
   const store = new ConversationStore(data);
   const service = new ConversationService(store, prepare, open, () => {});
-  return { data, root, profile, auth, external, prepare, open, exits, runners, store, service };
+  return { data, root, profile, auth, external, prepare, open, exits, runners, store, service, toolsFailed };
 }
 const start = (h: ReturnType<typeof harness>, provider: Provider) => h.service.start({ root: h.root, mode: "new", runtime: provider, text: "make a canvas", anchors: [] });
 function claudeTranscript(profile: string) { mkdirSync(join(profile, "projects", "repo"), { recursive: true }); mkdirSync(join(profile, "sessions"), { recursive: true }); writeFileSync(join(profile, "projects", "repo", `${CLAUDE_SESSION}.jsonl`), "{}\n"); }
@@ -141,6 +142,27 @@ it("refuses an unsupported executable version and a missing bundled doan CLI", a
   await expect(start(h, "claude")).rejects.toThrow("runtime_unsupported"); expect(h.auth.leases.open).toBe(0);
   const devBuild = createAccountPrepare(h.auth.runtime, "doan");
   await expect(devBuild({ root: h.root, mode: "new", runtime: "claude", text: "x", anchors: [] })).rejects.toThrow("cli_missing");
+});
+
+it("asks for the provider's tool facts again when a run finds its CLI missing or its version changed, and not for other refusals", async () => {
+  const h = harness("cursor");
+  mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2026.10.23-0aa1111\n" });
+  await expect(start(h, "cursor")).rejects.toThrow("runtime_unsupported");
+  expect(h.toolsFailed).toHaveBeenCalledWith("cursor");
+  const { conversationId } = await start(h, "cursor"); h.service.receive(conversationId, { type: "turn.done" }); h.exits[0]!();
+  acpSession(h.profile, "cursor"); h.toolsFailed.mockClear();
+  // A resume reads the same version change as session_unavailable; the facts are still what changed.
+  mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2026.10.23-0aa1111\n" });
+  await expect(h.service.send(conversationId, "after an update", [])).rejects.toThrow("session_unavailable");
+  expect(h.toolsFailed).toHaveBeenCalledWith("cursor"); h.toolsFailed.mockClear();
+  (h.auth.runtime.acquire as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => { throw new Error("cli_missing"); });
+  await expect(start(h, "cursor")).rejects.toThrow("cli_missing");
+  expect(h.toolsFailed).toHaveBeenCalledWith("cursor"); h.toolsFailed.mockClear();
+  (h.auth.runtime.acquire as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => { throw new Error("busy"); });
+  await expect(start(h, "cursor")).rejects.toThrow("busy");
+  h.auth.set({ connection: { ...h.auth.get().connection!, connectionId: "conn-2", account: { id: "other", workspace: null } }, generation: 2 });
+  await expect(h.service.send(conversationId, "other account", [])).rejects.toThrow("session_unavailable");
+  expect(h.toolsFailed).not.toHaveBeenCalled();
 });
 
 it("resumes a doan Claude conversation only for the same account, profile and an existing free session", async () => {

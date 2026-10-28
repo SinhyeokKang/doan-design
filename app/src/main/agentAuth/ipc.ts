@@ -63,6 +63,8 @@ export class AuthIpc {
     this.revision += 1;
     this.options.publish(this.snapshot());
   }
+  // A run found the CLI missing or its version not one doan checked: read that provider again instead of polling.
+  refreshTools(provider: Provider): Promise<void> { return this.refresh(provider, true); }
   prompted(prompt: AuthPrompt): void {
     if (!this.current(prompt.provider, prompt.attemptId)) return;
     this.links.set(prompt.attemptId, prompt);
@@ -102,7 +104,8 @@ export class AuthIpc {
   }
 
   private async refresh(provider: Provider, publish: boolean): Promise<void> {
-    const facts = await this.options.probe(provider);
+    // A probe that breaks its contract must not leave every later read rejected.
+    const facts = await this.options.probe(provider).catch(() => UNPROBED);
     const previous = this.facts.get(provider) ?? UNPROBED;
     this.facts.set(provider, facts);
     if (publish && JSON.stringify(previous) !== JSON.stringify(facts)) this.changed();
