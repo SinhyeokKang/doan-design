@@ -17,6 +17,8 @@ export interface Workspace {
   env: NodeJS.ProcessEnv;
   seedCommit: string;
   app: FakeApp | null;
+  // The fake app's app-socket v2 exchanges (eval/lib/socket.ts); absent until the first one.
+  onboardingLog: string;
   dispose(): Promise<void>;
 }
 
@@ -79,11 +81,11 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     // A worktree scenario stands for an instruction copied from the running app,
     // so the app is up even without a selection; `doan active` from the second
     // worktree then gets project_not_open.
-    const app = o.scenario.selectionValue || o.scenario.worktree
-      ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null })
+    const app = o.scenario.selectionValue || o.scenario.worktree || o.scenario.onboardingValue
+      ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null, onboarding: o.scenario.onboardingValue })
       : null;
     return {
-      base, repo, cwd, env, seedCommit, app,
+      base, repo, cwd, env, seedCommit, app, onboardingLog: join(base, "rt/onboarding.jsonl"),
       async dispose() {
         await app?.close();
         rmSync(base, { recursive: true, force: true });

@@ -68,6 +68,7 @@ export interface ContextOptions {
   cli: string;
   env: NodeJS.ProcessEnv;
   seedCommit: string;
+  onboardingLog?: string;
 }
 
 export function sh(cmd: string, args: string[], cwd: string, env: NodeJS.ProcessEnv) {
@@ -147,6 +148,10 @@ export function createContext(o: ContextOptions): CheckContext {
       if (!CANVAS_ID.test(canvasId)) throw new Error(`not a canvas id: ${canvasId}`);
       const path = `.doan/comments/${canvasId}.jsonl`;
       return parseEvents(addedLines(seed(path), read(path)));
+    },
+    onboarding() {
+      if (!o.onboardingLog || !existsSync(o.onboardingLog)) return [];
+      return readFileSync(o.onboardingLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
     },
     run: (cmd, args) => sh(cmd, args, o.repo, o.env),
   };

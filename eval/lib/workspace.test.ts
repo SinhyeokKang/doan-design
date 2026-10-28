@@ -26,6 +26,24 @@ test("without worktree the agent works in the instruction's root", async () => {
   }
 });
 
+test("an onboarding script starts the fake app, and checks read its v2 exchanges", async () => {
+  const onboardingValue = { providers: [{ provider: "claude", phase: "connected", readiness: { ready: true }, error: null, actions: ["signOut"] }], changes: [], readyAfterCheck: [] };
+  const ws = await prepareWorkspace({ scenario: { ...r6(), onboarding: "onboarding.json", onboardingValue }, agent: "fixture", cli, stub: "stub\n" });
+  try {
+    assert.notEqual(ws.app, null);
+    const ctx = createContext({ repo: ws.repo, agent: "fixture", transcript: "", cli, env: ws.env, seedCommit: ws.seedCommit, onboardingLog: ws.onboardingLog });
+    assert.deepEqual(ctx.onboarding(), []);
+    const start = sh(cli, ["onboarding", "start", "--json"], ws.repo, ws.env);
+    assert.equal(start.code, 0, start.stderr);
+    const log = ctx.onboarding();
+    assert.equal(log.length, 1);
+    assert.deepEqual(log[0].request, { v: 2, op: "start" });
+    assert.equal(log[0].response.result.sessionId, "s_eval");
+  } finally {
+    await ws.dispose();
+  }
+});
+
 test("worktree runs the agent in a second worktree of the seed commit while the app has the first open", async () => {
   const ws = await prepareWorkspace({ scenario: { ...r6(), worktree: { branch: "feat-plan-copy" } }, agent: "fixture", cli, stub: "stub\n" });
   try {

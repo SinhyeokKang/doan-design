@@ -1,10 +1,11 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, normalize } from "node:path";
+import { onboardingApp, type OnboardingScript } from "./socket.ts";
 
 export interface Scenario {
   id: string;
   title: string;
-  focus: "write" | "comments" | "active" | "injection" | "implement" | "understand";
+  focus: "write" | "comments" | "active" | "injection" | "implement" | "understand" | "onboarding";
   init: { tokenCss: string } | null;
   selection: "selection.json" | null;
   timeoutSec: number;
@@ -13,6 +14,8 @@ export interface Scenario {
   // Runs the agent in a second worktree on this branch while the instruction's
   // root and the fake app stay on the first (design.md §7, agent-handoff).
   worktree: { branch: string } | null;
+  // The fake app's scripted app-socket v2 onboarding state.
+  onboarding: "onboarding.json" | null;
 }
 
 export interface LoadedScenario extends Scenario {
@@ -21,10 +24,11 @@ export interface LoadedScenario extends Scenario {
   rubric: string;
   // The app-socket v1 selection without `root`; the runner adds the temp repo's root.
   selectionValue: Record<string, unknown> | null;
+  onboardingValue: OnboardingScript | null;
 }
 
-const FOCUS = ["write", "comments", "active", "injection", "implement", "understand"];
-const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "mcp", "shellCli", "worktree"];
+const FOCUS = ["write", "comments", "active", "injection", "implement", "understand", "onboarding"];
+const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "mcp", "shellCli", "worktree", "onboarding"];
 // The first worktree is on main (init.defaultBranch in workspace.ts).
 const BRANCH = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -61,9 +65,11 @@ export function parseScenarioJson(value: unknown, dirName: string): Scenario {
     const branch = (worktree as { branch?: unknown }).branch;
     if (keys.length !== 1 || keys[0] !== "branch" || typeof branch !== "string" || !BRANCH.test(branch) || branch === "main") fail(dirName, "worktree must be null or { branch: <lowercase-hyphenated name other than main> }");
   }
+  const onboarding = v.onboarding ?? null;
+  if (onboarding !== null && onboarding !== "onboarding.json") fail(dirName, 'onboarding must be null or "onboarding.json"');
   const timeoutSec = v.timeoutSec ?? 900;
   if (!Number.isInteger(timeoutSec) || (timeoutSec as number) < 1) fail(dirName, "timeoutSec must be a positive whole number");
-  return { mcp, shellCli, worktree: worktree as Scenario["worktree"], id: dirName, title: v.title, focus: v.focus as Scenario["focus"], init: init as Scenario["init"], selection: selection as Scenario["selection"], timeoutSec: timeoutSec as number };
+  return { mcp, shellCli, worktree: worktree as Scenario["worktree"], onboarding: onboarding as Scenario["onboarding"], id: dirName, title: v.title, focus: v.focus as Scenario["focus"], init: init as Scenario["init"], selection: selection as Scenario["selection"], timeoutSec: timeoutSec as number };
 }
 
 export function renderPrompt(template: string, repo: string): string {
@@ -100,5 +106,10 @@ export function loadScenario(root: string, id: string): LoadedScenario {
     selectionValue = JSON.parse(readFileSync(join(dir, scenario.selection), "utf8"));
     if (typeof selectionValue !== "object" || selectionValue === null || "root" in selectionValue) fail(id, "selection.json must be an object without root");
   }
-  return { ...scenario, dir, promptTemplate, rubric: readFileSync(join(dir, "rubric.md"), "utf8"), selectionValue };
+  let onboardingValue: OnboardingScript | null = null;
+  if (scenario.onboarding) {
+    onboardingValue = JSON.parse(readFileSync(join(dir, scenario.onboarding), "utf8"));
+    try { onboardingApp(onboardingValue!, "/repo"); } catch (error) { fail(id, (error as Error).message); }
+  }
+  return { ...scenario, dir, promptTemplate, rubric: readFileSync(join(dir, "rubric.md"), "utf8"), selectionValue, onboardingValue };
 }

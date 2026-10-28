@@ -68,7 +68,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     const startedAt = new Date().toISOString();
     const proc = await runProcess({ cmd, args, cwd: ws.cwd, env: ws.env, timeoutSec: scenario.timeoutSec, stdoutPath: join(dir, "stdout.log"), stderrPath: join(dir, "stderr.log") });
     const evidence = readAgentTranscript(agent, dir, ws.env);
-    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
+    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, onboardingLog: ws.onboardingLog });
     const checks = await runChecks(scenario, ctx);
     checks.push(cliProvenance(resolutionPath, scenario.shellCli ? setup.cli : null));
     if (existsSync(resolutionPath)) cpSync(resolutionPath, join(dir, "resolved-doan.txt"));
@@ -105,8 +105,10 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
   }
 }
 
-// The fake agent: lays a fixture over the seed, and prints the fixture's
-// transcript file when there is one (`fixtures/<kind>.transcript.txt`).
+// The fake agent: lays a fixture over the seed, prints the fixture's transcript
+// file when there is one (`fixtures/<kind>.transcript.txt`), and runs the CLI
+// argument lists in `fixtures/<kind>.commands.json` against the fake app, with
+// `{{repo}}` replaced, so onboarding checks read a real request log.
 async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pass" | "fail"): Promise<{ record: RunRecord; problems: string[] }> {
   const name = `${scenario.id}-fixture-${kind}`;
   const dir = join(setup.out, name);
@@ -118,7 +120,11 @@ async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pa
     cpSync(join(scenario.dir, "fixtures", kind), ws.repo, { recursive: true, force: true });
     const transcriptFile = join(scenario.dir, "fixtures", `${kind}.transcript.txt`);
     const transcript = existsSync(transcriptFile) ? readFileSync(transcriptFile, "utf8") : "";
-    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
+    const commandsFile = join(scenario.dir, "fixtures", `${kind}.commands.json`);
+    if (existsSync(commandsFile))
+      for (const args of JSON.parse(readFileSync(commandsFile, "utf8")) as string[][])
+        sh(setup.cli, args.map(arg => renderPrompt(arg, ws.repo)), ws.repo, ws.env);
+    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, onboardingLog: ws.onboardingLog });
     const checks = await runChecks(scenario, ctx);
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     // A fixed fake judge still goes through prompt building and parsing.
