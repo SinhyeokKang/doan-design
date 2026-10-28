@@ -36,16 +36,18 @@ export function Welcome({ start }: { start: () => void }) {
   </div>;
 }
 
-// The AppShell mode capsule as a stepper: the current step is the white pill, a done step goes back.
+// The AppShell mode capsule as a stepper, drawn with the shared buttons: the current step is the white pill, a done
+// step shows a check and goes back.
 export function SetupSteps({ scene, canProject, busy, go }: { scene: Scene; canProject: boolean; busy: boolean; go: (to: "agent" | "project") => void }) {
   const project = scene === "project";
-  return <nav className="shell-modes ob-steps" aria-label="Setup steps">
+  const current = <C extends string>(label: C, n: number) => <button type="button" className="doan-button current" data-ui-size="sm" data-ui-variant="subtle" aria-current="step">{n} <span>{label}</span></button>;
+  return <nav className="ob-steps" aria-label="Setup steps">
     {project
-      ? <button type="button" aria-label="Agent, completed" disabled={busy} onClick={() => go("agent")}><Check aria-hidden="true" /> <span>Agent</span></button>
-      : <button type="button" className="current" aria-current="step">1 <span>Agent</span></button>}
+      ? <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="ghost" aria-label="Agent, completed" disabled={busy} onClick={() => go("agent")}><span aria-hidden="true">✓</span> <span>Agent</span></button>
+      : current("Agent", 1)}
     {project
-      ? <button type="button" className="current" aria-current="step">2 <span>Project</span></button>
-      : <button type="button" disabled={!canProject} onClick={() => go("project")}>2 <span>Project</span></button>}
+      ? current("Project", 2)
+      : <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="ghost" disabled={!canProject} onClick={() => go("project")}>2 <span>Project</span></button>}
   </nav>;
 }
 
@@ -142,7 +144,7 @@ export function focusLost(active: FocusNode | null, watched: FocusNode): "keep" 
   return "release";
 }
 
-function AgentStep({ session, heading, back, next }: { session: AgentStepSession; heading: (node: HTMLHeadingElement | null) => void; back: () => void; next: () => void }) {
+export function AgentStep({ session, heading, back, next }: { session: AgentStepSession; heading: (node: HTMLHeadingElement | null) => void; back: () => void; next: () => void }) {
   const { state } = session;
   const list = session.view();
   const continueButton = useRef<HTMLButtonElement | null>(null);
@@ -320,6 +322,8 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
     const urlNotice = error && (error.code === "invalid_url" || error.code === "access_failed");
     const changed = state.inspectedUrl !== null && state.url.trim() !== state.inspectedUrl && !error;
     body = <>
+      {/* An unreachable repository keeps the screen to the URL and its recovery (draft frame 'repository-error'). */}
+      {error?.code !== "access_failed" && <>
       {projects.length > 0 && <div className="ob-projects">
         <div className="ob-field-label">Your projects</div>
         <ProjectChoice paths={projects} choice={state.listChoice} home={home} pick={on.pickListed} name="Your projects" />
@@ -331,6 +335,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <button type="button" className="doan-button" data-ui-variant="subtle" disabled={busy} onClick={on.chooseFolder}>Choose folder</button>
       </div>
       <div className="ob-divider"><span>or use GitHub</span></div>
+      </>}
       {urlField(p.kind === "inspecting")}
       {p.kind === "inspecting" ? <>
         <Progress title="Checking repository" body={p.url} />
@@ -338,14 +343,22 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
           <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled>Find repository</button></div>
       </> : urlNotice ? <>
         <ProjectNoticeView notice={notice!} run={run} id="ob-project-error" />
-        <div className="ob-recovery">
-          <button type="button" className="doan-button" data-ui-variant="subtle" onClick={on.chooseFolder}>Choose local folder</button>
-          {error.code === "access_failed"
-            ? <button type="button" className="doan-button" data-ui-variant="prominent" onClick={on.retry}>Retry</button>
-            : <button type="button" className="doan-button" data-ui-variant="prominent" disabled={!urlValid} onClick={on.find}>Find repository</button>}
+        {error.code === "access_failed"
+          ? <div className="ob-recovery">
+            <button type="button" className="doan-button" data-ui-variant="subtle" onClick={on.chooseFolder}>Choose local folder</button>
+            <button type="button" className="doan-button" data-ui-variant="prominent" onClick={on.retry}>Retry</button>
+          </div>
+          : <div className="ob-state-actions">
+            <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.chooseFolder}>Choose local folder</button>
+            <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={!urlValid} onClick={on.find}>Find repository</button>
+          </div>}
+      </> : changed ? <>
+        <p className="ob-provider-help">Check this URL before choosing a local folder or cloning.</p>
+        <div className="ob-state-actions">
+          <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={on.chooseFolder}>Choose local folder</button>
+          <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy || state.url.trim() === ""} onClick={on.find}>Find repository</button>
         </div>
       </> : <>
-        {changed && <p className="ob-provider-help">Check this URL before choosing a local folder or cloning.</p>}
         {notice && <ProjectNoticeView notice={notice} run={run} />}
         <div className="ob-url-action"><button type="button" className="doan-button" data-ui-variant="prominent" disabled={busy || state.url.trim() === ""} onClick={on.find}>Find repository<ArrowRight aria-hidden="true" /></button></div>
       </>}

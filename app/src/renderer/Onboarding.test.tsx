@@ -20,17 +20,18 @@ test("Welcome: wordmark, two-line heading and the lg Get started button with an 
   expect(html).not.toMatch(/…|\.\.\./);
 });
 
-test("the setup steps reuse the shell capsule: current is aria-current, a done step shows a check and goes back", () => {
+test("the setup steps are the shell capsule drawn with sm buttons: current is aria-current, a done step shows a check and goes back", () => {
   const agent = renderToStaticMarkup(<SetupSteps scene="agent" canProject={false} busy={false} go={noop} />);
-  expect(agent).toMatch(/^<nav class="shell-modes ob-steps" aria-label="Setup steps">/);
-  expect(agent).toContain('<button type="button" class="current" aria-current="step">1 <span>Agent</span></button>');
-  expect(agent).toContain('<button type="button" disabled="">2 <span>Project</span></button>');
-  expect(renderToStaticMarkup(<SetupSteps scene="agent" canProject busy={false} go={noop} />)).toContain('<button type="button">2 <span>Project</span></button>');
+  expect(agent).toMatch(/^<nav class="ob-steps" aria-label="Setup steps">/);
+  expect(agent).toContain('<button type="button" class="doan-button current" data-ui-size="sm" data-ui-variant="subtle" aria-current="step">1 <span>Agent</span></button>');
+  expect(agent).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost" disabled="">2 <span>Project</span></button>');
+  expect(renderToStaticMarkup(<SetupSteps scene="agent" canProject busy={false} go={noop} />)).toContain('data-ui-variant="ghost">2 <span>Project</span></button>');
   const project = renderToStaticMarkup(<SetupSteps scene="project" canProject busy={false} go={noop} />);
-  expect(project).toMatch(/<button type="button" aria-label="Agent, completed"><svg[^>]*aria-hidden="true"[^>]*>.*<\/svg> <span>Agent<\/span><\/button>/);
-  expect(project).toContain('<button type="button" class="current" aria-current="step">2 <span>Project</span></button>');
+  expect(project).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost" aria-label="Agent, completed"><span aria-hidden="true">✓</span> <span>Agent</span></button>');
+  expect(project).toContain('aria-current="step">2 <span>Project</span></button>');
   expect(renderToStaticMarkup(<SetupSteps scene="project" canProject busy go={noop} />)).toMatch(/aria-label="Agent, completed" disabled=""/);
 });
+
 
 test("a provider row: mark, name, account line and its sm button; Connected is disabled with its accessible name", () => {
   const html = renderToStaticMarkup(<ProviderRow view={{ ...base, detail: "ada@example.com", button: { command: "signIn", label: "Connected", variant: "prominent", disabled: true, ariaLabel: "Connected to Claude Code" } }} run={noop} />);
@@ -207,10 +208,12 @@ test("U2 an invalid URL marks the field and keeps Find repository disabled; an a
   expect(invalid).toContain('aria-invalid="true" aria-describedby="ob-project-error"');
   expect(invalid).toContain('role="alert" tabindex="-1" id="ob-project-error"');
   expect(invalid).toContain("Enter a GitHub repository URL, such as https://github.com/owner/repository.");
-  expect(invalid).toContain('<div class="ob-recovery"><button type="button" class="doan-button" data-ui-variant="subtle">Choose local folder</button><button type="button" class="doan-button" data-ui-variant="prominent" disabled="">Find repository</button></div>');
+  expect(invalid).toContain('<div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose local folder</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled="">Find repository</button></div>');
   const access = screen({ url: "https://github.com/acme/private-studio", error: { code: "access_failed" } });
   expect(access).toContain('<strong class="ob-notice-title">Couldn’t access this repository</strong><span class="ob-notice-body">Check your account and repository access with gh auth login, then try again.</span>');
-  expect(access).toContain('data-ui-variant="prominent">Retry</button></div>');
+  expect(access).toContain('<div class="ob-recovery"><button type="button" class="doan-button" data-ui-variant="subtle">Choose local folder</button><button type="button" class="doan-button" data-ui-variant="prominent">Retry</button></div>');
+  // The draft's error frame keeps the screen to the URL and its recovery.
+  expect(access).not.toContain("Open a local folder");
 });
 
 test("U2 looking for a repository shows a status with Cancel", () => {
@@ -221,7 +224,8 @@ test("U2 looking for a repository shows a status with Cancel", () => {
 });
 
 test("U2 an edited URL asks to be checked again", () => {
-  expect(screen({ url: "https://github.com/acme/another", inspectedUrl: "https://github.com/acme/studio" })).toContain("Check this URL before choosing a local folder or cloning.");
+  const changed = screen({ url: "https://github.com/acme/another", inspectedUrl: "https://github.com/acme/studio" });
+  expect(changed).toContain('<p class="ob-provider-help">Check this URL before choosing a local folder or cloning.</p><div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose local folder</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm">Find repository</button></div>');
 });
 
 test("U2 an existing checkout: Already on your Mac, the chosen card and Use this folder", () => {
