@@ -312,3 +312,12 @@ test("review: the Project step's lost focus goes to the error, else the progress
   expect(projectFocusTarget(st({}), true)).toBe("action");
   expect(screen({ phase: { kind: "selecting", path: "/p" } }, { busy: true })).toContain('role="status" tabindex="-1"');
 });
+
+test("design-sync: onboarding text drops the shell's tabular figures and the stepper keeps the draft capsule", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.ob-overlay \{[^}]*font-variant-numeric: normal;/);
+  expect(css).toContain(".ob-steps .doan-button { height: var(--size-control-sm); font-weight: var(--type-weight-regular); }");
+  expect(css).toContain(".ob-steps .doan-button.current { background: var(--surface-panel); color: var(--text-standard); box-shadow: var(--shadow-panel); cursor: default; }");
+  expect(css).toMatch(/\.ob-page-help \{[^}]*color: var\(--text-subtle\);/);
+});

@@ -266,11 +266,12 @@ code, kbd { font-family: var(--type-family); }
 .comment-pin { z-index: 2; border: 1px solid var(--border-pin); background: var(--affordance-accent); color: var(--text-on-accent); font: var(--type-weight-medium) var(--type-caption-size)/22px var(--type-family); text-align: center; box-shadow: 0 0 0 2px var(--halo-pin), var(--shadow-xs); }
 .comment-pin:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; box-shadow: 0 0 0 4px var(--halo-pin); z-index: 3; }
 
-/* Onboarding (.doan/canvases/buzz-onboarding.html). The first run covers the window as a modal dialog. The app
+/* Onboarding (.doan/canvases/buzz-onboarding.html). The first run covers the window as a modal dialog; its text is
+   set without the shell's tabular figures, which widened the stepper's "1" by 3px against the draft. The app
    behind it is hidden, so on Agent and Project the window's native sidebar material shows through as it does
    behind AppShell; Welcome is an opaque panel with its own atmosphere. */
 #root:has(> .ob-overlay[open]) > :not(.ob-overlay) { visibility: hidden; }
-.ob-overlay { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; overflow: hidden; background: transparent; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.ob-overlay { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; overflow: hidden; background: transparent; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
 .ob-overlay::backdrop { background: transparent; }
 .ob-overlay.ob-welcome { background: var(--surface-panel); }
 @media (prefers-reduced-transparency: reduce) { .ob-overlay { background: var(--bg-app); } }
