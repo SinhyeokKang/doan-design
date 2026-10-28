@@ -622,6 +622,15 @@ describe("project setup and upward refresh", () => {
     expect(JSON.parse(readFileSync(join(root, ".doan/config.json"), "utf8")).tokenCss).toBe("tokens.css");
   });
 
+  test("initializes a folder stored a moment ago, while its first read is still loading", async () => {
+    const root = dir();
+    const started = await start(cli);
+    await started.shell.store([root]);
+    expect(started.shell.entries()[0]?.kind).toBe("loading");
+    expect(await started.shell.initialize(root, null)).toEqual({ kind: "success" });
+    expect(started.shell.entries()[0]?.kind).toBe("list");
+  });
+
   test("does not initialize closed, missing or already initialized folders", async () => {
     const root = dir(); const { shell } = await uninitialized(root);
     rmSync(root, { recursive: true });
