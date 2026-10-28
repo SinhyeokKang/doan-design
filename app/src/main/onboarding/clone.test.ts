@@ -2,11 +2,23 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, test } from "vitest";
+import { afterEach, describe, expect, it, test, vi } from "vitest";
+// Finalization steps call back after they finish, so a test can accept a cancel exactly between two of them.
+const after: { chmod?: () => void; mkdir?: () => void; rename?: () => void } = {};
+vi.mock("node:fs/promises", async original => {
+  const real = await original<typeof import("node:fs/promises")>();
+  return {
+    ...real,
+    chmod: async (...args: Parameters<typeof real.chmod>) => { await real.chmod(...args); after.chmod?.(); },
+    mkdir: async (...args: Parameters<typeof real.mkdir>) => { const made = await real.mkdir(...args); after.mkdir?.(); return made; },
+    rename: async (...args: Parameters<typeof real.rename>) => { await real.rename(...args); after.rename?.(); },
+  };
+});
 import { cloneArgs, cloneEnv, cloneFailure, locateGit, runClone, type CloneProcess } from "./clone";
 
 const dirs: string[] = [];
 afterEach(() => {
+  delete after.chmod; delete after.mkdir; delete after.rename;
   for (const dir of dirs.splice(0)) { try { execFileSync("chmod", ["-R", "u+rwx", dir]); } catch { /* gone */ } rmSync(dir, { recursive: true, force: true }); }
 });
 function temp(): string { const dir = mkdtempSync(join(tmpdir(), "doan-clone-test-")); dirs.push(dir); return dir; }
@@ -131,8 +143,32 @@ describe("runClone", () => {
   test.skipIf(root)("says so when the partial clone cannot be removed", async () => {
     const parent = temp(), destination = join(parent, "studio");
     const run = fake(target => { mkdirSync(join(target, "locked")); writeFileSync(join(target, "locked", "f"), "x"); chmodSync(join(target, "locked"), 0o500); }, Promise.resolve(1));
-    expect(await runClone({ git: "git", url: "u", destination, env, signal: signal().signal, spawn: run.spawn })).toEqual({ kind: "failed", code: "cleanup_failed" });
+    const result = await runClone({ git: "git", url: "u", destination, env, signal: signal().signal, spawn: run.spawn });
+    // The exact directory this run made and could not remove, for the user to remove.
+    expect(result).toEqual({ kind: "failed", code: "cleanup_failed", leftover: run.target() });
+    expect(existsSync(run.target())).toBe(true);
     expect(existsSync(destination)).toBe(false);
+  });
+
+  it.each(["chmod", "mkdir", "rename"] as const)("ends cancelled with nothing left when the cancel lands right after %s", async stage => {
+    const parent = temp(), destination = join(parent, "studio"), controller = signal();
+    after[stage] = () => controller.abort();
+    const run = fake(target => writeFileSync(join(target, "README.md"), "x"), Promise.resolve(0));
+    const commit = vi.fn(() => !controller.signal.aborted);
+    expect(await runClone({ git: "git", url: "u", destination, env, signal: controller.signal, spawn: run.spawn, commit })).toEqual({ kind: "cancelled" });
+    expect(readdirSync(parent)).toEqual([]);
+  });
+
+  it("publishes only once the commit takes it, and then no cancel can apply", async () => {
+    const parent = temp(), destination = join(parent, "studio");
+    const run = fake(target => writeFileSync(join(target, "README.md"), "x"), Promise.resolve(0));
+    const commit = vi.fn(() => true);
+    expect(await runClone({ git: "git", url: "u", destination, env, signal: signal().signal, spawn: run.spawn, commit })).toEqual({ kind: "cloned", destination });
+    expect(commit).toHaveBeenCalledTimes(1);
+    // A cancel decided just before the commit wins: the moved clone is this run's, and it goes.
+    const other = join(parent, "other");
+    expect(await runClone({ git: "git", url: "u", destination: other, env, signal: signal().signal, spawn: fake(t => writeFileSync(join(t, "README.md"), "x"), Promise.resolve(0)).spawn, commit: () => false })).toEqual({ kind: "cancelled" });
+    expect(readdirSync(parent)).toEqual(["studio"]);
   });
 });
 

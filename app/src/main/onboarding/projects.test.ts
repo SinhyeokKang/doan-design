@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, test, vi } from "vitest";
@@ -195,14 +195,41 @@ describe("cloneProject", () => {
     expect(d.deps.initialize).toHaveBeenCalledWith(destination);
     expect(await cloneProject("u", "/tmp/y", new AbortController().signal, { ...deps().deps, git: async () => ok, run: async () => ({ kind: "failed", code: "repository_unreachable" }) })).toEqual({ ok: false, code: "repository_unreachable" });
     expect(await cloneProject("u", "/tmp/y", new AbortController().signal, { ...deps().deps, git: async () => ok, run: async () => ({ kind: "cancelled" }) })).toEqual({ ok: false, cancelled: true });
+    expect(await cloneProject("u", "/tmp/y", new AbortController().signal, { ...deps().deps, git: async () => ok, run: async () => ({ kind: "failed", code: "cleanup_failed", leftover: "/tmp/.y.doan-clone-1" }) })).toEqual({ ok: false, code: "cleanup_failed", leftover: "/tmp/.y.doan-clone-1" });
+  });
+
+  it("hands the commit to the clone and registers only what it published", async () => {
+    const destination = repo(temp());
+    const d = deps();
+    const commit = vi.fn(() => true);
+    const run = vi.fn(async (request: { commit?: () => boolean }) => { expect(request.commit).toBe(commit); return { kind: "cloned" as const, destination }; });
+    expect(await cloneProject("u", destination, new AbortController().signal, { ...d.deps, git: async () => ok, run }, commit)).toEqual({ ok: true, root: destination });
   });
 });
 
 describe("cloneDestination", () => {
   it("refuses a destination that would land inside a set-up project", async () => {
     const ready = repo(temp(), { config: "{}" });
-    expect(await cloneDestination(join(ready, "vendor"), deps().deps)).toBe("inside_project");
-    expect(await cloneDestination(join(temp(), "studio"), deps().deps)).toBe("absent");
-    expect(await cloneDestination(ready, deps().deps)).toBe("exists");
+    expect(await cloneDestination(join(ready, "vendor"), deps().deps)).toEqual({ state: "inside_project" });
+    const parent = temp();
+    expect(await cloneDestination(join(parent, "studio"), deps().deps)).toEqual({ state: "absent", path: join(parent, "studio") });
+    expect(await cloneDestination(ready, deps().deps)).toEqual({ state: "exists" });
+  });
+
+  it("names the destination by its canonical parent, so a symlinked parent registers the clone it made", async () => {
+    const real = temp(), alias = join(temp(), "alias");
+    symlinkSync(real, alias);
+    expect(await cloneDestination(join(alias, "studio"), deps().deps)).toEqual({ state: "absent", path: join(real, "studio") });
+    const cloned = repo(join(real, "studio"));
+    const d = deps();
+    expect(await registerClone(join(real, "studio"), d.deps)).toEqual({ ok: true, root: cloned });
+  });
+
+  it("still refuses a clone that registration read as another project", async () => {
+    const parent = repo(temp(), { config: "{}" });
+    const cloned = repo(join(parent, "inner"));
+    const d = deps();
+    d.deps.add.mockResolvedValueOnce(parent);
+    expect(await registerClone(cloned, d.deps)).toEqual({ ok: false, code: "project_unavailable" });
   });
 });

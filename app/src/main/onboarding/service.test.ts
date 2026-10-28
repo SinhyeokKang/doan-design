@@ -54,7 +54,10 @@ function backend() {
 function fakeProjects(): OnboardingProjects & { [K in keyof OnboardingProjects]: ReturnType<typeof vi.fn> } {
   return {
     folder: vi.fn(async (path: string) => path.startsWith("/gone") ? null : path),
-    destination: vi.fn(async (path: string): Promise<"absent" | "exists" | "no_parent" | "inside_project"> => path.startsWith("/taken") ? "exists" : path.startsWith("/nowhere") ? "no_parent" : "absent"),
+    // /tmp stands for a symlinked parent: the plan keeps its canonical spelling.
+    destination: vi.fn(async (path: string): Promise<{ state: "absent"; path: string } | { state: "exists" | "no_parent" | "inside_project" }> =>
+      path.startsWith("/taken") ? { state: "exists" } : path.startsWith("/nowhere") ? { state: "no_parent" } : { state: "absent", path: path.replace(/^\/tmp\//, "/private/tmp/") }),
+    present: vi.fn(async () => true),
     inspectPath: vi.fn(async (path: string) => ({ ok: true as const, candidates: [{ path, changes: [] }] })),
     inspectUrl: vi.fn(async () => []),
     select: vi.fn(async (path: string) => ({ ok: true as const, root: path })),
@@ -543,7 +546,7 @@ describe("clone", () => {
   it("refuses a destination that appeared after the inspection", async () => {
     const t = setup();
     const { id, inspectionId } = await planned(t, "/taken/studio".replace("/taken", "/Users/ada"));
-    t.projects.destination.mockResolvedValueOnce("exists");
+    t.projects.destination.mockResolvedValueOnce({ state: "exists" });
     expect(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination: "/Users/ada/studio" })).toMatchObject({ ok: false, error: { code: "destination_exists" } });
     expect(t.projects.clone).not.toHaveBeenCalled();
   });
@@ -574,8 +577,8 @@ describe("clone", () => {
   it("reports cleanup and access failures by code only", async () => {
     const t = setup();
     const { id, inspectionId, destination } = await planned(t);
-    t.projects.clone.mockResolvedValueOnce({ ok: false, code: "cleanup_failed" });
-    expect(operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination }))).toMatchObject({ state: "failed", error: { code: "cleanup_failed" } });
+    t.projects.clone.mockResolvedValueOnce({ ok: false, code: "cleanup_failed", leftover: "/Users/ada/.studio.doan-clone-x1" });
+    expect(operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination }))).toMatchObject({ state: "failed", error: { code: "cleanup_failed", message: "Couldn't remove /Users/ada/.studio.doan-clone-x1. Remove it, then try again." } });
     t.projects.clone.mockRejectedValueOnce(new Error("fatal: Authentication failed for https://token@github.com"));
     const thrown = operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c2", inspectionId, destination }));
     expect(thrown).toMatchObject({ state: "failed", error: { code: "clone_failed" } });
@@ -640,7 +643,7 @@ describe("exclusive project work", () => {
   it("refuses a clone destination inside another project", async () => {
     const t = setup();
     const id = await session(t);
-    t.projects.destination.mockResolvedValueOnce("inside_project");
+    t.projects.destination.mockResolvedValueOnce({ state: "inside_project" });
     expect(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", url: "https://github.com/acme/studio", destination: "/Users/ada/app/studio" })).toMatchObject({ ok: false, error: { code: "path_unavailable" } });
   });
 
@@ -662,6 +665,98 @@ describe("exclusive project work", () => {
     const old = operation(await first);
     expect(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId: old.inspection!.inspectionId, path: "/Users/ada/old" })).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
     expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId: second.inspection!.inspectionId, path: "/Users/ada/new" }))).toMatchObject({ state: "succeeded" });
+  });
+});
+
+describe("clone boundaries", () => {
+  async function planned(t: ReturnType<typeof setup>, destination = "/Users/ada/studio") {
+    const id = await session(t);
+    const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", url: "https://github.com/acme/old", destination }));
+    return { id, inspectionId: op.inspection!.inspectionId, destination };
+  }
+
+  it("refuses a clone whose inspection was superseded while its destination was read", async () => {
+    const t = setup();
+    const { id, inspectionId, destination } = await planned(t);
+    const held = deferred<{ state: "absent"; path: string }>();
+    t.projects.destination.mockReturnValueOnce(held.promise);
+    const cloning = t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination });
+    await settle();
+    await t.ask({ op: "project_inspect", sessionId: id, requestId: "i2", url: "https://github.com/acme/new", destination });
+    held.resolve({ state: "absent", path: destination });
+    expect(await cloning).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
+    expect(t.projects.clone).not.toHaveBeenCalled();
+  });
+
+  it("clones to the canonical destination the plan was made for", async () => {
+    const t = setup();
+    const { id, inspectionId } = await planned(t, "/tmp/studio");
+    const op = operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination: "/tmp/studio" }));
+    expect(op).toMatchObject({ state: "succeeded", project: { root: "/private/tmp/studio" } });
+    expect(t.projects.clone).toHaveBeenCalledWith("https://github.com/acme/old", "/private/tmp/studio", expect.anything(), expect.any(Function));
+  });
+
+  it("takes no cancel once the clone is published", async () => {
+    const t = setup();
+    const { id, inspectionId, destination } = await planned(t);
+    const registered = deferred<{ ok: true; root: string }>();
+    let committed: boolean | undefined;
+    t.projects.clone.mockImplementationOnce(async (_u: string, d: string, _s: AbortSignal, commit: () => boolean) => { committed = commit(); await registered.promise; return { ok: true, root: d }; });
+    const op = operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination }));
+    expect(committed).toBe(true);
+    expect(operation(await t.ask({ op: "cancel", sessionId: id, requestId: "x1", operationId: op.operationId }))).toEqual(op);
+    registered.resolve({ ok: true, root: destination });
+    await settle();
+    expect(state(await t.ask({ op: "status", sessionId: id, operationId: op.operationId })).operations[0]).toMatchObject({ state: "succeeded" });
+  });
+
+  it("refuses a commit after a cancel was accepted", async () => {
+    const t = setup();
+    const { id, inspectionId, destination } = await planned(t);
+    const ready = deferred<void>();
+    let committed: boolean | undefined;
+    t.projects.clone.mockImplementationOnce(async (_u: string, _d: string, _s: AbortSignal, commit: () => boolean) => { await ready.promise; committed = commit(); return { ok: false, cancelled: true }; });
+    const op = operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination }));
+    await t.ask({ op: "cancel", sessionId: id, requestId: "x1", operationId: op.operationId });
+    ready.resolve();
+    await settle();
+    expect(committed).toBe(false);
+    expect(state(await t.ask({ op: "status", sessionId: id, operationId: op.operationId })).operations[0]).toMatchObject({ state: "cancelled" });
+  });
+
+  it("keeps a directory it could not remove in view and makes no other until it is gone", async () => {
+    const t = setup();
+    const { id, inspectionId, destination } = await planned(t);
+    t.projects.clone.mockResolvedValueOnce({ ok: false, code: "cleanup_failed", leftover: "/Users/ada/.studio.doan-clone-x1" });
+    await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination });
+    const again = operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c2", inspectionId, destination }));
+    expect(again).toMatchObject({ state: "failed", error: { code: "cleanup_failed", message: "Couldn't remove /Users/ada/.studio.doan-clone-x1. Remove it, then try again." } });
+    expect(t.projects.clone).toHaveBeenCalledTimes(1);
+    expect(t.projects.present).toHaveBeenCalledWith("/Users/ada/.studio.doan-clone-x1");
+    t.projects.present.mockResolvedValueOnce(false);
+    expect(operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c3", inspectionId, destination }))).toMatchObject({ state: "succeeded" });
+    expect(t.projects.clone).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("quit", () => {
+  it("stops completion saves and new clones as soon as quit is accepted, and reopens if quit is abandoned", async () => {
+    const t = setup();
+    const id = await session(t);
+    t.ready();
+    const path = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", path: "/Users/ada/p1" }));
+    await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId: path.inspection!.inspectionId, path: "/Users/ada/p1" });
+    const confirm = deferred<{ ok: true; root: string }>();
+    t.projects.confirm.mockReturnValueOnce(confirm.promise);
+    const op = operation(await t.ask({ op: "complete", sessionId: id, requestId: "d1" }));
+    t.service.closeForQuit();
+    confirm.resolve({ ok: true, root: "/Users/ada/p1" });
+    await settle();
+    expect(t.projects.saveCompletion).not.toHaveBeenCalled();
+    expect(state(await t.ask({ op: "status", sessionId: id, operationId: op.operationId })).operations[0]).toMatchObject({ state: "cancelled" });
+    expect(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i2", path: "/Users/ada/p2" })).toMatchObject({ ok: false, error: { code: "busy" } });
+    t.service.reopenAfterAbortedQuit();
+    expect(operation(await t.ask({ op: "complete", sessionId: id, requestId: "d2" }))).toMatchObject({ state: "succeeded" });
   });
 });
 
