@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -57,6 +57,17 @@ describe("provider auth adapters", () => {
     expect(PROVIDER_AUTH.antigravity.parseStatus(run(1, "", out))).toEqual({ status: "disconnected" });
     expect(PROVIDER_AUTH.antigravity.parseStatus(run(0, "gemini-3.5-flash\n"))).toEqual({ status: "connected", account: { id: null, workspace: null } });
     expect(PROVIDER_AUTH.antigravity.parseStatus(run(1, "", "network down"))).toEqual({ status: "failed", code: "check_failed" });
+  });
+  it("reads Copilot's login from a tool-free print run and its account from config.json", () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-copilot-profile-"));
+    try {
+      expect(PROVIDER_AUTH.copilot.parseStatus({ ...run(1, "", "Error: No authentication information found.\n"), profileDir: dir })).toEqual({ status: "disconnected" });
+      expect(PROVIDER_AUTH.copilot.parseStatus({ ...run(1, "", "rate limited"), profileDir: dir })).toEqual({ status: "failed", code: "check_failed" });
+      mkdirSync(join(dir, ".copilot"));
+      writeFileSync(join(dir, ".copilot/config.json"), '// User settings belong in settings.json.\n// This file is managed automatically.\n{\n  "lastLoggedInUser": { "host": "https://github.com", "login": "ada" }\n}\n');
+      expect(PROVIDER_AUTH.copilot.parseStatus({ ...run(0, "OK\n"), profileDir: dir })).toEqual({ status: "connected",
+        account: { id: "ada", workspace: "https://github.com", displayName: "ada" } });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   it("reads Codex status from stderr, where 0.163.0 prints it", () => {
     expect(PROVIDER_AUTH.codex.parseStatus(run(1, "", "Not logged in\n"))).toEqual({ status: "disconnected" });

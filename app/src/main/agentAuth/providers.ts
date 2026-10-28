@@ -59,6 +59,18 @@ function antigravityStatus(run: StatusRun): CheckResult {
   // models prints no account; such a connection can run but not resume (account_unverifiable).
   return run.code === 0 ? { status: "connected", account: { id: null, workspace: null } } : failed;
 }
+// config.json is JSONC with leading comment lines; lastLoggedInUser names the account the token belongs to.
+function copilotStatus(run: StatusRun): CheckResult {
+  if (/No authentication information found/.test(`${run.stdout}\n${run.stderr}`)) return { status: "disconnected" };
+  if (run.code !== 0) return failed;
+  let user: Record<string, unknown> = {};
+  try {
+    const text = readFileSync(join(run.profileDir, ".copilot/config.json"), "utf8").split("\n").filter(line => !line.trimStart().startsWith("//")).join("\n");
+    const doc = json(text);
+    if (doc && typeof doc.lastLoggedInUser === "object" && doc.lastLoggedInUser) user = doc.lastLoggedInUser as Record<string, unknown>;
+  } catch { /* No record: the connection runs but cannot resume (account_unverifiable). */ }
+  return { status: "connected", account: account(user.login, user.host, user.login, undefined) };
+}
 // codex login status reports on stderr.
 function codexStatus(run: StatusRun): CheckResult {
   const out = `${run.stdout}\n${run.stderr}`.trim();
@@ -83,6 +95,9 @@ export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
   // (B1 live check 2026-10-28); after Cancel it fell back to this token file, which doan keeps in the vault.
   antigravity: { command: "agy", args: [], env: {}, login: ["-p", "Reply with exactly OK"], status: ["models"], logout: null,
     vault: [".gemini/antigravity-cli/antigravity-oauth-token"], plaintext: [], settings: {}, loginTerminal: true, parseStatus: antigravityStatus },
-  copilot: { command: "copilot", args: [], env: {}, login: ["login"], status: ["status"], logout: null,
-    vault: [".copilot/config.json"], plaintext: [], settings: {}, loginTerminal: false, parseStatus: () => failed },
+  // storeTokenPlaintext (official setting, 1.0.x changelog and settings schema) keeps the token in config.json, which
+  // doan keeps in the vault; a dedicated HOME also keeps gh and the shared "copilot-cli" Keychain item out of reach.
+  // 1.0.105 has no status command: a tool-free print request fails fast without a login and costs one request with one.
+  copilot: { command: "copilot", args: [], env: {}, login: ["login"], status: ["-p", "Reply with exactly OK", "--available-tools", ""], logout: null,
+    vault: [".copilot/config.json"], plaintext: [], settings: { ".copilot/settings.json": '{\n  "storeTokenPlaintext": true\n}\n' }, loginTerminal: false, parseStatus: copilotStatus },
 };
