@@ -4,7 +4,7 @@
 
 ## 전제와 범위
 
-`buzz-restyle`의 온보딩 자식이다. `buzz-ds`·`buzz-shell`의 구현된 디자인 시스템을 사용하며, **agent-auth가 완료된 상태를 전제**해 기획한다. 이것은 현재 agent-auth 구현 완료를 기록하는 문장이 아니다. 구현 착수 때 실제 인증 API·다섯 실행기·보안 저장·취소 계약을 인수한다.
+`buzz-restyle`의 온보딩 자식이다. `buzz-ds`·`buzz-shell`의 구현된 디자인 시스템을 사용하며, **agent-auth가 완료된 상태를 전제**해 기획한다. agent-auth는 2026-10-28 main에 병합됐다. 인수할 인증 API·다섯 실행기·보안 저장·취소 계약은 [ARCHITECTURE §7 'Agent authentication'](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth)에 있고, 온보딩이 처리할 항목은 [design의 agent-auth 인계](./design.md#agent-auth-인계-2026-10-28)에 있다.
 
 사람은 첫 실행 화면에서, 또는 자기 에이전트에게 CLI/MCP 온보딩을 요청해 도안 사용을 준비한다(2026-10-28 사용자 추가 승인). 고정 온보딩 명령·도구를 추가하되 기존 캔버스 작성 규칙과 명령 동작은 유지한다. OAuth·토큰 저장·갱신을 재구현하지 않고 agent-auth의 비밀 없는 main 서비스를 앱 preload와 인증된 로컬 CLI/MCP 어댑터에서 함께 소비한다.
 
