@@ -351,3 +351,25 @@ it("leaves a run on the external profile alone when the doan account of the same
   expect(h.runners[0]!.close).not.toHaveBeenCalled();
   expect(h.runners[1]!.close).toHaveBeenCalledTimes(1);
 });
+
+it("cancels a send waiting for the previous Claude process when its provider's runs are stopped", async () => {
+  const h = harness("claude");
+  const { conversationId } = await start(h, "claude"); h.service.receive(conversationId, { type: "turn.done" });
+  const pending = h.service.send(conversationId, "after sign-out", []);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  await h.service.stopRuns("claude");
+  await expect(pending).rejects.toThrow("busy");
+  h.exits[0]!(); await vi.waitFor(() => expect(h.auth.leases.open).toBe(0));
+  expect(h.open).toHaveBeenCalledOnce();
+});
+
+it("checks the account again after waiting for the previous Claude process", async () => {
+  const h = harness("claude"); claudeTranscript(h.profile);
+  const { conversationId } = await start(h, "claude"); h.service.receive(conversationId, { type: "turn.done" });
+  const pending = h.service.send(conversationId, "after an account change", []);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  h.auth.set({ generation: 2, connection: { ...h.auth.get().connection!, connectionId: "conn-2", account: { id: "acct-2", workspace: null } } });
+  h.exits[0]!();
+  await expect(pending).rejects.toThrow("session_unavailable");
+  expect(h.open).toHaveBeenCalledOnce();
+});

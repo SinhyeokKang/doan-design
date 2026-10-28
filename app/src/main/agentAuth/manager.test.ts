@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { accessSync, chmodSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -37,13 +38,13 @@ class FakeProcess implements AuthProcess {
 let stopReleases = true;
 const fileProvider = (status: (dir: string) => CheckResult): ProviderAuth => ({
   command: "fake-cli", args: [], env: { FAKE_STORE: "file" }, login: ["login"], status: ["status"], logout: null,
-  vault: ["creds/token.json"], plaintext: [], settings: { "conf/settings.json": '{"storeTokenPlaintext":true}' }, acpAuth: null, acp: null, verifyByRun: false,
+  vault: ["creds/token.json"], plaintext: [], settings: { "conf/settings.json": '{"storeTokenPlaintext":true}' }, acpAuth: null, acp: null, verifyByRun: false, hookLink: null,
   parseStatus: run => run.code === 0 ? status(run.profileDir) : { status: "failed", code: "check_failed" },
 });
 // Antigravity's shape: sign-in, status and sign-out are ACP calls on one server binary.
 const acpProvider = (): ProviderAuth => ({
   command: "fake-server", args: [], env: {}, login: [], status: [], logout: null, vault: ["creds/token.json"], plaintext: [], settings: {},
-  acpAuth: { method: "oauth-personal", agent: "fake-acp", version: "1.3.0" }, acp: { args: [], authenticate: "oauth-personal", sessions: "sessions" }, verifyByRun: false,
+  acpAuth: { method: "oauth-personal", agent: "fake-acp", version: "1.3.0" }, acp: { args: [], authenticate: "oauth-personal", sessions: "sessions" }, verifyByRun: false, hookLink: null,
   parseStatus: run => run.code === 2 ? { status: "disconnected" } : run.code === 0 ? { status: "connected", account: { id: null, workspace: null } } : { status: "failed", code: "check_failed", detail: run.stderr },
 });
 const INIT = { protocolVersion: 1, agentInfo: { name: "fake-acp", version: "1.3.0" }, authMethods: [{ id: "oauth-personal" }], agentCapabilities: { loadSession: true } };
@@ -61,7 +62,7 @@ const googleLink = (port: number) => `https://accounts.google.com/o/oauth2/v2/au
 const withAcp = () => ({ claude: keychainProvider(() => keychain), codex: keychainProvider(() => keychain), cursor: fileProvider(tokenAccount), antigravity: acpProvider(), copilot: fileProvider(tokenAccount) });
 const keychainProvider = (status: () => CheckResult): ProviderAuth => ({
   command: "fake-cli", args: ["-c", "store=keyring"], env: {}, login: ["login"], status: ["status"], logout: ["logout"],
-  vault: null, plaintext: ["auth.json"], settings: {}, acpAuth: null, acp: null, verifyByRun: false, parseStatus: run => run.code === 0 ? status() : { status: "failed", code: "check_failed" },
+  vault: null, plaintext: ["auth.json"], settings: {}, acpAuth: null, acp: null, verifyByRun: false, hookLink: null, parseStatus: run => run.code === 0 ? status() : { status: "failed", code: "check_failed" },
 });
 const tokenAccount = (dir: string): CheckResult => {
   const path = join(dir, "creds/token.json");
@@ -269,6 +270,38 @@ describe("sign-in", () => {
     expect(m.state("copilot")).toMatchObject({ phase: "error", error: { code: "account_mismatch" } });
     expect(processes).toEqual([]);
     await next.release();
+  });
+  it("signs Claude in with only the link the CLI hands doan's browser hook, never a printed one", async () => {
+    const prompts: unknown[] = [];
+    const claude: ProviderAuth = { ...keychainProvider(() => keychain), hookLink: raw => raw.startsWith("https://login.example/") ? raw : null };
+    const m = manager({ onPrompt: prompt => prompts.push(prompt), adapters: { ...withAcp(), claude } }); await m.load();
+    const run = started(await m.signIn("claude", 7));
+    const login = await next("login");
+    const hook = join(root, BROWSER_HOOK.name);
+    expect(login.env.BROWSER).toBe(hook);
+    // The printed link would need a pasted code, which doan cannot take.
+    login.print("If the browser didn't open, visit: https://login.example/manual?code=true\nPaste code here if prompted > ");
+    // claude 2.1.312 runs $BROWSER with the link as its only argument and discards the hook's output.
+    execFileSync(hook, ["https://evil.example/authorize"], { env: login.env, stdio: "ignore" });
+    execFileSync(hook, ["https://login.example/authorize?redirect_uri=localhost"], { env: login.env, stdio: "ignore" });
+    await vi.waitFor(() => expect(prompts).toEqual([{ provider: "claude", attemptId: run.attemptId, owner: 7, url: "https://login.example/authorize?redirect_uri=localhost" }]));
+    keychain = { status: "connected", account: { id: "c1", workspace: null } };
+    await finish("login", 0);
+    const status = await finish("status", 0);
+    expect(await run.done).toMatchObject({ phase: "connected", connection: { provider: "claude", account: { id: "c1" } } });
+    // Every Claude process gets the hook; only the login's has a place to leave the link.
+    expect(status.env.BROWSER).toBe(hook);
+    expect(Object.keys(status.env).filter(name => !Object.keys(login.env).includes(name))).toEqual([]);
+    expect(Object.keys(login.env).filter(name => !Object.keys(status.env).includes(name))).toHaveLength(1);
+    expect(prompts).toHaveLength(1);
+  });
+  it("starts no Claude login when the browser hook cannot be installed", async () => {
+    const claude: ProviderAuth = { ...keychainProvider(() => keychain), hookLink: raw => raw };
+    const m = manager({ adapters: { ...withAcp(), claude } }); await m.load();
+    mkdirSync(join(root, BROWSER_HOOK.name));
+    // Without the hook the CLI would open the user's default browser itself.
+    expect(await started(await m.signIn("claude", 7)).done).toMatchObject({ phase: "error", error: { code: "sign_in_failed" } });
+    expect(spawn).not.toHaveBeenCalled();
   });
   it("refuses a code for a login that reads no input", async () => {
     const m = manager(); await m.load();

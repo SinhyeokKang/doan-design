@@ -35,6 +35,20 @@ describe("provider auth adapters", () => {
     expect(PROVIDER_AUTH.claude.parseStatus(run(0, "not json"))).toEqual({ status: "failed", code: "check_failed" });
     expect(PROVIDER_AUTH.claude.parseStatus(run(null))).toEqual({ status: "failed", code: "check_failed" });
   });
+  it("takes only Claude's localhost-callback sign-in link from the browser hook", () => {
+    // claude 2.1.312 `auth login`: $BROWSER gets the localhost redirect; the printed link is the manual-code one.
+    const query = "code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&scope=user%3Ainference&code_challenge=abc&code_challenge_method=S256&state=st-1";
+    const link = (redirect: string, rest = query) => `https://claude.com/cai/oauth/authorize?${rest}&redirect_uri=${encodeURIComponent(redirect)}`;
+    const hookLink = PROVIDER_AUTH.claude.hookLink!;
+    expect(hookLink(link("http://localhost:52595/callback"))).toBe(link("http://localhost:52595/callback"));
+    for (const raw of [link("https://platform.claude.com/oauth/code/callback"), link("http://localhost:52595/callback").replace("claude.com", "evil.example"),
+      link("http://example.com:52595/callback"), link("http://localhost:80/callback"), link("http://localhost:52595/other"),
+      link("http://localhost:52595/callback", query.replace("&state=st-1", "")), link("http://localhost:52595/callback", query.replace("response_type=code", "response_type=token")),
+      `${link("http://localhost:52595/callback")}&state=two`, `${link("http://localhost:52595/callback")} extra`, "not a url"]) {
+      expect(hookLink(raw)).toBeNull();
+    }
+    for (const provider of PROVIDERS.filter(p => p !== "claude")) expect(PROVIDER_AUTH[provider].hookLink).toBeNull();
+  });
   it("takes Claude's stable account from the dedicated profile's OAuth record", () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-claude-profile-"));
     try {
