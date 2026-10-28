@@ -131,13 +131,13 @@ test("every readiness action in the table is covered", () => {
   expect([...seen].sort()).toEqual(["install", "reauth", "repair", "retry", "signIn", "signOut", "update", "wait"]);
 });
 
-test("a sign-in this window owns shows preparing, then waiting, with per-provider browser copy", () => {
+test("a running sign-in shows preparing, then waiting, with per-provider browser copy", () => {
   const signingIn = (provider: Provider) => dto(provider, { attempt: { kind: "signIn" } });
-  expect(only(providerView(signingIn("antigravity"), { ownAttempt: "a1" })).notice).toEqual({
+  expect(only(providerView(signingIn("antigravity"))).notice).toEqual({
     role: "status", spinner: true, title: "Preparing Antigravity sign-in", body: "The first sign-in downloads Antigravity’s sign-in server. This can take a moment.", actions: ["subtle:Cancel:cancel", "subtle-disabled:Open browser:openLink"],
   });
-  expect(only(providerView(signingIn("claude"), { starting: true })).notice).toMatchObject({ title: "Preparing Claude Code sign-in", body: undefined });
-  expect(only(providerView(signingIn("claude"), { ownAttempt: "a1", prompt: "a1" })).notice).toEqual({
+  expect(only(providerView(signingIn("claude"), {})).notice).toMatchObject({ title: "Preparing Claude Code sign-in", body: undefined });
+  expect(only(providerView(signingIn("claude"), { prompt: "a1" })).notice).toEqual({
     role: "status", spinner: true, title: "Finish signing in to Claude Code", body: "Complete sign-in in your browser, then return here.", actions: ["subtle:Cancel:cancel", "subtle:Open again:openLink"],
   });
   for (const provider of ["cursor", "copilot"] as const) {
@@ -147,21 +147,36 @@ test("a sign-in this window owns shows preparing, then waiting, with per-provide
   expect(antigravity.paste).toEqual({ prompt: "Browser page didn’t load?", button: { command: "pasteAddress", label: "Paste its address", variant: "ghost", disabled: false } });
   expect(providerView(signingIn("claude"), { prompt: "a1" }).paste).toBeNull();
   // A link for an older attempt is not this attempt's link.
-  expect(providerView(signingIn("claude"), { ownAttempt: "a1", prompt: "a0" }).notice?.title).toBe("Preparing Claude Code sign-in");
+  expect(providerView(signingIn("claude"), { prompt: "a0" }).notice?.title).toBe("Preparing Claude Code sign-in");
 });
 
 test("a cancelling sign-in keeps its notice with every action disabled", () => {
-  const view = providerView(dto("claude", { attempt: { kind: "signIn", cancelled: true } }), { ownAttempt: "a1", prompt: "a1" });
+  const view = providerView(dto("claude", { attempt: { kind: "signIn", cancelled: true } }), { prompt: "a1" });
   expect(view.notice?.actions.every(b => b.disabled)).toBe(true);
   expect(view.paste).toBeNull();
 });
 
-test("reply not_owner, or a sign-in started elsewhere, shows where to finish it", () => {
+test("only reply not_owner shows where to finish a sign-in started in another window", () => {
   const status = dto("claude", { attempt: { kind: "signIn" } });
-  for (const view of [providerView(status), providerView(status, { ownAttempt: "a1", reply: "not_owner" })]) {
-    expect(only(view)).toEqual({ detail: "Finish this sign-in in the window that started it.", button: "prominent-disabled:Sign in:signIn", notice: null, helper: null });
-    expect(view.detailRole).toBe("status");
-  }
+  const view = providerView(status, { reply: "not_owner" });
+  expect(only(view)).toEqual({ detail: "Finish this sign-in in the window that started it.", button: "prominent-disabled:Sign in:signIn", notice: null, helper: null });
+  expect(view.detailRole).toBe("status");
+  // After a reload or for a CLI-started sign-in the window cannot prove ownership but may still own it: Cancel stays usable.
+  expect(only(providerView(status)).notice).toMatchObject({ title: "Preparing Claude Code sign-in", actions: ["subtle:Cancel:cancel", "subtle-disabled:Open browser:openLink"] });
+  expect(providerView(status).detailRole).toBeNull();
+});
+
+test("a failed sign-in again on a reauth row shows the failure with the reauth actions", () => {
+  const expiredFailed = providerView(dto("codex", { account: ACCOUNT, verified: true, expired: true, error: "sign_in_failed" }), { failures: 2 });
+  expect(only(expiredFailed).notice).toEqual({ role: "alert", spinner: false, title: undefined, body: "Sign-in to Codex keeps failing. Check your browser and network, or connect another agent.", actions: ["subtle:Sign out:signOut", "prominent:Sign in again:reauth"] });
+  const orgNetwork = providerView(dto("claude", { account: { id: "acct-1", workspace: null }, verified: true, error: "network" }));
+  expect(only(orgNetwork).notice).toEqual({ role: "alert", spinner: false, title: undefined, body: "Couldn’t reach Claude Code. Check your connection and try again.", actions: ["subtle:Sign out:signOut", "prominent:Sign in again:reauth"] });
+});
+
+test("a Claude organization reauth keeps its copy while a check runs", () => {
+  const view = providerView(dto("claude", { account: { id: "acct-1", workspace: null }, verified: true, attempt: { kind: "check" } }));
+  expect(view.notice?.body).toBe("Sign in to Claude Code again so doan can confirm your organization.");
+  expect(view.notice?.actions.every(b => b.disabled)).toBe(true);
 });
 
 test("reply busy names the sign-in that holds the lock", () => {
@@ -172,7 +187,7 @@ test("reply busy names the sign-in that holds the lock", () => {
 });
 
 test("reply open_failed is an alert with a prominent Open browser", () => {
-  const view = providerView(dto("claude", { attempt: { kind: "signIn" } }), { ownAttempt: "a1", prompt: "a1", reply: "open_failed" });
+  const view = providerView(dto("claude", { attempt: { kind: "signIn" } }), { prompt: "a1", reply: "open_failed" });
   expect(only(view).notice).toEqual({ role: "alert", spinner: false, title: undefined, body: "Couldn’t open your browser. Try again.", actions: ["subtle:Cancel:cancel", "prominent:Open browser:openLink"] });
 });
 
@@ -226,7 +241,7 @@ test("readAgentAuth null is an unreadable store with Retry; loading and checks s
 
 test("the list fills busyWith from the sign-in that holds the lock", () => {
   const auth: AuthSnapshot = { revision: 4, providers: [dto("claude", { attempt: { kind: "signIn" } }), dto("codex")] };
-  const view = authListView(auth, { claude: { ownAttempt: "a1" }, codex: { reply: "busy" } });
+  const view = authListView(auth, { codex: { reply: "busy" } });
   expect(view.providers[1]?.detail).toBe("Finish or cancel the Claude Code sign-in first.");
 });
 
@@ -253,7 +268,7 @@ test("first ready announces once per provider; cancel announces without an error
 test("the Antigravity paste dialog accepts one address up to 16,384 characters", () => {
   expect(pasteDialog()).toEqual({
     title: "Paste the page address", body: "Copy the address from the browser tab that didn’t load and paste it here to finish signing in to Antigravity.",
-    placeholder: "Page address from your browser", maxLength: MAX_PASTE,
+    inputLabel: "Page address", placeholder: "Page address from your browser", maxLength: MAX_PASTE,
     cancel: { command: "dismiss", label: "Cancel", variant: "subtle", disabled: false }, submit: { command: "submitCode", label: "Submit", variant: "prominent", disabled: false },
   });
   expect(MAX_PASTE).toBe(16384);

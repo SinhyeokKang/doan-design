@@ -36,7 +36,7 @@ test("hosts, ports, credentials, queries, fragments, extra paths and option-like
     "https://gitlab.com/acme/studio", "https://www.github.com/acme/studio", "https://github.com.evil.example/acme/studio",
     "https://evil.example/github.com/acme/studio", "https://github.com:443/acme/studio", "ssh://git@github.com:22/acme/studio",
     "https://user:token@github.com/acme/studio", "https://token@github.com/acme/studio", "ssh://alice@github.com/acme/studio",
-    "alice@github.com:acme/studio", "ssh://git:pw@github.com/acme/studio",
+    "alice@github.com:acme/studio", "ssh://git:pw@github.com/acme/studio", "ssh://GIT@github.com/acme/studio", "GIT@github.com:acme/studio",
     "https://github.com/acme/studio?tab=readme", "https://github.com/acme/studio#readme", "https://github.com/acme/studio/tree/main",
     "https://github.com/acme", "https://github.com/acme/", "https://github.com/acme/studio//", "https://github.com//acme/studio",
     "git@github.com:/acme/studio", "git@github.com:acme/studio/extra", "git@github.com:acme",

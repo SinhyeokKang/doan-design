@@ -11,7 +11,8 @@ type Item = { kind: "remote"; name: string; url: string } | { kind: "include"; p
 const MAX_INCLUDE_DEPTH = 10;
 const ESCAPES: Record<string, string> = { n: "\n", t: "\t", b: "\b", "\\": "\\", "\"": "\"" };
 
-// git-config(1) syntax. null is a file git itself would refuse, so it says nothing about the remotes.
+// git-config(1) syntax, slightly looser than git in places. null means the text could not be parsed, so it says
+// nothing about the remotes.
 function parseItems(text: string): Item[] | null {
   const items: Item[] = [];
   let section: string | null = null, subsection: string | null = null, i = 0;

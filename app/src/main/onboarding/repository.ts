@@ -26,7 +26,8 @@ function repositoryPath(path: string): { repo: GitHubRepository; path: string } 
 // Credentials, ports and other hosts fall out because the authority must be exactly github.com.
 const FORMS: [RegExp, GitHubUrl["transport"]][] = [
   [/^https:\/\/([^/]*)\/(.*)$/i, "https"],
-  [/^ssh:\/\/git@([^/]*)\/(.*)$/i, "ssh"],
+  // The SSH user is case-sensitive, so only the scheme ignores case.
+  [/^[sS][sS][hH]:\/\/git@([^/]*)\/(.*)$/, "ssh"],
   [/^git@([^:/]*):(.*)$/, "ssh"],
 ];
 export function parseGitHubUrl(input: string): GitHubUrl | null {

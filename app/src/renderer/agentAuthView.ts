@@ -23,10 +23,10 @@ export interface ProviderView {
   // Antigravity's secondary line under a waiting notice, outside its button row.
   paste: { prompt: string; button: AuthButton } | null;
 }
-// What this window knows beyond the snapshot. ownAttempt: the attemptId its signInAgent reply returned.
-// prompt: the attemptId of the last sign-in link it received. reply: its last refused call for this provider.
-// failures: sign_in_failed results in a row. busyWith: the provider whose sign-in or sign-out holds the lock.
-export interface ProviderContext { ownAttempt?: string | null; starting?: boolean; prompt?: string | null; reply?: AuthReason | null; failures?: number; busyWith?: Provider | null }
+// What this window knows beyond the snapshot. prompt: the attemptId of the last sign-in link it received.
+// reply: its last refused call for this provider. failures: sign_in_failed results in a row.
+// busyWith: the provider whose sign-in or sign-out holds the lock.
+export interface ProviderContext { prompt?: string | null; reply?: AuthReason | null; failures?: number; busyWith?: Provider | null }
 
 function button<C extends string>(command: C, label: string, variant: Button["variant"] = "prominent", disabled = false, ariaLabel?: string): Button<C> {
   return { command, label, variant, disabled, ...(ariaLabel ? { ariaLabel } : {}) };
@@ -67,8 +67,13 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
     case "version_incompatible": return { ...view, notice: alert(`Update ${name} or wait for a Doan update, then retry.`, [check(provider, "Retry", true)], `Doan can’t run this ${name} version`) };
     case "sign_out_failed": return { ...view, notice: alert(`doan couldn’t sign out of ${name}. Sign out again before you use it.`, [button("signOut", "Sign out")]) };
     case "account_mismatch": return { ...view, notice: alert(`You signed in with a different ${name} account. Sign in again with the same account, or sign out first.`, reauth) };
-    // Expiry settles as phase reauthRequired; a connected Claude without an organization is the other cause.
-    case "reauth_required": return { ...view, notice: alert(status.phase === "connected" ? `Sign in to ${name} again so doan can confirm your organization.` : `Your ${name} connection expired. Sign in again.`, reauth) };
+    case "reauth_required": {
+      // A failed Sign in again keeps the connection, so its error is shown with the same recovery buttons.
+      const failed = errorNotice(status, ctx)?.body;
+      // Expiry settles as phase reauthRequired; otherwise only a Claude connection without an organization needs reauth.
+      const organization = provider === "claude" && status.phase !== "reauthRequired";
+      return { ...view, notice: alert(failed ?? (organization ? `Sign in to ${name} again so doan can confirm your organization.` : `Your ${name} connection expired. Sign in again.`), reauth) };
+    }
     case "tools_missing": case "tools_failed": return { ...view, notice: alert("doan couldn’t find its command-line tool. Reinstall doan, then check again.", [check(provider, "Check again", false)]) };
     case "not_connected": {
       const notice = errorNotice(status, ctx);
@@ -94,8 +99,9 @@ export function providerView(status: AuthStatusDto, ctx: ProviderContext = {}): 
   const account = status.account && (status.account.email ?? status.account.displayName ?? null);
   const view: ProviderView = { provider, name, detail: status.account ? account : VENDORS[provider], detailRole: null, button: null, helper: null, notice: null, paste: null };
   const signInDisabled = button("signIn", "Sign in", "prominent", true, `Sign in to ${name}`);
-  const owned = !!attempt && (!!ctx.starting || ctx.ownAttempt === attempt.id || ctx.prompt === attempt.id);
-  if (ctx.reply === "not_owner" || (attempt?.kind === "signIn" && !owned)) return { ...view, detail: "Finish this sign-in in the window that started it.", detailRole: "status", button: signInDisabled };
+  // Ownership is not inferred: after a reload, or for a CLI-started sign-in, this window may own the attempt without
+  // knowing its id, and must keep Cancel ('agent-auth 인계'). Only agent-auth's not_owner reply says otherwise.
+  if (ctx.reply === "not_owner") return { ...view, detail: "Finish this sign-in in the window that started it.", detailRole: "status", button: signInDisabled };
   if (attempt?.kind === "signIn") {
     const prompted = ctx.prompt === attempt.id, cancel = button("cancel", "Cancel", "subtle");
     let waiting: ProviderView;
@@ -157,10 +163,10 @@ export function stopDialog(provider: Provider, intent: "signIn" | "signOut"): { 
   };
 }
 
-export function pasteDialog(): { title: string; body: string; placeholder: string; maxLength: number; cancel: Button<"dismiss">; submit: Button<"submitCode"> } {
+export function pasteDialog(): { title: string; body: string; inputLabel: string; placeholder: string; maxLength: number; cancel: Button<"dismiss">; submit: Button<"submitCode"> } {
   return {
     title: "Paste the page address", body: "Copy the address from the browser tab that didn’t load and paste it here to finish signing in to Antigravity.",
-    placeholder: "Page address from your browser", maxLength: MAX_PASTE, cancel: button("dismiss", "Cancel", "subtle"), submit: button("submitCode", "Submit"),
+    inputLabel: "Page address", placeholder: "Page address from your browser", maxLength: MAX_PASTE, cancel: button("dismiss", "Cancel", "subtle"), submit: button("submitCode", "Submit"),
   };
 }
 export function pasteSubmittable(value: string): boolean { return value.trim() !== "" && value.length <= MAX_PASTE; }
