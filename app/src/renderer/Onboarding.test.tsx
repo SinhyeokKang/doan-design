@@ -131,7 +131,7 @@ test("fix 3: an over-long paste shows the limit line and keeps Submit disabled",
 });
 
 // Rows as agent-auth's own DTOs make them, before and after the snapshot that follows a command.
-function row(provider: Provider, state: Partial<AuthState> & { attempt?: Partial<AuthAttempt> & { kind: AuthAttempt["kind"] } | null }, ctx = {}) {
+function row(provider: Provider, state: Omit<Partial<AuthState>, "attempt"> & { attempt?: Partial<AuthAttempt> & { kind: AuthAttempt["kind"] } | null }, ctx = {}) {
   const account = { id: "a", workspace: "w", email: "ada@example.com" };
   const full: AuthState = {
     provider, generation: 1, verified: false, expired: false, connection: null, error: null, phase: "disconnected", ...state,

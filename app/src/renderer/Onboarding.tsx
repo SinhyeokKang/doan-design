@@ -59,13 +59,13 @@ export function SetupSteps({ scene, canProject, busy, go }: { scene: Scene; canP
 function ActionButton<C extends string>({ button, run, data }: { button: Button<C>; run: (command: C) => void; data?: Record<string, string> }) {
   return <>
     {button.note && <span className="ob-button-note">{button.note}</span>}
-    <button type="button" className="doan-button" data-ui-variant={button.variant} data-ui-size="sm" aria-label={button.ariaLabel} disabled={button.disabled} {...data} onClick={() => run(button.command)}>{button.label}</button>
+    <button type="button" className="doan-button" data-ui-variant={button.variant} data-ui-size="sm" data-command={button.command} aria-label={button.ariaLabel} disabled={button.disabled} {...data} onClick={() => run(button.command)}>{button.label}</button>
   </>;
 }
 
 export function NoticeView({ notice, run }: { notice: Notice; run: (command: AuthCommand) => void }) {
   return <>
-    <div className={notice.role === "alert" ? "doan-notice error doan-panel" : "doan-notice doan-panel"} role={notice.role}>
+    <div className={notice.role === "alert" ? "doan-notice error doan-panel" : "doan-notice doan-panel"} role={notice.role} tabIndex={-1}>
       {notice.spinner ? <span className="doan-spinner doan-alert-icon" aria-hidden="true" /> : <AlertIcon />}
       <span>{notice.title && <strong className="ob-notice-title">{notice.title}</strong>}{notice.body && <span className="ob-notice-body">{notice.body}</span>}</span>
     </div>
@@ -77,7 +77,7 @@ export function NoticeView({ notice, run }: { notice: Notice; run: (command: Aut
 }
 
 export function ProviderRow({ view, run }: { view: ProviderView; run: (command: AuthCommand) => void }) {
-  return <div className="ob-provider">
+  return <div className="ob-provider" data-provider={view.provider}>
     <div className="ob-provider-row">
       <span className="ob-provider-mark" aria-hidden="true"><img src={`provider-logos/${LOGOS[view.provider]}`} alt="" /></span>
       <div className="ob-provider-label"><strong>{view.name}</strong>{view.detail !== null && <span role={view.detailRole ?? undefined}>{view.detail}</span>}</div>
@@ -106,14 +106,15 @@ function dialogKeys(close: () => void) {
 }
 const openModal = (node: HTMLDialogElement | null) => { if (node && !node.open) node.showModal(); };
 
-export function PasteDialog({ view, value, submittable, busy, change, submit, close }: {
-  view: ReturnType<typeof pasteDialog>; value: string; submittable: boolean; busy: boolean; change: (value: string) => void; submit: () => void; close: () => void;
+export function PasteDialog({ view, value, submittable, tooLong, busy, change, submit, close }: {
+  view: ReturnType<typeof pasteDialog>; value: string; submittable: boolean; tooLong: boolean; busy: boolean; change: (value: string) => void; submit: () => void; close: () => void;
 }) {
   return <dialog className="doan-dialog" data-ui-size="compact" aria-labelledby="ob-paste-title" aria-busy={busy || undefined} ref={openModal}
     onCancel={event => { event.preventDefault(); close(); }} onKeyDown={dialogKeys(close)}>
     <form className="ob-dialog-form" onSubmit={event => { event.preventDefault(); if (submittable) submit(); }}>
       <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="ob-paste-title">{view.title}</h3><p className="doan-dialog-description">{view.body}</p></div></div>
-      <input className="doan-input" aria-label={view.inputLabel} placeholder={view.placeholder} maxLength={view.maxLength} value={value} autoFocus disabled={busy} onChange={event => change(event.target.value)} />
+      <input className="doan-input" aria-label={view.inputLabel} placeholder={view.placeholder} value={value} autoFocus disabled={busy} onChange={event => change(event.target.value)} />
+      {tooLong && <p className="ob-field-error" role="alert">This address is too long to submit.</p>}
       <div className="doan-dialog-actions">
         <button type="button" className="doan-button" data-ui-variant={view.cancel.variant} data-ui-size="sm" disabled={busy} onClick={close}>{view.cancel.label}</button>
         <button type="submit" className="doan-button" data-ui-variant={view.submit.variant} data-ui-size="sm" disabled={!submittable}>{view.submit.label}</button>
@@ -133,11 +134,27 @@ export function StopDialog({ view, busy, confirm, close }: { view: ReturnType<ty
   </dialog>;
 }
 
+// Where focus goes when the control the user just used is removed or disabled (design '이동·취소·포커스 계약'): the
+// row's first usable control in DOM order (row button, notice actions, paste), else its notice, else the step heading.
+export function firstUsable(view: ProviderView): AuthCommand | "notice" | null {
+  const usable = [view.button, ...(view.notice?.actions ?? []), view.paste?.button].find(button => button && !button.disabled);
+  return usable ? usable.command : view.notice ? "notice" : null;
+}
+interface FocusNode { isConnected: boolean; matches(selector: string): boolean }
+// active is null when focus fell to <body>. Focus the user moved elsewhere is theirs and is released.
+export function focusLost(active: FocusNode | null, watched: FocusNode): "keep" | "recover" | "release" {
+  const usable = watched.isConnected && !watched.matches(":disabled");
+  if (active === watched && usable) return "keep";
+  if (active === null || active === watched) return "recover";
+  return "release";
+}
+
 function AgentStep({ session, heading, back, next }: { session: AgentStepSession; heading: (node: HTMLHeadingElement | null) => void; back: () => void; next: () => void }) {
   const { state } = session;
   const list = session.view();
   const continueButton = useRef<HTMLButtonElement | null>(null);
-  const invoker = useRef<HTMLElement | null>(null);
+  // The row whose control the user last used, and the element holding (or last given) its focus.
+  const watch = useRef<{ provider: Provider; node: HTMLElement } | null>(null);
   const title = useRef<HTMLHeadingElement | null>(null);
   useEffect(() => { session.enter(); }, []);
   useEffect(() => {
@@ -150,16 +167,30 @@ function AgentStep({ session, heading, back, next }: { session: AgentStepSession
       (paste && !paste.matches(":disabled") ? paste : title.current)?.focus();
     });
   }, [state.focus?.seq]);
-  // The stop dialog opens from a reply, after the click; the clicked button is kept so focus can return to it.
+  // After every render (a snapshot, a reply, a closed stop dialog): a watched control that went away or was disabled
+  // hands focus on within its row, never to <body>. A dialog keeps its own focus meanwhile.
   useEffect(() => {
-    if (state.dialog) return;
-    const previous = invoker.current;
-    invoker.current = null;
-    if (!previous || previous.dataset.paste) return;
-    requestAnimationFrame(() => (previous?.isConnected && !previous.matches(":disabled") ? previous : title.current)?.focus());
-  }, [state.dialog?.kind]);
+    const watched = watch.current;
+    if (!watched || state.dialog) return;
+    requestAnimationFrame(() => {
+      if (watch.current !== watched) return;
+      const active = document.activeElement === document.body ? null : document.activeElement;
+      const decision = focusLost(active, watched.node);
+      if (decision === "release") { watch.current = null; return; }
+      if (decision === "keep") return;
+      const row = document.querySelector(`.ob-provider[data-provider="${watched.provider}"]`);
+      const view = session.view().providers.find(p => p.provider === watched.provider);
+      const target = view ? firstUsable(view) : null;
+      const node = target === "notice" ? row?.querySelector<HTMLElement>(".doan-notice") : target ? row?.querySelector<HTMLElement>(`[data-command="${target}"]:not(:disabled)`) : null;
+      const next = node ?? title.current;
+      if (!next) return;
+      next.focus();
+      watched.node = next;
+    });
+  });
   const run = (provider: Provider) => (command: AuthCommand) => {
-    invoker.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // The paste modal returns focus itself (its button, else the heading).
+    watch.current = command === "pasteAddress" || !(document.activeElement instanceof HTMLElement) ? null : { provider, node: document.activeElement };
     session.command(provider, command);
   };
   const stop = session.stopView(), paste = session.pasteView();
@@ -175,7 +206,7 @@ function AgentStep({ session, heading, back, next }: { session: AgentStepSession
     <p className="ob-live" role="status">{state.announcement?.text}</p>
     <AgentFooter canContinue={session.canContinue()} busy={state.continuing} back={back} next={next} continueRef={node => { continueButton.current = node; }} />
     {stop && <StopDialog view={stop} busy={false} confirm={() => void session.confirmStop()} close={() => session.closeDialog()} />}
-    {paste && state.dialog?.kind === "paste" && <PasteDialog view={paste} value={state.dialog.value} submittable={session.pasteSubmittable()} busy={state.dialog.submitting}
+    {paste && state.dialog?.kind === "paste" && <PasteDialog view={paste} value={state.dialog.value} submittable={session.pasteSubmittable()} tooLong={session.pasteTooLong()} busy={state.dialog.submitting}
       change={value => session.setPaste(value)} submit={() => void session.submitPaste()} close={() => session.closeDialog()} />}
   </>;
 }
@@ -223,7 +254,8 @@ export function Wizard({ session, entries, reroot, homeDirectory, addOutcome, on
   }, []);
   // A scene change moves focus to its heading; Tab then enters the controls (design '이동·취소·포커스 계약').
   useEffect(() => { requestAnimationFrame(() => heading.current?.focus()); }, [scene.generation]);
-  const move = (event: SceneEvent) => setScene(current => nextScene(current, event, { auth, busy }));
+  // Guarded with the session's auth at the time of the move, not of the click: a cancel wait can outlive a ready provider.
+  const move = (event: SceneEvent) => setScene(current => nextScene(current, event, { auth: agents.state.auth ?? null, busy }));
   const generation = useRef(0);
   generation.current = scene.generation;
   const leave = sceneMover(agents, move, () => generation.current);

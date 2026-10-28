@@ -280,7 +280,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-atmosphere { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(ellipse 50% 125% at 50% 112%, var(--affordance-accent) 0%, color-mix(in srgb, var(--affordance-accent) 78%, transparent) 30%, color-mix(in srgb, var(--affordance-accent) 32%, transparent) 60%, transparent 100%); mask-image: url("/onboarding-grain.svg"); mask-size: 180px 180px; mask-repeat: repeat; opacity: .85; }
 @media (forced-colors: active) { .ob-atmosphere { display: none; } }
 .ob-chrome { position: relative; flex: none; height: var(--size-chrome); display: flex; align-items: center; justify-content: center; -webkit-app-region: drag; }
-.ob-steps svg { width: 16px; height: 16px; }
+.ob-steps svg { width: var(--size-icon); height: var(--size-icon); }
 .ob-steps button:disabled { color: var(--text-disabled); cursor: default; }
 .ob-steps button:disabled:hover { background: transparent; }
 .ob-scene { position: relative; flex: 1; min-height: 0; overflow: auto; width: 100%; max-width: 560px; margin: 0 auto; padding: var(--space-10) var(--space-6) var(--space-12); display: flex; flex-direction: column; }
@@ -318,6 +318,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-footer { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: var(--space-8); }
 .ob-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .ob-dialog-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.ob-field-error { margin-top: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-danger); }
 .ob-overlay .ob-card { width: auto; }
 /* Shared settings-style group: a hairline container whose rows are split by hairlines. */
 .ob-card { width: 640px; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
@@ -330,7 +331,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-item.ob-notice { padding-top: 0; }
 .ob-detail { color: var(--text-subtle); min-width: 0; overflow-wrap: anywhere; }
 /* Inline code reads as a chip on the surface it sits on. */
-.ob-detail code, .ob-msg code, .ob-lead code, .ob-dialog code, .ob-field code, .ob-reason code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.ob-detail code, .ob-msg code, .ob-dialog code, .ob-field code, .ob-reason code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
 .ob-status { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .ob-msg { grid-column: 2 / -1; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); overflow-wrap: anywhere; }
 /* An inline error or warning is one line led by an icon, so colour is not the only signal. */
