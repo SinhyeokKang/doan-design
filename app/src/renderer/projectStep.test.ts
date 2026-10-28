@@ -391,3 +391,39 @@ test("review: an operation retired from the published list is read by its id", a
   expect(h.api.readOnboardingSession).toHaveBeenCalledWith({ sessionId: "s1", operationId: running.operationId });
   expect(phase(h)).toMatchObject({ kind: "candidates" });
 });
+
+test("review 2: Retry on a cancelled clone plans the current destination, not an older failure", async () => {
+  const h = harness();
+  h.session.setUrl("https://github.com/acme/studio");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([]) })), refused("destination_exists"));
+  await h.session.findRepository();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/Volumes/work");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([], "/Volumes/work/studio") })));
+  await h.session.changeDestination();
+  const running = op("project_clone", { state: "running" });
+  h.queue.clone!.push(ok(running));
+  const cloning = h.session.clone();
+  await flush();
+  h.queue.cancel!.push(ok({ ...running, cancelling: true }));
+  await h.session.cancelClone();
+  h.emit([{ ...running, state: "cancelled" }]);
+  await cloning;
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([], "/Volumes/work/studio") })));
+  h.queue.clone!.push(ok(op("project_clone", { project: { root: "/Volumes/work/studio" } })));
+  await h.session.retry();
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ destination: "/Volumes/work/studio" });
+  expect(phase(h)).toEqual({ kind: "ready", root: "/Volumes/work/studio" });
+});
+
+test("review 2: the session says when it waits on the folder picker", async () => {
+  const h = harness();
+  let pick: (path: string | null) => void = () => {};
+  h.api.chooseOnboardingFolder.mockImplementationOnce(() => new Promise(resolve => { pick = resolve; }));
+  const choosing = h.session.chooseFolder();
+  await flush();
+  expect(h.session.picking()).toBe(true);
+  pick(null);
+  await choosing;
+  expect(h.session.picking()).toBe(false);
+  expect(phase(h)).toEqual({ kind: "choose" });
+});
