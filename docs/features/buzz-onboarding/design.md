@@ -120,6 +120,7 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 - 오류·설치 필요·재인증 안내는 동일한 `doan-notice error doan-panel`이다. 흰 surface-panel·shadow-panel·text-standard, 아이콘은 텍스트 색 상속, 패딩 상하 12px·좌우 16px이다. 제목/본문 간격은 4px이다.
 - 로딩 9개 상태도 같은 notice/panel 재질·패딩을 쓰고 아이콘 자리에 기존 spinner를 배치한다. `role="status"`이며 오류는 `role="alert"`이다. 아이콘은 공용 alert-icon의 첫 줄 정렬을 따른다.
 - 문구 끝에 말줄임표를 붙이지 않는다. 폴더 선택·로딩·버튼도 동일하다.
+- 버튼 배치(F4 전수 점검, 2026-10-28): 상태 tile의 하나뿐인 복구 버튼은 오른쪽 prominent이다. 두 버튼이면 대안·취소·Back이 왼쪽 subtle, 완료·복구가 오른쪽이다. 공급자 행의 첫 버튼(Install·Update·Sign in·Retry)은 prominent이다. 보조 행동(Antigravity 주소 붙여넣기)은 버튼 행에 넣지 않고 그 아래 줄에 둔다. 대화상자는 `doan-dialog-actions`대로 Cancel·완료를 오른쪽 끝에 둔다.
 
 ## 상태 인계
 
@@ -215,7 +216,7 @@ OAuth·clone·Git 조회는 main 작업으로 시작하고 빠르게 ID를 돌�
 - 복구 버튼: 로그아웃 실패·재인증 상태에서만 Sign out·Sign in again을 둔다. 실행 중 대화가 있으면 `stop_required` 확인 대화상자 뒤 `stop: true`로 다시 보낸다(사용자).
 - 링크 열기: 첫 prompt에서 Claude·Codex·Antigravity는 main이 자동으로 연다. Cursor·Copilot은 자동으로 열지 않고 'Open again'과 'A browser tab may already be open'만 둔다. CLI/MCP로 시작한 로그인도 주 창이 소유한다(사용자).
 - Antigravity 주소 붙여넣기: 대기 화면의 Cancel·Open again 행 아래에 "Browser page didn't load? Paste its address" 보조 줄을 둔다. 보조 버튼을 행 안에 넣으면 다른 대기 상태와 버튼 정렬이 달라지기 때문이다(2026-10-28 사용자 피드백). 이 버튼은 입력창 하나와 Submit·Cancel이 있는 모달을 연다. 입력은 16,384자 이하이고, Escape는 모달만 닫고 포커스를 보조 버튼으로 돌린다(사용자).
-- 인증 저장소를 읽지 못함: 오류 안내와 Try again만 둔다. 저장소 초기화는 만들지 않는다(사용자).
+- 인증 저장소를 읽지 못함: 오류 안내와 Retry만 둔다. 다시 읽는 행동의 문구는 Project 상태와 같이 Retry로 통일한다. 저장소 초기화는 만들지 않는다(사용자).
 - Continue: 다른 공급자가 ready이면 진행 중인 소유 로그인을 취소하고 넘어간다(사용자).
 - CLI/MCP status는 계정 email·표시 이름을 반환하지 않는다(사용자).
 - socket v2 쓰기 작업은 완료 뒤에도 열어 둔다(사용자).
@@ -251,7 +252,7 @@ F4 초안 보완과 A2 fixture의 기준이다. 문구는 F4에서 영어로 확
 | reply `stop_required` | 실행 중 대화 중지 확인 대화상자 | Stop and continue, Cancel | 대화상자 |
 | reply `open_failed` | 브라우저 열기 실패 | Open again | role=alert |
 | reply `stale`·`invalid` | 최신 상태를 다시 읽고 표시 | 없음 | 없음 |
-| `readAgentAuth` `null` | 인증 저장소를 읽지 못함 | Try again(read) | role=alert |
+| `readAgentAuth` `null` | 인증 저장소를 읽지 못함 | Retry(read) | role=alert |
 | Project 단계에서 ready 공급자가 없어짐 | "No agent is ready" | Back to agents | role=alert |
 
 ### 정리할 기존 채널
