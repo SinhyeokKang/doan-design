@@ -57,6 +57,15 @@ describe("conversation disk boundaries", () => {
     rmSync(join(config, "sessions", "12.key"));
     writeFileSync(join(config, "sessions", "bad.json"), "broken"); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
   });
+  it("accepts registry records at or above the floor and fails the whole profile closed on any other version", async () => {
+    const config = temp(); const start = "Wed Oct 28 10:40:00 2026"; mkdirSync(join(config, "sessions"));
+    const inspect = async (pid: number) => pid === 12 || pid === 13 ? start : null;
+    const write = (pid: number, sessionId: string, version: unknown) => writeFileSync(join(config, "sessions", `${pid}.json`), JSON.stringify({ pid, sessionId, cwd: "/other", kind: "interactive", version, procStart: start }));
+    for (const version of ["2.1.312", "2.1.400", "3.0.0", "2.1.400-beta.1"]) { write(12, "s", version); expect(await claudeOccupancy(config, "s", inspect)).toBe("occupied"); }
+    write(12, "s", "2.1.400");
+    // Another terminal's record below the floor or in another shape makes every resume in that profile unverifiable.
+    for (const version of ["2.1.311", "v2.1.400", "2.1.400 (Claude Code)", 2, null]) { write(13, "other", version); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown"); }
+  });
   it("lets one doan Claude conversation resume while another runs in the same dedicated profile", async () => {
     // The record shape a running doan SDK turn left in the dedicated profile (B45 live, CLI 2.1.312): interactive, sdk-ts.
     const config = temp(); const start = "Wed Oct 28 10:40:00 2026"; mkdirSync(join(config, "sessions"));

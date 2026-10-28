@@ -5,8 +5,7 @@ import { join } from "node:path";
 const mocks = vi.hoisted(() => ({ probe: vi.fn(), run: vi.fn() }));
 vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: mocks.run }));
 import { BUNDLED_CLAUDE_SDK, createPrepare, routePrepare } from "./prepare";
-import { SUPPORTED_VERSIONS } from "./sessions";
-import { CODEX_ROLLOUT_VERSIONS } from "./io";
+import { CLAUDE_REGISTRY_FLOOR, CODEX_ROLLOUT_FLOOR, MINIMUM_VERSIONS, storedVersionAtLeast } from "./sessions";
 import { conversationHandler } from "./ipc";
 import { ConversationService } from "./service";
 import { ConversationStore } from "./store";
@@ -24,7 +23,11 @@ it("uses selected canonical profile and fails unknown versions before opening", 
   const prepare = createPrepare(root, join(root, "runtime.json"), { HOME: root, CLAUDE_CODE_SESSION_ID: "stale", CODEX_THREAD_ID: "stale", CODEX_SESSION_ID: "stale" });
   const request = { root, mode: "new" as const, runtime: "codex" as const, text: "hello", anchors: [] };
   const ready = await prepare(request); expect(ready.command).toBe(join(root, "codex")); expect(ready.env.CODEX_HOME).toBe(config); expect(ready.env.CLAUDE_CODE_SESSION_ID).toBeUndefined();
-  mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.165.0" }); await expect(prepare(request)).rejects.toThrow("runtime_unsupported");
+  mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.165.0" }); expect((await prepare(request)).command).toBe(join(root, "codex"));
+  mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.162.0" }); await expect(prepare(request)).rejects.toThrow("runtime_unsupported");
+  mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli" }); await expect(prepare(request)).rejects.toThrow("runtime_unsupported");
+  mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.162.0" });
+  await expect(prepare({ ...request, mode: "resume" }, { runtime: "codex", origin: "new", sessionId: "01a178ba-f9dc-7161-9544-f20f656064a1", configDir: config, cwd: root })).rejects.toThrow("session_unavailable");
 });
 
 it("refuses a Codex resume preview with a record but no verifiable stored session", async () => {
@@ -40,13 +43,13 @@ it("refuses a Codex resume preview with a record but no verifiable stored sessio
   expect(await handler(true, "resumeTarget", { root, canvas })).toEqual({ available: false, reason: "session_unavailable" });
 });
 
-it.each(["valid", "valid-0.163.0", "wrong-id", "wrong-cwd", "wrong-version", "version-number", "version-null", "version-missing", "malformed", "linked", "linked-directory", "oversized-header", "duplicate"])("checks Codex stored session evidence: %s", async kind => {
+it.each(["valid", "valid-0.163.0", "valid-0.170.0", "wrong-id", "wrong-cwd", "wrong-version", "version-prefixed", "version-trailing", "version-number", "version-null", "version-missing", "malformed", "linked", "linked-directory", "oversized-header", "duplicate"])("checks Codex stored session evidence: %s", async kind => {
   const root = temp(); writeFileSync(join(root, "codex"), "fake", { mode: 0o700 });
   mocks.probe.mockResolvedValue({ ok: true, path: root, codexHome: root }); mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.164.0" });
   const sessionId = "01a178ba-f9dc-7161-9544-f20f656064a1";
   const directory = join(root, "sessions", "2026", "10", "27"); mkdirSync(directory, { recursive: true });
   const path = join(directory, `rollout-2026-10-27T00-01-23-${sessionId}.jsonl`);
-  const versions: Record<string, unknown> = { "wrong-version": "0.165.0", "valid-0.163.0": "0.163.0", "version-number": 164, "version-null": null };
+  const versions: Record<string, unknown> = { "wrong-version": "0.162.0", "valid-0.163.0": "0.163.0", "valid-0.170.0": "0.170.0", "version-prefixed": "v0.164.0", "version-trailing": "0.164.0 x", "version-number": 164, "version-null": null };
   const cliVersion = kind in versions ? versions[kind] : "0.164.0";
   const payload: Record<string, unknown> = { id: kind === "wrong-id" ? "other" : sessionId, cwd: kind === "wrong-cwd" ? temp() : root, cli_version: cliVersion };
   if (kind === "version-missing") delete payload.cli_version;
@@ -61,12 +64,14 @@ it.each(["valid", "valid-0.163.0", "wrong-id", "wrong-cwd", "wrong-version", "ve
   expect(mocks.run).toHaveBeenCalledTimes(1); expect(mocks.run.mock.calls[0]?.[1]).toEqual(["--version"]);
 });
 
-it("keeps the supported Codex version in the accepted rollout header versions", () => {
-  expect(CODEX_ROLLOUT_VERSIONS).toContain(SUPPORTED_VERSIONS.codex);
+it("keeps each stored-session floor at or below its runtime's minimum", () => {
+  expect(storedVersionAtLeast(MINIMUM_VERSIONS.codex, CODEX_ROLLOUT_FLOOR)).toBe(true);
+  expect(storedVersionAtLeast(MINIMUM_VERSIONS.claude, CLAUDE_REGISTRY_FLOOR)).toBe(true);
 });
 
-it("pins the installed Claude Agent SDK to the supported version", () => {
+it("pins the manifest and installed Claude Agent SDK to the bundled version", () => {
   const manifest = JSON.parse(readFileSync(join(__dirname, "../../../package.json"), "utf8"));
   expect(manifest.dependencies["@anthropic-ai/claude-agent-sdk"]).toBe(BUNDLED_CLAUDE_SDK);
-  expect(BUNDLED_CLAUDE_SDK).toBe(SUPPORTED_VERSIONS.claudeSdk);
+  const installed = JSON.parse(readFileSync(join(__dirname, "../../../node_modules/@anthropic-ai/claude-agent-sdk/package.json"), "utf8"));
+  expect(installed.version).toBe(BUNDLED_CLAUDE_SDK);
 });

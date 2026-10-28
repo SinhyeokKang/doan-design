@@ -137,22 +137,24 @@ it("waits for a check another caller started instead of refusing the run", async
   expect(h.auth.runtime.checked).toHaveBeenCalled(); expect(h.auth.runtime.check).not.toHaveBeenCalled(); expect(h.open).toHaveBeenCalledOnce();
 });
 
-it("refuses an unsupported executable version and a missing bundled doan CLI", async () => {
+it("refuses an executable below the minimum version, an unreadable version and a missing bundled doan CLI", async () => {
   const h = harness("claude"); mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2.1.310 (Claude Code)" });
+  await expect(start(h, "claude")).rejects.toThrow("runtime_unsupported"); expect(h.auth.leases.open).toBe(0);
+  mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "Claude Code" });
   await expect(start(h, "claude")).rejects.toThrow("runtime_unsupported"); expect(h.auth.leases.open).toBe(0);
   const devBuild = createAccountPrepare(h.auth.runtime, "doan");
   await expect(devBuild({ root: h.root, mode: "new", runtime: "claude", text: "x", anchors: [] })).rejects.toThrow("cli_missing");
 });
 
-it("asks for the provider's tool facts again when a run finds its CLI missing or its version changed, and not for other refusals", async () => {
+it("asks for the provider's tool facts again when a run finds its CLI missing or its version below the minimum, and not for other refusals", async () => {
   const h = harness("cursor");
-  mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2026.10.23-0aa1111\n" });
+  mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2026.10.21-0aa1111\n" });
   await expect(start(h, "cursor")).rejects.toThrow("runtime_unsupported");
   expect(h.toolsFailed).toHaveBeenCalledWith("cursor");
   const { conversationId } = await start(h, "cursor"); h.service.receive(conversationId, { type: "turn.done" }); h.exits[0]!();
   acpSession(h.profile, "cursor"); h.toolsFailed.mockClear();
-  // A resume reads the same version change as session_unavailable; the facts are still what changed.
-  mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2026.10.23-0aa1111\n" });
+  // A resume reads the same downgrade as session_unavailable; the facts are still what changed.
+  mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2026.10.21-0aa1111\n" });
   await expect(h.service.send(conversationId, "after an update", [])).rejects.toThrow("session_unavailable");
   expect(h.toolsFailed).toHaveBeenCalledWith("cursor"); h.toolsFailed.mockClear();
   (h.auth.runtime.acquire as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => { throw new Error("cli_missing"); });
@@ -252,10 +254,14 @@ it.each([
   expect(mocks.run).toHaveBeenCalledTimes(provider === "antigravity" ? 0 : 1);
 });
 
-it("refuses a Cursor or Copilot build other than the checked one", async () => {
-  for (const [provider, stdout] of [["cursor", "2026.10.23-0aa1111\n"], ["copilot", "GitHub Copilot CLI 1.0.106.\n"]] as const) {
+it("refuses a Cursor or Copilot build below the minimum and runs a newer one", async () => {
+  for (const [provider, stdout] of [["cursor", "2026.10.21-0aa1111\n"], ["copilot", "GitHub Copilot CLI 1.0.104.\n"]] as const) {
     const h = harness(provider); mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout });
     await expect(start(h, provider)).rejects.toThrow("runtime_unsupported"); expect(h.auth.leases.open).toBe(0);
+  }
+  for (const [provider, stdout] of [["cursor", "2026.10.23-0aa1111\n"], ["copilot", "GitHub Copilot CLI 1.0.106.\n"]] as const) {
+    const h = harness(provider); mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout });
+    await start(h, provider); expect(h.open).toHaveBeenCalledOnce();
   }
 });
 

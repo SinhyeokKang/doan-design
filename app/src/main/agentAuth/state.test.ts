@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authStatus, initialAuthState, readiness, transition } from "./state";
+import { authStatus, initialAuthState, readiness, recordedFacts, transition } from "./state";
 import { judgeConnection } from "./connection";
 import { PROVIDERS, validProvider, type AccountConnection, type AuthEvent, type AuthState, type Provider, type ToolFacts } from "./types";
 import type { Runtime } from "../conversation/types";
@@ -227,12 +227,40 @@ describe("readiness", () => {
     const cursor = step(step(initialAuthState("cursor", null), { type: "signIn", attemptId: "a1", owner: 1 }), { type: "signedIn", attemptId: "a1", result: { status: "stored", connection: connection({ provider: "cursor", account: { id: "acct-1", workspace: null } }) } });
     expect(readiness(cursor, tools)).toEqual({ ready: true });
   });
+  it("puts a recorded incompatibility after an unknown version and before every account cause", () => {
+    expect(readiness(connected(), { ...tools, version: "incompatible" })).toEqual({ ready: false, cause: "version_incompatible", action: "retry" });
+    expect(readiness(initialAuthState("claude", null), { ...tools, version: "incompatible" })).toEqual({ ready: false, cause: "version_incompatible", action: "retry" });
+    expect(readiness(step(connected(), { type: "signOut", attemptId: "o1", running: false }), { ...tools, version: "incompatible" })).toMatchObject({ cause: "version_incompatible" });
+    expect(readiness(connected(), { ...tools, cli: "missing", version: "incompatible" })).toMatchObject({ cause: "cli_missing" });
+  });
+  it("applies a recorded incompatible version only to the same installed version", () => {
+    const facts: ToolFacts = { ...tools, installed: "2026.10.22-27dcf5f" };
+    expect(recordedFacts(facts, "2026.10.22-27dcf5f")).toEqual({ ...facts, version: "incompatible" });
+    // A self-update to another build of the same core is a different installed version.
+    expect(recordedFacts(facts, "2026.10.22-0aa1111")).toBe(facts);
+    expect(recordedFacts(facts, undefined)).toBe(facts);
+    expect(recordedFacts(tools, "2026.10.22-27dcf5f")).toBe(tools);
+    // Below the minimum or unreadable stays update or retry; the record never hides those.
+    for (const version of ["unsupported", "unknown"] as const) expect(recordedFacts({ ...facts, version }, facts.installed)).toEqual({ ...facts, version });
+  });
   it("stays ready while a verified connection is being rechecked", () => {
     expect(readiness(step(connected(), { type: "check", attemptId: "c1" }), tools)).toEqual({ ready: true });
   });
 });
 
 describe("status DTO", () => {
+  it("offers retry for a version cause beside the account's own actions", () => {
+    expect(authStatus(initialAuthState("cursor", null), { ...tools, version: "incompatible" }, 0).actions).toEqual(["signIn", "retry"]);
+    expect(authStatus(initialAuthState("cursor", null), { ...tools, version: "unknown" }, 0).actions).toEqual(["signIn", "retry"]);
+    expect(authStatus(connected(), { ...tools, version: "incompatible" }, 0).actions).toEqual(["signOut", "retry"]);
+    expect(authStatus(initialAuthState("claude", connection()), { ...tools, version: "unknown" }, 0).actions).toEqual(["retry", "signOut"]);
+    expect(authStatus(initialAuthState("cursor", null), { ...tools, version: "unsupported" }, 0).actions).toEqual(["signIn"]);
+    expect(authStatus(initialAuthState("cursor", null), tools, 0).actions).toEqual(["signIn"]);
+  });
+  it("never publishes the installed version", () => {
+    const dto = authStatus(connected(), { ...tools, installed: "2026.10.22-27dcf5f" }, 1);
+    expect(JSON.stringify(dto)).not.toContain("2026.10.22");
+  });
   it("publishes account, readiness and actions without secrets or internal references", () => {
     const failed = step(step(connected(), { type: "check", attemptId: "c1" }), { type: "checked", attemptId: "c1", result: { status: "failed", code: "network", detail: "sk-ant-secret /Users/x/.claude/.credentials.json" } });
     const dto = authStatus(failed, tools, 7);
