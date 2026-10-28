@@ -269,13 +269,20 @@ function ProjectNoticeView({ notice, run, id }: { notice: ProjectNotice; run: (c
   </>;
 }
 function Progress({ title, body }: { title: string; body?: string }) {
-  return <div className="doan-notice doan-panel ob-project-notice" role="status"><span className="doan-spinner doan-alert-icon" aria-hidden="true" /><span><strong className="ob-notice-title">{title}</strong>{body && <span className="ob-notice-body">{body}</span>}</span></div>;
+  return <div className="doan-notice doan-panel ob-project-notice" role="status" tabIndex={-1}><span className="doan-spinner doan-alert-icon" aria-hidden="true" /><span><strong className="ob-notice-title">{title}</strong>{body && <span className="ob-notice-body">{body}</span>}</span></div>;
 }
 function Footer({ back, next, label, enabled, busy }: { back: () => void; next: () => void; label: string; enabled: boolean; busy: boolean }) {
   return <div className="ob-footer">
     <button type="button" className="doan-button" data-ui-variant="subtle" disabled={busy} onClick={back}><ArrowLeft aria-hidden="true" />Back</button>
     <button type="button" className="doan-button" data-ui-variant="prominent" disabled={!enabled || busy} onClick={next}>{label}<ArrowRight aria-hidden="true" /></button>
   </div>;
+}
+
+// Where the Project step puts focus that its own change removed or disabled (design '이동·취소·포커스 계약'): the error,
+// else the progress, else the first usable action. Focus the user still holds is never moved.
+export function projectFocusTarget(state: ProjectStepState, agentReady: boolean): "alert" | "status" | "action" {
+  if (state.error || (!agentReady && state.phase.kind === "ready")) return "alert";
+  return ["inspecting", "selecting", "cloning", "completing"].includes(state.phase.kind) ? "status" : "action";
 }
 
 const HEADINGS = {
@@ -396,7 +403,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={on.changeDestination}>Change</button></div>
       {p.kind === "cloning" ? <>
         {p.cancelling ? <Progress title="Stopping clone and cleaning up" body="Wait before starting another clone." /> : <Progress title={`Cloning ${nameOf(p.destination)}`} body={shown(p.destination, home)} />}
-        <div className={p.cancelling ? "ob-state-actions" : "ob-state-actions"}>
+        <div className="ob-state-actions">
           {p.cancelling ? <><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled>Choose local folder</button>
             <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled>Retry</button></>
             : <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.cancelClone}>Cancel</button>}
@@ -457,11 +464,27 @@ export function Wizard({ session, projects, homeDirectory, onClose }: { session:
     const focused = () => agents.windowFocused();
     window.addEventListener("focus", focused);
     // Completion saved by a CLI or MCP client of this session: Home takes over here too.
-    const stop = window.doan.onOnboardingSession((state: OnboardingState) => { if (state.sessionId === session && state.completed) finish(state.project?.root ?? null); });
+    const done = (state: OnboardingState) => { if (state.sessionId === session && state.completed) finish(state.project?.root ?? null); };
+    const stop = window.doan.onOnboardingSession(done);
+    // A completion published between App's start and this subscription is read once here.
+    void window.doan.readOnboardingSession({ sessionId: session }).then(reply => { if (reply.ok && "sessionId" in reply.result) done(reply.result); }, () => {});
     return () => { window.removeEventListener("focus", focused); stop(); agents.dispose(); project.dispose(); };
   }, []);
   // A scene change moves focus to its heading; Tab then enters the controls (design '이동·취소·포커스 계약').
   useEffect(() => { requestAnimationFrame(() => heading.current?.focus()); }, [scene.generation]);
+  // Within the Project step, a phase change that took the focused control away hands focus on, never to <body>.
+  const projectPhase = `${project.state.phase.kind}:${project.state.error?.code ?? ""}:${project.busy()}`;
+  useEffect(() => {
+    if (scene.scene !== "project") return;
+    requestAnimationFrame(() => {
+      const root = overlay.current, active = document.activeElement;
+      if (!root || (active instanceof HTMLElement && active !== document.body && active.isConnected && !active.matches(":disabled"))) return;
+      const target = projectFocusTarget(project.state, canAdvance(agents.state.auth ?? null));
+      const node = target === "action" ? root.querySelector<HTMLElement>(".ob-scene button:not(:disabled), .ob-scene input:not(:disabled)")
+        : root.querySelector<HTMLElement>(`.ob-scene .ob-project-notice[role="${target}"]`);
+      (node ?? heading.current)?.focus();
+    });
+  }, [projectPhase]);
   // Guarded with the session's auth at the time of the move, not of the click: a cancel wait can outlive a ready provider.
   const move = (event: SceneEvent) => setScene(current => nextScene(current, event, { auth: agents.state.auth ?? null, busy: project.busy() }));
   const generation = useRef(0);

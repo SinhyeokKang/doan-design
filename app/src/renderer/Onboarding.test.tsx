@@ -218,7 +218,7 @@ test("U2 an invalid URL marks the field and keeps Find repository disabled; an a
 
 test("U2 looking for a repository shows a status with Cancel", () => {
   const html = screen({ url: "https://github.com/acme/studio", phase: { kind: "inspecting", url: "https://github.com/acme/studio" } });
-  expect(html).toContain('<div class="doan-notice doan-panel ob-project-notice" role="status"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span><strong class="ob-notice-title">Checking repository</strong><span class="ob-notice-body">https://github.com/acme/studio</span></span></div>');
+  expect(html).toContain('<div class="doan-notice doan-panel ob-project-notice" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span><strong class="ob-notice-title">Checking repository</strong><span class="ob-notice-body">https://github.com/acme/studio</span></span></div>');
   expect(html).toContain('readOnly=""');
   expect(html).toContain('data-ui-size="sm">Cancel</button>');
 });
