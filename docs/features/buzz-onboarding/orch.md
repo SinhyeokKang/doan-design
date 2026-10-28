@@ -27,6 +27,7 @@
 | D14 | `onboarding start`가 여는 번들의 신뢰는 'CLI의 실제 경로를 담은 .app(구조·Info.plist bundle id·그 안의 실행 파일)'이고 진본 확인이 아니다. 서명 검사는 하지 않는다. 온보딩에서는 빈 `DOAN_RUNTIME`도 명시로 보고 자동 실행하지 않는다(`active`는 그대로) | 지휘자 판단(G 리뷰) — 앱이 서명되지 않았고, 그 번들을 통제하는 사람은 이미 사용자가 실행하는 것을 통제한다 |
 | D15 | 온보딩 세션 revision은 세션·프로젝트·작업이 바뀔 때만 오른다. 인증 변화는 agent-auth의 revision과 `agent-auth:changed`로 읽는다(U2는 둘 다 구독). `cancel`은 `sign_in`·`project_clone`만 취소하고 다른 kind는 대상을 그대로 돌려준다. 가이드 문구는 V3에서 고친다 | 지휘자 판단(M B0 리뷰 ⚪) — agent-auth는 로그인만 취소할 수 있고, 두 revision은 design에서 이미 분리돼 있다 |
 | D16 | 이 창이 시작한 로그인이 창에 포커스가 있을 때 ready가 되면 포커스를 옮기지 않고 role=status로 한 번 알린다(포커스가 없으면 기존대로 복귀 때 알리고 Continue로 옮긴다). Antigravity 주소가 16,384자를 넘으면 Submit을 막고 "This address is too long to submit."를 보인다 | 지휘자 판단(U1 리뷰) — 처음 ready를 알린다는 상태 대응 표 규칙을 지키되 포커스 이동은 복귀 때만 한다 |
+| D17 | clone은 사용자 SSH 설정(`core.sshCommand`, `~/.ssh/config`)을 덮어쓰지 않는다. `GIT_SSH_COMMAND` BatchMode 대신 제어 터미널 없는 프로세스 그룹, `GIT_TERMINAL_PROMPT=0`, `SSH_ASKPASS_REQUIRE=never`로 비대화식을 보장하고 호스트 키 검사는 유지한다(design의 'SSH BatchMode'를 바꾼다, V3 승격) | 사용자 결정(2026-10-29) — BatchMode 환경 변수가 회사용 키 같은 사용자 설정을 덮어써 접근이 실패했다 |
 
 ## 배치
 
@@ -78,3 +79,4 @@
 - 2026-10-29: 통합 HEAD(T+C+G+P+E) `verify.mjs --eval` PASS(9단계).
 - 2026-10-29: U1 리뷰 Claude Opus high: 🔴 0·🟡 3(CLI가 시작한 로그인 링크를 renderer도 엶, 비활성·제거 뒤 포커스가 body로 감, 붙여넣기 모달 수명과 잘림)·⚪ 7. 수정 1회차를 보냈다. Codex loopback 링크 자동 열기 문제는 M 수정 brief에 더했다. 결정 D16.
 - 2026-10-29: U1 수정 1회차(2c7473e, f6dfdd9, `verify.mjs` PASS). 지휘자 확인 뒤 U1을 통합했다(5 커밋). 포커스 이동은 단위 테스트로만 확인했고 실제 앱 확인은 U2 design-sync에서 한다. ⚪4(reload 뒤 소유 attempt id 소실)·⚪5(설치 줄에 공급자 이름 없음)는 U2로 넘긴다. U 작업자는 M 통합을 기다린다.
+- 2026-10-29: M B1 완료(bb2f0f0..4d0736c, `verify.mjs` PASS, 실제 Go CLI→socket→shell probe). 결정 D17. M에 B0 리뷰 수정 + Codex loopback + D17을 한 Task로 보내고, B1 독립 리뷰(Codex)를 병렬로 띄운다.
