@@ -4,7 +4,7 @@ export type Provider = (typeof PROVIDERS)[number];
 export function validProvider(value: unknown): value is Provider { return PROVIDERS.some(p => p === value); }
 // Email and display name are shown, never compared: identity is the provider's id and workspace.
 export interface AccountIdentity { id: string | null; workspace: string | null; displayName?: string; email?: string }
-// profile is an opaque reference resolved by main, never a credential location.
+// profile is an opaque reference main resolves to a directory (providerEnv profileDir), never a credential location.
 export interface AccountConnection { provider: Provider; connectionId: string; profile: string; account: AccountIdentity }
 export interface AuthMetadata { v: 1; accounts: AccountConnection[] }
 export type ConversationOwner =
@@ -23,6 +23,8 @@ export type CheckResult =
   | { status: "connected"; account: AccountIdentity }
   | { status: "disconnected" } | { status: "expired" }
   | { status: "failed"; code: "network" | "check_failed"; detail?: string };
+// A failed or cancelled sign-in leaves no metadata. Without a stored connection its leftover provider
+// credentials are orphans to clean up; with one they are the live profile, judged by the next check.
 export type SignInResult =
   | { status: "stored"; connection: AccountConnection }
   | { status: "failed"; code: "sign_in_failed" | "network" | "storage_failed"; detail?: string };

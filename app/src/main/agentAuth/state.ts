@@ -44,7 +44,8 @@ export function transition(state: AuthState, event: AuthEvent): AuthTransition {
       }
       if (event.type === "signedIn") {
         const result = event.result;
-        if (result.status === "failed") return apply({ attempt: null, error: failure(result.code, result.detail) });
+        // A replacement shares the dedicated profile and may have overwritten the previous login before failing.
+        if (result.status === "failed") return apply({ attempt: null, verified: false, error: failure(result.code, result.detail) });
         if (!validConnection(result.connection) || result.connection.provider !== state.provider) return reject("invalid");
         return apply({ attempt: null, connection: result.connection, generation: state.generation + 1, verified: true, expired: false, error: null });
       }
@@ -58,7 +59,9 @@ export function transition(state: AuthState, event: AuthEvent): AuthTransition {
           if (!state.connection) return apply({ attempt: null, error: kept });
           const stored = state.connection.account;
           if (stored.id !== result.account.id || stored.workspace !== result.account.workspace) return apply({ attempt: null, error: kept ?? { code: "account_mismatch" } });
-          return apply({ attempt: null, verified: true, expired: false, error: kept });
+          // Without a stable ID any login matches, so the shown account must be the one just checked.
+          const connection = stored.id === null ? { ...state.connection, account: result.account } : state.connection;
+          return apply({ attempt: null, connection, verified: true, expired: false, error: kept });
         }
       }
       return reject("invalid");
@@ -76,7 +79,8 @@ export function transition(state: AuthState, event: AuthEvent): AuthTransition {
       if (!attempt || attempt.id !== event.attemptId) return reject("stale");
       // Only cancellation waits for cleanup; finished attempts end with their result.
       if (!attempt.cancelled) return reject("invalid");
-      return apply({ attempt: null });
+      // Only sign-ins are cancellable, and one may have rewritten the profile before it stopped.
+      return apply({ attempt: null, verified: false });
   }
   return reject("invalid");
 }

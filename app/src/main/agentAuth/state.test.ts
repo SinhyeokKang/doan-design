@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { authStatus, initialAuthState, readiness, transition } from "./state";
+import { judgeConnection } from "./connection";
 import { PROVIDERS, validProvider, type AccountConnection, type AuthEvent, type AuthState, type Provider, type ToolFacts } from "./types";
 import type { Runtime } from "../conversation/types";
 
@@ -8,6 +9,8 @@ const connection = (over: Partial<AccountConnection> = {}): AccountConnection =>
   account: { id: "acct-1", workspace: null, displayName: "Ada", email: "ada@example.com" }, ...over,
 });
 const tools: ToolFacts = { cli: "found", version: "supported", tools: "ready" };
+const owner = { kind: "doan", provider: "claude", connectionId: "conn-1", accountId: "acct-1", workspaceId: null, profile: "claude-1" } as const;
+const free = { exists: true, occupancy: "free" } as const;
 function step(state: AuthState, event: AuthEvent): AuthState {
   const result = transition(state, event); if (!result.ok) throw new Error(result.reason); return result.state;
 }
@@ -121,10 +124,36 @@ describe("auth transitions", () => {
     const removed = step(step(failed, { type: "signOut", attemptId: "o2", running: false }), { type: "signedOut", attemptId: "o2", result: { status: "removed" } });
     expect(removed).toMatchObject({ phase: "disconnected", connection: null, error: null, verified: false, generation: 2 });
   });
-  it("keeps the previous connection when a replacement sign-in fails", () => {
+  it("unverifies the previous connection until a check when a replacement sign-in fails or is cancelled", () => {
+    // The replacement logs in to the same dedicated profile, so the previous login may already be overwritten.
     const signing = step(connected(), { type: "signIn", attemptId: "a2", owner: 1 });
-    const failed = step(signing, { type: "signedIn", attemptId: "a2", result: { status: "failed", code: "sign_in_failed" } });
-    expect(failed).toMatchObject({ phase: "connected", connection: connection(), generation: 1, error: { code: "sign_in_failed" } });
+    const failed = (["sign_in_failed", "storage_failed"] as const).map(code => step(signing, { type: "signedIn", attemptId: "a2", result: { status: "failed", code } }));
+    const cancelled = step(step(signing, { type: "cancel", attemptId: "a2", owner: 1 }), { type: "settled", attemptId: "a2" });
+    const closed = step(step(signing, { type: "ownerClosed", owner: 1 }), { type: "settled", attemptId: "a2" });
+    for (const state of [...failed, cancelled, closed]) {
+      expect(state).toMatchObject({ phase: "connected", connection: connection(), generation: 1, verified: false, attempt: null });
+      expect(readiness(state, tools)).toEqual({ ready: false, cause: "unverified", action: "retry" });
+      expect(judgeConnection(owner, state, free)).toEqual({ decision: "reject", cause: "unverified" });
+      const check = (account: AccountConnection["account"]) =>
+        step(step(state, { type: "check", attemptId: "c2" }), { type: "checked", attemptId: "c2", result: { status: "connected", account } });
+      const same = check(connection().account);
+      expect(same).toMatchObject({ phase: "connected", verified: true, error: null });
+      expect(readiness(same, tools)).toEqual({ ready: true });
+      expect(judgeConnection(owner, same, free)).toEqual({ decision: "resume", rebind: false });
+      const other = check({ id: "acct-2", workspace: null });
+      expect(other).toMatchObject({ phase: "error", error: { code: "account_mismatch" } });
+      expect(judgeConnection(owner, other, free)).toMatchObject({ decision: "reject" });
+    }
+    expect(failed.map(s => s.error)).toEqual([{ code: "sign_in_failed" }, { code: "storage_failed" }]);
+  });
+  it("shows the checked account for a connection without a stable account id", () => {
+    const anonymous = connection({ account: { id: null, workspace: null, displayName: "Ada", email: "ada@example.com" } });
+    const start = step(step(initialAuthState("claude", null), { type: "signIn", attemptId: "a1", owner: 1 }), { type: "signedIn", attemptId: "a1", result: { status: "stored", connection: anonymous } });
+    const checked = step(step(start, { type: "check", attemptId: "c1" }), { type: "checked", attemptId: "c1", result: { status: "connected", account: { id: null, workspace: null, email: "bea@example.com" } } });
+    expect(checked).toMatchObject({ phase: "connected", verified: true, error: null, connection: { connectionId: "conn-1", profile: "claude-1" } });
+    expect(readiness(checked, tools)).toEqual({ ready: true });
+    expect(authStatus(checked, tools, 0).account).toEqual({ email: "bea@example.com" });
+    expect(judgeConnection({ ...owner, accountId: null }, checked, free)).toEqual({ decision: "reject", cause: "account_unverifiable" });
   });
   it("advances the generation on every stored credential change", () => {
     const first = connected();
