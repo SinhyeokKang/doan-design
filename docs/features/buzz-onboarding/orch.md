@@ -59,3 +59,4 @@
 - 2026-10-29: C 완료(5d69875, f37b5a2, 8030b4d, `verify.mjs` PASS). 독립 리뷰 Codex `gpt-6-astra` medium `ctx_eebfb4a3eb21` 진행 중. C 작업자는 수정 라운드를 위해 retain했다. C handoff 지적에 따라 E 소유에 `eval/lib/socket.ts`를 더했다.
 - 2026-10-29: C 리뷰 🔴 0·🟡 2(clone 정리 진행 표시 없음, 응답 op와 operation kind 불일치 허용). 수정 1회차 `ctx_7ee9a4bb5644`(24ee38a, b7b23d5): `cancelling: true`를 running sign_in·project_clone에만 허용하고 op와 kind를 묶었다. 지휘자가 diff를 확인하고 통합했다(`b1c101e`..`4fce40b`). C 작업자 release, worktree bo-C 제거, handoff는 `.scratch/orch/handoff-C.md`. G 시작 `ctx_895fd457ef6f`(bo-G).
 - 2026-10-29: P 완료(d7f7f7b, 1277829, c7bcfea, `verify.mjs` PASS). 결정 D12·D13.
+- 2026-10-29: G 완료(1f1e9fd..da67bb0, `verify.mjs` PASS). 독립 리뷰 Codex `gpt-6-astra` medium 진행 중. G 작업자 retain.
