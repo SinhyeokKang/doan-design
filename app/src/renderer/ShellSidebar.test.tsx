@@ -39,3 +39,12 @@ it("describes a positive open-comment count without fabricating counts on read f
 it("does not mark a canvas or Overview current for an unlisted iframe destination", () => {
   expect(render("/repo", "/repo", true, false, true)).not.toContain('aria-current="location"');
 });
+
+it("draws every project hue as a light tint with dark ink, shared with onboarding thumbnails", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  for (const hue of ["rose", "orange", "amber", "emerald", "teal", "sky", "indigo", "fuchsia"])
+    expect(css).toContain(`.hue-${hue} { background: color-mix(in srgb, var(--identity-project-${hue}) 14%, var(--surface-panel)); --thumbnail-ink: color-mix(in srgb, var(--identity-project-${hue}) 65%, var(--text-standard)); }`);
+  expect(css).toMatch(/\.shell-thumbnail \{[^}]*color: var\(--thumbnail-ink\);/);
+  expect(render("/repo")).toContain('<span class="shell-thumbnail hue-');
+});

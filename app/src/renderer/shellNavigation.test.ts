@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commitVisit, emptyHistory, historyTarget, projectExpanded, projectHue, reconcileProjects, selectProjectRoot } from "./shellNavigation";
+import { commitVisit, emptyHistory, historyTarget, projectExpanded, projectHue, projectInitial, reconcileProjects, selectProjectRoot } from "./shellNavigation";
 import { parseUiState } from "../restore/uiState";
 
 describe("shell navigation", () => {
@@ -8,6 +8,13 @@ describe("shell navigation", () => {
     expect(projectHue("malmoi")).toBe("indigo");
     for (const name of ["", " ", "한글", "😀", "x".repeat(10000)]) expect(projectHue(name)).toBe(projectHue(name.trim()));
     expect(projectHue("")).toBe("sky");
+  });
+  it("labels a thumbnail with the first code point of the trimmed name, upper-cased", () => {
+    expect(projectInitial(" doan-design ")).toBe("D");
+    expect(projectInitial("😀 smile")).toBe("😀");
+    expect(projectInitial("ärger")).toBe("Ä");
+    expect(projectInitial("한글")).toBe("한");
+    expect(projectInitial("  ")).toBe("?");
   });
   it("forces only the viewed project open without changing saved intent", () => {
     expect(projectExpanded({ roots: ["a"], expanded: false }, "a")).toBe(true);
