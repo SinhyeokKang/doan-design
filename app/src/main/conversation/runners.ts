@@ -89,6 +89,10 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
   }
   const q = query({ prompt: messages(), options: {
     cwd: input.cwd, env: input.env, pathToClaudeCodeExecutable: input.command, settingSources: ["user", "project", "local"], includePartialMessages: true,
+    // A repo's .claude/settings*.json env API key or apiKeyHelper would otherwise replace the doan login. Pinning the
+    // login's organization as a per-run parent policy (SDK managedSettings, honoured for forceLoginOrgUUID per
+    // code.claude.com/docs/en/managed-settings) makes Claude Code refuse such a run instead (B3 live check, 2.1.312).
+    ...(input.owner?.workspaceId ? { managedSettings: { forceLoginOrgUUID: input.owner.workspaceId } } : {}),
     abortController: controller, ...(input.sessionId ? { resume: input.sessionId } : { sessionId }),
     spawnClaudeCodeProcess(options) {
       const child = spawn(options.command, options.args, { cwd: options.cwd, env: options.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
