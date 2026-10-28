@@ -181,6 +181,9 @@ Run: `run_d94775f7dd27`.
 - 사용자 결정(2026-10-28, R-C): Codex rollout 헤더 허용 목록은 누적한다. doan이 지원했던 Codex 버전은 모두 목록에 남기고, 어떤 버전으로 만든 대화를 포기하기로 따로 결정할 때만 그 버전을 뺀다. 목록에는 항상 현재 지원 버전이 들어 있어야 하며 테스트로 이를 고정한다. 'exact supported version' 계약의 예외이므로 D3에서 PRODUCT §7과 ARCHITECTURE §5에 기록한다.
 - 사용자 결정(2026-10-28, D1): Claude 로그인에도 doan BROWSER 훅을 넣는다. 훅이 받은 localhost 콜백 URL을 prompt로 보내고, 이 URL은 main만 연다. CLI가 사용자 기본 브라우저를 직접 열지 않게 한다. F-D1이 구현한다.
 - 사용자 결정(2026-10-28, D1): 이전 턴은 끝났는데 프로세스가 아직 종료되지 않았으면, send는 정해진 시간까지 종료를 기다린 뒤 진행한다. 실행 중인 턴이 있거나 그 시간 안에 종료되지 않을 때만 `busy`를 돌려준다. F-D1이 구현한다.
+- 사용자 결정(2026-10-28, R-F-D1 B): Claude CLI가 URL을 출력했는데 10초 안에 받아들일 수 있는 훅 링크가 오지 않으면 로그인을 `sign_in_failed`로 끝낸다. 이유는 main 로그에 남긴다. F-D1b가 구현한다.
+- 사용자 결정(2026-10-28, R-F-D1 C): Cursor·Copilot 로그인 CLI가 OS 기본 브라우저를 직접 여는 동작은 알려진 한계로 두고 병합한다. 소비 UI는 브라우저가 열릴 수 있다는 점을 반영한다. 모든 공급자를 같은 방식으로 맞추는 일은 후속 작업이다.
+- conductor's call(R-F-D1 A·D): 주 창을 숨겨도 대기 중인 send는 유지하고, 앱 종료만 이를 취소한다. 창을 숨겨도 실행을 멈추지 않는 기존 동작과 맞추기 위해서다. Claude 대화의 도구 셸이 `BROWSER=<훅>`을 물려받는 점은 Antigravity와 같으며, 알려진 한계로 기록한다.
 - conductor's call — C(코드)와 D1(`.scratch` probe만)은 파일이 겹치지 않으므로 병렬로 진행한다. D1은 Codex를 제외한 네 공급자를 먼저 확인하고, Codex는 '보류 항목'으로 handoff에 남긴다. C를 통합한 뒤 Codex 확인을 새 Task로 보낸다. 로그인 승인은 지휘자가 ego-lite에서 하나씩 처리하므로, 실인증 단계가 겹쳐도 승인은 순서대로 진행된다.
 
 ### 배치 (재개)
@@ -215,3 +218,5 @@ Run: `run_45baa7f44012`.
 - F-D1 완료(`4ce52f9`..`a4764a2`, 5커밋). Claude 로그인은 이제 BROWSER 훅이 `DOAN_AUTH_LINK` 파일로 받은 localhost 콜백 링크만 쓰고, 코드를 붙여넣는 링크는 더 이상 보여 주지 않는다. send는 턴이 끝난 뒤 남아 있는 프로세스가 종료되기를 최대 10초 기다린다. interrupt, stopRuns, 앱 종료가 이 대기를 취소하고, 시간이 지나면 `busy`를 돌려준다. 작업자 보고 기준으로 verify.mjs가 PASS했다. dev 앱과 패키지 앱에서 Claude 훅 로그인이 기본 브라우저를 열지 않았고, Claude와 Copilot 모두 연속 3턴을 `busy` 없이 보냈다. 로그아웃 뒤 Keychain과 외부 상태는 기준선으로 돌아왔다. 리팩터 커밋 `6e71130` 뒤에는 실제 앱을 다시 돌리지 않았다(단위 테스트만). 새로 관찰한 것: `cursor-agent login`과 `copilot login`도 OS 기본 브라우저를 직접 연다(D3에 기록). dev 앱의 첫 Claude 승인 실패는 지휘자의 승인 스크립트가 콜백 이동이 끝나기 전에 탭을 옮겼기 때문이다. 근거는 `evidence-F-D1/`. 작업자는 release했다.
 - R-F-D1: `ctx_5fa5bae96678` (task `task_7760b3e45e13`), `agent-auth-fix-d1`, opus high(동시성과 로그인 수명 주기), `turnStart: observed`.
 - 지휘자 판단: D3는 문서가 많아 지휘자가 직접 쓰지 않고 작업자에게 맡긴다. D3: `ctx_b443f8eba300` (task `task_7207e241d9f5`), child `agent-auth-d3` (base `0c498cb`), opus high(정본 계약을 코드와 대조해야 함), `turnStart: observed`. 이 디렉터리 삭제와 orch.md 수정은 지휘자가 마지막에 한다. 이 run은 CLI·MCP 출력, 가이드, 스킬 스텁, eval을 바꾸지 않았다(`git diff main...HEAD -- cli/ eval/` 변경 없음). 그래서 D2의 `/agent-eval`은 해당하지 않는다.
+- R-F-D1 `ctx_5fa5bae96678`: 🔴0·🟡1·⚪3. 세션 하나를 두 프로세스가 함께 쓰는 경로는 없었다. 새 테스트는 수정 전 코드에서 red(6건)였고, 취소 가드 5개는 각각 mutation으로 확인했다. `6e71130`은 실제 앱을 다시 돌리지 않아도 된다는 데 동의했다. 🟡1은 `claudeLink`가 거절한 훅 링크를 로그 없이 버려서 로그인이 무기한 대기하는 문제다. 보고서는 `evidence-F-D1/review-F-D1.md`. R-F-D1 작업자는 release했다.
+- F-D1b: `ctx_997ac5e713a4` (task `task_bc5f6744fd9e`), `agent-auth-fix-d1`, sonnet high(타이머 1개와 정리, 테스트 위주), `turnStart: observed`. 🟡1과 결정 B, ⚪1–3을 맡는다. D3에는 결정 A–D를 전달했다.
