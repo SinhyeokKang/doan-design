@@ -6,7 +6,10 @@ import type { ConversationError } from "../main/conversation/ipc";
 import type { Anchor, Canvas, ConversationEvent, Runtime, UnavailableReason } from "../main/conversation/types";
 import type { OnboardingOpen, OnboardingRead } from "../main/index";
 import type { StepRequest, StepResult } from "../main/onboarding/machine";
-import type { Author } from "../formats/types";
+import type {
+  Author, OnboardingCancelRequest, OnboardingCheckRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
+  OnboardingProjectInspectRequest, OnboardingResponse, OnboardingState, OnboardingStatusRequest,
+} from "../formats/types";
 import type { BeginRequest, BeginResult, CommentList, CommentReply, CommentRequest, CopyRequest, MutationRequest, OrphanMutationRequest, OrphanRequest, SavedStatus } from "../main/comments/service";
 import type { TransitionRequest } from "../main/comments/transitions";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
@@ -34,6 +37,9 @@ function subscribe<T>(event: string, initial: string, listener: (value: T) => vo
   void ipcRenderer.invoke(initial).then((value: T | null) => { if (active && !received && value !== null) listener(value); });
   return () => { active = false; ipcRenderer.removeListener(event, receive); };
 }
+
+// The onboarding socket DTO as the window sends it: main adds the version and needs no token from its own window.
+type SessionRequest<T> = T extends unknown ? Omit<T, "v" | "token" | "op"> : never;
 
 // The renderer gets these calls and nothing else: no ipcRenderer, no
 // channel names, no paths it did not receive from main.
@@ -83,6 +89,22 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, prompt: AuthPromptEvent) => listener(prompt);
     ipcRenderer.on("agent-auth:prompt", receive);
     return () => ipcRenderer.removeListener("agent-auth:prompt", receive);
+  },
+  // The first-run session the CLI and MCP share: same state, revision and operations as app-socket v2 (the reply DTO is
+  // the socket's). Sign-in itself stays on the agent-auth calls above; a CLI or MCP sign-in is owned by this window too.
+  startOnboardingSession: (): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:start", {}),
+  readOnboardingSession: (request: SessionRequest<OnboardingStatusRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:status", request),
+  // A Copilot check spends one model request, so it needs spendCopilotRequest: true.
+  checkOnboardingAgent: (request: SessionRequest<OnboardingCheckRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:check", request),
+  cancelOnboardingOperation: (request: SessionRequest<OnboardingCancelRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:cancel", request),
+  inspectOnboardingProject: (request: SessionRequest<OnboardingProjectInspectRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:inspect", request),
+  cloneOnboardingProject: (request: SessionRequest<OnboardingProjectCloneRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:clone", request),
+  completeOnboarding: (request: SessionRequest<OnboardingCompleteRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:complete", request),
+  // Every session change, from this window or a CLI/MCP client. Drop states of another sessionId.
+  onOnboardingSession(listener: (state: OnboardingState) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, state: OnboardingState) => listener(state);
+    ipcRenderer.on("onboarding:changed", receive);
+    return () => ipcRenderer.removeListener("onboarding:changed", receive);
   },
   homeDirectory: (): Promise<string | null> => ipcRenderer.invoke("app:home"),
   readOnboarding: (request: { session: string; requestId: string }): Promise<OnboardingRead> => ipcRenderer.invoke("onboarding:read", request),

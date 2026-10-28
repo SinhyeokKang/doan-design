@@ -13,6 +13,8 @@ import { AUTH_CHANNELS, AuthIpc } from "./agentAuth/ipc";
 import { sharedShell, toolFacts } from "./agentAuth/facts";
 import { createMachine, needsOnboarding, markClosed, PATH_LINE, probeShell, runProcess, type MachineState } from "./onboarding/machine";
 import { isTranslocated } from "./onboarding/states";
+import { ONBOARDING_CHANNELS, OnboardingService, rendererRequest } from "./onboarding/service";
+import { onboardingComplete, readCompletion } from "./onboarding/completion";
 import { createCommentsService } from "./comments/service";
 import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
@@ -103,6 +105,10 @@ let runtime: Runtime | undefined;
 let conversations: ConversationService | undefined;
 let agentAuth: AuthManager | undefined;
 let authIpc: AuthIpc | undefined;
+let onboarding: OnboardingService | undefined;
+// The socket may take a v2 request before start() has the service and the main window that owns CLI sign-ins.
+let onboardingReady: (service: OnboardingService) => void = () => {};
+const onboardingStarted = new Promise<OnboardingService>(resolve => { onboardingReady = resolve; });
 let conversationCanvases = new Set<string>();
 let inspector: Inspector | undefined;
 // One selection app-wide (select-inspect R1); the socket answers it only for
@@ -594,14 +600,23 @@ async function start(): Promise<void> {
   });
   // `doan active` is an extra; the app works without it, and the CLI then
   // reports that the app is not running.
-  runtime = await startRuntime(userData, { isOpen, selection: () => selection }).catch((error: unknown) => {
+  runtime = await startRuntime(userData, {
+    isOpen, selection: () => selection,
+    async onboarding(request) {
+      const service = await onboardingStarted;
+      // start brings the app forward, hidden window included, and keeps the session and its input (design '설치 직후 진입').
+      if (request.op === "start" && win && !win.isDestroyed()) { if (appHidden) app.show(); showWindow(win); }
+      return service.answer(request);
+    },
+  }).catch((error: unknown) => {
     console.error("doan: cannot start the runtime socket", error);
     return undefined;
   });
 
   removeStaleLinkDirs();
   const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
-    onChange: () => authIpc?.changed(), onPrompt: prompt => authIpc?.prompted(prompt), stopRuns: provider => conversations?.stopRuns(provider) ?? Promise.resolve() });
+    // The onboarding tap comes after AuthIpc stored the link, so the link it opens is this prompt's.
+    onChange: () => authIpc?.changed(), onPrompt: prompt => { authIpc?.prompted(prompt); onboarding?.prompted(prompt); }, stopRuns: provider => conversations?.stopRuns(provider) ?? Promise.resolve() });
   // Unreadable metadata leaves sign-in unavailable rather than letting a later save erase other connections.
   try { await auth.load(); agentAuth = auth; } catch (error) { console.error("doan: agent sign-in storage is unreadable", error); }
   const executable = (path: string) => { try { accessSync(path, fsConstants.X_OK); return statSync(path).isFile(); } catch { return false; } };
@@ -610,7 +625,7 @@ async function start(): Promise<void> {
     authIpc = new AuthIpc({
       backend: agentAuth, openExternal: url => electronShell.openExternal(url),
       probe: provider => toolFacts(provider, { shell: shellForFacts, run: runProcess, executable, inherited: process.env, cli }),
-      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); sendSettings(AUTH_CHANNELS.changed, snapshot); },
+      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); sendSettings(AUTH_CHANNELS.changed, snapshot); onboarding?.authChanged(snapshot); },
       prompt: (owner, event) => { for (const window of [win, settingsWin]) if (window && !window.isDestroyed() && window.webContents.id === owner) window.webContents.send(AUTH_CHANNELS.prompt, event); },
     });
   }
@@ -618,6 +633,21 @@ async function start(): Promise<void> {
   for (const channel of [AUTH_CHANNELS.read, AUTH_CHANNELS.check, AUTH_CHANNELS.signIn, AUTH_CHANNELS.cancel, AUTH_CHANNELS.submitCode, AUTH_CHANNELS.openLink, AUTH_CHANNELS.signOut]) {
     const refused = channel === AUTH_CHANNELS.read ? null : { ok: false, reason: "invalid" };
     handle(channel, refused, (event, value) => authIpc ? authIpc.handle(channel, value, event.sender.id) : refused);
+  }
+  const onboardingService = new OnboardingService({
+    auth: authIpc ?? null,
+    mainOwner: () => win && !win.isDestroyed() ? win.webContents.id : null,
+    completed: () => onboardingComplete(readCompletion(userData)),
+    publish: state => send(ONBOARDING_CHANNELS.changed, state),
+  });
+  onboarding = onboardingService;
+  const sessionRefused = { v: 2, ok: false, error: { code: "bad_request", message: "Doan could not handle this request." } };
+  const sessionOps = { start: "start", status: "status", check: "check", cancel: "cancel", inspect: "project_inspect", clone: "project_clone", complete: "complete" } as const;
+  for (const [name, op] of Object.entries(sessionOps) as [keyof typeof sessionOps, (typeof sessionOps)[keyof typeof sessionOps]][]) {
+    handle(ONBOARDING_CHANNELS[name], sessionRefused, (event, value: unknown) => {
+      const request = rendererRequest(op, value);
+      return fromWindow(event) && request !== null ? onboardingService.answer(request) : sessionRefused;
+    });
   }
   // The legacy external prepare gets no records: its runs use the user's own profile and readiness does not cover them.
   const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc);
@@ -962,6 +992,7 @@ async function start(): Promise<void> {
   setMenu();
   void setupBroker.refresh();
   win = createWindow();
+  onboardingReady(onboardingService);
 }
 
 // A second launch only brings the first window back, so two apps never

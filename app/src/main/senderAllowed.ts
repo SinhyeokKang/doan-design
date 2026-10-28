@@ -8,6 +8,8 @@ const mainOnly = new Set([
   // Settings reads setup through `setup:*` and projects through the projection only.
   "onboarding:read", "onboarding:run", "onboarding:answer", "onboarding:open-project", "folders:get", "settings:open",
   "window:visible", "comments:project", "review-state:get", "review-state:raise", "comments:orphan-mutate", "comments:orphan-status",
+  // buzz-onboarding: the first-run session the CLI and MCP share; Settings never drives first-run.
+  "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:clone", "onboarding:complete",
 ]);
 const shared = new Set([
   "setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get",

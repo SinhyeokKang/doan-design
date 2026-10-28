@@ -61,6 +61,8 @@ export class AuthIpc {
     await this.probed;
     return this.snapshot();
   }
+  // Without waiting for the first probe: the socket answers within its 2 s limit, and unprobed facts read as a retry.
+  latest(): AuthSnapshot { return this.snapshot(); }
   // Every auth state change; links of attempts that ended are dropped here.
   changed(): void {
     for (const [attemptId, link] of this.links) if (!this.current(link.provider, attemptId)) this.links.delete(attemptId);
