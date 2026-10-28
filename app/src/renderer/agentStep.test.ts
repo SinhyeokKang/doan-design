@@ -59,7 +59,7 @@ const row = (h: ReturnType<typeof harness>, provider: Provider) => h.session.vie
 
 test("step entry checks connected, unverified and tool-check providers except Copilot", async () => {
   const h = harness(snap(1, { claude: unverified, codex: { account: ACCOUNT, facts: { tools: "failed" } }, cursor: connected, antigravity: {}, copilot: unverified }));
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   expect(h.api.readAgentAuth).toHaveBeenCalledTimes(1);
   expect(checked(h)).toEqual(["claude", "codex"]);
@@ -69,7 +69,7 @@ test("step entry checks connected, unverified and tool-check providers except Co
 
 test("window focus and auth events only read; Copilot is checked only on its Retry", async () => {
   const h = harness(snap(1, { copilot: unverified }));
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.emit(snap(2, { copilot: unverified }));
   h.session.windowFocused();
@@ -83,7 +83,7 @@ test("window focus and auth events only read; Copilot is checked only on its Ret
 
 test("a version-cause Retry checks without a cost; it still waits for the click", async () => {
   const h = harness(snap(1, { copilot: { facts: { version: "unknown" } } }));
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   expect(checked(h)).toEqual([]);
   h.session.command("copilot", "check");
@@ -93,7 +93,7 @@ test("a version-cause Retry checks without a cost; it still waits for the click"
 
 test("returning from an install page reads, then checks the installed provider unless it is Copilot", async () => {
   const h = harness(snap(1, { cursor: { facts: { cli: "missing" } }, copilot: { facts: { cli: "missing" } } }));
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.session.command("cursor", "install");
   h.session.command("copilot", "install");
@@ -113,7 +113,7 @@ test("returning from an install page reads, then checks the installed provider u
 test("a failed install page open is shown and no return check is armed", async () => {
   const h = harness(snap(1, { claude: { facts: { cli: "missing" } } }));
   vi.mocked(h.deps.openInstall).mockResolvedValueOnce(false);
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.session.command("claude", "install");
   await flush();
@@ -125,7 +125,7 @@ test("a failed install page open is shown and no return check is armed", async (
 
 test("sign-in success: links open automatically for Claude, Codex and Antigravity only, once per attempt", async () => {
   const h = harness();
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   for (const provider of PROVIDERS) {
     h.session.command(provider, "signIn");
@@ -151,7 +151,7 @@ test("sign-in success: links open automatically for Claude, Codex and Antigravit
 
 test("a prompt moves the waiting notice from Preparing to Finish signing in", async () => {
   const h = harness();
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.session.command("cursor", "signIn");
   await flush();
@@ -165,7 +165,7 @@ test("a prompt moves the waiting notice from Preparing to Finish signing in", as
 test("an automatic open that fails shows Couldn’t open your browser until the attempt ends", async () => {
   const h = harness();
   h.replies.open.push({ ok: false, reason: "open_failed" });
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.session.command("claude", "signIn");
   await flush();
@@ -181,7 +181,7 @@ test("an automatic open that fails shows Couldn’t open your browser until the 
 
 test("sign-in cancel: Cancel calls only this attempt and a settled cancel is announced once", async () => {
   const h = harness();
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.emit(snap(2, { codex: { attempt: { id: "other-window", kind: "signIn" } } }));
   h.session.command("codex", "cancel");
@@ -196,7 +196,7 @@ test("sign-in cancel: Cancel calls only this attempt and a settled cancel is ann
 
 test("a cancel that loses to a saved success shows the connection, not a cancel", async () => {
   const h = harness();
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.emit(snap(2, { codex: { attempt: { id: "a", kind: "signIn" } } }));
   h.session.command("codex", "cancel");
@@ -209,7 +209,7 @@ test("a cancel that loses to a saved success shows the connection, not a cancel"
 test("cancel refused with not_owner says to finish in the other window", async () => {
   const h = harness();
   h.replies.cancel.push({ ok: false, reason: "not_owner" });
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.emit(snap(2, { claude: { attempt: { id: "x", kind: "signIn" } } }));
   h.session.command("claude", "cancel");
@@ -221,7 +221,7 @@ test("cancel refused with not_owner says to finish in the other window", async (
 
 test("sign-in failure: one failure asks to try again, a second in a row says it keeps failing", async () => {
   const h = harness();
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   const fail = async (revision: number) => {
     h.emit(snap(revision, { claude: { attempt: { id: `s${revision}`, kind: "signIn" } } }));
@@ -236,7 +236,7 @@ test("sign-in failure: one failure asks to try again, a second in a row says it 
 test("busy names the provider holding the lock and clears when it ends", async () => {
   const h = harness();
   h.replies.signIn.push({ ok: false, reason: "busy" });
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.emit(snap(2, { claude: { attempt: { id: "c", kind: "signIn" } } }));
   h.session.command("codex", "signIn");
@@ -250,7 +250,7 @@ test("stop_required opens the stop dialog; confirming resends with stop, Cancel 
   const h = harness(snap(1, { codex: connected }));
   h.replies.signOut.push({ ok: false, reason: "stop_required" });
   h.replies.signIn.push({ ok: false, reason: "stop_required" });
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.session.command("codex", "signOut");
   await flush();
@@ -270,7 +270,7 @@ test("stop_required opens the stop dialog; confirming resends with stop, Cancel 
 test("stale and invalid replies read the latest state instead of showing anything", async () => {
   const h = harness();
   h.replies.signIn.push({ ok: false, reason: "stale" });
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.session.command("claude", "signIn");
   await flush();
@@ -280,7 +280,7 @@ test("stale and invalid replies read the latest state instead of showing anythin
 
 test("Continue cancels this window's own sign-in when another provider is ready", async () => {
   const h = harness();
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   expect(await h.session.continue()).toBe(false);
   h.session.command("codex", "signIn");
@@ -292,7 +292,7 @@ test("Continue cancels this window's own sign-in when another provider is ready"
 
 test("Continue leaves a sign-in this window did not start", async () => {
   const h = harness();
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.emit(snap(2, { claude: connected, codex: { attempt: { id: "elsewhere", kind: "signIn" } } }));
   expect(await h.session.continue()).toBe(true);
@@ -301,7 +301,7 @@ test("Continue leaves a sign-in this window did not start", async () => {
 
 test("Back cancels this window's own sign-in and keeps saved connections", async () => {
   const h = harness();
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.session.command("cursor", "signIn");
   await flush();
@@ -313,7 +313,7 @@ test("Back cancels this window's own sign-in and keeps saved connections", async
 
 test("dispose unsubscribes from auth and prompt events and drops late replies", async () => {
   const h = harness();
-  h.session.start();
+  h.session.start(); h.session.enter();
   expect(h.listening()).toEqual({ auth: true, prompt: true });
   h.session.dispose();
   expect(h.unsubscribed.sort()).toEqual(["auth", "prompt"]);
@@ -324,7 +324,7 @@ test("dispose unsubscribes from auth and prompt events and drops late replies", 
 
 test("the Antigravity paste modal: bounded input, submit to this attempt, Escape returns focus to Paste its address", async () => {
   const h = harness();
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.emit(snap(2, { antigravity: { attempt: { id: "ag-1", kind: "signIn" } } }));
   h.prompt({ provider: "antigravity", attemptId: "ag-1", url: "https://accounts.google.com/o" });
@@ -347,7 +347,7 @@ test("the Antigravity paste modal: bounded input, submit to this attempt, Escape
 
 test("first ready is announced with role=status when the window regains focus, then focus moves to Continue", async () => {
   const h = harness(snap(1), false);
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.emit(snap(2, { claude: connected }));
   expect(h.session.state.announcement).toBeNull();
@@ -364,7 +364,7 @@ test("first ready is announced with role=status when the window regains focus, t
 
 test("a provider already ready on entry is not announced", async () => {
   const h = harness(snap(1, { claude: connected }));
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   h.session.windowFocused();
   await flush();
@@ -374,7 +374,7 @@ test("a provider already ready on entry is not announced", async () => {
 
 test("an unreadable account store shows Retry, which reads again", async () => {
   const h = harness(null);
-  h.session.start();
+  h.session.start(); h.session.enter();
   await flush();
   expect(h.session.view().notice?.body).toBe("doan couldn’t read its agent connections.");
   h.setRead(snap(1));
@@ -386,8 +386,15 @@ test("an unreadable account store shows Retry, which reads again", async () => {
 
 test("an older read reply never replaces a newer event", async () => {
   const h = harness(snap(1));
-  h.session.start();
+  h.session.start(); h.session.enter();
   h.emit(snap(5, { claude: connected }));
   await flush();
   expect(h.session.state.auth?.revision).toBe(5);
+});
+
+test("entering again before a check's snapshot arrives does not send the check twice", async () => {
+  const h = harness(snap(1, { codex: unverified }));
+  h.session.start(); h.session.enter(); h.session.enter();
+  await flush();
+  expect(checked(h)).toEqual(["codex"]);
 });

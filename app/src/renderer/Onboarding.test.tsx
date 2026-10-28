@@ -53,7 +53,7 @@ test("a progress notice puts the spinner in the icon slot and is a status; an er
   expect(html).toContain('<div class="doan-notice doan-panel" role="status"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span><strong class="ob-notice-title">Finish signing in to Claude Code</strong><span class="ob-notice-body">Complete sign-in in your browser, then return here.</span></span></div>');
   expect(html).toContain('<div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Cancel</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Open again</button></div>');
   const error = renderToStaticMarkup(<NoticeView notice={{ role: "alert", spinner: false, body: "Sign-in didn’t finish. Try again.", actions: [{ command: "signIn", label: "Sign in", variant: "prominent", disabled: false }] }} run={noop} />);
-  expect(error).toMatch(/^<div class="doan-notice error doan-panel" role="alert"><svg[^>]*class="lucide lucide-circle-alert doan-alert-icon"[^>]*aria-hidden="true"/);
+  expect(error).toMatch(/^<div class="doan-notice error doan-panel" role="alert"><svg[^>]*class="lucide lucide-circle-alert[^"]* doan-alert-icon" aria-hidden="true">/);
   expect(error).toContain('<span><span class="ob-notice-body">Sign-in didn’t finish. Try again.</span></span>');
   expect(error).toContain('<div class="ob-state-actions submit-only">');
 });
@@ -66,7 +66,7 @@ test("Antigravity's paste line sits under the notice, outside its button row", (
 
 test("the footer: Back with arrow-left on the left, Continue with arrow-right disabled until ready", () => {
   const html = renderToStaticMarkup(<AgentFooter canContinue={false} busy={false} back={noop} next={noop} />);
-  expect(html).toMatch(/^<div class="ob-footer"><button type="button" class="doan-button" data-ui-variant="subtle"><svg[^>]*lucide-arrow-left[^>]*><\/svg>Back<\/button><button type="button" class="doan-button" data-ui-variant="prominent" disabled="" data-continue="">Continue<svg[^>]*lucide-arrow-right/);
+  expect(html).toMatch(/^<div class="ob-footer"><button type="button" class="doan-button" data-ui-variant="subtle"><svg[^>]*lucide-arrow-left[^>]*>.*?<\/svg>Back<\/button><button type="button" class="doan-button" data-ui-variant="prominent" disabled="" data-continue="">Continue<svg[^>]*lucide-arrow-right/);
   expect(renderToStaticMarkup(<AgentFooter canContinue busy={false} back={noop} next={noop} />)).not.toContain('disabled=""');
 });
 
@@ -76,7 +76,7 @@ const keyEvent = (key: string) => ({ key, nativeEvent: { isComposing: false }, p
 test("the paste modal: one bounded input, Cancel and Submit; Escape closes only the modal", () => {
   const close = vi.fn();
   const html = renderToStaticMarkup(<PasteDialog view={pasteDialog()} value="" submittable={false} busy={false} change={noop} submit={noop} close={close} />);
-  expect(html).toContain('<input class="doan-input" aria-label="Page address" placeholder="Page address from your browser" maxLength="16384" value=""/>');
+  expect(html).toContain('<input class="doan-input" aria-label="Page address" placeholder="Page address from your browser" maxLength="16384" autofocus="" value=""/>');
   expect(html).toContain('<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Cancel</button><button type="submit" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled="">Submit</button></div>');
   const element = PasteDialog({ view: pasteDialog(), value: "", submittable: false, busy: false, change: noop, submit: noop, close }) as ReactElement<DialogProps>;
   const escape = keyEvent("Escape");
@@ -92,7 +92,7 @@ test("the stop dialog is an alertdialog with Cancel and the confirm verb on the 
   const html = renderToStaticMarkup(<StopDialog view={stopDialog("claude", "signOut")} busy={false} confirm={noop} close={noop} />);
   expect(html).toMatch(/^<dialog class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="ob-stop-title"/);
   expect(html).toContain('<h3 class="doan-dialog-title" id="ob-stop-title">Stop Claude Code conversations?</h3>');
-  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm">Stop and sign out</button>');
+  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" autofocus="">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm">Stop and sign out</button>');
   const close = vi.fn();
   const element = StopDialog({ view: stopDialog("claude", "signIn"), busy: false, confirm: noop, close }) as ReactElement<DialogProps>;
   element.props.onKeyDown(keyEvent("Escape"));

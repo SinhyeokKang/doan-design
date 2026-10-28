@@ -266,25 +266,57 @@ code, kbd { font-family: var(--type-family); }
 .comment-pin { z-index: 2; border: 1px solid var(--border-pin); background: var(--affordance-accent); color: var(--text-on-accent); font: var(--type-weight-medium) var(--type-caption-size)/22px var(--type-family); text-align: center; box-shadow: 0 0 0 2px var(--halo-pin), var(--shadow-xs); }
 .comment-pin:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; box-shadow: 0 0 0 4px var(--halo-pin); z-index: 3; }
 
-/* Onboarding (.doan/canvases/onboard.html). The wizard covers the window as a dialog. */
-.ob-overlay { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; display: grid; grid-template-rows: 40px auto minmax(0, 1fr) 56px; background: var(--bg-app); color: var(--text-standard); }
+/* Onboarding (.doan/canvases/buzz-onboarding.html). The first run covers the window as a modal dialog. The app
+   behind it is hidden, so on Agent and Project the window's native sidebar material shows through as it does
+   behind AppShell; Welcome is an opaque panel with its own atmosphere. */
+#root:has(> .ob-overlay[open]) > :not(.ob-overlay) { visibility: hidden; }
+.ob-overlay { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; overflow: hidden; background: transparent; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .ob-overlay::backdrop { background: transparent; }
-.ob-title { font: 600 13px var(--type-family); outline: none; }
-.ob-steps { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 22px 0 0; }
-.ob-steps li { display: flex; align-items: center; }
-.ob-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-metadata); border-radius: 6px; padding: 2px 4px; }
-.ob-steps .num { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border-standard); display: grid; place-items: center; font-size: 11px; font-weight: var(--type-weight-semibold); }
-.ob-step.done { color: var(--text-subtle); }
-.ob-step.done .num { border-color: var(--text-success); color: var(--text-success); }
-.ob-step[aria-current="step"] { color: var(--text-standard); }
-.ob-step[aria-current="step"] .num { background: var(--affordance-prominent); border-color: var(--affordance-prominent); color: var(--text-on-prominent); }
-.ob-steps .sep { width: 32px; height: 1px; background: var(--border-standard); }
-.ob-body { min-height: 0; overflow: auto; }
-.ob-form { max-width: 640px; margin: 0 auto; padding: 28px 0; }
-.ob-form h2 { font-size: 18px; font-weight: var(--type-weight-semibold); margin-bottom: 6px; }
-.ob-lead { font-size: 12.5px; line-height: 1.6; color: var(--text-subtle); margin-bottom: 18px; }
-.ob-foot { display: flex; align-items: center; gap: 10px; padding: 0 24px; background: var(--surface-panel); border-top: 1px solid var(--border-standard); }
-.ob-foot .meta { margin-right: 6px; }
+.ob-overlay.ob-welcome { background: var(--surface-panel); }
+@media (prefers-reduced-transparency: reduce) { .ob-overlay { background: var(--bg-app); } }
+/* An accent glow broken up by an alpha grain mask, never black specks on top; it does not move (2026-10-28 user).
+   Fixed, so it fills the window behind the chrome rather than only the scrolling scene; z-index -1 keeps it under
+   the in-flow text in the overlay's own stacking context. */
+.ob-atmosphere { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(ellipse 50% 125% at 50% 112%, var(--affordance-accent) 0%, color-mix(in srgb, var(--affordance-accent) 78%, transparent) 30%, color-mix(in srgb, var(--affordance-accent) 32%, transparent) 60%, transparent 100%); mask-image: url("/onboarding-grain.svg"); mask-size: 180px 180px; mask-repeat: repeat; opacity: .85; }
+@media (forced-colors: active) { .ob-atmosphere { display: none; } }
+.ob-chrome { position: relative; flex: none; height: var(--size-chrome); display: flex; align-items: center; justify-content: center; -webkit-app-region: drag; }
+.ob-steps svg { width: 16px; height: 16px; }
+.ob-steps button:disabled { color: var(--text-disabled); cursor: default; }
+.ob-steps button:disabled:hover { background: transparent; }
+.ob-scene { position: relative; flex: 1; min-height: 0; overflow: auto; width: 100%; max-width: 560px; margin: 0 auto; padding: var(--space-10) var(--space-6) var(--space-12); display: flex; flex-direction: column; }
+.ob-welcome .ob-scene { max-width: 640px; padding-top: 0; align-items: center; }
+.ob-welcome-scene { display: contents; }
+.ob-welcome-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: var(--space-6); }
+.ob-wordmark { margin-bottom: var(--space-6); font-size: 104px; line-height: 1; font-weight: var(--type-weight-medium); letter-spacing: -8px; }
+.ob-welcome-main h1 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-regular); text-align: center; outline: none; }
+.ob-welcome-action { margin-top: var(--space-10); text-align: center; }
+.ob-heading { margin-bottom: var(--space-8); text-align: center; }
+.ob-heading h2 { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); outline: none; }
+.ob-heading p { margin-top: var(--space-3); color: var(--text-subtle); }
+.ob-list-notice { margin-bottom: var(--space-4); }
+/* Provider and project cards share one title/description style (design '승인된 디자인 기준'). */
+.ob-provider-list { padding: 0 var(--space-4); }
+.ob-provider { display: flex; flex-direction: column; justify-content: center; min-height: var(--size-row); padding: var(--space-4) 0; }
+.ob-provider + .ob-provider { border-top: 1px solid var(--border-standard); }
+.ob-provider-row { display: flex; align-items: center; gap: var(--space-3); }
+.ob-provider-mark { flex: none; width: 32px; display: grid; place-items: center; }
+.ob-provider-mark img { display: block; width: 24px; height: 24px; object-fit: contain; }
+.ob-provider-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
+.ob-provider-label strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ob-provider-label span, .ob-fine, .ob-page-help, .ob-button-note { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
+.ob-provider-help { margin-top: var(--space-3); color: var(--text-subtle); }
+.ob-provider > .doan-notice { margin-top: var(--space-3); }
+.ob-notice-title, .ob-notice-body { display: block; }
+.ob-notice-title { font-weight: var(--type-weight-medium); }
+.ob-notice-body { margin-top: var(--space-1); }
+.ob-state-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
+.ob-state-actions.submit-only { justify-content: flex-end; }
+.ob-page-help { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-1); margin-top: var(--space-3); color: var(--text-standard); }
+.ob-fine { margin-top: var(--space-5); }
+.ob-footer { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: var(--space-8); }
+.ob-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ob-dialog-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.ob-overlay .ob-card { width: auto; }
 /* Shared settings-style group: a hairline container whose rows are split by hairlines. */
 .ob-card { width: 640px; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
 .ob-card > :first-child { border-top: 0; }
@@ -622,15 +654,16 @@ body:has(.shell-top) { background: transparent; }
 .shell-side .row[aria-current="location"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
 .shell-side .shell-project-row { gap: 4px; padding: 0 0 0 10px; margin-bottom: 4px; }
 .shell-project-name { margin-left: 4px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px; color: white; font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
-.hue-rose { background: var(--identity-project-rose); }
-.hue-orange { background: var(--identity-project-orange); }
-.hue-amber { background: var(--identity-project-amber); }
-.hue-emerald { background: var(--identity-project-emerald); }
-.hue-teal { background: var(--identity-project-teal); }
-.hue-sky { background: var(--identity-project-sky); }
-.hue-indigo { background: var(--identity-project-indigo); }
-.hue-fuchsia { background: var(--identity-project-fuchsia); }
+.shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px; font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
+/* A light tint with dark ink (buzz-onboarding approved draft), shared with onboarding project cards. */
+.hue-rose { background: color-mix(in srgb, var(--identity-project-rose) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-rose) 65%, var(--text-standard)); }
+.hue-orange { background: color-mix(in srgb, var(--identity-project-orange) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-orange) 65%, var(--text-standard)); }
+.hue-amber { background: color-mix(in srgb, var(--identity-project-amber) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-amber) 65%, var(--text-standard)); }
+.hue-emerald { background: color-mix(in srgb, var(--identity-project-emerald) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-emerald) 65%, var(--text-standard)); }
+.hue-teal { background: color-mix(in srgb, var(--identity-project-teal) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-teal) 65%, var(--text-standard)); }
+.hue-sky { background: color-mix(in srgb, var(--identity-project-sky) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-sky) 65%, var(--text-standard)); }
+.hue-indigo { background: color-mix(in srgb, var(--identity-project-indigo) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-indigo) 65%, var(--text-standard)); }
+.hue-fuchsia { background: color-mix(in srgb, var(--identity-project-fuchsia) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-fuchsia) 65%, var(--text-standard)); }
 .shell-branch { display: inline-flex; align-items: center; gap: 4px; max-width: 84px; flex-shrink: 1; }
 .shell-branch svg { width: 12px; height: 12px; flex: none; }
 .shell-branch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

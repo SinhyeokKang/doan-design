@@ -30,6 +30,8 @@
 }
 /* Rows and cards are dense, so their actions step down to the small control. */
 .doan-button[data-ui-size="sm"] { min-height: var(--size-control-sm); padding: var(--space-1h) var(--space-4); }
+/* A screen's one leading action (onboarding Welcome) steps up to the large control. */
+.doan-button[data-ui-size="lg"] { min-height: var(--size-control-lg); padding: var(--space-3) var(--space-8); font-size: var(--type-label-size); line-height: var(--type-label-line-height); }
 .doan-icon-button {
   display: inline-flex;
   flex: 0 0 auto;

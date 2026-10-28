@@ -4,7 +4,7 @@ import { Check, CircleMinus, Ellipsis, FolderOpen, GitBranch, LayoutGrid, Palett
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 import { cardRow, type HomeCard, type RowAction } from "./homeCards";
-import { projectExpanded, projectHue } from "./shellNavigation";
+import { projectExpanded, projectHue, projectInitial } from "./shellNavigation";
 import { rowProblem } from "./Sidebar";
 import { typeaheadNext } from "./canvasTree";
 import { ErrorDetails } from "./ErrorDetails";
@@ -122,7 +122,7 @@ export function ShellSidebar(props: Props) {
         const run = (action: () => void) => { if (target()) action(); };
         return <div className="shell-project" key={card.key}>
           <div ref={rowRef(card.key)} className="shell-project-row row" role="treeitem" data-key={card.key} aria-label={card.name} aria-level={1} aria-expanded={expanded} aria-current={current && !canvas && !props.unlisted ? "location" : undefined} tabIndex={active === card.key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(card.key); }} onKeyDown={event => keyboard(event, card.key)} onClick={() => props.toggle(card.key)}>
-            <span className={`shell-thumbnail hue-${projectHue(card.name)}`} aria-hidden="true">{Array.from(card.name.trim())[0]?.toUpperCase() ?? "?"}</span>
+            <span className={`shell-thumbnail hue-${projectHue(card.name)}`} aria-hidden="true">{projectInitial(card.name)}</span>
             <span className="shell-project-name">{card.name}</span>
             {info.summary?.branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{info.summary.branch}</span></span>}
             {info.chip && <span className="shell-problem">{info.chip}</span>}

@@ -2,9 +2,7 @@ import type { ScanSnapshot } from "../main/addProjects";
 import type { MachineState } from "../main/onboarding/machine";
 import type { Agent } from "../main/onboarding/states";
 import type { ProjectInitResult } from "../main/shell";
-import type { CanvasRow, FolderEntry } from "../main/view";
-import { cardRow } from "./homeCards";
-import { canvasLabel } from "./canvasTree";
+import type { FolderEntry } from "../main/view";
 import { displayPath } from "./projectDisplay";
 import { projectRow, type DetailPart } from "./projectRow";
 
@@ -52,19 +50,8 @@ const TRANSLOCATED = "Move doan to Applications, then open it again.";
 const IN_USE = " is in use by something else. Move or delete it, then Check Again.";
 const AGENT_NAMES: Record<Agent, string> = { claude: "Claude Code", codex: "Codex" };
 
-// Copy from the confirmed draft (.doan/canvases/app-setup.html, frame wizard).
-export const STEP_COPY: readonly { heading: string; lead: Part[] }[] = [
-  { heading: "Let your agents run doan", lead: ["Claude Code and Codex use the doan command to make and check your canvases. Connect it so they can find it."] },
-  { heading: "Connect Claude Code or Codex", lead: ["Your agent draws canvases with the doan skill and tools. Connect the agents you use; nothing changes until you choose Connect."] },
-  { heading: "Choose where canvases live", lead: ["Pick a repository. doan keeps its canvases in ", { code: ".doan/canvases/" }, ", next to the code they describe."] },
-  { heading: "Ask for your first canvas", lead: ["Describe a screen, copy the sentence and paste it into Claude Code or Codex. The canvas opens here when it arrives."] },
-];
 export const NO_AGENT_NOTICE = "doan works through Claude Code or Codex. Install one, then choose Check Again.";
 const installLabel = (agent: Agent) => `Install ${AGENT_NAMES[agent]} ↗`;
-const ADD_PROJECT_LABEL = "Add Project…";
-const NO_PROJECT_TEXT: Part[] = ["Add a project first. Your first canvas goes in its ", { code: ".doan/canvases/" }, " folder."];
-const OPEN_LABEL = "Open";
-const canvasReadyText = (name: string) => `Canvas ready: ${name}`;
 
 export function tilde(path: string, home: string): string {
   return path === home ? "~" : path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
@@ -75,14 +62,6 @@ function realLocation(state: MachineState | null, key: "cli" | "stub" | "claudeL
 }
 const parent = (path: string) => path.slice(0, path.lastIndexOf("/"));
 const checkAgain = (reason: string) => `${reason.trim().replace(/\.?$/, ".")} Choose Check Again.`;
-
-// A copy result is dropped when its target (the project, or the wizard itself)
-// stopped being current while the clipboard was written.
-export async function copyFor<T>(target: T, current: () => T | null, copy: () => Promise<{ kind: string }>): Promise<CopyState | null> {
-  let ok = false;
-  try { ok = (await copy()).kind === "success"; } catch { /* Shown as Retry copy. */ }
-  return current() === target ? (ok ? "copied" : "failed") : null;
-}
 
 export function copyLabel(state: CopyState): string {
   return state === "copying" ? "Copying…" : state === "copied" ? "Copied" : state === "failed" ? "Retry copy" : "Copy";
@@ -248,41 +227,6 @@ export function confirmView(target: "cli" | "stub" | "claudeLink" | "mcp", agent
   }
 }
 
-export const STEP_LABELS = ["CLI", "Agents", "Project", "First prompt"] as const;
-
-// 2026-10-24 completion rules (design.md flow 4). Skipping never marks a step done.
-export function stepsDone(state: MachineState | null, project: FolderEntry | undefined, promptCopied: boolean): boolean[] {
-  return [
-    state?.cli.state === "ours",
-    state !== null && (["claude", "codex"] as const).some(agent => connected(state, agent)),
-    project?.kind === "list",
-    promptCopied,
-  ];
-}
-
-export interface IndicatorStep { step: number; label: string; done: boolean; current: boolean; ariaLabel?: string; disabled: boolean }
-export function indicatorView(current: number, done: readonly boolean[], disabled: boolean): IndicatorStep[] {
-  return STEP_LABELS.map((label, step) => ({ step, label, done: !!done[step], current: step === current, ...(done[step] ? { ariaLabel: `${label}, completed` } : {}), disabled }));
-}
-
-export interface BusyParts { running: Row | null; confirming: boolean; projectBusy: boolean; closing: boolean; pathCopy: CopyState; promptCopy: CopyState }
-// design.md flow 4: while any action runs, Close, Escape, the indicator and the bottom bar wait.
-export function wizardBusy(parts: BusyParts): boolean {
-  return parts.running !== null || parts.confirming || parts.projectBusy || parts.closing || parts.pathCopy === "copying" || parts.promptCopy === "copying";
-}
-
-export interface FooterView {
-  stepNo: string;
-  checkAgain?: { disabled: boolean };
-  skip?: { disabled: boolean };
-  next: { label: "Continue" | "Done"; primary: boolean; disabled: boolean };
-}
-export function footerView(step: number, done: boolean, busy: boolean, checking: boolean): FooterView {
-  const stepNo = `Step ${step + 1} of 4`;
-  if (step === 3) return { stepNo, next: { label: "Done", primary: true, disabled: busy } };
-  return { stepNo, ...(step < 2 ? { checkAgain: { disabled: busy || checking } } : {}), skip: { disabled: busy }, next: { label: "Continue", primary: done, disabled: busy } };
-}
-
 // Tab is left to the browser except where it would leave the wizard.
 export function nextFocusIndex(count: number, index: number, shift: boolean): number | null {
   if (count === 0) return null;
@@ -290,20 +234,6 @@ export function nextFocusIndex(count: number, index: number, shift: boolean): nu
   if (!shift && index === count - 1) return 0;
   if (shift && index === 0) return count - 1;
   return null;
-}
-
-export interface PromptStepView {
-  project?: { path: string; status: string; label: string; disabled: boolean };
-  addProject?: { text: Part[]; label: string; primary: true; disabled: boolean };
-  ready?: { text: string; open: { label: string; disabled: boolean } };
-}
-// Without a project the step offers Add Project… in place of the first prompt;
-// once the waited-for canvas has arrived it shows Canvas ready with Open.
-export function promptStepView(project: FolderEntry | null, arrived: CanvasRow | null, busy: boolean): PromptStepView {
-  if (project === null) return { addProject: { text: NO_PROJECT_TEXT, label: ADD_PROJECT_LABEL, primary: true, disabled: busy } };
-  if (project.kind !== "list") return { project: { path: project.path, status: cardRow(project, null, null).chip ?? "Reading…", label: project.kind === "uninitialized" ? "Set Up…" : "Review Project", disabled: busy } };
-  if (arrived === null) return {};
-  return { ready: { text: canvasReadyText(canvasLabel(arrived)), open: { label: OPEN_LABEL, disabled: busy } } };
 }
 
 // `refused`: main's message when Open Project… could not use the picked folder.
@@ -344,13 +274,6 @@ export function formView(form: ProjectForm): NonNullable<ProjectStepView["form"]
     choose: { disabled: form.running }, setUp: { label: form.running ? "Setting Up…" : "Set Up Project", disabled: form.running },
     ...(form.error ? { error: form.error } : {}),
   };
-}
-
-// After Open Project… or Set Up Project, whether the wizard moves to step 4 now,
-// stops on step 3, or waits for main's next read of that project.
-export function advanceAfter(cause: "open" | "setup", kind: FolderEntry["kind"]): "advance" | "stop" | "wait" {
-  if (kind === "list") return "advance";
-  return cause === "open" && kind === "uninitialized" ? "stop" : "wait";
 }
 
 export function initMessage(result: ProjectInitResult): string | null {
