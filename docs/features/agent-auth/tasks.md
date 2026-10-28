@@ -36,11 +36,11 @@ Claude Code·Codex·Cursor·Antigravity·GitHub Copilot 다섯 플랫폼을 모�
 
 ## A. 포맷·fixture·순수 함수
 
-- [ ] A1. 인증 상태·readiness·계정 식별·시도 세대·비밀 없는 DTO 계약과 fixture를 먼저 작성한다.
+- [x] A1. 인증 상태·readiness·계정 식별·시도 세대·비밀 없는 DTO 계약과 fixture를 먼저 작성한다.
   - 검증: `/tdd` 후 `npm --prefix app test`에서 오래된 콜백, 실패한 읽기, 저장 미완료, 계정 불일치 사례가 red임을 확인한다.
-- [ ] A2. 장치 로컬 인증 metadata v1, conversation index v2와 v1 읽기 fixture를 작성한다. legacy 외부 대화는 새 도안 계정으로 자동 귀속시키지 않는다. 기존 undo journal의 `{id, previous}` 포맷·이벤트·공유 sessions 스키마는 유지한다.
+- [x] A2. 장치 로컬 인증 metadata v1, conversation index v2와 v1 읽기 fixture를 작성한다. legacy 외부 대화는 새 도안 계정으로 자동 귀속시키지 않는다. 기존 undo journal의 `{id, previous}` 포맷·이벤트·공유 sessions 스키마는 유지한다.
   - 검증: `npm --prefix app test`로 기존 journal과 v1/v2 index의 미완료 복구, v2 왕복, 미지 버전·손상·전환 중 실패·기록 보존을 확인하고 `go test ./...`로 공유 계약이 그대로인지 확인한다.
-- [ ] A3. 설계의 순수 함수를 구현한다. 공급자 타입과 외부 세션 runtime 타입을 분리하고 모든 분기에 명시적 오류를 둔다.
+- [x] A3. 설계의 순수 함수를 구현한다. 공급자 타입과 외부 세션 runtime 타입을 분리하고 모든 분기에 명시적 오류를 둔다.
   - 검증: A1·A2 테스트와 `npm --prefix app run typecheck` 통과. 비밀이 DTO·직렬화 fixture에 포함되지 않는다.
 
 ── commit: `feat(agent-auth): define account state and conversation ownership` ──
