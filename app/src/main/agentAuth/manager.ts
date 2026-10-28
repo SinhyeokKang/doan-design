@@ -325,7 +325,9 @@ export class AuthManager {
     try {
       await this.acpExec(provider, attemptId, this.options.statusTimeoutMs ?? 20_000, () => true, async acp => { await this.acpOpen(provider, acp); await acp.request("logout", {}); });
     } catch (error) { console.error(`doan: ${provider} server logout failed; removing doan's copy`, message(error)); }
-    finally { this.holds.set(provider, Math.max(0, (this.holds.get(provider) ?? 1) - 1)); }
+    // In the queue like every hold and drop, but not drop(): absorbing the logged-out copy would write it back to the
+    // vault, and signOutFlow removes both right after.
+    finally { await this.serial(provider, async () => { this.holds.set(provider, Math.max(0, (this.holds.get(provider) ?? 1) - 1)); }); }
   }
   private async acpOpen(provider: Provider, acp: AcpConnection): Promise<void> {
     const expected = this.adapters[provider].acpAuth!;
