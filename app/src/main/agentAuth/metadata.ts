@@ -4,6 +4,7 @@ function object(value: unknown): value is Record<string, unknown> { return typeo
 function keys(value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []): boolean {
   return required.every(k => Object.hasOwn(value, k)) && Object.keys(value).every(k => required.includes(k) || optional.includes(k));
 }
+// Conversation IDs share this path-safe shape (conversation/store.ts validId).
 export function validAuthId(value: unknown): value is string { return typeof value === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(value); }
 function label(value: unknown): value is string { return typeof value === "string" && value.length > 0 && value.length <= 512 && !value.includes("\0"); }
 function nullableLabel(value: unknown): value is string | null { return value === null || label(value); }

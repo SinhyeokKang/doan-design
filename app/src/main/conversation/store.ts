@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { canonicalDirectory, openRegular, readRegular, readDescriptor, CONVERSATION_HISTORY_BYTES } from "./io";
 import { absolutePath, object } from "./sessions";
 import { anchorTokens, validAnchor } from "./prompt";
-import { validOwner } from "../agentAuth/metadata";
+import { validAuthId, validOwner } from "../agentAuth/metadata";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import type { Canvas, ConversationEvent, EventPayload, Runtime } from "./types";
 interface SessionBinding<R> { runtime: R; origin: "resumed" | "new" | "newDesign"; sessionId: string; configDir: string; cwd: string }
@@ -15,7 +15,7 @@ export type ConversationMetadata = MetadataBase & (
   | { owner: { kind: "legacy-external" }; session: ExternalSession }
   | { owner: Extract<ConversationOwner, { kind: "doan" }>; session: SessionBinding<Provider> });
 export function externalConversation(m: ConversationMetadata): m is MetadataBase & { owner: { kind: "legacy-external" }; session: ExternalSession } { return m.owner.kind === "legacy-external"; }
-export function validId(value: unknown): value is string { return typeof value === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(value); }
+export const validId = validAuthId;
 function str(value: unknown): value is string { return typeof value === "string" && value.length <= 1_048_576 && !value.includes("\0"); }
 export function validCanvas(value: unknown): value is Canvas {
   return object(value) && typeof value.path === "string" && value.path.startsWith(".doan/canvases/") && value.path.length <= 4096 &&

@@ -10,7 +10,7 @@ const inherited = {
   GH_TOKEN: "gho-x", GITHUB_TOKEN: "ghp-x", CLAUDE_CONFIG_DIR: "/Users/ada/.claude", CODEX_HOME: "/Users/ada/.codex",
   CLAUDE_CODE_SESSION_ID: "s", CODEX_THREAD_ID: "t", CODEX_SESSION_ID: "u", UNSET: undefined,
 };
-const input = (provider: Provider, over: Record<string, unknown> = {}) => ({ provider, inherited, path: "/verified/bin:/usr/bin", profile: "/data/profiles/" + provider, appRuntime: "/data/runtime.json", ...over });
+const input = (provider: Provider, over: Record<string, unknown> = {}) => ({ provider, inherited, path: "/verified/bin:/usr/bin", profileDir: "/data/profiles/" + provider, appRuntime: "/data/runtime.json", ...over });
 const kept = { USER: "ada", LOGNAME: "ada", SHELL: "/bin/zsh", TMPDIR: "/tmp/ada", LANG: "ko_KR.UTF-8", LC_ALL: "ko_KR.UTF-8", TERM: "xterm",
   HTTPS_PROXY: "http://proxy:8080", no_proxy: "localhost", NODE_EXTRA_CA_CERTS: "/etc/ca.pem", PATH: "/verified/bin:/usr/bin", DOAN_RUNTIME: "/data/runtime.json" };
 
@@ -37,7 +37,7 @@ describe("provider child environment", () => {
   });
   it("names each invalid input explicitly", () => {
     expect(providerEnv(input("claude", { provider: "gemini" }))).toEqual({ ok: false, code: "invalid_provider" });
-    expect(providerEnv(input("claude", { profile: "profiles/claude" }))).toEqual({ ok: false, code: "invalid_profile" });
+    expect(providerEnv(input("claude", { profileDir: "profiles/claude" }))).toEqual({ ok: false, code: "invalid_profile_dir" });
     expect(providerEnv(input("claude", { appRuntime: "runtime.json" }))).toEqual({ ok: false, code: "invalid_runtime" });
     for (const path of ["", "/bin\0x"]) expect(providerEnv(input("claude", { path }))).toEqual({ ok: false, code: "invalid_path" });
   });
