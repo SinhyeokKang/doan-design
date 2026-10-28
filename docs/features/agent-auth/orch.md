@@ -144,7 +144,20 @@ Run: `run_d94775f7dd27`.
 - 알려진 한계: Copilot ACP는 공개 프리뷰다. Cursor·Copilot이 자동 업데이트하면 해당 공급자 실행이 막힌다. Antigravity의 URL·sha·`GEMINI_HOME`·`AGY_ACP_FORCE_FILE_STORAGE`는 문서화되지 않았고, 지원 플랫폼은 darwin-arm64뿐이다. Cursor 로그인 셸은 시스템 PATH를 앞에 둔다. Cursor는 워크스페이스 안 편집 권한을 묻지 않는다. `GIT_CONFIG_GLOBAL`이 실제 `~/.gitconfig`를 가리킨다. Codex·Antigravity는 계정 ID가 없어서 같은 연결에서만 재개할 수 있다.
 - ARCHITECTURE·PRODUCT에 반영할 것: Claude 2.1.312/SDK 0.3.312(현재 정본은 2.1.310), index v2 단방향 이행, auth metadata v1(`signOutFailed` 포함), design.md의 'ID 없는 계정 재개 거부' 문구(사용자 결정으로 바뀜), Copilot GitHub 토큰 예외의 scope 목록. PRODUCT §7에는 오늘 결정 4건이 이미 들어가 있다.
 
+### 이 머신 D1의 부분 결과 (참고용, 다시 실행해야 함)
+
+- dev 앱은 격리 userData와 실제 HOME으로 띄웠다. 패키지 앱은 빌드만 하고 실행하지 않았다.
+- 통과한 것: 시작 스냅샷에 비밀 없음, prompt는 소유 창에만 전달됨, Settings의 cancel·open-link는 `not_owner`, 남의 시도로 보낸 submit-code는 `stale`, open-link는 main의 openExternal에 도달함, 소유 창 cancel, 종료 뒤 고아 프로세스 없음, 외부 인증 불변.
+- 실행하지 못한 것: 나머지 전부. Claude는 유료 계정이 없어서 막혔고, Codex는 승인 전에 중단됐다.
+- 새로 관찰한 것:
+  - Codex 로그인 출력에는 URL이 두 개 있다(`localhost:1455`, `auth.openai.com`). open-link는 마지막 URL을 연다.
+  - `codex --version`만 실행해도 `~/.codex/tmp/arg0-macos/`가 교체된다(Codex 자체 임시 디렉터리). facts probe도 실제 HOME에서 `--version`을 돌린다. D3에 기록한다.
+- 새 D1에서 주의할 점:
+  - dev와 패키지 앱이 같은 Keychain 이름(`doan Safe Storage`)을 쓴다. 한쪽이 만든 항목 때문에 다른 쪽이 Keychain 접근을 물을 수 있다. 권장: 두 실행 사이와 마지막에 doan이 만든 항목을 지운다.
+  - Copilot의 `check`는 요청 1회를 쓰므로 probe에서 부르지 않는다.
+  - probe 스크립트는 이 머신의 `.scratch`에만 있어서 새 머신에서 다시 작성해야 한다(Playwright `_electron`으로 `window.doan`·`window.doanSettings`를 호출하고, main의 `shell.openExternal`은 stub으로 대체).
+
 ### 이 머신에 남은 것
 
 - 이 머신의 Keychain에 probe와 D1이 만든 doan 전용 항목이 남아 있다: `doan-auth-probe Safe Storage`, doan 전용 `Claude Code-credentials-*`, `Codex Auth`. D1 dev 앱 항목이 있으면 함께 남아 있다. 새 머신 작업에는 영향이 없다. 필요하면 이 머신에서 따로 지운다.
-- Orca child worktree와 `.scratch/agent-auth-probe/`는 이 머신의 run을 종료할 때 정리한다.
+- 이 머신의 worker는 모두 release했고, 남은 터미널은 닫았다. Orca child worktree 5개(contract, storage, runtime, providers, ipc, d1)는 모두 제거했다. D1에서는 Keychain 항목을 만들지 않았다. probe 상태는 `.scratch/agent-auth-probe/`(gitignore)에 남아 있다.
