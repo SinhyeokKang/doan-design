@@ -71,7 +71,12 @@ export class AuthStorage {
     await this.saveVault(provider, current);
     return true;
   }
-  leftovers(provider: Provider, rels: readonly string[]): boolean { return this.workingPaths(provider, rels).length > 0; }
+  writeSetting(provider: Provider, rel: string, text: string): void {
+    const path = this.working(provider, rel);
+    try { if (readFileSync(path, "utf8") === text) return; } catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }
+    this.replace(path, Buffer.from(text));
+  }
+    leftovers(provider: Provider, rels: readonly string[]): boolean { return this.workingPaths(provider, rels).length > 0; }
   scrub(provider: Provider, rels: readonly string[]): void { for (const path of this.workingPaths(provider, rels)) this.remove(path); }
   private vaultPath(provider: Provider): string { return join(this.root, "vault", `${provider}.bin`); }
   private working(provider: Provider, rel: string): string {

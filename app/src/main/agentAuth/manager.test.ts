@@ -27,12 +27,12 @@ class FakeProcess implements AuthProcess {
 let stopReleases = true;
 const fileProvider = (status: (dir: string) => CheckResult): ProviderAuth => ({
   command: "fake-cli", args: [], env: { FAKE_STORE: "file" }, login: ["login"], status: ["status"], logout: null,
-  vault: ["creds/token.json"], plaintext: [],
+  vault: ["creds/token.json"], plaintext: [], settings: { "conf/settings.json": '{"storeTokenPlaintext":true}' },
   parseStatus: run => run.code === 0 ? status(run.profileDir) : { status: "failed", code: "check_failed" },
 });
 const keychainProvider = (status: () => CheckResult): ProviderAuth => ({
   command: "fake-cli", args: ["-c", "store=keyring"], env: {}, login: ["login"], status: ["status"], logout: ["logout"],
-  vault: null, plaintext: ["auth.json"], parseStatus: run => run.code === 0 ? status() : { status: "failed", code: "check_failed" },
+  vault: null, plaintext: ["auth.json"], settings: {}, parseStatus: run => run.code === 0 ? status() : { status: "failed", code: "check_failed" },
 });
 const tokenAccount = (dir: string): CheckResult => {
   const path = join(dir, "creds/token.json");
@@ -94,6 +94,7 @@ describe("sign-in", () => {
     expect(login.cwd).toBe(storage.profileDir("cursor"));
     expect(login.env).toMatchObject({ HOME: storage.profileDir("cursor"), PATH: "/verified/bin", DOAN_RUNTIME: "/data/runtime.json", FAKE_STORE: "file" });
     for (const name of ["GH_TOKEN", "ANTHROPIC_API_KEY", "CODEX_HOME"]) expect(login.env).not.toHaveProperty(name);
+    expect(readFileSync(join(login.cwd, "conf/settings.json"), "utf8")).toBe('{"storeTokenPlaintext":true}');
   });
   it("mints a fresh attempt ID for every attempt and connection", async () => {
     const m = manager(); await m.load();

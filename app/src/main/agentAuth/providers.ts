@@ -15,6 +15,8 @@ export interface ProviderAuth {
   vault: string[] | null;
   // For keychain providers: files whose presence means the CLI fell back to plaintext.
   plaintext: string[];
+  // Non-secret profile files written before every provider process, such as Copilot's storage setting.
+  settings: Record<string, string>;
   parseStatus(run: StatusRun): CheckResult;
 }
 const failed: CheckResult = { status: "failed", code: "check_failed" };
@@ -59,16 +61,16 @@ function codexStatus(run: StatusRun): CheckResult {
 export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
   // PoC 10: a non-default CLAUDE_CONFIG_DIR gets its own Keychain item; .credentials.json would be the plaintext fallback.
   claude: { command: "claude", args: [], env: {}, login: ["auth", "login"], status: ["auth", "status", "--json"], logout: ["auth", "logout"],
-    vault: null, plaintext: [".credentials.json"], parseStatus: claudeStatus },
+    vault: null, plaintext: [".credentials.json"], settings: {}, parseStatus: claudeStatus },
   // The keyring entry is keyed by the canonical CODEX_HOME; "auto" could silently write auth.json instead.
   codex: { command: "codex", args: ["-c", 'cli_auth_credentials_store="keyring"'], env: {}, login: ["login"], status: ["login", "status"], logout: ["logout"],
-    vault: null, plaintext: ["auth.json"], parseStatus: codexStatus },
+    vault: null, plaintext: ["auth.json"], settings: {}, parseStatus: codexStatus },
   // AGENT_CLI_CREDENTIAL_STORE=file is Cursor's official switch; the default macOS Keychain item is shared by every profile.
   // On macOS the file store is ~/.cursor/auth.json (getAuthFilePath in the 2026.10.22 bundle).
   cursor: { command: "cursor-agent", args: [], env: { AGENT_CLI_CREDENTIAL_STORE: "file" }, login: ["login"], status: ["status", "--format", "json"], logout: null,
-    vault: [".cursor/auth.json"], plaintext: [], parseStatus: cursorStatus },
+    vault: [".cursor/auth.json"], plaintext: [], settings: {}, parseStatus: cursorStatus },
   antigravity: { command: "agy", args: [], env: {}, login: ["login"], status: ["status"], logout: null,
-    vault: [".gemini/antigravity-cli/credentials.json"], plaintext: [], parseStatus: () => failed },
+    vault: [".gemini/antigravity-cli/credentials.json"], plaintext: [], settings: {}, parseStatus: () => failed },
   copilot: { command: "copilot", args: [], env: {}, login: ["login"], status: ["status"], logout: null,
-    vault: [".copilot/config.json"], plaintext: [], parseStatus: () => failed },
+    vault: [".copilot/config.json"], plaintext: [], settings: {}, parseStatus: () => failed },
 };

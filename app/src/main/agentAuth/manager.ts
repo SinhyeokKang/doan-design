@@ -231,6 +231,7 @@ export class AuthManager {
     const located = await this.options.locate(provider);
     if (!located) throw new Error("cli_missing");
     const profileDir = this.options.storage.profileDir(provider);
+    for (const [rel, text] of Object.entries(this.adapters[provider].settings)) this.options.storage.writeSetting(provider, rel, text);
     const env = providerEnv({ provider, inherited: this.options.inherited, path: located.path, profileDir, appRuntime: this.options.appRuntime, extra: this.adapters[provider].env });
     if (!env.ok) throw new Error(env.code);
     return { command: located.command, env: env.env, profileDir };
