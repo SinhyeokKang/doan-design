@@ -18,6 +18,8 @@
 - 사용자 결정(2026-10-28, R-B1): Copilot CLI 공식 OAuth 앱의 넓은 scope(`repo`, `gist`, `codespace` 등)를 수용한다. 'doan은 GitHub 토큰을 다루지 않는다' 원칙의 예외로, 이 토큰은 Copilot 에이전트 인증에만 쓴다. D3에서 ARCHITECTURE에 scope와 함께 기록한다. PRODUCT §7에 기록했다.
 - 사용자 결정(2026-10-28, R-B1): 전용 HOME에서 실행하는 Cursor·Antigravity·Copilot에는 `SSH_AUTH_SOCK`과 실제 `~/.gitconfig`를 가리키는 `GIT_CONFIG_GLOBAL`만 넘긴다. `gh` 토큰은 넘기지 않는다. B3가 구현한다.
 - 사용자 결정(2026-10-28, B2): 안정된 계정 ID가 없는 연결(현재 Codex)은 대화의 소유 연결(connectionId)이 현재 연결과 같고 대화를 묶은 뒤 재로그인이 없었으면 재개를 허용한다. 프로필·세션·점유 확인은 그대로 한다. 재로그인한 뒤에는 같은 계정이어도 재개를 거부한다. 문서화되지 않은 rateLimits accountId는 쓰지 않는다. A의 '계정 ID가 없으면 재개 거부' 규칙을 이렇게 완화하며, B2가 구현한다.
+- 사용자 결정(2026-10-28, B2): 레포의 `.claude/settings.json`에 있는 `env.ANTHROPIC_API_KEY`나 apiKeyHelper가 doan 로그인보다 우선하는 문제를 확인했다. B2가 공식 강제 옵션을 먼저 조사한다. 없으면 settingSources를 유지하고 알려진 한계로 기록한다. project/local 설정은 빼지 않는다.
+- 사용자 결정(2026-10-28, B2): legacy 외부 경로는 probe 전용 시뮬레이션 프로필(임시 CLAUDE_CONFIG_DIR·CODEX_HOME)에 별도로 로그인해 실요청까지 검증한다.
 - conductor's call — Claude Code conductor이므로 Claude 작업자만 쓴다. 모델 계열 교차는 없다.
 - conductor's call — 공용 타입과 conversation 파일이 겹치므로 tasks의 기본 순서대로 직렬 진행한다. B3의 세 공급자도 사용자 구현 순서(Cursor → Antigravity → Copilot)대로 한 작업자가 직렬로 맡는다.
 - conductor's call — 지휘자는 배치 코드를 수정하지 않는다. 리뷰 수정은 소유 배치로 돌린다. push와 PR은 통합 뒤 수행하며 merge하지 않는다.
