@@ -143,13 +143,24 @@ describe("clone invocation", () => {
     expect(args.slice(args.indexOf("--"))).toEqual(["--", "-oProxyCommand=x", "/tmp/t"]);
   });
 
-  it("never waits for a prompt and keeps SSH host key checks", () => {
+  it("never waits for a prompt and leaves the user's SSH setup and host key checks alone", () => {
     const built = cloneEnv({ HOME: "/Users/ada", GIT_ASKPASS: "/x", SSH_ASKPASS: "/y", GIT_DIR: "/z", PATH: "/old" }, "/opt/homebrew/bin:/usr/bin");
-    expect(built).toMatchObject({ HOME: "/Users/ada", PATH: "/opt/homebrew/bin:/usr/bin", GIT_TERMINAL_PROMPT: "0", GIT_SSH_COMMAND: "ssh -o BatchMode=yes" });
-    expect(built).not.toHaveProperty("GIT_ASKPASS");
-    expect(built).not.toHaveProperty("SSH_ASKPASS");
-    expect(built).not.toHaveProperty("GIT_DIR");
-    expect(built.GIT_SSH_COMMAND).not.toMatch(/StrictHostKeyChecking/);
+    expect(built).toMatchObject({ HOME: "/Users/ada", PATH: "/opt/homebrew/bin:/usr/bin", GIT_TERMINAL_PROMPT: "0", SSH_ASKPASS_REQUIRE: "never" });
+    for (const name of ["GIT_ASKPASS", "SSH_ASKPASS", "GIT_DIR", "GIT_SSH_COMMAND"]) expect(built).not.toHaveProperty(name);
+    // A user's own ssh command (a key per account) reaches git unchanged.
+    expect(cloneEnv({ GIT_SSH_COMMAND: "ssh -i ~/.ssh/work" }, "/usr/bin").GIT_SSH_COMMAND).toBe("ssh -i ~/.ssh/work");
+    expect(cloneArgs("git@github.com:acme/studio.git", "/tmp/t").join(" ")).not.toMatch(/sshCommand|StrictHostKeyChecking|BatchMode/);
+  });
+
+  it("uses core.sshCommand from the user's git config", async () => {
+    const parent = temp(), destination = join(parent, "studio"), bin = temp(), log = join(bin, "ssh.log");
+    const ssh = join(bin, "fake-ssh");
+    writeFileSync(ssh, `#!/bin/sh\necho "$@" > "${log}"\nexit 255\n`, { mode: 0o755 });
+    const home = temp();
+    writeFileSync(join(home, ".gitconfig"), `[core]\n\tsshCommand = ${ssh}\n`);
+    const result = await runClone({ git: "git", url: "git@github.com:acme/studio.git", destination, env: cloneEnv({ ...process.env, HOME: home, XDG_CONFIG_HOME: join(home, ".config") }, process.env.PATH ?? "/usr/bin:/bin"), signal: signal().signal });
+    expect(result).toMatchObject({ kind: "failed" });
+    expect(readFileSync(log, "utf8")).toMatch(/git@github\.com/);
   });
 
   it("classifies access failures apart from other clone failures", () => {

@@ -499,6 +499,7 @@ describe("attempt lifetime", () => {
     expect(await run.done).toMatchObject({ phase: "connected", verified: true });
     await check.done;
     expect(m.state("claude")).toMatchObject({ phase: "connected" });
+    expect(await check.outcome).toBe("replaced");
   });
   it("cancels attempts and waits for their processes on quit", async () => {
     const m = manager(); await m.load();
@@ -871,6 +872,27 @@ describe("leases and recovery", () => {
     vi.spyOn(cipher, "encrypt").mockRejectedValueOnce(new Error("user denied keychain access"));
     await finish("status", 0, p => writeToken(p, { id: "u1", refreshed: true }));
     expect(await check.done).toMatchObject({ phase: "connected", verified: false, error: { code: "storage_failed" } });
+    // The status itself passed; the outcome still reports the write-back published after it.
+    expect(await check.outcome).toBe("storage_failed");
+  });
+  it("reports each check's own outcome, apart from errors the state keeps", async () => {
+    const m = manager(); await m.load();
+    await signedInCursor(m, "u1");
+    const ok = started(await m.check("cursor"));
+    await finish("status", 0, p => writeToken(p, { id: "u1" }));
+    expect(await ok.outcome).toBe("ok");
+    const other = started(await m.check("cursor"));
+    await finish("status", 0, p => writeToken(p, { id: "u2" }));
+    expect(await other.outcome).toBe("account_mismatch");
+    // A failed sign-out stays the shown error; a check that then fails is still a failed check.
+    const metadata = storage.readMetadata();
+    storage.writeMetadata({ ...metadata, signOutFailed: ["cursor"] });
+    const restarted = manager(); await restarted.load();
+    expect(restarted.state("cursor").error).toEqual({ code: "sign_out_failed" });
+    const failing = started(await restarted.check("cursor"));
+    await finish("status", 1);
+    expect(await failing.outcome).toBe("check_failed");
+    expect(restarted.state("cursor").error).toEqual({ code: "sign_out_failed" });
   });
   it("refuses a lease without a verified connection", async () => {
     const m = manager(); await m.load();
