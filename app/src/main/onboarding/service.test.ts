@@ -559,7 +559,7 @@ describe("clone", () => {
     t.projects.clone.mockImplementationOnce(async (_url: string, _destination: string, s: AbortSignal) => { signal = s; return result.promise; });
     const op = operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination }));
     expect(op).toMatchObject({ kind: "project_clone", state: "running" });
-    expect(t.projects.clone).toHaveBeenCalledWith("https://github.com/acme/studio", destination, expect.anything());
+    expect(t.projects.clone).toHaveBeenCalledWith("https://github.com/acme/studio", destination, expect.anything(), expect.any(Function));
     expect(await t.ask({ op: "project_clone", sessionId: id, requestId: "c2", inspectionId, destination })).toMatchObject({ ok: false, error: { code: "busy" } });
     const cancelling = operation(await t.ask({ op: "cancel", sessionId: id, requestId: "x1", operationId: op.operationId }));
     expect(cancelling).toMatchObject({ state: "running", cancelling: true });
@@ -579,6 +579,8 @@ describe("clone", () => {
     const { id, inspectionId, destination } = await planned(t);
     t.projects.clone.mockResolvedValueOnce({ ok: false, code: "cleanup_failed", leftover: "/Users/ada/.studio.doan-clone-x1" });
     expect(operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination }))).toMatchObject({ state: "failed", error: { code: "cleanup_failed", message: "Couldn't remove /Users/ada/.studio.doan-clone-x1. Remove it, then try again." } });
+    // The user removed the leftover directory, so the next clone may run.
+    t.projects.present.mockResolvedValueOnce(false);
     t.projects.clone.mockRejectedValueOnce(new Error("fatal: Authentication failed for https://token@github.com"));
     const thrown = operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c2", inspectionId, destination }));
     expect(thrown).toMatchObject({ state: "failed", error: { code: "clone_failed" } });
