@@ -470,3 +470,62 @@ test("D20: Choose another folder on a found checkout keeps the URL; a plain Choo
   await h.session.chooseFolder();
   expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).not.toHaveProperty("url");
 });
+
+test("D21: a folder recovery on a URL screen sends the URL too (not available, setup failed, unreadable configuration, cancelled clone)", async () => {
+  const h = harness();
+  await planned(h);
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/gone");
+  h.queue.inspect!.push(refused("path_unavailable"));
+  await h.session.chooseExisting();
+  expect(phase(h)).toMatchObject({ kind: "clone" });
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/other");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/other", [".doan/config.json"]]]) })));
+  await h.session.chooseExisting();
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/other", url: "https://github.com/acme/studio" });
+  expect(phase(h)).toMatchObject({ kind: "setup", url: "https://github.com/acme/studio" });
+  h.queue.select!.push(ok(op("project_select", { state: "failed", error: { code: "init_failed", message: "x" } })));
+  await h.session.select(true);
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/third");
+  h.queue.inspect!.push(refused("busy"));
+  await h.session.chooseExisting();
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/third", url: "https://github.com/acme/studio" });
+});
+
+test("D21: a cancelled clone's Choose local folder keeps the URL", async () => {
+  const h = harness();
+  await planned(h);
+  const running = op("project_clone", { state: "running" });
+  h.queue.clone!.push(ok(running));
+  const cloning = h.session.clone();
+  await flush();
+  h.emit([{ ...running, state: "cancelled" }]);
+  await cloning;
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/local");
+  h.queue.inspect!.push(refused("busy"));
+  await h.session.chooseExisting();
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/local", url: "https://github.com/acme/studio" });
+});
+
+test("🟡2: a refused completion for no ready agent is cleared once an agent is ready again", async () => {
+  const h = harness();
+  await ready(h);
+  h.queue.complete!.push(refused("no_ready_agent"));
+  await h.session.complete();
+  expect(h.session.state.error?.code).toBe("no_ready_agent");
+  h.session.agentsReady(false);
+  expect(h.session.state.error?.code).toBe("no_ready_agent");
+  h.session.agentsReady(true);
+  expect(h.session.state.error).toBeNull();
+});
+
+test("⚪: an operation main no longer knows is asked for once, not on every event", async () => {
+  const h = harness();
+  h.session.setUrl("https://github.com/acme/studio");
+  const running = op("project_inspect", { state: "running" });
+  h.queue.inspect!.push(ok(running));
+  h.api.readOnboardingSession.mockResolvedValue({ v: 2, ok: false, error: { code: "operation_not_found", message: "x" } });
+  void h.session.findRepository();
+  await flush();
+  h.emit([]); await flush(); h.emit([]); await flush(); h.emit([]); await flush();
+  expect(h.api.readOnboardingSession).toHaveBeenCalledTimes(1);
+});

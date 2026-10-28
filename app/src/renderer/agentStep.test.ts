@@ -579,3 +579,25 @@ test("U2: a reloaded window still cancels the sign-ins it started before the rel
   expect(await session.continue()).toBe(true);
   expect(reloaded.api.cancelAgentSignIn.mock.calls).toEqual([["codex", "sign-1"]]);
 });
+
+test("D21: returning from Copilot's install page checks Copilot while its cause is the CLI or its version (no request is spent)", async () => {
+  const h = harness(snap(1, { copilot: { facts: { cli: "missing" } } }));
+  h.session.start(); h.session.enter();
+  await flush();
+  h.session.command("copilot", "install");
+  await flush();
+  h.session.windowFocused();
+  await flush();
+  expect(checked(h)).toEqual(["copilot"]);
+});
+
+test("D21: Copilot connected but unverified is not checked on return; it stays Retry-only", async () => {
+  const h = harness(snap(1, { copilot: unverified }));
+  h.session.start(); h.session.enter();
+  await flush();
+  h.session.command("copilot", "update");
+  await flush();
+  h.session.windowFocused();
+  await flush();
+  expect(checked(h)).toEqual([]);
+});

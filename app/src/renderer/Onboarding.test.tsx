@@ -334,3 +334,11 @@ test("D20: a folder of another repository offers Edit repository URL and Choose 
   const plain = projectNotice("remote_mismatch", "x", null, false);
   expect(plain.actions.map(a => a.command)).toEqual(["chooseFolder"]);
 });
+
+test("D21: folder recoveries on a URL screen choose an existing folder of that repository", () => {
+  for (const code of ["project_unavailable", "path_unavailable", "init_failed", "config_invalid", "git_missing"] as const) {
+    expect(projectNotice(code, "x", null, true).actions.filter(a => a.command === "chooseFolder")).toEqual([]);
+    expect(projectNotice(code, "x", null, true).actions.some(a => a.command === "chooseExisting")).toBe(true);
+    expect(projectNotice(code, "x", null, false).actions.some(a => a.command === "chooseFolder")).toBe(true);
+  }
+});
