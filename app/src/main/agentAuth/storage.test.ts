@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -108,6 +108,14 @@ describe("provider file bridge", () => {
     storage.scrub("cursor", files);
     expect(storage.leftovers("cursor", files)).toBe(false);
     expect(readdirSync(join(storage.profileDir("cursor"), "config"))).toEqual([]);
+  });
+  it("refuses to absorb a working credential replaced by a link", async () => {
+    const storage = new AuthStorage(root, fakeCipher());
+    writeFileSync(join(root, "outside"), "not a credential");
+    mkdirSync(join(storage.profileDir("cursor"), "config"), { recursive: true });
+    symlinkSync(join(root, "outside"), join(storage.profileDir("cursor"), "config/auth.json"));
+    await expect(storage.absorb("cursor", files)).rejects.toThrow(expect.objectContaining({ code: "unreadable" }));
+    expect(await storage.loadVault("cursor")).toBeNull();
   });
   it("reports a failed scrub so a sign-out cannot claim the file is gone", async () => {
     const storage = new AuthStorage(root, fakeCipher());

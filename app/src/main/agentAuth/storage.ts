@@ -62,8 +62,13 @@ export class AuthStorage {
   async absorb(provider: Provider, rels: readonly string[]): Promise<boolean> {
     const current: VaultFiles = {};
     for (const rel of rels) {
-      try { current[rel] = readFileSync(this.working(provider, rel)); }
-      catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }
+      try {
+        const path = this.working(provider, rel);
+        // A link would let a provider process pull an arbitrary file into the vault.
+        if (!lstatSync(path).isFile()) throw new StorageError("unreadable", `${rel} is not a regular file`);
+        current[rel] = readFileSync(path);
+      }
+      catch (error) { if (error instanceof StorageError) throw error; if (!absent(error)) throw new StorageError("unreadable", message(error)); }
     }
     const stored = await this.loadVault(provider);
     const same = stored !== null && Object.keys(stored).length === Object.keys(current).length && Object.entries(current).every(([rel, bytes]) => stored[rel]?.equals(bytes));
