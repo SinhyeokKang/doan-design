@@ -8,7 +8,8 @@ export type SettingsTab = "connections" | "projects";
 export type ConnectionRow = "cli" | "claude" | "codex";
 // Where main opens Settings: a home chip, the banner's Fix…, a row's Project Settings….
 export type SettingsTarget = { tab: "connections"; connection?: ConnectionRow } | { tab: "projects"; project?: string };
-export type ExternalTarget = "claude" | "codex";
+// Antigravity has no install page: Doan downloads its server itself.
+export type ExternalTarget = "claude" | "codex" | "cursor" | "copilot";
 // Problem-row actions that belong to the main window; Show in Finder runs in main directly.
 export type ForwardedAction = "setUp" | "locate" | "remove" | "retry" | "details";
 
@@ -22,6 +23,9 @@ export const SETTINGS_WINDOW = { width: 640, height: 560, resizable: false, mini
 export const INSTALL_URLS: Record<ExternalTarget, string> = {
   claude: "https://code.claude.com/docs/en/setup",
   codex: "https://learn.chatgpt.com/docs/codex/cli",
+  // The providers' install pages also explain updating, so Install and Update share them (buzz-onboarding, 2026-10-29 user).
+  cursor: "https://cursor.com/docs/cli/installation",
+  copilot: "https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli",
 };
 
 // What the Projects tab may see of a saved project: enough to group rows by
@@ -79,5 +83,5 @@ export function parseForwardedAction(value: unknown, stored: (root: string) => b
 }
 
 export function parseExternalTarget(value: unknown): ExternalTarget | null {
-  return exact(value, ["target"]) && (value.target === "claude" || value.target === "codex") ? value.target : null;
+  return exact(value, ["target"]) && typeof value.target === "string" && Object.hasOwn(INSTALL_URLS, value.target) ? value.target as ExternalTarget : null;
 }
