@@ -70,3 +70,4 @@
 - 2026-10-29: GUI 슬롯을 U1에 줬다(짧은 격리 probe).
 - 2026-10-29: E 완료(5d76493..bc87582). 리뷰 Codex `gpt-6-astra` medium: 🔴 0·🟡 4(CLI가 거절한 시도를 검사하지 않음, 변경 안내 순서를 강제하지 않음, 가짜 앱의 로그인 중 공급자 상태 모순, 요청 로그를 보존하지 않음). 수정 1회차를 보냈다.
 - 2026-10-29: M B0 완료(d557d7f..686fe09, `verify.mjs` PASS). B0 리뷰 Codex `gpt-6-astra` medium `ctx_526b510a3e2f` 진행 중. 같은 터미널에 B1 Task를 보냈다. B0 리뷰 수정은 B1 뒤 별도 Task로 보낸다.
+- 2026-10-29: M B0 리뷰 🔴 0·🟡 3(requestId 중복 실행 가능성, status의 revision과 작업 상태 불일치, check 실패를 성공으로 판정)·⚪ 2. B1 뒤 수정 Task로 보낸다.
