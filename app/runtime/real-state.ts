@@ -33,12 +33,30 @@ async function key(path: string, toml: boolean): Promise<string> {
   const result = await promisify(execFile)("python3.12", ["-c", 'import hashlib,json,sys,tomllib\nwith open(sys.argv[1],"rb") as f: servers=tomllib.load(f).get("mcp_servers",{}); v={"present":"doan" in servers,"value":servers.get("doan")}\nprint(hashlib.sha256(json.dumps(v,sort_keys=True,separators=(",",":")).encode()).hexdigest())', path], { timeout: 5_000, killSignal: "SIGKILL" });
   return result.stdout.trim();
 }
+// Provider credential stores are compared by metadata only; reading them would copy secrets into probe logs.
+const AUTH_FILES = [".claude/.credentials.json", ".codex/auth.json", ".cursor/auth.json", ".config/cursor/auth.json", ".copilot/config.json", ".copilot/settings.json",
+  ".config/gh/hosts.yml", ".gemini/antigravity-cli", ".gemini/config"];
+async function meta(path: string): Promise<unknown> {
+  try { const info = await lstat(path); return { size: info.size, mtimeMs: info.mtimeMs, ino: info.ino, mode: info.mode }; }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return "absent"; throw error; }
+}
+// Attributes only (no -d): service, account and modification date of provider and doan Keychain items.
+async function keychain(): Promise<string> {
+  let dump: string;
+  try { dump = (await promisify(execFile)("security", ["dump-keychain"], { timeout: 5_000, killSignal: "SIGKILL", maxBuffer: 64 * 1024 * 1024 })).stdout; }
+  catch (error) { return `unavailable:${(error as NodeJS.ErrnoException).code ?? "error"}`; }
+  const items = dump.split(/^keychain: /m).map(block => [block.match(/"svce"<blob>="([^"]*)"/)?.[1], block.match(/"acct"<blob>="([^"]*)"/)?.[1], block.match(/"mdat"<timedate>=\S+\s+"([^"\\]*)/)?.[1]])
+    .filter(([svce]) => svce && /claude|codex|cursor|gemini|antigravity|copilot|gh:|doan/i.test(svce)).map(item => item.join("|")).sort();
+  return hash(JSON.stringify(items));
+}
 async function snapshot(): Promise<Record<string, string>> {
   const home = homedir();
   const result: Record<string, string> = {};
   for (const path of new Set([join(home, ".local/bin/doan"), join(home, ".agents/skills/doan"), join(home, ".claude/skills/doan"),
     ...(process.env.CLAUDE_CONFIG_DIR ? [join(process.env.CLAUDE_CONFIG_DIR, "skills/doan")] : []),
-    ...["folders.json", "runtime.json", "onboarding.json", "ui-state.json", "thumbnails", "sessions.jsonl", "conversations"].map(name => join(home, "Library/Application Support/doan", name))])) result[path] = hash(JSON.stringify(await tree(path)));
+    ...["folders.json", "runtime.json", "onboarding.json", "ui-state.json", "thumbnails", "sessions.jsonl", "conversations", "agent-auth"].map(name => join(home, "Library/Application Support/doan", name))])) result[path] = hash(JSON.stringify(await tree(path)));
+  for (const rel of AUTH_FILES) result[`${join(home, rel)}:meta`] = hash(JSON.stringify(await meta(join(home, rel))));
+  result["keychain:provider-items"] = await keychain();
   for (const path of new Set([join(home, ".claude.json"), ...(process.env.CLAUDE_CONFIG_DIR ? [join(process.env.CLAUDE_CONFIG_DIR, ".claude.json")] : [])])) result[`${path}:mcpServers.doan`] = await key(path, false);
   for (const path of new Set([join(home, ".codex/config.toml"), ...(process.env.CODEX_HOME ? [join(process.env.CODEX_HOME, "config.toml")] : [])])) result[`${path}:mcp_servers.doan`] = await key(path, true);
   return result;
