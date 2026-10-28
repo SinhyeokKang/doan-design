@@ -5,6 +5,22 @@
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 
+### 2026-10-28 — A send right after turn.done was refused as busy until the previous process group was gone
+
+- **Area**: `app/src/main/conversation/service.ts` (`send`, `previousExit`), `ownership.ts`.
+- **Symptom**: in the packaged app, a send issued on `turn.done` returned `busy`: Claude for 2.1-5.0 s, Copilot for about 0.5 s, Cursor and Antigravity only for the first millisecond (D1, 2026-10-28). The dev run missed it because its next send came 6-12 s later.
+- **Root cause**: a per-turn process keeps the conversation's reservation until `process_exited` (group gone), by design, so that two processes never share a session; but `send` treated a held reservation after a finished turn the same as a running turn. Fixing it by waiting exposed a second trap: if the wait timed out and `send` went on to replace the live entry before `reserve` threw, the old process's exit callback (`this.live.get(id) === live`) no longer matched and its reservation was never released.
+- **Net**: caught by the D1 busy-window probe (`busyjs.txt`: send on `turn.done`, retry every 50 ms). Unit tests had always released the reservation by calling the exit callback before the next send. The orphaned-reservation path was caught by an independent review; the regression test (opening fails after spawn, wait times out, exit, send again) failed before the wait refused on timeout itself.
+- **Prevention**: test sends issued before the previous process's exit callback, not after it. Run `rg -n 'this\.live\.get\(id\) === live|releaseReservation\(this.reservations, id, "process_exited"\)' app/src/main/conversation --glob '!*.test.ts'` (performed 2026-10-28): the exit release in `exited` is reached only through the identity check in `openRunner`, so any path that replaces `this.live` for an id whose process is still alive must refuse before replacing it. Real-app checks of consecutive turns must send on `turn.done` itself.
+
+### 2026-10-28 — Claude sign-in surfaced a manual-code link while the CLI opened the default browser itself
+
+- **Area**: `app/src/main/agentAuth/manager.ts` (`signInFlow`, `launch`, `hookLinks`), `providers.ts` (`hookLink`, `claudeLink`), `antigravity.ts` (`BROWSER_HOOK`).
+- **Symptom**: `claude auth login` (2.1.312) printed a link whose redirect shows a code to paste, which doan has no way to accept, and launched `$BROWSER` or the OS default browser with a second, localhost-callback link. doan routed only the printed link to the sign-in prompt (D1, 2026-10-28).
+- **Root cause**: the generic login path assumed the printed URL is the sign-in link and that the CLI opens nothing itself. Claude's opener runs `$BROWSER` without its output (a hook that prints to stderr, as Antigravity's does, is never seen), so the hook must leave the link in a file. The CLI also prefers an internal `browser` setting over `$BROWSER`, and a login that never calls the hook now waits without a prompt.
+- **Net**: D1 caught the dead-end link; the browser launch was confirmed only with a logging `$BROWSER` and a fake `open` first on the login shell's PATH. The same F-D1 probe showed `cursor-agent login` and `copilot login` also call `open` themselves (not fixed here). Unit tests had only fake processes that print URLs.
+- **Prevention**: for every provider whose `login` is a CLI subcommand, run its login under the probe with a fake `open` first on PATH and a logging `$BROWSER`, and record which link it prints and which it opens. Run `rg -n 'hookLink: null' app/src/main/agentAuth/providers.ts` (performed 2026-10-28): Codex, Cursor and Copilot still take printed links (Antigravity reads its hook's stderr marker); Cursor and Copilot are known to open the default browser.
+
 ### 2026-10-27 — Shell restyle lost navigation landmarks and inherited the wrong control sizing
 
 - **Area**: `app/src/renderer/App.tsx`, `ShellSidebar.tsx`, `styles.css`, `app/e2e/shell-presentation.ts`.
