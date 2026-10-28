@@ -29,3 +29,7 @@ fields were left intact. `codexIngress.test.ts` also constructs form elicitation
 with omitted/null turnId and global attestation from the generated 0.163.0
 `McpServerElicitationRequestParams.json` and `ServerRequest.json`, plus the R-T
 reviewer's extra-error notification probes. These are synthetic boundary tests.
+
+`index-v1.json` and `index-v2.json` are synthetic conversation index documents
+(2026-10-28, agent-auth), not runtime observations. The v1 file includes a forged
+`owner` to pin that v1 entries are never attributed to a doan account.

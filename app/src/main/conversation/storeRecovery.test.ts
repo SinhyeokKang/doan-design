@@ -23,7 +23,7 @@ function setup() {
   const store = new ConversationStore(root), directory = join(root, "conversations");
   return { root, store, path: (id: string) => join(directory, id + ".jsonl"), index: join(directory, "index.json"), journal: join(directory, "start-undo.json") };
 }
-function meta(id: string): ConversationMetadata { return { conversationId: id, root: "/repo", title: id, canvas: { path: ".doan/canvases/a.html" }, state: "current", session: { runtime: "codex", origin: "new", sessionId: id, configDir: "/profile", cwd: "/repo" } }; }
+function meta(id: string): ConversationMetadata { return { conversationId: id, root: "/repo", title: id, canvas: { path: ".doan/canvases/a.html" }, state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "new", sessionId: id, configDir: "/profile", cwd: "/repo" } }; }
 it("checks serialized UTF-8 bytes before append, allowing the exact read boundary", () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-27T00:00:00Z"));
   const f = setup(); f.store.append("old", "t", { type: "turn.done" });

@@ -1,0 +1,17 @@
+{
+  "v": 1,
+  "accounts": [
+    {
+      "provider": "claude",
+      "connectionId": "conn-claude-1",
+      "profile": "claude",
+      "account": { "id": "acct-claude-1", "workspace": null, "displayName": "Ada", "email": "ada@example.com" }
+    },
+    {
+      "provider": "cursor",
+      "connectionId": "conn-cursor-1",
+      "profile": "cursor",
+      "account": { "id": "acct-cursor-1", "workspace": "team-1" }
+    }
+  ]
+}

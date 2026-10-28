@@ -25,7 +25,7 @@ describe("conversation disk boundaries", () => {
   });
   it("persists ordered validated events and rejects traversal, links and corrupt event shapes", () => {
     const root = temp(); const store = new ConversationStore(root);
-    const metadata = { conversationId: "conversation-1", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "Title", state: "current" as const, session: { runtime: "claude" as const, origin: "new" as const, sessionId: "session-1", cwd: "/repo", configDir: "/profile" } };
+    const metadata = { conversationId: "conversation-1", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "Title", state: "current" as const, owner: { kind: "legacy-external" as const }, session: { runtime: "claude" as const, origin: "new" as const, sessionId: "session-1", cwd: "/repo", configDir: "/profile" } };
     store.save([metadata]);
     expect(store.append(metadata.conversationId, "turn-1", { type: "turn.started" }).seq).toBe(1);
     expect(store.append(metadata.conversationId, "turn-1", { type: "message.delta", messageId: "m", text: "hello" }).seq).toBe(2);
@@ -64,7 +64,7 @@ it("keeps seq consistent when a regular log is replaced before the append open",
 
 it("recovers an interrupted replacement rollback on restart before exposing history", () => {
   const root = temp(); const store = new ConversationStore(root);
-  const old = { conversationId: "old", root: "/repo", title: "old", state: "current" as const, session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/profile", cwd: "/repo" } };
+  const old = { conversationId: "old", root: "/repo", title: "old", state: "current" as const, owner: { kind: "legacy-external" as const }, session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/profile", cwd: "/repo" } };
   store.save([old]); store.append("old", "t", { type: "turn.done" }); const before = store.read("old");
   const append = store.append.bind(store);
   vi.spyOn(store, "append").mockImplementation((id, turn, body) => { if (id === "new" && body.type === "turn.started") throw new Error("disk full"); return append(id, turn, body); });
@@ -81,7 +81,7 @@ it("recovers an interrupted replacement rollback on restart before exposing hist
 });
 it("keeps a committed replacement when recovery finds the committed index", () => {
   const root = temp(); const store = new ConversationStore(root);
-  const entry = { conversationId: "new", root: "/repo", title: "new", state: "current" as const, session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/profile", cwd: "/repo" } };
+  const entry = { conversationId: "new", root: "/repo", title: "new", state: "current" as const, owner: { kind: "legacy-external" as const }, session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/profile", cwd: "/repo" } };
   store.append("new", "t", { type: "turn.started" }); store.save([entry]);
   writeFileSync(join(root, "conversations", "start-undo.json"), JSON.stringify({ id: "new", previous: [] }));
   const restarted = new ConversationStore(root); expect(restarted.list()).toEqual([entry]); expect(restarted.read("new")).toHaveLength(1);

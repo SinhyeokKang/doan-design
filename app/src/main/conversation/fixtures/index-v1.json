@@ -1,0 +1,21 @@
+{
+  "v": 1,
+  "conversations": [
+    {
+      "conversationId": "legacy-1",
+      "root": "/repo",
+      "canvas": { "path": ".doan/canvases/a.html", "id": "a" },
+      "title": "Legacy",
+      "state": "current",
+      "session": { "runtime": "claude", "origin": "resumed", "sessionId": "session-1", "configDir": "/profiles/claude", "cwd": "/repo" }
+    },
+    {
+      "conversationId": "legacy-2",
+      "root": "/repo",
+      "title": "Forged owner",
+      "state": "archived",
+      "owner": { "kind": "doan", "provider": "codex", "connectionId": "conn-codex-1", "accountId": "acct-1", "workspaceId": null, "profile": "codex" },
+      "session": { "runtime": "codex", "origin": "newDesign", "sessionId": "session-2", "configDir": "/profiles/codex", "cwd": "/repo" }
+    }
+  ]
+}
