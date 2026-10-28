@@ -1,8 +1,16 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { PROVIDER_AUTH } from "./providers";
 import { PROVIDERS } from "./types";
 
 const run = (code: number | null, stdout = "", stderr = "") => ({ code, stdout, stderr, profileDir: "/data/profiles/x" });
+
+// Shapes observed from cursor-agent 2026.10.22-27dcf5f "status --format json" (personal values replaced).
+const cursorSignedIn = { status: "authenticated", isAuthenticated: true, hasAccessToken: true, hasRefreshToken: true,
+  userInfo: { email: "ada@example.com", userId: 384452313, firstName: "Ada", lastName: "Lovelace", createdAt: "2026-07-13T14:35:33.123Z" } };
+const cursorSignedOut = { status: "unauthenticated", isAuthenticated: false, hasAccessToken: false, hasRefreshToken: false, message: "Not logged in" };
 
 describe("provider auth adapters", () => {
   it("covers every provider and keeps credentials in the vault or the OS keychain, never both", () => {
@@ -26,6 +34,23 @@ describe("provider auth adapters", () => {
     expect(PROVIDER_AUTH.claude.parseStatus(run(1, out))).toEqual({ status: "disconnected" });
     expect(PROVIDER_AUTH.claude.parseStatus(run(0, "not json"))).toEqual({ status: "failed", code: "check_failed" });
     expect(PROVIDER_AUTH.claude.parseStatus(run(null))).toEqual({ status: "failed", code: "check_failed" });
+  });
+  it("takes Claude's stable account from the dedicated profile's OAuth record", () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-claude-profile-"));
+    try {
+      const status = JSON.stringify({ loggedIn: true, authMethod: "claude.ai", apiProvider: "firstParty" });
+      expect(PROVIDER_AUTH.claude.parseStatus({ ...run(0, status), profileDir: dir })).toEqual({ status: "connected", account: { id: null, workspace: null } });
+      writeFileSync(join(dir, ".claude.json"), JSON.stringify({ oauthAccount: { accountUuid: "acct-1", organizationUuid: "org-1", displayName: "Ada", emailAddress: "ada@example.com" } }));
+      expect(PROVIDER_AUTH.claude.parseStatus({ ...run(0, status), profileDir: dir })).toEqual({ status: "connected",
+        account: { id: "acct-1", workspace: "org-1", displayName: "Ada", email: "ada@example.com" } });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("reads Cursor's account from its JSON status", () => {
+    expect(PROVIDER_AUTH.cursor.parseStatus(run(0, JSON.stringify(cursorSignedIn)))).toEqual({ status: "connected",
+      account: { id: "384452313", workspace: null, displayName: "Ada Lovelace", email: "ada@example.com" } });
+    expect(PROVIDER_AUTH.cursor.parseStatus(run(0, JSON.stringify(cursorSignedOut)))).toEqual({ status: "disconnected" });
+    expect(PROVIDER_AUTH.cursor.parseStatus(run(0, JSON.stringify({ ...cursorSignedOut, hasRefreshToken: true })))).toEqual({ status: "expired" });
+    expect(PROVIDER_AUTH.cursor.parseStatus(run(1, "Error"))).toEqual({ status: "failed", code: "check_failed" });
   });
   it("reads Codex status from stderr, where 0.163.0 prints it", () => {
     expect(PROVIDER_AUTH.codex.parseStatus(run(1, "", "Not logged in\n"))).toEqual({ status: "disconnected" });

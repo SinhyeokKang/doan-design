@@ -42,7 +42,11 @@ function cursorStatus(run: StatusRun): CheckResult {
   const status = json(run.stdout);
   if (!status || typeof status.isAuthenticated !== "boolean") return failed;
   if (!status.isAuthenticated) return { status: status.hasRefreshToken === true ? "expired" : "disconnected" };
-  return { status: "connected", account: account(status.userId, status.teamId, status.name, status.email) };
+  const user = typeof status.userInfo === "object" && status.userInfo !== null ? status.userInfo as Record<string, unknown> : {};
+  const name = [user.firstName, user.lastName].filter(part => typeof part === "string" && part).join(" ");
+  // userId is numeric in 2026.10.22 output; identity compares strings.
+  const id = typeof user.userId === "number" && Number.isSafeInteger(user.userId) ? String(user.userId) : user.userId;
+  return { status: "connected", account: account(id, null, name, user.email) };
 }
 // codex login status reports on stderr.
 function codexStatus(run: StatusRun): CheckResult {
