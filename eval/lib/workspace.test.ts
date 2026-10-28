@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { createContext, judgeMaterial, sh } from "./context.ts";
 import { loadScenario } from "./scenario.ts";
-import { prepareWorkspace } from "./workspace.ts";
+import { keepOnboardingLog, prepareWorkspace } from "./workspace.ts";
 
 const root = mkdtempSync(join(tmpdir(), "doan-workspace-"));
 const cli = join(root, "doan");
@@ -27,7 +27,7 @@ test("without worktree the agent works in the instruction's root", async () => {
 });
 
 test("an onboarding script starts the fake app, and checks read its v2 exchanges", async () => {
-  const onboardingValue = { providers: [{ provider: "claude", phase: "connected", readiness: { ready: true }, error: null, actions: ["signOut"] }], changes: [], readyAfterCheck: [] };
+  const onboardingValue = { providers: [{ provider: "claude", connected: true, verified: true }], changes: [], readyAfterCheck: [] };
   const ws = await prepareWorkspace({ scenario: { ...r6(), onboarding: "onboarding.json", onboardingValue }, agent: "fixture", cli, stub: "stub\n" });
   try {
     assert.notEqual(ws.app, null);
@@ -39,6 +39,22 @@ test("an onboarding script starts the fake app, and checks read its v2 exchanges
     assert.equal(log.length, 1);
     assert.deepEqual(log[0].request, { v: 2, op: "start" });
     assert.equal(log[0].response.result.sessionId, "s_eval");
+    // Kept with the run's evidence, since dispose deletes rt/.
+    const out = mkdtempSync(join(root, "run-"));
+    keepOnboardingLog(ws, out);
+    assert.equal(readFileSync(join(out, "onboarding.jsonl"), "utf8"), readFileSync(ws.onboardingLog, "utf8"));
+    assert.ok(!readFileSync(join(out, "onboarding.jsonl"), "utf8").includes(JSON.parse(readFileSync(ws.env.DOAN_RUNTIME!, "utf8")).token));
+  } finally {
+    await ws.dispose();
+  }
+});
+
+test("a run without onboarding exchanges keeps no log", async () => {
+  const ws = await prepareWorkspace({ scenario: r6(), agent: "fixture", cli, stub: "stub\n" });
+  try {
+    const out = mkdtempSync(join(root, "run-"));
+    keepOnboardingLog(ws, out);
+    assert.equal(existsSync(join(out, "onboarding.jsonl")), false);
   } finally {
     await ws.dispose();
   }

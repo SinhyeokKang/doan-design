@@ -97,6 +97,12 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
   }
 }
 
+// dispose deletes rt/, and the log is what onboarding checks were scored on.
+// It holds no token (eval/lib/socket.ts strips it).
+export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog">, dir: string): void {
+  if (existsSync(ws.onboardingLog)) cpSync(ws.onboardingLog, join(dir, "onboarding.jsonl"));
+}
+
 export function copyRepo(repo: string, dest: string): void {
   const git = join(repo, ".git");
   cpSync(repo, dest, { recursive: true, verbatimSymlinks: true, filter: source => source !== git && !source.startsWith(`${git}/`) });

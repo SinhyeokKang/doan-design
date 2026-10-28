@@ -14,7 +14,7 @@ import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand,
 import { summary, type RoundMeta, type RunRecord } from "./lib/record.ts";
 import { loadScenario, renderPrompt, scenarioIds, selectIds, type LoadedScenario } from "./lib/scenario.ts";
 import type { Check, Checks } from "./lib/types.ts";
-import { copyRepo, prepareWorkspace, type Workspace } from "./lib/workspace.ts";
+import { copyRepo, keepOnboardingLog, prepareWorkspace, type Workspace } from "./lib/workspace.ts";
 
 const ROOT = dirname(import.meta.dirname);
 const SCENARIOS = join(ROOT, "eval/scenarios");
@@ -101,6 +101,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     console.log(`done  ${name}: ${record.result} (${proc.durationSec}s${proc.timedOut ? ", timed out" : ""})`);
     return record;
   } finally {
+    keepEvidence(ws, dir);
     await ws.dispose();
   }
 }
@@ -145,8 +146,14 @@ async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pa
     // n orders the pass fixture before the fail one in the summary.
     return { record: { scenario: scenario.id, agent: "fixture", n: kind === "pass" ? 1 : 2, dir: join(".scratch/agent-eval", setup.options.round, name), result, checks, judge: judgement, durationSec: null, exitCode: null, timedOut: false }, problems };
   } finally {
+    keepEvidence(ws, dir);
     await ws.dispose();
   }
+}
+
+// Also for a failed or broken run; a copy error must not hide the run's own error.
+function keepEvidence(ws: Workspace, dir: string): void {
+  try { keepOnboardingLog(ws, dir); } catch (error) { writeFileSync(join(dir, "onboarding-log-error.txt"), `${(error as Error).stack}\n`); }
 }
 
 async function main(): Promise<number> {
