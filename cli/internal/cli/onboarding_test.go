@@ -345,6 +345,86 @@ func TestOnboardingFailedOperationNeverPrintsTheToken(t *testing.T) {
 	}
 }
 
+// Results are data even when an operation failed, but the token and the
+// runtime.json path (which holds it) still never reach any output.
+func TestOnboardingRepliesNeverCarryTokenOrRuntimePath(t *testing.T) {
+	failedClone := func(message string) string {
+		return `{"operationId":"op_1","requestId":"r_0","kind":"project_clone","state":"failed","error":{"code":"clone_failed","message":"` + message + `"}}`
+	}
+	state := func(op, message string) string {
+		return `{"v":2,"ok":true,"op":"` + op + `","result":{"sessionId":"s_1","revision":1,"completed":false,"agents":null,"project":null,"operations":[` + failedClone(message) + `]}}`
+	}
+	for _, tt := range []struct {
+		name  string
+		op    string
+		reply func(runtime string) string
+		code  string
+	}{
+		{"status token", "status", func(string) string { return state("status", "held "+testToken) }, ""},
+		{"status runtime path", "status", func(runtime string) string { return state("status", "see "+runtime) }, ""},
+		{"start token", "start", func(string) string { return state("start", testToken) }, ""},
+		{"cancel token", "cancel", func(string) string {
+			return `{"v":2,"ok":true,"op":"cancel","result":{"operation":` + failedClone(testToken) + `}}`
+		}, ""},
+		{"error runtime path", "sign_in", func(runtime string) string {
+			return `{"v":2,"ok":false,"error":{"code":"busy","message":"read ` + runtime + `"}}`
+		}, "busy"},
+		{"failed operation runtime path", "project_clone", func(runtime string) string {
+			return `{"v":2,"ok":true,"op":"project_clone","result":{"operation":` + strings.Replace(failedClone(runtime), `"requestId":"r_0"`, `"requestId":"r_1"`, 1) + `}}`
+		}, "clone_failed"},
+		// Only messages are free text; the token anywhere else makes the reply unusable.
+		{"token as a session id", "status", func(string) string {
+			return strings.Replace(state("status", "m"), `"sessionId":"s_1"`, `"sessionId":"`+testToken+`"`, 1)
+		}, "internal_error"},
+	} {
+		var app *onboardingApp
+		app = startOnboardingApp(t, shortTempDir(t), func(map[string]any) string { return tt.reply(app.runtime) })
+		t.Setenv("DOAN_RUNTIME", app.runtime)
+		call := onboardingCalls[tt.op]
+		code, env, out := runOnboarding(t, call.args...)
+		var stdout, stderr bytes.Buffer
+		Run(call.args, strings.NewReader(""), &stdout, &stderr)
+		toolOut, _ := json.Marshal(callTool(t, mcpClient(t), call.tool, call.mcp))
+		for _, text := range []string{out, stdout.String() + stderr.String(), string(toolOut)} {
+			if strings.Contains(text, testToken) || strings.Contains(text, app.runtime) {
+				t.Errorf("%s: leaked in %s", tt.name, text)
+			}
+		}
+		if tt.code == "" {
+			ops := env["result"].(map[string]any)
+			if tt.op != "cancel" {
+				ops = ops["operations"].([]any)[0].(map[string]any)
+			} else {
+				ops = ops["operation"].(map[string]any)
+			}
+			if code != 0 || ops["state"] != "failed" || ops["error"].(map[string]any)["code"] != "clone_failed" {
+				t.Errorf("%s: %d %s", tt.name, code, out)
+			}
+		} else if env["ok"] != false || env["error"].(map[string]any)["code"] != tt.code {
+			t.Errorf("%s: %s", tt.name, out)
+		}
+	}
+}
+
+func TestOnboardingRuntimeEnvironment(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	defaultPath := filepath.Join(home, "Library", "Application Support", "doan", "runtime.json")
+	t.Setenv("DOAN_RUNTIME", "/x/runtime.json")
+	if path, explicit, failure := onboardingRuntime(); failure != nil || path != "/x/runtime.json" || !explicit {
+		t.Fatal(path, explicit, failure)
+	}
+	// Set but empty is still an explicit choice for onboarding: no bootstrap.
+	t.Setenv("DOAN_RUNTIME", "")
+	if path, explicit, failure := onboardingRuntime(); failure != nil || path != defaultPath || !explicit {
+		t.Fatal(path, explicit, failure)
+	}
+	os.Unsetenv("DOAN_RUNTIME")
+	if path, explicit, failure := onboardingRuntime(); failure != nil || path != defaultPath || explicit {
+		t.Fatal(path, explicit, failure)
+	}
+}
+
 func TestOnboardingRejectsInvalidReplies(t *testing.T) {
 	for _, tt := range []struct{ name, reply, code string }{
 		{"v1 success", `{"v":1,"ok":true,"result":{}}`, "app_protocol_mismatch"},
@@ -416,6 +496,14 @@ func TestOwnBundle(t *testing.T) {
 	fake := fakeBundle(t, dir, "fake.app", "design.doan.app")
 	os.Remove(fake)
 	os.Symlink(standalone, fake)
+	// The plist and CLI stay inside, but the MacOS directory points elsewhere.
+	parentLink := fakeBundle(t, dir, "parentlink.app", "design.doan.app")
+	mac := filepath.Join(dir, "parentlink.app", "Contents", "MacOS")
+	os.Rename(mac, filepath.Join(dir, "outside-macos"))
+	os.Symlink(filepath.Join(dir, "outside-macos"), mac)
+	// A bundle reached through a linked parent folder is still that bundle.
+	os.Symlink(filepath.Join(dir, "My Apps"), filepath.Join(dir, "Linked Apps"))
+	viaParent := filepath.Join(dir, "Linked Apps", "doan.app", "Contents", "Resources", "bin", "doan")
 
 	for _, tt := range []struct {
 		name, exe, want string
@@ -429,6 +517,8 @@ func TestOwnBundle(t *testing.T) {
 		{"binary Info.plist", binaryPlist, ""},
 		{"app executable is a link out of the bundle", escape, ""},
 		{"bundle-shaped link to a standalone CLI", fake, ""},
+		{"MacOS directory links out of the bundle", parentLink, ""},
+		{"linked parent folder", viaParent, filepath.Join(dir, "My Apps", "doan.app")},
 		{"standalone", standalone, ""},
 		{"missing", filepath.Join(dir, "none"), ""},
 	} {
