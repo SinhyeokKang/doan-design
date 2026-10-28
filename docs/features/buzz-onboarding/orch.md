@@ -77,3 +77,4 @@
 - 2026-10-29: U1 완료(60e4943, 5429599, e6ab797, `verify.mjs` PASS, 격리 GUI probe 통과, 실제 상태 보존). GUI 슬롯 반환. 독립 리뷰 Claude Opus high 시작. U 작업자 retain(U2용). `src/main/onboarding/machine.test.ts`도 한 번 간헐 실패했다(watch.test.ts와 함께 마지막 보고에 적는다).
 - 2026-10-29: 통합 HEAD(T+C+G+P+E) `verify.mjs --eval` PASS(9단계).
 - 2026-10-29: U1 리뷰 Claude Opus high: 🔴 0·🟡 3(CLI가 시작한 로그인 링크를 renderer도 엶, 비활성·제거 뒤 포커스가 body로 감, 붙여넣기 모달 수명과 잘림)·⚪ 7. 수정 1회차를 보냈다. Codex loopback 링크 자동 열기 문제는 M 수정 brief에 더했다. 결정 D16.
+- 2026-10-29: U1 수정 1회차(2c7473e, f6dfdd9, `verify.mjs` PASS). 지휘자 확인 뒤 U1을 통합했다(5 커밋). 포커스 이동은 단위 테스트로만 확인했고 실제 앱 확인은 U2 design-sync에서 한다. ⚪4(reload 뒤 소유 attempt id 소실)·⚪5(설치 줄에 공급자 이름 없음)는 U2로 넘긴다. U 작업자는 M 통합을 기다린다.
