@@ -42,7 +42,7 @@ const mocks = await vi.hoisted(async () => {
 vi.mock("electron", () => ({ BrowserWindow: mocks.Window, webFrameMain: mocks.webFrameMain }));
 
 const { CAPTURE_WINDOW_TITLE, createWindowCapturer, frameScript, hostPage, LOAD_LIMIT_MS, SETTLE_MS } = await import("./thumbnailWindow");
-const URL_A = "http://127.0.0.1:1/t/tok/k/doan/a.html";
+const URL_A = "http://127.0.0.1:1/t/tok/k/.doan/canvases/a.html";
 
 beforeEach(() => {
   mocks.Window.instances.length = 0;

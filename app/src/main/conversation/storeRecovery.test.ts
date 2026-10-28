@@ -23,7 +23,7 @@ function setup() {
   const store = new ConversationStore(root), directory = join(root, "conversations");
   return { root, store, path: (id: string) => join(directory, id + ".jsonl"), index: join(directory, "index.json"), journal: join(directory, "start-undo.json") };
 }
-function meta(id: string): ConversationMetadata { return { conversationId: id, root: "/repo", title: id, canvas: { path: "doan/a.html" }, state: "current", session: { runtime: "codex", origin: "new", sessionId: id, configDir: "/profile", cwd: "/repo" } }; }
+function meta(id: string): ConversationMetadata { return { conversationId: id, root: "/repo", title: id, canvas: { path: ".doan/canvases/a.html" }, state: "current", session: { runtime: "codex", origin: "new", sessionId: id, configDir: "/profile", cwd: "/repo" } }; }
 it("checks serialized UTF-8 bytes before append, allowing the exact read boundary", () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-27T00:00:00Z"));
   const f = setup(); f.store.append("old", "t", { type: "turn.done" });
@@ -39,7 +39,7 @@ it("checks serialized UTF-8 bytes before append, allowing the exact read boundar
 it("rejects an archival bound crossing without publication and leaves forCanvas readable", async () => {
   const f = setup(), published: unknown[] = []; let session = 0;
   const service = new ConversationService(f.store, async () => ({ runtime: "codex", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} }), async () => ({ sessionId: `s${++session}`, send: async () => {}, answer: () => false, stop: async () => {}, close: async () => {} }), e => published.push(e));
-  const request = { root: "/repo", canvas: { path: "doan/a.html" }, mode: "new" as const, runtime: "codex" as const, text: "hello", anchors: [] };
+  const request = { root: "/repo", canvas: { path: ".doan/canvases/a.html" }, mode: "new" as const, runtime: "codex" as const, text: "hello", anchors: [] };
   const old = (await service.start(request)).conversationId; service.receive(old, { type: "turn.done" });
   const bytes = readFileSync(f.path(old)), index = readFileSync(f.index), count = published.length;
   hooks.limit = bytes.length + 1;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { beginDraft, CONTINUE_REASONS, continueEnabled, DOCUMENT_RELOADED, guardsSelectionChange, transitionDraft, type ContinueContext, type DraftOrigin, type DraftState } from "./draft";
 
-const origin = { kind: "create", root: "/repo", canvas: "home", path: "doan/home.html", generation: 1, canvasHash: `sha256:${"a".repeat(64)}`, target: { frame: "first" } } as const;
+const origin = { kind: "create", root: "/repo", canvas: "home", path: ".doan/canvases/home.html", generation: 1, canvasHash: `sha256:${"a".repeat(64)}`, target: { frame: "first" } } as const;
 const edit = { kind: "edit", root: "/repo", canvas: "home", comment: "comment", expected: { body: "old", status: "open", updatedAt: "2026-01-01T00:00:00.000Z" } } as const;
 
 describe("draft transitions", () => {
@@ -130,7 +130,7 @@ describe("document-lost reason", () => {
 });
 
 describe("continue on the current version", () => {
-  const next = { ...origin, generation: 2, path: "doan/home.html", canvasHash: `sha256:${"b".repeat(64)}`, target: { frame: "second" } };
+  const next = { ...origin, generation: 2, path: ".doan/canvases/home.html", canvasHash: `sha256:${"b".repeat(64)}`, target: { frame: "second" } };
   it("replaces the blocked draft and keeps the body as edited at success", () => {
     const edited = transitionDraft(lostWith({ identity: here }), { type: "body", body: "line one\nline two" }).state;
     const result = transitionDraft(edited, { type: "continue", id: "create2", origin: next });

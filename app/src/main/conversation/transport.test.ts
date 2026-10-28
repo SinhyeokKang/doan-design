@@ -54,10 +54,10 @@ describe("transport normalization", () => {
 });
 describe("permission choices", () => {
   it("maps Claude callback allow/deny and only exposes suggested persistent updates", () => {
-    const request = claudePermission("r", "Write", { file_path: "/repo/doan/a.html" }, []);
+    const request = claudePermission("r", "Write", { file_path: "/repo/.doan/canvases/a.html" }, []);
     expect(request.event.options.map(o => o.kind)).toEqual(["allow", "deny"]);
     expect(permissionAnswer(request, "deny")).toMatchObject({ response: { behavior: "deny", message: "Denied by the user." }, event: { type: "permission.resolved", optionId: "deny" } });
-    expect(permissionAnswer(request, "allow")?.response).toEqual({ behavior: "allow", updatedInput: { file_path: "/repo/doan/a.html" } });
+    expect(permissionAnswer(request, "allow")?.response).toEqual({ behavior: "allow", updatedInput: { file_path: "/repo/.doan/canvases/a.html" } });
     expect(permissionAnswer(request, "always")).toBeNull();
     const suggestion = { type: "addRules", rules: [{ toolName: "Write" }], behavior: "allow", destination: "session" };
     expect(permissionAnswer(claudePermission("r", "Write", {}, [suggestion]), "always")?.response).toEqual({ behavior: "allow", updatedInput: {}, updatedPermissions: [suggestion] });

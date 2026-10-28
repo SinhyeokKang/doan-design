@@ -50,7 +50,7 @@ function loadedController() {
   const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
   const changed = vi.fn();
   const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })));
-  const row = { path: "doan/a.html", url: "http://localhost/a.html", width: 600, open: 0, resolved: 0 };
+  const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 600, open: 0, resolved: 0 };
   controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }]);
   controller.openCanvas("/repo", row);
   const layout = { type: "layout", href: row.url, height: 600, viewport: 150, frames: [{ id: "a", title: "A", x: 0, y: 0, width: 100, height: 100 }], truncated: false };
@@ -78,7 +78,7 @@ it("labels the open canvas with its last successful activity", () => {
   const { controller, changed, row } = loadedController();
   try {
     const { width: _width, ...withoutWidth } = row;
-    controller.openCanvas("/repo", { ...withoutWidth, path: "doan/b.html" });
+    controller.openCanvas("/repo", { ...withoutWidth, path: ".doan/canvases/b.html" });
     expect(changed.mock.lastCall?.[0].label).toBeNull();
     controller.openCanvas("/repo", row);
     expect(changed.mock.lastCall?.[0].label).toMatch(/^Opened \d\d:\d\d$/);
@@ -122,8 +122,8 @@ function selectionHarness() {
   const inspections: { selector: string; resolve: (result: InspectResult) => void; reject: (error: unknown) => void }[] = [];
   const inspect = vi.fn((selector: string) => new Promise<InspectResult>((resolve, reject) => { inspections.push({ selector, resolve, reject }); }));
   const controller = new CanvasController(viewport, board, overlay, changed, send, inspect);
-  const row = { path: "doan/a.html", id: "a", url: "http://localhost/t/k/f/doan/a.html", width: 600, open: 0, resolved: 0 };
-  const other = { ...row, path: "doan/b.html", id: "b", url: "http://localhost/t/k/f/doan/b.html" };
+  const row = { path: ".doan/canvases/a.html", id: "a", url: "http://localhost/t/k/f/.doan/canvases/a.html", width: 600, open: 0, resolved: 0 };
+  const other = { ...row, path: ".doan/canvases/b.html", id: "b", url: "http://localhost/t/k/f/.doan/canvases/b.html" };
   controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row, other] }]);
   controller.openCanvas("/repo", row);
   const current = () => frames.at(-1)!;
@@ -159,7 +159,7 @@ describe("selection", () => {
       h.select(1);
       const { rect: _rect, ...view } = h.target;
       expect(h.state().selection).toEqual(view);
-      expect(h.send).toHaveBeenLastCalledWith({ root: "/repo", canvas: { path: "doan/a.html", id: "a" }, frame: { id: "hero" }, element: h.target.element });
+      expect(h.send).toHaveBeenLastCalledWith({ root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, frame: { id: "hero" }, element: h.target.element });
       expect(h.markOf("dims")?.textContent).toBe("60 × 18");
       expect(h.markOf("selected")?.children).toEqual([h.markOf("dims")]);
       expect(h.overlay.append).toHaveBeenCalledWith(h.markOf("hover"), h.markOf("selected"));
@@ -1006,7 +1006,7 @@ it("drops a waiting workspace open when a later navigation, a failed read or lea
     const listed: FolderEntry = { path: "/added", kind: "list", servedRev: 0, canvases: [] };
     const entered = vi.fn();
     const supersede = [
-      () => controller.openCanvas("/repo", { ...row, path: "doan/b.html", url: "http://localhost/b.html" }),
+      () => controller.openCanvas("/repo", { ...row, path: ".doan/canvases/b.html", url: "http://localhost/b.html" }),
       () => controller.updateEntries([repo, { path: "/added", kind: "error", message: "bad config" }]),
       () => controller.setWorkspaceActive(false),
     ];
@@ -1302,7 +1302,7 @@ it("does not apply Added Open recovery after a newer navigation", () => {
 it("reports a canvas that becomes unavailable while the user approves its draft guard", async () => {
   const h = loadedController();
   try {
-    const target = { ...h.row, path: "doan/next.html", url: "http://localhost/next.html" };
+    const target = { ...h.row, path: ".doan/canvases/next.html", url: "http://localhost/next.html" };
     h.controller.updateEntries([{ kind: "list", path: "/repo", servedRev: 0, canvases: [h.row, target] }]);
     let approve: (allow: boolean) => void = () => {};
     h.controller.setTransitionGuard(() => new Promise<boolean>(resolve => { approve = resolve; }));
@@ -1378,7 +1378,7 @@ describe("a canvas moved with the same id", () => {
   afterEach(() => vi.unstubAllGlobals());
   function movedHarness() {
     const h = selectionHarness();
-    const moved = { ...h.row, path: "doan/flows/a.html", url: "http://localhost/t/k/f/doan/flows/a.html" };
+    const moved = { ...h.row, path: ".doan/canvases/flows/a.html", url: "http://localhost/t/k/f/.doan/canvases/flows/a.html" };
     const removed = vi.fn(), followed = vi.fn();
     h.controller.canvasRemoved = removed;
     h.controller.canvasMoved = followed;
@@ -1432,7 +1432,7 @@ describe("a canvas moved with the same id", () => {
       h.layout();
       expect(activityFor(h.state().activity, "/repo", h.row.path, "replacement").map(event => event.kind)).toEqual(["reloaded"]);
       expect(h.state().label).toMatch(/^Reloaded \d\d:\d\d$/);
-      const moved = { ...replacement, path: "doan/new.html", url: "http://localhost/t/k/f/doan/new.html" };
+      const moved = { ...replacement, path: ".doan/canvases/new.html", url: "http://localhost/t/k/f/.doan/canvases/new.html" };
       h.controller.updateEntries(h.list(moved, h.other));
       h.layout({ href: moved.url });
       expect(activityFor(h.state().activity, "/repo", moved.path, "replacement").map(event => event.kind)).toEqual(["moved", "reloaded"]);
@@ -1448,9 +1448,9 @@ describe("a canvas moved with the same id", () => {
       h.controller.openCanvas("/repo", h.row);
       h.layout();
       const moved = { ...h.row, path: h.other.path, url: h.other.url };
-      h.controller.updateEntries(h.list(moved, { ...h.other, path: "doan/c.html", url: "http://localhost/t/k/f/doan/c.html" }));
+      h.controller.updateEntries(h.list(moved, { ...h.other, path: ".doan/canvases/c.html", url: "http://localhost/t/k/f/.doan/canvases/c.html" }));
       expect(activityFor(h.state().activity, "/repo", h.other.path, "a").map(event => event.kind)).toEqual(["moved", "opened", "opened"]);
-      expect(activityFor(h.state().activity, "/repo", "doan/c.html", "b").map(event => event.kind)).toEqual(["opened"]);
+      expect(activityFor(h.state().activity, "/repo", ".doan/canvases/c.html", "b").map(event => event.kind)).toEqual(["opened"]);
     } finally { h.controller.dispose(); }
   });
 
@@ -1484,7 +1484,7 @@ describe("a canvas moved with the same id", () => {
       h.controller.updateEntries(h.list(h.moved, h.other));
       expect(h.removed).toHaveBeenCalledExactlyOnceWith({ folder: "/repo", row: h.row, duplicates: null });
       expect(h.followed).not.toHaveBeenCalled();
-      expect(h.state()).toMatchObject({ open: null, selection: null, status: "missing", message: "doan/a.html is no longer in the list. It was deleted or moved." });
+      expect(h.state()).toMatchObject({ open: null, selection: null, status: "missing", message: ".doan/canvases/a.html is no longer in the list. It was deleted or moved." });
       expect(h.send).toHaveBeenLastCalledWith(null);
     } finally { h.controller.dispose(); }
   });
@@ -1493,7 +1493,7 @@ describe("a canvas moved with the same id", () => {
     const h = movedHarness();
     try {
       h.select(1);
-      h.controller.updateEntries(h.list(h.moved, { ...h.moved, path: "doan/copy.html", url: "http://localhost/t/k/f/doan/copy.html" }, h.other));
+      h.controller.updateEntries(h.list(h.moved, { ...h.moved, path: ".doan/canvases/copy.html", url: "http://localhost/t/k/f/.doan/canvases/copy.html" }, h.other));
       expect(h.removed).toHaveBeenCalledExactlyOnceWith({ folder: "/repo", row: h.row, duplicates: 2 });
       expect(h.followed).not.toHaveBeenCalled();
       expect(h.state()).toMatchObject({ open: null, selection: null, status: "missing" });
@@ -1602,7 +1602,7 @@ describe("Activity", () => {
       h.controller.command("reload");
       h.layout();
       h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y")] }, hooks());
-      const moved = { ...h.row, path: "doan/flows/a.html", url: "http://localhost/t/k/f/doan/flows/a.html" };
+      const moved = { ...h.row, path: ".doan/canvases/flows/a.html", url: "http://localhost/t/k/f/.doan/canvases/flows/a.html" };
       h.controller.updateEntries(h.list(moved, h.other));
       h.layout({ href: moved.url });
       h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y", by.kim)] }, hooks());
@@ -1948,8 +1948,8 @@ describe("locate and jump to a comment's node", () => {
     try {
       const { lookup } = h.snapshot();
       if (kind === "reload") h.controller.command("reload");
-      else h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, path: "doan/flows/a.html", url: "http://localhost/t/k/f/doan/flows/a.html" }, h.other] }]);
-      const href = kind === "reload" ? h.row.url : "http://localhost/t/k/f/doan/flows/a.html";
+      else h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, path: ".doan/canvases/flows/a.html", url: "http://localhost/t/k/f/.doan/canvases/flows/a.html" }, h.other] }]);
+      const href = kind === "reload" ? h.row.url : "http://localhost/t/k/f/.doan/canvases/flows/a.html";
       const before = h.controller.currentView();
       h.controller.locate("n1", lookup.generation, open);
       expect(h.controller.currentView()).toEqual(before);
@@ -2099,7 +2099,7 @@ describe("locate and jump to a comment's node", () => {
     const h = locateHarness();
     try {
       h.controller.locate("n1", h.snapshot().lookup.generation, open);
-      const href = "http://localhost/t/k/f/doan/c.html";
+      const href = "http://localhost/t/k/f/.doan/canvases/c.html";
       h.layout({ document: "doc2", href });
       h.select(1, { href });
       expect(h.state().located).toBe(false);
@@ -2262,7 +2262,7 @@ describe("feedback navigation callbacks", () => {
       expect(opened).not.toHaveBeenCalled();
       allow(true); await Promise.resolve(); await Promise.resolve();
       expect(opened).toHaveBeenCalledTimes(1);
-      expect(h.state().open?.canvas).toBe("doan/b.html");
+      expect(h.state().open?.canvas).toBe(".doan/canvases/b.html");
       // Already shown: no transition, told at once.
       h.controller.openCanvas("/repo", h.other, undefined, { opened });
       expect(opened).toHaveBeenCalledTimes(2);
@@ -2346,7 +2346,7 @@ it("remembers the approved same-workspace Overview source and restores it after 
   const { controller, row } = loadedController();
   try {
     controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/other", kind: "list", servedRev: 0, canvases: [] }]);
-    const previous = { canvas: "doan/old.html", view: { x: 9, y: 8, scale: 2 } };
+    const previous = { canvas: ".doan/canvases/old.html", view: { x: 9, y: 8, scale: 2 } };
     controller.remember("/repo", previous);
     controller.wheel({ dx: 25, dy: 40, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
     controller.wheel({ dx: 0, dy: -20, ctrl: true, meta: false, deltaMode: 0 }, { x: 200, y: 100 });

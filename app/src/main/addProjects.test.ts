@@ -174,7 +174,7 @@ describe.skipIf(process.getuid?.() === 0)("adding a folder that cannot be read",
 describe("adding picked folders", () => {
   test("a doan repo or its subfolder is stored by the root the CLI reports", async () => {
     const root = dir();
-    const sub = dir(root, "doan");
+    const sub = dir(root, ".doan/canvases");
     const { deps, saved } = fake({ [root]: list(root), [sub]: list(root) });
     const flow = createAddFlow(deps);
     expect(await flow.add([sub])).toEqual({ added: [root], duplicate: null, messages: [], scanId: null, confirms: [] });
@@ -191,7 +191,7 @@ describe("adding picked folders", () => {
 
   test("the same repo picked twice in one request is stored once", async () => {
     const root = dir();
-    const sub = dir(root, "doan");
+    const sub = dir(root, ".doan/canvases");
     const { deps, saved } = fake({ [root]: list(root), [sub]: list(root) });
     expect(await createAddFlow(deps).add([root, sub])).toMatchObject({ added: [root], duplicate: root });
     expect(saved).toEqual([root]);
@@ -234,7 +234,7 @@ describe("adding picked folders", () => {
   });
 
   test("a folder the CLI refuses keeps the existing message", async () => {
-    const broken = dir(dir(), "doan");
+    const broken = dir(dir(), ".doan/canvases");
     const { deps, saved } = fake({});
     // Run inside a broken repo's subfolder: `ls` fails, and `--repo` says it is no root.
     deps.ls = async (target) => ("cwd" in target ? { kind: "error", message: "bad config" } : notSetUp);
@@ -294,7 +294,7 @@ describe("scanning a folder of repos", () => {
     const beta = gitDir(parent, "beta", "file");
     const gamma = gitDir(parent, "gamma");
     // On disk gamma looks set up; only the CLI's answer counts.
-    mkdirSync(join(gamma, ".doan"));
+    mkdirSync(join(gamma, ".doan"), { recursive: true });
     writeFileSync(join(gamma, ".doan", "config.json"), '{"v":1}');
     const delta = gitDir(parent, "delta");
     const epsilon = gitDir(parent, "epsilon");
@@ -483,10 +483,10 @@ describe("judging a located folder", () => {
   test("stores a doan repo by its root or a git folder as picked", async () => {
     const root = dir();
     const repo = gitDir(dir(), "repo");
-    const { deps } = fake({ [join(root, "doan")]: list(root) });
-    mkdirSync(join(root, "doan"));
+    const { deps } = fake({ [join(root, ".doan/canvases")]: list(root) });
+    mkdirSync(join(root, ".doan/canvases"), { recursive: true });
     const flow = createAddFlow(deps);
-    expect(await flow.judge(join(root, "doan"))).toEqual({ root });
+    expect(await flow.judge(join(root, ".doan/canvases"))).toEqual({ root });
     expect(await flow.judge(repo)).toEqual({ root: repo });
   });
 

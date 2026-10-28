@@ -34,8 +34,8 @@ describe("read", () => {
 
   test("validates against the roots saved now", async () => {
     const path = file();
-    writeFileSync(path, JSON.stringify(workspace("doan/a.html")));
-    expect(await createUiStateStore(path, saved).read()).toMatchObject({ screen: "workspace", root: "/repo", canvas: "doan/a.html" });
+    writeFileSync(path, JSON.stringify(workspace(".doan/canvases/a.html")));
+    expect(await createUiStateStore(path, saved).read()).toMatchObject({ screen: "workspace", root: "/repo", canvas: ".doan/canvases/a.html" });
     expect(await createUiStateStore(path, () => []).read()).toEqual({ screen: "home", expanded: {}, lastByRoot: {} });
   });
 });
@@ -45,15 +45,15 @@ describe("save", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const path = file();
     const store = createUiStateStore(path, saved);
-    expect(store.save(workspace("doan/a.html"))).toBe(true);
+    expect(store.save(workspace(".doan/canvases/a.html"))).toBe(true);
     vi.advanceTimersByTime(UI_STATE_DELAY_MS - 1);
-    expect(store.save(workspace("doan/b.html"))).toBe(true);
+    expect(store.save(workspace(".doan/canvases/b.html"))).toBe(true);
     vi.advanceTimersByTime(UI_STATE_DELAY_MS - 1);
     await store.idle();
     expect(readdirSync(join(path, ".."))).toEqual([]);
     vi.advanceTimersByTime(1);
     await store.idle();
-    expect(onDisk(path).canvas).toBe("doan/b.html");
+    expect(onDisk(path).canvas).toBe(".doan/canvases/b.html");
     expect(readdirSync(join(path, ".."))).toEqual(["ui-state.json"]);
   });
 
@@ -66,7 +66,7 @@ describe("save", () => {
       renameSync(from, to) { calls.push(["rename", from, to]); renameSync(from, to); },
     };
     const store = createUiStateStore(path, saved, UI_STATE_DELAY_MS, fs);
-    store.save(workspace("doan/a.html"));
+    store.save(workspace(".doan/canvases/a.html"));
     vi.advanceTimersByTime(UI_STATE_DELAY_MS);
     await store.idle();
     const temp = calls[0]?.[1] ?? "";
@@ -77,14 +77,14 @@ describe("save", () => {
   test("a failed write leaves the previous file and no temp file", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const path = file();
-    writeFileSync(path, JSON.stringify(workspace("doan/old.html")));
+    writeFileSync(path, JSON.stringify(workspace(".doan/canvases/old.html")));
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const fs: UiStateFs = { writeFile: (temp, text) => writeFile(temp, text, { flag: "wx" }), renameSync: () => { throw new Error("disk full"); } };
     const store = createUiStateStore(path, saved, UI_STATE_DELAY_MS, fs);
-    store.save(workspace("doan/new.html"));
+    store.save(workspace(".doan/canvases/new.html"));
     vi.advanceTimersByTime(UI_STATE_DELAY_MS);
     await store.idle();
-    expect(onDisk(path).canvas).toBe("doan/old.html");
+    expect(onDisk(path).canvas).toBe(".doan/canvases/old.html");
     expect(readdirSync(join(path, ".."))).toEqual(["ui-state.json"]);
     expect(error).toHaveBeenCalledOnce();
     error.mockRestore();
@@ -94,24 +94,24 @@ describe("save", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const path = file();
     const store = createUiStateStore(path, saved);
-    store.save(workspace("doan/a.html"));
+    store.save(workspace(".doan/canvases/a.html"));
     const cyclic: Record<string, unknown> = { screen: "home" };
     cyclic["self"] = cyclic;
     const huge = { screen: "home", expanded: { "/repo": ["x".repeat(UI_STATE_MAX_BYTES)] }, lastByRoot: {} };
     for (const bad of [null, undefined, "home", [], { screen: "settings" }, cyclic, huge]) expect(store.save(bad)).toBe(false);
     vi.advanceTimersByTime(UI_STATE_DELAY_MS);
     await store.idle();
-    expect(onDisk(path).canvas).toBe("doan/a.html");
+    expect(onDisk(path).canvas).toBe(".doan/canvases/a.html");
   });
 
   test("drops roots that are not saved and unknown fields before writing", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const path = file();
     const store = createUiStateStore(path, saved);
-    store.save({ ...workspace("doan/a.html"), extra: 1, expanded: { "/repo": ["doan"], "/gone": ["x"] }, lastByRoot: { "/gone": { canvas: "a", view } } });
+    store.save({ ...workspace(".doan/canvases/a.html"), extra: 1, expanded: { "/repo": ["doan"], "/gone": ["x"] }, lastByRoot: { "/gone": { canvas: "a", view } } });
     vi.advanceTimersByTime(UI_STATE_DELAY_MS);
     await store.idle();
-    expect(onDisk(path)).toEqual({ screen: "workspace", root: "/repo", canvas: "doan/a.html", view, expanded: { "/repo": ["doan"] }, lastByRoot: {} });
+    expect(onDisk(path)).toEqual({ screen: "workspace", root: "/repo", canvas: ".doan/canvases/a.html", view, expanded: { "/repo": ["doan"] }, lastByRoot: {} });
   });
 
   test("flushSync writes a pending value now and the timer writes nothing after it", async () => {
@@ -120,9 +120,9 @@ describe("save", () => {
     const store = createUiStateStore(path, saved);
     store.flushSync();
     expect(readdirSync(join(path, ".."))).toEqual([]);
-    store.save(workspace("doan/a.html"));
+    store.save(workspace(".doan/canvases/a.html"));
     store.flushSync();
-    expect(onDisk(path).canvas).toBe("doan/a.html");
+    expect(onDisk(path).canvas).toBe(".doan/canvases/a.html");
     writeFileSync(path, "{}");
     vi.advanceTimersByTime(UI_STATE_DELAY_MS);
     await store.idle();
@@ -138,14 +138,14 @@ describe("save", () => {
       renameSync,
     };
     const store = createUiStateStore(path, saved, UI_STATE_DELAY_MS, fs);
-    store.save(workspace("doan/a.html"));
+    store.save(workspace(".doan/canvases/a.html"));
     vi.advanceTimersByTime(UI_STATE_DELAY_MS);
     await vi.waitFor(() => expect(readdirSync(join(path, ".."))).toHaveLength(1));
-    store.save(workspace("doan/b.html"));
+    store.save(workspace(".doan/canvases/b.html"));
     store.flushSync();
     release();
     await store.idle();
-    expect(onDisk(path).canvas).toBe("doan/b.html");
+    expect(onDisk(path).canvas).toBe(".doan/canvases/b.html");
     expect(readdirSync(join(path, ".."))).toEqual(["ui-state.json"]);
   });
 
@@ -159,14 +159,14 @@ describe("save", () => {
       renameSync,
     };
     const store = createUiStateStore(path, saved, UI_STATE_DELAY_MS, fs);
-    store.save(workspace("doan/a.html"));
+    store.save(workspace(".doan/canvases/a.html"));
     vi.advanceTimersByTime(UI_STATE_DELAY_MS);
     await vi.waitFor(() => expect(started).toBe(true));
     store.flushSync();
-    expect(onDisk(path).canvas).toBe("doan/a.html");
+    expect(onDisk(path).canvas).toBe(".doan/canvases/a.html");
     release();
     await store.idle();
-    expect(onDisk(path).canvas).toBe("doan/a.html");
+    expect(onDisk(path).canvas).toBe(".doan/canvases/a.html");
     expect(readdirSync(join(path, ".."))).toEqual(["ui-state.json"]);
   });
 
@@ -183,16 +183,16 @@ describe("save", () => {
       renameSync(from, to) {
         renames++;
         renameSync(from, to);
-        store.save(workspace("doan/b.html"));
+        store.save(workspace(".doan/canvases/b.html"));
         store.flushSync();
       },
     };
     const store = createUiStateStore(path, saved, UI_STATE_DELAY_MS, fs);
-    store.save(workspace("doan/a.html"));
+    store.save(workspace(".doan/canvases/a.html"));
     vi.advanceTimersByTime(UI_STATE_DELAY_MS);
     await store.idle();
     expect(renames).toBe(1);
-    expect(onDisk(path).canvas).toBe("doan/b.html");
+    expect(onDisk(path).canvas).toBe(".doan/canvases/b.html");
     expect(readdirSync(join(path, ".."))).toEqual(["ui-state.json"]);
   });
 });
@@ -201,34 +201,34 @@ describe("Settings tab", () => {
   test("is kept beside the main window's state: neither save drops the other", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const path = file();
-    writeFileSync(path, JSON.stringify(workspace("doan/a.html")));
+    writeFileSync(path, JSON.stringify(workspace(".doan/canvases/a.html")));
     const store = createUiStateStore(path, saved);
     expect(store.readSettingsTab()).toBeNull();
     expect(store.saveSettingsTab("projects")).toBe(true);
     vi.advanceTimersByTime(UI_STATE_DELAY_MS);
     await store.idle();
-    expect(onDisk(path)).toMatchObject({ canvas: "doan/a.html", settingsTab: "projects" });
-    store.save(workspace("doan/b.html"));
+    expect(onDisk(path)).toMatchObject({ canvas: ".doan/canvases/a.html", settingsTab: "projects" });
+    store.save(workspace(".doan/canvases/b.html"));
     vi.advanceTimersByTime(UI_STATE_DELAY_MS);
     await store.idle();
-    expect(onDisk(path)).toMatchObject({ canvas: "doan/b.html", settingsTab: "projects" });
-    expect(await store.read()).toMatchObject({ canvas: "doan/b.html" });
+    expect(onDisk(path)).toMatchObject({ canvas: ".doan/canvases/b.html", settingsTab: "projects" });
+    expect(await store.read()).toMatchObject({ canvas: ".doan/canvases/b.html" });
     expect(createUiStateStore(path, saved).readSettingsTab()).toBe("projects");
   });
 
   test("a saved tab survives the main window's first save in a new run", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const path = file();
-    writeFileSync(path, JSON.stringify({ ...workspace("doan/a.html"), settingsTab: "projects" }));
+    writeFileSync(path, JSON.stringify({ ...workspace(".doan/canvases/a.html"), settingsTab: "projects" }));
     const store = createUiStateStore(path, saved);
-    store.save(workspace("doan/b.html"));
+    store.save(workspace(".doan/canvases/b.html"));
     store.flushSync();
-    expect(onDisk(path)).toMatchObject({ canvas: "doan/b.html", settingsTab: "projects" });
+    expect(onDisk(path)).toMatchObject({ canvas: ".doan/canvases/b.html", settingsTab: "projects" });
   });
 
   test("refuses anything but a tab name, and reads a broken value as none", async () => {
     const path = file();
-    writeFileSync(path, JSON.stringify({ ...workspace("doan/a.html"), settingsTab: "general" }));
+    writeFileSync(path, JSON.stringify({ ...workspace(".doan/canvases/a.html"), settingsTab: "general" }));
     const store = createUiStateStore(path, saved);
     expect(store.readSettingsTab()).toBeNull();
     for (const bad of ["general", "", null, 1, {}]) expect(store.saveSettingsTab(bad)).toBe(false);
@@ -242,14 +242,14 @@ test("round-trips shell memory beside Settings and prunes removed roots on read 
   let roots = ["/repo", "/other"];
   const store = createUiStateStore(path, () => roots);
   const shellProjects = { common: { roots, selectedRoot: "/other", selectedAt: 8.64e15, expanded: true } };
-  expect(store.save({ ...workspace("doan/a.html"), shellProjects })).toBe(true);
+  expect(store.save({ ...workspace(".doan/canvases/a.html"), shellProjects })).toBe(true);
   expect(store.saveSettingsTab("projects")).toBe(true);
   store.flushSync();
   expect((await store.read())?.shellProjects).toEqual(shellProjects);
   expect(createUiStateStore(path, () => roots).readSettingsTab()).toBe("projects");
   roots = ["/repo"];
   expect((await store.read())?.shellProjects).toEqual({ common: { roots, expanded: true } });
-  expect(store.save({ ...workspace("doan/a.html"), shellProjects })).toBe(true);
+  expect(store.save({ ...workspace(".doan/canvases/a.html"), shellProjects })).toBe(true);
   store.flushSync();
   expect(onDisk(path).shellProjects).toEqual({ common: { roots, expanded: true } });
 });

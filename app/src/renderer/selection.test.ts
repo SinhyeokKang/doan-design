@@ -3,7 +3,7 @@ import type { HoverMessage, LayoutMessage, SelectMessage, SelectTarget } from ".
 import type { Selection } from "../formats/types";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, selectionIdentity, shouldGuardEscape, sizeLabel, type SelectionView } from "./selection";
 
-const HREF = "http://127.0.0.1:4000/t/tok/key/doan/a.html";
+const HREF = "http://127.0.0.1:4000/t/tok/key/.doan/canvases/a.html";
 const rect = { x: 1, y: 2, width: 3, height: 4 };
 const expected = { href: HREF, height: 150, seq: 5 };
 const hover = (over: Partial<HoverMessage> = {}): HoverMessage => ({ type: "hover", href: HREF, seq: 5, viewport: 150, rect, ...over });
@@ -20,9 +20,9 @@ const layout = (over: Partial<LayoutMessage> = {}): LayoutMessage => ({ type: "l
 
 describe("acceptSelectionMessage", () => {
   test("drops anything from another document or before the first layout", () => {
-    expect(acceptSelectionMessage(expected, hover({ href: "http://127.0.0.1:4000/t/tok/key/doan/b.html" }))).toBe("drop");
+    expect(acceptSelectionMessage(expected, hover({ href: "http://127.0.0.1:4000/t/tok/key/.doan/canvases/b.html" }))).toBe("drop");
     expect(acceptSelectionMessage({ ...expected, href: null }, select())).toBe("drop");
-    expect(acceptSelectionMessage(expected, { type: "key", href: "http://127.0.0.1:4000/t/tok/key/doan/b.html", seq: 5, viewport: 150, key: "Escape" })).toBe("drop");
+    expect(acceptSelectionMessage(expected, { type: "key", href: "http://127.0.0.1:4000/t/tok/key/.doan/canvases/b.html", seq: 5, viewport: 150, key: "Escape" })).toBe("drop");
   });
 
   test("treats a fragment change as the same document", () => {
@@ -119,12 +119,12 @@ describe("selectionAfter", () => {
 });
 
 describe("mainSelection", () => {
-  const open = { folder: "/repo", canvas: "doan/a.html", row: { id: "a" } };
+  const open = { folder: "/repo", canvas: ".doan/canvases/a.html", row: { id: "a" } };
 
   test("takes root and canvas from renderer state and only schema fields from the canvas", () => {
     expect(mainSelection(open, view)).toEqual({
       root: "/repo",
-      canvas: { path: "doan/a.html", id: "a" },
+      canvas: { path: ".doan/canvases/a.html", id: "a" },
       frame: { id: "hero", title: "Hero" },
       element: { doanId: "cta", selector: '[data-doan-id="cta"]', html: "<span>x</span>", text: "x" },
     });
@@ -132,9 +132,9 @@ describe("mainSelection", () => {
 
   test("leaves out a missing canvas id, frame or element", () => {
     const { element: _element, ...frameOnly } = view;
-    expect(mainSelection({ ...open, row: {} }, frameOnly)).toEqual({ root: "/repo", canvas: { path: "doan/a.html" }, frame: { id: "hero", title: "Hero" } });
+    expect(mainSelection({ ...open, row: {} }, frameOnly)).toEqual({ root: "/repo", canvas: { path: ".doan/canvases/a.html" }, frame: { id: "hero", title: "Hero" } });
     const { frame: _frame, frameIndex: _index, ...elementOnly } = view;
-    expect(mainSelection({ ...open, row: { id: "" } }, elementOnly)).toEqual({ root: "/repo", canvas: { path: "doan/a.html" }, element: view.element });
+    expect(mainSelection({ ...open, row: { id: "" } }, elementOnly)).toEqual({ root: "/repo", canvas: { path: ".doan/canvases/a.html" }, element: view.element });
   });
 });
 
@@ -167,7 +167,7 @@ describe("editableTarget", () => {
 });
 
 describe("selectionIdentity", () => {
-  const canvas = { path: "doan/a.html", id: "home" };
+  const canvas = { path: ".doan/canvases/a.html", id: "home" };
   const element = (over: Partial<Selection> = {}, el: Partial<NonNullable<Selection["element"]>> = {}): Selection =>
     ({ root: "/repo", canvas, frame: { id: "hero" }, element: { doanId: "cta", selector: '[data-doan-id="cta"]', html: "<a></a>", ...el }, ...over });
   const plain = (selector: string, over: Partial<Selection> = {}): Selection => ({ root: "/repo", canvas, element: { selector, html: "<a></a>" }, ...over });
@@ -180,14 +180,14 @@ describe("selectionIdentity", () => {
   test("keeps an element by its doanId across selector, markup, path and frame changes", () => {
     const key = selectionIdentity(element());
     expect(selectionIdentity(element({}, { selector: "body > a:nth-of-type(2)", html: "<a>new</a>", text: "new" }))).toBe(key);
-    expect(selectionIdentity(element({ canvas: { path: "doan/moved/a.html", id: "home" } }))).toBe(key);
+    expect(selectionIdentity(element({ canvas: { path: ".doan/canvases/moved/a.html", id: "home" } }))).toBe(key);
     expect(selectionIdentity(element({ frame: { id: "footer" } }))).toBe(key);
     expect(selectionIdentity(element({}, { doanId: "other" }))).not.toBe(key);
   });
 
   test("keys an element without a doanId by its selector", () => {
     const key = selectionIdentity(plain("main > a"));
-    expect(selectionIdentity(plain("main > a", { canvas: { path: "doan/b.html", id: "home" }, frame: { id: "hero" } }))).toBe(key);
+    expect(selectionIdentity(plain("main > a", { canvas: { path: ".doan/canvases/b.html", id: "home" }, frame: { id: "hero" } }))).toBe(key);
     expect(selectionIdentity(plain("main > b"))).not.toBe(key);
     // A doanId equal to another element's selector is still a different key.
     expect(selectionIdentity(element({}, { doanId: "main > a" }))).not.toBe(key);
@@ -196,7 +196,7 @@ describe("selectionIdentity", () => {
   test("keys a frame by its id, not its title or path", () => {
     const key = selectionIdentity(frame());
     expect(selectionIdentity(frame({ frame: { id: "hero", title: "Renamed" } }))).toBe(key);
-    expect(selectionIdentity(frame({ canvas: { path: "doan/moved.html", id: "home" } }))).toBe(key);
+    expect(selectionIdentity(frame({ canvas: { path: ".doan/canvases/moved.html", id: "home" } }))).toBe(key);
     expect(selectionIdentity(frame({ frame: { id: "footer" } }))).not.toBe(key);
   });
 
@@ -208,8 +208,8 @@ describe("selectionIdentity", () => {
     for (const make of [element, frame]) {
       const key = selectionIdentity(make());
       expect(selectionIdentity(make({ root: "/other" }))).not.toBe(key);
-      expect(selectionIdentity(make({ canvas: { path: "doan/a.html", id: "renamed" } }))).not.toBe(key);
-      expect(selectionIdentity(make({ canvas: { path: "doan/a.html" } }))).not.toBe(key);
+      expect(selectionIdentity(make({ canvas: { path: ".doan/canvases/a.html", id: "renamed" } }))).not.toBe(key);
+      expect(selectionIdentity(make({ canvas: { path: ".doan/canvases/a.html" } }))).not.toBe(key);
     }
   });
 });

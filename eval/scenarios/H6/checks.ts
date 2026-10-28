@@ -9,7 +9,7 @@ export const HEADING = "cmt_d1c5a8b6-4e2f-4b0a-9c73-6f1e8d2a4c04";
 export const LISTED = [UPGRADE, RENEWAL, QUESTION];
 
 const checks: Checks = ctx => {
-  const path = "doan/billing.html";
+  const path = ".doan/canvases/billing.html";
   const doc = inspect(ctx, ctx.read(path) ?? "");
   const seed = inspect(ctx, ctx.seed(path) ?? "");
   // Applied is read from the canvas, so a resolve without the edit never counts as applied.

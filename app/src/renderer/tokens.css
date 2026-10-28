@@ -1,4 +1,4 @@
-/* Design tokens shared by the app renderer and the draft canvases in doan/
+/* Design tokens shared by the app renderer and the draft canvases in .doan/canvases/
    (drafts link this file; .doan/config.json points tokenCss here). One light theme.
    Three layers, top to bottom:
    1. Palette: the only literal colours (neutral ramp, violet accent ramp, status hues).

@@ -15,7 +15,17 @@ type CommentFile struct {
 
 func Canvases(root string) ([]string, error) {
 	paths := []string{}
-	start := filepath.Join(root, "doan")
+	parent, err := os.Lstat(filepath.Join(root, ".doan"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return paths, nil
+		}
+		return nil, err
+	}
+	if parent.Mode()&os.ModeSymlink != 0 {
+		return paths, nil
+	}
+	start := filepath.Join(root, ".doan/canvases")
 	info, err := os.Lstat(start)
 	if err != nil {
 		if os.IsNotExist(err) {

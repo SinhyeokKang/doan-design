@@ -30,7 +30,7 @@ function must(result: { code: number; stdout: string; stderr: string }, what: st
 }
 
 // Builds the starting repo outside any checkout: seed, `doan init` when the
-// scenario asks and the seed has no .doan/, the discovery stub at repo level
+// scenario asks and the seed has no .doan/config.json, the discovery stub at repo level
 // only, then one baseline commit. init output and the stub are in that commit
 // so changedFiles() reports only what the agent did.
 export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Agent | "fixture"; cli: string; stub: string }): Promise<Workspace> {
@@ -61,7 +61,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     }
     const git = (args: string[]) => must(sh("git", [...GIT, "-C", repo, ...args], repo, env), `git ${args[0]}`);
     git(["init", "-q"]);
-    if (o.scenario.init && !existsSync(join(repo, ".doan")))
+    if (o.scenario.init && !existsSync(join(repo, ".doan/config.json")))
       must(sh(o.cli, ["init", "--json", "--repo", repo, "--token-css", join(repo, o.scenario.init.tokenCss)], repo, env), "doan init");
     for (const dir of [".claude", ".agents"]) {
       mkdirSync(join(repo, dir, "skills/doan"), { recursive: true });

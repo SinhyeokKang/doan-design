@@ -20,7 +20,7 @@ func parse(path, head, body string) canvas.Canvas {
 const metadata = `<meta name="doan:canvas" content="one"><meta name="doan:width" content="2400">`
 
 func base() Input {
-	return Input{Canvases: []canvas.Canvas{parse("doan/a.html", metadata, "")}, Reach: map[string][]CSSRef{}, CSS: map[string]canvas.Scan{}, Implements: map[string]State{}, Served: func(string) bool { return true }}
+	return Input{Canvases: []canvas.Canvas{parse(".doan/canvases/a.html", metadata, "")}, Reach: map[string][]CSSRef{}, CSS: map[string]canvas.Scan{}, Implements: map[string]State{}, Served: func(string) bool { return true }}
 }
 func commentFiles(ids ...string) []repo.CommentFile {
 	files := []repo.CommentFile{}
@@ -43,9 +43,11 @@ func TestRules(t *testing.T) {
 		code   string
 		change func(*Input)
 	}{
-		{"missing_canvas_id", func(i *Input) { i.Canvases[0] = parse("doan/a.html", `<meta name="doan:width" content="1">`, "") }},
+		{"missing_canvas_id", func(i *Input) {
+			i.Canvases[0] = parse(".doan/canvases/a.html", `<meta name="doan:width" content="1">`, "")
+		}},
 		{"invalid_canvas_id", func(i *Input) { i.Canvases[0].ID = "Bad" }},
-		{"duplicate_canvas_id", func(i *Input) { i.Canvases = append(i.Canvases, parse("doan/b.html", metadata, "")) }},
+		{"duplicate_canvas_id", func(i *Input) { i.Canvases = append(i.Canvases, parse(".doan/canvases/b.html", metadata, "")) }},
 		{"missing_width", func(i *Input) { i.Canvases[0].HasWidth = false }},
 		{"invalid_width", func(i *Input) { i.Canvases[0].Width = 0 }},
 		{"duplicate_frame_id", func(i *Input) { i.Canvases[0].Frames = []canvas.Frame{{ID: "a"}, {ID: "a"}} }},
@@ -60,10 +62,10 @@ func TestRules(t *testing.T) {
 			i.Implements[s] = Outside
 		}},
 		{"local_css_not_found", func(i *Input) {
-			i.Reach["doan/a.html"] = []CSSRef{{Href: "absent.css", State: Missing, Direct: true}}
+			i.Reach[".doan/canvases/a.html"] = []CSSRef{{Href: "absent.css", State: Missing, Direct: true}}
 		}},
 		{"css_not_served", func(i *Input) {
-			i.Reach["doan/a.html"] = []CSSRef{{Href: "../a.css", RealPath: "a.css", State: In, Direct: true}}
+			i.Reach[".doan/canvases/a.html"] = []CSSRef{{Href: "../a.css", RealPath: "a.css", State: In, Direct: true}}
 			i.Served = func(string) bool { return false }
 		}},
 		{"token_css_not_found", func(i *Input) { i.TokenCSS = TokenCSS{Configured: true, Path: "tokens.css", State: Missing} }},
@@ -131,7 +133,7 @@ func TestIdentityEdges(t *testing.T) {
 }
 func TestReachAndAttribution(t *testing.T) {
 	in := base()
-	in.Canvases = append(in.Canvases, parse("doan/b.html", `<meta name="doan:canvas" content="two"><meta name="doan:width" content="1">`, ""))
+	in.Canvases = append(in.Canvases, parse(".doan/canvases/b.html", `<meta name="doan:canvas" content="two"><meta name="doan:width" content="1">`, ""))
 	in.TokenCSS = TokenCSS{Configured: true, Path: "./tokens.css", RealPath: "tokens.css", State: In}
 	in.CSS["tokens.css"] = canvas.ScanCSS(`:root{--x:#fff;color:var(--ignored)}`, canvas.Stylesheet)
 	for j := range in.Canvases {
@@ -170,7 +172,7 @@ func TestReachAndAttribution(t *testing.T) {
 func TestPathEdges(t *testing.T) {
 	in := base()
 	in.TokenCSS = TokenCSS{Configured: true, Path: "tokens.css", State: Missing}
-	in.Reach["doan/a.html"] = []CSSRef{{Href: "../tokens.css", State: Missing, Direct: true}, {Href: "package-name", State: Missing}, {Href: "/outside", State: Outside, Direct: true}}
+	in.Reach[".doan/canvases/a.html"] = []CSSRef{{Href: "../tokens.css", State: Missing, Direct: true}, {Href: "package-name", State: Missing}, {Href: "/outside", State: Outside, Direct: true}}
 	fs := Run(in)
 	for _, code := range []string{"token_css_not_found", "local_css_not_found", "path_outside_repo"} {
 		if len(codes(fs, code)) != 1 {
@@ -182,7 +184,7 @@ func TestPathEdges(t *testing.T) {
 			if f.Path != ".doan/config.json" || f.Target != "tokens.css" {
 				t.Fatal(f)
 			}
-		} else if f.Path != "doan/a.html" {
+		} else if f.Path != ".doan/canvases/a.html" {
 			t.Fatal(f)
 		}
 	}
@@ -208,12 +210,12 @@ func TestSortAndSummary(t *testing.T) {
 	in.Canvases[0].Styles = canvas.ScanCSS(`a{color:var(--z);background:var(--a)}`, canvas.Stylesheet)
 	in.Canvases[0].ExternalURLs = []string{"https://z", "https://a"}
 	fs := Run(in)
-	want := []string{"orphan_comment_file", "orphan_comment_file", "undefined_token", "undefined_token", "external_url", "external_url"}
+	want := []string{"undefined_token", "undefined_token", "external_url", "external_url", "orphan_comment_file", "orphan_comment_file"}
 	got := []string{}
 	for _, f := range fs {
 		got = append(got, f.Code)
 	}
-	if !reflect.DeepEqual(got, want) || fs[2].Token != "--a" || fs[4].URL != "https://a" {
+	if !reflect.DeepEqual(got, want) || fs[0].Token != "--a" || fs[2].URL != "https://a" {
 		t.Fatal(fs)
 	}
 	if s := Summarize(fs, len(in.Canvases)+len(in.Unparsable)); s.Errors != 2 || s.Warnings != 4 {
@@ -224,19 +226,19 @@ func TestSortAndSummary(t *testing.T) {
 func TestUnparsableCanvas(t *testing.T) {
 	in := base()
 	in.Unparsable = map[string]string{
-		"doan/z.html": "parse doan/z.html: open stack exceeds 512 nodes",
-		"doan/b.html": "parse doan/b.html: parser failure",
+		".doan/canvases/z.html": "parse .doan/canvases/z.html: open stack exceeds 512 nodes",
+		".doan/canvases/b.html": "parse .doan/canvases/b.html: parser failure",
 	}
 	in.CommentFiles = commentFiles("one", "unknown")
 	fs := Run(in)
 	if len(fs) != 3 {
 		t.Fatalf("expected only two parse findings and one orphan: %+v", fs)
 	}
-	if fs[0].Code != "orphan_comment_file" || fs[0].Canvas != "unknown" {
+	if fs[2].Code != "orphan_comment_file" || fs[2].Canvas != "unknown" {
 		t.Fatalf("orphan: %+v", fs[0])
 	}
-	for j, path := range []string{"doan/b.html", "doan/z.html"} {
-		f := fs[j+1]
+	for j, path := range []string{".doan/canvases/b.html", ".doan/canvases/z.html"} {
+		f := fs[j]
 		if f.Path != path || f.Code != "unparsable_canvas" || f.Severity != "error" || f.Canvas != "" || !strings.Contains(f.Message, in.Unparsable[path]) {
 			t.Fatalf("parse finding: %+v", f)
 		}
@@ -253,11 +255,11 @@ func TestUnparsableCanvas(t *testing.T) {
 func TestIndirectImportDefinesToken(t *testing.T) {
 	in := base()
 	in.Canvases[0].Styles = canvas.ScanCSS(`a{color:var(--x)}`, canvas.Stylesheet)
-	in.CSS["doan/m.css"] = canvas.ScanCSS(`@import "t.css";`, canvas.Stylesheet)
-	in.CSS["doan/t.css"] = canvas.ScanCSS(`:root{--x:1}`, canvas.Stylesheet)
-	in.Reach["doan/a.html"] = []CSSRef{
-		{From: "doan/a.html", Href: "m.css", RealPath: "doan/m.css", State: In, Direct: true},
-		{From: "doan/m.css", Href: "t.css", RealPath: "doan/t.css", State: In},
+	in.CSS[".doan/canvases/m.css"] = canvas.ScanCSS(`@import "t.css";`, canvas.Stylesheet)
+	in.CSS[".doan/canvases/t.css"] = canvas.ScanCSS(`:root{--x:1}`, canvas.Stylesheet)
+	in.Reach[".doan/canvases/a.html"] = []CSSRef{
+		{From: ".doan/canvases/a.html", Href: "m.css", RealPath: ".doan/canvases/m.css", State: In, Direct: true},
+		{From: ".doan/canvases/m.css", Href: "t.css", RealPath: ".doan/canvases/t.css", State: In},
 	}
 	if fs := Run(in); len(fs) != 0 {
 		t.Fatal(fs)
@@ -270,7 +272,7 @@ func TestInvalidCanvasIDsStillOwnComments(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			in := base()
-			in.Canvases[0] = parse("doan/a.html", tt.head+`<meta name="doan:width" content="1">`, "")
+			in.Canvases[0] = parse(".doan/canvases/a.html", tt.head+`<meta name="doan:width" content="1">`, "")
 			in.CommentFiles = commentFiles(tt.id)
 			fs := Run(in)
 			if len(codes(fs, "invalid_canvas_id")) != 1 {
@@ -292,16 +294,16 @@ func TestIndirectCSSPathFindingsBelongToImporter(t *testing.T) {
 	}{{Outside, "path_outside_repo"}, {In, "css_not_served"}} {
 		t.Run(tt.code, func(t *testing.T) {
 			in := base()
-			in.Canvases = append(in.Canvases, parse("doan/b.html", strings.Replace(metadata, "one", "two", 1), ""))
-			in.Served = func(p string) bool { return p == "doan/shared.css" }
+			in.Canvases = append(in.Canvases, parse(".doan/canvases/b.html", strings.Replace(metadata, "one", "two", 1), ""))
+			in.Served = func(p string) bool { return p == ".doan/canvases/shared.css" }
 			for _, c := range in.Canvases {
 				in.Reach[c.Path] = []CSSRef{
-					{From: c.Path, Href: "shared.css", RealPath: "doan/shared.css", State: In, Direct: true},
-					{From: "doan/shared.css", Href: "../../out.css", RealPath: "out.css", State: tt.state},
+					{From: c.Path, Href: "shared.css", RealPath: ".doan/canvases/shared.css", State: In, Direct: true},
+					{From: ".doan/canvases/shared.css", Href: "../../out.css", RealPath: "out.css", State: tt.state},
 				}
 			}
 			fs := Run(in)
-			if len(fs) != 1 || fs[0].Code != tt.code || fs[0].Path != "doan/shared.css" || fs[0].Target != "../../out.css" || fs[0].Canvas != "" {
+			if len(fs) != 1 || fs[0].Code != tt.code || fs[0].Path != ".doan/canvases/shared.css" || fs[0].Target != "../../out.css" || fs[0].Canvas != "" {
 				t.Fatalf("indirect: %+v", fs)
 			}
 			for _, c := range in.Canvases {
@@ -328,14 +330,14 @@ func TestNoCanvasesWarning(t *testing.T) {
 	}{
 		{"empty", Input{}, 1},
 		{"present", base(), 0},
-		{"unparsable", Input{Unparsable: map[string]string{"doan/deep.html": "too deep"}}, 0},
+		{"unparsable", Input{Unparsable: map[string]string{".doan/canvases/deep.html": "too deep"}}, 0},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			fs := codes(Run(tt.in), "no_canvases")
 			if len(fs) != tt.want {
 				t.Fatalf("findings: %+v", fs)
 			}
-			if len(fs) > 0 && (fs[0].Severity != "warning" || fs[0].Path != "doan/" || fs[0].Message != "No canvases found under doan/. Write a canvas, then run doan check again.") {
+			if len(fs) > 0 && (fs[0].Severity != "warning" || fs[0].Path != ".doan/canvases/" || fs[0].Message != "No canvases found under .doan/canvases/. Write a canvas, then run doan check again.") {
 				t.Fatal(fs)
 			}
 		})

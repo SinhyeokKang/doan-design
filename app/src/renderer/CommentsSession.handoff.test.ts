@@ -4,7 +4,7 @@ import type { Comment, Author } from "../formats/types";
 import type { HandoffSelection } from "../comments/handoff";
 import type { BeginResult, CommentList, CommentRequest, CommentReply, SavedStatus } from "../main/comments/service";
 
-const identity = { root: "/repo", canvas: "a", path: "doan/a.html" };
+const identity = { root: "/repo", canvas: "a", path: ".doan/canvases/a.html" };
 const comment = (id: string, at: string, over: Partial<Comment> = {}): Comment => ({
   comment: id, body: `Body ${id}`, status: "open", target: {}, canvasHash: "h", createdBy: { kind: "human", name: "A" }, createdAt: at, updatedAt: at, ...over,
 });
@@ -157,7 +157,7 @@ describe("copying from the Hand off dialog", () => {
     const late = held<CommentReply<{ copied: true }>>();
     api.commentsCopy.mockImplementationOnce(() => late.promise);
     const copying = s.copyHandoff();
-    await s.rename("doan/moved/a.html");
+    await s.rename(".doan/canvases/moved/a.html");
     expect(s.handoff).not.toBeNull();
     late.release(reply(api.commentsCopy.mock.calls[0]![0], { copied: true })); await copying;
     expect(s.handoff?.copy).toEqual({ status: "copied", count: 3 }); expect(s.handedOff()?.ids).toEqual(["c1", "c2", "c3"]);
@@ -175,7 +175,7 @@ describe("copying from the Hand off dialog", () => {
     const late = held<CommentReply<{ copied: true }>>();
     api.commentsCopy.mockImplementationOnce(() => late.promise);
     const copying = s.copyHandoff();
-    await s.open({ root: "/repo", canvas: "b", path: "doan/b.html" });
+    await s.open({ root: "/repo", canvas: "b", path: ".doan/canvases/b.html" });
     expect(s.handoff).toBeNull();
     late.release(reply(api.commentsCopy.mock.calls[0]![0], { copied: true })); await copying;
     expect(s.handedOff()).toBeNull();
@@ -207,11 +207,11 @@ describe("Handed off for the app session", () => {
   });
   test("survives other canvases and a rename, keyed by (root, canvas id)", async () => {
     const { session: s } = await handedOff();
-    await s.open({ root: "/repo", canvas: "b", path: "doan/b.html" }); expect(s.handedOff()).toBeNull();
-    await s.open({ root: "/other", canvas: "a", path: "doan/a.html" }); expect(s.handedOff()).toBeNull();
+    await s.open({ root: "/repo", canvas: "b", path: ".doan/canvases/b.html" }); expect(s.handedOff()).toBeNull();
+    await s.open({ root: "/other", canvas: "a", path: ".doan/canvases/a.html" }); expect(s.handedOff()).toBeNull();
     await s.open(identity); expect(s.handedOff()?.ids).toEqual(["c1", "c2", "c3"]);
-    await s.rename("doan/moved/a.html"); expect(s.handedOff()?.ids).toEqual(["c1", "c2", "c3"]);
-    await s.open({ root: "/repo", canvas: "a", path: "doan/elsewhere.html" }); expect(s.handedOff()?.ids).toEqual(["c1", "c2", "c3"]);
+    await s.rename(".doan/canvases/moved/a.html"); expect(s.handedOff()?.ids).toEqual(["c1", "c2", "c3"]);
+    await s.open({ root: "/repo", canvas: "a", path: ".doan/canvases/elsewhere.html" }); expect(s.handedOff()?.ids).toEqual(["c1", "c2", "c3"]);
   });
   test("evaluates once against the list it has when the copy succeeds", async () => {
     const { session: s, api, state } = fixture(); await s.open(identity);
@@ -229,8 +229,8 @@ describe("Handed off for the app session", () => {
 describe("dialogs above Hand off", () => {
   test("another canvas closes it; a rename keeps it", async () => {
     const { session: s } = fixture(); await s.open(identity);
-    s.openHandoff("all", [], null); await s.rename("doan/moved/a.html"); expect(s.handoff).not.toBeNull();
-    await s.open({ root: "/repo", canvas: "b", path: "doan/b.html" }); expect(s.handoff).toBeNull();
+    s.openHandoff("all", [], null); await s.rename(".doan/canvases/moved/a.html"); expect(s.handoff).not.toBeNull();
+    await s.open({ root: "/repo", canvas: "b", path: ".doan/canvases/b.html" }); expect(s.handoff).toBeNull();
   });
   test("Delete and Unsaved close it", async () => {
     const { session: s } = fixture(); await s.open(identity);

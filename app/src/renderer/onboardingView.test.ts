@@ -39,9 +39,9 @@ describe("step 1 — CLI", () => {
   test("each link state has its chip, message and action", () => {
     expect(cliItems(ours(), ui())[0]).toMatchObject({ chip: { text: "Installed", tone: "ok" } });
     expect(cliItems(ours(), ui())[0]?.button).toBeUndefined();
-    expect(cliItems(machine({ cli: { state: "link-other", value: "/Volumes/doan/doan", stamp: "s" } }), ui())[0]).toMatchObject({
+    expect(cliItems(machine({ cli: { state: "link-other", value: "/Volumes/.doan/canvases/doan", stamp: "s" } }), ui())[0]).toMatchObject({
       detail: [{ code: "~/.local/bin/doan" }], chip: { text: "Needs replacement", tone: "warn" }, button: { id: "replace", label: "Replace…", primary: true },
-      msg: { tone: "warn", parts: ["Points to another copy: ", { code: "/Volumes/doan/doan" }] },
+      msg: { tone: "warn", parts: ["Points to another copy: ", { code: "/Volumes/.doan/canvases/doan" }] },
     });
     expect(cliItems(machine({ cli: { state: "blocked", value: null, stamp: "s" }, display: { blocked: { cli: `${home}/.local/bin`, stub: null, claudeLink: null } } }), ui())[0]).toMatchObject({
       chip: { text: "Unavailable", tone: "err" }, button: { id: "install", disabled: true },
@@ -371,9 +371,9 @@ describe("install links and the no-agent notice", () => {
 
 describe("step 4 branches", () => {
   const row = (path: string, title?: string): CanvasRow => ({ path, ...(title ? { title } : {}), open: 0, resolved: 0, url: `http://127.0.0.1/${path}` });
-  const list = row("doan/b.html", "Pricing");
+  const list = row(".doan/canvases/b.html", "Pricing");
   test("without a project the step offers Add Project…", () => {
-    const addProject = { text: ["Add a project first. Your first canvas goes in its ", { code: "doan/" }, " folder."], label: "Add Project…", primary: true, disabled: false };
+    const addProject = { text: ["Add a project first. Your first canvas goes in its ", { code: ".doan/canvases/" }, " folder."], label: "Add Project…", primary: true, disabled: false };
     expect(promptStepView(null, null, false)).toEqual({ addProject });
     expect(promptStepView(null, null, true).addProject?.disabled).toBe(true);
     // An arrival without a project cannot be shown.
@@ -384,7 +384,7 @@ describe("step 4 branches", () => {
   });
   test("an arrival shows Canvas ready with Open, named by title or file name", () => {
     expect(promptStepView({ kind: "list", path: "/code/acme", canvases: [], servedRev: 0 }, list, false)).toEqual({ ready: { text: "Canvas ready: Pricing", open: { label: "Open", disabled: false } } });
-    expect(promptStepView({ kind: "list", path: "/code/acme", canvases: [], servedRev: 0 }, row("doan/sign-in.html"), false).ready?.text).toBe("Canvas ready: sign-in");
+    expect(promptStepView({ kind: "list", path: "/code/acme", canvases: [], servedRev: 0 }, row(".doan/canvases/sign-in.html"), false).ready?.text).toBe("Canvas ready: sign-in");
     expect(promptStepView({ kind: "list", path: "/code/acme", canvases: [], servedRev: 0 }, list, true).ready?.open.disabled).toBe(true);
   });
 });
@@ -400,7 +400,7 @@ test("every step has the draft's outcome-first heading and lead; step labels sta
   expect(STEP_COPY).toEqual([
     { heading: "Let your agents run doan", lead: ["Claude Code and Codex use the doan command to make and check your canvases. Connect it so they can find it."] },
     { heading: "Connect Claude Code or Codex", lead: ["Your agent draws canvases with the doan skill and tools. Connect the agents you use; nothing changes until you choose Connect."] },
-    { heading: "Choose where canvases live", lead: ["Pick a repository. doan keeps its canvases in ", { code: "doan/" }, ", next to the code they describe."] },
+    { heading: "Choose where canvases live", lead: ["Pick a repository. doan keeps its canvases in ", { code: ".doan/canvases/" }, ", next to the code they describe."] },
     { heading: "Ask for your first canvas", lead: ["Describe a screen, copy the sentence and paste it into Claude Code or Codex. The canvas opens here when it arrives."] },
   ]);
 });

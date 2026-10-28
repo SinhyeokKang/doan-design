@@ -6,9 +6,9 @@ import { projectWhere, quickOpenKey, QuickOpen, QuickOpenList, resultParts } fro
 const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, open: 0, resolved: 0, url: "u", ...extra });
 const git = (branch: string) => ({ common: "/code/acme-web/.git", main: "/code/acme-web", branch, worktrees: [] });
 const entries: FolderEntry[] = [
-  { kind: "list", path: "/code/acme-web", servedRev: 0, git: git("main"), canvases: [row("doan/settings/billing.html", { title: "Billing & plans", frames: [{ id: "plans" }, { id: "card-declined", title: "Card declined" }] }), row("doan/tokens.html", { title: "Design tokens" })] },
-  { kind: "list", path: "/code/worktrees/feat-billing/acme-web", servedRev: 0, git: git("feat-billing"), canvases: [row("doan/settings/billing.html", { title: "Billing & plans" })] },
-  { kind: "list", path: "/Users/alex/Documents/brand-kit", servedRev: 0, canvases: [row("doan/research/card-decline-patterns.html", { title: "Card decline patterns" })] },
+  { kind: "list", path: "/code/acme-web", servedRev: 0, git: git("main"), canvases: [row(".doan/canvases/settings/billing.html", { title: "Billing & plans", frames: [{ id: "plans" }, { id: "card-declined", title: "Card declined" }] }), row(".doan/canvases/tokens.html", { title: "Design tokens" })] },
+  { kind: "list", path: "/code/worktrees/feat-billing/acme-web", servedRev: 0, git: git("feat-billing"), canvases: [row(".doan/canvases/settings/billing.html", { title: "Billing & plans" })] },
+  { kind: "list", path: "/Users/alex/Documents/brand-kit", servedRev: 0, canvases: [row(".doan/canvases/research/card-decline-patterns.html", { title: "Card decline patterns" })] },
   { kind: "loading", path: "/code/reading" },
 ];
 const render = (currentRoot: string | null) => renderToStaticMarkup(<QuickOpen entries={entries} currentRoot={currentRoot} pick={() => {}} close={() => {}} />);
@@ -41,11 +41,11 @@ test("an empty query lists the current project's canvases in a workspace and eve
   expect(render(null)).toMatch(/role="option" id="[^"]+-0" aria-selected="true"/);
 });
 
-test("result rows: a frame names its canvas and number, a canvas its path under doan/", () => {
+test("result rows: a frame names its canvas and number, a canvas its path under .doan/canvases/", () => {
   const where = projectWhere(entries);
-  expect(resultParts({ kind: "frame", root: "/code/acme-web", path: "doan/settings/billing.html", canvasLabel: "Billing & plans", label: "Card declined", frameId: "card-declined", frameIndex: 3 }, where))
+  expect(resultParts({ kind: "frame", root: "/code/acme-web", path: ".doan/canvases/settings/billing.html", canvasLabel: "Billing & plans", label: "Card declined", frameId: "card-declined", frameIndex: 3 }, where))
     .toEqual({ glyph: "#", name: "Card declined", context: " — Billing & plans › 4", where: " · acme-web · main" });
-  expect(resultParts({ kind: "canvas", root: "/Users/alex/Documents/brand-kit", path: "doan/research/card-decline-patterns.html", canvasLabel: "Card decline patterns", label: "Card decline patterns" }, where))
+  expect(resultParts({ kind: "canvas", root: "/Users/alex/Documents/brand-kit", path: ".doan/canvases/research/card-decline-patterns.html", canvasLabel: "Card decline patterns", label: "Card decline patterns" }, where))
     .toEqual({ glyph: "◧", name: "Card decline patterns", context: " — research/card-decline-patterns.html", where: " · brand-kit" });
 });
 

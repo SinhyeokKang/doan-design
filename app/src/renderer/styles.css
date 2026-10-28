@@ -88,7 +88,7 @@ code, kbd { font-family: var(--type-family); }
 .empty p { color: var(--text-metadata); max-width: 320px; font-size: 12.5px; line-height: 1.6; }
 .canvas-notices { position: absolute; top: 0; left: 0; right: 0; z-index: 1; pointer-events: none; }
 .canvas-notice { padding: 7px 12px; background: var(--surface-inset); color: var(--text-standard); font: 11px var(--type-family); }
-/* It sits on the canvas content, so the panel color goes behind it (doan/comments-readability.html). */
+/* It sits on the canvas content, so the panel color goes behind it (.doan/canvases/comments-readability.html). */
 .updated { position: absolute; left: 12px; bottom: 12px; pointer-events: none; background: var(--surface-panel); padding: 3px 8px; border-radius: 6px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-success); display: inline-block; }
 .zctl { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 6px; align-items: center; }
@@ -136,7 +136,7 @@ code, kbd { font-family: var(--type-family); }
 /* Short attribute labels stay fully readable at the fixed panel width. */
 .doan-attributes .prop { overflow: visible; text-overflow: clip; }
 
-/* Presentation values from doan/comments-ui.html; integration owns the panel split. */
+/* Presentation values from .doan/canvases/comments-ui.html; integration owns the panel split. */
 /* Size containment lets a short panel shrink the input by its own height, not the window's. */
 .comments-panel { width: 100%; min-width: 0; min-height: 0; overflow: auto; background: var(--surface-panel); overflow-wrap: anywhere; container-type: size; }
 .comments-head { padding: 12px; border-bottom: 1px solid var(--border-standard); }
@@ -178,11 +178,11 @@ code, kbd { font-family: var(--type-family); }
 .comments-badge.warning { color: var(--text-warning); }
 .comments-badge.resolved { color: var(--text-success); }
 .comments-badge-note { font-size: 10px; line-height: 1.5; color: var(--text-metadata); padding: 2px 0; }
-/* Values from doan/revision-recheck.html (resolution-meta, status-lines). */
+/* Values from .doan/canvases/revision-recheck.html (resolution-meta, status-lines). */
 .comments-resolution { font-size: 10.5px; line-height: 1.5; color: var(--text-metadata); margin: 6px 0 0; overflow-wrap: anywhere; }
 .comments-resolution b { font-weight: 500; color: var(--text-subtle); }
 .comments-status { padding: 10px 12px; border-bottom: 1px solid var(--border-standard); font-size: 11.5px; line-height: 1.6; color: var(--text-subtle); }
-/* Values from doan/revision-recheck.html (status-lines Show, missing-target). */
+/* Values from .doan/canvases/revision-recheck.html (status-lines Show, missing-target). */
 .comments-status button { border: 0; background: transparent; color: var(--text-link); font-size: 11.5px; text-decoration: underline; text-underline-offset: 2px; margin-left: 4px; }
 .comments-tools.instead { margin-top: 6px; }
 .comments-btn.danger { color: var(--text-danger); }
@@ -212,7 +212,7 @@ code, kbd { font-family: var(--type-family); }
 .comments-helper { font-size: 10.5px; line-height: 1.5; color: var(--text-metadata); margin: 8px 0; overflow-wrap: anywhere; }
 /* Dialog paragraphs read as the dialog description; the frame spaces them. */
 .comments-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-/* Values from doan/agent-handoff.html (dialog, dialog-states, copy-states). The list
+/* Values from .doan/canvases/agent-handoff.html (dialog, dialog-states, copy-states). The list
    shrinks first and the preview has its own cap; in a window too short for both, the
    dialog itself scrolls so Cancel and Copy stay reachable. */
 .handoff-dialog { overflow: auto; }
@@ -235,7 +235,7 @@ code, kbd { font-family: var(--type-family); }
 .handoff-actions { flex: none; }
 .handoff-actions .comments-helper { flex: 1; margin: 0; }
 .handoff-summary { font-size: 10.5px; color: var(--text-metadata); white-space: nowrap; }
-/* Values from doan/revision-recheck.html (review-notice, review-bar, review-done). */
+/* Values from .doan/canvases/revision-recheck.html (review-notice, review-bar, review-done). */
 .review-banner { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 12px; border-bottom: 1px solid var(--border-standard); background: var(--surface-inset); font-size: 11.5px; color: var(--text-subtle); }
 /* The text ellipsizes before the buttons shrink. */
 .review-banner .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -266,7 +266,7 @@ code, kbd { font-family: var(--type-family); }
 .comment-pin { z-index: 2; border: 1px solid var(--border-pin); background: var(--affordance-accent); color: var(--text-on-accent); font: var(--type-weight-medium) var(--type-caption-size)/22px var(--type-family); text-align: center; box-shadow: 0 0 0 2px var(--halo-pin), var(--shadow-xs); }
 .comment-pin:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; box-shadow: 0 0 0 4px var(--halo-pin); z-index: 3; }
 
-/* Onboarding (doan/onboard.html). The wizard covers the window as a dialog. */
+/* Onboarding (.doan/canvases/onboard.html). The wizard covers the window as a dialog. */
 .ob-overlay { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; display: grid; grid-template-rows: 40px auto minmax(0, 1fr) 56px; background: var(--bg-app); color: var(--text-standard); }
 .ob-overlay::backdrop { background: transparent; }
 .ob-title { font: 600 13px var(--type-family); outline: none; }
@@ -436,7 +436,7 @@ code, kbd { font-family: var(--type-family); }
 
 
 
-/* Design navigation: confirmed doan/design-nav.html tree-rows and frame-highlight. */
+/* Design navigation: confirmed .doan/canvases/design-nav.html tree-rows and frame-highlight. */
 .side .row.cv { height: 44px; }
 .side .row .tw { flex: none; width: 12px; text-align: center; color: var(--text-disabled); font-size: 10px; }
 .side .row .two { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -470,7 +470,7 @@ code, kbd { font-family: var(--type-family); }
 @keyframes frame-jump-fade { 0%, 66.6667% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .mark.jump-highlight { animation: none; } }
 
-/* Overview and Quick Open: confirmed doan/design-nav.html overview, overview-empty and quick-open. */
+/* Overview and Quick Open: confirmed .doan/canvases/design-nav.html overview, overview-empty and quick-open. */
 /* The Overview covers the canvas area in the same cell; the area stays laid out beneath it. */
 .workspace > .area, .workspace > .ov { grid-column: 2; grid-row: -2; }
 .ov { min-height: 0; overflow: auto; padding: 4px 24px 24px; position: relative; z-index: 1; background: var(--bg-app); }
@@ -509,7 +509,7 @@ code, kbd { font-family: var(--type-family); }
 .qo-none { padding: 14px 10px; font: 12.5px var(--type-family); color: var(--text-metadata); }
 .qo-foot { padding: 7px 14px; border-top: 1px solid var(--border-standard); font: 10.5px var(--type-family); color: var(--text-metadata); }
 
-/* app-setup: first prompt and wizard (confirmed doan/app-setup.html, frames wizard and first-prompt). */
+/* app-setup: first prompt and wizard (confirmed .doan/canvases/app-setup.html, frames wizard and first-prompt). */
 /* The subject field fills its row; an inline-block input would leave a descender gap below. */
 .fp-field .doan-input { display: block; }
 .fp-labelrow { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
@@ -555,7 +555,7 @@ code, kbd { font-family: var(--type-family); }
 
 .finish.empty-home { max-width: 640px; width: 100%; align-self: center; }
 
-/* project-feedback: the Overview's Feedback panel (doan/project-feedback.html, feedback-panel, feedback-states, orphan-cards). */
+/* project-feedback: the Overview's Feedback panel (.doan/canvases/project-feedback.html, feedback-panel, feedback-states, orphan-cards). */
 .feedback { display: flex; flex-direction: column; min-height: 0; overflow: auto; background: var(--surface-panel); overflow-wrap: anywhere; }
 .right-stack > .feedback { flex: 1; }
 .feedback .phead:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }

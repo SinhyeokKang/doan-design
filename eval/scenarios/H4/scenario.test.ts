@@ -36,7 +36,7 @@ test("H4 rejects empty answers, dropped logs and renamed other ids", () => {
   const ctx = fixture("H4"), log = ".doan/comments/settings-board.jsonl";
   write(ctx, log, ""); fails(h4, ctx, "attached_comments_preserved");
   write(ctx, log, ctx.seed(log)!);
-  write(ctx, "doan/h4.html", ctx.read("doan/h4.html")!.replace('data-doan-frame="account"', 'data-doan-frame="account-new"'));
+  write(ctx, ".doan/canvases/h4.html", ctx.read(".doan/canvases/h4.html")!.replace('data-doan-frame="account"', 'data-doan-frame="account-new"'));
   fails(h4, ctx, "other_anchors_unchanged");
 });
 test("H4 final-answer evidence excludes Claude tools and Codex stderr", () => {
@@ -62,7 +62,7 @@ test("H4 ignores result-shaped JSON inside Codex fences", () => {
   assert.equal(finalAnswer(fenced + '\nOpenAI Codex v0.164.0\n' + '{"type":"result","result":"stderr"}'), answer);
 });
 test("H4 accepts a removal note without treating it as the deleted section", () => {
-  const ctx = fixture("H4"), path = "doan/h4.html";
+  const ctx = fixture("H4"), path = ".doan/canvases/h4.html";
   write(ctx, path, ctx.read(path)!.replace('</body>', '<p>Legacy alerts section removed on request.</p></body>'));
   all(h4, ctx);
 });

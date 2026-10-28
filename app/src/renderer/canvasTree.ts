@@ -2,7 +2,7 @@ import type { CanvasRow } from "../main/view";
 
 export interface FolderNode {
   kind: "folder";
-  // Folder path as listed, e.g. `doan/billing`.
+  // Folder path as listed, e.g. `.doan/canvases/billing`.
   key: string;
   name: string;
   children: TreeNode[];
@@ -86,7 +86,7 @@ export function buildCanvasTree(rows: readonly CanvasRow[]): TreeNode[] {
   const roots: TreeNode[] = [];
   const folders = new Map<string, FolderNode>();
   for (const row of rows) {
-    const segments = row.path.split("/");
+    const segments = row.path.startsWith(".doan/canvases/") ? [".doan/canvases", ...row.path.slice(".doan/canvases/".length).split("/")] : row.path.split("/");
     segments.pop();
     let siblings = roots;
     let key = "";

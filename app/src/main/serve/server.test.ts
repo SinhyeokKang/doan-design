@@ -77,56 +77,57 @@ let dotKey: string;
 let base: string;
 
 beforeAll(async () => {
-  mkdirSync(join(repo, "doan", "sub"), { recursive: true });
+  mkdirSync(join(repo, ".doan/canvases", "sub"), { recursive: true });
   mkdirSync(join(repo, "design-x"));
   mkdirSync(join(repo, "src"));
   mkdirSync(outside);
-  writeFileSync(join(repo, "doan", "a.html"), "<!doctype html><title>A</title>");
-  writeFileSync(join(repo, "doan", "a.css"), "body{}");
-  writeFileSync(join(repo, "doan", "sub", "b.css"), "p{}");
-  writeFileSync(join(repo, "doan", nfc), "nfc");
-  writeFileSync(join(repo, "doan", "locked.css"), "locked");
-  chmodSync(join(repo, "doan", "locked.css"), 0o000);
-  writeFileSync(join(repo, "doan", "big.bin"), Buffer.alloc(8 * 1024 * 1024, 1));
-  writeFileSync(join(repo, "doan", "short.bin"), Buffer.alloc(8 * 1024 * 1024, 1));
-  writeFileSync(join(repo, "doan", "grow.bin"), Buffer.alloc(16 * 1024 * 1024, 1));
-  writeFileSync(join(repo, "doan", "empty.css"), "");
-  mkdirSync(join(repo, "doan", "real-dir"));
-  writeFileSync(join(repo, "doan", "real-dir", "s.txt"), "inside");
+  writeFileSync(join(repo, ".doan/canvases", "a.html"), "<!doctype html><title>A</title>");
+  writeFileSync(join(repo, ".doan/canvases", "a.css"), "body{}");
+  writeFileSync(join(repo, ".doan/canvases", "sub", "b.css"), "p{}");
+  writeFileSync(join(repo, ".doan/canvases", nfc), "nfc");
+  writeFileSync(join(repo, ".doan/canvases", "locked.css"), "locked");
+  chmodSync(join(repo, ".doan/canvases", "locked.css"), 0o000);
+  writeFileSync(join(repo, ".doan/canvases", "big.bin"), Buffer.alloc(8 * 1024 * 1024, 1));
+  writeFileSync(join(repo, ".doan/canvases", "short.bin"), Buffer.alloc(8 * 1024 * 1024, 1));
+  writeFileSync(join(repo, ".doan/canvases", "grow.bin"), Buffer.alloc(16 * 1024 * 1024, 1));
+  writeFileSync(join(repo, ".doan/canvases", "empty.css"), "");
+  mkdirSync(join(repo, ".doan/canvases", "real-dir"), { recursive: true });
+  writeFileSync(join(repo, ".doan/canvases", "real-dir", "s.txt"), "inside");
   mkdirSync(join(outside, "real-dir"));
   writeFileSync(join(outside, "real-dir", "s.txt"), "outside");
-  symlinkSync(outside, join(repo, "doan", "swapped"));
+  symlinkSync(outside, join(repo, ".doan/canvases", "swapped"));
   writeFileSync(join(repo, "design-x", "a.css"), "x{}");
   writeFileSync(join(repo, "tokens.css"), ":root{}");
   writeFileSync(join(repo, ".env"), "SECRET=1");
   writeFileSync(join(repo, "src", "secret.ts"), "export const secret = 1;");
   writeFileSync(join(outside, "secret.txt"), "outside");
-  symlinkSync(join(outside, "secret.txt"), join(repo, "doan", "link-out"));
-  symlinkSync("missing.css", join(repo, "doan", "dangling.css"));
-  symlinkSync("loop", join(repo, "doan", "loop"));
+  symlinkSync(join(outside, "secret.txt"), join(repo, ".doan/canvases", "link-out"));
+  symlinkSync("missing.css", join(repo, ".doan/canvases", "dangling.css"));
+  symlinkSync("loop", join(repo, ".doan/canvases", "loop"));
 
   mkdirSync(dotRepo);
-  symlinkSync(".", join(dotRepo, "doan"));
+  mkdirSync(join(dotRepo, ".doan"));
+  symlinkSync("../..", join(dotRepo, ".doan/canvases"));
   writeFileSync(join(dotRepo, ".env"), "SECRET=1");
   writeFileSync(join(dotRepo, "a.html"), "<!doctype html>");
 
   server = await startServer();
-  key = server.addFolder({ root: repo, scope: ["doan", "tokens.css"] });
+  key = server.addFolder({ root: repo, scope: [".doan/canvases", "tokens.css"] });
   // Worst case on purpose: even if `doan -> .` reached the scope, realpath
-  // must turn `doan/.env` back into `.env`.
-  dotKey = server.addFolder({ root: dotRepo, scope: ["doan"] });
+  // must turn `.doan/canvases/.env` back into `.env`.
+  dotKey = server.addFolder({ root: dotRepo, scope: [".doan/canvases"] });
   base = `/t/${server.token}/${key}`;
 });
 
 afterAll(async () => {
   await server.close();
-  chmodSync(join(repo, "doan", "locked.css"), 0o644);
+  chmodSync(join(repo, ".doan/canvases", "locked.css"), 0o644);
   rmSync(tmp, { recursive: true, force: true });
 });
 
 describe("in-scope files", () => {
   test("serve 200 with type, no-store and only the null-origin CORS header", async () => {
-    const res = await send(server.port, `${base}/doan/a.html`);
+    const res = await send(server.port, `${base}/.doan/canvases/a.html`);
     expect(res.status).toBe(200);
     expect(res.body).toBe("<!doctype html><title>A</title>");
     expect(res.headers["content-type"]).toMatch(/^text\/html/);
@@ -140,38 +141,38 @@ describe("in-scope files", () => {
     const tokens = await send(server.port, `${base}/tokens.css`);
     expect(tokens.status).toBe(200);
     expect(tokens.headers["content-type"]).toMatch(/^text\/css/);
-    const nested = await send(server.port, `${base}/doan/sub/b.css`);
+    const nested = await send(server.port, `${base}/.doan/canvases/sub/b.css`);
     expect(nested.status).toBe(200);
     expect(nested.body).toBe("p{}");
   });
 
   test("ignore the query string", async () => {
-    expect((await send(server.port, `${base}/doan/a.html?x=1`)).status).toBe(200);
+    expect((await send(server.port, `${base}/.doan/canvases/a.html?x=1`)).status).toBe(200);
   });
 
   test("an empty file is 200 with an empty body", async () => {
-    const res = await send(server.port, `${base}/doan/empty.css`);
+    const res = await send(server.port, `${base}/.doan/canvases/empty.css`);
     expect(res.status).toBe(200);
     expect(res.headers["content-length"]).toBe("0");
     expect(res.body).toBe("");
   });
 
   test("HEAD is 200 with the same headers and no body", async () => {
-    const res = await send(server.port, `${base}/doan/a.html`, { method: "HEAD" });
+    const res = await send(server.port, `${base}/.doan/canvases/a.html`, { method: "HEAD" });
     expect(res.status).toBe(200);
     expect(res.body).toBe("");
     expect(res.headers["content-length"]).toBe("31");
     expect(res.headers["access-control-allow-origin"]).toBe("null");
   });
 
-  test.skipIf(!caseInsensitive)("DOAN/A.CSS serves doan/a.css", async () => {
-    const res = await send(server.port, `${base}/DOAN/A.CSS`);
+  test.skipIf(!caseInsensitive)(".DOAN/CANVASES/A.CSS serves .doan/canvases/a.css", async () => {
+    const res = await send(server.port, `${base}/.DOAN/CANVASES/A.CSS`);
     expect(res.status).toBe(200);
     expect(res.body).toBe("body{}");
   });
 
   test.skipIf(!normalizationInsensitive)("an NFC name requested in NFD is served", async () => {
-    const res = await send(server.port, `${base}/doan/${encodeURIComponent(nfc.normalize("NFD"))}`);
+    const res = await send(server.port, `${base}/.doan/canvases/${encodeURIComponent(nfc.normalize("NFD"))}`);
     expect(res.status).toBe(200);
     expect(res.body).toBe("nfc");
   });
@@ -182,72 +183,72 @@ describe("everything else is the same bodiless 404", () => {
     [".env"],
     ["src/secret.ts"],
     ["design-x/a.css"],
-    ["doan"],
-    ["doan/sub"],
-    ["doan/link-out"],
-    ["doan/dangling.css"],
-    ["doan/loop"],
-    ["doan/missing.html"],
+    [".doan/canvases"],
+    [".doan/canvases/sub"],
+    [".doan/canvases/link-out"],
+    [".doan/canvases/dangling.css"],
+    [".doan/canvases/loop"],
+    [".doan/canvases/missing.html"],
     ["tokens.css/x.css"],
-    [`doan/${"a".repeat(300)}.html`],
+    [`.doan/canvases/${"a".repeat(300)}.html`],
   ])("%s", async (rel) => {
     expectNotFound(await send(server.port, `${base}/${rel}`));
   });
 
   test.skipIf(isRoot)("a file the app cannot read (EACCES)", async () => {
-    expectNotFound(await send(server.port, `${base}/doan/locked.css`));
+    expectNotFound(await send(server.port, `${base}/.doan/canvases/locked.css`));
   });
 
   test.each([
-    ["doan/../.env"],
-    ["doan/%2e%2e/.env"],
-    ["doan/%2E%2E/.env"],
+    [".doan/canvases/../.env"],
+    [".doan/canvases/%2e%2e/.env"],
+    [".doan/canvases/%2E%2E/.env"],
     ["doan%2f..%2f.env"],
     ["design%5c..%5c.env"],
     ["design\\..\\.env"],
-    ["doan/a.html%00"],
-    ["doan/%zz"],
+    [".doan/canvases/a.html%00"],
+    [".doan/canvases/%zz"],
   ])("raw path %s", async (rel) => {
     expectNotFound(await send(server.port, `${base}/${rel}`));
   });
 
   test("paths outside the token prefix", async () => {
     expectNotFound(await send(server.port, "/.env"));
-    expectNotFound(await send(server.port, "/doan/a.html"));
+    expectNotFound(await send(server.port, "/.doan/canvases/a.html"));
     expectNotFound(await send(server.port, `/t/${server.token}`));
   });
 
   test("a different token", async () => {
     const other = server.token.replace(/^./, (c) => (c === "0" ? "1" : "0"));
-    expectNotFound(await send(server.port, `/t/${other}/${key}/doan/a.html`));
+    expectNotFound(await send(server.port, `/t/${other}/${key}/.doan/canvases/a.html`));
   });
 
   test("an unknown folder key", async () => {
-    expectNotFound(await send(server.port, `/t/${server.token}/${"0".repeat(32)}/doan/a.html`));
+    expectNotFound(await send(server.port, `/t/${server.token}/${"0".repeat(32)}/.doan/canvases/a.html`));
   });
 
   test("a closed folder's key", async () => {
-    const closed = server.addFolder({ root: repo, scope: ["doan"] });
-    expect((await send(server.port, `/t/${server.token}/${closed}/doan/a.html`)).status).toBe(200);
+    const closed = server.addFolder({ root: repo, scope: [".doan/canvases"] });
+    expect((await send(server.port, `/t/${server.token}/${closed}/.doan/canvases/a.html`)).status).toBe(200);
     server.removeFolder(closed);
-    expectNotFound(await send(server.port, `/t/${server.token}/${closed}/doan/a.html`));
+    expectNotFound(await send(server.port, `/t/${server.token}/${closed}/.doan/canvases/a.html`));
   });
 
   test("a different Host header", async () => {
     for (const host of [`localhost:${server.port}`, `evil.test:${server.port}`, "127.0.0.1", `127.0.0.1:${server.port + 1}`]) {
-      expectNotFound(await send(server.port, `${base}/doan/a.html`, { host }));
+      expectNotFound(await send(server.port, `${base}/.doan/canvases/a.html`, { host }));
     }
   });
 
   test("methods other than GET and HEAD", async () => {
     for (const method of ["POST", "PUT", "DELETE", "OPTIONS"]) {
-      expectNotFound(await send(server.port, `${base}/doan/a.html`, { method }));
+      expectNotFound(await send(server.port, `${base}/.doan/canvases/a.html`, { method }));
     }
   });
 
   test("a `doan -> .` repo does not expose the repo root", async () => {
-    expectNotFound(await send(server.port, `/t/${server.token}/${dotKey}/doan/.env`));
-    expectNotFound(await send(server.port, `/t/${server.token}/${dotKey}/doan/a.html`));
+    expectNotFound(await send(server.port, `/t/${server.token}/${dotKey}/.doan/canvases/.env`));
+    expectNotFound(await send(server.port, `/t/${server.token}/${dotKey}/.doan/canvases/a.html`));
   });
 });
 
@@ -285,9 +286,9 @@ describe("the server", () => {
   });
 
   test("serves the scope it was last given", async () => {
-    const k = server.addFolder({ root: repo, scope: ["doan"] });
+    const k = server.addFolder({ root: repo, scope: [".doan/canvases"] });
     expect((await send(server.port, `/t/${server.token}/${k}/tokens.css`)).status).toBe(404);
-    server.updateFolder(k, { root: repo, scope: ["doan", "tokens.css"] });
+    server.updateFolder(k, { root: repo, scope: [".doan/canvases", "tokens.css"] });
     expect((await send(server.port, `/t/${server.token}/${k}/tokens.css`)).status).toBe(200);
     server.removeFolder(k);
   });
@@ -296,10 +297,10 @@ describe("the server", () => {
     ["deleted", (file: string) => unlinkSync(file), "big.bin"],
     ["truncated", (file: string) => writeFileSync(file, ""), "short.bin"],
   ])("survives a file %s while it is being sent", async (_label, change, name) => {
-    const file = join(repo, "doan", name);
+    const file = join(repo, ".doan/canvases", name);
     await new Promise<void>((resolve) => {
       const req = httpRequest(
-        { host: "127.0.0.1", port: server.port, path: `${base}/doan/${name}`, agent: false },
+        { host: "127.0.0.1", port: server.port, path: `${base}/.doan/canvases/${name}`, agent: false },
         (res) => {
           change(file);
           res.on("data", () => {});
@@ -311,16 +312,16 @@ describe("the server", () => {
       req.on("error", () => resolve());
       req.end();
     });
-    expect((await send(server.port, `${base}/doan/a.html`)).status).toBe(200);
+    expect((await send(server.port, `${base}/.doan/canvases/a.html`)).status).toBe(200);
   });
 
   test("never sends more than Content-Length when the file grows mid-transfer", async () => {
-    const file = join(repo, "doan", "grow.bin");
+    const file = join(repo, ".doan/canvases", "grow.bin");
     // A raw socket sees every byte on the wire; an HTTP client would stop at
     // Content-Length and hide the overflow.
     const raw = await new Promise<Buffer>((resolve, reject) => {
       const socket = connect({ host: "127.0.0.1", port: server.port }, () => {
-        socket.write(`GET ${base}/doan/grow.bin HTTP/1.1\r\nHost: 127.0.0.1:${server.port}\r\nConnection: close\r\n\r\n`);
+        socket.write(`GET ${base}/.doan/canvases/grow.bin HTTP/1.1\r\nHost: 127.0.0.1:${server.port}\r\nConnection: close\r\n\r\n`);
       });
       const chunks: Buffer[] = [];
       let grown = false;
@@ -346,7 +347,7 @@ describe("the server", () => {
 
 describe("openNoFollow", () => {
   test("opens a path without links", async () => {
-    const file = await openNoFollow(join(repo, "doan", "real-dir", "s.txt"));
+    const file = await openNoFollow(join(repo, ".doan/canvases", "real-dir", "s.txt"));
     try {
       expect((await file.readFile()).toString()).toBe("inside");
     } finally {
@@ -357,7 +358,7 @@ describe("openNoFollow", () => {
   // Stands in for a directory swapped for a link after the realpath step: the
   // path the server checked now runs through a link, and must not open.
   test("refuses a path with a link in any component", async () => {
-    await expect(openNoFollow(join(repo, "doan", "swapped", "real-dir", "s.txt"))).rejects.toMatchObject({ code: "ELOOP" });
-    await expect(openNoFollow(join(repo, "doan", "link-out"))).rejects.toMatchObject({ code: "ELOOP" });
+    await expect(openNoFollow(join(repo, ".doan/canvases", "swapped", "real-dir", "s.txt"))).rejects.toMatchObject({ code: "ELOOP" });
+    await expect(openNoFollow(join(repo, ".doan/canvases", "link-out"))).rejects.toMatchObject({ code: "ELOOP" });
   });
 });

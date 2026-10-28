@@ -71,13 +71,13 @@ function repo(parts: { design?: boolean; doan?: boolean; comments?: boolean } = 
   const root = join(tmp, `r${count++}`);
   mkdirSync(root);
   if (parts.design ?? true) {
-    mkdirSync(join(root, "doan"));
-    writeFileSync(join(root, "doan", "a.html"), "<!doctype html>");
+    mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+    writeFileSync(join(root, ".doan/canvases", "a.html"), "<!doctype html>");
   }
   if (parts.doan ?? true) {
-    mkdirSync(join(root, ".doan"));
+    mkdirSync(join(root, ".doan"), { recursive: true });
     writeFileSync(join(root, ".doan", "config.json"), '{"v":1}');
-    if (parts.comments ?? true) mkdirSync(join(root, ".doan", "comments"));
+    if (parts.comments ?? true) mkdirSync(join(root, ".doan", "comments"), { recursive: true });
   }
   return root;
 }
@@ -103,14 +103,14 @@ async function expectReread(w: { reads: () => number; reset: () => void }, chang
 
 describe("watchFolder re-reads within a second", () => {
   test.each<[string, (root: string) => void]>([
-    ["a canvas is added", (root) => writeFileSync(join(root, "doan", "b.html"), "")],
+    ["a canvas is added", (root) => writeFileSync(join(root, ".doan/canvases", "b.html"), "")],
     ["a nested canvas is added", (root) => {
-      mkdirSync(join(root, "doan", "sub"));
-      writeFileSync(join(root, "doan", "sub", "c.html"), "");
+      mkdirSync(join(root, ".doan/canvases", "sub"), { recursive: true });
+      writeFileSync(join(root, ".doan/canvases", "sub", "c.html"), "");
     }],
-    ["a canvas is deleted", (root) => unlinkSync(join(root, "doan", "a.html"))],
-    ["a canvas is renamed", (root) => renameSync(join(root, "doan", "a.html"), join(root, "doan", "b.html"))],
-    ["a canvas changes", (root) => appendFileSync(join(root, "doan", "a.html"), "<title>x</title>")],
+    ["a canvas is deleted", (root) => unlinkSync(join(root, ".doan/canvases", "a.html"))],
+    ["a canvas is renamed", (root) => renameSync(join(root, ".doan/canvases", "a.html"), join(root, ".doan/canvases", "b.html"))],
+    ["a canvas changes", (root) => appendFileSync(join(root, ".doan/canvases", "a.html"), "<title>x</title>")],
     ["config.json changes", (root) => writeFileSync(join(root, ".doan", "config.json"), '{"v":1,"serve":[]}')],
     ["a comment file is added", (root) => writeFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n")],
   ])("when %s", async (_label, change) => {
@@ -124,26 +124,26 @@ describe("watchFolder re-reads within a second", () => {
     await expectReread(await watch(root), () => appendFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n"));
   });
 
-  test("when doan/ appears later, and then inside it", async () => {
+  test("when .doan/canvases/ appears later, and then inside it", async () => {
     const root = repo({ design: false });
     const w = await watch(root);
-    await expectReread(w, () => mkdirSync(join(root, "doan")));
-    await expectReread(w, () => writeFileSync(join(root, "doan", "a.html"), ""));
+    await expectReread(w, () => mkdirSync(join(root, ".doan/canvases"), { recursive: true }));
+    await expectReread(w, () => writeFileSync(join(root, ".doan/canvases", "a.html"), ""));
   });
 
-  test("when doan/ is deleted and created again, and then inside it", async () => {
+  test("when .doan/canvases/ is deleted and created again, and then inside it", async () => {
     const root = repo();
     const w = await watch(root);
-    await expectReread(w, () => rmSync(join(root, "doan"), { recursive: true }));
-    await expectReread(w, () => mkdirSync(join(root, "doan")));
-    await expectReread(w, () => writeFileSync(join(root, "doan", "b.html"), ""));
+    await expectReread(w, () => rmSync(join(root, ".doan/canvases"), { recursive: true }));
+    await expectReread(w, () => mkdirSync(join(root, ".doan/canvases"), { recursive: true }));
+    await expectReread(w, () => writeFileSync(join(root, ".doan/canvases", "b.html"), ""));
   });
 
   test("when .doan/ appears later and then config.json changes", async () => {
     const root = repo({ doan: false });
     const w = await watch(root);
     await expectReread(w, () => {
-      mkdirSync(join(root, ".doan"));
+      mkdirSync(join(root, ".doan"), { recursive: true });
       writeFileSync(join(root, ".doan", "config.json"), '{"v":1}');
     });
     await expectReread(w, () => writeFileSync(join(root, ".doan", "config.json"), '{"v":1,"serve":[]}'));
@@ -152,7 +152,7 @@ describe("watchFolder re-reads within a second", () => {
   test("when .doan/comments/ appears later and then a comment file is added", async () => {
     const root = repo({ comments: false });
     const w = await watch(root);
-    await expectReread(w, () => mkdirSync(join(root, ".doan", "comments")));
+    await expectReread(w, () => mkdirSync(join(root, ".doan", "comments"), { recursive: true }));
     await expectReread(w, () => writeFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n"));
   });
 });
@@ -161,7 +161,7 @@ describe("watchFolder", () => {
   test("merges a burst of events into one re-read", async () => {
     const root = repo();
     const w = await watch(root);
-    for (let i = 0; i < 10; i++) writeFileSync(join(root, "doan", `b${i}.html`), "");
+    for (let i = 0; i < 10; i++) writeFileSync(join(root, ".doan/canvases", `b${i}.html`), "");
     await sleep(800);
     expect(w.reads()).toBe(1);
   });
@@ -170,7 +170,7 @@ describe("watchFolder", () => {
     const root = repo();
     const w = await watch(root);
     open?.close();
-    writeFileSync(join(root, "doan", "b.html"), "");
+    writeFileSync(join(root, ".doan/canvases", "b.html"), "");
     await sleep(500);
     expect(w.reads()).toBe(0);
   });
@@ -249,14 +249,14 @@ function recursivePaths(): string[] {
 }
 
 describe("watchFolder classifies changes", () => {
-  // Whether a doan/ change is served is the shell's call, made from the names.
-  test("a doan/ change needs a re-read and carries its names", async () => {
+  // Whether a .doan/canvases/ change is served is the shell's call, made from the names.
+  test("a .doan/canvases/ change needs a re-read and carries its names", async () => {
     const root = repo();
-    const w = await watchScope(root, ["doan"]);
-    await expectChange(w, () => writeFileSync(join(root, "doan", "b.html"), ""), { ...REREAD, names: ["b.html"] });
+    const w = await watchScope(root, [".doan/canvases"]);
+    await expectChange(w, () => writeFileSync(join(root, ".doan/canvases", "b.html"), ""), { ...REREAD, names: ["b.html"] });
     await expectChange(w, () => {
-      mkdirSync(join(root, "doan", "sub"));
-      writeFileSync(join(root, "doan", "sub", "c.html"), "");
+      mkdirSync(join(root, ".doan/canvases", "sub"), { recursive: true });
+      writeFileSync(join(root, ".doan/canvases", "sub", "c.html"), "");
     }, { ...REREAD, names: ["sub", "sub/c.html"] });
   });
 
@@ -264,36 +264,36 @@ describe("watchFolder classifies changes", () => {
   // both names arrive within one debounce (revision-continuity task 1).
   test("a save through a temporary sibling carries both names in one call", async () => {
     const root = repo();
-    const w = await watchScope(root, ["doan"]);
+    const w = await watchScope(root, [".doan/canvases"]);
     w.reset();
-    writeFileSync(join(root, "doan", "a.html.tmp.4242.0123456789ab"), "<!doctype html><title>x</title>");
-    renameSync(join(root, "doan", "a.html.tmp.4242.0123456789ab"), join(root, "doan", "a.html"));
+    writeFileSync(join(root, ".doan/canvases", "a.html.tmp.4242.0123456789ab"), "<!doctype html><title>x</title>");
+    renameSync(join(root, ".doan/canvases", "a.html.tmp.4242.0123456789ab"), join(root, ".doan/canvases", "a.html"));
     expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
     await sleep(400);
     expect(w.calls()).toHaveLength(1);
     expect(w.merged()).toEqual({ ...REREAD, names: ["a.html", "a.html.tmp.4242.0123456789ab"] });
   });
 
-  // A dead doan/ watcher reports no name, so the shell cannot tell what changed.
-  test("an error on the doan/ watcher re-reads with unknown names", async () => {
+  // A dead .doan/canvases/ watcher reports no name, so the shell cannot tell what changed.
+  test("an error on the .doan/canvases/ watcher re-reads with unknown names", async () => {
     const root = repo();
     vi.mocked(fsWatch).mockClear();
-    const w = await watchScope(root, ["doan"]);
-    const index = watchedPaths().indexOf(join(root, "doan"));
+    const w = await watchScope(root, [".doan/canvases"]);
+    const index = watchedPaths().indexOf(join(root, ".doan/canvases"));
     const watcher = vi.mocked(fsWatch).mock.results[index]?.value as FSWatcher | undefined;
     expect(watcher).toBeDefined();
     await expectChange(w, () => watcher?.emit("error", new Error("gone")), { ...REREAD, names: null });
   });
 
-  // The root watcher sees doan/ itself go and come back; that is served
-  // whatever the doan/ watcher reported, since every file in it changed.
-  test("doan/ deleted and created again is a served change", async () => {
+  // The root watcher sees .doan/canvases/ itself go and come back; that is served
+  // whatever the .doan/canvases/ watcher reported, since every file in it changed.
+  test(".doan/canvases/ deleted and created again is a served change", async () => {
     const root = repo();
-    const w = await watchScope(root, ["doan"]);
+    const w = await watchScope(root, [".doan/canvases"]);
     w.reset();
-    rmSync(join(root, "doan"), { recursive: true });
-    mkdirSync(join(root, "doan"));
-    writeFileSync(join(root, "doan", "a.html"), "<!doctype html>");
+    rmSync(join(root, ".doan/canvases"), { recursive: true });
+    mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+    writeFileSync(join(root, ".doan/canvases", "a.html"), "<!doctype html>");
     expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
     await settle(() => w.calls().length);
     expect(w.merged()).toMatchObject(BOTH);
@@ -301,7 +301,7 @@ describe("watchFolder classifies changes", () => {
 
   test("a .doan/ change only needs a re-read", async () => {
     const root = repo();
-    const w = await watchScope(root, ["doan"]);
+    const w = await watchScope(root, [".doan/canvases"]);
     await expectChange(w, () => writeFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n"), REREAD);
     await expectChange(w, () => writeFileSync(join(root, ".doan", "config.json"), '{"v":1,"serve":[]}'), REREAD);
   });
@@ -310,8 +310,8 @@ describe("watchFolder classifies changes", () => {
   test("a .doan/ change is never served, even with .doan in scope", async () => {
     const root = repo();
     vi.mocked(fsWatch).mockClear();
-    const w = await watchScope(root, [".doan", ".doan/config.json", "doan"]);
-    expect(recursivePaths().filter((path) => path.startsWith(join(root, ".doan")))).toEqual([]);
+    const w = await watchScope(root, [".doan", ".doan/config.json", ".doan/canvases"]);
+    expect(recursivePaths().filter((path) => path.startsWith(join(root, ".doan")))).toEqual([join(root, ".doan/canvases")]);
     await expectChange(w, () => writeFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n"), REREAD);
     await expectChange(w, () => writeFileSync(join(root, ".doan", "config.json"), '{"v":1,"serve":[".doan"]}'), REREAD);
   });
@@ -320,7 +320,7 @@ describe("watchFolder classifies changes", () => {
     const root = repo();
     mkdirSync(join(root, "styles"));
     writeFileSync(join(root, "styles", "tokens.css"), "a{}");
-    const w = await watchScope(root, ["doan", "styles/tokens.css"]);
+    const w = await watchScope(root, [".doan/canvases", "styles/tokens.css"]);
     await expectChange(w, () => atomicSave(join(root, "styles", "tokens.css"), "b{}"), SERVED);
     await expectChange(w, () => atomicSave(join(root, "styles", "tokens.css"), "c{}"), SERVED);
   });
@@ -330,7 +330,7 @@ describe("watchFolder classifies changes", () => {
   test("a tokenCss file at the repo root is served", async () => {
     const root = repo();
     writeFileSync(join(root, "tokens.css"), "a{}");
-    const w = await watchScope(root, ["doan", "tokens.css"]);
+    const w = await watchScope(root, [".doan/canvases", "tokens.css"]);
     await expectChange(w, () => writeFileSync(join(root, "tokens.css"), "b{}"), SERVED);
     await expectChange(w, () => atomicSave(join(root, "tokens.css"), "c{}"), BOTH);
   });
@@ -339,14 +339,14 @@ describe("watchFolder classifies changes", () => {
     const root = repo();
     mkdirSync(join(root, "styles"));
     writeFileSync(join(root, "styles", "tokens.css"), "a{}");
-    const w = await watchScope(root, ["doan", "styles/tokens.css"]);
+    const w = await watchScope(root, [".doan/canvases", "styles/tokens.css"]);
     await expectQuiet(w, () => writeFileSync(join(root, "styles", "other.css"), "x{}"));
   });
 
   test("a served directory is watched recursively", async () => {
     const root = repo();
     mkdirSync(join(root, "assets", "img"), { recursive: true });
-    const w = await watchScope(root, ["assets", "doan"]);
+    const w = await watchScope(root, ["assets", ".doan/canvases"]);
     await expectChange(w, () => writeFileSync(join(root, "assets", "img", "x.svg"), "<svg/>"), SERVED);
   });
 
@@ -355,7 +355,7 @@ describe("watchFolder classifies changes", () => {
     const root = repo();
     mkdirSync(join(root, "dist"));
     writeFileSync(join(root, "dist", "a.css"), "a{}");
-    const w = await watchScope(root, ["doan", "dist"]);
+    const w = await watchScope(root, [".doan/canvases", "dist"]);
     await expectChange(w, () => {
       rmSync(join(root, "dist"), { recursive: true });
       mkdirSync(join(root, "dist"));
@@ -367,7 +367,7 @@ describe("watchFolder classifies changes", () => {
     const root = repo();
     mkdirSync(join(root, "web", "dist"), { recursive: true });
     writeFileSync(join(root, "web", "dist", "a.css"), "a{}");
-    const w = await watchScope(root, ["doan", "web/dist"]);
+    const w = await watchScope(root, [".doan/canvases", "web/dist"]);
     await expectChange(w, () => rmSync(join(root, "web", "dist"), { recursive: true }), SERVED);
     await expectChange(w, () => {
       mkdirSync(join(root, "web", "dist"));
@@ -381,8 +381,8 @@ describe("watchFolder classifies changes", () => {
     mkdirSync(join(root, "assets"));
     mkdirSync(join(root, "styles"));
     writeFileSync(join(root, "styles", "tokens.css"), "a{}");
-    const w = await watchScope(root, ["assets", "doan", "styles/tokens.css"]);
-    open?.setScope(["doan"]);
+    const w = await watchScope(root, ["assets", ".doan/canvases", "styles/tokens.css"]);
+    open?.setScope([".doan/canvases"]);
     await expectQuiet(w, () => {
       writeFileSync(join(root, "assets", "x.css"), "x{}");
       atomicSave(join(root, "styles", "tokens.css"), "b{}");
@@ -392,40 +392,40 @@ describe("watchFolder classifies changes", () => {
   test("a path that joins the scope on a later read is watched from then on", async () => {
     const root = repo();
     mkdirSync(join(root, "assets"));
-    const w = await watchScope(root, ["doan"]);
+    const w = await watchScope(root, [".doan/canvases"]);
     await expectQuiet(w, () => writeFileSync(join(root, "assets", "x.css"), "x{}"));
-    open?.setScope(["assets", "doan"]);
+    open?.setScope(["assets", ".doan/canvases"]);
     await settle(() => w.calls().length);
     await expectChange(w, () => writeFileSync(join(root, "assets", "y.css"), "y{}"), SERVED);
   });
 
-  test("a serve path inside doan/ gets no watcher of its own", async () => {
+  test("a serve path inside .doan/canvases/ gets no watcher of its own", async () => {
     const root = repo();
-    mkdirSync(join(root, "doan", "assets"));
+    mkdirSync(join(root, ".doan/canvases", "assets"), { recursive: true });
     vi.mocked(fsWatch).mockClear();
-    const w = await watchScope(root, ["doan", "doan/assets"]);
-    expect(watchedPaths()).not.toContain(join(root, "doan", "assets"));
-    await expectChange(w, () => writeFileSync(join(root, "doan", "assets", "x.css"), "x{}"), { ...REREAD, names: ["assets/x.css"] });
+    const w = await watchScope(root, [".doan/canvases", ".doan/canvases/assets"]);
+    expect(watchedPaths()).not.toContain(join(root, ".doan/canvases", "assets"));
+    await expectChange(w, () => writeFileSync(join(root, ".doan/canvases", "assets", "x.css"), "x{}"), { ...REREAD, names: ["assets/x.css"] });
   });
 
   // `doan ls` reports a symlinked `doan` by its real path, and the root
   // watcher skips the symlink itself.
-  test("a symlinked doan/ is watched recursively through its real path", async () => {
+  test("a symlinked .doan/canvases/ is watched recursively through its real path", async () => {
     const root = repo({ design: false });
-    mkdirSync(join(root, "docs", "doan", "sub"), { recursive: true });
-    symlinkSync(join("docs", "doan"), join(root, "doan"));
+    mkdirSync(join(root, "docs", ".doan/canvases", "sub"), { recursive: true });
+    symlinkSync(join("..", "docs", ".doan/canvases"), join(root, ".doan/canvases"));
     vi.mocked(fsWatch).mockClear();
-    const w = await watchScope(root, ["docs/doan"]);
-    expect(watchedPaths()).not.toContain(join(root, "doan"));
-    await expectChange(w, () => writeFileSync(join(root, "docs", "doan", "sub", "a.html"), ""), SERVED);
+    const w = await watchScope(root, ["docs/.doan/canvases"]);
+    expect(watchedPaths()).not.toContain(join(root, ".doan/canvases"));
+    await expectChange(w, () => writeFileSync(join(root, "docs", ".doan/canvases", "sub", "a.html"), ""), SERVED);
   });
 
-  test("doan/ and a served file changing together make one call with both flags and the names", async () => {
+  test(".doan/canvases/ and a served file changing together make one call with both flags and the names", async () => {
     const root = repo();
     mkdirSync(join(root, "assets"));
-    const w = await watchScope(root, ["assets", "doan"]);
+    const w = await watchScope(root, ["assets", ".doan/canvases"]);
     w.reset();
-    writeFileSync(join(root, "doan", "b.html"), "");
+    writeFileSync(join(root, ".doan/canvases", "b.html"), "");
     writeFileSync(join(root, "assets", "x.css"), "x{}");
     expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
     await sleep(400);
@@ -435,7 +435,7 @@ describe("watchFolder classifies changes", () => {
   test("changes less than 200 ms apart make one call", async () => {
     const root = repo();
     mkdirSync(join(root, "assets"));
-    const w = await watchScope(root, ["assets", "doan"]);
+    const w = await watchScope(root, ["assets", ".doan/canvases"]);
     w.reset();
     for (let i = 0; i < 4; i++) {
       writeFileSync(join(root, "assets", `x${i}.css`), "x{}");
@@ -612,4 +612,27 @@ describe("createRefresher", () => {
     expect(runs).toEqual([REREAD, SERVED]);
     refresher.close();
   });
+});
+
+test("canvas assets reload after creation, editing and directory replacement", async () => {
+  const root = repo();
+  const w = await watchScope(root, [".doan/canvases"]);
+  const assets = join(root, ".doan/assets");
+  await expectChange(w, () => mkdirSync(assets), BOTH);
+  await expectChange(w, () => writeFileSync(join(assets, "style.css"), "a{}"), SERVED);
+  await expectChange(w, () => {
+    rmSync(assets, { recursive: true });
+    mkdirSync(assets);
+    writeFileSync(join(assets, "style.css"), "b{}");
+  }, BOTH);
+  await expectChange(w, () => writeFileSync(join(assets, "style.css"), "c{}"), SERVED);
+});
+
+test("fixed watchers never follow a symlinked .doan directory", async () => {
+  const root = repo({ design: false, doan: false });
+  const outside = repo();
+  symlinkSync(join(outside, ".doan"), join(root, ".doan"));
+  vi.mocked(fsWatch).mockClear();
+  await watchScope(root, []);
+  expect(watchedPaths().filter(path => path.startsWith(join(root, ".doan")))).toEqual([]);
 });

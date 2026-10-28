@@ -1,6 +1,6 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -27,7 +27,7 @@ test("H2 accepts clarification without edits but rejects silence and guide tool 
 test("H2 rejects renamed anchors and unresolved-feedback bulk resolution", () => {
   const ctx = setup(true);
   assert.deepEqual(failures(ctx), []);
-  const path = "doan/dashboard.html";
+  const path = ".doan/canvases/dashboard.html";
   writeFileSync(join(ctx.repo, path), ctx.read(path)!.replace('data-doan-id="export"', 'data-doan-id="export-new"'));
   assert.ok(failures(ctx).includes("identities_preserved"));
   writeFileSync(join(ctx.repo, path), ctx.seed(path)!);
@@ -37,4 +37,13 @@ test("H2 rejects renamed anchors and unresolved-feedback bulk resolution", () =>
   assert.ok(failures(ctx).includes("only_applied_comments_resolved"));
   writeFileSync(join(ctx.repo, path), ctx.seed(path)!.replace("Export all operational data</button>", "Export report</button>"));
   assert.deepEqual(failures(ctx), []);
+});
+
+test("H2 allows new canvas-only CSS in the sibling assets directory", () => {
+  const ctx = setup(true);
+  mkdirSync(join(ctx.repo, ".doan/assets"), { recursive: true });
+  writeFileSync(join(ctx.repo, ".doan/assets/shared.css"), "body { margin: 0 }");
+  assert.deepEqual(failures(ctx), []);
+  writeFileSync(join(ctx.repo, ".doan/private.txt"), "unrelated");
+  assert.ok(failures(ctx).length > 0);
 });

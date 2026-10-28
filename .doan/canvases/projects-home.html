@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="projects-home">
+<meta name="doan:width" content="1440">
+<title>Projects home — draft</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../assets/mock.css">
+<style>
+/* Shipped rules copied from app/src/renderer/styles.css (shell, top bar, sidebar, canvas status, dialogs, chips). */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; }
+button { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { opacity: .4; cursor: default; }
+button { outline: none; }
+ol, ul { list-style: none; }
+code, kbd { font-family: var(--font-sans); }
+.top { display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.traffic-space { width: 52px; flex: none; }
+.logo { font: 600 13px var(--font-sans); display: flex; align-items: center; gap: 8px; }
+.logo i { width: 18px; height: 18px; border-radius: 5px; background: var(--accent); }
+.spacer { flex: 1; }
+.meta { font: 11.5px var(--font-sans); color: var(--text-3); white-space: nowrap; }
+.chip { font: 11.5px var(--font-sans); color: var(--text-2); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.btn { font: 500 12px var(--font-sans); color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+.kbd { font: 10.5px var(--font-sans); color: var(--text-3); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+.btn.primary .kbd { color: var(--accent-ink); border-color: var(--accent-ink); opacity: .6; }
+.side { background: var(--panel); border-right: 1px solid var(--line); }
+.right { background: var(--panel); border-left: 1px solid var(--line); }
+.sec { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 6px; }
+.sec .r { letter-spacing: 0; text-transform: none; color: var(--text-4); }
+.row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 12px; font: 12.5px var(--font-sans); color: var(--text-2); position: relative; white-space: nowrap; cursor: pointer; }
+.row .g { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.row .d { color: var(--text-4); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+.row[aria-current="true"] { color: var(--text); background: var(--raised); }
+.row[aria-current="true"]::before { content: ""; position: absolute; left: 0; top: 5px; bottom: 5px; width: 2px; background: var(--accent); border-radius: 1px; }
+.row.ind { padding-left: 26px; }
+.glyph { color: var(--text-4); width: 12px; flex: none; text-align: center; }
+.row[aria-current="true"] .glyph { color: var(--accent); }
+.cnt { font: 10.5px var(--font-sans); color: var(--text-3); }
+.cnt.hot { color: var(--accent); }
+.area { position: relative; overflow: hidden; background-color: var(--board-bg); background-image: radial-gradient(var(--board-dot) 1px, transparent 1px); background-size: 16px 16px; }
+.canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 18px; text-align: center; color: var(--text-2); font: 12.5px/1.6 var(--font-sans); pointer-events: none; }
+.canvas-status > :not(.empty) { max-width: 260px; }
+.canvas-status b { color: var(--text); font-weight: 500; }
+.empty { font-size: 13px; color: var(--text); position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; line-height: normal; }
+.empty b { font-size: 15px; font-weight: 600; }
+.empty p { color: var(--text-3); max-width: 320px; font-size: 12.5px; line-height: 1.6; }
+.spinner { display: block; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); margin: 0 auto 10px; }
+.updated { position: absolute; left: 12px; bottom: 12px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); display: inline-block; }
+.zctl { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 6px; align-items: center; }
+.zoom { display: flex; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font: 12px var(--font-sans); }
+.zoom button { padding: 4px 9px; color: var(--text-2); }
+.zoom output { padding: 4px 8px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); min-width: 48px; text-align: center; }
+.phead { font: 600 12px var(--font-sans); padding: 11px 14px 10px; border-bottom: 1px solid var(--line); }
+.isec { padding: 10px 12px 12px; border-bottom: 1px solid var(--line-2); }
+.ihead { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); margin-bottom: 8px; }
+.kv { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 5px 8px; font: 11.5px var(--font-sans); }
+.kv dt { color: var(--text-3); }
+.kv dd { overflow-wrap: anywhere; }
+.ob-chip { font-size: 10.5px; line-height: 1.5; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; color: var(--text-3); white-space: nowrap; }
+.ob-chip.ok { color: var(--ok); }
+.ob-chip.warn { color: var(--warn); }
+.ob-chip.err { color: var(--err); }
+.ob-msg { font-size: 11.5px; line-height: 1.5; color: var(--text-2); overflow-wrap: anywhere; }
+.ob-msg.error { border-left: 2px solid var(--err); padding-left: 8px; }
+.ob-msg.warn { border-left: 2px solid var(--warn); padding-left: 8px; }
+.comments-dialog { width: 410px; background: var(--raised); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-2); border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
+.comments-dialog h3 { font-size: 15px; margin-bottom: 10px; font-weight: 700; }
+.comments-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-2); margin-bottom: 12px; }
+.comments-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.comments-dialog .comments-tools { justify-content: flex-end; }
+.comments-btn { line-height: normal; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; max-width: 100%; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); font-size: 11px; font-weight: 500; padding: 4px 7px; }
+.comments-btn.primary { font-weight: 600; background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.ob-dialog { width: 440px; background: var(--raised); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-2); border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
+.ob-dialog h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+.ob-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-2); margin-bottom: 12px; }
+.ob-dialog code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
+.ob-buttons { display: flex; justify-content: flex-end; gap: 6px; }
+/* The shipped focus ring (button:focus-visible), drawn statically. */
+.focus { outline: 1px solid var(--accent-line); outline-offset: -1px; }
+.tooltip { position: relative; width: fit-content; max-width: 420px; background: var(--text); color: var(--bg); border-radius: 6px; padding: 6px 12px; font-size: 12px; line-height: 1.5; }
+.tooltip::after { content: ""; position: absolute; left: 24px; top: -4px; width: 10px; height: 10px; background: var(--text); transform: rotate(45deg); border-radius: 2px; }
+/* Shipped right column: RightPanel (Canvas info) stacked over CommentsPanel, from styles.css. */
+.native-scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--raised) transparent; }
+.pempty { padding: 14px; font: 12.5px var(--font-sans); color: var(--text-3); }
+.accent { color: var(--accent); }
+.activity { border: 0; }
+.tl-row { display: flex; gap: 8px; padding: 3px 12px 3px 0; font: 11px var(--font-sans); color: var(--text-3); }
+.tl-row time { color: var(--text-4); width: 54px; }
+.tl-row b { font-weight: 400; color: var(--text-2); }
+.right-stack { min-height: 0; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--line); }
+.right-stack > .right { min-height: 100px; flex: 0 1 278px; border-left: 0; border-bottom: 1px solid var(--line); }
+.right-stack > .comments-panel { min-height: 160px; flex: 1 1 0; }
+.comments-panel { width: 100%; min-width: 0; min-height: 0; overflow: auto; background: var(--panel); overflow-wrap: anywhere; }
+.comments-head { padding: 12px; border-bottom: 1px solid var(--line-2); }
+.comments-head h3 { font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+.comments-segment { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; margin-bottom: 8px; }
+.comments-segment button { flex: 1; min-width: 0; padding: 5px 7px; font-size: 11.5px; border-radius: 4px; color: var(--text-3); }
+.comments-segment button[aria-pressed=true] { color: var(--accent); background: var(--accent-soft); }
+.comments-card { padding: 12px; border-bottom: 1px solid var(--line-2); }
+.comments-author { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 9px; }
+.comments-avatar { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--raised); color: var(--text-2); display: grid; place-items: center; font-size: 10px; font-weight: 600; }
+.comments-by { min-width: 0; flex: 1; }
+.comments-by b { display: block; font-size: 11.5px; font-weight: 600; overflow-wrap: anywhere; }
+.comments-by time, .comments-email { display: block; font-size: 10px; color: var(--text-3); line-height: 1.5; overflow-wrap: anywhere; }
+.comments-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; margin: 8px 0 10px; }
+.comments-target { display: block; max-width: 100%; color: var(--text-2); font-size: 10.5px; line-height: 1.5; overflow-wrap: anywhere; margin-bottom: 6px; text-align: left; }
+.comments-badges { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.comments-badge { display: inline-block; font-size: 10px; line-height: 1.5; padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--text-3); }
+.comments-badge.open { color: var(--accent); }
+
+/* Board layout (draft only), as in doan/onboard.html. */
+body { width: 1440px; padding: 48px; background: var(--board-bg); }
+/* The app gets these from Tailwind preflight, which the draft does not load. */
+button { border: 0; background: transparent; }
+.intro { max-width: 1238px; margin-bottom: 36px; }
+.intro h1 { font-size: 30px; margin-bottom: 12px; }
+.intro p, .note { font-size: 12px; line-height: 1.65; color: var(--text-3); margin: 10px 0; }
+.intro b, .note b { color: var(--text-2); font-weight: 600; }
+.intro code, .note code, .tile-label code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
+.frame { padding: 24px; margin-bottom: 32px; background: var(--bg); border: 1px solid var(--line); border-radius: 16px; }
+.flabel { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.flabel h2 { font-size: 18px; }
+.nic { border: 1px dashed var(--warn); color: var(--warn); font-size: 10px; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.states-head { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); margin: 28px 0 12px; }
+.tiles { display: grid; grid-template-columns: 640px 640px; gap: 24px 14px; align-items: start; }
+.tile-label { font-size: 12px; color: var(--text-2); margin: 0 0 8px; line-height: 1.5; }
+.tile-label b { color: var(--text); font-weight: 600; }
+.lights { display: flex; gap: 8px; width: 52px; flex: none; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; background: var(--tl-red); }
+.lights i:nth-child(2) { background: var(--tl-yellow); }
+.lights i:nth-child(3) { background: var(--tl-green); }
+.strip { width: 640px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); position: relative; }
+
+/* Window. Size from DESIGN.md 'App shell' (1238 × 780, top bar 40). */
+.win { width: 1238px; height: 780px; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-2); background: var(--bg); display: grid; grid-template-rows: 40px minmax(0, 1fr); position: relative; }
+.win.ws { grid-template-columns: 240px minmax(0, 1fr) 280px; }
+.win.ws.with-status { grid-template-rows: 40px auto minmax(0, 1fr); }
+.win.ws > .top, .win.ws > .ws-status { grid-column: 1 / -1; }
+
+/* ---------- New: Home ---------- */
+.home-body { min-height: 0; overflow: hidden; padding: 8px 32px 32px; position: relative; }
+.home-body .sec { padding: 16px 0 10px; }
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
+.card.flash { border-color: var(--accent-line); box-shadow: 0 0 0 1px var(--accent-line); }
+.card-head { display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 14px; min-width: 0; }
+.card-name { font: 600 13px var(--font-sans); color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-head .meta { flex: none; }
+.more { flex: none; width: 24px; height: 22px; border-radius: 6px; color: var(--text-3); display: grid; place-items: center; font-size: 13px; letter-spacing: 1px; }
+.more[aria-expanded="true"] { background: var(--raised); color: var(--text); }
+/* A worktree row. Two lines: label line and path line. */
+.wt { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; padding: 8px 8px 8px 14px; border-top: 1px solid var(--line-2); position: relative; cursor: pointer; min-width: 0; }
+.wt:hover, .wt.hov { background: var(--panel-2); }
+.wt[aria-current="true"] { background: var(--raised); }
+.wt[aria-current="true"]::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; background: var(--accent); border-radius: 1px; }
+.wt.problem { cursor: default; }
+.wt-label { display: flex; align-items: center; gap: 6px; min-width: 0; font: 12.5px var(--font-sans); color: var(--text); white-space: nowrap; }
+.wt-label .glyph { width: 12px; }
+.wt[aria-current="true"] .wt-label .glyph { color: var(--accent); }
+.wt-label .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wt-label .name.path { color: var(--text-2); }
+.wt-end { display: flex; align-items: center; gap: 6px; justify-content: flex-end; white-space: nowrap; }
+.wt-sum { font: 11px var(--font-sans); color: var(--text-3); white-space: nowrap; }
+.wt-sum .hot { color: var(--accent); }
+.wt-path { grid-column: 1 / 2; font: 11px var(--font-sans); color: var(--text-4); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 18px; }
+.wt-sel { grid-column: 1 / -1; font: 11px var(--font-sans); color: var(--text-2); padding-left: 18px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-sel b { color: var(--accent); font-weight: 500; }
+.open-tag { flex: none; font: 600 10px var(--font-sans); color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 1px 6px; }
+.wt-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; padding-left: 18px; margin-top: 3px; }
+.wt-actions .btn { padding: 2px 8px; font-size: 11px; }
+.wt-detail { grid-column: 1 / -1; margin: 4px 0 0 18px; }
+.wt-detail code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
+
+/* In-app menu (row, card, worktree switcher). Surface from the dialog tokens; item highlight from styles.css @theme (--color-accent = accent-soft). */
+.menu { position: absolute; z-index: 5; min-width: 200px; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-2); padding: 4px; }
+.menu.static { position: relative; }
+.mi { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px; border-radius: 5px; font: 12px var(--font-sans); color: var(--text); text-align: left; white-space: nowrap; }
+.mi.on { background: var(--accent-soft); color: var(--accent); }
+.mi.danger { color: var(--err); }
+.mi .r { margin-left: auto; color: var(--text-3); font-size: 11px; }
+.mi .check { width: 12px; flex: none; color: var(--accent); }
+.mi .sub { color: var(--text-4); font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mi .label { flex: none; }
+.mi:disabled { opacity: .4; }
+.menu-sep { height: 1px; background: var(--line); margin: 4px 2px; }
+.menu-head { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); padding: 6px 10px 4px; }
+
+/* ---------- New: modal surfaces ---------- */
+.scrim { position: absolute; inset: 0; background: var(--board-bg); opacity: .6; }
+.win > .ob-dialog, .win > .comments-dialog, .win > .add-dialog { position: absolute; }
+.add-dialog { width: 560px; background: var(--raised); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-2); border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
+.add-dialog h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.add-dialog .lead { font-size: 12px; line-height: 1.6; color: var(--text-2); margin-bottom: 12px; }
+.add-dialog .lead code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
+.cl { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; color-scheme: dark; }
+.cl-item { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line-2); }
+.cl-item:first-child { border-top: 0; }
+.cl-item input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
+.cl-item.sub { padding-left: 38px; background: var(--panel-2); }
+.cl-name { font: 12.5px var(--font-sans); color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-name .kind { color: var(--text-3); font-size: 11px; margin-left: 6px; }
+.cl-path { grid-column: 2 / 3; font: 11px var(--font-sans); color: var(--text-4); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-item.off .cl-name { color: var(--text-3); }
+.cl-item.off input { opacity: .4; }
+.add-foot { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.scan { display: flex; align-items: center; gap: 8px; font: 11.5px var(--font-sans); color: var(--text-3); }
+.scan .spinner { width: 12px; height: 12px; border-width: 2px; margin: 0; }
+.bar { height: 2px; background: var(--line); border-radius: 1px; overflow: hidden; margin: 0 0 12px; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+
+/* ---------- New: toast ---------- */
+.toast { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 12px; max-width: 560px; background: var(--raised); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-2); padding: 8px 8px 8px 14px; font: 12.5px/1.5 var(--font-sans); color: var(--text); }
+.toast.static { position: relative; left: auto; bottom: auto; transform: none; width: fit-content; }
+.toast .msg { min-width: 0; overflow-wrap: anywhere; }
+.toast .msg span { color: var(--text-3); }
+.toast.solo { padding-right: 14px; }
+
+/* ---------- New: drop overlay ---------- */
+.drop { position: absolute; inset: 0; z-index: 8; }
+.drop .scrim { opacity: .82; }
+.drop-zone { position: absolute; inset: 12px; border: 2px dashed var(--accent-line); border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
+.drop-zone b { font: 600 18px var(--font-sans); color: var(--text); }
+.drop-zone p { font: 12.5px/1.6 var(--font-sans); color: var(--text-3); max-width: 360px; }
+.drop-glyph { width: 44px; height: 44px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-size: 22px; margin-bottom: 4px; }
+
+/* ---------- New: workspace top bar and status line ---------- */
+.back { flex: none; width: 26px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--text-2); font-size: 14px; }
+.top .divider { width: 1px; height: 18px; background: var(--line); flex: none; margin: 0 -4px; }
+.crumbs { display: flex; align-items: center; gap: 6px; min-width: 0; font: 12px var(--font-sans); color: var(--text-3); white-space: nowrap; }
+.crumbs { flex: 0 1 auto; }
+.crumbs .repo { color: var(--text-2); min-width: 48px; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+.crumbs .sep { color: var(--text-4); flex: none; }
+.crumbs .canvas { color: var(--text); min-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+.branch { position: relative; flex: 0 1 auto; min-width: 72px; display: inline-flex; align-items: center; gap: 5px; max-width: 240px; font: 12px var(--font-sans); color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px 2px 7px; }
+.branch .bn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.branch .caret { color: var(--text-3); font-size: 10px; }
+.branch[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent-line); }
+.ws-status { display: flex; align-items: center; gap: 10px; padding: 7px 12px; background: var(--panel-2); border-bottom: 1px solid var(--line); font: 12px var(--font-sans); color: var(--text-2); min-width: 0; }
+.ws-status .text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.ws-status .text code { color: var(--text-2); background: var(--raised); border-radius: 4px; padding: 0 4px; }
+.ws-status .btn { padding: 3px 9px; font-size: 11.5px; }
+.ws-detail { padding: 8px 12px 10px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
+
+/* Mock canvas inside the workspace specimen (the design a human reviews; colors from doan/../assets/mock.css). */
+.mboard { position: absolute; left: 40px; top: 48px; width: 560px; height: 420px; background: var(--mock-bg); color: var(--mock-ink); box-shadow: var(--shadow-1); }
+.mboard .ftag { position: absolute; top: -18px; left: 0; font: 10.5px var(--font-sans); color: var(--text-3); white-space: nowrap; }
+.mnav { height: 40px; border-bottom: 1px solid var(--mock-line); display: flex; align-items: center; gap: 16px; padding: 0 18px; font-size: 11px; color: var(--mock-ink-2); }
+.mnav b { color: var(--mock-ink); font-size: 12px; margin-right: auto; }
+.mcard { margin: 40px auto 0; width: 280px; border: 1px solid var(--mock-line); border-radius: 12px; padding: 20px; font-size: 12px; }
+.mcard h4 { font-size: 15px; margin-bottom: 12px; }
+.mline { height: 30px; border: 1px solid var(--mock-line); border-radius: 6px; margin-bottom: 10px; background: var(--mock-fill); }
+.mbtn { height: 34px; border-radius: 8px; background: var(--mock-brand); color: var(--mock-brand-ink); display: grid; place-items: center; font-weight: 600; }
+
+/* Menu enable table (tile). */
+.mtable { width: 640px; border-collapse: collapse; font: 11.5px var(--font-sans); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.mtable th, .mtable td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line-2); color: var(--text-2); }
+.mtable th { font-weight: 600; color: var(--text-3); font-size: 10.5px; }
+.mtable td.y { color: var(--ok); }
+.mtable td.n { color: var(--text-4); }
+.mtable tr:last-child td { border-bottom: 0; }
+</style>
+</head>
+<body>
+
+<header class="intro">
+<h1>Projects home — draft</h1>
+<p><b>Scope.</b> Feature <code>projects-home</code> — the projects-home feature documents (retired 2026-10-25; decisions in docs/PRODUCT.md §7, structure in docs/ARCHITECTURE.md §7/§13). Home with its project cards and empty state, every card-row state, the add checklist, the folder set-up confirmation, the shared toast, the drop overlay, and the workspace top bar with the worktree switcher and the workspace status line. The remove draft-guard copy and the per-screen menu enable table are tiles inside <code>workspace</code> (docs/PRODUCT.md §7, conductor decision 2026-10-25).</p>
+<p><b>New.</b> <code>home</code>, <code>home-empty</code>, <code>row-states</code>, <code>add-checklist</code>, <code>setup-confirm</code>, <code>toast</code> and <code>drop-overlay</code> are entirely new (the retired projects-home feature documents name the future components Home, ProjectCard, AddProjectsDialog, SetUpFolderConfirm, Toast and DropOverlay; none exist yet, so those frames carry no data-doan-implements). In <code>workspace</code> only the parts with a dashed yellow label are new: the top bar's ← and breadcrumb with the branch chip, the switcher menu, the status line, and the guard copy. The rest of that window copies the shipped shell. Copy that the feature documents do not give was drawn by this draft and is marked “draft copy” in its frame label; the list is in the handoff.</p>
+<p><b>Copied from shipped screens.</b> Window 1238 × 780, top bar 40 px, traffic-light space, logo, buttons, keys, chips, the sidebar tree rows (26 px), the canvas area, zoom control, the right column (Canvas panel and Comments section, RightPanel.tsx and CommentsPanel.tsx stacked in <code>.right-stack</code>, App.tsx), the focus ring, the tooltip, the onboarding chips (<code>.ob-chip</code>) and the dialog surfaces (<code>.comments-dialog</code>, <code>.ob-dialog</code>) come from app/src/renderer/styles.css, App.tsx, Sidebar.tsx, CommentsPanel.tsx and docs/DESIGN.md (App shell, Comments, Onboarding). The draft-guard dialog keeps the shipped UnsavedCommentDialog title, buttons and sentence; only its context part changes. The workspace sidebar keeps the shipped tree shape and the “Projects” section title with only the current root, and drops the “Open Project…” section action (conductor decision 2026-10-25: Add Project… ⌘O and Home's + button are the add entry points; <code>openFolder()</code> stays the wizard's single-select contract).</p>
+<p><b>/design-sync</b> compares the main specimen and every labelled tile of all eight frames, except the shipped parts of <code>workspace</code> (sidebar tree, canvas area, right panel, zoom), which DESIGN.md already measures and are drawn for context only. Native menus (File, Edit, Go) cannot be measured; their tile documents items and enablement only.</p>
+<p><b>Decisions applied.</b> Feature Q&amp;A 1–4, Q1, R1–R3, R6 (spec.md). Scan behavior (conductor answer 2026-10-25): while scanning, found candidates fill in as “Checking…” (disabled), a progress line shows “n of N”, Add stays disabled until the scan ends, and Cancel stops the remaining checks and closes the dialog without saving anything. Draft decisions (not in the feature documents, for the conductor to accept or change): three-column card grid; a row shows the branch (or path when there is no branch) on line 1 and the folder path on line 2; problem actions sit on their own line under the row; the row and card menus and the worktree switcher are in-app menus (role=menu) so e2e can read them by role and name; a newly added or re-added card gets a 1 px accent outline.</p>
+<p><b>Revision 1 (2026-10-25, conductor review).</b> The workspace right column now copies the shipped Canvas panel (Path, ID, Width, Frames; Comments Open/Resolved; Activity; the hint line) and the shipped Comments section under it. The switcher has a tile with every problem state, the status line has a Reading… variant, and the row states have a long Selected value. CLI error shows only its chip and actions everywhere (no reason line); the add checklist's Couldn't read is the disabled chip only. Status-line actions equal the row actions plus Go Home; Config error's Details expands the CLI message under the line.</p>
+<p><b>Conductor decisions (2026-10-25).</b> Remove-all toast label “&lt;repo&gt; and N worktrees”: N is the number of rows minus one (as drawn). The monorepo card name keeps design.md's rule (basename of <code>git.main</code>, so “web”); naming it by the work tree's basename is only a possible follow-up, outside this draft. A card with a single row draws its branch chip disabled (accepted).</p>
+<p><b>References.</b> Sorcerer (github.com/gbrasil720/sorcerer, MIT), <b>checked</b> on 2026-10-25 at commit 18d6192 (shallow clone in a scratch directory, not vendored): the workspace top bar follows its <code>‹ experiment / branch A ▾</code> breadcrumb (docs/screenshots/update.png, palette.png) — back chevron, project name, a branch label in the accent color with a caret that opens a menu; the template-card meta line joined by “ · ” (new-experiment-actions.png) is the row summary; the drop target is an accent stroke over the area (apps/macos/Sources/Sorcerer/NewExperiment.swift, <code>.onDrop</code> + <code>RoundedRectangle(cornerRadius: 8).stroke(Color.ember, lineWidth: 2)</code>); its web app uses sonner toasts (apps/web/src/routes/__root.tsx), and only the bottom single-toast placement was taken. The Finder Go menu convention for Home is cited from design.md, not rechecked. Orca, Claude Design, ego-browser and Storybook were not checked for this draft.</p>
+<p><b>Example data.</b> User alex. Repository acme-web with a main checkout at /Users/alex/code/acme-web and two linked worktrees; a monorepo whose doan root is packages/web; a non-git folder brand-kit. Paths in the tiles include long values on purpose.</p>
+</header>
+
+<!-- ===================================================== home -->
+<section class="frame" data-doan-frame="home" data-doan-title="Home">
+<div class="flabel"><h2>Home</h2><span class="nic">new · not in code</span><span class="nic">draft copy: “Projects” heading and count</span></div>
+<p class="note">Main specimen: six saved paths in stored order grouped into five cards by <code>git.common</code>. acme-web is the loaded workspace (hidden, not unloaded) with a selection, so its main row shows Open and Selected and has <code>aria-current</code>. Clicking a normal row enters that workspace; clicking a problem row only moves focus to its first action. Tab moves between cards; ↑↓ moves between rows inside a card; Enter opens. Going Home focuses the loaded row (here acme-web · main).</p>
+<div class="win" data-doan-id="home-window">
+ <div class="top" data-doan-id="home-top"><div class="lights"><i></i><i></i><i></i></div><span class="logo"><i></i>doan</span><span class="spacer"></span><button class="btn" aria-label="Add Project…" data-doan-id="home-add">+ Add Project… <span class="kbd">⌘O</span></button></div>
+ <main class="home-body" aria-label="Home">
+  <div class="sec" data-doan-id="home-heading">Projects <span class="r">5</span></div>
+  <div class="cards" data-doan-id="home-cards">
+   <!-- card: acme-web, three worktrees -->
+   <section class="card" aria-label="acme-web" data-doan-id="card">
+    <div class="card-head" data-doan-id="card-head"><span class="card-name" data-doan-id="card-name">acme-web</span><span class="meta" data-doan-id="card-count">3 worktrees</span><span class="spacer"></span><button class="more" aria-label="More actions for acme-web" aria-haspopup="menu" data-doan-id="card-more">···</button></div>
+    <div class="wt" role="button" tabindex="0" aria-current="true" aria-label="acme-web, main" data-doan-id="row-current">
+     <span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name" data-doan-id="row-branch">main</span><span class="open-tag" data-doan-id="row-open">Open</span></span>
+     <span class="wt-end"><span class="wt-sum" data-doan-id="row-summary">14 canvases · <span class="hot">3 open</span> · 2h ago</span><button class="more" aria-label="More actions for acme-web (main)" aria-haspopup="menu" data-doan-id="row-more">···</button></span>
+     <span class="wt-path" data-doan-id="row-path">~/code/acme-web</span>
+     <span class="wt-sel" data-doan-id="row-selected">Selected: <b>Checkout</b></span>
+    </div>
+    <div class="wt" role="button" tabindex="-1" aria-label="acme-web, feat-billing" data-doan-id="row">
+     <span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">feat-billing</span></span>
+     <span class="wt-end"><span class="wt-sum">14 canvases · 5m ago</span><button class="more" aria-label="More actions for acme-web (feat-billing)" aria-haspopup="menu">···</button></span>
+     <span class="wt-path">~/code/worktrees/feat-billing/acme-web</span>
+    </div>
+    <div class="wt" role="button" tabindex="-1" aria-label="acme-web, detached 3f9c2a1" data-doan-id="row-detached">
+     <span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">detached 3f9c2a1</span></span>
+     <span class="wt-end"><span class="wt-sum">13 canvases · Yesterday</span><button class="more" aria-label="More actions for acme-web (detached 3f9c2a1)" aria-haspopup="menu">···</button></span>
+     <span class="wt-path">~/code/worktrees/review-pr-482/acme-web</span>
+    </div>
+   </section>
+   <!-- card: design-system, one row, open comments -->
+   <section class="card" aria-label="checkout-flow">
+    <div class="card-head"><span class="card-name">checkout-flow</span><span class="spacer"></span><button class="more" aria-label="More actions for checkout-flow" aria-haspopup="menu">···</button></div>
+    <div class="wt" role="button" tabindex="0" aria-label="checkout-flow, release/2026-11">
+     <span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">release/2026-11</span></span>
+     <span class="wt-end"><span class="wt-sum">6 canvases · <span class="hot">1 open</span> · 3d ago</span><button class="more" aria-label="More actions for checkout-flow (release/2026-11)" aria-haspopup="menu">···</button></span>
+     <span class="wt-path">~/code/checkout-flow</span>
+    </div>
+   </section>
+   <!-- card: brand-kit, not git -->
+   <section class="card" aria-label="brand-kit" data-doan-id="card-nongit">
+    <div class="card-head"><span class="card-name">brand-kit</span><span class="spacer"></span><button class="more" aria-label="More actions for brand-kit" aria-haspopup="menu">···</button></div>
+    <div class="wt" role="button" tabindex="0" aria-label="brand-kit" data-doan-id="row-nongit">
+     <span class="wt-label"><span class="glyph" aria-hidden="true">◌</span><span class="name path" data-doan-id="row-nongit-label">~/Documents/brand-kit</span></span>
+     <span class="wt-end"><span class="wt-sum">2 canvases · Oct 12</span><button class="more" aria-label="More actions for brand-kit" aria-haspopup="menu">···</button></span>
+    </div>
+   </section>
+   <!-- card: marketing-site, not set up -->
+   <section class="card" aria-label="marketing-site">
+    <div class="card-head"><span class="card-name">marketing-site</span><span class="spacer"></span><button class="more" aria-label="More actions for marketing-site" aria-haspopup="menu">···</button></div>
+    <div class="wt problem" role="group" aria-label="marketing-site, Not set up" data-doan-id="row-home-notsetup">
+     <span class="wt-label"><span class="glyph" aria-hidden="true">◌</span><span class="name path">~/code/marketing-site</span></span>
+     <span class="wt-end"><span class="ob-chip">Not set up</span><button class="more" aria-label="More actions for marketing-site" aria-haspopup="menu">···</button></span>
+     <span class="wt-actions"><button class="btn">Set Up…</button><button class="btn ghost">Remove</button></span>
+    </div>
+   </section>
+   <!-- card: mobile-app, main fine, one worktree missing -->
+   <section class="card" aria-label="mobile-app">
+    <div class="card-head"><span class="card-name">mobile-app</span><span class="meta">2 worktrees</span><span class="spacer"></span><button class="more" aria-label="More actions for mobile-app" aria-haspopup="menu">···</button></div>
+    <div class="wt" role="button" tabindex="0" aria-label="mobile-app, main">
+     <span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">main</span></span>
+     <span class="wt-end"><span class="wt-sum">0 canvases · —</span><button class="more" aria-label="More actions for mobile-app (main)" aria-haspopup="menu">···</button></span>
+     <span class="wt-path">~/code/mobile-app</span>
+    </div>
+    <div class="wt problem" role="group" aria-label="mobile-app, hotfix-login, Missing" data-doan-id="row-home-missing">
+     <span class="wt-label"><span class="glyph" aria-hidden="true">⎇</span><span class="name">hotfix-login</span></span>
+     <span class="wt-end"><span class="ob-chip warn">Missing</span><button class="more" aria-label="More actions for mobile-app (hotfix-login)" aria-haspopup="menu">···</button></span>
+     <span class="wt-path">~/code/worktrees/hotfix-login/mobile-app</span>
+     <span class="wt-actions"><button class="btn">Locate…</button><button class="btn ghost">Remove</button></span>
+    </div>
+   </section>
+  </div>
+ </main>
+</div>
+
+<h3 class="states-head">Home details</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>Card menu open</b> — the card's ··· button or a right-click on the card head. One item.</p>
+  <div class="card" style="width:380px;overflow:visible;position:relative">
+   <div class="card-head"><span class="card-name">acme-web</span><span class="meta">3 worktrees</span><span class="spacer"></span><button class="more" aria-expanded="true" aria-label="More actions for acme-web">···</button></div>
+   <div class="menu" role="menu" aria-label="acme-web" style="right:8px;top:36px" data-doan-id="card-menu"><button class="mi on" role="menuitem" data-doan-id="card-menu-remove-all">Remove all</button></div>
+   <div class="wt"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum">14 canvases · 2h ago</span><button class="more">···</button></span><span class="wt-path">~/code/acme-web</span></div>
+   <div class="wt"><span class="wt-label"><span class="glyph">⎇</span><span class="name">feat-billing</span></span><span class="wt-end"><span class="wt-sum">14 canvases · 5m ago</span><button class="more">···</button></span><span class="wt-path">~/code/worktrees/feat-billing/acme-web</span></div>
+  </div></div>
+ <div><p class="tile-label"><b>Row menu open</b> — a row's ··· button or a right-click on the row. Show in Finder reveals the root only.</p>
+  <div class="card" style="width:380px;overflow:visible;position:relative">
+   <div class="card-head"><span class="card-name">acme-web</span><span class="meta">3 worktrees</span><span class="spacer"></span><button class="more">···</button></div>
+   <div class="wt hov"><span class="wt-label"><span class="glyph">⎇</span><span class="name">feat-billing</span></span><span class="wt-end"><span class="wt-sum">14 canvases · 5m ago</span><button class="more" aria-expanded="true" aria-label="More actions for acme-web (feat-billing)">···</button></span><span class="wt-path">~/code/worktrees/feat-billing/acme-web</span></div>
+   <div class="menu" role="menu" aria-label="acme-web (feat-billing)" style="right:8px;top:88px" data-doan-id="row-menu"><button class="mi on" role="menuitem" data-doan-id="row-menu-reveal">Show in Finder</button><div class="menu-sep" role="separator"></div><button class="mi" role="menuitem" data-doan-id="row-menu-remove">Remove from doan</button></div>
+   <div class="wt"><span class="wt-label"><span class="glyph">⎇</span><span class="name">detached 3f9c2a1</span></span><span class="wt-end"><span class="wt-sum">13 canvases · Yesterday</span><button class="more">···</button></span><span class="wt-path">~/code/worktrees/review-pr-482/acme-web</span></div>
+   <div style="height:40px"></div>
+  </div></div>
+ <div><p class="tile-label"><b>Added or already added</b> — Home scrolls to the card and outlines it briefly (new card after Add, or the existing card when the folder was already saved).</p>
+  <section class="card flash" style="width:380px" aria-label="billing-api" data-doan-id="card-flash">
+   <div class="card-head"><span class="card-name">billing-api</span><span class="spacer"></span><button class="more">···</button></div>
+   <div class="wt"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum">3 canvases · 1h ago</span><button class="more">···</button></span><span class="wt-path">~/code/billing-api</span></div>
+  </section></div>
+ <div><p class="tile-label"><b>Recent change tooltip</b> — relative time in the row, absolute time in the tooltip. A row with no canvases shows “—”.</p>
+  <div class="card" style="width:380px"><div class="wt"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum">14 canvases · <span class="hot">3 open</span> · 2h ago</span><button class="more">···</button></span><span class="wt-path">~/code/acme-web</span></div></div>
+  <div class="tooltip" style="margin:10px 0 0 170px" data-doan-id="row-time-tooltip">Sat, Oct 25, 2026, 2:14 PM</div></div>
+</div>
+</section>
+
+<!-- ===================================================== home-empty -->
+<section class="frame" data-doan-frame="home-empty" data-doan-title="Home — empty">
+<div class="flabel"><h2>Home — empty</h2><span class="nic">new · not in code</span><span class="nic">draft copy: “No projects yet” kept, drop line</span></div>
+<p class="note">No saved projects. The sentence and the button come from design.md 'Home'; the heading reuses the shipped empty state's “No projects yet” and its <code>.empty</code> style. The app always starts on Home in this feature.</p>
+<div class="win" data-doan-id="empty-window">
+ <div class="top"><div class="lights"><i></i><i></i><i></i></div><span class="logo"><i></i>doan</span><span class="spacer"></span><button class="btn" aria-label="Add Project…" data-doan-id="empty-top-add">+ Add Project… <span class="kbd">⌘O</span></button></div>
+ <main class="home-body" aria-label="Home" style="padding:0">
+  <div class="empty" data-doan-id="empty">
+   <b data-doan-id="empty-title">No projects yet</b>
+   <p data-doan-id="empty-text">Add a project to see its design canvases.</p>
+   <button class="btn primary" data-doan-id="empty-add">Add Project… <span class="kbd">⌘O</span></button>
+   <p class="meta" data-doan-id="empty-drop">Or drop folders anywhere in this window.</p>
+  </div>
+ </main>
+</div>
+</section>
+
+<!-- ===================================================== row-states -->
+<section class="frame" data-doan-frame="row-states" data-doan-title="Card and row states">
+<div class="flabel"><h2>Card and row states</h2><span class="nic">new · not in code</span><span class="nic">draft copy: problem-line sentences</span></div>
+<p class="note">Every row state from design.md 'Problem rows' plus the marks. Chips reuse the onboarding chip colors: Missing and CLI error in warn, Config error in err, Not set up and Reading… neutral. A problem row is <code>role="group"</code> and is not clickable; its actions sit on a line under it. A row without a branch (not git, or not set up so <code>git</code> is unknown) shows its path as the label and has no path line. Card width in these tiles is 380 px, the width a card gets in the three-column grid.</p>
+<div class="tiles">
+ <div><p class="tile-label"><b>Normal</b> — branch, canvas count, open comments when above 0, recent change. Hover tints the row.</p>
+  <div class="card" style="width:380px"><div class="card-head"><span class="card-name">acme-web</span><span class="meta">2 worktrees</span><span class="spacer"></span><button class="more">···</button></div>
+   <div class="wt" data-doan-id="rs-normal"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum">14 canvases · <span class="hot">3 open</span> · 2h ago</span><button class="more">···</button></span><span class="wt-path">~/code/acme-web</span></div>
+   <div class="wt hov" data-doan-id="rs-hover"><span class="wt-label"><span class="glyph">⎇</span><span class="name">feat-billing</span></span><span class="wt-end"><span class="wt-sum">14 canvases · 5m ago</span><button class="more">···</button></span><span class="wt-path">~/code/worktrees/feat-billing/acme-web</span></div></div></div>
+ <div><p class="tile-label"><b>Open · Selected</b> — the loaded workspace. Open alone when nothing is selected; Selected shows the frame title, or the element tag · id.</p>
+  <div class="card" style="width:380px">
+   <div class="wt" aria-current="true" data-doan-id="rs-open"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span><span class="open-tag">Open</span></span><span class="wt-end"><span class="wt-sum">14 canvases · 2h ago</span><button class="more">···</button></span><span class="wt-path">~/code/acme-web</span></div>
+   <div class="wt" aria-current="true" data-doan-id="rs-selected-frame"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span><span class="open-tag">Open</span></span><span class="wt-end"><span class="wt-sum">14 canvases · 2h ago</span><button class="more">···</button></span><span class="wt-path">~/code/acme-web</span><span class="wt-sel">Selected: <b>Checkout</b></span></div>
+   <div class="wt" aria-current="true" data-doan-id="rs-selected-element"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span><span class="open-tag">Open</span></span><span class="wt-end"><span class="wt-sum">14 canvases · 2h ago</span><button class="more">···</button></span><span class="wt-path">~/code/acme-web</span><span class="wt-sel">Selected: <b>button · pay-button</b></span></div></div></div>
+ <div><p class="tile-label"><b>Not set up</b> — <code>uninitialized</code>. Set Up… opens the shipped ProjectSetupDialog.</p>
+  <div class="card" style="width:380px"><div class="card-head"><span class="card-name">marketing-site</span><span class="spacer"></span><button class="more">···</button></div>
+   <div class="wt problem" role="group" aria-label="marketing-site, Not set up" data-doan-id="rs-notsetup"><span class="wt-label"><span class="glyph">◌</span><span class="name path">~/code/marketing-site</span></span><span class="wt-end"><span class="ob-chip" data-doan-id="rs-notsetup-chip">Not set up</span><button class="more">···</button></span>
+    <span class="wt-actions"><button class="btn" data-doan-id="rs-notsetup-setup">Set Up…</button><button class="btn ghost" data-doan-id="rs-notsetup-remove">Remove</button></span></div></div></div>
+ <div><p class="tile-label"><b>Missing</b> — <code>notFound</code>. Locate… picks the folder again and replaces the row in place. Clicking the row focused Locate… (focus ring).</p>
+  <div class="card" style="width:380px"><div class="card-head"><span class="card-name">mobile-app</span><span class="meta">2 worktrees</span><span class="spacer"></span><button class="more">···</button></div>
+   <div class="wt"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum">4 canvases · 1d ago</span><button class="more">···</button></span><span class="wt-path">~/code/mobile-app</span></div>
+   <div class="wt problem" role="group" aria-label="mobile-app, hotfix-login, Missing" data-doan-id="rs-missing"><span class="wt-label"><span class="glyph">⎇</span><span class="name">hotfix-login</span></span><span class="wt-end"><span class="ob-chip warn" data-doan-id="rs-missing-chip">Missing</span><button class="more">···</button></span><span class="wt-path">~/code/worktrees/hotfix-login/mobile-app</span>
+    <span class="wt-actions"><button class="btn focus" data-doan-id="rs-missing-locate">Locate…</button><button class="btn ghost" data-doan-id="rs-missing-remove">Remove</button></span></div></div></div>
+ <div><p class="tile-label"><b>Config error</b> — <code>error</code>. Show in Finder reveals the root; Details expands the error text. The row stays in its card (last seen <code>git.common</code>).</p>
+  <div class="card" style="width:380px"><div class="card-head"><span class="card-name">acme-web</span><span class="meta">2 worktrees</span><span class="spacer"></span><button class="more">···</button></div>
+   <div class="wt problem" role="group" aria-label="acme-web, feat-billing, Config error" data-doan-id="rs-config"><span class="wt-label"><span class="glyph">⎇</span><span class="name">feat-billing</span></span><span class="wt-end"><span class="ob-chip err" data-doan-id="rs-config-chip">Config error</span><button class="more">···</button></span><span class="wt-path">~/code/worktrees/feat-billing/acme-web</span>
+    <span class="wt-actions"><button class="btn" data-doan-id="rs-config-reveal">Show in Finder</button><button class="btn" data-doan-id="rs-config-retry">Retry</button><button class="btn ghost" aria-expanded="false" data-doan-id="rs-config-details">Details ▸</button></span></div></div></div>
+ <div><p class="tile-label"><b>Config error — Details open</b> — the CLI's error message, wrapped.</p>
+  <div class="card" style="width:380px">
+   <div class="wt problem" role="group" aria-label="acme-web, feat-billing, Config error"><span class="wt-label"><span class="glyph">⎇</span><span class="name">feat-billing</span></span><span class="wt-end"><span class="ob-chip err">Config error</span><button class="more">···</button></span><span class="wt-path">~/code/worktrees/feat-billing/acme-web</span>
+    <span class="wt-actions"><button class="btn">Show in Finder</button><button class="btn">Retry</button><button class="btn ghost" aria-expanded="true" data-doan-id="rs-config-details-open">Details ▾</button></span>
+    <span class="wt-detail ob-msg error" data-doan-id="rs-config-message"><code>.doan/config.json</code> is not valid JSON: unexpected token } at line 4, column 1</span></div></div></div>
+ <div><p class="tile-label"><b>CLI error</b> — <code>cliError</code>. Chip and actions only; no reason line (design.md 'Problem rows').</p>
+  <div class="card" style="width:380px"><div class="card-head"><span class="card-name">checkout-flow</span><span class="spacer"></span><button class="more">···</button></div>
+   <div class="wt problem" role="group" aria-label="checkout-flow, release/2026-11, CLI error" data-doan-id="rs-cli"><span class="wt-label"><span class="glyph">⎇</span><span class="name">release/2026-11</span></span><span class="wt-end"><span class="ob-chip warn" data-doan-id="rs-cli-chip">CLI error</span><button class="more">···</button></span><span class="wt-path">~/code/checkout-flow</span>
+    <span class="wt-actions"><button class="btn" data-doan-id="rs-cli-retry">Retry</button><button class="btn ghost" data-doan-id="rs-cli-remove">Remove</button></span></div></div></div>
+ <div><p class="tile-label"><b>Reading…</b> — <code>loading</code>. No summary, no actions; the menu still works.</p>
+  <div class="card" style="width:380px"><div class="card-head"><span class="card-name">acme-web</span><span class="spacer"></span><button class="more">···</button></div>
+   <div class="wt problem" role="group" aria-label="acme-web, Reading…" data-doan-id="rs-loading"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="ob-chip" data-doan-id="rs-loading-chip">Reading…</span><button class="more">···</button></span><span class="wt-path">~/code/acme-web</span></div></div></div>
+ <div><p class="tile-label"><b>Detached and no canvases</b> — <code>detached</code> plus the first 7 hex digits. A list with 0 canvases shows “—” for the recent change.</p>
+  <div class="card" style="width:380px"><div class="card-head"><span class="card-name">acme-web</span><span class="meta">2 worktrees</span><span class="spacer"></span><button class="more">···</button></div>
+   <div class="wt" data-doan-id="rs-detached"><span class="wt-label"><span class="glyph">⎇</span><span class="name">detached 3f9c2a1</span></span><span class="wt-end"><span class="wt-sum">13 canvases · Yesterday</span><button class="more">···</button></span><span class="wt-path">~/code/worktrees/review-pr-482/acme-web</span></div>
+   <div class="wt" data-doan-id="rs-nocanvas"><span class="wt-label"><span class="glyph">⎇</span><span class="name">spike/new-nav</span></span><span class="wt-end"><span class="wt-sum">0 canvases · —</span><button class="more">···</button></span><span class="wt-path">~/code/worktrees/new-nav/acme-web</span></div></div></div>
+ <div><p class="tile-label"><b>Not git</b> — one card per folder, no branch, path as the label.</p>
+  <div class="card" style="width:380px"><div class="card-head"><span class="card-name">brand-kit</span><span class="spacer"></span><button class="more">···</button></div>
+   <div class="wt" data-doan-id="rs-nongit"><span class="wt-label"><span class="glyph">◌</span><span class="name path">~/Documents/brand-kit</span></span><span class="wt-end"><span class="wt-sum">2 canvases · Oct 12</span><button class="more">···</button></span></div></div></div>
+ <div><p class="tile-label"><b>Monorepo</b> — the doan root is <code>packages/web</code> inside the repository; each worktree maps the same relative path. The card name is the basename of <code>git.main</code> (design.md rule), so it reads “web”.</p>
+  <div class="card" style="width:380px"><div class="card-head"><span class="card-name" data-doan-id="rs-mono-name">web</span><span class="meta">2 worktrees</span><span class="spacer"></span><button class="more">···</button></div>
+   <div class="wt" data-doan-id="rs-mono"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum">6 canvases · 3d ago</span><button class="more">···</button></span><span class="wt-path">~/code/design-system/packages/web</span></div>
+   <div class="wt"><span class="wt-label"><span class="glyph">⎇</span><span class="name">tokens-v2</span></span><span class="wt-end"><span class="wt-sum">7 canvases · 4h ago</span><button class="more">···</button></span><span class="wt-path">~/code/worktrees/tokens-v2/design-system/packages/web</span></div></div></div>
+ <div><p class="tile-label"><b>Long names and paths</b> — the card name, branch and path truncate with an ellipsis; the summary never truncates. The path tooltip shows the full root.</p>
+  <div class="card" style="width:380px"><div class="card-head"><span class="card-name" data-doan-id="rs-long-name">customer-onboarding-experience-redesign-2026-q4-final</span><span class="meta">2 worktrees</span><span class="spacer"></span><button class="more">···</button></div>
+   <div class="wt" data-doan-id="rs-long"><span class="wt-label"><span class="glyph">⎇</span><span class="name" data-doan-id="rs-long-branch">feature/ONB-1142-progressive-profile-step-with-skip-and-resume</span></span><span class="wt-end"><span class="wt-sum">128 canvases · <span class="hot">42 open</span> · 12m ago</span><button class="more">···</button></span><span class="wt-path" data-doan-id="rs-long-path">~/Library/Mobile Documents/com~apple~CloudDocs/work/clients/acme/customer-onboarding-experience-redesign-2026-q4-final</span></div>
+   <div class="wt problem" role="group"><span class="wt-label"><span class="glyph">◌</span><span class="name path">~/Library/Mobile Documents/com~apple~CloudDocs/work/clients/acme/customer-onboarding-old</span></span><span class="wt-end"><span class="ob-chip warn">Missing</span><button class="more">···</button></span><span class="wt-actions"><button class="btn">Locate…</button><button class="btn ghost">Remove</button></span></div></div>
+  <div class="tooltip" style="margin:10px 0 0 18px;max-width:420px" data-doan-id="rs-long-tooltip">/Users/alex/Library/Mobile Documents/com~apple~CloudDocs/work/clients/acme/customer-onboarding-experience-redesign-2026-q4-final</div></div>
+ <div><p class="tile-label"><b>Long selection</b> — on the Open row, a long element id truncates with an ellipsis; the tooltip shows the full value.</p>
+  <div class="card" style="width:380px">
+   <div class="wt" aria-current="true" data-doan-id="rs-selected-long"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span><span class="open-tag">Open</span></span><span class="wt-end"><span class="wt-sum">14 canvases · 2h ago</span><button class="more">···</button></span><span class="wt-path">~/code/acme-web</span><span class="wt-sel" title="Selected: button · confirm-subscription-upgrade-and-invoice-reconciliation-for-enterprise-customers" data-doan-id="rs-selected-long-text">Selected: <b>button · confirm-subscription-upgrade-and-invoice-reconciliation-for-enterprise-customers</b></span></div></div>
+  <div class="tooltip" style="margin:10px 0 0 18px" data-doan-id="rs-selected-long-tooltip">Selected: button · confirm-subscription-upgrade-and-invoice-reconciliation-for-enterprise-customers</div></div>
+ <div><p class="tile-label"><b>Keyboard focus</b> — Tab reaches the card's active row (shipped focus ring); ↑↓ moves within the card.</p>
+  <div class="card" style="width:380px"><div class="card-head"><span class="card-name">acme-web</span><span class="meta">2 worktrees</span><span class="spacer"></span><button class="more">···</button></div>
+   <div class="wt focus" data-doan-id="rs-focus"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum">14 canvases · 2h ago</span><button class="more">···</button></span><span class="wt-path">~/code/acme-web</span></div>
+   <div class="wt"><span class="wt-label"><span class="glyph">⎇</span><span class="name">feat-billing</span></span><span class="wt-end"><span class="wt-sum">14 canvases · 5m ago</span><button class="more">···</button></span><span class="wt-path">~/code/worktrees/feat-billing/acme-web</span></div></div></div>
+</div>
+</section>
+
+<!-- ===================================================== add-checklist -->
+<section class="frame" data-doan-frame="add-checklist" data-doan-title="Add — checklist">
+<div class="flabel"><h2>Add — repository checklist</h2><span class="nic">new · not in code</span><span class="nic">draft copy: title, lead, button labels, progress line</span></div>
+<p class="note">Main specimen: Add Project… picked <code>~/code</code>, which is not a repository but holds repositories. The scan finished. Defaults: only set-up repositories are checked; Not set up is unchecked; Already added and Couldn't read are disabled; worktree sub-items of a repository are unchecked (R6). Only checked items are saved; <code>~/code</code> itself is never saved. The dialog is modal; focus starts on the first enabled checkbox and returns to the Add button's origin after it closes.</p>
+<div class="win" data-doan-id="add-window">
+ <div class="top"><div class="lights"><i></i><i></i><i></i></div><span class="logo"><i></i>doan</span><span class="spacer"></span><button class="btn" aria-label="Add Project…">+ Add Project… <span class="kbd">⌘O</span></button></div>
+ <main class="home-body" aria-hidden="true">
+  <div class="sec">Projects <span class="r">2</span></div>
+  <div class="cards">
+   <section class="card"><div class="card-head"><span class="card-name">brand-kit</span><span class="spacer"></span><button class="more">···</button></div><div class="wt"><span class="wt-label"><span class="glyph">◌</span><span class="name path">~/Documents/brand-kit</span></span><span class="wt-end"><span class="wt-sum">2 canvases · Oct 12</span><button class="more">···</button></span></div></section>
+   <section class="card"><div class="card-head"><span class="card-name">marketing-site</span><span class="spacer"></span><button class="more">···</button></div><div class="wt"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum">9 canvases · 6d ago</span><button class="more">···</button></span><span class="wt-path">~/code/marketing-site</span></div></section>
+  </div>
+ </main>
+ <div class="scrim"></div>
+ <div class="add-dialog" role="dialog" aria-modal="true" aria-label="Add projects from code" style="left:339px;top:110px" data-doan-id="add-dialog">
+  <h3 data-doan-id="add-title">Add projects from code</h3>
+  <p class="lead" data-doan-id="add-lead"><code>~/code</code> isn't a repository. Choose the repositories inside it to add.</p>
+  <div class="cl" role="group" aria-label="Repositories" data-doan-id="add-list">
+   <div class="cl-item" data-doan-id="add-item-setup"><input type="checkbox" checked aria-label="acme-web"><span class="cl-name">acme-web</span><span class="ob-chip ok" data-doan-id="add-chip-setup">14 canvases</span><span class="cl-path">~/code/acme-web</span></div>
+   <div class="cl-item sub" data-doan-id="add-item-worktree"><input type="checkbox" aria-label="acme-web, feat-billing worktree"><span class="cl-name">feat-billing<span class="kind">worktree</span></span><span></span><span class="cl-path">~/code/worktrees/feat-billing/acme-web</span></div>
+   <div class="cl-item sub"><input type="checkbox" aria-label="acme-web, detached 3f9c2a1 worktree"><span class="cl-name">detached 3f9c2a1<span class="kind">worktree</span></span><span></span><span class="cl-path">~/code/worktrees/review-pr-482/acme-web</span></div>
+   <div class="cl-item"><input type="checkbox" checked aria-label="checkout-flow"><span class="cl-name">checkout-flow</span><span class="ob-chip ok">6 canvases</span><span class="cl-path">~/code/checkout-flow</span></div>
+   <div class="cl-item" data-doan-id="add-item-notsetup"><input type="checkbox" aria-label="billing-api"><span class="cl-name">billing-api</span><span class="ob-chip" data-doan-id="add-chip-notsetup">Not set up</span><span class="cl-path">~/code/billing-api</span></div>
+   <div class="cl-item off" data-doan-id="add-item-added"><input type="checkbox" disabled aria-label="marketing-site"><span class="cl-name">marketing-site</span><span class="ob-chip" data-doan-id="add-chip-added">Already added</span><span class="cl-path">~/code/marketing-site</span></div>
+   <div class="cl-item off" data-doan-id="add-item-unread"><input type="checkbox" disabled aria-label="legacy-cms"><span class="cl-name">legacy-cms</span><span class="ob-chip warn" data-doan-id="add-chip-unread">Couldn't read</span><span class="cl-path">~/code/legacy-cms</span></div>
+  </div>
+  <div class="add-foot"><span class="meta" data-doan-id="add-count">2 selected</span><span class="spacer"></span><button class="btn" data-doan-id="add-cancel">Cancel</button><button class="btn primary" data-doan-id="add-confirm">Add 2 Projects</button></div>
+ </div>
+</div>
+
+<h3 class="states-head">Other states of the checklist</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>Scanning</b> — candidates fill in as they are found, each “Checking…” and disabled until its <code>doan ls</code> answers (4 at a time). Add stays disabled until the scan ends. Cancel stops the remaining checks and closes the dialog; nothing is saved.</p>
+  <div class="add-dialog" style="width:560px" data-doan-id="add-scanning">
+   <h3>Add projects from code</h3>
+   <p class="lead"><code>~/code</code> isn't a repository. Choose the repositories inside it to add.</p>
+   <div class="bar" aria-hidden="true"><i style="width:43%"></i></div>
+   <div class="cl" role="group" aria-label="Repositories">
+    <div class="cl-item"><input type="checkbox" checked aria-label="acme-web"><span class="cl-name">acme-web</span><span class="ob-chip ok">14 canvases</span><span class="cl-path">~/code/acme-web</span></div>
+    <div class="cl-item"><input type="checkbox" aria-label="billing-api"><span class="cl-name">billing-api</span><span class="ob-chip">Not set up</span><span class="cl-path">~/code/billing-api</span></div>
+    <div class="cl-item off" data-doan-id="add-item-checking"><input type="checkbox" disabled aria-label="checkout-flow"><span class="cl-name">checkout-flow</span><span class="ob-chip" data-doan-id="add-chip-checking">Checking…</span><span class="cl-path">~/code/checkout-flow</span></div>
+    <div class="cl-item off"><input type="checkbox" disabled aria-label="infra"><span class="cl-name">infra</span><span class="ob-chip">Checking…</span><span class="cl-path">~/code/infra</span></div>
+   </div>
+   <div class="add-foot"><span class="scan" role="status" data-doan-id="add-progress"><span class="spinner" aria-hidden="true"></span>Checked 3 of 7</span><span class="spacer"></span><button class="btn" data-doan-id="add-scanning-cancel">Cancel</button><button class="btn primary" disabled data-doan-id="add-scanning-confirm">Add Projects</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>Worktrees only</b> — one repository was added directly, and other worktrees of it are not saved yet. The same dialog shows just those, unchecked. Not Now closes it; the repository stays added.</p>
+  <div class="add-dialog" style="width:560px" data-doan-id="add-worktrees">
+   <h3 data-doan-id="add-worktrees-title">Add other worktrees of acme-web?</h3>
+   <p class="lead" data-doan-id="add-worktrees-lead">acme-web is added. These worktrees of the same repository aren't in doan yet.</p>
+   <div class="cl" role="group" aria-label="Worktrees">
+    <div class="cl-item"><input type="checkbox" aria-label="feat-billing worktree"><span class="cl-name">feat-billing<span class="kind">worktree</span></span><span></span><span class="cl-path">~/code/worktrees/feat-billing/acme-web</span></div>
+    <div class="cl-item"><input type="checkbox" aria-label="detached 3f9c2a1 worktree"><span class="cl-name">detached 3f9c2a1<span class="kind">worktree</span></span><span></span><span class="cl-path">~/code/worktrees/review-pr-482/acme-web</span></div>
+   </div>
+   <div class="add-foot"><span class="meta">0 selected</span><span class="spacer"></span><button class="btn" data-doan-id="add-worktrees-later">Not Now</button><button class="btn primary" disabled data-doan-id="add-worktrees-confirm">Add Worktrees</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>Nothing selectable</b> — every repository inside is already added or unreadable. Add stays disabled; Cancel closes.</p>
+  <div class="add-dialog" style="width:560px">
+   <h3>Add projects from code</h3>
+   <p class="lead"><code>~/code</code> isn't a repository. Choose the repositories inside it to add.</p>
+   <div class="cl" role="group" aria-label="Repositories">
+    <div class="cl-item off"><input type="checkbox" disabled aria-label="acme-web"><span class="cl-name">acme-web</span><span class="ob-chip">Already added</span><span class="cl-path">~/code/acme-web</span></div>
+    <div class="cl-item off"><input type="checkbox" disabled aria-label="legacy-cms"><span class="cl-name">legacy-cms</span><span class="ob-chip warn">Couldn't read</span><span class="cl-path">~/code/legacy-cms</span></div>
+   </div>
+   <div class="add-foot"><span class="meta">0 selected</span><span class="spacer"></span><button class="btn">Cancel</button><button class="btn primary" disabled data-doan-id="add-none-confirm">Add Projects</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>Long names and paths</b> — names and paths truncate; the chip never does. Over 200 child folders are not scanned (main caps the list by name).</p>
+  <div class="add-dialog" style="width:560px">
+   <div class="cl" role="group" aria-label="Repositories">
+    <div class="cl-item" data-doan-id="add-item-long"><input type="checkbox" checked aria-label="customer-onboarding-experience-redesign-2026-q4-final"><span class="cl-name">customer-onboarding-experience-redesign-2026-q4-final</span><span class="ob-chip ok">128 canvases</span><span class="cl-path">~/Library/Mobile Documents/com~apple~CloudDocs/work/clients/acme/customer-onboarding-experience-redesign-2026-q4-final</span></div>
+    <div class="cl-item sub"><input type="checkbox" aria-label="feature/ONB-1142-progressive-profile-step-with-skip-and-resume worktree"><span class="cl-name">feature/ONB-1142-progressive-profile-step-with-skip-and-resume<span class="kind">worktree</span></span><span></span><span class="cl-path">~/Library/Mobile Documents/com~apple~CloudDocs/work/clients/acme/worktrees/ONB-1142/customer-onboarding</span></div>
+   </div>
+   <div class="add-foot"><span class="meta">1 selected</span><span class="spacer"></span><button class="btn">Cancel</button><button class="btn primary">Add 1 Project</button></div>
+  </div></div>
+</div>
+</section>
+
+<!-- ===================================================== setup-confirm -->
+<section class="frame" data-doan-frame="setup-confirm" data-doan-title="Add — set up folder">
+<div class="flabel"><h2>Add — set up this folder?</h2><span class="nic">new · not in code</span><span class="nic">draft copy: title split, button label</span></div>
+<p class="note">Main specimen: the picked folder <code>~/notes</code> has no <code>.git</code> and no repository directly inside it (R1 step 3). The sentence is design.md's “&lt;folder&gt; isn't a repository. Set it up as a doan project?”, split into the spec's question as the title and the fact as the body. Set Up… saves the folder as Not set up and opens the shipped ProjectSetupDialog at once; Cancel saves nothing. Focus starts on Cancel.</p>
+<div class="win" data-doan-id="confirm-window">
+ <div class="top"><div class="lights"><i></i><i></i><i></i></div><span class="logo"><i></i>doan</span><span class="spacer"></span><button class="btn" aria-label="Add Project…">+ Add Project… <span class="kbd">⌘O</span></button></div>
+ <main class="home-body" aria-hidden="true">
+  <div class="sec">Projects <span class="r">1</span></div>
+  <div class="cards"><section class="card"><div class="card-head"><span class="card-name">acme-web</span><span class="spacer"></span><button class="more">···</button></div><div class="wt"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum">14 canvases · 2h ago</span><button class="more">···</button></span><span class="wt-path">~/code/acme-web</span></div></section></div>
+ </main>
+ <div class="scrim"></div>
+ <div class="ob-dialog" role="dialog" aria-modal="true" aria-label="Set up notes as a doan project?" style="left:399px;top:270px" data-doan-id="confirm-dialog">
+  <h3 data-doan-id="confirm-title">Set up notes as a doan project?</h3>
+  <p data-doan-id="confirm-text"><code>/Users/alex/notes</code> isn't a repository. doan will add it as a project that is not set up yet, then open the setup form.</p>
+  <div class="ob-buttons"><button class="btn focus" data-doan-id="confirm-cancel">Cancel</button><button class="btn primary" data-doan-id="confirm-setup">Set Up…</button></div>
+ </div>
+</div>
+
+<h3 class="states-head">Other cases</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>Home folder or above</b> — still asked, because it is an explicit choice, not a default (design.md 'Decision' 3③).</p>
+  <div class="ob-dialog" data-doan-id="confirm-home">
+   <h3>Set up alex as a doan project?</h3>
+   <p><code>/Users/alex</code> isn't a repository. doan will add it as a project that is not set up yet, then open the setup form.</p>
+   <div class="ob-buttons"><button class="btn">Cancel</button><button class="btn primary">Set Up…</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>Long path</b> — the title and the body wrap; nothing is truncated.</p>
+  <div class="ob-dialog" data-doan-id="confirm-long">
+   <h3>Set up Q4 brand refresh — working files (shared with agency) as a doan project?</h3>
+   <p><code>/Users/alex/Library/Mobile Documents/com~apple~CloudDocs/Q4 brand refresh — working files (shared with agency)</code> isn't a repository. doan will add it as a project that is not set up yet, then open the setup form.</p>
+   <div class="ob-buttons"><button class="btn">Cancel</button><button class="btn primary">Set Up…</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>A repository without doan</b> — the picked folder has <code>.git</code> (R1 step 1). No dialog: it is saved as Not set up and the card is outlined.</p>
+  <section class="card flash" style="width:380px"><div class="card-head"><span class="card-name">billing-api</span><span class="spacer"></span><button class="more">···</button></div>
+   <div class="wt problem" role="group"><span class="wt-label"><span class="glyph">◌</span><span class="name path">~/code/billing-api</span></span><span class="wt-end"><span class="ob-chip">Not set up</span><button class="more">···</button></span><span class="wt-actions"><button class="btn">Set Up…</button><button class="btn ghost">Remove</button></span></div></section></div>
+</div>
+</section>
+
+<!-- ===================================================== toast -->
+<section class="frame" data-doan-frame="toast" data-doan-title="Toast">
+<div class="flabel"><h2>Toast</h2><span class="nic">new · not in code</span></div>
+<p class="note">Main specimen: Remove from doan on acme-web (feat-billing) from Home. The row left its card at once; the toast sits at the bottom center of the window, one at a time (a new one replaces it), <code>role="status"</code>, at most one action. It stays 8 s and pauses while hovered, focused, or the window is hidden. While it is up, Edit › Undo Remove (⌘Z) does the same as Undo. Undo puts the row back in its original place; the workspace and selection are not restored.</p>
+<div class="win" data-doan-id="toast-window">
+ <div class="top"><div class="lights"><i></i><i></i><i></i></div><span class="logo"><i></i>doan</span><span class="spacer"></span><button class="btn" aria-label="Add Project…">+ Add Project… <span class="kbd">⌘O</span></button></div>
+ <main class="home-body" aria-label="Home">
+  <div class="sec">Projects <span class="r">2</span></div>
+  <div class="cards">
+   <section class="card" aria-label="acme-web"><div class="card-head"><span class="card-name">acme-web</span><span class="meta">2 worktrees</span><span class="spacer"></span><button class="more">···</button></div>
+    <div class="wt"><span class="wt-label"><span class="glyph">⎇</span><span class="name">main</span></span><span class="wt-end"><span class="wt-sum">14 canvases · 2h ago</span><button class="more">···</button></span><span class="wt-path">~/code/acme-web</span></div>
+    <div class="wt"><span class="wt-label"><span class="glyph">⎇</span><span class="name">detached 3f9c2a1</span></span><span class="wt-end"><span class="wt-sum">13 canvases · Yesterday</span><button class="more">···</button></span><span class="wt-path">~/code/worktrees/review-pr-482/acme-web</span></div></section>
+   <section class="card"><div class="card-head"><span class="card-name">brand-kit</span><span class="spacer"></span><button class="more">···</button></div><div class="wt"><span class="wt-label"><span class="glyph">◌</span><span class="name path">~/Documents/brand-kit</span></span><span class="wt-end"><span class="wt-sum">2 canvases · Oct 12</span><button class="more">···</button></span></div></section>
+  </div>
+ </main>
+ <div class="toast" role="status" data-doan-id="toast"><span class="msg" data-doan-id="toast-text">acme-web (feat-billing) removed. Files stay on disk.</span><button class="btn" data-doan-id="toast-undo">Undo</button></div>
+</div>
+
+<h3 class="states-head">Toast variants</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>Card removed</b> — Remove all. Label “&lt;repo&gt; and N worktrees” (here the card had three rows: acme-web plus two worktrees).</p>
+  <div class="toast static" data-doan-id="toast-card"><span class="msg">acme-web and 2 worktrees removed. Files stay on disk.</span><button class="btn">Undo</button></div></div>
+ <div><p class="tile-label"><b>Row without a branch removed</b> — not git or not set up: the label is the name alone.</p>
+  <div class="toast static" data-doan-id="toast-nobranch"><span class="msg">brand-kit removed. Files stay on disk.</span><button class="btn">Undo</button></div></div>
+ <div><p class="tile-label"><b>Added while in a workspace</b> — Open enters the new project's workspace.</p>
+  <div class="toast static" data-doan-id="toast-added"><span class="msg" data-doan-id="toast-added-text">Added billing-api</span><button class="btn" data-doan-id="toast-open">Open</button></div></div>
+ <div><p class="tile-label"><b>Files only</b> — every dropped item was a file. No action.</p>
+  <div class="toast static solo" data-doan-id="toast-files"><span class="msg" data-doan-id="toast-files-text">Only folders can be added.</span></div></div>
+ <div><p class="tile-label"><b>Paused</b> — keyboard focus on Undo (shipped focus ring). The timer is stopped until focus or the pointer leaves.</p>
+  <div class="toast static" data-doan-id="toast-paused"><span class="msg">acme-web (feat-billing) removed. Files stay on disk.</span><button class="btn focus">Undo</button></div></div>
+ <div><p class="tile-label"><b>Long label</b> — wraps inside 560 px; the action stays on the right.</p>
+  <div class="toast static" data-doan-id="toast-long"><span class="msg">customer-onboarding-experience-redesign-2026-q4-final (feature/ONB-1142-progressive-profile-step-with-skip-and-resume) removed. Files stay on disk.</span><button class="btn">Undo</button></div></div>
+</div>
+</section>
+
+<!-- ===================================================== drop-overlay -->
+<section class="frame" data-doan-frame="drop-overlay" data-doan-title="Drop overlay">
+<div class="flabel"><h2>Drop overlay</h2><span class="nic">new · not in code</span><span class="nic">draft copy: second line</span></div>
+<p class="note">Main specimen: folders dragged over the workspace. From <code>dragenter</code> the overlay covers the whole window, including the canvas iframe, so the drop reaches the renderer. Dropping runs the same flow as Add Project… (<code>folders:add-paths</code>). With a modal open there is no overlay and the drop is ignored. Window navigation stays blocked.</p>
+<div class="win ws" data-doan-id="drop-window">
+ <div class="top"><div class="lights"><i></i><i></i><i></i></div><button class="back" aria-label="Home">←</button><span class="divider" aria-hidden="true"></span><span class="crumbs"><span class="repo">acme-web</span><span class="sep">›</span><button class="branch" aria-haspopup="menu"><span class="glyph" aria-hidden="true">⎇</span><span class="bn">main</span><span class="caret">▾</span></button><span class="sep">›</span><span class="canvas">checkout.html</span></span><span class="chip">1440 px</span><span class="spacer"></span><button class="btn ghost">Reload <span class="kbd">⌘R</span></button></div>
+ <aside class="side"><div class="sec">Projects</div><div class="row"><span class="glyph">▾</span><span class="g">acme-web</span></div><div class="row ind" aria-current="true"><span class="glyph">◧</span><span class="g">checkout.html</span><span class="d">Checkout</span><span class="cnt hot">3</span></div><div class="row ind"><span class="glyph">◧</span><span class="g">cart.html</span><span class="d">Cart</span><span class="cnt">0</span></div></aside>
+ <section class="area"><div class="mboard"><span class="ftag">checkout</span><div class="mnav"><b>Acme</b><span>Shop</span><span>Cart</span></div><div class="mcard"><h4>Checkout</h4><div class="mline"></div><div class="mline"></div><div class="mbtn">Pay</div></div></div></section>
+ <aside class="right"><div class="phead">Canvas</div></aside>
+ <div class="drop" role="region" aria-label="Drop folders to add" data-doan-id="drop">
+  <div class="scrim"></div>
+  <div class="drop-zone" data-doan-id="drop-zone"><span class="drop-glyph" aria-hidden="true">+</span><b data-doan-id="drop-title">Drop folders to add</b><p data-doan-id="drop-text">A folder of repositories shows a checklist.</p></div>
+ </div>
+</div>
+
+<h3 class="states-head">Drop on Home</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>Home</b> — the same overlay over the cards. Files only end in the “Only folders can be added.” toast (<code>toast</code> frame).</p>
+  <div class="strip" style="height:300px" data-doan-id="drop-home">
+   <div class="top" style="height:40px"><div class="lights"><i></i><i></i><i></i></div><span class="logo"><i></i>doan</span><span class="spacer"></span><button class="btn">+ Add Project… <span class="kbd">⌘O</span></button></div>
+   <div class="drop" style="top:40px"><div class="scrim"></div><div class="drop-zone"><span class="drop-glyph" aria-hidden="true">+</span><b>Drop folders to add</b><p>A folder of repositories shows a checklist.</p></div></div>
+  </div></div>
+</div>
+</section>
+
+<!-- ===================================================== workspace -->
+<section class="frame" data-doan-frame="workspace" data-doan-title="Workspace" data-doan-implements="app/src/renderer/App.tsx">
+<div class="flabel"><h2>Workspace — top bar, worktree switcher, status line</h2><span class="nic">new: top bar ← and breadcrumb, switcher, status line, guard copy</span><span class="nic">draft copy: status-line sentences, switcher heading</span></div>
+<p class="note">Main specimen: the acme-web workspace on its feat-billing worktree with checkout.html open, and the branch chip's switcher open. The top bar replaces the shipped “name / canvas” breadcrumb with <code>← | repo › [branch ▾] › canvas</code>; the width chip and Reload stay. The repo name is not clickable in this feature. The switcher lists every row of the same card; the current one is checked; problem rows are disabled with their chip. Choosing a row goes through the comment draft guard, then opens the same canvas id there, else the canvas remembered for that root, else that workspace's first screen. ← and Go › Home (⇧⌘H) hide the workspace (no guard) and go Home. The sidebar keeps the shipped tree with only this root and no Open Project… action.</p>
+<div class="win ws" data-doan-id="ws-window">
+ <div class="top" data-doan-id="ws-top"><div class="lights"><i></i><i></i><i></i></div><button class="back" aria-label="Home" data-doan-id="ws-back">←</button><span class="divider" aria-hidden="true"></span>
+  <nav class="crumbs" aria-label="Location" data-doan-id="ws-crumbs"><span class="repo" data-doan-id="ws-repo">acme-web</span><span class="sep" aria-hidden="true">›</span><button class="branch" aria-haspopup="menu" aria-expanded="true" aria-label="Worktree: feat-billing" data-doan-id="ws-branch"><span class="glyph" aria-hidden="true">⎇</span><span class="bn">feat-billing</span><span class="caret" aria-hidden="true">▾</span></button><span class="sep" aria-hidden="true">›</span><span class="canvas" data-doan-id="ws-canvas">checkout.html</span></nav>
+  <span class="chip">1440 px</span><span class="spacer"></span><button class="btn ghost" aria-label="Reload canvas">Reload <span class="kbd">⌘R</span></button></div>
+ <aside class="side" data-doan-id="ws-side">
+  <div class="sec">Projects</div>
+  <div role="tree" aria-label="Projects">
+   <div class="row"><span class="glyph">▾</span><span class="g">acme-web</span></div>
+   <div class="row ind" aria-current="true"><span class="glyph">◧</span><span class="g">checkout.html</span><span class="d">Checkout</span><span class="cnt hot">3</span></div>
+   <div class="row ind"><span class="glyph">◧</span><span class="g">cart.html</span><span class="d">Cart</span><span class="cnt">0</span></div>
+   <div class="row ind"><span class="glyph">◧</span><span class="g">billing/invoices.html</span><span class="d">Invoices</span><span class="cnt hot">2</span></div>
+   <div class="row ind"><span class="glyph">◧</span><span class="g">billing/plans.html</span><span class="d">Plans</span><span class="cnt">0</span></div>
+  </div>
+  <div class="sec">Frames <span class="r">3</span></div>
+  <div class="row"><span class="glyph">#</span><span class="g">checkout</span><span class="d">Checkout</span></div>
+  <div class="row"><span class="glyph">#</span><span class="g">checkout-error</span><span class="d">Card declined</span></div>
+  <div class="row"><span class="glyph">#</span><span class="g">checkout-done</span><span class="d">Thank you</span></div>
+ </aside>
+ <section class="area" role="region" aria-label="Canvas">
+  <div class="mboard"><span class="ftag">checkout</span><div class="mnav"><b>Acme</b><span>Shop</span><span>Cart</span></div><div class="mcard"><h4>Checkout</h4><div class="mline"></div><div class="mline"></div><div class="mbtn">Pay</div></div></div>
+  <div class="updated meta"><span class="dot"></span> Updated 2m ago</div>
+  <div class="zctl"><div class="zoom"><button>−</button><output>100%</output><button>+</button></div></div>
+ </section>
+ <div class="right-stack" data-doan-id="ws-right">
+  <aside class="right native-scroll" role="region" aria-label="Canvas info">
+   <h2 class="phead">Canvas</h2>
+   <div class="isec"><dl class="kv"><dt>Path</dt><dd>doan/checkout.html</dd><dt>ID</dt><dd>checkout</dd><dt>Width</dt><dd>1440 px</dd><dt>Frames</dt><dd>3</dd></dl></div>
+   <div class="isec"><h3 class="ihead">Comments</h3><dl class="kv"><dt>Open</dt><dd class="accent">3</dd><dt>Resolved</dt><dd>1</dd></dl></div>
+   <section class="isec activity" aria-label="Activity"><h3 class="ihead">Activity</h3><ol><li class="tl-row"><time>14:12:08</time><b>Opened</b></li></ol></section>
+   <p class="pempty">Click an element or frame to inspect it. Frames are also listed in the sidebar.</p>
+  </aside>
+  <section class="comments-panel native-scroll" aria-label="Comments">
+   <div class="comments-head">
+    <h3>Comments</h3>
+    <div class="comments-segment" role="group" aria-label="Comment scope"><button type="button" aria-pressed="false" disabled>Selection</button><button type="button" aria-pressed="true">Canvas</button></div>
+    <div class="comments-segment" role="group" aria-label="Comment status"><button type="button" aria-pressed="true">Open 3</button><button type="button" aria-pressed="false">Resolved 1</button></div>
+    <div class="comments-tools"><button type="button" class="comments-btn" title="All open comments on this canvas, regardless of the visible filter">Copy all open</button><button type="button" class="comments-btn">New canvas comment</button></div>
+   </div>
+   <article class="comments-card" aria-label="Comment by Alex Kim">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">AK</span><div class="comments-by"><b>Alex Kim</b><span class="comments-email">alex@acme.dev</span><time>2 hours ago</time></div></div>
+    <button type="button" class="comments-target">Element · pay-button</button>
+    <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+    <p class="comments-body">Make Pay the full width of the card on mobile.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn">Edit</button><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Copy</button><button type="button" class="comments-btn">Delete</button></div>
+   </article>
+   <article class="comments-card" aria-label="Comment by Claude">
+    <div class="comments-author"><span class="comments-avatar" aria-hidden="true">C</span><div class="comments-by"><b>Claude</b><time>yesterday</time></div></div>
+    <button type="button" class="comments-target">Frame · checkout</button>
+    <div class="comments-badges"><span class="comments-badge open">Open</span></div>
+    <p class="comments-body">The card declined state needs the retry copy from the spec.</p>
+    <div class="comments-tools"><button type="button" class="comments-btn">Edit</button><button type="button" class="comments-btn">Resolve</button><button type="button" class="comments-btn">Copy</button><button type="button" class="comments-btn">Delete</button></div>
+   </article>
+  </section>
+ </div>
+ <div class="menu" role="menu" aria-label="Worktrees of acme-web" style="left:178px;top:36px;width:360px" data-doan-id="ws-switcher">
+  <div class="menu-head" data-doan-id="ws-switcher-head">Worktrees</div>
+  <button class="mi" role="menuitemradio" aria-checked="true" data-doan-id="ws-switcher-current"><span class="check">✓</span><span class="label">feat-billing</span><span class="sub">~/code/worktrees/feat-billing/acme-web</span></button>
+  <button class="mi on" role="menuitemradio" aria-checked="false" data-doan-id="ws-switcher-item"><span class="check"></span><span class="label">main</span><span class="sub">~/code/acme-web</span></button>
+  <button class="mi" role="menuitemradio" aria-checked="false"><span class="check"></span><span class="label">detached 3f9c2a1</span><span class="sub">~/code/worktrees/review-pr-482/acme-web</span></button>
+  <button class="mi" role="menuitemradio" aria-checked="false" disabled data-doan-id="ws-switcher-problem"><span class="check"></span><span class="label">hotfix-login</span><span class="sub">~/code/worktrees/hotfix-login/acme-web</span><span class="ob-chip warn" style="margin-left:auto">Missing</span></button>
+ </div>
+</div>
+
+<h3 class="states-head">Top bar states</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>No canvas open</b> — the breadcrumb ends at the branch; the width chip shows “—” and Reload is disabled (shipped).</p>
+  <div class="strip"><div class="top" style="height:40px" data-doan-id="ws-t-nocanvas"><span class="traffic-space"></span><button class="back" aria-label="Home">←</button><span class="divider"></span><nav class="crumbs"><span class="repo">acme-web</span><span class="sep">›</span><button class="branch"><span class="glyph">⎇</span><span class="bn">main</span><span class="caret">▾</span></button></nav><span class="chip">—</span><span class="spacer"></span><button class="btn ghost" disabled>Reload <span class="kbd">⌘R</span></button></div></div></div>
+ <div><p class="tile-label"><b>Detached</b> — the chip shows <code>detached</code> and 7 hex digits.</p>
+  <div class="strip"><div class="top" style="height:40px" data-doan-id="ws-t-detached"><span class="traffic-space"></span><button class="back" aria-label="Home">←</button><span class="divider"></span><nav class="crumbs"><span class="repo">acme-web</span><span class="sep">›</span><button class="branch"><span class="glyph">⎇</span><span class="bn">detached 3f9c2a1</span><span class="caret">▾</span></button><span class="sep">›</span><span class="canvas">checkout.html</span></nav><span class="chip">1440 px</span><span class="spacer"></span><button class="btn ghost">Reload <span class="kbd">⌘R</span></button></div></div></div>
+ <div><p class="tile-label"><b>Not git, or the only worktree</b> — no branch: no chip. With one row in the card the chip still shows the branch but has no menu (disabled).</p>
+  <div class="strip"><div class="top" style="height:40px" data-doan-id="ws-t-nongit"><span class="traffic-space"></span><button class="back" aria-label="Home">←</button><span class="divider"></span><nav class="crumbs"><span class="repo">brand-kit</span><span class="sep">›</span><span class="canvas">tokens.html</span></nav><span class="chip">1280 px</span><span class="spacer"></span><button class="btn ghost">Reload <span class="kbd">⌘R</span></button></div></div>
+  <div class="strip" style="margin-top:10px"><div class="top" style="height:40px" data-doan-id="ws-t-single"><span class="traffic-space"></span><button class="back" aria-label="Home">←</button><span class="divider"></span><nav class="crumbs"><span class="repo">checkout-flow</span><span class="sep">›</span><button class="branch" disabled><span class="glyph">⎇</span><span class="bn">release/2026-11</span><span class="caret">▾</span></button><span class="sep">›</span><span class="canvas">flow.html</span></nav><span class="chip">1440 px</span><span class="spacer"></span><button class="btn ghost">Reload <span class="kbd">⌘R</span></button></div></div></div>
+ <div><p class="tile-label"><b>Long values and focus on ←</b> — repo (48–220 px), branch chip (72–240 px) and canvas path (from 96 px) all truncate with an ellipsis; the tooltip of each shows the full value. Focus ring on ← (shipped).</p>
+  <div class="strip"><div class="top" style="height:40px" data-doan-id="ws-t-long"><span class="traffic-space"></span><button class="back focus" aria-label="Home">←</button><span class="divider"></span><nav class="crumbs"><span class="repo">customer-onboarding-experience-redesign-2026-q4-final</span><span class="sep">›</span><button class="branch"><span class="glyph">⎇</span><span class="bn">feature/ONB-1142-progressive-profile-step-with-skip-and-resume</span><span class="caret">▾</span></button><span class="sep">›</span><span class="canvas">flows/onboarding/progressive-profile/step-3-skip-and-resume.html</span></nav><span class="chip">1440 px</span><span class="spacer"></span><button class="btn ghost">Reload <span class="kbd">⌘R</span></button></div></div></div>
+</div>
+
+<h3 class="states-head">Worktree switcher — problem rows</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>Every problem state</b> — problem rows of the card stay in the list, disabled, with the same chip as on Home. A row without a branch (Not set up) shows its path as the label.</p>
+  <div class="menu static" role="menu" aria-label="Worktrees of acme-web" style="width:420px" data-doan-id="ws-switcher-problems">
+   <div class="menu-head">Worktrees</div>
+   <button class="mi" role="menuitemradio" aria-checked="true"><span class="check">✓</span><span class="label">main</span><span class="sub">~/code/acme-web</span></button>
+   <button class="mi" role="menuitemradio" aria-checked="false"><span class="check"></span><span class="label">feat-billing</span><span class="sub">~/code/worktrees/feat-billing/acme-web</span></button>
+   <button class="mi" role="menuitemradio" aria-checked="false" disabled data-doan-id="ws-switcher-missing"><span class="check"></span><span class="label">hotfix-login</span><span class="sub">~/code/worktrees/hotfix-login/acme-web</span><span class="ob-chip warn" style="margin-left:auto">Missing</span></button>
+   <button class="mi" role="menuitemradio" aria-checked="false" disabled data-doan-id="ws-switcher-config"><span class="check"></span><span class="label">feat-tokens</span><span class="sub">~/code/worktrees/feat-tokens/acme-web</span><span class="ob-chip err" style="margin-left:auto">Config error</span></button>
+   <button class="mi" role="menuitemradio" aria-checked="false" disabled data-doan-id="ws-switcher-notsetup"><span class="check"></span><span class="label">~/code/worktrees/playground/acme-web</span><span class="ob-chip" style="margin-left:auto">Not set up</span></button>
+   <button class="mi" role="menuitemradio" aria-checked="false" disabled data-doan-id="ws-switcher-cli"><span class="check"></span><span class="label">feat-prototype</span><span class="sub">~/code/worktrees/feat-prototype/acme-web</span><span class="ob-chip warn" style="margin-left:auto">CLI error</span></button>
+   <button class="mi" role="menuitemradio" aria-checked="false" disabled data-doan-id="ws-switcher-loading"><span class="check"></span><span class="label">feat-next</span><span class="sub">~/code/worktrees/feat-next/acme-web</span><span class="ob-chip" style="margin-left:auto">Reading…</span></button>
+  </div></div>
+</div>
+
+<h3 class="states-head">Workspace status line</h3>
+<p class="note">The loaded workspace's project became a problem (folder deleted or moved, <code>git worktree remove</code>, config broken, CLI error). The workspace stays; a line under the top bar shows the chip, that state's actions and Go Home. The canvas follows today's rules (a vanished canvas clears the view; a transient error keeps the last view); comment drafts stay.</p>
+<div class="tiles">
+ <div><p class="tile-label"><b>Missing</b></p>
+  <div class="strip" data-doan-id="ws-s-missing"><div class="top" style="height:40px"><span class="traffic-space"></span><button class="back">←</button><span class="divider"></span><nav class="crumbs"><span class="repo">acme-web</span><span class="sep">›</span><button class="branch"><span class="glyph">⎇</span><span class="bn">feat-billing</span><span class="caret">▾</span></button><span class="sep">›</span><span class="canvas">checkout.html</span></nav><span class="spacer"></span></div>
+   <div class="ws-status" role="status"><span class="ob-chip warn">Missing</span><span class="text" data-doan-id="ws-s-missing-text"><code>~/code/worktrees/feat-billing/acme-web</code> is gone or moved.</span><button class="btn">Locate…</button><button class="btn ghost">Remove</button><button class="btn ghost" data-doan-id="ws-s-gohome">Go Home</button></div></div></div>
+ <div><p class="tile-label"><b>Config error</b> — the row's actions plus Go Home: Show in Finder reveals the root, Retry reads it again, Details expands the CLI message under the line.</p>
+  <div class="strip" data-doan-id="ws-s-config"><div class="top" style="height:40px"><span class="traffic-space"></span><button class="back">←</button><span class="divider"></span><nav class="crumbs"><span class="repo">acme-web</span><span class="sep">›</span><button class="branch"><span class="glyph">⎇</span><span class="bn">feat-billing</span><span class="caret">▾</span></button><span class="sep">›</span><span class="canvas">checkout.html</span></nav><span class="spacer"></span></div>
+   <div class="ws-status" role="status"><span class="ob-chip err">Config error</span><span class="spacer"></span><button class="btn">Show in Finder</button><button class="btn">Retry</button><button class="btn ghost" aria-expanded="false" data-doan-id="ws-s-config-details">Details ▸</button><button class="btn ghost">Go Home</button></div></div></div>
+ <div><p class="tile-label"><b>Config error — Details open</b> — the CLI's error message, wrapped, under the line.</p>
+  <div class="strip" data-doan-id="ws-s-config-open"><div class="top" style="height:40px"><span class="traffic-space"></span><button class="back">←</button><span class="divider"></span><nav class="crumbs"><span class="repo">acme-web</span><span class="sep">›</span><button class="branch"><span class="glyph">⎇</span><span class="bn">feat-billing</span><span class="caret">▾</span></button><span class="sep">›</span><span class="canvas">checkout.html</span></nav><span class="spacer"></span></div>
+   <div class="ws-status" role="status"><span class="ob-chip err">Config error</span><span class="spacer"></span><button class="btn">Show in Finder</button><button class="btn">Retry</button><button class="btn ghost" aria-expanded="true">Details ▾</button><button class="btn ghost">Go Home</button></div>
+   <div class="ws-detail"><span class="ob-msg error" data-doan-id="ws-s-config-message"><code>.doan/config.json</code> is not valid JSON: unexpected token } at line 4, column 1</span></div></div></div>
+ <div><p class="tile-label"><b>CLI error</b></p>
+  <div class="strip" data-doan-id="ws-s-cli"><div class="top" style="height:40px"><span class="traffic-space"></span><button class="back">←</button><span class="divider"></span><nav class="crumbs"><span class="repo">acme-web</span><span class="sep">›</span><button class="branch"><span class="glyph">⎇</span><span class="bn">main</span><span class="caret">▾</span></button><span class="sep">›</span><span class="canvas">checkout.html</span></nav><span class="spacer"></span></div>
+   <div class="ws-status" role="status"><span class="ob-chip warn">CLI error</span><span class="spacer"></span><button class="btn" data-doan-id="ws-s-cli-retry">Retry</button><button class="btn ghost">Remove</button><button class="btn ghost">Go Home</button></div></div></div>
+ <div><p class="tile-label"><b>Not set up</b> — <code>.doan/</code> was removed under the open workspace. The canvas message changes to the design.md sentence.</p>
+  <div class="strip" style="height:200px" data-doan-id="ws-s-notsetup"><div class="top" style="height:40px"><span class="traffic-space"></span><button class="back">←</button><span class="divider"></span><nav class="crumbs"><span class="repo">acme-web</span><span class="sep">›</span><button class="branch"><span class="glyph">⎇</span><span class="bn">main</span><span class="caret">▾</span></button></nav><span class="spacer"></span></div>
+   <div class="ws-status" role="status"><span class="ob-chip">Not set up</span><span class="text" data-doan-id="ws-s-notsetup-text">acme-web is not set up.</span><button class="btn">Set Up…</button><button class="btn ghost">Remove</button><button class="btn ghost">Go Home</button></div>
+   <div class="area" style="height:122px"><div class="canvas-status" role="status"><p data-doan-id="ws-s-notsetup-canvas">The project acme-web is not set up. Use Set Up… on Home.</p></div></div></div></div>
+ <div><p class="tile-label"><b>Reading…</b> — <code>loading</code>. The chip and Go Home only.</p>
+  <div class="strip" data-doan-id="ws-s-loading"><div class="top" style="height:40px"><span class="traffic-space"></span><button class="back">←</button><span class="divider"></span><nav class="crumbs"><span class="repo">acme-web</span><span class="sep">›</span><button class="branch"><span class="glyph">⎇</span><span class="bn">main</span><span class="caret">▾</span></button><span class="sep">›</span><span class="canvas">checkout.html</span></nav><span class="spacer"></span></div>
+   <div class="ws-status" role="status"><span class="ob-chip" data-doan-id="ws-s-loading-chip">Reading…</span><span class="spacer"></span><button class="btn ghost">Go Home</button></div></div></div>
+</div>
+
+<h3 class="states-head">Comment draft guard — copy with project and canvas</h3>
+<p class="note">The shipped UnsavedCommentDialog, unchanged except its context: “in &lt;canvas&gt;” becomes “in &lt;repo&gt; (&lt;branch&gt;) › &lt;canvas&gt;”, because the draft may belong to a workspace hidden behind Home. The guard runs once for: Remove or Remove all that includes the loaded workspace, entering another root from Home, and the worktree switcher. Going Home does not run it. Keep writing returns to the original workspace and focuses the draft.</p>
+<div class="tiles">
+ <div><p class="tile-label"><b>Remove from doan on the loaded worktree</b> — from Home, Save is available.</p>
+  <div class="comments-dialog" role="dialog" aria-label="Save your comment first?" data-doan-id="guard-remove">
+   <h3>Save your comment first?</h3>
+   <p data-doan-id="guard-remove-text">Your unsaved comment belongs to Frame · checkout in acme-web (feat-billing) › checkout.html. Save it before moving, discard it, or keep writing here.</p>
+   <div class="comments-tools"><button class="comments-btn">Keep writing</button><button class="comments-btn">Discard</button><button class="comments-btn primary">Save and continue</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>Entering another project, Save unavailable</b> — Remove all on a card, or opening brand-kit from Home while acme-web holds a draft that cannot be saved.</p>
+  <div class="comments-dialog" role="dialog" aria-label="Keep this draft?" data-doan-id="guard-switch">
+   <h3>Keep this draft?</h3>
+   <p data-doan-id="guard-switch-text">Your unsaved comment belongs to Element · pay-button in acme-web (main) › checkout.html. Saving is unavailable. Discard the draft to continue or keep writing on the original draft.</p>
+   <div class="comments-tools"><button class="comments-btn">Keep writing</button><button class="comments-btn">Discard</button><button class="comments-btn primary" disabled>Save and continue</button></div>
+  </div></div>
+ <div><p class="tile-label"><b>Not git</b> — no branch, so no parentheses.</p>
+  <div class="comments-dialog" role="dialog" aria-label="Save your comment first?" data-doan-id="guard-nongit">
+   <h3>Save your comment first?</h3>
+   <p>Your unsaved comment belongs to Canvas in brand-kit › tokens.html. Save it before moving, discard it, or keep writing here.</p>
+   <div class="comments-tools"><button class="comments-btn">Keep writing</button><button class="comments-btn">Discard</button><button class="comments-btn primary">Save and continue</button></div>
+  </div></div>
+</div>
+
+<h3 class="states-head">Menus and per-screen enablement</h3>
+<div class="tiles">
+ <div><p class="tile-label"><b>Enable table</b> (design.md 'Menus and per-screen enablement'). The renderer reports the screen; main updates each item's <code>enabled</code>. ⌘O with the window hidden shows the window and opens the add dialog.</p>
+  <table class="mtable" data-doan-id="menu-table">
+   <thead><tr><th>Menu item</th><th>Home</th><th>Workspace, no canvas</th><th>Workspace, canvas open</th><th>Modal open</th></tr></thead>
+   <tbody>
+    <tr><td>Add Project… ⌘O</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
+    <tr><td>Home ⇧⌘H</td><td class="n">—</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
+    <tr><td>Zoom In/Out, Actual Size, Fit, Reload Canvas</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+    <tr><td>Undo Remove ⌘Z</td><td>While a toast is up</td><td>While a toast is up</td><td>While a toast is up</td><td class="n">—</td></tr>
+   </tbody>
+  </table></div>
+ <div><p class="tile-label"><b>Native menus</b> — File, Edit while a remove toast is up (Undo Remove takes the Undo slot), and the new Go menu. Drawn for items only (Edit is an excerpt of the shipped role editMenu); these are macOS menus.</p>
+  <div style="display:flex;gap:10px;align-items:flex-start">
+   <div class="menu static" role="menu" aria-label="File" style="min-width:200px" data-doan-id="menu-file"><div class="menu-head">File</div><button class="mi" role="menuitem">Add Project…<span class="r">⌘O</span></button><div class="menu-sep"></div><button class="mi" role="menuitem">Close Window<span class="r">⌘W</span></button></div>
+   <div class="menu static" role="menu" aria-label="Edit" style="min-width:200px" data-doan-id="menu-edit"><div class="menu-head">Edit</div><button class="mi on" role="menuitem">Undo Remove<span class="r">⌘Z</span></button><button class="mi" role="menuitem" disabled>Redo<span class="r">⇧⌘Z</span></button><div class="menu-sep"></div><button class="mi" role="menuitem">Copy<span class="r">⌘C</span></button></div>
+   <div class="menu static" role="menu" aria-label="Go" style="min-width:200px" data-doan-id="menu-go"><div class="menu-head">Go</div><button class="mi" role="menuitem">Home<span class="r">⇧⌘H</span></button></div>
+  </div></div>
+</div>
+</section>
+
+</body>
+</html>

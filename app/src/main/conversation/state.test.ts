@@ -41,12 +41,12 @@ describe("conversation recovery and event merge", () => {
   });
   it("binds only the first same-root canvas and archives the previous identity only after acceptance", () => {
     const binding: ConversationBinding = { conversationId: "a", root: "/repo", origin: "newDesign", state: "current" };
-    const canvas = { id: "home", path: "doan/a.html" };
+    const canvas = { id: "home", path: ".doan/canvases/a.html" };
     expect(bindFirstCanvas(binding, "/other", canvas)).toEqual(binding);
     const bound = bindFirstCanvas(binding, "/repo", canvas);
     expect(bound.canvas).toEqual(canvas);
-    expect(bindFirstCanvas(bound, "/repo", { id: "other", path: "doan/b.html" })).toEqual(bound);
-    expect(archiveForStart([bound], { ...bound, conversationId: "b", canvas: { ...canvas, path: "doan/moved.html" } }, false)).toEqual([bound]);
+    expect(bindFirstCanvas(bound, "/repo", { id: "other", path: ".doan/canvases/b.html" })).toEqual(bound);
+    expect(archiveForStart([bound], { ...bound, conversationId: "b", canvas: { ...canvas, path: ".doan/canvases/moved.html" } }, false)).toEqual([bound]);
     expect(archiveForStart([bound], { ...bound, conversationId: "b" }, true)[0]?.state).toBe("archived");
   });
 });

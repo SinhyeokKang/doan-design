@@ -28,7 +28,7 @@ func TestNullInputDoesNotPrompt(t *testing.T) {
 }
 func TestUnparsableCanvasIsFinding(t *testing.T) {
 	root := initialized(t)
-	putFile(t, root, "doan/a.html", validCanvas+strings.Repeat("<div>", 600))
+	putFile(t, root, ".doan/canvases/a.html", validCanvas+strings.Repeat("<div>", 600))
 	putFile(t, root, ".doan/comments/foo.jsonl", createLine(cmt1, "1", validCanvas))
 	got := result(t, root, 4, "check")
 	found := false
@@ -52,14 +52,14 @@ func TestUnparsableCanvasIsFinding(t *testing.T) {
 func TestInvalidCanvasIDsStillMatchComments(t *testing.T) {
 	for _, html := range []string{strings.Replace(validCanvas, `content="foo"`, `content="FOO"`, 1), strings.Replace(validCanvas, "</head>", `<meta name="doan:canvas" content="other"></head>`, 1)} {
 		root := initialized(t)
-		putFile(t, root, "doan/a.html", html)
+		putFile(t, root, ".doan/canvases/a.html", html)
 		id := "foo"
 		if strings.Contains(html, `content="FOO"`) {
 			id = "FOO"
 		}
 		putFile(t, root, ".doan/comments/"+id+".jsonl", createLine(cmt1, "1", html))
 		c := result(t, root, 0, "comments", "--canvas", id)["comments"].([]any)[0].(map[string]any)
-		if c["canvasPath"] != "doan/a.html" || c["outdated"] != false {
+		if c["canvasPath"] != ".doan/canvases/a.html" || c["outdated"] != false {
 			t.Fatal(c)
 		}
 		ls := result(t, root, 0, "ls")["canvases"].([]any)[0].(map[string]any)

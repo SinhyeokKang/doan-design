@@ -47,7 +47,7 @@ test("H3 accepts tokenized CSS and inline styles, rejects direct color and prote
   writeFileSync(join(ctx.repo, target), good.replace('<main className="dispatch-queue">', '<main className="dispatch-queue" style={{ color: "rgb(1, 2, 3)" }}>'));
   assert.ok(failures(ctx).includes("no_new_direct_colors"));
   writeFileSync(join(ctx.repo, target), good);
-  writeFileSync(join(ctx.repo, "doan/dispatch.html"), ctx.seed("doan/dispatch.html")! + "\n");
+  writeFileSync(join(ctx.repo, ".doan/canvases/dispatch.html"), ctx.seed(".doan/canvases/dispatch.html")! + "\n");
   assert.ok(failures(ctx).includes("design_and_review_unchanged"));
 });
 test("H3 accepts semantic text and data-driven package rows", () => {

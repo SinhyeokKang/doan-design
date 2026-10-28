@@ -13,18 +13,18 @@ const servers: LocalServer[] = [];
 afterEach(async () => { vi.restoreAllMocks(); await Promise.all(servers.splice(0).map(server => server.close())); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 test("records exact bytes by response marker, including empty HTML, but HEAD never completes a document", async () => {
   const root = await mkdtemp(join(tmpdir(), "doan-response-")); roots.push(root);
-  await mkdir(join(root, "doan"));
+  await mkdir(join(root, ".doan/canvases"), { recursive: true });
   const records: ResponseRecord[] = [];
   const server = await startServer(record => records.push(record)); servers.push(server);
-  const folder = server.addFolder({ root, scope: ["doan"] });
-  const url = `http://${server.host}:${server.port}/t/${server.token}/${folder}/doan/a.html`;
+  const folder = server.addFolder({ root, scope: [".doan/canvases"] });
+  const url = `http://${server.host}:${server.port}/t/${server.token}/${folder}/.doan/canvases/a.html`;
   for (const body of ["<main>한글</main>", ""]) {
-    await writeFile(join(root, "doan/a.html"), body);
+    await writeFile(join(root, ".doan/canvases/a.html"), body);
     const response = await fetch(url);
     expect(await response.text()).toBe(body);
     const marker = response.headers.get("x-doan-response");
     await expect.poll(() => [...records].reverse().find(record => record.marker === marker)?.complete).toBe(true);
-    expect([...records].reverse().find(record => record.marker === marker)).toMatchObject({ root, path: "doan/a.html", stable: true, hash: "sha256:" + createHash("sha256").update(body).digest("hex") });
+    expect([...records].reverse().find(record => record.marker === marker)).toMatchObject({ root, path: ".doan/canvases/a.html", stable: true, hash: "sha256:" + createHash("sha256").update(body).digest("hex") });
   }
   const head = await fetch(url, { method: "HEAD" });
   expect(records.some(record => record.marker === head.headers.get("x-doan-response"))).toBe(false);
@@ -33,8 +33,8 @@ test("records exact bytes by response marker, including empty HTML, but HEAD nev
 
 test("a source mutation during streaming preserves transmitted hash but rejects document stability", async () => {
   const root = await mkdtemp(join(tmpdir(), "doan-stream-")); roots.push(root);
-  await mkdir(join(root, "doan"));
-  const path = join(root, "doan/a.html");
+  await mkdir(join(root, ".doan/canvases"), { recursive: true });
+  const path = join(root, ".doan/canvases/a.html");
   await writeFile(path, "<main>" + "a".repeat(128 * 1024) + "</main>");
   const open = fs.open;
   let mutated = false;
@@ -50,8 +50,8 @@ test("a source mutation during streaming preserves transmitted hash but rejects 
   });
   const records: ResponseRecord[] = [];
   const server = await startServer(record => records.push(record)); servers.push(server);
-  const folder = server.addFolder({ root, scope: ["doan"] });
-  const response = await fetch(`http://${server.host}:${server.port}/t/${server.token}/${folder}/doan/a.html`);
+  const folder = server.addFolder({ root, scope: [".doan/canvases"] });
+  const response = await fetch(`http://${server.host}:${server.port}/t/${server.token}/${folder}/.doan/canvases/a.html`);
   const bytes = Buffer.from(await response.arrayBuffer());
   await expect.poll(() => records[records.length - 1]?.complete).toBe(true);
   expect(records[records.length - 1]).toMatchObject({ stable: false, hash: "sha256:" + createHash("sha256").update(bytes).digest("hex") });

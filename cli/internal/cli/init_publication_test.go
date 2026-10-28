@@ -44,7 +44,7 @@ func TestInitPublicationFailureThenRetry(t *testing.T) {
 		t.Fatalf("config published despite failure: %v", err)
 	}
 	entries, e := os.ReadDir(filepath.Join(root, ".doan"))
-	if e != nil || len(entries) != 0 {
+	if e != nil || len(entries) != 1 || entries[0].Name() != "canvases" {
 		t.Fatalf("staged file leaked: %v %v", entries, e)
 	}
 	if got := readFile(t, root, ".gitattributes"); got != foreign+union {
@@ -58,7 +58,7 @@ func TestInitPublicationFailureThenRetry(t *testing.T) {
 		t.Fatalf("retry changed attributes: %q", attrs)
 	}
 	entries, e = os.ReadDir(filepath.Join(root, ".doan"))
-	if e != nil || len(entries) != 1 || entries[0].Name() != "config.json" {
+	if e != nil || len(entries) != 2 || entries[0].Name() != "canvases" || entries[1].Name() != "config.json" {
 		t.Fatalf("retry staging cleanup: %v %v", entries, e)
 	}
 	if again := result(t, root, 0, "init"); again["initialized"] != false || len(again["created"].([]any)) != 0 {

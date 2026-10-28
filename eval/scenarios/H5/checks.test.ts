@@ -1,6 +1,6 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -22,7 +22,7 @@ function setup(kind: "seed" | "pass" | "fail" = "pass", transcript = "") {
 const failures = (ctx: ReturnType<typeof setup>) => checks(ctx).filter(c => !c.pass).map(c => c.id);
 const codex = (command: string) => `exec\n/bin/zsh -lc '${command}' in /tmp/repo succeeded in 20ms:\n`;
 const claude = (command: string) => JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Bash", input: { command } }] } });
-const answer = "Created doan/orders.html. brand/status.css is outside the served paths, so I copied its badge rules into the canvas; adding it to serve is a configuration change for you to approve.";
+const answer = "Created .doan/canvases/orders.html. brand/status.css is outside the served paths, so I copied its badge rules into the canvas; adding it to serve is a configuration change for you to approve.";
 
 test("H5 seed has a clean check and the pass fixture passes", () => {
   const seed = setup("seed").doan(["check"]);
@@ -56,4 +56,13 @@ test("H5 flags config writes in either runtime, including an add that is later r
 test("H5 requires an answer that mentions the boundary", () => {
   assert.ok(failures(setup("pass", "Done.")).includes("answer_reports_boundary"));
   assert.ok(failures(setup("pass", "")).includes("answer_reports_boundary"));
+});
+
+test("H5 allows new canvas-only CSS in the sibling assets directory", () => {
+  const ctx = setup("pass", answer);
+  mkdirSync(join(ctx.repo, ".doan/assets"), { recursive: true });
+  writeFileSync(join(ctx.repo, ".doan/assets/shared.css"), "body { margin: 0 }");
+  assert.deepEqual(failures(ctx), []);
+  writeFileSync(join(ctx.repo, ".doan/private.txt"), "unrelated");
+  assert.ok(failures(ctx).length > 0);
 });

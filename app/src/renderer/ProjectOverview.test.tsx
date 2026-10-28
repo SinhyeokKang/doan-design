@@ -9,47 +9,47 @@ import { focusAfterRemoval, overviewSections } from "./overviewOrder";
 
 const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, width: 1440, frames: [], open: 0, resolved: 0, url: `http://127.0.0.1/${path}`, ...extra });
 const rows = [
-  row("doan/tokens.html", { title: "Design tokens" }),
-  row("doan/2026-10-checkout-revamp.html", { title: "Checkout revamp (Oct 2026)" }),
-  row("doan/checkout/cart.html", { title: "Cart" }),
-  row("doan/settings/team/members.html", { title: "Team members" }),
-  row("doan/settings/billing.html", { title: "Billing & plans" }),
+  row(".doan/canvases/tokens.html", { title: "Design tokens" }),
+  row(".doan/canvases/2026-10-checkout-revamp.html", { title: "Checkout revamp (Oct 2026)" }),
+  row(".doan/canvases/checkout/cart.html", { title: "Cart" }),
+  row(".doan/canvases/settings/team/members.html", { title: "Team members" }),
+  row(".doan/canvases/settings/billing.html", { title: "Billing & plans" }),
 ];
 const render = (canvases: CanvasRow[], thumbnails: ReadonlyMap<string, ThumbnailState> = new Map(), comments?: readonly ProjectCanvasComments[]) =>
   renderToStaticMarkup(<TooltipProvider><ProjectOverview root="/code/acme-web" rows={canvases} thumbnails={thumbnails} onVisible={() => {}} open={() => {}} comments={comments} /></TooltipProvider>);
 
 test("sections run root first, then folders in tree order, each with its direct canvases in tree order", () => {
   expect(overviewSections(rows).map(section => [section.key, section.canvases.map(canvas => canvas.name)])).toEqual([
-    ["doan", ["Checkout revamp (Oct 2026)", "Design tokens"]],
-    ["doan/checkout", ["Cart"]],
-    ["doan/settings", ["Billing & plans"]],
-    ["doan/settings/team", ["Team members"]],
+    [".doan/canvases", ["Checkout revamp (Oct 2026)", "Design tokens"]],
+    [".doan/canvases/checkout", ["Cart"]],
+    [".doan/canvases/settings", ["Billing & plans"]],
+    [".doan/canvases/settings/team", ["Team members"]],
   ]);
   // A folder holding only folders has no section of its own.
-  expect(overviewSections([row("doan/a/b/c.html")]).map(section => section.key)).toEqual(["doan/a/b"]);
+  expect(overviewSections([row(".doan/canvases/a/b/c.html")]).map(section => section.key)).toEqual([".doan/canvases/a/b"]);
   expect(overviewSections([])).toEqual([]);
 });
 
 test("card facts count static frames, singular and capped, and show open comments only above zero", () => {
   const frames = (count: number) => Array.from({ length: count }, (_, index) => ({ id: `f${index}` }));
-  expect(cardFacts(row("doan/a.html", { frames: frames(4) }))).toEqual({ frames: "4 frames" });
-  expect(cardFacts(row("doan/a.html", { frames: frames(1) }))).toEqual({ frames: "1 frame" });
-  expect(cardFacts(row("doan/a.html", { frames: frames(0) }))).toEqual({ frames: "0 frames" });
-  expect(cardFacts(row("doan/a.html", { frames: frames(1000), framesTruncated: true, open: 3 }))).toEqual({ frames: "1,000+ frames", open: "3 open" });
-  expect(cardFacts(row("doan/a.html", { frames: frames(1000) }))).toEqual({ frames: "1,000 frames" });
+  expect(cardFacts(row(".doan/canvases/a.html", { frames: frames(4) }))).toEqual({ frames: "4 frames" });
+  expect(cardFacts(row(".doan/canvases/a.html", { frames: frames(1) }))).toEqual({ frames: "1 frame" });
+  expect(cardFacts(row(".doan/canvases/a.html", { frames: frames(0) }))).toEqual({ frames: "0 frames" });
+  expect(cardFacts(row(".doan/canvases/a.html", { frames: frames(1000), framesTruncated: true, open: 3 }))).toEqual({ frames: "1,000+ frames", open: "3 open" });
+  expect(cardFacts(row(".doan/canvases/a.html", { frames: frames(1000) }))).toEqual({ frames: "1,000 frames" });
   // Missing ID does not invalidate known frame facts.
-  const { id: _id, ...withoutId } = row("doan/a.html", { open: 2 });
+  const { id: _id, ...withoutId } = row(".doan/canvases/a.html", { open: 2 });
   expect(cardFacts(withoutId)).toEqual({ frames: "0 frames", open: "2 open" });
 });
 
 test("thumbnail view: missing width beats capture state; missing id does not", () => {
-  const { id: _id, ...withoutId } = row("doan/a.html");
-  const { width: _width, ...noWidth } = row("doan/a.html");
+  const { id: _id, ...withoutId } = row(".doan/canvases/a.html");
+  const { width: _width, ...noWidth } = row(".doan/canvases/a.html");
   expect(thumbnailView(withoutId, { kind: "ready", url: "blob:x" })).toEqual({ kind: "ready", url: "blob:x" });
   expect(thumbnailView(noWidth, { kind: "failed" })).toEqual({ kind: "noWidth" });
-  expect(thumbnailView(row("doan/a.html"), undefined)).toEqual({ kind: "pending" });
-  expect(thumbnailView(row("doan/a.html"), { kind: "failed" })).toEqual({ kind: "failed" });
-  expect(thumbnailView(row("doan/a.html"), { kind: "ready", url: "blob:x" })).toEqual({ kind: "ready", url: "blob:x" });
+  expect(thumbnailView(row(".doan/canvases/a.html"), undefined)).toEqual({ kind: "pending" });
+  expect(thumbnailView(row(".doan/canvases/a.html"), { kind: "failed" })).toEqual({ kind: "failed" });
+  expect(thumbnailView(row(".doan/canvases/a.html"), { kind: "ready", url: "blob:x" })).toEqual({ kind: "ready", url: "blob:x" });
 });
 
 test("focus goes to the next remaining card, else the previous one", () => {
@@ -71,15 +71,15 @@ test("visibility changes report a new set only when it changed", () => {
 });
 
 test("the overview shows thumbnail states without inferring parse failure from missing metadata", () => {
-  const { id: _id, title: _title, ...withoutId } = row("doan/checkout/legacy-checkout.html", { mtimeMs: Date.now() });
+  const { id: _id, title: _title, ...withoutId } = row(".doan/canvases/checkout/legacy-checkout.html", { mtimeMs: Date.now() });
   const { width: _width, ...noWidth } = rows[0]!;
   const html = render([noWidth, rows[1]!, rows[2]!, withoutId, { ...rows[4]!, open: 2, frames: [{ id: "plans" }] }], new Map<string, ThumbnailState>([
-    ["doan/2026-10-checkout-revamp.html", { kind: "ready", url: "blob:thumb" }],
-    ["doan/settings/billing.html", { kind: "failed" }],
+    [".doan/canvases/2026-10-checkout-revamp.html", { kind: "ready", url: "blob:thumb" }],
+    [".doan/canvases/settings/billing.html", { kind: "failed" }],
   ]));
   expect(html).toContain('aria-label="Overview"');
-  expect(html).toMatch(/<div class="sec">doan <span class="r">2<\/span><\/div>/);
-  expect(html).toMatch(/<div class="sec">doan\/checkout <span class="r">2<\/span><\/div>/);
+  expect(html).toMatch(/<div class="sec">\.doan\/canvases <span class="r">2<\/span><\/div>/);
+  expect(html).toMatch(/<div class="sec">\.doan\/canvases\/checkout <span class="r">2<\/span><\/div>/);
   expect(html).toContain("Preview needs a valid <code>doan:width</code> — run doan check");
   expect(html).toContain('<img src="blob:thumb" alt=""');
   expect(html).toContain('class="thumb pending"');
@@ -95,7 +95,7 @@ test("the overview shows thumbnail states without inferring parse failure from m
 
 test("a workspace without canvases keeps the heading and shows the first prompt composer in a card", () => {
   const html = render([]);
-  expect(html).toMatch(/^<section class="ov" role="region" aria-label="Overview"><div class="empty"><b>No canvases in doan\/ yet<\/b><div class="fp-card"><div class="ob-prompt">/);
+  expect(html).toMatch(/^<section class="ov" role="region" aria-label="Overview"><div class="empty"><b>No canvases in \.doan\/canvases\/ yet<\/b><div class="fp-card"><div class="ob-prompt">/);
   expect(html).toContain('<p class="ob-sentence">Use the doan skill to make a design canvas in /code/acme-web for <mark class="slot">…</mark>.</p>');
   expect(html).not.toContain("Copy first prompt");
   expect(html).not.toContain("ocard");
@@ -171,8 +171,8 @@ test("thumbnails: leaving the root releases every image and drops late replies",
 
 test("thumbnail requests accept valid width without an id and retain known frames", () => {
   const h = requests();
-  const { id: _id, ...missingID } = row("doan/no-id.html", { frames: [{ id: "known" }] });
-  const { width: _width, ...noWidth } = row("doan/no-width.html");
+  const { id: _id, ...missingID } = row(".doan/canvases/no-id.html", { frames: [{ id: "known" }] });
+  const { width: _width, ...noWidth } = row(".doan/canvases/no-width.html");
   h.thumbs.setRows([missingID, noWidth]);
   h.thumbs.onVisible([missingID.path, noWidth.path]);
   h.thumbs.changed(noWidth.path);
@@ -184,25 +184,25 @@ test("thumbnail requests accept valid width without an id and retain known frame
 test("a notice opens the overview as its first child band, and no notice adds nothing", () => {
   const notice = "Checkout moved, but 2 canvases now use the ID checkout. Run doan check in a terminal.";
   const html = renderToStaticMarkup(<TooltipProvider><ProjectOverview root="/code/acme-web" rows={rows} thumbnails={new Map()} onVisible={() => {}} open={() => {}} notice={notice} /></TooltipProvider>);
-  expect(html).toContain(`<section class="ov native-scroll" role="region" aria-label="Overview"><div class="canvas-notice" role="status">${notice}</div><section aria-label="doan">`);
+  expect(html).toContain(`<section class="ov native-scroll" role="region" aria-label="Overview"><div class="canvas-notice" role="status">${notice}</div><section aria-label=".doan/canvases">`);
   expect(render(rows)).not.toContain("canvas-notice");
 });
 
 test("a card shows resolved to review from the project read, matched by canvas ID; zero and a failed read show none", () => {
-  const counts: ProjectCanvasComments[] = [{ id: "doan/a.html", open: 3, resolved: 2, toReview: 2 }, { id: "zero", open: 0, resolved: 1, toReview: 0 }, { id: "broken", error: "EACCES" }];
-  expect(cardFacts(row("doan/a.html", { open: 3 }), counts)).toEqual({ frames: "0 frames", open: "3 open", review: "2 resolved to review" });
-  expect(cardFacts(row("doan/b.html", { id: "zero" }), counts)).toEqual({ frames: "0 frames" });
-  expect(cardFacts(row("doan/c.html", { id: "broken", open: 1 }), counts)).toEqual({ frames: "0 frames", open: "1 open" });
-  const { id: _id, ...withoutId } = row("doan/a.html");
+  const counts: ProjectCanvasComments[] = [{ id: ".doan/canvases/a.html", open: 3, resolved: 2, toReview: 2 }, { id: "zero", open: 0, resolved: 1, toReview: 0 }, { id: "broken", error: "EACCES" }];
+  expect(cardFacts(row(".doan/canvases/a.html", { open: 3 }), counts)).toEqual({ frames: "0 frames", open: "3 open", review: "2 resolved to review" });
+  expect(cardFacts(row(".doan/canvases/b.html", { id: "zero" }), counts)).toEqual({ frames: "0 frames" });
+  expect(cardFacts(row(".doan/canvases/c.html", { id: "broken", open: 1 }), counts)).toEqual({ frames: "0 frames", open: "1 open" });
+  const { id: _id, ...withoutId } = row(".doan/canvases/a.html");
   expect(cardFacts(withoutId, counts)).toEqual({ frames: "0 frames" });
-  const html = render([row("doan/a.html", { open: 3 })], new Map(), counts);
+  const html = render([row(".doan/canvases/a.html", { open: 3 })], new Map(), counts);
   expect(html).toContain('class="ocard-meta"><span>0 frames</span> · <span class="hot">3 open</span> · <span class="review">2 resolved to review</span> · <span>—</span></span>');
 });
 
 // project-feedback draft `tree-errors`: the card of a canvas ls could not read
 // shows the tree row's sentence, and no frame count it does not know.
 test("the card of an unreadable canvas shows the tree row's sentence and no frame count", () => {
-  const unreadable: CanvasRow = { path: "doan/legacy-checkout.html", url: "u", open: 0, resolved: 0, frames: [], error: { code: "unreadable_canvas", message: "Cannot read doan/legacy-checkout.html: permission denied" } };
+  const unreadable: CanvasRow = { path: ".doan/canvases/legacy-checkout.html", url: "u", open: 0, resolved: 0, frames: [], error: { code: "unreadable_canvas", message: "Cannot read .doan/canvases/legacy-checkout.html: permission denied" } };
   expect(thumbnailView(unreadable, undefined)).toEqual({ kind: "unreadable" });
   expect(cardFacts(unreadable)).toEqual({});
   const html = render([unreadable]);
@@ -213,7 +213,7 @@ test("the card of an unreadable canvas shows the tree row's sentence and no fram
 });
 
 test("a card never shows a count of comments without a canvas", () => {
-  const html = renderToStaticMarkup(<TooltipProvider><ProjectOverview root="/r" rows={[row("doan/a.html", { open: 1 })]} thumbnails={new Map()} onVisible={() => {}} open={() => {}} comments={[{ id: "doan/a.html", open: 1, resolved: 0, toReview: 1 }]} /></TooltipProvider>);
+  const html = renderToStaticMarkup(<TooltipProvider><ProjectOverview root="/r" rows={[row(".doan/canvases/a.html", { open: 1 })]} thumbnails={new Map()} onVisible={() => {}} open={() => {}} comments={[{ id: ".doan/canvases/a.html", open: 1, resolved: 0, toReview: 1 }]} /></TooltipProvider>);
   expect(html).toContain("1 resolved to review");
   expect(html).not.toContain("without a canvas");
 });

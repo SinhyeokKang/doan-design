@@ -1,6 +1,6 @@
 # Postmortem
 
-> Canvas paths in historical entries retain `design/`; the current canvas directory is `doan/` as of 2026-10-28. File moves preserve canvas/frame/element IDs.
+> Canvas paths in historical entries retain `design/`; the current canvas directory is `.doan/canvases/` as of 2026-10-28. File moves preserve canvas/frame/element IDs.
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
@@ -465,6 +465,8 @@
 - **Recurrence (2026-10-26, agent-handoff R-W)**: H7 required a question mark or a fixed vocabulary in the final answer, so a valid clarification ("Please specify whether I should work in …") failed and the judge could not override it (ARCH §14). Separately, the shared `commandWords` did not treat the `command` builtin as a wrapper, so a successful `command doan active --json` was not R7 active-call evidence. Review probes reproduced both. H7 now checks only that a final answer exists and both worktrees are unchanged; whether it asks about the worktree, including rejecting a no-change completion report, is judge-only in its rubric. `command`/`command -p` now unwrap, while `command -v`/`-V` and quoted text remain non-invocations. Both regressions failed before the fix; 153 eval tests and the 19-scenario fake self-test passed, without a real-agent round.
 - **Recurrence (2026-10-26, project-feedback R-S / S2)**: H4's shared final-answer extractor rejected an entire Codex answer when an unfenced orphan JSON entry started a line, so H8 failed a valid status report before the judge could assess it. R-S's counterexample and new regressions failed before the fix; extraction now recognizes parsed agent events and tool envelopes instead of rejecting every brace-leading line, while retaining tool-output, fenced-example and stderr exclusions. H8 also checks the entire repository against its seed so restoring the canvas id cannot pass automatically. The Prevention grep above was rerun: H4/H5/H6/H7/H8 share this extractor, while H2 keeps its own answer boundary and H3 retains bounded static copy checks; fake self-tests do not establish live semantic judgment quality.
 
+- **Recurrence (2026-10-28, unified project layout)**: real H5 runs for both agents correctly copied a disclosed stylesheet into the newly separate `.doan/assets/`, but the migrated checker and rubric allowed only `.doan/canvases/`. Their false failures exposed a path-prefix migration that had lost the old directory's asset permission; existing inline-style pass fixtures missed it. H2 had the same new-CSS restriction. Paired regressions now accept sibling asset CSS and still reject unrelated metadata changes; both failed before the checker correction. Searched `rg -n 'startsWith.*canvases' eval`; H2/H5 need the two allowed roots, while H3/R4 already protect all `.doan/` content. Original real-run failures remain recorded; reruns use the corrected checker and rubric.
+
 ### 2026-10-24 — Agent shells bypassed the evaluation runner's packaged CLI
 
 - **Area**: `eval/lib/agent.ts`, `eval/run.ts`
@@ -675,6 +677,8 @@
 - **Net**: the first case was caught by batch B4's self-review, the `.doan/`-only case by the B4 independent review reproducing it with the CLI. The e2e plan had no "subfolder of a failing repo" case.
 - **Prevention**: when the CLI does not answer a question about the repo, ask it again in a narrower form (`doan ls --repo <path>`) instead of inferring in TS. Grep for TS code that inspects repo markers: `grep -rnE '"\.doan"|config\.json' app/src | grep -v test` — only the watcher should match.
 
+- **Recurrence (2026-10-28, unified project layout)**: `eval/lib/workspace.ts` skipped init when any `.doan/` existed. Moving a canvas-only seed into `.doan/canvases/` silently made it appear initialized; the full fake-agent self-test caught `_example` returning `repo_not_found`, while existing unit fixtures already had config. Check `.doan/config.json`, not the directory, before init. The new canvas-only seed regression failed before the fix. Searched `rg -n 'existsSync.*\.doan' eval app/src`; the production evaluation initializer now checks the config file.
+
 ### 2026-10-22 — A served directory wiped and rebuilt silently stopped live reload
 
 - **Area**: `app/src/main/watch.ts` (`rearm`, `servedTargets`), `shell.ts` (`servedRev`)
@@ -761,6 +765,8 @@
 - **Prevention**: for every path that comes from canvas or config content, test `ENOTDIR`, a NUL byte, an over-long name, a symlink loop, a different letter case, and a dangling symlink at each write target. Grep: `grep -rnE 'IsNotExist|EvalSymlinks|os\.WriteFile' cli app/src`.
 - **Recurrence (2026-10-21, app-shell)**: `doan ls` `result.root` kept the caller's letter case from `--repo` or `$PWD` (`repo.Find` used `EvalSymlinks` alone), so one repo could be stored twice by the app and every served path would miss `relInside`. Caught by the batch B1 independent review; fixed by passing the root through `diskSpelling`. `doan init`'s `result.repo` (`init.go`) still keeps the caller's spelling.
 - **Recurrence (2026-10-24, onboard)**: in app main, JS `realpathSync` kept the caller's letter case on this macOS volume while `realpathSync.native` returns the on-disk spelling, so a same-file link written with another case was not recognized as ours. Caught by the G review; fixed by using native realpath for setup identities, with a case-alias regression (an `ELOOP` link stays foreign). Grep: `rg -n 'realpathSync\(' app/src/main --glob '!*.test.ts'` should find no caller (2026-10-24: only `realpathSync.native` is used).
+
+- **Recurrence (2026-10-28, unified project layout)**: moving canvases below `.doan/` introduced a new symlink ancestor. Checking only `canvases/` with lstat let discovery traverse a linked `.doan/` into another directory. A red regression now covers that ancestor; discovery and fixed watchers reject it. Scope filtering also resolves the metadata directory before excluding it and its ancestors, so an internal metadata alias cannot serve settings or comments. A relocated-metadata scope test failed before that filter. Searched `rg -n 'Lstat|lstatSync' cli/internal/repo/files.go app/src/main/watch.ts`; both new traversal paths check the metadata ancestor.
 
 ### 2026-10-21 — An HTML parser fed from memory can still fail, and dropping the error looks like a missing meta
 

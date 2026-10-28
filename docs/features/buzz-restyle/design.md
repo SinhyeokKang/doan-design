@@ -15,7 +15,7 @@
 
 ## 온보딩 승인과 후속 인계 (2026-10-28)
 
-[buzz-onboarding](../buzz-onboarding/design.md)은 루트 `doan/buzz-onboarding.html`의 디자인 승인·실제 Electron HTML 표시 검증·4관점 feature-review를 마쳤다. 기능 구현은 아직이며 agent-auth 완료가 선행한다. 사용자 지정 순서는 design-draft → 승인·검증 → feature-review이다.
+[buzz-onboarding](../buzz-onboarding/design.md)은 루트 `.doan/canvases/buzz-onboarding.html`의 디자인 승인·실제 Electron HTML 표시 검증·4관점 feature-review를 마쳤다. 기능 구현은 아직이며 agent-auth 완료가 선행한다. 사용자 지정 순서는 design-draft → 승인·검증 → feature-review이다.
 
 - Welcome → Agent → Project → Home. 한 공급자 ready와 한 프로젝트가 필수다. 단순 Close/Escape로 완료하거나 홈을 우회하는 과거 위저드 동작은 유지하지 않는다. 미완료 앱 재시작은 Welcome이며 저장된 연결/등록 프로젝트는 유지한다.
 - GitHub URL은 등록 로컬 리포/사용자 선택 폴더를 재사용하고 없으면 기존 Git/gh 인증으로 clone한다. 자체 GitHub OAuth·토큰 저장·저장소 목록은 없다.
@@ -98,7 +98,7 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 ## 자식 진행 규칙
 
 1. **시작**: clone 확인(규칙 2·3) → 이전 자식이 main에 머지됐으면 부모 [tasks.md](./tasks.md)의 그 줄을 체크하고 `docs(feature): buzz-restyle check <slug>`로 따로 커밋 → `/feature <slug>` → 아래 조사 메모 중 해당 메모를 자식 `design.md`로 **옮기고**(부모에서는 지운다), 그 이동도 같은 체크 커밋에 넣는다.
-2. **초안**: 화면 자식은 `/design-draft`로 그 화면의 Buzz 스타일 초안을 새 파일(`doan/buzz-<화면>.html`)로 그린다. 기존 초안은 고치지 않는다.
+2. **초안**: 화면 자식은 `/design-draft`로 그 화면의 Buzz 스타일 초안을 새 파일(`.doan/canvases/buzz-<화면>.html`)로 그린다. 기존 초안은 고치지 않는다.
 3. **구현과 대조**: 구현 뒤 `/design-sync`로 새 초안과 맞춘다. AGENTS.md와 design-draft/design-sync에 리디자인 예외가 이미 반영됐다(H2 완료). 새 초안은 해당 자식이 main에 머지될 때까지 정본이다. buzz-onboarding은 사용자가 디자인 승인·검증을 feature-review보다 먼저 진행하도록 지정했다.
 4. **값 동기화**: 자식은 자기 변경이 영향을 주는 DESIGN.md 값을 갱신하고 해당 상태만 실제 앱에서 측정한다(`buzz-shell`은 특히 모든 화면에 영향). 자기 담당 DESIGN.md 절의 "buzz-ds 이전" 표시를 지우고 다시 측정한다.
 5. **끝**: `node .agents/skills/verify/scripts/verify.mjs`와 변경 범위의 짧은 실제 앱 검증 통과, 결론 승격, 자식 디렉터리 삭제, PR. 부모 디렉터리는 건드리지 않는다.

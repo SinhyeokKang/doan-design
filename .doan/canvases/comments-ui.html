@@ -1,0 +1,2247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="comments-ui">
+<meta name="doan:width" content="1440">
+<title>Comments — draft</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../assets/mock.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Keep Tailwind preflight's inherited 1.5 line height out of the shell. */
+body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; }
+button { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { opacity: .4; cursor: default; }
+button, [role="treeitem"] { outline: none; }
+button:focus-visible, [role="treeitem"]:focus-visible > .project-row, [role="treeitem"].row:focus-visible { outline: 1px solid var(--accent-line); outline-offset: -1px; }
+ol { list-style: none; }
+code, kbd { font-family: var(--font-sans); }
+.app-shell { display: grid; grid-template-columns: 240px minmax(0, 1fr) 280px; grid-template-rows: 40px minmax(0, 1fr); height: 100%; background: var(--bg); }
+.top { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); -webkit-app-region: drag; }
+.top button { -webkit-app-region: no-drag; }
+.traffic-space { width: 52px; flex: none; }
+.logo { font: 600 13px var(--font-sans); display: flex; align-items: center; gap: 8px; }
+.logo i { width: 18px; height: 18px; border-radius: 5px; background: var(--accent); }
+.spacer { flex: 1; }
+.meta { font: 11.5px var(--font-sans); color: var(--text-3); white-space: nowrap; }
+.breadcrumb { overflow: hidden; text-overflow: ellipsis; }
+.breadcrumb span { color: var(--text); }
+.chip { font: 11.5px var(--font-sans); color: var(--text-2); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.btn { font: 500 12px var(--font-sans); color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+.kbd { font: 10.5px var(--font-sans); color: var(--text-3); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+.side { background: var(--panel); border-right: 1px solid var(--line); }
+.right { background: var(--panel); border-left: 1px solid var(--line); }
+.native-scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--raised) transparent; }
+.native-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.native-scroll::-webkit-scrollbar-thumb { background: var(--raised); border-radius: 4px; }
+.sec { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 6px; }
+.sec .r, .section-action { letter-spacing: 0; text-transform: none; color: var(--text-4); }
+.section-action { font-size: 10.5px; }
+.row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 12px; font: 12.5px var(--font-sans); color: var(--text-2); position: relative; white-space: nowrap; cursor: pointer; }
+.row .g { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.row .d { color: var(--text-4); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+.row[aria-current="true"] { color: var(--text); background: var(--raised); }
+.row[aria-current="true"]::before { content: ""; position: absolute; left: 0; top: 5px; bottom: 5px; width: 2px; background: var(--accent); border-radius: 1px; }
+.row:hover { background: var(--panel-2); }
+.row.ind { padding-left: 26px; }
+.glyph { color: var(--text-4); width: 12px; flex: none; text-align: center; }
+.row[aria-current="true"] .glyph { color: var(--accent); }
+.cnt { font: 10.5px var(--font-sans); color: var(--text-3); }
+.cnt.hot, .accent { color: var(--accent); }
+.err { color: var(--err); font: 10.5px var(--font-sans); }
+.close-project { color: var(--text-4); margin-left: 4px; }
+.hint { padding: 2px 12px 6px 34px; font: 11.5px/1.5 var(--font-sans); color: var(--text-3); overflow-wrap: anywhere; }
+.hint code { color: var(--text-2); background: var(--panel-2); border-radius: 4px; padding: 0 4px; }
+.recovery .btn { padding: 2px 8px; font-size: 11px; margin: 4px 4px 0 0; }
+.frames-hint { padding-left: 12px; }
+.frame-row { width: 100%; }
+.frame-row .no-id { color: var(--text-3); }
+.area { position: relative; overflow: hidden; background-color: var(--board-bg); background-image: radial-gradient(var(--board-dot) 1px, transparent 1px); background-size: 16px 16px; }
+.board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.board iframe { display: block; border: 0; }
+.overlay { position: absolute; inset: 0; pointer-events: none; }
+/* Overlay marks (select-inspect draft): screen px, so lines stay 1px at any scale. */
+.mark { position: absolute; border: 1px solid var(--accent-line); }
+.mark.hover { border-style: dashed; }
+.dims { position: absolute; top: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: var(--accent); color: var(--accent-ink); font: 600 10px var(--font-sans); padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 18px; text-align: center; color: var(--text-2); font: 12.5px/1.6 var(--font-sans); pointer-events: none; }
+.canvas-status button { pointer-events: auto; }
+.canvas-status b { color: var(--text); font-weight: 500; }
+.canvas-status > :not(.empty) { max-width: 260px; }
+.spinner { display: block; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); margin: 0 auto 10px; }
+.empty { font-size: 13px; color: var(--text); position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; line-height: normal; }
+.empty b { font-size: 15px; font-weight: 600; }
+.empty p { color: var(--text-3); max-width: 320px; font-size: 12.5px; line-height: 1.6; }
+.canvas-notices { position: absolute; top: 0; left: 0; right: 0; z-index: 1; pointer-events: none; }
+.canvas-notice { padding: 7px 12px; background: var(--accent-soft); color: var(--accent); font: 11px var(--font-sans); }
+.updated { position: absolute; left: 12px; bottom: 12px; pointer-events: none; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); display: inline-block; }
+.zctl { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 6px; align-items: center; }
+.zctl.disabled { opacity: .4; }
+/* The group already dims its buttons; a second factor would make them 0.16. */
+.zctl.disabled button:disabled { opacity: 1; }
+.zoom { display: flex; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font: 12px var(--font-sans); }
+.zoom button { padding: 4px 9px; color: var(--text-2); }
+.zoom output { padding: 4px 8px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); min-width: 48px; text-align: center; }
+.phead { font: 600 12px var(--font-sans); padding: 11px 14px 10px; border-bottom: 1px solid var(--line); }
+.pempty { padding: 14px; font: 12.5px var(--font-sans); color: var(--text-3); }
+.isec { padding: 10px 12px 12px; border-bottom: 1px solid var(--line-2); }
+.ihead { font: 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); margin-bottom: 8px; }
+.kv { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 5px 8px; font: 11.5px var(--font-sans); }
+.kv dt { color: var(--text-3); }
+.kv dd { overflow-wrap: anywhere; }
+.activity { border: 0; }
+.tl-row { display: flex; gap: 8px; padding: 3px 12px 3px 0; font: 11px var(--font-sans); color: var(--text-3); }
+.tl-row time { color: var(--text-4); width: 54px; }
+.tl-row b { font-weight: 400; color: var(--text-2); }
+.row.element-row { padding-left: 40px; color: var(--accent); background: var(--accent-soft); }
+.truncate { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inspect-head { padding: 12px; border-bottom: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 6px; }
+.inspect-head h3 { font-size: 12.5px; font-weight: 600; }
+.selector { color: var(--text-2); font-size: 11.5px; }
+.head-kv { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 5px 8px; font-size: 11.5px; }
+.head-kv dt { color: var(--text-3); }
+.ancestors { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.ancestors button { max-width: 100%; padding: 3px 5px; border-radius: 4px; font-size: 11px; color: var(--text-2); background: var(--panel-2); }
+.ancestors button[aria-current="true"] { color: var(--accent); background: var(--accent-soft); }
+.ancestors span { color: var(--text-4); font-size: 11px; }
+.use-hint { color: var(--text-3); font-size: 11.5px; line-height: 1.5; }
+/* Not in the draft: main's reason when it could not read the values. */
+.inspect-failed { padding: 10px 12px; border-bottom: 1px solid var(--line-2); color: var(--text-3); font-size: 11.5px; line-height: 1.5; }
+.inspect-row { margin-bottom: 7px; font-size: 11.5px; }
+.inspect-row:last-child { margin-bottom: 0; }
+.value-line { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 16px; }
+.prop { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.value { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.value.default { color: var(--text-4); }
+.source-line { margin-left: 86px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
+.token { max-width: 100%; font-size: 10.5px; color: var(--accent); background: var(--accent-soft); padding: 2px 5px; border-radius: 4px; }
+.state { color: var(--text-3); font-size: 10px; line-height: 1.5; }
+.state.hardcoded { color: var(--warn); }
+.swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--line); flex: none; }
+/* Short attribute labels stay fully readable at the fixed panel width. */
+.doan-attributes .prop { overflow: visible; text-overflow: clip; }
+
+/* Draft-only layout and proposed comments controls; shipped rules above are unchanged. */
+body { width:1440px; height:auto; padding:48px; background:var(--board-bg); }
+button { border:0; background:transparent; }
+.intro { max-width:1238px; margin-bottom:36px; }
+.intro h1 { font-size:30px; margin-bottom:12px; }
+.intro p,.note { font-size:12px; line-height:1.65; color:var(--text-3); margin:10px 0; }
+.frame { padding:24px; margin-bottom:32px; background:var(--bg); border:1px solid var(--line); border-radius:16px; }
+.flabel { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+.flabel h2 { font-size:18px; }
+.nic { border:1px dashed var(--warn); color:var(--warn); font-size:10px; padding:2px 6px; border-radius:4px; }
+.tiles { display:flex; flex-wrap:wrap; align-items:flex-start; gap:24px; }
+.tile { width:280px; }
+.tile.wide { width:410px; }
+.tile-label { font-size:12px; color:var(--text-2); margin:0 0 10px; line-height:1.5; }
+.specimen { width:280px; background:var(--panel); border-left:1px solid var(--line); }
+.comments-head { padding:12px; border-bottom:1px solid var(--line-2); }
+.comments-head h3 { font-size:12px; margin-bottom:10px; }
+.segment { display:flex; gap:4px; padding:3px; border:1px solid var(--line); border-radius:7px; margin-bottom:8px; }
+.segment button { flex:1; padding:5px 7px; font-size:11.5px; border-radius:4px; color:var(--text-3); }
+.segment button[aria-pressed=true] { color:var(--accent); background:var(--accent-soft); }
+.tools { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.tools .btn { font-size:11px; padding:4px 7px; }
+.comment { padding:12px; border-bottom:1px solid var(--line-2); }
+.author { display:flex; gap:8px; align-items:flex-start; margin-bottom:9px; }
+.avatar { width:26px; height:26px; flex:none; border-radius:50%; background:var(--raised); color:var(--text-2); display:grid; place-items:center; font-size:10px; font-weight:600; }
+.by { min-width:0; flex:1; }
+.by b { display:block; font-size:11.5px; font-weight:600; overflow-wrap:anywhere; }
+.by time,.email { display:block; font-size:10px; color:var(--text-3); line-height:1.5; overflow-wrap:anywhere; }
+.body { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; line-height:1.6; margin:8px 0 10px; }
+.target { display:block; color:var(--text-2); font-size:10.5px; line-height:1.5; overflow-wrap:anywhere; margin-bottom:6px; text-align:left; }
+.badges { display:flex; flex-wrap:wrap; gap:4px; margin:6px 0; }
+.badge { display:inline-block; font-size:10px; line-height:1.5; padding:1px 5px; border:1px solid var(--line); border-radius:4px; color:var(--text-3); }
+.badge.open { color:var(--accent); }
+.badge.warn { color:var(--warn); }
+.badge.resolved { color:var(--ok); }
+.message { padding:12px; font-size:11.5px; line-height:1.6; color:var(--text-2); border-bottom:1px solid var(--line-2); }
+.message b { display:block; color:var(--text); margin-bottom:4px; font-size:12px; }
+.message.error { border-left:2px solid var(--err); }
+.message.warning { border-left:2px solid var(--warn); }
+.message .tools { margin-top:10px; }
+.composer { padding:12px; border-bottom:1px solid var(--line-2); }
+.composer label { display:block; font-size:11.5px; margin:0 0 8px; }
+textarea { display:block; width:100%; min-height:104px; resize:none; font:12px/1.6 var(--font-sans); background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:9px; margin:8px 0; }
+textarea:focus-visible { outline:1px solid var(--accent-line); }
+.helper { font-size:10.5px; line-height:1.5; color:var(--text-3); margin:8px 0; overflow-wrap:anywhere; }
+.dialog { width:410px; background:var(--raised); border:1px solid var(--line); box-shadow:var(--shadow-2); border-radius:12px; padding:20px; }
+.dialog h3 { font-size:15px; margin-bottom:10px; }
+.dialog p { font-size:12px; line-height:1.6; color:var(--text-2); margin-bottom:12px; }
+.dialog .tools { justify-content:flex-end; }
+.danger { color:var(--err); }
+.win { width:1238px; height:780px; overflow:hidden; border-radius:12px; box-shadow:var(--shadow-2); }
+.lights { display:flex; gap:8px; }
+.lights i { width:12px; height:12px; border-radius:50%; background:var(--tl-red); }
+.lights i:nth-child(2) { background:var(--tl-yellow); }
+.lights i:nth-child(3) { background:var(--tl-green); }
+.review-panel { display:flex; flex-direction:column; min-height:0; }
+.inspector-scroll { height:278px; flex:none; overflow:auto; }
+.comments-scroll { overflow:auto; flex:1; min-height:0; }
+.mock-page { position:absolute; left:59px; top:92px; width:600px; height:500px; background:var(--mock-bg); color:var(--mock-ink); }
+.mock-nav { padding:15px 22px; border-bottom:1px solid var(--mock-line); font-size:12px; }
+.mock-card { position:absolute; left:150px; top:98px; width:300px; padding:24px; border:1px solid var(--mock-line); border-radius:12px; }
+.mock-card h3 { font-size:20px; margin-bottom:6px; }
+.mock-card p { font-size:12px; color:var(--mock-ink-2); margin-bottom:20px; }
+.mock-field { height:32px; border:1px solid var(--mock-line); background:var(--mock-fill); border-radius:6px; margin-bottom:10px; padding:8px; font-size:12px; color:var(--mock-ink-2); }
+.mock-button { height:32px; border-radius:6px; background:var(--mock-brand); color:var(--mock-brand-ink); display:grid; place-items:center; font-size:12px; }
+.pin { position:absolute; min-width:24px; height:24px; padding:0 6px; border-radius:12px; border:1px solid var(--accent-ink); background:var(--accent); color:var(--accent-ink); font:600 11px var(--font-sans); box-shadow:var(--shadow-1); z-index:2; }
+.pin.focus { outline:2px solid var(--text); outline-offset:2px; z-index:3; }
+.pin-scene { position:relative; height:210px; background:var(--board-bg); border:1px solid var(--line); overflow:hidden; }
+.pin-target { position:absolute; border:1px solid var(--accent-line); color:var(--text-3); font-size:11px; padding:12px; }
+.copy-sentence { white-space:pre-wrap; overflow-wrap:anywhere; padding:12px; border:1px solid var(--line); border-radius:6px; color:var(--text-2); font:12px/1.7 var(--font-sans); background:var(--panel); }
+
+</style>
+</head>
+<body>
+<header class="intro">
+<h1>Comments, in context</h1>
+<p>Feature #7 · Review proposal, not implemented or approved. All 17 numbered frames are new /design-sync targets, including their labelled tiles. Controls are static state specimens. New detailed layout and English recovery copy are proposals under design §8; Q1–Q9 behavior stays fixed.</p>
+<p>Shipped shell: 1238 × 780, 40px top bar, 240px sidebar, 280px right panel. Inspector child styling is copied from the renderer; the proposed 278px scroll region makes room for Comments without hiding inspector sections. Canvas info is not restyled here. Dark theme, system sans, renderer tokens; mock canvas colors come from mock.css.</p>
+<p>Sources checked as local files, 2026-10-23: docs/features/comments-ui/{spec,design,tasks,orch}.md, integration design §8 draft identifiers, docs/PRODUCT.md §5 and §7, docs/ARCHITECTURE.md §1, docs/DESIGN.md, docs/POSTMORTEM.md, doan/{app-shell,select-inspect}.html, doan/../assets/mock.css, app/src/renderer/{App,Sidebar,RightPanel}.tsx and {styles,tokens}.css. No external references or memory-based claims. Frame identifiers and isolated worker branch confirmed by coordinator.</p>
+<p>Review the full shell first, then creation and recovery states. Standalone panels have the same 280px width and one left border as the live app. Dashed “Not in code” tags belong to this canvas only. Header notes describe behavior for implementation; visible app text is drawn inside specimens.</p>
+</header>
+<main>
+<section data-doan-id="selection-list-section-1" class="frame" data-doan-frame="selection-list" data-doan-title="Selection and Inspector">
+<div data-doan-id="selection-list-div-1" class="flabel">
+<h2 data-doan-id="selection-list-h2-1">01 / Selection and Inspector</h2>
+<span data-doan-id="selection-list-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="selection-list-p-1" class="note">The 1238 × 780 shell retains 240 / remaining / 280 columns and its 40px bar. Proposed split: 278px independently scrollable Inspector above Comments; all inspector sections remain accessible. Selection shows only the exact current DOM target, never its children.</p>
+<div data-doan-id="selection-list-div-2" class="win">
+<div data-doan-id="selection-list-div-3" class="app-shell">
+<header data-doan-id="selection-list-header-1" class="top">
+<span data-doan-id="selection-list-span-2" class="traffic-space lights">
+<i data-doan-id="selection-list-i-1">
+</i>
+<i data-doan-id="selection-list-i-2">
+</i>
+<i data-doan-id="selection-list-i-3">
+</i>
+</span>
+<span data-doan-id="selection-list-span-3" class="logo">
+<i data-doan-id="selection-list-i-4">
+</i>doan</span>
+<span data-doan-id="selection-list-span-4" class="meta breadcrumb">website / <span data-doan-id="selection-list-span-5">doan/sign-in.html</span>
+</span>
+<span data-doan-id="selection-list-span-6" class="chip">600 px</span>
+<span data-doan-id="selection-list-span-7" class="spacer">
+</span>
+<button data-doan-id="selection-list-button-1" class="btn ghost">Reload <span data-doan-id="selection-list-span-8" class="kbd">⌘R</span>
+</button>
+</header>
+<aside data-doan-id="selection-list-aside-1" class="side">
+<div data-doan-id="selection-list-div-4" class="sec">Projects <button data-doan-id="selection-list-button-2" class="section-action">Open Project…</button>
+</div>
+<div data-doan-id="selection-list-div-5" class="row">
+<span data-doan-id="selection-list-span-9" class="glyph">▾</span>
+<span data-doan-id="selection-list-span-10" class="g">website</span>
+<span data-doan-id="selection-list-span-11" class="close-project">×</span>
+</div>
+<div data-doan-id="selection-list-div-6" class="row ind" aria-current="true">
+<span data-doan-id="selection-list-span-12" class="glyph">◧</span>
+<span data-doan-id="selection-list-span-13" class="g">sign-in.html</span>
+<span data-doan-id="selection-list-span-14" class="cnt hot">3</span>
+</div>
+<div data-doan-id="selection-list-div-7" class="sec">Frames <span data-doan-id="selection-list-span-15" class="r">1</span>
+</div>
+<button data-doan-id="selection-list-button-3" class="row frame-row" aria-current="true">
+<span data-doan-id="selection-list-span-16" class="glyph">#</span>
+<span data-doan-id="selection-list-span-17" class="g">sign-in</span>
+<span data-doan-id="selection-list-span-18" class="d">Sign in</span>
+</button>
+<div data-doan-id="selection-list-div-8" class="row element-row">
+<span data-doan-id="selection-list-span-19" class="glyph">↳</span>
+<span data-doan-id="selection-list-span-20" class="g">button · submit</span>
+</div>
+</aside>
+<section data-doan-id="selection-list-section-2" class="area">
+<div data-doan-id="selection-list-div-9" class="mock-page">
+<div data-doan-id="selection-list-div-10" class="mock-nav">Acme account</div>
+<div data-doan-id="selection-list-div-11" class="mock-card">
+<h3 data-doan-id="selection-list-h3-1">Welcome back</h3>
+<p data-doan-id="selection-list-p-2">Sign in to your workspace.</p>
+<div data-doan-id="selection-list-div-12" class="mock-field">Email address</div>
+<div data-doan-id="selection-list-div-13" class="mock-field">Password</div>
+<div data-doan-id="selection-list-div-14" class="mock-button">Sign in</div>
+</div>
+</div>
+<div data-doan-id="selection-list-div-15" class="mark" style="left:234px;top:372px;width:250px;height:32px">
+<span data-doan-id="selection-list-span-21" class="dims">250 × 32</span>
+</div>
+<button data-doan-id="selection-list-button-4" class="pin" style="left:472px;top:360px" aria-label="2 open comments on submit">2</button>
+<output data-doan-id="selection-list-output-1" class="updated meta">
+<span data-doan-id="selection-list-span-22" class="dot">
+</span> Updated 10:42</output>
+<div data-doan-id="selection-list-div-16" class="zctl">
+<div data-doan-id="selection-list-div-17" class="zoom">
+<button data-doan-id="selection-list-button-5">−</button>
+<output data-doan-id="selection-list-output-2">100%</output>
+<button data-doan-id="selection-list-button-6">+</button>
+</div>
+<button data-doan-id="selection-list-button-7" class="btn">Fit <span data-doan-id="selection-list-span-23" class="kbd">⌘1</span>
+</button>
+</div>
+</section>
+<aside data-doan-id="selection-list-aside-2" class="right review-panel">
+<div data-doan-id="selection-list-div-18" class="inspector-scroll native-scroll">
+<h2 data-doan-id="selection-list-h2-2" class="phead">Inspector</h2>
+<div data-doan-id="selection-list-div-19" class="inspect-head">
+<h3 data-doan-id="selection-list-h3-2">button</h3>
+<span data-doan-id="selection-list-span-24" class="selector truncate">[data-doan-id="submit"]</span>
+<dl data-doan-id="selection-list-dl-1" class="head-kv">
+<dt data-doan-id="selection-list-dt-1">Frame</dt>
+<dd data-doan-id="selection-list-dd-1">sign-in · Sign in</dd>
+</dl>
+<nav data-doan-id="selection-list-nav-1" class="ancestors">
+<button data-doan-id="selection-list-button-8">section</button>
+<span data-doan-id="selection-list-span-25">›</span>
+<button data-doan-id="selection-list-button-9">form</button>
+<span data-doan-id="selection-list-span-26">›</span>
+<button data-doan-id="selection-list-button-10" aria-current="true">button</button>
+</nav>
+<p data-doan-id="selection-list-p-3" class="use-hint">⌥-click to use it</p>
+</div>
+<section data-doan-id="selection-list-section-3" class="isec">
+<h3 data-doan-id="selection-list-h3-3" class="ihead">Box</h3>
+<div data-doan-id="selection-list-div-20" class="inspect-row">
+<div data-doan-id="selection-list-div-21" class="value-line">
+<span data-doan-id="selection-list-span-27" class="prop">Width</span>
+<span data-doan-id="selection-list-span-28" class="value">250px</span>
+</div>
+</div>
+<div data-doan-id="selection-list-div-22" class="inspect-row">
+<div data-doan-id="selection-list-div-23" class="value-line">
+<span data-doan-id="selection-list-span-29" class="prop">Height</span>
+<span data-doan-id="selection-list-span-30" class="value">32px</span>
+</div>
+</div>
+<div data-doan-id="selection-list-div-24" class="inspect-row">
+<div data-doan-id="selection-list-div-25" class="value-line">
+<span data-doan-id="selection-list-span-31" class="prop">Padding</span>
+<span data-doan-id="selection-list-span-32" class="value">0px</span>
+</div>
+</div>
+<div data-doan-id="selection-list-div-26" class="inspect-row">
+<div data-doan-id="selection-list-div-27" class="value-line">
+<span data-doan-id="selection-list-span-33" class="prop">Margin</span>
+<span data-doan-id="selection-list-span-34" class="value">0px</span>
+</div>
+</div>
+</section>
+<section data-doan-id="selection-list-section-4" class="isec">
+<h3 data-doan-id="selection-list-h3-4" class="ihead">Typography</h3>
+<div data-doan-id="selection-list-div-28" class="inspect-row">
+<div data-doan-id="selection-list-div-29" class="value-line">
+<span data-doan-id="selection-list-span-35" class="prop">Font</span>
+<span data-doan-id="selection-list-span-36" class="value">system-ui</span>
+</div>
+</div>
+<div data-doan-id="selection-list-div-30" class="inspect-row">
+<div data-doan-id="selection-list-div-31" class="value-line">
+<span data-doan-id="selection-list-span-37" class="prop">Size</span>
+<span data-doan-id="selection-list-span-38" class="value">12px</span>
+</div>
+</div>
+<div data-doan-id="selection-list-div-32" class="inspect-row">
+<div data-doan-id="selection-list-div-33" class="value-line">
+<span data-doan-id="selection-list-span-39" class="prop">Weight</span>
+<span data-doan-id="selection-list-span-40" class="value">400</span>
+</div>
+</div>
+</section>
+<section data-doan-id="selection-list-section-5" class="isec">
+<h3 data-doan-id="selection-list-h3-5" class="ihead">Colors</h3>
+<div data-doan-id="selection-list-div-34" class="inspect-row">
+<div data-doan-id="selection-list-div-35" class="value-line">
+<span data-doan-id="selection-list-span-41" class="prop">Text</span>
+<span data-doan-id="selection-list-span-42" class="value">var(--mock-brand-ink)</span>
+</div>
+</div>
+<div data-doan-id="selection-list-div-36" class="inspect-row">
+<div data-doan-id="selection-list-div-37" class="value-line">
+<span data-doan-id="selection-list-span-43" class="prop">Background</span>
+<span data-doan-id="selection-list-span-44" class="value">var(--mock-brand)</span>
+</div>
+</div>
+</section>
+<section data-doan-id="selection-list-section-6" class="isec">
+<h3 data-doan-id="selection-list-h3-6" class="ihead">Effects</h3>
+<div data-doan-id="selection-list-div-38" class="inspect-row">
+<div data-doan-id="selection-list-div-39" class="value-line">
+<span data-doan-id="selection-list-span-45" class="prop">Radius</span>
+<span data-doan-id="selection-list-span-46" class="value">6px</span>
+</div>
+</div>
+<div data-doan-id="selection-list-div-40" class="inspect-row">
+<div data-doan-id="selection-list-div-41" class="value-line">
+<span data-doan-id="selection-list-span-47" class="prop">Shadow</span>
+<span data-doan-id="selection-list-span-48" class="value">none</span>
+</div>
+</div>
+</section>
+<section data-doan-id="selection-list-section-7" class="isec">
+<h3 data-doan-id="selection-list-h3-7" class="ihead">Doan attributes</h3>
+<div data-doan-id="selection-list-div-42" class="inspect-row">
+<div data-doan-id="selection-list-div-43" class="value-line">
+<span data-doan-id="selection-list-span-49" class="prop">id</span>
+<span data-doan-id="selection-list-span-50" class="value">submit</span>
+</div>
+</div>
+<div data-doan-id="selection-list-div-44" class="inspect-row">
+<div data-doan-id="selection-list-div-45" class="value-line">
+<span data-doan-id="selection-list-span-51" class="prop">implements</span>
+<span data-doan-id="selection-list-span-52" class="value">—</span>
+</div>
+</div>
+</section>
+</div>
+<div data-doan-id="selection-list-div-46" class="comments-scroll native-scroll">
+<div data-doan-id="selection-list-div-47" class="comments-head">
+<h3 data-doan-id="selection-list-h3-8">Comments</h3>
+<div data-doan-id="selection-list-div-48" class="segment" aria-label="Comment scope">
+<button data-doan-id="selection-list-button-11" aria-pressed="true">Selection</button>
+<button data-doan-id="selection-list-button-12" aria-pressed="false">Canvas</button>
+</div>
+<div data-doan-id="selection-list-div-49" class="segment" aria-label="Comment status">
+<button data-doan-id="selection-list-button-13" aria-pressed="true">Open 2</button>
+<button data-doan-id="selection-list-button-14" aria-pressed="false">Resolved 1</button>
+</div>
+<div data-doan-id="selection-list-div-50" class="tools">
+<button data-doan-id="selection-list-button-15" class="btn">Copy all open</button>
+<button data-doan-id="selection-list-button-16" class="btn">New selection comment</button>
+</div>
+</div>
+<article data-doan-id="selection-list-article-1" class="comment">
+<div data-doan-id="selection-list-div-51" class="author">
+<span data-doan-id="selection-list-span-53" class="avatar">AM</span>
+<div data-doan-id="selection-list-div-52" class="by">
+<b data-doan-id="selection-list-b-1">Alex Morgan</b>
+<span data-doan-id="selection-list-span-54" class="email">alex@example.com</span>
+<time data-doan-id="selection-list-time-1">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="selection-list-button-17" class="target">Element · submit</button>
+<div data-doan-id="selection-list-div-53" class="badges">
+<span data-doan-id="selection-list-span-55" class="badge open">Open</span>
+</div>
+<p data-doan-id="selection-list-p-4" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="selection-list-div-54" class="tools">
+<button data-doan-id="selection-list-button-18" class="btn">Edit</button>
+<button data-doan-id="selection-list-button-19" class="btn">Resolve</button>
+<button data-doan-id="selection-list-button-20" class="btn">Copy</button>
+<button data-doan-id="selection-list-button-21" class="btn">Delete</button>
+</div>
+</article>
+<article data-doan-id="selection-list-article-2" class="comment">
+<div data-doan-id="selection-list-div-55" class="author">
+<span data-doan-id="selection-list-span-56" class="avatar">AM</span>
+<div data-doan-id="selection-list-div-56" class="by">
+<b data-doan-id="selection-list-b-2">Alex Morgan</b>
+<span data-doan-id="selection-list-span-57" class="email">alex@example.com</span>
+<time data-doan-id="selection-list-time-2">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="selection-list-button-22" class="target">Element · submit</button>
+<div data-doan-id="selection-list-div-57" class="badges">
+<span data-doan-id="selection-list-span-58" class="badge open">Open</span>
+</div>
+<p data-doan-id="selection-list-p-5" class="body">Keep this action label sentence case.</p>
+<div data-doan-id="selection-list-div-58" class="tools">
+<button data-doan-id="selection-list-button-23" class="btn">Edit</button>
+<button data-doan-id="selection-list-button-24" class="btn">Resolve</button>
+<button data-doan-id="selection-list-button-25" class="btn">Copy</button>
+<button data-doan-id="selection-list-button-26" class="btn">Delete</button>
+</div>
+</article>
+</div>
+</aside>
+</div>
+</div>
+</section>
+<section data-doan-id="canvas-list-section-1" class="frame" data-doan-frame="canvas-list" data-doan-title="All comments on this canvas">
+<div data-doan-id="canvas-list-div-1" class="flabel">
+<h2 data-doan-id="canvas-list-h2-1">02 / All comments on this canvas</h2>
+<span data-doan-id="canvas-list-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="canvas-list-p-1" class="note">Canvas includes every target, including missing locations. A scope change filters the list; the composer below still names its own target. Cards remain in creation order. Copy all open always copies all open ids on this canvas, regardless of the visible filter.</p>
+<div data-doan-id="canvas-list-div-2" class="tiles">
+<div data-doan-id="canvas-list-div-3" class="tile">
+<h3 data-doan-id="canvas-list-h3-1" class="tile-label">Canvas / Open</h3>
+<div data-doan-id="canvas-list-div-4" class="specimen">
+<div data-doan-id="canvas-list-div-5" class="comments-head">
+<h3 data-doan-id="canvas-list-h3-2">Comments</h3>
+<div data-doan-id="canvas-list-div-6" class="segment" aria-label="Comment scope">
+<button data-doan-id="canvas-list-button-1" aria-pressed="false">Selection</button>
+<button data-doan-id="canvas-list-button-2" aria-pressed="true">Canvas</button>
+</div>
+<div data-doan-id="canvas-list-div-7" class="segment" aria-label="Comment status">
+<button data-doan-id="canvas-list-button-3" aria-pressed="true">Open 3</button>
+<button data-doan-id="canvas-list-button-4" aria-pressed="false">Resolved 1</button>
+</div>
+<div data-doan-id="canvas-list-div-8" class="tools">
+<button data-doan-id="canvas-list-button-5" class="btn">Copy all open</button>
+<button data-doan-id="canvas-list-button-6" class="btn">New canvas comment</button>
+</div>
+</div>
+<article data-doan-id="canvas-list-article-1" class="comment">
+<div data-doan-id="canvas-list-div-9" class="author">
+<span data-doan-id="canvas-list-span-2" class="avatar">AM</span>
+<div data-doan-id="canvas-list-div-10" class="by">
+<b data-doan-id="canvas-list-b-1">Alex Morgan</b>
+<span data-doan-id="canvas-list-span-3" class="email">alex@example.com</span>
+<time data-doan-id="canvas-list-time-1">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="canvas-list-button-7" class="target">Canvas · sign-in</button>
+<div data-doan-id="canvas-list-div-11" class="badges">
+<span data-doan-id="canvas-list-span-4" class="badge open">Open</span>
+</div>
+<p data-doan-id="canvas-list-p-2" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="canvas-list-div-12" class="tools">
+<button data-doan-id="canvas-list-button-8" class="btn">Edit</button>
+<button data-doan-id="canvas-list-button-9" class="btn">Resolve</button>
+<button data-doan-id="canvas-list-button-10" class="btn">Copy</button>
+<button data-doan-id="canvas-list-button-11" class="btn">Delete</button>
+</div>
+</article>
+<article data-doan-id="canvas-list-article-2" class="comment">
+<div data-doan-id="canvas-list-div-13" class="author">
+<span data-doan-id="canvas-list-span-5" class="avatar">AM</span>
+<div data-doan-id="canvas-list-div-14" class="by">
+<b data-doan-id="canvas-list-b-2">Alex Morgan</b>
+<span data-doan-id="canvas-list-span-6" class="email">alex@example.com</span>
+<time data-doan-id="canvas-list-time-2">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="canvas-list-button-12" class="target">Frame · sign-in</button>
+<div data-doan-id="canvas-list-div-15" class="badges">
+<span data-doan-id="canvas-list-span-7" class="badge open">Open</span>
+</div>
+<p data-doan-id="canvas-list-p-3" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="canvas-list-div-16" class="tools">
+<button data-doan-id="canvas-list-button-13" class="btn">Edit</button>
+<button data-doan-id="canvas-list-button-14" class="btn">Resolve</button>
+<button data-doan-id="canvas-list-button-15" class="btn">Copy</button>
+<button data-doan-id="canvas-list-button-16" class="btn">Delete</button>
+</div>
+</article>
+<article data-doan-id="canvas-list-article-3" class="comment">
+<div data-doan-id="canvas-list-div-17" class="author">
+<span data-doan-id="canvas-list-span-8" class="avatar">AM</span>
+<div data-doan-id="canvas-list-div-18" class="by">
+<b data-doan-id="canvas-list-b-3">Alex Morgan</b>
+<span data-doan-id="canvas-list-span-9" class="email">alex@example.com</span>
+<time data-doan-id="canvas-list-time-3">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="canvas-list-button-17" class="target">Element · submit</button>
+<div data-doan-id="canvas-list-div-19" class="badges">
+<span data-doan-id="canvas-list-span-10" class="badge open">Open</span>
+<span data-doan-id="canvas-list-span-11" class="badge warn">Location unavailable</span>
+</div>
+<p data-doan-id="canvas-list-p-4" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="canvas-list-div-20" class="tools">
+<button data-doan-id="canvas-list-button-18" class="btn">Edit</button>
+<button data-doan-id="canvas-list-button-19" class="btn">Resolve</button>
+<button data-doan-id="canvas-list-button-20" class="btn">Copy</button>
+<button data-doan-id="canvas-list-button-21" class="btn">Delete</button>
+</div>
+</article>
+</div>
+</div>
+<div data-doan-id="canvas-list-div-21" class="tile">
+<h3 data-doan-id="canvas-list-h3-3" class="tile-label">Frame and element refer to the same DOM node</h3>
+<div data-doan-id="canvas-list-div-22" class="specimen">
+<div data-doan-id="canvas-list-div-23" class="comments-head">
+<h3 data-doan-id="canvas-list-h3-4">Comments</h3>
+<div data-doan-id="canvas-list-div-24" class="segment" aria-label="Comment scope">
+<button data-doan-id="canvas-list-button-22" aria-pressed="true">Selection</button>
+<button data-doan-id="canvas-list-button-23" aria-pressed="false">Canvas</button>
+</div>
+<div data-doan-id="canvas-list-div-25" class="segment" aria-label="Comment status">
+<button data-doan-id="canvas-list-button-24" aria-pressed="true">Open 2</button>
+<button data-doan-id="canvas-list-button-25" aria-pressed="false">Resolved 1</button>
+</div>
+<div data-doan-id="canvas-list-div-26" class="tools">
+<button data-doan-id="canvas-list-button-26" class="btn">Copy all open</button>
+<button data-doan-id="canvas-list-button-27" class="btn">New selection comment</button>
+</div>
+</div>
+<article data-doan-id="canvas-list-article-4" class="comment">
+<div data-doan-id="canvas-list-div-27" class="author">
+<span data-doan-id="canvas-list-span-12" class="avatar">AM</span>
+<div data-doan-id="canvas-list-div-28" class="by">
+<b data-doan-id="canvas-list-b-4">Alex Morgan</b>
+<span data-doan-id="canvas-list-span-13" class="email">alex@example.com</span>
+<time data-doan-id="canvas-list-time-4">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="canvas-list-button-28" class="target">Frame · sign-in</button>
+<div data-doan-id="canvas-list-div-29" class="badges">
+<span data-doan-id="canvas-list-span-14" class="badge open">Open</span>
+</div>
+<p data-doan-id="canvas-list-p-5" class="body">Keep the frame width at 600px.</p>
+<div data-doan-id="canvas-list-div-30" class="tools">
+<button data-doan-id="canvas-list-button-29" class="btn">Edit</button>
+<button data-doan-id="canvas-list-button-30" class="btn">Resolve</button>
+<button data-doan-id="canvas-list-button-31" class="btn">Copy</button>
+<button data-doan-id="canvas-list-button-32" class="btn">Delete</button>
+</div>
+</article>
+<article data-doan-id="canvas-list-article-5" class="comment">
+<div data-doan-id="canvas-list-div-31" class="author">
+<span data-doan-id="canvas-list-span-15" class="avatar">AM</span>
+<div data-doan-id="canvas-list-div-32" class="by">
+<b data-doan-id="canvas-list-b-5">Alex Morgan</b>
+<span data-doan-id="canvas-list-span-16" class="email">alex@example.com</span>
+<time data-doan-id="canvas-list-time-5">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="canvas-list-button-33" class="target">Element · sign-in-root</button>
+<div data-doan-id="canvas-list-div-33" class="badges">
+<span data-doan-id="canvas-list-span-17" class="badge open">Open</span>
+</div>
+<p data-doan-id="canvas-list-p-6" class="body">Keep the frame centered.</p>
+<div data-doan-id="canvas-list-div-34" class="tools">
+<button data-doan-id="canvas-list-button-34" class="btn">Edit</button>
+<button data-doan-id="canvas-list-button-35" class="btn">Resolve</button>
+<button data-doan-id="canvas-list-button-36" class="btn">Copy</button>
+<button data-doan-id="canvas-list-button-37" class="btn">Delete</button>
+</div>
+</article>
+</div>
+</div>
+<div data-doan-id="canvas-list-div-35" class="tile">
+<h3 data-doan-id="canvas-list-h3-5" class="tile-label">Selected child excluded from frame list</h3>
+<div data-doan-id="canvas-list-div-36" class="specimen">
+<div data-doan-id="canvas-list-div-37" class="message ">
+<b data-doan-id="canvas-list-b-6">Frame · sign-in</b>2 open comments on this exact target. The child submit button has 1 separate open comment.<div data-doan-id="canvas-list-div-38" class="tools">
+<button data-doan-id="canvas-list-button-38" class="btn">View canvas comments</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="canvas-compose-section-1" class="frame" data-doan-frame="canvas-compose" data-doan-title="Write to the whole canvas">
+<div data-doan-id="canvas-compose-div-1" class="flabel">
+<h2 data-doan-id="canvas-compose-h2-1">03 / Write to the whole canvas</h2>
+<span data-doan-id="canvas-compose-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="canvas-compose-p-1" class="note">Canvas-list creation targets Canvas; Selection creation targets the current selection. Changing list scope keeps an existing draft and its original target. No second draft can start while it is open. Canvas comments have no pins; shipped Inspector styling is unchanged.</p>
+<div data-doan-id="canvas-compose-div-2" class="tiles">
+<div data-doan-id="canvas-compose-div-3" class="tile">
+<h3 data-doan-id="canvas-compose-h3-1" class="tile-label">Canvas target</h3>
+<div data-doan-id="canvas-compose-div-4" class="specimen">
+<div data-doan-id="canvas-compose-div-5" class="comments-head">
+<h3 data-doan-id="canvas-compose-h3-2">Comments</h3>
+<div data-doan-id="canvas-compose-div-6" class="segment" aria-label="Comment scope">
+<button data-doan-id="canvas-compose-button-1" aria-pressed="false">Selection</button>
+<button data-doan-id="canvas-compose-button-2" aria-pressed="true">Canvas</button>
+</div>
+<div data-doan-id="canvas-compose-div-7" class="segment" aria-label="Comment status">
+<button data-doan-id="canvas-compose-button-3" aria-pressed="true">Open 2</button>
+<button data-doan-id="canvas-compose-button-4" aria-pressed="false">Resolved 1</button>
+</div>
+<div data-doan-id="canvas-compose-div-8" class="tools">
+<button data-doan-id="canvas-compose-button-5" class="btn">Copy all open</button>
+<button data-doan-id="canvas-compose-button-6" class="btn" disabled>New canvas comment</button>
+</div>
+</div>
+<div data-doan-id="canvas-compose-div-9" class="composer">
+<label data-doan-id="canvas-compose-label-1">New comment</label>
+<span data-doan-id="canvas-compose-span-2" class="target">To: Canvas · sign-in</span>
+<textarea data-doan-id="canvas-compose-textarea-1" aria-label="New comment body">Use the same spacing scale throughout this screen.</textarea>
+<div data-doan-id="canvas-compose-div-10" class="tools">
+<button data-doan-id="canvas-compose-button-7" class="btn">Cancel</button>
+<button data-doan-id="canvas-compose-button-8" class="btn primary">Save comment</button>
+</div>
+</div>
+</div>
+</div>
+<div data-doan-id="canvas-compose-div-11" class="tile">
+<h3 data-doan-id="canvas-compose-h3-3" class="tile-label">Original element draft retained after scope change</h3>
+<div data-doan-id="canvas-compose-div-12" class="specimen">
+<div data-doan-id="canvas-compose-div-13" class="comments-head">
+<h3 data-doan-id="canvas-compose-h3-4">Comments</h3>
+<div data-doan-id="canvas-compose-div-14" class="segment" aria-label="Comment scope">
+<button data-doan-id="canvas-compose-button-9" aria-pressed="false">Selection</button>
+<button data-doan-id="canvas-compose-button-10" aria-pressed="true">Canvas</button>
+</div>
+<div data-doan-id="canvas-compose-div-15" class="segment" aria-label="Comment status">
+<button data-doan-id="canvas-compose-button-11" aria-pressed="true">Open 2</button>
+<button data-doan-id="canvas-compose-button-12" aria-pressed="false">Resolved 1</button>
+</div>
+<div data-doan-id="canvas-compose-div-16" class="tools">
+<button data-doan-id="canvas-compose-button-13" class="btn">Copy all open</button>
+<button data-doan-id="canvas-compose-button-14" class="btn" disabled>New canvas comment</button>
+</div>
+</div>
+<div data-doan-id="canvas-compose-div-17" class="composer">
+<label data-doan-id="canvas-compose-label-2">New comment</label>
+<span data-doan-id="canvas-compose-span-3" class="target">To: Element · submit</span>
+<textarea data-doan-id="canvas-compose-textarea-2" aria-label="New comment body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="canvas-compose-div-18" class="tools">
+<button data-doan-id="canvas-compose-button-15" class="btn">Cancel</button>
+<button data-doan-id="canvas-compose-button-16" class="btn primary">Save comment</button>
+</div>
+</div>
+</div>
+</div>
+<div data-doan-id="canvas-compose-div-19" class="tile">
+<h3 data-doan-id="canvas-compose-h3-5" class="tile-label">Frame target</h3>
+<div data-doan-id="canvas-compose-div-20" class="specimen">
+<div data-doan-id="canvas-compose-div-21" class="comments-head">
+<h3 data-doan-id="canvas-compose-h3-6">Comments</h3>
+<div data-doan-id="canvas-compose-div-22" class="segment" aria-label="Comment scope">
+<button data-doan-id="canvas-compose-button-17" aria-pressed="true">Selection</button>
+<button data-doan-id="canvas-compose-button-18" aria-pressed="false">Canvas</button>
+</div>
+<div data-doan-id="canvas-compose-div-23" class="segment" aria-label="Comment status">
+<button data-doan-id="canvas-compose-button-19" aria-pressed="true">Open 2</button>
+<button data-doan-id="canvas-compose-button-20" aria-pressed="false">Resolved 1</button>
+</div>
+<div data-doan-id="canvas-compose-div-24" class="tools">
+<button data-doan-id="canvas-compose-button-21" class="btn">Copy all open</button>
+<button data-doan-id="canvas-compose-button-22" class="btn" disabled>New selection comment</button>
+</div>
+</div>
+<div data-doan-id="canvas-compose-div-25" class="composer">
+<label data-doan-id="canvas-compose-label-3">New comment</label>
+<span data-doan-id="canvas-compose-span-4" class="target">To: Frame · sign-in</span>
+<textarea data-doan-id="canvas-compose-textarea-3" aria-label="New comment body">Keep this frame at 600px wide.</textarea>
+<div data-doan-id="canvas-compose-div-26" class="tools">
+<button data-doan-id="canvas-compose-button-23" class="btn">Cancel</button>
+<button data-doan-id="canvas-compose-button-24" class="btn primary">Save comment</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="resolved-section-1" class="frame" data-doan-frame="resolved" data-doan-title="Resolved comments">
+<div data-doan-id="resolved-div-1" class="flabel">
+<h2 data-doan-id="resolved-h2-1">04 / Resolved comments</h2>
+<span data-doan-id="resolved-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="resolved-p-1" class="note">Resolved cards retain their original target. Reopen is committed only after storage succeeds; single-comment copy stays disabled until reopening.</p>
+<div data-doan-id="resolved-div-2" class="tiles">
+<div data-doan-id="resolved-div-3" class="tile">
+<h3 data-doan-id="resolved-h3-1" class="tile-label">Selection / Resolved</h3>
+<div data-doan-id="resolved-div-4" class="specimen">
+<div data-doan-id="resolved-div-5" class="comments-head">
+<h3 data-doan-id="resolved-h3-2">Comments</h3>
+<div data-doan-id="resolved-div-6" class="segment" aria-label="Comment scope">
+<button data-doan-id="resolved-button-1" aria-pressed="true">Selection</button>
+<button data-doan-id="resolved-button-2" aria-pressed="false">Canvas</button>
+</div>
+<div data-doan-id="resolved-div-7" class="segment" aria-label="Comment status">
+<button data-doan-id="resolved-button-3" aria-pressed="false">Open 1</button>
+<button data-doan-id="resolved-button-4" aria-pressed="true">Resolved 1</button>
+</div>
+<div data-doan-id="resolved-div-8" class="tools">
+<button data-doan-id="resolved-button-5" class="btn">Copy all open</button>
+<button data-doan-id="resolved-button-6" class="btn">New selection comment</button>
+</div>
+</div>
+<article data-doan-id="resolved-article-1" class="comment">
+<div data-doan-id="resolved-div-9" class="author">
+<span data-doan-id="resolved-span-2" class="avatar">AM</span>
+<div data-doan-id="resolved-div-10" class="by">
+<b data-doan-id="resolved-b-1">Alex Morgan</b>
+<span data-doan-id="resolved-span-3" class="email">alex@example.com</span>
+<time data-doan-id="resolved-time-1">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="resolved-button-7" class="target">Element · submit</button>
+<div data-doan-id="resolved-div-11" class="badges">
+<span data-doan-id="resolved-span-4" class="badge resolved">Resolved</span>
+</div>
+<p data-doan-id="resolved-p-2" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="resolved-div-12" class="tools">
+<button data-doan-id="resolved-button-8" class="btn">Edit</button>
+<button data-doan-id="resolved-button-9" class="btn">Reopen</button>
+<button data-doan-id="resolved-button-10" class="btn" disabled>Copy</button>
+<button data-doan-id="resolved-button-11" class="btn">Delete</button>
+</div>
+<p data-doan-id="resolved-p-3" class="helper">Reopen this comment before copying it to an agent.</p>
+</article>
+</div>
+</div>
+<div data-doan-id="resolved-div-13" class="tile">
+<h3 data-doan-id="resolved-h3-3" class="tile-label">Canvas / Resolved</h3>
+<div data-doan-id="resolved-div-14" class="specimen">
+<div data-doan-id="resolved-div-15" class="comments-head">
+<h3 data-doan-id="resolved-h3-4">Comments</h3>
+<div data-doan-id="resolved-div-16" class="segment" aria-label="Comment scope">
+<button data-doan-id="resolved-button-12" aria-pressed="false">Selection</button>
+<button data-doan-id="resolved-button-13" aria-pressed="true">Canvas</button>
+</div>
+<div data-doan-id="resolved-div-17" class="segment" aria-label="Comment status">
+<button data-doan-id="resolved-button-14" aria-pressed="false">Open 1</button>
+<button data-doan-id="resolved-button-15" aria-pressed="true">Resolved 1</button>
+</div>
+<div data-doan-id="resolved-div-18" class="tools">
+<button data-doan-id="resolved-button-16" class="btn">Copy all open</button>
+<button data-doan-id="resolved-button-17" class="btn">New canvas comment</button>
+</div>
+</div>
+<article data-doan-id="resolved-article-2" class="comment">
+<div data-doan-id="resolved-div-19" class="author">
+<span data-doan-id="resolved-span-5" class="avatar">AM</span>
+<div data-doan-id="resolved-div-20" class="by">
+<b data-doan-id="resolved-b-2">Alex Morgan</b>
+<span data-doan-id="resolved-span-6" class="email">alex@example.com</span>
+<time data-doan-id="resolved-time-2">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="resolved-button-18" class="target">Canvas · sign-in</button>
+<div data-doan-id="resolved-div-21" class="badges">
+<span data-doan-id="resolved-span-7" class="badge resolved">Resolved</span>
+</div>
+<p data-doan-id="resolved-p-4" class="body">Spacing now matches the rest of the screen.</p>
+<div data-doan-id="resolved-div-22" class="tools">
+<button data-doan-id="resolved-button-19" class="btn">Edit</button>
+<button data-doan-id="resolved-button-20" class="btn">Reopen</button>
+<button data-doan-id="resolved-button-21" class="btn" disabled>Copy</button>
+<button data-doan-id="resolved-button-22" class="btn">Delete</button>
+</div>
+<p data-doan-id="resolved-p-5" class="helper">Reopen this comment before copying it to an agent.</p>
+</article>
+</div>
+</div>
+<div data-doan-id="resolved-div-23" class="tile">
+<h3 data-doan-id="resolved-h3-5" class="tile-label">Reopening failed</h3>
+<div data-doan-id="resolved-div-24" class="specimen">
+<article data-doan-id="resolved-article-3" class="comment">
+<div data-doan-id="resolved-div-25" class="author">
+<span data-doan-id="resolved-span-8" class="avatar">AM</span>
+<div data-doan-id="resolved-div-26" class="by">
+<b data-doan-id="resolved-b-3">Alex Morgan</b>
+<span data-doan-id="resolved-span-9" class="email">alex@example.com</span>
+<time data-doan-id="resolved-time-3">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="resolved-button-23" class="target">Element · submit</button>
+<div data-doan-id="resolved-div-27" class="badges">
+<span data-doan-id="resolved-span-10" class="badge resolved">Resolved</span>
+</div>
+<p data-doan-id="resolved-p-6" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="resolved-div-28" class="tools">
+<button data-doan-id="resolved-button-24" class="btn">Edit</button>
+<button data-doan-id="resolved-button-25" class="btn">Reopen</button>
+<button data-doan-id="resolved-button-26" class="btn" disabled>Copy</button>
+<button data-doan-id="resolved-button-27" class="btn">Delete</button>
+</div>
+<p data-doan-id="resolved-p-7" class="helper">Reopen this comment before copying it to an agent.</p>
+</article>
+<div data-doan-id="resolved-div-29" class="message error">
+<b data-doan-id="resolved-b-4">Couldn’t reopen comment</b>Your comment is still resolved. Check write access and try again.<div data-doan-id="resolved-div-30" class="tools">
+<button data-doan-id="resolved-button-28" class="btn">Retry</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="empty-section-1" class="frame" data-doan-frame="empty" data-doan-title="Empty lists">
+<div data-doan-id="empty-div-1" class="flabel">
+<h2 data-doan-id="empty-h2-1">05 / Empty lists</h2>
+<span data-doan-id="empty-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="empty-p-1" class="note">An empty result is different from loading or a failed read. Copy all open uses every open comment on this canvas, regardless of the active scope or status filter.</p>
+<div data-doan-id="empty-div-2" class="tiles">
+<div data-doan-id="empty-div-3" class="tile">
+<h3 data-doan-id="empty-h3-1" class="tile-label">Empty Selection / open comments elsewhere</h3>
+<div data-doan-id="empty-div-4" class="specimen">
+<div data-doan-id="empty-div-5" class="comments-head">
+<h3 data-doan-id="empty-h3-2">Comments</h3>
+<div data-doan-id="empty-div-6" class="segment" aria-label="Comment scope">
+<button data-doan-id="empty-button-1" aria-pressed="true">Selection</button>
+<button data-doan-id="empty-button-2" aria-pressed="false">Canvas</button>
+</div>
+<div data-doan-id="empty-div-7" class="segment" aria-label="Comment status">
+<button data-doan-id="empty-button-3" aria-pressed="true">Open 0</button>
+<button data-doan-id="empty-button-4" aria-pressed="false">Resolved 1</button>
+</div>
+<div data-doan-id="empty-div-8" class="tools">
+<button data-doan-id="empty-button-5" class="btn">Copy all open</button>
+<button data-doan-id="empty-button-6" class="btn">New selection comment</button>
+</div>
+</div>
+<div data-doan-id="empty-div-9" class="message ">
+<b data-doan-id="empty-b-1">No open comments here</b>Leave a note on this target. There are 2 open comments elsewhere on this canvas; Copy all open includes them.
+</div>
+</div>
+</div>
+<div data-doan-id="empty-div-11" class="tile">
+<h3 data-doan-id="empty-h3-3" class="tile-label">No resolved comments</h3>
+<div data-doan-id="empty-div-12" class="specimen">
+<div data-doan-id="empty-div-13" class="comments-head">
+<h3 data-doan-id="empty-h3-4">Comments</h3>
+<div data-doan-id="empty-div-14" class="segment" aria-label="Comment scope">
+<button data-doan-id="empty-button-8" aria-pressed="true">Selection</button>
+<button data-doan-id="empty-button-9" aria-pressed="false">Canvas</button>
+</div>
+<div data-doan-id="empty-div-15" class="segment" aria-label="Comment status">
+<button data-doan-id="empty-button-10" aria-pressed="false">Open 1</button>
+<button data-doan-id="empty-button-11" aria-pressed="true">Resolved 0</button>
+</div>
+<div data-doan-id="empty-div-16" class="tools">
+<button data-doan-id="empty-button-12" class="btn">Copy all open</button>
+<button data-doan-id="empty-button-13" class="btn">New selection comment</button>
+</div>
+</div>
+<div data-doan-id="empty-div-17" class="message ">
+<b data-doan-id="empty-b-2">No resolved comments</b>Resolved comments on this target will appear here.</div>
+</div>
+</div>
+<div data-doan-id="empty-div-18" class="tile">
+<h3 data-doan-id="empty-h3-5" class="tile-label">No selection</h3>
+<div data-doan-id="empty-div-19" class="specimen">
+<div data-doan-id="empty-div-20" class="comments-head">
+<h3 data-doan-id="empty-h3-6">Comments</h3>
+<div data-doan-id="empty-div-21" class="segment" aria-label="Comment scope">
+<button data-doan-id="empty-button-14" aria-pressed="true">Selection</button>
+<button data-doan-id="empty-button-15" aria-pressed="false">Canvas</button>
+</div>
+<div data-doan-id="empty-div-22" class="segment" aria-label="Comment status">
+<button data-doan-id="empty-button-16" aria-pressed="true">Open 0</button>
+<button data-doan-id="empty-button-17" aria-pressed="false">Resolved 0</button>
+</div>
+<div data-doan-id="empty-div-23" class="tools">
+<button data-doan-id="empty-button-18" class="btn" disabled>Copy all open</button>
+<button data-doan-id="empty-button-19" class="btn" disabled>New selection comment</button>
+</div>
+</div>
+<div data-doan-id="empty-div-24" class="message ">
+<b data-doan-id="empty-b-3">Select an element or frame</b>Switch to Canvas to view comments or create a canvas comment. This canvas has no open comments.<div data-doan-id="empty-div-25" class="tools">
+<button data-doan-id="empty-button-20" class="btn">View canvas comments</button>
+</div>
+</div>
+</div>
+</div>
+<div data-doan-id="empty-div-26" class="tile">
+<h3 data-doan-id="empty-h3-7" class="tile-label">Empty canvas</h3>
+<div data-doan-id="empty-div-27" class="specimen">
+<div data-doan-id="empty-div-28" class="comments-head">
+<h3 data-doan-id="empty-h3-8">Comments</h3>
+<div data-doan-id="empty-div-29" class="segment" aria-label="Comment scope">
+<button data-doan-id="empty-button-21" aria-pressed="false">Selection</button>
+<button data-doan-id="empty-button-22" aria-pressed="true">Canvas</button>
+</div>
+<div data-doan-id="empty-div-30" class="segment" aria-label="Comment status">
+<button data-doan-id="empty-button-23" aria-pressed="true">Open 0</button>
+<button data-doan-id="empty-button-24" aria-pressed="false">Resolved 0</button>
+</div>
+<div data-doan-id="empty-div-31" class="tools">
+<button data-doan-id="empty-button-25" class="btn" disabled>Copy all open</button>
+<button data-doan-id="empty-button-26" class="btn">New canvas comment</button>
+</div>
+</div>
+<div data-doan-id="empty-div-32" class="message ">
+<b data-doan-id="empty-b-4">No comments yet</b>Leave a note for this canvas.
+</div>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="compose-edit-section-1" class="frame" data-doan-frame="compose-edit" data-doan-title="Compose and edit">
+<div data-doan-id="compose-edit-div-1" class="flabel">
+<h2 data-doan-id="compose-edit-h2-1">06 / Compose and edit</h2>
+<span data-doan-id="compose-edit-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="compose-edit-p-1" class="note">Plain text only. Preserve valid leading/trailing whitespace and line breaks. Whitespace-only input cannot be saved. Existing edits remain tied to the original comment id even without a DOM location.</p>
+<div data-doan-id="compose-edit-div-2" class="tiles">
+<div data-doan-id="compose-edit-div-3" class="tile">
+<h3 data-doan-id="compose-edit-h3-1" class="tile-label">New element comment</h3>
+<div data-doan-id="compose-edit-div-4" class="specimen">
+<div data-doan-id="compose-edit-div-5" class="composer">
+<label data-doan-id="compose-edit-label-1">New comment</label>
+<span data-doan-id="compose-edit-span-2" class="target">To: Element · submit</span>
+<textarea data-doan-id="compose-edit-textarea-1" aria-label="New comment body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="compose-edit-div-6" class="tools">
+<button data-doan-id="compose-edit-button-1" class="btn">Cancel</button>
+<button data-doan-id="compose-edit-button-2" class="btn primary">Save comment</button>
+</div>
+</div>
+</div>
+</div>
+<div data-doan-id="compose-edit-div-7" class="tile">
+<h3 data-doan-id="compose-edit-h3-2" class="tile-label">Editing a missing target</h3>
+<div data-doan-id="compose-edit-div-8" class="specimen">
+<article data-doan-id="compose-edit-article-1" class="comment">
+<div data-doan-id="compose-edit-div-9" class="author">
+<span data-doan-id="compose-edit-span-3" class="avatar">AM</span>
+<div data-doan-id="compose-edit-div-10" class="by">
+<b data-doan-id="compose-edit-b-1">Alex Morgan</b>
+<span data-doan-id="compose-edit-span-4" class="email">alex@example.com</span>
+<time data-doan-id="compose-edit-time-1">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="compose-edit-button-3" class="target">Element · submit</button>
+<div data-doan-id="compose-edit-div-11" class="badges">
+<span data-doan-id="compose-edit-span-5" class="badge open">Open</span>
+<span data-doan-id="compose-edit-span-6" class="badge warn">Location unavailable</span>
+</div>
+<p data-doan-id="compose-edit-p-2" class="body">Increase the space above this button to 16px.</p>
+</article>
+<div data-doan-id="compose-edit-div-12" class="composer">
+<label data-doan-id="compose-edit-label-2">Edit comment</label>
+<span data-doan-id="compose-edit-span-7" class="target">To: Element · submit</span>
+<textarea data-doan-id="compose-edit-textarea-2" aria-label="Edit comment body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="compose-edit-div-13" class="tools">
+<button data-doan-id="compose-edit-button-4" class="btn">Cancel</button>
+<button data-doan-id="compose-edit-button-5" class="btn primary">Save changes</button>
+</div>
+</div>
+</div>
+</div>
+<div data-doan-id="compose-edit-div-14" class="tile">
+<h3 data-doan-id="compose-edit-h3-3" class="tile-label">Whitespace-only body</h3>
+<div data-doan-id="compose-edit-div-15" class="specimen">
+<div data-doan-id="compose-edit-div-16" class="composer">
+<label data-doan-id="compose-edit-label-3">New comment</label>
+<span data-doan-id="compose-edit-span-8" class="target">To: Element · submit</span>
+<textarea data-doan-id="compose-edit-textarea-3" aria-label="New comment body">   
+   </textarea>
+<div data-doan-id="compose-edit-div-17" class="tools">
+<button data-doan-id="compose-edit-button-6" class="btn">Cancel</button>
+<button data-doan-id="compose-edit-button-7" class="btn primary" disabled>Save comment</button>
+</div>
+</div>
+<div data-doan-id="compose-edit-div-18" class="message ">
+<b data-doan-id="compose-edit-b-2">Write a comment before saving</b>Whitespace alone cannot be saved.</div>
+</div>
+</div>
+<div data-doan-id="compose-edit-div-19" class="tile">
+<h3 data-doan-id="compose-edit-h3-4" class="tile-label">Literal markup</h3>
+<div data-doan-id="compose-edit-div-20" class="specimen">
+<article data-doan-id="compose-edit-article-2" class="comment">
+<div data-doan-id="compose-edit-div-21" class="author">
+<span data-doan-id="compose-edit-span-9" class="avatar">AM</span>
+<div data-doan-id="compose-edit-div-22" class="by">
+<b data-doan-id="compose-edit-b-3">Alex Morgan</b>
+<span data-doan-id="compose-edit-span-10" class="email">alex@example.com</span>
+<time data-doan-id="compose-edit-time-2">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="compose-edit-button-8" class="target">Element · submit</button>
+<div data-doan-id="compose-edit-div-23" class="badges">
+<span data-doan-id="compose-edit-span-11" class="badge open">Open</span>
+</div>
+<p data-doan-id="compose-edit-p-3" class="body">Show the text &lt;button&gt; exactly as written.
+Do not render this note as HTML.</p>
+<div data-doan-id="compose-edit-div-24" class="tools">
+<button data-doan-id="compose-edit-button-9" class="btn">Edit</button>
+<button data-doan-id="compose-edit-button-10" class="btn">Resolve</button>
+<button data-doan-id="compose-edit-button-11" class="btn">Copy</button>
+<button data-doan-id="compose-edit-button-12" class="btn">Delete</button>
+</div>
+</article>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="saving-errors-section-1" class="frame" data-doan-frame="saving-errors" data-doan-title="Saving and recoverable errors">
+<div data-doan-id="saving-errors-div-1" class="flabel">
+<h2 data-doan-id="saving-errors-h2-1">07 / Saving and recoverable errors</h2>
+<span data-doan-id="saving-errors-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="saving-errors-p-1" class="note">Keep the draft visible and freeze repeat submission during a write. Only a confirmed write clears the draft. These are separate from the uncertain-write recovery in frame 17.</p>
+<div data-doan-id="saving-errors-div-2" class="tiles">
+<div data-doan-id="saving-errors-div-3" class="tile">
+<h3 data-doan-id="saving-errors-h3-1" class="tile-label">Saving</h3>
+<div data-doan-id="saving-errors-div-4" class="specimen">
+<div data-doan-id="saving-errors-div-5" class="composer">
+<label data-doan-id="saving-errors-label-1">New comment</label>
+<span data-doan-id="saving-errors-span-2" class="target">To: Element · submit</span>
+<textarea data-doan-id="saving-errors-textarea-1" aria-label="New comment body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="saving-errors-div-6" class="tools">
+<button data-doan-id="saving-errors-button-1" class="btn">Cancel</button>
+<button data-doan-id="saving-errors-button-2" class="btn primary" disabled>Saving…</button>
+</div>
+</div>
+<div data-doan-id="saving-errors-div-7" class="message ">
+<b data-doan-id="saving-errors-b-1">Saving comment…</b>Keep this target open until saving finishes.</div>
+</div>
+</div>
+<div data-doan-id="saving-errors-div-8" class="tile">
+<h3 data-doan-id="saving-errors-h3-2" class="tile-label">Write denied</h3>
+<div data-doan-id="saving-errors-div-9" class="specimen">
+<div data-doan-id="saving-errors-div-10" class="composer">
+<label data-doan-id="saving-errors-label-2">New comment</label>
+<span data-doan-id="saving-errors-span-3" class="target">To: Element · submit</span>
+<textarea data-doan-id="saving-errors-textarea-2" aria-label="New comment body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="saving-errors-div-11" class="tools">
+<button data-doan-id="saving-errors-button-3" class="btn">Cancel</button>
+<button data-doan-id="saving-errors-button-4" class="btn primary">Save comment</button>
+</div>
+</div>
+<div data-doan-id="saving-errors-div-12" class="message error">
+<b data-doan-id="saving-errors-b-2">Couldn’t save comment</b>Permission denied. Your draft is kept. Check write access, then try again.<div data-doan-id="saving-errors-div-13" class="tools">
+<button data-doan-id="saving-errors-button-5" class="btn">Retry</button>
+</div>
+</div>
+</div>
+</div>
+<div data-doan-id="saving-errors-div-14" class="tile">
+<h3 data-doan-id="saving-errors-h3-3" class="tile-label">Document changed / new comment</h3>
+<div data-doan-id="saving-errors-div-15" class="specimen">
+<div data-doan-id="saving-errors-div-16" class="composer">
+<label data-doan-id="saving-errors-label-3">New comment</label>
+<span data-doan-id="saving-errors-span-4" class="target">To: Element · submit</span>
+<textarea data-doan-id="saving-errors-textarea-3" aria-label="New comment body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="saving-errors-div-17" class="tools">
+<button data-doan-id="saving-errors-button-6" class="btn">Cancel</button>
+<button data-doan-id="saving-errors-button-7" class="btn primary" disabled>Save comment</button>
+</div>
+</div>
+<div data-doan-id="saving-errors-div-18" class="message warning">
+<b data-doan-id="saving-errors-b-3">The canvas changed</b>Your draft is still for Element · submit in website / sign-in. Saving is unavailable. Discard this draft or keep writing; it will not attach to a new target.</div>
+</div>
+</div>
+<div data-doan-id="saving-errors-div-19" class="tile">
+<h3 data-doan-id="saving-errors-h3-4" class="tile-label">Project closed</h3>
+<div data-doan-id="saving-errors-div-20" class="specimen">
+<div data-doan-id="saving-errors-div-21" class="composer">
+<label data-doan-id="saving-errors-label-4">New comment</label>
+<span data-doan-id="saving-errors-span-5" class="target">To: Element · submit</span>
+<textarea data-doan-id="saving-errors-textarea-4" aria-label="New comment body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="saving-errors-div-22" class="tools">
+<button data-doan-id="saving-errors-button-8" class="btn">Cancel</button>
+<button data-doan-id="saving-errors-button-9" class="btn primary" disabled>Save comment</button>
+</div>
+</div>
+<div data-doan-id="saving-errors-div-23" class="message error">
+<b data-doan-id="saving-errors-b-4">The original project is closed</b>Your draft is kept. Reopen website before trying again.</div>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="delete-confirm-section-1" class="frame" data-doan-frame="delete-confirm" data-doan-title="Delete confirmation">
+<div data-doan-id="delete-confirm-div-1" class="flabel">
+<h2 data-doan-id="delete-confirm-h2-1">08 / Delete confirmation</h2>
+<span data-doan-id="delete-confirm-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="delete-confirm-p-1" class="note">Deletion is permanent in the event fold and needs explicit confirmation. Cancel retains the card; a failed delete leaves it visible.</p>
+<div data-doan-id="delete-confirm-div-2" class="tiles">
+<div data-doan-id="delete-confirm-div-3" class="tile wide">
+<h3 data-doan-id="delete-confirm-h3-1" class="tile-label">Confirm deletion</h3>
+<div data-doan-id="delete-confirm-div-4" class="dialog">
+<h3 data-doan-id="delete-confirm-h3-2">Delete this comment?</h3>
+<p data-doan-id="delete-confirm-p-2">“Increase the space above this button to 16px.” This comment will be removed and cannot be restored.</p>
+<div data-doan-id="delete-confirm-div-5" class="tools">
+<button data-doan-id="delete-confirm-button-1" class="btn">Cancel</button>
+<button data-doan-id="delete-confirm-button-2" class="btn">Delete comment</button>
+</div>
+</div>
+</div>
+<div data-doan-id="delete-confirm-div-6" class="tile">
+<h3 data-doan-id="delete-confirm-h3-3" class="tile-label">Delete failed</h3>
+<div data-doan-id="delete-confirm-div-7" class="specimen">
+<article data-doan-id="delete-confirm-article-1" class="comment">
+<div data-doan-id="delete-confirm-div-8" class="author">
+<span data-doan-id="delete-confirm-span-2" class="avatar">AM</span>
+<div data-doan-id="delete-confirm-div-9" class="by">
+<b data-doan-id="delete-confirm-b-1">Alex Morgan</b>
+<span data-doan-id="delete-confirm-span-3" class="email">alex@example.com</span>
+<time data-doan-id="delete-confirm-time-1">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="delete-confirm-button-3" class="target">Element · submit</button>
+<div data-doan-id="delete-confirm-div-10" class="badges">
+<span data-doan-id="delete-confirm-span-4" class="badge open">Open</span>
+</div>
+<p data-doan-id="delete-confirm-p-3" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="delete-confirm-div-11" class="tools">
+<button data-doan-id="delete-confirm-button-4" class="btn">Edit</button>
+<button data-doan-id="delete-confirm-button-5" class="btn">Resolve</button>
+<button data-doan-id="delete-confirm-button-6" class="btn">Copy</button>
+<button data-doan-id="delete-confirm-button-7" class="btn">Delete</button>
+</div>
+</article>
+<div data-doan-id="delete-confirm-div-12" class="message error">
+<b data-doan-id="delete-confirm-b-2">Couldn’t delete comment</b>The comment is still here. Check write access and try again.<div data-doan-id="delete-confirm-div-13" class="tools">
+<button data-doan-id="delete-confirm-button-8" class="btn">Retry</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="unsaved-transition-section-1" class="frame" data-doan-frame="unsaved-transition" data-doan-title="Protect the current draft">
+<div data-doan-id="unsaved-transition-div-1" class="flabel">
+<h2 data-doan-id="unsaved-transition-h2-1">09 / Protect the current draft</h2>
+<span data-doan-id="unsaved-transition-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="unsaved-transition-p-1" class="note">Shown before selection, ancestor/frame/pin changes, clearing with Escape or blank space, project/canvas changes, manual Reload, controlled link navigation and normal Quit. Escape means Keep writing and restores editor focus. A failed save leaves the transition pending and original target intact. Hiding the window keeps the draft.</p>
+<div data-doan-id="unsaved-transition-div-2" class="tiles">
+<div data-doan-id="unsaved-transition-div-3" class="tile wide">
+<h3 data-doan-id="unsaved-transition-h3-1" class="tile-label">Save is available</h3>
+<div data-doan-id="unsaved-transition-div-4" class="dialog">
+<h3 data-doan-id="unsaved-transition-h3-2">Save your comment first?</h3>
+<p data-doan-id="unsaved-transition-p-2">Your unsaved comment belongs to Element · submit in website / sign-in. Save it before moving, discard it, or keep writing here.</p>
+<div data-doan-id="unsaved-transition-div-5" class="tools">
+<button data-doan-id="unsaved-transition-button-1" class="btn">Keep writing</button>
+<button data-doan-id="unsaved-transition-button-2" class="btn">Discard</button>
+<button data-doan-id="unsaved-transition-button-3" class="btn primary">Save and continue</button>
+</div>
+</div>
+</div>
+<div data-doan-id="unsaved-transition-div-6" class="tile wide">
+<h3 data-doan-id="unsaved-transition-h3-3" class="tile-label">Save is unavailable</h3>
+<div data-doan-id="unsaved-transition-div-7" class="dialog">
+<h3 data-doan-id="unsaved-transition-h3-4">Keep this draft?</h3>
+<p data-doan-id="unsaved-transition-p-3">The original target changed. Saving is unavailable. Discard the draft to continue or keep writing on the original draft.</p>
+<div data-doan-id="unsaved-transition-div-8" class="tools">
+<button data-doan-id="unsaved-transition-button-4" class="btn">Keep writing</button>
+<button data-doan-id="unsaved-transition-button-5" class="btn">Discard</button>
+<button data-doan-id="unsaved-transition-button-6" class="btn" disabled>Save and continue</button>
+</div>
+</div>
+</div>
+<div data-doan-id="unsaved-transition-div-9" class="tile">
+<h3 data-doan-id="unsaved-transition-h3-5" class="tile-label">Save failed; transition not applied</h3>
+<div data-doan-id="unsaved-transition-div-10" class="specimen">
+<div data-doan-id="unsaved-transition-div-11" class="composer">
+<label data-doan-id="unsaved-transition-label-1">New comment</label>
+<span data-doan-id="unsaved-transition-span-2" class="target">To: Element · submit</span>
+<textarea data-doan-id="unsaved-transition-textarea-1" aria-label="New comment body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="unsaved-transition-div-12" class="tools">
+<button data-doan-id="unsaved-transition-button-7" class="btn">Cancel</button>
+<button data-doan-id="unsaved-transition-button-8" class="btn primary">Save comment</button>
+</div>
+</div>
+<div data-doan-id="unsaved-transition-div-13" class="message error">
+<b data-doan-id="unsaved-transition-b-1">Couldn’t save before moving</b>You are still on Element · submit. Your draft is kept.<div data-doan-id="unsaved-transition-div-14" class="tools">
+<button data-doan-id="unsaved-transition-button-9" class="btn">Keep writing</button>
+<button data-doan-id="unsaved-transition-button-10" class="btn">Discard</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="author-recovery-section-1" class="frame" data-doan-frame="author-recovery" data-doan-title="Author setup and retry">
+<div data-doan-id="author-recovery-div-1" class="flabel">
+<h2 data-doan-id="author-recovery-h2-1">10 / Author setup and retry</h2>
+<span data-doan-id="author-recovery-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="author-recovery-p-1" class="note">All mutations require a git user.name. Email is optional. The app reads configuration and never writes it. Retrying name lookup must not lose the draft.</p>
+<div data-doan-id="author-recovery-div-2" class="tiles">
+<div data-doan-id="author-recovery-div-3" class="tile">
+<h3 data-doan-id="author-recovery-h3-1" class="tile-label">Name not configured</h3>
+<div data-doan-id="author-recovery-div-4" class="specimen">
+<div data-doan-id="author-recovery-div-5" class="composer">
+<label data-doan-id="author-recovery-label-1">New comment</label>
+<span data-doan-id="author-recovery-span-2" class="target">To: Element · submit</span>
+<textarea data-doan-id="author-recovery-textarea-1" aria-label="New comment body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="author-recovery-div-6" class="tools">
+<button data-doan-id="author-recovery-button-1" class="btn">Cancel</button>
+<button data-doan-id="author-recovery-button-2" class="btn primary" disabled>Save comment</button>
+</div>
+</div>
+<div data-doan-id="author-recovery-div-7" class="message warning">
+<b data-doan-id="author-recovery-b-1">Set your Git name</b>Set git user.name for this repository in your terminal, then choose Retry. Your email is optional.<div data-doan-id="author-recovery-div-8" class="tools">
+<button data-doan-id="author-recovery-button-3" class="btn">Retry</button>
+</div>
+</div>
+</div>
+</div>
+<div data-doan-id="author-recovery-div-9" class="tile">
+<h3 data-doan-id="author-recovery-h3-2" class="tile-label">Retrying lookup</h3>
+<div data-doan-id="author-recovery-div-10" class="specimen">
+<div data-doan-id="author-recovery-div-11" class="composer">
+<label data-doan-id="author-recovery-label-2">New comment</label>
+<span data-doan-id="author-recovery-span-3" class="target">To: Element · submit</span>
+<textarea data-doan-id="author-recovery-textarea-2" aria-label="New comment body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="author-recovery-div-12" class="tools">
+<button data-doan-id="author-recovery-button-4" class="btn">Cancel</button>
+<button data-doan-id="author-recovery-button-5" class="btn primary" disabled>Save comment</button>
+</div>
+</div>
+<div data-doan-id="author-recovery-div-13" class="message ">
+<b data-doan-id="author-recovery-b-2">Checking your Git name…</b>Your draft is kept.<div data-doan-id="author-recovery-div-14" class="tools">
+<button data-doan-id="author-recovery-button-6" class="btn" disabled>Retry</button>
+</div>
+</div>
+</div>
+</div>
+<div data-doan-id="author-recovery-div-15" class="tile">
+<h3 data-doan-id="author-recovery-h3-3" class="tile-label">Name found</h3>
+<div data-doan-id="author-recovery-div-16" class="specimen">
+<div data-doan-id="author-recovery-div-17" class="message ">
+<b data-doan-id="author-recovery-b-3">Writing as Alex Morgan</b>alex@example.com</div>
+<div data-doan-id="author-recovery-div-18" class="composer">
+<label data-doan-id="author-recovery-label-3">New comment</label>
+<span data-doan-id="author-recovery-span-4" class="target">To: Element · submit</span>
+<textarea data-doan-id="author-recovery-textarea-3" aria-label="New comment body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="author-recovery-div-19" class="tools">
+<button data-doan-id="author-recovery-button-7" class="btn">Cancel</button>
+<button data-doan-id="author-recovery-button-8" class="btn primary">Save comment</button>
+</div>
+</div>
+</div>
+</div>
+<div data-doan-id="author-recovery-div-20" class="tile">
+<h3 data-doan-id="author-recovery-h3-4" class="tile-label">Git lookup failed</h3>
+<div data-doan-id="author-recovery-div-21" class="specimen">
+<div data-doan-id="author-recovery-div-22" class="composer">
+<label data-doan-id="author-recovery-label-4">New comment</label>
+<span data-doan-id="author-recovery-span-5" class="target">To: Element · submit</span>
+<textarea data-doan-id="author-recovery-textarea-4" aria-label="New comment body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="author-recovery-div-23" class="tools">
+<button data-doan-id="author-recovery-button-9" class="btn">Cancel</button>
+<button data-doan-id="author-recovery-button-10" class="btn primary" disabled>Save comment</button>
+</div>
+</div>
+<div data-doan-id="author-recovery-div-24" class="message error">
+<b data-doan-id="author-recovery-b-4">Couldn’t read your Git name</b>Git could not be run for this repository. Check that Git is available, then retry.<div data-doan-id="author-recovery-div-25" class="tools">
+<button data-doan-id="author-recovery-button-11" class="btn">Retry</button>
+</div>
+</div>
+</div>
+</div>
+<div data-doan-id="author-recovery-existing-tile" class="tile">
+<h3 data-doan-id="author-recovery-existing-title" class="tile-label">Name missing / existing comment</h3>
+<div data-doan-id="author-recovery-existing-specimen" class="specimen">
+<article data-doan-id="author-recovery-existing-article-1" class="comment">
+<div data-doan-id="author-recovery-existing-div-11" class="author">
+<span data-doan-id="author-recovery-existing-span-2" class="avatar">AM</span>
+<div data-doan-id="author-recovery-existing-div-12" class="by">
+<b data-doan-id="author-recovery-existing-b-2">Alex Morgan</b>
+<span data-doan-id="author-recovery-existing-span-3" class="email">alex@example.com</span>
+<time data-doan-id="author-recovery-existing-time-1">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="author-recovery-existing-button-8" class="target">Element · submit</button>
+<div data-doan-id="author-recovery-existing-div-13" class="badges">
+<span data-doan-id="author-recovery-existing-span-4" class="badge open">Open</span>
+</div>
+<p data-doan-id="author-recovery-existing-p-2" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="author-recovery-existing-div-14" class="tools">
+<button data-doan-id="author-recovery-existing-button-9" class="btn" disabled>Edit</button>
+<button data-doan-id="author-recovery-existing-button-10" class="btn" disabled>Resolve</button>
+<button data-doan-id="author-recovery-existing-button-11" class="btn">Copy</button>
+<button data-doan-id="author-recovery-existing-button-12" class="btn" disabled>Delete</button>
+</div>
+</article>
+<div data-doan-id="author-recovery-existing-guidance" class="message warning">
+<b data-doan-id="author-recovery-existing-heading">Set your Git name</b>Set git user.name for this repository in your terminal, then choose Retry. Editing, resolving, reopening and deleting stay unavailable until a name is configured. Copy remains available.
+<div data-doan-id="author-recovery-existing-retry-tools" class="tools">
+<button data-doan-id="author-recovery-existing-retry" class="btn">Retry</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="missing-outdated-section-1" class="frame" data-doan-frame="missing-outdated" data-doan-title="Location and freshness">
+<div data-doan-id="missing-outdated-div-1" class="flabel">
+<h2 data-doan-id="missing-outdated-h2-1">11 / Location and freshness</h2>
+<span data-doan-id="missing-outdated-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="missing-outdated-p-1" class="note">Location and hash freshness are independent. A missing target remains editable and resolvable. No automatic reattachment; only located open targets receive pins. Hash unknown does not mean current.</p>
+<div data-doan-id="missing-outdated-div-2" class="tiles">
+<div data-doan-id="missing-outdated-div-3" class="tile">
+<h3 data-doan-id="missing-outdated-h3-1" class="tile-label">Location unavailable</h3>
+<div data-doan-id="missing-outdated-div-4" class="specimen">
+<article data-doan-id="missing-outdated-article-1" class="comment">
+<div data-doan-id="missing-outdated-div-5" class="author">
+<span data-doan-id="missing-outdated-span-2" class="avatar">AM</span>
+<div data-doan-id="missing-outdated-div-6" class="by">
+<b data-doan-id="missing-outdated-b-1">Alex Morgan</b>
+<span data-doan-id="missing-outdated-span-3" class="email">alex@example.com</span>
+<time data-doan-id="missing-outdated-time-1">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="missing-outdated-button-1" class="target">Element · submit</button>
+<div data-doan-id="missing-outdated-div-7" class="badges">
+<span data-doan-id="missing-outdated-span-4" class="badge open">Open</span>
+<span data-doan-id="missing-outdated-span-5" class="badge warn">Location unavailable</span>
+</div>
+<p data-doan-id="missing-outdated-p-2" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="missing-outdated-div-8" class="tools">
+<button data-doan-id="missing-outdated-button-2" class="btn">Edit</button>
+<button data-doan-id="missing-outdated-button-3" class="btn">Resolve</button>
+<button data-doan-id="missing-outdated-button-4" class="btn">Copy</button>
+<button data-doan-id="missing-outdated-button-5" class="btn">Delete</button>
+</div>
+</article>
+</div>
+</div>
+<div data-doan-id="missing-outdated-div-9" class="tile">
+<h3 data-doan-id="missing-outdated-h3-2" class="tile-label">Outdated only</h3>
+<div data-doan-id="missing-outdated-div-10" class="specimen">
+<article data-doan-id="missing-outdated-article-2" class="comment">
+<div data-doan-id="missing-outdated-div-11" class="author">
+<span data-doan-id="missing-outdated-span-6" class="avatar">AM</span>
+<div data-doan-id="missing-outdated-div-12" class="by">
+<b data-doan-id="missing-outdated-b-2">Alex Morgan</b>
+<span data-doan-id="missing-outdated-span-7" class="email">alex@example.com</span>
+<time data-doan-id="missing-outdated-time-2">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="missing-outdated-button-6" class="target">Element · submit</button>
+<div data-doan-id="missing-outdated-div-13" class="badges">
+<span data-doan-id="missing-outdated-span-8" class="badge open">Open</span>
+<span data-doan-id="missing-outdated-span-9" class="badge warn">Outdated</span>
+</div>
+<p data-doan-id="missing-outdated-p-3" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="missing-outdated-div-14" class="tools">
+<button data-doan-id="missing-outdated-button-7" class="btn">Edit</button>
+<button data-doan-id="missing-outdated-button-8" class="btn">Resolve</button>
+<button data-doan-id="missing-outdated-button-9" class="btn">Copy</button>
+<button data-doan-id="missing-outdated-button-10" class="btn">Delete</button>
+</div>
+</article>
+</div>
+</div>
+<div data-doan-id="missing-outdated-div-15" class="tile">
+<h3 data-doan-id="missing-outdated-h3-3" class="tile-label">Both</h3>
+<div data-doan-id="missing-outdated-div-16" class="specimen">
+<article data-doan-id="missing-outdated-article-3" class="comment">
+<div data-doan-id="missing-outdated-div-17" class="author">
+<span data-doan-id="missing-outdated-span-10" class="avatar">AM</span>
+<div data-doan-id="missing-outdated-div-18" class="by">
+<b data-doan-id="missing-outdated-b-3">Alex Morgan</b>
+<span data-doan-id="missing-outdated-span-11" class="email">alex@example.com</span>
+<time data-doan-id="missing-outdated-time-3">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="missing-outdated-button-11" class="target">Element · submit</button>
+<div data-doan-id="missing-outdated-div-19" class="badges">
+<span data-doan-id="missing-outdated-span-12" class="badge open">Open</span>
+<span data-doan-id="missing-outdated-span-13" class="badge warn">Outdated</span>
+<span data-doan-id="missing-outdated-span-14" class="badge warn">Location unavailable</span>
+</div>
+<p data-doan-id="missing-outdated-p-4" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="missing-outdated-div-20" class="tools">
+<button data-doan-id="missing-outdated-button-12" class="btn">Edit</button>
+<button data-doan-id="missing-outdated-button-13" class="btn">Resolve</button>
+<button data-doan-id="missing-outdated-button-14" class="btn">Copy</button>
+<button data-doan-id="missing-outdated-button-15" class="btn">Delete</button>
+</div>
+</article>
+</div>
+</div>
+<div data-doan-id="missing-outdated-div-21" class="tile">
+<h3 data-doan-id="missing-outdated-h3-4" class="tile-label">Hash unavailable</h3>
+<div data-doan-id="missing-outdated-div-22" class="specimen">
+<article data-doan-id="missing-outdated-article-4" class="comment">
+<div data-doan-id="missing-outdated-div-23" class="author">
+<span data-doan-id="missing-outdated-span-15" class="avatar">AM</span>
+<div data-doan-id="missing-outdated-div-24" class="by">
+<b data-doan-id="missing-outdated-b-4">Alex Morgan</b>
+<span data-doan-id="missing-outdated-span-16" class="email">alex@example.com</span>
+<time data-doan-id="missing-outdated-time-4">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="missing-outdated-button-16" class="target">Element · submit</button>
+<div data-doan-id="missing-outdated-div-25" class="badges">
+<span data-doan-id="missing-outdated-span-17" class="badge open">Open</span>
+<span data-doan-id="missing-outdated-span-18" class="badge warn">Freshness unknown</span>
+</div>
+<p data-doan-id="missing-outdated-p-5" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="missing-outdated-div-26" class="tools">
+<button data-doan-id="missing-outdated-button-17" class="btn">Edit</button>
+<button data-doan-id="missing-outdated-button-18" class="btn">Resolve</button>
+<button data-doan-id="missing-outdated-button-19" class="btn">Copy</button>
+<button data-doan-id="missing-outdated-button-20" class="btn">Delete</button>
+</div>
+</article>
+<div data-doan-id="missing-outdated-div-27" class="message warning">
+<b data-doan-id="missing-outdated-b-5">Couldn’t check canvas freshness</b>The current canvas hash is unavailable. This comment is not confirmed current.</div>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="read-states-section-1" class="frame" data-doan-frame="read-states" data-doan-title="Read states and warnings">
+<div data-doan-id="read-states-div-1" class="flabel">
+<h2 data-doan-id="read-states-h2-1">12 / Read states and warnings</h2>
+<span data-doan-id="read-states-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="read-states-p-1" class="note">Counts are unknown until a successful read; failures never look like zero comments. Partial-read counts include only valid comments: this specimen has one open comment and none resolved.</p>
+<div data-doan-id="read-states-div-2" class="tiles">
+<div data-doan-id="read-states-div-3" class="tile">
+<h3 data-doan-id="read-states-h3-1" class="tile-label">Reading</h3>
+<div data-doan-id="read-states-div-4" class="specimen">
+<div data-doan-id="read-states-div-5" class="comments-head">
+<h3 data-doan-id="read-states-h3-2">Comments</h3>
+<div data-doan-id="read-states-div-6" class="segment" aria-label="Comment scope">
+<button data-doan-id="read-states-button-1" aria-pressed="true">Selection</button>
+<button data-doan-id="read-states-button-2" aria-pressed="false">Canvas</button>
+</div>
+<div data-doan-id="read-states-div-7" class="segment" aria-label="Comment status">
+<button data-doan-id="read-states-button-3" aria-pressed="true">Open —</button>
+<button data-doan-id="read-states-button-4" aria-pressed="false">Resolved —</button>
+</div>
+<div data-doan-id="read-states-div-8" class="tools">
+<button data-doan-id="read-states-button-5" class="btn" disabled>Copy all open</button>
+<button data-doan-id="read-states-button-6" class="btn" disabled>New selection comment</button>
+</div>
+</div>
+<div data-doan-id="read-states-div-9" class="message ">
+<b data-doan-id="read-states-b-1">Loading comments…</b>Reading comments for sign-in.</div>
+</div>
+</div>
+<div data-doan-id="read-states-div-10" class="tile">
+<h3 data-doan-id="read-states-h3-3" class="tile-label">Read failed</h3>
+<div data-doan-id="read-states-div-11" class="specimen">
+<div data-doan-id="read-states-div-12" class="comments-head">
+<h3 data-doan-id="read-states-h3-4">Comments</h3>
+<div data-doan-id="read-states-div-13" class="segment" aria-label="Comment scope">
+<button data-doan-id="read-states-button-7" aria-pressed="true">Selection</button>
+<button data-doan-id="read-states-button-8" aria-pressed="false">Canvas</button>
+</div>
+<div data-doan-id="read-states-div-14" class="segment" aria-label="Comment status">
+<button data-doan-id="read-states-button-9" aria-pressed="true">Open —</button>
+<button data-doan-id="read-states-button-10" aria-pressed="false">Resolved —</button>
+</div>
+<div data-doan-id="read-states-div-15" class="tools">
+<button data-doan-id="read-states-button-11" class="btn" disabled>Copy all open</button>
+<button data-doan-id="read-states-button-12" class="btn" disabled>New selection comment</button>
+</div>
+</div>
+<div data-doan-id="read-states-div-16" class="message error">
+<b data-doan-id="read-states-b-2">Couldn’t read comments</b>Permission denied. Check access to this project and try again.<div data-doan-id="read-states-div-17" class="tools">
+<button data-doan-id="read-states-button-13" class="btn">Retry</button>
+</div>
+</div>
+</div>
+</div>
+<div data-doan-id="read-states-div-18" class="tile">
+<h3 data-doan-id="read-states-h3-5" class="tile-label">Partial warnings</h3>
+<div data-doan-id="read-states-div-19" class="specimen">
+<div data-doan-id="read-states-div-20" class="comments-head">
+<h3 data-doan-id="read-states-h3-6">Comments</h3>
+<div data-doan-id="read-states-div-21" class="segment" aria-label="Comment scope">
+<button data-doan-id="read-states-button-14" aria-pressed="true">Selection</button>
+<button data-doan-id="read-states-button-15" aria-pressed="false">Canvas</button>
+</div>
+<div data-doan-id="read-states-div-22" class="segment" aria-label="Comment status">
+<button data-doan-id="read-states-button-16" aria-pressed="true">Open 1</button>
+<button data-doan-id="read-states-button-17" aria-pressed="false">Resolved 0</button>
+</div>
+<div data-doan-id="read-states-div-23" class="tools">
+<button data-doan-id="read-states-button-18" class="btn">Copy all open</button>
+<button data-doan-id="read-states-button-19" class="btn">New selection comment</button>
+</div>
+</div>
+<div data-doan-id="read-states-div-24" class="message warning">
+<b data-doan-id="read-states-b-3">Some events could not be read</b>Line 4: invalid event. Line 9: unsupported version. Valid comments are shown below.</div>
+<article data-doan-id="read-states-article-1" class="comment">
+<div data-doan-id="read-states-div-25" class="author">
+<span data-doan-id="read-states-span-2" class="avatar">AM</span>
+<div data-doan-id="read-states-div-26" class="by">
+<b data-doan-id="read-states-b-4">Alex Morgan</b>
+<span data-doan-id="read-states-span-3" class="email">alex@example.com</span>
+<time data-doan-id="read-states-time-1">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="read-states-button-20" class="target">Element · submit</button>
+<div data-doan-id="read-states-div-27" class="badges">
+<span data-doan-id="read-states-span-4" class="badge open">Open</span>
+</div>
+<p data-doan-id="read-states-p-2" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="read-states-div-28" class="tools">
+<button data-doan-id="read-states-button-21" class="btn">Edit</button>
+<button data-doan-id="read-states-button-22" class="btn">Resolve</button>
+<button data-doan-id="read-states-button-23" class="btn">Copy</button>
+<button data-doan-id="read-states-button-24" class="btn">Delete</button>
+</div>
+</article>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="long-values-section-1" class="frame" data-doan-frame="long-values" data-doan-title="Long text and copy feedback">
+<div data-doan-id="long-values-div-1" class="flabel">
+<h2 data-doan-id="long-values-h2-1">13 / Long text and copy feedback</h2>
+<span data-doan-id="long-values-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="long-values-p-1" class="note">Author, email, target and body wrap within 280px. Body text is not shortened. The copy specimen is clipboard content, not an executable command; comment bodies are not inserted into it. Copy all open uses all current open ids.</p>
+<div data-doan-id="long-values-div-2" class="tiles">
+<div data-doan-id="long-values-div-3" class="tile">
+<h3 data-doan-id="long-values-h3-1" class="tile-label">Long author and body</h3>
+<div data-doan-id="long-values-div-4" class="specimen">
+<article data-doan-id="long-values-article-1" class="comment">
+<div data-doan-id="long-values-div-5" class="author">
+<span data-doan-id="long-values-span-2" class="avatar">AM</span>
+<div data-doan-id="long-values-div-6" class="by">
+<b data-doan-id="long-values-b-1">Alexandra Morgan-Wellington / Design systems</b>
+<span data-doan-id="long-values-span-3" class="email">alexandra.morgan-wellington@example.com</span>
+<time data-doan-id="long-values-time-1">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="long-values-button-1" class="target">Element · account-settings-and-personal-preferences-submit</button>
+<div data-doan-id="long-values-div-7" class="badges">
+<span data-doan-id="long-values-span-4" class="badge open">Open</span>
+</div>
+<p data-doan-id="long-values-p-2" class="body">Keep the validation message directly below the email field so that people can recover without searching the page.
+
+Preserve these line breaks and the exact text “Use your work email address”.
+
+  Keep these spaces too.  </p>
+<div data-doan-id="long-values-div-8" class="tools">
+<button data-doan-id="long-values-button-2" class="btn">Edit</button>
+<button data-doan-id="long-values-button-3" class="btn">Resolve</button>
+<button data-doan-id="long-values-button-4" class="btn">Copy</button>
+<button data-doan-id="long-values-button-5" class="btn">Delete</button>
+</div>
+</article>
+</div>
+</div>
+<div data-doan-id="long-values-div-9" class="tile wide">
+<h3 data-doan-id="long-values-h3-2" class="tile-label">Single-comment clipboard content</h3>
+<div data-doan-id="long-values-div-10" class="copy-sentence">Read comments through the Doan CLI or MCP for repository &quot;/Users/alex/Projects/Acme account redesign&quot;, canvas &quot;sign-in&quot;, comment ids [&quot;cmt_12345678-1234-4234-8234-123456789abc&quot;]. Apply changes within the requested scope, then resolve only those comment ids.</div>
+</div>
+<div data-doan-id="long-values-div-11" class="tile">
+<h3 data-doan-id="long-values-h3-3" class="tile-label">Copy succeeded / failed</h3>
+<div data-doan-id="long-values-div-12" class="specimen">
+<div data-doan-id="long-values-div-13" class="message ">
+<b data-doan-id="long-values-b-2">Copied</b>Paste the sentence into your agent conversation.<div data-doan-id="long-values-div-14" class="tools">
+<button data-doan-id="long-values-button-6" class="btn">Copied</button>
+</div>
+</div>
+<div data-doan-id="long-values-div-15" class="message error">
+<b data-doan-id="long-values-b-3">Couldn’t copy</b>Your clipboard could not be updated. Try again.<div data-doan-id="long-values-div-16" class="tools">
+<button data-doan-id="long-values-button-7" class="btn">Retry copy</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="pins-section-1" class="frame" data-doan-frame="pins" data-doan-title="Pins, overlap and keyboard focus">
+<div data-doan-id="pins-div-1" class="flabel">
+<h2 data-doan-id="pins-h2-1">14 / Pins, overlap and keyboard focus</h2>
+<span data-doan-id="pins-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="pins-p-1" class="note">Pins are 24px high in screen space; full counts grow horizontally. Each rect anchors at its top-right. Nearby different targets keep separate pins even when they overlap; the Canvas list remains accessible. No edge stand-ins for clipped/offscreen targets. Focus ring is illustrated; disappearing pins move focus to their matching list or Comments heading.</p>
+<div data-doan-id="pins-div-2" class="tiles">
+<div data-doan-id="pins-div-3" class="tile">
+<h3 data-doan-id="pins-h3-1" class="tile-label">One target, two open comments</h3>
+<div data-doan-id="pins-div-4" class="pin-scene">
+<div data-doan-id="pins-div-5" class="pin-target" style="left:30px;top:65px;width:200px;height:90px">Same DOM target</div>
+<button data-doan-id="pins-button-1" class="pin" style="left:218px;top:53px" aria-label="2 open comments on sign-in">2</button>
+</div>
+</div>
+<div data-doan-id="pins-div-6" class="tile">
+<h3 data-doan-id="pins-h3-2" class="tile-label">Nearby targets remain separate</h3>
+<div data-doan-id="pins-div-7" class="pin-scene">
+<div data-doan-id="pins-div-8" class="pin-target" style="left:20px;top:65px;width:180px;height:90px">Target A</div>
+<div data-doan-id="pins-div-9" class="pin-target" style="left:40px;top:78px;width:174px;height:60px">Target B</div>
+<button data-doan-id="pins-button-2" class="pin" style="left:188px;top:53px" aria-label="2 open comments on A">2</button>
+<button data-doan-id="pins-button-3" class="pin focus" style="left:202px;top:66px" aria-label="3 open comments on B">3</button>
+</div>
+</div>
+<div data-doan-id="pins-div-10" class="tile">
+<h3 data-doan-id="pins-h3-3" class="tile-label">Long count / keyboard focus</h3>
+<div data-doan-id="pins-div-11" class="pin-scene">
+<div data-doan-id="pins-div-12" class="pin-target" style="left:20px;top:70px;width:150px;height:80px">1,000 open comments</div>
+<button data-doan-id="pins-button-4" class="pin focus" style="left:158px;top:58px" aria-label="1000 open comments on submit">1,000</button>
+</div>
+</div>
+<div data-doan-id="pins-div-13" class="tile">
+<h3 data-doan-id="pins-h3-4" class="tile-label">Clipped target: no pin</h3>
+<div data-doan-id="pins-div-14" class="pin-scene">
+<div data-doan-id="pins-div-15" class="pin-target" style="left:-90px;top:70px;width:150px;height:80px">Clipped target</div>
+</div>
+<div data-doan-id="pins-div-16" class="specimen">
+<div data-doan-id="pins-div-17" class="message ">
+<b data-doan-id="pins-b-1">All targets remain in the list</b>Canvas comments and comments without locations appear only in the panel.<div data-doan-id="pins-div-18" class="tools">
+<button data-doan-id="pins-button-5" class="btn">View canvas comments</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<p data-doan-id="pins-p-2" class="note">Minimum window: 960 × 600. The canvas clips naturally; the list stays reachable. The Inspector scroll region retains the same child styles.</p>
+<div data-doan-id="pins-div-19" class="win" style="width:960px;height:600px">
+<div data-doan-id="pins-div-20" class="app-shell">
+<header data-doan-id="pins-header-1" class="top">
+<span data-doan-id="pins-span-2" class="traffic-space lights">
+<i data-doan-id="pins-i-1">
+</i>
+<i data-doan-id="pins-i-2">
+</i>
+<i data-doan-id="pins-i-3">
+</i>
+</span>
+<span data-doan-id="pins-span-3" class="logo">
+<i data-doan-id="pins-i-4">
+</i>doan</span>
+<span data-doan-id="pins-span-4" class="meta breadcrumb">website / <span data-doan-id="pins-span-5">doan/sign-in.html</span>
+</span>
+<span data-doan-id="pins-span-6" class="chip">600 px</span>
+<span data-doan-id="pins-span-7" class="spacer">
+</span>
+<button data-doan-id="pins-button-6" class="btn ghost">Reload <span data-doan-id="pins-span-8" class="kbd">⌘R</span>
+</button>
+</header>
+<aside data-doan-id="pins-aside-1" class="side">
+<div data-doan-id="pins-div-21" class="sec">Projects <button data-doan-id="pins-button-7" class="section-action">Open Project…</button>
+</div>
+<div data-doan-id="pins-div-22" class="row">
+<span data-doan-id="pins-span-9" class="glyph">▾</span>
+<span data-doan-id="pins-span-10" class="g">website</span>
+<span data-doan-id="pins-span-11" class="close-project">×</span>
+</div>
+<div data-doan-id="pins-div-23" class="row ind" aria-current="true">
+<span data-doan-id="pins-span-12" class="glyph">◧</span>
+<span data-doan-id="pins-span-13" class="g">sign-in.html</span>
+<span data-doan-id="pins-span-14" class="cnt hot">3</span>
+</div>
+<div data-doan-id="pins-div-24" class="sec">Frames <span data-doan-id="pins-span-15" class="r">1</span>
+</div>
+<button data-doan-id="pins-button-8" class="row frame-row" aria-current="true">
+<span data-doan-id="pins-span-16" class="glyph">#</span>
+<span data-doan-id="pins-span-17" class="g">sign-in</span>
+<span data-doan-id="pins-span-18" class="d">Sign in</span>
+</button>
+<div data-doan-id="pins-div-25" class="row element-row">
+<span data-doan-id="pins-span-19" class="glyph">↳</span>
+<span data-doan-id="pins-span-20" class="g">button · submit</span>
+</div>
+</aside>
+<section data-doan-id="pins-section-2" class="area">
+<div data-doan-id="pins-div-26" class="mock-page">
+<div data-doan-id="pins-div-27" class="mock-nav">Acme account</div>
+<div data-doan-id="pins-div-28" class="mock-card">
+<h3 data-doan-id="pins-h3-5">Welcome back</h3>
+<p data-doan-id="pins-p-3">Sign in to your workspace.</p>
+<div data-doan-id="pins-div-29" class="mock-field">Email address</div>
+<div data-doan-id="pins-div-30" class="mock-field">Password</div>
+<div data-doan-id="pins-div-31" class="mock-button">Sign in</div>
+</div>
+</div>
+<div data-doan-id="pins-div-32" class="mark" style="left:234px;top:372px;width:250px;height:32px">
+<span data-doan-id="pins-span-21" class="dims">250 × 32</span>
+</div>
+<button data-doan-id="pins-button-9" class="pin" style="left:472px;top:360px" aria-label="2 open comments on submit">2</button>
+<output data-doan-id="pins-output-1" class="updated meta">
+<span data-doan-id="pins-span-22" class="dot">
+</span> Updated 10:42</output>
+<div data-doan-id="pins-div-33" class="zctl">
+<div data-doan-id="pins-div-34" class="zoom">
+<button data-doan-id="pins-button-10">−</button>
+<output data-doan-id="pins-output-2">100%</output>
+<button data-doan-id="pins-button-11">+</button>
+</div>
+<button data-doan-id="pins-button-12" class="btn">Fit <span data-doan-id="pins-span-23" class="kbd">⌘1</span>
+</button>
+</div>
+</section>
+<aside data-doan-id="pins-aside-2" class="right review-panel">
+<div data-doan-id="pins-div-35" class="inspector-scroll native-scroll">
+<h2 data-doan-id="pins-h2-2" class="phead">Inspector</h2>
+<div data-doan-id="pins-div-36" class="inspect-head">
+<h3 data-doan-id="pins-h3-6">button</h3>
+<span data-doan-id="pins-span-24" class="selector truncate">[data-doan-id="submit"]</span>
+<dl data-doan-id="pins-dl-1" class="head-kv">
+<dt data-doan-id="pins-dt-1">Frame</dt>
+<dd data-doan-id="pins-dd-1">sign-in · Sign in</dd>
+</dl>
+<nav data-doan-id="pins-nav-1" class="ancestors">
+<button data-doan-id="pins-button-13">section</button>
+<span data-doan-id="pins-span-25">›</span>
+<button data-doan-id="pins-button-14">form</button>
+<span data-doan-id="pins-span-26">›</span>
+<button data-doan-id="pins-button-15" aria-current="true">button</button>
+</nav>
+<p data-doan-id="pins-p-4" class="use-hint">⌥-click to use it</p>
+</div>
+<section data-doan-id="pins-section-3" class="isec">
+<h3 data-doan-id="pins-h3-7" class="ihead">Box</h3>
+<div data-doan-id="pins-div-37" class="inspect-row">
+<div data-doan-id="pins-div-38" class="value-line">
+<span data-doan-id="pins-span-27" class="prop">Width</span>
+<span data-doan-id="pins-span-28" class="value">250px</span>
+</div>
+</div>
+<div data-doan-id="pins-div-39" class="inspect-row">
+<div data-doan-id="pins-div-40" class="value-line">
+<span data-doan-id="pins-span-29" class="prop">Height</span>
+<span data-doan-id="pins-span-30" class="value">32px</span>
+</div>
+</div>
+<div data-doan-id="pins-div-41" class="inspect-row">
+<div data-doan-id="pins-div-42" class="value-line">
+<span data-doan-id="pins-span-31" class="prop">Padding</span>
+<span data-doan-id="pins-span-32" class="value">0px</span>
+</div>
+</div>
+<div data-doan-id="pins-div-43" class="inspect-row">
+<div data-doan-id="pins-div-44" class="value-line">
+<span data-doan-id="pins-span-33" class="prop">Margin</span>
+<span data-doan-id="pins-span-34" class="value">0px</span>
+</div>
+</div>
+</section>
+<section data-doan-id="pins-section-4" class="isec">
+<h3 data-doan-id="pins-h3-8" class="ihead">Typography</h3>
+<div data-doan-id="pins-div-45" class="inspect-row">
+<div data-doan-id="pins-div-46" class="value-line">
+<span data-doan-id="pins-span-35" class="prop">Font</span>
+<span data-doan-id="pins-span-36" class="value">system-ui</span>
+</div>
+</div>
+<div data-doan-id="pins-div-47" class="inspect-row">
+<div data-doan-id="pins-div-48" class="value-line">
+<span data-doan-id="pins-span-37" class="prop">Size</span>
+<span data-doan-id="pins-span-38" class="value">12px</span>
+</div>
+</div>
+<div data-doan-id="pins-div-49" class="inspect-row">
+<div data-doan-id="pins-div-50" class="value-line">
+<span data-doan-id="pins-span-39" class="prop">Weight</span>
+<span data-doan-id="pins-span-40" class="value">400</span>
+</div>
+</div>
+</section>
+<section data-doan-id="pins-section-5" class="isec">
+<h3 data-doan-id="pins-h3-9" class="ihead">Colors</h3>
+<div data-doan-id="pins-div-51" class="inspect-row">
+<div data-doan-id="pins-div-52" class="value-line">
+<span data-doan-id="pins-span-41" class="prop">Text</span>
+<span data-doan-id="pins-span-42" class="value">var(--mock-brand-ink)</span>
+</div>
+</div>
+<div data-doan-id="pins-div-53" class="inspect-row">
+<div data-doan-id="pins-div-54" class="value-line">
+<span data-doan-id="pins-span-43" class="prop">Background</span>
+<span data-doan-id="pins-span-44" class="value">var(--mock-brand)</span>
+</div>
+</div>
+</section>
+<section data-doan-id="pins-section-6" class="isec">
+<h3 data-doan-id="pins-h3-10" class="ihead">Effects</h3>
+<div data-doan-id="pins-div-55" class="inspect-row">
+<div data-doan-id="pins-div-56" class="value-line">
+<span data-doan-id="pins-span-45" class="prop">Radius</span>
+<span data-doan-id="pins-span-46" class="value">6px</span>
+</div>
+</div>
+<div data-doan-id="pins-div-57" class="inspect-row">
+<div data-doan-id="pins-div-58" class="value-line">
+<span data-doan-id="pins-span-47" class="prop">Shadow</span>
+<span data-doan-id="pins-span-48" class="value">none</span>
+</div>
+</div>
+</section>
+<section data-doan-id="pins-section-7" class="isec">
+<h3 data-doan-id="pins-h3-11" class="ihead">Doan attributes</h3>
+<div data-doan-id="pins-div-59" class="inspect-row">
+<div data-doan-id="pins-div-60" class="value-line">
+<span data-doan-id="pins-span-49" class="prop">id</span>
+<span data-doan-id="pins-span-50" class="value">submit</span>
+</div>
+</div>
+<div data-doan-id="pins-div-61" class="inspect-row">
+<div data-doan-id="pins-div-62" class="value-line">
+<span data-doan-id="pins-span-51" class="prop">implements</span>
+<span data-doan-id="pins-span-52" class="value">—</span>
+</div>
+</div>
+</section>
+</div>
+<div data-doan-id="pins-div-63" class="comments-scroll native-scroll">
+<div data-doan-id="pins-div-64" class="comments-head">
+<h3 data-doan-id="pins-h3-12">Comments</h3>
+<div data-doan-id="pins-div-65" class="segment" aria-label="Comment scope">
+<button data-doan-id="pins-button-16" aria-pressed="true">Selection</button>
+<button data-doan-id="pins-button-17" aria-pressed="false">Canvas</button>
+</div>
+<div data-doan-id="pins-div-66" class="segment" aria-label="Comment status">
+<button data-doan-id="pins-button-18" aria-pressed="true">Open 2</button>
+<button data-doan-id="pins-button-19" aria-pressed="false">Resolved 1</button>
+</div>
+<div data-doan-id="pins-div-67" class="tools">
+<button data-doan-id="pins-button-20" class="btn">Copy all open</button>
+<button data-doan-id="pins-button-21" class="btn">New selection comment</button>
+</div>
+</div>
+<article data-doan-id="pins-article-1" class="comment">
+<div data-doan-id="pins-div-68" class="author">
+<span data-doan-id="pins-span-53" class="avatar">AM</span>
+<div data-doan-id="pins-div-69" class="by">
+<b data-doan-id="pins-b-2">Alex Morgan</b>
+<span data-doan-id="pins-span-54" class="email">alex@example.com</span>
+<time data-doan-id="pins-time-1">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="pins-button-22" class="target">Element · submit</button>
+<div data-doan-id="pins-div-70" class="badges">
+<span data-doan-id="pins-span-55" class="badge open">Open</span>
+</div>
+<p data-doan-id="pins-p-5" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="pins-div-71" class="tools">
+<button data-doan-id="pins-button-23" class="btn">Edit</button>
+<button data-doan-id="pins-button-24" class="btn">Resolve</button>
+<button data-doan-id="pins-button-25" class="btn">Copy</button>
+<button data-doan-id="pins-button-26" class="btn">Delete</button>
+</div>
+</article>
+</div>
+</aside>
+</div>
+</div>
+<div data-doan-id="pins-div-72" class="tiles" style="margin-top:24px">
+<div data-doan-id="pins-div-73" class="tile">
+<h3 data-doan-id="pins-h3-13" class="tile-label">5% canvas scale / 24px pin</h3>
+<div data-doan-id="pins-div-74" class="pin-scene">
+<div data-doan-id="pins-div-75" class="pin-target" style="left:15px;top:70px;padding:0;width:8px;height:40px">
+</div>
+<button data-doan-id="pins-button-27" class="pin" style="left:11px;top:58px" aria-label="2 open comments on submit">2</button>
+</div>
+</div>
+<div data-doan-id="pins-div-76" class="tile">
+<h3 data-doan-id="pins-h3-14" class="tile-label">25% canvas scale / 24px pin</h3>
+<div data-doan-id="pins-div-77" class="pin-scene">
+<div data-doan-id="pins-div-78" class="pin-target" style="left:15px;top:70px;padding:0;width:40px;height:40px">
+</div>
+<button data-doan-id="pins-button-28" class="pin" style="left:43px;top:58px" aria-label="2 open comments on submit">2</button>
+</div>
+</div>
+<div data-doan-id="pins-div-79" class="tile">
+<h3 data-doan-id="pins-h3-15" class="tile-label">100% canvas scale / 24px pin</h3>
+<div data-doan-id="pins-div-80" class="pin-scene">
+<div data-doan-id="pins-div-81" class="pin-target" style="left:15px;top:70px;padding:0;width:160px;height:40px">
+</div>
+<button data-doan-id="pins-button-29" class="pin" style="left:163px;top:58px" aria-label="2 open comments on submit">2</button>
+</div>
+</div>
+<div data-doan-id="pins-div-82" class="tile">
+<h3 data-doan-id="pins-h3-16" class="tile-label">400% canvas scale / 24px pin</h3>
+<div data-doan-id="pins-div-83" class="pin-scene">
+<div data-doan-id="pins-div-84" class="pin-target" style="left:15px;top:70px;padding:0;width:240px;height:40px">
+</div>
+<button data-doan-id="pins-button-30" class="pin" style="left:243px;top:58px" aria-label="2 open comments on submit">2</button>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="eligibility-section-1" class="frame" data-doan-frame="eligibility" data-doan-title="Unavailable canvas and write restrictions">
+<div data-doan-id="eligibility-div-1" class="flabel">
+<h2 data-doan-id="eligibility-h2-1">15 / Unavailable canvas and write restrictions</h2>
+<span data-doan-id="eligibility-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="eligibility-p-1" class="note">Width alone blocks new comments and pins, but keeps existing management and open-comment copy. Missing, invalid or duplicate canvas identity blocks all writes. A different root with the same id is a separate project.</p>
+<div data-doan-id="eligibility-div-2" class="tiles">
+<div data-doan-id="eligibility-div-3" class="tile">
+<h3 data-doan-id="eligibility-h3-1" class="tile-label">Missing or invalid width</h3>
+<div data-doan-id="eligibility-div-4" class="specimen">
+<div data-doan-id="eligibility-div-5" class="comments-head">
+<h3 data-doan-id="eligibility-h3-2">Comments</h3>
+<div data-doan-id="eligibility-div-6" class="segment" aria-label="Comment scope">
+<button data-doan-id="eligibility-button-1" aria-pressed="false">Selection</button>
+<button data-doan-id="eligibility-button-2" aria-pressed="true">Canvas</button>
+</div>
+<div data-doan-id="eligibility-div-7" class="segment" aria-label="Comment status">
+<button data-doan-id="eligibility-button-3" aria-pressed="true">Open 1</button>
+<button data-doan-id="eligibility-button-4" aria-pressed="false">Resolved 0</button>
+</div>
+<div data-doan-id="eligibility-div-8" class="tools">
+<button data-doan-id="eligibility-button-5" class="btn">Copy all open</button>
+<button data-doan-id="eligibility-button-6" class="btn" disabled>New canvas comment</button>
+</div>
+</div>
+<div data-doan-id="eligibility-div-9" class="message warning">
+<b data-doan-id="eligibility-b-1">Missing or invalid board width.</b>Existing comments are still available. Fix doan:width to add comments and show pins.</div>
+<article data-doan-id="eligibility-article-1" class="comment">
+<div data-doan-id="eligibility-div-11" class="author">
+<span data-doan-id="eligibility-span-2" class="avatar">AM</span>
+<div data-doan-id="eligibility-div-12" class="by">
+<b data-doan-id="eligibility-b-2">Alex Morgan</b>
+<span data-doan-id="eligibility-span-3" class="email">alex@example.com</span>
+<time data-doan-id="eligibility-time-1">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="eligibility-button-8" class="target">Element · submit</button>
+<div data-doan-id="eligibility-div-13" class="badges">
+<span data-doan-id="eligibility-span-4" class="badge open">Open</span>
+</div>
+<p data-doan-id="eligibility-p-2" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="eligibility-div-14" class="tools">
+<button data-doan-id="eligibility-button-9" class="btn">Edit</button>
+<button data-doan-id="eligibility-button-10" class="btn">Resolve</button>
+<button data-doan-id="eligibility-button-11" class="btn">Copy</button>
+<button data-doan-id="eligibility-button-12" class="btn">Delete</button>
+</div>
+</article>
+</div>
+</div>
+<div data-doan-id="eligibility-div-15" class="tile">
+<h3 data-doan-id="eligibility-h3-3" class="tile-label">Missing canvas ID</h3>
+<div data-doan-id="eligibility-div-16" class="specimen">
+<div data-doan-id="eligibility-div-17" class="message error">
+<b data-doan-id="eligibility-b-3">Missing canvas ID</b>This canvas has no valid identity. Add a unique doan:canvas value before writing comments.</div>
+<article data-doan-id="eligibility-article-2" class="comment">
+<div data-doan-id="eligibility-div-18" class="author">
+<span data-doan-id="eligibility-span-5" class="avatar">AM</span>
+<div data-doan-id="eligibility-div-19" class="by">
+<b data-doan-id="eligibility-b-4">Alex Morgan</b>
+<span data-doan-id="eligibility-span-6" class="email">alex@example.com</span>
+<time data-doan-id="eligibility-time-2">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="eligibility-button-13" class="target">Element · submit</button>
+<div data-doan-id="eligibility-div-20" class="badges">
+<span data-doan-id="eligibility-span-7" class="badge open">Open</span>
+</div>
+<p data-doan-id="eligibility-p-3" class="body">Increase the space above this button to 16px.</p>
+</article>
+<div data-doan-id="eligibility-div-21" class="tools">
+<button data-doan-id="eligibility-button-14" class="btn" disabled>Edit</button>
+<button data-doan-id="eligibility-button-15" class="btn" disabled>Resolve</button>
+<button data-doan-id="eligibility-button-16" class="btn" disabled>Delete</button>
+<button data-doan-id="eligibility-button-17" class="btn" disabled>New comment</button>
+</div>
+</div>
+</div>
+<div data-doan-id="eligibility-div-22" class="tile">
+<h3 data-doan-id="eligibility-h3-4" class="tile-label">Invalid canvas ID</h3>
+<div data-doan-id="eligibility-div-23" class="specimen">
+<div data-doan-id="eligibility-div-24" class="message error">
+<b data-doan-id="eligibility-b-5">Invalid canvas ID</b>The canvas id is invalid. Fix it before writing comments.</div>
+<article data-doan-id="eligibility-article-3" class="comment">
+<div data-doan-id="eligibility-div-25" class="author">
+<span data-doan-id="eligibility-span-8" class="avatar">AM</span>
+<div data-doan-id="eligibility-div-26" class="by">
+<b data-doan-id="eligibility-b-6">Alex Morgan</b>
+<span data-doan-id="eligibility-span-9" class="email">alex@example.com</span>
+<time data-doan-id="eligibility-time-3">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="eligibility-button-18" class="target">Element · submit</button>
+<div data-doan-id="eligibility-div-27" class="badges">
+<span data-doan-id="eligibility-span-10" class="badge open">Open</span>
+</div>
+<p data-doan-id="eligibility-p-4" class="body">Increase the space above this button to 16px.</p>
+</article>
+<div data-doan-id="eligibility-div-28" class="tools">
+<button data-doan-id="eligibility-button-19" class="btn" disabled>Edit</button>
+<button data-doan-id="eligibility-button-20" class="btn" disabled>Resolve</button>
+<button data-doan-id="eligibility-button-21" class="btn" disabled>Delete</button>
+<button data-doan-id="eligibility-button-22" class="btn" disabled>New comment</button>
+</div>
+</div>
+</div>
+<div data-doan-id="eligibility-div-29" class="tile">
+<h3 data-doan-id="eligibility-h3-5" class="tile-label">Duplicate canvas ID</h3>
+<div data-doan-id="eligibility-div-30" class="specimen">
+<div data-doan-id="eligibility-div-31" class="message error">
+<b data-doan-id="eligibility-b-7">Duplicate canvas ID</b>More than one canvas uses sign-in in this project. Give each canvas a unique id before writing comments.</div>
+<article data-doan-id="eligibility-article-4" class="comment">
+<div data-doan-id="eligibility-div-32" class="author">
+<span data-doan-id="eligibility-span-11" class="avatar">AM</span>
+<div data-doan-id="eligibility-div-33" class="by">
+<b data-doan-id="eligibility-b-8">Alex Morgan</b>
+<span data-doan-id="eligibility-span-12" class="email">alex@example.com</span>
+<time data-doan-id="eligibility-time-4">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="eligibility-button-23" class="target">Element · submit</button>
+<div data-doan-id="eligibility-div-34" class="badges">
+<span data-doan-id="eligibility-span-13" class="badge open">Open</span>
+</div>
+<p data-doan-id="eligibility-p-5" class="body">Increase the space above this button to 16px.</p>
+</article>
+<div data-doan-id="eligibility-div-35" class="tools">
+<button data-doan-id="eligibility-button-24" class="btn" disabled>Edit</button>
+<button data-doan-id="eligibility-button-25" class="btn" disabled>Resolve</button>
+<button data-doan-id="eligibility-button-26" class="btn" disabled>Delete</button>
+<button data-doan-id="eligibility-button-27" class="btn" disabled>New comment</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="conflict-recovery-section-1" class="frame" data-doan-frame="conflict-recovery" data-doan-title="Conflict recovery">
+<div data-doan-id="conflict-recovery-div-1" class="flabel">
+<h2 data-doan-id="conflict-recovery-h2-1">16 / Conflict recovery</h2>
+<span data-doan-id="conflict-recovery-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="conflict-recovery-p-1" class="note">Never overwrite an external edit silently. Keep input and show the latest state; reread then explicitly save after reviewing. A deleted comment cannot be saved, and edits do not require a DOM location.</p>
+<div data-doan-id="conflict-recovery-div-2" class="tiles">
+<div data-doan-id="conflict-recovery-div-3" class="tile">
+<h3 data-doan-id="conflict-recovery-h3-1" class="tile-label">Conflict detected</h3>
+<div data-doan-id="conflict-recovery-div-4" class="specimen">
+<div data-doan-id="conflict-recovery-div-5" class="message warning">
+<b data-doan-id="conflict-recovery-b-1">This comment changed elsewhere</b>Your input is kept. Read the latest state before saving again.<div data-doan-id="conflict-recovery-div-6" class="tools">
+<button data-doan-id="conflict-recovery-button-1" class="btn">Read latest state</button>
+</div>
+</div>
+<div data-doan-id="conflict-recovery-div-7" class="composer">
+<label data-doan-id="conflict-recovery-label-1">Your unsaved edit</label>
+<span data-doan-id="conflict-recovery-span-2" class="target">To: Element · submit</span>
+<textarea data-doan-id="conflict-recovery-textarea-1" aria-label="Your unsaved edit body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="conflict-recovery-div-8" class="tools">
+<button data-doan-id="conflict-recovery-button-2" class="btn">Cancel</button>
+<button data-doan-id="conflict-recovery-button-3" class="btn primary" disabled>Save changes</button>
+</div>
+</div>
+</div>
+</div>
+<div data-doan-id="conflict-recovery-div-9" class="tile">
+<h3 data-doan-id="conflict-recovery-h3-2" class="tile-label">Latest state reviewed</h3>
+<div data-doan-id="conflict-recovery-div-10" class="specimen">
+<div data-doan-id="conflict-recovery-div-11" class="message ">
+<b data-doan-id="conflict-recovery-b-2">Latest saved comment · Open</b>Use 24px above the button. Updated by Sam Lee at 10:44.</div>
+<div data-doan-id="conflict-recovery-div-12" class="composer">
+<label data-doan-id="conflict-recovery-label-2">Your unsaved edit</label>
+<span data-doan-id="conflict-recovery-span-3" class="target">To: Element · submit</span>
+<textarea data-doan-id="conflict-recovery-textarea-2" aria-label="Your unsaved edit body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="conflict-recovery-div-13" class="tools">
+<button data-doan-id="conflict-recovery-button-4" class="btn">Cancel</button>
+<button data-doan-id="conflict-recovery-button-5" class="btn primary">Save reviewed changes</button>
+</div>
+</div>
+<div data-doan-id="conflict-recovery-div-14" class="tools">
+<button data-doan-id="conflict-recovery-button-6" class="btn">Discard my edit</button>
+</div>
+</div>
+</div>
+<div data-doan-id="conflict-recovery-div-15" class="tile">
+<h3 data-doan-id="conflict-recovery-h3-3" class="tile-label">Deleted elsewhere</h3>
+<div data-doan-id="conflict-recovery-div-16" class="specimen">
+<div data-doan-id="conflict-recovery-div-17" class="message error">
+<b data-doan-id="conflict-recovery-b-3">This comment was deleted</b>Your input is kept for reference. It cannot be saved to the deleted comment.</div>
+<div data-doan-id="conflict-recovery-div-18" class="composer">
+<label data-doan-id="conflict-recovery-label-3">Your unsaved edit</label>
+<span data-doan-id="conflict-recovery-span-4" class="target">To: Element · submit</span>
+<textarea data-doan-id="conflict-recovery-textarea-3" aria-label="Your unsaved edit body">Increase the space above this button to 16px.</textarea>
+<div data-doan-id="conflict-recovery-div-19" class="tools">
+<button data-doan-id="conflict-recovery-button-7" class="btn">Cancel</button>
+<button data-doan-id="conflict-recovery-button-8" class="btn primary" disabled>Save changes</button>
+</div>
+</div>
+<div data-doan-id="conflict-recovery-div-20" class="tools">
+<button data-doan-id="conflict-recovery-button-9" class="btn">Discard my edit</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section data-doan-id="save-verification-section-1" class="frame" data-doan-frame="save-verification" data-doan-title="Verify an uncertain write">
+<div data-doan-id="save-verification-div-1" class="flabel">
+<h2 data-doan-id="save-verification-h2-1">17 / Verify an uncertain write</h2>
+<span data-doan-id="save-verification-span-1" class="nic">Not in code · proposal</span>
+</div>
+<p data-doan-id="save-verification-p-1" class="note">Until the exact original request is checked, do not offer a new save or duplicate submission. The original payload stays read-only during checking and original-request retry. Keep draft retains the pending request identity and text; it does not cancel the request or unlock a new submission. Confirmed absence permits only the same request; confirmed presence reports Saved without another append.</p>
+<div data-doan-id="save-verification-div-2" class="tiles">
+<div data-doan-id="save-verification-div-3" class="tile">
+<h3 data-doan-id="save-verification-h3-1" class="tile-label">Outcome unknown</h3>
+<div data-doan-id="save-verification-div-4" class="specimen">
+<div data-doan-id="save-verification-div-5" class="composer">
+<label data-doan-id="save-verification-label-1">New comment</label>
+<span data-doan-id="save-verification-span-2" class="target">To: Element · submit</span>
+<textarea data-doan-id="save-verification-textarea-1" aria-label="New comment body" readonly>Increase the space above this button to 16px.</textarea>
+<div data-doan-id="save-verification-div-6" class="tools">
+<button data-doan-id="save-verification-button-1" class="btn">Keep draft</button>
+<button data-doan-id="save-verification-button-2" class="btn primary" disabled>Save comment</button>
+</div>
+</div>
+<div data-doan-id="save-verification-div-7" class="message warning">
+<b data-doan-id="save-verification-b-1">Save status is unknown</b>The response was lost. Check whether this comment was saved before trying again.<div data-doan-id="save-verification-div-8" class="tools">
+<button data-doan-id="save-verification-button-3" class="btn">Check saved status</button>
+</div>
+</div>
+</div>
+</div>
+<div data-doan-id="save-verification-div-9" class="tile">
+<h3 data-doan-id="save-verification-h3-2" class="tile-label">Checking</h3>
+<div data-doan-id="save-verification-div-10" class="specimen">
+<div data-doan-id="save-verification-div-11" class="composer">
+<label data-doan-id="save-verification-label-2">New comment</label>
+<span data-doan-id="save-verification-span-3" class="target">To: Element · submit</span>
+<textarea data-doan-id="save-verification-textarea-2" aria-label="New comment body" readonly>Increase the space above this button to 16px.</textarea>
+<div data-doan-id="save-verification-div-12" class="tools">
+<button data-doan-id="save-verification-button-4" class="btn">Keep draft</button>
+<button data-doan-id="save-verification-button-5" class="btn primary" disabled>Save comment</button>
+</div>
+</div>
+<div data-doan-id="save-verification-div-13" class="message ">
+<b data-doan-id="save-verification-b-2">Checking saved status…</b>Your draft is kept. Do not submit another copy.<div data-doan-id="save-verification-div-14" class="tools">
+<button data-doan-id="save-verification-button-6" class="btn" disabled>Check saved status</button>
+</div>
+</div>
+</div>
+</div>
+<div data-doan-id="save-verification-div-15" class="tile">
+<h3 data-doan-id="save-verification-h3-3" class="tile-label">Not saved / original request retry</h3>
+<div data-doan-id="save-verification-div-16" class="specimen">
+<div data-doan-id="save-verification-div-17" class="composer">
+<label data-doan-id="save-verification-label-3">New comment</label>
+<span data-doan-id="save-verification-span-4" class="target">To: Element · submit</span>
+<textarea data-doan-id="save-verification-textarea-3" aria-label="New comment body" readonly>Increase the space above this button to 16px.</textarea>
+<div data-doan-id="save-verification-div-18" class="tools">
+<button data-doan-id="save-verification-button-7" class="btn">Keep draft</button>
+<button data-doan-id="save-verification-button-8" class="btn primary">Retry original save</button>
+</div>
+</div>
+<div data-doan-id="save-verification-div-19" class="message ">
+<b data-doan-id="save-verification-b-3">The comment was not saved</b>Retry the original save with this preserved text.</div>
+</div>
+</div>
+<div data-doan-id="save-verification-div-20" class="tile">
+<h3 data-doan-id="save-verification-h3-4" class="tile-label">Confirmed saved</h3>
+<div data-doan-id="save-verification-div-21" class="specimen">
+<div data-doan-id="save-verification-div-22" class="message ">
+<b data-doan-id="save-verification-b-4">Comment saved</b>The original comment is in the file. No duplicate was added.</div>
+<article data-doan-id="save-verification-article-1" class="comment">
+<div data-doan-id="save-verification-div-23" class="author">
+<span data-doan-id="save-verification-span-5" class="avatar">AM</span>
+<div data-doan-id="save-verification-div-24" class="by">
+<b data-doan-id="save-verification-b-5">Alex Morgan</b>
+<span data-doan-id="save-verification-span-6" class="email">alex@example.com</span>
+<time data-doan-id="save-verification-time-1">Oct 23, 10:42</time>
+</div>
+</div>
+<button data-doan-id="save-verification-button-9" class="target">Element · submit</button>
+<div data-doan-id="save-verification-div-25" class="badges">
+<span data-doan-id="save-verification-span-7" class="badge open">Open</span>
+</div>
+<p data-doan-id="save-verification-p-2" class="body">Increase the space above this button to 16px.</p>
+<div data-doan-id="save-verification-div-26" class="tools">
+<button data-doan-id="save-verification-button-10" class="btn">Edit</button>
+<button data-doan-id="save-verification-button-11" class="btn">Resolve</button>
+<button data-doan-id="save-verification-button-12" class="btn">Copy</button>
+<button data-doan-id="save-verification-button-13" class="btn">Delete</button>
+</div>
+</article>
+</div>
+</div>
+<div data-doan-id="save-verification-failed-tile" class="tile">
+<h3 data-doan-id="save-verification-failed-title" class="tile-label">Status check failed / draft retained</h3>
+<div data-doan-id="save-verification-failed-specimen" class="specimen">
+<div data-doan-id="save-verification-failed-composer" class="composer">
+<label data-doan-id="save-verification-failed-label">Pending original comment</label>
+<span data-doan-id="save-verification-failed-target" class="target">To: Element · submit</span>
+<textarea data-doan-id="save-verification-failed-body" aria-label="Pending original comment body" readonly>Increase the space above this button to 16px.</textarea>
+<div data-doan-id="save-verification-failed-tools" class="tools">
+<button data-doan-id="save-verification-failed-keep" class="btn">Keep draft</button>
+<button data-doan-id="save-verification-failed-save" class="btn primary" disabled>Save comment</button>
+</div>
+</div>
+<div data-doan-id="save-verification-div-27" class="message error">
+<b data-doan-id="save-verification-b-6">Couldn’t confirm saved status</b>The file could not be read. Your input is kept; saving remains disabled.<div data-doan-id="save-verification-div-28" class="tools">
+<button data-doan-id="save-verification-button-14" class="btn">Retry status check</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+</body>
+</html>

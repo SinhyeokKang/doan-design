@@ -102,7 +102,7 @@ test("shell words keep quoted flag assignments together", () => {
 });
 
 test("only a whole standalone literal patch batch qualifies as code-mode invocation evidence", () => {
-  const patch = '*** Begin Patch\n*** Delete File: doan/team.html\n*** End Patch';
+  const patch = '*** Begin Patch\n*** Delete File: .doan/canvases/team.html\n*** End Patch';
   const calls = (input: string) => toolCalls(JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "exec", input } }));
   for (const source of [
     `tools.apply_patch(${JSON.stringify(patch)})`, `/* call */ await tools.apply_patch(${JSON.stringify(patch)}); // end`,

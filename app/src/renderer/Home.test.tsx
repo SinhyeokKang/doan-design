@@ -30,7 +30,7 @@ test("problem rows use the action table and do not leak CLI error reasons", () =
   expect(html).not.toContain("private failure");
 });
 
-const counted = (open: number): FolderEntry => ({ kind: "list", path: "/code/main", servedRev: 0, canvases: [{ path: "doan/a.html", id: "a", url: "u", open, resolved: 1 }], git: { common: "/code/main/.git", main: "/code/main", branch: "main", worktrees: [] } });
+const counted = (open: number): FolderEntry => ({ kind: "list", path: "/code/main", servedRev: 0, canvases: [{ path: ".doan/canvases/a.html", id: "a", url: "u", open, resolved: 1 }], git: { common: "/code/main/.git", main: "/code/main", branch: "main", worktrees: [] } });
 test("a row shows open, then resolved to review, from the project read", () => {
   const html = render([counted(2)], null, new Map([["/code/main", [{ id: "a", open: 2, resolved: 1, toReview: 1 }]]]));
   expect(html).toMatch(/<span class="hot">2 open<\/span> · <span class="review">1 resolved to review<\/span> · <span>/);
@@ -57,7 +57,7 @@ test("a row with only comments without a canvas starts after the canvas count", 
   expect(render([entry])).toMatch(/<span class="wt-sum"><span>0 canvases<\/span> · <span>2 without a canvas<\/span> · <span>/);
 });
 test("a row whose canvas comments could not be read shows no open count", () => {
-  const entry: FolderEntry = { ...counted(0), kind: "list", canvases: [{ path: "doan/a.html", id: "a", url: "u", open: 0, resolved: 0, commentsError: { code: "unreadable_comments", message: "m" } }] } as FolderEntry;
+  const entry: FolderEntry = { ...counted(0), kind: "list", canvases: [{ path: ".doan/canvases/a.html", id: "a", url: "u", open: 0, resolved: 0, commentsError: { code: "unreadable_comments", message: "m" } }] } as FolderEntry;
   const html = render([entry]);
   expect(html).not.toContain("open");
   expect(html).toContain('aria-label="Project main · 1 canvas · /code/main"');

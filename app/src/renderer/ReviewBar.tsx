@@ -2,7 +2,7 @@ import { X } from "lucide-react";
 import { useId } from "react";
 import type { ReviewStep } from "../comments/review";
 
-// The Review surfaces under the Comments head (doan/revision-recheck.html,
+// The Review surfaces under the Comments head (.doan/canvases/revision-recheck.html,
 // frames review-notice, review-bar, review-done). The panel works out the
 // texts; these only lay them out.
 

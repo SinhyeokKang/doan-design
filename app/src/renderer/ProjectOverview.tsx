@@ -189,7 +189,7 @@ function CanvasCard({ canvas, comments, thumbnail, open, focus, blur }: { canvas
     </div>
     <div className="ocard-body">
       <span id={`${id}-title`} className="ocard-title" title={canvas.name}>{canvas.name}</span>
-      <PathTip text={canvas.key.replace(/^doan\//, "")}><span id={`${id}-file`} className="ocard-file">{canvas.fileName}</span></PathTip>
+      <PathTip text={canvas.key.replace(/^\.doan\/canvases\//, "")}><span id={`${id}-file`} className="ocard-file">{canvas.fileName}</span></PathTip>
       <span id={`${id}-meta`} className="ocard-meta">{facts.frames && <><span>{facts.frames}</span> · </>}{facts.open && <><span className="hot">{facts.open}</span> · </>}{facts.review && <><span className="review">{facts.review}</span> · </>}<span><ChangedTime at={canvas.row.mtimeMs} /></span></span>
     </div>
   </button>;
@@ -198,7 +198,7 @@ function CanvasCard({ canvas, comments, thumbnail, open, focus, blur }: { canvas
 // The heading stays; the composer replaces the shipped Copy first prompt (app-setup).
 function OverviewEmpty({ root }: { root: string }) {
   return <div className="empty">
-    <b>No canvases in doan/ yet</b>
+    <b>No canvases in .doan/canvases/ yet</b>
     <div className="fp-card"><FirstPrompt root={root} /></div>
   </div>;
 }

@@ -4,7 +4,7 @@ import type { OrphanFile } from "../view";
 import { orphanWriteAllowed } from "./orphanWrite";
 
 const orphan = (extra: Partial<OrphanFile> = {}): OrphanFile => ({ id: "checkout-v1", file: ".doan/comments/checkout-v1.jsonl", comments: { open: 2, resolved: 1 }, uncertain: false, ...extra });
-const listing = (orphans?: OrphanFile[], canvases: unknown[] = []): FolderView => ({ kind: "list", root: "/repo", scope: ["doan"], canvases, ...(orphans ? { orphans } : {}) });
+const listing = (orphans?: OrphanFile[], canvases: unknown[] = []): FolderView => ({ kind: "list", root: "/repo", scope: [".doan/canvases"], canvases, ...(orphans ? { orphans } : {}) });
 const expected = { status: "open", updatedAt: "2026-10-25T10:00:00.000Z" };
 const request = (type: string, canvas = "checkout-v1", root = "/repo") => ({ root, canvas, requestID: "req-1", project: 1, intent: { type, comment: "cmt_1", expected } });
 
@@ -21,14 +21,14 @@ describe("orphanWriteAllowed", () => {
 
   test("rejects an id that is not in orphans, including one a canvas row uses", () => {
     expect(orphanWriteAllowed(listing([orphan()]), request("resolve", "checkout"))).toBe(false);
-    expect(orphanWriteAllowed(listing([], [{ path: "doan/checkout.html", id: "checkout-v1" }]), request("resolve"))).toBe(false);
+    expect(orphanWriteAllowed(listing([], [{ path: ".doan/canvases/checkout.html", id: "checkout-v1" }]), request("resolve"))).toBe(false);
     expect(orphanWriteAllowed(listing(), request("resolve"))).toBe(false);
   });
 
   // TS does not look at canvas rows: ls leaves invalid and duplicate ids off
   // them, so only Go knows the file is matched (design §4).
   test("trusts orphans over canvas rows", () => {
-    expect(orphanWriteAllowed(listing([orphan()], [{ path: "doan/x.html" }]), request("resolve"))).toBe(true);
+    expect(orphanWriteAllowed(listing([orphan()], [{ path: ".doan/canvases/x.html" }]), request("resolve"))).toBe(true);
   });
 
   test("rejects an uncertain orphan and one ls could not read", () => {

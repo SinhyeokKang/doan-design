@@ -14,7 +14,7 @@ describe("shell navigation", () => {
     expect(projectExpanded({ roots: ["a"], expanded: false }, "b")).toBe(false);
   });
   it("commits only a final destination and truncates forward history", () => {
-    const a = { root: "a", canvas: "doan/a.html" }, b = { root: "b" };
+    const a = { root: "a", canvas: ".doan/canvases/a.html" }, b = { root: "b" };
     const first = commitVisit(emptyHistory(), a);
     expect(commitVisit(first, a)).toBe(first);
     const second = commitVisit(first, b);

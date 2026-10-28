@@ -101,7 +101,7 @@ export function transitionDraft(state: DraftState, action: DraftAction): DraftRe
   return none;
 }
 
-// The disabled reasons are the confirmed draft copy (doan/revision-continuity.html).
+// The disabled reasons are the confirmed draft copy (.doan/canvases/revision-continuity.html).
 export const CONTINUE_REASONS = {
   loading: "Waiting for the canvas to finish loading.",
   noWidth: "The current version has no readable width. Run doan check in a terminal.",

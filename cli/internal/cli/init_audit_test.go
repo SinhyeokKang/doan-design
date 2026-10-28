@@ -31,7 +31,7 @@ func TestInitAttributesFailureDoesNotPublishConfig(t *testing.T) {
 		t.Fatal("foreign attributes changed")
 	}
 	entries, err := os.ReadDir(filepath.Join(root, ".doan"))
-	if err != nil || len(entries) != 0 {
+	if err != nil || len(entries) != 1 || entries[0].Name() != "canvases" {
 		t.Fatalf("staged config leaked: %v %v", entries, err)
 	}
 	if err := os.Chmod(attrs, 0644); err != nil {

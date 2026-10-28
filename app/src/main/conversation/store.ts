@@ -12,7 +12,7 @@ export interface ConversationMetadata {
 export function validId(value: unknown): value is string { return typeof value === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(value); }
 function str(value: unknown): value is string { return typeof value === "string" && value.length <= 1_048_576 && !value.includes("\0"); }
 export function validCanvas(value: unknown): value is Canvas {
-  return object(value) && typeof value.path === "string" && value.path.startsWith("doan/") && value.path.length <= 4096 &&
+  return object(value) && typeof value.path === "string" && value.path.startsWith(".doan/canvases/") && value.path.length <= 4096 &&
     !value.path.includes("\0") && !value.path.split("/").some(p => p === ".." || p === "." || !p) &&
     (value.id === undefined || (typeof value.id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.id)));
 }

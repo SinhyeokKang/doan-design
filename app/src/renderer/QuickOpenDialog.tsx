@@ -20,7 +20,7 @@ export function resultParts(result: SearchResult, where: ReadonlyMap<string, str
   return {
     glyph: result.kind === "frame" ? "#" : "◧",
     name: result.label,
-    context: result.kind === "frame" ? ` — ${result.canvasLabel} › ${result.frameIndex + 1}` : ` — ${result.path.replace(/^doan\//, "")}`,
+    context: result.kind === "frame" ? ` — ${result.canvasLabel} › ${result.frameIndex + 1}` : ` — ${result.path.replace(/^\.doan\/canvases\//, "")}`,
     where: project ? ` · ${project}` : "",
   };
 }

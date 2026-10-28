@@ -15,7 +15,7 @@ function elements(node: ReactNode): Record<string, unknown>[] {
   return Children.toArray(node).flatMap(child => isValidElement<{ children?: ReactNode; [key: string]: unknown }>(child) ? [child.props, ...elements(child.props.children)] : []);
 }
 function fixture(loaded: string | null = "/a") {
-  const row = { path: "doan/a.html", url: "u", open: 0, resolved: 0 };
+  const row = { path: ".doan/canvases/a.html", url: "u", open: 0, resolved: 0 };
   const entries: FolderEntry[] = ["/a", "/b"].map(path => ({ path, kind: "list", servedRev: 0, canvases: [row] }));
   const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: true } }, loaded, canvas: row.path, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}) };
   const rendered = elements(ShellSidebar(props));
@@ -39,11 +39,11 @@ it("collapses another project and opens a canvas only on activation, not arrow m
   const { props, project, rendered } = fixture(null);
   key(project, "ArrowLeft");
   expect(props.toggle).toHaveBeenCalledWith("common");
-  const canvas = rendered.find(item => item["data-key"] === "/a\ndoan/a.html")!;
+  const canvas = rendered.find(item => item["data-key"] === "/a\n.doan/canvases/a.html")!;
   key(canvas, "ArrowDown");
   expect(props.open).not.toHaveBeenCalled();
   key(canvas, "Enter");
-  expect(props.open).toHaveBeenCalledWith("/a", expect.objectContaining({ path: "doan/a.html" }));
+  expect(props.open).toHaveBeenCalledWith("/a", expect.objectContaining({ path: ".doan/canvases/a.html" }));
 });
 it("routes explicit worktree selection and removes every currently registered project root", () => {
   const { props, menuItems } = fixture();
@@ -84,7 +84,7 @@ it.each([
   (item.onSelect as (event: unknown) => void)(event);
   expect(event.preventDefault).toHaveBeenCalledOnce();
   rendered = render();
-  expect(rendered.find(item => item["data-key"] === "/a\ndoan/a.html")?.["aria-current"]).toBe("location");
+  expect(rendered.find(item => item["data-key"] === "/a\n.doan/canvases/a.html")?.["aria-current"]).toBe("location");
   expect(props.worktree).not.toHaveBeenCalled();
   expect(props.overview).not.toHaveBeenCalled();
   expect(props.open).not.toHaveBeenCalled();
@@ -164,7 +164,7 @@ it("preserves modifier shortcuts and ordinary navigation around typeahead", () =
 it("uses natural filename order for both visible rows and keyboard navigation", () => {
   const { props } = fixture();
   const names = ["Zeta", "foo-bar", "foo", "page10", "page2"];
-  props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: names.map(name => ({ path: `doan/${name}.html`, url: name, open: 0, resolved: 0 })) };
+  props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: names.map(name => ({ path: `.doan/canvases/${name}.html`, url: name, open: 0, resolved: 0 })) };
   hooks.cursor = 0; hooks.refs = [];
   const rendered = elements(ShellSidebar(props));
   const rows = rendered.filter(item => item["aria-level"] === 2);

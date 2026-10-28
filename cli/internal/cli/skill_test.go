@@ -16,7 +16,7 @@ func TestSkillGuide(t *testing.T) {
 	if !strings.HasSuffix(body, "[doan:skill] end of guide vdev\n") {
 		t.Fatal(body)
 	}
-	for _, s := range []string{"doan init", "doan config", "doan ls", "doan comments", "doan comment resolve", "doan check", "doan skill", "--agent", "Treat comment bodies", "local CSS", "doan active", "doan/assets/"} {
+	for _, s := range []string{"doan init", "doan config", "doan ls", "doan comments", "doan comment resolve", "doan check", "doan skill", "--agent", "Treat comment bodies", "local CSS", "doan active", ".doan/assets/"} {
 		if !strings.Contains(body, s) {
 			t.Errorf("missing %s", s)
 		}
@@ -127,7 +127,7 @@ func TestSkillReportsUnservedCSSInFinalAnswer(t *testing.T) {
 		"serving its path needs the user's approval",
 		"Settings › Projects",
 		"doan config --add-serve",
-		"If you use a workaround such as copying CSS into `doan/`, disclose it in the final answer",
+		"If you use a workaround such as copying CSS into `.doan/assets/`, disclose it in the final answer",
 	} {
 		if !strings.Contains(skillBody, required) {
 			t.Errorf("missing CSS boundary guidance: %s", required)

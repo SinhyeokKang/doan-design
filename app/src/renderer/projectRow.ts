@@ -16,7 +16,7 @@ export function projectRow(entry: FolderEntry): ProjectRow {
     case "list":
       return entry.canvases.length === 0 ? { hint: "No canvases", actions: ["copyPrompt", "close"] } : { actions: ["close"] };
     case "uninitialized":
-      return { status: "Not initialized", detail: ["Set up this project to add doan/ and .doan/."], actions: ["setup", "close"] };
+      return { status: "Not initialized", detail: ["Set up this project to add .doan/canvases/ and .doan/."], actions: ["setup", "close"] };
     case "error":
       return { status: "Error", detail: [entry.message], actions: ["close"] };
     case "cliError":
