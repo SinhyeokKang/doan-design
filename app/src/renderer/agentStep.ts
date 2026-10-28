@@ -2,7 +2,7 @@ import type { AuthPromptEvent, AuthReason, AuthSnapshot } from "../main/agentAut
 import type { Provider } from "../main/agentAuth/types";
 import type { DoanApi } from "../preload";
 import {
-  authListView, cancelledAnnouncement, MAX_PASTE, pasteDialog, pasteSubmittable, readyAnnouncements, replyEffect, stopDialog,
+  authListView, cancelledAnnouncement, MAX_PASTE, PROVIDER_NAMES, pasteDialog, pasteSubmittable, readyAnnouncements, replyEffect, stopDialog,
   type AuthCommand, type ProviderContext,
 } from "./agentAuthView";
 import { canAdvance, newerAuth, ownedSignIns } from "./onboardingScene";
@@ -15,6 +15,9 @@ export interface AgentStepDeps {
   openInstall(provider: Provider): Promise<boolean>;
   hasFocus(): boolean;
   changed(): void;
+  // Attempt ids this window started, kept across a renderer reload; agent-auth still names the window their owner.
+  remember?(ids: readonly string[]): void;
+  recall?(): string[];
 }
 export type AgentDialog =
   | { kind: "stop"; provider: Provider; intent: "signIn" | "signOut" }
@@ -49,7 +52,7 @@ export class AgentStepSession {
   private stops: (() => void)[] = [];
   private seq = 0;
   // Attempt ids this window started: Continue and Back cancel only these.
-  private owned: string[] = [];
+  private owned: string[];
   private opened = new Set<string>();
   // Sign-in calls of this window still waiting for their attempt id, and prompts that came before that id: a main
   // event and an invoke reply have no guaranteed order, so a prompt cannot be judged until the reply lands.
@@ -63,7 +66,7 @@ export class AgentStepSession {
   // Install pages opened, checked again when the window regains focus.
   private installs = new Set<Provider>();
   private pending: string[] = [];
-  constructor(private readonly deps: AgentStepDeps) {}
+  constructor(private readonly deps: AgentStepDeps) { this.owned = deps.recall?.() ?? []; }
 
   start(): void {
     this.live = true;
@@ -254,7 +257,7 @@ export class AgentStepSession {
     const result = await this.settle(call);
     if (signIn) this.starting--;
     if (!this.live) return;
-    if (result.ok && "attemptId" in result && signIn) { this.owned.push(result.attemptId); this.ownedBy.set(provider, result.attemptId); }
+    if (result.ok && "attemptId" in result && signIn) { this.owned.push(result.attemptId); this.ownedBy.set(provider, result.attemptId); this.deps.remember?.(this.owned); }
     if (signIn) {
       const held = this.held;
       this.held = this.starting > 0 ? held.filter(event => !this.owned.includes(event.attemptId)) : [];
@@ -271,7 +274,7 @@ export class AgentStepSession {
     if (!this.live) return;
     // Every page that opened is checked on return; only the latest result decides the error line.
     if (opened) this.installs.add(provider);
-    if (request === this.installRequests && !opened) this.set({ installError: "Couldn’t open the install page." });
+    if (request === this.installRequests && !opened) this.set({ installError: `Couldn’t open the ${PROVIDER_NAMES[provider]} install page.` });
   }
   private async reply(provider: Provider, call: Promise<{ ok: true } | { ok: false; reason: AuthReason }>, intent: "signIn" | "signOut"): Promise<void> {
     const result = await this.settle(call);

@@ -117,7 +117,7 @@ test("a failed install page open is shown and no return check is armed", async (
   await flush();
   h.session.command("claude", "install");
   await flush();
-  expect(h.session.state.installError).toBe("Couldn’t open the install page.");
+  expect(h.session.state.installError).toBe("Couldn’t open the Claude Code install page.");
   h.session.windowFocused();
   await flush();
   expect(checked(h)).toEqual([]);
@@ -547,4 +547,35 @@ test("a rejected read keeps the list already shown", async () => {
   await flush();
   expect(h.session.state.auth?.revision).toBe(1);
   expect(h.session.view().notice).toBeNull();
+});
+
+test("U2: the install line names the provider whose page did not open", async () => {
+  const h = harness(snap(1, { cursor: { facts: { cli: "missing" } } }));
+  vi.mocked(h.deps.openInstall).mockResolvedValueOnce(false);
+  h.session.start(); h.session.enter();
+  await flush();
+  h.session.command("cursor", "install");
+  await flush();
+  expect(h.session.state.installError).toBe("Couldn’t open the Cursor install page.");
+});
+
+test("U2: a reloaded window still cancels the sign-ins it started before the reload", async () => {
+  const stored: string[][] = [];
+  const first = harness();
+  first.deps.remember = ids => { stored.push([...ids]); };
+  first.session.start(); first.session.enter();
+  await flush();
+  first.session.command("codex", "signIn");
+  await flush();
+  expect(stored.at(-1)).toEqual(["sign-1"]);
+  first.session.dispose();
+  const reloaded = harness();
+  reloaded.deps.recall = () => stored.at(-1) ?? [];
+  const session = new AgentStepSession(reloaded.deps);
+  session.start(); session.enter();
+  await flush();
+  reloaded.emit(snap(2, { claude: connected, codex: { attempt: { id: "sign-1", kind: "signIn" } } }));
+  // The harness session is a separate instance; emit reaches the latest subscriber, which is this one.
+  expect(await session.continue()).toBe(true);
+  expect(reloaded.api.cancelAgentSignIn.mock.calls).toEqual([["codex", "sign-1"]]);
 });
