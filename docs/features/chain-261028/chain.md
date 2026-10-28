@@ -27,9 +27,10 @@
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1 agent-cli-versions | (인계 시 기록) | | | 대기 |
+| 1 agent-cli-versions | Claude Code 세션 · Orca worktree `agent-cli-versions-orch`(브랜치 `feat-agent-cli-versions`) | 2026-10-28 | | 진행 중 |
 | 2 buzz-onboarding | | | | 대기(링크 1 병합 후) |
 
 ## 인계 기록
 
 - 2026-10-28 체인 작성 세션 → 링크 1: 이 파일과 규칙을 main에 push한 뒤 링크 1 세션을 띄운다. 링크 1이 시작 확인을 남기면 체인 작성 세션은 물러난다.
+- 2026-10-28 링크 1 시작: `agent-cli-versions-orch` worktree에서 main `f884c73`으로부터 `feat-agent-cli-versions`를 만들고 `/orchestrate agent-cli-versions`를 시작했다. 체인 작성 세션은 물러나도 된다.
