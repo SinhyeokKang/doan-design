@@ -6,7 +6,8 @@ export function validProvider(value: unknown): value is Provider { return PROVID
 export interface AccountIdentity { id: string | null; workspace: string | null; displayName?: string; email?: string }
 // profile is an opaque reference main resolves to a directory (providerEnv profileDir), never a credential location.
 export interface AccountConnection { provider: Provider; connectionId: string; profile: string; account: AccountIdentity }
-export interface AuthMetadata { v: 1; accounts: AccountConnection[] }
+// signOutFailed lists providers whose last sign-out failed: their runs stay blocked across restarts until one succeeds.
+export interface AuthMetadata { v: 1; accounts: AccountConnection[]; signOutFailed?: Provider[] }
 export type ConversationOwner =
   | { kind: "legacy-external" }
   | { kind: "doan"; provider: Provider; connectionId: string; accountId: string | null; workspaceId: string | null; profile: string };
@@ -33,7 +34,8 @@ export type SignInResult =
 export type AuthEvent =
   | { type: "check"; attemptId: string }
   | { type: "signIn"; attemptId: string; owner: number }
-  | { type: "signOut"; attemptId: string; running: boolean }
+  // stop: the user chose to stop the provider's runs, which the attempt waits for before changing anything.
+  | { type: "signOut"; attemptId: string; running: boolean; stop?: boolean }
   | { type: "checked"; attemptId: string; result: CheckResult }
   | { type: "signedIn"; attemptId: string; result: SignInResult }
   | { type: "signedOut"; attemptId: string; result: { status: "removed" } | { status: "failed"; detail?: string } }

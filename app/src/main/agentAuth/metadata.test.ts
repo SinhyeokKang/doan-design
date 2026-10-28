@@ -5,6 +5,7 @@ import type { AuthMetadata } from "./types";
 
 const fixture = readFileSync(new URL("./fixtures/metadata-v1.json", import.meta.url), "utf8");
 const valid = (): AuthMetadata => JSON.parse(fixture) as AuthMetadata;
+const failedFixture = readFileSync(new URL("./fixtures/metadata-v1-sign-out-failed.json", import.meta.url), "utf8");
 const parse = (value: unknown) => parseAuthMetadata(typeof value === "string" ? value : JSON.stringify(value));
 
 describe("device-local auth metadata v1", () => {
@@ -18,6 +19,23 @@ describe("device-local auth metadata v1", () => {
     const text = serializeAuthMetadata(valid());
     expect(parseAuthMetadata(text)).toEqual({ ok: true, metadata: valid() });
     expect(serializeAuthMetadata({ v: 1, accounts: [] })).toBe('{"v":1,"accounts":[]}');
+  });
+  it("keeps a failed sign-out with its connection so it still blocks runs after a restart", () => {
+    const result = parseAuthMetadata(failedFixture);
+    expect(result).toEqual({ ok: true, metadata: JSON.parse(failedFixture) });
+    if (!result.ok) throw new Error(result.code);
+    expect(result.metadata.signOutFailed).toEqual(["cursor"]);
+    expect(parseAuthMetadata(serializeAuthMetadata(result.metadata))).toEqual(result);
+  });
+  it.each([
+    ["not a list", { signOutFailed: "cursor" }],
+    ["unknown provider", { signOutFailed: ["gemini"] }],
+    ["provider without a connection", { signOutFailed: ["copilot"] }],
+    ["duplicate provider", { signOutFailed: ["cursor", "cursor"] }],
+  ])("rejects a failed sign-out list that is %s", (_name, over) => {
+    const metadata = { ...valid(), ...over };
+    expect(parse(metadata)).toEqual({ ok: false, code: "invalid" });
+    expect(() => serializeAuthMetadata(metadata as AuthMetadata)).toThrow("Invalid auth metadata");
   });
   it("separates unknown versions from corrupt files", () => {
     expect(parse({ ...valid(), v: 2 })).toEqual({ ok: false, code: "unknown_version" });

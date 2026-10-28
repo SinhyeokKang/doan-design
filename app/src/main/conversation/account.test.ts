@@ -265,3 +265,39 @@ it("runs an unchecked Copilot connection without a status request and lets the r
   h.auth.set({ connection: { ...h.auth.get().connection!, connectionId: "conn-1", account: { id: "acct-1", workspace: null } }, error: { code: "storage_failed" } });
   await expect(h.service.send(conversationId, "after a failed write-back", [])).rejects.toThrow("not_logged_in");
 });
+
+it("stops only the provider's doan-account runs for a sign-out, as a user interruption that keeps the history", async () => {
+  const h = harness("cursor");
+  const { conversationId } = await start(h, "cursor");
+  await h.service.stopRuns("claude");
+  expect(h.runners[0]!.close).not.toHaveBeenCalled();
+  await h.service.stopRuns("cursor");
+  expect(h.runners[0]!.close).toHaveBeenCalledTimes(1);
+  expect(h.service.read(conversationId).events.map(e => e.type)).toEqual(["user.message", "turn.started", "interrupted"]);
+  expect(h.service.read(conversationId).events.at(-1)).toMatchObject({ reason: "user" });
+  // A late event of the closed run is not appended; the lease goes only when the group is gone.
+  h.service.receive(conversationId, { type: "turn.done" });
+  expect(h.service.read(conversationId).events).toHaveLength(3);
+  expect(h.auth.leases.open).toBe(1);
+  h.exits[0]!(); await Promise.resolve();
+  expect(h.auth.leases.open).toBe(0);
+  expect(h.store.list().map(m => m.state)).toEqual(["current"]);
+});
+
+it("closes an idle run that still holds its lease without adding events", async () => {
+  const h = harness("codex");
+  const { conversationId } = await start(h, "codex"); h.service.receive(conversationId, { type: "turn.done" });
+  await h.service.stopRuns("codex");
+  expect(h.runners[0]!.close).toHaveBeenCalledTimes(1);
+  expect(h.service.read(conversationId).events.map(e => e.type)).toEqual(["user.message", "turn.started", "turn.done"]);
+});
+
+it("leaves a run on the external profile alone when the doan account of the same provider signs out", async () => {
+  const h = harness("claude");
+  const legacy = (await h.service.start({ root: h.root, mode: "resume", text: "continue", anchors: [] })).conversationId;
+  const doan = (await start(h, "claude")).conversationId;
+  expect(h.store.list().map(m => [m.conversationId, m.owner.kind])).toEqual([[legacy, "legacy-external"], [doan, "doan"]]);
+  await h.service.stopRuns("claude");
+  expect(h.runners[0]!.close).not.toHaveBeenCalled();
+  expect(h.runners[1]!.close).toHaveBeenCalledTimes(1);
+});

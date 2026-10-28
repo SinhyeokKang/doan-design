@@ -57,6 +57,18 @@ describe("conversation disk boundaries", () => {
     rmSync(join(config, "sessions", "12.key"));
     writeFileSync(join(config, "sessions", "bad.json"), "broken"); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
   });
+  it("lets one doan Claude conversation resume while another runs in the same dedicated profile", async () => {
+    // The record shape a running doan SDK turn left in the dedicated profile (B45 live, CLI 2.1.312): interactive, sdk-ts.
+    const config = temp(); const start = "Wed Oct 28 10:40:00 2026"; mkdirSync(join(config, "sessions"));
+    const running = { pid: 55058, sessionId: "running-y", cwd: "/repo-y", kind: "interactive", entrypoint: "sdk-ts", version: "2.1.312", procStart: start };
+    writeFileSync(join(config, "sessions", "55058.json"), JSON.stringify(running));
+    writeFileSync(join(config, "sessions", `55058.${"1f".repeat(32)}.key`), "x", { mode: 0o600 });
+    const inspect = async (pid: number) => pid === 55058 ? start : null;
+    expect(await claudeOccupancy(config, "idle-x", inspect)).toBe("free");
+    expect(await claudeOccupancy(config, "running-y", inspect)).toBe("occupied");
+    // A record left by a killed run of the same version is dead and does not block.
+    expect(await claudeOccupancy(config, "running-y", async () => null)).toBe("free");
+  });
 });
 
 it("keeps seq consistent when a regular log is replaced before the append open", () => {

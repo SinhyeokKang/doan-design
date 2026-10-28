@@ -6,10 +6,10 @@ import type { Runtime } from "../conversation/types";
 
 const connection = (over: Partial<AccountConnection> = {}): AccountConnection => ({
   provider: "claude", connectionId: "conn-1", profile: "claude-1",
-  account: { id: "acct-1", workspace: null, displayName: "Ada", email: "ada@example.com" }, ...over,
+  account: { id: "acct-1", workspace: "org-1", displayName: "Ada", email: "ada@example.com" }, ...over,
 });
 const tools: ToolFacts = { cli: "found", version: "supported", tools: "ready" };
-const owner = { kind: "doan", provider: "claude", connectionId: "conn-1", accountId: "acct-1", workspaceId: null, profile: "claude-1" } as const;
+const owner = { kind: "doan", provider: "claude", connectionId: "conn-1", accountId: "acct-1", workspaceId: "org-1", profile: "claude-1" } as const;
 const free = { exists: true, occupancy: "free" } as const;
 function step(state: AuthState, event: AuthEvent): AuthState {
   const result = transition(state, event); if (!result.ok) throw new Error(result.reason); return result.state;
@@ -101,11 +101,11 @@ describe("auth transitions", () => {
   it("blocks runs instead of replacing the connection when a check sees another account", () => {
     const check = (account: AccountConnection["account"]) =>
       step(step(connected(), { type: "check", attemptId: "c1" }), { type: "checked", attemptId: "c1", result: { status: "connected", account } });
-    const other = check({ id: "acct-2", workspace: null, email: "ada@example.com" });
+    const other = check({ id: "acct-2", workspace: "org-1", email: "ada@example.com" });
     expect(other).toMatchObject({ phase: "error", error: { code: "account_mismatch" }, connection: connection() });
     expect(readiness(other, tools)).toEqual({ ready: false, cause: "account_mismatch", action: "reauth" });
     expect(check({ id: "acct-1", workspace: "team-2" })).toMatchObject({ phase: "error", error: { code: "account_mismatch" } });
-    expect(check({ id: "acct-1", workspace: null, email: "renamed@example.com" })).toMatchObject({ phase: "connected", verified: true, error: null });
+    expect(check({ id: "acct-1", workspace: "org-1", email: "renamed@example.com" })).toMatchObject({ phase: "connected", verified: true, error: null });
   });
   it("never promotes a login that was not stored", () => {
     const state = step(step(initialAuthState("claude", null), { type: "check", attemptId: "c1" }), { type: "checked", attemptId: "c1", result: { status: "connected", account: connection().account } });
@@ -123,6 +123,17 @@ describe("auth transitions", () => {
     expect(transition(failed, { type: "signIn", attemptId: "a2", owner: 1 })).toMatchObject({ ok: false, reason: "sign_out_failed" });
     const removed = step(step(failed, { type: "signOut", attemptId: "o2", running: false }), { type: "signedOut", attemptId: "o2", result: { status: "removed" } });
     expect(removed).toMatchObject({ phase: "disconnected", connection: null, error: null, verified: false, generation: 2 });
+  });
+  it("restores a persisted sign-out failure so runs stay blocked after a restart", () => {
+    const failed = initialAuthState("claude", connection(), true);
+    expect(failed).toMatchObject({ phase: "error", connection: connection(), verified: false, error: { code: "sign_out_failed" } });
+    expect(readiness(failed, tools)).toEqual({ ready: false, cause: "sign_out_failed", action: "signOut" });
+    expect(transition(failed, { type: "signIn", attemptId: "a1", owner: 1 })).toMatchObject({ ok: false, reason: "sign_out_failed" });
+    expect(() => initialAuthState("claude", null, true)).toThrow("Invalid stored connection");
+  });
+  it("lets an explicit stop take the sign-out or replacement while runs are still stopping", () => {
+    expect(step(connected(), { type: "signOut", attemptId: "o1", running: true, stop: true }).phase).toBe("signingOut");
+    expect(transition(connected(), { type: "signOut", attemptId: "o1", running: true, stop: false })).toMatchObject({ ok: false, reason: "stop_required" });
   });
   it("unverifies a connection whose refreshed credential could not be written back, keeping a sign-out failure first", () => {
     const lost = step(connected(), { type: "writeBackFailed", detail: "key_unavailable" });
@@ -152,22 +163,23 @@ describe("auth transitions", () => {
       expect(same).toMatchObject({ phase: "connected", verified: true, error: null });
       expect(readiness(same, tools)).toEqual({ ready: true });
       expect(judgeConnection(owner, same, free)).toEqual({ decision: "resume", rebind: false });
-      const other = check({ id: "acct-2", workspace: null });
+      const other = check({ id: "acct-2", workspace: "org-1" });
       expect(other).toMatchObject({ phase: "error", error: { code: "account_mismatch" } });
       expect(judgeConnection(owner, other, free)).toMatchObject({ decision: "reject" });
     }
     expect(failed.map(s => s.error)).toEqual([{ code: "sign_in_failed" }, { code: "storage_failed" }]);
   });
   it("shows the checked account for a connection without a stable account id", () => {
-    const anonymous = connection({ account: { id: null, workspace: null, displayName: "Ada", email: "ada@example.com" } });
-    const start = step(step(initialAuthState("claude", null), { type: "signIn", attemptId: "a1", owner: 1 }), { type: "signedIn", attemptId: "a1", result: { status: "stored", connection: anonymous } });
+    // Codex: its status names no account (a Claude login without an organization would not be runnable).
+    const anonymous = connection({ provider: "codex", account: { id: null, workspace: null, displayName: "Ada", email: "ada@example.com" } });
+    const start = step(step(initialAuthState("codex", null), { type: "signIn", attemptId: "a1", owner: 1 }), { type: "signedIn", attemptId: "a1", result: { status: "stored", connection: anonymous } });
     const checked = step(step(start, { type: "check", attemptId: "c1" }), { type: "checked", attemptId: "c1", result: { status: "connected", account: { id: null, workspace: null, email: "bea@example.com" } } });
     expect(checked).toMatchObject({ phase: "connected", verified: true, error: null, connection: { connectionId: "conn-1", profile: "claude-1" } });
     expect(readiness(checked, tools)).toEqual({ ready: true });
     expect(authStatus(checked, tools, 0).account).toEqual({ email: "bea@example.com" });
     // The bound connection still resumes (user decision 2026-10-28); email is shown, never compared.
-    expect(judgeConnection({ ...owner, accountId: null, workspaceId: null }, checked, free)).toEqual({ decision: "resume", rebind: false });
-    expect(judgeConnection({ ...owner, accountId: null, workspaceId: null, connectionId: "conn-0" }, checked, free)).toEqual({ decision: "reject", cause: "account_unverifiable" });
+    expect(judgeConnection({ ...owner, provider: "codex", accountId: null, workspaceId: null }, checked, free)).toEqual({ decision: "resume", rebind: false });
+    expect(judgeConnection({ ...owner, provider: "codex", accountId: null, workspaceId: null, connectionId: "conn-0" }, checked, free)).toEqual({ decision: "reject", cause: "account_unverifiable" });
   });
   it("advances the generation on every stored credential change", () => {
     const first = connected();
@@ -182,7 +194,7 @@ describe("auth transitions", () => {
 });
 
 describe("run confirmation", () => {
-  const same = { id: "acct-1", workspace: null };
+  const same = { id: "acct-1", workspace: "org-1" };
   it("verifies an unchecked connection only with the run's own connection and the same account", () => {
     const stored = initialAuthState("claude", connection());
     expect(step(stored, { type: "runConfirmed", connectionId: "conn-2", account: same })).toBe(stored);
@@ -190,7 +202,7 @@ describe("run confirmation", () => {
   });
   // A login inside the dedicated HOME can replace the account the run writes back.
   it("marks a run that wrote back another account as an account mismatch, verified or not", () => {
-    const other = { id: "acct-2", workspace: null };
+    const other = { id: "acct-2", workspace: "org-1" };
     expect(step(initialAuthState("claude", connection()), { type: "runConfirmed", connectionId: "conn-1", account: other })).toMatchObject({ verified: false, phase: "error", error: { code: "account_mismatch" } });
     expect(step(connected(), { type: "runConfirmed", connectionId: "conn-1", account: { id: "acct-1", workspace: "w" } })).toMatchObject({ phase: "error", error: { code: "account_mismatch" } });
   });
@@ -206,6 +218,14 @@ describe("readiness", () => {
     expect(readiness(state, { ...tools, tools: "failed" })).toEqual({ ready: false, cause: "tools_failed", action: "repair" });
     expect(readiness(initialAuthState("claude", null), { ...tools, cli: "missing" })).toEqual({ ready: false, cause: "cli_missing", action: "install" });
     expect(readiness(initialAuthState("claude", null), tools)).toEqual({ ready: false, cause: "not_connected", action: "signIn" });
+  });
+  it("asks a Claude connection without an organization to sign in again, as its runs refuse", () => {
+    const signing = step(initialAuthState("claude", null), { type: "signIn", attemptId: "a1", owner: 1 });
+    const orgless = step(signing, { type: "signedIn", attemptId: "a1", result: { status: "stored", connection: connection({ account: { id: "acct-1", workspace: null } }) } });
+    expect(readiness(orgless, tools)).toEqual({ ready: false, cause: "reauth_required", action: "reauth" });
+    expect(authStatus(orgless, tools, 0).actions).toEqual(["reauth", "signOut"]);
+    const cursor = step(step(initialAuthState("cursor", null), { type: "signIn", attemptId: "a1", owner: 1 }), { type: "signedIn", attemptId: "a1", result: { status: "stored", connection: connection({ provider: "cursor", account: { id: "acct-1", workspace: null } }) } });
+    expect(readiness(cursor, tools)).toEqual({ ready: true });
   });
   it("stays ready while a verified connection is being rechecked", () => {
     expect(readiness(step(connected(), { type: "check", attemptId: "c1" }), tools)).toEqual({ ready: true });
@@ -229,7 +249,7 @@ describe("status DTO", () => {
     expect(authStatus(connected(), tools, 0).actions).toEqual(["signOut"]);
     const expired = step(step(connected(), { type: "check", attemptId: "c1" }), { type: "checked", attemptId: "c1", result: { status: "expired" } });
     expect(authStatus(expired, tools, 0).actions).toEqual(["reauth", "signOut"]);
-    const mismatch = step(step(connected(), { type: "check", attemptId: "c1" }), { type: "checked", attemptId: "c1", result: { status: "connected", account: { id: "acct-2", workspace: null } } });
+    const mismatch = step(step(connected(), { type: "check", attemptId: "c1" }), { type: "checked", attemptId: "c1", result: { status: "connected", account: { id: "acct-2", workspace: "org-1" } } });
     expect(authStatus(mismatch, tools, 0)).toMatchObject({ error: { code: "account_mismatch", retryable: false }, actions: ["reauth", "signOut"] });
     const out = step(step(connected(), { type: "signOut", attemptId: "o1", running: false }), { type: "signedOut", attemptId: "o1", result: { status: "failed" } });
     expect(authStatus(out, tools, 0)).toMatchObject({ phase: "error", error: { code: "sign_out_failed", retryable: true }, actions: ["signOut"] });

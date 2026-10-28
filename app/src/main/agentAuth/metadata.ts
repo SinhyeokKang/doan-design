@@ -23,8 +23,10 @@ export function validOwner(value: unknown): value is ConversationOwner {
     validAuthId(value.connectionId) && nullableLabel(value.accountId) && nullableLabel(value.workspaceId) && validAuthId(value.profile);
 }
 function validMetadata(value: Record<string, unknown>): value is Record<string, unknown> & AuthMetadata {
-  if (!keys(value, ["v", "accounts"]) || !Array.isArray(value.accounts) || !value.accounts.every(validConnection)) return false;
-  const accounts: AccountConnection[] = value.accounts;
+  if (!keys(value, ["v", "accounts"], ["signOutFailed"]) || !Array.isArray(value.accounts) || !value.accounts.every(validConnection)) return false;
+  const accounts: AccountConnection[] = value.accounts, failed = value.signOutFailed;
+  // A failed sign-out belongs to a connection that is still stored.
+  if (failed !== undefined && (!Array.isArray(failed) || new Set(failed).size !== failed.length || !failed.every(p => accounts.some(a => a.provider === p)))) return false;
   // One account per provider; profiles and connection IDs must not alias across providers.
   return (["provider", "connectionId", "profile"] as const).every(k => new Set(accounts.map(a => a[k])).size === accounts.length);
 }

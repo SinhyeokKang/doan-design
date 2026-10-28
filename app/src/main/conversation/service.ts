@@ -23,7 +23,8 @@ export type Prepare = (request: StartRequest, stored?: ConversationMetadata) => 
 function freeLease(input: Prepared | undefined): void {
   void input?.release?.().catch(error => console.error("doan: account lease release failed", error));
 }
-interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean }
+// provider: set for a run on a doan account, whose lease a sign-out or replacement waits for (stopRuns).
+interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider }
 export class ConversationService {
   private reservations: Reservation[] = [];
   private live = new Map<string, Live>();
@@ -53,6 +54,7 @@ export class ConversationService {
     let opening = false, input: Prepared | undefined;
     try {
       input = await this.prepare(request);
+      if (input.owner) live.provider = input.owner.provider;
       if (this.quitting) throw new Error("busy");
       if (input.sessionId) this.promote(id, input, input.sessionId);
       opening = true;
@@ -107,6 +109,7 @@ export class ConversationService {
     try {
       this.reserve(id, { ...metadata.session, runtime, command: "", env: {} }, runtime === "codex" && !!live.runner); reserved = true;
       input = await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata);
+      if (input.owner) live.provider = input.owner.provider;
       this.checkSend(id, live);
       if (live.exited) throw new Error("process_exited");
       if (!live.runner) { opening = true; leased = true; live.runner = await this.openRunner(id, live, input); }
@@ -170,6 +173,19 @@ export class ConversationService {
   async interrupt(id: string): Promise<void> {
     this.metadata(id); const live = this.live.get(id); if (!live || !live.busy) return;
     const stop = live.runner?.stop(); if (live.busy) this.receive(id, { type: "interrupted", reason: "user" }); await stop;
+  }
+  // A sign-out or account replacement the user chose to stop runs for. The provider's doan-account runs end as a user
+  // interruption; each lease is released once its group is gone (openRunner), which the auth attempt waits for. A run
+  // still preparing or opening is refused by its account recheck. External runs hold no lease and are left alone.
+  async stopRuns(provider: Provider): Promise<void> {
+    const closing: Promise<void>[] = [];
+    for (const [id, live] of this.live) {
+      if (live.provider !== provider) continue;
+      if (live.accepted && live.busy && !live.terminal) this.receive(id, { type: "interrupted", reason: "user" });
+      if (live.accepted) { live.terminal = true; live.busy = false; }
+      if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
+    }
+    await Promise.all(closing);
   }
   quit(): Promise<void> {
     const closing: Promise<void>[] = [];

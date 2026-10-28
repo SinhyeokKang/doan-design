@@ -9,10 +9,10 @@ function phaseOf(s: Fields): AuthPhase {
 }
 function settle(fields: Fields): AuthState { return { ...fields, phase: phaseOf(fields) }; }
 function failure(code: AuthError["code"], detail: string | undefined): AuthError { return detail === undefined ? { code } : { code, detail }; }
-export function initialAuthState(provider: Provider, stored: AccountConnection | null): AuthState {
-  if (!validProvider(provider) || (stored !== null && (!validConnection(stored) || stored.provider !== provider))) throw new Error("Invalid stored connection");
+export function initialAuthState(provider: Provider, stored: AccountConnection | null, signOutFailed = false): AuthState {
+  if (!validProvider(provider) || (stored !== null && (!validConnection(stored) || stored.provider !== provider)) || (signOutFailed && !stored)) throw new Error("Invalid stored connection");
   // Stored metadata proves a completed save, not a live login, until a check or sign-in verifies it.
-  return settle({ provider, generation: 0, verified: false, expired: false, connection: stored, attempt: null, error: null });
+  return settle({ provider, generation: 0, verified: false, expired: false, connection: stored, attempt: null, error: signOutFailed ? { code: "sign_out_failed" } : null });
 }
 export function transition(state: AuthState, event: AuthEvent): AuthTransition {
   const reject = (reason: AuthRejection): AuthTransition => ({ ok: false, reason, state });
@@ -31,7 +31,7 @@ export function transition(state: AuthState, event: AuthEvent): AuthTransition {
         return apply({ attempt: { id: event.attemptId, kind: "signIn", owner: event.owner, cancelled: false } });
       }
       if (!state.connection) return reject("not_connected");
-      if (event.running) return reject("stop_required");
+      if (event.running && !event.stop) return reject("stop_required");
       return apply({ attempt: { id: event.attemptId, kind: "signOut", owner: null, cancelled: false } });
     }
     case "checked": case "signedIn": case "signedOut": {
@@ -98,6 +98,8 @@ export function transition(state: AuthState, event: AuthEvent): AuthTransition {
   }
   return reject("invalid");
 }
+// A doan Claude run is pinned to its login's organization and refuses without one (user decision 2026-10-28, R-B3).
+function unpinned(state: AuthState): boolean { return state.provider === "claude" && !!state.connection && state.connection.account.workspace === null; }
 export function readiness(state: AuthState, facts: ToolFacts): Readiness {
   if (facts.cli === "missing") return { ready: false, cause: "cli_missing", action: "install" };
   if (facts.version === "unsupported") return { ready: false, cause: "version_unsupported", action: "update" };
@@ -106,7 +108,7 @@ export function readiness(state: AuthState, facts: ToolFacts): Readiness {
   if (state.error?.code === "sign_out_failed") return { ready: false, cause: "sign_out_failed", action: "signOut" };
   if (!state.connection) return { ready: false, cause: "not_connected", action: "signIn" };
   if (state.error?.code === "account_mismatch") return { ready: false, cause: "account_mismatch", action: "reauth" };
-  if (state.expired) return { ready: false, cause: "reauth_required", action: "reauth" };
+  if (state.expired || unpinned(state)) return { ready: false, cause: "reauth_required", action: "reauth" };
   if (!state.verified) return { ready: false, cause: "unverified", action: state.attempt ? "wait" : "retry" };
   if (facts.tools === "missing") return { ready: false, cause: "tools_missing", action: "repair" };
   if (facts.tools === "failed") return { ready: false, cause: "tools_failed", action: "repair" };
@@ -116,7 +118,7 @@ function actions(state: AuthState): AuthAction[] {
   if (state.attempt) return state.attempt.kind === "signIn" && !state.attempt.cancelled ? ["cancel"] : [];
   if (!state.connection) return ["signIn"];
   if (state.error?.code === "sign_out_failed") return ["signOut"];
-  if (state.expired || state.error?.code === "account_mismatch") return ["reauth", "signOut"];
+  if (state.expired || state.error?.code === "account_mismatch" || unpinned(state)) return ["reauth", "signOut"];
   if (!state.verified || state.error?.code === "network" || state.error?.code === "check_failed" || state.error?.code === "cli_install_failed") return ["retry", "signOut"];
   return ["signOut"];
 }

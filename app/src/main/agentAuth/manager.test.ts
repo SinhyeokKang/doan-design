@@ -598,6 +598,120 @@ describe("sign-out", () => {
   });
 });
 
+describe("stopping runs for sign-out and replacement", () => {
+  // A conversation runner whose group goes away only when the test (or the stop request) says so.
+  function runs(m: AuthManager, linger = false) {
+    const leases: Awaited<ReturnType<AuthManager["acquire"]>>[] = [];
+    const stopRuns = vi.fn(async (_provider: Provider) => { if (!linger) for (const lease of leases.splice(0)) setTimeout(() => void lease.release(), 5); });
+    return { leases, stopRuns, take: async (provider: Provider) => { leases.push(await m.acquire(provider)); } };
+  }
+  it("stops the provider's runs on request, waits for their groups, then signs out", async () => {
+    let stopRuns!: ReturnType<typeof runs>["stopRuns"];
+    const m = manager({ stopRuns: provider => stopRuns(provider) }); await m.load();
+    await signedInCursor(m, "u1");
+    const r = runs(m); stopRuns = r.stopRuns;
+    await r.take("cursor"); await r.take("cursor");
+    expect(await m.signOut("cursor")).toEqual(expect.objectContaining({ ok: false, reason: "stop_required" }));
+    expect(r.stopRuns).not.toHaveBeenCalled();
+    const out = started(await m.signOut("cursor", { stop: true }));
+    expect(m.state("cursor").phase).toBe("signingOut");
+    await expect(m.acquire("cursor")).rejects.toThrow("busy");
+    expect(r.stopRuns).toHaveBeenCalledWith("cursor");
+    const status = await next("status");
+    expect(r.leases).toEqual([]);
+    settledSet.add(status); status.finish(0);
+    expect(await out.done).toMatchObject({ phase: "disconnected", connection: null });
+    expect(await storage.loadVault("cursor")).toBeNull();
+  });
+  it("fails the sign-out without touching the credential when a stopped run's group lingers", async () => {
+    let stopRuns!: ReturnType<typeof runs>["stopRuns"];
+    const m = manager({ stopRuns: provider => stopRuns(provider), drainTimeoutMs: 30 }); await m.load();
+    await signedInCursor(m, "u1");
+    const r = runs(m, true); stopRuns = r.stopRuns;
+    await r.take("cursor");
+    const out = started(await m.signOut("cursor", { stop: true }));
+    expect(await out.done).toMatchObject({ phase: "error", error: { code: "sign_out_failed" }, connection: { account: { id: "u1" } } });
+    expect(processes.filter(p => p.step === "status")).toHaveLength(1);
+    expect(existsSync(tokenFile("cursor"))).toBe(true);
+    expect(await storage.loadVault("cursor")).not.toBeNull();
+    expect(storage.readMetadata()).toMatchObject({ accounts: [{ provider: "cursor" }], signOutFailed: ["cursor"] });
+    await r.leases[0]!.release();
+    await expect(m.acquire("cursor")).rejects.toThrow("sign_out_failed");
+  });
+  it("keeps a failed sign-out blocking runs and sign-ins after a restart until a sign-out succeeds", async () => {
+    const m = manager(); await m.load();
+    await signedInCursor(m, "u1");
+    chmodSync(join(root, "vault"), 0o500);
+    expect(await started(await m.signOut("cursor")).done).toMatchObject({ error: { code: "sign_out_failed" } });
+    expect(storage.readMetadata().signOutFailed).toEqual(["cursor"]);
+    chmodSync(join(root, "vault"), 0o700);
+    const restarted = manager(); await restarted.load();
+    expect(restarted.state("cursor")).toMatchObject({ phase: "error", error: { code: "sign_out_failed" } });
+    await expect(restarted.acquire("cursor")).rejects.toThrow("sign_out_failed");
+    expect(await restarted.signIn("cursor", 7)).toEqual(expect.objectContaining({ ok: false, reason: "sign_out_failed" }));
+    const retry = started(await restarted.signOut("cursor"));
+    await finish("status", 0);
+    expect(await retry.done).toMatchObject({ phase: "disconnected", error: null });
+    expect(storage.readMetadata()).toEqual({ v: 1, accounts: [] });
+  });
+  it("keeps other providers' failed sign-outs when one provider signs in or out", async () => {
+    const m = manager(); await m.load();
+    await signedInCursor(m, "u1");
+    const copilot = started(await m.signIn("copilot", 7)); await finish("login", 0, p => writeToken(p, { id: "gh" })); await finish("status", 0); await copilot.done;
+    chmodSync(join(root, "vault"), 0o500);
+    await started(await m.signOut("cursor")).done;
+    chmodSync(join(root, "vault"), 0o700);
+    const again = started(await m.signIn("copilot", 7)); await finish("login", 0, p => writeToken(p, { id: "gh" })); await finish("status", 0); await again.done;
+    expect(storage.readMetadata().signOutFailed).toEqual(["cursor"]);
+  });
+  it("replaces the account only after the provider's runs have stopped", async () => {
+    let stopRuns!: ReturnType<typeof runs>["stopRuns"];
+    const m = manager({ stopRuns: provider => stopRuns(provider) }); await m.load();
+    await signedInCursor(m, "u1");
+    const r = runs(m); stopRuns = r.stopRuns;
+    await r.take("cursor");
+    expect(await m.signIn("cursor", 7)).toEqual(expect.objectContaining({ ok: false, reason: "stop_required" }));
+    const replace = started(await m.signIn("cursor", 7, { stop: true }));
+    await expect(m.acquire("cursor")).rejects.toThrow("busy");
+    const login = await next("login");
+    expect(r.leases).toEqual([]);
+    expect(existsSync(tokenFile("cursor"))).toBe(false);
+    settledSet.add(login); writeToken(login, { id: "u2" }); login.finish(0);
+    await finish("status", 0);
+    expect(await replace.done).toMatchObject({ phase: "connected", verified: true, connection: { account: { id: "u2" } } });
+  });
+  it("leaves the previous login untouched when the runs do not stop before a replacement, or the owner cancels", async () => {
+    let stopRuns!: ReturnType<typeof runs>["stopRuns"];
+    const m = manager({ stopRuns: provider => stopRuns(provider), drainTimeoutMs: 30 }); await m.load();
+    await signedInCursor(m, "u1");
+    const r = runs(m, true); stopRuns = r.stopRuns;
+    await r.take("cursor");
+    const lingering = started(await m.signIn("cursor", 7, { stop: true }));
+    const logins = () => processes.filter(p => p.step === "login").length, signedIn = logins();
+    expect(await lingering.done).toMatchObject({ phase: "connected", connection: { account: { id: "u1" } }, error: { code: "sign_in_failed" } });
+    expect(logins()).toBe(signedIn);
+    expect(existsSync(tokenFile("cursor"))).toBe(true);
+    const cancelled = started(await m.signIn("cursor", 7, { stop: true }));
+    await m.cancel("cursor", cancelled.attemptId, 7);
+    expect(await cancelled.done).toMatchObject({ attempt: null, connection: { account: { id: "u1" } } });
+    expect(logins()).toBe(signedIn);
+    expect(existsSync(tokenFile("cursor"))).toBe(true);
+  });
+  it("disconnects Copilot by deleting doan's copy and a fresh failed request, never its /logout", async () => {
+    const { PROVIDER_AUTH } = await import("./providers");
+    const m = manager({ adapters: { ...withAcp(), copilot: PROVIDER_AUTH.copilot } }); await m.load();
+    const signIn = started(await m.signIn("copilot", 7));
+    await finish("login", 0, p => { mkdirSync(join(p.cwd, ".copilot"), { recursive: true }); writeFileSync(join(p.cwd, ".copilot/config.json"), '// c\n{"lastLoggedInUser":{"login":"octo","host":"https://github.com"},"copilotTokens":{"x":"y"}}'); });
+    await finish("status", 0);
+    await signIn.done;
+    const out = started(await m.signOut("copilot"));
+    const status = await finish("status", 1, p => { expect(existsSync(join(p.cwd, ".copilot/config.json"))).toBe(false); p.print("Error: No authentication information found.", "stderr"); });
+    expect(status.args).toEqual(PROVIDER_AUTH.copilot.status);
+    expect(await out.done).toMatchObject({ phase: "disconnected", connection: null });
+    expect(processes.flatMap(p => p.args).filter(a => /logout/.test(a))).toEqual([]);
+  });
+});
+
 describe("leases and recovery", () => {
   it("shares one working copy between concurrent runs and absorbs it when the last one ends", async () => {
     const m = manager(); await m.load();

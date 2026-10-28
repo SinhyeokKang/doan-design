@@ -12,7 +12,7 @@ import { providerEnv } from "./environment";
 import { PROVIDER_AUTH, type ProviderAuth } from "./providers";
 import { authStatus, initialAuthState, transition } from "./state";
 import type { AuthStorage } from "./storage";
-import { PROVIDERS, type AccountConnection, type AuthEvent, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type CheckResult, type Provider, type SignInResult, type ToolFacts } from "./types";
+import { PROVIDERS, type AccountConnection, type AuthEvent, type AuthMetadata, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type CheckResult, type Provider, type SignInResult, type ToolFacts } from "./types";
 
 export interface AuthProcess { onOutput(listener: (text: string, stream?: "stderr") => void): void; exit: Promise<number | null>; gone: Promise<void>; stop(): void; write?(text: string): void }
 export type Spawn = (command: string, args: string[], options: { cwd: string; env: Record<string, string>; input?: boolean }) => AuthProcess;
@@ -26,11 +26,16 @@ export interface AuthManagerOptions {
   locate(provider: Provider, signal?: AbortSignal): Promise<{ command: string; path: string } | null>;
   adapters?: Record<Provider, ProviderAuth>; newId?: () => string; statusTimeoutMs?: number;
   onChange?(state: AuthState, revision: number): void; onPrompt?(prompt: AuthPrompt): void;
+  // Closes the provider's doan-account conversation runs for a sign-out or replacement the user chose to stop them for.
+  stopRuns?(provider: Provider): Promise<void>; drainTimeoutMs?: number;
 }
+export interface WriteOptions { stop?: boolean }
 interface Run { code: number | null; stdout: string; stderr: string }
 const OUTPUT_LIMIT = 1024 * 1024;
 const QUIT_WAIT_MS = 5000;
 const ACP_OPEN_MS = 60_000;
+// An ACP run answers a cancel within 5 s before its group is stopped (acpRunner); SIGKILL follows 500 ms after SIGTERM.
+const DRAIN_MS = 15_000;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const tail = (text: string) => text.trim().slice(-2000) || undefined;
 class Cancelled extends Error {}
@@ -62,10 +67,10 @@ export class AuthManager {
 
   // Throws on unreadable metadata rather than treating it as empty: a later save would erase every connection.
   async load(): Promise<void> {
-    const accounts = this.options.storage.readMetadata().accounts;
+    const { accounts, signOutFailed = [] } = this.options.storage.readMetadata();
     for (const provider of PROVIDERS) {
       const stored = accounts.find(a => a.provider === provider) ?? null;
-      this.states.set(provider, initialAuthState(provider, stored));
+      this.states.set(provider, initialAuthState(provider, stored, signOutFailed.includes(provider)));
       await this.recover(provider, stored !== null);
     }
   }
@@ -99,9 +104,10 @@ export class AuthManager {
   // Resolves when the provider's running check, if any, has applied its result.
   async checked(provider: Provider): Promise<void> { await this.checks.get(provider)?.done.catch(() => {}); }
 
-  async signIn(provider: Provider, owner: number): Promise<Started> {
+  // A replacement with running conversations needs stop: the attempt then closes them and waits for their groups.
+  async signIn(provider: Provider, owner: number, options: WriteOptions = {}): Promise<Started> {
     if (this.closed || this.writer) return this.refuse(provider, "busy");
-    if (this.running(provider)) return this.refuse(provider, "stop_required");
+    if (this.running(provider) && !options.stop) return this.refuse(provider, "stop_required");
     const attemptId = this.newId();
     const result = this.apply(provider, { type: "signIn", attemptId, owner });
     if (!result.ok) return result;
@@ -110,6 +116,12 @@ export class AuthManager {
     const done = this.track((async () => {
       try {
         await check;
+        if (options.stop && !await this.drain(provider, attemptId)) {
+          // Nothing was touched: the previous login stays as it was, still used by the run that did not stop.
+          this.apply(provider, this.cancelled(provider, attemptId) ? { type: "settled", attemptId }
+            : { type: "signedIn", attemptId, result: { status: "failed", code: "sign_in_failed", detail: "running conversations did not stop" } });
+          return this.state(provider);
+        }
         const hadConnection = this.state(provider).connection !== null;
         let outcome: SignInResult | null;
         try { outcome = { status: "stored", connection: await this.signInFlow(provider, attemptId, owner) }; }
@@ -158,10 +170,10 @@ export class AuthManager {
     }
   }
 
-  async signOut(provider: Provider): Promise<Started> {
+  async signOut(provider: Provider, options: WriteOptions = {}): Promise<Started> {
     if (this.closed || this.writer) return this.refuse(provider, "busy");
     const attemptId = this.newId();
-    const result = this.apply(provider, { type: "signOut", attemptId, running: this.running(provider) });
+    const result = this.apply(provider, { type: "signOut", attemptId, running: this.running(provider), stop: options.stop === true });
     if (!result.ok) return result;
     this.writer = attemptId;
     const check = this.replaceCheck(provider);
@@ -169,8 +181,17 @@ export class AuthManager {
       try {
         await check;
         let removed: { status: "removed" } | { status: "failed"; detail?: string };
-        try { await this.signOutFlow(provider, attemptId); removed = { status: "removed" }; }
-        catch (error) { removed = { status: "failed", detail: message(error) }; }
+        try {
+          if (options.stop && !await this.drain(provider, attemptId)) throw new Error("running conversations did not stop");
+          await this.signOutFlow(provider, attemptId); removed = { status: "removed" };
+        } catch (error) {
+          removed = { status: "failed", detail: message(error) };
+          // Persisted so a restart does not unblock runs on credentials that may still be there.
+          try {
+            const metadata = this.options.storage.readMetadata(), stored = metadata.accounts.find(a => a.provider === provider);
+            if (stored) this.options.storage.writeMetadata(replaceAccount(metadata, provider, stored, true));
+          } catch (failure) { console.error(`doan: ${provider} sign-out failure could not be recorded`, message(failure)); }
+        }
         this.apply(provider, { type: "signedOut", attemptId, result: removed });
       } finally { if (this.writer === attemptId) this.writer = null; }
       return this.state(provider);
@@ -246,10 +267,7 @@ export class AuthManager {
     // Last cancellation point: from the metadata write to the signedIn transition only microtasks run, so no
     // cancel or window-close event can land between a persisted connection and its state.
     if (this.cancelled(provider, attemptId)) throw new Cancelled();
-    await this.storageStep(() => {
-      const metadata = this.options.storage.readMetadata();
-      this.options.storage.writeMetadata({ v: 1, accounts: [...metadata.accounts.filter(a => a.provider !== provider), connection] });
-    });
+    await this.storageStep(() => this.options.storage.writeMetadata(replaceAccount(this.options.storage.readMetadata(), provider, connection, false)));
     if (auth.vault) await this.storageStep(() => this.options.storage.scrub(provider, auth.vault!));
     return connection;
   }
@@ -284,8 +302,20 @@ export class AuthManager {
     // A deleted file proves nothing until a fresh provider process reports the profile signed out.
     const checked = await this.statusRun(provider, attemptId);
     if (checked.status !== "disconnected" && checked.status !== "expired") throw new Error(`profile still reports ${checked.status}`);
-    const metadata = storage.readMetadata();
-    storage.writeMetadata({ v: 1, accounts: metadata.accounts.filter(a => a.provider !== provider) });
+    storage.writeMetadata(replaceAccount(storage.readMetadata(), provider, null, false));
+  }
+
+  // The runs were asked to stop; each lease goes only when its process group is gone and its write-back landed.
+  private async drain(provider: Provider, attemptId: string): Promise<boolean> {
+    if (this.running(provider)) {
+      try { await this.options.stopRuns?.(provider); } catch (error) { console.error(`doan: ${provider} runs could not be stopped`, message(error)); }
+    }
+    const deadline = Date.now() + (this.options.drainTimeoutMs ?? DRAIN_MS);
+    while (this.running(provider)) {
+      if (this.stopRequests.has(attemptId) || Date.now() >= deadline) return false;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    return true;
   }
 
   private async statusRun(provider: Provider, attemptId: string): Promise<CheckResult> {
@@ -498,6 +528,12 @@ export class AuthManager {
     }
     return result;
   }
+}
+
+// Other providers' connections and failed sign-outs are kept as they are.
+function replaceAccount(metadata: AuthMetadata, provider: Provider, connection: AccountConnection | null, signOutFailed: boolean): AuthMetadata {
+  const failed = (metadata.signOutFailed ?? []).filter(p => p !== provider).concat(signOutFailed ? [provider] : []);
+  return { v: 1, accounts: [...metadata.accounts.filter(a => a.provider !== provider), ...(connection ? [connection] : [])], ...(failed.length ? { signOutFailed: failed } : {}) };
 }
 
 export const spawnAuthProcess: Spawn = (command, args, { cwd, env, input }) => {
