@@ -105,18 +105,7 @@ func Onboarding(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if failure != nil {
 		return Outcome{}, failure
 	}
-	result := reply["result"].(map[string]any)
-	if operationOps[cmd.op] {
-		operation := result["operation"].(map[string]any)
-		switch operation["state"] {
-		case "failed":
-			e := operation["error"].(map[string]any)
-			return Outcome{}, onboardingFailure(e["code"].(string), e["message"].(string))
-		case "cancelled":
-			return Outcome{}, onboardingFailure("cancelled", "The operation was cancelled")
-		}
-	}
-	return Outcome{Result: result}, nil
+	return Outcome{Result: reply["result"]}, nil
 }
 
 func onboardingRequest(name string, cmd onboardingCommand, f Flags) (map[string]any, *Error) {
@@ -207,8 +196,9 @@ func onboardingStart(ctx Context, request map[string]any) (map[string]any, *Erro
 		if attempt.After(deadline) {
 			attempt = deadline
 		}
-		reply, failure, launchable = callOnboarding(ctx, request, attempt)
-		if failure == nil || !launchable {
+		reply, failure, _ = callOnboarding(ctx, request, attempt)
+		// While the launched app starts, a missing runtime, a refused socket or a slow first answer all mean "not yet".
+		if failure == nil || failure.Code != "app_not_running" {
 			return reply, failure
 		}
 		if !ctx.Now().Before(deadline) {
@@ -225,14 +215,14 @@ func callOnboarding(ctx Context, request map[string]any, deadline time.Time) (ma
 	}
 	data, ok := readRuntimeBytes(ctx.RuntimePath)
 	if !ok {
-		return nil, onboardingFailure("app_not_running", "Cannot read the Doan runtime file: "+ctx.RuntimePath), false
+		return nil, onboardingFailure("app_not_running", "Cannot read the Doan runtime file"), false
 	}
 	rt, code := readRuntime(data)
 	if code == "app_protocol_mismatch" {
-		return nil, onboardingFailure(code, "The Doan runtime file has another protocol version: "+ctx.RuntimePath), false
+		return nil, onboardingFailure(code, "The Doan runtime file has another protocol version"), false
 	} else if code != "" {
 		// Doan rewrites the file when it starts, so a damaged one is no sign of a running app.
-		return nil, onboardingFailure(code, "The Doan runtime file is not valid: "+ctx.RuntimePath), true
+		return nil, onboardingFailure(code, "The Doan runtime file is not valid"), true
 	}
 	conn, e := ctx.Dial(rt.Socket, deadline)
 	if e != nil {
@@ -284,23 +274,38 @@ func readOnboardingReply(line []byte, op, token string) (map[string]any, *Error,
 	if formats.ValidateOnboardingResponse(obj) != nil {
 		return nil, internal(errors.New("Doan sent a response that does not match app-socket v2")), false
 	}
-	if obj["ok"] == false {
-		e := obj["error"].(map[string]any)
-		code, message := e["code"].(string), e["message"].(string)
-		switch code {
-		case "bad_token":
-			// The runtime file outlived the app that wrote it; a new app has another token.
-			return nil, onboardingFailure("app_not_running", "Doan rejected the token in its runtime file"), true
-		case "bad_request":
-			return nil, internal(errors.New("Doan rejected the request as malformed")), false
-		}
+	// The app writes messages without secrets; the token this CLI holds is still never echoed.
+	failed := func(code string, e map[string]any) (map[string]any, *Error, bool) {
+		message := e["message"].(string)
 		if strings.Contains(message, token) {
 			message = "Doan refused the request"
 		}
 		return nil, onboardingFailure(code, message), false
 	}
+	if obj["ok"] == false {
+		e := obj["error"].(map[string]any)
+		switch code := e["code"].(string); code {
+		case "bad_token":
+			// The runtime file outlived the app that wrote it; a new app has another token.
+			return nil, onboardingFailure("app_not_running", "Doan rejected the token in its runtime file"), true
+		case "bad_request":
+			return nil, internal(errors.New("Doan rejected the request as malformed")), false
+		default:
+			return failed(code, e)
+		}
+	}
 	if obj["op"] != op {
 		return nil, internal(errors.New("Doan answered another operation")), false
+	}
+	if operationOps[op] {
+		operation := obj["result"].(map[string]any)["operation"].(map[string]any)
+		switch operation["state"] {
+		case "failed":
+			e := operation["error"].(map[string]any)
+			return failed(e["code"].(string), e)
+		case "cancelled":
+			return nil, onboardingFailure("cancelled", "The operation was cancelled"), false
+		}
 	}
 	return obj, nil, false
 }

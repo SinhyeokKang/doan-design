@@ -247,9 +247,6 @@ func onboardingArgv(tool string, command []string, spec [][2]string, fields map[
 		if !ok {
 			continue
 		}
-		if onboardingFlags[f[1]] != f[0] {
-			panic("onboarding tool argument " + f[0] + " does not match --" + f[1])
-		}
 		if f[1] == "spend-copilot-request" || f[1] == "initialize" {
 			var b *bool
 			if json.Unmarshal(value, &b) != nil || b == nil {
