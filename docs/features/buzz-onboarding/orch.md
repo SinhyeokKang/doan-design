@@ -30,6 +30,7 @@
 | D17 | clone은 사용자 SSH 설정(`core.sshCommand`, `~/.ssh/config`)을 덮어쓰지 않는다. `GIT_SSH_COMMAND` BatchMode 대신 제어 터미널 없는 프로세스 그룹, `GIT_TERMINAL_PROMPT=0`, `SSH_ASKPASS_REQUIRE=never`로 비대화식을 보장하고 호스트 키 검사는 유지한다(design의 'SSH BatchMode'를 바꾼다, V3 승격) | 사용자 결정(2026-10-29) — BatchMode 환경 변수가 회사용 키 같은 사용자 설정을 덮어써 접근이 실패했다 |
 | D18 | clone 기본 위치는 가장 최근 등록 프로젝트의 부모 폴더/<repo>, 등록 프로젝트가 없으면 ~/<repo>이고 Change로 부모 폴더를 바꾼다. 등록 프로젝트가 있으면 'Open a local folder' 위에 'Your projects' 캡션과 'Multiple local checkouts' 형식의 radio 행을 보이고, 고르면 검사 뒤 선택한다. 둘 다 초안 밖이라 DESIGN.md에 차이로 기록한다 | 사용자 결정(2026-10-29) |
 | D19 | clone의 게시 경계는 목적지로의 rename이다. 그 뒤의 취소는 실행 중 작업을 그대로 돌려주고 등록·초기화는 계속한다 | 지휘자 판단(M 재리뷰 🟡2) — 그 뒤에 취소하려면 이미 최종 위치에 놓인 폴더를 지워야 한다 |
+| D20 | URL 화면에서 고른 기존 폴더('Choose existing folder', 'Use existing folder')도 그 URL의 remote와 일치하는지 확인한다. path 검사에 선택적 url을 더한다(socket v2 schema·CLI `--url`·main). 새 배치 R이 맡는다 | 사용자 결정(2026-10-29) — spec이 요구하고, 다른 리포 폴더를 잘못 연결하는 것을 막는다 |
 
 ## 배치
 
@@ -42,6 +43,7 @@
 | G | B3 | `cli/**`(`cli/internal/formats/**` 제외), `cli/internal/cli/skill.md` | C | Claude Opus high — bundle 신뢰·자동 실행·비밀 비노출 판단 | `verify.mjs` | 통합 `036b4ae`..`41fb7f2`, 2회차 |
 | U | U1(B2 일부) → U2(B2 나머지 + design-sync) | U1: `app/src/renderer/**`(P의 새 모듈은 import만), `app/src/renderer/ds/controls.css`. U2: 위에 더해 고아 채널 제거를 위한 `app/src/main/index.ts`·`app/src/main/onboarding/machine.ts`·`app/src/preload/**`·`app/src/setup/**`, `docs/DESIGN.md` 측정값, `.scratch/design-sync/` | U1: T, P. U2: M | Claude Opus high — 포커스·중첩 모달·경합 표시와 승인 디자인 대조 | `verify.mjs`, U2는 `/design-sync` | 진행 중 |
 | E | D5 시나리오 | `eval/scenarios/**`의 새 시나리오와 fixture, eval 가짜 앱의 v2 응답(`eval/lib/socket.ts`와 테스트) | G | Claude Opus medium — 시나리오 판정 기준 설계 | `verify.mjs --eval`, `node eval/run.ts --self-test` | 통합(11 커밋, 끝 `300e3e3`), 2회차 |
+| R | D20 remote 확인 | `schema/**`(v2 path+url), `app/src/formats/**`, `cli/internal/formats/**`, `cli/internal/cli/onboarding*.go`·MCP·`skill.md`, `app/src/main/onboarding/{service,projects}.ts` | C·M·G 통합 | Claude Opus high — 공개 계약 변경과 remote 판정 | `verify.mjs` | 진행 중 |
 | V | V1(design-sync 제외), V1b, V1c | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus high — 실제 인증·clone·패키지 앱 probe와 사용자 상태 보호 | `/runtime-test` | 대기 |
 | 지휘자 | V2, V3 | 통합 커밋, 정본 승격, feature 디렉터리 삭제 | 전부 | — | 통합 HEAD `verify.mjs --eval`, `/agent-eval` | 대기 |
 
@@ -88,3 +90,4 @@
 - 2026-10-29: 통합 HEAD `3609a0a`(M 포함) `verify.mjs --eval` PASS. U2 질문에 결정 D18.
 - 2026-10-29: M 수정 재리뷰: 🔴 0·🟡 3(목적지 claim 제거 실패를 cancelled로 숨김, 등록 전 취소 경계, leftover 조회 오류를 삭제로 간주). 🟡2는 D19로 수용했고 1·3은 수정 3회차로 보냈다.
 - 2026-10-29: M 수정 3회차(c88eaf8, eaea354, `verify.mjs` PASS)를 지휘자 확인 뒤 통합했다. M 작업자 release. bo-M worktree는 V 결과로 M 수정이 필요할 수 있어 마지막까지 남긴다.
+- 2026-10-29: U2 질문으로 결정 D20, 배치 R 시작(bo-M을 통합 HEAD로 맞춤). U2는 url을 보내는 쪽을 맡는다.
