@@ -1,0 +1,376 @@
+{
+ "source": "cursor ACP traffic recorded by the B3 exploration probe, 2026-10-28",
+ "initialize": {
+  "protocolVersion": 1,
+  "agentCapabilities": {
+   "loadSession": true,
+   "mcpCapabilities": {
+    "http": true,
+    "sse": true
+   },
+   "promptCapabilities": {
+    "audio": false,
+    "embeddedContext": false,
+    "image": true
+   },
+   "sessionCapabilities": {
+    "list": {}
+   }
+  },
+  "authMethods": [
+   {
+    "id": "cursor_login",
+    "name": "Cursor Login",
+    "description": "Authenticate using existing Cursor login credentials. Run 'agent login' first if not logged in."
+   }
+  ]
+ },
+ "turn": [
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "agent_message_chunk",
+     "content": {
+      "type": "text",
+      "text": "요청대로 셸 명령을 실행하고 `hello.txt`를 만든다."
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "tool_call",
+     "toolCallId": "call-564f938d-938d-4979-89e4-b78f6d606b62-0\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_0",
+     "title": "Terminal",
+     "kind": "execute",
+     "status": "pending",
+     "rawInput": {}
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "tool_call_update",
+     "toolCallId": "call-564f938d-938d-4979-89e4-b78f6d606b62-0\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_0",
+     "title": "`command -v doan; echo $PATH | cut -c1-200`",
+     "rawInput": {
+      "command": "command -v doan; echo $PATH | cut -c1-200"
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "tool_call_update",
+     "toolCallId": "call-564f938d-938d-4979-89e4-b78f6d606b62-0\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_0",
+     "status": "in_progress"
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "id": 0,
+   "method": "session/request_permission",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "toolCall": {
+     "toolCallId": "call-564f938d-938d-4979-89e4-b78f6d606b62-0\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_0",
+     "title": "`command -v doan; echo $PATH | cut -c1-200`",
+     "kind": "execute",
+     "status": "pending",
+     "content": [
+      {
+       "type": "content",
+       "content": {
+        "type": "text",
+        "text": "Not in allowlist: command, cut, echo"
+       }
+      }
+     ]
+    },
+    "options": [
+     {
+      "optionId": "allow-once",
+      "name": "Allow once",
+      "kind": "allow_once"
+     },
+     {
+      "optionId": "allow-always",
+      "name": "Allow always",
+      "kind": "allow_always"
+     },
+     {
+      "optionId": "reject-once",
+      "name": "Reject",
+      "kind": "reject_once"
+     }
+    ]
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "tool_call",
+     "toolCallId": "call-564f938d-938d-4979-89e4-b78f6d606b62-1\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_1",
+     "title": "Edit File",
+     "kind": "edit",
+     "status": "pending",
+     "rawInput": {}
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "tool_call_update",
+     "toolCallId": "call-564f938d-938d-4979-89e4-b78f6d606b62-1\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_1",
+     "title": "Edit `/repo/hello.txt`",
+     "rawInput": {
+      "path": "/repo/hello.txt"
+     },
+     "locations": [
+      {
+       "path": "/repo/hello.txt"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "tool_call_update",
+     "toolCallId": "call-564f938d-938d-4979-89e4-b78f6d606b62-1\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_1",
+     "status": "in_progress"
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "tool_call_update",
+     "toolCallId": "call-564f938d-938d-4979-89e4-b78f6d606b62-1\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_1",
+     "status": "completed",
+     "content": [
+      {
+       "type": "diff",
+       "path": "/repo/hello.txt",
+       "oldText": "-- /dev/null",
+       "newText": "++ b//repo/hello.txt\nhi"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "tool_call_update",
+     "toolCallId": "call-564f938d-938d-4979-89e4-b78f6d606b62-0\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_0",
+     "status": "completed",
+     "rawOutput": {
+      "exitCode": 0,
+      "stdout": "/bundle/bin/doan\n/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/b\n",
+      "stderr": ""
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "agent_message_chunk",
+     "content": {
+      "type": "text",
+      "text": "```\n/home"
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "agent_message_chunk",
+     "content": {
+      "type": "text",
+      "text": "-providers/.scratch/b3-probe/bin/doan\n/usr/local/bin:/System"
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "agent_message_chunk",
+     "content": {
+      "type": "text",
+      "text": "/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run"
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "agent_message_chunk",
+     "content": {
+      "type": "text",
+      "text": "/com.apple.security.cryptexd/codex.system/bootstrap/usr/local"
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "agent_message_chunk",
+     "content": {
+      "type": "text",
+      "text": "/bin:/var/run/com.apple.security.cryptexd/codex.system/b\n```"
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "agent_message_chunk",
+     "content": {
+      "type": "text",
+      "text": "\n\nDONE"
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "id": 4,
+   "result": {
+    "stopReason": "end_turn"
+   }
+  }
+ ],
+ "load": [
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "user_message_chunk",
+     "content": {
+      "type": "text",
+      "text": "Do exactly two things in order and nothing else. 1) Run the shell command `command -v doan; echo $PATH | cut -c1-200` and show its output. 2) Create a file named hello.txt in the current directory containing the word hi. Then reply DONE."
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "tool_call",
+     "toolCallId": "replay-0-2",
+     "title": "Edit `/repo/hello.txt`",
+     "kind": "edit",
+     "status": "pending",
+     "rawInput": {
+      "path": "/repo/hello.txt"
+     },
+     "locations": [
+      {
+       "path": "/repo/hello.txt"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "tool_call_update",
+     "toolCallId": "replay-0-2",
+     "status": "completed",
+     "content": [
+      {
+       "type": "diff",
+       "path": "/repo/hello.txt",
+       "oldText": "-- /dev/null",
+       "newText": "++ b//repo/hello.txt\nhi"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b",
+    "update": {
+     "sessionUpdate": "tool_call",
+     "toolCallId": "replay-0-3",
+     "title": "`command -v doan; echo $PATH | cut -c1-200`",
+     "kind": "execute",
+     "status": "pending",
+     "rawInput": {
+      "command": "command -v doan; echo $PATH | cut -c1-200"
+     }
+    }
+   }
+  }
+ ]
+}

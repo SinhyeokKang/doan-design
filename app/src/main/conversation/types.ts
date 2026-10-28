@@ -43,7 +43,8 @@ export interface ConversationBinding {
   conversationId: string; root: string; canvas?: Canvas;
   origin: "resumed" | "new" | "newDesign"; state: "current" | "archived";
 }
-export interface SessionKey { runtime: Runtime; configDir: string; sessionId: string }
+// runtime is an app provider here: reservations cover doan-account sessions of every provider.
+export interface SessionKey { runtime: import("../agentAuth/types").Provider; configDir: string; sessionId: string }
 export interface Reservation { owner: string; key: SessionKey | null }
 export interface TransportState {
   terminal: boolean;

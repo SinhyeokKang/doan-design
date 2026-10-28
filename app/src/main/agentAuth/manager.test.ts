@@ -2,15 +2,17 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AuthManager, spawnAuthProcess, TERMINAL_RELAY as RELAY_PROBE, type AuthProcess, type Spawn } from "./manager";
+import { createServer } from "node:http";
+import { AUTH_LINK_MARKER } from "./antigravity";
+import { AuthManager, spawnAuthProcess, type AuthProcess, type Spawn } from "./manager";
 import type { ProviderAuth } from "./providers";
 import { AuthStorage, type Cipher } from "./storage";
 import { fakeCipher } from "./fixtures/cipher";
 import type { CheckResult, Provider } from "./types";
 
-type Step = "login" | "status" | "logout";
+type Step = "login" | "status" | "logout" | "acp";
 class FakeProcess implements AuthProcess {
-  listeners: ((text: string) => void)[] = [];
+  listeners: ((text: string, stream?: "stderr") => void)[] = [];
   stopped = false;
   written: string[] = [];
   private exitWith!: (code: number | null) => void;
@@ -18,8 +20,14 @@ class FakeProcess implements AuthProcess {
   readonly exit = new Promise<number | null>(resolve => { this.exitWith = resolve; });
   readonly gone = new Promise<void>(resolve => { this.goneWith = resolve; });
   constructor(readonly step: Step, readonly args: string[], readonly env: Record<string, string>, readonly cwd: string) {}
-  onOutput(listener: (text: string) => void): void { this.listeners.push(listener); }
-  print(text: string): void { for (const listener of this.listeners) listener(text); }
+  onOutput(listener: (text: string, stream?: "stderr") => void): void { this.listeners.push(listener); }
+  print(text: string, stream?: "stderr"): void { for (const listener of this.listeners) listener(text, stream); }
+  // ACP requests the client wrote, and a reply to the latest one with this method.
+  requests(): { id: number; method: string; params: Record<string, unknown> }[] { return this.written.join("").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(m => "method" in m); }
+  reply(method: string, result: unknown): void {
+    const request = this.requests().filter(r => r.method === method).at(-1); if (!request) throw new Error(`no ${method} request`);
+    this.print(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }) + "\n");
+  }
   // A finished leader is not a finished group; tests release the group separately when they need to.
   finish(code: number | null, groupGone = true): void { this.exitWith(code); if (groupGone) this.goneWith(); }
   release(): void { this.goneWith(); }
@@ -29,12 +37,31 @@ class FakeProcess implements AuthProcess {
 let stopReleases = true;
 const fileProvider = (status: (dir: string) => CheckResult): ProviderAuth => ({
   command: "fake-cli", args: [], env: { FAKE_STORE: "file" }, login: ["login"], status: ["status"], logout: null,
-  vault: ["creds/token.json"], plaintext: [], loginTerminal: false, settings: { "conf/settings.json": '{"storeTokenPlaintext":true}' },
+  vault: ["creds/token.json"], plaintext: [], settings: { "conf/settings.json": '{"storeTokenPlaintext":true}' }, acpAuth: null, acp: null, verifyByRun: false,
   parseStatus: run => run.code === 0 ? status(run.profileDir) : { status: "failed", code: "check_failed" },
 });
+// Antigravity's shape: sign-in, status and sign-out are ACP calls on one server binary.
+const acpProvider = (): ProviderAuth => ({
+  command: "fake-server", args: [], env: {}, login: [], status: [], logout: null, vault: ["creds/token.json"], plaintext: [], settings: {},
+  acpAuth: { method: "oauth-personal", agent: "fake-acp", version: "1.3.0" }, acp: { args: [], authenticate: "oauth-personal", sessions: "sessions" }, verifyByRun: false,
+  parseStatus: run => run.code === 2 ? { status: "disconnected" } : run.code === 0 ? { status: "connected", account: { id: null, workspace: null } } : { status: "failed", code: "check_failed", detail: run.stderr },
+});
+const INIT = { protocolVersion: 1, agentInfo: { name: "fake-acp", version: "1.3.0" }, authMethods: [{ id: "oauth-personal" }], agentCapabilities: { loadSession: true } };
+const replied = new Set<string>();
+// The next live ACP process with an unanswered request for this method.
+async function acpRequest(method: string): Promise<FakeProcess> {
+  for (let i = 0; i < 50; i++) {
+    const found = processes.find(p => p.step === "acp" && !p.stopped && p.requests().some(r => r.method === method) && !replied.has(`${processes.indexOf(p)}:${method}`));
+    if (found) { replied.add(`${processes.indexOf(found)}:${method}`); return found; }
+    await flush();
+  }
+  throw new Error(`no ${method} request`);
+}
+const googleLink = (port: number) => `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=x&redirect_uri=${encodeURIComponent(`http://127.0.0.1:${port}/`)}&state=st-1`;
+const withAcp = () => ({ claude: keychainProvider(() => keychain), codex: keychainProvider(() => keychain), cursor: fileProvider(tokenAccount), antigravity: acpProvider(), copilot: fileProvider(tokenAccount) });
 const keychainProvider = (status: () => CheckResult): ProviderAuth => ({
   command: "fake-cli", args: ["-c", "store=keyring"], env: {}, login: ["login"], status: ["status"], logout: ["logout"],
-  vault: null, plaintext: ["auth.json"], settings: {}, loginTerminal: false, parseStatus: run => run.code === 0 ? status() : { status: "failed", code: "check_failed" },
+  vault: null, plaintext: ["auth.json"], settings: {}, acpAuth: null, acp: null, verifyByRun: false, parseStatus: run => run.code === 0 ? status() : { status: "failed", code: "check_failed" },
 });
 const tokenAccount = (dir: string): CheckResult => {
   const path = join(dir, "creds/token.json");
@@ -76,9 +103,9 @@ const tokenFile = (provider: Provider) => join(storage.profileDir(provider), "cr
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "doan-auth-manager-")); cipher = fakeCipher(); storage = new AuthStorage(root, cipher);
-  processes = []; settledSet.clear(); keychain = { status: "disconnected" }; ids = 0; stopReleases = true;
+  processes = []; settledSet.clear(); replied.clear(); keychain = { status: "disconnected" }; ids = 0; stopReleases = true;
   spawn = vi.fn<Spawn>((_command, args, options) => {
-    const step: Step = args.includes("login") ? "login" : args.includes("logout") ? "logout" : "status";
+    const step: Step = options.input ? "acp" : args.includes("login") ? "login" : args.includes("logout") ? "logout" : "status";
     const p = new FakeProcess(step, args, options.env, options.cwd); processes.push(p); return p;
   });
 });
@@ -108,35 +135,112 @@ describe("sign-in", () => {
     const replaced = await second.done;
     expect(replaced.connection?.connectionId).not.toBe(first.connection?.connectionId);
   });
-  it("gives a terminal-bound login a terminal and runs status without one", async () => {
-    const terminal = { ...fileProvider(tokenAccount), loginTerminal: true };
-    const m = manager({ adapters: { claude: keychainProvider(() => keychain), codex: keychainProvider(() => keychain), cursor: fileProvider(tokenAccount), antigravity: terminal, copilot: fileProvider(tokenAccount) } });
-    await m.load();
-    started(await m.signIn("antigravity", 7));
-    await finish("login", 0, p => writeToken(p, { id: "g1" }));
-    await finish("status", 0);
-    const relay = join(root, "terminal-relay.exp");
-    expect(spawn.mock.calls.map(([command, args, options]) => [command, args, options.input])).toEqual([
-      ["/usr/bin/expect", ["-f", relay, "/bin/fake-cli", "login"], true], ["/bin/fake-cli", ["status"], false]]);
-    expect(readFileSync(relay, "utf8")).toContain("spawn -noecho {*}$argv");
-  });
-  it("passes a pasted authorization code only from the owner to the live terminal login, and keeps it out of diagnostics", async () => {
-    const terminal = { ...fileProvider(tokenAccount), loginTerminal: true };
-    const m = manager({ adapters: { claude: keychainProvider(() => keychain), codex: keychainProvider(() => keychain), cursor: fileProvider(tokenAccount), antigravity: terminal, copilot: fileProvider(tokenAccount) } });
+  it("signs in through the ACP server, routes only its sign-in link to the owner and verifies with a fresh ACP status", async () => {
+    const prompts: unknown[] = [];
+    const m = manager({ onPrompt: prompt => prompts.push(prompt), adapters: withAcp() });
     await m.load();
     const run = started(await m.signIn("antigravity", 7));
-    const login = await next("login");
-    expect(m.submitCode("antigravity", run.attemptId, 8, "4/abc")).toEqual({ ok: false, reason: "not_owner" });
-    expect(m.submitCode("antigravity", "other", 7, "4/abc")).toEqual({ ok: false, reason: "stale" });
-    expect(m.submitCode("antigravity", run.attemptId, 7, "two words")).toEqual({ ok: false, reason: "invalid" });
-    expect(m.submitCode("antigravity", run.attemptId, 7, "4/0Secret-code_1")).toEqual({ ok: true });
-    expect(login.written).toEqual(["4/0Secret-code_1\n"]);
-    login.print("4/0Secret-code_1\r\nError: authentication failed: invalid_grant\n");
-    settledSet.add(login); login.finish(1);
+    const login = await acpRequest("initialize"); login.reply("initialize", INIT);
+    await acpRequest("authenticate");
+    expect(login.requests().find(r => r.method === "authenticate")?.params).toEqual({ methodId: "oauth-personal" });
+    // Server log lines and other URLs are not sign-in links; only a Google request returning to the loopback is.
+    login.print("I1028 Started local credentials injection proxy on http://127.0.0.1:5000\n", "stderr");
+    login.print(`${AUTH_LINK_MARKER}https://example.com/o/oauth2/v2/auth?response_type=code&state=s&redirect_uri=http%3A%2F%2F127.0.0.1%3A4321%2F\n`, "stderr");
+    login.print(`${AUTH_LINK_MARKER}${googleLink(4321)}\n`, "stderr");
+    expect(prompts).toEqual([{ provider: "antigravity", attemptId: run.attemptId, owner: 7, url: googleLink(4321) }]);
+    writeToken(login, { id: "g1" }); login.reply("authenticate", {});
+    const status = await acpRequest("initialize"); status.reply("initialize", INIT);
+    await acpRequest("authenticate"); status.reply("authenticate", {});
     const state = await run.done;
-    expect(state.error?.code).toBe("sign_in_failed");
-    expect(state.error?.detail).not.toContain("4/0Secret-code_1");
-    expect(m.submitCode("antigravity", run.attemptId, 7, "4/late")).toEqual({ ok: false, reason: "stale" });
+    expect(state).toMatchObject({ phase: "connected", verified: true, connection: { provider: "antigravity", account: { id: null, workspace: null } } });
+    expect(await storage.loadVault("antigravity")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "g1" })) });
+    expect(existsSync(tokenFile("antigravity"))).toBe(false);
+    expect(login.stopped && status.stopped).toBe(true);
+  });
+  it("delivers a pasted callback address only from the owner, for this attempt's listener and state", async () => {
+    const hits: string[] = [];
+    const server = createServer((request, response) => { hits.push(request.url ?? ""); response.end("ok"); });
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const port = (server.address() as { port: number }).port;
+    try {
+      const m = manager({ adapters: withAcp() });
+      await m.load();
+      const run = started(await m.signIn("antigravity", 7));
+      const login = await acpRequest("initialize"); login.reply("initialize", INIT);
+      await acpRequest("authenticate");
+      const address = `http://127.0.0.1:${port}/?state=st-1&code=c1&scope=email`;
+      expect(m.submitCode("antigravity", run.attemptId, 7, address)).toEqual({ ok: false, reason: "invalid" });
+      login.print(`${AUTH_LINK_MARKER}${googleLink(port)}\n`, "stderr");
+      expect(m.submitCode("antigravity", run.attemptId, 8, address)).toEqual({ ok: false, reason: "not_owner" });
+      expect(m.submitCode("antigravity", "other", 7, address)).toEqual({ ok: false, reason: "stale" });
+      for (const wrong of [`http://127.0.0.1:${port}/?state=other&code=c1`, `http://127.0.0.1:${port + 1}/?state=st-1&code=c1`, `http://localhost:${port}/?state=st-1&code=c1`, `http://127.0.0.1:${port}/?state=st-1`, "4/0code"]) {
+        expect(m.submitCode("antigravity", run.attemptId, 7, wrong)).toEqual({ ok: false, reason: "invalid" });
+      }
+      expect(m.submitCode("antigravity", run.attemptId, 7, address)).toEqual({ ok: true });
+      for (let i = 0; i < 100 && !hits.length; i++) await new Promise(resolve => setTimeout(resolve, 10));
+      expect(hits).toEqual(["/?state=st-1&code=c1&scope=email"]);
+      await m.cancel("antigravity", run.attemptId, 7);
+      expect(await run.done).toMatchObject({ phase: "disconnected", attempt: null });
+      expect(login.stopped).toBe(true);
+      expect(m.submitCode("antigravity", run.attemptId, 7, address)).toEqual({ ok: false, reason: "stale" });
+    } finally { server.close(); }
+  });
+  it("reports an ACP status that asks for a new browser sign-in as signed out and stops the server", async () => {
+    const m = manager({ adapters: withAcp() });
+    storage.writeMetadata({ v: 1, accounts: [{ provider: "antigravity", connectionId: "c-1", profile: "antigravity", account: { id: null, workspace: null } }] });
+    await m.load();
+    const check = started(await m.check("antigravity"));
+    const status = await acpRequest("initialize"); status.reply("initialize", INIT);
+    await acpRequest("authenticate");
+    status.print(`${AUTH_LINK_MARKER}${googleLink(4321)}\n`, "stderr");
+    expect(await check.done).toMatchObject({ phase: "reauthRequired", expired: true, verified: false });
+    expect(status.stopped).toBe(true);
+  });
+  it("refuses an ACP server that is not the pinned agent and version", async () => {
+    const m = manager({ adapters: withAcp() });
+    await m.load();
+    const run = started(await m.signIn("antigravity", 7));
+    (await acpRequest("initialize")).reply("initialize", { ...INIT, agentInfo: { name: "fake-acp", version: "1.3.1" } });
+    expect(await run.done).toMatchObject({ phase: "error", error: { code: "sign_in_failed" }, connection: null });
+    expect(await storage.loadVault("antigravity")).toBeNull();
+  });
+  it("signs out with the server's logout on the materialized token, then removes doan's copy and checks again", async () => {
+    const m = manager({ adapters: withAcp() });
+    await m.load();
+    const run = started(await m.signIn("antigravity", 7));
+    const login = await acpRequest("initialize"); login.reply("initialize", INIT);
+    await acpRequest("authenticate"); writeToken(login, { id: "g1" }); login.reply("authenticate", {});
+    const status = await acpRequest("initialize"); status.reply("initialize", INIT);
+    await acpRequest("authenticate"); status.reply("authenticate", {});
+    await run.done;
+    const out = started(await m.signOut("antigravity"));
+    const logout = await acpRequest("initialize");
+    expect(existsSync(join(logout.cwd, "creds/token.json"))).toBe(true);
+    logout.reply("initialize", INIT); await acpRequest("logout"); logout.reply("logout", {});
+    const after = await acpRequest("initialize");
+    expect(existsSync(join(after.cwd, "creds/token.json"))).toBe(false);
+    after.reply("initialize", INIT); await acpRequest("authenticate");
+    after.print(`${AUTH_LINK_MARKER}${googleLink(4321)}\n`, "stderr");
+    expect(await out.done).toMatchObject({ phase: "disconnected", connection: null });
+    expect(await storage.loadVault("antigravity")).toBeNull();
+    expect(storage.readMetadata().accounts).toEqual([]);
+  });
+  it("admits an unchecked run-verified connection and verifies it only from its own connection's completed run", async () => {
+    const copilot = { ...fileProvider(tokenAccount), verifyByRun: true };
+    const m = manager({ adapters: { ...withAcp(), copilot } });
+    storage.writeMetadata({ v: 1, accounts: [{ provider: "copilot", connectionId: "c-1", profile: "copilot", account: { id: "octo", workspace: "https://github.com" } },
+      { provider: "cursor", connectionId: "c-2", profile: "cursor", account: { id: "u1", workspace: null } }] });
+    await m.load();
+    expect(m.state("copilot").verified).toBe(false);
+    const lease = await m.acquire("copilot");
+    expect(processes).toEqual([]);
+    m.confirm("copilot", "c-other");
+    expect(m.state("copilot").verified).toBe(false);
+    m.confirm("copilot", "c-1");
+    expect(m.state("copilot")).toMatchObject({ verified: true, phase: "connected" });
+    await lease.release();
+    // Every other provider still needs a check before a run.
+    await expect(m.acquire("cursor")).rejects.toThrow("unverified");
   });
   it("refuses a code for a login that reads no input", async () => {
     const m = manager(); await m.load();
@@ -572,17 +676,6 @@ describe("owned auth process", () => {
     child.stop();
     await child.gone;
     expect(await child.exit).toBeNull();
-  });
-  it("relays input lines to a terminal login through expect", async () => {
-    const relay = join(mkdtempSync(join(tmpdir(), "doan-relay-")), "relay.exp");
-    const storage = new AuthStorage(dirname(relay), fakeCipher());
-    const child = spawnAuthProcess("/usr/bin/expect", ["-f", storage.ownedFile("relay.exp", RELAY_PROBE), "/bin/sh", "-c", "read line; test -t 0 && echo \"tty:$line\""], { ...options(), input: true });
-    const out: string[] = []; child.onOutput(text => out.push(text));
-    child.write?.("pasted\n");
-    expect(await child.exit).toBe(0);
-    await child.gone;
-    expect(out.join("")).toContain("tty:pasted");
-    rmSync(dirname(relay), { recursive: true, force: true });
   });
   it("settles a spawn failure without a process to wait for", async () => {
     const child = spawnAuthProcess("/nonexistent/cli", [], options());

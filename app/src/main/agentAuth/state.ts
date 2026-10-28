@@ -81,6 +81,10 @@ export function transition(state: AuthState, event: AuthEvent): AuthTransition {
       if (!attempt.cancelled) return reject("invalid");
       // Only sign-ins are cancellable, and one may have rewritten the profile before it stopped.
       return apply({ attempt: null, verified: false });
+    case "runConfirmed":
+      // Only the run's own connection, and only a clean unchecked one: a check's or a write-back's verdict stands.
+      if (!state.connection || state.connection.connectionId !== event.connectionId || state.verified || state.expired || state.error || state.attempt) return { ok: true, outcome: "unchanged", state };
+      return apply({ verified: true });
     case "writeBackFailed":
       if (!state.connection) return { ok: true, outcome: "unchanged", state };
       // A provider refresh that never reached the vault may have revoked the credential the vault still holds.

@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { BROWSER_HOOK } from "./antigravity";
 import { PROVIDER_AUTH } from "./providers";
 import { PROVIDERS } from "./types";
 
@@ -52,11 +53,20 @@ describe("provider auth adapters", () => {
     expect(PROVIDER_AUTH.cursor.parseStatus(run(0, JSON.stringify({ ...cursorSignedOut, hasRefreshToken: true })))).toEqual({ status: "expired" });
     expect(PROVIDER_AUTH.cursor.parseStatus(run(1, "Error"))).toEqual({ status: "failed", code: "check_failed" });
   });
-  it("reads Antigravity's sign-in state from its models command", () => {
-    const out = "Fetching available models...\nError: Please sign in to view available models. Launch the CLI without arguments to sign in.\n";
-    expect(PROVIDER_AUTH.antigravity.parseStatus(run(1, "", out))).toEqual({ status: "disconnected" });
-    expect(PROVIDER_AUTH.antigravity.parseStatus(run(0, "gemini-3.5-flash\n"))).toEqual({ status: "connected", account: { id: null, workspace: null } });
-    expect(PROVIDER_AUTH.antigravity.parseStatus(run(1, "", "network down"))).toEqual({ status: "failed", code: "check_failed" });
+  it("reads Antigravity's sign-in state from the exit of doan's ACP status call", () => {
+    expect(PROVIDER_AUTH.antigravity.parseStatus(run(2, ""))).toEqual({ status: "disconnected" });
+    expect(PROVIDER_AUTH.antigravity.parseStatus(run(0, ""))).toEqual({ status: "connected", account: { id: null, workspace: null } });
+    expect(PROVIDER_AUTH.antigravity.parseStatus(run(1, "", "connect ECONNREFUSED"))).toEqual({ status: "failed", code: "network", detail: "connect ECONNREFUSED" });
+    expect(PROVIDER_AUTH.antigravity.parseStatus(run(1, "", "unexpected ACP server x 2"))).toEqual({ status: "failed", code: "check_failed", detail: "unexpected ACP server x 2" });
+  });
+  it("runs Antigravity on the pinned server with its file store and keeps the sign-in link away from a real browser", () => {
+    expect(PROVIDER_AUTH.antigravity).toMatchObject({ command: "agy_acp_server.par", vault: [".gemini/antigravity-acp/acp_token.json"], acpAuth: { method: "oauth-personal", agent: "antigravity-acp", version: "1.3.0" } });
+    expect(PROVIDER_AUTH.antigravity.env).toEqual({ AGY_ACP_FORCE_FILE_STORAGE: "1", BROWSER: BROWSER_HOOK, PYTHONUNBUFFERED: "1" });
+    // Python's webbrowser splits $BROWSER on ":" and replaces "%s" in every argument.
+    expect(BROWSER_HOOK.split(":")).toHaveLength(1);
+    expect(BROWSER_HOOK.match(/%s/g)).toHaveLength(1);
+    expect(PROVIDER_AUTH.copilot.verifyByRun).toBe(true);
+    for (const provider of ["claude", "codex", "cursor", "antigravity"] as const) expect(PROVIDER_AUTH[provider].verifyByRun).toBe(false);
   });
   it("reads Copilot's login from a tool-free print run and its account from config.json", () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-copilot-profile-"));

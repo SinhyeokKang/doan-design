@@ -2,13 +2,15 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
 import { query, type PermissionResult, type PermissionUpdate, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import { openAcp } from "./acpRunner";
 import { CodexDispatcher } from "./dispatcher";
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
 import { endTransport, initialTransport, normalizeClaude, transportError } from "./transport";
 import type { OpenRunner, Prepared, Runner } from "./service";
 import type { EventPayload } from "./types";
-export const openRunner: OpenRunner = (input, emit, exited, registerStop) => input.runtime === "claude" ? openClaude(input, emit, exited, registerStop) : openCodex(input, emit, exited, registerStop);
+export const openRunner: OpenRunner = (input, emit, exited, registerStop) =>
+  input.runtime === "claude" ? openClaude(input, emit, exited, registerStop) : input.runtime === "codex" ? openCodex(input, emit, exited, registerStop) : openAcp(input, emit, exited, registerStop);
 function timeout<T>(promise: Promise<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("process_exited")), 10000);

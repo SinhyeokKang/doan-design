@@ -14,7 +14,7 @@ import type { AccountConnection, AuthState, Provider } from "../agentAuth/types"
 const paths: string[] = [];
 afterEach(() => { vi.clearAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 function temp() { const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-account-"))); paths.push(dir); return dir; }
-const CLAUDE_SESSION = "4f0c8c1e-6a43-4c8e-9a39-6c1f5b7a2d10", CODEX_SESSION = "01a178ba-f9dc-7161-9544-f20f656064a1";
+const CLAUDE_SESSION = "4f0c8c1e-6a43-4c8e-9a39-6c1f5b7a2d10", CODEX_SESSION = "01a178ba-f9dc-7161-9544-f20f656064a1", ACP_SESSION = "f8bbe36d-0a01-43cb-a9f5-086050fe4c6b";
 
 // A fake account runtime: state is a plain value the test changes; leases count until released.
 function account(provider: Provider, profileDir: string, id: string | null = "acct-1") {
@@ -26,18 +26,20 @@ function account(provider: Provider, profileDir: string, id: string | null = "ac
     state: () => state,
     check: vi.fn(async () => { state = { ...state, verified: true }; return { ok: true as const, attemptId: "check", done: Promise.resolve(state) }; }),
     checked: vi.fn(async () => { if (state.attempt?.kind === "check") state = { ...state, attempt: null, verified: true }; }),
+    confirm: vi.fn(),
     acquire: vi.fn(async (): Promise<Lease> => {
       if (!state.connection) throw new Error("not_connected");
-      if (!state.verified) throw new Error("unverified");
+      if (!state.verified && provider !== "copilot") throw new Error("unverified");
       onAcquire.shift()?.();
       leases.open += 1; leases.acquired += 1; let released = false;
-      return { command: `/bin/${provider}`, env: { PATH: "/shell/bin", HOME: "/Users/ada", [provider === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"]: profileDir, DOAN_RUNTIME: "/data/runtime.json" }, profileDir,
+      return { command: `/bin/${provider}`, env: { PATH: "/shell/bin", HOME: provider === "claude" || provider === "codex" ? "/Users/ada" : profileDir, ...(provider === "claude" ? { CLAUDE_CONFIG_DIR: profileDir } : provider === "codex" ? { CODEX_HOME: profileDir } : {}), DOAN_RUNTIME: "/data/runtime.json" }, profileDir,
         release: async () => { if (!released) { released = true; leases.open -= 1; } } };
     }),
   };
   return { runtime, leases, onAcquire, set: (next: Partial<AuthState>) => { state = { ...state, ...next }; }, get: () => state };
 }
-function version(provider: Provider) { mocks.run.mockResolvedValue({ exitCode: 0, timedOut: false, stdout: provider === "claude" ? "2.1.312 (Claude Code)" : "codex-cli 0.163.0" }); }
+const VERSION_OUTPUT: Record<Provider, string> = { claude: "2.1.312 (Claude Code)", codex: "codex-cli 0.163.0", cursor: "2026.10.22-27dcf5f\n", copilot: "GitHub Copilot CLI 1.0.105.\nRun 'copilot update' to check for updates.\n", antigravity: "" };
+function version(provider: Provider) { mocks.run.mockResolvedValue({ exitCode: 0, timedOut: false, stdout: VERSION_OUTPUT[provider] }); }
 function harness(provider: Provider, id: string | null = "acct-1") {
   const data = temp(), root = temp(), profile = join(temp(), "profile"); mkdirSync(profile);
   const auth = account(provider, profile, id); version(provider);
@@ -46,14 +48,14 @@ function harness(provider: Provider, id: string | null = "acct-1") {
   const exits: (() => void)[] = []; const runners: Runner[] = [];
   const open = vi.fn<OpenRunner>(async (input, _emit, exited, registerStop) => {
     registerStop(async () => {}); exits.push(exited);
-    const runner: Runner = { sessionId: input.sessionId ?? (provider === "claude" ? CLAUDE_SESSION : CODEX_SESSION), send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) };
+    const runner: Runner = { sessionId: input.sessionId ?? (provider === "claude" ? CLAUDE_SESSION : provider === "codex" ? CODEX_SESSION : ACP_SESSION), send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) };
     runners.push(runner); return runner;
   });
   const store = new ConversationStore(data);
   const service = new ConversationService(store, prepare, open, () => {});
   return { data, root, profile, auth, external, prepare, open, exits, runners, store, service };
 }
-const start = (h: ReturnType<typeof harness>, provider: "claude" | "codex") => h.service.start({ root: h.root, mode: "new", runtime: provider, text: "make a canvas", anchors: [] });
+const start = (h: ReturnType<typeof harness>, provider: Provider) => h.service.start({ root: h.root, mode: "new", runtime: provider, text: "make a canvas", anchors: [] });
 function claudeTranscript(profile: string) { mkdirSync(join(profile, "projects", "repo"), { recursive: true }); mkdirSync(join(profile, "sessions"), { recursive: true }); writeFileSync(join(profile, "projects", "repo", `${CLAUDE_SESSION}.jsonl`), "{}\n"); }
 function codexRollout(profile: string, cwd: string) {
   const dir = join(profile, "sessions", "2026", "10", "28"); mkdirSync(dir, { recursive: true });
@@ -204,4 +206,61 @@ it("keeps legacy external entries and resumed associations on the external profi
   await h.prepare({ root: h.root, mode: "resume", text: "x", anchors: [] });
   expect(h.external).toHaveBeenCalledTimes(2); expect(h.external.mock.calls[0]).toEqual([expect.anything(), legacy.session]);
   expect(h.auth.runtime.acquire).not.toHaveBeenCalled();
+});
+
+// Where each ACP server keeps a stored session (B3 live check 2026-10-28).
+function acpSession(profile: string, provider: Provider) {
+  const dir = { cursor: ".cursor/acp-sessions", copilot: ".copilot/session-state", antigravity: ".gemini/antigravity-acp/conversations" }[provider as "cursor"];
+  mkdirSync(join(profile, dir, ACP_SESSION), { recursive: true });
+}
+
+it.each([
+  ["cursor", ["acp"], "cursor_login"],
+  ["copilot", ["--acp", "--stdio"], undefined],
+  ["antigravity", [], "oauth-personal"],
+] as [Provider, string[], string | undefined][])("starts a %s conversation on its ACP server with the bundled doan first on PATH", async (provider, args, authenticate) => {
+  const h = harness(provider);
+  const { conversationId } = await start(h, provider);
+  const [input] = h.open.mock.calls[0]!;
+  expect(input).toMatchObject({ runtime: provider, args, configDir: h.profile, command: `/bin/${provider}`, env: { PATH: "/Applications/doan.app/Contents/Resources/bin:/shell/bin", HOME: h.profile } });
+  expect(input.authenticate).toBe(authenticate);
+  expect(h.store.list()[0]).toMatchObject({ conversationId, owner: { kind: "doan", provider }, session: { runtime: provider, sessionId: ACP_SESSION, configDir: h.profile } });
+  // The Antigravity server is the sha-pinned download; it has no version run.
+  expect(mocks.run).toHaveBeenCalledTimes(provider === "antigravity" ? 0 : 1);
+});
+
+it("refuses a Cursor or Copilot build other than the checked one", async () => {
+  for (const [provider, stdout] of [["cursor", "2026.10.23-0aa1111\n"], ["copilot", "GitHub Copilot CLI 1.0.106.\n"]] as const) {
+    const h = harness(provider); mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout });
+    await expect(start(h, provider)).rejects.toThrow("runtime_unsupported"); expect(h.auth.leases.open).toBe(0);
+  }
+});
+
+it("resumes an ACP conversation only when its stored session is in the dedicated profile", async () => {
+  const h = harness("cursor");
+  const { conversationId } = await start(h, "cursor"); h.service.receive(conversationId, { type: "turn.done" }); h.exits[0]!();
+  await expect(h.service.send(conversationId, "no stored session", [])).rejects.toThrow("session_unavailable");
+  acpSession(h.profile, "cursor");
+  await h.service.send(conversationId, "after restart", []);
+  expect(h.open).toHaveBeenCalledTimes(2); expect(h.open.mock.calls[1]![0]).toMatchObject({ sessionId: ACP_SESSION, args: ["acp"], authenticate: "cursor_login" });
+});
+
+it("runs an unchecked Copilot connection without a status request and lets the run verify it", async () => {
+  const h = harness("copilot"); h.auth.set({ verified: false });
+  const { conversationId } = await start(h, "copilot");
+  expect(h.auth.runtime.check).not.toHaveBeenCalled();
+  const [input] = h.open.mock.calls[0]!;
+  input.confirm?.();
+  expect(h.auth.runtime.confirm).toHaveBeenCalledWith("copilot", "conn-1");
+  h.service.receive(conversationId, { type: "turn.done" }); h.exits[0]!();
+  // A resume after restart is unchecked as well; account, profile and session are still judged.
+  acpSession(h.profile, "copilot");
+  await h.service.send(conversationId, "after restart", []);
+  expect(h.open.mock.calls[1]![0].sessionId).toBe(ACP_SESSION);
+  h.service.receive(conversationId, { type: "turn.done" }); h.exits[1]!();
+  h.auth.set({ connection: { ...h.auth.get().connection!, connectionId: "conn-2", account: { id: "other", workspace: null } }, generation: 2 });
+  await expect(h.service.send(conversationId, "other account", [])).rejects.toThrow("session_unavailable");
+  // A failed write-back or check on an unchecked Copilot connection is not run past.
+  h.auth.set({ connection: { ...h.auth.get().connection!, connectionId: "conn-1", account: { id: "acct-1", workspace: null } }, error: { code: "storage_failed" } });
+  await expect(h.service.send(conversationId, "after a failed write-back", [])).rejects.toThrow("not_logged_in");
 });

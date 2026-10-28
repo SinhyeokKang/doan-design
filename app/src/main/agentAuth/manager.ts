@@ -2,7 +2,10 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants, existsSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { ACP_PROTOCOL_VERSION, AcpConnection } from "../conversation/acp";
 import { OwnedGroup } from "../conversation/process";
+import { object } from "../conversation/sessions";
+import { callbackAddress, forwardCallback, signInLink, type SignInLink } from "./antigravity";
 import { probeShell } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
 import { providerEnv } from "./environment";
@@ -26,20 +29,7 @@ export interface AuthManagerOptions {
 interface Run { code: number | null; stdout: string; stderr: string }
 const OUTPUT_LIMIT = 1024 * 1024;
 const QUIT_WAIT_MS = 5000;
-// expect(1) ships with macOS: it gives a login a terminal (print mode refuses to sign in headless) and relays
-// lines from a pipe into it, which script(1) cannot because it requires a terminal on its own stdin.
-export const TERMINAL_RELAY = `log_user 1
-set timeout -1
-spawn -noecho {*}$argv
-set child $spawn_id
-fconfigure stdin -blocking 0 -buffering line
-fileevent stdin readable {
-  if {[gets stdin line] >= 0} { send -i $child -- "$line\\r" } elseif {[eof stdin]} { fileevent stdin readable {} }
-}
-expect -i $child eof
-catch wait result
-exit [lindex $result 3]
-`;
+const ACP_OPEN_MS = 60_000;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const tail = (text: string) => text.trim().slice(-2000) || undefined;
 class Cancelled extends Error {}
@@ -57,9 +47,8 @@ export class AuthManager {
   private holds = new Map<Provider, number>();
   private runs = new Map<Provider, number>();
   private queues = new Map<Provider, Promise<void>>();
-  // Sign-in processes that accept a pasted authorization code, and the codes to keep out of diagnostics.
-  private inputs = new Map<string, AuthProcess>();
-  private secrets = new Map<string, string[]>();
+  // The sign-in link of each ACP sign-in attempt; a pasted callback address must answer this one.
+  private links = new Map<string, SignInLink>();
   private pending = new Set<Promise<unknown>>();
   private closed = false;
   private readonly adapters: Record<Provider, ProviderAuth>;
@@ -128,7 +117,7 @@ export class AuthManager {
             : { status: "failed", code: error instanceof Failure ? error.code : "sign_in_failed", detail: message(error) };
         }
         this.apply(provider, outcome ? { type: "signedIn", attemptId, result: outcome } : { type: "settled", attemptId });
-      } finally { if (this.writer === attemptId) this.writer = null; this.stopRequests.delete(attemptId); }
+      } finally { if (this.writer === attemptId) this.writer = null; this.stopRequests.delete(attemptId); this.links.delete(attemptId); }
       return this.state(provider);
     })());
     return { ok: true, attemptId, done };
@@ -139,17 +128,21 @@ export class AuthManager {
     if (result.ok) this.stop(attemptId);
     return result;
   }
-  // For logins whose official flow ends in "paste the authorization code" (Antigravity print mode).
+  // ACP sign-ins (Antigravity) return to the server's loopback listener. When the browser cannot reach it, the user
+  // pastes the address the browser ended on and main delivers it to that listener, for this attempt's link only.
   submitCode(provider: Provider, attemptId: string, owner: number, code: string): { ok: true } | { ok: false; reason: AuthRejection } {
     const attempt = this.state(provider).attempt;
     if (!attempt || attempt.id !== attemptId || attempt.kind !== "signIn" || attempt.cancelled) return { ok: false, reason: "stale" };
     if (attempt.owner !== owner) return { ok: false, reason: "not_owner" };
-    const child = this.inputs.get(attemptId);
-    if (!child?.write || !/^[\x21-\x7e]{1,2048}$/.test(code)) return { ok: false, reason: "invalid" };
-    this.secrets.set(attemptId, [...(this.secrets.get(attemptId) ?? []), code]);
-    child.write(`${code}\n`);
+    const link = this.links.get(attemptId);
+    const url = link && code.length <= 16384 ? callbackAddress(link, code) : null;
+    if (!url) return { ok: false, reason: "invalid" };
+    // A failed delivery leaves the attempt waiting; the user can paste again or cancel.
+    void forwardCallback(url).catch(error => console.error(`doan: ${provider} sign-in callback was not delivered`, message(error)));
     return { ok: true };
   }
+  // A run's completed request is the verification for providers whose status check costs a request (Copilot).
+  confirm(provider: Provider, connectionId: string): void { this.apply(provider, { type: "runConfirmed", connectionId }); }
   async ownerClosed(owner: number): Promise<void> {
     for (const provider of PROVIDERS) {
       const attempt = this.state(provider).attempt;
@@ -199,7 +192,8 @@ export class AuthManager {
     const state = this.state(provider);
     const refusal = this.closed || (state.attempt && state.attempt.kind !== "check") ? "busy"
       : state.error?.code === "sign_out_failed" ? "sign_out_failed" : !state.connection ? "not_connected"
-      : state.error?.code === "account_mismatch" ? "account_mismatch" : state.expired ? "reauth_required" : !state.verified ? "unverified" : null;
+      : state.error?.code === "account_mismatch" ? "account_mismatch" : state.expired ? "reauth_required"
+      : !state.verified && !(this.adapters[provider].verifyByRun && !state.error) ? "unverified" : null;
     if (refusal) throw new Error(refusal);
   }
 
@@ -221,17 +215,21 @@ export class AuthManager {
     const auth = this.adapters[provider];
     // A login starts from no working copy so a failed or cancelled replacement cannot leave the old one exposed.
     if (auth.vault) await this.storageStep(() => this.options.storage.scrub(provider, auth.vault!));
-    const seen = new Set<string>();
-    const login = await this.exec(provider, attemptId, auth.login, null, auth.loginTerminal, text => {
-      if (this.stopRequests.has(attemptId) || this.cancelled(provider, attemptId)) return;
-      // Sentence punctuation after a printed URL is not part of it.
-      for (const url of (text.match(/https?:\/\/[^\s"'<>]+/g) ?? []).map(found => found.replace(/[.,;:!?)\]]+$/, ""))) {
-        if (seen.has(url)) continue;
-        seen.add(url); this.options.onPrompt?.({ provider, attemptId, owner, url });
-      }
-    });
+    if (auth.acpAuth) await this.acpSignIn(provider, attemptId, owner);
+    else {
+      const seen = new Set<string>();
+      const login = await this.exec(provider, attemptId, auth.login, null, text => {
+        if (this.stopRequests.has(attemptId) || this.cancelled(provider, attemptId)) return;
+        // Sentence punctuation after a printed URL is not part of it.
+        for (const url of (text.match(/https?:\/\/[^\s"'<>]+/g) ?? []).map(found => found.replace(/[.,;:!?)\]]+$/, ""))) {
+          if (seen.has(url)) continue;
+          seen.add(url); this.options.onPrompt?.({ provider, attemptId, owner, url });
+        }
+      });
+      if (this.cancelled(provider, attemptId)) throw new Cancelled();
+      if (login.code !== 0) throw new Failure("sign_in_failed", tail(login.stderr) ?? tail(login.stdout));
+    }
     if (this.cancelled(provider, attemptId)) throw new Cancelled();
-    if (login.code !== 0) throw new Failure("sign_in_failed", tail(login.stderr) ?? tail(login.stdout));
     const checked = await this.statusRun(provider, attemptId);
     if (this.cancelled(provider, attemptId)) throw new Cancelled();
     if (checked.status !== "connected") throw new Failure("sign_in_failed", `status after login: ${checked.status}`);
@@ -267,6 +265,9 @@ export class AuthManager {
 
   private async signOutFlow(provider: Provider, attemptId: string): Promise<void> {
     const auth = this.adapters[provider], storage = this.options.storage;
+    // The server's own logout clears its stored token (logout.py, 1.3.0; no remote revocation is documented). doan's
+    // copy goes either way, and only the fresh status below decides the result.
+    if (auth.acpAuth && auth.vault) await this.acpLogout(provider, attemptId);
     if (auth.vault) { storage.removeVault(provider); storage.scrub(provider, auth.vault); }
     else if (auth.logout) {
       const logout = await this.exec(provider, attemptId, auth.logout, this.options.statusTimeoutMs ?? 20_000);
@@ -282,8 +283,84 @@ export class AuthManager {
   }
 
   private async statusRun(provider: Provider, attemptId: string): Promise<CheckResult> {
-    const run = await this.exec(provider, attemptId, this.adapters[provider].status, this.options.statusTimeoutMs ?? 20_000);
+    const run = this.adapters[provider].acpAuth ? await this.acpStatus(provider, attemptId) : await this.exec(provider, attemptId, this.adapters[provider].status, this.options.statusTimeoutMs ?? 20_000);
     return this.adapters[provider].parseStatus({ ...run, profileDir: this.options.storage.profileDir(provider) });
+  }
+
+  private async acpSignIn(provider: Provider, attemptId: string, owner: number): Promise<void> {
+    const method = this.adapters[provider].acpAuth!.method;
+    try {
+      await this.acpExec(provider, attemptId, null, link => {
+        if (this.stopRequests.has(attemptId) || this.cancelled(provider, attemptId) || this.links.get(attemptId)?.url === link.url) return false;
+        this.links.set(attemptId, link); this.options.onPrompt?.({ provider, attemptId, owner, url: link.url });
+        return false;
+      }, async acp => { await this.acpOpen(provider, acp); await acp.request("authenticate", { methodId: method }, null); });
+    } catch (error) {
+      if (error instanceof Cancelled || this.cancelled(provider, attemptId)) throw new Cancelled();
+      throw new Failure("sign_in_failed", message(error));
+    }
+  }
+  // authenticate with a stored token returns at once (refreshing it if needed); without a usable one the server starts
+  // a new browser sign-in instead, which this check stops and reports as signed out (exit 2).
+  private async acpStatus(provider: Provider, attemptId: string): Promise<Run> {
+    let asked = false;
+    try {
+      await this.acpExec(provider, attemptId, this.options.statusTimeoutMs ?? 20_000, () => { asked = true; return true; },
+        async acp => { await this.acpOpen(provider, acp); await acp.request("authenticate", { methodId: this.adapters[provider].acpAuth!.method }, null); });
+      return { code: 0, stdout: "", stderr: "" };
+    } catch (error) {
+      if (error instanceof Cancelled) throw error;
+      return { code: asked ? 2 : 1, stdout: "", stderr: message(error) };
+    }
+  }
+  private async acpLogout(provider: Provider, attemptId: string): Promise<void> {
+    await this.hold(provider);
+    try {
+      await this.acpExec(provider, attemptId, this.options.statusTimeoutMs ?? 20_000, () => true, async acp => { await this.acpOpen(provider, acp); await acp.request("logout", {}); });
+    } catch (error) { console.error(`doan: ${provider} server logout failed; removing doan's copy`, message(error)); }
+    finally { this.holds.set(provider, Math.max(0, (this.holds.get(provider) ?? 1) - 1)); }
+  }
+  private async acpOpen(provider: Provider, acp: AcpConnection): Promise<void> {
+    const expected = this.adapters[provider].acpAuth!;
+    const init = await acp.request("initialize", { protocolVersion: ACP_PROTOCOL_VERSION, clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false }, clientInfo: { name: "doan", version: "0.1.0" } }, ACP_OPEN_MS);
+    const info = object(init) && object(init.agentInfo) ? init.agentInfo : {};
+    const methods = object(init) && Array.isArray(init.authMethods) ? init.authMethods.filter(object).map(m => m.id) : [];
+    if (!object(init) || init.protocolVersion !== ACP_PROTOCOL_VERSION || info.name !== expected.agent || info.version !== expected.version || !methods.includes(expected.method)) {
+      throw new Error(`unexpected ACP server ${String(info.name)} ${String(info.version)}`);
+    }
+  }
+  // One ACP exchange with the provider's server; resolves or rejects only after its process group is gone.
+  // onLink sees each sign-in link the server asks the browser to open and returns true to stop the server.
+  private async acpExec<T>(provider: Provider, attemptId: string, timeoutMs: number | null, onLink: (link: SignInLink) => boolean, script: (acp: AcpConnection) => Promise<T>): Promise<T> {
+    const { command, env, profileDir } = await this.launch(provider);
+    if (this.stopRequests.has(attemptId)) throw new Cancelled();
+    const child = this.options.spawn(command, this.adapters[provider].args, { cwd: profileDir, env, input: true });
+    const owned = this.processes.get(attemptId) ?? new Set();
+    owned.add(child); this.processes.set(attemptId, owned);
+    if (this.stopRequests.has(attemptId)) child.stop();
+    let failure = "";
+    const acp = new AcpConnection(line => { if (!child.write) throw new Error("process_exited"); child.write(line); },
+      (_params, id) => acp.respond(id, { outcome: { outcome: "cancelled" } }), () => {}, detail => { failure = detail; child.stop(); });
+    let errors = "";
+    child.onOutput((text, stream) => {
+      if (stream !== "stderr") { acp.receive(text); return; }
+      errors = (errors + text).slice(-OUTPUT_LIMIT);
+      let end: number;
+      while ((end = errors.indexOf("\n")) >= 0) {
+        const link = signInLink(errors.slice(0, end)); errors = errors.slice(end + 1);
+        if (link && onLink(link)) child.stop();
+      }
+    });
+    const timer = timeoutMs === null ? undefined : setTimeout(() => child.stop(), timeoutMs);
+    let result: T;
+    try { result = await Promise.race([script(acp), child.exit.then(() => { throw new Error(failure || "the ACP server exited"); })]); }
+    catch (error) { if (this.stopRequests.has(attemptId)) throw new Cancelled(); throw error; }
+    finally {
+      clearTimeout(timer); acp.close(); child.stop(); await child.gone;
+      owned.delete(child); if (!owned.size) this.processes.delete(attemptId);
+    }
+    if (this.stopRequests.has(attemptId)) throw new Cancelled();
+    return result;
   }
 
   private async launch(provider: Provider): Promise<{ command: string; env: Record<string, string>; profileDir: string }> {
@@ -297,17 +374,14 @@ export class AuthManager {
   }
 
   // Resolves only after the process group is gone, so no result outruns its process.
-  private async exec(provider: Provider, attemptId: string, args: string[], timeoutMs: number | null, terminal = false, onText?: (text: string) => void): Promise<Run> {
+  private async exec(provider: Provider, attemptId: string, args: string[], timeoutMs: number | null, onText?: (text: string) => void): Promise<Run> {
     const { command, env, profileDir } = await this.launch(provider);
     // A cancel, window close or quit can arrive while the CLI is located, before there is a process to stop.
     if (this.stopRequests.has(attemptId)) throw new Cancelled();
-    const argv = [command, ...this.adapters[provider].args, ...args];
-    const [program, ...rest] = terminal ? ["/usr/bin/expect", "-f", this.options.storage.ownedFile("terminal-relay.exp", TERMINAL_RELAY), ...argv] : argv;
-    const child = this.options.spawn(program!, rest, { cwd: profileDir, env, input: terminal });
+    const child = this.options.spawn(command, [...this.adapters[provider].args, ...args], { cwd: profileDir, env });
     const owned = this.processes.get(attemptId) ?? new Set();
     owned.add(child); this.processes.set(attemptId, owned);
     if (this.stopRequests.has(attemptId)) child.stop();
-    if (terminal) this.inputs.set(attemptId, child);
     let stdout = "", stderr = "", timer: ReturnType<typeof setTimeout> | undefined;
     child.onOutput((text, stream) => {
       if (stream === "stderr") { if (stderr.length < OUTPUT_LIMIT) stderr += text; } else if (stdout.length < OUTPUT_LIMIT) stdout += text;
@@ -317,13 +391,10 @@ export class AuthManager {
     try {
       const code = await child.exit;
       await child.gone;
-      // The terminal echoes a pasted code back; it must not reach error details.
-      const redact = (text: string) => (this.secrets.get(attemptId) ?? []).reduce((out, secret) => out.split(secret).join("<code>"), text);
-      return { code, stdout: redact(stdout), stderr: redact(stderr) };
+      return { code, stdout, stderr };
     } finally {
       clearTimeout(timer); owned.delete(child);
-      if (this.inputs.get(attemptId) === child) this.inputs.delete(attemptId);
-      if (!owned.size) { this.processes.delete(attemptId); this.secrets.delete(attemptId); }
+      if (!owned.size) this.processes.delete(attemptId);
     }
   }
 
@@ -429,11 +500,14 @@ export const spawnAuthProcess: Spawn = (command, args, { cwd, env, input }) => {
   };
 };
 
-// Same discovery as conversation preparation: the login shell's PATH, not the app's launch environment.
-export function shellLocator(inherited: NodeJS.ProcessEnv, adapters: Record<Provider, ProviderAuth> = PROVIDER_AUTH): AuthManagerOptions["locate"] {
+// Same discovery as conversation preparation: the login shell's PATH, not the app's launch environment. A managed
+// provider (Antigravity's downloaded server) resolves its executable itself and still runs with that PATH.
+export function shellLocator(inherited: NodeJS.ProcessEnv, adapters: Record<Provider, ProviderAuth> = PROVIDER_AUTH, managed: Partial<Record<Provider, () => Promise<string>>> = {}): AuthManagerOptions["locate"] {
   return async provider => {
     const probe = await probeShell(inherited);
     if (!probe.ok) return null;
+    const install = managed[provider];
+    if (install) return { command: await install(), path: probe.path };
     const command = findOnPath(probe.path, adapters[provider].command, path => { try { accessSync(path, constants.X_OK); return statSync(path).isFile(); } catch { return false; } });
     return command ? { command, path: probe.path } : null;
   };

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import stub from "../onboarding/SKILL.md?raw";
+import { ANTIGRAVITY_COMMAND, ANTIGRAVITY_SERVER, BROWSER_HOOK } from "./antigravity";
 import type { AccountIdentity, CheckResult, Provider } from "./types";
 
 export interface StatusRun { code: number | null; stdout: string; stderr: string; profileDir: string }
@@ -9,8 +10,14 @@ export interface ProviderAuth {
   // Prepended to every invocation, including B2/B3 runs, so no path can fall back to another store.
   args: string[]; env: Record<string, string>;
   login: string[]; status: string[];
-  // The login waits on a controlling terminal (Antigravity print mode); doan gives it one with /usr/bin/expect.
-  loginTerminal: boolean;
+  // Sign-in, status and sign-out are calls on the provider's ACP server (Antigravity) instead of CLI subcommands.
+  acpAuth: { method: string; agent: string; version: string } | null;
+  // Conversations: the ACP server arguments and the authenticate method to select, or null for Claude and Codex,
+  // which have their own runners. sessions is the profile-relative directory holding each session's stored record.
+  acp: { args: string[]; authenticate: string | null; sessions: string } | null;
+  // The status check costs a provider request (Copilot), so a stored connection is only checked on a user's action
+  // and a run's first completed request verifies it instead (user decision 2026-10-28).
+  verifyByRun: boolean;
   // Keychain providers only: vault providers sign out by deleting doan's copy, because a provider logout
   // cannot reach the vault and Copilot's /logout left its token behind in PoC 10.
   logout: string[] | null;
@@ -53,12 +60,11 @@ function cursorStatus(run: StatusRun): CheckResult {
   const id = typeof user.userId === "number" && Number.isSafeInteger(user.userId) ? String(user.userId) : user.userId;
   return { status: "connected", account: account(id, null, name, user.email) };
 }
+// The ACP status call reports in its exit: 0 after authenticate succeeded, 2 when the server asked for a new sign-in.
+// The server exposes no account; such a connection resumes only on its own connection (user decision 2026-10-28).
 function antigravityStatus(run: StatusRun): CheckResult {
-  const out = `${run.stdout}\n${run.stderr}`;
-  if (/Please sign in|not logged into Antigravity/i.test(out)) return { status: "disconnected" };
-  if (/Authentication expired/i.test(out)) return { status: "expired" };
-  // models prints no account; such a connection can run but not resume (account_unverifiable).
-  return run.code === 0 ? { status: "connected", account: { id: null, workspace: null } } : failed;
+  if (run.code === 2) return { status: "disconnected" };
+  return run.code === 0 ? { status: "connected", account: { id: null, workspace: null } } : { status: "failed", code: /network|connect|timed out/i.test(run.stderr) ? "network" : "check_failed", detail: run.stderr.slice(-2000) };
 }
 // config.json is JSONC with leading comment lines; lastLoggedInUser names the account the token belongs to.
 function copilotStatus(run: StatusRun): CheckResult {
@@ -83,25 +89,34 @@ function codexStatus(run: StatusRun): CheckResult {
 // The dedicated profile gets its own discovery stub instead of a copy of or link to the user's global skill;
 // Claude reads <CLAUDE_CONFIG_DIR>/skills and Codex <CODEX_HOME>/skills (skills/list, scope "user", 0.163.0).
 const SKILL_STUB = { "skills/doan/SKILL.md": stub };
+// Personal skill directories under the dedicated HOME: Cursor ~/.cursor/skills, Copilot ~/.copilot/skills,
+// Antigravity <GEMINI_HOME>/skills (B3 live check 2026-10-28).
+const HOME_STUB = (dir: string) => ({ [`${dir}/skills/doan/SKILL.md`]: stub });
+const CLI_RUN = { acpAuth: null, acp: null, verifyByRun: false };
 export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
   // PoC 10: a non-default CLAUDE_CONFIG_DIR gets its own Keychain item; .credentials.json would be the plaintext fallback.
   claude: { command: "claude", args: [], env: {}, login: ["auth", "login"], status: ["auth", "status", "--json"], logout: ["auth", "logout"],
-    vault: null, plaintext: [".credentials.json"], settings: SKILL_STUB, loginTerminal: false, parseStatus: claudeStatus },
+    vault: null, plaintext: [".credentials.json"], settings: SKILL_STUB, ...CLI_RUN, parseStatus: claudeStatus },
   // The keyring entry is keyed by the canonical CODEX_HOME; "auto" could silently write auth.json instead.
   codex: { command: "codex", args: ["-c", 'cli_auth_credentials_store="keyring"'], env: {}, login: ["login"], status: ["login", "status"], logout: ["logout"],
-    vault: null, plaintext: ["auth.json"], settings: SKILL_STUB, loginTerminal: false, parseStatus: codexStatus },
+    vault: null, plaintext: ["auth.json"], settings: SKILL_STUB, ...CLI_RUN, parseStatus: codexStatus },
   // AGENT_CLI_CREDENTIAL_STORE=file is Cursor's official switch; the default macOS Keychain item is shared by every profile.
   // On macOS the file store is ~/.cursor/auth.json (getAuthFilePath in the 2026.10.22 bundle).
+  // Conversations: official `agent acp` (https://cursor.com/docs/cli/acp); it needs authenticate("cursor_login").
   cursor: { command: "cursor-agent", args: [], env: { AGENT_CLI_CREDENTIAL_STORE: "file" }, login: ["login"], status: ["status", "--format", "json"], logout: null,
-    vault: [".cursor/auth.json"], plaintext: [], settings: {}, loginTerminal: false, parseStatus: cursorStatus },
-  // 1.4.8 has no login or status subcommand: print mode signs in (one tiny request) and "models" needs a login.
-  // Unverified as a product path: in a dedicated HOME its keyring save raised macOS's "Keychain Not Found" dialog
-  // (B1 live check 2026-10-28); after Cancel it fell back to this token file, which doan keeps in the vault.
-  antigravity: { command: "agy", args: [], env: {}, login: ["-p", "Reply with exactly OK"], status: ["models"], logout: null,
-    vault: [".gemini/antigravity-cli/antigravity-oauth-token"], plaintext: [], settings: {}, loginTerminal: true, parseStatus: antigravityStatus },
+    vault: [".cursor/auth.json"], plaintext: [], settings: HOME_STUB(".cursor"), acpAuth: null,
+    acp: { args: ["acp"], authenticate: "cursor_login", sessions: ".cursor/acp-sessions" }, verifyByRun: false, parseStatus: cursorStatus },
+  // Google's ACP server (antigravity.ts) replaces the agy CLI, whose dedicated-HOME keyring save raised a macOS
+  // Keychain dialog (B1). AGY_ACP_FORCE_FILE_STORAGE=1 selects its file backend, <GEMINI_HOME>/antigravity-acp/acp_token.json
+  // (credential_store.py in 1.3.0; undocumented, user-approved 2026-10-28); GEMINI_HOME is set by providerEnv.
+  antigravity: { command: ANTIGRAVITY_COMMAND, args: [], env: { AGY_ACP_FORCE_FILE_STORAGE: "1", BROWSER: BROWSER_HOOK, PYTHONUNBUFFERED: "1" }, login: [], status: [], logout: null,
+    vault: [".gemini/antigravity-acp/acp_token.json"], plaintext: [], settings: HOME_STUB(".gemini"), acpAuth: { method: "oauth-personal", agent: "antigravity-acp", version: ANTIGRAVITY_SERVER.version },
+    acp: { args: [], authenticate: "oauth-personal", sessions: ".gemini/antigravity-acp/conversations" }, verifyByRun: false, parseStatus: antigravityStatus },
   // storeTokenPlaintext (official setting, 1.0.x changelog and settings schema) keeps the token in config.json, which
   // doan keeps in the vault; a dedicated HOME also keeps gh and the shared "copilot-cli" Keychain item out of reach.
   // 1.0.105 has no status command: a tool-free print request fails fast without a login and costs one request with one.
+  // Conversations: official `copilot --acp --stdio` (https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server).
   copilot: { command: "copilot", args: [], env: {}, login: ["login"], status: ["-p", "Reply with exactly OK", "--available-tools", ""], logout: null,
-    vault: [".copilot/config.json"], plaintext: [], settings: { ".copilot/settings.json": '{\n  "storeTokenPlaintext": true\n}\n' }, loginTerminal: false, parseStatus: copilotStatus },
+    vault: [".copilot/config.json"], plaintext: [], settings: { ".copilot/settings.json": '{\n  "storeTokenPlaintext": true\n}\n', ...HOME_STUB(".copilot") }, acpAuth: null,
+    acp: { args: ["--acp", "--stdio"], authenticate: null, sessions: ".copilot/session-state" }, verifyByRun: true, parseStatus: copilotStatus },
 };

@@ -1,0 +1,330 @@
+{
+ "source": "copilot ACP traffic recorded by the B3 exploration probe, 2026-10-28",
+ "initialize": {
+  "protocolVersion": 1,
+  "agentCapabilities": {
+   "auth": {
+    "logout": {}
+   },
+   "loadSession": true,
+   "mcpCapabilities": {
+    "http": true,
+    "sse": true
+   },
+   "promptCapabilities": {
+    "image": true,
+    "audio": false,
+    "embeddedContext": true
+   },
+   "sessionCapabilities": {
+    "close": {},
+    "list": {}
+   }
+  },
+  "agentInfo": {
+   "name": "Copilot",
+   "title": "Copilot",
+   "version": "1.0.105"
+  },
+  "authMethods": [
+   {
+    "id": "copilot-login",
+    "name": "Log in with Copilot CLI",
+    "description": "Run `copilot login` in the terminal",
+    "_meta": {
+     "terminal-auth": {
+      "command": "/home",
+      "args": [
+       "login"
+      ],
+      "label": "Copilot Login"
+     }
+    }
+   }
+  ]
+ },
+ "turn": [
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "d5454420-aef2-45a9-9621-6d92ea37de7f",
+    "update": {
+     "sessionUpdate": "tool_call",
+     "toolCallId": "call_l3L4IWW6Nx9c4UK3MShsTlE0",
+     "title": "Run the requested shell command",
+     "kind": "execute",
+     "status": "pending",
+     "rawInput": {
+      "command": "command -v doan; echo $PATH | cut -c1-200",
+      "description": "Run the requested shell command"
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "id": 0,
+   "method": "session/request_permission",
+   "params": {
+    "sessionId": "d5454420-aef2-45a9-9621-6d92ea37de7f",
+    "toolCall": {
+     "toolCallId": "call_l3L4IWW6Nx9c4UK3MShsTlE0",
+     "title": "Run the requested shell command",
+     "kind": "execute",
+     "status": "pending",
+     "rawInput": {
+      "command": "command -v doan; echo $PATH | cut -c1-200",
+      "commands": [
+       "command -v doan; echo $PATH | cut -c1-200"
+      ]
+     }
+    },
+    "options": [
+     {
+      "optionId": "allow_once",
+      "kind": "allow_once",
+      "name": "Allow once"
+     },
+     {
+      "optionId": "allow_always",
+      "kind": "allow_always",
+      "name": "Always allow"
+     },
+     {
+      "optionId": "reject_once",
+      "kind": "reject_once",
+      "name": "Deny"
+     }
+    ]
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "d5454420-aef2-45a9-9621-6d92ea37de7f",
+    "update": {
+     "sessionUpdate": "tool_call_update",
+     "toolCallId": "call_l3L4IWW6Nx9c4UK3MShsTlE0",
+     "content": [
+      {
+       "type": "content",
+       "content": {
+        "type": "text",
+        "text": "/bundle/bin/doan\n/bundle/bin:/home:/home:/opt/homebrew/bin:/op\n"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "d5454420-aef2-45a9-9621-6d92ea37de7f",
+    "update": {
+     "sessionUpdate": "tool_call_update",
+     "toolCallId": "call_l3L4IWW6Nx9c4UK3MShsTlE0",
+     "status": "completed",
+     "content": [
+      {
+       "type": "content",
+       "content": {
+        "type": "text",
+        "text": "/bundle/bin/doan\n/bundle/bin:/home:/home:/opt/homebrew/bin:/op\n<shellId: 0 completed with exit code 0>"
+       }
+      }
+     ],
+     "rawOutput": {
+      "content": "/bundle/bin/doan\n/bundle/bin:/home:/home:/opt/homebrew/bin:/op\n<shellId: 0 completed with exit code 0>",
+      "detailedContent": "/bundle/bin/doan\n/bundle/bin:/home:/home:/opt/homebrew/bin:/op\n<shellId: 0 completed with exit code 0>",
+      "contents": [
+       {
+        "type": "shell_exit",
+        "shellId": "0",
+        "exitCode": 0,
+        "cwd": "/repo",
+        "outputPreview": "/bundle/bin/doan\n/bundle/bin:/home:/home:/opt/homebrew/bin:/op\n"
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "d5454420-aef2-45a9-9621-6d92ea37de7f",
+    "update": {
+     "sessionUpdate": "tool_call",
+     "toolCallId": "custom_call_f02EBqh20nzOAqWbK5abRcfL",
+     "title": "apply_patch",
+     "kind": "edit",
+     "status": "pending",
+     "rawInput": "*** Begin Patch\n*** Add File: hello.txt\n+hi\n*** End Patch\n"
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "id": 1,
+   "method": "session/request_permission",
+   "params": {
+    "sessionId": "d5454420-aef2-45a9-9621-6d92ea37de7f",
+    "toolCall": {
+     "toolCallId": "custom_call_f02EBqh20nzOAqWbK5abRcfL",
+     "title": "Create file",
+     "kind": "edit",
+     "status": "pending",
+     "rawInput": {
+      "fileName": "/repo/hello.txt",
+      "diff": "\ndiff --git a/repo/hello.txt b/repo/hello.txt\ncreate file mode 100644\nindex 0000000..0000000\n--- a/dev/null\n+++ b/repo/hello.txt\n@@ -1,0 +1,2 @@\n+hi\n+\n\n"
+     },
+     "locations": [
+      {
+       "path": "/repo/hello.txt"
+      }
+     ]
+    },
+    "options": [
+     {
+      "optionId": "allow_once",
+      "kind": "allow_once",
+      "name": "Allow once"
+     },
+     {
+      "optionId": "allow_always",
+      "kind": "allow_always",
+      "name": "Always allow"
+     },
+     {
+      "optionId": "reject_once",
+      "kind": "reject_once",
+      "name": "Deny"
+     }
+    ]
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "d5454420-aef2-45a9-9621-6d92ea37de7f",
+    "update": {
+     "sessionUpdate": "tool_call_update",
+     "toolCallId": "custom_call_f02EBqh20nzOAqWbK5abRcfL",
+     "status": "failed",
+     "rawOutput": {
+      "message": "The user rejected this tool call.",
+      "code": "rejected"
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "d5454420-aef2-45a9-9621-6d92ea37de7f",
+    "update": {
+     "sessionUpdate": "agent_message_chunk",
+     "content": {
+      "type": "text",
+      "text": "Info: Operation cancelled by user"
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "id": 3,
+   "result": {
+    "stopReason": "end_turn",
+    "usage": {
+     "inputTokens": 40758,
+     "outputTokens": 222,
+     "totalTokens": 40980,
+     "thoughtTokens": 148,
+     "cachedReadTokens": 20230,
+     "cachedWriteTokens": 20522
+    }
+   }
+  }
+ ],
+ "load": [
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "d5454420-aef2-45a9-9621-6d92ea37de7f",
+    "update": {
+     "sessionUpdate": "user_message_chunk",
+     "content": {
+      "type": "text",
+      "text": "Do exactly two things in order and nothing else. 1) Run the shell command `command -v doan; echo $PATH | cut -c1-200` and show its output. 2) Create a file named hello.txt in the current directory containing the word hi. Then reply DONE."
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "d5454420-aef2-45a9-9621-6d92ea37de7f",
+    "update": {
+     "sessionUpdate": "tool_call",
+     "toolCallId": "call_l3L4IWW6Nx9c4UK3MShsTlE0",
+     "title": "Run the requested shell command",
+     "kind": "execute",
+     "status": "pending",
+     "rawInput": {
+      "command": "command -v doan; echo $PATH | cut -c1-200",
+      "description": "Run the requested shell command"
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "d5454420-aef2-45a9-9621-6d92ea37de7f",
+    "update": {
+     "sessionUpdate": "tool_call_update",
+     "toolCallId": "call_l3L4IWW6Nx9c4UK3MShsTlE0",
+     "status": "completed",
+     "content": [
+      {
+       "type": "content",
+       "content": {
+        "type": "text",
+        "text": "/bundle/bin/doan\n/bundle/bin:/home:/home:/opt/homebrew/bin:/op\n<shellId: 0 completed with exit code 0>"
+       }
+      }
+     ],
+     "rawOutput": {
+      "content": "/bundle/bin/doan\n/bundle/bin:/home:/home:/opt/homebrew/bin:/op\n<shellId: 0 completed with exit code 0>"
+     }
+    }
+   }
+  },
+  {
+   "jsonrpc": "2.0",
+   "method": "session/update",
+   "params": {
+    "sessionId": "d5454420-aef2-45a9-9621-6d92ea37de7f",
+    "update": {
+     "sessionUpdate": "tool_call",
+     "toolCallId": "custom_call_f02EBqh20nzOAqWbK5abRcfL",
+     "title": "apply_patch",
+     "kind": "edit",
+     "status": "pending",
+     "rawInput": "*** Begin Patch\n*** Add File: hello.txt\n+hi\n*** End Patch\n"
+    }
+   }
+  }
+ ]
+}

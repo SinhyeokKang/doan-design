@@ -31,6 +31,8 @@ export function createPrepare(userData: string, appRuntime: string, inherited: N
     if (picked && !picked.available) throw new Error("no_session");
     const session = stored ?? (picked?.available ? picked.record : undefined);
     const runtime = session?.runtime ?? request.runtime; if (!runtime) throw new Error("no_agent");
+    // External profiles exist only for the shared sessions' two runtimes.
+    if (runtime !== "claude" && runtime !== "codex") throw new Error("session_unavailable");
     const probe = await probeShell(inherited); if (!probe.ok) throw new Error("cli_missing");
     const command = findOnPath(probe.path, runtime, path => { try { accessSync(path, constants.X_OK); return statSync(path).isFile(); } catch { return false; } });
     if (!command) throw new Error("cli_missing");
@@ -69,6 +71,7 @@ export function claudeSessionExists(config: string, id: string): boolean {
 
 export interface AccountRuntime {
   state(provider: Provider): AuthState; check(provider: Provider): Promise<Started>; checked(provider: Provider): Promise<void>; acquire(provider: Provider): Promise<Lease>;
+  confirm(provider: Provider, connectionId: string): void;
 }
 // Account refusals that a sign-in or reauth resolves read as not_logged_in; the rest keep the conversation codes.
 function accountCode(cause: string): string {
@@ -84,18 +87,32 @@ function judgmentCode(judgment: Exclude<ConnectionJudgment, { decision: "resume"
 // Codex runs tool commands through a login shell by default, whose profile puts the user's own doan back first on
 // PATH (live 2026-10-28); allow_login_shell=false (official config key) keeps the PATH prepared below.
 const RUN_ARGS: Record<"claude" | "codex", string[]> = { claude: [], codex: ["-c", "allow_login_shell=false"] };
+// Exact versions whose ACP behaviour was checked live (B3, 2026-10-28). The Antigravity server has no version run:
+// it is the sha-pinned download (agentAuth/antigravity.ts) and its initialize reply names its version.
+export const ACP_VERSIONS: Partial<Record<Provider, string>> = { cursor: "2026.10.22-27dcf5f", copilot: "1.0.105" };
+// A stored ACP session is a directory or <id>.<ext> file in the provider's sessions directory; session/load is the
+// final admission. Cursor .cursor/acp-sessions/<id>/, Copilot .copilot/session-state/<id>/ (B3 live check).
+export function acpSessionExists(profileDir: string, sessions: string, id: string): boolean {
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(id)) return false;
+  try {
+    const dir = join(profileDir, sessions);
+    if (canonicalDirectory(dir) !== dir) return false;
+    return readdirSync(dir).some(name => name === id || name.startsWith(`${id}.`));
+  } catch { return false; }
+}
 // cli is the bundled doan executable; its directory goes first on PATH so the agent runs that doan, not whatever
 // another install put on the login shell's PATH.
 export function createAccountPrepare(auth: AccountRuntime, cli: string): AccountPrepare {
   return async (request, stored) => {
     const provider = stored ? stored.session.runtime : request.runtime;
     if (!provider) throw new Error("no_agent");
-    if (provider !== "claude" && provider !== "codex") throw new Error(stored ? "session_unavailable" : "runtime_unsupported");
     if (!isAbsolute(cli) || basename(cli) !== "doan") throw new Error("cli_missing");
+    const adapter = PROVIDER_AUTH[provider];
     // Stored metadata loads unverified; the first run checks it, or waits for a check another caller started.
+    // Copilot's check costs a request, so its first completed run verifies it instead (confirm below).
     if (auth.state(provider).attempt?.kind === "check") await auth.checked(provider);
     let state = auth.state(provider);
-    if (state.connection && !state.verified && !state.expired && !state.attempt) {
+    if (!adapter.verifyByRun && state.connection && !state.verified && !state.expired && !state.attempt) {
       const started = await auth.check(provider); if (started.ok) await started.done; else await auth.checked(provider);
       state = auth.state(provider);
     }
@@ -106,16 +123,19 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string): Account
     const recheck = () => {
       const now = auth.state(provider);
       if (now.attempt && now.attempt.kind !== "check") throw new Error("busy");
-      if (now.generation !== pinned.generation || now.connection?.connectionId !== pinned.connectionId || !now.verified || now.expired ||
+      if (now.generation !== pinned.generation || now.connection?.connectionId !== pinned.connectionId || (!now.verified && !(adapter.verifyByRun && !now.error)) || now.expired ||
           now.error?.code === "account_mismatch" || now.error?.code === "sign_out_failed") throw new Error("not_logged_in");
       return now.connection!;
     };
     try {
       recheck();
-      const version = await runProcess(lease.command, ["--version"], lease.env, 5000);
-      recheck();
-      const match = version.exitCode === 0 && !version.timedOut ? version.stdout.match(/\b\d+\.\d+\.\d+\b/)?.[0] ?? null : null;
-      if (!supportedRuntime(provider, match, BUNDLED_CLAUDE_SDK)) throw new Error(stored ? "session_unavailable" : "runtime_unsupported");
+      if (!adapter.acpAuth) {
+        const version = await runProcess(lease.command, ["--version"], lease.env, 5000);
+        recheck();
+        const match = version.exitCode === 0 && !version.timedOut ? version.stdout.match(/\b\d+\.\d+\.\d+(?:-[0-9a-f]+)?\b/)?.[0] ?? null : null;
+        const supported = provider === "claude" || provider === "codex" ? supportedRuntime(provider, match?.split("-")[0] ?? null, BUNDLED_CLAUDE_SDK) : match === ACP_VERSIONS[provider];
+        if (!supported) throw new Error(stored ? "session_unavailable" : "runtime_unsupported");
+      }
       let root: string, cwd: string, configDir: string;
       try { root = canonicalDirectory(request.root); cwd = canonicalDirectory(stored?.session.cwd ?? root); configDir = canonicalDirectory(lease.profileDir); }
       catch { throw new Error("session_unavailable"); }
@@ -123,19 +143,25 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string): Account
       if (!insideRoot(root, cwd)) throw new Error("outside_root");
       if (stored) {
         const id = stored.session.sessionId;
-        const exists = provider === "claude" ? claudeSessionExists(configDir, id) : codexSessionExists(configDir, id, cwd);
-        // Codex admits a writer at thread/resume; there is no registry to read first.
+        const exists = provider === "claude" ? claudeSessionExists(configDir, id) : provider === "codex" ? codexSessionExists(configDir, id, cwd) : acpSessionExists(configDir, adapter.acp!.sessions, id);
+        // Codex admits a writer at thread/resume and ACP servers at session/load; there is no registry to read first.
+        // Only doan runs in the dedicated profile, and doan's reservations keep one runner per session.
         const occupancy = provider === "claude" ? await claudeOccupancy(configDir, id) : "free";
         recheck();
-        const judgment = judgeConnection(stored.owner, auth.state(provider), { exists, occupancy });
+        const current = auth.state(provider);
+        // An unchecked Copilot connection runs as verified; recheck() already refused any check or write-back failure.
+        const judgment = judgeConnection(stored.owner, adapter.verifyByRun && !current.error ? { ...current, verified: true } : current, { exists, occupancy });
         if (judgment.decision !== "resume") throw new Error(judgmentCode(judgment));
       }
       const connection = recheck();
+      const runArgs = provider === "claude" || provider === "codex" ? RUN_ARGS[provider] : adapter.acp!.args;
       return {
-        runtime: provider, command: lease.command, args: [...PROVIDER_AUTH[provider].args, ...RUN_ARGS[provider]], configDir, cwd,
+        runtime: provider, command: lease.command, args: [...adapter.args, ...runArgs], configDir, cwd,
         env: { ...lease.env, PATH: `${dirname(cli)}:${lease.env.PATH}` }, ...(stored ? { sessionId: stored.session.sessionId } : {}),
         owner: { kind: "doan", provider, connectionId: connection.connectionId, accountId: connection.account.id, workspaceId: connection.account.workspace, profile: connection.profile },
         release: lease.release, recheck: () => { recheck(); },
+        ...(adapter.acp?.authenticate ? { authenticate: adapter.acp.authenticate } : {}),
+        ...(adapter.verifyByRun ? { confirm: () => auth.confirm(provider, connection.connectionId) } : {}),
       };
     } catch (error) { await lease.release(); throw error; }
   };

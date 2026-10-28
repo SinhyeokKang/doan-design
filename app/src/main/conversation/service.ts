@@ -5,14 +5,17 @@ import { promoteReservation, releaseReservation, reserveSession } from "./owners
 import { transportError } from "./transport";
 import { sameCanvas } from "./sessions";
 import { turnPrompt } from "./prompt";
-import type { ConversationOwner } from "../agentAuth/types";
-import type { Anchor, Canvas, ConversationEvent, EventPayload, Reservation, Runtime } from "./types";
-export interface StartRequest { root: string; mode: "resume" | "new" | "newDesign"; runtime?: Runtime; canvas?: Canvas; subject?: string; text: string; anchors: Anchor[] }
+import type { ConversationOwner, Provider } from "../agentAuth/types";
+import type { Anchor, Canvas, ConversationEvent, EventPayload, Reservation } from "./types";
+// External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
+export interface StartRequest { root: string; mode: "resume" | "new" | "newDesign"; runtime?: Provider; canvas?: Canvas; subject?: string; text: string; anchors: Anchor[] }
 export interface Prepared {
-  runtime: Runtime; configDir: string; cwd: string; sessionId?: string; command: string; env: NodeJS.ProcessEnv; lastCheckAt?: string;
+  runtime: Provider; configDir: string; cwd: string; sessionId?: string; command: string; env: NodeJS.ProcessEnv; lastCheckAt?: string;
   // Doan-account runs only: arguments ahead of the runner's own, the account the run uses, the lease to release once the
   // spawned group is gone, and a recheck that throws when the account changed during an await.
   args?: string[]; owner?: Extract<ConversationOwner, { kind: "doan" }>; release?: () => Promise<void>; recheck?: () => void;
+  // ACP runs only: the authenticate method to select, and the callback for a completed request (Copilot's verification).
+  authenticate?: string; confirm?: () => void;
 }
 export interface Runner { sessionId: string; send(prompt: string, turnId: string): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void> }
 export type OpenRunner = (input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<Runner>;
@@ -63,7 +66,11 @@ export class ConversationService {
       if (currentCanvas) request = { ...request, canvas: currentCanvas };
       const session = { runtime: input.runtime, origin: request.mode === "resume" ? "resumed" as const : request.mode, sessionId: runner.sessionId, configDir: input.configDir, cwd: input.cwd };
       const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: (request.subject ?? request.text).slice(0, 512), state: "current" as const };
-      const metadata: ConversationMetadata = input.owner ? { ...base, owner: input.owner, session } : { ...base, owner: { kind: "legacy-external" }, session };
+      const runtime = input.runtime;
+      // Without an owner the run used an external profile, which exists only for the shared sessions' two runtimes.
+      if (!input.owner && runtime !== "claude" && runtime !== "codex") throw new Error("session_unavailable");
+      const metadata: ConversationMetadata = input.owner ? { ...base, owner: input.owner, session }
+        : { ...base, owner: { kind: "legacy-external" }, session: { ...session, runtime: runtime === "claude" ? "claude" : "codex" } };
       const entries = this.store.list();
       const replaced = entries.filter(m => m.state === "current" && m.root === request.root && m.canvas && request.canvas && sameCanvas(m.canvas, request.canvas));
       const prompt = turnPrompt(request.anchors, request.text, metadata); if (prompt === null) throw new Error("bad_request");
@@ -92,7 +99,7 @@ export class ConversationService {
   }
   async send(id: string, text: string, anchors: Anchor[]): Promise<void> {
     let metadata = this.refreshCanvas(this.metadata(id)); if (metadata.state !== "current" || this.quitting) throw new Error("busy");
-    const runtime = metadata.session.runtime; if (runtime !== "claude" && runtime !== "codex") throw new Error("runtime_unsupported");
+    const runtime = metadata.session.runtime;
     const existing = this.live.get(id); if (existing?.busy || existing?.failedPersistence) throw new Error("busy");
     const live: Live = (existing?.runner ? existing : undefined) ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false };
     live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; live.turnId = randomUUID(); this.live.set(id, live);

@@ -9,7 +9,7 @@ const INHERITED = new Set(["HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG",
   "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy"]);
 // PoC 10 isolated Cursor, Antigravity and Copilot only through a dedicated HOME; Codex needed the real HOME for its keyring.
 const PROFILE_VARIABLE: Record<Provider, string> = { claude: "CLAUDE_CONFIG_DIR", codex: "CODEX_HOME", cursor: "HOME", antigravity: "HOME", copilot: "HOME" };
-const RESERVED = new Set(["PATH", "DOAN_RUNTIME", "HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME"]);
+const RESERVED = new Set(["PATH", "DOAN_RUNTIME", "HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_HOME", "SSH_AUTH_SOCK", "GIT_CONFIG_GLOBAL"]);
 function absolute(value: unknown): value is string { return typeof value === "string" && value.startsWith("/") && !value.includes("\0"); }
 function value(text: unknown): text is string { return typeof text === "string" && !text.includes("\0"); }
 export function providerEnv(input: ProviderEnvInput): ProviderEnv {
@@ -23,5 +23,13 @@ export function providerEnv(input: ProviderEnvInput): ProviderEnv {
   const env: Record<string, string> = {};
   for (const [name, text] of Object.entries(input.inherited)) if ((INHERITED.has(name) || name.startsWith("LC_")) && value(text)) env[name] = text;
   Object.assign(env, Object.fromEntries(extra), { PATH: input.path, DOAN_RUNTIME: input.appRuntime, [PROFILE_VARIABLE[input.provider]]: input.profileDir });
+  if (PROFILE_VARIABLE[input.provider] === "HOME") {
+    // A dedicated HOME hides the user's git and ssh setup from the agent's tool shell; only these two come back
+    // (user decision 2026-10-28). gh and other tokens stay out.
+    if (value(input.inherited.SSH_AUTH_SOCK) && input.inherited.SSH_AUTH_SOCK) env.SSH_AUTH_SOCK = input.inherited.SSH_AUTH_SOCK;
+    if (absolute(input.inherited.HOME)) env.GIT_CONFIG_GLOBAL = `${input.inherited.HOME.replace(/\/+$/, "")}/.gitconfig`;
+  }
+  // The Antigravity server keeps its token, settings and sessions under GEMINI_HOME (default ~/.gemini).
+  if (input.provider === "antigravity") env.GEMINI_HOME = `${input.profileDir}/.gemini`;
   return { ok: true, env };
 }
