@@ -151,7 +151,7 @@ export class ConversationService {
   // its group is gone. The send waits for that instead of refusing; every check in send runs again afterwards.
   private previousExit(id: string): Promise<void> | undefined {
     const live = this.live.get(id), metadata = this.store.list().find(m => m.conversationId === id);
-    if (!metadata || live?.busy || this.quitting || !this.reservations.some(r => r.owner === id)) return;
+    if (!metadata || metadata.state !== "current" || live?.busy || live?.failedPersistence || this.quitting || !this.reservations.some(r => r.owner === id)) return;
     if (metadata.session.runtime === "codex" && live?.runner) return;
     if (this.waits.has(id)) throw new Error("busy");
     return this.exitOf(id, live);
@@ -163,8 +163,9 @@ export class ConversationService {
     this.waits.set(id, wait);
     const timer = setTimeout(wake, this.exitWaitMs);
     try { await woken; } finally { clearTimeout(timer); this.waits.delete(id); }
-    // A process that did not exit in time still holds the reservation, which send then reports as busy.
-    if (wait.cancelled) throw new Error("busy");
+    // Refused here, before send replaces the live entry: a replaced entry no longer matches the old process's exit
+    // callback, which would then never release the reservation.
+    if (wait.cancelled || this.reservations.some(r => r.owner === id)) throw new Error("busy");
   }
   private cancelWait(id: string): void { const wait = this.waits.get(id); if (wait) { wait.cancelled = true; wait.wake(); } }
   // The lease belongs to this runner's process group: it is released when that group is gone, or at once when
