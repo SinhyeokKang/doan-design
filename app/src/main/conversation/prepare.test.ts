@@ -23,8 +23,6 @@ it("uses selected canonical profile and fails unknown versions before opening", 
   const prepare = createPrepare(root, join(root, "runtime.json"), { HOME: root, CLAUDE_CODE_SESSION_ID: "stale", CODEX_THREAD_ID: "stale", CODEX_SESSION_ID: "stale" });
   const request = { root, mode: "new" as const, runtime: "codex" as const, text: "hello", anchors: [] };
   const ready = await prepare(request); expect(ready.command).toBe(join(root, "codex")); expect(ready.env.CODEX_HOME).toBe(config); expect(ready.env.CLAUDE_CODE_SESSION_ID).toBeUndefined();
-  // A legacy external run has no readiness wiring: nothing it sees is recorded.
-  expect(ready).not.toHaveProperty("incompatible"); expect(ready).not.toHaveProperty("compatible");
   mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.165.0" }); expect((await prepare(request)).command).toBe(join(root, "codex"));
   mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.162.0" }); await expect(prepare(request)).rejects.toThrow("runtime_unsupported");
   mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli" }); await expect(prepare(request)).rejects.toThrow("runtime_unsupported");
@@ -33,7 +31,16 @@ it("uses selected canonical profile and fails unknown versions before opening", 
   mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli" });
   await expect(prepare({ ...request, mode: "resume" }, { runtime: "codex", origin: "new", sessionId: "01a178ba-f9dc-7161-9544-f20f656064a1", configDir: config, cwd: root })).rejects.toThrow("session_unavailable");
 });
-
+// A legacy external run has no readiness wiring: nothing it sees is recorded.
+it.each([
+  ["claude", "2.1.312 (Claude Code)"],
+  ["codex", "codex-cli 0.164.0"],
+] as const)("hands a legacy %s run no recording closures", async (runtime, stdout) => {
+  const root = temp(); const config = join(root, "profile"); mkdirSync(config); writeFileSync(join(root, runtime), "fake", { mode: 0o700 });
+  mocks.probe.mockResolvedValue({ ok: true, path: root, claudeConfigDir: config, codexHome: config }); mocks.run.mockResolvedValue({ exitCode: 0, stdout });
+  const ready = await createPrepare(root, join(root, "runtime.json"), { HOME: root })({ root, mode: "new", runtime, text: "hello", anchors: [] });
+  expect(ready.runtime).toBe(runtime); expect(ready).not.toHaveProperty("incompatible"); expect(ready).not.toHaveProperty("compatible");
+});
 it("refuses a Codex resume preview with a record but no verifiable stored session", async () => {
   const root = temp(); writeFileSync(join(root, "codex"), "fake", { mode: 0o700 });
   mocks.probe.mockResolvedValue({ ok: true, path: root, codexHome: root }); mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.164.0" });
