@@ -104,10 +104,10 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 이 절과 `.doan/canvases/buzz-onboarding.html`이 현재 시각 기준이다. 시도했다가 철회한 translucent 버튼/입력창, 본문 전체 panel 래핑, 이전 문구·타원·패딩 값은 구현하지 않는다. 사용자는 디자인 확인 → HTML 검증 → feature-review 순서를 지정했고, 2026-10-28 현재 디자인을 승인했다.
 
 - 캔버스는 저장소 루트 `.doan/canvases/buzz-onboarding.html`, id `buzz-onboarding`, 너비 2560px이다. 기존 `.doan/canvases/onboard.html`은 수정하지 않는다.
-- 프레임: `welcome`, `agents`, `agents-connected`, `project`, `project-local`, `repository-found`, `repository-clone`, `repository-error`, `auth-states`, `project-states`. 기본 창은 1238×780, 상태 표는 1238×900이다. 2026-10-28 승인 때 상태 표에는 33개 labelled tile이 있었다. F4 보완(2026-10-28)으로 Authentication states가 14개에서 28개가 됐다: 재검토 상태 대응 표의 상태를 추가하고 '저장 중'·'실행 준비 중'을 지웠으며, '실행 준비 실패'는 doan 도구 확인 실패로 바꿨다. Project states는 19개 그대로이며 만료 tile을 'No agent is ready'로 바꿨다. 합계는 47개이다. 보완본은 사용자 확인 대기 중이다. 홈은 그리지 않는다.
+- 프레임: `welcome`, `agents`, `agents-connected`, `project`, `project-local`, `repository-found`, `repository-clone`, `repository-error`, `auth-states`, `project-states`. 기본 창은 1238×780, 상태 표는 1238×900이다. 2026-10-28 승인 때 상태 표에는 33개 labelled tile이 있었다. F4 보완(2026-10-28)으로 Authentication states가 14개에서 28개가 됐다: 재검토 상태 대응 표의 상태를 추가하고 '저장 중'·'실행 준비 중'을 지웠으며, '실행 준비 실패'는 doan 도구 확인 실패로 바꿨다. Project states는 19개 그대로이며 만료 tile을 'No agent is ready'로 바꿨다. 합계는 47개이다. 보완본은 2026-10-28 사용자가 확정했다. 홈은 그리지 않는다.
 - `tokens.css`, `ds/index.css`, 기존 `app/src/renderer/public/fonts/geist/Geist.woff2` 원본을 직접 사용한다. 사용자 승인 serving 범위로 원본 DS와 폰트를 참조하며 사본을 만들지 않는다.
 - 기존 `doan-button`, `doan-input`, `doan-panel`, `doan-notice`, `doan-alert-icon`, `doan-spinner`, `doan-scroll`을 재사용한다. 새 시각 옵션은 기존 프리미티브에 반영한다.
-- Welcome: doan 워드마크 아래 “A place for your next idea.” / “Bring it to life on canvas.”를 한 블록 안에서 줄바꿈한다. 가운데 정렬, 24px·행간 1.1·400·자간 -0.3px이다. 워드마크와 문장 간격 24px, 문장과 버튼 간격 40px이다.
+- Welcome: doan 워드마크 아래 “A place for your next idea.” / “Bring it to life on canvas.”를 한 블록 안에서 줄바꿈한다. 가운데 정렬, heading 토큰(24px·행간 1.1·자간 -0.0075em)·400이다. 처음 승인한 자간 -0.3px은 2026-10-28 토큰 정리에서 heading 토큰 값으로 바꿨다(사용자). 워드마크와 문장 간격 24px, 문장과 버튼 간격 40px이다.
 - Get started는 콘텐츠 너비의 prominent 버튼이다. 승인된 새 `lg` 옵션은 높이 48px, 폰트 16px/24px, 패딩 12px/32px이다. 기존 기본 40px·sm 32px은 유지한다. 현재 lg는 초안에만 있으며 구현 시 공용 controls에 추가한다.
 - 그라디언트는 Welcome에만 있다. accent 기반 radial-gradient는 ellipse 50% 125% at 50% 112%, 전체 opacity .85이다. `onboarding-grain.svg` alpha mask로 투명도를 분산하며 검정 입자를 색상으로 얹지 않는다. 애니메이션은 없다(2026-10-28 사용자: 마스크째 움직이는 모션 제거).
 - 나머지 화면은 `buzz-shell.html`과 같은 wallpaper fixture와 surface-panel 55%·blur(32px) saturate(.8) 재질로 표현한다. 외곽 여백은 없다. 앱 구현은 기존 native vibrancy="sidebar"를 재사용한다. HTML은 시각 근사이며 native 재질 측정값이 아니다. reduced-transparency에서는 불투명 배경이다.
@@ -120,6 +120,8 @@ Git의 기존 credential helper·SSH 설정을 이용하고 Git/gh 토큰을 직
 - 오류·설치 필요·재인증 안내는 동일한 `doan-notice error doan-panel`이다. 흰 surface-panel·shadow-panel·text-standard, 아이콘은 텍스트 색 상속, 패딩 상하 12px·좌우 16px이다. 제목/본문 간격은 4px이다.
 - 로딩 9개 상태도 같은 notice/panel 재질·패딩을 쓰고 아이콘 자리에 기존 spinner를 배치한다. `role="status"`이며 오류는 `role="alert"`이다. 아이콘은 공용 alert-icon의 첫 줄 정렬을 따른다.
 - 문구 끝에 말줄임표를 붙이지 않는다. 폴더 선택·로딩·버튼도 동일하다.
+- 토큰 정리(2026-10-28 사용자): 시안의 앱 UI 값은 토큰을 쓴다. 토큰 값과 같은 곳은 computed를 바꾸지 않고 토큰으로 바꿨다. 사용자가 승인한 세 가지는 computed가 바뀐다. 12px 텍스트(`.choice small`·`.fine`·`.divider`·tile 라벨·`.page-help`)는 caption 토큰(12px/16px)을 쓴다. 페이지 제목과 Welcome 문장의 자간은 title·heading 토큰 값을 쓴다. 28px 여백 두 곳(Welcome 아래, divider 위아래)은 24px(`--space-6`)로 맞췄다.
+- 새 토큰(2026-10-28 사용자): buzz-onboarding이 쓰고 앞으로도 자주 쓰일 값으로, 기존 규칙에서 크게 벗어나지 않는 것만 UI 작업 전에 추가한다(tasks T1). `--size-chrome` 56px(출하된 셸 4곳과 같은 값), `--size-control-lg` 48px(`lg` 버튼), `--space-10` 40px·`--space-12` 48px(4px 배수 체계), `--type-weight-semibold` 600(출하된 renderer 10곳), `--size-row` 72px(공급자·프로젝트·목적지 카드 최소 높이). 워드마크 104px, 썸네일 28px·7px·17px, 로고 슬롯 32px과 글리프 24px, 폴더 아이콘 20px, 레이아웃 폭 560·640·1100px은 컴포넌트 상수로 남긴다.
 - 버튼 배치(F4 전수 점검, 2026-10-28): 상태 tile의 하나뿐인 복구 버튼은 오른쪽 prominent이다. 두 버튼이면 대안·취소·Back이 왼쪽 subtle, 완료·복구가 오른쪽이다. 공급자 행의 첫 버튼(Install·Update·Sign in·Retry)은 prominent이다. 보조 행동(Antigravity 주소 붙여넣기)은 버튼 행에 넣지 않고 그 아래 줄에 둔다. 대화상자는 `doan-dialog-actions`대로 Cancel·완료를 오른쪽 끝에 둔다.
 
 ## 상태 인계
