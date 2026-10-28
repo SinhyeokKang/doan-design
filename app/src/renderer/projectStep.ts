@@ -45,7 +45,7 @@ export interface ProjectStepState {
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 const basename = (path: string) => path.replace(/\/+$/, "").split("/").at(-1) ?? path;
 const parent = (path: string) => path.replace(/\/+$/, "").split("/").slice(0, -1).join("/") || "/";
-// url on a path inspection: a folder chosen for that repository, so main checks its remote (D20, batch R).
+// url on a path inspection: a folder chosen for that repository, so main checks its remote (D20).
 type Inspect = { path: string; url?: string } | { url: string; destination?: string };
 type Reply = { ok: true; operation: OnboardingOperation } | { ok: false; code: ProjectError; message?: string };
 
@@ -280,9 +280,7 @@ export class ProjectStepSession {
     return `${last ? parent(last) : home.replace(/\/+$/, "")}/${repo}`;
   }
   private async inspect(target: Inspect): Promise<Reply> {
-    // The optional url of a path inspection is added to the shared types with batch R (D20); until then it is cast.
-    const request = { sessionId: this.deps.sessionId, requestId: this.deps.requestId(), ...target } as Parameters<Api["inspectOnboardingProject"]>[0];
-    const reply = await this.call(this.deps.api.inspectOnboardingProject(request));
+    const reply = await this.call(this.deps.api.inspectOnboardingProject({ sessionId: this.deps.sessionId, requestId: this.deps.requestId(), ...target }));
     if (!reply.ok) return reply;
     const done = await this.settled(reply.operation);
     if (done.state === "succeeded" && done.inspection) return { ok: true, operation: done };
