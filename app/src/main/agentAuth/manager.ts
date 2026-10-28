@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { accessSync, constants, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { accessSync, constants, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ACP_PROTOCOL_VERSION, AcpConnection } from "../conversation/acp";
@@ -25,7 +25,7 @@ export interface AuthManagerOptions {
   storage: AuthStorage; spawn: Spawn; inherited: Record<string, string | undefined>; appRuntime: string;
   // signal aborts when the attempt is stopped; Antigravity's locate may be a long server download.
   locate(provider: Provider, signal?: AbortSignal): Promise<{ command: string; path: string } | null>;
-  adapters?: Record<Provider, ProviderAuth>; newId?: () => string; statusTimeoutMs?: number;
+  adapters?: Record<Provider, ProviderAuth>; newId?: () => string; statusTimeoutMs?: number; hookLinkTimeoutMs?: number;
   onChange?(state: AuthState, revision: number): void; onPrompt?(prompt: AuthPrompt): void;
   // Closes the provider's doan-account conversation runs for a sign-out or replacement the user chose to stop them for.
   stopRuns?(provider: Provider): Promise<void>; drainTimeoutMs?: number;
@@ -36,6 +36,12 @@ const OUTPUT_LIMIT = 1024 * 1024;
 const QUIT_WAIT_MS = 5000;
 const ACP_OPEN_MS = 60_000;
 const LINK_POLL_MS = 100;
+// The CLI launches the browser right after printing its link (D1: the hook ran within the same second), so a printed
+// link with no accepted hook link this long after it means the CLI no longer behaves as `claudeLink` expects.
+const HOOK_LINK_MS = 10_000;
+const LINK_DIR_PREFIX = "doan-auth-link-";
+// A running login's directory is minutes old at most; the margin keeps another doan instance's live one.
+const STALE_LINK_DIR_MS = 60 * 60 * 1000;
 // An ACP run answers a cancel within 5 s before its group is stopped (acpRunner); SIGKILL follows 500 ms after SIGTERM.
 const DRAIN_MS = 15_000;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -251,15 +257,31 @@ export class AuthManager {
         if (this.stopRequests.has(attemptId) || this.cancelled(provider, attemptId) || seen.has(url)) return;
         seen.add(url); this.options.onPrompt?.({ provider, attemptId, owner, url });
       };
-      const hooked = auth.hookLink ? hookLinks(raw => { const url = auth.hookLink!(raw); if (url) show(url); }) : null;
+      let accepted = false, missing = false, deadline: ReturnType<typeof setTimeout> | undefined;
+      const hooked = auth.hookLink ? hookLinks(raw => {
+        const url = auth.hookLink!(raw);
+        if (!url) { console.error(`doan: ${provider} sign-in ignored a browser-hook link it does not accept: ${describeLink(raw)}`); return; }
+        accepted = true; clearTimeout(deadline); show(url);
+      }) : null;
       let login: Run;
       try {
-        login = await this.exec(provider, attemptId, auth.login, null, hooked ? undefined : text => {
-          // Sentence punctuation after a printed URL is not part of it.
-          for (const url of (text.match(/https?:\/\/[^\s"'<>]+/g) ?? []).map(found => found.replace(/[.,;:!?)\]]+$/, ""))) show(url);
+        login = await this.exec(provider, attemptId, auth.login, null, text => {
+          const printed = (text.match(/https?:\/\/[^\s"'<>]+/g) ?? []).map(found => found.replace(/[.,;:!?)\]]+$/, ""));
+          if (!hooked) {
+            // Sentence punctuation after a printed URL is not part of it.
+            for (const url of printed) show(url);
+          } else if (printed.length && !accepted && deadline === undefined) {
+            // Armed by the printed link, not the process start: a slow CLI start is not a missing hook link.
+            deadline = setTimeout(() => {
+              missing = true;
+              console.error(`doan: ${provider} sign-in printed a link but its browser hook received no acceptable link within ${this.options.hookLinkTimeoutMs ?? HOOK_LINK_MS} ms`);
+              this.stop(attemptId);
+            }, this.options.hookLinkTimeoutMs ?? HOOK_LINK_MS);
+          }
         }, hooked?.env);
-      } finally { hooked?.close(); }
+      } finally { clearTimeout(deadline); hooked?.close(); }
       if (this.cancelled(provider, attemptId)) throw new Cancelled();
+      if (missing) throw new Failure("sign_in_failed", "no browser-hook link was accepted");
       if (login.code !== 0) throw new Failure("sign_in_failed", tail(login.stderr) ?? tail(login.stdout));
     }
     if (this.cancelled(provider, attemptId)) throw new Cancelled();
@@ -539,7 +561,7 @@ export class AuthManager {
 
 // The hook leaves each link on its own line in a file only this login is given; polling it needs nothing from the CLI.
 function hookLinks(onLink: (raw: string) => void): { env: Record<string, string>; close(): void } {
-  const dir = mkdtempSync(join(tmpdir(), "doan-auth-link-")), file = join(dir, "links");
+  const dir = mkdtempSync(join(tmpdir(), LINK_DIR_PREFIX)), file = join(dir, "links");
   let read = 0;
   const timer = setInterval(() => {
     let text: string;
@@ -551,6 +573,28 @@ function hookLinks(onLink: (raw: string) => void): { env: Record<string, string>
   }, LINK_POLL_MS);
   timer.unref?.();
   return { env: { [AUTH_LINK_FILE]: file }, close: () => { clearInterval(timer); rmSync(dir, { recursive: true, force: true }); } };
+}
+
+// Query values (state, challenge) stay out of the log; the host, path and parameter names are what show a changed CLI.
+function describeLink(raw: string): string {
+  if (!URL.canParse(raw)) return "(not a URL)";
+  const url = new URL(raw), redirect = URL.canParse(url.searchParams.get("redirect_uri") ?? "") ? new URL(url.searchParams.get("redirect_uri")!) : null;
+  return `${url.origin}${url.pathname} params=[${[...url.searchParams.keys()].join(",")}]${redirect ? ` redirect=${redirect.origin}${redirect.pathname}` : ""}`;
+}
+
+// An app crash skips hookLinks' close(). lstat and rmSync never follow a link, and a younger directory may belong to a
+// sign-in another doan instance is running.
+export function removeStaleLinkDirs(tmp = tmpdir(), uid = process.getuid?.()): void {
+  try {
+    for (const entry of readdirSync(tmp, { withFileTypes: true })) {
+      if (!entry.name.startsWith(LINK_DIR_PREFIX) || !entry.isDirectory()) continue;
+      const path = join(tmp, entry.name);
+      try {
+        const info = lstatSync(path);
+        if (info.isDirectory() && info.uid === uid && Date.now() - info.mtimeMs > STALE_LINK_DIR_MS) rmSync(path, { recursive: true, force: true });
+      } catch (error) { console.error("doan: a leftover sign-in link directory could not be removed", message(error)); }
+    }
+  } catch (error) { console.error("doan: leftover sign-in link directories could not be listed", message(error)); }
 }
 
 // Other providers' connections and failed sign-outs are kept as they are.

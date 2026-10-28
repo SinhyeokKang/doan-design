@@ -4,7 +4,7 @@ import { ConversationStore } from "./conversation/store";
 import { createAccountPrepare, createPrepare, routePrepare } from "./conversation/prepare";
 import { openRunner } from "./conversation/runners";
 import { conversationHandler, conversationMethods } from "./conversation/ipc";
-import { AuthManager, shellLocator, spawnAuthProcess } from "./agentAuth/manager";
+import { AuthManager, removeStaleLinkDirs, shellLocator, spawnAuthProcess } from "./agentAuth/manager";
 import { AuthStorage } from "./agentAuth/storage";
 import { electronCipher } from "./agentAuth/cipher";
 import { antigravityServer } from "./agentAuth/antigravity";
@@ -599,6 +599,7 @@ async function start(): Promise<void> {
     return undefined;
   });
 
+  removeStaleLinkDirs();
   const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
     onChange: () => authIpc?.changed(), onPrompt: prompt => authIpc?.prompted(prompt), stopRuns: provider => conversations?.stopRuns(provider) ?? Promise.resolve() });
   // Unreadable metadata leaves sign-in unavailable rather than letting a later save erase other connections.

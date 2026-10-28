@@ -1,11 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { accessSync, chmodSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, chmodSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "node:http";
 import { AUTH_LINK_MARKER, BROWSER_HOOK } from "./antigravity";
-import { AuthManager, spawnAuthProcess, type AuthProcess, type Spawn } from "./manager";
+import { AuthManager, removeStaleLinkDirs, spawnAuthProcess, type AuthProcess, type Spawn } from "./manager";
 import type { ProviderAuth } from "./providers";
 import { AuthStorage, type Cipher } from "./storage";
 import { fakeCipher } from "./fixtures/cipher";
@@ -294,6 +294,63 @@ describe("sign-in", () => {
     expect(Object.keys(status.env).filter(name => !Object.keys(login.env).includes(name))).toEqual([]);
     expect(Object.keys(login.env).filter(name => !Object.keys(status.env).includes(name))).toHaveLength(1);
     expect(prompts).toHaveLength(1);
+  });
+  describe("Claude login that prints a link but receives no usable hook link", () => {
+    const hooked = (accept: (raw: string) => string | null = raw => raw.startsWith("https://login.example/") ? raw : null): ProviderAuth => ({ ...keychainProvider(() => keychain), hookLink: accept });
+    const printed = "If the browser didn't open, visit: https://login.example/manual?code=true\n";
+    let errors: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => { errors = vi.spyOn(console, "error").mockImplementation(() => {}); });
+    afterEach(() => errors.mockRestore());
+
+    it("ends as sign_in_failed, stops the login, removes the link directory and logs why", async () => {
+      const prompts: unknown[] = [];
+      const m = manager({ hookLinkTimeoutMs: 40, onPrompt: prompt => prompts.push(prompt), adapters: { ...withAcp(), claude: hooked() } }); await m.load();
+      const run = started(await m.signIn("claude", 7));
+      const login = await next("login");
+      const dir = dirname(login.env.DOAN_AUTH_LINK!);
+      login.print(printed);
+      execFileSync(join(root, BROWSER_HOOK.name), ["https://evil.example/authorize?state=secret-state"], { env: login.env, stdio: "ignore" });
+      const state = await run.done;
+      expect(state).toMatchObject({ phase: "error", error: { code: "sign_in_failed" } });
+      expect(login.stopped).toBe(true); expect(existsSync(dir)).toBe(false); expect(prompts).toEqual([]);
+      const logged = errors.mock.calls.map((call: unknown[]) => call.join(" ")).join("\n");
+      expect(logged).toContain("claude"); expect(logged).toContain("https://evil.example/authorize");
+      // The rejected link's query values (state) stay out of the log.
+      expect(logged).not.toContain("secret-state");
+    });
+    it("keeps waiting when the hook link arrives after the printed one", async () => {
+      const prompts: unknown[] = [];
+      // The hook link is read by a 100 ms poll, so the timeout must be well above it.
+      const m = manager({ hookLinkTimeoutMs: 400, onPrompt: prompt => prompts.push(prompt), adapters: { ...withAcp(), claude: hooked() } }); await m.load();
+      const run = started(await m.signIn("claude", 7));
+      const login = await next("login");
+      login.print(printed);
+      execFileSync(join(root, BROWSER_HOOK.name), ["https://login.example/authorize"], { env: login.env, stdio: "ignore" });
+      await vi.waitFor(() => expect(prompts).toHaveLength(1));
+      // The user approves long after the timeout would have fired.
+      await new Promise(resolve => setTimeout(resolve, 600));
+      expect(login.stopped).toBe(false);
+      keychain = { status: "connected", account: { id: "c1", workspace: null } };
+      await finish("login", 0); await finish("status", 0);
+      expect(await run.done).toMatchObject({ phase: "connected" });
+    });
+    it("does not time out a login that has printed nothing yet", async () => {
+      const m = manager({ hookLinkTimeoutMs: 20, adapters: { ...withAcp(), claude: hooked() } }); await m.load();
+      const run = started(await m.signIn("claude", 7));
+      const login = await next("login");
+      // A slow start is not a missing hook link: only a printed link says the CLI reached its browser step.
+      await new Promise(resolve => setTimeout(resolve, 100));
+      expect(login.stopped).toBe(false);
+      await m.cancel("claude", run.attemptId, 7); await run.done;
+    });
+    it("logs a rejected hook link even while the login is still waiting", async () => {
+      const m = manager({ adapters: { ...withAcp(), claude: hooked() } }); await m.load();
+      const run = started(await m.signIn("claude", 7));
+      const login = await next("login");
+      execFileSync(join(root, BROWSER_HOOK.name), ["https://login.example.evil/authorize?state=s&redirect_uri=http%3A%2F%2Flocalhost%3A5%2Fcb"], { env: login.env, stdio: "ignore" });
+      await vi.waitFor(() => expect(errors.mock.calls.some((call: unknown[]) => call.join(" ").includes("https://login.example.evil/authorize"))).toBe(true));
+      await m.cancel("claude", run.attemptId, 7); await run.done;
+    });
   });
   it("starts no Claude login when the browser hook cannot be installed", async () => {
     const claude: ProviderAuth = { ...keychainProvider(() => keychain), hookLink: raw => raw };
@@ -885,5 +942,42 @@ describe("owned auth process", () => {
     const child = spawnAuthProcess("/nonexistent/cli", [], options());
     expect(await child.exit).toBeNull();
     await child.gone;
+  });
+});
+
+describe("stale sign-in link directories", () => {
+  const hour = 60 * 60 * 1000;
+  let tmp: string, outside: string;
+  const dir = (name: string, ageMs = 2 * hour) => {
+    const path = join(tmp, name); mkdirSync(path); writeFileSync(join(path, "links"), "https://claude.com/x\n");
+    const old = new Date(Date.now() - ageMs); utimesSync(path, old, old); return path;
+  };
+  beforeEach(() => { tmp = mkdtempSync(join(tmpdir(), "doan-auth-tmp-")); outside = mkdtempSync(join(tmpdir(), "doan-auth-outside-")); writeFileSync(join(outside, "keep"), "x"); });
+  afterEach(() => { rmSync(tmp, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); });
+
+  it("removes only doan's own old directories left by a crash", () => {
+    const stale = dir("doan-auth-link-abc"), other = dir("not-doan-auth-link-abc"), file = join(tmp, "doan-auth-link-file");
+    writeFileSync(file, "x");
+    removeStaleLinkDirs(tmp);
+    expect(existsSync(stale)).toBe(false);
+    expect(existsSync(other)).toBe(true); expect(existsSync(file)).toBe(true);
+  });
+  it("keeps a recent directory, which another running doan may still be using", () => {
+    const live = dir("doan-auth-link-live", 60_000);
+    removeStaleLinkDirs(tmp);
+    expect(existsSync(live)).toBe(true);
+  });
+  it("does not follow a symlink with doan's prefix", () => {
+    symlinkSync(outside, join(tmp, "doan-auth-link-link"));
+    removeStaleLinkDirs(tmp);
+    expect(readFileSync(join(outside, "keep"), "utf8")).toBe("x");
+  });
+  it("leaves a directory owned by someone else", () => {
+    const foreign = dir("doan-auth-link-foreign");
+    removeStaleLinkDirs(tmp, (process.getuid?.() ?? 0) + 1);
+    expect(existsSync(foreign)).toBe(true);
+  });
+  it("does not throw when the temporary directory cannot be read", () => {
+    expect(() => removeStaleLinkDirs(join(tmp, "missing"))).not.toThrow();
   });
 });
