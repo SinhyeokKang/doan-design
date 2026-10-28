@@ -53,9 +53,9 @@ Claude Code·Codex·Cursor·Antigravity·GitHub Copilot 다섯 플랫폼을 모�
   - 검증: `npm --prefix app test`로 계정 교체 중 prepare·send, 재인증, legacy 외부 프로필, 다른 configDir, 잘못된 세션·workspace와 종료 후 늦은 응답을 확인한다.
 - [x] B3. Cursor → Antigravity → Copilot 모두 연결한다. 정확한 공식 SDK/CLI API와 버전을 확인해 고정하고 문서화한다. 실제 메시지·권한·중단·재개와 종료를 기존 대화 경계에 맞춘다. 로그인만 된 공급자를 지원 완료로 세지 않는다.
   - 검증: `npm --prefix app test`와 `npm --prefix app run typecheck`로 공급자별 실제 protocol fixture의 정상·오류·부분 출력·취소·권한 거절·세션 충돌을 확인하고 design의 공식 API와 PoC의 미검증 목록을 대조한다. 권한·중단·재개 API가 확인되지 않으면 우회나 플랫폼 제외 없이 해당 작업 미완료로 보고한다.
-- [ ] B4. 계정 로그아웃·교체에 실행 종료와 소유권 잠금을 연결한다. Copilot은 기본 `/logout`에 의존하지 않고 소유 실행 종료 뒤 전용 인증을 삭제하고 미인증 상태를 확인한다. 인증 없는 설정 파일 재생성은 허용한다. 기록은 유지하며 새 계정에서 이전 대화를 자동 실행하지 않는다. 같은 계정 재인증도 식별자·프로필·세션을 확인한다.
+- [x] B4. 계정 로그아웃·교체에 실행 종료와 소유권 잠금을 연결한다. Copilot은 기본 `/logout`에 의존하지 않고 소유 실행 종료 뒤 전용 인증을 삭제하고 미인증 상태를 확인한다. 인증 없는 설정 파일 재생성은 허용한다. 기록은 유지하며 새 계정에서 이전 대화를 자동 실행하지 않는다. 같은 계정 재인증도 식별자·프로필·세션을 확인한다.
   - 검증: `npm --prefix app test`로 실행 중 로그아웃 거부, 중단 후 그룹 잔존, 실패한 삭제, 계정 교체 뒤 재개 거부, 동일 계정 재인증과 대화 기록 보존을 확인한다.
-- [ ] B5. 인증 IPC와 preload를 연결한다. 주 창·Settings만 상태·인증 동작을 허용하고 토큰 없는 revision 상태를 공유한다. 소유 창·시도 ID로 취소 범위를 제한하고 창 종료·앱 종료 시 정리한다. 화면 코드는 변경하지 않는다.
+- [x] B5. 인증 IPC와 preload를 연결한다. 주 창·Settings만 상태·인증 동작을 허용하고 토큰 없는 revision 상태를 공유한다. 소유 창·시도 ID로 취소 범위를 제한하고 창 종료·앱 종료 시 정리한다. 화면 코드는 변경하지 않는다.
   - 검증: `npm --prefix app test`로 잘못된 sender/frame·플랫폼·attemptId 거부, snapshot/event 역전과 구독 해제를 확인한다. `npm --prefix app run typecheck` 통과.
 
 ── commit: `feat(agent-auth): connect isolated provider authentication and runtimes` ──
