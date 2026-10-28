@@ -43,12 +43,12 @@ function backend() {
   return { api, apply, states, running, onChange(listener: () => void) { changed = listener; } };
 }
 
-function setup(options: { completed?: boolean; auth?: boolean; owner?: number | null; read?: () => Promise<AuthSnapshot> } = {}) {
+function setup(options: { completed?: boolean; auth?: boolean; owner?: number | null; read?: () => Promise<AuthSnapshot>; facts?: ToolFacts } = {}) {
   const b = backend();
   const openExternal = vi.fn(async (_url: string) => {});
   const published: OnboardingState[] = [];
   let service: OnboardingService | undefined;
-  const ipc = new AuthIpc({ backend: b.api, probe: async () => ready, openExternal, publish: snapshot => service?.authChanged(snapshot), prompt: vi.fn() });
+  const ipc = new AuthIpc({ backend: b.api, probe: async () => options.facts ?? ready, openExternal, publish: snapshot => service?.authChanged(snapshot), prompt: vi.fn() });
   b.onChange(() => ipc.changed());
   const auth = options.auth === false ? null : options.read ? { read: options.read, latest: () => ipc.latest(), handle: ipc.handle.bind(ipc) } : ipc;
   let completed = options.completed ?? false;
@@ -305,6 +305,23 @@ describe("check", () => {
     const id = await session(t);
     await t.ask({ op: "sign_in", sessionId: id, requestId: "r1", provider: "claude" });
     expect(await t.ask({ op: "check", sessionId: id, requestId: "r2", provider: "claude" })).toMatchObject({ ok: false, error: { code: "busy" } });
+  });
+});
+
+describe("kept operations", () => {
+  it("bounds the operations status lists, and a resend still gets its original operation", async () => {
+    // A version cause answers each check at once with no attempt to follow.
+    const t = setup({ facts: { cli: "found", version: "unknown", tools: "ready" } });
+    const id = await session(t);
+    const first = operation(await t.ask({ op: "check", sessionId: id, requestId: "r0", provider: "claude" }));
+    expect(first.state).toBe("succeeded");
+    for (let i = 1; i < 60; i++) await t.ask({ op: "check", sessionId: id, requestId: `r${i}`, provider: "claude" });
+    const listed = state(await t.ask({ op: "status", sessionId: id })).operations;
+    expect(listed).toHaveLength(20);
+    expect(t.published.at(-1)!.operations).toHaveLength(20);
+    expect(operation(await t.ask({ op: "check", sessionId: id, requestId: "r0", provider: "claude" }))).toEqual(first);
+    expect(state(await t.ask({ op: "status", sessionId: id, operationId: first.operationId })).operations).toEqual([first]);
+    expect(await t.ask({ op: "check", sessionId: id, requestId: "r0", provider: "codex" })).toMatchObject({ ok: false, error: { code: "request_conflict" } });
   });
 });
 

@@ -357,3 +357,11 @@ test("a v2 answer slower than the socket limit is cut off, not awaited", async (
   expect(ms).toBeGreaterThanOrEqual(1900);
   expect(ms).toBeLessThan(3000);
 });
+
+test("a request whose answer throws is refused at once rather than left to the deadline", async () => {
+  userData = await mkdtemp(join(tmpdir(), "doan-runtime-test-"));
+  runtime = await startRuntime(userData, { isOpen: () => { throw new Error("broken"); }, selection: () => null, onboarding: noOnboarding });
+  const { text, ms } = await exchange(runtime.socket, `${request(runtime.token)}\n`);
+  expect(JSON.parse(text)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+  expect(ms).toBeLessThan(1000);
+});
