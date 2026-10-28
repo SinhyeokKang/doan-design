@@ -44,8 +44,9 @@ function cursorStatus(run: StatusRun): CheckResult {
   if (!status.isAuthenticated) return { status: status.hasRefreshToken === true ? "expired" : "disconnected" };
   return { status: "connected", account: account(status.userId, status.teamId, status.name, status.email) };
 }
+// codex login status reports on stderr.
 function codexStatus(run: StatusRun): CheckResult {
-  const out = run.stdout.trim();
+  const out = `${run.stdout}\n${run.stderr}`.trim();
   if (/^Not logged in\b/m.test(out)) return { status: "disconnected" };
   if (run.code === 0 && /^Logged in\b/m.test(out)) return { status: "connected", account: { id: null, workspace: null } };
   return failed;

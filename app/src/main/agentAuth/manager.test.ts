@@ -109,8 +109,9 @@ describe("sign-in", () => {
     const prompts: unknown[] = [];
     const m = manager({ onPrompt: prompt => prompts.push(prompt) }); await m.load();
     const run = started(await m.signIn("cursor", 7));
-    (await next("login")).print("Open https://example.com/device?x=1 and enter ABCD-1234\n");
-    expect(prompts).toEqual([{ provider: "cursor", attemptId: run.attemptId, owner: 7, url: "https://example.com/device?x=1" }]);
+    (await next("login")).print("Open https://example.com/device?x=1 and enter ABCD-1234\nListening on http://localhost:1455.\n");
+    expect(prompts).toEqual([{ provider: "cursor", attemptId: run.attemptId, owner: 7, url: "https://example.com/device?x=1" },
+      { provider: "cursor", attemptId: run.attemptId, owner: 7, url: "http://localhost:1455" }]);
   });
   it("allows one sign-in or sign-out write across all providers but still allows checks", async () => {
     const m = manager(); await m.load();

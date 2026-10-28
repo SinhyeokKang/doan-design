@@ -27,8 +27,9 @@ describe("provider auth adapters", () => {
     expect(PROVIDER_AUTH.claude.parseStatus(run(0, "not json"))).toEqual({ status: "failed", code: "check_failed" });
     expect(PROVIDER_AUTH.claude.parseStatus(run(null))).toEqual({ status: "failed", code: "check_failed" });
   });
-  it("reads a signed-out Codex profile", () => {
-    expect(PROVIDER_AUTH.codex.parseStatus(run(1, "Not logged in\n"))).toEqual({ status: "disconnected" });
+  it("reads Codex status from stderr, where 0.163.0 prints it", () => {
+    expect(PROVIDER_AUTH.codex.parseStatus(run(1, "", "Not logged in\n"))).toEqual({ status: "disconnected" });
+    expect(PROVIDER_AUTH.codex.parseStatus(run(0, "", "Logged in using ChatGPT\n"))).toEqual({ status: "connected", account: { id: null, workspace: null } });
     expect(PROVIDER_AUTH.codex.parseStatus(run(1, "", "Error loading configuration"))).toEqual({ status: "failed", code: "check_failed" });
   });
 });

@@ -172,7 +172,8 @@ export class AuthManager {
     if (auth.vault) await this.storageStep(() => this.options.storage.scrub(provider, auth.vault!));
     const seen = new Set<string>();
     const login = await this.exec(provider, attemptId, auth.login, null, text => {
-      for (const url of text.match(/https?:\/\/[^\s"'<>]+/g) ?? []) {
+      // Sentence punctuation after a printed URL is not part of it.
+      for (const url of (text.match(/https?:\/\/[^\s"'<>]+/g) ?? []).map(found => found.replace(/[.,;:!?)\]]+$/, ""))) {
         if (seen.has(url)) continue;
         seen.add(url); this.options.onPrompt?.({ provider, attemptId, owner, url });
       }
