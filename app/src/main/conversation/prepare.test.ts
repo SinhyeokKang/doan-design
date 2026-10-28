@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({ probe: vi.fn(), run: vi.fn() }));
 vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: mocks.run }));
 import { BUNDLED_CLAUDE_SDK, createPrepare, routePrepare } from "./prepare";
 import { SUPPORTED_VERSIONS } from "./sessions";
+import { CODEX_ROLLOUT_VERSIONS } from "./io";
 import { conversationHandler } from "./ipc";
 import { ConversationService } from "./service";
 import { ConversationStore } from "./store";
@@ -39,13 +40,17 @@ it("refuses a Codex resume preview with a record but no verifiable stored sessio
   expect(await handler(true, "resumeTarget", { root, canvas })).toEqual({ available: false, reason: "session_unavailable" });
 });
 
-it.each(["valid", "valid-0.163.0", "wrong-id", "wrong-cwd", "wrong-version", "malformed", "linked", "linked-directory", "oversized-header", "duplicate"])("checks Codex stored session evidence: %s", async kind => {
+it.each(["valid", "valid-0.163.0", "wrong-id", "wrong-cwd", "wrong-version", "version-number", "version-null", "version-missing", "malformed", "linked", "linked-directory", "oversized-header", "duplicate"])("checks Codex stored session evidence: %s", async kind => {
   const root = temp(); writeFileSync(join(root, "codex"), "fake", { mode: 0o700 });
   mocks.probe.mockResolvedValue({ ok: true, path: root, codexHome: root }); mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.164.0" });
   const sessionId = "01a178ba-f9dc-7161-9544-f20f656064a1";
   const directory = join(root, "sessions", "2026", "10", "27"); mkdirSync(directory, { recursive: true });
   const path = join(directory, `rollout-2026-10-27T00-01-23-${sessionId}.jsonl`);
-  const header = JSON.stringify({ type: "session_meta", payload: { id: kind === "wrong-id" ? "other" : sessionId, cwd: kind === "wrong-cwd" ? temp() : root, cli_version: kind === "wrong-version" ? "0.165.0" : kind === "valid-0.163.0" ? "0.163.0" : "0.164.0" } }) + "\n";
+  const versions: Record<string, unknown> = { "wrong-version": "0.165.0", "valid-0.163.0": "0.163.0", "version-number": 164, "version-null": null };
+  const cliVersion = kind in versions ? versions[kind] : "0.164.0";
+  const payload: Record<string, unknown> = { id: kind === "wrong-id" ? "other" : sessionId, cwd: kind === "wrong-cwd" ? temp() : root, cli_version: cliVersion };
+  if (kind === "version-missing") delete payload.cli_version;
+  const header = JSON.stringify({ type: "session_meta", payload }) + "\n";
   writeFileSync(path, kind === "malformed" ? "broken\n" : kind === "oversized-header" ? " ".repeat(65536) + header : header);
   if (kind === "linked-directory") { const target = temp(); writeFileSync(join(target, path.split("/").at(-1)!), header); rmSync(directory, { recursive: true }); symlinkSync(target, directory); }
   if (kind === "linked") { rmSync(path); const target = join(temp(), "header"); writeFileSync(target, header); symlinkSync(target, path); }
@@ -54,6 +59,10 @@ it.each(["valid", "valid-0.163.0", "wrong-id", "wrong-cwd", "wrong-version", "ma
   const ready = prepare({ root, mode: "resume", text: "", anchors: [] }, { runtime: "codex", origin: "new", sessionId, configDir: root, cwd: root });
   if (kind.startsWith("valid")) expect((await ready).sessionId).toBe(sessionId); else await expect(ready).rejects.toThrow("session_unavailable");
   expect(mocks.run).toHaveBeenCalledTimes(1); expect(mocks.run.mock.calls[0]?.[1]).toEqual(["--version"]);
+});
+
+it("keeps the supported Codex version in the accepted rollout header versions", () => {
+  expect(CODEX_ROLLOUT_VERSIONS).toContain(SUPPORTED_VERSIONS.codex);
 });
 
 it("pins the installed Claude Agent SDK to the supported version", () => {

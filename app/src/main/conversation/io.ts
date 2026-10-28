@@ -84,9 +84,11 @@ export async function claudeOccupancy(config: string, sessionId: string, inspect
   } catch { return "unknown"; }
 }
 
-// Header shapes verified against 0.163.0 and 0.164.0 rollouts; no auth/config file is opened. A resume appends
-// without rewriting the first session_meta, so a conversation started on 0.163.0 keeps that cli_version under 0.164.0.
-const CODEX_ROLLOUT_VERSIONS = ["0.163.0", "0.164.0"];
+// The rollout header records the Codex version that created the session and is never rewritten: a resume appends
+// without touching the first session_meta, so a conversation started on 0.163.0 keeps that cli_version under 0.164.0.
+// The list therefore accumulates every version doan has supported; drop one only by deciding to abandon its
+// conversations, and keep SUPPORTED_VERSIONS.codex in it.
+export const CODEX_ROLLOUT_VERSIONS = ["0.163.0", "0.164.0"];
 export function codexSessionExists(config: string, id: string, cwd: string): boolean {
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(id)) return false;
   try {
