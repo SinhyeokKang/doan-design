@@ -155,11 +155,12 @@ func onboardingRequest(name string, cmd onboardingCommand, f Flags) (map[string]
 		}
 	}
 	if cmd.op == "project_inspect" {
-		if f.Given["path"] == f.Given["url"] {
-			return nil, usageError("onboarding project inspect takes exactly one of --path or --url")
+		// --url with --path names the repository the chosen folder must belong to; the app checks its remotes.
+		if !f.Given["path"] && !f.Given["url"] {
+			return nil, usageError("onboarding project inspect takes --path, --url, or both")
 		}
-		if f.Given["destination"] && !f.Given["url"] {
-			return nil, usageError("--destination goes only with --url")
+		if f.Given["destination"] && (!f.Given["url"] || f.Given["path"]) {
+			return nil, usageError("--destination goes only with --url, without --path")
 		}
 	}
 	if cmd.op == "check" && f.Provider == "copilot" && !f.SpendCopilotRequest {
