@@ -4,13 +4,29 @@
 
 ## 구성과 의존성
 
-`agent-auth` 완료를 가정한다. [인증 설계](../agent-auth/design.md)의 상태 read/event revision, signIn/cancel/signOut, 소유 창·attemptId·종료 정리, 비밀 없는 readiness를 인수한다. 실제 구현 API 명칭은 착수 시 대조한다. UI가 자체 OAuth listener·토큰 파일·Keychain을 만들지 않는다.
+`agent-auth`의 상태 read/event revision, signIn/cancel/signOut, 소유 창·attemptId·종료 정리, 비밀 없는 readiness를 인수한다. agent-auth는 2026-10-28 main에 병합됐고 실제 계약은 [ARCHITECTURE §7 'Agent authentication'](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth)에 있다. 온보딩이 처리할 항목은 아래 [agent-auth 인계](#agent-auth-인계-2026-10-28)에 모았다. UI가 자체 OAuth listener·토큰 파일·Keychain을 만들지 않는다.
 
 - `app/src/renderer/Onboarding.tsx`, `onboardingView.ts`: Welcome과 두 설정 단계, 상태별 문구·버튼·포커스.
 - `app/src/main/index.ts`, `app/src/preload/index.ts`: 첫 실행 수명·완료·프로젝트 선택 인계. 인증은 선행 feature의 채널을 재사용한다.
 - `app/src/main/onboarding/machine.ts`: 기존 완료 표식과 외부 설치 기능을 구분한다. Settings의 machine 사용을 보존한다.
 - `app/src/main/addProjects.ts`, `shell.ts`, `view.ts`: 기존 프로젝트 등록·canonical root·초기화·목록 재읽기를 재사용한다. URL 조회·clone은 이번 feature의 main I/O 범위이다.
 - `ProjectSetupDialog.tsx`, `ConnectionRows.tsx`, `FirstPrompt.tsx`의 다른 화면 소비자는 보존한다. 온보딩 로그인에 외부 MCP 상태를 재사용하지 않는다.
+
+### agent-auth 인계 (2026-10-28)
+
+구현된 agent-auth 계약 중 온보딩이 처리해야 하는 사실만 모았다. 이 목록은 설계를 바꾸지 않는다. 이 문서의 기존 가정과 다른 점은 이어지는 `/feature-review`에서 대조한다. 정본은 [ARCHITECTURE §7 'Agent authentication'](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth)와 [PRODUCT §3 In scope 7](../../PRODUCT.md#3-scope)이다.
+
+- API: 주 창 `window.doan`과 Settings `window.doanSettings`에 같은 계정 메서드가 있다. `readAgentAuth`, `onAgentAuth`(revision이 더 큰 snapshot만 전달), `checkAgentAuth`, `signInAgent(provider, {stop?})`, `signOutAgent(provider, {stop?})`, `cancelAgentSignIn`, `submitAgentSignInCode`, `openAgentSignInLink`, `onAgentSignInPrompt`이다. 채널은 `agent-auth:read|check|sign-in|cancel|submit-code|open-link|sign-out`, 이벤트는 `agent-auth:changed|prompt`이다. `readAgentAuth`가 `null`이면 인증 저장소를 읽지 못한 상태이고 다른 인증 호출은 모두 거부된다.
+- 복구 동작: 다음 행동은 공급자 상태의 `readiness.action`(install·update·retry·wait·signOut·signIn·reauth·repair)으로 정한다. 대화 오류 `not_logged_in`은 원인을 구분하지 않는다. 버튼 후보는 `actions`(signIn·cancel·retry·reauth·signOut)이다.
+- ready 판정: `readiness.ready`는 저장된 연결의 확인(verified)·지원 버전·도구 준비를 요구하고, 계정 ID는 요구하지 않는다. Codex·Antigravity는 계정 ID가 없다. 앱을 다시 시작하면 저장된 연결은 첫 실행이나 `check` 전까지 `unverified`(action retry)이며 ready가 아니다.
+- Copilot: `check`와 재시작 뒤 Retry가 모델 요청 1회를 쓴다. 자동 확인은 없고, 요청을 끝낸 첫 실행이 연결을 검증한다. 문구에서 이 비용을 알려야 한다.
+- 로그아웃 실패: `signOutFailed`가 저장되면 재시작 뒤에도 그 공급자의 실행과 새 로그인이 막힌다(readiness `sign_out_failed` → signOut). 다른 실패와 구분되는 문구가 필요하다.
+- 실행 중 대화: 그 공급자의 대화가 실행 중이면 로그인 교체와 로그아웃이 `stop_required`를 돌려준다. 사용자가 중단을 확인하면 `stop: true`로 다시 보낸다. Codex는 턴이 끝난 뒤 대기 중인 app-server도 실행 중으로 센다.
+- 동시 진행: 로그인·로그아웃은 모든 공급자를 통틀어 하나만 진행한다. 다른 공급자의 로그인 중에 시작하면 `busy`이다.
+- 링크: 로그인 링크는 시도를 시작한 창에만 `prompt` 이벤트로 온다. 링크는 `openAgentSignInLink`로 열고, 실패는 `open_failed`이다. Codex는 링크 2개를 보내며 열기는 마지막 링크를 연다. Cursor·Copilot 로그인 CLI는 OS 기본 브라우저를 스스로도 연다. Antigravity는 브라우저가 로컬 주소에 닿지 못하면 브라우저가 멈춘 주소를 `submitAgentSignInCode`로 붙여넣을 수 있다. Antigravity 첫 로그인은 서버를 내려받느라 링크가 약 20초 뒤에 오고, 내려받기 실패는 `cli_install_failed`이다.
+- 창 수명: 시도를 시작한 창이 닫히면 시도가 취소된다. 주 창 닫기는 hide라서 시도가 유지된다. reload 뒤에도 같은 창이 취소와 링크 열기를 할 수 있다.
+- Claude: 조직 UUID가 없는 연결은 phase가 connected여도 readiness가 reauth이다. 레포 설정의 API 키 때문에 실행이 거부되면 대화 오류는 `credential_override`이다.
+- 미검증: 실제 토큰 만료와 갱신은 관찰하지 못했다.
 
 ## 확정된 흐름과 상태 수명
 
