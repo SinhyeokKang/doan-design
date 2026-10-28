@@ -218,3 +218,19 @@ it.each(["interrupt", "quit"] as const)("cancels a send waiting for the previous
   h.exits[0]!(); await new Promise(resolve => setTimeout(resolve, 0));
   expect(h.open).toHaveBeenCalledOnce(); expect(h.store.read(id)).toEqual(before);
 });
+it("refuses an archived conversation at once and keeps a timed-out wait from orphaning a failed opening's reservation", async () => {
+  const h = perTurn(30); const id = (await h.service.start(request)).conversationId;
+  h.service.receive(id, { type: "turn.done" }); h.exits[0]!();
+  // The next turn's process spawned, then its opening failed; it still holds the session until it exits.
+  h.open.mockImplementationOnce(async (_input, _emit, exited, registerStop) => { h.exits.push(exited); registerStop(async () => {}); throw new Error("startup failed"); });
+  await expect(h.service.send(id, "fails to open", [])).rejects.toThrow("startup failed");
+  await expect(h.service.send(id, "times out", [])).rejects.toThrow("busy");
+  h.exits[1]!(); await h.service.send(id, "after exit", []);
+  expect(h.open).toHaveBeenCalledTimes(3);
+  h.service.receive(id, { type: "turn.done" });
+  h.prepare.mockResolvedValueOnce({ ...claudeTurn, sessionId: "replacement" });
+  await h.service.start(request);
+  const started = Date.now();
+  await expect(h.service.send(id, "archived", [])).rejects.toThrow("busy");
+  expect(Date.now() - started).toBeLessThan(25);
+});
