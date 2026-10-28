@@ -457,6 +457,30 @@ describe("project inspection", () => {
     expect(t.projects.inspectUrl).toHaveBeenCalledWith({ owner: "acme", repository: "studio", transport: "ssh", url: "git@github.com:acme/studio.git" });
   });
 
+  it("checks a folder chosen for a GitHub URL against that repository, and selection checks it again", async () => {
+    const t = setup();
+    const id = await session(t);
+    expect(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r1", path: "/Users/ada/studio", url: "https://gitlab.com/acme/studio" })).toMatchObject({ ok: false, error: { code: "invalid_url" } });
+    expect(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r2", path: "/gone/studio", url: "https://github.com/acme/studio" })).toMatchObject({ ok: false, error: { code: "path_unavailable" } });
+    expect(t.projects.inspectPath).not.toHaveBeenCalled();
+    const repo = { owner: "acme", repository: "studio", transport: "https", url: "https://github.com/acme/studio" };
+    t.projects.inspectPath.mockResolvedValueOnce({ ok: false, code: "remote_mismatch" });
+    expect(operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r3", path: "/Users/ada/other", url: "https://github.com/acme/studio" })))
+      .toMatchObject({ state: "failed", error: { code: "remote_mismatch", message: "That folder belongs to another repository." } });
+    expect(t.projects.inspectPath).toHaveBeenLastCalledWith("/Users/ada/other", repo);
+    const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r4", path: "/Users/ada/studio", url: "https://github.com/acme/studio" }));
+    expect(op.inspection).toEqual({ inspectionId: expect.any(String), candidates: [{ path: "/Users/ada/studio", changes: [] }] });
+    await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId: op.inspection!.inspectionId, path: "/Users/ada/studio" });
+    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", false, repo);
+  });
+
+  it("checks a picked folder without a URL for no repository", async () => {
+    const t = setup();
+    const id = await session(t);
+    await t.ask({ op: "project_inspect", sessionId: id, requestId: "r1", path: "/Users/ada/studio" });
+    expect(t.projects.inspectPath).toHaveBeenCalledWith("/Users/ada/studio", null);
+  });
+
   it("answers running past its reply limit and finishes on status", async () => {
     const t = setup();
     const id = await session(t);

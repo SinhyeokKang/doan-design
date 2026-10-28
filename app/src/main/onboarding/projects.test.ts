@@ -90,6 +90,36 @@ describe("inspectPath", () => {
   });
 });
 
+describe("inspectPath for a GitHub URL", () => {
+  const studio = { owner: "acme", repository: "studio" };
+
+  it("offers a folder whose configured remote names the repository", async () => {
+    const match = repo(temp(), { remote: "git@github.com:Acme/studio.git", config: "{}" });
+    expect(await inspectPath(match, deps().deps, studio)).toEqual({ ok: true, candidates: [{ path: match, changes: [] }] });
+  });
+
+  it("refuses a folder of another repository or with no repository at all", async () => {
+    const other = repo(temp(), { remote: "https://github.com/acme/other" });
+    expect(await inspectPath(other, deps().deps, studio)).toEqual({ ok: false, code: "remote_mismatch" });
+    expect(await inspectPath(temp(), deps().deps, studio)).toEqual({ ok: false, code: "remote_mismatch" });
+  });
+
+  it("keeps only the repos inside a parent folder that may be this one", async () => {
+    const parent = temp();
+    const match = repo(join(parent, "a"), { remote: "https://github.com/acme/studio.git" });
+    repo(join(parent, "b"), { remote: "https://github.com/acme/other.git" });
+    expect(await inspectPath(parent, deps().deps, studio)).toEqual({ ok: true, candidates: [{ path: match, changes: [".doan/canvases/", ".doan/config.json", ".gitattributes"] }] });
+  });
+
+  test.skipIf(root)("does not call a config it cannot read a mismatch", async () => {
+    const locked = repo(temp(), { remote: "https://github.com/acme/other.git", config: "{}" });
+    chmodSync(join(locked, ".git/config"), 0o000);
+    try {
+      expect(await inspectPath(locked, deps().deps, studio)).toEqual({ ok: true, candidates: [{ path: locked, changes: [] }] });
+    } finally { chmodSync(join(locked, ".git/config"), 0o644); }
+  });
+});
+
 describe("inspectUrl", () => {
   it("finds registered checkouts by their configured remotes, without running git", async () => {
     const https = repo(temp(), { remote: "https://x-token@github.com/Acme/Studio.git", config: "{}" });
