@@ -22,6 +22,8 @@
 | D9 | 실인증 로그인 승인은 지휘자가 ego-lite로 처리한다 | 체인 파일 운영 메모 |
 | D10 | C의 CLI 계약: 사용자나 앱이 해결해야 하는 온보딩 거절·작업 실패는 새 exit 5, 호출 입력 오류는 2, 앱 미실행·프로토콜 불일치(v2 요청에 대한 구 앱의 v1 `bad_request` 포함)·앱 실행 실패·`session_stale`은 3, 내부 오류는 1이다. transport op 이름은 MCP 도구 접미사와 같다. status는 작업의 failed·cancelled 상태를 실패 envelope으로 바꾸지 않는다. clone `--destination`은 최종 폴더(절대 경로, 없어야 함)이다. ARCHITECTURE §12 승격은 V3 | 지휘자 판단 — design이 숫자를 A0에 맡겼고, 새 분류가 있어야 internal_error·앱 미실행과 구분된다 |
 | D11 | v2 fixture는 tasks A0의 공유 디렉터리 대신 `schema/fixtures/app-socket-v2/{request,response}/{valid,invalid}/`에 둔다 | 지휘자 판단 — 공유 디렉터리면 v1 전용 리더(`active_test.go`, `eval/lib/socket.test.ts`)가 깨지고, 스키마별 디렉터리 이름 규칙에도 맞는다 |
+| D12 | Install·Update 안내 URL은 공급자 공식 설치 문서이고 Install과 Update가 같은 URL이다(design 'Install·Update 안내 URL') | 사용자 결정(2026-10-29) — tasks F4가 정한다고 했지만 기록이 없었다 |
+| D13 | P가 제안한 초안 밖 문구를 확정하고 미지 버전 완료 표식 문구를 더했다. design 표와 초안이 다른 문구는 초안을 따른다 | 사용자 결정(2026-10-29) |
 
 ## 배치
 
@@ -56,3 +58,4 @@
 - 2026-10-29: T 완료(3e853c0, ea585c0). 독립 리뷰 Claude Opus medium `ctx_587c9b006c9b`: 🔴 0·🟡 0·⚪ 3(조치 불필요). 통합 `eaa534d`·`ea53233`. 렌더링 비교 14개 상태·요소 2,674개 불일치 0. 작업자 release, worktree bo-T는 Orca로 제거했고 근거는 `.scratch/evidence/T/`에 복사했다.
 - 2026-10-29: C 완료(5d69875, f37b5a2, 8030b4d, `verify.mjs` PASS). 독립 리뷰 Codex `gpt-6-astra` medium `ctx_eebfb4a3eb21` 진행 중. C 작업자는 수정 라운드를 위해 retain했다. C handoff 지적에 따라 E 소유에 `eval/lib/socket.ts`를 더했다.
 - 2026-10-29: C 리뷰 🔴 0·🟡 2(clone 정리 진행 표시 없음, 응답 op와 operation kind 불일치 허용). 수정 1회차 `ctx_7ee9a4bb5644`(24ee38a, b7b23d5): `cancelling: true`를 running sign_in·project_clone에만 허용하고 op와 kind를 묶었다. 지휘자가 diff를 확인하고 통합했다(`b1c101e`..`4fce40b`). C 작업자 release, worktree bo-C 제거, handoff는 `.scratch/orch/handoff-C.md`. G 시작 `ctx_895fd457ef6f`(bo-G).
+- 2026-10-29: P 완료(d7f7f7b, 1277829, c7bcfea, `verify.mjs` PASS). 결정 D12·D13.
