@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { CodexDispatcher } from "./dispatcher";
+import { CodexDispatcher, RpcError } from "./dispatcher";
 import type { EventPayload } from "./types";
 function harness() {
   const writes: unknown[] = [], events: EventPayload[] = []; const cleanup = vi.fn();
@@ -58,4 +58,24 @@ it("keeps a stop requested before the native turn reply when transport ends", ()
   rpc.begin({ root: "/repo", sessionId: "s", turnId: "local" });
   rpc.stop("user"); rpc.started("native"); rpc.end();
   expect(events).toEqual([{ type: "interrupted", reason: "user" }]);
+});
+it("tags only a server error reply to the matched pending request as an RPC error", async () => {
+  const h = harness();
+  const answered = h.rpc.request("initialize", {}); const owned = answered.catch((error: unknown) => error);
+  h.rpc.receive({ id: "doan-99", error: { message: "unowned" } });
+  h.rpc.receive({ id: "doan-1", error: { message: "Unsupported protocol" } });
+  const error = await owned;
+  expect(error).toBeInstanceOf(RpcError); expect((error as Error).message).toBe("Unsupported protocol");
+  const lost = h.rpc.request("thread/start", {}).catch((e: unknown) => e); h.rpc.close();
+  expect(await lost).not.toBeInstanceOf(RpcError);
+  const unwritable = new CodexDispatcher(() => { throw new Error("closed pipe"); }, () => {}, () => {});
+  expect(await unwritable.request("initialize", {}).catch((e: unknown) => e)).not.toBeInstanceOf(RpcError);
+});
+it("does not tag an RPC timeout as an error reply", async () => {
+  vi.useFakeTimers();
+  try {
+    const h = harness(); const timedOut = h.rpc.request("initialize", {}).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(10_000);
+    const error = await timedOut; expect((error as Error).message).toBe("RPC timeout"); expect(error).not.toBeInstanceOf(RpcError);
+  } finally { vi.useRealTimers(); }
 });

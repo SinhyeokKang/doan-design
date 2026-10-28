@@ -153,3 +153,31 @@ it("fails the connection on output that is not JSON-RPC and rejects every pendin
   await expect(pending).rejects.toThrow("process_exited");
   expect(failures).toEqual(["ACP output is not JSON"]);
 });
+
+async function handshake(provider: "cursor" | "copilot", over: Partial<Prepared>, mode: string) {
+  const order: string[] = [];
+  const incompatible = vi.fn(() => { order.push("recorded"); }), compatible = vi.fn(() => { order.push("cleared"); });
+  const opened = await openAcp(input(provider, { incompatible, compatible, ...over }, mode), () => {}, () => {}, () => {})
+    .then(runner => runner, (error: unknown) => { order.push("refused"); return error as Error; });
+  if (!(opened instanceof Error)) await opened.close();
+  return { opened, order };
+}
+it.each([
+  ["a Cursor initialize with another protocol version", "cursor", {}, "protocol:2", "runtime_unsupported"],
+  ["a Copilot initialize without the needed auth method", "copilot", { authenticate: "cursor_login" }, "", "runtime_unsupported"],
+  ["a Cursor session/new reply without a session ID", "cursor", {}, "no-session", "session_unavailable"],
+] as const)("records a new ACP session's installed version as incompatible on %s before refusing with the unchanged code", async (_label, provider, over, mode, code) => {
+  const h = await handshake(provider, over, mode);
+  expect((h.opened as Error).message).toBe(code); expect(h.order).toEqual(["recorded", "refused"]);
+});
+it("clears an ACP record once a new session's session/new passes, or a resume's initialize offers loadSession", async () => {
+  expect((await handshake("copilot", {}, "")).order).toEqual(["cleared"]);
+  expect((await handshake("cursor", { sessionId: SESSION }, "")).order).toEqual(["cleared"]);
+});
+it("never records an ACP resume, a server exit at initialize, or an Antigravity server", async () => {
+  expect((await handshake("cursor", { sessionId: SESSION }, "protocol:2")).order).toEqual(["refused"]);
+  const exited = await handshake("cursor", {}, "exit-init");
+  expect((exited.opened as Error).message).toBe("process_exited"); expect(exited.order).toEqual(["refused"]);
+  const antigravity = await handshake("cursor", { runtime: "antigravity" }, "protocol:2");
+  expect((antigravity.opened as Error).message).toBe("runtime_unsupported"); expect(antigravity.order).toEqual(["refused"]);
+});

@@ -1,7 +1,8 @@
 // Replays a recorded ACP turn (acp-<provider>.json) the way the real server sent it: updates in order, each permission
 // request held until the client answers, a rejected tool call reported as failed, and session/cancel ending the turn.
 // Test-only knobs come from FAKE_ACP: "auth-link" asks for a browser sign-in at session/new, "hang" never answers a prompt,
-// "stop:<reason>" answers a prompt at once with that stopReason ("stop:" with none).
+// "stop:<reason>" answers a prompt at once with that stopReason ("stop:" with none), "protocol:<n>" answers initialize
+// with that protocol version, "no-session" answers session/new without a session ID, "exit-init" exits at initialize.
 const readline = require("node:readline");
 const fixture = require(process.argv[2]);
 const mode = process.env.FAKE_ACP ?? "";
@@ -30,11 +31,13 @@ readline.createInterface({ input: process.stdin }).on("line", line => {
     return;
   }
   switch (request.method) {
-    case "initialize": send({ jsonrpc: "2.0", id: request.id, result: fixture.initialize }); break;
+    case "initialize":
+      if (mode === "exit-init") process.exit(7);
+      send({ jsonrpc: "2.0", id: request.id, result: mode.startsWith("protocol:") ? { ...fixture.initialize, protocolVersion: Number(mode.slice(9)) } : fixture.initialize }); break;
     case "authenticate": send({ jsonrpc: "2.0", id: request.id, result: {} }); break;
     case "session/new":
       if (mode === "auth-link") { process.stderr.write("__DOAN_AUTH_URL__https://accounts.google.com/o/oauth2/v2/auth?response_type=code&state=s1&redirect_uri=http%3A%2F%2F127.0.0.1%3A4321%2F\n"); break; }
-      send({ jsonrpc: "2.0", id: request.id, result: { sessionId } }); break;
+      send({ jsonrpc: "2.0", id: request.id, result: mode === "no-session" ? {} : { sessionId } }); break;
     case "session/load":
       if (request.params.sessionId !== sessionId) { send({ jsonrpc: "2.0", id: request.id, error: { code: -32002, message: "Session not found" } }); break; }
       for (const message of fixture.load) send(message);
