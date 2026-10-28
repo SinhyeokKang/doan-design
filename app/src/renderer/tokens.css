@@ -164,6 +164,8 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
   --space-16: 64px;
   --space-panel-gap: var(--space-2);
   --space-panel-inset: var(--space-6);
@@ -173,6 +175,9 @@
   --space-chip-inset: 6px;
   --size-control-sm: 32px;
   --size-control: 40px;
+  --size-control-lg: 48px;
+  --size-chrome: 56px;
+  --size-row: 72px;
   --size-icon: 16px;
 
   /* Containers stop at 28px; capsules and pills are separate shapes. A nested
@@ -207,6 +212,7 @@
   --type-family: "Geist", var(--font-system-sans);
   --type-weight-regular: 400;
   --type-weight-medium: 500;
+  --type-weight-semibold: 600;
   --type-caption-size: 12px;
   --type-caption-line-height: 16px;
   --type-caption-letter-spacing: 0.0133em;

@@ -84,7 +84,7 @@ code, kbd { font-family: var(--type-family); }
 .canvas-status > :not(.empty) { max-width: 260px; overflow-wrap: anywhere; }
 .canvas-status .doan-spinner { display: block; margin: 0 auto 10px; }
 .empty { font-size: 13px; color: var(--text-standard); position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; line-height: normal; }
-.empty b { font-size: 15px; font-weight: 600; }
+.empty b { font-size: 15px; font-weight: var(--type-weight-semibold); }
 .empty p { color: var(--text-metadata); max-width: 320px; font-size: 12.5px; line-height: 1.6; }
 .canvas-notices { position: absolute; top: 0; left: 0; right: 0; z-index: 1; pointer-events: none; }
 .canvas-notice { padding: 7px 12px; background: var(--surface-inset); color: var(--text-standard); font: 11px var(--type-family); }
@@ -111,7 +111,7 @@ code, kbd { font-family: var(--type-family); }
 .row.element-row { padding-left: 40px; color: var(--text-standard); background: var(--surface-navigation-selected); }
 .truncate { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inspect-head { padding: 12px; border-bottom: 1px solid var(--border-standard); display: flex; flex-direction: column; gap: 6px; }
-.inspect-head h3 { font-size: 12.5px; font-weight: 600; }
+.inspect-head h3 { font-size: 12.5px; font-weight: var(--type-weight-semibold); }
 .selector { color: var(--text-subtle); font-size: 11.5px; }
 .head-kv { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 5px 8px; font-size: 11.5px; }
 .head-kv dt { color: var(--text-metadata); }
@@ -163,9 +163,9 @@ code, kbd { font-family: var(--type-family); }
 .comments-btn.primary.submit:disabled { background: var(--affordance-disabled); color: var(--text-disabled); }
 .comments-card { padding: 12px; border-bottom: 1px solid var(--border-standard); }
 .comments-author { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 9px; }
-.comments-avatar { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--surface-inset); color: var(--text-subtle); display: grid; place-items: center; font-size: 10px; font-weight: 600; }
+.comments-avatar { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--surface-inset); color: var(--text-subtle); display: grid; place-items: center; font-size: 10px; font-weight: var(--type-weight-semibold); }
 .comments-by { min-width: 0; flex: 1; }
-.comments-by b { display: block; font-size: 11.5px; font-weight: 600; overflow-wrap: anywhere; }
+.comments-by b { display: block; font-size: 11.5px; font-weight: var(--type-weight-semibold); overflow-wrap: anywhere; }
 .comments-by time, .comments-email { display: block; font-size: 10px; color: var(--text-metadata); line-height: 1.5; overflow-wrap: anywhere; }
 .comments-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; margin: 8px 0 10px; }
 /* One line with an ellipsis; the full selector is in title. */
@@ -239,12 +239,12 @@ code, kbd { font-family: var(--type-family); }
 .review-banner { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 12px; border-bottom: 1px solid var(--border-standard); background: var(--surface-inset); font-size: 11.5px; color: var(--text-subtle); }
 /* The text ellipsizes before the buttons shrink. */
 .review-banner .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.review-banner .text b { font-weight: 600; color: var(--text-standard); }
+.review-banner .text b { font-weight: var(--type-weight-semibold); color: var(--text-standard); }
 .review-help { padding: 0 12px 6px; margin: 0; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); }
 /* Stuck right under the sticky Comments title (37 px tall) while the list scrolls under it. */
 .review-bar { position: sticky; top: 37px; z-index: 1; padding: 10px 12px 12px; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); }
 .review-step { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.review-step output { flex: 1; font-size: 11.5px; font-weight: 600; color: var(--text-standard); }
+.review-step output { flex: 1; font-size: 11.5px; font-weight: var(--type-weight-semibold); color: var(--text-standard); }
 /* Not shrunk by a long summary beside it: the text is the part that ellipsizes. */
 .review-close { flex: none; }
 .review-bar .comments-target { margin-bottom: 2px; }
@@ -273,7 +273,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-steps { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 22px 0 0; }
 .ob-steps li { display: flex; align-items: center; }
 .ob-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-metadata); border-radius: 6px; padding: 2px 4px; }
-.ob-steps .num { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border-standard); display: grid; place-items: center; font-size: 11px; font-weight: 600; }
+.ob-steps .num { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border-standard); display: grid; place-items: center; font-size: 11px; font-weight: var(--type-weight-semibold); }
 .ob-step.done { color: var(--text-subtle); }
 .ob-step.done .num { border-color: var(--text-success); color: var(--text-success); }
 .ob-step[aria-current="step"] { color: var(--text-standard); }
@@ -281,7 +281,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-steps .sep { width: 32px; height: 1px; background: var(--border-standard); }
 .ob-body { min-height: 0; overflow: auto; }
 .ob-form { max-width: 640px; margin: 0 auto; padding: 28px 0; }
-.ob-form h2 { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+.ob-form h2 { font-size: 18px; font-weight: var(--type-weight-semibold); margin-bottom: 6px; }
 .ob-lead { font-size: 12.5px; line-height: 1.6; color: var(--text-subtle); margin-bottom: 18px; }
 .ob-foot { display: flex; align-items: center; gap: 10px; padding: 0 24px; background: var(--surface-panel); border-top: 1px solid var(--border-standard); }
 .ob-foot .meta { margin-right: 6px; }
@@ -598,8 +598,8 @@ code, kbd { font-family: var(--type-family); }
 
 /* The native sidebar material continues behind the shell; content stays opaque. */
 body:has(.shell-top) { background: transparent; }
-.workspace.app-shell { grid-template-columns: 260px minmax(0, 1fr) 280px; grid-template-rows: 56px minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }
-.workspace.with-status { grid-template-rows: 56px auto minmax(0, 1fr); }
+.workspace.app-shell { grid-template-columns: 260px minmax(0, 1fr) 280px; grid-template-rows: var(--size-chrome) minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }
+.workspace.with-status { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
 .shell-top.top { position: relative; padding: 0 8px; gap: 0; border: 0; background: transparent; }
 .shell-top .traffic-space { width: 88px; }
 .shell-history { display: flex; gap: 4px; }
@@ -622,7 +622,7 @@ body:has(.shell-top) { background: transparent; }
 .shell-side .row[aria-current="location"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
 .shell-side .shell-project-row { gap: 4px; padding: 0 0 0 10px; margin-bottom: 4px; }
 .shell-project-name { margin-left: 4px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px; color: white; font-size: 10px; font-weight: 600; line-height: 16px; }
+.shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px; color: white; font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
 .hue-rose { background: var(--identity-project-rose); }
 .hue-orange { background: var(--identity-project-orange); }
 .hue-amber { background: var(--identity-project-amber); }
@@ -659,6 +659,6 @@ body:has(.shell-top) { background: transparent; }
   body:has(.shell-top), .workspace.app-shell { background: var(--bg-app); }
 }
 
-.home-shell:has(.shell-top) { grid-template-rows: 56px minmax(0, 1fr); background: transparent; }
-.home-shell.with-setup-banner:has(.shell-top) { grid-template-rows: 56px auto minmax(0, 1fr); }
+.home-shell:has(.shell-top) { grid-template-rows: var(--size-chrome) minmax(0, 1fr); background: transparent; }
+.home-shell.with-setup-banner:has(.shell-top) { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
 .home-shell:has(.shell-top) > .home-body { background: var(--bg-app); }
