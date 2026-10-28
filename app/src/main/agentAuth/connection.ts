@@ -9,9 +9,12 @@ export function judgeConnection(owner: ConversationOwner, state: AuthState, sess
   if (!current) return { decision: "reauth", cause: "not_connected" };
   if (state.expired) return { decision: "reauth", cause: "reauth_required" };
   if (!state.verified) return { decision: "reject", cause: "unverified" };
-  // Without a stable provider ID the same account cannot be proven; email is never evidence.
-  if (owner.accountId === null || current.account.id === null) return { decision: "reject", cause: "account_unverifiable" };
-  if (owner.accountId !== current.account.id || state.error?.code === "account_mismatch") return { decision: "reject", cause: "account_mismatch" };
+  if (state.error?.code === "account_mismatch") return { decision: "reject", cause: "account_mismatch" };
+  // Without a stable provider ID another login cannot be told apart, and email is never evidence. Every stored sign-in
+  // mints a new connectionId, so only the conversation's own connection is known to hold its login (user decision 2026-10-28).
+  if (owner.accountId === null || current.account.id === null) {
+    if (owner.connectionId !== current.connectionId) return { decision: "reject", cause: "account_unverifiable" };
+  } else if (owner.accountId !== current.account.id) return { decision: "reject", cause: "account_mismatch" };
   if (owner.workspaceId !== current.account.workspace) return { decision: "reject", cause: "workspace_mismatch" };
   if (owner.profile !== current.profile) return { decision: "reject", cause: "profile_mismatch" };
   if (!session.exists) return { decision: "reject", cause: "session_unavailable" };

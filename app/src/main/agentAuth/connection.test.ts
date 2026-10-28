@@ -26,9 +26,18 @@ describe("conversation account judgment", () => {
   it("never resumes on a matching email alone", () => {
     const other = connection({ account: { id: "acct-2", workspace: "team-1", email: "ada@example.com" } });
     expect(judgeConnection(owner, connected(other), session)).toEqual({ decision: "reject", cause: "account_mismatch" });
-    const anonymous = connection({ account: { id: null, workspace: "team-1", email: "ada@example.com" } });
+    const anonymous = connection({ connectionId: "conn-2", account: { id: null, workspace: "team-1", email: "ada@example.com" } });
     expect(judgeConnection(owner, connected(anonymous), session)).toEqual({ decision: "reject", cause: "account_unverifiable" });
-    expect(judgeConnection({ ...owner, accountId: null }, connected(), session)).toEqual({ decision: "reject", cause: "account_unverifiable" });
+    expect(judgeConnection({ ...owner, accountId: null }, connected(connection({ connectionId: "conn-2" })), session)).toEqual({ decision: "reject", cause: "account_unverifiable" });
+  });
+  it("resumes a connection without a stable account ID only on the connection the conversation was bound to", () => {
+    const anonymous = connection({ account: { id: null, workspace: "team-1", email: "ada@example.com" } });
+    const nullOwner: ConversationOwner = { ...owner, accountId: null };
+    expect(judgeConnection(nullOwner, connected(anonymous), session)).toEqual({ decision: "resume", rebind: false });
+    // Any later stored sign-in, including the same account's reauth, is a new connection that cannot be proven the same.
+    expect(judgeConnection(nullOwner, connected({ ...anonymous, connectionId: "conn-2" }), session)).toEqual({ decision: "reject", cause: "account_unverifiable" });
+    expect(judgeConnection(nullOwner, connected(anonymous), { exists: false, occupancy: "free" })).toEqual({ decision: "reject", cause: "session_unavailable" });
+    expect(judgeConnection({ ...nullOwner, profile: "claude-2" }, connected(anonymous), session)).toEqual({ decision: "reject", cause: "profile_mismatch" });
   });
   it("rejects another workspace, profile or provider", () => {
     expect(judgeConnection(owner, connected(connection({ account: { id: "acct-1", workspace: null } })), session)).toEqual({ decision: "reject", cause: "workspace_mismatch" });
