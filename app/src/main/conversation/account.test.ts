@@ -75,10 +75,10 @@ it("starts a new conversation on the doan account and keeps the lease until the 
   expect(h.auth.leases.open).toBe(0);
 });
 
-it("passes Codex's dedicated credential-store arguments to the runner", async () => {
+it("passes Codex's dedicated credential-store and non-login shell arguments to the runner", async () => {
   const h = harness("codex");
   await start(h, "codex");
-  expect(h.open.mock.calls[0]![0].args).toEqual(["-c", 'cli_auth_credentials_store="keyring"']);
+  expect(h.open.mock.calls[0]![0].args).toEqual(["-c", 'cli_auth_credentials_store="keyring"', "-c", "allow_login_shell=false"]);
 });
 
 it("refuses a start whose account changed while the version check awaited, before anything is stored or spawned", async () => {

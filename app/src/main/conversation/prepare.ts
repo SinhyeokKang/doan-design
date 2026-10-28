@@ -81,6 +81,9 @@ function judgmentCode(judgment: Exclude<ConnectionJudgment, { decision: "resume"
   if (judgment.decision === "legacy") return "session_unavailable";
   return ["busy", "session_in_use"].includes(judgment.cause) ? judgment.cause : ["sign_out_failed", "unverified"].includes(judgment.cause) ? "not_logged_in" : "session_unavailable";
 }
+// Codex runs tool commands through a login shell by default, whose profile puts the user's own doan back first on
+// PATH (live 2026-10-28); allow_login_shell=false (official config key) keeps the PATH prepared below.
+const RUN_ARGS: Record<"claude" | "codex", string[]> = { claude: [], codex: ["-c", "allow_login_shell=false"] };
 // cli is the bundled doan executable; its directory goes first on PATH so the agent runs that doan, not whatever
 // another install put on the login shell's PATH.
 export function createAccountPrepare(auth: AccountRuntime, cli: string): AccountPrepare {
@@ -129,7 +132,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string): Account
       }
       const connection = recheck();
       return {
-        runtime: provider, command: lease.command, args: PROVIDER_AUTH[provider].args, configDir, cwd,
+        runtime: provider, command: lease.command, args: [...PROVIDER_AUTH[provider].args, ...RUN_ARGS[provider]], configDir, cwd,
         env: { ...lease.env, PATH: `${dirname(cli)}:${lease.env.PATH}` }, ...(stored ? { sessionId: stored.session.sessionId } : {}),
         owner: { kind: "doan", provider, connectionId: connection.connectionId, accountId: connection.account.id, workspaceId: connection.account.workspace, profile: connection.profile },
         release: lease.release, recheck: () => { recheck(); },
