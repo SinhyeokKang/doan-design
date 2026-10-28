@@ -21,10 +21,10 @@ func (refusingLoader) Load(url string) (any, error) {
 var validators = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 	compiler := jsonschema.NewCompiler()
 	compiler.UseLoader(refusingLoader{})
-	files := []string{"comment-event", "config", "cli-envelope", "runtime", "app-socket", "sessions"}
+	files := []string{"comment-event.v1", "config.v1", "cli-envelope.v1", "runtime.v1", "app-socket.v1", "app-socket.v2", "sessions.v1"}
 	// Register every file before compiling any: app-socket $refs comment-event by its absolute $id.
 	for _, name := range files {
-		filename := name + ".v1.schema.json"
+		filename := name + ".schema.json"
 		data, err := schema.Files.ReadFile(filename)
 		if err != nil {
 			return nil, fmt.Errorf("read %s: %w", filename, err)
@@ -38,14 +38,16 @@ var validators = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 		}
 	}
 	targets := map[string]string{
-		"comment-event":   schemaBase + "comment-event.v1.schema.json",
-		"config":          schemaBase + "config.v1.schema.json",
-		"cli-envelope":    schemaBase + "cli-envelope.v1.schema.json",
-		"runtime":         schemaBase + "runtime.v1.schema.json",
-		"sessions":        schemaBase + "sessions.v1.schema.json",
-		"socket-request":  schemaBase + "app-socket.v1.schema.json#/$defs/request",
-		"socket-response": schemaBase + "app-socket.v1.schema.json#/$defs/response",
-		"selection":       schemaBase + "app-socket.v1.schema.json#/$defs/selection",
+		"comment-event":       schemaBase + "comment-event.v1.schema.json",
+		"config":              schemaBase + "config.v1.schema.json",
+		"cli-envelope":        schemaBase + "cli-envelope.v1.schema.json",
+		"runtime":             schemaBase + "runtime.v1.schema.json",
+		"sessions":            schemaBase + "sessions.v1.schema.json",
+		"socket-request":      schemaBase + "app-socket.v1.schema.json#/$defs/request",
+		"socket-response":     schemaBase + "app-socket.v1.schema.json#/$defs/response",
+		"selection":           schemaBase + "app-socket.v1.schema.json#/$defs/selection",
+		"onboarding-request":  schemaBase + "app-socket.v2.schema.json#/$defs/request",
+		"onboarding-response": schemaBase + "app-socket.v2.schema.json#/$defs/response",
 	}
 	compiled := make(map[string]*jsonschema.Schema, len(targets))
 	for name, url := range targets {
@@ -73,5 +75,8 @@ func ValidateRuntimeFile(value any) error    { return validate("runtime", value)
 func ValidateSocketRequest(value any) error  { return validate("socket-request", value) }
 func ValidateSocketResponse(value any) error { return validate("socket-response", value) }
 func ValidateSelection(value any) error      { return validate("selection", value) }
+
+func ValidateOnboardingRequest(value any) error  { return validate("onboarding-request", value) }
+func ValidateOnboardingResponse(value any) error { return validate("onboarding-response", value) }
 
 func ValidateSessionRecord(value any) error { return validate("sessions", value) }
