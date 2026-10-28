@@ -39,6 +39,8 @@ const AUTO_OPEN: ReadonlySet<Provider> = new Set(["claude", "codex", "antigravit
 const SNAPSHOT_WAIT_MS = 1500;
 // status lists every kept operation inside the CLI's 64 KiB reply limit.
 const KEPT_FINISHED = 20;
+// Finished operations dropped from the list still answer a resend of their requestId, up to this many.
+const KEPT_RETIRED = 1000;
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 
 // Fixed text only: provider output, OAuth text, paths and accounts never reach a message (review G ⚪1).
@@ -49,7 +51,7 @@ const MESSAGES: Record<OnboardingSocketErrorCode, string> = {
   operation_not_found: "This session has no such operation.",
   request_conflict: "This requestId was already used with other arguments.",
   inspection_stale: "That inspection is no longer current. Inspect the project again.",
-  busy: "Another sign-in or sign-out is in progress. Wait for it or cancel it first.",
+  busy: "Another agent sign-in, sign-out or check is in progress. Wait for it or cancel it first.",
   stop_required: "A conversation with this agent is running. Stop it in Doan, then sign in again.",
   not_owner: "Another window started this sign-in.",
   not_connected: "This agent is not connected.",
@@ -114,6 +116,7 @@ export class OnboardingService {
   private revision = 0;
   private operations = new Map<string, Tracked>();
   private attempts = new Map<string, string>();
+  private retired = new Map<string, OnboardingOperation>();
   // A refused request leaves no record, so its id is judged again on a resend.
   private requests = new Map<string, { key: string; reply: Promise<OnboardingResponse>; operationId: string | null }>();
   private readonly newId: () => string;
@@ -127,9 +130,9 @@ export class OnboardingService {
     if (request.sessionId !== this.sessionId) return refuse("session_stale");
     if (request.op === "status") {
       if (request.operationId === undefined) return { v: 2, ok: true, op: "status", result: this.build(await this.agents()) };
-      const tracked = this.operations.get(request.operationId);
-      if (!tracked) return refuse("operation_not_found");
-      return { v: 2, ok: true, op: "status", result: this.build(await this.agents(), [tracked.operation]) };
+      const operation = this.find(request.operationId);
+      if (!operation) return refuse("operation_not_found");
+      return { v: 2, ok: true, op: "status", result: this.build(await this.agents(), [operation]) };
     }
     const key = argumentsKey(request);
     const seen = this.requests.get(request.requestId);
@@ -232,10 +235,13 @@ export class OnboardingService {
     return tracked;
   }
 
+  private find(operationId: string): OnboardingOperation | undefined {
+    return this.operations.get(operationId)?.operation ?? this.retired.get(operationId);
+  }
   private operationReply(op: Write["op"], operationId: string): OnboardingResponse {
-    const tracked = this.operations.get(operationId);
-    if (!tracked) return refuse("operation_not_found");
-    return { v: 2, ok: true, op, result: { operation: tracked.operation } } as OnboardingResponse;
+    const operation = this.find(operationId);
+    if (!operation) return refuse("operation_not_found");
+    return { v: 2, ok: true, op, result: { operation } } as OnboardingResponse;
   }
 
   // True when an operation changed.
@@ -248,7 +254,6 @@ export class OnboardingService {
       const next = this.follow(tracked, dto);
       if (JSON.stringify(next) !== JSON.stringify(tracked.operation)) { tracked.operation = next; changed = true; }
     }
-    if (changed) this.prune();
     return changed;
   }
 
@@ -271,15 +276,22 @@ export class OnboardingService {
     return { ...base, state: "succeeded" };
   }
 
+  // Maps keep insertion order, so the oldest go first. A requestId whose operation is gone for good is forgotten
+  // with it and judged as a new request.
   private prune(): void {
     const finished = [...this.operations.values()].filter(t => TERMINAL.has(t.operation.state));
     for (const tracked of finished.slice(0, Math.max(0, finished.length - KEPT_FINISHED))) {
       this.operations.delete(tracked.operation.operationId);
       if (tracked.attemptId !== null) this.attempts.delete(tracked.attemptId);
+      this.retired.set(tracked.operation.operationId, tracked.operation);
     }
+    const gone = new Set([...this.retired.keys()].slice(0, Math.max(0, this.retired.size - KEPT_RETIRED)));
+    for (const id of gone) this.retired.delete(id);
+    if (gone.size > 0) for (const [requestId, record] of this.requests) if (record.operationId !== null && gone.has(record.operationId)) this.requests.delete(requestId);
   }
 
   private touch(snapshot: AuthSnapshot | null): void {
+    this.prune();
     this.revision += 1;
     this.options.publish(this.build(snapshot));
   }

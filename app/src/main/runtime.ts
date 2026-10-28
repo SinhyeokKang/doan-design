@@ -118,7 +118,11 @@ function serve(connection: Socket, token: string, state: RuntimeState): void {
     size += end;
     if (newline !== -1) {
       done = true;
-      void answerLine(Buffer.concat(chunks).toString("utf8"), token, state).then(reply);
+      // A throwing state callback still gets a reply now rather than holding the connection to the deadline.
+      void answerLine(Buffer.concat(chunks).toString("utf8"), token, state).then(reply, (error: unknown) => {
+        console.error("doan: socket request failed", error);
+        reply(socketError("bad_request", "Doan could not handle this request."));
+      });
     }
   });
   connection.on("close", () => clearTimeout(deadline));
