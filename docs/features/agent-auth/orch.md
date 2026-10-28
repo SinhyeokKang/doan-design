@@ -73,3 +73,6 @@ Run: `run_d94775f7dd27`.
 - R-B1: `ctx_72a7d748df68` (task `task_498b8884c79e`). `agent-auth-storage`에서 보고만 한다. 실행 설정은 opus high이고 `turnStart: observed`다.
 - R-B1 `ctx_72a7d748df68`: 🔴1·🟡4·⚪8. 🔴1은 프로세스 생성 전에 들어온 취소·창 종료·앱 종료가 그 뒤 생성된 로그인 프로세스를 멈추지 못하는 문제다. 쓰기 잠금이 앱 전체에서 풀리지 않고, 앱 종료 뒤에도 고아 프로세스가 남는다. 🟡는 네 가지다: lease 해제와 로그아웃 경쟁으로 vault가 다시 생김, expect pty 자손이 소유 그룹을 벗어남, write-back 실패 시 갱신 토큰이 조용히 사라짐, tmp만 남았을 때 시작 복구가 vault를 비움. 보고서는 `evidence-B1/review-B1.md`에 있다. R-B1 작업자는 release했다.
 - F-B1: `ctx_9f407d54dcef` (task `task_a59a1be71577`). 같은 worktree에서 🔴1, 🟡1·3·4, ⚪1·8, 간헐 실패 테스트를 맡는다. 🟡2는 B3에서 expect를 제거하면서 해소한다. ⚪6은 B4로 넘긴다. 실행 설정은 opus high이고 `turnStart: observed`다.
+- F-B1 `ac144ac`: 지휘자가 manager.ts diff를 직접 확인했다. 확인한 수정은 다음과 같다. 시도별 중지 요청을 기록하고 spawn 전후에 검사한다. lease의 `runs`는 write-back이 끝난 뒤에 줄인다. write-back이 실패하면 `storage_failed`와 `verified=false`로 둔다. 복구는 본 파일이 있을 때만 흡수한다. red 13건이 green이 됐고 테스트 3,487개가 11회 통과했다. 리뷰 중 1회 실패한 테스트는 재현되지 않아 이름을 모른다.
+- B1과 F-B1을 통합해 `f909ba8`까지 왔다(cherry-pick 14개). 통합 HEAD에서 verify.mjs가 PASS했다. B1 원 작업자는 user_takeover로 retained 상태여서 터미널이 남아 있다. 그래서 `agent-auth-storage` worktree도 보존한다.
+- B2: `ctx_424587bcebb9` (task `task_8d482638b553`), child `agent-auth-runtime` (base `f909ba8`). effective opus high이고 `turnStart: observed`를 확인했다.
