@@ -23,7 +23,7 @@
 
 - [x] C0. `buzz-ds` — PR #27, `f0dc812` main 병합. 라이트 DS·프리미티브·공유 표면 구현과 승격 완료, 자식 디렉터리 삭제. [DESIGN](../../DESIGN.md#design-system--buzz-ds-2026-10-26)에 측정과 당시 네이티브 검증 한계가 있다. 그 한계를 전체 e2e 통과로 바꾸지 않는다.
 - [x] C1. `buzz-shell` — PR #30, `c625057` main 병합. 구현·네이티브·패키지·변경 범위 runtime 검증과 정본 승격 완료, 자식 디렉터리 삭제. [최종 완료 기록](../../DESIGN.md#buzz-shell--completed-implementation-and-unlocked-acceptance-2026-10-27)에 revised verify gate와 집중 probe 결과가 있다.
-- [ ] C2. `buzz-onboarding` — [spec](../buzz-onboarding/spec.md)·[design](../buzz-onboarding/design.md)·[tasks](../buzz-onboarding/tasks.md)·[review](../buzz-onboarding/review.md). 디자인 승인·10프레임/33상태 HTML 검증·feature-review 완료, 구현 전. 최소 한 agent ready·프로젝트 필수, 기존 Git/gh 재사용/clone, 앱과 같은 main 서비스를 쓰는 CLI/MCP setup. agent-auth는 2026-10-28 main에 병합됐다. 계약은 [ARCHITECTURE §7](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth), 온보딩이 처리할 항목은 [agent-auth 인계](../buzz-onboarding/design.md#agent-auth-인계-2026-10-28)에 있으며 구현 전에 `/feature-review`로 대조한다.
+- [ ] C2. `buzz-onboarding` — [spec](../buzz-onboarding/spec.md)·[design](../buzz-onboarding/design.md)·[tasks](../buzz-onboarding/tasks.md)·[review](../buzz-onboarding/review.md). 디자인 승인·10프레임/33상태 HTML 검증·feature-review 완료, 구현 전. 최소 한 agent ready·프로젝트 필수, 기존 Git/gh 재사용/clone, 앱과 같은 main 서비스를 쓰는 CLI/MCP setup. agent-auth는 2026-10-28 main에 병합됐다. 계약은 [ARCHITECTURE §7](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth), 온보딩이 처리할 항목은 [agent-auth 인계](../buzz-onboarding/design.md#agent-auth-인계-2026-10-28)에 있다. 2026-10-28 `/feature-review`로 대조했고, 구현은 선행 feature `agent-cli-versions`가 병합된 뒤 시작한다.
 - [ ] C3. `buzz-home` — 미착수. 단일 대화 입력창·프로젝트 선택 UI는 확정, 상세 설계는 후속. 온보딩 root 인계와 agent-auth 인증 기반을 사용한다. agent-auth 병합(2026-10-28): 새 대화는 `startConversation`의 `runtime`(다섯 공급자)으로 고른 공급자의 도안 연결에서 실행된다. 공급자 선택지는 `readiness`로 표시하고 복구는 `readiness.action`을 따른다. `busy`(이전 턴 프로세스의 종료를 기다리다 시간이 지나거나 취소된 경우 포함), `credential_override`, `cli_install_failed`를 처리해야 한다([ARCHITECTURE §7](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth)).
 - [ ] C4. `buzz-search` — 미착수. Quick Open 내용과 결과 행.
 - [ ] C5. `buzz-project` — 미착수. Overview 본문만 담당하며 완료된 LNB/프로젝트 메뉴를 다시 만들지 않는다.
@@ -36,7 +36,7 @@
 
 `agent-auth`는 이 부모의 자식이 아니다. 2026-10-28 main에 병합됐고 결론은 [PRODUCT §3](../../PRODUCT.md#3-scope)·[ARCHITECTURE §7](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth)에 승격됐다. UI는 없고 실제 토큰 만료·갱신은 관찰하지 못했다.
 
-agent-auth가 병합됐으므로 다음 구현 경로는 buzz-onboarding이다. 선행을 충족한 다른 화면 자식은 spec의 의존성에 따라 진행할 수 있다. 온보딩의 CLI/MCP 계약 변경은 최종 agent-eval을 필수로 하며, 부모 전체 검증을 새 e2e suite로 만들지 않는다.
+다음 구현 경로는 직렬이다(2026-10-28 사용자): `agent-cli-versions` `/orchestrate` → main 병합 → `buzz-onboarding` `/orchestrate` → main 병합. 선행을 충족한 다른 화면 자식은 spec의 의존성에 따라 진행할 수 있다. 온보딩의 CLI/MCP 계약 변경은 최종 agent-eval을 필수로 하며, 부모 전체 검증을 새 e2e suite로 만들지 않는다.
 
 ## Z. 부모 정리
 
