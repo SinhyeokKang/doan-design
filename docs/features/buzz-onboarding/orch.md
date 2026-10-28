@@ -38,7 +38,7 @@
 | C | A0 | `schema/app-socket.v2.schema.json`(새), `schema/embed.go`, `schema/fixtures/app-socket/**`의 v2 파일, `schema/fixtures/cli-envelope`의 온보딩 fixture(필요하면), `app/src/formats/{types,validate}.ts`와 테스트, `cli/internal/formats/**` | 없음 | Claude Opus high — 두 언어가 같이 읽는 공개 계약이고 오류·종료 코드 매핑이 틀리면 M·G가 함께 틀린다 | `verify.mjs` | 통합 `b1c101e`..`4fce40b`, 2회차 |
 | P | A1, A2 | 새 순수 모듈: `app/src/main/onboarding/` 아래 완료 표식·remote 파싱 모듈과 fixture, `app/src/renderer/` 아래 scene 모듈과 공용 공급자 view-model 모듈, 각 테스트 | 없음 | Claude Opus high — 상태 대응 표 전체와 경합 규칙을 판정하는 순수 함수라 판단이 많다 | `verify.mjs` | 통합 `9b04be1`..`7d808a2`, 2회차 |
 | T | T1 | `app/src/renderer/tokens.css`, 값이 같은 출하 renderer CSS, `.doan/canvases/buzz-onboarding.html`, `docs/DESIGN.md` 토큰 절 | 없음 | Codex `gpt-6.1-sol` high — 기계적 치환이지만 렌더링 비교 단계가 많다 | `verify.mjs`, `doan check --repo .`, computed 비교 | 통합 `eaa534d`·`ea53233`, 1회차 |
-| M | B0 → B1 | `app/src/main/**`(P의 새 모듈은 import만), `app/src/preload/**`, `app/src/main/agentAuth/` 연결부 | C, P | Claude Opus high — 소켓 인증·소유권·프로세스 그룹·경합 파일 생성이라 보안·동시성이 무겁다. B1은 같은 터미널의 다음 Task | `verify.mjs` | 통합(19 커밋, 끝 `3609a0a`), B0·B1 각 2회차, 재리뷰 중 |
+| M | B0 → B1 | `app/src/main/**`(P의 새 모듈은 import만), `app/src/preload/**`, `app/src/main/agentAuth/` 연결부 | C, P | Claude Opus high — 소켓 인증·소유권·프로세스 그룹·경합 파일 생성이라 보안·동시성이 무겁다. B1은 같은 터미널의 다음 Task | `verify.mjs` | 통합(21 커밋), 수정 3회 |
 | G | B3 | `cli/**`(`cli/internal/formats/**` 제외), `cli/internal/cli/skill.md` | C | Claude Opus high — bundle 신뢰·자동 실행·비밀 비노출 판단 | `verify.mjs` | 통합 `036b4ae`..`41fb7f2`, 2회차 |
 | U | U1(B2 일부) → U2(B2 나머지 + design-sync) | U1: `app/src/renderer/**`(P의 새 모듈은 import만), `app/src/renderer/ds/controls.css`. U2: 위에 더해 고아 채널 제거를 위한 `app/src/main/index.ts`·`app/src/main/onboarding/machine.ts`·`app/src/preload/**`·`app/src/setup/**`, `docs/DESIGN.md` 측정값, `.scratch/design-sync/` | U1: T, P. U2: M | Claude Opus high — 포커스·중첩 모달·경합 표시와 승인 디자인 대조 | `verify.mjs`, U2는 `/design-sync` | 진행 중 |
 | E | D5 시나리오 | `eval/scenarios/**`의 새 시나리오와 fixture, eval 가짜 앱의 v2 응답(`eval/lib/socket.ts`와 테스트) | G | Claude Opus medium — 시나리오 판정 기준 설계 | `verify.mjs --eval`, `node eval/run.ts --self-test` | 통합(11 커밋, 끝 `300e3e3`), 2회차 |
@@ -87,3 +87,4 @@
 - 2026-10-29: M B1 수정(f6606e2, 97b47fe, e30081f, `verify.mjs` PASS). M을 통합했다(19 커밋, 끝 `3609a0a`). 수정 범위 재리뷰 Codex `gpt-6-astra` medium을 병렬로 띄웠다. M 작업자는 재리뷰 수정을 위해 유지한다. U2 시작(같은 U 터미널, bo-U1을 통합 HEAD로 맞춤).
 - 2026-10-29: 통합 HEAD `3609a0a`(M 포함) `verify.mjs --eval` PASS. U2 질문에 결정 D18.
 - 2026-10-29: M 수정 재리뷰: 🔴 0·🟡 3(목적지 claim 제거 실패를 cancelled로 숨김, 등록 전 취소 경계, leftover 조회 오류를 삭제로 간주). 🟡2는 D19로 수용했고 1·3은 수정 3회차로 보냈다.
+- 2026-10-29: M 수정 3회차(c88eaf8, eaea354, `verify.mjs` PASS)를 지휘자 확인 뒤 통합했다. M 작업자 release. bo-M worktree는 V 결과로 M 수정이 필요할 수 있어 마지막까지 남긴다.
