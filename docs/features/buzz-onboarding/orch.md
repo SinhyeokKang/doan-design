@@ -74,3 +74,4 @@
 - 2026-10-29: M B0 리뷰 🔴 0·🟡 3(requestId 중복 실행 가능성, status의 revision과 작업 상태 불일치, check 실패를 성공으로 판정)·⚪ 2. B1 뒤 수정 Task로 보낸다.
 - 2026-10-29: E 수정 1회차(affe6f9..c8fa066). 지휘자 확인 뒤 통합했다(끝 `300e3e3`). 변경 안내 순서는 판정자만 본다(결정적 검사 없음). E 작업자 release, bo-E 제거, handoff `.scratch/orch/handoff-E.md`.
 - 2026-10-29: U1 완료(60e4943, 5429599, e6ab797, `verify.mjs` PASS, 격리 GUI probe 통과, 실제 상태 보존). GUI 슬롯 반환. 독립 리뷰 Claude Opus high 시작. U 작업자 retain(U2용). `src/main/onboarding/machine.test.ts`도 한 번 간헐 실패했다(watch.test.ts와 함께 마지막 보고에 적는다).
+- 2026-10-29: 통합 HEAD(T+C+G+P+E) `verify.mjs --eval` PASS(9단계).
