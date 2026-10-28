@@ -99,9 +99,12 @@ test("onboarding validators agree with every app-socket v2 fixture", () => {
   agreesWithSchema("app-socket-v2/response", validOnboardingResponse);
 });
 
-const notConnected = (provider: string) => ({ provider, phase: "disconnected", readiness: { ready: false, cause: "not_connected", action: "signIn" }, error: null, actions: ["signIn"] });
+// Script entries describe the auth state; the fake derives the status DTO the app would show.
+const notConnected = (provider: string) => ({ provider, connected: false, verified: false });
+const readyAgent = (provider: string) => ({ provider, connected: true, verified: true });
+const unverified = (provider: string) => ({ provider, connected: true, verified: false });
 const ready = (provider: string) => ({ provider, phase: "connected", readiness: { ready: true }, error: null, actions: ["signOut"] });
-const unverified = (provider: string) => ({ provider, phase: "connected", readiness: { ready: false, cause: "unverified", action: "retry" }, error: null, actions: ["retry", "signOut"] });
+const signedOutDto = (provider: string) => ({ provider, phase: "disconnected", readiness: { ready: false, cause: "not_connected", action: "signIn" }, error: null, actions: ["signIn"] });
 const CHANGES = [".doan/config.json", ".doan/canvases/", ".gitattributes"];
 
 // Every reply the fake gives must itself be a valid app-socket v2 response.
@@ -117,7 +120,7 @@ function session(script: OnboardingScript, root = "/r") {
 const S = { sessionId: "s_eval" };
 
 test("onboarding answers check shape, then token, then session", () => {
-  const ask = session({ providers: [ready("claude")], changes: CHANGES, readyAfterCheck: [] });
+  const ask = session({ providers: [readyAgent("claude")], changes: CHANGES, readyAfterCheck: [] });
   assert.equal(ask({ op: "status" }).error.code, "bad_request");
   assert.equal(ask({ op: "start" }, "wrong").error.code, "bad_token");
   assert.equal(ask({ op: "status", ...S }).error.code, "session_stale");
@@ -130,7 +133,7 @@ test("onboarding answers check shape, then token, then session", () => {
 });
 
 test("a project is inspected, selected with --initialize and completed through status polls", () => {
-  const ask = session({ providers: [ready("claude")], changes: CHANGES, readyAfterCheck: [] });
+  const ask = session({ providers: [readyAgent("claude")], changes: CHANGES, readyAfterCheck: [] });
   ask({ op: "start" });
   assert.equal(ask({ op: "project_inspect", ...S, requestId: "i1", path: "/elsewhere" }).error.code, "path_unavailable");
   const inspect = ask({ op: "project_inspect", ...S, requestId: "i2", path: "/r/" }).result.operation;
@@ -152,7 +155,7 @@ test("a project is inspected, selected with --initialize and completed through s
 });
 
 test("a requestId returns its original operation and refuses other arguments", () => {
-  const ask = session({ providers: [ready("claude")], changes: [], readyAfterCheck: [] });
+  const ask = session({ providers: [readyAgent("claude")], changes: [], readyAfterCheck: [] });
   ask({ op: "start" });
   const first = ask({ op: "project_inspect", ...S, requestId: "i1", path: "/r" }).result.operation;
   assert.deepEqual(ask({ op: "project_inspect", ...S, requestId: "i1", path: "/r" }).result.operation, first);
@@ -165,30 +168,59 @@ test("a requestId returns its original operation and refuses other arguments", (
 
 test("a sign-in waits for the user in the browser and blocks a second one", () => {
   const ask = session({ providers: [notConnected("claude"), unverified("copilot")], changes: CHANGES, readyAfterCheck: ["copilot"] });
-  ask({ op: "start" });
+  assert.deepEqual(ask({ op: "start" }).result.agents, { revision: 1, providers: [signedOutDto("claude"), { provider: "copilot", phase: "connected", readiness: { ready: false, cause: "unverified", action: "retry" }, error: null, actions: ["retry", "signOut"] }] });
   assert.equal(ask({ op: "sign_in", ...S, requestId: "x", provider: "cursor" }).error.code, "bad_request", "the script has no cursor state");
   assert.equal(ask({ op: "check", ...S, requestId: "y", provider: "claude" }).error.code, "not_connected");
   const signIn = ask({ op: "sign_in", ...S, requestId: "a1", provider: "claude" }).result.operation;
   assert.equal(signIn.state, "pending");
-  for (let i = 0; i < 3; i++) assert.equal(ask({ op: "status", ...S, operationId: signIn.operationId }).result.operations[0].state, "awaiting_user");
+  for (let i = 0; i < 3; i++) {
+    const waiting = ask({ op: "status", ...S, operationId: signIn.operationId }).result;
+    assert.equal(waiting.operations[0].state, "awaiting_user");
+    // The provider shows the live attempt, as agent-auth does: no second sign-in is offered.
+    assert.deepEqual(waiting.agents, { revision: 2, providers: [{ provider: "claude", phase: "signingIn", readiness: { ready: false, cause: "busy", action: "wait" }, error: null, actions: ["cancel"] }, waiting.agents.providers[1]] });
+  }
   assert.equal(ask({ op: "sign_in", ...S, requestId: "a2", provider: "claude" }).error.code, "busy");
   assert.equal(ask({ op: "complete", ...S, requestId: "c1" }).error.code, "no_ready_agent");
   assert.equal(ask({ op: "status", ...S, operationId: "op_99" }).error.code, "operation_not_found");
-  const cancelled = ask({ op: "cancel", ...S, requestId: "k1", operationId: signIn.operationId });
-  assert.equal(cancelled.op, "cancel");
-  assert.deepEqual(cancelled.result.operation, { ...signIn, state: "cancelled" });
+  const cancelling = ask({ op: "cancel", ...S, requestId: "k1", operationId: signIn.operationId });
+  assert.equal(cancelling.op, "cancel");
+  assert.deepEqual(cancelling.result.operation, { ...signIn, state: "running", cancelling: true });
+  const cleaning = ask({ op: "status", ...S, operationId: "op_99" });
+  assert.equal(cleaning.error.code, "operation_not_found");
+  let after = ask({ op: "status", ...S }).result;
+  assert.deepEqual(after.operations[0], { ...signIn, state: "cancelled" });
+  assert.deepEqual(after.agents.providers[0], signedOutDto("claude"));
+  assert.equal(after.agents.revision, 4, "sign-in, cancel and cleanup each changed the agents");
   assert.equal(ask({ op: "cancel", ...S, requestId: "k2", operationId: "op_99" }).error.code, "operation_not_found");
   const check = ask({ op: "check", ...S, requestId: "p1", provider: "copilot", spendCopilotRequest: true }).result.operation;
   assert.equal(check.state, "running");
-  const after = ask({ op: "status", ...S }).result;
+  assert.equal(ask({ op: "status", ...S, operationId: check.operationId }).result.operations[0].state, "succeeded");
+  after = ask({ op: "status", ...S }).result;
   assert.deepEqual(after.agents.providers.find((p: any) => p.provider === "copilot"), ready("copilot"));
   assert.equal(after.operations.find((o: any) => o.operationId === check.operationId).state, "succeeded");
 });
 
+test("a check that cannot verify fails as agent-auth would and keeps the retry", () => {
+  const ask = session({ providers: [unverified("copilot"), readyAgent("claude")], changes: [], readyAfterCheck: [] });
+  ask({ op: "start" });
+  const check = ask({ op: "check", ...S, requestId: "p1", provider: "copilot", spendCopilotRequest: true }).result.operation;
+  const during = ask({ op: "status", ...S, operationId: "op_99" });
+  assert.equal(during.error.code, "operation_not_found");
+  const done = ask({ op: "status", ...S }).result;
+  assert.deepEqual(done.operations[0], { ...check, state: "failed", error: { code: "check_failed", message: done.operations[0].error.message } });
+  assert.deepEqual(done.agents.providers[0], { provider: "copilot", phase: "connected", readiness: { ready: false, cause: "unverified", action: "retry" }, error: { code: "check_failed", retryable: true }, actions: ["retry", "signOut"] });
+  const claude = ask({ op: "check", ...S, requestId: "p2", provider: "claude" }).result.operation;
+  assert.deepEqual(ask({ op: "status", ...S, operationId: claude.operationId }).result.operations[0].state, "succeeded");
+});
+
 test("an onboarding script must describe valid app state", () => {
   assert.throws(() => onboardingApp({ providers: [{ provider: "claude" }], changes: [], readyAfterCheck: [] } as any, "/r"));
+  assert.throws(() => onboardingApp({ providers: [ready("claude")], changes: [], readyAfterCheck: [] } as any, "/r"), Error, "a DTO is not an auth state");
   assert.throws(() => onboardingApp({ providers: [], changes: ["README.md"], readyAfterCheck: [] }, "/r"));
   assert.throws(() => onboardingApp({ providers: [], changes: [], readyAfterCheck: ["claude"] }, "/r"));
+  assert.throws(() => onboardingApp({ providers: [notConnected("claude")], changes: [], readyAfterCheck: ["claude"] }, "/r"), Error, "a check needs a connection");
+  assert.throws(() => onboardingApp({ providers: [{ provider: "claude", connected: false, verified: true }], changes: [], readyAfterCheck: [] }, "/r"));
+  assert.throws(() => onboardingApp({ providers: [readyAgent("claude"), readyAgent("claude")], changes: [], readyAfterCheck: [] }, "/r"));
   assert.throws(() => onboardingApp({ providers: [], changes: [], readyAfterCheck: [], extra: 1 } as any, "/r"));
 });
 
@@ -212,7 +244,7 @@ test("the fake app answers v2 only with a script and logs onboarding exchanges w
       { v: 1, ok: false, error: { code: "bad_request", message: "The request is not an app-socket v1 request." } }, "an app without onboarding is an older app");
     await plain.close();
 
-    const app = await startFakeApp({ dir, root: "/r", selection: null, onboarding: { providers: [ready("claude")], changes: [], readyAfterCheck: [] } });
+    const app = await startFakeApp({ dir, root: "/r", selection: null, onboarding: { providers: [readyAgent("claude")], changes: [], readyAfterCheck: [] } });
     const { socket, token } = JSON.parse(readFileSync(app.runtimePath, "utf8"));
     const start = await exchange(socket, JSON.stringify({ v: 2, token, op: "start" }));
     assert.equal(start.result.sessionId, "s_eval");

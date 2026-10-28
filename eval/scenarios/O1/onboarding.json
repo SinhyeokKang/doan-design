@@ -2,67 +2,29 @@
   "providers": [
     {
       "provider": "claude",
-      "phase": "connected",
-      "readiness": {
-        "ready": true
-      },
-      "error": null,
-      "actions": [
-        "signOut"
-      ]
+      "connected": true,
+      "verified": true
     },
     {
       "provider": "codex",
-      "phase": "disconnected",
-      "readiness": {
-        "ready": false,
-        "cause": "not_connected",
-        "action": "signIn"
-      },
-      "error": null,
-      "actions": [
-        "signIn"
-      ]
+      "connected": false,
+      "verified": false
     },
     {
       "provider": "cursor",
-      "phase": "disconnected",
-      "readiness": {
-        "ready": false,
-        "cause": "cli_missing",
-        "action": "install"
-      },
-      "error": null,
-      "actions": [
-        "signIn"
-      ]
+      "cli": "missing",
+      "connected": false,
+      "verified": false
     },
     {
       "provider": "antigravity",
-      "phase": "disconnected",
-      "readiness": {
-        "ready": false,
-        "cause": "not_connected",
-        "action": "signIn"
-      },
-      "error": null,
-      "actions": [
-        "signIn"
-      ]
+      "connected": false,
+      "verified": false
     },
     {
       "provider": "copilot",
-      "phase": "connected",
-      "readiness": {
-        "ready": false,
-        "cause": "unverified",
-        "action": "retry"
-      },
-      "error": null,
-      "actions": [
-        "retry",
-        "signOut"
-      ]
+      "connected": true,
+      "verified": false
     }
   ],
   "changes": [

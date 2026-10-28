@@ -82,8 +82,9 @@ export const validOnboardingResponse = (v: unknown): boolean => responseSchema(v
 // `op_<n>`, `insp_<n>`) so self-test fixtures can name ids ahead of time; real
 // agents still have to read them from replies.
 export interface OnboardingScript {
-  // agents.providers at start; only these providers can be signed in or checked.
-  providers: Obj[];
+  // The auth state of each provider at start; only these can be signed in or
+  // checked. The status DTO is derived from it (fakeAuthStatus).
+  providers: FakeAuth[];
   // What inspecting the open root reports it would set up; [] means already set up.
   changes: string[];
   // Providers a check makes ready. Nothing else ever becomes ready: no one
@@ -91,8 +92,34 @@ export interface OnboardingScript {
   readyAfterCheck: string[];
 }
 
+// The part of agent-auth's AuthState the fake needs: no account, no tool or
+// version problems besides a missing CLI, and only a check can fail.
+export interface FakeAuth {
+  provider: string;
+  cli?: "missing";
+  connected: boolean;
+  verified: boolean;
+  attempt?: { kind: "check" | "signIn"; cancelled: boolean } | null;
+  error?: "check_failed" | null;
+}
+
+// Mirrors phaseOf, readiness and actions in app/src/main/agentAuth/state.ts for
+// FakeAuth states; socket.test.ts compares it with authStatus.
+export function fakeAuthStatus(a: FakeAuth): Obj {
+  const attempt = a.attempt ?? null;
+  const phase = attempt ? (attempt.kind === "check" ? "checking" : "signingIn") : a.connected ? "connected" : "disconnected";
+  const readiness = a.cli === "missing" ? { ready: false, cause: "cli_missing", action: "install" }
+    : attempt && attempt.kind !== "check" ? { ready: false, cause: "busy", action: "wait" }
+    : !a.connected ? { ready: false, cause: "not_connected", action: "signIn" }
+    : !a.verified ? { ready: false, cause: "unverified", action: attempt ? "wait" : "retry" }
+    : { ready: true };
+  const actions = attempt ? (attempt.kind === "signIn" && !attempt.cancelled ? ["cancel"] : [])
+    : !a.connected ? ["signIn"] : !a.verified || a.error === "check_failed" ? ["retry", "signOut"] : ["signOut"];
+  return { provider: a.provider, phase, readiness, error: a.error ? { code: a.error, retryable: true } : null, actions };
+}
+
 interface Operation {
-  operationId: string; requestId: string; kind: string; state: string;
+  operationId: string; requestId: string; kind: string; state: string; cancelling?: true;
   provider?: string; error?: { code: string; message: string }; inspection?: Obj; project?: { root: string };
   // Not sent: what inspect looked at.
   path?: string; url?: string;
@@ -106,9 +133,16 @@ export function onboardingApp(script: OnboardingScript, root: string) {
   const keys = ["providers", "changes", "readyAfterCheck"];
   if (!isObj(script) || !only(script, keys, keys) || !Array.isArray(script.providers) || !Array.isArray(script.changes) || !Array.isArray(script.readyAfterCheck))
     throw new Error("onboarding script must be { providers, changes, readyAfterCheck }");
-  const providers: Obj[] = structuredClone(script.providers);
-  const names = providers.map(p => p.provider as string);
-  if (script.readyAfterCheck.some(name => !names.includes(name))) throw new Error("readyAfterCheck names a provider the script does not list");
+  const authKeys = ["provider", "cli", "connected", "verified"];
+  for (const a of script.providers as unknown[])
+    if (!isObj(a) || !only(a, authKeys, ["provider", "connected", "verified"]) || typeof a.connected !== "boolean" || typeof a.verified !== "boolean"
+      || (a.verified && !a.connected) || ("cli" in a && a.cli !== "missing"))
+      throw new Error("onboarding script providers must be { provider, cli?: \"missing\", connected, verified } with verified only when connected");
+  const providers: FakeAuth[] = structuredClone(script.providers).map(a => ({ ...a, attempt: null, error: null }));
+  const names = providers.map(p => p.provider);
+  if (new Set(names).size !== names.length) throw new Error("onboarding script lists a provider twice");
+  if (script.readyAfterCheck.some(name => !providers.find(p => p.provider === name)?.connected)) throw new Error("readyAfterCheck must name connected providers of the script");
+  const auth = (provider: string) => providers.find(p => p.provider === provider)!;
   const sessionId = "s_eval";
   let started = false, revision = 0, agentsRevision = 1, completed = false, inspections = 0;
   let project: { root: string } | null = null;
@@ -121,16 +155,33 @@ export function onboardingApp(script: OnboardingScript, root: string) {
     return shown;
   };
   const state = (only?: Operation) => ({
-    sessionId, revision, completed, agents: { revision: agentsRevision, providers: structuredClone(providers) }, project,
+    sessionId, revision, completed, agents: { revision: agentsRevision, providers: providers.map(fakeAuthStatus) }, project,
     operations: (only ? [only] : operations).map(view),
   });
-  const ready = () => providers.some(p => (p.readiness as Obj).ready === true);
+  const ready = () => providers.some(p => (fakeAuthStatus(p).readiness as Obj).ready === true);
   const settle = (o: Operation) => {
-    if (o.kind === "sign_in") { if (o.state === "pending") o.state = "awaiting_user"; return; }
+    if (o.kind === "sign_in") {
+      if (o.state === "pending") o.state = "awaiting_user";
+      // A cancelled sign-in stays running until its cleanup ends, then the
+      // profile it may have touched is unverified (agent-auth `settled`).
+      if (o.cancelling) {
+        delete o.cancelling;
+        o.state = "cancelled";
+        Object.assign(auth(o.provider!), { attempt: null, verified: false });
+        agentsRevision++;
+      }
+      return;
+    }
     if (o.state !== "running") return;
     o.state = "succeeded";
-    if (o.kind === "check" && script.readyAfterCheck.includes(o.provider!)) {
-      Object.assign(providers.find(p => p.provider === o.provider)!, { phase: "connected", readiness: { ready: true }, error: null, actions: ["signOut"] });
+    if (o.kind === "check") {
+      const a = auth(o.provider!);
+      // A check verifies what it can; anything else is agent-auth's check_failed.
+      if (a.verified || script.readyAfterCheck.includes(a.provider)) Object.assign(a, { attempt: null, verified: true, error: null });
+      else {
+        Object.assign(a, { attempt: null, error: "check_failed" });
+        Object.assign(o, { state: "failed", error: { code: "check_failed", message: "The eval fake app could not verify this connection." } });
+      }
       agentsRevision++;
     }
     if (o.kind === "project_inspect" && o.url !== undefined) Object.assign(o, { state: "failed", error: { code: "repository_unreachable", message: "The eval fake app reaches no repository." } });
@@ -152,19 +203,34 @@ export function onboardingApp(script: OnboardingScript, root: string) {
     const provider = r.provider as string | undefined;
     switch (r.op) {
       case "check": {
-        const p = providers.find(x => x.provider === provider);
-        if (!p) return v2error("bad_request", "The eval fake app has no state for this provider.");
-        if (p.phase !== "connected") return v2error("not_connected", "This agent is not connected.");
+        if (!names.includes(provider!)) return v2error("bad_request", "The eval fake app has no state for this provider.");
+        const a = auth(provider!);
+        if (!a.connected) return v2error("not_connected", "This agent is not connected.");
+        if (a.attempt) return v2error("busy", "This agent is busy.");
+        a.attempt = { kind: "check", cancelled: false };
+        agentsRevision++;
         return { operation: create(r, { provider }) };
       }
-      case "sign_in":
+      case "sign_in": {
         if (!names.includes(provider!)) return v2error("bad_request", "The eval fake app has no state for this provider.");
-        if (operations.some(o => o.kind === "sign_in" && ACTIVE.includes(o.state))) return v2error("busy", "Another sign-in is in progress.");
+        if (providers.some(p => p.attempt?.kind === "signIn") || auth(provider!).attempt) return v2error("busy", "Another sign-in is in progress.");
+        auth(provider!).attempt = { kind: "signIn", cancelled: false };
+        agentsRevision++;
         return { operation: create(r, { provider, state: "pending" }) };
+      }
       case "cancel": {
         const target = operations.find(o => o.operationId === r.operationId);
         if (!target) return v2error("operation_not_found", "No such operation in this session.");
-        if (ACTIVE.includes(target.state)) { target.state = "cancelled"; revision++; }
+        if (target.kind === "sign_in" && ACTIVE.includes(target.state) && !target.cancelling) {
+          Object.assign(target, { state: "running", cancelling: true });
+          auth(target.provider!).attempt!.cancelled = true;
+          agentsRevision++;
+          revision++;
+        } else if (target.kind !== "sign_in" && target.kind !== "check" && ACTIVE.includes(target.state)) {
+          // agent-auth cancels only sign-ins; a check runs to its result.
+          target.state = "cancelled";
+          revision++;
+        }
         return { operation: target };
       }
       case "project_inspect":
