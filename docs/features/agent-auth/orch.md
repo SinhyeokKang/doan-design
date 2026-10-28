@@ -13,6 +13,7 @@
 - conductor's call — 실인증 probe는 하나의 격리 userData·HOME을 배치 사이에 유지해 플랫폼마다 로그인을 한 번만 요청한다. 외부 인증 저장소는 메타데이터 전후 대조만 한다(design '저장과 실행 환경').
 - 사용자 결정(2026-10-28, R-A): 안정된 계정 ID가 없는 연결도 새 실행은 허용한다. 재개는 `account_unverifiable`로 거부하고, 표시 계정은 확인 결과로 갱신한다.
 - 사용자 결정(2026-10-28, R-A): 대화 index v2 이행은 되돌릴 수 없으며 이를 수용한다. 검증은 격리한 userData로만 하고, 실제 userData로 실행하기 전에 사용자에게 다시 알린다.
+- 사용자 결정(2026-10-28, B1 이후): Antigravity는 B3에서 Orca 방식으로 구현한다. Google이 호스팅하는 `agy_acp_server`를 sha로 고정해 다운로드하고, 전용 `GEMINI_HOME`과 `AGY_ACP_FORCE_FILE_STORAGE=1`로 실행한다. spec 비목표인 'CLI 자동 설치·번들링'의 예외와 문서화되지 않은 저장 스위치 사용을 사용자가 승인했다. 근거: `.scratch/agent-auth-orch/orca-antigravity.md`, B1 조사. Antigravity 로그인·보관도 이 ACP 경로로 B3가 맡는다. PRODUCT §7에 기록했다.
 - conductor's call — Claude Code conductor이므로 Claude 작업자만 쓴다. 모델 계열 교차는 없다.
 - conductor's call — 공용 타입과 conversation 파일이 겹치므로 tasks의 기본 순서대로 직렬 진행한다. B3의 세 공급자도 사용자 구현 순서(Cursor → Antigravity → Copilot)대로 한 작업자가 직렬로 맡는다.
 - conductor's call — 지휘자는 배치 코드를 수정하지 않는다. 리뷰 수정은 소유 배치로 돌린다. push와 PR은 통합 뒤 수행하며 merge하지 않는다.
