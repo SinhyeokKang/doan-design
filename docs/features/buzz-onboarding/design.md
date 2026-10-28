@@ -231,11 +231,16 @@ OAuth·clone·Git 조회는 main 작업으로 시작하고 빠르게 ID를 돌�
 
 F4 초안 보완과 A2 fixture의 기준이다. 문구는 F4에서 영어로 확정한다.
 
+F6(2026-10-29, 링크 2 intake): agent-cli-versions 병합(PR #34)을 확인하고 [ARCHITECTURE §7 'State, attempts and readiness'](../../ARCHITECTURE.md)의 순서로 맞췄다. readiness는 `cli_missing` → install, `version_unsupported` → update(최소 버전 미만일 때만), `version_unknown` → retry, `version_incompatible` → retry, `busy` → wait 다음에 나머지가 온다. 버전 원인이 계정 상태보다 앞서므로 로그인하지 않은 공급자도 버전 행을 보인다. `version_unknown`·`version_incompatible`이면 `actions`에 `retry`가 붙는다. 버전 원인(`version_*` 셋)일 때 `checkAgentAuth`는 도구 사실만 다시 읽고 attempt 없이 `{ok: true}`를 돌려주며, 결과는 `agent-auth:changed`로 온다. 그래서 이때 Copilot Retry에는 비용 문구를 붙이지 않는다. `version_incompatible`은 사전 탐지가 없어 첫 실행이 거절된 뒤에만 보이고, 그 실행의 IPC 오류는 기존 코드(`runtime_unsupported`·`session_unavailable`·`unknown`)라서 원인은 공급자 readiness로 정한다. 이 기록은 다른 설치 버전을 읽거나, 같은 버전의 handshake가 통과하거나, 앱을 다시 시작하면 지워진다. 최소보다 새 CLI 때문에 Doan을 업데이트하라는 경우는 따로 없다.
+
+버전 두 행의 표시(2026-10-29 사용자): 초안에 tile을 추가하지 않고 'doan tools check failed' tile과 같은 형식(role=alert notice, 오른쪽 prominent Retry)을 쓴다. 문구는 `version_unknown` 제목 "Couldn’t read the <Provider> version", 본문 "Check that <Provider> is installed correctly, then retry.", `version_incompatible` 제목 "Doan can’t run this <Provider> version", 본문 "Update <Provider> or wait for a Doan update, then retry."이다.
+
 | agent-auth 입력 | 화면 상태 | 첫 버튼·액션 | 알림 |
 |---|---|---|---|
 | readiness cause `cli_missing` | 미설치 | Install(안내 URL), 복귀 시 check | 없음 |
 | `version_unsupported`(최소 버전 미만) | 업데이트 필요 | Update(안내 URL), 복귀 시 check | 없음 |
 | `version_unknown` | 버전 확인 실패 | Retry(check) | role=alert |
+| `version_incompatible`(첫 실행의 새 세션 handshake가 거절됨) | 이 버전으로 실행할 수 없음 | Retry(check) | role=alert |
 | `tools_missing`·`tools_failed` | doan 도구 확인 실패 | Check again(check) | role=alert |
 | phase `signingIn`, prompt 전 | 링크 준비 중(Antigravity 첫 로그인은 내려받기 포함) | Open browser disabled, Cancel | role=status |
 | phase `signingIn`, prompt 후 | 브라우저 대기(Cursor·Copilot은 탭이 이미 열렸을 수 있음) | Open again, Cancel, Antigravity는 행 아래 "Paste its address" | role=status |

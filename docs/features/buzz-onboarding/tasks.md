@@ -15,10 +15,11 @@
 
 - [x] F4. `/design-draft`로 초안을 보완하고 사용자 확인을 받는다(2026-10-28 확정). design의 상태 대응 표에 있는 상태를 tile로 추가한다: Install·Update, 링크 준비 중(Antigravity 내려받기 포함), Cursor·Copilot 탭 안내, unverified·Retry와 Copilot 비용, 로그아웃 실패, 재인증 원인별, stop 확인 대화상자, Antigravity 주소 붙여넣기 모달, 계정 표시값 없는 연결, 인증 저장소 읽기 실패, 'No agent is ready'. 백엔드에 없는 '저장 중'·'실행 준비 중' tile은 지운다. 다섯 공급자의 Install·Update 안내 URL을 정한다. 기존 승인 상태는 바꾸지 않는다.
   - 검증: 격리된 `DOAN_RUNTIME`으로 `go run ./cli/cmd/doan check --json --repo .`의 새 finding이 0개이고 `go run ./cli/cmd/doan ls --json --repo .`의 frame·tile 목록이 상태 대응 표와 일치한다. 사용자 확인 기록을 design에 남긴다.
-- [ ] F5. 사용자 결정을 PRODUCT에 기록하는 task다(이 리뷰는 PRODUCT를 직접 고치지 않는다). §7에 2026-10-27 온보딩 clone 예외, 2026-10-28 CLI/MCP 온보딩, ready 1개 이상 필수·Skip 없음·미완료 재실행 Welcome, 2026-10-28 재검토 결정(design '재검토' 절 중 제품 판단)을 날짜·이유와 함께 추가한다. §3 Out of scope의 'GitHub cloning deferred'에 '사용자의 기존 Git credential로 하는 온보딩 clone은 buzz-onboarding이 담당한다'를 덧붙이고, §5의 'skills·MCP 설치, 모든 단계 Skip' 서술을 현재 흐름과 구분한다. 구현 착수 전에 한다.
+- [x] F5. 사용자 결정을 PRODUCT에 기록하는 task다(이 리뷰는 PRODUCT를 직접 고치지 않는다). §7에 2026-10-27 온보딩 clone 예외, 2026-10-28 CLI/MCP 온보딩, ready 1개 이상 필수·Skip 없음·미완료 재실행 Welcome, 2026-10-28 재검토 결정(design '재검토' 절 중 제품 판단)을 날짜·이유와 함께 추가한다. §3 Out of scope의 'GitHub cloning deferred'에 '사용자의 기존 Git credential로 하는 온보딩 clone은 buzz-onboarding이 담당한다'를 덧붙이고, §5의 'skills·MCP 설치, 모든 단계 Skip' 서술을 현재 흐름과 구분한다. 구현 착수 전에 한다.
   - 검증: PRODUCT §3·§5·§7과 spec·design의 결정이 서로 모순되지 않는지 문서로 대조한다. 코드 명령은 없다.
-- [ ] F6. 선행 feature `agent-cli-versions`(확인된 최소 버전 + 실행 시 호환 검사, 2026-10-28 사용자)가 main에 병합됐는지 확인하고, 그 결과 readiness cause·action으로 Install·Update 조건과 상태 대응 표를 갱신한다.
+- [x] F6. 선행 feature `agent-cli-versions`(확인된 최소 버전 + 실행 시 호환 검사, 2026-10-28 사용자)가 main에 병합됐는지 확인하고, 그 결과 readiness cause·action으로 Install·Update 조건과 상태 대응 표를 갱신한다.
   - 검증: 병합된 ARCHITECTURE §7 'Versions'와 design 상태 대응 표의 `version_*` 행을 대조한다. 병합 전이면 이 feature의 `/orchestrate`를 시작하지 않는다.
+  - 2026-10-29: PR #34 병합(`e517c22`)을 확인하고 F5·F6을 마쳤다. `version_incompatible` 행과 버전 원인의 check 동작, 두 버전 행의 문구를 design에 반영했다.
 
 ── commit: `docs(feature): define buzz-onboarding flow and approved draft contract` ──
 
