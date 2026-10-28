@@ -1,0 +1,25 @@
+{
+  "v": 2,
+  "ok": true,
+  "op": "project_inspect",
+  "result": {
+    "operation": {
+      "operationId": "op_9",
+      "requestId": "req-1",
+      "kind": "project_inspect",
+      "state": "succeeded",
+      "inspection": {
+        "inspectionId": "insp_3",
+        "candidates": [],
+        "clone": {
+          "destination": "/Users/sam/code/app",
+          "changes": [
+            ".doan/config.json",
+            ".doan/canvases/",
+            ".gitattributes"
+          ]
+        }
+      }
+    }
+  }
+}

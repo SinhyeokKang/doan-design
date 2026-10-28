@@ -1,0 +1,598 @@
+{
+  "$comment": [
+    "How doan onboarding commands (CLI --json and MCP onboarding_* tools) turn an app-socket v2 reply into the public cli-envelope v1. Transport v2 and envelope v1 are separate versions.",
+    "1. A v2 success becomes {v: 1, ok: true, result} with the reply's result unchanged, exit 0.",
+    "2. Exception: for check, sign_in, project_inspect, project_select, project_clone and complete, when the reply's own operation is already failed, the envelope fails with that operation's error.code; when it is already cancelled, with code cancelled. cancel reports its target and status reports every operation as data, so both stay ok: true.",
+    "3. A v2 error keeps its code, except bad_request -> internal_error (the CLI sent a schema-valid request) and bad_token -> app_not_running (a stale runtime.json, as for active).",
+    "4. A reply with numeric v other than 2, including an older app's v1 bad_request, is app_protocol_mismatch.",
+    "5. exitCodes gives the exit for every code a command can return; a code missing from it exits 1. MCP isError is !ok.",
+    "Codes produced by the CLI before or without a reply: usage_error (bad flags, a Copilot check without --spend-copilot-request), app_not_running, app_launch_failed (the bundled app did not publish a runtime within 15 seconds), internal_error."
+  ],
+  "translate": {
+    "bad_request": "internal_error",
+    "bad_token": "app_not_running"
+  },
+  "exitCodes": {
+    "internal_error": 1,
+    "usage_error": 2,
+    "invalid_url": 2,
+    "path_unavailable": 2,
+    "not_candidate": 2,
+    "initialize_required": 2,
+    "request_conflict": 2,
+    "operation_not_found": 2,
+    "inspection_stale": 2,
+    "destination_exists": 2,
+    "app_not_running": 3,
+    "app_protocol_mismatch": 3,
+    "app_launch_failed": 3,
+    "session_stale": 3,
+    "busy": 5,
+    "stop_required": 5,
+    "not_owner": 5,
+    "not_connected": 5,
+    "sign_out_failed": 5,
+    "auth_unavailable": 5,
+    "no_ready_agent": 5,
+    "no_project": 5,
+    "cancelled": 5,
+    "sign_in_failed": 5,
+    "network": 5,
+    "storage_failed": 5,
+    "check_failed": 5,
+    "account_mismatch": 5,
+    "cli_install_failed": 5,
+    "repository_unreachable": 5,
+    "git_missing": 5,
+    "remote_mismatch": 5,
+    "clone_failed": 5,
+    "cleanup_failed": 5,
+    "config_invalid": 5,
+    "init_failed": 5,
+    "project_unavailable": 5,
+    "completion_save_failed": 5,
+    "completion_unsupported_version": 5
+  },
+  "cases": [
+    {
+      "name": "start returns the state",
+      "op": "start",
+      "reply": {
+        "v": 2,
+        "ok": true,
+        "op": "start",
+        "result": {
+          "sessionId": "s_7Hq2",
+          "revision": 0,
+          "completed": false,
+          "agents": {
+            "revision": 1,
+            "providers": []
+          },
+          "project": null,
+          "operations": []
+        }
+      },
+      "expect": {
+        "ok": true,
+        "exit": 0,
+        "isError": false
+      }
+    },
+    {
+      "name": "status reports failed and cancelled operations as data",
+      "op": "status",
+      "reply": {
+        "v": 2,
+        "ok": true,
+        "op": "status",
+        "result": {
+          "sessionId": "s_7Hq2",
+          "revision": 4,
+          "completed": false,
+          "agents": {
+            "revision": 12,
+            "providers": [
+              {
+                "provider": "claude",
+                "phase": "connected",
+                "readiness": {
+                  "ready": true
+                },
+                "error": null,
+                "actions": [
+                  "signOut"
+                ]
+              },
+              {
+                "provider": "cursor",
+                "phase": "disconnected",
+                "readiness": {
+                  "ready": false,
+                  "cause": "cli_missing",
+                  "action": "install"
+                },
+                "error": null,
+                "actions": [
+                  "signIn"
+                ]
+              },
+              {
+                "provider": "copilot",
+                "phase": "connected",
+                "readiness": {
+                  "ready": false,
+                  "cause": "unverified",
+                  "action": "retry"
+                },
+                "error": null,
+                "actions": [
+                  "retry",
+                  "signOut"
+                ]
+              },
+              {
+                "provider": "codex",
+                "phase": "error",
+                "readiness": {
+                  "ready": false,
+                  "cause": "not_connected",
+                  "action": "signIn"
+                },
+                "error": {
+                  "code": "sign_in_failed",
+                  "retryable": true
+                },
+                "actions": [
+                  "signIn"
+                ]
+              }
+            ]
+          },
+          "project": null,
+          "operations": [
+            {
+              "operationId": "op_9",
+              "requestId": "req-1",
+              "kind": "sign_in",
+              "state": "awaiting_user",
+              "provider": "claude"
+            },
+            {
+              "operationId": "op_10",
+              "requestId": "req-2",
+              "kind": "check",
+              "state": "running",
+              "provider": "copilot"
+            },
+            {
+              "operationId": "op_11",
+              "requestId": "req-3",
+              "kind": "project_inspect",
+              "state": "succeeded",
+              "inspection": {
+                "inspectionId": "insp_3",
+                "candidates": [
+                  {
+                    "path": "/Users/sam/code/app",
+                    "changes": [
+                      ".doan/config.json",
+                      ".doan/canvases/",
+                      ".gitattributes"
+                    ]
+                  },
+                  {
+                    "path": "/Users/sam/code/app-wt",
+                    "changes": []
+                  }
+                ]
+              }
+            },
+            {
+              "operationId": "op_12",
+              "requestId": "req-4",
+              "kind": "project_clone",
+              "state": "failed",
+              "error": {
+                "code": "repository_unreachable",
+                "message": "m"
+              }
+            },
+            {
+              "operationId": "op_13",
+              "requestId": "req-5",
+              "kind": "project_select",
+              "state": "succeeded",
+              "project": {
+                "root": "/Users/sam/code/app"
+              }
+            },
+            {
+              "operationId": "op_14",
+              "requestId": "req-6",
+              "kind": "sign_in",
+              "state": "cancelled",
+              "provider": "codex"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true,
+        "exit": 0,
+        "isError": false
+      }
+    },
+    {
+      "name": "accepted sign-in",
+      "op": "sign_in",
+      "reply": {
+        "v": 2,
+        "ok": true,
+        "op": "sign_in",
+        "result": {
+          "operation": {
+            "operationId": "op_9",
+            "requestId": "req-1",
+            "kind": "sign_in",
+            "state": "pending",
+            "provider": "claude"
+          }
+        }
+      },
+      "expect": {
+        "ok": true,
+        "exit": 0,
+        "isError": false
+      }
+    },
+    {
+      "name": "running clone",
+      "op": "project_clone",
+      "reply": {
+        "v": 2,
+        "ok": true,
+        "op": "project_clone",
+        "result": {
+          "operation": {
+            "operationId": "op_9",
+            "requestId": "req-1",
+            "kind": "project_clone",
+            "state": "running"
+          }
+        }
+      },
+      "expect": {
+        "ok": true,
+        "exit": 0,
+        "isError": false
+      }
+    },
+    {
+      "name": "cancel reports its cancelled target",
+      "op": "cancel",
+      "reply": {
+        "v": 2,
+        "ok": true,
+        "op": "cancel",
+        "result": {
+          "operation": {
+            "operationId": "op_9",
+            "requestId": "req-1",
+            "kind": "sign_in",
+            "state": "cancelled",
+            "provider": "cursor"
+          }
+        }
+      },
+      "expect": {
+        "ok": true,
+        "exit": 0,
+        "isError": false
+      }
+    },
+    {
+      "name": "own sign-in already cancelled",
+      "op": "sign_in",
+      "reply": {
+        "v": 2,
+        "ok": true,
+        "op": "sign_in",
+        "result": {
+          "operation": {
+            "operationId": "op_9",
+            "requestId": "req-1",
+            "kind": "sign_in",
+            "state": "cancelled",
+            "provider": "claude"
+          }
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "cancelled",
+        "exit": 5,
+        "isError": true
+      }
+    },
+    {
+      "name": "completion save failed",
+      "op": "complete",
+      "reply": {
+        "v": 2,
+        "ok": true,
+        "op": "complete",
+        "result": {
+          "operation": {
+            "operationId": "op_9",
+            "requestId": "req-1",
+            "kind": "complete",
+            "state": "failed",
+            "error": {
+              "code": "completion_save_failed",
+              "message": "m"
+            }
+          }
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "completion_save_failed",
+        "exit": 5,
+        "isError": true
+      }
+    },
+    {
+      "name": "clone destination taken",
+      "op": "project_clone",
+      "reply": {
+        "v": 2,
+        "ok": true,
+        "op": "project_clone",
+        "result": {
+          "operation": {
+            "operationId": "op_9",
+            "requestId": "req-1",
+            "kind": "project_clone",
+            "state": "failed",
+            "error": {
+              "code": "destination_exists",
+              "message": "m"
+            }
+          }
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "destination_exists",
+        "exit": 2,
+        "isError": true
+      }
+    },
+    {
+      "name": "repository unreachable",
+      "op": "project_inspect",
+      "reply": {
+        "v": 2,
+        "ok": true,
+        "op": "project_inspect",
+        "result": {
+          "operation": {
+            "operationId": "op_9",
+            "requestId": "req-1",
+            "kind": "project_inspect",
+            "state": "failed",
+            "error": {
+              "code": "repository_unreachable",
+              "message": "m"
+            }
+          }
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "repository_unreachable",
+        "exit": 5,
+        "isError": true
+      }
+    },
+    {
+      "name": "bad token is a stale runtime",
+      "op": "status",
+      "reply": {
+        "v": 2,
+        "ok": false,
+        "error": {
+          "code": "bad_token",
+          "message": "m"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "app_not_running",
+        "exit": 3,
+        "isError": true
+      }
+    },
+    {
+      "name": "v2 bad_request is a CLI bug",
+      "op": "status",
+      "reply": {
+        "v": 2,
+        "ok": false,
+        "error": {
+          "code": "bad_request",
+          "message": "m"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "internal_error",
+        "exit": 1,
+        "isError": true
+      }
+    },
+    {
+      "name": "older app answers v1 bad_request",
+      "op": "start",
+      "reply": {
+        "v": 1,
+        "ok": false,
+        "error": {
+          "code": "bad_request",
+          "message": "m"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "app_protocol_mismatch",
+        "exit": 3,
+        "isError": true
+      }
+    },
+    {
+      "name": "app restarted",
+      "op": "status",
+      "reply": {
+        "v": 2,
+        "ok": false,
+        "error": {
+          "code": "session_stale",
+          "message": "m"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "session_stale",
+        "exit": 3,
+        "isError": true
+      }
+    },
+    {
+      "name": "inspection outdated",
+      "op": "project_select",
+      "reply": {
+        "v": 2,
+        "ok": false,
+        "error": {
+          "code": "inspection_stale",
+          "message": "m"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "inspection_stale",
+        "exit": 2,
+        "isError": true
+      }
+    },
+    {
+      "name": "another sign-in runs",
+      "op": "sign_in",
+      "reply": {
+        "v": 2,
+        "ok": false,
+        "error": {
+          "code": "busy",
+          "message": "m"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "busy",
+        "exit": 5,
+        "isError": true
+      }
+    },
+    {
+      "name": "conversation must stop in the app",
+      "op": "sign_in",
+      "reply": {
+        "v": 2,
+        "ok": false,
+        "error": {
+          "code": "stop_required",
+          "message": "m"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "stop_required",
+        "exit": 5,
+        "isError": true
+      }
+    },
+    {
+      "name": "attempt owned elsewhere",
+      "op": "cancel",
+      "reply": {
+        "v": 2,
+        "ok": false,
+        "error": {
+          "code": "not_owner",
+          "message": "m"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "not_owner",
+        "exit": 5,
+        "isError": true
+      }
+    },
+    {
+      "name": "unsupported URL",
+      "op": "project_inspect",
+      "reply": {
+        "v": 2,
+        "ok": false,
+        "error": {
+          "code": "invalid_url",
+          "message": "m"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "invalid_url",
+        "exit": 2,
+        "isError": true
+      }
+    },
+    {
+      "name": "no ready agent",
+      "op": "complete",
+      "reply": {
+        "v": 2,
+        "ok": false,
+        "error": {
+          "code": "no_ready_agent",
+          "message": "m"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "no_ready_agent",
+        "exit": 5,
+        "isError": true
+      }
+    },
+    {
+      "name": "request ID reused with other arguments",
+      "op": "check",
+      "reply": {
+        "v": 2,
+        "ok": false,
+        "error": {
+          "code": "request_conflict",
+          "message": "m"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "code": "request_conflict",
+        "exit": 2,
+        "isError": true
+      }
+    }
+  ]
+}

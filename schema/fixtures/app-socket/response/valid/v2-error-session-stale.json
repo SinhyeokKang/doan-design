@@ -1,0 +1,8 @@
+{
+  "v": 2,
+  "ok": false,
+  "error": {
+    "code": "session_stale",
+    "message": "m"
+  }
+}

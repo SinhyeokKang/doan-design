@@ -1,0 +1,9 @@
+{
+  "v": 2,
+  "token": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "op": "project_select",
+  "sessionId": "s_7Hq2",
+  "requestId": "req-1",
+  "inspectionId": "insp_3",
+  "path": "/Users/sam/code/app"
+}

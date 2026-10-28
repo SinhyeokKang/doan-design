@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "ok": true,
+  "op": "check",
+  "result": {
+    "operation": {
+      "operationId": "op_9",
+      "requestId": "req-1",
+      "kind": "check",
+      "state": "succeeded",
+      "provider": "claude",
+      "error": {
+        "code": "check_failed",
+        "message": "m"
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "v": 2,
+  "ok": true,
+  "op": "project_inspect",
+  "result": {
+    "operation": {
+      "operationId": "op_9",
+      "requestId": "req-1",
+      "kind": "project_inspect",
+      "state": "succeeded"
+    }
+  }
+}

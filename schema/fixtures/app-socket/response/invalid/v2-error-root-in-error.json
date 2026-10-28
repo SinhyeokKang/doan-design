@@ -1,0 +1,9 @@
+{
+  "v": 2,
+  "ok": false,
+  "error": {
+    "code": "busy",
+    "message": "m",
+    "root": "/Users/sam/code/app"
+  }
+}
