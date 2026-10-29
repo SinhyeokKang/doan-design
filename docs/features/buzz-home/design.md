@@ -320,7 +320,7 @@ doan이 다르게 가는 점:
 - 프리미티브·토큰 점검(2026-10-29 user 요청). 초안의 새 CSS에서 리터럴을 찾아 분류했다.
   - 같은 값의 토큰이 있던 리터럴 63건 중 53건을 토큰으로 바꿨다. 아이콘 14/20px → 새 `--size-icon-sm`·`--size-icon-lg`, 미리보기 상자 32px → `--size-control-sm`, 안쪽 모서리 → `calc(var(--radius-chip) - var(--space-1))`, 입력 최소 높이 → `2 × --type-label-line-height`, 프리셋 칩 → `--size-control`, 첨부 메타 11/14px → caption 역할이다.
   - 남은 10건은 캔버스 전용(목업 그림, 포인터)이거나 출하 CSS에서 복사한 값(`.toast` bottom 20px)이다.
-  - 따로 만들었던 컴포넌트는 공용 프리미티브로 바꿨다. 그룹 탭 → `doan-button` sm(`prominent`/`trigger`), 트레이 워크트리 → `doan-button` sm `trigger`, 오류 줄 → `doan-notice error` + `doan-alert-icon`, 검색 입력 → `doan-input` sm, 토스트 → `doan-toast`.
+  - 따로 만들었던 컴포넌트는 공용 프리미티브로 바꿨다. 그룹 탭 → `doan-button` sm(`prominent`/`trigger`), 트레이 워크트리 → `doan-button` sm `trigger`, 오류·안내 줄 → `doan-notice error doan-panel` + `doan-alert-icon`(흰 패널·panel elevation·12/16px 여백·진한 글자, 온보딩 `ob-project-notice`·`ob-list-notice`와 같은 조합; 처음에 inset 회색 기본형을 썼다가 2026-10-29 사용자 지적으로 바꿈), 검색 입력 → `doan-input` sm, 토스트 → `doan-toast`.
   - 칩 × 버튼은 맞는 공용 크기가 없어서 `doan-icon-button` `xs`(24px, 새 `--size-control-xs`)를 제안했다(U0).
   - 토큰이 없는 리터럴 20건은 컴포넌트 상수로 둔다. 레이아웃 폭(입력창 680, 위 여백 152, 팝오버 580/320/300/200, 목록 최대 276, 칩 최대 280), 썸네일 20px의 모서리 5px·글자 11px(출하 썸네일 16/4/10, 온보딩 28/7/17과 같은 비율 규칙), 캔버스 창 상자(1238 × 780, 960 × 600), 출하 LNB 폭 260이다.
   - 새 토큰 세 개(`--size-icon-sm` 14, `--size-icon-lg` 20, `--size-control-xs` 24)는 DESIGN 'Tokens first' 규칙에 따라 `tokens.css`와 DESIGN.md 토큰 목록에 더했다.
