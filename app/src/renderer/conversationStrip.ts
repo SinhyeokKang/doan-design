@@ -1,5 +1,5 @@
 import type { Provider } from "../main/agentAuth/types";
-import type { ConversationEvent, PermissionRequest } from "../main/conversation/types";
+import type { ConversationEvent, PermissionOption, PermissionRequest } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
 
 // The temporary workspace strip for a Home conversation (buzz-home design §7), until buzz-conversation's panel
@@ -8,7 +8,7 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 export type StripState =
   | { kind: "starting" }
   | { kind: "working"; activity: string | null }
-  | { kind: "permission"; requestId: string; summary: string; options: { id: string; label: string }[] }
+  | { kind: "permission"; requestId: string; summary: string; options: PermissionOption[] }
   | { kind: "failed"; code: string }
   | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" }
   | { kind: "done" };
@@ -37,13 +37,22 @@ export function stripState(events: readonly ConversationEvent[]): StripState {
     }
   }
   const ask = pending[0];
-  if (!terminal && ask) return { kind: "permission", requestId: ask.requestId, summary: ask.summary, options: ask.options.map(o => ({ id: o.id, label: o.label })) };
+  if (!terminal && ask) return { kind: "permission", requestId: ask.requestId, summary: ask.summary, options: ask.options.map(o => ({ id: o.id, label: o.label, kind: o.kind })) };
   return state;
+}
+
+// The same rule as main's state.ts mergeEvents (one event per seq, this conversation only, in seq order).
+export function mergeConversationEvents(snapshot: readonly ConversationEvent[], buffered: readonly ConversationEvent[], conversationId: string): ConversationEvent[] {
+  const bySeq = new Map<number, ConversationEvent>();
+  for (const event of [...snapshot, ...buffered]) {
+    if (event.conversationId === conversationId && Number.isSafeInteger(event.seq) && event.seq > 0 && !bySeq.has(event.seq)) bySeq.set(event.seq, event);
+  }
+  return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
 }
 
 export type StripAction =
   | { command: "stop" | "editOnHome" | "dismiss" | "open"; label: string }
-  | { command: "answer"; label: string; optionId: string };
+  | { command: "answer"; label: string; optionId: string; kind: PermissionOption["kind"] };
 export interface StripContext { provider: Provider; project: string; branch: string | null; canvas: string | null }
 // live: the strip's own region; a permission request is an alert announced once per alertKey.
 export interface StripView { title: string; body: string | null; live: "status" | "alert"; alertKey: string | null; actions: StripAction[] }
@@ -66,7 +75,7 @@ export function stripView(state: StripState, ctx: StripContext): StripView {
     case "starting": return view(`Starting ${p}`, ctx.branch ? `${ctx.project} · ${ctx.branch}` : ctx.project, [stop]);
     case "working": return view(`${p} is working`, state.activity, [stop]);
     // No option is the default: Allow gets no autofocus or prominence (design §7).
-    case "permission": return { title: `${p} needs your answer`, body: state.summary, live: "alert", alertKey: state.requestId, actions: [...state.options.map(o => ({ command: "answer" as const, label: o.label, optionId: o.id })), stop] };
+    case "permission": return { title: `${p} needs your answer`, body: state.summary, live: "alert", alertKey: state.requestId, actions: [...state.options.map(o => ({ command: "answer" as const, label: o.label, optionId: o.id, kind: o.kind })), stop] };
     case "failed": {
       const copy = (Object.hasOwn(FAILURES, state.code) ? FAILURES[state.code]! : STOPPED)(p);
       return view(copy.title, copy.body, recover);

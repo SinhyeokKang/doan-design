@@ -34,15 +34,13 @@ button:disabled { color: var(--text-disabled); cursor: default; }
 button, [role="treeitem"] { outline: none; }
 button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 /* Rows sit inside scrolling lists, which would clip an outer ring, so theirs is drawn inward. */
-[role="treeitem"].row:focus-visible, .wt:focus-visible, .fb-canvas:focus-visible, .fb-item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+[role="treeitem"].row:focus-visible, .fb-canvas:focus-visible, .fb-item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 ol { list-style: none; }
 code, kbd { font-family: var(--type-family); }
 .app-shell { display: grid; grid-template-columns: 240px minmax(0, 1fr) 280px; grid-template-rows: 40px minmax(0, 1fr); height: 100%; background: var(--bg-app); }
 .top { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--surface-panel); border-bottom: 1px solid var(--border-standard); -webkit-app-region: drag; }
 .top button { -webkit-app-region: no-drag; }
 .traffic-space { width: 52px; flex: none; }
-.logo { font: 600 13px var(--type-family); display: flex; align-items: center; gap: 8px; }
-.logo i { width: 18px; height: 18px; border-radius: 5px; background: var(--text-standard); }
 .spacer { flex: 1; }
 .meta { font: 11.5px var(--type-family); color: var(--text-metadata); white-space: nowrap; }
 .breadcrumb { overflow: hidden; text-overflow: ellipsis; }
@@ -418,42 +416,9 @@ code, kbd { font-family: var(--type-family); }
 .ob-compare dd { color: var(--text-standard); overflow-wrap: anywhere; }
 .reroot-hint { padding-left: 12px; }
 
-.home-body { min-height: 0; overflow: auto; padding: 8px 32px 32px; position: relative; }
-.home-body .sec { padding: 16px 0 10px; }
-.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
-.card { background: var(--surface-panel); border: 1px solid var(--border-standard); border-radius: 10px; overflow: hidden; min-width: 0; }
-.card.flash { border-color: var(--border-focus); box-shadow: 0 0 0 1px var(--border-focus); }
-.card-head { display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 14px; min-width: 0; }
-.card-name { font: 600 13px var(--type-family); color: var(--text-standard); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card-head .meta { flex: none; }
-.more { flex: none; }
-.wt { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; padding: 8px 8px 8px 14px; border-top: 1px solid var(--border-standard); position: relative; cursor: pointer; min-width: 0; }
-.wt:hover { background: var(--surface-inset); }
-.wt[aria-current="true"] { background: var(--surface-navigation-selected); }
-.wt.problem { cursor: default; }
-.wt-label { display: flex; align-items: center; gap: 6px; min-width: 0; font: 12.5px var(--type-family); color: var(--text-standard); white-space: nowrap; }
-.wt-label .glyph { width: 12px; }
-.wt[aria-current="true"] .wt-label .glyph { color: var(--text-standard); }
-.wt-label .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.wt-label .name.path { color: var(--text-subtle); }
-.wt-end { display: flex; align-items: center; gap: 6px; justify-content: flex-end; white-space: nowrap; }
-.wt-sum { font: 11px var(--type-family); color: var(--text-metadata); white-space: nowrap; }
-.wt-sum .hot { color: var(--text-standard); font-weight: var(--type-weight-medium); }
-.wt-sum .review, .ocard-meta .review { color: var(--text-subtle); }
-.wt-sum > span, .ocard-meta > span { white-space: nowrap; }
-/* A row too narrow for its summary beside the branch (measureNarrow): the
-   summary takes the whole second line and wraps between items; the row menu
-   stays at the end of the first. */
-.wt.narrow .wt-end { display: contents; }
-.wt.narrow .wt-end > .more { grid-column: 2; grid-row: 1; }
-.wt.narrow .wt-sum { grid-column: 1 / -1; grid-row: 2; white-space: normal; padding-left: 18px; }
-.wt-path { grid-column: 1 / 2; font: 11px var(--type-family); color: var(--text-metadata); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 18px; }
-.wt-sel { grid-column: 1 / -1; font: 11px var(--type-family); color: var(--text-subtle); padding-left: 18px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wt-sel b { color: var(--text-standard); font-weight: 500; }
-.open-tag { flex: none; font: 600 10px var(--type-family); color: var(--text-standard); background: var(--surface-navigation-selected); border-radius: 4px; padding: 1px 6px; }
+.ocard-meta .review { color: var(--text-subtle); }
+.ocard-meta > span { white-space: nowrap; }
 .wt-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; padding-left: 18px; margin-top: 3px; }
-.wt-detail { grid-column: 1 / -1; margin: 4px 0 0 18px; }
-.wt-detail code { color: var(--text-subtle); background: var(--surface-inset); border-radius: 4px; padding: 0 4px; }
 
 .doan-menu-item .label { flex: none; }
 .menu[aria-label="Worktrees"] .label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -499,9 +464,7 @@ code, kbd { font-family: var(--type-family); }
 .ws-status .text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .ws-status .text code { color: var(--text-subtle); background: var(--surface-panel); border-radius: 4px; padding: 0 4px; }
 
-.home-shell { background: var(--bg-app); overflow: hidden; position: absolute; inset: 0; display: grid; grid-template-rows: 40px minmax(0, 1fr); }
 .workspace { position: absolute; inset: 0; }
-.wt { width: 100%; text-align: left; }
 
 .menu[role="menu"] { position: relative; outline: none; z-index: 20; }
 .add-dialog .cl { max-height: 50vh; overflow-y: auto; }
@@ -606,32 +569,6 @@ code, kbd { font-family: var(--type-family); }
 .empty .fp-card :is(.fp-error, .ob-msg.error) { max-width: none; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-danger); }
 .fp-none { display: flex; align-items: center; gap: 12px; }
 .fp-none p { flex: 1; font-size: 11.5px; line-height: 1.5; color: var(--text-metadata); }
-
-/* app-setup: home connection */
-.conns { display: flex; align-items: center; gap: 6px; }
-.conn { display: inline-flex; align-items: center; gap: 6px; font: 11.5px var(--type-family); color: var(--text-subtle); border: 1px solid var(--border-standard); border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
-.conn .st { color: var(--text-metadata); }
-.conn-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--text-success); }
-.conn-dot.warn { background: var(--text-warning); }
-.conn-dot.off { background: transparent; border: 1px solid var(--text-disabled); }
-.conn-dot.unknown { background: transparent; border: 1px solid var(--border-warning); }
-.ws-status.banner .text { white-space: normal; color: var(--text-standard); }
-.ws-status.banner .text .line { display: block; }
-.finish { background: var(--surface-panel); border: 1px solid var(--border-standard); border-radius: 10px; margin-top: 16px; overflow: hidden; }
-.finish-head { display: flex; align-items: baseline; gap: 10px; padding: 12px 14px 10px; }
-.finish-head h2 { font: 600 13px var(--type-family); color: var(--text-standard); }
-.finish-item { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 9px 14px; border-top: 1px solid var(--border-standard); }
-.finish-item .glyph { grid-row: 1 / 3; align-self: start; padding-top: 1px; font-size: 11px; }
-.finish-item b { font-size: 12px; font-weight: 500; color: var(--text-standard); }
-.finish-item p { grid-column: 2; font-size: 11.5px; line-height: 1.5; color: var(--text-metadata); }
-.finish-item .doan-button { grid-column: 3; grid-row: 1 / 3; }
-
-
-.home-shell.with-setup-banner { grid-template-rows: 40px auto minmax(0, 1fr); }
-.home-body.with-finish { display: flex; flex-direction: column; }
-.home-body.with-finish > .empty { position: relative; flex: 1; min-height: 240px; }
-
-.finish.empty-home { max-width: 640px; width: 100%; align-self: center; }
 
 /* project-feedback: the Overview's Feedback panel (.doan/canvases/project-feedback.html, feedback-panel, feedback-states, orphan-cards). */
 .feedback { display: flex; flex-direction: column; min-height: 0; overflow: auto; background: var(--surface-panel); overflow-wrap: anywhere; }
@@ -738,6 +675,133 @@ body:has(.shell-top) { background: transparent; }
   body:has(.shell-top), .workspace.app-shell { background: var(--bg-app); }
 }
 
-.home-shell:has(.shell-top) { grid-template-rows: var(--size-chrome) minmax(0, 1fr); background: transparent; }
-.home-shell.with-setup-banner:has(.shell-top) { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
-.home-shell:has(.shell-top) > .home-body { background: var(--bg-app); }
+
+/* buzz-home: Home is the workspace's shell with the conversation composer as its body (.doan/canvases/buzz-home.html,
+   confirmed 2026-10-29). Shared buttons keep their own padding and fills; this only lays them out. */
+.home-shell { position: absolute; inset: 0; display: grid; grid-template-columns: 260px minmax(0, 1fr); grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); background: transparent; overflow: hidden; }
+@media (prefers-reduced-transparency: reduce) { .home-shell { background: var(--bg-app); } }
+/* Over the composer the window's project drop gives way, so the composer's own drag events decide (design §4.8). */
+.home-shell ~ .drop { pointer-events: none; }
+.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+/* Home's own atmosphere (2026-10-29 user): a wide violet ellipse spreading from the composer's centre, smooth and
+   still; unlike Welcome's bottom glow it has no grain. The panel clips it at its corners. */
+.home-atmosphere { position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; background: radial-gradient(ellipse 78% 64% at 50% 60%, color-mix(in srgb, var(--affordance-accent) 24%, transparent) 0%, color-mix(in srgb, var(--affordance-accent) 15%, transparent) 32%, color-mix(in srgb, var(--affordance-accent) 6%, transparent) 62%, transparent 100%); }
+@media (prefers-reduced-transparency: reduce) { .home-atmosphere { opacity: .6; } }
+@media (forced-colors: active) { .home-atmosphere { display: none; } }
+.home-stage { min-height: 100%; display: flex; flex-direction: column; align-items: center; padding: 152px var(--space-8) var(--space-8); }
+.home-greeting { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); color: var(--text-standard); text-align: center; }
+.home-composer { position: relative; width: min(680px, 100%); margin-top: var(--space-10); }
+.home-project { gap: var(--space-2); margin: 0 0 var(--space-2) var(--space-2); font-weight: var(--type-weight-medium); }
+/* A 20px project mark keeps the shipped thumbnail ratio (16/4/10 in the sidebar). */
+:is(.home-project, .project-item) .shell-thumbnail { width: var(--size-icon-lg); height: var(--size-icon-lg); border-radius: 5px; font-size: 11px; line-height: var(--size-icon-lg); }
+.chev { width: var(--space-4); height: var(--space-4); color: var(--text-metadata); }
+.logo { width: var(--size-icon); height: var(--size-icon); object-fit: contain; flex: none; }
+/* Card inside a tray, after the Antigravity reference (user screenshot, 2026-10-29). */
+.composer { position: relative; border-radius: var(--radius-container); background: var(--surface-inset); box-shadow: var(--shadow-panel); }
+.composer-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-standard); }
+/* A text field shows focus with its own border (DESIGN 'Focus'). */
+.composer-card:focus-within { box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-prominent); }
+.composer-chips { display: flex; flex-wrap: wrap; gap: var(--space-1h); }
+/* Grows with the text up to eight lines, then scrolls inside the card (design §4.1). */
+.composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; resize: none; field-sizing: content; overflow-y: auto; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+.composer-input::placeholder { color: var(--text-metadata); }
+.composer-card.readonly .composer-input { color: var(--text-subtle); }
+.composer-count { align-self: flex-end; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
+.composer-count.over { color: var(--text-danger); }
+.composer-tools { position: relative; display: flex; align-items: center; gap: var(--space-1); margin-left: calc(-1 * var(--space-1)); }
+.composer-tools .grow { flex: 1; }
+.composer-tools > .doan-icon-button:not(.composer-send) { color: var(--text-standard); }
+.composer-agent { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.composer-agent .muted { color: var(--text-metadata); }
+.composer-effort { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.composer-effort svg:not(.chev) { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.composer-send .doan-spinner { color: var(--text-on-accent); }
+.composer-tray { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: var(--space-1) var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
+.composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-regular); color: var(--text-subtle); }
+.composer-tray :is(.doan-button, .tray-branch) svg:not(.chev) { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* One worktree: the branch is read-only text in the trigger's place (design §4.2). */
+.tray-branch { display: inline-flex; align-items: center; gap: var(--space-1h); }
+.tray-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-metadata); }
+/* Chips: neutral fill, like the shared .doan-chip, sized for a thumbnail. */
+.attach-chip, .preset-chip { display: inline-flex; align-items: center; gap: var(--space-2); max-width: 256px; min-width: 0; border-radius: var(--radius-chip); background: var(--surface-inset); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-standard); }
+.attach-chip { padding: var(--space-1); }
+.attach-chip .thumb { position: relative; width: var(--size-control-sm); height: var(--size-control-sm); flex: none; overflow: hidden; border-radius: calc(var(--radius-chip) - var(--space-1)); background: var(--surface-panel); }
+.attach-chip .thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.file-icon { display: grid; place-items: center; width: var(--size-control-sm); height: var(--size-control-sm); flex: none; border-radius: calc(var(--radius-chip) - var(--space-1)); background: var(--surface-panel); color: var(--text-subtle); }
+.file-icon svg, .file-icon .doan-spinner { width: var(--size-icon); height: var(--size-icon); }
+.attach-text { display: flex; flex-direction: column; min-width: 0; }
+.attach-text b { font-weight: var(--type-weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-text small { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
+.attach-chip.problem :is(.file-icon, small) { color: var(--text-danger); }
+/* The remove button is the shared icon button xs; only its ink is set here. */
+.chip-remove.doan-icon-button { color: var(--text-metadata); }
+/* Accent marks the chosen preset only (2026-10-29 user); the preset button, tabs and suggestions stay neutral so Send keeps the strongest accent. */
+.preset-chip { height: var(--size-control); padding: 0 var(--space-1) 0 var(--space-3); font-weight: var(--type-weight-medium); background: var(--surface-accent-subtle); color: var(--text-accent-subtle); }
+.preset-chip > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: currentColor; }
+.preset-chip .chip-remove.doan-icon-button { color: currentColor; }
+/* Popovers: shared floating material and menu rows (ds/surfaces.css); the preset popover has search and tabs, so it is wider than a menu. */
+.preset-popover { width: 600px; max-width: calc(100vw - var(--space-4)); }
+/* The / list keeps focus in the field, so it is drawn in place rather than as a focus-taking popover. */
+.slash-popover { position: absolute; z-index: 2; bottom: calc(100% + var(--space-2)); left: var(--space-8); }
+.agent-popover { width: 300px; }
+.effort-popover { width: 200px; }
+.project-popover { width: 320px; }
+.popover-search { position: relative; display: block; margin-bottom: var(--space-1); }
+.popover-search > svg { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-metadata); }
+.popover-search .doan-input { width: 100%; padding-left: calc(var(--space-3) + var(--size-icon) + var(--space-2)); }
+.popover-list { max-height: 276px; overflow: auto; }
+/* Groups as one row of tabs in the header's mode capsule (round 1 revision): a backdrop capsule, the current tab raised white. */
+.group-tabs.shell-modes { position: static; transform: none; display: flex; width: max-content; max-width: 100%; margin: var(--space-1) var(--space-1) var(--space-2); }
+.group-tabs.shell-modes button { gap: var(--space-1h); padding: 0 var(--space-3); }
+.group-tabs.shell-modes svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.preset-item { gap: var(--space-3); }
+.preset-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preset-item .sub { flex: none; font-size: var(--type-caption-size); }
+.popover-state { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-3); color: var(--text-subtle); }
+.popover-actions { display: flex; justify-content: flex-end; padding-top: var(--space-2); }
+.agent-group { padding: var(--space-1) 0; }
+.agent-head { display: flex; align-items: center; gap: var(--space-2); }
+.agent-note { display: inline-flex; align-items: center; gap: var(--space-1h); margin-left: auto; }
+:is(.model-item, .project-item, .effort-popover .doan-menu-item) { display: flex; align-items: center; gap: var(--space-2); }
+.model-name { flex: 1; min-width: 0; }
+.model-item .sub { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--type-caption-size); }
+.inline { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.check-slot { display: inline-flex; width: var(--size-icon); justify-content: center; }
+.menu-note { padding: var(--space-1) var(--space-3) var(--space-2); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
+/* Drop target (2026-10-29 user): a white, translucent, blurred cover over the whole composer (card and tray) with a dashed accent outline; no text or icon. */
+.drop-target { position: absolute; inset: 0; z-index: 2; border-radius: inherit; background: color-mix(in srgb, var(--surface-panel) 55%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); outline: 2px dashed var(--affordance-accent); outline-offset: -2px; }
+@media (prefers-reduced-transparency: reduce) { .drop-target { -webkit-backdrop-filter: none; backdrop-filter: none; background: color-mix(in srgb, var(--surface-panel) 85%, transparent); } }
+.composer-reason { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
+.composer-notice { margin-top: var(--space-3); align-items: center; }
+.grow-text { flex: 1; min-width: 0; }
+/* Suggested prompts under the composer: they wrap instead of shortening (2026-10-29 user). */
+.home-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin-top: var(--space-4); padding-inline: var(--space-8); }
+.suggestion { max-width: 100%; gap: var(--space-1h); padding-inline: var(--space-3) var(--space-4); font-weight: var(--type-weight-regular); }
+.suggestion span { overflow: hidden; text-overflow: ellipsis; }
+/* The suggestion's group icon carries the accent; its sentence stays standard ink (2026-10-29 user). */
+.suggestion svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--affordance-accent); }
+
+/* buzz-home: the temporary Home-conversation strip at the top of the workspace body (design §7), on the same white panel. */
+.workspace.with-strip { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
+.workspace.with-status.with-strip { grid-template-rows: var(--size-chrome) auto auto minmax(0, 1fr); }
+.workspace.with-strip > :is(.side, .right-stack) { grid-row: -3 / -1; }
+.workspace > .strip-slot { grid-column: 2; grid-row: -3; z-index: 2; margin-left: var(--space-2); padding: var(--space-3) var(--space-3) 0; background: var(--surface-panel); border-radius: var(--radius-container) 0 0 0; }
+.workspace.with-strip > :is(.area, .ov) { border-top-left-radius: 0; }
+.convo-strip.doan-notice { align-items: center; gap: var(--space-3); }
+.strip-agent { display: inline-grid; place-items: center; flex: none; }
+.strip-agent .logo, .strip-alert, .strip-ok { width: var(--size-icon-lg); height: var(--size-icon-lg); }
+.strip-alert { color: var(--text-danger); }
+.strip-ok { color: var(--text-success); }
+.strip-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.strip-text b { font-weight: var(--type-weight-medium); }
+.strip-text span { color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strip-actions { display: flex; align-items: center; gap: var(--space-2); }
+
+/* buzz-home: the sidebar row's status slot (design §7.2), at the right of the row before its menu, and an added project's flash (§6). */
+.row-slot { display: inline-grid; place-items: center; width: var(--size-icon); height: var(--size-icon); flex: none; margin-left: auto; }
+.shell-project-row .row-slot { margin-left: 0; }
+.row-slot.permission { color: var(--affordance-accent); }
+.row-slot svg { width: var(--size-icon); height: var(--size-icon); }
+.row-slot .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.row-slot.unseen i { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); }
+.shell-side .shell-project-row.flash { box-shadow: inset 0 0 0 2px var(--border-focus); }

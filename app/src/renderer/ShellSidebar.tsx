@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Check, CircleMinus, Ellipsis, FolderOpen, GitBranch, LayoutGrid, Palette, Search, Settings } from "lucide-react";
+import { Check, CircleMinus, Ellipsis, FolderOpen, GitBranch, Hand, LayoutGrid, Palette, Search, Settings } from "lucide-react";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 import { cardRow, type HomeCard, type RowAction } from "./homeCards";
@@ -9,6 +9,7 @@ import { rowProblem } from "./Sidebar";
 import { typeaheadNext } from "./canvasTree";
 import { ErrorDetails } from "./ErrorDetails";
 import { displayPath } from "./projectDisplay";
+import { slotKey, type Slot } from "./homeConversations";
 
 interface Props {
   cards: HomeCard[];
@@ -24,6 +25,27 @@ interface Props {
   overview(root: string): void;
   action(action: RowAction, root: string): void;
   remove(roots: string[]): Promise<void>;
+  // On Home the sidebar marks no current project or canvas (buzz-home design §3).
+  home?: boolean;
+  // Home-conversation states by slotKey (design §7.2) and roots to flash after an add (design §6).
+  slots?: ReadonlyMap<string, Slot>;
+  highlight?: readonly string[];
+}
+const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1 };
+// A project row shows its roots' own slots, and a bound canvas's slot while that canvas row is not on screen, so a
+// permission request in a collapsed project is never hidden.
+export function projectSlot(slots: ReadonlyMap<string, Slot>, roots: readonly string[], shownCanvases: readonly string[]): Slot | undefined {
+  let best: Slot | undefined;
+  for (const [key, slot] of slots) {
+    const root = key.split("\n")[0]!;
+    if (!roots.includes(root) || shownCanvases.includes(key)) continue;
+    if (!best || RANK[slot.kind] > RANK[best.kind]) best = slot;
+  }
+  return best;
+}
+function SlotMark({ slot }: { slot: Slot | undefined }) {
+  if (!slot) return null;
+  return <span className={`row-slot ${slot.kind}`} role="img" aria-label={slot.label}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : <i />}</span>;
 }
 const canvasOrder = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 const sortedCanvases = (rows: CanvasRow[]) => [...rows].sort((a, b) => {
@@ -114,18 +136,20 @@ export function ShellSidebar(props: Props) {
         const project: ShellProject = { ...(projects[card.key] ?? { expanded: false }), roots: card.rows.map(row => row.path) };
         const selected = (card.rows.some(row => row.path === loaded) ? loaded : card.rows.some(row => row.path === project.selectedRoot) ? project.selectedRoot : undefined) ?? card.rows[0]?.path;
         const entry = card.rows.find(row => row.path === selected) ?? card.rows[0]!;
-        const expanded = projectExpanded(project, loaded), current = card.rows.some(row => row.path === loaded);
+        const expanded = projectExpanded(project, loaded), current = !props.home && card.rows.some(row => row.path === loaded);
+        const shown = expanded && entry.kind === "list" ? entry.canvases.map(row => slotKey(entry.path, row.path)) : [];
         const info = cardRow(entry, loaded, null);
         const menuEntry = (menu === card.key && card.rows.find(row => row.path === repairRoot)) || entry;
         const menuInfo = cardRow(menuEntry, loaded, null);
         const target = () => live.current.cards.find(item => item.key === card.key)?.rows.find(row => row.path === menuEntry.path);
         const run = (action: () => void) => { if (target()) action(); };
         return <div className="shell-project" key={card.key}>
-          <div ref={rowRef(card.key)} className="shell-project-row row" role="treeitem" data-key={card.key} aria-label={card.name} aria-level={1} aria-expanded={expanded} aria-current={current && !canvas && !props.unlisted ? "location" : undefined} tabIndex={active === card.key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(card.key); }} onKeyDown={event => keyboard(event, card.key)} onClick={() => props.toggle(card.key)}>
+          <div ref={rowRef(card.key)} className={`shell-project-row row${card.rows.some(row => props.highlight?.includes(row.path)) ? " flash" : ""}`} role="treeitem" data-key={card.key} aria-label={card.name} aria-level={1} aria-expanded={expanded} aria-current={current && !canvas && !props.unlisted ? "location" : undefined} tabIndex={active === card.key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(card.key); }} onKeyDown={event => keyboard(event, card.key)} onClick={() => props.toggle(card.key)}>
             <span className={`shell-thumbnail hue-${projectHue(card.name)}`} aria-hidden="true">{projectInitial(card.name)}</span>
             <span className="shell-project-name">{card.name}</span>
             {info.summary?.branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{info.summary.branch}</span></span>}
             {info.chip && <span className="shell-problem">{info.chip}</span>}
+            <SlotMark slot={props.slots && projectSlot(props.slots, card.rows.map(row => row.path), shown)} />
             <DropdownMenu.Root open={menu === card.key} onOpenChange={open => { setMenu(open ? card.key : null); if (open) { setRepairRoot(null); menuIndex.current = index; menuRoot.current = entry.path; } }}>
               <DropdownMenu.Trigger asChild><button className="doan-icon-button shell-more" aria-label={`${card.name} menu`} tabIndex={active === card.key ? 0 : -1} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger>
               <DropdownMenu.Portal><DropdownMenu.Content className="menu doan-floating doan-menu shell-project-menu" sideOffset={4} collisionPadding={8} align="end" onClick={event => event.stopPropagation()} onCloseAutoFocus={event => {
@@ -156,7 +180,7 @@ export function ShellSidebar(props: Props) {
             {entry.kind === "list" ? entry.canvases.length ? sortedCanvases(entry.canvases).map((row, canvasIndex) => {
               const descriptionId = `${descriptionPrefix}-${index}-${canvasIndex}`;
               const key = `${entry.path}\n${row.path}`, problem = rowProblem(row);
-              return <div key={key}><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem || row.open > 0 ? descriptionId : undefined} aria-label={row.path.split("/").at(-1)?.replace(/\.html$/, "")} data-key={key} role="treeitem" aria-level={2} aria-current={entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => props.open(entry.path, row)}><Palette aria-hidden="true" /><span>{row.path.split("/").at(-1)?.replace(/\.html$/, "")}</span>{!problem && row.open > 0 && <span id={descriptionId} className="sr-only">{row.open} open {row.open === 1 ? "comment" : "comments"}</span>}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre>{detail}</pre>}</>}</ErrorDetails></div>}</div>;
+              return <div key={key}><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem || row.open > 0 ? descriptionId : undefined} aria-label={row.path.split("/").at(-1)?.replace(/\.html$/, "")} data-key={key} role="treeitem" aria-level={2} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => props.open(entry.path, row)}><Palette aria-hidden="true" /><span>{row.path.split("/").at(-1)?.replace(/\.html$/, "")}</span><SlotMark slot={props.slots?.get(slotKey(entry.path, row.path))} />{!problem && row.open > 0 && <span id={descriptionId} className="sr-only">{row.open} open {row.open === 1 ? "comment" : "comments"}</span>}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre>{detail}</pre>}</>}</ErrorDetails></div>}</div>;
             }) : <p className="shell-empty">No canvases yet</p> : <p className="shell-empty">{info.chip}</p>}
           </div>}
         </div>;

@@ -30,7 +30,17 @@ import { ProjectOverview, useThumbnails } from "./ProjectOverview";
 import { QuickOpen } from "./QuickOpenDialog";
 import { unavailableCanvasMessage, type SearchResult } from "./quickOpen";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
-import type { UiState, ShellProject } from "../restore/uiState";
+import type { HomeMemory, UiState, ShellProject } from "../restore/uiState";
+import type { ConversationEvent } from "../main/conversation/types";
+import { emptyComposer, type StartInput, type StartOutcome } from "./HomeComposerView";
+import { ConversationStrip } from "./ConversationStripView";
+import { mergeConversationEvents, stripState, stripView, type StripState } from "./conversationStrip";
+import {
+  arrivalOutcome, boundCanvasAction, conversationPhase, newCanvasCandidates, permissionToastKey, rememberRequest, removalConfirm, slotKey, slotState,
+  type ArrivalEvent, type HomeConversation, type LastRequest, type PendingArrival,
+} from "./homeConversations";
+import { PROVIDER_NAMES } from "./agentAuthView";
+import { newCanvasText } from "./firstPromptView";
 
 // Each command names its handler; one App does not know does nothing, so a
 // new menu item can never run the Undo toast's action (R-M ⚪5).
@@ -42,6 +52,21 @@ export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen
   else if (name === "previousResolved") to.review("previous");
 }
 
+// Main replaces the main window's ui-state wholesale on each save, so every save carries Home's memory, and none is
+// sent before that memory was read (it would be dropped).
+export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"] }): UiState | null {
+  const { screen, loadedRoot, open, expanded, shellProjects, home, view } = input;
+  if (home === null) return null;
+  const canvas = open && open.folder === loadedRoot ? open.canvas : undefined;
+  const canvasId = canvas ? open?.row.id : undefined;
+  // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
+  const lastByRoot = { ...input.memory, ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
+  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}) };
+}
+
+// First run's project handoff puts focus in the Home composer, ahead of the focus held before the wizard (§4.9).
+export function wizardCloseFocus(root: string | null): "composer" | "previous" { return root ? "composer" : "previous"; }
+
 export function validHistoryVisit(entries: readonly FolderEntry[], visit: Visit): boolean {
   const entry = entries.find(entry => entry.path === visit.root);
   return !!entry && entry.kind !== "notFound" && (entry.kind !== "list" || !visit.canvas || entry.canvases.some(row => row.path === visit.canvas));
@@ -52,14 +77,12 @@ export function App() {
   const [screen, setScreen] = useState<"home" | "workspace">("home");
   const [locating, setLocating] = useState<{ from: string; root: string | null } | null>(null);
   const [loadedRoot, setLoadedRoot] = useState<string | null>(null);
-  const [rerootHint, setRerootHint] = useState<{ root: string; message: string; seen?: FolderEntry } | null>(null);
   const [highlight, setHighlight] = useState<string[]>([]);
   const [scan, setScan] = useState<string | null>(null);
   const [confirms, setConfirms] = useState<AddOutcome["confirms"]>([]);
   const [setup, setSetup] = useState<string | null>(null);
   const beforeModal = useRef<HTMLElement | null>(null);
   const focusAfterModal = useRef(false);
-  const focusModalPath = useRef<string | null>(null);
   const toast = useToast(previous => {
     if (document.activeElement === document.body || !document.activeElement?.isConnected) focusCurrent(previous);
   });
@@ -92,15 +115,36 @@ export function App() {
   // The saved ui state until the restore is applied, then "done"; null while it is read.
   const [restore, setRestore] = useState<{ state: UiState | null; started: number } | "done" | null>(null);
   const restoreCancelled = useRef(false);
-  const cancelRestore = () => { navigationIntent.current++; restoreCancelled.current = true; setRestore("done"); };
+  const cancelRestore = () => { navigationIntent.current++; restoreCancelled.current = true; setRestore("done"); arrive({ kind: "navigated" }); };
   const recoveryFocus = useRef<{ element: HTMLElement; root: string } | null>(null);
+  // Home (buzz-home): the composer's run memory, ui-state's Home memory (null until read), the first-run handoff and
+  // an added project to choose. Home conversations, their strip states and last requests live for this run only.
+  const composerMemory = useRef(emptyComposer());
+  const [homeMemory, setHomeMemory] = useState<HomeMemory | null>(null);
+  const [handoff, setHandoff] = useState<string | null>(null);
+  const [select, setSelect] = useState<{ root: string; seq: number } | null>(null);
+  const choose = (root: string | undefined) => { if (root) setSelect(previous => ({ root, seq: (previous?.seq ?? 0) + 1 })); };
+  const [homeRun, setHomeRun] = useState<{ conversations: HomeConversation[]; strips: Record<string, StripState> }>({ conversations: [], strips: {} });
+  const homeRunRef = useRef(homeRun); homeRunRef.current = homeRun;
+  const conversationEvents = useRef(new Map<string, ConversationEvent[]>());
+  const unclaimedEvents = useRef<ConversationEvent[]>([]);
+  const homeExtras = useRef(new Map<string, { atStart: string[]; checked: string[]; openedOther: boolean; toasted: string | null }>());
+  const [lastRequests, setLastRequests] = useState<ReadonlyMap<string, LastRequest>>(new Map());
+  const [restoreHome, setRestoreHome] = useState<{ request: LastRequest; seq: number } | null>(null);
+  const [dismissedStrips, setDismissedStrips] = useState<ReadonlySet<string>>(new Set());
+  const [visits, setVisits] = useState<ReadonlyMap<string, number>>(new Map());
+  const clock = useRef(0);
+  const arrival = useRef<PendingArrival | null>(null);
+  const focusStrip = useRef(false);
+  const focusComposer = useRef(false);
+  const [removing, setRemoving] = useState<{ paths: string[]; conversations: string[]; title: string; body: string; cancel: string; confirm: string } | null>(null);
   function focusCurrent(previous: HTMLElement | null = null) {
     if (document.querySelector("dialog[open]")) return;
     const scope = currentScreen.current === "home" ? ".home-shell" : ".workspace";
     const usable = (node: HTMLElement | null): node is HTMLElement => !!node && node.isConnected && !!node.closest(scope)
       && !node.closest('[inert], [hidden], [aria-hidden="true"]') && !node.matches(":disabled")
       && node.getClientRects().length > 0 && getComputedStyle(node).visibility === "visible";
-    const selectors = currentScreen.current === "home" ? ['.home-body [data-path][tabindex="0"]', '.home-shell button']
+    const selectors = currentScreen.current === "home" ? [".home-shell .composer-input", ".home-shell button"]
       : ['.side [role="treeitem"][tabindex="0"]', '.shell-search', '.workspace .top button'];
     const fallback = selectors.flatMap(selector => Array.from(document.querySelectorAll<HTMLElement>(selector)));
     (usable(previous) ? previous : fallback.find(usable))?.focus();
@@ -161,6 +205,7 @@ export function App() {
     return () => { current = false; };
   }, []);
   useEffect(() => {
+    if (wizard === null && focusComposer.current) { focusComposer.current = false; document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus(); return; }
     if (wizard !== null || !restoreFocus.current) return;
     restoreFocus.current = false;
     const previous = beforeWizard.current;
@@ -186,9 +231,10 @@ export function App() {
   useEffect(() => {
     controller.current?.setWorkspaceActive(screen === "workspace");
     if (screen === "home") {
-      const rows = Array.from(document.querySelectorAll<HTMLElement>(".home-body [data-path]"));
-      (rows.find(row => row.dataset.path === loadedRoot) ?? rows[0])?.focus();
+      document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus();
     } else {
+      // A Home send lands on the strip's first action (design §4.9).
+      if (focusStrip.current) { focusStrip.current = false; const first = document.querySelector<HTMLElement>(".workspace .convo-strip .strip-actions button"); if (first) { first.focus(); return; } }
       if (comments.session.draft.draft) { document.querySelector<HTMLTextAreaElement>(".comments-panel textarea")?.focus(); return; }
       const previous = workspaceFocus.current;
       (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus();
@@ -208,6 +254,9 @@ export function App() {
   useEffect(() => {
     let active = true;
     void window.doan.readUiState().then(state => state, () => null).then(state => {
+      // Main replaces the whole state on each save, so Home's memory is kept even when the restore was cancelled.
+      // A send that finished before this read keeps its newer choices over the saved ones.
+      if (active) setHomeMemory(previous => ({ ...state?.home, ...previous }));
       if (active && !restoreCancelled.current) setRestore({ state, started: performance.now() });
     });
     return () => { active = false; };
@@ -249,21 +298,15 @@ export function App() {
   // quit, while a value still waiting here would be lost to a quick ⌘Q.
   const save = () => {
     if (restore !== "done") return;
-    const { screen, loadedRoot, open, expanded, shellProjects } = persisted.current;
     const instance = controller.current;
     if (!instance) return;
-    const canvas = open && open.folder === loadedRoot ? open.canvas : undefined;
-    const canvasId = canvas ? open?.row.id : undefined;
-    const view = instance.currentView();
-    // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
-    const lastByRoot = { ...instance.memory(), ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
-    const state: UiState = { screen, expanded, shellProjects, lastByRoot, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}) };
-    void window.doan.saveUiState(state).then(saved => { if (!saved) console.error("doan: UI state was not saved"); }).catch(console.error);
+    const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory() });
+    if (state) void window.doan.saveUiState(state).then(saved => { if (!saved) console.error("doan: UI state was not saved"); }).catch(console.error);
   };
-  const persisted = useRef({ screen, loadedRoot, open: state.open, expanded, shellProjects });
-  persisted.current = { screen, loadedRoot, open: state.open, expanded, shellProjects };
+  const persisted = useRef({ screen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory });
+  persisted.current = { screen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory };
   // At commit, so a change already on screen has been sent.
-  useLayoutEffect(save, [restore, screen, loadedRoot, state.open, expanded, shellProjects]);
+  useLayoutEffect(save, [restore, screen, loadedRoot, state.open, expanded, shellProjects, homeMemory]);
   const completeNavigation = (root: string, cursor?: number) => {
     const visit = controller.current?.destination(root);
     if (!visit || !entriesRef.current.some(entry => entry.path === root)) return;
@@ -320,7 +363,9 @@ export function App() {
     else showShellOverview(visit.root, cursor);
   };
   const toggleProject = async (key: string) => {
-    const group = cards.find(card => card.key === key); if (!group || group.rows.some(row => row.path === loadedRoot)) return;
+    const group = cards.find(card => card.key === key); if (!group) return;
+    // Home shows the sidebar without a current project; its row goes back to the loaded workspace (design §3).
+    if (loadedRoot && group.rows.some(row => row.path === loadedRoot)) { if (currentScreen.current === "home") enter(loadedRoot); return; }
     cancelRestore(); controller.current?.cancelWorkspaceOpen();
     const memory = { ...(shellRef.current[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) };
     if (memory.expanded) { setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: false } })); return; }
@@ -339,17 +384,16 @@ export function App() {
   const search = () => { cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); };
 
 
-  const modal = wizard !== null || !!comments.dialog || setup !== null || scan !== null || confirms.length > 0 || quickOpen;
+  const modal = wizard !== null || !!comments.dialog || setup !== null || scan !== null || confirms.length > 0 || quickOpen || removing !== null;
   useLayoutEffect(() => { toast.setModal(modal); }, [modal]);
-  const live = useRef({ home, enter, toast, modal, save, comments, completeNavigation });
-  live.current = { home, enter, toast, modal, save, comments, completeNavigation };
-  const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement.closest<HTMLElement>(".home-body [data-path]") ?? document.activeElement : null; };
+  const live = useRef({ home, enter, toast, modal, save, comments, completeNavigation, openConversation: (_id: string) => {}, refreshConversation: (_id: string) => {} });
+  live.current = { ...live.current, home, enter, toast, modal, save, comments, completeNavigation };
+  const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
     if (modal || !focusAfterModal.current) return;
     focusAfterModal.current = false;
-    const previous = (focusModalPath.current ? Array.from(document.querySelectorAll<HTMLElement>(".home-body [data-path]")).find(row => row.dataset.path === focusModalPath.current) : null) ?? beforeModal.current;
-    focusModalPath.current = null;
+    const previous = beforeModal.current;
     focusCurrent(previous);
   }, [modal, entries]);
   useLayoutEffect(() => {
@@ -359,46 +403,41 @@ export function App() {
     if (lost.element.isConnected && !lost.element.matches(":disabled")) return;
     recoveryFocus.current = null;
     if (document.activeElement !== document.body && document.activeElement?.isConnected) return;
-    const row = Array.from(document.querySelectorAll<HTMLElement>(".home-body [data-path]")).find(row => row.dataset.path === lost.root);
-    focusCurrent(row ?? null);
+    focusCurrent(null);
   }, [entries, modal]);
   useEffect(() => {
     if (setup && !entries.some(entry => entry.path === setup && (entry.kind === "uninitialized" || entry.kind === "loading"))) {
       const root = reroot?.from === setup ? reroot.root : setup;
-      focusModalPath.current = root;
-      beforeModal.current = Array.from(document.querySelectorAll<HTMLElement>(".home-body [data-path]")).find(row => row.dataset.path === root) ?? null;
+      choose(root);
       setSetup(null); modalClosed();
     }
   }, [setup, entries, reroot]);
-  useEffect(() => {
-    if (!rerootHint) return;
-    const entry = entries.find(entry => entry.path === rerootHint.root);
-    if (!entry) setRerootHint(null);
-    else if (!rerootHint.seen || rerootHint.seen.kind === "loading") { if (entry !== rerootHint.seen) setRerootHint({ ...rerootHint, seen: entry }); }
-    else if (entry !== rerootHint.seen) setRerootHint(null);
-  }, [entries, rerootHint]);
   useEffect(() => { if (!highlight.length) return; const timer = setTimeout(() => setHighlight([]), 2400); return () => clearTimeout(timer); }, [highlight]);
   const added = (paths: string[]) => {
     const root = paths.at(-1);
     if (!root) return;
-    if (currentScreen.current === "home") setHighlight(paths);
+    // Home chooses the first added root in the composer and flashes its sidebar row (design §6).
+    if (currentScreen.current === "home") { setHighlight(paths); choose(paths[0]); }
     else live.current.toast.show(paths.length === 1 ? `Added ${root.split("/").at(-1)}` : `Added ${paths.length} projects`, "Open", () => {
       cancelRestore();
       controller.current?.openWorkspace(root, next => { workspaceFocus.current = null; completeNavigation(next); }, false,
-        () => { live.current.home(); setHighlight([root]); });
+        () => { live.current.home(); setHighlight([root]); choose(root); });
     });
   };
   useEffect(() => window.doan.onAddOutcome(outcome => {
     // Add Project… and drops are off while first run is open (modal); a late outcome is not shown behind it.
     if (wizardOpen.current) return;
     added(outcome.added);
-    if (outcome.duplicate) { live.current.home(); setHighlight([...outcome.added, outcome.duplicate]); }
+    if (outcome.duplicate) { live.current.home(); setHighlight([...outcome.added, outcome.duplicate]); choose(outcome.added[0] ?? outcome.duplicate); }
     if (outcome.messages.length) live.current.toast.show(outcome.messages.join("\n"));
     if (outcome.scanId || outcome.confirms.length) rememberFocus();
     setScan(outcome.scanId); setConfirms(outcome.confirms);
   }), []);
-  async function remove(paths: string[]) {
+  async function remove(paths: string[], confirmed = false) {
     cancelRestore();
+    // A running Home conversation is stopped first, and only after the person agrees (design §7.5).
+    const ask = confirmed ? null : removalConfirm(homeRunRef.current.conversations, paths, cards.find(card => card.rows.some(row => paths.includes(row.path)))?.name ?? names.get(paths[0] ?? "") ?? "");
+    if (ask) { rememberFocus(); setRemoving({ paths, ...ask }); return; }
     const result = await window.doan.removeProjects(paths);
     if (result.kind === "removed") {
       setShellProjects(previous => Object.fromEntries(Object.entries(previous).flatMap(([key, project]) => {
@@ -469,7 +508,7 @@ export function App() {
   // Only roots on screen are read: an open canvas being edited would otherwise
   // cost a second ls per change. A root is read again when it comes back on
   // screen, so `projectComments.refresh` matters only for one already shown.
-  const countedRoots = useMemo(() => screen === "home" ? entries.map(entry => entry.path) : shownOverview ? [shownOverview] : [], [screen, entries, shownOverview]);
+  const countedRoots = useMemo(() => shownOverview ? [shownOverview] : [], [shownOverview]);
   const projectComments = useProjectComments(entries, countedRoots);
   reviewedRoot.current = projectComments.refresh;
   // A Feedback row or its "N resolved to review": the canvas opens (draft guard
@@ -509,26 +548,183 @@ export function App() {
       controller.current?.openCanvas(root, row, undefined, { ...(explicit ? { unavailable } : {}), opened: () => completeNavigation(root) });
     },
   });
+
+  // Home conversations (buzz-home design §7): events are subscribed from the start so none is lost before a start's
+  // reply or the first read; each tracked conversation's merged events give its strip state and sidebar slot.
+  const projectLabel = (root: string) => cards.find(card => card.rows.some(row => row.path === root))?.name ?? names.get(root) ?? root;
+  const viewing = (root: string) => currentScreen.current === "workspace" && loadedRootRef.current === root;
+  const refreshConversation = (conversationId: string) => {
+    const events = conversationEvents.current.get(conversationId);
+    if (!events) return;
+    const next = stripState(events);
+    const previous = homeRunRef.current.strips[conversationId];
+    if (previous && JSON.stringify(previous) === JSON.stringify(next)) return;
+    const conversation = homeRunRef.current.conversations.find(item => item.conversationId === conversationId);
+    if (!conversation) return;
+    const updated = { conversations: homeRunRef.current.conversations.map(item => item.conversationId === conversationId ? conversationPhase(item, next.kind, ++clock.current) : item), strips: { ...homeRunRef.current.strips, [conversationId]: next } };
+    homeRunRef.current = updated; setHomeRun(updated);
+    const extras = homeExtras.current.get(conversationId);
+    const ask = permissionToastKey(next, previous, viewing(conversation.root));
+    if (ask && extras && extras.toasted !== ask) {
+      extras.toasted = ask;
+      toast.show(`${PROVIDER_NAMES[conversation.provider]} needs your answer in ${projectLabel(conversation.root)}.`, "Open", () => live.current.openConversation(conversationId));
+    }
+  };
+  useEffect(() => window.doan.onConversationEvent(event => {
+    const tracked = conversationEvents.current.get(event.conversationId);
+    if (!tracked) { unclaimedEvents.current = [...unclaimedEvents.current, event].slice(-500); return; }
+    // Text deltas only tell the strip that the agent started answering; one per turn is enough to keep.
+    if ((event.type === "message.delta" || event.type === "message.done") && tracked.some(item => (item.type === "message.delta" || item.type === "message.done") && item.turnId === event.turnId)) return;
+    conversationEvents.current.set(event.conversationId, mergeConversationEvents(tracked, [event], event.conversationId));
+    live.current.refreshConversation(event.conversationId);
+  }), []);
+  const loadedRootRef = useRef(loadedRoot); loadedRootRef.current = loadedRoot;
+  const arrive = (event: ArrivalEvent) => {
+    const pending = arrival.current;
+    const outcome = arrivalOutcome(pending, event);
+    arrival.current = outcome.pending;
+    if (outcome.toast && pending) live.current.toast.show(`Started in ${projectLabel(pending.root)}.`, "Open", () => live.current.openConversation(pending.conversationId));
+    return outcome.follow;
+  };
+  useEffect(() => {
+    if (modal) { arrive({ kind: "modal", open: true }); return; }
+    // The guard's answer applies the transition asynchronously; check once it has had the chance to arrive.
+    const timer = setTimeout(() => arrive({ kind: "modal", open: false }), 0);
+    return () => clearTimeout(timer);
+  }, [modal]);
+  const startHome = async (request: StartInput, last: LastRequest): Promise<StartOutcome> => {
+    const result = await window.doan.startConversation(request).catch(() => ({ error: "unknown" }));
+    if ("error" in result) return { error: result.error, ...("missing" in result && result.missing ? { missing: result.missing } : {}) };
+    const { conversationId } = result;
+    const atStart = entriesRef.current.find(entry => entry.path === request.root);
+    homeExtras.current.set(conversationId, { atStart: atStart?.kind === "list" ? atStart.canvases.map(row => row.path) : [], checked: [], openedOther: false, toasted: null });
+    conversationEvents.current.set(conversationId, mergeConversationEvents([], unclaimedEvents.current, conversationId));
+    unclaimedEvents.current = unclaimedEvents.current.filter(event => event.conversationId !== conversationId);
+    const tracked = { conversations: [...homeRunRef.current.conversations, { conversationId, root: request.root, provider: request.runtime, phase: "starting" as const }], strips: { ...homeRunRef.current.strips, [conversationId]: { kind: "starting" as const } } };
+    homeRunRef.current = tracked; setHomeRun(tracked);
+    live.current.refreshConversation(conversationId);
+    void window.doan.readConversation({ conversationId }).then(read => {
+      if ("error" in read) return;
+      conversationEvents.current.set(conversationId, mergeConversationEvents(read.events, conversationEvents.current.get(conversationId) ?? [], conversationId));
+      live.current.refreshConversation(conversationId);
+    }).catch(console.error);
+    setLastRequests(previous => rememberRequest(previous, last));
+    setHomeMemory(previous => ({ ...previous, lastRoot: request.root, lastProvider: request.runtime,
+      ...(request.model ? { models: { ...previous?.models, [request.runtime]: { model: request.model, ...(request.effort ? { effort: request.effort } : {}) } } } : {}) }));
+    setHandoff(null);
+    if (currentScreen.current !== "home") { live.current.toast.show(`Started in ${projectLabel(request.root)}.`, "Open", () => live.current.openConversation(conversationId)); return { ok: true }; }
+    // The move waits for the project's read and passes the draft guard; the person's own navigation wins (§4.5).
+    cancelRestore();
+    const intent = navigationIntent.current;
+    arrival.current = { conversationId, root: request.root, intent, sawModal: false };
+    controller.current?.openWorkspace(request.root, next => {
+      if (!arrive({ kind: "arrived", intent: navigationIntent.current })) return;
+      workspaceFocus.current = null; focusStrip.current = true; completeNavigation(next);
+    }, false, () => arrive({ kind: "unavailable" }), true);
+    return { ok: true };
+  };
+  const openConversation = (conversationId: string) => {
+    const conversation = homeRunRef.current.conversations.find(item => item.conversationId === conversationId);
+    if (!conversation) return;
+    const listed = entriesRef.current.find(entry => entry.path === conversation.root);
+    const row = conversation.canvas && listed?.kind === "list" ? listed.canvases.find(item => item.path === conversation.canvas) : undefined;
+    if (row) openShellCanvas(conversation.root, row);
+    else showShellOverview(conversation.root);
+  };
+  const editOnHome = (root: string) => {
+    const last = lastRequests.get(root);
+    if (!last) return;
+    setRestoreHome(previous => ({ request: last, seq: (previous?.seq ?? 0) + 1 }));
+    home();
+  };
+  // A new canvas row is checked with main once; the conversation main bound it to takes it (design §7.3).
+  useEffect(() => {
+    for (const conversation of homeRun.conversations) {
+      const extras = homeExtras.current.get(conversation.conversationId);
+      const listed = entries.find(entry => entry.path === conversation.root);
+      if (conversation.canvas || !extras || listed?.kind !== "list") continue;
+      for (const row of newCanvasCandidates(listed.canvases, extras.atStart, extras.checked)) {
+        extras.checked.push(row.path);
+        void window.doan.conversationForCanvas({ root: conversation.root, canvas: { path: row.path, ...(row.id ? { id: row.id } : {}) } }).then(found => {
+          if ("error" in found || found.current?.conversationId !== conversation.conversationId) return;
+          const bound = { ...homeRunRef.current, conversations: homeRunRef.current.conversations.map(item => item.conversationId === conversation.conversationId ? { ...item, canvas: row.path } : item) };
+          homeRunRef.current = bound; setHomeRun(bound);
+          const action = boundCanvasAction({ viewing: viewing(conversation.root), openedOther: extras.openedOther });
+          const current = entriesRef.current.find(entry => entry.path === conversation.root);
+          const fresh = current?.kind === "list" ? current.canvases.find(item => item.path === row.path) ?? row : row;
+          if (action === "open") openShellCanvas(conversation.root, fresh);
+          else live.current.toast.show(newCanvasText(projectLabel(conversation.root)), "Open", () => openShellCanvas(conversation.root, fresh));
+        }).catch(console.error);
+      }
+    }
+  }, [entries, homeRun.conversations]);
+  // Opening another canvas of that project before the new one appears keeps the person's choice (design §7).
+  useEffect(() => {
+    if (!state.open) return;
+    for (const conversation of homeRunRef.current.conversations) {
+      const extras = homeExtras.current.get(conversation.conversationId);
+      if (extras && !conversation.canvas && conversation.root === state.open.folder) extras.openedOther = true;
+    }
+  }, [state.open?.folder, state.open?.canvas]);
+  // A row's screen on view clears its unseen Dot, also when a turn ends while the person is already there (§7.2).
+  useEffect(() => {
+    if (screen !== "workspace" || !loadedRoot) return;
+    const keys = [slotKey(loadedRoot), ...(state.open?.folder === loadedRoot ? [slotKey(loadedRoot, state.open.canvas)] : [])];
+    setVisits(previous => {
+      const tick = ++clock.current;
+      const next = new Map(previous);
+      for (const key of keys) next.set(key, tick);
+      return next;
+    });
+  }, [screen, loadedRoot, state.open?.canvas, homeRun.conversations]);
+  const slots = useMemo(() => slotState(homeRun.conversations, visits), [homeRun.conversations, visits]);
+  const running = useMemo(() => new Map(homeRun.conversations.filter(item => ["starting", "working", "permission"].includes(item.phase)).map(item => [item.root, item.conversationId] as const)), [homeRun.conversations]);
+  const stripConversation = loadedRoot ? homeRun.conversations.filter(item => item.root === loadedRoot && !dismissedStrips.has(item.conversationId)).at(-1) : undefined;
+  const stripCurrent = stripConversation ? homeRun.strips[stripConversation.conversationId] : undefined;
+  const strip = stripConversation && stripCurrent && <div className="strip-slot"><ConversationStrip conversationId={stripConversation.conversationId} provider={stripConversation.provider} state={stripCurrent}
+    view={stripView(stripCurrent, { provider: stripConversation.provider, project: projectLabel(stripConversation.root), branch: entry?.kind === "list" ? entry.git?.branch ?? null : null, canvas: stripConversation.canvas ? canvasLabel({ path: stripConversation.canvas, open: 0, resolved: 0, url: "" }) : null })}
+    onEditOnHome={() => editOnHome(stripConversation.root)} onOpen={() => openConversation(stripConversation.conversationId)}
+    onDismiss={() => setDismissedStrips(previous => new Set(previous).add(stripConversation.conversationId))} /></div>;
+  live.current.openConversation = openConversation; live.current.refreshConversation = refreshConversation;
+  const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} worktree={enter} open={openShellCanvas} overview={showShellOverview} action={action} remove={remove}
+    home={home} slots={slots} highlight={highlight} />;
   return <TooltipProvider><FirstPromptContext.Provider value={firstPrompt}>
-  {screen === "home" && <Home header={<TopBar back={back !== null} forward={forward !== null} previous={() => travel(back)} next={() => travel(forward)} />} homeDirectory={homeDirectory} entries={entries} loaded={loadedRoot} selection={state.selection} highlight={highlight} rerootHint={rerootHint} comments={projectComments.comments} enter={enter} action={action} remove={paths => void remove(paths)} />}
-  <main className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}`} style={{ visibility: screen === "home" ? "hidden" : "visible" }} inert={screen === "home"} aria-hidden={screen === "home"}>
+  {screen === "home" && <Home header={<TopBar back={back !== null} forward={forward !== null} previous={() => travel(back)} next={() => travel(forward)} />} sidebar={sidebar(true)}
+    entries={entries} homeDirectory={homeDirectory} shellProjects={shellProjects} loaded={loadedRoot} handoff={handoff} select={select} prefs={homeMemory}
+    memory={composerMemory} running={running} restore={restoreHome} start={startHome} openConversation={openConversation} />}
+  <main className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}${strip ? " with-strip" : ""}`} style={{ visibility: screen === "home" ? "hidden" : "visible" }} inert={screen === "home"} aria-hidden={screen === "home"}>
     <TopBar back={back !== null} forward={forward !== null} previous={() => travel(back)} next={() => travel(forward)} />
     {entry && entry.kind !== "list" && <ProblemActions entry={entry} action={action} workspace={{ name: card?.name ?? name, homeDirectory, home }} />}
-    <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} worktree={enter} open={openShellCanvas} overview={showShellOverview} action={action} remove={remove} />
+    {sidebar(false)}
+    {strip}
     <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null} />
     {overview && <ProjectOverview key={overview.path} root={overview.path} rows={overview.canvases} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null} comments={projectComments.comments.get(overview.path)} open={row => openShellCanvas(overview.path, row)} />}
     <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} feedback={feedback} />{comments.panel}</div>
   </main>
   {comments.dialog}
   {scan && <AddProjectsDialog homeDirectory={homeDirectory} key={scan} scanId={scan} close={() => { setScan(null); modalClosed(); }} added={added} />}
-  {!scan && !setup && confirms[0] && <SetUpFolderConfirm key={confirms[0].confirmId} name={confirms[0].name} path={confirms[0].path} cancel={() => { setConfirms(items => items.slice(1)); modalClosed(); }} confirm={async () => { const first = confirms[0]; if (!first) return; const result = await window.doan.confirmFolder(first.confirmId); if (result.kind !== "added") throw new Error("This confirmation is no longer available. Add the folder again."); setConfirms(items => items.slice(1)); setSetup(result.added[0] ?? first.path); focusModalPath.current = result.added[0] ?? first.path; added(result.added); }} />}
-  {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} onClose={() => { setSetup(null); modalClosed(); }} onRerooted={(root, message) => { focusModalPath.current = root; setSetup(null); setHighlight([root]); setRerootHint({ root, message }); modalClosed(); }} />}
+  {!scan && !setup && confirms[0] && <SetUpFolderConfirm key={confirms[0].confirmId} name={confirms[0].name} path={confirms[0].path} cancel={() => { setConfirms(items => items.slice(1)); modalClosed(); }} confirm={async () => { const first = confirms[0]; if (!first) return; const result = await window.doan.confirmFolder(first.confirmId); if (result.kind !== "added") throw new Error("This confirmation is no longer available. Add the folder again."); setConfirms(items => items.slice(1)); setSetup(result.added[0] ?? first.path); choose(result.added[0] ?? first.path); added(result.added); }} />}
+  {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} onClose={() => { setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
   {quickOpen && <QuickOpen entries={entries} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
+  {removing && <dialog className="doan-dialog" data-ui-size="compact" aria-label={removing.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); setRemoving(null); modalClosed(); }}>
+    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">{removing.title}</h3><p className="doan-dialog-description">{removing.body}</p></div></div>
+    <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" autoFocus onClick={() => { setRemoving(null); modalClosed(); }}>{removing.cancel}</button>
+      <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={() => {
+        const { paths, conversations } = removing;
+        setRemoving(null); modalClosed();
+        // Undo restores the project only; the stopped conversation does not start again (design §7.5).
+        void Promise.all(conversations.map(conversationId => window.doan.interruptConversation({ conversationId }).catch(console.error))).then(() => remove(paths, true));
+      }}>{removing.confirm}</button></div>
+  </dialog>}
   {toast.element}
   <DropOverlay blocked={modal} />
   {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)}
-    onClose={root => { restoreFocus.current = true; setWizard(null); if (root) { live.current.home(); setHighlight([root]); } }} />}
+    onClose={root => {
+      setWizard(null);
+      if (wizardCloseFocus(root) === "composer") { beforeWizard.current = null; focusComposer.current = true; live.current.home(); setHandoff(root); }
+      else restoreFocus.current = true;
+    }} />}
   </FirstPromptContext.Provider></TooltipProvider>;
 }
 

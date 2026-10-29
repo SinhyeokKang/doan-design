@@ -136,6 +136,10 @@ export function rootForProject(rows: readonly FolderEntry[], remembered: string 
 
 // Providers
 
+// The marks onboarding shows (public/provider-logos/README.md); relative, so the packaged app's file URL resolves them.
+const LOGOS: Record<Provider, string> = { claude: "claude.png", codex: "codex.png", cursor: "cursor.svg", antigravity: "antigravity.svg", copilot: "copilot.svg" };
+export function providerLogo(provider: Provider): string { return `provider-logos/${LOGOS[provider]}`; }
+
 // Only providers with a saved connection are listed (design §4.3), in agent-auth's order.
 function connectedProviders(auth: AuthSnapshot | null | undefined): AuthStatusDto[] {
   return (auth?.providers ?? []).filter(p => p.account !== null).sort((a, b) => PROVIDERS.indexOf(a.provider) - PROVIDERS.indexOf(b.provider));
@@ -179,14 +183,13 @@ function effortLabel(id: string): string { return EFFORT_LABELS[id] ?? id.charAt
 
 export type ModelRow =
   | { kind: "model"; id: string; label: string; effort: boolean; selected: boolean }
-  | { kind: "default"; label: "Default"; selected: boolean }
-  | { kind: "loading"; label: "Loading models" }
-  | { kind: "load"; label: "Load models (uses one Copilot request)" };
+  | { kind: "default"; label: "Default"; selected: boolean };
 export interface ProviderGroup {
   provider: Provider; name: string; selectable: boolean;
   // For the shared short status copy (agentAuthView); null when ready.
   cause: ReadinessCause | null;
-  note: "Models unavailable" | null;
+  // The draft (frame 05) shows reading as a note in the group head over the Default row.
+  note: "Models unavailable" | "Loading models" | null;
   // Read the list when this group opens.
   read: boolean;
   rows: ModelRow[];
@@ -198,6 +201,10 @@ export interface ModelPickerView {
   effort: { label: string; ariaLabel: string; menuLabel: string; title: string; options: { id: string; label: string; selected: boolean }[] } | null;
 }
 
+export function modelOption(state: ModelsState, id: string | null): ModelOption | null {
+  return id === null ? null : receivedModels(state)?.find(m => m.id === id) ?? null;
+}
+
 export function modelPickerView(auth: AuthSnapshot | null | undefined, models: Partial<Record<Provider, ModelsState>>, choice: ModelChoice): ModelPickerView {
   const chosen = choice.provider ? receivedModels(models[choice.provider])?.find(m => m.id === choice.model) ?? null : null;
   const groups = connectedProviders(auth).map((status): ProviderGroup => {
@@ -207,10 +214,9 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
     const state = models[provider], list = receivedModels(state), mine = choice.provider === provider;
     if (list) return { ...group, rows: list.map(m => ({ kind: "model", id: m.id, label: m.label, effort: (m.efforts?.length ?? 0) > 0, selected: mine && m.id === chosen?.id })) };
     const rows: ModelRow[] = [{ kind: "default", label: "Default", selected: mine }];
-    if (state === "loading") return { ...group, rows: [...rows, { kind: "loading", label: "Loading models" }] };
+    if (state === "loading") return { ...group, note: "Loading models", rows };
     if (state !== undefined) return { ...group, note: "Models unavailable", rows };
-    // Copilot's list costs a model request, so it is read only on the person's click.
-    if (provider === "copilot") return { ...group, rows: [...rows, { kind: "load", label: "Load models (uses one Copilot request)" }] };
+    // Every provider, Copilot included, lists its models without a model request (PoC P1), so all are read.
     return { ...group, read: true, rows };
   });
   const label = chosen?.label ?? "Default";

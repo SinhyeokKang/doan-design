@@ -72,9 +72,10 @@ export function rememberRequest(requests: ReadonlyMap<string, LastRequest>, requ
   return new Map(requests).set(request.root, request);
 }
 
-// A different draft is never replaced without asking. Attachments come back unchecked: a file may have moved since.
+// A different draft is never replaced without asking. Attachments keep main's ids: main checks each again when the
+// start is accepted and refuses a moved one (attachment_missing), and the renderer has no other way to check a path.
 export function restoreRequest(draft: ComposerDraft, last: LastRequest, project: string): { request: LastRequest; confirm: { title: string; body: string; cancel: string; confirm: string } | null } {
-  const request = { ...last, attachments: last.attachments.map(a => ({ ...a, status: "checking" as const })) };
+  const request = last;
   const empty = !draft.text.trim() && !draft.preset && draft.attachments.length === 0;
   const same = draft.text === last.text && draft.preset?.id === last.preset?.id
     && draft.attachments.length === last.attachments.length && draft.attachments.every((a, i) => a.key === last.attachments[i]!.key);
@@ -82,4 +83,36 @@ export function restoreRequest(draft: ComposerDraft, last: LastRequest, project:
     request,
     confirm: empty || same ? null : { title: "Replace your draft?", body: `Your draft will be replaced by the last request you sent to ${project}.`, cancel: "Keep Draft", confirm: "Replace" },
   };
+}
+
+// After a Home send the window moves to the project's Overview (design §4.5). It follows only its own arrival: a
+// navigation the person made first, an unavailable project or a draft guard the person refused (a dialog that closed
+// without the arrival) leaves the window where it is and toasts `Started in <project>.` instead.
+export interface PendingArrival { conversationId: string; root: string; intent: number; sawModal: boolean }
+export type ArrivalEvent = { kind: "arrived"; intent: number } | { kind: "navigated" } | { kind: "unavailable" } | { kind: "modal"; open: boolean };
+export function arrivalOutcome(pending: PendingArrival | null, event: ArrivalEvent): { pending: PendingArrival | null; follow: boolean; toast: boolean } {
+  if (!pending) return { pending: null, follow: false, toast: false };
+  if (event.kind === "arrived") return event.intent === pending.intent ? { pending: null, follow: true, toast: false } : { pending: null, follow: false, toast: true };
+  if (event.kind === "modal") {
+    if (event.open) return { pending: { ...pending, sawModal: true }, follow: false, toast: false };
+    return pending.sawModal ? { pending: null, follow: false, toast: true } : { pending, follow: false, toast: false };
+  }
+  return { pending: null, follow: false, toast: true };
+}
+
+// A canvas bound to a Home conversation opens by itself only on its project's screen when the person opened no other
+// canvas since sending; anywhere else a `New canvas in <project>` toast offers it (design §7).
+export function boundCanvasAction(input: { viewing: boolean; openedOther: boolean }): "open" | "toast" {
+  return input.viewing && !input.openedOther ? "open" : "toast";
+}
+
+// Rows to ask main about (conversation:forCanvas): absent when the request was sent and not asked about yet (§7.3).
+export function newCanvasCandidates<T extends { path: string }>(rows: readonly T[], atStart: readonly string[], checked: readonly string[]): T[] {
+  return rows.filter(row => !atStart.includes(row.path) && !checked.includes(row.path));
+}
+
+// The toast is secondary to the slot (design §7): once per request, and only when that project is not on screen.
+export function permissionToastKey(next: StripState, previous: StripState | undefined, viewing: boolean): string | null {
+  if (next.kind !== "permission" || viewing) return null;
+  return previous?.kind === "permission" && previous.requestId === next.requestId ? null : next.requestId;
 }
