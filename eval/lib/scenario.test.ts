@@ -15,6 +15,16 @@ test("scenario.json that breaks the format is rejected", () => {
     assert.throws(() => parseScenarioJson(bad, "W1"), Error, JSON.stringify(bad));
 });
 
+test("preset mapping is a scenario focus without adding tool restrictions", () => {
+  const value = { id: "P1", title: "Preset mapping", focus: "preset" };
+  const parsed = parseScenarioJson(value, "P1");
+  assert.equal(parsed.focus, "preset");
+  assert.equal(parsed.mcp, false);
+  assert.equal(parsed.shellCli, true);
+  for (const focus of ["presets", "design-skill", null, 1])
+    assert.throws(() => parseScenarioJson({ ...value, focus }, "P1"), /focus must be one of/);
+});
+
 test("the prompt gets the repo path and allows no other placeholder", () => {
   assert.equal(renderPrompt("Edit {{repo}} and {{ repo }}.\n", "/tmp/x"), "Edit /tmp/x and /tmp/x.\n");
   assert.throws(() => renderPrompt("Edit {{root}}", "/tmp/x"));
