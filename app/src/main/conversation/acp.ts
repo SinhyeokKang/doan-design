@@ -132,7 +132,8 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
   // One activity per tool call, once it completed: a rejected or failed call changed nothing.
   if (update.status !== "completed") return { state: next, events: flushed.events };
   const activityKind = ACTIVITY[tool.kind] ?? "other";
-  const summary = (tool.title || (tool.path && displayPath(tool.path, root)) || GENERIC_SUMMARY[activityKind]).slice(0, 512);
+  // A shell command's title is the command itself; activity is stored and published, so it gets the generic phrase.
+  const summary = activityKind === "command" ? GENERIC_SUMMARY.command : (tool.title || (tool.path && displayPath(tool.path, root)) || GENERIC_SUMMARY[activityKind]).slice(0, 512);
   const event: EventPayload = tool.path
     ? { type: "activity", kind: activityKind, path: tool.path, insideDesign: insideRoot(posix.join(root, ".doan/canvases"), posix.resolve(root, tool.path)), summary }
     : { type: "activity", kind: activityKind, summary };

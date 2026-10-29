@@ -8,7 +8,7 @@ export function initialTransport(): TransportState {
 function unchanged(state: TransportState): TransportResult { return { state, events: [] }; }
 function finish(state: TransportState, event: EventPayload): TransportResult {
   if (state.terminal) return unchanged(state);
-  return { state: { ...state, terminal: true }, events: [state.stop ? { type: "interrupted", reason: state.stop } : event] };
+  return { state: { ...state, terminal: true, fileSummaries: {} }, events: [state.stop ? { type: "interrupted", reason: state.stop } : event] };
 }
 function aborted(state: TransportState): TransportResult { return finish(state, { type: "turn.failed", code: "process_exited" }); }
 export function endTransport(state: TransportState): TransportResult { return aborted(state); }
@@ -40,10 +40,21 @@ function commandText(input: Record<string, unknown>): string {
 function filesSummary(paths: string[], root: string): string {
   const [first] = paths;
   if (!first) return "";
-  return paths.length === 1 ? displayPath(first, root) : `${displayPath(first, root)} and ${paths.length - 1} more`;
+  return (paths.length === 1 ? displayPath(first, root) : `${displayPath(first, root)} and ${paths.length - 1} more`).slice(0, 512);
+}
+// Only an approval still to come needs its item's paths; an evicted entry falls back to the generic phrase.
+const FILE_SUMMARY_LIMIT = 32;
+function withoutFileSummary(summaries: Record<string, string>, id: string): Record<string, string> {
+  if (!(id in summaries)) return summaries;
+  const { [id]: _, ...rest } = summaries;
+  return rest;
+}
+function withFileSummary(summaries: Record<string, string>, id: string, summary: string): Record<string, string> {
+  const kept = Object.entries(summaries).slice(-(FILE_SUMMARY_LIMIT - 1));
+  return { ...Object.fromEntries(kept), [id]: summary };
 }
 function activity(kind: ActivityKind, path: string, line: string, root: string): EventPayload {
-  // Commands can be whole heredocs; the strip shows one line and every event is stored.
+  // Paths and tool names come from the agent unbounded; the strip shows one line and every event is stored.
   const summary = line.slice(0, 512);
   if (!path) return { type: "activity", kind, summary };
   const resolved = posix.resolve(root, path);
@@ -57,8 +68,11 @@ export function claudePermissionSummary(tool: string, input: Record<string, unkn
   const path = claudePath(input);
   return (text(input.description) || text(input.command) || (path && displayPath(path, root)) || text(input.pattern) || GENERIC_SUMMARY[claudeKind(tool)]).slice(0, 512);
 }
+// Activity is stored and published for every call, so a shell command's text, description or arguments never go in it
+// (user decision 2026-10-30); only the permission request shows the command being approved.
 function claudeActivity(tool: string, input: Record<string, unknown>, root: string): EventPayload {
-  return activity(claudeKind(tool), claudePath(input), claudePermissionSummary(tool, input, root), root);
+  const kind = claudeKind(tool);
+  return activity(kind, claudePath(input), kind === "command" ? GENERIC_SUMMARY.command : claudePermissionSummary(tool, input, root), root);
 }
 function codexActivities(item: Record<string, unknown>, root: string): { events: EventPayload[]; files: string } {
   if (item.type === "fileChange") {
@@ -66,7 +80,7 @@ function codexActivities(item: Record<string, unknown>, root: string): { events:
     const events = paths.length ? paths.map(path => activity("edit", path, path ? displayPath(path, root) : GENERIC_SUMMARY.edit, root)) : [activity("edit", "", GENERIC_SUMMARY.edit, root)];
     return { events, files: filesSummary(paths.filter(Boolean), root) };
   }
-  if (item.type === "commandExecution") return { events: [activity("command", "", commandText(item) || GENERIC_SUMMARY.command, root)], files: "" };
+  if (item.type === "commandExecution") return { events: [activity("command", "", GENERIC_SUMMARY.command, root)], files: "" };
   const tool = text(item.tool), server = text(item.server);
   return { events: [activity("other", "", tool ? (server ? `${tool} (${server})` : tool) : GENERIC_SUMMARY.other, root)], files: "" };
 }
@@ -128,7 +142,8 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     const matched = params.threadId === context.sessionId && turnId === context.turnId;
     const permission = matched && !state.terminal ? codexPermission(raw, state.fileSummaries) : null;
     const disposition = otherOwner ? "route" : permission ? "permission" : "unsupported";
-    const result = permission ? { state, events: [permission.event] }
+    const answered = permission ? { ...state, fileSummaries: withoutFileSummary(state.fileSummaries, text(params.itemId)) } : state;
+    const result = permission ? { state: answered, events: [permission.event] }
       : matched && !otherOwner ? finish(state, { type: "turn.failed", code: "session_unavailable" }) : unchanged(state);
     return { ...result, request: { id: raw.id, method: raw.method, disposition } };
   }
@@ -144,13 +159,14 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
   if ((raw.method === "item/completed" || raw.method === "item/started") && object(params.item)) {
     const item = params.item;
     const id = text(item.id);
+    if (raw.method === "item/completed" && id in state.fileSummaries) state = { ...state, fileSummaries: withoutFileSummary(state.fileSummaries, id) };
     if (raw.method === "item/completed" && item.type === "agentMessage" && id && !state.completedMessages.includes(id)) {
       return { state: { ...state, completedMessages: [...state.completedMessages, id] }, events: [{ type: "message.done", messageId: id, text: text(item.text) }] };
     }
     if (id && !state.activities.includes(id) && (item.type === "fileChange" || item.type === "commandExecution" || item.type === "mcpToolCall")) {
       const { events, files } = codexActivities(item, context.root);
       // A file approval names only its itemId, so the paths seen when the item started are kept for it.
-      const fileSummaries = files ? { ...state.fileSummaries, [id]: files } : state.fileSummaries;
+      const fileSummaries = files && raw.method === "item/started" ? withFileSummary(state.fileSummaries, id, files) : state.fileSummaries;
       return { state: { ...state, activities: [...state.activities, id], fileSummaries }, events };
     }
   }
