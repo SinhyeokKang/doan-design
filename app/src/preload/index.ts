@@ -3,6 +3,8 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ShellActivity } from "../main/shellActivity";
 import type { ConversationService, StartRequest } from "../main/conversation/service";
 import type { ConversationError } from "../main/conversation/ipc";
+import type { ModelsReply } from "../main/conversation/models";
+import type { AttachmentResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
 import type { Anchor, Canvas, ConversationEvent, Runtime, UnavailableReason } from "../main/conversation/types";
 import type { StepResult } from "../main/onboarding/machine";
@@ -46,11 +48,32 @@ type SessionRequest<T> = T extends unknown ? Omit<T, "v" | "token" | "op"> : nev
 const api = {
   conversationResumeTarget: (request: { root: string; canvas: Canvas }): Promise<{ available: true; runtime: Runtime; lastCheckAt: string } | { available: false; reason: "no_record" | UnavailableReason } | ConversationError> => ipcRenderer.invoke("conversation:resumeTarget", request),
   conversationForCanvas: (request: { root: string; canvas: Canvas }): Promise<ReturnType<ConversationService["forCanvas"]> | ConversationError> => ipcRenderer.invoke("conversation:forCanvas", request),
-  startConversation: (request: Omit<StartRequest, "anchors"> & { anchors?: Anchor[] }): Promise<{ conversationId: string } | ConversationError> => ipcRenderer.invoke("conversation:start", request),
+  // newDesign: `subject` (FirstPrompt) or Home's own `text`. model and effort only from the list listConversationModels
+  // returned in this run for that root and runtime; attachments by the ids the attachment calls returned. A moved or
+  // deleted attachment refuses the start with attachment_missing and its ids in `missing`.
+  startConversation: (request: Omit<StartRequest, "anchors" | "attachments"> & { anchors?: Anchor[]; attachments?: { id: string }[] }): Promise<{ conversationId: string } | ConversationError> => ipcRenderer.invoke("conversation:start", request),
   sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[] }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:send", request),
   interruptConversation: (request: { conversationId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:interrupt", request),
   answerConversationPermission: (request: { conversationId: string; requestId: string; optionId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:answerPermission", request),
   readConversation: (request: { conversationId: string }): Promise<ReturnType<ConversationService["read"]> | ConversationError> => ipcRenderer.invoke("conversation:read", request),
+  // The models a provider offers in this folder, read without a model request and kept by main until the connection
+  // or installed version changes. An error carries a conversation start code.
+  listConversationModels: (request: { root: string; runtime: Provider }): Promise<ModelsReply> => ipcRenderer.invoke("conversation:models", request),
+  // Home attachments. Main checks each file (real path, regular file, image signature) and answers per item in order;
+  // nothing is copied except a pasted image, which main re-encodes to PNG under userData. A thumbnail is PNG bytes.
+  chooseAttachments: (): Promise<AttachmentResult[]> => ipcRenderer.invoke("attachments:choose"),
+  // Dropped or pasted Finder files. A file the page made itself has no path and is refused here as not_found.
+  async addAttachmentFiles(files: readonly File[]): Promise<AttachmentResult[] | null> {
+    const paths = files.map(file => webUtils.getPathForFile(file));
+    const found = paths.filter(path => path !== "");
+    const checked: AttachmentResult[] | null = found.length === 0 ? [] : await ipcRenderer.invoke("attachments:add-paths", { paths: found });
+    if (checked === null) return null;
+    let next = 0;
+    return paths.map((path, i): AttachmentResult => path === "" ? { ok: false, name: files[i]!.name, error: "not_found" } : checked[next++]!);
+  },
+  addPastedImage: (bytes: ArrayBuffer | Uint8Array): Promise<AttachmentResult | null> => ipcRenderer.invoke("attachments:add-pasted", { bytes: bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes) }),
+  // A pasted image removed before it was sent is deleted; a local file is only forgotten.
+  removeAttachment: (id: string): Promise<boolean> => ipcRenderer.invoke("attachments:remove", { id }),
   onConversationEvent(listener: (event: ConversationEvent) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, event: ConversationEvent) => listener(event);
     ipcRenderer.on("conversation:event", receive);

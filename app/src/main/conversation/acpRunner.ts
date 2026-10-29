@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { closeSync, constants, fstatSync, openSync, readSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
 import { signInLink } from "../agentAuth/antigravity";
@@ -6,8 +7,10 @@ import { ACP_PROTOCOL_VERSION, AcpConnection, acpEnded, acpPermission, acpPrompt
 import { acpInitialize, acpSessionNew, type HandshakeVerdict } from "./handshake";
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
+import { parseAcpModels, type ModelOption } from "./models";
+import { imageType, MAX_IMAGE_BYTES } from "../attachments";
 import type { Prepared, Runner } from "./service";
-import type { EventPayload } from "./types";
+import type { AttachmentRecord, EventPayload } from "./types";
 const OPEN_TIMEOUT_MS = 60_000;
 // ACP stop reasons that mean the agent ran the prompt (protocol schema StopReason, minus "cancelled").
 const RAN = new Set(["end_turn", "max_tokens", "max_turn_requests", "refusal"]);
@@ -44,7 +47,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     if (method !== "session/update" || !prompting || params.sessionId !== sessionId || !object(params.update)) return;
     apply(normalizeAcp(state, params.update, input.cwd));
   }, detail => { failure = detail; void group?.stop(); });
-  let sessionId = input.sessionId ?? "";
+  let sessionId = input.sessionId ?? "", models: ModelOption[] = [], images = false;
   const decoder = new StringDecoder("utf8");
   child.stdout.on("data", (bytes: Buffer) => acp.receive(decoder.write(bytes)));
   // Antigravity asks for a browser sign-in when its stored token no longer works; a run never signs in.
@@ -76,6 +79,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     judge(acpInitialize(input.runtime, { result: init }, input.authenticate, !!input.sessionId));
     if (!object(init) || init.protocolVersion !== ACP_PROTOCOL_VERSION) throw new Error("runtime_unsupported");
     const capabilities = object(init.agentCapabilities) ? init.agentCapabilities : {};
+    images = object(capabilities.promptCapabilities) && capabilities.promptCapabilities.image === true;
     if (input.sessionId && capabilities.loadSession !== true) throw new Error("session_unavailable");
     if (input.authenticate) {
       const methods = Array.isArray(init.authMethods) ? init.authMethods.filter(object).map(m => m.id) : [];
@@ -87,8 +91,10 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
       const created = await acp.request("session/new", { cwd: input.cwd, mcpServers: [] }, OPEN_TIMEOUT_MS);
       judge(acpSessionNew(input.runtime, { result: created }));
       if (!object(created) || typeof created.sessionId !== "string" || !created.sessionId || created.sessionId.length > 512) throw new Error("session_unavailable");
-      sessionId = created.sessionId;
+      sessionId = created.sessionId; models = parseAcpModels(created);
     }
+    // session/load comes back on the default model (Antigravity, P1), so the choice is set again after every open.
+    if (input.model) await acp.request("session/set_config_option", { sessionId, configId: "model", value: input.model }, OPEN_TIMEOUT_MS);
   })();
   try { await opened; if (dead) throw new Error("process_exited"); }
   catch (error) {
@@ -106,11 +112,14 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
   };
   return {
     sessionId,
-    async send(prompt, turnId) {
+    models: async () => models,
+    async send(prompt, turnId, attachments = []) {
       if (dead || prompting || finished) throw new Error("process_exited");
       state = initialAcp(turnId); prompting = true;
       try {
-        const result = await acp.request("session/prompt", { sessionId, prompt: [{ type: "text", text: prompt }] }, null);
+        // Antigravity's view_file refuses paths outside the workspace (P2), so it also gets the images themselves.
+        const blocks = input.runtime === "antigravity" && images ? attachments.flatMap(imageBlock) : [];
+        const result = await acp.request("session/prompt", { sessionId, prompt: [{ type: "text", text: prompt }, ...blocks] }, null);
         apply(acpPromptDone(state, result));
         // A prompt the agent ran to a stop is the provider accepting the dedicated login (Copilot's status costs a
         // request). A cancel or a malformed answer can come before any model request, so it proves nothing.
@@ -128,6 +137,18 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     stop: () => stopTurn("user"),
     close: () => stopTurn("appQuit"),
   };
+}
+// Only a file that still carries an image signature and is within the paste cap; anything else goes by path alone.
+function imageBlock(attachment: AttachmentRecord): { type: "image"; mimeType: string; data: string }[] {
+  if (attachment.kind !== "image") return [];
+  let fd: number | undefined;
+  try {
+    fd = openSync(attachment.path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
+    const stat = fstatSync(fd); if (!stat.isFile() || stat.size === 0 || stat.size > MAX_IMAGE_BYTES) return [];
+    const bytes = Buffer.alloc(stat.size); if (readSync(fd, bytes, 0, stat.size, 0) !== stat.size) return [];
+    const mimeType = imageType(bytes.subarray(0, 16));
+    return mimeType ? [{ type: "image", mimeType, data: bytes.toString("base64") }] : [];
+  } catch { return []; } finally { if (fd !== undefined) closeSync(fd); }
 }
 function transportCode(detail: string): string {
   if (/authentication required|not logged in|unauthorized|sign in/i.test(detail)) return "not_logged_in";

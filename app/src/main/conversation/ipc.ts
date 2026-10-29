@@ -4,10 +4,13 @@ import { object } from "./sessions";
 import { validCanvas, validId } from "./store";
 import { validProvider } from "../agentAuth/types";
 import type { ConversationService, Prepare, StartRequest } from "./service";
+import type { ModelCatalog } from "./models";
+import type { AttachmentStore } from "../attachments";
 import type { Anchor, Canvas } from "./types";
-export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read"] as const;
+export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read", "models"] as const;
 export type ConversationMethod = typeof conversationMethods[number];
-export interface ConversationError { error: string }
+// attachment_missing names the attachments that were moved, deleted or forgotten since they were added.
+export interface ConversationError { error: string; missing?: string[] }
 interface Project { path: string; kind: string; canvases?: Canvas[] }
 function message(raw: Record<string, unknown>): { text: string; anchors: Anchor[] } | null {
   if (typeof raw.text !== "string" || !raw.text.trim() || raw.text.length > LIMITS.text) return null;
@@ -15,10 +18,16 @@ function message(raw: Record<string, unknown>): { text: string; anchors: Anchor[
   if (!anchors.every(validAnchor) || anchorTokens(raw.text, anchors) === null) return null;
   return { text: raw.text, anchors };
 }
-export function conversationHandler(service: ConversationService, prepare: Prepare, projects: () => Project[]) {
+function choice(value: unknown): value is string { return typeof value === "string" && value.length > 0 && value.length <= 512 && !value.includes("\0"); }
+export function conversationHandler(service: ConversationService, prepare: Prepare, projects: () => Project[], home: { models?: ModelCatalog; attachments?: AttachmentStore } = {}) {
   return async (allowed: boolean, method: ConversationMethod, raw: unknown): Promise<unknown> => {
     if (!allowed || !object(raw)) return { error: "bad_request" };
     try {
+      if (method === "models") {
+        if (typeof raw.root !== "string" || raw.root.length > LIMITS.path || !validProvider(raw.runtime) || !home.models) throw new Error("bad_request");
+        if (!projects().some(p => p.path === raw.root)) throw new Error("project_not_open");
+        return await home.models.models(raw.root, raw.runtime);
+      }
       if (["start", "resumeTarget", "forCanvas"].includes(method)) {
         if (typeof raw.root !== "string" || raw.root.length > LIMITS.path) throw new Error("bad_request");
         const project = projects().find(p => p.path === raw.root); if (!project) throw new Error("project_not_open");
@@ -38,12 +47,32 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         if (raw.mode !== "resume" && !raw.runtime) throw new Error("no_agent");
         const mode = raw.mode; if (mode !== "resume" && mode !== "new" && mode !== "newDesign") throw new Error("bad_request");
         const request: StartRequest = { root: raw.root, mode, ...input, ...(validCanvas(canvas) ? { canvas } : {}), ...(validProvider(raw.runtime) ? { runtime: raw.runtime } : {}) };
+        let attachments: unknown[] = [];
         if (mode === "newDesign") {
-          if (typeof raw.subject !== "string") throw new Error("bad_request");
-          const sentence = promptSentence(raw.root, raw.subject); if (typeof sentence !== "string") throw new Error("bad_request");
-          request.subject = raw.subject; request.text = sentence;
-        }
-        return await service.start(request);
+          // FirstPrompt sends a one-line subject that main turns into its sentence; Home sends its own text as is.
+          if (raw.subject !== undefined) {
+            if (typeof raw.subject !== "string") throw new Error("bad_request");
+            const sentence = promptSentence(raw.root, raw.subject); if (typeof sentence !== "string") throw new Error("bad_request");
+            request.subject = raw.subject; request.text = sentence;
+          }
+          if (raw.model !== undefined || raw.effort !== undefined) {
+            // Only a model, and an effort of that model, from the list this run delivered for this folder and provider.
+            if (!choice(raw.model) || (raw.effort !== undefined && !choice(raw.effort)) || !request.runtime ||
+                !home.models?.accepts(raw.root, request.runtime, raw.model, raw.effort)) throw new Error("bad_request");
+            request.model = raw.model; if (raw.effort !== undefined) request.effort = raw.effort;
+          }
+          if (raw.attachments !== undefined) {
+            if (!home.attachments || !Array.isArray(raw.attachments)) throw new Error("bad_request");
+            attachments = [...raw.attachments];
+            const resolved = home.attachments.resolve(attachments);
+            if (!resolved.ok) return resolved.error === "attachment_missing" ? { error: resolved.error, missing: resolved.missing } : { error: "bad_request" };
+            if (resolved.records.length) request.attachments = resolved.records;
+          }
+        } else if (raw.model !== undefined || raw.effort !== undefined || raw.attachments !== undefined) throw new Error("bad_request");
+        const store = home.attachments;
+        const started = await service.start(request, store && attachments.length ? () => store.markSent(attachments) : undefined);
+        store?.consume(attachments);
+        return started;
       }
       if (!validId(raw.conversationId)) throw new Error("bad_request");
       switch (method) {

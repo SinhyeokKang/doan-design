@@ -173,6 +173,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         ...(adapter.acp?.authenticate ? { authenticate: adapter.acp.authenticate } : {}),
         ...(adapter.verifyByRun ? { confirm: () => auth.confirm(provider, connection.connectionId) } : {}),
         ...(versions && ran ? { incompatible: () => versions.incompatible(provider, ran), compatible: () => versions.compatible(provider, ran) } : {}),
+        ...(ran ? { installed: ran } : {}),
       };
     } catch (error) { await lease.release(); throw error; }
   };
