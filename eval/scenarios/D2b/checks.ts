@@ -6,7 +6,8 @@ import { canvasParts } from "../D1/presets.ts";
 // pays an invoice"), so merging it is required rather than a judgment call.
 const checks: Checks = ctx => {
   const text = canvasParts(ctx, ".doan/canvases/settings.html")?.frames.notifications?.text ?? "";
-  const paid = text.match(/\bis paid\b|\bpays an invoice\b/gi) ?? [];
+  // A merged toggle may be relabelled ("Invoice paid"), so count the word, not a phrase.
+  const paid = text.match(/\bpaid\b|\bpays\b/gi) ?? [];
   return [
     ...d2(ctx),
     { id: "duplicate_paid_merged", pass: paid.length === 1, detail: `paid-invoice mentions in Notifications: ${paid.length}` },
