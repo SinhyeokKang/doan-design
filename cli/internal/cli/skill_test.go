@@ -155,11 +155,11 @@ func TestSkillGuideListErrorsAndOrphans(t *testing.T) {
 // It counted the guide that lost a preset (stderr 183 B + plain guide 24,528 B = 24,711 B) as 6,178 tokens,
 // 4.00 B/token. Main's guide before design presets was 18,830 B, already about 78% of the cap, and other
 // sections stay as they are, so the budget is 90%: 5,400 tokens × 4.00 B/token = 21,600 B. It covers the
-// plain output and the --json envelope, each with the note the app's own CLI appends for /Applications/doan.app.
+// plain output and the --json envelope, each with the note the app's own CLI appends for /Applications/Doan.app.
 const skillOutputBudget = 21600
 
 func TestSkillGuideFitsToolOutputCap(t *testing.T) {
-	note := len(bundleNote("/Applications/doan.app"))
+	note := len(bundleNote("/Applications/Doan.app"))
 	root := t.TempDir()
 	for _, args := range [][]string{{"skill"}, {"skill", "--json"}} {
 		var out, errout bytes.Buffer
