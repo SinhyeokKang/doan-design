@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore } from "./store";
+import { PRESET_GUIDANCE } from "./prompt";
 import { ConversationService, resolveListedCanvas, type Runner, type OpenRunner, type Prepare } from "./service";
 const paths: string[] = []; afterEach(() => paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })));
 function fixture() {
@@ -237,4 +238,12 @@ it("refuses an archived conversation at once instead of waiting for the previous
   const started = Date.now();
   await expect(h.service.send(id, "archived", [])).rejects.toThrow("busy");
   expect(Date.now() - started).toBeLessThan(500);
+});
+it("sends the fixed preset guidance on a follow-up turn as on the first", async () => {
+  const h = fixture(); const id = (await h.service.start(request)).conversationId;
+  h.service.receive(id, { type: "turn.done" });
+  await h.service.send(id, "next", []);
+  const prompts = h.runners.flatMap(r => vi.mocked(r.send).mock.calls.map(call => call[0]));
+  expect(prompts).toHaveLength(2);
+  for (const prompt of prompts) expect(prompt).toContain(PRESET_GUIDANCE);
 });

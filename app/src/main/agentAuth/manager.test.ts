@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "node:http";
 import { AUTH_LINK_MARKER, BROWSER_HOOK } from "./antigravity";
 import { AuthManager, removeStaleLinkDirs, spawnAuthProcess, type AuthProcess, type Spawn } from "./manager";
-import type { ProviderAuth } from "./providers";
+import { PROVIDER_AUTH, type ProviderAuth } from "./providers";
 import { AuthStorage, type Cipher } from "./storage";
 import { fakeCipher } from "./fixtures/cipher";
 import type { CheckResult, Provider } from "./types";
@@ -1296,5 +1296,22 @@ describe("stale sign-in link directories", () => {
   });
   it("does not throw when the temporary directory cannot be read", () => {
     expect(() => removeStaleLinkDirs(join(tmp, "missing"))).not.toThrow();
+  });
+});
+
+describe("profile doan stub", () => {
+  it("rewrites a stale or edited stub with the bundled bytes on every run", async () => {
+    const settings = PROVIDER_AUTH.cursor.settings, rel = ".cursor/skills/doan/SKILL.md";
+    const bundled = readFileSync(join(__dirname, "../onboarding/SKILL.md"), "utf8");
+    expect(settings).toEqual({ [rel]: bundled });
+    const m = manager({ adapters: { ...withAcp(), cursor: { ...fileProvider(tokenAccount), settings } } }); await m.load();
+    const path = join(storage.profileDir("cursor"), rel); mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, readFileSync(join(__dirname, "../onboarding/fixtures/SKILL-c994913.md")));
+    await signedInCursor(m, "u1");
+    expect(readFileSync(join(processes[0]!.cwd, rel), "utf8")).toBe(bundled);
+    writeFileSync(path, "edited");
+    const check = started(await m.check("cursor"));
+    await finish("status", 0, p => expect(readFileSync(join(p.cwd, rel), "utf8")).toBe(bundled));
+    await check.done;
   });
 });

@@ -10,6 +10,8 @@ const mainOnly = new Set([
   "window:visible", "comments:project", "review-state:get", "review-state:raise", "comments:orphan-mutate", "comments:orphan-status",
   // buzz-onboarding: the first-run session the CLI and MCP share; Settings never drives first-run.
   "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
+  // doan-design-skills: preset reads for the home; Settings has no preset UI.
+  "design-skills:list", "design-skills:get",
 ]);
 const shared = new Set([
   "setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get",

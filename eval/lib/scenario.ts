@@ -5,7 +5,7 @@ import { onboardingApp, type OnboardingScript } from "./socket.ts";
 export interface Scenario {
   id: string;
   title: string;
-  focus: "write" | "comments" | "active" | "injection" | "implement" | "understand" | "onboarding";
+  focus: "write" | "comments" | "active" | "injection" | "implement" | "understand" | "onboarding" | "preset";
   init: { tokenCss: string } | null;
   selection: "selection.json" | null;
   timeoutSec: number;
@@ -27,7 +27,7 @@ export interface LoadedScenario extends Scenario {
   onboardingValue: OnboardingScript | null;
 }
 
-const FOCUS = ["write", "comments", "active", "injection", "implement", "understand", "onboarding"];
+const FOCUS = ["write", "comments", "active", "injection", "implement", "understand", "onboarding", "preset"];
 const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "mcp", "shellCli", "worktree", "onboarding"];
 // The first worktree is on main (init.defaultBranch in workspace.ts).
 const BRANCH = /^[a-z0-9]+(-[a-z0-9]+)*$/;

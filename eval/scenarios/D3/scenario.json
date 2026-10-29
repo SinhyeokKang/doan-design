@@ -1,0 +1,10 @@
+{
+  "id": "D3",
+  "title": "Find and read a preset over MCP without a shell CLI and keep the rest of the canvas",
+  "focus": "preset",
+  "init": null,
+  "selection": null,
+  "timeoutSec": 900,
+  "mcp": true,
+  "shellCli": false
+}

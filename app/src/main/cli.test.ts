@@ -8,7 +8,8 @@ vi.mock("node:child_process", async importOriginal => {
   const real = await importOriginal<typeof import("node:child_process")>();
   return { ...real, spawn: vi.fn(real.spawn) };
 });
-import { cliCommand, readFolder, runConfig, runLs, runInit } from "./cli";
+import { cliCommand, readFolder, runConfig, runDesignSkill, runLs, runInit } from "./cli";
+import { designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
 import { configReply } from "./configBridge";
 import { folderState, initOutcome } from "./folderState";
 
@@ -195,4 +196,39 @@ test("runConfig reads and writes through the real CLI with absolute paths", asyn
   writeFileSync(join(root, ".doan", "config.json"), "{broken");
   expect(configReply(root, await runConfig(cli, root, ["--clear-token-css"]))).toMatchObject({ kind: "error" });
   expect(readFileSync(join(root, ".doan", "config.json"), "utf8")).toBe("{broken");
+});
+
+describe("runDesignSkill", () => {
+  test("lists with --json only, and the CLI cannot read stdin", async () => {
+    const out = join(dir(), "args");
+    const fake = fakeCli(`if IFS= read -r line; then exit 97; fi; printf '%s\\n' "$@" > '${out}'; echo '{"v":1,"ok":true,"result":{"version":"dev","presets":[]}}'`);
+    const run = await runDesignSkill(fake);
+    expect(spawn).toHaveBeenLastCalledWith(fake, ["design-skill", "--json"], { cwd: undefined, stdio: ["ignore", "pipe", "pipe"] });
+    expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["design-skill", "--json"]);
+    expect(interpretList(run)).toEqual({ v: 1, ok: true, result: { version: "dev", presets: [] } });
+  });
+
+  test.each(["clarify", "--repo", "-h", "a b", ""])("passes the id %j only as the positional after --", async id => {
+    const out = join(dir(), "args");
+    const fake = fakeCli(`printf '[%s]\\n' "$@" > '${out}'; echo '{"v":1,"ok":false,"error":{"code":"usage_error","message":"m","nextSteps":[]}}'; exit 2`);
+    const run = await runDesignSkill(fake, id);
+    expect(spawn).toHaveBeenLastCalledWith(fake, ["design-skill", "--json", "--", id], { cwd: undefined, stdio: ["ignore", "pipe", "pipe"] });
+    expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["[design-skill]", "[--json]", "[--]", `[${id}]`]);
+    expect(interpretGet(run, id)).toMatchObject({ ok: false, error: { code: "usage_error" } });
+  });
+
+  test("an id spawn cannot pass (NUL) is an app failure, not a rejected call", async () => {
+    const marker = join(dir(), "ran");
+    const fake = fakeCli(`touch '${marker}'`);
+    const id = designSkillGetRequest({ id: "clarify\u0000" });
+    expect(id).toBe("clarify\u0000");
+    const reply = interpretGet(await runDesignSkill(fake, id ?? ""), id ?? "");
+    expect(reply).toEqual({ v: 1, ok: false, error: { code: "cli_error", reason: "unavailable", message: expect.any(String), nextSteps: [] } });
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  test("settles timeout and spawn errors as app failures", async () => {
+    expect(interpretList(await runDesignSkill(fakeCli("sleep 30"), undefined, 50))).toMatchObject({ ok: false, error: { code: "cli_error", reason: "timeout" } });
+    expect(interpretGet(await runDesignSkill(join(tmp, "missing"), "clarify"), "clarify")).toMatchObject({ ok: false, error: { code: "cli_error", reason: "unavailable" } });
+  });
 });

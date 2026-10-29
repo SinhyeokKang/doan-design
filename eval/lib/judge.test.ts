@@ -149,3 +149,52 @@ test("unresolved patch candidates are labelled and cannot evict invocation summa
   assert.match(prompt, /Unresolved patch candidates.*truncated/);
   assert.ok(prompt.length < 10_000);
 });
+
+function invocationSummary(transcript: string) {
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript });
+  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1].split("<<<\n")[1].split("\n>>>")[0]);
+  return { prompt, summary };
+}
+
+test("preset shell lookups retain IDs and distinguish executed commands from quoted examples", () => {
+  const transcript = [
+    JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "Run doan design-skill prose-only" }] } }),
+    ...["doan design-skill --json", "DOAN_RUNTIME=/tmp/runtime command -p /tmp/doan --repo '/tmp/repo path' design-skill 'clarify' --json", "doan --json design-skill --repo=/tmp/repo context", "echo 'doan design-skill quoted'", "command -v doan design-skill discovery-only", "doan --repo design-skill skill", "doan active --json"].map(command =>
+      JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Bash", input: { command } }] } })),
+    JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", content: "Guide: doan design-skill guide-only" }] } }),
+  ].join("\n");
+  const { summary } = invocationSummary(transcript);
+  assert.deepEqual(summary.doanDesignSkill, { shellInvoked: true, mcpInvoked: false, shellIds: ["clarify", "context"], mcpIds: [] });
+  assert.deepEqual(summary.doanActive, { shellInvoked: true, mcpInvoked: false });
+  const quoted = invocationSummary("Guide: doan design-skill clarify\n" + JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Bash", input: { command: "printf '%s' 'doan design-skill clarify'" } }] } })).summary;
+  assert.deepEqual(quoted.doanDesignSkill, { shellInvoked: false, mcpInvoked: false, shellIds: [], mcpIds: [] });
+});
+
+test("preset MCP IDs are extracted from Claude, Codex direct, batch and stderr invocations", () => {
+  const transcript = [
+    JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "mcp__doan__design_skill", input: {} }, { type: "tool_use", name: "mcp__doan__design_skill", input: { id: "clarify" } }] } }),
+    JSON.stringify({ type: "response_item", payload: { type: "function_call", name: "mcp__doan__design_skill", arguments: JSON.stringify({ id: "context" }) } }),
+    JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "functions.exec", input: 'await tools.mcp__doan__design_skill({id: "document"}); await tools.mcp__doan__design_skill({"id": "clarify"}); const example = \'tools.mcp__doan__design_skill({id: "quoted"})\'; // tools.mcp__doan__design_skill({id: "comment"})' } }),
+    'tool doan.design_skill({"id":"polish"})',
+    JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", content: 'tool doan.design_skill({"id":"guide-only"})' }] } }),
+  ].join("\n");
+  assert.deepEqual(invocationSummary(transcript).summary.doanDesignSkill, { shellInvoked: false, mcpInvoked: true, shellIds: [], mcpIds: ["clarify", "context", "document", "polish"] });
+});
+
+test("40 KB synthetic preset bodies cannot evict lookup evidence from the judge budgets", () => {
+  // Real preset bodies are not available in batch R; integration rechecks the longest one.
+  const body = "SYNTHETIC_PRESET_BODY\n".repeat(2500);
+  assert.ok(Buffer.byteLength(body) >= 40 * 1024);
+  const transcript = [
+    JSON.stringify({ type: "response_item", payload: { type: "function_call", call_id: "shell", name: "exec_command", arguments: JSON.stringify({ cmd: "doan design-skill clarify --json" }) } }),
+    JSON.stringify({ type: "response_item", payload: { type: "function_call_output", call_id: "shell", output: body } }),
+    JSON.stringify({ type: "response_item", payload: { type: "function_call", call_id: "mcp", name: "mcp__doan__design_skill", arguments: JSON.stringify({ id: "context" }) } }),
+    JSON.stringify({ type: "response_item", payload: { type: "function_call_output", call_id: "mcp", output: body } }),
+  ].join("\n");
+  const { prompt, summary } = invocationSummary(transcript);
+  assert.deepEqual(summary.doanDesignSkill, { shellInvoked: true, mcpInvoked: true, shellIds: ["clarify"], mcpIds: ["context"] });
+  assert.ok(JSON.stringify(summary).length <= 20_000);
+  assert.ok(summary.outputs.every((output: { excerpt: string }) => output.excerpt.length <= 300));
+  assert.match(prompt, /Transcript \(truncated to the last 40000 characters\)/);
+  assert.ok(prompt.length < 45_000);
+});

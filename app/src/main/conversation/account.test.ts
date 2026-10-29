@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({ run: vi.fn(), probe: vi.fn() }));
 vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: mocks.run }));
 import { createAccountPrepare, routePrepare, type AccountRuntime, type VersionRecords } from "./prepare";
 import { ConversationService, type OpenRunner, type Runner } from "./service";
+import { PRESET_GUIDANCE } from "./prompt";
 import { ConversationStore, type ConversationMetadata } from "./store";
 import { initialAuthState } from "../agentAuth/state";
 import { AuthIpc, type AuthSnapshot } from "../agentAuth/ipc";
@@ -426,4 +427,10 @@ it("shows a Cursor build a new session's handshake refused before the refusal re
   await start(h, "cursor");
   await vi.waitFor(() => expect(publish).toHaveBeenCalled());
   expect(cursor()).toEqual({ ready: true });
+});
+
+it.each(["claude", "codex", "cursor", "copilot", "antigravity"] as Provider[])("sends a new %s conversation the fixed preset guidance", async provider => {
+  const h = harness(provider);
+  await start(h, provider);
+  expect(vi.mocked(h.runners[0]!.send).mock.calls[0]![0]).toContain(PRESET_GUIDANCE);
 });

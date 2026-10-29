@@ -1,0 +1,8 @@
+{
+  "id": "D1",
+  "title": "Find the generate preset over the shell and draw alternatives in an empty canvases directory",
+  "focus": "preset",
+  "init": { "tokenCss": "styles/tokens.css" },
+  "selection": null,
+  "timeoutSec": 900
+}

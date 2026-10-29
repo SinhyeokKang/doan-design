@@ -19,6 +19,8 @@ const (
 	destinationProperty = `"destination":{"type":"string","description":"Absolute final clone folder the user named. It must not exist; its parent must."}`
 )
 
+const designSkillDescription = "List Doan design presets, or read one preset's complete guidance with id (doan design-skill). Read a preset only when the user names it or it clearly fits the request; a complete body ends with its [doan:design-skill] end marker."
+
 const repoProperty = `"repo":{"type":"string","description":"Absolute repository path. Defaults to the server's working directory, searching upward for .doan/config.json."}`
 
 var mcpTools = []struct {
@@ -41,6 +43,8 @@ var mcpTools = []struct {
 		`{"type":"object","properties":{` + repoProperty + `},"additionalProperties":false}`, &mcp.ToolAnnotations{ReadOnlyHint: true}},
 	{"skill", "Read the Doan guide (doan skill), including the tool-to-command mapping.",
 		`{"type":"object","properties":{},"additionalProperties":false}`, &mcp.ToolAnnotations{ReadOnlyHint: true}},
+	{"design_skill", designSkillDescription,
+		`{"type":"object","properties":{"id":{"type":"string","description":"Preset id from the list. Omit it to list the presets."}},"additionalProperties":false}`, &mcp.ToolAnnotations{ReadOnlyHint: true}},
 	{"onboarding_start", "Start or resume Doan onboarding (doan onboarding start) and show the app. Returns sessionId and the current state. Without DOAN_RUNTIME, opens the Doan app this server is bundled in when it is not running.",
 		`{"type":"object","properties":{},"additionalProperties":false}`, nil},
 	{"onboarding_status", "Read onboarding state: agent connections and readiness, project, operations and completion (doan onboarding status). It does not wait for sign-in or clone; poll it.",
@@ -137,6 +141,7 @@ func argv(tool string, raw json.RawMessage) ([]string, *Error) {
 		"check":            {"repo"},
 		"skill":            {},
 		"active":           {"repo"},
+		"design_skill":     {"id"},
 	}[tool]
 	for key := range fields {
 		known := false
@@ -159,8 +164,11 @@ func argv(tool string, raw json.RawMessage) ([]string, *Error) {
 		return *s, true, nil
 	}
 	out := []string{tool}
-	if tool == "resolve_comments" {
+	switch tool {
+	case "resolve_comments":
 		out = []string{"comment", "resolve"}
+	case "design_skill":
+		out = []string{"design-skill"}
 	}
 	repo, ok, e := str("repo")
 	if e != nil {
@@ -211,6 +219,16 @@ func argv(tool string, raw json.RawMessage) ([]string, *Error) {
 
 	}
 	out = append(out, "--json")
+	if tool == "design_skill" {
+		id, ok, e := str("id")
+		if e != nil {
+			return nil, e
+		}
+		// The id goes after -- so a value such as "--json" reaches the id check instead of flag parsing.
+		if ok {
+			out = append(out, "--", id)
+		}
+	}
 	if tool == "resolve_comments" {
 		out = append(out, "--")
 		if v, ok := fields["ids"]; ok {

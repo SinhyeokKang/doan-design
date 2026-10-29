@@ -5,6 +5,15 @@
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 
+### 2026-10-29 — Codex cut the middle out of the doan guide and kept its end marker, so presets were never read
+
+- **Area**: `cli/internal/cli/skill.md`, `skill.go` (generated `## Design presets` section), `app/src/main/onboarding/SKILL.md` (stub).
+- **Symptom**: in the app conversation, Codex ran `doan skill`, read the guide, edited the target frame and never looked up a design preset. Its exec tool had printed `Warning: truncated output (original token count: 6178)` and replaced the middle of the output with "…178 tokens truncated…"; the `clarify` line of the preset list sat in that middle, and the closing `[doan:skill] end of guide` line survived (doan-design-skills D3, 2026-10-29).
+- **Root cause**: the feature added a static preset section and a generated 20-item list (title and description each), growing the guide from 18,830 B to 24,528 B plain. Codex's exec tool caps tool output at 6,000 tokens and keeps the head and the tail. The guide's only truncation check is the end marker, which a middle cut never removes, so the agent believed it had the complete guide.
+- **Net**: unit tests checked that the guide lists every id and carries the marker, and external `/agent-eval` rounds passed, because those Codex runs did not hit the cap the same way; only a real app-conversation probe with the provider's own exec tool showed the cut.
+- **Fix**: the guide keeps one generated id line, a pointer to `doan design-skill --json` for descriptions, and condensed rules (24,528 → 20,696 B plain, 25,230 → 21,354 B `--json`); a test fails when either form exceeds 21,600 B (90% of 6,000 tokens at the measured 4.00 B/token). The guide's first lines and the stub say a truncation notice means the output is incomplete even with the end marker. Preset bodies and the list got the same budget test (batch F4).
+- **Prevention**: before adding text that agents read through a tool (guide, preset bodies, nextSteps, MCP results), check it against the output budget tests and remember that an end marker does not detect a cut in the middle. Run `rg -n 'skillOutputBudget' cli/internal/cli` — the guide and preset outputs must stay covered by the budget test.
+
 ### 2026-10-29 — A cancelled replacement sign-in lost a working connection, and Codex's credential with it
 
 - **Area**: `app/src/main/agentAuth/manager.ts` (`signIn`, `signInFlow`, `discard`, `retire`, `profileOf`), `state.ts` (`settled`, failed `signedIn`), `storage.ts` (`seal`, `storeSealed`, `profileDir`), `providers.ts` (`loginClears`).

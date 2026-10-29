@@ -1,0 +1,4 @@
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"mcp__doan__skill","input":{}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t3","name":"mcp__doan__design_skill","input":{"id":"context"}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t4","name":"mcp__doan__design_skill","input":{"id":"document"}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t5","name":"mcp__doan__check","input":{"repo":"{{repo}}"}}]}}

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="design-system">
+  <meta name="doan:width" content="1600">
+  <title>design-system</title>
+  <link rel="stylesheet" href="../../styles/tokens.css">
+  <link rel="stylesheet" href="../../components/button.css">
+  <link rel="stylesheet" href="../../components/input.css">
+  <link rel="stylesheet" href="../../components/card.css">
+  <style>
+    body { margin: 0; padding: var(--space-6); font-family: var(--font-body); font-size: var(--type-body-size); color: var(--color-text); background: var(--color-surface-muted); }
+    main { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+    [data-doan-frame] { width: 440px; padding: var(--space-6); background: var(--color-surface); border-radius: var(--radius); }
+    h1 { margin: 0 0 var(--space-4); font-size: var(--type-title-size); }
+    .swatch { display: flex; gap: var(--space-4); align-items: center; padding: var(--space-2) 0; }
+    .chip { width: 48px; height: 48px; border: 1px solid var(--color-text-muted); border-radius: var(--radius); }
+    .row { display: flex; gap: var(--space-4); margin-top: var(--space-4); }
+    .step { background: var(--color-primary); height: var(--space-4); }
+    .shape { width: 96px; height: 64px; border: 1px solid var(--color-text-muted); border-radius: var(--radius); background: var(--color-surface); }
+    .depth { padding: var(--space-6); background: var(--color-surface-muted); }
+  </style>
+</head>
+<body>
+<p>Reference for the shipped Ledgerly design system. Values come from styles/tokens.css and components/ (button, input, card); sample text is placeholder copy; the rules are in DESIGN.md.</p>
+<main>
+<section data-doan-frame="colors" data-doan-title="Colors" data-doan-implements="styles/tokens.css">
+<h1 data-doan-id="colors-heading">Colors</h1>
+<div class="swatch" data-doan-id="swatch-surface"><span class="chip" style="background: var(--color-surface)"></span><code>--color-surface</code> card background</div>
+<div class="swatch" data-doan-id="swatch-surface-muted"><span class="chip" style="background: var(--color-surface-muted)"></span><code>--color-surface-muted</code> page background</div>
+<div class="swatch" data-doan-id="swatch-text"><span class="chip" style="background: var(--color-text)"></span><code>--color-text</code> body text</div>
+<div class="swatch" data-doan-id="swatch-text-muted"><span class="chip" style="background: var(--color-text-muted)"></span><code>--color-text-muted</code> secondary text and borders</div>
+<div class="swatch" data-doan-id="swatch-primary"><span class="chip" style="background: var(--color-primary)"></span><code>--color-primary</code> the one accent</div>
+<div class="swatch" data-doan-id="swatch-danger"><span class="chip" style="background: var(--color-danger)"></span><code>--color-danger</code> errors and destructive actions</div>
+<div class="swatch" data-doan-id="swatch-success"><span class="chip" style="background: var(--color-success)"></span><code>--color-success</code> paid and saved confirmations</div>
+</section>
+<section data-doan-frame="typography" data-doan-title="Typography" data-doan-implements="styles/tokens.css">
+<h1 data-doan-id="typography-heading">Typography</h1>
+<p data-doan-id="type-title" style="font-size: var(--type-title-size)">Invoice #1042 <code>--type-title-size</code></p>
+<p data-doan-id="type-body" style="font-size: var(--type-body-size)">Body text for invoices and settings. <code>--type-body-size</code>, <code>--font-body</code></p>
+</section>
+<section data-doan-frame="button" data-doan-title="Button" data-doan-implements="components/button.css">
+<h1 data-doan-id="button-heading">Button</h1>
+<div class="row" data-doan-id="button-variants"><button class="button button--primary" type="button">Send invoice</button><button class="button button--secondary" type="button">Save draft</button></div>
+<div class="row" data-doan-id="button-states"><button class="button button--primary" type="button" disabled>Disabled</button></div>
+</section>
+<section data-doan-frame="spacing" data-doan-title="Spacing" data-doan-implements="styles/tokens.css">
+<h1 data-doan-id="spacing-heading">Spacing</h1>
+<div class="row" data-doan-id="space-2"><span class="step" style="width: var(--space-2)"></span><code>--space-2</code> inside inputs and buttons</div>
+<div class="row" data-doan-id="space-4"><span class="step" style="width: var(--space-4)"></span><code>--space-4</code> horizontal button padding</div>
+<div class="row" data-doan-id="space-6"><span class="step" style="width: var(--space-6)"></span><code>--space-6</code> card padding</div>
+</section>
+<section data-doan-frame="shapes" data-doan-title="Shapes and depth" data-doan-implements="styles/tokens.css">
+<h1 data-doan-id="shapes-heading">Shapes and depth</h1>
+<div class="row" data-doan-id="shape-radius"><span class="shape"></span><code>--radius</code> on cards, inputs and buttons</div>
+<div class="depth" data-doan-id="depth-flat"><div class="card">Flat: a surface card on the muted page, no shadow</div></div>
+</section>
+<section data-doan-frame="input" data-doan-title="Input" data-doan-implements="components/input.css">
+<h1 data-doan-id="input-heading">Input</h1>
+<label data-doan-id="input-default">Client name <input class="input" value="Studio North"></label>
+<label data-doan-id="input-error">Client email <input class="input input--error" value="studio@"></label>
+<p class="input-error" data-doan-id="input-error-message">Enter a full email address, like name@example.com.</p>
+</section>
+<section data-doan-frame="card" data-doan-title="Card" data-doan-implements="components/card.css">
+<h1 data-doan-id="card-heading">Card</h1>
+<div class="depth"><div class="card" data-doan-id="card-example"><h2 class="card__title">Invoice #1042</h2><p>Logo design, $480.00</p></div></div>
+</section>
+</main>
+</body>
+</html>

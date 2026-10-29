@@ -3,6 +3,7 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ShellActivity } from "../main/shellActivity";
 import type { ConversationService, StartRequest } from "../main/conversation/service";
 import type { ConversationError } from "../main/conversation/ipc";
+import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
 import type { Anchor, Canvas, ConversationEvent, Runtime, UnavailableReason } from "../main/conversation/types";
 import type { StepResult } from "../main/onboarding/machine";
 import type {
@@ -106,6 +107,13 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, state: OnboardingState) => listener(state);
     ipcRenderer.on("onboarding:changed", receive);
     return () => ipcRenderer.removeListener("onboarding:changed", receive);
+  },
+  // Doan design presets from the bundled CLI, main window only. A reply is the CLI's v1 envelope: a CLI failure
+  // (usage_error included) comes back unchanged; an app failure has code request_refused, or cli_error with a reason.
+  // A list usage_error means this CLI has no presets; a get usage_error after a successful list is an unknown id.
+  designSkills: {
+    list: (): Promise<DesignSkillReply<DesignSkillList>> => ipcRenderer.invoke("design-skills:list"),
+    get: (id: string): Promise<DesignSkillReply<DesignSkillPreset>> => ipcRenderer.invoke("design-skills:get", { id }),
   },
   homeDirectory: (): Promise<string | null> => ipcRenderer.invoke("app:home"),
   copyPathLine: (): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "pathLine" }),

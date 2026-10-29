@@ -39,6 +39,8 @@ Read the files themselves; do not work from someone's summary of them.
 - The renderer code for any shipped screen the draft shows (`app/src/renderer/`).
 - `go run ./cli/cmd/doan ls --json --repo .` and `go run ./cli/cmd/doan check --json --repo .` before you start, so new findings are yours.
 
+**Design presets** (2026-10-29 user): list doan's own presets with `go run ./cli/cmd/doan design-skill --json` and read the ones this draft needs with `go run ./cli/cmd/doan design-skill <id> --json` — typically `shape` before drawing flows and states, `harden` or `onboard` for error, empty and first-use states, `clarify` for copy, and `critique` on the finished draft before handing it over. Read only what fits; do not run every preset. This skill's rules win over a preset (shipped screens copied, tokens first, no app-code edits, the feature documents' decisions). Name the presets you read in the report. If the command is unavailable (`usage_error` on an older checkout), say so and continue.
+
 If spec and design leave a visible choice open (a state, a label, a placement), ask the user one question at a time with the runtime's question tool, one recommendation each. Record each answer in the feature's `design.md`.
 
 ### 2. Draw

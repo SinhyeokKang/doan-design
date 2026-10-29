@@ -1,0 +1,8 @@
+{
+  "id": "D12",
+  "title": "Treat a plain doan init request as setup only",
+  "focus": "preset",
+  "init": null,
+  "selection": null,
+  "timeoutSec": 600
+}

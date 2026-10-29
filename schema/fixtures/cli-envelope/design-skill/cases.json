@@ -1,0 +1,20 @@
+{
+  "$comment": [
+    "Example outputs of `doan design-skill [id] --json` and the MCP `design_skill` tool, shared by the Go and TypeScript tests. Every other file in this directory is a complete cli-envelope v1 and validates against schema/cli-envelope.v1.schema.json.",
+    "The CLI used for these examples reports version \"dev\". result.version is the producing doan version; consumers show it as provenance and must not reject a result because it differs from their own version.",
+    "list.json lists only the presets that exist in the catalog at the time; tests must not assume a fixed count. It carries id, title, description and scope per preset, in catalog order, and never a body or sources.",
+    "A single preset result carries version, preset (the same four fields as a list row), body and sources. The body is complete only when it ends with the line `[doan:design-skill] end of preset <id> v<version>` followed by a newline, where <id> is preset.id and <version> is result.version. This marker differs from the `doan skill` guide's `[doan:skill] end of guide v<version>`.",
+    "Every rejected id below fails with code usage_error and exit 2, for the CLI (`doan design-skill --json -- <id>`; after `--` every argument is the id, so `--json` must come first) and for MCP (`{\"id\": \"<id>\"}`). code, v and ok are the contract. message and nextSteps are illustrative: the message names the rejected id, so it differs per input.",
+    "Upstream names that Doan does not publish (craft, live, overdrive, optimize, init) are rejected like any unknown id; there is no alias. `init` here is the upstream command name, not the CLI command `doan init`."
+  ],
+  "version": "dev",
+  "list": { "file": "list.json", "cli": ["design-skill"], "mcp": {} },
+  "get": { "file": "get-clarify.json", "id": "clarify", "cli": ["design-skill", "clarify"], "mcp": { "id": "clarify" } },
+  "rejected": [
+    { "file": "usage-error-empty-id.json", "kind": "empty", "ids": [""] },
+    { "file": "usage-error-unknown-id.json", "kind": "unknown", "ids": ["nonexistent", "clarity"] },
+    { "file": "usage-error-invalid-id.json", "kind": "outside grammar", "ids": ["../clarify", "clarify.md", "a/b", "CLARIFY"] },
+    { "file": "usage-error-unpublished-id.json", "kind": "unpublished upstream name", "ids": ["craft", "live", "overdrive", "optimize", "init"] }
+  ],
+  "exit": { "usage_error": 2 }
+}

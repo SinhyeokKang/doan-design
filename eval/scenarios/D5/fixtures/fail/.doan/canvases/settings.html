@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="settings">
+  <meta name="doan:width" content="1600">
+  <title>Settings</title>
+  <link rel="stylesheet" href="../../styles/tokens.css">
+  <style>
+    body { margin: 0; padding: var(--space-6); font-family: var(--font-body); font-size: var(--type-body-size); color: var(--color-text); background: var(--color-surface-muted); }
+    main { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+    [data-doan-frame] { width: 440px; padding: var(--space-6); background: var(--color-surface); border: 1px solid var(--color-surface-muted); border-radius: var(--radius); }
+    h1 { margin: 0 0 var(--space-4); font-size: var(--type-title-size); font-weight: 600; color: var(--color-text); }
+    h2 { font-weight: 600; color: var(--color-text-muted); }
+    label { display: block; margin-top: var(--space-4); font-weight: 500; }
+    input { display: block; width: 100%; box-sizing: border-box; padding: var(--space-2); border: 1px solid var(--color-text-muted); border-radius: var(--radius); }
+    .hint { transition: color 200ms; color: var(--color-text-muted); }
+    .toggle { display: flex; justify-content: space-between; padding: var(--space-2) 0; border-bottom: 1px solid var(--color-surface-muted); }
+    button { margin-top: var(--space-4); padding: var(--space-2) var(--space-4); border: 0; border-radius: var(--radius); background: var(--color-primary); color: var(--color-surface); font-weight: 600; }
+    [data-doan-frame="danger-zone"] button { background: var(--color-danger); }
+  </style>
+</head>
+<body>
+<p>Design proposal: these settings screens are not implemented in code yet.</p>
+<main>
+<section data-doan-frame="profile" data-doan-title="Settings — profile">
+<h1 data-doan-id="profile-heading">Profile</h1>
+<label data-doan-id="name-label">Name <input data-doan-id="name-input" value="Jordan Lee"></label>
+<label data-doan-id="email-label">Email <input data-doan-id="email-input" value="jordan@example.com"></label>
+<p class="hint" data-doan-id="email-hint">Clients see this address on every invoice.</p>
+<button data-doan-id="profile-save" type="button">Save profile</button>
+</section>
+<section data-doan-frame="notifications" data-doan-title="Settings — notifications">
+<h1 data-doan-id="notifications-heading">Notifications</h1>
+<h2 data-doan-id="notifications-subheading">Notification settings</h2>
+<p class="hint" data-doan-id="notifications-intro">Choose which notifications you get. You can change your notifications here at any time. These settings control your notifications.</p>
+<div class="toggle" data-doan-id="toggle-paid">Email me when an invoice is paid <span>On</span></div>
+<div class="toggle" data-doan-id="toggle-paid-copy">Send an email when a client pays an invoice <span>On</span></div>
+<div class="toggle" data-doan-id="toggle-overdue">Email me when an invoice is overdue <span>On</span></div>
+<div class="toggle" data-doan-id="toggle-viewed">Email me when a client views an invoice <span>Off</span></div>
+<p class="hint" data-doan-id="notifications-footer">Remember: these are your notification settings.</p>
+<button data-doan-id="notifications-save" type="button">Save notification settings</button>
+</section>
+<section data-doan-frame="danger-zone" data-doan-title="Settings — delete account">
+<h1 data-doan-id="danger-heading">Delete account</h1>
+<p data-doan-id="danger-body">Deleting your account removes all invoices and client records. This cannot be undone.</p>
+<button data-doan-id="danger-delete" type="button">Delete account</button>
+</section>
+</main>
+</body>
+</html>
