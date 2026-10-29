@@ -470,7 +470,84 @@ Reference: the conductor-confirmed `.doan/canvases/app-setup.html`, frames `wiza
 - Documented differences: while Connect runs, Details keep the last read (Skill link Not installed, MCP Registering…) because main exposes no per-item progress (difference 8 above); pick-one worktree items show the worktree folder name (Projects home, suggested worktrees); the not-a-repository text keeps the shipped "isn't" from projects-home, the shared primitive, where this draft has a typographic apostrophe.
 - Reached: step 1 Not connected, Link is broken (main specimen), Fix confirmation (keyboard focus), Connected with Details open, development build; step 2 main, Connecting… with Details, Connected (new-session notice), no agent installed; step 3 before Open Project…, pick-one list, not-a-repository confirmation, not-set-up form; step 4 without a project, typed, waiting, Canvas ready and its Open. Not reached: the pick-one list's disabled Couldn't read row (no unreadable repository in the fixture).
 
+## Home — buzz-home conversation composer (2026-10-30)
+
+Reference: the confirmed `.doan/canvases/buzz-home.html` (30 frames, confirmed 2026-10-29). Home is the workspace's shell (header, sidebar, white body panel) with the conversation composer as its body; it replaces the project cards, the setup checklist and the connection banner. This section supersedes 'Projects home' below and the Home parts of 'Settings and Home setup'.
+
+### Measurement and contracts
+
+- **Probe:** `.scratch/design-sync/buzz-home/measure.mjs`, with `analyze.mjs`, `measurements.json`, the run logs and the `impl-*.png` screenshots in the same folder (conductor checkout copy). One Electron build, `getComputedStyle` and element rectangles on both sides; the draft is read inside the app's canvas iframe, every frame's paired selectors read before the iframe is unmounted.
+- **Isolation:** temporary userData, HOME, SHELL, agent config directories, `DOAN_RUNTIME` and a locally built CLI; a v1 onboarding completion record (the runtime helper's `{}` marker no longer ends first run). Real user state was fingerprinted before and after each run and was unchanged. The desktop was locked during the runs; pointer input goes through CDP, so hover and press were still real renderer input.
+- **Fixtures:** four temporary projects (a Git repository with a branch worktree and a detached worktree whose config was removed after its first read, two more repositories, a missing folder). Provider states come from replacing main's `agent-auth:read`, `conversation:models`, `conversation:start`, `conversation:read` and `conversation:forCanvas` handlers and sending `agent-auth:changed` and `conversation:event` from main; no provider was signed in. Presets come from the real CLI. Attachments go through main with the native file dialog replaced. A second launch with no chosen agent reaches 'No agent ready' and, after removing the only project, 'No projects'.
+- **App window:** content 1238 × 780 (the draft's window), 960 × 600 for `home-narrow`.
+- **Result:** 659 paired rows; every remaining difference is context, a state the fixture draws differently, or listed under 'Documented differences'.
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Body | White `--surface-panel` panel, `--radius-container`, panel shadow; stage padding 152 / 32 / 32, centered; greeting title token (medium) with 40 px to the composer | Matches the draft at 1238 × 780 and 960 × 600. |
+| Atmosphere | `radial-gradient(ellipse 78% 64% at 50% 60%)` of `--affordance-accent` at 24% → 15% (32%) → 6% (62%) → transparent; no grain, no motion; `.6` opacity under reduced transparency, none under forced colors | Home-only exception to the Welcome-only gradient. |
+| Contrast over the gradient | Greeting ink rgb(15,15,15) on rendered background rgb(246,238,252)–rgb(250,245,254): worst 16.94:1. Placeholder `--text-metadata` rgb(95,95,95) on the white card: 6.39:1 | Both above 4.5:1, read from rendered pixels with the ink hidden. |
+| Composer | Width min(680, 100%); tray `--surface-inset` with panel shadow; card `--surface-panel`, padding 16 / 12 / 12 / 16, gap 8, ring `--border-standard`, `--border-prominent` while focused; text label 16/24, 2 lines minimum, 8 lines (192 px) then scrolls inside | The field reaches its 8-line cap with real input. |
+| Tool row | Ghost icon buttons 32 px (Attach, Presets) in `--text-standard`; model and effort triggers sm `trigger` (8 px inline, no fill at rest); 16 px logo; model chevron 16 px; effort gauge and chevron 14 px; Send `accent` icon button | Draft `home-empty`. |
+| Tray | `--size-control` min height, padding 4 / 16, caption type in `--text-subtle`; worktree trigger with 14 px branch and chevron icons; path in `--text-metadata`, ellipsized | One worktree shows the branch as read-only text instead of the trigger (design §4.2). |
+| Chips | Attachment chip `--surface-inset`, `--radius-chip`, padding 4, 32 px preview (`--size-control-sm`), name 500 and caption meta; preset chip `--size-control` high, padding 0 4 0 12, `--surface-accent-subtle` / `--text-accent-subtle`; every × is the shared icon button `xs` in `--text-metadata` | The preset chip's × is metadata gray because that is how the confirmed draft renders (conductor, 2026-10-30). |
+| Menus | Shared `doan-floating doan-menu`; rows 32 px with 16 px icons (the check keeps the shared 12 × 16); agent picker 300, effort 200, project 320, worktree 244 (`shell-project-menu`); preset popover 600 with a sm search field (16 px glyph), header-capsule group tabs and 276 px list; status lines (loading, no match) body-sm 14/20 | Lucide draws 24 px unless sized; the portalled popover inherits the page's 13 px body. |
+| Suggestions | sm `quiet` buttons, shared sm padding 16 / 16, regular weight, 14 px accent group icon, wrap centered with 8 px gaps under the composer | The draft's own `.suggestion` padding never applied (the shared sm rule outweighs it), so the shared padding is the draft value. |
+| Hover (real pointer) | quiet: backdrop fill plus one inset backdrop layer (rgba(0,0,0,.06) twice); trigger rgba(0,0,0,.06); ghost and xs icon buttons rgb(241,241,242); accent Send rgb(144,51,217) | Same values as the draft's real-pointer hover. In the workspace the strip's prominent (rgb(25,25,25)), subtle and ghost (rgb(241,241,242)) hovers keep the shared values. |
+| Send | Accent fill rgb(151,59,225), hover rgb(144,51,217); disabled while empty, blocked or sending, with the shared disabled fill rgb(232,232,232) and a spinner while a start is pending | The draft's `home-sending` renders the disabled fill too: its own `.composer-send.sending` accent rule loses to its `accent:disabled` rule, and the user confirmed the rendered draft (conductor, 2026-10-30). |
+| Reason and notices | Reason line caption, `--text-subtle`, centered, 12 px above; refusal and attachment notices `doan-notice error doan-panel` | An empty composer shows no reason line even while a Home conversation runs in its project (draft `home-toast`, `home-remove-running`); the line appears once something is typed. |
+| Drop target | Whole composer covered by `--surface-panel` 55% with `--blur-sm`, 2 px dashed `--affordance-accent` outline inset 2 px | Draft `home-drop`. |
+| Conversation strip | `doan-notice doan-panel` 64 px high at the top of the workspace body, 12 px from the panel's top and left; 20 px provider logo, spinner, alert or check; title 500, body `--text-subtle` ellipsized; sm actions (Allow prominent, other choices and Edit on Home subtle, Stop and Dismiss ghost) | Positions match the draft; see the width note below. |
+| Sidebar slot | 16 × 16 at the row's right before its menu: `hand` icon in `--affordance-accent`, 14 px spinner, or an 8 px accent dot | Draft `states-slots`. |
+| Toast | Right and bottom 16 px from the window on Home and over a workspace, 384 px wide, message and prominent sm action on one row | The shared toast (design §7.1). |
+
+### Documented differences
+
+- **Status chips in menus.** The draft's project and worktree menus use `.ob-chip`, which the canvas does not style, so its chips render as plain gray text. The implementation uses the shipped status chip (Missing `warn`, Not set up neutral), as design §14 item 3 decided.
+- **Pickers while sending.** The draft disables the model and effort triggers in `home-sending` but leaves the project and worktree triggers enabled-looking. The implementation disables every picker and chip × while a start is pending: a changed target cannot apply to a start already sent.
+- **No projects.** The draft shows "Opus 5.5 · High" in `home-no-project`. Model lists are read per project root (design §4.7), so with no project the picker shows "Default" and no effort capsule.
+- **Strip width.** The draft's workspace frames omit the right panel, so its strip is 930 px wide; in the app the Feedback panel takes 280 px and the strip is 650 px. Its left and top positions match.
+- **Menu placement.** Menus open from their own trigger (Radix, `align` start or end, 4 or 8 px offset). The draft places the agent and effort menus at one fixed spot 40 px inside the tool row's right edge, so the agent picker sits 85 px further left in the app (right edge at its trigger) while the effort menu is within 4 px; the project and worktree menus are within 8 px. The composer, card and tray positions match the draft at both window sizes.
+- **Trigger pressed.** A Radix menu trigger opens on pointerdown, so a pressed trigger shows the open fill (`--affordance-backdrop-hover`) rather than the draft board's pressed fill; the pressed fill applies only without a menu.
+- **Context, not deviations.** Container type (the canvas body is 14/20, the app body 13 px), the draft's placeholder drawn as text, caret-mock line heights, the draft's fixed sample text (shorter long request, a second `/cri` result, different canvas names in suggestions and different file sizes), highlighted first menu rows, focus or hover left by the probe's pointer, spinner boxes while rotating, and the sidebar row's inherited ink.
+
+### Roles and names
+
+Read through CDP from the real renderer on `home-empty` (`ax-home-empty.json`), equal to the draft's attributes: `region` "Home"; `button` "Project: doan-design"; `textbox` "Message"; `button` "Attach files", "Design presets", "Agent: Claude Code, model Opus 5.5", "Effort: High", "Send", "Worktree: main"; `group` "Suggested prompts" with one `button` per sentence. Other states were not read.
+
+### Off-draft copy (approved)
+
+- BT2 (2026-10-29 user): the preset list's CLI reasons ("the doan CLI couldn’t start", "the doan CLI didn’t answer in time", "Doan couldn’t read the CLI’s answer", "the doan CLI stopped without a result") and its general failure "Doan couldn’t read the design presets. You can still send without one."; a stop the person did not make, "This conversation stopped before it finished."; effort labels "Extra high", sentence-case levels and "Default" when none is chosen.
+- BU3 (2026-10-29 user): the attachment refusals "<name> wasn’t found, so it wasn’t attached.", "<name> isn’t a file, so it wasn’t attached.", "<name> isn’t a readable image, so it wasn’t attached.", "<name> couldn’t be read, so it wasn’t attached." and main's limit refusal "Only 10 files can be attached."
+
+### Terms against onboarding and Quick Open
+
+- **Agent:** Home says "agent" for a provider ("Choose another agent", "No agent is ready to run.", trigger name "Agent: Claude Code, model …"), as the onboarding Agent step does ("Connect your agent", "Sign in to at least one agent to continue."). Provider names come from the same `PROVIDER_NAMES`.
+- **Sign-in:** Home's "Sign-in expired" and "its sign-in has expired" use the onboarding noun; onboarding's action is "Sign in again", which Home does not offer.
+- **Unverified:** onboarding shows "Connected · not checked" with Retry; Home, without an action, says "Checks your connection when you send." Same state, different wording because only onboarding can act.
+- **Mismatch — Quick Open:** Quick Open still says "Project is unavailable. Check its status on Home." and "Check its status on Home and try again.", and "Choose it again from the Sidebar or Quick Open." Home no longer shows project status (it is in the sidebar's project menu, and Home says "Fix it from its menu in the sidebar."), and "Sidebar" is capitalized only there. Not changed here; handed to the conductor.
+- **Mismatch — product name:** Home writes "Doan" in sentences ("Doan doesn’t support this version", "Update Doan", "Doan stops it") and "doan" for the CLI and preset ("the doan CLI", "the doan design preset"); onboarding mixes "Set up doan" / "Open doan" with "update Doan". No decision fixes the capitalization; handed to the conductor.
+
+### Limits
+
+- Strip, sidebar slots and each project's last request live in renderer memory: a renderer reload loses them and lifts the one-Home-conversation-per-project rule. After an app restart the backend folds unfinished turns to crashed, so nothing is left to show.
+- A start can wait for its runner (Antigravity's first download included) and has no cancel while pending.
+- A pasted image stays under `<userData>/attachments/` until the next start when it was not sent.
+- After a permission answer focus goes to Stop. When a turn ends while Stop holds focus (BV1 saw a Copilot Deny end it in about 300 ms; a stop or a send's arrival focus can do the same), Stop goes away and focus moves to Dismiss instead of falling to the page. Focus the person moved elsewhere stays there; the strip is keyed by its conversation, so another project's strip starts fresh.
+
+### Coverage and limits
+
+Reached in the real app and paired: `home-empty` (with focus), `home-filled`, `home-drop`, `home-presets`, `home-agent` (Claude models with effort, Codex loading, Copilot sign-in expired), `home-effort`, `home-preset-only`, `home-slash`, `home-long`, `home-over-limit`, `home-project-menu`, `home-worktree-menu`, `home-no-project`, `home-no-agent`, `home-sending`, `home-refused`, `home-running`, `home-toast` (and the same toast over a workspace), `workspace-working`, `workspace-strip`, `home-narrow`, `home-remove-running`, `home-restore-request`; boards: strip working, failed (process_exited) and stopped; slot permission and unseen dot; reasons anchor markers, over the limit and running; attachment moved before Send; presets no match; controls focus, pressed and disabled.
+
+Not reached (not verified): preset list loading, CLI timeout and refused; the older-CLI tile (excluded by design §4.4a; unit tests only); agent board rows for a provider below its minimum and for an unverified provider; attachment checking, pasted image, more than 10 files, over 50 MB and folder-drop notices (they share the measured notice); strip starting, done and not_logged_in tiles; a slot on a bound canvas row; reasons 'project unhealthy', 'agent can't run' and 'checking'; reduced transparency and forced colors (not drawn in the draft).
+
+### Regression evidence
+
+Observed red before the fixes: `Home.test.tsx` 'Home CSS keeps the draft's measured icon sizes…' (chevrons, menu icons, popover status type, chip ×), `homeComposer.test.ts` 'an empty composer has no reason line…', `ConversationStripView.test.tsx` 'when the turn ends while Stop has focus, focus moves from the vanished Stop to Dismiss' and 'a person whose focus was elsewhere … keeps it', and `conversationStrip.test.ts` `focusAfterStop`. The probe confirms the focus fix in the app: after Deny focus is on Stop; after the turn ends it is on Dismiss inside the strip.
+
 ## Projects home — initial implementation (2026-10-25)
+
+> Superseded (2026-10-30, buzz-home): Projects home is replaced; Home no longer has project cards, the checklist or the banner; read 'Home — buzz-home conversation composer' above. This section is kept as history only.
 
 > buzz-ds 이전: colour values and colour token names in this section (`--accent*`, `--panel*`, `--text-2`…`--text-4`, `--warn`, `--err`, rgb values, opacity-dimmed states) were measured on the dark theme before buzz-ds (2026-10-26) and no longer describe the app; read the design-system section for current values. Sizes, type and layout were not remeasured either where buzz-ds restyled a shared component. Owner (remeasures, then removes this mark): `buzz-home`.
 
@@ -622,6 +699,8 @@ Overview card names now lead with the title and file name; preview messages and 
 The final review's scroll regression was observed red (`expected b to be c`) with the actual `ThumbnailRequests` and `thumbnailQueue`. Visibility now travels in both directions, including when the Overview unmounts; main retains visibility updates received during asynchronous cache reads. The connected regression, pending-reply departure test, main scheduling tests and IPC sender-validation tests pass. Final checks: 78 test files / 1,689 tests, typecheck exit 0, and full Electron E2E exit 0 with `runtime-test: PASS`, including design-nav and unchanged real-state fingerprints. The seven runtime checkpoints and three Overview screenshots were opened and inspected. Logs: conductor `.scratch/orch/design-nav/evidence-F/`.
 
 ## Settings and Home setup — initial app-setup implementation (2026-10-25)
+
+> Superseded for Home (2026-10-30, buzz-home): the Home chips, banner, Finish card, their roles and the bottom-center arrival toast are gone; read 'Home — buzz-home conversation composer' above. The Settings, wizard and FirstPrompt parts stand.
 
 > buzz-ds 이전: colour values and colour token names in this section (`--accent*`, `--panel*`, `--text-2`…`--text-4`, `--warn`, `--err`, rgb values, opacity-dimmed states) were measured on the dark theme before buzz-ds (2026-10-26) and no longer describe the app; read the design-system section for current values. Sizes, type and layout were not remeasured either where buzz-ds restyled a shared component. Owner (remeasures, then removes this mark): `buzz-settings` (Settings; it removes the mark) and `buzz-home` (Home setup).
 
