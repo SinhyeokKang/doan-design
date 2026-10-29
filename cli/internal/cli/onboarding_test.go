@@ -878,8 +878,8 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 	for _, parts := range [][]string{
 		// The sandbox fallback that `active` already has (agent-eval 2026-10-29 O1, O2).
 		{"`app_not_running`", "`app_launch_failed`", "sandbox", "MCP `onboarding_start`", "outside the sandbox", "open Doan"},
-		// Consent comes before the write, even when the user asked for the whole setup (agent-eval 2026-10-29 O1).
-		{"`project inspect`", "`changes`", "`clone.changes`", "go-ahead", "before `select --initialize` or `clone`", "even if they asked you to set everything up"},
+		// The changes are always told before the write, but a user who already agreed is not asked again (agent-eval 2026-10-29 O1, re-measure).
+		{"`project inspect`", "always tell the user", "`changes`", "`clone.changes`", "before `select --initialize` or `clone`", "already agreed", "do not ask again", "Otherwise ask first"},
 	} {
 		found := false
 		for _, l := range strings.Split(skillBody, "\n") {
