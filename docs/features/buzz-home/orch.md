@@ -87,3 +87,4 @@
 - 2026-10-30 BF1 완료(`22d2c60a`·`80d22bae`·`826dab88`·`b04d9e51`). 리뷰(Codex `gpt-6-astra` medium): 🔴 1(명령 속 비밀값이 요약에 남음) / 🟡 1(fileSummaries 캐시 상한·정리 없음) / ⚪ 2. 사용자 결정 뒤 수정 1차를 보냈다.
 - 2026-10-30 BF1 수정 1차(`4d250d92`·`c8a94cd2`) 재리뷰: 🟡 2(ACP terminal 제목 노출, 프로토콜 실패 시 캐시 미정리). 수정 2차를 보냈다.
 - 2026-10-30 BV2 완료(`c29b818b`·`b45b6660`). 리뷰(Codex `gpt-6-astra` medium): 🔴 0 / 🟡 0 / ⚪ 3. Quick Open 문구와 ⚪ 3건을 작은 수정 라운드로 보냈다.
+- 2026-10-30 BF1 세 번째 리뷰 통과, 통합 `55d00275`~`e6c9c346`(8개). BV2 수정 1차 지휘자 확인 뒤 통합 `dd5391f0`~`91fb64e5`(4개). 작업자·리뷰어 해제, 워크트리 제거. `App.tsx` 캔버스 안내의 'Sidebar' 대문자는 이번 기능 전부터 있던 문구라 그대로 둔다. 통합 `/verify`(`e6c9c346`): PASS. V3 agent-eval(BV3, Claude Sonnet medium)과 상태줄 문구 실제 앱 확인(BV4, Claude Sonnet medium)을 띄운다.
