@@ -25,12 +25,12 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | gate | 상태 |
 |---|---|---|---|---|---|---|
-| G1 | A1-R, A2(Go·fixture), B1a | `cli/internal/designskill/**`(새: Go 코드, 카탈로그 데이터, `clarify`·`context` 본문, `LICENSE`·`NOTICE` 고지, `SOURCES.md`), `schema/fixtures/cli-envelope/design-skill/**`(새) | 없음 | Claude Opus high — 라이선스 고지·공개 계약·validator가 이후 모든 배치의 기준이다 | `verify.mjs` | 진행(`ctx_91a9bc81a3c6`) |
-| S | C2, B3(앱 `turnPrompt` 안내) | `app/src/main/onboarding/SKILL.md`와 onboarding 테스트, `app/src/main/agentAuth/providers.ts` 테스트, `app/src/main/conversation/prompt.ts`·`service.ts`와 테스트 | 없음 | Claude Opus medium — 설치 경쟁 회귀와 앵커 비신뢰 경계를 지켜야 하지만 변경은 문구 중심이다 | `verify.mjs` | 진행(`ctx_9cdacb16a68a`) |
-| R | E2a | `eval/lib/scenario.ts`·`judge.ts`와 테스트, 필요하면 `eval/lib/transcript.ts` | 없음 | Codex `gpt-6.1-sol` medium — 기존 패턴을 확장하는 기계적 runner 변경 | `verify.mjs --eval` | 진행(`ctx_353641535557`) |
-| G2 | B2(Go), B3(가이드 `skill.md` 매핑 규칙·짧은 목록 생성), C1 | `cli/**`(`cli/internal/designskill/`의 카탈로그 데이터·`*.md` 본문·`SOURCES.md` 제외) | G1 | Claude Opus high — CLI/MCP parity, `init` `nextSteps`, 가이드 계약 | `verify.mjs` | 대기 |
-| P | B1b | `cli/internal/designskill/`의 카탈로그 데이터, 나머지 18개 본문, `SOURCES.md`, `schema/fixtures/cli-envelope/design-skill/`의 목록 fixture | G1 | Claude Opus high — 원본을 각색하며 엔진 절차 제거·출처 보존·프리셋 간 연계를 판단한다 | `verify.mjs` | 대기 |
-| A | A2(TS), B2(TS 앱 결과 해석), D1 | `app/src/main/`의 새 designSkills 모듈과 테스트, `app/src/main/index.ts`·`senderAllowed.ts`·`cli.ts`(필요한 연결만), `app/src/preload/index.ts`와 테스트 | G1 | Claude Opus high — 신뢰된 호출자 경계와 실패를 빈 성공으로 바꾸지 않는 해석 | `verify.mjs` | 대기 |
+| G1 | A1-R, A2(Go·fixture), B1a | `cli/internal/designskill/**`(새: Go 코드, 카탈로그 데이터, `clarify`·`context` 본문, `LICENSE`·`NOTICE` 고지, `SOURCES.md`), `schema/fixtures/cli-envelope/design-skill/**`(새) | 없음 | Claude Opus high — 라이선스 고지·공개 계약·validator가 이후 모든 배치의 기준이다 | `verify.mjs` | 통합(2640db4…97ecdea, 수정 1회) |
+| S | C2, B3(앱 `turnPrompt` 안내) | `app/src/main/onboarding/SKILL.md`와 onboarding 테스트, `app/src/main/agentAuth/providers.ts` 테스트, `app/src/main/conversation/prompt.ts`·`service.ts`와 테스트 | 없음 | Claude Opus medium — 설치 경쟁 회귀와 앵커 비신뢰 경계를 지켜야 하지만 변경은 문구 중심이다 | `verify.mjs` | 통합(e2e1a24…478e2ca, 수정 1회) |
+| R | E2a | `eval/lib/scenario.ts`·`judge.ts`와 테스트, 필요하면 `eval/lib/transcript.ts` | 없음 | Codex `gpt-6.1-sol` medium — 기존 패턴을 확장하는 기계적 runner 변경 | `verify.mjs --eval` | 통합(34ba678·98511c1) |
+| G2 | B2(Go), B3(가이드 `skill.md` 매핑 규칙·짧은 목록 생성), C1 | `cli/**`(`cli/internal/designskill/`의 카탈로그 데이터·`*.md` 본문·`SOURCES.md` 제외) | G1 | Claude Opus high — CLI/MCP parity, `init` `nextSteps`, 가이드 계약 | `verify.mjs` | 진행(`ctx_bfb842305d11`) |
+| P | B1b | `cli/internal/designskill/`의 카탈로그 데이터, 나머지 18개 본문, `SOURCES.md`, `schema/fixtures/cli-envelope/design-skill/`의 목록 fixture | G1 | Claude Opus high — 원본을 각색하며 엔진 절차 제거·출처 보존·프리셋 간 연계를 판단한다 | `verify.mjs` | 진행(`ctx_2e5691f988e6`) |
+| A | A2(TS), B2(TS 앱 결과 해석), D1 | `app/src/main/`의 새 designSkills 모듈과 테스트, `app/src/main/index.ts`·`senderAllowed.ts`·`cli.ts`(필요한 연결만), `app/src/preload/index.ts`와 테스트 | G1 | Claude Opus high — 신뢰된 호출자 경계와 실패를 빈 성공으로 바꾸지 않는 해석 | `verify.mjs` | 진행(`ctx_3986969ccc54`) |
 | E | E2b, E2c, E2d | `eval/scenarios/`의 새 시나리오와 fixture, `docs/USABILITY-EVAL.md` | G2, P, S, R 통합 | Claude Opus high — 사례별 허용 선택·금지 수정 rubric 설계와 실제 round 실행 | `verify.mjs --eval`, `node eval/run.ts --self-test`, 실제 round | 대기 |
 | V | D2, D3, E1 | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus medium — 격리·정리 절차가 길지만 판단보다 단계가 많다. D3 로그인 승인은 지휘자(D3 결정) | `/runtime-test` | 대기 |
 | 지휘자 | A0, D4, E3, Z1 | `orch.md`, PRODUCT, ARCHITECTURE, DIRECTORY, buzz-restyle 문서, 통합 커밋 | A0: 없음. 나머지: 전부 | — | 통합 HEAD `verify.mjs --eval` | 대기 |
@@ -61,3 +61,4 @@
 - 2026-10-29: G1 리뷰(`review-G1.md`, Codex) 🔴0 🟡1 🟢3. 🟡(참조형 상대 링크가 validator를 통과)와 🟢 셋을 G1 수정 라운드 1로 보냈다.
 - 2026-10-29: S 수정 라운드 1(2868851·63351f8)을 지휘자가 확인했다. 안내에 design §3 실패 규칙이 모두 있다. S를 통합한다.
 - 2026-10-29: G1 수정 라운드 1(8f7dee3·7f56691)을 지휘자가 확인했다(참조형 링크 정의·후행 JSON 거부와 회귀 테스트). G1을 통합하고 2차 G2·P·A를 시작한다.
+- 2026-10-29: 2차 G2(`dds-g2`)·P(`dds-p`)·A(`dds-a`)를 통합 HEAD 97ecdea에서 시작했다. G1·S worktree는 Orca로 제거했다(handoff 사본은 `.scratch/orch-dds/`).
