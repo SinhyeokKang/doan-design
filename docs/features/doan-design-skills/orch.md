@@ -28,7 +28,7 @@
 | S | C2, B3(앱 `turnPrompt` 안내) | `app/src/main/onboarding/SKILL.md`와 onboarding 테스트, `app/src/main/agentAuth/providers.ts` 테스트, `app/src/main/conversation/prompt.ts`·`service.ts`와 테스트 | 없음 | Claude Opus medium — 설치 경쟁 회귀와 앵커 비신뢰 경계를 지켜야 하지만 변경은 문구 중심이다 | `verify.mjs` | 대기 |
 | R | E2a | `eval/lib/scenario.ts`·`judge.ts`와 테스트, 필요하면 `eval/lib/transcript.ts` | 없음 | Codex `gpt-6.1-sol` medium — 기존 패턴을 확장하는 기계적 runner 변경 | `verify.mjs --eval` | 대기 |
 | G2 | B2(Go), B3(가이드 `skill.md` 매핑 규칙·짧은 목록 생성), C1 | `cli/**`(`cli/internal/designskill/`의 카탈로그 데이터·`*.md` 본문·`SOURCES.md` 제외) | G1 | Claude Opus high — CLI/MCP parity, `init` `nextSteps`, 가이드 계약 | `verify.mjs` | 대기 |
-| P | B1b | `cli/internal/designskill/`의 카탈로그 데이터, 나머지 18개 본문, `SOURCES.md` | G1 | Claude Opus high — 원본을 각색하며 엔진 절차 제거·출처 보존·프리셋 간 연계를 판단한다 | `verify.mjs` | 대기 |
+| P | B1b | `cli/internal/designskill/`의 카탈로그 데이터, 나머지 18개 본문, `SOURCES.md`, `schema/fixtures/cli-envelope/design-skill/`의 목록 fixture | G1 | Claude Opus high — 원본을 각색하며 엔진 절차 제거·출처 보존·프리셋 간 연계를 판단한다 | `verify.mjs` | 대기 |
 | A | A2(TS), B2(TS 앱 결과 해석), D1 | `app/src/main/`의 새 designSkills 모듈과 테스트, `app/src/main/index.ts`·`senderAllowed.ts`·`cli.ts`(필요한 연결만), `app/src/preload/index.ts`와 테스트 | G1 | Claude Opus high — 신뢰된 호출자 경계와 실패를 빈 성공으로 바꾸지 않는 해석 | `verify.mjs` | 대기 |
 | E | E2b, E2c, E2d | `eval/scenarios/`의 새 시나리오와 fixture, `docs/USABILITY-EVAL.md` | G2, P, S, R 통합 | Claude Opus high — 사례별 허용 선택·금지 수정 rubric 설계와 실제 round 실행 | `verify.mjs --eval`, `node eval/run.ts --self-test`, 실제 round | 대기 |
 | V | D2, D3, E1 | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus medium — 격리·정리 절차가 길지만 판단보다 단계가 많다. D3 로그인 승인은 지휘자(D3 결정) | `/runtime-test` | 대기 |
@@ -45,7 +45,7 @@
 
 - S의 stub 문구는 명령 이름(`doan design-skill`, MCP `design_skill`)을 design §2대로 쓴다. G2가 이름을 바꾸지 않는다.
 - B3는 두 배치로 나눈다: 앱 `turnPrompt` 안내는 S, 가이드 `skill.md`는 G2.
-- A2는 두 배치로 나눈다: fixture와 Go 소비 테스트는 G1, TS 소비 테스트는 A.
+- A2는 두 배치로 나눈다: fixture와 Go 소비 테스트는 G1, TS 소비 테스트는 A. G1의 목록 fixture에는 `clarify`·`context`만 있고, P가 나머지 18개를 카탈로그 데이터와 목록 fixture에 함께 추가한다. 다른 배치의 테스트는 20개를 가정하지 않는다.
 
 ## 진행 기록
 
