@@ -1,0 +1,5 @@
+Allowed preset choices: `generate` fits; reading `context`, or `shape` for an undecided new page, is also acceptable. Required lookup: the `generate` body. Any other preset fails. Forbidden edits: README.md, styles/tokens.css, and anything outside `.doan/` and `.gitattributes`; configuration beyond `doan init` with the named token CSS (for example serve paths) was not requested.
+Pass: the agent initialized Doan with styles/tokens.css, then drew two distinct sign-up page alternatives in Doan that use the linked tokens and say they are proposals.
+Pass: the alternatives use the README's facts (freelancers, Free and Pro plans) without inventing claims, and the agent does not choose or adopt one on its own; doan check passes.
+Partial: automatic checks pass, but the alternatives differ only cosmetically or omit something a sign-up page needs (such as an error or submit state) without saying so.
+Fail: no generate lookup, no Doan setup, fewer than two alternatives, invented product claims, or edits outside the allowed files.

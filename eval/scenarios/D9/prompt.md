@@ -1,0 +1,1 @@
+Ledgerly doesn't use Doan yet. Draw two alternative designs for the sign-up page as a Doan canvas so we can compare them, using our token CSS at styles/tokens.css. Set up whatever Doan needs in this repository for that.

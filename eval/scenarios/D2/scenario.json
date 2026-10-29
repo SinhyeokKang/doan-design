@@ -1,0 +1,8 @@
+{
+  "id": "D2",
+  "title": "Apply a named preset to one frame and leave the others alone",
+  "focus": "preset",
+  "init": null,
+  "selection": null,
+  "timeoutSec": 900
+}

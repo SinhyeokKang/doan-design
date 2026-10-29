@@ -1,0 +1,8 @@
+{
+  "id": "D6",
+  "title": "Make a concrete edit without reading a preset",
+  "focus": "preset",
+  "init": null,
+  "selection": null,
+  "timeoutSec": 600
+}

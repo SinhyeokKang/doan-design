@@ -1,0 +1,5 @@
+Allowed preset choices: `quieter` fits; also reading `colorize`, `typeset` or `context` is acceptable because the request names colors and weights. Required lookup: the `quieter` body. The negations rule out `clarify` (wording) and `animate` (motion); reading them, or any other preset, fails. Forbidden edits: any visible text, any animation or transition, styles/tokens.css, and every file other than `.doan/canvases/settings.html`.
+Pass: the canvas is visibly calmer: fewer saturated surfaces and thick borders, lighter weights, less shouting uppercase, while the hierarchy and the delete action's seriousness remain clear.
+Pass: every text element reads exactly as before, frame and element ids are unchanged, colors still come from the linked tokens, and doan check passes.
+Partial: automatic checks pass, but the result is barely calmer or flattens the hierarchy so the primary actions no longer stand out.
+Fail: no quieter lookup, a forbidden preset read, changed wording, added motion, token file edits, or a failed doan check.
