@@ -714,8 +714,8 @@ async function start(): Promise<void> {
   });
   conversations = conversationService;
   const attachments = new AttachmentStore(join(userData, "attachments"), {
-    thumbnail: path => {
-      const image = nativeImage.createFromPath(path); if (image.isEmpty()) return null;
+    thumbnail: bytes => {
+      const image = nativeImage.createFromBuffer(Buffer.from(bytes)); if (image.isEmpty()) return null;
       const { width, height } = image.getSize();
       return new Uint8Array(image.resize(width >= height ? { width: Math.min(width, 160) } : { height: Math.min(height, 160) }).toPNG());
     },
@@ -723,7 +723,7 @@ async function start(): Promise<void> {
     reencode: bytes => { const image = nativeImage.createFromBuffer(Buffer.from(bytes)); return image.isEmpty() ? null : new Uint8Array(image.toPNG()); },
   });
   attachments.cleanup();
-  const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries(), { models: new ModelCatalog(prepareConversation, listModels), attachments });
+  const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries(), { models: new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.listModels(input, listModels)), attachments });
   for (const method of conversationMethods) {
     ipcMain.handle(`conversation:${method}`, (event, value: unknown) => conversationRequest(fromWindow(event), method, value));
   }

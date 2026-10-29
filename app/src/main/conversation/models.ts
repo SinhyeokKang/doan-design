@@ -1,6 +1,6 @@
 import { object } from "./sessions";
 import type { Provider } from "../agentAuth/types";
-import type { Prepare, Prepared } from "./service";
+import type { Prepared } from "./service";
 
 // One model the provider listed for a folder. efforts: the levels that model takes, only from Claude and Codex
 // (Cursor and Antigravity put effort in the model ID, Copilot has none; PRODUCT §6 buzz-home P1).
@@ -50,11 +50,11 @@ function code(error: unknown): string {
 export class ModelCatalog {
   private cache = new Map<string, Promise<ModelOption[]>>();
   private received = new Map<string, ModelOption[]>();
-  constructor(private prepare: Prepare, private list: (input: Prepared) => Promise<ModelOption[]>) {}
+  constructor(private prepare: (root: string, runtime: Provider) => Promise<Prepared>, private list: (input: Prepared) => Promise<ModelOption[]>) {}
   async models(root: string, runtime: Provider): Promise<ModelsReply> {
     try {
       // The preparation reads the connection and installed version that key the cache, under the run's own lease.
-      const input = await this.prepare({ root, mode: "new", runtime, text: "", anchors: [] });
+      const input = await this.prepare(root, runtime);
       const key = JSON.stringify([root, runtime, input.owner?.connectionId ?? "", input.installed ?? ""]);
       let pending = this.cache.get(key);
       if (pending) void input.release?.().catch(error => console.error("doan: account lease release failed", error));

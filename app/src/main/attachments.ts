@@ -17,9 +17,10 @@ export type AttachmentError = "not_found" | "not_file" | "not_image" | "too_larg
 export interface AttachmentInfo extends AttachmentRecord { id: string; pasted: boolean; thumbnail?: Uint8Array }
 export type AttachmentResult = { ok: true; attachment: AttachmentInfo } | { ok: false; name: string; error: AttachmentError };
 export type ResolvedAttachments = { ok: true; records: AttachmentRecord[] } | { ok: false; error: "bad_request" } | { ok: false; error: "attachment_missing"; missing: string[] };
-// Electron's nativeImage behind a seam: decoding happens only after the size and signature checks.
-export interface ImageCodec { thumbnail(path: string): Uint8Array | null; reencode(bytes: Uint8Array): Uint8Array | null }
-interface Entry extends AttachmentRecord { id: string; pasted: boolean; dir?: string }
+// Electron's nativeImage behind a seam: it decodes only bytes that passed the size and signature checks, never a path.
+export interface ImageCodec { thumbnail(bytes: Uint8Array): Uint8Array | null; reencode(bytes: Uint8Array): Uint8Array | null }
+// dev and ino: the file checked when it was added; a recheck reads nothing from any other file.
+interface Entry extends AttachmentRecord { id: string; pasted: boolean; dir?: string; dev: number; ino: number }
 
 // The leading bytes of the image formats doan accepts; a mismatch is never decoded.
 export function imageType(head: Uint8Array): "image/png" | "image/jpeg" | "image/gif" | "image/webp" | null {
@@ -30,13 +31,23 @@ export function imageType(head: Uint8Array): "image/png" | "image/jpeg" | "image
   if (at(0, [0x52, 0x49, 0x46, 0x46]) && at(8, [0x57, 0x45, 0x42, 0x50])) return "image/webp";
   return null;
 }
-// Reads only the first bytes of a regular file; O_NONBLOCK keeps a FIFO from blocking main.
-export function readHead(path: string, length = 16): { size: number; head: Uint8Array } {
+interface Opened { size: number; dev: number; ino: number; head: Uint8Array; bytes?: Uint8Array }
+// Opens a canonical path without following a link (O_NONBLOCK keeps a FIFO from blocking main) and reads only once
+// the opened file is a regular file and, on a recheck, the same one. whole: also the bytes of an image within the cap,
+// for its thumbnail, from the same descriptor.
+function readChecked(path: string, expected: { dev: number; ino: number } | null, whole: boolean): Opened {
   const fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
   try {
-    const stat = fstatSync(fd); if (!stat.isFile()) throw Object.assign(new Error("not_file"), { code: "not_file" });
-    const head = Buffer.alloc(length); const read = readSync(fd, head, 0, length, 0);
-    return { size: stat.size, head: head.subarray(0, read) };
+    const stat = fstatSync(fd);
+    if (!stat.isFile()) throw Object.assign(new Error("not_file"), { code: "not_file" });
+    if (expected && (stat.dev !== expected.dev || stat.ino !== expected.ino)) throw Object.assign(new Error("replaced"), { code: "ENOENT" });
+    const head = Buffer.alloc(16); const read = readSync(fd, head, 0, 16, 0);
+    const opened: Opened = { size: stat.size, dev: stat.dev, ino: stat.ino, head: head.subarray(0, read) };
+    if (whole && stat.size <= MAX_IMAGE_BYTES && imageType(opened.head)) {
+      const bytes = Buffer.alloc(stat.size);
+      if (readSync(fd, bytes, 0, stat.size, 0) === stat.size) opened.bytes = bytes;
+    }
+    return opened;
   } finally { closeSync(fd); }
 }
 // Directories of pasted images a start never took; a sent one stays with its conversation.
@@ -70,10 +81,11 @@ export class AttachmentStore {
     return (paths as string[]).map(path => {
       const name = basename(path);
       if (accepted >= MAX_ATTACHMENTS) return { ok: false, name, error: "limit" };
-      const checked = this.check(path); if ("error" in checked) return { ok: false, name, error: checked.error };
-      const entry: Entry = { id: randomUUID(), pasted: false, ...checked };
+      const checked = this.check(path, null); if ("error" in checked) return { ok: false, name, error: checked.error };
+      const { bytes, ...record } = checked;
+      const entry: Entry = { id: randomUUID(), pasted: false, ...record };
       this.entries.set(entry.id, entry); accepted++;
-      return { ok: true, attachment: this.info(entry) };
+      return { ok: true, attachment: this.info(entry, bytes) };
     });
   }
   addPasted(value: unknown): AttachmentResult {
@@ -89,9 +101,10 @@ export class AttachmentStore {
       mkdirSync(this.dir, { recursive: true, mode: 0o700 }); mkdirSync(dir, { mode: 0o700 });
       writeFileSync(join(dir, file), png, { mode: 0o600, flag: "wx" });
     } catch { rmSync(dir, { recursive: true, force: true }); return { ok: false, name, error: "unreadable" }; }
-    const entry: Entry = { id, pasted: true, dir, name: file, size: png.length, kind: "image", path: realpathSync.native(join(dir, file)) };
+    const path = realpathSync.native(join(dir, file)), stat = lstatSync(path);
+    const entry: Entry = { id, pasted: true, dir, name: file, size: png.length, kind: "image", path, dev: stat.dev, ino: stat.ino };
     this.entries.set(id, entry);
-    return { ok: true, attachment: this.info(entry) };
+    return { ok: true, attachment: this.info(entry, png) };
   }
   // A pasted image removed before sending is deleted, even one a refused start marked sent; a local file is only
   // forgotten. An accepted start consumed its entries, so its files never reach here.
@@ -102,7 +115,7 @@ export class AttachmentStore {
     if (entry.dir) rmSync(entry.dir, { recursive: true, force: true });
     return true;
   }
-  // The send-time recheck: each file must still be the regular file at the path that was checked.
+  // The send-time recheck: each file must still be the regular file that was checked, at the same canonical path.
   resolve(value: unknown): ResolvedAttachments {
     if (!Array.isArray(value) || value.length > MAX_ATTACHMENTS) return { ok: false, error: "bad_request" };
     const ids: string[] = [];
@@ -114,8 +127,8 @@ export class AttachmentStore {
     const missing: string[] = [], records: AttachmentRecord[] = [];
     for (const id of ids) {
       const entry = this.entries.get(id);
-      const checked = entry ? this.check(entry.path) : null;
-      if (!entry || !checked || "error" in checked || checked.path !== entry.path || checked.kind !== entry.kind) missing.push(id);
+      const checked = entry ? this.check(entry.path, entry) : null;
+      if (!entry || !checked || "error" in checked || checked.kind !== entry.kind) missing.push(id);
       else records.push({ name: entry.name, size: checked.size, kind: entry.kind, path: entry.path });
     }
     return missing.length ? { ok: false, error: "attachment_missing", missing } : { ok: true, records };
@@ -133,20 +146,25 @@ export class AttachmentStore {
     if (!Array.isArray(value)) return;
     for (const item of value) if (typeof item === "object" && item !== null && "id" in item && typeof item.id === "string") this.entries.delete(item.id);
   }
-  private check(path: string): Omit<AttachmentRecord, "path"> & { path: string } | { error: AttachmentError } {
-    let real: string, size: number, head: Uint8Array;
-    try { real = realpathSync.native(path); ({ size, head } = readHead(real)); }
-    catch (error) {
+  // expected: a recheck, which compares the fresh canonical path with the stored one before opening anything, so a
+  // path swapped to a link elsewhere is refused without reading the other file.
+  private check(path: string, expected: Entry | null): AttachmentRecord & { dev: number; ino: number; bytes?: Uint8Array } | { error: AttachmentError } {
+    let real: string, opened: Opened;
+    try {
+      real = realpathSync.native(path);
+      if (expected && real !== expected.path) return { error: "not_found" };
+      opened = readChecked(real, expected, !expected);
+    } catch (error) {
       const code = typeof error === "object" && error !== null && "code" in error ? error.code : "";
       return { error: code === "ENOENT" || code === "ENOTDIR" ? "not_found" : code === "not_file" || code === "EISDIR" ? "not_file" : "unreadable" };
     }
-    const image = imageType(head) !== null;
+    const image = imageType(opened.head) !== null;
     // A file named as an image must be one; its name would otherwise mislead the agent and the chip.
     if (!image && IMAGE_EXTENSIONS.has(extname(real).toLowerCase())) return { error: "not_image" };
-    return { name: basename(real), size, kind: image ? "image" : "file", path: real };
+    return { name: basename(real), size: opened.size, kind: image ? "image" : "file", path: real, dev: opened.dev, ino: opened.ino, ...(opened.bytes ? { bytes: opened.bytes } : {}) };
   }
-  private info(entry: Entry): AttachmentInfo {
-    const thumbnail = entry.kind === "image" && entry.size <= MAX_IMAGE_BYTES ? this.codec.thumbnail(entry.path) : null;
+  private info(entry: Entry, bytes: Uint8Array | undefined): AttachmentInfo {
+    const thumbnail = entry.kind === "image" && bytes ? this.codec.thumbnail(bytes) : null;
     return { id: entry.id, name: entry.name, size: entry.size, kind: entry.kind, path: entry.path, pasted: entry.pasted, ...(thumbnail ? { thumbnail } : {}) };
   }
 }

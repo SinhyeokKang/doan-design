@@ -10,10 +10,11 @@ import type { Canvas, ConversationEvent, EventPayload, Runtime } from "./types";
 interface SessionBinding<R> { runtime: R; origin: "resumed" | "new" | "newDesign"; sessionId: string; configDir: string; cwd: string }
 export type ExternalSession = SessionBinding<Runtime>;
 // model and effort are what the conversation started with; canvasesAtStart is the root's canvas list at acceptance,
-// so a newDesign conversation binds only to a canvas that appeared after it.
+// so a newDesign conversation binds only to a canvas that appeared after it; fromHome marks a newDesign started from
+// Home, whose turns carry Home's fixed paragraph (entries without it never do).
 interface MetadataBase {
   conversationId: string; root: string; canvas?: Canvas; title: string; state: "current" | "archived";
-  model?: string; effort?: string; canvasesAtStart?: Canvas[];
+  model?: string; effort?: string; canvasesAtStart?: Canvas[]; fromHome?: true;
 }
 // Legacy-external conversations keep the shared two-runtime session; doan-owned ones run on an app provider.
 export type ConversationMetadata = MetadataBase & (
@@ -31,7 +32,7 @@ function label(value: unknown): value is string { return str(value) && value.len
 function metadata(value: unknown, version: 1 | 2): value is ConversationMetadata {
   if (!object(value) || !validId(value.conversationId) || typeof value.root !== "string" || !absolutePath(value.root) || !str(value.title) ||
       (value.state !== "current" && value.state !== "archived") || (value.canvas !== undefined && !validCanvas(value.canvas)) || !object(value.session) ||
-      (value.model !== undefined && !label(value.model)) || (value.effort !== undefined && !label(value.effort)) ||
+      (value.fromHome !== undefined && value.fromHome !== true) || (value.model !== undefined && !label(value.model)) || (value.effort !== undefined && !label(value.effort)) ||
       (value.canvasesAtStart !== undefined && (!Array.isArray(value.canvasesAtStart) || ![...value.canvasesAtStart].every(validCanvas)))) return false;
   const s = value.session;
   if (!["resumed", "new", "newDesign"].includes(String(s.origin)) ||

@@ -70,7 +70,14 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           }
         } else if (raw.model !== undefined || raw.effort !== undefined || raw.attachments !== undefined) throw new Error("bad_request");
         const store = home.attachments;
-        const started = await service.start(request, store && attachments.length ? () => store.markSent(attachments) : undefined);
+        const started = await service.start(request, store && attachments.length ? {
+          recheck: () => {
+            const fresh = store.resolve(attachments);
+            if (fresh.ok) return fresh.records;
+            throw Object.assign(new Error(fresh.error), fresh.error === "attachment_missing" ? { missing: fresh.missing } : {});
+          },
+          sent: () => store.markSent(attachments),
+        } : undefined);
         store?.consume(attachments);
         return started;
       }
@@ -85,6 +92,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
     } catch (error) {
       const known = ["bad_request", "project_not_open", "canvas_not_found", "no_agent", "cli_missing", "cli_install_failed", "credential_override", "no_session", "session_unavailable", "runtime_unsupported", "session_in_use", "busy", "not_logged_in", "process_exited", "rate_limited", "unknown", "not_found", "stale"];
       const code = error instanceof Error ? error.message : "unknown";
+      if (code === "attachment_missing" && error instanceof Error && "missing" in error && Array.isArray(error.missing)) return { error: code, missing: error.missing };
       return { error: code === "outside_root" ? "session_unavailable" : known.includes(code) ? code : "unknown" };
     }
   };
