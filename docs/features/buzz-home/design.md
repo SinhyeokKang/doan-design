@@ -179,7 +179,7 @@
 - 저장소 밖 경로는 공급자의 샌드박스·권한 설정에 따라 읽기 권한 요청을 만들 수 있다. 임시 상태줄이 그 요청에 답하게 한다(§7). doan은 권한 설정을 바꾸거나 우회하지 않는다(PRODUCT §3 'Resume and permissions').
 - 수명: 로컬 파일은 doan이 건드리지 않는다. 붙여넣기 파일은 보내지 않고 칩에서 지우면 지우고, 앱 종료 때 남은 미전송 파일은 다음 시작 때 정리한다. 보낸 붙여넣기 파일은 그 대화 기록과 함께 남는다. 대화 기록처럼 보존 정책은 없고, 기기 사이에 옮겨지지 않는다.
 - 기록: `user.message` 이벤트에 첨부 메타데이터(`{name, size, kind, path}`)를 더한다. 이벤트 v1에 선택 필드로 더할지는 `/tdd`에서 판독기를 읽고 정한다.
-- 드롭 대상(2026-10-29 user, 초안 `home-drop`): 파일을 입력창 위로 끌고 오면 입력 카드 전체가 대상이 된다. 카드는 `--surface-accent-subtle` 채움에 `--affordance-accent` 2px 점선 외곽선(가장자리 띠가 아닌 전체 외곽선)으로 바뀌고, 가운데에 `file-plus` 아이콘, `Drop to attach`, `Files stay where they are. Your agent reads them on this Mac.`을 보인다(`role="status"`). 그동안 창 전체의 프로젝트 드롭 오버레이는 보이지 않는다. 놓으면 파일마다 칩이 생기고 텍스트는 유지된다. 폴더를 놓으면 `Folders can’t be attached. Drop a folder outside the message to add a project.`을 보이고 아무것도 더하지 않는다. 카드 밖으로 나가면 원래 모습으로 돌아온다.
+- 드롭 대상(2026-10-29 user, 초안 `home-drop`): 파일을 입력창 위로 끌고 오면 입력창 전체(카드와 트레이)를 흰 반투명 블러 오버레이(`--surface-panel` 55%, `--blur-sm`)가 덮고, `--affordance-accent` 2px 점선 외곽선이 생긴다. 안에는 문구도 아이콘도 없다. 스크린 리더에는 `Drop to attach`를 `role="status"`로 알린다. reduced transparency에서는 블러 없이 더 불투명한 흰색이다. 그동안 창 전체의 프로젝트 드롭 오버레이는 보이지 않는다. 놓으면 파일마다 칩이 생기고 텍스트는 유지된다. 폴더를 놓으면 `Folders can’t be attached. Drop a folder outside the message to add a project.`을 보이고 아무것도 더하지 않는다. 카드 밖으로 나가면 원래 모습으로 돌아온다.
 - UI: 칩은 입력 위 한 줄에 놓이고, 넘치면 가로 스크롤하지 않고 줄을 바꾼다. 이미지 칩은 썸네일, 파일 칩은 아이콘·이름·크기를 보이고 툴팁에 전체 경로(`~/…` 축약)를 단다. 칩마다 × 제거가 있다. 키보드로 칩에 가서 Delete/Backspace로 지울 수 있다.
 
 ## 5. 꾸밈 요소 (2026-10-29 user)
