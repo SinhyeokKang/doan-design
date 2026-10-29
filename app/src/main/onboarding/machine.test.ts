@@ -489,3 +489,13 @@ test("a stub installed before design presets differs and is replaced only after 
   expect(await m.answer({ id: asked.id, allow: true })).toEqual({ kind: "success" });
   expect(readFileSync(stub, "utf8")).toBe(BUNDLED_STUB);
 });
+test("a pre-preset stub that changes after the confirmation is shown is stale and kept", async () => {
+  agent("claude"); const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  const stub = join(home, ".agents/skills/doan/SKILL.md"); file(stub, PRESET_LESS_STUB);
+  const asked = await m.run({ step: "connect", agent: "claude", expected: (await m.read("2")).expected });
+  if (asked.kind !== "confirm") throw new Error("confirmation absent"); expect(asked.target).toBe("stub");
+  writeFileSync(stub, `${PRESET_LESS_STUB}edited\n`);
+  expect(await m.answer({ id: asked.id, allow: true })).toEqual({ kind: "stale" });
+  expect(readFileSync(stub, "utf8")).toBe(`${PRESET_LESS_STUB}edited\n`);
+  expect(mcpWrites()).toEqual([]);
+});
