@@ -21,6 +21,7 @@
 | D8 | A1-R에서 공개 20개나 `document` 표시 이름을 바꿔야 하면 G1은 바꾸지 않고 질문으로 올린다. 지휘자가 사용자에게 묻는다 | spec §3.1: 선정은 사용자 결정이다 |
 | D9 | A1-R 재검토 결과 공개 20개 ID를 유지한다. `document`의 표시 이름은 `Document the design system`이다 | 사용자 결정(2026-10-29), G1 권고 |
 | D10 | `doan init`·MCP `init`의 `context` 안내는 성공 result에 `nextSteps: string[]` 키 하나를 더해 싣는다. 기존 키와 envelope v1·schema는 바꾸지 않는다 | 사용자 결정(2026-10-29). G2 질문 — 성공 envelope에는 `nextSteps` 자리가 없다 |
+| D11 | E1의 실제 에이전트 확인은 실제 HOME·`CLAUDE_CONFIG_DIR`를 읽기용으로 써서 사례마다 `claude -p`를 한 번씩 실행한다(세션 저장 없음, MCP 없음, `CODEX_HOME`·`DOAN_RUNTIME` 격리, 전후 비교). 새 stub과 구 CLI의 사례는 skill 로딩을 끄고 stub 본문을 system prompt로 주며, stub 설치 경로는 미검증으로 남긴다 | 사용자 허가(2026-10-29). Claude 인증은 Keychain에만 있어 격리 HOME에서는 로그인되지 않는다 |
 
 ## 배치
 
@@ -71,3 +72,5 @@
 - 2026-10-29: P 리뷰(`review-P.md`, Codex) 🔴0 🟡2 🟢3. 🟡1(원본의 미학적 절대 금지가 document·polish·distill·quieter에 남음), 🟡2(generate의 다축 대안 규칙이 방향을 지정한 요청과 충돌)와 🟢 셋을 P 수정 라운드 1로 보냈다.
 - 2026-10-29: A 수정 라운드 1(c3a5745)을 지휘자가 확인했다. `runDesignSkill`만 동기 spawn 예외를 실패 결과로 바꾸고 공용 `runCli`는 그대로이다. A를 통합한다.
 - 2026-10-29: P 수정 라운드 1(9f24286·633cbde)을 지휘자가 확인했다(document의 시스템 폰트·glyph는 기본값으로, polish·distill·quieter 금지는 기존 시스템이 정당화하는 기본값으로, generate는 자유 탐색·방향 고정·departure로 분기). P를 통합하고 3차 E·V를 시작한다.
+- 2026-10-29: 2차 통합 HEAD(90fa660) `verify.mjs --eval` PASS(9단계). 3차 E(`ctx_77e6356c97de`)·V(`ctx_3b2e3e0e7546`)를 시작했다.
+- 2026-10-29: V 질문 — 격리한 CLAUDE_CONFIG_DIR에는 Claude 인증이 없다(Keychain 전용). 지휘자 판단으로 실제 CLAUDE_CONFIG_DIR를 읽기용으로만 쓰고 나머지는 격리하며, 전후 비교와 transcript로 읽은 SKILL.md를 판정하게 했다.
