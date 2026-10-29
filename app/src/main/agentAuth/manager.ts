@@ -273,6 +273,7 @@ export class AuthManager {
         accepted = true; clearTimeout(deadline); show(url);
       }) : null;
       let login: Run;
+      if (auth.loginClears) touch.live = true;
       try {
         login = await this.exec(provider, attemptId, auth.login, null, text => {
           const printed = (text.match(/https?:\/\/[^\s"'<>]+/g) ?? []).map(found => found.replace(/[.,;:!?)\]]+$/, ""));
