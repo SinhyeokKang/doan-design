@@ -33,6 +33,12 @@ export function runConfig(cli: string, root: string, args: readonly string[], ti
   return runCli(cli, ["config", "--json", "--repo", root, ...args], undefined, timeoutMs);
 }
 
+// No repo and no cwd: the presets are embedded in the CLI. The id goes after
+// `--` so a value like `--repo` stays the positional id, never an option.
+export function runDesignSkill(cli: string, id?: string, timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
+  return runCli(cli, id === undefined ? ["design-skill", "--json"] : ["design-skill", "--json", "--", id], undefined, timeoutMs);
+}
+
 // Checked before running, because a missing folder must show as "folder not
 // found" rather than as the CLI's `repo_not_found` ("not initialized").
 export async function readFolder(cli: string, path: string, timeoutMs = CLI_TIMEOUT_MS): Promise<FolderView> {

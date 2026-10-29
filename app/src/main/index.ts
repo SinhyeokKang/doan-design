@@ -34,8 +34,9 @@ import { validateSelection } from "../formats/validate";
 import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } from "./canvasFrame";
 import { canvasScriptSource } from "./canvasScript";
 import { createAddFlow, droppedPaths, type AddFlow } from "./addProjects";
-import { cliCommand, readFolder, runConfig, runLs } from "./cli";
+import { cliCommand, readFolder, runConfig, runDesignSkill, runLs } from "./cli";
 import { createConfigBridge, type ConfigBridge } from "./configBridge";
+import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
 import { folderState } from "./folderState";
 import type { InspectResult } from "./inspect";
 import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
@@ -589,6 +590,13 @@ async function start(): Promise<void> {
   });
   handle("comments:transition-answer", undefined, (event, value: unknown) => {
     if (fromWindow(event)) transitionGuard.answer(value);
+  });
+  // Read-only preset lookups through the bundled CLI: the page names an id, never a command or argument.
+  handle(DESIGN_SKILL_CHANNELS.list, DESIGN_SKILL_REFUSED, async (_event, value: unknown) =>
+    value === undefined ? interpretList(await runDesignSkill(cli)) : DESIGN_SKILL_REFUSED);
+  handle(DESIGN_SKILL_CHANNELS.get, DESIGN_SKILL_REFUSED, async (_event, value: unknown) => {
+    const id = designSkillGetRequest(value);
+    return id === null ? DESIGN_SKILL_REFUSED : interpretGet(await runDesignSkill(cli, id), id);
   });
   // `doan active` is an extra; the app works without it, and the CLI then
   // reports that the app is not running.
