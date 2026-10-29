@@ -89,3 +89,5 @@
 - 2026-10-30 BF1 수정 1차(`4d250d92`·`c8a94cd2`) 재리뷰: 🟡 2(ACP terminal 제목 노출, 프로토콜 실패 시 캐시 미정리). 수정 2차를 보냈다.
 - 2026-10-30 BV2 완료(`c29b818b`·`b45b6660`). 리뷰(Codex `gpt-6-astra` medium): 🔴 0 / 🟡 0 / ⚪ 3. Quick Open 문구와 ⚪ 3건을 작은 수정 라운드로 보냈다.
 - 2026-10-30 BF1 세 번째 리뷰 통과, 통합 `55d00275`~`e6c9c346`(8개). BV2 수정 1차 지휘자 확인 뒤 통합 `dd5391f0`~`91fb64e5`(4개). 작업자·리뷰어 해제, 워크트리 제거. `App.tsx` 캔버스 안내의 'Sidebar' 대문자는 이번 기능 전부터 있던 문구라 그대로 둔다. 통합 `/verify`(`e6c9c346`): PASS. V3 agent-eval(BV3, Claude Sonnet medium)과 상태줄 문구 실제 앱 확인(BV4, Claude Sonnet medium)을 띄운다.
+- 2026-10-30 BV4 완료(`5f48578a`), 통합. 실제 앱에서 Codex 명령 턴은 `Running a command`, 파일 변경 권한은 상대 경로(`bv4-note.txt`), Quick Open은 사이드바 문구로 보였다. 키체인 항목 삭제·기준선 일치 확인. 작업자 해제, 워크트리 제거.
+- 2026-10-30 BV4가 찾은 기존 문제(이번 기능 밖): symlink 경로(`/tmp/<x>`)로 등록된 프로젝트에서는 Codex 시작이 모두 `session_unavailable`로 실패한다. `prepare.ts`의 `canonicalDirectory(request.root) !== request.root` 검사(agent-conversation `da822888`, agent-auth `ef0db91a`)로 보인다. UI의 프로젝트 추가는 realpath로 저장하므로 보통 경로에서는 생기지 않는다. 고치지 않았고 BZ에서 PRODUCT §8 후속으로 남긴다.
