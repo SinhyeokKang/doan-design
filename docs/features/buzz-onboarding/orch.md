@@ -35,6 +35,7 @@
 | D22 | Codex 교체 로그인은 새 staging 프로필에서 실행한다. 성공하면 연결의 프로필을 바꾸고 옛 프로필을 로그아웃·삭제하며, 취소·실패하면 staging만 지우고 기존 연결을 유지한다(ARCHITECTURE §7 프로필 경로 승격은 V3) | 사용자 결정(2026-10-29) — Codex 0.164.0 `codex login`이 시작하자마자 기존 로그인을 원격 폐기·삭제한다(A의 소스 확인, `codex-rs/cli/src/login.rs`) |
 | D23 | 'Multiple local checkouts'와 'Your projects' 행은 'Already on your Mac'처럼 선택 가능한 `doan-panel` 카드로 둔다. checkout 목록은 프로젝트 썸네일 대신 `GitBranch` 아이콘과 브랜치 이름(없으면 폴더 이름)·경로를 보인다(ShellSidebar worktree 행과 같은 형식). 'Your projects'는 썸네일을 유지한다. 초안과의 차이로 DESIGN.md에 기록한다 | 사용자 결정(2026-10-29) — 같은 로컬 폴더가 개수에 따라 다른 모양으로 보였고, worktree는 프로젝트가 아니라 같은 리포의 checkout이다 |
 | D24 | 자동 포커스 복구는 파일을 쓰거나 동의하는 버튼('Set up and continue', clone 시작, 'Stop and …' 확인)에 떨어지지 않고 제목이나 notice로 간다. 초기화 동의는 버튼이 보인 inspectionId·경로에 묶인 토큰으로만 보낸다 | 지휘자 판단(V 재현 안 된 동의 없는 초기화 1건) — 무심코 누른 키가 동의가 되지 않게 한다 |
+| D25 | GitHub URL이 로컬 checkout·worktree 여러 개와 맞으면 목록을 보이지 않고 하나를 자동으로 고른다: 설정이 필요 없는 것 → 본 checkout → 최근 등록 순. 'Already on your Mac' 카드 하나로 보이고 Choose another folder는 남는다. worktree 전환은 AppShell 프로젝트 카드의 'Worktrees' 메뉴에서 한다. CLI/MCP는 그대로 모든 후보를 돌려준다 | 사용자 결정(2026-10-29) — 후보는 모두 이미 등록된 프로젝트라 선택은 홈을 여는 checkout만 정하고, LNB에서 바꿀 수 있다 |
 
 ## 배치
 
@@ -117,3 +118,4 @@
 - 2026-10-29: U 조사(837f4c0..fd91ffa): 동의 없이 initialize를 보내는 경로는 찾지 못했고, 동의를 inspectionId·경로에 묶인 토큰으로 바꿨다. 통합. 남은 의심(포커스 복구가 'Set up and continue'에 감)은 D24로 U에 보냈다.
 - 2026-10-29: `/agent-eval` 라운드 `buzz-onboarding-261029`(`0564054`, Claude Code 2.1.312·Codex 0.164.0): 기존 시나리오는 이전과 같다(R1b·R2 Codex는 알려진 실패, H3·R6 Codex는 판정자만 partial). O1 두 에이전트 fail, O2 Codex fail. 원인: Codex sandbox가 socket을 막는데 온보딩 안내에 sandbox·MCP 안내가 없음, Claude가 변경 계획을 select 뒤에 보고, 가짜 앱이 초기화 파일을 만들지 않음(runner 결함). 실제 상태 점검의 Keychain 차이는 실제 Codex가 사용자 설정의 `malmoi` MCP 자격 증명을 갱신한 것(02:10:51Z, doan 무관). 배치 G2 시작 `ctx_f6d415a0a0b0`. 수정 뒤 O1·O2를 다시 잰다.
 - 2026-10-29: D24 통합(00fba93, c97b81e → `fdd9d8d`). V 최종 확인(D23 카드, 동의 시나리오 재시도, D24 포커스) 시작.
+- 2026-10-29: G2 통합(eb341c7..3aa40fb → `7b58596`). O1·O2 재측정 라운드 `buzz-onboarding-261029-o` 시작. 결정 D25를 U에 보냈고 V에 부탁한 checkout 스크린샷은 취소했다.
