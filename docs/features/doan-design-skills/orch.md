@@ -25,6 +25,7 @@
 | D12 | U-009: `document`은 이 대화에서 `context`를 읽지 않았고 프로젝트 맥락 문서가 없으면 `context`를 먼저 읽게 한다. D10으로 다시 잰다 | 사용자 결정(2026-10-29). D10에서 Claude 0/3·Codex 1/3만 `context`를 읽었다 |
 | D13 | U-010(stub에 두 경로 모두 실패할 때의 규칙), D3·D7 Claude의 사실 지어내기(clarify·harden 규칙 보강)는 새 수정 배치 F가 고친다. D2·D11의 시나리오 결함은 아직 병합 전 시나리오라 E가 제자리에서 고치고 다시 잰다 | 지휘자 판단 — 셋 다 design §3과 spec §4에 이미 정해진 규칙을 반영하는 수정이다 |
 | D14 | D3는 실제 HOME에 격리 userData·`DOAN_RUNTIME`·`TMPDIR`·fake SHELL을 써서 진행한다. 끝나면 sign-out으로 doan profile용 Keychain 항목이 지워지는지 확인한다 | 사용자 허가(2026-10-29). 격리 HOME에는 login keychain이 없어 Codex·Claude 인증을 저장하지 못한다(ARCHITECTURE §7, PoC 10) |
+| D15 | `document`의 예외(제품 맥락 문서가 있으면 `context` 생략)는 유지한다. U-009는 제품 맥락 문서가 없는 새 시나리오 D10c로 잰다. Codex `approval: never`가 MCP `init`을 거부한 D10b-codex는 알려진 조건으로 기록한다 | 사용자 결정(2026-10-29), D10b는 지휘자 판단 — ARCHITECTURE §6이 MCP 쓰기 도구에 사람 승인을 남긴다 |
 
 ## 배치
 
@@ -84,3 +85,4 @@
 - 2026-10-29: E 리뷰(`review-E.md`) 🔴0 🟡4 ⚪4. 🟡: D3·D4의 우회 금지가 judge에만 걸림, D7 partial 1/3은 rubric 모호함, MCP `init` 경로 미검증 누락, U-009 근거 순서 오기. 지휘자 판단: 시나리오 결함은 저장소 관례대로 새 id(D2b·D3b·D4b·D7b·D11b)로 고치고, MCP `init` 경로는 D10b로 더한다. F 통합 뒤 E에 수정·재측정 라운드로 보낸다.
 - 2026-10-29: F 완료(44782e82·6df2914d·1d9010e1)를 지휘자가 확인했다. stub에 두 경로 실패 규칙, document에 context 선행, clarify·harden에 미확인 결과 주장 금지·실제 다음 행동만 쓰는 빈 상태 규칙이 들어갔다. F와 E 1차(168c9c35·2a208780)를 통합한다.
 - 2026-10-29: E 수정·재측정 라운드 1(`ctx_f6933a67e9a6`)과 V D3(`start-V-D3.json`)를 시작했다.
+- 2026-10-29: E 수정·재측정 1(3555548f·65322bac·48ba14cd): U-010 fixed(D3b·D4b 양쪽 pass), D2b·D7b 양쪽 pass. U-009는 Claude가 README를 제품 맥락 문서로 보아 `context`를 생략해 0/3, D11b seed에 근거 없는 spacing 문구가 남았다. D10c·D11c로 재측정 2를 보냈다.
