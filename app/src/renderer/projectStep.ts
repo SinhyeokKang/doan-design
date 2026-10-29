@@ -103,7 +103,8 @@ export class ProjectStepSession {
   restart(): void { this.fence(); this.acting = null; this.again = null; this.source = null; this.consent = null; this.set({ phase: { kind: "choose" }, error: null }); }
   // A cancelled or failed clone is left through its URL: Back returns there rather than to the Agent step, where
   // Continue would bring the same clone screen back.
-  backToUrl(): boolean { const p = this.state.phase; return p.kind === "cloneCancelled" || (p.kind === "clone" && this.state.error !== null); }
+  // A setup screen reached from a URL (D25 picked a checkout that needs setup) is left the same way.
+  backToUrl(): boolean { const p = this.state.phase; return p.kind === "cloneCancelled" || (p.kind === "clone" && this.state.error !== null) || (p.kind === "setup" && p.url !== null); }
   // Looking for a repository can be left at once: the inspection is read-only, so its late result is dropped.
   cancelInspect(): void { if (this.state.phase.kind === "inspecting") this.restart(); }
 

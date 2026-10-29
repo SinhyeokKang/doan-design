@@ -337,7 +337,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
   const notice = error ? projectNotice(error.code, error.message, destination, fromUrl, container && nameOf(container)) : !agentReady && (p.kind === "ready") ? projectNotice("no_ready_agent", undefined, null) : null;
   const [title, lead] = p.kind === "ready" || p.kind === "completing" ? HEADINGS.ready
     : p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" ? HEADINGS.clone
-    : p.kind === "candidates" && p.url !== null ? HEADINGS.found : HEADINGS.choose;
+    : (p.kind === "candidates" || p.kind === "setup") && p.url !== null ? HEADINGS.found : HEADINGS.choose;
   const urlField = (readOnly: boolean) => <>
     <label className="ob-field-label" htmlFor="ob-project-url">Repository URL</label>
     <input className="doan-input" id="ob-project-url" aria-label="GitHub repository URL" placeholder="https://github.com/owner/repository" value={state.url} readOnly={readOnly}
@@ -409,6 +409,8 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
     body = <Progress title="Checking this folder" body={shown(p.path, home)} />;
   } else if (p.kind === "setup" || p.kind === "selecting") {
     body = <>
+      {/* From a URL the screen keeps that repository: its URL, another folder of it, or a different URL (D25). */}
+      {p.kind === "setup" && p.url !== null && urlField(true)}
       {p.kind === "setup" && <section className="doan-panel ob-setup">
         <strong>Set up this folder for doan</strong>
         <p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>
@@ -416,6 +418,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         {notice ? <ProjectNoticeView notice={notice} run={run} />
           : <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} data-consent="" onClick={() => on.setUp(p.inspectionId)}>Set up and continue</button></div>}
       </section>}
+      {p.kind === "setup" && p.url !== null && smallActions(["Choose another folder", on.chooseExisting], ["Edit repository URL", on.edit])}
       {p.kind === "selecting" && <Progress title="Setting up your project" body={shown(p.path, home)} />}
     </>;
   } else if (p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled") {
