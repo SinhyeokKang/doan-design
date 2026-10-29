@@ -19,7 +19,7 @@ import { copyRepo, keepOnboardingLog, prepareWorkspace, type Workspace } from ".
 const ROOT = dirname(import.meta.dirname);
 const SCENARIOS = join(ROOT, "eval/scenarios");
 // The CLI bundled in the app, so agents see what users get (SKILL.md 'Requirements').
-const PACKAGED_CLI = join(ROOT, "app/dist/mac-arm64/doan.app/Contents/Resources/bin/doan");
+const PACKAGED_CLI = join(ROOT, "app/dist/mac-arm64/Doan.app/Contents/Resources/bin/doan");
 const STUB = join(ROOT, "app/src/main/onboarding/SKILL.md");
 const GUIDE = join(ROOT, "cli/internal/cli/skill.md");
 

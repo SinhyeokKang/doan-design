@@ -251,12 +251,13 @@ function setMenu(): void {
     : { role: "undo" };
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
+      // Role labels would read "About doan" from app.name, which stays "doan" for userData.
       { label: "Doan", submenu: [
-        { role: "about" },
+        { role: "about", label: "About Doan" },
         { label: "Settings…", accelerator: "CmdOrCtrl+,", enabled: enabled.settings, click: () => openSettings(null) },
         { type: "separator" }, { role: "services" }, { type: "separator" },
-        { role: "hide" }, { role: "hideOthers" }, { role: "unhide" },
-        { type: "separator" }, { role: "quit" },
+        { role: "hide", label: "Hide Doan" }, { role: "hideOthers" }, { role: "unhide" },
+        { type: "separator" }, { role: "quit", label: "Quit Doan" },
       ] },
       {
         label: "File",
