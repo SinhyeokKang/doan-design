@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { CodexDispatcher, RpcError } from "./dispatcher";
-import type { EventPayload } from "./types";
+import type { EventPayload, TransportState } from "./types";
 function harness() {
   const writes: unknown[] = [], events: EventPayload[] = []; const cleanup = vi.fn();
   const rpc = new CodexDispatcher(v => writes.push(v), v => events.push(v), cleanup);
@@ -8,6 +8,16 @@ function harness() {
   return { rpc, writes, events, cleanup };
 }
 describe("Codex wire dispatcher", () => {
+  it.each([
+    ["a malformed message", (h: ReturnType<typeof harness>) => h.rpc.receive({ id: null, method: "bad", params: {} })],
+    ["close", (h: ReturnType<typeof harness>) => h.rpc.close()],
+  ])("drops cached file summaries when %s closes the dispatcher before the transport ends", (_, closeIt) => {
+    const h = harness(); const summaries = () => (h.rpc as unknown as { state: TransportState }).state.fileSummaries;
+    h.rpc.receive({ method: "item/started", params: { threadId: "s", turnId: "t", item: { type: "fileChange", id: "f", changes: [{ path: "/repo/a.html", kind: { type: "add" }, diff: "" }] } } });
+    expect(summaries()).toEqual({ f: "a.html" });
+    closeIt(h); expect(summaries()).toEqual({});
+    const before = h.events.length; h.rpc.end(); expect(summaries()).toEqual({}); expect(h.events.length).toBe(before);
+  });
   it("publishes command activity without the command, while the approval still shows it", () => {
     const h = harness(); const command = "API_TOKEN=SYNTH_ENV_SECRET curl -H 'Authorization: Bearer SYNTH_BEARER_SECRET' https://u:SYNTH_URL_PASSWORD@example.invalid";
     h.rpc.receive({ method: "item/started", params: { threadId: "s", turnId: "t", item: { type: "commandExecution", id: "c", command, commandActions: [] } } });

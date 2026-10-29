@@ -161,6 +161,9 @@ it("falls back to the path or a short phrase, not the raw ACP kind, when a tool 
   const secret = normalizeAcp(initialAcp("s"), { sessionUpdate: "tool_call", toolCallId: "s", kind: "execute", title: "`API_TOKEN=SYNTH_ENV_SECRET curl https://u:SYNTH_URL_PASSWORD@example.invalid`", rawInput: { command: "SYNTH_HEREDOC_SECRET" }, status: "completed" }, "/repo").events;
   expect(secret).toEqual([{ type: "activity", kind: "command", summary: "Running a command" }]);
   expect(JSON.stringify(secret)).not.toMatch(/SYNTH_/);
+  const terminal = normalizeAcp(initialAcp("s"), { sessionUpdate: "tool_call", toolCallId: "term", kind: "terminal", title: "API_TOKEN=SYNTH_ENV_SECRET curl https://example.invalid", description: "SYNTH_BEARER_SECRET", rawInput: { command: "SYNTH_HEREDOC_SECRET" }, status: "completed" }, "/repo").events;
+  expect(terminal).toEqual([{ type: "activity", kind: "command", summary: "Running a command" }]);
+  expect(JSON.stringify(terminal)).not.toMatch(/SYNTH_/);
   const ask = (toolCall: Record<string, unknown>) => acpPermission({ options: [{ optionId: "a", kind: "allow_once" }], toolCall }, "id")?.event.summary;
   expect(ask({ kind: "edit" })).toBe("Editing files");
   expect(ask({ kind: "execute", title: "Run `ls`" })).toBe("Run `ls`");
