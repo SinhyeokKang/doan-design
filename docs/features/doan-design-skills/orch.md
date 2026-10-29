@@ -19,6 +19,7 @@
 | D6 | tasks의 "command undecided" 검증은 다음으로 정한다. 문서 검증(A0·Z1)은 수동 대조, 실제 앱 probe(D2·D3·E1)는 `/runtime-test` 절차에 따라 `.scratch/` probe와 AGENTS Commands의 격리 실행 명령을 쓴다 | 지휘자 판단 — AGENTS 'Verification policy'(2026-10-27)가 화면별 e2e 대신 `.scratch/` probe를 정했다 |
 | D7 | A0(PRODUCT §6 기록)·D4(ARCHITECTURE §7 초안과 buzz-restyle 인계)·Z1(승격)은 지휘자가 문서 커밋으로 한다 | 지휘자 판단 — `.scratch/design-tools-poc/`는 주 checkout에만 있고, 이 셋은 문서 신선도 커밋 범위이다 |
 | D8 | A1-R에서 공개 20개나 `document` 표시 이름을 바꿔야 하면 G1은 바꾸지 않고 질문으로 올린다. 지휘자가 사용자에게 묻는다 | spec §3.1: 선정은 사용자 결정이다 |
+| D9 | A1-R 재검토 결과 공개 20개 ID를 유지한다. `document`의 표시 이름은 `Document the design system`이다 | 사용자 결정(2026-10-29), G1 권고 |
 
 ## 배치
 
@@ -51,3 +52,4 @@
 
 - 2026-10-29: intake. 결정 D1–D8.
 - 2026-10-29: run `run_a4cd59bab3c2`. 1차 G1(`dds-g1`)·S(`dds-s`)·R(`dds-r`, Codex) 시작, 세 작업자 모두 착수를 확인했다. A0 완료(5bcbca9). PoC 파일에는 `doan check` 출력이 남아 있지 않아 그 사실을 PRODUCT §6에 함께 적었다.
+- 2026-10-29: G1 질문 — ehmo MIT 원문이 고정 클론에 없다. 지휘자가 `gh api`로 ehmo/platform-design-skills `dc2be825`의 LICENSE를 받아 전달했다(저작권 줄에 권리자 이름 없음, 그대로 보존). R 질문 — child worktree의 `npm --prefix app ci`·package 실행을 허가했다.
