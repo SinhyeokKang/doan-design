@@ -27,6 +27,7 @@
 | D14 | D3는 실제 HOME에 격리 userData·`DOAN_RUNTIME`·`TMPDIR`·fake SHELL을 써서 진행한다. 끝나면 sign-out으로 doan profile용 Keychain 항목이 지워지는지 확인한다 | 사용자 허가(2026-10-29). 격리 HOME에는 login keychain이 없어 Codex·Claude 인증을 저장하지 못한다(ARCHITECTURE §7, PoC 10) |
 | D15 | `document`의 예외(제품 맥락 문서가 있으면 `context` 생략)는 유지한다. U-009는 제품 맥락 문서가 없는 새 시나리오 D10c로 잰다. Codex `approval: never`가 MCP `init`을 거부한 D10b-codex는 알려진 조건으로 기록한다 | 사용자 결정(2026-10-29), D10b는 지휘자 판단 — ARCHITECTURE §6이 MCP 쓰기 도구에 사람 승인을 남긴다 |
 | D16 | 가이드의 프리셋 절을 id 한 줄과 조회 안내·압축한 규칙으로 줄이고, 가이드 본문 크기 상한 테스트와 '중간 잘림 표시가 보이면 나눠 다시 읽기' 안내를 가이드·stub에 넣는다(F2). 그 뒤 D3 Codex를 다시 확인하고, 가이드가 바뀌었으므로 마지막 통합 전에 `/agent-eval` 전체 suite를 돌린다 | 지휘자 판단(사용자 기준 '돌아가더라도 검증을 확실히'). D3에서 Codex exec가 6,000 token에서 가이드 가운데를 잘라 `clarify` 줄이 사라졌고 끝 마커는 남았다. 이 feature 전 가이드는 18,830B였다 |
+| D17 | 최종 리뷰 🟡1(본문 출력 예산 테스트·본문 잘림 안내)·⚪2(엔진 grep 자동 테스트)·⚪4는 F4가 고친다. 🟡3은 지휘자가 `/postmortem`으로 남긴다. 🟡2(고지 파일을 앱 배포본에 읽을 수 있게 싣기)는 빌드 설정 변경이므로 이번에는 하지 않고 #9 `dist`의 결정 사항으로 PRODUCT §8에 남긴다. ⚪5(실제 HOME에서 앱 대화의 Codex가 사용자 전역 stub을 읽음)는 agent-auth의 기존 동작으로 PRODUCT §8에 남긴다. F4가 가이드 문장을 바꾸므로 E 전체 suite 뒤 W1·D1·D3b·D8·D10c를 다시 잰다 | 지휘자 판단 — 저장소는 비공개이고 공개 배포 전이며, AGENTS가 요청 없는 빌드 설정 변경을 금한다 |
 
 ## 배치
 
@@ -93,3 +94,5 @@
 - 2026-10-29: E 재측정 1·2 통합(b4a997e9…36a9b813). U-009 fixed(D10c 4/4가 산출물 전에 `context`를 읽음), U-010 fixed, D2b·D3b·D4b·D7b 양쪽 pass. 남은 것: U-011(Claude가 새 디자인 시스템 문서에 근거 없는 판단을 규칙으로 씀) → F3, D11c seed에 근거 없는 링크 주장 1건 → 지휘자 판단으로 D11d를 만든다. F2·F3 통합 뒤 E가 D11d와 `/agent-eval` 전체 suite를 돌린다.
 - 2026-10-29: F2 통합(ce9b6c7d·73b804af). 가이드 plain 24,528→20,696B, --json 25,230→21,354B, 크기 상한 21,600B(cap 90%) 테스트 추가. 프리셋 설명은 가이드에서 빠지고 id 한 줄과 규칙 5개만 남았다. V에 Codex D3 재확인을 보냈다. 하네스: 사용자 요청으로 AGENTS와 /design-draft·/ux-audit가 프리셋을 스스로 읽게 했다(9771273·a47c851·e25cf23).
 - 2026-10-29: F3 통합(c62dbf21·1575bdab). E에 D11d와 `/agent-eval` 전체 suite를 보냈고(`ctx_785924863259`), 통합 diff 전체의 최종 리뷰(Claude Opus high)를 시작했다.
+- 2026-10-29: V D3 Codex 재확인 PASS(F2 뒤 가이드 잘림 없음, `design-skill --json`→`design-skill clarify --json` 실제 호출, 대상 frame만 수정, check 0). 정리 실수로 남은 profile Keychain 'Codex Auth'는 `codex logout`으로 그 항목만 지웠다. 관찰: sign-out이 `stop_required`인 채 앱을 닫으면 profile Keychain 항목이 남는다. V worktree를 제거했다(근거 사본 `.scratch/orch-dds/handoff-V.md`, `runtime-test-V/`).
+- 2026-10-29: 최종 리뷰(`review-final.md`) 🔴0 🟡3 ⚪6. D17로 처리를 정하고 F4를 시작했다.
