@@ -39,3 +39,34 @@ it("describes a positive open-comment count without fabricating counts on read f
 it("does not mark a canvas or Overview current for an unlisted iframe destination", () => {
   expect(render("/repo", "/repo", true, false, true)).not.toContain('aria-current="location"');
 });
+
+it("draws every project hue as a light tint with dark ink, shared with onboarding thumbnails", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  for (const hue of ["rose", "orange", "amber", "emerald", "teal", "sky", "indigo", "fuchsia"])
+    expect(css).toContain(`.hue-${hue} { background: color-mix(in srgb, var(--identity-project-${hue}) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-${hue}) 65%, var(--text-standard)); }`);
+  expect(css).not.toMatch(/\.shell-thumbnail \{[^}]*color:/);
+  expect(render("/repo")).toContain('<span class="shell-thumbnail hue-');
+});
+
+it("keeps every thumbnail letter readable on its tint, for the sidebar's 10px letter too", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { contrastPairs } = await import("./ds/checks");
+  const tokens = readFileSync(new URL("./tokens.css", import.meta.url), "utf8");
+  const hues = ["rose", "orange", "amber", "emerald", "teal", "sky", "indigo", "fuchsia"];
+  // The palette is oklch, which the checker does not parse: each hue's step 600 is converted to sRGB hex here.
+  const hex = (l: number, c: number, hDeg: number) => {
+    const a = c * Math.cos(hDeg * Math.PI / 180), b = c * Math.sin(hDeg * Math.PI / 180);
+    const l_ = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3, m_ = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3, s_ = (l - 0.0894841775 * a - 1.291485548 * b) ** 3;
+    const lin = [4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_, -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_, -0.0041960863 * l_ - 0.7034186147 * m_ + 1.707614701 * s_];
+    return "#" + lin.map(v => { const x = Math.min(1, Math.max(0, v)); const g = x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055; return Math.round(g * 255).toString(16).padStart(2, "0"); }).join("");
+  };
+  const palette = hues.map(h => {
+    const match = new RegExp(`--${h}-600: oklch\\(([\\d.]+)% ([\\d.]+) ([\\d.]+)\\)`).exec(tokens);
+    if (!match) throw new Error(`--${h}-600 is not oklch`);
+    return `--${h}-600: ${hex(Number(match[1]) / 100, Number(match[2]), Number(match[3]))};`;
+  }).join(" ");
+  const extra = `:root { ${palette} ${hues.map(h => `--t-bg-${h}: color-mix(in srgb, var(--identity-project-${h}) 14%, var(--surface-panel)); --t-ink-${h}: color-mix(in srgb, var(--identity-project-${h}) 65%, var(--text-standard));`).join(" ")} }`;
+  const results = contrastPairs(`${tokens}\n${extra}`, hues.map(h => ({ fg: `--t-ink-${h}`, bg: `--t-bg-${h}`, kind: "body" as const })));
+  expect(results.filter(r => !r.ok).map(r => `${r.fg} ${r.wcag.toFixed(2)} Lc ${r.apca.toFixed(0)}`)).toEqual([]);
+});

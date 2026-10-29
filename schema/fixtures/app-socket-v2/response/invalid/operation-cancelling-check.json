@@ -1,0 +1,15 @@
+{
+  "v": 2,
+  "ok": true,
+  "op": "cancel",
+  "result": {
+    "operation": {
+      "operationId": "op_9",
+      "requestId": "req-1",
+      "kind": "check",
+      "state": "running",
+      "provider": "claude",
+      "cancelling": true
+    }
+  }
+}

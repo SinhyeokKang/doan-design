@@ -1,0 +1,13 @@
+{
+  "v": 2,
+  "ok": true,
+  "op": "status",
+  "result": {
+    "sessionId": "s_7Hq2",
+    "revision": 4,
+    "completed": false,
+    "agents": null,
+    "project": null,
+    "operations": []
+  }
+}

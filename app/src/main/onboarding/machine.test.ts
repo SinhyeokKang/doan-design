@@ -5,7 +5,7 @@ import { mkdtempSync, realpathSync, lstatSync, readdirSync, mkdirSync, writeFile
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { createMachine, runProcess, probeShell, needsOnboarding, markClosed, SHELL_TIMEOUT_MS, AGENT_TIMEOUT_MS } from "./machine";
+import { createMachine, runProcess, probeShell, SHELL_TIMEOUT_MS, AGENT_TIMEOUT_MS } from "./machine";
 let temp: string;
 let home: string;
 let env: NodeJS.ProcessEnv;
@@ -154,12 +154,6 @@ test("changed stub confirmation preserves siblings and cancellation never replac
   if (retry.kind !== "confirm") throw new Error("confirmation absent");
   expect((await m.answer({ id: retry.id, allow: true })).kind).toBe("success"); expect(readFileSync(join(stub, "../notes"), "utf8")).toBe("keep");
 });
-test("corrupt or absent onboarding opens; close writes an atomic empty object", async () => {
-  const userData = join(temp, "data"); mkdirSync(userData);
-  expect(await needsOnboarding(userData)).toBe(true); file(join(userData, "onboarding.json"), "bad"); expect(await needsOnboarding(userData)).toBe(true);
-  await markClosed(userData); expect(await needsOnboarding(userData)).toBe(false); expect(JSON.parse(readFileSync(join(userData, "onboarding.json"), "utf8"))).toEqual({});
-});
-
 test.each(["file-link", "file-directory"])("blocked stub %s stops before MCP and preserves content", async kind => {
   agent("claude"); const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
   const stub = join(home, ".agents/skills/doan/SKILL.md");

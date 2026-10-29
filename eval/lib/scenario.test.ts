@@ -4,7 +4,7 @@ import { parseScenarioJson, renderPrompt, selectIds } from "./scenario.ts";
 
 test("scenario.json is read with its defaults", () => {
   assert.deepEqual(parseScenarioJson({ id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null }, "W1"),
-    { id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null, timeoutSec: 900, mcp: false, shellCli: true, worktree: null });
+    { id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null, timeoutSec: 900, mcp: false, shellCli: true, worktree: null, onboarding: null });
   assert.equal(parseScenarioJson({ id: "R2", title: "t", focus: "active", init: null, selection: "selection.json", timeoutSec: 60 }, "R2").timeoutSec, 60);
 });
 
@@ -42,6 +42,13 @@ test("shellCli defaults to true and accepts only a boolean", () => {
   assert.equal(parseScenarioJson({ ...value, shellCli: false }, "R1b").shellCli, false);
   assert.equal(parseScenarioJson({ ...value, shellCli: true }, "R1b").shellCli, true);
   for (const shellCli of [null, "false", 0, {}]) assert.throws(() => parseScenarioJson({ ...value, shellCli }, "R1b"));
+});
+
+test("onboarding is null or the scenario's app-socket v2 script", () => {
+  const value = { id: "O1", title: "Onboarding", focus: "onboarding" };
+  assert.equal(parseScenarioJson(value, "O1").onboarding, null);
+  assert.equal(parseScenarioJson({ ...value, onboarding: "onboarding.json" }, "O1").onboarding, "onboarding.json");
+  for (const onboarding of ["other.json", true, {}]) assert.throws(() => parseScenarioJson({ ...value, onboarding }, "O1"), Error, JSON.stringify(onboarding));
 });
 
 test("worktree is null or one branch name for the agent's second worktree", () => {

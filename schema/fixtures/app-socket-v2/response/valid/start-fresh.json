@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "ok": true,
+  "op": "start",
+  "result": {
+    "sessionId": "s_7Hq2",
+    "revision": 0,
+    "completed": false,
+    "agents": {
+      "revision": 1,
+      "providers": []
+    },
+    "project": null,
+    "operations": []
+  }
+}

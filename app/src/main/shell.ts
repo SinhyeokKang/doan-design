@@ -258,7 +258,8 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       if (!folder) return Promise.resolve(unavailable);
       const pending = initializing.get(folder);
       if (pending) return pending;
-      if (folder.entry.kind !== "uninitialized") return Promise.resolve(unavailable);
+      // Loading: onboarding sets up a folder it registered a moment ago; the re-read below decides.
+      if (folder.entry.kind !== "uninitialized" && folder.entry.kind !== "loading") return Promise.resolve(unavailable);
       const epoch = folder.epoch;
       const task = (async (): Promise<ProjectInitResult> => {
         const root = await refresh(folder, { reread: true, served: false });

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { accessSync, chmodSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { accessSync, chmodSync, constants, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -38,13 +38,13 @@ class FakeProcess implements AuthProcess {
 let stopReleases = true;
 const fileProvider = (status: (dir: string) => CheckResult): ProviderAuth => ({
   command: "fake-cli", args: [], env: { FAKE_STORE: "file" }, login: ["login"], status: ["status"], logout: null,
-  vault: ["creds/token.json"], plaintext: [], settings: { "conf/settings.json": '{"storeTokenPlaintext":true}' }, acpAuth: null, acp: null, verifyByRun: false, hookLink: null,
+  vault: ["creds/token.json"], plaintext: [], settings: { "conf/settings.json": '{"storeTokenPlaintext":true}' }, acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false,
   parseStatus: run => run.code === 0 ? status(run.profileDir) : { status: "failed", code: "check_failed" },
 });
 // Antigravity's shape: sign-in, status and sign-out are ACP calls on one server binary.
 const acpProvider = (): ProviderAuth => ({
   command: "fake-server", args: [], env: {}, login: [], status: [], logout: null, vault: ["creds/token.json"], plaintext: [], settings: {},
-  acpAuth: { method: "oauth-personal", agent: "fake-acp", version: "1.3.0" }, acp: { args: [], authenticate: "oauth-personal", sessions: "sessions" }, verifyByRun: false, hookLink: null,
+  acpAuth: { method: "oauth-personal", agent: "fake-acp", version: "1.3.0" }, acp: { args: [], authenticate: "oauth-personal", sessions: "sessions" }, verifyByRun: false, hookLink: null, loginClears: false,
   parseStatus: run => run.code === 2 ? { status: "disconnected" } : run.code === 0 ? { status: "connected", account: { id: null, workspace: null } } : { status: "failed", code: "check_failed", detail: run.stderr },
 });
 const INIT = { protocolVersion: 1, agentInfo: { name: "fake-acp", version: "1.3.0" }, authMethods: [{ id: "oauth-personal" }], agentCapabilities: { loadSession: true } };
@@ -62,7 +62,7 @@ const googleLink = (port: number) => `https://accounts.google.com/o/oauth2/v2/au
 const withAcp = () => ({ claude: keychainProvider(() => keychain), codex: keychainProvider(() => keychain), cursor: fileProvider(tokenAccount), antigravity: acpProvider(), copilot: fileProvider(tokenAccount) });
 const keychainProvider = (status: () => CheckResult): ProviderAuth => ({
   command: "fake-cli", args: ["-c", "store=keyring"], env: {}, login: ["login"], status: ["status"], logout: ["logout"],
-  vault: null, plaintext: ["auth.json"], settings: {}, acpAuth: null, acp: null, verifyByRun: false, hookLink: null, parseStatus: run => run.code === 0 ? status() : { status: "failed", code: "check_failed" },
+  vault: null, plaintext: ["auth.json"], settings: {}, acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false, parseStatus: run => run.code === 0 ? status() : { status: "failed", code: "check_failed" },
 });
 const tokenAccount = (dir: string): CheckResult => {
   const path = join(dir, "creds/token.json");
@@ -435,15 +435,310 @@ describe("sign-in", () => {
     expect(await run.done).toMatchObject({ connection: null, error: { code: "storage_failed" } });
     expect(existsSync(join(storage.profileDir("codex"), "auth.json"))).toBe(false);
   });
-  it("keeps the previous vault as the live profile when a replacement fails, and unverifies it", async () => {
+  it("keeps the previous vault as the live, still verified profile when a replacement fails", async () => {
     const m = manager(); await m.load();
     const first = await signedInCursor(m, "u1");
     const run = started(await m.signIn("cursor", 7));
     await finish("login", 1, p => writeToken(p, { id: "u2" }));
     const state = await run.done;
-    expect(state).toMatchObject({ connection: first.connection, verified: false, error: { code: "sign_in_failed" } });
+    expect(state).toMatchObject({ connection: first.connection, verified: true, error: { code: "sign_in_failed" } });
     expect(await storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1" })) });
     expect(existsSync(tokenFile("cursor"))).toBe(false);
+  });
+});
+
+// V defect 2 (2026-10-29): a cancelled replacement sign-in unverified every connection it was tried on.
+describe("a replacement that does not finish", () => {
+  const vaultU1 = { "creds/token.json": Buffer.from(JSON.stringify({ id: "u1" })) };
+  it("leaves a vault provider's connection, vault and metadata as they were when the owner cancels", async () => {
+    const m = manager(); await m.load();
+    const first = await signedInCursor(m, "u1");
+    keychain = { status: "connected", account: { id: "c1", workspace: null } };
+    const claude = started(await m.signIn("claude", 7)); await finish("login", 0); await finish("status", 0); await claude.done;
+    const run = started(await m.signIn("cursor", 7));
+    await next("login");
+    await m.cancel("cursor", run.attemptId, 7);
+    expect(await run.done).toMatchObject({ phase: "connected", connection: first.connection, verified: true, error: null, attempt: null });
+    expect(await storage.loadVault("cursor")).toEqual(vaultU1);
+    expect(storage.readMetadata().accounts.find(a => a.provider === "cursor")).toEqual(first.connection);
+    expect(m.state("claude")).toMatchObject({ phase: "connected", verified: true });
+  });
+  it("does not store the new login in the vault before its last cancellation point", async () => {
+    let hold: (() => void) | undefined;
+    const gate = () => new Promise<void>(resolve => { hold = resolve; });
+    let gated = false;
+    storage = new AuthStorage(root, fakeCipher({ encrypt: async text => { if (gated) await gate(); return Buffer.from("ENC:" + Buffer.from(text, "utf8").toString("base64")); } }));
+    const m = manager(); await m.load();
+    const first = await signedInCursor(m, "u1");
+    gated = true;
+    const run = started(await m.signIn("cursor", 7));
+    await finish("login", 0, p => writeToken(p, { id: "u2" }));
+    await finish("status", 0);
+    await vi.waitFor(() => expect(hold).toBeDefined());
+    // The user cancels while the new login is being sealed, after the provider reported it connected.
+    await m.cancel("cursor", run.attemptId, 7);
+    hold!();
+    expect(await run.done).toMatchObject({ phase: "connected", connection: first.connection, verified: true });
+    expect(await storage.loadVault("cursor")).toEqual(vaultU1);
+    expect(storage.readMetadata().accounts).toEqual([first.connection]);
+  });
+  it("restores the previous vault when the new login's metadata cannot be written", async () => {
+    const m = manager(); await m.load();
+    const first = await signedInCursor(m, "u1");
+    const write = vi.spyOn(storage, "writeMetadata").mockImplementation(() => { throw new Error("disk full"); });
+    const run = started(await m.signIn("cursor", 7));
+    await finish("login", 0, p => writeToken(p, { id: "u2" }));
+    await finish("status", 0);
+    const state = await run.done;
+    write.mockRestore();
+    expect(state).toMatchObject({ connection: first.connection, verified: true, error: { code: "storage_failed" } });
+    expect(await storage.loadVault("cursor")).toEqual(vaultU1);
+  });
+  // Fix round 1, R-A-1: nothing that can fail runs after the vault and metadata name the new login.
+  it("keeps the previous connection, vault and metadata when the working copy cannot be removed before the commit", async () => {
+    const m = manager(); await m.load();
+    const first = await signedInCursor(m, "u1");
+    const scrub = storage.scrub.bind(storage); let calls = 0;
+    const spy = vi.spyOn(storage, "scrub").mockImplementation((provider, rels) => { if (++calls === 2) throw new Error("EACCES"); scrub(provider, rels); });
+    const run = started(await m.signIn("cursor", 7));
+    await finish("login", 0, p => writeToken(p, { id: "u2" }));
+    await finish("status", 0);
+    const state = await run.done;
+    spy.mockRestore();
+    expect(state).toMatchObject({ connection: first.connection, verified: true, error: { code: "storage_failed" } });
+    expect(storage.readMetadata().accounts).toEqual([first.connection]);
+    expect(await storage.loadVault("cursor")).toEqual(vaultU1);
+    expect(existsSync(tokenFile("cursor"))).toBe(false);
+  });
+  it("stores nothing for a first sign-in whose working copy cannot be removed before the commit", async () => {
+    const m = manager(); await m.load();
+    const scrub = storage.scrub.bind(storage); let calls = 0;
+    const spy = vi.spyOn(storage, "scrub").mockImplementation((provider, rels) => { if (++calls === 2) throw new Error("EACCES"); scrub(provider, rels); });
+    const state = await signedInCursor(m, "u1");
+    spy.mockRestore();
+    expect(state).toMatchObject({ connection: null, error: { code: "storage_failed" } });
+    expect(storage.readMetadata().accounts).toEqual([]);
+    expect(await storage.loadVault("cursor")).toBeNull();
+  });
+  it("unverifies the previous connection when the previous vault cannot be restored after a failed metadata write", async () => {
+    const m = manager(); await m.load();
+    const first = await signedInCursor(m, "u1");
+    const write = vi.spyOn(storage, "writeMetadata").mockImplementation(() => { throw new Error("disk full"); });
+    const store = storage.storeSealed.bind(storage); let calls = 0;
+    const restore = vi.spyOn(storage, "storeSealed").mockImplementation((provider, sealed) => { if (++calls === 2) throw new Error("EIO"); store(provider, sealed); });
+    const run = started(await m.signIn("cursor", 7));
+    await finish("login", 0, p => writeToken(p, { id: "u2" }));
+    await finish("status", 0);
+    const state = await run.done;
+    write.mockRestore(); restore.mockRestore();
+    expect(state).toMatchObject({ connection: first.connection, verified: false, error: { code: "storage_failed" } });
+  });
+  it("keeps a keychain connection verified when its login is stopped or fails before it stored anything", async () => {
+    const m = manager(); await m.load();
+    keychain = { status: "connected", account: { id: "c1", workspace: null } };
+    const first = started(await m.signIn("claude", 7)); await finish("login", 0); await finish("status", 0);
+    const connection = (await first.done).connection;
+    const cancelled = started(await m.signIn("claude", 7));
+    await next("login");
+    await m.cancel("claude", cancelled.attemptId, 7);
+    expect(await cancelled.done).toMatchObject({ phase: "connected", connection, verified: true, error: null });
+    const failed = started(await m.signIn("claude", 7));
+    await finish("login", 1);
+    expect(await failed.done).toMatchObject({ phase: "connected", connection, verified: true, error: { code: "sign_in_failed" } });
+    // The live login is never logged out for a replacement.
+    expect(processes.filter(p => p.step === "logout")).toEqual([]);
+  });
+  describe("a provider whose login clears the profile first (Codex, D22)", () => {
+    const codex = () => manager({ adapters: { ...withAcp(), codex: { ...keychainProvider(() => keychain), settings: { "skills/doan/SKILL.md": "stub" }, loginClears: true } } });
+    const profiles = () => readdirSync(join(root, "profiles")).filter(name => name.startsWith("codex")).sort();
+    async function connectedCodex(m: AuthManager) {
+      keychain = { status: "connected", account: { id: null, workspace: null } };
+      const first = started(await m.signIn("codex", 7)); await finish("login", 0); await finish("status", 0);
+      return (await first.done).connection!;
+    }
+    it("signs a first connection in to the provider's own profile", async () => {
+      const m = codex(); await m.load();
+      expect(await connectedCodex(m)).toMatchObject({ profile: "codex" });
+      expect(processes[0]!.cwd).toBe(storage.profileDir("codex"));
+    });
+    it("leaves the stored login untouched and removes the staging profile when a replacement is cancelled or fails", async () => {
+      const m = codex(); await m.load();
+      const connection = await connectedCodex(m);
+      const cancelled = started(await m.signIn("codex", 7));
+      const login = await next("login");
+      // The replacement never runs in the stored connection's profile, which its login would log out first.
+      expect(login.cwd).not.toBe(storage.profileDir("codex"));
+      expect(login.env.CODEX_HOME).toBe(login.cwd);
+      expect(readFileSync(join(login.cwd, "skills/doan/SKILL.md"), "utf8")).toBe("stub");
+      await m.cancel("codex", cancelled.attemptId, 7);
+      const cleanup = await finish("logout", 0);
+      expect(cleanup.cwd).toBe(login.cwd);
+      expect(await cancelled.done).toMatchObject({ phase: "connected", connection, verified: true, error: null });
+      const failed = started(await m.signIn("codex", 7));
+      const second = await finish("login", 1);
+      expect((await finish("logout", 0)).cwd).toBe(second.cwd);
+      expect(await failed.done).toMatchObject({ phase: "connected", connection, verified: true, error: { code: "sign_in_failed" } });
+      expect(profiles()).toEqual(["codex"]);
+      expect(processes.filter(p => p.step === "logout" && p.cwd === storage.profileDir("codex"))).toEqual([]);
+      expect(storage.readMetadata().accounts).toEqual([connection]);
+    });
+    it("moves the connection to the staging profile on success, then logs the previous profile out and removes it", async () => {
+      const m = codex(); await m.load();
+      const previous = await connectedCodex(m);
+      const run = started(await m.signIn("codex", 7));
+      const login = await finish("login", 0);
+      const staged = login.cwd.split("/").at(-1)!;
+      expect((await finish("status", 0)).cwd).toBe(login.cwd);
+      const old = await finish("logout", 0);
+      expect(old.cwd).toBe(storage.profileDir("codex"));
+      expect(old.env.CODEX_HOME).toBe(storage.profileDir("codex"));
+      const state = await run.done;
+      expect(state).toMatchObject({ phase: "connected", verified: true, connection: { profile: staged } });
+      expect(state.connection!.connectionId).not.toBe(previous.connectionId);
+      expect(storage.readMetadata().accounts).toEqual([state.connection]);
+      expect(profiles()).toEqual([staged]);
+      // Checks and runs follow the connection's profile.
+      const check = started(await m.check("codex"));
+      expect((await finish("status", 0)).cwd).toBe(login.cwd);
+      await check.done;
+      const lease = await m.acquire("codex");
+      expect(lease.profileDir).toBe(login.cwd); expect(lease.env.CODEX_HOME).toBe(login.cwd);
+      await lease.release();
+      // A later replacement leaves that profile the same way.
+      const again = started(await m.signIn("codex", 7));
+      const next2 = await finish("login", 0); await finish("status", 0);
+      expect((await finish("logout", 0)).cwd).toBe(login.cwd);
+      expect((await again.done).connection!.profile).toBe(next2.cwd.split("/").at(-1));
+      expect(profiles()).toEqual([next2.cwd.split("/").at(-1)]);
+    });
+    // Fix round 1, R-A-2/R-A-3: a staged or replaced profile goes only after its logout succeeded, and a record of it
+    // outlives a crash or a failed logout until a later start finishes the cleanup.
+    it("records the staging profile before its login and keeps it with its record when the cleanup logout fails", async () => {
+      const m = codex(); await m.load();
+      const connection = await connectedCodex(m);
+      for (const code of [1, null]) {
+        const run = started(await m.signIn("codex", 7));
+        const login = await next("login");
+        const staged = login.cwd.split("/").at(-1)!;
+        expect(storage.pendingCleanup()).toContainEqual({ provider: "codex", profile: staged });
+        await m.cancel("codex", run.attemptId, 7);
+        await finish("logout", code);
+        expect(await run.done).toMatchObject({ connection, verified: true });
+        expect(existsSync(login.cwd)).toBe(true);
+        expect(storage.pendingCleanup()).toContainEqual({ provider: "codex", profile: staged });
+      }
+    });
+    it("removes a staging profile's record with the profile once its logout succeeds, and the staged profile's on success", async () => {
+      const m = codex(); await m.load();
+      await connectedCodex(m);
+      const cancelled = started(await m.signIn("codex", 7));
+      await next("login"); await m.cancel("codex", cancelled.attemptId, 7); await finish("logout", 0); await cancelled.done;
+      expect(storage.pendingCleanup()).toEqual([]);
+      const run = started(await m.signIn("codex", 7));
+      await finish("login", 0); await finish("status", 0); await finish("logout", 0);
+      await run.done;
+      expect(storage.pendingCleanup()).toEqual([]);
+    });
+    it("keeps a replaced profile and its record when its logout fails, and finishes the cleanup at the next start", async () => {
+      const m = codex(); await m.load();
+      await connectedCodex(m);
+      const run = started(await m.signIn("codex", 7));
+      const login = await finish("login", 0); await finish("status", 0);
+      await finish("logout", 1);
+      const state = await run.done;
+      expect(state).toMatchObject({ phase: "connected", verified: true, connection: { profile: login.cwd.split("/").at(-1) } });
+      expect(existsSync(storage.profileDir("codex"))).toBe(true);
+      expect(storage.pendingCleanup()).toEqual([{ provider: "codex", profile: "codex" }]);
+      const restarted = codex(); await restarted.load();
+      // The cleanup holds the one write slot, so no sign-in can share the profile it logs out.
+      expect(await restarted.signIn("claude", 7)).toEqual(expect.objectContaining({ ok: false, reason: "busy" }));
+      const retry = await finish("logout", 0);
+      expect(retry.cwd).toBe(join(root, "profiles", "codex"));
+      await vi.waitFor(() => expect(storage.pendingCleanup()).toEqual([]));
+      expect(readdirSync(join(root, "profiles")).filter(name => name.startsWith("codex"))).toEqual([login.cwd.split("/").at(-1)]);
+      expect(processes.filter(p => p.step === "logout" && p.cwd === login.cwd)).toEqual([]);
+    });
+    it("logs out a staging profile abandoned by a crash at the next start, never the stored connection's profile", async () => {
+      const m = codex(); await m.load();
+      await connectedCodex(m);
+      started(await m.signIn("codex", 7));
+      const login = await next("login");
+      settledSet.add(login);
+      // The app dies here; the next start sees the record and the stored connection.
+      const restarted = codex(); await restarted.load();
+      const cleanup = await finish("logout", 0);
+      expect(cleanup.cwd).toBe(login.cwd);
+      await vi.waitFor(() => expect(storage.pendingCleanup()).toEqual([]));
+      expect(existsSync(login.cwd)).toBe(false);
+      expect(existsSync(storage.profileDir("codex"))).toBe(true);
+      expect(processes.filter(p => p.step === "logout" && p.cwd === storage.profileDir("codex"))).toEqual([]);
+    });
+    it("skips a record that names the stored connection's profile", async () => {
+      const m = codex(); await m.load();
+      await connectedCodex(m);
+      storage.markCleanup("codex", "codex");
+      const restarted = codex(); await restarted.load();
+      await flush(); await flush();
+      expect(processes.filter(p => p.step === "logout")).toEqual([]);
+      expect(storage.pendingCleanup()).toEqual([{ provider: "codex", profile: "codex" }]);
+    });
+    // Fix round 2, R-A2-1: only a profile a stored connection references is live; a signed-out provider's own name is not.
+    it("cleans a replaced base profile at the next start after the connection that replaced it signed out", async () => {
+      const m = codex(); await m.load();
+      await connectedCodex(m);
+      const replacement = started(await m.signIn("codex", 7)); await finish("login", 0); await finish("status", 0); await finish("logout", 1); await replacement.done;
+      const out = started(await m.signOut("codex")); await finish("logout", 0); keychain = { status: "disconnected" }; await finish("status", 0); await out.done;
+      expect(storage.readMetadata().accounts).toEqual([]);
+      expect(storage.pendingCleanup()).toEqual([{ provider: "codex", profile: "codex" }]);
+      const restarted = codex(); await restarted.load();
+      const retry = await finish("logout", 0);
+      expect(retry.cwd).toBe(join(root, "profiles", "codex"));
+      await vi.waitFor(() => expect(storage.pendingCleanup()).toEqual([]));
+      expect(existsSync(join(root, "profiles", "codex"))).toBe(false);
+    });
+    // Fix round 2, R-A2-2: a staging profile that could not be recorded is never created.
+    it("fails the replacement without a staging profile or any process when its cleanup record cannot be written", async () => {
+      const m = codex(); await m.load();
+      const connection = await connectedCodex(m);
+      const spy = vi.spyOn(storage, "markCleanup").mockImplementation(() => { throw new Error("ENOSPC"); });
+      const before = processes.length;
+      const run = started(await m.signIn("codex", 7));
+      const state = await run.done;
+      spy.mockRestore();
+      expect(processes.slice(before)).toEqual([]);
+      expect(profiles()).toEqual(["codex"]);
+      expect(state).toMatchObject({ phase: "connected", connection, verified: true, error: { code: "storage_failed" } });
+    });
+    for (const content of ["{bad", '{"v":2,"profiles":[]}', '{"v":1,"profiles":[{"provider":"codex","profile":"../codex"}]}']) {
+      it(`leaves a damaged cleanup record file as it is and starts no logout: ${content}`, async () => {
+        writeFileSync(join(root, "cleanup.json"), content);
+        const m = codex(); await m.load(); await flush();
+        expect(processes).toEqual([]);
+        expect(() => storage.pendingCleanup()).toThrow();
+        expect(() => storage.markCleanup("codex", "codex-test")).toThrow();
+        expect(readFileSync(join(root, "cleanup.json"), "utf8")).toBe(content);
+      });
+    }
+    it("signs out the connection's own profile", async () => {
+      const m = codex(); await m.load();
+      await connectedCodex(m);
+      const run = started(await m.signIn("codex", 7)); const login = await finish("login", 0); await finish("status", 0); await finish("logout", 0); await run.done;
+      const out = started(await m.signOut("codex"));
+      expect((await finish("logout", 0)).cwd).toBe(login.cwd);
+      keychain = { status: "disconnected" };
+      expect((await finish("status", 0)).cwd).toBe(login.cwd);
+      expect(await out.done).toMatchObject({ phase: "disconnected", connection: null });
+    });
+  });
+  it("unverifies a keychain connection once its login finished, since the profile may hold the new login", async () => {
+    const m = manager(); await m.load();
+    keychain = { status: "connected", account: { id: "c1", workspace: null } };
+    const first = started(await m.signIn("claude", 7)); await finish("login", 0); await finish("status", 0);
+    const connection = (await first.done).connection;
+    const run = started(await m.signIn("claude", 7));
+    keychain = { status: "disconnected" };
+    await finish("login", 0); await finish("status", 0);
+    expect(await run.done).toMatchObject({ connection, verified: false, error: { code: "sign_in_failed" } });
   });
 });
 
@@ -499,6 +794,7 @@ describe("attempt lifetime", () => {
     expect(await run.done).toMatchObject({ phase: "connected", verified: true });
     await check.done;
     expect(m.state("claude")).toMatchObject({ phase: "connected" });
+    expect(await check.outcome).toBe("replaced");
   });
   it("cancels attempts and waits for their processes on quit", async () => {
     const m = manager(); await m.load();
@@ -871,6 +1167,27 @@ describe("leases and recovery", () => {
     vi.spyOn(cipher, "encrypt").mockRejectedValueOnce(new Error("user denied keychain access"));
     await finish("status", 0, p => writeToken(p, { id: "u1", refreshed: true }));
     expect(await check.done).toMatchObject({ phase: "connected", verified: false, error: { code: "storage_failed" } });
+    // The status itself passed; the outcome still reports the write-back published after it.
+    expect(await check.outcome).toBe("storage_failed");
+  });
+  it("reports each check's own outcome, apart from errors the state keeps", async () => {
+    const m = manager(); await m.load();
+    await signedInCursor(m, "u1");
+    const ok = started(await m.check("cursor"));
+    await finish("status", 0, p => writeToken(p, { id: "u1" }));
+    expect(await ok.outcome).toBe("ok");
+    const other = started(await m.check("cursor"));
+    await finish("status", 0, p => writeToken(p, { id: "u2" }));
+    expect(await other.outcome).toBe("account_mismatch");
+    // A failed sign-out stays the shown error; a check that then fails is still a failed check.
+    const metadata = storage.readMetadata();
+    storage.writeMetadata({ ...metadata, signOutFailed: ["cursor"] });
+    const restarted = manager(); await restarted.load();
+    expect(restarted.state("cursor").error).toEqual({ code: "sign_out_failed" });
+    const failing = started(await restarted.check("cursor"));
+    await finish("status", 1);
+    expect(await failing.outcome).toBe("check_failed");
+    expect(restarted.state("cursor").error).toEqual({ code: "sign_out_failed" });
   });
   it("refuses a lease without a verified connection", async () => {
     const m = manager(); await m.load();

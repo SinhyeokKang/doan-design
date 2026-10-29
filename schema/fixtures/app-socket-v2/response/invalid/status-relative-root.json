@@ -1,0 +1,73 @@
+{
+  "v": 2,
+  "ok": true,
+  "op": "status",
+  "result": {
+    "sessionId": "s_7Hq2",
+    "revision": 4,
+    "completed": false,
+    "agents": {
+      "revision": 12,
+      "providers": [
+        {
+          "provider": "claude",
+          "phase": "connected",
+          "readiness": {
+            "ready": true
+          },
+          "error": null,
+          "actions": [
+            "signOut"
+          ]
+        },
+        {
+          "provider": "cursor",
+          "phase": "disconnected",
+          "readiness": {
+            "ready": false,
+            "cause": "cli_missing",
+            "action": "install"
+          },
+          "error": null,
+          "actions": [
+            "signIn"
+          ]
+        },
+        {
+          "provider": "copilot",
+          "phase": "connected",
+          "readiness": {
+            "ready": false,
+            "cause": "unverified",
+            "action": "retry"
+          },
+          "error": null,
+          "actions": [
+            "retry",
+            "signOut"
+          ]
+        },
+        {
+          "provider": "codex",
+          "phase": "error",
+          "readiness": {
+            "ready": false,
+            "cause": "not_connected",
+            "action": "signIn"
+          },
+          "error": {
+            "code": "sign_in_failed",
+            "retryable": true
+          },
+          "actions": [
+            "signIn"
+          ]
+        }
+      ]
+    },
+    "project": {
+      "root": "code/app"
+    },
+    "operations": []
+  }
+}

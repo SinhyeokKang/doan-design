@@ -1,0 +1,14 @@
+{
+  "v": 2,
+  "ok": true,
+  "op": "cancel",
+  "result": {
+    "operation": {
+      "operationId": "op_9",
+      "requestId": "req-1",
+      "kind": "project_clone",
+      "state": "running",
+      "cancelling": false
+    }
+  }
+}

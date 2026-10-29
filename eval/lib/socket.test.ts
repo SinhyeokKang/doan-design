@@ -4,7 +4,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:f
 import { connect } from "node:net";
 import { join } from "node:path";
 import { test } from "node:test";
-import { answer, startFakeApp, validRequest, validResponse, validRuntimeFile, validSelection } from "./socket.ts";
+import { answer, onboardingApp, startFakeApp, validOnboardingRequest, validOnboardingResponse, validRequest, validResponse, validRuntimeFile, validSelection, type OnboardingScript } from "./socket.ts";
 
 const fixtures = join(import.meta.dirname, "../../schema/fixtures");
 
@@ -89,6 +89,198 @@ test("close settles and kills a fake app that does not exit on its own", async (
     } finally {
       try { process.kill(pid, "SIGKILL"); } catch { /* already gone */ }
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("onboarding validators agree with every app-socket v2 fixture", () => {
+  agreesWithSchema("app-socket-v2/request", validOnboardingRequest);
+  agreesWithSchema("app-socket-v2/response", validOnboardingResponse);
+});
+
+// Script entries describe the auth state; the fake derives the status DTO the app would show.
+const notConnected = (provider: string) => ({ provider, connected: false, verified: false });
+const readyAgent = (provider: string) => ({ provider, connected: true, verified: true });
+const unverified = (provider: string) => ({ provider, connected: true, verified: false });
+const ready = (provider: string) => ({ provider, phase: "connected", readiness: { ready: true }, error: null, actions: ["signOut"] });
+const signedOutDto = (provider: string) => ({ provider, phase: "disconnected", readiness: { ready: false, cause: "not_connected", action: "signIn" }, error: null, actions: ["signIn"] });
+const CHANGES = [".doan/config.json", ".doan/canvases/", ".gitattributes"];
+
+// Every reply the fake gives must itself be a valid app-socket v2 response.
+function session(script: OnboardingScript, root = "/r", initialize?: (changes: string[]) => void) {
+  const app = onboardingApp(script, root, initialize);
+  const token = "t".repeat(64);
+  return (request: Record<string, unknown>, sentToken = token): any => {
+    const reply = app.answer(JSON.stringify({ v: 2, token: sentToken, ...request }), token);
+    assert.ok(validOnboardingResponse(reply), JSON.stringify(reply));
+    return reply;
+  };
+}
+const S = { sessionId: "s_eval" };
+
+test("onboarding answers check shape, then token, then session", () => {
+  const ask = session({ providers: [readyAgent("claude")], changes: CHANGES, readyAfterCheck: [] });
+  assert.equal(ask({ op: "status" }).error.code, "bad_request");
+  assert.equal(ask({ op: "start" }, "wrong").error.code, "bad_token");
+  assert.equal(ask({ op: "status", ...S }).error.code, "session_stale");
+  const start = ask({ op: "start" });
+  assert.equal(start.result.sessionId, "s_eval");
+  assert.deepEqual(start.result.agents.providers, [ready("claude")]);
+  assert.equal(start.result.completed, false);
+  assert.equal(ask({ op: "status", sessionId: "s_other" }).error.code, "session_stale");
+  assert.equal(ask({ op: "start" }).result.sessionId, "s_eval", "start reuses the session");
+});
+
+test("a project is inspected, selected with --initialize and completed through status polls", () => {
+  const ask = session({ providers: [readyAgent("claude")], changes: CHANGES, readyAfterCheck: [] });
+  ask({ op: "start" });
+  assert.equal(ask({ op: "project_inspect", ...S, requestId: "i1", path: "/elsewhere" }).error.code, "path_unavailable");
+  const inspect = ask({ op: "project_inspect", ...S, requestId: "i2", path: "/r/" }).result.operation;
+  assert.equal(inspect.state, "running");
+  assert.equal(ask({ op: "project_select", ...S, requestId: "s0", inspectionId: "insp_1", path: "/r", initialize: true }).error.code, "inspection_stale", "not inspected yet");
+  const settled = ask({ op: "status", ...S, operationId: inspect.operationId }).result.operations;
+  assert.deepEqual(settled[0].inspection, { inspectionId: "insp_1", candidates: [{ path: "/r", changes: CHANGES }] });
+  assert.equal(ask({ op: "project_select", ...S, requestId: "s1", inspectionId: "insp_1", path: "/r" }).error.code, "initialize_required");
+  assert.equal(ask({ op: "project_select", ...S, requestId: "s2", inspectionId: "insp_1", path: "/x", initialize: true }).error.code, "not_candidate");
+  assert.equal(ask({ op: "complete", ...S, requestId: "c0" }).error.code, "no_project");
+  const select = ask({ op: "project_select", ...S, requestId: "s3", inspectionId: "insp_1", path: "/r", initialize: true }).result.operation;
+  assert.equal(select.state, "running");
+  assert.deepEqual(ask({ op: "status", ...S }).result.project, { root: "/r" });
+  const complete = ask({ op: "complete", ...S, requestId: "c1" }).result.operation;
+  assert.equal(complete.state, "running");
+  const done = ask({ op: "status", ...S }).result;
+  assert.equal(done.completed, true);
+  assert.deepEqual(done.operations.find((o: any) => o.kind === "complete"), { ...complete, state: "succeeded", project: { root: "/r" } });
+});
+
+// The real app sets the folder up as the select succeeds; the in-process fake
+// only reports it, and serveFakeApp writes the files.
+test("a select with --initialize sets the folder up once, when it succeeds", () => {
+  const initialized: string[][] = [];
+  const ask = session({ providers: [readyAgent("claude")], changes: CHANGES, readyAfterCheck: [] }, "/r", changes => initialized.push(changes));
+  ask({ op: "start" });
+  ask({ op: "project_inspect", ...S, requestId: "i1", path: "/r" });
+  ask({ op: "status", ...S });
+  assert.equal(ask({ op: "project_select", ...S, requestId: "s0", inspectionId: "insp_1", path: "/r" }).error.code, "initialize_required");
+  const select = ask({ op: "project_select", ...S, requestId: "s1", inspectionId: "insp_1", path: "/r", initialize: true }).result.operation;
+  assert.equal("initialize" in select, false, "what select was asked stays out of the reply");
+  assert.deepEqual(initialized, [], "not before the select succeeds");
+  ask({ op: "status", ...S });
+  ask({ op: "status", ...S });
+  assert.deepEqual(initialized, [CHANGES]);
+
+  const setUp: string[][] = [];
+  const again = session({ providers: [readyAgent("claude")], changes: [], readyAfterCheck: [] }, "/r", changes => setUp.push(changes));
+  again({ op: "start" });
+  again({ op: "project_inspect", ...S, requestId: "i1", path: "/r" });
+  again({ op: "status", ...S });
+  again({ op: "project_select", ...S, requestId: "s1", inspectionId: "insp_1", path: "/r", initialize: true });
+  again({ op: "status", ...S });
+  assert.deepEqual(setUp, [], "an already set-up folder gets nothing");
+});
+
+test("a requestId returns its original operation and refuses other arguments", () => {
+  const ask = session({ providers: [readyAgent("claude")], changes: [], readyAfterCheck: [] });
+  ask({ op: "start" });
+  const first = ask({ op: "project_inspect", ...S, requestId: "i1", path: "/r" }).result.operation;
+  assert.deepEqual(ask({ op: "project_inspect", ...S, requestId: "i1", path: "/r" }).result.operation, first);
+  assert.equal(ask({ op: "project_inspect", ...S, requestId: "i1", path: "/r/sub" }).error.code, "request_conflict");
+  ask({ op: "status", ...S });
+  assert.equal(ask({ op: "project_inspect", ...S, requestId: "i1", path: "/r" }).result.operation.state, "succeeded");
+  // An already set-up folder needs no --initialize.
+  assert.equal(ask({ op: "project_select", ...S, requestId: "s1", inspectionId: "insp_1", path: "/r" }).result.operation.kind, "project_select");
+});
+
+test("a sign-in waits for the user in the browser and blocks a second one", () => {
+  const ask = session({ providers: [notConnected("claude"), unverified("copilot")], changes: CHANGES, readyAfterCheck: ["copilot"] });
+  assert.deepEqual(ask({ op: "start" }).result.agents, { revision: 1, providers: [signedOutDto("claude"), { provider: "copilot", phase: "connected", readiness: { ready: false, cause: "unverified", action: "retry" }, error: null, actions: ["retry", "signOut"] }] });
+  assert.equal(ask({ op: "sign_in", ...S, requestId: "x", provider: "cursor" }).error.code, "bad_request", "the script has no cursor state");
+  assert.equal(ask({ op: "check", ...S, requestId: "y", provider: "claude" }).error.code, "not_connected");
+  const signIn = ask({ op: "sign_in", ...S, requestId: "a1", provider: "claude" }).result.operation;
+  assert.equal(signIn.state, "pending");
+  for (let i = 0; i < 3; i++) {
+    const waiting = ask({ op: "status", ...S, operationId: signIn.operationId }).result;
+    assert.equal(waiting.operations[0].state, "awaiting_user");
+    // The provider shows the live attempt, as agent-auth does: no second sign-in is offered.
+    assert.deepEqual(waiting.agents, { revision: 2, providers: [{ provider: "claude", phase: "signingIn", readiness: { ready: false, cause: "busy", action: "wait" }, error: null, actions: ["cancel"] }, waiting.agents.providers[1]] });
+  }
+  assert.equal(ask({ op: "sign_in", ...S, requestId: "a2", provider: "claude" }).error.code, "busy");
+  assert.equal(ask({ op: "complete", ...S, requestId: "c1" }).error.code, "no_ready_agent");
+  assert.equal(ask({ op: "status", ...S, operationId: "op_99" }).error.code, "operation_not_found");
+  const cancelling = ask({ op: "cancel", ...S, requestId: "k1", operationId: signIn.operationId });
+  assert.equal(cancelling.op, "cancel");
+  assert.deepEqual(cancelling.result.operation, { ...signIn, state: "running", cancelling: true });
+  const cleaning = ask({ op: "status", ...S, operationId: "op_99" });
+  assert.equal(cleaning.error.code, "operation_not_found");
+  let after = ask({ op: "status", ...S }).result;
+  assert.deepEqual(after.operations[0], { ...signIn, state: "cancelled" });
+  assert.deepEqual(after.agents.providers[0], signedOutDto("claude"));
+  assert.equal(after.agents.revision, 4, "sign-in, cancel and cleanup each changed the agents");
+  assert.equal(ask({ op: "cancel", ...S, requestId: "k2", operationId: "op_99" }).error.code, "operation_not_found");
+  const check = ask({ op: "check", ...S, requestId: "p1", provider: "copilot", spendCopilotRequest: true }).result.operation;
+  assert.equal(check.state, "running");
+  assert.equal(ask({ op: "status", ...S, operationId: check.operationId }).result.operations[0].state, "succeeded");
+  after = ask({ op: "status", ...S }).result;
+  assert.deepEqual(after.agents.providers.find((p: any) => p.provider === "copilot"), ready("copilot"));
+  assert.equal(after.operations.find((o: any) => o.operationId === check.operationId).state, "succeeded");
+});
+
+test("a check that cannot verify fails as agent-auth would and keeps the retry", () => {
+  const ask = session({ providers: [unverified("copilot"), readyAgent("claude")], changes: [], readyAfterCheck: [] });
+  ask({ op: "start" });
+  const check = ask({ op: "check", ...S, requestId: "p1", provider: "copilot", spendCopilotRequest: true }).result.operation;
+  const during = ask({ op: "status", ...S, operationId: "op_99" });
+  assert.equal(during.error.code, "operation_not_found");
+  const done = ask({ op: "status", ...S }).result;
+  assert.deepEqual(done.operations[0], { ...check, state: "failed", error: { code: "check_failed", message: done.operations[0].error.message } });
+  assert.deepEqual(done.agents.providers[0], { provider: "copilot", phase: "connected", readiness: { ready: false, cause: "unverified", action: "retry" }, error: { code: "check_failed", retryable: true }, actions: ["retry", "signOut"] });
+  const claude = ask({ op: "check", ...S, requestId: "p2", provider: "claude" }).result.operation;
+  assert.deepEqual(ask({ op: "status", ...S, operationId: claude.operationId }).result.operations[0].state, "succeeded");
+});
+
+test("an onboarding script must describe valid app state", () => {
+  assert.throws(() => onboardingApp({ providers: [{ provider: "claude" }], changes: [], readyAfterCheck: [] } as any, "/r"));
+  assert.throws(() => onboardingApp({ providers: [ready("claude")], changes: [], readyAfterCheck: [] } as any, "/r"), Error, "a DTO is not an auth state");
+  assert.throws(() => onboardingApp({ providers: [], changes: ["README.md"], readyAfterCheck: [] }, "/r"));
+  assert.throws(() => onboardingApp({ providers: [], changes: [], readyAfterCheck: ["claude"] }, "/r"));
+  assert.throws(() => onboardingApp({ providers: [notConnected("claude")], changes: [], readyAfterCheck: ["claude"] }, "/r"), Error, "a check needs a connection");
+  assert.throws(() => onboardingApp({ providers: [{ provider: "claude", connected: false, verified: true }], changes: [], readyAfterCheck: [] }, "/r"));
+  assert.throws(() => onboardingApp({ providers: [readyAgent("claude"), readyAgent("claude")], changes: [], readyAfterCheck: [] }, "/r"));
+  assert.throws(() => onboardingApp({ providers: [], changes: [], readyAfterCheck: [], extra: 1 } as any, "/r"));
+});
+
+function exchange(socketPath: string, line: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const socket = connect(socketPath);
+    let data = "";
+    socket.on("data", chunk => { data += chunk; });
+    socket.on("end", () => resolve(JSON.parse(data)));
+    socket.on("error", reject);
+    socket.write(line + "\n");
+  });
+}
+
+test("the fake app answers v2 only with a script and logs onboarding exchanges without the token", async () => {
+  const dir = mkdtempSync("/tmp/doan-eval-test-");
+  try {
+    const plain = await startFakeApp({ dir, root: "/r", selection: null });
+    const runtime = JSON.parse(readFileSync(plain.runtimePath, "utf8"));
+    assert.deepEqual(await exchange(runtime.socket, JSON.stringify({ v: 2, token: runtime.token, op: "start" })),
+      { v: 1, ok: false, error: { code: "bad_request", message: "The request is not an app-socket v1 request." } }, "an app without onboarding is an older app");
+    await plain.close();
+
+    const app = await startFakeApp({ dir, root: "/r", selection: null, onboarding: { providers: [readyAgent("claude")], changes: [], readyAfterCheck: [] } });
+    const { socket, token } = JSON.parse(readFileSync(app.runtimePath, "utf8"));
+    const start = await exchange(socket, JSON.stringify({ v: 2, token, op: "start" }));
+    assert.equal(start.result.sessionId, "s_eval");
+    assert.equal((await exchange(socket, JSON.stringify({ v: 1, token, root: "/r" }))).ok, true, "v1 still answers");
+    const refused = await exchange(socket, JSON.stringify({ v: 2, token: "nope", op: "start" }));
+    await app.close();
+    const log = readFileSync(app.onboardingLog, "utf8").trim().split("\n").map(line => JSON.parse(line));
+    assert.deepEqual(log, [{ request: { v: 2, op: "start" }, response: start }, { request: { v: 2, op: "start" }, response: refused }], "only v2 exchanges, in order");
+    assert.equal(refused.error.code, "bad_token");
+    assert.ok(!readFileSync(app.onboardingLog, "utf8").includes(token));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

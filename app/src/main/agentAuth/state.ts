@@ -1,5 +1,5 @@
 import { validAccount, validAuthId, validConnection } from "./metadata";
-import { validProvider, type AccountConnection, type AuthAction, type AuthError, type AuthEvent, type AuthPhase, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type Provider, type Readiness, type ToolFacts } from "./types";
+import { validProvider, type AccountConnection, type CheckResult, type AuthAction, type AuthError, type AuthEvent, type AuthPhase, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type Provider, type Readiness, type ToolFacts } from "./types";
 type Fields = Omit<AuthState, "phase">;
 function phaseOf(s: Fields): AuthPhase {
   if (s.attempt) return s.attempt.kind === "check" ? "checking" : s.attempt.kind === "signIn" ? "signingIn" : "signingOut";
@@ -45,7 +45,7 @@ export function transition(state: AuthState, event: AuthEvent): AuthTransition {
       if (event.type === "signedIn") {
         const result = event.result;
         // A replacement shares the dedicated profile and may have overwritten the previous login before failing.
-        if (result.status === "failed") return apply({ attempt: null, verified: false, error: failure(result.code, result.detail) });
+        if (result.status === "failed") return apply({ attempt: null, verified: event.kept === true && state.verified, error: failure(result.code, result.detail) });
         if (!validConnection(result.connection) || result.connection.provider !== state.provider) return reject("invalid");
         return apply({ attempt: null, connection: result.connection, generation: state.generation + 1, verified: true, expired: false, error: null });
       }
@@ -80,7 +80,7 @@ export function transition(state: AuthState, event: AuthEvent): AuthTransition {
       // Only cancellation waits for cleanup; finished attempts end with their result.
       if (!attempt.cancelled) return reject("invalid");
       // Only sign-ins are cancellable, and one may have rewritten the profile before it stopped.
-      return apply({ attempt: null, verified: false });
+      return apply({ attempt: null, verified: event.kept === true && state.verified });
     case "runConfirmed": {
       // Only the run's own connection outside any attempt: a check's or a write-back's verdict stands.
       if (!state.connection || state.connection.connectionId !== event.connectionId || state.error || state.attempt) return { ok: true, outcome: "unchanged", state };
@@ -97,6 +97,13 @@ export function transition(state: AuthState, event: AuthEvent): AuthTransition {
       return apply({ verified: false, error: kept ?? failure("storage_failed", event.detail) });
   }
   return reject("invalid");
+}
+// What one check found, apart from an error the state keeps: a failed sign-out stays the shown error either way.
+export function checkVerdict(state: AuthState, result: CheckResult): "ok" | "network" | "check_failed" | "cli_install_failed" | "account_mismatch" {
+  if (result.status === "failed") return result.code;
+  if (result.status !== "connected" || !state.connection) return "ok";
+  const stored = state.connection.account;
+  return stored.id !== result.account.id || stored.workspace !== result.account.workspace ? "account_mismatch" : "ok";
 }
 // A doan Claude run is pinned to its login's organization and refuses without one (user decision 2026-10-28, R-B3).
 function unpinned(state: AuthState): boolean { return state.provider === "claude" && !!state.connection && state.connection.account.workspace === null; }

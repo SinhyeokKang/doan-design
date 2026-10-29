@@ -36,6 +36,8 @@ const violetAllowed = [
   ".comments-btn.primary.submit:hover:not(:disabled)",
   ".comments-btn.primary.submit:active:not(:disabled)",
   ".comment-pin",
+  // The onboarding Welcome glow (buzz-onboarding approved draft, 2026-10-28 user).
+  ".ob-atmosphere",
 ];
 
 function compareAllowed(found: string[], allowed: string[]) {

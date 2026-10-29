@@ -1,0 +1,17 @@
+{
+  "v": 2,
+  "ok": true,
+  "op": "complete",
+  "result": {
+    "operation": {
+      "operationId": "op_9",
+      "requestId": "req-1",
+      "kind": "complete",
+      "state": "failed",
+      "error": {
+        "code": "completion_save_failed",
+        "message": "m"
+      }
+    }
+  }
+}

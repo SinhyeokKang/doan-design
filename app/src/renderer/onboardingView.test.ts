@@ -1,11 +1,9 @@
-import type { ScanSnapshot } from "../main/addProjects";
 import { describe, expect, test } from "vitest";
 import type { MachineState } from "../main/onboarding/machine";
-import type { CanvasRow } from "../main/view";
 import { PATH_LINE } from "../main/onboarding/machine";
 import {
-  advanceAfter, agentsView, NO_AGENT_NOTICE, promptStepView, cliItems, confirmView, copyFor, copyLabel, COPY_FAILED, footerView, idleUi, indicatorView, initMessage, nextFocusIndex,
-  PATH_LINE_TEXT, pickView, projectStepView, registrationText, STEP_COPY, stepsDone, tilde, wizardBusy, type MachineUi,
+  agentsView, NO_AGENT_NOTICE, cliItems, confirmView, copyLabel, COPY_FAILED, idleUi, initMessage, nextFocusIndex,
+  PATH_LINE_TEXT, registrationText, tilde, type MachineUi,
 } from "./onboardingView";
 
 const home = "/Users/alex";
@@ -204,51 +202,7 @@ describe("confirmations", () => {
   });
 });
 
-describe("wizard frame", () => {
-  test("completion follows the 2026-10-24 rules", () => {
-    const connected = ours({ stub: { state: "ours", stamp: "s" } }); connected.agents.codex = { ...connected.agents.codex, mcp: { state: "ours", value: "" } };
-    expect(stepsDone(connected, { path: "/r", kind: "list", servedRev: 0, canvases: [] }, true)).toEqual([true, true, true, true]);
-    expect(stepsDone(machine(), { path: "/r", kind: "uninitialized" }, false)).toEqual([false, false, false, false]);
-    expect(stepsDone(null, undefined, false)).toEqual([false, false, false, false]);
-    const missingAgent = ours({ stub: { state: "ours", stamp: "s" } }); missingAgent.agents.codex = { executable: null, config: "", mcp: { state: "ours", value: "" } };
-    expect(stepsDone(missingAgent, undefined, false)[1]).toBe(false);
-  });
-  test("the indicator marks done steps with a check, the current step, and disables while busy", () => {
-    expect(indicatorView(2, [true, false, false, false], false)).toEqual([
-      { step: 0, label: "CLI", done: true, current: false, ariaLabel: "CLI, completed", disabled: false },
-      { step: 1, label: "Agents", done: false, current: false, disabled: false },
-      { step: 2, label: "Project", done: false, current: true, disabled: false },
-      { step: 3, label: "First prompt", done: false, current: false, disabled: false },
-    ]);
-    expect(indicatorView(0, [false, false, false, false], true).every(step => step.disabled)).toBe(true);
-  });
-  test("the bottom bar per step", () => {
-    expect(footerView(0, false, false, false)).toEqual({ stepNo: "Step 1 of 4", checkAgain: { disabled: false }, skip: { disabled: false }, next: { label: "Continue", primary: false, disabled: false } });
-    expect(footerView(1, true, false, false).next).toEqual({ label: "Continue", primary: true, disabled: false });
-    expect(footerView(0, false, false, true).checkAgain).toEqual({ disabled: true });
-    expect(footerView(2, false, true, false)).toEqual({ stepNo: "Step 3 of 4", skip: { disabled: true }, next: { label: "Continue", primary: false, disabled: true } });
-    expect(footerView(3, false, false, false)).toEqual({ stepNo: "Step 4 of 4", next: { label: "Done", primary: true, disabled: false } });
-  });
-  test("any pending action, including a copy, makes the wizard busy", () => {
-    const idle = { running: null, confirming: false, projectBusy: false, closing: false, pathCopy: "idle", promptCopy: "idle" } as const;
-    expect(wizardBusy(idle)).toBe(false);
-    expect(wizardBusy({ ...idle, pathCopy: "copied", promptCopy: "failed" })).toBe(false);
-    for (const patch of [{ running: "claude" }, { confirming: true }, { projectBusy: true }, { closing: true }, { pathCopy: "copying" }, { promptCopy: "copying" }] as const) {
-      expect(wizardBusy({ ...idle, ...patch })).toBe(true);
-    }
-  });
-  test("a copy result lands only while its target is still current", async () => {
-    let target = "/a";
-    let finish: (value: { kind: string }) => void = () => {};
-    const late = copyFor("/a", () => target, () => new Promise(resolve => { finish = resolve; }));
-    target = "/b"; finish({ kind: "success" });
-    expect(await late).toBeNull();
-    target = "/a";
-    expect(await copyFor("/a", () => target, async () => ({ kind: "success" }))).toBe("copied");
-    expect(await copyFor("/a", () => target, async () => ({ kind: "error" }))).toBe("failed");
-    expect(await copyFor("/a", () => target, () => Promise.reject(new Error("denied")))).toBe("failed");
-    expect(await copyFor("/a", () => null, async () => ({ kind: "success" }))).toBeNull();
-  });
+describe("onboarding window", () => {
   test("Tab wraps inside the wizard", () => {
     expect(nextFocusIndex(3, 2, false)).toBe(0);
     expect(nextFocusIndex(3, 0, true)).toBe(2);
@@ -259,46 +213,13 @@ describe("wizard frame", () => {
   });
 });
 
-describe("step 3 — Project", () => {
-  test("before a project is opened", () => {
-    expect(projectStepView(null, { running: false, token: null, error: null, rerooted: null })).toEqual({ value: null, open: { primary: true, disabled: false } });
-  });
-  test("a set-up project shows Already set up; an uninitialized one shows the form", () => {
-    expect(projectStepView({ path: "/code/acme", kind: "list", servedRev: 0, canvases: [] }, { running: false, token: null, error: null, rerooted: null })).toEqual({ value: { name: "acme", path: "/code/acme" }, open: { primary: false, disabled: false }, chip: "Already set up" });
-    expect(projectStepView({ path: "/code/acme", kind: "uninitialized" }, { running: false, token: null, error: null, rerooted: null })).toEqual({ value: { name: "acme", path: "/code/acme" }, open: { primary: false, disabled: false }, form: { token: null, helper: "Without token CSS, doan check won’t flag hardcoded colors.", choose: { disabled: false }, setUp: { label: "Set Up Project", disabled: false } } });
-    expect(projectStepView({ path: "/code/acme", kind: "uninitialized" }, { running: true, token: "/code/acme/t.css", error: null, rerooted: null })).toMatchObject({ open: { disabled: true }, form: { token: "/code/acme/t.css", choose: { disabled: true }, setUp: { label: "Setting Up…", disabled: true } } });
-    expect(projectStepView({ path: "/code/acme", kind: "uninitialized" }, { running: false, token: null, error: "doan CLI error: timed out after 10 s", rerooted: null })?.form?.error).toBe("doan CLI error: timed out after 10 s");
-  });
-  test("rerooted shows the root and the sentence; other states show the row text", () => {
-    expect(projectStepView({ path: "/code/acme", kind: "list", servedRev: 0, canvases: [] }, { running: false, token: null, error: null, rerooted: "This folder is inside /code/acme, which is already set up." })).toMatchObject({ chip: "Already set up", message: "This folder is inside /code/acme, which is already set up." });
-    expect(projectStepView({ path: "/code/acme", kind: "loading" }, { running: false, token: null, error: null, rerooted: null })).toMatchObject({ message: "Reading…" });
-    expect(projectStepView({ path: "/code/acme", kind: "error", message: "Cannot read config" }, { running: false, token: null, error: null, rerooted: null })).toMatchObject({ error: "Cannot read config" });
-  });
-  test("a refused Open Project… shows main's message as an error, with or without a project", () => {
-    expect(projectStepView(null, { running: false, token: null, error: null, rerooted: null, refused: "Can’t open /x: not a folder." })).toEqual({ value: null, open: { primary: true, disabled: false }, error: "Can’t open /x: not a folder." });
-    expect(projectStepView({ path: "/code/acme", kind: "list", servedRev: 0, canvases: [] }, { running: false, token: null, error: null, rerooted: null, refused: "No." })).toMatchObject({ chip: "Already set up", error: "No." });
-  });
+describe("project setup copy", () => {
   test("init results become one line of copy, or nothing on success", () => {
     expect(initMessage({ kind: "success" })).toBeNull();
     expect(initMessage({ kind: "error", message: "Token CSS must be a file inside the repository.", guidance: "Check the project and choose a CSS file inside it, then try again." })).toBe("Token CSS must be a file inside the repository. Check the project and choose a CSS file inside it, then try again.");
     expect(initMessage({ kind: "cliError", reason: "timed out after 10 s" })).toBe("doan CLI error: timed out after 10 s");
     expect(initMessage({ kind: "unavailable", message: "This project is no longer available for setup." })).toBe("This project is no longer available for setup.");
     expect(initMessage({ kind: "rerooted", root: "/a", message: "This folder is inside /a, which is already set up." })).toBe("This folder is inside /a, which is already set up.");
-  });
-});
-
-describe("moving on after Open Project… or Set Up Project", () => {
-  test("only a listed project moves on; an opened uninitialized one stops at the form", () => {
-    expect(advanceAfter("open", "list")).toBe("advance");
-    expect(advanceAfter("setup", "list")).toBe("advance");
-    expect(advanceAfter("open", "uninitialized")).toBe("stop");
-    // init reports success before main's re-read lands; the old state must not consume the move.
-    expect(advanceAfter("setup", "uninitialized")).toBe("wait");
-    // A stored folder picked again keeps its old state until its read finishes.
-    for (const kind of ["loading", "notFound", "error", "cliError"] as const) {
-      expect(advanceAfter("open", kind)).toBe("wait");
-      expect(advanceAfter("setup", kind)).toBe("wait");
-    }
   });
 });
 
@@ -369,90 +290,9 @@ describe("install links and the no-agent notice", () => {
   });
 });
 
-describe("step 4 branches", () => {
-  const row = (path: string, title?: string): CanvasRow => ({ path, ...(title ? { title } : {}), open: 0, resolved: 0, url: `http://127.0.0.1/${path}` });
-  const list = row(".doan/canvases/b.html", "Pricing");
-  test("without a project the step offers Add Project…", () => {
-    const addProject = { text: ["Add a project first. Your first canvas goes in its ", { code: ".doan/canvases/" }, " folder."], label: "Add Project…", primary: true, disabled: false };
-    expect(promptStepView(null, null, false)).toEqual({ addProject });
-    expect(promptStepView(null, null, true).addProject?.disabled).toBe(true);
-    // An arrival without a project cannot be shown.
-    expect(promptStepView(null, list, false)).toEqual({ addProject });
-  });
-  test("with a project and no arrival only the first prompt shows", () => {
-    expect(promptStepView({ kind: "list", path: "/code/acme", canvases: [], servedRev: 0 }, null, false)).toEqual({});
-  });
-  test("an arrival shows Canvas ready with Open, named by title or file name", () => {
-    expect(promptStepView({ kind: "list", path: "/code/acme", canvases: [], servedRev: 0 }, list, false)).toEqual({ ready: { text: "Canvas ready: Pricing", open: { label: "Open", disabled: false } } });
-    expect(promptStepView({ kind: "list", path: "/code/acme", canvases: [], servedRev: 0 }, row(".doan/canvases/sign-in.html"), false).ready?.text).toBe("Canvas ready: sign-in");
-    expect(promptStepView({ kind: "list", path: "/code/acme", canvases: [], servedRev: 0 }, list, true).ready?.open.disabled).toBe(true);
-  });
-});
-
 test("dangling CLI links show Link is broken and Fix instead of another copy", () => {
   expect(cliItems(machine({ cli: { state: "dangling", value: "/gone", stamp: "s" } }), ui())[0]).toMatchObject({
     chip: { text: "Link is broken", tone: "warn" }, button: { id: "replace", label: "Fix…" },
     msg: { tone: "warn", parts: ["Link is broken: ", { code: "/gone" }] },
   });
-});
-
-test("every step has the draft's outcome-first heading and lead; step labels stay as shipped", () => {
-  expect(STEP_COPY).toEqual([
-    { heading: "Let your agents run doan", lead: ["Claude Code and Codex use the doan command to make and check your canvases. Connect it so they can find it."] },
-    { heading: "Connect Claude Code or Codex", lead: ["Your agent draws canvases with the doan skill and tools. Connect the agents you use; nothing changes until you choose Connect."] },
-    { heading: "Choose where canvases live", lead: ["Pick a repository. doan keeps its canvases in ", { code: ".doan/canvases/" }, ", next to the code they describe."] },
-    { heading: "Ask for your first canvas", lead: ["Describe a screen, copy the sentence and paste it into Claude Code or Codex. The canvas opens here when it arrives."] },
-  ]);
-});
-
-describe("step 3 pick-one list", () => {
-  const snapshot = (items: ScanSnapshot["items"], sources = [{ name: "code", path: "/Users/alex/code" }]): ScanSnapshot => ({ scanId: "s", seq: 1, finished: items.length, total: items.length, done: true, sources, items });
-  const item = (name: string, status: ScanSnapshot["items"][number]["status"], extra: Partial<ScanSnapshot["items"][number]> = {}): ScanSnapshot["items"][number] =>
-    ({ id: name, path: `/Users/alex/code/${name}`, name, status, checked: status === "ready", disabled: status === "added" || status === "unreadable" || status === "checking", canvasCount: status === "ready" ? 14 : null, worktrees: [], ...extra });
-  test("repositories and their worktrees are radios; added, unreadable and checking ones are disabled", () => {
-    const view = pickView(snapshot([
-      item("acme-web", "ready", { worktrees: [{ id: "t1", path: "/Users/alex/code/worktrees/feat-billing/acme-web", name: "feat-billing", checked: false }] }),
-      item("billing-api", "notSetUp"), item("one", "ready", { canvasCount: 1 }), item("old", "added"), item("legacy-cms", "unreadable"), item("new", "checking"),
-    ]), "/Users/alex");
-    expect(view.title).toBe("Choose a repository in code");
-    expect(view.lead).toEqual([{ code: "~/code" }, " isn’t a repository. Choose one repository inside it."]);
-    expect(view.rows).toEqual([
-      { id: "acme-web", name: "acme-web", label: "acme-web", path: "~/code/acme-web", sub: false, disabled: false, chip: { text: "14 canvases", tone: "ok" } },
-      { id: "t1", name: "feat-billing", label: "acme-web, feat-billing worktree", path: "~/code/worktrees/feat-billing/acme-web", sub: true, disabled: false },
-      { id: "billing-api", name: "billing-api", label: "billing-api", path: "~/code/billing-api", sub: false, disabled: false, chip: { text: "Not set up" } },
-      { id: "one", name: "one", label: "one", path: "~/code/one", sub: false, disabled: false, chip: { text: "1 canvas", tone: "ok" } },
-      { id: "old", name: "old", label: "old", path: "~/code/old", sub: false, disabled: true, chip: { text: "Already added" } },
-      { id: "legacy-cms", name: "legacy-cms", label: "legacy-cms", path: "~/code/legacy-cms", sub: false, disabled: true, chip: { text: "Couldn't read", tone: "warn" } },
-      { id: "new", name: "new", label: "new", path: "~/code/new", sub: false, disabled: true, chip: { text: "Checking…" } },
-    ]);
-    expect(view.initial).toBe("acme-web");
-  });
-  test("the first choice is the first enabled row; none when nothing can be chosen", () => {
-    expect(pickView(snapshot([item("old", "added", { worktrees: [{ id: "t1", path: "/w/old", name: "feat", checked: false }] })]), null).initial).toBe("t1");
-    expect(pickView(snapshot([item("legacy-cms", "unreadable")]), null).initial).toBeNull();
-    expect(pickView(snapshot([], []), null).title).toBe("Choose a repository");
-  });
-});
-
-test("missing wizard project names its available Open Project action and preserves raw errors", () => {
-  const form = { running: false, token: null, error: null, rerooted: null };
-  const missing = projectStepView({ path: "/gone", kind: "notFound" }, form);
-  expect(missing.error).toContain("Open Project…");
-  expect(missing.error).not.toMatch(/Reopen|Close/);
-  expect(missing.open.disabled).toBe(false);
-  expect(projectStepView({ path: "/gone", kind: "error", message: "Config: raw failure" }, form).error).toBe("Config: raw failure");
-  expect(projectStepView({ path: "/gone", kind: "cliError", reason: "CLI: raw failure" }, form).error).toBe("CLI: raw failure");
-});
-
-
-test.each([
-  [{ kind: "uninitialized", path: "/code/p" }, "Not set up", "Set Up…"],
-  [{ kind: "loading", path: "/code/p" }, "Reading…", "Review Project"],
-  [{ kind: "notFound", path: "/code/p" }, "Missing", "Review Project"],
-  [{ kind: "error", path: "/code/p", message: "Bad config" }, "Config error", "Review Project"],
-  [{ kind: "cliError", path: "/code/p", reason: "timed out" }, "CLI error", "Review Project"],
-] as const)("step 4 keeps the chosen $0.kind project's true state", (entry, status, label) => {
-  const view = promptStepView(entry, null, false);
-  expect(view).toEqual({ project: { path: entry.path, status, label, disabled: false } });
-  expect(promptStepView(entry, null, true).project?.disabled).toBe(true);
 });

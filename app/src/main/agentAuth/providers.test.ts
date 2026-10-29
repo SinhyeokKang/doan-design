@@ -26,6 +26,10 @@ describe("provider auth adapters", () => {
     expect(PROVIDER_AUTH.codex.plaintext).toEqual(["auth.json"]);
     expect(PROVIDER_AUTH.cursor.env).toEqual({ AGENT_CLI_CREDENTIAL_STORE: "file" });
   });
+  it("marks only Codex as a login that clears the profile's existing login before it starts (0.164.0 login.rs)", () => {
+    expect(PROVIDER_AUTH.codex.loginClears).toBe(true);
+    for (const provider of ["claude", "cursor", "antigravity", "copilot"] as const) expect(PROVIDER_AUTH[provider].loginClears).toBe(false);
+  });
   it("signs Copilot out locally instead of relying on its logout command", () => {
     expect(PROVIDER_AUTH.copilot.logout).toBeNull();
   });

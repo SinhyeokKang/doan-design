@@ -1,0 +1,15 @@
+{
+  "v": 2,
+  "ok": true,
+  "op": "sign_in",
+  "result": {
+    "operation": {
+      "operationId": "op_9",
+      "requestId": "req-1",
+      "kind": "sign_in",
+      "state": "awaiting_user",
+      "provider": "antigravity",
+      "code": "4/0Ab"
+    }
+  }
+}

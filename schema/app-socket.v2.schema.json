@@ -1,0 +1,1165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doan.design/schema/app-socket.v2.schema.json",
+  "$comment": "Onboarding messages on the app's local socket, beside app-socket.v1 (active), which is unchanged. The reader dispatches on numeric v before validating. Use the $defs; the root constrains nothing. Operations run in the app's onboarding session and the reply never waits for OAuth, Git or clone to finish: writes return the operation's current state and status reports it later. No message carries an account email or display name, an OAuth link or callback code, the socket token, a credential path or raw process output.",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}$"
+    },
+    "absolutePath": {
+      "type": "string",
+      "pattern": "^/",
+      "$comment": "Absolute POSIX path; the app is macOS-only. Existence and canonical identity are checked by the app."
+    },
+    "token": {
+      "type": "string",
+      "$comment": "Not pattern-checked so a wrong token reaches the app's bad_token answer instead of bad_request."
+    },
+    "provider": {
+      "enum": [
+        "claude",
+        "codex",
+        "cursor",
+        "antigravity",
+        "copilot"
+      ]
+    },
+    "request": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/startRequest"
+        },
+        {
+          "$ref": "#/$defs/statusRequest"
+        },
+        {
+          "$ref": "#/$defs/checkRequest"
+        },
+        {
+          "$ref": "#/$defs/signInRequest"
+        },
+        {
+          "$ref": "#/$defs/cancelRequest"
+        },
+        {
+          "$ref": "#/$defs/projectInspectRequest"
+        },
+        {
+          "$ref": "#/$defs/projectSelectRequest"
+        },
+        {
+          "$ref": "#/$defs/projectCloneRequest"
+        },
+        {
+          "$ref": "#/$defs/completeRequest"
+        }
+      ]
+    },
+    "startRequest": {
+      "$comment": "No session or request ID: start creates or returns the app's single onboarding session and needs no project.",
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 2
+        },
+        "token": {
+          "$ref": "#/$defs/token"
+        },
+        "op": {
+          "const": "start"
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "op"
+      ],
+      "additionalProperties": false
+    },
+    "statusRequest": {
+      "$comment": "Read-only, so no request ID. operationId narrows operations to that one.",
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 2
+        },
+        "token": {
+          "$ref": "#/$defs/token"
+        },
+        "op": {
+          "const": "status"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "operationId": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "op",
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "checkRequest": {
+      "$comment": "A Copilot check costs one model request, so it must be asked for explicitly.",
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 2
+        },
+        "token": {
+          "$ref": "#/$defs/token"
+        },
+        "op": {
+          "const": "check"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "provider": {
+          "$ref": "#/$defs/provider"
+        },
+        "spendCopilotRequest": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "op",
+        "sessionId",
+        "requestId",
+        "provider"
+      ],
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "provider": {
+            "const": "copilot"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "spendCopilotRequest": {
+            "const": true
+          }
+        },
+        "required": [
+          "spendCopilotRequest"
+        ]
+      }
+    },
+    "signInRequest": {
+      "$comment": "No stop flag: stopping a running conversation is confirmed only in the app UI.",
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 2
+        },
+        "token": {
+          "$ref": "#/$defs/token"
+        },
+        "op": {
+          "const": "sign_in"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "provider": {
+          "$ref": "#/$defs/provider"
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "op",
+        "sessionId",
+        "requestId",
+        "provider"
+      ],
+      "additionalProperties": false
+    },
+    "cancelRequest": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 2
+        },
+        "token": {
+          "$ref": "#/$defs/token"
+        },
+        "op": {
+          "const": "cancel"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "operationId": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "op",
+        "sessionId",
+        "requestId",
+        "operationId"
+      ],
+      "additionalProperties": false
+    },
+    "projectInspectRequest": {
+      "$comment": "path or url is the target. url with path names the repository the folder must belong to (its remotes are checked); destination, the final clone directory, goes only with url alone.",
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 2
+        },
+        "token": {
+          "$ref": "#/$defs/token"
+        },
+        "op": {
+          "const": "project_inspect"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "path": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "$comment": "GitHub URL syntax is checked by the app so a rejected URL answers invalid_url, not bad_request."
+        },
+        "destination": {
+          "$ref": "#/$defs/absolutePath"
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "op",
+        "sessionId",
+        "requestId"
+      ],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "path"
+          ],
+          "not": {
+            "required": [
+              "destination"
+            ]
+          }
+        },
+        {
+          "required": [
+            "url"
+          ],
+          "not": {
+            "required": [
+              "path"
+            ]
+          }
+        }
+      ]
+    },
+    "projectSelectRequest": {
+      "$comment": "initialize: true is the explicit consent to create the inspection's planned changes; without it nothing is written.",
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 2
+        },
+        "token": {
+          "$ref": "#/$defs/token"
+        },
+        "op": {
+          "const": "project_select"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "inspectionId": {
+          "$ref": "#/$defs/id"
+        },
+        "path": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "initialize": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "op",
+        "sessionId",
+        "requestId",
+        "inspectionId",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "projectCloneRequest": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 2
+        },
+        "token": {
+          "$ref": "#/$defs/token"
+        },
+        "op": {
+          "const": "project_clone"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "inspectionId": {
+          "$ref": "#/$defs/id"
+        },
+        "destination": {
+          "$ref": "#/$defs/absolutePath"
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "op",
+        "sessionId",
+        "requestId",
+        "inspectionId",
+        "destination"
+      ],
+      "additionalProperties": false
+    },
+    "completeRequest": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 2
+        },
+        "token": {
+          "$ref": "#/$defs/token"
+        },
+        "op": {
+          "const": "complete"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "op",
+        "sessionId",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "response": {
+      "$comment": "A success echoes the request's op so a reader can pick the result shape; an operation-starting write reports its own operation (kind equals op), while cancel reports its target of any kind. An error has no op or state: it is all a caller gets before its token is verified.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 2
+            },
+            "ok": {
+              "const": true
+            },
+            "op": {
+              "enum": [
+                "start",
+                "status"
+              ]
+            },
+            "result": {
+              "$ref": "#/$defs/state"
+            }
+          },
+          "required": [
+            "v",
+            "ok",
+            "op",
+            "result"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 2
+            },
+            "ok": {
+              "const": true
+            },
+            "op": {
+              "enum": [
+                "check",
+                "sign_in",
+                "cancel",
+                "project_inspect",
+                "project_select",
+                "project_clone",
+                "complete"
+              ]
+            },
+            "result": {
+              "type": "object",
+              "properties": {
+                "operation": {
+                  "$ref": "#/$defs/operation"
+                }
+              },
+              "required": [
+                "operation"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "ok",
+            "op",
+            "result"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "op": {
+                    "const": "check"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "result": {
+                    "properties": {
+                      "operation": {
+                        "properties": {
+                          "kind": {
+                            "const": "check"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "op": {
+                    "const": "sign_in"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "result": {
+                    "properties": {
+                      "operation": {
+                        "properties": {
+                          "kind": {
+                            "const": "sign_in"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "op": {
+                    "const": "project_inspect"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "result": {
+                    "properties": {
+                      "operation": {
+                        "properties": {
+                          "kind": {
+                            "const": "project_inspect"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "op": {
+                    "const": "project_select"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "result": {
+                    "properties": {
+                      "operation": {
+                        "properties": {
+                          "kind": {
+                            "const": "project_select"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "op": {
+                    "const": "project_clone"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "result": {
+                    "properties": {
+                      "operation": {
+                        "properties": {
+                          "kind": {
+                            "const": "project_clone"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "op": {
+                    "const": "complete"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "result": {
+                    "properties": {
+                      "operation": {
+                        "properties": {
+                          "kind": {
+                            "const": "complete"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 2
+            },
+            "ok": {
+              "const": false
+            },
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "$ref": "#/$defs/errorCode"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "ok",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "errorCode": {
+      "$comment": "Request refusals; no operation is created. busy, stop_required, not_owner, not_connected and sign_out_failed are agent-auth reply reasons passed through.",
+      "enum": [
+        "bad_request",
+        "bad_token",
+        "session_stale",
+        "operation_not_found",
+        "request_conflict",
+        "inspection_stale",
+        "busy",
+        "stop_required",
+        "not_owner",
+        "not_connected",
+        "sign_out_failed",
+        "auth_unavailable",
+        "no_ready_agent",
+        "no_project",
+        "invalid_url",
+        "path_unavailable",
+        "not_candidate",
+        "initialize_required",
+        "destination_exists"
+      ]
+    },
+    "state": {
+      "$comment": "revision is the onboarding session's; agents.revision is agent-auth's snapshot revision. agents is null when auth storage cannot be read.",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "agents": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "revision": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "providers": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/agentStatus"
+                  }
+                }
+              },
+              "required": [
+                "revision",
+                "providers"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "project": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/project"
+            }
+          ]
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/operation"
+          }
+        }
+      },
+      "required": [
+        "sessionId",
+        "revision",
+        "completed",
+        "agents",
+        "project",
+        "operations"
+      ],
+      "additionalProperties": false
+    },
+    "agentStatus": {
+      "$comment": "agent-auth's Status DTO without account, attempt or revision.",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "$ref": "#/$defs/provider"
+        },
+        "phase": {
+          "enum": [
+            "disconnected",
+            "checking",
+            "signingIn",
+            "connected",
+            "reauthRequired",
+            "signingOut",
+            "error"
+          ]
+        },
+        "readiness": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "ready": {
+                  "const": true
+                }
+              },
+              "required": [
+                "ready"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "ready": {
+                  "const": false
+                },
+                "cause": {
+                  "enum": [
+                    "cli_missing",
+                    "version_unsupported",
+                    "version_unknown",
+                    "version_incompatible",
+                    "busy",
+                    "sign_out_failed",
+                    "not_connected",
+                    "account_mismatch",
+                    "reauth_required",
+                    "unverified",
+                    "tools_missing",
+                    "tools_failed"
+                  ]
+                },
+                "action": {
+                  "enum": [
+                    "install",
+                    "update",
+                    "retry",
+                    "wait",
+                    "signOut",
+                    "signIn",
+                    "reauth",
+                    "repair"
+                  ]
+                }
+              },
+              "required": [
+                "ready",
+                "cause",
+                "action"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "enum": [
+                    "sign_in_failed",
+                    "network",
+                    "storage_failed",
+                    "check_failed",
+                    "account_mismatch",
+                    "sign_out_failed",
+                    "cli_install_failed"
+                  ]
+                },
+                "retryable": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "code",
+                "retryable"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "signIn",
+              "cancel",
+              "retry",
+              "reauth",
+              "signOut"
+            ]
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "provider",
+        "phase",
+        "readiness",
+        "error",
+        "actions"
+      ],
+      "additionalProperties": false
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "root": {
+          "$ref": "#/$defs/absolutePath"
+        }
+      },
+      "required": [
+        "root"
+      ],
+      "additionalProperties": false
+    },
+    "operation": {
+      "$comment": "provider belongs to check and sign_in; error to failed; inspection to a succeeded project_inspect; project to a succeeded project_select, project_clone or complete. awaiting_user means only that a person must approve in the browser. cancelling marks a running sign_in or project_clone whose cancel was accepted but whose process group or temporary clone directory is not gone yet; it stays running until cleanup ends, so new work and location changes wait.",
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "check",
+            "sign_in",
+            "project_inspect",
+            "project_select",
+            "project_clone",
+            "complete"
+          ]
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "running",
+            "awaiting_user",
+            "succeeded",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "cancelling": {
+          "const": true
+        },
+        "provider": {
+          "$ref": "#/$defs/provider"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/operationErrorCode"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        },
+        "inspection": {
+          "$ref": "#/$defs/inspection"
+        },
+        "project": {
+          "$ref": "#/$defs/project"
+        }
+      },
+      "required": [
+        "operationId",
+        "requestId",
+        "kind",
+        "state"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "check",
+                  "sign_in"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "provider"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "provider"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "failed"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "error"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "error"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "awaiting_user"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "kind": {
+                "const": "sign_in"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "project_inspect"
+              },
+              "state": {
+                "const": "succeeded"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "inspection"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "inspection"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "project_select",
+                  "project_clone",
+                  "complete"
+                ]
+              },
+              "state": {
+                "const": "succeeded"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "project"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "project"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "cancelling"
+            ]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "const": "running"
+              },
+              "kind": {
+                "enum": [
+                  "sign_in",
+                  "project_clone"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "operationErrorCode": {
+      "$comment": "Failures after an operation was accepted. Messages are written by the app; they never quote Git, provider or OAuth output.",
+      "enum": [
+        "sign_in_failed",
+        "network",
+        "storage_failed",
+        "check_failed",
+        "account_mismatch",
+        "cli_install_failed",
+        "repository_unreachable",
+        "git_missing",
+        "remote_mismatch",
+        "destination_exists",
+        "clone_failed",
+        "cleanup_failed",
+        "config_invalid",
+        "init_failed",
+        "project_unavailable",
+        "no_ready_agent",
+        "completion_save_failed",
+        "completion_unsupported_version"
+      ]
+    },
+    "inspection": {
+      "$comment": "candidates are local folders project_select accepts; clone appears when a url inspection's destination is free. changes empty means the folder is already set up.",
+      "type": "object",
+      "properties": {
+        "inspectionId": {
+          "$ref": "#/$defs/id"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "$ref": "#/$defs/absolutePath"
+              },
+              "changes": {
+                "$ref": "#/$defs/changes"
+              }
+            },
+            "required": [
+              "path",
+              "changes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "clone": {
+          "type": "object",
+          "properties": {
+            "destination": {
+              "$ref": "#/$defs/absolutePath"
+            },
+            "changes": {
+              "$ref": "#/$defs/changes"
+            }
+          },
+          "required": [
+            "destination",
+            "changes"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "inspectionId",
+        "candidates"
+      ],
+      "additionalProperties": false
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "enum": [
+          ".doan/config.json",
+          ".doan/canvases/",
+          ".gitattributes"
+        ]
+      },
+      "uniqueItems": true
+    }
+  }
+}

@@ -14,7 +14,7 @@ import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand,
 import { summary, type RoundMeta, type RunRecord } from "./lib/record.ts";
 import { loadScenario, renderPrompt, scenarioIds, selectIds, type LoadedScenario } from "./lib/scenario.ts";
 import type { Check, Checks } from "./lib/types.ts";
-import { copyRepo, prepareWorkspace, type Workspace } from "./lib/workspace.ts";
+import { copyRepo, keepOnboardingLog, prepareWorkspace, type Workspace } from "./lib/workspace.ts";
 
 const ROOT = dirname(import.meta.dirname);
 const SCENARIOS = join(ROOT, "eval/scenarios");
@@ -68,7 +68,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     const startedAt = new Date().toISOString();
     const proc = await runProcess({ cmd, args, cwd: ws.cwd, env: ws.env, timeoutSec: scenario.timeoutSec, stdoutPath: join(dir, "stdout.log"), stderrPath: join(dir, "stderr.log") });
     const evidence = readAgentTranscript(agent, dir, ws.env);
-    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
+    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, onboardingLog: ws.onboardingLog, appWrites: ws.appWrites });
     const checks = await runChecks(scenario, ctx);
     checks.push(cliProvenance(resolutionPath, scenario.shellCli ? setup.cli : null));
     if (existsSync(resolutionPath)) cpSync(resolutionPath, join(dir, "resolved-doan.txt"));
@@ -101,12 +101,15 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     console.log(`done  ${name}: ${record.result} (${proc.durationSec}s${proc.timedOut ? ", timed out" : ""})`);
     return record;
   } finally {
+    keepEvidence(ws, dir);
     await ws.dispose();
   }
 }
 
-// The fake agent: lays a fixture over the seed, and prints the fixture's
-// transcript file when there is one (`fixtures/<kind>.transcript.txt`).
+// The fake agent: lays a fixture over the seed, prints the fixture's transcript
+// file when there is one (`fixtures/<kind>.transcript.txt`), and runs the CLI
+// argument lists in `fixtures/<kind>.commands.json` against the fake app, with
+// `{{repo}}` replaced, so onboarding checks read a real request log.
 async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pass" | "fail"): Promise<{ record: RunRecord; problems: string[] }> {
   const name = `${scenario.id}-fixture-${kind}`;
   const dir = join(setup.out, name);
@@ -117,8 +120,13 @@ async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pa
     renderPrompt(scenario.promptTemplate, ws.repo);
     cpSync(join(scenario.dir, "fixtures", kind), ws.repo, { recursive: true, force: true });
     const transcriptFile = join(scenario.dir, "fixtures", `${kind}.transcript.txt`);
-    const transcript = existsSync(transcriptFile) ? readFileSync(transcriptFile, "utf8") : "";
-    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit });
+    // `{{repo}}` as in the commands, so the transcript shows the paths that ran.
+    const transcript = existsSync(transcriptFile) ? readFileSync(transcriptFile, "utf8").replace(/\{\{\s*repo\s*\}\}/g, ws.repo) : "";
+    const commandsFile = join(scenario.dir, "fixtures", `${kind}.commands.json`);
+    if (existsSync(commandsFile))
+      for (const args of JSON.parse(readFileSync(commandsFile, "utf8")) as string[][])
+        sh(setup.cli, args.map(arg => renderPrompt(arg, ws.repo)), ws.repo, ws.env);
+    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, onboardingLog: ws.onboardingLog, appWrites: ws.appWrites });
     const checks = await runChecks(scenario, ctx);
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     // A fixed fake judge still goes through prompt building and parsing.
@@ -139,8 +147,14 @@ async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pa
     // n orders the pass fixture before the fail one in the summary.
     return { record: { scenario: scenario.id, agent: "fixture", n: kind === "pass" ? 1 : 2, dir: join(".scratch/agent-eval", setup.options.round, name), result, checks, judge: judgement, durationSec: null, exitCode: null, timedOut: false }, problems };
   } finally {
+    keepEvidence(ws, dir);
     await ws.dispose();
   }
+}
+
+// Also for a failed or broken run; a copy error must not hide the run's own error.
+function keepEvidence(ws: Workspace, dir: string): void {
+  try { keepOnboardingLog(ws, dir); } catch (error) { writeFileSync(join(dir, "onboarding-log-error.txt"), `${(error as Error).stack}\n`); }
 }
 
 async function main(): Promise<number> {

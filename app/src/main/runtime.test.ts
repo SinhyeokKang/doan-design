@@ -1,11 +1,11 @@
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { chmod, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { Selection } from "../formats/types";
-import { validateRuntimeFile, validateSocketResponse } from "../formats/validate";
+import type { OnboardingRequest, OnboardingResponse, Selection } from "../formats/types";
+import { validateOnboardingResponse, validateRuntimeFile, validateSocketResponse } from "../formats/validate";
 import { answerRequest, parseSocketRequest, runtimeFile, socketResponse, startRuntime, tokenMatches, type Runtime } from "./runtime";
 
 const TOKEN = "a".repeat(64);
@@ -93,9 +93,12 @@ afterEach(async () => {
   userData = undefined;
 });
 
-async function start(selection: Selection | null = SELECTION): Promise<Runtime> {
+const STARTED: OnboardingResponse = { v: 2, ok: true, op: "start", result: { sessionId: "s1", revision: 0, completed: false, agents: null, project: null, operations: [] } };
+const noOnboarding = async (): Promise<OnboardingResponse> => STARTED;
+
+async function start(selection: Selection | null = SELECTION, onboarding: (request: OnboardingRequest) => Promise<OnboardingResponse> = noOnboarding): Promise<Runtime> {
   userData = await mkdtemp(join(tmpdir(), "doan-runtime-test-"));
-  runtime = await startRuntime(userData, { isOpen: (root) => root === ROOT, selection: () => selection });
+  runtime = await startRuntime(userData, { isOpen: (root) => root === ROOT, selection: () => selection, onboarding });
   return runtime;
 }
 
@@ -170,7 +173,7 @@ test("startRuntime replaces an older 0644 runtime.json and a stale temp file", a
   // Explicit, so the starting mode does not depend on the umask.
   await chmod(file, 0o644);
   await chmod(temp, 0o644);
-  runtime = await startRuntime(userData, { isOpen: () => true, selection: () => null });
+  runtime = await startRuntime(userData, { isOpen: () => true, selection: () => null, onboarding: noOnboarding });
   expect((await stat(file)).mode & 0o777).toBe(0o600);
   expect(JSON.parse(await readFile(file, "utf8"))).toEqual(runtimeFile(runtime.socket, runtime.token));
   expect(await readdir(userData)).toEqual(["runtime.json"]);
@@ -283,4 +286,82 @@ test("disposeSync tolerates files already gone", async () => {
   await rm(dirname(started.socket), { recursive: true });
   expect(() => started.disposeSync()).not.toThrow();
   runtime = undefined;
+});
+
+// Onboarding (app-socket v2) shares the socket, its limits and its token; the version picks the reader.
+const v2 = (token: string, body: Record<string, unknown> = { op: "start" }) => `${JSON.stringify({ v: 2, token, ...body })}\n`;
+async function askV2(socket: string, line: string): Promise<unknown> {
+  const { text } = await exchange(socket, line);
+  const response: unknown = JSON.parse(text);
+  expect(validateOnboardingResponse(response), text).toBe(true);
+  return response;
+}
+
+test("a v2 request reaches the onboarding service only after the token", async () => {
+  const onboarding = vi.fn(async (_request: OnboardingRequest) => STARTED);
+  const { socket, token } = await start(SELECTION, onboarding);
+  expect(await askV2(socket, v2(token))).toEqual(STARTED);
+  expect(onboarding).toHaveBeenCalledWith({ v: 2, token, op: "start" });
+  // An auth failure carries no state, operation or session.
+  expect(await askV2(socket, v2("0".repeat(64)))).toEqual({ v: 2, ok: false, error: { code: "bad_token", message: expect.any(String) } });
+  expect(await askV2(socket, v2("short", { op: "status", sessionId: "s1" }))).toMatchObject({ ok: false, error: { code: "bad_token" } });
+  expect(onboarding).toHaveBeenCalledTimes(1);
+  // v1 keeps its own reader and answers.
+  expect(await ask(socket, `${request(token)}\n`)).toEqual({ v: 1, ok: true, result: { selection: SELECTION } });
+});
+
+test("a v2 request outside the schema is refused before the token and the service", async () => {
+  const onboarding = vi.fn(noOnboarding);
+  const { socket, token } = await start(SELECTION, onboarding);
+  for (const body of [
+    { op: "check", sessionId: "s1", requestId: "r1", provider: "copilot" },
+    { op: "check", sessionId: "s1", requestId: "r1", provider: "copilot", spendCopilotRequest: false },
+    { op: "sign_in", sessionId: "s1", requestId: "r1", provider: "claude", stop: true },
+    { op: "status" }, { op: "start", sessionId: "s1" }, { op: "nope" },
+  ]) {
+    expect(await askV2(socket, v2(token, body)), JSON.stringify(body)).toEqual({ v: 2, ok: false, error: { code: "bad_request", message: expect.any(String) } });
+  }
+  expect(onboarding).not.toHaveBeenCalled();
+});
+
+test("an older client version gets the v1 refusal it already understands", async () => {
+  const { socket, token } = await start();
+  expect(await ask(socket, `${JSON.stringify({ v: 3, token, op: "start" })}\n`)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+});
+
+test("a failing onboarding service answers a generic v2 refusal without its message", async () => {
+  const { socket, token } = await start(SELECTION, async () => { throw new Error("EACCES /Users/sam/.secret token=abc"); });
+  const response = await askV2(socket, v2(token));
+  expect(response).toMatchObject({ v: 2, ok: false, error: { code: "bad_request" } });
+  expect(JSON.stringify(response)).not.toMatch(/EACCES|secret|token=abc/);
+});
+
+test("a client that leaves never cancels the work it asked for", async () => {
+  let finished = false;
+  const onboarding = vi.fn(async () => { await new Promise(resolve => setTimeout(resolve, 100)); finished = true; return STARTED; });
+  const { socket, token } = await start(SELECTION, onboarding);
+  await new Promise<void>((resolve, reject) => {
+    const client = connect(socket);
+    client.on("connect", () => client.end(v2(token)));
+    client.on("error", reject);
+    client.on("close", () => resolve());
+  });
+  await vi.waitFor(() => expect(finished).toBe(true));
+  expect(onboarding).toHaveBeenCalledTimes(1);
+});
+
+test("a v2 answer slower than the socket limit is cut off, not awaited", async () => {
+  const { socket, token } = await start(SELECTION, () => new Promise<OnboardingResponse>(() => {}));
+  const { text, ms } = await exchange(socket, v2(token));
+  expect(text).toBe("");
+  expect(ms).toBeGreaterThanOrEqual(1900);
+  expect(ms).toBeLessThan(3000);
+});
+
+test("a request whose answer throws is refused at once rather than left to the deadline", async () => {
+  userData = await mkdtemp(join(tmpdir(), "doan-runtime-test-"));
+  runtime = await startRuntime(userData, { isOpen: () => { throw new Error("broken"); }, selection: () => null, onboarding: noOnboarding });
+  const { text, ms } = await exchange(runtime.socket, `${request(runtime.token)}\n`);
+  expect(JSON.parse(text)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+  expect(ms).toBeLessThan(1000);
 });

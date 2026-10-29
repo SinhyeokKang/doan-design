@@ -6,6 +6,8 @@ export function projectHue(name: string): typeof hues[number] {
   for (const point of name.trim()) hash = ((hash * 33) ^ point.codePointAt(0)!) >>> 0;
   return hues[hash % hues.length]!;
 }
+// The thumbnail letter, shared by the sidebar and onboarding project cards.
+export function projectInitial(name: string): string { return Array.from(name.trim())[0]?.toUpperCase() ?? "?"; }
 export function projectExpanded(project: ShellProject, loaded: string | null): boolean {
   return project.expanded || (loaded !== null && project.roots.includes(loaded));
 }

@@ -27,6 +27,9 @@ export interface ProviderAuth {
   logout: string[] | null;
   // Profile-relative credential files kept in the encrypted vault, or null when the OS keychain holds them.
   vault: string[] | null;
+  // The login logs the profile out (revoking its tokens) before it starts, so a replacement that does not finish
+  // has already lost the previous login: Codex 0.164.0 login_with_chatgpt calls clear_existing_auth_before_login.
+  loginClears: boolean;
   // For keychain providers: files whose presence means the CLI fell back to plaintext.
   plaintext: string[];
   // Non-secret profile files written before every provider process, such as Copilot's storage setting.
@@ -109,31 +112,31 @@ const SKILL_STUB = { "skills/doan/SKILL.md": stub };
 // Personal skill directories under the dedicated HOME: Cursor ~/.cursor/skills, Copilot ~/.copilot/skills,
 // Antigravity <GEMINI_HOME>/skills (B3 live check 2026-10-28).
 const HOME_STUB = (dir: string) => ({ [`${dir}/skills/doan/SKILL.md`]: stub });
-const CLI_RUN = { acpAuth: null, acp: null, verifyByRun: false, hookLink: null };
+const CLI_RUN = { acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false };
 export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
   // PoC 10: a non-default CLAUDE_CONFIG_DIR gets its own Keychain item; .credentials.json would be the plaintext fallback.
   claude: { command: "claude", args: [], env: {}, login: ["auth", "login"], status: ["auth", "status", "--json"], logout: ["auth", "logout"],
     vault: null, plaintext: [".credentials.json"], settings: SKILL_STUB, ...CLI_RUN, hookLink: claudeLink, parseStatus: claudeStatus },
   // The keyring entry is keyed by the canonical CODEX_HOME; "auto" could silently write auth.json instead.
   codex: { command: "codex", args: ["-c", 'cli_auth_credentials_store="keyring"'], env: {}, login: ["login"], status: ["login", "status"], logout: ["logout"],
-    vault: null, plaintext: ["auth.json"], settings: SKILL_STUB, ...CLI_RUN, parseStatus: codexStatus },
+    vault: null, plaintext: ["auth.json"], settings: SKILL_STUB, ...CLI_RUN, loginClears: true, parseStatus: codexStatus },
   // AGENT_CLI_CREDENTIAL_STORE=file is Cursor's official switch; the default macOS Keychain item is shared by every profile.
   // On macOS the file store is ~/.cursor/auth.json (getAuthFilePath in the 2026.10.22 bundle).
   // Conversations: official `agent acp` (https://cursor.com/docs/cli/acp); it needs authenticate("cursor_login").
   cursor: { command: "cursor-agent", args: [], env: { AGENT_CLI_CREDENTIAL_STORE: "file" }, login: ["login"], status: ["status", "--format", "json"], logout: null,
     vault: [".cursor/auth.json"], plaintext: [], settings: HOME_STUB(".cursor"), acpAuth: null,
-    acp: { args: ["acp"], authenticate: "cursor_login", sessions: ".cursor/acp-sessions" }, verifyByRun: false, hookLink: null, parseStatus: cursorStatus },
+    acp: { args: ["acp"], authenticate: "cursor_login", sessions: ".cursor/acp-sessions" }, verifyByRun: false, hookLink: null, loginClears: false, parseStatus: cursorStatus },
   // Google's ACP server (antigravity.ts) replaces the agy CLI, whose dedicated-HOME keyring save raised a macOS
   // Keychain dialog (B1). AGY_ACP_FORCE_FILE_STORAGE=1 selects its file backend, <GEMINI_HOME>/antigravity-acp/acp_token.json
   // (credential_store.py in 1.3.0; undocumented, user-approved 2026-10-28); GEMINI_HOME is set by providerEnv.
   antigravity: { command: ANTIGRAVITY_COMMAND, args: [], env: { AGY_ACP_FORCE_FILE_STORAGE: "1", PYTHONUNBUFFERED: "1" }, login: [], status: [], logout: null,
     vault: [".gemini/antigravity-acp/acp_token.json"], plaintext: [], settings: HOME_STUB(".gemini"), acpAuth: { method: "oauth-personal", agent: "antigravity-acp", version: ANTIGRAVITY_SERVER.version },
-    acp: { args: [], authenticate: "oauth-personal", sessions: ".gemini/antigravity-acp/conversations" }, verifyByRun: false, hookLink: null, parseStatus: antigravityStatus },
+    acp: { args: [], authenticate: "oauth-personal", sessions: ".gemini/antigravity-acp/conversations" }, verifyByRun: false, hookLink: null, loginClears: false, parseStatus: antigravityStatus },
   // storeTokenPlaintext (official setting, 1.0.x changelog and settings schema) keeps the token in config.json, which
   // doan keeps in the vault; a dedicated HOME also keeps gh and the shared "copilot-cli" Keychain item out of reach.
   // 1.0.105 has no status command: a tool-free print request fails fast without a login and costs one request with one.
   // Conversations: official `copilot --acp --stdio` (https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server).
   copilot: { command: "copilot", args: [], env: {}, login: ["login"], status: ["-p", "Reply with exactly OK", "--available-tools", ""], logout: null,
     vault: [".copilot/config.json"], plaintext: [], settings: { ".copilot/settings.json": '{\n  "storeTokenPlaintext": true\n}\n', ...HOME_STUB(".copilot") }, acpAuth: null,
-    acp: { args: ["--acp", "--stdio"], authenticate: null, sessions: ".copilot/session-state" }, verifyByRun: true, hookLink: null, parseStatus: copilotStatus },
+    acp: { args: ["--acp", "--stdio"], authenticate: null, sessions: ".copilot/session-state" }, verifyByRun: true, hookLink: null, loginClears: false, parseStatus: copilotStatus },
 };

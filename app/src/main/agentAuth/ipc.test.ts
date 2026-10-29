@@ -16,7 +16,7 @@ function backend() {
   };
   const api: AuthBackend = {
     state: provider => states.get(provider)!,
-    check: vi.fn(async provider => started(provider, { type: "check", attemptId: "check-1" })),
+    check: vi.fn(async provider => { const r = started(provider, { type: "check", attemptId: "check-1" }); return r.ok ? { ...r, outcome: Promise.resolve("ok" as const) } : r; }),
     signIn: vi.fn(async (provider, owner, options) => options.stop || provider !== "cursor" ? started(provider, { type: "signIn", attemptId: "sign-1", owner }) : { ok: false as const, reason: "stop_required" as const, state: states.get(provider)! }),
     cancel: vi.fn(async (provider, attemptId, owner) => apply(provider, { type: "cancel", attemptId, owner })),
     submitCode: vi.fn(() => ({ ok: true as const })),
@@ -192,5 +192,25 @@ describe("run-time version incompatibility records", () => {
       expect(t.options.probe).toHaveBeenCalledWith(provider);
     }
     expect(t.api.check).not.toHaveBeenCalled();
+  });
+  it("answers the current snapshot without waiting for the first probe", async () => {
+    const t = ipc(() => new Promise<ToolFacts>(() => {}));
+    void t.ipc.read();
+    const current = t.ipc.latest();
+    expect(current.providers.map(p => p.provider)).toEqual([...PROVIDERS]);
+    expect(current.providers[0]!.readiness).toEqual({ ready: false, cause: "version_unknown", action: "retry" });
+    t.ipc.changed();
+    expect(t.ipc.latest().revision).toBeGreaterThan(current.revision);
+  });
+  it("hands main the outcome of a check it started, and the window only the reply", async () => {
+    const t = ipc();
+    await t.ipc.read();
+    const outcome = Promise.resolve("ok" as const);
+    vi.mocked(t.api.check).mockImplementationOnce(async provider => ({ ok: true as const, attemptId: "check-9", done: Promise.resolve(t.api.state(provider)), outcome }));
+    const started = await t.ipc.check("claude");
+    expect(started.reply).toEqual({ ok: true, attemptId: "check-9" });
+    expect(started.outcome).toBe(outcome);
+    vi.mocked(t.api.check).mockImplementationOnce(async provider => ({ ok: true as const, attemptId: "check-10", done: Promise.resolve(t.api.state(provider)), outcome }));
+    expect(await t.ipc.handle(AUTH_CHANNELS.check, { provider: "claude" }, 7)).toEqual({ ok: true, attemptId: "check-10" });
   });
 });

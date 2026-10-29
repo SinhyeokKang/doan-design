@@ -1,0 +1,38 @@
+{
+  "providers": [
+    {
+      "provider": "claude",
+      "connected": false,
+      "verified": false
+    },
+    {
+      "provider": "codex",
+      "connected": false,
+      "verified": false
+    },
+    {
+      "provider": "cursor",
+      "cli": "missing",
+      "connected": false,
+      "verified": false
+    },
+    {
+      "provider": "antigravity",
+      "connected": false,
+      "verified": false
+    },
+    {
+      "provider": "copilot",
+      "connected": true,
+      "verified": false
+    }
+  ],
+  "changes": [
+    ".doan/config.json",
+    ".doan/canvases/",
+    ".gitattributes"
+  ],
+  "readyAfterCheck": [
+    "copilot"
+  ]
+}

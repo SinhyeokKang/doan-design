@@ -351,10 +351,3 @@ export function createMachine(options: { command: string; version: string; env?:
   };
 }
 
-export async function needsOnboarding(userData: string): Promise<boolean> {
-  try { const value: unknown = JSON.parse(readFileSync(join(userData, "onboarding.json"), "utf8")); return !object(value); } catch { return true; }
-}
-export async function markClosed(userData: string): Promise<void> {
-  const temporary = join(userData, `.onboarding-${randomUUID()}.tmp`);
-  try { writeFileSync(temporary, "{}\n", { flag: "wx" }); renameSync(temporary, join(userData, "onboarding.json")); } finally { rmSync(temporary, { force: true }); }
-}

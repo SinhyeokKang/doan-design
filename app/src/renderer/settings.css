@@ -83,7 +83,7 @@ code { font-family: var(--type-family); }
 .pj-serve li .v { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .pj-msg { margin-top: 8px; overflow-wrap: anywhere; }
 .pj-empty { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
-.pj-empty b { font-size: 13px; font-weight: 600; }
+.pj-empty b { font-size: 13px; font-weight: var(--type-weight-semibold); }
 .pj-empty p { max-width: 300px; font-size: 12px; line-height: 1.6; color: var(--text-metadata); }
 
 html, body, #root { width: 100%; height: 100%; overflow: hidden; }

@@ -15,7 +15,7 @@
 
 ## 온보딩 승인과 후속 인계 (2026-10-28)
 
-[buzz-onboarding](../buzz-onboarding/design.md)은 루트 `.doan/canvases/buzz-onboarding.html`의 디자인 승인·실제 Electron HTML 표시 검증·4관점 feature-review를 마쳤다. 기능 구현은 아직이며 agent-auth 완료가 선행한다. 사용자 지정 순서는 design-draft → 승인·검증 → feature-review이다.
+buzz-onboarding은 2026-10-29 구현·병합됐다. 출하 화면은 루트 `.doan/canvases/buzz-onboarding.html`(상태별 전체 창 프레임 73개), 측정값과 초안과의 차이는 [DESIGN](../../DESIGN.md), 결정은 [PRODUCT §7](../../PRODUCT.md)에 있다.
 
 - Welcome → Agent → Project → Home. 한 공급자 ready와 한 프로젝트가 필수다. 단순 Close/Escape로 완료하거나 홈을 우회하는 과거 위저드 동작은 유지하지 않는다. 미완료 앱 재시작은 Welcome이며 저장된 연결/등록 프로젝트는 유지한다.
 - GitHub URL은 등록 로컬 리포/사용자 선택 폴더를 재사용하고 없으면 기존 Git/gh 인증으로 clone한다. 자체 GitHub OAuth·토큰 저장·저장소 목록은 없다.
@@ -77,7 +77,7 @@
 | 셸 배경 | `bg-app` 단색 + 24px 간격 `texture-dots` 점 격자. 점 색은 `bg-app`에서 파생(라이트는 94% + 검정). 셸 패널과 내비게이션에는 glass를 쓰지 않는다 (DESIGN.md "Surface and depth") | doan은 점 격자를 쓰지 않고 native sidebar vibrancy를 사용한다(buzz-shell 완료). reduced-transparency는 불투명 대체 배경이다 | buzz-ds (토큰), buzz-shell |
 | 앱 헤더 | 헤더 높이 `--size-topbar` 3.5rem = 56px(globals.css:195), macOS 신호등 (24, 30)(src-tauri/tauri.conf.json:21-24), 빈 헤더 배경만 드래그. 아이콘 버튼은 32px 상자·16px 아이콘·10px 모서리의 고스트, hover는 반투명 채움, pressed는 조금 더 진하게 (shell-design.md "Desktop chrome") | Electron `titleBarStyle: "hiddenInset"` + `trafficLightPosition`으로 같은 위치를 만들고 실측한다. 2026-10-22 Window 결정을 대체한다(PRODUCT §7 기록) | buzz-ds (`IconButton`), buzz-shell |
 | 사이드바 | `SidebarNavigation`: `text-navigation` 라벨, body-sm Regular, 28px 행, 블록 패딩 2px, 앞 8px/뒤 6px, 아이콘 간격 6px, 행 간격 2px, 그룹 간격 16px, 섹션 제목·접기 화살표는 `text-subtle`, 선택은 `surface-sidebar-selected` + `text-sidebar-selected`, hover는 `affordance-sidebar-hover` | 선택/hover는 무채색 backdrop 역할이다. 프로젝트→캔버스 구조·프로젝트/워크트리 메뉴·프레임 트리 제거는 buzz-shell의 확정 구현을 따른다 | buzz-ds (토큰), buzz-shell |
-| 온보딩 표면 | [자식의 승인 설계](../buzz-onboarding/design.md) | 자체 doan 워드마크·Welcome CSS 그라디언트, 나머지 native 재질 근사 | buzz-onboarding |
+| 온보딩 표면 | [DESIGN](../../DESIGN.md)·`.doan/canvases/buzz-onboarding.html` | 자체 doan 워드마크·Welcome CSS 그라디언트, 나머지 native 재질 근사 | buzz-onboarding |
 
 ## 가져오지 않는 Buzz 동작 (공통 결정 6)
 
@@ -130,7 +130,7 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 ### 인계 완료한 조사
 
 - AppShell: 구현·main 병합 완료(PR #30, `c625057`). 과거 헤더 배치·Home 포함 여부 질문과 점 격자/불투명 LNB 제안은 다시 적용하지 않는다. [DESIGN의 최종 완료 기록](../../DESIGN.md#buzz-shell--completed-implementation-and-unlocked-acceptance-2026-10-27)을 따른다.
-- 온보딩: Buzz 원본 `OnboardingScreen.tsx`·`IdentitySetup.module.css` 확인 근거와 채택/조정 내용은 [자식 design](../buzz-onboarding/design.md)의 레퍼런스·승인 디자인 절에 인계했다. 기존 네 단계·Close/Escape 유지 제안은 새 필수 설정 흐름이 대체한다.
+- 온보딩: Buzz 원본 `OnboardingScreen.tsx`·`IdentitySetup.module.css` 확인 근거와 채택/조정 내용은 buzz-onboarding이 [DESIGN](../../DESIGN.md)에 남겼다. 기존 네 단계·Close/Escape 유지 제안은 새 필수 설정 흐름이 대체한다.
 
 ### 조사 메모: 캔버스 영역 (`buzz-canvas`용)
 

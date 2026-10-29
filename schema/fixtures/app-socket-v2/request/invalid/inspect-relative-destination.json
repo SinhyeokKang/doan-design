@@ -1,0 +1,9 @@
+{
+  "v": 2,
+  "token": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "op": "project_inspect",
+  "sessionId": "s_7Hq2",
+  "requestId": "req-1",
+  "url": "https://github.com/acme/app",
+  "destination": "app"
+}

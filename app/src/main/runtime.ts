@@ -4,8 +4,8 @@ import { chmod, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
-import { validateSocketRequest } from "../formats/validate";
+import type { OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
+import { validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
 
 // Electron-free on purpose, like shell.ts: index.ts supplies the open projects
 // and the selection, and owns the app lifecycle around this.
@@ -13,9 +13,14 @@ import { validateSocketRequest } from "../formats/validate";
 const LINE_LIMIT = 64 * 1024;
 const LINE_WAIT_MS = 2000;
 
-export interface RuntimeState {
+export interface ActiveState {
   isOpen(root: string): boolean;
   selection(): Selection | null;
+}
+export interface RuntimeState extends ActiveState {
+  // Called only with a schema-valid v2 request whose token matched. It must answer quickly: long work answers with
+  // an operation id, since the connection is cut at the 2 s deadline.
+  onboarding(request: OnboardingRequest): Promise<OnboardingResponse>;
 }
 
 export interface Runtime {
@@ -62,12 +67,29 @@ function socketError(code: SocketErrorCode, message: string): SocketResponse {
 
 // The token is checked before the project so a caller without it learns
 // nothing about which projects are open.
-export function answerRequest(line: string, token: string, state: RuntimeState): SocketResponse {
+export function answerRequest(line: string, token: string, state: ActiveState): SocketResponse {
   const request = parseSocketRequest(line);
   if (request === null) return socketError("bad_request", "The request is not an app-socket v1 request.");
   if (!tokenMatches(request.token, token)) return socketError("bad_token", "The token does not match this app.");
   if (!state.isOpen(request.root)) return socketError("project_not_open", "The project is not open in Doan.");
   return socketResponse(state.selection(), request.root);
+}
+
+function onboardingError(code: "bad_request" | "bad_token", message: string): OnboardingResponse {
+  return { v: 2, ok: false, error: { code, message } };
+}
+
+// Dispatches on the numeric version first: v1 keeps its reader and its replies, including the bad_request an unknown
+// version gets. A v2 reply never carries state before the token matched.
+export async function answerLine(line: string, token: string, state: RuntimeState): Promise<SocketResponse | OnboardingResponse> {
+  let value: unknown;
+  try { value = JSON.parse(line); } catch { value = null; }
+  if (typeof value !== "object" || value === null || Array.isArray(value) || Reflect.get(value, "v") !== 2) return answerRequest(line, token, state);
+  if (!validateOnboardingRequest(value)) return onboardingError("bad_request", "The request is not an app-socket v2 request.");
+  if (!tokenMatches(value.token, token)) return onboardingError("bad_token", "The token does not match this app.");
+  try { return await state.onboarding(value); }
+  // The service's own errors may name paths or provider output; the client gets none of it.
+  catch (error) { console.error("doan: onboarding request failed", error); return onboardingError("bad_request", "Doan could not handle this request."); }
 }
 
 // One request line per connection, one response line, then close. A hard
@@ -79,9 +101,10 @@ function serve(connection: Socket, token: string, state: RuntimeState): void {
   let size = 0;
   let done = false;
   const deadline = setTimeout(() => connection.destroy(), LINE_WAIT_MS);
-  const reply = (response: SocketResponse) => {
+  // A v2 answer may arrive after the deadline destroyed the connection; the work it started goes on regardless.
+  const reply = (response: SocketResponse | OnboardingResponse) => {
     done = true;
-    connection.end(`${JSON.stringify(response)}\n`);
+    if (!connection.destroyed) connection.end(`${JSON.stringify(response)}\n`);
   };
   connection.on("data", (chunk: Buffer) => {
     if (done) return;
@@ -93,7 +116,14 @@ function serve(connection: Socket, token: string, state: RuntimeState): void {
     }
     chunks.push(chunk.subarray(0, end));
     size += end;
-    if (newline !== -1) reply(answerRequest(Buffer.concat(chunks).toString("utf8"), token, state));
+    if (newline !== -1) {
+      done = true;
+      // A throwing state callback still gets a reply now rather than holding the connection to the deadline.
+      void answerLine(Buffer.concat(chunks).toString("utf8"), token, state).then(reply, (error: unknown) => {
+        console.error("doan: socket request failed", error);
+        reply(socketError("bad_request", "Doan could not handle this request."));
+      });
+    }
   });
   connection.on("close", () => clearTimeout(deadline));
   // A client that goes away mid-reply is not the app's problem.
