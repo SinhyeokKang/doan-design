@@ -34,6 +34,7 @@
 | D21 | URL 화면에서 닿는 폴더 행동(오류 notice의 복구 버튼 포함)은 모두 url을 함께 보낸다. 설치·업데이트 페이지에서 돌아오면 Copilot도 readiness 원인이 `cli_missing`이나 `version_*`일 때만 `checkAgentAuth`를 부른다(이때 check는 도구 사실만 다시 읽거나 연결이 없어 요청을 쓰지 않는다, `agentAuth/ipc.ts` `check`). U2는 R 통합 뒤에 그 위로 다시 맞춰 통합한다 | 지휘자 판단(U2 리뷰) — D20을 두 번 클릭으로 우회할 수 없게 하고, 설치 뒤 Copilot이 재시작 전까지 Install에 머무는 것을 막는다 |
 | D22 | Codex 교체 로그인은 새 staging 프로필에서 실행한다. 성공하면 연결의 프로필을 바꾸고 옛 프로필을 로그아웃·삭제하며, 취소·실패하면 staging만 지우고 기존 연결을 유지한다(ARCHITECTURE §7 프로필 경로 승격은 V3) | 사용자 결정(2026-10-29) — Codex 0.164.0 `codex login`이 시작하자마자 기존 로그인을 원격 폐기·삭제한다(A의 소스 확인, `codex-rs/cli/src/login.rs`) |
 | D23 | 'Multiple local checkouts'와 'Your projects' 행은 'Already on your Mac'처럼 선택 가능한 `doan-panel` 카드로 둔다. checkout 목록은 프로젝트 썸네일 대신 `GitBranch` 아이콘과 브랜치 이름(없으면 폴더 이름)·경로를 보인다(ShellSidebar worktree 행과 같은 형식). 'Your projects'는 썸네일을 유지한다. 초안과의 차이로 DESIGN.md에 기록한다 | 사용자 결정(2026-10-29) — 같은 로컬 폴더가 개수에 따라 다른 모양으로 보였고, worktree는 프로젝트가 아니라 같은 리포의 checkout이다 |
+| D24 | 자동 포커스 복구는 파일을 쓰거나 동의하는 버튼('Set up and continue', clone 시작, 'Stop and …' 확인)에 떨어지지 않고 제목이나 notice로 간다. 초기화 동의는 버튼이 보인 inspectionId·경로에 묶인 토큰으로만 보낸다 | 지휘자 판단(V 재현 안 된 동의 없는 초기화 1건) — 무심코 누른 키가 동의가 되지 않게 한다 |
 
 ## 배치
 
@@ -112,3 +113,4 @@
 - 2026-10-29: U 잔여 수정(8b92a0b, 959e1b0: Retry가 고친 URL을 검사) 통합. 리포 링크 probe V 시작.
 - 2026-10-29: 리포 링크 probe(`4fce45d` 패키지 앱) 5개 항목 통과: D20/D21 일치·불일치·읽기 실패(UI·CLI), 오류 notice 복구도 url 전송, 세 checkout 선택, 'Use existing folder' remote 확인, 잘못된 URL inline 거절, Retry가 고친 URL 사용. 재현 안 된 1건: clone 화면에서 일치하는 미초기화 폴더를 고르자 'Set up and continue' 클릭 없이 초기화·등록됐다(3회 반복은 정상). D23 뒤 U에 조사를 보낸다. Keychain 기준선 일치. GUI 슬롯을 U에 넘겼다.
 - 2026-10-29: D23 통합(18cc21d..3ecf656, 마크업 측정은 초안 chosen 카드와 일치, 실제 흐름 확인은 V). U에 동의 없는 초기화 조사 Task를 보냈다.
+- 2026-10-29: U 조사(837f4c0..fd91ffa): 동의 없이 initialize를 보내는 경로는 찾지 못했고, 동의를 inspectionId·경로에 묶인 토큰으로 바꿨다. 통합. 남은 의심(포커스 복구가 'Set up and continue'에 감)은 D24로 U에 보냈다.
