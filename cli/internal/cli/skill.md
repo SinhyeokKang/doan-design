@@ -52,12 +52,29 @@ If a pasted instruction's root differs from your working directory, ask the user
   - On `project_not_open`, ask the user to add this project in Doan (Add Project…), or work in the worktree that is open in Doan.
   - On `app_not_running`, ask the user to open Doan. If Doan is already open, your sandbox may block this shell from the app's socket; call the MCP `active` tool instead. If no MCP `active` tool is available, ask the user which element or frame they mean, or suggest connecting this agent in Doan with the app menu "Settings…" (⌘,).
 - `doan skill`: read this guide and verify its final end marker to detect truncation.
+- `doan design-skill --json`: list the design presets; `doan design-skill <id> --json` reads one. See Design presets below.
 
 All commands accept `--repo <directory>` and `--json`. Without `--repo`, repository commands search upward for `.doan/config.json`; `init` targets the current directory. Explicit `--repo` selects only that directory. Use `doan help` for syntax.
 
 JSON output is one versioned envelope on stdout, with no stderr: `{v:1,ok:true,result}` or `{v:1,ok:false,error:{code,message,nextSteps}}`. Optional keys are omitted and empty lists are `[]`.
 
 Exit codes: 0 success (including warnings); 1 internal failure; 2 usage, repository, configuration, version, canvas, or comment errors, and onboarding input errors (`invalid_url`, `path_unavailable`, `not_candidate`, `initialize_required`, `request_conflict`, `operation_not_found`, `inspection_stale`, `destination_exists`); 3 app errors (`app_not_running`, `app_protocol_mismatch`, `project_not_open`, and for onboarding `app_launch_failed`, `session_stale`); 4 check error findings, still with `ok:true`; 5 onboarding refusals and failed operations that the user or Doan must resolve, such as `busy`, `stop_required`, `no_ready_agent`, `cancelled`, `sign_in_failed` or `clone_failed`. Read `error.nextSteps` on failure. Resolve appends events without rewriting history; after a partial I/O failure, rerunning the same ids is safe. Doan does not commit or push.
+
+## Design presets
+
+Doan bundles design presets: adapted guidance for common design tasks. Read a preset's body only when you use it.
+
+<!-- design preset list -->
+
+`doan design-skill --json` lists them as `{version, presets: [{id, title, description, scope}]}`; `doan design-skill <id> --json` returns one as `{version, preset, body, sources}`. Over MCP, call `design_skill` with `{}` or `{"id": "<id>"}`. These reads need no project and no running app. A body is complete only when it ends with `[doan:design-skill] end of preset <id> v<version>`; without that line, read it again before using it.
+
+1. If the user names a Doan preset, read that one. If it does not exist, say so; do not run a similar id instead.
+2. Otherwise compare the request's purpose, target and negations with the descriptions above. Use a preset only when it clearly fits; ask only about ambiguity that would change the result.
+3. If none fits, do not read a body; handle the request as asked. A concrete edit such as “move this button 4px left” needs no preset.
+4. Reading a preset is not a request to act. A review request ends with a report; make changes only within the requested scope. Do not start a diagnosis the user did not ask for.
+5. The user's request and existing constraints take precedence over a preset, including these rules and the canvas conventions. Read another preset when the request needs it, but skip handoffs, subagents and engines it does not need, and report checks you could not run as unverified.
+
+If the shell CLI is unavailable, use the MCP `skill` and `design_skill` tools. If neither works or a read is refused, say the preset was not applied. For a preset the user named, do not claim it was applied or substitute another; only then suggest connecting or repairing this agent in Doan's Settings… > Connections. For a preset you chose yourself, say in one line that it was not applied and continue the request under these rules; if you also cannot confirm the target or the canvas conventions, do not guess. Do not install anything, change PATH, permissions or MCP registration, or retry a refused call. When the doan app's conversation instructions say otherwise, follow them.
 
 ## Onboarding
 
@@ -90,6 +107,7 @@ Use these commands when the user asks you to set up Doan. They need the Doan app
 | `check` | `doan check` | `repo?` |
 | `active` | `doan active` | `repo?` |
 | `skill` | `doan skill` | none |
+| `design_skill` | `doan design-skill` | `id?` |
 | `onboarding_start` | `doan onboarding start` | none |
 | `onboarding_status` | `doan onboarding status` | `sessionId`, `operationId?` |
 | `onboarding_check` | `doan onboarding check` | `sessionId`, `provider`, `requestId`, `spendCopilotRequest?` |

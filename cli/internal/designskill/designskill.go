@@ -34,6 +34,18 @@ type Preset struct {
 	Sources     []Source `json:"sources"`
 }
 
+// Summary is a preset's list row; a list never carries bodies or sources.
+type Summary struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Scope       string `json:"scope"`
+}
+
+func (p Preset) Summary() Summary {
+	return Summary{ID: p.ID, Title: p.Title, Description: p.Description, Scope: p.Scope}
+}
+
 type Catalog struct {
 	presets []Preset
 	index   map[string]int
@@ -64,6 +76,9 @@ func Marker(id, version string) string {
 
 // authoredMarker is the last line of presets/<id>.md; Body appends the running CLI version to it.
 func authoredMarker(id string) string { return markerTag + " end of preset " + id + "\n" }
+
+// ValidID reports whether id fits the preset id grammar. A valid id can still be missing from the catalog.
+func ValidID(id string) bool { return idPattern.MatchString(id) }
 
 var load = sync.OnceValues(func() (*Catalog, error) { return parse(files) })
 

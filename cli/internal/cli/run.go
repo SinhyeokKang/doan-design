@@ -77,6 +77,7 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   onboarding project clone --session <id> --inspection <id> --destination <absolute> --request <id>
   onboarding complete --session <id> --request <id>
   skill
+  design-skill [<id>]
   mcp
   help
 `
@@ -240,6 +241,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, recordSession
 						o, failure = Comments(ctx, f, pos[1:])
 					case "skill":
 						o, failure = Skill(ctx, pos[1:])
+					case "design-skill":
+						o, failure = DesignSkill(pos[1:])
 					case "check":
 						if recordSessions {
 							ctx.Session = sessionFromEnvironment(ctx.Home)
