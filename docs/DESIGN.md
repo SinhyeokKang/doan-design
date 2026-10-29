@@ -335,6 +335,7 @@ Reference: `.doan/canvases/buzz-onboarding.html` (approved 2026-10-28, F4 comple
   - Install failures read "Couldn’t open the <Provider> install page." Antigravity has no install page.
   - A paste over 16,384 characters shows "This address is too long to submit." (D16) in caption `--text-danger` under the field.
   - Main's fixed messages are shown for refusals without draft copy, for example a kept clone folder: "Couldn't remove <path>. Remove it, then try again."
+- **Cancelled and failed clone** (batch V defect 1, 2026-10-29). The cancelled clone adds an sm subtle Edit repository URL under its Choose local folder / Retry row; the draft tile draws only those two. Back from a cancelled or failed clone returns to the editable URL, and the old inspection is dropped. Back→Continue would otherwise bring the same clone screen back with no way to change the URL.
 - **Folder inspection progress.** Inspecting a picked or listed folder uses the 'Setting up project' notice ("Setting up your project", path), even when nothing will be set up.
 - **Existing folder from the URL path** (D20 and D21, 2026-10-29 user). Every folder action on the URL screens sends the folder together with the repository URL, so main checks its remote. This covers Choose existing folder, Use existing folder and Choose another folder, and the notices' Choose folder / Choose another folder / Choose local folder recoveries. A mismatch stays on that screen with Edit repository URL (subtle) and Choose another folder. The draft's mismatch tile draws Choose another folder alone.
 
