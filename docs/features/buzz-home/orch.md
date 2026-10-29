@@ -31,6 +31,7 @@
 | 2026-10-29 | BU3가 정한 첨부 거절 문구 네 개와 `Only 10 files can be attached.`를 그대로 쓴다 | 사용자 |
 | 2026-10-29 | DOM 테스트 의존성(jsdom 등)은 더하지 않는다. App의 홈 흐름을 App이 호출하는 컨트롤러 모듈로 옮겨 가짜 `window.doan`으로 끝까지 테스트하고, 실제 포커스·OS 붙여넣기·드래그는 V1이 확인한다 | 지휘자 판단 — ARCHITECTURE의 고정 devDependencies, 요청 없는 의존성 추가 금지 |
 | 2026-10-29 | 컴포넌트 파일 이름은 `HomeComposerView.tsx`·`ConversationStripView.tsx`(macOS 대소문자 무시 해석 충돌) | 지휘자 판단 — BU3 리뷰가 수용, BZ에서 문서 경로 갱신 |
+| 2026-10-30 | 권한 답이 턴을 바로 끝내 Stop이 사라지면 포커스를 상태줄의 다음 동작(Dismiss)으로 옮긴다 | 지휘자 판단 — design §7 'Stop으로'의 대상이 사라진 경우, V1 결함 2 |
 
 ## 배치
 
@@ -78,3 +79,5 @@
 - 2026-10-29 BU3 완료(`1b505fdd`·`61d5bdb1`). 리뷰(Codex `gpt-6-astra` medium): 🔴 0 / 🟡 7(온보딩 인계가 선택을 계속 덮음, 대기 중 전송 잠금 수명, 이동 이력·바인딩 기준 경합, 읽는 중 root 비활성, 도착 포커스, App 연결 테스트 부족) / ⚪ 4, 사용자 결정 2건. 같은 작업자에게 수정 1차를 보냈다.
 - 2026-10-30 BU3 수정 1차(`69788bfa`·`5433dbb8`) 재리뷰: 🔴 0 / 🟡 5(재마운트 뒤 늦은 거절 미반영, 도착 순서로 자동 열기 누락, 취소된 도착도 이동, sent ID 200개 제한, root 간 썸네일 회수) / ⚪ 2. 새 사용자 결정 없음. 수정 2차를 보냈다.
 - 2026-10-30 BU3 수정 2차(`63b811ed`·`b5755f9d`) 세 번째 리뷰: 🔴 0 / 🟡 0 / ⚪ 1. 통합 `f6f230ec`~`17d2557b`(6개). 작업자·리뷰어 해제, 워크트리 제거. 통합 `/verify`(`17d2557b`): PASS. V1 시작(Claude Opus medium); V2는 GUI가 겹치지 않게 V1 뒤에 띄운다.
+- 2026-10-30 BV1 완료(`b6de6d16`), 통합 `920d61f9`. (a)~(g)와 Antigravity 이미지 블록 통과(Codex·Copilot·Antigravity). 도달 못 함: Claude·Cursor(계정 한도), 실제 공급자의 실패 상태줄((g)는 Stop→interrupted로 확인). 결함 2건: Codex 원시 항목 타입이 상태줄에 보임, 권한 답이 턴을 바로 끝내면 포커스가 body로 감. 그 밖에 `app/runtime` isolatedEnv의 옛 온보딩 표시가 첫 실행을 끝내지 못함. 키체인 항목 3개 삭제, `bp-run` 삭제 확인. 작업자 해제, 워크트리 제거.
+- 2026-10-30 V2에 앱 실행 허락과 결함 2(포커스)를 맡겼다. 결함 1(main Codex 요약)과 isolatedEnv는 BF1(Claude Opus medium)이 맡는다.
