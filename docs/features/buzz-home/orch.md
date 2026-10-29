@@ -32,6 +32,7 @@
 | 2026-10-29 | DOM 테스트 의존성(jsdom 등)은 더하지 않는다. App의 홈 흐름을 App이 호출하는 컨트롤러 모듈로 옮겨 가짜 `window.doan`으로 끝까지 테스트하고, 실제 포커스·OS 붙여넣기·드래그는 V1이 확인한다 | 지휘자 판단 — ARCHITECTURE의 고정 devDependencies, 요청 없는 의존성 추가 금지 |
 | 2026-10-29 | 컴포넌트 파일 이름은 `HomeComposerView.tsx`·`ConversationStripView.tsx`(macOS 대소문자 무시 해석 충돌) | 지휘자 판단 — BU3 리뷰가 수용, BZ에서 문서 경로 갱신 |
 | 2026-10-30 | 권한 답이 턴을 바로 끝내 Stop이 사라지면 포커스를 상태줄의 다음 동작(Dismiss)으로 옮긴다 | 지휘자 판단 — design §7 'Stop으로'의 대상이 사라진 경우, V1 결함 2 |
+| 2026-10-30 | design-sync 기준은 초안의 계산된 스타일이다. 전송 중 Send는 disabled 채움, 프리셋 칩 ×는 metadata 회색(초안 CSS의 accent·currentColor 규칙은 우선순위에서 져 실제로 적용되지 않았다) | 지휘자 판단 — 사용자가 앱에서 확정한 것은 렌더된 초안, V2 측정 |
 
 ## 배치
 
