@@ -135,7 +135,7 @@
 - `group`은 소문자 키다(`start`, `review`, `refine`, `content`, `explore`). renderer가 키를 표시 이름(Start 등)과 아이콘으로 바꾼다. 소속 프리셋 표는 카탈로그에만 있고 renderer에 두지 않는다. 모르는 키는 그 키를 그대로 이름으로 보이고 `pencil-sparkles` 아이콘을 쓴다. 갱신할 fixture는 `schema/fixtures/cli-envelope/design-skill/list.json`과 `get-clarify.json`(get의 `preset` 요약)이고, `TestFixturesMatchCatalog`와 `designSkills.test.ts`가 같은 fixture를 읽는다. envelope `v`는 1 그대로다.
 - 아이콘(lucide, 2026-10-29 user): Suggested·프리셋 버튼 `pencil-sparkles`, Start `compass`, Review `scan-eye`, Refine `paintbrush`, Content `text-align-start`, Explore `shapes`. 그룹 이름→아이콘 짝은 renderer에 두고, 모르는 그룹은 `pencil-sparkles`로 대체한다. 고른 프리셋 칩과 추천 프롬프트 칩은 그 그룹의 아이콘을 쓴다.
 - 그룹 순서는 카탈로그에서 그 그룹이 처음 나오는 순서이고, 그룹 안의 순서는 카탈로그 순서다. 지금 카탈로그 순서에서 위 표의 순서가 그대로 나온다. 카탈로그 순서(PRODUCT §5 Skills 13)는 바꾸지 않는다.
-- CLI 테스트: 모든 프리셋이 다섯 값 중 하나를 가지며 각 그룹이 비지 않는다. 그룹이 카탈로그 안에서 연속하지 않아도 되지만, 지금 카탈로그는 연속한다는 것도 고정한다(앞의 순서 규칙이 표와 같아지는 조건).
+- CLI 테스트: 모든 프리셋이 다섯 값 중 하나를 가지며 각 그룹이 비지 않는다. 그룹은 카탈로그 안에서 연속하지 않아도 된다. 지금 카탈로그에서는 `distill`(Content)이 `polish`와 `bolder`(Refine) 사이에 있어 연속하지 않는다. 그래도 그룹 첫 등장 순서와 그룹 안의 카탈로그 순서로 위 표가 그대로 나오므로, 테스트는 연속성 대신 이 두 순서를 고정한다(2026-10-29, BT0가 찾은 불일치를 지휘자가 정정).
 - 이전 CLI(`group` 없음): 그룹 탭 없이 추천과 'All presets' 한 목록으로 보인다. 오류가 아니다. 패키지 앱은 같은 버전의 CLI를 싣으므로 이 경우는 PATH의 오래된 `doan`을 쓰는 개발 환경에서만 생긴다. 단위 테스트로만 고정하고 `/design-sync` 측정 대상에서는 뺀다.
 
 ### 4.5 보내기
