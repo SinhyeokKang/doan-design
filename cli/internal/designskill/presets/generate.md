@@ -30,7 +30,7 @@ Take two things from the user's words, besides the target:
   - rule-breaking words: no single preset; each variant breaks a different convention (scale, structure, motion, input model, state transitions).
   - Intent with no word above ("feel like a bank", "warmer", "more premium"): freeform; the user's wording is the brief.
   - A direction plus extra intent ("bolder, but keep it monochrome"): that direction, with the rest as a constraint every variant honors.
-  - No direction at all ("better", "different", "some options", "alternatives"): ask one question offering the directions above. If the answer is still open ("you pick"), work freeform from the original wording.
+  - No direction at all ("better", "different", "some options", "alternatives"): ask one question offering the directions above. If the answer is still open ("you pick"), work freeform from the original wording. If no answer comes and you continue, as in a non-interactive run, say on the canvas and in your answer which direction you assumed.
 
 ## Plan the alternatives
 
@@ -80,7 +80,7 @@ Contrast, states, overflow, and truth are checkable defects. The user's brief or
 - Spacing: tight groups, generous separation, more space above a heading than below it.
 - Type: body measure 65 to 75ch, display at most 6rem, tracking no tighter than -0.04em, obvious scale and weight steps; check real copy for overflow.
 - Depth: shadows have an offset and a soft blur; declare elevation once, border or shadow.
-- States, where the target has them: hover, focus, disabled, loading, error, empty. Real content, controls that look operable, the product's own language.
+- States, where the target has them: hover, focus, disabled, loading, error and validation, empty. Each variant draws them, or its note on the canvas names the ones it leaves out. Real content, controls that look operable, the product's own language.
 - Refuse these defaults unless the brief earns them: identical icon-heading-text card grids, nested cards, an eyebrow or kicker label above a heading, the big-number hero-metric template, meaningless section numbers, gradient text, decorative glass and blur, colored side-stripe borders above 1px, hard offset shadows, decorative sparklines or rings, monospace as a "technical" costume, emoji or glyphs as icons, and light or dark chosen by category instead of the use scene.
 - Claims come from supplied truth: prices, customers, benchmarks, and capabilities are never invented; illustrative values are labelled.
 
@@ -99,13 +99,13 @@ Contrast, states, overflow, and truth are checkable defects. The user's brief or
 
 - Each alternative matches the requested count, direction, and target, and the original is unchanged.
 - The identity holds across default-mode variants. In free exploration, each variant's primary axis is distinct; with a fixed direction, every variant stays in that dimension with a distinct sub-strategy and honors the request's constraints; departure variants differ in direction.
-- The quality floor above holds in each variant.
+- The quality floor above holds in each variant, and each variant draws the target's states or names on the canvas the ones it leaves out.
 - `doan check` passes and every new id is unique.
 
 Report anything you could not check, such as rendered contrast or appearance at widths you could not view, as unverified.
 
 ---
 
-Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/generate.md` (direction words and default count), `skill/reference/live.md` (variant planning: identity lock, mode, primary axes, squint test, complete replacements), `skill/reference/craft-floor.md` (quality floor and refusals), `skill/reference/new-work.md` (what is already true), `skill/reference/mode-operate.md`, `skill/reference/mode-persuade.md`, `skill/reference/mode-read.md` (how variants differ per surface mode), and `skill/SKILL.src.md` ("Modes"), under the Apache License 2.0. Doan modified them: replaced the live browser session, helper commands, overlay, tuning knobs, accept and cleanup steps with alternatives drawn as new canvas frames; removed the hook enforcement, detector, image generation, and harness-specific blocks; left choosing and applying an alternative to the user; made the direction words examples of meaning, with negated directions treated as constraints; kept the multi-axis rule for free exploration, compared sub-strategies inside a fixed direction, and limited the different-theme-and-hue rule to approved departures; made the quality floor's refusals defaults that the brief or the established design can override; and added review-only, Doan setup, canvas, id, and verification rules.
+Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/generate.md` (direction words and default count), `skill/reference/live.md` (variant planning: identity lock, mode, primary axes, squint test, complete replacements), `skill/reference/craft-floor.md` (quality floor and refusals), `skill/reference/new-work.md` (what is already true), `skill/reference/mode-operate.md`, `skill/reference/mode-persuade.md`, `skill/reference/mode-read.md` (how variants differ per surface mode), and `skill/SKILL.src.md` ("Modes"), under the Apache License 2.0. Doan modified them: replaced the live browser session, helper commands, overlay, tuning knobs, accept and cleanup steps with alternatives drawn as new canvas frames; removed the hook enforcement, detector, image generation, and harness-specific blocks; left choosing and applying an alternative to the user; made the direction words examples of meaning, with negated directions treated as constraints; kept the multi-axis rule for free exploration, compared sub-strategies inside a fixed direction, and limited the different-theme-and-hue rule to approved departures; made the quality floor's refusals defaults that the brief or the established design can override; and added review-only, Doan setup, canvas, id, and verification rules, a rule that a variant names on the canvas the states it leaves out, and a rule to state the assumed direction when a direction question gets no answer.
 
 [doan:design-skill] end of preset generate
