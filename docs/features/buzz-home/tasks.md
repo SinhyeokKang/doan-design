@@ -47,6 +47,8 @@
 
 ## U. UI
 
+- [ ] U0. 공용 버튼 변형 `accent-quiet`를 `app/src/renderer/ds/controls.css`에 더한다(배경 `--affordance-backdrop-hover`, hover·pressed `--affordance-backdrop-pressed`, 글자 `--affordance-accent`, disabled는 기존 역할). 공통 결정 10의 공용 요소 변경이며 2026-10-29 사용자가 승인했다.
+  - 검증: `npm --prefix app test`(ds 대비·변수 검사에 새 변형 포함) 통과.
 - [ ] U1. `HomeComposer.tsx`와 홈 교체: 입력·도구 줄·선택기 셋·프리셋 팝오버와 `/`·첨부 칩·드롭·전송·오류 줄, 장식 배경, 인사 문구. 홈 카드·체크리스트 제거와 그 orphan CSS 삭제(design §6). `ProblemActions` 등 다른 화면이 쓰는 export는 유지.
   - 검증: `npm --prefix app test`(Home·HomeComposer 컴포넌트 테스트: 카드 없음, 키보드 순서, Escape, 칩 제거) 통과, `npm --prefix app run typecheck` 통과.
 - [ ] U2. `App.tsx`·`ShellSidebar.tsx` 연결: Home을 LNB가 있는 셸 안에 두기(현재 프로젝트 표시 없음), 온보딩 완료 root 인계와 입력창 포커스, 전송 뒤 이동(전환 보호·목록 읽기 대기), 임시 상태줄, 첫 캔버스 자동 열기·토스트, 다른 화면의 권한 요청 토스트, 추가·중복 프로젝트의 선택기 선택과 LNB 행 강조, ui-state 저장.

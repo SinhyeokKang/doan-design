@@ -99,7 +99,7 @@
   - 캔버스가 있음 → `critique`, `polish`
   - CLI 목록에 없는 id는 건너뛴다. 규칙이 id를 참조하는 것은 카탈로그 사본이 아니다(제목·설명은 항상 CLI 결과에서 읽는다).
 - 행은 한 줄로 제목과 `scope`(CLI 목록의 2~3단어 주제, 예: `design review`, `edge-case states`)를 보이고, description과 id는 툴팁에만 둔다(2026-10-29 user). description은 93~148자의 에이전트용 문장이라 팝오버 폭에서 잘려 읽히지 않았다(1차 초안).
-- accent(2026-10-29 user): 도구 줄 프리셋 버튼의 아이콘(`--affordance-accent`)과 고른 프리셋 칩(새 역할 `--surface-accent-subtle` violet 3 채움 + `--text-accent-subtle` violet 11 글자, 앵커 칩과 같은 연한 채움 + 진한 글자 방식)에만 쓴다. 그룹 탭과 추천 프롬프트 칩은 무채색으로 둔다. 그래야 Send가 가장 강한 accent로 남는다. 공통 결정 2의 accent 자리에 더하는 예외라서 PRODUCT §7과 부모 공통 결정 2 요약에 기록한다.
+- accent(2026-10-29 user): 도구 줄 프리셋 버튼의 아이콘(`--affordance-accent`)과 고른 프리셋 칩(새 역할 `--surface-accent-subtle` violet 3 채움 + `--text-accent-subtle` violet 11 글자, 앵커 칩과 같은 연한 채움 + 진한 글자 방식)에만 쓴다. 그룹 탭은 무채색이다. 추천 프롬프트 칩은 accent 글자·아이콘에 연한 회색 배경(`accent-quiet`, §4.4b)이다. 채움이 진한 accent는 Send뿐이라 Send가 가장 강한 accent로 남는다. 공통 결정 2의 accent 자리에 더하는 예외라서 PRODUCT §7과 부모 공통 결정 2 요약에 기록한다.
 - 고른 프리셋은 입력 위에 칩(제목, × 제거)으로 보인다. 프리셋을 고르고 입력이 비어 있으면 placeholder가 `Which canvas or screen? Add details…`로 바뀐다. `critique`·`polish`·`harden`·`audit` 등 많은 프리셋이 사람이 지목한 디자인을 다루는데 홈에는 선택한 캔버스가 없어서, 프리셋만 보내면 에이전트가 대상을 되묻는 왕복이 생기기 때문이다. 어떤 프리셋이 대상을 요구하는지는 UI가 알 수 없으므로(ARCHITECTURE §7) 모든 프리셋에 같은 문구를 쓴다. 하나만 고를 수 있고 새로 고르면 바뀐다. Backspace를 빈 입력 맨 앞에서 누르면 칩이 지워진다.
 - 상태: 읽는 중(spinner, '프리셋을 불러오는 중'), 실패(`cli_error`의 `reason`별 문구와 Retry, `request_refused`는 Retry 없이 문구만), 이전 CLI(`list()`가 `usage_error` → '이 doan CLI에는 디자인 프리셋이 없다. Doan을 업데이트한다'), 검색 결과 없음. 어느 실패에서도 프리셋 없이 보낼 수 있다.
 
@@ -107,12 +107,12 @@
 
 같은 날의 '상태 기반 제안 카드 없음' 결정을 대체한다.
 
-- 입력과 칩이 모두 비어 있을 때만 입력창(트레이) 아래 가운데에 칩 3개를 한 줄로 보인다. 하나라도 채워지면 숨긴다. 프로젝트가 없거나 준비된 공급자가 없으면 보이지 않는다.
+- 입력과 칩이 모두 비어 있을 때만 입력창(트레이) 아래 가운데에 칩 3개를 보인다. 칩은 줄바꿈(flex-wrap)되므로 문장을 짧게 줄이지 않는다(2026-10-29 user). 한 칩이 입력창 폭보다 길면 말줄임표로 자르고 툴팁에 전체 문장을 둔다. 하나라도 채워지면 숨긴다. 프로젝트가 없거나 준비된 공급자가 없으면 보이지 않는다.
 - 내용은 순수 함수 `suggestedPrompts(entry)`가 정한다. 프리셋은 `suggestedPresets`와 같은 규칙이고, 대상이 필요한 프리셋에는 캔버스 이름을 채운다(§4.4의 '대상 되묻기' 왕복을 줄인다).
   - 캔버스 0개 → `Gather design context`(context), `Shape a first screen`(shape), `Document the design system`(document)
-  - 캔버스 있음 → `Document the design system`(design-system 캔버스가 없을 때만), `Critique <가장 최근에 바뀐 캔버스>`(critique), `Polish <그다음으로 최근 캔버스, 없으면 같은 캔버스>`(polish)
+  - 캔버스 있음 → `Document the design system of <project>`(design-system 캔버스가 없을 때만), `Critique the <가장 최근에 바뀐 캔버스> canvas`(critique), `Polish the details of <그다음으로 최근 캔버스, 없으면 같은 캔버스>`(polish)
   - CLI 목록에 없는 프리셋은 건너뛰고, 3개가 안 되면 있는 만큼만 보인다.
-- 칩은 subtle sm 버튼에 그 프리셋 그룹의 아이콘을 단다. 칩 문구는 짧고, 채우는 문장은 대상을 명시한다. 예를 들어 `Critique buzz-onboarding`을 누르면 Critique 프리셋 칩과 `Critique the buzz-onboarding canvas (.doan/canvases/buzz-onboarding.html).`이 채워지고 포커스는 입력 끝에 간다. 바로 보내지 않는다.
+- 칩은 sm 버튼의 새 공용 변형 `accent-quiet`이다(2026-10-29 user). 배경은 헤더 캡슐과 같은 `--affordance-backdrop-hover`(hover·pressed는 `--affordance-backdrop-pressed`), 아이콘과 글자는 `--affordance-accent`이다. 흰 패널 위에서 대비는 약 4.6:1이다(계산값, `/design-sync`에서 측정). 아이콘은 그 프리셋 그룹의 아이콘이다. 칩 문구는 대상까지 담고(`Critique the buzz-onboarding canvas`), 채우는 문장은 경로까지 명시한다. 예를 들어 `Critique the buzz-onboarding canvas`를 누르면 Critique 프리셋 칩과 `Critique the buzz-onboarding canvas (.doan/canvases/buzz-onboarding.html).`이 채워지고 포커스는 입력 끝에 간다. 바로 보내지 않는다.
 - 프로젝트를 바꾸면 다시 계산한다. 같은 방문 동안 프로젝트가 같으면 바뀌지 않는다.
 
 ### 4.4a 프리셋 그룹 (2026-10-29 user)
