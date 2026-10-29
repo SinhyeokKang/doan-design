@@ -130,3 +130,4 @@
 - 2026-10-29: V D25·D26 확인(`2734d3e`) 통과. 결함 후보 1: 맞는 checkout이 모두 설정이 필요하면 setup 화면에 URL·대안 버튼이 없고 Back이 되돌아옴 → U에 수정. Keychain 기준선 일치. V release, GUI 슬롯을 DR에 넘김.
 - 2026-10-29: D 정본 승격 통합(4bf670e..a6bc8d1)과 PRODUCT 보정 2건. U D25 후속(5c78f25..4efdae0: URL 경로의 setup 화면이 URL·Choose another folder·Edit repository URL을 유지, Back은 URL 입력으로) 통합. G4(cancel 가이드 문구, Sonnet medium) 진행 중.
 - 2026-10-29: G4(cancel 범위 가이드 문구) 통합. 문구만 바뀌어 실제 에이전트 재측정은 하지 않았다.
+- 2026-10-29: V5 D25 후속 확인(`d925b03`) 통과, 결함 없음. Keychain 기준선 일치. GUI 슬롯을 DR에 넘겼다.
