@@ -33,6 +33,8 @@ function harness(projects: string[] = [], home: string | null = "/Users/ada") {
   };
 }
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+// The Set up and continue button: consent for the inspection on screen.
+const setUp = (h: { session: ProjectStepSession }) => h.session.setUp((h.session.state.phase as { inspectionId: string }).inspectionId);
 const phase = (h: ReturnType<typeof harness>) => h.session.state.phase;
 
 test("Choose folder: a picked set-up folder is inspected and selected; a cancelled picker changes nothing", async () => {
@@ -59,7 +61,7 @@ test("a folder that needs setup asks first, and Set up and continue sends initia
   expect(phase(h)).toMatchObject({ kind: "setup", path: "/code/plain" });
   expect(h.api.selectOnboardingProject).not.toHaveBeenCalled();
   h.queue.select!.push(ok(op("project_select", { project: { root: "/code/plain" } })));
-  await h.session.select(true);
+  await setUp(h);
   expect(h.api.selectOnboardingProject.mock.calls[0]![0]).toMatchObject({ path: "/code/plain", initialize: true });
   expect(phase(h)).toEqual({ kind: "ready", root: "/code/plain" });
 });
@@ -228,7 +230,7 @@ test("select failures map to their screens: remote mismatch, setup failed, unrea
     h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/app", [".doan/config.json"]]]) })));
     await h.session.chooseFolder();
     h.queue.select!.push(ok(op("project_select", { state: "failed", error: { code, message: "x" } })));
-    await h.session.select(true);
+    await setUp(h);
     expect(h.session.state.error?.code).toBe(code);
     expect(phase(h)).toMatchObject({ kind: "setup", path: "/code/app" });
   }
@@ -359,7 +361,7 @@ test("review: a stale inspection is inspected again instead of retrying the same
   h.queue.select!.push(refused("inspection_stale"));
   const fresh = inspection([["/code/plain", [".doan/config.json"]]]);
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: fresh })));
-  await h.session.select(true);
+  await setUp(h);
   expect(h.api.inspectOnboardingProject).toHaveBeenCalledTimes(2);
   expect(h.api.inspectOnboardingProject.mock.calls[1]![0]).toMatchObject({ path: "/code/plain" });
   expect(phase(h)).toMatchObject({ kind: "setup", inspectionId: fresh.inspectionId });
@@ -484,7 +486,7 @@ test("D21: a folder recovery on a URL screen sends the URL too (not available, s
   expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/other", url: "https://github.com/acme/studio" });
   expect(phase(h)).toMatchObject({ kind: "setup", url: "https://github.com/acme/studio" });
   h.queue.select!.push(ok(op("project_select", { state: "failed", error: { code: "init_failed", message: "x" } })));
-  await h.session.select(true);
+  await setUp(h);
   h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/third");
   h.queue.inspect!.push(refused("busy"));
   await h.session.chooseExisting();
@@ -581,4 +583,64 @@ test("V re-check: Retry on the access error with the URL unchanged clones that r
   expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ url: "https://github.com/acme/studio", destination: "/Users/ada/studio" });
   expect(h.api.cloneOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ inspectionId: plan.inspectionId });
   expect(phase(h)).toEqual({ kind: "ready", root: "/Users/ada/studio" });
+});
+
+
+test("consent: V's sequence (mismatch, notice Choose another folder, Edit URL, Find, Choose existing folder) stops at setup and writes nothing", async () => {
+  const h = harness();
+  h.session.setUrl("https://github.com/octocat/linguist");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([]) })), ok(op("project_inspect", { inspection: inspection([], "/Users/ada/linguist") })));
+  await h.session.findRepository();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/repos/linguist-mismatch");
+  h.queue.inspect!.push(ok(op("project_inspect", { state: "failed", error: { code: "remote_mismatch", message: "x" } })));
+  await h.session.chooseExisting();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/repos/git-consortium");
+  h.queue.inspect!.push(ok(op("project_inspect", { state: "failed", error: { code: "remote_mismatch", message: "x" } })));
+  await h.session.chooseExisting();
+  h.session.restart();
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([]) })), ok(op("project_inspect", { inspection: inspection([], "/Users/ada/linguist") })));
+  await h.session.findRepository();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/repos/linguist-match");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/repos/linguist-match", [".doan/config.json", ".doan/canvases/", ".gitattributes"]]]) })));
+  await h.session.chooseExisting();
+  expect(phase(h)).toMatchObject({ kind: "setup", path: "/repos/linguist-match" });
+  expect(h.api.selectOnboardingProject).not.toHaveBeenCalled();
+});
+
+test("consent: select never sends initialize, whatever it is passed; only Set up and continue does", async () => {
+  const h = harness();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/plain");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/plain", [".doan/config.json"]]]) })));
+  await h.session.chooseFolder();
+  await (h.session.select as (initialize?: boolean) => Promise<void>)(true);
+  expect(h.api.selectOnboardingProject).not.toHaveBeenCalled();
+  expect(phase(h)).toMatchObject({ kind: "setup" });
+});
+
+test("consent: Set up and continue for an inspection no longer on screen sends nothing", async () => {
+  const h = harness();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/plain");
+  const first = inspection([["/code/plain", [".doan/config.json"]]]);
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: first })));
+  await h.session.chooseFolder();
+  h.session.restart();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/other");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/other", [".doan/config.json"]]]) })));
+  await h.session.chooseFolder();
+  await h.session.setUp(first.inspectionId);
+  expect(h.api.selectOnboardingProject).not.toHaveBeenCalled();
+});
+
+test("consent: a re-inspection after a stale select needs Set up and continue again", async () => {
+  const h = harness();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/plain");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/plain", [".doan/config.json"]]]) })));
+  await h.session.chooseFolder();
+  h.queue.select!.push(refused("inspection_stale"));
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/plain", [".doan/config.json"]]]) })));
+  await setUp(h);
+  h.queue.select!.push(ok(op("project_select", { project: { root: "/code/plain" } })));
+  await h.session.retry();
+  expect(h.api.selectOnboardingProject).toHaveBeenCalledTimes(1);
+  expect(phase(h)).toMatchObject({ kind: "setup" });
 });
