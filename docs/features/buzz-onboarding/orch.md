@@ -38,6 +38,7 @@
 | D25 | GitHub URL이 로컬 checkout·worktree 여러 개와 맞으면 목록을 보이지 않고 하나를 자동으로 고른다: 설정이 필요 없는 것 → 본 checkout → 최근 등록 순. 'Already on your Mac' 카드 하나로 보이고 Choose another folder는 남는다. worktree 전환은 AppShell 프로젝트 카드의 'Worktrees' 메뉴에서 한다. CLI/MCP는 그대로 모든 후보를 돌려준다 | 사용자 결정(2026-10-29) — 후보는 모두 이미 등록된 프로젝트라 선택은 홈을 여는 checkout만 정하고, LNB에서 바꿀 수 있다 |
 | D26 | clone 목적지가 doan 프로젝트 안이면 "This location is inside the doan project <name>. Choose a location outside it."와 Change location을 보인다. 폴더 검사 중에는 "Checking this folder"를 보인다. 'Edit repository URL' 뒤 포커스는 URL 입력칸이다 | 지휘자 판단(V 최종 확인 메모) — 원인을 말하지 않는 문구와 아직 쓰지 않는데 설정 중이라는 문구를 바로잡는다 |
 | D27 | `.doan/canvases/buzz-onboarding.html`을 출하된 구현 기준으로 다시 그린다. 상태마다 1238×780 전체 창 프레임 하나를 두고 tile 격자는 없앤다 | 사용자 요청(2026-10-29) — 확정 디자인을 상태별로 1:1로 보고 대조한다 |
+| D28 | notice의 복구 버튼과 화면의 보조 버튼이 같은 행동을 반복하지 않는다(notice가 있으면 화면 쪽 중복을 숨김). clone 화면의 remote 불일치는 폴더 이름을 넣어 말한다. clone 취소는 다른 상태처럼 status notice로 보인다. subtle 작은 버튼은 어디서나 같은 모양이다 | 지휘자 판단(전체 프레임 검토, 사용자 요청) — 56·65·66·67번에서 같은 버튼이 두 번 보였다 |
 
 ## 배치
 
@@ -133,3 +134,4 @@
 - 2026-10-29: V5 D25 후속 확인(`d925b03`) 통과, 결함 없음. Keychain 기준선 일치. GUI 슬롯을 DR에 넘겼다.
 - 2026-10-29: DR 초안 재작성 통합(8250de4, e762afe, 937e948): 73개 전체 창 프레임(Welcome 1, Agent 40, Project 32), doan check 새 finding 0, 격리 렌더 확인 통과. 사용자 확인 대기. DR 작업자는 수정에 대비해 retain.
 - 2026-10-29: 사용자 초안 리뷰: 49번(Setup failed)에서 프로젝트 카드와 인라인 오류 사이 간격 없음 → 앱 CSS도 같아 U에 수정과 전체 점검을 보냈다. 이후 DR이 초안을 다시 맞춘다.
+- 2026-10-29: U 간격 수정(f5c3ef4, 06e1a7c) 통합. 지휘자 전체 프레임 검토 결과를 D28로 U에 보냈다. U 수정 뒤 DR이 초안을 다시 맞춘다.
