@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { accessSync, chmodSync, closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { parseAuthMetadata, serializeAuthMetadata, validAuthId } from "./metadata";
-import type { AuthMetadata, Provider } from "./types";
+import { validProvider, type AuthMetadata, type Provider } from "./types";
 
 // Electron safeStorage in the app; an OS-keyed cipher is the only thing allowed to touch credential bytes at rest.
 export interface Cipher { available(): Promise<boolean>; encrypt(text: string): Promise<Buffer>; decrypt(data: Buffer): Promise<string> }
@@ -14,8 +14,9 @@ export type VaultFiles = Record<string, Buffer>;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 function absent(error: unknown): boolean { return typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "ENOENT"; }
 
-// Layout under <userData>/agent-auth: metadata.json, vault/<provider>.bin, profiles/<profile>/. A profile is the
-// provider's name, or <provider>-<id> for a replacement staged apart from the stored login (Codex, D22).
+// Layout under <userData>/agent-auth: metadata.json, cleanup.json, vault/<provider>.bin, profiles/<profile>/. A profile
+// is the provider's name, or <provider>-<id> for a replacement staged apart from the stored login (Codex, D22).
+export interface CleanupRecord { provider: Provider; profile: string }
 export class AuthStorage {
   constructor(readonly root: string, private readonly cipher: Cipher) {}
   profileDir(provider: Provider, profile: string = provider): string {
@@ -24,6 +25,27 @@ export class AuthStorage {
   }
   removeProfile(provider: Provider, profile: string): void {
     try { rmSync(this.profileDir(provider, profile), { recursive: true, force: true }); } catch (error) { throw new StorageError("delete_failed", message(error)); }
+  }
+  // Profiles that may still hold a login no stored connection owns: a staged replacement before it commits or after
+  // its cleanup failed, and a replaced profile until its logout succeeds. Damage is never read as "nothing pending".
+  pendingCleanup(): CleanupRecord[] {
+    let text: string;
+    try { text = readFileSync(join(this.root, "cleanup.json"), "utf8"); }
+    catch (error) { if (absent(error)) return []; throw new StorageError("unreadable", message(error)); }
+    let doc: unknown;
+    try { doc = JSON.parse(text); } catch { throw new StorageError("unreadable", "cleanup.json is not JSON"); }
+    const profiles = typeof doc === "object" && doc !== null && (doc as { v?: unknown }).v === 1 ? (doc as { profiles?: unknown }).profiles : null;
+    if (!Array.isArray(profiles) || !profiles.every(r => typeof r === "object" && r !== null && Object.keys(r).length === 2 && validProvider(r.provider) &&
+      typeof r.profile === "string" && (r.profile === r.provider || (r.profile.startsWith(`${r.provider}-`) && validAuthId(r.profile))))) throw new StorageError("unreadable", "invalid cleanup.json");
+    return profiles.map(r => ({ provider: r.provider, profile: r.profile }));
+  }
+  markCleanup(provider: Provider, profile: string): void {
+    const records = this.pendingCleanup();
+    if (!records.some(r => r.profile === profile)) this.writeCleanup([...records, { provider, profile }]);
+  }
+  clearCleanup(profile: string): void {
+    const records = this.pendingCleanup();
+    if (records.some(r => r.profile === profile)) this.writeCleanup(records.filter(r => r.profile !== profile));
   }
   readMetadata(): AuthMetadata {
     let text: string;
@@ -118,6 +140,10 @@ export class AuthStorage {
     const plain = JSON.stringify({ v: 1, files: Object.fromEntries(Object.entries(files).map(([rel, bytes]) => [rel, bytes.toString("base64")])) });
     try { if (!await this.cipher.available()) throw new Error("OS encryption is unavailable"); return await this.cipher.encrypt(plain); }
     catch (error) { throw new StorageError("key_unavailable", message(error)); }
+  }
+  private writeCleanup(profiles: CleanupRecord[]): void {
+    if (profiles.length) this.replace(join(this.root, "cleanup.json"), Buffer.from(JSON.stringify({ v: 1, profiles }) + "\n"));
+    else this.remove(join(this.root, "cleanup.json"));
   }
   private vaultPath(provider: Provider): string { return join(this.root, "vault", `${provider}.bin`); }
   private working(provider: Provider, rel: string, profile: string = provider): string {

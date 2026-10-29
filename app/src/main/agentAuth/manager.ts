@@ -12,7 +12,7 @@ import { findOnPath } from "../onboarding/states";
 import { providerEnv } from "./environment";
 import { PROVIDER_AUTH, type ProviderAuth } from "./providers";
 import { authStatus, checkVerdict, initialAuthState, transition } from "./state";
-import type { AuthStorage } from "./storage";
+import type { AuthStorage, CleanupRecord } from "./storage";
 import { PROVIDERS, type AccountConnection, type AuthEvent, type AuthMetadata, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type CheckResult, type Provider, type SignInResult, type ToolFacts } from "./types";
 
 export interface AuthProcess { onOutput(listener: (text: string, stream?: "stderr") => void): void; exit: Promise<number | null>; gone: Promise<void>; stop(): void; write?(text: string): void }
@@ -84,6 +84,9 @@ export class AuthManager {
       this.states.set(provider, initialAuthState(provider, stored, signOutFailed.includes(provider)));
       await this.recover(provider, stored !== null);
     }
+    let pending: CleanupRecord[] = [];
+    try { pending = this.options.storage.pendingCleanup(); } catch (error) { console.error("doan: pending profile cleanups could not be read", message(error)); }
+    if (pending.length) void this.track(this.sweep(pending));
   }
   state(provider: Provider): AuthState { return this.states.get(provider)!; }
   status(provider: Provider, facts: ToolFacts): AuthStatusDto { return authStatus(this.state(provider), facts, this.revision); }
@@ -142,7 +145,11 @@ export class AuthManager {
         const staged = this.adapters[provider].loginClears && previous ? `${provider}-${this.newId()}` : null;
         const touch = { live: false };
         let outcome: SignInResult | null;
-        try { outcome = { status: "stored", connection: await this.signInFlow(provider, attemptId, owner, touch, staged ?? this.profileOf(provider)) }; }
+        try {
+          // Recorded before the profile exists, so a crash at any later point leaves a cleanup the next start finishes.
+          if (staged) await this.storageStep(() => this.options.storage.markCleanup(provider, staged));
+          outcome = { status: "stored", connection: await this.signInFlow(provider, attemptId, owner, touch, staged ?? this.profileOf(provider)) };
+        }
         catch (error) {
           await this.discard(provider, attemptId, previous !== null, staged);
           outcome = error instanceof Cancelled || this.cancelled(provider, attemptId) ? null
@@ -260,7 +267,7 @@ export class AuthManager {
   // touch.live turns true once the attempt may have changed the login the stored connection uses; until then a
   // cancel or failure leaves that connection exactly as it was.
   private async signInFlow(provider: Provider, attemptId: string, owner: number, touch: { live: boolean }, profile: string): Promise<AccountConnection> {
-    const auth = this.adapters[provider], live = profile === this.profileOf(provider);
+    const auth = this.adapters[provider], current = this.profileOf(provider), live = profile === current;
     // A login starts from no working copy so a failed or cancelled replacement cannot leave the old one exposed.
     if (auth.vault) await this.storageStep(() => this.options.storage.scrub(provider, auth.vault!));
     if (auth.acpAuth) await this.acpSignIn(provider, attemptId, owner);
@@ -307,7 +314,9 @@ export class AuthManager {
     if (checked.status !== "connected") throw new Failure("sign_in_failed", `status after login: ${checked.status}`);
     const profileDir = this.options.storage.profileDir(provider, profile), storage = this.options.storage;
     let sealed: Buffer | null = null;
-    if (auth.vault) await this.storageStep(async () => { sealed = await storage.seal(provider, auth.vault!); });
+    // The working copy goes before the commit: after the vault and metadata name the new login nothing may fail and
+    // hand the previous connection back over it.
+    if (auth.vault) await this.storageStep(async () => { sealed = await storage.seal(provider, auth.vault!); storage.scrub(provider, auth.vault!); });
     else if (auth.plaintext.some(rel => existsSync(join(profileDir, rel)))) throw new Failure("storage_failed", "provider wrote a plaintext credential file");
     const connection: AccountConnection = { provider, connectionId: this.newId(), profile, account: checked.account };
     // Last cancellation point: from the vault and metadata writes to the signedIn transition only microtasks run, so
@@ -315,15 +324,20 @@ export class AuthManager {
     if (this.cancelled(provider, attemptId)) throw new Cancelled();
     await this.storageStep(() => {
       const previous = sealed && storage.sealedVault(provider);
+      // A staged login replaces the stored connection's profile, which then waits for its logout like a staged one.
+      const replaced = !live && this.state(provider).connection ? current : null;
+      if (replaced) storage.markCleanup(provider, replaced);
       if (sealed) storage.storeSealed(provider, sealed);
       try { storage.writeMetadata(replaceAccount(storage.readMetadata(), provider, connection, false)); }
       catch (error) {
         // The stored connection must keep the credential it was verified with.
         if (sealed) { try { storage.storeSealed(provider, previous); } catch (restore) { touch.live = true; console.error(`doan: ${provider} previous credential could not be restored`, message(restore)); } }
+        if (replaced) { try { storage.clearCleanup(replaced); } catch (clear) { console.error(`doan: ${provider} cleanup record could not be cleared`, message(clear)); } }
         throw error;
       }
     });
-    if (auth.vault) await this.storageStep(() => storage.scrub(provider, auth.vault!));
+    // Committed: a record left behind names the live profile, which cleanup never touches.
+    if (!live) { try { storage.clearCleanup(profile); } catch (error) { console.error(`doan: ${provider} cleanup record could not be cleared`, message(error)); } }
     return connection;
   }
 
@@ -333,27 +347,43 @@ export class AuthManager {
     const auth = this.adapters[provider], storage = this.options.storage;
     try {
       if (auth.vault) { storage.scrub(provider, auth.vault); if (!hadConnection) storage.removeVault(provider); return; }
-      const profile = staged ?? this.profileOf(provider), profileDir = storage.profileDir(provider, profile);
+      // Cleanup is not the stopped work: a cancelled login may already have written its keychain item.
+      this.stopRequests.delete(attemptId);
+      if (staged) { await this.cleanProfile(provider, attemptId, staged); return; }
+      const profileDir = storage.profileDir(provider, this.profileOf(provider));
       for (const rel of auth.plaintext) rmSync(join(profileDir, rel), { force: true });
-      if ((staged || !hadConnection) && auth.logout) {
-        // Cleanup is not the stopped work: a cancelled first login may already have written its keychain item.
-        this.stopRequests.delete(attemptId);
-        await this.exec(provider, attemptId, auth.logout, this.options.statusTimeoutMs ?? 20_000, profile);
-      }
-      if (staged) storage.removeProfile(provider, staged);
+      if (!hadConnection && auth.logout) await this.exec(provider, attemptId, auth.logout, this.options.statusTimeoutMs ?? 20_000);
     } catch (error) { console.error(`doan: ${provider} sign-in cleanup failed`, message(error)); }
   }
   // The replaced profile's login (still valid until now) is logged out, which revokes it, and the directory goes
-  // with it. On a failed logout the directory stays so its keychain item is not left without a way to reach it.
-  private async retire(provider: Provider, attemptId: string, profile: string): Promise<void> {
-    const auth = this.adapters[provider];
+  // with it.
+  private async retire(provider: Provider, attemptId: string, profile: string): Promise<void> { await this.cleanProfile(provider, attemptId, profile); }
+  // A profile no stored connection owns goes, with its cleanup record, only after its logout succeeded; otherwise both
+  // stay so a later start can retry instead of leaving a keychain item no directory leads to.
+  private async cleanProfile(provider: Provider, attemptId: string, profile: string): Promise<boolean> {
+    const auth = this.adapters[provider], storage = this.options.storage;
     try {
+      const profileDir = storage.profileDir(provider, profile);
+      for (const rel of auth.plaintext) rmSync(join(profileDir, rel), { force: true });
       if (auth.logout) {
         const logout = await this.exec(provider, attemptId, auth.logout, this.options.statusTimeoutMs ?? 20_000, profile);
         if (logout.code !== 0) throw new Error(`logout exited ${logout.code}: ${tail(logout.stderr) ?? ""}`);
       }
-      this.options.storage.removeProfile(provider, profile);
-    } catch (error) { console.error(`doan: ${provider} replaced profile could not be removed`, message(error)); }
+      storage.removeProfile(provider, profile);
+      storage.clearCleanup(profile);
+      return true;
+    } catch (error) { console.error(`doan: ${provider} profile ${profile} could not be cleaned up`, message(error)); return false; }
+  }
+  // Cleanups a previous run left: one at a time in the write slot, so no sign-in shares a profile being logged out.
+  // The stored connection's profile is live whatever a record says; a busy slot leaves the rest for the next start.
+  private async sweep(records: CleanupRecord[]): Promise<void> {
+    for (const record of records) {
+      if (this.closed || this.writer) return;
+      if (record.profile === this.profileOf(record.provider)) continue;
+      const id = this.newId();
+      this.writer = id;
+      try { await this.cleanProfile(record.provider, id, record.profile); } finally { if (this.writer === id) this.writer = null; }
+    }
   }
 
   private async signOutFlow(provider: Provider, attemptId: string): Promise<void> {
