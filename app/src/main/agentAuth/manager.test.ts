@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { accessSync, chmodSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { accessSync, chmodSync, constants, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -509,15 +509,79 @@ describe("a replacement that does not finish", () => {
     // The live login is never logged out for a replacement.
     expect(processes.filter(p => p.step === "logout")).toEqual([]);
   });
-  it("unverifies a connection whose provider clears the existing login as soon as its login starts (Codex)", async () => {
-    const m = manager({ adapters: { ...withAcp(), codex: { ...keychainProvider(() => keychain), loginClears: true } } }); await m.load();
-    keychain = { status: "connected", account: { id: null, workspace: null } };
-    const first = started(await m.signIn("codex", 7)); await finish("login", 0); await finish("status", 0);
-    const connection = (await first.done).connection;
-    const run = started(await m.signIn("codex", 7));
-    await next("login");
-    await m.cancel("codex", run.attemptId, 7);
-    expect(await run.done).toMatchObject({ connection, verified: false });
+  describe("a provider whose login clears the profile first (Codex, D22)", () => {
+    const codex = () => manager({ adapters: { ...withAcp(), codex: { ...keychainProvider(() => keychain), settings: { "skills/doan/SKILL.md": "stub" }, loginClears: true } } });
+    const profiles = () => readdirSync(join(root, "profiles")).filter(name => name.startsWith("codex")).sort();
+    async function connectedCodex(m: AuthManager) {
+      keychain = { status: "connected", account: { id: null, workspace: null } };
+      const first = started(await m.signIn("codex", 7)); await finish("login", 0); await finish("status", 0);
+      return (await first.done).connection!;
+    }
+    it("signs a first connection in to the provider's own profile", async () => {
+      const m = codex(); await m.load();
+      expect(await connectedCodex(m)).toMatchObject({ profile: "codex" });
+      expect(processes[0]!.cwd).toBe(storage.profileDir("codex"));
+    });
+    it("leaves the stored login untouched and removes the staging profile when a replacement is cancelled or fails", async () => {
+      const m = codex(); await m.load();
+      const connection = await connectedCodex(m);
+      const cancelled = started(await m.signIn("codex", 7));
+      const login = await next("login");
+      // The replacement never runs in the stored connection's profile, which its login would log out first.
+      expect(login.cwd).not.toBe(storage.profileDir("codex"));
+      expect(login.env.CODEX_HOME).toBe(login.cwd);
+      expect(readFileSync(join(login.cwd, "skills/doan/SKILL.md"), "utf8")).toBe("stub");
+      await m.cancel("codex", cancelled.attemptId, 7);
+      const cleanup = await finish("logout", 0);
+      expect(cleanup.cwd).toBe(login.cwd);
+      expect(await cancelled.done).toMatchObject({ phase: "connected", connection, verified: true, error: null });
+      const failed = started(await m.signIn("codex", 7));
+      const second = await finish("login", 1);
+      expect((await finish("logout", 0)).cwd).toBe(second.cwd);
+      expect(await failed.done).toMatchObject({ phase: "connected", connection, verified: true, error: { code: "sign_in_failed" } });
+      expect(profiles()).toEqual(["codex"]);
+      expect(processes.filter(p => p.step === "logout" && p.cwd === storage.profileDir("codex"))).toEqual([]);
+      expect(storage.readMetadata().accounts).toEqual([connection]);
+    });
+    it("moves the connection to the staging profile on success, then logs the previous profile out and removes it", async () => {
+      const m = codex(); await m.load();
+      const previous = await connectedCodex(m);
+      const run = started(await m.signIn("codex", 7));
+      const login = await finish("login", 0);
+      const staged = login.cwd.split("/").at(-1)!;
+      expect((await finish("status", 0)).cwd).toBe(login.cwd);
+      const old = await finish("logout", 0);
+      expect(old.cwd).toBe(storage.profileDir("codex"));
+      expect(old.env.CODEX_HOME).toBe(storage.profileDir("codex"));
+      const state = await run.done;
+      expect(state).toMatchObject({ phase: "connected", verified: true, connection: { profile: staged } });
+      expect(state.connection!.connectionId).not.toBe(previous.connectionId);
+      expect(storage.readMetadata().accounts).toEqual([state.connection]);
+      expect(profiles()).toEqual([staged]);
+      // Checks and runs follow the connection's profile.
+      const check = started(await m.check("codex"));
+      expect((await finish("status", 0)).cwd).toBe(login.cwd);
+      await check.done;
+      const lease = await m.acquire("codex");
+      expect(lease.profileDir).toBe(login.cwd); expect(lease.env.CODEX_HOME).toBe(login.cwd);
+      await lease.release();
+      // A later replacement leaves that profile the same way.
+      const again = started(await m.signIn("codex", 7));
+      const next2 = await finish("login", 0); await finish("status", 0);
+      expect((await finish("logout", 0)).cwd).toBe(login.cwd);
+      expect((await again.done).connection!.profile).toBe(next2.cwd.split("/").at(-1));
+      expect(profiles()).toEqual([next2.cwd.split("/").at(-1)]);
+    });
+    it("signs out the connection's own profile", async () => {
+      const m = codex(); await m.load();
+      await connectedCodex(m);
+      const run = started(await m.signIn("codex", 7)); const login = await finish("login", 0); await finish("status", 0); await finish("logout", 0); await run.done;
+      const out = started(await m.signOut("codex"));
+      expect((await finish("logout", 0)).cwd).toBe(login.cwd);
+      keychain = { status: "disconnected" };
+      expect((await finish("status", 0)).cwd).toBe(login.cwd);
+      expect(await out.done).toMatchObject({ phase: "disconnected", connection: null });
+    });
   });
   it("unverifies a keychain connection once its login finished, since the profile may hold the new login", async () => {
     const m = manager(); await m.load();
