@@ -509,3 +509,11 @@ test("D28: Cloning was cancelled is a status notice panel like the other states"
   expect(cancelled).toMatch(/<div class="doan-notice doan-panel ob-project-notice" role="status" tabindex="-1"><svg[^>]*>.*?<\/svg><span>Cloning was cancelled\. Choose a folder or try again\.<\/span><\/div>/);
   expect(cancelled).not.toContain('<p class="ob-provider-help">Cloning was cancelled');
 });
+
+test("D29: a subtle button directly on the Agent/Project glass takes the step capsule's backdrop fill", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  // --affordance-subtle is about the glass's own colour mid-window, so the fill vanished there (68 Cancel, 46 Choose
+  // another folder). Panels, the Welcome surface and hover/pressed/disabled keep the DS fills.
+  expect(css).toContain('.ob-overlay:not(.ob-welcome) .ob-scene .doan-button[data-ui-variant="subtle"]:not(:hover, :active, :disabled, .doan-panel *, .doan-dialog *) { background: var(--affordance-backdrop-hover); }');
+});
