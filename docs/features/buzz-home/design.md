@@ -240,6 +240,14 @@ PRODUCT §5 항목 0·1과 ARCHITECTURE §7 'Home, workspace and project IPC'의
 - 다른 root나 홈에 있을 때 `permission.request`가 오면 토스트 '<Provider> needs your answer in <project>' + Open. 토스트는 하나뿐이라 새 토스트가 이전 것을 바꾼다(기존 계약).
 - 대화 ID는 renderer 메모리에 둔다. renderer 새로고침 뒤에는 상태줄이 사라지는 한계를 받아들이고 DESIGN.md에 적는다. 앱 재시작 뒤에는 백엔드가 끝나지 않은 턴을 crashed로 접으므로 보일 것이 없다.
 
+### 7.1 공용 토스트 변경 (2026-10-29 user)
+
+- 홈 권한 요청 토스트를 그리면서 공용 토스트 규칙을 바꾼다. 앞으로 모든 토스트에 적용된다(제거 Undo, Added, 이후의 업데이트 알림 등).
+  - 메시지와 동작 하나를 한 줄에 둔다. 동작은 오른쪽, `prominent` sm 버튼이다. 메시지가 길면 메시지만 줄바꿈되고 버튼은 세로 가운데에 남는다.
+  - 위치는 창 오른쪽 아래(`--space-4` 안쪽)다. 이전의 아래 가운데, 워크스페이스에서 bottom 64px로 툴바를 피하던 규칙을 대체한다. 캔버스 확대 툴바는 왼쪽 아래라 겹치지 않는다. 워크스페이스에서는 오른쪽 패널 위에 뜬다.
+  - 폭(384px), floating material, 하나뿐인 토스트·타이머·hover/포커스 일시정지 규칙은 그대로다.
+- buzz-ds가 소유한 공용 요소(공통 결정 10)를 바꾸는 일이라 사용자 확인을 받았다. 구현은 U0, 기록은 Z1(ARCHITECTURE §7 'Toasts', DESIGN.md 'Toast', PRODUCT §7)이다.
+
 ## 8. 저장
 
 - ui-state.json(design-nav)에 `home: {lastRoot?, lastProvider?}`를 더한다. 없는 root·준비되지 않은 공급자는 무시한다. 기존 키와 버전 처리를 따르고 새 파일을 만들지 않는다. 형식 버전을 올려야 하는지는 `/tdd`에서 기존 ui-state 판독기를 읽고 정한다(지금 판독기가 모르는 키를 버리는지 확인).
