@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "ok": false,
+  "error": {
+    "code": "usage_error",
+    "message": "design preset id must not be empty",
+    "nextSteps": [
+      "Run `doan design-skill --json` to list design preset ids."
+    ]
+  }
+}

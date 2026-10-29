@@ -1,0 +1,21 @@
+{
+  "v": 1,
+  "ok": true,
+  "result": {
+    "version": "dev",
+    "presets": [
+      {
+        "id": "context",
+        "title": "Gather design context",
+        "description": "Understand the product, users, existing design, and constraints before design work, and connect to the design system preset when the work needs one.",
+        "scope": "project context"
+      },
+      {
+        "id": "clarify",
+        "title": "Clarify copy",
+        "description": "Clarify labels, errors, and next actions without changing meaning.",
+        "scope": "copy"
+      }
+    ]
+  }
+}
