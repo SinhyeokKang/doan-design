@@ -53,7 +53,6 @@ const FAILURES: Record<string, (p: string) => { title: string; body: string }> =
   rate_limited: p => ({ title: `${p} is rate limited`, body: "Try again later from Home." }),
   session_unavailable: p => ({ title: `${p} couldn’t continue`, body: "Edit your request on Home and send it again." }),
   session_in_use: p => ({ title: `${p} couldn’t continue`, body: "Edit your request on Home and send it again." }),
-  credential_override: p => ({ title: `${p} refused to run`, body: "This project’s Claude settings supply their own API key." }),
 };
 // process_exited, unknown and codes without a row of their own.
 const STOPPED = (p: string) => ({ title: `${p} stopped unexpectedly`, body: "Edit your request on Home and send it again." });

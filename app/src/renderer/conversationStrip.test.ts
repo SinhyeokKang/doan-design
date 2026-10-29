@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import type { ConversationEvent, EventPayload } from "../main/conversation/types";
+import type { ConversationEvent, EventPayload, FailureCode } from "../main/conversation/types";
 import { stripState, stripView, type StripContext } from "./conversationStrip";
 
 function events(...payloads: (EventPayload & { turnId?: string })[]): ConversationEvent[] {
@@ -47,24 +47,23 @@ test("an answered request returns to working; a second open request is shown aft
   expect(stripState(events(...started, ASK, second, { type: "permission.resolved", requestId: "r1", optionId: "a" }))).toMatchObject({ kind: "permission", requestId: "r2", summary: "Run npm test" });
 });
 
-const failure = (code: string) => stripView(stripState(events(...started, { type: "turn.failed", code } as EventPayload)), CTX);
+const failure = (code: FailureCode) => stripView(stripState(events(...started, { type: "turn.failed", code })), CTX);
 const recover = [{ command: "editOnHome", label: "Edit on Home" }, { command: "dismiss", label: "Dismiss" }];
 
 test("every turn.failed row has its draft wording and offers Edit on Home", () => {
-  const rows: [string, string, string][] = [
+  const rows: [FailureCode, string, string][] = [
     ["process_exited", "Claude Code stopped unexpectedly", "Edit your request on Home and send it again."],
     ["unknown", "Claude Code stopped unexpectedly", "Edit your request on Home and send it again."],
     ["not_logged_in", "Claude Code’s sign-in expired", "Edit your request on Home and choose another agent."],
     ["rate_limited", "Claude Code is rate limited", "Try again later from Home."],
     ["session_unavailable", "Claude Code couldn’t continue", "Edit your request on Home and send it again."],
     ["session_in_use", "Claude Code couldn’t continue", "Edit your request on Home and send it again."],
-    ["credential_override", "Claude Code refused to run", "This project’s Claude settings supply their own API key."],
   ];
   for (const [code, title, body] of rows) expect(failure(code)).toEqual({ title, body, live: "status", alertKey: null, actions: recover });
 });
 
 test("failure codes without a row of their own read as an unexpected stop", () => {
-  for (const code of ["runtime_unsupported", "cli_missing", "something_new"]) expect(failure(code)).toMatchObject({ title: "Claude Code stopped unexpectedly", actions: recover });
+  for (const code of ["runtime_unsupported", "cli_missing"] as const) expect(failure(code)).toMatchObject({ title: "Claude Code stopped unexpectedly", actions: recover });
 });
 
 test("stopped offers Edit on Home; a stop the person did not make says so", () => {
