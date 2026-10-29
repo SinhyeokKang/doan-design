@@ -554,3 +554,31 @@ test("V fix: Back from a cancelled or failed clone returns to the editable URL, 
   await h.session.clone();
   expect(h.session.backToUrl()).toBe(true);
 });
+
+test("V re-check: Retry on the access error inspects an edited URL, like Enter, and drops the old clone", async () => {
+  const h = harness();
+  await planned(h);
+  h.queue.clone!.push(ok(op("project_clone", { state: "failed", error: { code: "repository_unreachable", message: "x" } })));
+  await h.session.clone();
+  expect(h.session.state.error).toEqual({ code: "access_failed" });
+  h.session.setUrl("https://github.com/git/git");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/git"]]) })));
+  await h.session.retry();
+  expect(h.api.cloneOnboardingProject).toHaveBeenCalledTimes(1);
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toEqual({ sessionId: "s1", requestId: expect.any(String), url: "https://github.com/git/git" });
+  expect(phase(h)).toMatchObject({ kind: "candidates", url: "https://github.com/git/git" });
+});
+
+test("V re-check: Retry on the access error with the URL unchanged clones that repository again", async () => {
+  const h = harness();
+  await planned(h);
+  h.queue.clone!.push(ok(op("project_clone", { state: "failed", error: { code: "repository_unreachable", message: "x" } })));
+  await h.session.clone();
+  const plan = inspection([], "/Users/ada/studio");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: plan })));
+  h.queue.clone!.push(ok(op("project_clone", { project: { root: "/Users/ada/studio" } })));
+  await h.session.retry();
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ url: "https://github.com/acme/studio", destination: "/Users/ada/studio" });
+  expect(h.api.cloneOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ inspectionId: plan.inspectionId });
+  expect(phase(h)).toEqual({ kind: "ready", root: "/Users/ada/studio" });
+});
