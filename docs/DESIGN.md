@@ -333,6 +333,7 @@ Reference: `.doan/canvases/buzz-onboarding.html` (approved 2026-10-28, F4 comple
 - **No checkout choice on the URL path** (D25, 2026-10-29 user).
   - **What happens:** when a GitHub URL matches several local checkouts or worktrees, the app does not show 'Multiple local checkouts'. It picks one and shows it as the single 'Already on your Mac' card, with Choose another folder and Edit repository URL.
   - **Pick order:** a checkout that needs no setup; then the main checkout, whose `.git` is the common directory, read from the folder list's git facts without running git; then the most recently registered project.
+  - **If the picked checkout needs setup:** the setup screen keeps the URL context. It shows the 'Already on your Mac' heading, the read-only URL, Choose another folder (D21 remote check) and Edit repository URL, and Back returns to the editable URL (V's D25 check, 2026-10-29).
   - **Other worktrees:** the user switches to them later from the shell project card's Worktrees menu.
   - **CLI and MCP:** `onboarding project inspect` still returns every candidate.
 - **Choice cards instead of radio rows** (D23, 2026-10-29 user).
