@@ -428,3 +428,14 @@ test("UX: after Edit repository URL the URL field takes focus", () => {
   expect(projectFocusTarget({ ...base2, error: { code: "invalid_url" } }, true, true)).toBe("url");
   expect(projectFocusTarget(base2, true)).toBe("action");
 });
+
+test("D25 follow-up: a setup screen reached from a URL keeps the URL, Choose another folder and Edit repository URL", () => {
+  const html = screen({ url: "https://github.com/acme/studio", phase: { kind: "setup", inspectionId: "i", url: "https://github.com/acme/studio", path: "/Users/ada/code/studio", changes: [".doan/config.json"] } });
+  expect(html).toContain('<h2 tabindex="-1">Already on your Mac</h2>');
+  expect(html).toMatch(/<input class="doan-input" id="ob-project-url"[^>]*readOnly=""[^>]*value="https:\/\/github.com\/acme\/studio"/);
+  expect(html).toContain('data-consent="">Set up and continue</button>');
+  expect(html).toContain('<div class="ob-small-action"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Edit repository URL</button></div>');
+  const folder = screen({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/Users/ada/code/plain", changes: [".doan/config.json"] } });
+  expect(folder).not.toContain("Edit repository URL");
+  expect(folder).not.toContain('id="ob-project-url"');
+});

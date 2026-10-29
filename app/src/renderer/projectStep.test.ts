@@ -680,3 +680,17 @@ test("UX: inspecting a chosen folder is 'checking', not the setup progress; noth
   await choosing;
   expect(phase(h)).toMatchObject({ kind: "setup" });
 });
+
+test("D25 follow-up: Back from a URL setup screen returns to the editable URL; a folder setup does not", async () => {
+  const h = harness(["/code/studio"], "/Users/ada", ["/code/studio"]);
+  h.session.setUrl("https://github.com/acme/studio");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/wt/a", [".doan/config.json"]], ["/code/studio", [".doan/config.json"]]]) })));
+  await h.session.findRepository();
+  expect(phase(h)).toMatchObject({ kind: "setup", url: "https://github.com/acme/studio" });
+  expect(h.session.backToUrl()).toBe(true);
+  const g = harness();
+  g.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/plain");
+  g.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/plain", [".doan/config.json"]]]) })));
+  await g.session.chooseFolder();
+  expect(g.session.backToUrl()).toBe(false);
+});
