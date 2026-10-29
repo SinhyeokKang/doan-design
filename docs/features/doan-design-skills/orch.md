@@ -67,3 +67,6 @@
 - 2026-10-29: G2(46a5b1c·43ac5fe·69da0f3)·P(fea447b·8647d5a)·A(4edaea9·cffad35) 완료. 앱 argv `design-skill --json -- <id>`가 G2 CLI에서 동작함을 지휘자가 확인했다. 리뷰 작업자 셋(Codex `gpt-6-astra` medium)을 시작하고 세 작업자 터미널은 retain했다.
 - 2026-10-29: 2차 7커밋을 임시 worktree에서 합쳐 보았다. 충돌 없이 합쳐졌고 `go test ./...` PASS, 앱 관련 vitest 4파일 PASS, 목록 20개, 목록 4,065B, 최장 단건 envelope critique 15,543B, `doan skill` envelope 25,230B였다(임시 worktree는 지웠다).
 - 2026-10-29: G2 리뷰(`review-G2.md`, Codex) 🔴0 🟡0 🟢2. 🟢1(design·tasks의 'init result는 바꾸지 않음' 문구를 D10에 맞춘다)은 Z1에서 정리한다. G2를 통합한다.
+- 2026-10-29: A 리뷰(`review-A.md`, Codex) 🔴0 🟡1 🟢2. 🟡(NUL이 든 id에서 spawn이 동기 예외를 던져 앱 실패 envelope를 우회한다)와 🟢 주석·handoff 문구를 A 수정 라운드 1로 보냈다. 앱 실패의 빈 `nextSteps`는 계획에 맞다고 판정됐다.
+- 2026-10-29: P 리뷰(`review-P.md`, Codex) 🔴0 🟡2 🟢3. 🟡1(원본의 미학적 절대 금지가 document·polish·distill·quieter에 남음), 🟡2(generate의 다축 대안 규칙이 방향을 지정한 요청과 충돌)와 🟢 셋을 P 수정 라운드 1로 보냈다.
+- 2026-10-29: A 수정 라운드 1(c3a5745)을 지휘자가 확인했다. `runDesignSkill`만 동기 spawn 예외를 실패 결과로 바꾸고 공용 `runCli`는 그대로이다. A를 통합한다.
