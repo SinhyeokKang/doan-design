@@ -36,11 +36,15 @@ afterEach(() => vi.unstubAllGlobals());
 function harness(entries: FolderEntry[] = [list(ROOT, ["a"])]) {
   const view = { screen: "home" as "home" | "workspace", loadedRoot: null as string | null, entries };
   const order: string[] = [];
-  let arrive = () => {}, unavailable = () => {};
+  let accept = () => false, commit = () => {}, unavailable = () => {};
+  const history: string[] = [];
+  // App's order: the controller accepts or refuses the arrival first; only an accepted one commits the screen, and
+  // App's refs (view) change only after that commit.
   const host: HomeRunHost = {
     view: () => view,
     label: root => root.split("/").at(-1)!,
-    openOverview: vi.fn((root, arrived, missing) => { arrive = () => { view.screen = "workspace"; view.loadedRoot = root; arrived(); }; unavailable = missing; }),
+    openOverview: vi.fn((root, arrived, missing) => { accept = arrived; commit = () => { view.screen = "workspace"; view.loadedRoot = root; history.push(root); }; unavailable = missing; }),
+    cancelMove: vi.fn(),
     openCanvas: vi.fn(),
     goHome: vi.fn(() => { view.screen = "home"; }),
     removeNow: vi.fn(async () => { order.push("remove"); }),
@@ -50,7 +54,7 @@ function harness(entries: FolderEntry[] = [list(ROOT, ["a"])]) {
   };
   doan.interruptConversation!.mockImplementation(async () => { order.push("interrupt"); });
   const run = new HomeRun(host);
-  return { run, host, view, order, arrive: () => arrive(), unavailable: () => unavailable() };
+  return { run, host, view, order, history, accept: () => accept(), commit: () => commit(), arrive: () => { if (accept()) commit(); }, unavailable: () => unavailable() };
 }
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
@@ -191,4 +195,45 @@ test("Edit on Home sends the last request back to Home", async () => {
   h.run.editOnHome(ROOT);
   expect(h.host.goHome).toHaveBeenCalled();
   expect(h.run.restore).toEqual({ request: LAST, seq: 1 });
+});
+
+// Review BU3 r2 🟡2, 🟡3.
+test("a canvas bound before the arrival opens once the arrival is accepted, before App's screen commit", async () => {
+  const h = harness();
+  doan.conversationForCanvas!.mockResolvedValue({ current: { conversationId: "c1" }, archived: [] });
+  const sending = h.run.start(REQUEST, LAST);
+  h.view.entries = [list(ROOT, ["a", "pricing"])];
+  start.resolve({ conversationId: "c1" });
+  await sending; await flush();
+  expect(h.host.openCanvas).not.toHaveBeenCalled();
+  expect(h.accept()).toBe(true);
+  expect(h.host.openCanvas).toHaveBeenCalledWith(ROOT, expect.objectContaining({ path: ".doan/canvases/pricing.html" }));
+  expect(h.host.toast).not.toHaveBeenCalledWith("New canvas in doan", "Open", expect.any(Function));
+});
+
+test("a canvas bound after the arrival was accepted but before the screen commit also opens", async () => {
+  const h = harness();
+  const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
+  expect(h.accept()).toBe(true);
+  doan.conversationForCanvas!.mockResolvedValue({ current: { conversationId: "c1" }, archived: [] });
+  h.view.entries = [list(ROOT, ["a", "pricing"])];
+  h.run.entriesChanged();
+  await flush();
+  expect(h.host.openCanvas).toHaveBeenCalledWith(ROOT, expect.objectContaining({ path: ".doan/canvases/pricing.html" }));
+  h.commit();
+});
+
+test("a move the person makes while the project is still being read cancels the wait; the late list commits nothing", async () => {
+  const h = harness();
+  const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
+  // Quick Open, say: the person's own move.
+  h.run.personNavigated();
+  expect(h.host.cancelMove).toHaveBeenCalledTimes(1);
+  const toasts = vi.mocked(h.host.toast).mock.calls.length;
+  // The project's read arrives afterwards.
+  h.arrive();
+  expect(h.view).toMatchObject({ screen: "home", loadedRoot: null });
+  expect(h.history).toEqual([]);
+  expect(vi.mocked(h.host.toast).mock.calls.length).toBe(toasts);
+  expect(h.run.takeFocus()).toBeNull();
 });

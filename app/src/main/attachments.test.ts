@@ -205,3 +205,33 @@ it("keeps the recheck channel to the main window", () => {
   expect(senderAllowed("attachments:recheck", "main")).toBe(true);
   expect(senderAllowed("attachments:recheck", "settings")).toBe(false);
 });
+
+// Review BU3 r2 🟡4: sent ids live as long as the renderer's last requests use them, not by a count.
+it("keeps a root's last-request ids through any number of other sends, until the renderer releases them", () => {
+  const f = fixture();
+  const a = join(f.files, "a.txt"); writeFileSync(a, "a");
+  const kept = ok(f.store.addPaths({ paths: [a] })![0]);
+  f.store.consume([{ id: kept.id }]);
+  for (let i = 0; i < 250; i++) {
+    const b = join(f.files, `b${i}.txt`); writeFileSync(b, "b");
+    const sent = ok(f.store.addPaths({ paths: [b] })![0]);
+    f.store.consume([{ id: sent.id }]);
+  }
+  expect(f.store.recheck({ ids: [kept.id] })).toMatchObject([{ id: kept.id, ok: true }]);
+  f.store.consume([{ id: kept.id }]);
+  expect(f.store.release({ ids: [kept.id] })).toBe(true);
+  expect(f.store.recheck({ ids: [kept.id] })).toEqual([{ id: kept.id, ok: false, error: "not_found" }]);
+  expect(existsSync(a)).toBe(true);
+});
+it("releases only sent ids and never deletes a sent paste's file", () => {
+  const f = fixture();
+  const pasted = ok(f.store.addPasted({ bytes: new Uint8Array(PNG) })), draft = ok(f.store.addPasted({ bytes: new Uint8Array(PNG) }));
+  f.store.markSent([{ id: pasted.id }]); f.store.consume([{ id: pasted.id }]);
+  expect(f.store.release({ ids: [pasted.id, draft.id] })).toBe(true);
+  expect(existsSync(pasted.path)).toBe(true);
+  // A draft's attachment is not a sent one: release leaves it to remove.
+  expect(f.store.resolve([{ id: draft.id }])).toMatchObject({ ok: true });
+  expect(f.store.release({ ids: "x" })).toBe(false);
+  expect(senderAllowed("attachments:release", "main")).toBe(true);
+  expect(senderAllowed("attachments:release", "settings")).toBe(false);
+});

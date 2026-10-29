@@ -9,12 +9,12 @@ import type { PresetListReply, PresetSummary } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
 
 // Hooks run as plain state so the component's own handlers can be called (ShellSidebar.interaction.test.tsx).
-const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, effects: [] as (() => unknown)[] }));
+const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, effects: [] as (() => unknown)[], redraw: () => {} }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
   useId: () => "id",
   useEffect: (effect: () => unknown) => { hooks.effects.push(effect); },
-  useReducer: () => [0, () => {}],
+  useReducer: () => [0, hooks.redraw],
   useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
   useState: (value: unknown) => { const index = hooks.cursor++; if (!(index in hooks.states)) hooks.states[index] = typeof value === "function" ? (value as () => unknown)() : value; return [hooks.states[index], (next: unknown) => { hooks.states[index] = typeof next === "function" ? (next as (v: unknown) => unknown)(hooks.states[index]) : next; }]; },
 }));
@@ -67,7 +67,7 @@ test("/ at the start opens a combobox on the field; arrows move, Enter picks and
   const textarea = field(tree);
   expect(textarea).toMatchObject({ role: "combobox", "aria-expanded": true, "aria-controls": "id-slash", "aria-autocomplete": "list", "aria-activedescendant": "id-s-0" });
   const focus = vi.fn(), setSelectionRange = vi.fn();
-  hooks.refs[1]!.current = { focus, setSelectionRange, value: "" };
+  hooks.refs[0]!.current = { focus, setSelectionRange, value: "" };
   const down = key("ArrowDown");
   call(textarea, "onKeyDown", down);
   expect(down.preventDefault).toHaveBeenCalled();
@@ -133,7 +133,7 @@ test("Backspace at the start of an empty field removes the preset chip first, th
   const attachments = [{ key: "a", id: "id-a", name: "a.pdf", kind: "file" as const, pasted: false, status: "ready" as const, size: 10, path: "/u/a.pdf" }];
   const { box, render } = setup({ attachments, preset: PRESETS[2]! });
   render();
-  hooks.refs[1]!.current = { selectionStart: 0, focus: vi.fn() };
+  hooks.refs[0]!.current = { selectionStart: 0, focus: vi.fn() };
   const first = key("Backspace");
   call(field(render()), "onKeyDown", first);
   expect(first.preventDefault).toHaveBeenCalled();
@@ -297,20 +297,18 @@ test("a group tab's ←/→ selects the next tab and focuses it once drawn, with
   const { render } = setup();
   const tabs = render().filter(props => props.role === "tab");
   const focus = vi.fn(), list = { querySelector: vi.fn(() => ({ focus })) };
-  vi.stubGlobal("requestAnimationFrame", (run: () => void) => { queueMicrotask(run); return 0; });
+  const frames: (() => void)[] = [];
+  vi.stubGlobal("requestAnimationFrame", (run: () => void) => { frames.push(run); return frames.length; });
   const event = { key: "ArrowRight", preventDefault: vi.fn(), currentTarget: { parentElement: list } as { parentElement: unknown } | null };
-  const handler = tabs[0]!.onKeyDown as (event: unknown) => void;
-  // React nulls currentTarget right after the handler; the frame callback must not read it.
-  const realQueue = globalThis.queueMicrotask;
-  vi.stubGlobal("queueMicrotask", (run: () => void) => realQueue(run));
-  handler(event); event.currentTarget = null;
-  return new Promise<void>(resolve => realQueue(() => {
-    expect(event.preventDefault).toHaveBeenCalled();
-    expect(render().find(props => props.role === "tab" && props["aria-selected"])?.children).toContain("Start");
-    expect(list.querySelector).toHaveBeenCalledWith('[aria-selected="true"]');
-    expect(focus).toHaveBeenCalled();
-    resolve();
-  }));
+  (tabs[0]!.onKeyDown as (event: unknown) => void)(event);
+  // React nulls currentTarget right after the handler; the frame runs only afterwards.
+  event.currentTarget = null;
+  expect(frames).toHaveLength(1);
+  frames[0]!();
+  expect(event.preventDefault).toHaveBeenCalled();
+  expect(render().find(props => props.role === "tab" && props["aria-selected"])?.children).toContain("Start");
+  expect(list.querySelector).toHaveBeenCalledWith('[aria-selected="true"]');
+  expect(focus).toHaveBeenCalled();
 });
 
 test("Edit on Home checks the restored attachments again at once: checking, then ready or moved", async () => {
@@ -325,4 +323,80 @@ test("Edit on Home checks the restored attachments again at once: checking, then
   finish([{ id: "id-a.pdf", ok: true, attachment: { id: "id-a.pdf", name: "a.pdf", size: 12, kind: "file", path: "/u/a.pdf", pasted: false } }, { id: "id-b.pdf", ok: false, error: "not_found" }]);
   await vi.waitFor(() => expect(box.current.attachments.map(a => a.status)).toEqual(["ready", "missing"]));
   expect(box.current.attachments[0]?.size).toBe(12);
+});
+
+// Review BU3 r2.
+// One mount's life: render, run its effects, and keep their cleanups to unmount it like React does.
+function mount(props: HomeComposerProps, redraw: () => void) {
+  hooks.states = []; hooks.refs = []; hooks.redraw = redraw;
+  hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = [];
+  elements(HomeComposer(props));
+  const cleanups = hooks.effects.map(effect => effect());
+  const tree = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(HomeComposer(props)); };
+  return { tree, unmount: () => { for (const cleanup of cleanups) if (typeof cleanup === "function") cleanup(); } };
+}
+
+test("a refusal that arrives after leaving and coming back redraws the Home now on screen, with the notice and the field unlocked", async () => {
+  const { box, start, props } = setup({ text: "Draw a pricing page." });
+  const reply = pending();
+  start.mockReturnValueOnce(reply.promise as never);
+  const first = mount(props, vi.fn());
+  call(field(first.tree()), "onKeyDown", key("Enter"));
+  first.unmount();
+  const redraw = vi.fn();
+  const second = mount(props, redraw);
+  expect(field(second.tree()).readOnly).toBe(true);
+  reply.resolve({ error: "busy" });
+  await vi.waitFor(() => expect(redraw).toHaveBeenCalled());
+  expect(box.current.notice?.text).toBe("Claude Code is finishing a previous run. Try again in a moment.");
+  expect(field(second.tree()).readOnly).toBe(false);
+});
+
+test("an attachment reply after a remount redraws the new mount too", async () => {
+  const { box, props } = setup();
+  let finish!: (value: unknown) => void;
+  doan.addAttachmentFiles!.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+  const first = mount(props, vi.fn());
+  call(field(first.tree()), "onPaste", { preventDefault: vi.fn(), clipboardData: { files: [new File(["x"], "brief.pdf")], getData: () => "brief.pdf" } });
+  first.unmount();
+  const redraw = vi.fn();
+  mount(props, redraw);
+  finish([{ ok: true, attachment: { id: "id-brief", name: "brief.pdf", size: 1, kind: "file", path: "/u/brief.pdf", pasted: false } }]);
+  await vi.waitFor(() => expect(redraw).toHaveBeenCalled());
+  expect(box.current.attachments[0]?.status).toBe("ready");
+});
+
+test("a last request's thumbnail and sent id stay while any root's last request or the draft uses them, and go when none does", async () => {
+  const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  doan.releaseAttachments = vi.fn(async () => true);
+  const shot = { key: "shot", id: "id-shot", name: "shot.png", kind: "image" as const, pasted: false, status: "ready" as const, size: 10, path: "/u/shot.png" };
+  const other = { ...shot, key: "other", id: "id-other", name: "other.png", path: "/u/other.png" };
+  const { box, start, render } = setup({ text: "A", attachments: [shot], thumbnails: { shot: "blob:shot", other: "blob:other" } }, { entries: [ENTRY, B] });
+  const send = async () => { const calls = start.mock.calls.length; call(field(render()), "onKeyDown", key("Enter")); await vi.waitFor(() => expect(start.mock.calls.length).toBe(calls + 1)); await vi.waitFor(() => expect(box.current.sending).toBeNull()); };
+  await send();                                                                    // A's last request uses shot
+  box.current = { ...box.current, root: "/code/acme", text: "B", attachments: [shot] }; // restored, sent in B
+  await send();
+  box.current = { ...box.current, root: "/code/doan-design", text: "A again", attachments: [other] };
+  await send();                                                                    // A's last request is replaced
+  expect(revoke).not.toHaveBeenCalledWith("blob:shot");
+  expect(box.current.thumbnails.shot).toBe("blob:shot");
+  expect(doan.releaseAttachments).not.toHaveBeenCalledWith(expect.arrayContaining(["id-shot"]));
+  box.current = { ...box.current, root: "/code/acme", text: "B again", attachments: [] };
+  await send();                                                                    // B's last request is replaced too
+  expect(revoke).toHaveBeenCalledWith("blob:shot");
+  expect(doan.releaseAttachments).toHaveBeenCalledWith(["id-shot"]);
+  revoke.mockRestore();
+});
+
+test("removing a restored chip that no last request uses releases its sent id", async () => {
+  doan.releaseAttachments = vi.fn(async () => true);
+  const chip = { key: "k", id: "id-k", name: "a.pdf", kind: "file" as const, pasted: false, status: "ready" as const, size: 1, path: "/u/a.pdf" };
+  const kept = setup({ attachments: [chip], lastIds: { "/code/acme": ["id-k"] } });
+  call(find(kept.render(), props => props["aria-label"] === "Remove a.pdf"), "onClick", {});
+  await vi.waitFor(() => expect(doan.removeAttachment).toHaveBeenCalledTimes(1));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(doan.releaseAttachments).not.toHaveBeenCalled();
+  const loose = setup({ attachments: [chip] });
+  call(find(loose.render(), props => props["aria-label"] === "Remove a.pdf"), "onClick", {});
+  await vi.waitFor(() => expect(doan.releaseAttachments).toHaveBeenCalledWith(["id-k"]));
 });
