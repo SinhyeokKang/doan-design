@@ -8,7 +8,7 @@ This file maps every upstream source behind Doan's design presets to the public 
 
 ## Public catalog
 
-The public catalog is the 20 IDs below (user decision 2026-10-28; `context` ID 2026-10-29), in this order. `catalog.json`, not this file, is the shipped catalog; it holds the presets whose bodies have been adapted so far, which are marked **adapted** in the tables below.
+The public catalog is the 20 IDs below (user decision 2026-10-28; `context` ID 2026-10-29), in this order. `catalog.json`, not this file, is the shipped catalog; it holds all 20 presets in this order.
 
 `context`, `shape`, `document`, `extract`, `critique`, `audit`, `polish`, `distill`, `bolder`, `quieter`, `layout`, `typeset`, `colorize`, `clarify`, `harden`, `onboard`, `adapt`, `animate`, `delight`, `generate`.
 
@@ -22,7 +22,7 @@ Decided display names (`title` in `catalog.json`):
 | `clarify` | Clarify copy | design example contract, 2026-10-29 |
 | `document` | Document the design system | user decision, 2026-10-29 |
 
-The remaining titles are written with their bodies.
+The other titles were written with their bodies (batch P, 2026-10-29) and live in `catalog.json`.
 
 ## Notices shipped in the CLI
 
@@ -42,92 +42,91 @@ Every preset body also ends with its own source line naming the upstream commit 
 No preset body may keep an upstream engine command, placeholder, rule tag, or harness block. Run from the repository root:
 
 ```sh
-rg -n -i -P '(?<!pbakaus/)impeccable|\{\{|\}\}|<skill-base-dir>|<!-- rule:|</?(codex|claude)>|CONTEXT_STALE|NO_PRODUCT_MD|IMAGE_GEN_AVAILABLE' cli/internal/designskill/presets/
+rg -n -i -P '(?<!pbakaus/)(?<!skill/agents/)impeccable|\{\{|\}\}|<skill-base-dir>|<!-- rule:|</?(codex|claude)>|CONTEXT_STALE|NO_PRODUCT_MD|IMAGE_GEN_AVAILABLE' cli/internal/designskill/presets/
 ```
 
-The expected result is no output (exit status 1). The only allowed `impeccable` is the repository name `pbakaus/impeccable` in a body's source line, so a source line must spell the repository that way and must not call it "Impeccable" bare. The pattern catches launcher and slash commands (`impeccable context`, `{{command_prefix}}impeccable polish`), `.impeccable/` paths, subagent names (`impeccable-finish-reviewer`), template placeholders, upstream rule tags, harness-conditional blocks, and engine directives. The validator separately rejects `{{...}}`, `<skill-base-dir>`, relative Markdown link destinations (inline links and link reference definitions), and bare `reference/`, `agents/`, or `scripts/` paths.
+The expected result is no output (exit status 1). The only allowed `impeccable` is the repository name `pbakaus/impeccable` and a full role-document path such as `skill/agents/impeccable-documenter.md` in a body's source line (the validator requires each catalog source path to appear in the body), so a source line must spell them that way and must not call the project "Impeccable" bare. The pattern catches launcher and slash commands (`impeccable context`, `{{command_prefix}}impeccable polish`), `.impeccable/` paths, subagent names (`impeccable-finish-reviewer`), template placeholders, upstream rule tags, harness-conditional blocks, and engine directives. The validator separately rejects `{{...}}`, `<skill-base-dir>`, relative Markdown link destinations (inline links and link reference definitions), and bare `reference/`, `agents/`, or `scripts/` paths.
 
 ## Status values
 
 - **adapted** — a committed body reflects this source.
-- **planned** — the named preset(s) will reflect it when that body is written; replace with **adapted** then.
 - **not reflected** — intentionally left out, with the reason.
 
 ## Commands in `skill/SKILL.src.md` (24)
 
-`SKILL.src.md` itself also feeds `context` with its "How to design" principles (the brief wins; refinement preserves, redesign replaces; visual authority is evidence, not a filename). Its setup, routing, pin, hooks, and doctor sections are engine behavior and are not reflected; Doan's guide carries its own preset mapping rules.
+`SKILL.src.md` itself also feeds `context` with its "How to design" principles (the brief wins; refinement preserves, redesign replaces; visual authority is evidence, not a filename). Its "Modes" section (four surface modes, chosen by the requested surface rather than the product) feeds "Name the surface mode" in `shape` and "Respect the surface mode" in `generate`. Its setup, routing, pin, hooks, and doctor sections are engine behavior and are not reflected; Doan's guide carries its own preset mapping rules.
 
 | Upstream command | Doan preset(s) | Status | Notes |
 |---|---|---|---|
 | `craft` | — | not reflected | Deprecated upstream alias for ordinary new work; it adds no guidance. New-work guidance reaches `shape` and `generate` through `new-work.md`. |
-| `shape` | `shape` | planned | |
+| `shape` | `shape` | adapted | Through `skill/reference/shape.md` (below). |
 | `init` | `context` | adapted | Published as `context` so agents do not confuse it with the CLI `doan init` or MCP `init`. |
-| `document` | `document` | planned | |
-| `extract` | `extract` | planned | |
-| `critique` | `critique` | planned | |
-| `audit` | `audit` | planned | |
-| `polish` | `polish` | planned | |
-| `bolder` | `bolder` | planned | |
-| `quieter` | `quieter` | planned | |
-| `distill` | `distill` | planned | |
-| `harden` | `harden` | planned | |
-| `onboard` | `onboard` | planned | |
-| `animate` | `animate` | planned | |
-| `colorize` | `colorize` | planned | |
-| `typeset` | `typeset` | planned | |
-| `layout` | `layout` | planned | |
-| `delight` | `delight` | planned | |
-| `overdrive` | `animate`, `delight` | planned | Not published on its own. Only its expressive guidance (propose directions first, progressive enhancement, one extraordinary moment) is folded in. |
+| `document` | `document` | adapted | Through `skill/reference/document.md` (below). |
+| `extract` | `extract` | adapted | Through `skill/reference/extract.md` (below). |
+| `critique` | `critique` | adapted | Through `skill/reference/critique.md` (below). |
+| `audit` | `audit` | adapted | Through `skill/reference/audit.md` (below). |
+| `polish` | `polish` | adapted | Through `skill/reference/polish.md` (below). |
+| `bolder` | `bolder` | adapted | Through `skill/reference/bolder.md` (below). |
+| `quieter` | `quieter` | adapted | Through `skill/reference/quieter.md` (below). |
+| `distill` | `distill` | adapted | Through `skill/reference/distill.md` (below). |
+| `harden` | `harden` | adapted | Through `skill/reference/harden.md` (below). |
+| `onboard` | `onboard` | adapted | Through `skill/reference/onboard.md` (below). |
+| `animate` | `animate` | adapted | Through `skill/reference/animate.md` (below). |
+| `colorize` | `colorize` | adapted | Through `skill/reference/colorize.md` (below). |
+| `typeset` | `typeset` | adapted | Through `skill/reference/typeset.md` (below). |
+| `layout` | `layout` | adapted | Through `skill/reference/layout.md` (below). |
+| `delight` | `delight` | adapted | Through `skill/reference/delight.md` (below). |
+| `overdrive` | `animate`, `delight` | adapted | Not published on its own. Only its expressive guidance is folded in, through `skill/reference/overdrive.md` (below). |
 | `clarify` | `clarify` | adapted | |
-| `adapt` | `adapt` | planned | |
-| `optimize` | `animate`, `audit`, `harden` | planned | Not published on its own. Only performance cautions are folded in; production bundle, network, and API optimization is out of scope. |
-| `live` | `generate`, `polish` | planned | Not published on its own. Variant planning goes to `generate`, in-place refinement to `polish`; the live server, browser overlay, and poll loop are not ported. |
-| `generate` | `generate` | planned | Alternatives are drawn on canvases; no live browser and no comparison or adoption UI. |
+| `adapt` | `adapt` | adapted | Through `skill/reference/adapt.md` (below). |
+| `optimize` | `animate`, `audit`, `harden` | adapted | Not published on its own. Only performance cautions are folded in, through `skill/reference/optimize.md` (below); production bundle, network, and API optimization is out of scope. |
+| `live` | `generate`, `polish` | adapted | Not published on its own. Variant planning goes to `generate`, in-place refinement to `polish`, through `skill/reference/live.md` (below); the live server, browser overlay, and poll loop are not ported. |
+| `generate` | `generate` | adapted | Through `skill/reference/generate.md` (below). Alternatives are drawn on canvases; no live browser and no comparison or adoption UI. |
 
 ## Reference files in `skill/reference/` (41)
 
 | Upstream file | Doan preset(s) | Status | Notes |
 |---|---|---|---|
-| `adapt.md` | `adapt` | planned | Drop device-lab and throttled-network steps the agent cannot run, or report them as unverified. |
-| `adapt.native.md` | `adapt` | planned | Principles only (restructure, do not stretch; translate idioms, do not transplant). Native procedures are not reflected. |
+| `adapt.md` | `adapt` | adapted | "Assess the challenge", "Strategies by target", "Responsive mechanics", "Draw it in Doan", "Verify". Device-lab, real-browser, and throttled-network steps are reported as unverified; native routing and the `polish` hand-off are dropped. |
+| `adapt.native.md` | `adapt` | adapted | "Principles that carry across" only (restructure, do not stretch; translate idioms, do not transplant; size is not a device; orientation). The iOS/Android idiom table, size classes, and simulator procedures are not reflected. |
 | `android.md` | — | not reflected | Native Android platform rules with `adb` verification; Doan canvases are HTML. Derived from ehmo/platform-design-skills: if a preset reflects it later, `platform-design-skills-LICENSE` already covers it. |
-| `animate.md` | `animate` | planned | |
-| `audit.md` | `audit` | planned | Remove the bundled detector, CDP, and re-run commands; separate checked from unchecked items. |
+| `animate.md` | `animate` | adapted | "Find the job", "Set the motion thesis", "Choose material by meaning", "Timing and easing", "Implement to the runtime", "Accessibility and control", "Verify". Native references and the `polish` hand-off are dropped. |
+| `audit.md` | `audit` | adapted | "Dimensions" 1-5, "Severity", "Report", with a Doan "Evidence levels" section (static, computed, runtime, unchecked). The bundled detector, CDP, re-run commands, 0-4 scores, and integrity verdict format are removed. |
 | `audit.native.md` | — | not reflected | Native-only audit; its report skeleton duplicates `audit.md`. |
-| `bolder.md` | `bolder` | planned | |
+| `bolder.md` | `bolder` | adapted | "Scope is sovereign", "Find why it reads flat", "Amplify", "The skeleton test", "Verify". The direction-round paragraph points to `shape` and `generate` instead; the `polish` hand-off is dropped. |
 | `clarify.md` | `clarify` | adapted | |
-| `colorize.md` | `colorize` | planned | Drop the live-mode parameter section. |
+| `colorize.md` | `colorize` | adapted | "Match the surface", "Audit before choosing", "Choose a strategy", "Apply at system scale", "Contrast and perception", "Verify", plus Doan's "Use tokens, propose new ones". The live-mode parameter section, design file loader, and `polish` hand-off are dropped. |
 | `component-review.md` | — | not reflected | Review server and manifests for image-comp builds (`.impeccable/review/`); no design guidance beyond "the user approves what ships". |
-| `craft-floor.md` | `polish`, `generate`, `critique`, `audit`, `animate` | planned | The quality floor and refusals are merged into each preset that edits or reviews UI; the design-hook enforcement is not ported. |
+| `craft-floor.md` | `polish`, `generate`, `critique`, `audit`, `animate` | adapted | "Quality floor" (`polish`, `critique`, and the motion-related subset in `animate`), "Hold the quality floor" (`generate`), and "Accessibility" and "Design system integrity" (`audit`). The refusals are defaults a brief or an established design can override, not absolute bans; the design-hook enforcement, rule tags, and harness-specific blocks are not ported. |
 | `craft.md` | — | not reflected | Same as the `craft` command: an alias that adds nothing. |
-| `critique.md` | `critique` | planned | Keep the design review, heuristics, cognitive load, personas, and severity; drop the detector, browser overlay, subagents, and critique storage. |
-| `delight.md` | `delight` | planned | |
-| `distill.md` | `distill` | planned | |
+| `critique.md` | `critique` | adapted | "Review lens" (specificity, holistic pass, cognitive load, emotional journey, usability heuristics, personas, severity) and "Report". The detector, browser overlay, CDP, subagents, critique storage, mandatory questions, and numeric scores are dropped. |
+| `delight.md` | `delight` | adapted | "Find the opportunity", "Define one delight thesis", "Build for the emotional moment", "Protect the experience", "Verify", plus Doan's "Keep serious moments serious". The design file loader and `polish` hand-off are dropped. |
+| `distill.md` | `distill` | adapted | "Assess the complexity", "Plan the cuts", "Simplify by dimension", "Avoid", "Verify". Removed complexity is reported in the answer; code is simplified only when the request covers implementation. |
 | `doctor.md` | — | not reflected | Repairs drift in upstream engine artifacts; no design guidance. |
-| `document.md` | `document` | planned | The rules document and the `design-system` canvas follow Doan's decisions (below), not upstream's fixed root `DESIGN.md`, sidecar, live panel, or linter. |
-| `extract.md` | `extract` | planned | |
-| `generate.md` | `generate` | planned | Keep the direction-word mapping and default count; the live session protocol is not ported. |
-| `harden.md` | `harden`, `onboard` | planned | Empty and first-use states also inform `onboard`. |
+| `document.md` | `document` | adapted | "Step 1" to "Step 5", "Keep the two in agreement", "Finish in Doan", "Verify". The rules document and the `design-system` canvas follow Doan's decisions (below), not upstream's fixed root `DESIGN.md`, YAML frontmatter, sidecar, live panel, or linter. |
+| `extract.md` | `extract` | adapted | "Find the patterns", "Plan the extraction", "Shape what you propose", "Work in Doan", "Avoid", "Verify". A proposal is the default outcome; app code refactoring needs a separate request; the documentation step points to `document`. |
+| `generate.md` | `generate` | adapted | "Read the request" (default count of three, direction words mapped to Doan presets). The live session protocol (dev server, selector, poll, accept) is not ported. |
+| `harden.md` | `harden`, `onboard` | adapted | `harden`: "Find the weak points", "Draw the states", "Verify". `onboard`: the empty-state guidance under "Empty states". Code samples became rules; server-side validation, memory-leak, polyfill, and test-suite items are dropped. |
 | `hooks.md` | — | not reflected | Detector hook management and harness hook manifests. |
 | `init.md` | `context` | adapted | Product context capture; recording depends on the user's agreement and uses an existing document or a user-chosen location. |
 | `ios.md` | — | not reflected | Native iOS platform rules with Simulator verification; Doan canvases are HTML. Derived from ehmo/platform-design-skills, as for `android.md`. |
-| `layout.md` | `layout` | planned | Drop the detector scope and live-mode parameters. |
+| `layout.md` | `layout` | adapted | "Assess the structure", "Set the spatial thesis", "Apply", "Verify". The subagent assessment and detector scan are replaced by a source scan the agent runs; live-mode parameters are dropped. |
 | `live-setup.md` | — | not reflected | Live server configuration, framework injection, and CSP patching. |
-| `live.md` | `generate`, `polish` | planned | Only the variant-planning rules (identity lock, variants that differ on distinct primary axes). |
-| `mode-operate.md` | `shape`, `generate` | planned | Surface-mode questions and constraints only; the concept-roll procedure is not ported. |
-| `mode-persuade.md` | `shape`, `generate` | planned | As above. |
-| `mode-read.md` | `shape`, `generate` | planned | As above. |
-| `new-work.md` | `context`, `shape`, `generate` | adapted (`context`); planned (`shape`, `generate`) | `context` adapts section 1 ("Decide what is already true"). The concept seed, decision page, comp-led build, and finish review are not ported. |
-| `onboard.md` | `onboard` | planned | |
-| `operate.md` | `layout`, `typeset`, `quieter`, `harden` | planned | Operate and Read depth for app and document surfaces. |
-| `optimize.md` | `animate`, `audit`, `harden` | planned | Performance cautions only, as for the `optimize` command. |
-| `overdrive.md` | `animate`, `delight` | planned | As for the `overdrive` command. |
-| `polish.md` | `polish` | planned | Drop critique storage and context or hook directives. |
-| `quieter.md` | `quieter` | planned | |
+| `live.md` | `generate`, `polish` | adapted | `generate`: "Plan the alternatives" (identity lock, default and departure modes, distinct primary axes, squint test) and complete replacements. `polish`: "Lock the identity" (change within the selection). The poll loop, wrap and insert, parameters, accept, and manual-edit flows are not ported. |
+| `mode-operate.md` | `shape`, `generate` | adapted | `shape`: "Name the surface mode". `generate`: "Respect the surface mode". The comp prompts and concept seed are not ported. |
+| `mode-persuade.md` | `shape`, `generate` | adapted | As for `mode-operate.md`. |
+| `mode-read.md` | `shape`, `generate` | adapted | As for `mode-operate.md`. |
+| `new-work.md` | `context`, `shape`, `generate` | adapted | `context` adapts section 1 ("Decide what is already true"). `shape`: "Decide what is already true" and "Name the surface mode" (sections 1-3). `generate`: the identity lock in "Plan the alternatives". The concept seed, decision page, direction contract, comp-led build, and finish review are not ported. |
+| `onboard.md` | `onboard` | adapted | "Assess the need", "Principles", "Patterns", "Avoid", "Verify", plus Doan's "Do not invent product facts". Tour libraries, storage and analytics code, and the `polish` hand-off are dropped; user-testing metrics are reported as unverified. |
+| `operate.md` | `layout`, `typeset`, `quieter`, `harden` | adapted | "Match the surface" (`layout`, `typeset`), "Product surfaces in depth" (`quieter`), and the state vocabulary, loading, empty, and overlay rules under "Draw the states" (`harden`). Rule tags are dropped. |
+| `optimize.md` | `animate`, `audit`, `harden` | adapted | "Keep it smooth" (`animate`), "4. Performance cautions" (`audit`), and "Performance cautions" (`harden`). Bundle, network, API, framework, Core Web Vitals, and monitoring guidance is out of scope. |
+| `overdrive.md` | `animate`, `delight` | adapted | "Set the motion thesis" and "Propose directions for ambitious motion" (`animate`); "Define one delight thesis" and "Propose directions for ambitious ideas" (`delight`). The toolkit catalogue and browser verification loop are not ported. |
+| `polish.md` | `polish` | adapted | "Classify the drift", "Triage", "Polish the path", "Verify". Critique storage, context and hook directives, and native verification are dropped. |
+| `quieter.md` | `quieter` | adapted | "Match the surface", "Assess the intensity", "Plan the refinement", "Refine", "Avoid", "Verify". Color changes go through token CSS; the `polish` hand-off is dropped. |
 | `region-map.md` | — | not reflected | Region maps for approved comp images; part of the image pipeline. |
 | `routing.md` | `context` | adapted | Only the workflow-question rule (advise without executing). The context menu, signals, and detector run are engine behavior; Doan's guide carries its own mapping rules. |
-| `shape.md` | `shape` | planned | |
-| `typeset.md` | `typeset` | planned | Drop the detector scope and live-mode parameters. |
+| `shape.md` | `shape` | adapted | "Ask what will change the result", "Write the brief", "Confirm and stop". The new-work hand-off is replaced by open decisions in the brief; implementation is a separate request. |
+| `typeset.md` | `typeset` | adapted | "Assess the typography", "Set the system", "Apply", "Line breaks", "Verify". Sizes and families come from token CSS variables; the subagent assessment, detector scan, live-mode parameters, and design file update are dropped. |
 | `visualize.md` | — | not reflected | Image generation of comps and plates. |
 
 ## Role documents in `skill/agents/` (4)
@@ -137,8 +136,8 @@ No subagent is ported. Doan's presets are read by the current agent, which does 
 | Upstream file | Doan preset(s) | Status | Notes |
 |---|---|---|---|
 | `impeccable-asset-producer.md` | — | not reflected | Regenerates image plates from a comp spec. |
-| `impeccable-documenter.md` | `document` | planned | Only the principle that a design system is documented from shipped evidence, and floor refusals are not canonized as house style. |
-| `impeccable-finish-reviewer.md` | `critique` | planned | Only the review lens (type, material, ground) and ordered, one-line material fixes; the contract and comp pipeline is not ported. |
+| `impeccable-documenter.md` | `document` | adapted | "Document what shipped": shipped code is the evidence, and quality-floor violations are not recorded as house style. The subagent contract is not ported. |
+| `impeccable-finish-reviewer.md` | `critique` | adapted | "Type, material, ground" and the ordered one-line material fixes in "Report". The disposition vocabulary, input contract, capture checks, and comp pipeline are not ported. |
 | `impeccable-manual-edit-applier.md` | — | not reflected | Applies live-mode manual edit batches. |
 
 ## Decisions the `document` preset must carry
