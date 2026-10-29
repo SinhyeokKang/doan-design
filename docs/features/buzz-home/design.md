@@ -102,6 +102,18 @@
 - 고른 프리셋은 입력 위에 칩(제목, × 제거)으로 보인다. 프리셋을 고르고 입력이 비어 있으면 placeholder가 `Which canvas or screen? Add details…`로 바뀐다. `critique`·`polish`·`harden`·`audit` 등 많은 프리셋이 사람이 지목한 디자인을 다루는데 홈에는 선택한 캔버스가 없어서, 프리셋만 보내면 에이전트가 대상을 되묻는 왕복이 생기기 때문이다. 어떤 프리셋이 대상을 요구하는지는 UI가 알 수 없으므로(ARCHITECTURE §7) 모든 프리셋에 같은 문구를 쓴다. 하나만 고를 수 있고 새로 고르면 바뀐다. Backspace를 빈 입력 맨 앞에서 누르면 칩이 지워진다.
 - 상태: 읽는 중(spinner, '프리셋을 불러오는 중'), 실패(`cli_error`의 `reason`별 문구와 Retry, `request_refused`는 Retry 없이 문구만), 이전 CLI(`list()`가 `usage_error` → '이 doan CLI에는 디자인 프리셋이 없다. Doan을 업데이트한다'), 검색 결과 없음. 어느 실패에서도 프리셋 없이 보낼 수 있다.
 
+### 4.4b 추천 프롬프트 (2026-10-29 user)
+
+같은 날의 '상태 기반 제안 카드 없음' 결정을 대체한다.
+
+- 입력과 칩이 모두 비어 있을 때만 입력창(트레이) 아래 가운데에 칩 3개를 한 줄로 보인다. 하나라도 채워지면 숨긴다. 프로젝트가 없거나 준비된 공급자가 없으면 보이지 않는다.
+- 내용은 순수 함수 `suggestedPrompts(entry)`가 정한다. 프리셋은 `suggestedPresets`와 같은 규칙이고, 대상이 필요한 프리셋에는 캔버스 이름을 채운다(§4.4의 '대상 되묻기' 왕복을 줄인다).
+  - 캔버스 0개 → `Gather design context`(context), `Shape a first screen`(shape), `Document the design system`(document)
+  - 캔버스 있음 → `Document the design system`(design-system 캔버스가 없을 때만), `Critique <가장 최근에 바뀐 캔버스>`(critique), `Polish <그다음으로 최근 캔버스, 없으면 같은 캔버스>`(polish)
+  - CLI 목록에 없는 프리셋은 건너뛰고, 3개가 안 되면 있는 만큼만 보인다.
+- 칩은 subtle sm 버튼에 그 프리셋 그룹의 아이콘을 단다. 칩 문구는 짧고, 채우는 문장은 대상을 명시한다. 예를 들어 `Critique buzz-onboarding`을 누르면 Critique 프리셋 칩과 `Critique the buzz-onboarding canvas (.doan/canvases/buzz-onboarding.html).`이 채워지고 포커스는 입력 끝에 간다. 바로 보내지 않는다.
+- 프로젝트를 바꾸면 다시 계산한다. 같은 방문 동안 프로젝트가 같으면 바뀌지 않는다.
+
 ### 4.4a 프리셋 그룹 (2026-10-29 user)
 
 20개를 한 목록으로 보이면 `critique` 프리셋 자신의 '선택지 8개 이상은 과부하' 기준을 넘는다. upstream(Impeccable, `SOURCES.md`)에는 분류가 없어서 doan이 사람이 하려는 일 기준으로 정한다.
@@ -252,7 +264,7 @@ doan이 다르게 가는 점:
 
 ## 11. 순수 함수 (`/tdd` 대상)
 
-- `homeComposer.ts`: `composeRequest`, `sendAvailability`, `defaultProject`, `defaultProvider`, `suggestedPresets`, `searchPresets`, `presetListView`(실패·이전 CLI·빈 결과), `startErrorView`, `pickGreeting`, `slashQuery`(맨 앞 `/` 판별), `isSubmitKey`(IME 포함)
+- `homeComposer.ts`: `suggestedPrompts`, `composeRequest`, `sendAvailability`, `defaultProject`, `defaultProvider`, `suggestedPresets`, `searchPresets`, `presetListView`(실패·이전 CLI·빈 결과), `startErrorView`, `pickGreeting`, `slashQuery`(맨 앞 `/` 판별), `isSubmitKey`(IME 포함)
 - `homeComposer.ts`(첨부·모델): `attachmentLimit`(개수·크기·형식 판정), `attachmentChipView`, `modelPickerView`, `defaultModel`, `dropTarget`(입력창 위 파일/폴더 구분)
 - `conversationStrip.ts`: `stripState`, `stripView`
 - main `conversation/ipc.ts`: `newDesign` 요청 검증(subject 경로 유지, text 경로 추가), `model`·첨부 ID 검증
@@ -282,5 +294,5 @@ doan이 다르게 가는 점:
 ## 14. 초안 요청
 
 - 캔버스: `.doan/canvases/buzz-home.html`, id `buzz-home`, 폭 2560.
-- 1차(2026-10-29 user: 대표 프레임만 먼저 그려 느낌을 정한다): `home-empty`, `home-filled`, `home-presets`, `home-agent`, `home-effort`, `workspace-strip`.
+- 1차(2026-10-29 user: 대표 프레임만 먼저 그려 느낌을 정한다): `home-empty`(추천 프롬프트 포함), `home-filled`, `home-presets`, `home-agent`, `home-effort`, `workspace-strip`.
 - 2차: 1차가 확정되면 §3.1의 상태 목록을 상태별 프레임으로 넓힌다. `/design-sync`는 2차에 남은 프레임을 대조한다.
