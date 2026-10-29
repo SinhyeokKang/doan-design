@@ -383,6 +383,7 @@ doan이 다르게 가는 점:
 - 1차(2026-10-29 user: 대표 프레임만 먼저 그려 느낌을 정한다): `home-empty`(추천 프롬프트 포함), `home-filled`, `home-drop`, `home-presets`, `home-agent`, `home-effort`, `workspace-strip`.
 - 1차 확정(2026-10-29 user: "디자인은 지금 좋아").
 - 2차(2026-10-29): 창 프레임 `home-preset-only`, `home-slash`, `home-long`, `home-over-limit`, `home-project-menu`, `home-worktree-menu`, `home-no-project`, `home-no-agent`, `home-sending`, `home-refused`, `home-running`, `home-toast`, `workspace-working`, `home-narrow`(960 × 600)과 상태 보드 `states-presets`, `states-agents`, `states-attachments`, `states-strip`, `states-controls`. 모두 26개다. feature-review 반영(D2, 2026-10-29)으로 창 프레임 `home-remove-running`, `home-restore-request`와 보드 `states-slots`, `states-reasons`를 더해 30개가 됐고, 상태줄 실패·중단에 `Edit on Home`과 `turn.failed` 문구를, 공급자 행에 짧은 상태 문구를, `workspace-strip`·`workspace-working`·`home-running`·`home-toast`에 LNB 상태 슬롯을 그렸다. `/design-sync`는 이전 CLI 타일을 뺀 전부를 대조한다. reduced transparency와 forced colors 화면은 그리지 않았고 CSS 규칙으로만 남겼다(실제 앱에서 측정).
+- 2차·D2 30 프레임 확정(2026-10-29 user: "초안 확정").
 - 프리미티브·토큰 점검(2026-10-29 user 요청). 초안의 새 CSS에서 리터럴을 찾아 분류했다.
   - 같은 값의 토큰이 있던 리터럴 63건 중 53건을 토큰으로 바꿨다. 아이콘 14/20px → 새 `--size-icon-sm`·`--size-icon-lg`, 미리보기 상자 32px → `--size-control-sm`, 안쪽 모서리 → `calc(var(--radius-chip) - var(--space-1))`, 입력 최소 높이 → `2 × --type-label-line-height`, 프리셋 칩 → `--size-control`, 첨부 메타 11/14px → caption 역할이다.
   - 남은 10건은 캔버스 전용(목업 그림, 포인터)이거나 출하 CSS에서 복사한 값(`.toast` bottom 20px)이다.

@@ -15,8 +15,8 @@
 
 - [x] D1. `/design-draft`로 `.doan/canvases/buzz-home.html`을 새로 그렸다(26 프레임: 창 21, 상태 보드 5). 홈 전용 violet 타원 배경(grain 없음), 인사 문구, 워크스페이스 임시 상태줄. 사용자가 2026-10-29에 확정했다(`da67ab1e`). 기존 `projects-home.html`은 고치지 않았다.
   - 검증: `go run ./cli/cmd/doan check --repo .` 오류 없음, `go run ./cli/cmd/doan ls --repo .`에 `buzz-home`(26 프레임) 표시.
-- [x] D2. 리뷰로 생긴 화면 변경을 초안에 반영했다(30 프레임, 2026-10-29): LNB 상태 슬롯(design §7.2), 실패·중단 상태줄의 `Edit on Home`과 실패 문구 표(§7), 미준비 공급자의 짧은 상태 문구(§4.3), `{{`·첨부 확인 중 이유 줄(§4.5), 진행 중 제거 확인(§7.5), 마지막 요청 되돌리기 확인(§7.4).
-  - 검증: `go run ./cli/cmd/doan check --repo .` 오류 없음, `go run ./cli/cmd/doan ls --repo .`의 프레임 30개가 design §14와 같음. 사용자 확인은 구현 전에 받는다.
+- [x] D2. 리뷰로 생긴 화면 변경을 초안에 반영했다(30 프레임, 2026-10-29): LNB 상태 슬롯(design §7.2), 실패·중단 상태줄의 `Edit on Home`과 실패 문구 표(§7), 미준비 공급자의 짧은 상태 문구(§4.3), `{{`·첨부 확인 중 이유 줄(§4.5), 진행 중 제거 확인(§7.5), 마지막 요청 되돌리기 확인(§7.4). 사용자가 2026-10-29에 확정했다.
+  - 검증: `go run ./cli/cmd/doan check --repo .` 오류 없음, `go run ./cli/cmd/doan ls --repo .`의 프레임 30개가 design §14와 같음.
 
 ── commit: `docs(design): buzz-home draft revision` ──
 
