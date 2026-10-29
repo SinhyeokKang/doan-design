@@ -38,13 +38,13 @@ class FakeProcess implements AuthProcess {
 let stopReleases = true;
 const fileProvider = (status: (dir: string) => CheckResult): ProviderAuth => ({
   command: "fake-cli", args: [], env: { FAKE_STORE: "file" }, login: ["login"], status: ["status"], logout: null,
-  vault: ["creds/token.json"], plaintext: [], settings: { "conf/settings.json": '{"storeTokenPlaintext":true}' }, acpAuth: null, acp: null, verifyByRun: false, hookLink: null,
+  vault: ["creds/token.json"], plaintext: [], settings: { "conf/settings.json": '{"storeTokenPlaintext":true}' }, acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false,
   parseStatus: run => run.code === 0 ? status(run.profileDir) : { status: "failed", code: "check_failed" },
 });
 // Antigravity's shape: sign-in, status and sign-out are ACP calls on one server binary.
 const acpProvider = (): ProviderAuth => ({
   command: "fake-server", args: [], env: {}, login: [], status: [], logout: null, vault: ["creds/token.json"], plaintext: [], settings: {},
-  acpAuth: { method: "oauth-personal", agent: "fake-acp", version: "1.3.0" }, acp: { args: [], authenticate: "oauth-personal", sessions: "sessions" }, verifyByRun: false, hookLink: null,
+  acpAuth: { method: "oauth-personal", agent: "fake-acp", version: "1.3.0" }, acp: { args: [], authenticate: "oauth-personal", sessions: "sessions" }, verifyByRun: false, hookLink: null, loginClears: false,
   parseStatus: run => run.code === 2 ? { status: "disconnected" } : run.code === 0 ? { status: "connected", account: { id: null, workspace: null } } : { status: "failed", code: "check_failed", detail: run.stderr },
 });
 const INIT = { protocolVersion: 1, agentInfo: { name: "fake-acp", version: "1.3.0" }, authMethods: [{ id: "oauth-personal" }], agentCapabilities: { loadSession: true } };
@@ -62,7 +62,7 @@ const googleLink = (port: number) => `https://accounts.google.com/o/oauth2/v2/au
 const withAcp = () => ({ claude: keychainProvider(() => keychain), codex: keychainProvider(() => keychain), cursor: fileProvider(tokenAccount), antigravity: acpProvider(), copilot: fileProvider(tokenAccount) });
 const keychainProvider = (status: () => CheckResult): ProviderAuth => ({
   command: "fake-cli", args: ["-c", "store=keyring"], env: {}, login: ["login"], status: ["status"], logout: ["logout"],
-  vault: null, plaintext: ["auth.json"], settings: {}, acpAuth: null, acp: null, verifyByRun: false, hookLink: null, parseStatus: run => run.code === 0 ? status() : { status: "failed", code: "check_failed" },
+  vault: null, plaintext: ["auth.json"], settings: {}, acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false, parseStatus: run => run.code === 0 ? status() : { status: "failed", code: "check_failed" },
 });
 const tokenAccount = (dir: string): CheckResult => {
   const path = join(dir, "creds/token.json");
@@ -508,6 +508,16 @@ describe("a replacement that does not finish", () => {
     expect(await failed.done).toMatchObject({ phase: "connected", connection, verified: true, error: { code: "sign_in_failed" } });
     // The live login is never logged out for a replacement.
     expect(processes.filter(p => p.step === "logout")).toEqual([]);
+  });
+  it("unverifies a connection whose provider clears the existing login as soon as its login starts (Codex)", async () => {
+    const m = manager({ adapters: { ...withAcp(), codex: { ...keychainProvider(() => keychain), loginClears: true } } }); await m.load();
+    keychain = { status: "connected", account: { id: null, workspace: null } };
+    const first = started(await m.signIn("codex", 7)); await finish("login", 0); await finish("status", 0);
+    const connection = (await first.done).connection;
+    const run = started(await m.signIn("codex", 7));
+    await next("login");
+    await m.cancel("codex", run.attemptId, 7);
+    expect(await run.done).toMatchObject({ connection, verified: false });
   });
   it("unverifies a keychain connection once its login finished, since the profile may hold the new login", async () => {
     const m = manager(); await m.load();
